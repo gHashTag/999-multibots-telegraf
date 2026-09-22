@@ -193,7 +193,27 @@ describe('the person never outruns the token', () => {
     expect(editorStore.get(userAtom)).toMatchObject({ id: 42, is_admin: false })
   })
 
-  it('does not replace a person already in the tab', async () => {
+  it('keeps the same person as they are, admin mark included', async () => {
+    const { userAtom } = await import('../../atoms/user')
+    const { editorStore } = await import('../../atoms/Provider')
+    editorStore.set(userAtom, {
+      id: 7,
+      first_name: 'Here',
+      auth_date: 1,
+      is_admin: true,
+    })
+    window.dispatchEvent(
+      new CustomEvent(APP_SESSION_PERSON, {
+        detail: { id: 7, first_name: 'Here', auth_date: 2 },
+      })
+    )
+    expect(editorStore.get(userAtom)).toMatchObject({ id: 7, is_admin: true })
+  })
+
+  it('shows whoever the token now acts as, when that is someone else', async () => {
+    // The browser keeps one cookie; another tab signing in as another account
+    // moves this tab's requests to that account. The header must follow, or
+    // it names one person while every request acts as another.
     const { userAtom } = await import('../../atoms/user')
     const { editorStore } = await import('../../atoms/Provider')
     editorStore.set(userAtom, { id: 7, first_name: 'Here', auth_date: 1 })
@@ -202,7 +222,10 @@ describe('the person never outruns the token', () => {
         detail: { id: 42, first_name: 'Other', auth_date: 1 },
       })
     )
-    expect(editorStore.get(userAtom)).toMatchObject({ id: 7 })
+    expect(editorStore.get(userAtom)).toMatchObject({
+      id: 42,
+      is_admin: false,
+    })
   })
 
   it('leaves with the session, in the store the app renders', async () => {
@@ -291,5 +314,43 @@ describe('the brake is not spent during a backoff', () => {
     vi.stubGlobal('fetch', fresh)
     await refreshAppSession()
     expect(fresh).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('a duplicated tab whose copy of the token was already rotated', () => {
+  afterEach(() => {
+    clearAppSession()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('ends its own session and does not present the spent copy again', async () => {
+    // Duplicate Tab copies sessionStorage, so two tabs hold one token. The
+    // other tab rotated it; its successor is in that tab's storage only. A
+    // second presentation after the server's grace window is reuse, which
+    // revokes the family and signs the other tab out too.
+    storeAppSession({
+      access_token: 'a', // secret-guard-ok: invented test value
+      refresh_token: 'shared-copy', // secret-guard-ok: invented test value
+      expires_in: 600,
+    })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(reply(409, { error: 'auth_refresh_raced' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const cleared = vi.fn()
+    window.addEventListener(APP_SESSION_CLEARED, cleared)
+
+    const outcome = await refreshAppSession().then(
+      () => 'renewed',
+      (error: unknown) => error
+    )
+
+    window.removeEventListener(APP_SESSION_CLEARED, cleared)
+    expect(outcome).toBeInstanceOf(Error)
+    expect(outcome).not.toBeInstanceOf(TransientSessionError)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(cleared).toHaveBeenCalled()
+    expect(hasRenewableAppSession()).toBe(false)
   })
 })

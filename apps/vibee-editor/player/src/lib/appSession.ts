@@ -516,6 +516,18 @@ export async function refreshAppSession(): Promise<AppSession> {
             return session
           }
         }
+        /*
+         * NO WINNER WROTE HERE, SO THIS TAB'S COPY IS SPENT.
+         *
+         * The tab that won holds the successor in its own storage -- a
+         * duplicated tab copies sessionStorage, and neither can write into the
+         * other. Presenting this copy again after the server's grace window is
+         * reuse, which revokes the family and signs the winner out too
+         * (review, 2026-09-22: the first version retried it as transient).
+         * End this tab's session alone, as before; the other keeps its own.
+         */
+        if (generation === sessionGeneration) clearAppSession()
+        throw new Error('this tab’s refresh token was rotated in another tab')
       }
     }
 
@@ -726,12 +738,32 @@ export async function exchangeTelegramLaunch(
 export async function exchangeTelegramWidget(
   payload: Record<string, unknown>
 ): Promise<AppSession> {
-  const response = await fetch(authUrl('/api/auth/widget'), {
-    method: 'POST',
-    credentials: authCredentials(),
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(payload),
-  })
+  let response: Response
+  try {
+    response = await fetch(authUrl('/api/auth/widget'), {
+      method: 'POST',
+      credentials: authCredentials(),
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    /*
+     * THE COOKIE DOOR IS UNREACHABLE: SIGN IN THE WAY THAT ALWAYS WORKED.
+     *
+     * A fetch throws before any reply when auth.t27.ai does not answer, its
+     * certificate is not there, or a render rolled back to a build without its
+     * CORS refuses the preflight -- and in each case the request never reached
+     * the door. Without this, nobody could sign in on the web until someone
+     * noticed (review, 2026-09-22). The API host answers as it did before the
+     * move: the refresh token comes back in the body and stays in this tab.
+     */
+    if (!cookieTransportAvailable()) throw error
+    response = await fetch(`${API_BASE}/api/auth/widget`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  }
   const body = (await response
     .json()
     .catch(() => ({}))) as Partial<AppSession> & {

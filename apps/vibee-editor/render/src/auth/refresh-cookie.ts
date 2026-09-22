@@ -172,6 +172,14 @@ interface CorsResponse {
 }
 
 /**
+ * The request headers the render admits from any origin (render-server.ts sets
+ * this on every reply). One constant, so the sign-in doors below can only ADD
+ * to it.
+ */
+export const BASE_ALLOW_HEADERS =
+  'Content-Type, Authorization, X-Filename, X-Api-Key, X-Agent-Key, X-Telegram-Init-Data'
+
+/**
  * Credentialed CORS for the sign-in doors, from app.t27.ai only.
  *
  * The render answers every request with `Access-Control-Allow-Origin: *`, and
@@ -181,6 +189,14 @@ interface CorsResponse {
  * credentials and admits the transport header. Anything else, including a
  * sibling on t27.ai, keeps `*` and gets no credentials, which is the forgery
  * gate: another origin cannot send X-Session-Transport with the cookie.
+ *
+ * ADD TO THE LIST, NEVER REPLACE IT. The first version answered these paths
+ * with `Content-Type, Authorization, x-session-transport` and a POST-only
+ * method list. The Mini App's own doors are under /api/auth/ too -- pair/start
+ * and game-token send X-Telegram-Init-Data -- and their preflight from
+ * app.t27.ai was then refused, with cookie mode off, on the API host as well
+ * as here (review, 2026-09-22). So the headers are the render's own list plus
+ * one, and the methods are left as the render answers them.
  */
 export function applyAuthCors(
   req: HasHeaders & { url?: string },
@@ -193,8 +209,36 @@ export function applyAuthCors(
   res.setHeader('Access-Control-Allow-Credentials', 'true')
   res.setHeader(
     'Access-Control-Allow-Headers',
-    `Content-Type, Authorization, ${SESSION_TRANSPORT_HEADER}`
+    `${BASE_ALLOW_HEADERS}, X-Session-Transport`
   )
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Vary', 'Origin')
+}
+
+/** The render's custom domain that holds the refresh cookie. */
+export const AUTH_HOST = 'auth.t27.ai'
+
+/**
+ * AUTH.T27.AI ANSWERS THE SIGN-IN DOORS AND NOTHING ELSE.
+ *
+ * It is a custom domain of the WHOLE render, and the render serves things
+ * whose bytes a person chooses: /s3/ returns an upload with the Content-Type
+ * its uploader sent, so an .svg or a text/html "image" runs as a page. On
+ * auth.t27.ai that page is same-origin with the sign-in doors: it cannot read
+ * the HttpOnly cookie, but it can POST /api/auth/refresh with it and read the
+ * reply -- a fresh access token for whoever opened the link (review,
+ * 2026-09-22). So on this host every path but /api/auth/* and /health is 404
+ * before any other route runs. The render's other hosts are unaffected.
+ *
+ * The Host the edge forwards is the one the browser asked for; a browser
+ * cannot send another for this origin, which is the case that matters.
+ */
+export function authHostRefuses(req: HasHeaders & { url?: string }): boolean {
+  const forwarded = header(req, 'x-forwarded-host').split(',')[0].trim()
+  const host = (forwarded || header(req, 'host'))
+    .trim()
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+  if (host !== AUTH_HOST) return false
+  const path = String(req.url ?? '').split('?')[0]
+  return !(path.startsWith('/api/auth/') || path === '/health')
 }

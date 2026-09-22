@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   APP_ORIGIN,
+  BASE_ALLOW_HEADERS,
   REFRESH_COOKIE_NAME,
   REFRESH_COOKIE_PATH,
   applyAuthCors,
+  authHostRefuses,
   clearedRefreshCookie,
   isSecureRequest,
   readRefreshCookie,
@@ -149,8 +151,29 @@ describe('credentialed CORS for the sign-in doors', () => {
     const h = run('/api/auth/refresh', APP_ORIGIN)
     expect(h['Access-Control-Allow-Origin']).toBe(APP_ORIGIN)
     expect(h['Access-Control-Allow-Credentials']).toBe('true')
-    expect(h['Access-Control-Allow-Headers']).toContain('x-session-transport')
+    expect(h['Access-Control-Allow-Headers'].toLowerCase()).toContain(
+      'x-session-transport'
+    )
     expect(h.Vary).toBe('Origin')
+  })
+
+  it("keeps every header the render admits, so the Mini App's own doors still pass", () => {
+    // pair/start and game-token live under /api/auth/ and send
+    // X-Telegram-Init-Data. The first version answered this origin with a
+    // three-header list and their preflight was refused -- cookie mode off.
+    for (const path of ['/api/auth/pair/start', '/api/auth/game-token']) {
+      const allowed = run(path, APP_ORIGIN)['Access-Control-Allow-Headers']
+      for (const name of BASE_ALLOW_HEADERS.split(', ')) {
+        expect(allowed, `${path} lost ${name}`).toContain(name)
+      }
+      expect(allowed).toContain('X-Telegram-Init-Data')
+    }
+  })
+
+  it('leaves the methods as the render answers them', () => {
+    expect(run('/api/auth/refresh', APP_ORIGIN)).not.toHaveProperty(
+      'Access-Control-Allow-Methods'
+    )
   })
 
   it('gives nothing to a sibling on the same site', () => {
@@ -173,5 +196,43 @@ describe('credentialed CORS for the sign-in doors', () => {
     expect(
       run('/api/auth/refresh?x=1', APP_ORIGIN)['Access-Control-Allow-Origin']
     ).toBe(APP_ORIGIN)
+  })
+})
+
+describe('auth.t27.ai answers the sign-in doors and nothing else', () => {
+  const on = (host: string, url: string, forwarded?: string) =>
+    authHostRefuses({
+      url,
+      headers: {
+        host,
+        ...(forwarded ? { 'x-forwarded-host': forwarded } : {}),
+      },
+    })
+
+  it('serves the sign-in doors and the health check', () => {
+    expect(on('auth.t27.ai', '/api/auth/refresh')).toBe(false)
+    expect(on('auth.t27.ai', '/api/auth/widget?x=1')).toBe(false)
+    expect(on('auth.t27.ai', '/health')).toBe(false)
+  })
+
+  it('refuses an upload, whose bytes and type a person chose', () => {
+    // An .svg or a text/html "image" served here would be same-origin with
+    // the doors: it could spend the cookie and read the fresh access token.
+    expect(on('auth.t27.ai', '/s3/assets/1-x.svg')).toBe(true)
+    expect(on('auth.t27.ai', '/')).toBe(true)
+    expect(on('auth.t27.ai', '/api/feed')).toBe(true)
+    expect(on('auth.t27.ai', '/api/authx/refresh')).toBe(true)
+  })
+
+  it('reads the host the edge forwards, case and port aside', () => {
+    expect(on('internal:8080', '/s3/x.svg', 'auth.t27.ai')).toBe(true)
+    expect(on('AUTH.T27.AI:443', '/s3/x.svg')).toBe(true)
+  })
+
+  it("leaves the render's other hosts alone", () => {
+    expect(on('vibee-render-production.up.railway.app', '/s3/x.svg')).toBe(
+      false
+    )
+    expect(on('app.t27.ai', '/s3/x.svg')).toBe(false)
   })
 })
