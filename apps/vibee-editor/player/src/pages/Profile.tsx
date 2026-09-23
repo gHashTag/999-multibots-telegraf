@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { UserX } from 'lucide-react'
+import { UserX, Lock } from 'lucide-react'
 import {
   viewedProfileAtom,
   profileLoadingAtom,
@@ -226,6 +226,35 @@ export function ProfilePage() {
                   />
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  /*
+   * NOT FOUND AND NOT FOR YOU ARE DIFFERENT ANSWERS.
+   *
+   * Owner, 2026-09-23: profiles are for club members, by payment. The server
+   * answers 403 `club_only`, and this screen is the reason it is worth
+   * distinguishing: "user not found" would send a person to look for a typo
+   * in a name that is perfectly correct, and support would hear about a
+   * broken link instead of the club hearing about a new member.
+   */
+  if (error === 'club_only') {
+    return (
+      <>
+        <Header />
+        <div className="profile-page">
+          <div className="profile-page__container">
+            <div className="profile-page__error profile-page__club">
+              <Lock size={64} />
+              <h2>{t('profile.club_only')}</h2>
+              <p>{t('profile.club_only_desc')}</p>
+              <Link to="/profile" className="profile-page__error-home">
+                {t('profile.club_only_cta')}
+              </Link>
             </div>
           </div>
         </div>
