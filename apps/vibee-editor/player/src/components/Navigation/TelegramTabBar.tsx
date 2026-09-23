@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Home, User, Bot, Sparkles, Hexagon, Globe } from 'lucide-react'
+import { Home, User, Users, Sparkles, Hexagon, Globe } from 'lucide-react'
 import { myProfileAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { revealInStrip } from '@/components/Profile/revealInStrip'
@@ -38,7 +38,7 @@ interface TabItem {
  */
 const TAB_ICONS: Record<PrimaryTabId, React.ReactNode> = {
   feed: <Home size={20} />,
-  chat: <Bot size={20} />,
+  chat: <Users size={20} />,
   // The person's own browser. A globe: it is the open web, not a tool.
   browser: <Globe size={20} />,
   ai: <Sparkles size={20} />,
