@@ -194,6 +194,9 @@ describe('every press is answered first, and only for the owner in a private cha
       'crm:mute:900000001',
       'crm:later:900000001',
       'crm:refuse:900000001',
+      // Not a client at all: one press asks, the second deletes the cached
+      // correspondence and keeps the next ingest from bringing them back.
+      'crm:drop:900000001',
       'crm:leads',
       'crm:menu',
     ])

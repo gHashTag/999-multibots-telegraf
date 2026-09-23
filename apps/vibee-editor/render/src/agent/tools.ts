@@ -951,6 +951,7 @@ import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
+import { CRM_DROP_TOOLS } from './crm-drop-tool'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
@@ -3098,6 +3099,11 @@ TOOLS.push(
   })
 )
 TOOLS.push(...CRM_MEMORY_TOOLS)
+/*
+ * Removing a person from the CRM is the owner's own housekeeping: it reaches
+ * the seller's own cache only, and `requireSeller` keeps it there.
+ */
+TOOLS.push(...CRM_DROP_TOOLS)
 TOOLS.push(...CRM_SUMMARY_TOOLS)
 TOOLS.push(...CRM_SELLERS_TOOLS)
 // The Leela handshake: owner-only, both accounts connected (crm-agent-link-tool.ts).
@@ -3251,6 +3257,11 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
  * The next lever, if 4k turns out to be too tight, is the DESCRIPTIONS --
  * browser_ask_permission alone is 254 tokens of prose -- not dropping tools.
  *
+ * `crm_drop` is excluded for the same reason, and one more: it is the owner's
+ * housekeeping, pressed from a menu, never something a model should reach for
+ * mid-conversation. Removing a person from the CRM is not a step in selling
+ * to them.
+ *
  * `club_invoice` is NOT in the kit, and that is a decision, not an omission
  * (2026-09-22). The kit measured 6988 of 7000 the day it arrived and the tool
  * is 263 tokens on its own (7251 with it); more to the point, the kit is the seller's, who
@@ -3261,7 +3272,7 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of

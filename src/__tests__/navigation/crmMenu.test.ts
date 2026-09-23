@@ -19,6 +19,9 @@ import {
   afterSentKeyboard,
   afterCancelKeyboard,
   afterTurnKeyboard,
+  afterDropKeyboard,
+  autopilotButton,
+  autopilotSentKeyboard,
   failKeyboard,
   summaryKeyboard,
   nextOf,
@@ -152,10 +155,14 @@ describe('what each keyboard offers', () => {
       `crm:mute:${LEAD}`,
       `crm:later:${LEAD}`,
       `crm:refuse:${LEAD}`,
+      // Not a client at all: the cached correspondence goes and the ingest
+      // does not bring them back. Two presses, like a refusal.
+      `crm:drop:${LEAD}`,
       'crm:leads',
       'crm:menu',
     ])
     expect(plain).not.toContain(`crm:refuse!:${LEAD}`)
+    expect(plain).not.toContain(`crm:drop!:${LEAD}`)
     // Writing it yourself needs the chat, and the agent quiet while you are
     // in it -- both on one row, beside each other.
     const rows = leadMenu(LEAD).reply_markup.inline_keyboard
@@ -329,5 +336,73 @@ describe('at most two buttons per row, everywhere', () => {
       [b('c')],
       [b('d')],
     ])
+  })
+})
+
+describe('deleting a person from the CRM', () => {
+  it('asks a second time, and that screen offers only the two answers', () => {
+    const confirm = allCallbacks(leadMenu(LEAD, { confirmDrop: true }))
+    expect(confirm).toContain(`crm:drop!:${LEAD}`)
+    expect(confirm).toContain(`crm:back:${LEAD}`)
+    // Not the refusal's confirmation, and not a prepare: a destructive
+    // second press is not the moment to offer other things to tap.
+    expect(confirm).not.toContain(`crm:refuse!:${LEAD}`)
+    expect(confirm).not.toContain(`crm:prep:${LEAD}`)
+  })
+
+  it('the way back is the only thing offered about that person afterwards', () => {
+    const after = allCallbacks(afterDropKeyboard(LEAD))
+    expect(after[0]).toBe(`crm:undrop:${LEAD}`)
+    expect(after.some(d => d.includes(`prep:${LEAD}`))).toBe(false)
+  })
+
+  it('both verbs parse, and nothing else sneaks into the grammar', () => {
+    expect(parseCrmCallback(`crm:drop:${LEAD}`)).toEqual({
+      kind: 'lead',
+      verb: 'drop',
+      bang: false,
+      id: LEAD,
+    })
+    expect(parseCrmCallback(`crm:drop!:${LEAD}`)).toEqual({
+      kind: 'lead',
+      verb: 'drop!',
+      bang: true,
+      id: LEAD,
+    })
+    expect(parseCrmCallback('crm:drop:@someone')).toBeNull()
+    expect(parseCrmCallback('crm:drop')).toBeNull()
+  })
+})
+
+describe('the autopilot switch', () => {
+  it('off, it offers to turn on; on, it says until when and stops it', () => {
+    expect((autopilotButton({ on: false }) as any).callback_data).toBe(
+      'crm:auto'
+    )
+    const on = autopilotButton({
+      on: true,
+      until: new Date(2026, 8, 23, 20, 5),
+    })
+    expect((on as any).callback_data).toBe('crm:autooff')
+    expect((on as any).text).toContain('20:05')
+  })
+
+  it('is on the home menu, in both states', () => {
+    expect(allCallbacks(rootMenu())).toContain('crm:auto')
+    expect(allCallbacks(rootMenu({ on: true }))).toContain('crm:autooff')
+  })
+
+  it('the receipt of an automatic send carries the stop first', () => {
+    const after = allCallbacks(autopilotSentKeyboard(LEAD))
+    expect(after[0]).toBe('crm:autooff')
+    expect(after).toContain(`crm:lead:${LEAD}`)
+  })
+
+  it('both verbs parse as root verbs', () => {
+    expect(parseCrmCallback('crm:auto')).toEqual({ kind: 'root', verb: 'auto' })
+    expect(parseCrmCallback('crm:autooff')).toEqual({
+      kind: 'root',
+      verb: 'autooff',
+    })
   })
 })
