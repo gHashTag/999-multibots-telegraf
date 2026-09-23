@@ -323,6 +323,19 @@ export async function спроситьАгента(
   /** Where the answer will be shown; the server shapes the prompt by it. */
   opts: {
     surface?: 'bot' | 'business'
+    /**
+     * WHOSE CHAT THIS IS, on the business surface: the account the Telegram
+     * business connection belongs to.
+     *
+     * Without it the render has to guess the seller, and its only guess was
+     * `OWNER_TELEGRAM_ID` -- one id for the whole platform. A second seller's
+     * client was then answered out of the PLATFORM OWNER's correspondence,
+     * client packages and debts, in his voice (owner, 2026-09-23).
+     *
+     * Digits only, and it travels from here because only the bot sees the
+     * connection object it comes from.
+     */
+    seller?: string
     /** Only a model that calls tools may answer (the unattended sweep). */
     toolsOnly?: boolean
     /**
@@ -395,6 +408,9 @@ export async function спроситьАгента(
         body: JSON.stringify({
           messages,
           surface: opts.surface ?? 'bot',
+          ...(opts.seller && /^\d{5,15}$/.test(opts.seller)
+            ? { seller_id: opts.seller }
+            : {}),
           ...(opts.toolsOnly ? { tools_only: true } : {}),
           ...(opts.personNote ? { person_note: opts.personNote } : {}),
           ...(opts.faceOf && /^\d{5,15}$/.test(opts.faceOf)
