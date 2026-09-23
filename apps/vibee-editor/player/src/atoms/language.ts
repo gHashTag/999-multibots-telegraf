@@ -209,7 +209,7 @@ const en: Translations = {
   'crm.auto.turnOff': 'Turn AUTO off',
   'crm.auto.unreachable': 'the switch could not be read',
   'crm.score.line':
-    'Last {days} days: {auto} went out by itself, {pressed} you sent — {share} without you',
+    'Last {days} days: {answered} answered in your chats, {auto} cards went out by themselves, {pressed} you sent — {share} without you',
   'crm.score.before': 'the week before: {left} left, {share} without you',
   'crm.score.empty': 'Last {days} days: nothing has gone out yet',
   'crm.auto.scope': 'Who it may write to',
@@ -2399,7 +2399,7 @@ const ru: Translations = {
   'crm.auto.turnOff': 'Выключить AUTO',
   'crm.auto.unreachable': 'состояние переключателя не прочитано',
   'crm.score.line':
-    'За {days} дней: {auto} ушло само, {pressed} отправил ты — {share} без тебя',
+    'За {days} дней: {answered} ответов в твоих чатах, {auto} карточек ушло само, {pressed} отправил ты — {share} без тебя',
   'crm.score.before': 'неделей раньше: ушло {left}, без тебя {share}',
   'crm.score.empty': 'За {days} дней ничего ещё не уходило',
   'crm.auto.scope': 'Кому можно писать',

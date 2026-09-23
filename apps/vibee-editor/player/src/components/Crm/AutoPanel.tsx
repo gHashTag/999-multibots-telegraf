@@ -153,6 +153,7 @@ export function AutoPanel() {
             ? t('crm.score.empty', { days: score.data.days })
             : t('crm.score.line', {
                 days: score.data.days,
+                answered: score.data.dmAnswered,
                 auto: score.data.autoSent,
                 pressed: score.data.pressedSent,
                 share:

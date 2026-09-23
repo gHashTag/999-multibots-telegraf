@@ -836,6 +836,8 @@ export const loadSegment = async (segment: Segment, limit = 30) =>
  */
 export interface Outcomes {
   days: number
+  /** Answers the agent gave clients in his chats, with no press at all. */
+  dmAnswered: number
   autoSent: number
   pressedSent: number
   cancelled: number
@@ -849,6 +851,7 @@ export interface Outcomes {
   before: {
     autoSent: number
     pressedSent: number
+    dmAnswered: number
     left: number
     withoutYouPercent: number | null
   } | null
@@ -856,6 +859,7 @@ export interface Outcomes {
 
 const toOutcomes = (r: Record<string, unknown>): Outcomes => ({
   days: num(r['days']) ?? 7,
+  dmAnswered: num(r['dm_answered']) ?? 0,
   autoSent: num(r['auto_sent']) ?? 0,
   pressedSent: num(r['pressed_sent']) ?? 0,
   cancelled: num(r['cancelled']) ?? 0,
@@ -870,6 +874,7 @@ const toOutcomes = (r: Record<string, unknown>): Outcomes => ({
     const o = b as Record<string, unknown>
     return {
       autoSent: num(o['auto_sent']) ?? 0,
+      dmAnswered: num(o['dm_answered']) ?? 0,
       pressedSent: num(o['pressed_sent']) ?? 0,
       left: num(o['left']) ?? 0,
       withoutYouPercent: num(o['without_you_percent']),

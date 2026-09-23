@@ -124,6 +124,7 @@ const answers = (): Record<string, unknown> => ({
   autopilot_set: autopilot,
   crm_outcomes: {
     days: 7,
+    dm_answered: 263,
     auto_sent: 6,
     pressed_sent: 3,
     cancelled: 1,
@@ -308,7 +309,7 @@ describe('the measured figure', () => {
     // The key carries its numbers: 7 days, 6 automatic, 3 pressed, 67%.
     await settle()
     const panel = host.querySelector('.crm-auto')?.textContent ?? ''
-    expect(panel, panel).toContain('crm.score.line:7,6,3,67%')
+    expect(panel, panel).toContain('crm.score.line:7,263,6,3,67%')
   })
 
   it('does not print a made-up zero when nothing has gone out', async () => {
@@ -338,7 +339,7 @@ describe('the week before', () => {
     await screen()
     await settle()
     const panel = host.querySelector('.crm-auto')?.textContent ?? ''
-    expect(panel).toContain('crm.score.line:7,6,3,67%')
+    expect(panel).toContain('crm.score.line:7,263,6,3,67%')
     expect(panel).toContain('crm.score.before:10,10%')
   })
 
