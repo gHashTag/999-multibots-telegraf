@@ -100,7 +100,12 @@ describe('clientBriefBlock', () => {
       { sayWhenMissing: true }
     )
     expect(b.text).toContain('не настроен')
-    expect(b.text).toContain('SOUL клиента: есть')
+    /*
+     * Since crm-reach, SOUL is read only for a person who is yours (profile
+     * or reach). Here there is neither, so the brief says the private half
+     * was not read -- not the false "she never wrote one".
+     */
+    expect(b.text).toContain('SOUL и скиллы клиента не читались')
   })
 
   it('a dead table costs the package, not the answer', async () => {

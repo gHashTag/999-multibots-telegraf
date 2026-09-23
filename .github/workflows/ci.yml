@@ -46,6 +46,15 @@ jobs:
               - 'scripts/**'
               - '*.ts'
               - '*.js'
+              # Everything that actually ships lives under apps/: the API
+              # server is apps/vibee-editor/render/render-server.ts and the
+              # player is apps/vibee-editor/player/. Without these two lines
+              # the filter never fired on product code, every downstream job
+              # was skipped, and the aggregator printed a green tick over a
+              # run that had checked nothing. Measured on runs 35570392140,
+              # 35569087345 and 35568596969, all on main.
+              - 'apps/**'
+              - 'packages/**'
             deps:
               - 'package.json'
               - 'package-lock.json'
@@ -342,25 +351,62 @@ jobs:
   all-checks:
     name: All Checks Passed
     runs-on: ubuntu-latest
-    needs: [security-and-quality, test, build, docker-check]
+    needs: [changes, security-and-quality, test, build, docker-check]
     if: always()
     steps:
+      # `skipped` is not `passed`. The old version failed only on the literal
+      # word "failure", so a job the change filter never started read as a
+      # success and "All checks passed!" was printed over a run that executed
+      # nothing at all. The rule now: if the filter says product code changed,
+      # the job it gates MUST be success. If nothing relevant changed, skipped
+      # is honest and allowed.
       - name: Check all jobs
+        env:
+          SRC: ${{ needs.changes.outputs.src }}
+          DEPS: ${{ needs.changes.outputs.deps }}
+          DOCKER: ${{ needs.changes.outputs.docker }}
+          HAS_TESTS: ${{ needs.changes.outputs.has_tests }}
+          QUALITY: ${{ needs.security-and-quality.result }}
+          TESTS: ${{ needs.test.result }}
+          BUILD: ${{ needs.build.result }}
+          DOCKER_CHECK: ${{ needs.docker-check.result }}
         run: |
-          # Проверяем обязательные джобы
-          if [[ "${{ needs.security-and-quality.result }}" == "failure" || 
-                "${{ needs.build.result }}" == "failure" || 
-                "${{ needs.docker-check.result }}" == "failure" ]]; then
+          set -u
+          failed=0
+
+          # required <job name> <its result> <was it supposed to run>
+          required() {
+            local name="$1" result="$2" expected="$3"
+            if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
+              echo "❌ $name: $result"
+              failed=1
+            elif [[ "$expected" == "true" && "$result" != "success" ]]; then
+              echo "❌ $name: $result — this job had to run for this change set"
+              failed=1
+            else
+              echo "✓ $name: $result"
+            fi
+          }
+
+          product_changed=false
+          if [[ "$SRC" == "true" || "$DEPS" == "true" ]]; then product_changed=true; fi
+
+          docker_expected=false
+          if [[ "$DOCKER" == "true" || "$SRC" == "true" ]]; then docker_expected=true; fi
+
+          tests_expected=false
+          if [[ "$HAS_TESTS" == "true" && "$product_changed" == "true" ]]; then tests_expected=true; fi
+
+          required "Security & Code Quality" "$QUALITY" "$product_changed"
+          required "Build & Package"         "$BUILD"   "$product_changed"
+          required "Docker Build Check"      "$DOCKER_CHECK" "$docker_expected"
+          required "Tests"                   "$TESTS"   "$tests_expected"
+
+          if [[ "$failed" == "1" ]]; then
             echo "❌ Critical checks failed!"
             exit 1
           fi
-          
-          # Проверяем тесты только если они должны были запуститься
-          if [[ "${{ needs.test.result }}" == "failure" ]]; then
-            echo "❌ Tests failed!"
-            exit 1
-          fi
-          
+
           echo "✅ All checks passed!"
 
   # Уведомления о статусе

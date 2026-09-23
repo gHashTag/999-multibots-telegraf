@@ -6,6 +6,7 @@ import { whoPaid, askSupabase, visibleScope } from './crm-tools'
 import { stageOf } from './crm-stages'
 import { SEGMENTS, type Segment } from './crm-segments'
 import { balanceOf } from './billing-shared'
+import { ownsLead } from './crm-reach'
 import { touchedSince, touchesFor } from './crm-touches'
 import {
   rememberPerson,
@@ -432,9 +433,21 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
        * out of the touches. Loaded lazily: the delivery module pulls in
        * billing and Telegram, which reading a context does not otherwise need.
        */
+      /*
+       * Every other read on this line carries `owner`: personOf, leadContext,
+       * touchesFor and zepContext are all scoped to the caller, so a stranger's
+       * lead comes back as an empty shell. `balanceOf` is the one helper that
+       * takes no owner -- the wallet table is per person, platform-wide -- and
+       * it was called unguarded, so the empty shell arrived with any platform
+       * user's token balance inside it. Ask first; a person who is not yours
+       * simply has no balance to report.
+       */
+      const mine = await ownsLead(ctx, lead.id)
       const [touches, balance, zep, portrait, off] = await Promise.all([
         touchesFor(pool, owner, lead.id, 10).catch(() => []),
-        balanceOf(pool, lead.id).catch(() => null),
+        mine
+          ? balanceOf(pool, lead.id).catch(() => null)
+          : Promise.resolve(null),
         zepContext(owner, lead.id).catch(() => null),
         import('./crm-deliver-tool')
           .then(m => m.portraitOf(pool, owner, lead.id))

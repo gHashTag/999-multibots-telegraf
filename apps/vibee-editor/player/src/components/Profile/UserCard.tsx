@@ -10,6 +10,7 @@ import {
 } from '@/atoms'
 import type { FollowUser } from '@/atoms'
 import { FollowButton } from './FollowButton'
+import { useToast } from '@/hooks/useToast'
 
 interface UserCardProps {
   user: FollowUser
@@ -20,11 +21,15 @@ export function UserCard({ user }: UserCardProps) {
   const follow = useSetAtom(followUserAtom)
   const unfollow = useSetAtom(unfollowUserAtom)
   const openLogin = useSetAtom(openLoginAtom)
+  const toast = useToast()
 
-  const isOwnProfile =
-    currentUser?.id !== undefined &&
-    user?.id !== undefined &&
-    String(currentUser.id) === String(user.id)
+  /*
+   * "Is this card me" used to compare the viewer's telegram_id with an `id`
+   * field on the row. The list route is public, so that field was the person's
+   * telegram_id handed to anyone who asked; the server now marks the viewer's
+   * own row instead and sends no ids at all.
+   */
+  const isOwnProfile = user.is_self
 
   const handleFollowClick = async () => {
     if (!currentUser) {
@@ -32,10 +37,12 @@ export function UserCard({ user }: UserCardProps) {
       return
     }
 
-    if (user.is_following) {
-      await unfollow(user.username)
-    } else {
-      await follow(user.username)
+    const result = user.is_following
+      ? await unfollow(user.username)
+      : await follow(user.username)
+    // A refusal used to revert the button and say nothing at all.
+    if (!result.ok && result.reason && result.reason !== 'not_signed_in') {
+      toast.error(result.reason)
     }
   }
 
