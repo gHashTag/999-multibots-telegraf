@@ -86,3 +86,39 @@ describe('formatClientErrorAlert', () => {
     expect(formatClientErrorAlert(report(), null)).toContain('не подписан')
   })
 })
+
+describe('a measurement is not an alarm', () => {
+  it('never wakes the owner for a tap report, whatever it says', () => {
+    const gate = new ClientErrorGate()
+    const touch = {
+      kind: 'browser-touch',
+      message: '{"at":"textarea.overlay","neko":{"hosting":true}}',
+      context: '',
+      path: '/browser',
+      ua: '',
+      build: '',
+      ts: 0,
+    }
+    expect(gate.decide(touch, 1)).toBe('measurement')
+    /* Not deduplicated either: every reading stays in the log. */
+    expect(gate.decide(touch, 2)).toBe('measurement')
+  })
+
+  it('still alarms for a real client error', () => {
+    const gate = new ClientErrorGate()
+    expect(
+      gate.decide(
+        {
+          kind: 'unhandled',
+          message: 'TypeError: x is not a function',
+          context: '',
+          path: '/chat',
+          ua: '',
+          build: '',
+          ts: 0,
+        },
+        1
+      )
+    ).toBe('notify')
+  })
+})
