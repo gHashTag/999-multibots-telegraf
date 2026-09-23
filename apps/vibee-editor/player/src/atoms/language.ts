@@ -107,6 +107,10 @@ const en: Translations = {
   'browser.forget': 'Forget everything',
   'browser.forget.sure': 'Yes, wipe it',
   'browser.import.open': 'Bring my logins',
+  'browser.round': 'Walk my accounts',
+  'browser.round.going': 'Walking…',
+  'browser.round.done': 'Walked them — the report is in your chat',
+  'browser.round.failed': 'The walk did not start',
   'browser.import.title': 'Bring your logins over',
   'browser.import.passwords':
     'Passwords: open Bitwarden in the browser (its icon is in the toolbar) and sign in to it. Every password then fills in by itself, and none of them passes through us.',
@@ -2247,6 +2251,10 @@ const ru: Translations = {
   'browser.forget': 'Стереть всё',
   'browser.forget.sure': 'Да, стереть',
   'browser.import.open': 'Перенести входы',
+  'browser.round': 'Обойти мои аккаунты',
+  'browser.round.going': 'Обхожу…',
+  'browser.round.done': 'Обошёл — отчёт в чате',
+  'browser.round.failed': 'Обход не запустился',
   'browser.import.title': 'Перенести входы',
   'browser.import.passwords':
     'Пароли: откройте в браузере Bitwarden (значок на панели) и войдите в него. Дальше пароли подставляются сами, и ни один не проходит через нас.',
