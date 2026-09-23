@@ -29,7 +29,10 @@ export async function runRoundNow(
    * agent looks costs a row in the database -- not a deploy (owner,
    * 2026-09-23: "setting things up will take forever this way").
    */
-  const { profileOf, strategyKeyOf, allSites } = await import('./profiles')
+  const { profileOf, strategyKeyOf, allSites, PROFILES } = await import(
+    './profiles'
+  )
+  const PROFILE_ORDER = PROFILES.map(p => p.id)
   const desk = profileOf(profileId)
   const key = strategyKeyOf(desk?.id ?? 'all')
   const strategy = roundStrategyOf(await readStrategy(pool, key), {
@@ -57,6 +60,24 @@ export async function runRoundNow(
       if (!s?.cdpEndpoint) throw new Error('the browser did not start')
       const page = await newPage(s.cdpEndpoint, url)
       try {
+        /*
+         * A DESK WORKS IN A WINDOW OF ITS OWN (browser/windows.ts), tiled so
+         * the person sees every agent at once instead of one hiding another.
+         * A tile that fails is a nicety lost, not a round lost.
+         */
+        if (desk) {
+          const { tileBounds, tileWindow } = await import('../browser/windows')
+          const at = PROFILE_ORDER.indexOf(desk.id)
+          await tileWindow(
+            s.cdpEndpoint,
+            page.id,
+            tileBounds(
+              { width: 1496, height: 880 },
+              at < 0 ? 0 : at,
+              PROFILE_ORDER.length
+            )
+          )
+        }
         await settle(strategy.settleMs)
         const got = (await evaluateOn(
           s.cdpEndpoint,
@@ -80,4 +101,35 @@ export async function runRoundNow(
     now: () => new Date(),
     sites: strategy.sites,
   })
+}
+
+/**
+ * EVERY DESK AT ONCE, EACH IN ITS OWN WINDOW (browser/windows.ts).
+ *
+ * Owner, 2026-09-23: "different agents in different windows, in parallel --
+ * that way we get more done." The desks share the person's browser and their
+ * logins; what they no longer share is the window they work in, so a round
+ * for work and a round for content happen at the same time and the person
+ * watching sees both, tiled side by side.
+ *
+ * Bounded on purpose: at most MAX_WINDOWS at a time, each window closed when
+ * its desk is done. Chromium in the pod died today with a dozen tabs open,
+ * and an agent that scales until the browser falls over has scaled nothing.
+ */
+export async function runEveryDeskNow(
+  pool: Queryable,
+  asked?: string,
+  limit = 2
+): Promise<string> {
+  const { PROFILES } = await import('./profiles')
+  const { sideBySide } = await import('../browser/windows')
+  const said = await sideBySide(PROFILES, limit, async profile => {
+    try {
+      const out = await runRoundNow(pool, asked, profile.id)
+      return `${profile.id}: ${out}`
+    } catch (e) {
+      return `${profile.id}: failed (${String(e).slice(0, 120)})`
+    }
+  })
+  return said.join(' | ')
 }
