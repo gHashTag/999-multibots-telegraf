@@ -201,6 +201,7 @@ import {
 import { requireAdmin } from '@/middleware/adminOnly'
 import { setupAutonomousMonitor } from '@/commands/autonomousMonitor'
 import { setupInngestProbeCommand } from '@/commands/inngestProbeCommand'
+import { setupVipCommand } from '@/commands/vipCommand'
 import {
   createBusinessMiddleware,
   getBusinessStats,
@@ -715,6 +716,10 @@ If not, continue on your own and click the "I myself" button`
     // 8b. /inngest_probe — admin-only safe probe of every served Inngest
     // function (spec: t27 specs/automation/inngest-probe-suite.t27)
     setupInngestProbeCommand(bot)
+
+    // 8c. /vip — the owner records a club month paid in cash (the render's
+    // club_cash_month tool, through services/clubCash.ts)
+    setupVipCommand(bot)
 
     // 9. TELEGRAM BUSINESS INTEGRATION (raw middleware — Telegraf 4.16 lacks native support)
     createBusinessMiddleware(bot as any)
