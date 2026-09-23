@@ -6,7 +6,7 @@ Automatically fixes empty API keys (ElevenLabs, HeyGen, Hedra) in render-riddle 
 
 ```bash
 # Diagnose the problem
-npx tsx scripts/check-infisical-keys.ts
+npx tsx scripts/infisical/check-infisical-keys.ts
 
 # Follow the skill guide
 cat .claude/skills/fix-empty-api-keys/SKILL.md
@@ -25,6 +25,6 @@ cat .claude/skills/fix-empty-api-keys/SKILL.md
 
 ## Related
 
-- **Diagnostic Script:** `/scripts/check-infisical-keys.ts`
+- **Diagnostic Script:** `/scripts/infisical/check-infisical-keys.ts`
 - **Documentation:** `/HEYGEN_KEYS_FIX.md`
 - **Config:** `/src/index.ts` (lines 394-413)

@@ -10,6 +10,7 @@ description: Docker testing expertise for local test environments with full MCP 
 ## 🎯 Core Knowledge
 
 Этот Skill предоставляет полную экспертизу по:
+
 - 🐳 Docker test environments (docker-compose.test.yml)
 - 🧪 Unit, Integration, E2E testing в контейнерах
 - 👁️ MCP observability ("глаза и руки" для агентов)
@@ -31,8 +32,7 @@ Implementation:
     - Ephemeral volumes (deleted after tests)
     - Mock external services
 
-Benefits:
-  ✅ No interference with production
+Benefits: ✅ No interference with production
   ✅ Reproducible results
   ✅ Parallel execution possible
   ✅ Easy cleanup
@@ -72,17 +72,16 @@ Ensure services start in correct order:
 
 test-db:
   healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U test_user"]
+    test: ['CMD-SHELL', 'pg_isready -U test_user']
     interval: 5s
     retries: 5
 
 app-test:
   depends_on:
     test-db:
-      condition: service_healthy  # Waits for DB
+      condition: service_healthy # Waits for DB
 
-Benefits:
-  ✅ No race conditions
+Benefits: ✅ No race conditions
   ✅ Tests run only when ready
   ✅ Faster debugging
 ```
@@ -125,13 +124,13 @@ export async function generateVideo(params: VideoParams) {
 ```typescript
 // tests/integration/database.test.ts
 
-import { supabase } from '../../src/services/supabase/client';
+import { supabase } from '../../src/services/supabase/client'
 
 describe('Database Integration', () => {
   beforeEach(async () => {
     // Clean state before each test
-    await supabase.from('users').delete().neq('id', '');
-  });
+    await supabase.from('users').delete().neq('id', '')
+  })
 
   it('should create and retrieve user', async () => {
     // Create user
@@ -139,21 +138,21 @@ describe('Database Integration', () => {
       .from('users')
       .insert({ telegram_id: '12345', balance: 100 })
       .select()
-      .single();
+      .single()
 
-    expect(created).toBeDefined();
-    expect(created.balance).toBe(100);
+    expect(created).toBeDefined()
+    expect(created.balance).toBe(100)
 
     // Retrieve user
     const { data: retrieved } = await supabase
       .from('users')
       .select()
       .eq('telegram_id', '12345')
-      .single();
+      .single()
 
-    expect(retrieved.id).toBe(created.id);
-  });
-});
+    expect(retrieved.id).toBe(created.id)
+  })
+})
 
 // Run in Docker:
 // docker-compose -f docker-compose.test.yml exec app-test npm run test:integration
@@ -164,34 +163,34 @@ describe('Database Integration', () => {
 ```typescript
 // tests/e2e/neuroPhoto.e2e.test.ts
 
-import { TelegramMockClient } from '../mocks/telegram-client';
+import { TelegramMockClient } from '../mocks/telegram-client'
 
 describe('NeuroPhoto E2E', () => {
-  let telegram: TelegramMockClient;
+  let telegram: TelegramMockClient
 
   beforeAll(async () => {
-    telegram = new TelegramMockClient('http://telegram-mock:8080');
-  });
+    telegram = new TelegramMockClient('http://telegram-mock:8080')
+  })
 
   it('should complete full photo generation flow', async () => {
     // Step 1: Start wizard
-    await telegram.sendCommand('/neurophoto');
-    expect(await telegram.getLastMessage()).toContain('Выберите модель');
+    await telegram.sendCommand('/neurophoto')
+    expect(await telegram.getLastMessage()).toContain('Выберите модель')
 
     // Step 2: Select model
-    await telegram.pressButton('flux_pro');
-    expect(await telegram.getLastMessage()).toContain('Введите промпт');
+    await telegram.pressButton('flux_pro')
+    expect(await telegram.getLastMessage()).toContain('Введите промпт')
 
     // Step 3: Send prompt
-    await telegram.sendMessage('Beautiful sunset over mountains');
-    expect(await telegram.getLastMessage()).toContain('Генерация началась');
+    await telegram.sendMessage('Beautiful sunset over mountains')
+    expect(await telegram.getLastMessage()).toContain('Генерация началась')
 
     // Step 4: Wait for completion
-    const result = await telegram.waitForImage({ timeout: 30000 });
-    expect(result).toBeDefined();
-    expect(result.caption).toContain('Ваше изображение готово');
-  });
-});
+    const result = await telegram.waitForImage({ timeout: 30000 })
+    expect(result).toBeDefined()
+    expect(result.caption).toContain('Ваше изображение готово')
+  })
+})
 
 // Run E2E:
 // docker-compose -f docker-compose.test.yml --profile e2e up --abort-on-container-exit
@@ -246,24 +245,24 @@ docker-compose -f docker-compose.test.yml exec app-test netstat -tulpn
 
 ### Pattern 1: Coverage Tracking
 
+⚠️ **`coverage/coverage-summary.json` здесь не появляется — и никогда не
+появлялся.** Репортёр `json-summary` не настроен ни в одном конфиге дерева, и
+файла с таким именем нет в истории git. Скрипта `test:coverage` в корневом
+`package.json` тоже нет. Прежний рецепт (читать `.total.lines.pct` через `jq`
+и ронять сборку по порогу через `bc -l`) убран: читать было нечего.
+
+Единственная существующая команда с покрытием считает только `src/inngest_app`:
+
 ```bash
-# Generate coverage report
+# The only coverage script in package.json (scope: src/inngest_app).
+# Prints a text table to stdout; it writes no machine-readable .total summary.
 docker-compose -f docker-compose.test.yml exec app-test \
-  npm run test:coverage
-
-# Extract coverage percentage
-COVERAGE=$(docker-compose -f docker-compose.test.yml exec app-test \
-  cat coverage/coverage-summary.json | \
-  jq '.total.lines.pct')
-
-echo "Coverage: $COVERAGE%"
-
-# Fail if coverage below threshold
-if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-  echo "❌ Coverage below 80%"
-  exit 1
-fi
+  npm run test:inngest:coverage
 ```
+
+Нужен машиночитаемый итог для порога — сначала добавьте `json-summary` в
+`coverage.reporter` того конфига, по которому реально идёт нужный прогон, и
+только после этого читайте появившийся файл.
 
 ### Pattern 2: Performance Benchmarking
 
@@ -272,19 +271,19 @@ fi
 
 describe('Performance Benchmarks', () => {
   it('should generate image in under 5 seconds', async () => {
-    const start = Date.now();
+    const start = Date.now()
 
     await generateImage({
       prompt: 'Test prompt',
-      model: 'flux_schnell'
-    });
+      model: 'flux_schnell',
+    })
 
-    const duration = Date.now() - start;
+    const duration = Date.now() - start
 
-    expect(duration).toBeLessThan(5000);
-    console.log(`Generation time: ${duration}ms`);
-  });
-});
+    expect(duration).toBeLessThan(5000)
+    console.log(`Generation time: ${duration}ms`)
+  })
+})
 
 // Run benchmarks:
 // docker-compose -f docker-compose.test.yml exec app-test npm run test:benchmark
@@ -393,7 +392,8 @@ jobs:
 
 ```bash
 #!/bin/bash
-# scripts/pre-deploy-tests.sh
+# TEMPLATE ONLY. scripts/pre-deploy-tests.sh does NOT exist in this repository
+# and never did - copy this text into scripts/ yourself if you want the flow.
 
 echo "🧪 Running pre-deployment validation..."
 
@@ -414,7 +414,10 @@ docker-compose -f docker-compose.test.yml down -v
 
 if [ $EXIT_CODE -eq 0 ]; then
   echo "✅ All tests passed. Safe to deploy."
-  ./deploy-local-build.sh
+  # The script moved out of the repository root into scripts/deploy/.
+  # It builds locally and ships over SSH to 188.137.250.69; production today is
+  # deployed by Railway on merge to main (see CLAUDE.md, "Деплой (Railway)").
+  ./scripts/deploy/deploy-local-build.sh
 else
   echo "❌ Tests failed. Deployment blocked."
   exit 1
@@ -503,7 +506,7 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
 # In docker-compose.test.yml
 depends_on:
   test-db:
-    condition: service_healthy  # Wait for healthy
+    condition: service_healthy # Wait for healthy
 ```
 
 ### 3. Isolate Test Data
@@ -564,8 +567,7 @@ docker-testing-expert:
   - Runs tests in isolation
   - Reports results
 
-Workflow:
-  1. TDD engineer writes test (RED)
+Workflow: 1. TDD engineer writes test (RED)
   2. Docker runs test → fails
   3. TDD engineer implements feature (GREEN)
   4. Docker runs test → passes
@@ -622,19 +624,21 @@ watch -n 5 'docker stats --no-stream'
 
 ### Workflow 2: Full CI Validation
 
-```bash
-# Run complete test suite
-./scripts/pre-deploy-tests.sh
+Скрипта `scripts/pre-deploy-tests.sh` в дереве нет и не было: выше в Pattern 3
+лежит его заготовка, а не готовый файл. Полный прогон перед релизом
+запускается одной командой:
 
-# What happens:
-# 1. Start all services (DB, Redis, app, mocks)
-# 2. Run unit tests
-# 3. Run integration tests
-# 4. Run E2E tests
-# 5. Generate coverage report
-# 6. Cleanup environment
-# 7. If all pass → deploy
+```bash
+# scripts/verify.cjs - 13 steps judged by exit code only, ~100 s:
+# typecheck, lint, prettier, build, 3 repo guards, security scan, audit,
+# test:bun, test:player, test:vitest, test-gate.
+# GitHub Actions does not run in this repository, so this IS the CI gate.
+bun run verify
 ```
+
+Однокнопочной докерной обвязки для этого нет. Профиль `ci` из
+`docker-compose.test.yml` тоже не заменит её как есть: он запускает
+`npm run test:ci`, а такого скрипта в `package.json` нет и не было.
 
 ### Workflow 3: Performance Regression Testing
 
