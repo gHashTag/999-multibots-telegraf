@@ -168,6 +168,17 @@ const ask = (userId: number, text: string) => ({
 const sent = (userId: number) =>
   sink.filter(s => s.method === 'sendMessage' && s.payload.chat_id === userId)
 
+const inGroup = (userId: number, text: string) => ({
+  update_id: ++updateId,
+  message: {
+    message_id: updateId,
+    date: 1_758_000_000,
+    chat: { id: -100_900_000_083, type: 'supergroup', title: 'R' },
+    from: { id: userId, is_bot: false, first_name: 'P', language_code: 'ru' },
+    text,
+  },
+})
+
 describe('a scene that said nothing', () => {
   it('does not swallow the message: the bot leaves it and the agent answers', async () => {
     const USER = 900000081
@@ -219,5 +230,26 @@ describe('a scene that said nothing', () => {
     expect(sent(USER).map(m => m.payload.text)).toEqual([
       'Введите сумму в звёздах', // cyrillic-ok: what the wizard says
     ])
+  }, 60_000)
+
+  it('leaves a scene only in a private chat: a room belongs to everyone', async () => {
+    const USER = 900000083
+    let left = 0
+    cannedAnswer = async () => {
+      throw new Error('the agent must not be asked here')
+    }
+    const bot = botInsideScene({
+      id: 'starPaymentScene',
+      answers: false,
+      leave: () => {
+        left += 1
+      },
+    })
+
+    await bot.handleUpdate(inGroup(USER, 'что там по TikTok?') as any)
+    expect((await agentLanes.drain(15_000)).unfinished).toEqual([])
+
+    // Somebody else started that wizard; a bystander's sentence does not end it.
+    expect(left).toBe(0)
   }, 60_000)
 })

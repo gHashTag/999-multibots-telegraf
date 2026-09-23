@@ -1830,6 +1830,12 @@ If not, continue on your own and click the "I myself" button`
        */
       if (ctx.scene?.current) {
         const stuckIn = ctx.scene.current.id
+        /*
+         * Private chats only. In a room the bot sees everything everyone
+         * types, and a scene there belongs to whoever started it: one
+         * bystander's sentence must not end somebody else's wizard.
+         */
+        if (ctx.chat?.type !== 'private') return next()
         if (attachment || !('text' in ctx.message)) return next()
         if (ctx.state?.answered) return next()
         logger.warn('🚪 [agent] a scene ignored a message; leaving it', {
