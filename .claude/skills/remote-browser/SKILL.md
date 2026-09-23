@@ -347,3 +347,14 @@ passes it as `ctx.probe`, the journal keeps probes apart (last 20) and
 **Почему агент «встал» 22.09:** страница `gds.google.com` (настройки
 аккаунта) охраняется; вопрос был только в Telegram, человек его не видел.
 Теперь он и во вкладке.
+
+## Если нажатия человека не доходят (22-23.09.2026)
+
+- Смотреть отчёт касания из окна: `railway logs --service vibee-render | grep browser-touch`.
+  `at: "video"` — слой ввода neko скрыт или перекрыт; `at: "textarea.overlay"` — здорово.
+- Оболочка окна НЕ должна прятать `.overlay` по классу: `div.overlay` — заглушка звука,
+  `textarea.overlay` — слой ввода. Тест: `render/src/browser/input-layer.test.ts`.
+- Руль: касание человека берёт руль и рендер отдаёт управление его сессии neko
+  (`browser/mouse.ts`, лог `[browser:mouse]`). `outcome: given` НЕ значит, что
+  нажатия доходят, — это только про neko.
+- Звук окна выключен по умолчанию (`MUTE_SCRIPT`), включается только `?sound=1`.
