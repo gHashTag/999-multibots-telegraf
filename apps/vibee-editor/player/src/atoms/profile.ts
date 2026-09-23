@@ -171,6 +171,20 @@ export const loadProfileAtom = atom(
         set(profileErrorAtom, 'User not found')
         set(viewedProfileAtom, null)
         return null
+      } else if (response.status === 403) {
+        /*
+         * THE CLUB, NOT A BROKEN PAGE.
+         *
+         * Owner, 2026-09-23: profiles are for club members, by payment. The
+         * server answers 403 `club_only` and the screen has to say so -- an
+         * "error" here would read as "this is broken" and send the person to
+         * support instead of to the club. The membership is NOT decided here:
+         * one definition lives on the server, and the client renders what it
+         * was told.
+         */
+        set(profileErrorAtom, 'club_only')
+        set(viewedProfileAtom, null)
+        return null
       } else {
         const error = await response.json()
         set(profileErrorAtom, error.error || 'Failed to load profile')

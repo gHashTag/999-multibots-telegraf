@@ -48,5 +48,4 @@ describe('a raw app link never leaves the bot', () => {
       expect(text).not.toContain('app.t27.ai')
     }
   })
-
 })

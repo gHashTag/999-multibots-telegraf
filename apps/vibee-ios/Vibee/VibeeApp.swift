@@ -68,6 +68,32 @@ struct RootView: View {
     UITabBar.appearance().scrollEdgeAppearance = облик
   }
 
+  /*
+   * The bundled list draws the bar immediately; the served one replaces it
+   * when it arrives. A server that is down, slow or older than this build
+   * returns nil and the bundled list stays -- an empty bar is never a state
+   * this app can be in.
+   */
+  @State private var destinations: [Destination] = Navigation.bundled
+
+  /**
+   * WHICH VIEW A DESTINATION OPENS. The list can only name screens this build
+   * has: an id without a case here is dropped, and `everyDestinationHasAScreen`
+   * fails if the bundled list names one. A list is permission to show a screen
+   * that exists, not a promise that one does.
+   */
+  @ViewBuilder
+  private func screen(for id: String) -> some View {
+    switch id {
+    case "feed": FeedView()
+    case "chat": AgentChatView()
+    case "ai": GenerateScreen()
+    case "hive": HiveScreen()
+    case "profile": ProfileView()
+    default: EmptyView()
+    }
+  }
+
   var body: some View {
     /**
      * ПЯТЬ вкладок — ровно те же, что в вебе, и в том же порядке.
@@ -98,77 +124,33 @@ struct RootView: View {
      * visibly broken.
      */
     TabView {
-      FeedView()
-        /**
-         * ЗНАЧКИ ПАНЕЛИ СНЯТЫ С app.t27.ai, а не подобраны по смыслу.
-         * Замер: Lucide, контур, обводка 2px, 20px, неактивный
-         * rgba(255,255,255,.55), активный rgb(0,255,136).
-         *
-         * Лента: `house` КОНТУРНЫЙ. Здесь стоял `house.fill` — залитый,
-         * то есть единственная вкладка, выглядевшая всегда выбранной.
-         */
-        .tabItem { Label(say("Feed", "Лента"), systemImage: "house") }
-      AgentChatView()
-        /**
-         * Агент: в вебе робот (`lucide-bot`). В SF Symbols робота НЕТ, поэтому
-         * взят `cpu` — ближайшее по смыслу «машина, которая работает сама».
-         * Совпадение неточное, и это осознанный компромисс, а не недосмотр:
-         * точное совпадение требует занести контур Lucide отдельным ресурсом.
-         *
-         * Но `sparkles` здесь было хуже любого компромисса: в вебе этим самым
-         * значком помечена вкладка «ИИ». Один значок означал РАЗНОЕ в двух
-         * клиентах, и человек, переходящий между ними, читал их наоборот.
-         */
-        .tabItem { Label(say("Agent", "Агент"), systemImage: "cpu") }
-      /**
-       * РЕДАКТОРА ЗДЕСЬ БОЛЬШЕ НЕТ, И ЭТО НЕ ПОТЕРЯ ФУНКЦИИ.
-       *
-       * Он переехал последним шагом внутрь «ИИ», где ему и место: ролик
-       * собирается из того, что сделали шагами до него, а отдельная вкладка
-       * заставляла выйти из процесса и вернуться в него с другой стороны.
-       * Хуже того, вкладка открывалась с ДЕМО-композицией — то есть на
-       * равных правах предлагала править выдумку и собственную работу.
-       *
-       * Четыре вкладки вместо пяти: лента, агент, ИИ, профиль. Всё, что про
-       * создание ролика, теперь в одной.
-       */
-      /**
-       * ИИ — нативная, и вместе с ней в приложении не осталось ни одного
-       * `WebScreen`.
-       *
-       * ЗАОДНО ЗАКРЫТО РАСХОЖДЕНИЕ ТРЁХ ЭКРАНОВ ПОД ОДНОЙ ИКОНКОЙ. Здесь
-       * стоял `WebScreen(path: "/generate")`, веб-роутер редиректил `/generate`
-       * на `/generate/script`, а веб-полоса вкладок ведёт на `/generate/video`.
-       * Одна подпись «ИИ» открывала РАЗНОЕ в зависимости от того, откуда на
-       * неё нажали: из приложения — сценарии, из мини-аппа — видео.
-       *
-       * Правильным принят вариант веб-полосы: она и есть намерение продукта —
-       * то, что видит человек, нажимая вкладку. Плюс замер: видео работает
-       * (200 и ролик за 60 с), а сценарии — нет (500, «xAI API key not
-       * configured»), то есть редирект вёл на единственную заведомо мёртвую
-       * страницу из пяти. Нативный экран открывается на «Видео».
-       */
-      GenerateScreen()
-        // ИИ: `sparkles` — точное совпадение с вебом. Освободилось после
-        // того, как «Агент» перестал занимать чужой значок.
-        .tabItem { Label(say("AI", "ИИ"), systemImage: "sparkles") }
       /*
-       * The hive: the game. It sits BEFORE the profile, not after it.
+       * THE BAR IS BUILT FROM THE SHARED LIST, NOT WRITTEN OUT HERE.
        *
-       * The last tab is the one a thumb reaches without looking, and the
-       * profile has earned that place -- people open it constantly. The hive
-       * is a destination somebody goes to on purpose, so it goes where the eye
-       * lands rather than where the thumb rests. Same order as the web bar,
-       * which is the point: two clients, one map.
+       * Owner, 2026-09-23: the structure must be the same in the web and in
+       * this app, and it must come from the backend. It was five `.tabItem`
+       * literals here and six entries in the web's own file, with the comment
+       * that used to stand at this spot claiming they were the same list --
+       * the web had gained `browser` three days earlier and nothing could
+       * tell Swift, because nothing connected the two.
        *
-       * `hexagon` because the comb is her own metaphor for the board, and it
-       * matches the web tab's Lucide `Hexagon` outline.
+       * Now: Vibee/navigation.json ships the same bytes the render service
+       * serves at /api/navigation, and `destinations` is replaced by the
+       * served list when it answers. The ORDER is the list's order, which is
+       * a product decision recorded there (the hive before the profile,
+       * because the last place in the row is the one a thumb reaches without
+       * looking, and the profile earned it).
+       *
+       * Icons stay SF Symbols, named per destination in the same file beside
+       * the web's Lucide name -- the same glyph does not exist in both sets,
+       * and pretending otherwise puts a blank square on a phone.
        */
-      HiveScreen()
-        .tabItem { Label(say("Hive", "Улей"), systemImage: "hexagon") }
-      ProfileView()
-        // Профиль: `person` = `lucide-user`, совпадало и раньше.
-        .tabItem { Label(say("Profile", "Профиль"), systemImage: "person") }
+      ForEach(destinations) { destination in
+        screen(for: destination.id)
+          .tabItem {
+            Label(destination.title, systemImage: destination.icon.sf)
+          }
+      }
     }
     // #00ff88 — TelegramTabBar.css:66 через Тема.ТабБар.активная.
     // Системный `.green` (≈#34C759) не совпадал с вебом ни одним каналом.
@@ -183,6 +165,9 @@ struct RootView: View {
      * in UserDefaults and get resent here.
      */
     .task { ClientErrorBeacon.flushQueue() }
+    .task {
+      if let served = await Navigation.fetch() { destinations = served }
+    }
   }
 }
 
