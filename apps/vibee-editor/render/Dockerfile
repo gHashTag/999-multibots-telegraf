@@ -32,6 +32,20 @@ WORKDIR /workspace
 COPY packages/ ./packages/
 
 COPY render/package.json render/package-lock.json ./render/
+
+# THE SHARED PACKAGE NEEDS ITS OWN DEPENDENCIES TOO.
+#
+# 2026-09-23, production: the render would not boot -- "Cannot find module
+# 'jotai/utils'", thrown from /workspace/packages/vibee-atoms/src/storage.ts.
+# `npm ci --install-links` below is meant to COPY that package into the
+# render's node_modules, but the lockfile was written without that flag, so
+# npm honours it and links instead: the code then runs from
+# /workspace/packages/vibee-atoms, where there is no node_modules to walk up
+# into. Installing the package's own dependencies where the package actually
+# is makes both paths work, whichever npm chooses.
+WORKDIR /workspace/packages/vibee-atoms
+RUN npm ci --omit=dev --no-audit --no-fund
+
 WORKDIR /workspace/render
 # --install-links COPIES the file:../packages/vibee-atoms dependency into
 # node_modules instead of symlinking it. Without it Remotion's webpack bundles
