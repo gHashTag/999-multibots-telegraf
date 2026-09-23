@@ -44,6 +44,18 @@ export const APP_ROUTES = [
 
 export type AppRoute = (typeof APP_ROUTES)[number]
 
+/**
+ * Mirror of UNLINKABLE_APP_ROUTES in src/navigation/helpers/appLinks.ts:
+ * screens no link may name. `pair` mints a sign-in code when it mounts, so a
+ * link to it is a credential anybody can hand out; the reasoning is written
+ * out in the bot's copy.
+ */
+export const UNLINKABLE_APP_ROUTES: readonly string[] = ['pair']
+
+export function isLinkableRoute(route: unknown): route is AppRoute {
+  return isAppRoute(route) && !UNLINKABLE_APP_ROUTES.includes(route)
+}
+
 export const APP_HOME_ROUTE: AppRoute = 'feed'
 
 export const APP_START_PREFIX = 'app_'
@@ -77,9 +89,16 @@ export function appLinkFor(
   const bot = botHandle(botUsername)
   if (!bot) return ''
   const r = isAppRoute(route) ? route : APP_HOME_ROUTE
+  if (!isLinkableRoute(r)) return ''
   return opts.mainWebApp === true
     ? `https://t.me/${bot}?startapp=${r}`
     : `https://t.me/${bot}?start=${APP_START_PREFIX}${r}`
+}
+
+/** The chat with the bot: where a screen that cannot be linked is reached. */
+export function botChatLink(botUsername: string | null | undefined): string {
+  const bot = botHandle(botUsername)
+  return bot ? `https://t.me/${bot}` : ''
 }
 
 export function routeOfAppUrl(url: string): AppRoute {
@@ -126,7 +145,13 @@ export function rewriteAppUrls(
   return text.replace(re, raw => {
     const trail = /[.,!?:;…]+$/.exec(raw)?.[0] ?? ''
     const url = trail ? raw.slice(0, -trail.length) : raw
-    return appLinkFor(botUsername, routeOfAppUrl(url), opts) + trail
+    const route = routeOfAppUrl(url)
+    // A screen no link may name becomes the chat with the bot: not the feed
+    // (somewhere nobody asked for) and not '' (the words around it survive).
+    const link = isLinkableRoute(route)
+      ? appLinkFor(botUsername, route, opts)
+      : botChatLink(botUsername)
+    return link + trail
   })
 }
 

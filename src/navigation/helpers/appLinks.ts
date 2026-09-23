@@ -70,6 +70,36 @@ export const APP_ROUTES = [
 
 export type AppRoute = (typeof APP_ROUTES)[number]
 
+/**
+ * SCREENS NO LINK MAY NAME.
+ *
+ * `pair` is the sign-in screen: it calls `POST /api/auth/pair/start` the
+ * moment it mounts and shows a code that signs whoever types it into the
+ * native app in AS THAT PERSON. That is fine when the person went looking for
+ * it -- `/app`, or the greeting's "Sign in on another device" button, both
+ * web_app buttons the person pressed inside their own chat with the bot.
+ *
+ * It is not fine as a LINK. `t.me/<bot>?start=app_pair` is a string anybody
+ * can post in a group or a DM, and /start answered it with one message and one
+ * button reading "Show the sign-in code" -- the bot's own voice vouching for a
+ * stranger's link, one press from a live credential. The rest is the oldest
+ * trick there is: "tap this and send me the number you see".
+ *
+ * So `pair` stays a screen and stops being a destination: `appLinkFor` builds
+ * no link to it, `appRouteFromStartParam` refuses it, and `/start app_pair`
+ * behaves exactly like a bare `/start` -- the greeting, which carries the
+ * honest door for anybody who did come to sign in. The web_app button in a
+ * private chat is untouched, because that press is the person's own.
+ *
+ * A route belongs here when reaching it MINTS something rather than shows it.
+ */
+export const UNLINKABLE_APP_ROUTES: readonly string[] = ['pair']
+
+/** True when a link may name this screen. A non-route is not linkable. */
+export function isLinkableRoute(route: unknown): route is AppRoute {
+  return isAppRoute(route) && !UNLINKABLE_APP_ROUTES.includes(route)
+}
+
 /** The screen a link with no better idea opens: the player's TELEGRAM_HOME. */
 export const APP_HOME_ROUTE: AppRoute = 'feed'
 
@@ -187,6 +217,7 @@ export function forgetMainWebAppForTests(): void {
  *
  * `mainWebApp` overrides the cache (tests, or a caller that has just asked
  * getMe). An unusable bot name gives '' -- the caller must not invent a bot.
+ * A screen in UNLINKABLE_APP_ROUTES gives '' too: there is no such link.
  */
 export function appLinkFor(
   botUsername: string | null | undefined,
@@ -196,20 +227,36 @@ export function appLinkFor(
   const bot = botHandle(botUsername)
   if (!bot) return ''
   const r = isAppRoute(route) ? route : APP_HOME_ROUTE
+  if (!isLinkableRoute(r)) return ''
   const oneTap = opts.mainWebApp ?? knownMainWebApp(bot)
   return oneTap
     ? `https://t.me/${bot}?startapp=${r}`
     : `https://t.me/${bot}?start=${APP_START_PREFIX}${r}`
 }
 
-/** `app_hive` -> 'hive'; anything else -> null. Attacker-typed: exact match. */
+/**
+ * The chat with the bot, and nothing else. Used where a screen cannot be
+ * linked (UNLINKABLE_APP_ROUTES): the chat is where the bot's own doors are,
+ * and it still opens inside Telegram, which is the whole rule.
+ */
+export function botChatLink(botUsername: string | null | undefined): string {
+  const bot = botHandle(botUsername)
+  return bot ? `https://t.me/${bot}` : ''
+}
+
+/**
+ * `app_hive` -> 'hive'; anything else -> null. Attacker-typed: exact match,
+ * and a screen no link may name (UNLINKABLE_APP_ROUTES) is not a route here.
+ * This is THE public door -- /start reaches it with a payload a stranger
+ * wrote -- so the refusal lives here rather than in each caller.
+ */
 export function appRouteFromStartParam(
   param: string | null | undefined
 ): AppRoute | null {
   const p = String(param ?? '')
   if (!p.startsWith(APP_START_PREFIX)) return null
   const route = p.slice(APP_START_PREFIX.length)
-  return isAppRoute(route) ? route : null
+  return isLinkableRoute(route) ? route : null
 }
 
 /** The host of MINI_APP_URL when an environment points it elsewhere. */
@@ -285,7 +332,16 @@ export function rewriteAppUrls(
     // Sentence punctuation after a URL belongs to the sentence.
     const trail = /[.,!?:;…]+$/.exec(raw)?.[0] ?? ''
     const url = trail ? raw.slice(0, -trail.length) : raw
-    return appLinkFor(botUsername, routeOfAppUrl(url), opts) + trail
+    const route = routeOfAppUrl(url)
+    /*
+     * A screen no link may name (UNLINKABLE_APP_ROUTES) becomes the chat with
+     * the bot -- not the feed, which would send the person somewhere they did
+     * not ask for, and not '' , which would delete the words around it.
+     */
+    const link = isLinkableRoute(route)
+      ? appLinkFor(botUsername, route, opts)
+      : botChatLink(botUsername)
+    return link + trail
   })
 }
 

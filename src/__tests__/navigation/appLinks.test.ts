@@ -78,7 +78,7 @@ describe('appLinkFor', () => {
 describe('appRouteFromStartParam', () => {
   it('reads app_<known route>', () => {
     expect(appRouteFromStartParam('app_hive')).toBe('hive')
-    expect(appRouteFromStartParam('app_pair')).toBe('pair')
+    expect(appRouteFromStartParam('app_club')).toBe('club')
   })
 
   it('claims nothing else -- every other payload still goes where it went', () => {
@@ -332,5 +332,50 @@ describe('a bare host is a link too -- Telegram auto-links it', () => {
     )
     const untouched = 'me@app.t27.ai https://example.com/app.t27.ai/x'
     expect(rewriteAppUrls(untouched, BOT)).toBe(untouched)
+  })
+})
+
+/**
+ * `t.me/<bot>?start=app_pair` was a string anybody could post that put a
+ * person one press from a live sign-in code (issue #2878). The screen stays;
+ * only the LINK to it goes, and only for the routes named in
+ * UNLINKABLE_APP_ROUTES.
+ */
+describe('a screen that mints a credential is not a destination', () => {
+  it('appLinkFor builds no link to pair, one tap or two', () => {
+    expect(appLinkFor(BOT, 'pair')).toBe('')
+    expect(appLinkFor(BOT, 'pair', { mainWebApp: true })).toBe('')
+    // The other screens are untouched.
+    expect(appLinkFor(BOT, 'hive')).toBe(
+      'https://t.me/example_farm_bot?start=app_hive'
+    )
+  })
+
+  it('/start refuses the app_pair payload and keeps every other route', () => {
+    expect(appRouteFromStartParam('app_pair')).toBeNull()
+    expect(appRouteFromStartParam('app_club')).toBe('club')
+  })
+
+  it('the honest door survives: a web_app button in the private chat', () => {
+    const button = appButton('Sign in', 'pair', {
+      chatType: 'private',
+      botUsername: BOT,
+    }) as any
+    expect(button?.web_app?.url).toContain('tgWebAppStartParam=pair')
+  })
+
+  it('outside a private chat there is no pair door at all', () => {
+    expect(
+      appButton('Sign in', 'pair', { chatType: 'group', botUsername: BOT })
+    ).toBeNull()
+  })
+
+  it('a raw /pair URL in model text becomes the chat, not the feed', () => {
+    // Not the feed: sending somebody to a screen they did not ask for is a
+    // second wrong answer. The chat is where /app and the greeting live.
+    expect(rewriteAppUrls('Вход: https://app.t27.ai/pair', BOT)).toBe(
+      'Вход: https://t.me/example_farm_bot'
+    )
+    expect(hasRawAppUrl(rewriteAppUrls('app.t27.ai/pair', BOT))).toBe(false)
   })
 })

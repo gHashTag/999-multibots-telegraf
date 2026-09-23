@@ -16,6 +16,7 @@ import {
   APP_ROUTES,
   APP_HOSTS,
   APP_START_PREFIX,
+  UNLINKABLE_APP_ROUTES,
 } from '@/navigation/helpers/appLinks'
 
 const ROOT = path.join(__dirname, '..', '..', '..')
@@ -65,6 +66,22 @@ describe('the app route table is one table', () => {
 
   it('every route is one the player actually opens, and none is missing', () => {
     expect(playerRouteKeys().sort()).toEqual([...APP_ROUTES].sort())
+  })
+
+  it('all three copies refuse the same screens to a link', () => {
+    // A mirror that still builds `?start=app_pair` is a mirror that hands out
+    // a sign-in code; the set must be one set in all three files.
+    const bot = [...UNLINKABLE_APP_ROUTES].sort()
+    expect(bot.length).toBeGreaterThan(0)
+    expect(bot.every(r => (APP_ROUTES as readonly string[]).includes(r))).toBe(
+      true
+    )
+    expect(arrayLiteral(read(RENDER), 'UNLINKABLE_APP_ROUTES').sort()).toEqual(
+      bot
+    )
+    expect(arrayLiteral(read(PLAYER), 'UNLINKABLE_APP_ROUTES').sort()).toEqual(
+      bot
+    )
   })
 
   it('the /start prefix and the app hosts agree', () => {

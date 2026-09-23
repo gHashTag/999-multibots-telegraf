@@ -148,3 +148,18 @@ describe('rewriteAppUrlsForToken -- the safety net on render notices', () => {
     expect(rewriteAppUrls(t, 'example_farm_bot')).toBe(t)
   })
 })
+
+describe('screens no link may name (mirror of the bot)', () => {
+  it('appLinkFor builds no link to pair, one tap or two', () => {
+    expect(appLinkFor('example_farm_bot', 'pair')).toBe('')
+    expect(appLinkFor('example_farm_bot', 'pair', { mainWebApp: true })).toBe(
+      ''
+    )
+  })
+
+  it('a raw /pair URL becomes the chat with the bot, not the feed', () => {
+    expect(rewriteAppUrls('Вход: app.t27.ai/pair', 'example_farm_bot')).toBe(
+      'Вход: https://t.me/example_farm_bot'
+    )
+  })
+})
