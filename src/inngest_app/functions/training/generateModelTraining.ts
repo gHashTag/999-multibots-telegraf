@@ -27,6 +27,10 @@ import { BalanceHelper } from '@/helpers/inngest'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { slugify, NonRetriableError } from 'inngest' // For v3 migration
+import {
+  signTrainingZipUrl,
+  redactTrainingZipUrl,
+} from '@/helpers/training/trainingZipAccess'
 
 import type { Prediction } from 'replicate'
 
@@ -235,7 +239,9 @@ export const generateModelTraining = inngest.createFunction(
         gender: eventData.gender,
         is_ru: eventData.is_ru,
         triggerWord: eventData.triggerWord,
-        zipUrl: eventData.zipUrl,
+        // The archive is biometric PII and the stored value may already carry
+        // a signature; log the bucket/key only, never the query.
+        zipRef: redactTrainingZipUrl(eventData.zipUrl),
         steps: eventData.steps,
       },
     })
@@ -538,6 +544,15 @@ export const generateModelTraining = inngest.createFunction(
             '❌ Отсутствуют обязательные параметры: zipUrl или triggerWord'
           )
         }
+        // Mint the provider's link HERE, not at upload time. eventData.zipUrl
+        // is a location we keep; the capability to download somebody's face
+        // photos is created for this attempt only and expires on its own.
+        // Runs inside step.run('start-replicate-training'), so an Inngest retry
+        // of that step re-signs instead of replaying an expired link.
+        const inputImagesUrl = await signTrainingZipUrl(
+          eventData.zipUrl,
+          supabase.storage
+        )
         const replicateClient = getFullReplicateClient()
         const training: Prediction = await replicateClient.trainings.create(
           'ostris',
@@ -546,7 +561,7 @@ export const generateModelTraining = inngest.createFunction(
           {
             destination: destination as `${string}/${string}`,
             input: {
-              input_images: eventData.zipUrl,
+              input_images: inputImagesUrl,
               trigger_word: eventData.triggerWord,
               steps: Number(eventData.steps), // Преобразуем в число
               lora_rank: 128,
