@@ -20,7 +20,18 @@ export async function runRoundNow(
   const owner =
     asked || String(process.env.ROUNDS_OWNER || OWNER_TELEGRAM_ID || '')
   if (!owner) return 'no owner'
-  const { runRound, SETTLE_MS } = await import('./rounds')
+  const { runRound, SETTLE_MS, ROUND_SITES } = await import('./rounds')
+  const { readStrategy, roundStrategyOf } = await import('./strategies')
+  /*
+   * THE STRATEGY IS READ AT THE START OF EVERY ROUND, so changing where the
+   * agent looks costs a row in the database -- not a deploy (owner,
+   * 2026-09-23: "setting things up will take forever this way").
+   */
+  const strategy = roundStrategyOf(await readStrategy(pool, 'rounds'), {
+    sites: ROUND_SITES,
+    everyMin: Number(process.env.ROUNDS_EVERY_MIN) || 180,
+    settleMs: SETTLE_MS,
+  })
   const { readSession, personHasTheWheel } = await import('../browser/sessions')
   const { startBrowserAsAgent } = await import('../browser/routes')
   const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
@@ -38,7 +49,7 @@ export async function runRoundNow(
       if (!s?.cdpEndpoint) throw new Error('the browser did not start')
       const page = await newPage(s.cdpEndpoint, url)
       try {
-        await settle(SETTLE_MS)
+        await settle(strategy.settleMs)
         const got = (await evaluateOn(
           s.cdpEndpoint,
           page.id,
@@ -58,5 +69,6 @@ export async function runRoundNow(
     },
     tell: text => sendToTelegram(owner, text),
     now: () => new Date(),
+    sites: strategy.sites,
   })
 }
