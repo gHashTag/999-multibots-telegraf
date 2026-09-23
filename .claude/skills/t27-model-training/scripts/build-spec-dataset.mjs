@@ -1,0 +1,393 @@
+#!/usr/bin/env node
+/**
+ * THE DATASET FOR THE REAL TASK: WRITING A .t27 SPEC.
+ *
+ * Four iterations went into "spec -> Verilog", where the usable pair count is
+ * zero. The owner corrected it: the point is to WRITE the spec, and `t27c`
+ * translates onward. That makes the corpus the specs themselves.
+ *
+ *     spec -> Verilog   0 usable pairs
+ *     writing .t27      317 IMPLEMENTED in t27 alone, 237 of them described
+ *
+ * ── WHAT THE MODEL IS ASKED, AND WHY THE ANSWER IS CUT ────────────────────
+ *
+ * Prompt: the module path and the description comment the spec already carries.
+ * Target: the spec FROM `module` ONWARD.
+ *
+ * The description is dropped from the target on purpose. Leave it in and the
+ * first thing the model learns is to copy back text it was just handed -- the
+ * cheapest possible way to lower the loss and worth nothing. The same shape of
+ * mistake as the `t27c` banner in the earlier dataset, which taught the model
+ * to sign work it had not done.
+ *
+ * ── ONLY IMPLEMENTED ──────────────────────────────────────────────────────
+ *
+ * UNWRITTEN specs are skeletons and NOFN ones hold no functions. Both parse,
+ * both look like clean examples, and both teach a model to answer with
+ * nothing -- exactly what the hollow Verilog shells would have done.
+ *
+ * ── THE SELF-CHECK THAT MATTERS ───────────────────────────────────────────
+ *
+ * Every target is put through `validate-t27.mjs`, the same gate that will score
+ * the model. A target that fails it means either the data or the gate is wrong,
+ * and finding out here costs a minute instead of a training run.
+ */
+
+import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { join, relative } from 'node:path'
+import { readdirSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+
+const run = promisify(execFile)
+const T27C = process.env.T27C || 't27c'
+
+function arg(name, fallback) {
+  const i = process.argv.indexOf(name)
+  return i > -1 ? process.argv[i + 1] : fallback
+}
+
+function walk(dir, out = []) {
+  for (const e of readdirSync(dir)) {
+    const p = join(dir, e)
+    if (statSync(p).isDirectory()) {
+      if (e === 'scratch') continue
+      /*
+       * A DOT-DIRECTORY IS NOT CORPUS, AND THIS ONE BIT US.
+       *
+       * Skipping only `scratch` was fine until the instruments started writing
+       * INSIDE the spec tree. score-by-execution now compiles candidates in
+       * `specs/.eval-tmp` (it has to -- from outside the tree t27c drops every
+       * `use` silently), and `tri igla blocked` lays specs out in
+       * `specs/.depth`. Both are walked by this function.
+       *
+       * Measured: a candidate answer planted in either directory, given a
+       * two-line comment header, lands in train.jsonl. The area count rises to
+       * 34 with strata named `.depth` and `.eval-tmp`, and the run exits 0.
+       * The model's own answers become its training data, silently.
+       *
+       * Named directories would be a whitelist to forget; the dot is the
+       * convention both writers already follow.
+       */
+      if (e.startsWith('.')) continue
+      walk(p, out)
+    } else if (p.endsWith('.t27')) out.push(p)
+  }
+  return out
+}
+
+async function statusOf(file) {
+  try {
+    const { stdout } = await run(T27C, ['spec-status', file], {
+      timeout: 60_000,
+    })
+    return stdout.trim().split(/\s+/).pop()
+  } catch {
+    return 'NOSTATUS'
+  }
+}
+
+/**
+ * Split a spec into the description a person would have written and the code.
+ *
+ * SPDX and the path line are dropped from both sides: they are boilerplate the
+ * model should not be asked to reproduce, and including them in the prompt
+ * would put the file's own name in front of it.
+ */
+function cut(text) {
+  const lines = text.split('\n')
+  const idx = lines.findIndex(l => /^\s*module\b/.test(l))
+  if (idx < 0) return null
+  const head = lines
+    .slice(0, idx)
+    .filter(l => /^\s*(\/\/|;)/.test(l))
+    .map(l => l.replace(/^\s*(\/\/|;)\s?/, '').trim())
+    .filter(l => l && !/SPDX/i.test(l) && !/\.t27$/.test(l))
+  return { description: head.join('\n'), code: lines.slice(idx).join('\n') }
+}
+
+function render(modulePath, description, code) {
+  return {
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You write .t27 specifications for Trinity. Emit only the spec, ' +
+          'starting at `module`. No prose, no code fences.',
+      },
+      {
+        role: 'user',
+        content: `Write the .t27 spec for ${modulePath}.\n\n${description}`,
+      },
+      { role: 'assistant', content: code },
+    ],
+  }
+}
+
+async function main() {
+  const specsDir = arg('--specs', 'specs')
+  const outDir = arg('--out', 'spec-dataset')
+  const evalRatio = Number(arg('--eval-ratio', '0.15'))
+  const minDescLines = Number(arg('--min-desc', '2'))
+
+  const files = walk(specsDir)
+  const rows = []
+  const skipped = { status: 0, nodesc: 0, nocut: 0 }
+
+  for (const f of files) {
+    if ((await statusOf(f)) !== 'IMPLEMENTED') {
+      skipped.status++
+      continue
+    }
+    const parts = cut(await readFile(f, 'utf8'))
+    if (!parts) {
+      skipped.nocut++
+      continue
+    }
+    if (parts.description.split('\n').filter(Boolean).length < minDescLines) {
+      skipped.nodesc++
+      continue
+    }
+    rows.push({
+      id: relative(specsDir, f),
+      area: relative(specsDir, f).split('/')[0],
+      ...render(relative(specsDir, f), parts.description, parts.code),
+    })
+  }
+
+  /*
+   * Deterministic and stratified BY AREA (specs/github, specs/nn, ...).
+   * A random split can leave a whole area unseen in evaluation, and areas are
+   * where the vocabulary differs most -- an eval with no `nn` spec cannot
+   * notice a model that forgot how they are written.
+   */
+  const byArea = new Map()
+  for (const r of rows) {
+    if (!byArea.has(r.area)) byArea.set(r.area, [])
+    byArea.get(r.area).push(r)
+  }
+  const train = []
+  const evalSet = []
+  for (const [, list] of [...byArea].sort((a, b) => a[0].localeCompare(b[0]))) {
+    list.sort((a, b) => a.id.localeCompare(b.id))
+    const want =
+      list.length >= 4 ? Math.max(1, Math.round(list.length * evalRatio)) : 0
+    list.forEach((r, i) => (i < want ? evalSet : train).push(r))
+  }
+
+  const trainIds = new Set(train.map(r => r.id))
+  const leaked = evalSet.filter(r => trainIds.has(r.id))
+  if (leaked.length) {
+    console.error(`[spec] УТЕЧКА: ${leaked.length} спеков по обе стороны`)
+    process.exit(1)
+  }
+
+  /*
+   * NOTHING IS WRITTEN UNTIL THE VERDICT. A BAD RUN USED TO DESTROY A GOOD SET.
+   *
+   * The three files were written here and the verdict came 120 lines later, so
+   * a run that ended in "ДАТАСЕТ НЕ ГОДЕН" had already overwritten the dataset
+   * that was fine. There is no undo: the corpus is re-walked from scratch each
+   * time, and the previous split is gone.
+   *
+   * This was nearly paid for on 08.09.2026, when a stricter leak check reported
+   * 32 leaks and exited 1 -- it only missed the real dataset because the run
+   * happened to be pointed at a scratch directory.
+   *
+   * The contents are held in memory (4.7 MB) and land only if every check
+   * passes. A refusal now leaves the previous dataset exactly where it was.
+   */
+  const jsonl = rs =>
+    rs.map(r => JSON.stringify({ messages: r.messages })).join('\n') + '\n'
+  const pending = []
+  pending.push(['train.jsonl', jsonl(train)])
+  pending.push(['eval.jsonl', jsonl(evalSet)])
+  pending.push([
+    'REPORT.json',
+    JSON.stringify(
+      {
+        specs_dir: specsDir,
+        kept: rows.length,
+        skipped,
+        train: train.length,
+        eval: evalSet.length,
+        areas: [...byArea.keys()],
+        ids_eval: evalSet.map(r => r.id),
+      },
+      null,
+      2
+    ),
+  ])
+
+  console.log(`[spec] файлов просмотрено : ${files.length}`)
+  console.log(
+    `[spec] отброшено          : не IMPLEMENTED ${skipped.status}, ` +
+      `без описания ${skipped.nodesc}, без module ${skipped.nocut}`
+  )
+  console.log(`[spec] примеров           : ${rows.length}`)
+  console.log(`[spec] обучение / оценка  : ${train.length} / ${evalSet.length}`)
+  console.log(`[spec] областей           : ${byArea.size}`)
+
+  /*
+   * LEAKAGE, CHECKED IN THE DIRECTION IT ACTUALLY HAPPENS.
+   *
+   * The first version asked "does the PROMPT contain the start of the ANSWER".
+   * That is the wrong way round and it caught nothing: a mutation putting the
+   * description back into the target -- the exact defect this dataset was built
+   * to avoid -- passed it cleanly, because the target then began with an SPDX
+   * line the prompt never had.
+   *
+   * The leak that matters is the reverse: the ANSWER repeating text the model
+   * was just handed. That is what makes copying the cheapest way to lower the
+   * loss.
+   */
+  /*
+   * THE LEAK CHECK USED TO DEPEND ON THE LENGTH OF ONE LINE.
+   *
+   * It was `ans.includes(desc.slice(0, 60))`, and `desc` has already had its
+   * comment markers stripped. When the first 60 characters cross a newline, the
+   * answer holds `\n// ` where the description holds `\n`, and nothing matches.
+   *
+   * Measured against a deliberate mutation that copies the header back into the
+   * answer: 58 of 207 rows caught -- 28% sensitivity. On a corpus whose specs
+   * open with a short title line, 0 of 107, and the run reported "leak: 0".
+   *
+   * Now every description LINE long enough to be distinctive is looked for, and
+   * eval is checked as well as train: a mutation that leaked into eval only was
+   * invisible, because the old check never looked there.
+   */
+  /*
+   * A LINE THAT APPEARS IN MANY SPECS IS BOILERPLATE, NOT A LEAK.
+   *
+   * The first version of the stricter check reported 32 leaks and refused the
+   * dataset. Twenty-six of them were one string: `phi^2 + 1/phi^2 = 3 |
+   * TRINITY`, the project's banner, which sits in the header AND as a footer
+   * comment inside almost every spec.
+   *
+   * Copying a constant present in every answer teaches nothing and gives the
+   * model nothing to cheat with. A leak is a line DISTINCTIVE to its own spec,
+   * so lines shared across the corpus are counted first and excluded.
+   */
+  const lineUse = new Map()
+  for (const r of [...train, ...evalSet]) {
+    const desc = r.messages[1].content.split('\n').slice(2).join('\n').trim()
+    for (const l of new Set(desc.split('\n').map(x => x.trim()))) {
+      if (l.length >= 24) lineUse.set(l, (lineUse.get(l) || 0) + 1)
+    }
+  }
+  const leaks = rows =>
+    rows.filter(r => {
+      const ask = r.messages[1].content
+      const ans = r.messages[2].content
+      const desc = ask.split('\n').slice(2).join('\n').trim()
+      if (desc.length <= 40) return false
+      return desc
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length >= 24 && (lineUse.get(l) || 0) <= 2)
+        .some(l => ans.includes(l))
+    })
+  const copyable = [...leaks(train), ...leaks(evalSet)]
+  console.log(
+    `[spec] запрос содержит ответ: ${copyable.length} ` +
+      `${copyable.length ? '⚠️ УТЕЧКА' : '(нет)'}`
+  )
+
+  const tiny = rows.filter(r => r.messages[2].content.length < 120)
+  console.log(`[spec] подозрительно коротких ответов: ${tiny.length}`)
+
+  /*
+   * A QUARTER OF THE CORPUS CONTAINS TEXT THE COMPILER IGNORES.
+   *
+   * `t27c parse-complete` answers "does the parser consume the whole file".
+   * Measured 09.09.2026 over this dataset: 61 of 241 specs -- 25% -- parse
+   * successfully while DISCARDING top-level tokens. 22 425 of them.
+   *
+   * Not a truncation at the end: on specs/isa/registers.t27 the parser reaches
+   * line 590 of 594 and still drops 39 tokens somewhere inside.
+   *
+   * It matters here because those specs are the TARGETS. Training on them
+   * teaches the model to write material that does not count, and `spec-status`
+   * calls them IMPLEMENTED on the strength of the part that was read.
+   *
+   * Reported rather than excluded: dropping 61 of 241 is a quarter of the
+   * corpus and the decision belongs to whoever runs the training, not to this
+   * script. The number is printed so the choice is deliberate.
+   */
+  let discarding = 0
+  try {
+    const probe = await mkdtemp(join(tmpdir(), 'spec-complete-'))
+    await Promise.all(
+      rows.map((r, i) =>
+        writeFile(
+          join(probe, String(i).padStart(4, '0') + '.t27'),
+          r.messages[2].content
+        )
+      )
+    )
+    const { stdout } = await run(
+      T27C,
+      ['parse-complete', '--specs-dir', probe],
+      {
+        timeout: 600_000,
+        maxBuffer: 256 * 1024 * 1024,
+      }
+    )
+    await rm(probe, { recursive: true, force: true })
+    discarding = Number(
+      (/parse but DISCARD\s+(\d+)/.exec(stdout) || [])[1] || 0
+    )
+  } catch {
+    discarding = -1
+  }
+  if (discarding < 0) {
+    console.log('[spec] полнота разбора    : ⚠️ не проверена (t27c не ответил)')
+  } else {
+    const pct = Math.round((discarding / rows.length) * 100)
+    console.log(
+      `[spec] разбор ТЕРЯЕТ токены: ${discarding} из ${rows.length} спеков (${pct}%)` +
+        (discarding ? ' — эти цели учат писать то, что не считается' : '')
+    )
+  }
+
+  /*
+   * A NUMBER PRINTED AND NOT ASSERTED ON IS DECORATION.
+   *
+   * This script printed leakage and short-answer counts for three iterations
+   * and would have exited 0 with either of them non-zero -- handing over
+   * corrupted training data while reporting success.
+   *
+   * The same defect was found one file over: the scorer's battery displayed
+   * `VALID 79%` for the references, which was the maxBuffer bug in plain sight,
+   * and still concluded "прибор поверен" because the verdict only inspected a
+   * different column.
+   *
+   * So every count this script prints now carries a claim, and a violated claim
+   * is a non-zero exit.
+   */
+  const problems = []
+  if (copyable.length)
+    problems.push(`${copyable.length} запросов содержат ответ`)
+  if (tiny.length) problems.push(`${tiny.length} ответов короче 120 символов`)
+  if (train.length + evalSet.length !== rows.length) {
+    problems.push('обучение + оценка не равны числу примеров')
+  }
+  if (!evalSet.length) problems.push('оценочная выборка пуста')
+  if (problems.length) {
+    console.error(`[spec] ⛔ ДАТАСЕТ НЕ ГОДЕН: ${problems.join('; ')}`)
+    console.error(
+      `[spec] ничего не записано — прежний датасет в ${outDir} не тронут`
+    )
+    process.exit(1)
+  }
+
+  // Every check passed: only now does anything land on disk.
+  await mkdir(outDir, { recursive: true })
+  for (const [name, body] of pending) await writeFile(join(outDir, name), body)
+}
+
+main().catch(e => {
+  console.error('[spec] не удалось:', e.message)
+  process.exit(1)
+})

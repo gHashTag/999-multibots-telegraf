@@ -66,6 +66,7 @@ import {
   handleAgentHistoryAppend,
   handleAgentHistoryDelete,
   handleCrmMirror,
+  handleCrmAgentSent,
   handleAgentKeys,
   chatIdentity,
   resolveIdentity,
@@ -2710,6 +2711,28 @@ setInterval(
 )
 
 /*
+ * A ROUND OF THE PERSON'S CONNECTED ACCOUNTS (src/agent/rounds.ts; owner,
+ * 2026-09-23: "run it where we signed in, and set up the crons and the
+ * logging"). It looks and reports; it presses nothing, and it stands aside
+ * while the person is driving. Off unless ROUNDS_ENABLED=1; ROUNDS_EVERY_MIN
+ * sets the pace (three hours by default).
+ */
+setInterval(
+  () => {
+    void (async () => {
+      try {
+        const { runRoundNow } = await import('./src/agent/rounds-wiring')
+        const said = await runRoundNow(getPool() as any)
+        if (said !== 'off') console.log(`[rounds] ${said}`)
+      } catch (e) {
+        console.error('[rounds] failed:', String(e).slice(0, 300))
+      }
+    })()
+  },
+  Math.max(30, Number(process.env.ROUNDS_EVERY_MIN) || 180) * 60 * 1000
+)
+
+/*
  * THE BLOG GOES TO LINKEDIN AND X, ONE ARTICLE A DAY, ONLY AFTER A YES
  * (src/agent/blog-share.ts; owner's decision 2026-09-22). The tick is
  * cheap -- a database row, and the feed at most once a day -- so it runs
@@ -3312,6 +3335,8 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  const auth = authenticate(req)
+
   /*
    * The person's own browser, streamed. This sits BEFORE authenticate()
    * deliberately: a viewer arrives from a plain browser tab carrying nothing
@@ -3402,17 +3427,18 @@ const server = createServer(async (req, res) => {
   // Аутентификация. До этого сервис не проверял ничего: любой мог залить 100 МБ
   // в бакет и запускать рендеры, тратящие кредиты FAL / ElevenLabs / xAI.
   // Подробности механизмов — в ./auth.ts.
-  const auth = authenticate(req)
   if (auth.wouldReject) {
     console.warn(
       `🔒 [auth] ${auth.allowed ? 'ПРОПУЩЕНО (режим warn)' : 'ОТКАЗ'} ${req.method} ${requestPath} — ${auth.reason}`
     )
   }
   if (!auth.allowed) {
-    res.writeHead(401, { 'Content-Type': 'application/json' })
+    res.writeHead(auth.statusCode ?? 401, {
+      'Content-Type': 'application/json',
+    })
     res.end(
       JSON.stringify({
-        error: 'unauthorized',
+        error: auth.statusCode === 403 ? 'forbidden' : 'unauthorized',
         detail: auth.reason,
         hint: 'send X-Api-Key (server to server) or X-Telegram-Init-Data (Mini App)',
       })
@@ -8763,6 +8789,25 @@ const server = createServer(async (req, res) => {
    * resolveIdentity, что у чтения и у чата: три маршрута об одном и том же
    * разговоре обязаны понимать личность одинаково.
    */
+  /*
+   * POST /api/crm/agent-sent -- the bot asks whether an outgoing message in
+   * a business chat was the agent's confirmed proposal, so it does not pause
+   * the AI on the agent's own words. Same identity rules as /api/crm/mirror.
+   */
+  if (
+    req.url?.split('?')[0] === '/api/crm/agent-sent' &&
+    req.method === 'POST'
+  ) {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'не удалось определить пользователя' }))
+      return
+    }
+    await handleCrmAgentSent(req, res, String(who))
+    return
+  }
+
   if (req.url?.split('?')[0] === '/api/crm/mirror' && req.method === 'POST') {
     const who = await resolveIdentity(req, getPool)
     if (!who) {

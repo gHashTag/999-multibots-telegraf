@@ -85,10 +85,12 @@ describe('what is kept', () => {
       q.sql.startsWith('INSERT INTO crm_messages')
     )
     expect(String(ins[0].params[5]).length).toBe(4000)
-    // Two tables, each created once per process: the messages and the people.
+    // Three tables, each created once per process: the messages, the people,
+    // and the drop marks the write path consults (crm-drop-tool.ts) so a
+    // person the owner removed does not come back with the next ingest.
     expect(
       pool.queries.filter(q => q.sql.startsWith('CREATE TABLE')).length
-    ).toBe(2)
+    ).toBe(3)
   })
 
   it('nothing to write touches nothing', async () => {

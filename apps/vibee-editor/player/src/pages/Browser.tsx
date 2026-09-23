@@ -15,6 +15,7 @@ import {
   type PendingApproval,
   readPendingApproval,
   isPressedAsk,
+  walkMyAccounts,
 } from '@/lib/remoteBrowser'
 import {
   askFor,
@@ -104,6 +105,8 @@ export default function BrowserPage() {
   const [showImport, setShowImport] = useState(false)
   const [showType, setShowType] = useState(false)
   const [journalOpen, setJournalOpen] = useState(false)
+  const [walking, setWalking] = useState(false)
+  const [walked, setWalked] = useState<'done' | 'failed' | null>(null)
   const [agentWorking, setAgentWorking] = useAtom(agentWorkingAtom)
   /* Remembers a browser that was here, so its absence can be explained. */
   const lastState = useRef<BrowserSessionView['state'] | null>(null)
@@ -489,6 +492,27 @@ export default function BrowserPage() {
           </button>
         ) : null}
 
+        {/*
+         * The round, now rather than in three hours (render agent/rounds.ts).
+         * It reports in the chat, so the button only says what happened to
+         * the asking.
+         */}
+        <button
+          type="button"
+          className="remote-browser__secondary"
+          disabled={walking}
+          onClick={() => {
+            setWalking(true)
+            setWalked(null)
+            void walkMyAccounts().then(said => {
+              setWalking(false)
+              setWalked(said === null ? 'failed' : 'done')
+            })
+          }}
+        >
+          {walking ? t('browser.round.going') : t('browser.round')}
+        </button>
+
         {/* Passwords through the vault, sessions from a file; see ImportLogins. */}
         <button
           type="button"
@@ -522,6 +546,11 @@ export default function BrowserPage() {
           {confirmForget ? t('browser.forget.sure') : t('browser.forget')}
         </button>
       </div>
+      {walked ? (
+        <p className="remote-browser__muted" aria-live="polite">
+          {t(`browser.round.${walked}`)}
+        </p>
+      ) : null}
       {showImport ? <ImportLogins /> : null}
       <p className="remote-browser__muted">{t('browser.closeKeeps')}</p>
     </>

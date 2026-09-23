@@ -1,0 +1,51 @@
+name: Leela editorial scope
+
+on:
+  pull_request:
+    paths:
+      - 'apps/vibee-editor/render/**'
+      - 'apps/vibee-editor/packages/vibee-atoms/**'
+      - '.github/workflows/leela-editorial-scope.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/vibee-editor/render/**'
+      - 'apps/vibee-editor/packages/vibee-atoms/**'
+      - '.github/workflows/leela-editorial-scope.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            apps/vibee-editor/render/package-lock.json
+            apps/vibee-editor/packages/vibee-atoms/package-lock.json
+      # The contract uses no native rendering, network providers or live DB.
+      - name: Install atoms types
+        working-directory: apps/vibee-editor/packages/vibee-atoms
+        run: npm ci --ignore-scripts
+      - name: Install render dependencies
+        working-directory: apps/vibee-editor/render
+        run: npm ci --ignore-scripts
+      - name: Check service types
+        working-directory: apps/vibee-editor/render
+        run: npm run typecheck
+      - name: Check scope and existing authentication contracts
+        working-directory: apps/vibee-editor/render
+        run: >-
+          npm test --
+          editorial-key-scope.test.ts editorial-mcp-dispatch.test.ts
+          auth-agent-key.test.ts auth-fail-closed.test.ts auth-public.test.ts
+          auth-session.test.ts auth.test.ts agent-key-resolve.test.ts
+          agent-routes-contract.test.ts credential-precedence-contract.test.ts
+          a2a-tasks-get-owner.test.ts agent-chat-hands-over-the-secret.test.ts

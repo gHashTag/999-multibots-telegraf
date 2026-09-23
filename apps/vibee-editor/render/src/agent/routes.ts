@@ -39,6 +39,13 @@ import { ownerWordsOf } from './assistant-opt-out'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
 import {
+  editorialAccess,
+  editorialKeyOwner,
+  EDITORIAL_SCOPE_VERSION,
+  EDITORIAL_TOOLS,
+  type AgentIdentity,
+} from '../../editorial-key-scope'
+import {
   записатьРеплику,
   прочитатьРазговор,
   собратьОтвет,
@@ -147,6 +154,7 @@ function sameKey(a: string, b: string): boolean {
  * бы, что любой желающий публикует от чужого имени.
  */
 export function agentKeyOwner(key: string): string | null {
+  if (editorialKeyOwner(key) !== null) return null
   const raw = process.env.AGENT_KEYS || ''
   if (!key) return null
   let owner: string | null = null
@@ -297,6 +305,8 @@ export async function resolveIdentity(
   req: IncomingMessage,
   getPool: () => any
 ): Promise<string | null> {
+  // A string-only identity must never shed an editorial credential's scope.
+  if (editorialAccess(req).kind !== 'none') return null
   const sync = chatIdentity(req, verifiedTelegramId(req))
   if (sync) return sync
 
@@ -405,11 +415,31 @@ function gameTokenOf(
   }
 }
 
+export async function resolveAgentIdentity(
+  req: IncomingMessage,
+  getPool: () => any
+): Promise<AgentIdentity | null> {
+  const editorial = editorialAccess(req)
+  if (editorial.kind !== 'none') {
+    return editorial.kind === 'allowed' &&
+      req.method === 'POST' &&
+      (req.url || '').split('?')[0] === '/mcp'
+      ? editorial.identity
+      : null
+  }
+  const telegramId = await resolveIdentity(req, getPool)
+  return telegramId ? { telegramId, scope: 'full' } : null
+}
+
 export async function handleMcp(
   req: IncomingMessage,
   res: ServerResponse,
   getPool: () => any
 ) {
+  const editorial = editorialAccess(req)
+  if (editorial.kind === 'denied') {
+    return json(res, 403, { error: 'forbidden', detail: editorial.reason })
+  }
   // THREE identities: the initData signature (the mini app itself), a key from
   // the environment, and a key the person issued to themselves through
   // /api/agent/keys. The last one resolves through the database, which is why
@@ -426,8 +456,10 @@ export async function handleMcp(
       },
     })
   }
-  const owner = game ? game.telegramId : await resolveIdentity(req, getPool)
-  if (!owner) {
+  const identity = game
+    ? { telegramId: game.telegramId, scope: 'full' as const }
+    : await resolveAgentIdentity(req, getPool)
+  if (!identity) {
     // Сообщение константно и не отражает содержимое заголовков: любое
     // эхо чужого ввода — путь к инъекции, даже в JSON.
     return json(res, 401, {
@@ -450,27 +482,60 @@ export async function handleMcp(
     })
   }
 
+  const invalidRequest = () =>
+    json(res, 400, {
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32600, message: 'Invalid JSON-RPC request' },
+    })
+  const isObject = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+  // JSON.parse also accepts null and primitives. Reject them before accessing
+  // rpc.id so a malformed authenticated request cannot reject the HTTP callback.
+  if (
+    !isObject(rpc) ||
+    rpc.jsonrpc !== '2.0' ||
+    typeof rpc.method !== 'string' ||
+    !rpc.method.trim() ||
+    (rpc.params !== undefined && !isObject(rpc.params))
+  )
+    return invalidRequest()
+
   const id = rpc.id ?? null
+  if (
+    id !== null &&
+    typeof id !== 'string' &&
+    !(typeof id === 'number' && Number.isFinite(id))
+  )
+    return invalidRequest()
   const ok = (result: unknown) => json(res, 200, { jsonrpc: '2.0', id, result })
   const err = (code: number, message: string) =>
     json(res, 200, { jsonrpc: '2.0', id, error: { code, message } })
+  const scoped = identity.scope === 'leela-editorial'
+  const visibleTools = () =>
+    toMcpTools().filter(t => !scoped || EDITORIAL_TOOLS.has(t.name))
 
   if (rpc.method === 'initialize') {
     return ok({
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
       serverInfo: { name: 'trinity-s3ai-reels', version: '1.0.0' },
-      instructions:
-        'Инструменты читают и меняют состояние приложения по-настоящему. ' +
-        'Сначала посмотри (whoami, feed_stats, feed_list), потом действуй. ' +
-        'Публикация требует текста поста с хештегами — это канон проекта.',
+      ...(scoped
+        ? { _meta: { 'leela.editorial.scope': EDITORIAL_SCOPE_VERSION } }
+        : {}),
+      instructions: scoped
+        ? 'Private Leela drafts only. Verify whoami before reading or writing. ' +
+          'Skill names, goal titles and item titles must start with Leela:. No publication, paid actions or SOUL editing.'
+        : 'Инструменты читают и меняют состояние приложения по-настоящему. ' +
+          'Сначала посмотри (whoami, feed_stats, feed_list), потом действуй. ' +
+          'Публикация требует текста поста с хештегами — это канон проекта.',
     })
   }
 
   if (rpc.method === 'tools/list') {
     const listed = game
       ? toMcpTools().filter(t => GAME_TOKEN_TOOLS.includes(t.name))
-      : toMcpTools()
+      : visibleTools()
     return ok({ tools: listed })
   }
 
@@ -483,13 +548,21 @@ export async function handleMcp(
         `A game token may call only: ${GAME_TOKEN_TOOLS.join(', ')}.`
       )
     }
-    const имя = rpc.params?.name
-    const tool = имя ? TOOLS_BY_NAME.get(имя) : null
+    const toolName = rpc.params?.name
+    if (
+      scoped &&
+      (typeof toolName !== 'string' || !EDITORIAL_TOOLS.has(toolName))
+    ) {
+      return err(-32003, 'Tool forbidden by editorial scope')
+    }
+    if (typeof toolName !== 'string')
+      return err(-32602, 'Tool name must be a string')
+    const tool = toolName ? TOOLS_BY_NAME.get(toolName) : null
     if (!tool) {
       // Подсказываем ИМЕНА, а не просто отказываем: агент исправится за виток.
       return err(
         -32602,
-        `Инструмента «${имя}» нет. Доступны: ${toMcpTools()
+        `Инструмента «${toolName}» нет. Доступны: ${visibleTools()
           .map(t => t.name)
           .join(', ')}.`
       )
@@ -497,7 +570,8 @@ export async function handleMcp(
     try {
       const pool = await getPool()
       const ctx = {
-        telegramId: owner,
+        telegramId: identity.telegramId,
+        scope: identity.scope,
         pool,
         // A caller that says it is only checking (tri eyes) -- journal.ts.
         probe:
@@ -506,9 +580,9 @@ export async function handleMcp(
         // Per-bot privileged path counters; a game token is not initData.
         initDataBot: game
           ? undefined
-          : (initDataBotOf(req, owner) ?? undefined),
+          : (initDataBotOf(req, identity.telegramId) ?? undefined),
       }
-      countInitDataToolCall(ctx, имя) // cyrillic-ok: pre-existing local
+      countInitDataToolCall(ctx, toolName)
       assertArgs(tool, rpc.params?.arguments || {})
       const значение = await tool.handler(rpc.params?.arguments || {}, ctx)
       return ok({
@@ -516,7 +590,10 @@ export async function handleMcp(
         structuredContent: значение,
       })
     } catch (e) {
-      return err(-32603, `Инструмент «${имя}» упал: ${String(e).slice(0, 400)}`)
+      return err(
+        -32603,
+        `Инструмент «${toolName}» упал: ${String(e).slice(0, 400)}`
+      )
     }
   }
 
@@ -578,6 +655,7 @@ export function chatIdentity(
   req: IncomingMessage,
   verified: string | null
 ): string | null {
+  if (editorialAccess(req).kind !== 'none') return null
   /*
    * A WRAPPER, NOT A SECOND COPY.
    *
@@ -595,6 +673,12 @@ export async function handleAgentChat(
   telegramId: string,
   getPool: () => any
 ) {
+  if (editorialAccess(req).kind !== 'none') {
+    return json(res, 403, {
+      error: 'forbidden',
+      detail: 'editorial credentials are MCP draft-only',
+    })
+  }
   let body: any
   try {
     body = JSON.parse((await readBody(req)) || '{}')
@@ -760,6 +844,26 @@ export async function handleAgentChat(
         surface: поверхность, // cyrillic-ok: local defined earlier in this file
         signal: gone.signal,
         toolsOnly: body.tools_only === true,
+        /*
+         * WHOSE CHAT A BUSINESS TURN IS -- AND ONLY FROM THE BOT.
+         *
+         * The seller is the account the Telegram business connection belongs
+         * to; the bot reads it from the connection object and sends it here.
+         * It decides which correspondence, which client packages and whose
+         * debts the agent reads, so it is accepted ONLY behind the server key:
+         * from a Mini App session it would be a way to ask for somebody
+         * else's CRM by writing their id in a request body.
+         *
+         * Absent means absent. It must never fall back to the platform owner
+         * -- that fallback is exactly the defect this fixes (owner,
+         * 2026-09-23: the agent in his wife's profile answered as him).
+         */
+        seller:
+          hasServerKey(req) &&
+          typeof body.seller_id === 'string' &&
+          /^\d{5,15}$/.test(body.seller_id)
+            ? body.seller_id
+            : undefined,
         client: gate.client ?? undefined,
         marketplaceAgent: gate.agent,
         // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
@@ -1185,6 +1289,52 @@ export async function handleAgentKeys(
   }
 
   return json(res, 405, { ok: false, error: 'метод не поддержан' })
+}
+
+/**
+ * POST /api/crm/agent-sent — the bot asks: did the agent send this message?
+ *
+ * Telegram Business returns a confirmed proposal to the bot as a message
+ * FROM THE OWNER, and the bot's rule "the owner typed here -> the AI pauses
+ * for 30 minutes" fired on the agent's own sends (measured 2026-09-13; see
+ * agent-sent.ts). Body: `{ lead, msg_id }`; the owner is the verified
+ * identity. Answer: `{ ok: true, agent: boolean }`.
+ */
+export async function handleCrmAgentSent(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string
+) {
+  const answer = (code: number, body: unknown) => {
+    res.writeHead(code, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(body))
+  }
+  let body: any = {}
+  try {
+    const chunks: Buffer[] = []
+    for await (const chunk of req as AsyncIterable<Buffer | string>) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
+      if (chunks.reduce((n, c) => n + c.length, 0) > 4_000) break
+    }
+    body = chunks.length
+      ? JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      : {}
+  } catch {
+    return answer(400, { error: 'body: JSON' })
+  }
+  const lead = String(body?.lead ?? '').trim()
+  if (!/^\d{5,15}$/.test(lead)) {
+    return answer(400, { error: 'lead: числовой telegram_id человека' })
+  }
+  const msgId = Number(body?.msg_id)
+  if (!Number.isFinite(msgId) || msgId <= 0) {
+    return answer(400, { error: 'msg_id: номер сообщения Telegram' })
+  }
+  const { wasAgentSent } = await import('./agent-sent')
+  return answer(200, {
+    ok: true,
+    agent: wasAgentSent(String(telegramId), lead, msgId),
+  })
 }
 
 /**

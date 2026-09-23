@@ -12,6 +12,7 @@ Critical knowledge about Infisical-based secret management in this project.
 **ALL secrets are stored in Infisical cloud, NOT in .env files!**
 
 This is a fundamental architectural decision to prevent:
+
 - ❌ Secret leaks in git history
 - ❌ Accidental commits of credentials
 - ❌ Manual secret synchronization errors
@@ -35,6 +36,7 @@ NODE_ENV=development         # or production
 ### What AI Agents Must NEVER Do
 
 **CRITICAL WARNING** in `.env` file:
+
 ```
 ⚠️ ⚠️ ⚠️  WARNING FOR AI AGENTS AND AUTOMATION  ⚠️ ⚠️ ⚠️
 
@@ -43,17 +45,20 @@ DO NOT "FIX" OR "COMPLETE" THIS FILE!
 ```
 
 **Common AI Agent Mistakes to Avoid:**
+
 1. ❌ Adding missing secrets to .env when code fails
 2. ❌ "Completing" .env with BOT_TOKEN, API keys, etc.
 3. ❌ "Fixing" .env to include all environment variables
 4. ❌ Creating .env.example with all secrets
 
 **Why This Happens:**
+
 - AI sees `process.env.BOT_TOKEN` in code
 - AI notices BOT_TOKEN not in .env
 - AI "helpfully" adds it → **WRONG!**
 
 **Correct Behavior:**
+
 - Verify Infisical loads secrets correctly
 - Check Infisical project configuration
 - Ensure NODE_ENV matches Infisical environment
@@ -63,27 +68,35 @@ DO NOT "FIX" OR "COMPLETE" THIS FILE!
 ### 1. Startup Process
 
 ```typescript
-// src/config/infisicalConfig.ts
-const client = new InfisicalClient({
-  clientId: process.env.INFISICAL_CLIENT_ID!,
-  clientSecret: process.env.INFISICAL_CLIENT_SECRET!,
+// src/core/infisical/index.ts - initInfisical()
+const client = new InfisicalSDK({
+  siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com',
 })
 
-await client.auth.universalAuth.login({
-  clientId: process.env.INFISICAL_CLIENT_ID!,
-  clientSecret: process.env.INFISICAL_CLIENT_SECRET!,
-})
+// Service token wins when present, Universal Auth is the fallback
+if (process.env.INFISICAL_SERVICE_TOKEN) {
+  client.auth().accessToken(process.env.INFISICAL_SERVICE_TOKEN)
+} else {
+  await client.auth().universalAuth.login({
+    clientId: process.env.INFISICAL_CLIENT_ID!,
+    clientSecret: process.env.INFISICAL_CLIENT_SECRET!,
+  })
+}
 
-const secrets = await client.secrets().listSecrets({
-  environment: process.env.INFISICAL_ENVIRONMENT || 'dev',
+const result = await client.secrets().listSecrets({
   projectId: process.env.INFISICAL_PROJECT_ID!,
+  environment: process.env.INFISICAL_ENVIRONMENT || 'dev',
+  secretPath: '/',
 })
 
-// Secrets loaded into process.env
-for (const secret of secrets) {
+// Secrets go into an in-memory cache AND into process.env
+for (const secret of result.secrets) {
   process.env[secret.secretKey] = secret.secretValue
 }
 ```
+
+Call sites read secrets through the module's helpers - `getSecret`,
+`getSecretOrDefault`, `getSecrets`, `getSecretsStats`, `isInfisicalReady`.
 
 ### 2. Secret Access
 
@@ -101,6 +114,7 @@ const supabaseUrl = process.env.SUPABASE_URL
 ## Secrets Stored in Infisical
 
 ### Bot Tokens
+
 ```
 BOT_TOKEN_TEST_1
 BOT_TOKEN_TEST_2
@@ -108,6 +122,7 @@ BOT_TOKEN_PROD
 ```
 
 ### API Keys
+
 ```
 OPENAI_API_KEY
 ANTHROPIC_API_KEY
@@ -119,6 +134,7 @@ HEYGEN_API_KEY
 ```
 
 ### Database & Storage
+
 ```
 SUPABASE_URL
 SUPABASE_SERVICE_KEY
@@ -127,6 +143,7 @@ DATABASE_URL
 ```
 
 ### Payment Services
+
 ```
 YOOKASSA_SHOP_ID
 YOOKASSA_SECRET_KEY
@@ -134,6 +151,7 @@ STRIPE_API_KEY
 ```
 
 ### External Services
+
 ```
 TELEGRAM_WEBHOOK_URL
 GITHUB_TOKEN
@@ -142,6 +160,7 @@ INNGEST_SIGNING_KEY
 ```
 
 ### New Keys (Recently Added)
+
 ```
 RENDER_INNGEST_EVENT_KEY
 RENDER_INNGEST_SIGNING_KEY
@@ -150,23 +169,27 @@ RENDER_INNGEST_SIGNING_KEY
 ## Environment Management
 
 ### Development Environment
+
 ```bash
 INFISICAL_ENVIRONMENT=dev
 NODE_ENV=development
 ```
 
 Loads test credentials:
+
 - BOT_TOKEN_TEST_1, BOT_TOKEN_TEST_2
 - Development API keys
 - Test database connections
 
 ### Production Environment
+
 ```bash
 INFISICAL_ENVIRONMENT=prod
 NODE_ENV=production
 ```
 
 Loads production credentials:
+
 - BOT_TOKEN_PROD
 - Production API keys
 - Production database URLs
@@ -181,6 +204,7 @@ Loads production credentials:
    - Add secret to correct environment (dev/prod)
 
 2. **Use in Code**
+
    ```typescript
    // Just use it - no .env changes needed!
    const myNewSecret = process.env.MY_NEW_SECRET
@@ -215,44 +239,58 @@ const envContent = fs.readFileSync('.env', 'utf-8') // NO!
 ### Problem: "Secret not found"
 
 **Check:**
+
 1. Is secret in Infisical dashboard?
 2. Is it in correct environment (dev/prod)?
 3. Does INFISICAL_ENVIRONMENT match?
 4. Did Infisical client initialize successfully?
 
 **Debug:**
+
 ```typescript
 console.log('Environment:', process.env.INFISICAL_ENVIRONMENT)
-console.log('Secrets loaded:', Object.keys(process.env).filter(k =>
-  !k.startsWith('INFISICAL_')
-).length)
+console.log(
+  'Secrets loaded:',
+  Object.keys(process.env).filter(k => !k.startsWith('INFISICAL_')).length
+)
 ```
 
 ### Problem: "Infisical connection failed"
 
 **Check:**
+
 1. INFISICAL_CLIENT_ID correct?
 2. INFISICAL_CLIENT_SECRET correct?
 3. INFISICAL_PROJECT_ID correct?
 4. Network connectivity to Infisical API?
 
 **Solution:**
+
 ```bash
 # Verify credentials in .env
 cat .env
 
-# Test Infisical connection
-bun run src/config/infisicalConfig.ts
+# Test Infisical connection (logs in, lists what actually loaded)
+npx tsx scripts/infisical/test-infisical.ts
+
+# Same login, but checks the AI-generation keys specifically
+npm run test:infisical   # -> scripts/infisical/check-infisical-keys.ts
 ```
+
+`src/core/infisical/index.ts` is a library module, not a script - running the
+file directly does nothing. Use the scripts above; both import `initInfisical`
+from it.
 
 ### Problem: Production using test credentials
 
 **Check:**
+
 1. Is INFISICAL_ENVIRONMENT=prod on production?
 2. Is NODE_ENV=production set?
 3. Did deployment script sync .env correctly?
 
 **Fix:**
+
 ```bash
 # Check production .env
 ssh root@188.137.250.69 "cat /root/bot-farm/.env"
@@ -265,6 +303,7 @@ ssh root@188.137.250.69 "cat /root/bot-farm/.env"
 ## Security Best Practices
 
 ### 1. Never Log Secrets
+
 ```typescript
 // ❌ Bad
 console.log('API Key:', process.env.OPENAI_API_KEY)
@@ -274,16 +313,19 @@ console.log('API Key loaded:', !!process.env.OPENAI_API_KEY)
 ```
 
 ### 2. Never Commit Secrets
+
 - .env file is in .gitignore
 - Never bypass .gitignore for .env
 - Never put secrets in code comments
 
 ### 3. Rotate Secrets Regularly
+
 - Update in Infisical dashboard
 - Restart application to load new secrets
 - No code changes needed!
 
 ### 4. Use Environment-Specific Secrets
+
 - Different API keys for dev/prod
 - Different database URLs
 - Different bot tokens
@@ -291,13 +333,17 @@ console.log('API Key loaded:', !!process.env.OPENAI_API_KEY)
 ## File Locations
 
 ### Configuration Files
+
 ```
 .env                              # Only Infisical credentials
-src/config/infisicalConfig.ts    # Infisical initialization
-src/config/env.ts                # Environment validation
+src/config/index.ts               # Loads .env (Infisical-first, tolerates empty)
+src/core/infisical/index.ts       # Infisical initialization + secret accessors
+src/utils/env-validator.ts        # Environment validation (zod, production)
+scripts/infisical/                # Connection and key-presence check scripts
 ```
 
 ### Documentation
+
 ```
 .env (header comments)            # AI Agent warnings
 CLAUDECODE_RULES.md              # Project rules
@@ -307,6 +353,7 @@ CLAUDECODE_RULES.md              # Project rules
 ## Integration with Deployment
 
 ### Local Development
+
 ```bash
 # .env file with dev environment
 INFISICAL_ENVIRONMENT=dev
@@ -317,6 +364,7 @@ bun run dev
 ```
 
 ### Production Deployment
+
 ```bash
 # scripts/deploy.sh syncs .env to production
 npm run deploy
@@ -327,7 +375,9 @@ NODE_ENV=production
 ```
 
 ### Docker Container
+
 Infisical loads secrets on container startup:
+
 1. Container starts
 2. Infisical client initializes
 3. Secrets loaded from cloud
@@ -338,6 +388,7 @@ Infisical loads secrets on container startup:
 **This project has already migrated!**
 
 Old pattern (deprecated):
+
 ```bash
 # .env file (50+ variables) ❌
 BOT_TOKEN=123456:ABC...
@@ -347,6 +398,7 @@ SUPABASE_URL=https://...
 ```
 
 New pattern (current):
+
 ```bash
 # .env file (5 variables only) ✅
 INFISICAL_CLIENT_ID=...
