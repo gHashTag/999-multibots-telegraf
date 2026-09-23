@@ -22,6 +22,11 @@ const ROOT = path.join(__dirname, '..', '..', '..')
 
 const HOST_RE = /app\.t27\.ai|vibee-editor-production\.up\.railway\.app/i
 
+/** Block-comment markers built from pieces: a literal pair in this file's
+ * own source would end the doc comment it sits in. */
+const BLOCK_OPEN = '/' + '*'
+const BLOCK_CLOSE = '*' + '/'
+
 /** Files that may name the host, and why each is not a link to a person. */
 export const ALLOWED: Record<string, string> = {
   'src/navigation/config/miniApp.config.ts':
@@ -59,17 +64,82 @@ function walk(dir: string, out: string[]) {
   }
 }
 
-/** The code of a file with comments removed, line numbers kept. */
+/**
+ * Index just past the closing quote, or -1 when this quote opens no string.
+ * A single- or double-quoted string cannot span a line, so an apostrophe in
+ * prose (an English contraction in JSX text) opens nothing and must not
+ * swallow the rest of the file.
+ */
+function endOfString(src: string, start: number): number {
+  const quote = src[start]
+  for (let i = start + 1; i < src.length; i++) {
+    const c = src[i]
+    if (c === '\\') {
+      i++
+      continue
+    }
+    if (c === quote) return i + 1
+    if (c === '\n' && quote !== '`') return -1
+  }
+  return -1
+}
+
+/**
+ * The code of a file with comments removed, line numbers kept.
+ *
+ * ONE SCAN, LEFT TO RIGHT -- not block comments first and line comments
+ * second. That order let a block-comment opener written INSIDE a line comment
+ * open a block that ran to the next closer anywhere further down the file,
+ * blanking every real line between them. Whatever those lines said, the scan
+ * below could not see it: the guard silently stopped covering the code it is
+ * pointed at, which is the one failure a guard cannot report about itself.
+ * Found in the review of #2870.
+ *
+ * Strings are stepped over rather than stripped: the link a person receives
+ * lives in one, so their contents ARE the code this guard reads.
+ */
 export function codeOnly(src: string): string {
-  const noBlocks = src.replace(/\/\*[\s\S]*?\*\//g, m =>
-    m.replace(/[^\n]/g, ' ')
-  )
-  // A line comment starts at `//` preceded by the line start or whitespace;
-  // the `//` of `https://` is preceded by `:` and stays.
-  return noBlocks
-    .split('\n')
-    .map(l => l.replace(/(^|\s)\/\/.*$/, '$1'))
-    .join('\n')
+  let out = ''
+  let i = 0
+  const n = src.length
+  while (i < n) {
+    const c = src[i]
+    const next = src[i + 1]
+    if (c === "'" || c === '"' || c === '`') {
+      const end = endOfString(src, i)
+      if (end > i) {
+        out += src.slice(i, end)
+        i = end
+        continue
+      }
+      out += c
+      i++
+      continue
+    }
+    if (c === '/' && next === '*') {
+      // Blanked, not deleted: the line numbers reported below stay right.
+      i += 2
+      out += '  '
+      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) {
+        out += src[i] === '\n' ? '\n' : ' '
+        i++
+      }
+      if (i < n) {
+        out += '  '
+        i += 2
+      }
+      continue
+    }
+    // A line comment starts at `//` at the line start or after whitespace;
+    // the `//` of an https URL follows a colon and is not one.
+    if (c === '/' && next === '/' && (i === 0 || /\s/.test(src[i - 1]))) {
+      while (i < n && src[i] !== '\n') i++
+      continue
+    }
+    out += c
+    i++
+  }
+  return out
 }
 
 function offenders(): string[] {
@@ -111,7 +181,56 @@ describe('links to the app open inside Telegram', () => {
     expect(codeOnly("const a = 'https://app.t27.ai/x' // app.t27.ai")).toBe(
       "const a = 'https://app.t27.ai/x' "
     )
-    expect(HOST_RE.test(codeOnly('/* app.t27.ai */ const b = 1'))).toBe(false)
+    expect(
+      HOST_RE.test(codeOnly(BLOCK_OPEN + ' app.t27.ai ' + BLOCK_CLOSE))
+    ).toBe(false)
     expect(HOST_RE.test(codeOnly(' * app.t27.ai in a doc comment'))).toBe(true)
+  })
+
+  /*
+   * The stripper used to run the block rule over the whole file first. A
+   * block opener typed inside a LINE comment then opened a block that ran to
+   * the next closer further down, and every real line between them was
+   * blanked -- invisible to the scan. Measured over this repository on
+   * 2026-09-23: 8 files, 453 lines of real code, skin.ts alone 336.
+   */
+  it('a block opener inside a line comment hides nothing below it', () => {
+    const src = [
+      'const a = 1 // note: ' + BLOCK_OPEN + ' see below',
+      "const url = 'https://app.t27.ai/hive'",
+      'const b = 2 ' + BLOCK_OPEN + ' a real block ' + BLOCK_CLOSE,
+    ].join('\n')
+    const stripped = codeOnly(src)
+    expect(HOST_RE.test(stripped)).toBe(true)
+    // Line numbers survive, or every offender is reported at the wrong line.
+    expect(stripped.split('\n')).toHaveLength(3)
+    expect(stripped.split('\n')[1]).toContain('app.t27.ai')
+  })
+
+  it('a line-comment marker inside a block comment does not end the block', () => {
+    const src = [
+      BLOCK_OPEN,
+      ' * see app.t27.ai // and app.t27.ai again',
+      ' ' + BLOCK_CLOSE,
+      'const c = 3',
+    ].join('\n')
+    expect(HOST_RE.test(codeOnly(src))).toBe(false)
+  })
+
+  it('a string keeps its contents, comment markers and all', () => {
+    const src = "const s = 'a // b " + BLOCK_OPEN + " c'"
+    expect(codeOnly(src)).toBe(src)
+  })
+
+  it('an apostrophe in prose does not swallow the rest of the file', () => {
+    // A contraction in JSX text is not a string opener; if it were taken for
+    // one, every line after it would be read as string contents.
+    const src = [
+      "const t = <p>don't</p>",
+      "const u = 'https://app.t27.ai/hive'",
+    ].join('\n')
+    const stripped = codeOnly(src)
+    expect(HOST_RE.test(stripped)).toBe(true)
+    expect(stripped.split('\n')).toHaveLength(2)
   })
 })
