@@ -82,6 +82,15 @@ async function main() {
         `отменено ${out.cancelled} — без тебя ${share}.` // cyrillic-ok: operator-facing
     )
   }
+  if (out.before) {
+    const was =
+      out.before.without_you_percent === null
+        ? '—'
+        : `${out.before.without_you_percent}%`
+    console.log(
+      `   неделей раньше: ушло ${out.before.left}, без тебя ${was}.` // cyrillic-ok: operator-facing
+    )
+  }
   console.log(
     `   обходы: карточек ${out.cards_drawn}, тихо ${out.quiet}, упало ${out.failed}.` // cyrillic-ok: operator-facing
   )
