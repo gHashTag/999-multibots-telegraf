@@ -130,11 +130,28 @@ export function roundLog(seen: Seen[]): string {
   )
 }
 
+/**
+ * Did the whole round come back with nothing? That is not five quiet sites;
+ * that is a browser that has stopped being a browser (2026-09-23: Chromium
+ * out of memory opened every tab blank). Pure.
+ */
+export function everythingWasBlank(seen: Seen[]): boolean {
+  return (
+    seen.length > 1 &&
+    seen.every(s => !s.ok || (!s.title.trim() && !s.text.trim()))
+  )
+}
+
 export interface RoundDeps {
   /** False when the person is driving: the round is skipped. */
   personHasTheWheel: () => Promise<boolean>
   /** Opens a page and returns its title and first words. */
   look: (url: string) => Promise<{ title: string; text: string }>
+  /**
+   * Restarts the person's browser, keeping their logins, and says whether it
+   * came back. Called once, and only when the whole round was blank.
+   */
+  restart?: () => Promise<boolean>
   tell: (text: string) => Promise<void>
   now: () => Date
   sites?: Site[]
@@ -171,6 +188,25 @@ export async function runRound(d: RoundDeps): Promise<string> {
         ms: Date.now() - at,
       })
     }
+  }
+  /*
+   * A round that saw nothing anywhere is a broken browser, not a quiet day.
+   * It is restarted once and walked again; the person hears one message
+   * either way, and it says which of the two happened.
+   */
+  if (d.restart && everythingWasBlank(seen)) {
+    const cameBack = await d.restart().catch(() => false)
+    if (cameBack) {
+      const again = await runRound({ ...d, restart: undefined })
+      return `browser was blank; restarted; ${again}`
+    }
+    await d
+      .tell(
+        'Ваш браузер перестал отвечать, и я не смог его перезапустить. ' + // cyrillic-ok: told to the person
+          'Откройте вкладку «Браузер» и нажмите «Закрыть», затем «Открыть» — входы сохранятся.' // cyrillic-ok
+      )
+      .catch(() => {})
+    return 'browser was blank; restart failed'
   }
   await d.tell(roundMessage(seen, d.now())).catch(() => {})
   return roundLog(seen)

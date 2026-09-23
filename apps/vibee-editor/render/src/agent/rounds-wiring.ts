@@ -33,7 +33,9 @@ export async function runRoundNow(
     settleMs: SETTLE_MS,
   })
   const { readSession, personHasTheWheel } = await import('../browser/sessions')
-  const { startBrowserAsAgent } = await import('../browser/routes')
+  const { startBrowserAsAgent, restartBrowserAsAgent } = await import(
+    '../browser/routes'
+  )
   const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
   const { sendToTelegram } = await import('../auth/telegram-sender')
 
@@ -68,6 +70,7 @@ export async function runRoundNow(
       }
     },
     tell: text => sendToTelegram(owner, text),
+    restart: () => restartBrowserAsAgent(owner),
     now: () => new Date(),
     sites: strategy.sites,
   })

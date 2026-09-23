@@ -141,3 +141,79 @@ describe('a page that answered with nothing gets one more look', () => {
     expect(looks).toBe(1)
   })
 })
+
+describe('a browser that stopped being a browser', () => {
+  const blank = async () => ({ title: '', text: '' })
+
+  it('is restarted once and walked again', async () => {
+    let restarts = 0
+    let looks = 0
+    const said: string[] = []
+    const out = await runRound({
+      personHasTheWheel: async () => false,
+      look: async () => {
+        looks += 1
+        /* Blank until the restart, alive after it. */
+        return restarts
+          ? { title: '(2) Notifications / X', text: 'something' }
+          : { title: '', text: '' }
+      },
+      tell: async t => void said.push(t),
+      now: () => new Date('2026-09-23T07:05:00Z'),
+      restart: async () => {
+        restarts += 1
+        return true
+      },
+      sites: [
+        { name: 'X', url: 'https://x.com' },
+        { name: 'hh.ru', url: 'https://hh.ru' },
+      ],
+    })
+    expect(restarts).toBe(1)
+    expect(out).toContain('restarted')
+    /* One message, and it is the one from after the restart. */
+    expect(said).toHaveLength(1)
+    expect(said[0]).toContain('• X: 2 новых')
+    /* Four blank looks before (two sites, a second look each), two after. */
+    expect(looks).toBe(6)
+  })
+
+  it('tells the person plainly when the restart did not help', async () => {
+    const said: string[] = []
+    const out = await runRound({
+      personHasTheWheel: async () => false,
+      look: blank,
+      tell: async t => void said.push(t),
+      now: () => new Date(),
+      restart: async () => false,
+      sites: [
+        { name: 'X', url: 'https://x.com' },
+        { name: 'hh.ru', url: 'https://hh.ru' },
+      ],
+    })
+    expect(out).toContain('restart failed')
+    expect(said[0]).toContain('«Закрыть»')
+  })
+
+  it('one quiet site is not a broken browser', async () => {
+    let restarts = 0
+    await runRound({
+      personHasTheWheel: async () => false,
+      look: async url =>
+        url.includes('x.com')
+          ? { title: '', text: '' }
+          : { title: 'Лента | LinkedIn', text: 'posts' },
+      tell: async () => {},
+      now: () => new Date(),
+      restart: async () => {
+        restarts += 1
+        return true
+      },
+      sites: [
+        { name: 'X', url: 'https://x.com' },
+        { name: 'LinkedIn', url: 'https://linkedin.com' },
+      ],
+    })
+    expect(restarts).toBe(0)
+  })
+})
