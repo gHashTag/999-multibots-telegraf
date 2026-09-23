@@ -48,14 +48,41 @@ describe('the video cache worker and the game', () => {
     expect(fetchFor('https://app.t27.ai/game/a.png')).not.toHaveBeenCalled()
   })
 
-  it('still answers for player media, and for /game/ on another origin', () => {
+  it("still answers for this origin's media", () => {
     expect(fetchFor('https://app.t27.ai/lipsync/x.mp4')).toHaveBeenCalledTimes(
       1
     )
-    expect(
-      fetchFor('https://cdn.example.com/game/a.png')
-    ).toHaveBeenCalledTimes(1)
     // The boundary is the directory, not the prefix: /gameplay.png is player media.
     expect(fetchFor('https://app.t27.ai/gameplay.png')).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * This case used to assert the opposite, and it was right about the rule it
+   * was testing: the `/game/` skip is scoped to THIS origin, so a CDN path that
+   * merely says `/game/` was not meant to inherit it. What it pinned as a side
+   * effect was that the worker answers for other origins at all - and that was
+   * the defect. Matching on the PATH ending in an image extension, whatever the
+   * host, meant `https://github.com/<login>.png` was taken over by a cache
+   * built for this origin's video, re-fetched by URL string (mode 'cors' where
+   * an <img> sends 'no-cors'), and failed for every host that sends no
+   * Access-Control-Allow-Origin. Every remote image in the app was broken.
+   *
+   * Measured 2026-09-23: the same avatar loaded on t27.ai, which registers no
+   * worker, and failed on app.t27.ai, which registers this one.
+   */
+  it('leaves other origins alone, whatever their path says', () => {
+    expect(
+      fetchFor('https://cdn.example.com/game/a.png')
+    ).not.toHaveBeenCalled()
+    expect(fetchFor('https://github.com/someone.png')).not.toHaveBeenCalled()
+    expect(fetchFor('https://cdn.example.com/clip.mp4')).not.toHaveBeenCalled()
+  })
+
+  it('keeps the one cross-origin case it proxies on purpose', () => {
+    // Telegram user pictures: their host answers no cross-origin request, so
+    // the worker routes them through the render proxy instead of dropping them.
+    expect(
+      fetchFor('https://t.me/i/userpic/320/abc.jpg')
+    ).toHaveBeenCalledTimes(1)
   })
 })
