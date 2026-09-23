@@ -268,6 +268,36 @@ const stranger = {
   pool: { query: async () => ({ rows: [] }) },
 } as never
 
+/* ─────────────────── tg_sessions, as the render really reads it ────────────── */
+
+/** An account whose holder connected it in the app; and one who never did. */
+const CONNECTED = '900000002'
+const UNCONNECTED = '900000003'
+/** Not token-shaped and not real: only its absence from the log is asserted. */
+const SESSION = 'invented-session-of-a-connected-account'
+
+/**
+ * A pool that answers the ONE read the gate makes -- the same SQL tg-connect
+ * runs -- so the test exercises `isSeller` itself instead of a stand-in that
+ * would decide the answer for it.
+ */
+function sessionsPool(connected: string[]) {
+  const asked: Array<{ sql: string; id: string }> = []
+  return {
+    asked,
+    pool: {
+      query: async (sql: string, params?: unknown[]) => {
+        const id = String(params?.[0] ?? '')
+        asked.push({ sql, id })
+        return /SELECT session FROM tg_sessions/.test(sql) &&
+          connected.includes(id)
+          ? { rows: [{ session: SESSION }] }
+          : { rows: [] }
+      },
+    },
+  }
+}
+
 beforeEach(async () => {
   vi.resetModules()
   clearEnv()
@@ -301,12 +331,16 @@ function run(
   ctx = owner
 ) {
   const opened: string[] = []
+  /** The telegram id of every context a chat was opened for, in order. */
+  const actors: string[] = []
   return {
     opened,
+    actors,
     result: mod.configureMainMiniApp(args, ctx, {
       fetchImpl: api.fetchImpl,
-      openChat: async (_c, fn) => {
+      openChat: async (c, fn) => {
         opened.push('chat')
+        actors.push(String((c as { telegramId?: unknown })?.telegramId ?? ''))
         if (!fb) throw new Error('no chat in this test')
         try {
           return await fn(fb)
@@ -915,6 +949,177 @@ describe('a BotFather call that never returns', () => {
     ).result
     expect(stopped.status).toBe('stopped')
     expect((await run(botFather()).result).status).toBe('unverified')
+  })
+})
+
+/**
+ * @BotFather shows a bot only to the account that CREATED it, so the nine
+ * farm bots the platform owner did not create can be configured only through
+ * their own account. `as` says whose session drives the dialogue; the two
+ * halves of the gate -- that account connected itself, and the owner
+ * authorises this run -- are checked before anything leaves for Telegram.
+ */
+describe('through the account that created the bot', () => {
+  const ownerSeeing = (connected: string[]) => {
+    const p = sessionsPool(connected)
+    return { asked: p.asked, ctx: { telegramId: OWNER, pool: p.pool } as never }
+  }
+  const asArgs = (id = CONNECTED, extra: Record<string, unknown> = {}) => ({
+    bot: `@${BOT}`,
+    as: id,
+    authorized_by_owner: true,
+    ...extra,
+  })
+
+  it("drives BotFather through that account's session, not the owner's", async () => {
+    const fb = botFather({ onUrl: flip })
+    const { ctx } = ownerSeeing([CONNECTED])
+    const { result, actors, opened } = run(fb, asArgs(), ctx)
+    const r = await result
+    expect(r.status).toBe('enabled')
+    expect(r.acting_as).toBe(CONNECTED)
+    // The chat was opened for the acting account and for nobody else.
+    expect(actors).toEqual([CONNECTED])
+    expect(opened).toEqual(['chat', 'closed'])
+    expect(fb.sent).toEqual(['/mybots', APP_HREF])
+  })
+
+  it("without `as` the session stays the caller's own", async () => {
+    const { result, actors } = run(botFather({ onUrl: flip }))
+    const r = await result
+    expect(r.status).toBe('enabled')
+    expect(r.acting_as).toBeUndefined()
+    expect(actors).toEqual([OWNER])
+  })
+
+  it('an account that never connected itself is refused, and nothing is asked', async () => {
+    const fb = botFather({ onUrl: flip })
+    const { ctx } = ownerSeeing([CONNECTED])
+    const { result, opened } = run(fb, asArgs(UNCONNECTED), ctx)
+    await expect(result).rejects.toThrow('не подключён')
+    expect(opened).toEqual([])
+    expect(api.spy).not.toHaveBeenCalled()
+    expect(fb.sent).toEqual([])
+  })
+
+  it("without the owner's confirmation the `as` form is refused", async () => {
+    const fb = botFather({ onUrl: flip })
+    const { ctx, asked } = ownerSeeing([CONNECTED])
+    const { result, opened } = run(
+      fb,
+      { bot: `@${BOT}`, as: CONNECTED },
+      // A connected account and a real farm bot: only the confirmation is
+      // missing, so nothing but the confirmation can be what refuses it.
+      ctx
+    )
+    await expect(result).rejects.toThrow('authorized_by_owner')
+    expect(opened).toEqual([])
+    expect(api.spy).not.toHaveBeenCalled()
+    expect(asked).toEqual([])
+  })
+
+  it('authorized_by_owner must be the boolean, not a word that looks like one', async () => {
+    const { ctx } = ownerSeeing([CONNECTED])
+    for (const value of ['true', 1, {}, null]) {
+      const { result, opened } = run(
+        botFather(),
+        { bot: `@${BOT}`, as: CONNECTED, authorized_by_owner: value },
+        ctx
+      )
+      await expect(result).rejects.toThrow('authorized_by_owner')
+      expect(opened).toEqual([])
+    }
+  })
+
+  it('a caller who is not the owner cannot reach another account at all', async () => {
+    const p = sessionsPool([CONNECTED, STRANGER])
+    const ctx = { telegramId: STRANGER, pool: p.pool } as never
+    const fb = botFather({ onUrl: flip })
+    const { result, opened } = run(fb, asArgs(), ctx)
+    await expect(result).rejects.toThrow('владельцу')
+    expect(opened).toEqual([])
+    // Refused by WHO asks, before the acting account is even looked up.
+    expect(p.asked).toEqual([])
+    expect(api.spy).not.toHaveBeenCalled()
+    expect(fb.sent).toEqual([])
+  })
+
+  it('`as` that is not a Telegram id is refused, not passed on', async () => {
+    const { ctx } = ownerSeeing([CONNECTED])
+    for (const bad of ['@somebody', '12', 'me', `${CONNECTED} OR 1=1`]) {
+      const { result, opened } = run(
+        botFather(),
+        { bot: `@${BOT}`, as: bad, authorized_by_owner: true },
+        ctx
+      )
+      await expect(result).rejects.toThrow('as:')
+      expect(opened).toEqual([])
+    }
+  })
+
+  it('logs one line naming the acting account and the bot, and no secret', async () => {
+    const { ctx } = ownerSeeing([CONNECTED])
+    const r = await run(botFather({ onUrl: flip }), asArgs(), ctx).result
+    expect(r.status).toBe('enabled')
+    const named = lines.filter(l => l.includes(CONNECTED))
+    expect(named).toHaveLength(1)
+    expect(named[0]).toBe(
+      `[botfather-main-app] @${BOT} acting_as ok (account ${CONNECTED})`
+    )
+    // Every line still names the bot, and none of them carries a secret.
+    for (const l of lines) {
+      expect(l).toMatch(
+        new RegExp(`^\\[botfather-main-app\\] @${BOT} \\w+ (ok|stop)`)
+      )
+      expect(l).not.toContain(SESSION)
+      expect(l).not.toContain('test-alpha')
+    }
+  })
+
+  it('a bot that account did not create stops at pick_bot, and no URL is sent', async () => {
+    const fb = botFather({
+      pages: [['@other_test_bot'], ['@third_test_bot']],
+      onUrl: flip,
+    })
+    const { ctx } = ownerSeeing([CONNECTED])
+    const r = await run(fb, asArgs(), ctx).result
+    expect(r.status).toBe('stopped')
+    expect(r.stopped_at).toBe('pick_bot')
+    expect(r.acting_as).toBe(CONNECTED)
+    expect(r.url_sent).toBe(false)
+    expect(fb.sent).toEqual(['/mybots'])
+    expect(r.reason).toContain(`@${BOT}`)
+  })
+
+  it('dry_run says whose account would act, and opens nothing', async () => {
+    const fb = botFather()
+    const { ctx } = ownerSeeing([CONNECTED])
+    const { result, opened } = run(
+      fb,
+      asArgs(CONNECTED, { dry_run: true }),
+      ctx
+    )
+    const r = await result
+    expect(r.status).toBe('dry_run')
+    expect(r.acting_as).toBe(CONNECTED)
+    expect(opened).toEqual([])
+    expect(fb.sent).toEqual([])
+  })
+
+  it('the registered tool takes `as`, and refuses it unconfirmed', async () => {
+    const net = vi.fn()
+    vi.stubGlobal('fetch', net)
+    const { TOOLS_BY_NAME } = await import('./src/agent/tools')
+    const tool = TOOLS_BY_NAME.get('botfather_main_app')!
+    const props = (tool.parameters as { properties: Record<string, unknown> })
+      .properties
+    expect(Object.keys(props)).toContain('as')
+    expect(Object.keys(props)).toContain('authorized_by_owner')
+    const { ctx } = ownerSeeing([CONNECTED])
+    await expect(
+      tool.handler({ bot: `@${BOT}`, as: CONNECTED, dry_run: true }, ctx)
+    ).rejects.toThrow('authorized_by_owner')
+    expect(net).not.toHaveBeenCalled()
   })
 })
 

@@ -1,4 +1,4 @@
-# Main Mini App in @BotFather, from the owner's account
+# Main Mini App in @BotFather, from the account that created the bot
 
 **Owner, 2026-09-22:** every link to our app must open inside Telegram.
 Asked whether to do it through his account, he answered
@@ -11,17 +11,25 @@ switch sits in @BotFather behind inline buttons. When measured the same day,
 
 ## The tool
 
-`botfather_main_app { bot: '@username', url?: string, dry_run?: boolean }`:
+`botfather_main_app { bot: '@username', url?: string, dry_run?: boolean, as?: string, authorized_by_owner?: boolean }`:
 a render MCP tool, in `apps/vibee-editor/render/src/agent/botfather-main-app.ts`.
 
-| Rule              | How it holds                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Owner only        | `requireOwner(ctx)`, the gate every owner-only tool uses. It runs first.                                                                                                                                                                                                                                                                                                                                                                 |
-| Direct calls only | The tool is in `DIRECT_CALL_ONLY` (tools.ts). `/mcp` lists it, but a model turn in the render never sees it and is refused if it calls it anyway.                                                                                                                                                                                                                                                                                        |
-| Inside the render | The run uses `withClient(ctx)`: the owner's session from `tg_sessions` or `TELEGRAM_SESSION_STRING`. Using the same key from a second process risks `AUTH_KEY_DUPLICATED`, which would sign the owner out everywhere.                                                                                                                                                                                                                    |
-| Farm bots only    | `tokenForBot`: the render's own tokens, matched by username via getMe on `telegramApiFor(token)`.                                                                                                                                                                                                                                                                                                                                        |
-| Our app only      | The URL defaults to the bot's `getChatMenuButton` web_app URL, fetched on the bot's own host. It must be `https://app.t27.ai` or `https://vibee-editor-production.up.railway.app`, with no port and no whitespace, control or invisible character anywhere in it (`new URL()` silently drops `\n` and `\t`, so they are refused before parsing). BotFather is sent `u.href`, the normalised form that was checked, never the raw string. |
-| Proven            | Afterwards, `getMe.has_main_web_app` must be `true`. Otherwise the result is `unverified`, whatever BotFather said.                                                                                                                                                                                                                                                                                                                      |
+**Whose `/mybots`.** @BotFather shows a bot only to the account that created
+it. Measured 2026-09-22: of eleven farm bots only two are in the platform
+owner's `/mybots`; the rest were created by other accounts. Through the
+owner's session alone the tool could configure two of eleven, and stopped on
+the rest with «not in the list /mybots shows» — true and useless. `as` names
+the account the dialogue runs through; see the two rows below.
+
+| Rule              | How it holds                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owner only        | `requireOwner(ctx)`, the gate every owner-only tool uses. It runs first. `as` widens whose account acts, never who may ask.                                                                                                                                                                                                                                                                                                                           |
+| Acting account    | Without `as`, the caller's own session. With `as`, that account's — only when both halves hold: its holder connected it themselves (a row in `tg_sessions`, read by `isSeller`) **and** the owner authorises this run (`authorized_by_owner: true`, which must be typed). Both are checked before anything leaves for Telegram, and each refusal names which half failed. One log line, `acting_as ok (account <id>)`, and `acting_as` in the result. |
+| Direct calls only | The tool is in `DIRECT_CALL_ONLY` (tools.ts). `/mcp` lists it, but a model turn in the render never sees it and is refused if it calls it anyway.                                                                                                                                                                                                                                                                                                     |
+| Inside the render | The run uses `withClient(ctx)`: the acting account's session from `tg_sessions`, or `TELEGRAM_SESSION_STRING` for the platform owner. Using the same key from a second process risks `AUTH_KEY_DUPLICATED`, which would sign that person out everywhere. No session is opened outside the render, and none is ever handed out.                                                                                                                        |
+| Farm bots only    | `tokenForBot`: the render's own tokens, matched by username via getMe on `telegramApiFor(token)`.                                                                                                                                                                                                                                                                                                                                                     |
+| Our app only      | The URL defaults to the bot's `getChatMenuButton` web_app URL, fetched on the bot's own host. It must be `https://app.t27.ai` or `https://vibee-editor-production.up.railway.app`, with no port and no whitespace, control or invisible character anywhere in it (`new URL()` silently drops `\n` and `\t`, so they are refused before parsing). BotFather is sent `u.href`, the normalised form that was checked, never the raw string.              |
+| Proven            | Afterwards, `getMe.has_main_web_app` must be `true`. Otherwise the result is `unverified`, whatever BotFather said.                                                                                                                                                                                                                                                                                                                                   |
 
 ## The path it walks
 
@@ -71,3 +79,8 @@ Each step writes one log line: `[botfather-main-app] @bot <step> ok|stop (reason
    match to a substring.
 4. Run the rest of the farm one bot at a time. A second call during a run is
    refused, because BotFather keeps one conversation per account.
+5. For a bot the platform owner did not create, add `as: '<telegram id>'` and
+   `authorized_by_owner: true`. If it answers «аккаунт … не подключён», that
+   person has to connect their own Telegram in the app first — nobody can do
+   it for them. If it still stops at `pick_bot`, that account did not create
+   the bot either, and only the account that did can switch it on.
