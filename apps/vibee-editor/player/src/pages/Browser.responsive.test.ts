@@ -134,3 +134,27 @@ describe('the live screen scrolls instead of clipping the cards (owner, 2026-09-
     )
   })
 })
+
+describe('the agent at the wheel is visible from across the room', () => {
+  it('draws a band of light, not a hairline', () => {
+    const rule = css.match(
+      /\.remote-browser--minimal \.remote-browser__stage--working::after \{([^}]*)\}/
+    )
+    expect(rule).not.toBeNull()
+    const width = Number(/border-width:\s*(\d+)px/.exec(rule![1])?.[1])
+    /* The owner asked for a thicker line; 2px was the one they could miss. */
+    expect(width).toBeGreaterThanOrEqual(4)
+    expect(rule![1]).toMatch(/box-shadow:[^;]*rgba\(0, 255, 136/)
+  })
+
+  it('never takes a tap, whatever it draws', () => {
+    const rule = css.match(
+      /\.remote-browser--minimal \.remote-browser__stage::after \{([^}]*)\}/
+    )
+    expect(rule![1]).toContain('pointer-events: none')
+  })
+
+  it('says it on the island as well', () => {
+    expect(css).toMatch(/\.detent-sheet--working \{[^}]*rgba\(0, 255, 136/)
+  })
+})
