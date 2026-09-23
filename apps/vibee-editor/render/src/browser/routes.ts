@@ -94,6 +94,7 @@ export const BROWSER_PATHS = [
   '/api/browser/round',
   '/api/browser/learned',
   '/api/browser/strategy',
+  '/api/browser/desks',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -320,8 +321,20 @@ export async function handleBrowser(
         body: { ok: false, error: "a round is the person's to start" },
       }
     }
-    const { runRoundNow } = await import('../agent/rounds-wiring')
-    const said = await runRoundNow(pool, who)
+    const { runRoundNow, runEveryDeskNow } = await import(
+      '../agent/rounds-wiring'
+    )
+    const profile = new URLSearchParams(
+      (req.url || '').split('?')[1] || ''
+    ).get('profile')
+    /*
+     * No desk named means every desk, each in its own window, side by side
+     * (browser/windows.ts): that is what makes the agents parallel rather
+     * than a queue with one tab.
+     */
+    const said = profile
+      ? await runRoundNow(pool, who, profile)
+      : await runEveryDeskNow(pool, who)
     console.log('[rounds] asked by the person:', said.slice(0, 300))
     return { status: 200, body: { ok: true, round: said } }
   }
@@ -392,6 +405,37 @@ export async function handleBrowser(
       status: 200,
       body: { ok: true, inUse: roundStrategyOf(wanted, fallback) },
     }
+  }
+
+  /*
+   * THE DESKS (agent/profiles.ts): every line of work the agent keeps for
+   * this person, with the accounts that belong to it and the settings in
+   * use. Read-only; the app draws a cabinet per desk from this.
+   */
+  if (path === '/api/browser/desks') {
+    if (method !== 'GET') {
+      return { status: 405, body: { ok: false, error: 'GET only' } }
+    }
+    const { PROFILES, strategyKeyOf } = await import('../agent/profiles')
+    const { readStrategy, roundStrategyOf } = await import(
+      '../agent/strategies'
+    )
+    const { SETTLE_MS } = await import('../agent/rounds')
+    const desks = []
+    for (const p of PROFILES) {
+      const saved = await readStrategy(pool, strategyKeyOf(p.id))
+      desks.push({
+        id: p.id,
+        name: p.name,
+        about: p.about,
+        inUse: roundStrategyOf(saved, {
+          sites: p.sites,
+          everyMin: Number(process.env.ROUNDS_EVERY_MIN) || 180,
+          settleMs: SETTLE_MS,
+        }),
+      })
+    }
+    return { status: 200, body: { ok: true, desks } }
   }
 
   if (path === '/api/browser/journal') {

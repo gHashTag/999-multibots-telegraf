@@ -15,6 +15,7 @@ import {
   type Answer,
   type ShareDeps,
   questionFor,
+  xThread,
 } from './src/agent/blog-share'
 
 const RSS = `<?xml version="1.0"?><rss><channel>
@@ -195,5 +196,43 @@ describe('the owner s own community gets the article too', () => {
     expect(asked).toContain('LinkedIn')
     expect(asked).toContain('X')
     expect(asked).toContain('r/t27ai')
+  })
+})
+
+describe('the link goes in the reply, not in the post', () => {
+  /*
+   * A reader on X wrote to the owner on 2026-09-23: posts carrying an
+   * external link reach fewer people; he writes a thread instead, with the
+   * link in a post below. He called it possibly superstition and asked for
+   * a test, so the cron writes it his way.
+   */
+  const article = {
+    slug: 'a',
+    title: 'Ternary floats, measured',
+    link: 'https://t27.ai/blog/gf-t',
+    summary: 'what the numbers say, and what they do not',
+  }
+
+  it('the first post carries the words and nothing to click', () => {
+    const thread = xThread(article)
+    expect(thread.first).toContain(article.title)
+    expect(thread.first).not.toContain('http')
+    expect(thread.first.length).toBeLessThanOrEqual(X_LIMIT)
+  })
+
+  it('the link is the whole of the second post', () => {
+    expect(xThread(article).second).toBe(article.link)
+  })
+
+  it('without the link, the words get the room the link used to take', () => {
+    const long = {
+      ...article,
+      title: 'T'.repeat(40),
+      summary: 'S'.repeat(400),
+    }
+    /* The one-post share still leaves room for the link X counts as 23. */
+    expect(xText(long).length).toBeLessThanOrEqual(X_LIMIT - 23)
+    /* The thread does not, so it says more. */
+    expect(xThread(long).first.length).toBeGreaterThan(xText(long).length)
   })
 })

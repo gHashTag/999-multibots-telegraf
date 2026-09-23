@@ -33,6 +33,7 @@ import {
   type Wheel,
 } from '@/lib/browserWatch'
 import { listenForTouchInside } from '@/lib/frameTouch'
+import { Desks } from '@/components/Browser/Desks'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
 import { TypeSheet } from '@/components/Browser/TypeSheet'
 import { DetentSheet } from '@/components/DetentSheet/DetentSheet'
@@ -457,6 +458,17 @@ export default function BrowserPage() {
           )
         ) : null}
 
+        {/* Taking the wheel is a press too: watching must not interrupt. */}
+        {agentWorking ? (
+          <button
+            type="button"
+            className="remote-browser__secondary"
+            onClick={takeTheWheel}
+          >
+            {t('browser.takeTheWheel')}
+          </button>
+        ) : null}
+
         {/* Handing the wheel back is a press, never a timeout. */}
         {!agentWorking ? (
           <button
@@ -551,6 +563,8 @@ export default function BrowserPage() {
           {t(`browser.round.${walked}`)}
         </p>
       ) : null}
+      {/* One cabinet per line of work (components/Browser/Desks.tsx). */}
+      {embedded ? <Desks /> : null}
       {showImport ? <ImportLogins /> : null}
       <p className="remote-browser__muted">{t('browser.closeKeeps')}</p>
     </>
@@ -643,7 +657,8 @@ export default function BrowserPage() {
                   ? 'remote-browser__stage remote-browser__stage--working'
                   : 'remote-browser__stage'
               }
-              onPointerDown={takeTheWheel}
+              /* A click, not a passing pointer (lib/deliberateTouch.ts). */
+              onClick={takeTheWheel}
               onKeyDownCapture={takeTheWheel}
             >
               <iframe
