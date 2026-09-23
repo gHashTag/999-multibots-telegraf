@@ -492,6 +492,12 @@ import {
 } from './src/lib/s3-put'
 import { shelfReadAccess } from './src/lib/shelf-access'
 import {
+  CLUB_ONLY_BODY,
+  CLUB_ONLY_STATUS,
+  mayViewProfile,
+} from './src/club/profile-visibility'
+import { clubAccessFor } from './src/agent/club-membership'
+import {
   serveShelfRequest,
   createShelfVideo,
   ffprobeJson,
@@ -2392,6 +2398,79 @@ async function chargeMiniAppUser(
  * а списание по модели: из 36 пар совпадали две. `quantity` терялся отдельно —
  * маршрут видео умножает списание на секунды, а возвращал за одну.
  */
+/**
+ * WHO GETS THE CLUB WITHOUT PAYING, IN ONE PLACE.
+ *
+ * Bot owners (avatars) and keepers are members by standing; invited people
+ * by a guest pass (club-guests.ts). This used to be written inline in the
+ * club route only -- and the moment a second caller needed it (the profile
+ * gate, 2026-09-23), a copy would have been the obvious move and the two
+ * would have drifted the way the navigation lists did.
+ */
+/**
+ * THE CLUB GATE ON A PROFILE, FOR THE THREE GET HANDLERS THAT SERVE ONE.
+ *
+ * Owner, 2026-09-23: "profiles must be visible only to registered club
+ * members!! by payment!". The decision itself is in src/club/
+ * profile-visibility.ts; this is the plumbing that gives it a viewer, a
+ * grant and a pool, so the handlers say `if (await refuseUnlessClub(...))
+ * return` and nothing else.
+ *
+ * Answers true when it has ALREADY written the refusal to `res`.
+ */
+async function refuseUnlessClub(
+  req: any,
+  res: any,
+  ownerTelegramId: string | null | undefined
+): Promise<boolean> {
+  const viewer = chatIdentity(req, verifiedTelegramId(req))
+  const pool = (await getPool()) as any
+  // The grant (bot owner, keeper, guest pass) is resolved only when there is
+  // somebody to resolve it for, and never for their own page.
+  const own =
+    viewer && ownerTelegramId && String(viewer) === String(ownerTelegramId)
+  const access =
+    own || !viewer
+      ? null
+      : await clubAccessFor(String(viewer), clubGrantSource(), req)
+  const verdict = await mayViewProfile({
+    viewerTelegramId: viewer,
+    ownerTelegramId,
+    pool,
+    access,
+  })
+  if (verdict.allowed) return false
+  res.writeHead(CLUB_ONLY_STATUS, {
+    'Content-Type': 'application/json; charset=utf-8',
+  })
+  res.end(JSON.stringify(CLUB_ONLY_BODY))
+  return true
+}
+
+function clubGrantSource() {
+  return {
+    botsOwnedBy: async (id: string) =>
+      (await import('./src/agent/hive-tools')).botsOwnedBy(id),
+    // The guest pass: people the owner invited by @username. The name comes
+    // from the verified signature first.
+    usernameOf: (r: unknown) => verifiedTelegramUsername(r as any),
+    // ...and when there is no signature to read a name from -- a desktop
+    // browser or the iOS app, which never send x-telegram-init-data -- we ask
+    // our own users table what the ALREADY-VERIFIED id is called. Without
+    // this an invitation written as a name only worked inside Telegram, which
+    // is how @SamHold sat behind the paywall while being on the guest list
+    // (measured 2026-09-21).
+    usernameById: async (id: string) => {
+      const r = await ((await getPool()) as any).query(
+        'SELECT username FROM users WHERE telegram_id = $1 LIMIT 1',
+        [String(id)]
+      )
+      const name = r.rows?.[0]?.username
+      return name ? String(name) : null
+    },
+  }
+}
+
 async function refundMiniAppUser(
   tid: string | undefined,
   op: string,
@@ -8384,27 +8463,7 @@ const server = createServer(async (req, res) => {
         }),
       // Bot owners (avatars) and keepers enter the club without paying, and
       // get the month's tokens through the ledger (kind 'grant').
-      grant: {
-        botsOwnedBy: async id =>
-          (await import('./src/agent/hive-tools')).botsOwnedBy(id),
-        // The guest pass (club-guests.ts): people the owner invited by
-        // @username. The name comes from the verified signature first.
-        usernameOf: r => verifiedTelegramUsername(r as any),
-        // ...and when there is no signature to read a name from -- a desktop
-        // browser or the iOS app, which never send x-telegram-init-data -- we
-        // ask our own users table what the ALREADY-VERIFIED id is called.
-        // Without this an invitation written as a name only worked inside
-        // Telegram, which is how @SamHold sat behind the paywall while being
-        // on the guest list (measured 2026-09-21).
-        usernameById: async id => {
-          const r = await ((await getPool()) as any).query(
-            'SELECT username FROM users WHERE telegram_id = $1 LIMIT 1',
-            [String(id)]
-          )
-          const name = r.rows?.[0]?.username
-          return name ? String(name) : null
-        },
-      },
+      grant: clubGrantSource(),
       creditGrant: async g => creditClubGrant((await getPool()) as any, g),
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
@@ -10552,6 +10611,12 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ error: 'Invalid telegram_id' }))
       return
     }
+    /*
+     * THE CLUB GATE (owner, 2026-09-23). This is the same profile by another
+     * name, so it answers the same rule -- otherwise the by-name route would
+     * be closed and this one an open side door to the very same record.
+     */
+    if (await refuseUnlessClub(req, res, telegram_id)) return
     try {
       // getPool() внутри try: снаружи его синхронный throw при незаданном
       // DATABASE_URL уходил из async-обработчика и убивал процесс.
@@ -10635,6 +10700,21 @@ const server = createServer(async (req, res) => {
       // getPool() внутри try: его синхронный throw иначе уходит из
       // async-обработчика и убивает процесс.
       const pool = await getPool()
+      /*
+       * THE CLUB GATE (owner, 2026-09-23). A person's work is part of their
+       * profile, so it answers the same rule: themselves always, a member
+       * always, everybody else 403 club_only. The owner is looked up by name
+       * first -- the templates table carries the id, but a name that belongs
+       * to nobody must not read as "not a member" either.
+       */
+      const ownerRow = await pool.query(
+        `SELECT telegram_id FROM profiles WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+        [username]
+      )
+      const ownerId = ownerRow.rows?.[0]?.telegram_id
+      if (await refuseUnlessClub(req, res, ownerId ? String(ownerId) : null)) {
+        return
+      }
       const result = await pool.query(
         `SELECT pt.id, pt.telegram_id, pt.creator_name, pt.creator_avatar,
                 COALESCE(pt.creator_username, '') AS creator_username,
@@ -10925,6 +11005,16 @@ const server = createServer(async (req, res) => {
             is_verified: row.is_verified || false,
             created_at: row.created_at,
           }
+
+          /*
+           * THE CLUB GATE (owner, 2026-09-23): "profiles must be visible only
+           * to registered club members!! by payment!". Checked here, where the
+           * profile's own id is known, so the answer can still be "yours" for
+           * the person themselves. SOUL.md next door stays open on purpose --
+           * the owner's own recorded decision, twice in this file's
+           * neighbourhood: people and a2a agents find each other by it.
+           */
+          if (await refuseUnlessClub(req, res, row.telegram_id)) return
 
           // Enforce is_public: a profile marked private is visible only to its
           // verified owner. The flag was computed but never enforced, so a private

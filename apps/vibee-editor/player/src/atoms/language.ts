@@ -126,6 +126,10 @@ const en: Translations = {
   'browser.signInFirst':
     'Open this page from the bot to see your browser: it has to know who you are first.',
   // ── CRM ───────────────────────────────────────────────────────────────────
+  'profile.club_only': 'The profile is open to club members',
+  'profile.club_only_desc':
+    'A paid month or a pass opens every profile — and yours becomes visible to the others.',
+  'profile.club_only_cta': 'Open my profile',
   'crm.title': 'CRM',
   'crm.sections': 'CRM sections',
   'crm.section.work': 'Work',
@@ -2259,6 +2263,10 @@ const ru: Translations = {
   'browser.signInFirst':
     'Откройте эту страницу из бота, чтобы увидеть свой браузер: сначала нужно понять, кто вы.',
   // cyrillic-ok: UI dictionary, Russian half
+  'profile.club_only': 'Профиль открыт участникам клуба',
+  'profile.club_only_desc':
+    'Оплаченный месяц или пропуск открывает все профили — и твой становится виден остальным.',
+  'profile.club_only_cta': 'Открыть свой профиль',
   'crm.title': 'CRM',
   'crm.sections': 'Разделы CRM',
   'crm.section.work': 'Работа',
