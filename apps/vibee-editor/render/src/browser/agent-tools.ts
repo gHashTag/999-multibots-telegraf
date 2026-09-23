@@ -54,6 +54,7 @@ import { recordStep, stepOf } from './journal'
 import { askVision, shrinkJpeg, visionConfig } from '../agent/media-vision'
 import {
   frontPage,
+  listTargets as listTargetsForFront,
   newPage,
   closePage,
   activatePage,
@@ -63,6 +64,12 @@ import {
   typeText,
   screenshot,
 } from './cdp'
+import {
+  chosenFront,
+  forgetFront,
+  pickFront,
+  rememberFront,
+} from './front-page'
 
 /**
  * THE GUARD AN AGENT CANNOT DRIVE PAST.
@@ -131,7 +138,11 @@ async function podOf(
         'you work in it.'
     )
   }
-  const page = await frontPage(session.cdpEndpoint)
+  /* The tab the agent chose with browser_status front, while it is open. */
+  const targets = await listTargetsForFront(session.cdpEndpoint).catch(() => [])
+  const page =
+    pickFront(targets, chosenFront(ctx.telegramId)) ??
+    (await frontPage(session.cdpEndpoint))
   return { cdp: session.cdpEndpoint, targetId: page.id }
 }
 
@@ -512,6 +523,8 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       const front = (args as { front?: unknown }).front
       if (typeof front === 'string' && front) {
         await activatePage(session.cdpEndpoint!, front).catch(() => {})
+        /* Activating does not reorder /json/list: remember the choice. */
+        rememberFront(ctx.telegramId, front)
       }
       const targets = await listTargets(session.cdpEndpoint!).catch(() => [])
       return {
@@ -519,7 +532,15 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         /* No endpoints, no tokens: an agent needs neither to use the tools. */
         pages: targets
           .filter(t => t.type === 'page')
-          .map(t => ({ id: t.id, title: t.title, url: t.url })),
+          .map(t => ({
+            id: t.id,
+            title: t.title,
+            url: t.url,
+            /* Where the tools act now (front-page.ts). */
+            ...(t.id === chosenFront(ctx.telegramId)
+              ? { actingHere: true as const }
+              : {}),
+          })),
         watchedByThePerson: true,
       }
     },
@@ -731,6 +752,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       )
       if (!session?.cdpEndpoint) throw new Error('no browser is running')
       await closePage(session.cdpEndpoint, String(args.id))
+      forgetFront(ctx.telegramId, String(args.id))
       return { closed: String(args.id) }
     },
   },
