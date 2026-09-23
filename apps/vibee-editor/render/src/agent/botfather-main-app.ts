@@ -1,6 +1,6 @@
 /**
  * THE MAIN MINI APP OF ONE FARM BOT, SWITCHED ON IN @BotFather FROM THE
- * OWNER'S OWN ACCOUNT.
+ * ACCOUNT THAT OWNS THAT BOT.
  *
  * Owner, 2026-09-22: every link to our app must open inside Telegram, and --
  * asked whether to do it through his account -- "yes, configure it through my
@@ -13,11 +13,36 @@
  *
  * ── WHY IT RUNS INSIDE THE RENDER, AND ONLY HERE ────────────────────────────
  *
- * The owner's Telegram session lives in this process (tg_sessions, or the
- * TELEGRAM_SESSION_STRING fallback, opened by `client()` in telegram-tools).
- * The same auth key used from a second process risks AUTH_KEY_DUPLICATED,
- * which logs the owner out everywhere. So the BotFather conversation is driven
- * with the render's own client, by `withClient`, like every other tg_* tool.
+ * The Telegram sessions live in this process (tg_sessions, or the
+ * TELEGRAM_SESSION_STRING fallback for the platform owner, opened by
+ * `client()` in telegram-tools). The same auth key used from a second process
+ * risks AUTH_KEY_DUPLICATED, which logs that person out everywhere. So the
+ * BotFather conversation is driven with the render's own client, by
+ * `withClient`, like every other tg_* tool. No session is ever handed out.
+ *
+ * ── WHOSE /mybots ───────────────────────────────────────────────────────────
+ *
+ * @BotFather shows a bot only to the account that CREATED it. Measured
+ * 2026-09-22: of eleven farm bots only two are in the platform owner's
+ * /mybots; the rest were created by clients. Run through the owner's session
+ * alone, this tool could therefore configure two bots out of eleven -- and
+ * for the other nine it stopped with "not in the list /mybots shows", which
+ * is true and useless.
+ *
+ * So `as` names the account the BotFather dialogue runs through. The gate is
+ * the one `crm_duet` already uses for acting through somebody else's session,
+ * and it has two halves that must BOTH hold:
+ *
+ *   * the holder connected that account THEMSELVES -- a row in tg_sessions,
+ *     read by `isSeller`, the same check and the same table the login screen
+ *     writes. A session is never opened for an account that did not connect.
+ *   * the platform owner authorises THIS run -- `authorized_by_owner: true`,
+ *     an argument that must be typed, so the `as` form cannot be reached by
+ *     defaulting or by a forgotten field.
+ *
+ * Calling stays owner-only either way: `as` widens whose account acts, never
+ * who may ask. One line is logged naming the acting account and the bot, so a
+ * run through somebody else's Telegram is never silent.
  *
  * ── WHY IT IS DETERMINISTIC ────────────────────────────────────────────────
  *
@@ -40,7 +65,7 @@
  */
 
 import type { AgentTool, ToolContext } from './tools'
-import { requireOwner, withClient } from './telegram-tools'
+import { requireOwner, isSeller, withClient } from './telegram-tools'
 import { tokenForBot, normaliseBotName } from './bot-farm'
 import { telegramApiFor } from '../telegram-api'
 
@@ -807,11 +832,17 @@ export interface MainAppArgs {
   bot?: unknown
   url?: unknown
   dry_run?: unknown
+  as?: unknown
+  authorized_by_owner?: unknown
 }
 
 export interface MainAppDeps {
   fetchImpl?: Fetch
-  /** Opens the owner's BotFather chat for the length of `fn`. */
+  /**
+   * Opens the acting account's BotFather chat for the length of `fn`. The
+   * context it is handed is the one whose session must be used -- the
+   * caller's, or the `as` account's.
+   */
   openChat?: <T>(
     ctx: ToolContext,
     fn: (chat: BotFatherChat) => Promise<T>
@@ -824,6 +855,8 @@ export interface MainAppDeps {
 export interface MainAppResult {
   bot: string
   status: 'dry_run' | 'already_on' | 'enabled' | 'unverified' | 'stopped'
+  /** The account whose session drove BotFather; only on the `as` form. */
+  acting_as?: string
   url?: string
   url_source?: 'argument' | 'menu_button'
   has_main_web_app: boolean | null
@@ -857,6 +890,57 @@ export function planFor(bot: string, url: string): string[] {
 /** One run at a time: BotFather keeps one conversation state per account. */
 let running: string | null = null
 
+const TELEGRAM_ID = /^\d{5,15}$/
+
+/**
+ * WHOSE SESSION DRIVES BOTFATHER, AND ON WHAT AUTHORITY.
+ *
+ * Without `as`: the caller's own context, unchanged -- what this tool did
+ * before, and the only form the platform owner needs for the bots they
+ * created themselves.
+ *
+ * With `as`: a context that differs from the caller's in ONE field, the
+ * telegram id, so `client()` looks the session up for that account and for
+ * nobody else. Nothing else about the caller is dropped -- the pool is the
+ * render's own, and the session read is the render's own.
+ *
+ * Both halves of the gate are checked here, before anything is asked of
+ * Telegram, and each refusal says which half failed: "no session" is fixed by
+ * the account's holder in the app, "not authorised" by the owner typing the
+ * argument. A single vague refusal would send the owner to the wrong one.
+ *
+ * The confirmation is required whenever the argument is PRESENT, even when it
+ * names the caller: it is about the form, not about who is named, and a rule
+ * with an exception is a rule somebody will find the exception in.
+ */
+export async function actingAccount(
+  args: MainAppArgs,
+  ctx: ToolContext,
+  hasSession: (c: ToolContext) => Promise<boolean> = isSeller
+): Promise<{ ctx: ToolContext; as?: string }> {
+  const raw = args?.as == null ? '' : String(args.as).trim()
+  if (!raw) return { ctx }
+  if (!TELEGRAM_ID.test(raw)) {
+    throw new Error(
+      'as: нужен числовой Telegram ID аккаунта, от имени которого вести @BotFather'
+    )
+  }
+  if (args?.authorized_by_owner !== true) {
+    throw new Error(
+      `as=${raw}: чужой аккаунт ведётся только с вашего подтверждения — ` +
+        'передайте authorized_by_owner=true'
+    )
+  }
+  const acting = { ...ctx, telegramId: raw } as ToolContext
+  if (!(await hasSession(acting))) {
+    throw new Error(
+      `аккаунт ${raw} не подключён в приложении — вести @BotFather от его имени ` +
+        'можно только после того, как его владелец сам вошёл в свой Telegram'
+    )
+  }
+  return { ctx: acting, as: raw }
+}
+
 export async function configureMainMiniApp(
   args: MainAppArgs,
   ctx: ToolContext,
@@ -868,6 +952,10 @@ export async function configureMainMiniApp(
   if (!BOT_USERNAME.test(raw) || !/bot$/i.test(raw)) {
     throw new Error('bot: нужно имя бота фермы, например @example_bot')
   }
+  // Before a single request leaves for Telegram: a refused `as` must cost
+  // nothing and touch nothing.
+  const acting = await actingAccount(args, ctx)
+  const actingAs = acting.as ? { acting_as: acting.as } : {}
   const fetchImpl = deps.fetchImpl ?? fetch
   const farmBot = await tokenForBot(raw, fetchImpl)
   if (!farmBot) {
@@ -890,6 +978,7 @@ export async function configureMainMiniApp(
     return {
       bot,
       status: 'already_on',
+      ...actingAs,
       has_main_web_app: true,
       ...(dry ? { dry_run: true as const } : {}),
     }
@@ -915,6 +1004,7 @@ export async function configureMainMiniApp(
     return {
       bot,
       status: 'dry_run',
+      ...actingAs,
       url,
       url_source: source,
       has_main_web_app: me.hasMainWebApp,
@@ -930,11 +1020,18 @@ export async function configureMainMiniApp(
   }
   running = bot
   try {
+    // A run through somebody else's Telegram is never silent: this line is
+    // the record that it happened, and it names only the account and the bot.
+    if (acting.as) {
+      ;(deps.log ?? console.log)(
+        `[botfather-main-app] ${bot} acting_as ok (account ${acting.as})`
+      )
+    }
     const open =
       deps.openChat ??
       ((c: ToolContext, fn: (chat: BotFatherChat) => Promise<unknown>) =>
         withClient(c, live => fn(gramBotFather(live as unknown as GramLike))))
-    const drive = (await open(ctx, chat =>
+    const drive = (await open(acting.ctx, chat =>
       driveBotFather(
         chat,
         { username: farmBot.username, url },
@@ -968,6 +1065,7 @@ export async function configureMainMiniApp(
     return {
       bot,
       status,
+      ...actingAs,
       url,
       url_source: source,
       has_main_web_app: after,
@@ -987,12 +1085,15 @@ export const BOTFATHER_TOOLS: AgentTool[] = [
   {
     name: 'botfather_main_app',
     description:
-      'Включает Main Mini App одному боту фермы в @BotFather от имени аккаунта ' +
-      'владельца платформы: /mybots → бот → Bot Settings → Configure Mini App → ' +
-      'Enable Mini App → адрес приложения. Только владелец, только прямой вызов, ' +
-      'только боты фермы и только адрес нашего приложения (по умолчанию — адрес ' +
-      'кнопки меню бота). Путь заранее известен: неожиданный ответ или нет кнопки — ' +
-      'остановка и расшифровка слов BotFather. После прогона — проверка getMe ' +
+      'Включает Main Mini App одному боту фермы в @BotFather: /mybots → бот → ' +
+      'Bot Settings → Configure Mini App → Enable Mini App → адрес приложения. ' +
+      'Звать может только владелец платформы и только напрямую; боты — только ' +
+      'фермы, адрес — только нашего приложения (по умолчанию адрес кнопки меню ' +
+      'бота). @BotFather показывает бота лишь тому аккаунту, который его создал, ' +
+      'поэтому as=<telegram_id> ведёт диалог от имени этого аккаунта — только ' +
+      'если он сам подключён в приложении и только с authorized_by_owner=true. ' +
+      'Путь заранее известен: неожиданный ответ или нет кнопки — остановка и ' +
+      'расшифровка слов BotFather. После прогона — проверка getMe ' +
       '(has_main_web_app). dry_run=true — только план, ничего не отправляет.',
     parameters: {
       type: 'object',
@@ -1009,6 +1110,19 @@ export const BOTFATHER_TOOLS: AgentTool[] = [
         dry_run: {
           type: 'boolean',
           description: 'только показать план, ничего не отправлять',
+        },
+        as: {
+          type: 'string',
+          description:
+            'Telegram ID аккаунта, от имени которого вести @BotFather ' +
+            '(тот, кто создал бота); нужен подключённый аккаунт и ' +
+            'authorized_by_owner=true',
+        },
+        authorized_by_owner: {
+          type: 'boolean',
+          description:
+            'подтверждение владельца на этот прогон от чужого аккаунта; ' +
+            'обязательно вместе с as',
         },
       },
       required: ['bot'],
