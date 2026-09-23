@@ -71,7 +71,7 @@ export function parseRss(xml: string): Article[] {
 /**
  * THE LINK GOES IN THE REPLY, NOT IN THE POST.
  *
- * Carlos (@cavearr, X, 2026-09-23) wrote to the owner: he has been watching
+ * A reader on X wrote to the owner on 2026-09-23: he has been watching
  * his own numbers, and posts carrying an external link reach fewer people;
  * he now writes a thread whose first post is a summary with an image and
  * puts the link in a post below. He called it possibly superstition and
