@@ -33,6 +33,7 @@ import {
   type Wheel,
 } from '@/lib/browserWatch'
 import { listenForTouchInside } from '@/lib/frameTouch'
+import { Desks } from '@/components/Browser/Desks'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
 import { TypeSheet } from '@/components/Browser/TypeSheet'
 import { DetentSheet } from '@/components/DetentSheet/DetentSheet'
@@ -551,6 +552,8 @@ export default function BrowserPage() {
           {t(`browser.round.${walked}`)}
         </p>
       ) : null}
+      {/* One cabinet per line of work (components/Browser/Desks.tsx). */}
+      {embedded ? <Desks /> : null}
       {showImport ? <ImportLogins /> : null}
       <p className="remote-browser__muted">{t('browser.closeKeeps')}</p>
     </>
