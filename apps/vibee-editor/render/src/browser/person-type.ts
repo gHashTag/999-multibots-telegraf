@@ -107,6 +107,12 @@ export const KEYS = ['Tab', 'Escape', 'Enter'] as const
 export type Key = (typeof KEYS)[number]
 export type Scroll = 'up' | 'down'
 export const SCROLL_PX = 420
+/**
+ * Text no longer than this is typed key by key rather than inserted whole:
+ * one-character boxes (a passcode, a one-time code) move focus after every
+ * character and keep only the first of an insertion.
+ */
+export const SHORT_TEXT = 12
 
 const KEY_CODES: Record<Key, number> = { Tab: 9, Escape: 27, Enter: 13 }
 
@@ -114,6 +120,54 @@ export interface TypeIo {
   focus: (cdp: string) => Promise<Focus>
   insert: (cdp: string, text: string, enter: boolean) => Promise<void>
   press?: (cdp: string, key: Key | null, scroll: Scroll | null) => Promise<void>
+}
+
+/**
+ * Type what the person typed, into whatever has focus.
+ *
+ * A CODE GOES IN BOX BY BOX (2026-09-23, X's four-digit passcode): one
+ * insertion put all four digits into the FIRST box and the page kept one of
+ * them. Short text is typed key by key, the way a keyboard sends it, so a
+ * field that moves focus after every character gets what it expects. Long
+ * text stays one insertion: a hundred key events is slower and no truer.
+ *
+ * `call` is CDP's method caller, injected, so the behaviour is tested
+ * without a browser.
+ */
+export async function typeLikeAPerson(
+  call: (
+    method: string,
+    params?: Record<string, unknown>
+  ) => Promise<Record<string, unknown>>,
+  text: string,
+  enter: boolean
+): Promise<void> {
+  if (text && text.length <= SHORT_TEXT) {
+    for (const ch of text) {
+      for (const type of ['keyDown', 'keyUp'] as const)
+        await call('Input.dispatchKeyEvent', {
+          type,
+          ...(type === 'keyDown' ? { text: ch } : {}),
+          key: ch,
+        })
+    }
+  } else if (text) {
+    await call('Input.insertText', { text })
+  }
+  if (enter) {
+    const key = {
+      key: 'Enter',
+      code: 'Enter',
+      windowsVirtualKeyCode: 13,
+      nativeVirtualKeyCode: 13,
+    }
+    await call('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      text: '\r',
+      ...key,
+    })
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', ...key })
+  }
 }
 
 /** The real pod, over CDP: the front page, the element that has focus. */
@@ -161,24 +215,7 @@ export const cdpTypeIo: TypeIo = {
   },
   async insert(cdp, text, enter) {
     const page = await frontPage(cdp)
-    await onPage(cdp, page.id, async call => {
-      /* One trusted insertion: a page's own listeners see real input. */
-      if (text) await call('Input.insertText', { text })
-      if (enter) {
-        const key = {
-          key: 'Enter',
-          code: 'Enter',
-          windowsVirtualKeyCode: 13,
-          nativeVirtualKeyCode: 13,
-        }
-        await call('Input.dispatchKeyEvent', {
-          type: 'keyDown',
-          text: '\r',
-          ...key,
-        })
-        await call('Input.dispatchKeyEvent', { type: 'keyUp', ...key })
-      }
-    })
+    await onPage(cdp, page.id, call => typeLikeAPerson(call, text, enter))
   },
 }
 

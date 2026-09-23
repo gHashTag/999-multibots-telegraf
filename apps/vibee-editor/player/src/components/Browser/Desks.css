@@ -1,0 +1,64 @@
+/* One card per line of work, in the house glass; see Desks.tsx. */
+.desks {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-self: stretch;
+}
+
+.desks__card {
+  box-sizing: border-box;
+  padding: 10px 12px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.desks__name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.desks__about {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.desks__sites {
+  margin: 0 0 6px;
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+.desks__go {
+  height: 36px;
+  border: 0;
+  border-radius: 12px;
+  background: #00ff88;
+  color: #04110a;
+  font: 600 12px/1 inherit;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.desks__go:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.desks__said {
+  margin: 6px 0 0;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* The one that starts them all sits first and reads as the main move. */
+.desks__card--all {
+  border-color: rgba(0, 255, 136, 0.35);
+  background: rgba(0, 255, 136, 0.07);
+}
