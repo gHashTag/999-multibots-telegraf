@@ -14,6 +14,7 @@ import {
   ProfileHeader,
   ProfileTabs,
   ProfileEdit,
+  BotsCard,
   CrmCard,
 } from '@/components/Profile'
 import { SoulCard } from '@/components/Profile/SoulCard'
@@ -365,6 +366,15 @@ export function ProfilePage() {
             See CrmCard for why a card here rather than a seventh tab.
           */}
           <CrmCard isOwn={isOwn} />
+          {/*
+            IS MY BOT ALIVE -- ON THE SCREEN, NOT ONLY IN AN ALARM.
+
+            A client's bot was down for nineteen days and she heard it from
+            her own clients. The watchman now tells an owner when that starts;
+            this card is the same answer on demand. It renders nothing for
+            somebody who owns no bot, which is most people.
+          */}
+          <BotsCard isOwn={isOwn} />
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />
