@@ -283,6 +283,26 @@ export async function setBrowserWheel(
   }
 }
 
+/**
+ * A ROUND OF THE CONNECTED ACCOUNTS, STARTED BY HAND (render agent/rounds.ts).
+ *
+ * The agent walks the person's own accounts every few hours and sends one
+ * message about what is new. "Every few hours" is not something anybody can
+ * watch, so this is the same walk, now: the answer comes back as the line
+ * the log keeps, and the message itself arrives in their chat.
+ */
+export async function walkMyAccounts(): Promise<string | null> {
+  try {
+    const answer = await apiFetch<{ round?: unknown }>(
+      `${API_BASE}/api/browser/round`,
+      { method: 'POST' }
+    )
+    return typeof answer?.round === 'string' ? answer.round : ''
+  } catch {
+    return null
+  }
+}
+
 /* ────────────────────────────────────────────────────────────────────────
  * TYPING FROM THE PHONE'S OWN KEYBOARD (render/src/browser/person-type.ts).
  *

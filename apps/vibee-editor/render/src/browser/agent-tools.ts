@@ -63,7 +63,9 @@ import {
   clickAt,
   typeText,
   screenshot,
+  pageUrl,
 } from './cdp'
+import { learnedLabel, rememberPress, worthTrying } from './recipes'
 import {
   chosenFront,
   forgetFront,
@@ -124,6 +126,28 @@ export async function liveSession(ctx: ToolContext) {
   if (!(await startBrowserAsAgent(ctx.telegramId).catch(() => false)))
     return session
   return await readSession(pool, ctx.telegramId)
+}
+
+/**
+ * WHAT IT OPENED IS WHERE IT ACTS (2026-09-23, the first round over the
+ * connected accounts): the agent opened LinkedIn and then read hh.ru,
+ * because opening a tab does not make it the one the tools act in -- that is
+ * the chosen tab (front-page.ts), and nothing had chosen one.
+ *
+ * `open` is injected so this can be tested without a pod.
+ */
+export async function openAndChoose(
+  telegramId: string,
+  cdp: string,
+  url: string,
+  open: (cdp: string, url: string) => Promise<{ id: string; url?: string }> = (
+    c,
+    u
+  ) => newPage(c, u)
+): Promise<{ id: string; url?: string }> {
+  const page = await open(cdp, url)
+  rememberFront(telegramId, page.id)
+  return page
 }
 
 /** What every tool here needs, and the one refusal they all share. */
@@ -569,7 +593,11 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       if (!session?.cdpEndpoint || session.state !== 'live') {
         throw new Error('no browser is running for this person')
       }
-      const page = await newPage(session.cdpEndpoint, String(args.url))
+      const page = await openAndChoose(
+        ctx.telegramId,
+        session.cdpEndpoint,
+        String(args.url)
+      )
       return { opened: page.url || String(args.url), id: page.id }
     },
   },
@@ -668,20 +696,49 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       await mustBeAllowedToAct(ctx, cdp, targetId)
       /* By what it says (find-target.ts): no coordinates guessed from a picture. */
       if (typeof a.text === 'string' && a.text.trim()) {
-        const found = foundOf(
+        const pool = ctx.pool as unknown as Queryable
+        const where = await pageUrl(cdp, targetId)
+        let found = foundOf(
           await evaluateOn(cdp, targetId, findProbe(a.text)).catch(() => null)
         )
+        /*
+         * WHAT WORKED HERE LAST TIME (recipes.ts). Sites rename their
+         * buttons -- X's "Sign in with Google" became "Continue with
+         * Google" overnight -- and the agent already knows the new words
+         * from its own earlier press.
+         */
+        let learned: string | null = null
+        if (!found) {
+          learned = await learnedLabel(pool, where, a.text)
+          if (worthTrying(a.text, learned))
+            found = foundOf(
+              await evaluateOn(cdp, targetId, findProbe(learned!)).catch(
+                () => null
+              )
+            )
+        }
         if (!found) {
           throw new Error(
-            `nothing visible on the page says "${a.text.trim().slice(0, 60)}". ` +
-              'Take browser_screenshot and click by x,y, or ask the person (browser_ask_input kind=action).'
+            `nothing visible on the page says "${a.text.trim().slice(0, 60)}"` +
+              (learned
+                ? ` (nor "${learned.slice(0, 40)}", which worked here before)`
+                : '') +
+              '. Take browser_screenshot and click by x,y, or ask the person (browser_ask_input kind=action).'
           )
         }
         await clickAt(cdp, targetId, found.x, found.y)
+        /* The press that worked is the lesson; never blocks the answer. */
+        void rememberPress(pool, {
+          url: where,
+          want: a.text,
+          label: found.label,
+          how: found.how,
+        })
         return {
           clicked: { x: found.x, y: found.y },
           found: found.label,
           how: found.how,
+          ...(learned && found.label === learned ? { learned: true } : {}),
         }
       }
       if (typeof a.x !== 'number' || typeof a.y !== 'number') {

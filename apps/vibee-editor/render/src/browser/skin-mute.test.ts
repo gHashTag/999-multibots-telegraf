@@ -69,3 +69,83 @@ describe('the window reports what a tap met', () => {
     )
   })
 })
+
+describe('a sound that is not in the page', () => {
+  function world(search = '') {
+    const g = globalThis as Record<string, unknown>
+    const played: string[] = []
+    class FakeMedia {
+      muted = false
+      defaultMuted = false
+      tagName = 'AUDIO'
+      src = ''
+      play() {
+        played.push(this.muted ? 'muted' : 'LOUD')
+        return Promise.resolve()
+      }
+    }
+    class FakeCtx {
+      state = 'running'
+      suspend() {
+        this.state = 'suspended'
+        return Promise.resolve()
+      }
+      resume() {
+        this.state = 'running'
+        return Promise.resolve()
+      }
+    }
+    g.location = { search }
+    g.document = {
+      documentElement: {},
+      addEventListener: () => {},
+      querySelectorAll: () => [],
+    }
+    g.MutationObserver = class {
+      observe() {}
+    }
+    g.window = g
+    g.HTMLMediaElement = FakeMedia
+    g.Audio = FakeMedia
+    g.AudioContext = FakeCtx
+    // eslint-disable-next-line no-eval
+    ;(0, eval)(MUTE_SCRIPT)
+    return { played, g }
+  }
+
+  it('a chime made with new Audio() is born muted', () => {
+    const { played, g } = world()
+    const made = new (g.Audio as new (src?: string) => {
+      muted: boolean
+      play: () => void
+    })('connected.mp3')
+    expect(made.muted).toBe(true)
+    made.play()
+    expect(played).toEqual(['muted'])
+  })
+
+  it('play() mutes even an element nobody muted', () => {
+    const { played, g } = world()
+    const Media = g.HTMLMediaElement as new () => { play: () => void }
+    const el = new Media()
+    el.play()
+    expect(played).toEqual(['muted'])
+  })
+
+  it('a Web Audio beep is stopped at birth', () => {
+    const { g } = world()
+    const ctx = new (g.AudioContext as new () => { state: string })()
+    expect(ctx.state).toBe('suspended')
+  })
+
+  it('with ?sound=1 nothing is touched', () => {
+    const { played, g } = world('?sound=1')
+    const made = new (g.Audio as new () => {
+      muted: boolean
+      play: () => void
+    })()
+    expect(made.muted).toBe(false)
+    made.play()
+    expect(played).toEqual(['LOUD'])
+  })
+})
