@@ -387,6 +387,22 @@ export function dmLeadMenu(chatId: string | number) {
   ])
 }
 
+/**
+ * Under the owner's "the AI is paused here" notice and after 🤫: give the
+ * chat back to the AI before the pause runs out.
+ */
+export function aiPausedMenu(chatId: string | number) {
+  const id = String(chatId)
+  if (!LEAD_ID_RE.test(id)) return undefined
+  return keyboard([
+    [
+      btn('🤖 Вернуть ИИ', crmCallback('unmute', id)),
+      btn('👤 Кто это', crmCallback('lead', id)),
+    ],
+    [btn('✍️ Подготовить ответ', crmCallback('prep', id))],
+  ])
+}
+
 /** The extra row under a proposal card: read the person before approving. */
 export function cardMenuRows(
   lead: string | null | undefined
