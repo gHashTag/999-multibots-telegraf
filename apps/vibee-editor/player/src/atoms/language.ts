@@ -325,6 +325,10 @@ const en: Translations = {
 
   // Hero
   // CRM console entry, own profile only (components/Profile/CrmCard.tsx)
+  'bots.card.title': '🤖 My bots',
+  'bots.card.alive': 'answering',
+  'bots.card.down': 'not answering',
+  'bots.card.queue': 'answering, {n} messages waiting',
   'crm.card.title': '🗂️ Clients and plan',
   'crm.card.note':
     'Who wrote and is waiting, who is warm, the content plan and the launch tasks.',
@@ -2457,6 +2461,10 @@ const ru: Translations = {
 
   // Hero
   // CRM console entry, own profile only (components/Profile/CrmCard.tsx)
+  'bots.card.title': '🤖 Мои боты',
+  'bots.card.alive': 'отвечает',
+  'bots.card.down': 'не отвечает',
+  'bots.card.queue': 'отвечает, {n} сообщений ждут разбора',
   'crm.card.title': '🗂️ Клиенты и план',
   'crm.card.note':
     'Кто написал и ждёт, кто горячий, контент-план и задачи запуска.',

@@ -2544,3 +2544,59 @@ body[data-tabbar='visible'] .profile-page {
       )
   );
 }
+
+/*
+ * MY BOTS: A LIST A PERSON READS IN ONE GLANCE.
+ *
+ * The card shares `.profile-topup` with the top-up and CRM cards, so it
+ * inherits their ground, border and notch in both shells; only the rows are
+ * its own. A bot that is not answering is the one line that must be findable
+ * without reading the others, so it carries the cold colour the board already
+ * uses for a failure, never a red of its own.
+ */
+.profile-bots__list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-bots__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+}
+
+.profile-bots__item--down {
+  border-color: var(--board-cold, #ff6b6b);
+}
+
+.profile-bots__name {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-bots__state {
+  opacity: 0.85;
+  font-size: 0.85rem;
+}
+
+.profile-bots__item--down .profile-bots__state {
+  color: var(--board-cold, #ff6b6b);
+  opacity: 1;
+}
+
+/* Telegram's own words. Whole, wrapping, never cut: a person cannot ask us
+   about a reason they cannot see. */
+.profile-bots__why {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}
