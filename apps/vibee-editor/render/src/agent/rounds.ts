@@ -28,6 +28,8 @@ export interface Site {
 
 /** The accounts a round walks, in the order the person hears about them. */
 export const ROUND_SITES: Site[] = [
+  /* Work first: an invitation is worth more than a feed. */
+  { name: 'hh.ru', url: 'https://hh.ru/applicant/negotiations' },
   { name: 'LinkedIn', url: 'https://www.linkedin.com/feed/' },
   { name: 'X', url: 'https://x.com/notifications' },
   { name: 'TikTok', url: 'https://www.tiktok.com/foryou' },
@@ -36,6 +38,17 @@ export const ROUND_SITES: Site[] = [
 
 /** How long a page is given to draw itself before it is read. */
 export const SETTLE_MS = 6_000
+/**
+ * A page that answered with nothing is given one more moment. Measured
+ * 2026-09-23 over the person's own accounts: YouTube came back with an empty
+ * title and no text on one walk in five and was fine three seconds later.
+ */
+export const SECOND_LOOK_MS = 3_000
+
+/** Did the page answer with nothing at all? Pure. */
+export function cameBackEmpty(got: { title: string; text: string }): boolean {
+  return !String(got.title ?? '').trim() && !String(got.text ?? '').trim()
+}
 
 export interface Seen {
   name: string
@@ -47,9 +60,14 @@ export interface Seen {
   ms: number
 }
 
-/** The number a site puts in its own title, or null. Pure. */
+/**
+ * The number a site puts in its own title, or null. Two shapes are in use
+ * by the sites the person connected: "(15) Подписки - YouTube" and, on
+ * hh.ru, "13 ・ Профиль". Pure.
+ */
 export function unreadOf(title: string): number | null {
-  const m = /^\s*\((\d+)\+?\)/.exec(String(title ?? ''))
+  const t = String(title ?? '')
+  const m = /^\s*\((\d+)\+?\)/.exec(t) ?? /^\s*(\d+)\+?\s*[・•·]/.exec(t)
   if (!m) return null
   const n = Number(m[1])
   return Number.isFinite(n) && n > 0 ? n : null
@@ -132,7 +150,9 @@ export async function runRound(d: RoundDeps): Promise<string> {
   for (const site of d.sites ?? ROUND_SITES) {
     const at = Date.now()
     try {
-      const got = await d.look(site.url)
+      let got = await d.look(site.url)
+      /* Nothing at all is usually a page that was not finished drawing. */
+      if (cameBackEmpty(got)) got = await d.look(site.url)
       seen.push({
         name: site.name,
         title: String(got.title ?? ''),

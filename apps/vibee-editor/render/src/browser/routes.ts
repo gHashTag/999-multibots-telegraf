@@ -91,6 +91,8 @@ export const BROWSER_PATHS = [
   '/api/browser/type',
   '/api/browser/decide',
   '/api/browser/choose',
+  '/api/browser/round',
+  '/api/browser/learned',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -299,6 +301,41 @@ export async function handleBrowser(
           )
     }
     return { status: 200, body: { ok: true, holder } }
+  }
+
+  /*
+   * THE ROUND, ON DEMAND (agent/rounds.ts). The cron walks the person's
+   * connected accounts every few hours; this is the same walk started by
+   * the person, because "it runs every three hours" is not something anybody
+   * can watch. Their door only: it opens pages in their browser.
+   */
+  if (path === '/api/browser/round') {
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'POST only' } }
+    }
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: { ok: false, error: "a round is the person's to start" },
+      }
+    }
+    const { runRoundNow } = await import('../agent/rounds-wiring')
+    const said = await runRoundNow(pool, who)
+    console.log('[rounds] asked by the person:', said.slice(0, 300))
+    return { status: 200, body: { ok: true, round: said } }
+  }
+
+  /*
+   * WHAT THE AGENT LEARNED HERE (browser/recipes.ts): the labels its own
+   * presses found, newest first. Readable by the person and by their agent
+   * -- it is a list of words on buttons, nothing private.
+   */
+  if (path === '/api/browser/learned') {
+    if (method !== 'GET') {
+      return { status: 405, body: { ok: false, error: 'GET only' } }
+    }
+    const { learnedHere } = await import('./recipes')
+    return { status: 200, body: { ok: true, learned: await learnedHere(pool) } }
   }
 
   if (path === '/api/browser/journal') {
