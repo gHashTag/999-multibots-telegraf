@@ -92,6 +92,16 @@ export default defineConfig({
        * ровно тот случай, когда проверка перестаёт нести сигнал.
        */
       '.claude/worktrees/**',
+      // The same disease, wider pattern: a worktree can also land under a
+      // plain `worktrees/` or `.worktrees/` directory (measured in this PR's
+      // branch: 1745 test files collected from two copies, phantom failures
+      // in a scoped money run, and gate pollution -- copied paths would enter
+      // the snapshot, then vanish wholesale the day the worktree is deleted).
+      // The `.claude` form stays explicit above because a double-star does
+      // not have to match hidden segments on every globber. (Written as line
+      // comments on purpose: a literal glob inside a block comment closes it.)
+      '**/worktrees/**',
+      '**/.worktrees/**',
       // Three more files fail at MODULE LOAD, so not one assertion in them
       // ever runs — the same reason as the list below:
       //   plugin-neurophoto/**/generateImage.test.ts imports 'bun:test';
