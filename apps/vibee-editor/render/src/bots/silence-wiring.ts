@@ -1,4 +1,9 @@
-import { watchOnce, type Alarm, type WatchState } from './silence-watch'
+import {
+  watchOnce,
+  type Alarm,
+  type WatchRound,
+  type WatchState,
+} from './silence-watch'
 
 /**
  * THE TICK, WIRED TO THE REAL WORLD.
@@ -73,15 +78,32 @@ async function ownersFromAvatars(): Promise<
 }
 
 /**
- * One round of the watch. Returns what it said, so the log can carry it and
- * a caller can decide to say nothing twice.
+ * One round of the watch. Returns what it did -- counts included -- so the log
+ * carries a line on every tick and "nothing to say" stops looking exactly like
+ * "not running".
+ *
+ * `deliver` says whether the message ARRIVED. A false makes this tick leave the
+ * outage unannounced in the state, so the next one tries again: a bounced alarm
+ * recorded as delivered is an owner who is never told.
  */
 export async function runSilenceWatch(
   pool: Pool,
-  deliver: (ownerId: string, text: string) => Promise<void>
-): Promise<Alarm[]> {
+  deliver: (ownerId: string, text: string) => Promise<boolean>
+): Promise<WatchRound> {
   await ensureTable(pool)
-  const alarms = await watchOnce({
+  return watchOnce({
+    deliver: async (alarm: Alarm) => {
+      try {
+        return await deliver(alarm.ownerId, alarm.text)
+      } catch (e) {
+        // A watchman who cannot reach one person still watches everybody else.
+        console.error(
+          `[bot-silence] could not tell ${alarm.ownerId}:`,
+          String(e).slice(0, 200)
+        )
+        return false
+      }
+    },
     owners: ownersFromAvatars,
     tokenForBot: async (name: string) => {
       const { tokenForBot } = await import('../agent/bot-farm')
@@ -114,17 +136,4 @@ export async function runSilenceWatch(
       )
     },
   })
-
-  for (const alarm of alarms) {
-    try {
-      await deliver(alarm.ownerId, alarm.text)
-    } catch (e) {
-      // A watchman who cannot reach one person still watches everybody else.
-      console.error(
-        `[bot-silence] could not tell ${alarm.ownerId}:`,
-        String(e).slice(0, 200)
-      )
-    }
-  }
-  return alarms
 }

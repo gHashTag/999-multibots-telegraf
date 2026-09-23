@@ -38,6 +38,7 @@ describe('is my bot alive', () => {
         bot: 'NeuroLenaAssistant_bot',
         alive: true,
         why: null,
+        side: null,
         pendingUpdates: 0,
         checkedAt: '2026-09-23T12:00:00.000Z',
       },
@@ -56,6 +57,9 @@ describe('is my bot alive', () => {
     })
     expect(health[0].alive).toBe(false)
     expect(health[0].why).toBe('Not Found')
+    // Telegram answered and refused: naming it as ours would send her to fix
+    // settings that are fine.
+    expect(health[0].side).toBe('telegram')
     expect(healthLine(health[0])).toContain('не отвечает')
   })
 
@@ -69,7 +73,11 @@ describe('is my bot alive', () => {
       fetchImpl: answers({}),
     })
     expect(health[0].alive).toBe(false)
-    expect(health[0].why).toContain('токена этого бота нет на сервере')
+    expect(health[0].why).toContain('токена этого бота нет на нашем сервере')
+    // The field the alarm reads to pick its label. Without it the message
+    // blamed Telegram above a reason that was ours -- sent to three owners on
+    // the first live run, 2026-09-23.
+    expect(health[0].side).toBe('ours')
   })
 
   it('does not call a network failure a dead bot', async () => {
@@ -84,6 +92,9 @@ describe('is my bot alive', () => {
     // Still not alive -- but the reason is the network, and it is said.
     expect(health[0].alive).toBe(false)
     expect(health[0].why).toContain('ENOTFOUND')
+    // And it is OURS: Telegram never answered, so it said nothing about this
+    // bot. A failed request of ours must not be printed as their verdict.
+    expect(health[0].side).toBe('ours')
   })
 
   it('says a growing queue out loud: alive at Telegram, nobody collecting', async () => {
