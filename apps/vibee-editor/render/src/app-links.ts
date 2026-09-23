@@ -44,6 +44,18 @@ export const APP_ROUTES = [
 
 export type AppRoute = (typeof APP_ROUTES)[number]
 
+/**
+ * Mirror of UNLINKABLE_APP_ROUTES in src/navigation/helpers/appLinks.ts:
+ * screens no link may name. `pair` mints a sign-in code when it mounts, so a
+ * link to it is a credential anybody can hand out; the reasoning is written
+ * out in the bot's copy.
+ */
+export const UNLINKABLE_APP_ROUTES: readonly string[] = ['pair']
+
+export function isLinkableRoute(route: unknown): route is AppRoute {
+  return isAppRoute(route) && !UNLINKABLE_APP_ROUTES.includes(route)
+}
+
 export const APP_HOME_ROUTE: AppRoute = 'feed'
 
 export const APP_START_PREFIX = 'app_'
@@ -77,9 +89,16 @@ export function appLinkFor(
   const bot = botHandle(botUsername)
   if (!bot) return ''
   const r = isAppRoute(route) ? route : APP_HOME_ROUTE
+  if (!isLinkableRoute(r)) return ''
   return opts.mainWebApp === true
     ? `https://t.me/${bot}?startapp=${r}`
     : `https://t.me/${bot}?start=${APP_START_PREFIX}${r}`
+}
+
+/** The chat with the bot: where a screen that cannot be linked is reached. */
+export function botChatLink(botUsername: string | null | undefined): string {
+  const bot = botHandle(botUsername)
+  return bot ? `https://t.me/${bot}` : ''
 }
 
 export function routeOfAppUrl(url: string): AppRoute {
@@ -112,6 +131,42 @@ const HOSTS_RE = APP_HOSTS.map(escapeRe).join('|')
  */
 const APP_URL_BODY = '[\\w\\-.~:/?#@!$&+,;=%]*'
 
+/**
+ * The app host also serves files, and a file is not a screen: media
+ * (/covers/, /backgrounds/, /lipsync/, /audio/, /sounds/, /icons/, any
+ * .mp4 or .png), the live browser stream at /live/, the bridge at /bridge.
+ * They work in any browser and must not become a t.me link. Mirror of
+ * src/navigation/helpers/appLinks.ts, where the reasoning is written out.
+ */
+export const APP_NON_SCREEN_PREFIXES: readonly string[] = [
+  'live',
+  'bridge',
+  'covers',
+  'backgrounds',
+  'lipsync',
+  'audio',
+  'sounds',
+  'icons',
+  'api',
+]
+
+/** `.mp4`, `.webmanifest`, `.jpeg` -- a name with an extension is a file. */
+const FILE_EXT_RE = /\.[A-Za-z0-9]{2,12}$/
+
+/** True when this app-host URL is a file or a proxy, not a screen of the app. */
+export function isAppFileUrl(url: string): boolean {
+  let u: URL
+  try {
+    u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`)
+  } catch {
+    return false
+  }
+  const segs = u.pathname.split('/').filter(Boolean)
+  if (!segs.length) return false
+  if (APP_NON_SCREEN_PREFIXES.includes(segs[0].toLowerCase())) return true
+  return FILE_EXT_RE.test(segs[segs.length - 1])
+}
+
 /** Any raw app URL in the text becomes the in-Telegram link of this bot. */
 export function rewriteAppUrls(
   text: string,
@@ -126,15 +181,28 @@ export function rewriteAppUrls(
   return text.replace(re, raw => {
     const trail = /[.,!?:;…]+$/.exec(raw)?.[0] ?? ''
     const url = trail ? raw.slice(0, -trail.length) : raw
-    return appLinkFor(botUsername, routeOfAppUrl(url), opts) + trail
+    // A file on the app host works in any browser: left exactly as it was.
+    if (isAppFileUrl(url)) return raw
+    const route = routeOfAppUrl(url)
+    // A screen no link may name becomes the chat with the bot: not the feed
+    // (somewhere nobody asked for) and not '' (the words around it survive).
+    const link = isLinkableRoute(route)
+      ? appLinkFor(botUsername, route, opts)
+      : botChatLink(botUsername)
+    return link + trail
   })
 }
 
+/** A raw link to a SCREEN of the app; a file on the same host is not one. */
 export function hasRawAppUrl(text: string): boolean {
-  return new RegExp(
-    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${HOSTS_RE})(?![\\w.-])`,
-    'i'
-  ).test(String(text ?? ''))
+  const re = new RegExp(
+    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${HOSTS_RE})(?![\\w.-])${APP_URL_BODY}`,
+    'gi'
+  )
+  for (const m of String(text ?? '').matchAll(re)) {
+    if (!isAppFileUrl(m[0].replace(/[.,!?:;…]+$/, ''))) return true
+  }
+  return false
 }
 
 // ── which bot a token is, and whether it has a Main Mini App ─────────────

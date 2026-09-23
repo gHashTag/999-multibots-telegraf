@@ -6,6 +6,7 @@
  */
 
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { rememberBotInfo, rewriteAppUrls } from '@/navigation/helpers/appLinks'
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
@@ -140,8 +141,23 @@ const conversationStep = async (ctx: MyContext) => {
       botName: botName(ctx),
     })
 
+    /*
+     * A RAW APP URL IS A DEAD LINK, ON THIS PATH TOO.
+     *
+     * Every other answer the bot sends goes out through `buttonsForAnswer`,
+     * which rewrites app.t27.ai into this bot's t.me link -- outside Telegram
+     * the app has no signed launch data and does not open. The menu's 'AI
+     * Chat' does not use `buttonsForAnswer` (it has no act: markers to parse),
+     * so this was the one model answer that still carried the bare host
+     * (review of #2870). It is done once, before the text is stored or sent,
+     * so no branch below can forget it -- and the session history then holds
+     * what the person actually read.
+     */
+    rememberBotInfo(ctx.botInfo)
+    const answer = rewriteAppUrls(response, ctx.botInfo?.username)
+
     // Add assistant response to session history
-    history.push({ role: 'assistant', content: response })
+    history.push({ role: 'assistant', content: answer })
     ctx.session.wizardData = { ...wizardData, chatHistory: history }
 
     // Delete "thinking" message and send response with model tag
@@ -149,7 +165,7 @@ const conversationStep = async (ctx: MyContext) => {
       .deleteMessage(ctx.chat!.id, thinkingMsg.message_id)
       .catch(() => {})
     const modelTag = `[${getModelLabel(model)}]`
-    const fullReply = `${response}\n\n_${modelTag}_`
+    const fullReply = `${answer}\n\n_${modelTag}_`
     // Buttons under every model answer: the person taps, not types.
     const kb = standardButtons(isRu, { app: ctx.chat?.type === 'private' })
     await ctx
@@ -158,7 +174,7 @@ const conversationStep = async (ctx: MyContext) => {
         reply_markup: kb.reply_markup,
       })
       .catch(async () => {
-        await ctx.reply(`${response}\n\n${modelTag}`, kb)
+        await ctx.reply(`${answer}\n\n${modelTag}`, kb)
       })
   } catch (error) {
     await ctx.telegram

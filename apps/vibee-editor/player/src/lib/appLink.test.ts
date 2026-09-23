@@ -20,3 +20,9 @@ describe('appLinkFor (player)', () => {
     expect(appLinkFor('evil.example/?x', 'feed')).toBe('')
   })
 })
+
+describe('screens no link may name', () => {
+  it('builds no link to pair: the screen mints a sign-in code on mount', () => {
+    expect(appLinkFor('example_farm_bot', 'pair')).toBe('')
+  })
+})

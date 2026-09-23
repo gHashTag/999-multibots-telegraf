@@ -37,6 +37,14 @@ export const APP_ROUTES = [
 
 export type AppRoute = (typeof APP_ROUTES)[number]
 
+/**
+ * Mirror of UNLINKABLE_APP_ROUTES in src/navigation/helpers/appLinks.ts:
+ * screens no link may name. `pair` shows a sign-in code it mints on mount, so
+ * a link to it hands a credential to whoever follows the link; the bot refuses
+ * such a payload on /start, and no copy of this table may build one.
+ */
+export const UNLINKABLE_APP_ROUTES: readonly string[] = ['pair']
+
 export const APP_START_PREFIX = 'app_'
 
 export function appLinkFor(botUsername: string, route: AppRoute): string {
@@ -44,5 +52,6 @@ export function appLinkFor(botUsername: string, route: AppRoute): string {
     .trim()
     .replace(/^@/, '')
   if (!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(bot)) return ''
+  if (UNLINKABLE_APP_ROUTES.includes(route)) return ''
   return `https://t.me/${bot}?start=${APP_START_PREFIX}${route}`
 }

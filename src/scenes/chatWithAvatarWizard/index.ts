@@ -1,5 +1,6 @@
 import { Scenes } from 'telegraf'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { rememberBotInfo, rewriteAppUrls } from '@/navigation/helpers/appLinks'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
 import {
@@ -121,7 +122,16 @@ async function processUserMessage(
         })
       }
     } else {
-      const textResponse = response as string
+      /*
+       * The same rewrite as the AI chat above: a bare app.t27.ai in a model
+       * answer is a link that does not open outside Telegram. Done once, so
+       * the spoken version and the written one say the same address.
+       */
+      rememberBotInfo(ctx.botInfo)
+      const textResponse = rewriteAppUrls(
+        response as string,
+        ctx.botInfo?.username
+      )
       // Send text first so user sees the response immediately -- with buttons.
       await ctx.reply(
         textResponse,

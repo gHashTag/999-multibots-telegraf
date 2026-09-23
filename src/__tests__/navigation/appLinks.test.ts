@@ -15,6 +15,7 @@ import {
   botHandle,
   forgetMainWebAppForTests,
   hasRawAppUrl,
+  isAppFileUrl,
   knownMainWebApp,
   refreshMainWebApp,
   rememberBotInfo,
@@ -78,7 +79,7 @@ describe('appLinkFor', () => {
 describe('appRouteFromStartParam', () => {
   it('reads app_<known route>', () => {
     expect(appRouteFromStartParam('app_hive')).toBe('hive')
-    expect(appRouteFromStartParam('app_pair')).toBe('pair')
+    expect(appRouteFromStartParam('app_club')).toBe('club')
   })
 
   it('claims nothing else -- every other payload still goes where it went', () => {
@@ -332,5 +333,108 @@ describe('a bare host is a link too -- Telegram auto-links it', () => {
     )
     const untouched = 'me@app.t27.ai https://example.com/app.t27.ai/x'
     expect(rewriteAppUrls(untouched, BOT)).toBe(untouched)
+  })
+})
+
+/**
+ * `t.me/<bot>?start=app_pair` was a string anybody could post that put a
+ * person one press from a live sign-in code (issue #2878). The screen stays;
+ * only the LINK to it goes, and only for the routes named in
+ * UNLINKABLE_APP_ROUTES.
+ */
+describe('a screen that mints a credential is not a destination', () => {
+  it('appLinkFor builds no link to pair, one tap or two', () => {
+    expect(appLinkFor(BOT, 'pair')).toBe('')
+    expect(appLinkFor(BOT, 'pair', { mainWebApp: true })).toBe('')
+    // The other screens are untouched.
+    expect(appLinkFor(BOT, 'hive')).toBe(
+      'https://t.me/example_farm_bot?start=app_hive'
+    )
+  })
+
+  it('/start refuses the app_pair payload and keeps every other route', () => {
+    expect(appRouteFromStartParam('app_pair')).toBeNull()
+    expect(appRouteFromStartParam('app_club')).toBe('club')
+  })
+
+  it('the honest door survives: a web_app button in the private chat', () => {
+    const button = appButton('Sign in', 'pair', {
+      chatType: 'private',
+      botUsername: BOT,
+    }) as any
+    expect(button?.web_app?.url).toContain('tgWebAppStartParam=pair')
+  })
+
+  it('outside a private chat there is no pair door at all', () => {
+    expect(
+      appButton('Sign in', 'pair', { chatType: 'group', botUsername: BOT })
+    ).toBeNull()
+  })
+
+  it('a raw /pair URL in model text becomes the chat, not the feed', () => {
+    // Not the feed: sending somebody to a screen they did not ask for is a
+    // second wrong answer. The chat is where /app and the greeting live.
+    expect(rewriteAppUrls('Вход: https://app.t27.ai/pair', BOT)).toBe(
+      'Вход: https://t.me/example_farm_bot'
+    )
+    expect(hasRawAppUrl(rewriteAppUrls('app.t27.ai/pair', BOT))).toBe(false)
+  })
+})
+
+/**
+ * The app host is also an nginx serving files: /covers/, /backgrounds/,
+ * /lipsync/, the reel's own .mp4, the live browser stream at /live/, the
+ * identity bridge at /bridge. Those work in any browser, and turning one into
+ * `t.me/<bot>?start=app_feed` broke a link that worked (review of #2870).
+ */
+describe('a file on the app host is not a screen', () => {
+  const FILES = [
+    'https://app.t27.ai/covers/poster.jpeg',
+    'https://app.t27.ai/backgrounds/business/00.mp4',
+    'https://app.t27.ai/lipsync/lipsync.mp4',
+    'https://app.t27.ai/audio/theme.mp3',
+    'https://app.t27.ai/sounds/ping.wav',
+    'https://app.t27.ai/icons/apple-touch-icon.png',
+    'https://app.t27.ai/manifest.json',
+    'https://app.t27.ai/t27-logo.svg',
+    'https://app.t27.ai/live/900000042/js/app.js',
+    'https://app.t27.ai/bridge',
+    'https://app.t27.ai/bridge/consent.html',
+    'https://vibee-editor-production.up.railway.app/covers/cover.jpeg',
+  ]
+
+  it.each(FILES)('%s is left exactly as it was', url => {
+    expect(rewriteAppUrls(`Готово: ${url}`, BOT)).toBe(`Готово: ${url}`)
+    expect(isAppFileUrl(url)).toBe(true)
+  })
+
+  it('a screen on the same host is still rewritten', () => {
+    for (const url of [
+      'https://app.t27.ai/hive',
+      'https://app.t27.ai/feed?post=900000042',
+      'https://app.t27.ai',
+      'https://app.t27.ai/generate/video',
+    ]) {
+      expect(isAppFileUrl(url)).toBe(false)
+      expect(rewriteAppUrls(url, BOT)).toContain('t.me/example_farm_bot')
+    }
+  })
+
+  it('a file and a screen in one sentence: only the screen moves', () => {
+    expect(
+      rewriteAppUrls(
+        'Обложка app.t27.ai/covers/poster.jpeg, лента app.t27.ai/feed',
+        BOT
+      )
+    ).toBe(
+      'Обложка app.t27.ai/covers/poster.jpeg, лента https://t.me/example_farm_bot?start=app_feed'
+    )
+  })
+
+  it('hasRawAppUrl counts screens, not files', () => {
+    expect(hasRawAppUrl('app.t27.ai/covers/poster.jpeg')).toBe(false)
+    expect(hasRawAppUrl('app.t27.ai/hive')).toBe(true)
+    // Punctuation after the file name is the sentence, not the name.
+    expect(hasRawAppUrl('Смотри app.t27.ai/lipsync/lipsync.mp4.')).toBe(false)
   })
 })

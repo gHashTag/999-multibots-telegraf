@@ -98,6 +98,40 @@ describe('/start app_<route>', () => {
     expect(ctx.session.appDeepLink).toBe('browser')
   })
 
+  it('app_pair opens no sign-in door: the ordinary /start runs', async () => {
+    /*
+     * The link anybody can post. It must not end in a message from the bot
+     * offering to show a sign-in code -- that is the bot vouching for a
+     * stranger's link (issue #2878). The person gets the greeting, which
+     * carries its own "Sign in on another device" button for whoever really
+     * came to sign in.
+     */
+    supabase.getUserDetailsSubscription.mockResolvedValue({ isExist: true })
+    const { ctx } = fakeCtx('/start app_pair')
+    await commands.get('start')(ctx)
+    expect(ctx.session.appDeepLink).toBeUndefined()
+
+    const plain = fakeCtx('/start').ctx
+    await commands.get('start')(plain)
+
+    // Byte for byte the ordinary greeting. Its own "Sign in on another
+    // device" button is still there -- that press is the person's own, made
+    // after reading the whole menu, not the one thing a link put in front of
+    // them.
+    expect(JSON.stringify(ctx.reply.mock.calls)).toBe(
+      JSON.stringify(plain.reply.mock.calls)
+    )
+    expect(JSON.stringify(ctx.reply.mock.calls)).not.toContain('start=app_pair')
+  })
+
+  it('a new person with app_pair is registered and carries no pair door', async () => {
+    supabase.getUserDetailsSubscription.mockResolvedValue({ isExist: false })
+    const { ctx, scene } = fakeCtx('/start app_pair')
+    await commands.get('start')(ctx)
+    expect(scene.enter).toHaveBeenCalledWith('create_user_scene')
+    expect(ctx.session.appDeepLink).toBeUndefined()
+  })
+
   it('an unknown route is not an app link: the ordinary /start runs', async () => {
     supabase.getUserDetailsSubscription.mockResolvedValue({ isExist: true })
     const { ctx } = fakeCtx('/start app_nowhere')

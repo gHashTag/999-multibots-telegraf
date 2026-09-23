@@ -379,3 +379,79 @@ describe('the outgoing contact guard', () => {
     expect(said).toBe(`Write to ${THIRD_HANDLE} or call ${THIRD_PHONE}.`)
   })
 })
+
+/**
+ * The bypasses and the false positive left after #2865, from issue #2875.
+ * Every value here is invented: 9000000xx ids, placeholder handles, a number
+ * in the +1 000 000 00xx block nobody owns.
+ */
+describe('the guard reads a contact written as prose', () => {
+  const kinds = (s: string) => contactsIn(s).map(c => c.kind)
+
+  it('a handle without the @, after the messenger it belongs to', () => {
+    expect(kinds('Telegram: placeholder_changer')).toEqual(['handle'])
+    expect(kinds('тг — placeholder_changer')).toEqual(['handle'])
+    expect(kinds('Instagram: placeholder_changer')).toEqual(['handle'])
+    expect(kinds('вк: placeholder_changer')).toEqual(['handle'])
+    // The same person, however it is written: the key must match the @ form.
+    expect(contactsIn('Telegram: placeholder_changer')[0].key).toBe(
+      'placeholder_changer'
+    )
+  })
+
+  it('prose that merely mentions a messenger is not a handle', () => {
+    for (const line of [
+      'Telegram support answers in a day',
+      'write to me on Telegram',
+      'insta-blogger is what he calls himself',
+      'мы в телеграме отвечаем быстро',
+    ]) {
+      expect(kinds(line)).toEqual([])
+    }
+  })
+
+  it('a prose handle is withheld from a client and passes once seen', async () => {
+    provider([text('Ask him — Telegram: placeholder_changer')])
+    const { said } = await turn('business', ask)
+    expect(said).toBe(CONTACT_WITHHELD_LINE)
+
+    provider([text('Yes, Telegram: placeholder_changer is the one.')])
+    const seen = await turn('business', [
+      { role: 'user', content: 'Telegram: placeholder_changer — надёжный?' },
+    ])
+    expect(seen.said).toBe('Yes, Telegram: placeholder_changer is the one.')
+  })
+
+  it('an 11-digit number grouped in threes is a number, not an amount', () => {
+    expect(kinds('позвони 10 000 000 099')).toEqual(['phone'])
+    // The same digits as the wa.me case above resolve to the same person.
+    expect(contactsIn('позвони 10 000 000 099')[0].key).toBe(
+      contactsIn('https://wa.me/10000000099')[0].key
+    )
+  })
+
+  it('the amounts this business actually counts stay amounts', () => {
+    expect(kinds('the club is 10 000 stars, 1 000 000 000 total')).toEqual([])
+    expect(kinds('баланс 999 999 999 токенов')).toEqual([])
+  })
+
+  it('a date with a time is not a number to call', () => {
+    // PHONE_RE has no colon in its character class, so this arrives at the
+    // date check as "2026-09-22 15" -- ten digits.
+    for (const line of [
+      'созвон 2026-09-22 15:30',
+      'созвон 2026.09.22 09:05',
+      'созвон 22.09.2026 15:30',
+      'созвон 2026-09-22T15:30',
+      'созвон 2026-09-22 15:30:45',
+    ]) {
+      expect(kinds(line)).toEqual([])
+    }
+  })
+
+  it('a date in the answer no longer replaces the whole answer', async () => {
+    provider([text('Давайте созвонимся 2026-09-22 15:30.')])
+    const { said } = await turn('business', ask)
+    expect(said).toBe('Давайте созвонимся 2026-09-22 15:30.')
+  })
+})

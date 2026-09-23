@@ -70,6 +70,36 @@ export const APP_ROUTES = [
 
 export type AppRoute = (typeof APP_ROUTES)[number]
 
+/**
+ * SCREENS NO LINK MAY NAME.
+ *
+ * `pair` is the sign-in screen: it calls `POST /api/auth/pair/start` the
+ * moment it mounts and shows a code that signs whoever types it into the
+ * native app in AS THAT PERSON. That is fine when the person went looking for
+ * it -- `/app`, or the greeting's "Sign in on another device" button, both
+ * web_app buttons the person pressed inside their own chat with the bot.
+ *
+ * It is not fine as a LINK. `t.me/<bot>?start=app_pair` is a string anybody
+ * can post in a group or a DM, and /start answered it with one message and one
+ * button reading "Show the sign-in code" -- the bot's own voice vouching for a
+ * stranger's link, one press from a live credential. The rest is the oldest
+ * trick there is: "tap this and send me the number you see".
+ *
+ * So `pair` stays a screen and stops being a destination: `appLinkFor` builds
+ * no link to it, `appRouteFromStartParam` refuses it, and `/start app_pair`
+ * behaves exactly like a bare `/start` -- the greeting, which carries the
+ * honest door for anybody who did come to sign in. The web_app button in a
+ * private chat is untouched, because that press is the person's own.
+ *
+ * A route belongs here when reaching it MINTS something rather than shows it.
+ */
+export const UNLINKABLE_APP_ROUTES: readonly string[] = ['pair']
+
+/** True when a link may name this screen. A non-route is not linkable. */
+export function isLinkableRoute(route: unknown): route is AppRoute {
+  return isAppRoute(route) && !UNLINKABLE_APP_ROUTES.includes(route)
+}
+
 /** The screen a link with no better idea opens: the player's TELEGRAM_HOME. */
 export const APP_HOME_ROUTE: AppRoute = 'feed'
 
@@ -187,6 +217,7 @@ export function forgetMainWebAppForTests(): void {
  *
  * `mainWebApp` overrides the cache (tests, or a caller that has just asked
  * getMe). An unusable bot name gives '' -- the caller must not invent a bot.
+ * A screen in UNLINKABLE_APP_ROUTES gives '' too: there is no such link.
  */
 export function appLinkFor(
   botUsername: string | null | undefined,
@@ -196,20 +227,36 @@ export function appLinkFor(
   const bot = botHandle(botUsername)
   if (!bot) return ''
   const r = isAppRoute(route) ? route : APP_HOME_ROUTE
+  if (!isLinkableRoute(r)) return ''
   const oneTap = opts.mainWebApp ?? knownMainWebApp(bot)
   return oneTap
     ? `https://t.me/${bot}?startapp=${r}`
     : `https://t.me/${bot}?start=${APP_START_PREFIX}${r}`
 }
 
-/** `app_hive` -> 'hive'; anything else -> null. Attacker-typed: exact match. */
+/**
+ * The chat with the bot, and nothing else. Used where a screen cannot be
+ * linked (UNLINKABLE_APP_ROUTES): the chat is where the bot's own doors are,
+ * and it still opens inside Telegram, which is the whole rule.
+ */
+export function botChatLink(botUsername: string | null | undefined): string {
+  const bot = botHandle(botUsername)
+  return bot ? `https://t.me/${bot}` : ''
+}
+
+/**
+ * `app_hive` -> 'hive'; anything else -> null. Attacker-typed: exact match,
+ * and a screen no link may name (UNLINKABLE_APP_ROUTES) is not a route here.
+ * This is THE public door -- /start reaches it with a payload a stranger
+ * wrote -- so the refusal lives here rather than in each caller.
+ */
 export function appRouteFromStartParam(
   param: string | null | undefined
 ): AppRoute | null {
   const p = String(param ?? '')
   if (!p.startsWith(APP_START_PREFIX)) return null
   const route = p.slice(APP_START_PREFIX.length)
-  return isAppRoute(route) ? route : null
+  return isLinkableRoute(route) ? route : null
 }
 
 /** The host of MINI_APP_URL when an environment points it elsewhere. */
@@ -263,6 +310,53 @@ function escapeRe(s: string): string {
 }
 
 /**
+ * THE APP HOST ALSO SERVES FILES, AND A FILE IS NOT A SCREEN.
+ *
+ * app.t27.ai is one nginx in front of one bundle, and only some of what it
+ * answers is the app. The same host serves the player's own media
+ * (/covers/, /backgrounds/, /lipsync/, /audio/, /sounds/, /icons/ and every
+ * .mp4 / .mp3 / .png / .svg the editor writes into a timeline), the live
+ * browser stream proxied at /live/, and the identity bridge at /bridge.
+ *
+ * None of those needs Telegram: they are files a browser fetches, and they
+ * work in any browser, which is exactly what the rewrite is for -- it exists
+ * because the APP does not work outside Telegram. Rewriting a file URL into
+ * `t.me/<bot>?start=app_feed` broke a link that worked and pointed the person
+ * at a screen nobody asked for. Reported in the review of #2870.
+ *
+ * So: a URL whose first path segment is one of these, or whose last segment
+ * has a file extension, is left exactly as it was.
+ */
+export const APP_NON_SCREEN_PREFIXES: readonly string[] = [
+  'live',
+  'bridge',
+  'covers',
+  'backgrounds',
+  'lipsync',
+  'audio',
+  'sounds',
+  'icons',
+  'api',
+]
+
+/** `.mp4`, `.webmanifest`, `.jpeg` -- a name with an extension is a file. */
+const FILE_EXT_RE = /\.[A-Za-z0-9]{2,12}$/
+
+/** True when this app-host URL is a file or a proxy, not a screen of the app. */
+export function isAppFileUrl(url: string): boolean {
+  let u: URL
+  try {
+    u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`)
+  } catch {
+    return false
+  }
+  const segs = u.pathname.split('/').filter(Boolean)
+  if (!segs.length) return false
+  if (APP_NON_SCREEN_PREFIXES.includes(segs[0].toLowerCase())) return true
+  return FILE_EXT_RE.test(segs[segs.length - 1])
+}
+
+/**
  * THE SAFETY NET. Any raw app URL in text that goes to a person becomes the
  * in-Telegram link of the bot this conversation is with.
  *
@@ -285,17 +379,37 @@ export function rewriteAppUrls(
     // Sentence punctuation after a URL belongs to the sentence.
     const trail = /[.,!?:;…]+$/.exec(raw)?.[0] ?? ''
     const url = trail ? raw.slice(0, -trail.length) : raw
-    return appLinkFor(botUsername, routeOfAppUrl(url), opts) + trail
+    // A file on the app host (APP_NON_SCREEN_PREFIXES): it works in any
+    // browser and needs no Telegram, so it is left exactly as it was.
+    if (isAppFileUrl(url)) return raw
+    const route = routeOfAppUrl(url)
+    /*
+     * A screen no link may name (UNLINKABLE_APP_ROUTES) becomes the chat with
+     * the bot -- not the feed, which would send the person somewhere they did
+     * not ask for, and not '' , which would delete the words around it.
+     */
+    const link = isLinkableRoute(route)
+      ? appLinkFor(botUsername, route, opts)
+      : botChatLink(botUsername)
+    return link + trail
   })
 }
 
-/** True when this text still carries a raw app URL. */
+/**
+ * True when this text still carries a raw link to a SCREEN of the app. A file
+ * on the same host (isAppFileUrl) is not one: it is left alone by the rewrite,
+ * so counting it here would make "rewritten" and "clean" disagree.
+ */
 export function hasRawAppUrl(text: string): boolean {
   const hosts = appHosts().map(escapeRe).join('|')
-  return new RegExp(
-    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${hosts})(?![\\w.-])`,
-    'i'
-  ).test(String(text ?? ''))
+  const re = new RegExp(
+    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${hosts})(?![\\w.-])${APP_URL_BODY}`,
+    'gi'
+  )
+  for (const m of String(text ?? '').matchAll(re)) {
+    if (!isAppFileUrl(m[0].replace(/[.,!?:;…]+$/, ''))) return true
+  }
+  return false
 }
 
 // ── the button ───────────────────────────────────────────────────────────

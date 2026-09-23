@@ -158,18 +158,67 @@ const TME_RE = /\b(?:t\.me|telegram\.me)\/([A-Za-z][A-Za-z0-9_]{3,31})\b/gi
 const EMAIL_RE =
   /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g
 const HANDLE_RE = /(^|[^A-Za-z0-9_.@/])@([A-Za-z][A-Za-z0-9_]{3,31})\b/g
+
+/**
+ * A HANDLE WRITTEN WITHOUT THE @, AFTER THE MESSENGER IT BELONGS TO.
+ *
+ * "Telegram: placeholder_name" is how a contact is passed on in prose, and
+ * HANDLE_RE never saw it: it requires the @ (#2875). The separator is
+ * REQUIRED, and is either a colon or a dash with spaces on both sides --
+ * "Telegram support" and "insta-blogger" are prose, and reading either as a
+ * handle would replace a whole answer over an ordinary sentence.
+ *
+ * `\b` is not used around the labels: in JavaScript it is ASCII-only, so
+ * `\bтг\b` matches no Russian word at all. The boundaries here are Unicode
+ * letter and number classes.
+ */
+const LABELLED_HANDLE_RE = new RegExp(
+  '(?:^|[^\\p{L}\\p{N}_])' +
+    '(?:telegram|telegramm|tg|instagram|insta|whatsapp|viber|skype|vk|' +
+    'telega|nick|nickname|username|handle|' +
+    'телеграм|телеграмм|тг|телега|инстаграм|инста|вотсап|ватсап|вайбер|вк|' +
+    'ник|никнейм|юзернейм)' +
+    '(?:\\s*[:：]\\s*|\\s+[-–—]\\s+)' +
+    '@?([A-Za-z][A-Za-z0-9_]{3,31})(?![\\p{L}\\p{N}_])',
+  'giu'
+)
+
 const PHONE_RE = /(?:\+\s?)?\d[\d\s().-]{7,}\d/g
 
 /** A run of digits grouped in threes is an amount: "1 000 000 000". */
 const AMOUNT_RE = /^\d{1,3}(?:[  ]\d{3})+$/
-/** 2026-09-22, 2026.09.22 -- a date, not a number to call. */
-const DATE_RE = /^\d{4}[-.]\d{2}[-.]\d{2}(?:[ T]\d{2}:\d{2})?$/
+
+/**
+ * How long a grouped run may be before it stops being read as an amount.
+ *
+ * "10 000 000 099" is ELEVEN digits grouped in threes, so the amount
+ * exemption covered it and a phone number written that way left the chat
+ * (#2875). Ten is the boundary: it is the shortest phone there is, and
+ * everything this business counts -- stars, tokens, roubles -- fits in ten
+ * digits. Longer than that, and the run is read as a number to call. The
+ * price of being wrong here is one withheld answer; the price of the old
+ * rule was a third person's phone number in a client's chat.
+ */
+const AMOUNT_MAX_DIGITS = 10
+
+/**
+ * 2026-09-22, 2026.09.22, 22.09.2026 -- a date, not a number to call, with or
+ * without a time, and with the time CUT SHORT: PHONE_RE's character class has
+ * no colon in it, so "2026-09-22 15:30" arrives here as "2026-09-22 15" --
+ * ten digits, which used to be read as a phone, replacing the whole answer
+ * and paging the owner (#2875).
+ */
+const DATE_RE =
+  /^(?:\d{4}[-.]\d{2}[-.]\d{2}|\d{2}[-.]\d{2}[-.]\d{4})(?:[ T]\d{1,2}(?::\d{2}(?::\d{2})?)?)?$/
 
 function phoneKey(raw: string): string | null {
   const t = raw.trim()
   const digits = t.replace(/\D/g, '')
   if (digits.length < 10 || digits.length > 15) return null
-  if (!t.startsWith('+') && (AMOUNT_RE.test(t) || DATE_RE.test(t))) return null
+  if (!t.startsWith('+')) {
+    if (AMOUNT_RE.test(t) && digits.length <= AMOUNT_MAX_DIGITS) return null
+    if (DATE_RE.test(t)) return null
+  }
   return digits.slice(-10)
 }
 
@@ -304,6 +353,9 @@ export function contactsIn(text: unknown): Contact[] {
   rest = rest.replace(EMAIL_RE, ' ')
   for (const m of rest.matchAll(HANDLE_RE)) {
     out.push({ kind: 'handle', key: m[2].toLowerCase() })
+  }
+  for (const m of rest.matchAll(LABELLED_HANDLE_RE)) {
+    out.push({ kind: 'handle', key: m[1].toLowerCase() })
   }
   for (const m of rest.matchAll(PHONE_RE)) {
     const key = phoneKey(m[0])
