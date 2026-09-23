@@ -20,9 +20,12 @@ Expert knowledge for deploying this Telegram bot to production server.
 
 ```bash
 npm run deploy
-# or
-./scripts/deploy.sh
+# or run the very same script directly:
+./deploy.sh [dev|staging|production] [--force] [--no-cache]
 ```
+
+`npm run deploy` is defined in `package.json` as `chmod +x deploy.sh && ./deploy.sh`,
+so both commands run `deploy.sh` in the repository root (production by default).
 
 This script:
 
@@ -217,14 +220,18 @@ NODE_ENV=production
 
 ## Deployment Scripts Reference
 
-### scripts/deploy.sh
+### deploy.sh (repository root)
 
-Main deployment script:
+Main deployment script, the one `npm run deploy` invokes:
 
-- Syncs code to production
+- Syncs code to production over rsync
 - Rebuilds Docker container
-- Monitors startup
+- Monitors startup and the `/health` endpoint
 - Reports errors
+
+Do not use `scripts/deploy/deploy.sh`: it is the pre-cleanup copy of this
+script, and it still deploys over SSH to the decommissioned server
+`212.86.115.30` (see "Server Information" above).
 
 ### scripts/health-monitor.sh
 

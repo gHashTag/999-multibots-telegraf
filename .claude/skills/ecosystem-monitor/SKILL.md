@@ -8,9 +8,9 @@ created: 2025-01-11
 
 # 🔍 Ecosystem Monitor - Real-Time System Visibility
 
-> *"यथा दीपो निवातस्थो नेङ्गते सोपमा स्मृता"* (Yatha Dipo Nivatastho Nengaten Sopama Smruta)
+> _"यथा दीपो निवातस्थो नेङ्गते सोपमा स्मृता"_ (Yatha Dipo Nivatastho Nengaten Sopama Smruta)
 >
-> *"Как пламя светильника не колеблется в безветренном месте, так и ум йога, сосредоточенный на Истине."* - Бхагавад-гита 6.19
+> _"Как пламя светильника не колеблется в безветренном месте, так и ум йога, сосредоточенный на Истине."_ - Бхагавад-гита 6.19
 >
 > **Мудрость**: Мониторинг даёт ясность и стабильность системе.
 
@@ -21,6 +21,7 @@ created: 2025-01-11
 ## 🎯 Purpose
 
 **Ecosystem Monitor** обеспечивает:
+
 - 📊 Real-time dashboard состояния Skills/Agents/Commands
 - 🔍 Performance metrics и bottleneck detection
 - 🚨 Automatic anomaly detection и alerting
@@ -68,17 +69,20 @@ Layer 4: Historical Analysis
 
 ```markdown
 # 🔍 Claude Code Ecosystem Dashboard
+
 **Generated**: 2025-01-11 23:15:32
 **Health**: 🟢 HEALTHY (Score: 94/100)
 
 ## 📊 Component Status
 
 ### Skills (18 total)
+
 🟢 Operational: 17
 🟡 Degraded: 1 (telegram-scenes-master - duplicate detected)
 🔴 Failed: 0
 
 Top 5 Most Used (Last 24h):
+
 1. telegram-scenes-ULTIMATE - 23 activations (96% success)
 2. supabase-database - 19 activations (100% success)
 3. security-expert - 15 activations (93% success)
@@ -86,20 +90,24 @@ Top 5 Most Used (Last 24h):
 5. project-knowledge-base - 10 activations (100% success)
 
 ### Agents (19 total)
+
 🟢 Operational: 18
 🟡 Degraded: 1 (deployment-manager - marked DEPRECATED)
 🔴 Failed: 0
 
 Most Active (Last 24h):
+
 1. telegram-scene-builder - 8 invocations
 2. anti-duplication-guardian - 6 invocations
 3. code-reviewer - 5 invocations
 
 ### Commands (6 total)
+
 🟢 Available: 6
 ⏱️ Avg Response Time: 3.2s
 
 Recent Executions:
+
 - /check - 4 times (avg 4.1s)
 - /deploy - 2 times (avg 45.3s)
 - /user-check - 1 time (avg 2.8s)
@@ -114,14 +122,15 @@ Recent Executions:
 ## 🚨 Alerts & Anomalies
 
 🟡 WARNING: telegram-scenes-master appears to be duplicate
-   → Action: Review and potentially remove
-   → Impact: Confusion, maintenance overhead
+→ Action: Review and potentially remove
+→ Impact: Confusion, maintenance overhead
 
 🟢 No critical issues detected
 
 ## 🔗 Component Dependencies
 
 Most Connected Skills:
+
 1. master-orchestrator → uses 8 other Skills
 2. telegram-scenes-ULTIMATE → uses 4 Agents
 3. security-expert → validates 12 components
@@ -138,9 +147,14 @@ Most Connected Skills:
 
 ## 🔍 Health Check Components
 
-### 1. Skills Health Check
+### 1. Skills Health Check — INSTALLED
 
-```bash
+> ✅ This one is real: `.claude/scripts/check-skills-health.sh`. The file on disk
+> is the source of truth and has drifted ahead of the copy below (it handles
+> macOS/Linux `stat` differences and separates warnings from hard failures).
+> Read the file, not this excerpt, before changing it.
+
+````bash
 #!/bin/bash
 # .claude/scripts/check-skills-health.sh
 
@@ -195,13 +209,22 @@ else
   echo "🟡 Found $ISSUES issues"
   exit 1
 fi
-```
+````
 
-### 2. Agents Health Check
+### 2. Agents Health Check — DRAFT, NOT INSTALLED
+
+> ⚠️ **There is no `check-agents-health.sh` file.** It has never existed in this
+> repository — no commit ever added it. The code below is an unextracted draft,
+> not an installed script: do not try to run it by path, and do not wire it into
+> cron or CI. Section 1 (`check-skills-health.sh`) is the only health-check
+> script that is actually on disk.
+>
+> To use this, copy the block into `.claude/scripts/check-agents-health.sh`
+> yourself and `chmod +x` it. It has never been executed, so expect to debug it.
 
 ```bash
 #!/bin/bash
-# .claude/scripts/check-agents-health.sh
+# Draft agents health check. Not installed as a file — see the note above.
 
 echo "🔍 Checking Agents Health..."
 
@@ -259,11 +282,15 @@ else
 fi
 ```
 
-### 3. Commands Health Check
+### 3. Commands Health Check — DRAFT, NOT INSTALLED
+
+> ⚠️ **There is no `check-commands-health.sh` file either**, and never has been.
+> Same status as section 2: an unextracted draft, safe to read, not runnable by
+> path. Copy it into `.claude/scripts/` yourself if you want it.
 
 ```bash
 #!/bin/bash
-# .claude/scripts/check-commands-health.sh
+# Draft commands health check. Not installed as a file — see the note above.
 
 echo "🔍 Checking Commands Health..."
 
@@ -308,17 +335,27 @@ fi
 
 ### Metrics Storage Structure
 
+What actually exists:
+
 ```bash
 # .claude/metrics/
-├── system-metrics.json          # Overall system health
-├── skills-usage.json            # Skills activation tracking
-├── agents-performance.json      # Agent execution metrics
-├── commands-history.json        # Command execution log
+├── system-metrics.json          # Overall system health — written by collect-metrics.sh
 └── historical/
-    ├── 2025-01-11.json
-    ├── 2025-01-10.json
-    └── ...
+    └── 2025-11-11.json          # Dated snapshot, one per collect-metrics.sh run
 ```
+
+> ⚠️ **Per-activation telemetry was never built.** Earlier versions of this
+> section also listed `skills-usage.json`, `agents-performance.json` and
+> `commands-history.json`. Those three files have never existed: no commit ever
+> added them, nothing writes them, and nothing reads them. `collect-metrics.sh`
+> — the only collector in the repo — writes `system-metrics.json` and its dated
+> copy, and nothing else.
+>
+> The gap is structural, not a missing file: counting how often a Skill fired or
+> how long an Agent ran needs per-invocation telemetry that Claude Code does not
+> emit into the repo. **What you can actually get today is component _counts and
+> health_, not usage.** Treat any "activations" or "success rate" number in this
+> document as an illustrative mock-up, not something you can query.
 
 ### Metrics Data Schema
 
@@ -363,8 +400,13 @@ fi
 }
 ```
 
+The schema below is a **design sketch for a file that does not exist**, kept only
+so that whoever implements usage tracking has a starting shape. There is no
+`skills-usage.json` on disk and no code that would produce or consume one — a
+collector would have to be written first.
+
 ```typescript
-// .claude/metrics/skills-usage.json
+// PROPOSED ONLY — no such file exists, nothing writes this shape.
 {
   "timestamp": "2025-01-11T23:15:32Z",
   "period": "24h",
@@ -374,12 +416,6 @@ fi
       "success_rate": 0.96,
       "avg_duration_sec": 12.4,
       "last_used": "2025-01-11T22:45:00Z"
-    },
-    "supabase-database": {
-      "activations": 19,
-      "success_rate": 1.0,
-      "avg_duration_sec": 5.2,
-      "last_used": "2025-01-11T23:10:00Z"
     }
     // ... other skills
   },
@@ -447,14 +483,20 @@ cp "$METRICS_DIR/system-metrics.json" "$METRICS_DIR/historical/$(date +%Y-%m-%d)
 
 ### Patterns to Detect
 
+> ⚠️ Sketch only — there is no `detect-anomalies.ts` and no anomaly detection
+> runs anywhere. The helpers it calls (`getAllSkills`, `getAvgTaskDuration`, …)
+> were never written either, and the usage-based ones have no data source. The
+> one check that is actually live is the duplicate-skill heuristic hardcoded in
+> `collect-metrics.sh`.
+
 ```typescript
-// .claude/scripts/detect-anomalies.ts
+// PROPOSED ONLY — no such file exists.
 
 interface AnomalyPattern {
-  name: string;
-  condition: () => boolean;
-  severity: 'info' | 'warning' | 'critical';
-  action: string;
+  name: string
+  condition: () => boolean
+  severity: 'info' | 'warning' | 'critical'
+  action: string
 }
 
 const anomalyPatterns: AnomalyPattern[] = [
@@ -462,75 +504,75 @@ const anomalyPatterns: AnomalyPattern[] = [
     name: 'Duplicate Skills',
     condition: () => {
       // Detect skills with similar names
-      const skills = getAllSkills();
-      return hasSimilarNames(skills);
+      const skills = getAllSkills()
+      return hasSimilarNames(skills)
     },
     severity: 'warning',
-    action: 'Review and consolidate duplicate skills'
+    action: 'Review and consolidate duplicate skills',
   },
 
   {
     name: 'Unused Component',
     condition: () => {
       // Component not used in 90+ days
-      const component = getComponent();
-      return daysSinceLastUse(component) > 90;
+      const component = getComponent()
+      return daysSinceLastUse(component) > 90
     },
     severity: 'info',
-    action: 'Consider removing or updating'
+    action: 'Consider removing or updating',
   },
 
   {
     name: 'Performance Degradation',
     condition: () => {
       // Task duration increased >50% vs baseline
-      const current = getAvgTaskDuration();
-      const baseline = getBaselineTaskDuration();
-      return (current - baseline) / baseline > 0.5;
+      const current = getAvgTaskDuration()
+      const baseline = getBaselineTaskDuration()
+      return (current - baseline) / baseline > 0.5
     },
     severity: 'critical',
-    action: 'Investigate performance bottleneck'
+    action: 'Investigate performance bottleneck',
   },
 
   {
     name: 'High Error Rate',
     condition: () => {
       // Error rate >15%
-      const errorRate = getErrorRate();
-      return errorRate > 0.15;
+      const errorRate = getErrorRate()
+      return errorRate > 0.15
     },
     severity: 'critical',
-    action: 'Review recent changes and logs'
+    action: 'Review recent changes and logs',
   },
 
   {
     name: 'Orphaned Agent',
     condition: () => {
       // Agent not referenced by any Skill/Command
-      const agent = getAgent();
-      return getReferenceCount(agent) === 0;
+      const agent = getAgent()
+      return getReferenceCount(agent) === 0
     },
     severity: 'warning',
-    action: 'Document usage or remove if obsolete'
+    action: 'Document usage or remove if obsolete',
   },
 
   {
     name: 'Stale Documentation',
     condition: () => {
       // Skill not updated in 90+ days but code changed
-      const skill = getSkill();
-      const lastSkillUpdate = getLastUpdate(skill);
-      const lastCodeChange = getLastCodeChange(skill.relatedFiles);
-      return daysBetween(lastCodeChange, lastSkillUpdate) > 90;
+      const skill = getSkill()
+      const lastSkillUpdate = getLastUpdate(skill)
+      const lastCodeChange = getLastCodeChange(skill.relatedFiles)
+      return daysBetween(lastCodeChange, lastSkillUpdate) > 90
     },
     severity: 'warning',
-    action: 'Update skill with new patterns'
-  }
-];
+    action: 'Update skill with new patterns',
+  },
+]
 
 // Run anomaly detection
 function detectAnomalies(): Alert[] {
-  const alerts: Alert[] = [];
+  const alerts: Alert[] = []
 
   for (const pattern of anomalyPatterns) {
     if (pattern.condition()) {
@@ -538,12 +580,12 @@ function detectAnomalies(): Alert[] {
         name: pattern.name,
         severity: pattern.severity,
         action: pattern.action,
-        timestamp: new Date().toISOString()
-      });
+        timestamp: new Date().toISOString(),
+      })
     }
   }
 
-  return alerts;
+  return alerts
 }
 ```
 
@@ -553,9 +595,15 @@ function detectAnomalies(): Alert[] {
 
 ### Generate Real-Time Dashboard
 
+> ✅ Installed as `.claude/scripts/generate-dashboard.sh`, writing
+> `.claude/ECOSYSTEM_DASHBOARD.md`. The file on disk is the source of truth and
+> is substantially more developed than this simplified excerpt (it degrades
+> gracefully when `jq` is absent and colour-codes the health score). Read the
+> file before editing.
+
 ```bash
 #!/bin/bash
-# .claude/scripts/generate-dashboard.sh
+# Simplified excerpt of .claude/scripts/generate-dashboard.sh
 
 OUTPUT=".claude/ECOSYSTEM_DASHBOARD.md"
 
@@ -581,11 +629,9 @@ COMMANDS_TOTAL=$(jq '.components.commands.total' .claude/metrics/system-metrics.
 echo "- **Commands**: $COMMANDS_TOTAL total" >> "$OUTPUT"
 echo "" >> "$OUTPUT"
 
-# Recent activity
-echo "## 📈 Recent Activity" >> "$OUTPUT"
-echo "Top Skills (Last 24h):" >> "$OUTPUT"
-jq -r '.skills | to_entries | sort_by(-.value.activations) | .[0:5] | .[] | "- \(.key): \(.value.activations) activations (\(.value.success_rate * 100 | floor)% success)"' .claude/metrics/skills-usage.json >> "$OUTPUT"
-echo "" >> "$OUTPUT"
+# NOTE: there is no "Recent Activity / Top Skills" section. It would need
+# skills-usage.json, which does not exist and has no collector. The installed
+# script does not emit this block either.
 
 # Alerts
 echo "## 🚨 Alerts" >> "$OUTPUT"
@@ -606,6 +652,7 @@ echo "✅ Dashboard generated: $OUTPUT"
 ### When to Use
 
 **Use ecosystem-monitor when**:
+
 - 🔍 Need overview of system health
 - 📊 Investigating performance issues
 - 🚨 Checking for anomalies or problems
@@ -614,6 +661,7 @@ echo "✅ Dashboard generated: $OUTPUT"
 - 🎯 Prioritizing improvements (what's most used?)
 
 **Frequency**:
+
 - **Real-time**: On-demand via dashboard generation
 - **Daily**: Automated health checks (cron job)
 - **Weekly**: Comprehensive analysis report
@@ -623,44 +671,32 @@ echo "✅ Dashboard generated: $OUTPUT"
 
 ## 🔧 Setup & Installation
 
-### Installation Script
+### Setup
+
+There is no `setup-ecosystem-monitor.sh`; it was never written. Nothing needs
+installing anyway — the three scripts below are committed, and
+`collect-metrics.sh` creates `.claude/metrics/historical/` on its own. Run the
+steps directly:
 
 ```bash
-#!/bin/bash
-# .claude/scripts/setup-ecosystem-monitor.sh
-
-echo "🔧 Setting up Ecosystem Monitor..."
-
-# Create metrics directory
-mkdir -p .claude/metrics/historical
-
-# Initialize metrics files
-echo '{}' > .claude/metrics/system-metrics.json
-echo '{}' > .claude/metrics/skills-usage.json
-echo '{}' > .claude/metrics/agents-performance.json
-echo '{}' > .claude/metrics/commands-history.json
-
-# Make scripts executable
+# Make the installed scripts executable (once, after a fresh clone)
 chmod +x .claude/scripts/check-skills-health.sh
-chmod +x .claude/scripts/check-agents-health.sh
-chmod +x .claude/scripts/check-commands-health.sh
 chmod +x .claude/scripts/collect-metrics.sh
 chmod +x .claude/scripts/generate-dashboard.sh
 
-# Run initial health check
+# Health check, then metrics, then dashboard (this order — the dashboard
+# refuses to run when system-metrics.json is missing)
 .claude/scripts/check-skills-health.sh
-.claude/scripts/check-agents-health.sh
-.claude/scripts/check-commands-health.sh
-
-# Collect initial metrics
 .claude/scripts/collect-metrics.sh
-
-# Generate initial dashboard
 .claude/scripts/generate-dashboard.sh
 
-echo "✅ Ecosystem Monitor setup complete!"
-echo "📊 Dashboard available at: .claude/ECOSYSTEM_DASHBOARD.md"
+echo "📊 Dashboard written to: .claude/ECOSYSTEM_DASHBOARD.md"
 ```
+
+Nothing initialises `skills-usage.json`, `agents-performance.json` or
+`commands-history.json`, because nothing reads them — see _Metrics Storage
+Structure_ above. Creating empty `{}` placeholders would only make the gap
+harder to see.
 
 ### Automated Monitoring (Optional)
 
@@ -669,8 +705,9 @@ echo "📊 Dashboard available at: .claude/ECOSYSTEM_DASHBOARD.md"
 # Run health checks daily at 9 AM
 0 9 * * * cd /path/to/project && .claude/scripts/collect-metrics.sh && .claude/scripts/generate-dashboard.sh
 
-# Run comprehensive health check weekly on Monday
-0 10 * * 1 cd /path/to/project && .claude/scripts/check-skills-health.sh && .claude/scripts/check-agents-health.sh
+# Run the health check weekly on Monday
+# (skills only — the agents and commands checks are drafts, not files)
+0 10 * * 1 cd /path/to/project && .claude/scripts/check-skills-health.sh
 ```
 
 ---
@@ -680,12 +717,14 @@ echo "📊 Dashboard available at: .claude/ECOSYSTEM_DASHBOARD.md"
 ### Works Best With
 
 **Primary Integrations**:
+
 1. **master-orchestrator** - Uses monitor data for coordination decisions
 2. **task-tracker** - Cross-references task progress with system health
 3. **continuous-optimizer** - Uses metrics to identify optimization targets
 4. **learning-automation** - Uses usage patterns to prioritize Skill updates
 
 **Data Flow**:
+
 ```
 ecosystem-monitor → collects metrics
                   → detects anomalies
@@ -700,9 +739,9 @@ ecosystem-monitor → collects metrics
 
 ### Self-Awareness (आत्मज्ञान - Atma Jnana)
 
-> *"जो अपने आप को जानता है, वह सब कुछ जानता है"*
+> _"जो अपने आप को जानता है, वह सब कुछ जानता है"_
 >
-> *"One who knows oneself, knows everything."*
+> _"One who knows oneself, knows everything."_
 
 **Application**: Экосистема, которая мониторит саму себя, становится self-aware и может саморазвиваться эффективнее.
 
@@ -715,16 +754,19 @@ ecosystem-monitor → collects metrics
 ### KPIs для Ecosystem Monitor
 
 **Visibility**:
+
 - Dashboard generation time: **Target < 2s**
 - Metrics collection frequency: **Target: every 1h**
 - Alert latency (detection to notification): **Target < 5min**
 
 **Accuracy**:
+
 - False positive rate: **Target < 5%**
 - Anomaly detection accuracy: **Target > 90%**
 - Health score correlation with actual issues: **Target > 85%**
 
 **Impact**:
+
 - Time to detect issues: **Target: reduce by 80%**
 - System downtime: **Target: reduce by 50%**
 - Developer confidence in system health: **Target > 90%**
@@ -733,19 +775,24 @@ ecosystem-monitor → collects metrics
 
 ## 🚀 Roadmap
 
-### v1.0 (Current) ✅
-- [x] Component health checks (Skills/Agents/Commands)
-- [x] Basic metrics collection
-- [x] Dashboard generation
-- [x] Anomaly detection patterns
+### v1.0 (Current) — partially built
+
+- [x] Skills health check (`check-skills-health.sh`)
+- [ ] Agents / Commands health checks — drafted in this document, never extracted to files
+- [x] Component counting + health score (`collect-metrics.sh`)
+- [x] Dashboard generation (`generate-dashboard.sh`)
+- [ ] Usage/activation metrics — no collector exists, and no telemetry source to build one from
+- [ ] Anomaly detection — patterns sketched below, no implementation
 
 ### v1.1 (Next 2 Weeks)
+
 - [ ] Real-time monitoring (live dashboard)
 - [ ] Email/Slack alerts on critical issues
 - [ ] Historical trend analysis (charts)
 - [ ] Performance bottleneck identification
 
 ### v2.0 (Future)
+
 - [ ] ML-based anomaly detection
 - [ ] Predictive alerts (issues before they happen)
 - [ ] Auto-remediation for common issues
@@ -756,18 +803,24 @@ ecosystem-monitor → collects metrics
 ## 📚 Related Documentation
 
 **Skills**:
+
 - master-orchestrator - Uses monitor for coordination
 - continuous-optimizer - Uses metrics for optimization
 - task-tracker - Cross-references with health data
 
 **Agents**:
+
 - rules-guardian - Meta-agent using monitor data
 - ecosystem-health-check - Proactive checks
 
-**Files**:
-- `.claude/metrics/` - Metrics storage
+**Files** (all confirmed present):
+
+- `.claude/metrics/system-metrics.json` - Current health snapshot
+- `.claude/metrics/historical/` - Dated snapshots
 - `.claude/ECOSYSTEM_DASHBOARD.md` - Generated dashboard
-- `.claude/scripts/check-*.sh` - Health check scripts
+- `.claude/scripts/check-skills-health.sh` - The only health check script
+- `.claude/scripts/collect-metrics.sh` - The only metrics collector
+- `.claude/scripts/generate-dashboard.sh` - Dashboard generator
 
 ---
 
@@ -780,9 +833,9 @@ ecosystem-monitor → collects metrics
 
 ## 🕉️ Closing Wisdom
 
-> *"न हि कश्चित्क्षणमपि जातु तिष्ठत्यकर्मकृत्"* (Na Hi Kashchit Kshanamapi Jatu Tishtyakarmakrut)
+> _"न हि कश्चित्क्षणमपि जातु तिष्ठत्यकर्मकृत्"_ (Na Hi Kashchit Kshanamapi Jatu Tishtyakarmakrut)
 >
-> *"Никто не может оставаться даже мгновение без действия."* - Бхагавад-гита 3.5
+> _"Никто не может оставаться даже мгновение без действия."_ - Бхагавад-гита 3.5
 
 **Мудрость для мониторинга**: Система постоянно в движении - мониторинг делает это движение видимым и понятным.
 

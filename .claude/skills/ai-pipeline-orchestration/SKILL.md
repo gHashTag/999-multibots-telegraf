@@ -32,12 +32,15 @@ interface IProvider {
 }
 
 // Multiple implementations
-class ReplicateProvider implements IProvider { }
-class FalProvider implements IProvider { }
-class KieAiProvider implements IProvider { }
+class ReplicateProvider implements IProvider {}
+class FalProvider implements IProvider {}
+class KieAiProvider implements IProvider {}
 ```
 
 ### 2. Orchestrator Pattern
+
+_Target shape only — no `MediaOrchestrator` exists in this repository; see
+"Pipeline Types" below._
 
 ```typescript
 // Routes requests to correct pipeline
@@ -53,6 +56,9 @@ class MediaOrchestrator {
 
 ### 3. Functional Pipeline
 
+_Target shape only — `videoPipeline` and its siblings were deleted with
+`src/core/pipeline/`; see "Pipeline Types" below._
+
 ```typescript
 // Functional composition with Either pattern
 const videoPipeline = pipe(
@@ -67,54 +73,66 @@ const videoPipeline = pipe(
 
 ## Pipeline Types
 
-### 1. Video Generation Pipeline
+> **The `src/core/pipeline/` layer does not exist.** `media-orchestrator.ts`
+> and the four `*.pipeline.ts` modules (video, image, audio, face-swap) were
+> added in a checkpoint commit on 2025-10-31, never imported by anything under
+> `src/`, and deleted as dead code on 2025-11-12 in commit `9ce763c2a`.
+> Nothing replaced them — there is no composed generation pipeline and no
+> `MediaOrchestrator` in this repository. Generation runs through one service
+> per model, called directly from scenes, handlers, API routes and Inngest
+> functions. The composition examples in this skill describe the target shape,
+> not code you can open.
 
-**Location**: `src/core/pipeline/video/video.pipeline.ts`
+The sections below list the entry points that actually run in the tree today,
+with the provider coverage each of them has.
 
-```typescript
-const createVideoPipeline = (
-  registry: ProviderRegistry,
-  cache: Cache<VideoResult>,
-  config: PipelineConfig
-) => (request: VideoRequest): TaskEither<Error, VideoResult> =>
-  pipe(
-    request,
-    validateVideoInput,
-    checkVideoCache(cache),
-    selectVideoProvider(registry),
-    generateVideo,
-    cacheResult(cache),
-    tap(logSuccess)
-  )
-```
+### 1. Video Generation
+
+**Entry points**: `src/services/generateTextToVideo.ts` and
+`src/services/generateImageToVideo.ts`, called from
+`src/handlers/handleTextToVideoDirect.ts` and
+`src/handlers/handleImageToVideoDirect.ts`.
 
 **Supported Providers:**
+
 - Fal.ai (Veo 3.1, Minimax, Wan2.5)
 - Replicate (Kling, various models)
 - KieAI (Kling provider)
 
-### 2. Image Generation Pipeline
+### 2. Image Generation
 
-**Location**: `src/core/pipeline/image/image.pipeline.ts`
+**Entry points**: `src/services/generateTextToImageDirect.ts` (used by
+`src/scenes/textToImageWizard/index.ts`) and
+`src/services/generateNeuroPhotoDirect.ts` /
+`src/services/generateNeuroPhotoHybrid.ts` (used by
+`src/scenes/neuroPhotoWizard/index.ts`). Other models each get their own
+`src/services/generate*.ts` file.
 
 **Providers:**
+
 - Replicate (Flux, SDXL, various models)
 - Fal.ai (Flux models)
 - OpenAI (DALL-E)
 
-### 3. Audio Generation Pipeline
+### 3. Audio Generation
 
-**Location**: `src/core/pipeline/audio/audio.pipeline.ts`
+**Entry points**: `src/core/elevenlabs/createAudioFileFromText.ts` (used by
+`src/scenes/textToSpeechWizard/index.ts` and the reels wizards) and
+`src/services/generateVoiceAvatar.ts` (used by
+`src/api_server/routes/voice-avatar.routes.ts`).
 
 **Providers:**
+
 - ElevenLabs (voice cloning, TTS)
 - OpenAI (TTS)
 
-### 4. Face Swap Pipeline
+### 4. Face Swap
 
-**Location**: `src/core/pipeline/face-swap/face-swap.pipeline.ts`
+**Entry point**: `src/services/generateFaceSwap.ts`, called from
+`src/scenes/faceSwapWizard/index.ts`.
 
 **Providers:**
+
 - Replicate (face swap models)
 - Fal.ai (face swap)
 
@@ -167,7 +185,7 @@ const result = await orchestrator.generate({
   modelId: 'veo-31',
   videoUrl: 'https://example.com/video.mp4',
   audioUrl: 'https://example.com/audio.mp3',
-  telegramId: '123456'
+  telegramId: '123456',
 })
 
 if ('message' in result && 'error' in result) {
@@ -238,8 +256,9 @@ class ProviderRegistry {
   }
 
   getByModel(modelId: string): IProvider | undefined {
-    return Array.from(this.providers.values())
-      .find(p => p.supportedModels.includes(modelId))
+    return Array.from(this.providers.values()).find(p =>
+      p.supportedModels.includes(modelId)
+    )
   }
 }
 ```
@@ -275,7 +294,8 @@ type TaskEither<E, A> = () => Promise<Either<E, A>>
 type Either<E, A> = Left<E> | Right<A>
 
 // Example usage
-const generateVideo = (input: VideoInput): TaskEither<Error, VideoOutput> =>
+const generateVideo =
+  (input: VideoInput): TaskEither<Error, VideoOutput> =>
   async () => {
     try {
       const result = await api.generate(input)
@@ -300,12 +320,7 @@ const pipeline = pipe(
 import { pipe } from './functional/utils/composition'
 
 // Compose functions left-to-right
-const process = pipe(
-  input,
-  step1,
-  step2,
-  step3
-)
+const process = pipe(input, step1, step2, step3)
 
 // Equivalent to: step3(step2(step1(input)))
 ```
@@ -317,9 +332,9 @@ import { tap } from './functional/utils/composition'
 
 const pipeline = pipe(
   input,
-  tap(logInput),        // Log without changing value
+  tap(logInput), // Log without changing value
   processData,
-  tap(logOutput),       // Log result
+  tap(logOutput), // Log result
   saveToDatabase
 )
 ```
@@ -356,7 +371,7 @@ class MediaCache<T> implements Cache<T> {
   }
 
   async set(key: string, value: T, ttl: number = 3600): Promise<void> {
-    const expiry = Date.now() + (ttl * 1000)
+    const expiry = Date.now() + ttl * 1000
     this.cache.set(key, { value, expiry })
   }
 }
@@ -365,23 +380,24 @@ class MediaCache<T> implements Cache<T> {
 ### Usage in Pipeline
 
 ```typescript
-const checkCache = (cache: Cache<VideoResult>) =>
+const checkCache =
+  (cache: Cache<VideoResult>) =>
   (input: VideoInput): TaskEither<Error, VideoResult> =>
-    async () => {
-      const cacheKey = generateCacheKey(input)
-      const cached = await cache.get(cacheKey)
+  async () => {
+    const cacheKey = generateCacheKey(input)
+    const cached = await cache.get(cacheKey)
 
-      if (cached) {
-        logger.info('✅ Cache hit', { cacheKey })
-        return right(cached)
-      }
-
-      // Generate and cache
-      const result = await generateVideo(input)
-      await cache.set(cacheKey, result, 3600) // 1 hour TTL
-
-      return result
+    if (cached) {
+      logger.info('✅ Cache hit', { cacheKey })
+      return right(cached)
     }
+
+    // Generate and cache
+    const result = await generateVideo(input)
+    await cache.set(cacheKey, result, 3600) // 1 hour TTL
+
+    return result
+  }
 ```
 
 ## Error Handling
@@ -411,11 +427,10 @@ const generateWithFailover = async (
       logger.info('Trying provider', { provider: provider.name })
       const result = await provider.generate(input)
       return result
-
     } catch (error) {
       logger.warn('Provider failed, trying next', {
         provider: provider.name,
-        error: error.message
+        error: error.message,
       })
       lastError = error
     }
@@ -442,17 +457,17 @@ class MediaCostEstimator implements CostEstimator {
       'veo-3-fast': 40,
       'veo-3': 120,
       'kling-v1.6-pro': 60,
-      'minimax': 50
+      minimax: 50,
     },
     image: {
       'flux-schnell': 10,
       'flux-dev': 30,
-      'sdxl': 15
+      sdxl: 15,
     },
     audio: {
-      'elevenlabs': (duration) => Math.ceil(duration / 60) * 5,
-      'openai-tts': (duration) => Math.ceil(duration / 60) * 2
-    }
+      elevenlabs: duration => Math.ceil(duration / 60) * 5,
+      'openai-tts': duration => Math.ceil(duration / 60) * 2,
+    },
   }
 
   estimateVideoCost(duration: number, model: string): number {
@@ -475,7 +490,7 @@ class ReplicateProvider implements IProvider {
 
   constructor() {
     this.client = new Replicate({
-      auth: process.env.REPLICATE_API_TOKEN
+      auth: process.env.REPLICATE_API_TOKEN,
     })
   }
 
@@ -486,7 +501,7 @@ class ReplicateProvider implements IProvider {
       input: {
         prompt: input.prompt,
         // ...
-      }
+      },
     })
 
     // Poll for completion
@@ -503,7 +518,7 @@ class ReplicateProvider implements IProvider {
     return {
       videoUrl: result.output,
       predictionId: result.id,
-      cost: this.estimateCost(input)
+      cost: this.estimateCost(input),
     }
   }
 }
@@ -517,7 +532,7 @@ import * as fal from '@fal-ai/client'
 class FalProvider implements IProvider {
   constructor() {
     fal.config({
-      credentials: process.env.FAL_KEY
+      credentials: process.env.FAL_KEY,
     })
   }
 
@@ -525,18 +540,18 @@ class FalProvider implements IProvider {
     // Queue submission (async)
     const { request_id } = await fal.queue.submit('fal-ai/veo-31', {
       prompt: input.prompt,
-      duration: input.duration
+      duration: input.duration,
     })
 
     // Get result
     const result = await fal.queue.result('fal-ai/veo-31', {
-      requestId: request_id
+      requestId: request_id,
     })
 
     return {
       videoUrl: result.video.url,
       requestId: request_id,
-      cost: this.estimateCost(input)
+      cost: this.estimateCost(input),
     }
   }
 }
@@ -552,15 +567,19 @@ class KieAiProvider implements IProvider {
 
   async generate(input: VideoInput): Promise<VideoOutput> {
     // Submit job
-    const response = await axios.post(`${this.apiUrl}/generate`, {
-      model: input.model,
-      prompt: input.prompt,
-      // ...
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.KIE_API_KEY}`
+    const response = await axios.post(
+      `${this.apiUrl}/generate`,
+      {
+        model: input.model,
+        prompt: input.prompt,
+        // ...
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.KIE_API_KEY}`,
+        },
       }
-    })
+    )
 
     const jobId = response.data.job_id
 
@@ -572,7 +591,7 @@ class KieAiProvider implements IProvider {
         return {
           videoUrl: status.data.output_url,
           jobId,
-          cost: this.estimateCost(input)
+          cost: this.estimateCost(input),
         }
       }
 
@@ -605,9 +624,7 @@ const selectBestProvider = (
   }
 
   // Sort by cost
-  compatible.sort((a, b) =>
-    a.estimateCost(input) - b.estimateCost(input)
-  )
+  compatible.sort((a, b) => a.estimateCost(input) - b.estimateCost(input))
 
   // Return cheapest
   return compatible[0]
@@ -653,7 +670,7 @@ const VideoRequestSchema = z.object({
   model: z.enum(['veo-3-fast', 'veo-3', 'kling-v1.6-pro', 'minimax']),
   duration: z.number().min(1).max(60),
   aspectRatio: z.enum(['16:9', '9:16', '1:1']).optional(),
-  telegramId: z.string()
+  telegramId: z.string(),
 })
 
 const validateVideoRequest = (input: any): VideoInput => {
@@ -674,7 +691,7 @@ const validateVideoRequest = (input: any): VideoInput => {
 logger.info('🎬 Video generation started', {
   telegramId: input.telegramId,
   model: input.model,
-  provider: provider.name
+  provider: provider.name,
 })
 
 // Log each step
@@ -684,14 +701,14 @@ logger.info('⏳ Submitting to provider', { provider: provider.name })
 logger.info('✅ Video generated successfully', {
   duration: Date.now() - startTime,
   videoUrl: result.videoUrl,
-  cost: result.cost
+  cost: result.cost,
 })
 
 // Log errors
 logger.error('❌ Generation failed', {
   error: error.message,
   provider: provider.name,
-  input: input
+  input: input,
 })
 ```
 
@@ -699,9 +716,13 @@ logger.error('❌ Generation failed', {
 
 ### From Scene to Pipeline
 
+_Illustrative: `MediaOrchestrator` does not exist. A real scene calls the
+per-model service directly — see `src/scenes/faceSwapWizard/index.ts` or
+`src/handlers/handleTextToVideoDirect.ts`._
+
 ```typescript
 // In Telegram scene
-myScene.action('generate-video', async (ctx) => {
+myScene.action('generate-video', async ctx => {
   await ctx.answerCbQuery()
   const isRu = isRussianFromState(ctx)
 
@@ -710,7 +731,7 @@ myScene.action('generate-video', async (ctx) => {
     model: ctx.session.selectedModel,
     duration: 10,
     aspectRatio: '16:9',
-    telegramId: ctx.from!.id.toString()
+    telegramId: ctx.from!.id.toString(),
   }
 
   await ctx.reply('⏳ Generating video...')
@@ -726,9 +747,8 @@ myScene.action('generate-video', async (ctx) => {
 
     // Send result
     await ctx.replyWithVideo(result.right.videoUrl, {
-      caption: `✅ Video ready! Cost: ${result.right.cost}⭐`
+      caption: `✅ Video ready! Cost: ${result.right.cost}⭐`,
     })
-
   } catch (error) {
     logger.error('Video generation failed', { error })
     await ctx.reply(
@@ -745,19 +765,13 @@ myScene.action('generate-video', async (ctx) => {
 ### 1. Parallel Processing
 
 ```typescript
-const generateBatch = async (
-  inputs: VideoInput[]
-): Promise<VideoResult[]> => {
+const generateBatch = async (inputs: VideoInput[]): Promise<VideoResult[]> => {
   // Generate all in parallel
-  const promises = inputs.map(input =>
-    orchestrator.generateVideo(input)()
-  )
+  const promises = inputs.map(input => orchestrator.generateVideo(input)())
 
   const results = await Promise.all(promises)
 
-  return results
-    .filter(r => 'right' in r)
-    .map(r => r.right)
+  return results.filter(r => 'right' in r).map(r => r.right)
 }
 ```
 
