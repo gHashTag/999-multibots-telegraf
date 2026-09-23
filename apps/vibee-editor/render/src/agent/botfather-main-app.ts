@@ -909,9 +909,9 @@ const TELEGRAM_ID = /^\d{5,15}$/
  * the account's holder in the app, "not authorised" by the owner typing the
  * argument. A single vague refusal would send the owner to the wrong one.
  *
- * `as` is refused as long as the argument is PRESENT, even when it names the
- * caller: the confirmation is about the form, not about who is named, and a
- * rule with an exception is a rule somebody will find the exception in.
+ * The confirmation is required whenever the argument is PRESENT, even when it
+ * names the caller: it is about the form, not about who is named, and a rule
+ * with an exception is a rule somebody will find the exception in.
  */
 export async function actingAccount(
   args: MainAppArgs,
