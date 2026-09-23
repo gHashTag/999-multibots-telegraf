@@ -495,3 +495,118 @@ html[data-keyboard='open'] .chat-page {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── WIDE MODE: THE CLIENT'S CARD BESIDE THE CONVERSATION ──────────────────
+ *
+ * Owner, 2026-09-23: in wide mode the card should be there straight away. It
+ * is a fixed column rather than a grid cell on purpose: `.chat-page` is a flex
+ * column whose height is the live viewport, and re-laying it out as a grid
+ * moves the composer, the keyboard compensation and the scroll container all
+ * at once. A column pinned to the right edge, with room made for it in the
+ * scrolling part, changes nothing that was already working.
+ *
+ * Below this width the card is not shown at all -- the header's link to the
+ * client's own screen is the way there, as before.
+ */
+.chat-aside {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .chat-aside {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: fixed;
+    top: 96px;
+    right: 16px;
+    width: 300px;
+    max-height: calc(100dvh - 180px);
+    overflow-y: auto;
+    padding: 14px;
+    border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+    border-radius: 14px;
+    background: var(--t27-surface, rgba(255, 255, 255, 0.05));
+    z-index: 5;
+  }
+
+  /* Room for it, so a long line of a message never runs under the card. */
+  .chat-page--client .chat-container,
+  .chat-page--client .chat-input-area {
+    padding-right: 332px;
+  }
+}
+
+.chat-aside__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-aside__name {
+  font-weight: 600;
+}
+
+.chat-aside__handle {
+  color: var(--t27-accent, #00ff88);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.chat-aside__off {
+  color: var(--t27-muted, #888);
+  font-size: 13px;
+  margin: 0;
+}
+
+.chat-aside__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.chat-aside__facts dt {
+  color: var(--t27-muted, #888);
+}
+
+.chat-aside__facts dd {
+  margin: 0;
+}
+
+.chat-aside__waiting {
+  color: var(--t27-golden, #ffd700);
+}
+
+.chat-aside__words {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  color: var(--t27-text, #fff);
+  font-size: 13px;
+  opacity: 0.9;
+  max-height: 120px;
+  overflow: hidden;
+}
+
+.chat-aside__package {
+  margin: 0;
+  font-size: 13px;
+  color: var(--t27-accent, #00ff88);
+}
+
+.chat-aside__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chat-aside__link {
+  padding: 6px 10px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+  color: var(--t27-text, #fff);
+  text-decoration: none;
+  font-size: 13px;
+}
