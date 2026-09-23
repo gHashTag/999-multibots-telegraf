@@ -78,8 +78,8 @@ async function main() {
     const share =
       out.without_you_percent === null ? '—' : `${out.without_you_percent}%`
     console.log(
-      `За ${out.days} дн.: ушло само ${out.auto_sent}, отправил сам ${out.pressed_sent}, ` + // cyrillic-ok: operator-facing
-        `отменено ${out.cancelled} — без тебя ${share}.` // cyrillic-ok: operator-facing
+      `За ${out.days} дн.: ответов в чатах ${out.dm_answered}, карточек само ${out.auto_sent}, ` + // cyrillic-ok: operator-facing
+        `отправил сам ${out.pressed_sent}, отменено ${out.cancelled} — без тебя ${share}.` // cyrillic-ok: operator-facing
     )
   }
   if (out.before) {
@@ -88,7 +88,7 @@ async function main() {
         ? '—'
         : `${out.before.without_you_percent}%`
     console.log(
-      `   неделей раньше: ушло ${out.before.left}, без тебя ${was}.` // cyrillic-ok: operator-facing
+      `   неделей раньше: всего ${out.before.left} (ответов ${out.before.dm_answered}), без тебя ${was}.` // cyrillic-ok: operator-facing
     )
   }
   console.log(
