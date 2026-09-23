@@ -1802,7 +1802,58 @@ If not, continue on your own and click the "I myself" button`
         if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(written))
           return next()
       }
-      if (ctx.scene?.current) return next()
+      /*
+       * A SCENE THAT SAID NOTHING MUST NOT SWALLOW THE MESSAGE.
+       *
+       * Owner, 2026-09-23: "why does the bot not understand me when I write
+       * to it directly -- it should be a copy of what the mini app is". The
+       * production line behind that complaint:
+       *
+       *   [no-reply] a message crossed the whole chain unanswered
+       *   {scene: "starPaymentScene", shape: ["text"]}
+       *
+       * He had opened the top-up wizard days earlier, never finished it, and
+       * every question he typed since then arrived while that scene was still
+       * current. The wizard step ignores anything that is not an amount, this
+       * line handed the message on, and the net at the end of the chain said
+       * "I got your message but could not tell what to do with it". The mini
+       * app, which has no scenes, answered the same question with tools.
+       *
+       * So the scene keeps its right of first refusal -- if it answered
+       * (`answered` is the witness from noSilence.ts), the message was its
+       * business and the agent stays out. If it said NOTHING, the person is
+       * talking to the bot, not to the wizard: leave the scene and let the
+       * agent answer, which is what the same words get in the app.
+       *
+       * Text only, on purpose. A wizard that waits for a photo or a document
+       * and quietly stores it is a real shape here (the training scenes do
+       * exactly that), and a file is not evidence that the person wants out.
+       */
+      if (ctx.scene?.current) {
+        const stuckIn = ctx.scene.current.id
+        /*
+         * Private chats only. In a room the bot sees everything everyone
+         * types, and a scene there belongs to whoever started it: one
+         * bystander's sentence must not end somebody else's wizard.
+         */
+        if (ctx.chat?.type !== 'private') return next()
+        if (attachment || !('text' in ctx.message)) return next()
+        if (ctx.state?.answered) return next()
+        logger.warn('🚪 [agent] a scene ignored a message; leaving it', {
+          telegram_id: ctx.from?.id,
+          scene: stuckIn,
+        })
+        try {
+          await ctx.scene.leave()
+        } catch (error) {
+          // Leaving is a courtesy; the answer below matters more.
+          logger.warn('🚪 [agent] could not leave the scene', {
+            telegram_id: ctx.from?.id,
+            scene: stuckIn,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
 
       /*
        * IN A GROUP, ONLY WHEN SPOKEN TO.
