@@ -87,6 +87,29 @@ curl -s "$BASE/api/feed/pending?telegram_id=$OWNER" -H "X-Api-Key: $KEY"
 curl -s -X DELETE "$BASE/api/feed/17?telegram_id=$OWNER" -H "X-Api-Key: $KEY"
 ```
 
+## Поправка 2026-09-23: `/mcp` больше НЕ принимает ключ сервиса
+
+`X-Api-Key` по-прежнему работает на маршрутах REST (`/api/feed/*` — проверено,
+200). На `/mcp` он теперь отвечает отказом: «Нужна подпись Telegram, сессия
+приложения или корректный ключ агента». Дверь для агента — `X-Agent-Key`, и
+личность берётся ИЗ КЛЮЧА, а не из аргументов, поэтому владельческие
+инструменты (`botfather_main_app`, `crm_*`) открываются только ключом,
+выданным на его `telegram_id`.
+
+Ключи лежат в `AGENT_KEYS` сервиса `vibee-render` в виде `ключ:telegram_id`
+через запятую — **сначала ключ, потом id**. Частая ошибка: взять `cut -d, -f1`
+и отправить целиком пару, после чего сервер справедливо отказывает.
+
+```bash
+AK=$( (railway variables --service vibee-render --kv 2>/dev/null) \
+      | grep '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
+curl -s "$BASE/mcp" -H "X-Agent-Key: $AK" -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
+       "params":{"name":"whoami","arguments":{}}}'
+```
+
+Значение ключа — как и раньше: только в переменной, не в выводе, не в файле.
+
 ## Чего это НЕ отменяет
 
 - **Коды авторизации и пароли я не ввожу.** Ключ сервиса — не учётные данные
