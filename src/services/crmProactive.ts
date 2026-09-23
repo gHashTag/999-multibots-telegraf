@@ -1130,6 +1130,14 @@ export async function pushCard(
     try {
       const r = await confirmProposal(ownerId, draft.id, draft.secret)
       if (r.ok) {
+        /*
+         * Written down, not just reported. The receipt below is for the owner
+         * reading his chat now; this row is what answers "how much did it do
+         * without me?" next week (hiveNote.ts noteForAutoSend). Fire and
+         * forget, like every other note: a journal that is down must never
+         * hold up a send that already happened.
+         */
+        void import('./hiveNote').then(m => m.noteAutoSendToHive(ownerId))
         await telegram.sendMessage(
           ownerId,
           autopilotSentLine(draft, opts),

@@ -41,6 +41,8 @@ let autopilot: Record<string, unknown> = {
 }
 const calls: Array<{ name: string; args: Record<string, unknown> }> = []
 
+let emptyScore = false
+
 const answers = (): Record<string, unknown> => ({
   crm_overview: { ['всего_людей']: 3 }, // cyrillic-ok: server key
   crm_waiting: { total: 0, ours: 0, due: 0, theirs: 0, waiting: [] },
@@ -85,6 +87,16 @@ const answers = (): Record<string, unknown> => ({
   },
   autopilot_status: autopilot,
   autopilot_set: autopilot,
+  crm_outcomes: {
+    days: 7,
+    auto_sent: 6,
+    pressed_sent: 3,
+    cancelled: 1,
+    cards_drawn: 10,
+    quiet: 40,
+    failed: 0,
+    without_you_percent: 67,
+  },
 })
 
 vi.stubGlobal(
@@ -102,7 +114,19 @@ vi.stubGlobal(
         left_today: 19,
       }
     }
-    const data = answers()[name] ?? {}
+    let data = answers()[name] ?? {}
+    if (name === 'crm_outcomes' && emptyScore)
+      data = {
+        days: 7,
+        auto_sent: 0,
+        pressed_sent: 0,
+        cancelled: 0,
+        cards_drawn: 0,
+        quiet: 0,
+        failed: 0,
+        without_you_percent: null,
+        note: 'nothing yet',
+      }
     return new Response(
       JSON.stringify({
         jsonrpc: '2.0',
@@ -224,5 +248,36 @@ describe('the AUTO switch', () => {
     expect(text()).toContain('crm.auto.on:')
     expect(text()).toContain('19')
     expect(byText('crm.auto.turnOff')).toBeTruthy()
+  })
+})
+
+describe('the measured figure', () => {
+  it('says what left by itself, what the owner sent, and the share', async () => {
+    await screen()
+    // The key carries its numbers: 7 days, 6 automatic, 3 pressed, 67%.
+    await settle()
+    const panel = host.querySelector('.crm-auto')?.textContent ?? ''
+    expect(panel, panel).toContain('crm.score.line:7,6,3,67%')
+  })
+
+  it('does not print a made-up zero when nothing has gone out', async () => {
+    const answers0 = answers()
+    ;(answers0 as Record<string, unknown>).crm_outcomes = {
+      days: 7,
+      auto_sent: 0,
+      pressed_sent: 0,
+      cancelled: 0,
+      cards_drawn: 0,
+      quiet: 0,
+      failed: 0,
+      without_you_percent: null,
+      note: 'nothing yet',
+    }
+    emptyScore = true
+    await screen()
+    await settle()
+    expect(text()).toContain('crm.score.empty:7')
+    expect(text()).not.toContain('crm.score.line')
+    emptyScore = false
   })
 })

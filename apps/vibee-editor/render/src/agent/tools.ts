@@ -955,6 +955,7 @@ import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { AUTOPILOT_TOOLS } from './autopilot-tools'
+import { OUTCOMES_TOOLS } from './outcomes-tool'
 import { CRM_DROP_TOOLS } from './crm-drop-tool'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
@@ -3127,6 +3128,11 @@ TOOLS.push(...CRM_MEMORY_TOOLS)
  */
 TOOLS.push(...AUTOPILOT_TOOLS)
 /*
+ * How much went out without the owner: counted from the journal rows that
+ * already exist, never from a new counter that would start at zero.
+ */
+TOOLS.push(...OUTCOMES_TOOLS)
+/*
  * Removing a person from the CRM is the owner's own housekeeping: it reaches
  * the seller's own cache only, and `requireSeller` keeps it there.
  */
@@ -3284,6 +3290,13 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
  * The next lever, if 4k turns out to be too tight, is the DESCRIPTIONS --
  * browser_ask_permission alone is 254 tokens of prose -- not dropping tools.
  *
+ * `crm_outcomes` is excluded too: it is a dashboard figure -- how much went
+ * out without the owner over a week -- read in the app and in `tri outcomes`,
+ * not a step in selling to the person in front of you. The kit measured 7035
+ * of its 7000-token ceiling with it in, and the honest answer to that is to
+ * leave out what the small model does not need rather than to cut a
+ * description until it stops saying what the tool does.
+ *
  * `crm_drop` is excluded for the same reason, and one more: it is the owner's
  * housekeeping, pressed from a menu, never something a model should reach for
  * mid-conversation. Removing a person from the CRM is not a step in selling
@@ -3299,7 +3312,7 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of

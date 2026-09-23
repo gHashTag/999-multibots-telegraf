@@ -207,6 +207,9 @@ const en: Translations = {
   'crm.auto.turnOn': 'Turn AUTO on',
   'crm.auto.turnOff': 'Turn AUTO off',
   'crm.auto.unreachable': 'the switch could not be read',
+  'crm.score.line':
+    'Last {days} days: {auto} went out by itself, {pressed} you sent — {share} without you',
+  'crm.score.empty': 'Last {days} days: nothing has gone out yet',
   'crm.auto.hint':
     'Prepared cards go out by themselves; each send is reported with a stop button.',
   'crm.filter.search': 'Search by name or id',
@@ -2385,6 +2388,9 @@ const ru: Translations = {
   'crm.auto.turnOn': 'Включить AUTO',
   'crm.auto.turnOff': 'Выключить AUTO',
   'crm.auto.unreachable': 'состояние переключателя не прочитано',
+  'crm.score.line':
+    'За {days} дней: {auto} ушло само, {pressed} отправил ты — {share} без тебя',
+  'crm.score.empty': 'За {days} дней ничего ещё не уходило',
   'crm.auto.hint':
     'Подготовленные карточки уходят сами; о каждой отправке приходит отчёт с кнопкой «Выключить».',
   'crm.filter.search': 'Поиск по имени или id',
