@@ -4,6 +4,7 @@ import { useAtomValue } from 'jotai'
 import { Home, User, Bot, Sparkles, Hexagon, Globe } from 'lucide-react'
 import { myProfileAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
+import { revealInStrip } from '@/components/Profile/revealInStrip'
 import { haptic } from '@/lib/telegram'
 import { PRIMARY_NAV_ITEMS, type PrimaryTabId } from '@/lib/primaryNavigation'
 import { IS_EMBED } from '@/lib/embed'
@@ -128,14 +129,21 @@ export function TelegramTabBar() {
   useEffect(() => {
     const sc = scrollRef.current
     if (!sc) return
-    const active = sc.querySelector<HTMLElement>(
-      '.tma-tabbar__item.is-active, [aria-current]'
-    )
-    active?.scrollIntoView({
-      inline: 'center',
-      block: 'nearest',
-      behavior: 'smooth',
-    })
+    /*
+     * `[aria-current]` is the whole selector now. The first half looked for
+     * `.tma-tabbar__item.is-active`, and the markup below writes `active`
+     * (no `is-` prefix) -- half of this query had never matched anything
+     * (found in the navigation census, 2026-09-23). A selector that cannot
+     * match reads like a second safeguard and is none.
+     */
+    const active = sc.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!active) return
+    /*
+     * Only the strip moves. `scrollIntoView` also scrolls every scrolling
+     * ancestor, which on the profile pulled the whole page down to the strip
+     * (measured at 390px); revealInStrip is the same fix, shared.
+     */
+    revealInStrip(sc, active)
   }, [location.pathname])
 
   // Inside the game's TRI frame the game draws the navigation.

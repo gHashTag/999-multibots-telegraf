@@ -1,27 +1,4 @@
 /* ===============================
-   LeadsDashboard Page Styles
-   Command Center for Telegram Leads
-   =============================== */
-
-.leads-dashboard {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--nav-height, 60px) + env(safe-area-inset-bottom, 0px));
-  background: var(--vibee-bg, var(--color-bg-primary));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-@media (min-width: 769px) {
-  .leads-dashboard {
-    bottom: 0;
-  }
-}
-
-/* ===============================
    Account Bar
    =============================== */
 
@@ -75,62 +52,6 @@
 }
 
 /* ===============================
-   Main Layout
-   =============================== */
-
-.leads-main {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-
-/* ===============================
-   Sidebar (Desktop)
-   =============================== */
-
-.leads-sidebar {
-  width: 180px;
-  background: var(--bg-elevated);
-  border-right: 1px solid var(--bg-secondary);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-}
-
-.leads-sidebar .sidebar-content-tabs {
-  display: flex;
-  flex-direction: column;
-  padding: 8px;
-  gap: 4px;
-}
-
-.leads-sidebar .content-tab {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: var(--text-muted-light);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: left;
-}
-
-.leads-sidebar .content-tab:hover {
-  background: var(--bg-card);
-  color: #fff;
-}
-
-.leads-sidebar .content-tab.active {
-  background: var(--vibee-green, var(--color-brand-amber));
-  color: #000;
-}
-
-/* ===============================
    Content Area
    =============================== */
 
@@ -163,42 +84,6 @@
 
 .leads-placeholder span {
   font-size: 14px;
-}
-
-/* ===============================
-   Mobile Bottom Tabs
-   =============================== */
-
-.leads-bottom-tabs {
-  display: flex;
-  background: var(--bg-elevated);
-  border-top: 1px solid var(--bg-secondary);
-  padding: 8px;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-}
-
-.leads-bottom-tab {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: var(--text-muted);
-  font-size: 10px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.leads-bottom-tab:hover {
-  color: var(--text-muted-light);
-}
-
-.leads-bottom-tab.active {
-  color: var(--vibee-green, var(--color-brand-amber));
 }
 
 /* ===============================
@@ -360,25 +245,9 @@
    Hide on Mobile (Sidebar)
    =============================== */
 
-@media (max-width: 768px) {
-  .leads-sidebar {
-    display: none;
-  }
-
-  .leads-dashboard {
-    bottom: 0; /* No bottom nav on mobile, we use bottom tabs */
-  }
-}
-
 /* ===============================
    Hide Bottom Tabs on Desktop
    =============================== */
-
-@media (min-width: 769px) {
-  .leads-bottom-tabs {
-    display: none;
-  }
-}
 
 /* Честное состояние раздела: не ошибка человека и не пустой результат, а
    отсутствие серверной части. Тон спокойный, красного нет — пугать нечем. */
@@ -404,4 +273,22 @@
   font-size: 14px;
   line-height: 1.5;
   opacity: 0.7;
+}
+
+/*
+ * THE LEADS SECTIONS, AS A SECTION OF THE CRM.
+ *
+ * What is gone from this file and why (owner, 2026-09-23): `.leads-dashboard`
+ * was a position:fixed shell with its own five-item tab row pinned to the
+ * bottom, under the app's own bar, plus a second copy of that same list as a
+ * desktop sidebar. The screen is now two sections of /crm, drawn by the one
+ * SectionStrip, so the shell, the row and its desktop twin all go. What stays
+ * is what has content behind it: the account bar, the connection dot, the
+ * honest "no server" panel, the feed and the reply window.
+ */
+.leads-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
 }

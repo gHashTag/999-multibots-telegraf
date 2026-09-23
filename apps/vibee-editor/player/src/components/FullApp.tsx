@@ -13,7 +13,6 @@ const EditorPage = lazy(() => import('@/pages/Editor'))
 const ChatPage = lazy(() => import('@/pages/Chat'))
 const ProfilePage = lazy(() => import('@/pages/Profile'))
 const FeedPage = lazy(() => import('@/pages/Feed'))
-const SearchPage = lazy(() => import('@/pages/Search'))
 const GeneratePage = lazy(() => import('@/pages/Generate'))
 const ScriptPage = lazy(() => import('@/pages/Script'))
 const TemplatesPage = lazy(() => import('@/pages/Templates'))
@@ -36,7 +35,16 @@ function FullApp() {
               <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/feed" element={<FeedPage />} />
-                <Route path="/search" element={<SearchPage />} />
+                {/*
+        THE LEADS SCREEN BECAME SECTIONS OF THE CRM (owner, 2026-09-23).
+        Its five tabs sat at the bottom, under the app's own bar, and the
+        address matched none of the bar's six destinations. Old links keep
+        working: they land on the section they meant.
+      */}
+                <Route
+                  path="/search"
+                  element={<Navigate to="/crm?tab=leads" replace />}
+                />
                 <Route path="/editor" element={<EditorPage />} />
                 <Route
                   path="/generate"
