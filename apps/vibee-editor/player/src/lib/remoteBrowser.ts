@@ -291,15 +291,64 @@ export async function setBrowserWheel(
  * watch, so this is the same walk, now: the answer comes back as the line
  * the log keeps, and the message itself arrives in their chat.
  */
-export async function walkMyAccounts(): Promise<string | null> {
+export async function walkMyAccounts(
+  /* Which desk to walk (render agent/profiles.ts); all of them by default. */
+  profile?: string
+): Promise<string | null> {
   try {
     const answer = await apiFetch<{ round?: unknown }>(
-      `${API_BASE}/api/browser/round`,
+      `${API_BASE}/api/browser/round${profile ? `?profile=${encodeURIComponent(profile)}` : ''}`,
       { method: 'POST' }
     )
     return typeof answer?.round === 'string' ? answer.round : ''
   } catch {
     return null
+  }
+}
+
+/**
+ * THE DESKS: every line of work the agent keeps for this person, with the
+ * accounts that belong to it (render agent/profiles.ts). Never throws; an
+ * empty list simply draws no cabinets.
+ */
+export interface Desk {
+  id: string
+  name: string
+  about: string
+  sites: Array<{ name: string; url: string }>
+}
+
+export async function readDesks(): Promise<Desk[]> {
+  try {
+    const answer = await apiFetch<{ desks?: unknown }>(
+      `${API_BASE}/api/browser/desks`
+    )
+    const raw = Array.isArray(answer?.desks) ? answer.desks : []
+    return raw.flatMap(d => {
+      const r = d as {
+        id?: unknown
+        name?: unknown
+        about?: unknown
+        inUse?: { sites?: unknown }
+      }
+      if (typeof r.id !== 'string' || typeof r.name !== 'string') return []
+      const sites = Array.isArray(r.inUse?.sites) ? r.inUse.sites : []
+      return [
+        {
+          id: r.id,
+          name: r.name,
+          about: typeof r.about === 'string' ? r.about : '',
+          sites: sites.flatMap(s => {
+            const site = s as { name?: unknown; url?: unknown }
+            return typeof site.name === 'string' && typeof site.url === 'string'
+              ? [{ name: site.name, url: site.url }]
+              : []
+          }),
+        },
+      ]
+    })
+  } catch {
+    return []
   }
 }
 

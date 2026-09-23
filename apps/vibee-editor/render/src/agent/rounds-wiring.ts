@@ -13,7 +13,9 @@ const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 export async function runRoundNow(
   pool: Queryable,
   /* Asked for by a person: their own accounts, whatever the cron's owner is. */
-  asked?: string
+  asked?: string,
+  /* Which desk is being walked (agent/profiles.ts); all of them by default. */
+  profileId?: string
 ): Promise<string> {
   if (!asked && process.env.ROUNDS_ENABLED !== '1') return 'off'
   const { OWNER_TELEGRAM_ID } = await import('./telegram-tools')
@@ -27,8 +29,12 @@ export async function runRoundNow(
    * agent looks costs a row in the database -- not a deploy (owner,
    * 2026-09-23: "setting things up will take forever this way").
    */
-  const strategy = roundStrategyOf(await readStrategy(pool, 'rounds'), {
-    sites: ROUND_SITES,
+  const { profileOf, strategyKeyOf, allSites } = await import('./profiles')
+  const desk = profileOf(profileId)
+  const key = strategyKeyOf(desk?.id ?? 'all')
+  const strategy = roundStrategyOf(await readStrategy(pool, key), {
+    /* A desk walks its own accounts; the whole round walks every desk's. */
+    sites: desk ? desk.sites : allSites().length ? allSites() : ROUND_SITES,
     everyMin: Number(process.env.ROUNDS_EVERY_MIN) || 180,
     settleMs: SETTLE_MS,
   })
@@ -69,7 +75,7 @@ export async function runRoundNow(
         await closePage(s.cdpEndpoint, page.id).catch(() => {})
       }
     },
-    tell: text => sendToTelegram(owner, text),
+    tell: text => sendToTelegram(owner, desk ? `[${desk.name}] ${text}` : text),
     restart: () => restartBrowserAsAgent(owner),
     now: () => new Date(),
     sites: strategy.sites,
