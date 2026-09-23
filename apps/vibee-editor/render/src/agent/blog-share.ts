@@ -68,9 +68,31 @@ export function parseRss(xml: string): Article[] {
   return out
 }
 
+/**
+ * THE LINK GOES IN THE REPLY, NOT IN THE POST.
+ *
+ * Carlos (@cavearr, X, 2026-09-23) wrote to the owner: he has been watching
+ * his own numbers, and posts carrying an external link reach fewer people;
+ * he now writes a thread whose first post is a summary with an image and
+ * puts the link in a post below. He called it possibly superstition and
+ * asked for a test.
+ *
+ * So our cron writes it that way: the first post carries the title and the
+ * summary and nothing to click, and the link follows as the second post of
+ * the same thread. It costs nothing if he is wrong, and the owner promised
+ * him the numbers either way.
+ */
+export function xThread(a: Article): { first: string; second: string } {
+  return {
+    /* No link, so the whole 280 is the text. */
+    first: xText(a, X_LIMIT),
+    second: a.link,
+  }
+}
+
 /** The text of the X post: the title and as much summary as fits. Pure. */
-export function xText(a: Article): string {
-  const room = X_LIMIT - X_LINK - 1
+export function xText(a: Article, limit = X_LIMIT - X_LINK): string {
+  const room = limit - 1
   const head = a.title
   if (head.length >= room) return head.slice(0, room - 1) + '…'
   const left = room - head.length - 2
