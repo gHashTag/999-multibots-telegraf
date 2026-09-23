@@ -64,6 +64,24 @@ const DELIBERATELY_UNREGISTERED: Record<string, string> = {
   // on purpose, but this test works at FILE granularity, so there is no separate
   // line to track them.
   'functions/kieAiWebhookMonitor': 'монитор вебхуков KieAI не подключён',
+  // Withdrawn 2026-09-17 on the owner's decision (the 2026-09-13 plan left
+  // them open). Spec of record: specs/functions/<id>.t27 in t27 (CONTROL
+  // code-only/unregistered); the manifest control says the same.
+  'functions/training/modelTrainingV2':
+    'снята 2026-09-17: get-bot кладёт экземпляр Telegraf (с токеном) в вывод ' +
+    'шага, запись в БД после платного вызова, у ветки BFL нет обработчика завершения',
+  'functions/generation/neuroImageGeneration':
+    'снята 2026-09-17: событие neuro/image.generate никто не шлёт ' +
+    '(scripts/orphan-events.cjs); списание до генерации, без возврата и без inv_id',
+  'functions/render/renderAvatarVideo':
+    'снята 2026-09-17: hedra/heygen/kieAI/elevenLabs — заглушки, запуск ' +
+    'отчитался бы о видео, которого нет',
+  'functions/content/analyzeCompetitorReels':
+    'снята 2026-09-17: saveReelsAnalysis — заглушка (src/core/instagram/index.ts), ' +
+    'а RapidAPI оплачивается до 12 раз за событие',
+  'functions/content/findCompetitors':
+    'снята 2026-09-17: saveCompetitors — заглушка (src/core/instagram/index.ts), ' +
+    'а RapidAPI оплачивается',
   // functions/existing/handleModelTrainingCompleted — ПОДКЛЮЧЕН (registerFunctions),
   // webhook Replicate → model/training.completed теперь имеет подписчика.
 }
