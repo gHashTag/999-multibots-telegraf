@@ -610,3 +610,11 @@ html[data-keyboard='open'] .chat-page {
   text-decoration: none;
   font-size: 13px;
 }
+
+/* The tick that decides whether AUTO may write to THIS person. */
+.chat-aside__auto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}

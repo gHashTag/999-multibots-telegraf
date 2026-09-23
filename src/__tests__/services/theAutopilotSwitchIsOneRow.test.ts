@@ -41,6 +41,11 @@ const numberOf = (source: string, name: string): number => {
 describe('the two copies of the switch', () => {
   for (const name of [
     'AUTOPILOT_TABLE',
+    'AUTOPILOT_SCOPE_COLUMN',
+    'AUTOPILOT_LEADS_TABLE',
+    'AUTOPILOT_LEAD_ADD',
+    'AUTOPILOT_LEAD_REMOVE',
+    'AUTOPILOT_LEAD_LIST',
     'AUTOPILOT_READ',
     'AUTOPILOT_ON',
     'AUTOPILOT_OFF',

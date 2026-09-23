@@ -3375,6 +3375,8 @@ export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
    * needs it to answer "is it sending by itself?".
    */
   'autopilot_set',
+  /* Picking whom AUTO may write to is the same decision, one person at a time. */
+  'autopilot_lead',
 ])
 
 let compactWarned = false

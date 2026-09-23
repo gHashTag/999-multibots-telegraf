@@ -199,6 +199,7 @@ const en: Translations = {
   'crm.aside.waiting': 'Waiting',
   'crm.aside.waiting.yes': 'for our reply',
   'crm.aside.package': 'Has a client package',
+  'crm.aside.auto': 'AUTO may write to this client',
   'crm.aside.open': 'Client screen',
   'crm.aside.telegram': 'Open in Telegram',
   'crm.auto.title': 'AUTO mode',
@@ -210,6 +211,11 @@ const en: Translations = {
   'crm.score.line':
     'Last {days} days: {auto} went out by itself, {pressed} you sent — {share} without you',
   'crm.score.empty': 'Last {days} days: nothing has gone out yet',
+  'crm.auto.scope': 'Who it may write to',
+  'crm.auto.scope.all': 'Everyone',
+  'crm.auto.scope.chosen': 'Chosen',
+  'crm.auto.chosen.none': 'nobody picked yet, so nothing sends',
+  'crm.auto.chosen.some': '{n} picked',
   'crm.auto.hint':
     'Prepared cards go out by themselves; each send is reported with a stop button.',
   'crm.filter.search': 'Search by name or id',
@@ -2380,6 +2386,7 @@ const ru: Translations = {
   'crm.aside.waiting': 'Ждёт',
   'crm.aside.waiting.yes': 'нашего ответа',
   'crm.aside.package': 'Есть пакет клиента',
+  'crm.aside.auto': 'AUTO может писать этому клиенту',
   'crm.aside.open': 'Экран клиента',
   'crm.aside.telegram': 'Открыть в Telegram',
   'crm.auto.title': 'Режим AUTO',
@@ -2391,6 +2398,11 @@ const ru: Translations = {
   'crm.score.line':
     'За {days} дней: {auto} ушло само, {pressed} отправил ты — {share} без тебя',
   'crm.score.empty': 'За {days} дней ничего ещё не уходило',
+  'crm.auto.scope': 'Кому можно писать',
+  'crm.auto.scope.all': 'Всем',
+  'crm.auto.scope.chosen': 'Выбранным',
+  'crm.auto.chosen.none': 'никто не выбран — значит ничего не уходит',
+  'crm.auto.chosen.some': 'выбрано {n}',
   'crm.auto.hint':
     'Подготовленные карточки уходят сами; о каждой отправке приходит отчёт с кнопкой «Выключить».',
   'crm.filter.search': 'Поиск по имени или id',

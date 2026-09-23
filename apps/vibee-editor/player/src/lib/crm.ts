@@ -668,8 +668,14 @@ export const loadLeadMedia = async (lead: string) =>
  * closes and how many automatic sends are left today -- because a switch that
  * only says "on" invites exactly those two questions.
  */
+export type AutopilotScope = 'all' | 'chosen'
+
 export interface Autopilot {
   on: boolean
+  /** Everybody the sweep drew a card for, or only the people he picked. */
+  scope: AutopilotScope
+  /** How many are picked; 0 with `chosen` means nothing sends by itself. */
+  chosen: number
   until: string | null
   minutesLeft: number
   sentToday: number
@@ -680,6 +686,8 @@ export interface Autopilot {
 
 const toAutopilot = (r: Record<string, unknown>): Autopilot => ({
   on: bool(r['on']) ?? false,
+  scope: r['scope'] === 'chosen' ? 'chosen' : 'all',
+  chosen: num(r['chosen']) ?? 0,
   until: str(r['until']),
   minutesLeft: num(r['minutes_left']) ?? 0,
   sentToday: num(r['sent_today']) ?? 0,
@@ -692,13 +700,36 @@ export const loadAutopilot = async () =>
   map(await callTool<Record<string, unknown>>('autopilot_status'), toAutopilot)
 
 /** on=false stops it at once; `hours` is clamped on the server (1..24). */
-export const setAutopilot = async (on: boolean, hours?: number) =>
+export const setAutopilot = async (
+  on: boolean,
+  hours?: number,
+  scope?: AutopilotScope
+) =>
   map(
     await callTool<Record<string, unknown>>('autopilot_set', {
       on,
       ...(on && hours ? { hours } : {}),
+      ...(on && scope ? { scope } : {}),
     }),
     toAutopilot
+  )
+
+/** Pick one person for AUTO, or unpick them (tool `autopilot_lead`). */
+export const pickForAutopilot = async (telegramId: string, on: boolean) =>
+  map(
+    await callTool<Record<string, unknown>>('autopilot_lead', {
+      lead: telegramId,
+      on,
+    }),
+    toAutopilot
+  )
+
+/** Whom he picked (tool `autopilot_leads`). */
+export const loadAutopilotLeads = async () =>
+  map(
+    await callTool<Record<string, unknown>>('autopilot_leads', {}),
+    (r: Record<string, unknown>) =>
+      (Array.isArray(r['leads']) ? (r['leads'] as unknown[]) : []).map(String)
   )
 
 /* ──────────────────────── REMOVE FROM THE CRM ───────────────────────────── */

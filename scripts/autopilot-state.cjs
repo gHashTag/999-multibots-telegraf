@@ -85,6 +85,12 @@ async function main() {
     process.exitCode = 2
     return
   }
+  const scopeLine =
+    out.scope === 'chosen'
+      ? out.chosen > 0
+        ? `   пишет только выбранным: ${out.chosen} чел.` // cyrillic-ok: operator-facing
+        : '   пишет только выбранным, а не выбран никто — значит никому.' // cyrillic-ok: operator-facing
+      : '   пишет всем, кому обход нарисовал карточку.' // cyrillic-ok: operator-facing
   if (!out.on) {
     console.log('AUTO выключен — каждая карточка ждёт нажатия.') // cyrillic-ok: operator-facing
     console.log(
@@ -100,6 +106,7 @@ async function main() {
   console.log(
     `   сегодня ушло ${out.sent_today}, осталось ${out.left_today} из ${out.cap}.` // cyrillic-ok: operator-facing
   )
+  console.log(scopeLine)
   console.log(
     '   выключается его кнопкой — в приложении или в боте; отсюда нельзя.' // cyrillic-ok: operator-facing
   )
