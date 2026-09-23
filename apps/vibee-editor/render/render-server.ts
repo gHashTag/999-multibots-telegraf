@@ -2687,20 +2687,49 @@ setInterval(
         if (!token) return
         const { runSilenceWatch } = await import('./src/bots/silence-wiring')
         const { telegramApiFor } = await import('./src/telegram-api')
-        const said = await runSilenceWatch(
+        const round = await runSilenceWatch(
           (await getPool()) as never,
           async (ownerId, text) => {
+            /*
+             * THE ANSWER IS READ, NOT DISCARDED. A person who never started a
+             * chat with this bot -- or who blocked it -- gets a 403 here, and
+             * fire-and-forget would record the owner as told while nothing
+             * arrived. Returning false leaves the outage unannounced in the
+             * state, so the next tick tries again.
+             */
             const api = telegramApiFor(token)
-            await fetch(`${api}/sendMessage`, {
+            const res = await fetch(`${api}/sendMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ chat_id: ownerId, text }),
             })
+            const body = (await res.json().catch(() => null)) as {
+              ok?: boolean
+              description?: string
+            } | null
+            if (body?.ok) return true
+            console.error(
+              `[bot-silence] ${ownerId} did not get it:`,
+              String(body?.description ?? res.status).slice(0, 120)
+            )
+            return false
           }
         )
-        for (const a of said) {
-          console.log(`[bot-silence] told ${a.ownerId}: ${a.kind} @${a.bot}`)
+        for (const a of round.alarms) {
+          console.log(`[bot-silence] ${a.kind} @${a.bot} -> ${a.ownerId}`)
         }
+        /*
+         * ONE LINE EVERY TICK, EVEN WHEN THERE IS NOTHING TO SAY. Measured
+         * 2026-09-23 on the first live run: a quiet watchman and a watchman
+         * that never started produced identical logs, and telling them apart
+         * took twenty minutes and a hand-written database query. A watchman
+         * nobody can see watching is the failure this whole feature is about.
+         */
+        console.log(
+          `[bot-silence] checked ${round.checked}, silent ${round.silent}` +
+            `, said ${round.alarms.length}` +
+            (round.undelivered ? `, UNDELIVERED ${round.undelivered}` : '')
+        )
       } catch (e) {
         // A watchman who trips must not take the house down.
         console.error('[bot-silence] failed:', String(e).slice(0, 300))
