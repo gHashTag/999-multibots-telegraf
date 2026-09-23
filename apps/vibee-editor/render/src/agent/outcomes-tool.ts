@@ -36,6 +36,23 @@ export const OUTCOMES_SQL = `SELECT kind, what, count(*)::int AS n
     AND kind IN ('card-auto-sent', 'card-pressed', 'sweep-card', 'sweep-idle', 'sweep-failed')
   GROUP BY kind, what`
 
+/**
+ * THE SAME COUNT, ONE WINDOW EARLIER -- so a number has something to be
+ * compared with.
+ *
+ * A single figure answers "how much went out without me"; two answer the
+ * question a person actually has, which is "is it getting better?". The
+ * window before this one, same length, ending where this one starts: for a
+ * 7-day window that is days 8..14 ago.
+ */
+export const OUTCOMES_BEFORE_SQL = `SELECT kind, what, count(*)::int AS n
+   FROM hive_events
+  WHERE who = $1
+    AND at >  now() - ($2 || ' days')::interval * 2
+    AND at <= now() - ($2 || ' days')::interval
+    AND kind IN ('card-auto-sent', 'card-pressed', 'sweep-card', 'sweep-idle', 'sweep-failed')
+  GROUP BY kind, what`
+
 export interface Outcomes {
   days: number
   /** Cards that left with nobody pressing anything. */
@@ -54,6 +71,19 @@ export interface Outcomes {
   without_you_percent: number | null
   /** Said out loud when the journal has nothing yet, so 0 is not read as "bad". */
   note?: string
+  /**
+   * THE SAME WINDOW BEFORE THIS ONE, or null when there is nothing there.
+   *
+   * Null is not zero: a week with no rows at all means the journal did not
+   * exist yet or nothing happened, and drawing "+13" against it would invent
+   * a trend out of an empty file.
+   */
+  before?: {
+    auto_sent: number
+    pressed_sent: number
+    left: number
+    without_you_percent: number | null
+  } | null
 }
 
 export function outcomesFrom(
@@ -92,8 +122,28 @@ export async function outcomesFor(
   owner: string,
   days: number
 ): Promise<Outcomes> {
-  const r = await pool.query(OUTCOMES_SQL, [String(owner), String(days)])
-  return outcomesFrom((r.rows ?? []) as never, days)
+  const [now, before] = await Promise.all([
+    pool.query(OUTCOMES_SQL, [String(owner), String(days)]),
+    pool
+      .query(OUTCOMES_BEFORE_SQL, [String(owner), String(days)])
+      .catch(() => ({ rows: [] })),
+  ])
+  const out = outcomesFrom((now.rows ?? []) as never, days)
+  const prev = outcomesFrom((before.rows ?? []) as never, days)
+  const prevLeft = prev.auto_sent + prev.pressed_sent
+  return {
+    ...out,
+    // Nothing at all in the earlier window is "no comparison", not "zero".
+    before:
+      prevLeft || prev.cancelled || prev.cards_drawn
+        ? {
+            auto_sent: prev.auto_sent,
+            pressed_sent: prev.pressed_sent,
+            left: prevLeft,
+            without_you_percent: prev.without_you_percent,
+          }
+        : null,
+  }
 }
 
 export const OUTCOMES_TOOLS: AgentTool[] = [

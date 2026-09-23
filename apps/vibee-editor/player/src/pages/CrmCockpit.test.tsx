@@ -96,6 +96,12 @@ const answers = (): Record<string, unknown> => ({
     quiet: 40,
     failed: 0,
     without_you_percent: 67,
+    before: {
+      auto_sent: 1,
+      pressed_sent: 9,
+      left: 10,
+      without_you_percent: 10,
+    },
   },
 })
 
@@ -278,6 +284,26 @@ describe('the measured figure', () => {
     await settle()
     expect(text()).toContain('crm.score.empty:7')
     expect(text()).not.toContain('crm.score.line')
+    emptyScore = false
+  })
+})
+
+describe('the week before', () => {
+  it('is printed beside this one, so the figure has something to be compared with', async () => {
+    await screen()
+    await settle()
+    const panel = host.querySelector('.crm-auto')?.textContent ?? ''
+    expect(panel).toContain('crm.score.line:7,6,3,67%')
+    expect(panel).toContain('crm.score.before:10,10%')
+  })
+
+  it('is absent when the journal has nothing to compare with', async () => {
+    emptyScore = true
+    await screen()
+    await settle()
+    const panel = host.querySelector('.crm-auto')?.textContent ?? ''
+    expect(panel).toContain('crm.score.empty')
+    expect(panel).not.toContain('crm.score.before')
     emptyScore = false
   })
 })

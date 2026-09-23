@@ -210,6 +210,7 @@ const en: Translations = {
   'crm.auto.unreachable': 'the switch could not be read',
   'crm.score.line':
     'Last {days} days: {auto} went out by itself, {pressed} you sent — {share} without you',
+  'crm.score.before': 'the week before: {left} left, {share} without you',
   'crm.score.empty': 'Last {days} days: nothing has gone out yet',
   'crm.auto.scope': 'Who it may write to',
   'crm.auto.scope.all': 'Everyone',
@@ -2397,6 +2398,7 @@ const ru: Translations = {
   'crm.auto.unreachable': 'состояние переключателя не прочитано',
   'crm.score.line':
     'За {days} дней: {auto} ушло само, {pressed} отправил ты — {share} без тебя',
+  'crm.score.before': 'неделей раньше: ушло {left}, без тебя {share}',
   'crm.score.empty': 'За {days} дней ничего ещё не уходило',
   'crm.auto.scope': 'Кому можно писать',
   'crm.auto.scope.all': 'Всем',
