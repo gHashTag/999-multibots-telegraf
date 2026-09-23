@@ -7554,6 +7554,56 @@ const server = createServer(async (req, res) => {
    * человек, и превращать его в разметку на сервере значило бы решить за
    * читателя, как он выглядит.
    */
+  /**
+   * GET /api/navigation — WHERE A PERSON CAN GO, FOR EVERY CLIENT AT ONCE.
+   *
+   * Owner, 2026-09-23: the web and the iOS app must have the same structure,
+   * taken from the backend. Before this the web declared six destinations and
+   * the iOS app five, inline in the body of its TabView, under a comment
+   * claiming they were the same list -- nothing connected them, so nothing
+   * could notice.
+   *
+   * `?platform=ios` (or `web`) filters to the destinations that client has a
+   * screen for; without it the whole list comes back, `platforms` and all, so
+   * a new client can see what exists before it builds anything.
+   *
+   * No identity: this is the shape of the app, not anybody's data. Cached for
+   * five minutes at the edge, and every client keeps the same bytes as a
+   * fallback, so a slow answer never leaves a phone without a tab bar.
+   */
+  if (req.url?.startsWith('/api/navigation') && req.method === 'GET') {
+    try {
+      const listPath = path.join(__dirname, 'src', 'navigation.json')
+      const list = JSON.parse(fs.readFileSync(listPath, 'utf8'))
+      const platform = new URL(req.url, 'http://localhost').searchParams.get(
+        'platform'
+      )
+      const destinations =
+        platform === 'web' || platform === 'ios'
+          ? list.destinations.filter((item: { platforms: string[] }) =>
+              item.platforms.includes(platform)
+            )
+          : list.destinations
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+        'Access-Control-Allow-Origin': '*',
+      })
+      res.end(
+        JSON.stringify({
+          version: list.version,
+          platform: platform ?? 'all',
+          destinations,
+        })
+      )
+    } catch (error) {
+      console.error('[navigation] the list of destinations was not read', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'navigation_unavailable' }))
+    }
+    return
+  }
+
   if (req.url?.startsWith('/api/soul/') && req.method === 'GET') {
     const имя = decodeURIComponent(
       req.url.slice('/api/soul/'.length).split('?')[0]

@@ -1,0 +1,54 @@
+{
+  "_": "WHERE A PERSON CAN GO. One list, served by the render service at GET /api/navigation and copied, byte for byte, into every client that must open without the network: player/src/lib/navigation.json and apps/vibee-ios/Vibee/navigation.json. The copies are checked by src/__tests__/tools/everyClientHasTheSameDestinations.test.ts -- edit THIS file and run `node scripts/sync-navigation.cjs`.",
+  "version": 1,
+  "destinations": [
+    {
+      "id": "feed",
+      "route": "/feed",
+      "platforms": ["web", "ios"],
+      "labelKey": "nav.feed",
+      "label": { "en": "Feed", "ru": "Лента" },
+      "icon": { "lucide": "Globe", "sf": "house" }
+    },
+    {
+      "id": "chat",
+      "route": "/chat",
+      "platforms": ["web", "ios"],
+      "labelKey": "nav.agent",
+      "label": { "en": "Agent", "ru": "Агент" },
+      "icon": { "lucide": "Bot", "sf": "cpu" }
+    },
+    {
+      "id": "browser",
+      "route": "/browser",
+      "platforms": ["web"],
+      "labelKey": "nav.browser",
+      "label": { "en": "Browser", "ru": "Браузер" },
+      "icon": { "lucide": "Globe2", "sf": "globe" }
+    },
+    {
+      "id": "ai",
+      "route": "/generate/script",
+      "platforms": ["web", "ios"],
+      "labelKey": "tabs.ai",
+      "label": { "en": "AI", "ru": "ИИ" },
+      "icon": { "lucide": "Sparkles", "sf": "sparkles" }
+    },
+    {
+      "id": "hive",
+      "route": "/hive",
+      "platforms": ["web", "ios"],
+      "labelKey": "nav.hive",
+      "label": { "en": "Hive", "ru": "Улей" },
+      "icon": { "lucide": "Hexagon", "sf": "hexagon" }
+    },
+    {
+      "id": "profile",
+      "route": "/profile",
+      "platforms": ["web", "ios"],
+      "labelKey": "nav.profile",
+      "label": { "en": "Profile", "ru": "Профиль" },
+      "icon": { "lucide": "User", "sf": "person" }
+    }
+  ]
+}

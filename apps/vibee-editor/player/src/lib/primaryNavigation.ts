@@ -1,3 +1,28 @@
+import navigation from './navigation.json'
+
+/**
+ * THE WEB'S VIEW OF ONE SHARED LIST.
+ *
+ * Owner, 2026-09-23: the structure must be the same in the web and in the iOS
+ * app, and it must come from the backend on .t27. So the list itself lives at
+ * apps/vibee-editor/render/src/navigation.json, the render service serves it
+ * at GET /api/navigation, and every client ships the same bytes as a fallback
+ * for the moment before the first answer arrives -- this file is that copy
+ * (scripts/sync-navigation.cjs writes it; a test proves nobody edited it by
+ * hand).
+ *
+ * Why this was needed: a census on that day found the web declaring six
+ * destinations here and the iOS app declaring five inline in the body of its
+ * TabView, with a comment above it claiming they were the same list in the
+ * same order. The web had gained `browser` three days earlier. Nothing
+ * connected them, so nothing could say so.
+ *
+ * What stays HERE is the one thing only a browser has: the address pattern
+ * that says "this page is that tab". A regex is not shippable data -- iOS
+ * picks its screen by id -- so it lives beside the client that uses it, keyed
+ * by the shared id, and a test fails if an id ever appears on one side only.
+ */
+
 export type PrimaryTabId =
   | 'feed'
   | 'chat'
@@ -13,50 +38,25 @@ export interface PrimaryNavigationItem {
   match: RegExp
 }
 
-export const PRIMARY_NAV_ITEMS: readonly PrimaryNavigationItem[] = [
-  { id: 'feed', route: '/feed', labelKey: 'nav.feed', match: /^\/feed/ },
-  { id: 'chat', route: '/chat', labelKey: 'nav.agent', match: /^\/chat/ },
-  /*
-   * The browser sits NEXT TO the agent, because that is what it is for:
-   * watching the agent work, and taking the wheel from it. Owner's request,
-   * 2026-09-20: the tab is there so the screen can be switched to it the
-   * moment an agent starts working.
-   *
-   * It makes six, and the note below warned that the bar starts scrolling
-   * past six. MEASURED at 375x812 before shipping: it does not. All six sit
-   * in the row with their labels -- feed, agent, browser, AI, hive, profile
-   * -- because those labels are short in both languages. A longer label is
-   * what would break it, not the count.
-   */
-  {
-    id: 'browser',
-    route: '/browser',
-    labelKey: 'nav.browser',
-    match: /^\/browser/,
-  },
-  {
-    id: 'ai',
-    route: '/generate/script',
-    labelKey: 'tabs.ai',
-    match: /^\/generate/,
-  },
-  /*
-   * The hive is the game. It sits BEFORE the profile, not after it.
-   *
-   * The last tab is the one a thumb reaches without looking, and the profile
-   * has earned that place: people open it constantly. The hive is a
-   * destination somebody goes to on purpose, so it goes where the eye lands
-   * rather than where the thumb rests.
-   *
-   * Five tabs still fit a phone. Six were added later and also fit, measured
-   * at 375px -- see the browser tab above. The limit is the total width of
-   * the labels, not the number of tabs.
-   */
-  { id: 'hive', route: '/hive', labelKey: 'nav.hive', match: /^\/hive/ },
-  {
-    id: 'profile',
-    route: '/profile',
-    labelKey: 'nav.profile',
-    match: /^\/profile/,
-  },
-] as const
+/** Which addresses belong to which tab. Web-only, keyed by the shared id. */
+export const TAB_ROUTE_PATTERNS: Record<PrimaryTabId, RegExp> = {
+  feed: /^\/feed/,
+  chat: /^\/chat/,
+  browser: /^\/browser/,
+  ai: /^\/generate/,
+  hive: /^\/hive/,
+  profile: /^\/profile/,
+}
+
+export const PRIMARY_NAV_ITEMS: readonly PrimaryNavigationItem[] =
+  navigation.destinations
+    .filter(d => d.platforms.includes('web'))
+    .map(d => ({
+      id: d.id as PrimaryTabId,
+      route: d.route,
+      labelKey: d.labelKey,
+      match: TAB_ROUTE_PATTERNS[d.id as PrimaryTabId],
+    }))
+
+/** The version the served list must reach before a client prefers it. */
+export const NAVIGATION_VERSION = navigation.version
