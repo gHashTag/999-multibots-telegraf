@@ -30,6 +30,8 @@ function page(els: El[]) {
     const [x, y, w, h] = el.box ?? [10, 10, 200, 40]
     return {
       el,
+      /* A real element has one, and the probe asks for it. */
+      tagName: el.tag.toUpperCase(),
       innerText: el.text ?? '',
       id: el.attrs?.id ?? '',
       type: el.attrs?.type ?? '',

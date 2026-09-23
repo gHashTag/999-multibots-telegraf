@@ -21,6 +21,8 @@
  * 3. IT SAYS WHEN IT SAW NOTHING. A silent round is indistinguishable from a
  *    broken one, so the message always lists every site, even the quiet ones.
  */
+import { itemLine, type Item } from '../browser/items'
+
 export interface Site {
   name: string
   url: string
@@ -52,6 +54,8 @@ export function cameBackEmpty(got: { title: string; text: string }): boolean {
 
 export interface Seen {
   name: string
+  /** What the page listed, as rows (browser/items.ts); empty when none. */
+  items?: Item[]
   /** The tab's title, as the browser reported it. */
   title: string
   /** The first words of the page, already folded to one line. */
@@ -89,12 +93,22 @@ export function looksSignedOut(seen: { title: string; text: string }): boolean {
   return ASKS_TO_SIGN_IN.test(hay.slice(0, 200))
 }
 
-/** One line about one account, in the person's language. Pure. */
+/** How many of a site's rows the message carries. */
+export const LINES_PER_SITE = 2
+
+/**
+ * One line about one account -- and, when the page listed things, WHICH
+ * things (browser/items.ts). "13 new" answers whether to look; "an
+ * invitation to an interview" answers whether to hurry. Pure.
+ */
 export function lineFor(seen: Seen): string {
   if (!seen.ok) return `• ${seen.name}: не открылось` // cyrillic-ok: shown to the person
   if (looksSignedOut(seen)) return `• ${seen.name}: просит войти — вход слетел` // cyrillic-ok
   const n = unreadOf(seen.title)
   const head = n ? `${n} новых` : 'нового нет' // cyrillic-ok
+  const rows = (seen.items ?? []).slice(0, LINES_PER_SITE)
+  if (rows.length)
+    return `• ${seen.name}: ${head}\n${rows.map(r => `   ◦ ${itemLine(r)}`).join('\n')}`
   const what = seen.text.trim().slice(0, 90)
   return `• ${seen.name}: ${head}${what ? ` — ${what}…` : ''}` // cyrillic-ok
 }
@@ -125,6 +139,7 @@ export function roundLog(seen: Seen[]): string {
       ok: s.ok,
       ms: s.ms,
       unread: unreadOf(s.title),
+      rows: (s.items ?? []).length,
       signedOut: s.ok ? looksSignedOut(s) : null,
     }))
   )
@@ -146,7 +161,9 @@ export interface RoundDeps {
   /** False when the person is driving: the round is skipped. */
   personHasTheWheel: () => Promise<boolean>
   /** Opens a page and returns its title and first words. */
-  look: (url: string) => Promise<{ title: string; text: string }>
+  look: (
+    url: string
+  ) => Promise<{ title: string; text: string; items?: Item[] }>
   /**
    * Restarts the person's browser, keeping their logins, and says whether it
    * came back. Called once, and only when the whole round was blank.
@@ -176,6 +193,7 @@ export async function runRound(d: RoundDeps): Promise<string> {
         text: String(got.text ?? '')
           .replace(/\s+/g, ' ')
           .trim(),
+        items: got.items ?? [],
         ok: true,
         ms: Date.now() - at,
       })
