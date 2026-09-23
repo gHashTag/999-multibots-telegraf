@@ -28,7 +28,7 @@ ssh prod999 "grep -E 'HEYGEN|ELEVENLABS' /root/bot-farm/.env | wc -l"
 
 ```bash
 # Use the restoration script
-./scripts/restore-env-from-infisical.sh --prod
+./scripts/infisical/restore-env-from-infisical.sh --prod
 
 # Script automatically:
 # 1. Exports all secrets from Infisical Cloud
@@ -153,7 +153,7 @@ After restoration, verify:
 
 ## Related Resources
 
-- **Script**: `scripts/restore-env-from-infisical.sh`
+- **Script**: `scripts/infisical/restore-env-from-infisical.sh`
 - **Documentation**: `docs/INFISICAL_ENV_MANAGEMENT.md`
 - **API Keys Mapping**: `docs/AVATAR_API_KEYS.md`
 - **Production Server**: 212.86.115.30 (ssh alias: prod999)
