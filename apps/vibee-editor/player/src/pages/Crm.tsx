@@ -178,6 +178,43 @@ export default function CrmPage() {
    * rather than reloaded, so the way back stays in front of the person who
    * pressed it.
    */
+  /**
+   * EVERYBODY WHO IS WAITING FOR US, PICKED IN ONE TAP.
+   *
+   * `chosen` is the safe way to run AUTO, and filling it one tick at a time
+   * is exactly the work nobody does at midnight. The group this offers is not
+   * an arbitrary bulk action: people whose last message was THEIRS and who
+   * have had no answer are where an automatic reply is least likely to be
+   * wrong and most likely to be late.
+   *
+   * It is a SNAPSHOT, not a rule -- whoever is waiting right now is added,
+   * and nobody is removed. A rule that silently kept adding people would be a
+   * standing permission the owner never gave.
+   */
+  const pickEveryoneWaiting = async () => {
+    const ours = (waiting.data?.waiting ?? [])
+      .filter(r => r.waiting === 'ours')
+      .map(r => r.telegramId)
+      .filter(id => /^\d{5,15}$/.test(id) && !picked?.has(id))
+      // A cap, so a list that grew unexpectedly cannot turn one tap into
+      // fifty writes: what is left over is still one tick away.
+      .slice(0, 20)
+    if (!ours.length) return
+    setPicked(prev => new Set([...(prev ?? []), ...ours]))
+    const results = await Promise.all(
+      ours.map(id => pickForAutopilot(id, true))
+    )
+    // Whatever the server refused goes back off: the screen must end up
+    // showing what is actually stored.
+    const refused = ours.filter((_, i) => !results[i].reachable)
+    if (refused.length)
+      setPicked(prev => {
+        const back = new Set(prev ?? [])
+        for (const id of refused) back.delete(id)
+        return back
+      })
+  }
+
   const drop = async (x: ClientRow) => {
     const name = x.name || x.username || x.telegramId
     if (!window.confirm(t('crm.row.dropAsk', { name }))) return
@@ -416,6 +453,15 @@ export default function CrmPage() {
                     })}
                   </p>
                 )}
+                {w && picked !== null && w.ours > 0 ? (
+                  <button
+                    type="button"
+                    className="crm__pick-all"
+                    onClick={() => void pickEveryoneWaiting()}
+                  >
+                    {t('crm.waiting.pickAll', { n: w.ours })}
+                  </button>
+                ) : null}
                 <ul className="crm__list">{(w?.waiting ?? []).map(row)}</ul>
               </>
             )

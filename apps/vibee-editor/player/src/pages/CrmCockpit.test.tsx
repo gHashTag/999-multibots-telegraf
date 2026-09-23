@@ -43,11 +43,43 @@ const calls: Array<{ name: string; args: Record<string, unknown> }> = []
 
 let emptyScore = false
 let picks: string[] = []
+let failPicks = false
 let lastPick: { lead: unknown; on: unknown } | null = null
 
 const answers = (): Record<string, unknown> => ({
   crm_overview: { ['всего_людей']: 3 }, // cyrillic-ok: server key
-  crm_waiting: { total: 0, ours: 0, due: 0, theirs: 0, waiting: [] },
+  crm_waiting: {
+    total: 3,
+    ours: 2,
+    due: 0,
+    theirs: 1,
+    waiting: [
+      {
+        telegram_id: '900000211',
+        name: 'Waiting One',
+        waiting: 'ours',
+        days: '2 дня', // cyrillic-ok: server text
+        stage: 'talk',
+        because: 'ответил, а мы молчим', // cyrillic-ok: server text
+      },
+      {
+        telegram_id: '900000212',
+        name: 'Waiting Two',
+        waiting: 'ours',
+        days: '5 дней', // cyrillic-ok: server text
+        stage: 'talk',
+        because: 'написал, ответа нет', // cyrillic-ok: server text
+      },
+      {
+        telegram_id: '900000213',
+        name: 'They Owe Us',
+        waiting: 'theirs',
+        days: '1 день', // cyrillic-ok: server text
+        stage: 'talk',
+        because: 'написали, ответа нет', // cyrillic-ok: server text
+      },
+    ],
+  },
   crm_hot_leads: { ['найдено']: 0, ['люди']: [] }, // cyrillic-ok: server keys
   crm_clients: {
     paid_known: true,
@@ -128,6 +160,8 @@ vi.stubGlobal(
         left_today: 19,
       }
     }
+    if (name === 'autopilot_leads' && failPicks)
+      return new Response('nope', { status: 500 })
     let data = answers()[name] ?? {}
     if (name === 'crm_outcomes' && emptyScore)
       data = {
@@ -165,6 +199,7 @@ beforeEach(() => {
   calls.length = 0
   picks = []
   lastPick = null
+  failPicks = false
   autopilot = {
     on: false,
     minutes_left: 0,
@@ -377,5 +412,46 @@ describe('the control is reachable where the owner works', () => {
     const depth =
       (before.match(/{/g) ?? []).length - (before.match(/}/g) ?? []).length
     expect(depth, 'the AUTO tick is nested inside a block').toBe(0)
+  })
+})
+
+/**
+ * ONE TAP THAT FILLS THE "CHOSEN" LIST.
+ *
+ * `chosen` is the safe way to run AUTO, and filling it one tick at a time is
+ * the work nobody does at midnight. What is pinned: the tap takes exactly the
+ * people who are waiting for US, leaves the ones we are waiting on alone, and
+ * does not appear at all until the list of chosen people is known.
+ */
+describe('give AUTO everyone who is waiting', () => {
+  const button = () =>
+    [...host.querySelectorAll('button')].find(b =>
+      (b.textContent ?? '').includes('crm.waiting.pickAll')
+    )
+
+  it('picks the people waiting for US, and nobody else', async () => {
+    await screen()
+    await act(async () => {
+      button()!.click()
+    })
+    await settle()
+    const asked = calls
+      .filter(c => c.name === 'autopilot_lead')
+      .map(c => String(c.args.lead))
+    expect(asked.sort()).toEqual(['900000211', '900000212'])
+    // The one WE are waiting on is not ours to answer automatically.
+    expect(asked).not.toContain('900000213')
+  })
+
+  it('says how many it would take', async () => {
+    await screen()
+    expect(button()!.textContent).toContain('crm.waiting.pickAll:2')
+  })
+
+  it('does not appear until the chosen list is known', async () => {
+    failPicks = true
+    await screen()
+    expect(button()).toBeUndefined()
+    failPicks = false
   })
 })
