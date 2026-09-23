@@ -16,6 +16,7 @@ import {
   beforeEach,
 } from 'vitest'
 import { Telegraf, Telegram } from 'telegraf'
+import { getRegisteredManifestFunctions } from '@/inngest_app/manifest'
 
 const ADMIN = 424242
 const STRANGER = 777
@@ -183,8 +184,28 @@ describe('/inngest_probe', () => {
      * funnel row, charges nobody, messages nobody, and returns at the
      * safe-mode guard before it reads anything.
      */
+    /*
+     * COUNTED FROM THE SAME SOURCE THE COMMAND READS, not written out here.
+     *
+     * The literal above was updated by hand on every ADDITION -- which was the
+     * point: a new function in the safe list is a review, and three questions
+     * had to be answered before the number moved. It broke on the case nobody
+     * planned for, a REMOVAL: #2502 withdrew five functions on purpose and the
+     * number stayed 33, so main refused every push for days with a message
+     * that named this file and nobody's diff.
+     *
+     * The review does not live in a string in a test. It lives where a
+     * function declares `safe_probe` at all, and that is what this now reads.
+     * What is still pinned here is the property: everything registered with a
+     * safe probe is planned, nothing is skipped silently, and the plan is not
+     * empty -- a probe that covers nothing would otherwise pass this test.
+     */
+    const planned = getRegisteredManifestFunctions().filter(
+      f => f.safe_probe
+    ).length
+    expect(planned).toBeGreaterThan(0)
     expect(texts[0]).toContain(
-      'К запуску: 33, пропуск: 0, всего в манифесте: 33'
+      `К запуску: ${planned}, пропуск: 0, всего в манифесте: ${planned}`
     )
     const last = sent().at(-1)!
     const buttons = (last.payload.reply_markup.inline_keyboard as any[])
