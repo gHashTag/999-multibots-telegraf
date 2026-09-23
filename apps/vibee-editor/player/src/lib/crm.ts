@@ -246,6 +246,8 @@ export interface ClientRow {
   paid: boolean
   lastSeen: string | null
   duets: number
+  /** The picture the rail draws; null means initials (ChatThreads.tsx). */
+  avatarUrl: string | null
 }
 
 /**
@@ -273,6 +275,7 @@ function toClients(r: Record<string, unknown>): ClientsList {
       paid: bool(c['paid']) ?? false,
       lastSeen: str(c['last_seen']),
       duets: num(c['duets']) ?? 0,
+      avatarUrl: str(c['avatar_url']),
     })),
     // An older server that does not send the flag is treated as knowing:
     // the note is for a server that SAID it could not read payments.

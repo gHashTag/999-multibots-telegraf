@@ -208,6 +208,9 @@ describe('crm_clients', () => {
       paid: false,
       last_seen: '2026-09-13T10:00:00Z',
       duets: 7,
+      // The picture the app draws the circle with; null when we have none
+      // stored, and nothing is fetched from Telegram to fill it in.
+      avatar_url: null,
     })
     expect(rows[0]).toMatchObject({
       name: 'Ivan P',
