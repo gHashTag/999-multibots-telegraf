@@ -202,3 +202,30 @@ describe('the navigation list', () => {
     expect(server).toContain('refuseUnlessClub')
   })
 })
+
+/**
+ * A PERSON'S OWN BOTS ARE NOT PUBLIC.
+ *
+ * /api/my-bots answers "is my bot alive" for the caller. It is the opposite
+ * case to the navigation list beside it: the shape of the app is public, and
+ * which bots somebody owns is not. The handler checks identity itself and
+ * returns 401 without one; this pins that the guard does not open the route
+ * first.
+ */
+describe('my bots', () => {
+  it('is not on the public list', async () => {
+    const { isPublic } = await import('./auth')
+    expect(isPublic({ url: '/api/my-bots', method: 'GET' } as never)).toBe(
+      false
+    )
+  })
+
+  it('and the handler refuses without a verified identity', () => {
+    const server = readFile('render-server.ts')
+    const at = server.indexOf("'/api/my-bots'")
+    expect(at).toBeGreaterThan(-1)
+    const window = server.slice(at, at + 900)
+    expect(window).toContain('chatIdentity')
+    expect(window).toContain('verified identity required')
+  })
+})
