@@ -3,7 +3,9 @@ import { useAtomValue } from 'jotai'
 import { API_BASE } from '@/config'
 import { canAuthorizeRequestsAtom } from '@/atoms/telegramAuth'
 import { apiFetch } from '@/lib/apiFetch'
-import { isTelegram } from '@/lib/telegram'
+import { getInitData, isTelegram } from '@/lib/telegram'
+import { getAppAccessToken } from '@/lib/appSession'
+import { TelegramMiniAppQr } from './TelegramMiniAppQr'
 import './PairWithApp.css'
 
 /** Один заголовок на оба состояния панели, чтобы они не разъехались. */
@@ -58,6 +60,9 @@ export function PairWithApp() {
   const [clockNow, setClockNow] = useState(() => Date.now())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [identityRequired, setIdentityRequired] = useState(
+    () => !getInitData() && !getAppAccessToken()
+  )
   const requestInFlight = useRef(false)
   const canAuthorize = useAtomValue(canAuthorizeRequestsAtom)
 
@@ -125,6 +130,13 @@ export function PairWithApp() {
   const autoRequested = useRef(false)
   useEffect(() => {
     if (!canAuthorize) return
+    /*
+     * Nothing to sign the request with (no initData, no web session): the
+     * server answers 401 before reading the body, so an automatic attempt
+     * would only burn a journal row. The screen shows the road to a signed
+     * launch instead (telegramLogin below).
+     */
+    if (identityRequired) return
     if (autoRequested.current) return
     autoRequested.current = true
     // `requestCode` is a hoisted declaration below; the effect runs after render.
@@ -156,6 +168,11 @@ export function PairWithApp() {
       setExpiresAt(issuedAt + lifetimeSeconds * 1000)
       setCode(lifetimeSeconds > 0 ? response.code : null)
     } catch (requestError) {
+      if ((requestError as { status?: number })?.status === 401) {
+        setIdentityRequired(true)
+        setError(null)
+        return
+      }
       /**
        * SHOW BOTH THE REASON AND WHAT TO DO ABOUT IT.
        *
@@ -211,12 +228,36 @@ export function PairWithApp() {
     </button>
   )
 
+  const telegramLogin = (
+    <div
+      className="pair-with-app__auth-required"
+      role="status"
+      aria-live="polite"
+    >
+      <strong>{'Нужен подтверждённый вход Telegram'}</strong>
+      <p>
+        {
+          'Откройте Mini App @t27ai_bot и вернитесь в Профиль → Агент. Служебные данные вводить нигде не нужно.'
+        }
+      </p>
+      <a
+        className="pair-with-app__telegram-link"
+        href="https://t.me/t27ai_bot?startapp=profile"
+        target="_blank"
+        rel="noreferrer"
+      >
+        {'Открыть Mini App @t27ai_bot'}
+      </a>
+    </div>
+  )
+
   return (
     <section className="pair-with-app">
       <h3 className="pair-with-app__title">{PANEL_TITLE}</h3>
-      {actionButton}
+      {identityRequired ? telegramLogin : actionButton}
+      <TelegramMiniAppQr expanded={identityRequired} />
 
-      {code ? (
+      {identityRequired ? null : code ? (
         <>
           <div
             className="pair-with-app__result"
