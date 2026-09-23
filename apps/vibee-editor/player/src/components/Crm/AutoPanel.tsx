@@ -3,7 +3,9 @@ import { useLanguage } from '@/hooks/useLanguage'
 import {
   loadAutopilot,
   setAutopilot,
+  loadOutcomes,
   type Autopilot,
+  type Outcomes,
   type Reached,
 } from '@/lib/crm'
 
@@ -31,9 +33,15 @@ export function AutoPanel() {
     data: null,
   })
   const [busy, setBusy] = useState(false)
+  const [score, setScore] = useState<Reached<Outcomes>>({
+    reachable: true,
+    data: null,
+  })
 
   const read = useCallback(async () => {
-    setState(await loadAutopilot())
+    const [a, o] = await Promise.all([loadAutopilot(), loadOutcomes(7)])
+    setState(a)
+    setScore(o)
   }, [])
 
   useEffect(() => {
@@ -85,6 +93,28 @@ export function AutoPanel() {
           {a?.on ? t('crm.auto.turnOff') : t('crm.auto.turnOn')}
         </button>
       </div>
+
+      {/*
+        THE ONE MEASURED FIGURE. Not "resolution rate" -- we do not know
+        whether the client was satisfied, and a percentage invented from sends
+        would survive exactly until somebody checked it. This says what it
+        counts: of what left your account, how much needed your finger.
+      */}
+      {score.data ? (
+        <p className="crm-auto__score">
+          {score.data.note
+            ? t('crm.score.empty', { days: score.data.days })
+            : t('crm.score.line', {
+                days: score.data.days,
+                auto: score.data.autoSent,
+                pressed: score.data.pressedSent,
+                share:
+                  score.data.withoutYouPercent === null
+                    ? '—'
+                    : `${score.data.withoutYouPercent}%`,
+              })}
+        </p>
+      ) : null}
 
       <p className="crm-auto__hint">{t('crm.auto.hint')}</p>
     </section>

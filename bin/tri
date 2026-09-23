@@ -112,6 +112,7 @@ tri — оболочка Trinity S³AI
   tri pack <id> <username>  упаковка клиента: восемь частей, у каждой — следующее нажатие
   tri botapi     какие боты на нашем Bot API сервере и согласны ли бот, рендер и сервер
   tri auto       включён ли режим AUTO: до какого часа и сколько автоотправок осталось
+  tri outcomes [дней]  сколько ушло без тебя: авто, твоей кнопкой, отменено, обходы
   tri inflight   что в работе: открытые PR, рабочие деревья, диск, последние выкатки
   tri session    сессии: срок жизни, ротация, обнаружение повторного использования
   tri pairing    вход по коду: длина, срок, попытки — и совпадают ли клиенты с сервером
@@ -1188,6 +1189,14 @@ PYEOF
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
     railway run --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/commands-answered.cjs" "$@"
+    ;;
+
+  outcomes)
+    # HOW MUCH WENT OUT WITHOUT THE OWNER over the last N days (7 by default):
+    # automatic sends, his own presses, refusals, and the sweep totals beside
+    # them. Counted from journal rows that already exist, never a new counter.
+    shift
+    node "$ROOT/scripts/outcomes-state.cjs" "$@"
     ;;
 
   auto)
