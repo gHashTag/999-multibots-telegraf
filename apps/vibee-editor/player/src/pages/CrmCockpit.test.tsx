@@ -42,6 +42,8 @@ let autopilot: Record<string, unknown> = {
 const calls: Array<{ name: string; args: Record<string, unknown> }> = []
 
 let emptyScore = false
+let picks: string[] = []
+let lastPick: { lead: unknown; on: unknown } | null = null
 
 const answers = (): Record<string, unknown> => ({
   crm_overview: { ['всего_людей']: 3 }, // cyrillic-ok: server key
@@ -86,6 +88,7 @@ const answers = (): Record<string, unknown> => ({
     ],
   },
   autopilot_status: autopilot,
+  autopilot_leads: { leads: picks, count: picks.length },
   autopilot_set: autopilot,
   crm_outcomes: {
     days: 7,
@@ -112,6 +115,11 @@ vi.stubGlobal(
     const name = String(body?.params?.name ?? '')
     const args = (body?.params?.arguments ?? {}) as Record<string, unknown>
     calls.push({ name, args })
+    if (name === 'autopilot_lead') {
+      lastPick = { lead: args.lead, on: args.on }
+      if (args.on === true) picks = [...picks, String(args.lead)]
+      else picks = picks.filter(p => p !== String(args.lead))
+    }
     if (name === 'autopilot_set') {
       autopilot = {
         ...autopilot,
@@ -155,6 +163,8 @@ const settle = async () => {
 
 beforeEach(() => {
   calls.length = 0
+  picks = []
+  lastPick = null
   autopilot = {
     on: false,
     minutes_left: 0,
@@ -305,5 +315,67 @@ describe('the week before', () => {
     expect(panel).toContain('crm.score.empty')
     expect(panel).not.toContain('crm.score.before')
     emptyScore = false
+  })
+})
+
+/**
+ * PICKING SOMEBODY FOR AUTO, FROM THE LIST.
+ *
+ * The tick shipped on the client's card beside the chat, and that card is
+ * hidden below 1100px -- so on a phone the "chosen" scope could never be
+ * filled. These pin the control where the owner actually works: on the row,
+ * at any width.
+ */
+describe('AUTO on a client row', () => {
+  it('sends the person and the intent, and remembers the answer', async () => {
+    await screen()
+    const boxes = [...host.querySelectorAll('.crm__auto input')]
+    expect(boxes.length).toBeGreaterThan(0)
+    const first = boxes[0] as HTMLInputElement
+    expect(first.checked).toBe(false)
+    await act(async () => {
+      first.click()
+    })
+    await settle()
+    expect(lastPick).toMatchObject({ on: true })
+    expect(
+      (host.querySelector('.crm__auto input') as HTMLInputElement).checked
+    ).toBe(true)
+  })
+
+  it('draws a tick as ON for somebody already chosen', async () => {
+    picks = ['900000201']
+    await screen()
+    const row = [...host.querySelectorAll('.crm__row--client')].find(r =>
+      (r.textContent ?? '').includes('Paid Person')
+    )!
+    expect(
+      (row.querySelector('.crm__auto input') as HTMLInputElement).checked
+    ).toBe(true)
+  })
+})
+
+describe('the control is reachable where the owner works', () => {
+  it('lives at top level in the stylesheet, not inside a width gate', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const css = readFileSync(join(__dirname, 'Crm.css'), 'utf8')
+    /*
+     * The client card (`.chat-aside`) is display:none below 1100px, which is
+     * exactly why this tick had to move here. If `.crm__auto` ever ends up
+     * inside a media query, the "chosen" scope becomes unfillable on a phone
+     * again -- silently, because every test above passes in jsdom whatever the
+     * stylesheet says.
+     *
+     * Depth by braces, not by counting lines: the first version counted `}`
+     * at the start of a line and cheerfully passed the very mutation it was
+     * written to catch.
+     */
+    const at = css.indexOf('.crm__auto')
+    expect(at, '.crm__auto is gone from the stylesheet').toBeGreaterThan(-1)
+    const before = css.slice(0, at)
+    const depth =
+      (before.match(/{/g) ?? []).length - (before.match(/}/g) ?? []).length
+    expect(depth, 'the AUTO tick is nested inside a block').toBe(0)
   })
 })

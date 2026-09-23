@@ -349,3 +349,12 @@
   font-size: 13px;
   color: var(--t27-text, #fff);
 }
+
+/* The AUTO tick on a row: reachable at any width, unlike the client card. */
+.crm__auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--t27-muted, #888);
+}

@@ -49,6 +49,23 @@ function agentKey() {
   }
 }
 
+async function ask(key, name, args = {}) {
+  const r = await fetch(`${BASE}/mcp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Agent-Key': key },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name, arguments: args },
+    }),
+    signal: AbortSignal.timeout(30_000),
+  })
+  const body = await r.json()
+  const text = body?.result?.content?.[0]?.text
+  return text ? JSON.parse(text) : body?.result?.structuredContent
+}
+
 async function main() {
   const key = agentKey()
   if (!key) {
@@ -107,6 +124,20 @@ async function main() {
     `   сегодня ушло ${out.sent_today}, осталось ${out.left_today} из ${out.cap}.` // cyrillic-ok: operator-facing
   )
   console.log(scopeLine)
+  /*
+   * WHO, not just how many. "Пишет только выбранным: 3 чел." is a number to
+   * trust blindly; the ids are what lets somebody check that the three are
+   * the three he meant. Asked only when it can matter.
+   */
+  if (out.scope === 'chosen' && out.chosen > 0) {
+    try {
+      const picked = await ask(key, 'autopilot_leads')
+      const ids = Array.isArray(picked?.leads) ? picked.leads : []
+      if (ids.length) console.log(`   выбраны: ${ids.join(', ')}`) // cyrillic-ok: operator-facing
+    } catch {
+      // The list is a courtesy; the state above is the answer.
+    }
+  }
   console.log(
     '   выключается его кнопкой — в приложении или в боте; отсюда нельзя.' // cyrillic-ok: operator-facing
   )
