@@ -1155,7 +1155,22 @@ export function marketplaceAgentPrompt(agentId?: string): string {
 export function systemPrompt(
   surface?: string,
   toolsOnly = false,
-  marketplaceAgent?: string
+  marketplaceAgent?: string,
+  /**
+   * MAY THIS PERSON BE ANSWERED IN THE PLATFORM OWNER'S VOICE?
+   *
+   * `SOUL.md` is one man's voice, and it names him. It used to be appended to
+   * EVERY prompt, so in another person's profile the agent read "the owner's
+   * SOUL says: <his name>, <his handles>" and answered as him. Owner,
+   * 2026-09-23: "why does the agent in my wife's profile write as me?! each
+   * has their own profile!" -- measured the same hour on production: asked
+   * from her account whose agent it was, the model reasoned out of his SOUL.
+   *
+   * His voice belongs to his own surfaces. Everybody else gets their own
+   * personal SOUL (the block the caller adds from `souls`), and somebody with
+   * none gets no voice at all -- the honest state, not a borrowed identity.
+   */
+  ownerVoice = false
 ): string {
   // The unattended sweep (tools_only) must call tools, not draw buttons:
   // the markers section was the root of marker-only `[[...|no_one_available]]`
@@ -1189,7 +1204,7 @@ export function systemPrompt(
    */
   const lang = '\n\n' + ANSWER_IN_THEIR_LANGUAGE
   const specialist = marketplaceAgentPrompt(marketplaceAgent)
-  const s = soul()
+  const s = ownerVoice ? soul() : null
   if (!s) return systemFor(surface) + buttons + canTake + specialist + lang
   return (
     systemFor(surface) +
@@ -2045,6 +2060,19 @@ export async function* runAgent(
     }
   }
 
+  /*
+   * The platform owner's voice is for the platform owner's own turns. Decided
+   * once here, so the prompt, the playbook and the contact guard cannot
+   * disagree about whose voice was in the prompt.
+   */
+  const ownerVoice = await (async () => {
+    const { OWNER_TELEGRAM_ID } = await import('./telegram-tools')
+    return (
+      Boolean(OWNER_TELEGRAM_ID) &&
+      String(ctx.telegramId ?? '') === String(OWNER_TELEGRAM_ID)
+    )
+  })()
+
   let messages: ChatMessage[] = [
     {
       role: 'system',
@@ -2053,7 +2081,8 @@ export async function* runAgent(
           ? systemPrompt(
               opts?.surface,
               opts?.toolsOnly === true,
-              opts?.marketplaceAgent
+              opts?.marketplaceAgent,
+              ownerVoice
             ) +
             salesPlaybook({
               surface: opts?.surface,
@@ -2070,7 +2099,8 @@ export async function* runAgent(
           : systemPrompt(
               opts?.surface,
               opts?.toolsOnly === true,
-              opts?.marketplaceAgent
+              opts?.marketplaceAgent,
+              ownerVoice
             ) +
             salesPlaybook({
               surface: opts?.surface,
@@ -2147,7 +2177,8 @@ export async function* runAgent(
             systemPrompt(
               opts?.surface,
               opts?.toolsOnly === true,
-              opts?.marketplaceAgent
+              opts?.marketplaceAgent,
+              ownerVoice
             ),
             dmHistory,
             personContext,
