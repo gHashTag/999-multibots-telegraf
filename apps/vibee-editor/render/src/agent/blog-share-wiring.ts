@@ -106,7 +106,7 @@ async function publishEverywhere(
 }
 
 /**
- * A thread on X: the words first, the link in the post below (Carlos,
+ * A thread on X: the words first, the link in the post below (the reader,
  * 2026-09-23 -- posts carrying an external link reach fewer people).
  *
  * Written against the composer the person sees, by the labels they read:

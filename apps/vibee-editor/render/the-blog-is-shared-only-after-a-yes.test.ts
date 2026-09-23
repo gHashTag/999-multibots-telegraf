@@ -201,7 +201,7 @@ describe('the owner s own community gets the article too', () => {
 
 describe('the link goes in the reply, not in the post', () => {
   /*
-   * Carlos (@cavearr) wrote to the owner on 2026-09-23: posts carrying an
+   * A reader on X wrote to the owner on 2026-09-23: posts carrying an
    * external link reach fewer people; he writes a thread instead, with the
    * link in a post below. He called it possibly superstition and asked for
    * a test, so the cron writes it his way.
