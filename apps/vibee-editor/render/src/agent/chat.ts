@@ -67,6 +67,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
+import { liveMarketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 
 const MAX_STEPS = 8
 
@@ -1118,7 +1119,32 @@ function ownerSideSection(surface?: string): string {
   )
 }
 
-export function systemPrompt(surface?: string, toolsOnly = false): string {
+export function marketplaceAgentPrompt(agentId?: string): string {
+  const agent = liveMarketplaceAgentById(agentId)
+  if (!agent) return ''
+  if (agent.id === 'blogger') {
+    return (
+      '\n\nТВОЯ СПЕЦИАЛИЗАЦИЯ — БЛОГЕР T27. Ты не выдаёшь россыпь идей: ' +
+      'ты находишь подтверждённую выполненную работу, которой ещё нет в ' +
+      'каноническом блоге, и превращаешь её в законченную кампанию. Сначала ' +
+      'сверь публичный блог с надёжными свидетельствами результата. Группируй ' +
+      'связанные изменения в одну читательскую мысль, не делай пост из каждого ' +
+      'PR. Для публикации нужны полные EN и RU версии, фирменный трёхпанельный ' +
+      'триптих, 3–6 конкретных хештегов, контекстный офер услуги T27 и адаптации ' +
+      'для X, LinkedIn и Telegram. Публиковать можно только по явному запросу. ' +
+      'Завершение — это живые URL и проверенный отчёт, а не фраза «готово». ' +
+      'Не называй функцию или выплату работающей, пока публичная поверхность ' +
+      'или реальный receipt этого не подтверждает.'
+    )
+  }
+  return ''
+}
+
+export function systemPrompt(
+  surface?: string,
+  toolsOnly = false,
+  marketplaceAgent?: string
+): string {
   // The unattended sweep (tools_only) must call tools, not draw buttons:
   // the markers section was the root of marker-only `[[...|no_one_available]]`
   // answers (CRM audit 2026-09-12, P2 #14).
@@ -1150,8 +1176,9 @@ export function systemPrompt(surface?: string, toolsOnly = false): string {
    * next, this stays the last thing read.
    */
   const lang = '\n\n' + ANSWER_IN_THEIR_LANGUAGE
+  const specialist = marketplaceAgentPrompt(marketplaceAgent)
   const s = soul()
-  if (!s) return systemFor(surface) + buttons + canTake + lang
+  if (!s) return systemFor(surface) + buttons + canTake + specialist + lang
   return (
     systemFor(surface) +
     buttons +
@@ -1163,6 +1190,7 @@ export function systemPrompt(surface?: string, toolsOnly = false): string {
     'прилагательного, границы честно, ретракции без страха. В обычных ' +
     'ответах оставайся собой — кратким исполнителем.\n\n' +
     s +
+    specialist +
     lang
   )
 }
@@ -1727,6 +1755,8 @@ export async function* runAgent(
     surface?: string
     toolsOnly?: boolean
     client?: string
+    /** A live labour-market specialist selected by the person. */
+    marketplaceAgent?: string
     /**
      * The lead this turn makes pictures for, WITHOUT making it that lead's
      * thread (a scoped sweep, the "prepare" press). See clientTurnContext.
@@ -1998,7 +2028,11 @@ export async function* runAgent(
       role: 'system',
       content:
         (personalSoul
-          ? systemPrompt(opts?.surface, opts?.toolsOnly === true) +
+          ? systemPrompt(
+              opts?.surface,
+              opts?.toolsOnly === true,
+              opts?.marketplaceAgent
+            ) +
             salesPlaybook({
               surface: opts?.surface,
               telegramId: ctx.telegramId,
@@ -2011,7 +2045,11 @@ export async function* runAgent(
             'голосом — решает этот SOUL. Человек может просить править его ' +
             'через soul_edit — это его скилл, помогай с этим.\n\n' +
             personalSoul
-          : systemPrompt(opts?.surface, opts?.toolsOnly === true) +
+          : systemPrompt(
+              opts?.surface,
+              opts?.toolsOnly === true,
+              opts?.marketplaceAgent
+            ) +
             salesPlaybook({
               surface: opts?.surface,
               telegramId: ctx.telegramId,
@@ -2075,7 +2113,11 @@ export async function* runAgent(
         const { OWNER_TELEGRAM_ID } = await import('./telegram-tools')
         return createContactGuard({
           seen: [
-            systemPrompt(opts?.surface, opts?.toolsOnly === true),
+            systemPrompt(
+              opts?.surface,
+              opts?.toolsOnly === true,
+              opts?.marketplaceAgent
+            ),
             dmHistory,
             personContext,
             ...messages.slice(1).map(m => m.content),

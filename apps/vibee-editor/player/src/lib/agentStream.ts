@@ -49,6 +49,8 @@ function patchIn(
  */
 export interface SendOptions {
   client?: string | null
+  /** A live specialist from the labour market. */
+  agent?: string | null
 }
 
 export function isAgentBusy(): boolean {
@@ -82,7 +84,8 @@ export async function sendToAgent(
   inFlight = true
   editorStore.set(agentBusyAtom, true)
   const client = options.client || null
-  const thread = agentMessagesAtomFor(client)
+  const marketplaceAgent = options.agent || null
+  const thread = agentMessagesAtomFor(client, marketplaceAgent)
   const patch = (agentId: string, fn: (m: Message) => Message) =>
     patchIn(thread, agentId, fn)
 
@@ -157,6 +160,7 @@ export async function sendToAgent(
         // Only when talking about a client: the key is absent otherwise, so
         // the self thread's request body is byte-for-byte what it was.
         ...(client ? { client } : {}),
+        ...(marketplaceAgent ? { agent: marketplaceAgent } : {}),
       }),
     })
     if (!res.ok || !res.body) {

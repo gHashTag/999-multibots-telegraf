@@ -47,6 +47,7 @@ import { IS_EMBED } from '@/lib/embed'
 const NAV_TABS = [
   { id: 'feed', emoji: '🌐', labelKey: 'tabs.feed', route: '/feed' },
   { id: 'blog', emoji: '📜', labelKey: 'tabs.blog', route: '/blog' },
+  { id: 'agents', emoji: '✦', labelKey: 'tabs.agents', route: '/agents' },
   { id: 'search', emoji: '🔍', labelKey: 'tabs.search', route: '/search' },
   {
     id: 'ai',
@@ -67,9 +68,12 @@ const NAV_TABS = [
 // Route patterns to match for active state
 const ROUTE_PATTERNS: Record<string, RegExp> = {
   feed: /^\/feed/,
+  blog: /^\/blog/,
+  agents: /^\/(agents|chat)/,
   search: /^\/search/,
   ai: /^\/generate/,
-  profile: /^\/(?!feed|search|editor|generate|templates|chat)[^/]+$/, // matches /:username but not known routes
+  profile:
+    /^\/(?!feed|blog|agents|search|editor|generate|templates|chat)[^/]+$/, // matches /:username but not known routes
 }
 
 // Export settings stored in localStorage

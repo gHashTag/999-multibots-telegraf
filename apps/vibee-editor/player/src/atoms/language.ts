@@ -881,6 +881,7 @@ const en: Translations = {
   // Tab Tooltips
   'tabs.feed': 'Feed',
   'tabs.blog': 'Blog',
+  'tabs.agents': 'Agents',
   'tabs.search': 'Search',
   'tabs.profile': 'Profile',
   'tabs.script': 'Script',
@@ -1421,6 +1422,7 @@ const en: Translations = {
   'nav.profile': 'Profile',
   'nav.learn': 'Learn',
   'nav.agent': 'Agent',
+  'nav.agents': 'Agents',
   'nav.hive': 'Hive',
   'hive.loading': 'Opening the hive on t27.ai…',
   'hive.frameTitle': 'The hive — t27.ai/#/queen',
@@ -2983,6 +2985,7 @@ const ru: Translations = {
   // Tab Tooltips
   'tabs.feed': 'Лента',
   'tabs.blog': 'Блог',
+  'tabs.agents': 'Агенты',
   'tabs.search': 'Поиск',
   'tabs.profile': 'Профиль',
   'tabs.script': 'Сценарий',
@@ -3524,6 +3527,7 @@ const ru: Translations = {
   'nav.profile': 'Профиль',
   'nav.learn': 'Обучение',
   'nav.agent': 'Агент',
+  'nav.agents': 'Агенты',
   'nav.hive': 'Улей',
   'hive.loading': 'Открываем улей на t27.ai…',
   'hive.frameTitle': 'Улей — t27.ai/#/queen',
