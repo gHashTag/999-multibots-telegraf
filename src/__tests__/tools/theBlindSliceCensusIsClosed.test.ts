@@ -19,10 +19,16 @@ const {
  * not decoration -- each is a different way the failure mode cannot reach the
  * site, and re-litigating them without reading is how a sweep becomes churn:
  *
- *   guarded      an explicit -1 check sits between the indexOf and the slice
- *   not-a-slice  the index feeds an ordering comparison, never a slice
- *   wrong-shape  slice(0, indexOf) widens by one char instead of collapsing
- *   constants    the offsets are literals, so -1 cannot arise
+ *   guarded       an explicit -1 check sits between the indexOf and the slice
+ *   not-a-slice   the index feeds an ordering comparison, never a slice
+ *   wrong-shape   slice(0, indexOf) widens by one char instead of collapsing
+ *   constants     the offsets are literals, so -1 cannot arise
+ *   positive-only every assertion over the region asserts PRESENCE, so a lost
+ *                 anchor collapses the region to one character and the test
+ *                 goes red. Confusing, never silent -- which is the whole
+ *                 difference. This reason is void the moment a `not.` lands
+ *                 on the region, so a site is re-read when its file changes,
+ *                 not waved through by its entry.
  *
  * WHAT THIS TEST IS FOR is the next one nobody read. A new unguarded site in a
  * file not listed here fails, and so does a NEW site in a listed file, because
@@ -38,6 +44,22 @@ const EXAMINED: Record<string, { sites: number; why: string }> = {
   'apps/vibee-editor/render/feed-viewer-idor.test.ts': {
     sites: 1,
     why: 'guarded, and every assertion over the region is positive',
+  },
+  'apps/vibee-editor/player/src/__tests__/live-nginx.test.ts': {
+    sites: 1,
+    why: 'positive-only: the two toContain over the /live/ block are presence checks, so a renamed location fails them',
+  },
+  'apps/vibee-editor/player/src/components/BrandLoader/BrandLoader.test.ts': {
+    sites: 1,
+    why: 'positive-only: both assertions over the boot-fallback window are toContain, and a lost id empties it',
+  },
+  'apps/vibee-editor/player/src/pages/Browser.contract.test.ts': {
+    sites: 2,
+    why: 'positive-only: the ru dictionary window and the reduced-motion window are each read with toContain alone',
+  },
+  'src/__tests__/bot/noTariffsInAiPrompt.test.ts': {
+    sites: 1,
+    why: 'positive-only: the fallbackMessages call window is read with one toMatch, and a lost anchor empties it',
   },
   'src/__tests__/money/lapsedPayersCannotCountSeedingAsMoney.test.ts': {
     sites: 1,
