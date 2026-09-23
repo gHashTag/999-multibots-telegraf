@@ -93,6 +93,7 @@ export const BROWSER_PATHS = [
   '/api/browser/choose',
   '/api/browser/round',
   '/api/browser/learned',
+  '/api/browser/strategy',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -336,6 +337,61 @@ export async function handleBrowser(
     }
     const { learnedHere } = await import('./recipes')
     return { status: 200, body: { ok: true, learned: await learnedHere(pool) } }
+  }
+
+  /*
+   * THE STRATEGY, READ AND WRITTEN WITHOUT A DEPLOY (agent/strategies.ts).
+   * Reading is open to the person and their agent; writing is the person's
+   * door only -- it is their agent's instructions, and an agent that could
+   * widen its own rounds would be writing its own orders.
+   */
+  if (path === '/api/browser/strategy') {
+    const { readStrategy, writeStrategy, roundStrategyOf } = await import(
+      '../agent/strategies'
+    )
+    const { ROUND_SITES, SETTLE_MS } = await import('../agent/rounds')
+    const fallback = {
+      sites: ROUND_SITES,
+      everyMin: Number(process.env.ROUNDS_EVERY_MIN) || 180,
+      settleMs: SETTLE_MS,
+    }
+    if (method === 'GET') {
+      const saved = await readStrategy(pool, 'rounds')
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          saved,
+          inUse: roundStrategyOf(saved, fallback),
+        },
+      }
+    }
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET or POST' } }
+    }
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: "a strategy is the person's to write",
+        },
+      }
+    }
+    if (!deps.readBody) {
+      return { status: 500, body: { ok: false, error: 'no body reader' } }
+    }
+    let wanted: unknown
+    try {
+      wanted = JSON.parse((await deps.readBody(req, 8192)) || '{}')
+    } catch {
+      return { status: 400, body: { ok: false, error: 'body is not JSON' } }
+    }
+    await writeStrategy(pool, 'rounds', wanted)
+    return {
+      status: 200,
+      body: { ok: true, inUse: roundStrategyOf(wanted, fallback) },
+    }
   }
 
   if (path === '/api/browser/journal') {
