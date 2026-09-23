@@ -224,6 +224,7 @@ const en: Translations = {
   'crm.vip.title': 'Under way',
   'crm.vip.note': 'Paid, or with a package, or touched this week',
   'crm.vip.empty': 'Nobody is under way yet',
+  'crm.row.auto': 'AUTO',
   'crm.row.drop': 'Remove from CRM',
   'crm.row.dropAsk':
     'Remove {name} from the CRM? The cached correspondence is deleted.',
@@ -2412,6 +2413,7 @@ const ru: Translations = {
   'crm.vip.title': 'В работе',
   'crm.vip.note': 'Оплатившие, с пакетом или с касанием на этой неделе',
   'crm.vip.empty': 'Пока никого нет в работе',
+  'crm.row.auto': 'AUTO',
   'crm.row.drop': 'Удалить из CRM',
   'crm.row.dropAsk': 'Убрать {name} из CRM? Кэш переписки будет стёрт.',
   'crm.row.dropped': 'Убран из CRM',
