@@ -760,6 +760,26 @@ export async function handleAgentChat(
         surface: поверхность, // cyrillic-ok: local defined earlier in this file
         signal: gone.signal,
         toolsOnly: body.tools_only === true,
+        /*
+         * WHOSE CHAT A BUSINESS TURN IS -- AND ONLY FROM THE BOT.
+         *
+         * The seller is the account the Telegram business connection belongs
+         * to; the bot reads it from the connection object and sends it here.
+         * It decides which correspondence, which client packages and whose
+         * debts the agent reads, so it is accepted ONLY behind the server key:
+         * from a Mini App session it would be a way to ask for somebody
+         * else's CRM by writing their id in a request body.
+         *
+         * Absent means absent. It must never fall back to the platform owner
+         * -- that fallback is exactly the defect this fixes (owner,
+         * 2026-09-23: the agent in his wife's profile answered as him).
+         */
+        seller:
+          hasServerKey(req) &&
+          typeof body.seller_id === 'string' &&
+          /^\d{5,15}$/.test(body.seller_id)
+            ? body.seller_id
+            : undefined,
         client: gate.client ?? undefined,
         marketplaceAgent: gate.agent,
         // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
