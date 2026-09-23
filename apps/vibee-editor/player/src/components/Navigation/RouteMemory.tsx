@@ -30,6 +30,7 @@ import { IS_EMBED } from '@/lib/embed'
 const RESTORABLE = [
   /^\/feed(\/|$)/,
   /^\/chat(\/|$)/,
+  /^\/agents(\/|$)/,
   /^\/editor(\/|$)/,
   /^\/generate(\/|$)/,
   /^\/templates(\/|$)/,

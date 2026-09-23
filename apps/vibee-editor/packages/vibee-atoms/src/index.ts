@@ -2,6 +2,16 @@
 // Used by both apps/mobile/ and remotion/player/
 // Single source of truth for unified editor logic
 
+export {
+  MARKETPLACE_AGENTS,
+  MARKETPLACE_ECONOMY,
+  marketplaceAgentById,
+  liveMarketplaceAgentById,
+  type MarketplaceAgentListing,
+  type MarketplaceAgentStatus,
+  type LocalizedText,
+} from './agent-marketplace'
+
 // ===============================
 // Types - Unified type definitions
 // ===============================

@@ -32,6 +32,8 @@ import './App.css'
 const HomePage = lazy(() => import('@/pages/Home'))
 const EditorPage = lazy(() => import('@/pages/Editor'))
 const ChatPage = lazy(() => import('@/pages/Chat'))
+const AgentsPage = lazy(() => import('@/pages/Agents'))
+const AgentHarnessPage = lazy(() => import('@/pages/AgentHarness'))
 const ProfilePage = lazy(() => import('@/pages/Profile'))
 const FeedPage = lazy(() => import('@/pages/Feed'))
 const BlogPage = lazy(() => import('@/pages/Blog'))
@@ -366,6 +368,9 @@ function RouteTable() {
       <Route path="/crm/:clientId" element={<CrmClientPage />} />
       <Route path="/crm/:clientId/chat" element={<ChatPage />} />
       <Route path="/templates" element={<TemplatesPage />} />
+      <Route path="/agents" element={<AgentsPage />} />
+      <Route path="/agents/connect" element={<AgentHarnessPage />} />
+      <Route path="/agents/:agentId/work" element={<ChatPage />} />
       <Route path="/chat" element={<ChatPage />} />
       <Route path="/instagram/callback" element={<InstagramCallbackPage />} />
       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

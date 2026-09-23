@@ -100,3 +100,26 @@ invoke_function     functionId=... crm-proactive-sweep   # внеочередн�
   `event_names` (значение ключа не пишется никогда).
 - `FAILED` у функции с `probe_expect = FAILED-at-guard` и `e2e_test: true` в событии — норма
   probe-suite (`docs/inngest/probe-suite.md`), не поломка.
+
+## Если MCP-прокси не поднят: REST v2 напрямую, публичным адресом
+
+`INNGEST_BASE_URL` — внутренний адрес (`*.railway.internal`), с ноутбука он не
+резолвится. Публичный адрес того же сервиса лежит рядом, в
+`RAILWAY_SERVICE_INNGEST_INNGEST_URL`. Пути REST v2 отличаются от того, что
+подсказывает интуиция: вызов функции — **через приложение**.
+
+```bash
+U=$( (railway variables --service 999-multibots-telegraf --kv) \
+     | grep '^RAILWAY_SERVICE_INNGEST_INNGEST_URL=' | cut -d= -f2- )
+K=$( (railway variables --service 999-multibots-telegraf --kv) \
+     | grep '^INNGEST_SIGNING_KEY=' | cut -d= -f2- )
+curl -s "https://$U/api/v2/operations" -H "Authorization: Bearer $K"   # каталог путей
+curl -s -X POST \
+  "https://$U/api/v2/apps/telegram-bot-client/functions/<functionId>/invoke" \
+  -H "Authorization: Bearer $K" -H 'Content-Type: application/json' \
+  -d '{"data":{"manual":true}}'                                        # без "mode"!
+curl -s "https://$U/api/v2/runs/<runId>?includeOutput=true" -H "Authorization: Bearer $K"
+```
+
+Измерено 2026-09-23: `POST /api/v2/functions/<id>/invoke` → 404, а лишнее поле
+`mode` → `unknown field "mode"`.

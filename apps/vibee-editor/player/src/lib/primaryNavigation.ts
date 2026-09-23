@@ -41,7 +41,9 @@ export interface PrimaryNavigationItem {
 /** Which addresses belong to which tab. Web-only, keyed by the shared id. */
 export const TAB_ROUTE_PATTERNS: Record<PrimaryTabId, RegExp> = {
   feed: /^\/feed/,
-  chat: /^\/chat/,
+  // The product tab is the labour market (#2896). The old /chat address
+  // remains a working deep link and lights the same tab.
+  chat: /^\/(agents|chat)/,
   browser: /^\/browser/,
   ai: /^\/generate/,
   hive: /^\/hive/,

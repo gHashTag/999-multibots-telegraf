@@ -117,10 +117,30 @@ export const clientThreadStorageKey = (clientId: string): string =>
   `${STORAGE_KEYS.agentChat}:client:${clientId}`
 
 const clientThreads = new Map<string, MessagesAtom>()
+const marketplaceAgentThreads = new Map<string, MessagesAtom>()
+
+export const marketplaceAgentThreadStorageKey = (agentId: string): string =>
+  `${STORAGE_KEYS.agentChat}:agent:${agentId}`
 
 export function agentMessagesAtomFor(
-  clientId: string | null | undefined
+  clientId: string | null | undefined,
+  marketplaceAgent?: string | null
 ): MessagesAtom {
+  if (marketplaceAgent) {
+    let found = marketplaceAgentThreads.get(marketplaceAgent)
+    if (!found) {
+      found = trimmed(
+        atomWithStorage<Message[]>(
+          marketplaceAgentThreadStorageKey(marketplaceAgent),
+          [],
+          undefined,
+          { getOnInit: true }
+        )
+      )
+      marketplaceAgentThreads.set(marketplaceAgent, found)
+    }
+    return found
+  }
   if (!clientId) return agentMessagesAtom
   let found = clientThreads.get(clientId)
   if (!found) {

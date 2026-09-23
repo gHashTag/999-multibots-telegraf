@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  QUEEN_VIEWS,
   TRI_SCREEN_IDS,
   captureReturnTarget,
   hasReturnTarget,
@@ -70,8 +69,20 @@ describe('returnTargetOf accepts only the Queen and its known views', () => {
     expect(returnTargetOf(url)).toBe(url)
   })
 
-  it('every copied Queen view and every TRI screen', () => {
-    for (const view of QUEEN_VIEWS) {
+  it('any well-shaped view, and every TRI screen', () => {
+    // No list is copied here any more: a view the board adds works the day it
+    // ships. `nope` below is the same rule seen from the other side - this
+    // function does not know which views exist, and does not need to.
+    for (const view of [
+      'comb',
+      'specs',
+      'kanban',
+      'tri',
+      'passport',
+      'browser',
+      'roadmap',
+      'leaderboard',
+    ]) {
       expect(returnTargetOf(`${QUEEN}?tab=${view}`)).toBe(
         `${QUEEN}?tab=${view}`
       )
@@ -101,7 +112,6 @@ describe('returnTargetOf accepts only the Queen and its known views', () => {
     'https://t27.ai/',
     'https://t27.ai/#/queen/',
     'https://t27.ai/#/clients',
-    `${QUEEN}?tab=nope`,
     `${QUEEN}?tab=TRI`,
     `${QUEEN}?tab=`,
     `${QUEEN}?embed=1`,
@@ -267,7 +277,9 @@ describe('the board on the app itself (app.t27.ai/queen)', () => {
     expect(returnTargetOf('https://app.t27.ai/queenly/#/queen')).toBeNull()
     expect(returnTargetOf('https://app.t27.ai/#/queen')).toBeNull()
     expect(returnTargetOf('https://evil.test/queen/#/queen')).toBeNull()
-    expect(returnTargetOf(`${BOARD}?tab=nope`)).toBeNull()
+    // A view name this file does not recognise is carried through: the
+    // board is what knows its own tabs, and shows the comb for the rest.
+    expect(returnTargetOf(`${BOARD}?tab=nope`)).toBe(`${BOARD}?tab=nope`)
     expect(returnTargetOf(`${BOARD}?tab=kanban&screen=profile`)).toBeNull()
   })
 })
