@@ -144,9 +144,17 @@ describe('what to do next with one person', () => {
 
   it('sorts a queue so what is late is read first', () => {
     const queue = [
-      { id: 'c', step: nextStep(input({ stage: 'new', lastFrom: null, hoursSinceLast: null })) },
+      {
+        id: 'c',
+        step: nextStep(
+          input({ stage: 'new', lastFrom: null, hoursSinceLast: null })
+        ),
+      },
       { id: 'a', step: nextStep(input({ owed: { what: 'баланс' } })) },
-      { id: 'b', step: nextStep(input({ lastFrom: 'them', hoursSinceLast: 2 })) },
+      {
+        id: 'b',
+        step: nextStep(input({ lastFrom: 'them', hoursSinceLast: 2 })),
+      },
     ]
     expect(queue.sort(byUrgency).map(q => q.id)).toEqual(['a', 'b', 'c'])
   })

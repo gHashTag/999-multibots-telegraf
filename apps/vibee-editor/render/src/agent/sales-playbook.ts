@@ -96,7 +96,9 @@ export interface NextStep {
 
 /** A promise with no date is due the moment it is made. */
 function promiseIsOverdue(owed: Promise_, now: Date): boolean {
-  const due = owed.dueAt ? Date.parse(owed.dueAt) : Date.parse(owed.saidAt ?? '')
+  const due = owed.dueAt
+    ? Date.parse(owed.dueAt)
+    : Date.parse(owed.saidAt ?? '')
   if (!Number.isFinite(due)) return true
   return due <= now.getTime()
 }
@@ -159,7 +161,8 @@ export function nextStep(input: SalesInput): NextStep {
       move: 'follow_up',
       urgency: 'today',
       why: 'срок «позже» наступил',
-      intent: 'вернуться ровно к тому, о чём договорились, без нового предложения',
+      intent:
+        'вернуться ровно к тому, о чём договорились, без нового предложения',
     }
   }
 
