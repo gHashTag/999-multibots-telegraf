@@ -664,7 +664,9 @@ describe('the card in the owner chat', () => {
     const data = (t.sent[0][3] as any).reply_markup.inline_keyboard
       .flat()
       .map((b: any) => b.callback_data)
-    expect(data).toEqual([`tgp:ok:p1:s`, `tgp:no:p1:s`])
+    // Send, cancel, and the autopilot switch: the press that autopilot
+    // replaces is made here, so the switch is offered here.
+    expect(data).toEqual([`tgp:ok:p1:s`, `tgp:no:p1:s`, 'crm:auto'])
   })
   it('a photo draft is a photo with the caption and the same buttons', async () => {
     const t = tg()
@@ -677,7 +679,9 @@ describe('the card in the owner chat', () => {
     expect(t.sent[0][2]).toBe('https://s3/x.png')
     const extra = t.sent[0][3] as any
     expect(String(extra.caption)).toContain('Спишется у получателя: 2')
-    expect(extra.reply_markup.inline_keyboard.flat().length).toBe(2)
+    expect(
+      extra.reply_markup.inline_keyboard.flat().map((b: any) => b.callback_data)
+    ).toEqual([`tgp:ok:p1:s`, `tgp:no:p1:s`, 'crm:auto'])
   })
   it('a photo that cannot be shown becomes a message with the link', async () => {
     const t = tg(true)

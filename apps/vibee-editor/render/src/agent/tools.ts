@@ -951,6 +951,7 @@ import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
+import { CRM_DROP_TOOLS } from './crm-drop-tool'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
@@ -3098,6 +3099,11 @@ TOOLS.push(
   })
 )
 TOOLS.push(...CRM_MEMORY_TOOLS)
+/*
+ * Removing a person from the CRM is the owner's own housekeeping: it reaches
+ * the seller's own cache only, and `requireSeller` keeps it there.
+ */
+TOOLS.push(...CRM_DROP_TOOLS)
 TOOLS.push(...CRM_SUMMARY_TOOLS)
 TOOLS.push(...CRM_SELLERS_TOOLS)
 // The Leela handshake: owner-only, both accounts connected (crm-agent-link-tool.ts).
