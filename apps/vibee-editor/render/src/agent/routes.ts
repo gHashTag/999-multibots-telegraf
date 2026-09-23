@@ -21,6 +21,7 @@
  *    одной существующей композиции.
  */
 import { randomUUID } from 'node:crypto'
+import { liveMarketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { assertArgs } from './tool-args'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
@@ -47,6 +48,7 @@ import {
   SELF_THREAD,
   CLIENT_ID_RE,
   clientThread,
+  marketplaceAgentThread,
 } from './conversation'
 
 /**
@@ -63,14 +65,34 @@ import {
  * read here.
  */
 export type ThreadGate =
-  | { ok: true; thread: string; client: string | null }
+  | { ok: true; thread: string; client: string | null; agent?: string }
   | { ok: false; status: number; error: string }
 
 export async function threadFor(
   rawClient: unknown,
   owner: string,
-  getPool: () => any
+  getPool: () => any,
+  rawAgent?: unknown
 ): Promise<ThreadGate> {
+  if (
+    rawClient != null &&
+    rawClient !== '' &&
+    rawAgent != null &&
+    rawAgent !== ''
+  ) {
+    return { ok: false, status: 400, error: 'choose client or agent, not both' }
+  }
+  if (rawAgent != null && rawAgent !== '') {
+    const agent = liveMarketplaceAgentById(rawAgent)
+    if (!agent)
+      return { ok: false, status: 400, error: 'agent is not available' }
+    return {
+      ok: true,
+      thread: marketplaceAgentThread(agent.id),
+      client: null,
+      agent: agent.id,
+    }
+  }
   if (rawClient == null || rawClient === '')
     return { ok: true, thread: SELF_THREAD, client: null }
   const client = String(rawClient).trim()
@@ -93,6 +115,10 @@ export async function threadFor(
 /** The client id from the query string, or null when absent. */
 function clientParam(req: IncomingMessage): string | null {
   return new URL(req.url || '', 'http://x').searchParams.get('client')
+}
+
+function agentParam(req: IncomingMessage): string | null {
+  return new URL(req.url || '', 'http://x').searchParams.get('agent')
 }
 
 /**
@@ -586,7 +612,7 @@ export async function handleAgentChat(
 
   // The client thread gate answers before the stream opens: a 4xx must be a
   // real status, not an error event inside a 200.
-  const gate = await threadFor(body.client, telegramId, getPool)
+  const gate = await threadFor(body.client, telegramId, getPool, body.agent)
   if (!gate.ok) return json(res, gate.status, { error: gate.error })
   const thread = gate.thread
 
@@ -735,6 +761,7 @@ export async function handleAgentChat(
         signal: gone.signal,
         toolsOnly: body.tools_only === true,
         client: gate.client ?? undefined,
+        marketplaceAgent: gate.agent,
         // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
         // not the caller) in chat.ts clientTurnContext. Not a thread.
         faceOf: typeof body.face_of === 'string' ? body.face_of : undefined,
@@ -885,7 +912,12 @@ export async function handleAgentHistoryDelete(
   const сырой = параметры.get('id')
   // Gate first: a client thread is cleared only by a seller, and only that
   // thread -- the self thread is never touched through `?client=`.
-  const gate = await threadFor(clientParam(req), telegramId, getPool)
+  const gate = await threadFor(
+    clientParam(req),
+    telegramId,
+    getPool,
+    agentParam(req)
+  )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
     const pool = await getPool()
@@ -917,7 +949,12 @@ export async function handleAgentHistory(
   const предел = Number(
     new URL(req.url || '', 'http://x').searchParams.get('limit') || 0
   )
-  const gate = await threadFor(clientParam(req), telegramId, getPool)
+  const gate = await threadFor(
+    clientParam(req),
+    telegramId,
+    getPool,
+    agentParam(req)
+  )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
     const pool = await getPool()
@@ -1030,7 +1067,7 @@ export async function handleAgentHistoryAppend(
     ? String(body.surface)
     : 'unknown'
 
-  const gate = await threadFor(body.client, telegramId, getPool)
+  const gate = await threadFor(body.client, telegramId, getPool, body.agent)
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
 
   try {

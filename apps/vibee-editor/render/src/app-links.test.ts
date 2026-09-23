@@ -16,6 +16,7 @@ import {
   rewriteAppUrls,
   rewriteAppUrlsForToken,
   BOT_OF_TOKEN_TTL_MS,
+  dropAppUrls,
 } from './app-links'
 import { telegramApiFor } from './telegram-api'
 
@@ -111,10 +112,16 @@ describe('rewriteAppUrlsForToken -- the safety net on render notices', () => {
     expect(f).not.toHaveBeenCalled()
   })
 
-  it('an unknown bot leaves the text as it was rather than guess one', async () => {
+  /*
+   * It used to leave the raw URL alone when getMe could not say which bot
+   * this is. Outside Telegram that link opens a browser where nobody is
+   * signed in, and the person sees an empty screen (owner, 2026-09-23:
+   * "forbid it at the level of the code"). The link goes instead.
+   */
+  it('an unknown bot means no link at all, never a dead one', async () => {
     const text = 'https://app.t27.ai/hive'
-    expect(await rewriteAppUrlsForToken(text, TOKEN, getMe(null))).toBe(text)
-    expect(await rewriteAppUrlsForToken(text, '', getMe(null))).toBe(text)
+    expect(await rewriteAppUrlsForToken(text, TOKEN, getMe(null))).toBe('')
+    expect(await rewriteAppUrlsForToken(text, '', getMe(null))).toBe('')
   })
 
   it('appLinkForToken: one-tap for a bot with a Main Mini App', async () => {
@@ -198,5 +205,29 @@ describe('a file on the app host is not a screen (mirror of the bot)', () => {
       await rewriteAppUrlsForToken(text, '900000042:token', fetchImpl)
     ).toBe(text)
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
+
+describe('no bot, no link', () => {
+  it('drops a raw app URL when getMe cannot say which bot this is', async () => {
+    forgetBotsOfTokensForTests()
+    const failing = (async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+    })) as unknown as typeof fetch
+    const out = await rewriteAppUrlsForToken(
+      'Готово: https://app.t27.ai/browser (смотрите)',
+      'nope',
+      failing
+    )
+    expect(out).not.toContain('app.t27.ai')
+    expect(out).toContain('Готово:')
+  })
+
+  it('keeps the rest of the sentence tidy', () => {
+    expect(dropAppUrls('Вот ссылка https://app.t27.ai/chat , держите')).toBe(
+      'Вот ссылка, держите'
+    )
   })
 })

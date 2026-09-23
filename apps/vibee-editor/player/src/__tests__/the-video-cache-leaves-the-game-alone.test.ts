@@ -48,14 +48,42 @@ describe('the video cache worker and the game', () => {
     expect(fetchFor('https://app.t27.ai/game/a.png')).not.toHaveBeenCalled()
   })
 
-  it('still answers for player media, and for /game/ on another origin', () => {
+  it('still answers for this origin’s own media', () => {
     expect(fetchFor('https://app.t27.ai/lipsync/x.mp4')).toHaveBeenCalledTimes(
       1
     )
-    expect(
-      fetchFor('https://cdn.example.com/game/a.png')
-    ).toHaveBeenCalledTimes(1)
     // The boundary is the directory, not the prefix: /gameplay.png is player media.
     expect(fetchFor('https://app.t27.ai/gameplay.png')).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves another origin alone entirely, /game/ or not', () => {
+    /*
+     * THIS EXPECTATION CHANGED ON PURPOSE (#2898, 2026-09-23).
+     *
+     * It used to read "still answers ... for /game/ on another origin": the
+     * worker matched on the PATH ending in an image extension whatever the
+     * host, so it took over `https://github.com/<login>.png` too -- and then
+     * re-fetched by URL string, which is `mode: 'cors'`, while an <img> asks
+     * `no-cors`. Every remote image whose host sends no
+     * Access-Control-Allow-Origin broke, measured the same day on app.t27.ai
+     * against t27.ai, which registers no worker.
+     *
+     * So a cross-origin request is now none of this cache's business at all,
+     * and this test says that instead. It was left asserting the old truth
+     * when the worker changed, which turned the build red and held the
+     * deploy at the previous image.
+     */
+    expect(
+      fetchFor('https://cdn.example.com/game/a.png')
+    ).not.toHaveBeenCalled()
+    expect(fetchFor('https://github.com/somebody.png')).not.toHaveBeenCalled()
+  })
+
+  it('...except a Telegram picture, which is proxied on purpose', () => {
+    // Their host answers no cross-origin request at all, so this one
+    // exception is deliberate and is what the worker still takes.
+    expect(
+      fetchFor('https://t.me/i/userpic/320/abc.jpg')
+    ).toHaveBeenCalledTimes(1)
   })
 })

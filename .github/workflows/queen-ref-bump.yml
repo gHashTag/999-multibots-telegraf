@@ -1,0 +1,109 @@
+name: Board release (QUEEN_REF follows trinity)
+
+# THE MERGE THAT SHIPPED NOTHING.
+#
+# The board lives in gHashTag/trinity and is baked into this image at a pinned
+# commit (apps/vibee-editor/Dockerfile, ARG QUEEN_REF). Pinning is right: an
+# unpinned clone makes the image unreproducible and lets a merge in another
+# repository silently change what app.t27.ai serves. Railway's watchPatterns
+# cannot see that repository either.
+#
+# But the consequence was that shipping the board meant remembering to edit a
+# Dockerfile in a repo you were not working in. Measured 2026-09-23: QUEEN_REF
+# had sat at 8508131 while THREE merges landed on top of it, including the
+# ROADMAP view - which was merged, believed shipped, and was not on the site.
+# The question that followed ("where is roadmap in production?") had no good
+# answer, because nothing anywhere said the board was behind.
+#
+# So the pin stays and the remembering goes. This opens a pull request with the
+# new commit id and the list of what it brings; a person still merges it, which
+# is the part that should stay human.
+
+on:
+  schedule:
+    # Four times a day. Not a promise of punctuality - a pull request that
+    # arrives an hour late still ships the board, and nothing downstream waits
+    # on this clock.
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: queen-ref-bump
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the pin and the board's head
+        id: read
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pinned=$(sed -n 's/^ARG QUEEN_REF=\([0-9a-f]\{40\}\)$/\1/p' apps/vibee-editor/Dockerfile | head -1)
+          if [ -z "$pinned" ]; then
+            echo "::error::could not read ARG QUEEN_REF from apps/vibee-editor/Dockerfile"
+            exit 1
+          fi
+          head=$(gh api repos/gHashTag/trinity/commits/main --jq .sha)
+          echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          if [ "$pinned" = "$head" ]; then
+            echo "behind=0" >> "$GITHUB_OUTPUT"
+            echo "The board is current at ${pinned:0:7}."
+          else
+            echo "behind=1" >> "$GITHUB_OUTPUT"
+            # What the bump would bring, so the pull request says it rather
+            # than asking a reviewer to go and look.
+            gh api "repos/gHashTag/trinity/compare/$pinned...$head" \
+              --jq '.commits[] | "- \(.sha[0:7]) \(.commit.message | split("\n")[0])"' \
+              | tail -40 > /tmp/brings.md || echo "- (the comparison could not be read)" > /tmp/brings.md
+            echo "count=$(wc -l < /tmp/brings.md | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open the release pull request
+        if: steps.read.outputs.behind == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PINNED: ${{ steps.read.outputs.pinned }}
+          HEAD_SHA: ${{ steps.read.outputs.head }}
+          COUNT: ${{ steps.read.outputs.count }}
+        run: |
+          set -euo pipefail
+          branch="release/board-${HEAD_SHA:0:7}"
+          # An open pull request for this exact commit is already the answer.
+          if gh pr list --head "$branch" --state open --json number --jq 'length' | grep -qv '^0$'; then
+            echo "A pull request for ${HEAD_SHA:0:7} is already open."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$branch"
+          sed -i "s/^ARG QUEEN_REF=$PINNED$/ARG QUEEN_REF=$HEAD_SHA/" apps/vibee-editor/Dockerfile
+          git add apps/vibee-editor/Dockerfile
+          git commit \
+            -m "release(board): ship trinity ${HEAD_SHA:0:7}" \
+            -m "The board is pinned by commit id, so a merge in gHashTag/trinity ships nothing until this line moves. It was ${COUNT} commit(s) behind." \
+            -m "QUEEN_REF ${PINNED:0:7} -> ${HEAD_SHA:0:7}"
+          git push -u origin "$branch"
+          {
+            echo "The board on app.t27.ai is pinned to a commit of gHashTag/trinity, so a merge there ships nothing until this line moves. It was **${COUNT} commit(s)** behind."
+            echo
+            echo "\`QUEEN_REF\` \`${PINNED:0:7}\` → \`${HEAD_SHA:0:7}\`"
+            echo
+            echo "## What this ships"
+            cat /tmp/brings.md
+            echo
+            echo "Opened by \`.github/workflows/queen-ref-bump.yml\`. Merging is deliberately left to a person: this is the release."
+          } > /tmp/body.md
+          gh pr create --base main --head "$branch" \
+            --title "release(board): ship trinity ${HEAD_SHA:0:7}" \
+            --body-file /tmp/body.md

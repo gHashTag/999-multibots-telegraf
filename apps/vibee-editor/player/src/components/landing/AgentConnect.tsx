@@ -91,15 +91,19 @@ export function AgentConnect() {
             <button className="agent-connect__copy" onClick={copy}>
               {copied ? '✓ Скопировано' : 'Copy to agent'}
             </button>
-            <Link to="/chat" className="agent-connect__try">
-              Попробовать агента
+            <Link to="/agents/connect" className="agent-connect__try">
+              {'Выпустить личный ключ'}
+            </Link>
+            <Link to="/agents" className="agent-connect__try">
+              {'Биржа агентов'}
             </Link>
           </div>
         </div>
 
         <p className="agent-connect__note">
-          Ключ выдаётся на твой telegram_id. Инструменты работают от твоего
-          имени — чужой аккаунт не тронуть.
+          {
+            'Ключ выдаётся внутри Telegram, показывается один раз и хранится на сервере только как хеш. Инструменты работают от твоего имени — чужой аккаунт не тронуть.'
+          }
         </p>
       </div>
     </section>

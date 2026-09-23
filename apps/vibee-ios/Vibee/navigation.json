@@ -12,10 +12,10 @@
     },
     {
       "id": "chat",
-      "route": "/chat",
+      "route": "/agents",
       "platforms": ["web", "ios"],
-      "labelKey": "nav.agent",
-      "label": { "en": "Agent", "ru": "Агент" },
+      "labelKey": "nav.agents",
+      "label": { "en": "Agents", "ru": "Агенты" },
       "icon": { "lucide": "Bot", "sf": "cpu" }
     },
     {

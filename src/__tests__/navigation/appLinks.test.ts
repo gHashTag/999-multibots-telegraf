@@ -290,12 +290,26 @@ describe('buttonsForAnswer -- the agent’s answer in the bot chat', () => {
     expect(JSON.stringify(markup)).toContain('act:balance')
   })
 
-  it('without the bot it cannot know whose link to write, and changes nothing', async () => {
+  /*
+   * It used to leave the raw link alone when the caller named no bot, and
+   * the person got a link into a browser where nobody is signed in (owner,
+   * 2026-09-23: "forbid it at the level of the code"). Now the last bot that
+   * answered anybody is used, and with no bot at all the link is removed
+   * rather than sent dead (appLinks.ts insideTelegram).
+   */
+  it('without the bot it falls back to the last one, and never leaves a raw link', async () => {
     const { buttonsForAnswer } = await import(
       '@/navigation/helpers/actionButtons'
     )
+    const { forgetLastKnownBotForTests, rememberBotInfo } = await import(
+      '@/navigation/helpers/appLinks'
+    )
+    forgetLastKnownBotForTests()
+    expect(buttonsForAnswer('https://app.t27.ai/hive', true, {}).text).toBe('')
+    rememberBotInfo({ username: BOT, has_main_web_app: false })
     const { text } = buttonsForAnswer('https://app.t27.ai/hive', true, {})
-    expect(text).toBe('https://app.t27.ai/hive')
+    expect(text).toContain(`t.me/${BOT}`)
+    expect(text).not.toContain('app.t27.ai')
   })
 
   it('a bot WITH a Main Mini App gets the one-tap link', async () => {

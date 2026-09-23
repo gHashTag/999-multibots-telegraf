@@ -50,6 +50,33 @@ html[data-keyboard='open'] .chat-page {
 .chat-toolbar:empty {
   display: none;
 }
+.chat-specialist {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+  background: rgba(0, 255, 136, 0.045);
+  color: var(--t27-muted);
+  font-size: 11px;
+}
+.chat-specialist__back {
+  color: var(--t27-text);
+  text-decoration: none;
+}
+.chat-specialist span {
+  color: var(--t27-accent);
+}
+.chat-specialist i {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--t27-accent);
+  box-shadow: 0 0 9px rgba(0, 255, 136, 0.7);
+}
 .chat-title__logo {
   width: 34px;
   height: 34px;

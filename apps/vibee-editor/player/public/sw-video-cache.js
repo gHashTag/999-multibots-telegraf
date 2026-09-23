@@ -54,6 +54,15 @@ self.addEventListener('activate', event => {
   )
 })
 
+/**
+ * The one cross-origin case this worker still handles: Telegram user pictures,
+ * proxied below because their host answers no cross-origin request at all.
+ * Named once so the guard above and the proxy below cannot drift apart.
+ */
+function isTelegramPicture(rawUrl) {
+  return rawUrl.includes('t.me/i/userpic/') || rawUrl.includes('telegram.me')
+}
+
 // Fetch event - intercept video requests
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url)
@@ -62,6 +71,29 @@ self.addEventListener('fetch', event => {
   // The Queen game is served from /game/ on this origin and loads its own
   // assets; the player's cache must not answer for them.
   if (url.origin === self.location.origin && pathname.startsWith('/game/'))
+    return
+
+  // ANOTHER ORIGIN'S IMAGE IS NOT THIS CACHE'S BUSINESS.
+  //
+  // This worker matched on the PATH ending in an image extension, whatever the
+  // host, so `https://github.com/<login>.png` was taken over by a cache built
+  // for this origin's own video. It then re-fetched by URL STRING, and a fetch
+  // built from a string is `mode: 'cors'` - while the request an <img> makes is
+  // `no-cors`. A cross-origin image whose host sends no
+  // Access-Control-Allow-Origin therefore failed every time, and the page saw a
+  // broken image with no error of its own to explain it.
+  //
+  // Measured 2026-09-23: the same avatar URL loaded on t27.ai, which registers
+  // no worker, and failed on app.t27.ai, which registers this one. That is the
+  // whole difference. It was breaking every remote image the app shows, not
+  // only the leaderboard's faces.
+  //
+  // Telegram pictures are the one deliberate exception below: they are proxied
+  // on purpose, because their host answers no cross-origin request at all.
+  if (
+    url.origin !== self.location.origin &&
+    !isTelegramPicture(event.request.url)
+  )
     return
 
   // Only cache video and image files
@@ -100,10 +132,7 @@ async function handleCacheFirst(request) {
 
   // Check if this is a Telegram image URL - proxy it through our API
   let fetchUrl = request.url
-  if (
-    request.url.includes('t.me/i/userpic/') ||
-    request.url.includes('telegram.me')
-  ) {
+  if (isTelegramPicture(request.url)) {
     // Прокси картинок Telegram.
     //
     // Был зашит vibee-api-server.fly.dev — площадка, с которой проект ушёл на
