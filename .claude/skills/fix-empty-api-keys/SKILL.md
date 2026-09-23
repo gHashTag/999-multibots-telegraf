@@ -1,6 +1,6 @@
 ---
-name: "Fix Empty API Keys in Payload"
-description: "Fixes empty API keys (ElevenLabs, HeyGen, Hedra) in render-riddle payload when secrets are not loaded from Infisical into process.env"
+name: 'Fix Empty API Keys in Payload'
+description: 'Fixes empty API keys (ElevenLabs, HeyGen, Hedra) in render-riddle payload when secrets are not loaded from Infisical into process.env'
 ---
 
 # Fix Empty API Keys in Payload
@@ -8,6 +8,7 @@ description: "Fixes empty API keys (ElevenLabs, HeyGen, Hedra) in render-riddle 
 ## When to Use This Skill
 
 **Activate when:**
+
 - User reports empty `eleven_labs_api_key` or `heygen.api_key` in payload
 - Logs show `"eleven_labs_api_key": ""` or `"api_key": ""` in render-riddle event
 - User mentions "ключ не передается" or "API key empty"
@@ -15,6 +16,7 @@ description: "Fixes empty API keys (ElevenLabs, HeyGen, Hedra) in render-riddle 
 - Payload contains empty fields despite keys existing in Infisical
 
 **Example trigger messages:**
+
 - "Почему мы не передали правильный ключ?"
 - "Ключ не передается. Раньше передавался."
 - "eleven_labs_api_key пустой в запросе"
@@ -26,10 +28,11 @@ description: "Fixes empty API keys (ElevenLabs, HeyGen, Hedra) in render-riddle 
 
 ```bash
 # Run diagnostic script
-npx tsx scripts/check-infisical-keys.ts
+npx tsx scripts/infisical/check-infisical-keys.ts
 ```
 
 **Expected problems:**
+
 ```
 ✅ ELEVENLABS_API_KEY: sk_... (51 символов)
 ❌ HEYGEN_COCOAGE_API_KEY: НЕ НАЙДЕН  ← Missing!
@@ -38,6 +41,7 @@ npx tsx scripts/check-infisical-keys.ts
 ```
 
 **Root cause:**
+
 1. Keys exist in Infisical but not loaded into `process.env`
 2. Key names missing from loading list in `src/index.ts`
 3. Keys missing from Infisical completely
@@ -48,7 +52,7 @@ npx tsx scripts/check-infisical-keys.ts
 
 ```bash
 # Check what keys are loaded from Infisical
-npx tsx scripts/check-infisical-keys.ts
+npx tsx scripts/infisical/check-infisical-keys.ts
 ```
 
 If keys show as ❌ НЕ НАЙДЕН → Go to Step 4
@@ -73,10 +77,10 @@ const apiKeys = [
   'RENDER_INNGEST_SIGNING_KEY',
   'NGROK_AUTHTOKEN',
   // AI Avatar & Voice Generation Services
-  'ELEVENLABS_API_KEY',         // ✅ ElevenLabs для генерации голоса
-  'HEYGEN_COCOAGE_API_KEY',     // ✅ HeyGen Cocoage набор (шаблон 2)
-  'HEYGEN_HAIM_API_KEY',        // ✅ HeyGen Haim набор (другие шаблоны)
-  'HEDRA_API_KEY'               // ✅ Hedra lip-sync
+  'ELEVENLABS_API_KEY', // ✅ ElevenLabs для генерации голоса
+  'HEYGEN_COCOAGE_API_KEY', // ✅ HeyGen Cocoage набор (шаблон 2)
+  'HEYGEN_HAIM_API_KEY', // ✅ HeyGen Haim набор (другие шаблоны)
+  'HEDRA_API_KEY', // ✅ Hedra lip-sync
 ]
 ```
 
@@ -87,6 +91,7 @@ npm run dev
 ```
 
 Check logs for successful loading:
+
 ```
 ✅ ELEVENLABS_API_KEY загружен
 ✅ HEYGEN_COCOAGE_API_KEY загружен
@@ -123,17 +128,19 @@ If keys show as ❌ НЕ НАЙДЕН in diagnostic:
 4. **Restart and verify:**
    ```bash
    npm run dev
-   npx tsx scripts/check-infisical-keys.ts
+   npx tsx scripts/infisical/check-infisical-keys.ts
    ```
 
 ## Verification
 
 **1. Check diagnostic script:**
+
 ```bash
-npx tsx scripts/check-infisical-keys.ts
+npx tsx scripts/infisical/check-infisical-keys.ts
 ```
 
 Expected output:
+
 ```
 ✅ ELEVENLABS_API_KEY: sk_... (51 символов)
 ✅ HEYGEN_COCOAGE_API_KEY: ... (длина символов)
@@ -144,6 +151,7 @@ Expected output:
 **2. Check payload in logs:**
 
 When creating AI Reels (template 2 with HeyGen), logs should show:
+
 ```
 🎬 [AI REELS RENDER] FULL PAYLOAD DETAILS
 eleven_labs_api_key_present: true
@@ -154,6 +162,7 @@ avatar_settings:
 ```
 
 **3. Test generation:**
+
 - Create AI Reels video through bot
 - Check that render-server receives non-empty keys
 - Verify video generation completes successfully
@@ -162,7 +171,7 @@ avatar_settings:
 
 ### Issue 1: Keys exist in Infisical but still empty in payload
 
-**Symptom:** `npx tsx scripts/check-infisical-keys.ts` shows ✅ but payload is empty
+**Symptom:** `npx tsx scripts/infisical/check-infisical-keys.ts` shows ✅ but payload is empty
 
 **Solution:** Keys not loaded into `process.env` - follow Step 2 to add them to loading list
 
@@ -171,6 +180,7 @@ avatar_settings:
 **Symptom:** Only HEYGEN_HAIM_API_KEY exists in Infisical
 
 **Solution:**
+
 - If using only one HeyGen account, duplicate the key:
   ```
   HEYGEN_COCOAGE_API_KEY = [same as HEYGEN_HAIM_API_KEY]
@@ -182,6 +192,7 @@ avatar_settings:
 **Symptom:** Dev works, production has empty keys
 
 **Solution:**
+
 1. Switch Infisical environment to `prod`:
    ```bash
    # In .env file
@@ -195,6 +206,7 @@ avatar_settings:
 **Symptom:** API keys present but voice_id is empty
 
 **Solution:** Voice IDs have fallback values in `heygen-avatars-config.ts`:
+
 - Cocoage: `2b2e1f15157b454487f1250ffe586d7a`
 - Haim: `dc9cd149b0d741d6934a1d95e3f3ef00`
 
@@ -203,13 +215,15 @@ These are used automatically if not overridden in Infisical.
 ## Related Files
 
 **Key files involved:**
+
 - `src/index.ts` (lines 394-413) - Infisical loading logic
 - `src/inngest_app/render-server-client.ts` (line 288) - Payload creation
 - `src/scenes/lipSyncWizard/heygen-avatars-config.ts` - HeyGen configuration
 - `src/scenes/lipSyncWizard/ai-reels-render-wizard.ts` - Scene that calls payload creation
-- `scripts/check-infisical-keys.ts` - Diagnostic tool
+- `scripts/infisical/check-infisical-keys.ts` - Diagnostic tool
 
 **Configuration files:**
+
 - `.env` - Infisical credentials (only 5 variables)
 - Infisical Dashboard - All other secrets (50+ variables)
 
@@ -218,7 +232,7 @@ These are used automatically if not overridden in Infisical.
 - **Documentation:** `HEYGEN_KEYS_FIX.md` - Detailed fix documentation
 - **Infisical Skill:** `.claude/skills/infisical-secrets/` - Secret management
 - **Project Knowledge:** `.claude/skills/project-knowledge-base/` - Architecture info
-- **Diagnostic Script:** `scripts/check-infisical-keys.ts` - Key checker
+- **Diagnostic Script:** `scripts/infisical/check-infisical-keys.ts` - Key checker
 
 ## Technical Background
 
@@ -229,6 +243,7 @@ These are used automatically if not overridden in Infisical.
 3. **Missing keys:** If key not in loading list → not in `process.env` → empty in payload
 
 **Architecture flow:**
+
 ```
 Infisical Cloud
     ↓ (initInfisical)
@@ -240,6 +255,7 @@ Render Server Payload
 ```
 
 **Key locations:**
+
 - Cocoage API key: Used for template 2 (custom avatars)
 - Haim API key: Used for other templates
 - Voice IDs: Map avatars to voice models for speech synthesis
@@ -257,7 +273,7 @@ Render Server Payload
 **To prevent this issue in future:**
 
 1. **Always add new API keys to loading list** in `src/index.ts`
-2. **Run diagnostic after adding new services:** `npx tsx scripts/check-infisical-keys.ts`
+2. **Run diagnostic after adding new services:** `npx tsx scripts/infisical/check-infisical-keys.ts`
 3. **Document key requirements** when adding new AI providers
 4. **Use diagnostic script in CI/CD** to catch missing keys early
 

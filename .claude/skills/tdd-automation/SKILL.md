@@ -5,13 +5,14 @@ description: Automated Test-Driven Development with RED-GREEN-REFACTOR cycle enf
 
 # 🧪 TDD Automation - Автоматизация Test-First Разработки
 
-**Sanskrit Wisdom**: 🕉️ *"परीक्षितं प्रथमं कर्तव्यम्"* (Parikshitam Prathamam Kartavyam) - "Сначала проверь, потом действуй"
+**Sanskrit Wisdom**: 🕉️ _"परीक्षितं प्रथमं कर्तव्यम्"_ (Parikshitam Prathamam Kartavyam) - "Сначала проверь, потом действуй"
 
 **Философия**: "Tests are not afterthought. Tests are forethought. Code follows tests."
 
 ## 🎯 Core Knowledge
 
 Этот Skill автоматизирует Test-Driven Development процесс:
+
 - 🔴 **RED**: Написать failing test первым (ОБЯЗАТЕЛЬНО)
 - 🟢 **GREEN**: Написать минимальный код для прохождения теста
 - 🔵 **REFACTOR**: Улучшить код, сохраняя тесты зелеными
@@ -24,10 +25,9 @@ description: Automated Test-Driven Development with RED-GREEN-REFACTOR cycle enf
 ### Phase 1: 🔴 RED (Test First)
 
 ```yaml
-Правило: "Код БЕЗ теста = технический долг"
+Правило: 'Код БЕЗ теста = технический долг'
 
-Процесс:
-  1. Написать FAILING test
+Процесс: 1. Написать FAILING test
   2. Test ДОЛЖЕН падать (если проходит - тест бесполезен)
   3. Test описывает ОЖИДАЕМОЕ поведение
   4. ТОЛЬКО после этого можно писать код
@@ -46,47 +46,48 @@ description: Automated Test-Driven Development with RED-GREEN-REFACTOR cycle enf
 describe('HeyGenClient', () => {
   describe('createAvatar', () => {
     it('should validate input parameters', async () => {
-      const client = new HeyGenClient();
+      const client = new HeyGenClient()
 
       await expect(
         client.createAvatar({
-          text: '',  // Invalid: empty text
-          voiceId: 'invalid'
+          text: '', // Invalid: empty text
+          voiceId: 'invalid',
         })
-      ).rejects.toThrow('Invalid parameters');
-    });
+      ).rejects.toThrow('Invalid parameters')
+    })
 
     it('should call HeyGen API with correct payload', async () => {
-      const client = new HeyGenClient();
+      const client = new HeyGenClient()
       const mockFetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ video_id: 'abc123' })
-      });
+        json: () => Promise.resolve({ video_id: 'abc123' }),
+      })
 
-      global.fetch = mockFetch;
+      global.fetch = mockFetch
 
       await client.createAvatar({
         text: 'Hello world',
         voiceId: 'voice_123',
-        avatarId: 'avatar_456'
-      });
+        avatarId: 'avatar_456',
+      })
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://api.heygen.com/v1/video.generate',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'X-Api-Key': expect.any(String)
+            'X-Api-Key': expect.any(String),
           }),
-          body: expect.stringContaining('Hello world')
+          body: expect.stringContaining('Hello world'),
         })
-      );
-    });
-  });
-});
+      )
+    })
+  })
+})
 ```
 
 **Run Test (RED)**:
+
 ```bash
 npm test -- heygen-client.test.ts
 
@@ -105,10 +106,9 @@ npm test -- heygen-client.test.ts
 ### Phase 2: 🟢 GREEN (Minimal Implementation)
 
 ```yaml
-Правило: "Делай минимум для прохождения теста"
+Правило: 'Делай минимум для прохождения теста'
 
-Процесс:
-  1. Реализовать МИНИМАЛЬНЫЙ код
+Процесс: 1. Реализовать МИНИМАЛЬНЫЙ код
   2. НЕ добавлять "лишнюю" функциональность
   3. Test ДОЛЖЕН пройти
   4. Код может быть "некрасивым" - это нормально
@@ -125,26 +125,28 @@ npm test -- heygen-client.test.ts
 // src/services/heygen/heygen-client.ts
 
 export interface CreateAvatarParams {
-  text: string;
-  voiceId: string;
-  avatarId: string;
+  text: string
+  voiceId: string
+  avatarId: string
 }
 
 export class HeyGenClient {
-  private apiKey: string;
+  private apiKey: string
 
   constructor() {
-    this.apiKey = process.env.HEYGEN_API_KEY || '';
+    this.apiKey = process.env.HEYGEN_API_KEY || ''
   }
 
-  async createAvatar(params: CreateAvatarParams): Promise<{ video_id: string }> {
+  async createAvatar(
+    params: CreateAvatarParams
+  ): Promise<{ video_id: string }> {
     // Validation (делает тест зеленым)
     if (!params.text || params.text.trim() === '') {
-      throw new Error('Invalid parameters');
+      throw new Error('Invalid parameters')
     }
 
     if (params.voiceId === 'invalid') {
-      throw new Error('Invalid parameters');
+      throw new Error('Invalid parameters')
     }
 
     // API call (делает тест зеленым)
@@ -152,25 +154,26 @@ export class HeyGenClient {
       method: 'POST',
       headers: {
         'X-Api-Key': this.apiKey,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         text: params.text,
         voice_id: params.voiceId,
-        avatar_id: params.avatarId
-      })
-    });
+        avatar_id: params.avatarId,
+      }),
+    })
 
     if (!response.ok) {
-      throw new Error('API request failed');
+      throw new Error('API request failed')
     }
 
-    return response.json();
+    return response.json()
   }
 }
 ```
 
 **Run Test (GREEN)**:
+
 ```bash
 npm test -- heygen-client.test.ts
 
@@ -190,10 +193,9 @@ npm test -- heygen-client.test.ts
 ### Phase 3: 🔵 REFACTOR (Improve Code Quality)
 
 ```yaml
-Правило: "Улучшай код, сохраняя тесты зелеными"
+Правило: 'Улучшай код, сохраняя тесты зелеными'
 
-Процесс:
-  1. Улучшить структуру кода
+Процесс: 1. Улучшить структуру кода
   2. Извлечь дублирующуюся логику
   3. Улучшить читаемость
   4. Тесты ДОЛЖНЫ оставаться зелеными
@@ -210,41 +212,41 @@ npm test -- heygen-client.test.ts
 // src/services/heygen/heygen-client.ts (refactored)
 
 export interface CreateAvatarParams {
-  text: string;
-  voiceId: string;
-  avatarId: string;
+  text: string
+  voiceId: string
+  avatarId: string
 }
 
 interface HeyGenApiResponse {
-  video_id: string;
+  video_id: string
 }
 
 export class HeyGenClient {
-  private readonly apiKey: string;
-  private readonly baseUrl = 'https://api.heygen.com/v1';
+  private readonly apiKey: string
+  private readonly baseUrl = 'https://api.heygen.com/v1'
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || process.env.HEYGEN_API_KEY || '';
+    this.apiKey = apiKey || process.env.HEYGEN_API_KEY || ''
   }
 
   async createAvatar(params: CreateAvatarParams): Promise<HeyGenApiResponse> {
     // Extracted validation
-    this.validateParams(params);
+    this.validateParams(params)
 
     // Extracted API call
-    const response = await this.callApi('/video.generate', params);
+    const response = await this.callApi('/video.generate', params)
 
-    return response;
+    return response
   }
 
   // Extracted method for better testability
   private validateParams(params: CreateAvatarParams): void {
     if (!params.text?.trim()) {
-      throw new Error('Invalid parameters: text is required');
+      throw new Error('Invalid parameters: text is required')
     }
 
     if (params.voiceId === 'invalid') {
-      throw new Error('Invalid parameters: invalid voice ID');
+      throw new Error('Invalid parameters: invalid voice ID')
     }
   }
 
@@ -256,34 +258,35 @@ export class HeyGenClient {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify(this.transformPayload(payload))
-    });
+      body: JSON.stringify(this.transformPayload(payload)),
+    })
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`);
+      throw new Error(`API request failed: ${response.statusText}`)
     }
 
-    return response.json();
+    return response.json()
   }
 
   private getHeaders(): Record<string, string> {
     return {
       'X-Api-Key': this.apiKey,
-      'Content-Type': 'application/json'
-    };
+      'Content-Type': 'application/json',
+    }
   }
 
   private transformPayload(params: CreateAvatarParams): Record<string, string> {
     return {
       text: params.text,
       voice_id: params.voiceId,
-      avatar_id: params.avatarId
-    };
+      avatar_id: params.avatarId,
+    }
   }
 }
 ```
 
 **Run Test (REFACTOR)**:
+
 ```bash
 npm test -- heygen-client.test.ts
 
@@ -318,6 +321,7 @@ export class HeyGenClient {
 ```
 
 **Why Wrong**:
+
 - Код может быть нетестируемым (tight coupling)
 - Нет гарантии что код работает
 - Tests = afterthought, не design tool
@@ -329,14 +333,15 @@ export class HeyGenClient {
 // ❌ НЕПРАВИЛЬНО - тест проходит сразу
 
 it('should return success', async () => {
-  const result = await someFunction();
-  expect(result).toBeTruthy();  // Всегда true?
-});
+  const result = await someFunction()
+  expect(result).toBeTruthy() // Всегда true?
+})
 
 // Проблема: Тест не проверяет реальную функциональность
 ```
 
 **Why Wrong**:
+
 - Тест не проверяет ожидаемое поведение
 - False confidence (тест бесполезен)
 - Не обнаружит баги
@@ -348,12 +353,12 @@ it('should return success', async () => {
 
 export class HeyGenClient {
   async createAvatar(params: any) {
-    if (!params.text || params.text.trim() === '') throw new Error('...');
+    if (!params.text || params.text.trim() === '') throw new Error('...')
     // ... rest of code ...
   }
 
   async createVideo(params: any) {
-    if (!params.text || params.text.trim() === '') throw new Error('...');
+    if (!params.text || params.text.trim() === '') throw new Error('...')
     // ... same validation duplicated ...
   }
 }
@@ -362,6 +367,7 @@ export class HeyGenClient {
 ```
 
 **Why Wrong**:
+
 - Code duplication
 - Harder to maintain
 - Bugs multiply (fix in one place, miss in another)
@@ -418,6 +424,7 @@ All files             |   85.23 |    78.45 |   82.76 |   85.67 |
 ### 2. ✏️ HeyGen Client Implementation
 
 **TDD Cycle**:
+
 - 🔴 RED: ✅ Tests written and failing (expected)
   - File: `__tests__/heygen-client.test.ts`
   - Status: 2 tests fail ❌
@@ -433,10 +440,12 @@ All files             |   85.23 |    78.45 |   82.76 |   85.67 |
 ```
 
 **After GREEN Phase**:
+
 ```markdown
 ### 2. ✏️ HeyGen Client Implementation
 
 **TDD Cycle**:
+
 - 🔴 RED: ✅ Tests written and failing
 - 🟢 GREEN: ✅ Tests passing (all 2 tests ✅)
   - File: `src/services/heygen/heygen-client.ts`
@@ -450,11 +459,38 @@ All files             |   85.23 |    78.45 |   82.76 |   85.67 |
 
 ## 🎯 Automated TDD Scripts
 
-### Script 1: tdd-cycle.sh
+### Script 1: tdd-cycle.sh — TEMPLATE ONLY, NOT IN THIS REPOSITORY
+
+> ⚠️ **There is no `tdd-cycle.sh` file.** Neither `./tdd-cycle.sh` nor
+> `./scripts/tdd-cycle.sh` exists, and neither ever did: no commit on any branch
+> has added the file, and every mention of that name anywhere in the history is
+> documentation — this section, plus a Cursor task note from May 2025 that
+> already listed the script as a plan (in `.cursor/rules/current_task.mdc`,
+> itself deleted since). There is nothing to run by path, so do not wire it into
+> a hook, a cron entry or CI.
+>
+> To use it, copy the block below into `scripts/tdd-cycle.sh` yourself and
+> `chmod +x` it. It has never been executed, so expect to debug it — and note
+> two things it gets wrong about this repository before you start:
+>
+> - **The runner is vitest, not jest.** `npm test` here is
+>   `cross-env ... bun run vitest`, and `package.json` has no `test:coverage`
+>   script at all. The `--coverage --silent` call and the `"All files"` column
+>   the template parses are jest output shapes.
+> - **It judges by grepping output instead of by exit code.** `grep -q "PASS"`
+>   and `grep -q "FAIL"` are exactly the habit `scripts/verify.cjs` was written
+>   to avoid, after it had already produced two false greens here. Use the exit
+>   status of the test command.
+>
+> What does exist, and is worth reaching for instead: `npm test` (vitest),
+> `npm run test:gate` (`scripts/test-gate.cjs` — regression check that compares
+> sets of passing tests, not counts) and `bun run verify` (`scripts/verify.cjs`
+> — the full release check, judged by exit code only).
 
 ```bash
 #!/bin/bash
-# scripts/tdd-cycle.sh - Automated TDD cycle enforcement
+# TEMPLATE for scripts/tdd-cycle.sh - automated TDD cycle enforcement.
+# This file is NOT in the repository and never was; see the note above.
 
 set -e
 
@@ -521,15 +557,23 @@ case $PHASE in
     ;;
 
   *)
-    echo "Usage: ./tdd-cycle.sh [red|green|refactor] <test-file>"
+    echo "Usage: scripts/tdd-cycle.sh [red|green|refactor] <test-file>"
     exit 1
     ;;
 esac
 ```
 
-### Usage Example
+### Usage Example — only after you create the script yourself
+
+The commands below run the template above. They work only once you have saved
+it as `scripts/tdd-cycle.sh` and made it executable; on a fresh checkout of this
+repository every one of them fails with "No such file or directory", because the
+file is not shipped here.
 
 ```bash
+# One-time, by hand: save the template above as scripts/tdd-cycle.sh, then
+#   chmod +x scripts/tdd-cycle.sh
+
 # Phase 1: Write failing test
 ./scripts/tdd-cycle.sh red heygen-client.test.ts
 
@@ -655,19 +699,22 @@ Together: Complete visibility of TDD progress
 Each TDD phase with spiritual guidance:
 
 ### RED Phase
-*"न हि कश्चित्क्षणमपि जातु तिष्ठत्यकर्मकृत्"*
+
+_"न हि कश्चित्क्षणमपि जातु तिष्ठत्यकर्मकृत्"_
 "Никто не может оставаться бездействующим даже мгновение" - Бхагавад-гита 3.5
 
 → Write the test NOW. Don't delay.
 
 ### GREEN Phase
-*"कर्मण्येवाधिकारस्ते मा फलेषु कदाचन"*
+
+_"कर्मण्येवाधिकारस्ते मा फलेषु कदाचन"_
 "Твое право - на действие, но никогда - на его плоды" - Бхагавад-гита 2.47
 
 → Focus on making test pass, not on perfect code.
 
 ### REFACTOR Phase
-*"योगः कर्मसु कौशलम्"*
+
+_"योगः कर्मसु कौशलम्"_
 "Йога есть искусство в действиях" - Бхагавад-гита 2.50
 
 → Refine your craft. Make code beautiful.

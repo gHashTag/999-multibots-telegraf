@@ -4,7 +4,7 @@
 
 ```bash
 # 1. Check what's missing
-npx tsx scripts/check-infisical-keys.ts
+npx tsx scripts/infisical/check-infisical-keys.ts
 
 # 2. If keys exist in Infisical but not loading:
 #    → Edit src/index.ts line ~396
@@ -14,12 +14,12 @@ npx tsx scripts/check-infisical-keys.ts
 npm run dev
 
 # 4. Verify
-npx tsx scripts/check-infisical-keys.ts
+npx tsx scripts/infisical/check-infisical-keys.ts
 ```
 
 ## 📋 Checklist
 
-- [ ] Run diagnostic: `npx tsx scripts/check-infisical-keys.ts`
+- [ ] Run diagnostic: `npx tsx scripts/infisical/check-infisical-keys.ts`
 - [ ] Identify missing keys (❌ НЕ НАЙДЕН)
 - [ ] Add to `src/index.ts` apiKeys array (if keys exist in Infisical)
 - [ ] Or add to Infisical Dashboard (if keys completely missing)
@@ -39,12 +39,13 @@ Must be in Infisical AND loaded in `src/index.ts`:
 ## 🎯 Success Check
 
 Payload should show:
+
 ```json
 {
-  "eleven_labs_api_key": "sk_...",  // ✅ Not empty
+  "eleven_labs_api_key": "sk_...", // ✅ Not empty
   "avatar_settings": {
     "heygen": {
-      "api_key": "..."  // ✅ Not empty
+      "api_key": "..." // ✅ Not empty
     }
   }
 }
