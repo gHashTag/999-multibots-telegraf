@@ -3,6 +3,13 @@ import { Link } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
+import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
+import {
+  LEADS_SECTIONS,
+  LeadsSections,
+  type LeadsSectionId,
+} from '@/components/Leads/LeadsSections'
+import { fetchSessions, leadsBackendOk } from '@/atoms/leads'
 import {
   loadOverview,
   loadWaiting,
@@ -56,6 +63,34 @@ type ClientsFilter = 'all' | 'clients' | 'leads'
 
 export default function CrmPage() {
   const { t } = useLanguage()
+  /*
+   * LEADS ARE CLIENT WORK, SO THEY ARE SECTIONS HERE.
+   *
+   * They used to be a screen of their own at /search whose five tabs sat at
+   * the BOTTOM, underneath the app's own tab bar (owner's screenshot,
+   * 2026-09-23). Now this screen owns them -- but only while the server
+   * actually has them. One request answers that (the same one the account
+   * selector makes anyway), and until it does, the row is not drawn at all:
+   * a section that can only say "no server" is not a section.
+   */
+  const [leadsLive, setLeadsLive] = useState(false)
+  useEffect(() => {
+    let alive = true
+    void fetchSessions().then(() => {
+      if (alive) setLeadsLive(leadsBackendOk === true)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  /*
+   * Every id is accepted by the reader, so a link to ?tab=leads survives the
+   * moment before the probe answers; if the server turns out not to have
+   * them, the screen falls back to its own work rather than to an empty room.
+   */
+  const [asked, pick] = useSectionTab(['work', ...LEADS_SECTIONS])
+  const tab = leadsLive || asked === 'work' ? asked : 'work'
   const [overview, setOverview] = useState<Reached<Overview>>(empty)
   const [waiting, setWaiting] = useState<Reached<WaitingList>>(empty)
   const [leads, setLeads] = useState<Reached<HotLeads>>(empty)
@@ -165,6 +200,13 @@ export default function CrmPage() {
     ['leads', onlyLeads.length],
   ]
 
+  const sections = [
+    { id: 'work', label: t('crm.section.work') },
+    ...(leadsLive
+      ? LEADS_SECTIONS.map(id => ({ id, label: t(`crm.section.${id}`) }))
+      : []),
+  ]
+
   return (
     <div className="crm">
       <header className="crm__top">
@@ -174,167 +216,188 @@ export default function CrmPage() {
         </button>
       </header>
 
-      {panel(
-        t('crm.waiting.title'),
-        waiting,
-        w && w.total === 0 ? (
-          <p className="crm__empty">{t('crm.waiting.none')}</p>
-        ) : (
-          <>
-            {w && (
-              <p className="crm__counts">
-                {t('crm.waiting.counts', {
-                  ours: w.ours,
-                  due: w.due,
-                  theirs: w.theirs,
-                })}
-              </p>
-            )}
-            <ul className="crm__list">{(w?.waiting ?? []).map(row)}</ul>
-          </>
-        )
+      {/* One row, and only when there is more than one thing in it. */}
+      {sections.length > 1 ? (
+        <SectionStrip
+          sections={sections}
+          active={tab}
+          onPick={pick}
+          label={t('crm.sections')}
+        />
+      ) : null}
+
+      {tab === 'work' ? null : (
+        <LeadsSections section={tab as LeadsSectionId} />
       )}
 
-      {panel(
-        t('crm.leads.title'),
-        leads,
-        l && (
-          <>
-            <p className="crm__counts">
-              {t('crm.leads.counts', { found: l.found })}
-              {l.setAsideTouched > 0
-                ? ` · ${t('crm.leads.setAside', { n: l.setAsideTouched })}`
-                : ''}
-            </p>
-            <ul className="crm__list">
-              {l.leads.map(p => (
-                <li key={p.telegramId} className="crm__row">
-                  <div className="crm__who">
-                    <Link to={`/crm/${p.telegramId}`} className="crm__open">
-                      {p.name || p.telegramId}
-                    </Link>
-                    {p.link ? (
-                      <span className="crm__stage">
-                        <a href={p.link} target="_blank" rel="noreferrer">
-                          t.me
-                        </a>
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="crm__why">
-                    {p.bot ?? '—'} ·{' '}
-                    {t('crm.leads.quiet', { days: p.quietDays ?? '?' })}
+      {tab !== 'work' ? null : (
+        <>
+          {panel(
+            t('crm.waiting.title'),
+            waiting,
+            w && w.total === 0 ? (
+              <p className="crm__empty">{t('crm.waiting.none')}</p>
+            ) : (
+              <>
+                {w && (
+                  <p className="crm__counts">
+                    {t('crm.waiting.counts', {
+                      ours: w.ours,
+                      due: w.due,
+                      theirs: w.theirs,
+                    })}
                   </p>
-                  <div className="crm__acts">
-                    <button
-                      type="button"
-                      onClick={() => void touch(p.telegramId, 'written')}
+                )}
+                <ul className="crm__list">{(w?.waiting ?? []).map(row)}</ul>
+              </>
+            )
+          )}
+
+          {panel(
+            t('crm.leads.title'),
+            leads,
+            l && (
+              <>
+                <p className="crm__counts">
+                  {t('crm.leads.counts', { found: l.found })}
+                  {l.setAsideTouched > 0
+                    ? ` · ${t('crm.leads.setAside', { n: l.setAsideTouched })}`
+                    : ''}
+                </p>
+                <ul className="crm__list">
+                  {l.leads.map(p => (
+                    <li key={p.telegramId} className="crm__row">
+                      <div className="crm__who">
+                        <Link to={`/crm/${p.telegramId}`} className="crm__open">
+                          {p.name || p.telegramId}
+                        </Link>
+                        {p.link ? (
+                          <span className="crm__stage">
+                            <a href={p.link} target="_blank" rel="noreferrer">
+                              t.me
+                            </a>
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="crm__why">
+                        {p.bot ?? '—'} ·{' '}
+                        {t('crm.leads.quiet', { days: p.quietDays ?? '?' })}
+                      </p>
+                      <div className="crm__acts">
+                        <button
+                          type="button"
+                          onClick={() => void touch(p.telegramId, 'written')}
+                        >
+                          {t('crm.act.written')}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )
+          )}
+
+          {panel(
+            t('crm.clients.title'),
+            clients,
+            c && allClients.length === 0 ? (
+              <p className="crm__empty">{t('crm.clients.none')}</p>
+            ) : (
+              <>
+                {c && !c.paidKnown ? (
+                  // Payments could not be read: every `paid` below is false for
+                  // lack of data, and the reader must not take it for a fact.
+                  <p className="crm__counts crm__paid-unknown">
+                    {t('crm.clients.paidUnknown')}
+                  </p>
+                ) : null}
+                {c ? (
+                  <div className="crm__filter" role="group">
+                    {filterChips.map(([kind, n]) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        className={`crm__chip${
+                          clientsFilter === kind ? ' crm__chip--on' : ''
+                        }`}
+                        aria-pressed={clientsFilter === kind}
+                        onClick={() => setClientsFilter(kind)}
+                      >
+                        {t(`crm.clients.filter.${kind}`)} {n}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <ul className="crm__list">
+                  {shownClients.map(x => (
+                    <li
+                      key={x.telegramId}
+                      className="crm__row crm__row--client"
                     >
-                      {t('crm.act.written')}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </>
-        )
-      )}
-
-      {panel(
-        t('crm.clients.title'),
-        clients,
-        c && allClients.length === 0 ? (
-          <p className="crm__empty">{t('crm.clients.none')}</p>
-        ) : (
-          <>
-            {c && !c.paidKnown ? (
-              // Payments could not be read: every `paid` below is false for
-              // lack of data, and the reader must not take it for a fact.
-              <p className="crm__counts crm__paid-unknown">
-                {t('crm.clients.paidUnknown')}
-              </p>
-            ) : null}
-            {c ? (
-              <div className="crm__filter" role="group">
-                {filterChips.map(([kind, n]) => (
-                  <button
-                    key={kind}
-                    type="button"
-                    className={`crm__chip${
-                      clientsFilter === kind ? ' crm__chip--on' : ''
-                    }`}
-                    aria-pressed={clientsFilter === kind}
-                    onClick={() => setClientsFilter(kind)}
-                  >
-                    {t(`crm.clients.filter.${kind}`)} {n}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <ul className="crm__list">
-              {shownClients.map(x => (
-                <li key={x.telegramId} className="crm__row crm__row--client">
-                  <div className="crm__who">
-                    <Link to={`/crm/${x.telegramId}`} className="crm__open">
-                      {x.name || x.telegramId}
-                      {x.username ? (
-                        <span className="crm__muted"> @{x.username}</span>
-                      ) : null}
-                    </Link>
-                    <span className="crm__stage">
-                      {x.paid ? (
-                        <span className="crm__badge crm__badge--paid">
-                          {t('crm.clients.paid')}
+                      <div className="crm__who">
+                        <Link to={`/crm/${x.telegramId}`} className="crm__open">
+                          {x.name || x.telegramId}
+                          {x.username ? (
+                            <span className="crm__muted"> @{x.username}</span>
+                          ) : null}
+                        </Link>
+                        <span className="crm__stage">
+                          {x.paid ? (
+                            <span className="crm__badge crm__badge--paid">
+                              {t('crm.clients.paid')}
+                            </span>
+                          ) : null}
+                          {t(`crm.stage.${x.stage}`)}
                         </span>
-                      ) : null}
-                      {t(`crm.stage.${x.stage}`)}
-                    </span>
-                  </div>
-                  <p className="crm__why">
-                    {x.client ?? '—'}
-                    {' · '}
-                    {t('crm.clients.profile')} {x.hasProfile ? '✓' : '—'}
-                    {' · '}
-                    {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
-                    {' · '}
-                    {t('crm.clients.duets', { n: x.duets })}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </>
-        )
-      )}
+                      </div>
+                      <p className="crm__why">
+                        {x.client ?? '—'}
+                        {' · '}
+                        {t('crm.clients.profile')} {x.hasProfile ? '✓' : '—'}
+                        {' · '}
+                        {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
+                        {' · '}
+                        {t('crm.clients.duets', { n: x.duets })}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )
+          )}
 
-      {panel(
-        t('crm.audience.title'),
-        overview,
-        o && (
-          <dl className="crm__stats">
-            <div>
-              <dt>{t('crm.audience.total')}</dt>
-              <dd>{o.people ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>{t('crm.audience.paying')}</dt>
-              <dd>
-                {o.paying ?? '—'}{' '}
-                <span className="crm__muted">{o.payingShare ?? ''}</span>
-              </dd>
-            </div>
-            <div>
-              <dt>{t('crm.audience.came7')}</dt>
-              <dd>{o.came7 ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>{t('crm.audience.came30')}</dt>
-              <dd>{o.came30 ?? '—'}</dd>
-            </div>
-          </dl>
-        )
-      )}
+          {panel(
+            t('crm.audience.title'),
+            overview,
+            o && (
+              <dl className="crm__stats">
+                <div>
+                  <dt>{t('crm.audience.total')}</dt>
+                  <dd>{o.people ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>{t('crm.audience.paying')}</dt>
+                  <dd>
+                    {o.paying ?? '—'}{' '}
+                    <span className="crm__muted">{o.payingShare ?? ''}</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t('crm.audience.came7')}</dt>
+                  <dd>{o.came7 ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>{t('crm.audience.came30')}</dt>
+                  <dd>{o.came30 ?? '—'}</dd>
+                </div>
+              </dl>
+            )
+          )}
 
-      <p className="crm__note">{t('crm.note')}</p>
+          <p className="crm__note">{t('crm.note')}</p>
+        </>
+      )}
     </div>
   )
 }

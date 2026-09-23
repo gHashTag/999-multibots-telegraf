@@ -127,6 +127,10 @@ const en: Translations = {
     'Open this page from the bot to see your browser: it has to know who you are first.',
   // ── CRM ───────────────────────────────────────────────────────────────────
   'crm.title': 'CRM',
+  'crm.sections': 'CRM sections',
+  'crm.section.work': 'Work',
+  'crm.section.events': 'Events',
+  'crm.section.leads': 'Leads',
   'crm.refresh': 'Refresh',
   'crm.refreshing': 'Refreshing…',
   'crm.unreachable': 'Could not load',
@@ -2253,6 +2257,10 @@ const ru: Translations = {
     'Откройте эту страницу из бота, чтобы увидеть свой браузер: сначала нужно понять, кто вы.',
   // cyrillic-ok: UI dictionary, Russian half
   'crm.title': 'CRM',
+  'crm.sections': 'Разделы CRM',
+  'crm.section.work': 'Работа',
+  'crm.section.events': 'События',
+  'crm.section.leads': 'Лиды',
   'crm.refresh': 'Обновить',
   'crm.refreshing': 'Обновляю…',
   'crm.unreachable': 'Не удалось загрузить',
