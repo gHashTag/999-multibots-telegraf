@@ -1403,6 +1403,45 @@ export const MUTE_SCRIPT = `(function () {
   document.addEventListener('DOMContentLoaded', all);
   new MutationObserver(all).observe(document.documentElement, { childList: true, subtree: true });
   all();
+  /*
+   * A SOUND NEED NOT BE IN THE PAGE TO BE HEARD. The events above only reach
+   * media elements that are IN the document; a connection chime is usually
+   * "new Audio(...).play()", which never is, and a beep is often Web Audio,
+   * which has no element at all. So the two makers of sound are muted at the
+   * source: every media element is born muted and stays muted through play(),
+   * and an audio context is stopped the moment it is created.
+   */
+  try {
+    var Media = window.HTMLMediaElement;
+    if (Media && Media.prototype && !Media.prototype.__t27Hushed) {
+      var play = Media.prototype.play;
+      Media.prototype.play = function () { hush(this); return play.apply(this, arguments); };
+      Media.prototype.__t27Hushed = true;
+    }
+    var Native = window.Audio;
+    if (Native && !Native.__t27Hushed) {
+      var Quiet = function (src) { var a = new Native(src); a.muted = true; a.defaultMuted = true; return a; };
+      Quiet.prototype = Native.prototype;
+      Quiet.__t27Hushed = true;
+      window.Audio = Quiet;
+    }
+    var names = ['AudioContext', 'webkitAudioContext'];
+    for (var n = 0; n < names.length; n++) {
+      (function (name) {
+        var Ctx = window[name];
+        if (!Ctx || Ctx.__t27Hushed) return;
+        var Silent = function () {
+          var ctx = new Ctx(arguments[0]);
+          try { ctx.suspend(); } catch (e) {}
+          try { ctx.resume = function () { return Promise.resolve(); }; } catch (e) {}
+          return ctx;
+        };
+        Silent.prototype = Ctx.prototype;
+        Silent.__t27Hushed = true;
+        window[name] = Silent;
+      })(names[n]);
+    }
+  } catch (e) {}
 })();`
 
 /*

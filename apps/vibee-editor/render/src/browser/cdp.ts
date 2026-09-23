@@ -157,6 +157,12 @@ export async function frontPage(endpoint: string): Promise<CdpTarget> {
   return page
 }
 
+/** Where a tab is, from the browser's own list; '' when it is gone. */
+export async function pageUrl(given: string, id: string): Promise<string> {
+  const targets = await listTargets(given).catch(() => [])
+  return targets.find(t => t.id === id)?.url ?? ''
+}
+
 export async function newPage(given: string, url: string): Promise<CdpTarget> {
   const endpoint = await ipEndpoint(given)
   /* PUT, not GET: Chrome refuses the old GET form since 111. */

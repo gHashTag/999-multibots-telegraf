@@ -6,6 +6,7 @@ import {
   chosenFront,
   CHOICE_TTL_MS,
 } from './front-page'
+import { openAndChoose } from './agent-tools'
 
 const page = (id: string, url = 'https://x.com') => ({ id, type: 'page', url })
 const WHO = '900000001'
@@ -51,5 +52,20 @@ describe('how long a choice lasts', () => {
     expect(chosenFront(WHO, 2)).toBe('apple')
     forgetFront(WHO, 'apple')
     expect(chosenFront(WHO, 2)).toBeNull()
+  })
+})
+
+describe('what the agent opened is where it acts', () => {
+  it('opening a page chooses it, so the next tool acts there', async () => {
+    forgetFront(WHO)
+    rememberFront(WHO, 'an-older-tab')
+    const page = await openAndChoose(
+      WHO,
+      'pod:9222',
+      'https://linkedin.com',
+      async (_cdp, url) => ({ id: 'the-new-tab', url })
+    )
+    expect(page.id).toBe('the-new-tab')
+    expect(chosenFront(WHO)).toBe('the-new-tab')
   })
 })

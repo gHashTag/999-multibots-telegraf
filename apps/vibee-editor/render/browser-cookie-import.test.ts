@@ -304,7 +304,11 @@ describe('the wiring, read as text', () => {
       'utf8'
     )
     const open = src.slice(src.indexOf("name: 'browser_open'"))
+    /* The page is opened by openAndChoose, which also makes it the tab the
+       tools act in (front-page.ts); the rule still comes first. */
     expect(open.indexOf('agentMayOpen(')).toBeGreaterThan(-1)
-    expect(open.indexOf('agentMayOpen(')).toBeLessThan(open.indexOf('newPage('))
+    expect(open.indexOf('agentMayOpen(')).toBeLessThan(
+      open.indexOf('openAndChoose(')
+    )
   })
 })
