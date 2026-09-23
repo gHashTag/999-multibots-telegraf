@@ -310,6 +310,53 @@ function escapeRe(s: string): string {
 }
 
 /**
+ * THE APP HOST ALSO SERVES FILES, AND A FILE IS NOT A SCREEN.
+ *
+ * app.t27.ai is one nginx in front of one bundle, and only some of what it
+ * answers is the app. The same host serves the player's own media
+ * (/covers/, /backgrounds/, /lipsync/, /audio/, /sounds/, /icons/ and every
+ * .mp4 / .mp3 / .png / .svg the editor writes into a timeline), the live
+ * browser stream proxied at /live/, and the identity bridge at /bridge.
+ *
+ * None of those needs Telegram: they are files a browser fetches, and they
+ * work in any browser, which is exactly what the rewrite is for -- it exists
+ * because the APP does not work outside Telegram. Rewriting a file URL into
+ * `t.me/<bot>?start=app_feed` broke a link that worked and pointed the person
+ * at a screen nobody asked for. Reported in the review of #2870.
+ *
+ * So: a URL whose first path segment is one of these, or whose last segment
+ * has a file extension, is left exactly as it was.
+ */
+export const APP_NON_SCREEN_PREFIXES: readonly string[] = [
+  'live',
+  'bridge',
+  'covers',
+  'backgrounds',
+  'lipsync',
+  'audio',
+  'sounds',
+  'icons',
+  'api',
+]
+
+/** `.mp4`, `.webmanifest`, `.jpeg` -- a name with an extension is a file. */
+const FILE_EXT_RE = /\.[A-Za-z0-9]{2,12}$/
+
+/** True when this app-host URL is a file or a proxy, not a screen of the app. */
+export function isAppFileUrl(url: string): boolean {
+  let u: URL
+  try {
+    u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`)
+  } catch {
+    return false
+  }
+  const segs = u.pathname.split('/').filter(Boolean)
+  if (!segs.length) return false
+  if (APP_NON_SCREEN_PREFIXES.includes(segs[0].toLowerCase())) return true
+  return FILE_EXT_RE.test(segs[segs.length - 1])
+}
+
+/**
  * THE SAFETY NET. Any raw app URL in text that goes to a person becomes the
  * in-Telegram link of the bot this conversation is with.
  *
@@ -332,6 +379,9 @@ export function rewriteAppUrls(
     // Sentence punctuation after a URL belongs to the sentence.
     const trail = /[.,!?:;…]+$/.exec(raw)?.[0] ?? ''
     const url = trail ? raw.slice(0, -trail.length) : raw
+    // A file on the app host (APP_NON_SCREEN_PREFIXES): it works in any
+    // browser and needs no Telegram, so it is left exactly as it was.
+    if (isAppFileUrl(url)) return raw
     const route = routeOfAppUrl(url)
     /*
      * A screen no link may name (UNLINKABLE_APP_ROUTES) becomes the chat with
@@ -345,13 +395,21 @@ export function rewriteAppUrls(
   })
 }
 
-/** True when this text still carries a raw app URL. */
+/**
+ * True when this text still carries a raw link to a SCREEN of the app. A file
+ * on the same host (isAppFileUrl) is not one: it is left alone by the rewrite,
+ * so counting it here would make "rewritten" and "clean" disagree.
+ */
 export function hasRawAppUrl(text: string): boolean {
   const hosts = appHosts().map(escapeRe).join('|')
-  return new RegExp(
-    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${hosts})(?![\\w.-])`,
-    'i'
-  ).test(String(text ?? ''))
+  const re = new RegExp(
+    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${hosts})(?![\\w.-])${APP_URL_BODY}`,
+    'gi'
+  )
+  for (const m of String(text ?? '').matchAll(re)) {
+    if (!isAppFileUrl(m[0].replace(/[.,!?:;…]+$/, ''))) return true
+  }
+  return false
 }
 
 // ── the button ───────────────────────────────────────────────────────────

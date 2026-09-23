@@ -15,6 +15,7 @@ import path from 'node:path'
 import {
   APP_ROUTES,
   APP_HOSTS,
+  APP_NON_SCREEN_PREFIXES,
   APP_START_PREFIX,
   UNLINKABLE_APP_ROUTES,
 } from '@/navigation/helpers/appLinks'
@@ -90,6 +91,21 @@ describe('the app route table is one table', () => {
     expect(arrayLiteral(read(RENDER), 'APP_HOSTS').sort()).toEqual(
       [...APP_HOSTS].sort()
     )
+  })
+
+  it('bot and render leave the same file URLs alone', () => {
+    // One side that still rewrites /covers/ turns a working picture link into
+    // a t.me link -- on the render only, which is where the reels are made.
+    const bot = [...APP_NON_SCREEN_PREFIXES].sort()
+    expect(bot.length).toBeGreaterThan(5)
+    expect(
+      arrayLiteral(read(RENDER), 'APP_NON_SCREEN_PREFIXES').sort()
+    ).toEqual(bot)
+    const ext = (src: string) =>
+      /const FILE_EXT_RE\s*=\s*(\/[^\n]*\/)/.exec(src)?.[1] ?? null
+    const botExt = ext(read('src/navigation/helpers/appLinks.ts'))
+    expect(botExt).toBeTruthy()
+    expect(ext(read(RENDER))).toBe(botExt)
   })
 
   it('bot and render end a raw app URL at the same character', () => {

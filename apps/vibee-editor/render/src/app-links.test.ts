@@ -12,6 +12,7 @@ import {
   botOfToken,
   forgetBotsOfTokensForTests,
   hasRawAppUrl,
+  isAppFileUrl,
   rewriteAppUrls,
   rewriteAppUrlsForToken,
   BOT_OF_TOKEN_TTL_MS,
@@ -161,5 +162,41 @@ describe('screens no link may name (mirror of the bot)', () => {
     expect(rewriteAppUrls('Вход: app.t27.ai/pair', 'example_farm_bot')).toBe(
       'Вход: https://t.me/example_farm_bot'
     )
+  })
+})
+
+describe('a file on the app host is not a screen (mirror of the bot)', () => {
+  it('media, /live/ and /bridge are left exactly as they were', () => {
+    for (const url of [
+      'https://app.t27.ai/covers/poster.jpeg',
+      'https://app.t27.ai/backgrounds/business/00.mp4',
+      'https://app.t27.ai/live/900000042/js/app.js',
+      'https://app.t27.ai/bridge',
+      'https://app.t27.ai/manifest.json',
+    ]) {
+      expect(isAppFileUrl(url)).toBe(true)
+      expect(rewriteAppUrls(`Готово: ${url}`, 'example_farm_bot')).toBe(
+        `Готово: ${url}`
+      )
+      expect(hasRawAppUrl(url)).toBe(false)
+    }
+  })
+
+  it('a screen on the same host is still rewritten', () => {
+    expect(isAppFileUrl('https://app.t27.ai/hive')).toBe(false)
+    expect(rewriteAppUrls('app.t27.ai/hive', 'example_farm_bot')).toBe(
+      'https://t.me/example_farm_bot?start=app_hive'
+    )
+  })
+
+  it('rewriteAppUrlsForToken never asks getMe for a file-only text', async () => {
+    // hasRawAppUrl is the precheck: a caption that is only a cover URL must
+    // cost no Telegram call at all.
+    const fetchImpl = vi.fn()
+    const text = 'Обложка: https://app.t27.ai/covers/poster.jpeg'
+    expect(
+      await rewriteAppUrlsForToken(text, '900000042:token', fetchImpl)
+    ).toBe(text)
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 })
