@@ -217,3 +217,66 @@ describe('a browser that stopped being a browser', () => {
     expect(restarts).toBe(0)
   })
 })
+
+describe('the round says WHICH things, not only how many', () => {
+  it('lists the first rows the page carried', () => {
+    const line = lineFor({
+      name: 'hh.ru',
+      title: '13 ・ Отклики',
+      text: 'whatever the page says',
+      items: [
+        {
+          title: 'Приглашение на собеседование',
+          text: '',
+          when: '2 ч',
+          href: '/x',
+        },
+        { title: 'Отказ', text: '', when: 'вчера', href: '/y' },
+        {
+          title: 'Третье, которое не поместится',
+          text: '',
+          when: '',
+          href: '',
+        },
+      ],
+      ok: true,
+      ms: 10,
+    })
+    expect(line).toContain('13 новых')
+    expect(line).toContain('◦ Приглашение на собеседование (2 ч)')
+    expect(line).toContain('◦ Отказ (вчера)')
+    expect(line).not.toContain('Третье')
+  })
+
+  it('falls back to the page text when it lists nothing', () => {
+    const line = lineFor({
+      name: 'LinkedIn',
+      title: 'Лента | LinkedIn',
+      text: 'posts and more posts',
+      items: [],
+      ok: true,
+      ms: 10,
+    })
+    expect(line).toContain('posts and more posts')
+  })
+
+  it('the log counts the rows and still carries no page text', () => {
+    const log = JSON.parse(
+      roundLog([
+        {
+          name: 'X',
+          title: '(2) Notifications / X',
+          text: 'private words of a person',
+          items: [
+            { title: 'somebody followed you', text: '', when: '', href: '' },
+          ],
+          ok: true,
+          ms: 5,
+        },
+      ])
+    ) as Array<Record<string, unknown>>
+    expect(log[0]).toMatchObject({ site: 'X', unread: 2, rows: 1 })
+    expect(JSON.stringify(log)).not.toContain('private words')
+    expect(JSON.stringify(log)).not.toContain('followed you')
+  })
+})

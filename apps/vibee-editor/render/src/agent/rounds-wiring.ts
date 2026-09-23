@@ -79,6 +79,7 @@ export async function runRoundNow(
           )
         }
         await settle(strategy.settleMs)
+        const { itemsProbe, itemsOf } = await import('../browser/items')
         const got = (await evaluateOn(
           s.cdpEndpoint,
           page.id,
@@ -87,9 +88,16 @@ export async function runRoundNow(
              return { title: document.title, text: (main.innerText || '').slice(0, 400) }
            })()`
         )) as { title?: unknown; text?: unknown }
+        /* What the page LISTS, not only what it says (browser/items.ts). */
+        const rows = itemsOf(
+          await evaluateOn(s.cdpEndpoint, page.id, itemsProbe()).catch(
+            () => null
+          )
+        )
         return {
           title: typeof got?.title === 'string' ? got.title : '',
           text: typeof got?.text === 'string' ? got.text : '',
+          items: rows,
         }
       } finally {
         /* A round leaves no tabs behind: the person's browser is theirs. */
