@@ -63,6 +63,10 @@ export const QUEEN_VIEWS = [
   'browser',
   // ROADMAP (key m), shipped in the same deploy as this entry.
   'roadmap',
+  // LEADERBOARD (key l): whose provider token each bee ran on, and what that
+  // lane earned. Same rule as ROADMAP -- the name is here in the deploy that
+  // ships the view, or signing in from it comes back to the comb.
+  'leaderboard',
 ] as const
 
 /**
