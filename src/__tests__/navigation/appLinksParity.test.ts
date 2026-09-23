@@ -15,7 +15,9 @@ import path from 'node:path'
 import {
   APP_ROUTES,
   APP_HOSTS,
+  APP_NON_SCREEN_PREFIXES,
   APP_START_PREFIX,
+  UNLINKABLE_APP_ROUTES,
 } from '@/navigation/helpers/appLinks'
 
 const ROOT = path.join(__dirname, '..', '..', '..')
@@ -67,12 +69,43 @@ describe('the app route table is one table', () => {
     expect(playerRouteKeys().sort()).toEqual([...APP_ROUTES].sort())
   })
 
+  it('all three copies refuse the same screens to a link', () => {
+    // A mirror that still builds `?start=app_pair` is a mirror that hands out
+    // a sign-in code; the set must be one set in all three files.
+    const bot = [...UNLINKABLE_APP_ROUTES].sort()
+    expect(bot.length).toBeGreaterThan(0)
+    expect(bot.every(r => (APP_ROUTES as readonly string[]).includes(r))).toBe(
+      true
+    )
+    expect(arrayLiteral(read(RENDER), 'UNLINKABLE_APP_ROUTES').sort()).toEqual(
+      bot
+    )
+    expect(arrayLiteral(read(PLAYER), 'UNLINKABLE_APP_ROUTES').sort()).toEqual(
+      bot
+    )
+  })
+
   it('the /start prefix and the app hosts agree', () => {
     expect(stringConst(read(RENDER), 'APP_START_PREFIX')).toBe(APP_START_PREFIX)
     expect(stringConst(read(PLAYER), 'APP_START_PREFIX')).toBe(APP_START_PREFIX)
     expect(arrayLiteral(read(RENDER), 'APP_HOSTS').sort()).toEqual(
       [...APP_HOSTS].sort()
     )
+  })
+
+  it('bot and render leave the same file URLs alone', () => {
+    // One side that still rewrites /covers/ turns a working picture link into
+    // a t.me link -- on the render only, which is where the reels are made.
+    const bot = [...APP_NON_SCREEN_PREFIXES].sort()
+    expect(bot.length).toBeGreaterThan(5)
+    expect(
+      arrayLiteral(read(RENDER), 'APP_NON_SCREEN_PREFIXES').sort()
+    ).toEqual(bot)
+    const ext = (src: string) =>
+      /const FILE_EXT_RE\s*=\s*(\/[^\n]*\/)/.exec(src)?.[1] ?? null
+    const botExt = ext(read('src/navigation/helpers/appLinks.ts'))
+    expect(botExt).toBeTruthy()
+    expect(ext(read(RENDER))).toBe(botExt)
   })
 
   it('bot and render end a raw app URL at the same character', () => {

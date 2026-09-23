@@ -39,6 +39,7 @@ import {
   rememberClientMediaQuietly,
 } from '@/services/mediaLibrary'
 import {
+  APP_START_PREFIX,
   appRouteFromStartParam,
   refreshMainWebApp,
   sendAppDoor,
@@ -2788,6 +2789,16 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
           if (wantsApp) {
             ctx.session.appDeepLink = wantsApp
             logger.info('App deep-link', { telegramId, route: wantsApp })
+          } else if (startParam.startsWith(APP_START_PREFIX)) {
+            /*
+             * A payload that names no screen, or names one no link may name
+             * (`app_pair` -- the sign-in code screen; UNLINKABLE_APP_ROUTES in
+             * helpers/appLinks.ts). /start then does exactly what it does for
+             * everybody else: the greeting, whose own button is the honest way
+             * in. Nothing is said about the payload -- a message explaining it
+             * would be the next lure.
+             */
+            logger.info('App deep-link refused', { telegramId, startParam })
           }
 
           const { extractPromoFromContext } = await import(
