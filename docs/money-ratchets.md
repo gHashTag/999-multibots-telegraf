@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 148. Без заголовка: 0.
+Ратчетов: 149. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -134,6 +134,7 @@
 | `stuck-trainings-visible.test.ts`                      | застрявшее обучение видно человеку                                                            |
 | `stuckPaymentsWatchdog.test.ts`                        | the stuck-payment watchdog cannot report a comfortable zero                                   |
 | `superheroQuotaCounterAccumulates.test.ts`             | superhero generation quota counter accumulates (no upsert-overwrite)                          |
+| `theCashMonthIsRecordedByTheRenderNotHere.test.ts`     | recordCashClubMonth                                                                           |
 | `theFreeDemoOfferSurvivesTheMenu.test.ts`              | the offer at the end of the free demo survives the menu that follows                          |
 | `theFreeGenerationWasNeverFree.test.ts`                | the two halves of the bypass agree on one string                                              |
 | `theSignIsSetByTypeOnEveryWriter.test.ts`              | the sign is set by type, on every writer                                                      |

@@ -32,6 +32,23 @@ WORKDIR /workspace
 COPY packages/ ./packages/
 
 COPY render/package.json render/package-lock.json ./render/
+
+# THE SHARED PACKAGE NEEDS ITS OWN DEPENDENCIES TOO.
+#
+# 2026-09-23, production: the render would not boot -- "Cannot find module
+# 'jotai/utils'", thrown from /workspace/packages/vibee-atoms/src/storage.ts.
+# `npm ci --install-links` below is meant to COPY that package into the
+# render's node_modules, but the lockfile was written without that flag, so
+# npm honours it and links instead: the code then runs from
+# /workspace/packages/vibee-atoms, where there is no node_modules to walk up
+# into. Installing the package's own dependencies where the package actually
+# is makes both paths work, whichever npm chooses.
+# NOT --omit=dev: in that package jotai is a peer dependency and a dev one,
+# and nothing else. Omitting dev installed nothing at all, and the render
+# still could not boot (measured on the deploy that followed).
+WORKDIR /workspace/packages/vibee-atoms
+RUN npm ci --no-audit --no-fund
+
 WORKDIR /workspace/render
 # --install-links COPIES the file:../packages/vibee-atoms dependency into
 # node_modules instead of symlinking it. Without it Remotion's webpack bundles
@@ -40,6 +57,26 @@ WORKDIR /workspace/render
 # /workspace/node_modules do not exist, so the bundle fails at startup with
 # "Can't resolve 'jotai'" and the server never opens its port.
 RUN npm ci --install-links --no-audit --no-fund
+
+# BELT AND BRACES FOR THE DAY npm DECIDES TO LINK ANYWAY.
+#
+# `--install-links` is what the comment above relies on, and the lockfile
+# records this dependency as `link: true`. When those two disagree -- and they
+# did, with nothing in this repository changing -- npm symlinks instead of
+# copying, resolution walks up from /workspace/packages/vibee-atoms/src, and
+# the server dies at startup:
+#
+#   Error: Cannot find module 'jotai/utils'
+#     requireStack: /workspace/packages/vibee-atoms/src/storage.ts
+#                   ... render-server.ts
+#
+# MEASURED 2026-09-23: vibee-render started failing at 13:42 and kept failing
+# for three hours while the 13:18 image went on serving, so nothing looked
+# broken from outside and no deploy reached production either.
+#
+# One package at the one path resolution looks at. It costs a few hundred
+# kilobytes and removes a whole class of "it built, it does not start".
+RUN npm i --prefix /workspace --no-save --no-audit --no-fund jotai@^2.6.0
 
 # Remotion downloads its own Chrome Headless Shell. Doing it at build time keeps
 # the first render from paying for the download — and makes a broken download a
