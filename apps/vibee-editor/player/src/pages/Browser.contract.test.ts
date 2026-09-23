@@ -86,7 +86,7 @@ describe('the glow does not lie about who is driving', () => {
     expect(page).toContain('browser.agentWorking')
   })
 
-  it('stops the moment the person touches the screen', () => {
+  it('stops when the person CLICKS, and not when they merely look', () => {
     /*
      * From the first touch THEY are driving. A glow that kept claiming an
      * agent was working would be the screen telling them something false.
@@ -95,8 +95,16 @@ describe('the glow does not lie about who is driving', () => {
      * The touch goes through the tested decision now, not a literal false --
      * so the check follows it there rather than pinning the old spelling.
      */
-    expect(page).toContain('onPointerDown')
+    /*
+     * Owner, 2026-09-23: "if I move the mouse the agent is interrupted --
+     * it should not be". A press alone took the wheel while they were only
+     * watching, so the picture listens for a click (lib/deliberateTouch.ts)
+     * and the menu carries a button for taking the wheel on purpose.
+     */
+    expect(page).toContain('onClick={takeTheWheel}')
+    expect(page).not.toContain('onPointerDown={takeTheWheel}')
     expect(page).toContain('onKeyDownCapture')
+    expect(page).toContain('browser.takeTheWheel')
     expect(page).toContain('wheelAfterTouch()')
   })
 

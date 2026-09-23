@@ -2671,8 +2671,9 @@ setInterval(
   () => {
     void (async () => {
       try {
-        const { runRoundNow } = await import('./src/agent/rounds-wiring')
-        const said = await runRoundNow(getPool() as any)
+        const { runEveryDeskNow } = await import('./src/agent/rounds-wiring')
+        /* Every desk at once, each in its own window (browser/windows.ts). */
+        const said = await runEveryDeskNow(getPool() as any)
         if (said !== 'off') console.log(`[rounds] ${said}`)
       } catch (e) {
         console.error('[rounds] failed:', String(e).slice(0, 300))

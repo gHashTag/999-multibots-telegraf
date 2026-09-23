@@ -7,8 +7,11 @@ import { listenForTouchInside, type FrameWindowLike } from './frameTouch'
  */
 
 function target() {
-  const handlers = new Map<string, Set<() => void>>()
-  const win: FrameWindowLike & { fire(type: string): void; count(): number } = {
+  const handlers = new Map<string, Set<(event: unknown) => void>>()
+  const win: FrameWindowLike & {
+    fire(type: string, event?: unknown): void
+    count(): number
+  } = {
     addEventListener(type, fn) {
       if (!handlers.has(type)) handlers.set(type, new Set())
       handlers.get(type)!.add(fn)
@@ -16,8 +19,8 @@ function target() {
     removeEventListener(type, fn) {
       handlers.get(type)?.delete(fn)
     },
-    fire(type) {
-      for (const fn of handlers.get(type) ?? []) fn()
+    fire(type, event?: unknown) {
+      for (const fn of handlers.get(type) ?? []) fn(event ?? { type })
     },
     count() {
       let n = 0
@@ -46,28 +49,44 @@ function scene(opts: { reachable?: boolean } = {}) {
 }
 
 describe('a touch inside the picture', () => {
-  it('HANDS THE WHEEL OVER on a press inside the frame', () => {
+  it('HANDS THE WHEEL OVER on a click inside the frame', () => {
     const s = scene()
-    s.inner.fire('pointerdown')
+    s.inner.fire('pointerdown', {
+      type: 'pointerdown',
+      clientX: 40,
+      clientY: 40,
+    })
+    s.inner.fire('pointerup', { type: 'pointerup', clientX: 41, clientY: 40 })
     expect(s.touches()).toBe(1)
+  })
+
+  /* Owner, 2026-09-23: watching the agent must not interrupt it. */
+  it('takes nothing from a press alone, or from a drag across the picture', () => {
+    const s = scene()
+    s.inner.fire('pointerdown', {
+      type: 'pointerdown',
+      clientX: 40,
+      clientY: 40,
+    })
+    expect(s.touches()).toBe(0)
+    s.inner.fire('pointerup', { type: 'pointerup', clientX: 400, clientY: 300 })
+    expect(s.touches()).toBe(0)
   })
 
   it('and on a key pressed inside it', () => {
     const s = scene()
-    s.inner.fire('keydown')
+    s.inner.fire('keydown', { type: 'keydown' })
     expect(s.touches()).toBe(1)
   })
 
-  it('still notices through focus when the frame cannot be reached', () => {
-    const s = scene({ reachable: false })
-    s.host.document.activeElement = s.frame
-    s.host.fire('blur')
-    expect(s.touches()).toBe(1)
-  })
-
-  it('does not take a blur elsewhere for a touch', () => {
+  /*
+   * The focus path is gone on purpose (owner, 2026-09-23): a pointer
+   * entering the picture moves focus into the frame, and that was taking
+   * the wheel from the agent while the person was only watching.
+   */
+  it('a pointer merely entering the picture takes nothing', () => {
     const s = scene()
-    s.host.document.activeElement = null
+    s.host.document.activeElement = s.frame
     s.host.fire('blur')
     expect(s.touches()).toBe(0)
   })

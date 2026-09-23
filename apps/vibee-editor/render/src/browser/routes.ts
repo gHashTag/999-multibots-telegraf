@@ -321,11 +321,20 @@ export async function handleBrowser(
         body: { ok: false, error: "a round is the person's to start" },
       }
     }
-    const { runRoundNow } = await import('../agent/rounds-wiring')
+    const { runRoundNow, runEveryDeskNow } = await import(
+      '../agent/rounds-wiring'
+    )
     const profile = new URLSearchParams(
       (req.url || '').split('?')[1] || ''
     ).get('profile')
-    const said = await runRoundNow(pool, who, profile || undefined)
+    /*
+     * No desk named means every desk, each in its own window, side by side
+     * (browser/windows.ts): that is what makes the agents parallel rather
+     * than a queue with one tab.
+     */
+    const said = profile
+      ? await runRoundNow(pool, who, profile)
+      : await runEveryDeskNow(pool, who)
     console.log('[rounds] asked by the person:', said.slice(0, 300))
     return { status: 200, body: { ok: true, round: said } }
   }

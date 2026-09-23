@@ -25,6 +25,7 @@ const en: Translations = {
     'An agent is working here. Touch the screen to take over.',
   'browser.youDrive': 'You are driving. The agent is waiting.',
   'browser.handBack': 'Let the agent continue',
+  'browser.takeTheWheel': 'Take the wheel',
   'browser.type.open': '⌨ Type text',
   'browser.sheet.label': 'Browser controls',
   'chat.cards.label': 'What the agent proposes',
@@ -109,6 +110,8 @@ const en: Translations = {
   'browser.import.open': 'Bring my logins',
   'browser.round': 'Walk my accounts',
   'browser.desks': 'The agent s desks',
+  'browser.desks.all': 'All desks at once',
+  'browser.desks.allAbout': 'Each in its own window, side by side',
   'browser.round.going': 'Walking…',
   'browser.round.done': 'Walked them — the report is in your chat',
   'browser.round.failed': 'The walk did not start',
@@ -2170,6 +2173,7 @@ const ru: Translations = {
     'Здесь работает агент. Коснитесь экрана, чтобы взять управление.',
   'browser.youDrive': 'Управляете вы. Агент ждёт.',
   'browser.handBack': 'Вернуть агенту',
+  'browser.takeTheWheel': 'Взять управление',
   'browser.type.open': '⌨ Ввести текст', // cyrillic-ok
   'browser.sheet.label': 'Управление браузером', // cyrillic-ok
   'chat.cards.label': 'Что предлагает агент', // cyrillic-ok
@@ -2254,6 +2258,8 @@ const ru: Translations = {
   'browser.import.open': 'Перенести входы',
   'browser.round': 'Обойти мои аккаунты',
   'browser.desks': 'Кабинеты агента',
+  'browser.desks.all': 'Все кабинеты сразу',
+  'browser.desks.allAbout': 'Каждый в своём окне, рядом друг с другом',
   'browser.round.going': 'Обхожу…',
   'browser.round.done': 'Обошёл — отчёт в чате',
   'browser.round.failed': 'Обход не запустился',

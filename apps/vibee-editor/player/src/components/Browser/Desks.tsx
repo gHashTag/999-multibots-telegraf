@@ -34,6 +34,36 @@ export function Desks() {
 
   return (
     <section className="desks" aria-label={t('browser.desks')}>
+      {/*
+       * All desks at once, each in its own window, tiled (render
+       * browser/windows.ts). This is what the cron does too.
+       */}
+      <article className="desks__card desks__card--all">
+        <h3 className="desks__name">{t('browser.desks.all')}</h3>
+        <p className="desks__about">{t('browser.desks.allAbout')}</p>
+        <button
+          type="button"
+          className="desks__go"
+          disabled={busy !== null}
+          onClick={() => {
+            setBusy('all')
+            void walkMyAccounts().then(answer => {
+              setBusy(null)
+              setSaid(was => ({
+                ...was,
+                all: answer === null ? 'failed' : 'done',
+              }))
+            })
+          }}
+        >
+          {busy === 'all' ? t('browser.round.going') : t('browser.round')}
+        </button>
+        {said.all ? (
+          <p className="desks__said" aria-live="polite">
+            {t(`browser.round.${said.all}`)}
+          </p>
+        ) : null}
+      </article>
       {desks.map(desk => (
         <article className="desks__card" key={desk.id}>
           <h3 className="desks__name">{desk.name}</h3>

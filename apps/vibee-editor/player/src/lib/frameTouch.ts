@@ -22,9 +22,19 @@
  * reconnects by reloading itself -- so this is attached again on each load.
  */
 
+import { isDeliberate, type Press } from './deliberateTouch'
+
 export interface FrameWindowLike {
-  addEventListener(type: string, fn: () => void, capture?: boolean): void
-  removeEventListener(type: string, fn: () => void, capture?: boolean): void
+  addEventListener(
+    type: string,
+    fn: (event: unknown) => void,
+    capture?: boolean
+  ): void
+  removeEventListener(
+    type: string,
+    fn: (event: unknown) => void,
+    capture?: boolean
+  ): void
 }
 
 export interface FrameLike {
@@ -35,35 +45,59 @@ export interface HostLike extends FrameWindowLike {
   readonly document: { readonly activeElement: unknown }
 }
 
-const INSIDE = ['pointerdown', 'keydown'] as const
+/*
+ * A CLICK, NOT A PASSING POINTER (lib/deliberateTouch.ts). `pointerdown`
+ * alone took the wheel from the agent while the person was only watching,
+ * and so did the parent window losing focus when a pointer entered the
+ * frame -- which is why that second path is gone.
+ */
+const INSIDE = ['pointerdown', 'pointerup', 'keydown'] as const
 
 export function listenForTouchInside(
   frame: FrameLike,
-  host: HostLike,
+  /* Kept in the signature: the caller passes its window, and the focus path
+     may come back if a cross-origin frame ever needs it again. */
+  _host: HostLike,
   onTouch: () => void
 ): () => void {
   const undo: Array<() => void> = []
+
+  let down: Press | null = null
+  const watch = (e: unknown) => {
+    const ev = e as { type?: string; clientX?: number; clientY?: number }
+    const now = Date.now()
+    if (ev?.type === 'pointerdown') {
+      down = { x: Number(ev.clientX) || 0, y: Number(ev.clientY) || 0, at: now }
+      return
+    }
+    if (ev?.type === 'pointerup') {
+      const wasClick = isDeliberate(down, {
+        x: Number(ev.clientX) || 0,
+        y: Number(ev.clientY) || 0,
+        at: now,
+      })
+      down = null
+      if (wasClick) onTouch()
+      return
+    }
+    /* keydown: nobody types into a screen by accident. */
+    onTouch()
+  }
 
   let inner: FrameWindowLike | null = null
   try {
     inner = frame.contentWindow
     if (inner) {
-      for (const type of INSIDE) inner.addEventListener(type, onTouch, true)
+      for (const type of INSIDE) inner.addEventListener(type, watch, true)
       const reached = inner
       undo.push(() => {
         for (const type of INSIDE)
-          reached.removeEventListener(type, onTouch, true)
+          reached.removeEventListener(type, watch, true)
       })
     }
   } catch {
     /* A frame of another origin: its window cannot be listened to. */
   }
-
-  const onBlur = () => {
-    if (host.document.activeElement === frame) onTouch()
-  }
-  host.addEventListener('blur', onBlur)
-  undo.push(() => host.removeEventListener('blur', onBlur))
 
   return () => {
     for (const fn of undo) {
