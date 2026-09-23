@@ -3711,9 +3711,8 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
   }
   const showSummary = async (ctx: MyContext, days?: number) => {
     try {
-      const { fetchSummary, formatSummary, fetchCardFlow } = await import(
-        '@/services/crmSummary'
-      )
+      const { fetchSummary, formatSummary, fetchCardFlow, fetchWithoutYou } =
+        await import('@/services/crmSummary')
       const { scopeLine, activeScope } = await import('@/services/crmProactive')
       const s = await fetchSummary(ownerId(ctx), days)
       /*
@@ -3722,10 +3721,13 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
        * months, and half a screen beats an error.
        */
       const cards = await fetchCardFlow(ownerId(ctx)).catch(() => null)
+      // The same rule as the card flow: its own call, its own failure, and the
+      // summary is unchanged without it.
+      const without = await fetchWithoutYou(ownerId(ctx)).catch(() => null)
       const line = scopeLine(ownerId(ctx))
       await sendLong(
         ctx,
-        formatSummary(s, line, cards),
+        formatSummary(s, line, cards, without),
         summaryKeyboard(s, Boolean(activeScope(ownerId(ctx))))
       )
     } catch (e) {
