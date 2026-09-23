@@ -82,17 +82,38 @@ export function xText(a: Article): string {
   return `${head}\n\n${body}`
 }
 
+/**
+ * The subreddit the owner keeps for Trinity S3AI. Theirs, and the only one
+ * an article is posted to: posting a project's own article into somebody
+ * else's community is what spam is, and no cron of ours will do it.
+ */
+export const SUBREDDIT = process.env.BLOG_SHARE_SUBREDDIT || 't27ai'
+
 /** Each network's own share page, already filled in. Pure. */
-export function shareUrls(a: Article): { x: string; linkedin: string } {
+export function shareUrls(a: Article): {
+  x: string
+  linkedin: string
+  reddit: string
+} {
   return {
     x: `https://x.com/intent/post?text=${encodeURIComponent(xText(a))}&url=${encodeURIComponent(a.link)}`,
     linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(a.link)}`,
+    /*
+     * Reddit's own submit page, filled in: the title as written and the
+     * link. The person's community is dead quiet -- one visitor in a week,
+     * nothing posted in six months -- and a blog that writes itself is
+     * exactly what it lacks (measured 2026-09-23 on r/t27ai).
+     */
+    reddit: `https://www.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/submit?title=${encodeURIComponent(a.title.slice(0, 280))}&url=${encodeURIComponent(a.link)}&type=LINK`,
   }
 }
 
 /** The question the owner is asked, in their words. Pure. */
 export function questionFor(a: Article): string {
-  return `Опубликовать статью блога в LinkedIn и X: «${a.title}» (${a.link})` // cyrillic-ok: shown to the owner
+  return (
+    `Опубликовать статью блога в LinkedIn, X и r/${SUBREDDIT}: ` + // cyrillic-ok: shown to the owner
+    `«${a.title}» (${a.link})`
+  )
 }
 
 let ready = false
