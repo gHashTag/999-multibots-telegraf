@@ -37,14 +37,24 @@ let context: unknown = {
 }
 let profile: unknown = { telegram_id: '900000301', has_profile: true }
 let fail = false
+let picks: unknown = { leads: [], count: 0 }
+let lastPick: { lead: unknown; on: unknown } | null = null
 
 vi.stubGlobal(
   'fetch',
   vi.fn(async (_url: string, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body ?? '{}'))
     const name = String(body?.params?.name ?? '')
+    const args = (body?.params?.arguments ?? {}) as Record<string, unknown>
     if (fail) return new Response('nope', { status: 500 })
-    const data = name === 'crm_lead_context' ? context : profile
+    const data =
+      name === 'crm_lead_context'
+        ? context
+        : name === 'autopilot_leads'
+          ? picks
+          : name === 'autopilot_lead'
+            ? (lastPick = { lead: args.lead, on: args.on })
+            : profile
     return new Response(
       JSON.stringify({
         jsonrpc: '2.0',
@@ -61,6 +71,8 @@ let root: Root
 
 beforeEach(() => {
   fail = false
+  picks = { leads: [], count: 0 }
+  lastPick = null
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -122,5 +134,47 @@ describe('the card', () => {
     )
     expect(hrefs).toContain('/crm/900000301')
     expect(hrefs).toContain('tg://user?id=900000301')
+  })
+})
+
+/**
+ * THE TICK THAT LETS AUTO WRITE TO THIS PERSON.
+ *
+ * The dashboard switch can be set to "chosen"; this card is where somebody is
+ * chosen, while the owner is looking at what they last said. Two ways it could
+ * mislead are pinned: an unticked box that has merely not loaded (a lie about
+ * a setting that sends messages), and a tick that stays on after the server
+ * refused it.
+ */
+describe('AUTO for this client', () => {
+  it('is not drawn at all until the list is known', async () => {
+    fail = true
+    await show()
+    expect(host.querySelector('.chat-aside__auto')).toBeNull()
+  })
+
+  it('shows ticked when this person is already chosen', async () => {
+    picks = { leads: ['900000301'], count: 1 }
+    await show()
+    const box = host.querySelector(
+      '.chat-aside__auto input'
+    ) as HTMLInputElement
+    expect(box.checked).toBe(true)
+  })
+
+  it('picking sends the person and the intent, and nothing else', async () => {
+    await show()
+    const box = host.querySelector(
+      '.chat-aside__auto input'
+    ) as HTMLInputElement
+    expect(box.checked).toBe(false)
+    await act(async () => {
+      box.click()
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(lastPick).toEqual({ lead: '900000301', on: true })
+    expect(box.checked).toBe(true)
   })
 })

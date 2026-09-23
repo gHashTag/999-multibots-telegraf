@@ -4,6 +4,8 @@ import { useLanguage } from '@/hooks/useLanguage'
 import {
   loadClientProfile,
   loadLeadContext,
+  loadAutopilotLeads,
+  pickForAutopilot,
   type ClientProfile,
   type LeadContext,
   type Reached,
@@ -41,17 +43,33 @@ export function ClientAside({ client }: { client: string }) {
     reachable: true,
     data: null,
   })
+  /**
+   * MAY AUTO WRITE TO THIS PERSON BY ITSELF?
+   *
+   * The switch on the dashboard says "chosen"; this is where somebody is
+   * chosen. Deliberately on the card and not in a list of ticks somewhere
+   * else: the decision is about THIS person, and it is made while looking at
+   * what they last said.
+   *
+   * `null` means we have not read the list yet -- the tick is not drawn at
+   * all then, because an unticked box that simply has not loaded is a lie
+   * about a setting that sends messages.
+   */
+  const [picked, setPicked] = useState<boolean | null>(null)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     let alive = true
     void (async () => {
-      const [p, c] = await Promise.all([
+      const [p, c, picks] = await Promise.all([
         loadClientProfile(client),
         loadLeadContext(client),
+        loadAutopilotLeads(),
       ])
       if (!alive) return
       setProfile(p)
       setContext(c)
+      setPicked(picks.data ? picks.data.includes(client) : null)
     })()
     return () => {
       alive = false
@@ -114,6 +132,28 @@ export function ClientAside({ client }: { client: string }) {
       {profile.reachable && profile.data?.hasProfile ? (
         <p className="chat-aside__package">{t('crm.aside.package')}</p>
       ) : null}
+
+      {picked === null ? null : (
+        <label className="chat-aside__auto">
+          <input
+            type="checkbox"
+            checked={picked}
+            disabled={saving}
+            onChange={async e => {
+              const next = e.target.checked
+              setSaving(true)
+              // Optimistic, then corrected by what the server answers: this
+              // tick decides whether messages go to a real person, so the
+              // screen must end up showing the server's state, not its own.
+              setPicked(next)
+              const r = await pickForAutopilot(client, next)
+              if (!r.reachable) setPicked(!next)
+              setSaving(false)
+            }}
+          />
+          <span>{t('crm.aside.auto')}</span>
+        </label>
+      )}
 
       <div className="chat-aside__actions">
         <Link className="chat-aside__link" to={`/crm/${client}`}>
