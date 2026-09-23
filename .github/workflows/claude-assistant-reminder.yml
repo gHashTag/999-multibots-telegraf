@@ -6,6 +6,13 @@ on:
   issues:
     types: [opened]
 
+# This workflow exists only to post a reminder comment, and it had no
+# permissions block at all, so it failed on every PR it fired on.
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   claude-reminder:
     runs-on: ubuntu-latest
