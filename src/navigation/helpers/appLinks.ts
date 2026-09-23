@@ -167,10 +167,27 @@ export function knownMainWebApp(
  * Seed the cache from Telegraf's `ctx.botInfo` (itself a getMe made at launch
  * by this bot's own client, so on the bot's own Bot API host).
  */
+/*
+ * The last bot that answered anybody in this process. A raw app link that
+ * reaches a person is a dead link (see the header), and the only thing that
+ * can make it live is a bot's handle -- so when a caller forgets to pass one,
+ * this is used before the link is dropped.
+ */
+let lastBot: string | null = null
+
+export function lastKnownBot(): string | null {
+  return lastBot
+}
+
+export function forgetLastKnownBotForTests(): void {
+  lastBot = null
+}
+
 export function rememberBotInfo(
   info: { username?: string; has_main_web_app?: boolean } | null | undefined
 ): void {
   if (!info?.username) return
+  lastBot = info.username
   const key = botHandle(info.username).toLowerCase()
   const seen = mainWebApp.get(key)
   // A fresher answer from refreshMainWebApp outranks the launch-time one.
@@ -494,4 +511,39 @@ export async function sendAppDoor(
     appDoorText(isRu),
     button ? Markup.inlineKeyboard([[button]]) : undefined
   )
+}
+
+/**
+ * NOTHING LEAVES WITH A RAW APP LINK.
+ *
+ * Owner, 2026-09-23: "why does the agent in the bot send a link? there is no
+ * sign-in there! forbid it at the level of the code -- only opening inside,
+ * because this is a mini app."
+ *
+ * `rewriteAppUrls` turns app URLs into this bot's Telegram link, but only
+ * when it is told which bot; a caller that forgets leaves the raw URL in the
+ * text, and the person gets a link that opens a browser where nobody is
+ * signed in. So: rewrite with the bot given, or with the last bot that
+ * answered anybody; and if neither is known, the link is REMOVED rather than
+ * sent dead. Pure except for reading the remembered bot.
+ */
+export function insideTelegram(
+  text: string,
+  botUsername?: string | null,
+  opts: { mainWebApp?: boolean } = {}
+): string {
+  const handle = botHandle(botUsername) ? botUsername : lastKnownBot()
+  const once = rewriteAppUrls(text, handle, opts)
+  if (!hasRawAppUrl(once)) return once
+  const hosts = appHosts().map(escapeRe).join('|')
+  const raw = new RegExp(
+    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${hosts})(?![\\w.-])${APP_URL_BODY}`,
+    'gi'
+  )
+  return once
+    .replace(raw, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([.,!?:;)])/g, '$1')
+    .replace(/\(\s*\)/g, '')
+    .trim()
 }
