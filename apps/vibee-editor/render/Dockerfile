@@ -43,8 +43,11 @@ COPY render/package.json render/package-lock.json ./render/
 # /workspace/packages/vibee-atoms, where there is no node_modules to walk up
 # into. Installing the package's own dependencies where the package actually
 # is makes both paths work, whichever npm chooses.
+# NOT --omit=dev: in that package jotai is a peer dependency and a dev one,
+# and nothing else. Omitting dev installed nothing at all, and the render
+# still could not boot (measured on the deploy that followed).
 WORKDIR /workspace/packages/vibee-atoms
-RUN npm ci --omit=dev --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
 WORKDIR /workspace/render
 # --install-links COPIES the file:../packages/vibee-atoms dependency into
