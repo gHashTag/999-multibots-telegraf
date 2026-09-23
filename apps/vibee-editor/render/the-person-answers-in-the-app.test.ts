@@ -5,7 +5,11 @@
  */
 import { describe, it, expect } from 'vitest'
 import { handleBrowser, type BrowserDeps } from './src/browser/routes'
-import { parseTypeBody } from './src/browser/person-type'
+import {
+  parseTypeBody,
+  typeLikeAPerson,
+  SHORT_TEXT,
+} from './src/browser/person-type'
 
 type Row = {
   id: string
@@ -196,5 +200,41 @@ describe('the keys a phone cannot send through the video', () => {
     expect(() => parseTypeBody('{"scroll":"sideways"}')).toThrow(
       'nothing to type'
     )
+  })
+})
+
+describe('a code goes in box by box', () => {
+  /*
+   * 2026-09-23, X's four-digit passcode: one insertion put all four digits
+   * into the FIRST box and the page kept one. A short text is typed the way
+   * a keyboard sends it, so a field that moves focus after every character
+   * gets what it expects.
+   */
+  it('types a short code key by key, and never as one insertion', async () => {
+    const calls: Array<{ method: string; text?: string }> = []
+    const fakeCall = async (
+      method: string,
+      params: Record<string, unknown>
+    ) => {
+      calls.push({ method, text: params.text as string | undefined })
+      return {}
+    }
+    await typeLikeAPerson(fakeCall, '1234', false)
+    expect(calls.some(c => c.method === 'Input.insertText')).toBe(false)
+    const typed = calls
+      .filter(c => c.method === 'Input.dispatchKeyEvent' && c.text)
+      .map(c => c.text)
+      .join('')
+    expect(typed).toBe('1234')
+  })
+
+  it('still inserts a long answer in one go', async () => {
+    const calls: string[] = []
+    const fakeCall = async (method: string) => {
+      calls.push(method)
+      return {}
+    }
+    await typeLikeAPerson(fakeCall, 'x'.repeat(SHORT_TEXT + 1), false)
+    expect(calls).toContain('Input.insertText')
   })
 })
