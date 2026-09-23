@@ -90,7 +90,10 @@ describe('when the voice is there, the prompt says where it is', () => {
 
   it('carries the voice and the pointer together, never one without the other', async () => {
     const { systemPrompt } = await load()
-    const prompt = systemPrompt()
+    // The owner's own turn: since 2026-09-23 his voice is added only there
+    // (the-owner-voice-is-the-owners-only.test.ts). The property below is
+    // unchanged -- the pointer never appears without what it points at.
+    const prompt = systemPrompt(undefined, false, undefined, true)
     expect(prompt).toContain('МЕРА ВМЕСТО ПРИЛАГАТЕЛЬНОГО')
     expect(prompt).toContain('ГОЛОС ВЛАДЕЛЬЦА')
     expect(prompt).toContain('КОНТЕНТ-ПЛАН НА 30 ДНЕЙ')
@@ -128,7 +131,7 @@ describe('the file is found by walking up, not by counting', () => {
     expect(fs.existsSync(soul)).toBe(true)
 
     const { systemPrompt } = await load()
-    const prompt = systemPrompt()
+    const prompt = systemPrompt(undefined, false, undefined, true)
     expect(prompt).toContain('ГОЛОС ВЛАДЕЛЬЦА')
 
     const head = fs.readFileSync(soul, 'utf8').trim().slice(0, 40)
