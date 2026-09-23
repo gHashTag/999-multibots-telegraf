@@ -12,7 +12,7 @@ import type { SessionStore } from './framedSession'
  * Only the exact addresses the game produces are accepted, matched whole:
  *
  *     https://t27.ai/#/queen
- *     https://t27.ai/#/queen?tab=<one of QUEEN_VIEWS>
+ *     https://t27.ai/#/queen?tab=<a board view: up to 16 lowercase letters>
  *     https://t27.ai/#/queen?tab=tri&screen=<one of TRI_SCREEN_IDS>
  *
  * and the same three on the board's home in the app itself,
@@ -40,34 +40,26 @@ export const GAME_ORIGIN = 'https://t27.ai'
 export const APP_BOARD = 'https://app.t27.ai/queen/'
 
 /**
- * Copied from gHashTag/trinity apps/website/src/components/queenHud.ts
- * HUD_VIEWS (2c7330175f): the names `?tab=` accepts there. `passport` and
- * `browser` arrived later; until they were listed here a person who signed in
- * from either view was returned to the comb instead.
+ * THERE IS NO LIST OF VIEWS HERE ANY MORE, AND THAT IS THE POINT.
+ *
+ * This file used to carry `QUEEN_VIEWS`, hand-copied from the board's own
+ * `HUD_VIEWS` in another repository. It went out of step every single time a
+ * view was added: PASSPORT and BROWSER each returned a person to the comb
+ * instead of the tab they signed in from, until somebody remembered to edit a
+ * file in a repo they were not working in. ROADMAP and LEADERBOARD were only
+ * spared because the same person happened to be holding both checkouts.
+ *
+ * The list was never what made this safe. `SHAPE` is: a tab is at most sixteen
+ * lowercase letters, in a URL rebuilt from constants, so nothing a stranger
+ * writes can add a parameter, change the origin or escape the hash. Checking
+ * the name against a copy only answered a second question - "does the board
+ * have this tab?" - which the BOARD can answer for itself, and does: it shows
+ * the comb for a tab it does not know. Two places answering that question is
+ * how they came to disagree.
+ *
+ * So the gate is gone and the shape stayed. A view added to the board now
+ * works here the day it ships, with no edit in this repository at all.
  */
-export const QUEEN_VIEWS = [
-  'comb',
-  'specs',
-  'kanban',
-  'map',
-  'factory',
-  'research',
-  'skills',
-  'crons',
-  'agents',
-  'functions',
-  'tools',
-  'project',
-  'tri',
-  'passport',
-  'browser',
-  // ROADMAP (key m), shipped in the same deploy as this entry.
-  'roadmap',
-  // LEADERBOARD (key l): whose provider token each bee ran on, and what that
-  // lane earned. Same rule as ROADMAP -- the name is here in the deploy that
-  // ships the view, or signing in from it comes back to the comb.
-  'leaderboard',
-] as const
 
 /**
  * Copied from gHashTag/trinity apps/website/src/lib/triScreens.ts TRI_SCREENS
@@ -100,9 +92,11 @@ export function returnTargetOf(raw: unknown): string | null {
   const queen =
     home === APP_BOARD ? `${APP_BOARD}#/queen` : `${GAME_ORIGIN}/#/queen`
   if (tab === undefined) return queen
-  const view = QUEEN_VIEWS.find(known => known === tab)
-  if (!view) return null
+  // `tab` is already [a-z]{1,16} from SHAPE; the board decides whether it has
+  // such a view, and falls back to the comb when it does not.
+  const view = tab
   if (screen === undefined) return `${queen}?tab=${view}`
+  // A screen belongs to TRI and nowhere else, so this one stays a check.
   if (view !== 'tri') return null
   const id = TRI_SCREEN_IDS.find(known => known === screen)
   return id ? `${queen}?tab=${view}&screen=${id}` : null
