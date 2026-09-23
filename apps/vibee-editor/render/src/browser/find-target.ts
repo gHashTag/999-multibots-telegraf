@@ -38,6 +38,41 @@ export function findProbe(text: string): string {
     const r = el.getBoundingClientRect();
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
   };
+  const tagOf = el => String(el.tagName || '').toUpperCase();
+  const isField = el => tagOf(el) === 'INPUT' || tagOf(el) === 'TEXTAREA' || el.getAttribute('contenteditable') === 'true';
+  const nameOf = el => {
+    const own = [
+      el.getAttribute('placeholder') || '',
+      el.getAttribute('aria-label') || '',
+      el.getAttribute('title') || '',
+      isField(el) ? '' : el.innerText || el.textContent || ''
+    ];
+    if (el.id) {
+      for (const l of document.querySelectorAll('label[for]'))
+        if (l.getAttribute('for') === el.id) own.push(l.innerText || l.textContent || '');
+    }
+    return own.map(t => (t || '').trim().toLowerCase().replace(/\\s+/g, ' ')).filter(Boolean);
+  };
+  const fieldOfLabel = el => {
+    if (tagOf(el) !== 'LABEL') return el;
+    const id = el.getAttribute('for');
+    if (!id) return el;
+    for (const f of document.querySelectorAll('input, textarea, [contenteditable="true"]'))
+      if (f.id === id) return f;
+    return el;
+  };
+  const pickExact = selector => {
+    for (const el of document.querySelectorAll(selector)) {
+      if (!vis(el) || el.type === 'hidden') continue;
+      for (const name of nameOf(el))
+        if (name === want) {
+          /* A label is a handle on its field: that is what pressing it does. */
+          const target = fieldOfLabel(el);
+          return { el: target, label: name, how: isField(target) ? 'field' : 'text' };
+        }
+    }
+    return null;
+  };
   const pick = selector => {
     let best = null, bestScore = -1, bestLabel = '';
     for (const el of document.querySelectorAll(selector)) {
@@ -50,6 +85,23 @@ export function findProbe(text: string): string {
     }
     return best ? { el: best, label: bestLabel } : null;
   };
+  /*
+   * AN EXACT NAME BEATS A LONGER ONE, WHATEVER KIND IT IS (2026-09-23, X's
+   * chat): asked for "Message", the agent pressed the button labelled "New
+   * message" and typed the person's reply into a search box. The field whose
+   * name IS the word is what anybody means.
+   */
+  /* A button that IS the words first: "Search" means the button. */
+  const exactButton = pickExact('button, [role="button"], input[type="submit"], input[type="button"]');
+  if (exactButton)
+    return Object.assign(centre(exactButton.el), { how: 'text', label: exactButton.label.slice(0, 80) });
+  /*
+   * Then a field that IS the words, before a button that merely CONTAINS
+   * them: "Message" is the box you write in, not the "New message" button.
+   */
+  const exactField = pickExact('input, textarea, [contenteditable="true"], [role="textbox"], label');
+  if (exactField)
+    return Object.assign(centre(exactField.el), { how: exactField.how, label: exactField.label.slice(0, 80) });
   const button = pick('button, [role="button"], input[type="submit"], input[type="button"]');
   if (button) return Object.assign(centre(button.el), { how: 'text', label: button.label.slice(0, 80) });
   if (want.includes('google')) {
