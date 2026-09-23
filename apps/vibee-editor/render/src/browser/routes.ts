@@ -634,6 +634,31 @@ export function configureAgentStart(deps: () => BrowserDeps): void {
   agentStartDeps = deps
 }
 
+/**
+ * THE BROWSER IS RESTARTED WHEN IT IS NO LONGER A BROWSER.
+ *
+ * 2026-09-23: Chromium in the pod ran out of memory with a dozen tabs open.
+ * It kept answering -- new tabs opened, and every one of them was blank --
+ * so nothing looked broken from outside, and the round walked five accounts
+ * seeing nothing. A pod in that state is cured by a restart and only by a
+ * restart, and a restart keeps the person's logins: the profile is on a
+ * volume, and only DELETE /api/browser/profile ever wipes it.
+ *
+ * The person is told, because it is their browser and they may be watching
+ * it at that moment.
+ */
+export async function restartBrowserAsAgent(who: string): Promise<boolean> {
+  const deps = agentStartDeps?.()
+  if (!deps?.driver) return false
+  const pool = await deps.getPool()
+  await ensureBrowserSessions(pool)
+  await ensureBrowserProfiles(pool)
+  await close(pool, deps.driver, who).catch(() => undefined)
+  const out = await open(pool, deps, deps.driver, who, 'agent')
+  console.log('[browser:restart]', who, out.status)
+  return out.status < 300
+}
+
 export async function startBrowserAsAgent(who: string): Promise<boolean> {
   const deps = agentStartDeps?.()
   if (!deps?.driver) return false
