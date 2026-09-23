@@ -1,0 +1,116 @@
+/*
+ * THE ONE LOOK FOR A ROW OF SECTIONS.
+ *
+ * Owner's choice, 2026-09-23: the board's language everywhere -- mono
+ * capitals, square corners, a green border when chosen. Before this the app
+ * had eight radii, five label sizes and five different "selected" styles for
+ * the same idea, plus a purple and a gold accent in a green app.
+ *
+ * Sizes are the ones the app already proved: 44px is the touch target from
+ * index.css, and the edge fade is the profile strip's (16px left, 28px
+ * right), whose padding matches it so the first and last section are never
+ * under the fade.
+ */
+
+.section-strip {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 10px 28px 10px 16px;
+  border-bottom: 1px solid var(--border-color, rgba(0, 255, 136, 0.22));
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 16px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 16px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+}
+
+.section-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.section-strip__item {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* height:auto is not decoration: design-system.css gives every button a
+     28px height at (0,2,1), which would crush this row. */
+  height: auto;
+  min-height: var(--touch-target, 44px);
+  padding: 0 12px;
+  border: 1px solid var(--border-color, rgba(0, 255, 136, 0.22));
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.78));
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.section-strip__item:hover:not(:disabled) {
+  /* Without the background the design-system hover paints this button with
+     --btn-bg-hover, which in the board frame is the panel colour. */
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--vibee-green, #00ff88);
+  transform: none;
+}
+
+.section-strip__item--on,
+.section-strip__item--on:hover:not(:disabled) {
+  border-color: var(--vibee-green, #00ff88);
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--vibee-green, #00ff88);
+}
+
+.section-strip__icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.section-strip__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* A number beside a label is a fact, so it is set in figures of one width
+   and never moves as it counts up. */
+.section-strip__count {
+  color: var(--vibee-gold, #ffd700);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* On a phone the icons go: five mono labels and five icons do not fit 390px,
+   and the label is the part that says what the section is. */
+@media (max-width: 480px) {
+  .section-strip {
+    padding: 8px 28px 8px 16px;
+  }
+
+  .section-strip__icon {
+    display: none;
+  }
+
+  .section-strip__item {
+    padding: 0 10px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+}

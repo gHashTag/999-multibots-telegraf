@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { API_BASE } from '../../config'
 
@@ -71,6 +71,30 @@ export function SoulCard({ username, isOwn, onEdit }: SoulCardProps) {
   const [текст, setТекст] = useState<string | null>(null)
   const [развёрнуто, setРазвёрнуто] = useState(false)
 
+  const textRef = useRef<HTMLDivElement>(null)
+  const [cut, setCut] = useState(false)
+
+  /*
+   * IS THE PREVIEW CUT OFF? ONLY THE DRAWN BOX KNOWS.
+   *
+   * The card keeps six SOURCE lines, but on a phone one source line wraps to
+   * two or three and Profile.css caps the drawn height, so a short file can
+   * still be cut while `длинный` (six lines or more) stays false -- and the
+   * "read it all" button, which only followed that flag, was missing exactly
+   * where the text had been hidden. The box compares its own scroll height
+   * with its clipped height instead, and says so.
+   */
+  useEffect(() => {
+    const box = textRef.current
+    if (!box) return
+    const measure = () => setCut(box.scrollHeight > box.clientHeight + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(measure)
+    watch.observe(box)
+    return () => watch.disconnect()
+  })
+
   useEffect(() => {
     let живо = true
     fetch(`${API_BASE}/api/soul/${encodeURIComponent(username)}`)
@@ -89,6 +113,8 @@ export function SoulCard({ username, isOwn, onEdit }: SoulCardProps) {
 
   if (текст === null) return null
 
+  // cyrillic-ok-next-line: the state in this file is named in Russian
+  const open = развёрнуто
   const строки = текст.split('\n')
   const длинный = строки.length > СТРОК_В_ПРЕВЬЮ
   const показать =
@@ -118,8 +144,16 @@ export function SoulCard({ username, isOwn, onEdit }: SoulCardProps) {
         </p>
       ) : (
         <>
-          <div className="soul-card__text">{разметить(показать)}</div>
-          {длинный && (
+          <div
+            ref={textRef}
+            className="soul-card__text"
+            data-open={open ? '1' : undefined}
+          >
+            {разметить(показать)}
+          </div>
+          {/* Cut text always offers the way in, however few lines it has. */}
+          {/* cyrillic-ok-next-line: existing names in this file are Russian */}
+          {(длинный || cut) && (
             <button
               type="button"
               className="soul-card__more"
