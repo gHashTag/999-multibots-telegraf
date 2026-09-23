@@ -38,6 +38,14 @@ function fakePool(o: { messages?: unknown[]; unanswered?: boolean } = {}) {
 const ctx = (pool: unknown) =>
   ({ telegramId: LEAD, pool, surface: 'business', turn: 't' }) as never
 
+/**
+ * WHOSE correspondence the block is about. Since 2026-09-23 it is passed in
+ * rather than taken from `OWNER_TELEGRAM_ID`: with more than one connected
+ * seller, the old constant answered a second seller's client out of the
+ * platform owner's history (every-seller-answers-as-themselves.test.ts).
+ */
+const SELLER = '144022504'
+
 beforeEach(() => {
   vi.resetModules()
   delete process.env.ZEP_API_KEY
@@ -48,7 +56,8 @@ beforeEach(() => {
 describe('dmHistoryBlock', () => {
   it("the owner's history with this person, framed, oldest first, and who is waiting", async () => {
     const { dmHistoryBlock } = await import('./src/agent/chat')
-    const block = await dmHistoryBlock(
+    const dmHistoryBlock2 = dmHistoryBlock
+    const block = await dmHistoryBlock2(
       ctx(
         fakePool({
           unanswered: true,
@@ -67,9 +76,12 @@ describe('dmHistoryBlock', () => {
             },
           ],
         })
-      )
+      ),
+      SELLER
     )
-    expect(block).toContain('ИСТОРИЯ ПЕРЕПИСКИ ВЛАДЕЛЬЦА')
+    // The heading is "yours", not "the owner's": the block belongs to whoever
+    // the chat belongs to.
+    expect(block).toContain('ИСТОРИЯ ТВОЕЙ ПЕРЕПИСКИ')
     expect(block).toContain('FOREIGN CONTENT')
     expect(block.indexOf('владелец: привет, Pilot')).toBeLessThan(
       block.indexOf('человек: сколько стоит рилс?')
@@ -79,7 +91,18 @@ describe('dmHistoryBlock', () => {
 
   it('nothing known -- nothing said', async () => {
     const { dmHistoryBlock } = await import('./src/agent/chat')
-    expect(await dmHistoryBlock(ctx(fakePool()))).toBe('')
+    expect(await dmHistoryBlock(ctx(fakePool()), SELLER)).toBe('')
+  })
+
+  it("no seller named -- no history at all, never the platform owner's", async () => {
+    const { dmHistoryBlock } = await import('./src/agent/chat')
+    process.env.OWNER_TELEGRAM_ID = SELLER
+    const pool = fakePool({
+      messages: [
+        { msg_id: 1, at: '2026-09-08T10:00:00Z', out: false, text: 'x' },
+      ],
+    })
+    expect(await dmHistoryBlock(ctx(pool))).toBe('')
   })
 
   it('the owner talking to the agent gets no history block about themselves', async () => {
@@ -90,7 +113,7 @@ describe('dmHistoryBlock', () => {
       ],
     })
     expect(
-      await dmHistoryBlock({ telegramId: '144022504', pool } as never)
+      await dmHistoryBlock({ telegramId: SELLER, pool } as never, SELLER)
     ).toBe('')
   })
 
@@ -102,7 +125,7 @@ describe('dmHistoryBlock', () => {
         throw new Error('db down')
       },
     }
-    expect(await dmHistoryBlock(ctx(pool))).toBe('')
+    expect(await dmHistoryBlock(ctx(pool), SELLER)).toBe('')
     warn.mockRestore()
   })
 })
@@ -151,9 +174,10 @@ describe('the DM stance', () => {
      */
     const { join } = await import('node:path')
     const src = readFileSync(join(__dirname, 'src', 'agent', 'chat.ts'), 'utf8')
-    expect(src).toMatch(
-      /opts\?\.surface === 'business' \? await dmHistoryBlock\(ctx\) : ''/
-    )
+    // The seller travels with the call now; the surface still decides whether
+    // the block exists at all.
+    expect(src).toMatch(/dmHistoryBlock\(ctx, opts\?\.seller\)/)
+    expect(src).toMatch(/opts\?\.surface === 'business'/)
     expect(src).toMatch(/\}\)\) \+ dmContext,/)
   })
 })
