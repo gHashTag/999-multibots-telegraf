@@ -33,7 +33,30 @@ const root = resolve(__dirname, '..')
  */
 require('./lib/usable-node.cjs').ensureUsableNode(__filename, root)
 const BASELINE = resolve(root, 'scripts', 'tests-baseline.json')
-const OUT = resolve(root, 'node_modules', '.cache', 'test-guard.json')
+
+/*
+ * ONE REPORT PER WORKING TREE, NOT ONE PER MACHINE.
+ *
+ * This used to be a fixed name under `root`, which looks per-worktree and is
+ * not: every worktree here symlinks `node_modules` to the main checkout's, so
+ * all of them wrote to the same file. Two pushes at once then read each
+ * other's failures -- see scripts/lib/test-guard-report.cjs for the day it
+ * happened and what it looked like from the inside.
+ */
+const gitDirOf = () => {
+  try {
+    return execFileSync('git', ['rev-parse', '--git-dir'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+  } catch {
+    // Not a repository, or git is unavailable: the root alone still keys it.
+    return ''
+  }
+}
+const { reportPaths, foreignResults } = require('./lib/test-guard-report.cjs')
+const { out: OUT, confirm: OUT_CONFIRM } = reportPaths(root, gitDirOf())
 
 /**
  * WHAT THIS PUSH ACTUALLY CARRIES.
@@ -279,6 +302,29 @@ if (!existsSync(OUT)) {
 
 const report = JSON.parse(readFileSync(OUT, 'utf8'))
 const results = report.testResults || []
+/*
+ * A REPORT ABOUT SOMEBODY ELSE'S TREE IS NOT AN ANSWER ABOUT THIS ONE.
+ *
+ * The unique path above is the fix; this is the alarm for the day it stops
+ * working. Reading a foreign report is how a sibling worktree's 23 failures
+ * once blocked a branch that had nothing to do with them, and the message it
+ * printed was indistinguishable from a real regression. So the gate stops and
+ * SAYS whose files these are, instead of blaming the person pushing.
+ */
+const foreign = foreignResults(root, results)
+if (foreign.length) {
+  console.error(
+    '[тесты] the report is about another working tree -- not reading it.'
+  )
+  console.error(`        report: ${OUT}`)
+  console.error(`        this tree: ${root}`)
+  for (const name of foreign.slice(0, 5)) console.error(`        ${name}`)
+  console.error(
+    '        Delete that file and push again; if it comes back, the gate is'
+  )
+  console.error('        writing outside this tree and that is the bug.')
+  process.exit(2)
+}
 const failedFiles = results
   .filter(r => r.status === 'failed')
   .map(r => r.name.replace(root + '/', ''))
@@ -324,7 +370,9 @@ if (fresh.length === 0) {
  */
 const confirm = list => {
   if (!list.length) return { real: [], flaky: [] }
-  const OUT2 = OUT.replace(/\.json$/, '.confirm.json')
+  // The same key as the first pass: a crossed pair would be the same bug
+  // with one more step in it (scripts/lib/test-guard-report.cjs).
+  const OUT2 = OUT_CONFIRM
   try {
     if (existsSync(OUT2)) unlinkSync(OUT2)
   } catch {
@@ -345,6 +393,16 @@ const confirm = list => {
     return { real: list, flaky: [] }
   }
   const again = JSON.parse(readFileSync(OUT2, 'utf8')).testResults || []
+  if (foreignResults(root, again).length) {
+    // Same alarm as above, at the only other place a report is read. A
+    // confirm pass that cannot be trusted excuses nothing: everything stays
+    // a real failure, which is what this branch already does for a missing
+    // report.
+    console.error(
+      '[тесты] the confirm report is about another working tree -- ignoring it.'
+    )
+    return { real: list, flaky: [] }
+  }
   const failedAgain = new Set(
     again
       .filter(r => r.status === 'failed')
