@@ -654,15 +654,29 @@ html[data-t27-face] .members .self .avatar {
 }
 
 /*
- * THE SPEAKER SLAB IN THE MIDDLE OF SOMEBODY'S SCREEN.
+ * THE SPEAKER SLAB IN THE MIDDLE OF SOMEBODY'S SCREEN -- AND THE LAYER THAT
+ * MUST NEVER GO WITH IT.
  *
  * neko draws a full-size "click to unmute" over the picture. The same
  * control is a 15px icon in the bar, so the slab is a duplicate that covers
- * the one thing that must stay visible.
+ * the one thing that must stay visible. It is a DIV.
+ *
+ * neko's input layer is a TEXTAREA with the very same class name, lying over
+ * the picture: it is what turns a click or a tap into a click inside the
+ * person's browser. Hiding ".overlay" hid that too, and from 2026-09-22 the
+ * owner could not press anything by hand -- the tap reached the video
+ * element and stopped there. Their own window said so: elementFromPoint
+ * answered "video" while hosting was true (TOUCH_REPORT_SCRIPT below). Only
+ * DIVs are hidden now, and the textarea is kept alive and clickable: while
+ * nobody holds control, a click on it is how control is asked for.
  */
 .video-container > .video > div[class*='overlay'],
-.player .overlay, .video .overlay, .player-overlay {
+.player div.overlay, .video div.overlay, div.player-overlay {
   display: none !important;
+}
+textarea.overlay {
+  display: block !important;
+  pointer-events: auto !important;
 }
 
 /*
