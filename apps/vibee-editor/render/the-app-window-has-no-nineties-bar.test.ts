@@ -34,9 +34,22 @@ describe('the window inside the app', () => {
     const html = injectSkin(
       '<html><head><title>x</title></head><body></body></html>'
     )
-    const head = html.slice(html.indexOf('<head>'), html.indexOf('</head>'))
-    expect(head.indexOf('data-t27-framed')).toBeLessThan(
-      head.indexOf('data-t27-skin')
-    )
+    const headAt = html.indexOf('<head>')
+    const headEnd = html.indexOf('</head>')
+    expect(headAt).toBeGreaterThan(-1)
+    expect(headEnd).toBeGreaterThan(headAt)
+    const head = html.slice(headAt, headEnd)
+    /*
+     * Both markers are required to EXIST before their order is compared.
+     * `indexOf` returns -1 for an absent marker, and -1 is less than every
+     * real position, so a dropped `data-t27-framed` would have satisfied
+     * `toBeLessThan` rather than failing it -- the test would have passed
+     * precisely when the decision it guards had stopped being made.
+     */
+    const framedAt = head.indexOf('data-t27-framed')
+    const skinAt = head.indexOf('data-t27-skin')
+    expect(framedAt).toBeGreaterThan(-1)
+    expect(skinAt).toBeGreaterThan(-1)
+    expect(framedAt).toBeLessThan(skinAt)
   })
 })
