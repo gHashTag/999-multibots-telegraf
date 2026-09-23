@@ -19,10 +19,14 @@ import {
 const NOW = new Date('2026-09-23T12:00:00.000Z')
 const OWNER = '144022504'
 
-const down = (why = 'Not Found'): BotHealth => ({
+const down = (
+  why = 'Not Found',
+  side: BotHealth['side'] = 'telegram'
+): BotHealth => ({
   bot: 'NeuroLenaAssistant_bot',
   alive: false,
   why,
+  side,
   pendingUpdates: null,
   checkedAt: NOW.toISOString(),
 })
@@ -31,6 +35,7 @@ const up = (): BotHealth => ({
   bot: 'NeuroLenaAssistant_bot',
   alive: true,
   why: null,
+  side: null,
   pendingUpdates: 0,
   checkedAt: NOW.toISOString(),
 })
@@ -85,6 +90,40 @@ describe('when to speak, and when to keep quiet', () => {
     expect(d.state).toEqual(FRESH)
   })
 
+  it('never labels our own gap as Telegram’s', () => {
+    // The defect, in one line: the label was a constant. Whatever the reason,
+    // the message said Telegram. Three owners received it live on 2026-09-23.
+    let state: WatchState = FRESH
+    const texts: string[] = []
+    for (let i = 0; i < FAILURES_BEFORE_ALARM; i++) {
+      const d = decide(
+        state,
+        down('токена нет на нашем сервере', 'ours'),
+        OWNER,
+        NOW
+      )
+      state = d.state
+      if (d.alarm) texts.push(d.alarm.text)
+    }
+    expect(texts).toHaveLength(1)
+    expect(texts[0]).toContain('Причина на нашей стороне')
+    expect(texts[0]).not.toContain('со стороны Telegram')
+  })
+
+  it('names no culprit it cannot name', () => {
+    // An unknown side is not a free pass to blame either party.
+    let state: WatchState = FRESH
+    let text = ''
+    for (let i = 0; i < FAILURES_BEFORE_ALARM; i++) {
+      const d = decide(state, down('что-то пошло не так', null), OWNER, NOW)
+      state = d.state
+      if (d.alarm) text = d.alarm.text
+    }
+    expect(text).toContain('Причина: что-то пошло не так')
+    expect(text).not.toContain('со стороны Telegram')
+    expect(text).not.toContain('на нашей стороне')
+  })
+
   it('stays silent about a recovery nobody was told about', () => {
     // Two misses, then back: the owner never heard the alarm, so "it is back"
     // would be a message about nothing.
@@ -136,19 +175,45 @@ describe('one tick over everybody', () => {
       },
       false
     )
-    const alarms = await watchOnce(d)
-    expect(alarms).toHaveLength(1)
-    expect(alarms[0].ownerId).toBe(OWNER)
+    const round = await watchOnce({ ...d, deliver: async () => true })
+    expect(round.alarms).toHaveLength(1)
+    expect(round.alarms[0].ownerId).toBe(OWNER)
     expect(written[0].alarmed).toBe(true)
+    expect(round.delivered).toBe(1)
   })
 
-  it('says nothing at all when everything answers', async () => {
+  it('does not record "told" for a message that bounced', async () => {
+    // The owner never started a chat with the platform bot, so Telegram
+    // refuses. Writing alarmed=true here would mean this outage is never
+    // announced again: the state would say they know.
+    const { deps: d, written } = deps(
+      {
+        misses: FAILURES_BEFORE_ALARM - 1,
+        alarmed: false,
+        since: NOW.toISOString(),
+      },
+      false
+    )
+    const round = await watchOnce({ ...d, deliver: async () => false })
+    expect(round.alarms).toHaveLength(1)
+    expect(round.undelivered).toBe(1)
+    expect(written[0].alarmed).toBe(false)
+    // The misses are kept, so the next tick speaks again immediately.
+    expect(written[0].misses).toBe(FAILURES_BEFORE_ALARM)
+  })
+
+  it('counts what it looked at, so a quiet tick is not an absent one', async () => {
+    // Twenty minutes of the first live run went on "is it running or is
+    // everything simply fine?" -- the log could not tell them apart.
     const { deps: d } = deps(FRESH, true)
-    expect(await watchOnce(d)).toEqual([])
+    const round = await watchOnce(d)
+    expect(round.alarms).toEqual([])
+    expect(round.checked).toBe(1)
+    expect(round.silent).toBe(0)
   })
 
   it('an unavailable list of owners is silence, not "all fine"', async () => {
-    const alarms = await watchOnce({
+    const round = await watchOnce({
       owners: async () => {
         throw new Error('avatars replied 503')
       },
@@ -158,7 +223,9 @@ describe('one tick over everybody', () => {
       fetchImpl: answers(false),
       now: () => NOW,
     })
-    expect(alarms).toEqual([])
+    expect(round.alarms).toEqual([])
+    // And it says it looked at nothing, rather than at everything happily.
+    expect(round.checked).toBe(0)
   })
 
   it('a bot whose token is missing on OUR side still reaches the owner', async () => {
@@ -169,8 +236,20 @@ describe('one tick over everybody', () => {
       { misses: FAILURES_BEFORE_ALARM - 1, alarmed: false, since: null },
       false
     )
-    const alarms = await watchOnce({ ...d, tokenForBot: async () => null })
+    const round = await watchOnce({
+      ...d,
+      tokenForBot: async () => null,
+      deliver: async () => true,
+    })
+    const alarms = round.alarms
     expect(alarms).toHaveLength(1)
-    expect(alarms[0].text).toContain('токена этого бота нет на сервере')
+    expect(round.silent).toBe(1)
+    expect(alarms[0].text).toContain('токена этого бота нет на нашем сервере')
+    // AND THE LABEL AGREES WITH THE REASON. On the first live run it did not:
+    // three owners were told Telegram was the cause of a gap that was ours,
+    // which sends a person to fix settings that are fine.
+    expect(alarms[0].text).toContain('Причина на нашей стороне')
+    expect(alarms[0].text).not.toContain('со стороны Telegram')
+    expect(alarms[0].text).toContain('напиши нам')
   })
 })
