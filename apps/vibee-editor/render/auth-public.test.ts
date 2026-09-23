@@ -162,3 +162,43 @@ describe('достижимость маршрутов аутентификаци
     expect(auth).toContain("'/api/zai/relay/chat/completions'")
   })
 })
+
+/**
+ * THE SHAPE OF THE APP IS PUBLIC, AND ITS PEOPLE ARE NOT.
+ *
+ * `/api/navigation` answers which destinations exist -- the tab bar every
+ * client draws before anybody signs in. The handler was shipped without the
+ * route on the public list, and the guard answered "no X-Api-Key and no
+ * Telegram initData": every client silently kept its bundled copy, which is
+ * precisely the drift the shared list was built to end.
+ *
+ * The line below it is the one that must NOT move: a profile is club-only
+ * now, decided in the handler, and nothing here should quietly open it.
+ */
+describe('the navigation list', () => {
+  it('is readable with no credential at all', async () => {
+    const { isPublic } = await import('./auth')
+    expect(isPublic({ url: '/api/navigation', method: 'GET' } as never)).toBe(
+      true
+    )
+    expect(
+      isPublic({ url: '/api/navigation?platform=ios', method: 'GET' } as never)
+    ).toBe(true)
+  })
+
+  it('is readable only, like every other public prefix', async () => {
+    const { isPublic } = await import('./auth')
+    // A POST to it would be somebody trying to WRITE the app's shape.
+    expect(isPublic({ url: '/api/navigation', method: 'POST' } as never)).toBe(
+      false
+    )
+  })
+
+  it('does not drag the profile open with it', async () => {
+    // /api/users/ stays on the public list because the CLUB GATE inside the
+    // handler is what refuses a non-member (403 club_only). If that gate is
+    // ever removed, this pairing is how the route goes quietly open again.
+    const server = readFile('render-server.ts')
+    expect(server).toContain('refuseUnlessClub')
+  })
+})
