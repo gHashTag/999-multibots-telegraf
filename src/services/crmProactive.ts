@@ -1085,15 +1085,40 @@ export function autopilotSentLine(
 }
 
 /**
- * The line that explains a card the owner did not expect to see: his AUTO
- * window ended, so this one waits for him again. One sentence, with the hour,
- * and nothing else -- he is looking at a client's draft, not at a status page.
+ * WHY THIS CARD IS WAITING, WHEN THE OWNER THOUGHT IT WOULD NOT.
+ *
+ * A card that arrives while AUTO is on is a small betrayal of the switch, and
+ * until now it arrived without a word. Three reasons, and each one is a
+ * DIFFERENT action for him:
+ *
+ *   - the window ended      -> turn it on again, if he still wants it;
+ *   - today's budget is out -> nothing to do until tomorrow, and knowing that
+ *                              is the difference between "broken" and "full";
+ *   - this person is not on his list -> one tick, on the row in front of him.
+ *
+ * One sentence, at the top of the card he is already reading. No status page,
+ * no notification of its own: the moment he is looking at the consequence is
+ * the moment to say the cause.
  */
 export function autopilotClosedLine(until: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return (
     `⏹ Автопилот кончился в ${p(until.getHours())}:${p(until.getMinutes())} — ` + // cyrillic-ok: user-facing copy
     'карточки снова ждут твоего нажатия.\n\n' // cyrillic-ok: user-facing copy
+  )
+}
+
+export function autopilotCapLine(cap: number): string {
+  return (
+    `🤖 Автопилот включён, но сегодняшние ${cap} автоотправок уже потрачены — ` + // cyrillic-ok: user-facing copy
+    'эта карточка ждёт тебя, а счёт обнулится завтра.\n\n' // cyrillic-ok: user-facing copy
+  )
+}
+
+export function autopilotNotChosenLine(): string {
+  return (
+    '🤖 Автопилот включён для выбранных, а этот человек не отмечен — ' + // cyrillic-ok: user-facing copy
+    'поставь ему галочку в списке клиентов, если хочешь, чтобы уходило само.\n\n' // cyrillic-ok: user-facing copy
   )
 }
 
@@ -1196,10 +1221,22 @@ export async function pushCard(
    * budget ran out for today sees "🤖 Автопилот" and pressing it starts a
    * fresh window, which is the honest answer to "why did it stop".
    */
-  let auto = { on: false, until: null as Date | null }
+  let auto = {
+    on: false,
+    until: null as Date | null,
+    scope: 'all' as 'all' | 'chosen',
+    cap: 0,
+    left: 0,
+  }
   try {
     const st = await autopilotState(ownerId)
-    auto = { on: st.on, until: st.until ?? null }
+    auto = {
+      on: st.on,
+      until: st.until ?? null,
+      scope: st.scope,
+      cap: st.left + st.sentToday,
+      left: st.left,
+    }
   } catch {
     // Unknown means off, and off is what the button already says.
   }
@@ -1220,10 +1257,28 @@ export async function pushCard(
    * at the consequence, and a line on the card costs no scheduler, no state
    * and no second place to forget.
    */
-  const closed =
-    !auto.on && auto.until && auto.until.getTime() <= Date.now()
-      ? autopilotClosedLine(auto.until)
-      : ''
+  const lead = cardLeadOf(draft as never) ?? ''
+  const closed = await (async () => {
+    if (!auto.on)
+      return auto.until && auto.until.getTime() <= Date.now()
+        ? autopilotClosedLine(auto.until)
+        : ''
+    // AUTO is on and this card is here anyway: say which of the two bounds
+    // stopped it. The order matters -- a spent budget stops everybody, so it
+    // is checked before the list.
+    if (auto.left <= 0) return autopilotCapLine(auto.cap)
+    if (auto.scope === 'chosen') {
+      const { isAutopilotLead } = await import('./crmAutopilot')
+      if (!(await isAutopilotLead(ownerId, lead)))
+        return autopilotNotChosenLine()
+    }
+    /*
+     * On, in budget, and the person is chosen -- so the send itself failed,
+     * and the branch above already said so in the log and fell through to
+     * this card. Nothing is added here: a second explanation would guess.
+     */
+    return ''
+  })()
   const card = proposalCard(draft, true, withSwitch)
   // The press will want to know who this was for.
   rememberCard(draft as never)

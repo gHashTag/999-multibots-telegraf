@@ -123,6 +123,19 @@ async function main() {
   console.log(
     `   сегодня ушло ${out.sent_today}, осталось ${out.left_today} из ${out.cap}.` // cyrillic-ok: operator-facing
   )
+  /*
+   * WHY NOTHING IS GOING OUT, when the switch says it should. The same two
+   * bounds the card explains (crmProactive.ts): a spent budget stops
+   * everybody, an empty list stops everybody in `chosen`.
+   */
+  if (out.left_today === 0)
+    console.log(
+      '   ⚠ на сегодня потолок исчерпан — до завтра карточки ждут нажатия.' // cyrillic-ok: operator-facing
+    )
+  else if (out.scope === 'chosen' && out.chosen === 0)
+    console.log(
+      '   ⚠ режим «выбранным», а список пуст — значит не уходит ничего.' // cyrillic-ok: operator-facing
+    )
   console.log(scopeLine)
   /*
    * WHO, not just how many. "Пишет только выбранным: 3 чел." is a number to

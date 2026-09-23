@@ -426,6 +426,33 @@ export async function chooseAutopilotLead(
   }
 }
 
+/**
+ * Is THIS person on the chosen list? One row, asked only when it can change
+ * an answer: with `scope: 'all'` the question does not arise, and with AUTO
+ * off nothing was going to send anyway.
+ *
+ * Unknown (a database that will not answer) reads as NOT chosen. The card is
+ * about to be shown either way; saying "he is not on your list" when the list
+ * could not be read would be the one wrong thing to say.
+ */
+export async function isAutopilotLead(
+  ownerId: string | number,
+  leadId: string | number
+): Promise<boolean> {
+  const d = db()
+  if (!d) return false
+  try {
+    await ensureSchema(d)
+    const { rows } = await d.query(AUTOPILOT_LEAD_ONE, [
+      String(ownerId),
+      String(leadId),
+    ])
+    return rows.length > 0
+  } catch {
+    return false
+  }
+}
+
 /** Whom he picked. Empty on failure -- the screen says "none", never invents. */
 export async function autopilotLeads(
   ownerId: string | number
