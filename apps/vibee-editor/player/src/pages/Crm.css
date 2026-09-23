@@ -358,3 +358,8 @@
   font-size: 12px;
   color: var(--t27-muted, #888);
 }
+
+/* One tap that fills the "chosen" list with the people who are waiting. */
+.crm__pick-all {
+  margin: 0 0 8px;
+}
