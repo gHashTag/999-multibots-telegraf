@@ -3866,3 +3866,24 @@ html[data-shell='board'] .track-badge.volume.muted {
   background: #000;
   color: var(--board-dim);
 }
+
+/* ======================================================================
+ * FEED CHROME INSIDE THE FRAME
+ * ====================================================================== */
+
+/*
+ * THE CHIPS SIT OFF A HEADER THAT IS NOT IN THE FRAME.
+ *
+ * FeedPanel.css floats the Recent/Popular chips at top: 70px, and 65px below
+ * 480px, to clear the app's own 56/48px header. Inside the board frame the
+ * header renders nothing (Header.tsx, the IS_EMBED branch), so on 2026-09-23
+ * the chips measured 65px down from the top of a 390px frame with nothing
+ * above them. This selector is (0,4,1); the app's phone rules are (0,3,0), so
+ * it wins at every width without a media query of its own.
+ *
+ * The action rail follows by itself: FeedPanel publishes --feed-chrome-top
+ * from the chips' own box, which is the whole point of that variable.
+ */
+html[data-shell='board'] .feed-panel.fullscreen .feed-sort {
+  top: 12px;
+}

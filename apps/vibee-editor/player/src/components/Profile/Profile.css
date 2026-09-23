@@ -1616,9 +1616,54 @@
  * Семь вкладок у своего профиля в строку не влезут — заголовок и раньше
  * прокручивался по горизонтали, это поведение сохранено. */
 @media (max-width: 480px) {
-  .profile-tabs__header {
+  /*
+   * THE SECTIONS COME BEFORE THE CARDS THAT ARE NOT THE SECTIONS.
+   *
+   * Measured in the board frame at 390px on 2026-09-23: the section strip
+   * started 781px down on somebody else's profile and 1253px down on the
+   * owner's own, because the header, the SOUL card, the top-up card and the
+   * CRM card all come first. The sections are what a profile is opened for.
+   *
+   * SOUL keeps its place above them: it is there on purpose, because that is
+   * how people and a2a agents read who somebody is. The two `.profile-topup`
+   * cards (top-up and CRM -- they share the class) move below the sections,
+   * where they are still one short scroll away on the owner's own profile
+   * and are not in front of a visitor at all.
+   *
+   * Sticky was tried first and does nothing here: `.profile-tabs__content` is
+   * capped at 62vh with its own scroll, so the panel is never tall enough to
+   * push its strip to the top of the screen. A rule that looks like a fix and
+   * is inert is worse than no rule.
+   */
+  .profile-page__container {
     display: flex;
-    gap: 0;
+    flex-direction: column;
+  }
+
+  .profile-tabs {
+    order: 1;
+  }
+
+  .profile-topup {
+    order: 2;
+  }
+
+  /*
+   * SOUL IS A PREVIEW ON A PHONE, NOT A WALL.
+   *
+   * The card already cuts to six SOURCE lines, but at 390px one source line
+   * wraps to two or three, so six lines measured 416px -- half a screen of a
+   * card that exists to be glanced at. The cap is on the drawn height; the
+   * card's own "Читать целиком" opens it, and SoulCard shows that button
+   * whenever the text is cut, not only when it has many lines.
+   */
+  .soul-card__text {
+    max-height: 9.5em;
+    overflow: hidden;
+  }
+
+  .soul-card__text[data-open='1'] {
+    max-height: none;
   }
 
   .profile-tabs__tab {
@@ -2471,4 +2516,31 @@
 .profile-topup__other:hover {
   border-style: solid;
   border-color: var(--accent, #7c5cff);
+}
+
+/*
+ * THE PAGE ENDS ABOVE THE BAR, NOT UNDER IT.
+ *
+ * Owner, 2026-09-23, with a screenshot: the fixed tab bar covered the end of
+ * the profile, and the last rows could not be scrolled into sight at all.
+ *
+ * Keyed on the bar's own attribute rather than a width: TelegramTabBar writes
+ * body[data-tabbar='visible'] only while it is up, so a desktop window and
+ * the board frame (where the bar is not drawn) gain no empty strip. The bar
+ * publishes its measured height and telegram.css adds the safe area; the
+ * fallback is the bare constant plus the home indicator.
+ *
+ * Last in the file on purpose: the four `padding` shorthands above (2rem,
+ * 1rem, 0.75rem, 0.5rem by breakpoint) each reset padding-bottom, so a reserve
+ * written beside any one of them is dropped by the next. Same fix as
+ * .hive-page (pages/Hive.css:22), which had the same bug.
+ */
+body[data-tabbar='visible'] .profile-page {
+  padding-bottom: calc(
+    0.75rem +
+      var(
+        --app-tabbar-total,
+        calc(var(--nav-height, 64px) + env(safe-area-inset-bottom, 0px))
+      )
+  );
 }
