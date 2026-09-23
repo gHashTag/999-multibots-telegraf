@@ -30,6 +30,12 @@ import { healthOfOwnedBots, type BotHealth } from './owner-bot-health'
  *    on OUR side is a lie that sends a person looking at their own settings.
  *    The text says whose side it is, because owner-bot-health.ts knows.
  *
+ *    THIS ONE WAS GOT WRONG IN THE FIRST LIVE RUN, 2026-09-23. The label was
+ *    the constant "Причина со стороны Telegram", and three owners were sent it
+ *    above a reason that was ours -- no token on this server. A rule written
+ *    into a comment and then not read from the data is not a rule. The label
+ *    now comes from `health.side`, and a test fails if the two disagree.
+ *
  * WHAT IT DOES NOT DO: send anything to that bot's clients, or touch the bot.
  * It tells the owner, and the owner decides.
  */
@@ -65,6 +71,20 @@ const hoursBetween = (fromIso: string | null, now: Date): number | null => {
   const from = Date.parse(fromIso)
   if (!Number.isFinite(from)) return null
   return Math.max(0, Math.round((now.getTime() - from) / 36e5))
+}
+
+/**
+ * Whose gap it is, in the words the person needs. For our own gap the next
+ * step is "write to us" -- without it a person reads "on our side" and still
+ * goes to check their own settings, which is the failure this replaces.
+ */
+function blame(health: BotHealth): string {
+  const why = health.why ?? 'неизвестна'
+  if (health.side === 'ours')
+    return `Причина на нашей стороне: ${why}.\nЭто не твои настройки — напиши нам.`
+  if (health.side === 'telegram') return `Причина со стороны Telegram: ${why}.`
+  // Neither known: say the reason without naming a culprit we cannot name.
+  return `Причина: ${why}.`
 }
 
 function howLong(since: string | null, now: Date): string {
@@ -117,7 +137,7 @@ export function decide(
       kind: 'silent',
       text:
         `@${health.bot} не отвечает${howLong(since, now)}.\n` +
-        `Причина со стороны Telegram: ${health.why ?? 'неизвестна'}.\n` +
+        `${blame(health)}\n` +
         `Люди, которые ему пишут, ответа не получают.`,
     },
   }
@@ -130,24 +150,62 @@ export interface WatchDeps {
   /** Persisted per (owner, bot). */
   readState: (ownerId: string, bot: string) => Promise<WatchState | null>
   writeState: (ownerId: string, bot: string, s: WatchState) => Promise<void>
+  /**
+   * Sends one alarm and says whether it ARRIVED -- not whether it was
+   * attempted. Without the answer this tick writes "told" for a message that
+   * bounced (the owner never started a chat with the platform bot, or blocked
+   * it), and the owner is then never told again: the state says they know.
+   *
+   * Optional: with no deliver, nothing is sent and nothing is marked as told.
+   */
+  deliver?: (alarm: Alarm) => Promise<boolean>
   fetchImpl?: typeof fetch
   now?: () => Date
 }
 
+export interface WatchRound {
+  alarms: Alarm[]
+  /** Bots asked about this tick. */
+  checked: number
+  /** Of those, how many did not answer. */
+  silent: number
+  /** Alarms that arrived, and alarms that did not. */
+  delivered: number
+  undelivered: number
+}
+
+const EMPTY_ROUND: WatchRound = {
+  alarms: [],
+  checked: 0,
+  silent: 0,
+  delivered: 0,
+  undelivered: 0,
+}
+
 /**
- * One tick over everybody. Returns the alarms to deliver; sending is the
- * caller's job, so this stays testable and cannot message anybody by accident.
+ * One tick over everybody.
+ *
+ * WHY IT RETURNS COUNTS AND NOT ONLY ALARMS. The first live run was invisible:
+ * a tick that finds nothing says nothing, so "everything answers" and "the
+ * watchman is not running at all" looked identical for twenty minutes, and the
+ * only way to tell them apart was to open the database by hand. A watchman that
+ * cannot be seen watching is the very thing this file exists to prevent, so
+ * every round reports what it did and the caller logs one line.
  */
-export async function watchOnce(deps: WatchDeps): Promise<Alarm[]> {
+export async function watchOnce(deps: WatchDeps): Promise<WatchRound> {
   const now = deps.now ? deps.now() : new Date()
   const alarms: Alarm[] = []
+  let checked = 0
+  let silent = 0
+  let delivered = 0
+  let undelivered = 0
   let owners: Array<{ ownerId: string; bots: string[] }> = []
   try {
     owners = await deps.owners()
   } catch {
     // The list of owners is unavailable: say nothing rather than announce
     // that everybody's bots are fine or broken.
-    return []
+    return { ...EMPTY_ROUND }
   }
 
   for (const { ownerId, bots } of owners) {
@@ -163,9 +221,28 @@ export async function watchOnce(deps: WatchDeps): Promise<Alarm[]> {
         .readState(ownerId, h.bot)
         .catch(() => null)) ?? { ...FRESH }
       const { state, alarm } = decide(previous, h, ownerId, now)
-      await deps.writeState(ownerId, h.bot, state).catch(() => {})
-      if (alarm) alarms.push(alarm)
+      checked++
+      if (!h.alive) silent++
+
+      /*
+       * DELIVER BEFORE RECORDING "TOLD". The order is the whole point: an
+       * alarm that bounced must leave `alarmed` false, so the next tick tries
+       * again instead of trusting a state that says the owner knows.
+       */
+      let toWrite = state
+      if (alarm) {
+        alarms.push(alarm)
+        if (deps.deliver) {
+          const arrived = await deps.deliver(alarm).catch(() => false)
+          if (arrived) delivered++
+          else {
+            undelivered++
+            if (alarm.kind === 'silent') toWrite = { ...state, alarmed: false }
+          }
+        }
+      }
+      await deps.writeState(ownerId, h.bot, toWrite).catch(() => {})
     }
   }
-  return alarms
+  return { alarms, checked, silent, delivered, undelivered }
 }

@@ -36,6 +36,25 @@ export interface BotHealth {
   alive: boolean
   /** Telegram's own description when it does not, or why we could not ask. */
   why: string | null
+  /**
+   * WHOSE SIDE THE GAP IS ON, and the reason this field exists at all.
+   *
+   * MEASURED 2026-09-23, on the watchman's first live run: three owners were
+   * told "Причина со стороны Telegram: токена этого бота нет на сервере". Both
+   * halves were produced here, and the sentence contradicts itself -- the
+   * reason was OURS and the label said Telegram's. A person reading it goes to
+   * look at their own settings, or blames a platform that did nothing wrong.
+   *
+   * `why` alone cannot be labelled by whoever prints it: only this module
+   * knows which branch produced it. So it says.
+   *
+   * 'telegram' — Telegram answered and refused: an invalid token, a deleted
+   *              bot. Their words are in `why`.
+   * 'ours'     — we never asked, or could not: no token on this server, or the
+   *              request itself failed. Nothing about their bot is known.
+   * null       — nothing is wrong (`alive`).
+   */
+  side: 'telegram' | 'ours' | null
   /** Updates waiting to be collected, when Telegram will say. */
   pendingUpdates: number | null
   checkedAt: string
@@ -56,12 +75,18 @@ const clean = (name: string): string =>
     .trim()
     .replace(/^@/, '')
 
+/**
+ * `reached` separates "Telegram said no" from "we never got an answer". Both
+ * arrive here as a failure, and treating them the same is how an owner is told
+ * their bot is broken because OUR request timed out.
+ */
 async function askTelegram(
   token: string,
   method: string,
   fetchImpl: typeof fetch
 ): Promise<{
   ok: boolean
+  reached: boolean
   result?: Record<string, unknown>
   description?: string
 }> {
@@ -79,12 +104,14 @@ async function askTelegram(
     }
     return {
       ok: Boolean(body?.ok),
+      reached: true,
       result: body?.result,
       description: body?.description,
     }
   } catch (e) {
     return {
       ok: false,
+      reached: false,
       description: e instanceof Error ? e.message : String(e),
     }
   }
@@ -119,7 +146,8 @@ export async function healthOfOwnedBots(
         bot,
         alive: false,
         // Said plainly: this is OUR gap, not their bot being broken.
-        why: 'токена этого бота нет на сервере — им никто не может отвечать',
+        why: 'токена этого бота нет на нашем сервере — им никто не может отвечать',
+        side: 'ours',
         pendingUpdates: null,
         checkedAt: at,
       })
@@ -130,7 +158,10 @@ export async function healthOfOwnedBots(
       out.push({
         bot,
         alive: false,
-        why: me.description ?? 'Telegram не признал токен',
+        why: me.reached
+          ? (me.description ?? 'Telegram не признал токен')
+          : `мы не смогли спросить Telegram: ${me.description ?? 'запрос не дошёл'}`,
+        side: me.reached ? 'telegram' : 'ours',
         pendingUpdates: null,
         checkedAt: at,
       })
@@ -142,6 +173,7 @@ export async function healthOfOwnedBots(
       bot: clean(String(me.result?.username ?? bot)),
       alive: true,
       why: null,
+      side: null,
       pendingUpdates: Number.isFinite(pending) ? pending : null,
       checkedAt: at,
     })

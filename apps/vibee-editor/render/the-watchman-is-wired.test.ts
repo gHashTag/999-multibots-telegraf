@@ -20,12 +20,32 @@ describe('the bot-silence watch is actually running', () => {
     // Ten minutes. A watchman's pace: three misses before it speaks means a
     // real outage is reported within about half an hour, and a blink never is.
     const at = SERVER.indexOf('runSilenceWatch')
-    expect(SERVER.slice(at, at + 1200)).toMatch(/10 \* 60 \* 1000/)
+    expect(SERVER.slice(at, at + 2600)).toMatch(/10 \* 60 \* 1000/)
+  })
+
+  it('says one line every tick, not only when it has bad news', () => {
+    // Measured 2026-09-23, first live run: a quiet watchman and a watchman
+    // that never started wrote the same log -- nothing. Telling them apart
+    // took twenty minutes and a hand-written query against the database.
+    const at = SERVER.indexOf('runSilenceWatch')
+    const block = SERVER.slice(at, at + 2600)
+    expect(block).toContain('[bot-silence] checked ')
+    expect(block).toContain('round.checked')
+    expect(block).toContain('round.silent')
+  })
+
+  it('reads the answer to its own sendMessage', () => {
+    // Fire-and-forget records the owner as told when Telegram refused (403 for
+    // a chat they never started), and then the outage is never announced again.
+    const at = SERVER.indexOf('runSilenceWatch')
+    const block = SERVER.slice(at, at + 2600)
+    expect(block).toMatch(/body\?\.ok/)
+    expect(block).toContain('return false')
   })
 
   it('speaks through the platform bot, never through the one that fell', () => {
     const at = SERVER.indexOf('runSilenceWatch')
-    const block = SERVER.slice(at - 1200, at + 1200)
+    const block = SERVER.slice(at - 1200, at + 2600)
     expect(block).toMatch(/TELEGRAM_BOT_TOKEN \|\| process\.env\.BOT_TOKEN_1/)
     // The message is addressed to the owner's chat id, which is what the
     // alarm carries -- not to a bot, and not to a client.
