@@ -25,6 +25,7 @@ import {
   AUTOPILOT_LEAD_ADD,
   AUTOPILOT_LEAD_REMOVE,
   AUTOPILOT_LEAD_LIST,
+  AUTOPILOT_LEAD_ONE,
   chooseAutopilotLead,
 } from '@/services/crmAutopilot'
 
@@ -89,6 +90,17 @@ function fakeDb() {
       if (sql === AUTOPILOT_LEAD_REMOVE) {
         chosen.delete(`${owner}:${String(params[1] ?? '')}`)
         return { rows: [] }
+      }
+      // Exact equality, not `includes`: AUTOPILOT_TAKE carries the same
+      // SELECT inside its EXISTS, and a substring match swallowed it -- the
+      // budget statement then answered "is this lead chosen?" and every
+      // send-taking test went red.
+      if (sql === AUTOPILOT_LEAD_ONE) {
+        return {
+          rows: chosen.has(`${owner}:${String(params[1] ?? '')}`)
+            ? [{ '?column?': 1 }]
+            : [],
+        }
       }
       if (sql === AUTOPILOT_LEAD_LIST) {
         return {
@@ -291,6 +303,77 @@ describe('no other owner is touched', () => {
  * THE WIRING: `pushCard` is the one place a proactive card reaches the owner,
  * so it is the one place the switch is read.
  */
+describe('a card that arrived while AUTO was on', () => {
+  const draft = {
+    id: 'p8',
+    secret: 's',
+    target: '900000098',
+    display: 'Клиент', // cyrillic-ok: a fictional display name
+    what: 'вот идея', // cyrillic-ok: the draft's words
+  }
+  const tg = () => {
+    const sent: any[] = []
+    return {
+      sent,
+      sendMessage: async (c: string, t: string, e?: unknown) => {
+        sent.push(['message', c, t, e])
+      },
+      sendPhoto: async (c: string, p: string, e?: unknown) => {
+        sent.push(['photo', c, p, e])
+      },
+    }
+  }
+  const said = (t: ReturnType<typeof tg>) => String(t.sent[0][2])
+
+  it("says the day's budget is spent, so 'broken' is not the reading", async () => {
+    const { pushCard } = await import('@/services/crmProactive')
+    db.seed(OWNER, {
+      until: Date.now() + 3_600_000,
+      sent: AUTOPILOT_DAILY_CAP,
+    })
+    const t = tg()
+    await pushCard(t as never, OWNER, draft as never)
+    expect(said(t)).toContain('уже потрачены') // cyrillic-ok: the line
+    expect(said(t)).toContain(String(AUTOPILOT_DAILY_CAP))
+  })
+
+  it('says this person is not on the list, which is one tick away', async () => {
+    const { pushCard } = await import('@/services/crmProactive')
+    await turnAutopilotOn(OWNER, 8, 'chosen')
+    const t = tg()
+    await pushCard(t as never, OWNER, draft as never)
+    expect(said(t)).toContain('не отмечен') // cyrillic-ok: the line
+  })
+
+  it('says nothing extra when the person IS chosen -- the send just failed', async () => {
+    const { pushCard } = await import('@/services/crmProactive')
+    const proposals = await import('@/services/telegramProposals')
+    const spy = vi
+      .spyOn(proposals, 'confirmProposal')
+      .mockResolvedValue({ ok: false, error: 'провайдер отказал' } as never) // cyrillic-ok: a provider's words
+    await turnAutopilotOn(OWNER, 8, 'chosen')
+    await chooseAutopilotLead(OWNER, draft.target, true)
+    const t = tg()
+    await pushCard(t as never, OWNER, draft as never)
+    expect(said(t)).not.toContain('не отмечен') // cyrillic-ok: the line
+    expect(said(t)).not.toContain('уже потрачены') // cyrillic-ok: the line
+    spy.mockRestore()
+  })
+
+  it('does not blame the list when the scope is everybody', async () => {
+    const { pushCard } = await import('@/services/crmProactive')
+    const proposals = await import('@/services/telegramProposals')
+    const spy = vi
+      .spyOn(proposals, 'confirmProposal')
+      .mockResolvedValue({ ok: false, error: 'нет' } as never) // cyrillic-ok: a provider's words
+    await turnAutopilotOn(OWNER, 8)
+    const t = tg()
+    await pushCard(t as never, OWNER, draft as never)
+    expect(said(t)).not.toContain('не отмечен') // cyrillic-ok: the line
+    spy.mockRestore()
+  })
+})
+
 describe('a window that closed', () => {
   const draft = {
     id: 'p9',
