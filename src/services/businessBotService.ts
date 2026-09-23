@@ -799,7 +799,22 @@ export const getAgentFailStreak = (): number => agentFailStreak
 export async function answerClient(
   chatId: string,
   text: string,
-  fallback: () => Promise<string>
+  fallback: () => Promise<string>,
+  /**
+   * WHOSE CHAT THIS IS -- the account the business connection belongs to.
+   *
+   * Owner, 2026-09-23: why does the agent in his wife's profile write as him?
+   * Until now nobody said whose chat it was: the turn carried the CLIENT's id
+   * and a surface, and the render filled the seller in from
+   * `OWNER_TELEGRAM_ID` -- one id for the whole platform. So in a second
+   * seller's own DM the agent read the PLATFORM OWNER's correspondence with
+   * that person, his client packages and his debts, and answered in his
+   * voice.
+   *
+   * It comes from Telegram's own connection object (`user_chat_id`), never
+   * from anything a message can claim.
+   */
+  seller?: string
 ): Promise<string> {
   let attempts = 0
   let lastFault: ProviderFault = 'standing'
@@ -808,7 +823,11 @@ export async function answerClient(
   for (;;) {
     attempts += 1
     try {
-      const answer = await спроситьАгента(chatId, text, { surface: 'business' }) // cyrillic-ok: pre-existing identifier
+      const answer = await спроситьАгента(chatId, text, {
+        // cyrillic-ok: pre-existing identifier
+        surface: 'business',
+        ...(seller ? { seller } : {}),
+      })
       // Markers are the bot chat's syntax; a client must never see bracket soup.
       const said = await guardAssetLinks(
         stripAgentMarkers((answer.текст ?? '').trim()), // cyrillic-ok: pre-existing field
@@ -1263,6 +1282,25 @@ async function admitBusinessMessage(
 
   // The owner typed in this chat themselves: hand the conversation to them.
   if (msg.from?.id === conn.userId) {
+    /*
+     * ...unless it was the agent speaking AS the owner. A confirmed proposal
+     * leaves through the owner's own session, and Telegram Business hands it
+     * back here as the owner's message. Measured 2026-09-13: the send at
+     * 14:16:14 paused the AI at 14:16:15 and the client's next five messages
+     * went unanswered. The render remembers its sends by message id; ask it.
+     */
+    try {
+      const { wasAgentSent } = await import('@/services/modelSwitch')
+      if (await wasAgentSent(conn.userId, chatId, msg.message_id)) {
+        logger.info('[Business] Agent-sent message, AI stays on', {
+          connId,
+          chatId,
+        })
+        return null
+      }
+    } catch {
+      // Unknown -> treat as the owner's own words, as before.
+    }
     const announced = takeoverAnnounced.get(chatKey) ?? 0
     ownerTakeoverUntil.set(chatKey, Date.now() + OWNER_TAKEOVER_MS)
     logger.info('[Business] Owner replied manually, AI paused', {
@@ -1665,6 +1703,14 @@ async function runBusinessBatch(
      * Telegram. Business messages cannot carry web_app buttons, so a link is
      * the only door here.
      */
+    /*
+     * The seller is the account this connection belongs to -- the person in
+     * whose chat the client is writing. Looked up, never assumed: with more
+     * than one connected account, assuming means answering as somebody else.
+     */
+    const sellerId = connections.get(connId)?.ownerChatId
+    if (!sellerId)
+      logger.warn('[Business] no connection owner for this turn', { connId })
     const reply = rewriteAppUrls(
       await answerClient(
         String(chatId),
@@ -1682,7 +1728,8 @@ async function runBusinessBatch(
               telegramId: String(chatId),
               botName: `business_${botUsername}`,
             }
-          )
+          ),
+        sellerId ? String(sellerId) : undefined
       ),
       botUsername
     )

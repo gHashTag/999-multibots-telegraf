@@ -91,6 +91,9 @@ export const BROWSER_PATHS = [
   '/api/browser/type',
   '/api/browser/decide',
   '/api/browser/choose',
+  '/api/browser/round',
+  '/api/browser/learned',
+  '/api/browser/strategy',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -299,6 +302,96 @@ export async function handleBrowser(
           )
     }
     return { status: 200, body: { ok: true, holder } }
+  }
+
+  /*
+   * THE ROUND, ON DEMAND (agent/rounds.ts). The cron walks the person's
+   * connected accounts every few hours; this is the same walk started by
+   * the person, because "it runs every three hours" is not something anybody
+   * can watch. Their door only: it opens pages in their browser.
+   */
+  if (path === '/api/browser/round') {
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'POST only' } }
+    }
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: { ok: false, error: "a round is the person's to start" },
+      }
+    }
+    const { runRoundNow } = await import('../agent/rounds-wiring')
+    const said = await runRoundNow(pool, who)
+    console.log('[rounds] asked by the person:', said.slice(0, 300))
+    return { status: 200, body: { ok: true, round: said } }
+  }
+
+  /*
+   * WHAT THE AGENT LEARNED HERE (browser/recipes.ts): the labels its own
+   * presses found, newest first. Readable by the person and by their agent
+   * -- it is a list of words on buttons, nothing private.
+   */
+  if (path === '/api/browser/learned') {
+    if (method !== 'GET') {
+      return { status: 405, body: { ok: false, error: 'GET only' } }
+    }
+    const { learnedHere } = await import('./recipes')
+    return { status: 200, body: { ok: true, learned: await learnedHere(pool) } }
+  }
+
+  /*
+   * THE STRATEGY, READ AND WRITTEN WITHOUT A DEPLOY (agent/strategies.ts).
+   * Reading is open to the person and their agent; writing is the person's
+   * door only -- it is their agent's instructions, and an agent that could
+   * widen its own rounds would be writing its own orders.
+   */
+  if (path === '/api/browser/strategy') {
+    const { readStrategy, writeStrategy, roundStrategyOf } = await import(
+      '../agent/strategies'
+    )
+    const { ROUND_SITES, SETTLE_MS } = await import('../agent/rounds')
+    const fallback = {
+      sites: ROUND_SITES,
+      everyMin: Number(process.env.ROUNDS_EVERY_MIN) || 180,
+      settleMs: SETTLE_MS,
+    }
+    if (method === 'GET') {
+      const saved = await readStrategy(pool, 'rounds')
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          saved,
+          inUse: roundStrategyOf(saved, fallback),
+        },
+      }
+    }
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET or POST' } }
+    }
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: "a strategy is the person's to write",
+        },
+      }
+    }
+    if (!deps.readBody) {
+      return { status: 500, body: { ok: false, error: 'no body reader' } }
+    }
+    let wanted: unknown
+    try {
+      wanted = JSON.parse((await deps.readBody(req, 8192)) || '{}')
+    } catch {
+      return { status: 400, body: { ok: false, error: 'body is not JSON' } }
+    }
+    await writeStrategy(pool, 'rounds', wanted)
+    return {
+      status: 200,
+      body: { ok: true, inUse: roundStrategyOf(wanted, fallback) },
+    }
   }
 
   if (path === '/api/browser/journal') {
@@ -539,6 +632,31 @@ let agentStartDeps: (() => BrowserDeps) | null = null
 
 export function configureAgentStart(deps: () => BrowserDeps): void {
   agentStartDeps = deps
+}
+
+/**
+ * THE BROWSER IS RESTARTED WHEN IT IS NO LONGER A BROWSER.
+ *
+ * 2026-09-23: Chromium in the pod ran out of memory with a dozen tabs open.
+ * It kept answering -- new tabs opened, and every one of them was blank --
+ * so nothing looked broken from outside, and the round walked five accounts
+ * seeing nothing. A pod in that state is cured by a restart and only by a
+ * restart, and a restart keeps the person's logins: the profile is on a
+ * volume, and only DELETE /api/browser/profile ever wipes it.
+ *
+ * The person is told, because it is their browser and they may be watching
+ * it at that moment.
+ */
+export async function restartBrowserAsAgent(who: string): Promise<boolean> {
+  const deps = agentStartDeps?.()
+  if (!deps?.driver) return false
+  const pool = await deps.getPool()
+  await ensureBrowserSessions(pool)
+  await ensureBrowserProfiles(pool)
+  await close(pool, deps.driver, who).catch(() => undefined)
+  const out = await open(pool, deps, deps.driver, who, 'agent')
+  console.log('[browser:restart]', who, out.status)
+  return out.status < 300
 }
 
 export async function startBrowserAsAgent(who: string): Promise<boolean> {

@@ -12,12 +12,20 @@ import type { Stage } from './crm-stages'
  * That was left to the model, which is exactly where the two failures of this
  * week came from:
  *
- *   - Лена (@Ryabinika_Perm), 2026-09-20: the agent announced a content plan
- *     and then greeted her with "hello, I am your personal assistant" on a
- *     conversation that had been running since March 2025, and went silent
- *     for three days.
- *   - Анна (@annakutishcheva), today 07:29: "да вернем" — a promise to return
- *     a balance, with nothing anywhere that will remember it tomorrow.
+ *   - A client of nine months, 2026-09-20: the agent announced a content
+ *     plan and then greeted her with "hello, I am your personal assistant"
+ *     on a conversation that had been running since March 2025, and went
+ *     silent for three days.
+ *   - Another client, the same week at 07:29: "да вернем" -- a promise to
+ *     return a balance, with nothing anywhere that will remember it
+ *     tomorrow.
+ *
+ * Neither is named. A client's name and @handle sat in this comment until
+ * 2026-09-23, when the repository's own guard caught them
+ * (no-dossier-in-the-agent-tree.test.ts): correspondence lives in Postgres and
+ * Zep, and a tracked file is published to everyone who can read the repo. The
+ * lesson survives the anonymising -- what taught it was the SHAPE of the
+ * failure, never who it happened to.
  *
  * So the order of moves is written down here, as code, with the reason
  * attached to each answer. A person reading a queue built from this can tell

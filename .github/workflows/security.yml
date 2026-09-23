@@ -17,6 +17,11 @@ permissions:
   contents: read
   security-events: write
   actions: read
+  # The scan's last step posts its result as a PR comment. Without this the
+  # job dies with 403 Resource not accessible by integration AFTER reporting
+  # "no secrets detected", and Security Summary folds that into "Deployment
+  # blocked" -- a red check that says nothing about the code.
+  pull-requests: write
 
 jobs:
   # Проверка секретов и чувствительных данных

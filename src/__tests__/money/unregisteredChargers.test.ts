@@ -86,7 +86,7 @@ function chargers(): { registered: string[]; unregistered: string[] } {
   return { registered, unregistered }
 }
 
-/** The three that are unregistered on purpose, and what registering each means. */
+/** The five that are unregistered on purpose, and what registering each means. */
 const KNOWN: Record<string, string> = {
   'src/inngest_app/functions/neuroImageGeneration.ts':
     'duplicate of the registered paid photo flow -- registering DOUBLE-charges',
@@ -94,6 +94,13 @@ const KNOWN: Record<string, string> = {
     'the charge for model training lives here while the live handler has none -- registering STARTS charging',
   'src/inngest_app/functions/training/voiceTrainingRVC.ts':
     'voice training is off by owner decision (queue item 10)',
+  // Withdrawn 2026-09-17 on the owner's "do everything" answer to the
+  // 2026-09-13 plan; the spec of record is specs/functions/<id>.t27 in t27
+  // (CONTROL code-only/unregistered) and the manifest notes[] say the same.
+  'src/inngest_app/functions/generation/neuroImageGeneration.ts':
+    'withdrawn 2026-09-17: nothing sends neuro/image.generate (scripts/orphan-events.cjs); charges before generating, no refund, no inv_id -- registering re-opens a charge with no producer and no idempotency',
+  'src/inngest_app/functions/training/modelTrainingV2.ts':
+    'withdrawn 2026-09-17: get-bot serializes the Telegraf instance (token) into a step output, DB write after the paid call, no BFL completion handler -- registering STARTS charging for v2 training with those defects',
 }
 
 describe('unregistered money handlers are a known, fixed set', () => {
@@ -113,10 +120,11 @@ describe('unregistered money handlers are a known, fixed set', () => {
       'the census no longer sees a file it makes claims about -- the matcher ' +
         'or the walk is broken, and the checks below prove nothing'
     ).toEqual([])
-    // Measured, not guessed: 3 registered chargers today (generation/
-    // neuroImageGeneration, payments/paymentProcessing, training/
-    // modelTrainingV2). The first floor written here was >5, invented rather
-    // than measured, and it failed on its first run.
+    // Measured, not guessed: 1 registered charger since 2026-09-17
+    // (payments/paymentProcessing); generation/neuroImageGeneration and
+    // training/modelTrainingV2 were withdrawn that day and moved to KNOWN.
+    // The first floor written here was >5, invented rather than measured, and
+    // it failed on its first run.
     expect(registered.length, 'no registered side at all').toBeGreaterThan(0)
   })
 
@@ -131,7 +139,7 @@ describe('unregistered money handlers are a known, fixed set', () => {
     ).toEqual([])
   })
 
-  it('none of the three has been registered', () => {
+  it('none of the five has been registered', () => {
     // Leaving this set is a REAL money change: double charging in one case,
     // starting to charge for training in another. The failure must name which.
     const nowRegistered = chargers().registered.filter(f => f in KNOWN)

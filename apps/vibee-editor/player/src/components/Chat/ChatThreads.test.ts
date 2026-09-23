@@ -23,6 +23,8 @@ const row = (
   paid: false,
   lastSeen,
   duets: 0,
+  // No stored picture: the rail draws initials for such a row.
+  avatarUrl: null,
   ...over,
 })
 

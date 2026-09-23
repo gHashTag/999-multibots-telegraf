@@ -33,7 +33,7 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
     ask: what => requestPermission(pool, owner, what),
     answerOf: async id =>
       ((await readApproval(pool, id))?.state ?? 'expired') as Answer,
-    publish: a => publishOnBoth(pool, owner, a),
+    publish: a => publishEverywhere(pool, owner, a),
     tell: text => sendToTelegram(owner, text),
   })
 }
@@ -43,7 +43,7 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
  * label. Never throws for one network: the other still gets its turn, and
  * the owner is told what each did.
  */
-async function publishOnBoth(
+async function publishEverywhere(
   pool: Queryable,
   owner: string,
   a: Article
@@ -64,6 +64,8 @@ async function publishOnBoth(
   for (const [net, url, labels] of [
     ['X', urls.x, ['post']],
     ['LinkedIn', urls.linkedin, ['post', 'опубликовать']], // cyrillic-ok: LinkedIn's Russian label
+    /* Reddit's submit page says "Post"; in Russian, "Опубликовать". */
+    ['Reddit', urls.reddit, ['post', 'опубликовать']], // cyrillic-ok: Reddit's Russian label
   ] as const) {
     try {
       const page = await newPage(cdp, url)

@@ -80,12 +80,12 @@ export interface MyContext extends Context {
 
 Scenes must be registered in:
 
-- `src/sceneFactory/index.ts` - scene creation
+- `src/scenes/sceneFactory/index.ts` - scene creation
 - `src/bot.ts` - bot initialization
 
 #### 5. Command Registration
 
-Commands defined in `src/registerCommands.ts` and `src/setCommands.ts`
+Commands defined in `src/navigation/registerCommands.ts` and `src/setCommands.ts`
 
 ### Project-Specific Patterns
 
@@ -183,8 +183,10 @@ src/
 ├── interfaces/          # TypeScript types
 └── utils/              # Utilities
 
+deploy.sh               # Production deployment (repo root; run by `npm run deploy`)
+
 scripts/
-├── deploy.sh           # Production deployment
+├── deploy/             # Deployment helpers (see the Deployment section below)
 ├── health-monitor.sh   # Health checks
 └── logs-monitor.js     # Log monitoring
 ```
@@ -195,11 +197,17 @@ Production deployment to 188.137.250.69 (was 212.86.115.30):
 
 ```bash
 npm run deploy
-# or
-./scripts/deploy.sh
+# or, identically — this is the script that npm alias runs:
+./deploy.sh
 ```
 
 Uses Docker with automatic rebuild and health monitoring.
+
+> **Do not confuse it with `scripts/deploy/deploy.sh`.** That is the legacy
+> script (formerly `scripts/deploy.sh`, moved in `0fc05b4a`): it SSHes into the
+> **old** host `212.86.115.30`, pushes to a `production` branch, and performs no
+> health check at all. The current deployment path is the repo-root `deploy.sh`,
+> which targets `188.137.250.69` and polls `/health` after the rollout.
 
 ### Testing
 

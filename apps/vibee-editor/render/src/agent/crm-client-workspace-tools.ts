@@ -94,6 +94,14 @@ export interface ClientRow {
   paid: boolean
   last_seen: string | null
   duets: number
+  /**
+   * The picture the app draws the person with. Owner, 2026-09-23: show people
+   * as circles with their avatar and their name under it. Null when we have
+   * never stored one -- the app then draws initials rather than a grey hole,
+   * and nothing is fetched from Telegram to fill this in: a list of fifty
+   * would become fifty API calls for a decoration.
+   */
+  avatar_url: string | null
 }
 
 /**
@@ -125,6 +133,7 @@ export function mergeClients(input: {
   souls: Set<string>
   skills: Map<string, number>
   duets: Map<string, number>
+  avatars?: Map<string, string>
   touches: Map<string, Array<{ kind: TouchKind; at: string }>>
   paid?: Set<string>
   now?: number
@@ -143,6 +152,7 @@ export function mergeClients(input: {
     paid: input.paid?.has(id) ?? false,
     last_seen: null,
     duets: input.duets.get(id) ?? 0,
+    avatar_url: input.avatars?.get(id) ?? null,
   })
   for (const p of input.people) {
     const id = String(p.lead_id)
@@ -317,6 +327,25 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
         duets.set(String(r.buyer_id), Number(r.n))
       const touches = await touchesByLead(ctx!.pool as never, owner)
       const money = await paidSetFor(ctx!)
+      /*
+       * The pictures we ALREADY have. One query for the whole page, from our
+       * own `users` row -- never a trip to Telegram per person: a list of
+       * fifty would become fifty API calls for a decoration, and the app draws
+       * initials perfectly well without them.
+       */
+      const avatars = new Map<string, string>()
+      for (const r of await tryQuery<{
+        telegram_id: string
+        avatar_url: string | null
+      }>(
+        ctx!,
+        `SELECT telegram_id, avatar_url FROM users
+          WHERE telegram_id = ANY($1) AND avatar_url IS NOT NULL`,
+        [ids]
+      )) {
+        const url = String(r.avatar_url ?? '').trim()
+        if (url) avatars.set(String(r.telegram_id), url)
+      }
       const clients = mergeClients({
         profiles,
         people,
@@ -324,6 +353,7 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
         skills,
         duets,
         touches,
+        avatars,
         paid: money.paid,
       }).slice(0, limit)
       return { clients, paid_known: money.known }

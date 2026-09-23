@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '@/hooks/useLanguage'
 import { loadClients, type ClientRow } from '@/lib/crm'
+import {
+  MARKETPLACE_AGENTS,
+  type MarketplaceAgentListing,
+} from '../../../../packages/vibee-atoms/src/agent-marketplace'
 import './ChatThreads.css'
 
 /**
@@ -48,8 +52,51 @@ export function threadLabel(row: ClientRow): string {
   )
 }
 
+/**
+ * THE CIRCLE WHEN THERE IS NO PICTURE.
+ *
+ * Owner, 2026-09-23: people as circles with their avatar and the name under
+ * it. Most rows have no stored avatar, and a row of grey holes is uglier than
+ * what it replaced -- so a circle without a picture carries the person's
+ * initials. Digits are dropped: "90" from an id says nothing, and an id-only
+ * row gets a neutral mark instead.
+ */
+export function initialsOf(label: string): string {
+  const words = label
+    .replace(/^@/, '')
+    .split(/[\s._-]+/)
+    .map(w => w.trim())
+    .filter(w => w && /\p{L}/u.test(w[0]))
+  if (!words.length) return '•'
+  const letters = words.slice(0, 2).map(w => w[0].toUpperCase())
+  return letters.join('')
+}
+
+/**
+ * EVERY AGENT GETS A SEAT -- AND SAYS WHICH ONES CAN TALK.
+ *
+ * Owner, 2026-09-23: the connected agents should be visible in the chat, each
+ * with a conversation of its own -- the blogger offering leads on its topic,
+ * the Habr one, Google, and so on.
+ *
+ * They are the catalogue's own listings, and the catalogue already knows
+ * which of them are `live`. A live agent's circle opens ITS thread; one still
+ * in training opens its card, where what it can do today is written. Sending
+ * somebody into a thread with an agent that has no harness behind it would be
+ * the screen promising something the product does not do yet -- and hiding
+ * those agents would answer the owner's question with silence.
+ */
+export function railAgents(): MarketplaceAgentListing[] {
+  return [...MARKETPLACE_AGENTS]
+}
+
+/** Where a circle leads: the thread for a live agent, the card otherwise. */
+export function agentHref(agent: MarketplaceAgentListing): string {
+  return agent.status === 'live' ? `/agents/${agent.id}/work` : '/agents'
+}
+
 export function ChatThreads({ current }: { current: string | null }) {
-  const { t } = useLanguage()
+  const { t, lang: uiLang } = useLanguage()
   const [clients, setClients] = useState<ClientRow[] | null>(null)
 
   useEffect(() => {
@@ -67,26 +114,61 @@ export function ChatThreads({ current }: { current: string | null }) {
   const shown = clients ? threadClients(clients, current) : []
   if (shown.length === 0) return null
 
+  const lang = uiLang === 'ru' ? 'ru' : 'en'
+
   return (
     <nav className="chat-threads" aria-label={t('chat.threads.label')}>
       <Link
         to="/chat"
-        className={`chat-threads__chip is-agent${current === null ? ' is-current' : ''}`}
+        className={`chat-threads__dot is-agent${current === null ? ' is-current' : ''}`}
         aria-current={current === null ? 'page' : undefined}
       >
-        {t('chat.threads.agent')}
+        <span className="chat-threads__circle" aria-hidden="true">
+          ★
+        </span>
+        <span className="chat-threads__caption">{t('chat.threads.agent')}</span>
       </Link>
+
+      {/*
+        THE SPECIALISTS, BESIDE THE PEOPLE. Each one keeps its own thread
+        (/agents/:id/work) -- the row is the way in, not a second chat.
+      */}
+      {railAgents().map(agent => (
+        <Link
+          key={agent.id}
+          to={agentHref(agent)}
+          className={`chat-threads__dot is-specialist${
+            agent.status === 'live' ? '' : ' is-training'
+          }`}
+          title={agent.promise[lang]}
+          data-status={agent.status}
+        >
+          <span className="chat-threads__circle" aria-hidden="true">
+            {agent.icon}
+          </span>
+          <span className="chat-threads__caption">{agent.name[lang]}</span>
+        </Link>
+      ))}
+
       {shown.map(row => {
         const isCurrent = row.telegramId === current
+        const label = threadLabel(row)
         return (
           <Link
             key={row.telegramId}
             to={`/crm/${row.telegramId}/chat`}
-            className={`chat-threads__chip${isCurrent ? ' is-current' : ''}${row.paid ? ' is-paid' : ''}`}
+            className={`chat-threads__dot${isCurrent ? ' is-current' : ''}${row.paid ? ' is-paid' : ''}`}
             aria-current={isCurrent ? 'page' : undefined}
-            title={t('crm.client.chat.title', { id: threadLabel(row) })}
+            title={t('crm.client.chat.title', { id: label })}
           >
-            {threadLabel(row)}
+            <span className="chat-threads__circle" aria-hidden="true">
+              {row.avatarUrl ? (
+                <img src={row.avatarUrl} alt="" loading="lazy" />
+              ) : (
+                initialsOf(label)
+              )}
+            </span>
+            <span className="chat-threads__caption">{label}</span>
           </Link>
         )
       })}

@@ -14,6 +14,7 @@ import {
   X_LIMIT,
   type Answer,
   type ShareDeps,
+  questionFor,
 } from './src/agent/blog-share'
 
 const RSS = `<?xml version="1.0"?><rss><channel>
@@ -163,5 +164,36 @@ describe('only after a yes', () => {
     expect(await blogShareTick(w.d)).toBe('asked today already')
     w.advance(ASK_EVERY_MS + 1)
     expect(await blogShareTick(w.d)).toBe('asked about older')
+  })
+})
+
+describe('the owner s own community gets the article too', () => {
+  const article = {
+    slug: 'a',
+    title: 'Ternary floats, measured',
+    link: 'https://t27.ai/blog/gf-t',
+    summary: 'what the numbers say',
+  }
+
+  it('posts to r/t27ai through Reddit s own submit page, filled in', () => {
+    const u = shareUrls(article)
+    expect(u.reddit).toContain('/r/t27ai/submit')
+    expect(u.reddit).toContain(`title=${encodeURIComponent(article.title)}`)
+    expect(u.reddit).toContain(`url=${encodeURIComponent(article.link)}`)
+  })
+
+  it('never posts into a community that is not the owner s', () => {
+    /* One subreddit, named in one place: a cron that posts a project's own
+       article into other people's communities is what spam is. */
+    const u = shareUrls(article)
+    const subs = u.reddit.match(/\/r\/([^/]+)\//g) ?? []
+    expect(subs).toHaveLength(1)
+  })
+
+  it('the question names all three places, so a yes is informed', () => {
+    const asked = questionFor(article)
+    expect(asked).toContain('LinkedIn')
+    expect(asked).toContain('X')
+    expect(asked).toContain('r/t27ai')
   })
 })

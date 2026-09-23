@@ -15,6 +15,7 @@ import type {
   Message,
 } from '@/atoms/agentChat'
 import { useLanguage } from '@/hooks/useLanguage'
+import { ClientAside } from '@/components/Crm/ClientAside'
 import { useTokenTopUp } from '@/hooks/useTokenTopUp'
 import { Header } from '@/components/Header'
 import { ChatAssets } from '@/components/Chat/ChatAssets'
@@ -430,9 +431,18 @@ function ChatThread({
   )
 
   return (
-    <div className="chat-page">
+    <div className={`chat-page${client ? ' chat-page--client' : ''}`}>
       <Header />
       <ChatThreads current={client} />
+      {/*
+        WIDE MODE: WHO THIS IS, BESIDE THE CONVERSATION.
+
+        Rendered whenever the thread is about a client; the stylesheet shows it
+        only where two columns fit. Deciding that here, from a measured width,
+        would break in the embedded Mini App, whose frame is resized under the
+        page.
+      */}
+      {client ? <ClientAside client={client} /> : null}
       {/* Бренд (знак + Trinity S³AI) уже стоит в Header выше — здесь его
           не повторяем, иначе название дублируется на экране дважды. */}
       {/* The greeting lives in the list as the agent's first message and

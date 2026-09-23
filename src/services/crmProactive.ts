@@ -28,7 +28,14 @@ import {
   PRESET_NOTES,
   type ScopeItem,
 } from './crmSweepScope'
-import { cardMenuRows, hubRows } from '@/navigation/helpers/crmMenu'
+import {
+  cardMenuRows,
+  hubRows,
+  autopilotButton,
+  autopilotSentKeyboard,
+} from '@/navigation/helpers/crmMenu'
+import { takeAutopilotSend, autopilotState } from './crmAutopilot'
+import { confirmProposal } from './telegramProposals'
 import {
   buildPlanText,
   planKeyboard,
@@ -1053,6 +1060,41 @@ export async function sweepOnce(
   }
 }
 
+/**
+ * WHO IT WENT TO AND WHAT WAS SAID, IN ONE LINE.
+ *
+ * An automatic send that is not reported is a message the owner did not know
+ * he sent. The line names the recipient the same way the card would, carries
+ * the sweep's own reason when it has one, and shows the words -- cut, because
+ * this is a receipt and not a second copy of the draft.
+ */
+export function autopilotSentLine(
+  draft: Draft,
+  opts: { because?: string } = {}
+): string {
+  const who = String(draft.display ?? '').trim() || draft.target
+  const words = String(draft.what ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const shown = words.length > 300 ? words.slice(0, 300) + '…' : words
+  return (
+    `🤖 Автопилот отправил — ${who}\n` + // cyrillic-ok: user-facing copy
+    (opts.because ? `${opts.because}\n` : '') +
+    (shown ? `\n${shown}` : '')
+  )
+}
+
+/** The one outcome that must not offer a second send. */
+export function autopilotUnknownLine(draft: Draft): string {
+  const who = String(draft.display ?? '').trim() || draft.target
+  return (
+    `⚠️ Автопилот: связь прервалась на отправке — ${who}. ` + // cyrillic-ok: user-facing copy
+    'Не знаю, ушло сообщение или нет. Посмотри чат, прежде чем писать снова.' // cyrillic-ok: user-facing copy
+  )
+}
+
+const autopilotSentMarkup = (lead: string | null) => autopilotSentKeyboard(lead)
+
 /** The card, drawn by the bot into the owner's private chat. */
 export async function pushCard(
   telegram: {
@@ -1071,7 +1113,76 @@ export async function pushCard(
   draft: Draft,
   opts: Parameters<typeof proposalCard>[2] = {}
 ): Promise<void> {
-  const card = proposalCard(draft, true, opts)
+  /*
+   * AUTOPILOT: THE PRESS, GIVEN IN ADVANCE (services/crmAutopilot.ts).
+   *
+   * This is the ONE place a proactive card reaches the owner, so it is the
+   * one place the switch is read. The budget is taken BEFORE the send and is
+   * not given back on failure: a send whose outcome is unknown must count,
+   * or a flapping network becomes an unbounded number of messages from his
+   * account.
+   *
+   * A failure falls THROUGH to the card. The words were already written and
+   * paid for; turning an automatic send that did not happen into silence
+   * would lose them, and the owner would learn nothing.
+   */
+  if (await takeAutopilotSend(ownerId)) {
+    try {
+      const r = await confirmProposal(ownerId, draft.id, draft.secret)
+      if (r.ok) {
+        await telegram.sendMessage(
+          ownerId,
+          autopilotSentLine(draft, opts),
+          autopilotSentMarkup(cardLeadOf(draft as never))
+        )
+        return
+      }
+      logger.warn(
+        '[autopilot] the automatic send did not go, showing the card',
+        {
+          owner: ownerId,
+          unknown: Boolean(r.unknown),
+          error: r.error ?? null,
+        }
+      )
+      if (r.unknown) {
+        /*
+         * The one outcome a card must NOT follow: the request left and never
+         * came back, so the message may already be in the client's chat. A
+         * card here invites a second, duplicate send.
+         */
+        await telegram.sendMessage(
+          ownerId,
+          autopilotUnknownLine(draft),
+          autopilotSentMarkup(cardLeadOf(draft as never))
+        )
+        return
+      }
+    } catch (e) {
+      logger.warn('[autopilot] the automatic send threw, showing the card', {
+        owner: ownerId,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
+  }
+  /*
+   * THE SWITCH SITS ON THE CARD, because the card is where the press that
+   * autopilot replaces is made. Read AFTER the take above: an owner whose
+   * budget ran out for today sees "🤖 Автопилот" and pressing it starts a
+   * fresh window, which is the honest answer to "why did it stop".
+   */
+  let auto = { on: false, until: null as Date | null }
+  try {
+    const st = await autopilotState(ownerId)
+    auto = { on: st.on, until: st.until ?? null }
+  } catch {
+    // Unknown means off, and off is what the button already says.
+  }
+  const withSwitch = {
+    ...opts,
+    extraRows: [...(opts.extraRows ?? []), [autopilotButton(auto)]],
+  }
+  const card = proposalCard(draft, true, withSwitch)
   // The press will want to know who this was for.
   rememberCard(draft as never)
   if (card.photo) {

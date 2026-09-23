@@ -9,16 +9,19 @@
  * The grammar is deliberately small and ASCII-only, so bytes equal chars
  * and Telegram's 64-byte callback limit is never in doubt:
  *
- *   crm:<verb>                       menu | leads | summary | sweep | model | ingest
- *   crm:<verb>[!]:<numeric id>       lead | prep | later | refuse | refuse! | back | mute
+ *   crm:<verb>                       menu | auto | autooff | leads | summary |
+ *                                    sweep | model | ingest | plan
+ *   crm:<verb>[!]:<numeric id>       lead | prep | later | refuse | refuse! |
+ *                                    drop | drop! | undrop | back | mute
  *   crm:scope:<preset>               waiting | hot | talk | stop | status
  *
  * The argument is ALWAYS a numeric telegram id: never a @username (they
  * change and need the owner's session), never a secret, never free text.
  * A label never decides anything -- only the callback does -- so a
  * third-party display name in a button is index-prefixed and cut short.
- * The `!` suffix is the deliberate second press for a costly verb; today
- * only `refuse!` (a 30-day silence) carries it.
+ * The `!` suffix is the deliberate second press for a costly verb: `refuse!`
+ * (a 30-day silence) and `drop!` (the person leaves the CRM and their cached
+ * correspondence is deleted).
  *
  * Nothing here sends anything to a client. A `prep` press PREPARES a draft
  * through the agent; the send is still the tgp: card's own button.
@@ -32,6 +35,8 @@ export const CRM_PREFIX = 'crm:'
 export const LEAD_ID_RE = /^\d{5,15}$/
 export const ROOT_VERBS = [
   'menu',
+  'auto',
+  'autooff',
   'leads',
   'summary',
   'sweep',
@@ -41,6 +46,9 @@ export const ROOT_VERBS = [
 ] as const
 export const LEAD_VERBS = [
   'lead',
+  'drop',
+  'drop!',
+  'undrop',
   'prep',
   'later',
   'refuse',
@@ -60,9 +68,10 @@ export const SCOPE_VERBS = [
   'status',
 ] as const
 
-export const CRM_ROOT_RE = /^crm:(menu|leads|summary|sweep|model|ingest|plan)$/
+export const CRM_ROOT_RE =
+  /^crm:(menu|auto|autooff|leads|summary|sweep|model|ingest|plan)$/
 export const CRM_LEAD_RE =
-  /^crm:(lead|prep|later|refuse!?|back|unmute|mute):(\d{5,15})$/
+  /^crm:(lead|prep|later|refuse!?|drop!?|undrop|back|unmute|mute):(\d{5,15})$/
 export const CRM_SCOPE_RE =
   /^crm:scope:(waiting|hot|talk|due|ours|winback|stop|status)$/
 
@@ -154,9 +163,40 @@ export function hubRows(): InlineKeyboardButton[][] {
   ])
 }
 
-export function rootMenu() {
+/**
+ * THE AUTOPILOT SWITCH, WORDED AS WHAT THE NEXT PRESS DOES.
+ *
+ * Two labels, never one that has to be read twice: off, the button offers to
+ * turn it on; on, it says until when and the press stops it. A switch whose
+ * label states its current state ("Автопилот: вкл") is pressed by somebody
+ * who wants it on and turns it off.
+ */
+export function autopilotButton(o: {
+  on: boolean
+  until?: Date | null
+}): InlineKeyboardButton {
+  if (!o.on) return btn('🤖 Автопилот', crmCallback('auto'))
+  const until = o.until ? hhmm(o.until) : null
+  return btn(
+    until ? `⏹ Автопилот до ${until}` : '⏹ Выключить автопилот',
+    crmCallback('autooff')
+  )
+}
+
+/** Moscow-agnostic, server clock: the owner reads it next to his own time. */
+function hhmm(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+export function rootMenu(
+  auto: { on: boolean; until?: Date | null } = {
+    on: false,
+  }
+) {
   return keyboard([
     ...hubRows(),
+    [autopilotButton(auto)],
     [
       btn('🗓 План', crmCallback('plan')),
       btn('🧠 Модель', crmCallback('model')),
@@ -248,8 +288,29 @@ export function leadMenu(
     confirmRefuse?: boolean
     /** The client switched the assistant off: the way back comes first. */
     assistantOff?: boolean
+    /** The second press of "delete from the CRM" is being asked for. */
+    confirmDrop?: boolean
   } = {}
 ) {
+  /*
+   * DELETING IS NOT REFUSING, AND ITS CONFIRMATION SAYS SO.
+   *
+   * A refusal is a pause: come back in thirty days. A drop says this person
+   * is not a client at all -- the cached correspondence goes and the next
+   * ingest will not bring them back. Two presses, and the confirmation shows
+   * only the two answers to the question it asked.
+   */
+  if (o.confirmDrop)
+    return keyboard([
+      [
+        btn('🗑 Да, удалить из CRM', crmCallback('drop!', lead)),
+        btn('↩️ Нет', crmCallback('back', lead)),
+      ],
+      [
+        btn('👥 Кому писать', crmCallback('leads')),
+        btn('🏠 Меню', crmCallback('menu')),
+      ],
+    ])
   if (o.confirmRefuse)
     return keyboard([
       [btn(`${prepLabel(o.next)}`, crmCallback('prep', lead))],
@@ -275,11 +336,21 @@ export function leadMenu(
       btn('⏰ Позже', crmCallback('later', lead)),
       btn('🚫 Отказ', crmCallback('refuse', lead)),
     ],
+    [btn('🗑 Удалить из CRM', crmCallback('drop', lead))],
     [
       btn('👥 Кому писать', crmCallback('leads')),
       btn('🏠 Меню', crmCallback('menu')),
     ],
   ])
+}
+
+/** After a drop: the one thing left to do about this person is undo it. */
+export function afterDropKeyboard(lead: string) {
+  const rows: InlineKeyboardButton[][] = []
+  if (LEAD_ID_RE.test(String(lead)))
+    rows.push([btn('↩️ Вернуть в CRM', crmCallback('undrop', lead))])
+  rows.push(...hubRows())
+  return keyboard(rows)
 }
 
 /**
@@ -316,6 +387,22 @@ export function dmLeadMenu(chatId: string | number) {
   ])
 }
 
+/**
+ * Under the owner's "the AI is paused here" notice and after 🤫: give the
+ * chat back to the AI before the pause runs out.
+ */
+export function aiPausedMenu(chatId: string | number) {
+  const id = String(chatId)
+  if (!LEAD_ID_RE.test(id)) return undefined
+  return keyboard([
+    [
+      btn('🤖 Вернуть ИИ', crmCallback('unmute', id)),
+      btn('👤 Кто это', crmCallback('lead', id)),
+    ],
+    [btn('✍️ Подготовить ответ', crmCallback('prep', id))],
+  ])
+}
+
 /** The extra row under a proposal card: read the person before approving. */
 export function cardMenuRows(
   lead: string | null | undefined
@@ -328,6 +415,28 @@ export function cardMenuRows(
 export function afterSentKeyboard(lead?: string | null) {
   const id = String(lead ?? '')
   const rows: InlineKeyboardButton[][] = []
+  if (LEAD_ID_RE.test(id)) {
+    rows.push([
+      Markup.button.url('💬 Открыть чат', `tg://user?id=${id}`),
+      btn('👤 История', crmCallback('lead', id)),
+    ])
+  }
+  rows.push(...hubRows())
+  return keyboard(rows)
+}
+
+/**
+ * Under the line that says autopilot has sent something.
+ *
+ * The stop button comes FIRST and is in the very message the owner reads: an
+ * automatic send he did not want must be stoppable where he learns about it,
+ * not three menus away.
+ */
+export function autopilotSentKeyboard(lead?: string | null) {
+  const id = String(lead ?? '')
+  const rows: InlineKeyboardButton[][] = [
+    [btn('⏹ Выключить автопилот', crmCallback('autooff'))],
+  ]
   if (LEAD_ID_RE.test(id)) {
     rows.push([
       Markup.button.url('💬 Открыть чат', `tg://user?id=${id}`),
