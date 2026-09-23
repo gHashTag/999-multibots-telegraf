@@ -4,6 +4,8 @@ import { Provider, createStore } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const apiFetch = vi.hoisted(() => vi.fn())
+const getInitData = vi.hoisted(() => vi.fn(() => 'signed-init-data'))
+const getAppAccessToken = vi.hoisted(() => vi.fn(() => ''))
 
 /**
  * Запуск Telegram подделывается на уровне модуля-предиката, а не окна: под
@@ -14,13 +16,32 @@ const apiFetch = vi.hoisted(() => vi.fn())
  */
 const telegram = vi.hoisted(() => ({ signed: true, inTelegram: true }))
 
+/*
+ * ONE factory for '@/lib/telegram', not two: vitest keeps the last
+ * registration, so side-by-side factories would hide each other's exports.
+ * The merged component reads getInitData() and isTelegram() directly, and
+ * canAuthorizeRequestsAtom (atoms/telegramAuth) reads hasVerifiableInitData()
+ * and getTelegramUser() -- all four must come from this one place.
+ */
 vi.mock('@/lib/apiFetch', () => ({ apiFetch }))
-vi.mock('@/config', () => ({ API_BASE: 'https://api.example.test' }))
 vi.mock('@/lib/telegram', () => ({
+  getInitData,
   hasVerifiableInitData: () => telegram.signed,
   isTelegram: () => telegram.inTelegram,
   getTelegramUser: () => null,
 }))
+/*
+ * Partial mock with importOriginal: atoms/user.ts and atoms/telegramAuth
+ * (imported at module load) read the APP_SESSION_* event-name constants from
+ * this module, while the component asks getAppAccessToken(). Hand-writing
+ * the constants would whack-a-mole every new listener; the real module has
+ * no import-time side effects, so spreading the original is safe.
+ */
+vi.mock('@/lib/appSession', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/appSession')>()),
+  getAppAccessToken,
+}))
+vi.mock('@/config', () => ({ API_BASE: 'https://api.example.test' }))
 
 import { PairWithApp } from './PairWithApp'
 
@@ -47,6 +68,8 @@ describe('PairWithApp mobile pairing flow', () => {
     apiFetch.mockReset()
     telegram.signed = true
     telegram.inTelegram = true
+    getInitData.mockReturnValue('signed-init-data')
+    getAppAccessToken.mockReturnValue('')
   })
 
   afterEach(async () => {
@@ -113,6 +136,67 @@ describe('PairWithApp mobile pairing flow', () => {
           )
         : false
     ).toBe(true)
+  })
+
+  it('shows a verified Telegram entry instead of sending an anonymous request', async () => {
+    getInitData.mockReturnValue('')
+    getAppAccessToken.mockReturnValue('')
+    await act(async () => root?.render(<PairWithApp />))
+
+    const link = host.querySelector<HTMLAnchorElement>(
+      '.pair-with-app__telegram-link'
+    )
+    expect(link?.href).toBe('https://t.me/t27ai_bot?startapp=profile')
+    expect(host.textContent).toContain('Нужен подтверждённый вход Telegram')
+    expect(host.textContent).not.toContain('initData')
+    expect(host.querySelector('.pair-with-app__action')).toBeNull()
+    expect(apiFetch).not.toHaveBeenCalled()
+  })
+
+  it('offers a public QR and deep link without credentials in the URL', async () => {
+    await act(async () => root?.render(<PairWithApp />))
+
+    const link = host.querySelector<HTMLAnchorElement>(
+      '.pair-with-app__qr-link'
+    )
+    const qr = host.querySelector<SVGElement>('.pair-with-app__qr-code')
+    const url = new URL(link?.href ?? 'https://invalid.test')
+
+    expect(link?.href).toBe('https://t.me/t27ai_bot?startapp=profile')
+    expect(url.searchParams.get('startapp')).toBe('profile')
+    expect([...url.searchParams.keys()]).toEqual(['startapp'])
+    expect(link?.href).not.toMatch(/code|token|session|initData/i)
+    expect(qr?.getAttribute('aria-label')).toContain('Mini App @t27ai_bot')
+    expect(qr?.getAttribute('data-payload')).toBeNull()
+  })
+
+  it('never places the generated pairing code into the QR or deep link', async () => {
+    apiFetch.mockResolvedValue({ code: '123456', expires_in: 120 })
+    await act(async () => root?.render(<PairWithApp />))
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
+    })
+
+    const qrPanel = host.querySelector('.pair-with-app__qr')
+    expect(qrPanel?.innerHTML).not.toContain('123456')
+    expect(
+      host.querySelector<HTMLAnchorElement>('.pair-with-app__qr-link')?.href
+    ).toBe('https://t.me/t27ai_bot?startapp=profile')
+  })
+
+  it('replaces a rejected identity with guidance and hides raw initData errors', async () => {
+    apiFetch.mockRejectedValue(
+      Object.assign(new Error('empty initData'), { status: 401 })
+    )
+    await act(async () => root?.render(<PairWithApp />))
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
+    })
+
+    expect(host.querySelector('.pair-with-app__telegram-link')).not.toBeNull()
+    expect(host.textContent).not.toContain('empty initData')
   })
 
   it('называет столько цифр, сколько их в самом коде', async () => {

@@ -627,6 +627,47 @@ const GAME_TOKENS_PER_WINDOW = 10
  */
 const PLAYER_ORIGIN = 'https://app.t27.ai'
 
+type PairingIdentity =
+  | { ok: true; telegramId: string }
+  | { ok: false; reason?: string }
+
+const PAIRING_IDENTITY_FAILURE = Object.freeze({
+  error: 'identity_not_verified',
+  detail: 'подтверждённый вход не принят',
+  hint: 'откройте Mini App через @t27ai_bot и повторите',
+})
+
+/**
+ * Pairing accepts either proof the server already trusts: fresh Telegram
+ * initData inside the Mini App, or a server-signed browser session minted
+ * after Login Widget verification. The account id is derived from that proof
+ * and is never accepted from client JSON.
+ */
+function pairingIdentity(
+  req: IncomingMessage,
+  initData: string
+): PairingIdentity {
+  if (initData) {
+    const verification = verifyTelegramInitData(initData)
+    const telegramId = verifiedTelegramIdFrom(initData)
+    return verification.ok && telegramId
+      ? { ok: true, telegramId }
+      : { ok: false, reason: verification.reason }
+  }
+
+  const authorization = String(req.headers.authorization ?? '')
+  if (authorization.startsWith('Bearer ')) {
+    try {
+      const claims = verifyAppSession(authorization.slice(7).trim())
+      return { ok: true, telegramId: claims.sub }
+    } catch {
+      return { ok: false }
+    }
+  }
+
+  return { ok: false }
+}
+
 type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
   release: () => void
@@ -983,9 +1024,8 @@ export async function handleAuthRoute(
     const initData =
       (req.headers['x-telegram-init-data'] as string | undefined) ||
       String(body.init_data ?? '')
-    const v = verifyTelegramInitData(initData)
-    const telegramId = verifiedTelegramIdFrom(initData)
-    if (!v.ok || !telegramId) {
+    const identity = pairingIdentity(req, initData)
+    if (!identity.ok) {
       /**
        * THE LOG RECORDS THE OUTCOME, NOT THE ARRIVAL OF A REQUEST.
        *
@@ -999,14 +1039,17 @@ export async function handleAuthRoute(
        *
        * The reason is printed verbatim: "empty initData" and "no bot tokens
        * configured" are two completely different repairs, and the person
-       * holding the phone needs to know which one.
+       * holding the phone needs to know which one. A refused browser session
+       * is its own reason.
        *
        * `initData` itself is NEVER printed: it carries the signature that
        * would let someone present themselves as that person.
        */
-      console.warn(
-        `🔑 [pair] start ОТКАЗ: ${v.reason ?? 'в подписанной строке нет user.id'}`
-      )
+      const why = initData
+        ? (verifyTelegramInitData(initData).reason ??
+          'в подписанной строке нет user.id')
+        : 'веб-сессия не принята'
+      console.warn(`🔑 [pair] start ОТКАЗ: ${why}`)
       /*
        * A REFUSED CODE REQUEST LEAVES A LINE, BECAUSE OTHERWISE IT LEAVES NONE.
        *
@@ -1026,21 +1069,36 @@ export async function handleAuthRoute(
       void record(pool, {
         kind: 'code-refused',
         who: '-',
-        what: `код не выдан: ${v.reason ?? 'в подписанной строке нет user.id'}`, // cyrillic-ok: journal text
+        what: `код не выдан: ${why}`, // cyrillic-ok: journal text
         severity: 'attention',
       })
-      json(res, 401, {
-        error: 'подпись Telegram не принята',
-        detail: v.reason ?? 'в подписанной строке нет поля user.id',
-        hint: 'код выдаётся только внутри Telegram — там есть подпись',
-      })
+      /*
+       * ONE refusal is not redacted: a person whose launch predates their own
+       * "sign out everywhere" holds a VALID signature and must hear that, in
+       * the same words as every other minting door -- the repair (open the app
+       * again) is theirs to make, and the reason cannot serve a guesser, who
+       * would need the valid-but-stale signature to ever see it. The wording
+       * lives in initDataCutoffRefusal (session.ts); matched by substring,
+       * exactly as not-before.test.ts matches it.
+       */
+      if (
+        identity.reason &&
+        identity.reason.includes('before sign-out everywhere')
+      ) {
+        return refuseSignedOut(res)
+      }
+      json(res, 401, PAIRING_IDENTITY_FAILURE)
       return true
     }
+    // `v` still names WHICH bot signed an initData start (journal note and
+    // the per-bot census); undefined on the browser-session door.
+    const v = verifyTelegramInitData(initData)
+    const telegramId = identity.telegramId
     countInitDataBot(v.botId, 'pair_start')
 
     const { code, expiresAt } = await issuePairingCode(
       pool,
-      telegramId,
+      identity.telegramId,
       mintPairingCode
     )
     // After the insert, from the database: see signedOutSince. A code minted
