@@ -277,5 +277,31 @@ export async function rewriteAppUrlsForToken(
 ): Promise<string> {
   if (!hasRawAppUrl(text)) return text
   const bot = await botOfToken(token, fetchImpl)
-  return bot ? rewriteAppUrls(text, bot.username, bot) : text
+  if (bot) return rewriteAppUrls(text, bot.username, bot)
+  /*
+   * NO BOT, NO LINK (owner, 2026-09-23: "forbid it at the level of the
+   * code -- only opening inside, because this is a mini app"). getMe can
+   * fail, and a raw app URL that goes out anyway opens a browser where
+   * nobody is signed in: the person sees an empty screen and thinks the
+   * product is broken. The words stay, the dead link goes.
+   */
+  console.warn('[app-links] raw app url dropped: no bot for this token')
+  return dropAppUrls(text)
+}
+
+/** The text without any app URL in it. Pure. */
+export function dropAppUrls(text: string): string {
+  const hosts = APP_HOSTS.map(h =>
+    h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  ).join('|')
+  const raw = new RegExp(
+    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${hosts})(?![\\w.-])[\\w\\-.~:/?#@!$&+,;=%]*`,
+    'gi'
+  )
+  return String(text ?? '')
+    .replace(raw, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([.,!?:;)])/g, '$1')
+    .replace(/\(\s*\)/g, '')
+    .trim()
 }

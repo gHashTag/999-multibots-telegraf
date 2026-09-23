@@ -23,7 +23,7 @@
 import { Markup } from 'telegraf'
 import type { InlineKeyboardButton } from 'telegraf/types'
 import { MINI_APP_URL } from '../config/miniApp.config'
-import { rememberBotInfo, rewriteAppUrls } from './appLinks'
+import { insideTelegram, rememberBotInfo } from './appLinks'
 
 /** Prefix for every callback this module owns, so presses route unambiguously. */
 export const ACTION_PREFIX = 'act:'
@@ -187,9 +187,8 @@ export function buttonsForAnswer(
   const parsed = parseAgentButtons(text, isRu)
   const buttons = parsed.buttons
   rememberBotInfo(opts.bot)
-  const cleaned = opts.bot?.username
-    ? rewriteAppUrls(parsed.text, opts.bot.username)
-    : parsed.text
+  /* Never a raw app link, whether or not the caller named the bot. */
+  const cleaned = insideTelegram(parsed.text, opts.bot?.username)
   const standard = standardButtons(isRu, { app: opts.app }).reply_markup
     .inline_keyboard
   const pay = payRow(cleaned)
