@@ -20,6 +20,13 @@
 import type { AgentTool, ToolContext } from './tools'
 import { visibleScope, askSupabase, whoPaid, audienceOf } from './crm-tools'
 import { stageOf, waitingOn, nudgesSince, type Stage } from './crm-stages'
+import {
+  nextStep,
+  URGENCY_ORDER,
+  type Urgency,
+  type Promise_,
+} from './sales-playbook'
+import { openDebts } from './crm-owed'
 import { leadCandidates } from './chat-memory'
 import {
   recordTouch,
@@ -110,6 +117,23 @@ export async function reachable(
  */
 const NO_ANSWER_AFTER_DAYS = 3
 const LATER_AFTER_DAYS = 14
+
+/**
+ * A DEBT, IN THE WORDS THE PLAYBOOK SPEAKS.
+ *
+ * `crm_owed` records what was promised and when it was taken on; the playbook
+ * asks only "what, and by when". A debt with no date is due the moment it was
+ * taken on -- which is why `saidAt` carries `at` rather than nothing.
+ */
+function debtAsPromise(
+  debt: { what: string; at: Date } | undefined
+): Promise_ | null {
+  if (!debt) return null
+  return {
+    what: debt.what,
+    saidAt: debt.at instanceof Date ? debt.at.toISOString() : null,
+  }
+}
 
 export const CRM_TOUCH_TOOLS: AgentTool[] = [
   {
@@ -293,10 +317,18 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
           ? Math.floor(Number(a.within_days))
           : WITHIN_DAYS_DEFAULT
 
-      const [people, paid, touches] = await Promise.all([
+      /*
+       * WHAT WE OWE, LOADED ONCE. A promise nobody wrote down is the failure
+       * this queue exists to stop repeating: "да вернем" was said to a client
+       * at 07:29 today with nothing anywhere to remember it tomorrow.
+       */
+      const [people, paid, touches, owed] = await Promise.all([
         audienceOf(scope),
         whoPaid(scope),
         touchesByLead(ctx.pool as never, String(ctx.telegramId)),
+        openDebts(ctx.pool as never, String(ctx.telegramId)).catch(
+          () => new Map()
+        ),
       ])
 
       /*
@@ -399,6 +431,25 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
           lastInboundAt: msg?.lastIn ?? null,
           lastOutboundAt: msg && !msg.unanswered ? msg.lastIn : null,
         })
+        /*
+         * WHAT TO DO, BESIDE WHO IS WAITING (owner, 2026-09-23: "set up a
+         * sales department... and a sales algorithm for every case").
+         *
+         * The move comes from sales-playbook.ts, which is pure and tested
+         * case by case, so a queue can be argued with instead of trusted.
+         * It rides in the ANSWER and not in this tool's description on
+         * purpose: the compact kit stands at 5998 tokens of 6000, and the
+         * note above this handler says the next sentence added to any
+         * description does not fit. Facts are free; sentences are not.
+         */
+        const step = nextStep({
+          stage: st.stage,
+          lastFrom: w.waiting === 'ours' ? 'them' : 'us',
+          hoursSinceLast: w.days * 24,
+          owed: debtAsPromise(owed.get(leadId)),
+          sawValue: paid.has(leadId) || list.length > 0,
+          now: new Date(),
+        })
         out.push({
           telegram_id: leadId,
           name: person.first_name || null,
@@ -408,6 +459,11 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
           days: w.days,
           stage: st.stage,
           because: w.because,
+          // What to do about it, and why that and not something else.
+          move: step.move,
+          urgency: step.urgency,
+          next_why: step.why,
+          intent: step.intent ?? null,
           nudges: nudgesSince({ touches: list, lastInboundAt: msg?.lastIn }),
           from: list.length > 0 ? 'touches' : 'messages',
         })
@@ -417,9 +473,17 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
        * Ours first, then oldest. The one thing on this screen that costs money
        * every day it is ignored is somebody who answered and got silence.
        */
+      /*
+       * What is LATE comes first -- a promise past its date outranks even the
+       * most expensive silence, because it is the one thing the person was
+       * told would happen. Within the same urgency the old order stands:
+       * somebody who answered and got silence, then the oldest.
+       */
       const rank: Record<string, number> = { ours: 0, due: 1, theirs: 2 }
       out.sort(
         (x, y) =>
+          (URGENCY_ORDER[x.urgency as Urgency] ?? 9) -
+            (URGENCY_ORDER[y.urgency as Urgency] ?? 9) ||
           (rank[String(x.waiting)] ?? 9) - (rank[String(y.waiting)] ?? 9) ||
           Number(y.days) - Number(x.days)
       )
