@@ -291,6 +291,61 @@ describe('no other owner is touched', () => {
  * THE WIRING: `pushCard` is the one place a proactive card reaches the owner,
  * so it is the one place the switch is read.
  */
+describe('a window that closed', () => {
+  const draft = {
+    id: 'p9',
+    secret: 's',
+    target: '900000097',
+    display: 'Клиент', // cyrillic-ok: a fictional display name
+    what: 'вот идея', // cyrillic-ok: the draft's words
+  }
+  const tg = () => {
+    const sent: any[] = []
+    return {
+      sent,
+      sendMessage: async (c: string, t: string, e?: unknown) => {
+        sent.push(['message', c, t, e])
+      },
+      sendPhoto: async (c: string, p: string, e?: unknown) => {
+        sent.push(['photo', c, p, e])
+      },
+    }
+  }
+
+  it('says so on the first card after it, with the hour', async () => {
+    const { pushCard } = await import('@/services/crmProactive')
+    // On for an hour, and that hour is already behind us.
+    db.seed(OWNER, { until: Date.now() - 90 * 60_000 })
+    const t = tg()
+    await pushCard(t as never, OWNER, draft as never)
+
+    const text = String(t.sent[0][2])
+    expect(text).toContain('Автопилот кончился') // cyrillic-ok: the line
+    // And the card itself is still there, under it.
+    expect(text).toContain('вот идея') // cyrillic-ok: the draft
+  })
+
+  it('says nothing when AUTO was never on', async () => {
+    const { pushCard } = await import('@/services/crmProactive')
+    const t = tg()
+    await pushCard(t as never, OWNER, draft as never)
+    expect(String(t.sent[0][2])).not.toContain('Автопилот кончился') // cyrillic-ok: the line
+  })
+
+  it('says nothing while the window is still open', async () => {
+    const { pushCard } = await import('@/services/crmProactive')
+    const proposals = await import('@/services/telegramProposals')
+    const spy = vi
+      .spyOn(proposals, 'confirmProposal')
+      .mockResolvedValue({ ok: false, error: 'провайдер отказал' } as never) // cyrillic-ok: a provider's words
+    await turnAutopilotOn(OWNER, 8)
+    const t = tg()
+    await pushCard(t as never, OWNER, draft as never)
+    expect(String(t.sent[0][2])).not.toContain('Автопилот кончился') // cyrillic-ok: the line
+    spy.mockRestore()
+  })
+})
+
 describe('a card under autopilot', () => {
   const draft = {
     id: 'p1',

@@ -246,12 +246,17 @@ export type AutopilotScope = 'all' | 'chosen'
 
 export interface AutopilotState {
   on: boolean
+  /**
+   * When the window ends -- or ENDED. Present whether it is open or shut,
+   * because "it closed at 04:20" is exactly what the first card after it has
+   * to say (crmProactive.ts autopilotClosedLine), and a field that vanishes
+   * when the switch goes off cannot say it.
+   */
+  until?: Date
   /** Whom it may write to: everybody, or only the people he picked. */
   scope: AutopilotScope
   /** How many people are picked; 0 with `scope: 'chosen'` means nothing sends. */
   chosen: number
-  /** When the window closes; absent when it is off. */
-  until?: Date
   /** Sends already spent today, for the line the owner reads. */
   sentToday: number
   /** What is left of today's cap, never below zero. */
@@ -301,7 +306,7 @@ export async function autopilotState(
       on,
       scope,
       chosen,
-      ...(on ? { until } : {}),
+      until,
       sentToday,
       left: Math.max(0, AUTOPILOT_DAILY_CAP - sentToday),
     }

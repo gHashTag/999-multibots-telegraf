@@ -1084,6 +1084,19 @@ export function autopilotSentLine(
   )
 }
 
+/**
+ * The line that explains a card the owner did not expect to see: his AUTO
+ * window ended, so this one waits for him again. One sentence, with the hour,
+ * and nothing else -- he is looking at a client's draft, not at a status page.
+ */
+export function autopilotClosedLine(until: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return (
+    `⏹ Автопилот кончился в ${p(until.getHours())}:${p(until.getMinutes())} — ` + // cyrillic-ok: user-facing copy
+    'карточки снова ждут твоего нажатия.\n\n' // cyrillic-ok: user-facing copy
+  )
+}
+
 /** The one outcome that must not offer a second send. */
 export function autopilotUnknownLine(draft: Draft): string {
   const who = String(draft.display ?? '').trim() || draft.target
@@ -1194,13 +1207,30 @@ export async function pushCard(
     ...opts,
     extraRows: [...(opts.extraRows ?? []), [autopilotButton(auto)]],
   }
+  /*
+   * A WINDOW THAT CLOSED SAYS SO, ON THE FIRST CARD AFTER IT.
+   *
+   * AUTO expires by itself -- that is the point of it -- and until now it
+   * expired in silence: the owner set it for eight hours, went to sleep, and
+   * the next morning a card was waiting with nothing to explain why. He reads
+   * that as "it stopped working", which is the one impression a switch with an
+   * end must never leave.
+   *
+   * Said here and not on a timer: this is the first moment a person is looking
+   * at the consequence, and a line on the card costs no scheduler, no state
+   * and no second place to forget.
+   */
+  const closed =
+    !auto.on && auto.until && auto.until.getTime() <= Date.now()
+      ? autopilotClosedLine(auto.until)
+      : ''
   const card = proposalCard(draft, true, withSwitch)
   // The press will want to know who this was for.
   rememberCard(draft as never)
   if (card.photo) {
     try {
       await telegram.sendPhoto(ownerId, card.photo, {
-        caption: card.text,
+        caption: closed + card.text,
         reply_markup: card.markup.reply_markup,
       })
       return
@@ -1210,13 +1240,13 @@ export async function pushCard(
       })
       await telegram.sendMessage(
         ownerId,
-        `${card.text}\n\n${card.photo}`,
+        `${closed}${card.text}\n\n${card.photo}`,
         card.markup
       )
       return
     }
   }
-  await telegram.sendMessage(ownerId, card.text, card.markup)
+  await telegram.sendMessage(ownerId, closed + card.text, card.markup)
 }
 
 const BASE = 'https://vibee-render-production.up.railway.app'

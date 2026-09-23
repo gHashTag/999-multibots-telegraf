@@ -144,6 +144,11 @@ export function AutoPanel() {
       */}
       {score.data ? (
         <p className="crm-auto__score">
+          {/*
+            The change, when there is something to change from. A week with no
+            rows at all is "no comparison", not "zero" -- drawing +13 against an
+            empty file would invent a trend.
+          */}
           {score.data.note
             ? t('crm.score.empty', { days: score.data.days })
             : t('crm.score.line', {
@@ -155,6 +160,16 @@ export function AutoPanel() {
                     ? '—'
                     : `${score.data.withoutYouPercent}%`,
               })}
+          {score.data.before && !score.data.note
+            ? ' · ' +
+              t('crm.score.before', {
+                left: score.data.before.left,
+                share:
+                  score.data.before.withoutYouPercent === null
+                    ? '—'
+                    : `${score.data.before.withoutYouPercent}%`,
+              })
+            : ''}
         </p>
       ) : null}
 

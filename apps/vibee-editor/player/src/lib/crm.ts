@@ -845,6 +845,13 @@ export interface Outcomes {
   /** 0..100, or null when nothing left at all -- never a made-up zero. */
   withoutYouPercent: number | null
   note: string | null
+  /** The same window before this one; null means there is nothing to compare. */
+  before: {
+    autoSent: number
+    pressedSent: number
+    left: number
+    withoutYouPercent: number | null
+  } | null
 }
 
 const toOutcomes = (r: Record<string, unknown>): Outcomes => ({
@@ -857,6 +864,17 @@ const toOutcomes = (r: Record<string, unknown>): Outcomes => ({
   failed: num(r['failed']) ?? 0,
   withoutYouPercent: num(r['without_you_percent']),
   note: str(r['note']),
+  before: (() => {
+    const b = r['before']
+    if (!b || typeof b !== 'object') return null
+    const o = b as Record<string, unknown>
+    return {
+      autoSent: num(o['auto_sent']) ?? 0,
+      pressedSent: num(o['pressed_sent']) ?? 0,
+      left: num(o['left']) ?? 0,
+      withoutYouPercent: num(o['without_you_percent']),
+    }
+  })(),
 })
 
 export const loadOutcomes = async (days = 7) =>
