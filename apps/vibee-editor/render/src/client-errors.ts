@@ -55,7 +55,18 @@ export function parseClientError(raw: unknown): ClientErrorReport {
   }
 }
 
-export type GateDecision = 'notify' | 'dedup' | 'capped'
+export type GateDecision = 'notify' | 'dedup' | 'capped' | 'measurement'
+
+/*
+ * A MEASUREMENT IS NOT AN ALARM.
+ *
+ * The window reports what a tap met (browser/skin.ts TOUCH_REPORT_SCRIPT) so
+ * a dead tap can be explained. It travels the same road as a client error --
+ * and on 2026-09-23 the owner got "error for a user" in Telegram carrying a
+ * healthy reading. Kinds named here are kept in the log, where they are
+ * read, and never woken anybody up.
+ */
+export const MEASUREMENT_KINDS = new Set(['browser-touch'])
 
 /**
  * One alert per (kind, message) per window; a hard cap per hour. A broken
@@ -72,6 +83,7 @@ export class ClientErrorGate {
   ) {}
 
   decide(report: ClientErrorReport, now: number): GateDecision {
+    if (MEASUREMENT_KINDS.has(report.kind)) return 'measurement'
     const key = `${report.kind}|${report.message.slice(0, 120)}`
     const last = this.seen.get(key)
     if (last !== undefined && now - last < this.dedupMs) return 'dedup'
