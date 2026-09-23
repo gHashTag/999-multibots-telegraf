@@ -2661,6 +2661,55 @@ setInterval(
 )
 
 /*
+ * THE WATCHMAN: A BOT THAT FALLS SILENT REACHES ITS OWNER, NOT THEIR CLIENTS.
+ *
+ * Owner, 2026-09-23: "today's finding only happened because I went and looked
+ * by hand. Make the owner find out by themselves -- that is what closes the
+ * June story." In June a client's bot was down for NINETEEN DAYS with an
+ * invalid token; the only trace was a log line in this service, and she found
+ * out from her own clients while writing to us again and again.
+ *
+ * Every ten minutes, which is a watchman's pace rather than a monitor's: a bot
+ * that fell one minute ago is not worse news than one that fell ten minutes
+ * ago, and the decision (silence-watch.ts) waits for three consecutive misses
+ * before it speaks at all, so a blink never wakes anybody.
+ *
+ * The message goes through the platform bot into the owner's private chat --
+ * never through the bot that is down, and never to that bot's clients.
+ */
+setInterval(
+  () => {
+    void (async () => {
+      try {
+        const token =
+          process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN_1 || ''
+        if (!token) return
+        const { runSilenceWatch } = await import('./src/bots/silence-wiring')
+        const { telegramApiFor } = await import('./src/telegram-api')
+        const said = await runSilenceWatch(
+          (await getPool()) as never,
+          async (ownerId, text) => {
+            const api = telegramApiFor(token)
+            await fetch(`${api}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: ownerId, text }),
+            })
+          }
+        )
+        for (const a of said) {
+          console.log(`[bot-silence] told ${a.ownerId}: ${a.kind} @${a.bot}`)
+        }
+      } catch (e) {
+        // A watchman who trips must not take the house down.
+        console.error('[bot-silence] failed:', String(e).slice(0, 300))
+      }
+    })()
+  },
+  10 * 60 * 1000
+)
+
+/*
  * THE BLOG GOES TO LINKEDIN AND X, ONE ARTICLE A DAY, ONLY AFTER A YES
  * (src/agent/blog-share.ts; owner's decision 2026-09-22). The tick is
  * cheap -- a database row, and the feed at most once a day -- so it runs
