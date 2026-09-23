@@ -655,7 +655,15 @@ export default function BrowserPage() {
               label={t('browser.sheet.label')}
               peek={peekLine}
               peekPx={peekPx}
-              className={minimal ? 'detent-sheet--glass' : undefined}
+              className={
+                [
+                  minimal ? 'detent-sheet--glass' : '',
+                  /* The sheet glows too while the agent works. */
+                  agentWorking ? 'detent-sheet--working' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
             >
               {underPicture}
             </DetentSheet>
