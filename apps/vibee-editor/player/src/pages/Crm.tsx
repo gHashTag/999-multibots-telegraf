@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
+import { AutoPanel } from '@/components/Crm/AutoPanel'
 import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
 import {
   LEADS_SECTIONS,
@@ -16,6 +17,8 @@ import {
   loadHotLeads,
   loadClients,
   recordTouch,
+  dropClient,
+  restoreClient,
   type Overview,
   type WaitingList,
   type HotLeads,
@@ -61,6 +64,35 @@ const isClient = (x: ClientRow) =>
 
 type ClientsFilter = 'all' | 'clients' | 'leads'
 
+/** A week, in milliseconds: the window "touched recently" means. */
+const UNDER_WAY_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * WHO IS ALREADY UNDER WAY -- the owner's "VIP", 2026-09-23: he wants to see
+ * at once whom work is being done with, so they are not started again from
+ * the top of the list.
+ *
+ * Three signals, any of them enough, and every one of them means somebody has
+ * already invested in this person: they PAID, or they have a client package
+ * written for them, or they were seen this week. Deliberately not a flag
+ * anybody has to set by hand -- a flag like that is accurate for a week and
+ * then lies.
+ */
+export const isUnderWay = (x: ClientRow, now = Date.now()) => {
+  if (x.paid || x.hasProfile) return true
+  const seen = x.lastSeen ? new Date(x.lastSeen).getTime() : NaN
+  return Number.isFinite(seen) && now - seen < UNDER_WAY_MS
+}
+
+/** Name, @handle or id -- whatever the person typed, matched case-blind. */
+export const matches = (x: ClientRow, q: string) => {
+  const needle = q.trim().toLowerCase()
+  if (!needle) return true
+  return [x.name, x.username, x.client, x.telegramId]
+    .filter(Boolean)
+    .some(v => String(v).toLowerCase().includes(needle))
+}
+
 export default function CrmPage() {
   const { t } = useLanguage()
   /*
@@ -96,6 +128,9 @@ export default function CrmPage() {
   const [leads, setLeads] = useState<Reached<HotLeads>>(empty)
   const [clients, setClients] = useState<Reached<ClientsList>>(empty)
   const [clientsFilter, setClientsFilter] = useState<ClientsFilter>('all')
+  const [query, setQuery] = useState('')
+  /** Ids the screen has removed in this session, with the way back on the row. */
+  const [dropped, setDropped] = useState<Record<string, boolean>>({})
   const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async () => {
@@ -118,6 +153,26 @@ export default function CrmPage() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  /*
+   * Remove from the CRM. The confirmation is the browser's own: this screen
+   * has no dialog of its own, and inventing one for a single destructive
+   * action would be a component nobody else uses. The row is marked here
+   * rather than reloaded, so the way back stays in front of the person who
+   * pressed it.
+   */
+  const drop = async (x: ClientRow) => {
+    const name = x.name || x.username || x.telegramId
+    if (!window.confirm(t('crm.row.dropAsk', { name }))) return
+    const r = await dropClient(x.telegramId)
+    if (r.data?.dropped) setDropped(d => ({ ...d, [x.telegramId]: true }))
+  }
+
+  const undrop = async (telegramId: string) => {
+    const r = await restoreClient(telegramId)
+    if (r.data?.restored !== false)
+      setDropped(d => ({ ...d, [telegramId]: false }))
+  }
 
   const touch = async (telegramId: string, kind: string) => {
     await recordTouch(telegramId, kind)
@@ -180,20 +235,84 @@ export default function CrmPage() {
     </li>
   )
 
+  /**
+   * ONE PERSON IN THE CLIENTS LIST -- the same row under both headings, so
+   * "under way" and "the rest" cannot drift into two different rows.
+   *
+   * The remove button is the only destructive control on this screen, so it
+   * asks first and, once done, the row keeps the way back rather than
+   * vanishing: a list that silently loses a line teaches nobody what happened.
+   */
+  const clientRow = (x: ClientRow) => (
+    <li key={x.telegramId} className="crm__row crm__row--client">
+      <div className="crm__who">
+        <Link to={`/crm/${x.telegramId}`} className="crm__open">
+          {x.name || x.telegramId}
+          {x.username ? (
+            <span className="crm__muted"> @{x.username}</span>
+          ) : null}
+        </Link>
+        <span className="crm__stage">
+          {x.paid ? (
+            <span className="crm__badge crm__badge--paid">
+              {t('crm.clients.paid')}
+            </span>
+          ) : null}
+          {t(`crm.stage.${x.stage}`)}
+        </span>
+      </div>
+      <p className="crm__why">
+        {x.client ?? '—'}
+        {' · '}
+        {t('crm.clients.profile')} {x.hasProfile ? '✓' : '—'}
+        {' · '}
+        {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
+        {' · '}
+        {t('crm.clients.duets', { n: x.duets })}
+      </p>
+      <div className="crm__acts">
+        {dropped[x.telegramId] ? (
+          <>
+            <span className="crm__muted">{t('crm.row.dropped')}</span>
+            <button type="button" onClick={() => void undrop(x.telegramId)}>
+              {t('crm.row.restore')}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="crm__danger"
+            onClick={() => void drop(x)}
+          >
+            {t('crm.row.drop')}
+          </button>
+        )}
+      </div>
+    </li>
+  )
+
   const w = waiting.data
   const l = leads.data
   const o = overview.data
   const c = clients.data
 
-  const allClients = c?.clients ?? []
+  /*
+   * The search narrows EVERYTHING below it -- the chips, their counts and both
+   * lists. A count that ignores the search would send somebody hunting for a
+   * row that is not on the screen.
+   */
+  const allClients = (c?.clients ?? []).filter(x => matches(x, query))
   const onlyClients = allClients.filter(isClient)
   const onlyLeads = allClients.filter(x => !isClient(x))
-  const shownClients =
+  const inFilter =
     clientsFilter === 'clients'
       ? onlyClients
       : clientsFilter === 'leads'
         ? onlyLeads
         : allClients
+  // Under way first, and only once: the same person must not appear twice.
+  const underWay = inFilter.filter(x => isUnderWay(x))
+  const shownClients = inFilter.filter(x => !isUnderWay(x))
   const filterChips: Array<[ClientsFilter, number]> = [
     ['all', allClients.length],
     ['clients', onlyClients.length],
@@ -232,6 +351,9 @@ export default function CrmPage() {
 
       {tab !== 'work' ? null : (
         <>
+          {/* The one control that changes what happens without the owner. */}
+          <AutoPanel />
+
           {panel(
             t('crm.waiting.title'),
             waiting,
@@ -313,56 +435,51 @@ export default function CrmPage() {
                   </p>
                 ) : null}
                 {c ? (
-                  <div className="crm__filter" role="group">
-                    {filterChips.map(([kind, n]) => (
-                      <button
-                        key={kind}
-                        type="button"
-                        className={`crm__chip${
-                          clientsFilter === kind ? ' crm__chip--on' : ''
-                        }`}
-                        aria-pressed={clientsFilter === kind}
-                        onClick={() => setClientsFilter(kind)}
-                      >
-                        {t(`crm.clients.filter.${kind}`)} {n}
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <label className="crm__search">
+                      <span className="crm__muted">
+                        {t('crm.filter.search')}
+                      </span>
+                      <input
+                        type="search"
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        aria-label={t('crm.filter.search')}
+                      />
+                    </label>
+                    <div className="crm__filter" role="group">
+                      {filterChips.map(([kind, n]) => (
+                        <button
+                          key={kind}
+                          type="button"
+                          className={`crm__chip${
+                            clientsFilter === kind ? ' crm__chip--on' : ''
+                          }`}
+                          aria-pressed={clientsFilter === kind}
+                          onClick={() => setClientsFilter(kind)}
+                        >
+                          {t(`crm.clients.filter.${kind}`)} {n}
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 ) : null}
-                <ul className="crm__list">
-                  {shownClients.map(x => (
-                    <li
-                      key={x.telegramId}
-                      className="crm__row crm__row--client"
-                    >
-                      <div className="crm__who">
-                        <Link to={`/crm/${x.telegramId}`} className="crm__open">
-                          {x.name || x.telegramId}
-                          {x.username ? (
-                            <span className="crm__muted"> @{x.username}</span>
-                          ) : null}
-                        </Link>
-                        <span className="crm__stage">
-                          {x.paid ? (
-                            <span className="crm__badge crm__badge--paid">
-                              {t('crm.clients.paid')}
-                            </span>
-                          ) : null}
-                          {t(`crm.stage.${x.stage}`)}
-                        </span>
-                      </div>
-                      <p className="crm__why">
-                        {x.client ?? '—'}
-                        {' · '}
-                        {t('crm.clients.profile')} {x.hasProfile ? '✓' : '—'}
-                        {' · '}
-                        {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
-                        {' · '}
-                        {t('crm.clients.duets', { n: x.duets })}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
+                {/*
+                  UNDER WAY, FIRST AND SEPARATELY. These are the people
+                  somebody has already invested in; starting them again from
+                  the top of the list is how a client hears the same opening
+                  twice.
+                */}
+                <h4 className="crm__subtitle">
+                  {t('crm.vip.title')} {underWay.length}
+                </h4>
+                <p className="crm__counts">{t('crm.vip.note')}</p>
+                {underWay.length === 0 ? (
+                  <p className="crm__empty">{t('crm.vip.empty')}</p>
+                ) : (
+                  <ul className="crm__list">{underWay.map(clientRow)}</ul>
+                )}
+                <ul className="crm__list">{shownClients.map(clientRow)}</ul>
               </>
             )
           )}
