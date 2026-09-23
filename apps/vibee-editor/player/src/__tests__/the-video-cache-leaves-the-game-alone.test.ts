@@ -48,7 +48,7 @@ describe('the video cache worker and the game', () => {
     expect(fetchFor('https://app.t27.ai/game/a.png')).not.toHaveBeenCalled()
   })
 
-  it('still answers for this origin’s own media', () => {
+  it("still answers for this origin's media", () => {
     expect(fetchFor('https://app.t27.ai/lipsync/x.mp4')).toHaveBeenCalledTimes(
       1
     )
@@ -56,32 +56,31 @@ describe('the video cache worker and the game', () => {
     expect(fetchFor('https://app.t27.ai/gameplay.png')).toHaveBeenCalledTimes(1)
   })
 
-  it('leaves another origin alone entirely, /game/ or not', () => {
-    /*
-     * THIS EXPECTATION CHANGED ON PURPOSE (#2898, 2026-09-23).
-     *
-     * It used to read "still answers ... for /game/ on another origin": the
-     * worker matched on the PATH ending in an image extension whatever the
-     * host, so it took over `https://github.com/<login>.png` too -- and then
-     * re-fetched by URL string, which is `mode: 'cors'`, while an <img> asks
-     * `no-cors`. Every remote image whose host sends no
-     * Access-Control-Allow-Origin broke, measured the same day on app.t27.ai
-     * against t27.ai, which registers no worker.
-     *
-     * So a cross-origin request is now none of this cache's business at all,
-     * and this test says that instead. It was left asserting the old truth
-     * when the worker changed, which turned the build red and held the
-     * deploy at the previous image.
-     */
+  /**
+   * This case used to assert the opposite, and it was right about the rule it
+   * was testing: the `/game/` skip is scoped to THIS origin, so a CDN path that
+   * merely says `/game/` was not meant to inherit it. What it pinned as a side
+   * effect was that the worker answers for other origins at all - and that was
+   * the defect. Matching on the PATH ending in an image extension, whatever the
+   * host, meant `https://github.com/<login>.png` was taken over by a cache
+   * built for this origin's video, re-fetched by URL string (mode 'cors' where
+   * an <img> sends 'no-cors'), and failed for every host that sends no
+   * Access-Control-Allow-Origin. Every remote image in the app was broken.
+   *
+   * Measured 2026-09-23: the same avatar loaded on t27.ai, which registers no
+   * worker, and failed on app.t27.ai, which registers this one.
+   */
+  it('leaves other origins alone, whatever their path says', () => {
     expect(
       fetchFor('https://cdn.example.com/game/a.png')
     ).not.toHaveBeenCalled()
-    expect(fetchFor('https://github.com/somebody.png')).not.toHaveBeenCalled()
+    expect(fetchFor('https://github.com/someone.png')).not.toHaveBeenCalled()
+    expect(fetchFor('https://cdn.example.com/clip.mp4')).not.toHaveBeenCalled()
   })
 
-  it('...except a Telegram picture, which is proxied on purpose', () => {
-    // Their host answers no cross-origin request at all, so this one
-    // exception is deliberate and is what the worker still takes.
+  it('keeps the one cross-origin case it proxies on purpose', () => {
+    // Telegram user pictures: their host answers no cross-origin request, so
+    // the worker routes them through the render proxy instead of dropping them.
     expect(
       fetchFor('https://t.me/i/userpic/320/abc.jpg')
     ).toHaveBeenCalledTimes(1)
