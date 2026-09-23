@@ -1,9 +1,10 @@
 import { Scenes } from 'telegraf'
 import { getReferalsCountAndUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
-import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { REFERRAL_BONUS_STARS } from '@/core/referral/rewardInviter'
+import { REFERRAL_INVITED_BONUS_STARS } from '@/core/referral/rewardInvited'
+import { buildRewardPromise } from './rewardPromise'
 
 export const inviteScene = new Scenes.BaseScene<MyContext>('inviteScene')
 
@@ -16,22 +17,20 @@ inviteScene.enter(async ctx => {
   try {
     const { count } = await getReferalsCountAndUserData(telegram_id)
 
-    // Обещаем ровно то, что выполняем.
+    // Promise exactly what gets delivered.
     //
-    // Прежний текст обещал три вещи: бонусные звёзды, доступ к эксклюзивным
-    // функциям и повышение уровня. Проверено по данным: наград за приглашение
-    // в реестре платежей НЕТ НИ ОДНОЙ (17 136 строк), а `level` равен нулю у
-    // 2351 профиля из 2354. Не выполнялась ни одна из трёх.
+    // The old text promised three things: bonus stars, access to exclusive
+    // features and a level-up. Checked against the data: there is NOT ONE
+    // referral reward in the payment ledger (17,136 rows), and `level` is zero
+    // for 2,351 profiles out of 2,354. None of the three was ever delivered.
     //
-    // Теперь про звёзды написано, только если награда включена
-    // (REFERRAL_BONUS_STARS), и названа настоящая сумма.
-    const bonus = REFERRAL_BONUS_STARS
-    const rewardLine =
-      bonus > 0
-        ? isRu
-          ? `\n\n🎁 За каждого друга, который запустит бота по вашей ссылке, вы получаете ${bonus} звёзд.`
-          : `\n\n🎁 For every friend who starts the bot via your link you get ${bonus} stars.`
-        : ''
+    // The wording itself lives in `buildRewardPromise` so it can be tested for
+    // what it produces rather than by matching the source of this file.
+    const rewardLine = buildRewardPromise({
+      isRu,
+      inviterStars: REFERRAL_BONUS_STARS,
+      invitedStars: REFERRAL_INVITED_BONUS_STARS,
+    })
 
     const introText = isRu
       ? `🔗 Пригласите друга — отправьте ему эту ссылку.${rewardLine}\n\n<b>Приглашено:</b> ${count}`

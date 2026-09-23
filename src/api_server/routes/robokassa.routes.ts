@@ -333,19 +333,21 @@ async function handlePaymentSuccess(req: any, res: any) {
       }
     }
 
-    // Награда пригласившему — за ПЕРВОЕ пополнение приглашённого, а не за
-    // регистрацию. По нашим данным из 738 пришедших по ссылке пополняли
-    // только 33 (4%), поэтому платить за приход значит платить двадцать пять
-    // раз за одного плательщика. Разбор: docs/audit/referral-economics.md.
+    // Referral reward -- for the invited person's FIRST top-up, not for their
+    // registration. On our data, of 738 people who arrived by link only 33 (4%)
+    // ever topped up, so paying for arrival means paying twenty-five times over
+    // for one payer. Analysis: docs/audit/referral-economics.md.
     //
-    // Функция сама молчит, пока REFERRAL_BONUS_STARS равен нулю, и не может
-    // заплатить дважды: номер счёта складывается из пары «кто → кого».
+    // The function stays silent on its own while both amounts are zero
+    // (REFERRAL_BONUS_STARS for the inviter, REFERRAL_INVITED_BONUS_STARS for
+    // the invited), and cannot pay twice: the invoice id is built from the
+    // "who -> whom" pair, one per side.
     //
-    // Не роняет обработку: пополнение важнее награды.
-    const { rewardInviterOnFirstTopUp } = await import(
+    // It never brings the handler down: the top-up matters more than the reward.
+    const { rewardReferralOnFirstTopUp } = await import(
       '@/core/referral/rewardOnFirstTopUp'
     )
-    await rewardInviterOnFirstTopUp({
+    await rewardReferralOnFirstTopUp({
       invitedTelegramId: payment.telegram_id,
       botName: payment.bot_name || 'unknown_bot',
     })

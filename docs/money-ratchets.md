@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 149. Без заголовка: 0.
+Ратчетов: 150. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -112,6 +112,7 @@
 | `qwenRefundQualityMultiplier.test.ts`                  | generateQwenImageEdit refunds the size-adjusted charge (no wrong-refund-amount)               |
 | `referral-on-topup.test.ts`                            | награда за первое пополнение приглашённого                                                    |
 | `referral-reward.test.ts`                              | награда за приглашение                                                                        |
+| `referral-two-sided.test.ts`                           | the invited-side bonus                                                                        |
 | `refund-needs-charge.test.ts`                          | возврат требует состоявшегося списания                                                        |
 | `refund-reason.test.ts`                                | возврат денег называет причину                                                                |
 | `refundFailureIsAnnounced.test.ts`                     | a refund that failed is announced too                                                         |
