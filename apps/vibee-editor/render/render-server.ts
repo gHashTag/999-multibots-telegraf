@@ -2582,6 +2582,28 @@ setInterval(
 )
 
 /*
+ * A ROUND OF THE PERSON'S CONNECTED ACCOUNTS (src/agent/rounds.ts; owner,
+ * 2026-09-23: "run it where we signed in, and set up the crons and the
+ * logging"). It looks and reports; it presses nothing, and it stands aside
+ * while the person is driving. Off unless ROUNDS_ENABLED=1; ROUNDS_EVERY_MIN
+ * sets the pace (three hours by default).
+ */
+setInterval(
+  () => {
+    void (async () => {
+      try {
+        const { runRoundNow } = await import('./src/agent/rounds-wiring')
+        const said = await runRoundNow(getPool() as any)
+        if (said !== 'off') console.log(`[rounds] ${said}`)
+      } catch (e) {
+        console.error('[rounds] failed:', String(e).slice(0, 300))
+      }
+    })()
+  },
+  Math.max(30, Number(process.env.ROUNDS_EVERY_MIN) || 180) * 60 * 1000
+)
+
+/*
  * THE BLOG GOES TO LINKEDIN AND X, ONE ARTICLE A DAY, ONLY AFTER A YES
  * (src/agent/blog-share.ts; owner's decision 2026-09-22). The tick is
  * cheap -- a database row, and the feed at most once a day -- so it runs
