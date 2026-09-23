@@ -1282,6 +1282,25 @@ async function admitBusinessMessage(
 
   // The owner typed in this chat themselves: hand the conversation to them.
   if (msg.from?.id === conn.userId) {
+    /*
+     * ...unless it was the agent speaking AS the owner. A confirmed proposal
+     * leaves through the owner's own session, and Telegram Business hands it
+     * back here as the owner's message. Measured 2026-09-13: the send at
+     * 14:16:14 paused the AI at 14:16:15 and the client's next five messages
+     * went unanswered. The render remembers its sends by message id; ask it.
+     */
+    try {
+      const { wasAgentSent } = await import('@/services/modelSwitch')
+      if (await wasAgentSent(conn.userId, chatId, msg.message_id)) {
+        logger.info('[Business] Agent-sent message, AI stays on', {
+          connId,
+          chatId,
+        })
+        return null
+      }
+    } catch {
+      // Unknown -> treat as the owner's own words, as before.
+    }
     const announced = takeoverAnnounced.get(chatKey) ?? 0
     ownerTakeoverUntil.set(chatKey, Date.now() + OWNER_TAKEOVER_MS)
     logger.info('[Business] Owner replied manually, AI paused', {
