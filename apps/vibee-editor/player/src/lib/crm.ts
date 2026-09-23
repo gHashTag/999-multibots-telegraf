@@ -574,6 +574,15 @@ export interface LeadContext {
   username: string | null
   waitingOnUs: boolean | null
   messages: LeadMessage[]
+  /**
+   * The three facts the card beside a conversation is for. The tool has
+   * always returned them; the mapper used to drop them, so the screen asked
+   * the server for a person's whole context and showed a name.
+   */
+  stage: string | null
+  balanceTokens: number | null
+  /** Their last inbound line, ready to read: the first thing a reply needs. */
+  lastWords: string | null
 }
 
 /**
@@ -593,15 +602,22 @@ function toLeadContext(r: Record<string, unknown>): LeadContext {
   // waiting_for_reply = count of unanswered inbound messages.
   const list = rows(r['dialog'] ?? r['messages'])
   const waiting = num(r['waiting_for_reply'])
+  const messages = list.map(x => ({
+    at: str(x['at']),
+    out: x['who'] === 'owner' || (bool(x['out']) ?? false),
+    text: stripForeignMarkers(String(x['text'] ?? '')),
+  }))
+  // Their last words, not ours: a card that quoted our own message back at us
+  // would answer the wrong question.
+  const theirs = [...messages].reverse().find(m => !m.out && m.text)
   return {
     name: str(r['name']),
     username: str(r['username']),
     waitingOnUs: waiting === null ? bool(r['waiting_on_us']) : waiting > 0,
-    messages: list.map(x => ({
-      at: str(x['at']),
-      out: x['who'] === 'owner' || (bool(x['out']) ?? false),
-      text: stripForeignMarkers(String(x['text'] ?? '')),
-    })),
+    messages,
+    stage: str(r['stage']),
+    balanceTokens: num(r['balance_tokens']),
+    lastWords: str(r['last_words']) ?? theirs?.text ?? null,
   }
 }
 
@@ -637,4 +653,141 @@ export const loadLeadMedia = async (lead: string) =>
   map(
     await callTool<Record<string, unknown>>('crm_lead_media', { lead }),
     toLeadMedia
+  )
+
+/* ────────────────────────── AUTOPILOT ───────────────────────────────────── */
+
+/**
+ * THE SWITCH THAT ANSWERS "WILL IT SEND WITHOUT ME".
+ *
+ * One row per seller, the same one the bot's buttons flip (`crm_autopilot`).
+ * The screen shows the two numbers a person actually needs -- when the window
+ * closes and how many automatic sends are left today -- because a switch that
+ * only says "on" invites exactly those two questions.
+ */
+export interface Autopilot {
+  on: boolean
+  until: string | null
+  minutesLeft: number
+  sentToday: number
+  leftToday: number
+  cap: number
+  hours: number
+}
+
+const toAutopilot = (r: Record<string, unknown>): Autopilot => ({
+  on: bool(r['on']) ?? false,
+  until: str(r['until']),
+  minutesLeft: num(r['minutes_left']) ?? 0,
+  sentToday: num(r['sent_today']) ?? 0,
+  leftToday: num(r['left_today']) ?? 0,
+  cap: num(r['cap']) ?? 0,
+  hours: num(r['hours']) ?? 0,
+})
+
+export const loadAutopilot = async () =>
+  map(await callTool<Record<string, unknown>>('autopilot_status'), toAutopilot)
+
+/** on=false stops it at once; `hours` is clamped on the server (1..24). */
+export const setAutopilot = async (on: boolean, hours?: number) =>
+  map(
+    await callTool<Record<string, unknown>>('autopilot_set', {
+      on,
+      ...(on && hours ? { hours } : {}),
+    }),
+    toAutopilot
+  )
+
+/* ──────────────────────── REMOVE FROM THE CRM ───────────────────────────── */
+
+export interface DropResult {
+  lead: string
+  dropped?: boolean
+  restored?: boolean
+  removedMessages: number
+  note?: string | null
+}
+
+const toDrop = (r: Record<string, unknown>): DropResult => {
+  const removed = (r['removed'] ?? {}) as Record<string, unknown>
+  return {
+    lead: String(r['lead'] ?? ''),
+    dropped: bool(r['dropped']) ?? undefined,
+    restored: bool(r['restored']) ?? undefined,
+    removedMessages: num(removed['crm_messages']) ?? 0,
+    note: str(r['note']),
+  }
+}
+
+/**
+ * Remove a person from the CRM, or put them back.
+ *
+ * The cached correspondence is deleted and a mark is written so the next
+ * ingest does not bring them back; nothing leaves Telegram and no money table
+ * is touched. The screen asks a second time before calling this -- it is the
+ * one action here that destroys something.
+ */
+export const dropClient = async (telegramId: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_drop', { lead: telegramId }),
+    toDrop
+  )
+
+export const restoreClient = async (telegramId: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_drop', {
+      lead: telegramId,
+      restore: true,
+    }),
+    toDrop
+  )
+
+/* ─────────────────────── LEADS BY SEGMENT ───────────────────────────────── */
+
+/** The segments the server sorts people into; `all` asks for no segment. */
+export const SEGMENTS = [
+  'all',
+  'hot',
+  'objection',
+  'waiting',
+  'talk',
+  'due',
+  'ours',
+  'warm',
+  'winback',
+] as const
+export type Segment = (typeof SEGMENTS)[number]
+
+export interface SegmentLead {
+  telegramId: string
+  name: string | null
+  username: string | null
+  segment: string
+  next: string | null
+  because: string | null
+  unanswered: number
+  lastInbound: string | null
+  paid: boolean
+}
+
+const toSegmentLeads = (r: Record<string, unknown>): SegmentLead[] =>
+  rows(r['leads'] ?? r['люди'] ?? r['list']).map(l => ({
+    telegramId: String(l['lead'] ?? l['telegram_id'] ?? ''),
+    name: str(l['name']),
+    username: str(l['username']),
+    segment: String(l['segment'] ?? ''),
+    next: str(l['next']),
+    because: str(l['because']),
+    unanswered: num(l['unanswered']) ?? 0,
+    lastInbound: str(l['last_inbound']),
+    paid: bool(l['paid']) ?? false,
+  }))
+
+export const loadSegment = async (segment: Segment, limit = 30) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_leads', {
+      limit,
+      ...(segment === 'all' ? {} : { segment }),
+    }),
+    toSegmentLeads
   )

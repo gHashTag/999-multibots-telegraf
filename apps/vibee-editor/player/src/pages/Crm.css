@@ -257,3 +257,88 @@
 .crm__paid-unknown {
   color: var(--vibee-gold, #ffd700);
 }
+
+/* ── AUTO MODE ────────────────────────────────────────────────────────────
+ *
+ * The one control on this screen that changes what happens WITHOUT the owner,
+ * so it sits above the lists and says its two numbers out loud: when the
+ * window closes and how many automatic sends are left today.
+ */
+.crm-auto {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  border-radius: 14px;
+  background: var(--t27-surface, rgba(255, 255, 255, 0.05));
+}
+
+.crm-auto__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-auto__title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.crm-auto__lamp {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--t27-muted, #888);
+}
+
+.crm-auto__lamp--on {
+  background: var(--t27-accent, #00ff88);
+}
+
+.crm-auto__state {
+  margin: 0;
+  font-size: 13px;
+}
+
+.crm-auto__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--t27-muted, #888);
+}
+
+.crm-auto__btn {
+  align-self: flex-start;
+}
+
+/* ── SEARCH AND THE "UNDER WAY" HEADING ───────────────────────────────── */
+
+.crm__search {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.crm__search input {
+  padding: 8px 10px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+  background: var(--t27-surface-2, rgba(255, 255, 255, 0.08));
+  color: inherit;
+  font: inherit;
+}
+
+.crm__subtitle {
+  margin: 12px 0 2px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--t27-muted, #888);
+}
+
+.crm__danger {
+  border-color: rgba(255, 90, 90, 0.4);
+}
