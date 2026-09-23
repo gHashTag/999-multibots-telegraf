@@ -7650,6 +7650,49 @@ const server = createServer(async (req, res) => {
    * five minutes at the edge, and every client keeps the same bytes as a
    * fallback, so a slow answer never leaves a phone without a tab bar.
    */
+  /**
+   * GET /api/my-bots — IS MY BOT ALIVE, ASKED BY THE PERSON WHO OWNS IT.
+   *
+   * A client's bot was down for nineteen days in June and she heard it from her
+   * own clients; the cause (an invalid token) was visible only in a log she
+   * has no access to. This is the same question with an answer she can get
+   * herself: Telegram's own yes or no, per bot she owns, plus the size of the
+   * queue nobody is collecting.
+   *
+   * Identity required and no parameters: it answers about the CALLER's bots
+   * and nothing else. The token never travels back -- see owner-bot-health.ts.
+   */
+  if (req.url?.split('?')[0] === '/api/my-bots' && req.method === 'GET') {
+    const who = chatIdentity(req, verifiedTelegramId(req))
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'verified identity required' }))
+      return
+    }
+    try {
+      const [{ healthOfOwnedBots }, { botsOwnedBy }, { tokenForBot }] =
+        await Promise.all([
+          import('./src/bots/owner-bot-health'),
+          import('./src/agent/hive-tools'),
+          import('./src/agent/bot-farm'),
+        ])
+      const bots = await healthOfOwnedBots(String(who), {
+        botsOwnedBy,
+        // tokenForBot answers with {username, token}; the health check wants
+        // the token alone, and nothing else may travel with it.
+        tokenForBot: async (name: string) =>
+          (await tokenForBot(name))?.token ?? null,
+      })
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+      res.end(JSON.stringify({ bots }))
+    } catch (error) {
+      console.error('[my-bots] check failed', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'bot_health_unavailable' }))
+    }
+    return
+  }
+
   if (req.url?.startsWith('/api/navigation') && req.method === 'GET') {
     try {
       const listPath = path.join(__dirname, 'src', 'navigation.json')
