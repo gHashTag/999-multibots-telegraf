@@ -53,8 +53,45 @@ export const OUTCOMES_BEFORE_SQL = `SELECT kind, what, count(*)::int AS n
     AND kind IN ('card-auto-sent', 'card-pressed', 'sweep-card', 'sweep-idle', 'sweep-failed')
   GROUP BY kind, what`
 
+/**
+ * ANSWERS THE AGENT GAVE CLIENTS IN HIS OWN CHATS -- the work that was
+ * invisible to this figure until 2026-09-24.
+ *
+ * The first reading said "0% without you", and it was wrong by omission: it
+ * counted cards, which is the rare path, and not the common one -- a client
+ * writes to the owner's Telegram, the agent answers, and the owner never
+ * touches it. Measured the morning this shipped: 263 such answers in seven
+ * days against 13 card presses.
+ *
+ * Scoped to THIS owner's people: an answer counts when the person it went to
+ * is one of his leads (`crm_messages`). Without that join the number would be
+ * every seller's work on one seller's screen.
+ */
+export const OUTCOMES_DM_SQL = `SELECT count(*)::int AS n
+   FROM agent_messages a
+  WHERE a.surface = 'business'
+    AND a.role = 'assistant'
+    AND a.created_at > now() - ($2 || ' days')::interval
+    AND EXISTS (
+      SELECT 1 FROM crm_messages c
+       WHERE c.owner_id = $1 AND c.lead_id = a.telegram_id
+    )`
+
+export const OUTCOMES_DM_BEFORE_SQL = `SELECT count(*)::int AS n
+   FROM agent_messages a
+  WHERE a.surface = 'business'
+    AND a.role = 'assistant'
+    AND a.created_at >  now() - ($2 || ' days')::interval * 2
+    AND a.created_at <= now() - ($2 || ' days')::interval
+    AND EXISTS (
+      SELECT 1 FROM crm_messages c
+       WHERE c.owner_id = $1 AND c.lead_id = a.telegram_id
+    )`
+
 export interface Outcomes {
   days: number
+  /** Client messages the agent answered in his chats, with no press at all. */
+  dm_answered: number
   /** Cards that left with nobody pressing anything. */
   auto_sent: number
   /** Cards the owner sent by pressing. */
@@ -81,6 +118,7 @@ export interface Outcomes {
   before?: {
     auto_sent: number
     pressed_sent: number
+    dm_answered: number
     left: number
     without_you_percent: number | null
   } | null
@@ -96,6 +134,10 @@ export function outcomesFrom(
       .reduce((a, r) => a + Number(r.n || 0), 0)
 
   const auto = sum('card-auto-sent')
+  // Counted apart from the journal, so `outcomesFrom` stays a pure function
+  // over rows: the caller adds it (outcomesFor) and the shares are recomputed
+  // there. Zero here means "not asked", never "none happened".
+  const dm = 0
   // The press writes its outcome as the TEXT of the row -- the word for
   // "sent" -- and anything else is a refusal. Counting `card-pressed` alone
   // would call a refusal a send.
@@ -104,6 +146,7 @@ export function outcomesFrom(
   const left = auto + pressedSent
   return {
     days,
+    dm_answered: dm,
     auto_sent: auto,
     pressed_sent: pressedSent,
     cancelled,
@@ -117,32 +160,70 @@ export function outcomesFrom(
   }
 }
 
+/**
+ * WHAT COUNTS AS "WITHOUT YOU", AND WHY THE SHARE IS COMPUTED HERE.
+ *
+ * Everything that reached a client from his account: an answer the agent gave
+ * in a DM, a card that left under AUTO, and a card he sent by pressing. The
+ * first two happened without his finger; the third did not. Cancelled cards
+ * are not in it at all -- nothing reached anybody.
+ *
+ * `outcomesFrom` stays a pure function over journal rows and does not know
+ * about DMs, so the share is recomputed once here, where both numbers exist.
+ */
+function shareWithout(dm: number, auto: number, pressed: number) {
+  const left = dm + auto + pressed
+  return {
+    left,
+    percent: left ? Math.round(((dm + auto) / left) * 100) : null,
+  }
+}
+
 export async function outcomesFor(
   pool: Pool,
   owner: string,
   days: number
 ): Promise<Outcomes> {
-  const [now, before] = await Promise.all([
+  const count = async (sql: string) => {
+    try {
+      const r = await pool.query(sql, [String(owner), String(days)])
+      return Number((r.rows ?? [])[0]?.n ?? 0) || 0
+    } catch {
+      // A figure that cannot read one of its halves says zero for that half
+      // rather than refusing the whole answer; the other numbers are true.
+      return 0
+    }
+  }
+  const [now, before, dm, dmBefore] = await Promise.all([
     pool.query(OUTCOMES_SQL, [String(owner), String(days)]),
     pool
       .query(OUTCOMES_BEFORE_SQL, [String(owner), String(days)])
       .catch(() => ({ rows: [] })),
+    count(OUTCOMES_DM_SQL),
+    count(OUTCOMES_DM_BEFORE_SQL),
   ])
   const out = outcomesFrom((now.rows ?? []) as never, days)
   const prev = outcomesFrom((before.rows ?? []) as never, days)
-  const prevLeft = prev.auto_sent + prev.pressed_sent
+  const here = shareWithout(dm, out.auto_sent, out.pressed_sent)
+  const there = shareWithout(dmBefore, prev.auto_sent, prev.pressed_sent)
   return {
     ...out,
+    dm_answered: dm,
+    without_you_percent: here.percent,
     // Nothing at all in the earlier window is "no comparison", not "zero".
     before:
-      prevLeft || prev.cancelled || prev.cards_drawn
+      there.left || prev.cancelled || prev.cards_drawn
         ? {
             auto_sent: prev.auto_sent,
             pressed_sent: prev.pressed_sent,
-            left: prevLeft,
-            without_you_percent: prev.without_you_percent,
+            dm_answered: dmBefore,
+            left: there.left,
+            without_you_percent: there.percent,
           }
         : null,
+    // The note was about an empty journal; a week with DM answers in it is
+    // not empty, whatever the cards say.
+    ...(dm && out.note ? { note: undefined } : {}),
   }
 }
 
