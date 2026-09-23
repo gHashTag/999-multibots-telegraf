@@ -22,6 +22,10 @@ import {
   AUTOPILOT_READ,
   AUTOPILOT_ON,
   AUTOPILOT_OFF,
+  AUTOPILOT_LEAD_ADD,
+  AUTOPILOT_LEAD_REMOVE,
+  AUTOPILOT_LEAD_LIST,
+  chooseAutopilotLead,
 } from '@/services/crmAutopilot'
 
 const OWNER = '900000091'
@@ -33,8 +37,10 @@ const OWNER = '900000091'
 function fakeDb() {
   const rows = new Map<
     string,
-    { until: number; day: string; sent_today: number }
+    { until: number; day: string; sent_today: number; scope: string }
   >()
+  /** `${owner}:${lead}` for everybody the owner picked (crm_autopilot_leads). */
+  const chosen = new Set<string>()
   const today = () => new Date().toISOString().slice(0, 10)
   let down = false
   const db = {
@@ -42,17 +48,24 @@ function fakeDb() {
     goDown: () => {
       down = true
     },
-    seed: (owner: string, r: { until: number; day?: string; sent?: number }) =>
+    seed: (
+      owner: string,
+      r: { until: number; day?: string; sent?: number; scope?: string }
+    ) =>
       rows.set(owner, {
         until: r.until,
         day: r.day ?? today(),
         sent_today: r.sent ?? 0,
+        scope: r.scope ?? 'all',
       }),
+    pick: (owner: string, lead: string) => chosen.add(`${owner}:${lead}`),
+    chosenCount: () => chosen.size,
     peek: (owner: string) => rows.get(owner),
     async query(sql: string, params: unknown[] = []) {
       db.calls.push(sql.slice(0, 24))
       if (down) throw new Error('database is not answering')
-      if (sql.includes('CREATE TABLE')) return { rows: [] }
+      if (sql.includes('CREATE TABLE') || sql.includes('ALTER TABLE'))
+        return { rows: [] }
       const owner = String(params[0] ?? '')
       if (sql === AUTOPILOT_READ) {
         const r = rows.get(owner)
@@ -63,16 +76,33 @@ function fakeDb() {
                   until: new Date(r.until).toISOString(),
                   day: r.day,
                   sent_today: r.sent_today,
+                  scope: r.scope,
                 },
               ]
             : [],
         }
       }
+      if (sql === AUTOPILOT_LEAD_ADD) {
+        chosen.add(`${owner}:${String(params[1] ?? '')}`)
+        return { rows: [] }
+      }
+      if (sql === AUTOPILOT_LEAD_REMOVE) {
+        chosen.delete(`${owner}:${String(params[1] ?? '')}`)
+        return { rows: [] }
+      }
+      if (sql === AUTOPILOT_LEAD_LIST) {
+        return {
+          rows: [...chosen]
+            .filter(k => k.startsWith(`${owner}:`))
+            .map(k => ({ lead_id: k.split(':')[1] })),
+        }
+      }
       if (sql === AUTOPILOT_ON) {
         const hours = Number(params[1] ?? 0)
         const until = Date.now() + hours * 3_600_000
-        rows.set(owner, { until, day: today(), sent_today: 0 })
-        return { rows: [{ until: new Date(until).toISOString() }] }
+        const scope = String(params[2] ?? 'all')
+        rows.set(owner, { until, day: today(), sent_today: 0, scope })
+        return { rows: [{ until: new Date(until).toISOString(), scope }] }
       }
       if (sql === AUTOPILOT_OFF) {
         const r = rows.get(owner)
@@ -82,10 +112,15 @@ function fakeDb() {
       }
       if (sql === AUTOPILOT_TAKE) {
         const cap = Number(params[1] ?? 0)
+        const lead = String(params[2] ?? '')
         const r = rows.get(owner)
         if (!r || r.until <= Date.now()) return { rows: [] }
         const fresh = r.day !== today()
         if (!fresh && r.sent_today >= cap) return { rows: [] }
+        // The same condition the statement carries: with `chosen`, the person
+        // must be on the list -- and an unnamed lead is nobody.
+        if (r.scope === 'chosen' && !chosen.has(`${owner}:${lead}`))
+          return { rows: [] }
         r.day = today()
         r.sent_today = fresh ? 1 : r.sent_today + 1
         return { rows: [{ sent_today: r.sent_today }] }
@@ -163,6 +198,58 @@ describe("today's cap", () => {
     ])
     expect([a, b].filter(Boolean)).toHaveLength(1)
     expect(db.peek(OWNER)!.sent_today).toBe(AUTOPILOT_DAILY_CAP)
+  })
+})
+
+describe('only the people he picked', () => {
+  const HIM = '900000093'
+  const SOMEBODY_ELSE = '900000094'
+
+  it('with scope=chosen, an unpicked person gets no automatic send', async () => {
+    await turnAutopilotOn(OWNER, 8, 'chosen')
+    expect(await takeAutopilotSend(OWNER, SOMEBODY_ELSE)).toBe(false)
+    // And the budget was NOT spent on the refusal.
+    expect((await autopilotState(OWNER)).left).toBe(AUTOPILOT_DAILY_CAP)
+  })
+
+  it('a picked person does, and the budget is spent on them', async () => {
+    await turnAutopilotOn(OWNER, 8, 'chosen')
+    expect(await chooseAutopilotLead(OWNER, HIM, true)).toBe(true)
+    expect(await takeAutopilotSend(OWNER, HIM)).toBe(true)
+    expect((await autopilotState(OWNER)).left).toBe(AUTOPILOT_DAILY_CAP - 1)
+  })
+
+  it('unpicking stops it again', async () => {
+    await turnAutopilotOn(OWNER, 8, 'chosen')
+    await chooseAutopilotLead(OWNER, HIM, true)
+    await chooseAutopilotLead(OWNER, HIM, false)
+    expect(await takeAutopilotSend(OWNER, HIM)).toBe(false)
+  })
+
+  it('a card with no recipient named is nobody, so it waits', async () => {
+    await turnAutopilotOn(OWNER, 8, 'chosen')
+    await chooseAutopilotLead(OWNER, HIM, true)
+    expect(await takeAutopilotSend(OWNER)).toBe(false)
+    expect(await takeAutopilotSend(OWNER, '')).toBe(false)
+  })
+
+  it('scope=all is unchanged: anybody the sweep drew a card for', async () => {
+    await turnAutopilotOn(OWNER, 8)
+    expect(await takeAutopilotSend(OWNER, SOMEBODY_ELSE)).toBe(true)
+  })
+
+  it('the state says which scope is on and how many are picked', async () => {
+    await turnAutopilotOn(OWNER, 8, 'chosen')
+    await chooseAutopilotLead(OWNER, HIM, true)
+    const st = await autopilotState(OWNER)
+    expect(st).toMatchObject({ on: true, scope: 'chosen', chosen: 1 })
+  })
+
+  it('chosen with NOBODY picked sends nothing -- and says so as 0', async () => {
+    await turnAutopilotOn(OWNER, 8, 'chosen')
+    const st = await autopilotState(OWNER)
+    expect(st.chosen).toBe(0)
+    expect(await takeAutopilotSend(OWNER, HIM)).toBe(false)
   })
 })
 

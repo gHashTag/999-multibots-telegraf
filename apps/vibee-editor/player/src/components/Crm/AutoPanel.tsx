@@ -5,6 +5,7 @@ import {
   setAutopilot,
   loadOutcomes,
   type Autopilot,
+  type AutopilotScope,
   type Outcomes,
   type Reached,
 } from '@/lib/crm'
@@ -48,9 +49,20 @@ export function AutoPanel() {
     void read()
   }, [read])
 
+  /**
+   * WHOM IT MAY WRITE TO, chosen before it is switched on.
+   *
+   * Every product in this space scopes its automation to an audience rather
+   * than to everybody, and the reason is the flinch this removes: the owner is
+   * not afraid of automation, he is afraid of it writing to the WRONG person.
+   * `chosen` with nobody picked sends nothing at all -- which the line under
+   * the switch says out loud, so an empty list is never mistaken for silence.
+   */
+  const [scope, setScope] = useState<AutopilotScope>('all')
+
   const flip = async (on: boolean) => {
     setBusy(true)
-    const next = await setAutopilot(on)
+    const next = await setAutopilot(on, undefined, scope)
     // The answer carries the new state, so nothing is guessed here: the window
     // and the budget are the server's to compute.
     setState(next.data ? next : await loadAutopilot().then(r => r))
@@ -79,9 +91,39 @@ export function AutoPanel() {
         {!state.reachable
           ? t('crm.auto.unreachable')
           : a?.on
-            ? t('crm.auto.on', { until: clock, left: a.leftToday, cap: a.cap })
+            ? t('crm.auto.on', {
+                until: clock,
+                left: a.leftToday,
+                cap: a.cap,
+              }) +
+              (a.scope === 'chosen'
+                ? ' · ' +
+                  (a.chosen === 0
+                    ? t('crm.auto.chosen.none')
+                    : t('crm.auto.chosen.some', { n: a.chosen }))
+                : '')
             : t('crm.auto.off')}
       </p>
+
+      <div
+        className="crm-auto__scope"
+        role="group"
+        aria-label={t('crm.auto.scope')}
+      >
+        {(['all', 'chosen'] as const).map(k => (
+          <button
+            key={k}
+            type="button"
+            className={`crm__chip${(a?.on ? a.scope : scope) === k ? ' crm__chip--on' : ''}`}
+            aria-pressed={(a?.on ? a.scope : scope) === k}
+            disabled={busy || Boolean(a?.on)}
+            onClick={() => setScope(k)}
+          >
+            {t(`crm.auto.scope.${k}`)}
+            {k === 'chosen' && a ? ` ${a.chosen}` : ''}
+          </button>
+        ))}
+      </div>
 
       <div className="crm-auto__acts">
         <button

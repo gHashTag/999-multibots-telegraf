@@ -1126,7 +1126,11 @@ export async function pushCard(
    * paid for; turning an automatic send that did not happen into silence
    * would lose them, and the owner would learn nothing.
    */
-  if (await takeAutopilotSend(ownerId)) {
+  /*
+   * The card's recipient decides whether AUTO may take it: with the scope set
+   * to `chosen`, only people the owner picked are written to by themselves.
+   */
+  if (await takeAutopilotSend(ownerId, cardLeadOf(draft as never) ?? '')) {
     try {
       const r = await confirmProposal(ownerId, draft.id, draft.secret)
       if (r.ok) {
