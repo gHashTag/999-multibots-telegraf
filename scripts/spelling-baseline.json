@@ -7,5 +7,6 @@
   "apps/vibee-editor/render/kie-web-provider.test.ts:(вне it)",
   "apps/vibee-editor/render/notify-sign-in.test.ts:an empty name does not become an empty string in the text",
   "apps/vibee-editor/render/telegram-tools-hangup.test.ts:every reading tool goes through withClient, and withClient",
-  "apps/vibee-editor/render/the-lock-and-the-credit-commit-together.test.ts:a pool without connect keeps the old path and still credit"
+  "apps/vibee-editor/render/the-lock-and-the-credit-commit-together.test.ts:a pool without connect keeps the old path and still credit",
+  "apps/vibee-editor/render/the-watchman-is-wired.test.ts:(вне it)"
 ]

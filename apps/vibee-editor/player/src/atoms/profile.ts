@@ -13,7 +13,7 @@ import { sessionStore } from '../lib/framedSession'
 // authHeaders вызывался БЕЗ импорта: свободный идентификатор в ES-модуле —
 // это ReferenceError при первом же исполнении строки. Синк профиля из
 // Telegram падал всегда, а вызывающий гасил это через .catch(() => {}).
-import { apiFetch, authHeaders } from '../lib/apiFetch'
+import { apiFetch, authHeaders, explainApiError } from '../lib/apiFetch'
 
 // ===============================
 // Types
@@ -55,12 +55,21 @@ export interface UserProfile {
   is_own_profile: boolean
 }
 
+/**
+ * One row of a followers/following list.
+ *
+ * NO `id`. It used to carry the person's telegram_id, and it was used for two
+ * things: a React key, and "is this card me" -- neither of which needs an
+ * identifier that the route hands to anyone who asks, since the route is
+ * public. The username is the key, and the server marks the viewer's own row.
+ */
 export interface FollowUser {
-  id: string
   username: string
   display_name: string | null
   avatar_url: string | null
+  is_verified: boolean
   is_following: boolean
+  is_self: boolean
 }
 
 // ===============================
@@ -331,36 +340,72 @@ export const updateProfileAtom = atom(
   }
 )
 
-// Follow user
-export const followUserAtom = atom(null, async (get, set, username: string) => {
-  const user = get(userAtom)
-  console.log('[followUserAtom] user:', user?.id, 'target:', username)
-  if (!user) return false
+/**
+ * THE RESULT OF PRESSING FOLLOW.
+ *
+ * It used to be a bare `false`, which the caller logged and dropped. Every
+ * failure therefore looked the same from the outside: the count flicked to +1
+ * and back, with nothing said. `reason` is what the person is actually told.
+ */
+export interface FollowResult {
+  ok: boolean
+  reason?: string
+}
 
-  // Optimistic update
-  const viewed = get(viewedProfileAtom)
-  if (viewed && viewed.username.toLowerCase() === username.toLowerCase()) {
-    set(viewedProfileAtom, {
-      ...viewed,
-      is_following: true,
-      followers_count: viewed.followers_count + 1,
-    })
-  }
+/**
+ * Follow.
+ *
+ * Two things were wrong here and each alone was enough to make the button dead:
+ * the server had no route at all, and this request was sent with a bare `fetch`
+ * and no signature. `/api/users/` is public for GET only, so an unsigned POST
+ * is refused before routing -- adding the route without adding the signature
+ * would have changed nothing visible.
+ *
+ * `apiFetch` is the door: it attaches the signature for our own origins and
+ * turns a non-2xx into a thrown ApiError carrying the server's reason.
+ *
+ * The identity is NOT sent in the body any more. The server takes the follower
+ * from the verified caller, because a body field is a request, not a proof.
+ */
+export const followUserAtom = atom(
+  null,
+  async (get, set, username: string): Promise<FollowResult> => {
+    const user = get(userAtom)
+    if (!user) return { ok: false, reason: 'not_signed_in' }
 
-  try {
-    const url = `${API_BASE}/api/users/${encodeURIComponent(username)}/follow`
-    console.log('[followUserAtom] POST', url, 'telegram_id:', user.id)
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ telegram_id: user.id }),
-    })
+    const viewed = get(viewedProfileAtom)
+    const viewingThem =
+      !!viewed && viewed.username.toLowerCase() === username.toLowerCase()
 
-    const data = await response.json().catch(() => null)
-    console.log('[followUserAtom] Response:', response.status, data)
+    // Optimistic update: the button answers at once, and the server's real
+    // count replaces the guess below.
+    if (viewingThem && viewed) {
+      set(viewedProfileAtom, {
+        ...viewed,
+        is_following: true,
+        followers_count: viewed.followers_count + 1,
+      })
+    }
 
-    if (response.ok) {
-      // Update my profile following count
+    try {
+      const counts = await apiFetch<{
+        followers_count?: number
+        following_count?: number
+        is_following?: boolean
+      }>(`${API_BASE}/api/users/${encodeURIComponent(username)}/follow`, {
+        method: 'POST',
+      })
+
+      if (viewingThem && viewed) {
+        set(viewedProfileAtom, {
+          ...viewed,
+          is_following: counts.is_following ?? true,
+          // Prefer the server's count over the optimistic +1: two tabs, or a
+          // retry of a request that actually landed, make the guess wrong.
+          followers_count: counts.followers_count ?? viewed.followers_count + 1,
+        })
+      }
+
       const myProfile = get(myProfileAtom)
       if (myProfile) {
         set(myProfileAtom, {
@@ -368,38 +413,26 @@ export const followUserAtom = atom(null, async (get, set, username: string) => {
           following_count: myProfile.following_count + 1,
         })
       }
-      return true
-    } else {
-      // Revert optimistic update
-      if (viewed && viewed.username.toLowerCase() === username.toLowerCase()) {
-        set(viewedProfileAtom, {
-          ...viewed,
-          is_following: false,
-          followers_count: viewed.followers_count,
-        })
-      }
-      return false
+      return { ok: true }
+    } catch (error) {
+      if (viewingThem && viewed) set(viewedProfileAtom, viewed)
+      return { ok: false, reason: explainApiError(error) }
     }
-  } catch (error) {
-    console.error('Failed to follow user:', error)
-    // Revert optimistic update
-    if (viewed && viewed.username.toLowerCase() === username.toLowerCase()) {
-      set(viewedProfileAtom, viewed)
-    }
-    return false
   }
-})
+)
 
-// Unfollow user
+/** Unfollow. The mirror of the above, down to why the body is empty. */
 export const unfollowUserAtom = atom(
   null,
-  async (get, set, username: string) => {
+  async (get, set, username: string): Promise<FollowResult> => {
     const user = get(userAtom)
-    if (!user) return false
+    if (!user) return { ok: false, reason: 'not_signed_in' }
 
-    // Optimistic update
     const viewed = get(viewedProfileAtom)
-    if (viewed && viewed.username.toLowerCase() === username.toLowerCase()) {
+    const viewingThem =
+      !!viewed && viewed.username.toLowerCase() === username.toLowerCase()
+
+    if (viewingThem && viewed) {
       set(viewedProfileAtom, {
         ...viewed,
         is_following: false,
@@ -408,62 +441,57 @@ export const unfollowUserAtom = atom(
     }
 
     try {
-      const response = await fetch(
-        `${API_BASE}/api/users/${encodeURIComponent(username)}/follow`,
-        {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ telegram_id: user.id }),
-        }
-      )
+      const counts = await apiFetch<{
+        followers_count?: number
+        following_count?: number
+        is_following?: boolean
+      }>(`${API_BASE}/api/users/${encodeURIComponent(username)}/follow`, {
+        method: 'DELETE',
+      })
 
-      if (response.ok) {
-        // Update my profile following count
-        const myProfile = get(myProfileAtom)
-        if (myProfile) {
-          set(myProfileAtom, {
-            ...myProfile,
-            following_count: Math.max(0, myProfile.following_count - 1),
-          })
-        }
-        return true
-      } else {
-        // Revert optimistic update
-        if (
-          viewed &&
-          viewed.username.toLowerCase() === username.toLowerCase()
-        ) {
-          set(viewedProfileAtom, viewed)
-        }
-        return false
+      if (viewingThem && viewed) {
+        set(viewedProfileAtom, {
+          ...viewed,
+          is_following: counts.is_following ?? false,
+          followers_count:
+            counts.followers_count ?? Math.max(0, viewed.followers_count - 1),
+        })
       }
+
+      const myProfile = get(myProfileAtom)
+      if (myProfile) {
+        set(myProfileAtom, {
+          ...myProfile,
+          following_count: Math.max(0, myProfile.following_count - 1),
+        })
+      }
+      return { ok: true }
     } catch (error) {
-      console.error('Failed to unfollow user:', error)
-      return false
+      if (viewingThem && viewed) set(viewedProfileAtom, viewed)
+      return { ok: false, reason: explainApiError(error) }
     }
   }
 )
 
-// Load followers
+/**
+ * Load followers.
+ *
+ * The `user_id` query parameter is gone. It asked the server "is this person
+ * following that one" about somebody the caller had merely named, and the
+ * server now answers that from the request signature instead -- which is the
+ * only identity it can check.
+ */
 export const loadFollowersAtom = atom(
   null,
   async (get, set, username: string, page = 0) => {
     set(followersLoadingAtom, true)
-
-    const currentUser = get(userAtom)
-    const userIdParam = currentUser ? `&user_id=${currentUser.id}` : ''
-
     try {
-      const response = await fetch(
-        `${API_BASE}/api/users/${encodeURIComponent(username)}/followers?page=${page}&limit=20${userIdParam}`
+      const data = await apiFetch<{ users?: FollowUser[] }>(
+        `${API_BASE}/api/users/${encodeURIComponent(username)}/followers?page=${page}&limit=20`
       )
-
-      if (response.ok) {
-        const data = await response.json()
-        set(followersAtom, data.users || [])
-        return data.users || []
-      }
-      return []
+      const users = data.users || []
+      set(followersAtom, users)
+      return users
     } catch (error) {
       console.error('Failed to load followers:', error)
       return []
@@ -473,26 +501,18 @@ export const loadFollowersAtom = atom(
   }
 )
 
-// Load following
+/** Load following. The mirror of loadFollowersAtom. */
 export const loadFollowingAtom = atom(
   null,
   async (get, set, username: string, page = 0) => {
     set(followingLoadingAtom, true)
-
-    const currentUser = get(userAtom)
-    const userIdParam = currentUser ? `&user_id=${currentUser.id}` : ''
-
     try {
-      const response = await fetch(
-        `${API_BASE}/api/users/${encodeURIComponent(username)}/following?page=${page}&limit=20${userIdParam}`
+      const data = await apiFetch<{ users?: FollowUser[] }>(
+        `${API_BASE}/api/users/${encodeURIComponent(username)}/following?page=${page}&limit=20`
       )
-
-      if (response.ok) {
-        const data = await response.json()
-        set(followingAtom, data.users || [])
-        return data.users || []
-      }
-      return []
+      const users = data.users || []
+      set(followingAtom, users)
+      return users
     } catch (error) {
       console.error('Failed to load following:', error)
       return []

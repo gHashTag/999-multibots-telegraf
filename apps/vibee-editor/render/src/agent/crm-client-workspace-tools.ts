@@ -17,6 +17,7 @@
  */
 import type { AgentTool, ToolContext } from './tools'
 import { requireSeller } from './telegram-tools'
+import { requireOwnLead } from './crm-reach'
 import { ensurePlanTables, ensureProfileTable } from './crm-client-setup-tool'
 import { stageOf, type Stage } from './crm-stages'
 import { visibleScope, whoPaid } from './crm-tools'
@@ -226,23 +227,14 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
        * is somebody's unpublished ideas; "any user who connected their own
        * Telegram" is not who should read them.
        *
-       * The boundary is the one used everywhere else: the caller themselves,
-       * or a person the caller has actually corresponded with.
+       * The check written here by hand on 2026-09-20 now lives in crm-reach,
+       * because two more tools turned out to need the same sentence and a
+       * fourth hand-written copy is how the first one gets forgotten. Reading
+       * from the shared rule also gains the keeper their access: the platform
+       * owner is the super-admin and does see the whole farm, which the inline
+       * version denied them.
        */
-      const caller = String(ctx!.telegramId ?? '')
-      if (telegramId !== caller) {
-        const { personOf } = await import('./chat-memory')
-        const mine = await personOf(
-          ctx!.pool as never,
-          caller,
-          telegramId
-        ).catch(() => null)
-        if (!mine) {
-          throw new Error(
-            'план этого человека недоступен: он не ваш клиент — вы с ним не переписывались' // cyrillic-ok: message to the agent
-          )
-        }
-      }
+      await requireOwnLead(ctx, telegramId)
       await ensurePlanTables(ctx!)
       const goals = await tryQuery<PlanGoalRow>(
         ctx!,

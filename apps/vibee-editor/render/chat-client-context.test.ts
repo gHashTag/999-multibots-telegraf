@@ -37,6 +37,15 @@ describe('clientContextBlock', () => {
             updated_at: 't',
           },
         ],
+        /*
+         * The reach probe crm-reach asks before it opens anything private.
+         * The profile row in this fixture is a legacy one with no owner_id,
+         * so entitlement here comes from correspondence -- which this
+         * fixture already supplies below, in the dialog rows. Without the
+         * probe the pool would answer "no rows" and the brief would
+         * correctly report that the SOUL was not read.
+         */
+        'SELECT 1 FROM crm_messages': [{ one: 1 }],
         'FROM user_soul': [{ content: 'soul', updated_at: 't' }],
         'FROM user_skills': [{ name: 'Leela: plan' }],
         'SELECT msg_id, at, "out", text FROM crm_messages': [

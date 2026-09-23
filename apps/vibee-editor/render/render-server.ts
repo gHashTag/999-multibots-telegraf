@@ -154,6 +154,13 @@ import {
 // all -- see the block comment at the mount site.
 import { handleA2A, handleA2ACard } from './src/agent/a2a'
 import { loadVisiblePrivateProfileCounts } from './src/profile/privateCounts'
+import {
+  followPerson,
+  listFollows,
+  loadFollowCounts,
+  resolveUsernameToTelegramId,
+  unfollowPerson,
+} from './src/profile/follows'
 import os from 'node:os'
 import { WebSocketServer, WebSocket } from 'ws'
 import { bundle } from '@remotion/bundler'
@@ -10932,6 +10939,110 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  /**
+   * POST | DELETE /api/users/:username/follow -- record or remove a follow.
+   *
+   * BOTH ROUTES MUST STAND ABOVE THE PROFILE GET BELOW. That handler matches
+   * everything under `/api/users/`, and `rejectExtraSegments(req, res, 3)` is
+   * its first statement -- anything with a fourth path segment that reaches it
+   * is answered 404 before it can be read. That is exactly how `/templates`
+   * came to return a profile card with code 200.
+   *
+   * The follower is the VERIFIED caller and never `body.telegram_id`. The old
+   * client sent its own id in the body; honouring that would let anyone follow
+   * anyone on anybody's behalf, which is a write in somebody else's name.
+   *
+   * It stands above the PUT rather than between the PUT and the GET for a
+   * second reason: `profile-update-owner.test.ts` reads this file as text and
+   * slices it from the PUT marker to the GET marker. Anything parked in that
+   * gap is read as part of the update handler -- the sentence above about
+   * `body.telegram_id` was enough to fail the assertion that the update never
+   * names one.
+   */
+  {
+    const followPath = req.url?.split('?')[0] || ''
+    const followMatch = followPath.match(/^\/api\/users\/([^/]+)\/follow$/)
+    if (followMatch && (req.method === 'POST' || req.method === 'DELETE')) {
+      const who = chatIdentity(req, verifiedTelegramId(req))
+      if (!who) {
+        sendJson(res, 401, {
+          error: 'unauthorized',
+          detail: 'нужна подпись Telegram или сессия', // cyrillic-ok: reason shown to the person
+        })
+        return
+      }
+      const username = decodeURIComponent(followMatch[1])
+      try {
+        const pool = await getPool()
+        const target = await resolveUsernameToTelegramId(pool, username)
+        if (!target) {
+          sendJson(res, 404, { error: 'user not found' })
+          return
+        }
+        if (String(target) === String(who)) {
+          sendJson(res, 400, {
+            error: 'self_follow',
+            detail: 'нельзя подписаться на себя', // cyrillic-ok: reason shown to the person
+          })
+          return
+        }
+        const counts =
+          req.method === 'POST'
+            ? await followPerson(pool, String(who), String(target))
+            : await unfollowPerson(pool, String(who), String(target))
+        if (!counts) {
+          sendJson(res, 500, { error: 'follow failed' })
+          return
+        }
+        sendJson(res, 200, counts)
+      } catch (error) {
+        console.error('[follow] failed:', error)
+        sendJson(res, 500, { error: 'follow failed' })
+      }
+      return
+    }
+
+    /**
+     * GET /api/users/:username/followers | /following
+     *
+     * PUBLIC. `auth.ts` lists `/api/users/` in PUBLIC_GET_PREFIXES and gates it
+     * on the GET method, so no credential is required to reach this -- which is
+     * why `listFollows` returns no telegram_id and omits private profiles.
+     *
+     * The viewer comes from the signature, not from the `user_id` query
+     * parameter the old client appended. That parameter asked the server "is
+     * this person following that person" about two strangers.
+     */
+    const listMatch = followPath.match(
+      /^\/api\/users\/([^/]+)\/(followers|following)$/
+    )
+    if (listMatch && req.method === 'GET') {
+      const username = decodeURIComponent(listMatch[1])
+      const direction = listMatch[2] as 'followers' | 'following'
+      const url = new URL(req.url || '', `http://${req.headers.host}`)
+      const viewer = chatIdentity(req, verifiedTelegramId(req))
+      try {
+        const pool = await getPool()
+        const target = await resolveUsernameToTelegramId(pool, username)
+        if (!target) {
+          sendJson(res, 404, { error: 'user not found' })
+          return
+        }
+        const people = await listFollows(pool, target, direction, viewer, {
+          page: parseInt(url.searchParams.get('page') || '0', 10) || 0,
+          limit: parseInt(url.searchParams.get('limit') || '20', 10) || 20,
+        })
+        // An unreadable list is an empty list, not a 500: the tab shows its
+        // own "nobody yet" state and the page stays up.
+        sendJson(res, 200, { users: people ?? [] })
+      } catch (error) {
+        console.error('[follow-list] failed:', error)
+        sendJson(res, 200, { users: [] })
+      }
+      return
+    }
+  }
+
   // PUT /api/users/:username - Update only the verified owner's profile.
   if (req.url?.startsWith('/api/users/') && req.method === 'PUT') {
     if (rejectExtraSegments(req, res, 3)) return
@@ -11047,12 +11158,16 @@ const server = createServer(async (req, res) => {
         [ownerId]
       )
       const stats = statsResult.rows[0] || {}
+      // Counters, not a claim: `null` means the follow table could not be read,
+      // and the answer then is the zero this payload has always carried rather
+      // than a 500 on somebody saving their bio.
+      const follows = await loadFollowCounts(pool, String(ownerId), null)
       sendJson(res, 200, {
         profile: {
           ...row,
           social_links: row.social_links || [],
-          followers_count: 0,
-          following_count: 0,
+          followers_count: follows?.followers_count ?? 0,
+          following_count: follows?.following_count ?? 0,
           templates_count: parseInt(stats.templates_count, 10) || 0,
           total_views: parseInt(stats.total_views, 10) || 0,
           total_likes: parseInt(stats.total_likes, 10) || 0,
@@ -11276,14 +11391,22 @@ const server = createServer(async (req, res) => {
         viewerTelegramId
       )
 
+      // `is_following` needs the VERIFIED viewer. It was a literal `false`, so
+      // a profile you already follow still offered you a Follow button.
+      const follows = await loadFollowCounts(
+        pool,
+        String(telegramId),
+        viewerTelegramId
+      )
+
       const fullProfile = {
         ...profile,
-        followers_count: 0,
-        following_count: 0,
+        followers_count: follows?.followers_count ?? 0,
+        following_count: follows?.following_count ?? 0,
         templates_count: templatesCount,
         total_views: totalViews,
         total_likes: totalLikes,
-        is_following: false,
+        is_following: follows?.is_following ?? false,
         is_own_profile: isOwnProfile,
         ...(privateCounts ?? {}),
       }

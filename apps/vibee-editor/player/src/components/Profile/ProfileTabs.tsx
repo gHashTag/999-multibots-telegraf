@@ -339,7 +339,9 @@ export function ProfileTabs() {
                 </p>
               </div>
             ) : (
-              followers.map(user => <UserCard key={user.id} user={user} />)
+              followers.map(user => (
+                <UserCard key={user.username} user={user} />
+              ))
             )}
           </div>
         )}
@@ -374,7 +376,9 @@ export function ProfileTabs() {
                 </p>
               </div>
             ) : (
-              following.map(user => <UserCard key={user.id} user={user} />)
+              following.map(user => (
+                <UserCard key={user.username} user={user} />
+              ))
             )}
           </div>
         )}

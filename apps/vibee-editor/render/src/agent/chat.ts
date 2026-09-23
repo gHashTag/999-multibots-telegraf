@@ -700,9 +700,18 @@ export async function clientBriefBlock(
       return { text: '', name: null }
     }
     const skills = Array.isArray(p.skills) ? (p.skills as string[]) : []
+    /*
+     * `has_soul: false` has two meanings since crm-reach landed: the person
+     * never wrote a SOUL, or this caller is not entitled to read it. Only the
+     * first is a fact about the client, and this line goes verbatim into the
+     * model's context -- telling it "SOUL: нет" about somebody whose SOUL we
+     * simply did not open is handing it a false premise to sell on.
+     */
     parts.push(
-      `SOUL клиента: ${p.has_soul ? 'есть' : 'нет'}; скиллов: ${skills.length}` +
-        (skills.length ? ` (${skills.slice(0, 12).join(', ')})` : '')
+      p.private_withheld
+        ? 'SOUL и скиллы клиента не читались: этот человек не ваш клиент.'
+        : `SOUL клиента: ${p.has_soul ? 'есть' : 'нет'}; скиллов: ${skills.length}` +
+            (skills.length ? ` (${skills.slice(0, 12).join(', ')})` : '')
     )
   } catch (e) {
     console.warn('[agent] client profile not read:', String(e).slice(0, 120))
