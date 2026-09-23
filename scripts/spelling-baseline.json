@@ -1,5 +1,6 @@
 [
   "apps/vibee-editor/player/src/components/Profile/SoulCard.test.ts:(вне it)",
+  "apps/vibee-editor/render/a-profile-is-for-the-club.test.ts:(вне it)",
   "apps/vibee-editor/render/delete-own-photo.test.ts:в запросе есть все три условия",
   "apps/vibee-editor/render/generation-owner-contract.test.ts:(вне it)",
   "apps/vibee-editor/render/jobs-store-attached-at-boot.test.ts:(вне it)",
