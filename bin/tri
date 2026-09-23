@@ -111,6 +111,7 @@ tri — оболочка Trinity S³AI
   tri commands   каждая команда меню на каждом боте: ответил / молчит / не пробовали
   tri pack <id> <username>  упаковка клиента: восемь частей, у каждой — следующее нажатие
   tri botapi     какие боты на нашем Bot API сервере и согласны ли бот, рендер и сервер
+  tri auto       включён ли режим AUTO: до какого часа и сколько автоотправок осталось
   tri inflight   что в работе: открытые PR, рабочие деревья, диск, последние выкатки
   tri session    сессии: срок жизни, ротация, обнаружение повторного использования
   tri pairing    вход по коду: длина, срок, попытки — и совпадают ли клиенты с сервером
@@ -1187,6 +1188,14 @@ PYEOF
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
     railway run --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/commands-answered.cjs" "$@"
+    ;;
+
+  auto)
+    # IS AUTO MODE ON, AND WHAT BOUNDS IT. Read-only by design: the switch
+    # that lets the account send by itself is flipped by a hand, in the app or
+    # the bot, never by a script (DIRECT_CALL_ONLY, render tools.ts).
+    shift
+    node "$ROOT/scripts/autopilot-state.cjs" "$@"
     ;;
 
   botapi)
