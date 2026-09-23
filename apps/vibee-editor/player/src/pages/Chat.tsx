@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
 import { agentMessagesAtomFor, agentDraftAtom } from '@/atoms/agentChat'
 import { sendToAgent, agentBusyAtom, isAgentBusy } from '@/lib/agentStream'
@@ -26,6 +26,7 @@ import { reportPayOutcome } from '@/lib/payOutcome'
 import { parseCards, cardStates, answerFor } from '@/lib/agentCards'
 import { AgentCards } from '@/components/Chat/AgentCards'
 import { ChatThreads } from '@/components/Chat/ChatThreads'
+import { liveMarketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import './Chat.css'
 
 /**
@@ -125,21 +126,70 @@ const CLIENT_SUGGESTIONS = [
   'Что ответить ему следующим сообщением?',
 ]
 
-function ChatPage() {
-  const { clientId } = useParams<{ clientId?: string }>()
-  const client = clientId && /^\d{5,15}$/.test(clientId) ? clientId : null
-  return <ChatThread key={client ?? 'self'} client={client} />
+const BLOGGER_WELCOME: Message = {
+  id: 'welcome',
+  role: 'assistant',
+  text:
+    'Я Блогер T27 — первый рабочий агент на бирже. Найду подтверждённую работу, ' +
+    'о которой ещё не писал блог, соберу полные EN/RU версии, триптих, ' +
+    'хештеги, офер и адаптации для X, LinkedIn и Telegram.\n\n' +
+    'Сначала покажу доказательства и пробел в публикациях. Внешние публикации ' +
+    'делаю только после явного подтверждения, а в конце возвращаю живые ссылки.',
 }
 
-/** The query-string suffix that names the thread, or nothing for self. */
-const clientQuery = (client: string | null, first: boolean) =>
-  client ? `${first ? '?' : '&'}client=${encodeURIComponent(client)}` : ''
+const BLOGGER_SUGGESTIONS = [
+  'Что сильного уже сделано, но ещё не опубликовано?',
+  'Собери следующий пост EN/RU с хештегами и офером',
+  'Проверь блог: где нет триптиха или полного текста?',
+  'Подготовь контент-план для X, LinkedIn и Telegram',
+]
 
-function ChatThread({ client }: { client: string | null }) {
+function ChatPage() {
+  const { clientId, agentId } = useParams<{
+    clientId?: string
+    agentId?: string
+  }>()
+  const client = clientId && /^\d{5,15}$/.test(clientId) ? clientId : null
+  const marketplaceAgent = agentId
+    ? (liveMarketplaceAgentById(agentId)?.id ?? null)
+    : null
+  if (agentId && !marketplaceAgent) return <Navigate to="/agents" replace />
+  return (
+    <ChatThread
+      key={client ?? marketplaceAgent ?? 'self'}
+      client={client}
+      marketplaceAgent={marketplaceAgent}
+    />
+  )
+}
+
+/** The query-string suffix that names one isolated thread, or nothing for self. */
+const threadQuery = (
+  client: string | null,
+  marketplaceAgent: string | null,
+  first: boolean
+) => {
+  const key = client ? 'client' : marketplaceAgent ? 'agent' : null
+  const value = client || marketplaceAgent
+  return key && value
+    ? `${first ? '?' : '&'}${key}=${encodeURIComponent(value)}`
+    : ''
+}
+
+function ChatThread({
+  client,
+  marketplaceAgent,
+}: {
+  client: string | null
+  marketplaceAgent: string | null
+}) {
   const { t } = useLanguage()
   // Переписка и черновик — в атомах с хранилищем, а не в useState: страница
   // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
-  const messagesAtom = useMemo(() => agentMessagesAtomFor(client), [client])
+  const messagesAtom = useMemo(
+    () => agentMessagesAtomFor(client, marketplaceAgent),
+    [client, marketplaceAgent]
+  )
   const [messages, setMessages] = useAtom(messagesAtom)
   const [input, setInput] = useAtom(agentDraftAtom)
   // The greeting of a client thread is short and names the client: the long
@@ -152,8 +202,10 @@ function ChatThread({ client }: { client: string | null }) {
             role: 'assistant',
             text: t('crm.client.chat.welcome', { id: client }),
           }
-        : WELCOME,
-    [client, t]
+        : marketplaceAgent === 'blogger'
+          ? BLOGGER_WELCOME
+          : WELCOME,
+    [client, marketplaceAgent, t]
   )
   // Занятость — в атоме: она принадлежит разговору, а не странице.
   const busy = useAtomValue(agentBusyAtom)
@@ -211,7 +263,7 @@ function ChatThread({ client }: { client: string | null }) {
         return
       }
       fetch(
-        `${API_BASE}/api/agent/history?limit=100${clientQuery(client, false)}`,
+        `${API_BASE}/api/agent/history?limit=100${threadQuery(client, marketplaceAgent, false)}`,
         {
           headers: authHeaders(),
         }
@@ -285,12 +337,15 @@ function ChatThread({ client }: { client: string | null }) {
   const send = useCallback(
     (text: string) => {
       if ((!text.trim() && attachments.length === 0) || uploading) return
-      void sendToAgent(text, attachments, { client })
+      void sendToAgent(text, attachments, {
+        client,
+        agent: marketplaceAgent,
+      })
       setInput('')
       setAttachments([])
       setAttachmentError(null)
     },
-    [attachments, client, setInput, uploading]
+    [attachments, client, marketplaceAgent, setInput, uploading]
   )
 
   /*
@@ -395,6 +450,16 @@ function ChatThread({ client }: { client: string | null }) {
           </span>
         </nav>
       ) : null}
+      {marketplaceAgent ? (
+        <nav className="chat-specialist" aria-label="Блогер T27">
+          <Link to="/agents" className="chat-specialist__back">
+            {'← Биржа агентов'}
+          </Link>
+          <span>
+            <i /> {'Блогер · работает'}
+          </span>
+        </nav>
+      ) : null}
       <div className="chat-toolbar">
         {/* Переписка теперь переживает уход со страницы — значит нужен и
           способ её закончить. Без этой кнопки старый разговор оставался
@@ -424,7 +489,7 @@ function ChatThread({ client }: { client: string | null }) {
               setInput('')
               setAttachments([])
               fetch(
-                `${API_BASE}/api/agent/history${clientQuery(client, true)}`,
+                `${API_BASE}/api/agent/history${threadQuery(client, marketplaceAgent, true)}`,
                 {
                   method: 'DELETE',
                   headers: authHeaders(),
@@ -546,7 +611,12 @@ function ChatThread({ client }: { client: string | null }) {
 
           {messages.length <= 1 ? (
             <div className="suggestions">
-              {(client ? CLIENT_SUGGESTIONS : SUGGESTIONS).map((s, i) => (
+              {(client
+                ? CLIENT_SUGGESTIONS
+                : marketplaceAgent === 'blogger'
+                  ? BLOGGER_SUGGESTIONS
+                  : SUGGESTIONS
+              ).map((s, i) => (
                 <button
                   key={i}
                   className="suggestion-btn"

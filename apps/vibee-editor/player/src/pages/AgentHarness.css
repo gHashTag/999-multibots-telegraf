@@ -1,0 +1,202 @@
+.harness-page {
+  min-height: calc(
+    var(--app-vh-stable, 100dvh) - var(--app-tabbar-total, 56px)
+  );
+  background: #000;
+  color: #f4f0e5;
+  font-family: 'Outfit', system-ui, sans-serif;
+}
+.harness-main {
+  width: min(900px, 100%);
+  margin: 0 auto;
+  padding: 42px 22px 100px;
+}
+.harness-back {
+  color: #8c8c8c;
+  text-decoration: none;
+  font-size: 12px;
+}
+.harness-kicker {
+  margin: 48px 0 14px;
+  color: #00ff88;
+  font:
+    700 11px ui-monospace,
+    monospace;
+  letter-spacing: 0.16em;
+}
+.harness-main h1 {
+  max-width: 760px;
+  margin: 0;
+  font-size: clamp(40px, 7vw, 76px);
+  font-weight: 540;
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+.harness-lead {
+  max-width: 690px;
+  margin: 24px 0 42px;
+  color: #aaa;
+  font-size: 16px;
+  line-height: 1.65;
+}
+.harness-step {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 18px;
+  padding: 26px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.13);
+}
+.harness-step__number {
+  color: #ffd700;
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.harness-step h2 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 560;
+}
+.harness-step p {
+  margin: 0 0 16px;
+  color: #929292;
+  line-height: 1.55;
+}
+.harness-issue {
+  display: flex;
+  gap: 8px;
+}
+.harness-issue input,
+.harness-step textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f4f0e5;
+  border-radius: 2px;
+  font:
+    13px ui-monospace,
+    monospace;
+}
+.harness-issue input {
+  min-height: 45px;
+  padding: 0 13px;
+}
+.harness-issue button,
+.harness-copy,
+.harness-keys button {
+  border: 1px solid #00ff88;
+  background: transparent;
+  color: #00ff88;
+  cursor: pointer;
+}
+.harness-issue button {
+  flex: 0 0 auto;
+  padding: 0 18px;
+}
+.harness-issue button:disabled,
+.harness-keys button:disabled {
+  opacity: 0.45;
+}
+.harness-step textarea {
+  padding: 14px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.harness-warning {
+  color: #ffd700 !important;
+}
+.harness-copy {
+  margin-top: 8px;
+  padding: 10px 14px;
+}
+.harness-keys {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.harness-keys li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 54px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.harness-keys li:last-child {
+  border-bottom: 0;
+}
+.harness-keys li > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.harness-keys strong {
+  font-size: 13px;
+}
+.harness-keys code {
+  color: #777;
+  font-size: 11px;
+}
+.harness-keys .active {
+  color: #00ff88;
+  font-size: 11px;
+}
+.harness-keys .revoked {
+  color: #777;
+  font-size: 11px;
+}
+.harness-keys button {
+  padding: 7px 10px;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #aaa;
+}
+.harness-empty {
+  color: #777;
+  display: block !important;
+  padding: 18px !important;
+}
+.harness-security {
+  margin-top: 24px;
+  padding: 20px;
+  border-left: 2px solid #ffd700;
+  background: rgba(255, 215, 0, 0.045);
+}
+.harness-security strong {
+  color: #ffd700;
+}
+.harness-security p {
+  margin: 8px 0 0;
+  color: #aaa;
+  line-height: 1.55;
+}
+.harness-note {
+  color: #ff8d8d;
+  font-size: 12px;
+}
+@media (max-width: 620px) {
+  .harness-main {
+    padding: 25px 14px 84px;
+  }
+  .harness-kicker {
+    margin-top: 36px;
+  }
+  .harness-step {
+    grid-template-columns: 36px 1fr;
+    gap: 8px;
+  }
+  .harness-issue {
+    flex-direction: column;
+  }
+  .harness-issue button {
+    min-height: 44px;
+  }
+  .harness-keys li {
+    grid-template-columns: 1fr auto;
+  }
+  .harness-keys button {
+    grid-column: 1 / -1;
+  }
+}

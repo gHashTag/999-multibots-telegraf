@@ -15,7 +15,14 @@ export interface PrimaryNavigationItem {
 
 export const PRIMARY_NAV_ITEMS: readonly PrimaryNavigationItem[] = [
   { id: 'feed', route: '/feed', labelKey: 'nav.feed', match: /^\/feed/ },
-  { id: 'chat', route: '/chat', labelKey: 'nav.agent', match: /^\/chat/ },
+  {
+    // The product tab is the labour market. The old /chat address remains a
+    // working deep link and therefore lights the same tab up.
+    id: 'chat',
+    route: '/agents',
+    labelKey: 'nav.agents',
+    match: /^\/(agents|chat)/,
+  },
   /*
    * The browser sits NEXT TO the agent, because that is what it is for:
    * watching the agent work, and taking the wheel from it. Owner's request,
