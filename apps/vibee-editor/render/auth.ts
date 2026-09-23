@@ -405,6 +405,17 @@ const PUBLIC_GET_PREFIXES = [
    * по-прежнему требует.
    */
   '/api/soul/',
+  /*
+   * THE SHAPE OF THE APP IS NOT ANYBODY'S DATA.
+   *
+   * /api/navigation answers which destinations exist, so a client can draw a
+   * tab bar before anybody has signed in -- which is exactly when it is
+   * needed. Measured on the first deploy: the handler was written and the
+   * route was not on this list, so the guard answered "no X-Api-Key and no
+   * Telegram initData" and every client silently fell back to its bundled
+   * copy. A shared list nobody can read is a list that drifts again.
+   */
+  '/api/navigation',
 ]
 
 export function isPublic(req: IncomingMessage): boolean {
