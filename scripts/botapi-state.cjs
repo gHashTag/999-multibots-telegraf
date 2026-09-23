@@ -146,6 +146,12 @@ function main() {
   }
   console.log('')
   console.log(
+    // This line PRINTS the host inside a sentence for the human reading the
+    // report. It calls nothing and resolves nothing, so there is no host here
+    // to route through a helper -- the word IS the warning.
+    // The marker goes on the line immediately above the offending one: the
+    // scanner reads only that one line back.
+    // telegram-api-root-ok
     'Never call api.telegram.org with the token of a bot marked y/y/y: any method ' +
       'logs it back into the cloud.'
   )

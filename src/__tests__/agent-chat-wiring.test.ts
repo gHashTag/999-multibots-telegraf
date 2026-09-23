@@ -130,9 +130,22 @@ describe('an album becomes one turn', () => {
   /*
    * The later parts MUST stop. If they carried on, the album would be answered
    * once per photo -- the very bug the buffer exists to remove.
+   *
+   * The stop changed SHAPE, not meaning, when the turn left the polling loop
+   * for its lane (1060986f): the collect promise is no longer awaited in the
+   * middleware, so an absorbed part cannot `return` out of it. It is awaited
+   * inside the lane's job instead, and `null` there means the job simply does
+   * not run the turn. So this now pins the guard at its new home: the awaited
+   * result decides whether the turn happens at all.
    */
   it('a part that was absorbed stops instead of answering', () => {
-    expect(CODE).toMatch(/if \(!albumParts\) return/)
+    expect(CODE).toMatch(
+      /const parts = await albumParts\s*if \(parts\) await answerInBotChat\(ctx, parts\)/
+    )
+    // ...and there is no second, unguarded door into the turn. Without this a
+    // later refactor could add an ungated call beside the gated one and the
+    // assertion above would still be green.
+    expect(CODE.match(/answerInBotChat\(/g)).toHaveLength(1)
   })
 
   it('the turn is built from all the parts, not from one message', () => {
@@ -143,8 +156,15 @@ describe('an album becomes one turn', () => {
   /*
    * One buffer for the bot, keyed by chat: a per-chat map would be a second
    * thing to clean up after somebody leaves.
+   *
+   * The chat id is no longer written inline at the call: the same value names
+   * the lane (`dm:<chat>`) and the shutdown notice, so it is bound once as
+   * `chatLane`. Both halves of the chain are pinned here -- where the key
+   * comes from, and that the buffer is the thing given it -- because either
+   * one alone would go green while the other drifted.
    */
   it('the buffer is keyed by chat, so two people do not share an album', () => {
-    expect(CODE).toMatch(/albums\.collect\(\s*String\(ctx\.chat\?\.id/)
+    expect(CODE).toMatch(/const chatLane = String\(ctx\.chat\?\.id/)
+    expect(CODE).toMatch(/albums\.collect\(chatLane,/)
   })
 })

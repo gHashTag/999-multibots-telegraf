@@ -47,7 +47,16 @@ describe('the phone layout and the phone measurement agree', () => {
 
   it('keeps the sentence that stops somebody wiping their logins', () => {
     /* It may shrink on a phone. It may not disappear. */
-    const phone = css.slice(css.indexOf(`@media (max-width: ${PHONE_MAX}px)`))
+    /*
+     * The anchor is checked before the slice, and that check is the whole
+     * point here: the assertion below is NEGATIVE. With a missing anchor
+     * `indexOf` returns -1, `slice(-1)` hands back the file's last character,
+     * and `not.toMatch` over one character passes for ever -- the phone rule
+     * could be deleted outright and this test would still be green.
+     */
+    const phoneAt = css.indexOf(`@media (max-width: ${PHONE_MAX}px)`)
+    expect(phoneAt).toBeGreaterThan(-1)
+    const phone = css.slice(phoneAt)
     expect(phone).not.toMatch(
       /\.remote-browser--live \.remote-browser__muted \{[^}]*display:\s*none/
     )
