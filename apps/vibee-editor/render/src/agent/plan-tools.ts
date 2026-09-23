@@ -17,6 +17,7 @@
  */
 
 import type { AgentTool, ToolContext } from './tools'
+import { EDITORIAL_PREFIX } from '../../editorial-key-scope'
 
 const STATUSES = ['idea', 'doing', 'done'] as const
 type Status = (typeof STATUSES)[number]
@@ -88,6 +89,7 @@ export const planTools: AgentTool[] = [
         `SELECT id, title, intent, created_at::text
          FROM content_plan_goals
          WHERE telegram_id = $1
+         ${ctx.scope === 'leela-editorial' ? "AND title LIKE 'Leela:%'" : ''}
          ORDER BY created_at`,
         [ctx.telegramId]
       )
@@ -104,8 +106,11 @@ export const planTools: AgentTool[] = [
         `SELECT id, goal_id, title, note, status, template_id, updated_at::text
          FROM content_plan_items
          WHERE telegram_id = $1
+         ${ctx.scope === 'leela-editorial' ? "AND goal_id = ANY($2::int[]) AND title LIKE 'Leela:%'" : ''}
          ORDER BY goal_id, id`,
-        [ctx.telegramId]
+        ctx.scope === 'leela-editorial'
+          ? [ctx.telegramId, goals.rows.map(g => g.id)]
+          : [ctx.telegramId]
       )
       const byGoal = new Map<number, unknown[]>()
       for (const it of items.rows) {
@@ -151,6 +156,15 @@ export const planTools: AgentTool[] = [
     async handler(args, ctx) {
       const title = clean(args.title)
       const intent = clean(args.intent)
+      if (
+        ctx.scope === 'leela-editorial' &&
+        !title.startsWith(EDITORIAL_PREFIX)
+      ) {
+        return {
+          ['создано']: false,
+          ['причина']: 'Editorial goal titles must start with Leela:',
+        }
+      }
       if (!title) return { создано: false, причина: 'нужно непустое title' }
       if (title.length > MAX_TITLE) {
         return { создано: false, причина: `имя цели до ${MAX_TITLE} символов` }
@@ -189,7 +203,9 @@ export const planTools: AgentTool[] = [
       'спроси человека, прежде чем звать. Бесплатно.',
     parameters: {
       type: 'object',
-      properties: { id: { type: 'integer', description: 'id цели из plan_list' } },
+      properties: {
+        id: { type: 'integer', description: 'id цели из plan_list' },
+      },
       required: ['id'],
       additionalProperties: false,
     },
@@ -224,9 +240,21 @@ export const planTools: AgentTool[] = [
     async handler(args, ctx) {
       const title = clean(args.title)
       const note = clean(args.note)
+      if (
+        ctx.scope === 'leela-editorial' &&
+        !title.startsWith(EDITORIAL_PREFIX)
+      ) {
+        return {
+          ['добавлено']: false,
+          ['причина']: 'Editorial item titles must start with Leela:',
+        }
+      }
       if (!title) return { добавлено: false, причина: 'нужно непустое title' }
       if (title.length > MAX_TITLE) {
-        return { добавлено: false, причина: `название до ${MAX_TITLE} символов` }
+        return {
+          добавлено: false,
+          причина: `название до ${MAX_TITLE} символов`,
+        }
       }
       if (note.length > MAX_NOTE) {
         return { добавлено: false, причина: `заметка до ${MAX_NOTE} символов` }
@@ -235,7 +263,8 @@ export const planTools: AgentTool[] = [
       // Цель проверяется ПО ВЛАДЕЛЬЦУ, а не по существованию: без этого
       // чужой goal_id принял бы карточку в чужую папку.
       const goal = await ctx.pool.query(
-        `SELECT title FROM content_plan_goals WHERE id = $1 AND telegram_id = $2`,
+        `SELECT title FROM content_plan_goals WHERE id = $1 AND telegram_id = $2
+         ${ctx.scope === 'leela-editorial' ? "AND title LIKE 'Leela:%'" : ''}`,
         [args.goal_id, ctx.telegramId]
       )
       if (!goal.rows.length) {
@@ -313,7 +342,8 @@ export const planTools: AgentTool[] = [
          RETURNING title, status`,
         [args.id, title, note, status, clean(args.template_id), ctx.telegramId]
       )
-      if (!r.rows.length) return { изменено: false, причина: 'карточка не найдена' }
+      if (!r.rows.length)
+        return { изменено: false, причина: 'карточка не найдена' }
       return {
         изменено: true,
         название: r.rows[0].title,
@@ -327,7 +357,9 @@ export const planTools: AgentTool[] = [
     description: 'Удалить карточку из плана. Бесплатно.',
     parameters: {
       type: 'object',
-      properties: { id: { type: 'integer', description: 'id карточки из plan_list' } },
+      properties: {
+        id: { type: 'integer', description: 'id карточки из plan_list' },
+      },
       required: ['id'],
       additionalProperties: false,
     },
@@ -339,7 +371,8 @@ export const planTools: AgentTool[] = [
          RETURNING title`,
         [args.id, ctx.telegramId]
       )
-      if (!r.rows.length) return { удалено: false, причина: 'карточка не найдена' }
+      if (!r.rows.length)
+        return { удалено: false, причина: 'карточка не найдена' }
       return { удалено: true, карточка: r.rows[0].title }
     },
   },

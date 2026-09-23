@@ -63,8 +63,11 @@ import {
 } from './client-face'
 
 import { BROWSER_TOOLS } from '../browser/agent-tools'
+import { EDITORIAL_PREFIX, type AgentScope } from '../../editorial-key-scope'
 
 export interface ToolContext {
+  /** Set by the authenticated dispatcher, never by tool arguments. */
+  scope?: AgentScope
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
   telegramId: string
   pool: { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }
@@ -978,6 +981,8 @@ export const TOOLS: AgentTool[] = [
       'зная имя и лицо, историю можно строить про него, а не про абстракцию.',
     parameters: noArgs,
     async handler(_args, ctx) {
+      if (ctx.scope === 'leela-editorial')
+        return { telegram_id: ctx.telegramId }
       /**
        * Аватар входит в ответ НАМЕРЕННО.
        *
@@ -2527,14 +2532,18 @@ export const TOOLS: AgentTool[] = [
       await ensureSkillsTable(ctx)
       const r = await ctx.pool.query(
         `SELECT id, name, content, updated_at::text
-         FROM user_skills WHERE telegram_id = $1 ORDER BY updated_at DESC`,
+         FROM user_skills WHERE telegram_id = $1
+         ${ctx.scope === 'leela-editorial' ? "AND name LIKE 'Leela:%' AND is_public = FALSE" : ''}
+         ORDER BY updated_at DESC`,
         [ctx.telegramId]
       )
       return {
         всего: r.rows.length,
         скиллы: r.rows,
-        подсказка:
-          'применяй их к текстам постов и тонам; изменение — через skills_update',
+        ['подсказка']:
+          ctx.scope === 'leela-editorial'
+            ? 'Private Leela drafts only; updates and publication are unavailable.'
+            : 'применяй их к текстам постов и тонам; изменение — через skills_update',
       }
     },
   },
@@ -2556,6 +2565,15 @@ export const TOOLS: AgentTool[] = [
     async handler(args, ctx) {
       const name = String(args.name || '').trim()
       const content = String(args.content || '').trim()
+      if (
+        ctx.scope === 'leela-editorial' &&
+        !name.startsWith(EDITORIAL_PREFIX)
+      ) {
+        return {
+          ['создано']: false,
+          ['причина']: 'Editorial skill names must start with Leela:',
+        }
+      }
       if (!name || !content) {
         return { создано: false, причина: 'нужны непустые name и content' }
       }
@@ -2575,7 +2593,10 @@ export const TOOLS: AgentTool[] = [
       if (dup.rows.length) {
         return {
           создано: false,
-          причина: `скилл «${name}» уже есть — используй skills_update`,
+          ['причина']:
+            ctx.scope === 'leela-editorial'
+              ? 'Leela skill already exists; editorial keys cannot update it.'
+              : `скилл «${name}» уже есть — используй skills_update`,
         }
       }
       const r = await ctx.pool.query(
