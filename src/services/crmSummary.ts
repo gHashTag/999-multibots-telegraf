@@ -62,6 +62,70 @@ export async function fetchCardFlow(telegramId: string): Promise<CardFlow> {
   }
 }
 
+/**
+ * HOW MUCH WENT OUT WITHOUT HIM -- the same figure the app shows, in the bot.
+ *
+ * He reads the bot far more often than the dashboard, and a number that lives
+ * only on a screen he opens twice a week is a number he does not have. The
+ * tool is the render's (`crm_outcomes`): answers the agent gave his clients,
+ * cards that left by themselves, cards he sent by pressing.
+ *
+ * A THIRD CALL THAT MUST NOT COST THE SUMMARY. Like the card flow above: it
+ * fails alone and the rest of the screen is unchanged -- half a screen beats
+ * an error, and this half is the newest and least load-bearing.
+ */
+export interface WithoutYou {
+  days: number
+  answered: number
+  auto: number
+  pressed: number
+  percent: number | null
+  beforePercent: number | null
+}
+
+export async function fetchWithoutYou(
+  telegramId: string,
+  days = 7
+): Promise<WithoutYou | null> {
+  const r = (await callTool(telegramId, 'crm_outcomes', { days })) as Record<
+    string,
+    unknown
+  >
+  const num = (v: unknown): number | null =>
+    Number.isFinite(Number(v)) ? Number(v) : null
+  const percent = num(r?.['without_you_percent'])
+  const before = (r?.['before'] ?? null) as Record<string, unknown> | null
+  return {
+    days: num(r?.['days']) ?? days,
+    answered: num(r?.['dm_answered']) ?? 0,
+    auto: num(r?.['auto_sent']) ?? 0,
+    pressed: num(r?.['pressed_sent']) ?? 0,
+    percent,
+    beforePercent: before ? num(before['without_you_percent']) : null,
+  }
+}
+
+/**
+ * One line, and it says what it counts. "95%" alone invites the question the
+ * numbers beside it answer -- and an empty week says so in words rather than
+ * printing a zero that reads like a bad week.
+ */
+export function withoutYouLine(w: WithoutYou | null): string | null {
+  if (!w) return null
+  const left = w.answered + w.auto + w.pressed
+  if (!left) return `За ${w.days} дн. к клиентам ничего не уходило.` // cyrillic-ok: user-facing copy
+  const trend =
+    w.beforePercent === null || w.percent === null
+      ? ''
+      : w.beforePercent === w.percent
+        ? ' (как неделей раньше)' // cyrillic-ok: user-facing copy
+        : ` (неделей раньше ${w.beforePercent}%)` // cyrillic-ok: user-facing copy
+  return (
+    `Без тебя за ${w.days} дн.: ${w.percent ?? '—'}%${trend} · ` + // cyrillic-ok: user-facing copy
+    `ответов в чатах ${w.answered} · карточек само ${w.auto} · твоей кнопкой ${w.pressed}` // cyrillic-ok: user-facing copy
+  )
+}
+
 const n = (v: unknown): number => (Number.isFinite(Number(v)) ? Number(v) : 0)
 const when = (iso: unknown): string => {
   if (!iso) return '—'
@@ -98,7 +162,8 @@ function cardFlowLine(
 export function formatSummary(
   s: Summary,
   scopeLine: string | null = null,
-  cards: CardFlow | null = null
+  cards: CardFlow | null = null,
+  without: WithoutYou | null = null
 ): string {
   const by = (
     map: Record<string, string>,
@@ -121,8 +186,13 @@ export function formatSummary(
   const w = (s.waiting_by_touch ?? {}) as Record<string, number>
   const top = Array.isArray(s.top) ? s.top : []
   const days = n(s.window_days) || 7
+  const withoutLine = withoutYouLine(without)
   const lines = [
     `Сводка по переписке · окно ${days} дн.`,
+    // Second line on purpose: it is the one number that answers "is this
+    // thing working for me?", and it should not be below five paragraphs of
+    // counts.
+    ...(withoutLine ? [withoutLine] : []),
     `Людей в памяти: ${n(s.people_known)} (с сообщениями ${n(s.people_with_messages)}) · платили ${n(s.paid)}`,
     `Сообщений: ${n(s.messages?.total)} (от них ${n(s.messages?.inbound)} · от меня ${n(s.messages?.outbound)})`,
     `Последнее входящее: ${day(s.last_inbound_at)} · память обходила диалоги: ${when(s.last_ingest_at)} · Zep: ${s.zep ?? '?'}`,
