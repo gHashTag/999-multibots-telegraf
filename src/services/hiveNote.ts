@@ -31,6 +31,8 @@ export type HiveNote = {
     | 'sweep-failed'
     | 'sweep-held'
     | 'card-pressed'
+    /** A card that left under AUTO, with nobody pressing anything. */
+    | 'card-auto-sent'
     /**
      * MONEY ON THE CHAIN THAT NOTHING EVER CREDITED.
      *
@@ -177,6 +179,35 @@ export function noteForPress(
     what: action === 'sent' ? 'отправил' : 'не отправил', // cyrillic-ok: journal text
     severity: 'normal',
   }
+}
+
+/**
+ * AN AUTOMATIC SEND IS AN EVENT TOO -- AND THE ONLY ONE NOBODY RECORDED.
+ *
+ * A press is journalled (`card-pressed`), a sweep is journalled, and a card
+ * that left under AUTO was journalled nowhere: the owner got a receipt in his
+ * chat and the system kept no memory of it. So the one question a person
+ * actually asks about an assistant -- "how much did it do without me?" --
+ * could not be answered from anything we store.
+ *
+ * `crm_autopilot.sent_today` is not that memory: it resets at midnight and
+ * exists to bound the day, not to remember the week.
+ */
+export function noteForAutoSend(owner: string): HiveNote {
+  return {
+    kind: 'card-auto-sent',
+    who: owner,
+    what: 'ушло на автопилоте', // cyrillic-ok: journal text
+    severity: 'normal',
+  }
+}
+
+/** Write an automatic send. Same contract as a press: never throws. */
+export async function noteAutoSendToHive(
+  owner: string,
+  opts: { fetchImpl?: typeof fetch } = {}
+): Promise<'noted' | 'not noted'> {
+  return postNote(noteForAutoSend(owner), opts.fetchImpl)
 }
 
 /** Write a press. Never throws; a journal that is down must not eat a press. */

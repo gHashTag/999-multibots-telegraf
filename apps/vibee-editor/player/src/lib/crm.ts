@@ -794,3 +794,42 @@ export const loadSegment = async (segment: Segment, limit = 30) =>
     }),
     toSegmentLeads
   )
+
+/* ─────────────────── HOW MUCH WENT OUT WITHOUT YOU ─────────────────────── */
+
+/**
+ * The one measured figure this product can honestly publish about itself.
+ * Counted on the server from journal rows that already exist, so it is true
+ * about the past too -- see render/src/agent/outcomes-tool.ts for what it
+ * deliberately does NOT claim.
+ */
+export interface Outcomes {
+  days: number
+  autoSent: number
+  pressedSent: number
+  cancelled: number
+  cardsDrawn: number
+  quiet: number
+  failed: number
+  /** 0..100, or null when nothing left at all -- never a made-up zero. */
+  withoutYouPercent: number | null
+  note: string | null
+}
+
+const toOutcomes = (r: Record<string, unknown>): Outcomes => ({
+  days: num(r['days']) ?? 7,
+  autoSent: num(r['auto_sent']) ?? 0,
+  pressedSent: num(r['pressed_sent']) ?? 0,
+  cancelled: num(r['cancelled']) ?? 0,
+  cardsDrawn: num(r['cards_drawn']) ?? 0,
+  quiet: num(r['quiet']) ?? 0,
+  failed: num(r['failed']) ?? 0,
+  withoutYouPercent: num(r['without_you_percent']),
+  note: str(r['note']),
+})
+
+export const loadOutcomes = async (days = 7) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_outcomes', { days }),
+    toOutcomes
+  )

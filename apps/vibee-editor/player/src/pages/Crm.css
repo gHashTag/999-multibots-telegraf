@@ -342,3 +342,10 @@
 .crm__danger {
   border-color: rgba(255, 90, 90, 0.4);
 }
+
+/* The measured figure, under the switch it is about. */
+.crm-auto__score {
+  margin: 0;
+  font-size: 13px;
+  color: var(--t27-text, #fff);
+}
