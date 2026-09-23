@@ -1292,6 +1292,52 @@ export async function handleAgentKeys(
 }
 
 /**
+ * POST /api/crm/agent-sent — the bot asks: did the agent send this message?
+ *
+ * Telegram Business returns a confirmed proposal to the bot as a message
+ * FROM THE OWNER, and the bot's rule "the owner typed here -> the AI pauses
+ * for 30 minutes" fired on the agent's own sends (measured 2026-09-13; see
+ * agent-sent.ts). Body: `{ lead, msg_id }`; the owner is the verified
+ * identity. Answer: `{ ok: true, agent: boolean }`.
+ */
+export async function handleCrmAgentSent(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string
+) {
+  const answer = (code: number, body: unknown) => {
+    res.writeHead(code, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(body))
+  }
+  let body: any = {}
+  try {
+    const chunks: Buffer[] = []
+    for await (const chunk of req as AsyncIterable<Buffer | string>) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
+      if (chunks.reduce((n, c) => n + c.length, 0) > 4_000) break
+    }
+    body = chunks.length
+      ? JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      : {}
+  } catch {
+    return answer(400, { error: 'body: JSON' })
+  }
+  const lead = String(body?.lead ?? '').trim()
+  if (!/^\d{5,15}$/.test(lead)) {
+    return answer(400, { error: 'lead: числовой telegram_id человека' })
+  }
+  const msgId = Number(body?.msg_id)
+  if (!Number.isFinite(msgId) || msgId <= 0) {
+    return answer(400, { error: 'msg_id: номер сообщения Telegram' })
+  }
+  const { wasAgentSent } = await import('./agent-sent')
+  return answer(200, {
+    ok: true,
+    agent: wasAgentSent(String(telegramId), lead, msgId),
+  })
+}
+
+/**
  * POST /api/crm/mirror — the bot puts a DM exchange into the memory AT ONCE.
  *
  * The business DM is served by the bot as the owner; the render never sees

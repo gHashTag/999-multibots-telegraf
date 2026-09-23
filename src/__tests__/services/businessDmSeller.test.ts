@@ -23,6 +23,13 @@ const chatWithAI = vi.fn(async () => 'ok reply')
 vi.mock('@/services/aiChatService', () => ({
   chatWithAI: (...args: unknown[]) => chatWithAI(...(args as [])),
 }))
+// The render's answer to "did the agent send this message?" -- false unless a
+// test says otherwise; never the network.
+const wasAgentSent = vi.fn(async () => false)
+vi.mock('@/services/modelSwitch', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/services/modelSwitch')>()),
+  wasAgentSent: (...args: unknown[]) => wasAgentSent(...(args as [])),
+}))
 
 const CONN = 'conn-seller-1'
 const OWNER_ID = 144022504
@@ -81,6 +88,8 @@ const customerSends = (bot: ReturnType<typeof fakeBot>) =>
 
 beforeEach(() => {
   chatWithAI.mockClear()
+  wasAgentSent.mockClear()
+  wasAgentSent.mockResolvedValue(false)
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -236,5 +245,50 @@ describe('messages that must never be answered', () => {
     expect(chatWithAI).not.toHaveBeenCalled()
     expect(svc.getBusinessStats().todayNonText).toBe(1)
     expect(svc.getBusinessStats().todayMediaRelayed).toBe(1)
+  })
+  it('a message the agent sent as the owner (confirmed proposal) does NOT pause the AI', async () => {
+    const svc = await fresh()
+    const bot = fakeBot()
+    wasAgentSent.mockResolvedValueOnce(true)
+    await svc.handleBusinessMessage(
+      dm({
+        message_id: 4242,
+        from: { id: OWNER_ID, first_name: 'Owner' },
+        text: 'Ответ агента, отправленный с аккаунта владельца',
+      }) as any,
+      bot as any,
+      BOT
+    )
+    expect(wasAgentSent).toHaveBeenCalledWith(OWNER_ID, 555, 4242)
+    expect(bot.telegram.sendMessage).not.toHaveBeenCalled()
+    await svc.handleBusinessMessage(
+      dm({ text: 'а можно подробнее?' }) as any,
+      bot as any,
+      BOT
+    )
+    expect(chatWithAI).toHaveBeenCalledTimes(1)
+    expect(svc.getBusinessStats().todayTakeoverSkipped).toBe(0)
+  })
+
+  it('resumeAiFor gives the chat back to the AI before the pause runs out', async () => {
+    const svc = await fresh()
+    const bot = fakeBot()
+    await svc.handleBusinessMessage(
+      dm({ from: { id: OWNER_ID, first_name: 'Owner' }, text: 'я сам' }) as any,
+      bot as any,
+      BOT
+    )
+    await svc.handleBusinessMessage(dm({ text: 'ок' }) as any, bot as any, BOT)
+    expect(chatWithAI).not.toHaveBeenCalled()
+    // A stranger cannot resume it; the owner can.
+    expect(svc.resumeAiFor(555, OWNER_ID + 1)).toBe(0)
+    expect(svc.resumeAiFor(555, OWNER_ID)).toBe(1)
+    expect(svc.resumeAiFor(555, OWNER_ID)).toBe(0)
+    await svc.handleBusinessMessage(
+      dm({ text: 'вы тут?' }) as any,
+      bot as any,
+      BOT
+    )
+    expect(chatWithAI).toHaveBeenCalledTimes(1)
   })
 })

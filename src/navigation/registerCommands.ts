@@ -4092,7 +4092,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       await sendLong(
         ctx,
         n
-          ? `🤫 Молчу в этом чате 30 минут — отвечаешь ты.`
+          ? `🤫 Молчу в этом чате 30 минут — отвечаешь ты. Вернуть ИИ раньше — кнопкой.`
           : '🤫 Бизнес-подключения нет — в этом чате бот и так не отвечает.',
         n ? takeoverMenu(id) : afterTurnKeyboard(id)
       )
