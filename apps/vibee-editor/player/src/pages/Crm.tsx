@@ -19,6 +19,8 @@ import {
   recordTouch,
   dropClient,
   restoreClient,
+  loadAutopilotLeads,
+  pickForAutopilot,
   type Overview,
   type WaitingList,
   type HotLeads,
@@ -131,22 +133,37 @@ export default function CrmPage() {
   const [query, setQuery] = useState('')
   /** Ids the screen has removed in this session, with the way back on the row. */
   const [dropped, setDropped] = useState<Record<string, boolean>>({})
+  /**
+   * WHOM AUTO MAY WRITE TO -- REACHABLE FROM A PHONE.
+   *
+   * The tick shipped yesterday on the client's card beside the chat, and that
+   * card is `display: none` below 1100px. So on the screen the owner actually
+   * works from, the "chosen" scope could never be filled: a setting that
+   * cannot be reached where the person is, is a setting that does not exist.
+   *
+   * `null` means the list has not been read yet, and no tick is drawn then --
+   * an unticked box that has merely not loaded is a lie about a setting that
+   * sends messages.
+   */
+  const [picked, setPicked] = useState<Set<string> | null>(null)
   const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async () => {
     setBusy(true)
     // In parallel: four independent panels, and one slow load must not hold
     // the others off the screen.
-    const [o, w, l, c] = await Promise.all([
+    const [o, w, l, c, picks] = await Promise.all([
       loadOverview(),
       loadWaiting(),
       loadHotLeads(),
       loadClients(),
+      loadAutopilotLeads(),
     ])
     setOverview(o)
     setWaiting(w)
     setLeads(l)
     setClients(c)
+    setPicked(picks.data ? new Set(picks.data) : null)
     setBusy(false)
   }, [])
 
@@ -271,6 +288,35 @@ export default function CrmPage() {
         {t('crm.clients.duets', { n: x.duets })}
       </p>
       <div className="crm__acts">
+        {picked === null ? null : (
+          <label className="crm__auto">
+            <input
+              type="checkbox"
+              checked={picked.has(x.telegramId)}
+              onChange={async e => {
+                const on = e.target.checked
+                // Optimistic, then corrected by the server: this tick decides
+                // whether messages go to a real person, so the screen must end
+                // up showing what the server says, not what it hoped.
+                setPicked(prev => {
+                  const next = new Set(prev ?? [])
+                  if (on) next.add(x.telegramId)
+                  else next.delete(x.telegramId)
+                  return next
+                })
+                const r = await pickForAutopilot(x.telegramId, on)
+                if (!r.reachable)
+                  setPicked(prev => {
+                    const back = new Set(prev ?? [])
+                    if (on) back.delete(x.telegramId)
+                    else back.add(x.telegramId)
+                    return back
+                  })
+              }}
+            />
+            <span>{t('crm.row.auto')}</span>
+          </label>
+        )}
         {dropped[x.telegramId] ? (
           <>
             <span className="crm__muted">{t('crm.row.dropped')}</span>
