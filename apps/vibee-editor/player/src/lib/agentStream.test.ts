@@ -13,7 +13,7 @@ vi.mock('@/lib/apiFetch', () => ({ authHeaders: () => ({}) }))
 vi.mock('@/config', () => ({ API_BASE: '' }))
 
 import { editorStore } from '@/atoms/Provider'
-import { agentMessagesAtom } from '@/atoms/agentChat'
+import { agentMessagesAtom, agentMessagesAtomFor } from '@/atoms/agentChat'
 import { messageContentForAgent, sendToAgent } from '@/lib/agentStream'
 
 /** Отдаёт готовые NDJSON-строки так, как их отдаёт сервер. */
@@ -125,6 +125,25 @@ describe('sendToAgent: сборка текста', () => {
       name: 'portrait.jpg',
       kind: 'image',
     })
+  })
+
+  it('sends a hired specialist id and keeps its conversation out of self chat', async () => {
+    const blogger = agentMessagesAtomFor(null, 'blogger')
+    editorStore.set(blogger, [])
+    const fetchMock = vi.fn(
+      async (_input: string | URL | Request, _init?: RequestInit) =>
+        поток(['{"тип":"текст","текст":"Нашёл тему."}']) // cyrillic-ok: protocol fixture
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sendToAgent('Что не опубликовано?', [], { agent: 'blogger' })
+
+    const request = fetchMock.mock.calls[0][1] as RequestInit
+    const body = JSON.parse(String(request.body)) as Record<string, unknown>
+    expect(body.agent).toBe('blogger')
+    expect(body).not.toHaveProperty('client')
+    expect(editorStore.get(blogger).at(-1)?.text).toBe('Нашёл тему.')
+    expect(editorStore.get(agentMessagesAtom)).toEqual([])
   })
 })
 

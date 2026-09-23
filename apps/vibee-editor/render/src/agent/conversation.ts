@@ -58,6 +58,11 @@ export function clientThread(clientId: string): string {
   return `client:${clientId}`
 }
 
+/** A hired specialist never shares memory with the general assistant. */
+export function marketplaceAgentThread(agentId: string): string {
+  return `agent:${agentId}`
+}
+
 export interface Реплика {
   /*
    * НОМЕР ОТДАЁТСЯ КЛИЕНТУ, иначе удаление одной реплики невозможно.
