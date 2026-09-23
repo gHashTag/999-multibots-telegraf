@@ -229,6 +229,18 @@ export async function rememberMessagesFresh(
     )
     .filter(m => m.text && m.text.trim() && Number.isFinite(m.msgId))
   if (!rows.length) return []
+  /*
+   * A PERSON THE OWNER DROPPED DOES NOT COME BACK WITH THE NEXT INGEST.
+   *
+   * The drop deletes the cache, and every list is derived from that cache --
+   * but the ingest reads Telegram, not the cache, so without this line the
+   * next sweep would write the same person back in and "удалить из CRM"
+   * would last until the following hour. Checked HERE rather than in the
+   * ingest: this is the only way a message enters the CRM, so nobody has to
+   * remember it (crm-drop-tool.ts).
+   */
+  const { isDropped } = await import('./crm-drop-tool')
+  if (await isDropped(pool as never, owner, lead)) return []
   await ensureTable(pool)
   const values: string[] = []
   const params: unknown[] = []
@@ -604,6 +616,16 @@ export async function leadCandidates(
 ): Promise<LeadCandidate[]> {
   await ensureTable(pool)
   const now = opts.now ?? new Date()
+  /*
+   * Dropped people are not candidates -- belt as well as braces. The purge
+   * already removed their rows, so this catches only what slipped in while
+   * the mark could not be read (isDropped fails open on the write path).
+   * Unreadable here means "hide nobody", and the sweep's own refusal stands
+   * behind it.
+   */
+  const dropped = await import('./crm-drop-tool')
+    .then(m => m.droppedOf(pool as never, owner))
+    .catch(() => null)
   const agg = await pool.query(
     `SELECT lead_id,
             count(*)::int AS total,
@@ -853,8 +875,8 @@ export async function leadCandidates(
   )
   // A segment is chosen over the whole base: a quiet warm person must be
   // reachable past the hundreds of unanswered who fill the top of the list.
-  const chosen = opts.segment
-    ? out.filter(c => c.segment === opts.segment)
-    : out
+  const chosen = (
+    opts.segment ? out.filter(c => c.segment === opts.segment) : out
+  ).filter(c => !dropped?.has(c.lead))
   return chosen.slice(0, opts.limit ?? 20)
 }

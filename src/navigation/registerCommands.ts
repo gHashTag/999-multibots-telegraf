@@ -75,6 +75,7 @@ import {
   afterSentKeyboard,
   afterCancelKeyboard,
   afterTurnKeyboard,
+  afterDropKeyboard,
   failKeyboard,
   summaryKeyboard,
   nextOf,
@@ -3592,10 +3593,78 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
   const showHome = async (ctx: MyContext) => {
     const { scopeLine } = await import('@/services/crmProactive')
     const line = scopeLine(ownerId(ctx))
+    const { autopilotState } = await import('@/services/crmAutopilot')
+    const auto = await autopilotState(ownerId(ctx))
     await sendLong(
       ctx,
-      'Продавец. Что делать?' + (line ? `\n\n${line}` : ''),
-      rootMenu()
+      'Продавец. Что делать?' + // cyrillic-ok: user-facing copy
+        (line ? `\n\n${line}` : '') +
+        (auto.on ? `\n\n${autopilotLine(auto)}` : ''),
+      rootMenu({ on: auto.on, until: auto.until ?? null })
+    )
+  }
+
+  /*
+   * THE STATE, IN THE OWNER'S WORDS.
+   *
+   * Two numbers he actually needs: when it stops by itself and how many
+   * automatic sends are left today. A switch that says only "on" invites the
+   * question this line answers.
+   */
+  const autopilotLine = (a: {
+    on: boolean
+    until?: Date
+    left: number
+  }): string => {
+    if (!a.on) return '🤖 Автопилот выключен — каждая карточка ждёт нажатия.' // cyrillic-ok: user-facing copy
+    const until = a.until
+      ? `${String(a.until.getHours()).padStart(2, '0')}:${String(
+          a.until.getMinutes()
+        ).padStart(2, '0')}`
+      : '—'
+    return (
+      `🤖 Автопилот включён до ${until}: карточки уходят сами. ` + // cyrillic-ok: user-facing copy
+      `Осталось сегодня — ${a.left}.` // cyrillic-ok: user-facing copy
+    )
+  }
+
+  const switchAutopilot = async (ctx: MyContext, on: boolean) => {
+    const {
+      turnAutopilotOn,
+      turnAutopilotOff,
+      autopilotState,
+      AUTOPILOT_HOURS,
+    } = await import('@/services/crmAutopilot')
+    if (!on) {
+      const stopped = await turnAutopilotOff(ownerId(ctx))
+      await sendLong(
+        ctx,
+        stopped
+          ? '⏹ Автопилот выключен. Снова каждая карточка ждёт нажатия.' // cyrillic-ok: user-facing copy
+          : '⏹ Автопилот выключен здесь, но записать это не вышло — ' + // cyrillic-ok: user-facing copy
+              'проверь через «Продавец», включён ли он ещё.', // cyrillic-ok: user-facing copy
+        rootMenu({ on: false })
+      )
+      return
+    }
+    const until = await turnAutopilotOn(ownerId(ctx))
+    if (!until) {
+      await sendLong(
+        ctx,
+        '🤖 Не вышло включить автопилот — база не ответила. ' + // cyrillic-ok: user-facing copy
+          'Карточки пока ждут нажатия.', // cyrillic-ok: user-facing copy
+        rootMenu({ on: false })
+      )
+      return
+    }
+    const a = await autopilotState(ownerId(ctx))
+    await sendLong(
+      ctx,
+      `🤖 Автопилот включён на ${AUTOPILOT_HOURS} ч. ` + // cyrillic-ok: user-facing copy
+        'Карточки будут уходить сами, и о каждой я напишу сюда — ' + // cyrillic-ok: user-facing copy
+        'с кнопкой «Выключить».\n' + // cyrillic-ok: user-facing copy
+        autopilotLine({ on: true, until, left: a.left }),
+      rootMenu({ on: true, until })
     )
   }
   const showLeads = async (ctx: MyContext) => {
@@ -3922,6 +3991,8 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     if (!ownerOnly(ctx) || !isPrivate(ctx)) return
     const verb = (ctx.match as RegExpMatchArray)[1]
     if (verb === 'menu') await showHome(ctx)
+    else if (verb === 'auto') await switchAutopilot(ctx, true)
+    else if (verb === 'autooff') await switchAutopilot(ctx, false)
     else if (verb === 'leads') await showLeads(ctx)
     else if (verb === 'summary') await showSummary(ctx)
     else if (verb === 'sweep') await sweep(ctx)
@@ -3944,6 +4015,48 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     if (verb === 'prep') {
       if (!pressOnce(`prep:${id}`)) return
       return prepare(ctx, id)
+    }
+    if (verb === 'drop') {
+      // The second press is the deliberate one: this one deletes.
+      await ctx
+        .editMessageReplyMarkup(
+          leadMenu(id, { confirmDrop: true }).reply_markup
+        )
+        .catch(() => undefined)
+      return
+    }
+    if (verb === 'drop!') {
+      if (!pressOnce(`drop:${id}`)) return
+      try {
+        const { callTool } = await import('@/services/modelSwitch')
+        const r = await callTool(ownerId(ctx), 'crm_drop', { lead: id })
+        const removed = (r?.removed ?? {}) as Record<string, number>
+        const messages = Number(removed.crm_messages ?? 0)
+        await sendLong(
+          ctx,
+          `🗑 Убрал из CRM. Стёр переписку из памяти (${messages} сообщений) ` + // cyrillic-ok: user-facing copy
+            'и поставил метку — загрузка переписки его больше не вернёт.\n' + // cyrillic-ok: user-facing copy
+            'В Telegram ничего не удалено, деньги не тронуты.', // cyrillic-ok: user-facing copy
+          afterDropKeyboard(id)
+        )
+      } catch (e) {
+        await crmFail(ctx, 'Не вышло удалить', e, crmCallback('drop!', id))
+      }
+      return
+    }
+    if (verb === 'undrop') {
+      try {
+        const { callTool } = await import('@/services/modelSwitch')
+        await callTool(ownerId(ctx), 'crm_drop', { lead: id, restore: true })
+        await sendLong(
+          ctx,
+          '↩️ Вернул в CRM. Переписка подтянется при следующей загрузке.', // cyrillic-ok: user-facing copy
+          afterTurnKeyboard(id)
+        )
+      } catch (e) {
+        await crmFail(ctx, 'Не вышло вернуть', e, crmCallback('undrop', id))
+      }
+      return
     }
     if (verb === 'refuse') {
       // The second press is the deliberate one.
