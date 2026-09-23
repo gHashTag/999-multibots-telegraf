@@ -16,6 +16,10 @@ import Replicate from 'replicate'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { sanitizeModelName } from '@/helpers/sanitizeModelName'
+import {
+  signTrainingZipUrl,
+  redactTrainingZipUrl,
+} from '@/helpers/training/trainingZipAccess'
 import type { Inngest } from 'inngest'
 
 interface ModelTrainingEvent {
@@ -139,8 +143,13 @@ export const generateModelTrainingFunction = inngest.createFunction(
 
       // Just verify URL exists, don't fetch anything
       // Replicate will handle URL validation
+      //
+      // `substring(0, 80)` used to stand in for redaction and does not redact:
+      // it is a fixed character count, so a shorter host or a query-first
+      // signature puts the token inside the window. The archive is biometric
+      // PII — log the bucket/key, which carries no capability at all.
       logger.info('[INNGEST TRAINING] ZIP URL will be validated by Replicate', {
-        url: eventData.zipUrl.substring(0, 80) + '...',
+        zipRef: redactTrainingZipUrl(eventData.zipUrl),
       })
 
       return { urlValid: true }
@@ -295,6 +304,16 @@ export const generateModelTrainingFunction = inngest.createFunction(
           webhook: webhookUrl,
         })
 
+        // Sign the archive HERE, at the moment the training starts, so the
+        // download capability exists for this attempt only. eventData.zipUrl
+        // (and model_trainings.zip_url) stay as they are — a location, not a
+        // grant. Rows still holding the old PUBLIC images/train/*.zip URL are
+        // re-signed the same way, so the provider never receives the public one.
+        const inputImagesUrl = await signTrainingZipUrl(
+          eventData.zipUrl,
+          supabase.storage
+        )
+
         const training = await replicate.trainings.create(
           'ostris', // owner
           'flux-dev-lora-trainer', // model name
@@ -303,7 +322,7 @@ export const generateModelTrainingFunction = inngest.createFunction(
             destination: destination as `${string}/${string}`,
             input: {
               // 🔥 FIX: Pass URL directly instead of base64 (avoids step output size limit)
-              input_images: eventData.zipUrl,
+              input_images: inputImagesUrl,
               trigger_word: eventData.triggerWord,
               steps: eventData.steps,
               // Hardware optimization

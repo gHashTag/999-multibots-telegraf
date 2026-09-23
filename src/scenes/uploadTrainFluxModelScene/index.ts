@@ -11,6 +11,7 @@
 import { Scenes, Markup } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { createImagesZip } from '@/helpers/images/createImagesZip'
+import { TRAINING_ZIP_SIGNED_URL_TTL_SECONDS } from '@/helpers/training/trainingZipAccess'
 import { ensureSupabaseAuth } from '@/core/supabase'
 import { inngest } from '@/inngest_app/client'
 import { isRussian } from '@/helpers/language'
@@ -105,9 +106,12 @@ uploadTrainFluxModelScene.enter(async ctx => {
     // PRIVATE bucket and give the training provider a short-lived SIGNED URL
     // instead: the object is never publicly listable and the link expires.
     const TRAINING_BUCKET = 'training-private'
-    // Generous margin so a queued training still starts; the object stays
-    // private regardless of the link's lifetime.
-    const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7 // 7 days
+    // One named constant, shared with the provider hand-off. It used to be
+    // 7 days, and this URL is stored (the Inngest event, model_trainings
+    // .zip_url) — a week-long bearer token over a face set sitting in the
+    // database. Short is safe now because generateModelTraining re-signs from
+    // the bucket/key at the moment training starts, so expiry costs nothing.
+    const SIGNED_URL_TTL_SECONDS = TRAINING_ZIP_SIGNED_URL_TTL_SECONDS
 
     // Idempotent: create the private bucket if it does not exist yet. An
     // "already exists" error (or a transient one) is ignored here — the upload
