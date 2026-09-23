@@ -460,3 +460,8 @@ apps/vibee-editor/render/node_modules
 
 # Vite cache — per worktree, never in the shared node_modules (see vitest.config.ts)
 .vite-cache/
+
+# Python venvs и артефакты локального рендера
+tools/tts/.venv/
+tools/tts/*.wav
+apps/vibee-editor/render/out/
