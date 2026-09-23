@@ -10,10 +10,15 @@ import type { Queryable } from '../browser/sessions'
 
 const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-export async function runRoundNow(pool: Queryable): Promise<string> {
-  if (process.env.ROUNDS_ENABLED !== '1') return 'off'
+export async function runRoundNow(
+  pool: Queryable,
+  /* Asked for by a person: their own accounts, whatever the cron's owner is. */
+  asked?: string
+): Promise<string> {
+  if (!asked && process.env.ROUNDS_ENABLED !== '1') return 'off'
   const { OWNER_TELEGRAM_ID } = await import('./telegram-tools')
-  const owner = String(process.env.ROUNDS_OWNER || OWNER_TELEGRAM_ID || '')
+  const owner =
+    asked || String(process.env.ROUNDS_OWNER || OWNER_TELEGRAM_ID || '')
   if (!owner) return 'no owner'
   const { runRound, SETTLE_MS } = await import('./rounds')
   const { readSession, personHasTheWheel } = await import('../browser/sessions')

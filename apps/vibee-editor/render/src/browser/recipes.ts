@@ -112,3 +112,34 @@ export function worthTrying(
   if (!learned) return false
   return wantKey(learned) !== wantKey(want)
 }
+
+export interface Learned {
+  host: string
+  want: string
+  label: string
+  hits: number
+}
+
+/** What the agent has learned, newest first. Never throws. */
+export async function learnedHere(
+  q: Queryable,
+  limit = 50
+): Promise<Learned[]> {
+  try {
+    await ensureRecipes(q)
+    const { rows } = await q.query(
+      `SELECT host, want, label, hits FROM browser_recipes
+        ORDER BY at DESC LIMIT $1`,
+      [Math.min(Math.max(1, limit), 200)]
+    )
+    return (rows as unknown as Learned[]).map(r => ({
+      host: String(r.host),
+      want: String(r.want),
+      label: String(r.label),
+      hits: Number(r.hits) || 1,
+    }))
+  } catch (e) {
+    console.warn('[browser:recipes] not listed:', String(e).slice(0, 160))
+    return []
+  }
+}

@@ -22,6 +22,8 @@ describe('the count a site puts in its own title', () => {
   it('is read, and absent when there is none', () => {
     expect(unreadOf('(15) Подписки - YouTube')).toBe(15)
     expect(unreadOf('(9+) Home / X')).toBe(9)
+    /* hh.ru writes it with a dot instead of brackets. */
+    expect(unreadOf('13 ・ Профиль')).toBe(13)
     expect(unreadOf('Лента | LinkedIn')).toBeNull()
     expect(unreadOf('(0) nothing')).toBeNull()
   })
@@ -101,5 +103,41 @@ describe('a round never drives over the person', () => {
     const log = roundLog([seen({ text: 'private words of a person' })])
     expect(log).not.toContain('private words')
     expect(JSON.parse(log)[0]).toMatchObject({ site: 'X', unread: 1 })
+  })
+})
+
+describe('a page that answered with nothing gets one more look', () => {
+  it('reads it again, and keeps the second answer', async () => {
+    let looks = 0
+    const said: string[] = []
+    await runRound({
+      personHasTheWheel: async () => false,
+      look: async () => {
+        looks += 1
+        return looks === 1
+          ? { title: '', text: '' }
+          : { title: '(3) Подписки - YouTube', text: 'a new video' }
+      },
+      tell: async t => void said.push(t),
+      now: () => new Date('2026-09-23T07:05:00Z'),
+      sites: [{ name: 'YouTube', url: 'https://youtube.com' }],
+    })
+    expect(looks).toBe(2)
+    expect(said[0]).toContain('• YouTube: 3 новых')
+  })
+
+  it('does not look twice at a page that answered', async () => {
+    let looks = 0
+    await runRound({
+      personHasTheWheel: async () => false,
+      look: async () => {
+        looks += 1
+        return { title: 'Лента | LinkedIn', text: 'posts' }
+      },
+      tell: async () => {},
+      now: () => new Date(),
+      sites: [{ name: 'LinkedIn', url: 'https://linkedin.com' }],
+    })
+    expect(looks).toBe(1)
   })
 })
