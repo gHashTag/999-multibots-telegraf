@@ -877,6 +877,14 @@ function filesOfRead(messages: unknown[]) {
  * that a small model should escalate rather than spend its window on them.
  */
 export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
+  /*
+   * Bulk imports and group reads (#2945, #2949) wear the crm_ prefix but are
+   * not conversation: a whole contact book or a group's history is a job
+   * for a big-context model. The kit was at 6996 of 7000 before them.
+   */
+  'crm_ingest_contacts',
+  'crm_groups',
+  'crm_group_context',
   'tg_media',
   'tg_scheduled',
   'tg_participants',
@@ -1389,6 +1397,18 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
        * worth. A single-row query costs nothing the model can feel.
        */
       const leadId = await leadOfTargetIn(ctx, args.chat)
+      /*
+       * A GROUP IS NAMED ON THE CARD (#2951). A post into a group is this
+       * same card and this same press; the card now says it is a group and
+       * how many will see it, instead of a bare -100… id.
+       */
+      const { groupCardLabel } = await import('./crm-groups')
+      const group = await groupCardLabel(
+        ctx?.pool as never,
+        String(ctx?.telegramId ?? ''),
+        args.chat
+      )
+      const extras = await withTheirWords(ctx, leadId, scheduleExtra(args))
       return propose(
         'send',
         args.chat,
@@ -1397,7 +1417,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         ctx,
         leadId,
         undefined,
-        await withTheirWords(ctx, leadId, scheduleExtra(args))
+        group ? { ...(extras ?? {}), display: group } : extras
       )
     },
   },

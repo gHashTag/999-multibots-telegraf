@@ -259,6 +259,11 @@ export interface ClientRow {
 export interface ClientsList {
   clients: ClientRow[]
   paidKnown: boolean
+  /**
+   * Where the next page starts (#2947); null when there is no next page or
+   * the list was asked for without paging.
+   */
+  nextOffset: number | null
 }
 
 function toClients(r: Record<string, unknown>): ClientsList {
@@ -280,7 +285,36 @@ function toClients(r: Record<string, unknown>): ClientsList {
     // An older server that does not send the flag is treated as knowing:
     // the note is for a server that SAID it could not read payments.
     paidKnown: bool(r['paid_known']) ?? true,
+    nextOffset: num(r['next_offset']) ?? null,
   }
+}
+
+/**
+ * One page of the clients list, or a search over ALL of them (#2947). The
+ * contact book puts hundreds of people in the CRM; the first fifty is not
+ * "the clients".
+ */
+export const loadClientsPage = async (o: {
+  limit?: number
+  offset?: number
+  query?: string
+}) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_clients', {
+      offset: o.offset ?? 0,
+      ...(o.limit ? { limit: o.limit } : {}),
+      ...(o.query?.trim() ? { query: o.query.trim() } : {}),
+    }),
+    toClients
+  )
+
+/** Rows of `more` that `list` does not have yet, appended in order. */
+export function appendClients(
+  list: ClientRow[],
+  more: ClientRow[]
+): ClientRow[] {
+  const have = new Set(list.map(r => r.telegramId))
+  return [...list, ...more.filter(r => !have.has(r.telegramId))]
 }
 
 export const loadClients = async (limit?: number) =>
@@ -929,4 +963,87 @@ export const loadOutcomes = async (days = 7) =>
   map(
     await callTool<Record<string, unknown>>('crm_outcomes', { days }),
     toOutcomes
+  )
+
+/* ── Groups (#2950): read-only, the tools `crm_groups` / `crm_group_context` ── */
+
+/** A Telegram group id: basic groups are negative, supergroups -100…. */
+export const GROUP_CHAT_ID = /^-\d{5,20}$/
+
+export interface GroupRow {
+  chatId: string
+  kind: 'group' | 'channel'
+  title: string | null
+  username: string | null
+  membersCount: number | null
+  messages: number
+  lastAt: string | null
+}
+
+export interface GroupMember {
+  id: string
+  name: string | null
+  messages: number
+  lastAt: string | null
+}
+
+export interface GroupContext {
+  group: GroupRow | null
+  messages: Array<{
+    msgId: number
+    senderId: string | null
+    at: string | null
+    out: boolean
+    text: string
+  }>
+  members: GroupMember[]
+  signals: string[]
+}
+
+const toGroup = (g: Record<string, unknown>): GroupRow => ({
+  chatId: String(g['chat_id'] ?? ''),
+  kind: g['kind'] === 'channel' ? 'channel' : 'group',
+  title: str(g['title']),
+  username: str(g['username']),
+  membersCount: num(g['members_count']),
+  messages: num(g['messages']) ?? 0,
+  lastAt: str(g['last_at']),
+})
+
+export const loadGroups = async () =>
+  map(
+    await callTool<Record<string, unknown>>('crm_groups', { limit: 200 }),
+    r => rows(r['groups']).map(toGroup)
+  )
+
+export const loadGroupContext = async (chat: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_group_context', {
+      chat,
+      limit: 100,
+    }),
+    (r): GroupContext => {
+      const g = r['group']
+      return {
+        group:
+          g && typeof g === 'object'
+            ? toGroup(g as Record<string, unknown>)
+            : null,
+        messages: rows(r['messages']).map(m => ({
+          msgId: num(m['msg_id']) ?? 0,
+          senderId: str(m['sender_id']),
+          at: str(m['at']),
+          out: bool(m['out']) ?? false,
+          // The model's injection fence is not for a person's eyes.
+          text: stripForeignMarkers(String(m['text'] ?? '')),
+        })),
+        members: rows(r['members']).map(m => ({
+          id: String(m['id'] ?? ''),
+          name: str(m['name']),
+          messages: num(m['messages']) ?? 0,
+          lastAt: str(m['last_at']),
+        })),
+        signals: strings(r['signals']),
+      }
+    }
   )

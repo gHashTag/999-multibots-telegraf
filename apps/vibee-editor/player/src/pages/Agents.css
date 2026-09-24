@@ -321,3 +321,8 @@
     font-size: 10px;
   }
 }
+
+/* A keeper's way into a trainee (#2957): open, and visibly not "hire". */
+.agent-card__cta--preview {
+  border-style: dashed;
+}

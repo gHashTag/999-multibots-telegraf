@@ -363,3 +363,21 @@
 .crm__pick-all {
   margin: 0 0 8px;
 }
+
+/* The next page of clients (#2947). */
+.crm__more {
+  min-height: 36px;
+  margin-top: 8px;
+  padding: 6px 16px;
+  font-size: 14px;
+  color: var(--text-primary, #fff);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.crm__more:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
