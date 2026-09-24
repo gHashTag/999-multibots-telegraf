@@ -9,9 +9,10 @@
  */
 import type { Queryable } from '../browser/sessions'
 import {
+  CANARIES,
   CANARIES_HASH,
+  dueCanaries,
   everyMs,
-  isDue,
   runAcceptance,
 } from './daily-acceptance'
 
@@ -31,35 +32,40 @@ export async function runDailyAcceptanceIfDue(
   if (!owner) return 'no keeper'
   const { latestVerdicts, recordVerdicts } = await import('./agent-acceptance')
   const latest = await latestVerdicts(pool)
-  if (!opts.force && !isDue(latest, Date.now(), everyMs(), CANARIES_HASH))
-    return 'not due'
+  const due = opts.force
+    ? [...CANARIES]
+    : dueCanaries(latest, Date.now(), everyMs(), CANARIES_HASH)
+  if (!due.length) return 'not due'
   running = true
   try {
     const { runAgent } = await import('./chat')
     const { sendToTelegram } = await import('../auth/telegram-sender')
-    const verdicts = await runAcceptance({
-      turn: c =>
-        runAgent(
-          [{ role: 'user', content: c.canary }],
-          {
-            telegramId: owner,
-            pool,
-            turn: `acceptance:${c.id}:${Date.now()}`,
-            surface: 'unknown',
-          },
-          {
-            /* The same surface a keyed `tri agents` turn gets. */
-            surface: 'unknown',
-            marketplaceAgent: c.id,
-            signal: AbortSignal.timeout(CANARY_TIMEOUT_MS),
-          }
-        ) as AsyncIterable<Record<string, unknown>>,
-      previous: async () => latest,
-      record: v => recordVerdicts(pool, v, owner, CANARIES_HASH),
-      tell: async text => {
-        await sendToTelegram(owner, text)
+    const verdicts = await runAcceptance(
+      {
+        turn: c =>
+          runAgent(
+            [{ role: 'user', content: c.canary }],
+            {
+              telegramId: owner,
+              pool,
+              turn: `acceptance:${c.id}:${Date.now()}`,
+              surface: 'unknown',
+            },
+            {
+              /* The same surface a keyed `tri agents` turn gets. */
+              surface: 'unknown',
+              marketplaceAgent: c.id,
+              signal: AbortSignal.timeout(CANARY_TIMEOUT_MS),
+            }
+          ) as AsyncIterable<Record<string, unknown>>,
+        previous: async () => latest,
+        record: v => recordVerdicts(pool, v, owner, CANARIES_HASH),
+        tell: async text => {
+          await sendToTelegram(owner, text)
+        },
       },
-    })
+      due
+    )
     return `${verdicts.filter(v => v.pass).length}/${verdicts.length} passed`
   } finally {
     running = false

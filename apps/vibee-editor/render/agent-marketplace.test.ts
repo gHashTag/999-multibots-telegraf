@@ -15,8 +15,12 @@ describe('the first labour-market agent is real and isolated', () => {
   })
 
   it('refuses catalogue cards that are still training', async () => {
+    /*
+     * A trainee may be opened by its verdicts (hire by evidence); a table
+     * that cannot be read keeps it CLOSED, which is what this pool proves.
+     */
     const getPool = () => {
-      throw new Error('the market gate must not touch the database')
+      throw new Error('the verdict table is unreachable')
     }
     await expect(threadFor(null, '42', getPool, 'blogger')).resolves.toEqual({
       ok: true,
@@ -130,5 +134,61 @@ describe('specialist contracts', () => {
     expect(marketplaceAgentPrompt('tiktok')).toContain('ссылка на mp4') // cyrillic-ok: contract words
     expect(marketplaceAgentPrompt('habr')).toContain('шаги воспроизведения') // cyrillic-ok: contract words
     expect(marketplaceAgentPrompt('habr')).toContain('не проверено') // cyrillic-ok: contract words
+  })
+})
+
+/*
+ * HIRE BY EVIDENCE (owner, 2026-09-24). A trainee with seven passing daily
+ * checks in a row opens to everybody, not only to a keeper; anything short
+ * of that -- or a verdict table that cannot be read -- keeps it closed.
+ */
+describe('a trainee that earned the market', () => {
+  const passingDays = (agent: string, days: number, pass = true) => {
+    const now = Date.now()
+    return Array.from({ length: days }, (_, d) => ({
+      agent,
+      at: new Date(now - d * 24 * 3_600_000 - 60_000).toISOString(),
+      pass,
+    }))
+  }
+  const poolWith = (rows: Array<Record<string, unknown>>) => () => ({
+    async query(sql: string) {
+      if (sql.includes('SELECT agent, at, pass FROM agent_acceptance'))
+        return { rows }
+      return { rows: [] }
+    },
+  })
+
+  it('seven passing days open it to a client who is not a keeper', async () => {
+    await expect(
+      threadFor(null, '900000078', poolWith(passingDays('job', 7)), 'job')
+    ).resolves.toEqual({
+      ok: true,
+      thread: 'agent:job',
+      client: null,
+      agent: 'job',
+    })
+  })
+
+  it('six days, or a failure among the seven, keep it closed', async () => {
+    const refused = { ok: false, status: 400, error: 'agent is not available' }
+    await expect(
+      threadFor(null, '900000078', poolWith(passingDays('job', 6)), 'job')
+    ).resolves.toEqual(refused)
+    const withAFailure = passingDays('job', 7)
+    withAFailure[3] = { ...withAFailure[3], pass: false }
+    await expect(
+      threadFor(null, '900000078', poolWith(withAFailure), 'job')
+    ).resolves.toEqual(refused)
+  })
+
+  it("one agent's streak does not open another", async () => {
+    await expect(
+      threadFor(null, '900000078', poolWith(passingDays('google', 7)), 'job')
+    ).resolves.toEqual({
+      ok: false,
+      status: 400,
+      error: 'agent is not available',
+    })
   })
 })
