@@ -94,6 +94,54 @@ describe('the hive page', () => {
       expected
     )
   })
+
+  /**
+   * A BLACK RECTANGLE WITH NOWHERE TO GO.
+   *
+   * Measured in the pane on 25.09.2026: this tab rendered ENTIRELY black.
+   * The other site refused to be framed -- a `frame-ancestors` policy -- and
+   * the browser put its own error document in the frame, which fires `load`
+   * like any other. The page took that word for proof, removed the loading
+   * notice with its escape link, and left a black rectangle above the tab
+   * bar with nothing in it.
+   *
+   * Nothing here can look inside a cross-origin frame to check, and it
+   * should not try. So the exit stops depending on a signal that lies: it
+   * is there before the load and after it.
+   */
+  it('the way out survives the frame reporting itself loaded', () => {
+    act(() =>
+      root.render(
+        <>
+          <HivePage />
+          <LoginModal />
+        </>
+      )
+    )
+    const frame = container.querySelector('iframe')!
+    act(() => {
+      frame.dispatchEvent(new Event('load'))
+    })
+    // The loading notice may go -- it says "loading", and the load happened.
+    const out = container.querySelector('a.hive-out--corner')
+    expect(
+      out,
+      'a tab that cannot show the page must say where it is'
+    ).toBeTruthy()
+    expect(out!.getAttribute('href')).toContain('t27.ai')
+  })
+
+  it('and it is there before the load as well', () => {
+    act(() =>
+      root.render(
+        <>
+          <HivePage />
+          <LoginModal />
+        </>
+      )
+    )
+    expect(container.querySelector('a.hive-out--corner')).toBeTruthy()
+  })
 })
 
 /**
