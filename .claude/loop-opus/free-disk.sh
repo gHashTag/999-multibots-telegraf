@@ -124,6 +124,55 @@ if command -v docker >/dev/null; then
   fi
 fi
 
+# ЧЕРНОВИКИ СЕССИЙ, КОТОРЫХ БОЛЬШЕ НЕТ.
+#
+# Каждая сессия Claude Code держит каталог в /private/tmp/claude-501: рабочие
+# копии, снимки страниц, профили браузера. Живая сессия может занимать
+# гигабайты законно, а мёртвая держит их ни за чем -- замерено 25.09.2026:
+# 414 МБ у сессии, чьего процесса уже нет, при 1.3 ГБ свободных на диске.
+#
+# ЖИВОСТЬ ПРОВЕРЯЕТСЯ ПО ПРОЦЕССУ, а не по времени: сессия, молчавшая час,
+# жива и её каталог трогать нельзя. `pgrep -f <id>` находит и сам процесс
+# сессии, и её фоновые команды.
+#
+# И ОШИБАЕТСЯ ТОЛЬКО В БЕЗОПАСНУЮ СТОРОНУ. `-f` смотрит всю командную строку,
+# поэтому любой процесс, где id просто УПОМЯНУТ, сойдёт за живую сессию:
+# проверено -- запуск этой уборки командой, в которой написан чужой id, её
+# каталог не тронул. Ошибка такого рода оставляет мусор на диске; обратная
+# стёрла бы работающую сессию, и выбор здесь очевиден.
+#
+# И только после `git worktree prune`: в черновике может лежать рабочая
+# копия, и удалить каталог мимо git значит оставить запись о копии, которой
+# нет.
+SCRATCH_ROOT=/private/tmp/claude-501
+if [ -d "$SCRATCH_ROOT" ]; then
+  freed_sessions=0
+  for dir in "$SCRATCH_ROOT"/*/*/; do
+    [ -d "$dir" ] || continue
+    id=$(basename "$dir")
+    # Идентификатор сессии -- uuid; каталоги вроде `chunks` пропускаем.
+    case "$id" in
+      ????????-????-????-????-????????????) ;;
+      *) continue ;;
+    esac
+    # Своя сессия жива по определению: её каталог держит эту самую уборку.
+    if pgrep -qf "$id"; then continue; fi
+    # Рабочая копия внутри -- сначала сказать об этом git.
+    # `git worktree list` from wherever this runs: the script is invoked from
+    # the repository, and naming a variable that does not exist here would
+    # check nothing at all -- quietly, which is the failure this guard is for.
+    if git worktree list 2>/dev/null | grep -q "$id"; then
+      echo "  черновик $id держит рабочую копию -- пропускаю"
+      continue
+    fi
+    size=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
+    [ "${size:-0}" -lt 10240 ] && continue
+    rm -rf "$dir" 2>/dev/null && freed_sessions=$(( freed_sessions + size ))
+  done
+  [ "$freed_sessions" -gt 0 ] &&
+    echo "черновики мёртвых сессий: $(( freed_sessions / 1024 )) МБ"
+fi
+
 free_after=$(df -k /System/Volumes/Data | awk '{if(NR==2)print $4}')
 echo "освобождено: $(( (free_after - free_before) / 1024 )) МБ · свободно: $(( free_after / 1024 )) МБ"
 
