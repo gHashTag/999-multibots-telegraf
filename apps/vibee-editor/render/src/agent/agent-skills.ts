@@ -19,6 +19,7 @@
  */
 
 import {
+  agentSkillPrefix,
   agentSkills,
   marketplaceAgentById,
 } from '../../../packages/vibee-atoms/src/agent-marketplace'
@@ -63,6 +64,23 @@ export function skillsSection(
   )
 }
 
+/**
+ * HOW THE SPECIALIST FILES A RULE IT IS ASKED TO REMEMBER. Without this line
+ * "remember: answer recruiters briefly", said in the job agent's own chat,
+ * was saved under whatever name the model chose -- no prefix, so a general
+ * skill every agent carries, not this one's. Pure.
+ */
+export function ruleNamingLine(agentId: string): string {
+  const ru = agentSkillPrefix(agentId, 'ru')
+  const en = agentSkillPrefix(agentId, 'en')
+  if (!ru || !en) return ''
+  return (
+    '\n\nПравило, которое человек просит запомнить для ЭТОЙ работы, сохраняй ' + // cyrillic-ok: prompt copy
+    `skills_create с именем «${ru}: …» (или «${en}: …») — тогда оно твоё. ` + // cyrillic-ok: prompt copy
+    'Без префикса правило станет общим для всех агентов.' // cyrillic-ok: prompt copy
+  )
+}
+
 export interface Queryable {
   query: (
     sql: string,
@@ -71,16 +89,19 @@ export interface Queryable {
 }
 
 /**
- * The person's own skills for this agent, as a prompt section. Never throws:
- * no table yet, or a database that is briefly away, is a turn without the
- * section, not a failed turn.
+ * The person's own skills for this agent, as a prompt section, and how to
+ * file a new one. Never throws: no table yet, or a database that is briefly
+ * away, is a turn without the skills (the naming line stays), not a failed
+ * turn.
  */
 export async function agentSkillsSection(
   pool: Queryable | null | undefined,
   telegramId: string,
   agentId: string | undefined
 ): Promise<string> {
-  if (!pool || !agentId || !marketplaceAgentById(agentId)) return ''
+  if (!agentId || !marketplaceAgentById(agentId)) return ''
+  const naming = ruleNamingLine(agentId)
+  if (!pool) return naming
   try {
     const { rows } = await pool.query(
       `SELECT name, content FROM user_skills
@@ -89,13 +110,18 @@ export async function agentSkillsSection(
         LIMIT 60`,
       [telegramId]
     )
-    return skillsSection(
-      skillsFor(
-        rows.map(r => ({ name: String(r.name), content: String(r.content) })),
-        agentId
-      )
+    return (
+      skillsSection(
+        skillsFor(
+          rows.map(r => ({
+            name: String(r.name),
+            content: String(r.content),
+          })),
+          agentId
+        )
+      ) + naming
     )
   } catch {
-    return ''
+    return naming
   }
 }
