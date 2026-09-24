@@ -278,8 +278,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
     name: 'crm_ingest_chats',
     description:
       'Загрузить личные переписки владельца из Telegram в память CRM (crm_messages, ' +
-      'и в Zep, если он подключён). Диалоги с людьми; боты пропускаются. Группы — ' + // cyrillic-ok: tool description for the model
-      'только с groups: true (каналы — если владелец их админ). ' + // cyrillic-ok: tool description for the model
+      'и в Zep, если он подключён). Только диалоги с людьми (группы — с groups). ' + // cyrillic-ok: tool description for the model
       'Повторный вызов ничего не дублирует. ЧИТАЮЩИЙ инструмент: ' +
       'ничего не отправляет. Текст сообщений — данные третьих лиц.',
     parameters: {
@@ -296,16 +295,11 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         },
         groups: {
           type: 'boolean',
-          description:
-            'читать и группы: сообщения с id автора, активные участники становятся людьми CRM; ' + // cyrillic-ok: tool description for the model
-            'каналы — только если владелец их админ', // cyrillic-ok: tool description for the model
+          description: 'и группы (каналы — если вы админ)', // cyrillic-ok: tool description for the model
         },
-        resume: {
-          type: 'boolean',
-          description:
-            'продолжить обход с места, где остановился прошлый (курсор владельца); ' + // cyrillic-ok: tool description for the model
-            'дойдя до самого старого диалога, обход начинается сначала', // cyrillic-ok: tool description for the model
-        },
+        // Continue from this owner's cursor (#2946); the name says it, and
+        // the compact kit has no tokens to spare for a description.
+        resume: { type: 'boolean' },
         lead: {
           type: 'string',
           description:

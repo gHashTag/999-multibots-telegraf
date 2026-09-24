@@ -283,15 +283,10 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
       type: 'object',
       properties: {
         limit: { type: 'number', description: 'По умолчанию 50, максимум 200' },
-        offset: {
-          type: 'number',
-          description:
-            'Страница: сколько людей пропустить; следующее значение приходит в next_offset', // cyrillic-ok: tool description for the model
-        },
-        query: {
-          type: 'string',
-          description: 'Поиск по имени, @username или id по всем клиентам', // cyrillic-ok: tool description for the model
-        },
+        // Page mode (#2947): offset comes from next_offset; query matches a
+        // name, @username or id. Undescribed: the compact kit is full.
+        offset: { type: 'number' },
+        query: { type: 'string' },
       },
       additionalProperties: false,
     },
