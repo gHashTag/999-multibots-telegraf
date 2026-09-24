@@ -45,6 +45,10 @@ const EXAMINED: Record<string, { sites: number; why: string }> = {
     sites: 1,
     why: 'guarded, and every assertion over the region is positive',
   },
+  'apps/vibee-editor/render/browser-cookie-import.test.ts': {
+    sites: 1,
+    why: 'positive-only: the slice over browser_open is read by toBeGreaterThan(-1) and an ordering comparison, so a renamed tool collapses the region and both go red rather than quiet',
+  },
   'apps/vibee-editor/player/src/__tests__/live-nginx.test.ts': {
     sites: 1,
     why: 'positive-only: the two toContain over the /live/ block are presence checks, so a renamed location fails them',

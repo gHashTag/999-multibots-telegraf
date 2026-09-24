@@ -1426,8 +1426,22 @@ If not, continue on your own and click the "I myself" button`
               error: e instanceof Error ? e.message : String(e),
             })
           }
+          /*
+           * IN A ROOM, THE MEMORY BELONGS TO THE ROOM (issue #2644).
+           *
+           * The turn is still ASKED BY the person -- tools, wallet and rights
+           * are theirs -- but a group turn keyed by the asker was composed
+           * with their private correspondence and written back into it, in
+           * front of everybody else. That is why the agent was kept out of
+           * rooms until this key existed.
+           */
+          const inRoom =
+            ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup'
+              ? String(ctx.chat.id)
+              : ''
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
+            ...(inRoom ? { room: inRoom } : {}),
           })
           /*
            * The request reached the server, so the server already stored the
@@ -2389,6 +2403,33 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
   const stripButtons = async (ctx: any) =>
     ctx.editMessageReplyMarkup(undefined).catch(() => undefined)
 
+  /**
+   * THE CARD SAYS WHAT WAS DECIDED, instead of going blank (issue #2418).
+   *
+   * Clearing the markup also took the card's own `👤 История` row, which had
+   * nothing to do with the press, and the verdict arrived as a separate
+   * message -- so a card scrolled past half an hour later carried no trace of
+   * its own outcome.
+   *
+   * Falls back to clearing when the host refuses `disabled`: our own Bot API
+   * server may be older than 10.3, and losing the clearing as well would be
+   * worse than losing the words.
+   */
+  const settleButtons = async (
+    ctx: any,
+    outcome: string,
+    lead?: string | null
+  ) => {
+    const { settledRows } = await import('@/navigation/helpers/crmMenu')
+    try {
+      await ctx.editMessageReplyMarkup({
+        inline_keyboard: settledRows(outcome, lead),
+      })
+    } catch {
+      await stripButtons(ctx)
+    }
+  }
+
   /*
    * The press carries the id AND the one-time secret.
    *
@@ -2407,6 +2448,8 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     )
     const lead = takeCardLead(id)
     const r = await confirmProposal(String(ctx.from?.id ?? ''), id, secret)
+    // The card now carries its own outcome, with the history row intact.
+    await settleButtons(ctx, '✅ Отправлено', lead) // cyrillic-ok: button label
     // Either press frees the proactive sweep to prepare the next card, and
     // moves a scoped sweep on to the next person.
     void import('@/services/crmProactive').then(m =>
@@ -2493,6 +2536,7 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     )
     const lead = takeCardLead(id)
     await cancelProposal(String(ctx.from?.id ?? ''), id, secret)
+    await settleButtons(ctx, '✋ Не отправлено', lead) // cyrillic-ok: button label
     // Either press frees the proactive sweep to prepare the next card, and
     // moves a scoped sweep on to the next person.
     void import('@/services/crmProactive').then(m =>
@@ -4171,6 +4215,31 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     if (verb === 'prep') {
       if (!pressOnce(`prep:${id}`)) return
       return prepare(ctx, id)
+    }
+    if (verb === 'gift') {
+      /*
+       * STRAIGHT TO THE PORTRAIT, WITH NO LETTER FIRST.
+       *
+       * Owner, 2026-09-24: "why can't I choose the gift photo straight away
+       * -- there is a Reply button, and I do not want to reply in text, I
+       * want to send the gift and draw them into the bot".
+       *
+       * The same preparation as any other press -- the agent reads the
+       * correspondence and draws from THEIR face -- with the brief saying
+       * which move this is. Nothing leaves without the card: the gift is a
+       * proposal like everything else, so this press costs a picture, not a
+       * message.
+       */
+      if (!pressOnce(`gift:${id}`)) return
+      return prepare(ctx, id, {
+        headline: `🎁 Готовлю подарок для ${id}: портрет 9:16 из его лица (до 3 минут). Ничего не уйдёт без твоей кнопки.`, // cyrillic-ok: user-facing
+        note:
+          'Владелец нажал «Подарок»: НЕ пиши письмо и не задавай вопросов — ' + // cyrillic-ok: brief for the agent
+          'сразу подготовь лид-магнит crm_deliver_photo для этого человека, ' + // cyrillic-ok: brief for the agent
+          'портрет 9:16 из ЕГО лица, подарком за счёт владельца. Подпись — ' + // cyrillic-ok: brief for the agent
+          'одна тёплая строка без обещаний. Если его лица у нас нет, скажи ' + // cyrillic-ok: brief for the agent
+          'это прямо и подготовь просьбу прислать фото.', // cyrillic-ok: brief for the agent
+      })
     }
     if (verb === 'drop') {
       // The second press is the deliberate one: this one deletes.

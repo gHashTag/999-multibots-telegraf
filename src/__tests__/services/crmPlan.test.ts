@@ -131,11 +131,18 @@ describe('the plan keyboard', () => {
     const kb = planKeyboard(summary, { scopeActive: true, stale: false })
     const data = allCallbacks(kb)
     for (const d of data) expect(matches(d), d).toBe(true)
-    expect(data.slice(0, 4)).toEqual([
+    /*
+     * The gift stands beside the forecast on every person's row. Owner,
+     * 2026-09-24: the single forecast button left no way to say "not a
+     * letter, a portrait" -- and drawing somebody into the bot with a gift is
+     * the move he wanted reachable without writing anything first.
+     */
+    expect(data.slice(0, 5)).toEqual([
       'crm:lead:900000001',
       'crm:prep:900000001',
+      'crm:gift:900000001',
       'crm:lead:900000002',
-      'crm:lead:900000006',
+      'crm:gift:900000002',
     ])
     const labels = kb.reply_markup.inline_keyboard
       .flat()

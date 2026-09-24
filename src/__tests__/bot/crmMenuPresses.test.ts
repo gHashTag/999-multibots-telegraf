@@ -191,6 +191,11 @@ describe('every press is answered first, and only for the owner in a private cha
     expect(m[0].payload.text).toContain('Pilot')
     expect(keyboardOf(m[0])).toEqual([
       'crm:prep:900000001',
+      // The gift, beside the forecast rather than instead of it. Owner,
+      // 2026-09-24: the single forecast button left no way to say "not a
+      // letter, a portrait" -- which is the move that draws somebody into
+      // the bot without asking them to read anything first.
+      'crm:gift:900000001',
       // The chat itself, and the way to stop hearing about this person: both
       // were reachable only by scrolling back to find the conversation.
       'tg://user?id=900000001',
