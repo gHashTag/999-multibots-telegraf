@@ -69,6 +69,7 @@ vi.mock('./src/agent/lipsync-voice', async importOriginal => {
 })
 
 import {
+  LIPSYNC_MODELS,
   LIPSYNC_PART_TARGET_SECONDS,
   LIPSYNC_ROUTE_MAX_SECONDS,
   LIPSYNC_TOOL_MAX_SECONDS,
@@ -77,7 +78,7 @@ import {
   shelfKeyOf,
   splitPlan,
 } from './src/agent/lipsync-voice'
-import { TOKEN_PRICES } from './src/agent/billing-shared'
+import { TOKEN_PRICES, priceForModel } from './src/agent/billing-shared'
 
 /** Invented id (9000000xx): no real person in the repository. */
 const CALLER = '900000047'
@@ -133,6 +134,27 @@ describe('the arithmetic of a voice cut into parts', () => {
     // The longest voice the tool takes still plans into parts the route takes.
     for (const p of splitPlan(LIPSYNC_TOOL_MAX_SECONDS))
       expect(p.duration).toBeLessThanOrEqual(LIPSYNC_PART_TARGET_SECONDS)
+  })
+})
+
+describe('the models the tool may name', () => {
+  it("are exactly the route's lipsync models, so none is swapped after the charge", () => {
+    const server = fs.readFileSync(
+      path.join(__dirname, 'render-server.ts'),
+      'utf8'
+    )
+    const block = server.match(/const KIE_LIPSYNC = \[([\s\S]*?)\]/)
+    expect(block, 'KIE_LIPSYNC not found in render-server.ts').not.toBeNull()
+    const route = [...block![1].matchAll(/'([^']+)'/g)].map(m => `kie/${m[1]}`)
+    expect([...LIPSYNC_MODELS].sort()).toEqual(route.sort())
+  })
+
+  it('each has its own positive price per second', () => {
+    for (const m of LIPSYNC_MODELS) {
+      const p = priceForModel('lipsync_generate', m)
+      expect(typeof p, m).toBe('number')
+      expect(p as number, m).toBeGreaterThan(0)
+    }
   })
 })
 
@@ -352,6 +374,47 @@ describe('the real handler', () => {
     })
     expect(r.done, JSON.stringify(r)).toBe(true)
     expect(credits(pool.sqls)).toEqual([])
+  })
+
+  it('a model outside the list is refused before anything is charged', async () => {
+    // A model WITH a price of its own, so the refusal below is the list's
+    // and not merely the charge finding no price.
+    const outsider = 'kie/google/nano-banana'
+    expect(priceForModel('lipsync_generate', outsider)).toBeGreaterThan(0)
+    const { r, pool } = await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+      model: outsider,
+    })
+    expect(r.done).toBe(false)
+    expect(debits(pool.sqls)).toEqual([])
+    expect(calls).toEqual([])
+  })
+
+  it('a named model is charged at its own price per second and asked by name', async () => {
+    const model = 'kie/kling/ai-avatar-standard'
+    const { r, pool } = await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+      model,
+    })
+    expect(r.done, JSON.stringify(r)).toBe(true)
+    const unit = priceForModel('lipsync_generate', model) as number
+    expect(debits(pool.sqls)).toEqual([24 * unit])
+    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+    expect(routes).toHaveLength(3)
+    for (const c of routes)
+      expect((c.body as { model?: string }).model).toBe(model)
+  })
+
+  it('an unnamed model leaves the route its default, at the tool price', async () => {
+    await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+    })
+    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+    for (const c of routes)
+      expect((c.body as { model?: string }).model).toBeUndefined()
   })
 
   it('a part the provider refuses: everything taken is given back, once', async () => {

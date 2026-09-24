@@ -1,0 +1,85 @@
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAgentSkills, type AgentSkillNames } from './useAgentSkills'
+
+/**
+ * WHAT THE AGENT'S CHAT SAYS IS CONNECTED (owner, 2026-09-24). The same rule
+ * as the render's prompt (vibee-atoms agentSkills): the agent's own skills
+ * by prefix, then the general ones; nothing drawn when the list is unknown.
+ */
+;(
+  globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
+
+vi.mock('@/lib/apiFetch', () => ({ authHeaders: () => new Headers() }))
+
+let seen: AgentSkillNames | null | undefined
+function Probe({ id }: { id: string | null }) {
+  seen = useAgentSkills(id)
+  return null
+}
+
+let host: HTMLDivElement
+let root: Root
+beforeEach(() => {
+  seen = undefined
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+})
+afterEach(() => {
+  act(() => root.unmount())
+  host.remove()
+  vi.unstubAllGlobals()
+})
+
+const answer = (rows: unknown) =>
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            result: { structuredContent: { ['скиллы']: rows } },
+          })
+        ) // cyrillic-ok: the tool's own key
+    )
+  )
+
+async function draw(id: string | null) {
+  await act(async () => root.render(<Probe id={id} />))
+  await act(async () => {
+    await new Promise(r => setTimeout(r, 0))
+  })
+}
+
+describe("the agent's connected skills", () => {
+  it("the job agent carries its own and the general ones, never another agent's", async () => {
+    answer([
+      { name: 'Работа: рекрутёрам' }, // cyrillic-ok: a skill name
+      { name: 'Blogger: hashtags' },
+      { name: 'Тон' }, // cyrillic-ok
+      { name: 'Leela: draft' },
+    ])
+    await draw('job')
+    expect(seen).toEqual({ own: ['Работа: рекрутёрам'], general: ['Тон'] }) // cyrillic-ok
+  })
+
+  it('an unreadable list draws nothing rather than "none"', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('nope', { status: 500 }))
+    )
+    await draw('job')
+    expect(seen).toBeNull()
+  })
+
+  it('no agent, no question', async () => {
+    const f = vi.fn()
+    vi.stubGlobal('fetch', f)
+    await draw(null)
+    expect(seen).toBeNull()
+    expect(f).not.toHaveBeenCalled()
+  })
+})

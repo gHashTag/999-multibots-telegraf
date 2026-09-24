@@ -40,3 +40,23 @@ export const AGENT_SUGGESTIONS: Readonly<Record<string, readonly string[]>> = {
     'Проверь черновик: какие цифры без источника?',
   ],
 }
+
+/**
+ * WHO MAY OPEN AN AGENT'S THREAD, decided before the page draws. 'wait'
+ * while an answer is still on its way (so a keeper is not bounced), the
+ * agent's id when this person may talk to it -- live, a keeper's preview,
+ * or a trainee that earned the market -- and 'market' otherwise. The
+ * server's gate (render routes.ts threadFor) decides the same way. Pure.
+ */
+export function agentGate(g: {
+  id: string
+  status: string
+  keeper: boolean | null
+  earned: boolean | null
+}): string | 'wait' | 'market' {
+  if (g.status === 'live') return g.id
+  if (g.keeper === null) return 'wait'
+  if (g.keeper) return g.id
+  if (g.earned === null) return 'wait'
+  return g.earned ? g.id : 'market'
+}

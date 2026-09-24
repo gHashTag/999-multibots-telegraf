@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
+import { reportArrival } from '@/lib/traffic'
 import {
   BrowserRouter,
   Routes,
@@ -399,6 +400,10 @@ function PageLoader() {
 }
 
 function App() {
+  /* A visit from a tagged link is counted once, by channel (#2974). */
+  useEffect(() => {
+    void reportArrival()
+  }, [])
   return (
     <ErrorBoundary>
       <TamaguiProvider>

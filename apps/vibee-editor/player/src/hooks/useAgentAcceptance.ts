@@ -19,6 +19,10 @@ export interface AcceptanceVerdict {
   at: string
   tools: string[]
   codes: string[]
+  /** Passing days in a row (render agent-acceptance.ts streakOf). */
+  streak?: number
+  /** Seven of them: the trainee is hireable by evidence. */
+  earned?: boolean
 }
 
 export function useAgentAcceptance(): Record<string, AcceptanceVerdict> | null {
@@ -51,4 +55,36 @@ export function checkedDay(iso: string, lang: 'en' | 'ru'): string {
     month: 'short',
     timeZone: 'UTC',
   })
+}
+
+/**
+ * Has this trainee EARNED the market (seven passing days, render
+ * agent-acceptance.ts)? null while the answer is on its way; false when it
+ * is not, or when the server could not tell -- a trainee is never opened on
+ * an unanswered question. `enabled` keeps the question off pages that do
+ * not need it.
+ */
+export function useEarnedAgent(
+  agentId: string | null,
+  enabled: boolean
+): boolean | null {
+  const [earned, setEarned] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!enabled || !agentId) return
+    let live = true
+    void fetch(`${API_BASE}/api/agents/acceptance`)
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: { verdicts?: AcceptanceVerdict[] } | null) => {
+        if (!live) return
+        const v = d?.verdicts?.find(x => x.agent === agentId)
+        setEarned(v?.earned === true)
+      })
+      .catch(() => {
+        if (live) setEarned(false)
+      })
+    return () => {
+      live = false
+    }
+  }, [agentId, enabled])
+  return enabled && agentId ? earned : false
 }

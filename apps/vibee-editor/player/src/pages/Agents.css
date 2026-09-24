@@ -337,3 +337,10 @@
 .agent-card__checked[data-pass='no'] {
   color: var(--color-danger, #c0392b);
 }
+
+/* Passing daily checks in a row, toward hiring by evidence. */
+.agent-card__streak {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}

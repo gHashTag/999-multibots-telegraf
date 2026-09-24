@@ -3,6 +3,14 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+/* Keeper or not, and which trainees earned the market: the test sets them. */
+let keeperAnswer: boolean | null = false
+let verdictsAnswer: Record<string, { earned?: boolean }> | null = null
+vi.mock('@/hooks/useIsKeeper', () => ({ useIsKeeper: () => keeperAnswer }))
+vi.mock('@/hooks/useAgentAcceptance', () => ({
+  useAgentAcceptance: () => verdictsAnswer,
+}))
+
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
     lang: 'ru',
@@ -75,6 +83,8 @@ let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  keeperAnswer = false
+  verdictsAnswer = null
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -119,6 +129,24 @@ describe('the rail', () => {
     expect(habr?.getAttribute('href')).toBe('/agents')
     // And it says who they are, in the interface language.
     expect(host.textContent).toContain('Блогер') // cyrillic-ok: the agent's name
+  })
+
+  it("the owner's circles open each agent's OWN chat, never the market page", async () => {
+    /* Owner, 24.09: "I switch between agents in the chat and get an advert". */
+    keeperAnswer = true
+    await rail()
+    for (const id of ['blogger', 'job', 'google', 'tiktok', 'habr'])
+      expect(hrefs(), id).toContain(`/agents/${id}/work`)
+    expect(hrefs()).not.toContain('/agents')
+  })
+
+  it('a trainee that earned the market opens for anybody', async () => {
+    keeperAnswer = false
+    verdictsAnswer = { habr: { earned: true } }
+    await rail()
+    expect(hrefs()).toContain('/agents/habr/work')
+    /* The others, not yet: their card. */
+    expect(hrefs()).not.toContain('/agents/google/work')
   })
 
   it('draws a person with a stored picture as that picture', async () => {

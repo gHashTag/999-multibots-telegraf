@@ -17,6 +17,7 @@
  *
  * Switched on by BLOG_SHARE_ENABLED=1 on the render service.
  */
+import { tagged, type Channel } from './utm'
 import type { Queryable } from '../browser/sessions'
 
 export const RSS_URL = process.env.BLOG_RSS_URL || 'https://t27.ai/rss.xml'
@@ -82,11 +83,20 @@ export function parseRss(xml: string): Article[] {
  * the same thread. It costs nothing if he is wrong, and the owner promised
  * him the numbers either way.
  */
+/**
+ * The article's link as one channel carries it (epic #2974): each network
+ * gets its own utm_source, so a visitor from X is not a visitor from
+ * Reddit. campaign=blog, content=the article's slug. Pure.
+ */
+export function linkFor(a: Article, channel: Channel): string {
+  return tagged(a.link, channel, { campaign: 'blog', content: a.slug })
+}
+
 export function xThread(a: Article): { first: string; second: string } {
   return {
     /* No link, so the whole 280 is the text. */
     first: xText(a, X_LIMIT),
-    second: a.link,
+    second: linkFor(a, 'x'),
   }
 }
 
@@ -120,10 +130,11 @@ export const THREADS_LIMIT = 500
  * Pure.
  */
 export function threadsText(a: Article): string {
-  const room = THREADS_LIMIT - a.link.length - 2
+  const link = linkFor(a, 'threads')
+  const room = THREADS_LIMIT - link.length - 2
   const head =
     a.title.length <= room ? a.title : a.title.slice(0, room - 1) + '…'
-  return `${head}\n\n${a.link}`
+  return `${head}\n\n${link}`
 }
 
 /** Each network's own share page, already filled in. Pure. */
@@ -141,15 +152,15 @@ export function shareUrls(a: Article): {
      * 2026-09-24: all three next steps, the clone speaks in every network).
      */
     threads: `https://www.threads.net/intent/post?text=${encodeURIComponent(threadsText(a))}`,
-    x: `https://x.com/intent/post?text=${encodeURIComponent(xText(a))}&url=${encodeURIComponent(a.link)}`,
-    linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(a.link)}`,
+    x: `https://x.com/intent/post?text=${encodeURIComponent(xText(a))}&url=${encodeURIComponent(linkFor(a, 'x'))}`,
+    linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(linkFor(a, 'linkedin'))}`,
     /*
      * Reddit's own submit page, filled in: the title as written and the
      * link. The person's community is dead quiet -- one visitor in a week,
      * nothing posted in six months -- and a blog that writes itself is
      * exactly what it lacks (measured 2026-09-23 on r/t27ai).
      */
-    reddit: `https://www.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/submit?title=${encodeURIComponent(a.title.slice(0, 280))}&url=${encodeURIComponent(a.link)}&type=LINK`,
+    reddit: `https://www.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/submit?title=${encodeURIComponent(a.title.slice(0, 280))}&url=${encodeURIComponent(linkFor(a, 'reddit'))}&type=LINK`,
   }
 }
 

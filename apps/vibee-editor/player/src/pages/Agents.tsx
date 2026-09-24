@@ -43,6 +43,8 @@ const copy = {
     honest: 'Token settlement: designed, not active yet',
     checked: 'Checked on a real account',
     checkFailed: 'Last check failed',
+    streak: 'Daily checks passed in a row: {n} of 7 — hiring opens at 7',
+    earned: 'working now — earned by 7 days of checks',
   },
   ru: {
     eyebrow: 'T27 · БИРЖА АГЕНТНОГО ТРУДА',
@@ -76,6 +78,8 @@ const copy = {
     honest: 'Расчёты токенами: спроектированы, ещё не включены',
     checked: 'Проверен на живом аккаунте',
     checkFailed: 'Последняя проверка не прошла',
+    streak: 'Ежедневных проверок подряд: {n} из 7 — найм откроется на седьмой',
+    earned: 'работает — заслужил 7 днями проверок',
   },
 } as const
 
@@ -130,7 +134,14 @@ export function AgentsPage() {
 
         <section className="agents-grid" aria-label={text.title}>
           {MARKETPLACE_AGENTS.map((agent, index) => {
-            const canHire = agent.status === 'live'
+            /*
+              HIRE BY EVIDENCE (#2956 follow-up): seven passing daily checks
+              in a row open a trainee to everybody. The server's gate
+              (routes.ts earnedAgent) decides the same way; this only shows it.
+            */
+            const earned =
+              agent.status !== 'live' && verdicts?.[agent.id]?.earned === true
+            const canHire = agent.status === 'live' || earned
             return (
               <article
                 className={`agent-card agent-card--${agent.status}`}
@@ -144,7 +155,8 @@ export function AgentsPage() {
                     {agent.icon}
                   </span>
                   <span className="agent-card__status">
-                    <i /> {statusLabel(agent.status, l, text)}
+                    <i />{' '}
+                    {earned ? text.earned : statusLabel(agent.status, l, text)}
                   </span>
                 </div>
                 <h2>{agent.name[l]}</h2>
@@ -161,6 +173,16 @@ export function AgentsPage() {
                     {verdicts[agent.id].pass ? '✓' : '✗'}{' '}
                     {verdicts[agent.id].pass ? text.checked : text.checkFailed}{' '}
                     · {checkedDay(verdicts[agent.id].at, l)}
+                  </p>
+                ) : null}
+                {agent.status !== 'live' &&
+                !earned &&
+                typeof verdicts?.[agent.id]?.streak === 'number' ? (
+                  <p className="agent-card__streak">
+                    {text.streak.replace(
+                      '{n}',
+                      String(verdicts[agent.id].streak)
+                    )}
                   </p>
                 ) : null}
                 <p className="agent-card__role">{agent.role[l]}</p>
