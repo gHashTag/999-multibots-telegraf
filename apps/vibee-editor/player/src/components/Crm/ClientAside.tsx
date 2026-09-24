@@ -356,15 +356,49 @@ export function ClientAside({
                       {t('crm.aside.soul.draft')}
                     </span>
                   ) : null}
-                  <p className={soulOpen ? 'is-open' : ''}>{pr.soulExcerpt}</p>
-                  {pr.soulExcerpt.length > 160 ? (
-                    <button
-                      type="button"
-                      className="chat-aside__more"
-                      onClick={() => setSoulOpen(v => !v)}
+                  <p>{pr.soul ?? pr.soulExcerpt}</p>
+                  <button
+                    type="button"
+                    className="chat-aside__more"
+                    onClick={() => setSoulOpen(true)}
+                  >
+                    {t('crm.aside.soul.readAll')}
+                  </button>
+                  {soulOpen ? (
+                    <div
+                      className="soul-reader"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-label={t('crm.aside.tab.soul')}
                     >
-                      {soulOpen ? t('crm.aside.less') : t('crm.aside.more')}
-                    </button>
+                      <div
+                        className="soul-reader__backdrop"
+                        onClick={() => setSoulOpen(false)}
+                      />
+                      <article className="soul-reader__sheet">
+                        <header>
+                          <b>SOUL · {name}</b>
+                          <button
+                            type="button"
+                            aria-label={t('crm.aside.close')}
+                            onClick={() => setSoulOpen(false)}
+                          >
+                            ×
+                          </button>
+                        </header>
+                        <div className="soul-reader__text">
+                          {pr.soul ?? pr.soulExcerpt}
+                        </div>
+                        {pr.soul && pr.soulChars > pr.soul.length ? (
+                          <p className="chat-aside__muted">
+                            {t('crm.aside.soul.cut', {
+                              shown: pr.soul.length,
+                              total: pr.soulChars,
+                            })}
+                          </p>
+                        ) : null}
+                      </article>
+                    </div>
                   ) : null}
                 </div>
               ) : (

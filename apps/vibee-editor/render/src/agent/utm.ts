@@ -17,7 +17,7 @@
  */
 
 /** Hosts whose pages are ours to tag (and to count arrivals on). */
-export const OWN_HOSTS = ['t27.ai', 'app.t27.ai', 'www.t27.ai'] as const
+export const OWN_HOSTS = ['t27.ai', 'app.t27.ai', 'www.t27.ai'] as const // app-link-ok: our hosts to tag, not a link a person receives
 
 /** Every channel the agents publish to, with its medium. */
 export const CHANNELS = {
