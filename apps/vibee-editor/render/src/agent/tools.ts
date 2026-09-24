@@ -65,6 +65,7 @@ import {
   PORTRAIT_FRAMING_SUFFIX,
 } from './client-face'
 import { makeClientFaceTool } from './client-face-tool'
+import { ROOM_PEOPLE_TOOLS } from './room-people'
 
 import { BROWSER_TOOLS } from '../browser/agent-tools'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -3427,6 +3428,13 @@ TOOLS.push(
     ownAvatar: ownerAvatarUrl,
   })
 )
+/*
+ * WHO IS IN THE ROOM (crm_room_people). The morning post needs the members of
+ * a group, which the Bot API cannot list -- the owner's own session can. A
+ * screen/timer helper like the avatars batch: DIRECT_CALL_ONLY below, so a
+ * sentence in a client's message cannot walk the owner's groups.
+ */
+TOOLS.push(...ROOM_PEOPLE_TOOLS)
 TOOLS.push(...CRM_MEMORY_TOOLS)
 TOOLS.push(...CRM_GROUP_TOOLS)
 /*
@@ -3629,7 +3637,7 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
@@ -3700,6 +3708,12 @@ export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
    * sentence in a client's message must not be able to loop it.
    */
   'crm_client_avatars',
+  /*
+   * Walks the members of the owner's groups through his own session. The
+   * morning post and the CRM screen ask for it; a model turn has no reason
+   * to, and a client's sentence must not be able to enumerate a room.
+   */
+  'crm_room_people',
 ])
 
 let compactWarned = false
