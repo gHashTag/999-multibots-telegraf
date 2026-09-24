@@ -6,7 +6,7 @@ import {
   alertText,
   answerMisses,
   CANARIES_HASH,
-  isDue,
+  dueCanaries,
   runAcceptance,
   seenOf,
   verdictFor,
@@ -81,39 +81,53 @@ describe('reading a turn', () => {
   })
 })
 
-describe('when a run is due', () => {
-  const at = (msAgo: number): LatestVerdict => ({
-    agent: 'job',
+describe('which agents are due, each on its own', () => {
+  const H24 = 24 * H
+  const v = (
+    agent: string,
+    msAgo: number,
+    canaries = CANARIES_HASH
+  ): LatestVerdict => ({
+    agent,
     pass: true,
     at: new Date(NOW - msAgo).toISOString(),
     tools: [],
     codes: [],
-    canaries: '',
+    canaries,
+  })
+  const ids = (list: { id: string }[]) => list.map(c => c.id).sort()
+  const all = CANARIES.map(c => c.id).sort()
+
+  it('never checked: every agent is due', () => {
+    expect(ids(dueCanaries([], NOW, H24, CANARIES_HASH))).toEqual(all)
   })
 
-  it('never checked: due; checked an hour ago: not; a day ago: due', () => {
-    expect(isDue([], NOW, 24 * H)).toBe(true)
-    expect(isDue([at(H)], NOW, 24 * H)).toBe(false)
-    expect(isDue([at(25 * H)], NOW, 24 * H)).toBe(true)
+  it('an agent checked an hour ago is not due; the ones never checked are', () => {
+    const due = ids(dueCanaries([v('job', H)], NOW, H24, CANARIES_HASH))
+    expect(due).not.toContain('job')
+    expect(due).toEqual(all.filter(a => a !== 'job'))
+  })
+
+  it('a day-old verdict is due again, and only that agent', () => {
+    const latest = CANARIES.map(c => v(c.id, c.id === 'habr' ? 25 * H : H))
+    expect(ids(dueCanaries(latest, NOW, H24, CANARIES_HASH))).toEqual(['habr'])
   })
 
   it('a verdict made under another canary table is stale: due at once', () => {
-    const fresh = { ...at(H), canaries: 'aaaaaaaaaaaa' }
-    expect(isDue([fresh], NOW, 24 * H, 'aaaaaaaaaaaa')).toBe(false)
-    expect(isDue([fresh], NOW, 24 * H, 'bbbbbbbbbbbb')).toBe(true)
+    const latest = CANARIES.map(c =>
+      v(c.id, H, c.id === 'google' ? 'aaaaaaaaaaaa' : CANARIES_HASH)
+    )
+    expect(ids(dueCanaries(latest, NOW, H24, CANARIES_HASH))).toEqual([
+      'google',
+    ])
     /* A run that did not say its table ('') is stale too. */
-    expect(
-      isDue([{ ...fresh, canaries: '' }], NOW, 24 * H, 'aaaaaaaaaaaa')
-    ).toBe(true)
+    const unsaid = CANARIES.map(c => v(c.id, H, ''))
+    expect(ids(dueCanaries(unsaid, NOW, H24, CANARIES_HASH))).toEqual(all)
   })
 
   it('tri agents and the server fingerprint the same table the same way', () => {
     expect(script.canariesHash()).toBe(CANARIES_HASH)
     expect(CANARIES_HASH).toMatch(/^[0-9a-f]{12}$/)
-  })
-
-  it('the NEWEST verdict decides, so one stale agent does not rerun all daily', () => {
-    expect(isDue([at(30 * H), at(H)], NOW, 24 * H)).toBe(false)
   })
 })
 
@@ -167,12 +181,14 @@ describe('the run', () => {
       tell: async t => void told.push(t),
     })
     expect(out).toHaveLength(CANARIES.length)
+    /* Each verdict kept as it was made: a deploy mid-run loses one, not all. */
+    expect(recorded).toHaveLength(CANARIES.length)
+    expect(recorded.every(batch => batch.length === 1)).toBe(true)
     expect(out.find(x => x.agent === 'job')).toMatchObject({
       pass: false,
       codes: expect.arrayContaining(['error']),
     })
     expect(out.filter(x => x.pass)).toHaveLength(CANARIES.length - 1)
-    expect(recorded).toHaveLength(1)
     expect(told).toHaveLength(1)
     expect(told[0]).toContain('✗ job')
   })
@@ -242,5 +258,24 @@ describe('what the answer must show', () => {
     expect(t).toContain(
       '✗ google: ответ не тот, что просили (меньше трёх ссылок на источники)'
     )
+  })
+})
+
+describe('a run over only the agents still due', () => {
+  it('runs the given list, not the whole table', async () => {
+    const asked: string[] = []
+    await runAcceptance(
+      {
+        turn: async function* (c) {
+          asked.push(c.id)
+          yield ev('текст', { ['текст']: DONE }) // cyrillic-ok
+        },
+        previous: async () => [],
+        record: async () => {},
+        tell: async () => {},
+      },
+      CANARIES.filter(c => c.id === 'tiktok')
+    )
+    expect(asked).toEqual(['tiktok'])
   })
 })

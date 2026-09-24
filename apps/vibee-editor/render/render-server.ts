@@ -2816,8 +2816,8 @@ setInterval(
  * passed since the last run, so a redeploy neither skips a day nor runs
  * twice; a run is five agent turns. A failure or a recovery reaches the
  * owner as one line, and the /agents cards show it. Off with
- * ACCEPTANCE_DAILY=0; the first look waits ten minutes after a start, so a
- * deploy that is still settling is not what gets checked.
+ * ACCEPTANCE_DAILY=0; the first look waits three minutes after a start, so
+ * a deploy that is still settling is not what gets checked.
  */
 const ACCEPTANCE_TICK_MS = 30 * 60 * 1000
 const acceptanceTick = () => {
@@ -2834,12 +2834,18 @@ const acceptanceTick = () => {
     }
   })()
 }
+/*
+ * Three minutes, not ten: main is busy and each deploy restarts this wait,
+ * so a long one starved the run (24.09: four deploys in ten minutes). A run
+ * interrupted by a deploy loses at most the agent it was on -- each verdict
+ * is kept as it is made, and the next start runs only the agents still due.
+ */
 setTimeout(
   () => {
     acceptanceTick()
     setInterval(acceptanceTick, ACCEPTANCE_TICK_MS)
   },
-  10 * 60 * 1000
+  3 * 60 * 1000
 )
 
 /*
