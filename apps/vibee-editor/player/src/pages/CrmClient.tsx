@@ -4,11 +4,8 @@ import './Crm.css'
 import './CrmClient.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
-import {
-  AllRefused,
-  coveredByNotice,
-  oneReasonForAll,
-} from '@/components/Crm/AllRefused'
+import { AllRefused } from '@/components/Crm/AllRefused'
+import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
 import {
   loadClientProfile,
   loadClientPlan,
