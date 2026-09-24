@@ -111,6 +111,44 @@ describe('the census itself', () => {
     expect([...live].some((f: string) => f.includes('inngest_app'))).toBe(true)
   })
 
+  it('counts a COMMAND as a door, or every tool looks dead', () => {
+    /*
+     * The third correction to this census, and the same shape as the first
+     * two: `margin-report.ts` was reported unreachable while `tri margin`
+     * runs it every day through `render/scripts/margin.ts`. A CLI script is
+     * an entry point exactly like a server is.
+     *
+     * Named files rather than a count: a threshold would have survived
+     * losing the whole scripts family, which is what the earlier version of
+     * this file learned the hard way.
+     */
+    const live = reachable()
+    expect(
+      live.has('apps/vibee-editor/render/src/agent/margin-report.ts')
+    ).toBe(true)
+    expect(live.has('apps/vibee-editor/render/scripts/margin.ts')).toBe(true)
+  })
+
+  it('names its own edges, because a narrow tool that hides them is blind', () => {
+    /*
+     * This repository has already paid for the other kind: a secrets sweep
+     * saw fifty files fewer than it thought and said nothing, so every
+     * conclusion drawn with it was worthless (no-silent-blindness.test.ts).
+     *
+     * The census looks at three directories, which is right -- the whole
+     * tree answers with 239 names and nobody acts on that -- but it has to
+     * SAY so beside the number.
+     */
+    const { readFileSync } = require('node:fs')
+    const { resolve } = require('node:path')
+    const src = readFileSync(
+      resolve(__dirname, '../../..', 'scripts/orphan-modules.cjs'),
+      'utf8'
+    )
+    expect(src).toContain('Охват:')
+    expect(src).toContain("'--all'")
+  })
+
   it('says when a module is imported ONLY by dead ones', () => {
     /*
      * The one-hop version answered the weaker question: two image generators

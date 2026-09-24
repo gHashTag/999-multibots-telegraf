@@ -23,7 +23,19 @@ const { basename, join, resolve } = require('node:path')
 
 const ROOT = resolve(__dirname, '..')
 
-/** Where modules live that are supposed to be reachable from the running code. */
+/**
+ * Where modules live that are supposed to be reachable from the running code.
+ *
+ * NARROW ON PURPOSE, AND IT SAYS SO. These three directories are where "a
+ * feature written and never switched on" actually appears; widening to the
+ * whole tree answers with 239 names, which is not a list anybody acts on.
+ *
+ * But a narrow tool that does not name its own edges is the blindness this
+ * repository already paid for once (no-silent-blindness.test.ts: a secrets
+ * sweep saw fifty files fewer than it thought, and every conclusion drawn
+ * with it was worthless). So the scope is printed with the answer, and
+ * `--all` widens it for the day somebody wants the whole picture.
+ */
 const WATCHED = [
   'src/services',
   'src/navigation/helpers',
@@ -87,6 +99,20 @@ const ENTRIES = [
   'apps/vibee-editor/render/render-server.ts',
 ]
 
+/**
+ * AND EVERY COMMAND IS A DOOR TOO.
+ *
+ * The third correction to this census, and the same shape as the first two:
+ * `margin-report.ts` was reported unreachable while `tri margin` runs it
+ * every day through `render/scripts/margin.ts`. A CLI script is an entry
+ * point exactly like a server is -- somebody types it, and the code runs.
+ *
+ * Whole directories rather than a list: a census whose entry list must be
+ * edited by hand every time a command is added goes stale silently, and a
+ * stale entry list turns living code into a deletion list.
+ */
+const ENTRY_DIRS = ['scripts', 'apps/vibee-editor/render/scripts']
+
 /** Every literal specifier an import in this source names. */
 function specifiersIn(src) {
   const out = []
@@ -141,7 +167,10 @@ function resolveSpec(fromFile, spec) {
  */
 function reachable() {
   const seen = new Set()
-  const queue = ENTRIES.filter(e => {
+  const fromDirs = ENTRY_DIRS.flatMap(d => walk(d)).filter(
+    f => !f.includes('.test.')
+  )
+  const queue = [...ENTRIES, ...fromDirs].filter(e => {
     try {
       readFileSync(resolve(ROOT, e), 'utf8')
       return true
@@ -206,7 +235,14 @@ function orphans() {
 }
 
 function main() {
+  const wide = process.argv.includes('--all')
+  if (wide) WATCHED.splice(0, WATCHED.length, 'src', 'apps/vibee-editor/render/src')
   const { looked, live, orphans: dead } = orphans()
+  console.log(
+    wide
+      ? 'Охват: ВЕСЬ код бота и рендера.' // cyrillic-ok: operator-facing
+      : `Охват: ${WATCHED.join(', ')} (остальное дерево не смотрится — «--all» для всего).` // cyrillic-ok: operator-facing
+  )
   console.log(
     `Просмотрено модулей: ${looked}. Программа достаёт ${live} файлов от точек входа. ` + // cyrillic-ok: operator-facing
       `Недостижимы: ${dead.length}.` // cyrillic-ok: operator-facing
