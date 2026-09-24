@@ -22,6 +22,13 @@ export interface CloneReady {
   voice?: boolean
   /** A photo exists to render a face from. */
   photo?: boolean
+  /**
+   * The networks the person's own browser holds (#2963): true = signed in,
+   * false = not, null per network = cannot tell. The whole field is `null`
+   * when the browser is off and `undefined` before the server answered --
+   * neither of them means "no accounts".
+   */
+  accounts?: Record<string, boolean | null> | null
 }
 
 export const cloneReadyAtom = atom<CloneReady>({})
@@ -38,11 +45,16 @@ export const loadCloneStatusAtom = atom(null, async (_get, set) => {
       error?: string
       voice?: boolean
       photo?: boolean
+      accounts?: Record<string, boolean | null> | null
     }
     if (!r.ok || d.ok === false) {
       throw new Error(String(d.error ?? `HTTP ${r.status}`))
     }
-    set(cloneReadyAtom, { voice: !!d.voice, photo: !!d.photo })
+    set(cloneReadyAtom, {
+      voice: !!d.voice,
+      photo: !!d.photo,
+      ...('accounts' in d ? { accounts: d.accounts ?? null } : {}),
+    })
   } catch (e) {
     /*
      * The previous picture is kept on purpose. Overwriting it with `{}` on a

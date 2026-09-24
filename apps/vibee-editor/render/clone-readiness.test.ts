@@ -11,9 +11,12 @@
  */
 import { describe, it, expect } from 'vitest'
 import {
+  accountsOf,
+  accountsWithin,
   handleClone,
   isClonePath,
   present,
+  type Accounts,
   type CloneDeps,
 } from './src/agent/clone-readiness'
 
@@ -166,5 +169,77 @@ describe('the path', () => {
     expect(isClonePath('/api/clone/status/extra')).toBe(false)
     expect(isClonePath('/api/clone')).toBe(false)
     expect(isClonePath('/api/club/status')).toBe(false)
+  })
+})
+
+/*
+ * WHICH NETWORKS THE CLONE HOLDS (#2963). The same rule as the voice: a
+ * question that was not answered is `null`, never "nothing" -- an empty
+ * answer would send somebody to sign in again to accounts they hold.
+ */
+describe('the networks the clone holds', () => {
+  const withAccounts = (
+    read: CloneDeps['accounts'],
+    row: Record<string, unknown> | null = { photo_url: 'p' }
+  ) => ({ ...deps(row), accounts: read })
+
+  it('carries one boolean per network, from the READER of this person', async () => {
+    const askedFor: string[] = []
+    const r = await handleClone(
+      get('/api/clone/status?telegram_id=900000002'),
+      withAccounts(async who => {
+        askedFor.push(who)
+        return { x: true, linkedin: false, hh: null }
+      })
+    )
+    expect(r.status).toBe(200)
+    expect(r.body.accounts).toEqual({ x: true, linkedin: false, hh: null })
+    /* The signed identity decides whose browser, never a query parameter. */
+    expect(askedFor).toEqual([OWNER])
+  })
+
+  it('also for a person the users table does not know yet', async () => {
+    const r = await handleClone(
+      get(),
+      withAccounts(async () => ({ x: true }), null)
+    )
+    expect(r.body).toMatchObject({ voice: false, accounts: { x: true } })
+  })
+
+  it('is null -- unknown -- with no reader, a browser that is off, or a failure', async () => {
+    for (const read of [
+      undefined,
+      async () => null,
+      async () => {
+        throw new Error('pod unreachable')
+      },
+    ]) {
+      const r = await handleClone(get(), withAccounts(read))
+      expect(r.status).toBe(200)
+      expect(r.body.photo).toBe(true)
+      expect(r.body.accounts).toBeNull()
+    }
+  })
+
+  it('a slow browser costs its wait and no more, and answers null', async () => {
+    const t0 = Date.now()
+    const got = await accountsWithin(
+      () => new Promise<Accounts>(() => {}),
+      OWNER,
+      30
+    )
+    expect(got).toBeNull()
+    expect(Date.now() - t0).toBeLessThan(1_000)
+  })
+
+  it('reduces states to booleans: unknown stays null, expired is false', () => {
+    expect(
+      accountsOf([
+        { id: 'x', name: 'X', state: 'signed_in' },
+        { id: 'linkedin', name: 'LinkedIn', state: 'expired' },
+        { id: 'tiktok', name: 'TikTok', state: 'signed_out' },
+        { id: 'hh', name: 'hh.ru', state: 'unknown' },
+      ])
+    ).toEqual({ x: true, linkedin: false, tiktok: false, hh: null })
   })
 })

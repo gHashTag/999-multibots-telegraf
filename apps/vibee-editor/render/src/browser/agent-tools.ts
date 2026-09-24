@@ -66,7 +66,7 @@ import {
   pageUrl,
 } from './cdp'
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
-import { LOGINS_NOTE, readLogins } from './logins'
+import { LOGINS_NOTE, loginsOfPerson } from './logins'
 import {
   chosenFront,
   forgetFront,
@@ -584,17 +584,16 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       'Opens no page. Call it before "connect my networks" and after each sign-in.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     async handler(_args, ctx) {
-      const session = await readSession(
+      const networks = await loginsOfPerson(
         ctx.pool as unknown as Queryable,
         ctx.telegramId
       )
-      if (!session || session.state !== 'live') {
+      if (!networks) {
         return {
           running: false,
           hint: 'the browser is off, so its logins cannot be read; browser_open starts it',
         }
       }
-      const networks = await readLogins(session.cdpEndpoint!, Date.now())
       return {
         running: true,
         networks,
