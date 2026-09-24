@@ -243,3 +243,37 @@ describe('the buttons stay the same bytes whatever the kind', () => {
     }
   })
 })
+
+/*
+ * A NEW GROUP IS A DIFFERENT ACT FROM A MESSAGE, AND THE CARD MUST SAY SO.
+ *
+ * Before the verb existed, `create-group` fell to the generic branch and
+ * asked the person to confirm the raw token "create-group" -- a question in
+ * which they read an English word and have to guess what their press does.
+ */
+describe('the card names a new group as a new group', () => {
+  it('asks about creating a group, in both languages', async () => {
+    const { proposalCard } = await load()
+    const ru = proposalCard(
+      draft({
+        action: 'create-group',
+        target: 'Клиенты ботов',
+        what: 'Клиенты ботов',
+      }),
+      true
+    )
+    expect(ru.text).toContain('Создать группу')
+    expect(ru.text).not.toContain('create-group')
+    expect(ru.text).toContain('Клиенты ботов')
+
+    const en = proposalCard(
+      draft({
+        action: 'create-group',
+        target: 'Bot clients',
+        what: 'Bot clients',
+      }),
+      false
+    )
+    expect(en.text).toContain('Create this group')
+  })
+})

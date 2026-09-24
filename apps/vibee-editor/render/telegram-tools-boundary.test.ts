@@ -67,6 +67,13 @@ const ACTING = [
   'tg_send_album',
   'tg_forward',
   'tg_read',
+  /*
+   * Opening a group from the owner's account: his name stands in front of
+   * everyone later invited, and deleting the room does not unsee it. Acting,
+   * therefore a card he presses -- and declared here, out loud, because this
+   * list is the sentence an author has to write before a tool can act.
+   */
+  'tg_create_group',
 ]
 
 /**

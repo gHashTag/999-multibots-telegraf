@@ -66,6 +66,62 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
     ],
   },
   {
+    /*
+     * THE JOB DESK. Owner, 2026-09-24: "the job agent must know every hunter
+     * in my contacts, and create groups by the target audience of the bots."
+     *
+     * `training`, and the guard in this package is why. Both hands exist and
+     * are tested -- `job_hunters` decides who is hiring from what they WROTE
+     * (job-hunters.ts, pure and covered), and a new group goes out as a card
+     * the owner presses (`create-group`, covered including its refusals) --
+     * but NOTHING has yet run end to end against a real dialog or a real
+     * group. By this file's own standard that is a trainee, however finished
+     * the card looks, and the test that says "one live specialist" caught the
+     * author of these tools reaching for `live` on his own judgement.
+     *
+     * The tools are not hidden meanwhile: the general prompt names them
+     * (chat.ts), so the agent knows it has them. Only the specialist voice
+     * waits, and it waits for the owner's word after a first real run.
+     */
+    id: 'job',
+    icon: '⚒',
+    name: { en: 'Job', ru: 'Работа' },
+    role: {
+      en: 'Hiring-side agent',
+      ru: 'Агент по найму и вакансиям',
+    },
+    promise: {
+      en: 'Finds which of your own contacts are hiring -- from what they wrote, never from a name -- and opens a group per audience for your press.',
+      ru: 'Находит, кто из ваших контактов нанимает — по словам в переписке, не по имени, — и открывает группу под аудиторию, по вашему нажатию.',
+    },
+    status: 'training',
+    creator: 'T27',
+    skills: [
+      { en: 'hunters among contacts', ru: 'хантеры среди контактов' },
+      { en: 'evidence, not names', ru: 'доказательства, не имена' },
+      { en: 'a group per audience', ru: 'группа под аудиторию' },
+      { en: 'hh · LinkedIn · Upwork', ru: 'hh · LinkedIn · Upwork' },
+    ],
+    evidence: [
+      {
+        en: 'two different signs in their own words, never one',
+        ru: 'два разных признака их словами, не один',
+      },
+      {
+        en: "the owner's own messages are never evidence about a contact",
+        ru: 'свои сообщения не доказательство о собеседнике',
+      },
+      {
+        en: 'a group is created empty; inviting is a second press',
+        ru: 'группа создаётся пустой, приглашение — второе нажатие',
+      },
+      {
+        en: 'writing to anybody still waits for the press',
+        ru: 'написать кому-либо по-прежнему только с нажатия',
+      },
+    ],
+  },
+  {
     id: 'google',
     icon: 'G',
     name: { en: 'Google Scout', ru: 'Google-разведчик' },
