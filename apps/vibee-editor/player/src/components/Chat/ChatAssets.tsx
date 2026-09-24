@@ -46,7 +46,6 @@ const IMAGE_RE = /\.(jpe?g|png|webp|gif|heic|heif|avif|svg|bmp)(\?|$)/i
  */
 const VIDEO_RE = /\.(mp4|mov|m4v)(\?|$)/i
 const AUDIO_RE = /\.(mp3|wav|m4a|ogg|webm|opus|flac)(\?|$)/i
-const URL_RE = /https?:\/\/[^\s<>"')\]]+/g
 /** markdown-картинка ![alt](url) — до всего остального, иначе alt останется в тексте */
 const MD_IMAGE_RE = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g
 /** инлайн-код `…` — внутри него разметка не разбирается */
