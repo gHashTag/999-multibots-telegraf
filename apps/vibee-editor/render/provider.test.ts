@@ -193,8 +193,18 @@ describe('what a small model is shown', () => {
      * 7k of schemas leaves about 4k for the conversation. If that proves
      * too tight, the lever is the descriptions -- browser_ask_permission is
      * 254 tokens of prose on its own -- not dropping tools.
+     *
+     * 7000 -> 7150 on 2026-09-24, for crm_client_face (~94 tokens). Owner,
+     * that day: "why does the agent have no access to the user's avatar?
+     * this is the main thing in the CRM -- we hook clients through their
+     * face." Until then the agent could DRAW a face and not LOOK at one, and
+     * the seller on a 16k model is precisely the DM seller that does the
+     * hooking. Its schema was cut twice before this number moved: the long
+     * prose went first, then the @name parameter, which the CRM row already
+     * holds. The ceiling keeps only 56 tokens of headroom on purpose -- the
+     * next tool must earn its place the same way.
      */
-    expect(chars / 3.2).toBeLessThan(7000)
+    expect(chars / 3.2).toBeLessThan(7150)
     expect(kit.some(t => t.name === 'crm_offer')).toBe(true)
     expect(kit.some(t => t.name === 'tg_send')).toBe(true)
     // The conversational core stays; the deep reads do not.
