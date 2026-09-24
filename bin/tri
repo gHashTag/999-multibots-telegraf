@@ -1575,7 +1575,20 @@ RECIPE
           # `grep -c` exits 1 on zero matches, so `|| echo 0` printed the
           # count AND a second zero -- two lines per file, which read as two
           # findings. The status is ignored instead.
-          n=$(grep -cE "^\s+'[^']+\.tsx?'," "$ROOT/$f" 2>/dev/null) || n=0
+          # ONLY THE ENTRIES INSIDE THE DEBT LIST.
+          #
+          # Two wrong counts before this one, and both overstated: the first
+          # matched any line containing '…tsx' and so counted the comments
+          # explaining the entries; the second matched real entries anywhere
+          # in the file and so counted a SECOND list -- the one asserting
+          # what is already done. It read 7 with 2 left.
+          #
+          # A counter that overstates a debt is the mirror of one that
+          # understates it. Both stop being read.
+          n=$(awk '/(OWED|KNOWN_BARE|ALLOWED_DEBT) *= *\[/{inlist=1; next}
+                   inlist && /^ *\]/{inlist=0}
+                   inlist && /^ *.[^ ]*\.tsx?.,/{c++}
+                   END{print c+0}' "$ROOT/$f" 2>/dev/null) || n=0
           # Files that merely mention the word are noise: only the ones
           # carrying an actual list are ratchets.
           [ "$n" -gt 0 ] && printf "  %3s мест  %s\n" "$n" "$f"

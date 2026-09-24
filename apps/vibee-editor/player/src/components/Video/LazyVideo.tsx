@@ -1,34 +1,38 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import Hls from 'hls.js';
-import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
-import { integrateWithHLS, BBAController } from '../../lib/bufferBasedABR';
-import { useQoEMetrics, recordBitrateSwitch, endSession } from '../../hooks/useQoEMetrics';
-import { useCodecDetection } from '../../hooks/useCodecDetection';
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import Hls from 'hls.js'
+import { useIntersectionObserver } from '../../hooks/useIntersectionObserver'
+import { integrateWithHLS, BBAController } from '../../lib/bufferBasedABR'
+import {
+  useQoEMetrics,
+  recordBitrateSwitch,
+  endSession,
+} from '../../hooks/useQoEMetrics'
+import { useCodecDetection } from '../../hooks/useCodecDetection'
 
 interface LazyVideoProps {
-  src: string;
-  poster?: string;
-  hlsSrc?: string; // HLS manifest URL (.m3u8)
-  className?: string;
-  autoPlay?: boolean;
-  muted?: boolean;
-  loop?: boolean;
-  controls?: boolean;
-  preload?: 'none' | 'metadata' | 'auto';
-  onLoad?: () => void;
-  onError?: (error: Error) => void;
-  onProgress?: (progress: number) => void;
-  threshold?: number;
-  rootMargin?: string;
-  quality?: 'auto' | '360p' | '480p' | '720p' | '1080p';
+  src: string
+  poster?: string
+  hlsSrc?: string // HLS manifest URL (.m3u8)
+  className?: string
+  autoPlay?: boolean
+  muted?: boolean
+  loop?: boolean
+  controls?: boolean
+  preload?: 'none' | 'metadata' | 'auto'
+  onLoad?: () => void
+  onError?: (error: Error) => void
+  onProgress?: (progress: number) => void
+  threshold?: number
+  rootMargin?: string
+  quality?: 'auto' | '360p' | '480p' | '720p' | '1080p'
 }
 
 interface VideoState {
-  loaded: boolean;
-  playing: boolean;
-  error: string | null;
-  currentQuality: string;
-  buffered: number;
+  loaded: boolean
+  playing: boolean
+  error: string | null
+  currentQuality: string
+  buffered: number
 }
 
 /**
@@ -69,19 +73,19 @@ export const LazyVideo: React.FC<LazyVideoProps> = ({
   rootMargin = '100px',
   quality = 'auto',
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
-  const bbaControllerRef = useRef<BBAController | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const hlsRef = useRef<Hls | null>(null)
+  const bbaControllerRef = useRef<BBAController | null>(null)
 
   // Codec detection for optimal playback
-  const codecInfo = useCodecDetection();
+  const codecInfo = useCodecDetection()
 
   // QoE Metrics tracking (ITU-T P.1203)
   const qoeMetrics = useQoEMetrics({
     videoId: hlsSrc || src,
     videoUrl: hlsSrc || src,
     videoRef,
-  });
+  })
 
   const [state, setState] = useState<VideoState>({
     loaded: false,
@@ -89,28 +93,28 @@ export const LazyVideo: React.FC<LazyVideoProps> = ({
     error: null,
     currentQuality: quality,
     buffered: 0,
-  });
+  })
 
   const { ref: containerRef, isVisible } = useIntersectionObserver({
     threshold,
     rootMargin,
     freezeOnceVisible: true,
-  });
+  })
 
   // Initialize HLS.js for adaptive streaming
   const initHls = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || !hlsSrc) return;
+    const video = videoRef.current
+    if (!video || !hlsSrc) return
 
     // Cleanup previous instance
     if (hlsRef.current) {
-      hlsRef.current.destroy();
+      hlsRef.current.destroy()
     }
 
     // Check for native HLS support (Safari)
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = hlsSrc;
-      return;
+      video.src = hlsSrc
+      return
     }
 
     // Use HLS.js for other browsers with LL-HLS optimizations
@@ -124,94 +128,99 @@ export const LazyVideo: React.FC<LazyVideoProps> = ({
         // LL-HLS Configuration (Low-Latency HLS)
         // Enables faster segment delivery and reduced startup time
         lowLatencyMode: true,
-        backBufferLength: 2,          // Keep only 2s of back buffer (memory optimization)
+        backBufferLength: 2, // Keep only 2s of back buffer (memory optimization)
         maxBufferSize: 3 * 1000 * 1000, // 3MB max buffer size
-        maxBufferLength: 4,           // 4 seconds of forward buffer
-        maxMaxBufferLength: 6,        // Max 6 seconds buffer limit
-        liveSyncDurationCount: 3,     // Sync to live edge within 3 segments
+        maxBufferLength: 4, // 4 seconds of forward buffer
+        maxMaxBufferLength: 6, // Max 6 seconds buffer limit
+        liveSyncDurationCount: 3, // Sync to live edge within 3 segments
 
         // Progressive loading for faster starts
         progressive: true,
-        enableWorker: true,           // Use Web Worker for parsing
+        enableWorker: true, // Use Web Worker for parsing
 
         // ABR tuning for B-roll videos (short clips)
         abrEwmaDefaultEstimate: 5000000, // 5 Mbps initial estimate
-        abrBandWidthFactor: 0.8,      // Conservative bandwidth factor
-        abrBandWidthUpFactor: 0.7,    // Conservative upgrade factor
-        abrMaxWithRealBitrate: true,  // Limit ABR by actual bitrate
+        abrBandWidthFactor: 0.8, // Conservative bandwidth factor
+        abrBandWidthUpFactor: 0.7, // Conservative upgrade factor
+        abrMaxWithRealBitrate: true, // Limit ABR by actual bitrate
 
         // Fast fragment loading
-        fragLoadingTimeOut: 10000,    // 10s timeout
-        fragLoadingMaxRetry: 3,       // 3 retries
-        fragLoadingRetryDelay: 500,   // 500ms between retries
-      });
+        fragLoadingTimeOut: 10000, // 10s timeout
+        fragLoadingMaxRetry: 3, // 3 retries
+        fragLoadingRetryDelay: 500, // 500ms between retries
+      })
 
-      hls.loadSource(hlsSrc);
-      hls.attachMedia(video);
+      hls.loadSource(hlsSrc)
+      hls.attachMedia(video)
 
       // BBA Algorithm Integration (Stanford SIGCOMM 2014)
       // Provides 10-20% rebuffer reduction over default ABR
       bbaControllerRef.current = integrateWithHLS(hls, {
-        reservoir: 10,   // Min buffer threshold (seconds)
-        cushion: 30,     // Max buffer threshold (seconds)
-        maxBuffer: 60,   // Maximum buffer (seconds)
+        reservoir: 10, // Min buffer threshold (seconds)
+        cushion: 30, // Max buffer threshold (seconds)
+        maxBuffer: 60, // Maximum buffer (seconds)
         enableOscillationGuard: true,
-      });
+      })
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setState((prev) => ({ ...prev, loaded: true }));
+        setState(prev => ({ ...prev, loaded: true }))
         if (autoPlay) {
-          video.play().catch(console.warn);
+          video.play().catch(console.warn)
         }
-        onLoad?.();
-      });
+        onLoad?.()
+      })
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-        const level = hls.levels[data.level];
+        const level = hls.levels[data.level]
         if (level) {
-          const prevQuality = state.currentQuality;
-          const newQuality = `${level.height}p`;
+          const prevQuality = state.currentQuality
+          const newQuality = `${level.height}p`
 
-          setState((prev) => ({
+          setState(prev => ({
             ...prev,
             currentQuality: newQuality,
-          }));
+          }))
 
           // Track quality switch in QoE metrics
           if (qoeMetrics.session) {
-            const prevBitrate = parseInt(prevQuality) || 0;
+            const prevBitrate = parseInt(prevQuality) || 0
             recordBitrateSwitch(qoeMetrics.session.id, {
               timestamp: performance.now(),
               fromBitrate: prevBitrate * 1000, // kbps approximation
               toBitrate: level.bitrate / 1000, // Convert to kbps
               reason: 'buffer_low', // BBA algorithm decision
-            });
-            console.log('[LazyVideo] Quality switch tracked:', prevQuality, '->', newQuality);
+            })
+            console.log(
+              '[LazyVideo] Quality switch tracked:',
+              prevQuality,
+              '->',
+              newQuality
+            )
           }
         }
-      });
+      })
 
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
-          const error = new Error(`HLS Error: ${data.type} - ${data.details}`);
-          setState((prev) => ({ ...prev, error: error.message }));
-          onError?.(error);
+          const error = new Error(`HLS Error: ${data.type} - ${data.details}`)
+          setState(prev => ({ ...prev, error: error.message }))
+          onError?.(error)
 
           // Try to recover
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            hls.startLoad();
+            hls.startLoad()
           } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
+            hls.recoverMediaError()
           }
         }
-      });
+      })
 
-      hlsRef.current = hls;
+      hlsRef.current = hls
     } else {
       // Fallback to direct source
-      video.src = src;
+      video.src = src
     }
-  }, [hlsSrc, src, quality, autoPlay, onLoad, onError]);
+  }, [hlsSrc, src, quality, autoPlay, onLoad, onError])
 
   // Quality level mapping
   const getQualityLevel = (q: string): number => {
@@ -220,95 +229,95 @@ export const LazyVideo: React.FC<LazyVideoProps> = ({
       '480p': 1,
       '720p': 2,
       '1080p': 3,
-    };
-    return levels[q] ?? -1;
-  };
+    }
+    return levels[q] ?? -1
+  }
 
   // Set quality level
   const setQuality = useCallback((newQuality: string) => {
     if (hlsRef.current) {
-      hlsRef.current.currentLevel = getQualityLevel(newQuality);
-      setState((prev) => ({ ...prev, currentQuality: newQuality }));
+      hlsRef.current.currentLevel = getQualityLevel(newQuality)
+      setState(prev => ({ ...prev, currentQuality: newQuality }))
     }
-  }, []);
+  }, [])
 
   // Handle video load
   const handleLoadedData = useCallback(() => {
-    setState((prev) => ({ ...prev, loaded: true }));
-    onLoad?.();
-  }, [onLoad]);
+    setState(prev => ({ ...prev, loaded: true }))
+    onLoad?.()
+  }, [onLoad])
 
   // Handle video error
   const handleError = useCallback(() => {
-    const error = new Error('Video playback failed');
-    setState((prev) => ({ ...prev, error: error.message }));
-    onError?.(error);
-  }, [onError]);
+    const error = new Error('Video playback failed')
+    setState(prev => ({ ...prev, error: error.message }))
+    onError?.(error)
+  }, [onError])
 
   // Handle buffer progress
   const handleProgress = useCallback(() => {
-    const video = videoRef.current;
+    const video = videoRef.current
     if (video && video.buffered.length > 0) {
-      const buffered = video.buffered.end(video.buffered.length - 1);
-      const duration = video.duration || 1;
-      const progress = (buffered / duration) * 100;
-      setState((prev) => ({ ...prev, buffered: progress }));
-      onProgress?.(progress);
+      const buffered = video.buffered.end(video.buffered.length - 1)
+      const duration = video.duration || 1
+      const progress = (buffered / duration) * 100
+      setState(prev => ({ ...prev, buffered: progress }))
+      onProgress?.(progress)
     }
-  }, [onProgress]);
+  }, [onProgress])
 
   // Initialize video when visible
   useEffect(() => {
-    if (!isVisible) return;
+    if (!isVisible) return
 
     if (hlsSrc) {
-      initHls();
+      initHls()
     } else if (videoRef.current && src) {
-      videoRef.current.src = src;
+      videoRef.current.src = src
     }
 
     return () => {
       // End QoE session and finalize metrics
       if (qoeMetrics.session) {
-        endSession(qoeMetrics.session.id);
-        console.log('[LazyVideo] QoE session ended');
+        endSession(qoeMetrics.session.id)
+        console.log('[LazyVideo] QoE session ended')
       }
       // Cleanup BBA controller
       if (bbaControllerRef.current) {
-        bbaControllerRef.current.destroy();
-        bbaControllerRef.current = null;
+        bbaControllerRef.current.destroy()
+        bbaControllerRef.current = null
       }
       // Cleanup HLS instance
       if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
+        hlsRef.current.destroy()
+        hlsRef.current = null
       }
-    };
-  }, [isVisible, hlsSrc, src, initHls]);
+    }
+  }, [isVisible, hlsSrc, src, initHls])
 
   // Pause when not visible (for video lists)
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    const video = videoRef.current
+    if (!video) return
 
     if (!isVisible && state.playing) {
-      video.pause();
-      setState((prev) => ({ ...prev, playing: false }));
+      video.pause()
+      setState(prev => ({ ...prev, playing: false }))
     }
-  }, [isVisible, state.playing]);
+  }, [isVisible, state.playing])
 
   // Expose stats to window for E2E testing
   useEffect(() => {
     if (qoeMetrics.metrics) {
-      (window as any).__QOE_METRICS__ = {
+      ;(window as any).__QOE_METRICS__ = {
         ...qoeMetrics.metrics,
         qoeScore: qoeMetrics.qoeScore,
-      };
+      }
     }
     if (codecInfo) {
-      (window as any).__CODEC_INFO__ = codecInfo;
+      ;(window as any).__CODEC_INFO__ = codecInfo
     }
-  }, [qoeMetrics, codecInfo]);
+  }, [qoeMetrics, codecInfo])
 
   return (
     <div
@@ -321,6 +330,12 @@ export const LazyVideo: React.FC<LazyVideoProps> = ({
         <img
           src={poster}
           alt="Video poster"
+          /* A poster is a cover over the video. One that will not load gets
+             out of the way instead of sitting there as a broken mark -- the
+             video beneath it is the thing the person came for. */
+          onError={e => {
+            ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+          }}
           style={{
             position: 'absolute',
             top: 0,
@@ -380,8 +395,8 @@ export const LazyVideo: React.FC<LazyVideoProps> = ({
           onLoadedData={handleLoadedData}
           onError={handleError}
           onProgress={handleProgress}
-          onPlay={() => setState((prev) => ({ ...prev, playing: true }))}
-          onPause={() => setState((prev) => ({ ...prev, playing: false }))}
+          onPlay={() => setState(prev => ({ ...prev, playing: true }))}
+          onPause={() => setState(prev => ({ ...prev, playing: false }))}
           style={{
             width: '100%',
             height: '100%',
@@ -412,7 +427,7 @@ export const LazyVideo: React.FC<LazyVideoProps> = ({
         </div>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default LazyVideo;
+export default LazyVideo
