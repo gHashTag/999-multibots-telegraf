@@ -920,11 +920,19 @@ export async function sweepOnce(
      * photos it could have fetched.
      *
      * A signal that depends on somebody opening a screen is not a signal.
-     * The timer fills it instead, here, where `ingest` has just walked the
-     * dialogs and the session is warm -- a few people per sweep, never the
-     * whole book, and never the model's decision (crm_client_avatars stays
+     * The timer fills it instead -- a few people per sweep, never the whole
+     * book, and never the model's decision (crm_client_avatars stays
      * DIRECT_CALL_ONLY: a sentence in a client's message must not be able
      * to open the owner's session in a loop).
+     *
+     * IT IS PLACED AFTER INGEST, NOT BECAUSE THE SESSION IS WARM. The first
+     * version of this comment said that, and it was false: withClient hangs
+     * up at the end of every tool call, so this batch opens its own cold
+     * connection whatever precedes it. What the order actually buys is that
+     * the memory this sweep works from is refreshed FIRST -- pictures must
+     * never delay somebody's answer. The batch's own cost is bounded on its
+     * side instead (crm-avatars.ts: the 200-dialog walk now happens only
+     * when somebody in the batch has no username to resolve by).
      *
      * Best-effort, like ingest and for the same reason: a FLOOD_WAIT on
      * pictures must not silence somebody who has been waiting since
