@@ -34,6 +34,10 @@ import { splitLongAnswer, keepTyping } from '@/helpers/telegramLongAnswer'
 import { agentLanes } from '@/services/agentLanes'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
+import {
+  knownConnections,
+  rememberConnection,
+} from './businessConnections.store'
 import { delay } from '@/helpers/delay'
 import { renderIsStillWorking } from '@/services/renderTimeout'
 /*
@@ -1212,6 +1216,27 @@ export function payButton(reply: string): { text: string; url: string } | null {
 // --- Handlers ---
 
 export function handleBusinessConnection(connection: BusinessConnection): void {
+  /*
+   * WRITTEN DOWN BEFORE ANYTHING ELSE, because this is the only moment we are
+   * ever told. Telegram sends `business_connection` when the LINK CHANGES and
+   * never on restart, so a Map alone means the platform can start a
+   * conversation as this owner for as long as this process lives and no longer
+   * -- found 2026-09-24, when a message written in the owner's voice had to go
+   * from a bot instead. Both states are stored: an owner who unlinked is not an
+   * owner we never knew (businessConnections.store.ts).
+   */
+  void rememberConnection({
+    connectionId: connection.id,
+    ownerId: connection.user.id,
+    ownerChatId: connection.user_chat_id ?? connection.user.id,
+    canReply: canReplyOf(connection),
+    enabled: connection.is_enabled === true,
+    connectedAt: connection.date,
+  }).catch(() => {
+    // The store says so in its own log; a failed write must not stop the bot
+    // from answering this owner's clients now.
+  })
+
   if (connection.is_enabled) {
     connections.set(connection.id, {
       userId: connection.user.id,
@@ -2251,7 +2276,48 @@ async function announceTakeover(
 
 // --- Raw middleware (Telegraf 4.16.3 doesn't support business events natively) ---
 
+/**
+ * FILL THE REGISTRY FROM POSTGRES, ONCE PER PROCESS.
+ *
+ * Without this the Map starts empty after every deploy and the platform cannot
+ * write as any owner until that owner's client happens to write first -- the
+ * defect found on 2026-09-24. It is a read of a handful of rows and it never
+ * throws: a bot that cannot reach the store still answers incoming messages,
+ * because `lookupConnection` re-fetches the id an incoming message carries.
+ */
+export async function restoreBusinessConnections(): Promise<number> {
+  try {
+    const stored = await knownConnections()
+    let restored = 0
+    for (const c of stored) {
+      if (connections.has(c.connectionId)) continue
+      connections.set(c.connectionId, {
+        userId: Number(c.ownerId),
+        ownerChatId: Number(c.ownerChatId),
+        canReply: c.canReply,
+        connectedAt: c.connectedAt ?? 0,
+      })
+      restored++
+    }
+    if (restored)
+      logger.info('[Business] connections restored from the store', {
+        restored,
+      })
+    return restored
+  } catch (error) {
+    logger.error('[Business] could not restore connections', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return 0
+  }
+}
+
 export function createBusinessMiddleware(bot: Telegraf<any>) {
+  // The store is read once, here, where the business handling is set up: no
+  // caller has to remember to do it, and forgetting is what made it possible
+  // to lose the connection in the first place.
+  void restoreBusinessConnections()
+
   bot.use(async (ctx: any, next: () => Promise<void>) => {
     const update = ctx.update
 

@@ -82,19 +82,21 @@ async function ownersFromAvatars(): Promise<
  * carries a line on every tick and "nothing to say" stops looking exactly like
  * "not running".
  *
- * `deliver` says whether the message ARRIVED. A false makes this tick leave the
- * outage unannounced in the state, so the next one tries again: a bounced alarm
- * recorded as delivered is an owner who is never told.
+ * `deliver` takes the whole alarm, not a chat id and a string: it carries
+ * `side`, and the caller routes an alarm about OUR gap to the operator as well
+ * as to the client. It says whether the message ARRIVED -- a false makes this
+ * tick leave the outage unannounced in the state, so the next one tries again.
+ * A bounced alarm recorded as delivered is an owner who is never told.
  */
 export async function runSilenceWatch(
   pool: Pool,
-  deliver: (ownerId: string, text: string) => Promise<boolean>
+  deliver: (alarm: Alarm) => Promise<boolean>
 ): Promise<WatchRound> {
   await ensureTable(pool)
   return watchOnce({
     deliver: async (alarm: Alarm) => {
       try {
-        return await deliver(alarm.ownerId, alarm.text)
+        return await deliver(alarm)
       } catch (e) {
         // A watchman who cannot reach one person still watches everybody else.
         console.error(

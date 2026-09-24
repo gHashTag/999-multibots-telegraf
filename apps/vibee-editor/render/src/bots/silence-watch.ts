@@ -57,6 +57,17 @@ export interface Alarm {
   bot: string
   kind: 'silent' | 'back'
   text: string
+  /**
+   * Whose gap it is, carried out of the decision so the CALLER can route it.
+   *
+   * A bot with no token on this server is not an outage -- it is an onboarding
+   * nobody finished, and only we can finish it. Measured 2026-09-24: three of
+   * thirteen bots were in that state, two of them with real names and real
+   * users, and the only person who could have fixed it was never told. The
+   * client is told "it is on us, write to us"; the operator has to be told too,
+   * or the client's message is the first anybody hears of it.
+   */
+  side: 'telegram' | 'ours' | null
 }
 
 export interface Decision {
@@ -118,6 +129,7 @@ export function decide(
         bot: health.bot,
         kind: 'back',
         text: `@${health.bot} снова отвечает${howLong(since, now)}.`,
+        side: null,
       },
     }
   }
@@ -135,6 +147,7 @@ export function decide(
       ownerId,
       bot: health.bot,
       kind: 'silent',
+      side: health.side,
       text:
         `@${health.bot} не отвечает${howLong(since, now)}.\n` +
         `${blame(health)}\n` +
@@ -169,6 +182,13 @@ export interface WatchRound {
   checked: number
   /** Of those, how many did not answer. */
   silent: number
+  /**
+   * Of the silent ones, how many are OUR gap rather than an outage -- almost
+   * always a bot whose token never reached this server. Counted apart because
+   * it is a different problem with a different owner: an unfinished
+   * onboarding, not a bot that fell over.
+   */
+  ours: number
   /** Alarms that arrived, and alarms that did not. */
   delivered: number
   undelivered: number
@@ -178,6 +198,7 @@ const EMPTY_ROUND: WatchRound = {
   alarms: [],
   checked: 0,
   silent: 0,
+  ours: 0,
   delivered: 0,
   undelivered: 0,
 }
@@ -197,6 +218,7 @@ export async function watchOnce(deps: WatchDeps): Promise<WatchRound> {
   const alarms: Alarm[] = []
   let checked = 0
   let silent = 0
+  let ours = 0
   let delivered = 0
   let undelivered = 0
   let owners: Array<{ ownerId: string; bots: string[] }> = []
@@ -222,7 +244,10 @@ export async function watchOnce(deps: WatchDeps): Promise<WatchRound> {
         .catch(() => null)) ?? { ...FRESH }
       const { state, alarm } = decide(previous, h, ownerId, now)
       checked++
-      if (!h.alive) silent++
+      if (!h.alive) {
+        silent++
+        if (h.side === 'ours') ours++
+      }
 
       /*
        * DELIVER BEFORE RECORDING "TOLD". The order is the whole point: an
@@ -244,5 +269,5 @@ export async function watchOnce(deps: WatchDeps): Promise<WatchRound> {
       await deps.writeState(ownerId, h.bot, toWrite).catch(() => {})
     }
   }
-  return { alarms, checked, silent, delivered, undelivered }
+  return { alarms, checked, silent, ours, delivered, undelivered }
 }

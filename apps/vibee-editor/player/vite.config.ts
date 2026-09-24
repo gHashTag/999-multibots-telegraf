@@ -4,6 +4,7 @@ import { tamaguiPlugin } from '@tamagui/vite-plugin'
 import path from 'path'
 import type { PluginOption } from 'vite'
 import type { Plugin } from 'vite'
+import { apiPreconnectOrigin } from './src/lib/apiOrigin'
 
 // Replicate API proxy plugin
 function replicatePlugin(): Plugin {
@@ -163,6 +164,46 @@ function вырезатьПодставнойTelegram(): PluginOption {
   }
 }
 
+/**
+ * OPEN THE CONNECTION TO THE API WHILE THE BUNDLE IS STILL DOWNLOADING.
+ *
+ * Measured 2026-09-24: the render's origin costs 82 ms of DNS and 198 ms of TLS,
+ * and none of it starts until the first API call -- which cannot happen until
+ * the HTML, the main bundle and the route chunk have arrived. This tag moves
+ * that handshake to the top of the page.
+ *
+ * The host comes from VITE_API_URL, the same value the app itself uses, so
+ * there is no second place to get it wrong (src/lib/apiOrigin.ts). When the API
+ * is same-origin -- which is where the one-service question leads -- the helper
+ * returns null and the tag is simply not written.
+ */
+function preconnectToApi(): Plugin {
+  let origin: string | null = null
+  return {
+    name: 'preconnect-to-api',
+    configResolved(config) {
+      origin = apiPreconnectOrigin(config.env?.VITE_API_URL as string)
+    },
+    transformIndexHtml() {
+      if (!origin) return []
+      return [
+        {
+          tag: 'link',
+          attrs: { rel: 'preconnect', href: origin, crossorigin: '' },
+          injectTo: 'head-prepend',
+        },
+        // Old browsers and a few in-app webviews ignore preconnect; the lookup
+        // alone is 82 ms of the 280 and costs nothing to ask for twice.
+        {
+          tag: 'link',
+          attrs: { rel: 'dns-prefetch', href: origin },
+          injectTo: 'head-prepend',
+        },
+      ]
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [
     вырезатьПодставнойTelegram(),
@@ -173,6 +214,7 @@ export default defineConfig({
       disableExtraction: true,
     }),
     replicatePlugin(),
+    preconnectToApi(),
   ],
   resolve: {
     alias: {
