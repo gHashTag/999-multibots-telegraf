@@ -23,6 +23,7 @@ import type {
 import { useLanguage } from '@/hooks/useLanguage'
 import { ClientAside } from '@/components/Crm/ClientAside'
 import { AutoChip } from '@/components/Crm/AutoChip'
+import { QueenPanel } from '@/components/Crm/QueenPanel'
 import { useTokenTopUp } from '@/hooks/useTokenTopUp'
 import { Header } from '@/components/Header'
 import { ChatAssets } from '@/components/Chat/ChatAssets'
@@ -245,6 +246,8 @@ function ChatThread({
   const [topUp, setTopUp] = useState(false)
   // Narrow mode: the client's card as a sheet over the conversation.
   const [asideOpen, setAsideOpen] = useState(false)
+  // The Queen's panel: a column on a wide screen, a sheet otherwise.
+  const [queenOpen, setQueenOpen] = useState(false)
   /*
    * The balance and the buy flow moved to useTokenTopUp so the PROFILE can use
    * the same one. A second copy is how one of the two quietly stops verifying.
@@ -483,109 +486,127 @@ function ChatThread({
           не повторяем, иначе название дублируется на экране дважды. */}
           {/* The greeting lives in the list as the agent's first message and
           scrolls away with it; the toolbar keeps only the two controls. */}
-          {client ? (
-            <nav
-              className="chat-client"
-              aria-label={t('crm.client.chat.title', { id: client })}
-            >
-              <Link to={`/crm/${client}`} className="chat-client__back">
-                ← {t('crm.client.chat.back')}
-              </Link>
-              <span className="chat-client__title">
-                {t('crm.client.chat.title', { id: client })}
-              </span>
-              {/* Narrow screens: the card opens as a sheet. Hidden in wide mode,
-              where it is always beside the conversation. */}
-              <button
-                type="button"
-                className="chat-client__card"
-                aria-expanded={asideOpen}
-                onClick={() => setAsideOpen(v => !v)}
+          {/*
+            ONE TOP ROW (owner, 2026-09-24: "too much empty space at the top").
+            The way back, the title and the controls used to be two rows with
+            their own paddings; they share one now.
+          */}
+          <div className="chat-topbar">
+            {client ? (
+              <nav
+                className="chat-client"
+                aria-label={t('crm.client.chat.title', { id: client })}
               >
-                {t('crm.aside.cardButton')}
-              </button>
-            </nav>
-          ) : null}
-          {marketplaceAgent ? (
-            <nav className="chat-specialist" aria-label="Блогер T27">
-              <Link to="/agents" className="chat-specialist__back">
-                {'← Биржа агентов'}
-              </Link>
-              <span>
-                <i /> {'Блогер · работает'}
-              </span>
-            </nav>
-          ) : null}
-          <div className="chat-toolbar">
-            {/* Переписка теперь переживает уход со страницы — значит нужен и
+                <Link to={`/crm/${client}`} className="chat-client__back">
+                  ← {t('crm.client.chat.back')}
+                </Link>
+                <span className="chat-client__title">
+                  {t('crm.client.chat.title', { id: client })}
+                </span>
+                {/* Narrow screens: the card opens as a sheet. Hidden in wide mode,
+              where it is always beside the conversation. */}
+                <button
+                  type="button"
+                  className="chat-client__card"
+                  aria-expanded={asideOpen}
+                  onClick={() => setAsideOpen(v => !v)}
+                >
+                  {t('crm.aside.cardButton')}
+                </button>
+                <button
+                  type="button"
+                  className="chat-client__card chat-client__queen"
+                  aria-expanded={queenOpen}
+                  onClick={() => setQueenOpen(v => !v)}
+                >
+                  ♛ {t('queen.button')}
+                </button>
+              </nav>
+            ) : null}
+            {marketplaceAgent ? (
+              <nav className="chat-specialist" aria-label="Блогер T27">
+                <Link to="/agents" className="chat-specialist__back">
+                  {'← Биржа агентов'}
+                </Link>
+                <span>
+                  <i /> {'Блогер · работает'}
+                </span>
+              </nav>
+            ) : null}
+            <div className="chat-toolbar">
+              {/* Переписка теперь переживает уход со страницы — значит нужен и
           способ её закончить. Без этой кнопки старый разговор оставался
           бы на экране навсегда. */}
-            {messages.length > 1 && (
-              <button
-                className="chat-reset"
-                onClick={() => {
-                  /*
-                   * «Начать заново» ТЕПЕРЬ ЧИСТИТ И СЕРВЕР.
-                   *
-                   * Раньше кнопка стирала только память браузера, а общий
-                   * разговор оставался на сервере — человек нажимал «новый», а
-                   * агент продолжал помнить всё прошлое. Обещание, которого
-                   * интерфейс не выполнял; с появлением общей памяти оно стало
-                   * ещё заметнее: разговор возвращался при следующем открытии.
-                   *
-                   * Экран очищаем СРАЗУ, не дожидаясь сети: нажатие должно
-                   * ощущаться мгновенно. Отказ сервера при этом не молчаливый —
-                   * он виден в консоли, а следующий заход покажет, что история
-                   * вернулась, и это честнее, чем ложное «очищено».
-                   */
-                  // In a client thread this clears THAT thread only: the
-                  // `?client=` names it, and the server never touches the self
-                  // thread on a scoped delete.
-                  // The queued lines belonged to the conversation being ended.
-                  queued.forEach(q => removeQueued(q.id))
-                  setMessages([welcome])
-                  setInput('')
-                  setAttachments([])
-                  fetch(
-                    `${API_BASE}/api/agent/history${threadQuery(client, marketplaceAgent, true)}`,
-                    {
-                      method: 'DELETE',
-                      headers: authHeaders(),
-                    }
-                  ).catch(e => console.error('[chat] очистка на сервере:', e))
-                }}
-              >
-                Новый разговор
-              </button>
-            )}
-            {/* AUTO, beside the conversation that prepares the cards: the agent
+              {messages.length > 1 && (
+                <button
+                  className="chat-reset"
+                  onClick={() => {
+                    /*
+                     * «Начать заново» ТЕПЕРЬ ЧИСТИТ И СЕРВЕР.
+                     *
+                     * Раньше кнопка стирала только память браузера, а общий
+                     * разговор оставался на сервере — человек нажимал «новый», а
+                     * агент продолжал помнить всё прошлое. Обещание, которого
+                     * интерфейс не выполнял; с появлением общей памяти оно стало
+                     * ещё заметнее: разговор возвращался при следующем открытии.
+                     *
+                     * Экран очищаем СРАЗУ, не дожидаясь сети: нажатие должно
+                     * ощущаться мгновенно. Отказ сервера при этом не молчаливый —
+                     * он виден в консоли, а следующий заход покажет, что история
+                     * вернулась, и это честнее, чем ложное «очищено».
+                     */
+                    // In a client thread this clears THAT thread only: the
+                    // `?client=` names it, and the server never touches the self
+                    // thread on a scoped delete.
+                    // The queued lines belonged to the conversation being ended.
+                    queued.forEach(q => removeQueued(q.id))
+                    setMessages([welcome])
+                    setInput('')
+                    setAttachments([])
+                    fetch(
+                      `${API_BASE}/api/agent/history${threadQuery(client, marketplaceAgent, true)}`,
+                      {
+                        method: 'DELETE',
+                        headers: authHeaders(),
+                      }
+                    ).catch(e => console.error('[chat] очистка на сервере:', e))
+                  }}
+                >
+                  Новый разговор
+                </button>
+              )}
+              {/* AUTO, beside the conversation that prepares the cards: the agent
                 may not flip it, so the owner's button is here, not a screen away. */}
-            <AutoChip />
-            {tokens !== null && (
-              <button className="chat-tokens" onClick={() => setTopUp(v => !v)}>
-                💰 {tokens} токенов · пополнить
-              </button>
-            )}
-            {topUp && (
-              <div className="chat-topup">
-                {/* Якорная психология (2026): большой пакет первым — средний
+              <AutoChip />
+              {tokens !== null && (
+                <button
+                  className="chat-tokens"
+                  onClick={() => setTopUp(v => !v)}
+                >
+                  💰 {tokens} токенов · пополнить
+                </button>
+              )}
+              {topUp && (
+                <div className="chat-topup">
+                  {/* Якорная психология (2026): большой пакет первым — средний
               на его фоне выглядит выгодным. 150: 1.17⭐/ток против 1.5
               у десятки — честный «выгоднее всех», не маркетинговый. */}
-                {[150, 50, 10].map(p => (
-                  <button
-                    key={p}
-                    className="chat-topup__pack"
-                    onClick={() => buy(String(p))}
-                  >
-                    {p} токенов{p === 150 ? ' · выгоднее всех' : ''}
-                    <span>
-                      {p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}
-                    </span>
-                  </button>
-                ))}
-                {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
-              </div>
-            )}
+                  {[150, 50, 10].map(p => (
+                    <button
+                      key={p}
+                      className="chat-topup__pack"
+                      onClick={() => buy(String(p))}
+                    >
+                      {p} токенов{p === 150 ? ' · выгоднее всех' : ''}
+                      <span>
+                        {p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}
+                      </span>
+                    </button>
+                  ))}
+                  {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
+                </div>
+              )}
+            </div>
           </div>
           <div className="chat-container" ref={scrollRef}>
             <div className="chat-messages">
@@ -855,6 +876,21 @@ function ChatThread({
               askDisabled={busy || uploading}
               open={asideOpen}
               onClose={() => setAsideOpen(false)}
+            />
+            {queenOpen ? (
+              <div
+                className="chat-aside-backdrop chat-queen-backdrop"
+                aria-hidden="true"
+                onClick={() => setQueenOpen(false)}
+              />
+            ) : null}
+            {/* The Queen supervises this client beside the agent
+                (QueenPanel.tsx); her tasks land in the agent's queue. */}
+            <QueenPanel
+              key={`queen-${client}`}
+              client={client}
+              open={queenOpen}
+              onClose={() => setQueenOpen(false)}
             />
           </>
         ) : null}

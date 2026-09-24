@@ -130,7 +130,7 @@ describe('the business DM is wired to it', () => {
     expect(src).toMatch(
       /const clientBrief =\s*\n?\s*opts\?\.surface === 'business'/
     )
-    expect(src).toMatch(/dmHistory \+ clientBrief \+ clientContext/)
+    expect(src).toMatch(/dmHistory\s*\+\s*clientBrief\s*\+\s*clientContext/)
     // And the workspace block is not a second copy of the same reader.
     expect(src).toMatch(
       /const brief = await clientBriefBlock\(ctx, owner, lead/
