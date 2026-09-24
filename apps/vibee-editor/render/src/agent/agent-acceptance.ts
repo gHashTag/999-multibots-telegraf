@@ -117,6 +117,69 @@ async function ensureTable(q: Queryable): Promise<void> {
   tableReady = true
 }
 
+/**
+ * HIRE BY EVIDENCE (owner, 2026-09-24: all three next steps). An agent the
+ * catalogue still calls "training" opens to everybody once it has passed
+ * the daily check this many CALENDAR DAYS IN A ROW (UTC).
+ */
+export const STREAK_DAYS = 7
+
+/** A streak older than this is not current: the checks stopped. */
+export const STREAK_FRESH_MS = 48 * 3_600_000
+
+/**
+ * Consecutive passing days, ending with the newest day that has a verdict.
+ * A day passes only if EVERY verdict that day passed; a day with no verdict
+ * breaks the run (an outage is not evidence); a newest verdict older than
+ * STREAK_FRESH_MS means 0. Pure.
+ */
+export function streakOf(
+  rows: ReadonlyArray<{ at: string | Date; pass: boolean }>,
+  nowMs: number
+): number {
+  const byDay = new Map<string, boolean>()
+  let newest = 0
+  for (const r of rows) {
+    const t = new Date(r.at).getTime()
+    if (!Number.isFinite(t)) continue
+    newest = Math.max(newest, t)
+    const day = new Date(t).toISOString().slice(0, 10)
+    byDay.set(day, (byDay.get(day) ?? true) && r.pass === true)
+  }
+  if (!newest || nowMs - newest > STREAK_FRESH_MS) return 0
+  let streak = 0
+  const cursor = new Date(new Date(newest).toISOString().slice(0, 10))
+  for (;;) {
+    if (byDay.get(cursor.toISOString().slice(0, 10)) !== true) break
+    streak += 1
+    cursor.setUTCDate(cursor.getUTCDate() - 1)
+  }
+  return streak
+}
+
+/** Every agent's current streak, from the last two weeks of verdicts. */
+export async function streaks(
+  q: Queryable,
+  nowMs = Date.now()
+): Promise<Record<string, number>> {
+  await ensureTable(q)
+  const { rows } = await q.query(
+    `SELECT agent, at, pass FROM agent_acceptance
+      WHERE at > now() - interval '14 days'
+      ORDER BY agent, at`
+  )
+  const by = new Map<string, Array<{ at: string; pass: boolean }>>()
+  for (const r of rows) {
+    const a = String(r.agent)
+    const list = by.get(a) ?? []
+    list.push({ at: String(r.at), pass: r.pass === true })
+    by.set(a, list)
+  }
+  const out: Record<string, number> = {}
+  for (const [a, list] of by) out[a] = streakOf(list, nowMs)
+  return out
+}
+
 /** The newest verdict of every agent that was ever checked. */
 export async function latestVerdicts(q: Queryable): Promise<LatestVerdict[]> {
   await ensureTable(q)
@@ -155,11 +218,19 @@ export async function handleAcceptance(
 
   if (method === 'GET') {
     try {
+      const pool = await deps.getPool()
+      const latest = await latestVerdicts(pool)
+      const days = await streaks(pool)
       return {
         status: 200,
         body: {
           ok: true,
-          verdicts: await latestVerdicts(await deps.getPool()),
+          streakDays: STREAK_DAYS,
+          verdicts: latest.map(v => ({
+            ...v,
+            streak: days[v.agent] ?? 0,
+            earned: (days[v.agent] ?? 0) >= STREAK_DAYS,
+          })),
         },
       }
     } catch {

@@ -135,25 +135,30 @@ export function everyMs(env: NodeJS.ProcessEnv = process.env): number {
 }
 
 /**
- * Is a run due? When nothing was ever recorded, or the newest verdict is
- * older than the period. Read from the table itself, so a redeploy neither
- * skips a day nor runs twice. Pure.
+ * WHICH AGENTS ARE DUE, EACH ON ITS OWN. An agent is due when it was never
+ * checked, its newest verdict is older than the period, or that verdict was
+ * made under another canary table (a stricter rule makes it stale).
+ *
+ * Per agent, not per run, because a run is five turns long and main is
+ * busy: a deploy in the middle of a run used to lose every verdict of it,
+ * and a run that restarts from the top after each deploy may never finish.
+ * Now each verdict is recorded as it is made, and the next start picks up
+ * only the agents still due. Pure.
  */
-export function isDue(
+export function dueCanaries(
   latest: readonly LatestVerdict[],
   nowMs: number,
   periodMs: number,
-  /*
-   * A CHANGED TABLE MAKES EVERY VERDICT STALE. Without this, a stricter
-   * canary deployed at 08:30 would leave the card showing the morning's
-   * PASS under the old, weaker rule for a whole day.
-   */
-  hash?: string
-): boolean {
-  if (!latest.length) return true
-  if (hash && latest.some(v => v.canaries !== hash)) return true
-  const newest = Math.max(...latest.map(v => Date.parse(v.at) || 0))
-  return nowMs - newest >= periodMs
+  hash?: string,
+  canaries: readonly Canary[] = CANARIES
+): Canary[] {
+  const byAgent = new Map(latest.map(v => [v.agent, v]))
+  return canaries.filter(c => {
+    const v = byAgent.get(c.id)
+    if (!v) return true
+    if (hash && v.canaries !== hash) return true
+    return nowMs - (Date.parse(v.at) || 0) >= periodMs
+  })
 }
 
 /** The words for each code, for the owner. */
@@ -207,11 +212,14 @@ export interface RunDeps {
  * in a daily check). A canary that throws is a failed verdict, never a
  * crashed run. Returns the verdicts.
  */
-export async function runAcceptance(d: RunDeps): Promise<Verdict[]> {
+export async function runAcceptance(
+  d: RunDeps,
+  canaries: readonly Canary[] = CANARIES
+): Promise<Verdict[]> {
   const before = await d.previous().catch(() => [] as LatestVerdict[])
   const verdicts: Verdict[] = []
   const misses: Record<string, string[]> = {}
-  for (const c of CANARIES) {
+  for (const c of canaries) {
     const events: Array<Record<string, unknown>> = []
     try {
       for await (const ev of d.turn(c)) events.push(ev)
@@ -220,11 +228,14 @@ export async function runAcceptance(d: RunDeps): Promise<Verdict[]> {
       events.push({ ['тип']: 'ошибка', ['текст']: String(e).slice(0, 120) }) // cyrillic-ok: event names
     }
     const seen = seenOf(events)
-    verdicts.push(verdictFor(c, seen))
+    const verdict = verdictFor(c, seen)
+    verdicts.push(verdict)
+    /* Kept at once: a deploy during the next turn must not lose this one. */
+    await d.record([verdict]).catch(() => {})
     const missed = seen.text.trim() ? answerMisses(c.answer, seen.text) : []
     if (missed.length) misses[c.id] = missed
   }
-  await d.record(verdicts)
+  if (!verdicts.length) return verdicts
   const said = alertText(verdicts, before, misses)
   if (said) await d.tell(said).catch(() => {})
   return verdicts
