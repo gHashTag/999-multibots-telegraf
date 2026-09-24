@@ -57,6 +57,7 @@
 
 import { telegramApiFor } from './telegram-api'
 import { appLinkForToken } from './app-links'
+import { tagged } from './agent/utm'
 
 /**
  * Structural, deliberately not `import type { Pool } from 'pg'` -- the same
@@ -437,10 +438,14 @@ export async function deliverToChannel(opts: {
     }
 
     // Asked once per run: getMe of the posting bot, on its own Bot API host.
-    const feedLink = await (opts.appLink || appLinkForToken)(
-      cfg.token,
-      'feed'
-    ).catch(() => '')
+    // The channel rides in /start (utm.ts taggedBotLink): a reader who came
+    // from the channel is counted as `telegram` when the bot starts.
+    const feedLink = tagged(
+      await (opts.appLink || appLinkForToken)(cfg.token, 'feed').catch(
+        () => ''
+      ),
+      'telegram'
+    )
 
     let sent = 0
     let failed = 0

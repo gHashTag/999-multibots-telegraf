@@ -47,3 +47,38 @@ describe('tagging our own links', () => {
     expect(t.searchParams.has('utm_campaign')).toBe(false)
   })
 })
+
+describe('a link into our bot carries its channel in /start', () => {
+  it('the channel rides after a double underscore, within Telegram’s 64', async () => {
+    const { tagged, START_PAYLOAD_MAX } = await import('./src/agent/utm')
+    expect(tagged('https://t.me/t27ai_bot?start=app_feed', 'telegram')).toBe(
+      'https://t.me/t27ai_bot?start=app_feed__telegram'
+    )
+    expect(tagged('https://t.me/t27ai_bot?start=club', 'x')).toBe(
+      'https://t.me/t27ai_bot?start=club__x'
+    )
+    const long = `app_${'a'.repeat(START_PAYLOAD_MAX - 6)}`
+    expect(tagged(`https://t.me/b_bot?start=${long}`, 'linkedin')).toBe(
+      `https://t.me/b_bot?start=${long}`
+    )
+  })
+
+  it('never touches a payload that is not ours, or already tagged', async () => {
+    const { tagged } = await import('./src/agent/utm')
+    for (const url of [
+      'https://t.me/someone_else_bot?start=ref42', // their payload
+      'https://t.me/t27ai_bot?start=144022504', // a referral code
+      'https://t.me/t27ai_bot?start=app_feed__x', // already carries a channel
+      'https://t.me/t27ai_bot', // no payload: not ours to invent
+      'https://t.me/t27ai_bot?startapp=feed', // Mini App param, not /start
+      'https://example.com/?start=app_feed', // not Telegram
+    ])
+      expect(tagged(url, 'reddit'), url).toBe(url)
+  })
+
+  it('the tag keeps only what a /start payload may hold', async () => {
+    const { startTag } = await import('./src/agent/utm')
+    expect(startTag('Tele.Gram_1')).toBe('tele-gram-1')
+    expect(startTag('x')).toMatch(/^[a-z0-9-]+$/)
+  })
+})

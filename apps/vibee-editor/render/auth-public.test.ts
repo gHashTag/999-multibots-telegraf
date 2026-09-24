@@ -257,10 +257,20 @@ describe('the public counters', () => {
     ).toBe(false)
   })
 
-  it('an arrival is counted without a signature', async () => {
+  it('an arrival is counted without a signature; a bot start is not', async () => {
     const { isPublic } = await import('./auth')
     const { TRAFFIC_PATHS } = await import('./src/agent/traffic')
-    for (const p of TRAFFIC_PATHS)
-      expect(isPublic({ url: p, method: 'POST' } as never), p).toBe(true)
+    /* Every traffic path is named here, so a new one is a decision. */
+    expect([...TRAFFIC_PATHS].sort()).toEqual([
+      '/api/traffic/arrival',
+      '/api/traffic/start',
+    ])
+    expect(
+      isPublic({ url: '/api/traffic/arrival', method: 'POST' } as never)
+    ).toBe(true)
+    /* The bot process sends starts with the service key; pages never do. */
+    expect(
+      isPublic({ url: '/api/traffic/start', method: 'POST' } as never)
+    ).toBe(false)
   })
 })

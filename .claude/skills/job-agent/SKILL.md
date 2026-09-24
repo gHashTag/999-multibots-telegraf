@@ -241,3 +241,27 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
   red tests on main (a real id in `job-hunters-history.test.ts`; the
   `dm-context` shape check after `specialistSkills` was appended). Fixed in
   tick 8.
+
+## Tick 9 (24.09.2026): where people come from, bot starts included
+
+- **Competitors**: Plausible shows Sources / Campaigns / Goals with a
+  conversion rate per source and no personal tracking; for Telegram bots the
+  `?start=` payload (64 chars, `[A-Za-z0-9_-]`) is the only way to know a
+  source (Graspil). Our gaps were: bot starts not counted at all, no
+  visit -> start view, numbers only in `tri`.
+- **Bot starts by channel**: `tagged()` also tags links into our bot
+  (`?start=app_feed__telegram`); the legacy bot's `/start` cuts the channel
+  first (`splitStartSource`) and reports it (`src/services/trafficStart.ts`,
+  service key, no person) to `POST /api/traffic/start` -> `traffic_starts`.
+  First real tagged bot link: the "see in the feed" link of every channel
+  post (`channel-delivery.ts`).
+- **The owner's screen**: CRM -> "Откуда люди" (`components/Crm/TrafficPanel`),
+  7/30 days, per channel visits and bot starts. Hidden when the tool refuses
+  (another owner's CRM), "could not load" when the server is away
+  (`Reached.refused` in `lib/crm.ts`).
+- **`tri tag URL channel [campaign]`** -- the tagged link for a hand-made
+  post; `tri traffic` shows visits and starts per source.
+- Red on clean main, not ours (checked with `git stash -u`): render
+  `isolated-reader` (task queued), root
+  `aTransientCeilingIsNotAnOutage` "the correspondence import marks
+  success" (2 tests).
