@@ -42,7 +42,9 @@ export default function CrmGroupPage() {
     return (
       <div className="crm">
         <p className="crm__empty">{t('crm.group.badId')}</p>
-        <Link to="/crm">{t('crm.group.back')}</Link>
+        <Link to="/crm" className="crm__back">
+          {t('crm.group.back')}
+        </Link>
       </div>
     )
   }
@@ -53,7 +55,9 @@ export default function CrmGroupPage() {
     <div className="crm">
       <header className="crm__top">
         <h2>{title}</h2>
-        <Link to="/crm">{t('crm.group.back')}</Link>
+        <Link to="/crm" className="crm__back">
+          {t('crm.group.back')}
+        </Link>
       </header>
       <p className="crm__counts">{t('crm.group.readOnly')}</p>
       {/*

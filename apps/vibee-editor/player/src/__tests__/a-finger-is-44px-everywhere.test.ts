@@ -64,6 +64,31 @@ describe('a finger is 44px wherever it is attached', () => {
     }
   })
 
+  it('every way OUT of a screen is finger-sized', () => {
+    /*
+     * Found by re-measuring a week after the first sweep: the client page's
+     * breadcrumb was 20px and the group screen's "back to CRM" was 24 and
+     * carried no class at all. My first sweep had covered /crm and /chat and
+     * never opened /crm/:id -- a target list is only as good as the screens
+     * it was taken on.
+     *
+     * A way back is not decoration: miss it and the person is left on a
+     * screen whose only exit is the tab bar.
+     */
+    const crmClient = read('pages/CrmClient.css')
+    for (const [css, sel] of [
+      [crmClient, '.crm-client__crumb'],
+      [crm, '.crm__back'],
+    ] as const) {
+      const blocks = ruleFor(css, sel)
+      expect(blocks.length, `${sel} must have rules`).toBeGreaterThan(0)
+      expect(
+        blocks[blocks.length - 1]!.includes(TARGET),
+        `${sel} is a way out of a screen and must be finger-sized`
+      ).toBe(true)
+    }
+  })
+
   it('THE TRAP: the LAST rule for the selector is the one with the target', () => {
     /*
      * Same specificity, so the later declaration wins. Written above the base

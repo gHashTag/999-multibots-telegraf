@@ -423,3 +423,22 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/*
+ * THE WAY BACK, AT A SIZE A FINGER CAN HIT.
+ *
+ * Measured at 375px on 25.09.2026, re-checking the CRM after a week of
+ * edits: the group screen's "back to CRM" was 24px and had no class at all,
+ * and the client page's breadcrumb was 20. Both are the ONLY exit from their
+ * screen -- miss one and the person is stuck with the tab bar.
+ *
+ * Coarse pointers only: on a desktop these are quiet links, and a
+ * finger-sized one would shout.
+ */
+@media (pointer: coarse) {
+  .crm__back {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target, 44px);
+  }
+}
