@@ -137,6 +137,50 @@ export async function decide(
   return rows[0] ? (String(rows[0].state) as ApprovalState) : null
 }
 
+/**
+ * THE SAME DECISION, MADE BY THE TOKEN ALONE.
+ *
+ * Owner, 2026-09-24: the two buttons were `url` buttons, so pressing one left
+ * Telegram for the phone's default browser -- where he is not signed in, and
+ * where, on his phone, nothing happened at all. The rule has been written
+ * down since 2026-09-22 and lives two files away (announce.ts: "a web_app
+ * button, NEVER a url one"); the approval flow never got it.
+ *
+ * A callback button carries at most 64 bytes, and an id and a token are 65
+ * together. The token alone is enough and loses nothing: it is 24 random
+ * bytes, it already says WHICH answer (allow or deny), and it was always the
+ * thing that authorised the decision -- the id was only where to look.
+ *
+ * Same single atomic statement as `decideApproval`, same age clause, for the
+ * same reason: an hour-old button that still worked was found in production,
+ * not by a unit test.
+ */
+export async function decideByToken(
+  q: Queryable,
+  token: string,
+  ttlMs = APPROVAL_TTL_MS
+): Promise<{ state: ApprovalState; id: string; telegramId: string } | null> {
+  if (!token) return null
+  const { rows } = await q.query(
+    `UPDATE browser_approvals
+        SET state = CASE WHEN allow_token = $1 THEN 'allowed' ELSE 'denied' END,
+            decided_at = now()
+      WHERE state = 'pending'
+        AND created_at > now() - ($2::bigint * interval '1 millisecond')
+        AND (allow_token = $1 OR deny_token = $1)
+      RETURNING id, telegram_id, state`,
+    [token, ttlMs]
+  )
+  const row = rows[0]
+  return row
+    ? {
+        state: String(row.state) as ApprovalState,
+        id: String(row.id),
+        telegramId: String(row.telegram_id),
+      }
+    : null
+}
+
 export async function readApproval(
   q: Queryable,
   id: string

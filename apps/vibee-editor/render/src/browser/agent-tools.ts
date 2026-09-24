@@ -1139,18 +1139,34 @@ export async function requestPermission(
     newId: newApprovalToken,
     newToken: newApprovalToken, // secret-guard-ok: a generator, not a value
   })
-  const link = (token: string) =>
-    `${approvalBase().replace(/\/+$/, '')}/api/browser/approve` +
-    `?id=${encodeURIComponent(id)}&t=${encodeURIComponent(token)}`
-  await askThePerson(telegramId, what, link(allowToken), link(denyToken))
+  await askThePerson(telegramId, what, allowToken, denyToken)
   return id
 }
+
+/**
+ * THE ANSWER IS A TAP INSIDE TELEGRAM, NOT A LINK OUT OF IT.
+ *
+ * These were `url` buttons until 2026-09-24. A url button leaves Telegram for
+ * the phone's default browser, which holds no session of ours -- so on the
+ * owner's phone the permission simply did not work, twice, and he said so in
+ * those words. The rule was already written down in announce.ts two files
+ * away and this flow never got it: "a web_app button, NEVER a url one".
+ *
+ * Here it is neither: a `web_app` button would open a page, and there is no
+ * page to open -- the answer is one bit. `callback_data` keeps the whole act
+ * inside the chat, and Telegram itself says who pressed.
+ *
+ * The token rides in the data (`bap:<token>`, 36 of the 64 bytes allowed),
+ * and it is the authorisation exactly as it was in the link. The bot holds
+ * nothing between the question and the press.
+ */
+export const APPROVAL_TAP = 'bap:'
 
 async function askThePerson(
   telegramId: string,
   what: string,
-  allowUrl: string,
-  denyUrl: string
+  allowToken: string,
+  denyToken: string
 ): Promise<void> {
   const { sendToTelegram } = await import('../auth/telegram-sender')
   await sendToTelegram(
@@ -1161,8 +1177,14 @@ async function askThePerson(
     {
       inline_keyboard: [
         [
-          { text: '✅ Разрешить', url: allowUrl }, // cyrillic-ok: button label
-          { text: '✋ Отклонить', url: denyUrl }, // cyrillic-ok: button label
+          {
+            text: '✅ Разрешить', // cyrillic-ok: button label
+            callback_data: `${APPROVAL_TAP}${allowToken}`,
+          },
+          {
+            text: '✋ Отклонить', // cyrillic-ok: button label
+            callback_data: `${APPROVAL_TAP}${denyToken}`,
+          },
         ],
       ],
     }
