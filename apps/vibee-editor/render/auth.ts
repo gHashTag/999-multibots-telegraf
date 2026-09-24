@@ -342,7 +342,26 @@ const PUBLIC_EXACT = new Set([
   // GET /api/assets/:id остаётся ЗА гвардом — чтение чужой истории
   // по известному telegram_id отдавать нельзя.
   '/api/assets',
+  /*
+   * A visitor from a tagged link, counted by channel (src/agent/traffic.ts).
+   * Called by the app with a bare fetch and by t27.ai, which has no Telegram
+   * at all -- behind the guard every arrival was a 401 and nothing was ever
+   * counted. The handler keeps no person and limits each address per minute.
+   */
+  '/api/traffic/arrival',
 ])
+
+/*
+ * OPEN FOR READING ONLY, BY EXACT PATH.
+ *
+ * GET /api/agents/acceptance is the verdict on every market card and the
+ * evidence the hire button waits for. The app reads it with a bare fetch, so
+ * behind the guard it answered 401 in production (log 2026-09-24: "no
+ * X-Api-Key and no Telegram initData") and every card showed nothing. Writing
+ * a verdict (POST) stays behind the guard and then a keeper check.
+ */
+const PUBLIC_GET_EXACT = new Set(['/api/agents/acceptance'])
+
 const PUBLIC_PREFIXES = [
   '/renders/',
   '/hls/',
@@ -425,6 +444,7 @@ export function isPublic(req: IncomingMessage): boolean {
   // `true` и до них дело не дошло.
   if (НЕ_ПУБЛИЧНЫЕ.some(p => url === p || url.startsWith(p + '/'))) return false
   if (PUBLIC_EXACT.has(url)) return true
+  if (req.method === 'GET' && PUBLIC_GET_EXACT.has(url)) return true
   if (PUBLIC_PREFIXES.some(p => url.startsWith(p))) return true
   if (req.method === 'GET' && PUBLIC_GET_PREFIXES.some(p => url.startsWith(p)))
     return true

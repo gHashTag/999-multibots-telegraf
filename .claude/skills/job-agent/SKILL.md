@@ -196,3 +196,23 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
 - **Blog traffic is counted on t27.ai** too (gHashTag/trinity #1157,
   `apps/website/src/lib/trafficArrival.ts`): the site reports a tagged visit
   to the same `/api/traffic/arrival`.
+
+## Tick 8 (24.09.2026): two routes that never reached their handler
+
+- **Measured in production**: `🔒 [auth] ОТКАЗ GET /api/agents/acceptance —
+  no X-Api-Key and no Telegram initData`. The verdict endpoint (market card
+  line, the hire-by-evidence gate in the app) and the traffic counter
+  `POST /api/traffic/arrival` (app + t27.ai) sat behind the shared guard in
+  `render/auth.ts`: the app calls both with a bare fetch, t27.ai has no
+  Telegram at all. Every card showed nothing, every arrival was a 401, and
+  the handlers' own tests were green because they call the handler, never
+  the guard.
+- **Fix**: `/api/traffic/arrival` in `PUBLIC_EXACT` (the handler keeps no
+  person and rate-limits per address); `/api/agents/acceptance` in a new
+  `PUBLIC_GET_EXACT` -- read by anybody, exact path, and writing a verdict
+  (POST) still goes through the guard and then the keeper check. Pinned in
+  `auth-public.test.ts` ("the public counters").
+- **`tri reach /path [METHOD]`**: asks `isPublic` whether an unsigned call
+  gets through. Run it for every route a page calls without signing BEFORE
+  shipping -- this is the third time (pair/start, /api/navigation, now these
+  two) a route was written, tested, deployed and answered 401.
