@@ -1,7 +1,15 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
@@ -157,6 +165,24 @@ afterEach(() => {
   host.remove()
   vi.unstubAllGlobals()
 })
+
+/*
+ * THE PAGE IS IMPORTED ONCE, BEFORE ANY TEST IS TIMED.
+ *
+ * Measured 25.09.2026: `import('./Crm')` takes 5.5 SECONDS on this machine --
+ * the module graph, not the rendering. It sat inside `draw()`, so whichever
+ * test drew first paid it out of its own 5 s budget: 4018 ms idle, and over
+ * the budget the moment the machine was busy. The whole file then cascaded,
+ * and the failure count tracked the LOAD rather than the code: 0 failures
+ * alone on an idle machine, 5 sequential, 21 in a parallel full run.
+ *
+ * A suite whose result depends on what else is running is not a gate. The
+ * cost is real and stays; it is paid here, once, in a hook with a budget of
+ * its own, and every test then gets the cached module.
+ */
+beforeAll(async () => {
+  await import('./Crm')
+}, 60_000)
 
 async function draw() {
   const { default: CrmPage } = await import('./Crm')
