@@ -151,3 +151,25 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
   verdict under another table is stale, so editing the table makes the
   daily run due at once. `tri agents` sends the same fingerprint, so a
   manual run under the current table does not trigger another.
+
+## Tick 6 (24.09.2026): hire by evidence, traffic tags, the Brave key
+
+- **Hire by evidence.** A trainee opens to everybody after 7 UTC days in a
+  row on which every daily verdict passed (`streakOf`, `STREAK_DAYS`); a day
+  without a check breaks it, a streak older than 48 h is 0. The gate is
+  `routes.ts earnedAgent`; the card says "N of 7" until then. Flipping the
+  catalogue `status` to `live` is still the owner's word -- evidence only
+  opens the door while the checks keep passing.
+- **The daily run resumes.** Each agent is due on its own (`dueCanaries`),
+  each verdict is kept as it is made, first look 3 min after a start. Why:
+  four deploys in ten minutes kept restarting a 10-minute wait.
+- **Keys never through the chat: `tri secret NAME`** (hidden prompt ->
+  Railway, prints the name and length only). The owner pasted the Brave key
+  into the chat anyway on 24.09; it was set with Railway set-variables, and
+  EVERY search then answered `brave HTTP 422`. The log now carries Brave's
+  own error code (`braveErrorCode`); `SUBSCRIPTION_TOKEN_INVALID` means the
+  value is not a Brave key (Brave keys look like `BSA...`, not 64 hex).
+- **Traffic tags** (epic #2974): `utm.ts tagged()` only on our hosts, query
+  before the `#`; blog-share tags each network; the app reports a tagged
+  visit once (`/api/traffic/arrival`, counts only); `crm_traffic` and
+  `tri traffic` read it.

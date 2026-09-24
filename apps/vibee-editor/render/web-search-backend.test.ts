@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   braveApiSearch,
+  braveErrorCode,
   keylessSearch,
   openrouterSearch,
   pickBackend,
@@ -347,5 +348,43 @@ describe('brave api', () => {
     const r = await webSearch('q', 5, { mode: 'brave', fetchImpl })
     expect(r.hits).toEqual([])
     expect(r.failed.join()).toContain('401')
+  })
+})
+
+describe('a Brave refusal names its reason', () => {
+  it("the log carries Brave's error code, never the key", async () => {
+    const saved = process.env.BRAVE_SEARCH_API_KEY
+    process.env.BRAVE_SEARCH_API_KEY = 'k-secret-value'
+    try {
+      const fetchImpl = (async () =>
+        new Response(
+          JSON.stringify({
+            type: 'ErrorResponse',
+            error: {
+              status: 422,
+              code: 'SUBSCRIPTION_TOKEN_INVALID',
+              detail: 'x',
+            },
+          }),
+          { status: 422 }
+        )) as unknown as typeof fetch
+      const err = await braveApiSearch('q', 5, fetchImpl).catch(e => e as Error)
+      expect(String(err)).toContain('brave HTTP 422 SUBSCRIPTION_TOKEN_INVALID')
+      expect(String(err)).not.toContain('k-secret-value')
+    } finally {
+      if (saved === undefined) delete process.env.BRAVE_SEARCH_API_KEY
+      else process.env.BRAVE_SEARCH_API_KEY = saved
+    }
+  })
+
+  it("a body that is not Brave's shape adds nothing", async () => {
+    expect(
+      await braveErrorCode(new Response('<html>oops</html>', { status: 500 }))
+    ).toBe('')
+    expect(
+      await braveErrorCode(
+        new Response(JSON.stringify({ error: { code: 'bad code; rm -rf' } }))
+      )
+    ).toBe('')
   })
 })
