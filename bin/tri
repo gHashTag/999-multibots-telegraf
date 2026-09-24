@@ -48,6 +48,7 @@ tri — оболочка Trinity S³AI
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
   tri agents [--dry] [ids…]  приёмка всех агентов маркетплейса на владельце (живой сервис)
+  tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
@@ -1423,6 +1424,7 @@ PYEOF
   self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
   rotten) shift; bash "$ROOT/bin/helpers/rotten.sh" "$ROOT" "$@" ;;
   books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;
+  logins) shift; bash "$ROOT/bin/helpers/logins.sh" "$ROOT" "$@" ;;
   alive)  shift; bash "$ROOT/bin/helpers/alive.sh" "$ROOT" "$@" ;;
   vs-main) shift; bash "$ROOT/bin/helpers/vs-main.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
