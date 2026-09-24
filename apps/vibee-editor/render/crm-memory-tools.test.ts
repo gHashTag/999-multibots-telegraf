@@ -1003,3 +1003,158 @@ describe('crm_ingest_chats resume cursor', () => {
     expect(pool.cursors.get(OWNER)).toEqual({ offset_date: 998, offset_id: 3 })
   })
 })
+
+/*
+ * GROUPS ARE READ WHEN ASKED (#2948). A group or supergroup: yes. A channel:
+ * only one the owner runs. Messages keep their author; a PERSON who wrote is
+ * filed under the caller; a bot is not. Without `groups` nothing changes.
+ */
+describe('crm_ingest_chats groups', () => {
+  const id = (s: string) => ({ toString: () => s })
+  function groupClient(o: { floodIn?: string } = {}) {
+    const calls: string[] = []
+    const client = {
+      async getDialogs() {
+        calls.push('getDialogs')
+        return [
+          {
+            id: id('-1001111111111'),
+            isGroup: true,
+            isChannel: true,
+            entity: { title: 'Buyers club', participantsCount: 40 },
+          },
+          {
+            id: id('-1002222222222'),
+            isChannel: true,
+            entity: { title: 'News I read' },
+          },
+          {
+            id: id('-1003333333333'),
+            isChannel: true,
+            entity: { title: 'My channel', creator: true },
+          },
+          {
+            id: id('-4444444'),
+            isGroup: true,
+            entity: { title: 'Left', left: true },
+          },
+        ]
+      },
+      async getMessages(chat: { title?: string }) {
+        const t = chat?.title ?? String(chat)
+        calls.push(`getMessages:${t}`)
+        if (o.floodIn === t) throw new Error('FLOOD_WAIT_20')
+        if (t === 'My channel') return []
+        return [
+          {
+            id: 3,
+            date: 1_758_000_300,
+            message: 'how much for a portrait?',
+            senderId: id('900000301'),
+            sender: { className: 'User', firstName: 'Anna' },
+          },
+          {
+            id: 2,
+            date: 1_758_000_200,
+            message: 'daily digest',
+            senderId: id('900000302'),
+            sender: { className: 'User', bot: true, firstName: 'DigestBot' },
+          },
+          {
+            id: 1,
+            date: 1_758_000_100,
+            out: true,
+            message: 'welcome',
+            senderId: id(OWNER),
+            sender: { className: 'User', self: true },
+          },
+        ]
+      },
+      async disconnect() {
+        calls.push('disconnect')
+      },
+    }
+    return { client, calls }
+  }
+
+  it('without `groups` every group and channel is skipped, as before', async () => {
+    const { client, calls } = groupClient()
+    const { ingest } = await tools(client as never)
+    const pool = fakePool()
+    const r: any = await ingest.handler({ limit: 10 }, ctxFor(OWNER, pool))
+    expect(r.groups).toBe(0)
+    expect(calls.filter(c => c.startsWith('getMessages'))).toEqual([])
+    expect(pool.queries.some(q => /crm_group/.test(q.sql))).toBe(false)
+  })
+
+  it('with `groups`: groups and OWN channels only; authors kept; people filed under the caller', async () => {
+    const { client, calls } = groupClient()
+    const { ingest } = await tools(client as never)
+    const pool = fakePool()
+    const r: any = await ingest.handler(
+      { limit: 10, groups: true },
+      ctxFor(OWNER, pool)
+    )
+    expect(calls.filter(c => c.startsWith('getMessages'))).toEqual([
+      'getMessages:Buyers club',
+      'getMessages:My channel',
+    ])
+    expect(r.groups).toBe(2)
+    const groups = pool.queries.filter(q =>
+      q.sql.startsWith('INSERT INTO crm_groups')
+    )
+    expect(groups.map(q => [q.params[0], q.params[1], q.params[2]])).toEqual([
+      [OWNER, '-1001111111111', 'group'],
+      [OWNER, '-1003333333333', 'channel'],
+    ])
+    const msgs = pool.queries.find(q =>
+      q.sql.startsWith('INSERT INTO crm_group_messages')
+    )!
+    // (owner, chat, msg_id, sender_id, at, out, text) per row
+    expect(msgs.params.slice(0, 4)).toEqual([
+      OWNER,
+      '-1001111111111',
+      3,
+      '900000301',
+    ])
+    const people = pool.queries.filter(q =>
+      q.sql.startsWith('INSERT INTO crm_people')
+    )
+    expect(people.map(q => [q.params[0], q.params[1]])).toEqual([
+      [OWNER, '900000301'],
+    ])
+    expect(r.group_members).toBe(1)
+    expect(calls.at(-1)).toBe('disconnect')
+  })
+
+  it('a FLOOD_WAIT inside a group stops the walk and says where', async () => {
+    const { client } = groupClient({ floodIn: 'Buyers club' })
+    const { ingest } = await tools(client as never)
+    const r: any = await ingest.handler(
+      { limit: 10, groups: true },
+      ctxFor(OWNER, fakePool())
+    )
+    expect(r.stopped).toMatch(/-1001111111111: .*FLOOD_WAIT_20/)
+    expect(r.groups).toBe(0)
+  })
+
+  it('groupKindOf: groups yes, own channels yes, read-only channels, left and people no', async () => {
+    const { groupKindOf } = await import('./src/agent/crm-groups')
+    expect(groupKindOf({ id: id('-123456'), isGroup: true })).toBe('group')
+    expect(
+      groupKindOf({ id: id('-1009999999'), isChannel: true, entity: {} })
+    ).toBeNull()
+    expect(
+      groupKindOf({
+        id: id('-1009999999'),
+        isChannel: true,
+        entity: { adminRights: {} },
+      })
+    ).toBe('channel')
+    expect(
+      groupKindOf({ id: id('-123456'), isGroup: true, entity: { left: true } })
+    ).toBeNull()
+    expect(groupKindOf({ id: id('900000001'), isUser: true })).toBeNull()
+    expect(groupKindOf({ id: id('123456'), isGroup: true })).toBeNull()
+  })
+})
