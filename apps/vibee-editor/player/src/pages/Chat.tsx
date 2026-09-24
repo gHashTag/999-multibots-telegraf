@@ -2,7 +2,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
 import { agentMessagesAtomFor, agentDraftAtom } from '@/atoms/agentChat'
-import { sendToAgent, agentBusyAtom, isAgentBusy } from '@/lib/agentStream'
+import {
+  sendOrQueue,
+  agentBusyAtom,
+  agentQueueAtom,
+  isAgentBusy,
+  removeQueued,
+} from '@/lib/agentStream'
 import {
   shouldAdoptHistory,
   adoptHistory,
@@ -210,6 +216,12 @@ function ChatThread({
   )
   // Занятость — в атоме: она принадлежит разговору, а не странице.
   const busy = useAtomValue(agentBusyAtom)
+  // Only this thread's queued lines: a queue item remembers its thread.
+  const queued = useAtomValue(agentQueueAtom).filter(
+    q =>
+      (q.options.client ?? null) === client &&
+      (q.options.agent ?? null) === marketplaceAgent
+  )
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [topUp, setTopUp] = useState(false)
   // Narrow mode: the client's card as a sheet over the conversation.
@@ -340,7 +352,9 @@ function ChatThread({
   const send = useCallback(
     (text: string) => {
       if ((!text.trim() && attachments.length === 0) || uploading) return
-      void sendToAgent(text, attachments, {
+      // Busy is not a reason to refuse: the line waits in the queue and
+      // leaves when the answer in progress has ended (lib/agentStream.ts).
+      sendOrQueue(text, attachments, {
         client,
         agent: marketplaceAgent,
       })
@@ -508,6 +522,8 @@ function ChatThread({
                   // In a client thread this clears THAT thread only: the
                   // `?client=` names it, and the server never touches the self
                   // thread on a scoped delete.
+                  // The queued lines belonged to the conversation being ended.
+                  queued.forEach(q => removeQueued(q.id))
                   setMessages([welcome])
                   setInput('')
                   setAttachments([])
@@ -692,6 +708,27 @@ function ChatThread({
                 ) : null}
               </div>
             ) : null}
+            {queued.length > 0 ? (
+              <ol className="chat-queue" aria-label={t('chat.queue.title')}>
+                {queued.map((q, i) => (
+                  <li key={q.id} className="chat-queue__item">
+                    <span className="chat-queue__n">{i + 1}</span>
+                    <span className="chat-queue__text">
+                      {q.text || q.attachments.map(a => a.name).join(', ')}
+                    </span>
+                    <button
+                      type="button"
+                      className="chat-queue__drop"
+                      aria-label={t('chat.queue.remove')}
+                      onClick={() => removeQueued(q.id)}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+                <li className="chat-queue__hint">{t('chat.queue.hint')}</li>
+              </ol>
+            ) : null}
             <div className="chat-input-container">
               {/*
                * ANY FILE, NOT ONLY MEDIA (2026-09-22). The picker used to accept
@@ -714,7 +751,7 @@ function ChatThread({
                 className="attach-btn"
                 aria-label={t('chat.attachAny')}
                 title={t('chat.attachAny')}
-                disabled={busy || uploading || attachments.length >= 4}
+                disabled={uploading || attachments.length >= 4}
                 onClick={() => fileInputRef.current?.click()}
               >
                 {uploading ? '…' : '+'}
@@ -725,7 +762,6 @@ function ChatThread({
                 data-ai="off"
                 placeholder={t('chat.messagePlaceholder')}
                 value={input}
-                disabled={busy}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && send(input)}
                 onFocus={() => {
@@ -741,12 +777,10 @@ function ChatThread({
                 className="send-btn"
                 onClick={() => send(input)}
                 disabled={
-                  busy ||
-                  uploading ||
-                  (!input.trim() && attachments.length === 0)
+                  uploading || (!input.trim() && attachments.length === 0)
                 }
               >
-                {busy ? '…' : t('chat.send')}
+                {busy ? t('chat.queue.add') : t('chat.send')}
               </button>
             </div>
           </div>

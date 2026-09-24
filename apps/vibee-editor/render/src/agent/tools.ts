@@ -191,7 +191,7 @@ async function ownerAvatarUrl(ctx: any): Promise<string> {
 }
 
 /** Re-publish image bytes on our own S3; '' when the upload is refused. */
-async function publishImageBytes(
+export async function publishImageBytes(
   bytes: Buffer,
   contentType: string,
   filename: string
@@ -950,6 +950,7 @@ import { CRM_AGENT_LINK_TOOLS } from './crm-agent-link-tool'
 import { CRM_DUET_TOOLS } from './crm-duet-tool'
 import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
 import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
+import { CRM_AVATAR_TOOLS } from './crm-avatars'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
@@ -3148,6 +3149,7 @@ TOOLS.push(...CRM_DUET_TOOLS)
 TOOLS.push(...CRM_CLIENT_TOOLS)
 // The per-client workspace reads: content plan and the client list (crm-client-workspace-tools.ts).
 TOOLS.push(...CRM_CLIENT_WORKSPACE_TOOLS)
+TOOLS.push(...CRM_AVATAR_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project
@@ -3319,7 +3321,7 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
@@ -3384,6 +3386,12 @@ export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
   'autopilot_set',
   /* Picking whom AUTO may write to is the same decision, one person at a time. */
   'autopilot_lead',
+  /*
+   * Opens the owner's Telegram session and walks up to 30 people. The CRM
+   * screen calls it to draw faces; a model turn has no reason to, and a
+   * sentence in a client's message must not be able to loop it.
+   */
+  'crm_client_avatars',
 ])
 
 let compactWarned = false
