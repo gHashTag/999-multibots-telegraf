@@ -23,6 +23,7 @@ import {
   reviewedKieModel,
   РАЗРЕШЕНИЕ_ВИДЕО,
   kieInputFor,
+  lipsyncResolutionFor,
 } from './src/agent/kie-web-provider'
 import {
   downloadBoundedMediaToFile,
@@ -5620,31 +5621,26 @@ const server = createServer(async (req, res) => {
          * туда не пропустят, а значит вызывающий не выберет, за что платить.
          */
         /*
-         * `veed/fabric-1` УБРАН — он не мог быть выбран никогда.
+         * `veed/fabric-1` IS BACK, AND WHY IT WAS OUT. It was removed because
+         * it could never be chosen: admission drops every model KIE names no
+         * cost for, and the veed family is not on KIE's price list at all.
+         * On 2026-09-24 the owner named its cost -- 18 credits a second at
+         * 720p (COST_OUTSIDE_KIE_PRICE_LIST_USD in billing-shared.ts) -- so it
+         * now passes the same admission as the rest, at 36 tokens a second,
+         * and is sent the 720p that cost is for (`lipsyncResolutionFor`).
          *
-         * Список нужен, чтобы взять запасную модель, когда клиент прислал
-         * своё имя и оно допуск не прошло. Но допуск отсеивает всё, чему
-         * KieAI не назвал себестоимость, а семейства veed в прайсе нет
-         * вовсе, — значит `requestedKieModel` не мог оказаться этой строкой
-         * ни при каком запросе.
+         * `volcengine/video-to-video-lip-sync` stays out for its own reason:
+         * this route cannot pass the `mode` and `video_url` its contract asks
+         * for.
          *
-         * Мёртвая строка в перечне читается как «эту модель мы обслуживаем»
-         * — так она и попала в витрину веба, где стоила целой вкладки: там
-         * списывали, потом отказывали, потом возвращали.
-         *
-         * `volcengine/video-to-video-lip-sync` убран по ДРУГОЙ причине, и её
-         * стоит назвать: маршрут не умеет передать ни `mode`, ни `video_url`,
-         * которых просит её контракт. Это записано отдельно и давно
-         * («остаётся скрытой: ей нужен ещё `mode`, чьих допустимых значений
-         * мы не мерили»), но список об этом не знал.
-         *
-         * Тест теперь прогоняет КАЖДОЕ имя отсюда через тот же допуск —
-         * догадка «наверное, работает» больше не проходит.
+         * A test runs EVERY name here through that admission, so a name the
+         * route cannot serve fails the build instead of the person.
          */
         const KIE_LIPSYNC = [
           'infinitalk/from-audio',
           'omnihuman-1-5',
           'kling/ai-avatar-standard',
+          'veed/fabric-1',
         ]
         const explicitKie = model?.startsWith('kie/') ?? false
         /*
@@ -5685,7 +5681,7 @@ const server = createServer(async (req, res) => {
                  * дешёвой строки. Веб слал 720p по умолчанию — и мы
                  * платили вчетверо, взяв как за 480p.
                  */
-                resolution: РАЗРЕШЕНИЕ_ЛИПСИНКА,
+                resolution: lipsyncResolutionFor(selectedKieModel),
                 prompt: 'person speaking naturally',
               },
               { attempts: 60, intervalMs: 5_000 }
