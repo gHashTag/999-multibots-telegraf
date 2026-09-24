@@ -228,6 +228,23 @@
   cursor: pointer;
 }
 
+/*
+ * 32px is a mouse's target, not a finger's. The chips choose whom AUTO may
+ * write to and which slice of the client list is shown -- small decisions,
+ * but taken on a phone. They grow only where the pointer is coarse, so a
+ * desktop row of filters stays as compact as it reads.
+ *
+ * AFTER the base rule, not before: same specificity, so the later one wins.
+ * Written above it first, this block measured as having changed nothing --
+ * the media query matched and lost anyway.
+ */
+@media (pointer: coarse) {
+  .crm__chip {
+    min-height: var(--touch-target, 44px);
+    padding-block: 8px;
+  }
+}
+
 .crm__chip--on {
   color: #000;
   background: var(--vibee-green, #00ff88);
@@ -308,8 +325,23 @@
   color: var(--t27-muted, #888);
 }
 
+/*
+ * THE MOST CONSEQUENTIAL BUTTON ON THE SCREEN WAS THE SMALLEST ONE.
+ *
+ * Measured at 375px, 25.09.2026: this button stood 28px tall -- the browser
+ * default, because it had no size rule at all -- while the screen's own
+ * heading button four hundred lines up already carries
+ * `min-height: var(--touch-target, 44px)`. And this is the switch that
+ * decides whether the account writes to people BY ITSELF.
+ *
+ * A finger is about 44px wide wherever it is attached, so this one takes the
+ * target everywhere rather than only on a touch screen: a mis-tap here
+ * either starts autonomous sending or fails to stop it.
+ */
 .crm-auto__btn {
   align-self: flex-start;
+  min-height: var(--touch-target, 44px);
+  padding: 10px 16px;
 }
 
 /* ── SEARCH AND THE "UNDER WAY" HEADING ───────────────────────────────── */
