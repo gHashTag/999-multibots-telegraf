@@ -229,3 +229,38 @@ describe('my bots', () => {
     expect(window).toContain('verified identity required')
   })
 })
+
+/**
+ * THE TWO THINGS A PAGE CALLS WITHOUT SIGNING (measured 2026-09-24).
+ *
+ * GET /api/agents/acceptance (the verdict on every market card, the evidence
+ * the hire button waits for) and POST /api/traffic/arrival (the channel
+ * counter, called by the app and by t27.ai) were written, tested through
+ * their handlers and deployed -- and the guard answered 401 before either
+ * handler ran. Production log: "GET /api/agents/acceptance -- no X-Api-Key
+ * and no Telegram initData". The handlers' own tests could not see it.
+ */
+describe('the public counters', () => {
+  it('the verdicts are read by anybody, and writing one is still guarded', async () => {
+    const { isPublic } = await import('./auth')
+    const { ACCEPTANCE_PATHS } = await import('./src/agent/agent-acceptance')
+    for (const p of ACCEPTANCE_PATHS) {
+      expect(isPublic({ url: p, method: 'GET' } as never), p).toBe(true)
+      expect(isPublic({ url: `${p}?x=1`, method: 'GET' } as never), p).toBe(
+        true
+      )
+      expect(isPublic({ url: p, method: 'POST' } as never), p).toBe(false)
+    }
+    /* Exact, not a prefix: a neighbour does not open with it. */
+    expect(
+      isPublic({ url: '/api/agents/acceptance-admin', method: 'GET' } as never)
+    ).toBe(false)
+  })
+
+  it('an arrival is counted without a signature', async () => {
+    const { isPublic } = await import('./auth')
+    const { TRAFFIC_PATHS } = await import('./src/agent/traffic')
+    for (const p of TRAFFIC_PATHS)
+      expect(isPublic({ url: p, method: 'POST' } as never), p).toBe(true)
+  })
+})
