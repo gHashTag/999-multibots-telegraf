@@ -533,7 +533,14 @@ function VideoAssetCard({
             className="asset-card-video"
           />
         ) : thumbnail ? (
-          <img src={thumbnail} alt={asset.name} className="asset-card-img" />
+          <img
+            src={thumbnail}
+            alt={asset.name}
+            className="asset-card-img"
+            onError={e => {
+              ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+            }}
+          />
         ) : (
           <div className="asset-card-placeholder">
             <Play size={16} />
@@ -600,7 +607,14 @@ function ImageAssetCard({
       title={asset.name}
     >
       <div className="asset-card-thumbnail">
-        <img src={imageUrl} alt={asset.name} className="asset-card-img" />
+        <img
+          src={imageUrl}
+          alt={asset.name}
+          className="asset-card-img"
+          onError={e => {
+            ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+          }}
+        />
         {/* Overlay info like video cards */}
         <div className="asset-card-overlay">
           <span className="asset-card-name">{asset.name}</span>

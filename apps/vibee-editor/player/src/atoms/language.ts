@@ -148,6 +148,9 @@ const en: Translations = {
   'crm.refresh': 'Refresh',
   'crm.refreshing': 'Refreshing…',
   'crm.unreachable': 'Could not load',
+  'sendCard.previewBroken':
+    '⚠️ The preview did not open — check the attachment before sending:',
+  'sendCard.previewOpen': 'open the file',
   'crm.allRefused.signIn':
     'Your session was refused — open the app again from the bot, with the "Open the app" button.',
   'crm.allRefused.server':
@@ -2513,6 +2516,9 @@ const ru: Translations = {
   'crm.refresh': 'Обновить',
   'crm.refreshing': 'Обновляю…',
   'crm.unreachable': 'Не удалось загрузить',
+  'sendCard.previewBroken':
+    '⚠️ Превью не открылось — проверьте вложение перед отправкой:', // cyrillic-ok
+  'sendCard.previewOpen': 'открыть файл', // cyrillic-ok
   'crm.allRefused.signIn':
     'Сессия не принята — откройте приложение заново из бота, кнопкой «Открыть приложение».', // cyrillic-ok
   'crm.allRefused.server':
