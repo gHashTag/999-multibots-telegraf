@@ -902,6 +902,14 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
    * 2026-09-22 at 6996 of its 7000 pinned tokens before this tool existed.
    */
   'tg_fetch_media',
+  /*
+   * Opening a GROUP is the rarest deliberate act in this family and belongs
+   * to the owner's own desk, not to a seller answering a client in a 16k
+   * window. Measured the hour it shipped: with it in, the small kit came to
+   * 7059 of its 7000 pinned tokens -- so the choice was this line or a
+   * seller that stops fitting, and the seller never needs to make a group.
+   */
+  'tg_create_group',
 ])
 
 export const TELEGRAM_TOOLS: AgentTool[] = [
@@ -1390,6 +1398,43 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         leadId,
         undefined,
         await withTheirWords(ctx, leadId, scheduleExtra(args))
+      )
+    },
+  },
+
+  {
+    name: 'tg_create_group',
+    description:
+      'Новая группа в Telegram от имени владельца. НЕ СОЗДАЁТ СРАЗУ: proposal. ' +
+      'Группа создаётся ПУСТОЙ, приглашения — отдельно.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Название группы' },
+        about: { type: 'string', description: 'Описание (необязательно)' },
+      },
+      required: ['title'],
+    },
+    async handler(args: Record<string, any>, ctx?: ToolContext) {
+      /*
+       * A group made from his account carries his name in front of everyone
+       * who is later invited, and it cannot be un-created: deleting leaves
+       * the people who saw it. So it waits for the press, like every act
+       * that reaches other people.
+       *
+       * The target is the title, because there is no chat to address yet --
+       * the card shows the name of the room that would appear.
+       */
+      const title = String(args?.title ?? '').trim()
+      return propose(
+        'create-group',
+        title,
+        title,
+        'Создание группы ждёт подтверждения человека. Покажи название целиком.',
+        ctx,
+        undefined,
+        undefined,
+        { args: { about: String(args?.about ?? '').slice(0, 255) } }
       )
     },
   },

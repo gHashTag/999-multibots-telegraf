@@ -339,6 +339,10 @@ function askOf(p: Proposal, isRu: boolean): string {
       : 'Forward these messages on Telegram?'
   if (p.action === 'read')
     return isRu ? 'Отметить чат прочитанным?' : 'Mark this chat as read?'
+  if (p.action === 'create-group')
+    return isRu
+      ? 'Создать группу в Telegram?'
+      : 'Create this group on Telegram?'
   if (p.action !== 'send')
     return isRu
       ? `Подтвердить «${p.action}» в Telegram?`
