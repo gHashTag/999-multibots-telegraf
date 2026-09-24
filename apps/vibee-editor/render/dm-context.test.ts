@@ -178,6 +178,8 @@ describe('the DM stance', () => {
     // the block exists at all.
     expect(src).toMatch(/dmHistoryBlock\(ctx, opts\?\.seller\)/)
     expect(src).toMatch(/opts\?\.surface === 'business'/)
-    expect(src).toMatch(/\}\)\) \+ dmContext,/)
+    // The specialist's skills (agent-skills.ts) ride after the DM block; the
+    // block itself is still what follows the prompt and the playbook.
+    expect(src).toMatch(/\}\)\) \+\s*dmContext(\s*\+\s*specialistSkills)?,/)
   })
 })
