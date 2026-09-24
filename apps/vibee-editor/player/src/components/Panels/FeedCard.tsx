@@ -575,6 +575,10 @@ export function FeedCard({ template }: FeedCardProps) {
                     src={template.creatorAvatar}
                     alt={template.creatorName}
                     className="feed-card-avatar"
+                    onError={e => {
+                      ;(e.currentTarget as HTMLImageElement).style.display =
+                        'none'
+                    }}
                   />
                 )}
                 <div className="feed-card-meta">
@@ -592,6 +596,10 @@ export function FeedCard({ template }: FeedCardProps) {
                     src={template.creatorAvatar}
                     alt={template.creatorName}
                     className="feed-card-avatar"
+                    onError={e => {
+                      ;(e.currentTarget as HTMLImageElement).style.display =
+                        'none'
+                    }}
                   />
                 )}
                 <div className="feed-card-meta">
@@ -660,6 +668,10 @@ export function FeedCard({ template }: FeedCardProps) {
                   src={template.originalCreatorAvatar}
                   alt={template.originalCreatorName || 'Original Creator'}
                   className="remix-creator-avatar"
+                  onError={e => {
+                    ;(e.currentTarget as HTMLImageElement).style.display =
+                      'none'
+                  }}
                 />
               )}
             </div>

@@ -2,121 +2,170 @@
 // Notifications Center
 // ===============================
 
-import { useState, useCallback } from 'react';
-import { useAtom, useAtomValue } from 'jotai';
-import { atom } from 'jotai';
-import { atomWithStorage } from 'jotai/utils';
-import { Bell, Heart, MessageCircle, UserPlus, Video, X, Check, CheckCheck } from 'lucide-react';
-import { useLanguage } from '@/hooks/useLanguage';
-import { formatDistanceToNow } from '@/lib/dateUtils';
-import './NotificationsCenter.css';
+import { useState, useCallback } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
+import { atom } from 'jotai'
+import { atomWithStorage } from 'jotai/utils'
+import {
+  Bell,
+  Heart,
+  MessageCircle,
+  UserPlus,
+  Video,
+  X,
+  Check,
+  CheckCheck,
+} from 'lucide-react'
+import { useLanguage } from '@/hooks/useLanguage'
+import { formatDistanceToNow } from '@/lib/dateUtils'
+import './NotificationsCenter.css'
 
 // Notification types
-export type NotificationType = 'like' | 'comment' | 'follow' | 'mention' | 'video_ready' | 'system';
+export type NotificationType =
+  | 'like'
+  | 'comment'
+  | 'follow'
+  | 'mention'
+  | 'video_ready'
+  | 'system'
 
 export interface Notification {
-  id: string;
-  type: NotificationType;
-  title: string;
-  message: string;
-  avatar?: string;
-  username?: string;
-  videoThumbnail?: string;
-  link?: string;
-  isRead: boolean;
-  createdAt: string;
+  id: string
+  type: NotificationType
+  title: string
+  message: string
+  avatar?: string
+  username?: string
+  videoThumbnail?: string
+  link?: string
+  isRead: boolean
+  createdAt: string
 }
 
 // Atoms
-export const notificationsAtom = atomWithStorage<Notification[]>('vibee-notifications', []);
-export const unreadCountAtom = atom((get) => {
-  const notifications = get(notificationsAtom);
-  return notifications.filter(n => !n.isRead).length;
-});
+export const notificationsAtom = atomWithStorage<Notification[]>(
+  'vibee-notifications',
+  []
+)
+export const unreadCountAtom = atom(get => {
+  const notifications = get(notificationsAtom)
+  return notifications.filter(n => !n.isRead).length
+})
 
 // Mark notification as read
-export const markReadAtom = atom(
-  null,
-  (get, set, notificationId: string) => {
-    const notifications = get(notificationsAtom);
-    set(notificationsAtom, notifications.map(n =>
+export const markReadAtom = atom(null, (get, set, notificationId: string) => {
+  const notifications = get(notificationsAtom)
+  set(
+    notificationsAtom,
+    notifications.map(n =>
       n.id === notificationId ? { ...n, isRead: true } : n
-    ));
-  }
-);
+    )
+  )
+})
 
 // Mark all as read
-export const markAllReadAtom = atom(
-  null,
-  (get, set) => {
-    const notifications = get(notificationsAtom);
-    set(notificationsAtom, notifications.map(n => ({ ...n, isRead: true })));
-  }
-);
+export const markAllReadAtom = atom(null, (get, set) => {
+  const notifications = get(notificationsAtom)
+  set(
+    notificationsAtom,
+    notifications.map(n => ({ ...n, isRead: true }))
+  )
+})
 
 // Clear all notifications
-export const clearNotificationsAtom = atom(
-  null,
-  (_get, set) => {
-    set(notificationsAtom, []);
-  }
-);
+export const clearNotificationsAtom = atom(null, (_get, set) => {
+  set(notificationsAtom, [])
+})
 
 // Add notification
 export const addNotificationAtom = atom(
   null,
-  (get, set, notification: Omit<Notification, 'id' | 'isRead' | 'createdAt'>) => {
-    const notifications = get(notificationsAtom);
+  (
+    get,
+    set,
+    notification: Omit<Notification, 'id' | 'isRead' | 'createdAt'>
+  ) => {
+    const notifications = get(notificationsAtom)
     const newNotification: Notification = {
       ...notification,
       id: `notif-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       isRead: false,
       createdAt: new Date().toISOString(),
-    };
-    set(notificationsAtom, [newNotification, ...notifications]);
+    }
+    set(notificationsAtom, [newNotification, ...notifications])
   }
-);
+)
 
 interface NotificationsCenterProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen: boolean
+  onClose: () => void
 }
 
-export function NotificationsCenter({ isOpen, onClose }: NotificationsCenterProps) {
-  const { t } = useLanguage();
-  const [notifications, setNotifications] = useAtom(notificationsAtom);
-  const unreadCount = useAtomValue(unreadCountAtom);
-  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+export function NotificationsCenter({
+  isOpen,
+  onClose,
+}: NotificationsCenterProps) {
+  const { t } = useLanguage()
+  const [notifications, setNotifications] = useAtom(notificationsAtom)
+  const unreadCount = useAtomValue(unreadCountAtom)
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
 
-  const filteredNotifications = filter === 'unread'
-    ? notifications.filter(n => !n.isRead)
-    : notifications;
+  const filteredNotifications =
+    filter === 'unread' ? notifications.filter(n => !n.isRead) : notifications
 
-  const handleMarkRead = useCallback((id: string) => {
-    setNotifications(prev => prev.map(n =>
-      n.id === id ? { ...n, isRead: true } : n
-    ));
-  }, [setNotifications]);
+  const handleMarkRead = useCallback(
+    (id: string) => {
+      setNotifications(prev =>
+        prev.map(n => (n.id === id ? { ...n, isRead: true } : n))
+      )
+    },
+    [setNotifications]
+  )
 
   const handleMarkAllRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  }, [setNotifications]);
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
+  }, [setNotifications])
 
   const handleClear = useCallback(() => {
-    setNotifications([]);
-  }, [setNotifications]);
+    setNotifications([])
+  }, [setNotifications])
 
   const getNotificationIcon = (type: NotificationType) => {
     switch (type) {
-      case 'like': return <Heart size={20} className="notification-icon notification-icon--like" />;
-      case 'comment': return <MessageCircle size={20} className="notification-icon notification-icon--comment" />;
-      case 'follow': return <UserPlus size={20} className="notification-icon notification-icon--follow" />;
-      case 'video_ready': return <Video size={20} className="notification-icon notification-icon--video" />;
-      default: return <Bell size={20} className="notification-icon" />;
+      case 'like':
+        return (
+          <Heart
+            size={20}
+            className="notification-icon notification-icon--like"
+          />
+        )
+      case 'comment':
+        return (
+          <MessageCircle
+            size={20}
+            className="notification-icon notification-icon--comment"
+          />
+        )
+      case 'follow':
+        return (
+          <UserPlus
+            size={20}
+            className="notification-icon notification-icon--follow"
+          />
+        )
+      case 'video_ready':
+        return (
+          <Video
+            size={20}
+            className="notification-icon notification-icon--video"
+          />
+        )
+      default:
+        return <Bell size={20} className="notification-icon" />
     }
-  };
+  }
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
     <div className="notifications-overlay" onClick={onClose}>
@@ -158,7 +207,9 @@ export function NotificationsCenter({ isOpen, onClose }: NotificationsCenterProp
             onClick={() => setFilter('unread')}
           >
             {t('notifications.unread')}
-            {unreadCount > 0 && <span className="notifications-tab-badge">{unreadCount}</span>}
+            {unreadCount > 0 && (
+              <span className="notifications-tab-badge">{unreadCount}</span>
+            )}
           </button>
         </div>
 
@@ -178,7 +229,15 @@ export function NotificationsCenter({ isOpen, onClose }: NotificationsCenterProp
               >
                 <div className="notification-item__icon">
                   {notification.avatar ? (
-                    <img src={notification.avatar} alt="" className="notification-item__avatar" />
+                    <img
+                      src={notification.avatar}
+                      alt=""
+                      className="notification-item__avatar"
+                      onError={e => {
+                        ;(e.currentTarget as HTMLImageElement).style.display =
+                          'none'
+                      }}
+                    />
                   ) : (
                     getNotificationIcon(notification.type)
                   )}
@@ -187,7 +246,9 @@ export function NotificationsCenter({ isOpen, onClose }: NotificationsCenterProp
                 <div className="notification-item__content">
                   <p className="notification-item__text">
                     {notification.username && (
-                      <span className="notification-item__username">@{notification.username}</span>
+                      <span className="notification-item__username">
+                        @{notification.username}
+                      </span>
                     )}{' '}
                     {notification.message}
                   </p>
@@ -207,9 +268,9 @@ export function NotificationsCenter({ isOpen, onClose }: NotificationsCenterProp
                 {!notification.isRead && (
                   <button
                     className="notification-item__mark-read"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMarkRead(notification.id);
+                    onClick={e => {
+                      e.stopPropagation()
+                      handleMarkRead(notification.id)
                     }}
                     title={t('notifications.mark_read')}
                   >
@@ -231,16 +292,16 @@ export function NotificationsCenter({ isOpen, onClose }: NotificationsCenterProp
         )}
       </div>
     </div>
-  );
+  )
 }
 
 // Bell button with badge
 interface NotificationBellProps {
-  onClick: () => void;
+  onClick: () => void
 }
 
 export function NotificationBell({ onClick }: NotificationBellProps) {
-  const unreadCount = useAtomValue(unreadCountAtom);
+  const unreadCount = useAtomValue(unreadCountAtom)
 
   return (
     <button className="notification-bell" onClick={onClick}>
@@ -251,5 +312,5 @@ export function NotificationBell({ onClick }: NotificationBellProps) {
         </span>
       )}
     </button>
-  );
+  )
 }
