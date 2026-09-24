@@ -1,0 +1,41 @@
+{
+  "acting": [
+    "feed_publish",
+    "tg_send",
+    "tg_send_voice",
+    "tg_send_video",
+    "tg_create_group",
+    "mail_send",
+    "video_generate",
+    "audio_generate",
+    "reel_render",
+    "image_generate"
+  ],
+  "agents": [
+    {
+      "id": "blogger",
+      "canary": "Что из сделанного за последнюю неделю ещё не опубликовано в блоге? Только список, ничего не публикуй.",
+      "expect": ["feed_list", "feed_get", "web_read", "web_search"]
+    },
+    {
+      "id": "job",
+      "canary": "Кто из моих контактов нанимает? Назови признаки. Никому не пиши.",
+      "expect": ["job_hunters"]
+    },
+    {
+      "id": "google",
+      "canary": "Какой поисковый спрос на создание ИИ-аватаров для блогеров? Три источника, которые ты открыл.",
+      "expect": ["web_search", "web_read"]
+    },
+    {
+      "id": "tiktok",
+      "canary": "Дай 3 хука и сценарий на 30 секунд про ИИ-аватар для блогера. Только текст, ничего не рендери.",
+      "expect": []
+    },
+    {
+      "id": "habr",
+      "canary": "Прочитай README репозитория github.com/gHashTag/agent-mail-mcp и предложи тему статьи для Habr с шагами воспроизведения. Не публикуй.",
+      "expect": ["web_read", "browser_open", "browser_read"]
+    }
+  ]
+}

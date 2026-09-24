@@ -2811,6 +2811,38 @@ setInterval(
 )
 
 /*
+ * EVERY MARKETPLACE AGENT, CHECKED EVERY DAY (src/agent/daily-acceptance.ts;
+ * owner, 2026-09-24). The tick only asks the verdict table whether a day has
+ * passed since the last run, so a redeploy neither skips a day nor runs
+ * twice; a run is five agent turns. A failure or a recovery reaches the
+ * owner as one line, and the /agents cards show it. Off with
+ * ACCEPTANCE_DAILY=0; the first look waits ten minutes after a start, so a
+ * deploy that is still settling is not what gets checked.
+ */
+const ACCEPTANCE_TICK_MS = 30 * 60 * 1000
+const acceptanceTick = () => {
+  void (async () => {
+    try {
+      const { runDailyAcceptanceIfDue } = await import(
+        './src/agent/daily-acceptance-wiring'
+      )
+      const said = await runDailyAcceptanceIfDue(getPool() as any)
+      if (said !== 'off' && said !== 'not due' && said !== 'already running')
+        console.log(`[acceptance] ${said}`)
+    } catch (e) {
+      console.error('[acceptance] failed:', String(e).slice(0, 300))
+    }
+  })()
+}
+setTimeout(
+  () => {
+    acceptanceTick()
+    setInterval(acceptanceTick, ACCEPTANCE_TICK_MS)
+  },
+  10 * 60 * 1000
+)
+
+/*
  * THE BLOG GOES TO LINKEDIN AND X, ONE ARTICLE A DAY, ONLY AFTER A YES
  * (src/agent/blog-share.ts; owner's decision 2026-09-22). The tick is
  * cheap -- a database row, and the feed at most once a day -- so it runs

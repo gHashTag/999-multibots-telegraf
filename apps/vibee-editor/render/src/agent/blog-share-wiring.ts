@@ -76,14 +76,29 @@ async function publishEverywhere(
     out.X = `тред не получился: ${String(e).slice(0, 100)}` // cyrillic-ok: told to the owner
   }
 
+  /*
+   * A NETWORK THE BROWSER IS NOT SIGNED INTO IS NOT OPENED (#2965's rule,
+   * browser/logins.ts): its share page would be a sign-in form, and "Post"
+   * on a sign-in form is somebody else's button. Unreadable logins: every
+   * network is tried, as before.
+   */
+  const { loginsOfPerson } = await import('../browser/logins')
+  const { isNotConnected } = await import('./rounds')
+  const logins = await loginsOfPerson(pool, owner).catch(() => null)
   for (const [net, url, labels] of [
     ['X', urls.x, ['post']],
     ['LinkedIn', urls.linkedin, ['post', 'опубликовать']], // cyrillic-ok: LinkedIn's Russian label
     /* Reddit's submit page says "Post"; in Russian, "Опубликовать". */
     ['Reddit', urls.reddit, ['post', 'опубликовать']], // cyrillic-ok: Reddit's Russian label
+    /* Threads' composer says "Post"; in Russian, "Опубликовать". */
+    ['Threads', urls.threads, ['post', 'опубликовать']], // cyrillic-ok: Threads' Russian label
   ] as const) {
     if (net === 'X' && !String(out.X || '').startsWith('тред не получился'))
       continue
+    if (isNotConnected(url, logins)) {
+      out[net] = 'не подключена — вход не найден, ничего не нажато' // cyrillic-ok: told to the owner
+      continue
+    }
     try {
       const page = await newPage(cdp, url)
       await settle(6_000)

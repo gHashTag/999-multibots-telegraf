@@ -7,6 +7,8 @@ import {
   parseRss,
   xText,
   shareUrls,
+  threadsText,
+  THREADS_LIMIT,
   blogShareTick,
   resetBlogSharesForTests,
   ASK_EVERY_MS,
@@ -191,11 +193,37 @@ describe('the owner s own community gets the article too', () => {
     expect(subs).toHaveLength(1)
   })
 
-  it('the question names all three places, so a yes is informed', () => {
+  it('the question names every place, so a yes is informed', () => {
     const asked = questionFor(article)
     expect(asked).toContain('LinkedIn')
     expect(asked).toContain('X')
+    expect(asked).toContain('Threads')
     expect(asked).toContain('r/t27ai')
+  })
+})
+
+describe('Threads gets the article too (owner, 24.09: all three next steps)', () => {
+  const article = {
+    slug: 'a',
+    title: 'Ternary floats, measured',
+    link: 'https://t27.ai/blog/gf-t',
+    summary: 'what the numbers say',
+  }
+
+  it('through Threads own web intent, which fills the composer and never posts', () => {
+    const u = shareUrls(article)
+    expect(
+      u.threads.startsWith('https://www.threads.net/intent/post?text=')
+    ).toBe(true)
+    const text = decodeURIComponent(u.threads.split('text=')[1])
+    expect(text).toBe(`${article.title}\n\n${article.link}`)
+  })
+
+  it('a long title gives way; the link is never cut', () => {
+    const long = { ...article, title: 'T'.repeat(900) }
+    const t = threadsText(long)
+    expect(t.length).toBeLessThanOrEqual(THREADS_LIMIT)
+    expect(t.endsWith(article.link)).toBe(true)
   })
 })
 
