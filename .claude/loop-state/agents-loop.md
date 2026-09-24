@@ -59,3 +59,5 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv.
 - [ ] job_hunters over crm_messages (deep history), with the same evidence rule.
 - [ ] Competitor scan: agent marketplaces (what "hire an agent" products
       prove before selling an agent) -> gaps in our catalogue.
+
+- 24.09.2026 07:25: Competitors (24.09): Twin (twin.so) — 'connected apps' per network (Instagram, X, LinkedIn, Facebook, TikTok), platform-optimised posts, schedule, publish to all; Meta AI Studio — creator clones answering DMs; agent marketplaces (AI Hive, MintMCP) sell on verified performance data (installs, ratings, audit trail). Our gaps: (1) no visible per-network 'connected' panel for the clone; (2) acceptance evidence is not shown on the agent card; (3) cross-posting exists only as blog-share. Sources: https://twin.so/use-cases/social-media-automation/ https://aihive.global/blog/ai-agent-marketplace/
