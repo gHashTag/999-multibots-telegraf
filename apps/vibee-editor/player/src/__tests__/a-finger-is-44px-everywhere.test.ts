@@ -89,6 +89,36 @@ describe('a finger is 44px wherever it is attached', () => {
     }
   })
 
+  it('the script screen, walked by the route list rather than by memory', () => {
+    /*
+     * Eighteen controls here were under the target -- the tone and topic
+     * chips at 28px, the voice button at 32, the select at 40 -- on a screen
+     * somebody writes on. None of it was a regression: the first sweeps had
+     * covered /crm and /chat and never opened /generate/script.
+     *
+     * Route list, not memory (form 203). This one is pinned because it is
+     * the largest single set of targets in the app.
+     */
+    const script = read('pages/Script.css')
+    for (const sel of [
+      '.script-chip',
+      '.script-select',
+      '.script-voice-btn',
+      '.script-templates-toggle',
+    ]) {
+      const blocks = ruleFor(script, sel)
+      expect(blocks.length, `${sel} must have rules`).toBeGreaterThan(0)
+      expect(
+        blocks[blocks.length - 1]!.includes(TARGET) ||
+          blocks[blocks.length - 1]!.includes('width: var(--touch-target'),
+        `${sel} is tapped while writing and must be finger-sized`
+      ).toBe(true)
+    }
+    expect(script, 'and only where the pointer is coarse').toContain(
+      '@media (pointer: coarse)'
+    )
+  })
+
   it('THE TRAP: the LAST rule for the selector is the one with the target', () => {
     /*
      * Same specificity, so the later declaration wins. Written above the base
