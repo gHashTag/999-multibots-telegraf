@@ -178,6 +178,24 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
 - Read the service's refusals, not only its successes: the one `ОТКАЗ` line
   in the log was the whole finding.
 
+- A feature that is "connected" only after the person does something they
+  were never told how to do is not connected. Check the empty state first:
+  that is what the owner sees on day one.
+- A bare-fetch sweep of the app (`grep fetch(\`${API_BASE}` without auth
+  headers, then `tri reach` each path) found the two dead routes of this
+  tick in one pass. Run it after adding any route the app calls.
+
+- Related tests are not the suite. Two of my own merged ticks (3 and 7)
+  left render red: a real Telegram id in a src/agent test (no-dossier) and
+  a source-shape check of chat.ts broken by an appended prompt part
+  (dm-context). Before every merge: the FULL render suite
+  (`cd apps/vibee-editor/render && npx vitest run`, ~6 min) and compare any
+  red with clean main (`git stash -u`), which also tells mine from not-mine
+  (isolated-reader times out on clean main too -- not mine, task queued).
+- `tri bare-fetch` must itself be tested with a negative control: the first
+  version counted the word "headers" as a credential and would have missed
+  the very traffic bug it was written for.
+
 ## Plan (next ticks)
 
 - [x] Epic #2961: digital clone, every social network. Inventory done (only

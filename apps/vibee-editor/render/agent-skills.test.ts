@@ -84,13 +84,82 @@ describe('the section the specialist carries', () => {
     const t = await agentSkillsSection(pool, '144022504', 'job')
     expect(t).toContain('Работа: как отвечать рекрутёрам') // cyrillic-ok
     expect(asked[0][0]).toBe('144022504')
+    expect(t).toContain('«Работа: …»') // cyrillic-ok: the naming line
     const broken = {
       async query() {
         throw new Error('relation "user_skills" does not exist')
       },
     }
-    await expect(agentSkillsSection(broken, '1', 'job')).resolves.toBe('')
+    const down = await agentSkillsSection(broken, '1', 'job')
+    expect(down).not.toContain('ТВОИ НАВЫКИ') // cyrillic-ok: the section header
+    expect(down).toContain('«Работа: …»') // cyrillic-ok: the naming line stays
     await expect(agentSkillsSection(pool, '1', 'nonexistent')).resolves.toBe('')
     await expect(agentSkillsSection(pool, '1', undefined)).resolves.toBe('')
+  })
+
+  it('every specialist is told to file a remembered rule under its own prefix', async () => {
+    const { agentSkillName, agentSkills } = await import(
+      '../packages/vibee-atoms/src/agent-marketplace'
+    )
+    for (const a of MARKETPLACE_AGENTS) {
+      const line = await agentSkillsSection(null, '1', a.id)
+      const ru = agentSkillName(a.id, 'ru', 'x')!.split(':')[0]
+      const en = agentSkillName(a.id, 'en', 'x')!.split(':')[0]
+      expect(line, a.id).toContain(`«${ru}: …»`)
+      expect(line, a.id).toContain(`«${en}: …»`)
+      /* The name it is told to use really files the rule under this agent. */
+      expect(agentSkills([{ name: `${ru}: x` }], a.id).own).toHaveLength(1)
+    }
+  })
+})
+
+describe('a rule written in the agent’s own chat', () => {
+  it('gets a name that files it under that agent, in either language', async () => {
+    const { agentSkillName, agentSkills, SKILL_NAME_MAX } = await import(
+      '../packages/vibee-atoms/src/agent-marketplace'
+    )
+    for (const a of MARKETPLACE_AGENTS)
+      for (const lang of ['ru', 'en'] as const) {
+        const name = agentSkillName(a.id, lang, 'answer briefly, with numbers')
+        expect(name, `${a.id}/${lang}`).toBeTruthy()
+        const filed = agentSkills([{ name: name! }], a.id)
+        expect(
+          filed.own.map(r => r.name),
+          `${a.id}/${lang}`
+        ).toEqual([name])
+        for (const other of MARKETPLACE_AGENTS.filter(o => o.id !== a.id))
+          expect(
+            agentSkills([{ name: name! }], other.id).general,
+            `${a.id} leaks into ${other.id}`
+          ).toEqual([])
+        expect(name!.length).toBeLessThanOrEqual(SKILL_NAME_MAX)
+      }
+  })
+
+  it('the prefix is the person’s language, and a long rule is cut on a word', async () => {
+    const { agentSkillName } = await import(
+      '../packages/vibee-atoms/src/agent-marketplace'
+    )
+    expect(agentSkillName('job', 'ru', 'отвечать коротко')).toBe(
+      'Работа: отвечать коротко'
+    ) // cyrillic-ok
+    expect(agentSkillName('job', 'en', 'reply briefly')).toBe(
+      'Job: reply briefly'
+    )
+    const long = agentSkillName('blogger', 'en', 'word '.repeat(40))!
+    expect(long.endsWith('word…')).toBe(true)
+    expect(long.length).toBeLessThanOrEqual(8 + 60)
+    /* A colon in the rule would move the prefix; it is not kept in the name. */
+    expect(agentSkillName('job', 'en', 'Blogger: steal the rule')).toBe(
+      'Job: Blogger steal the rule'
+    )
+  })
+
+  it('nothing to name: an empty rule or an unknown agent', async () => {
+    const { agentSkillName } = await import(
+      '../packages/vibee-atoms/src/agent-marketplace'
+    )
+    expect(agentSkillName('job', 'ru', '   ')).toBeNull()
+    expect(agentSkillName('nobody', 'ru', 'x')).toBeNull()
   })
 })
