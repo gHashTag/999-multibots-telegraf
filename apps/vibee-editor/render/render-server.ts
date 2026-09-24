@@ -8661,14 +8661,33 @@ const server = createServer(async (req, res) => {
     const token = url.searchParams.get('t') || ''
     const pool = (await getPool()) as any
     await ensureApprovals(pool)
-    const state = id && token ? await decideApproval(pool, id, token) : null
+    /*
+     * TWO WAYS IN, AND ONLY ONE OF THEM IS STILL GENERATED.
+     *
+     * The buttons are `callback_data` now (agent-tools.ts): a url button left
+     * Telegram for a browser the owner is not signed into, so on his phone
+     * the permission did nothing at all. The bot relays the tap here with the
+     * token alone.
+     *
+     * The id+token form stays because messages sent BEFORE that change are
+     * still sitting in his chat, and a button that silently stopped working
+     * would be a second defect of the same shape as the first.
+     */
+    const { decideByToken } = await import('./src/browser/approvals')
+    const byToken = !id && token ? await decideByToken(pool, token) : null
+    const state = byToken
+      ? byToken.state
+      : id && token
+        ? await decideApproval(pool, id, token)
+        : null
+    const subject = byToken?.id || id
     /*
      * The yes is recorded on the SESSION here too, not only where the tool
      * polls: the agent may have stopped waiting long before the person
      * looked at their phone, and the permission must still count.
      */
     if (state === 'allowed') {
-      const who = await approvalOwner(pool, id)
+      const who = byToken?.telegramId || (await approvalOwner(pool, subject))
       if (who) await markAllowed(pool, who)
     }
     const said =
@@ -8677,6 +8696,16 @@ const server = createServer(async (req, res) => {
         : state === 'denied'
           ? 'Отклонено. Агент этого не сделает.' // cyrillic-ok: user-facing
           : 'Этот вопрос уже закрыт.' // cyrillic-ok: user-facing
+    /*
+     * A SERVICE ASKS FOR THE ANSWER, NOT FOR A PAGE. The bot relays the tap
+     * and must tell the person in the chat what happened; handing it HTML
+     * would make it scrape its own back end.
+     */
+    if ((req.headers.accept || '').includes('application/json')) {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, state, said }))
+      return
+    }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
     res.end(
       `<!doctype html><meta charset="utf-8">` +
