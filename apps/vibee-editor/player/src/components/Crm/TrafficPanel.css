@@ -1,0 +1,61 @@
+/* Where people come from (TrafficPanel): one row per channel. */
+.crm-traffic__days {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.crm-traffic__day {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--t27-border);
+  background: transparent;
+  color: var(--t27-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.crm-traffic__day[aria-pressed='true'] {
+  border-color: var(--t27-accent);
+  color: var(--t27-accent);
+}
+
+.crm-traffic__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.crm-traffic__row {
+  display: grid;
+  grid-template-columns: minmax(64px, auto) 1fr;
+  grid-template-areas:
+    'source counts'
+    'bar bar';
+  column-gap: 8px;
+  font-size: 14px;
+}
+
+.crm-traffic__source {
+  grid-area: source;
+  font-weight: 600;
+}
+
+.crm-traffic__counts {
+  grid-area: counts;
+  text-align: right;
+  color: var(--t27-muted);
+  font-size: 13px;
+}
+
+.crm-traffic__bar {
+  grid-area: bar;
+  height: 4px;
+  min-width: 4px;
+  border-radius: 2px;
+  background: var(--t27-accent);
+}

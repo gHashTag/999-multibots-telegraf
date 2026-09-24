@@ -537,6 +537,14 @@ const en: Translations = {
   'chat.agentSkills.none':
     'No rules of yours for it yet: write one below, and it applies from your next message (saved as "{prefix}: ...").',
   'chat.agentSkills.builtin': 'Knows how: {skills}',
+  // Where people come from (components/Crm/TrafficPanel.tsx)
+  'crm.traffic.title': 'Where people come from',
+  'crm.traffic.days': '{n} days',
+  'crm.traffic.row': 'visits: {visits} · bot starts: {starts}',
+  'crm.traffic.total':
+    'In all: visits {visits}, bot starts {starts}. Counts only: no person behind a number is known.',
+  'crm.traffic.empty':
+    'No tagged visits yet. Every link the agents publish carries its channel; the first visit shows here.',
   'chat.agentSkills.add.placeholder':
     'A rule for it, e.g. "answer briefly, with numbers"',
   'chat.agentSkills.add.button': 'Add rule',
@@ -2876,6 +2884,13 @@ const ru: Translations = {
   'chat.agentSkills.none':
     'Ваших правил для него пока нет: напишите правило ниже — оно подключится со следующего сообщения (сохранится как «{prefix}: …»).',
   'chat.agentSkills.builtin': 'Умеет: {skills}',
+  'crm.traffic.title': 'Откуда люди',
+  'crm.traffic.days': '{n} дн.',
+  'crm.traffic.row': 'переходов: {visits} · запусков бота: {starts}',
+  'crm.traffic.total':
+    'Всего: переходов {visits}, запусков бота {starts}. Только счётчики: кто за числом — неизвестно.',
+  'crm.traffic.empty':
+    'Помеченных переходов пока нет. Каждая ссылка, которую публикуют агенты, несёт свой канал — первый переход появится здесь.',
   'chat.agentSkills.add.placeholder':
     'Правило для него, например «отвечай коротко, с цифрами»',
   'chat.agentSkills.add.button': 'Добавить',

@@ -4,6 +4,7 @@ import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
 import { AutoPanel } from '@/components/Crm/AutoPanel'
+import { TrafficPanel } from '@/components/Crm/TrafficPanel'
 import { Avatar } from '@/components/Crm/Avatar'
 import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
 import {
@@ -731,6 +732,9 @@ export default function CrmPage() {
               </dl>
             )
           )}
+
+          {/* Where people come from (#2974): the owner's only. */}
+          <TrafficPanel />
 
           <p className="crm__note">{t('crm.note')}</p>
         </>

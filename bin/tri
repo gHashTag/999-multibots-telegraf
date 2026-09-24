@@ -54,6 +54,7 @@ tri — оболочка Trinity S³AI
   tri traffic [дни]  откуда приходят люди, по каналам (utm_source), по умолчанию 30 дней
   tri reach /путь [метод]  пропустит ли замок рендера вызов без подписи (isPublic)
   tri bare-fetch  вызовы приложения без подписи, которые упрутся в замок рендера (401 до обработчика)
+  tri tag URL канал [кампания]  ссылка с меткой канала: utm на наших страницах, __канал в /start нашего бота
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
@@ -1435,6 +1436,7 @@ PYEOF
   traffic) shift; bash "$ROOT/bin/helpers/traffic.sh" "$ROOT" "$@" ;;
   reach) shift; bash "$ROOT/bin/helpers/reach.sh" "$ROOT" "$@" ;;
   bare-fetch) shift; bash "$ROOT/bin/helpers/bare-fetch.sh" "$ROOT" "$@" ;;
+  tag) shift; bash "$ROOT/bin/helpers/tag.sh" "$ROOT" "$@" ;;
   alive)  shift; bash "$ROOT/bin/helpers/alive.sh" "$ROOT" "$@" ;;
   vs-main) shift; bash "$ROOT/bin/helpers/vs-main.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;

@@ -1,5 +1,6 @@
 #!/bin/bash
-# tri traffic [days] -- where visitors come from, by channel (epic #2974).
+# tri traffic [days] -- where visitors come from, by channel (epic #2974):
+# visits on our pages and starts of our bots from tagged links (tick 9).
 #
 # Every link the agents publish carries its channel in utm_source (render
 # utm.ts); the app counts a tagged arrival once per visit (render
@@ -38,10 +39,19 @@ try:
 except Exception as e:
     print('unreadable answer:', str(e)[:120]); sys.exit(2)
 rows = out.get('channels') or []
-if not rows:
-    print(f"no tagged arrivals in the last {out.get('days')} days"); sys.exit(0)
+sources = out.get('sources')
+if not rows and not sources:
+    print(f"no tagged arrivals or bot starts in the last {out.get('days')} days"); sys.exit(0)
+if sources is not None:
+    # Per channel: visits on our pages, starts of our bots (tick 9).
+    print(f"{'visits':>6} {'starts':>6}  source")
+    for r in sources:
+        print(f"{r.get('arrivals', 0):>6} {r.get('starts', 0):>6}  {r.get('source', '')}")
+    print()
 for r in rows:
     camp = r.get('campaign') or '-'
     print(f"{r.get('arrivals', 0):>6}  {r.get('source', ''):<10} {r.get('medium', ''):<10} {camp}")
-print(f"\n{out.get('total', 0)} tagged arrivals, last {out.get('days')} days")
+starts = out.get('totalStarts')
+tail = f", {starts} bot starts" if starts is not None else ''
+print(f"\n{out.get('total', 0)} tagged arrivals{tail}, last {out.get('days')} days")
 PYBODY

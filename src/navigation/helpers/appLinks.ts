@@ -107,6 +107,46 @@ export const APP_HOME_ROUTE: AppRoute = 'feed'
 export const APP_START_PREFIX = 'app_'
 
 /**
+ * THE CHANNEL A LINK INTO THE BOT WAS PUBLISHED ON (tick 9, epic #2974).
+ *
+ * A t.me link can hand the bot nothing but its /start payload, so the render
+ * tagger (apps/vibee-editor/render/src/agent/utm.ts taggedBotLink) puts the
+ * channel at its end: `app_feed__telegram`. The two sides agree on the
+ * separator (appLinksParity.test); route names and our payload prefixes
+ * hold no double underscore, and a channel tag is [a-z0-9-].
+ */
+export const START_SOURCE_SEP = '__'
+
+/** Payloads our own links carry: only these may name a campaign. */
+const OWN_START_PAYLOAD =
+  /^(?:(?:app|svc|subscribe)_[a-z0-9_]+|club|foundry|topup(?:_[a-z]+)?)$/
+
+/**
+ * `app_feed__telegram` -> { base: 'app_feed', source: 'telegram', campaign:
+ * 'app_feed' }. No valid channel after the separator: the payload as it
+ * came, no source. The campaign is kept only for a payload our links build
+ * -- a stranger's `/start 144022504__x` must not store a number as a
+ * campaign. Attacker-typed, so exact patterns only. Pure.
+ */
+export function splitStartSource(payload: string | null | undefined): {
+  base: string
+  source: string | null
+  campaign: string
+} {
+  const p = String(payload ?? '')
+  const at = p.lastIndexOf(START_SOURCE_SEP)
+  const source = at >= 0 ? p.slice(at + START_SOURCE_SEP.length) : ''
+  if (at < 0 || !/^[a-z0-9-]{1,32}$/.test(source))
+    return { base: p, source: null, campaign: '' }
+  const base = p.slice(0, at)
+  return {
+    base,
+    source,
+    campaign: OWN_START_PAYLOAD.test(base) ? base : '',
+  }
+}
+
+/**
  * The hosts that serve the app. Anything the model or a template writes with
  * one of these hosts is a link that only works inside Telegram.
  */

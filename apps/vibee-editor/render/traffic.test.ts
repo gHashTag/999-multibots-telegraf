@@ -14,9 +14,18 @@ import {
  */
 
 const counted: unknown[][] = []
+const started: unknown[][] = []
 const pool = {
   async query(sql: string, params: unknown[] = []) {
     if (sql.startsWith('INSERT INTO traffic_arrivals')) counted.push(params)
+    if (sql.startsWith('INSERT INTO traffic_starts')) started.push(params)
+    if (sql.includes('FROM traffic_starts'))
+      return {
+        rows: [
+          { source: 'telegram', starts: 3 },
+          { source: 'x', starts: 1 },
+        ],
+      }
     if (sql.includes('FROM traffic_arrivals'))
       return {
         rows: [
@@ -41,6 +50,7 @@ const post = (body: unknown, address = '10.0.0.1') =>
 
 beforeEach(() => {
   counted.length = 0
+  started.length = 0
   resetTrafficTableForTests()
 })
 
@@ -102,11 +112,59 @@ describe('reading where people come from', () => {
     } as never)) as { total: number; channels: Array<{ source: string }> }
     expect(out.total).toBe(9)
     expect(out.channels.map(c => c.source)).toEqual(['x', 'reddit'])
+    /* Visits and bot starts side by side; a source with starts only counts. */
+    const o = out as unknown as {
+      totalStarts: number
+      sources: Array<{ source: string; arrivals: number; starts: number }>
+    }
+    expect(o.totalStarts).toBe(4)
+    expect(o.sources).toEqual([
+      { source: 'x', arrivals: 7, starts: 1 },
+      { source: 'telegram', arrivals: 0, starts: 3 },
+      { source: 'reddit', arrivals: 2, starts: 0 },
+    ])
   })
 
   it('nobody else may read it', async () => {
     await expect(
       tool.handler({}, { telegramId: '900000001', pool } as never)
     ).rejects.toThrow()
+  })
+})
+
+describe('a start of our bot from a tagged link', () => {
+  const start = (body: unknown, serviceKey: boolean) =>
+    handleTraffic(
+      { url: '/api/traffic/start', method: 'POST' },
+      {
+        getPool: async () => pool,
+        readBody: async () => JSON.stringify(body),
+        address: '10.0.0.1',
+        serviceKey,
+      }
+    )
+
+  it('is counted only when the bot process sends it with the service key', async () => {
+    expect((await start({ source: 'telegram' }, false)).status).toBe(403)
+    expect(started).toHaveLength(0)
+    const r = await start(
+      { source: 'Telegram', campaign: 'app_feed', telegram_id: 144022504 },
+      true
+    )
+    expect(r.status).toBe(200)
+    /* The channel and what the link opened; never who pressed it. */
+    expect(started).toEqual([['telegram', 'app_feed']])
+  })
+
+  it('without a source nothing is counted', async () => {
+    expect((await start({ campaign: 'club' }, true)).status).toBe(400)
+    expect(started).toHaveLength(0)
+  })
+
+  it('the guard keeps the start closed to pages', async () => {
+    const { isPublic } = await import('./auth')
+    expect(
+      isPublic({ url: '/api/traffic/start', method: 'POST' } as never)
+    ).toBe(false)
   })
 })
