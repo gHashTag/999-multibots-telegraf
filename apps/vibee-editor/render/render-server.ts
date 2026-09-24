@@ -93,6 +93,7 @@ import {
   isAcceptancePath,
   handleAcceptance,
 } from './src/agent/agent-acceptance'
+import { isTrafficPath, handleTraffic } from './src/agent/traffic'
 import {
   isBrowserPath,
   handleBrowser,
@@ -8739,6 +8740,24 @@ const server = createServer(async (req, res) => {
         const list = await loginsOfPerson((await getPool()) as any, who)
         return list ? accountsOf(list) : null
       },
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
+  /*
+   * A visitor arrived from a tagged link (epic #2974): counted by channel,
+   * nothing personal kept. Public, rate-limited per address in memory.
+   */
+  if (isTrafficPath(req.url?.split('?')[0] || '')) {
+    const out = await handleTraffic(req, {
+      getPool: async () => (await getPool()) as any,
+      readBody: () => readBody(req as any, 4 * 1024),
+      address:
+        String(req.headers['x-forwarded-for'] || '')
+          .split(',')[0]
+          .trim() || String(req.socket?.remoteAddress || ''),
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))
