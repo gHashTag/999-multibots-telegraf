@@ -22,6 +22,7 @@
  *    broken one, so the message always lists every site, even the quiet ones.
  */
 import { itemLine, type Item } from '../browser/items'
+import { networkOfUrl, type NetworkLogin } from '../browser/logins'
 
 export interface Site {
   name: string
@@ -62,6 +63,27 @@ export interface Seen {
   text: string
   ok: boolean
   ms: number
+  /**
+   * Not walked: the browser holds no login for this network (#2965). A page
+   * opened there would only be a sign-in form, read as "nothing new".
+   */
+  notConnected?: true
+}
+
+/**
+ * Is this site on a network the browser is plainly NOT signed into? Only a
+ * definite signed_out or expired says so; unknown, no answer, or a site of
+ * no known network is walked as before. Pure.
+ */
+export function isNotConnected(
+  url: string,
+  logins: NetworkLogin[] | null
+): boolean {
+  if (!logins) return false
+  const net = networkOfUrl(url)
+  if (!net) return false
+  const state = logins.find(l => l.id === net.id)?.state
+  return state === 'signed_out' || state === 'expired'
 }
 
 /**
@@ -102,6 +124,8 @@ export const LINES_PER_SITE = 2
  * invitation to an interview" answers whether to hurry. Pure.
  */
 export function lineFor(seen: Seen): string {
+  if (seen.notConnected)
+    return `• ${seen.name}: не подключена — скажите «подключи мои сети»` // cyrillic-ok: shown to the person
   if (!seen.ok) return `• ${seen.name}: не открылось` // cyrillic-ok: shown to the person
   if (looksSignedOut(seen)) return `• ${seen.name}: просит войти — вход слетел` // cyrillic-ok
   const n = unreadOf(seen.title)
@@ -141,6 +165,7 @@ export function roundLog(seen: Seen[]): string {
       unread: unreadOf(s.title),
       rows: (s.items ?? []).length,
       signedOut: s.ok ? looksSignedOut(s) : null,
+      ...(s.notConnected ? { notConnected: true } : {}),
     }))
   )
 }
@@ -151,9 +176,11 @@ export function roundLog(seen: Seen[]): string {
  * out of memory opened every tab blank). Pure.
  */
 export function everythingWasBlank(seen: Seen[]): boolean {
+  /* A site that was not walked is not a blank page. */
+  const walked = seen.filter(s => !s.notConnected)
   return (
-    seen.length > 1 &&
-    seen.every(s => !s.ok || (!s.title.trim() && !s.text.trim()))
+    walked.length > 1 &&
+    walked.every(s => !s.ok || (!s.title.trim() && !s.text.trim()))
   )
 }
 
@@ -172,6 +199,11 @@ export interface RoundDeps {
   tell: (text: string) => Promise<void>
   now: () => Date
   sites?: Site[]
+  /**
+   * The browser's logins, read once before walking (#2965), or null when
+   * they cannot be read -- then every site is walked as before.
+   */
+  logins?: () => Promise<NetworkLogin[] | null>
 }
 
 /**
@@ -180,8 +212,20 @@ export interface RoundDeps {
  */
 export async function runRound(d: RoundDeps): Promise<string> {
   if (await d.personHasTheWheel()) return 'the person is driving; skipped'
+  const logins = d.logins ? await d.logins().catch(() => null) : null
   const seen: Seen[] = []
   for (const site of d.sites ?? ROUND_SITES) {
+    if (isNotConnected(site.url, logins)) {
+      seen.push({
+        name: site.name,
+        title: '',
+        text: '',
+        ok: true,
+        ms: 0,
+        notConnected: true,
+      })
+      continue
+    }
     const at = Date.now()
     try {
       let got = await d.look(site.url)
