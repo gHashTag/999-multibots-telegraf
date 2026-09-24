@@ -137,3 +137,50 @@ describe('crm_groups', () => {
     expect(q.params[0]).toBe(OWNER)
   })
 })
+
+/*
+ * A POST INTO A GROUP IS THE SAME CARD, NAMED AS A GROUP (#2951). tg_send
+ * already prepared a card for any chat; the owner now sees that the chat is
+ * a group and how many will read it, and a person's card is unchanged.
+ */
+describe('tg_send to a group', () => {
+  const groupPool = {
+    query: async (sql: string, params: unknown[] = []) =>
+      /FROM crm_groups WHERE owner_id = \$1 AND chat_id = \$2/.test(
+        sql.replace(/\s+/g, ' ')
+      ) &&
+      params[0] === OWNER &&
+      params[1] === CHAT
+        ? { rows: [{ title: 'Buyers club', members_count: 40 }] }
+        : { rows: [] },
+  }
+  const send = async (chat: string, pool: unknown = groupPool) => {
+    const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
+    const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
+    return (await t.handler({ chat, text: 'hello all' }, {
+      telegramId: OWNER,
+      pool,
+      surface: 'bot',
+    } as never)) as { proposal?: boolean; display?: string }
+  }
+
+  it('is still a proposal, and the card names the group and its size', async () => {
+    const r = await send(CHAT)
+    expect(r.proposal).toBe(true)
+    expect(r.display).toBe(
+      'group «Buyers club» · 40 members: every member will see it'
+    )
+  })
+
+  it('a group the CRM has not read is still called a group', async () => {
+    const r = await send('-1009999999999')
+    expect(r.proposal).toBe(true)
+    expect(r.display).toBe('group -1009999999999: every member will see it')
+  })
+
+  it("a person's card is untouched", async () => {
+    const r = await send('900000301')
+    expect(r.proposal).toBe(true)
+    expect(r.display).toBeUndefined()
+  })
+})

@@ -190,7 +190,8 @@ const en: Translations = {
   'crm.groups.row': '{members} members · {messages} messages read',
   'crm.group.back': 'Back to CRM',
   'crm.group.badId': 'This is not a group address.',
-  'crm.group.readOnly': 'Read-only: the agent does not post into groups.',
+  'crm.group.readOnly':
+    'Ask the agent for a post here: it prepares a card, and nothing is posted until you press it.',
   'crm.group.members': 'Who speaks here',
   'crm.group.noMembers':
     'Nobody has written here yet, or it has not been read.',
@@ -2402,7 +2403,8 @@ const ru: Translations = {
   'crm.groups.row': 'участников: {members} · прочитано сообщений: {messages}',
   'crm.group.back': 'Назад в CRM',
   'crm.group.badId': 'Это не адрес группы.',
-  'crm.group.readOnly': 'Только чтение: агент не пишет в группы.',
+  'crm.group.readOnly':
+    'Попросите агента подготовить пост сюда: он пришлёт карточку, и ничего не уйдёт, пока вы её не нажмёте.',
   'crm.group.members': 'Кто здесь пишет',
   'crm.group.noMembers': 'Здесь ещё никто не писал, или группа не прочитана.',
   'crm.group.memberMessages': 'сообщений: {n}',

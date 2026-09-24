@@ -8,8 +8,9 @@
  * (crm_group_messages), and a member who wrote there is filed as a person the
  * owner can open like any other client ("wrote in group X").
  *
- * Read-only by construction: nothing here writes to Telegram. Sending into a
- * group waits for the owner's decision (#2951).
+ * Read-only by construction: nothing here writes to Telegram. A post into a
+ * group is the ordinary tg_send card the owner presses (#2951);
+ * groupCardLabel below only names the group on that card.
  *
  * Everything is keyed by owner_id, the caller: a group is visible only to the
  * owner whose account it came from, exactly like crm_people.
@@ -305,5 +306,42 @@ export async function groupContext(
     members: activeMembers(messages),
     signals,
     intentScore: score,
+  }
+}
+
+/**
+ * WHAT A GROUP POST SAYS ON ITS CARD (#2951).
+ *
+ * Posting into a group is already a tg_send card the owner presses -- the
+ * platform's rule, unchanged. What was missing is the card telling him it is
+ * a GROUP: a bare -100… id reads like any recipient, and a post there is seen
+ * by every member and cannot be recalled. For a group this owner's ingest
+ * has read, the card names it and its size; for any other negative id it
+ * still says "group". Null for a person, so their card is untouched.
+ */
+export async function groupCardLabel(
+  pool: Pool | undefined,
+  owner: string,
+  target: unknown
+): Promise<string | null> {
+  const chat = String(target ?? '').trim()
+  if (!GROUP_ID.test(chat)) return null
+  const fallback = `group ${chat}: every member will see it`
+  if (!pool || !owner) return fallback
+  try {
+    await ensureGroupTables(pool)
+    const { rows } = await pool.query(
+      `SELECT title, members_count FROM crm_groups
+        WHERE owner_id = $1 AND chat_id = $2`,
+      [owner, chat]
+    )
+    const g = rows?.[0]
+    if (!g) return fallback
+    const size = Number.isFinite(Number(g.members_count))
+      ? ` · ${Number(g.members_count)} members`
+      : ''
+    return `group «${String(g.title ?? chat)}»${size}: every member will see it`
+  } catch {
+    return fallback
   }
 }
