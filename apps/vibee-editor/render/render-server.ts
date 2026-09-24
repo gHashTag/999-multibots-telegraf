@@ -8822,6 +8822,38 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  /*
+   * POST /api/agent/fill -- "fill with AI" for one form field (player
+   * lib/aiFill.ts). Same identity as the chat; no tools, no history written.
+   */
+  if (req.url?.split('?')[0] === '/api/agent/fill' && req.method === 'POST') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'sign in to fill with AI' }))
+      return
+    }
+    const { handleFieldFill } = await import('./src/agent/field-fill')
+    const { askBuyerModel } = await import('./src/agent/crm-duet-tool')
+    const { allProviders, diagnose } = await import('./src/agent/provider')
+    let body = ''
+    try {
+      body = await readBody(req, 64 * 1024)
+    } catch {
+      res.writeHead(413, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'body too large' }))
+      return
+    }
+    const out = await handleFieldFill(body, String(who), messages =>
+      askBuyerModel(messages as never, allProviders(), fetch, (id, st, b) =>
+        diagnose(id as never, st, b)
+      )
+    )
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
   if (req.url?.split('?')[0] === '/api/agent/chat' && req.method === 'POST') {
     // Identity: the mini-app signature OR an agent key (the connector used for
     // testing). telegram_id is never taken from the body -- otherwise anyone

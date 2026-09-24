@@ -16,6 +16,7 @@ import type {
 } from '@/atoms/agentChat'
 import { useLanguage } from '@/hooks/useLanguage'
 import { ClientAside } from '@/components/Crm/ClientAside'
+import { AutoChip } from '@/components/Crm/AutoChip'
 import { useTokenTopUp } from '@/hooks/useTokenTopUp'
 import { Header } from '@/components/Header'
 import { ChatAssets } from '@/components/Chat/ChatAssets'
@@ -522,6 +523,9 @@ function ChatThread({
                 Новый разговор
               </button>
             )}
+            {/* AUTO, beside the conversation that prepares the cards: the agent
+                may not flip it, so the owner's button is here, not a screen away. */}
+            <AutoChip />
             {tokens !== null && (
               <button className="chat-tokens" onClick={() => setTopUp(v => !v)}>
                 💰 {tokens} токенов · пополнить
@@ -718,6 +722,7 @@ function ChatThread({
               <input
                 type="text"
                 className="chat-input"
+                data-ai="off"
                 placeholder={t('chat.messagePlaceholder')}
                 value={input}
                 disabled={busy}
