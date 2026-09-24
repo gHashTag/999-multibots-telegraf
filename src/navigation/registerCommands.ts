@@ -335,6 +335,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      */
     registerProposalButtons(bot)
     registerCrmCommands(bot)
+    registerClubWelcome(bot)
     /*
      * The club's buttons, for the same reason: "Join" is the press that pays,
      * and a wizard step must not be able to swallow it (clubCard.ts).
@@ -2395,6 +2396,52 @@ function getUserInfoFromContext(ctx: MyContext) {
  * a wizard step that handles `callback_query` without calling next() swallows
  * the press, and the person taps "Отправить" and watches nothing happen.
  */
+/**
+ * THE FIRST MINUTE OF A NEW MEMBER, IN THE ROOM THE OWNER OPENED.
+ *
+ * Owner, 2026-09-24: "start the onboarding, and make a plan for new club
+ * members so everything is convenient at the start -- through the common
+ * group, show your mega usefulness".
+ *
+ * Only in a room he opened (groupConcierge.ts). Everywhere else the bot is a
+ * guest and greeting somebody would be the interruption the group rule of
+ * 2026-09-20 exists to prevent.
+ *
+ * One question, not a form: a single sentence about their own work. It is the
+ * seed of their SOUL, the minimum the seller needs, and something a person
+ * answers on a phone while walking (clubOnboarding.ts).
+ *
+ * Bots are skipped, and so is our own arrival: a bot greeting itself into a
+ * room is the first thing anybody would screenshot.
+ */
+export function registerClubWelcome(bot: Telegraf<MyContext>): void {
+  bot.on('new_chat_members', async (ctx, next) => {
+    try {
+      const { isConciergeChat } = await import(
+        '@/navigation/helpers/groupConcierge'
+      )
+      if (!isConciergeChat(ctx.chat?.id)) return next()
+      const joined = (ctx.message as { new_chat_members?: Array<any> })
+        ?.new_chat_members
+      if (!Array.isArray(joined) || !joined.length) return next()
+      const { greeting } = await import('@/services/clubOnboarding')
+      for (const person of joined) {
+        if (person?.is_bot) continue
+        await ctx
+          .reply(greeting(person?.first_name), {
+            reply_parameters: { message_id: ctx.message.message_id },
+          } as never)
+          .catch(() => undefined)
+      }
+    } catch (e) {
+      logger.warn('[club] the welcome did not go out', {
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
+    return next()
+  })
+}
+
 export function registerProposalButtons(bot: Telegraf<MyContext>): void {
   /*
    * A card whose buttons survive their own press invites a second tap, and on
