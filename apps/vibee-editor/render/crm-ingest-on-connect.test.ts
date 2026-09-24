@@ -11,9 +11,8 @@ beforeEach(() => vi.resetModules())
 describe('ingestAfterConnect', () => {
   it('runs the ingest for that person and reports what it read', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
-    const { ingestAfterConnect } = await import(
-      './src/agent/crm-ingest-on-connect'
-    )
+    const { ingestAfterConnect } =
+      await import('./src/agent/crm-ingest-on-connect')
     const run = vi.fn(async () => ({
       people: 3,
       messages_new: 40,
@@ -30,9 +29,8 @@ describe('ingestAfterConnect', () => {
 
   it('a failing ingest is a warning, not an exception', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const { ingestAfterConnect } = await import(
-      './src/agent/crm-ingest-on-connect'
-    )
+    const { ingestAfterConnect } =
+      await import('./src/agent/crm-ingest-on-connect')
     const r = await ingestAfterConnect(
       { query: async () => ({ rows: [] }) },
       '5',
@@ -55,17 +53,45 @@ describe('ingestAfterConnect', () => {
       CRM_MEMORY_TOOLS: [{ name: 'crm_ingest_chats', handler }],
     }))
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
-    const { ingestAfterConnect } = await import(
-      './src/agent/crm-ingest-on-connect'
-    )
+    const { ingestAfterConnect } =
+      await import('./src/agent/crm-ingest-on-connect')
     const pool = { query: async () => ({ rows: [] }) }
     await ingestAfterConnect(pool, '144022504')
     expect(handler).toHaveBeenCalledTimes(1)
     const [args, ctx] = handler.mock.calls[0] as unknown as [any, any]
-    expect(args).toEqual({ limit: 2000, depth: 500 })
+    expect(args).toEqual({ limit: 2000, depth: 500, resume: true })
     expect(ctx.telegramId).toBe('144022504')
     expect(ctx.pool).toBe(pool)
     expect(ctx.surface).toBe('bot')
+    vi.doUnmock('./src/agent/crm-memory-tools')
+  })
+
+  it('reads the contact book FIRST, and its failure does not cost the walk (#2945)', async () => {
+    const order: string[] = []
+    const book = vi.fn(async () => {
+      order.push('contacts')
+      throw new Error('FLOOD_WAIT_60')
+    })
+    const chats = vi.fn(async () => {
+      order.push('chats')
+      return { people: 3 }
+    })
+    vi.doMock('./src/agent/crm-memory-tools', () => ({
+      CRM_MEMORY_TOOLS: [
+        { name: 'crm_ingest_chats', handler: chats },
+        { name: 'crm_ingest_contacts', handler: book },
+      ],
+    }))
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const { ingestAfterConnect } =
+      await import('./src/agent/crm-ingest-on-connect')
+    const r = await ingestAfterConnect(
+      { query: async () => ({ rows: [] }) },
+      '144022504'
+    )
+    expect(order).toEqual(['contacts', 'chats'])
+    expect(r?.people).toBe(3)
+    expect(r?.contacts).toBeUndefined()
     vi.doUnmock('./src/agent/crm-memory-tools')
   })
 
