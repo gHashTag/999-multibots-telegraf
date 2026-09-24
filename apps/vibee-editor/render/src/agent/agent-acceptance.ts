@@ -41,6 +41,8 @@ export const FAIL_CODES = [
   'no_answer',
   'acted',
   'expected_tool_missing',
+  /* The answer is not what the canary asked for (acceptance-canaries.json). */
+  'answer_shape',
 ] as const
 export type FailCode = (typeof FAIL_CODES)[number]
 
@@ -56,7 +58,16 @@ export interface Verdict {
 export interface LatestVerdict extends Verdict {
   /** ISO time of the run. */
   at: string
+  /**
+   * The fingerprint of the canary table the run used (daily-acceptance.ts
+   * CANARIES_HASH); '' when a run did not say. A verdict under an older
+   * table is stale: the daily run checks again at once.
+   */
+  canaries: string
 }
+
+/** A canary-table fingerprint as runs send it: 12 hex characters. */
+export const CANARIES_HASH_SHAPE = /^[0-9a-f]{12}$/
 
 const AGENT_ID = /^[a-z][a-z0-9-]{0,39}$/
 const TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/
@@ -100,6 +111,9 @@ async function ensureTable(q: Queryable): Promise<void> {
   await q.query(
     `CREATE INDEX IF NOT EXISTS agent_acceptance_agent_at ON agent_acceptance (agent, at DESC)`
   )
+  await q.query(
+    `ALTER TABLE agent_acceptance ADD COLUMN IF NOT EXISTS canaries text NOT NULL DEFAULT ''`
+  )
   tableReady = true
 }
 
@@ -107,7 +121,7 @@ async function ensureTable(q: Queryable): Promise<void> {
 export async function latestVerdicts(q: Queryable): Promise<LatestVerdict[]> {
   await ensureTable(q)
   const { rows } = await q.query(
-    `SELECT DISTINCT ON (agent) agent, at, pass, tools, codes
+    `SELECT DISTINCT ON (agent) agent, at, pass, tools, codes, canaries
        FROM agent_acceptance
       ORDER BY agent, at DESC`
   )
@@ -117,6 +131,7 @@ export async function latestVerdicts(q: Queryable): Promise<LatestVerdict[]> {
     pass: r.pass === true,
     tools: Array.isArray(r.tools) ? r.tools.map(String) : [],
     codes: (Array.isArray(r.codes) ? r.codes.map(String) : []) as FailCode[],
+    canaries: typeof r.canaries === 'string' ? r.canaries : '',
   }))
 }
 
@@ -177,7 +192,13 @@ export async function handleAcceptance(
   if (!verdicts.length) {
     return { status: 400, body: { ok: false, error: 'no valid verdicts' } }
   }
-  await recordVerdicts(await deps.getPool(), verdicts, who)
+  const hash = (parsed as { canaries?: unknown })?.canaries
+  await recordVerdicts(
+    await deps.getPool(),
+    verdicts,
+    who,
+    typeof hash === 'string' && CANARIES_HASH_SHAPE.test(hash) ? hash : ''
+  )
   return { status: 200, body: { ok: true, kept: verdicts.length } }
 }
 
@@ -188,16 +209,18 @@ export async function handleAcceptance(
 export async function recordVerdicts(
   pool: Queryable,
   verdicts: readonly Verdict[],
-  by: string
+  by: string,
+  canaries = ''
 ): Promise<void> {
   await ensureTable(pool)
+  const hash = CANARIES_HASH_SHAPE.test(canaries) ? canaries : ''
   for (const raw of verdicts) {
     const v = verdictOf(raw)
     if (!v) continue
     await pool.query(
-      `INSERT INTO agent_acceptance (agent, pass, tools, codes, by_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [v.agent, v.pass, v.tools, v.codes, by]
+      `INSERT INTO agent_acceptance (agent, pass, tools, codes, by_id, canaries)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [v.agent, v.pass, v.tools, v.codes, by, hash]
     )
   }
 }
