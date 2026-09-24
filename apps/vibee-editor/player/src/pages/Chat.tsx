@@ -33,6 +33,7 @@ import { toAbsoluteUrl } from '@/lib/mediaUrl'
 import { parseCards, cardStates, answerFor } from '@/lib/agentCards'
 import { AgentCards } from '@/components/Chat/AgentCards'
 import { ChatThreads } from '@/components/Chat/ChatThreads'
+import { SendCardView } from '@/components/Chat/SendCardView'
 import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { useEarnedAgent } from '@/hooks/useAgentAcceptance'
@@ -662,6 +663,18 @@ function ChatThread({
                     </div>
                   ) : null}
                   {m.role === 'assistant' ? cardsOf(m.text || '', idx) : null}
+                  {m.role === 'assistant' && m.sendCard ? (
+                    <SendCardView
+                      card={m.sendCard}
+                      onChange={next =>
+                        setMessages(prev =>
+                          prev.map(x =>
+                            x.id === m.id ? { ...x, sendCard: next } : x
+                          )
+                        )
+                      }
+                    />
+                  ) : null}
                   {!m.text && m.role === 'assistant' && busy ? (
                     <div className="typing-indicator">
                       <div className="typing-dot" />
