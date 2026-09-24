@@ -59,6 +59,7 @@ import {
   fetchHistory,
   markSurface,
 } from '@/services/trinityAgent'
+import { wasStoppedByOwner } from '@/services/agentStop'
 import { turnAlreadySpent, toolsUsedOf } from '@/services/agentTurnSpend'
 import { guardAssetLinks } from '@/services/assetLinkGuard'
 import { SERVICE_CARDS, deepLink, matchCards } from '@/handlers/inlineQuery'
@@ -715,6 +716,21 @@ const AGENT_TRANSIENT_RE = new RegExp(
  * (src/utils/alertThrottle.ts, 10 min) bounds what that can cost.
  */
 export function classifyAgentFault(message: string): ProviderFault {
+  /*
+   * A STOP IS FINAL, AND IT IS CHECKED FIRST.
+   *
+   * The owner's stop ends the turn by aborting, and "abort" sits in
+   * AGENT_TRANSIENT_RE -- so without this line a stop is read as a blip and
+   * the turn is REPLAYED. The person presses Stop and the work starts again:
+   * the opposite of what the button says, which is the trap issue #2721
+   * names before anything else.
+   *
+   * 'standing' rather than a new kind: the retry gate below breaks on
+   * anything that is not transient, and inventing a third word would mean
+   * teaching every reader of ProviderFault about a case that behaves exactly
+   * like the one that already exists.
+   */
+  if (wasStoppedByOwner(message)) return 'standing'
   if (AGENT_STANDING_RE.test(message)) return 'standing'
   if (isEmptyAgentAnswer(message)) return 'transient'
   if (AGENT_TRANSIENT_RE.test(message)) return 'transient'

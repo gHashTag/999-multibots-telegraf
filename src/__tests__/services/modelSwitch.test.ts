@@ -211,8 +211,14 @@ describe('wired (source-level: the bot is not booted here)', () => {
     expect(cp).toMatch(/return sweepOnce\(ownerId, liveDeps\(bot\), opts\)/)
     // A press-made card is held only while the render keeps the draft.
     expect(cp).toContain('export const MENU_HOLD_MS = 10 * 60_000')
+    /*
+     * The owner is named by a local now (`who`), because the same id also
+     * keys the run registry that the Stop button aborts (issue #2721). The
+     * promise pinned here is unchanged: the button press runs THE SAME sweep
+     * the timer runs, with the menu hold and the caller's options.
+     */
     expect(src).toMatch(
-      /runSweepNow\(\s*bot,\s*ownerId\(ctx\),\s*\{\s*holdMs: MENU_HOLD_MS,\s*\.\.\.opts,?\s*\}\s*\)/
+      /runSweepNow\(\s*bot,\s*who,\s*\{\s*holdMs: MENU_HOLD_MS,\s*signal: stopper\.signal,\s*\.\.\.opts,?\s*\}\s*\)/
     )
   })
 })
