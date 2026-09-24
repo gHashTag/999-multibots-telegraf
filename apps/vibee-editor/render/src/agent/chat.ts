@@ -1189,7 +1189,9 @@ function ownerSideSection(surface?: string): string {
     /* #2962, #2964: the clone's networks, read without opening a page. */
     'Где его браузер уже вошёл — browser_logins (страницу не открывает). ' + // cyrillic-ok: prompt copy
     '«Подключи мои сети» — browser_logins, затем каждую signed_out по ' + // cyrillic-ok: prompt copy
-    'порядку ВХОДА В АККАУНТЫ, затем снова browser_logins и одна строка на сеть.' // cyrillic-ok: prompt copy
+    'порядку ВХОДА В АККАУНТЫ, затем снова browser_logins и одна строка на сеть. ' + // cyrillic-ok: prompt copy
+    /* #2974: where visitors come from, by the utm tag of each channel. */
+    'Откуда приходят люди, по каналам (utm_source) — crm_traffic.' // cyrillic-ok: prompt copy
   )
 }
 
