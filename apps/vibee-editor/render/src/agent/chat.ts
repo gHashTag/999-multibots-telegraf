@@ -1155,7 +1155,11 @@ function ownerSideSection(surface?: string): string {
     'события, суд по коду (hive_*). Проекты: открыть и сохранить ' +
     '(project_get, project_save, projects_list). План по Лиле (leela_plan). ' +
     'Почта владельца (Zoho): список, поиск, чтение писем (mail_*); письмо ' +
-    'уходит только после нажатия владельца на карточке mail_send.'
+    'уходит только после нажатия владельца на карточке mail_send. ' +
+    /* #2962, #2964: the clone's networks, read without opening a page. */
+    'Где его браузер уже вошёл — browser_logins (страницу не открывает). ' + // cyrillic-ok: prompt copy
+    '«Подключи мои сети» — browser_logins, затем каждую signed_out по ' + // cyrillic-ok: prompt copy
+    'порядку ВХОДА В АККАУНТЫ, затем снова browser_logins и одна строка на сеть.' // cyrillic-ok: prompt copy
   )
 }
 

@@ -66,6 +66,7 @@ import {
   pageUrl,
 } from './cdp'
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
+import { LOGINS_NOTE, readLogins } from './logins'
 import {
   chosenFront,
   forgetFront,
@@ -566,6 +567,41 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
               : {}),
           })),
         watchedByThePerson: true,
+      }
+    },
+  },
+  {
+    /*
+     * WHICH NETWORKS THE CLONE HOLDS (#2962). Read from the browser's own
+     * cookies on the browser socket: no page opens, the wheel is not touched,
+     * so it runs even while the person drives. Values and cookie names never
+     * leave logins.ts -- only networks and states.
+     */
+    name: 'browser_logins',
+    description:
+      "Which of the person's networks their browser is signed into (X, LinkedIn, TikTok, " +
+      'Instagram, YouTube, Google, GitHub, VK...): signed_in / expired / signed_out / unknown. ' +
+      'Opens no page. Call it before "connect my networks" and after each sign-in.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    async handler(_args, ctx) {
+      const session = await readSession(
+        ctx.pool as unknown as Queryable,
+        ctx.telegramId
+      )
+      if (!session || session.state !== 'live') {
+        return {
+          running: false,
+          hint: 'the browser is off, so its logins cannot be read; browser_open starts it',
+        }
+      }
+      const networks = await readLogins(session.cdpEndpoint!, Date.now())
+      return {
+        running: true,
+        networks,
+        signedIn: networks
+          .filter(n => n.state === 'signed_in')
+          .map(n => n.name),
+        note: LOGINS_NOTE,
       }
     },
   },

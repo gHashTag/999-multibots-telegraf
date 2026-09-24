@@ -26,7 +26,12 @@ Read FIRST (`TRI_LOOP=agents tri loop`), write at the END
 ## СЕЙЧАС В РАБОТЕ
 
 - Tick 1 (24.09 07:20 UTC): Brave Search API backend for web_search, `tri
-agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv.
+agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
+  (draft, not merged: needs the owner's word).
+- Tick 2 (24.09 07:40 UTC): epic #2961 (digital clone, every network) with
+  sub-issues #2962-#2966. Done: #2962 `browser_logins` + `tri logins`, same
+  branch and PR #2960. Next: #2963 (clone status reports accounts), then #2965
+  (rounds skip networks that are not signed in), #2966 (dead /api/instagram).
 
 ## Что уже есть
 
@@ -48,14 +53,22 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv.
 - [ ] job: job_hunters scans 60 dialogs x ~20 messages live; found nobody.
       Level up: also read the ingested history (crm_messages), which is deep.
 - [ ] Railway service `agents-acceptance-once` (3023df8d…) still exists:
-      delete-service timed out twice. It only idles. Delete it next tick.
+      delete-service timed out THREE times (MCP 60 s limit). Stop retrying it
+      from the loop; the owner removes it in the dashboard (Settings -> Delete)
+      or with `railway service delete`. It only idles.
+- [ ] render `isolated-reader.test.ts` "a heap blown by one file" times out
+      at 5 s in the cloud container, with or without this branch (checked by
+      stash, tick 2). Pre-existing; the worker's heap ceiling is slow here.
+- [ ] Someone else created `owner-noir-reel-once` (84bbe809…) on 24.09. Not
+      ours: never touch it from this loop.
 
 ## Plan (next ticks)
 
-- [ ] Epic: digital clone - every social network of the owner connected
-      (owner, 24.09: "connect all my social networks so the digital clone
-      deserves the name"). Inventory -> status tool -> guided sign-in with
-      browser_ask_input (the owner types passwords himself).
+- [x] Epic #2961: digital clone, every social network. Inventory done (only
+      Telegram has an API; everything else goes through the owner's browser).
+      Status tool #2962 done. Guided sign-in #2964 is a prompt line (done in
+      chat.ts ownerSideSection) and needs a live A2A run: `tri a2a "подключи
+    мои сети"` + `tri logins` before/after.
 - [ ] job_hunters over crm_messages (deep history), with the same evidence rule.
 - [ ] Competitor scan: agent marketplaces (what "hire an agent" products
       prove before selling an agent) -> gaps in our catalogue.
