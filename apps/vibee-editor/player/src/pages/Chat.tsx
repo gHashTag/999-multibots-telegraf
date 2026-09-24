@@ -29,6 +29,7 @@ import { AgentCards } from '@/components/Chat/AgentCards'
 import { ChatThreads } from '@/components/Chat/ChatThreads'
 import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
+import { AGENT_SUGGESTIONS } from './agentSuggestions'
 import './Chat.css'
 
 /**
@@ -138,13 +139,6 @@ const BLOGGER_WELCOME: Message = {
     'Сначала покажу доказательства и пробел в публикациях. Внешние публикации ' +
     'делаю только после явного подтверждения, а в конце возвращаю живые ссылки.',
 }
-
-const BLOGGER_SUGGESTIONS = [
-  'Что сильного уже сделано, но ещё не опубликовано?',
-  'Собери следующий пост EN/RU с хештегами и офером',
-  'Проверь блог: где нет триптиха или полного текста?',
-  'Подготовь контент-план для X, LinkedIn и Telegram',
-]
 
 function ChatPage() {
   const { clientId, agentId } = useParams<{
@@ -632,8 +626,8 @@ function ChatThread({
             <div className="suggestions">
               {(client
                 ? CLIENT_SUGGESTIONS
-                : marketplaceAgent === 'blogger'
-                  ? BLOGGER_SUGGESTIONS
+                : marketplaceAgent && AGENT_SUGGESTIONS[marketplaceAgent]
+                  ? AGENT_SUGGESTIONS[marketplaceAgent]
                   : SUGGESTIONS
               ).map((s, i) => (
                 <button
