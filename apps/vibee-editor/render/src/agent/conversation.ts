@@ -58,6 +58,11 @@ export function clientThread(clientId: string): string {
   return `client:${clientId}`
 }
 
+/** The Queen's supervision of one client: beside the agent's thread, never inside it. */
+export function supervisorThread(clientId: string): string {
+  return `client:${clientId}:queen`
+}
+
 /** A hired specialist never shares memory with the general assistant. */
 export function marketplaceAgentThread(agentId: string): string {
   return `agent:${agentId}`
