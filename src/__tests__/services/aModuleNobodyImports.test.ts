@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { importerOf, orphans } from '../../../scripts/orphan-modules.cjs'
+import {
+  importerOf,
+  orphans,
+  reachable,
+} from '../../../scripts/orphan-modules.cjs'
 
 /*
  * A MODULE NOTHING IMPORTS IS A FEATURE NOBODY SWITCHED ON.
@@ -50,17 +54,74 @@ describe('what counts as a caller', () => {
 })
 
 describe('the census itself', () => {
-  it('looks at a real number of modules, so an empty answer is not agreement', () => {
-    const { looked, orphans: dead } = orphans()
+  const files = () => orphans().orphans.map((d: { file: string }) => d.file)
+
+  it('walks the program from its entries, not just the file list', () => {
+    const { looked, live } = orphans()
     expect(looked).toBeGreaterThan(100)
-    expect(Array.isArray(dead)).toBe(true)
+    /*
+     * The reachable set is the answer to the real question. If it collapses,
+     * every module looks dead at once -- which is how a census turns into a
+     * deletion list overnight.
+     */
+    expect(live).toBeGreaterThan(400)
   })
 
   it('does not list a module this very repository imports dynamically', () => {
-    const { orphans: dead } = orphans()
     // Wired today through `await import('@/services/clubOnboarding')`.
-    expect(dead).not.toContain('src/services/clubOnboarding.ts')
+    expect(files()).not.toContain('src/services/clubOnboarding.ts')
     // And through `await import('@/services/browserApproval')`.
-    expect(dead).not.toContain('src/services/browserApproval.ts')
+    expect(files()).not.toContain('src/services/browserApproval.ts')
+  })
+
+  it('every named entry point EXISTS, or the census is about a smaller program', () => {
+    /*
+     * The mutation that exposed this: renaming the production entry to a file
+     * that does not exist left the suite green, because the other two entries
+     * still reach four hundred files. A threshold cannot notice a missing
+     * door; only asking for the door can.
+     */
+    const { readFileSync } = require('node:fs')
+    const { resolve } = require('node:path')
+    const root = resolve(__dirname, '../../..')
+    const src = readFileSync(
+      resolve(root, 'scripts/orphan-modules.cjs'),
+      'utf8'
+    )
+    const at = src.indexOf('const ENTRIES = [')
+    expect(at, 'the census no longer names its entries').toBeGreaterThan(-1)
+    const named = [
+      ...src.slice(at, src.indexOf(']', at)).matchAll(/'([^']+)'/g),
+    ].map(m => m[1])
+    expect(named.length).toBeGreaterThan(1)
+    for (const e of named)
+      expect(() => readFileSync(resolve(root, e), 'utf8'), e).not.toThrow()
+  })
+
+  it('reaches the scenes and the background functions, or the entries are wrong', () => {
+    /*
+     * The sharpest way this census can lie is a missing entry point: half the
+     * program then looks dead. Two families that must be reachable from the
+     * production entry, or the answer is about the wrong program.
+     */
+    const live = reachable()
+    expect(
+      [...live].filter((f: string) => f.includes('/scenes/')).length
+    ).toBeGreaterThan(20)
+    expect([...live].some((f: string) => f.includes('inngest_app'))).toBe(true)
+  })
+
+  it('says when a module is imported ONLY by dead ones', () => {
+    /*
+     * The one-hop version answered the weaker question: two image generators
+     * looked alive because a manager imports them, and nothing imports the
+     * manager. A module reachable only through the dead is dead.
+     */
+    const { orphans: dead } = orphans()
+    const flagged = dead.filter((d: { imported: boolean }) => d.imported)
+    expect(flagged.length).toBeGreaterThan(0)
+    expect(
+      dead.every((d: { file: string }) => typeof d.file === 'string')
+    ).toBe(true)
   })
 })

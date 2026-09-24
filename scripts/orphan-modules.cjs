@@ -73,6 +73,100 @@ function importerOf(base) {
   )
 }
 
+/**
+ * WHERE THE RUNNING PROGRAM STARTS.
+ *
+ * `src/index.ts` is the production entry (it builds its own bots there),
+ * `bot.ts` is the package's "main", and `render-server.ts` is the render's. A
+ * module is alive if the program can REACH it from one of these, not merely
+ * if somebody imports it.
+ */
+const ENTRIES = [
+  'src/index.ts',
+  'src/bot.ts',
+  'apps/vibee-editor/render/render-server.ts',
+]
+
+/** Every literal specifier an import in this source names. */
+function specifiersIn(src) {
+  const out = []
+  for (const m of src.matchAll(
+    /(?:from|require\(|import\()\s*['"]([^'"]+)['"]/g
+  ))
+    out.push(m[1])
+  return out
+}
+
+/**
+ * The file a specifier means, or null when it leaves this repository.
+ *
+ * `@/x` is the bot's alias for `src/x` (tsconfig paths). A bare name is a
+ * package and ends the walk -- node_modules is not ours to census.
+ */
+function resolveSpec(fromFile, spec) {
+  const { dirname, normalize } = require('node:path')
+  let base
+  if (spec.startsWith('@/')) base = join('src', spec.slice(2))
+  else if (spec.startsWith('.')) base = normalize(join(dirname(fromFile), spec))
+  else return null
+  for (const ext of ['.ts', '.tsx', '.mjs', '.cjs', '.js']) {
+    const p = base + ext
+    try {
+      readFileSync(resolve(ROOT, p), 'utf8')
+      return p
+    } catch {
+      /* try the next shape */
+    }
+  }
+  for (const idx of ['/index.ts', '/index.tsx']) {
+    const p = base + idx
+    try {
+      readFileSync(resolve(ROOT, p), 'utf8')
+      return p
+    } catch {
+      /* not a directory module */
+    }
+  }
+  return null
+}
+
+/**
+ * EVERY FILE THE PROGRAM CAN REACH FROM ITS ENTRIES.
+ *
+ * Added after the one-hop version answered the weaker question: two image
+ * generators looked alive because `UniversalProviderManager` imports them --
+ * and nothing imports the manager. A module reachable only through the dead
+ * is dead, and a census that cannot say so hands back a list that is quietly
+ * too short.
+ */
+function reachable() {
+  const seen = new Set()
+  const queue = ENTRIES.filter(e => {
+    try {
+      readFileSync(resolve(ROOT, e), 'utf8')
+      return true
+    } catch {
+      return false
+    }
+  })
+  while (queue.length) {
+    const f = queue.pop()
+    if (seen.has(f)) continue
+    seen.add(f)
+    let src = ''
+    try {
+      src = readFileSync(resolve(ROOT, f), 'utf8')
+    } catch {
+      continue
+    }
+    for (const spec of specifiersIn(src)) {
+      const next = resolveSpec(f, spec)
+      if (next && !seen.has(next)) queue.push(next)
+    }
+  }
+  return seen
+}
+
 function orphans() {
   const candidates = WATCHED.flatMap(d => walk(d)).filter(p => !isTest(p))
   const sources = [...new Set(SEARCHED.flatMap(d => walk(d)))].filter(
@@ -86,38 +180,51 @@ function orphans() {
       /* unreadable is not a caller */
     }
   }
+  /*
+   * Two questions, and the second is the real one.
+   *
+   * `imported` is "does anybody import this" -- cheap, and too generous: a
+   * module imported only by a dead module passes it. `live` is "can the
+   * program reach this from its entries", which is what "switched on" means.
+   */
+  const live = reachable()
   const out = []
   for (const f of candidates) {
+    if (live.has(f)) continue
     const re = importerOf(basename(f, f.endsWith('.tsx') ? '.tsx' : '.ts'))
-    let used = false
+    let imported = false
     for (const [p, src] of read) {
       if (p === f) continue
       if (re.test(src)) {
-        used = true
+        imported = true
         break
       }
     }
-    if (!used) out.push(f)
+    out.push({ file: f, imported })
   }
-  return { looked: candidates.length, orphans: out }
+  return { looked: candidates.length, live: live.size, orphans: out }
 }
 
 function main() {
-  const { looked, orphans: dead } = orphans()
-  const wiring = dead.filter(f => /-wiring\.ts$/.test(f))
+  const { looked, live, orphans: dead } = orphans()
   console.log(
-    `Просмотрено модулей: ${looked}. Никем не импортируются: ${dead.length}.` // cyrillic-ok: operator-facing
+    `Просмотрено модулей: ${looked}. Программа достаёт ${live} файлов от точек входа. ` + // cyrillic-ok: operator-facing
+      `Недостижимы: ${dead.length}.` // cyrillic-ok: operator-facing
   )
-  for (const f of dead) console.log(`  ${f}`)
+  for (const d of dead)
+    console.log(
+      `  ${d.file}${d.imported ? '  (импортируется — но только мёртвыми)' : ''}` // cyrillic-ok: operator-facing
+    )
+  const wiring = dead.filter(d => /-wiring\.ts$/.test(d.file))
   if (wiring.length) {
     console.log(
       '\n⚠️ Среди них файлы «-wiring»: они существуют, чтобы что-то подключать,' + // cyrillic-ok: operator-facing
         ' и сами не подключены.' // cyrillic-ok: operator-facing
     )
-    for (const f of wiring) console.log(`  ${f}`)
+    for (const d of wiring) console.log(`  ${d.file}`)
   }
 }
 
-module.exports = { orphans, importerOf, walk }
+module.exports = { orphans, importerOf, walk, reachable, resolveSpec }
 
 if (require.main === module) main()
