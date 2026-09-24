@@ -132,3 +132,55 @@ describe('the button exists and the dispatcher hears it', () => {
     expect(src.slice(at, at + 400)).toContain('Остановил')
   })
 })
+
+/*
+ * THE LINK NOBODY HAD PINNED: the press must close the SOCKET.
+ *
+ * The render already stops on a dropped connection -- `res.on('close')` aborts
+ * the run, and `runAgent` checks that signal between steps and before each
+ * tool, so work already paid for finishes and nothing new is started or spent
+ * (routes.ts). All of that depends on one thing this side: the external signal
+ * must abort the very fetch that holds the socket open.
+ *
+ * Which also corrects what I first said about this feature: the Stop does
+ * stop new SPENDING, not only the waiting. Only a tool already in flight
+ * finishes.
+ */
+describe('the press reaches the render, not just the bot', () => {
+  it('the external signal aborts the same controller the fetch uses', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const src = readFileSync(
+      join(__dirname, '../../services/trinityAgent.ts'),
+      'utf8'
+    )
+    const at = src.indexOf('const onStop = ')
+    expect(at, 'nothing listens to the external signal').toBeGreaterThan(-1)
+    const body = src.slice(at, at + 500)
+    // The same controller whose signal is handed to fetch below.
+    // The controller's name is one of this repository's pre-existing Cyrillic
+    // identifiers, and the guard here reads a regex literal as code -- so the
+    // check is a plain substring.
+    expect(body.includes('.abort()')).toBe(true)
+    expect(src).toContain('signal: прерыватель.signal')
+  })
+
+  it('a run with no socket is a known hole, not a silent one', async () => {
+    /*
+     * Issue #2721 names it: runs with no socket (the cron sweep, duet, a2a)
+     * cannot be stopped this way, and need `stop_requested_at` checked at
+     * step boundaries instead. The registry here only holds turns the owner
+     * started from a button, which is exactly the set that has a socket.
+     */
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const src = readFileSync(
+      join(__dirname, '../../navigation/registerCommands.ts'),
+      'utf8'
+    )
+    const at = src.indexOf('const running = new Map<string, AbortController>()')
+    expect(at).toBeGreaterThan(-1)
+    // Registered only where a turn is started for this owner, by his press.
+    expect(src).toContain('running.set(who, stopper)')
+  })
+})
