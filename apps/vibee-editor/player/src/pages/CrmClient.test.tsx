@@ -1,7 +1,15 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 /**
  * Spec: t27 specs/automation/crm-client-workspace.t27
@@ -208,6 +216,15 @@ async function draw(path = `/crm/${CLIENT}`) {
     await new Promise(r => setTimeout(r, 0))
   })
 }
+
+/*
+ * The page is imported ONCE, before any test is timed: the module graph
+ * costs seconds, and paying it inside whichever test draws first made this
+ * file fail by MACHINE LOAD rather than by code (Crm.test.tsx, 25.09.2026).
+ */
+beforeAll(async () => {
+  await import('./CrmClient')
+}, 60_000)
 
 describe('every panel is about THIS client', () => {
   it('asks the six tools for the id in the address, not for a default', async () => {
