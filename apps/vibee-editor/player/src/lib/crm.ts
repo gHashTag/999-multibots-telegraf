@@ -384,6 +384,15 @@ export interface ClientProfile {
   skills: string[]
   profile: Record<string, unknown> | null
   updatedAt: string | null
+  /**
+   * The first 400 characters of their SOUL, when the caller may read it.
+   * The card beside a conversation shows it: a reply written without the
+   * person's own words about themselves is written to a stranger.
+   */
+  soulExcerpt: string | null
+  soulIsDraft: boolean
+  /** The server declined to show SOUL and skills: not yours to read. */
+  privateWithheld: boolean
 }
 
 /**
@@ -413,6 +422,9 @@ function toClientProfile(r: Record<string, unknown>): ClientProfile {
     skills: skills.filter(Boolean),
     profile,
     updatedAt: str(r['updated_at']),
+    soulExcerpt: str(r['soul_excerpt'])?.trim() || null,
+    soulIsDraft: bool(r['soul_is_draft']) ?? false,
+    privateWithheld: bool(r['private_withheld']) ?? false,
   }
 }
 
@@ -620,6 +632,18 @@ export interface LeadContext {
   balanceTokens: number | null
   /** Their last inbound line, ready to read: the first thing a reply needs. */
   lastWords: string | null
+  /** When they last wrote, and when we did (ISO), for "silent N days". */
+  lastInbound: string | null
+  lastOutbound: string | null
+  /** Buying words found in their messages: price, buy, service, urgency, objection. */
+  signals: string[]
+  intentScore: number | null
+  /** The free portrait: given, being drawn, or ready to send. */
+  portrait: { given: boolean; drawing: boolean; ready: boolean } | null
+  /** They asked the assistant to stop writing; only the owner writes then. */
+  assistantOff: boolean
+  /** What long-term memory (Zep) knows about them, stripped of markers. */
+  memory: string | null
 }
 
 /**
@@ -655,6 +679,25 @@ function toLeadContext(r: Record<string, unknown>): LeadContext {
     stage: str(r['stage']),
     balanceTokens: num(r['balance_tokens']),
     lastWords: str(r['last_words']) ?? theirs?.text ?? null,
+    lastInbound: str(r['last_inbound']),
+    lastOutbound: str(r['last_outbound']),
+    signals: strings(r['signals']),
+    intentScore: num(r['intent_score']),
+    portrait: toPortrait(r['portrait']),
+    assistantOff: !!r['assistant_off'],
+    memory: str(r['zep_context'])
+      ? stripForeignMarkers(String(r['zep_context'])) || null
+      : null,
+  }
+}
+
+function toPortrait(v: unknown): LeadContext['portrait'] {
+  if (!v || typeof v !== 'object') return null
+  const p = v as Record<string, unknown>
+  return {
+    given: bool(p['given']) ?? false,
+    drawing: bool(p['drawing']) ?? false,
+    ready: bool(p['ready']) ?? false,
   }
 }
 
