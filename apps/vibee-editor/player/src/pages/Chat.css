@@ -477,7 +477,7 @@ html[data-keyboard='open'] .chat-page {
    the client's page. Same pill palette as the toolbar below it. */
 .chat-client {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   padding: 8px 14px 0;
   font-size: 13px;
@@ -496,104 +496,430 @@ html[data-keyboard='open'] .chat-page {
   white-space: nowrap;
 }
 
-/* ── WIDE MODE: THE CLIENT'S CARD BESIDE THE CONVERSATION ──────────────────
+/* ── THE CLIENT'S CARD BESIDE THE CONVERSATION ─────────────────────────────
  *
- * Owner, 2026-09-23: in wide mode the card should be there straight away. It
- * is a fixed column rather than a grid cell on purpose: `.chat-page` is a flex
- * column whose height is the live viewport, and re-laying it out as a grid
- * moves the composer, the keyboard compensation and the scroll container all
- * at once. A column pinned to the right edge, with room made for it in the
- * scrolling part, changes nothing that was already working.
+ * Owner, 2026-09-23: in wide mode the card should be there straight away.
+ * Owner, 2026-09-24: it covered the row of conversation circles. The card was
+ * `position: fixed` at a guessed `top: 96px`, and the row above it is taller
+ * than the guess. Now the part below the circles is a ROW: the conversation
+ * (`.chat-main`, the same flex column as before: header, toolbar, scrolling
+ * list, composer) and the card as a column that starts where it starts. The
+ * page height, the keyboard compensation and the scroll container are
+ * untouched -- `.chat-main` is what `.chat-page` used to be for them.
  *
- * Below this width the card is not shown at all -- the header's link to the
- * client's own screen is the way there, as before.
+ * Narrow screens: the card is a bottom sheet, opened from the header's
+ * "card" button.
  */
+.chat-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.chat-client__card {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid rgba(0, 255, 136, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--t27-accent, #00ff88);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .chat-aside {
   display: none;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #0b0b0b;
+  color: var(--t27-text, #fff);
+  font-size: 13px;
+}
+
+/* A scrolling column: its parts keep their height instead of being squeezed
+   into the viewport and drawn over each other. */
+.chat-aside > * {
+  flex-shrink: 0;
+}
+
+/* NARROW: a sheet over the conversation. */
+.chat-aside.is-open {
+  display: flex;
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* Above the fixed tab bar, which would otherwise cover the sheet's end. */
+  bottom: var(--app-tabbar-total, 56px);
+  max-height: calc(85dvh - var(--app-tabbar-total, 56px));
+  border-top: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  border-radius: 18px 18px 0 0;
+  padding-bottom: calc(16px + var(--app-safe-bottom, 0px));
+  z-index: 60;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.6);
+}
+.chat-aside-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 59;
 }
 
 @media (min-width: 1100px) {
-  .chat-aside {
+  .chat-aside,
+  .chat-aside.is-open {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-    position: fixed;
-    top: 96px;
-    right: 16px;
-    width: 300px;
-    max-height: calc(100dvh - 180px);
-    overflow-y: auto;
-    padding: 14px;
-    border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
-    border-radius: 14px;
-    background: var(--t27-surface, rgba(255, 255, 255, 0.05));
-    z-index: 5;
+    position: static;
+    width: 360px;
+    flex: 0 0 360px;
+    max-height: none;
+    border-radius: 0;
+    border-top: 0;
+    border-left: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+    box-shadow: none;
+    padding-bottom: 16px;
   }
-
-  /* Room for it, so a long line of a message never runs under the card. */
-  .chat-page--client .chat-container,
-  .chat-page--client .chat-input-area {
-    padding-right: 332px;
+  .chat-aside-backdrop,
+  .chat-client__card,
+  .chat-aside__close {
+    display: none;
   }
 }
 
 .chat-aside__head {
   display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.chat-aside__avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--t27-accent, #00ff88);
+  font-weight: 600;
+  font-size: 15px;
+}
+.chat-aside__who {
+  display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
-
 .chat-aside__name {
   font-weight: 600;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
 .chat-aside__handle {
   color: var(--t27-accent, #00ff88);
   text-decoration: none;
-  font-size: 13px;
+}
+.chat-aside__close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
 }
 
-.chat-aside__off {
+.chat-aside__off,
+.chat-aside__muted {
   color: var(--t27-muted, #888);
-  font-size: 13px;
   margin: 0;
 }
 
-.chat-aside__facts {
+.chat-aside__chips,
+.chat-aside__signals,
+.chat-aside__skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chat-aside__chip,
+.chat-aside__signals span,
+.chat-aside__skills span {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+}
+.chat-aside__chip[data-stage='client'],
+.chat-aside__chip[data-kind='package'] {
+  border-color: rgba(0, 255, 136, 0.4);
+  color: var(--t27-accent, #00ff88);
+}
+.chat-aside__chip[data-stage='refused'] {
+  border-color: rgba(255, 90, 90, 0.5);
+  color: #ff7a7a;
+}
+.chat-aside__chip[data-temp='hot'] {
+  border-color: rgba(255, 140, 0, 0.6);
+  color: #ffae42;
+}
+.chat-aside__chip[data-temp='warm'] {
+  color: var(--t27-golden, #ffd700);
+}
+.chat-aside__chip[data-temp='cold'] {
+  color: #8ab4ff;
+}
+.chat-aside__signals span[data-signal='objection'] {
+  color: #ff7a7a;
+}
+
+.chat-aside__pulse {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 10px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
   margin: 0;
-  font-size: 13px;
 }
-
-.chat-aside__facts dt {
+.chat-aside__pulse > div {
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  min-width: 0;
+}
+.chat-aside__pulse > div[data-alert='yes'] {
+  border-color: rgba(255, 215, 0, 0.5);
+  background: rgba(255, 215, 0, 0.06);
+}
+.chat-aside__pulse dt {
   color: var(--t27-muted, #888);
+  font-size: 11px;
 }
-
-.chat-aside__facts dd {
-  margin: 0;
+.chat-aside__pulse dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.3;
 }
-
 .chat-aside__waiting {
   color: var(--t27-golden, #ffd700);
 }
 
+.chat-aside__stop {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 90, 90, 0.4);
+  background: rgba(255, 90, 90, 0.08);
+  color: #ff9a9a;
+}
+
+.chat-aside__label,
+.chat-aside__memory h4 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t27-muted, #888);
+}
+.chat-aside__moves {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-aside__move {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+}
+.chat-aside__move span {
+  flex: 1;
+}
+.chat-aside__move[data-tone='urgent'] {
+  border-color: rgba(0, 255, 136, 0.45);
+  background: rgba(0, 255, 136, 0.06);
+}
+.chat-aside__move[data-tone='stop'] {
+  border-color: rgba(255, 90, 90, 0.4);
+  color: #ff9a9a;
+}
+.chat-aside__move button,
+.chat-aside__note button,
+.chat-aside__more {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--t27-accent, #00ff88);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chat-aside__move button:disabled,
+.chat-aside__note button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chat-aside__quote {
+  margin: 0;
+}
+.chat-aside__quote figcaption {
+  font-size: 11px;
+  color: var(--t27-muted, #888);
+  margin-bottom: 4px;
+}
 .chat-aside__words {
   margin: 0;
   padding: 8px 10px;
-  border-left: 2px solid var(--t27-border, rgba(255, 255, 255, 0.1));
-  color: var(--t27-text, #fff);
-  font-size: 13px;
-  opacity: 0.9;
+  border-left: 2px solid var(--t27-golden, #ffd700);
+  background: rgba(255, 255, 255, 0.03);
   max-height: 120px;
   overflow: hidden;
 }
 
-.chat-aside__package {
+.chat-aside__tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.chat-aside__tabs button {
+  flex: 1;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--t27-muted, #888);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chat-aside__tabs button.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--t27-text, #fff);
+}
+.chat-aside__pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 80px;
+}
+
+.chat-aside__soul {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.chat-aside__soul p {
   margin: 0;
-  font-size: 13px;
-  color: var(--t27-accent, #00ff88);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.chat-aside__soul p.is-open {
+  -webkit-line-clamp: unset;
+  display: block;
+}
+.chat-aside__badge {
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(255, 215, 0, 0.12);
+  color: var(--t27-golden, #ffd700);
+  font-size: 11px;
+}
+.chat-aside__memory p {
+  margin: 4px 0 0;
+  max-height: 140px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.chat-aside__portrait {
+  margin: 0;
+}
+.chat-aside__rules {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+.chat-aside__rules > div {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.chat-aside__rules > div[data-warning='yes'] {
+  border-left: 2px solid #ff7a7a;
+}
+.chat-aside__rules dt {
+  font-size: 11px;
+  color: var(--t27-muted, #888);
+}
+.chat-aside__rules dd {
+  margin: 2px 0 0;
+}
+
+.chat-aside__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.chat-aside__bar span {
+  display: block;
+  height: 100%;
+  background: var(--t27-accent, #00ff88);
+}
+.chat-aside__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.chat-aside__list [data-status] {
+  font-size: 11px;
+  color: var(--t27-muted, #888);
+}
+
+.chat-aside__note {
+  display: flex;
+  gap: 6px;
+}
+.chat-aside__note input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
 }
 
 .chat-aside__actions {
@@ -601,14 +927,14 @@ html[data-keyboard='open'] .chat-page {
   gap: 8px;
   flex-wrap: wrap;
 }
-
 .chat-aside__link {
-  padding: 6px 10px;
+  flex: 1;
+  text-align: center;
+  padding: 8px 10px;
   border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
   border-radius: 10px;
   color: var(--t27-text, #fff);
   text-decoration: none;
-  font-size: 13px;
 }
 
 /* The tick that decides whether AUTO may write to THIS person. */
@@ -616,5 +942,4 @@ html[data-keyboard='open'] .chat-page {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
 }

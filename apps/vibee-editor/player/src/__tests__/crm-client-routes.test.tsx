@@ -99,6 +99,13 @@ describe('the client routes win over the profile catch-all', () => {
     expect(host.textContent).not.toContain('PROFILE_PAGE_SENTINEL')
   })
 
+  it('/crm/g/-100…/chat opens the read-only group page, not a chat (#2950)', async () => {
+    await open('/crm/g/-1001111111111/chat')
+    expect(host.textContent).toContain('crm.group.readOnly')
+    expect(host.textContent).not.toContain('CHAT_PAGE_SENTINEL')
+    expect(host.textContent).not.toContain('PROFILE_PAGE_SENTINEL')
+  })
+
   it('a plain /someone is still the profile', async () => {
     // The control: proves the sentinel is reachable at all, so the two
     // assertions above are not satisfied by a broken profile route.

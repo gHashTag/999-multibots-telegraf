@@ -33,6 +33,7 @@ vi.mock('./src/hive/roles', () => ({
 
 import { CRM_TOOLS } from './src/agent/crm-tools'
 import { CRM_MEMORY_TOOLS } from './src/agent/crm-memory-tools'
+import { CRM_GROUP_TOOLS } from './src/agent/crm-group-tools'
 import { CRM_SUMMARY_TOOLS } from './src/agent/crm-summary-tool'
 import { CRM_TOUCH_TOOLS } from './src/agent/crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './src/agent/crm-offer-tool'
@@ -42,6 +43,7 @@ import { CRM_CLIENT_WORKSPACE_TOOLS } from './src/agent/crm-client-workspace-too
 const REGISTRIES = {
   CRM_TOOLS,
   CRM_MEMORY_TOOLS,
+  CRM_GROUP_TOOLS,
   CRM_SUMMARY_TOOLS,
   CRM_TOUCH_TOOLS,
   CRM_OFFER_TOOLS,
@@ -89,6 +91,8 @@ const ARGS: Record<string, Record<string, unknown>> = {
   crm_duet_runs: { buyer: '900000001', limit: 5 },
   crm_client_plan: { telegram_id: '900000001' },
   crm_clients: { limit: 5 },
+  crm_groups: { limit: 5 },
+  crm_group_context: { chat: '-1001234567890', limit: 5 },
 }
 
 const named = Object.entries(REGISTRIES).flatMap(([registry, tools]) =>
