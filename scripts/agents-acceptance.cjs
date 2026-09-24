@@ -41,6 +41,19 @@ const BASE =
  * table covers every agent and names only tools that exist.
  */
 const TABLE = require('../apps/vibee-editor/render/src/agent/acceptance-canaries.json')
+
+/**
+ * The table's fingerprint, sent with the verdicts: the same as render
+ * daily-acceptance.ts canariesHash, so a manual run under the current table
+ * does not make the daily run think its verdicts are stale.
+ */
+function canariesHash(table = TABLE) {
+  return require('node:crypto')
+    .createHash('sha256')
+    .update(JSON.stringify(table))
+    .digest('hex')
+    .slice(0, 12)
+}
 const ACTING = TABLE.acting
 const AGENTS = TABLE.agents
 
@@ -123,7 +136,28 @@ function verdict(agent, run) {
     reasons.push(`none of ${agent.expect.join('/')} was called`)
     codes.push('expected_tool_missing')
   }
+  const missed = run.text.trim() ? answerMisses(agent.answer, run.text) : []
+  if (missed.length) {
+    reasons.push(`answer: ${missed.join('; ')}`)
+    codes.push('answer_shape')
+  }
   return { pass: reasons.length === 0, reasons, codes }
+}
+
+/**
+ * The answer rules a text misses (acceptance-canaries.json `answer`): the
+ * same counting as render daily-acceptance.ts answerMisses.
+ */
+function answerMisses(rules, text) {
+  const misses = []
+  for (const r of rules || []) {
+    const flags = (r.flags || '').includes('g')
+      ? r.flags || ''
+      : `${r.flags || ''}g`
+    const found = String(text || '').match(new RegExp(r.pattern, flags))
+    if ((found ? found.length : 0) < r.min) misses.push(r.why)
+  }
+  return misses
 }
 
 /**
@@ -135,7 +169,7 @@ async function record(verdicts, key) {
     const r = await fetch(`${BASE}/api/agents/acceptance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Agent-Key': key },
-      body: JSON.stringify({ verdicts }),
+      body: JSON.stringify({ verdicts, canaries: canariesHash() }),
       signal: AbortSignal.timeout(30_000),
     })
     return r.ok ? 'recorded' : `not recorded: HTTP ${r.status}`
@@ -207,7 +241,14 @@ async function main() {
   return failed ? 1 : 0
 }
 
-module.exports = { AGENTS, ACTING, readStream, verdict }
+module.exports = {
+  AGENTS,
+  ACTING,
+  readStream,
+  verdict,
+  answerMisses,
+  canariesHash,
+}
 
 if (require.main === module) {
   main().then(code => process.exit(code))

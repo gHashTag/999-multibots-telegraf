@@ -25,7 +25,7 @@ const fakePool = () => {
     pool: {
       async query(sql: string, params: unknown[] = []) {
         if (sql.startsWith('INSERT INTO agent_acceptance')) {
-          const [agent, pass, tools, codes, by_id] = params
+          const [agent, pass, tools, codes, by_id, canaries] = params
           clock += 1
           rows.push({
             agent,
@@ -33,6 +33,7 @@ const fakePool = () => {
             tools,
             codes,
             by_id,
+            canaries,
             at: new Date(Date.UTC(2026, 8, 24, 7, clock)).toISOString(),
           })
           return { rows: [] }
@@ -163,5 +164,42 @@ describe('an unreadable table', () => {
     })
     expect(r.status).toBe(503)
     expect(r.body).not.toHaveProperty('verdicts')
+  })
+})
+
+describe('which canary table a verdict was made under', () => {
+  it('a run says its table fingerprint, and the reader gets it back', async () => {
+    const { pool } = fakePool()
+    await handleAcceptance(
+      post,
+      deps(
+        pool,
+        KEEPER,
+        JSON.stringify({
+          canaries: 'abcdef012345',
+          verdicts: [{ agent: 'job', pass: true }],
+        })
+      )
+    )
+    const r = await handleAcceptance(get, deps(pool, null))
+    expect(r.body.verdicts).toMatchObject([
+      { agent: 'job', canaries: 'abcdef012345' },
+    ])
+  })
+
+  it('anything that is not a fingerprint is stored as unknown', async () => {
+    const { pool, rows } = fakePool()
+    await handleAcceptance(
+      post,
+      deps(
+        pool,
+        KEEPER,
+        JSON.stringify({
+          canaries: '<script>',
+          verdicts: [{ agent: 'job', pass: true }],
+        })
+      )
+    )
+    expect(rows[0].canaries).toBe('')
   })
 })
