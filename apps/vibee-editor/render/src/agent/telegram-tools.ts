@@ -890,6 +890,8 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
    * big-context agent connecting the clone, not for a DM with a client.
    */
   'browser_logins',
+  /* Traffic by channel (#2974): the owner's dashboard question, not a DM's. */
+  'crm_traffic',
   'tg_media',
   'tg_scheduled',
   'tg_participants',

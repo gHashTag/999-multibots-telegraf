@@ -32,6 +32,7 @@ import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
 import { JOB_TOOLS } from './job-tools'
 import { MAIL_TOOLS } from './mail-tools'
+import { TRAFFIC_TOOLS } from './traffic'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import { clubOfferLine } from './club-membership'
@@ -3466,6 +3467,8 @@ TOOLS.push(...WEB_TOOLS)
  */
 TOOLS.push(...JOB_TOOLS)
 TOOLS.push(...MAIL_TOOLS)
+/* Where visitors come from, by channel (epic #2974). Owner only. */
+TOOLS.push(...TRAFFIC_TOOLS)
 
 /*
  * NO TOOL IS REGISTERED TWICE.
