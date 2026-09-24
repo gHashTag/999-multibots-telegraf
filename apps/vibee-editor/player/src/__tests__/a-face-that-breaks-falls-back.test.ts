@@ -79,15 +79,11 @@ describe('every picture of a person can fall back', () => {
    * face is the one a person recognises as broken.
    */
   const OWED = [
-    'components/Assets/AssetCard.tsx',
     'components/BrandLoader/BrandLoader.tsx',
     'components/Notifications/NotificationsCenter.tsx',
     'components/Panels/FeedCard.tsx',
     'components/Panels/GeneratePanel.tsx',
-    'components/Sound/SoundAttribution.tsx',
     'components/Stories/Stories.tsx',
-    'components/Timeline/ThumbnailScrubber.tsx',
-    'components/Timeline/TrimPreview.tsx',
     'components/Video/LazyVideo.tsx',
     'components/Video/ProgressiveVideo.tsx',
     'components/Video/VideoFeed.tsx',
