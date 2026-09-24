@@ -110,7 +110,17 @@ export function ProfileFilesGrid() {
           >
             {isImage && url ? (
               <a href={url} target="_blank" rel="noopener noreferrer">
-                <img src={url} alt="" loading="lazy" />
+                {/* The LINK is the point here -- the file is still there to
+                    open. Only the dead preview goes. */}
+                <img
+                  src={url}
+                  alt=""
+                  loading="lazy"
+                  onError={e => {
+                    ;(e.currentTarget as HTMLImageElement).style.display =
+                      'none'
+                  }}
+                />
               </a>
             ) : isVideo && url ? (
               <a
