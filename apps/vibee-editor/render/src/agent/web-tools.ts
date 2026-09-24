@@ -404,7 +404,19 @@ export const WEB_TOOLS: AgentTool[] = [
         return { error: 'не смог прочитать страницу', detail: why }
       }
 
-      if (!page.ok) return { error: page.reason }
+      if (!page.ok) {
+        if (!page.hintUrl) return { error: page.reason }
+        /*
+         * The hint is derived from the address this turn was already allowed
+         * to open, and carries less of it (owner and repository only), so it
+         * may be opened next even after web text entered the turn.
+         */
+        state.offered.add(page.hintUrl)
+        return {
+          error: page.reason,
+          hint: `the same repository renders its README here: ${page.hintUrl}`,
+        }
+      }
 
       state.tainted = true
       state.offered.add(page.url)

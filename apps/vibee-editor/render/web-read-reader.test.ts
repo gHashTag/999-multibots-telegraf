@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { htmlToText, parseReaderBody, readWebPage } from './src/agent/web-read'
+import {
+  htmlToText,
+  notFoundHintUrl,
+  parseReaderBody,
+  readWebPage,
+  targetStatusOf,
+} from './src/agent/web-read'
 
 /**
  * The reader side.
@@ -210,5 +216,86 @@ describe('the crude fallback extractor', () => {
     )
     expect(title).toContain('&')
     expect(text).toContain('a < b')
+  })
+})
+
+/*
+ * A PAGE THAT IS NOT THERE SAYS SO, AND SAYS WHERE TO LOOK.
+ *
+ * Acceptance on production, 2026-09-24 07:18 UTC: the Habr agent guessed a
+ * raw README address, the page answered 404, and the agent heard only "could
+ * not read the page" -- after a second, pointless direct fetch of the same
+ * 404. It had nothing to correct its guess with.
+ */
+describe('a page that is not there', () => {
+  const notFound = (url: string) =>
+    [
+      'Title: 404: Not Found',
+      `URL Source: ${url}`,
+      'Warning: Target URL returned error 404: Not Found',
+      '',
+      'Markdown Content:',
+      '404: Not Found',
+    ].join('\n')
+
+  it('names the status and points a raw GitHub file at its repository', async () => {
+    const url =
+      'https://raw.githubusercontent.com/gHashTag/agent-mail-mcp/main/README.md'
+    const { fetchImpl } = reader([{ status: 200, body: notFound(url) }])
+    let direct = 0
+    const result = await readWebPage(url, {
+      fetchImpl,
+      lookupImpl: PUBLIC_LOOKUP,
+      directFetchImpl: (async () => {
+        direct += 1
+        return new Response(null, { status: 200 })
+      }) as unknown as typeof fetch,
+      sleepImpl: NO_SLEEP,
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('404')
+      expect(result.hintUrl).toBe('https://github.com/gHashTag/agent-mail-mcp')
+    }
+    /* Only the guard's redirect walk: no second fetch of a known 404. */
+    expect(direct).toBe(1)
+  })
+
+  it('a 404 elsewhere names the status and invents no hint', async () => {
+    const url = 'https://example.com/gone'
+    const { fetchImpl } = reader([{ status: 200, body: notFound(url) }])
+    const result = await readWebPage(url, {
+      fetchImpl,
+      lookupImpl: PUBLIC_LOOKUP,
+      directFetchImpl: NO_REDIRECT,
+      sleepImpl: NO_SLEEP,
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('404')
+      expect(result.hintUrl).toBeUndefined()
+    }
+  })
+
+  it('reads the status the reader reported, and nothing else', () => {
+    expect(targetStatusOf('target returned 404')).toBe(404)
+    expect(targetStatusOf('target returned 406')).toBe(406)
+    expect(targetStatusOf('reader HTTP 404')).toBeNull()
+    expect(targetStatusOf('')).toBeNull()
+  })
+
+  it('the hint is built from the address only, and only for safe names', () => {
+    expect(
+      notFoundHintUrl(
+        new URL('https://raw.githubusercontent.com/o/r/HEAD/x.md')
+      )
+    ).toBe('https://github.com/o/r')
+    expect(
+      notFoundHintUrl(new URL('https://raw.githubusercontent.com/o'))
+    ).toBeUndefined()
+    expect(
+      notFoundHintUrl(new URL('https://raw.githubusercontent.com/o/%3Cx%3E/a'))
+    ).toBeUndefined()
+    expect(notFoundHintUrl(new URL('https://github.com/o/r'))).toBeUndefined()
   })
 })

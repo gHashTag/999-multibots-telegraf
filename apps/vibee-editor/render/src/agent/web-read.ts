@@ -79,6 +79,33 @@ export interface ReadPage {
 export interface ReadRefusal {
   ok: false
   reason: string
+  /**
+   * Where the same thing can be read, when we know (a raw GitHub file that
+   * does not exist -> the repository page, which renders its README). Only
+   * ever derived from the address that was asked, never from page text.
+   */
+  hintUrl?: string
+}
+
+/** The HTTP status a page itself answered with, as the reader reported it. */
+export function targetStatusOf(why: string): number | null {
+  const m = /^target returned (\d{3})\b/.exec(String(why ?? ''))
+  return m ? Number(m[1]) : null
+}
+
+/**
+ * For a raw GitHub file that is not there, the repository page: an agent
+ * guessing `raw.githubusercontent.com/<o>/<r>/main/README.md` for a repo
+ * whose branch is `master` got a bare "could not read" (acceptance run,
+ * 2026-09-24 07:18 UTC). The repository page renders the README whatever
+ * the branch is called. Pure.
+ */
+export function notFoundHintUrl(target: URL): string | undefined {
+  if (target.hostname !== 'raw.githubusercontent.com') return undefined
+  const [owner, repo] = target.pathname.split('/').filter(Boolean)
+  const SAFE = /^[A-Za-z0-9_.-]{1,100}$/
+  if (!owner || !repo || !SAFE.test(owner) || !SAFE.test(repo)) return undefined
+  return `https://github.com/${owner}/${repo}`
 }
 
 export type ReadResult = ReadPage | ReadRefusal
@@ -319,6 +346,21 @@ export async function readWebPage(
   }
 
   console.warn('[web] reader unavailable:', target.hostname, readerWhy)
+
+  /*
+   * THE PAGE ITSELF SAID IT IS NOT THERE. A direct fetch of a 404 is the
+   * same 404 a few seconds later, and "could not read" hid the one fact the
+   * agent needed to correct its guess.
+   */
+  const status = targetStatusOf(readerWhy)
+  if (status === 404 || status === 410) {
+    const hintUrl = notFoundHintUrl(target)
+    return {
+      ok: false,
+      reason: `страницы нет по этому адресу (${status})`, // cyrillic-ok: told to the agent and the person
+      ...(hintUrl ? { hintUrl } : {}),
+    }
+  }
 
   if (opts.allowDirect === false) {
     return { ok: false, reason: 'не смог прочитать страницу' }
