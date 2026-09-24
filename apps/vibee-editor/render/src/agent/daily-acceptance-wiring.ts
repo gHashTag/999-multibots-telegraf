@@ -59,7 +59,21 @@ export async function runDailyAcceptanceIfDue(
             }
           ) as AsyncIterable<Record<string, unknown>>,
         previous: async () => latest,
-        record: v => recordVerdicts(pool, v, owner, CANARIES_HASH),
+        record: async v => {
+          /*
+           * ONE LINE PER VERDICT, as it is made: the run's summary is written
+           * only at its end, and a run a deploy interrupts never gets there
+           * (24.09: "[acceptance] 1/1 passed" said nothing about the four
+           * verdicts kept before it). Agent, pass/fail, codes -- never text.
+           */
+          for (const x of v)
+            console.log(
+              `[acceptance] ${x.agent} ${x.pass ? 'PASS' : 'FAIL'}` +
+                (x.codes.length ? ` ${x.codes.join(',')}` : '') +
+                ` tools=${x.tools.join(',')}`
+            )
+          await recordVerdicts(pool, v, owner, CANARIES_HASH)
+        },
         tell: async text => {
           await sendToTelegram(owner, text)
         },
