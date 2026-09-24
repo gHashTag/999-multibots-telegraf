@@ -18,6 +18,12 @@ import {
   type StoredMessage,
 } from './chat-memory'
 import { mirrorNow } from './crm-mirror'
+import {
+  nextCursor,
+  readCursor,
+  writeCursor,
+  type DialogCursor,
+} from './crm-ingest-cursor'
 import { zepConfigured, zepContext } from './zep-memory'
 import {
   listMedia,
@@ -90,6 +96,9 @@ const MEDIA_MAX_BYTES = 20 * 1024 * 1024
 interface DialogLike {
   id?: { toString(): string }
   isUser?: boolean
+  /** Unix seconds of the dialog's last message; the page offset (#2946). */
+  date?: number
+  message?: { id?: number } | null
   entity?: {
     bot?: boolean
     self?: boolean
@@ -188,6 +197,12 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           description:
             'сколько сообщений на диалог (по умолчанию 100, максимум 500)',
         },
+        resume: {
+          type: 'boolean',
+          description:
+            'продолжить обход с места, где остановился прошлый (курсор владельца); ' + // cyrillic-ok: tool description for the model
+            'дойдя до самого старого диалога, обход начинается сначала', // cyrillic-ok: tool description for the model
+        },
         lead: {
           type: 'string',
           description:
@@ -204,6 +219,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       const limit = clamp(a?.limit, DIALOGS_DEFAULT, DIALOGS_MAX)
       const depth = clamp(a?.depth, DEPTH_DEFAULT, DEPTH_MAX)
       const onlyLead = String(a?.lead ?? '').trim()
+      const resume = a?.resume === true && !onlyLead
       /*
        * ONE PERSON, ALL THEIR FILES. "Process this client's files" must not
        * depend on where the dialog sits in the recency list, nor share the
@@ -212,7 +228,11 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
        */
       const perDialog = onlyLead ? MAX_MEDIA_DOWNLOADS : MEDIA_PER_DIALOG
       const c = (await client(ctx)) as {
-        getDialogs: (o: { limit: number }) => Promise<unknown[]>
+        getDialogs: (o: {
+          limit: number
+          offsetDate?: number
+          offsetId?: number
+        }) => Promise<unknown[]>
         getEntity?: (id: string | number) => Promise<unknown>
         getMessages: (chat: string, o: { limit: number }) => Promise<unknown[]>
         downloadMedia?: (m: unknown) => Promise<unknown>
@@ -228,14 +248,33 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         media_skipped: 0,
         transcripts_queued: 0,
         stopped: null as string | null,
+        /** Where the next resumed walk starts; null = from the newest. */
+        cursor: null as DialogCursor | null,
       }
       let downloads = 0
+      /*
+       * THE WALK RESUMES (#2946). With `resume` the page starts at this
+       * owner's cursor, and the cursor is written back in `finally` -- after
+       * the last dialog finished, so a FLOOD_WAIT retries the one that failed.
+       */
+      const from = resume ? await readCursor(pool, owner) : null
+      let dialogs: DialogLike[] = []
+      let lastDone = -1
+      // Set once the dialog loop ran. A throw before or inside it (the
+      // dialog list itself hit FLOOD_WAIT) leaves the cursor where it was.
+      let walked = false
       try {
-        const dialogs = onlyLead
+        dialogs = onlyLead
           ? await oneDialog(c, onlyLead)
-          : ((await c.getDialogs({ limit })) as DialogLike[])
+          : ((await c.getDialogs({
+              limit,
+              ...(from
+                ? { offsetDate: from.offsetDate, offsetId: from.offsetId }
+                : {}),
+            })) as DialogLike[])
         report.dialogs_seen = dialogs.length
-        for (const d of dialogs) {
+        for (const [i, d] of dialogs.entries()) {
+          lastDone = i - 1
           const lead = leadIdOf(d)
           if (!lead) continue
           // The name as Telegram shows it, kept even when there is nothing
@@ -398,8 +437,20 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
             void transcribeAndMirror(pool, owner, queue).catch(() => undefined)
           }
         }
+        if (!report.stopped) lastDone = dialogs.length - 1
+        walked = true
       } finally {
         await hangUp(c)
+        if (resume && walked) {
+          report.cursor = nextCursor({
+            page: dialogs,
+            asked: limit,
+            lastDone,
+            stopped: report.stopped !== null,
+            from,
+          })
+          await writeCursor(pool, owner, report.cursor).catch(() => undefined)
+        }
       }
       return {
         ...report,

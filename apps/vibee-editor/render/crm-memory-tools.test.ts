@@ -849,3 +849,157 @@ describe('one person rule for dialogs and contacts', () => {
     ).toBe(false)
   })
 })
+
+/*
+ * THE WALK RESUMES (#2946). A walk cut short, or one that read a full page,
+ * continues from this owner's cursor; one that reached the oldest dialog
+ * starts over; one owner's cursor never moves another's.
+ */
+describe('crm_ingest_chats resume cursor', () => {
+  it('nextCursor: full page continues, short page wraps, a stop retries', async () => {
+    const { nextCursor } = await import('./src/agent/crm-ingest-cursor')
+    const page = [
+      { date: 300, message: { id: 30 } },
+      { date: 200, message: { id: 20 } },
+    ]
+    const base = { page, asked: 2, lastDone: 1, stopped: false, from: null }
+    expect(nextCursor(base)).toEqual({ offsetDate: 200, offsetId: 20 })
+    expect(nextCursor({ ...base, asked: 5 })).toBeNull()
+    expect(nextCursor({ ...base, stopped: true, lastDone: 0 })).toEqual({
+      offsetDate: 300,
+      offsetId: 30,
+    })
+    const from = { offsetDate: 999, offsetId: 9 }
+    expect(nextCursor({ ...base, stopped: true, lastDone: -1, from })).toBe(
+      from
+    )
+  })
+
+  function cursorPool() {
+    const base = fakePool()
+    const cursors = new Map<
+      string,
+      { offset_date: number; offset_id: number }
+    >()
+    return {
+      cursors,
+      queries: base.queries,
+      query: async (sql: string, params: unknown[] = []) => {
+        const flat = sql.replace(/\s+/g, ' ').trim()
+        if (flat.startsWith('SELECT offset_date')) {
+          base.queries.push({ sql: flat, params })
+          const r = cursors.get(String(params[0]))
+          return { rows: r ? [r] : [] }
+        }
+        if (flat.startsWith('INSERT INTO crm_ingest_cursors')) {
+          base.queries.push({ sql: flat, params })
+          cursors.set(String(params[0]), {
+            offset_date: Number(params[1]),
+            offset_id: Number(params[2]),
+          })
+          return { rows: [] }
+        }
+        if (flat.startsWith('DELETE FROM crm_ingest_cursors')) {
+          cursors.delete(String(params[0]))
+          return { rows: [] }
+        }
+        return base.query(sql, params)
+      },
+    }
+  }
+
+  function pagedClient(o: { total: number; floodAt?: string }) {
+    const asked: Array<Record<string, unknown>> = []
+    // total dialogs, newest first: date = 1000 - i, message id = i + 1
+    const all = Array.from({ length: o.total }, (_, i) => ({
+      id: { toString: () => String(900000100 + i) },
+      isUser: true,
+      date: 1000 - i,
+      message: { id: i + 1 },
+      entity: { firstName: `P${i}` },
+    }))
+    const client = {
+      async getDialogs(a: { limit: number; offsetDate?: number }) {
+        asked.push(a)
+        const start = a.offsetDate
+          ? all.findIndex(d => d.date < (a.offsetDate as number))
+          : 0
+        return start < 0 ? [] : all.slice(start, start + a.limit)
+      },
+      async getMessages(chat: string) {
+        if (chat === o.floodAt) throw new Error('FLOOD_WAIT_30')
+        return []
+      },
+      async disconnect() {},
+    }
+    return { client, asked }
+  }
+
+  it('pages forward per owner and wraps at the end', async () => {
+    const { client, asked } = pagedClient({ total: 5 })
+    const { ingest } = await tools(client as never)
+    const pool = cursorPool()
+    const r1: any = await ingest.handler(
+      { limit: 2, depth: 1, resume: true },
+      ctxFor(OWNER, pool as never)
+    )
+    expect(r1.cursor).toEqual({ offsetDate: 999, offsetId: 2 })
+    const r2: any = await ingest.handler(
+      { limit: 2, depth: 1, resume: true },
+      ctxFor(OWNER, pool as never)
+    )
+    expect(asked[1]).toMatchObject({ offsetDate: 999, offsetId: 2 })
+    expect(r2.cursor).toEqual({ offsetDate: 997, offsetId: 4 })
+    const r3: any = await ingest.handler(
+      { limit: 2, depth: 1, resume: true },
+      ctxFor(OWNER, pool as never)
+    )
+    expect(r3.dialogs_seen).toBe(1)
+    expect(r3.cursor).toBeNull()
+    expect(pool.cursors.has(OWNER)).toBe(false)
+    // Only the caller's row was ever written.
+    const writes = pool.queries.filter(q =>
+      q.sql.startsWith('INSERT INTO crm_ingest_cursors')
+    )
+    expect(writes.every(q => q.params[0] === OWNER)).toBe(true)
+  })
+
+  it("one owner's cursor never moves another's", async () => {
+    const { client, asked } = pagedClient({ total: 5 })
+    const { ingest } = await tools(client as never)
+    const pool = cursorPool()
+    pool.cursors.set('555555555', { offset_date: 1, offset_id: 1 })
+    await ingest.handler(
+      { limit: 2, depth: 1, resume: true },
+      ctxFor(OWNER, pool as never)
+    )
+    expect(asked[0].offsetDate).toBeUndefined()
+    expect(pool.cursors.get('555555555')).toEqual({
+      offset_date: 1,
+      offset_id: 1,
+    })
+  })
+
+  it('a FLOOD_WAIT keeps the cursor on the last finished dialog', async () => {
+    const { client } = pagedClient({ total: 5, floodAt: '900000101' })
+    const { ingest } = await tools(client as never)
+    const pool = cursorPool()
+    const r: any = await ingest.handler(
+      { limit: 3, depth: 1, resume: true },
+      ctxFor(OWNER, pool as never)
+    )
+    expect(r.stopped).toMatch(/FLOOD_WAIT/)
+    // Dialog 0 finished, dialog 1 failed: the next walk starts after 0.
+    expect(r.cursor).toEqual({ offsetDate: 1000, offsetId: 1 })
+  })
+
+  it('without resume the cursor is neither read nor written', async () => {
+    const { client, asked } = pagedClient({ total: 5 })
+    const { ingest } = await tools(client as never)
+    const pool = cursorPool()
+    pool.cursors.set(OWNER, { offset_date: 998, offset_id: 3 })
+    await ingest.handler({ limit: 2, depth: 1 }, ctxFor(OWNER, pool as never))
+    expect(asked[0].offsetDate).toBeUndefined()
+    expect(pool.cursors.get(OWNER)).toEqual({ offset_date: 998, offset_id: 3 })
+  })
+})

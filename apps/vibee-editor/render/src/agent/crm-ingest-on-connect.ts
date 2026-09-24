@@ -43,7 +43,9 @@ async function runIngest(
       } | null)
     : null
   const r = (await tool.handler(
-    { limit: 2000, depth: 500 },
+    // resume: a walk cut by FLOOD_WAIT continues from where it stopped the
+    // next time, instead of re-reading the newest dialogs again (#2946).
+    { limit: 2000, depth: 500, resume: true },
     ctx
   )) as IngestReport
   return { ...r, contacts: contacts?.people }
