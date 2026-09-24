@@ -90,6 +90,10 @@ import {
   accountsOf,
 } from './src/agent/clone-readiness'
 import {
+  isAcceptancePath,
+  handleAcceptance,
+} from './src/agent/agent-acceptance'
+import {
   isBrowserPath,
   handleBrowser,
   configureAgentStart,
@@ -8697,6 +8701,23 @@ const server = createServer(async (req, res) => {
         const list = await loginsOfPerson((await getPool()) as any, who)
         return list ? accountsOf(list) : null
       },
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
+  /*
+   * What the last acceptance run said about each marketplace agent: read by
+   * anybody (the market card shows it), written by a keeper only.
+   */
+  if (isAcceptancePath(req.url?.split('?')[0] || '')) {
+    const { keepers } = await import('./src/hive/roles')
+    const out = await handleAcceptance(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      keepers,
+      readBody: () => readBody(req as any, 64 * 1024),
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))

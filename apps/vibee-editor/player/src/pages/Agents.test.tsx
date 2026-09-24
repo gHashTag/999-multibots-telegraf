@@ -7,6 +7,12 @@ vi.mock('@/components/Header', () => ({ Header: () => null }))
 /* Keeper or not is the server's answer (#2957); the test sets it. */
 let keeperAnswer: boolean | null = false
 vi.mock('@/hooks/useIsKeeper', () => ({ useIsKeeper: () => keeperAnswer }))
+/* The last acceptance verdicts come from the server; the test sets them. */
+let verdictsAnswer: Record<string, unknown> | null = null
+vi.mock('@/hooks/useAgentAcceptance', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/hooks/useAgentAcceptance')>()),
+  useAgentAcceptance: () => verdictsAnswer,
+}))
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({ lang: 'en', t: (key: string) => key }),
 }))
@@ -29,6 +35,7 @@ let root: Root
 
 beforeEach(() => {
   keeperAnswer = false
+  verdictsAnswer = null
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -95,5 +102,49 @@ describe('owner preview (#2957)', () => {
       draw()
       expect(host.querySelectorAll('.agent-card__cta--preview')).toHaveLength(0)
     }
+  })
+})
+
+describe('what was measured, next to what is promised', () => {
+  const draw = () =>
+    act(() =>
+      root.render(
+        <MemoryRouter>
+          <AgentsPage />
+        </MemoryRouter>
+      )
+    )
+
+  it('shows the last verdict and its day, a failure as plainly as a pass', () => {
+    verdictsAnswer = {
+      blogger: {
+        agent: 'blogger',
+        pass: true,
+        at: '2026-09-24T07:14:00Z',
+        tools: [],
+        codes: [],
+      },
+      job: {
+        agent: 'job',
+        pass: false,
+        at: '2026-09-24T07:15:00Z',
+        tools: [],
+        codes: ['no_answer'],
+      },
+    }
+    draw()
+    const lines = [...host.querySelectorAll('.agent-card__checked')]
+    expect(lines).toHaveLength(2)
+    const pass = lines.find(n => n.getAttribute('data-pass') === 'yes')
+    const fail = lines.find(n => n.getAttribute('data-pass') === 'no')
+    expect(pass?.textContent).toContain('Checked on a real account')
+    expect(pass?.textContent).toContain('24 Sep')
+    expect(fail?.textContent).toContain('Last check failed')
+  })
+
+  it('no answer from the server draws no line, never "unchecked"', () => {
+    verdictsAnswer = null
+    draw()
+    expect(host.querySelectorAll('.agent-card__checked')).toHaveLength(0)
   })
 })
