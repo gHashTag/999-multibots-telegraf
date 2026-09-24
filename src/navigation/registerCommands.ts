@@ -4034,9 +4034,8 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
   ): void => {
     inOwnerLane(ctx, retry, async () => {
       const who = ownerId(ctx)
-      const stopper = new AbortController()
-      running.get(who)?.abort()
-      running.set(who, stopper)
+      const { beginOwnerRun } = await import('@/services/ownerRuns')
+      const stopper = beginOwnerRun(who)
       try {
         const { runSweepNow, MENU_HOLD_MS } = await import(
           '@/services/crmProactive'
@@ -4060,6 +4059,10 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
             'Карточка ещё ждёт нажатия — нажми на ней «Отправить» или «Отмена».',
             hub()
           )
+        else if (r.did === 'stopped')
+          // The same words the thrown path says, because to the person it is
+          // the same event: he pressed Stop and nothing went out.
+          await sendLong(ctx, '⏹ Остановил. Ничего не отправлено.', hub()) // cyrillic-ok: user-facing
         else if (r.did === 'busy')
           await sendLong(
             ctx,
@@ -4088,23 +4091,19 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
           await crmFail(ctx, 'Не вышло', e, retry)
         }
       } finally {
-        if (running.get(who) === stopper) running.delete(who)
+        const { endOwnerRun } = await import('@/services/ownerRuns')
+        endOwnerRun(who, stopper)
       }
     })
   }
   /*
-   * THE TURN THE OWNER IS WATCHING, so he can end it.
+   * THE TURN THE OWNER IS WATCHING, so he can end it (issue #2721).
    *
-   * Issue #2721: there is no Stop control anywhere, and a turn runs to its own
-   * ceiling whatever the person wants. One controller per owner is enough --
-   * `inOwnerLane` already serialises his turns, so there is never a second one
-   * of his to confuse it with.
-   *
-   * In memory on purpose. A restart loses the ability to stop a turn that a
-   * restart has already killed, and a table here would be a row about a process
-   * that no longer exists.
+   * The registry lives in `services/ownerRuns.ts` rather than in this
+   * closure, and that is the whole point: the unattended sweep runs in this
+   * same process and could not be reached from here, so a cron-started turn
+   * was unstoppable for no reason other than where the map was declared.
    */
-  const running = new Map<string, AbortController>()
 
   const stopKeyboard = () =>
     Markup.inlineKeyboard([
@@ -4292,8 +4291,8 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
        * a button that sometimes answers and sometimes does not is the one
        * people press twice.
        */
-      const had = running.get(ownerId(ctx))
-      had?.abort()
+      const { stopOwnerRun } = await import('@/services/ownerRuns')
+      const had = stopOwnerRun(ownerId(ctx))
       await sendLong(
         ctx,
         had
