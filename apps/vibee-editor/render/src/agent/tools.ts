@@ -956,6 +956,7 @@ import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
+import { CRM_GROUP_TOOLS } from './crm-group-tools'
 import { AUTOPILOT_TOOLS } from './autopilot-tools'
 import { OUTCOMES_TOOLS } from './outcomes-tool'
 import { CRM_DROP_TOOLS } from './crm-drop-tool'
@@ -3124,6 +3125,7 @@ TOOLS.push(
   })
 )
 TOOLS.push(...CRM_MEMORY_TOOLS)
+TOOLS.push(...CRM_GROUP_TOOLS)
 /*
  * The autopilot switch: the seller's own row, read and flipped from the app
  * as well as from the bot's buttons.
