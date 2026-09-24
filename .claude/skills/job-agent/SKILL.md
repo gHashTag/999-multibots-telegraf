@@ -173,3 +173,26 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
   before the `#`; blog-share tags each network; the app reports a tagged
   visit once (`/api/traffic/arrival`, counts only); `crm_traffic` and
   `tri traffic` read it.
+
+## Tick 7 (24.09.2026): each agent its own chat, with its skills
+
+- **The chat's circle row** (`player ChatThreads agentHref`) opens the
+  agent's OWN thread (`/agents/<id>/work`, thread `agent:<id>`) for a live
+  agent, a keeper, or a trainee that earned the market; the market card
+  only otherwise. The owner saw "an advert" because every trainee circle
+  led to `/agents`. The chat page decides with the pure `agentGate`.
+- **Skills per agent**: a skill whose NAME starts with an agent's prefix
+  (catalogue `skillPrefixes`: `Работа:`/`Job:`, `Блогер:`/`Blogger:`,
+  `Google:`, `TikTok:`, `Habr:`/`Хабр:`) belongs to that agent; a skill with
+  no agent prefix is general. `agentSkills()` (vibee-atoms) picks them for
+  both sides: the render puts them in every specialist's prompt
+  (`agent-skills.ts`, 800 chars a skill, 3000 in all), the app's agent chat
+  says which are connected. To give an agent a rule: create a skill named
+  "Работа: ..." in the profile.
+- **Production proof the daily run survives deploys**: 24.09 08:35
+  `[acceptance] 1/1 passed` -- the other four verdicts were kept by
+  interrupted runs. Each verdict now also logs its own line:
+  `[acceptance] <agent> PASS|FAIL <codes> tools=...`.
+- **Blog traffic is counted on t27.ai** too (gHashTag/trinity #1157,
+  `apps/website/src/lib/trafficArrival.ts`): the site reports a tagged visit
+  to the same `/api/traffic/arrival`.
