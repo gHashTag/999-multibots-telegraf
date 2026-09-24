@@ -78,7 +78,7 @@ describe('agent chat under the keyboard', () => {
 
   it('focusing the composer scrolls the list to its end (the keyboard hides the last message otherwise)', () => {
     expect(tsx).toMatch(
-      /onFocus=\{\(\) => \{[\s\S]{0,300}scrollRef\.current\.scrollTop = scrollRef\.current\.scrollHeight/
+      /onFocus=\{\(\) => \{[\s\S]{0,300}scrollRef\.current\.scrollTop =\s*scrollRef\.current\.scrollHeight/
     )
   })
 })
