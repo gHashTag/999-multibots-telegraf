@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { systemPrompt } from './src/agent/chat.ts'
+import { systemPrompt, BUTTON_MARKERS } from './src/agent/chat.ts'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
@@ -46,7 +46,18 @@ describe('the marker rule is bound to the surface that can render it', () => {
     const app = systemPrompt('miniapp')
     // Built with new RegExp so the Russian anchors sit inside a string literal:
     // in a regex literal they read as code to the Cyrillic gate.
-    const rule = new RegExp('\\n\\nКНОПКИ[\\s\\S]*?без тебя\\.')
+    /*
+     * Anchored on the exported constant, not on its last words. It used to
+     * end at the literal "без тебя." -- the old sentence "the bot adds the
+     * standard buttons without you" -- and when the owner reversed that rule
+     * on 24.09.2026 this stopped matching the rule it exists to find. The
+     * constant is what the prompt is built from, so the constant is the
+     * anchor; the assertion below still proves the rule is IN the bot prompt
+     * and out of the mini app's.
+     */
+    const rule = new RegExp(
+      BUTTON_MARKERS.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    )
     const cards = new RegExp('\\n\\nКАРТОЧКИ[\\s\\S]*?ради украшения\\.')
     expect(withRule).toMatch(rule)
     expect(app).toMatch(cards)
