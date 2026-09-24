@@ -48,6 +48,24 @@ export const LIPSYNC_PART_TARGET_SECONDS = 9.5
 /** The longest voice the tool takes: a reel's worth, three parts at most. */
 export const LIPSYNC_TOOL_MAX_SECONDS = 30
 
+/**
+ * The lipsync models the route takes by name, as `kie/<id>`. MUST equal
+ * KIE_LIPSYNC in render-server.ts (a test reads it): a name the route does not
+ * list is quietly replaced there by its default, and the person would be
+ * charged one model's price for another's work.
+ *
+ * Why a choice at all (2026-09-24): InfiniteTalk, the route's default, failed
+ * every call of the owner's first reel with KIE's own "internal error, please
+ * try again later", and its fallback, fal, is out of balance. Naming another
+ * model is the only way round a provider that is down, and each model keeps
+ * its own per-second price (billing-shared priceForModel).
+ */
+export const LIPSYNC_MODELS: readonly string[] = [
+  'kie/infinitalk/from-audio',
+  'kie/omnihuman-1-5',
+  'kie/kling/ai-avatar-standard',
+]
+
 /** The largest voice file read from the shelf: the shelf's own upload limit. */
 export const LIPSYNC_VOICE_MAX_BYTES = 100 * 1024 * 1024
 
