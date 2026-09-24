@@ -64,7 +64,13 @@ describe('the agent is told what it has', () => {
      * there they do not apply, and naming them would only earn refusals.
      */
     const dm = systemPrompt('business')
-    for (const secret of ['crm_', 'tg_dialogs', 'tg_contacts', 'hive_']) {
+    for (const secret of [
+      'crm_',
+      'tg_dialogs',
+      'tg_contacts',
+      'hive_',
+      'mail_',
+    ]) {
       expect(dm, secret).not.toContain(secret)
     }
   })

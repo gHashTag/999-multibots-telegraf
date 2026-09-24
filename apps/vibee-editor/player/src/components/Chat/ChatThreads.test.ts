@@ -68,3 +68,14 @@ describe('the row of conversations', () => {
     expect(threadLabel(row('123456', null))).toBe('123456')
   })
 })
+
+describe('appendClients (#2947)', () => {
+  it('adds only people not already listed, keeping order', async () => {
+    const { appendClients } = await import('@/lib/crm')
+    const r = (telegramId: string) =>
+      ({ telegramId }) as import('@/lib/crm').ClientRow
+    expect(
+      appendClients([r('1'), r('2')], [r('2'), r('3')]).map(x => x.telegramId)
+    ).toEqual(['1', '2', '3'])
+  })
+})

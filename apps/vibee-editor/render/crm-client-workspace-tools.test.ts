@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest'
 import {
   aggregatePlan,
   mergeClients,
+  clientQuery,
   CRM_CLIENT_WORKSPACE_TOOLS,
 } from './src/agent/crm-client-workspace-tools'
 import type { ToolContext } from './src/agent/tools'
@@ -400,5 +401,99 @@ describe('crm_clients', () => {
     // No Supabase in this test: the money column is unknown and the stage came from touches alone.
     expect(out.paid_known).toBe(false)
     expect(out.clients[0].paid).toBe(false)
+  })
+})
+
+/*
+ * PAGES PAST FIFTY (#2947). The contact book makes crm_people large; the
+ * list pages in SQL, still scoped to the caller on every page.
+ */
+describe('crm_clients paging and search', () => {
+  function pagedPool(total: number) {
+    const seen: Array<{ sql: string; params: unknown[] }> = []
+    const people = Array.from({ length: total }, (_, i) => ({
+      lead_id: String(900000200 + i),
+      first_name: i === 7 ? 'Marina' : `P${i}`,
+      last_name: null,
+      username: null,
+      seen_at: new Date(Date.UTC(2026, 8, 1) - i * 60_000).toISOString(),
+    }))
+    return {
+      seen,
+      query: async (sql: string, params: unknown[] = []) => {
+        const flat = sql.replace(/\s+/g, ' ')
+        seen.push({ sql: flat, params })
+        if (/FROM crm_people/.test(flat)) {
+          const [, limit, offset] = params as [string, number, number]
+          const hit = /ILIKE/.test(flat)
+            ? people.filter(p => p.first_name.toLowerCase().includes('marina'))
+            : people
+          return { rows: hit.slice(offset, offset + limit) }
+        }
+        if (/FROM crm_client_profiles/.test(flat))
+          return {
+            rows: [{ telegram_id: CLIENT, client: 'Profile', updated_at: 'x' }],
+          }
+        return { rows: [] }
+      },
+    }
+  }
+  const tool = () =>
+    CRM_CLIENT_WORKSPACE_TOOLS.find(t => t.name === 'crm_clients')!
+  const ctx = (pool: unknown) =>
+    ({ telegramId: OWNER, pool }) as unknown as ToolContext
+
+  it('walks every page with next_offset, profiles on the first page only', async () => {
+    const pool = pagedPool(12)
+    const ids = new Set<string>()
+    let offset: number | null = 0
+    let pages = 0
+    while (offset !== null) {
+      const out = (await tool().handler({ limit: 5, offset }, ctx(pool))) as any
+      for (const c of out.clients) ids.add(c.telegram_id)
+      if (pages > 0)
+        expect(out.clients.some((c: any) => c.telegram_id === CLIENT)).toBe(
+          false
+        )
+      offset = out.next_offset
+      pages += 1
+    }
+    expect(pages).toBe(3)
+    // 12 people + 1 profile, nobody lost between pages.
+    expect(ids.size).toBe(13)
+    // Every READ of people is the caller's (the profile-table migration
+    // also names crm_people, and is not a read).
+    const reads = pool.seen.filter(s =>
+      /^\s*SELECT .*FROM crm_people/.test(s.sql)
+    )
+    // One page read per page; the faces read (crm_client_avatars' column)
+    // rides along per page and is counted apart -- but it too is the
+    // caller's, checked below with every other read.
+    expect(reads.filter(s => !/avatar_url/.test(s.sql)).length).toBe(3)
+    for (const q of reads) expect(q.params[0], q.sql).toBe(OWNER)
+  })
+
+  it('searches all people in SQL, by the caller only', async () => {
+    const pool = pagedPool(300)
+    const out = (await tool().handler({ query: 'marina' }, ctx(pool))) as any
+    expect(out.clients.map((c: any) => c.name)).toEqual(['Marina'])
+    expect(out.next_offset).toBeNull()
+    const q = pool.seen.find(s => /ILIKE/.test(s.sql))!
+    expect(q.params[0]).toBe(OWNER)
+    expect(q.params[4]).toBe('%marina%')
+  })
+
+  it('without offset or query the old shape stays: capped, no next_offset', async () => {
+    const out = (await tool().handler({ limit: 5 }, ctx(pagedPool(12)))) as any
+    expect(out.clients).toHaveLength(5)
+    expect('next_offset' in out).toBe(false)
+  })
+
+  it('treats typed wildcards literally and strips @', () => {
+    expect(clientQuery('@a_b%')).toMatchObject({
+      id: 'a_b%',
+      like: '%a\\_b\\%%',
+    })
+    expect(clientQuery('   ')).toBeNull()
   })
 })

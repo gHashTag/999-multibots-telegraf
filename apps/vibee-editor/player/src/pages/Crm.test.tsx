@@ -466,3 +466,140 @@ describe('the client list can be narrowed to clients or leads', () => {
     answers.crm_clients = saved
   })
 })
+
+/*
+ * EVERY CLIENT, NOT THE FIRST PAGE (#2947). The contact book puts hundreds
+ * of people in the CRM; the list pages, and a search asks the server.
+ */
+describe('the clients list pages past the first', () => {
+  const row = (id: string, name: string) => ({
+    telegram_id: id,
+    name,
+    username: null,
+    client: null,
+    has_profile: false,
+    has_soul: false,
+    skills: 0,
+    stage: 'talking',
+    paid: false,
+    last_seen: null,
+    duets: 0,
+  })
+  function servePaged() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init: RequestInit) => {
+        const body = JSON.parse(String(init?.body ?? '{}'))
+        const name = body?.params?.name
+        const args = body?.params?.arguments ?? {}
+        calls.push({ name, args })
+        let out: unknown = answers[name] ?? {}
+        if (name === 'crm_clients') {
+          out = args.query
+            ? { clients: [row('900000999', 'FoundBySearch')], paid_known: true }
+            : args.offset
+              ? {
+                  clients: [row('900000002', 'SecondPageName')],
+                  paid_known: true,
+                  next_offset: null,
+                }
+              : {
+                  clients: [row('900000001', 'FirstPageName')],
+                  paid_known: true,
+                  next_offset: 100,
+                }
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            jsonrpc: '2.0',
+            id: 1,
+            result: { structuredContent: out },
+          }),
+        }
+      })
+    )
+  }
+
+  it('asks for page one, then appends page two on More, then hides More', async () => {
+    servePaged()
+    await draw()
+    const first = calls.find(c => c.name === 'crm_clients')!
+    expect(first.args).toMatchObject({ offset: 0 })
+    expect(host.textContent).toContain('FirstPageName')
+    const more = [...host.querySelectorAll('button')].find(
+      b => b.textContent === 'crm.clients.more'
+    )!
+    expect(more).toBeTruthy()
+    await act(async () => {
+      more.click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(
+      calls.filter(c => c.name === 'crm_clients').at(-1)!.args
+    ).toMatchObject({ offset: 100 })
+    expect(host.textContent).toContain('FirstPageName')
+    expect(host.textContent).toContain('SecondPageName')
+    expect(host.textContent).not.toContain('crm.clients.more')
+  })
+
+  it('a search of two letters asks the server over ALL clients', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      servePaged()
+      await draw()
+      const input = host.querySelector<HTMLInputElement>(
+        'input[type="search"]'
+      )!
+      await act(async () => {
+        const set = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value'
+        )!.set!
+        set.call(input, 'Found')
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await act(async () => {
+        vi.advanceTimersByTime(350)
+        await new Promise(r => setTimeout(r, 0))
+      })
+      const search = calls.find(c => c.name === 'crm_clients' && c.args.query)
+      expect(search?.args).toMatchObject({ query: 'Found', offset: 0 })
+      expect(host.textContent).toContain('FoundBySearch')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('groups on /crm (#2950)', () => {
+  it('a groups chip lists the groups, each opening its read-only page', async () => {
+    answers.crm_groups = {
+      groups: [
+        {
+          chat_id: '-1001111111111',
+          kind: 'group',
+          title: 'Buyers club',
+          members_count: 40,
+          messages: 12,
+        },
+      ],
+    }
+    try {
+      serve()
+      await draw()
+      const chip = [...host.querySelectorAll('button')].find(b =>
+        b.textContent?.startsWith('crm.clients.filter.groups')
+      )!
+      expect(chip.textContent).toBe('crm.clients.filter.groups 1')
+      await act(async () => {
+        chip.click()
+      })
+      const link = host.querySelector('a[href="/crm/g/-1001111111111/chat"]')
+      expect(link?.textContent).toBe('Buyers club')
+      expect(host.textContent).not.toContain('ClientOnlyName')
+    } finally {
+      delete answers.crm_groups
+    }
+  })
+})

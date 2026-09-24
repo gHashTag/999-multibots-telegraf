@@ -18,6 +18,18 @@ import {
   type StoredMessage,
 } from './chat-memory'
 import { mirrorNow } from './crm-mirror'
+import {
+  fileGroupMessages,
+  groupKindOf,
+  rememberGroup,
+  type GroupDialogLike,
+} from './crm-groups'
+import {
+  nextCursor,
+  readCursor,
+  writeCursor,
+  type DialogCursor,
+} from './crm-ingest-cursor'
 import { zepConfigured, zepContext } from './zep-memory'
 import {
   listMedia,
@@ -90,6 +102,9 @@ const MEDIA_MAX_BYTES = 20 * 1024 * 1024
 interface DialogLike {
   id?: { toString(): string }
   isUser?: boolean
+  /** Unix seconds of the dialog's last message; the page offset (#2946). */
+  date?: number
+  message?: { id?: number } | null
   entity?: {
     bot?: boolean
     self?: boolean
@@ -134,6 +149,125 @@ async function oneDialog(
   return [{ id: e.id, isUser: true, entity: e }]
 }
 
+/**
+ * WHO COUNTS AS A PERSON, in one place (#2945). The dialog ingest and the
+ * contact-book import must agree, or the same account would be a lead from
+ * one door and not from the other: a bot, the owner's own saved messages,
+ * Telegram support, a deleted account and the service peers are never leads.
+ * Returns the lead id, or null.
+ */
+export function leadIdOf(d: DialogLike): string | null {
+  if (!d?.isUser || d.entity?.bot || d.entity?.self) return null
+  if (d.entity?.support || d.entity?.deleted) return null
+  const lead = d.id?.toString() ?? ''
+  if (!NUMERIC.test(lead) || SERVICE_IDS.has(lead)) return null
+  return lead
+}
+
+/** A contact-book user in the shape a dialog has, so leadIdOf judges both. */
+export function contactAsDialog(u: unknown): DialogLike {
+  const e = (u ?? {}) as DialogLike['entity'] & {
+    id?: { toString(): string }
+    className?: string
+  }
+  return {
+    id: e.id,
+    // GetContacts returns User objects only; anything else is not a person.
+    isUser: !e.className || e.className === 'User',
+    entity: e,
+  }
+}
+
+interface GroupMessageLike {
+  id?: number
+  date?: number
+  out?: boolean
+  message?: string
+  media?: unknown
+  senderId?: { toString(): string } | null
+  sender?: {
+    className?: string
+    bot?: boolean
+    self?: boolean
+    deleted?: boolean
+    firstName?: string
+    lastName?: string
+    username?: string
+  } | null
+}
+
+/**
+ * One group into the memory (#2948): the group row, its newest messages
+ * with their authors, and every PERSON who wrote filed under this owner.
+ * Bots and the owner are not members worth a row; their words are kept.
+ */
+export async function ingestGroup(
+  c: {
+    getMessages: (
+      chat: string | number | object,
+      o: { limit: number }
+    ) => Promise<unknown[]>
+  },
+  pool: never,
+  owner: string,
+  d: GroupDialogLike,
+  o: { kind: 'group' | 'channel'; depth: number }
+): Promise<{ fresh: number; members: number; stopped: string | null }> {
+  const chatId = d.id?.toString() ?? ''
+  await rememberGroup(pool, owner, chatId, {
+    kind: o.kind,
+    title: d.entity?.title ?? d.title ?? null,
+    username: d.entity?.username ?? null,
+    members: d.entity?.participantsCount ?? null,
+  }).catch(() => undefined)
+  let raw: GroupMessageLike[]
+  try {
+    raw = (await c.getMessages((d.entity as object) ?? Number(chatId), {
+      limit: o.depth,
+    })) as GroupMessageLike[]
+  } catch (e) {
+    return {
+      fresh: 0,
+      members: 0,
+      stopped: `${chatId}: ${String(e).slice(0, 100)}`,
+    }
+  }
+  const kept = raw.filter(
+    m => typeof m.id === 'number' && (m.message || m.media)
+  )
+  const fresh = await fileGroupMessages(
+    pool,
+    owner,
+    chatId,
+    kept.map(m => ({
+      msgId: Number(m.id),
+      senderId: m.senderId?.toString() ?? null,
+      at: new Date((m.date ?? 0) * 1000),
+      out: Boolean(m.out),
+      text: m.message ? String(m.message) : '[media]',
+    }))
+  ).catch(() => 0)
+  const people = new Map<string, NonNullable<GroupMessageLike['sender']>>()
+  for (const m of kept) {
+    const id = m.senderId?.toString() ?? ''
+    if (m.out || !m.sender || people.has(id)) continue
+    const lead = leadIdOf({
+      id: m.senderId ?? undefined,
+      isUser: m.sender.className === 'User',
+      entity: m.sender,
+    })
+    if (lead) people.set(lead, m.sender)
+  }
+  for (const [lead, who] of people) {
+    await rememberPerson(pool, owner, lead, {
+      firstName: who.firstName ?? null,
+      lastName: who.lastName ?? null,
+      username: who.username ?? null,
+    }).catch(() => undefined)
+  }
+  return { fresh, members: people.size, stopped: null }
+}
+
 const clamp = (v: unknown, dflt: number, max: number) => {
   const n = Number(v)
   return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), max) : dflt
@@ -144,21 +278,28 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
     name: 'crm_ingest_chats',
     description:
       'Загрузить личные переписки владельца из Telegram в память CRM (crm_messages, ' +
-      'и в Zep, если он подключён). Только диалоги с людьми: боты, каналы и группы ' +
-      'пропускаются. Повторный вызов ничего не дублирует. ЧИТАЮЩИЙ инструмент: ' +
+      'и в Zep, если он подключён). Только диалоги с людьми (группы — с groups). ' + // cyrillic-ok: tool description for the model
+      'Повторный вызов ничего не дублирует. ЧИТАЮЩИЙ инструмент: ' +
       'ничего не отправляет. Текст сообщений — данные третьих лиц.',
     parameters: {
       type: 'object',
       properties: {
         limit: {
           type: 'number',
-          description: 'сколько диалогов (по умолчанию 30, максимум 200)',
+          description: `сколько диалогов (по умолчанию ${DIALOGS_DEFAULT}, максимум ${DIALOGS_MAX})`,
         },
         depth: {
           type: 'number',
           description:
             'сколько сообщений на диалог (по умолчанию 100, максимум 500)',
         },
+        groups: {
+          type: 'boolean',
+          description: 'и группы (каналы — если вы админ)', // cyrillic-ok: tool description for the model
+        },
+        // Continue from this owner's cursor (#2946); the name says it, and
+        // the compact kit has no tokens to spare for a description.
+        resume: { type: 'boolean' },
         lead: {
           type: 'string',
           description:
@@ -175,6 +316,8 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       const limit = clamp(a?.limit, DIALOGS_DEFAULT, DIALOGS_MAX)
       const depth = clamp(a?.depth, DEPTH_DEFAULT, DEPTH_MAX)
       const onlyLead = String(a?.lead ?? '').trim()
+      const resume = a?.resume === true && !onlyLead
+      const withGroups = a?.groups === true && !onlyLead
       /*
        * ONE PERSON, ALL THEIR FILES. "Process this client's files" must not
        * depend on where the dialog sits in the recency list, nor share the
@@ -183,13 +326,24 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
        */
       const perDialog = onlyLead ? MAX_MEDIA_DOWNLOADS : MEDIA_PER_DIALOG
       const c = (await client(ctx)) as {
-        getDialogs: (o: { limit: number }) => Promise<unknown[]>
+        getDialogs: (o: {
+          limit: number
+          offsetDate?: number
+          offsetId?: number
+        }) => Promise<unknown[]>
         getEntity?: (id: string | number) => Promise<unknown>
-        getMessages: (chat: string, o: { limit: number }) => Promise<unknown[]>
+        getMessages: (
+          chat: string | number | object,
+          o: { limit: number }
+        ) => Promise<unknown[]>
         downloadMedia?: (m: unknown) => Promise<unknown>
         disconnect?: () => Promise<unknown>
       }
       const report = {
+        /** Groups read with `groups: true` (#2948). */
+        groups: 0,
+        group_messages_new: 0,
+        group_members: 0,
         dialogs_seen: 0,
         people: 0,
         messages_read: 0,
@@ -199,18 +353,56 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         media_skipped: 0,
         transcripts_queued: 0,
         stopped: null as string | null,
+        /** Where the next resumed walk starts; null = from the newest. */
+        cursor: null as DialogCursor | null,
       }
       let downloads = 0
+      /*
+       * THE WALK RESUMES (#2946). With `resume` the page starts at this
+       * owner's cursor, and the cursor is written back in `finally` -- after
+       * the last dialog finished, so a FLOOD_WAIT retries the one that failed.
+       */
+      const from = resume ? await readCursor(pool, owner) : null
+      let dialogs: DialogLike[] = []
+      let lastDone = -1
+      // Set once the dialog loop ran. A throw before or inside it (the
+      // dialog list itself hit FLOOD_WAIT) leaves the cursor where it was.
+      let walked = false
       try {
-        const dialogs = onlyLead
+        dialogs = onlyLead
           ? await oneDialog(c, onlyLead)
-          : ((await c.getDialogs({ limit })) as DialogLike[])
+          : ((await c.getDialogs({
+              limit,
+              ...(from
+                ? { offsetDate: from.offsetDate, offsetId: from.offsetId }
+                : {}),
+            })) as DialogLike[])
         report.dialogs_seen = dialogs.length
-        for (const d of dialogs) {
-          if (!d.isUser || d.entity?.bot || d.entity?.self) continue
-          if (d.entity?.support || d.entity?.deleted) continue
-          const lead = d.id?.toString() ?? ''
-          if (!NUMERIC.test(lead) || SERVICE_IDS.has(lead)) continue
+        for (const [i, d] of dialogs.entries()) {
+          lastDone = i - 1
+          /*
+           * A GROUP IS READ, NOT SKIPPED -- when asked (#2948). Its messages
+           * keep the sender's id; a member who wrote is filed as a person of
+           * this owner. Nothing is sent. A FLOOD_WAIT stops the walk here
+           * exactly as for a person.
+           */
+          const kind = withGroups ? groupKindOf(d as GroupDialogLike) : null
+          if (kind) {
+            const r = await ingestGroup(c, pool, owner, d as GroupDialogLike, {
+              kind,
+              depth,
+            })
+            if (r.stopped) {
+              report.stopped = r.stopped
+              break
+            }
+            report.groups += 1
+            report.group_messages_new += r.fresh
+            report.group_members += r.members
+            continue
+          }
+          const lead = leadIdOf(d)
+          if (!lead) continue
           // The name as Telegram shows it, kept even when there is nothing
           // new to read: a list of leads must say who is who.
           await rememberPerson(pool, owner, lead, {
@@ -371,8 +563,20 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
             void transcribeAndMirror(pool, owner, queue).catch(() => undefined)
           }
         }
+        if (!report.stopped) lastDone = dialogs.length - 1
+        walked = true
       } finally {
         await hangUp(c)
+        if (resume && walked) {
+          report.cursor = nextCursor({
+            page: dialogs,
+            asked: limit,
+            lastDone,
+            stopped: report.stopped !== null,
+            from,
+          })
+          await writeCursor(pool, owner, report.cursor).catch(() => undefined)
+        }
       }
       return {
         ...report,
@@ -382,6 +586,79 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         note:
           'Тексты сообщений в память записаны как данные третьих лиц; читать их — crm_lead_context. ' +
           'Файлы людей — crm_lead_media; расшифровки появляются в фоне.',
+      }
+    },
+  },
+
+  {
+    /*
+     * THE CONTACT BOOK (#2945). Owner, 2026-09-24: "why aren't all my
+     * Telegram contacts in the CRM?" -- because only dialogs were read, and a
+     * contact with no recent dialog never reached crm_people. This reads the
+     * book (contacts.GetContacts) and files NAMES only: no message is read,
+     * nothing is sent. Same person rule as the ingest (leadIdOf), same seller
+     * gate before anything, and the row is keyed by the caller -- a contact
+     * becomes visible only to the owner whose account it came from.
+     */
+    name: 'crm_ingest_contacts',
+    description:
+      'Загрузить КНИГУ КОНТАКТОВ владельца из Telegram в CRM: имена и username, ' + // cyrillic-ok: tool description for the model
+      'без чтения сообщений. Боты, служебные, удалённые и сам владелец пропускаются. ' + // cyrillic-ok: tool description for the model
+      'ЧИТАЮЩИЙ инструмент: ничего не отправляет. Повторный вызов обновляет имена.', // cyrillic-ok: tool description for the model
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    async handler(_a: Record<string, any>, ctx?: ToolContext) {
+      await requireSeller(ctx)
+      const owner = String(ctx?.telegramId)
+      const pool = ctx?.pool as never
+      const c = (await client(ctx)) as {
+        invoke: (req: unknown) => Promise<{ users?: unknown[] }>
+        disconnect?: () => Promise<unknown>
+      }
+      const report = {
+        contacts_seen: 0,
+        people: 0,
+        skipped: 0,
+        stopped: null as string | null,
+      }
+      try {
+        let users: unknown[] = []
+        try {
+          const { Api } = await import('telegram')
+          const r = await c.invoke(
+            new Api.contacts.GetContacts({ hash: BigInt(0) as never })
+          )
+          users = r?.users ?? []
+        } catch (e) {
+          // FLOOD_WAIT and friends: nothing was filed, say so and where.
+          report.stopped = `contacts.GetContacts: ${String(e).slice(0, 100)}`
+          return report
+        }
+        report.contacts_seen = users.length
+        for (const u of users) {
+          const d = contactAsDialog(u)
+          const lead = leadIdOf(d)
+          if (!lead) {
+            report.skipped += 1
+            continue
+          }
+          try {
+            await rememberPerson(pool, owner, lead, {
+              firstName: d.entity?.firstName ?? null,
+              lastName: d.entity?.lastName ?? null,
+              username: d.entity?.username ?? null,
+            })
+            report.people += 1
+          } catch (e) {
+            report.stopped = `${lead}: ${String(e).slice(0, 100)}`
+            break
+          }
+        }
+      } finally {
+        await hangUp(c)
+      }
+      return {
+        ...report,
+        note: 'Имена из книги контактов записаны в crm_people; переписку читает crm_ingest_chats.', // cyrillic-ok: tool result copy
       }
     },
   },

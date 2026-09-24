@@ -21,7 +21,11 @@
  *    одной существующей композиции.
  */
 import { randomUUID } from 'node:crypto'
-import { liveMarketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
+import {
+  liveMarketplaceAgentById,
+  marketplaceAgentById,
+} from '../../../packages/vibee-atoms/src/agent-marketplace'
+import { keepers } from '../hive/roles'
 import { assertArgs } from './tool-args'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
@@ -90,7 +94,18 @@ export async function threadFor(
     return { ok: false, status: 400, error: 'choose client or agent, not both' }
   }
   if (rawAgent != null && rawAgent !== '') {
-    const agent = liveMarketplaceAgentById(rawAgent)
+    /*
+     * OWNER PREVIEW (#2957). A trainee goes live only after one real run,
+     * and until now nobody could open a trainee at all -- so no run could
+     * happen. A keeper (hive/roles.ts: HIVE_KEEPERS, or the platform owner)
+     * may open any catalogued agent; everybody else still gets live ones
+     * only, so a client is never sold a trainee.
+     */
+    const agent =
+      liveMarketplaceAgentById(rawAgent) ??
+      (keepers().includes(String(owner))
+        ? marketplaceAgentById(rawAgent)
+        : null)
     if (!agent)
       return { ok: false, status: 400, error: 'agent is not available' }
     return {

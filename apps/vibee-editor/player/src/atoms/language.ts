@@ -183,6 +183,24 @@ const en: Translations = {
   // ── CRM: client list and per-client workspace ────────────────────────────
   'crm.clients.title': 'Clients',
   'crm.clients.none': 'No clients with a profile or a conversation yet.',
+  'crm.clients.more': 'More clients',
+  'crm.clients.filter.groups': 'groups',
+  'crm.groups.none':
+    'No groups read yet. Ask the agent to read your groups (crm_ingest_chats with groups).',
+  'crm.groups.row': '{members} members · {messages} messages read',
+  'crm.group.back': 'Back to CRM',
+  'crm.group.badId': 'This is not a group address.',
+  'crm.group.readOnly':
+    'Ask the agent for a post here: it prepares a card, and nothing is posted until you press it.',
+  'crm.group.members': 'Who speaks here',
+  'crm.group.noMembers':
+    'Nobody has written here yet, or it has not been read.',
+  'crm.group.memberMessages': '{n} messages',
+  'crm.group.messages': 'Latest messages',
+  'crm.group.signals': 'Buying signals: {list}',
+  'crm.group.you': 'You',
+  'crm.group.notFound': 'No such group in your CRM.',
+  'crm.clients.loadingMore': 'Loading…',
   'crm.clients.profile': 'profile',
   'crm.clients.soul': 'SOUL',
   'crm.clients.duets': 'duets: {n}',
@@ -210,6 +228,7 @@ const en: Translations = {
   'picker.open': 'All clients',
   'picker.title': 'All clients',
   'picker.none': 'Nobody matches',
+  'picker.more': 'Show more',
   'picker.filter.all': 'Everyone',
   'picker.filter.paid': 'Paid',
   'picker.filter.leads': 'Not yet bought',
@@ -387,6 +406,8 @@ const en: Translations = {
   // The row of conversations above the chat (components/Chat/ChatThreads.tsx).
   'chat.threads.label': 'Conversations',
   'chat.threads.agent': 'Agent',
+  'chat.threads.all': 'All',
+  'chat.threads.allTitle': 'All clients: search and pages',
   'crm.client.chat.back': 'To the client',
   'crm.client.chat.welcome':
     'This is the conversation about client {id}. I already hold their profile, plan and last messages — ask what to do next.',
@@ -2481,6 +2502,23 @@ const ru: Translations = {
   // ── CRM: client list and per-client workspace ────────────────────────────
   'crm.clients.title': 'Клиенты',
   'crm.clients.none': 'Пока нет клиентов с профилем или перепиской.',
+  'crm.clients.more': 'Ещё клиенты',
+  'crm.clients.filter.groups': 'группы',
+  'crm.groups.none':
+    'Группы ещё не прочитаны. Попросите агента прочитать ваши группы (crm_ingest_chats с groups).',
+  'crm.groups.row': 'участников: {members} · прочитано сообщений: {messages}',
+  'crm.group.back': 'Назад в CRM',
+  'crm.group.badId': 'Это не адрес группы.',
+  'crm.group.readOnly':
+    'Попросите агента подготовить пост сюда: он пришлёт карточку, и ничего не уйдёт, пока вы её не нажмёте.',
+  'crm.group.members': 'Кто здесь пишет',
+  'crm.group.noMembers': 'Здесь ещё никто не писал, или группа не прочитана.',
+  'crm.group.memberMessages': 'сообщений: {n}',
+  'crm.group.messages': 'Последние сообщения',
+  'crm.group.signals': 'Признаки интереса: {list}',
+  'crm.group.you': 'Вы',
+  'crm.group.notFound': 'Такой группы нет в вашей CRM.',
+  'crm.clients.loadingMore': 'Загружаю…',
   'crm.clients.profile': 'профиль',
   'crm.clients.soul': 'SOUL',
   'crm.clients.duets': 'дуэтов: {n}',
@@ -2508,6 +2546,7 @@ const ru: Translations = {
   'picker.open': 'Все клиенты',
   'picker.title': 'Все клиенты',
   'picker.none': 'Никого не нашлось',
+  'picker.more': 'Показать ещё',
   'picker.filter.all': 'Все',
   'picker.filter.paid': 'Оплатили',
   'picker.filter.leads': 'Ещё не купили',
@@ -2680,6 +2719,8 @@ const ru: Translations = {
   'crm.client.chat.title': 'Разговор о клиенте {id}',
   'chat.threads.label': 'Разговоры',
   'chat.threads.agent': 'Агент',
+  'chat.threads.all': 'Все',
+  'chat.threads.allTitle': 'Все клиенты: поиск и страницы',
   'crm.client.chat.back': 'К клиенту',
   'crm.client.chat.welcome':
     'Это разговор о клиенте {id}. Я уже держу его профиль, план и последние сообщения — спроси, что делать дальше.',

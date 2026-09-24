@@ -152,3 +152,17 @@
   padding: 20px 6px;
   color: #888;
 }
+
+.client-picker__more {
+  height: auto;
+  width: 100%;
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: #bbb;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}

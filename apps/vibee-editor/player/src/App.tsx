@@ -46,6 +46,7 @@ import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
 import { isBrowserPath, keepMounted, KEEP_BROWSER_MS } from '@/lib/keptBrowser'
 const CrmPage = lazy(() => import('@/pages/Crm'))
 const CrmClientPage = lazy(() => import('@/pages/CrmClient'))
+const CrmGroupPage = lazy(() => import('@/pages/CrmGroup'))
 const ScriptPage = lazy(() => import('@/pages/Script'))
 const TemplatesPage = lazy(() => import('@/pages/Templates'))
 const InstagramCallbackPage = lazy(() => import('@/pages/InstagramCallback'))
@@ -368,6 +369,8 @@ function RouteTable() {
           named "123". */}
       <Route path="/crm/:clientId" element={<CrmClientPage />} />
       <Route path="/crm/:clientId/chat" element={<ChatPage />} />
+      {/* One group, read-only: what was said and who said it (#2950). */}
+      <Route path="/crm/g/:chatId/chat" element={<CrmGroupPage />} />
       <Route path="/templates" element={<TemplatesPage />} />
       <Route path="/agents" element={<AgentsPage />} />
       <Route path="/agents/connect" element={<AgentHarnessPage />} />
