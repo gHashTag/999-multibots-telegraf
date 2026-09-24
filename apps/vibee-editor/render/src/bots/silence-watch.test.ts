@@ -210,6 +210,7 @@ describe('one tick over everybody', () => {
     expect(round.alarms).toEqual([])
     expect(round.checked).toBe(1)
     expect(round.silent).toBe(0)
+    expect(round.ours).toBe(0)
   })
 
   it('an unavailable list of owners is silence, not "all fine"', async () => {
@@ -244,6 +245,12 @@ describe('one tick over everybody', () => {
     const alarms = round.alarms
     expect(alarms).toHaveLength(1)
     expect(round.silent).toBe(1)
+    // Counted apart from an outage: this is an onboarding nobody finished, and
+    // the log line has to make that visible without opening the database.
+    expect(round.ours).toBe(1)
+    // And carried on the alarm, so the caller can also tell the operator --
+    // the only party who can fix it.
+    expect(alarms[0].side).toBe('ours')
     expect(alarms[0].text).toContain('токена этого бота нет на нашем сервере')
     // AND THE LABEL AGREES WITH THE REASON. On the first live run it did not:
     // three owners were told Telegram was the cause of a gap that was ours,

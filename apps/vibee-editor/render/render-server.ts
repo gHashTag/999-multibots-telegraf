@@ -2687,32 +2687,65 @@ setInterval(
         if (!token) return
         const { runSilenceWatch } = await import('./src/bots/silence-wiring')
         const { telegramApiFor } = await import('./src/telegram-api')
+        const { PLATFORM_OWNER_FALLBACK } = await import('./src/platform-owner')
+        const operator = String(
+          process.env.OWNER_TELEGRAM_ID || PLATFORM_OWNER_FALLBACK
+        ).trim()
+        const api = telegramApiFor(token)
+        const say = async (chatId: string, body: string) => {
+          const res = await fetch(`${api}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: body }),
+          })
+          const parsed = (await res.json().catch(() => null)) as {
+            ok?: boolean
+            description?: string
+          } | null
+          if (parsed?.ok) return true
+          console.error(
+            `[bot-silence] ${chatId} did not get it:`,
+            String(parsed?.description ?? res.status).slice(0, 120)
+          )
+          return false
+        }
         const round = await runSilenceWatch(
           (await getPool()) as never,
-          async (ownerId, text) => {
+          async alarm => {
             /*
-             * THE ANSWER IS READ, NOT DISCARDED. A person who never started a
-             * chat with this bot -- or who blocked it -- gets a 403 here, and
-             * fire-and-forget would record the owner as told while nothing
-             * arrived. Returning false leaves the outage unannounced in the
-             * state, so the next tick tries again.
+             * THE ANSWER IS READ, NOT DISCARDED (inside `say`). A person who
+             * never started a chat with this bot -- or who blocked it -- gets a
+             * 403, and fire-and-forget would record the owner as told while
+             * nothing arrived. Returning false leaves the outage unannounced in
+             * the state, so the next tick tries again.
              */
-            const api = telegramApiFor(token)
-            const res = await fetch(`${api}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chat_id: ownerId, text }),
-            })
-            const body = (await res.json().catch(() => null)) as {
-              ok?: boolean
-              description?: string
-            } | null
-            if (body?.ok) return true
-            console.error(
-              `[bot-silence] ${ownerId} did not get it:`,
-              String(body?.description ?? res.status).slice(0, 120)
-            )
-            return false
+            const reached = await say(alarm.ownerId, alarm.text)
+
+            /*
+             * AND WHEN THE GAP IS OURS, THE OPERATOR HEARS IT TOO.
+             *
+             * A bot with no token on this server is not an outage: it is an
+             * onboarding nobody finished, and the client cannot finish it.
+             * Measured 2026-09-24: three of thirteen bots were in that state,
+             * two with real names and real users, and the only person who could
+             * have fixed it was never told -- the clients were, and were left to
+             * write in. This copy is best effort: whether the CLIENT got their
+             * message is what `reached` reports, and this must not change it.
+             */
+            if (
+              alarm.side === 'ours' &&
+              alarm.kind === 'silent' &&
+              operator &&
+              operator !== alarm.ownerId
+            ) {
+              await say(
+                operator,
+                `@${alarm.bot} стоит без токена на сервере.\n` +
+                  `Владелец: ${alarm.ownerId}. Подключение не доведено — ` +
+                  `починить можем только мы.`
+              ).catch(() => false)
+            }
+            return reached
           }
         )
         for (const a of round.alarms) {
@@ -2727,7 +2760,7 @@ setInterval(
          */
         console.log(
           `[bot-silence] checked ${round.checked}, silent ${round.silent}` +
-            `, said ${round.alarms.length}` +
+            ` (ours ${round.ours}), said ${round.alarms.length}` +
             (round.undelivered ? `, UNDELIVERED ${round.undelivered}` : '')
         )
       } catch (e) {
@@ -3343,6 +3376,25 @@ const server = createServer(async (req, res) => {
     'GET, POST, PUT, DELETE, OPTIONS'
   )
   res.setHeader('Access-Control-Allow-Headers', BASE_ALLOW_HEADERS)
+  /*
+   * HOW LONG THE BROWSER MAY REMEMBER THE ANSWER ABOVE.
+   *
+   * MEASURED 2026-09-24 against production: an OPTIONS preflight for
+   * /api/my-bots took 328 ms, and there was no Max-Age at all -- so browsers
+   * fell back to their own default (5 seconds in Chromium) and the app paid
+   * that round trip again and again. Every request the player makes carries
+   * X-Telegram-Init-Data, which is not a CORS-safelisted header, so EVERY one
+   * of them is preflighted: the tax was roughly a third of a second per call
+   * on a screen that makes several.
+   *
+   * A day is the value Chromium caps at; Firefox caps at 24 h too. It is safe
+   * to cache because what it caches is the allow-list above, which is a
+   * constant in this file -- not a decision about a person. When the app is
+   * served from the same origin as this API, preflights stop existing at all
+   * and this header stops mattering; until then it is the cheapest win there
+   * is.
+   */
+  res.setHeader('Access-Control-Max-Age', '86400')
   // The sign-in doors, called by the player from app.t27.ai on auth.t27.ai
   // with the HttpOnly refresh cookie (src/auth/refresh-cookie.ts). A
   // credentialed request is refused under `*`, so for exactly this origin and
