@@ -108,6 +108,26 @@ avatar video image audio profile hive chat browser club pair`. Новый экр
 Маршрут попадает сюда, если попасть на него — значит что-то ВЫДАТЬ, а не
 показать.
 
+## Ссылка на бота несёт свой канал (тик 9, эпик #2974)
+
+`?start=app_feed` в посте канала — это `?start=app_feed__telegram`. Параметр
+`/start` — единственное, что t.me передаёт боту, поэтому канал едет в его
+хвосте после `__` (до 64 символов `[A-Za-z0-9_-]`, правило Telegram).
+
+- Ставит метку `tagged(url, channel)` в `render/src/agent/utm.ts`
+  (`taggedBotLink`). Метит ТОЛЬКО наши полезные нагрузки (`app_*`, `svc_*`,
+  `subscribe_*`, `club`, `foundry`, `topup*`); чужой бот, реферальный номер,
+  `?startapp=` и уже помеченная ссылка остаются как были.
+- Бот отрезает канал ПЕРВЫМ в `/start` (`splitStartSource` в
+  `src/navigation/helpers/appLinks.ts`), до `crmPrepLead` и
+  `appRouteFromStartParam`: иначе `app_feed__x` не совпадёт с маршрутом и
+  человек попадёт в приветствие вместо экрана. Проверка формы —
+  `src/__tests__/navigation/startSource.test.ts`.
+- Запуск считается в рендере (`POST /api/traffic/start`, только ключ
+  сервиса, без telegram_id), виден в CRM «Откуда люди», `crm_traffic`,
+  `tri traffic`. Разделитель общий у двух процессов (тест паритета).
+- Руками: `tri tag 'https://t.me/<бот>?start=app_feed' reddit`.
+
 ## Как проверить
 
 ```bash
