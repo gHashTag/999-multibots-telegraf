@@ -111,6 +111,8 @@ const en: Translations = {
   'browser.round': 'Walk my accounts',
   'browser.desks': 'The agent s desks',
   'browser.desks.all': 'All desks at once',
+  'browser.runs': 'Runs the agent repeats',
+  'browser.runs.about': 'Saved steps — hover to read them before starting',
   'browser.desks.allAbout': 'Each in its own window, side by side',
   'browser.round.going': 'Walking…',
   'browser.round.done': 'Walked them — the report is in your chat',
@@ -2302,6 +2304,9 @@ const ru: Translations = {
   'browser.round': 'Обойти мои аккаунты',
   'browser.desks': 'Кабинеты агента',
   'browser.desks.all': 'Все кабинеты сразу',
+  'browser.runs': 'Что агент умеет повторять',
+  'browser.runs.about':
+    'Сохранённые шаги — наведите, чтобы прочитать до запуска',
   'browser.desks.allAbout': 'Каждый в своём окне, рядом друг с другом',
   'browser.round.going': 'Обхожу…',
   'browser.round.done': 'Обошёл — отчёт в чате',

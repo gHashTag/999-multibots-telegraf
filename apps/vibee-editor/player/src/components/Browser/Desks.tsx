@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import './Desks.css'
 import { useLanguage } from '@/hooks/useLanguage'
-import { readDesks, walkMyAccounts, type Desk } from '@/lib/remoteBrowser'
+import {
+  readDesks,
+  readScenarios,
+  runScenario,
+  walkMyAccounts,
+  type Desk,
+  type Scenario,
+} from '@/lib/remoteBrowser'
 
 /**
  * A DESK PER LINE OF WORK (render agent/profiles.ts).
@@ -19,11 +26,17 @@ export function Desks() {
   const [desks, setDesks] = useState<Desk[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [said, setSaid] = useState<Record<string, 'done' | 'failed'>>({})
+  /* The runs the agent can repeat (render agent/scenarios.ts). */
+  const [runs, setRuns] = useState<Scenario[]>([])
+  const [ran, setRan] = useState<string[] | null>(null)
 
   useEffect(() => {
     let stopped = false
     void readDesks().then(list => {
       if (!stopped) setDesks(list)
+    })
+    void readScenarios().then(list => {
+      if (!stopped) setRuns(list)
     })
     return () => {
       stopped = true
@@ -96,6 +109,38 @@ export function Desks() {
           ) : null}
         </article>
       ))}
+      {runs.length ? (
+        <article className="desks__card">
+          <h3 className="desks__name">{t('browser.runs')}</h3>
+          <p className="desks__about">{t('browser.runs.about')}</p>
+          {runs.map(run => (
+            <button
+              key={run.id}
+              type="button"
+              className="desks__go desks__run"
+              title={run.steps.join(' → ')}
+              disabled={busy !== null}
+              onClick={() => {
+                setBusy(run.id)
+                setRan(null)
+                void runScenario(run.id).then(lines => {
+                  setBusy(null)
+                  setRan(lines ?? [t('browser.round.failed')])
+                })
+              }}
+            >
+              {busy === run.id ? t('browser.round.going') : run.name}
+            </button>
+          ))}
+          {ran ? (
+            <ol className="desks__ran" aria-live="polite">
+              {ran.map((line, i) => (
+                <li key={`${line}:${i}`}>{line}</li>
+              ))}
+            </ol>
+          ) : null}
+        </article>
+      ) : null}
     </section>
   )
 }
