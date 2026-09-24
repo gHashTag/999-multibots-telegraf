@@ -15,7 +15,8 @@ import {
   loadOverview,
   loadWaiting,
   loadHotLeads,
-  loadClients,
+  loadClientsPage,
+  appendClients,
   recordTouch,
   dropClient,
   restoreClient,
@@ -65,6 +66,9 @@ const isClient = (x: ClientRow) =>
   x.paid || x.stage === 'client' || x.stage === 'winback'
 
 type ClientsFilter = 'all' | 'clients' | 'leads'
+
+/** One page of the clients list; "More" asks for the next (#2947). */
+const CLIENTS_PAGE = 100
 
 /** A week, in milliseconds: the window "touched recently" means. */
 const UNDER_WAY_MS = 7 * 24 * 60 * 60 * 1000
@@ -156,7 +160,7 @@ export default function CrmPage() {
       loadOverview(),
       loadWaiting(),
       loadHotLeads(),
-      loadClients(),
+      loadClientsPage({ limit: CLIENTS_PAGE }),
       loadAutopilotLeads(),
     ])
     setOverview(o)
@@ -170,6 +174,54 @@ export default function CrmPage() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  /*
+   * EVERY CLIENT, NOT THE FIRST PAGE (#2947). "More" appends the next page;
+   * a search of two letters or more also asks the server, so a person who
+   * is not on the loaded pages is still found. Both only ADD rows -- the
+   * search box keeps filtering what is on the screen as before.
+   */
+  const [loadingMore, setLoadingMore] = useState(false)
+  const addClients = useCallback(
+    (more: ClientsList, nextOffset: number | null | undefined) =>
+      setClients(prev =>
+        prev.data
+          ? {
+              ...prev,
+              data: {
+                ...prev.data,
+                clients: appendClients(prev.data.clients, more.clients),
+                nextOffset:
+                  nextOffset === undefined ? prev.data.nextOffset : nextOffset,
+              },
+            }
+          : prev
+      ),
+    []
+  )
+  const loadMoreClients = async () => {
+    const from = clients.data?.nextOffset
+    if (from == null || loadingMore) return
+    setLoadingMore(true)
+    const page = await loadClientsPage({ limit: CLIENTS_PAGE, offset: from })
+    if (page.data) addClients(page.data, page.data.nextOffset)
+    setLoadingMore(false)
+  }
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) return
+    let live = true
+    const timer = setTimeout(() => {
+      void loadClientsPage({ limit: CLIENTS_PAGE, query: q }).then(found => {
+        // A search result is not a page of the list: nextOffset stays.
+        if (live && found.data) addClients(found.data, undefined)
+      })
+    }, 300)
+    return () => {
+      live = false
+      clearTimeout(timer)
+    }
+  }, [query, addClients])
 
   /*
    * Remove from the CRM. The confirmation is the browser's own: this screen
@@ -572,6 +624,18 @@ export default function CrmPage() {
                   <ul className="crm__list">{underWay.map(clientRow)}</ul>
                 )}
                 <ul className="crm__list">{shownClients.map(clientRow)}</ul>
+                {c && c.nextOffset !== null ? (
+                  <button
+                    type="button"
+                    className="crm__more"
+                    onClick={() => void loadMoreClients()}
+                    disabled={loadingMore}
+                  >
+                    {loadingMore
+                      ? t('crm.clients.loadingMore')
+                      : t('crm.clients.more')}
+                  </button>
+                ) : null}
               </>
             )
           )}

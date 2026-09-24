@@ -259,6 +259,11 @@ export interface ClientRow {
 export interface ClientsList {
   clients: ClientRow[]
   paidKnown: boolean
+  /**
+   * Where the next page starts (#2947); null when there is no next page or
+   * the list was asked for without paging.
+   */
+  nextOffset: number | null
 }
 
 function toClients(r: Record<string, unknown>): ClientsList {
@@ -280,7 +285,36 @@ function toClients(r: Record<string, unknown>): ClientsList {
     // An older server that does not send the flag is treated as knowing:
     // the note is for a server that SAID it could not read payments.
     paidKnown: bool(r['paid_known']) ?? true,
+    nextOffset: num(r['next_offset']) ?? null,
   }
+}
+
+/**
+ * One page of the clients list, or a search over ALL of them (#2947). The
+ * contact book puts hundreds of people in the CRM; the first fifty is not
+ * "the clients".
+ */
+export const loadClientsPage = async (o: {
+  limit?: number
+  offset?: number
+  query?: string
+}) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_clients', {
+      offset: o.offset ?? 0,
+      ...(o.limit ? { limit: o.limit } : {}),
+      ...(o.query?.trim() ? { query: o.query.trim() } : {}),
+    }),
+    toClients
+  )
+
+/** Rows of `more` that `list` does not have yet, appended in order. */
+export function appendClients(
+  list: ClientRow[],
+  more: ClientRow[]
+): ClientRow[] {
+  const have = new Set(list.map(r => r.telegramId))
+  return [...list, ...more.filter(r => !have.has(r.telegramId))]
 }
 
 export const loadClients = async (limit?: number) =>
