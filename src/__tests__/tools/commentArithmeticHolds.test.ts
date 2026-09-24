@@ -37,6 +37,8 @@ const KNOWN: Record<string, string> = {
     'a unit conversion -- "120 * 30s = 1 hour" is true in seconds-to-hours, and the checker has no units',
   '35732 + 200 + 29314 + 2999 + 0 + 89990.81 = 157235.81':
     'a real discrepancy of exactly 1000 in a one-off report script: the addends sum to 158235.81 while the comment and the literal both say 157235.81. Which figure is wrong is a data question about numbers pulled from SQL, not something to guess at',
+  '3 x 7.133 s -> 3':
+    'the comment is right and the reader is not: it says "3 x 7.133 s -> 3 x 8, not ceil(21.4) = 22", and the checker takes only the first number after the arrow. Three calls rounded up separately give 24 seconds, which is the point being made',
   '6 сек × $0.485 × 1.5 / $0.016 = 182':
     'the Runway Aleph estimate writes the markup into the formula but omits it from the answer (182 rather than 273). The entry is status: deprecated, so nothing charges from it',
 }

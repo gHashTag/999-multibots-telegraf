@@ -317,6 +317,14 @@ const pause = (ms: number): Promise<void> =>
  * инструменты агент вызвал, — это уходит в журнал и помогает понять, почему
  * ответ такой.
  */
+/*
+ * The stop marker lives in its own leaf module (agentStop.ts): tests replace
+ * THIS module with partial mocks, and anything they import from here at
+ * module scope breaks the day it is added.
+ */
+import { STOPPED_BY_OWNER } from './agentStop'
+export { STOPPED_BY_OWNER, wasStoppedByOwner } from './agentStop'
+
 export async function спроситьАгента(
   telegramId: string,
   текст: string,
@@ -338,6 +346,15 @@ export async function спроситьАгента(
     seller?: string
     /** Only a model that calls tools may answer (the unattended sweep). */
     toolsOnly?: boolean
+    /**
+     * THE PERSON'S OWN STOP.
+     *
+     * An abort from here is NOT a timeout: it ends the turn with
+     * `STOPPED_BY_OWNER`, which every retry gate treats as final. Without the
+     * distinction a stop reads as a transient fault and the turn is asked
+     * again -- the opposite of what was pressed (issue #2721).
+     */
+    signal?: AbortSignal
     /**
      * THE ROOM THIS TURN BELONGS TO, when it is a group chat.
      *
@@ -378,8 +395,30 @@ export async function спроситьАгента(
     { role: 'user', content: текст },
   ]
 
-  const прерыватель = new AbortController()
-  const таймер = setTimeout(() => прерыватель.abort(), TURN_CEILING_MS)
+  const прерыватель = new AbortController() // cyrillic-ok: pre-existing identifier
+  const таймер = setTimeout(() => прерыватель.abort(), TURN_CEILING_MS) // cyrillic-ok: pre-existing identifier
+
+  /*
+   * THE OWNER'S OWN STOP, TOLD APART FROM A TIMEOUT.
+   *
+   * Both end the turn by aborting the same controller, and from the outside
+   * they look identical -- which is exactly the trap issue #2721 names: the
+   * word "abort" is in AGENT_TRANSIENT_RE, so a stop classified as a timeout
+   * is REPLAYED, and a person who pressed Stop gets the turn again.
+   *
+   * So the external signal sets a flag first, and the error carries its own
+   * marker. Nothing else about the abort path changes: one controller, one
+   * deadline, one silence timer.
+   */
+  let stoppedByOwner = false
+  const onStop = () => {
+    stoppedByOwner = true
+    прерыватель.abort() // cyrillic-ok: pre-existing identifier
+  }
+  if (opts.signal) {
+    if (opts.signal.aborted) onStop()
+    else opts.signal.addEventListener('abort', onStop, { once: true })
+  }
 
   /*
    * ONE controller and ONE ceiling for BOTH attempts, on purpose: the retry
@@ -620,10 +659,19 @@ export async function спроситьАгента(
       }
     }
   } catch (e) {
-    // Every way out of this function carries what the turn already spent, and
-    // the conversation it was read with -- the bot's fallback answers from it
-    // instead of from nothing (agentTurnSpend.ts, HISTORY).
-    throw markTurnHistory(markTurnTools(e, toolsUsed), past)
+    /*
+     * A STOP IS NAMED AS A STOP, whatever the transport called it.
+     *
+     * The abort surfaces as "This operation was aborted" -- the same words a
+     * timeout produces -- and `AGENT_TRANSIENT_RE` reads "abort" as transient,
+     * which means REPLAY. A person who pressed Stop would get the turn again.
+     *
+     * The spend and the history still ride along: a stopped turn may already
+     * have paid for a picture, and the caller answers from what it holds
+     * rather than from nothing.
+     */
+    const ended = stoppedByOwner ? new Error(STOPPED_BY_OWNER) : e
+    throw markTurnHistory(markTurnTools(ended, toolsUsed), past)
   } finally {
     clearTimeout(таймер)
     if (silence) clearTimeout(silence)
