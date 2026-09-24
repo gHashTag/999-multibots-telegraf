@@ -181,7 +181,7 @@ export interface SweepOpts {
   signal?: AbortSignal
 }
 /** The render's ingest tool may walk dozens of dialogs; it is not quick. */
-const INGEST_TIMEOUT_MS = 170_000
+export const INGEST_TIMEOUT_MS = 170_000
 /*
  * A SHORT DEADLINE, BECAUSE THIS QUESTION IS NOT THE WORK.
  *
@@ -364,19 +364,36 @@ export function holdFor(unpressed: number, base = HOLD_MS_DEFAULT): number {
  * ceiling was set from it. That sum went stale twice over:
  *
  *   ingest           INGEST_TIMEOUT_MS      170 s  (crm_ingest_chats)
+ *   faces            FACES_TIMEOUT_MS        60 s  (crm_client_avatars, 24.09)
  *   crm_leads        TOOL_TIMEOUT_MS        170 s  (modelSwitch, added later)
- *   model turn       agent turn ceiling     180 s  (trinityAgent)
- *   transport retry  agent turn ceiling     180 s  (once per sweep, below)
- *   no-tools retry   agent turn ceiling     180 s
+ *   model turn       TURN_CEILING_MS        420 s  (trinityAgent)
+ *   one retry        TURN_CEILING_MS        420 s  (ONE per sweep, shared by
+ *                                                  the transport retry, the
+ *                                                  no-tools retry and the
+ *                                                  abort -- see the budget
+ *                                                  below)
  *                                          ------
- *                                           880 s = 14 min 40 s
+ *                                          1240 s = 20 min 40 s
  *
  * An honest but slow sweep therefore tripped a ten-minute check, which pages
  * ("sweep stuck, releasing the flag") and then FALLS THROUGH to start a
- * second concurrent sweep -- a false alarm that also doubles the work. Fifteen
- * minutes clears the real worst case with room for the push.
+ * second concurrent sweep -- a false alarm that also doubles the work.
+ *
+ * IT WENT STALE TWICE MORE, AND THE SECOND TIME WAS NOT MINE ALONE.
+ *
+ * The faces step (24.09.2026) added sixty seconds to a sum that was already
+ * wrong: the model turn is bounded by TURN_CEILING_MS, which is 420 s and
+ * has been for some time, while this table still said 180. Nothing in the
+ * sweep sets a deadline of its own on the ask -- it catches the abort the
+ * agent's own ceiling raises -- so the honest worst case was never 880 s.
+ * A number kept by hand goes stale in the direction nobody is watching.
+ *
+ * Twenty-two minutes clears 1240 s with room for the push, and
+ * `theSweepCeilingCoversItsSteps` RECOMPUTES the sum from the constants
+ * themselves, so a step added here without a row in this table fails a test
+ * instead of re-arming a false alarm months later.
  */
-export const STUCK_SWEEP_MS = 15 * 60_000
+export const STUCK_SWEEP_MS = 22 * 60_000
 /*
  * MEMORY THAT STOPPED REFRESHING IS A FAILURE, NOT A WARNING (P1 #4).
  *
@@ -1517,8 +1534,8 @@ async function ingestViaRender(telegramId: string): Promise<unknown> {
  * for the work. Its own deadline, shorter than ingest's: pictures are worth
  * seconds, not three minutes.
  */
-const FACES_PER_SWEEP = 8
-const FACES_TIMEOUT_MS = 60_000
+export const FACES_PER_SWEEP = 8
+export const FACES_TIMEOUT_MS = 60_000
 
 async function facesViaRender(telegramId: string): Promise<unknown> {
   const key = process.env.RENDER_API_KEY || ''
