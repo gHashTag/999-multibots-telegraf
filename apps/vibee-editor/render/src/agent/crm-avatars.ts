@@ -122,3 +122,40 @@ export const CRM_AVATAR_TOOLS: AgentTool[] = [
     },
   },
 ]
+
+/**
+ * WHOSE FACE WE ALREADY KNOW, for a batch of leads.
+ *
+ * The queue's order is what the sweep's step 2 obeys ("take the first whose
+ * next is not wait"), and the sweep's first action is a PORTRAIT. A candidate
+ * with no face turns that whole sweep into "please send me a photo" -- the
+ * weakest card there is, and by the brief's own rule a weak card DISPLACES
+ * the next one. So the queue says who has a face and the order uses it.
+ *
+ * TWO ANSWERS, NEVER THREE. 'yes' when we hold a picture; 'unknown'
+ * otherwise -- never 'no'. The cache is filled by the screen's batch and by
+ * crm_client_face, so an empty row means nobody has looked yet, not that the
+ * person has no photo. Calling that 'no' would push people down the queue for
+ * a fact we never checked; the same rule the login reader follows (#2962).
+ */
+export async function facesKnown(
+  pool: { query: (sql: string, p?: unknown[]) => Promise<{ rows: any[] }> },
+  owner: string,
+  leads: readonly string[]
+): Promise<Set<string>> {
+  const ids = [...new Set(leads.map(String).filter(Boolean))]
+  if (!ids.length) return new Set()
+  try {
+    const r = await pool.query(
+      `SELECT lead_id FROM crm_people
+        WHERE owner_id = $1 AND lead_id = ANY($2::text[])
+          AND avatar_url IS NOT NULL AND avatar_url <> ''`,
+      [String(owner), ids]
+    )
+    return new Set((r.rows ?? []).map(x => String(x.lead_id)))
+  } catch {
+    // No column yet, or no table: nobody is known, and nobody is demoted for
+    // it -- 'unknown' is the safe answer in both directions.
+    return new Set()
+  }
+}
