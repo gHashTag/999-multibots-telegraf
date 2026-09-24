@@ -6,6 +6,7 @@ import { whoPaid, askSupabase, visibleScope } from './crm-tools'
 import { stageOf } from './crm-stages'
 import { SEGMENTS, type Segment } from './crm-segments'
 import { balanceOf } from './billing-shared'
+import { facesKnown } from './crm-avatars'
 import { ownsLead } from './crm-reach'
 import { touchedSince, touchesFor } from './crm-touches'
 import {
@@ -1002,6 +1003,17 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
        * CRM -- never a column somebody has to remember to update.
        */
       const paid = paidSet
+      /*
+       * WHOSE FACE WE ALREADY HOLD. The sweep's first action is a portrait,
+       * and a candidate with no face turns the whole sweep into "send me a
+       * photo" -- by the brief's own rule a weak card displaces the next
+       * one. 'unknown' is never 'no': see facesKnown.
+       */
+      const faces = await facesKnown(
+        pool as never,
+        owner,
+        list.map(l => l.lead)
+      )
       const nameless = list
         .filter(l => !l.name && !l.username)
         .map(l => l.lead)
@@ -1067,6 +1079,8 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
               ? foreignText(oneLine(l.lastWords, 160, true))
               : null,
             last_touch: l.lastTouch,
+            /* 'yes' -- a face to draw from; 'unknown' -- nobody has looked yet. */
+            face: faces.has(l.lead) ? 'yes' : 'unknown',
           }
         }),
         ...(hidden ? { assistant_off_hidden: hidden } : {}),
@@ -1075,7 +1089,9 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           'и спрашивал цену: crm_deliver_photo. offer — САМ спрашивал цену или хотел купить: crm_offer. ' +
           'talk — продолжить разговор по его последним словам и памяти (crm_lead_context), без цены и ' +
           'счёта. wait — не трогать. Не предлагай оплату первым. Если список пуст — сначала crm_ingest_chats. ' +
-          'segment=warm/due/ours/winback выбирает по всей базе, не по верхним 50.',
+          'segment=warm/due/ours/winback выбирает по всей базе, не по верхним 50. ' +
+          'face=yes — лицо уже есть, портрет можно делать сразу; face=unknown — ещё не смотрели ' +
+          '(это НЕ «фото нет»): посмотри crm_client_face, прежде чем просить фото.',
       }
     },
   },
