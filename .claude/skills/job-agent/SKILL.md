@@ -69,3 +69,15 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
 - https://github.com/gHashTag/agent-mail-mcp
 - `render/src/agent/mail-zoho.test.ts`: search keys, the owner gate, and the tap-gated send (with a mutation check)
 - `.claude/skills/fast-sign-in/SKILL.md`, `.claude/skills/remote-browser/SKILL.md`
+
+## All five agents: owner preview and acceptance (#2956)
+
+- **Owner preview (#2957).** A keeper can open any catalogued agent from `/agents` via "Owner preview". A keeper is `HIVE_KEEPERS`, or the platform owner. Everybody else sees live agents only. This is how the real run needed before `live` gets made.
+- **Contracts (#2958).**
+  - Every agent has a specialist prompt in `render/src/agent/chat.ts` (`marketplaceAgentPrompt`) that names only tools present in `TOOLS`, which `agent-marketplace.test.ts` checks.
+  - Each agent's first-press suggestions are in `player/src/pages/agentSuggestions.ts`.
+- **Acceptance on the owner (#2959).** `node scripts/agents-acceptance.cjs [--dry] [ids…]` sends each agent one draft-only prompt on the live service as the owner.
+  - It takes the owner's `X-Agent-Key` from `AGENT_KEY` or from `railway variables --service vibee-render`. The key is never printed.
+  - An agent PASSES when it answers with its own words and calls one of its expected tools.
+  - Any tool that publishes, sends or spends is a FAIL.
+  - Trainees need #2957 deployed first. A PASS, plus the owner's word, is the evidence for flipping an agent to `live` in `agent-marketplace.ts`.
