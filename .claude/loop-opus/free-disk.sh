@@ -207,5 +207,21 @@ if [ "$free_after" -lt 2097152 ]; then
      ~/Library/Caches 2>/dev/null | sort -n | tail -4 |
     awk '{printf "  %5d МБ  %s\n", $1/1024, $2}'
   echo "Лишние устройства симулятора: xcrun simctl list devices"
+
+  # РАБОЧИЕ КОПИИ, ПОИМЁННО И С РАЗМЕРОМ.
+  #
+  # Каждая -- полная выписка репозитория: замерено 25.09.2026, от 300 до 700
+  # МБ штука, шесть штук у одной живой сессии составляли 3 ГБ из 4.1. Это не
+  # мусор и удалять их за хозяина нельзя; но пока цена не названа, она
+  # становится видимой только когда диск подходит к нулю -- то есть трижды
+  # за ночь.
+  echo "Рабочие копии (каждая -- полный репозиторий):"
+  git worktree list --porcelain 2>/dev/null | grep '^worktree ' |
+    awk '{print $2}' | while read -r w; do
+      [ "$w" = "$(git rev-parse --show-toplevel 2>/dev/null)" ] && continue
+      sz=$(du -sk "$w" 2>/dev/null | awk '{print $1}')
+      [ -z "$sz" ] && continue
+      printf "  %5d МБ  %s\n" "$((sz / 1024))" "$w"
+    done
   exit 1
 fi
