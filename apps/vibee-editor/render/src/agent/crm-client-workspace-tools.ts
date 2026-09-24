@@ -128,6 +128,31 @@ const later = (a: string | null, b: string | null): string | null => {
 }
 
 /** Pure: one row per person, profile and ingest merged, newest first. */
+/** A search for the clients list: an exact id, or a name / @username. */
+export function clientQuery(
+  raw: unknown
+): { id: string; like: string; text: string } | null {
+  const text = String(raw ?? '')
+    .trim()
+    .replace(/^@/, '')
+    .slice(0, 64)
+  if (!text) return null
+  // LIKE wildcards typed by a person are literal characters.
+  const escaped = text.replace(/[\\%_]/g, m => `\\${m}`)
+  return { id: text, like: `%${escaped}%`, text: text.toLowerCase() }
+}
+
+/** The same search over a profile row, which lives in JSON, not columns. */
+export function profileMatches(
+  p: ProfileRow,
+  q: { id: string; text: string }
+): boolean {
+  if (String(p.telegram_id) === q.id) return true
+  return JSON.stringify(p.client ?? '')
+    .toLowerCase()
+    .includes(q.text)
+}
+
 export function mergeClients(input: {
   profiles: ProfileRow[]
   people: PersonRow[]
@@ -258,6 +283,10 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
       type: 'object',
       properties: {
         limit: { type: 'number', description: 'По умолчанию 50, максимум 200' },
+        // Page mode (#2947): offset comes from next_offset; query matches a
+        // name, @username or id. Undescribed: the compact kit is full.
+        offset: { type: 'number' },
+        query: { type: 'string' },
       },
       additionalProperties: false,
     },
@@ -268,6 +297,17 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
         200,
         Math.max(1, Math.floor(Number(args.limit) || 50))
       )
+      /*
+       * PAGES PAST FIFTY (#2947). With the contact book in crm_people an
+       * owner has hundreds or thousands of people, and the list stopped at
+       * fifty. `offset` / `query` switch to page mode: people are paged in
+       * SQL (still WHERE owner_id = caller), profiles ride along on the
+       * first page only, nothing is cut after the merge, and `next_offset`
+       * says where the next page starts (null at the end).
+       */
+      const paged = args.offset !== undefined || Boolean(args.query)
+      const offset = Math.max(0, Math.floor(Number(args.offset) || 0))
+      const query = clientQuery(args.query)
       try {
         await ensureProfileTable(ctx!)
       } catch {
@@ -275,19 +315,36 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
       }
       const people = await tryQuery<PersonRow>(
         ctx!,
-        `SELECT lead_id, first_name, last_name, username, seen_at::text AS seen_at
-           FROM crm_people WHERE owner_id = $1 ORDER BY seen_at DESC LIMIT $2`,
-        [owner, limit]
+        query
+          ? `SELECT lead_id, first_name, last_name, username, seen_at::text AS seen_at
+               FROM crm_people
+              WHERE owner_id = $1
+                AND (lead_id = $4
+                     OR coalesce(first_name, '') || ' ' || coalesce(last_name, '') ILIKE $5
+                     OR username ILIKE $5)
+              ORDER BY seen_at DESC, lead_id LIMIT $2 OFFSET $3`
+          : `SELECT lead_id, first_name, last_name, username, seen_at::text AS seen_at
+               FROM crm_people WHERE owner_id = $1
+              ORDER BY seen_at DESC, lead_id LIMIT $2 OFFSET $3`,
+        query
+          ? [owner, limit, offset, query.id, query.like]
+          : [owner, limit, offset]
       )
-      // Our own profiles and the legacy rows nobody has claimed yet.
-      const profiles = await tryQuery<ProfileRow>(
-        ctx!,
-        `SELECT telegram_id, client, updated_at::text AS updated_at
-           FROM crm_client_profiles
-          WHERE owner_id = $2 OR owner_id IS NULL
-          ORDER BY updated_at DESC LIMIT $1`,
-        [limit, owner]
-      )
+      // Our own profiles and the legacy rows nobody has claimed yet. In page
+      // mode they come with the first page only, so a later page is people.
+      const profiles =
+        paged && offset > 0
+          ? []
+          : (
+              await tryQuery<ProfileRow>(
+                ctx!,
+                `SELECT telegram_id, client, updated_at::text AS updated_at
+                   FROM crm_client_profiles
+                  WHERE owner_id = $2 OR owner_id IS NULL
+                  ORDER BY updated_at DESC LIMIT $1`,
+                [limit, owner]
+              )
+            ).filter(p => !query || profileMatches(p, query))
       const ids = [
         ...new Set([
           ...people.map(p => String(p.lead_id)),
@@ -362,8 +419,15 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
         touches,
         avatars,
         paid: money.paid,
-      }).slice(0, limit)
-      return { clients, paid_known: money.known }
+      })
+      if (!paged) {
+        return { clients: clients.slice(0, limit), paid_known: money.known }
+      }
+      return {
+        clients,
+        paid_known: money.known,
+        next_offset: people.length === limit ? offset + limit : null,
+      }
     },
   },
 ]

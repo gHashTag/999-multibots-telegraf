@@ -16,9 +16,12 @@ import {
   loadOverview,
   loadWaiting,
   loadHotLeads,
-  loadClients,
   matches,
   ensureAvatars,
+  loadClientsPage,
+  appendClients,
+  loadGroups,
+  type GroupRow,
   recordTouch,
   dropClient,
   restoreClient,
@@ -67,7 +70,10 @@ const empty = <T,>(): Reached<T> => ({ reachable: true, data: null })
 const isClient = (x: ClientRow) =>
   x.paid || x.stage === 'client' || x.stage === 'winback'
 
-type ClientsFilter = 'all' | 'clients' | 'leads'
+type ClientsFilter = 'all' | 'clients' | 'leads' | 'groups'
+
+/** One page of the clients list; "More" asks for the next (#2947). */
+const CLIENTS_PAGE = 100
 
 /** A week, in milliseconds: the window "touched recently" means. */
 const UNDER_WAY_MS = 7 * 24 * 60 * 60 * 1000
@@ -129,6 +135,8 @@ export default function CrmPage() {
   const [leads, setLeads] = useState<Reached<HotLeads>>(empty)
   const [clients, setClients] = useState<Reached<ClientsList>>(empty)
   const [clientsFilter, setClientsFilter] = useState<ClientsFilter>('all')
+  /* The owner's groups (#2950): null until read, [] when there are none. */
+  const [groups, setGroups] = useState<GroupRow[] | null>(null)
   const [query, setQuery] = useState('')
   /** Ids the screen has removed in this session, with the way back on the row. */
   const [dropped, setDropped] = useState<Record<string, boolean>>({})
@@ -151,11 +159,12 @@ export default function CrmPage() {
     setBusy(true)
     // In parallel: four independent panels, and one slow load must not hold
     // the others off the screen.
+    void loadGroups().then(g => setGroups(g.data ?? null))
     const [o, w, l, c, picks] = await Promise.all([
       loadOverview(),
       loadWaiting(),
       loadHotLeads(),
-      loadClients(),
+      loadClientsPage({ limit: CLIENTS_PAGE }),
       loadAutopilotLeads(),
     ])
     setOverview(o)
@@ -168,7 +177,7 @@ export default function CrmPage() {
     // the background; the list is re-read only if some actually arrived.
     if (c.data?.clients.some(x => !x.avatarUrl)) {
       void ensureAvatars().then(async n => {
-        if (n > 0) setClients(await loadClients())
+        if (n > 0) setClients(await loadClientsPage({ limit: CLIENTS_PAGE }))
       })
     }
   }, [])
@@ -176,6 +185,54 @@ export default function CrmPage() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  /*
+   * EVERY CLIENT, NOT THE FIRST PAGE (#2947). "More" appends the next page;
+   * a search of two letters or more also asks the server, so a person who
+   * is not on the loaded pages is still found. Both only ADD rows -- the
+   * search box keeps filtering what is on the screen as before.
+   */
+  const [loadingMore, setLoadingMore] = useState(false)
+  const addClients = useCallback(
+    (more: ClientsList, nextOffset: number | null | undefined) =>
+      setClients(prev =>
+        prev.data
+          ? {
+              ...prev,
+              data: {
+                ...prev.data,
+                clients: appendClients(prev.data.clients, more.clients),
+                nextOffset:
+                  nextOffset === undefined ? prev.data.nextOffset : nextOffset,
+              },
+            }
+          : prev
+      ),
+    []
+  )
+  const loadMoreClients = async () => {
+    const from = clients.data?.nextOffset
+    if (from == null || loadingMore) return
+    setLoadingMore(true)
+    const page = await loadClientsPage({ limit: CLIENTS_PAGE, offset: from })
+    if (page.data) addClients(page.data, page.data.nextOffset)
+    setLoadingMore(false)
+  }
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) return
+    let live = true
+    const timer = setTimeout(() => {
+      void loadClientsPage({ limit: CLIENTS_PAGE, query: q }).then(found => {
+        // A search result is not a page of the list: nextOffset stays.
+        if (live && found.data) addClients(found.data, undefined)
+      })
+    }, 300)
+    return () => {
+      live = false
+      clearTimeout(timer)
+    }
+  }, [query, addClients])
 
   /*
    * Remove from the CRM. The confirmation is the browser's own: this screen
@@ -401,6 +458,16 @@ export default function CrmPage() {
    * row that is not on the screen.
    */
   const allClients = (c?.clients ?? []).filter(x => matches(x, query))
+  const q = query.trim().toLowerCase()
+  const shownGroups = (groups ?? []).filter(
+    g =>
+      !q ||
+      [g.title, g.username, g.chatId].some(v =>
+        String(v ?? '')
+          .toLowerCase()
+          .includes(q)
+      )
+  )
   const onlyClients = allClients.filter(isClient)
   const onlyLeads = allClients.filter(x => !isClient(x))
   const inFilter =
@@ -416,6 +483,9 @@ export default function CrmPage() {
     ['all', allClients.length],
     ['clients', onlyClients.length],
     ['leads', onlyLeads.length],
+    ...(groups
+      ? [['groups', shownGroups.length] as [ClientsFilter, number]]
+      : []),
   ]
 
   const sections = [
@@ -578,16 +648,58 @@ export default function CrmPage() {
                   the top of the list is how a client hears the same opening
                   twice.
                 */}
-                <h4 className="crm__subtitle">
-                  {t('crm.vip.title')} {underWay.length}
-                </h4>
-                <p className="crm__counts">{t('crm.vip.note')}</p>
-                {underWay.length === 0 ? (
-                  <p className="crm__empty">{t('crm.vip.empty')}</p>
-                ) : (
-                  <ul className="crm__list">{underWay.map(clientRow)}</ul>
+                {clientsFilter === 'groups' ? (
+                  /*
+                    GROUPS ARE NOT CLIENTS (#2950): a group is where clients
+                    speak. Each opens read-only, with who speaks there.
+                  */
+                  shownGroups.length === 0 ? (
+                    <p className="crm__empty">{t('crm.groups.none')}</p>
+                  ) : (
+                    <ul className="crm__list">
+                      {shownGroups.map(g => (
+                        <li key={g.chatId} className="crm__row">
+                          <Link to={`/crm/g/${g.chatId}/chat`}>
+                            {g.title ||
+                              (g.username ? `@${g.username}` : g.chatId)}
+                          </Link>{' '}
+                          <span className="crm__muted">
+                            {t('crm.groups.row', {
+                              members: g.membersCount ?? '—',
+                              messages: g.messages,
+                            })}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : null}
+                {clientsFilter === 'groups' ? null : (
+                  <>
+                    <h4 className="crm__subtitle">
+                      {t('crm.vip.title')} {underWay.length}
+                    </h4>
+                    <p className="crm__counts">{t('crm.vip.note')}</p>
+                    {underWay.length === 0 ? (
+                      <p className="crm__empty">{t('crm.vip.empty')}</p>
+                    ) : (
+                      <ul className="crm__list">{underWay.map(clientRow)}</ul>
+                    )}
+                    <ul className="crm__list">{shownClients.map(clientRow)}</ul>
+                  </>
                 )}
-                <ul className="crm__list">{shownClients.map(clientRow)}</ul>
+                {clientsFilter !== 'groups' && c && c.nextOffset !== null ? (
+                  <button
+                    type="button"
+                    className="crm__more"
+                    onClick={() => void loadMoreClients()}
+                    disabled={loadingMore}
+                  >
+                    {loadingMore
+                      ? t('crm.clients.loadingMore')
+                      : t('crm.clients.more')}
+                  </button>
+                ) : null}
               </>
             )
           )}

@@ -141,8 +141,9 @@ export function ChatThreads({ current }: { current: string | null }) {
       </Link>
 
       {/*
-        EVERY CLIENT, ONE TAP AWAY. The row shows the twelve most recent; this
-        opens the rest, searchable (ClientPicker.tsx).
+        EVERY CLIENT, ONE TAP AWAY (#2947). The row shows the twelve most
+        recent; this opens everybody else in place -- searched on the server,
+        paged -- so the conversation is not left for the /crm screen.
       */}
       <button
         type="button"

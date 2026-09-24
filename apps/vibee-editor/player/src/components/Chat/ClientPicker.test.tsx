@@ -32,11 +32,23 @@ vi.stubGlobal(
   vi.fn(async (_url: string, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body ?? '{}'))
     askedLimit = body?.params?.arguments?.limit
+    const query = body?.params?.arguments?.query
+    // The server searches everybody: a person far past the first page.
+    const clients = query
+      ? [
+          {
+            telegram_id: '900000099',
+            name: 'Zarina Far Away',
+            stage: 'new',
+            paid: false,
+          },
+        ]
+      : rows
     return new Response(
       JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
-        result: { structuredContent: { clients: rows, paid_known: true } },
+        result: { structuredContent: { clients, paid_known: true } },
       }),
       { status: 200, headers: { 'content-type': 'application/json' } }
     )
@@ -84,9 +96,9 @@ const type = async (value: string) => {
 }
 
 describe('ClientPicker', () => {
-  it('lists everybody the server has, not only twelve', async () => {
+  it('lists a whole page of people, not only twelve', async () => {
     await show()
-    expect(askedLimit).toBe(200)
+    expect(askedLimit).toBe(100)
     expect(host.querySelectorAll('.client-picker__row')).toHaveLength(30)
   })
 
@@ -99,6 +111,17 @@ describe('ClientPicker', () => {
     expect(found[0].querySelector('img')?.getAttribute('src')).toBe(
       'https://example.test/f.jpg'
     )
+  })
+
+  it('finds somebody who is not on the loaded page, through the server', async () => {
+    await show()
+    await type('zarina')
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 300))
+    })
+    const found = host.querySelectorAll('.client-picker__row')
+    expect(found).toHaveLength(1)
+    expect(found[0].textContent).toContain('Zarina Far Away')
   })
 
   it('filters to those who paid', async () => {

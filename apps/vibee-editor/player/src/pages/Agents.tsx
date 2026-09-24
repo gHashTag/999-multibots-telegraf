@@ -6,6 +6,7 @@ import {
 } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { Header } from '@/components/Header'
 import { useLanguage, type Language } from '@/hooks/useLanguage'
+import { useIsKeeper } from '@/hooks/useIsKeeper'
 import './Agents.css'
 
 const copy = {
@@ -18,6 +19,7 @@ const copy = {
     training: 'in training',
     payout: 'creator share',
     hire: 'Hire this agent',
+    preview: 'Owner preview',
     wait: 'Training — join later',
     proof: 'What proves the job',
     skills: 'Skills',
@@ -48,6 +50,7 @@ const copy = {
     training: 'обучается',
     payout: 'автору агента',
     hire: 'Нанять агента',
+    preview: 'Открыть как владелец',
     wait: 'Обучается — пока без найма',
     proof: 'Чем подтверждается работа',
     skills: 'Навыки',
@@ -85,6 +88,10 @@ export function AgentsPage() {
   const { lang } = useLanguage()
   const l: Language = lang === 'ru' ? 'ru' : 'en'
   const text = copy[l]
+  // A keeper may open a trainee (#2957); asked only if there is one.
+  const keeper = useIsKeeper(
+    MARKETPLACE_AGENTS.some(agent => agent.status !== 'live')
+  )
   const live = MARKETPLACE_AGENTS.filter(
     agent => agent.status === 'live'
   ).length
@@ -160,6 +167,17 @@ export function AgentsPage() {
                     to={`/agents/${agent.id}/work`}
                   >
                     {text.hire} →
+                  </Link>
+                ) : keeper ? (
+                  /*
+                    OWNER PREVIEW (#2957): the trainee's own thread, for a
+                    keeper only -- the real run it needs before `live`.
+                  */
+                  <Link
+                    className="agent-card__cta agent-card__cta--preview"
+                    to={`/agents/${agent.id}/work`}
+                  >
+                    {text.preview} →
                   </Link>
                 ) : (
                   <span className="agent-card__cta agent-card__cta--disabled">

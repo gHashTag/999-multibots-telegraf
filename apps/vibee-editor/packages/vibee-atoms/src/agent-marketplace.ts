@@ -82,6 +82,12 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
      * The tools are not hidden meanwhile: the general prompt names them
      * (chat.ts), so the agent knows it has them. Only the specialist voice
      * waits, and it waits for the owner's word after a first real run.
+     *
+     * 2026-09-24, the owner: the mail agent from gHashTag/agent-mail-mcp
+     * goes here, and every job-search skill with it. The mailbox is the
+     * `mail_*` tools (render mail-tools.ts, owner-only, a letter leaves on a
+     * card tap); the map of every job-search piece is the `job-agent` skill.
+     * Mail has not run against the real mailbox either -- same rule.
      */
     id: 'job',
     icon: '⚒',
@@ -101,6 +107,7 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
       { en: 'evidence, not names', ru: 'доказательства, не имена' },
       { en: 'a group per audience', ru: 'группа под аудиторию' },
       { en: 'hh · LinkedIn · Upwork', ru: 'hh · LinkedIn · Upwork' },
+      { en: 'recruiter mail · Zoho', ru: 'письма рекрутёров · Zoho' },
     ],
     evidence: [
       {
@@ -118,6 +125,10 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
       {
         en: 'writing to anybody still waits for the press',
         ru: 'написать кому-либо по-прежнему только с нажатия',
+      },
+      {
+        en: 'a letter leaves only after the owner taps its card',
+        ru: 'письмо уходит только после нажатия на его карточку',
       },
     ],
   },

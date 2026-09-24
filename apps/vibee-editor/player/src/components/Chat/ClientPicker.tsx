@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Avatar } from '@/components/Crm/Avatar'
-import { loadClients, matches, type ClientRow, type Reached } from '@/lib/crm'
+import {
+  appendClients,
+  loadClientsPage,
+  matches,
+  type ClientRow,
+  type Reached,
+} from '@/lib/crm'
 import './ClientPicker.css'
 
 /**
@@ -11,13 +17,18 @@ import './ClientPicker.css'
  * Owner, 2026-09-24: "make it possible to see ANY client, not only the ones
  * on the screen". The circles above the chat show the twelve most recent,
  * which is right for a glance and wrong for "where is Farisha?". This sheet
- * is the rest: up to 200 people, searchable by name, @username or id, with
+ * is the rest: every person, a page at a time, searched ON THE SERVER for
+ * two letters or more (the contact book puts hundreds in the CRM, #2947),
+ * by name, @username or id, with
  * the filter that matters for selling -- everybody, those who paid, those we
  * never sold to -- and a press opens that person's conversation.
  *
  * The search is the CRM screen's own `matches`, not a second copy of it.
  */
 export type PickerFilter = 'all' | 'paid' | 'leads'
+
+/** One page of people; the next arrives on "more". */
+export const PAGE = 100
 
 export function pickClients(
   rows: ClientRow[],
@@ -43,15 +54,18 @@ export function ClientPicker({ onClose }: { onClose: () => void }) {
   const [filter, setFilter] = useState<PickerFilter>('all')
   const search = useRef<HTMLInputElement>(null)
 
+  const [more, setMore] = useState<'idle' | 'loading' | 'done'>('idle')
+
   useEffect(() => {
     let live = true
-    void loadClients(200).then(r => {
-      if (live)
-        setState({
-          reachable: r.reachable,
-          data: r.data?.clients ?? null,
-          error: r.error,
-        })
+    void loadClientsPage({ limit: PAGE }).then(r => {
+      if (!live) return
+      setState({
+        reachable: r.reachable,
+        data: r.data?.clients ?? null,
+        error: r.error,
+      })
+      if ((r.data?.clients.length ?? 0) < PAGE) setMore('done')
     })
     search.current?.focus()
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -61,6 +75,40 @@ export function ClientPicker({ onClose }: { onClose: () => void }) {
       document.removeEventListener('keydown', onKey)
     }
   }, [onClose])
+
+  // Somebody not on the loaded pages is still found: the server searches
+  // everybody, and what it finds is ADDED to the list, never replaces it.
+  useEffect(() => {
+    const needle = q.trim()
+    if (needle.length < 2) return
+    let live = true
+    const timer = window.setTimeout(() => {
+      void loadClientsPage({ limit: PAGE, query: needle }).then(r => {
+        if (!live || !r.data) return
+        const found = r.data.clients
+        setState(prev =>
+          prev?.data
+            ? { ...prev, data: appendClients(prev.data, found) }
+            : { reachable: true, data: found }
+        )
+      })
+    }, 250)
+    return () => {
+      live = false
+      window.clearTimeout(timer)
+    }
+  }, [q])
+
+  const loadMore = async () => {
+    if (!state?.data || more !== 'idle') return
+    setMore('loading')
+    const r = await loadClientsPage({ limit: PAGE, offset: state.data.length })
+    const next = r.data?.clients ?? []
+    setState(prev =>
+      prev?.data ? { ...prev, data: appendClients(prev.data, next) } : prev
+    )
+    setMore(next.length < PAGE ? 'done' : 'idle')
+  }
 
   const rows = useMemo(
     () => pickClients(state?.data ?? [], q, filter),
@@ -148,6 +196,18 @@ export function ClientPicker({ onClose }: { onClose: () => void }) {
               )
             })
           )}
+          {state?.data && more !== 'done' && !q.trim() ? (
+            <li>
+              <button
+                type="button"
+                className="client-picker__more"
+                disabled={more === 'loading'}
+                onClick={() => void loadMore()}
+              >
+                {more === 'loading' ? '…' : t('picker.more')}
+              </button>
+            </li>
+          ) : null}
         </ul>
       </div>
     </div>
