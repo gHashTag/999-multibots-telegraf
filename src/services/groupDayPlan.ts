@@ -48,9 +48,16 @@ export interface RoomPerson {
   id: string
   /** What the room calls them, for the line a human reads. */
   name?: string | null
-  /** Do we hold a seller profile for them (crm_client_profiles)? */
+  /**
+   * Do we hold a seller profile for them (crm_client_profiles)?
+   *
+   * THREE STATES, AND THE THIRD IS THE POINT. `true` and `false` are answers;
+   * `undefined` means NOBODY LOOKED, and a room post must not turn that into
+   * "you have no profile" in front of everybody else. Every caller that
+   * cannot answer leaves it out, and the line is simply not written.
+   */
   hasProfile?: boolean
-  /** Have they connected their own Telegram in the app? */
+  /** Have they connected their own Telegram in the app? Same three states. */
   connected?: boolean
   /** Seconds since the epoch of their last message here, when known. */
   lastAt?: number | null
@@ -168,12 +175,25 @@ export function lineFor(p: RoomPerson, now: number): string | null {
   const who = String(p.name ?? '').trim() || `id ${p.id}`
   const silentFor = p.lastAt ? (now - p.lastAt) / 86400 : null
   if (silentFor !== null && silentFor > QUIET_DAYS) return null
-  if (!p.hasProfile)
+  /*
+   * UNKNOWN IS NOT "NO", AND HERE IT IS SAID ABOUT SOMEBODY IN PUBLIC.
+   *
+   * These lines were `if (!p.hasProfile)`, which reads a field NOBODY FILLED
+   * as the statement "they have no profile" -- and prints it in a room where
+   * their colleagues are reading. The module never ran, so it never happened;
+   * wiring it to a caller that could not answer one of these fields would
+   * have made it happen on the first morning.
+   *
+   * The header of this file already says the rule ("it may say only what we
+   * KNOW"); this is the rule in code. A field that is absent produces no
+   * line, which is also the quiet the whole module is built around.
+   */
+  if (p.hasProfile === false)
     return (
       `• ${who} — профиля ещё нет. Чтобы начать: одно фото лица и одна фраза ` + // cyrillic-ok: user-facing
       'о том, чем занимаетесь. Больше не нужно.' // cyrillic-ok: user-facing
     )
-  if (!p.connected)
+  if (p.hasProfile === true && p.connected === false)
     return (
       `• ${who} — профиль есть, приложение не подключено. Откройте бота: ` + // cyrillic-ok: user-facing
       'там ваш план, память и портреты.' // cyrillic-ok: user-facing
