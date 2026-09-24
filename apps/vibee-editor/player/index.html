@@ -111,7 +111,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" />
-    <link rel="dns-prefetch" href="https://vibee-render-production.up.railway.app" />
+    <!-- The API's own host is NOT written here. It is a build-time variable
+         (VITE_API_URL) and a hand-typed copy is a second home for it: the
+         wrong host in a preconnect opens a connection nobody will use, and
+         says nothing when it is wrong. vite.config.ts injects preconnect and
+         dns-prefetch from that one value, and injects nothing at all when the
+         API is same-origin. -->
 
     <!-- Two prefetch hints used to live here, for /lipsync/lipsync.mp4
          (16,270,479 bytes) and /audio/music/bgmusic.mp3 (5,157,888 bytes):
