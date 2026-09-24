@@ -262,6 +262,10 @@ export function NotificationsCenter({
                     src={notification.videoThumbnail}
                     alt=""
                     className="notification-item__thumbnail"
+                    onError={e => {
+                      ;(e.currentTarget as HTMLImageElement).style.display =
+                        'none'
+                    }}
                   />
                 )}
 

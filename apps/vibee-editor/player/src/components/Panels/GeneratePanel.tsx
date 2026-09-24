@@ -1085,6 +1085,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                         src={toAbsoluteUrl(result.url)}
                         alt={result.name}
                         className="result-preview-image"
+                        onError={e => {
+                          ;(e.currentTarget as HTMLImageElement).style.display =
+                            'none'
+                        }}
                       />
                       <div className="result-actions">
                         <button
@@ -1676,6 +1680,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                     src={toAbsoluteUrl(lipsyncImageUrl)}
                     alt="Avatar"
                     className="image-preview"
+                    onError={e => {
+                      ;(e.currentTarget as HTMLImageElement).style.display =
+                        'none'
+                    }}
                   />
                   <button
                     className="clear-audio-btn"
@@ -1750,7 +1758,16 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                         }}
                         title={p.createdAt}
                       >
-                        <img src={toAbsoluteUrl(p.url)} alt="" loading="lazy" />
+                        <img
+                          src={toAbsoluteUrl(p.url)}
+                          alt=""
+                          loading="lazy"
+                          onError={e => {
+                            ;(
+                              e.currentTarget as HTMLImageElement
+                            ).style.display = 'none'
+                          }}
+                        />
                       </button>
                       <button
                         type="button"

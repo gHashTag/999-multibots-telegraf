@@ -430,7 +430,14 @@ export function FeedCard({ template }: FeedCardProps) {
             ) : template.thumbnailUrl ? (
               // Show poster/thumbnail before video loads
               <div className="feed-card-poster">
-                <img src={template.thumbnailUrl} alt={template.name} />
+                <img
+                  src={template.thumbnailUrl}
+                  alt={template.name}
+                  onError={e => {
+                    ;(e.currentTarget as HTMLImageElement).style.display =
+                      'none'
+                  }}
+                />
                 {!shouldLoadVideo && (
                   <div className="feed-card-loading">
                     <Loader2 size={32} className="spinning" />
