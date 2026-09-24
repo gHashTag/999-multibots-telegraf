@@ -33,6 +33,12 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   `tri logins` (10e31f84); #2963 clone status `accounts` + profile card
   (a212a622); #2965 rounds skip not-connected networks + 5 social sites
   (8ff1a28a); #2964 prompt line; #2966 closed (already honest in the player).
+- Tick 3 (24.09 07:50-08:40 UTC), same PR #2960: habr anomaly root-caused
+  from the prod log (raw README 404, a guessed branch) -> web_read names
+  404/410 and hints the repo page (474c888d); job_hunters reads the deep
+  crm_messages history and survives a dead live session (bebfa519); market
+  cards show the last acceptance verdict, `tri agents` records it
+  (8ebbd525). Competitor gap (2) "acceptance evidence not on the card" done.
 - NEXT: #2964 live A2A run after merge (`tri logins` -> `tri a2a "подключи мои
 сети"` -> `tri logins`); Instagram/Threads posting through the browser
   (blog-share only does X/LinkedIn/Reddit) as a new sub-issue of #2961;
@@ -53,10 +59,11 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
       balance -> falls to the keyless floor. Code fix: Brave API backend (tick
       1). Owner action: set BRAVE_SEARCH_API_KEY on vibee-render (free tier) or
       top up OpenRouter.
-- [ ] habr: `web_read` of raw.githubusercontent.com failed, the GitHub page
-      worked. Check web-guard/proxy for raw hosts.
-- [ ] job: job_hunters scans 60 dialogs x ~20 messages live; found nobody.
-      Level up: also read the ingested history (crm_messages), which is deep.
+- [x] habr: raw.githubusercontent README answered 404 (prod log 07:18 UTC,
+      "target returned 404") -- a guessed branch, not a broken reader. Fixed:
+      the status is named and the repo page is hinted (tick 3).
+- [x] job: job_hunters now reads crm_messages history first (tick 3). After
+      merge, re-run `tri agents job` and compare `looked.history`.
 - [ ] Railway service `agents-acceptance-once` (3023df8d…) still exists:
       delete-service timed out THREE times (MCP 60 s limit). Stop retrying it
       from the loop; the owner removes it in the dashboard (Settings -> Delete)
@@ -79,13 +86,24 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   allowlist); a new `browser_*` joins the compact kit unless it is put in
   COMPACT_HIDDEN (budget 7000, at ~6996).
 
+## Lessons (tick 3)
+
+- ROOT-CAUSE FROM THE PROD LOG BEFORE CODING. The habr anomaly looked like a
+  proxy/guard problem; one Railway log query (`filter "[web]"`, the run's
+  minute) said 404 in one line. `mcp__Railway__get-logs` with serviceId
+  6339df9c... and a 15-minute window is the fastest check there is.
+- A deny-by-default taint rule (web_read's offered set) must be taught about
+  every URL the system itself derives; otherwise a helpful hint is a dead end.
+- Measured beats described: the catalogue's `evidence` lines are design
+  properties. Anything shown as proof on a card must come from a run.
+
 ## Plan (next ticks)
 
 - [x] Epic #2961: digital clone, every social network. Inventory done (only
       Telegram has an API; everything else goes through the owner's browser).
       Status tool #2962 done. Guided sign-in #2964 is a prompt line (done in
       chat.ts ownerSideSection) and needs a live A2A run: `tri a2a "подключи
-  мои сети"` + `tri logins` before/after.
+мои сети"` + `tri logins` before/after.
 - [ ] job_hunters over crm_messages (deep history), with the same evidence rule.
 - [ ] Competitor scan: agent marketplaces (what "hire an agent" products
       prove before selling an agent) -> gaps in our catalogue.

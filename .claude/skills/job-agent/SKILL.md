@@ -94,3 +94,25 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
 
 - **Google needs a working search.** Set `BRAVE_SEARCH_API_KEY` on `vibee-render`; the Brave Search API has a free tier at api.search.brave.com. `web_search` then prefers it over the reserve (`WEB_SEARCH_BACKEND=brave` forces it). Without the key, the reserve key's OpenRouter balance is zero and every market question lands on Wikipedia, Stack Overflow and Hacker News.
 - **How it was run without a CLI.** The run used a one-off Railway Function in project 999, created with the owner's approval. It had `AGENT_KEYS=${{vibee-render.AGENT_KEYS}}` as a reference, printed only verdicts, and was deleted afterwards. With a CLI, run `tri agents` instead.
+
+## Tick 3 of the agents loop (24.09.2026): what changed, and why
+
+- **`job_hunters` reads the deep history first.** `historyMessages()` in
+  `render/src/agent/job-hunters.ts` scans the caller's OWN `crm_messages`
+  (never their own side, at most 5000 rows, newest first) with the sign
+  words matched by the database (`ILIKE ANY`, each word plus a Capitalised
+  twin: ILIKE folds Cyrillic case only under a UTF-8 collation). The live
+  window (60 dialogs x 30) still runs after it; a dead Telegram session is
+  reported in `looked.live` instead of failing the answer. Zero hunters with
+  `looked.history: 0` means the CRM was never ingested — run
+  `crm_ingest_chats` first, not "nobody is hiring".
+- **`web_read` names a 404.** A page that answered 404/410 is refused at
+  once with the status (no second direct fetch), and a raw GitHub file adds
+  `hint: github.com/<owner>/<repo>`, which is put in the offered set so it
+  opens even after web text entered the turn. The Habr "raw README failed"
+  anomaly was exactly this: a guessed branch, 404, and no way to correct.
+- **The market card shows the last acceptance verdict.** `tri agents` POSTs
+  `{agent, pass, tools, codes}` to `/api/agents/acceptance` (keepers only;
+  never answer text); every card reads the newest one: "✓ Checked on a real
+  account · <day>" or "✗ Last check failed". Run `tri agents` after any
+  change to a specialist so the card is not stale.
