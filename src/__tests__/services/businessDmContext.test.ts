@@ -157,6 +157,41 @@ describe('the link and the button at once -- only when they asked to pay', () =>
     expect(rows[1][0].text).toContain('Открыть в боте')
   })
 
+  it('the options it offers become taps, below the pay row', async () => {
+    /*
+     * Owner, 2026-09-24: offer the looks right in the chat. In a business DM
+     * the bot answers AS THE OWNER, where Telegram allows url buttons alone --
+     * so each option is a deep link into the bot, which opens INSIDE Telegram.
+     *
+     * Below the pay row on purpose: the row order is pinned and the owner's
+     * rule is that payment is never offered first.
+     */
+    agentSays =
+      'Три варианта:\n1. У доски\n2. Портрет крупно\n3. За столом\n' +
+      '[[У доски|look:1]] [[Портрет|look:2]] [[За столом|look:3]]'
+    const svc = await import('@/services/businessBotService')
+    svc.handleBusinessConnection(connection() as any)
+    const bot = fakeBot()
+    await svc.handleBusinessMessage(
+      dm('какие есть варианты?') as any,
+      bot as any,
+      BOT
+    )
+    const said = asOwner(bot)[1] as string
+    const rows = (asOwner(bot)[2] as any).reply_markup.inline_keyboard
+    expect(rows).toHaveLength(4)
+    expect(rows[0][0]).toEqual({
+      text: 'У доски',
+      url: `https://t.me/${BOT}?start=look_1`,
+    })
+    expect(rows[2][0].url).toBe(`https://t.me/${BOT}?start=look_3`)
+    expect(rows[3][0].text).toContain('Открыть в боте')
+    // The person reads the options and never the markers.
+    expect(said).toContain('У доски')
+    expect(said).not.toContain('look:')
+    expect(said).not.toContain('[[')
+  })
+
   it('payButton: link required, stars optional, nothing else counts', async () => {
     const { payButton } = await import('@/services/businessBotService')
     expect(payButton('открой https://t.me/$inv_1 и оплати')).toEqual({

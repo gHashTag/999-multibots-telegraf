@@ -348,6 +348,38 @@ export const BUTTON_MARKERS =
   'есть, а не для украшения. Стандартные кнопки бот добавит и без тебя.' // cyrillic-ok: prompt copy
 
 /**
+ * A CHOICE THE CLIENT TAPS, IN THEIR OWN CHAT.
+ *
+ * Owner, 2026-09-24: "offer her different looks right in the chat", and make
+ * the work there as comfortable as it can be. An open question ("which style
+ * would you like?") asks a person to compose a sentence; three taps ask
+ * nothing, and a person on a phone answers taps.
+ *
+ * Only on the business surface, and the reason is mechanical: there the bot
+ * answers AS THE OWNER, where Telegram allows url buttons alone. Each option
+ * becomes a deep link into the bot (`?start=look_<n>`), which opens INSIDE
+ * Telegram -- the one shape that works on his phone -- and lands the person
+ * where the full service lives. In the bot's own chat the `act:` vocabulary
+ * already covers what has handlers, so this section would only invite markers
+ * that nothing there reads.
+ *
+ * The NUMBER travels, not the label: a look description does not fit in a
+ * 64-character payload. What option 2 was is read back from this very
+ * conversation, so the options must be written out in the answer too -- a
+ * button whose meaning exists only inside a marker is a button nobody can
+ * make sense of in the chat history.
+ */
+export const LOOK_MARKERS =
+  '\n\nВЫБОР ОДНИМ НАЖАТИЕМ. Если уместно предложить человеку варианты — ' + // cyrillic-ok: prompt copy
+  'например образы для портрета, темы, форматы — НЕ задавай открытый вопрос. ' + // cyrillic-ok: prompt copy
+  'Перечисли их в тексте пронумерованно (1., 2., 3.) и в конце поставь по ' + // cyrillic-ok: prompt copy
+  'маркеру на каждый: [[Короткая подпись|look:1]], [[…|look:2]]. Номер в ' + // cyrillic-ok: prompt copy
+  'маркере обязан совпадать с номером в тексте. До четырёх вариантов, ' + // cyrillic-ok: prompt copy
+  'подпись до 40 символов, без ] и |. Маркеры человек не видит — он видит ' + // cyrillic-ok: prompt copy
+  'кнопки. Варианты предлагай, только когда они настоящие: украшать ответ ' + // cyrillic-ok: prompt copy
+  'кнопками не надо.' // cyrillic-ok: prompt copy
+
+/**
  * CARDS THE AGENT PROPOSES IN THE APP (owner, 2026-09-22: "steer the agent by
  * approving or declining cards"). The mini app's chat draws `[[card: title |
  * what exactly will happen]]` as a card with Approve / Decline
@@ -1335,7 +1367,13 @@ export function systemPrompt(
       ? BUTTON_MARKERS
       : surface === 'miniapp'
         ? CARD_MARKERS
-        : ''
+        : /*
+           * The client's DM gets its own kind: url-only buttons there, so the
+           * options are deep links rather than callbacks (LOOK_MARKERS).
+           */
+          surface === 'business'
+          ? LOOK_MARKERS
+          : ''
   /*
    * Not for the unattended sweep: it must call tools, not explain itself to
    * nobody. Everything else -- the bot, the business DM, the mini app -- is a

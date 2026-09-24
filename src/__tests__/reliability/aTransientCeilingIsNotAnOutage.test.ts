@@ -128,6 +128,24 @@ async function freshWorld() {
   ).toBeTruthy()
   transport.telegramLogService = { isReady: () => true, logError }
   transport.isInitialized = true
+  /*
+   * A CONFIGURATION NOTICE IS NOT A PAGE, AND THIS TEST COUNTS PAGES.
+   *
+   * `businessConnections.store` logs at ERROR level when
+   * TOKENS_DATABASE_URL is absent -- correctly, because in production that
+   * means the platform cannot write as an owner after a restart. In a test
+   * it is absent ALWAYS, so the line landed inside "no page to wake the
+   * owner for" and turned this file red on clean main (25.09.2026), blocking
+   * every push until somebody read it.
+   *
+   * Injecting a stub answers the store's one question instead of muting the
+   * complaint: the guard still fails on a real page, and the store still
+   * shouts in production where the absence matters.
+   */
+  const { setConnectionsDbForTests } = await import(
+    '@/services/businessConnections.store'
+  )
+  setConnectionsDbForTests({ query: async () => ({ rows: [] }) } as never)
   const svc = await import('@/services/businessBotService')
   return { svc, transport }
 }
