@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
+import { AllRefused } from '@/components/Crm/AllRefused'
 import {
   GROUP_CHAT_ID,
   loadGroupContext,
@@ -55,11 +56,25 @@ export default function CrmGroupPage() {
         <Link to="/crm">{t('crm.group.back')}</Link>
       </header>
       <p className="crm__counts">{t('crm.group.readOnly')}</p>
+      {/*
+       * ONE SOURCE, TWO PANELS -- so a failure printed the same line twice.
+       * The same rule the client list and the client page carry, in its
+       * simplest form: here there is nothing to compare, because both panels
+       * read the one context. If it failed, the reason is stated once above
+       * them and neither repeats it.
+       */}
+      {ctx && !ctx.reachable && String(ctx.error ?? '').trim() ? (
+        <AllRefused reason={String(ctx.error).trim()} />
+      ) : null}
       {ctx === null ? (
         <p className="crm__muted">{t('crm.refreshing')}</p>
       ) : (
         <>
-          <Panel title={t('crm.group.members')} state={ctx}>
+          <Panel
+            title={t('crm.group.members')}
+            state={ctx}
+            quiet={!ctx.reachable && Boolean(String(ctx.error ?? '').trim())}
+          >
             {!g ? (
               <p className="crm__empty">{t('crm.group.notFound')}</p>
             ) : ctx.data!.members.length === 0 ? (
@@ -78,7 +93,11 @@ export default function CrmGroupPage() {
             )}
           </Panel>
           {g ? (
-            <Panel title={t('crm.group.messages')} state={ctx}>
+            <Panel
+              title={t('crm.group.messages')}
+              state={ctx}
+              quiet={!ctx.reachable && Boolean(String(ctx.error ?? '').trim())}
+            >
               {ctx.data!.signals.length ? (
                 <p className="crm__counts">
                   {t('crm.group.signals', {
