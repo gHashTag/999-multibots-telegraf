@@ -15,6 +15,11 @@ export interface MarketplaceAgentListing {
   creator: string
   skills: readonly LocalizedText[]
   evidence: readonly LocalizedText[]
+  /**
+   * Skill-name prefixes that address one of the person's skills to this
+   * agent: "Работа: ..." belongs to the job agent (agentSkills below).
+   */
+  skillPrefixes: readonly string[]
 }
 
 /**
@@ -28,6 +33,7 @@ export interface MarketplaceAgentListing {
 export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
   {
     id: 'blogger',
+    skillPrefixes: ['блогер', 'blogger'],
     icon: '✦',
     name: { en: 'Blogger', ru: 'Блогер' },
     role: {
@@ -90,6 +96,7 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
      * Mail has not run against the real mailbox either -- same rule.
      */
     id: 'job',
+    skillPrefixes: ['работа', 'job'],
     icon: '⚒',
     name: { en: 'Job', ru: 'Работа' },
     role: {
@@ -134,6 +141,7 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
   },
   {
     id: 'google',
+    skillPrefixes: ['google', 'гугл'],
     icon: 'G',
     name: { en: 'Google Scout', ru: 'Google-разведчик' },
     role: {
@@ -155,6 +163,7 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
   },
   {
     id: 'tiktok',
+    skillPrefixes: ['tiktok', 'тикток'],
     icon: '♪',
     name: { en: 'TikTok Producer', ru: 'TikTok-продюсер' },
     role: { en: 'Short-form campaign agent', ru: 'Агент коротких видео' },
@@ -173,6 +182,7 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
   },
   {
     id: 'habr',
+    skillPrefixes: ['habr', 'хабр'],
     icon: 'H',
     name: { en: 'Habr Engineer', ru: 'Habr-инженер' },
     role: {
@@ -216,4 +226,40 @@ export function liveMarketplaceAgentById(
 ): MarketplaceAgentListing | null {
   const found = marketplaceAgentById(id)
   return found?.status === 'live' ? found : null
+}
+
+/** The prefix before a colon in a skill's name, lowercase, or null. Pure. */
+export function skillPrefixOf(name: string): string | null {
+  const m = /^\s*([^:]{1,24}):/.exec(String(name ?? ''))
+  return m ? m[1].trim().toLowerCase() : null
+}
+
+/** Scopes that are not agents' and never reach an agent. */
+const NON_AGENT_SKILL_SCOPES = ['leela']
+
+/**
+ * WHICH OF THE PERSON'S SKILLS AN AGENT CARRIES (owner, 2026-09-24: "in
+ * every agent the skills are connected"): its own -- named with one of its
+ * skillPrefixes -- first, then the general ones (no agent's prefix). Read
+ * the same way by the render (the specialist's prompt) and the app (what
+ * the agent's chat says is connected). Pure.
+ */
+export function agentSkills<T extends { name: string }>(
+  rows: readonly T[],
+  agentId: string
+): { own: T[]; general: T[] } {
+  const mine = marketplaceAgentById(agentId)?.skillPrefixes ?? []
+  const anyAgent = MARKETPLACE_AGENTS.flatMap(a => [...a.skillPrefixes])
+  const own: T[] = []
+  const general: T[] = []
+  for (const r of rows) {
+    const p = skillPrefixOf(r.name)
+    if (p && mine.includes(p)) own.push(r)
+    else if (
+      !p ||
+      (!anyAgent.includes(p) && !NON_AGENT_SKILL_SCOPES.includes(p))
+    )
+      general.push(r)
+  }
+  return { own, general }
 }
