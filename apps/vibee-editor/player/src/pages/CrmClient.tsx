@@ -5,6 +5,11 @@ import './CrmClient.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
 import {
+  AllRefused,
+  coveredByNotice,
+  oneReasonForAll,
+} from '@/components/Crm/AllRefused'
+import {
   loadClientProfile,
   loadClientPlan,
   loadDuetRuns,
@@ -143,6 +148,33 @@ export default function CrmClientPage() {
       ? state
       : { reachable: false, error: t('crm.client.unreachable') }
 
+  /*
+   * ONE FACT, NOT SIX COPIES -- THE SAME RULE THE CLIENT LIST GOT YESTERDAY.
+   *
+   * It was applied there and not here, which is exactly the half-done remedy
+   * this file's neighbours keep being caught by. Six panels, six identical
+   * lines, and nothing saying what to do about it.
+   *
+   * The reason is read from the RAW states, not from the wrapped ones: this
+   * screen replaces the server's words with one short key for its panels, and
+   * a notice built on that could never tell a refused session (401) from a
+   * broken server. The panels keep their short wording; the decision keeps
+   * the truth.
+   */
+  const noticeReason = oneReasonForAll([
+    profile,
+    plan,
+    duets,
+    history,
+    context,
+    media,
+  ])
+  const quiet = (state: Reached<unknown>) =>
+    coveredByNotice(
+      state.reachable ? state : { reachable: false, error: state.error },
+      noticeReason
+    )
+
   const p = profile.data
   const pl = plan.data
   const du = duets.data
@@ -178,7 +210,13 @@ export default function CrmClientPage() {
         {t('crm.client.chatButton')}
       </Link>
 
-      <Panel title={t('crm.client.profile.title')} state={unreachable(profile)}>
+      {noticeReason ? <AllRefused reason={noticeReason} /> : null}
+
+      <Panel
+        title={t('crm.client.profile.title')}
+        state={unreachable(profile)}
+        quiet={quiet(profile)}
+      >
         {p && (
           <>
             <dl className="crm__stats crm-client__marks">
@@ -215,7 +253,11 @@ export default function CrmClientPage() {
         )}
       </Panel>
 
-      <Panel title={t('crm.client.plan.title')} state={unreachable(plan)}>
+      <Panel
+        title={t('crm.client.plan.title')}
+        state={unreachable(plan)}
+        quiet={quiet(plan)}
+      >
         {pl &&
           (pl.total === 0 ? (
             <p className="crm__empty">{t('crm.client.empty')}</p>
@@ -253,7 +295,11 @@ export default function CrmClientPage() {
           ))}
       </Panel>
 
-      <Panel title={t('crm.client.duets.title')} state={unreachable(duets)}>
+      <Panel
+        title={t('crm.client.duets.title')}
+        state={unreachable(duets)}
+        quiet={quiet(duets)}
+      >
         <div className="crm-client__duet-start">
           <label>
             {t('crm.client.duets.turns')}{' '}
@@ -386,7 +432,11 @@ export default function CrmClientPage() {
           ))}
       </Panel>
 
-      <Panel title={t('crm.client.touches.title')} state={unreachable(history)}>
+      <Panel
+        title={t('crm.client.touches.title')}
+        state={unreachable(history)}
+        quiet={quiet(history)}
+      >
         {hi && (
           <>
             <p className="crm__counts">
@@ -417,7 +467,11 @@ export default function CrmClientPage() {
         )}
       </Panel>
 
-      <Panel title={t('crm.client.media.title')} state={unreachable(media)}>
+      <Panel
+        title={t('crm.client.media.title')}
+        state={unreachable(media)}
+        quiet={quiet(media)}
+      >
         {me &&
           (me.length === 0 ? (
             <p className="crm__empty">{t('crm.client.media.none')}</p>
@@ -448,6 +502,7 @@ export default function CrmClientPage() {
       <Panel
         title={t('crm.client.messages.title')}
         state={unreachable(context)}
+        quiet={quiet(context)}
       >
         {ctx && (
           <>
