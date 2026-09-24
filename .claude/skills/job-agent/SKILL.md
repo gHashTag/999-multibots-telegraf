@@ -134,3 +134,20 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
   verdict per agent -- the same line the `/agents` cards show. Exit 1 when
   any agent fails, 3 when nothing was checked yet.
 - Railway log line to look for: `[acceptance] N/5 passed`.
+
+## Tick 5 (24.09.2026): the answer is checked, and a changed table re-checks
+
+- A canary can carry `answer` rules in `acceptance-canaries.json`:
+  `{pattern, flags, min, why}` -- counted over the whole answer (the `g`
+  flag is always added). Missing one is the code `answer_shape`; the owner's
+  alert names the rule's `why`. Calibrate every new rule on a REAL answer
+  from the logs before shipping it: a rule that fails a good answer wakes
+  the owner at night for nothing.
+- Why it exists: on 24.09 07:14 Google Scout was PASS while its answer said
+  it had not opened a single source (search HTTP 402). Without
+  `BRAVE_SEARCH_API_KEY` on vibee-render it will now FAIL daily with
+  "меньше трёх ссылок на источники" -- that is the true state, not a bug.
+- Every verdict stores the table's fingerprint (`canaries`, 12 hex). A
+  verdict under another table is stale, so editing the table makes the
+  daily run due at once. `tri agents` sends the same fingerprint, so a
+  manual run under the current table does not trigger another.

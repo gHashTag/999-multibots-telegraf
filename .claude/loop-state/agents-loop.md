@@ -59,6 +59,12 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   DOM.setFileInputFiles) -- next candidate. The Railway function
   `agents-acceptance-once` is NOT reused (skill cloud-agent-does-the-work:
   no one-off functions); it still idles until the owner deletes it.
+- Tick 5 (24.09 08:07-08:20 UTC): self-critique of tick 4. The morning
+  "5/5 PASS" hid a failure (Google Scout: no sources, search 402). Answer
+  rules + `answer_shape` + table fingerprint -> PR #2969 merged (ca657a03).
+  Deploys: #2968 SUCCESS 08:07; #2969 building 08:14. First in-service run
+  expected ~08:25; check-in trig_01Dwv1Qk92fpWSFQyXoNRFZ8 at 08:32 reads the
+  `[acceptance]` log. Expect google FAIL until BRAVE_SEARCH_API_KEY is set.
 - NEXT: #2964 live A2A run after merge (`tri logins` -> `tri a2a "подключи мои
 сети"` -> `tri logins`); Instagram/Threads posting through the browser
   (blog-share only does X/LinkedIn/Reddit) as a new sub-issue of #2961;
@@ -116,6 +122,17 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   every URL the system itself derives; otherwise a helpful hint is a dead end.
 - Measured beats described: the catalogue's `evidence` lines are design
   properties. Anything shown as proof on a card must come from a run.
+
+## Lessons (tick 5)
+
+- A "PASS" that only checks the form (a tool call, a non-empty answer) lies
+  exactly when the agent is honest about failing. Check the substance the
+  canary asked for, calibrated on real answers.
+- NEVER run prettier over a glob (`src/agent/*.ts`): other sessions commit
+  unformatted files, and a glob rewrites ten of them into my diff. Name the
+  files. `git diff --stat` before every commit catches it.
+- A stored verdict must say which rules made it (fingerprint), or a rule
+  change silently leaves yesterday's verdict standing.
 
 ## Plan (next ticks)
 
