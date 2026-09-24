@@ -407,6 +407,19 @@ html[data-keyboard='open'] .chat-page {
   cursor: pointer;
 }
 
+/*
+ * "A new conversation" is a real press on a phone and was a 28px target --
+ * measured at 375px, 25.09.2026, beside the CRM's AUTO switch which had the
+ * same shape. Only where the pointer is coarse: on a desktop this is a quiet
+ * secondary control and a finger-sized pill would shout.
+ */
+@media (pointer: coarse) {
+  .chat-reset {
+    min-height: var(--touch-target, 44px);
+    padding-block: 10px;
+  }
+}
+
 .chat-reset:hover {
   color: var(--vibee-cream, #f2ede1);
   border-color: #3a3830;
