@@ -236,6 +236,21 @@ if [ "$free_after" -lt 2097152 ]; then
   # мусор и удалять их за хозяина нельзя; но пока цена не названа, она
   # становится видимой только когда диск подходит к нулю -- то есть трижды
   # за ночь.
+  # REBUILDABLE CACHES: nothing is lost by deleting one, only somebody's time
+  # is spent rebuilding it. Listed, never deleted here, because the time is
+  # not this script's to spend -- but at 341 MiB free a 3 GB compiler cache is
+  # the difference between the machine working and not, and nobody can weigh
+  # that without being told it exists.
+  echo "Восстановимые кеши (удалить можно, цена -- пересборка):"
+  for c in "$HOME/.cache/zig" "$HOME/.cache/uv" "$HOME/.npm" \
+           "$HOME/Library/Caches/ms-playwright"; do
+    [ -d "$c" ] || continue
+    csz=$(du -sk "$c" 2>/dev/null | awk '{print $1}')
+    [ -z "$csz" ] && continue
+    [ "$csz" -lt 51200 ] && continue   # under 50 MB is not worth a line
+    printf "  %5d МБ  %s\n" "$((csz / 1024))" "$c"
+  done
+  echo
   echo "Рабочие копии (каждая -- полный репозиторий):"
   git worktree list --porcelain 2>/dev/null | grep '^worktree ' |
     awk '{print $2}' | while read -r w; do
