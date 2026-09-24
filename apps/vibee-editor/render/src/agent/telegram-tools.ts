@@ -877,6 +877,14 @@ function filesOfRead(messages: unknown[]) {
  * that a small model should escalate rather than spend its window on them.
  */
 export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
+  /*
+   * Bulk imports and group reads (#2945, #2949) wear the crm_ prefix but are
+   * not conversation: a whole contact book or a group's history is a job
+   * for a big-context model. The kit was at 6996 of 7000 before them.
+   */
+  'crm_ingest_contacts',
+  'crm_groups',
+  'crm_group_context',
   'tg_media',
   'tg_scheduled',
   'tg_participants',
