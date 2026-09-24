@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '@/hooks/useLanguage'
+import { useIsKeeper } from '@/hooks/useIsKeeper'
+import { useAgentAcceptance } from '@/hooks/useAgentAcceptance'
 import { ensureAvatars, loadClients, type ClientRow } from '@/lib/crm'
 import {
   MARKETPLACE_AGENTS,
@@ -91,13 +93,31 @@ export function railAgents(): MarketplaceAgentListing[] {
   return [...MARKETPLACE_AGENTS]
 }
 
-/** Where a circle leads: the thread for a live agent, the card otherwise. */
-export function agentHref(agent: MarketplaceAgentListing): string {
-  return agent.status === 'live' ? `/agents/${agent.id}/work` : '/agents'
+/**
+ * Where a circle leads: the agent's OWN thread when this person may talk to
+ * it -- a live agent, any agent for a keeper (owner preview, #2957), a
+ * trainee that earned the market (seven passing days) -- and the market
+ * card otherwise.
+ *
+ * Owner, 2026-09-24: "I switch between agents in the chat and get an
+ * advert". A keeper pressing Работа, Google, TikTok or Habr was sent to the
+ * market page -- the one screen he did not ask for -- though the chat page
+ * and the server both open those threads for him.
+ */
+export function agentHref(
+  agent: MarketplaceAgentListing,
+  may: { keeper?: boolean | null; earned?: boolean } = {}
+): string {
+  const open =
+    agent.status === 'live' || may.keeper === true || may.earned === true
+  return open ? `/agents/${agent.id}/work` : '/agents'
 }
 
 export function ChatThreads({ current }: { current: string | null }) {
   const { t, lang: uiLang } = useLanguage()
+  /* Whose threads this person may open (agentHref). */
+  const keeper = useIsKeeper(true)
+  const verdicts = useAgentAcceptance()
   const [clients, setClients] = useState<ClientRow[] | null>(null)
   const [picking, setPicking] = useState(false)
   const closePicker = useCallback(() => setPicking(false), [])
@@ -164,7 +184,10 @@ export function ChatThreads({ current }: { current: string | null }) {
       {railAgents().map(agent => (
         <Link
           key={agent.id}
-          to={agentHref(agent)}
+          to={agentHref(agent, {
+            keeper,
+            earned: verdicts?.[agent.id]?.earned === true,
+          })}
           className={`chat-threads__dot is-specialist${
             agent.status === 'live' ? '' : ' is-training'
           }`}
