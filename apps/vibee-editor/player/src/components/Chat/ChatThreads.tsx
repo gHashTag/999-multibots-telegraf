@@ -172,6 +172,21 @@ export function ChatThreads({ current }: { current: string | null }) {
           </Link>
         )
       })}
+
+      {/*
+        EVERYBODY ELSE IS ONE PRESS AWAY (#2947). The row shows the twelve
+        most recent; the whole list, paged and searchable, is on /crm.
+      */}
+      <Link
+        to="/crm"
+        className="chat-threads__dot is-all"
+        title={t('chat.threads.allTitle')}
+      >
+        <span className="chat-threads__circle" aria-hidden="true">
+          …
+        </span>
+        <span className="chat-threads__caption">{t('chat.threads.all')}</span>
+      </Link>
     </nav>
   )
 }

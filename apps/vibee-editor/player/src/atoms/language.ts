@@ -183,6 +183,8 @@ const en: Translations = {
   // ── CRM: client list and per-client workspace ────────────────────────────
   'crm.clients.title': 'Clients',
   'crm.clients.none': 'No clients with a profile or a conversation yet.',
+  'crm.clients.more': 'More clients',
+  'crm.clients.loadingMore': 'Loading…',
   'crm.clients.profile': 'profile',
   'crm.clients.soul': 'SOUL',
   'crm.clients.duets': 'duets: {n}',
@@ -282,6 +284,8 @@ const en: Translations = {
   // The row of conversations above the chat (components/Chat/ChatThreads.tsx).
   'chat.threads.label': 'Conversations',
   'chat.threads.agent': 'Agent',
+  'chat.threads.all': 'All',
+  'chat.threads.allTitle': 'All clients: search and pages',
   'crm.client.chat.back': 'To the client',
   'crm.client.chat.welcome':
     'This is the conversation about client {id}. I already hold their profile, plan and last messages — ask what to do next.',
@@ -2376,6 +2380,8 @@ const ru: Translations = {
   // ── CRM: client list and per-client workspace ────────────────────────────
   'crm.clients.title': 'Клиенты',
   'crm.clients.none': 'Пока нет клиентов с профилем или перепиской.',
+  'crm.clients.more': 'Ещё клиенты',
+  'crm.clients.loadingMore': 'Загружаю…',
   'crm.clients.profile': 'профиль',
   'crm.clients.soul': 'SOUL',
   'crm.clients.duets': 'дуэтов: {n}',
@@ -2473,6 +2479,8 @@ const ru: Translations = {
   'crm.client.chat.title': 'Разговор о клиенте {id}',
   'chat.threads.label': 'Разговоры',
   'chat.threads.agent': 'Агент',
+  'chat.threads.all': 'Все',
+  'chat.threads.allTitle': 'Все клиенты: поиск и страницы',
   'crm.client.chat.back': 'К клиенту',
   'crm.client.chat.welcome':
     'Это разговор о клиенте {id}. Я уже держу его профиль, план и последние сообщения — спроси, что делать дальше.',
