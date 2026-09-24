@@ -181,6 +181,61 @@ const PAIRS = [
   },
   {
     /*
+     * A MARKER FORM THE STRIPPER DOES NOT KNOW REACHES THE PERSON AS BRACKETS.
+     *
+     * Measured 2026-09-24: `[[Подпись|look:1]]` shipped with a parser and a
+     * keyboard, and `stripAgentMarkers` knew only `act:`. In a client's DM
+     * that is raw brackets in somebody's chat -- the first complaint in the
+     * buttons skill's own list.
+     *
+     * So a marker form is three places: it is PARSED, it is STRIPPED, and the
+     * prompt teaches it. This pair holds the first two; the prompt is held by
+     * agentPromptMatchesOurButtons.
+     */
+    what: 'формы маркеров: разбор → чистка', // cyrillic-ok: operator-facing
+    says: () => {
+      const src = read('src/navigation/helpers/actionButtons.ts')
+      const at = src.indexOf('export function parseAgentButtons')
+      return at < 0
+        ? []
+        : [
+            ...new Set(
+              [...src.slice(0, at).matchAll(/\\\|([a-z]{3,10}):/g)]
+                .map(m => m[1])
+                .concat([...src.matchAll(/\\\|([a-z]{3,10}):/g)].map(m => m[1]))
+            ),
+          ]
+    },
+    /*
+     * CONSTANTS ARE RESOLVED, because the stripper uses one.
+     *
+     * The first version of this pair read literals only and reported `look`
+     * as unheard while the stripper removed it perfectly well through
+     * `LOOK_MARKER`. Form 150 for the fourth time in a day: a guard that
+     * cries about healthy code teaches its reader to ignore it.
+     */
+    hears: () => {
+      const src = read('src/navigation/helpers/actionButtons.ts')
+      const at = src.indexOf('export function stripAgentMarkers')
+      const end = src.indexOf('.trim()', at)
+      if (at < 0 || end < 0) return []
+      const body = src.slice(at, end)
+      const forms = new Set(
+        [...body.matchAll(/\\\|([a-z]{3,10}):/g)].map(m => m[1])
+      )
+      // Each SHOUTING name the stripper mentions, expanded to what it holds.
+      for (const name of new Set(
+        [...body.matchAll(/\b([A-Z][A-Z_0-9]{3,})\b/g)].map(m => m[1])
+      )) {
+        const def = new RegExp(`(?:const|let) ${name}\\b[^\\n]*`).exec(src)
+        if (!def) continue
+        for (const m of def[0].matchAll(/\\\|([a-z]{3,10}):/g)) forms.add(m[1])
+      }
+      return [...forms]
+    },
+  },
+  {
+    /*
      * A NAME ON THIS LIST THAT NO TOOL HAS PROTECTS NOTHING.
      *
      * DIRECT_CALL_ONLY is what keeps a model turn -- including one that has

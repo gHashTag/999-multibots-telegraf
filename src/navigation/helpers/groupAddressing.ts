@@ -1,4 +1,5 @@
 import type { MyContext } from '@/interfaces'
+import { isConciergeChat } from './groupConcierge'
 
 /**
  * IN A ROOM WITH OTHER PEOPLE, THE BOT SPEAKS ONLY WHEN SPOKEN TO.
@@ -35,6 +36,15 @@ import type { MyContext } from '@/interfaces'
 export function isAddressedToUs(ctx: MyContext): boolean {
   const chatType = ctx.chat?.type
   if (chatType !== 'group' && chatType !== 'supergroup') return true
+
+  /*
+   * ONE ROOM THE OWNER OPENED ON PURPOSE (groupConcierge.ts).
+   *
+   * Owner, 2026-09-24: "I want the agent to start helping her in the chat".
+   * The rule above is his too and stays whole; this is the exception he
+   * names himself, one chat id at a time, and it is never a default.
+   */
+  if (isConciergeChat(ctx.chat?.id)) return true
 
   const me = ctx.botInfo?.username
   const message = ctx.message as

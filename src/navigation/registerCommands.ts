@@ -335,6 +335,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      */
     registerProposalButtons(bot)
     registerCrmCommands(bot)
+    registerClubWelcome(bot)
     /*
      * The club's buttons, for the same reason: "Join" is the press that pays,
      * and a wizard step must not be able to swallow it (clubCard.ts).
@@ -1426,8 +1427,22 @@ If not, continue on your own and click the "I myself" button`
               error: e instanceof Error ? e.message : String(e),
             })
           }
+          /*
+           * IN A ROOM, THE MEMORY BELONGS TO THE ROOM (issue #2644).
+           *
+           * The turn is still ASKED BY the person -- tools, wallet and rights
+           * are theirs -- but a group turn keyed by the asker was composed
+           * with their private correspondence and written back into it, in
+           * front of everybody else. That is why the agent was kept out of
+           * rooms until this key existed.
+           */
+          const inRoom =
+            ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup'
+              ? String(ctx.chat.id)
+              : ''
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
+            ...(inRoom ? { room: inRoom } : {}),
           })
           /*
            * The request reached the server, so the server already stored the
@@ -2381,6 +2396,52 @@ function getUserInfoFromContext(ctx: MyContext) {
  * a wizard step that handles `callback_query` without calling next() swallows
  * the press, and the person taps "Отправить" and watches nothing happen.
  */
+/**
+ * THE FIRST MINUTE OF A NEW MEMBER, IN THE ROOM THE OWNER OPENED.
+ *
+ * Owner, 2026-09-24: "start the onboarding, and make a plan for new club
+ * members so everything is convenient at the start -- through the common
+ * group, show your mega usefulness".
+ *
+ * Only in a room he opened (groupConcierge.ts). Everywhere else the bot is a
+ * guest and greeting somebody would be the interruption the group rule of
+ * 2026-09-20 exists to prevent.
+ *
+ * One question, not a form: a single sentence about their own work. It is the
+ * seed of their SOUL, the minimum the seller needs, and something a person
+ * answers on a phone while walking (clubOnboarding.ts).
+ *
+ * Bots are skipped, and so is our own arrival: a bot greeting itself into a
+ * room is the first thing anybody would screenshot.
+ */
+export function registerClubWelcome(bot: Telegraf<MyContext>): void {
+  bot.on('new_chat_members', async (ctx, next) => {
+    try {
+      const { isConciergeChat } = await import(
+        '@/navigation/helpers/groupConcierge'
+      )
+      if (!isConciergeChat(ctx.chat?.id)) return next()
+      const joined = (ctx.message as { new_chat_members?: Array<any> })
+        ?.new_chat_members
+      if (!Array.isArray(joined) || !joined.length) return next()
+      const { greeting } = await import('@/services/clubOnboarding')
+      for (const person of joined) {
+        if (person?.is_bot) continue
+        await ctx
+          .reply(greeting(person?.first_name), {
+            reply_parameters: { message_id: ctx.message.message_id },
+          } as never)
+          .catch(() => undefined)
+      }
+    } catch (e) {
+      logger.warn('[club] the welcome did not go out', {
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
+    return next()
+  })
+}
+
 export function registerProposalButtons(bot: Telegraf<MyContext>): void {
   /*
    * A card whose buttons survive their own press invites a second tap, and on
@@ -2388,6 +2449,33 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
    */
   const stripButtons = async (ctx: any) =>
     ctx.editMessageReplyMarkup(undefined).catch(() => undefined)
+
+  /**
+   * THE CARD SAYS WHAT WAS DECIDED, instead of going blank (issue #2418).
+   *
+   * Clearing the markup also took the card's own `👤 История` row, which had
+   * nothing to do with the press, and the verdict arrived as a separate
+   * message -- so a card scrolled past half an hour later carried no trace of
+   * its own outcome.
+   *
+   * Falls back to clearing when the host refuses `disabled`: our own Bot API
+   * server may be older than 10.3, and losing the clearing as well would be
+   * worse than losing the words.
+   */
+  const settleButtons = async (
+    ctx: any,
+    outcome: string,
+    lead?: string | null
+  ) => {
+    const { settledRows } = await import('@/navigation/helpers/crmMenu')
+    try {
+      await ctx.editMessageReplyMarkup({
+        inline_keyboard: settledRows(outcome, lead),
+      })
+    } catch {
+      await stripButtons(ctx)
+    }
+  }
 
   /*
    * The press carries the id AND the one-time secret.
@@ -2407,6 +2495,8 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     )
     const lead = takeCardLead(id)
     const r = await confirmProposal(String(ctx.from?.id ?? ''), id, secret)
+    // The card now carries its own outcome, with the history row intact.
+    await settleButtons(ctx, '✅ Отправлено', lead) // cyrillic-ok: button label
     // Either press frees the proactive sweep to prepare the next card, and
     // moves a scoped sweep on to the next person.
     void import('@/services/crmProactive').then(m =>
@@ -2493,6 +2583,7 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     )
     const lead = takeCardLead(id)
     await cancelProposal(String(ctx.from?.id ?? ''), id, secret)
+    await settleButtons(ctx, '✋ Не отправлено', lead) // cyrillic-ok: button label
     // Either press frees the proactive sweep to prepare the next card, and
     // moves a scoped sweep on to the next person.
     void import('@/services/crmProactive').then(m =>
@@ -2835,6 +2926,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       // Handle start parameters (invite code / the club)
       let wantsClub = false
       let wantsTopUp: { method: 'rub' | 'crypto' | null } | null = null
+      /** Which look the client tapped in their own chat, when they did. */
+      let pickedLook: { n: number } | null = null
       let inlineService: ServiceCard | undefined
       let wantsApp: AppRoute | null = null
       if (ctx.message && 'text' in ctx.message) {
@@ -2927,6 +3020,19 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             wantsClub = true
             ctx.session.clubDeepLink = true
             logger.info('Club deep-link', { telegramId, startParam })
+          } else if (lookIntent(startParam)) {
+            /*
+             * A tap on one of the looks offered in the client's own chat. The
+             * choice is carried into the conversation as the person's own
+             * words, so the agent -- which holds the DM history where the
+             * offer stands -- continues from it instead of asking again.
+             */
+            pickedLook = lookIntent(startParam)
+            logger.info('Look pick deep-link', {
+              telegramId,
+              startParam,
+              n: pickedLook?.n,
+            })
           } else if (topupIntent(startParam)) {
             // The mini app's rouble and crypto buttons: the cashier is here.
             wantsTopUp = topupIntent(startParam)
@@ -2971,6 +3077,27 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       } else if (wantsClub) {
         ctx.session.clubDeepLink = undefined
         await showClubCard(ctx, 'deeplink')
+      } else if (pickedLook) {
+        /*
+         * THE CHOICE CONTINUES THE CONVERSATION, IT DOES NOT START ONE.
+         *
+         * The offer stands in the client's own chat with the owner, and the
+         * agent reads that history. So the pick is handed to it as the
+         * person's own words -- "I choose option 2" -- and the agent goes on
+         * from there. It is NOT resolved here: this side does not know what
+         * look 2 was, and inventing one would answer a different question
+         * from the one that was asked.
+         *
+         * Quoted as a choice, never as an instruction: the label was written
+         * by a model that had just read a stranger's message, and a button's
+         * words must not become a command.
+         */
+        const n = pickedLook.n
+        pickedLook = null
+        await runAgentTurnFor(
+          ctx as never,
+          `Я выбираю вариант ${n} из предложенных образов.` // cyrillic-ok: user-facing
+        )
       } else if (wantsTopUp) {
         /*
          * Straight to the cashier the person chose. A bot that hides roubles
@@ -3482,6 +3609,53 @@ let preparedForOwner:
   | ((ctx: MyContext, lead: string, opts?: PrepareOpts) => Promise<void>)
   | null = null
 
+/**
+ * ONE AGENT TURN FOR A PERSON WHO PRESSED SOMETHING, not typed it.
+ *
+ * Used by the look pick (`/start look_<n>`). Deliberately NOT the text
+ * handler's whole path: that path also draws the owner's proposal card, and a
+ * CLIENT's turn cannot produce one -- `crm_deliver_photo` and its siblings
+ * refuse a caller who is not the seller. Copying the card block here would
+ * duplicate sixty lines to draw a card that can never exist.
+ *
+ * Never throws: a press that reaches a dead provider must leave the person
+ * with a sentence, not with silence.
+ */
+async function runAgentTurnFor(ctx: MyContext, text: string): Promise<void> {
+  const isRu = isRussianFromState(ctx)
+  try {
+    const { спроситьАгента } = await import('@/services/trinityAgent') // cyrillic-ok: pre-existing export
+    const { разбитьДлинное } = await import('@/helpers/telegramLongAnswer') // cyrillic-ok: pre-existing export
+    const answer = await спроситьАгента(String(ctx.from?.id ?? ''), text) // cyrillic-ok: pre-existing export
+    const { text: clean, markup } = buttonsForAnswer(
+      answer.текст, // cyrillic-ok: field of ОтветАгента
+      isRu,
+      { app: ctx.chat?.type === 'private', bot: ctx.botInfo }
+    )
+    const parts = разбитьДлинное(clean) // cyrillic-ok: pre-existing export
+    if (!parts.length) {
+      await ctx.reply(
+        isRu ? 'Принял ваш выбор.' : 'Noted your choice.', // cyrillic-ok: user-facing
+        markup
+      )
+      return
+    }
+    for (let i = 0; i < parts.length; i++)
+      await ctx.reply(parts[i], i === parts.length - 1 ? markup : undefined)
+  } catch (e) {
+    logger.warn('[look] the pick reached no answer', {
+      error: e instanceof Error ? e.message : String(e),
+    })
+    await ctx
+      .reply(
+        isRu
+          ? 'Принял выбор, но ответить сейчас не смог — напишите одним словом, и продолжу.' // cyrillic-ok: user-facing
+          : 'Choice noted, but I could not answer just now -- write one word and I will go on.'
+      )
+      .catch(() => undefined)
+  }
+}
+
 /** `crm-prep-<numeric id>` and nothing else; a malformed payload never matches. */
 export const CRM_PREP_PAYLOAD = /^crm-prep-(\d{5,15})$/
 
@@ -3523,6 +3697,28 @@ export const CRM_PREP_PAYLOAD = /^crm-prep-(\d{5,15})$/
  *
  * Returns the method when the payload is one of these links.
  */
+/**
+ * THE CLIENT TAPPED ONE OF THE LOOKS OFFERED IN THEIR OWN CHAT.
+ *
+ * The offer is written in the DM (`[[label|look:N]]`, actionButtons.ts) and
+ * each option is a deep link here, because a business DM takes url buttons
+ * only. The NUMBER travels: a look description does not fit in a
+ * 64-character payload, and the offer already stands in the conversation --
+ * which is the only place that knows what look 2 was.
+ *
+ * Written with a handler in the same commit, because the trap two comments
+ * above is this one: a payload that arrives as an ordinary `/start` and is
+ * dropped looks, from the outside, exactly like a person who changed their
+ * mind. Pinned by a test that walks the source.
+ */
+export const LOOK_PAYLOAD = /^look_([1-4])$/i
+
+export function lookIntent(payload: string | undefined): { n: number } | null {
+  if (!payload) return null
+  const m = LOOK_PAYLOAD.exec(payload)
+  return m ? { n: Number(m[1]) } : null
+}
+
 const TOPUP_PAYLOAD = /^topup(?:_([a-z]+))?$/i
 
 export function topupIntent(
@@ -4066,6 +4262,31 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     if (verb === 'prep') {
       if (!pressOnce(`prep:${id}`)) return
       return prepare(ctx, id)
+    }
+    if (verb === 'gift') {
+      /*
+       * STRAIGHT TO THE PORTRAIT, WITH NO LETTER FIRST.
+       *
+       * Owner, 2026-09-24: "why can't I choose the gift photo straight away
+       * -- there is a Reply button, and I do not want to reply in text, I
+       * want to send the gift and draw them into the bot".
+       *
+       * The same preparation as any other press -- the agent reads the
+       * correspondence and draws from THEIR face -- with the brief saying
+       * which move this is. Nothing leaves without the card: the gift is a
+       * proposal like everything else, so this press costs a picture, not a
+       * message.
+       */
+      if (!pressOnce(`gift:${id}`)) return
+      return prepare(ctx, id, {
+        headline: `🎁 Готовлю подарок для ${id}: портрет 9:16 из его лица (до 3 минут). Ничего не уйдёт без твоей кнопки.`, // cyrillic-ok: user-facing
+        note:
+          'Владелец нажал «Подарок»: НЕ пиши письмо и не задавай вопросов — ' + // cyrillic-ok: brief for the agent
+          'сразу подготовь лид-магнит crm_deliver_photo для этого человека, ' + // cyrillic-ok: brief for the agent
+          'портрет 9:16 из ЕГО лица, подарком за счёт владельца. Подпись — ' + // cyrillic-ok: brief for the agent
+          'одна тёплая строка без обещаний. Если его лица у нас нет, скажи ' + // cyrillic-ok: brief for the agent
+          'это прямо и подготовь просьбу прислать фото.', // cyrillic-ok: brief for the agent
+      })
     }
     if (verb === 'drop') {
       // The second press is the deliberate one: this one deletes.

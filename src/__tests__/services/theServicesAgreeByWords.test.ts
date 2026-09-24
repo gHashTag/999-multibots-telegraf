@@ -97,4 +97,25 @@ describe('the services agree by words', () => {
     expect(reg.some((n: string) => n.includes('_'))).toBe(true)
     expect(calledTools().length).toBeGreaterThan(5)
   })
+
+  /*
+   * A MARKER FORM IS THREE PLACES: parsed, STRIPPED, and taught in the prompt.
+   *
+   * Measured the day `look:` shipped: the parser and the keyboard knew it and
+   * the stripper did not, so a client would have seen raw brackets in their
+   * own chat -- the first complaint in the buttons skill's own list.
+   */
+  it('every marker form the parser knows is one the stripper removes', () => {
+    const pair = compare().find(r => r.what.includes('маркер'))!
+    expect(pair.says).toContain('look')
+    expect(pair.says).toContain('act')
+    expect(pair.unheard, 'a form nobody strips reaches the person').toEqual([])
+  })
+
+  it('resolves a constant, so a stripper that uses one is not slandered', () => {
+    // The first version of that pair read literals only and reported `look`
+    // as unheard while `LOOK_MARKER` removed it perfectly well.
+    const pair = compare().find(r => r.what.includes('маркер'))!
+    expect(pair.hears).toContain('look')
+  })
 })

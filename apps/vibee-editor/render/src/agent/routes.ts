@@ -60,6 +60,8 @@ import {
   CLIENT_ID_RE,
   clientThread,
   marketplaceAgentThread,
+  ROOM_ID_RE,
+  roomThread,
 } from './conversation'
 
 /**
@@ -76,7 +78,14 @@ import {
  * read here.
  */
 export type ThreadGate =
-  | { ok: true; thread: string; client: string | null; agent?: string }
+  | {
+      ok: true
+      thread: string
+      client: string | null
+      agent?: string
+      /** Set when the turn belongs to a room rather than to a person. */
+      room?: string
+    }
   | { ok: false; status: number; error: string }
 
 /**
@@ -104,7 +113,9 @@ export async function threadFor(
   rawClient: unknown,
   owner: string,
   getPool: () => any,
-  rawAgent?: unknown
+  rawAgent?: unknown,
+  /** A group chat id, negative, when the turn belongs to a room. */
+  rawRoom?: unknown
 ): Promise<ThreadGate> {
   if (
     rawClient != null &&
@@ -135,6 +146,25 @@ export async function threadFor(
       client: null,
       agent: agent.id,
     }
+  }
+  /*
+   * A ROOM, and the memory belongs to it (conversation.ts roomThread).
+   *
+   * Issue #2644 put "do not call the agent in the room" out of scope because
+   * a group turn was keyed by the ASKER: the answer carried their private
+   * correspondence and the turn was written back into it, in front of the
+   * others. Keyed by the chat, neither happens.
+   *
+   * No seller check, unlike a client thread: a room is not somebody's lead,
+   * it is a place, and everyone who can write in it is already inside. What
+   * stays personal is IDENTITY -- tools, wallet and rights are still the
+   * asker's, because the room does not own a person's money.
+   */
+  if (rawRoom != null && rawRoom !== '') {
+    const room = String(rawRoom).trim()
+    if (!ROOM_ID_RE.test(room))
+      return { ok: false, status: 400, error: 'bad room' }
+    return { ok: true, thread: roomThread(room), client: null, room }
   }
   if (rawClient == null || rawClient === '')
     return { ok: true, thread: SELF_THREAD, client: null }
@@ -730,9 +760,20 @@ export async function handleAgentChat(
     })
   }
 
-  // The client thread gate answers before the stream opens: a 4xx must be a
-  // real status, not an error event inside a 200.
-  const gate = await threadFor(body.client, telegramId, getPool, body.agent)
+  /*
+   * The client thread gate answers before the stream opens: a 4xx must be a
+   * real status, not an error event inside a 200.
+   *
+   * `room` is how a turn in a GROUP keeps its memory in the room instead of
+   * in the asker's private history (conversation.ts roomThread, issue #2644).
+   */
+  const gate = await threadFor(
+    body.client,
+    telegramId,
+    getPool,
+    body.agent,
+    body.room
+  )
   if (!gate.ok) return json(res, gate.status, { error: gate.error })
   const thread = gate.thread
 

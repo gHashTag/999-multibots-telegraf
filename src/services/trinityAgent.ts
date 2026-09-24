@@ -339,6 +339,14 @@ export async function спроситьАгента(
     /** Only a model that calls tools may answer (the unattended sweep). */
     toolsOnly?: boolean
     /**
+     * THE ROOM THIS TURN BELONGS TO, when it is a group chat.
+     *
+     * The memory of a shared room belongs to the room. Identity stays the
+     * asker's -- tools, wallet and rights are personal -- but the history is
+     * the chat's, which is what a person writing there assumes.
+     */
+    room?: string
+    /**
      * One line about the person, from what Telegram openly shows
      * (telegramPersonCard.ts). Owner, 2026-09-20: the tone of voice is wrong
      * because the agent knows nothing about whom it is writing to.
@@ -415,6 +423,21 @@ export async function спроситьАгента(
           ...(opts.personNote ? { person_note: opts.personNote } : {}),
           ...(opts.faceOf && /^\d{5,15}$/.test(opts.faceOf)
             ? { face_of: opts.faceOf }
+            : {}),
+          /*
+           * A TURN THAT BELONGS TO A ROOM, NOT TO WHOEVER WROTE IN IT.
+           *
+           * Without this the group turn is keyed by the asker: the answer is
+           * composed with THEIR private correspondence in context and written
+           * back into it -- their DMs read out in front of everybody else.
+           * Issue #2644 named it and kept the agent out of rooms until a
+           * per-chat key existed. This is that key.
+           *
+           * Negative, because that is what a Telegram group id is, and the
+           * client pattern (positive digits) would have refused it.
+           */
+          ...(opts.room && /^-\d{5,20}$/.test(opts.room)
+            ? { room: opts.room }
             : {}),
         }),
         signal: прерыватель.signal,
