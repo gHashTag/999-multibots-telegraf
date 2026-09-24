@@ -98,6 +98,18 @@ export function leadSilenceOf(raw: unknown): number {
 }
 
 /**
+ * How much of the voice to use, seconds: 1..LIPSYNC_TOOL_MAX_SECONDS, and the
+ * whole ceiling when not asked. A probe of a model is two or three seconds,
+ * not the whole reel (owner, 2026-09-24: "it is expensive -- 21 seconds for
+ * tests").
+ */
+export function maxSecondsOf(raw: unknown): number {
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return LIPSYNC_TOOL_MAX_SECONDS
+  return Math.min(Math.max(n, 1), LIPSYNC_TOOL_MAX_SECONDS)
+}
+
+/**
  * Cut a track of `total` seconds into the fewest EQUAL parts no longer than
  * the target. Equal rather than "10, 10, and a 1.4-second tail": a tail that
  * short is a talking face that barely moves, billed a whole second anyway.
