@@ -59,6 +59,7 @@ tri — оболочка Trinity S³AI
   tri stop [id]  прервать идущие ходы человека (дуэт и a2a — у них нет сокета)
   tri faces [id]  очередь продавца в том порядке, в каком её увидит обход: у кого есть лицо
   tri writers <колонка>  кто ПИШЕТ то, что читает код: может ли писатель не сработать ни разу
+  tri wake <модуль>  что проверить ПЕРЕД подключением мёртвого модуля: unknown как «нет», фикстуры
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
@@ -1329,6 +1330,36 @@ PYEOF
     echo "НИ ОДНОГО писателя — чаще всего поле ВЫЧИСЛЯЕМОЕ, а не сломанное"
     echo "(intent_score считается из переписки). Прежде чем звать это дефектом,"
     echo "проверь, колонка ли это вообще: grep \"<имя>:\" в источнике читателя."
+    ;;
+
+  wake)
+    # BEFORE WIRING A DEAD MODULE, READ IT AS SOMEBODY ELSE\'S CODE.
+    #
+    # A module with no caller has never run, so nothing in it has ever been
+    # wrong in production -- and its green tests may be green BECAUSE of the
+    # defect (fixtures written to match it). `groupDayPlan` would have told a
+    # real person, in a room full of their colleagues, that they have no
+    # profile, on a field nobody had filled: `!undefined` is true.
+    #
+    # This prints what to look at before the first caller exists: the optional
+    # fields read as booleans (the three-states trap, forms 178/180/184) and
+    # the tests that will need new fixtures.
+    shift
+    M="${1:-}"
+    [ -z "$M" ] && { echo "usage: tri wake <path/to/module.ts>"; exit 64; }
+    [ -f "$ROOT/$M" ] || [ -f "$M" ] || { echo "нет такого файла: $M"; exit 66; }
+    F="$ROOT/$M"; [ -f "$F" ] || F="$M"
+    echo "необязательные поля, прочитанные как «нет» (unknown == false?):"
+    grep -nE "if \(![a-zA-Z_.]+\)|\|\| *!|\? *[^:]+ *: *false" "$F" | head -12
+    echo
+    echo "их объявления (есть ли ? -- значит, бывает undefined):"
+    grep -nE "^\s+[a-zA-Z_]+\?:" "$F" | head -12
+    echo
+    echo "тесты, которые сейчас его держат:"
+    grep -rln "$(basename "$F" .ts)" "$ROOT/src/__tests__" 2>/dev/null | sed "s|$ROOT/||" | head -5
+    echo
+    echo "Зелёный тест мёртвого модуля ничего не значит: фикстуры могли быть"
+    echo "написаны ПОД дефект. Правило в blind-guards, форма 184."
     ;;
 
   contracts)
