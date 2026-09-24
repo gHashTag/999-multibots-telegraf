@@ -521,6 +521,10 @@ const en: Translations = {
   'clone.networks.ask':
     'To connect the rest, tell the agent: "connect my networks". You type passwords yourself.',
   'clone.networks.open': 'Open the browser',
+  // Skills the agent in this chat carries (pages/Chat.tsx, hooks/useAgentSkills.ts)
+  'chat.agentSkills.on': 'Skills connected: {own} · plus {general} general',
+  'chat.agentSkills.none':
+    'No skills of its own yet: in your profile, add a skill named "<agent>: ..." and it connects here.',
 
   'hero.badge': 'AGI game',
   'hero.title': 'An AGI game built by digital twins of real people',
@@ -2840,6 +2844,9 @@ const ru: Translations = {
   'clone.networks.ask':
     'Чтобы подключить остальные, скажите агенту: «подключи мои сети». Пароли вводите вы сами.',
   'clone.networks.open': 'Открыть браузер',
+  'chat.agentSkills.on': 'Навыки подключены: {own} · и общих: {general}',
+  'chat.agentSkills.none':
+    'Своих навыков пока нет: в профиле создайте навык с именем «<агент>: …» — и он подключится здесь.',
 
   'hero.badge': 'AGI-игра',
   'hero.title': 'AGI-игра, которую строят цифровые двойники реальных людей',

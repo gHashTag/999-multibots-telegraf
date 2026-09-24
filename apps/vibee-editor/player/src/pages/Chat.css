@@ -998,3 +998,10 @@ html[data-keyboard='open'] .chat-page {
   font-size: 11px;
   padding-left: 4px;
 }
+
+/* The skills the agent in this chat carries (useAgentSkills). */
+.agent-skills-line {
+  margin: 8px 0;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}

@@ -35,7 +35,9 @@ import { AgentCards } from '@/components/Chat/AgentCards'
 import { ChatThreads } from '@/components/Chat/ChatThreads'
 import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
-import { AGENT_SUGGESTIONS } from './agentSuggestions'
+import { useEarnedAgent } from '@/hooks/useAgentAcceptance'
+import { useAgentSkills } from '@/hooks/useAgentSkills'
+import { AGENT_SUGGESTIONS, agentGate } from './agentSuggestions'
 import './Chat.css'
 
 /**
@@ -160,9 +162,20 @@ function ChatPage() {
   const listing = agentId ? marketplaceAgentById(agentId) : null
   const trainee = listing !== null && listing.status !== 'live'
   const keeper = useIsKeeper(trainee)
-  if (trainee && keeper === null) return null
-  const marketplaceAgent =
-    listing && (listing.status === 'live' || keeper) ? listing.id : null
+  /*
+   * A trainee that EARNED the market (seven passing days) opens to anybody,
+   * as the server's gate already does (routes.ts earnedAgent) -- otherwise
+   * the Hire button on its card led a client straight back to the market.
+   */
+  const earned = useEarnedAgent(
+    listing?.id ?? null,
+    trainee && keeper === false
+  )
+  const gate = listing
+    ? agentGate({ id: listing.id, status: listing.status, keeper, earned })
+    : 'market'
+  if (gate === 'wait') return null
+  const marketplaceAgent = gate === 'market' ? null : gate
   if (agentId && !marketplaceAgent) return <Navigate to="/agents" replace />
   return (
     <ChatThread
@@ -194,6 +207,8 @@ function ChatThread({
   marketplaceAgent: string | null
 }) {
   const { t } = useLanguage()
+  /* The person's skills this specialist carries (useAgentSkills). */
+  const agentSkillNames = useAgentSkills(marketplaceAgent)
   // Переписка и черновик — в атомах с хранилищем, а не в useState: страница
   // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
   const messagesAtom = useMemo(
@@ -657,6 +672,20 @@ function ChatThread({
                 </div>
               ))}
 
+              {messages.length <= 1 && marketplaceAgent && agentSkillNames ? (
+                /*
+                  WHAT THIS AGENT CARRIES (owner, 2026-09-24): its own skills
+                  and the general ones, the same list its prompt was given.
+                */
+                <p className="agent-skills-line" data-testid="agent-skills">
+                  {agentSkillNames.own.length || agentSkillNames.general.length
+                    ? t('chat.agentSkills.on', {
+                        own: agentSkillNames.own.join(' · ') || '—',
+                        general: agentSkillNames.general.length,
+                      })
+                    : t('chat.agentSkills.none')}
+                </p>
+              ) : null}
               {messages.length <= 1 ? (
                 <div className="suggestions">
                   {(client

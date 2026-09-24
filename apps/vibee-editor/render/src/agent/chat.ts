@@ -2199,6 +2199,21 @@ export async function* runAgent(
     )
   })()
 
+  /*
+   * A SPECIALIST STARTS WITH ITS SKILLS (owner, 2026-09-24): the person's
+   * own rules for this line of work, and the general ones, already in the
+   * prompt -- not left to a skills_list the agent may not think to call.
+   */
+  const specialistSkills = await (async () => {
+    if (!opts?.marketplaceAgent) return ''
+    const { agentSkillsSection } = await import('./agent-skills')
+    return agentSkillsSection(
+      ctx.pool as never,
+      String(ctx.telegramId ?? ''),
+      opts.marketplaceAgent
+    )
+  })()
+
   let messages: ChatMessage[] = [
     {
       role: 'system',
@@ -2233,7 +2248,9 @@ export async function* runAgent(
               telegramId: ctx.telegramId,
               seller,
               giftIsDown: imagesLookDown()?.why ?? null,
-            })) + dmContext,
+            })) +
+        dmContext +
+        specialistSkills,
     },
     ...history,
   ]
