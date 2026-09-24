@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { NOTABLE_KINDS } from './note-route'
+import { forgetTable, record } from './journal'
 
 /**
  * A KIND THE BOT CAN POST AND THE DOOR CANNOT ACCEPT IS A SILENT 400.
@@ -53,5 +54,60 @@ describe('every kind the bot can post', () => {
       k => !NOTABLE_KINDS.has(k as never)
     )
     expect(refused).toEqual(['a-kind-nobody-allowed'])
+  })
+})
+
+/**
+ * A DATABASE THAT REFUSES THE NEW COLUMN MUST STILL BE WRITTEN TO.
+ *
+ * Measured the same hour: putting the ALTER in the shared schema step made
+ * three unrelated suites red, because `record` swallows its failures by
+ * design and one refused statement took every write with it. In production
+ * that shape is silent -- the journal simply goes quiet.
+ */
+describe('a journal that cannot have the column', () => {
+  it('writes the row anyway, without the client', async () => {
+    forgetTable()
+    const seen: Array<{ sql: string; params: unknown[] }> = []
+    const pool = {
+      async query(sql: string, params: unknown[] = []) {
+        if (/^\s*ALTER/i.test(sql)) throw new Error('permission denied')
+        seen.push({ sql, params })
+        return { rows: [] }
+      },
+    }
+    const out = await record(pool, {
+      kind: 'card-pressed',
+      who: '900000091',
+      lead: '900000501',
+      what: 'отправил',
+    })
+    expect(out).toBe('recorded')
+    const insert = seen.find(s => /INSERT INTO hive_events/i.test(s.sql))
+    expect(insert, 'nothing was written at all').toBeTruthy()
+    expect(insert!.sql).not.toContain('lead_id')
+    expect(insert!.params).toHaveLength(6)
+    forgetTable()
+  })
+
+  it('writes the client when the column is there', async () => {
+    forgetTable()
+    const seen: Array<{ sql: string; params: unknown[] }> = []
+    const pool = {
+      async query(sql: string, params: unknown[] = []) {
+        seen.push({ sql, params })
+        return { rows: [] }
+      },
+    }
+    await record(pool, {
+      kind: 'card-pressed',
+      who: '900000091',
+      lead: '900000501',
+      what: 'отправил',
+    })
+    const insert = seen.find(s => /INSERT INTO hive_events/i.test(s.sql))!
+    expect(insert.sql).toContain('lead_id')
+    expect(insert.params[6]).toBe('900000501')
+    forgetTable()
   })
 })

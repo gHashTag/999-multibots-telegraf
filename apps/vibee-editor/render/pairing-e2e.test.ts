@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { PAIRING } from './session-store'
 import crypto from 'node:crypto'
 import { Readable } from 'node:stream'
-import { PAIRING } from './session-store'
 
 /**
  * Сквозной путь входа: подпись → код → сессия.

@@ -254,6 +254,16 @@ export interface HiveEvent {
 }
 
 let tableReady = false
+/**
+ * Whether this database took the lead_id column.
+ *
+ * False means the notes lose one field; it must never mean the notes are
+ * lost. `record` asks for the narrow INSERT instead -- writing a row with a
+ * column the table does not have would refuse the whole write, and `record`
+ * swallows refusals by design, so the journal would go quiet with nothing
+ * saying why.
+ */
+let leadColumn = false
 
 export async function ensureJournalTable(pool: JournalPool): Promise<void> {
   if (tableReady) return
@@ -269,11 +279,36 @@ export async function ensureJournalTable(pool: JournalPool): Promise<void> {
        at timestamptz NOT NULL DEFAULT now()
      )`
   )
-  // Added after the table existed in production, so it is an ALTER and not a
-  // column in the CREATE above: the CREATE never runs again there.
-  await pool.query(
-    `ALTER TABLE hive_events ADD COLUMN IF NOT EXISTS lead_id text`
-  )
+  /*
+   * Added after the table existed in production, so it is an ALTER and not a
+   * column in the CREATE above: the CREATE never runs again there.
+   *
+   * IN ITS OWN try, and this is not defensive habit -- it was measured. The
+   * whole schema step shares one failure path with `record`, so a database
+   * that cannot do this ALTER (no rights, an older engine, a stand-in that
+   * does not know the word) stopped recording EVERYTHING, not just the
+   * column. Three unrelated suites went red the hour this shipped, and in
+   * production the same shape would have been silent: `record` swallows its
+   * failures on purpose, because a journal that is down must not hold up the
+   * act it is recording.
+   *
+   * The column is an improvement to a note, never a condition for writing
+   * one. `record` passes lead_id anyway; a database without the column
+   * refuses that INSERT and the write is lost -- so a deployment that cannot
+   * add the column must be seen in the logs rather than guessed at here.
+   */
+  try {
+    await pool.query(
+      `ALTER TABLE hive_events ADD COLUMN IF NOT EXISTS lead_id text`
+    )
+    leadColumn = true
+  } catch (e) {
+    leadColumn = false
+    console.warn(
+      '[hive] lead_id column not added; notes will carry no client',
+      e instanceof Error ? e.message : String(e)
+    )
+  }
   // The feed is always read as "the latest", and almost always filtered by
   // subject or by bot. Without these indexes it gets slow at the first ten
   // thousand rows -- exactly where people start looking at it.
@@ -291,6 +326,7 @@ export async function ensureJournalTable(pool: JournalPool): Promise<void> {
 
 /** For tests only. */
 export function forgetTable(): void {
+  leadColumn = false
   tableReady = false
 }
 
@@ -309,8 +345,11 @@ export async function record(
   try {
     await ensureJournalTable(pool)
     await pool.query(
-      `INSERT INTO hive_events (kind, who, bot, amount, what, severity, lead_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      leadColumn
+        ? `INSERT INTO hive_events (kind, who, bot, amount, what, severity, lead_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`
+        : `INSERT INTO hive_events (kind, who, bot, amount, what, severity)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         e.kind,
         (e.who ?? '').toString().trim() || null,
@@ -319,7 +358,7 @@ export async function record(
         // Trimmed: a note for a person, not a place for a prompt.
         e.what ? String(e.what).slice(0, 200) : null,
         e.severity ?? 'normal',
-        (e.lead ?? '').toString().trim() || null,
+        ...(leadColumn ? [(e.lead ?? '').toString().trim() || null] : []),
       ]
     )
     return 'recorded'
