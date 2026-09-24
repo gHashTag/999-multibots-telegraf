@@ -100,6 +100,13 @@ export function stepOf(
       detail.running = r.running === true
       detail.pages = Array.isArray(r.pages) ? r.pages.length : null
       break
+    case 'browser_logins':
+      // Which networks, never which cookies: the answer carries no more.
+      detail.running = r.running === true
+      detail.signedIn = Array.isArray(r.signedIn)
+        ? r.signedIn.map(n => clip(n, 40))
+        : null
+      break
     case 'browser_ask_input':
       // What was asked for and whether it came; never what was typed.
       detail.kind = clip(args.kind, 20)

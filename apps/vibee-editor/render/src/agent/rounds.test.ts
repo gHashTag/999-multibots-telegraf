@@ -6,8 +6,12 @@ import {
   roundMessage,
   roundLog,
   runRound,
+  everythingWasBlank,
+  isNotConnected,
   type Seen,
 } from './rounds'
+import { MAX_SITES } from './strategies'
+import { allSites } from './profiles'
 
 const seen = (over: Partial<Seen> = {}): Seen => ({
   name: 'X',
@@ -278,5 +282,98 @@ describe('the round says WHICH things, not only how many', () => {
     expect(log[0]).toMatchObject({ site: 'X', unread: 2, rows: 1 })
     expect(JSON.stringify(log)).not.toContain('private words')
     expect(JSON.stringify(log)).not.toContain('followed you')
+  })
+})
+
+/*
+ * A NETWORK THE BROWSER IS NOT SIGNED INTO IS NAMED, NOT WALKED (#2965).
+ * Before, a round opened it anyway and read the sign-in form as "nothing
+ * new" -- a silent lie, and six seconds of the person's screen for it.
+ */
+describe('the round knows which networks the clone holds', () => {
+  const logins = [
+    { id: 'x', name: 'X', state: 'signed_in' as const },
+    { id: 'instagram', name: 'Instagram', state: 'signed_out' as const },
+    { id: 'linkedin', name: 'LinkedIn', state: 'expired' as const },
+    { id: 'hh', name: 'hh.ru', state: 'unknown' as const },
+  ]
+
+  it('only a definite signed_out or expired skips a site', () => {
+    expect(isNotConnected('https://www.instagram.com/', logins)).toBe(true)
+    expect(isNotConnected('https://www.linkedin.com/feed/', logins)).toBe(true)
+    expect(isNotConnected('https://x.com/notifications', logins)).toBe(false)
+    /* Unknown, no answer, a site of no known network: walked as before. */
+    expect(isNotConnected('https://hh.ru/applicant/negotiations', logins)).toBe(
+      false
+    )
+    expect(isNotConnected('https://www.instagram.com/', null)).toBe(false)
+    expect(isNotConnected('https://www.reddit.com/r/t27ai/', [])).toBe(false)
+  })
+
+  it('does not open a not-connected site, and says so in the message', async () => {
+    const looked: string[] = []
+    const said: string[] = []
+    const log = await runRound({
+      personHasTheWheel: async () => false,
+      logins: async () => logins,
+      look: async url => {
+        looked.push(url)
+        return { title: '(2) Notifications / X', text: 'something' }
+      },
+      tell: async t => void said.push(t),
+      now: () => new Date('2026-09-24T08:00:00Z'),
+      sites: [
+        { name: 'X', url: 'https://x.com/notifications' },
+        { name: 'Instagram', url: 'https://www.instagram.com/' },
+      ],
+    })
+    expect(looked).toEqual(['https://x.com/notifications'])
+    expect(said[0]).toContain('• Instagram: не подключена')
+    const rows = JSON.parse(log) as Array<Record<string, unknown>>
+    expect(rows[1]).toMatchObject({ site: 'Instagram', notConnected: true })
+  })
+
+  it('logins that cannot be read walk everything, as before', async () => {
+    const looked: string[] = []
+    await runRound({
+      personHasTheWheel: async () => false,
+      logins: async () => {
+        throw new Error('pod asleep')
+      },
+      look: async url => {
+        looked.push(url)
+        return { title: 'Feed', text: 'x' }
+      },
+      tell: async () => {},
+      now: () => new Date(),
+      sites: [
+        { name: 'X', url: 'https://x.com/notifications' },
+        { name: 'Instagram', url: 'https://www.instagram.com/' },
+      ],
+    })
+    expect(looked).toHaveLength(2)
+  })
+
+  it('skipped sites are not a blank browser: no restart for them', () => {
+    const skipped = (name: string): Seen => ({
+      name,
+      title: '',
+      text: '',
+      ok: true,
+      ms: 0,
+      notConnected: true,
+    })
+    expect(
+      everythingWasBlank([
+        skipped('Instagram'),
+        skipped('VK'),
+        /* One blank page among skipped ones is one quiet site, as before. */
+        seen({ name: 'X', title: '', text: '' }),
+      ])
+    ).toBe(false)
+  })
+
+  it('every desk together still fits one strategy row', () => {
+    expect(allSites().length).toBeLessThanOrEqual(MAX_SITES)
   })
 })

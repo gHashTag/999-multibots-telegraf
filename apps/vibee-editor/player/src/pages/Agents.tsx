@@ -7,6 +7,7 @@ import {
 import { Header } from '@/components/Header'
 import { useLanguage, type Language } from '@/hooks/useLanguage'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
+import { checkedDay, useAgentAcceptance } from '@/hooks/useAgentAcceptance'
 import './Agents.css'
 
 const copy = {
@@ -40,6 +41,8 @@ const copy = {
     reserve: 'quality reserve',
     platform: 'platform',
     honest: 'Token settlement: designed, not active yet',
+    checked: 'Checked on a real account',
+    checkFailed: 'Last check failed',
   },
   ru: {
     eyebrow: 'T27 · БИРЖА АГЕНТНОГО ТРУДА',
@@ -71,6 +74,8 @@ const copy = {
     reserve: 'резерв качества',
     platform: 'платформа',
     honest: 'Расчёты токенами: спроектированы, ещё не включены',
+    checked: 'Проверен на живом аккаунте',
+    checkFailed: 'Последняя проверка не прошла',
   },
 } as const
 
@@ -88,6 +93,8 @@ export function AgentsPage() {
   const { lang } = useLanguage()
   const l: Language = lang === 'ru' ? 'ru' : 'en'
   const text = copy[l]
+  /* The measured half of the card: the last acceptance run, per agent. */
+  const verdicts = useAgentAcceptance()
   // A keeper may open a trainee (#2957); asked only if there is one.
   const keeper = useIsKeeper(
     MARKETPLACE_AGENTS.some(agent => agent.status !== 'live')
@@ -141,6 +148,21 @@ export function AgentsPage() {
                   </span>
                 </div>
                 <h2>{agent.name[l]}</h2>
+                {verdicts?.[agent.id] ? (
+                  /*
+                    WHAT WAS MEASURED, NEXT TO WHAT IS PROMISED: the newest
+                    acceptance verdict and its day. A failure is shown too --
+                    a card that only ever says "checked" is an advert.
+                  */
+                  <p
+                    className="agent-card__checked"
+                    data-pass={verdicts[agent.id].pass ? 'yes' : 'no'}
+                  >
+                    {verdicts[agent.id].pass ? '✓' : '✗'}{' '}
+                    {verdicts[agent.id].pass ? text.checked : text.checkFailed}{' '}
+                    · {checkedDay(verdicts[agent.id].at, l)}
+                  </p>
+                ) : null}
                 <p className="agent-card__role">{agent.role[l]}</p>
                 <p className="agent-card__promise">{agent.promise[l]}</p>
                 <div className="agent-card__section">

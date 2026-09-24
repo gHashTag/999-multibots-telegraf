@@ -885,6 +885,11 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
   'crm_ingest_contacts',
   'crm_groups',
   'crm_group_context',
+  /*
+   * Which networks the browser holds (#2962): a question for the owner's
+   * big-context agent connecting the clone, not for a DM with a client.
+   */
+  'browser_logins',
   'tg_media',
   'tg_scheduled',
   'tg_participants',

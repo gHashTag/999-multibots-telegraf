@@ -62,10 +62,12 @@ export interface SearchOutcome {
   fellBack?: string
 }
 
-export type SearchMode = 'auto' | 'keyless' | 'openrouter'
+export type SearchMode = 'auto' | 'keyless' | 'openrouter' | 'brave'
 
 const KEYLESS_TIMEOUT_MS = 6_000
 const OPENROUTER_TIMEOUT_MS = 20_000
+const BRAVE_TIMEOUT_MS = 10_000
+const BRAVE_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search'
 const MAX_BACKEND_BYTES = 512 * 1024
 const PER_SOURCE = 3
 
@@ -261,6 +263,49 @@ export async function openrouterSearch(
 }
 
 /**
+ * BRAVE'S OFFICIAL SEARCH API (2026-09-24).
+ *
+ * Measured the same morning in the owner's acceptance run: the reserve
+ * credential answered HTTP 402 (no balance), so Google Scout fell to the
+ * keyless floor and could not answer a market question at all. The HTML
+ * scrape stays rejected (see `pickBackend`); the API is the sanctioned way
+ * in, has a free tier, and returns plain JSON with no model in between -- so
+ * there is no laundered summary to fence, only titles, links and snippets.
+ *
+ * Off unless BRAVE_SEARCH_API_KEY is set on the service.
+ */
+export function braveKey(): string {
+  return String(process.env.BRAVE_SEARCH_API_KEY ?? '').trim()
+}
+
+export async function braveApiSearch(
+  query: string,
+  count: number,
+  fetchImpl: typeof fetch = fetch
+): Promise<SearchOutcome> {
+  const key = braveKey()
+  if (!key) return { backend: 'brave', hits: [], failed: ['no-key'] }
+  const url = new URL(BRAVE_ENDPOINT)
+  url.searchParams.set('q', query)
+  url.searchParams.set('count', String(Math.max(1, Math.min(count, 20))))
+  const response = await fetchImpl(url.toString(), {
+    signal: AbortSignal.timeout(BRAVE_TIMEOUT_MS),
+    headers: { accept: 'application/json', 'x-subscription-token': key },
+  })
+  if (!response.ok) throw new Error(`brave HTTP ${response.status}`)
+  const data = JSON.parse(await readBoundedText(response, MAX_BACKEND_BYTES))
+  const results = data?.web?.results
+  const hits: SearchHit[] = (Array.isArray(results) ? results : [])
+    .filter((r: any) => r?.url)
+    .map((r: any) => ({
+      title: clip(r.title ?? '', 200),
+      url: String(r.url),
+      snippet: r.description ? clip(r.description, 400) : undefined,
+    }))
+  return { backend: 'brave', hits, failed: hits.length ? [] : ['no-results'] }
+}
+
+/**
  * Which backend, and why.
  *
  * `auto` prefers OpenRouter when a reserve credential exists, because it is
@@ -288,6 +333,10 @@ export function pickBackend(mode?: string): {
   if (asked === 'openrouter') {
     return { mode: 'openrouter', reason: 'выбрано вручную' }
   }
+  if (asked === 'brave') return { mode: 'brave', reason: 'выбрано вручную' }
+  if (braveKey()) {
+    return { mode: 'brave', reason: 'есть ключ Brave Search API' } // cyrillic-ok: reason shown to the model
+  }
   return reserveEnv()
     ? { mode: 'openrouter', reason: 'есть резервный ключ' }
     : { mode: 'keyless', reason: 'ключа нет, работаю по открытым источникам' }
@@ -312,7 +361,22 @@ export async function webSearch(
   let outcome: SearchOutcome
   let fellBack: string | undefined
 
-  if (chosen.mode === 'openrouter') {
+  if (chosen.mode === 'brave') {
+    const forced = String(opts.mode ?? '') === 'brave'
+    try {
+      outcome = await braveApiSearch(query, count, fetchImpl)
+      if (!outcome.hits.length && !forced) {
+        fellBack = 'Brave ничего не вернул' // cyrillic-ok: reason shown to the model
+        outcome = await keylessSearch(query, fetchImpl)
+      }
+    } catch (error) {
+      const why = String((error as Error)?.message || error)
+      console.warn('[web] brave search failed:', why)
+      if (forced) return { backend: 'brave', hits: [], failed: [why] }
+      fellBack = `Brave не ответил (${why})` // cyrillic-ok: reason shown to the model
+      outcome = await keylessSearch(query, fetchImpl)
+    }
+  } else if (chosen.mode === 'openrouter') {
     try {
       outcome = await openrouterSearch(query, count, fetchImpl)
       if (!outcome.hits.length && String(opts.mode ?? '') !== 'openrouter') {

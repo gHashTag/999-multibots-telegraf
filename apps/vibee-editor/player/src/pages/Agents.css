@@ -326,3 +326,14 @@
 .agent-card__cta--preview {
   border-style: dashed;
 }
+
+/* The last acceptance verdict (useAgentAcceptance): measured, not promised. */
+.agent-card__checked {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.agent-card__checked[data-pass='no'] {
+  color: var(--color-danger, #c0392b);
+}

@@ -32,6 +32,7 @@ import { clubErrorAtom, clubStatusAtom, loadClubStatusAtom } from '@/atoms/club'
 import { cloneReadyAtom, loadCloneStatusAtom } from '@/atoms/clone'
 import { useTokenTopUp } from '@/hooks/useTokenTopUp'
 import { TokenTopUpCard } from '@/components/Profile/TokenTopUpCard'
+import { CloneNetworksCard } from '@/components/Profile/CloneNetworksCard'
 import { loadSoulAtom, soulAtom, soulLoadedAtom } from '@/atoms/soul'
 import '@/components/Profile/Profile.css'
 
@@ -375,6 +376,11 @@ export function ProfilePage() {
             somebody who owns no bot, which is most people.
           */}
           <BotsCard isOwn={isOwn} />
+          {/*
+            THE CLONE'S NETWORKS (#2963): where the person's own browser is
+            signed in. Nothing drawn until the server answered.
+          */}
+          <CloneNetworksCard isOwn={isOwn} accounts={cloneReady.accounts} />
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />
