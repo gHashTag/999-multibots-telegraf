@@ -71,6 +71,7 @@ import { tmpdir } from 'node:os'
 import { join as joinPath } from 'node:path'
 import { withShelfFile } from './media-extract'
 import {
+  LIPSYNC_MODELS,
   LIPSYNC_TOOL_MAX_SECONDS,
   LIPSYNC_UPLOAD_RETRY_MS,
   LIPSYNC_VOICE_MAX_BYTES,
@@ -2186,6 +2187,12 @@ export const TOOLS: AgentTool[] = [
           description:
             'секунд тишины в начале (0–3): старт на неподвижном фото',
         },
+        model: {
+          type: 'string',
+          enum: [...LIPSYNC_MODELS],
+          description:
+            'не задан — InfiniteTalk по цене инструмента; другая модель — по её цене за секунду (pricing)',
+        },
       },
       required: ['image_url', 'voice_url'],
       additionalProperties: false,
@@ -2220,6 +2227,18 @@ export const TOOLS: AgentTool[] = [
         return {
           done: false,
           reason: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`,
+        }
+      /*
+       * A NAMED MODEL IS PRICED AS ITSELF, AN UNNAMED ONE AS THE TOOL -- the
+       * way the route prices the same call for the Mini App. A name outside
+       * the list is refused here, for free, rather than swapped for the
+       * default at the route after a charge.
+       */
+      const model = args.model ? String(args.model) : undefined
+      if (model !== undefined && !LIPSYNC_MODELS.includes(model))
+        return {
+          done: false,
+          reason: `модель ${model} не допущена к липсинку: ${LIPSYNC_MODELS.join(' | ')}. Ничего не списано.`,
         }
       const leadSilence = leadSilenceOf(args.lead_silence_s)
       const dir = await mkdtemp(joinPath(tmpdir(), 'lipsync-'))
@@ -2260,7 +2279,7 @@ export const TOOLS: AgentTool[] = [
         const charge = await spendTokens(
           ctx,
           'lipsync_generate',
-          undefined,
+          model,
           seconds
         )
         if (!charge.ok) return { done: false, reason: charge['причина'] } // cyrillic-ok
@@ -2307,6 +2326,7 @@ export const TOOLS: AgentTool[] = [
                   body: JSON.stringify({
                     image_url: publicShelfUrl(imageKey),
                     audio_url: audioUrl,
+                    ...(model ? { model } : {}),
                   }),
                 }
               )
@@ -2363,6 +2383,7 @@ export const TOOLS: AgentTool[] = [
               seconds: Math.round(measured * 10) / 10,
               parts: parts.length,
               leadSilence,
+              model: model || null,
               provider: clips[0]?.provider || null,
             },
             charge['потрачено']
