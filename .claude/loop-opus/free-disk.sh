@@ -156,7 +156,28 @@ if [ -d "$SCRATCH_ROOT" ]; then
       *) continue ;;
     esac
     # Своя сессия жива по определению: её каталог держит эту самую уборку.
-    if pgrep -qf "$id"; then continue; fi
+    #
+    # НО ЗАВИСШИЙ СНИМОК ЭКРАНА -- НЕ ЖИВАЯ СЕССИЯ. Замерено 24.09.2026:
+    # три headless-процесса BrowserOS, каждый девять часов на одном кадре,
+    # держали 1.6 ГБ черновиков сессии, которой давно нет. Каждый упоминает
+    # её id в `--user-data-dir`, поэтому `pgrep -f` считал сессию живой и
+    # уборка молча проходила мимо -- при 214 МБ свободных.
+    #
+    # Поэтому признаком жизни считается процесс, который НЕ является таким
+    # вспомогательным. Остальное не меняется: ошибка по-прежнему возможна
+    # только в безопасную сторону -- любой другой процесс с этим id спасает
+    # каталог, а две проверки ниже спасают незакоммиченную работу.
+    if pgrep -f "$id" | while read -r pid; do
+         cmd=$(ps -o command= -p "$pid" 2>/dev/null)
+         case "$cmd" in
+           # The browser AND its renderer helpers: the helpers carry the same
+           # --user-data-dir and no --headless of their own, so a rule written
+           # against that flag saw three zombies as a living session.
+           *BrowserOS*|*Google\ Chrome*|*chromium*|*Chromium*) ;;
+           '') ;;
+           *) echo alive; break ;;
+         esac
+       done | grep -q alive; then continue; fi
     # Рабочая копия внутри -- сначала сказать об этом git.
     # `git worktree list` from wherever this runs: the script is invoked from
     # the repository, and naming a variable that does not exist here would
