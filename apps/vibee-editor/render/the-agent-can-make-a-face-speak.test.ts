@@ -59,6 +59,8 @@ vi.mock('./src/agent/lipsync-voice', async importOriginal => {
       await writeFile(out, 'part')
     },
     probeSize: async () => ({ width: 480, height: 864 }),
+    // A retry's pause is real time in production and none here.
+    sleepMs: async () => undefined,
     joinParts: async (_in: string[], out: string) => {
       ff.joined += 1
       await writeFile(out, 'reel')
@@ -184,6 +186,10 @@ describe('the real handler', () => {
 
   let calls: { url: string; body: unknown }[]
   let failPart: number | null
+  /** How many uploads were in flight at once, at most. */
+  let maxUploadsInFlight: number
+  /** Answer the next N uploads 429, as the shelf's gate does when busy. */
+  let busyUploads: number
   beforeEach(() => {
     vi.stubEnv('S3_PUBLIC_URL', BUCKET)
     vi.stubEnv('PUBLIC_URL', RENDER)
@@ -196,6 +202,9 @@ describe('the real handler', () => {
     ff.voice = []
     calls = []
     failPart = null
+    maxUploadsInFlight = 0
+    busyUploads = 0
+    let uploadsInFlight = 0
     let routeCalls = 0
     vi.stubGlobal(
       'fetch',
@@ -216,11 +225,22 @@ describe('the real handler', () => {
           arrayBuffer: async () => new ArrayBuffer(8),
           headers: new Headers(),
         })
-        if (u.endsWith('/upload'))
+        if (u.endsWith('/upload')) {
+          uploadsInFlight += 1
+          maxUploadsInFlight = Math.max(maxUploadsInFlight, uploadsInFlight)
+          // The gate holds an upload for a moment; overlapping ones would
+          // meet here.
+          await new Promise(r => setTimeout(r, 5))
+          uploadsInFlight -= 1
+          if (busyUploads > 0) {
+            busyUploads -= 1
+            return json(429, { error: 'Upload capacity is busy' })
+          }
           return json(200, {
             success: true,
             directUrl: `${BUCKET}/assets/up.bin`,
           })
+        }
         if (u.endsWith('/api/generate/lipsync')) {
           routeCalls += 1
           if (failPart !== null && routeCalls === failPart)
@@ -306,6 +326,32 @@ describe('the real handler', () => {
     expect(r.done, JSON.stringify(r)).toBe(true)
     expect(debits(pool.sqls)).toEqual([7 * TOKEN_PRICES.lipsync_generate])
     expect(ff.joined).toBe(0)
+  })
+
+  /*
+   * THE FIRST LIVE RUN, 2026-09-24: three voice parts uploaded side by side,
+   * the shelf's gate (two at a time) answered the third 429, and the whole
+   * reel was refunded. Uploads now go one at a time, and a busy answer is
+   * tried again.
+   */
+  it('the voice parts go on the shelf one at a time', async () => {
+    const { r } = await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+      lead_silence_s: 1.5,
+    })
+    expect(r.done, JSON.stringify(r)).toBe(true)
+    expect(maxUploadsInFlight).toBe(1)
+  })
+
+  it('a busy shelf is tried again, not taken for a failure', async () => {
+    busyUploads = 2
+    const { r, pool } = await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+    })
+    expect(r.done, JSON.stringify(r)).toBe(true)
+    expect(credits(pool.sqls)).toEqual([])
   })
 
   it('a part the provider refuses: everything taken is given back, once', async () => {

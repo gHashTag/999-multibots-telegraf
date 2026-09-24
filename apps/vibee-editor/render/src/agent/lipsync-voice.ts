@@ -51,6 +51,17 @@ export const LIPSYNC_TOOL_MAX_SECONDS = 30
 /** The largest voice file read from the shelf: the shelf's own upload limit. */
 export const LIPSYNC_VOICE_MAX_BYTES = 100 * 1024 * 1024
 
+/**
+ * Wait before another try at a busy shelf, times the attempt number. The
+ * shelf's upload gate answers 429 while two uploads are in flight; a
+ * multi-second upload clears it within this.
+ */
+export const LIPSYNC_UPLOAD_RETRY_MS = 3_000
+
+/** A pause the tests can see through (vi.useFakeTimers). */
+export const sleepMs = (ms: number) =>
+  new Promise<void>(resolve => setTimeout(resolve, ms))
+
 /** Silence before the voice, so the reel opens on the still face. */
 export const LEAD_SILENCE_MAX_SECONDS = 3
 
