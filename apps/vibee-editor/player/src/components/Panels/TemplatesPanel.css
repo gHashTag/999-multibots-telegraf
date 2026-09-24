@@ -189,3 +189,30 @@
   opacity: 0.55;
   margin-top: 2px;
 }
+
+/*
+ * AN INVISIBLE DELETE BUTTON ON A TOUCH SCREEN.
+ *
+ * Measured at 375px on 25.09.2026, walking the route list: this delete is
+ * 18x18 and `opacity: 0` until `:hover` -- and a phone has no hover. So on
+ * every template card there sat a corner that could not be seen and could
+ * still be pressed. It does ask before removing anything, which is the only
+ * reason this is a defect rather than an accident waiting; but a control
+ * nobody can see is one nobody can use ON PURPOSE either.
+ *
+ * Where the pointer is coarse it is visible and finger-sized. Destructive
+ * and hidden is the wrong pair; destructive and plainly there is the right
+ * one.
+ */
+@media (pointer: coarse) {
+  .template-card-delete {
+    width: var(--touch-target, 44px);
+    height: var(--touch-target, 44px);
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  .templates-transfer-btn {
+    min-height: var(--touch-target, 44px);
+  }
+}
