@@ -910,17 +910,45 @@ ${MONEY_AND_PLAN}
 
 Отвечай коротко, числами из инструментов, а не примерными.`
 
+/**
+ * WHOSE VOICE, AND WHICH GRAMMATICAL GENDER.
+ *
+ * Owner, 2026-09-24, in his own chat with the agent: "Поняла, Дмитрий" --
+ * "why is my agent writing as a woman?!" Russian past tense carries gender,
+ * and nothing in the prompt said which one, so the model picked one. The
+ * seller in a duet already had the rule (crm-duet-tool.ts); the agent's own
+ * voice did not.
+ *
+ * Two voices, two rules:
+ *  - the agent speaking for itself (app, bot, CRM chat): masculine, always;
+ *  - the agent writing AS the owner in his business DM: the owner's own
+ *    gender, read off his messages in the history below -- an owner is not
+ *    always a man, and a masculine default would misgender every woman who
+ *    connects her account. When the history does not show it, forms that
+ *    carry no gender ("готово", "принято", "могу") instead of a guess.
+ * Exported for the test.
+ */
+export function voiceLine(surface?: string): string {
+  return surface === 'business'
+    ? '- РОД. Ты пишешь от имени владельца: грамматический род — как в ЕГО собственных сообщениях в истории ниже («я сделал» → мужской, «я сделала» → женский). Не видно по истории — пиши формами без рода: «готово», «принято», «могу прислать».' // cyrillic-ok: prompt copy
+    : '- РОД. О себе говори ТОЛЬКО в мужском роде: «понял», «сделал», «проверил», «готов», «сам». Никогда «поняла», «сделала», «готова», «сама».' // cyrillic-ok: prompt copy
+}
+
 /** The prompt for a surface: the club for creators, the invoice for a client in the DM. */
 function systemFor(surface?: string): string {
-  return SYSTEM_TEMPLATE.replace(
-    '%%CLUB_OR_DM%%',
-    surface === 'business' ? DM_CLIENT_BULLET : CREATOR_MONEY_BULLET
+  return (
+    SYSTEM_TEMPLATE.replace(
+      '%%CLUB_OR_DM%%',
+      surface === 'business' ? DM_CLIENT_BULLET : CREATOR_MONEY_BULLET
+    )
+      .replace('%%TOKEN_LINE%%', tokenLine())
+      .replace('%%PACKS_LINE%%', packsLine())
+      .replace('%%CLUB_LINE%%', clubOfferLine())
+      .replace('%%CLUB_WHEN%%', CLUB_OFFER_WHEN)
+      .replace('%%CLUB_BACK%%', spacedNumber(clubTokensPerPeriod())) +
+    '\n' +
+    voiceLine(surface)
   )
-    .replace('%%TOKEN_LINE%%', tokenLine())
-    .replace('%%PACKS_LINE%%', packsLine())
-    .replace('%%CLUB_LINE%%', clubOfferLine())
-    .replace('%%CLUB_WHEN%%', CLUB_OFFER_WHEN)
-    .replace('%%CLUB_BACK%%', spacedNumber(clubTokensPerPeriod()))
 }
 
 /**
