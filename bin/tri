@@ -62,6 +62,8 @@ tri — оболочка Trinity S³AI
   tri wake <модуль>  что проверить ПЕРЕД подключением мёртвого модуля: unknown как «нет», фикстуры
   tri swallow  где сбой неотличим от честного пустого ответа (форма 185)
   tri layout [селектор]  как замерить высоту ДО и ПОСЛЕ правки верстки (форма 186)
+  tri halfdone <файл>  где защита написана для одного элемента, а нужна соседям (форма 187)
+  tri byload [каталог] [тест]  падает от кода или от ЗАГРУЗКИ машины: три прогона, три числа (форма 188)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
@@ -1415,6 +1417,63 @@ PYEOF
 переносится. Сторож писать структурой (сколько элементов, внутри чего),
 а не словами -- в тестовой среде язык может быть другим.
 RECIPE
+    ;;
+
+  halfdone)
+    # A REMEDY APPLIED IN ONE PLACE OUT OF TWO.
+    #
+    # The cheapest defects in this repository are the ones where the rule is
+    # already written down, argued for, and wired into ONE of the siblings it
+    # covers: the image could admit it failed to load and the video could not,
+    # in the same file, under a five-line comment explaining exactly why it
+    # matters. Form 187.
+    #
+    # Lists elements that usually need a failure path beside the guards that
+    # exist in the same file, so the gap is a diff rather than a memory.
+    shift
+    F="${1:-}"
+    [ -z "$F" ] && { echo "usage: tri halfdone <файл>"; exit 64; }
+    P="$ROOT/$F"; [ -f "$P" ] || P="$F"
+    [ -f "$P" ] || { echo "нет такого файла: $F"; exit 66; }
+    echo "защита есть здесь:"
+    grep -nE "onError|onAbort|catch *\(|fallback|setBroken" "$P" | head -12
+    echo
+    echo "а полагается этим:"
+    grep -nE "<(video|audio|img|iframe|object)\b" "$P" | head -12
+    echo
+    echo "Разница между списками -- места, где правило уже признано верным и"
+    echo "не дописано. Обоснование писать не нужно: оно лежит рядом."
+    ;;
+
+  byload)
+    # DOES THIS SUITE FAIL BY CODE, OR BY MACHINE LOAD?
+    #
+    # Named `byload`, not `flaky`: that word is taken by the repeat-runner
+    # above, and a second arm with the same name is unreachable -- the first
+    # case wins, silently. The same trap `dead` was renamed out of.
+    #
+    # The player suite failed 21 times in a parallel run, 5 sequentially and
+    # 0 alone -- the count tracked the LOAD, not the code, because a 5.5 s
+    # module import sat inside a test with a 5 s budget. Twice I nearly
+    # blamed my own change for it. Form 188.
+    #
+    # Runs the same target three ways and prints the three numbers. Different
+    # numbers = a stopwatch measuring the wrong thing; look for heavy work
+    # inside the test (a lazy page import, a real fetch), not for flakiness.
+    shift
+    DIR="${1:-apps/vibee-editor/player}"
+    T="${2:-}"
+    cd "$ROOT/$DIR" 2>/dev/null || { echo "нет каталога: $DIR"; exit 66; }
+    count() { npx vitest run $T "$@" 2>&1 | grep -E "^ +Tests +[0-9]" | tail -1; }
+    echo "в одиночку / последовательно / параллельно -- три числа:"
+    [ -n "$T" ] && { printf "  одиночно:      "; count; }
+    printf "  последовательно: "; count --no-file-parallelism
+    printf "  параллельно:     "; count
+    echo
+    echo "Числа разные -- дело во ВРЕМЕНИ, а не в коде. Замерь тяжёлое:"
+    echo "  it('probe', async () => { const t=Date.now();"
+    echo "    await import('@/pages/X'); console.log(Date.now()-t) }, 30000)"
+    echo "и унеси эту цену в beforeAll со своим бюджетом."
     ;;
 
   contracts)

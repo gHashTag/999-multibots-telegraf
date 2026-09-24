@@ -1,7 +1,15 @@
 import { act, Suspense } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 /**
  * A GUEST IN THE GAME'S TRI FRAME IS TOLD WHERE THE SCREEN WORKS, NOT LEFT AT A DEAD END.
@@ -133,6 +141,24 @@ const GATED: Array<[string, string]> = [
   ['/generate/video', 'video'],
   ['/generate/editor', 'editor'],
 ]
+
+/*
+ * THE LAZY ROUTES ARE WARMED BEFORE ANY TEST IS TIMED.
+ *
+ * `AppRoutes` loads its pages lazily, so the first test to open /crm paid a
+ * multi-second module import out of its own 5 s budget -- and the file then
+ * failed by MACHINE LOAD rather than by code: green alone, five failures in
+ * a parallel full run. The same shape as Crm.test.tsx (25.09.2026); the cost
+ * is real and stays, it is simply not charged to a stopwatch that is
+ * measuring something else.
+ */
+beforeAll(async () => {
+  await Promise.all([
+    import('@/pages/Crm'),
+    import('@/pages/CrmClient'),
+    import('@/pages/Chat'),
+  ])
+}, 60_000)
 
 describe('a guest in the TRI frame', () => {
   it.each(GATED)(
