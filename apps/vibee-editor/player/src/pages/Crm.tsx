@@ -3,6 +3,11 @@ import { Link } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
+import {
+  AllRefused,
+  coveredByNotice,
+  oneReasonForAll,
+} from '@/components/Crm/AllRefused'
 import { AutoPanel } from '@/components/Crm/AutoPanel'
 import { TrafficPanel } from '@/components/Crm/TrafficPanel'
 import { Avatar } from '@/components/Crm/Avatar'
@@ -305,12 +310,26 @@ export default function CrmPage() {
 
   // The unreachable-panel rule lives in `components/Crm/Panel.tsx`, shared
   // with the per-client dashboard.
+  /*
+   * ONE FACT, NOT FIVE COPIES OF IT.
+   *
+   * When every panel failed the SAME way -- what an expired session looks
+   * like -- the screen said the same sentence five times (455px at 375px
+   * wide) and none of them said what to do. The notice says it once, with
+   * the step; the panels it covers stay quiet. A single broken panel among
+   * working ones still speaks in its own place.
+   */
+  const noticeReason = oneReasonForAll([overview, waiting, leads, clients])
   const panel = (
     title: string,
     state: { reachable: boolean; error?: string },
     body: React.ReactNode
   ) => (
-    <Panel title={title} state={state}>
+    <Panel
+      title={title}
+      state={state}
+      quiet={coveredByNotice(state, noticeReason)}
+    >
       {body}
     </Panel>
   )
@@ -504,6 +523,8 @@ export default function CrmPage() {
           {busy ? t('crm.refreshing') : t('crm.refresh')}
         </button>
       </header>
+
+      {noticeReason ? <AllRefused reason={noticeReason} /> : null}
 
       {/* One row, and only when there is more than one thing in it. */}
       {sections.length > 1 ? (
@@ -734,7 +755,7 @@ export default function CrmPage() {
           )}
 
           {/* Where people come from (#2974): the owner's only. */}
-          <TrafficPanel />
+          <TrafficPanel noticeReason={noticeReason} />
 
           <p className="crm__note">{t('crm.note')}</p>
         </>

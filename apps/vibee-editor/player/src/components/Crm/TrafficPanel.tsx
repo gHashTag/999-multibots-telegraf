@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
+import { coveredByNotice } from '@/components/Crm/AllRefused'
 import { NETWORK_NAMES } from '@/components/Profile/CloneNetworksCard'
 import { loadTraffic, type Reached, type Traffic } from '@/lib/crm'
 import './TrafficPanel.css'
@@ -28,7 +29,17 @@ export function sourceName(id: string): string {
   return id
 }
 
-export function TrafficPanel() {
+export function TrafficPanel({
+  noticeReason = null,
+}: {
+  /**
+   * The one reason the whole screen failed for, when there is one. This
+   * panel loads its own data, so the page cannot judge it from outside --
+   * it is told the reason and applies the same rule: say nothing that the
+   * notice above has already said (components/Crm/AllRefused.tsx).
+   */
+  noticeReason?: string | null
+} = {}) {
   const { t } = useLanguage()
   const [days, setDays] = useState<(typeof DAY_CHOICES)[number]>(7)
   const [state, setState] = useState<Reached<Traffic> | null>(null)
@@ -51,7 +62,11 @@ export function TrafficPanel() {
   )
 
   return (
-    <Panel title={t('crm.traffic.title')} state={state}>
+    <Panel
+      title={t('crm.traffic.title')}
+      state={state}
+      quiet={coveredByNotice(state, noticeReason)}
+    >
       {data ? (
         <div className="crm-traffic" data-testid="crm-traffic">
           <div className="crm-traffic__days" role="group">
