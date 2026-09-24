@@ -67,8 +67,11 @@ async function publishEverywhere(
    * answer as expected, the old one-post share is used instead and the
    * owner is told which of the two happened.
    */
+  const { noteShape } = await import('./reach-log')
   try {
     out.X = await postThreadOnX(cdp, a)
+    /* Which shape it took, written down while it is certain (reach-log.ts). */
+    void noteShape(pool, a.slug, 'thread')
   } catch (e) {
     out.X = `тред не получился: ${String(e).slice(0, 100)}` // cyrillic-ok: told to the owner
   }
@@ -95,6 +98,7 @@ async function publishEverywhere(
           break
         }
       }
+      if (net === 'X') void noteShape(pool, a.slug, 'single')
       out[net] = pressed
         ? `нажато «${pressed}»` // cyrillic-ok: told to the owner
         : 'кнопка публикации не найдена — окно оставлено открытым' // cyrillic-ok: told to the owner

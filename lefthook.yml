@@ -95,6 +95,16 @@ pre-commit:
       run: node scripts/no-cyrillic-guard.cjs staged
       fail_text: 'Cyrillic in a code comment. Write comments in English.'
 
+    # 7. The agent's one move, scored (render/src/browser/bench). Pressing the
+    #    thing that says the words is what every sign-in, post and round ends
+    #    in; a change that quietly breaks a page we already met used to be
+    #    found by the owner, live, at midnight. Runs only when that code is
+    #    touched, offline, in about two seconds.
+    bench:
+      glob: "apps/vibee-editor/render/src/browser/{find-target,bench/*}.ts"
+      run: bash bin/helpers/bench.sh .
+      fail_text: "Агент стал хуже находить кнопки: смотрите, какой случай упал."
+
 commit-msg:
   commands:
     # Сообщение коммита уходит в публичный репозиторий вместе с кодом:

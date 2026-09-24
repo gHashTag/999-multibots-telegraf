@@ -68,7 +68,96 @@ export const CASES: BenchCase[] = [
   {
     from: 'Any page: what is not there must not be invented',
     html: `<button id="a">Post</button>`,
-    want: 'Опубликовать',
+    want: 'Опубликовать', // cyrillic-ok: the page said this
     expect: null,
+  },
+  {
+    from: 'hh.ru, 2026-09-23: the role chooser on the sign-in page',
+    html: `<button id="seeker">Я ищу работу Профиль соискателя</button> // cyrillic-ok: the page said this
+           <button id="employer">Я ищу сотрудников Профиль работодателя</button>`, // cyrillic-ok: the page said this
+    want: 'Я ищу работу', // cyrillic-ok: the page said this
+    expect: 'seeker',
+  },
+  {
+    from: 'Upwork, 2026-09-23: the data notice covers the sign-in buttons',
+    html: `<button id="manage">Manage</button>
+           <button id="google">Continue with Google</button>`,
+    want: 'Manage',
+    expect: 'manage',
+  },
+  {
+    from: 'Reddit, 2026-09-23: the community type row opens a dialog',
+    html: `<div id="row" role="button">Тип сообщества Ограниченная</div> // cyrillic-ok: the page said this
+           <button id="save">Сохранить</button>`, // cyrillic-ok: the page said this
+    want: 'Тип сообщества', // cyrillic-ok: the page said this
+    expect: 'row',
+  },
+  {
+    from: 'Apple, 2026-09-22: Continue is a button, continue is also in the text',
+    html: `<p id="legal">By continuing you agree to the terms</p>
+           <button id="go">Continue</button>`,
+    want: 'Continue',
+    expect: 'go',
+  },
+  {
+    from: 'X, 2026-09-22: the account chooser offers another account',
+    html: `<div id="one" role="button">Dmitrii</div>
+           <div id="other" role="button">Использовать другой аккаунт</div>`, // cyrillic-ok: the page said this
+    want: 'Использовать другой аккаунт', // cyrillic-ok: the page said this
+    expect: 'other',
+  },
+  {
+    from: 'Google, 2026-09-22: the consent screen says Allow and Deny',
+    html: `<button id="deny">Deny</button><button id="allow">Allow</button>`,
+    want: 'Allow',
+    expect: 'allow',
+  },
+  {
+    from: 'LinkedIn, 2026-09-22: the post button in Russian',
+    html: `<button id="post">Опубликовать</button><a id="draft" href="#">Сохранить черновик</a>`, // cyrillic-ok: the page said this
+    want: 'Опубликовать', // cyrillic-ok: the page said this
+    expect: 'post',
+  },
+  {
+    from: 'Any page: a hidden button is not a button',
+    html: `<button id="ghost" hidden aria-label="Post"></button>`,
+    want: 'Post',
+    expect: null,
+  },
+  {
+    from: 'Apple, 2026-09-23: Trust this browser',
+    html: `<button id="trust">Trust</button><button id="dont">Don't Trust</button>`,
+    want: 'Trust',
+    expect: 'trust',
+  },
+  {
+    from: 'TikTok, 2026-09-22: three ways in, one of them Apple',
+    html: `<button id="phone">Continue with phone</button>
+           <button id="google">Continue with Google</button>
+           <button id="apple">Continue with Apple</button>`,
+    want: 'Continue with Apple',
+    expect: 'apple',
+  },
+  {
+    from: 'X compose, 2026-09-23: the thread button adds another post',
+    html: `<div id="box" role="textbox" contenteditable="true" aria-label="Post text"></div>
+           <button id="add" aria-label="Add post">+</button>
+           <button id="all">Post all</button>`,
+    want: 'Post all',
+    expect: 'all',
+  },
+  {
+    from: 'X compose, 2026-09-23: the box is named by its own words',
+    html: `<div id="box" role="textbox" contenteditable="true" aria-label="What is happening?"></div>
+           <button id="post">Post</button>`,
+    want: 'What is happening?',
+    expect: 'box',
+  },
+  {
+    from: 'hh.ru, 2026-09-23: a link and a button share a word',
+    html: `<a id="link" href="/vacancies">Вакансии</a> // cyrillic-ok: the page said this
+           <button id="search">Найти</button>`, // cyrillic-ok: the page said this
+    want: 'Найти', // cyrillic-ok: the page said this
+    expect: 'search',
   },
 ]
