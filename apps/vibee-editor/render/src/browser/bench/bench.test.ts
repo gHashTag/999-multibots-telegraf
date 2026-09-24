@@ -14,6 +14,9 @@ function pressIn(html: string, want: string): string | null {
     const attrs: Record<string, string> = {}
     for (const a of attrsRaw.matchAll(/([\w-]+)\s*=\s*"([^"]*)"/g))
       attrs[a[1]] = a[2]
+    /* Bare attributes carry no value and still mean something: hidden. */
+    for (const bare of attrsRaw.matchAll(/(?:^|\s)([a-z-]+)(?=\s|$)/g))
+      if (!(bare[1] in attrs)) attrs[bare[1]] = ''
     const after = html.slice((m.index ?? 0) + m[0].length)
     const text = after.slice(
       0,
@@ -32,8 +35,9 @@ function pressIn(html: string, want: string): string | null {
     getBoundingClientRect: () => ({
       left: 0,
       top: i * 50,
-      width: 300,
-      height: 40,
+      /* `hidden` in the markup means no box, as in a real page. */
+      width: 'hidden' in el.attrs ? 0 : 300,
+      height: 'hidden' in el.attrs ? 0 : 40,
     }),
     scrollIntoView: () => {},
   })
