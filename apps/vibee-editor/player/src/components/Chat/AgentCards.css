@@ -86,6 +86,54 @@
   color: #00ff88;
 }
 
+/*
+ * A SETTLED CARD IS HISTORY, NOT AN ACTION.
+ *
+ * Owner, 25.09.2026: the cards are stretched vertically. A card with two
+ * short lines stood 86px tall -- 24 of padding, a 10px gap and a whole line
+ * for its status. Three of them in a row is a wall the conversation has to
+ * be scrolled past.
+ *
+ * So a card that has been decided or passed over lays its status ON the
+ * title's row instead of under it, and breathes less. A LIVE card is
+ * untouched: it is the one being asked about, its buttons need the room, and
+ * shrinking a target somebody has to hit on a phone is the wrong economy.
+ */
+.agent-card--settled {
+  padding: 8px 12px 8px 14px;
+}
+/*
+ * Title and status share a row; the detail below keeps the full width.
+ *
+ * MEASURED, NOT ASSUMED, AND THE PHONE SAID NO. Beside the whole card the
+ * status narrowed the body and pushed the detail onto a second line (79px
+ * against 60). Beside the title it fits on a wide screen -- and at 375px it
+ * does not either: "Пропустить адрес" plus "✓ ОДОБРЕНО" wraps the TITLE, and
+ * the card grew to 86px, worse than where it started.
+ *
+ * So the row is for screens that have the width for it. On a phone the
+ * status keeps its own line, and the height that was won there was won
+ * elsewhere: the label under every card nobody chose is gone, which is two
+ * cards in three.
+ */
+.agent-card__head {
+  display: block;
+}
+@media (min-width: 560px) {
+  .agent-card__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+}
+.agent-card__head h3 {
+  flex: 1;
+  min-width: 0;
+}
+.agent-card__head .agent-card__state {
+  flex: 0 0 auto;
+}
+
 .agent-card__state {
   font-size: 11px;
   font-weight: 600;

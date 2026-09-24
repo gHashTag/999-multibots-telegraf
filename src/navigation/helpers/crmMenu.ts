@@ -44,6 +44,11 @@ export const ROOT_VERBS = [
   'ingest',
   'plan',
   /*
+   * The morning post for the room: the owner reads the exact words and
+   * presses. Nothing else writes to a room of people.
+   */
+  'room',
+  /*
    * THE TURN THE OWNER IS WATCHING, ENDED BY HIM (issue #2721).
    *
    * A root verb, not a per-lead one: `inOwnerLane` serialises his turns, so
@@ -99,7 +104,7 @@ export const SCOPE_VERBS = [
 ] as const
 
 export const CRM_ROOT_RE =
-  /^crm:(menu|auto|autooff|leads|summary|sweep|model|ingest|plan|halt)$/
+  /^crm:(menu|auto|autooff|leads|summary|sweep|model|ingest|plan|halt|room)$/
 export const CRM_LEAD_RE =
   /^crm:(lead|prep|gift|later|refuse!?|drop!?|undrop|back|unmute|mute):(\d{5,15})$/
 export const CRM_SCOPE_RE =

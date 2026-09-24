@@ -61,6 +61,7 @@ tri — оболочка Trinity S³AI
   tri writers <колонка>  кто ПИШЕТ то, что читает код: может ли писатель не сработать ни разу
   tri wake <модуль>  что проверить ПЕРЕД подключением мёртвого модуля: unknown как «нет», фикстуры
   tri swallow  где сбой неотличим от честного пустого ответа (форма 185)
+  tri layout [селектор]  как замерить высоту ДО и ПОСЛЕ правки верстки (форма 186)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
@@ -1385,6 +1386,35 @@ PYEOF
     echo
     echo "Судить каждое место по одному вопросу: отличит ли вызывающий это от"
     echo "честного пустого ответа -- и УТВЕРЖДАЕТ ли он потом что-то о человеке."
+    ;;
+
+  layout)
+    # A LAYOUT FIX HAS A NUMBER. TAKE IT BEFORE AND AFTER.
+    #
+    # Three of my four attempts at "the cards are too tall" looked like an
+    # improvement in a screenshot and were WORSE in pixels -- on the phone,
+    # which is where the owner looks. Form 186.
+    #
+    # Prints the recipe rather than doing it, because the measuring belongs
+    # in the browser pane where the page actually is.
+    shift
+    SEL="${1:-.agent-card}"
+    cat <<RECIPE
+Замер высоты для «$SEL» -- ДО и ПОСЛЕ, на обеих ширинах:
+
+  1. preview_start name=vibee-tma          (порт печатает preview_logs)
+  2. resize_window preset=mobile           (375px -- экран владельца)
+  3. javascript_tool:
+       Array.from(document.querySelectorAll('$SEL'))
+         .map(c => Math.round(c.getBoundingClientRect().height))
+  4. git stash -q  -> замерить снова -> git stash pop -q
+  5. resize_window preset=desktop          и повторить 3
+
+Впечатление от снимка не считается: подпись рядом с заголовком экономит
+строку на широком экране и ДОБАВЛЯЕТ её на телефоне, когда заголовок
+переносится. Сторож писать структурой (сколько элементов, внутри чего),
+а не словами -- в тестовой среде язык может быть другим.
+RECIPE
     ;;
 
   contracts)
