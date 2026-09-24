@@ -65,6 +65,7 @@ tri — оболочка Trinity S³AI
   tri touch  какие кнопки меньше 44px под палец, и как чинить без двух ловушек (форма 190)
   tri halfdone <файл>  где защита написана для одного элемента, а нужна соседям (форма 187)
   tri family <Компонент> [признак]  кто ещё в семье и до кого лекарство не дошло (форма 191)
+  tri owed  храповики долга в тестах: сколько мест ещё ждёт правила (форма 192)
   tri byload [каталог] [тест]  падает от кода или от ЗАГРУЗКИ машины: три прогона, три числа (форма 188)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
@@ -1549,6 +1550,36 @@ RECIPE
     echo "потребовать лекарство у каждого. Признак брать по СМЫСЛУ роли, а не"
     echo "по виду текста -- имя из пути импорта и имя из объявления свойства"
     echo "оба «встречаются в файле» и проверяют разное (форма 191)."
+    ;;
+
+  owed)
+    # A DEBT THAT MAY ONLY SHRINK, AND IS READ BECAUSE IT IS TRUE.
+    #
+    # A rule that is right for fifteen screens cannot be applied to fifteen
+    # screens in one night: each needs an answer to "what stands in the gap",
+    # and a hurried answer outlives whoever hurried. So the sites are listed,
+    # a NEW one fails on the day it is written, and -- the half people forget
+    # -- an entry that has been FIXED must leave the list, or the list starts
+    # lying upward and stops being read (form 192).
+    #
+    # Prints every such ratchet in the suites and how long each list is.
+    shift
+    echo "храповики долга (список, который может только уменьшаться):"
+    grep -rln "OWED\|KNOWN_BARE\|ALLOWED_DEBT" --include="*.test.ts" \
+         --include="*.test.tsx" "$ROOT/src" "$ROOT/apps/vibee-editor" 2>/dev/null \
+      | sed "s|$ROOT/||" | while read -r f; do
+          # `grep -c` exits 1 on zero matches, so `|| echo 0` printed the
+          # count AND a second zero -- two lines per file, which read as two
+          # findings. The status is ignored instead.
+          n=$(grep -cE "^\s+'[^']+\.tsx?'," "$ROOT/$f" 2>/dev/null) || n=0
+          # Files that merely mention the word are noise: only the ones
+          # carrying an actual list are ratchets.
+          [ "$n" -gt 0 ] && printf "  %3s мест  %s\n" "$n" "$f"
+        done
+    true
+    echo
+    echo "Сторож обязан проверять ОБЕ стороны: новых нет И починенных в списке"
+    echo "нет. Без второй список копит враньё и его перестают читать."
     ;;
 
   contracts)
