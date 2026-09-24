@@ -7,6 +7,7 @@ import {
   parseRss,
   xText,
   shareUrls,
+  linkFor,
   threadsText,
   THREADS_LIMIT,
   blogShareTick,
@@ -216,14 +217,14 @@ describe('Threads gets the article too (owner, 24.09: all three next steps)', ()
       u.threads.startsWith('https://www.threads.net/intent/post?text=')
     ).toBe(true)
     const text = decodeURIComponent(u.threads.split('text=')[1])
-    expect(text).toBe(`${article.title}\n\n${article.link}`)
+    expect(text).toBe(`${article.title}\n\n${linkFor(article, 'threads')}`)
   })
 
   it('a long title gives way; the link is never cut', () => {
     const long = { ...article, title: 'T'.repeat(900) }
     const t = threadsText(long)
     expect(t.length).toBeLessThanOrEqual(THREADS_LIMIT)
-    expect(t.endsWith(article.link)).toBe(true)
+    expect(t.endsWith(linkFor(article, 'threads'))).toBe(true)
   })
 })
 
@@ -249,7 +250,7 @@ describe('the link goes in the reply, not in the post', () => {
   })
 
   it('the link is the whole of the second post', () => {
-    expect(xThread(article).second).toBe(article.link)
+    expect(xThread(article).second).toBe(linkFor(article, 'x'))
   })
 
   it('without the link, the words get the room the link used to take', () => {
@@ -262,5 +263,48 @@ describe('the link goes in the reply, not in the post', () => {
     expect(xText(long).length).toBeLessThanOrEqual(X_LIMIT - 23)
     /* The thread does not, so it says more. */
     expect(xThread(long).first.length).toBeGreaterThan(xText(long).length)
+  })
+})
+
+/*
+ * EACH NETWORK CARRIES ITS OWN TAG (epic #2974): until now the link posted
+ * to X, LinkedIn, Reddit and Threads was one and the same, and a visitor
+ * from one could not be told from a visitor from another.
+ */
+describe('every network carries its own tag', () => {
+  const article = {
+    slug: 'gf-t',
+    title: 'Ternary floats, measured',
+    link: 'https://t27.ai/#/blog/gf-t',
+    summary: 'what the numbers say',
+  }
+  const sourceOf = (link: string) =>
+    new URL(link).searchParams.get('utm_source')
+
+  it('X, LinkedIn, Reddit and Threads each say who sent the visitor', () => {
+    const u = shareUrls(article)
+    const inner = (share: string) =>
+      decodeURIComponent(new URL(share).searchParams.get('url') ?? '')
+    expect(sourceOf(inner(u.x))).toBe('x')
+    expect(sourceOf(inner(u.linkedin))).toBe('linkedin')
+    expect(sourceOf(inner(u.reddit))).toBe('reddit')
+    const threadsLink = decodeURIComponent(u.threads.split('text=')[1]).split(
+      '\n\n'
+    )[1]
+    expect(sourceOf(threadsLink)).toBe('threads')
+    expect(sourceOf(xThread(article).second)).toBe('x')
+  })
+
+  it('the campaign is the blog and the content is the article', () => {
+    const l = new URL(linkFor(article, 'reddit'))
+    expect(l.searchParams.get('utm_campaign')).toBe('blog')
+    expect(l.searchParams.get('utm_content')).toBe('gf-t')
+    expect(l.searchParams.get('utm_medium')).toBe('social')
+    /* The route after # still opens the same article. */
+    expect(l.hash).toBe('#/blog/gf-t')
+  })
+
+  it('the owner is asked with the clean link', () => {
+    expect(questionFor(article)).toContain(`(${article.link})`)
   })
 })
