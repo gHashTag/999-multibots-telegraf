@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { logger } from '@/utils/logger'
 import { Artifact } from './types'
+import { renderBaseUrl } from '@/services/renderServer/baseUrl'
 
 /**
  * Полка завода — хранилище Railway (S3-совместимое, бакет vibee-assets),
@@ -20,33 +21,23 @@ import { Artifact } from './types'
  */
 
 /**
- * THE SHELF ADDRESS. WE ADD THE SCHEME -- RAILWAY DOES NOT.
+ * THE SHELF ADDRESS comes from `renderBaseUrl` (../renderServer/baseUrl.ts).
  *
- * Measured 2026-09-07 on the service `999-multibots-telegraf`: of the three
- * variables, ONLY `RAILWAY_SERVICE_VIBEE_RENDER_URL` is set, and Railway puts a
- * bare host in it -- `vibee-render-production.up.railway.app`, no `https://`.
- *
- * `fetch` cannot use such a string at all:
- *
- *     TypeError: Failed to parse URL from vibee-render-production.../upload
- *
- * That error is caught upstream and turned into a polite "it did not save on
- * our side" -- meaning every single upload WOULD have been refused while
- * looking like a refusal that works. The worst kind of failure: the one that
- * reports itself in a calm voice.
+ * Two lessons live there now, both paid for on the live service. Railway puts
+ * a BARE host into RAILWAY_SERVICE_VIBEE_RENDER_URL, which `fetch` cannot
+ * parse (2026-09-07). And Railway later put `auth.t27.ai` into it, a host that
+ * answers 404 to /upload, so every attachment was refused (2026-09-23). Both
+ * failures reached the person as the same calm "it did not save on our side"
+ * -- the worst kind of failure, the one that reports itself in a calm voice.
  */
 function serverBase(): string {
-  const url =
-    process.env.RENDER_SERVER_URL ||
-    process.env.VIBEE_RENDER_URL ||
-    process.env.RAILWAY_SERVICE_VIBEE_RENDER_URL
+  const url = renderBaseUrl()
   if (!url) {
     throw new Error(
       'RENDER_SERVER_URL не задан — заводу негде хранить артефакты. Это адрес сервиса vibee-render в Railway.'
     )
   }
-  const trimmed = url.trim().replace(/\/+$/, '')
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  return url
 }
 
 function apiKey(): string {
