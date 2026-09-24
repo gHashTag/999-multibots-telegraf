@@ -70,13 +70,18 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
      * THE JOB DESK. Owner, 2026-09-24: "the job agent must know every hunter
      * in my contacts, and create groups by the target audience of the bots."
      *
-     * `live`, and the word is meant literally: both hands exist and are
-     * tested -- `job_hunters` decides who is hiring from what they WROTE
+     * `training`, and the guard in this package is why. Both hands exist and
+     * are tested -- `job_hunters` decides who is hiring from what they WROTE
      * (job-hunters.ts, pure and covered), and a new group goes out as a card
-     * the owner presses (`create-group`, covered including its refusals).
-     * What is NOT yet proven is the walk over real dialogs: the classifier
-     * has never seen production. Said here rather than implied, because this
-     * file's own rule is that a polished card is not evidence.
+     * the owner presses (`create-group`, covered including its refusals) --
+     * but NOTHING has yet run end to end against a real dialog or a real
+     * group. By this file's own standard that is a trainee, however finished
+     * the card looks, and the test that says "one live specialist" caught the
+     * author of these tools reaching for `live` on his own judgement.
+     *
+     * The tools are not hidden meanwhile: the general prompt names them
+     * (chat.ts), so the agent knows it has them. Only the specialist voice
+     * waits, and it waits for the owner's word after a first real run.
      */
     id: 'job',
     icon: '⚒',
@@ -89,7 +94,7 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
       en: 'Finds which of your own contacts are hiring -- from what they wrote, never from a name -- and opens a group per audience for your press.',
       ru: 'Находит, кто из ваших контактов нанимает — по словам в переписке, не по имени, — и открывает группу под аудиторию, по вашему нажатию.',
     },
-    status: 'live',
+    status: 'training',
     creator: 'T27',
     skills: [
       { en: 'hunters among contacts', ru: 'хантеры среди контактов' },
