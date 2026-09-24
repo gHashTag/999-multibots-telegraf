@@ -24,7 +24,7 @@ vi.mock('@/hooks/useLanguage', () => ({
   globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
-let context: unknown = {
+const CONTEXT = {
   name: 'A Client',
   username: 'placeholder_client',
   stage: 'talk',
@@ -35,7 +35,9 @@ let context: unknown = {
     { at: '2026-09-22T11:00:00Z', who: 'person', text: 'а сколько стоит?' }, // cyrillic-ok: their line
   ],
 }
-let profile: unknown = { telegram_id: '900000301', has_profile: true }
+const PROFILE = { telegram_id: '900000301', has_profile: true }
+let context: unknown = CONTEXT
+let profile: unknown = PROFILE
 let fail = false
 let picks: unknown = { leads: [], count: 0 }
 let lastPick: { lead: unknown; on: unknown } | null = null
@@ -70,6 +72,8 @@ let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  context = CONTEXT
+  profile = PROFILE
   fail = false
   picks = { leads: [], count: 0 }
   lastPick = null
@@ -83,12 +87,12 @@ afterEach(() => {
   host.remove()
 })
 
-async function show(client = '900000301') {
+async function show(client = '900000301', onAsk?: (text: string) => void) {
   const { ClientAside } = await import('./ClientAside')
   await act(async () => {
     root.render(
       <MemoryRouter>
-        <ClientAside client={client} />
+        <ClientAside client={client} onAsk={onAsk} />
       </MemoryRouter>
     )
   })
@@ -176,5 +180,76 @@ describe('AUTO for this client', () => {
     })
     expect(lastPick).toEqual({ lead: '900000301', on: true })
     expect(box.checked).toBe(true)
+  })
+})
+
+/**
+ * THE COCKPIT: SOUL, RULES, THE NEXT MOVE.
+ *
+ * Owner, 2026-09-24: the card showed a name and a balance while the server
+ * returned the SOUL, the package and buying words. Pinned: they reach the
+ * screen, and a move becomes a question to the agent -- never a message to
+ * the client.
+ */
+describe('the cockpit', () => {
+  const click = async (el: Element | null | undefined) => {
+    await act(async () => {
+      ;(el as HTMLElement).click()
+    })
+  }
+
+  it('shows the SOUL excerpt and marks a draft', async () => {
+    profile = {
+      telegram_id: '900000301',
+      has_profile: true,
+      has_soul: true,
+      soul_is_draft: true,
+      soul_excerpt: 'Loves short videos about her studio',
+    }
+    await show()
+    expect(text()).toContain('Loves short videos about her studio')
+    expect(text()).toContain('crm.aside.soul.draft')
+  })
+
+  it('says SOUL is withheld instead of "none" when it is not ours', async () => {
+    profile = { has_profile: false, has_soul: false, private_withheld: true }
+    await show()
+    expect(text()).toContain('crm.aside.soul.withheld')
+    expect(text()).not.toContain('crm.aside.soul.none')
+  })
+
+  it('the rules tab puts what never to say first', async () => {
+    profile = {
+      has_profile: true,
+      profile: { business: 'yoga', forbidden: ['guarantees'] },
+    }
+    await show()
+    const tab = [...host.querySelectorAll('[role="tab"]')].find(b =>
+      b.textContent?.includes('crm.aside.tab.package')
+    )
+    await click(tab)
+    const rows = [...host.querySelectorAll('.chat-aside__rules > div')]
+    expect(rows[0].textContent).toContain('guarantees')
+    expect(rows[0].getAttribute('data-warning')).toBe('yes')
+  })
+
+  it('waiting on us: the first move is to answer, and it asks the agent', async () => {
+    profile = { telegram_id: '900000301', has_profile: true, has_soul: true }
+    const asked: string[] = []
+    await show('900000301', t => asked.push(t))
+    const first = host.querySelector('.chat-aside__move')
+    expect(first?.textContent).toContain('crm.move.answer')
+    await click(first?.querySelector('button'))
+    expect(asked).toEqual(['crm.move.answer.ask:A Client'])
+  })
+
+  it('a client who switched the assistant off gets a stop, with no button', async () => {
+    context = { ...(context as object), assistant_off: { since: null } }
+    await show('900000301', () => undefined)
+    const moves = [...host.querySelectorAll('.chat-aside__move')]
+    expect(moves).toHaveLength(1)
+    expect(moves[0].getAttribute('data-tone')).toBe('stop')
+    expect(moves[0].querySelector('button')).toBeNull()
+    expect(text()).toContain('crm.aside.assistantOff')
   })
 })

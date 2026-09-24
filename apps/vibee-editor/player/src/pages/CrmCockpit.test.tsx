@@ -1,7 +1,15 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
@@ -219,8 +227,22 @@ afterEach(() => {
   host.remove()
 })
 
+/*
+ * THE PAGE IS LOADED ONCE, BEFORE ANY TEST, WITH ROOM TO BREATHE.
+ *
+ * The first `import('./Crm')` compiles the page and takes ~4 s on a quiet
+ * machine. Inside the first test, on the image builder under load, that ran
+ * past the per-test budget while an act() was still open, and every later
+ * test in the file rendered into an overlapping act and read an empty page
+ * (player image build, 2026-09-24). Loading it here keeps the tests about
+ * the screen, not about the compiler's speed.
+ */
+let CrmPage: (typeof import('./Crm'))['default']
+beforeAll(async () => {
+  CrmPage = (await import('./Crm')).default
+}, 60_000)
+
 async function screen() {
-  const { default: CrmPage } = await import('./Crm')
   await act(async () => {
     root.render(
       <MemoryRouter>
@@ -230,6 +252,10 @@ async function screen() {
   })
   await settle()
   await settle()
+  // Under load the answers can take more than two ticks: wait for the page
+  // to have drawn something rather than asserting on a half-rendered one.
+  for (let i = 0; i < 50 && !(host.textContent ?? '').trim(); i++)
+    await settle()
 }
 
 const text = () => host.textContent ?? ''
