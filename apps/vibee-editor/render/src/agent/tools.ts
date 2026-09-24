@@ -71,6 +71,7 @@ import { join as joinPath } from 'node:path'
 import { withShelfFile } from './media-extract'
 import {
   LIPSYNC_TOOL_MAX_SECONDS,
+  LIPSYNC_UPLOAD_RETRY_MS,
   LIPSYNC_VOICE_MAX_BYTES,
   billedSecondsOf,
   cutPart,
@@ -81,6 +82,7 @@ import {
   proxyShelfUrl,
   publicShelfUrl,
   shelfKeyOf,
+  sleepMs,
   splitPlan,
   voiceTrack,
 } from './lipsync-voice'
@@ -2269,16 +2271,33 @@ export const TOOLS: AgentTool[] = [
            * takes minutes at the provider and three in a row would outlive
            * the conversation that is waiting for them.
            */
-          const clips = await Promise.all(
-            parts.map(async (part, i) => {
-              const wav = joinPath(dir, `part-${i}.wav`)
-              await cutPart(track, wav, part)
-              const audioUrl = await publishImageBytes(
-                await readFile(wav),
+          /*
+           * THE VOICE PARTS GO ON THE SHELF ONE AT A TIME. `/upload` admits
+           * two uploads at once (UploadConcurrencyGate(2) in render-server.ts)
+           * and answers 429 to the third: the first live run, 2026-09-24,
+           * uploaded three parts side by side, lost the third and refunded
+           * the whole reel. A busy shelf gets a few more tries as well, since
+           * other people upload through the same gate.
+           */
+          const voiceUrls: string[] = []
+          for (const [i, part] of parts.entries()) {
+            const wav = joinPath(dir, `part-${i}.wav`)
+            await cutPart(track, wav, part)
+            const bytes = await readFile(wav)
+            let audioUrl = ''
+            for (let attempt = 0; attempt < 4 && !audioUrl; attempt += 1) {
+              if (attempt) await sleepMs(LIPSYNC_UPLOAD_RETRY_MS * attempt)
+              audioUrl = await publishImageBytes(
+                bytes,
                 'audio/wav',
                 `lipsync-voice-${Date.now()}-${i}.wav`
               )
-              if (!audioUrl) throw new Error('голос не сохранился на полке')
+            }
+            if (!audioUrl) throw new Error('голос не сохранился на полке')
+            voiceUrls.push(audioUrl)
+          }
+          const clips = await Promise.all(
+            voiceUrls.map(async (audioUrl, i) => {
               const res = await selfFetch(
                 `${selfBase()}/api/generate/lipsync`,
                 {
