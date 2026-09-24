@@ -3,11 +3,8 @@ import { Link } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
-import {
-  AllRefused,
-  coveredByNotice,
-  oneReasonForAll,
-} from '@/components/Crm/AllRefused'
+import { AllRefused } from '@/components/Crm/AllRefused'
+import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
 import { AutoPanel } from '@/components/Crm/AutoPanel'
 import { TrafficPanel } from '@/components/Crm/TrafficPanel'
 import { Avatar } from '@/components/Crm/Avatar'

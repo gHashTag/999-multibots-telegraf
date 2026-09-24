@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
-import { coveredByNotice } from '@/components/Crm/AllRefused'
+import { coveredByNotice } from '@/components/Crm/refusalRules'
 import { NETWORK_NAMES } from '@/components/Profile/CloneNetworksCard'
 import { loadTraffic, type Reached, type Traffic } from '@/lib/crm'
 import './TrafficPanel.css'
