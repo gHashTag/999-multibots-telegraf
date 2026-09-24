@@ -395,6 +395,21 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
         const url = String(r.avatar_url ?? '').trim()
         if (url) avatars.set(String(r.telegram_id), url)
       }
+      // Faces the owner's session fetched (crm_client_avatars): every lead
+      // met in his own Telegram, not only people who once opened our bot.
+      for (const r of await tryQuery<{
+        lead_id: string
+        avatar_url: string | null
+      }>(
+        ctx!,
+        `SELECT lead_id, avatar_url FROM crm_people
+          WHERE owner_id = $1 AND lead_id = ANY($2) AND avatar_url IS NOT NULL`,
+        [owner, ids]
+      )) {
+        const url = String(r.avatar_url ?? '').trim()
+        if (url && !avatars.has(String(r.lead_id)))
+          avatars.set(String(r.lead_id), url)
+      }
       const clients = mergeClients({
         profiles,
         people,

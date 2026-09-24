@@ -4,6 +4,7 @@ import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
 import { AutoPanel } from '@/components/Crm/AutoPanel'
+import { Avatar } from '@/components/Crm/Avatar'
 import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
 import {
   LEADS_SECTIONS,
@@ -15,6 +16,8 @@ import {
   loadOverview,
   loadWaiting,
   loadHotLeads,
+  matches,
+  ensureAvatars,
   loadClientsPage,
   appendClients,
   loadGroups,
@@ -93,13 +96,9 @@ export const isUnderWay = (x: ClientRow, now = Date.now()) => {
 }
 
 /** Name, @handle or id -- whatever the person typed, matched case-blind. */
-export const matches = (x: ClientRow, q: string) => {
-  const needle = q.trim().toLowerCase()
-  if (!needle) return true
-  return [x.name, x.username, x.client, x.telegramId]
-    .filter(Boolean)
-    .some(v => String(v).toLowerCase().includes(needle))
-}
+// Lives in lib/crm.ts so the all-clients picker in the chat searches the
+// same way without importing this page; re-exported for its tests.
+export { matches }
 
 export default function CrmPage() {
   const { t } = useLanguage()
@@ -174,6 +173,13 @@ export default function CrmPage() {
     setClients(c)
     setPicked(picks.data ? new Set(picks.data) : null)
     setBusy(false)
+    // Faces the list has no picture for, fetched by the owner's session in
+    // the background; the list is re-read only if some actually arrived.
+    if (c.data?.clients.some(x => !x.avatarUrl)) {
+      void ensureAvatars().then(async n => {
+        if (n > 0) setClients(await loadClientsPage({ limit: CLIENTS_PAGE }))
+      })
+    }
   }, [])
 
   useEffect(() => {
@@ -308,9 +314,18 @@ export default function CrmPage() {
     </Panel>
   )
 
+  const faces = new Map(
+    (clients.data?.clients ?? []).map(x => [x.telegramId, x.avatarUrl])
+  )
+
   const row = (r: WaitingRow) => (
     <li key={r.telegramId} className={`crm__row crm__row--${r.waiting}`}>
       <div className="crm__who">
+        <Avatar
+          name={r.name || r.telegramId}
+          url={faces.get(r.telegramId)}
+          size={36}
+        />
         {/* The name opens the client's own page; the t.me link stays as a
             small secondary control so the primary tap lands inside the app. */}
         <Link to={`/crm/${r.telegramId}`} className="crm__open">
@@ -357,6 +372,7 @@ export default function CrmPage() {
   const clientRow = (x: ClientRow) => (
     <li key={x.telegramId} className="crm__row crm__row--client">
       <div className="crm__who">
+        <Avatar name={x.name || x.telegramId} url={x.avatarUrl} size={36} />
         <Link to={`/crm/${x.telegramId}`} className="crm__open">
           {x.name || x.telegramId}
           {x.username ? (

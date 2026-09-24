@@ -656,3 +656,13 @@
   font-weight: 600;
   letter-spacing: 0.02em;
 }
+
+/* The AUTO switch under the picture (components/Crm/AutoChip.tsx). */
+.remote-browser__auto {
+  display: flex;
+  justify-content: flex-start;
+  padding: 4px 0;
+}
+.remote-browser__auto:empty {
+  display: none;
+}

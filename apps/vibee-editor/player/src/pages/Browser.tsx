@@ -45,6 +45,7 @@ import {
   AskedPermission,
   AskedChoice,
 } from '@/components/Browser/BrowserKeys'
+import { AutoChip } from '@/components/Crm/AutoChip'
 import { isBrowserPath } from '@/lib/keptBrowser'
 import { frameStateOf, shouldReread, touchReportOf } from '@/lib/frameState'
 import { reportClientError } from '@/lib/clientErrorBeacon'
@@ -412,6 +413,14 @@ export default function BrowserPage() {
           request={inputRequest}
           onAnswered={() => setInputRequest(null)}
         />
+      ) : null}
+
+      {/* AUTO, where the agent works in the person's own browser: the same
+          switch as on the CRM screen, never wider than the scope chosen there. */}
+      {embedded ? (
+        <div className="remote-browser__auto">
+          <AutoChip />
+        </div>
       ) : null}
 
       {embedded ? <BrowserKeys /> : null}
