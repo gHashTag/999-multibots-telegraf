@@ -132,6 +132,15 @@ const NAMES: Record<string, string> = {
   'gift-late': 'портрет рисуется дольше хода, придёт позже', // cyrillic-ok: report text
   'gift-recovered': 'поздний портрет готов и сохранён', // cyrillic-ok: report text
   'sweep-failed': 'обход продавца: сбой',
+  /*
+   * Three kinds that printed as their own token in a Russian report, found
+   * by `tri contracts` on 2026-09-24. Not a silence -- the reader saw
+   * `sweep-held` beside words -- but the ones a person reads most often
+   * were the ones speaking code at him.
+   */
+  'sweep-held': 'обход продавца: жив, держит паузу', // cyrillic-ok: report text
+  'seller-silent': 'продавец молчит дольше половины суток', // cyrillic-ok: report text
+  'gift-refused': 'подарок не нарисовался', // cyrillic-ok: report text
   failure: 'сбой',
 }
 

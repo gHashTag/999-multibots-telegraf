@@ -104,6 +104,13 @@ async function main() {
     const who = out.stepped_in.map(s => `${s.lead} (${s.times})`).join(', ')
     console.log(`   вмешивался: ${who}.`) // cyrillic-ok: operator-facing
   }
+  if (out.stepped_in_unreadable) {
+    // Silence here would read as "nobody needed you", which is the pleasant
+    // half of an ambiguity the reader cannot see.
+    console.log(
+      '   с кем вмешивался — прочитать не смог: колонки ещё нет в базе.' // cyrillic-ok: operator-facing
+    )
+  }
   if (out.stepped_in_unknown) {
     console.log(
       `   ещё ${out.stepped_in_unknown} нажатий без клиента — записаны до 24.09.` // cyrillic-ok: operator-facing

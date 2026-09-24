@@ -113,6 +113,7 @@ tri — оболочка Trinity S³AI
   tri botapi     какие боты на нашем Bot API сервере и согласны ли бот, рендер и сервер
   tri auto       включён ли режим AUTO: до какого часа и сколько автоотправок осталось
   tri outcomes [дней]  сколько ушло без тебя: авто, твоей кнопкой, отменено, обходы
+  tri contracts  слова, которыми службы договариваются: кто говорит, а кого не слышат
   tri inflight   что в работе: открытые PR, рабочие деревья, диск, последние выкатки
   tri session    сессии: срок жизни, ротация, обнаружение повторного использования
   tri pairing    вход по коду: длина, срок, попытки — и совпадают ли клиенты с сервером
@@ -1189,6 +1190,17 @@ PYEOF
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
     railway run --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/commands-answered.cjs" "$@"
+    ;;
+
+  contracts)
+    # WORDS TWO SERVICES AGREE BY, AND NOTHING CHECKING THE AGREEMENT.
+    # The bot posted a journal kind the render's door never knew: 400 on
+    # every automatic send, written nowhere, and the figure built on those
+    # rows read zero by construction. The writer swallows refusals on
+    # purpose, so nothing said a word. Compares the vocabularies as source
+    # text; a pattern that finds nothing is reported as a BROKEN CHECK.
+    shift
+    node "$ROOT/scripts/cross-service-vocabularies.cjs" "$@"
     ;;
 
   outcomes)
