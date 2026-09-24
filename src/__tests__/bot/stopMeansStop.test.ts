@@ -99,8 +99,10 @@ describe('the button exists and the dispatcher hears it', () => {
     const at = src.indexOf("verb === 'halt'")
     expect(at, 'nothing answers the stop press').toBeGreaterThan(-1)
     const body = src.slice(at, at + 1400)
-    expect(body).toContain('running.get(ownerId(ctx))')
-    expect(body).toContain('abort()')
+    // Through the shared registry (services/ownerRuns.ts), not a map private
+    // to this handler: the cron sweep runs in this same process and must be
+    // reachable by the same press.
+    expect(body).toContain('stopOwnerRun(ownerId(ctx))')
     // A button that sometimes answers and sometimes does not is pressed twice.
     expect(body).toContain('нечего останавливать')
   })
@@ -165,22 +167,24 @@ describe('the press reaches the render, not just the bot', () => {
     expect(src).toContain('signal: прерыватель.signal')
   })
 
-  it('a run with no socket is a known hole, not a silent one', async () => {
+  it('the turn a clock started is reachable by the same press', async () => {
     /*
-     * Issue #2721 names it: runs with no socket (the cron sweep, duet, a2a)
-     * cannot be stopped this way, and need `stop_requested_at` checked at
-     * step boundaries instead. The registry here only holds turns the owner
-     * started from a button, which is exactly the set that has a socket.
+     * Issue #2721 lists the cron sweep among the runs that cannot be stopped
+     * "because they have no socket". Half of that is wrong: the sweep runs in
+     * THIS process, and it was unreachable only because the registry lived
+     * inside the button handler's closure.
+     *
+     * What remains genuinely out of reach is a run in ANOTHER service with no
+     * socket -- a duet, an a2a call -- and that needs `stop_requested_at` at
+     * step boundaries rather than a controller here.
      */
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
-    const src = readFileSync(
-      join(__dirname, '../../navigation/registerCommands.ts'),
+    const sweep = readFileSync(
+      join(__dirname, '../../services/crmProactive.ts'),
       'utf8'
     )
-    const at = src.indexOf('const running = new Map<string, AbortController>()')
-    expect(at).toBeGreaterThan(-1)
-    // Registered only where a turn is started for this owner, by his press.
-    expect(src).toContain('running.set(who, stopper)')
+    expect(sweep).toContain('beginOwnerRun(owner)')
+    expect(sweep).toContain('signal: stopper.signal')
   })
 })

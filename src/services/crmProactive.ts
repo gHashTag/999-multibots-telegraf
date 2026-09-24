@@ -2,6 +2,7 @@ import { logger } from '@/utils/logger'
 import type { Telegraf } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { спроситьАгента, recordTurns, type ОтветАгента } from './trinityAgent' // cyrillic-ok: pre-existing identifiers
+import { wasStoppedByOwner } from './agentStop'
 import {
   proposalCard,
   rememberCard,
@@ -127,6 +128,14 @@ export type SweepOutcome = (
   | { did: 'card'; why: string; id: string }
   | { did: 'busy'; why: string }
   | { did: 'failed'; why: string }
+  /**
+   * THE OWNER ENDED IT HIMSELF, and that is not a failure.
+   *
+   * Without its own state a stop arrives as `failed`, which pages him about
+   * something he just did -- and counts against the sweep's failure figure,
+   * which exists to show when the seller is broken.
+   */
+  | { did: 'stopped'; why: string }
 ) & { ms?: number }
 
 /** The brief. One proposal at most, nothing sent, memory first. */
@@ -1063,6 +1072,13 @@ export async function sweepOnce(
      * service and the owner needs to know which.
      */
     const raw = e instanceof Error ? e.message : String(e)
+    /*
+     * The owner's own Stop, told apart before anything decides this was a
+     * fault: a page about a button he pressed is the noise this project
+     * spends most of its effort removing.
+     */
+    if (wasStoppedByOwner(raw))
+      return { did: 'stopped', why: 'остановлено владельцем' } // cyrillic-ok: user-facing
     const dead = isTransportDeath(e)
     return {
       did: 'failed',
@@ -1613,7 +1629,28 @@ export async function runProactiveTick(
     }
   }
   const startedAt = Date.now()
-  const r = { ...(await sweepOnce(owner, deps, { holdMs: opts.holdMs })) }
+  /*
+   * THE UNATTENDED SWEEP IS STOPPABLE TOO (issue #2721).
+   *
+   * It runs in the bot's own process, so the owner's Stop can reach it -- and
+   * for a while it could not, only because the registry lived inside the
+   * button handler's closure. A turn started by a clock is exactly the one a
+   * person is most likely to want ended: he did not ask for it, and it is
+   * spending on his account while he watches.
+   */
+  const { beginOwnerRun, endOwnerRun } = await import('./ownerRuns')
+  const stopper = beginOwnerRun(owner)
+  let r: TickOutcome
+  try {
+    r = {
+      ...(await sweepOnce(owner, deps, {
+        holdMs: opts.holdMs,
+        signal: stopper.signal,
+      })),
+    }
+  } finally {
+    endOwnerRun(owner, stopper)
+  }
   // Timed HERE rather than inside the step above: the step's own measurement
   // never left the Inngest payload, and this one reaches the log and the
   // journal, which are the two places anybody actually looks.
