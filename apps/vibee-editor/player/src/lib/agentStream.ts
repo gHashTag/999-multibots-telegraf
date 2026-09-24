@@ -22,7 +22,12 @@
 import { atom } from 'jotai'
 import { editorStore } from '@/atoms/Provider'
 import { agentMessagesAtomFor } from '@/atoms/agentChat'
-import type { AgentAttachment, Message, MessagesAtom } from '@/atoms/agentChat'
+import type {
+  AgentAttachment,
+  Message,
+  MessagesAtom,
+  SendCard,
+} from '@/atoms/agentChat'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { reportClientError } from '@/lib/clientErrorBeacon'
@@ -47,6 +52,80 @@ function patchIn(
  * ABOUT a client on `/crm/:clientId/chat`; absent, it is their own thread and
  * the request looks exactly as it did before this option existed.
  */
+/** The stream's proposal, narrowed; anything malformed is no card at all. */
+export function toSendCard(raw: unknown): SendCard | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const id = typeof r.id === 'string' ? r.id : ''
+  const secret = typeof r.secret === 'string' ? r.secret : ''
+  if (!id || !secret) return null
+  const m = r.media as Record<string, unknown> | undefined
+  let media: SendCard['media']
+  if (m && typeof m === 'object') {
+    if (m.kind === 'album' && Array.isArray(m.urls))
+      media = { kind: 'album', urls: m.urls.map(String) }
+    else if (typeof m.url === 'string')
+      media =
+        m.kind === 'document'
+          ? {
+              kind: 'document',
+              url: m.url,
+              fileName: typeof m.fileName === 'string' ? m.fileName : undefined,
+            }
+          : {
+              kind: (['photo', 'video', 'voice', 'video_note'].includes(
+                String(m.kind)
+              )
+                ? m.kind
+                : 'photo') as 'photo',
+              url: m.url,
+            }
+  }
+  return {
+    id,
+    secret,
+    action: String(r.action ?? 'send'),
+    target: String(r.target ?? ''),
+    display: typeof r.display === 'string' ? r.display : undefined,
+    what: typeof r.what === 'string' ? r.what : undefined,
+    media,
+    expiresAt: Number.isFinite(Number(r.expiresAt))
+      ? Number(r.expiresAt)
+      : undefined,
+    state: 'waiting',
+  }
+}
+
+/**
+ * Send or drop a prepared message, from the app itself -- the same doors the
+ * bot's buttons use (/api/tg/proposal/confirm and /cancel), authorised by the
+ * card's one-time secret AND the caller's own signature.
+ */
+export async function answerSendCard(
+  card: SendCard,
+  send: boolean
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const r = await fetch(
+      `${API_BASE}/api/tg/proposal/${send ? 'confirm' : 'cancel'}`,
+      {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ id: card.id, secret: card.secret }),
+      }
+    )
+    const j = (await r.json().catch(() => ({}))) as {
+      ok?: boolean
+      error?: string
+    }
+    return r.ok && j.ok !== false
+      ? { ok: true }
+      : { ok: false, error: j.error || `HTTP ${r.status}` }
+  } catch (e) {
+    return { ok: false, error: String((e as Error)?.message ?? e) }
+  }
+}
+
 export interface SendOptions {
   client?: string | null
   /** A live specialist from the labour market. */
@@ -317,6 +396,11 @@ export async function sendToAgent(
             ...m,
             text: m.text + `\n\n⚠️ ${String(ev['текст'] || '')}`,
           }))
+        } else if (kind === 'proposal') {
+          // A message prepared for somebody else, waiting for the press:
+          // shown under this answer with Send / Cancel (SendCardView.tsx).
+          const card = toSendCard(ev['proposal'])
+          if (card) patch(agentId, m => ({ ...m, sendCard: card }))
         } else if (kind === 'готово') {
           // Сервер шлёт «готово» всегда; при достижении предела витков в нём
           // есть «обрыв» с причиной. Раньше этой ветки не было — и причина

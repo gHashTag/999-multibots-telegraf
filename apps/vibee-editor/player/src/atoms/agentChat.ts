@@ -48,6 +48,31 @@ export interface Message {
   /** Поток размышления модели — сворачиваемый, показывается по желанию. */
   thinking?: string
   tools?: ToolCall[]
+  /**
+   * A message the agent prepared FOR SOMEBODY ELSE (a client, a group), waiting
+   * for the owner's press. The server has always sent it on the stream; the
+   * app used to drop it, so approving meant leaving for the bot.
+   */
+  sendCard?: SendCard
+}
+
+/** One prepared send, as the stream delivers it (render tg-proposals.ts). */
+export interface SendCard {
+  id: string
+  /** One-time; valid for this card only, and only for the caller. */
+  secret: string
+  action: string
+  target: string
+  display?: string
+  what?: string
+  media?:
+    | { kind: 'photo' | 'video' | 'voice' | 'video_note'; url: string }
+    | { kind: 'document'; url: string; fileName?: string }
+    | { kind: 'album'; urls: string[] }
+  expiresAt?: number
+  /** What happened to it on this screen. */
+  state?: 'waiting' | 'sending' | 'sent' | 'cancelled' | 'failed'
+  error?: string
 }
 
 /**
