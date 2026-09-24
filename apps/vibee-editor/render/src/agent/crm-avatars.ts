@@ -84,10 +84,27 @@ export const CRM_AVATAR_TOOLS: AgentTool[] = [
       const { publishImageBytes } = await import('./tools')
       let fetched = 0
       let empty = 0
+      /*
+       * THE DIALOG WALK IS PAID FOR ONLY WHEN SOMEBODY NEEDS IT.
+       *
+       * A fresh client knows no entity, so a BARE ID resolves only after the
+       * dialogs have been listed -- hence the warm-up. A `@username` does
+       * not need it: it resolves on its own.
+       *
+       * This used to run always, and from 24.09.2026 the seller's timer
+       * calls this batch every half hour, so "always" meant a full 200-dialog
+       * walk twice an hour, on an account Telegram rate-limits. The comment
+       * justifying that call said the session was already warm after ingest;
+       * it is not -- withClient hangs up at the end of every tool call, so
+       * each one starts cold. The claim was wrong, the cost was real.
+       *
+       * Now: walk only when at least one person in this batch has no
+       * username. That is the only case a walk buys anything.
+       */
+      const needsWalk = due.some(p => !p.username)
       await withClient(ctx, async (c: any) => {
-        // One warm-up for the whole batch: a fresh client knows no entity,
-        // and a bare id resolves only after the dialogs have been listed.
-        await c.getDialogs?.({ limit: 200 }).catch(() => undefined)
+        if (needsWalk)
+          await c.getDialogs?.({ limit: 200 }).catch(() => undefined)
         for (const p of due) {
           let url: string | null = null
           try {
