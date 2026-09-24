@@ -63,6 +63,7 @@ tri — оболочка Trinity S³AI
   tri swallow  где сбой неотличим от честного пустого ответа (форма 185)
   tri layout [селектор]  как замерить высоту ДО и ПОСЛЕ правки верстки (форма 186)
   tri touch  какие кнопки меньше 44px под палец, и как чинить без двух ловушек (форма 190)
+  tri blank  как найти экран, который не нарисовал ничего и молчит об этом (форма 194)
   tri halfdone <файл>  где защита написана для одного элемента, а нужна соседям (форма 187)
   tri family <Компонент> [признак]  кто ещё в семье и до кого лекарство не дошло (форма 191)
   tri owed  храповики долга в тестах: сколько мест ещё ждёт правила (форма 192)
@@ -1580,6 +1581,37 @@ RECIPE
     echo
     echo "Сторож обязан проверять ОБЕ стороны: новых нет И починенных в списке"
     echo "нет. Без второй список копит враньё и его перестают читать."
+    ;;
+
+  blank)
+    # A SCREEN THAT RENDERS NOTHING, AND SAYS NOTHING ABOUT IT.
+    #
+    # The Hive tab was entirely black on a phone: another site refused to be
+    # framed, the browser put its own error document in the frame, and that
+    # fires `load` like any page -- so the app removed the notice and its
+    # escape link on that word. Form 194.
+    #
+    # Prints the recipe: every screen is opened and asked whether it drew
+    # anything a person can read or press. A blank one is a defect even when
+    # nothing in the console is red.
+    shift
+    cat <<RECIPE
+Проверка «экран не пустой» -- в панели браузера:
+
+  1. preview_start name=vibee-tma ; resize_window preset=mobile
+  2. на каждый экран: navigate, затем javascript_tool:
+       const main = document.querySelector('main,#root') || document.body
+       const text = (main.innerText || '').trim().length
+       const press = main.querySelectorAll('button,a[href],[role=button]').length
+       ({ path: location.pathname, text, press })
+  3. text === 0 и press <= (кнопки вкладок) -- экран пуст.
+  4. read_console_messages: отказ во встраивании, CSP и 401 не всегда
+     попадают в интерфейс.
+
+Ловушка: \`onLoad\` у рамки срабатывает и для страницы-ошибки браузера.
+Всё, что ИСЧЕЗАЕТ по этому событию (подсказка, ссылка наружу), исчезает и
+тогда, когда показать нечего. Выход должен жить независимо от него.
+RECIPE
     ;;
 
   contracts)
