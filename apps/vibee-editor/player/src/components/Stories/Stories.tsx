@@ -169,7 +169,9 @@ export function StoryViewer({
   onNext,
   onPrev,
 }: StoryViewerProps) {
+  const { t } = useLanguage()
   const [currentIndex, setCurrentIndex] = useState(initialIndex)
+  const [mediaBroken, setMediaBroken] = useState(false)
   const [progress, setProgress] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -296,11 +298,22 @@ export function StoryViewer({
             playsInline
             className="story-viewer__media"
           />
+        ) : mediaBroken ? (
+          /*
+           * A STORY'S PICTURE IS THE STORY. Hiding it would leave a black
+           * rectangle a person reads as "the end" and taps past. The one
+           * sentence says what happened; the tap-through still works, because
+           * a story that failed is still a story to move on from.
+           */
+          <p className="story-viewer__broken" role="status">
+            {t('feed.videoError')}
+          </p>
         ) : (
           <img
             src={currentStory.mediaUrl}
             alt=""
             className="story-viewer__media"
+            onError={() => setMediaBroken(true)}
           />
         )}
       </div>

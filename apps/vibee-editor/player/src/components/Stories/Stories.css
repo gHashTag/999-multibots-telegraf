@@ -81,7 +81,12 @@
 }
 
 .story-item--unviewed .story-item__avatar-wrapper {
-  background: linear-gradient(135deg, var(--vibee-green) 0%, #ff6b35 50%, #f72585 100%);
+  background: linear-gradient(
+    135deg,
+    var(--vibee-green) 0%,
+    #ff6b35 50%,
+    #f72585 100%
+  );
 }
 
 .story-item__avatar {
@@ -229,4 +234,17 @@
     height: 100%;
     object-fit: cover;
   }
+}
+
+/*
+ * A story that could not load says so, in the middle of the frame where the
+ * picture would have been. Hiding it leaves a black rectangle a person reads
+ * as "the end" -- and taps past without knowing anything went wrong.
+ */
+.story-viewer__broken {
+  margin: auto;
+  padding: 16px 20px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  text-align: center;
 }
