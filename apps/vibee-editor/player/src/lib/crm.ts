@@ -289,6 +289,15 @@ function toClients(r: Record<string, unknown>): ClientsList {
   }
 }
 
+/** One search for every list of people: name, @username, package, id. */
+export const matches = (x: ClientRow, q: string) => {
+  const needle = q.trim().toLowerCase()
+  if (!needle) return true
+  return [x.name, x.username, x.client, x.telegramId]
+    .filter(Boolean)
+    .some(v => String(v).toLowerCase().includes(needle))
+}
+
 /**
  * One page of the clients list, or a search over ALL of them (#2947). The
  * contact book puts hundreds of people in the CRM; the first fifty is not
@@ -644,6 +653,8 @@ export interface LeadContext {
   assistantOff: boolean
   /** What long-term memory (Zep) knows about them, stripped of markers. */
   memory: string | null
+  /** Their profile photo, when the CRM has one. */
+  avatarUrl: string | null
 }
 
 /**
@@ -685,6 +696,7 @@ function toLeadContext(r: Record<string, unknown>): LeadContext {
     intentScore: num(r['intent_score']),
     portrait: toPortrait(r['portrait']),
     assistantOff: !!r['assistant_off'],
+    avatarUrl: str(r['avatar_url']),
     memory: str(r['zep_context'])
       ? stripForeignMarkers(String(r['zep_context'])) || null
       : null,
@@ -706,6 +718,24 @@ export const loadLeadContext = async (chat: string) =>
     await callTool<Record<string, unknown>>('crm_lead_context', { chat }),
     toLeadContext
   )
+
+/**
+ * FACES FOR THE CRM (tool `crm_client_avatars`).
+ *
+ * The owner's session fetches the profile photos the list has no picture
+ * for, a batch at a time. Once per ten minutes per page load at most: a
+ * screen reopened ten times must not open ten Telegram sessions. Resolves
+ * to how many new faces arrived, so the caller reloads only when it helps.
+ */
+let avatarsAsked = 0
+export async function ensureAvatars(now = Date.now()): Promise<number> {
+  if (now - avatarsAsked < 10 * 60 * 1000) return 0
+  avatarsAsked = now
+  const r = await callTool<Record<string, unknown>>('crm_client_avatars', {
+    limit: 30,
+  })
+  return r.reachable ? (num(r.data?.['fetched']) ?? 0) : 0
+}
 
 /** Files exchanged with a lead (tool `crm_lead_media {lead}`). */
 export interface LeadMedia {

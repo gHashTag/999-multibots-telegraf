@@ -122,8 +122,22 @@
   border-style: dashed;
 }
 
-/* The way to everybody not in the row (#2947): a quiet circle, last. */
+/* "All clients": a button in the row of links, drawn like a circle. */
+button.chat-threads__dot {
+  /* The design system gives every <button> a fixed height; this one is a
+     circle with a caption, as tall as the links beside it. */
+  height: auto;
+  justify-content: flex-start;
+  white-space: normal;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
 .chat-threads__dot.is-all .chat-threads__circle {
   border-style: dashed;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  color: #00ff88;
+  font-size: 22px;
 }

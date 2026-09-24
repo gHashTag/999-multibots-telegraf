@@ -11,8 +11,9 @@ beforeEach(() => vi.resetModules())
 describe('ingestAfterConnect', () => {
   it('runs the ingest for that person and reports what it read', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
-    const { ingestAfterConnect } =
-      await import('./src/agent/crm-ingest-on-connect')
+    const { ingestAfterConnect } = await import(
+      './src/agent/crm-ingest-on-connect'
+    )
     const run = vi.fn(async () => ({
       people: 3,
       messages_new: 40,
@@ -29,8 +30,9 @@ describe('ingestAfterConnect', () => {
 
   it('a failing ingest is a warning, not an exception', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const { ingestAfterConnect } =
-      await import('./src/agent/crm-ingest-on-connect')
+    const { ingestAfterConnect } = await import(
+      './src/agent/crm-ingest-on-connect'
+    )
     const r = await ingestAfterConnect(
       { query: async () => ({ rows: [] }) },
       '5',
@@ -53,8 +55,9 @@ describe('ingestAfterConnect', () => {
       CRM_MEMORY_TOOLS: [{ name: 'crm_ingest_chats', handler }],
     }))
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
-    const { ingestAfterConnect } =
-      await import('./src/agent/crm-ingest-on-connect')
+    const { ingestAfterConnect } = await import(
+      './src/agent/crm-ingest-on-connect'
+    )
     const pool = { query: async () => ({ rows: [] }) }
     await ingestAfterConnect(pool, '144022504')
     expect(handler).toHaveBeenCalledTimes(1)
@@ -83,8 +86,9 @@ describe('ingestAfterConnect', () => {
       ],
     }))
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
-    const { ingestAfterConnect } =
-      await import('./src/agent/crm-ingest-on-connect')
+    const { ingestAfterConnect } = await import(
+      './src/agent/crm-ingest-on-connect'
+    )
     const r = await ingestAfterConnect(
       { query: async () => ({ rows: [] }) },
       '144022504'

@@ -466,7 +466,10 @@ describe('crm_clients paging and search', () => {
     const reads = pool.seen.filter(s =>
       /^\s*SELECT .*FROM crm_people/.test(s.sql)
     )
-    expect(reads.length).toBe(3)
+    // One page read per page; the faces read (crm_client_avatars' column)
+    // rides along per page and is counted apart -- but it too is the
+    // caller's, checked below with every other read.
+    expect(reads.filter(s => !/avatar_url/.test(s.sql)).length).toBe(3)
     for (const q of reads) expect(q.params[0], q.sql).toBe(OWNER)
   })
 

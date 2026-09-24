@@ -15,7 +15,7 @@ import {
   type LeadContext,
   type Reached,
 } from '@/lib/crm'
-import { initialsOf } from '@/components/Chat/ChatThreads'
+import { Avatar } from '@/components/Crm/Avatar'
 import {
   daysSince,
   nextMoves,
@@ -201,9 +201,12 @@ export function ClientAside({
       aria-label={t('crm.aside.title')}
     >
       <div className="chat-aside__head">
-        <span className="chat-aside__avatar" aria-hidden="true">
-          {initialsOf(name)}
-        </span>
+        <Avatar
+          name={name}
+          url={ctx?.avatarUrl}
+          size={48}
+          className="chat-aside__avatar"
+        />
         <div className="chat-aside__who">
           <span className="chat-aside__name">{name}</span>
           {ctx?.username ? (

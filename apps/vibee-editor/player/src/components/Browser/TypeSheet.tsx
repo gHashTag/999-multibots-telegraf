@@ -135,6 +135,7 @@ export function TypeSheet({
         <input
           ref={input}
           className="type-sheet__input"
+          data-ai="off"
           type={secret && !shown ? 'password' : 'text'}
           value={text}
           onChange={e => setText(e.target.value)}
