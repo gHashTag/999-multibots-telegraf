@@ -43,6 +43,23 @@ export const ROOT_VERBS = [
   'model',
   'ingest',
   'plan',
+  /*
+   * THE TURN THE OWNER IS WATCHING, ENDED BY HIM (issue #2721).
+   *
+   * A root verb, not a per-lead one: `inOwnerLane` serialises his turns, so
+   * there is exactly one of his running and the press needs no id to name
+   * it. A per-lead stop would also have to be right about WHICH lead the
+   * running turn is for, and being wrong there is a button that stops
+   * somebody else's work.
+   *
+   * CALLED `halt`, AND THAT IS NOT A STYLE CHOICE. `stop` is already a SCOPE
+   * (`crm:scope:stop`, the people who asked the assistant to be quiet), and
+   * `crmCallback` consults the root verbs FIRST -- so naming this one `stop`
+   * silently re-routed that existing button to this handler. Not a dead
+   * button: somebody else's button, doing the wrong thing. Caught by two
+   * pinned keyboards.
+   */
+  'halt',
 ] as const
 export const LEAD_VERBS = [
   'lead',
@@ -82,7 +99,7 @@ export const SCOPE_VERBS = [
 ] as const
 
 export const CRM_ROOT_RE =
-  /^crm:(menu|auto|autooff|leads|summary|sweep|model|ingest|plan)$/
+  /^crm:(menu|auto|autooff|leads|summary|sweep|model|ingest|plan|halt)$/
 export const CRM_LEAD_RE =
   /^crm:(lead|prep|gift|later|refuse!?|drop!?|undrop|back|unmute|mute):(\d{5,15})$/
 export const CRM_SCOPE_RE =
@@ -467,7 +484,13 @@ export function settledRows(
     .trim()
     .slice(0, 40)
   const rows: Array<Array<Record<string, unknown>>> = [
-    [{ text: said, callback_data: 'crm:settled', disabled: true }],
+    /*
+     * `crm:menu` rather than a word of its own: the button is disabled, so on
+     * a current host it cannot be pressed at all -- but an older Bot API
+     * ignores the flag, and there a press must land somewhere. A callback
+     * nothing catches is the dead button this repository keeps a census for.
+     */
+    [{ text: said, callback_data: crmCallback('menu'), disabled: true }],
   ]
   for (const row of cardMenuRows(lead))
     rows.push(row as unknown as Array<Record<string, unknown>>)

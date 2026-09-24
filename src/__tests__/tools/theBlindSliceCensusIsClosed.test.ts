@@ -45,6 +45,10 @@ const EXAMINED: Record<string, { sites: number; why: string }> = {
     sites: 1,
     why: 'guarded, and every assertion over the region is positive',
   },
+  'src/__tests__/bot/stopMeansStop.test.ts': {
+    sites: 1,
+    why: 'guarded: the index is asserted greater than -1 before the slice, and every assertion over the region is a presence check, so a renamed handler fails loudly rather than quietly',
+  },
   'apps/vibee-editor/render/browser-cookie-import.test.ts': {
     sites: 1,
     why: 'positive-only: the slice over browser_open is read by toBeGreaterThan(-1) and an ordering comparison, so a renamed tool collapses the region and both go red rather than quiet',

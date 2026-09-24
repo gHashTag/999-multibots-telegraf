@@ -4033,12 +4033,17 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     retry: string
   ): void => {
     inOwnerLane(ctx, retry, async () => {
+      const who = ownerId(ctx)
+      const stopper = new AbortController()
+      running.get(who)?.abort()
+      running.set(who, stopper)
       try {
         const { runSweepNow, MENU_HOLD_MS } = await import(
           '@/services/crmProactive'
         )
-        const r = await runSweepNow(bot, ownerId(ctx), {
+        const r = await runSweepNow(bot, who, {
           holdMs: MENU_HOLD_MS,
+          signal: stopper.signal,
           ...opts,
         })
         if (r.did === 'card')
@@ -4068,11 +4073,45 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
             failKeyboard(retry, noTools.test(r.why))
           )
       } catch (e) {
-        // Off the loop, a throw no longer reaches bot.catch: say it here.
-        await crmFail(ctx, 'Не вышло', e, retry)
+        /*
+         * A STOP IS NOT A FAILURE, and must not read like one.
+         *
+         * `crmFail` pages and offers "try again" -- exactly the wrong two
+         * things for a person who has just ended the turn on purpose.
+         */
+        const { STOPPED_BY_OWNER } = await import('@/services/trinityAgent')
+        const said = e instanceof Error ? e.message : String(e)
+        if (said.includes(STOPPED_BY_OWNER)) {
+          await sendLong(ctx, '⏹ Остановил. Ничего не отправлено.', hub()) // cyrillic-ok: user-facing
+        } else {
+          // Off the loop, a throw no longer reaches bot.catch: say it here.
+          await crmFail(ctx, 'Не вышло', e, retry)
+        }
+      } finally {
+        if (running.get(who) === stopper) running.delete(who)
       }
     })
   }
+  /*
+   * THE TURN THE OWNER IS WATCHING, so he can end it.
+   *
+   * Issue #2721: there is no Stop control anywhere, and a turn runs to its own
+   * ceiling whatever the person wants. One controller per owner is enough --
+   * `inOwnerLane` already serialises his turns, so there is never a second one
+   * of his to confuse it with.
+   *
+   * In memory on purpose. A restart loses the ability to stop a turn that a
+   * restart has already killed, and a table here would be a row about a process
+   * that no longer exists.
+   */
+  const running = new Map<string, AbortController>()
+
+  const stopKeyboard = () =>
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⏹ Стоп', crmCallback('halt'))],
+      [Markup.button.callback('🏠 Меню', crmCallback('menu'))],
+    ])
+
   const menuOnly = () =>
     Markup.inlineKeyboard([
       [Markup.button.callback('🏠 Меню', crmCallback('menu'))],
@@ -4086,7 +4125,9 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       ctx,
       opts.headline ??
         `⏳ Готовлю для ${lead}: читаю переписку, спрашиваю агента (до 3 минут). Ничего не уйдёт без твоей кнопки.`,
-      menuOnly()
+      // The Stop is ON the message the person is waiting at: a control three
+      // menus away is one they find after the thing they wanted to stop.
+      stopKeyboard()
     )
     runTurn(
       ctx,
@@ -4114,7 +4155,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     await sendLong(
       ctx,
       'Обход пошёл: загружаю переписку, спрашиваю агента. Если есть что предложить — карточка придёт сюда.',
-      menuOnly()
+      stopKeyboard()
     )
     runTurn(ctx, { label: '[кнопка: обход]' }, null, crmCallback('sweep'))
   }
@@ -4238,7 +4279,29 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     if (!ownerOnly(ctx) || !isPrivate(ctx)) return
     const verb = (ctx.match as RegExpMatchArray)[1]
     if (verb === 'menu') await showHome(ctx)
-    else if (verb === 'auto') await switchAutopilot(ctx, true)
+    else if (verb === 'halt') {
+      /*
+       * ENDING THE TURN HE IS WATCHING (issue #2721).
+       *
+       * Answered here rather than by the turn itself, and immediately: the
+       * abort reaches the running fetch within a moment, but the person
+       * pressed a button and must see that it landed. The turn's own words
+       * ("Остановил") follow when it unwinds.
+       *
+       * Nothing to stop is said plainly instead of silently doing nothing --
+       * a button that sometimes answers and sometimes does not is the one
+       * people press twice.
+       */
+      const had = running.get(ownerId(ctx))
+      had?.abort()
+      await sendLong(
+        ctx,
+        had
+          ? '⏹ Останавливаю — ничего не отправлю.' // cyrillic-ok: user-facing
+          : 'Сейчас нечего останавливать.', // cyrillic-ok: user-facing
+        hub()
+      )
+    } else if (verb === 'auto') await switchAutopilot(ctx, true)
     else if (verb === 'autooff') await switchAutopilot(ctx, false)
     else if (verb === 'leads') await showLeads(ctx)
     else if (verb === 'summary') await showSummary(ctx)

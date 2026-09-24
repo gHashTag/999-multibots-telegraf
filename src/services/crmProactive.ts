@@ -75,7 +75,7 @@ export interface SweepDeps {
   ask: (
     telegramId: string,
     text: string,
-    o?: { faceOf?: string }
+    o?: { faceOf?: string; signal?: AbortSignal }
   ) => Promise<ОтветАгента> // cyrillic-ok: pre-existing identifiers
   ingest: (telegramId: string) => Promise<unknown>
   push: (
@@ -155,6 +155,15 @@ export interface SweepOpts {
    * the render draws people from THEIR face in it, never the owner's.
    */
   faceOf?: string
+  /**
+   * THE OWNER'S STOP, CARRIED INTO THE TURN.
+   *
+   * A sweep started from a button is the one the owner watches, and it is the
+   * one he may want to end. The signal goes all the way to `спроситьАгента`,
+   * which turns an abort from here into `STOPPED_BY_OWNER` -- final, never
+   * replayed (issue #2721).
+   */
+  signal?: AbortSignal
 }
 /** The render's ingest tool may walk dozens of dialogs; it is not quick. */
 const INGEST_TIMEOUT_MS = 170_000
@@ -716,7 +725,17 @@ export async function sweepOnce(
    * second attempt costs another turn of the same 180 s budget, which the
    * ten-minute ceiling above already accounts for.
    */
-  const face = opts.faceOf ? { faceOf: opts.faceOf } : undefined
+  /*
+   * The face and the stop travel together, because both belong to THIS turn:
+   * whose face a picture is drawn from, and whether the owner has ended it.
+   */
+  const face =
+    opts.faceOf || opts.signal
+      ? {
+          ...(opts.faceOf ? { faceOf: opts.faceOf } : {}),
+          ...(opts.signal ? { signal: opts.signal } : {}),
+        }
+      : undefined
   const ask = async (text: string): ReturnType<SweepDeps['ask']> => {
     try {
       return face
@@ -1410,7 +1429,12 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
     // toolsOnly: a model that only talks cannot do step 2 or 3, and its
     // answer would be filed as a failure anyway -- better an honest one.
     ask: (owner, text, o) =>
-      спроситьАгента(owner, text, { toolsOnly: true, faceOf: o?.faceOf }), // cyrillic-ok: pre-existing identifiers
+      спроситьАгента(owner, text, {
+        // cyrillic-ok: pre-existing identifiers
+        toolsOnly: true,
+        faceOf: o?.faceOf,
+        ...(o?.signal ? { signal: o.signal } : {}),
+      }),
     ingest: ingestViaRender,
     pendingCard: pendingCardViaRender,
     push: (owner, draft, opts) =>
