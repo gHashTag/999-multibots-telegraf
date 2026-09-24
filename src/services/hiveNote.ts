@@ -72,6 +72,14 @@ export type HiveNote = {
     | 'client-unanswered'
   who: string | null
   what: string
+  /**
+   * WHICH CLIENT IT WAS ABOUT. An id, never a name and never their words.
+   *
+   * Added 2026-09-24. Without it the journal could say the owner stepped in
+   * thirteen times and not with whom -- and "with whom" is the only half of
+   * that sentence he can do anything about.
+   */
+  lead?: string | null
   severity: 'normal' | 'attention' | 'alarm'
 }
 
@@ -171,12 +179,14 @@ export function noteForSweep(
  */
 export function noteForPress(
   owner: string,
-  action: 'sent' | 'cancelled'
+  action: 'sent' | 'cancelled',
+  lead?: string | null
 ): HiveNote {
   return {
     kind: 'card-pressed',
     who: owner,
     what: action === 'sent' ? 'отправил' : 'не отправил', // cyrillic-ok: journal text
+    lead: lead ?? null,
     severity: 'normal',
   }
 }
@@ -193,11 +203,12 @@ export function noteForPress(
  * `crm_autopilot.sent_today` is not that memory: it resets at midnight and
  * exists to bound the day, not to remember the week.
  */
-export function noteForAutoSend(owner: string): HiveNote {
+export function noteForAutoSend(owner: string, lead?: string | null): HiveNote {
   return {
     kind: 'card-auto-sent',
     who: owner,
     what: 'ушло на автопилоте', // cyrillic-ok: journal text
+    lead: lead ?? null,
     severity: 'normal',
   }
 }
@@ -205,18 +216,18 @@ export function noteForAutoSend(owner: string): HiveNote {
 /** Write an automatic send. Same contract as a press: never throws. */
 export async function noteAutoSendToHive(
   owner: string,
-  opts: { fetchImpl?: typeof fetch } = {}
+  opts: { fetchImpl?: typeof fetch; lead?: string | null } = {}
 ): Promise<'noted' | 'not noted'> {
-  return postNote(noteForAutoSend(owner), opts.fetchImpl)
+  return postNote(noteForAutoSend(owner, opts.lead), opts.fetchImpl)
 }
 
 /** Write a press. Never throws; a journal that is down must not eat a press. */
 export async function notePressToHive(
   owner: string,
   action: 'sent' | 'cancelled',
-  opts: { fetchImpl?: typeof fetch } = {}
+  opts: { fetchImpl?: typeof fetch; lead?: string | null } = {}
 ): Promise<'noted' | 'not noted'> {
-  return postNote(noteForPress(owner, action), opts.fetchImpl)
+  return postNote(noteForPress(owner, action, opts.lead), opts.fetchImpl)
 }
 
 export async function noteSweepToHive(

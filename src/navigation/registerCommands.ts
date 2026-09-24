@@ -2415,7 +2415,7 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     // kind. Fire-and-forget on purpose -- a journal that is down must never
     // eat a press.
     void import('@/services/hiveNote').then(m =>
-      m.notePressToHive(String(ctx.from?.id ?? ''), 'sent')
+      m.notePressToHive(String(ctx.from?.id ?? ''), 'sent', { lead })
     )
     /*
      * THREE ANSWERS, BECAUSE THERE ARE THREE STATES.
@@ -2475,7 +2475,7 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     // Both buttons: "he refused it" is as much an answer as "he sent it", and
     // counting only sends would make a careful owner look like an idle one.
     void import('@/services/hiveNote').then(m =>
-      m.notePressToHive(String(ctx.from?.id ?? ''), 'cancelled')
+      m.notePressToHive(String(ctx.from?.id ?? ''), 'cancelled', { lead })
     )
     /*
      * Said plainly, and said even when the cancel call failed. The draft is

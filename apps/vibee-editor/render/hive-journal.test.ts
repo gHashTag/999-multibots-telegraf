@@ -107,7 +107,11 @@ function fakePool() {
     queries,
     async query(sql: string, params: unknown[] = []) {
       queries.push(sql)
-      if (/^\s*CREATE/i.test(sql)) return { rows: [] }
+      // CREATE and the ALTER beside it: the table predates the lead_id
+      // column, so the schema step is a create AND an alter. A fake that
+      // knows only the create throws on the alter -- which is the point of
+      // throwing rather than returning empty rows.
+      if (/^\s*(CREATE|ALTER)/i.test(sql)) return { rows: [] }
 
       if (/^\s*INSERT INTO hive_events/i.test(sql)) {
         const [kind, who, bot, amount, what, severity] = params as any[]

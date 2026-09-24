@@ -1179,7 +1179,9 @@ export async function pushCard(
          * forget, like every other note: a journal that is down must never
          * hold up a send that already happened.
          */
-        void import('./hiveNote').then(m => m.noteAutoSendToHive(ownerId))
+        void import('./hiveNote').then(m =>
+          m.noteAutoSendToHive(ownerId, { lead: cardLeadOf(draft as never) })
+        )
         await telegram.sendMessage(
           ownerId,
           autopilotSentLine(draft, opts),
