@@ -48,9 +48,13 @@ export async function runRoundNow(
   const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
   const { sendToTelegram } = await import('../auth/telegram-sender')
 
+  const { loginsOfPerson } = await import('../browser/logins')
+
   return await runRound({
     personHasTheWheel: async () =>
       personHasTheWheel(await readSession(pool, owner), Date.now()),
+    /* A network the browser is not signed into is named, not walked (#2965). */
+    logins: () => loginsOfPerson(pool, owner),
     look: async url => {
       let s = await readSession(pool, owner)
       if (!s || s.state !== 'live' || !s.cdpEndpoint) {

@@ -486,6 +486,19 @@ const en: Translations = {
   'crm.card.note':
     'Who wrote and is waiting, who is warm, the content plan and the launch tasks.',
   'crm.card.open': 'Open CRM',
+  // The clone's networks, own profile only (components/Profile/CloneNetworksCard.tsx)
+  'clone.networks.title': "🌐 My clone's networks",
+  'clone.networks.note':
+    'Where your browser is already signed in, read from its logins. Nobody sees your passwords, not even the agent.',
+  'clone.networks.count': '{n} connected',
+  'clone.networks.in': 'signed in',
+  'clone.networks.out': 'not connected',
+  'clone.networks.unknown': 'open to check',
+  'clone.networks.off':
+    'Your browser is off, so its logins cannot be read. Open it and look again.',
+  'clone.networks.ask':
+    'To connect the rest, tell the agent: "connect my networks". You type passwords yourself.',
+  'clone.networks.open': 'Open the browser',
 
   'hero.badge': 'AGI game',
   'hero.title': 'An AGI game built by digital twins of real people',
@@ -2771,6 +2784,18 @@ const ru: Translations = {
   'crm.card.note':
     'Кто написал и ждёт, кто горячий, контент-план и задачи запуска.',
   'crm.card.open': 'Открыть CRM',
+  'clone.networks.title': '🌐 Сети моего клона',
+  'clone.networks.note':
+    'Где ваш браузер уже вошёл — по его входам. Пароли не видит никто, даже агент.',
+  'clone.networks.count': 'подключено: {n}',
+  'clone.networks.in': 'вошёл',
+  'clone.networks.out': 'не подключена',
+  'clone.networks.unknown': 'откройте, чтобы проверить',
+  'clone.networks.off':
+    'Браузер выключен — его входы не прочитать. Откройте его и загляните снова.',
+  'clone.networks.ask':
+    'Чтобы подключить остальные, скажите агенту: «подключи мои сети». Пароли вводите вы сами.',
+  'clone.networks.open': 'Открыть браузер',
 
   'hero.badge': 'AGI-игра',
   'hero.title': 'AGI-игра, которую строят цифровые двойники реальных людей',

@@ -148,3 +148,81 @@ export function huntersFrom(messages: readonly HunterMessage[]): Hunter[] {
     }))
     .sort((a, b) => b.lastAt - a.lastAt)
 }
+
+/**
+ * THE DEEP HISTORY, NOT ONLY THE LAST THIRTY MESSAGES (#2956 anomaly).
+ *
+ * Acceptance on production, 2026-09-24: the job agent walked 60 live
+ * dialogs x 30 messages and found nobody -- while the CRM had already
+ * ingested up to 500 messages per contact (crm_ingest_chats). A recruiter
+ * who wrote in March is exactly who a live window of thirty never reaches.
+ *
+ * The words are matched by the DATABASE, so only candidate rows travel:
+ * each word as an ILIKE pattern, and a Capitalised twin, because ILIKE
+ * folds non-ASCII case only under a UTF-8 collation and "Вакансия" opens a
+ * sentence. huntersFrom decides after, exactly as for live messages.
+ */
+export const HISTORY_ROWS = 5_000
+
+/** Every sign word as ILIKE patterns, with wildcards in words escaped. Pure. */
+export function hunterPatterns(): string[] {
+  const esc = (w: string) => w.replace(/[\\%_]/g, m => `\\${m}`)
+  const out = new Set<string>()
+  for (const s of HUNTER_SIGNS)
+    for (const w of s.words) {
+      out.add(`%${esc(w)}%`)
+      out.add(`%${esc(w.charAt(0).toUpperCase() + w.slice(1))}%`)
+    }
+  return [...out]
+}
+
+export interface HistoryPool {
+  query: (
+    sql: string,
+    params?: unknown[]
+  ) => Promise<{ rows: Array<Record<string, unknown>> }>
+}
+
+/**
+ * The caller's OWN ingested messages that carry any sign word, newest
+ * first, never their own side of the conversation. A CRM that was never
+ * ingested (no table yet) is an empty history, not an error.
+ */
+export async function historyMessages(
+  pool: HistoryPool,
+  owner: string
+): Promise<HunterMessage[]> {
+  try {
+    const r = await pool.query(
+      `SELECT lead_id, EXTRACT(EPOCH FROM at)::bigint AS at, text
+         FROM crm_messages
+        WHERE owner_id = $1 AND NOT "out" AND text ILIKE ANY($2::text[])
+        ORDER BY at DESC
+        LIMIT $3`,
+      [owner, hunterPatterns(), HISTORY_ROWS]
+    )
+    return r.rows.map(row => ({
+      from: String(row.lead_id ?? ''),
+      at: Number(row.at) || 0,
+      text: String(row.text ?? ''),
+    }))
+  } catch {
+    return []
+  }
+}
+
+/** The same message seen live and in history counts once. Pure. */
+export function mergeMessages(
+  ...lists: ReadonlyArray<readonly HunterMessage[]>
+): HunterMessage[] {
+  const seen = new Set<string>()
+  const out: HunterMessage[] = []
+  for (const list of lists)
+    for (const m of list) {
+      const key = `${m.from}|${m.at}|${String(m.text ?? '').slice(0, 80)}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(m)
+    }
+  return out
+}

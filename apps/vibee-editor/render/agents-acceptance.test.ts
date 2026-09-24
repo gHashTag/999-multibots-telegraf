@@ -2,6 +2,7 @@ import { createRequire } from 'node:module'
 import { describe, expect, it } from 'vitest'
 import { MARKETPLACE_AGENTS } from '../packages/vibee-atoms/src/agent-marketplace'
 import { TOOLS } from './src/agent/tools'
+import { FAIL_CODES, verdictOf } from './src/agent/agent-acceptance'
 
 /*
  * THE ACCEPTANCE SCRIPT IS ONLY AS GOOD AS ITS TABLE (#2959).
@@ -21,7 +22,7 @@ const acc = require('../../../scripts/agents-acceptance.cjs') as {
   verdict: (
     a: { expect: string[] },
     run: { status: number; tools: string[]; text: string; error: string | null }
-  ) => { pass: boolean; reasons: string[] }
+  ) => { pass: boolean; reasons: string[]; codes: string[] }
 }
 const names = new Set(TOOLS.map(t => t.name))
 
@@ -74,5 +75,38 @@ describe('agents acceptance table', () => {
         .verdict({ expect: ['web_search'] }, { ...run, tools: [] })
         .reasons.join()
     ).toContain('none of web_search')
+  })
+})
+
+/*
+ * THE SCRIPT AND THE SERVER SPEAK THE SAME CODES. The market card shows the
+ * last verdict (agent-acceptance.ts); a code the server does not know would
+ * be dropped, and a failure would reach the card with no reason at all.
+ */
+describe('what the script sends the market', () => {
+  it('every failure code the script can emit is one the server keeps', () => {
+    const worst = acc.verdict(
+      { expect: ['job_hunters'] },
+      { status: 500, tools: ['tg_send'], text: '', error: 'boom' }
+    )
+    expect(worst.pass).toBe(false)
+    expect(worst.codes.length).toBe(FAIL_CODES.length)
+    for (const c of worst.codes)
+      expect((FAIL_CODES as readonly string[]).includes(c), c).toBe(true)
+    const kept = verdictOf({
+      agent: 'job',
+      pass: worst.pass,
+      tools: ['tg_send'],
+      codes: worst.codes,
+    })
+    expect(kept?.codes).toEqual(worst.codes)
+  })
+
+  it('a pass sends no codes', () => {
+    const ok = acc.verdict(
+      { expect: ['job_hunters'] },
+      { status: 200, tools: ['job_hunters'], text: 'answer', error: null }
+    )
+    expect(ok).toMatchObject({ pass: true, codes: [] })
   })
 })

@@ -19,6 +19,11 @@
  *   node scripts/agents-acceptance.cjs --dry        # the table, no calls
  *   node scripts/agents-acceptance.cjs              # every agent
  *   node scripts/agents-acceptance.cjs google habr  # some agents
+ *   ... --no-record                                  # do not update the market
+ *
+ * After a run the verdicts are POSTed to /api/agents/acceptance (keepers
+ * only): the market card shows "checked <date>" from them. Tool names and
+ * failure codes travel; answer text never does.
  */
 const { execFileSync } = require('node:child_process')
 
@@ -78,6 +83,11 @@ const AGENTS = [
 
 function agentKey() {
   if (process.env.AGENT_KEY) return process.env.AGENT_KEY.trim()
+  // `railway run --service vibee-render` (tri agents) injects AGENT_KEYS:
+  // "key:telegram_id,…". The header takes the part before the colon.
+  if (process.env.AGENT_KEYS) {
+    return process.env.AGENT_KEYS.split(',')[0].split(':')[0].trim()
+  }
   try {
     const kv = execFileSync(
       'railway',
@@ -121,17 +131,54 @@ function readStream(body) {
   return { tools, text, error }
 }
 
-/** Pass or fail for one agent, from what the stream showed. */
+/**
+ * Pass or fail for one agent, from what the stream showed. `reasons` are for
+ * the terminal; `codes` are what the server keeps (agent-acceptance.ts
+ * FAIL_CODES) -- never the prose, which may quote the owner's accounts.
+ */
 function verdict(agent, run) {
   const reasons = []
-  if (run.status !== 200) reasons.push(`HTTP ${run.status}`)
-  if (run.error) reasons.push(`error: ${run.error.slice(0, 120)}`)
-  if (!run.text.trim()) reasons.push('no answer text')
+  const codes = []
+  if (run.status !== 200) {
+    reasons.push(`HTTP ${run.status}`)
+    codes.push('http')
+  }
+  if (run.error) {
+    reasons.push(`error: ${run.error.slice(0, 120)}`)
+    codes.push('error')
+  }
+  if (!run.text.trim()) {
+    reasons.push('no answer text')
+    codes.push('no_answer')
+  }
   const acted = run.tools.filter(t => ACTING.includes(t))
-  if (acted.length) reasons.push(`acted: ${acted.join(', ')}`)
-  if (agent.expect.length && !run.tools.some(t => agent.expect.includes(t)))
+  if (acted.length) {
+    reasons.push(`acted: ${acted.join(', ')}`)
+    codes.push('acted')
+  }
+  if (agent.expect.length && !run.tools.some(t => agent.expect.includes(t))) {
     reasons.push(`none of ${agent.expect.join('/')} was called`)
-  return { pass: reasons.length === 0, reasons }
+    codes.push('expected_tool_missing')
+  }
+  return { pass: reasons.length === 0, reasons, codes }
+}
+
+/**
+ * The verdicts go to the server so the market card can show them
+ * (/api/agents/acceptance, keepers only). Tool names and codes, never text.
+ */
+async function record(verdicts, key) {
+  try {
+    const r = await fetch(`${BASE}/api/agents/acceptance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Agent-Key': key },
+      body: JSON.stringify({ verdicts }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    return r.ok ? 'recorded' : `not recorded: HTTP ${r.status}`
+  } catch (e) {
+    return `not recorded: ${String(e).slice(0, 80)}`
+  }
 }
 
 async function runOne(agent, key) {
@@ -170,6 +217,7 @@ async function main() {
     return 2
   }
   let failed = 0
+  const verdicts = []
   for (const a of list) {
     let run
     try {
@@ -179,12 +227,20 @@ async function main() {
     }
     const v = verdict(a, run)
     if (!v.pass) failed += 1
+    verdicts.push({
+      agent: a.id,
+      pass: v.pass,
+      tools: run.tools,
+      codes: v.codes,
+    })
     console.log(
       `${v.pass ? 'PASS' : 'FAIL'}  ${a.id}  tools=[${run.tools.join(',')}]` +
         (v.pass ? '' : `  ${v.reasons.join('; ')}`)
     )
   }
   console.log(`\n${list.length - failed}/${list.length} agents passed`)
+  if (!args.includes('--no-record'))
+    console.log(`market: ${await record(verdicts, key)}`)
   return failed ? 1 : 0
 }
 
