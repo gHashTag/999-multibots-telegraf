@@ -741,3 +741,420 @@ describe("the playbook is every seller's", () => {
     expect(salesPlaybook({ surface: 'web', telegramId: undefined })).toBe('')
   })
 })
+
+/*
+ * THE CONTACT BOOK (#2945). A contact with no recent dialog must still reach
+ * crm_people -- by the same person rule as the ingest, filed under the caller
+ * only, and without reading a single message.
+ */
+describe('crm_ingest_contacts', () => {
+  const user = (id: string, extra: Record<string, unknown> = {}) => ({
+    className: 'User',
+    id: { toString: () => id },
+    ...extra,
+  })
+  function bookClient(o: { flood?: boolean } = {}) {
+    const f = fakeClient()
+    const client = {
+      ...f.client,
+      async invoke(req: { className?: string }) {
+        f.calls.push(`invoke:${req?.className}`)
+        if (o.flood) throw new Error('FLOOD_WAIT_60')
+        return {
+          users: [
+            user('900000010', { firstName: 'Contact', username: 'c_one' }),
+            user('900000011', { firstName: 'Bot', bot: true }),
+            user(OWNER, { self: true }),
+            user('777000', { firstName: 'Telegram' }),
+            user('900000012', { deleted: true }),
+            user('900000013', { support: true }),
+            user('900000014', { firstName: 'No', lastName: 'Dialog' }),
+          ],
+        }
+      },
+    }
+    return { f, client }
+  }
+  const book = async (c: unknown) =>
+    (await tools(c as never),
+    await import('./src/agent/crm-memory-tools')).CRM_MEMORY_TOOLS.find(
+      t => t.name === 'crm_ingest_contacts'
+    )!
+
+  it('refuses a person without a connected account before touching Telegram', async () => {
+    const { f, client } = bookClient()
+    const tool = await book(client)
+    await expect(tool.handler({}, ctxFor('999'))).rejects.toThrow(
+      'не подключён'
+    )
+    expect(f.calls).toEqual([])
+  })
+
+  it('files people only, under the CALLER, and reads no messages', async () => {
+    const { f, client } = bookClient()
+    const pool = fakePool()
+    const tool = await book(client)
+    const r: any = await tool.handler({}, ctxFor(OWNER, pool))
+    expect(r.contacts_seen).toBe(7)
+    expect(r.people).toBe(2)
+    expect(r.skipped).toBe(5)
+    expect(r.stopped).toBeNull()
+    const rows = pool.queries.filter(q =>
+      q.sql.startsWith('INSERT INTO crm_people')
+    )
+    expect(rows.map(q => q.params[1])).toEqual(['900000010', '900000014'])
+    // Visible only to the owner whose account it came from.
+    expect(rows.every(q => q.params[0] === OWNER)).toBe(true)
+    expect(f.calls.some(x => x.startsWith('getMessages'))).toBe(false)
+    expect(f.calls.some(x => x === 'getDialogs')).toBe(false)
+    expect(f.calls.at(-1)).toBe('disconnect')
+  })
+
+  it('a FLOOD_WAIT files nothing, says where it stopped, and hangs up', async () => {
+    const { f, client } = bookClient({ flood: true })
+    const pool = fakePool()
+    const tool = await book(client)
+    const r: any = await tool.handler({}, ctxFor(OWNER, pool))
+    expect(r.stopped).toMatch(/GetContacts: .*FLOOD_WAIT_60/)
+    expect(r.people).toBe(0)
+    expect(
+      pool.queries.some(q => q.sql.startsWith('INSERT INTO crm_people'))
+    ).toBe(false)
+    expect(f.calls.at(-1)).toBe('disconnect')
+  })
+})
+
+describe('one person rule for dialogs and contacts', () => {
+  it('leadIdOf refuses exactly what the ingest always refused', async () => {
+    const { leadIdOf, contactAsDialog } =
+      await import('./src/agent/crm-memory-tools')
+    const id = (s: string) => ({ toString: () => s })
+    expect(leadIdOf({ id: id('900000020'), isUser: true, entity: {} })).toBe(
+      '900000020'
+    )
+    for (const entity of [
+      { bot: true },
+      { self: true },
+      { support: true },
+      { deleted: true },
+    ]) {
+      expect(leadIdOf({ id: id('900000021'), isUser: true, entity })).toBeNull()
+    }
+    expect(
+      leadIdOf({ id: id('-1001234'), isUser: false, entity: {} })
+    ).toBeNull()
+    expect(leadIdOf({ id: id('777000'), isUser: true, entity: {} })).toBeNull()
+    expect(
+      contactAsDialog({ className: 'Channel', id: id('900000022') }).isUser
+    ).toBe(false)
+  })
+})
+
+/*
+ * THE WALK RESUMES (#2946). A walk cut short, or one that read a full page,
+ * continues from this owner's cursor; one that reached the oldest dialog
+ * starts over; one owner's cursor never moves another's.
+ */
+describe('crm_ingest_chats resume cursor', () => {
+  it('nextCursor: full page continues, short page wraps, a stop retries', async () => {
+    const { nextCursor } = await import('./src/agent/crm-ingest-cursor')
+    const page = [
+      { date: 300, message: { id: 30 } },
+      { date: 200, message: { id: 20 } },
+    ]
+    const base = { page, asked: 2, lastDone: 1, stopped: false, from: null }
+    expect(nextCursor(base)).toEqual({ offsetDate: 200, offsetId: 20 })
+    expect(nextCursor({ ...base, asked: 5 })).toBeNull()
+    expect(nextCursor({ ...base, stopped: true, lastDone: 0 })).toEqual({
+      offsetDate: 300,
+      offsetId: 30,
+    })
+    const from = { offsetDate: 999, offsetId: 9 }
+    expect(nextCursor({ ...base, stopped: true, lastDone: -1, from })).toBe(
+      from
+    )
+  })
+
+  function cursorPool() {
+    const base = fakePool()
+    const cursors = new Map<
+      string,
+      { offset_date: number; offset_id: number }
+    >()
+    return {
+      cursors,
+      queries: base.queries,
+      query: async (sql: string, params: unknown[] = []) => {
+        const flat = sql.replace(/\s+/g, ' ').trim()
+        if (flat.startsWith('SELECT offset_date')) {
+          base.queries.push({ sql: flat, params })
+          const r = cursors.get(String(params[0]))
+          return { rows: r ? [r] : [] }
+        }
+        if (flat.startsWith('INSERT INTO crm_ingest_cursors')) {
+          base.queries.push({ sql: flat, params })
+          cursors.set(String(params[0]), {
+            offset_date: Number(params[1]),
+            offset_id: Number(params[2]),
+          })
+          return { rows: [] }
+        }
+        if (flat.startsWith('DELETE FROM crm_ingest_cursors')) {
+          cursors.delete(String(params[0]))
+          return { rows: [] }
+        }
+        return base.query(sql, params)
+      },
+    }
+  }
+
+  function pagedClient(o: { total: number; floodAt?: string }) {
+    const asked: Array<Record<string, unknown>> = []
+    // total dialogs, newest first: date = 1000 - i, message id = i + 1
+    const all = Array.from({ length: o.total }, (_, i) => ({
+      id: { toString: () => String(900000100 + i) },
+      isUser: true,
+      date: 1000 - i,
+      message: { id: i + 1 },
+      entity: { firstName: `P${i}` },
+    }))
+    const client = {
+      async getDialogs(a: { limit: number; offsetDate?: number }) {
+        asked.push(a)
+        const start = a.offsetDate
+          ? all.findIndex(d => d.date < (a.offsetDate as number))
+          : 0
+        return start < 0 ? [] : all.slice(start, start + a.limit)
+      },
+      async getMessages(chat: string) {
+        if (chat === o.floodAt) throw new Error('FLOOD_WAIT_30')
+        return []
+      },
+      async disconnect() {},
+    }
+    return { client, asked }
+  }
+
+  it('pages forward per owner and wraps at the end', async () => {
+    const { client, asked } = pagedClient({ total: 5 })
+    const { ingest } = await tools(client as never)
+    const pool = cursorPool()
+    const r1: any = await ingest.handler(
+      { limit: 2, depth: 1, resume: true },
+      ctxFor(OWNER, pool as never)
+    )
+    expect(r1.cursor).toEqual({ offsetDate: 999, offsetId: 2 })
+    const r2: any = await ingest.handler(
+      { limit: 2, depth: 1, resume: true },
+      ctxFor(OWNER, pool as never)
+    )
+    expect(asked[1]).toMatchObject({ offsetDate: 999, offsetId: 2 })
+    expect(r2.cursor).toEqual({ offsetDate: 997, offsetId: 4 })
+    const r3: any = await ingest.handler(
+      { limit: 2, depth: 1, resume: true },
+      ctxFor(OWNER, pool as never)
+    )
+    expect(r3.dialogs_seen).toBe(1)
+    expect(r3.cursor).toBeNull()
+    expect(pool.cursors.has(OWNER)).toBe(false)
+    // Only the caller's row was ever written.
+    const writes = pool.queries.filter(q =>
+      q.sql.startsWith('INSERT INTO crm_ingest_cursors')
+    )
+    expect(writes.every(q => q.params[0] === OWNER)).toBe(true)
+  })
+
+  it("one owner's cursor never moves another's", async () => {
+    const { client, asked } = pagedClient({ total: 5 })
+    const { ingest } = await tools(client as never)
+    const pool = cursorPool()
+    pool.cursors.set('555555555', { offset_date: 1, offset_id: 1 })
+    await ingest.handler(
+      { limit: 2, depth: 1, resume: true },
+      ctxFor(OWNER, pool as never)
+    )
+    expect(asked[0].offsetDate).toBeUndefined()
+    expect(pool.cursors.get('555555555')).toEqual({
+      offset_date: 1,
+      offset_id: 1,
+    })
+  })
+
+  it('a FLOOD_WAIT keeps the cursor on the last finished dialog', async () => {
+    const { client } = pagedClient({ total: 5, floodAt: '900000101' })
+    const { ingest } = await tools(client as never)
+    const pool = cursorPool()
+    const r: any = await ingest.handler(
+      { limit: 3, depth: 1, resume: true },
+      ctxFor(OWNER, pool as never)
+    )
+    expect(r.stopped).toMatch(/FLOOD_WAIT/)
+    // Dialog 0 finished, dialog 1 failed: the next walk starts after 0.
+    expect(r.cursor).toEqual({ offsetDate: 1000, offsetId: 1 })
+  })
+
+  it('without resume the cursor is neither read nor written', async () => {
+    const { client, asked } = pagedClient({ total: 5 })
+    const { ingest } = await tools(client as never)
+    const pool = cursorPool()
+    pool.cursors.set(OWNER, { offset_date: 998, offset_id: 3 })
+    await ingest.handler({ limit: 2, depth: 1 }, ctxFor(OWNER, pool as never))
+    expect(asked[0].offsetDate).toBeUndefined()
+    expect(pool.cursors.get(OWNER)).toEqual({ offset_date: 998, offset_id: 3 })
+  })
+})
+
+/*
+ * GROUPS ARE READ WHEN ASKED (#2948). A group or supergroup: yes. A channel:
+ * only one the owner runs. Messages keep their author; a PERSON who wrote is
+ * filed under the caller; a bot is not. Without `groups` nothing changes.
+ */
+describe('crm_ingest_chats groups', () => {
+  const id = (s: string) => ({ toString: () => s })
+  function groupClient(o: { floodIn?: string } = {}) {
+    const calls: string[] = []
+    const client = {
+      async getDialogs() {
+        calls.push('getDialogs')
+        return [
+          {
+            id: id('-1001111111111'),
+            isGroup: true,
+            isChannel: true,
+            entity: { title: 'Buyers club', participantsCount: 40 },
+          },
+          {
+            id: id('-1002222222222'),
+            isChannel: true,
+            entity: { title: 'News I read' },
+          },
+          {
+            id: id('-1003333333333'),
+            isChannel: true,
+            entity: { title: 'My channel', creator: true },
+          },
+          {
+            id: id('-4444444'),
+            isGroup: true,
+            entity: { title: 'Left', left: true },
+          },
+        ]
+      },
+      async getMessages(chat: { title?: string }) {
+        const t = chat?.title ?? String(chat)
+        calls.push(`getMessages:${t}`)
+        if (o.floodIn === t) throw new Error('FLOOD_WAIT_20')
+        if (t === 'My channel') return []
+        return [
+          {
+            id: 3,
+            date: 1_758_000_300,
+            message: 'how much for a portrait?',
+            senderId: id('900000301'),
+            sender: { className: 'User', firstName: 'Anna' },
+          },
+          {
+            id: 2,
+            date: 1_758_000_200,
+            message: 'daily digest',
+            senderId: id('900000302'),
+            sender: { className: 'User', bot: true, firstName: 'DigestBot' },
+          },
+          {
+            id: 1,
+            date: 1_758_000_100,
+            out: true,
+            message: 'welcome',
+            senderId: id(OWNER),
+            sender: { className: 'User', self: true },
+          },
+        ]
+      },
+      async disconnect() {
+        calls.push('disconnect')
+      },
+    }
+    return { client, calls }
+  }
+
+  it('without `groups` every group and channel is skipped, as before', async () => {
+    const { client, calls } = groupClient()
+    const { ingest } = await tools(client as never)
+    const pool = fakePool()
+    const r: any = await ingest.handler({ limit: 10 }, ctxFor(OWNER, pool))
+    expect(r.groups).toBe(0)
+    expect(calls.filter(c => c.startsWith('getMessages'))).toEqual([])
+    expect(pool.queries.some(q => /crm_group/.test(q.sql))).toBe(false)
+  })
+
+  it('with `groups`: groups and OWN channels only; authors kept; people filed under the caller', async () => {
+    const { client, calls } = groupClient()
+    const { ingest } = await tools(client as never)
+    const pool = fakePool()
+    const r: any = await ingest.handler(
+      { limit: 10, groups: true },
+      ctxFor(OWNER, pool)
+    )
+    expect(calls.filter(c => c.startsWith('getMessages'))).toEqual([
+      'getMessages:Buyers club',
+      'getMessages:My channel',
+    ])
+    expect(r.groups).toBe(2)
+    const groups = pool.queries.filter(q =>
+      q.sql.startsWith('INSERT INTO crm_groups')
+    )
+    expect(groups.map(q => [q.params[0], q.params[1], q.params[2]])).toEqual([
+      [OWNER, '-1001111111111', 'group'],
+      [OWNER, '-1003333333333', 'channel'],
+    ])
+    const msgs = pool.queries.find(q =>
+      q.sql.startsWith('INSERT INTO crm_group_messages')
+    )!
+    // (owner, chat, msg_id, sender_id, at, out, text) per row
+    expect(msgs.params.slice(0, 4)).toEqual([
+      OWNER,
+      '-1001111111111',
+      3,
+      '900000301',
+    ])
+    const people = pool.queries.filter(q =>
+      q.sql.startsWith('INSERT INTO crm_people')
+    )
+    expect(people.map(q => [q.params[0], q.params[1]])).toEqual([
+      [OWNER, '900000301'],
+    ])
+    expect(r.group_members).toBe(1)
+    expect(calls.at(-1)).toBe('disconnect')
+  })
+
+  it('a FLOOD_WAIT inside a group stops the walk and says where', async () => {
+    const { client } = groupClient({ floodIn: 'Buyers club' })
+    const { ingest } = await tools(client as never)
+    const r: any = await ingest.handler(
+      { limit: 10, groups: true },
+      ctxFor(OWNER, fakePool())
+    )
+    expect(r.stopped).toMatch(/-1001111111111: .*FLOOD_WAIT_20/)
+    expect(r.groups).toBe(0)
+  })
+
+  it('groupKindOf: groups yes, own channels yes, read-only channels, left and people no', async () => {
+    const { groupKindOf } = await import('./src/agent/crm-groups')
+    expect(groupKindOf({ id: id('-123456'), isGroup: true })).toBe('group')
+    expect(
+      groupKindOf({ id: id('-1009999999'), isChannel: true, entity: {} })
+    ).toBeNull()
+    expect(
+      groupKindOf({
+        id: id('-1009999999'),
+        isChannel: true,
+        entity: { adminRights: {} },
+      })
+    ).toBe('channel')
+    expect(
+      groupKindOf({ id: id('-123456'), isGroup: true, entity: { left: true } })
+    ).toBeNull()
+    expect(groupKindOf({ id: id('900000001'), isUser: true })).toBeNull()
+    expect(groupKindOf({ id: id('123456'), isGroup: true })).toBeNull()
+  })
+})

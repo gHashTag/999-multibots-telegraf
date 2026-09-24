@@ -1,59 +1,117 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '@/hooks/useLanguage'
 import {
   loadClientProfile,
   loadLeadContext,
+  loadClientHistory,
+  loadClientPlan,
   loadAutopilotLeads,
   pickForAutopilot,
+  recordTouch,
   type ClientProfile,
+  type ClientHistory,
+  type ClientPlan,
   type LeadContext,
   type Reached,
 } from '@/lib/crm'
+import { initialsOf } from '@/components/Chat/ChatThreads'
+import {
+  daysSince,
+  nextMoves,
+  profileHighlights,
+  temperatureOf,
+} from '@/lib/clientStrategy'
 
 /**
- * WHO THIS CONVERSATION IS ABOUT, WITHOUT LEAVING IT.
+ * WHO THIS CONVERSATION IS ABOUT, AND WHAT TO DO NEXT, WITHOUT LEAVING IT.
  *
  * Owner, 2026-09-23: in wide mode the client's card should be there straight
- * away. Until now a thread about a client showed one line -- "conversation
- * about client 900000001" -- and everything known about that person lived one
- * navigation away, which meant the answer was written without it.
+ * away. Owner, 2026-09-24: the card overlapped the row of conversations and
+ * showed a name and a balance -- the SOUL, the package and the plan the
+ * server already returns were thrown away on the way to the screen, and
+ * nothing on it said what to do next.
  *
- * WIDE MODE ONLY, and that is a CSS decision, not a JavaScript one: the aside
- * is always rendered and the stylesheet hides it below the width where two
- * columns stop fitting. A layout that depends on a measured viewport breaks
- * differently in an embedded Mini App, where the frame is resized under it.
+ * SO THE CARD IS A COCKPIT FOR ONE PERSON, IN FOUR LAYERS:
  *
- * WHAT IT SHOWS is what changes an answer: the stage and whether they ever
- * paid, whether they are waiting for us, their last words, and the package if
- * one exists. Not a dashboard -- a card.
+ *  1. Who: name, handle, stage, temperature (from buying words).
+ *  2. Pulse: are they waiting, how long silent, tokens.
+ *  3. The next move, derived from facts (lib/clientStrategy.ts), each one a
+ *     press that asks the agent in THIS conversation -- the agent proposes,
+ *     the owner confirms. Nothing on the card writes to the client.
+ *  4. Depth, in tabs: SOUL and memory, the package rules (what never to say
+ *     first), the content plan, the history with a note field.
  *
- * IT ASKS FOR NOTHING IT DOES NOT SHOW. Two tools, in parallel, each with its
- * own "unavailable": a panel that renders zeros for a server that did not
+ * WIDE MODE shows it as a column; NARROW MODE opens it as a sheet from the
+ * header's "card" button. Both are CSS decisions: a layout that depends on a
+ * measured viewport breaks in the embedded Mini App, whose frame is resized
+ * under it.
+ *
+ * IT ASKS FOR NOTHING IT DOES NOT SHOW, and every load says whether it
+ * reached anything: a panel that renders zeros for a server that did not
  * answer tells the owner this person has no history, which is a verdict the
  * screen has no right to pass.
  */
-export function ClientAside({ client }: { client: string }) {
+
+type Tab = 'soul' | 'package' | 'plan' | 'history'
+const TABS: Tab[] = ['soul', 'package', 'plan', 'history']
+
+const KNOWN_STAGES = new Set([
+  'client',
+  'refused',
+  'later',
+  'talking',
+  'written',
+  'winback',
+  'new',
+])
+
+const empty = <T,>(): Reached<T> => ({ reachable: true, data: null })
+
+/** `2026-09-13T10:00:00Z` -> `13.09`; anything unparseable is shown as is. */
+function day(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return `${String(d.getDate()).padStart(2, '0')}.${String(
+    d.getMonth() + 1
+  ).padStart(2, '0')}`
+}
+
+export function ClientAside({
+  client,
+  onAsk,
+  askDisabled = false,
+  open = false,
+  onClose,
+}: {
+  client: string
+  /** Put a question to the agent in this conversation. */
+  onAsk?: (text: string) => void
+  askDisabled?: boolean
+  /** Narrow mode: the card is a sheet, shown only while open. */
+  open?: boolean
+  onClose?: () => void
+}) {
   const { t } = useLanguage()
-  const [profile, setProfile] = useState<Reached<ClientProfile>>({
-    reachable: true,
-    data: null,
-  })
-  const [context, setContext] = useState<Reached<LeadContext>>({
-    reachable: true,
-    data: null,
-  })
+  const [profile, setProfile] = useState<Reached<ClientProfile>>(empty)
+  const [context, setContext] = useState<Reached<LeadContext>>(empty)
+  const [history, setHistory] = useState<Reached<ClientHistory>>(empty)
+  const [plan, setPlan] = useState<Reached<ClientPlan>>(empty)
+  const [tab, setTab] = useState<Tab>('soul')
+  const [soulOpen, setSoulOpen] = useState(false)
+  const [note, setNote] = useState('')
+  const [noteState, setNoteState] = useState<
+    'idle' | 'saving' | 'saved' | 'failed'
+  >('idle')
   /**
    * MAY AUTO WRITE TO THIS PERSON BY ITSELF?
    *
    * The switch on the dashboard says "chosen"; this is where somebody is
-   * chosen. Deliberately on the card and not in a list of ticks somewhere
-   * else: the decision is about THIS person, and it is made while looking at
-   * what they last said.
-   *
-   * `null` means we have not read the list yet -- the tick is not drawn at
-   * all then, because an unticked box that simply has not loaded is a lie
-   * about a setting that sends messages.
+   * chosen, while looking at what they last said. `null` means we have not
+   * read the list yet -- the tick is not drawn at all then, because an
+   * unticked box that simply has not loaded is a lie about a setting that
+   * sends messages.
    */
   const [picked, setPicked] = useState<boolean | null>(null)
   const [saving, setSaving] = useState(false)
@@ -61,14 +119,20 @@ export function ClientAside({ client }: { client: string }) {
   useEffect(() => {
     let alive = true
     void (async () => {
-      const [p, c, picks] = await Promise.all([
+      // In parallel: five independent reads; one slow tool must not hold the
+      // rest of the card off the screen.
+      const [p, c, h, pl, picks] = await Promise.all([
         loadClientProfile(client),
         loadLeadContext(client),
+        loadClientHistory(client),
+        loadClientPlan(client),
         loadAutopilotLeads(),
       ])
       if (!alive) return
       setProfile(p)
       setContext(c)
+      setHistory(h)
+      setPlan(pl)
       setPicked(picks.data ? picks.data.includes(client) : null)
     })()
     return () => {
@@ -76,62 +140,367 @@ export function ClientAside({ client }: { client: string }) {
     }
   }, [client])
 
+  const saveNote = useCallback(async () => {
+    const text = note.trim()
+    if (!text) return
+    setNoteState('saving')
+    // Our memory only: a note is written to crm_touches, never to the client.
+    const r = await recordTouch(client, 'note', text)
+    if (!r.reachable || r.data?.saved === false) {
+      setNoteState('failed')
+      return
+    }
+    setNote('')
+    setNoteState('saved')
+    setHistory(await loadClientHistory(client))
+  }, [client, note])
+
   const ctx = context.data
-  const name =
-    ctx?.name ||
-    profile.data?.client ||
-    t('crm.client.chat.title', { id: client })
+  const pr = profile.data
+  const hi = history.data
+  const pl = plan.data
+  const name = ctx?.name || pr?.client || client
+  const stage = hi?.stage ?? ctx?.stage ?? null
+  const stageLabel =
+    stage && KNOWN_STAGES.has(stage) ? t(`crm.stage.${stage}`) : stage
+  const temp = ctx ? temperatureOf(ctx.intentScore, ctx.signals) : 'unknown'
+  const silent = daysSince(ctx?.lastInbound ?? null)
+  const moves =
+    context.reachable && ctx
+      ? nextMoves({
+          stage,
+          waitingOnUs: ctx.waitingOnUs,
+          lastInbound: ctx.lastInbound,
+          lastOutbound: ctx.lastOutbound,
+          signals: ctx.signals,
+          intentScore: ctx.intentScore,
+          balanceTokens: ctx.balanceTokens,
+          portrait: ctx.portrait,
+          assistantOff: ctx.assistantOff,
+          hasSoul: pr?.hasSoul ?? true,
+          hasProfile: pr?.hasProfile ?? true,
+          planTotal: plan.reachable ? (pl?.total ?? 0) : null,
+          planDone: plan.reachable ? (pl?.done ?? 0) : null,
+        })
+      : []
+  const highlights = profileHighlights(pr?.profile ?? null)
+  const percent =
+    pl && pl.total > 0 ? Math.round((pl.done / pl.total) * 100) : 0
+  const openItems = (pl?.items ?? [])
+    .filter(i => i.status !== 'done')
+    .slice(0, 4)
+
+  const ask = (text: string) => {
+    if (!onAsk || askDisabled) return
+    onAsk(text)
+  }
 
   return (
-    <aside className="chat-aside" aria-label={t('crm.aside.title')}>
+    <aside
+      className={`chat-aside${open ? ' is-open' : ''}`}
+      aria-label={t('crm.aside.title')}
+    >
       <div className="chat-aside__head">
-        <span className="chat-aside__name">{name}</span>
-        {ctx?.username ? (
-          <a
-            className="chat-aside__handle"
-            href={`https://t.me/${ctx.username}`}
-            target="_blank"
-            rel="noreferrer"
+        <span className="chat-aside__avatar" aria-hidden="true">
+          {initialsOf(name)}
+        </span>
+        <div className="chat-aside__who">
+          <span className="chat-aside__name">{name}</span>
+          {ctx?.username ? (
+            <a
+              className="chat-aside__handle"
+              href={`https://t.me/${ctx.username}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              @{ctx.username}
+            </a>
+          ) : null}
+        </div>
+        {onClose ? (
+          <button
+            type="button"
+            className="chat-aside__close"
+            aria-label={t('crm.aside.close')}
+            onClick={onClose}
           >
-            @{ctx.username}
-          </a>
+            ×
+          </button>
         ) : null}
       </div>
 
       {!context.reachable ? (
         <p className="chat-aside__off">{t('crm.client.unreachable')}</p>
       ) : (
-        <dl className="chat-aside__facts">
-          {ctx?.stage ? (
-            <>
-              <dt>{t('crm.aside.stage')}</dt>
-              <dd>{ctx.stage}</dd>
-            </>
-          ) : null}
-          {typeof ctx?.balanceTokens === 'number' ? (
-            <>
-              <dt>{t('crm.aside.balance')}</dt>
-              <dd>{ctx.balanceTokens}</dd>
-            </>
-          ) : null}
-          {ctx?.waitingOnUs ? (
-            <>
+        <>
+          <div className="chat-aside__chips">
+            {stageLabel ? (
+              <span className="chat-aside__chip" data-stage={stage ?? ''}>
+                {stageLabel}
+              </span>
+            ) : null}
+            {temp !== 'unknown' ? (
+              <span className="chat-aside__chip" data-temp={temp}>
+                {t(`crm.aside.temp.${temp}`)}
+              </span>
+            ) : null}
+            {pr?.hasProfile ? (
+              <span className="chat-aside__chip" data-kind="package">
+                {t('crm.aside.package')}
+              </span>
+            ) : null}
+          </div>
+
+          <dl className="chat-aside__pulse">
+            <div data-alert={ctx?.waitingOnUs ? 'yes' : 'no'}>
               <dt>{t('crm.aside.waiting')}</dt>
-              <dd className="chat-aside__waiting">
-                {t('crm.aside.waiting.yes')}
+              <dd className={ctx?.waitingOnUs ? 'chat-aside__waiting' : ''}>
+                {ctx?.waitingOnUs
+                  ? t('crm.aside.waiting.yes')
+                  : t('crm.aside.waiting.no')}
               </dd>
-            </>
-          ) : null}
-        </dl>
+            </div>
+            <div>
+              <dt>{t('crm.aside.silent')}</dt>
+              <dd>
+                {silent === null
+                  ? '—'
+                  : silent === 0
+                    ? t('crm.aside.ago.today')
+                    : t('crm.aside.ago.days', { n: silent })}
+              </dd>
+            </div>
+            <div>
+              <dt>{t('crm.aside.balance')}</dt>
+              <dd>
+                {typeof ctx?.balanceTokens === 'number'
+                  ? ctx.balanceTokens
+                  : '—'}
+              </dd>
+            </div>
+          </dl>
+        </>
       )}
 
-      {ctx?.lastWords ? (
-        <blockquote className="chat-aside__words">{ctx.lastWords}</blockquote>
+      {ctx?.assistantOff ? (
+        <p className="chat-aside__stop">{t('crm.aside.assistantOff')}</p>
       ) : null}
 
-      {profile.reachable && profile.data?.hasProfile ? (
-        <p className="chat-aside__package">{t('crm.aside.package')}</p>
+      {moves.length > 0 ? (
+        <section className="chat-aside__moves" aria-label={t('crm.aside.next')}>
+          <h3 className="chat-aside__label">{t('crm.aside.next')}</h3>
+          {moves.map(m => (
+            <div key={m.id} className="chat-aside__move" data-tone={m.tone}>
+              <span>{t(`crm.move.${m.id}`)}</span>
+              {m.tone !== 'stop' && onAsk ? (
+                <button
+                  type="button"
+                  disabled={askDisabled}
+                  onClick={() => ask(t(`crm.move.${m.id}.ask`, { name }))}
+                >
+                  {t('crm.aside.askAgent')}
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </section>
       ) : null}
+
+      {ctx?.lastWords ? (
+        <figure className="chat-aside__quote">
+          <figcaption>{t('crm.aside.lastWords')}</figcaption>
+          <blockquote className="chat-aside__words">{ctx.lastWords}</blockquote>
+        </figure>
+      ) : null}
+
+      {ctx && ctx.signals.length > 0 ? (
+        <div className="chat-aside__signals">
+          {ctx.signals.map(s => (
+            <span key={s} data-signal={s}>
+              {t(`crm.signal.${s}`)}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="chat-aside__tabs" role="tablist">
+        {TABS.map(x => (
+          <button
+            key={x}
+            type="button"
+            role="tab"
+            aria-selected={tab === x}
+            className={tab === x ? 'is-active' : ''}
+            onClick={() => setTab(x)}
+          >
+            {t(`crm.aside.tab.${x}`)}
+          </button>
+        ))}
+      </div>
+
+      <div className="chat-aside__pane" role="tabpanel">
+        {tab === 'soul' ? (
+          !profile.reachable ? (
+            <p className="chat-aside__off">{t('crm.client.unreachable')}</p>
+          ) : pr?.privateWithheld ? (
+            <p className="chat-aside__off">{t('crm.aside.soul.withheld')}</p>
+          ) : (
+            <>
+              {pr?.soulExcerpt ? (
+                <div className="chat-aside__soul">
+                  {pr.soulIsDraft ? (
+                    <span className="chat-aside__badge">
+                      {t('crm.aside.soul.draft')}
+                    </span>
+                  ) : null}
+                  <p className={soulOpen ? 'is-open' : ''}>{pr.soulExcerpt}</p>
+                  {pr.soulExcerpt.length > 160 ? (
+                    <button
+                      type="button"
+                      className="chat-aside__more"
+                      onClick={() => setSoulOpen(v => !v)}
+                    >
+                      {soulOpen ? t('crm.aside.less') : t('crm.aside.more')}
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="chat-aside__off">{t('crm.aside.soul.none')}</p>
+              )}
+              {pr && pr.skills.length > 0 ? (
+                <div className="chat-aside__skills">
+                  {pr.skills.map(s => (
+                    <span key={s}>{s}</span>
+                  ))}
+                </div>
+              ) : null}
+              {ctx?.memory ? (
+                <div className="chat-aside__memory">
+                  <h4>{t('crm.aside.memory')}</h4>
+                  <p>{ctx.memory}</p>
+                </div>
+              ) : null}
+            </>
+          )
+        ) : null}
+
+        {tab === 'package' ? (
+          !profile.reachable ? (
+            <p className="chat-aside__off">{t('crm.client.unreachable')}</p>
+          ) : (
+            <>
+              {ctx?.portrait ? (
+                <p className="chat-aside__portrait">
+                  {t('crm.aside.portrait')}:{' '}
+                  {t(
+                    ctx.portrait.given
+                      ? 'crm.aside.portrait.given'
+                      : ctx.portrait.ready
+                        ? 'crm.aside.portrait.ready'
+                        : ctx.portrait.drawing
+                          ? 'crm.aside.portrait.drawing'
+                          : 'crm.aside.portrait.none'
+                  )}
+                </p>
+              ) : null}
+              {highlights.length > 0 ? (
+                <dl className="chat-aside__rules">
+                  {highlights.map(h => (
+                    <div key={h.key} data-warning={h.warning ? 'yes' : 'no'}>
+                      <dt>{h.key.replace(/_/g, ' ')}</dt>
+                      <dd>{h.text}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="chat-aside__off">{t('crm.aside.package.none')}</p>
+              )}
+            </>
+          )
+        ) : null}
+
+        {tab === 'plan' ? (
+          !plan.reachable ? (
+            <p className="chat-aside__off">{t('crm.client.unreachable')}</p>
+          ) : pl && pl.total > 0 ? (
+            <>
+              <div
+                className="chat-aside__bar"
+                role="progressbar"
+                aria-valuenow={percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <span style={{ width: `${percent}%` }} />
+              </div>
+              <p className="chat-aside__muted">
+                {t('crm.client.plan.progress', {
+                  done: pl.done,
+                  total: pl.total,
+                })}
+              </p>
+              <ul className="chat-aside__list">
+                {openItems.map(i => (
+                  <li key={i.id}>
+                    <span data-status={i.status}>{i.status}</span> {i.title}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="chat-aside__off">{t('crm.aside.plan.none')}</p>
+          )
+        ) : null}
+
+        {tab === 'history' ? (
+          <>
+            {!history.reachable ? (
+              <p className="chat-aside__off">{t('crm.client.unreachable')}</p>
+            ) : hi && hi.touches.length > 0 ? (
+              <ul className="chat-aside__list chat-aside__touches">
+                {hi.touches.slice(0, 8).map((x, i) => (
+                  <li key={`${x.at}-${i}`}>
+                    <span className="chat-aside__muted">{day(x.at)}</span>{' '}
+                    <b>{x.kind}</b>
+                    {x.note ? ` — ${x.note}` : ''}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="chat-aside__off">{t('crm.client.touches.none')}</p>
+            )}
+            <form
+              className="chat-aside__note"
+              onSubmit={e => {
+                e.preventDefault()
+                void saveNote()
+              }}
+            >
+              <input
+                type="text"
+                value={note}
+                maxLength={500}
+                placeholder={t('crm.aside.note.placeholder')}
+                onChange={e => {
+                  setNote(e.target.value)
+                  if (noteState !== 'saving') setNoteState('idle')
+                }}
+              />
+              <button
+                type="submit"
+                disabled={!note.trim() || noteState === 'saving'}
+              >
+                {t('crm.aside.note.save')}
+              </button>
+            </form>
+            {noteState === 'saved' || noteState === 'failed' ? (
+              <p className="chat-aside__muted">
+                {t(`crm.aside.note.${noteState}`)}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+      </div>
 
       {picked === null ? null : (
         <label className="chat-aside__auto">

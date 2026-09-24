@@ -1,0 +1,42 @@
+/**
+ * THE FIRST PRESS IN EACH SPECIALIST'S THREAD (#2958).
+ *
+ * The Blogger had four starters and the other agents had the general
+ * assistant's. A thread that opens on the wrong questions teaches the person
+ * that the agent does the wrong thing. Each list asks for a DRAFT or a
+ * reading -- nothing here publishes, spends or sends on the first press.
+ *
+ * Every catalogued agent has an entry; a test in Chat's suite holds that.
+ */
+export const AGENT_SUGGESTIONS: Readonly<Record<string, readonly string[]>> = {
+  blogger: [
+    'Что сильного уже сделано, но ещё не опубликовано?',
+    'Собери следующий пост EN/RU с хештегами и офером',
+    'Проверь блог: где нет триптиха или полного текста?',
+    'Подготовь контент-план для X, LinkedIn и Telegram',
+  ],
+  job: [
+    'Кто из моих контактов нанимает? Покажи признаки',
+    'Найди письма рекрутёров в почте за месяц',
+    'Подготовь ответ рекрутёру карточкой — не отправляй',
+    'Что нового для меня на hh.ru и LinkedIn?',
+  ],
+  google: [
+    'Какой спрос в поиске на мою услугу? С источниками',
+    'Кто мои конкуренты и что они предлагают?',
+    'Каких ответов нет ни у кого — где пробел?',
+    'Собери реестр источников по теме, которую я назову',
+  ],
+  tiktok: [
+    'Дай 5 хуков на первые 2 секунды для моей идеи',
+    'Напиши сценарий на 30 секунд и монтажный план',
+    'Сколько токенов стоит собрать этот ролик?',
+    'Подпись и хештеги, плюс вариант для A/B',
+  ],
+  habr: [
+    'Какой инженерный результат из репозитория стоит статьи?',
+    'Восстанови результат по коду и тестам — с командами',
+    'Черновик для Habr: утверждение, замер, ограничения',
+    'Проверь черновик: какие цифры без источника?',
+  ],
+}

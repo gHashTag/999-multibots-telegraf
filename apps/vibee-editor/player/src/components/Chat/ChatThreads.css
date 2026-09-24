@@ -121,3 +121,9 @@
   opacity: 0.55;
   border-style: dashed;
 }
+
+/* The way to everybody not in the row (#2947): a quiet circle, last. */
+.chat-threads__dot.is-all .chat-threads__circle {
+  border-style: dashed;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
