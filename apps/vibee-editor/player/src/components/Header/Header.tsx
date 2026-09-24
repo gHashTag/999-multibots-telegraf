@@ -223,6 +223,7 @@ export function Header() {
   )
 
   const [showSettings, setShowSettings] = useState(false)
+  const [brandFaceBroken, setBrandFaceBroken] = useState(false)
   const [exportSettings, setExportSettings] =
     useState<ExportSettings>(getExportSettings)
   const [showAiSubmenu, setShowAiSubmenu] = useState(false)
@@ -316,11 +317,15 @@ export function Header() {
                 никогда, ждать нечего, логотип показывается сразу. */}
             {branding.branded ? (
               <span className="logo-brand">
-                {branding.avatarUrl ? (
+                {/* The title stands on its own, so a picture that does not
+                    load simply goes: a broken-image icon beside a brand name
+                    reads as a broken app. */}
+                {branding.avatarUrl && !brandFaceBroken ? (
                   <img
                     src={branding.avatarUrl}
                     alt={branding.title || ''}
                     className="logo-brand-avatar"
+                    onError={() => setBrandFaceBroken(true)}
                   />
                 ) : null}
                 <span className="logo-brand-title">{branding.title}</span>

@@ -1,32 +1,32 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { useAtomValue } from 'jotai';
-import { userAtom } from '@/atoms';
-import { useLanguage } from '@/hooks/useLanguage';
-import { Send, Heart, MoreHorizontal, Trash2, X } from 'lucide-react';
-import { formatDistanceToNow } from '@/lib/dateUtils';
-import './Comments.css';
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { useAtomValue } from 'jotai'
+import { userAtom } from '@/atoms'
+import { useLanguage } from '@/hooks/useLanguage'
+import { Send, Heart, MoreHorizontal, Trash2, X } from 'lucide-react'
+import { formatDistanceToNow } from '@/lib/dateUtils'
+import './Comments.css'
 
 export interface Comment {
-  id: string;
-  userId: number;
-  username: string;
-  displayName?: string;
-  avatarUrl?: string;
-  text: string;
-  likesCount: number;
-  isLiked: boolean;
-  createdAt: string;
-  replies?: Comment[];
+  id: string
+  userId: number
+  username: string
+  displayName?: string
+  avatarUrl?: string
+  text: string
+  likesCount: number
+  isLiked: boolean
+  createdAt: string
+  replies?: Comment[]
 }
 
 interface CommentsProps {
-  templateId: string;
-  comments: Comment[];
-  onAddComment: (text: string, replyToId?: string) => Promise<void>;
-  onLikeComment: (commentId: string) => void;
-  onDeleteComment: (commentId: string) => void;
-  onClose?: () => void;
-  isLoading?: boolean;
+  templateId: string
+  comments: Comment[]
+  onAddComment: (text: string, replyToId?: string) => Promise<void>
+  onLikeComment: (commentId: string) => void
+  onDeleteComment: (commentId: string) => void
+  onClose?: () => void
+  isLoading?: boolean
 }
 
 export function Comments({
@@ -38,35 +38,38 @@ export function Comments({
   onClose,
   isLoading = false,
 }: CommentsProps) {
-  const { t } = useLanguage();
-  const user = useAtomValue(userAtom);
-  const [newComment, setNewComment] = useState('');
-  const [replyTo, setReplyTo] = useState<Comment | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const { t } = useLanguage()
+  const user = useAtomValue(userAtom)
+  const [newComment, setNewComment] = useState('')
+  const [replyTo, setReplyTo] = useState<Comment | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newComment.trim() || isSubmitting) return;
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      if (!newComment.trim() || isSubmitting) return
 
-    setIsSubmitting(true);
-    try {
-      await onAddComment(newComment.trim(), replyTo?.id);
-      setNewComment('');
-      setReplyTo(null);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [newComment, replyTo, isSubmitting, onAddComment]);
+      setIsSubmitting(true)
+      try {
+        await onAddComment(newComment.trim(), replyTo?.id)
+        setNewComment('')
+        setReplyTo(null)
+      } finally {
+        setIsSubmitting(false)
+      }
+    },
+    [newComment, replyTo, isSubmitting, onAddComment]
+  )
 
   const handleReply = useCallback((comment: Comment) => {
-    setReplyTo(comment);
-    inputRef.current?.focus();
-  }, []);
+    setReplyTo(comment)
+    inputRef.current?.focus()
+  }, [])
 
   const cancelReply = useCallback(() => {
-    setReplyTo(null);
-  }, []);
+    setReplyTo(null)
+  }, [])
 
   return (
     <div className="comments">
@@ -84,12 +87,21 @@ export function Comments({
       <div className="comments__list">
         {isLoading ? (
           <div className="comments__loading">
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3].map(i => (
               <div key={i} className="comment comment--skeleton">
-                <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+                <div
+                  className="skeleton"
+                  style={{ width: 40, height: 40, borderRadius: '50%' }}
+                />
                 <div className="comment__content">
-                  <div className="skeleton" style={{ width: '40%', height: 14 }} />
-                  <div className="skeleton" style={{ width: '80%', height: 16, marginTop: 8 }} />
+                  <div
+                    className="skeleton"
+                    style={{ width: '40%', height: 14 }}
+                  />
+                  <div
+                    className="skeleton"
+                    style={{ width: '80%', height: 16, marginTop: 8 }}
+                  />
                 </div>
               </div>
             ))}
@@ -100,7 +112,7 @@ export function Comments({
             <span>{t('comments.be_first')}</span>
           </div>
         ) : (
-          comments.map((comment) => (
+          comments.map(comment => (
             <CommentItem
               key={comment.id}
               comment={comment}
@@ -117,7 +129,9 @@ export function Comments({
         <form className="comments__form" onSubmit={handleSubmit}>
           {replyTo && (
             <div className="comments__reply-indicator">
-              <span>{t('comments.replying_to')} @{replyTo.username}</span>
+              <span>
+                {t('comments.replying_to')} @{replyTo.username}
+              </span>
               <button type="button" onClick={cancelReply}>
                 <X size={14} />
               </button>
@@ -130,7 +144,7 @@ export function Comments({
               className="comments__input"
               placeholder={t('comments.placeholder')}
               value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
+              onChange={e => setNewComment(e.target.value)}
               disabled={isSubmitting}
             />
             <button
@@ -144,27 +158,44 @@ export function Comments({
         </form>
       )}
     </div>
-  );
+  )
 }
 
 interface CommentItemProps {
-  comment: Comment;
-  currentUserId?: number;
-  onLike: () => void;
-  onReply: () => void;
-  onDelete: () => void;
+  comment: Comment
+  currentUserId?: number
+  onLike: () => void
+  onReply: () => void
+  onDelete: () => void
 }
 
-function CommentItem({ comment, currentUserId, onLike, onReply, onDelete }: CommentItemProps) {
-  const { t } = useLanguage();
-  const [showMenu, setShowMenu] = useState(false);
-  const isOwner = currentUserId === comment.userId;
+function CommentItem({
+  comment,
+  currentUserId,
+  onLike,
+  onReply,
+  onDelete,
+}: CommentItemProps) {
+  const { t } = useLanguage()
+  const [showMenu, setShowMenu] = useState(false)
+  const [avatarBroken, setAvatarBroken] = useState(false)
+  const isOwner = currentUserId === comment.userId
 
   return (
     <div className="comment">
+      {/*
+       * The placeholder was already here for "no picture" and did nothing for
+       * "the picture did not load" -- a broken avatar left the browser's own
+       * icon under somebody's comment. Same fallback, one more reason to
+       * reach it (components/Crm/Avatar.tsx carries the rule for the CRM).
+       */}
       <div className="comment__avatar">
-        {comment.avatarUrl ? (
-          <img src={comment.avatarUrl} alt={comment.username} />
+        {comment.avatarUrl && !avatarBroken ? (
+          <img
+            src={comment.avatarUrl}
+            alt={comment.username}
+            onError={() => setAvatarBroken(true)}
+          />
         ) : (
           <div className="comment__avatar-placeholder">
             {(comment.displayName || comment.username)[0].toUpperCase()}
@@ -218,5 +249,5 @@ function CommentItem({ comment, currentUserId, onLike, onReply, onDelete }: Comm
         </div>
       </div>
     </div>
-  );
+  )
 }

@@ -1,35 +1,35 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useLanguage } from '@/hooks/useLanguage';
-import './Stories.css';
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useLanguage } from '@/hooks/useLanguage'
+import './Stories.css'
 
 export interface Story {
-  id: string;
-  userId: number;
-  username: string;
-  displayName?: string;
-  avatarUrl?: string;
-  mediaUrl: string;
-  mediaType: 'image' | 'video';
-  createdAt: string;
-  isViewed: boolean;
-  duration?: number;
+  id: string
+  userId: number
+  username: string
+  displayName?: string
+  avatarUrl?: string
+  mediaUrl: string
+  mediaType: 'image' | 'video'
+  createdAt: string
+  isViewed: boolean
+  duration?: number
 }
 
 export interface StoryGroup {
-  userId: number;
-  username: string;
-  displayName?: string;
-  avatarUrl?: string;
-  stories: Story[];
-  hasUnviewed: boolean;
+  userId: number
+  username: string
+  displayName?: string
+  avatarUrl?: string
+  stories: Story[]
+  hasUnviewed: boolean
 }
 
 interface StoriesProps {
-  storyGroups: StoryGroup[];
-  onStoryClick: (group: StoryGroup, storyIndex: number) => void;
-  onAddStory?: () => void;
-  currentUserAvatar?: string;
+  storyGroups: StoryGroup[]
+  onStoryClick: (group: StoryGroup, storyIndex: number) => void
+  onAddStory?: () => void
+  currentUserAvatar?: string
 }
 
 export function Stories({
@@ -38,40 +38,40 @@ export function Stories({
   onAddStory,
   currentUserAvatar,
 }: StoriesProps) {
-  const { t } = useLanguage();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
+  const { t } = useLanguage()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
 
   const checkScroll = useCallback(() => {
-    const container = scrollRef.current;
-    if (!container) return;
+    const container = scrollRef.current
+    if (!container) return
 
-    setCanScrollLeft(container.scrollLeft > 0);
+    setCanScrollLeft(container.scrollLeft > 0)
     setCanScrollRight(
       container.scrollLeft < container.scrollWidth - container.clientWidth - 10
-    );
-  }, []);
+    )
+  }, [])
 
   useEffect(() => {
-    checkScroll();
-    const container = scrollRef.current;
+    checkScroll()
+    const container = scrollRef.current
     if (container) {
-      container.addEventListener('scroll', checkScroll);
-      return () => container.removeEventListener('scroll', checkScroll);
+      container.addEventListener('scroll', checkScroll)
+      return () => container.removeEventListener('scroll', checkScroll)
     }
-  }, [checkScroll, storyGroups]);
+  }, [checkScroll, storyGroups])
 
   const scroll = useCallback((direction: 'left' | 'right') => {
-    const container = scrollRef.current;
-    if (!container) return;
+    const container = scrollRef.current
+    if (!container) return
 
-    const scrollAmount = 200;
+    const scrollAmount = 200
     container.scrollBy({
       left: direction === 'left' ? -scrollAmount : scrollAmount,
       behavior: 'smooth',
-    });
-  }, []);
+    })
+  }, [])
 
   return (
     <div className="stories">
@@ -94,6 +94,10 @@ export function Stories({
                   src={currentUserAvatar}
                   alt="Your story"
                   className="story-item__avatar"
+                  onError={e => {
+                    ;(e.currentTarget as HTMLImageElement).style.display =
+                      'none'
+                  }}
                 />
               ) : (
                 <div className="story-item__avatar story-item__avatar--placeholder" />
@@ -107,7 +111,7 @@ export function Stories({
         )}
 
         {/* Story Groups */}
-        {storyGroups.map((group) => (
+        {storyGroups.map(group => (
           <button
             key={group.userId}
             className={`story-item ${group.hasUnviewed ? 'story-item--unviewed' : ''}`}
@@ -118,6 +122,10 @@ export function Stories({
                 <img
                   src={group.avatarUrl}
                   alt={group.username}
+                  onError={e => {
+                    ;(e.currentTarget as HTMLImageElement).style.display =
+                      'none'
+                  }}
                   className="story-item__avatar"
                 />
               ) : (
@@ -142,16 +150,16 @@ export function Stories({
         </button>
       )}
     </div>
-  );
+  )
 }
 
 // Story Viewer Modal
 interface StoryViewerProps {
-  group: StoryGroup;
-  initialIndex?: number;
-  onClose: () => void;
-  onNext?: () => void;
-  onPrev?: () => void;
+  group: StoryGroup
+  initialIndex?: number
+  onClose: () => void
+  onNext?: () => void
+  onPrev?: () => void
 }
 
 export function StoryViewer({
@@ -161,72 +169,75 @@ export function StoryViewer({
   onNext,
   onPrev,
 }: StoryViewerProps) {
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [progress, setProgress] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const timerRef = useRef<number | undefined>(undefined);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex)
+  const [progress, setProgress] = useState(0)
+  const [isPaused, setIsPaused] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const timerRef = useRef<number | undefined>(undefined)
 
-  const currentStory = group.stories[currentIndex];
-  const storyDuration = currentStory?.duration || 5000;
+  const currentStory = group.stories[currentIndex]
+  const storyDuration = currentStory?.duration || 5000
 
   const goToNext = useCallback(() => {
     if (currentIndex < group.stories.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-      setProgress(0);
+      setCurrentIndex(prev => prev + 1)
+      setProgress(0)
     } else {
-      onNext?.() || onClose();
+      onNext?.() || onClose()
     }
-  }, [currentIndex, group.stories.length, onNext, onClose]);
+  }, [currentIndex, group.stories.length, onNext, onClose])
 
   const goToPrev = useCallback(() => {
     if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
-      setProgress(0);
+      setCurrentIndex(prev => prev - 1)
+      setProgress(0)
     } else {
-      onPrev?.();
+      onPrev?.()
     }
-  }, [currentIndex, onPrev]);
+  }, [currentIndex, onPrev])
 
   // Auto-advance timer
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused) return
 
-    const interval = 50;
-    const step = (interval / storyDuration) * 100;
+    const interval = 50
+    const step = (interval / storyDuration) * 100
 
     timerRef.current = window.setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
-          goToNext();
-          return 0;
+          goToNext()
+          return 0
         }
-        return prev + step;
-      });
-    }, interval);
+        return prev + step
+      })
+    }, interval)
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [currentIndex, isPaused, storyDuration, goToNext]);
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [currentIndex, isPaused, storyDuration, goToNext])
 
   // Handle tap to pause/navigate
-  const handleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const clientX = 'touches' in e ? e.changedTouches[0].clientX : e.clientX;
-    const relativeX = (clientX - rect.left) / rect.width;
+  const handleTap = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const clientX = 'touches' in e ? e.changedTouches[0].clientX : e.clientX
+      const relativeX = (clientX - rect.left) / rect.width
 
-    if (relativeX < 0.3) {
-      goToPrev();
-    } else if (relativeX > 0.7) {
-      goToNext();
-    }
-  }, [goToPrev, goToNext]);
+      if (relativeX < 0.3) {
+        goToPrev()
+      } else if (relativeX > 0.7) {
+        goToNext()
+      }
+    },
+    [goToPrev, goToNext]
+  )
 
-  const handleHoldStart = useCallback(() => setIsPaused(true), []);
-  const handleHoldEnd = useCallback(() => setIsPaused(false), []);
+  const handleHoldStart = useCallback(() => setIsPaused(true), [])
+  const handleHoldEnd = useCallback(() => setIsPaused(false), [])
 
-  if (!currentStory) return null;
+  if (!currentStory) return null
 
   return (
     <div className="story-viewer">
@@ -237,8 +248,12 @@ export function StoryViewer({
               <div
                 className="story-viewer__progress-fill"
                 style={{
-                  width: index < currentIndex ? '100%' :
-                         index === currentIndex ? `${progress}%` : '0%'
+                  width:
+                    index < currentIndex
+                      ? '100%'
+                      : index === currentIndex
+                        ? `${progress}%`
+                        : '0%',
                 }}
               />
             </div>
@@ -247,7 +262,14 @@ export function StoryViewer({
 
         <div className="story-viewer__user">
           {group.avatarUrl && (
-            <img src={group.avatarUrl} alt="" className="story-viewer__avatar" />
+            <img
+              src={group.avatarUrl}
+              alt=""
+              className="story-viewer__avatar"
+              onError={e => {
+                ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+              }}
+            />
           )}
           <span className="story-viewer__username">{group.username}</span>
         </div>
@@ -283,5 +305,5 @@ export function StoryViewer({
         )}
       </div>
     </div>
-  );
+  )
 }
