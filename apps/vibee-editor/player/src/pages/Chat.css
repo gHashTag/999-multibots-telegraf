@@ -998,3 +998,55 @@ html[data-keyboard='open'] .chat-page {
   font-size: 11px;
   padding-left: 4px;
 }
+
+/* The whole SOUL, readable: the card column is too narrow for a document. */
+.soul-reader {
+  position: fixed;
+  inset: 0;
+  z-index: 1150;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.soul-reader__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+}
+.soul-reader__sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 760px;
+  max-height: 88dvh;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  background: #0b0b0b;
+  color: #fff;
+}
+.soul-reader__sheet header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.soul-reader__sheet header button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
+}
+.soul-reader__text {
+  overflow-y: auto;
+  white-space: pre-wrap;
+  line-height: 1.55;
+  font-size: 14px;
+}

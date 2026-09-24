@@ -916,10 +916,23 @@ export async function clientProfileFor(
     has_soul: soul.rows.length > 0,
     soul_is_draft: content.includes('Статус: ЧЕРНОВИК'),
     soul_excerpt: content.slice(0, 400),
+    /*
+     * THE WHOLE SOUL, not only its first 400 characters (owner, 2026-09-24:
+     * "why is SOUL.md not read in full?"). The card showed the excerpt and
+     * the agent's client brief said only "SOUL: есть" -- the person's own
+     * words about themselves never reached the answer. Bounded so a SOUL
+     * built from a thousand files cannot swallow a model's window; the
+     * length says whether anything was left out.
+     */
+    soul: content.slice(0, SOUL_MAX_CHARS),
+    soul_chars: content.length,
     skills: skills.rows.map((r: { name: string }) => r.name),
     ...withheld,
   }
 }
+
+/** The most of one SOUL a single read returns. */
+export const SOUL_MAX_CHARS = 12000
 
 export interface SchemaCheck {
   table_exists: boolean

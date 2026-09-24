@@ -40,7 +40,7 @@ import { JOB_TOOLS } from './job-tools'
 import { hunterPatterns, mergeMessages } from './job-hunters'
 
 const tool = JOB_TOOLS.find(t => t.name === 'job_hunters')!
-const OWNER = '144022504'
+const OWNER = '900000090'
 const T = 1_758_000_000
 
 /** A pool that answers crm_messages rows and records the query. */
