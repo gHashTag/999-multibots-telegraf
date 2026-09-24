@@ -79,6 +79,27 @@ export type ThreadGate =
   | { ok: true; thread: string; client: string | null; agent?: string }
   | { ok: false; status: number; error: string }
 
+/**
+ * A trainee that earned its place: STREAK_DAYS passing daily checks in a row
+ * (agent-acceptance.ts). Asked only for a catalogued trainee and a caller
+ * who is not a keeper; any failure to read the verdicts keeps it closed --
+ * a client is never sold a trainee on an unanswered question.
+ */
+async function earnedAgent(
+  getPool: () => any,
+  rawAgent: unknown
+): Promise<ReturnType<typeof marketplaceAgentById>> {
+  const agent = marketplaceAgentById(rawAgent)
+  if (!agent) return null
+  try {
+    const { streaks, STREAK_DAYS } = await import('./agent-acceptance')
+    const days = await streaks(await getPool())
+    return (days[agent.id] ?? 0) >= STREAK_DAYS ? agent : null
+  } catch {
+    return null
+  }
+}
+
 export async function threadFor(
   rawClient: unknown,
   owner: string,
@@ -105,7 +126,7 @@ export async function threadFor(
       liveMarketplaceAgentById(rawAgent) ??
       (keepers().includes(String(owner))
         ? marketplaceAgentById(rawAgent)
-        : null)
+        : await earnedAgent(getPool, rawAgent))
     if (!agent)
       return { ok: false, status: 400, error: 'agent is not available' }
     return {

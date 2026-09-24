@@ -19,6 +19,10 @@ export interface AcceptanceVerdict {
   at: string
   tools: string[]
   codes: string[]
+  /** Passing days in a row (render agent-acceptance.ts streakOf). */
+  streak?: number
+  /** Seven of them: the trainee is hireable by evidence. */
+  earned?: boolean
 }
 
 export function useAgentAcceptance(): Record<string, AcceptanceVerdict> | null {

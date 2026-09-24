@@ -148,3 +148,44 @@ describe('what was measured, next to what is promised', () => {
     expect(host.querySelectorAll('.agent-card__checked')).toHaveLength(0)
   })
 })
+
+describe('hire by evidence', () => {
+  const draw = () =>
+    act(() =>
+      root.render(
+        <MemoryRouter>
+          <AgentsPage />
+        </MemoryRouter>
+      )
+    )
+  const verdict = (agent: string, streak: number) => ({
+    agent,
+    pass: true,
+    at: '2026-10-01T08:00:00Z',
+    tools: [],
+    codes: [],
+    streak,
+    earned: streak >= 7,
+  })
+
+  it('a trainee with seven passing days can be hired by anybody', () => {
+    keeperAnswer = false
+    verdictsAnswer = { job: verdict('job', 7) }
+    draw()
+    const link = host.querySelector<HTMLAnchorElement>(
+      'a.agent-card__cta[href="/agents/job/work"]'
+    )
+    expect(link?.textContent).toContain('Hire this agent')
+    expect(host.textContent).toContain('earned by 7 days of checks')
+  })
+
+  it('short of seven, the card says how far, and hiring stays closed', () => {
+    keeperAnswer = false
+    verdictsAnswer = { job: verdict('job', 3) }
+    draw()
+    expect(host.textContent).toContain('3 of 7')
+    expect(
+      host.querySelector('a.agent-card__cta[href="/agents/job/work"]')
+    ).toBeNull()
+  })
+})
