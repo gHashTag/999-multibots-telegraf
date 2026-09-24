@@ -8758,6 +8758,8 @@ const server = createServer(async (req, res) => {
         String(req.headers['x-forwarded-for'] || '')
           .split(',')[0]
           .trim() || String(req.socket?.remoteAddress || ''),
+      // Only a bot start needs it; the arrival stays open to any page.
+      serviceKey: authenticate(req).via === 'api-key',
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))

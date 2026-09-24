@@ -43,8 +43,10 @@ import {
   appRouteFromStartParam,
   refreshMainWebApp,
   sendAppDoor,
+  splitStartSource,
   type AppRoute,
 } from '@/navigation/helpers/appLinks'
+import { reportBotStart } from '@/services/trafficStart'
 import {
   ACTION_PREFIX,
   standardButtons,
@@ -2838,7 +2840,21 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       if (ctx.message && 'text' in ctx.message) {
         const parts = ctx.message.text.split(' ')
         if (parts.length > 1) {
-          const startParam = parts[1]
+          /*
+           * The channel a tagged link carries (`app_feed__telegram`) is cut
+           * off FIRST, so every branch below reads the payload our link
+           * built, and the start is counted by channel without waiting.
+           */
+          const {
+            base: startParam,
+            source: startSource,
+            campaign: startCampaign,
+          } = splitStartSource(parts[1])
+          if (startSource)
+            void reportBotStart({
+              source: startSource,
+              campaign: startCampaign,
+            })
 
           /*
            * The CRM deep link is read FIRST and consumed whole.
