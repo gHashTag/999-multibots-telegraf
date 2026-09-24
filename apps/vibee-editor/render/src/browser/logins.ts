@@ -27,6 +27,7 @@
  * sign in again to an account they already hold.
  */
 import { browserWsUrl, callOnTarget } from './cdp'
+import { readSession, type Queryable } from './sessions'
 
 export type LoginState = 'signed_in' | 'expired' | 'signed_out' | 'unknown'
 
@@ -222,4 +223,18 @@ export async function readLogins(
   const ws = await io.wsUrl(cdpEndpoint)
   const got = await io.call(ws, 'Storage.getCookies', {})
   return loginsOf(marksOf(got.cookies), nowMs)
+}
+
+/**
+ * The logins of ONE person's own browser, or null when it is not running.
+ * The only door: the tool and the clone status both come through here, so
+ * "whose pod" is decided in one place -- by the caller's own telegram id.
+ */
+export async function loginsOfPerson(
+  q: Queryable,
+  telegramId: string
+): Promise<NetworkLogin[] | null> {
+  const session = await readSession(q, telegramId)
+  if (!session || session.state !== 'live' || !session.cdpEndpoint) return null
+  return readLogins(session.cdpEndpoint, Date.now())
 }

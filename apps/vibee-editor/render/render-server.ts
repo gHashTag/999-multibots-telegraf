@@ -84,7 +84,11 @@ import {
   clubCashierToken,
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
-import { isClonePath, handleClone } from './src/agent/clone-readiness'
+import {
+  isClonePath,
+  handleClone,
+  accountsOf,
+} from './src/agent/clone-readiness'
 import {
   isBrowserPath,
   handleBrowser,
@@ -8687,6 +8691,12 @@ const server = createServer(async (req, res) => {
     const out = await handleClone(req, {
       getPool: async () => (await getPool()) as any,
       identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      /* #2963: which networks the person's OWN browser holds, booleans only. */
+      accounts: async who => {
+        const { loginsOfPerson } = await import('./src/browser/logins')
+        const list = await loginsOfPerson((await getPool()) as any, who)
+        return list ? accountsOf(list) : null
+      },
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))

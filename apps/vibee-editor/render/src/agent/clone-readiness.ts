@@ -18,6 +18,8 @@
  * clone ready" does not need it, so it does not travel.
  */
 
+import type { NetworkLogin } from '../browser/logins'
+
 export interface Queryable {
   query: (
     sql: string,
@@ -31,9 +33,63 @@ export function isClonePath(path: string): boolean {
   return (CLONE_PATHS as readonly string[]).includes(path)
 }
 
+/**
+ * The networks the person's own browser holds (#2963): true = signed in,
+ * false = signed out or expired, null = we cannot tell for that network.
+ * Booleans only, like everything else this route answers.
+ */
+export type Accounts = Record<string, boolean | null>
+
 export interface CloneDeps {
   getPool: () => Promise<Queryable>
   identity: (req: { url?: string; method?: string }) => string | null
+  /**
+   * Reads the logins of `who`'s own browser, or null when it is off. Absent
+   * in a deployment without browsers: `accounts` is then null (unknown).
+   */
+  accounts?: (who: string) => Promise<Accounts | null>
+}
+
+/** Per-network states, reduced to what this route may carry. Pure. */
+export function accountsOf(list: NetworkLogin[]): Accounts {
+  const out: Accounts = {}
+  for (const n of list)
+    out[n.id] =
+      n.state === 'signed_in' ? true : n.state === 'unknown' ? null : false
+  return out
+}
+
+/**
+ * How long the status waits for the browser. The welcome road asks this on
+ * every profile visit; a pod that is slow to answer must not hold the voice
+ * and the photo hostage.
+ */
+export const ACCOUNTS_WAIT_MS = 3_000
+
+/**
+ * The browser's answer, or null -- on a timeout, a failure or no reader.
+ * NULL IS NOT "NO ACCOUNTS": an empty object would send the person to sign
+ * in again to accounts they already hold. Never throws.
+ */
+export async function accountsWithin(
+  read: CloneDeps['accounts'],
+  who: string,
+  ms = ACCOUNTS_WAIT_MS
+): Promise<Accounts | null> {
+  if (!read) return null
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      read(who),
+      new Promise<null>(resolve => {
+        timer = setTimeout(() => resolve(null), ms)
+      }),
+    ])
+  } catch {
+    return null
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 /**
@@ -86,6 +142,8 @@ export async function handleClone(
     } // cyrillic-ok: user-facing error
   }
 
+  /* Asked alongside the row, so a slow pod costs no more than its wait. */
+  const accountsP = accountsWithin(deps.accounts, who)
   try {
     const pool = await deps.getPool()
     /*
@@ -109,7 +167,15 @@ export async function handleClone(
        * they signed in and have not been created yet. Every piece is simply
        * absent, which is the truth and lets the welcome start at step one.
        */
-      return { status: 200, body: { ok: true, voice: false, photo: false } }
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          voice: false,
+          photo: false,
+          accounts: await accountsP,
+        },
+      }
     }
     return {
       status: 200,
@@ -121,6 +187,7 @@ export async function handleClone(
         // because it was stored under the name this route did not know.
         voice: present(row.voice_id_elevenlabs) || present(row.voice_id),
         photo: present(row.photo_url),
+        accounts: await accountsP,
       },
     }
   } catch (e) {
