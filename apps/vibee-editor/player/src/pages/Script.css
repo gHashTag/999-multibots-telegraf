@@ -1206,3 +1206,35 @@
   justify-content: flex-end;
   padding: 10px 0;
 }
+
+/*
+ * A FINGER ON THE SCRIPT SCREEN.
+ *
+ * Measured at 375px on 25.09.2026, walking the ROUTE LIST rather than the
+ * screens I remembered: eighteen controls here were under the target the
+ * rest of the app already keeps -- the tone and topic chips at 28px, the
+ * voice button at 32, the select at 40. This is a working screen, and every
+ * one of those is a tap somebody makes while writing.
+ *
+ * Coarse pointers only, and AFTER the base rules: same specificity, the last
+ * one wins (the trap that cost a pass on the CRM chips).
+ */
+@media (pointer: coarse) {
+  .script-chip {
+    min-height: var(--touch-target, 44px);
+    padding-block: 10px;
+  }
+
+  .script-select {
+    min-height: var(--touch-target, 44px);
+  }
+
+  .script-voice-btn {
+    width: var(--touch-target, 44px);
+    height: var(--touch-target, 44px);
+  }
+
+  .script-templates-toggle {
+    min-height: var(--touch-target, 44px);
+  }
+}
