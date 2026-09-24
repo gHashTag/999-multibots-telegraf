@@ -278,6 +278,17 @@ export function braveKey(): string {
   return String(process.env.BRAVE_SEARCH_API_KEY ?? '').trim()
 }
 
+/** Brave's own error code from a failed answer, or '' (e.g. SUBSCRIPTION_TOKEN_INVALID). */
+export async function braveErrorCode(response: Response): Promise<string> {
+  try {
+    const body = JSON.parse(await readBoundedText(response, 4_096))
+    const code = String(body?.error?.code ?? '')
+    return /^[A-Z0-9_]{2,64}$/.test(code) ? code : ''
+  } catch {
+    return ''
+  }
+}
+
 export async function braveApiSearch(
   query: string,
   count: number,
@@ -292,7 +303,16 @@ export async function braveApiSearch(
     signal: AbortSignal.timeout(BRAVE_TIMEOUT_MS),
     headers: { accept: 'application/json', 'x-subscription-token': key },
   })
-  if (!response.ok) throw new Error(`brave HTTP ${response.status}`)
+  if (!response.ok) {
+    /*
+     * BRAVE SAYS WHY IN ITS BODY, and the status alone does not: a 422 is
+     * both "this key is not valid" and "this query is not" (24.09: every
+     * search answered 422 right after the key was set). The error CODE is
+     * logged -- never the key, never the query.
+     */
+    const code = await braveErrorCode(response)
+    throw new Error(`brave HTTP ${response.status}${code ? ` ${code}` : ''}`)
+  }
   const data = JSON.parse(await readBoundedText(response, MAX_BACKEND_BYTES))
   const results = data?.web?.results
   const hits: SearchHit[] = (Array.isArray(results) ? results : [])
