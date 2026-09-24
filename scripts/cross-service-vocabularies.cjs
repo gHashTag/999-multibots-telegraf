@@ -56,6 +56,53 @@ function keys(source, from, to) {
   ]
 }
 
+const { readdirSync } = require('node:fs')
+
+/** Every file under a directory, recursively, minus the tests. */
+function sources(dir, out = []) {
+  let entries
+  try {
+    entries = readdirSync(resolve(ROOT, dir), { withFileTypes: true })
+  } catch {
+    return out
+  }
+  for (const e of entries) {
+    const p = dir + '/' + e.name
+    if (e.isDirectory()) sources(p, out)
+    else if (/\.(ts|tsx|cjs)$/.test(e.name) && !e.name.includes('.test.'))
+      out.push(p)
+  }
+  return out
+}
+
+/**
+ * Every tool name the render registers.
+ *
+ * Read from the agent directory rather than from the exported TOOLS array:
+ * the array is assembled at runtime from a dozen modules, and this file must
+ * stay a reader of text, with no service to boot.
+ */
+function registeredTools() {
+  const names = new Set()
+  for (const f of sources('apps/vibee-editor/render/src/agent'))
+    for (const m of read(f).matchAll(/name: '([a-z_0-9]+)'/g)) names.add(m[1])
+  return [...names]
+}
+
+/** Tool names the app and the scripts ask for by name. */
+function calledTools() {
+  const names = new Set()
+  for (const dir of ['apps/vibee-editor/player/src', 'scripts'])
+    for (const f of sources(dir)) {
+      const src = read(f)
+      for (const m of src.matchAll(/callTool[^(]*\('([a-z_0-9]+)'/g))
+        names.add(m[1])
+      for (const m of src.matchAll(/name:\s*'([a-z_0-9]+)',\s*arguments/g))
+        names.add(m[1])
+    }
+  return [...names]
+}
+
 /*
  * THE PAIRS. `says` is what one side can send, `hears` what the other accepts.
  *
@@ -132,6 +179,56 @@ const PAIRS = [
         'function humanName'
       ),
   },
+  {
+    /*
+     * A NAME ON THIS LIST THAT NO TOOL HAS PROTECTS NOTHING.
+     *
+     * DIRECT_CALL_ONLY is what keeps a model turn -- including one that has
+     * just read a client's message -- from flipping the switch that sends
+     * from the owner's account. A typo in it is not a typo: it is the guard
+     * silently not being there, and every test of the guard still passes,
+     * because they test the list, not the join.
+     */
+    what: 'только прямым вызовом → есть такой инструмент', // cyrillic-ok: operator-facing
+    /*
+     * Cut at the Set's own closing bracket, not at a later landmark: the
+     * first attempt reached on into the prose below and reported the words
+     * `provider` and `function` as unprotected tools. Form 150 again, in the
+     * same hour it was written down -- a guard that cries about healthy code
+     * teaches its reader to ignore it.
+     */
+    says: () => {
+      const src = read('apps/vibee-editor/render/src/agent/tools.ts')
+      const at = src.indexOf('DIRECT_CALL_ONLY: ReadonlySet')
+      const end = at < 0 ? -1 : src.indexOf('])', at)
+      if (at < 0 || end < 0) return []
+      /*
+       * Its own pattern, because tool names carry underscores and the
+       * literal reader does not take them. With `literals` this pair read
+       * ZERO names and was reported as a broken check -- which is exactly
+       * what it was, and exactly why that rule exists: the first version of
+       * this line looked like it worked while protecting nothing.
+       */
+      return [
+        ...new Set(
+          [...src.slice(at, end).matchAll(/'([a-z][a-z_0-9]{2,})'/g)].map(
+            m => m[1]
+          )
+        ),
+      ]
+    },
+    hears: registeredTools,
+  },
+  {
+    /*
+     * A button in the app, or a tri command, asking for a tool that is not
+     * there. The answer comes back as an error the caller usually swallows,
+     * so the control simply does nothing and nobody is told.
+     */
+    what: 'инструменты, которые зовут приложение и скрипты', // cyrillic-ok: operator-facing
+    says: calledTools,
+    hears: registeredTools,
+  },
 ]
 
 /** The whole answer, as data: the printer and the test read the same thing. */
@@ -184,6 +281,13 @@ function main() {
   if (bad) process.exitCode = 1
 }
 
-module.exports = { compare, literals, keys, PAIRS }
+module.exports = {
+  compare,
+  literals,
+  keys,
+  registeredTools,
+  calledTools,
+  PAIRS,
+}
 
 if (require.main === module) main()

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  calledTools,
   compare,
   literals,
   PAIRS,
+  registeredTools,
 } from '../../../scripts/cross-service-vocabularies.cjs'
 
 /*
@@ -63,5 +65,36 @@ describe('the services agree by words', () => {
     // A missing anchor returns nothing, which the check above turns into a
     // failure rather than a pass.
     expect(literals(src, 'NOPE', 'END')).toEqual([])
+  })
+
+  /*
+   * A NAME ON DIRECT_CALL_ONLY THAT NO TOOL HAS PROTECTS NOTHING.
+   *
+   * That list is what stops a model turn -- including a business turn that
+   * has just read a client's message -- from flipping the switch that sends
+   * from the owner's account. A typo there is not a typo: it is the guard
+   * silently absent, and every test OF the list still passes, because they
+   * check the list rather than the join.
+   */
+  it('every name guarded by direct-call-only is a tool that exists', () => {
+    const pair = compare().find(r => r.what.includes('прямым'))!
+    expect(pair.says, 'tool names carry underscores').toContain('autopilot_set')
+    expect(pair.says.length).toBeGreaterThanOrEqual(4)
+    expect(pair.unheard).toEqual([])
+  })
+
+  it('every tool the app and the scripts ask for is registered', () => {
+    const pair = compare().find(r => r.what.includes('зовут приложение'))!
+    expect(pair.says).toContain('crm_outcomes')
+    expect(pair.unheard).toEqual([])
+  })
+
+  it('reads tool names with underscores, which the literal reader does not', () => {
+    // Measured: with the plain literal reader this pair found ZERO names and
+    // was reported as a broken check -- correctly, and that is the whole
+    // reason the broken-check rule exists.
+    const reg = registeredTools()
+    expect(reg.some((n: string) => n.includes('_'))).toBe(true)
+    expect(calledTools().length).toBeGreaterThan(5)
   })
 })
