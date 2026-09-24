@@ -150,6 +150,20 @@ export function onDomain(cookieDomain: string, domains: string[]): boolean {
   return domains.some(d => host === d || host.endsWith(`.${d}`))
 }
 
+/** The network a page belongs to, or null. Pure. */
+export function networkOfUrl(
+  url: string,
+  networks: Network[] = NETWORKS
+): Network | null {
+  let host = ''
+  try {
+    host = new URL(url).host
+  } catch {
+    return null
+  }
+  return networks.find(n => onDomain(host, n.domains)) ?? null
+}
+
 export interface NetworkLogin {
   id: string
   name: string

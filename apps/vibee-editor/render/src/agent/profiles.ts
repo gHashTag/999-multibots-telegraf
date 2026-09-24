@@ -35,6 +35,8 @@ export const PROFILES: Profile[] = [
       { name: 'hh.ru', url: 'https://hh.ru/applicant/negotiations' },
       { name: 'LinkedIn', url: 'https://www.linkedin.com/feed/' },
       { name: 'Upwork', url: 'https://www.upwork.com/nx/find-work/' },
+      /* Reviews, mentions and invitations to repositories (#2965). */
+      { name: 'GitHub', url: 'https://github.com/notifications' },
     ],
   },
   {
@@ -46,6 +48,15 @@ export const PROFILES: Profile[] = [
       { name: 'Reddit', url: 'https://www.reddit.com/r/t27ai/' },
       { name: 'YouTube', url: 'https://www.youtube.com/feed/subscriptions' },
       { name: 'TikTok', url: 'https://www.tiktok.com/foryou' },
+      /*
+       * The rest of the clone's networks (#2965, epic #2961). A network the
+       * browser is not signed into costs the round nothing: it is named as
+       * "not connected" and not opened (rounds.ts isNotConnected).
+       */
+      { name: 'Instagram', url: 'https://www.instagram.com/' },
+      { name: 'Threads', url: 'https://www.threads.com/activity' },
+      { name: 'Facebook', url: 'https://www.facebook.com/notifications' },
+      { name: 'VK', url: 'https://vk.com/feed' },
     ],
   },
 ]
