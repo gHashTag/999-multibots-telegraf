@@ -97,3 +97,38 @@ describe('a keeper can open a trainee, nobody else can', () => {
     expect(systemPrompt('miniapp', false, 'job')).toContain(job)
   })
 })
+
+/*
+ * EVERY SPECIALIST HAS A CONTRACT, AND IT NAMES ONLY REAL TOOLS (#2958).
+ * A prompt that promises a tool the registry does not have is the
+ * "agent claims a capability" defect in its purest form.
+ */
+describe('specialist contracts', () => {
+  it('every catalogued agent has one, naming only tools that exist', async () => {
+    const { MARKETPLACE_AGENTS } = await import(
+      '../packages/vibee-atoms/src/agent-marketplace'
+    )
+    const { TOOLS } = await import('./src/agent/tools')
+    const names = new Set(TOOLS.map(t => t.name))
+    for (const a of MARKETPLACE_AGENTS) {
+      const prompt = marketplaceAgentPrompt(a.id)
+      expect(prompt.length, a.id).toBeGreaterThan(200)
+      const refs = prompt.match(/\b[a-z]+_[a-z_]*/g) ?? []
+      for (const ref of refs) {
+        const ok = ref.endsWith('_')
+          ? [...names].some(n => n.startsWith(ref))
+          : names.has(ref)
+        expect(ok, `${a.id} names ${ref}`).toBe(true)
+      }
+    }
+  })
+
+  it('the three trainees carry their done-conditions', () => {
+    expect(marketplaceAgentPrompt('google')).toMatch(/web_read/)
+    expect(marketplaceAgentPrompt('google')).toContain('не найдено') // cyrillic-ok: contract words
+    expect(marketplaceAgentPrompt('tiktok')).toContain('pricing')
+    expect(marketplaceAgentPrompt('tiktok')).toContain('ссылка на mp4') // cyrillic-ok: contract words
+    expect(marketplaceAgentPrompt('habr')).toContain('шаги воспроизведения') // cyrillic-ok: contract words
+    expect(marketplaceAgentPrompt('habr')).toContain('не проверено') // cyrillic-ok: contract words
+  })
+})
