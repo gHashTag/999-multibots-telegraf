@@ -148,6 +148,10 @@ const en: Translations = {
   'crm.refresh': 'Refresh',
   'crm.refreshing': 'Refreshing…',
   'crm.unreachable': 'Could not load',
+  'crm.allRefused.signIn':
+    'Your session was refused — open the app again from the bot, with the "Open the app" button.',
+  'crm.allRefused.server':
+    'Nothing came back: {reason}. That is the server, not you — press Refresh in a minute.',
   'crm.waiting.title': 'Waiting for an answer',
   'crm.waiting.none':
     'Nobody is waiting for an answer. That is good news, not an empty screen.',
@@ -2509,6 +2513,10 @@ const ru: Translations = {
   'crm.refresh': 'Обновить',
   'crm.refreshing': 'Обновляю…',
   'crm.unreachable': 'Не удалось загрузить',
+  'crm.allRefused.signIn':
+    'Сессия не принята — откройте приложение заново из бота, кнопкой «Открыть приложение».', // cyrillic-ok
+  'crm.allRefused.server':
+    'Данные не пришли: {reason}. Это сервер, не вы — нажмите «Обновить» через минуту.', // cyrillic-ok
   'crm.waiting.title': 'Ждут ответа',
   'crm.waiting.none':
     'Никто не ждёт ответа. Это хорошая новость, а не пустой экран.',
