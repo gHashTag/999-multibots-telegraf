@@ -64,6 +64,7 @@ tri — оболочка Trinity S³AI
   tri layout [селектор]  как замерить высоту ДО и ПОСЛЕ правки верстки (форма 186)
   tri touch  какие кнопки меньше 44px под палец, и как чинить без двух ловушек (форма 190)
   tri halfdone <файл>  где защита написана для одного элемента, а нужна соседям (форма 187)
+  tri family <Компонент> [признак]  кто ещё в семье и до кого лекарство не дошло (форма 191)
   tri byload [каталог] [тест]  падает от кода или от ЗАГРУЗКИ машины: три прогона, три числа (форма 188)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
@@ -1513,6 +1514,41 @@ RECIPE
 ПОСЛЕДНИЙ, цель должна быть в нём. Сравнение indexOf() обманывается тем,
 что селектор встречается и внутри медиазапроса.
 RECIPE
+    ;;
+
+  family)
+    # WHO ELSE IS IN THIS FAMILY, AND DID THE REMEDY REACH THEM?
+    #
+    # Three times in one week the cheapest defect here was a rule wired into
+    # ONE of the siblings it covers: the image could admit a failure and the
+    # video could not; the client LIST said a shared failure once and the
+    # client PAGE said it six times -- that one was mine, the morning after.
+    #
+    # Give it the component everyone shares. It prints who renders it and
+    # which of them carry the remedy, so the gap is a list rather than a
+    # memory. Form 191: guard the FAMILY, not the case you happened to hit.
+    shift
+    C="${1:-}"; R="${2:-}"
+    [ -z "$C" ] && { echo "usage: tri family <Компонент> [признак-лекарства]"; exit 64; }
+    DIRS="$ROOT/apps/vibee-editor/player/src $ROOT/src"
+    echo "рисуют <$C>:"
+    # `<Panel` is often followed by a NEWLINE rather than a space, so the
+    # class must allow end-of-line. The first version matched nothing and
+    # printed an empty family -- which reads exactly like "nobody is missing".
+    grep -rlE "<$C([ />]|$)" --include="*.tsx" $DIRS 2>/dev/null \
+      | grep -viE "\.test\." | sed "s|$ROOT/||" | head -20
+    if [ -n "$R" ]; then
+      echo
+      echo "из них НЕ несут «$R»:"
+      for f in $(grep -rlE "<$C([ />]|$)" --include="*.tsx" $DIRS 2>/dev/null | grep -viE "\.test\."); do
+        grep -q "$R" "$f" || echo "  $(echo "$f" | sed "s|$ROOT/||")"
+      done
+    fi
+    echo
+    echo "Сторожа писать на СЕМЬЮ: перечислить всех, кто рисует компонент, и"
+    echo "потребовать лекарство у каждого. Признак брать по СМЫСЛУ роли, а не"
+    echo "по виду текста -- имя из пути импорта и имя из объявления свойства"
+    echo "оба «встречаются в файле» и проверяют разное (форма 191)."
     ;;
 
   contracts)
