@@ -12,6 +12,14 @@ vi.mock('@/hooks/useLanguage', () => ({
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 import { AgentsPage } from './Agents'
+import { MARKETPLACE_AGENTS } from '../../../packages/vibee-atoms/src/agent-marketplace'
+
+/**
+ * How many listings are still training, read from the catalogue itself: the
+ * count used to be written here as 3, and adding the job agent (#2940) broke
+ * the player's image build on a number, not on behaviour.
+ */
+const TRAINING = MARKETPLACE_AGENTS.filter(a => a.status === 'training').length
 
 let host: HTMLDivElement
 let root: Root
@@ -44,7 +52,8 @@ describe('agent labour market', () => {
       [...host.querySelectorAll('.agent-card__cta--disabled')].filter(node =>
         node.textContent?.includes('Training — join later')
       )
-    ).toHaveLength(3)
+    ).toHaveLength(TRAINING)
+    expect(TRAINING).toBeGreaterThan(0)
     expect(host.textContent).toContain('designed, not active yet')
     expect(
       host.querySelector<HTMLAnchorElement>('a[href="/agents/connect"]')
