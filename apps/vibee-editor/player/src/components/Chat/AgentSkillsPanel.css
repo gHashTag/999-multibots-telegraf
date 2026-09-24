@@ -1,0 +1,51 @@
+/* What the agent in this chat carries, and a rule for it (AgentSkillsPanel). */
+.agent-skills-panel {
+  margin: 8px 0 4px;
+}
+
+.agent-skills-line--ok {
+  color: var(--t27-accent);
+  opacity: 1;
+}
+
+.agent-skills-line--error {
+  color: var(--t27-danger, #d9534f);
+  opacity: 1;
+}
+
+.agent-skills-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.agent-skills-add__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--t27-border);
+  background: transparent;
+  color: var(--t27-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.agent-skills-add__button {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--t27-border);
+  background: transparent;
+  color: var(--t27-text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.agent-skills-add__button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

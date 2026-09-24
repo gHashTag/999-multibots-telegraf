@@ -521,10 +521,16 @@ const en: Translations = {
   'clone.networks.ask':
     'To connect the rest, tell the agent: "connect my networks". You type passwords yourself.',
   'clone.networks.open': 'Open the browser',
-  // Skills the agent in this chat carries (pages/Chat.tsx, hooks/useAgentSkills.ts)
+  // Skills the agent in this chat carries (components/Chat/AgentSkillsPanel.tsx)
   'chat.agentSkills.on': 'Skills connected: {own} · plus {general} general',
   'chat.agentSkills.none':
-    'No skills of its own yet: in your profile, add a skill named "<agent>: ..." and it connects here.',
+    'No rules of yours for it yet: write one below, and it applies from your next message (saved as "{prefix}: ...").',
+  'chat.agentSkills.builtin': 'Knows how: {skills}',
+  'chat.agentSkills.add.placeholder':
+    'A rule for it, e.g. "answer briefly, with numbers"',
+  'chat.agentSkills.add.button': 'Add rule',
+  'chat.agentSkills.add.saved': 'Connected: {name}',
+  'chat.agentSkills.add.failed': 'Not saved: {reason}',
 
   'hero.badge': 'AGI game',
   'hero.title': 'An AGI game built by digital twins of real people',
@@ -2846,7 +2852,13 @@ const ru: Translations = {
   'clone.networks.open': 'Открыть браузер',
   'chat.agentSkills.on': 'Навыки подключены: {own} · и общих: {general}',
   'chat.agentSkills.none':
-    'Своих навыков пока нет: в профиле создайте навык с именем «<агент>: …» — и он подключится здесь.',
+    'Ваших правил для него пока нет: напишите правило ниже — оно подключится со следующего сообщения (сохранится как «{prefix}: …»).',
+  'chat.agentSkills.builtin': 'Умеет: {skills}',
+  'chat.agentSkills.add.placeholder':
+    'Правило для него, например «отвечай коротко, с цифрами»',
+  'chat.agentSkills.add.button': 'Добавить',
+  'chat.agentSkills.add.saved': 'Подключено: {name}',
+  'chat.agentSkills.add.failed': 'Не сохранилось: {reason}',
 
   'hero.badge': 'AGI-игра',
   'hero.title': 'AGI-игра, которую строят цифровые двойники реальных людей',

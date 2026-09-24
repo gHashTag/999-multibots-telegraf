@@ -216,3 +216,28 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
   gets through. Run it for every route a page calls without signing BEFORE
   shipping -- this is the third time (pair/start, /api/navigation, now these
   two) a route was written, tested, deployed and answered 401.
+
+- **Skills are visible and addable in every agent's own chat**
+  (`player components/Chat/AgentSkillsPanel.tsx`). Self-critique of tick 7:
+  an owner with no prefixed skills saw every agent say "no skills", with a
+  literal `<агент>` in the hint. The panel now says what the agent knows how
+  to do (the catalogue's `skills`), which of the person's rules its prompt
+  gets, and has a one-line field: the person writes the rule, the catalogue
+  names it (`agentSkillName`: "Работа: отвечать коротко"), `skills_create`
+  saves it, the list is read again. The render tells every specialist to
+  file a rule it is asked to remember under its own prefix
+  (`agent-skills.ts ruleNamingLine`) -- without that line "remember: ..."
+  said in the job agent's chat became a general skill of every agent.
+- **Routes the app calls that render does not serve at all** (found by the
+  bare-fetch sweep, 2026-09-24): `/api/v1/sessions`, `/api/v1/leads/stats`,
+  `/api/triggers/list` (the Leads tab, which says "no section" itself) and
+  `/api/instagram/callback` (the old Instagram OAuth page). Not regressions;
+  the Instagram page is dead code until a backend exists.
+- **`tri bare-fetch`** sweeps the app for calls made WITHOUT a credential
+  and asks the render guard (`isPublic`) about each path; a GUARDED line is
+  a 401 before the handler, or a route render does not serve. Negative
+  control done: re-closing `/api/traffic/arrival` makes it appear.
+- **Full suite before merge** (render ~6 min): ticks 3 and 7 had left two
+  red tests on main (a real id in `job-hunters-history.test.ts`; the
+  `dm-context` shape check after `specialistSkills` was appended). Fixed in
+  tick 8.
