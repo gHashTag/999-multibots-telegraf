@@ -93,6 +93,12 @@ export interface SweepDeps {
    * sweepOnce). Absent: the model is asked to look, as before.
    */
   leads?: (telegramId: string) => Promise<Array<Record<string, unknown>>>
+  /**
+   * Fetch a few missing profile photos, so the queue's face ordering has
+   * something to order by. Optional and best-effort: absent or failing, the
+   * sweep runs exactly as it did.
+   */
+  faces?: (telegramId: string) => Promise<unknown>
   now?: () => number
   /**
    * Is a card already waiting for this owner, and until when.
@@ -902,6 +908,39 @@ export async function sweepOnce(
       })
     }
     /*
+     * AND WHILE THE SESSION IS STILL WARM, LOOK AT A FEW FACES.
+     *
+     * Yesterday the queue learned to put a known face first, because the
+     * sweep's first action is a portrait and a candidate with no face turns
+     * the whole sweep into "please send me a photo". What that change did
+     * NOT fix, and this does: the face cache had exactly two writers -- the
+     * CRM screen's batch and the agent's own crm_client_face. An owner who
+     * never opens that screen has `unknown` against every name, so the
+     * ordering sorted nothing and the seller went on asking people for
+     * photos it could have fetched.
+     *
+     * A signal that depends on somebody opening a screen is not a signal.
+     * The timer fills it instead, here, where `ingest` has just walked the
+     * dialogs and the session is warm -- a few people per sweep, never the
+     * whole book, and never the model's decision (crm_client_avatars stays
+     * DIRECT_CALL_ONLY: a sentence in a client's message must not be able
+     * to open the owner's session in a loop).
+     *
+     * Best-effort, like ingest and for the same reason: a FLOOD_WAIT on
+     * pictures must not silence somebody who has been waiting since
+     * yesterday. No faces simply means the queue is ordered as it was.
+     */
+    if (deps.faces && opts.ingest !== false) {
+      stage = 'лица' // cyrillic-ok: stage label read by the owner's alert
+      try {
+        await deps.faces(ownerId)
+      } catch (e) {
+        logger.warn('[crm-proactive] faces not fetched, order unchanged', {
+          error: e instanceof Error ? e.message : String(e),
+        })
+      }
+    }
+    /*
      * LOOK FIRST, THEN ASK.
      *
      * Production 2026-09-09 22:14, after the retry above had been shipped:
@@ -1462,6 +1501,48 @@ async function ingestViaRender(telegramId: string): Promise<unknown> {
 }
 
 /**
+ * A FEW FACES PER SWEEP, THROUGH THE OWNER'S OWN SESSION.
+ *
+ * Small on purpose. The tool caps a batch at 30 and re-checks a person no
+ * more than weekly; eight every half hour is a few hundred a day, which is
+ * more than the queue can ever look at, and it leaves the sweep's minutes
+ * for the work. Its own deadline, shorter than ingest's: pictures are worth
+ * seconds, not three minutes.
+ */
+const FACES_PER_SWEEP = 8
+const FACES_TIMEOUT_MS = 60_000
+
+async function facesViaRender(telegramId: string): Promise<unknown> {
+  const key = process.env.RENDER_API_KEY || ''
+  if (!key) throw new Error('RENDER_API_KEY не задан')
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), FACES_TIMEOUT_MS)
+  try {
+    const r = await fetch(
+      `${BASE}/mcp?telegram_id=${encodeURIComponent(telegramId)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Api-Key': key },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: 'crm_client_avatars',
+            arguments: { limit: FACES_PER_SWEEP },
+          },
+        }),
+        signal: ac.signal,
+      }
+    )
+    if (!r.ok) throw new Error(`faces HTTP ${r.status}`)
+    return await r.json()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
  * Wire the sweep to a bot. Returns a stop function. The first run waits two
  * minutes so a redeploy does not fire a turn before the bot is up.
  */
@@ -1491,6 +1572,7 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
       }),
     record: recordTurns,
     leads: owner => fetchLeadRows(owner, LOOK_LIMIT),
+    faces: facesViaRender,
   }
 }
 
