@@ -60,6 +60,7 @@ tri — оболочка Trinity S³AI
   tri faces [id]  очередь продавца в том порядке, в каком её увидит обход: у кого есть лицо
   tri writers <колонка>  кто ПИШЕТ то, что читает код: может ли писатель не сработать ни разу
   tri wake <модуль>  что проверить ПЕРЕД подключением мёртвого модуля: unknown как «нет», фикстуры
+  tri swallow  где сбой неотличим от честного пустого ответа (форма 185)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
@@ -1360,6 +1361,30 @@ PYEOF
     echo
     echo "Зелёный тест мёртвого модуля ничего не значит: фикстуры могли быть"
     echo "написаны ПОД дефект. Правило в blind-guards, форма 184."
+    ;;
+
+  swallow)
+    # A FAILURE THAT LOOKS EXACTLY LIKE AN HONEST EMPTY ANSWER.
+    #
+    # `catch { return [] }` is often right: a post that stays quiet beats one
+    # that crashes. It is WRONG when the caller turns the empty answer into a
+    # claim -- "nobody in this room has a profile" printed to that room
+    # because a query failed. Form 185.
+    #
+    # Prints every swallow of that shape. It does NOT judge them: most of
+    # this repository swallows in the safe direction on purpose (a fault does
+    # not mark a link dead, or a lead enrolled in AUTO). The question to ask
+    # at each one is the same: can the caller tell this from a real empty
+    # answer, and does it then SAY something about a person?
+    shift
+    echo "проглоченные ошибки, неотличимые от пустого ответа:"
+    grep -rn -A 3 "} catch {" --include="*.ts" "$ROOT/src" \
+         "$ROOT/apps/vibee-editor/render/src" 2>/dev/null \
+      | grep -E "return (\[\]|new Set|new Map|0$|false|null)" \
+      | grep -viE "\.test\.|__tests__" | sed "s|$ROOT/||" | head -25
+    echo
+    echo "Судить каждое место по одному вопросу: отличит ли вызывающий это от"
+    echo "честного пустого ответа -- и УТВЕРЖДАЕТ ли он потом что-то о человеке."
     ;;
 
   contracts)
