@@ -265,10 +265,71 @@ function invoiceAmount(text: string, linkAt: number): string | null {
   return (before.length > 0 ? before[before.length - 1] : found[0]).written
 }
 
+/**
+ * A CHOICE THE CLIENT CAN TAP, WHOSE LABEL IS THE CHOICE.
+ *
+ * Owner, 2026-09-24: "offer her different looks right in the chat", and
+ * "think through the most comfortable work right in the chat so the client
+ * gets the full service".
+ *
+ * The `act:` vocabulary is CLOSED -- a fixed list of ids with a handler each
+ * -- which is right for "top up" and "call a human" and useless for "which of
+ * these three portraits do you want". So the assistant may number up to four
+ * options and mark them; what it wrote is what the person taps.
+ *
+ * In a client's DM the bot answers as the owner, and there ONLY url buttons
+ * work (business-dm-buttons: callback buttons are a plan, not a thing). So the
+ * tap is a deep link into the bot -- `t.me/<bot>?start=look_<n>` -- which
+ * opens INSIDE Telegram, the one shape the owner accepts, and lands the person
+ * where the full service lives.
+ *
+ * The number, not the label, travels: a look description does not fit in a
+ * 64-character start payload, and the offer is already written in the
+ * conversation, which is the source of truth anyway. What look 2 WAS is read
+ * from the history by the side that wrote it.
+ */
+export const LOOK_MARKER = /\[\[([^\]|]{1,40})\|look:([1-4])\]\]/g
+
+/** The most options an offer may carry. Four fits a phone without scrolling. */
+export const MAX_LOOKS = 4
+
+export interface LookOption {
+  n: number
+  label: string
+}
+
+/**
+ * The numbered options an answer offers, in the order the person reads them.
+ *
+ * A repeated number is dropped rather than shown twice: two buttons leading to
+ * the same choice is a person picking one and getting the other.
+ */
+export function parseLookOffers(text: string): LookOption[] {
+  const seen = new Set<number>()
+  const out: LookOption[] = []
+  for (const m of String(text ?? '').matchAll(LOOK_MARKER)) {
+    const n = Number(m[2])
+    const label = m[1].trim()
+    if (!label || seen.has(n) || out.length >= MAX_LOOKS) continue
+    seen.add(n)
+    out.push({ n, label })
+  }
+  return out
+}
+
 /** The visible text without any button markers, wherever the answer goes. */
 export function stripAgentMarkers(text: string): string {
-  return text
-    .replace(/\[\[([^\]|]{1,40})\|act:([a-z_]{1,24})\]\]/g, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+  return (
+    text
+      .replace(/\[\[([^\]|]{1,40})\|act:([a-z_]{1,24})\]\]/g, '')
+      /*
+       * The look markers go the same way, and they must: the skill's own list of
+       * complaints starts with "the person sees literal [[…|act:…]] text", and a
+       * new marker form that only the keyboard builder knew about would put the
+       * brackets straight into a client's chat.
+       */
+      .replace(LOOK_MARKER, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  )
 }

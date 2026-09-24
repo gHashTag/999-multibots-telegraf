@@ -2835,6 +2835,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       // Handle start parameters (invite code / the club)
       let wantsClub = false
       let wantsTopUp: { method: 'rub' | 'crypto' | null } | null = null
+      /** Which look the client tapped in their own chat, when they did. */
+      let pickedLook: { n: number } | null = null
       let inlineService: ServiceCard | undefined
       let wantsApp: AppRoute | null = null
       if (ctx.message && 'text' in ctx.message) {
@@ -2927,6 +2929,19 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             wantsClub = true
             ctx.session.clubDeepLink = true
             logger.info('Club deep-link', { telegramId, startParam })
+          } else if (lookIntent(startParam)) {
+            /*
+             * A tap on one of the looks offered in the client's own chat. The
+             * choice is carried into the conversation as the person's own
+             * words, so the agent -- which holds the DM history where the
+             * offer stands -- continues from it instead of asking again.
+             */
+            pickedLook = lookIntent(startParam)
+            logger.info('Look pick deep-link', {
+              telegramId,
+              startParam,
+              n: pickedLook?.n,
+            })
           } else if (topupIntent(startParam)) {
             // The mini app's rouble and crypto buttons: the cashier is here.
             wantsTopUp = topupIntent(startParam)
@@ -2971,6 +2986,27 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       } else if (wantsClub) {
         ctx.session.clubDeepLink = undefined
         await showClubCard(ctx, 'deeplink')
+      } else if (pickedLook) {
+        /*
+         * THE CHOICE CONTINUES THE CONVERSATION, IT DOES NOT START ONE.
+         *
+         * The offer stands in the client's own chat with the owner, and the
+         * agent reads that history. So the pick is handed to it as the
+         * person's own words -- "I choose option 2" -- and the agent goes on
+         * from there. It is NOT resolved here: this side does not know what
+         * look 2 was, and inventing one would answer a different question
+         * from the one that was asked.
+         *
+         * Quoted as a choice, never as an instruction: the label was written
+         * by a model that had just read a stranger's message, and a button's
+         * words must not become a command.
+         */
+        const n = pickedLook.n
+        pickedLook = null
+        await runAgentTurnFor(
+          ctx as never,
+          `Я выбираю вариант ${n} из предложенных образов.` // cyrillic-ok: user-facing
+        )
       } else if (wantsTopUp) {
         /*
          * Straight to the cashier the person chose. A bot that hides roubles
@@ -3482,6 +3518,53 @@ let preparedForOwner:
   | ((ctx: MyContext, lead: string, opts?: PrepareOpts) => Promise<void>)
   | null = null
 
+/**
+ * ONE AGENT TURN FOR A PERSON WHO PRESSED SOMETHING, not typed it.
+ *
+ * Used by the look pick (`/start look_<n>`). Deliberately NOT the text
+ * handler's whole path: that path also draws the owner's proposal card, and a
+ * CLIENT's turn cannot produce one -- `crm_deliver_photo` and its siblings
+ * refuse a caller who is not the seller. Copying the card block here would
+ * duplicate sixty lines to draw a card that can never exist.
+ *
+ * Never throws: a press that reaches a dead provider must leave the person
+ * with a sentence, not with silence.
+ */
+async function runAgentTurnFor(ctx: MyContext, text: string): Promise<void> {
+  const isRu = isRussianFromState(ctx)
+  try {
+    const { спроситьАгента } = await import('@/services/trinityAgent') // cyrillic-ok: pre-existing export
+    const { разбитьДлинное } = await import('@/helpers/telegramLongAnswer') // cyrillic-ok: pre-existing export
+    const answer = await спроситьАгента(String(ctx.from?.id ?? ''), text) // cyrillic-ok: pre-existing export
+    const { text: clean, markup } = buttonsForAnswer(
+      answer.текст, // cyrillic-ok: field of ОтветАгента
+      isRu,
+      { app: ctx.chat?.type === 'private', bot: ctx.botInfo }
+    )
+    const parts = разбитьДлинное(clean) // cyrillic-ok: pre-existing export
+    if (!parts.length) {
+      await ctx.reply(
+        isRu ? 'Принял ваш выбор.' : 'Noted your choice.', // cyrillic-ok: user-facing
+        markup
+      )
+      return
+    }
+    for (let i = 0; i < parts.length; i++)
+      await ctx.reply(parts[i], i === parts.length - 1 ? markup : undefined)
+  } catch (e) {
+    logger.warn('[look] the pick reached no answer', {
+      error: e instanceof Error ? e.message : String(e),
+    })
+    await ctx
+      .reply(
+        isRu
+          ? 'Принял выбор, но ответить сейчас не смог — напишите одним словом, и продолжу.' // cyrillic-ok: user-facing
+          : 'Choice noted, but I could not answer just now -- write one word and I will go on.'
+      )
+      .catch(() => undefined)
+  }
+}
+
 /** `crm-prep-<numeric id>` and nothing else; a malformed payload never matches. */
 export const CRM_PREP_PAYLOAD = /^crm-prep-(\d{5,15})$/
 
@@ -3523,6 +3606,28 @@ export const CRM_PREP_PAYLOAD = /^crm-prep-(\d{5,15})$/
  *
  * Returns the method when the payload is one of these links.
  */
+/**
+ * THE CLIENT TAPPED ONE OF THE LOOKS OFFERED IN THEIR OWN CHAT.
+ *
+ * The offer is written in the DM (`[[label|look:N]]`, actionButtons.ts) and
+ * each option is a deep link here, because a business DM takes url buttons
+ * only. The NUMBER travels: a look description does not fit in a
+ * 64-character payload, and the offer already stands in the conversation --
+ * which is the only place that knows what look 2 was.
+ *
+ * Written with a handler in the same commit, because the trap two comments
+ * above is this one: a payload that arrives as an ordinary `/start` and is
+ * dropped looks, from the outside, exactly like a person who changed their
+ * mind. Pinned by a test that walks the source.
+ */
+export const LOOK_PAYLOAD = /^look_([1-4])$/i
+
+export function lookIntent(payload: string | undefined): { n: number } | null {
+  if (!payload) return null
+  const m = LOOK_PAYLOAD.exec(payload)
+  return m ? { n: Number(m[1]) } : null
+}
+
 const TOPUP_PAYLOAD = /^topup(?:_([a-z]+))?$/i
 
 export function topupIntent(
