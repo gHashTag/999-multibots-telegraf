@@ -400,6 +400,10 @@ export interface ClientProfile {
    */
   soulExcerpt: string | null
   soulIsDraft: boolean
+  /** The whole SOUL (the server caps it at 12 000 characters). */
+  soul: string | null
+  /** Its real length, so the screen can say when something was left out. */
+  soulChars: number
   /** The server declined to show SOUL and skills: not yours to read. */
   privateWithheld: boolean
 }
@@ -433,6 +437,8 @@ function toClientProfile(r: Record<string, unknown>): ClientProfile {
     updatedAt: str(r['updated_at']),
     soulExcerpt: str(r['soul_excerpt'])?.trim() || null,
     soulIsDraft: bool(r['soul_is_draft']) ?? false,
+    soul: str(r['soul'])?.trim() || null,
+    soulChars: num(r['soul_chars']) ?? 0,
     privateWithheld: bool(r['private_withheld']) ?? false,
   }
 }

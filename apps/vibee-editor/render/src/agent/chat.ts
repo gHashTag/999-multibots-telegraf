@@ -707,6 +707,18 @@ export async function clientBriefBlock(
      * model's context -- telling it "SOUL: нет" about somebody whose SOUL we
      * simply did not open is handing it a false premise to sell on.
      */
+    /*
+     * THE CLIENT'S SOUL, THE TEXT ITSELF. This brief used to say only
+     * "SOUL: есть", so an agent asked "what do we know about her?" answered
+     * without the one document where she describes herself. It is her
+     * writing, so it goes in fenced as foreign text, and bounded.
+     */
+    const soulText = typeof p.soul === 'string' ? p.soul.trim() : ''
+    if (!p.private_withheld && soulText)
+      parts.push(
+        'SOUL КЛИЕНТА (его собственные слова о себе; опирайся на них, не пересказывай целиком):\n' + // cyrillic-ok: prompt copy
+          foreignText(soulText, { limit: 6000 })
+      )
     parts.push(
       p.private_withheld
         ? 'SOUL и скиллы клиента не читались: этот человек не ваш клиент.'
@@ -936,6 +948,21 @@ export function voiceLine(surface?: string): string {
     : '- РОД. О себе говори ТОЛЬКО в мужском роде: «понял», «сделал», «проверил», «готов», «сам». Никогда «поняла», «сделала», «готова», «сама».' // cyrillic-ok: prompt copy
 }
 
+/**
+ * WHERE THE OWNER PRESSES "SEND".
+ *
+ * Owner, 2026-09-24: the agent drew Farisha's portrait, prepared the send,
+ * and told him "open @t27ai_bot, the card is there" -- from inside the app,
+ * which now draws the same card under the answer (SendCardView). The model
+ * was guessing where the button lives; this says it, per surface.
+ * Exported for the test.
+ */
+export function sendCardLine(surface?: string): string {
+  // The client in the business DM never sees a card: nothing to say there.
+  if (surface === 'business') return ''
+  return '- КАРТОЧКА ОТПРАВКИ. Всё, что ты подготовил для другого человека (сообщение, фото, видео), появляется ПРЯМО ПОД твоим ответом: превью и кнопки «Отправить» / «Не отправлять». Не отправляй владельца искать её в другом месте — скажи «карточка ниже».' // cyrillic-ok: prompt copy
+}
+
 /** The prompt for a surface: the club for creators, the invoice for a client in the DM. */
 function systemFor(surface?: string): string {
   return (
@@ -949,7 +976,8 @@ function systemFor(surface?: string): string {
       .replace('%%CLUB_WHEN%%', CLUB_OFFER_WHEN)
       .replace('%%CLUB_BACK%%', spacedNumber(clubTokensPerPeriod())) +
     '\n' +
-    voiceLine(surface)
+    voiceLine(surface) +
+    (sendCardLine(surface) ? '\n' + sendCardLine(surface) : '')
   )
 }
 
