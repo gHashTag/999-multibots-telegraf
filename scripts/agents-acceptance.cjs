@@ -78,6 +78,11 @@ const AGENTS = [
 
 function agentKey() {
   if (process.env.AGENT_KEY) return process.env.AGENT_KEY.trim()
+  // `railway run --service vibee-render` (tri agents) injects AGENT_KEYS:
+  // "key:telegram_id,…". The header takes the part before the colon.
+  if (process.env.AGENT_KEYS) {
+    return process.env.AGENT_KEYS.split(',')[0].split(':')[0].trim()
+  }
   try {
     const kv = execFileSync(
       'railway',

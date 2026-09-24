@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
+  braveApiSearch,
   keylessSearch,
   openrouterSearch,
   pickBackend,
@@ -19,7 +20,11 @@ const RESERVE_VARS = ['RESERVE_BASE_URL', 'RESERVE_API_KEY', 'RESERVE_MODEL']
 const saved: Record<string, string | undefined> = {}
 
 beforeEach(() => {
-  for (const name of [...RESERVE_VARS, 'WEB_SEARCH_BACKEND']) {
+  for (const name of [
+    ...RESERVE_VARS,
+    'WEB_SEARCH_BACKEND',
+    'BRAVE_SEARCH_API_KEY',
+  ]) {
     saved[name] = process.env[name]
     delete process.env[name]
   }
@@ -268,5 +273,79 @@ describe('webSearch, end to end', () => {
     const { fetchImpl } = router([WIKI, STACK, HN])
     const result = await webSearch('q', 2, { fetchImpl })
     expect(result.hits).toHaveLength(2)
+  })
+})
+
+/*
+ * BRAVE'S OFFICIAL API (2026-09-24). The owner's acceptance run met the
+ * reserve credential answering 402, and Google Scout could not search the
+ * web. The API is the sanctioned door; these hold its shape and its manners.
+ */
+const BRAVE = {
+  match: 'api.search.brave.com',
+  body: {
+    web: {
+      results: [
+        {
+          title: 'AI avatars for creators',
+          url: 'https://example.com/avatars',
+          description: 'Market overview',
+        },
+        { title: 'No url' },
+      ],
+    },
+  },
+}
+
+describe('brave api', () => {
+  it('never sends a request without a key', async () => {
+    const { fetchImpl, asked } = router([BRAVE])
+    const r = await braveApiSearch('q', 5, fetchImpl)
+    expect(r.failed).toEqual(['no-key'])
+    expect(asked).toEqual([])
+  })
+
+  it('maps web.results to hits and drops a result with no url', async () => {
+    process.env.BRAVE_SEARCH_API_KEY = 'brave-test'
+    const { fetchImpl, asked } = router([BRAVE])
+    const r = await braveApiSearch('ai avatars', 5, fetchImpl)
+    expect(r.hits).toEqual([
+      {
+        title: 'AI avatars for creators',
+        url: 'https://example.com/avatars',
+        snippet: 'Market overview',
+      },
+    ])
+    expect(asked[0]).toContain('q=ai+avatars')
+  })
+
+  it('is preferred in auto when its key is set, even over the reserve', () => {
+    withReserve()
+    process.env.BRAVE_SEARCH_API_KEY = 'brave-test'
+    expect(pickBackend().mode).toBe('brave')
+  })
+
+  it('a failing Brave degrades to the floor, and says so', async () => {
+    process.env.BRAVE_SEARCH_API_KEY = 'brave-test'
+    const { fetchImpl } = router([
+      { match: 'api.search.brave.com', status: 429 },
+      WIKI,
+      STACK,
+      HN,
+    ])
+    const r = await webSearch('q', 5, { fetchImpl })
+    expect(r.backend).toBe('keyless')
+    expect(r.fellBack).toContain('brave HTTP 429')
+    expect(r.hits.length).toBeGreaterThan(0)
+  })
+
+  it('an explicit brave choice reports the failure instead of degrading', async () => {
+    process.env.BRAVE_SEARCH_API_KEY = 'brave-test'
+    const { fetchImpl } = router([
+      { match: 'api.search.brave.com', status: 401 },
+    ])
+    const r = await webSearch('q', 5, { mode: 'brave', fetchImpl })
+    expect(r.hits).toEqual([])
+    expect(r.failed.join()).toContain('401')
   })
 })
