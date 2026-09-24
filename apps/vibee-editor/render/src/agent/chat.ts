@@ -653,8 +653,9 @@ export async function clientBriefBlock(
   const parts: string[] = []
   let name: string | null = null
   try {
-    const { clientProfileFor, profileForPrompt } =
-      await import('./crm-client-setup-tool')
+    const { clientProfileFor, profileForPrompt } = await import(
+      './crm-client-setup-tool'
+    )
     // The profile belongs to the owner; ask as the owner, whoever is calling.
     const p = await clientProfileFor(
       { ...ctx, telegramId: owner } as ToolContext,
@@ -1146,7 +1147,8 @@ function ownerSideSection(surface?: string): string {
   return (
     '\n\nЧТО ЕЩЁ У ТЕБЯ ЕСТЬ, одной строкой каждое — не перечисляй списком, ' +
     'просто знай и предлагай к месту. CRM: лиды, их история, кто ждёт ' +
-    'ответа, кого вернуть, его группы и кто в них пишет (crm_*, crm_groups). ' + // cyrillic-ok: prompt copy
+    'ответа, кого вернуть, его группы и кто в них пишет (crm_*, crm_groups); ' + // cyrillic-ok: prompt copy
+    'пост в группу — tg_send с её chat_id, та же карточка на нажатие. ' + // cyrillic-ok: prompt copy
     'Telegram владельца: диалоги, ' +
     'неотвеченные, поиск, контакты (tg_*). Фоновые задачи: что сейчас ' +
     'считается и чем кончилось (inngest_*). Улей и Королева: пульс, ' +

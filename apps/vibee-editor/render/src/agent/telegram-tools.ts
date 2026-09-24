@@ -1397,6 +1397,18 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
        * worth. A single-row query costs nothing the model can feel.
        */
       const leadId = await leadOfTargetIn(ctx, args.chat)
+      /*
+       * A GROUP IS NAMED ON THE CARD (#2951). A post into a group is this
+       * same card and this same press; the card now says it is a group and
+       * how many will see it, instead of a bare -100… id.
+       */
+      const { groupCardLabel } = await import('./crm-groups')
+      const group = await groupCardLabel(
+        ctx?.pool as never,
+        String(ctx?.telegramId ?? ''),
+        args.chat
+      )
+      const extras = await withTheirWords(ctx, leadId, scheduleExtra(args))
       return propose(
         'send',
         args.chat,
@@ -1405,7 +1417,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         ctx,
         leadId,
         undefined,
-        await withTheirWords(ctx, leadId, scheduleExtra(args))
+        group ? { ...(extras ?? {}), display: group } : extras
       )
     },
   },

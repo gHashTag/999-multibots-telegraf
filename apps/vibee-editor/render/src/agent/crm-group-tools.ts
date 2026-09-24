@@ -6,8 +6,8 @@
  *
  * Seller-gated before the first query, like every CRM read. Group text is
  * third-party data and reaches the model framed as foreign content, exactly
- * like a lead's words. Read-only: posting into a group waits for the owner's
- * decision (#2951).
+ * like a lead's words. These tools only read: a post into a group is a
+ * tg_send card the owner presses (#2951), never something done from here.
  */
 import type { AgentTool, ToolContext } from './tools'
 import { foreignText, requireSeller } from './telegram-tools'

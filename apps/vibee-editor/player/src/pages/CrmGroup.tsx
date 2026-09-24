@@ -16,8 +16,9 @@ import {
  * The owner asked why there were no groups. A group is not a client: it is
  * a place where clients speak. So this screen shows what was said there and
  * WHO said it, and every active member is one press from their own client
- * chat. There is no send box on purpose -- posting into a group waits for
- * the owner's decision (#2951), and a box that does nothing would be a lie.
+ * chat. There is no send box here: a post into a group is prepared by the
+ * agent as a tg_send card, named as a group, and leaves only when the owner
+ * presses it (#2951) -- the same door as every other message.
  */
 export default function CrmGroupPage() {
   const { t } = useLanguage()
