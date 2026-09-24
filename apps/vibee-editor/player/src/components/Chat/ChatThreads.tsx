@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '@/hooks/useLanguage'
-import { loadClients, type ClientRow } from '@/lib/crm'
+import { ensureAvatars, loadClients, type ClientRow } from '@/lib/crm'
 import {
   MARKETPLACE_AGENTS,
   type MarketplaceAgentListing,
 } from '../../../../packages/vibee-atoms/src/agent-marketplace'
+import { ClientPicker } from './ClientPicker'
 import './ChatThreads.css'
 
 /**
@@ -98,12 +99,22 @@ export function agentHref(agent: MarketplaceAgentListing): string {
 export function ChatThreads({ current }: { current: string | null }) {
   const { t, lang: uiLang } = useLanguage()
   const [clients, setClients] = useState<ClientRow[] | null>(null)
+  const [picking, setPicking] = useState(false)
+  const closePicker = useCallback(() => setPicking(false), [])
 
   useEffect(() => {
     let live = true
     void loadClients(50).then(reached => {
       if (live && reached.reachable && reached.data) {
         setClients(reached.data.clients)
+        // Circles without a face: the owner's session fetches them in the
+        // background, and the row is re-read only if some arrived.
+        if (reached.data.clients.some(x => !x.avatarUrl))
+          void ensureAvatars().then(async n => {
+            if (!live || n === 0) return
+            const again = await loadClients(50)
+            if (live && again.data) setClients(again.data.clients)
+          })
       }
     })
     return () => {
@@ -128,6 +139,23 @@ export function ChatThreads({ current }: { current: string | null }) {
         </span>
         <span className="chat-threads__caption">{t('chat.threads.agent')}</span>
       </Link>
+
+      {/*
+        EVERY CLIENT, ONE TAP AWAY (#2947). The row shows the twelve most
+        recent; this opens everybody else in place -- searched on the server,
+        paged -- so the conversation is not left for the /crm screen.
+      */}
+      <button
+        type="button"
+        className="chat-threads__dot is-all"
+        onClick={() => setPicking(true)}
+      >
+        <span className="chat-threads__circle" aria-hidden="true">
+          ⌕
+        </span>
+        <span className="chat-threads__caption">{t('picker.open')}</span>
+      </button>
+      {picking ? <ClientPicker onClose={closePicker} /> : null}
 
       {/*
         THE SPECIALISTS, BESIDE THE PEOPLE. Each one keeps its own thread
@@ -172,21 +200,6 @@ export function ChatThreads({ current }: { current: string | null }) {
           </Link>
         )
       })}
-
-      {/*
-        EVERYBODY ELSE IS ONE PRESS AWAY (#2947). The row shows the twelve
-        most recent; the whole list, paged and searchable, is on /crm.
-      */}
-      <Link
-        to="/crm"
-        className="chat-threads__dot is-all"
-        title={t('chat.threads.allTitle')}
-      >
-        <span className="chat-threads__circle" aria-hidden="true">
-          …
-        </span>
-        <span className="chat-threads__caption">{t('chat.threads.all')}</span>
-      </Link>
     </nav>
   )
 }

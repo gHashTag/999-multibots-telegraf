@@ -826,8 +826,9 @@ describe('crm_ingest_contacts', () => {
 
 describe('one person rule for dialogs and contacts', () => {
   it('leadIdOf refuses exactly what the ingest always refused', async () => {
-    const { leadIdOf, contactAsDialog } =
-      await import('./src/agent/crm-memory-tools')
+    const { leadIdOf, contactAsDialog } = await import(
+      './src/agent/crm-memory-tools'
+    )
     const id = (s: string) => ({ toString: () => s })
     expect(leadIdOf({ id: id('900000020'), isUser: true, entity: {} })).toBe(
       '900000020'

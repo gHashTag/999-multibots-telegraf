@@ -1,0 +1,50 @@
+/* The "✨ AI" button beside the focused field. Fixed, so it follows the
+   field's box whatever scroll container the field lives in; anchored by its
+   RIGHT edge to the field's right edge (translateX(-100%)). */
+.ai-fill {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+.ai-fill__btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border: 1px solid rgba(0, 255, 136, 0.45);
+  border-radius: 999px;
+  background: rgba(0, 20, 12, 0.92);
+  color: #00ff88;
+  font:
+    600 11px/1.4 'Outfit',
+    system-ui,
+    sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.ai-fill__btn:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.ai-fill__btn--undo {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.ai-fill__error {
+  pointer-events: auto;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(60, 0, 0, 0.9);
+  color: #ff9a9a;
+  font-size: 11px;
+}

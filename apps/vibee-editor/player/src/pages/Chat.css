@@ -943,3 +943,58 @@ html[data-keyboard='open'] .chat-page {
   align-items: center;
   gap: 8px;
 }
+
+/* ── THE QUEUE: lines written while the agent was still answering ─────── */
+.chat-queue {
+  list-style: none;
+  margin: 0 auto 8px;
+  padding: 0;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chat-queue__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border: 1px dashed rgba(0, 255, 136, 0.35);
+  border-radius: 10px;
+  background: rgba(0, 255, 136, 0.04);
+  font-size: 13px;
+}
+.chat-queue__n {
+  flex: 0 0 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(0, 255, 136, 0.15);
+  color: var(--t27-accent, #00ff88);
+  font-size: 11px;
+  font-weight: 600;
+}
+.chat-queue__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-queue__drop {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--t27-muted, #888);
+  font-size: 16px;
+  cursor: pointer;
+}
+.chat-queue__hint {
+  color: var(--t27-muted, #888);
+  font-size: 11px;
+  padding-left: 4px;
+}

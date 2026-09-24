@@ -1,0 +1,18 @@
+/* A person's face or initials (components/Crm/Avatar.tsx). */
+.crm-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 600;
+  line-height: 1;
+}
+.crm-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
