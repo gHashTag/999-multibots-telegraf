@@ -79,6 +79,7 @@ import {
   cutPart,
   joinParts,
   leadSilenceOf,
+  maxSecondsOf,
   probeSeconds,
   probeSize,
   proxyShelfUrl,
@@ -2187,6 +2188,11 @@ export const TOOLS: AgentTool[] = [
           description:
             'секунд тишины в начале (0–3): старт на неподвижном фото',
         },
+        max_seconds: {
+          type: 'number',
+          description:
+            'взять только первые N секунд голоса (1–30); проба модели — 2–3 с, не весь ролик',
+        },
         model: {
           type: 'string',
           enum: [...LIPSYNC_MODELS],
@@ -2241,6 +2247,7 @@ export const TOOLS: AgentTool[] = [
           reason: `модель ${model} не допущена к липсинку: ${LIPSYNC_MODELS.join(' | ')}. Ничего не списано.`,
         }
       const leadSilence = leadSilenceOf(args.lead_silence_s)
+      const maxSeconds = maxSecondsOf(args.max_seconds)
       const dir = await mkdtemp(joinPath(tmpdir(), 'lipsync-'))
       try {
         const track = joinPath(dir, 'voice.wav')
@@ -2250,10 +2257,7 @@ export const TOOLS: AgentTool[] = [
             proxyShelfUrl(voiceKey),
             LIPSYNC_VOICE_MAX_BYTES,
             async source => {
-              await voiceTrack(source, track, {
-                leadSilence,
-                maxSeconds: LIPSYNC_TOOL_MAX_SECONDS,
-              })
+              await voiceTrack(source, track, { leadSilence, maxSeconds })
               return probeSeconds(track)
             }
           )

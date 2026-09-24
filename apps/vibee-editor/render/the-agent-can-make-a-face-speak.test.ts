@@ -75,6 +75,7 @@ import {
   LIPSYNC_TOOL_MAX_SECONDS,
   billedSecondsOf,
   leadSilenceOf,
+  maxSecondsOf,
   shelfKeyOf,
   splitPlan,
 } from './src/agent/lipsync-voice'
@@ -109,6 +110,14 @@ describe('the arithmetic of a voice cut into parts', () => {
     expect(billedSecondsOf(splitPlan(21.4))).toBe(24)
     expect(billedSecondsOf(splitPlan(7))).toBe(7)
     expect(billedSecondsOf(splitPlan(9.5))).toBe(10)
+  })
+
+  it('a probe takes only the seconds asked for, within 1..30', () => {
+    expect(maxSecondsOf(3)).toBe(3)
+    expect(maxSecondsOf(0.2)).toBe(1)
+    expect(maxSecondsOf(99)).toBe(LIPSYNC_TOOL_MAX_SECONDS)
+    for (const none of [undefined, null, 0, -2, 'abc'])
+      expect(maxSecondsOf(none), String(none)).toBe(LIPSYNC_TOOL_MAX_SECONDS)
   })
 
   it('lead silence is clamped to 0..3 s and junk means none', () => {
@@ -374,6 +383,18 @@ describe('the real handler', () => {
     })
     expect(r.done, JSON.stringify(r)).toBe(true)
     expect(credits(pool.sqls)).toEqual([])
+  })
+
+  it('a 3-second probe cuts the voice at 3 s and is billed for 3', async () => {
+    ff.seconds = 3
+    const { r, pool } = await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+      max_seconds: 3,
+    })
+    expect(r.done, JSON.stringify(r)).toBe(true)
+    expect(ff.voice[0].maxSeconds).toBe(3)
+    expect(debits(pool.sqls)).toEqual([3 * TOKEN_PRICES.lipsync_generate])
   })
 
   it('a model outside the list is refused before anything is charged', async () => {
