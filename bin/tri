@@ -52,6 +52,7 @@ tri — оболочка Trinity S³AI
   tri verdicts   последний итог приёмки по каждому агенту (тот, что на карточках /agents)
   tri secret NAME  положить секрет в Railway скрытым вводом — значение не проходит через чат
   tri traffic [дни]  откуда приходят люди, по каналам (utm_source), по умолчанию 30 дней
+  tri reach /путь [метод]  пропустит ли замок рендера вызов без подписи (isPublic)
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
@@ -1431,6 +1432,7 @@ PYEOF
   verdicts) shift; bash "$ROOT/bin/helpers/verdicts.sh" "$ROOT" "$@" ;;
   secret) shift; bash "$ROOT/bin/helpers/secret.sh" "$ROOT" "$@" ;;
   traffic) shift; bash "$ROOT/bin/helpers/traffic.sh" "$ROOT" "$@" ;;
+  reach) shift; bash "$ROOT/bin/helpers/reach.sh" "$ROOT" "$@" ;;
   alive)  shift; bash "$ROOT/bin/helpers/alive.sh" "$ROOT" "$@" ;;
   vs-main) shift; bash "$ROOT/bin/helpers/vs-main.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;

@@ -168,6 +168,16 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
 - Logs are my only eyes on production from this container: every stateful
   background job must log each step's outcome, not only a final summary.
 
+## Lessons (tick 8)
+
+- A handler's own test proves the handler, never the door in front of it.
+  Two tick-3/6 routes (acceptance verdicts, traffic arrivals) answered 401
+  in production from the shared guard for hours while every test was green.
+  For any route a page calls unsigned: `tri reach /path METHOD` and a line
+  in auth-public.test.ts, in the same PR as the route.
+- Read the service's refusals, not only its successes: the one `ОТКАЗ` line
+  in the log was the whole finding.
+
 ## Plan (next ticks)
 
 - [x] Epic #2961: digital clone, every social network. Inventory done (only
