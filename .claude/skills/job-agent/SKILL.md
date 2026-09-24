@@ -116,3 +116,21 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
   never answer text); every card reads the newest one: "✓ Checked on a real
   account · <day>" or "✗ Last check failed". Run `tri agents` after any
   change to a specialist so the card is not stale.
+
+## Tick 4 (24.09.2026): agents are checked every day by the service itself
+
+- **The daily run lives in render** (`src/agent/daily-acceptance.ts` +
+  `-wiring.ts`), not in a script or a Railway function (skill
+  `cloud-agent-does-the-work`: the service does the work). Every 30 min it
+  asks the verdict table whether 24 h passed since the NEWEST verdict
+  (`ACCEPTANCE_EVERY_H`); if so it runs the five canaries as the first
+  keeper through `runAgent`, records the verdicts and tells the owner ONLY a
+  failure or a recovery. First look 10 min after a start. Off:
+  `ACCEPTANCE_DAILY=0`. Nothing is written to the owner's conversation.
+- **One canary table**: `render/src/agent/acceptance-canaries.json`, read by
+  the server and by `scripts/agents-acceptance.cjs`. Change a canary there,
+  nowhere else. A contract test holds the server and script verdicts equal.
+- **Reading it**: `tri verdicts` (public GET, no key) prints the newest
+  verdict per agent -- the same line the `/agents` cards show. Exit 1 when
+  any agent fails, 3 when nothing was checked yet.
+- Railway log line to look for: `[acceptance] N/5 passed`.

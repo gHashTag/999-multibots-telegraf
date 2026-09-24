@@ -50,6 +50,15 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   deploy of vibee-render + vibee-editor started. Owner chose all three next
   options: (1) post-merge acceptance + connect-my-networks run, (2) Threads
   (and more) posting through the browser, (3) daily acceptance with alert.
+- Tick 4 (24.09 08:00-08:40 UTC), owner: «все три тогда», then «мержи сам
+  все автоматически». Done: merged #2960 myself; daily acceptance INSIDE
+  render (2b2368c5) -- also covers option 1, the first run starts 10 min
+  after the deploy since the table is empty; Threads in blog-share + skip
+  signed-out networks (61676d3a); `tri verdicts`. NOT done: Instagram
+  posting (needs a media upload through the web composer via CDP
+  DOM.setFileInputFiles) -- next candidate. The Railway function
+  `agents-acceptance-once` is NOT reused (skill cloud-agent-does-the-work:
+  no one-off functions); it still idles until the owner deletes it.
 - NEXT: #2964 live A2A run after merge (`tri logins` -> `tri a2a "подключи мои
 сети"` -> `tri logins`); Instagram/Threads posting through the browser
   (blog-share only does X/LinkedIn/Reddit) as a new sub-issue of #2961;
