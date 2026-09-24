@@ -67,7 +67,9 @@ tri — оболочка Trinity S³AI
   tri halfdone <файл>  где защита написана для одного элемента, а нужна соседям (форма 187)
   tri family <Компонент> [признак]  кто ещё в семье и до кого лекарство не дошло (форма 191)
   tri owed  храповики долга в тестах: сколько мест ещё ждёт правила (форма 192)
+  tri logonly  обработчики, которые только пишут в лог и ничего не чинят (форма 195)
   tri byload [каталог] [тест]  падает от кода или от ЗАГРУЗКИ машины: три прогона, три числа (форма 188)
+  tri types  типы плеера ПО-НАСТОЯЩЕМУ: доказывает, что проверка не слепа (форма 196)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
@@ -1612,6 +1614,71 @@ RECIPE
 Всё, что ИСЧЕЗАЕТ по этому событию (подсказка, ссылка наружу), исчезает и
 тогда, когда показать нечего. Выход должен жить независимо от него.
 RECIPE
+    ;;
+
+  logonly)
+    # A HANDLER THAT ONLY WRITES TO THE CONSOLE IS NOT A FAILURE PATH.
+    #
+    # A debt could be "paid" with a console line: the broken mark stays on the
+    # screen and the log reaches whoever is not looking at it. Worse than a
+    # missing handler, because a missing one is visible and a fake one is not.
+    # Form 195.
+    #
+    # Prints every catch/handler whose body is nothing but console calls.
+    shift
+    DIRS="$ROOT/src $ROOT/apps/vibee-editor/player/src $ROOT/apps/vibee-editor/render/src"
+    echo "обработчики, которые только логируют:"
+    grep -rnE -A 2 "onError=\{|catch \(e?\) \{|\} catch \{" --include="*.ts" \
+         --include="*.tsx" $DIRS 2>/dev/null \
+      | grep -B 1 -E "console\.(error|warn|log)" \
+      | grep -E "onError=\{\(\) => console|catch.*\{ *console" \
+      | grep -viE "\.test\." | sed "s|$ROOT/||" | head -20
+    # AN EMPTY LIST MUST PROVE IT CAN SEE.
+    #
+    # "Nothing found" and "the pattern is broken" print identically, and this
+    # session has already read one for the other twice. So the search is run
+    # against a known example first; if that is not found, the census says so
+    # instead of reporting a clean repository.
+    probe=$(printf '%s\n' 'onError={() => console.error(x)}' \
+      | grep -cE "onError=\{\(\) => console")
+    echo
+    if [ "$probe" -eq 0 ]; then
+      echo "⚠️ ПОИСК СЛОМАН: шаблон не нашёл даже заведомый пример."
+      echo "Пустой список выше ничего не значит."
+    else
+      echo "(шаблон проверен на заведомом примере -- пустой список значит пусто)"
+    fi
+    echo "Судить по одному: пусто ли тело ПОСЛЕ удаления вызовов консоли."
+    echo "Зовёт именованную функцию -- дальше читать нельзя, это не признак."
+    ;;
+
+  types)
+    # TYPECHECK THAT ACTUALLY CHECKS -- AND PROVES IT.
+    #
+    # `npx tsc --noEmit -p tsconfig.json` inside the player checks NOTHING:
+    # that file is a solution config (`"files": []` plus references), and
+    # --noEmit does not expand references. An explicit type error passes it
+    # in silence. A whole night of "tsc ok" meant nothing (form 196).
+    #
+    # This runs the real one AND proves it can see, by checking a file with a
+    # deliberate error first. A gate whose success is indistinguishable from
+    # "nothing to check" is not a gate.
+    shift
+    P="$ROOT/apps/vibee-editor/player"
+    TSC="$P/node_modules/.bin/tsc"
+    [ -x "$TSC" ] || { echo "нет $TSC -- сначала npm i в плеере"; exit 69; }
+    probe="$P/src/__tri_probe__.ts"
+    printf 'export const x: number = %s\n' "'строка'" > "$probe"
+    seen=$("$TSC" --noEmit -p "$P/tsconfig.app.json" --pretty false 2>&1 \
+           | grep -c "__tri_probe__") || seen=0
+    rm -f "$probe"
+    if [ "$seen" -eq 0 ]; then
+      echo "⚠️ ПРОВЕРКА СЛЕПА: заведомая ошибка не замечена. Вывод ниже ничего не значит."
+    else
+      echo "(проверка видит заведомую ошибку -- пустой вывод значит «чисто»)"
+    fi
+    "$TSC" --noEmit -p "$P/tsconfig.app.json" --pretty false 2>&1 \
+      | grep "error TS" | head -30 || echo "типы плеера: чисто"
     ;;
 
   contracts)

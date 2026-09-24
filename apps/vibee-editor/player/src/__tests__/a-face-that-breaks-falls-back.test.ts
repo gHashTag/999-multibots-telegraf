@@ -81,13 +81,9 @@ describe('every picture of a person can fall back', () => {
   const OWED = [
     'components/Assets/AssetCard.tsx',
     'components/BrandLoader/BrandLoader.tsx',
-    'components/Modals/PublishModal.tsx',
     'components/Notifications/NotificationsCenter.tsx',
     'components/Panels/FeedCard.tsx',
     'components/Panels/GeneratePanel.tsx',
-    'components/Profile/ProfileFilesGrid.tsx',
-    'components/Profile/ProfileHeader.tsx',
-    'components/Profile/ProfilePending.tsx',
     'components/Sound/SoundAttribution.tsx',
     'components/Stories/Stories.tsx',
     'components/Timeline/ThumbnailScrubber.tsx',
@@ -100,16 +96,78 @@ describe('every picture of a person can fall back', () => {
     'compositions/SplitTalkingHead.tsx',
   ]
 
+  /**
+   * AN `onError` THAT ONLY LOGS IS NOT A FAILURE PATH.
+   *
+   * Found while paying this debt down: one site already carried
+   * `onError={() => console.error(...)}` and my check counted it as handled.
+   * The person still sees the browser's broken mark; the log reaches whoever
+   * is not looking at the screen. A site could "pay" its debt by writing to
+   * a console nobody reads.
+   *
+   * WHAT CAN BE DECIDED HERE, AND WHAT CANNOT. Whether a handler really
+   * fixes anything is not answerable by reading the tag: `onError={() =>
+   * handleImageError(id)}` calls a function that sets state, and a first
+   * version of this check -- looking for `setX`, `display`, `style` in the
+   * body -- called that site broken. It is not.
+   *
+   * What IS decidable: a handler whose body is nothing but console calls
+   * does nothing at all. Strip those, and if what remains is empty, the tag
+   * has a handler in name only.
+   */
+  const handlesFailure = (tag: string): boolean => {
+    const m = /onError=\{([\s\S]*?)\}\s*(?:\/?>|\n)/.exec(tag)
+    if (!m) return false
+    const withoutLogs = m[1]!
+      .replace(/console\.\w+\([\s\S]*?\)/g, '')
+      .replace(/[(){}=>;,\s]/g, '')
+    return withoutLogs.length > 0
+  }
+
   const bareSites = () => {
     const out: string[] = []
     for (const f of files()) {
       const text = fs.readFileSync(f, 'utf8')
       for (const tag of text.match(DATA_IMG) ?? []) {
-        if (!/onError/.test(tag)) out.push(path.relative(SRC, f))
+        if (!handlesFailure(tag)) out.push(path.relative(SRC, f))
       }
     }
     return [...new Set(out)]
   }
+
+  it('THE RULE ITSELF: a handler in name only does not count', () => {
+    /*
+     * Pinned directly, because the site-by-site checks cannot pin it: once
+     * every file is either honest or on the list, a `handlesFailure` that
+     * always answered TRUE would pass all of them and quietly stop being a
+     * check. That mutation survived until this test existed.
+     */
+    expect(
+      handlesFailure('<img src={u} onError={() => console.error(u)} />'),
+      'console alone leaves the broken mark on the screen'
+    ).toBe(false)
+    expect(
+      handlesFailure(
+        '<img src={u} onError={() => { console.warn(u); console.log(1) }} />'
+      )
+    ).toBe(false)
+    // And what does count: anything that changes the page, whether inline or
+    // through a named function -- `handleImageError(id)` sets state, and a
+    // first version of this rule wrongly called that site broken.
+    expect(
+      handlesFailure('<img src={u} onError={() => setBroken(true)} />')
+    ).toBe(true)
+    expect(
+      handlesFailure('<img src={u} onError={() => handleImageError(id)} />')
+    ).toBe(true)
+    expect(
+      handlesFailure(
+        '<img src={u} onError={e => { console.error(u); e.currentTarget.style.display = "none" }} />'
+      ),
+      'logging AND acting is acting'
+    ).toBe(true)
+    expect(handlesFailure('<img src={u} />')).toBe(false)
+  })
 
   it('no NEW picture arrives without a way to fail', () => {
     const unexpected = bareSites().filter(f => !OWED.includes(f))
