@@ -21,6 +21,47 @@ import './SendCardView.css'
  * the client without the owner's press, and a card answered in the bot is
  * refused here (the secret is spent) rather than sent twice.
  */
+/**
+ * A PREVIEW THAT DID NOT LOAD, ON THE ONE CARD WHERE HIDING IT IS WRONG.
+ *
+ * Everywhere else in this app a broken picture is quietly replaced -- by
+ * initials, or by nothing. Here the picture IS the thing being approved: an
+ * attachment that fails to render and says nothing leaves the owner pressing
+ * Send on a message whose contents he cannot see.
+ *
+ * So this one speaks, and it speaks carefully. It does NOT promise that the
+ * send will work: the preview failing in this browser says nothing certain
+ * about what the server holds. It says the preview did not open and offers
+ * the link, which is the one thing the owner can act on before deciding.
+ */
+function SendPreview({
+  url,
+  kind,
+}: {
+  url: string
+  kind: 'photo' | 'video' | 'voice'
+}) {
+  const { t } = useLanguage()
+  const [broken, setBroken] = useState(false)
+  if (broken) {
+    return (
+      <p className="send-card__broken" role="status">
+        {t('sendCard.previewBroken')}{' '}
+        <a href={url} target="_blank" rel="noreferrer">
+          {t('sendCard.previewOpen')}
+        </a>
+      </p>
+    )
+  }
+  if (kind === 'photo')
+    return <img src={url} alt="" onError={() => setBroken(true)} />
+  if (kind === 'video')
+    return (
+      <video src={url} controls playsInline onError={() => setBroken(true)} />
+    )
+  return <audio src={url} controls onError={() => setBroken(true)} />
+}
+
 export function SendCardView({
   card,
   onChange,
@@ -65,15 +106,15 @@ export function SendCardView({
       {m ? (
         <div className="send-card__media">
           {m.kind === 'photo' ? (
-            <img src={toAbsoluteUrl(m.url)} alt="" />
+            <SendPreview url={toAbsoluteUrl(m.url)} kind="photo" />
           ) : m.kind === 'video' || m.kind === 'video_note' ? (
-            <video src={toAbsoluteUrl(m.url)} controls playsInline />
+            <SendPreview url={toAbsoluteUrl(m.url)} kind="video" />
           ) : m.kind === 'voice' ? (
-            <audio src={toAbsoluteUrl(m.url)} controls />
+            <SendPreview url={toAbsoluteUrl(m.url)} kind="voice" />
           ) : m.kind === 'album' ? (
             <div className="send-card__album">
               {m.urls.map(u => (
-                <img key={u} src={toAbsoluteUrl(u)} alt="" />
+                <SendPreview key={u} url={toAbsoluteUrl(u)} kind="photo" />
               ))}
             </div>
           ) : (
