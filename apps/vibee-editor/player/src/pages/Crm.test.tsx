@@ -571,3 +571,35 @@ describe('the clients list pages past the first', () => {
     }
   })
 })
+
+describe('groups on /crm (#2950)', () => {
+  it('a groups chip lists the groups, each opening its read-only page', async () => {
+    answers.crm_groups = {
+      groups: [
+        {
+          chat_id: '-1001111111111',
+          kind: 'group',
+          title: 'Buyers club',
+          members_count: 40,
+          messages: 12,
+        },
+      ],
+    }
+    try {
+      serve()
+      await draw()
+      const chip = [...host.querySelectorAll('button')].find(b =>
+        b.textContent?.startsWith('crm.clients.filter.groups')
+      )!
+      expect(chip.textContent).toBe('crm.clients.filter.groups 1')
+      await act(async () => {
+        chip.click()
+      })
+      const link = host.querySelector('a[href="/crm/g/-1001111111111/chat"]')
+      expect(link?.textContent).toBe('Buyers club')
+      expect(host.textContent).not.toContain('ClientOnlyName')
+    } finally {
+      delete answers.crm_groups
+    }
+  })
+})

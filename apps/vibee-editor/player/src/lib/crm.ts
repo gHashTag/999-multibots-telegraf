@@ -921,3 +921,86 @@ export const loadOutcomes = async (days = 7) =>
     await callTool<Record<string, unknown>>('crm_outcomes', { days }),
     toOutcomes
   )
+
+/* ── Groups (#2950): read-only, the tools `crm_groups` / `crm_group_context` ── */
+
+/** A Telegram group id: basic groups are negative, supergroups -100…. */
+export const GROUP_CHAT_ID = /^-\d{5,20}$/
+
+export interface GroupRow {
+  chatId: string
+  kind: 'group' | 'channel'
+  title: string | null
+  username: string | null
+  membersCount: number | null
+  messages: number
+  lastAt: string | null
+}
+
+export interface GroupMember {
+  id: string
+  name: string | null
+  messages: number
+  lastAt: string | null
+}
+
+export interface GroupContext {
+  group: GroupRow | null
+  messages: Array<{
+    msgId: number
+    senderId: string | null
+    at: string | null
+    out: boolean
+    text: string
+  }>
+  members: GroupMember[]
+  signals: string[]
+}
+
+const toGroup = (g: Record<string, unknown>): GroupRow => ({
+  chatId: String(g['chat_id'] ?? ''),
+  kind: g['kind'] === 'channel' ? 'channel' : 'group',
+  title: str(g['title']),
+  username: str(g['username']),
+  membersCount: num(g['members_count']),
+  messages: num(g['messages']) ?? 0,
+  lastAt: str(g['last_at']),
+})
+
+export const loadGroups = async () =>
+  map(
+    await callTool<Record<string, unknown>>('crm_groups', { limit: 200 }),
+    r => rows(r['groups']).map(toGroup)
+  )
+
+export const loadGroupContext = async (chat: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_group_context', {
+      chat,
+      limit: 100,
+    }),
+    (r): GroupContext => {
+      const g = r['group']
+      return {
+        group:
+          g && typeof g === 'object'
+            ? toGroup(g as Record<string, unknown>)
+            : null,
+        messages: rows(r['messages']).map(m => ({
+          msgId: num(m['msg_id']) ?? 0,
+          senderId: str(m['sender_id']),
+          at: str(m['at']),
+          out: bool(m['out']) ?? false,
+          // The model's injection fence is not for a person's eyes.
+          text: stripForeignMarkers(String(m['text'] ?? '')),
+        })),
+        members: rows(r['members']).map(m => ({
+          id: String(m['id'] ?? ''),
+          name: str(m['name']),
+          messages: num(m['messages']) ?? 0,
+          lastAt: str(m['last_at']),
+        })),
+        signals: strings(r['signals']),
+      }
+    }
+  )
