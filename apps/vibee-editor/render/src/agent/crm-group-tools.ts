@@ -68,7 +68,7 @@ export const CRM_GROUP_TOOLS: AgentTool[] = [
       await requireSeller(ctx)
       const chat = String(a?.chat ?? '').trim()
       if (!GROUP_ID.test(chat)) {
-        throw new Error('chat: a group id is negative, e.g. -1001234567890')
+        throw new Error('chat: a group id is negative (-100… for a supergroup)')
       }
       const owner = String(ctx!.telegramId)
       const pool = ctx!.pool as never
