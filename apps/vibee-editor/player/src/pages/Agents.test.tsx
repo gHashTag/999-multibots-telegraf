@@ -12,6 +12,7 @@ vi.mock('@/hooks/useLanguage', () => ({
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 import { AgentsPage } from './Agents'
+import { MARKETPLACE_AGENTS } from '../../../packages/vibee-atoms/src/agent-marketplace'
 
 let host: HTMLDivElement
 let root: Root
@@ -44,7 +45,16 @@ describe('agent labour market', () => {
       [...host.querySelectorAll('.agent-card__cta--disabled')].filter(node =>
         node.textContent?.includes('Training — join later')
       )
-    ).toHaveLength(3)
+      /*
+       * Counted from the catalogue, not written down: the literal 3 went
+       * stale the day the Job desk joined as a fourth trainee (#2940), and a
+       * count that has to be edited by hand is a count that will be wrong.
+       * The floor keeps the assertion from passing on an empty page.
+       */
+    ).toHaveLength(MARKETPLACE_AGENTS.filter(a => a.status !== 'live').length)
+    expect(
+      MARKETPLACE_AGENTS.filter(a => a.status !== 'live').length
+    ).toBeGreaterThanOrEqual(3)
     expect(host.textContent).toContain('designed, not active yet')
     expect(
       host.querySelector<HTMLAnchorElement>('a[href="/agents/connect"]')
