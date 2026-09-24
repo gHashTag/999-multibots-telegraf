@@ -23,7 +23,6 @@ import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { uploadToS3 } from '@/lib/s3Upload'
 import { toAbsoluteUrl } from '@/lib/mediaUrl'
-import { reportPayOutcome } from '@/lib/payOutcome'
 import { parseCards, cardStates, answerFor } from '@/lib/agentCards'
 import { AgentCards } from '@/components/Chat/AgentCards'
 import { ChatThreads } from '@/components/Chat/ChatThreads'
@@ -212,6 +211,8 @@ function ChatThread({
   const busy = useAtomValue(agentBusyAtom)
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [topUp, setTopUp] = useState(false)
+  // Narrow mode: the client's card as a sheet over the conversation.
+  const [asideOpen, setAsideOpen] = useState(false)
   /*
    * The balance and the buy flow moved to useTokenTopUp so the PROFILE can use
    * the same one. A second copy is how one of the two quietly stops verifying.
@@ -435,295 +436,344 @@ function ChatThread({
       <Header />
       <ChatThreads current={client} />
       {/*
-        WIDE MODE: WHO THIS IS, BESIDE THE CONVERSATION.
+        THE CONVERSATION AND, FOR A CLIENT THREAD, THE CLIENT'S CARD BESIDE IT.
 
-        Rendered whenever the thread is about a client; the stylesheet shows it
-        only where two columns fit. Deciding that here, from a measured width,
-        would break in the embedded Mini App, whose frame is resized under the
-        page.
+        A row, not a fixed overlay: the card used to be pinned at a guessed
+        `top`, and the row of conversation circles above it is taller than
+        the guess, so the card covered the last circles (owner's screenshot,
+        2026-09-24). In a row it starts where the conversation starts.
       */}
-      {client ? <ClientAside client={client} /> : null}
-      {/* Бренд (знак + Trinity S³AI) уже стоит в Header выше — здесь его
+      <div className="chat-body">
+        <div className="chat-main">
+          {/* Бренд (знак + Trinity S³AI) уже стоит в Header выше — здесь его
           не повторяем, иначе название дублируется на экране дважды. */}
-      {/* The greeting lives in the list as the agent's first message and
+          {/* The greeting lives in the list as the agent's first message and
           scrolls away with it; the toolbar keeps only the two controls. */}
-      {client ? (
-        <nav
-          className="chat-client"
-          aria-label={t('crm.client.chat.title', { id: client })}
-        >
-          <Link to={`/crm/${client}`} className="chat-client__back">
-            ← {t('crm.client.chat.back')}
-          </Link>
-          <span className="chat-client__title">
-            {t('crm.client.chat.title', { id: client })}
-          </span>
-        </nav>
-      ) : null}
-      {marketplaceAgent ? (
-        <nav className="chat-specialist" aria-label="Блогер T27">
-          <Link to="/agents" className="chat-specialist__back">
-            {'← Биржа агентов'}
-          </Link>
-          <span>
-            <i /> {'Блогер · работает'}
-          </span>
-        </nav>
-      ) : null}
-      <div className="chat-toolbar">
-        {/* Переписка теперь переживает уход со страницы — значит нужен и
+          {client ? (
+            <nav
+              className="chat-client"
+              aria-label={t('crm.client.chat.title', { id: client })}
+            >
+              <Link to={`/crm/${client}`} className="chat-client__back">
+                ← {t('crm.client.chat.back')}
+              </Link>
+              <span className="chat-client__title">
+                {t('crm.client.chat.title', { id: client })}
+              </span>
+              {/* Narrow screens: the card opens as a sheet. Hidden in wide mode,
+              where it is always beside the conversation. */}
+              <button
+                type="button"
+                className="chat-client__card"
+                aria-expanded={asideOpen}
+                onClick={() => setAsideOpen(v => !v)}
+              >
+                {t('crm.aside.cardButton')}
+              </button>
+            </nav>
+          ) : null}
+          {marketplaceAgent ? (
+            <nav className="chat-specialist" aria-label="Блогер T27">
+              <Link to="/agents" className="chat-specialist__back">
+                {'← Биржа агентов'}
+              </Link>
+              <span>
+                <i /> {'Блогер · работает'}
+              </span>
+            </nav>
+          ) : null}
+          <div className="chat-toolbar">
+            {/* Переписка теперь переживает уход со страницы — значит нужен и
           способ её закончить. Без этой кнопки старый разговор оставался
           бы на экране навсегда. */}
-        {messages.length > 1 && (
-          <button
-            className="chat-reset"
-            onClick={() => {
-              /*
-               * «Начать заново» ТЕПЕРЬ ЧИСТИТ И СЕРВЕР.
-               *
-               * Раньше кнопка стирала только память браузера, а общий
-               * разговор оставался на сервере — человек нажимал «новый», а
-               * агент продолжал помнить всё прошлое. Обещание, которого
-               * интерфейс не выполнял; с появлением общей памяти оно стало
-               * ещё заметнее: разговор возвращался при следующем открытии.
-               *
-               * Экран очищаем СРАЗУ, не дожидаясь сети: нажатие должно
-               * ощущаться мгновенно. Отказ сервера при этом не молчаливый —
-               * он виден в консоли, а следующий заход покажет, что история
-               * вернулась, и это честнее, чем ложное «очищено».
-               */
-              // In a client thread this clears THAT thread only: the
-              // `?client=` names it, and the server never touches the self
-              // thread on a scoped delete.
-              setMessages([welcome])
-              setInput('')
-              setAttachments([])
-              fetch(
-                `${API_BASE}/api/agent/history${threadQuery(client, marketplaceAgent, true)}`,
-                {
-                  method: 'DELETE',
-                  headers: authHeaders(),
-                }
-              ).catch(e => console.error('[chat] очистка на сервере:', e))
-            }}
-          >
-            Новый разговор
-          </button>
-        )}
-        {tokens !== null && (
-          <button className="chat-tokens" onClick={() => setTopUp(v => !v)}>
-            💰 {tokens} токенов · пополнить
-          </button>
-        )}
-        {topUp && (
-          <div className="chat-topup">
-            {/* Якорная психология (2026): большой пакет первым — средний
+            {messages.length > 1 && (
+              <button
+                className="chat-reset"
+                onClick={() => {
+                  /*
+                   * «Начать заново» ТЕПЕРЬ ЧИСТИТ И СЕРВЕР.
+                   *
+                   * Раньше кнопка стирала только память браузера, а общий
+                   * разговор оставался на сервере — человек нажимал «новый», а
+                   * агент продолжал помнить всё прошлое. Обещание, которого
+                   * интерфейс не выполнял; с появлением общей памяти оно стало
+                   * ещё заметнее: разговор возвращался при следующем открытии.
+                   *
+                   * Экран очищаем СРАЗУ, не дожидаясь сети: нажатие должно
+                   * ощущаться мгновенно. Отказ сервера при этом не молчаливый —
+                   * он виден в консоли, а следующий заход покажет, что история
+                   * вернулась, и это честнее, чем ложное «очищено».
+                   */
+                  // In a client thread this clears THAT thread only: the
+                  // `?client=` names it, and the server never touches the self
+                  // thread on a scoped delete.
+                  setMessages([welcome])
+                  setInput('')
+                  setAttachments([])
+                  fetch(
+                    `${API_BASE}/api/agent/history${threadQuery(client, marketplaceAgent, true)}`,
+                    {
+                      method: 'DELETE',
+                      headers: authHeaders(),
+                    }
+                  ).catch(e => console.error('[chat] очистка на сервере:', e))
+                }}
+              >
+                Новый разговор
+              </button>
+            )}
+            {tokens !== null && (
+              <button className="chat-tokens" onClick={() => setTopUp(v => !v)}>
+                💰 {tokens} токенов · пополнить
+              </button>
+            )}
+            {topUp && (
+              <div className="chat-topup">
+                {/* Якорная психология (2026): большой пакет первым — средний
               на его фоне выглядит выгодным. 150: 1.17⭐/ток против 1.5
               у десятки — честный «выгоднее всех», не маркетинговый. */}
-            {[150, 50, 10].map(p => (
-              <button
-                key={p}
-                className="chat-topup__pack"
-                onClick={() => buy(String(p))}
-              >
-                {p} токенов{p === 150 ? ' · выгоднее всех' : ''}
-                <span>
-                  {p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}
-                </span>
-              </button>
-            ))}
-            {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
-          </div>
-        )}
-      </div>
-      <div className="chat-container" ref={scrollRef}>
-        <div className="chat-messages">
-          {messages.map((m, idx) => (
-            <div
-              key={m.id}
-              className={`message ${m.role === 'user' ? 'user' : 'agent'}`}
-            >
-              {/*
-               * WHERE THIS TURN CAME FROM, when it was not here.
-               *
-               * One conversation spans the bot, this app and the phone, so a
-               * reply can answer a question that was never typed on this
-               * screen. Without the caption the transcript looks like the
-               * agent answering itself.
-               *
-               * Only OTHER surfaces are named: labelling every local bubble
-               * "from the mini app" is noise, and noise is what stops people
-               * reading the captions that matter.
-               */}
-              {surfaceLabel(m.surface) ? (
-                <span className="message-surface">
-                  {surfaceLabel(m.surface)}
-                </span>
-              ) : null}
-              {m.thinking ? (
-                <button
-                  className="thinking-toggle"
-                  onClick={() =>
-                    setOpenThinking(s => ({ ...s, [m.id]: !s[m.id] }))
-                  }
-                >
-                  {openThinking[m.id] ? '▾' : '▸'} размышление
-                </button>
-              ) : null}
-              {m.thinking && openThinking[m.id] ? (
-                <div className="thinking-body">{m.thinking}</div>
-              ) : null}
-              {m.tools && m.tools.length > 0 ? (
-                <div className="tool-chips">
-                  {m.tools.map((tc, i) => (
-                    <span key={i} className="tool-chip">
-                      ⚙ {tc.name}
-                      {tc.ms != null ? ` · ${tc.ms}мс` : '…'}
+                {[150, 50, 10].map(p => (
+                  <button
+                    key={p}
+                    className="chat-topup__pack"
+                    onClick={() => buy(String(p))}
+                  >
+                    {p} токенов{p === 150 ? ' · выгоднее всех' : ''}
+                    <span>
+                      {p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}
                     </span>
-                  ))}
-                </div>
-              ) : null}
-              {/* Ассеты — живыми превью: картинка показывается картинкой,
-                  видео плеером, аудио плеером. Голые ссылки не смотрятся. */}
-              {m.text || (m.attachments?.length ?? 0) > 0 ? (
-                <div className="message-content">
-                  {m.text ? (
-                    <ChatAssets
-                      text={
-                        m.role === 'assistant'
-                          ? parseCards(m.text).text
-                          : m.text
-                      }
-                    />
+                  </button>
+                ))}
+                {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
+              </div>
+            )}
+          </div>
+          <div className="chat-container" ref={scrollRef}>
+            <div className="chat-messages">
+              {messages.map((m, idx) => (
+                <div
+                  key={m.id}
+                  className={`message ${m.role === 'user' ? 'user' : 'agent'}`}
+                >
+                  {/*
+                   * WHERE THIS TURN CAME FROM, when it was not here.
+                   *
+                   * One conversation spans the bot, this app and the phone, so a
+                   * reply can answer a question that was never typed on this
+                   * screen. Without the caption the transcript looks like the
+                   * agent answering itself.
+                   *
+                   * Only OTHER surfaces are named: labelling every local bubble
+                   * "from the mini app" is noise, and noise is what stops people
+                   * reading the captions that matter.
+                   */}
+                  {surfaceLabel(m.surface) ? (
+                    <span className="message-surface">
+                      {surfaceLabel(m.surface)}
+                    </span>
                   ) : null}
-                  {m.attachments && m.attachments.length > 0 ? (
-                    <div className="message-attachments">
-                      {m.attachments.map(attachment => (
-                        <div className="message-attachment" key={attachment.id}>
-                          <ChatAssets text={attachment.url} />
-                          <span>{attachment.name}</span>
-                        </div>
+                  {m.thinking ? (
+                    <button
+                      className="thinking-toggle"
+                      onClick={() =>
+                        setOpenThinking(s => ({ ...s, [m.id]: !s[m.id] }))
+                      }
+                    >
+                      {openThinking[m.id] ? '▾' : '▸'} размышление
+                    </button>
+                  ) : null}
+                  {m.thinking && openThinking[m.id] ? (
+                    <div className="thinking-body">{m.thinking}</div>
+                  ) : null}
+                  {m.tools && m.tools.length > 0 ? (
+                    <div className="tool-chips">
+                      {m.tools.map((tc, i) => (
+                        <span key={i} className="tool-chip">
+                          ⚙ {tc.name}
+                          {tc.ms != null ? ` · ${tc.ms}мс` : '…'}
+                        </span>
                       ))}
                     </div>
                   ) : null}
+                  {/* Ассеты — живыми превью: картинка показывается картинкой,
+                  видео плеером, аудио плеером. Голые ссылки не смотрятся. */}
+                  {m.text || (m.attachments?.length ?? 0) > 0 ? (
+                    <div className="message-content">
+                      {m.text ? (
+                        <ChatAssets
+                          text={
+                            m.role === 'assistant'
+                              ? parseCards(m.text).text
+                              : m.text
+                          }
+                        />
+                      ) : null}
+                      {m.attachments && m.attachments.length > 0 ? (
+                        <div className="message-attachments">
+                          {m.attachments.map(attachment => (
+                            <div
+                              className="message-attachment"
+                              key={attachment.id}
+                            >
+                              <ChatAssets text={attachment.url} />
+                              <span>{attachment.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {m.role === 'assistant' ? cardsOf(m.text || '', idx) : null}
+                  {!m.text && m.role === 'assistant' && busy ? (
+                    <div className="typing-indicator">
+                      <div className="typing-dot" />
+                      <div className="typing-dot" />
+                      <div className="typing-dot" />
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-              {m.role === 'assistant' ? cardsOf(m.text || '', idx) : null}
-              {!m.text && m.role === 'assistant' && busy ? (
-                <div className="typing-indicator">
-                  <div className="typing-dot" />
-                  <div className="typing-dot" />
-                  <div className="typing-dot" />
-                </div>
-              ) : null}
-            </div>
-          ))}
-
-          {messages.length <= 1 ? (
-            <div className="suggestions">
-              {(client
-                ? CLIENT_SUGGESTIONS
-                : marketplaceAgent === 'blogger'
-                  ? BLOGGER_SUGGESTIONS
-                  : SUGGESTIONS
-              ).map((s, i) => (
-                <button
-                  key={i}
-                  className="suggestion-btn"
-                  onClick={() => send(s)}
-                >
-                  {s}
-                </button>
               ))}
-            </div>
-          ) : null}
-        </div>
-      </div>
 
-      <div className="chat-input-area">
-        {attachments.length > 0 || attachmentError ? (
-          <div className="chat-attachment-tray">
-            {attachments.map(attachment => (
-              <span className="chat-attachment-chip" key={attachment.id}>
-                {attachment.kind === 'image'
-                  ? '🖼'
-                  : attachment.kind === 'video'
-                    ? '🎬'
-                    : attachment.kind === 'audio'
-                      ? '🎧'
-                      : '📎'}{' '}
-                {attachment.name}
-                <button
-                  type="button"
-                  aria-label={`Убрать ${attachment.name}`}
-                  onClick={() =>
-                    setAttachments(current =>
-                      current.filter(item => item.id !== attachment.id)
-                    )
-                  }
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            {attachmentError ? (
-              <span className="chat-attachment-error">{attachmentError}</span>
-            ) : null}
+              {messages.length <= 1 ? (
+                <div className="suggestions">
+                  {(client
+                    ? CLIENT_SUGGESTIONS
+                    : marketplaceAgent === 'blogger'
+                      ? BLOGGER_SUGGESTIONS
+                      : SUGGESTIONS
+                  ).map((s, i) => (
+                    <button
+                      key={i}
+                      className="suggestion-btn"
+                      onClick={() => send(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
-        ) : null}
-        <div className="chat-input-container">
-          {/*
-           * ANY FILE, NOT ONLY MEDIA (2026-09-22). The picker used to accept
-           * image/*, video/* and audio/* alone, so a PDF, a spreadsheet or a
-           * .txt could not even be chosen here while the bot read them. The
-           * server reads what it can and names what it cannot
-           * (render media-inline.ts), so the picker no longer decides.
-           */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="chat-file-input"
-            aria-hidden="true"
-            tabIndex={-1}
-            onChange={event => void uploadAttachments(event.target.files)}
-          />
-          <button
-            type="button"
-            className="attach-btn"
-            aria-label={t('chat.attachAny')}
-            title={t('chat.attachAny')}
-            disabled={busy || uploading || attachments.length >= 4}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {uploading ? '…' : '+'}
-          </button>
-          <input
-            type="text"
-            className="chat-input"
-            placeholder={t('chat.messagePlaceholder')}
-            value={input}
-            disabled={busy}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && send(input)}
-            onFocus={() => {
-              // The keyboard shrinks the list; keep the latest message in view.
-              window.setTimeout(() => {
-                if (scrollRef.current)
-                  scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-              }, 350)
-            }}
-          />
-          <button
-            className="send-btn"
-            onClick={() => send(input)}
-            disabled={
-              busy || uploading || (!input.trim() && attachments.length === 0)
-            }
-          >
-            {busy ? '…' : t('chat.send')}
-          </button>
+
+          <div className="chat-input-area">
+            {attachments.length > 0 || attachmentError ? (
+              <div className="chat-attachment-tray">
+                {attachments.map(attachment => (
+                  <span className="chat-attachment-chip" key={attachment.id}>
+                    {attachment.kind === 'image'
+                      ? '🖼'
+                      : attachment.kind === 'video'
+                        ? '🎬'
+                        : attachment.kind === 'audio'
+                          ? '🎧'
+                          : '📎'}{' '}
+                    {attachment.name}
+                    <button
+                      type="button"
+                      aria-label={`Убрать ${attachment.name}`}
+                      onClick={() =>
+                        setAttachments(current =>
+                          current.filter(item => item.id !== attachment.id)
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {attachmentError ? (
+                  <span className="chat-attachment-error">
+                    {attachmentError}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="chat-input-container">
+              {/*
+               * ANY FILE, NOT ONLY MEDIA (2026-09-22). The picker used to accept
+               * image/*, video/* and audio/* alone, so a PDF, a spreadsheet or a
+               * .txt could not even be chosen here while the bot read them. The
+               * server reads what it can and names what it cannot
+               * (render media-inline.ts), so the picker no longer decides.
+               */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="chat-file-input"
+                aria-hidden="true"
+                tabIndex={-1}
+                onChange={event => void uploadAttachments(event.target.files)}
+              />
+              <button
+                type="button"
+                className="attach-btn"
+                aria-label={t('chat.attachAny')}
+                title={t('chat.attachAny')}
+                disabled={busy || uploading || attachments.length >= 4}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? '…' : '+'}
+              </button>
+              <input
+                type="text"
+                className="chat-input"
+                placeholder={t('chat.messagePlaceholder')}
+                value={input}
+                disabled={busy}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && send(input)}
+                onFocus={() => {
+                  // The keyboard shrinks the list; keep the latest message in view.
+                  window.setTimeout(() => {
+                    if (scrollRef.current)
+                      scrollRef.current.scrollTop =
+                        scrollRef.current.scrollHeight
+                  }, 350)
+                }}
+              />
+              <button
+                className="send-btn"
+                onClick={() => send(input)}
+                disabled={
+                  busy ||
+                  uploading ||
+                  (!input.trim() && attachments.length === 0)
+                }
+              >
+                {busy ? '…' : t('chat.send')}
+              </button>
+            </div>
+          </div>
         </div>
+        {/*
+        Rendered whenever the thread is about a client; the stylesheet decides
+        column (wide) or sheet (narrow). Deciding that here, from a measured
+        width, would break in the embedded Mini App, whose frame is resized
+        under the page. A move pressed on the card becomes a question in THIS
+        conversation: the agent proposes, the owner confirms.
+      */}
+        {client ? (
+          <>
+            {asideOpen ? (
+              <div
+                className="chat-aside-backdrop"
+                aria-hidden="true"
+                onClick={() => setAsideOpen(false)}
+              />
+            ) : null}
+            <ClientAside
+              client={client}
+              onAsk={text => {
+                setAsideOpen(false)
+                send(text)
+              }}
+              askDisabled={busy || uploading}
+              open={asideOpen}
+              onClose={() => setAsideOpen(false)}
+            />
+          </>
+        ) : null}
       </div>
     </div>
   )
