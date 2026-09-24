@@ -63,6 +63,24 @@ describe('the shelf address', () => {
     expect(() => new URL(calls[0].url)).not.toThrow()
   })
 
+  /*
+   * 2026-09-23: Railway put the render's custom domain `auth.t27.ai` into the
+   * same variable. That host answers /upload with 404, so every attachment was
+   * refused. The upload AND the link handed back must both avoid it -- a link
+   * on auth.t27.ai would be a 404 for whoever opens it.
+   */
+  it('the sign-in host from Railway is not where files go', async () => {
+    process.env.RAILWAY_SERVICE_VIBEE_RENDER_URL = 'auth.t27.ai'
+    const calls = captureFetch()
+    const artifact = await putBytes(Buffer.from([1]), 'a.jpg')
+    expect(calls[0].url).toBe(
+      'https://vibee-render-production.up.railway.app/upload'
+    )
+    expect(artifact.url).toBe(
+      'https://vibee-render-production.up.railway.app/s3/x'
+    )
+  })
+
   it('an address that already has a scheme is left alone', async () => {
     process.env.RENDER_SERVER_URL = 'http://localhost:4000'
     const calls = captureFetch()

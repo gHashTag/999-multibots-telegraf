@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { logger } from '@/utils/logger'
+import { renderBaseUrl } from './baseUrl'
 
 /**
  * Клиент удалённого рендера (vibee-render на Railway, Remotion).
@@ -14,18 +15,6 @@ import { logger } from '@/utils/logger'
  * outputUrl, publicUrl}. Композиции проверяются на приёме (bundle-derived).
  */
 
-/**
- * Адрес сервера. Пустая строка в конце цепочки НАМЕРЕННО: мёртвый литерал
- * превращает «не настроено» в «настроено на несуществующий хост», и отказ
- * становится молчаливым (класс three-head-dragon.shop, 19 вычищенных мест).
- */
-function renderServerBaseUrl(): string {
-  if (process.env.RENDER_SERVER_URL) return process.env.RENDER_SERVER_URL
-  if (process.env.RAILWAY_SERVICE_VIBEE_RENDER_URL)
-    return `https://${process.env.RAILWAY_SERVICE_VIBEE_RENDER_URL}`
-  return ''
-}
-
 export interface RemoteRenderResult {
   renderId: string
   /** Абсолютная ссылка на готовый файл. */
@@ -38,7 +27,9 @@ export async function renderOnServer(params: {
   /** Максимум ожидания готовности; рендер 18с видео занимает 2–5 минут. */
   timeoutMs?: number
 }): Promise<RemoteRenderResult> {
-  const base = renderServerBaseUrl().replace(/\/$/, '')
+  // '' when nothing names the render: no literal host at the end of the
+  // chain, so "not configured" stays a refusal (three-head-dragon.shop class).
+  const base = renderBaseUrl()
   if (!base) {
     throw new Error(
       'Рендер-сервер не настроен: нет ни RENDER_SERVER_URL, ни RAILWAY_SERVICE_VIBEE_RENDER_URL'
