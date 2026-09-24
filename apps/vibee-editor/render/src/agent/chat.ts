@@ -319,8 +319,11 @@ const WEB_RULES =
 /**
  * BUTTONS THE AGENT PROPOSES ITSELF.
  *
- * The owner asked that answers always arrive with something to press, so a
- * person can react without typing. The bot already renders `[[Label|act:id]]`
+ * The owner asked that answers arrive with something to press, so a person
+ * can react without typing. On 24.09.2026 he narrowed it: on the substance,
+ * not in every message. The bot's own standard set now appears only when the
+ * answer gives a reason (actionButtons.ts earnedButtons), which makes THIS
+ * instruction the main road rather than a garnish on a fixed row. The bot already renders `[[Label|act:id]]`
  * markers through `parseAgentButtons` and drops any id it cannot handle -- but
  * nothing ever told the AGENT that the syntax exists. The only prompt that knew
  * it was the bot's FALLBACK, the tool-less model used when this agent is down.
@@ -346,7 +349,9 @@ export const BUTTON_MARKERS =
   'человек сам не спросил про оплату. Другие id не работают и будут молча выброшены — не ' + // cyrillic-ok: prompt copy
   'выдумывай их. Подпись — до 40 символов, без символов ] и |. Не больше ' + // cyrillic-ok: prompt copy
   '4 маркеров. Кнопка нужна не всегда: ставь её, когда шаг реально ' + // cyrillic-ok: prompt copy
-  'есть, а не для украшения. Стандартные кнопки бот добавит и без тебя.' // cyrillic-ok: prompt copy
+  'есть, а не для украшения. Готового набора под каждым ответом БОЛЬШЕ НЕТ: ' + // cyrillic-ok: prompt copy
+  'бот добавит кнопку сам только если ответ сам о ней говорит (не хватает ' + // cyrillic-ok: prompt copy
+  'токенов, баланс, не получилось, приложение). Нужен шаг — предложи его сам.' // cyrillic-ok: prompt copy
 
 /**
  * A CHOICE THE CLIENT TAPS, IN THEIR OWN CHAT.

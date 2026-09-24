@@ -176,6 +176,6 @@ npx vitest run src/__tests__/navigation/appLinks.test.ts \
 
 ## Related Resources
 
-- Скилы: `buttons-under-every-answer`, `business-dm-buttons`, `client-first-tap`, `app-sign-in`
+- Скилы: `buttons-by-substance`, `business-dm-buttons`, `client-first-tap`, `app-sign-in`
 - `src/navigation/config/miniApp.config.ts` (`buildMiniAppUrl`, `canShowMiniAppButton`)
 - `apps/vibee-editor/player/src/lib/telegram.ts` (`launchStartParam`)

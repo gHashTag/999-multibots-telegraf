@@ -26,7 +26,7 @@ grep -n "standardButtons" src/navigation/helpers/menuKeyboard.ts                
 ## Solution Steps
 
 1. Сегодня: каждый ответ модели уже с кнопками — `⭐ Пополнить`, `💰 Мой баланс`, `✨ Что ты умеешь`,
-   `🙋 Позвать человека`, `🎬 Открыть приложение` (см. `buttons-under-every-answer`).
+   `🙋 Позвать человека`, `🎬 Открыть приложение` (см. `buttons-by-substance`).
 2. План: сохранить deep link `svc_<key>` в `ctx.session.pendingServiceMode` в `/start`, отработать при выходе
    из `CreateUserScene`; ветка `?start=dm` — «Продолжим здесь…» + кнопки; `[⏭ Пропустить]` в первом шаге
    `AvatarTransform`; легенда под «Что дальше?».
@@ -43,4 +43,4 @@ grep -n "standardButtons" src/navigation/helpers/menuKeyboard.ts                
 
 - `src/navigation/registerCommands.ts` (`/start`), `src/scenes/createUserScene.ts`, `src/scenes/avatarTransformScene/index.ts`
 - `src/navigation/helpers/menuKeyboard.ts`, `src/navigation/helpers/actionButtons.ts`, `src/services/trackEvent.ts`
-- Скилы: `buttons-under-every-answer`, `two-tap-topup`, `telegram-scenes-ULTIMATE`
+- Скилы: `buttons-by-substance`, `two-tap-topup`, `telegram-scenes-ULTIMATE`
