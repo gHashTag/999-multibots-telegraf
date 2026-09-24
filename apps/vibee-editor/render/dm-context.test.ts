@@ -178,6 +178,8 @@ describe('the DM stance', () => {
     // the block exists at all.
     expect(src).toMatch(/dmHistoryBlock\(ctx, opts\?\.seller\)/)
     expect(src).toMatch(/opts\?\.surface === 'business'/)
-    expect(src).toMatch(/\}\)\) \+ dmContext,/)
+    // Whitespace-tolerant: a formatter moving `+ dmContext` to its own line
+    // (as it did when specialistSkills joined the sum) is not a regression.
+    expect(src).toMatch(/\}\)\)\s*\+\s*dmContext\s*[,+]/)
   })
 })
