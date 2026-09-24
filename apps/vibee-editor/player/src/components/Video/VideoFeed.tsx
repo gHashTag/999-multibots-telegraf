@@ -1,29 +1,29 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { LazyVideo } from './LazyVideo';
-import { BRAND_COLORS } from '@vibee/atoms';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { LazyVideo } from './LazyVideo'
+import { BRAND_COLORS } from '@vibee/atoms'
 
 interface VideoItem {
-  id: string;
-  src: string;
-  hlsSrc?: string;
-  poster?: string;
-  duration?: number;
+  id: string
+  src: string
+  hlsSrc?: string
+  poster?: string
+  duration?: number
 }
 
 interface VideoFeedProps {
-  videos: VideoItem[];
-  className?: string;
-  onVideoChange?: (index: number, video: VideoItem) => void;
-  onVideoEnd?: (index: number, video: VideoItem) => void;
-  preloadAhead?: number;  // Videos to preload ahead (default: 5)
-  preloadBehind?: number; // Videos to preload behind (default: 1)
-  autoPlay?: boolean;
+  videos: VideoItem[]
+  className?: string
+  onVideoChange?: (index: number, video: VideoItem) => void
+  onVideoEnd?: (index: number, video: VideoItem) => void
+  preloadAhead?: number // Videos to preload ahead (default: 5)
+  preloadBehind?: number // Videos to preload behind (default: 1)
+  autoPlay?: boolean
 }
 
 interface ScrollState {
-  currentIndex: number;
-  scrollDirection: 'up' | 'down' | 'idle';
-  scrollVelocity: number;
+  currentIndex: number
+  scrollDirection: 'up' | 'down' | 'idle'
+  scrollVelocity: number
 }
 
 /**
@@ -48,151 +48,169 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
   preloadBehind = 1,
   autoPlay = true,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
-  const lastScrollY = useRef(0);
-  const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
+  const lastScrollY = useRef(0)
+  const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [scrollState, setScrollState] = useState<ScrollState>({
     currentIndex: 0,
     scrollDirection: 'idle',
     scrollVelocity: 0,
-  });
+  })
 
-  const [networkQuality, setNetworkQuality] = useState<'slow' | 'medium' | 'fast'>('fast');
+  const [networkQuality, setNetworkQuality] = useState<
+    'slow' | 'medium' | 'fast'
+  >('fast')
 
   // Detect network quality for adaptive preloading
   useEffect(() => {
-    const connection = (navigator as any).connection;
+    const connection = (navigator as any).connection
     if (connection) {
       const updateNetwork = () => {
-        const effectiveType = connection.effectiveType;
+        const effectiveType = connection.effectiveType
         if (effectiveType === '4g') {
-          setNetworkQuality('fast');
+          setNetworkQuality('fast')
         } else if (effectiveType === '3g') {
-          setNetworkQuality('medium');
+          setNetworkQuality('medium')
         } else {
-          setNetworkQuality('slow');
+          setNetworkQuality('slow')
         }
-      };
-      updateNetwork();
-      connection.addEventListener('change', updateNetwork);
-      return () => connection.removeEventListener('change', updateNetwork);
+      }
+      updateNetwork()
+      connection.addEventListener('change', updateNetwork)
+      return () => connection.removeEventListener('change', updateNetwork)
     }
-  }, []);
+  }, [])
 
   // Calculate which videos should be preloaded based on scroll direction
   const preloadWindow = useMemo(() => {
-    const { currentIndex, scrollDirection } = scrollState;
-    const ahead = scrollDirection === 'up' ? preloadBehind : preloadAhead;
-    const behind = scrollDirection === 'up' ? preloadAhead : preloadBehind;
+    const { currentIndex, scrollDirection } = scrollState
+    const ahead = scrollDirection === 'up' ? preloadBehind : preloadAhead
+    const behind = scrollDirection === 'up' ? preloadAhead : preloadBehind
 
     // Reduce preload on slow networks
-    const networkMultiplier = networkQuality === 'slow' ? 0.5 : networkQuality === 'medium' ? 0.75 : 1;
-    const adjustedAhead = Math.ceil(ahead * networkMultiplier);
-    const adjustedBehind = Math.ceil(behind * networkMultiplier);
+    const networkMultiplier =
+      networkQuality === 'slow' ? 0.5 : networkQuality === 'medium' ? 0.75 : 1
+    const adjustedAhead = Math.ceil(ahead * networkMultiplier)
+    const adjustedBehind = Math.ceil(behind * networkMultiplier)
 
-    const start = Math.max(0, currentIndex - adjustedBehind);
-    const end = Math.min(videos.length - 1, currentIndex + adjustedAhead);
+    const start = Math.max(0, currentIndex - adjustedBehind)
+    const end = Math.min(videos.length - 1, currentIndex + adjustedAhead)
 
-    return { start, end, currentIndex };
-  }, [scrollState, preloadAhead, preloadBehind, videos.length, networkQuality]);
+    return { start, end, currentIndex }
+  }, [scrollState, preloadAhead, preloadBehind, videos.length, networkQuality])
 
   // Check if a video should be loaded
-  const shouldLoadVideo = useCallback((index: number): boolean => {
-    const { start, end } = preloadWindow;
-    return index >= start && index <= end;
-  }, [preloadWindow]);
+  const shouldLoadVideo = useCallback(
+    (index: number): boolean => {
+      const { start, end } = preloadWindow
+      return index >= start && index <= end
+    },
+    [preloadWindow]
+  )
 
   // Check if a video should play
-  const shouldPlayVideo = useCallback((index: number): boolean => {
-    return index === preloadWindow.currentIndex && autoPlay;
-  }, [preloadWindow.currentIndex, autoPlay]);
+  const shouldPlayVideo = useCallback(
+    (index: number): boolean => {
+      return index === preloadWindow.currentIndex && autoPlay
+    },
+    [preloadWindow.currentIndex, autoPlay]
+  )
 
   // Handle scroll events with velocity detection
   const handleScroll = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const container = containerRef.current
+    if (!container) return
 
-    const scrollY = container.scrollTop;
-    const itemHeight = container.clientHeight;
-    const newIndex = Math.round(scrollY / itemHeight);
+    const scrollY = container.scrollTop
+    const itemHeight = container.clientHeight
+    const newIndex = Math.round(scrollY / itemHeight)
 
     // Calculate scroll direction and velocity
-    const delta = scrollY - lastScrollY.current;
-    const direction = delta > 0 ? 'down' : delta < 0 ? 'up' : 'idle';
-    const velocity = Math.abs(delta);
+    const delta = scrollY - lastScrollY.current
+    const direction = delta > 0 ? 'down' : delta < 0 ? 'up' : 'idle'
+    const velocity = Math.abs(delta)
 
-    lastScrollY.current = scrollY;
+    lastScrollY.current = scrollY
 
-    setScrollState((prev) => {
-      if (prev.currentIndex !== newIndex || prev.scrollDirection !== direction) {
+    setScrollState(prev => {
+      if (
+        prev.currentIndex !== newIndex ||
+        prev.scrollDirection !== direction
+      ) {
         return {
           currentIndex: newIndex,
           scrollDirection: direction as 'up' | 'down' | 'idle',
           scrollVelocity: velocity,
-        };
+        }
       }
-      return prev;
-    });
+      return prev
+    })
 
     // Debounce direction reset
     if (scrollTimeout.current) {
-      clearTimeout(scrollTimeout.current);
+      clearTimeout(scrollTimeout.current)
     }
     scrollTimeout.current = setTimeout(() => {
-      setScrollState((prev) => ({ ...prev, scrollDirection: 'idle' }));
-    }, 150);
-  }, []);
+      setScrollState(prev => ({ ...prev, scrollDirection: 'idle' }))
+    }, 150)
+  }, [])
 
   // Notify parent when video changes
   useEffect(() => {
-    const { currentIndex } = scrollState;
+    const { currentIndex } = scrollState
     if (onVideoChange && videos[currentIndex]) {
-      onVideoChange(currentIndex, videos[currentIndex]);
+      onVideoChange(currentIndex, videos[currentIndex])
     }
-  }, [scrollState.currentIndex, onVideoChange, videos]);
+  }, [scrollState.currentIndex, onVideoChange, videos])
 
   // Pause all videos except current
   useEffect(() => {
-    const { currentIndex } = scrollState;
+    const { currentIndex } = scrollState
 
     videoRefs.current.forEach((video, id) => {
-      const index = videos.findIndex((v) => v.id === id);
+      const index = videos.findIndex(v => v.id === id)
       if (index === currentIndex) {
-        video.play().catch(() => {});
-        video.muted = false;
+        video.play().catch(() => {})
+        video.muted = false
       } else {
-        video.pause();
-        video.muted = true;
+        video.pause()
+        video.muted = true
       }
-    });
-  }, [scrollState.currentIndex, videos]);
+    })
+  }, [scrollState.currentIndex, videos])
 
   // Register video ref
-  const registerVideoRef = useCallback((id: string, ref: HTMLVideoElement | null) => {
-    if (ref) {
-      videoRefs.current.set(id, ref);
-    } else {
-      videoRefs.current.delete(id);
-    }
-  }, []);
+  const registerVideoRef = useCallback(
+    (id: string, ref: HTMLVideoElement | null) => {
+      if (ref) {
+        videoRefs.current.set(id, ref)
+      } else {
+        videoRefs.current.delete(id)
+      }
+    },
+    []
+  )
 
   // Handle video end
-  const handleVideoEnd = useCallback((index: number) => {
-    if (onVideoEnd && videos[index]) {
-      onVideoEnd(index, videos[index]);
-    }
+  const handleVideoEnd = useCallback(
+    (index: number) => {
+      if (onVideoEnd && videos[index]) {
+        onVideoEnd(index, videos[index])
+      }
 
-    // Auto-advance to next video
-    const container = containerRef.current;
-    if (container && index < videos.length - 1) {
-      container.scrollTo({
-        top: (index + 1) * container.clientHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, [onVideoEnd, videos]);
+      // Auto-advance to next video
+      const container = containerRef.current
+      if (container && index < videos.length - 1) {
+        container.scrollTo({
+          top: (index + 1) * container.clientHeight,
+          behavior: 'smooth',
+        })
+      }
+    },
+    [onVideoEnd, videos]
+  )
 
   return (
     <div
@@ -226,7 +244,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
               index={index}
               isActive={shouldPlayVideo(index)}
               networkQuality={networkQuality}
-              onVideoRef={(ref) => registerVideoRef(video.id, ref)}
+              onVideoRef={ref => registerVideoRef(video.id, ref)}
               onVideoEnd={() => handleVideoEnd(index)}
             />
           ) : (
@@ -245,6 +263,10 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
                 <img
                   src={video.poster}
                   alt=""
+                  onError={e => {
+                    ;(e.currentTarget as HTMLImageElement).style.display =
+                      'none'
+                  }}
                   style={{
                     width: '100%',
                     height: '100%',
@@ -288,17 +310,17 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
         ))}
       </div>
     </div>
-  );
-};
+  )
+}
 
 // Individual video item component with ref forwarding
 interface VideoFeedItemProps {
-  video: VideoItem;
-  index: number;
-  isActive: boolean;
-  networkQuality: 'slow' | 'medium' | 'fast';
-  onVideoRef: (ref: HTMLVideoElement | null) => void;
-  onVideoEnd: () => void;
+  video: VideoItem
+  index: number
+  isActive: boolean
+  networkQuality: 'slow' | 'medium' | 'fast'
+  onVideoRef: (ref: HTMLVideoElement | null) => void
+  onVideoEnd: () => void
 }
 
 const VideoFeedItem: React.FC<VideoFeedItemProps> = ({
@@ -308,25 +330,25 @@ const VideoFeedItem: React.FC<VideoFeedItemProps> = ({
   onVideoRef,
   onVideoEnd,
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   // Register ref with parent
   useEffect(() => {
-    onVideoRef(videoRef.current);
-    return () => onVideoRef(null);
-  }, [onVideoRef]);
+    onVideoRef(videoRef.current)
+    return () => onVideoRef(null)
+  }, [onVideoRef])
 
   // Determine quality based on network
   const quality = useMemo(() => {
     switch (networkQuality) {
       case 'slow':
-        return '360p';
+        return '360p'
       case 'medium':
-        return '480p';
+        return '480p'
       default:
-        return 'auto';
+        return 'auto'
     }
-  }, [networkQuality]);
+  }, [networkQuality])
 
   return (
     <LazyVideo
@@ -343,12 +365,12 @@ const VideoFeedItem: React.FC<VideoFeedItemProps> = ({
       rootMargin="200px"
       onLoad={() => {
         if (isActive && videoRef.current) {
-          videoRef.current.play().catch(() => {});
+          videoRef.current.play().catch(() => {})
         }
       }}
       className="video-feed-video"
     />
-  );
-};
+  )
+}
 
-export default VideoFeed;
+export default VideoFeed

@@ -87,10 +87,6 @@ describe('every picture of a person can fall back', () => {
      * (form 192). Kept on the list with its reason rather than "fixed".
      */
     'components/BrandLoader/BrandLoader.tsx',
-    'components/Stories/Stories.tsx',
-    'components/Video/LazyVideo.tsx',
-    'components/Video/ProgressiveVideo.tsx',
-    'components/Video/VideoFeed.tsx',
     /* A Remotion composition, rendered off-screen into a video rather than
        shown to anybody: a fallback there would appear in nobody's eyes. */
     'compositions/SplitTalkingHead.tsx',
