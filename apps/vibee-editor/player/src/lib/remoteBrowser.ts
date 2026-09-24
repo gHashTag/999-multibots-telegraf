@@ -307,6 +307,62 @@ export async function walkMyAccounts(
 }
 
 /**
+ * THE RUNS THE AGENT CAN REPEAT (render agent/scenarios.ts): each one is a
+ * short list of plain steps the person can read before starting it. Never
+ * throws; an empty list simply draws nothing.
+ */
+export interface Scenario {
+  id: string
+  name: string
+  steps: string[]
+}
+
+export async function readScenarios(): Promise<Scenario[]> {
+  try {
+    const answer = await apiFetch<{ scenarios?: unknown }>(
+      `${API_BASE}/api/browser/scenarios`
+    )
+    const raw = Array.isArray(answer?.scenarios) ? answer.scenarios : []
+    return raw.flatMap(s => {
+      const r = s as { id?: unknown; name?: unknown; steps?: unknown }
+      if (typeof r.id !== 'string' || typeof r.name !== 'string') return []
+      return [
+        {
+          id: r.id,
+          name: r.name,
+          steps: Array.isArray(r.steps)
+            ? r.steps.filter((x): x is string => typeof x === 'string')
+            : [],
+        },
+      ]
+    })
+  } catch {
+    return []
+  }
+}
+
+/** Start one. Returns the lines of what it did, or null when it could not. */
+export async function runScenario(id: string): Promise<string[] | null> {
+  try {
+    const answer = await apiFetch<{
+      ran?: { lines?: unknown; failed?: unknown }
+    }>(`${API_BASE}/api/browser/scenarios?id=${encodeURIComponent(id)}`, {
+      method: 'POST',
+    })
+    const lines = Array.isArray(answer?.ran?.lines)
+      ? answer.ran.lines.filter((x): x is string => typeof x === 'string')
+      : []
+    const failed =
+      typeof answer?.ran?.failed === 'string' && answer.ran.failed
+        ? [`✗ ${answer.ran.failed}`]
+        : []
+    return [...lines, ...failed]
+  } catch {
+    return null
+  }
+}
+
+/**
  * THE DESKS: every line of work the agent keeps for this person, with the
  * accounts that belong to it (render agent/profiles.ts). Never throws; an
  * empty list simply draws no cabinets.

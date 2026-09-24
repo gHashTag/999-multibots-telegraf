@@ -8,7 +8,9 @@
 set -euo pipefail
 ROOT="${1:?usage: tri bench}"
 cd "$ROOT/apps/vibee-editor/render"
-OUT=$(npx vitest run src/browser/bench 2>&1)
-echo "$OUT" | grep -aE "✓|×|Tests  |missed" || true
-echo "$OUT" | grep -aq "Tests .*failed" && exit 1
-exit 0
+OUT=$(npx vitest run src/browser/bench 2>&1) || {
+  # A failed run must SAY which page it lost, not only that it lost.
+  echo "$OUT" | grep -aE "missed|×|AssertionError|Error" | head -12
+  exit 1
+}
+echo "$OUT" | grep -aE "Tests  " || true

@@ -95,6 +95,8 @@ export const BROWSER_PATHS = [
   '/api/browser/learned',
   '/api/browser/strategy',
   '/api/browser/desks',
+  '/api/browser/scenarios',
+  '/api/browser/reach',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -436,6 +438,76 @@ export async function handleBrowser(
       })
     }
     return { status: 200, body: { ok: true, desks } }
+  }
+
+  /*
+   * THE SCENARIOS (agent/scenarios.ts): the runs the agent can repeat, and
+   * the door that starts one. Reading is open to the person and their agent;
+   * starting is the person's door only -- a scenario acts in their browser.
+   */
+  if (path === '/api/browser/scenarios') {
+    const { SCENARIOS, scenarioOf, stepInWords } = await import(
+      '../agent/scenarios'
+    )
+    const q = new URLSearchParams((req.url || '').split('?')[1] || '')
+    if (method === 'GET') {
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          scenarios: SCENARIOS.map(s => ({
+            id: s.id,
+            name: s.name,
+            steps: s.steps.map(stepInWords),
+          })),
+        },
+      }
+    }
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET or POST' } }
+    }
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: { ok: false, error: "a scenario is the person's to start" },
+      }
+    }
+    const wanted = SCENARIOS.find(s => s.id === q.get('id'))
+    if (!wanted) {
+      return { status: 404, body: { ok: false, error: 'no such scenario' } }
+    }
+    /* Read back through the same gate a saved row would pass, so the
+       shipped defaults cannot be looser than what a person may save. */
+    const safe = scenarioOf(wanted)
+    if (!safe) {
+      return { status: 400, body: { ok: false, error: 'not a scenario' } }
+    }
+    const { runScenarioNow } = await import('../agent/scenarios-wiring')
+    const out = await runScenarioNow(pool, who, safe)
+    console.log('[scenario]', safe.id, JSON.stringify(out).slice(0, 300))
+    return { status: 200, body: { ok: out.ok, ran: out } }
+  }
+
+  /*
+   * WHAT THE NUMBERS SAY about the link-in-the-reply hypothesis
+   * (agent/reach-test.ts). Read-only, and it says plainly when there is not
+   * enough to compare rather than inventing a verdict.
+   */
+  if (path === '/api/browser/reach') {
+    if (method !== 'GET') {
+      return { status: 405, body: { ok: false, error: 'GET only' } }
+    }
+    const { postsSoFar } = await import('../agent/reach-log')
+    const { whatTheNumbersSay } = await import('../agent/reach-test')
+    const posts = await postsSoFar(pool)
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        posts: posts.length,
+        verdict: whatTheNumbersSay(posts),
+      },
+    }
   }
 
   if (path === '/api/browser/journal') {
