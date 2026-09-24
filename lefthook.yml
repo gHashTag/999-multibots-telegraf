@@ -37,12 +37,12 @@ pre-commit:
     secrets:
       priority: 1
       run: ./scripts/security-token-guard.sh staged
-      fail_text: "Секрет в изменениях. Коммит остановлен."
+      fail_text: 'Секрет в изменениях. Коммит остановлен.'
 
     # 2. Форматирование. Правит файлы и добавляет их обратно в индекс, поэтому
     #    stage_fixed — иначе в коммит уйдёт неотформатированная версия.
     format:
-      glob: "*.{ts,tsx,js,cjs,mjs,json,md,css}"
+      glob: '*.{ts,tsx,js,cjs,mjs,json,md,css}'
       run: npx prettier --write {staged_files}
       stage_fixed: true
 
@@ -51,22 +51,22 @@ pre-commit:
     #    Ошибки блокируют: их 30, и все — настоящие классы (недостижимый код,
     #    объявление в case без блока, самоприсваивание).
     lint:
-      glob: "*.{ts,tsx}"
+      glob: '*.{ts,tsx}'
       exclude: '^(apps|docs|dist|build)/'
       run: npx eslint --fix {staged_files}
       stage_fixed: true
-      fail_text: "Линт нашёл ошибку в изменённых файлах."
+      fail_text: 'Линт нашёл ошибку в изменённых файлах.'
 
     # 4. Быстрая проверка типов — только когда затронут TypeScript.
     #    --pretty false обязателен: цветной вывод содержит ANSI-последовательности,
     #    и grep по «error TS» на нём молча не совпадает (проверено — показывал 0
     #    при 1230 реальных ошибках).
     typecheck:
-      glob: "*.{ts,tsx}"
+      glob: '*.{ts,tsx}'
       exclude: '^apps/'
       # In the cloud first (scripts/cloud-check.sh); locally only if it is out of reach.
       run: bash scripts/cloud-check.sh root-types -- npx tsc --noEmit --pretty false
-      fail_text: "Ошибки типов. Правка не поедет в историю."
+      fail_text: 'Ошибки типов. Правка не поедет в историю.'
 
     # 5. Плеер живёт под apps/ и в проверку выше не попадает: у него свой
     #    tsconfig и свои node_modules. Здесь ХРАПОВИК: ноль сегодня
@@ -77,9 +77,9 @@ pre-commit:
     #    подряд закрывало проверку и ничего не значило. Внутри лежали два
     #    ReferenceError и три молча теряемых значения.
     player-types:
-      glob: "apps/vibee-editor/player/**/*.{ts,tsx}"
+      glob: 'apps/vibee-editor/player/**/*.{ts,tsx}'
       run: bash scripts/cloud-check.sh player-types -- node scripts/check-player-types.cjs
-      fail_text: "Ошибок типов в плеере стало больше. Это находки, а не фон."
+      fail_text: 'Ошибок типов в плеере стало больше. Это находки, а не фон.'
 
     # 6. No Cyrillic in code comments. The bot is bilingual, so Cyrillic inside
     #    string literals (UI text) stays allowed — the guard strips string
@@ -91,9 +91,9 @@ pre-commit:
     #    because .swift was in neither the glob nor the script. Both lists must
     #    agree -- the glob decides which files reach the script at all.
     no-cyrillic:
-      glob: "*.{ts,tsx,js,jsx,mjs,cjs,swift}"
+      glob: '*.{ts,tsx,js,jsx,mjs,cjs,swift}'
       run: node scripts/no-cyrillic-guard.cjs staged
-      fail_text: "Cyrillic in a code comment. Write comments in English."
+      fail_text: 'Cyrillic in a code comment. Write comments in English.'
 
 commit-msg:
   commands:
@@ -188,6 +188,20 @@ pre-push:
     spelling:
       run: bash bin/helpers/spelling.sh . --gate || [ $? -eq 2 ]
 
+    # СЛОВА, КОТОРЫМИ СЛУЖБЫ ДОГОВАРИВАЮТСЯ, И КТО ИХ НЕ СЛЫШИТ.
+    #
+    # Бот месяцами посылал в журнал вид события `card-auto-sent`, которого
+    # дверь рендера не знала: 400 на каждую автоотправку, запись нигде, а
+    # показатель, построенный на этих строках, читал ноль по построению.
+    # Писатель глотает отказ намеренно — журнал не должен задерживать то, что
+    # записывает, — поэтому не сказал ничего вообще никто.
+    #
+    # Пара, которую не удалось ПРОЧИТАТЬ, объявляется сломанной проверкой:
+    # пустой список — форма, которую принимает каждая ошибка этого класса.
+    # Секунды на прогон, читает только текст, ничего не поднимает.
+    contracts:
+      run: node scripts/cross-service-vocabularies.cjs
+
     # Тесты ТОЛЬКО связанные с изменёнными файлами, И ТОЛЬКО новые падения.
     #
     # Одного `vitest related` оказалось мало. Измерено прогоном на main:
@@ -211,7 +225,7 @@ pre-push:
     related-tests:
       skip_empty: false
       run: bash scripts/cloud-check.sh guard -- node scripts/test-guard.cjs
-      fail_text: "Упали тесты, которых не было в базе."
+      fail_text: 'Упали тесты, которых не было в базе.'
 
     # The production bundle must get past its own imports. On 2026-09-22 a
     # static import closed a cycle in the bundle's init order (#2741); every
@@ -220,9 +234,9 @@ pre-push:
     # (fixed in #2748). This builds the bundle exactly as the Dockerfile does
     # and runs it with an empty environment, ~3 s. Only when bot source moved.
     bundle-boots:
-      glob: "src/**/*.{ts,tsx}"
+      glob: 'src/**/*.{ts,tsx}'
       run: bash scripts/cloud-check.sh boots -- npx vitest run src/__tests__/bot/bundleBootsPastImports.test.ts
-      fail_text: "The bot bundle crashes while loading its modules -- it will not start in production."
+      fail_text: 'The bot bundle crashes while loading its modules -- it will not start in production.'
 
     # Событие без подписчика — деньги уходят провайдерам, а результат никуда.
     # Скрипт уже есть в репозитории и печатает недостижимые функции первыми.
@@ -242,7 +256,7 @@ pre-push:
     # проверяется перед каждым push, а не только «эта правка компилируется».
     mock-functions:
       run: bash apps/vibee-editor/render/mock-selfcheck.sh
-      fail_text: "Mock-проверки функций упали — сломан контракт функции или провайдера."
+      fail_text: 'Mock-проверки функций упали — сломан контракт функции или провайдера.'
 
     # Трекнутый симлинк ломает pull/checkout ВСЕМ (git отказывается перезаписать
     # untracked node_modules -> Aborting). PR #1608 закоммитил node_modules как
@@ -253,4 +267,4 @@ pre-push:
     # node .claude/loop-opus/repo-hygiene-audit.mjs).
     repo-hygiene:
       run: node .claude/loop-opus/repo-hygiene-audit.mjs --gate
-      fail_text: "Трекнутый симлинк в репозитории (класс #1608) — ломает pull/checkout всем."
+      fail_text: 'Трекнутый симлинк в репозитории (класс #1608) — ломает pull/checkout всем.'
