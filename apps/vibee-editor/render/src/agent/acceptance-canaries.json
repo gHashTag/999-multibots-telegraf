@@ -25,17 +25,41 @@
     {
       "id": "google",
       "canary": "Какой поисковый спрос на создание ИИ-аватаров для блогеров? Три источника, которые ты открыл.",
-      "expect": ["web_search", "web_read"]
+      "expect": ["web_search", "web_read"],
+      "answer": [
+        {
+          "pattern": "https?://",
+          "flags": "gi",
+          "min": 3,
+          "why": "меньше трёх ссылок на источники"
+        }
+      ]
     },
     {
       "id": "tiktok",
       "canary": "Дай 3 хука и сценарий на 30 секунд про ИИ-аватар для блогера. Только текст, ничего не рендери.",
-      "expect": []
+      "expect": [],
+      "answer": [
+        {
+          "pattern": "(^|\\n)[\\s*_#>-]*\\d+[.)]",
+          "flags": "g",
+          "min": 3,
+          "why": "нет трёх пронумерованных хуков"
+        }
+      ]
     },
     {
       "id": "habr",
       "canary": "Прочитай README репозитория github.com/gHashTag/agent-mail-mcp и предложи тему статьи для Habr с шагами воспроизведения. Не публикуй.",
-      "expect": ["web_read", "browser_open", "browser_read"]
+      "expect": ["web_read", "browser_open", "browser_read"],
+      "answer": [
+        {
+          "pattern": "agent-mail-mcp|zoho",
+          "flags": "gi",
+          "min": 1,
+          "why": "ответ не о том репозитории"
+        }
+      ]
     }
   ]
 }
