@@ -26,6 +26,26 @@
   text-decoration: none;
 }
 
+/*
+ * THE ONLY WAY BACK, AND IT WAS 20 PIXELS TALL.
+ *
+ * Measured at 375px on 25.09.2026, re-checking the CRM screens after a week
+ * of edits: every other control was at the target and this one had never
+ * been looked at -- my earlier sweep covered /crm and /chat and not
+ * /crm/:id. A link that leaves the client's page is not decoration: miss it
+ * and the person is stuck on a screen with no exit but the tab bar.
+ *
+ * Coarse pointers only, like the chips: on a desktop it is a quiet
+ * breadcrumb and a finger-sized one would shout.
+ */
+@media (pointer: coarse) {
+  .crm-client__crumb {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target, 44px);
+  }
+}
+
 /* THE PRIMARY ACTION. The only full-width green thing on the page: talking
    about this client is what the page is for. */
 .crm-client__chat {
