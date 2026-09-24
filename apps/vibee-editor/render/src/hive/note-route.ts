@@ -28,6 +28,12 @@ export const NOTABLE_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
   'sweep-held',
   // The owner's press, written by the bot: the one act nothing recorded.
   'card-pressed',
+  // And the same card leaving with nobody pressing anything. Missing from
+  // this list until 2026-09-24, while the bot posted it: the door answered
+  // 400 to every automatic send, so "how much went without you" was zero by
+  // construction. A kind the bot can post and the door cannot accept is now
+  // a failing test, not a silent 400 -- see every-kind-the-bot-can-post.
+  'card-auto-sent',
   // Money on the chain that nothing ever credited. The bot's TON watch writes
   // it; the render cannot see the chain and the bot cannot see this journal
   // without the door, so this is the only way it can be recorded at all.
@@ -94,11 +100,22 @@ export async function handleHiveNote(
   const what = String(parsed.what ?? '').slice(0, 300) || null
   const who = parsed.who == null ? null : String(parsed.who).slice(0, 64)
   const bot = parsed.bot == null ? null : String(parsed.bot).slice(0, 64)
+  // An id, and only an id: the journal says which client an act was about,
+  // never their name and never a word they wrote.
+  const lead = parsed.lead == null ? null : String(parsed.lead).slice(0, 64)
   const amount =
     typeof parsed.amount === 'number' && Number.isFinite(parsed.amount)
       ? parsed.amount
       : null
   const pool = await deps.getPool()
-  const wrote = await record(pool, { kind, who, bot, amount, what, severity })
+  const wrote = await record(pool, {
+    kind,
+    who,
+    bot,
+    amount,
+    what,
+    lead,
+    severity,
+  })
   return { status: 200, body: { ok: true, recorded: wrote === 'recorded' } }
 }

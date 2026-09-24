@@ -186,6 +186,17 @@ export type EventKind =
    */
   | 'card-pressed'
   /*
+   * A CARD THAT LEFT WITH NOBODY PRESSING ANYTHING.
+   *
+   * The bot has been posting this kind since AUTO shipped, and the door did
+   * not know the word: every automatic send was refused with 400 and written
+   * nowhere. So the one number a person asks of an assistant -- "how much did
+   * it do without me?" -- read zero by construction, and read zero the
+   * louder the better AUTO worked. `crm_autopilot.sent_today` is not the
+   * memory: it resets at midnight and exists to bound the day.
+   */
+  | 'card-auto-sent'
+  /*
    * A DRAWING NOBODY SENT IS A COST, NOT A FAILURE.
    *
    * One draft per owner, so a later proposal -- including the owner's own
@@ -232,6 +243,13 @@ export interface HiveEvent {
   amount?: number | null
   /** A short human note: "video, 6 scenes" -- NOT a prompt and not a link. */
   what?: string | null
+  /**
+   * WHICH CLIENT THIS WAS ABOUT -- an id, never a name and never a word they
+   * wrote. Without it the journal can say "he stepped in thirteen times" and
+   * not "with whom", which is the only half of that sentence worth acting on.
+   * Optional by design: most kinds are about nobody in particular.
+   */
+  lead?: string | null
   severity?: Severity
 }
 
@@ -250,6 +268,11 @@ export async function ensureJournalTable(pool: JournalPool): Promise<void> {
        severity text NOT NULL DEFAULT 'normal',
        at timestamptz NOT NULL DEFAULT now()
      )`
+  )
+  // Added after the table existed in production, so it is an ALTER and not a
+  // column in the CREATE above: the CREATE never runs again there.
+  await pool.query(
+    `ALTER TABLE hive_events ADD COLUMN IF NOT EXISTS lead_id text`
   )
   // The feed is always read as "the latest", and almost always filtered by
   // subject or by bot. Without these indexes it gets slow at the first ten
@@ -286,8 +309,8 @@ export async function record(
   try {
     await ensureJournalTable(pool)
     await pool.query(
-      `INSERT INTO hive_events (kind, who, bot, amount, what, severity)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO hive_events (kind, who, bot, amount, what, severity, lead_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
         e.kind,
         (e.who ?? '').toString().trim() || null,
@@ -296,6 +319,7 @@ export async function record(
         // Trimmed: a note for a person, not a place for a prompt.
         e.what ? String(e.what).slice(0, 200) : null,
         e.severity ?? 'normal',
+        (e.lead ?? '').toString().trim() || null,
       ]
     )
     return 'recorded'

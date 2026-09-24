@@ -19,6 +19,8 @@ import {
   OUTCOMES_BEFORE_SQL,
   OUTCOMES_DM_SQL,
   OUTCOMES_DM_BEFORE_SQL,
+  STEPPED_IN_SQL,
+  steppedInFrom,
 } from './src/agent/outcomes-tool'
 
 const row = (kind: string, n: number, what: string | null = null) => ({
@@ -86,14 +88,15 @@ describe('whose rows', () => {
       },
     }
     await outcomesFor(pool as never, '900000501', 14)
-    // Four questions now: this window and the one before it, for cards and
-    // for the answers given in his chats.
+    // Five questions now: this window and the one before it, for cards and
+    // for the answers given in his chats -- plus which clients needed him.
     expect(new Set(seen.map(s => s.sql))).toEqual(
       new Set([
         OUTCOMES_SQL,
         OUTCOMES_BEFORE_SQL,
         OUTCOMES_DM_SQL,
         OUTCOMES_DM_BEFORE_SQL,
+        STEPPED_IN_SQL,
       ])
     )
     for (const call of seen) expect(call.params).toEqual(['900000501', '14'])
@@ -247,5 +250,60 @@ describe('answers given in his chats', () => {
     expect(o.dm_answered).toBe(0)
     expect(o.auto_sent).toBe(2)
     expect(o.without_you_percent).toBe(100)
+  })
+})
+
+/**
+ * THE HALF OF THE SENTENCE WORTH ACTING ON.
+ *
+ * "You stepped in thirteen times" names no repair. Which conversations
+ * needed him does: those are the ones the assistant's words did not cover.
+ */
+describe('with whom he had to step in', () => {
+  const w = (lead: string | null, n: number) => ({ lead_id: lead, n })
+
+  it('names the clients, most first', () => {
+    const o = steppedInFrom([w('900000502', 2), w('900000501', 5)])
+    expect(o.stepped_in).toEqual([
+      { lead: '900000501', times: 5 },
+      { lead: '900000502', times: 2 },
+    ])
+    expect(o.stepped_in_unknown).toBeUndefined()
+  })
+
+  it('counts the presses it cannot name instead of dropping them', () => {
+    // Presses recorded before the column existed carry no client at all. A
+    // list that silently showed one of nine would read as "this is the one".
+    const o = steppedInFrom([w('900000501', 1), w(null, 8), w('  ', 1)])
+    expect(o.stepped_in).toEqual([{ lead: '900000501', times: 1 }])
+    expect(o.stepped_in_unknown).toBe(9)
+  })
+
+  it('names at most a handful, and says nothing when there is nothing', () => {
+    const many = Array.from({ length: 9 }, (_, i) =>
+      w(String(900000500 + i), 9 - i)
+    )
+    expect(steppedInFrom(many).stepped_in).toHaveLength(5)
+    expect(steppedInFrom([])).toEqual({})
+  })
+
+  it('asks for this owner inside the window, and only for presses', () => {
+    expect(STEPPED_IN_SQL).toContain('who = $1')
+    expect(STEPPED_IN_SQL).toContain("($2 || ' days')::interval")
+    expect(STEPPED_IN_SQL).toContain("kind = 'card-pressed'")
+  })
+
+  it('keeps every number when the names cannot be read', async () => {
+    // An older database without the column must still answer the share.
+    const pool = {
+      async query(sql: string) {
+        if (sql === STEPPED_IN_SQL) throw new Error('column lead_id not found')
+        return { rows: [{ kind: 'card-auto-sent', what: null, n: 4 }] }
+      },
+    }
+    const o = await outcomesFor(pool as never, '900000501', 7)
+    expect(o.auto_sent).toBe(4)
+    expect(o.stepped_in).toBeUndefined()
+    expect(o.stepped_in_unknown).toBeUndefined()
   })
 })

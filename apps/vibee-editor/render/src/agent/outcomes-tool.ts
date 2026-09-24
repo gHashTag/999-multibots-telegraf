@@ -88,6 +88,30 @@ export const OUTCOMES_DM_BEFORE_SQL = `SELECT count(*)::int AS n
        WHERE c.owner_id = $1 AND c.lead_id = a.telegram_id
     )`
 
+/**
+ * WITH WHOM THE OWNER HAD TO STEP IN.
+ *
+ * "You stepped in thirteen times" is half a sentence. The half worth acting
+ * on is WHICH conversations needed him -- those are the ones where the
+ * assistant's words were not good enough, and they are the only place a next
+ * improvement can come from.
+ *
+ * Presses recorded before 2026-09-24 carry no client at all (the column did
+ * not exist), so rows without one are counted separately and SAID, never
+ * quietly dropped: a list that silently showed three of thirteen would read
+ * as "these are the three".
+ */
+export const STEPPED_IN_SQL = `SELECT lead_id, count(*)::int AS n
+   FROM hive_events
+  WHERE who = $1
+    AND at > now() - ($2 || ' days')::interval
+    AND kind = 'card-pressed'
+  GROUP BY lead_id
+  ORDER BY n DESC`
+
+/** How many conversations the answer names. The rest are counted, not named. */
+export const STEPPED_IN_SHOWN = 5
+
 export interface Outcomes {
   days: number
   /** Client messages the agent answered in his chats, with no press at all. */
@@ -122,6 +146,10 @@ export interface Outcomes {
     left: number
     without_you_percent: number | null
   } | null
+  /** Which clients needed his finger, most first. Ids, never names. */
+  stepped_in?: Array<{ lead: string; times: number }>
+  /** Presses whose client is unknown -- rows written before the column. */
+  stepped_in_unknown?: number
 }
 
 export function outcomesFrom(
@@ -179,6 +207,23 @@ function shareWithout(dm: number, auto: number, pressed: number) {
   }
 }
 
+/** The named conversations and the count of the ones that cannot be named. */
+export function steppedInFrom(
+  rows: Array<{ lead_id: string | null; n: number }>
+): Pick<Outcomes, 'stepped_in' | 'stepped_in_unknown'> {
+  const named = rows
+    .filter(r => String(r.lead_id ?? '').trim())
+    .map(r => ({ lead: String(r.lead_id), times: Number(r.n || 0) }))
+    .sort((a, b) => b.times - a.times)
+  const unknown = rows
+    .filter(r => !String(r.lead_id ?? '').trim())
+    .reduce((a, r) => a + Number(r.n || 0), 0)
+  return {
+    ...(named.length ? { stepped_in: named.slice(0, STEPPED_IN_SHOWN) } : {}),
+    ...(unknown ? { stepped_in_unknown: unknown } : {}),
+  }
+}
+
 export async function outcomesFor(
   pool: Pool,
   owner: string,
@@ -194,13 +239,22 @@ export async function outcomesFor(
       return 0
     }
   }
-  const [now, before, dm, dmBefore] = await Promise.all([
+  const [now, before, dm, dmBefore, steppedIn] = await Promise.all([
     pool.query(OUTCOMES_SQL, [String(owner), String(days)]),
     pool
       .query(OUTCOMES_BEFORE_SQL, [String(owner), String(days)])
       .catch(() => ({ rows: [] })),
     count(OUTCOMES_DM_SQL),
     count(OUTCOMES_DM_BEFORE_SQL),
+    /*
+     * A statement of its own, not a join: this one groups by client and the
+     * first groups by kind, and asking one query for both would multiply
+     * every sweep row by the number of clients. A database without the
+     * column answers the share fine, so its failure costs only the names.
+     */
+    pool
+      .query(STEPPED_IN_SQL, [String(owner), String(days)])
+      .catch(() => ({ rows: [] })),
   ])
   const out = outcomesFrom((now.rows ?? []) as never, days)
   const prev = outcomesFrom((before.rows ?? []) as never, days)
@@ -224,6 +278,7 @@ export async function outcomesFor(
     // The note was about an empty journal; a week with DM answers in it is
     // not empty, whatever the cards say.
     ...(dm && out.note ? { note: undefined } : {}),
+    ...steppedInFrom((steppedIn.rows ?? []) as never),
   }
 }
 

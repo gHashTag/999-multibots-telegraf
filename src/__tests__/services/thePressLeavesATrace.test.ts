@@ -93,6 +93,32 @@ describe('a journal that is down must not eat a press', () => {
   })
 })
 
+/*
+ * WITH WHOM, NOT JUST HOW OFTEN.
+ *
+ * Until 2026-09-24 a press was written without the client, so the journal
+ * could say "he stepped in thirteen times" and never with whom -- and "with
+ * whom" is the only half of that sentence he can act on. The id travels;
+ * the person's words never do.
+ */
+describe('a press remembers which client it was about', () => {
+  it('carries the client when the card had one', () => {
+    expect(noteForPress(OWNER, 'sent', '900000501').lead).toBe('900000501')
+  })
+
+  it('says null, not undefined, when the card had none', () => {
+    // A card can be drawn for nobody in particular; the journal must record
+    // that plainly rather than leaving the field out of the request.
+    expect(noteForPress(OWNER, 'cancelled').lead).toBeNull()
+    expect(noteForPress(OWNER, 'sent', null).lead).toBeNull()
+  })
+
+  it('never carries anything the client wrote', () => {
+    const note = noteForPress(OWNER, 'sent', '900000501')
+    expect(JSON.stringify(note)).not.toMatch(/[A-Za-z]{4,}\s+[A-Za-z]{4,}/)
+  })
+})
+
 describe('both buttons are wired, not just the one that sends', () => {
   it('the source calls the writer under tgp:ok AND tgp:no', async () => {
     /*
@@ -115,10 +141,10 @@ describe('both buttons are wired, not just the one that sends', () => {
     expect(src.slice(ok, no), 'the send press writes nothing').toMatch(
       // [\s\S] rather than [^)]: the argument is String(ctx.from?.id ?? ''),
       // which carries its own parentheses.
-      /notePressToHive\([\s\S]*?'sent'\s*\)/
+      /notePressToHive\([\s\S]*?'sent',\s*\{ lead \}\)/
     )
     expect(src.slice(no), 'the cancel press writes nothing').toMatch(
-      /notePressToHive\([\s\S]*?'cancelled'\s*\)/
+      /notePressToHive\([\s\S]*?'cancelled',\s*\{ lead \}\)/
     )
   })
 })
