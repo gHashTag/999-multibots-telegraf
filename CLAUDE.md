@@ -966,7 +966,7 @@ description: 'When and how to use this skill'
   почему не на Railway (нет GPU), и сборщик парного корпуса IGLA CODER
 - `telegram-scene-builder/` - Создание Telegram wizards
 - `deployment-automation/` - Production deployment
-- `buttons-under-every-answer/` - Кнопки под каждым ответом модели, `act:*` обработчики, ряд оплаты
+- `buttons-by-substance/` - Кнопки ПО СУЩЕСТВУ ответа, а не под каждым сообщением (решение владельца 24.09.2026, по аналогии со стражем браузера); `act:*` обработчики, ряд оплаты
 - `business-dm-buttons/` - Кнопки в бизнес-личке (от имени владельца), чистка маркеров, нарезка
 - `owner-two-tap-onboarding/` - Подключение нового владельца к личному продавцу
 - `client-first-tap/` - Новый клиент до результата за одно-два нажатия

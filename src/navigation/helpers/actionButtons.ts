@@ -175,6 +175,85 @@ export function parseAgentButtons(
  * (helpers/appLinks.ts): outside Telegram the app has no signature and does
  * not open, so a raw app URL in an answer is a dead link.
  */
+/*
+ * WHICH BUTTONS THIS ANSWER HAS EARNED.
+ *
+ * Owner, 24.09.2026: "make the agent show buttons ON THE SUBSTANCE, not in
+ * every message -- look at how our browser does it and do the same."
+ *
+ * The browser's rule is the one being borrowed, and it is worth naming
+ * exactly: permission there is asked BY PLACE, not by action (guard.ts). A
+ * click is a point on a screen; whether it deserves a question depends on
+ * where it lands, not on the fact that a click happened. Buttons here were
+ * the opposite -- four of them under every answer because an answer had
+ * happened. A row that is always there carries no information, and the one
+ * time it matters it looks exactly like the hundred times it did not.
+ *
+ * So each standard button now needs a reason IN THE ANSWER:
+ *
+ *   topup   the answer talks about money running out or what something costs
+ *   balance the answer talks about the balance itself
+ *   can     the answer says something cannot be done, or lists what can
+ *   human   the answer failed, refused, or is unsure -- a person to ask
+ *   app     the answer points at the app, or at something to look at there
+ *
+ * WHAT DOES NOT CHANGE, because both were already by substance: the pay row
+ * appears when the answer carries an invoice link, and the buttons the agent
+ * itself proposed appear because it proposed them. Between them they cover
+ * the ordinary case, which is why dropping the blanket set leaves an answer
+ * bare only when there was genuinely nothing to offer -- and that, now, is
+ * the point.
+ *
+ * The owner's own hub (`tail`) is untouched: it is his surface, not a
+ * client's, and he asked for it under his answers.
+ */
+const EARNS: ReadonlyArray<{ id: string; re: RegExp }> = [
+  {
+    id: 'topup',
+    re: /(не хватает|пополн|попробуй позже.*токен|стоит|цена|цену|стоимост|тариф|оплат|звёзд|звезд|\bcost\b|\bprice\b|top ?up|not enough)/i, // cyrillic-ok: the words an answer uses
+  },
+  {
+    id: 'balance',
+    re: /(баланс|сколько.{0,12}(осталось|токен)|осталось токен|\bbalance\b)/i, // cyrillic-ok: the words an answer uses
+  },
+  {
+    id: 'can',
+    re: /(не могу|не умею|не поддерж|недоступ|что я умею|что умеешь|\bcan'?t\b|cannot|not supported|unavailable)/i, // cyrillic-ok: the words an answer uses
+  },
+  {
+    id: 'human',
+    re: /(не могу|не получилось|не удалось|ошибк|сбой|не уверен|непонятно|\berror\b|\bfailed\b|went wrong|not sure)/i, // cyrillic-ok: the words an answer uses
+  },
+]
+
+/** Does this answer point at the app -- a result, the gallery, a link there? */
+const WANTS_APP =
+  /(приложени|галере|в ленте|посмотреть тут|открой|t\.me\/[A-Za-z0-9_]+\?start(app)?=|\bapp\b|gallery)/i // cyrillic-ok: the words an answer uses
+
+/**
+ * The standard buttons this answer earned, in the standard order.
+ *
+ * Empty is a legitimate answer and the caller must handle it: "nothing to
+ * offer" is the state the blanket set was hiding.
+ */
+export function earnedButtons(
+  text: string,
+  isRu: boolean,
+  opts: { app?: boolean } = {}
+): InlineKeyboardButton[][] {
+  const t = String(text ?? '')
+  const ids = EARNS.filter(e => e.re.test(t)).map(e => e.id)
+  const rows: InlineKeyboardButton[][] = []
+  if (ids.includes('topup')) rows.push([actionButton('topup', isRu)])
+  const second = ['balance', 'can'].filter(id => ids.includes(id))
+  if (second.length) rows.push(second.map(id => actionButton(id, isRu)))
+  if (ids.includes('human')) rows.push([actionButton('human', isRu)])
+  // The app button keeps its old gate as well: Telegram rejects web_app
+  // outside a private chat, and a rejected button loses the whole message.
+  if (opts.app !== false && WANTS_APP.test(t)) rows.push([appButton(isRu)])
+  return rows
+}
+
 export function buttonsForAnswer(
   text: string,
   isRu: boolean,
@@ -189,20 +268,26 @@ export function buttonsForAnswer(
   rememberBotInfo(opts.bot)
   /* Never a raw app link, whether or not the caller named the bot. */
   const cleaned = insideTelegram(parsed.text, opts.bot?.username)
-  const standard = standardButtons(isRu, { app: opts.app }).reply_markup
-    .inline_keyboard
+  const standard = earnedButtons(cleaned, isRu, { app: opts.app })
   const pay = payRow(cleaned)
+  const rows = [
+    // A pay row first when the answer carries an invoice link; then what the
+    // agent proposed; then whatever the answer itself earned; the owner's hub
+    // row last, so the seller is one tap away from any answer of his.
+    ...(pay ? [pay] : []),
+    ...buttons,
+    ...standard,
+    ...(opts.tail ?? []),
+  ]
   return {
     text: cleaned,
-    // A pay row first when the answer carries an invoice link; then what the
-    // agent proposed; the standard set; the owner's hub row last, so the
-    // seller is one tap away from any answer.
-    markup: Markup.inlineKeyboard([
-      ...(pay ? [pay] : []),
-      ...buttons,
-      ...standard,
-      ...(opts.tail ?? []),
-    ]),
+    /*
+     * NO ROWS, NO KEYBOARD -- and `undefined`, not an empty one. Telegram
+     * refuses an inline keyboard with no buttons, and the callers already
+     * pass `undefined` for every chunk but the last, so this travels the
+     * path that is known to work.
+     */
+    markup: rows.length ? Markup.inlineKeyboard(rows) : undefined,
   }
 }
 
