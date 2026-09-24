@@ -59,11 +59,16 @@ export const LIPSYNC_TOOL_MAX_SECONDS = 30
  * try again later", and its fallback, fal, is out of balance. Naming another
  * model is the only way round a provider that is down, and each model keeps
  * its own per-second price (billing-shared priceForModel).
+ *
+ * Veed Fabric joined the same day, at the owner's word on its price (36
+ * tokens a second, cost $0.09 at 720p): the owner's reel from three parts
+ * showed a restart at every seam, and Veed takes up to 30 s in one call.
  */
 export const LIPSYNC_MODELS: readonly string[] = [
   'kie/infinitalk/from-audio',
   'kie/omnihuman-1-5',
   'kie/kling/ai-avatar-standard',
+  'kie/veed/fabric-1',
 ]
 
 /** The largest voice file read from the shelf: the shelf's own upload limit. */

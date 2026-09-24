@@ -123,6 +123,41 @@ export const OPERATION_COST_USD: Record<string, number> = {
 export const НАЦЕНКА = 2.0
 
 /**
+ * COSTS THE KIE PRICE LIST DOES NOT NAME, EACH WITH WHO NAMED IT AND WHEN.
+ *
+ * The generated table is KIE's own price list, and the veed family is not on
+ * it at all (kie-price-names.ts: checked against all 467 rows). A model with
+ * no cost has no price, and a model with no price is not admitted anywhere
+ * (`KIE_WEB_MODELS`), which is right by default: we cannot name a sum before
+ * the press.
+ *
+ * veed/fabric-1 is the exception, named by the owner on 2026-09-24: 18 KIE
+ * credits a second at 720p, $0.09 -- the figure the bot's own KIE scene has
+ * been paying (src/config/lipsync-models.config.ts) and talking-portrait.ts
+ * budgets with. The owner approved selling it at that cost times the markup,
+ * 36 tokens a second, because it lip-syncs up to 30 s in ONE pass where the
+ * other models are cut into 10-second parts with a visible restart at every
+ * seam. The route sends it 720p (`lipsyncResolutionFor`), the resolution
+ * this cost is for.
+ *
+ * A row here is a price we answer for without the price list behind it: add
+ * one only with the owner's word and the source of the figure.
+ */
+export const COST_OUTSIDE_KIE_PRICE_LIST_USD: Readonly<Record<string, number>> =
+  {
+    'veed/fabric-1': 0.09,
+  }
+
+/** A Kie model's cost, $: the price list's, else one named above, else null. */
+export function kieCostUsd(modelId: string): number | null {
+  return (
+    СЕБЕСТОИМОСТЬ_USD[modelId] ?? // cyrillic-ok: generated table name
+    COST_OUTSIDE_KIE_PRICE_LIST_USD[modelId] ??
+    null
+  )
+}
+
+/**
  * Цена КОНКРЕТНОЙ модели в токенах, а не одна на весь вид.
  *
  * Пока к оплате допускалась одна модель на вид, `OPERATION_COST_USD` совпадал
@@ -136,7 +171,7 @@ export const НАЦЕНКА = 2.0
  * сколько нельзя.
  */
 export function priceForKieModel(modelId: string): number | null {
-  const cost = СЕБЕСТОИМОСТЬ_USD[modelId]
+  const cost = kieCostUsd(modelId)
   if (cost == null) return null
   // A video whose bill cannot be named before the press has no price either,
   // for the same reason as the line above (see `kieVideoSale`). Every list

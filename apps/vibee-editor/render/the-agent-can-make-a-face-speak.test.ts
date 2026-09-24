@@ -80,6 +80,10 @@ import {
   splitPlan,
 } from './src/agent/lipsync-voice'
 import { TOKEN_PRICES, priceForModel } from './src/agent/billing-shared'
+import {
+  lipsyncResolutionFor,
+  reviewedKieModel,
+} from './src/agent/kie-web-provider'
 
 /** Invented id (9000000xx): no real person in the repository. */
 const CALLER = '900000047'
@@ -164,6 +168,21 @@ describe('the models the tool may name', () => {
       expect(typeof p, m).toBe('number')
       expect(p as number, m).toBeGreaterThan(0)
     }
+  })
+
+  it('each passes the route admission, which throws AFTER the charge', () => {
+    for (const m of LIPSYNC_MODELS)
+      expect(reviewedKieModel('lipsync', m), m).toBe(m.slice(4))
+  })
+
+  it('Veed Fabric is sold at the price the owner approved, and sent the 720p it is for', () => {
+    // Owner, 2026-09-24: 36 tokens a second, cost $0.09 a second at 720p.
+    // A cheaper price sells it below cost; a dearer one is not what was agreed.
+    expect(priceForModel('lipsync_generate', 'kie/veed/fabric-1')).toBe(36)
+    expect(lipsyncResolutionFor('veed/fabric-1')).toBe('720p')
+    // The price-list models stay on the cheapest row they are priced at.
+    for (const m of LIPSYNC_MODELS.filter(x => x !== 'kie/veed/fabric-1'))
+      expect(lipsyncResolutionFor(m.slice(4)), m).toBe('480p')
   })
 })
 
