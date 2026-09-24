@@ -64,6 +64,7 @@ import {
   PORTRAIT_IDENTITY_PREFIX,
   PORTRAIT_FRAMING_SUFFIX,
 } from './client-face'
+import { makeClientFaceTool } from './client-face-tool'
 
 import { BROWSER_TOOLS } from '../browser/agent-tools'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -3411,6 +3412,19 @@ TOOLS.push(
       const kept = await keepGeneratedImage(ctx, url, note)
       return kept.ok ? kept.url : ''
     },
+  })
+)
+/*
+ * THE FACE, ON DEMAND (crm_client_face). The agent could draw a face from
+ * three places and look at one from none: the only face tool was the screen's
+ * batch, which a model turn is forbidden to call. Same deps as delivery, so
+ * the rules about what counts as somebody's face stay in one module.
+ */
+TOOLS.push(
+  ...makeClientFaceTool({
+    avatar: leadAvatarUrl,
+    sentPhotos: sentPhotosFromLibrary,
+    ownAvatar: ownerAvatarUrl,
   })
 )
 TOOLS.push(...CRM_MEMORY_TOOLS)
