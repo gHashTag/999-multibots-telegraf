@@ -122,11 +122,13 @@ function splitSegments(text: string): Segment[] {
 function pushWithMedia(segments: Segment[], text: string) {
   let last = 0
   for (const m of text.matchAll(/https?:\/\/[^\s<>"')\]]+/g)) {
-    if (m.index > last) segments.push({ kind: 'text', content: text.slice(last, m.index) })
+    if (m.index > last)
+      segments.push({ kind: 'text', content: text.slice(last, m.index) })
     segments.push({ kind: 'link', url: m[0] })
     last = m.index + m[0].length
   }
-  if (last < text.length) segments.push({ kind: 'text', content: text.slice(last) })
+  if (last < text.length)
+    segments.push({ kind: 'text', content: text.slice(last) })
 }
 
 /** Короткая человекочитаемая подпись ссылки: домен + хвост. */
@@ -154,7 +156,12 @@ function TextPart({ content }: { content: string }) {
           <span key={i}>
             {chunks.map((chunk, j) =>
               j % 2 === 1 ? (
-                <a key={j} href={chunk} target="_blank" rel="noopener noreferrer">
+                <a
+                  key={j}
+                  href={chunk}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   {shortUrl(chunk)}
                 </a>
               ) : (
@@ -278,6 +285,57 @@ function ImageAsset({ url }: { url: string }) {
   )
 }
 
+/**
+ * A PLAYER THAT CAN ADMIT IT FAILED, for the same reason the image can.
+ *
+ * `ImageAsset` learned this when a signed S3 link expired; the player was
+ * left as a bare `<video>` and kept the failure. A source the browser cannot
+ * open leaves the element standing -- measured in the pane: 152px of BLACK
+ * with a dead control bar, and up to `max-height: 420px` once a vertical
+ * reel has reported its size. On a phone that is a third of the screen
+ * saying nothing, and the person cannot tell "nothing to show" from "failed
+ * to show it". The second case still has a working link to the original.
+ *
+ * The audio element gets it too: 44px of dead control bar is smaller but no
+ * more honest.
+ */
+function PlayerAsset({ url, kind }: { url: string; kind: 'video' | 'audio' }) {
+  const [broken, setBroken] = useState(false)
+  if (broken) {
+    return (
+      <a
+        className="chat-assets__link"
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {shortUrl(url)}
+      </a>
+    )
+  }
+  if (kind === 'video') {
+    return (
+      <video
+        className="chat-assets__video"
+        src={url}
+        controls
+        playsInline
+        preload="metadata"
+        onError={() => setBroken(true)}
+      />
+    )
+  }
+  return (
+    <audio
+      className="chat-assets__audio"
+      src={url}
+      controls
+      preload="metadata"
+      onError={() => setBroken(true)}
+    />
+  )
+}
+
 export function ChatAssets({ text }: { text: string }) {
   const segments = splitSegments(text)
   if (!segments.length) return null
@@ -313,20 +371,9 @@ export function ChatAssets({ text }: { text: string }) {
           return <ImageAsset key={i} url={s.url} />
         }
         if (s.kind === 'video') {
-          return (
-            <video
-              key={i}
-              className="chat-assets__video"
-              src={s.url}
-              controls
-              playsInline
-              preload="metadata"
-            />
-          )
+          return <PlayerAsset key={i} url={s.url} kind="video" />
         }
-        return (
-          <audio key={i} className="chat-assets__audio" src={s.url} controls preload="metadata" />
-        )
+        return <PlayerAsset key={i} url={s.url} kind="audio" />
       })}
     </div>
   )
