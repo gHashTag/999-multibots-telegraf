@@ -177,14 +177,27 @@ export async function handleAcceptance(
   if (!verdicts.length) {
     return { status: 400, body: { ok: false, error: 'no valid verdicts' } }
   }
-  const pool = await deps.getPool()
+  await recordVerdicts(await deps.getPool(), verdicts, who)
+  return { status: 200, body: { ok: true, kept: verdicts.length } }
+}
+
+/**
+ * The one writer: the keepers' POST and the daily run (daily-acceptance.ts)
+ * both come through here, and both through verdictOf first.
+ */
+export async function recordVerdicts(
+  pool: Queryable,
+  verdicts: readonly Verdict[],
+  by: string
+): Promise<void> {
   await ensureTable(pool)
-  for (const v of verdicts) {
+  for (const raw of verdicts) {
+    const v = verdictOf(raw)
+    if (!v) continue
     await pool.query(
       `INSERT INTO agent_acceptance (agent, pass, tools, codes, by_id)
        VALUES ($1, $2, $3, $4, $5)`,
-      [v.agent, v.pass, v.tools, v.codes, who]
+      [v.agent, v.pass, v.tools, v.codes, by]
     )
   }
-  return { status: 200, body: { ok: true, kept: verdicts.length } }
 }
