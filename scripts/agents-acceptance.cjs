@@ -30,56 +30,19 @@ const { execFileSync } = require('node:child_process')
 const BASE =
   process.env.RENDER_BASE || 'https://vibee-render-production.up.railway.app'
 
-/** Tools that act outside the conversation: a canary must never reach them. */
-const ACTING = [
-  'feed_publish',
-  'tg_send',
-  'tg_send_voice',
-  'tg_send_video',
-  'tg_create_group',
-  'mail_send',
-  'video_generate',
-  'audio_generate',
-  'reel_render',
-  'image_generate',
-]
-
-/**
- * One canary per catalogued agent. `expect`: at least one of these tools is
- * called. A test in the render suite holds that this table covers every
- * agent and names only tools that exist.
+/*
+ * THE TABLE LIVES IN ONE PLACE: render/src/agent/acceptance-canaries.json.
+ * The render server's daily run (daily-acceptance.ts) reads the same file,
+ * so a canary changed for one is changed for both.
+ *
+ * ACTING: tools that act outside the conversation -- a canary must never
+ * reach them. AGENTS: one canary per catalogued agent; `expect` = at least
+ * one of these tools is called. A test in the render suite holds that the
+ * table covers every agent and names only tools that exist.
  */
-const AGENTS = [
-  {
-    id: 'blogger',
-    canary:
-      'Что из сделанного за последнюю неделю ещё не опубликовано в блоге? Только список, ничего не публикуй.',
-    expect: ['feed_list', 'feed_get', 'web_read', 'web_search'],
-  },
-  {
-    id: 'job',
-    canary: 'Кто из моих контактов нанимает? Назови признаки. Никому не пиши.',
-    expect: ['job_hunters'],
-  },
-  {
-    id: 'google',
-    canary:
-      'Какой поисковый спрос на создание ИИ-аватаров для блогеров? Три источника, которые ты открыл.',
-    expect: ['web_search', 'web_read'],
-  },
-  {
-    id: 'tiktok',
-    canary:
-      'Дай 3 хука и сценарий на 30 секунд про ИИ-аватар для блогера. Только текст, ничего не рендери.',
-    expect: [],
-  },
-  {
-    id: 'habr',
-    canary:
-      'Прочитай README репозитория github.com/gHashTag/agent-mail-mcp и предложи тему статьи для Habr с шагами воспроизведения. Не публикуй.',
-    expect: ['web_read', 'browser_open', 'browser_read'],
-  },
-]
+const TABLE = require('../apps/vibee-editor/render/src/agent/acceptance-canaries.json')
+const ACTING = TABLE.acting
+const AGENTS = TABLE.agents
 
 function agentKey() {
   if (process.env.AGENT_KEY) return process.env.AGENT_KEY.trim()

@@ -18,8 +18,15 @@ Read FIRST (`TRI_LOOP=agents tri loop`), write at the END
    root run needs ~14 GB: do not run it inside `verify` in this container.
 4. Every change ships with a test that fails when the change is reverted
    (mutation), and the mutation is shown in the commit message.
-5. Never merge without the owner's explicit word in chat. Never read a
-   secret value into the conversation (`${{service.VAR}}` references only).
+5. MERGE: owner, 24.09 ~08:00 UTC, in chat: «мержи сам все автоматически
+   не спрашивай меня!!!» -- standing permission to merge this loop's PRs
+   myself, without asking, ONCE local checks are green (the related vitest,
+   tsc, check:player-types, mutations). Never merge red local checks, never
+   force-push, merge commit (not squash) like #2952/#2960. After a merge:
+   unsubscribe the PR, restart the branch from origin/main (fast-forward),
+   watch the Railway deploy of vibee-render and vibee-editor to SUCCESS.
+   Never read a secret value into the conversation (`${{service.VAR}}`
+   references only).
 6. Anything outward (a Railway service, a deploy, a post) is created only
    with the owner's approval, and removed right after use.
 
@@ -39,6 +46,19 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   crm_messages history and survives a dead live session (bebfa519); market
   cards show the last acceptance verdict, `tri agents` records it
   (8ebbd525). Competitor gap (2) "acceptance evidence not on the card" done.
+- 24.09 07:58 UTC: PR #2960 MERGED by me on the owner's word (e4db4eb5);
+  deploy of vibee-render + vibee-editor started. Owner chose all three next
+  options: (1) post-merge acceptance + connect-my-networks run, (2) Threads
+  (and more) posting through the browser, (3) daily acceptance with alert.
+- Tick 4 (24.09 08:00-08:40 UTC), owner: «все три тогда», then «мержи сам
+  все автоматически». Done: merged #2960 myself; daily acceptance INSIDE
+  render (2b2368c5) -- also covers option 1, the first run starts 10 min
+  after the deploy since the table is empty; Threads in blog-share + skip
+  signed-out networks (61676d3a); `tri verdicts`. NOT done: Instagram
+  posting (needs a media upload through the web composer via CDP
+  DOM.setFileInputFiles) -- next candidate. The Railway function
+  `agents-acceptance-once` is NOT reused (skill cloud-agent-does-the-work:
+  no one-off functions); it still idles until the owner deletes it.
 - NEXT: #2964 live A2A run after merge (`tri logins` -> `tri a2a "подключи мои
 сети"` -> `tri logins`); Instagram/Threads posting through the browser
   (blog-share only does X/LinkedIn/Reddit) as a new sub-issue of #2961;
