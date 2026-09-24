@@ -13,6 +13,8 @@ const stub = vi.hoisted(() => ({
   hits: [] as Array<{ title: string; url: string; snippet?: string }>,
   text: 'ordinary page text',
   title: 'A page',
+  /* Addresses that answer "not here", with the hint web-read derives. */
+  missing: {} as Record<string, string>,
 }))
 
 vi.mock('./src/agent/web-search', () => ({
@@ -24,14 +26,21 @@ vi.mock('./src/agent/web-search', () => ({
 }))
 
 vi.mock('./src/agent/web-read', () => ({
-  readWebPage: async (raw: string) => ({
-    ok: true,
-    url: raw,
-    title: stub.title,
-    text: stub.text,
-    via: 'reader',
-    truncated: false,
-  }),
+  readWebPage: async (raw: string) =>
+    stub.missing[raw]
+      ? {
+          ok: false,
+          reason: 'страницы нет по этому адресу (404)',
+          hintUrl: stub.missing[raw],
+        }
+      : {
+          ok: true,
+          url: raw,
+          title: stub.title,
+          text: stub.text,
+          via: 'reader',
+          truncated: false,
+        },
 }))
 
 import {
@@ -233,6 +242,30 @@ describe('the exfiltration cap', () => {
     )
     expect(refused.error).toContain('не встречался')
     expect(refused.url).toBeUndefined()
+  })
+
+  it('a 404 hint may be opened next, even in a turn web text has entered', async () => {
+    /*
+     * The hint is owner/repo of an address this turn was already allowed to
+     * open -- less than it, never more -- so it joins the offered set.
+     */
+    const raw = 'https://raw.githubusercontent.com/o/r/main/README.md'
+    stub.missing[raw] = 'https://github.com/o/r'
+    stub.hits = [{ title: 'raw', url: raw }]
+    try {
+      const ctx = ctxFor('t-hint')
+      await search.handler({ query: 'q' }, ctx)
+      const missed = result(await read.handler({ url: raw }, ctx))
+      expect(missed.error).toContain('404')
+      expect(missed.hint).toContain('https://github.com/o/r')
+      const next = result(
+        await read.handler({ url: 'https://github.com/o/r' }, ctx)
+      )
+      expect(next.error).toBeUndefined()
+      expect(next.url).toBe('https://github.com/o/r')
+    } finally {
+      delete stub.missing[raw]
+    }
   })
 
   it('allows an address the search actually returned', async () => {
