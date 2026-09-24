@@ -242,7 +242,22 @@ if [ "$free_after" -lt 2097152 ]; then
       [ "$w" = "$(git rev-parse --show-toplevel 2>/dev/null)" ] && continue
       sz=$(du -sk "$w" 2>/dev/null | awk '{print $1}')
       [ -z "$sz" ] && continue
-      printf "  %5d МБ  %s\n" "$((sz / 1024))" "$w"
+      # AND WHETHER IT IS SAFE TO RELEASE -- the two questions, answered here
+      # so a person deciding at a glance does not have to run them by hand.
+      # A NAMED worktree is never removed by this script: it is somebody's
+      # working directory, not a dead session's scratch. Saying "safe" is the
+      # whole contribution; the deletion stays a person's.
+      dirty=$(git -C "$w" status --short 2>/dev/null | head -1)
+      head=$(git -C "$w" rev-parse HEAD 2>/dev/null)
+      pub=$(git branch -r --contains "$head" 2>/dev/null | head -1)
+      if [ -n "$dirty" ]; then
+        verdict="НЕ трогать: есть несохранённые правки"
+      elif [ -z "$pub" ]; then
+        verdict="НЕ трогать: коммита нет на сервере"
+      else
+        verdict="можно снять: чисто и опубликовано (git worktree remove)"
+      fi
+      printf "  %5d МБ  %s\n              %s\n" "$((sz / 1024))" "$w" "$verdict"
     done
   exit 1
 fi
