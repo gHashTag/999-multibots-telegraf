@@ -161,9 +161,29 @@ if [ -d "$SCRATCH_ROOT" ]; then
     # `git worktree list` from wherever this runs: the script is invoked from
     # the repository, and naming a variable that does not exist here would
     # check nothing at all -- quietly, which is the failure this guard is for.
+    # РАБОЧАЯ КОПИЯ ВНУТРИ: снять её штатно, если терять нечего.
+    #
+    # Пропускать такой черновик -- то, что делала первая версия, -- значит
+    # оставлять нетронутыми самые крупные: замерено 25.09.2026, мёртвая
+    # сессия держала 2.3 ГБ при 486 МБ свободных, и уборка прошла мимо.
+    #
+    # «Терять нечего» проверяется ДВАЖДЫ, и обе проверки обязательны: в копии
+    # нет несохранённых правок И её коммит есть на удалённом сервере. Копия с
+    # неопубликованной работой не трогается никогда: диск дешевле чужого дня.
     if git worktree list 2>/dev/null | grep -q "$id"; then
-      echo "  черновик $id держит рабочую копию -- пропускаю"
-      continue
+      wt=$(git worktree list --porcelain | grep "^worktree .*$id" | head -1 |
+           awk '{print $2}')
+      dirty=$(git -C "$wt" status --short 2>/dev/null | head -1)
+      head_sha=$(git -C "$wt" rev-parse HEAD 2>/dev/null)
+      published=$(git branch -r --contains "$head_sha" 2>/dev/null | head -1)
+      if [ -n "$dirty" ] || [ -z "$published" ]; then
+        echo "  черновик $id: несохранённое или неопубликованное -- не трогаю"
+        continue
+      fi
+      git worktree remove --force "$wt" >/dev/null 2>&1 || {
+        echo "  черновик $id: git не отдал копию -- не трогаю"
+        continue
+      }
     fi
     size=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
     [ "${size:-0}" -lt 10240 ] && continue
@@ -187,5 +207,21 @@ if [ "$free_after" -lt 2097152 ]; then
      ~/Library/Caches 2>/dev/null | sort -n | tail -4 |
     awk '{printf "  %5d МБ  %s\n", $1/1024, $2}'
   echo "Лишние устройства симулятора: xcrun simctl list devices"
+
+  # РАБОЧИЕ КОПИИ, ПОИМЁННО И С РАЗМЕРОМ.
+  #
+  # Каждая -- полная выписка репозитория: замерено 25.09.2026, от 300 до 700
+  # МБ штука, шесть штук у одной живой сессии составляли 3 ГБ из 4.1. Это не
+  # мусор и удалять их за хозяина нельзя; но пока цена не названа, она
+  # становится видимой только когда диск подходит к нулю -- то есть трижды
+  # за ночь.
+  echo "Рабочие копии (каждая -- полный репозиторий):"
+  git worktree list --porcelain 2>/dev/null | grep '^worktree ' |
+    awk '{print $2}' | while read -r w; do
+      [ "$w" = "$(git rev-parse --show-toplevel 2>/dev/null)" ] && continue
+      sz=$(du -sk "$w" 2>/dev/null | awk '{print $1}')
+      [ -z "$sz" ] && continue
+      printf "  %5d МБ  %s\n" "$((sz / 1024))" "$w"
+    done
   exit 1
 fi
