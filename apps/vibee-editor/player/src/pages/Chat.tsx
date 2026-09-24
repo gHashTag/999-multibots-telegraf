@@ -27,7 +27,8 @@ import { reportPayOutcome } from '@/lib/payOutcome'
 import { parseCards, cardStates, answerFor } from '@/lib/agentCards'
 import { AgentCards } from '@/components/Chat/AgentCards'
 import { ChatThreads } from '@/components/Chat/ChatThreads'
-import { liveMarketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
+import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
+import { useIsKeeper } from '@/hooks/useIsKeeper'
 import './Chat.css'
 
 /**
@@ -151,9 +152,17 @@ function ChatPage() {
     agentId?: string
   }>()
   const client = clientId && /^\d{5,15}$/.test(clientId) ? clientId : null
-  const marketplaceAgent = agentId
-    ? (liveMarketplaceAgentById(agentId)?.id ?? null)
-    : null
+  /*
+   * A live agent is open to everybody; a trainee only to a keeper (#2957),
+   * and the server's gate (threadFor) says the same. While the answer is
+   * not known yet nothing is drawn, so a keeper is not bounced to /agents.
+   */
+  const listing = agentId ? marketplaceAgentById(agentId) : null
+  const trainee = listing !== null && listing.status !== 'live'
+  const keeper = useIsKeeper(trainee)
+  if (trainee && keeper === null) return null
+  const marketplaceAgent =
+    listing && (listing.status === 'live' || keeper) ? listing.id : null
   if (agentId && !marketplaceAgent) return <Navigate to="/agents" replace />
   return (
     <ChatThread

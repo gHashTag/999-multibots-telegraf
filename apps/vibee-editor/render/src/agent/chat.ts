@@ -67,7 +67,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
-import { liveMarketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
+import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 
 const MAX_STEPS = 8
 
@@ -1159,8 +1159,14 @@ function ownerSideSection(surface?: string): string {
   )
 }
 
+/*
+ * The gate decides WHO may open an agent (routes.ts threadFor: live for
+ * everybody, any catalogued agent for a keeper, #2957); this only says what
+ * the agent is. A trainee a keeper opened gets its own voice, not the
+ * general assistant's.
+ */
 export function marketplaceAgentPrompt(agentId?: string): string {
-  const agent = liveMarketplaceAgentById(agentId)
+  const agent = marketplaceAgentById(agentId)
   if (!agent) return ''
   if (agent.id === 'blogger') {
     return (
