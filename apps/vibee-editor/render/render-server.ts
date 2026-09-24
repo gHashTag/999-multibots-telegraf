@@ -8596,6 +8596,38 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, providerStatus())
     }
 
+    /*
+     * THE PRESS THAT REACHES A TURN NOBODY IS HOLDING A SOCKET FOR.
+     *
+     * Stop already works the usual way: the bot aborts its fetch, the socket
+     * closes, and the turn sees its signal between steps. That covers every
+     * turn a person is WAITING on. It covers none of the others -- the duet
+     * writes into a chat of its own, an a2a call leaves its run behind it --
+     * and those are exactly the runs that keep spending after a press.
+     *
+     * So the press is written down here, and running turns read it at their
+     * step boundary (src/agent/agent-stops.ts). Each person stops their own
+     * runs: the row is keyed by the identity the request proved, never by a
+     * telegram_id somebody typed into the body.
+     */
+    if (route === '/api/agent/stop' && req.method === 'POST') {
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      let pool: unknown = null
+      try {
+        pool = getPool()
+      } catch {
+        pool = null
+      }
+      if (!pool) return sendJson(res, 503, { error: 'база недоступна' })
+      const { requestStop } = await import('./src/agent/agent-stops')
+      const wrote = await requestStop(pool as never, who)
+      if (wrote !== 'written')
+        return sendJson(res, 503, { error: 'остановка не записана' })
+      console.log(`[agent] stop requested by ${who}`)
+      return sendJson(res, 200, { ok: true })
+    }
+
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })

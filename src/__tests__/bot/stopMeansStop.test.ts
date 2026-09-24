@@ -98,13 +98,25 @@ describe('the button exists and the dispatcher hears it', () => {
     )
     const at = src.indexOf("verb === 'halt'")
     expect(at, 'nothing answers the stop press').toBeGreaterThan(-1)
-    const body = src.slice(at, at + 1400)
+    // Wide enough for the whole arm: at 1400 it silently stopped covering
+    // the answer it was written to guard when the handler grew a third path.
+    const body = src.slice(at, at + 3000)
     // Through the shared registry (services/ownerRuns.ts), not a map private
     // to this handler: the cron sweep runs in this same process and must be
     // reachable by the same press.
     expect(body).toContain('stopOwnerRun(ownerId(ctx))')
     // A button that sometimes answers and sometimes does not is pressed twice.
     expect(body).toContain('нечего останавливать')
+    /*
+     * AND THE PRESS LEAVES THE PROCESS.
+     *
+     * Aborting the local run reaches the turn the person is watching and
+     * nothing else: a duet turn writes into a chat of its own, an a2a run
+     * outlives the request that made it, and neither has a socket to close.
+     * Those are the runs that keep spending after a press, so the press is
+     * also written down on the render (services/agentStopRemote.ts).
+     */
+    expect(body).toContain('requestRemoteStop(ownerId(ctx))')
   })
 
   it('the Stop rides ON the message the person is waiting at', async () => {

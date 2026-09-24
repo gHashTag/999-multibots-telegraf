@@ -4292,12 +4292,27 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
        * people press twice.
        */
       const { stopOwnerRun } = await import('@/services/ownerRuns')
+      const { requestRemoteStop } = await import('@/services/agentStopRemote')
       const had = stopOwnerRun(ownerId(ctx))
+      /*
+       * And the same press, written down on the render.
+       *
+       * The abort above reaches the turn this person is watching. It reaches
+       * nothing else: a duet turn writes into a chat of its own and an a2a
+       * call leaves its run behind it, so neither has a socket to close. The
+       * render records the press and those runs read it between steps.
+       *
+       * Not awaited for the answer's sake -- it is awaited so the record is
+       * in before the person is told anything -- and it never throws.
+       */
+      const wrote = await requestRemoteStop(ownerId(ctx))
       await sendLong(
         ctx,
         had
           ? '⏹ Останавливаю — ничего не отправлю.' // cyrillic-ok: user-facing
-          : 'Сейчас нечего останавливать.', // cyrillic-ok: user-facing
+          : wrote === 'written'
+            ? '⏹ Принял. Если ход идёт на сервере — он прервётся.' // cyrillic-ok: user-facing
+            : 'Сейчас нечего останавливать.', // cyrillic-ok: user-facing
         hub()
       )
     } else if (verb === 'auto') await switchAutopilot(ctx, true)
