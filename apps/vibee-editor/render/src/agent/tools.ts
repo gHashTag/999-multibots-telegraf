@@ -31,6 +31,7 @@ import { planTools } from './plan-tools'
 import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
 import { JOB_TOOLS } from './job-tools'
+import { MAIL_TOOLS } from './mail-tools'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import { clubOfferLine } from './club-membership'
@@ -3198,6 +3199,7 @@ TOOLS.push(...WEB_TOOLS)
  * writing to one of them is a send like any other and waits for the press.
  */
 TOOLS.push(...JOB_TOOLS)
+TOOLS.push(...MAIL_TOOLS)
 
 /*
  * NO TOOL IS REGISTERED TWICE.
