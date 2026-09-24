@@ -1,0 +1,102 @@
+/* A message prepared for a client, waiting for the owner's press. */
+.send-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 255, 136, 0.45);
+  background: rgba(0, 255, 136, 0.05);
+}
+.send-card[data-state='sent'] {
+  border-color: rgba(0, 255, 136, 0.25);
+  background: transparent;
+}
+.send-card[data-state='cancelled'],
+.send-card[data-state='expired'] {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: transparent;
+  opacity: 0.75;
+}
+.send-card__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.send-card__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #00ff88;
+}
+.send-card__media img,
+.send-card__media video {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  border-radius: 12px;
+  object-fit: contain;
+  background: #000;
+}
+.send-card__album {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 6px;
+}
+.send-card__album img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+.send-card__text {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+.send-card__acts {
+  display: flex;
+  gap: 8px;
+}
+.send-card__acts button {
+  height: auto;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: normal;
+}
+.send-card__cancel {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: #ddd;
+}
+.send-card__send {
+  flex: 1;
+  border: 0;
+  background: #00ff88;
+  color: #002a16;
+}
+.send-card__acts button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.send-card__done {
+  margin: 0;
+  color: #00ff88;
+  font-weight: 600;
+}
+.send-card__muted {
+  margin: 0;
+  color: #888;
+  font-size: 12px;
+}
+.send-card__error {
+  margin: 0;
+  color: #ff9a9a;
+  font-size: 13px;
+}
