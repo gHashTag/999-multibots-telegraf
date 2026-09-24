@@ -57,6 +57,7 @@ tri — оболочка Trinity S³AI
   tri tag URL канал [кампания]  ссылка с меткой канала: utm на наших страницах, __канал в /start нашего бота
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
   tri stop [id]  прервать идущие ходы человека (дуэт и a2a — у них нет сокета)
+  tri faces [id]  очередь продавца в том порядке, в каком её увидит обход: у кого есть лицо
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
@@ -1265,6 +1266,40 @@ PYEOF
     else
       echo "рендер ответил $OUT — остановка НЕ записана"; exit 1
     fi
+    ;;
+
+  faces)
+    # WHOSE FACE THE SELLER CAN ACTUALLY WORK FROM.
+    #
+    # The sweep's first action is a portrait, and a candidate with no face
+    # turns the whole sweep into "send me a photo" -- a card that displaces
+    # the portrait somebody further down would have got. This prints the
+    # queue as the brief will order it: known faces first, then the ones
+    # nobody has looked at yet. Read-only; it asks crm_leads and nothing else.
+    #
+    # Two answers, never three: 'unknown' means nobody has looked, NOT that
+    # the person has no photo. A count of unknowns is a to-do for the CRM
+    # screen (crm_client_avatars), not a verdict about those people.
+    shift
+    ID="${1:-144022504}"
+    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+           | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway link в корне копии"; exit 69; }
+    curl -s "https://vibee-render-production.up.railway.app/mcp" \
+      -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' \
+      -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"crm_leads\",\"arguments\":{\"limit\":15},\"telegram_id\":\"$ID\"}}" \
+      | node -e '
+        let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+          let j;try{j=JSON.parse(s)}catch{console.log(s.slice(0,300));process.exit(1)}
+          if(j.error){console.log("рендер:",j.error.message);process.exit(1)}
+          let t=j.result&&j.result.content&&j.result.content[0]&&j.result.content[0].text;
+          let d;try{d=JSON.parse(t)}catch{console.log(String(t).slice(0,300));process.exit(1)}
+          const c=d.candidates||[];
+          const yes=c.filter(x=>x.face==="yes"), unk=c.filter(x=>x.face!=="yes");
+          for(const x of yes) console.log("  лицо есть  ", x.display||x.lead, "next="+x.next);
+          for(const x of unk) console.log("  не смотрели", x.display||x.lead, "next="+x.next);
+          console.log(`\n${yes.length} с лицом, ${unk.length} ещё не смотрели (не «фото нет»).`);
+        })'
     ;;
 
   contracts)

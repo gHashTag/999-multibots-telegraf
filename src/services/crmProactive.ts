@@ -436,13 +436,37 @@ export function leadsNote(
    * before, the list is the same list in the same order and the sweep works
    * exactly as it did: silence about everybody is not a reason to go quiet.
    */
-  const ordered =
-    cold.size === 0
-      ? rows
-      : [
-          ...rows.filter(c => !cold.has(String(c.lead ?? ''))),
-          ...rows.filter(c => cold.has(String(c.lead ?? ''))),
-        ]
+  /*
+   * AND THE SAME MECHANISM FOR THE FACE.
+   *
+   * The sweep's first action is a PORTRAIT, drawn from the person's own
+   * face. A candidate whose face nobody holds turns the entire sweep into
+   * "please send me a photo" -- the weakest card there is, and by the rule
+   * three lines up a weak card DISPLACES the next one. Meanwhile somebody
+   * further down, whose face is right there, gets nothing.
+   *
+   * So a known face comes first. Nothing new for the model to weigh: the
+   * order IS the choice, exactly as with the cold ones.
+   *
+   * WHAT THIS MUST NOT BECOME. `face` has two values, 'yes' and 'unknown',
+   * and 'unknown' means NOBODY HAS LOOKED -- not "no photo". Demoting for it
+   * would bury people over a fact never checked, so unknown keeps its place
+   * among its equals; only a known face is promoted above it. A queue that
+   * has never been looked at is therefore the queue it always was.
+   *
+   * The cold rule still wins: somebody whose card was ignored stays last,
+   * face or no face. Being ignored is about the owner's attention, which is
+   * the scarce thing here.
+   */
+  const hasFace = (c: Record<string, unknown>) => String(c.face ?? '') === 'yes'
+  const warm = rows.filter(c => !cold.has(String(c.lead ?? '')))
+  const ordered = [
+    ...warm.filter(hasFace),
+    ...warm.filter(c => !hasFace(c)),
+    ...(cold.size === 0
+      ? []
+      : rows.filter(c => cold.has(String(c.lead ?? '')))),
+  ]
   const lines = ordered.slice(0, LOOK_LIMIT).map(c => {
     const who = c.display
       ? `${String(c.display)} (${String(c.lead ?? '')})`
@@ -450,7 +474,9 @@ export function leadsNote(
     const seen = cold.has(String(c.lead ?? ''))
       ? ' — ему уже готовили карточку, её не нажали'
       : ''
-    return `- ${who}: next=${String(c.next ?? '')}${seen}`
+    // Said plainly, so the model does not read a missing face as "no photo".
+    const face = hasFace(c) ? ' — лицо есть' : '' // cyrillic-ok: brief copy
+    return `- ${who}: next=${String(c.next ?? '')}${face}${seen}`
   })
   return (
     ' ШАГ 1 УЖЕ ВЫПОЛНЕН: crm_leads вернул ' +
