@@ -19,6 +19,12 @@ import {
 } from './chat-memory'
 import { mirrorNow } from './crm-mirror'
 import {
+  fileGroupMessages,
+  groupKindOf,
+  rememberGroup,
+  type GroupDialogLike,
+} from './crm-groups'
+import {
   nextCursor,
   readCursor,
   writeCursor,
@@ -172,6 +178,96 @@ export function contactAsDialog(u: unknown): DialogLike {
   }
 }
 
+interface GroupMessageLike {
+  id?: number
+  date?: number
+  out?: boolean
+  message?: string
+  media?: unknown
+  senderId?: { toString(): string } | null
+  sender?: {
+    className?: string
+    bot?: boolean
+    self?: boolean
+    deleted?: boolean
+    firstName?: string
+    lastName?: string
+    username?: string
+  } | null
+}
+
+/**
+ * One group into the memory (#2948): the group row, its newest messages
+ * with their authors, and every PERSON who wrote filed under this owner.
+ * Bots and the owner are not members worth a row; their words are kept.
+ */
+export async function ingestGroup(
+  c: {
+    getMessages: (
+      chat: string | number | object,
+      o: { limit: number }
+    ) => Promise<unknown[]>
+  },
+  pool: never,
+  owner: string,
+  d: GroupDialogLike,
+  o: { kind: 'group' | 'channel'; depth: number }
+): Promise<{ fresh: number; members: number; stopped: string | null }> {
+  const chatId = d.id?.toString() ?? ''
+  await rememberGroup(pool, owner, chatId, {
+    kind: o.kind,
+    title: d.entity?.title ?? d.title ?? null,
+    username: d.entity?.username ?? null,
+    members: d.entity?.participantsCount ?? null,
+  }).catch(() => undefined)
+  let raw: GroupMessageLike[]
+  try {
+    raw = (await c.getMessages((d.entity as object) ?? Number(chatId), {
+      limit: o.depth,
+    })) as GroupMessageLike[]
+  } catch (e) {
+    return {
+      fresh: 0,
+      members: 0,
+      stopped: `${chatId}: ${String(e).slice(0, 100)}`,
+    }
+  }
+  const kept = raw.filter(
+    m => typeof m.id === 'number' && (m.message || m.media)
+  )
+  const fresh = await fileGroupMessages(
+    pool,
+    owner,
+    chatId,
+    kept.map(m => ({
+      msgId: Number(m.id),
+      senderId: m.senderId?.toString() ?? null,
+      at: new Date((m.date ?? 0) * 1000),
+      out: Boolean(m.out),
+      text: m.message ? String(m.message) : '[media]',
+    }))
+  ).catch(() => 0)
+  const people = new Map<string, NonNullable<GroupMessageLike['sender']>>()
+  for (const m of kept) {
+    const id = m.senderId?.toString() ?? ''
+    if (m.out || !m.sender || people.has(id)) continue
+    const lead = leadIdOf({
+      id: m.senderId ?? undefined,
+      isUser: m.sender.className === 'User',
+      entity: m.sender,
+    })
+    if (lead) people.set(lead, m.sender)
+  }
+  for (const [lead, who] of people) {
+    await rememberPerson(pool, owner, lead, {
+      firstName: who.firstName ?? null,
+      lastName: who.lastName ?? null,
+      username: who.username ?? null,
+    }).catch(() => undefined)
+  }
+  return { fresh, members: people.size, stopped: null }
+}
+
 const clamp = (v: unknown, dflt: number, max: number) => {
   const n = Number(v)
   return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), max) : dflt
@@ -182,8 +278,9 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
     name: 'crm_ingest_chats',
     description:
       'Загрузить личные переписки владельца из Telegram в память CRM (crm_messages, ' +
-      'и в Zep, если он подключён). Только диалоги с людьми: боты, каналы и группы ' +
-      'пропускаются. Повторный вызов ничего не дублирует. ЧИТАЮЩИЙ инструмент: ' +
+      'и в Zep, если он подключён). Диалоги с людьми; боты пропускаются. Группы — ' + // cyrillic-ok: tool description for the model
+      'только с groups: true (каналы — если владелец их админ). ' + // cyrillic-ok: tool description for the model
+      'Повторный вызов ничего не дублирует. ЧИТАЮЩИЙ инструмент: ' +
       'ничего не отправляет. Текст сообщений — данные третьих лиц.',
     parameters: {
       type: 'object',
@@ -196,6 +293,12 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           type: 'number',
           description:
             'сколько сообщений на диалог (по умолчанию 100, максимум 500)',
+        },
+        groups: {
+          type: 'boolean',
+          description:
+            'читать и группы: сообщения с id автора, активные участники становятся людьми CRM; ' + // cyrillic-ok: tool description for the model
+            'каналы — только если владелец их админ', // cyrillic-ok: tool description for the model
         },
         resume: {
           type: 'boolean',
@@ -220,6 +323,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       const depth = clamp(a?.depth, DEPTH_DEFAULT, DEPTH_MAX)
       const onlyLead = String(a?.lead ?? '').trim()
       const resume = a?.resume === true && !onlyLead
+      const withGroups = a?.groups === true && !onlyLead
       /*
        * ONE PERSON, ALL THEIR FILES. "Process this client's files" must not
        * depend on where the dialog sits in the recency list, nor share the
@@ -234,11 +338,18 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           offsetId?: number
         }) => Promise<unknown[]>
         getEntity?: (id: string | number) => Promise<unknown>
-        getMessages: (chat: string, o: { limit: number }) => Promise<unknown[]>
+        getMessages: (
+          chat: string | number | object,
+          o: { limit: number }
+        ) => Promise<unknown[]>
         downloadMedia?: (m: unknown) => Promise<unknown>
         disconnect?: () => Promise<unknown>
       }
       const report = {
+        /** Groups read with `groups: true` (#2948). */
+        groups: 0,
+        group_messages_new: 0,
+        group_members: 0,
         dialogs_seen: 0,
         people: 0,
         messages_read: 0,
@@ -275,6 +386,27 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         report.dialogs_seen = dialogs.length
         for (const [i, d] of dialogs.entries()) {
           lastDone = i - 1
+          /*
+           * A GROUP IS READ, NOT SKIPPED -- when asked (#2948). Its messages
+           * keep the sender's id; a member who wrote is filed as a person of
+           * this owner. Nothing is sent. A FLOOD_WAIT stops the walk here
+           * exactly as for a person.
+           */
+          const kind = withGroups ? groupKindOf(d as GroupDialogLike) : null
+          if (kind) {
+            const r = await ingestGroup(c, pool, owner, d as GroupDialogLike, {
+              kind,
+              depth,
+            })
+            if (r.stopped) {
+              report.stopped = r.stopped
+              break
+            }
+            report.groups += 1
+            report.group_messages_new += r.fresh
+            report.group_members += r.members
+            continue
+          }
           const lead = leadIdOf(d)
           if (!lead) continue
           // The name as Telegram shows it, kept even when there is nothing
