@@ -460,9 +460,33 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           )
           .catch(() => null),
       ])
+      /*
+       * Their face for the card beside a client conversation: the photo the
+       * owner's session fetched (crm_client_avatars), else the one from our
+       * own users table. Only for somebody reachable for this owner -- the
+       * same gate as the balance above -- and never an error: no column yet
+       * or no photo is simply no picture.
+       */
+      let avatar: string | null = null
+      if (mine) {
+        try {
+          const a = await (pool as any).query(
+            `SELECT COALESCE(
+                (SELECT avatar_url FROM crm_people
+                  WHERE owner_id = $1 AND lead_id = $2),
+                (SELECT avatar_url FROM users WHERE telegram_id::text = $2)
+              ) AS url`,
+            [owner, lead.id]
+          )
+          avatar = String(a?.rows?.[0]?.url ?? '').trim() || null
+        } catch {
+          avatar = null
+        }
+      }
       return {
         lead: lead.id,
         display: display ?? undefined,
+        avatar_url: avatar,
         name: fullName(person),
         username: person?.username ?? null,
         messages_kept: story.total,

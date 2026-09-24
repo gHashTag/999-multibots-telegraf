@@ -121,3 +121,23 @@
   opacity: 0.55;
   border-style: dashed;
 }
+
+/* "All clients": a button in the row of links, drawn like a circle. */
+button.chat-threads__dot {
+  /* The design system gives every <button> a fixed height; this one is a
+     circle with a caption, as tall as the links beside it. */
+  height: auto;
+  justify-content: flex-start;
+  white-space: normal;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.chat-threads__dot.is-all .chat-threads__circle {
+  border-style: dashed;
+  color: #00ff88;
+  font-size: 22px;
+}
