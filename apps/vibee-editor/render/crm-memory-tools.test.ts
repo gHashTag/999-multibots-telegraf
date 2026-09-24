@@ -741,3 +741,111 @@ describe("the playbook is every seller's", () => {
     expect(salesPlaybook({ surface: 'web', telegramId: undefined })).toBe('')
   })
 })
+
+/*
+ * THE CONTACT BOOK (#2945). A contact with no recent dialog must still reach
+ * crm_people -- by the same person rule as the ingest, filed under the caller
+ * only, and without reading a single message.
+ */
+describe('crm_ingest_contacts', () => {
+  const user = (id: string, extra: Record<string, unknown> = {}) => ({
+    className: 'User',
+    id: { toString: () => id },
+    ...extra,
+  })
+  function bookClient(o: { flood?: boolean } = {}) {
+    const f = fakeClient()
+    const client = {
+      ...f.client,
+      async invoke(req: { className?: string }) {
+        f.calls.push(`invoke:${req?.className}`)
+        if (o.flood) throw new Error('FLOOD_WAIT_60')
+        return {
+          users: [
+            user('900000010', { firstName: 'Contact', username: 'c_one' }),
+            user('900000011', { firstName: 'Bot', bot: true }),
+            user(OWNER, { self: true }),
+            user('777000', { firstName: 'Telegram' }),
+            user('900000012', { deleted: true }),
+            user('900000013', { support: true }),
+            user('900000014', { firstName: 'No', lastName: 'Dialog' }),
+          ],
+        }
+      },
+    }
+    return { f, client }
+  }
+  const book = async (c: unknown) =>
+    (await tools(c as never),
+    await import('./src/agent/crm-memory-tools')).CRM_MEMORY_TOOLS.find(
+      t => t.name === 'crm_ingest_contacts'
+    )!
+
+  it('refuses a person without a connected account before touching Telegram', async () => {
+    const { f, client } = bookClient()
+    const tool = await book(client)
+    await expect(tool.handler({}, ctxFor('999'))).rejects.toThrow(
+      'не подключён'
+    )
+    expect(f.calls).toEqual([])
+  })
+
+  it('files people only, under the CALLER, and reads no messages', async () => {
+    const { f, client } = bookClient()
+    const pool = fakePool()
+    const tool = await book(client)
+    const r: any = await tool.handler({}, ctxFor(OWNER, pool))
+    expect(r.contacts_seen).toBe(7)
+    expect(r.people).toBe(2)
+    expect(r.skipped).toBe(5)
+    expect(r.stopped).toBeNull()
+    const rows = pool.queries.filter(q =>
+      q.sql.startsWith('INSERT INTO crm_people')
+    )
+    expect(rows.map(q => q.params[1])).toEqual(['900000010', '900000014'])
+    // Visible only to the owner whose account it came from.
+    expect(rows.every(q => q.params[0] === OWNER)).toBe(true)
+    expect(f.calls.some(x => x.startsWith('getMessages'))).toBe(false)
+    expect(f.calls.some(x => x === 'getDialogs')).toBe(false)
+    expect(f.calls.at(-1)).toBe('disconnect')
+  })
+
+  it('a FLOOD_WAIT files nothing, says where it stopped, and hangs up', async () => {
+    const { f, client } = bookClient({ flood: true })
+    const pool = fakePool()
+    const tool = await book(client)
+    const r: any = await tool.handler({}, ctxFor(OWNER, pool))
+    expect(r.stopped).toMatch(/GetContacts: .*FLOOD_WAIT_60/)
+    expect(r.people).toBe(0)
+    expect(
+      pool.queries.some(q => q.sql.startsWith('INSERT INTO crm_people'))
+    ).toBe(false)
+    expect(f.calls.at(-1)).toBe('disconnect')
+  })
+})
+
+describe('one person rule for dialogs and contacts', () => {
+  it('leadIdOf refuses exactly what the ingest always refused', async () => {
+    const { leadIdOf, contactAsDialog } =
+      await import('./src/agent/crm-memory-tools')
+    const id = (s: string) => ({ toString: () => s })
+    expect(leadIdOf({ id: id('900000020'), isUser: true, entity: {} })).toBe(
+      '900000020'
+    )
+    for (const entity of [
+      { bot: true },
+      { self: true },
+      { support: true },
+      { deleted: true },
+    ]) {
+      expect(leadIdOf({ id: id('900000021'), isUser: true, entity })).toBeNull()
+    }
+    expect(
+      leadIdOf({ id: id('-1001234'), isUser: false, entity: {} })
+    ).toBeNull()
+    expect(leadIdOf({ id: id('777000'), isUser: true, entity: {} })).toBeNull()
+    expect(
+      contactAsDialog({ className: 'Channel', id: id('900000022') }).isUser
+    ).toBe(false)
+  })
+})

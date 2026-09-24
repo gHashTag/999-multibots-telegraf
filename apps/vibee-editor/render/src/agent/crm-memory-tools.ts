@@ -134,6 +134,35 @@ async function oneDialog(
   return [{ id: e.id, isUser: true, entity: e }]
 }
 
+/**
+ * WHO COUNTS AS A PERSON, in one place (#2945). The dialog ingest and the
+ * contact-book import must agree, or the same account would be a lead from
+ * one door and not from the other: a bot, the owner's own saved messages,
+ * Telegram support, a deleted account and the service peers are never leads.
+ * Returns the lead id, or null.
+ */
+export function leadIdOf(d: DialogLike): string | null {
+  if (!d?.isUser || d.entity?.bot || d.entity?.self) return null
+  if (d.entity?.support || d.entity?.deleted) return null
+  const lead = d.id?.toString() ?? ''
+  if (!NUMERIC.test(lead) || SERVICE_IDS.has(lead)) return null
+  return lead
+}
+
+/** A contact-book user in the shape a dialog has, so leadIdOf judges both. */
+export function contactAsDialog(u: unknown): DialogLike {
+  const e = (u ?? {}) as DialogLike['entity'] & {
+    id?: { toString(): string }
+    className?: string
+  }
+  return {
+    id: e.id,
+    // GetContacts returns User objects only; anything else is not a person.
+    isUser: !e.className || e.className === 'User',
+    entity: e,
+  }
+}
+
 const clamp = (v: unknown, dflt: number, max: number) => {
   const n = Number(v)
   return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), max) : dflt
@@ -152,7 +181,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       properties: {
         limit: {
           type: 'number',
-          description: 'сколько диалогов (по умолчанию 30, максимум 200)',
+          description: `сколько диалогов (по умолчанию ${DIALOGS_DEFAULT}, максимум ${DIALOGS_MAX})`,
         },
         depth: {
           type: 'number',
@@ -207,10 +236,8 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           : ((await c.getDialogs({ limit })) as DialogLike[])
         report.dialogs_seen = dialogs.length
         for (const d of dialogs) {
-          if (!d.isUser || d.entity?.bot || d.entity?.self) continue
-          if (d.entity?.support || d.entity?.deleted) continue
-          const lead = d.id?.toString() ?? ''
-          if (!NUMERIC.test(lead) || SERVICE_IDS.has(lead)) continue
+          const lead = leadIdOf(d)
+          if (!lead) continue
           // The name as Telegram shows it, kept even when there is nothing
           // new to read: a list of leads must say who is who.
           await rememberPerson(pool, owner, lead, {
@@ -382,6 +409,79 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         note:
           'Тексты сообщений в память записаны как данные третьих лиц; читать их — crm_lead_context. ' +
           'Файлы людей — crm_lead_media; расшифровки появляются в фоне.',
+      }
+    },
+  },
+
+  {
+    /*
+     * THE CONTACT BOOK (#2945). Owner, 2026-09-24: "why aren't all my
+     * Telegram contacts in the CRM?" -- because only dialogs were read, and a
+     * contact with no recent dialog never reached crm_people. This reads the
+     * book (contacts.GetContacts) and files NAMES only: no message is read,
+     * nothing is sent. Same person rule as the ingest (leadIdOf), same seller
+     * gate before anything, and the row is keyed by the caller -- a contact
+     * becomes visible only to the owner whose account it came from.
+     */
+    name: 'crm_ingest_contacts',
+    description:
+      'Загрузить КНИГУ КОНТАКТОВ владельца из Telegram в CRM: имена и username, ' + // cyrillic-ok: tool description for the model
+      'без чтения сообщений. Боты, служебные, удалённые и сам владелец пропускаются. ' + // cyrillic-ok: tool description for the model
+      'ЧИТАЮЩИЙ инструмент: ничего не отправляет. Повторный вызов обновляет имена.', // cyrillic-ok: tool description for the model
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    async handler(_a: Record<string, any>, ctx?: ToolContext) {
+      await requireSeller(ctx)
+      const owner = String(ctx?.telegramId)
+      const pool = ctx?.pool as never
+      const c = (await client(ctx)) as {
+        invoke: (req: unknown) => Promise<{ users?: unknown[] }>
+        disconnect?: () => Promise<unknown>
+      }
+      const report = {
+        contacts_seen: 0,
+        people: 0,
+        skipped: 0,
+        stopped: null as string | null,
+      }
+      try {
+        let users: unknown[] = []
+        try {
+          const { Api } = await import('telegram')
+          const r = await c.invoke(
+            new Api.contacts.GetContacts({ hash: BigInt(0) as never })
+          )
+          users = r?.users ?? []
+        } catch (e) {
+          // FLOOD_WAIT and friends: nothing was filed, say so and where.
+          report.stopped = `contacts.GetContacts: ${String(e).slice(0, 100)}`
+          return report
+        }
+        report.contacts_seen = users.length
+        for (const u of users) {
+          const d = contactAsDialog(u)
+          const lead = leadIdOf(d)
+          if (!lead) {
+            report.skipped += 1
+            continue
+          }
+          try {
+            await rememberPerson(pool, owner, lead, {
+              firstName: d.entity?.firstName ?? null,
+              lastName: d.entity?.lastName ?? null,
+              username: d.entity?.username ?? null,
+            })
+            report.people += 1
+          } catch (e) {
+            report.stopped = `${lead}: ${String(e).slice(0, 100)}`
+            break
+          }
+        }
+      } finally {
+        await hangUp(c)
+      }
+      return {
+        ...report,
+        note: 'Имена из книги контактов записаны в crm_people; переписку читает crm_ingest_chats.', // cyrillic-ok: tool result copy
       }
     },
   },
