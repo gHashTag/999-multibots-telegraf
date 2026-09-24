@@ -28,10 +28,15 @@ Read FIRST (`TRI_LOOP=agents tri loop`), write at the END
 - Tick 1 (24.09 07:20 UTC): Brave Search API backend for web_search, `tri
 agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   (draft, not merged: needs the owner's word).
-- Tick 2 (24.09 07:40 UTC): epic #2961 (digital clone, every network) with
-  sub-issues #2962-#2966. Done: #2962 `browser_logins` + `tri logins`, same
-  branch and PR #2960. Next: #2963 (clone status reports accounts), then #2965
-  (rounds skip networks that are not signed in), #2966 (dead /api/instagram).
+- Tick 2 (24.09 07:40-08:30 UTC): epic #2961 (digital clone, every network)
+  with sub-issues #2962-#2966, all on PR #2960. Done: #2962 browser_logins +
+  `tri logins` (10e31f84); #2963 clone status `accounts` + profile card
+  (a212a622); #2965 rounds skip not-connected networks + 5 social sites
+  (8ff1a28a); #2964 prompt line; #2966 closed (already honest in the player).
+- NEXT: #2964 live A2A run after merge (`tri logins` -> `tri a2a "подключи мои
+сети"` -> `tri logins`); Instagram/Threads posting through the browser
+  (blog-share only does X/LinkedIn/Reddit) as a new sub-issue of #2961;
+  job_hunters over crm_messages.
 
 ## Что уже есть
 
@@ -62,13 +67,25 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
 - [ ] Someone else created `owner-noir-reel-once` (84bbe809…) on 24.09. Not
       ours: never touch it from this loop.
 
+## Lessons (tick 2)
+
+- A mutation that SURVIVES means the test was built on the easy case: the
+  blank-browser test used a non-blank page. Build the case where the old and
+  new code disagree, then mutate.
+- `npx prettier` inside `apps/vibee-editor/render` is a NEWER prettier than
+  the root one and rewrites `await import(...)` all over render-server.ts.
+  Always format from the repo root.
+- A new tool name is closed to clients automatically (client-facing.ts
+  allowlist); a new `browser_*` joins the compact kit unless it is put in
+  COMPACT_HIDDEN (budget 7000, at ~6996).
+
 ## Plan (next ticks)
 
 - [x] Epic #2961: digital clone, every social network. Inventory done (only
       Telegram has an API; everything else goes through the owner's browser).
       Status tool #2962 done. Guided sign-in #2964 is a prompt line (done in
       chat.ts ownerSideSection) and needs a live A2A run: `tri a2a "подключи
-    мои сети"` + `tri logins` before/after.
+  мои сети"` + `tri logins` before/after.
 - [ ] job_hunters over crm_messages (deep history), with the same evidence rule.
 - [ ] Competitor scan: agent marketplaces (what "hire an agent" products
       prove before selling an agent) -> gaps in our catalogue.

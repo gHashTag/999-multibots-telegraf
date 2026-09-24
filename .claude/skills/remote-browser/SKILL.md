@@ -358,3 +358,27 @@ passes it as `ctx.probe`, the journal keeps probes apart (last 20) and
   (`browser/mouse.ts`, лог `[browser:mouse]`). `outcome: given` НЕ значит, что
   нажатия доходят, — это только про neko.
 - Звук окна выключен по умолчанию (`MUTE_SCRIPT`), включается только `?sound=1`.
+
+## Which networks the browser holds (24.09.2026, #2961-#2965)
+
+`browser_logins` answers "where is the clone signed in" **without opening a
+page**: `Storage.getCookies` on the BROWSER socket (the mirror of the cookie
+import's `Storage.setCookies`; the pod's socat bridge passes every method),
+then `marksOf` drops values in the first step and `loginsOf` keeps one state
+per network. Code: `render/src/browser/logins.ts`.
+
+- **One door for "whose pod":** `loginsOfPerson(pool, telegramId)`. The tool,
+  `/api/clone/status` (`accounts`) and the rounds all go through it.
+- **Four states, and the fourth matters:** `unknown` = we do not know that
+  network's login cookie (hh.ru, Upwork, Habr, Medium). Never report it as
+  signed out: that sends the person to sign in again to an account they hold.
+- **A cookie is not a session.** X revokes sessions server-side and the
+  cookie stays; the tool's note says so, a screenshot of the open site is
+  the proof.
+- **Rounds skip a network that is plainly signed_out/expired** and say
+  "не подключена"; skipped sites never count toward "the browser is blank".
+- **Trap, caught by the full suite:** a module imported by `agent-tools.ts`
+  must reach `./cdp` at CALL time (`endpoint => browserWsUrl(endpoint)`),
+  not at load -- `browser-guard.test.ts` mocks `./cdp` partly and a load-time
+  reference fails six of its tests.
+- From a terminal: `tri logins` (table) / `tri logins --json` (for a loop).
