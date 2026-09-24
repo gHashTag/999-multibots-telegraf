@@ -119,7 +119,7 @@
 
 .crm__who {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   font-size: 17px;
@@ -362,6 +362,16 @@
 /* One tap that fills the "chosen" list with the people who are waiting. */
 .crm__pick-all {
   margin: 0 0 8px;
+}
+
+/* The face is first in the row; the name takes the room between it and the
+   stage, and a long name is cut rather than pushing the stage off. */
+.crm__who .crm__open {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The next page of clients (#2947). */

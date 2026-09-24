@@ -885,12 +885,14 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
   без дела, свежий пост блога, тема, которая смотрится.
 - Платные генерации ОТКРЫТЫ тебе владельцем полностью: image_generate (картинки),
   audio_generate (озвучка), video_generate (видео), reel_render (сборка рилса
-  в mp4). Это твоё производство — пользуйся им как своим: человек просит
+  в mp4), lipsync_generate (говорящее лицо: фото + голос, голос берётся и из ${'' /* cyrillic-ok: prompt copy */}
+  видео; губы двигает ТОЛЬКО он — не обещай липсинк, пока он не вернул done). ${'' /* cyrillic-ok: prompt copy */}
+  Это твоё производство — пользуйся им как своим: человек просит
   ролик, ты его ДЕЛАЕШЬ, а не объясняешь, почему нельзя. Полный цикл:
   image_generate/audio_generate → reel_render (готовый mp4) → feed_publish.
   Публикация по-прежнему требует текст поста с хештегами — это канон.
 - Готовые шаблоны рилсов смотри через templates_list: собрать по шаблону быстрее и дешевле, чем выдумывать сборку с нуля. ${'' /* cyrillic-ok: prompt copy */}
-- Режим AUTO: autopilot_status говорит, включён ли он, до какого часа и сколько автоотправок осталось сегодня. Включённый AUTO значит, что подготовленные карточки уходят клиенту сами. Включает и выключает его САМ владелец — кнопкой в приложении или в боте; тебе этот переключатель не дан, и просьбу включить его словами выполняй так: скажи, где кнопка. ${'' /* cyrillic-ok: prompt copy */}
+- Режим AUTO: autopilot_status говорит, включён ли он, до какого часа и сколько автоотправок осталось сегодня. Включённый AUTO значит, что подготовленные карточки уходят клиенту сами. Включает и выключает его САМ владелец — кнопкой AUTO прямо над этим чатом, во вкладке «Браузер», в CRM или в боте; тебе этот переключатель не дан, и просьбу включить его словами выполняй так: скажи, где кнопка. ${'' /* cyrillic-ok: prompt copy */}
 ${WEB_RULES}
 
 САМОСТОЯТЕЛЬНОСТЬ И ЗАБОТА (учи как мама, говори с простыми людьми):
@@ -910,17 +912,45 @@ ${MONEY_AND_PLAN}
 
 Отвечай коротко, числами из инструментов, а не примерными.`
 
+/**
+ * WHOSE VOICE, AND WHICH GRAMMATICAL GENDER.
+ *
+ * Owner, 2026-09-24, in his own chat with the agent: "Поняла, Дмитрий" --
+ * "why is my agent writing as a woman?!" Russian past tense carries gender,
+ * and nothing in the prompt said which one, so the model picked one. The
+ * seller in a duet already had the rule (crm-duet-tool.ts); the agent's own
+ * voice did not.
+ *
+ * Two voices, two rules:
+ *  - the agent speaking for itself (app, bot, CRM chat): masculine, always;
+ *  - the agent writing AS the owner in his business DM: the owner's own
+ *    gender, read off his messages in the history below -- an owner is not
+ *    always a man, and a masculine default would misgender every woman who
+ *    connects her account. When the history does not show it, forms that
+ *    carry no gender ("готово", "принято", "могу") instead of a guess.
+ * Exported for the test.
+ */
+export function voiceLine(surface?: string): string {
+  return surface === 'business'
+    ? '- РОД. Ты пишешь от имени владельца: грамматический род — как в ЕГО собственных сообщениях в истории ниже («я сделал» → мужской, «я сделала» → женский). Не видно по истории — пиши формами без рода: «готово», «принято», «могу прислать».' // cyrillic-ok: prompt copy
+    : '- РОД. О себе говори ТОЛЬКО в мужском роде: «понял», «сделал», «проверил», «готов», «сам». Никогда «поняла», «сделала», «готова», «сама».' // cyrillic-ok: prompt copy
+}
+
 /** The prompt for a surface: the club for creators, the invoice for a client in the DM. */
 function systemFor(surface?: string): string {
-  return SYSTEM_TEMPLATE.replace(
-    '%%CLUB_OR_DM%%',
-    surface === 'business' ? DM_CLIENT_BULLET : CREATOR_MONEY_BULLET
+  return (
+    SYSTEM_TEMPLATE.replace(
+      '%%CLUB_OR_DM%%',
+      surface === 'business' ? DM_CLIENT_BULLET : CREATOR_MONEY_BULLET
+    )
+      .replace('%%TOKEN_LINE%%', tokenLine())
+      .replace('%%PACKS_LINE%%', packsLine())
+      .replace('%%CLUB_LINE%%', clubOfferLine())
+      .replace('%%CLUB_WHEN%%', CLUB_OFFER_WHEN)
+      .replace('%%CLUB_BACK%%', spacedNumber(clubTokensPerPeriod())) +
+    '\n' +
+    voiceLine(surface)
   )
-    .replace('%%TOKEN_LINE%%', tokenLine())
-    .replace('%%PACKS_LINE%%', packsLine())
-    .replace('%%CLUB_LINE%%', clubOfferLine())
-    .replace('%%CLUB_WHEN%%', CLUB_OFFER_WHEN)
-    .replace('%%CLUB_BACK%%', spacedNumber(clubTokensPerPeriod()))
 }
 
 /**

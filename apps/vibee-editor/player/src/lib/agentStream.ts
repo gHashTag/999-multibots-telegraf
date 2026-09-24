@@ -57,6 +57,65 @@ export function isAgentBusy(): boolean {
   return inFlight
 }
 
+/**
+ * MESSAGES WRITTEN WHILE THE AGENT IS STILL ANSWERING.
+ *
+ * Owner, 2026-09-24: the input must not lock while the agent works; what is
+ * written meanwhile should wait in a queue and go when the agent is ready.
+ * The composer used to be disabled for the whole answer, so a thought that
+ * came mid-answer was either lost or typed into a closed field.
+ *
+ * The queue lives here, next to the stream, for the same reason the stream
+ * does: it outlives the page. Each item remembers its own thread (client /
+ * specialist), so a line queued in one conversation never goes into another.
+ * It is sent strictly in order, one answer at a time, and every item stays
+ * removable until it leaves.
+ */
+export interface QueuedMessage {
+  id: string
+  text: string
+  attachments: AgentAttachment[]
+  options: SendOptions
+}
+
+export const agentQueueAtom = atom<QueuedMessage[]>([])
+
+let queueSeq = 0
+
+/** Send now if the agent is free, otherwise put it at the end of the queue. */
+export function sendOrQueue(
+  text: string,
+  attachments: AgentAttachment[] = [],
+  options: SendOptions = {}
+): 'sent' | 'queued' | 'empty' {
+  if (!text.trim() && attachments.length === 0) return 'empty'
+  if (!inFlight && editorStore.get(agentQueueAtom).length === 0) {
+    void sendToAgent(text, attachments, options)
+    return 'sent'
+  }
+  editorStore.set(agentQueueAtom, q => [
+    ...q,
+    { id: `q${Date.now()}-${++queueSeq}`, text, attachments, options },
+  ])
+  // A queue with a free agent (e.g. the page came back after the answer
+  // ended) must not sit waiting for an answer that will never come.
+  if (!inFlight) drainQueue()
+  return 'queued'
+}
+
+export function removeQueued(id: string): void {
+  editorStore.set(agentQueueAtom, q => q.filter(m => m.id !== id))
+}
+
+/** Take the first queued message and send it, if the agent is free. */
+export function drainQueue(): void {
+  if (inFlight) return
+  const [next, ...rest] = editorStore.get(agentQueueAtom)
+  if (!next) return
+  editorStore.set(agentQueueAtom, rest)
+  void sendToAgent(next.text, next.attachments, next.options)
+}
+
 export function messageContentForAgent(message: Message): string {
   const oneLine = (value: string, limit: number) =>
     value
@@ -315,5 +374,7 @@ export async function sendToAgent(
   } finally {
     inFlight = false
     editorStore.set(agentBusyAtom, false)
+    // The next message written while this one was answered, if any.
+    queueMicrotask(drainQueue)
   }
 }

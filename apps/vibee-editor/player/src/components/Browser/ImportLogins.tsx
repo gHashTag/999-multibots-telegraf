@@ -75,6 +75,7 @@ export function ImportLogins() {
       </label>
       <textarea
         className="import-logins__paste"
+        data-ai="off"
         placeholder={t('browser.import.paste')}
         value={text}
         onChange={e => setText(e.currentTarget.value)}

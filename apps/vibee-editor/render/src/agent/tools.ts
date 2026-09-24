@@ -65,6 +65,25 @@ import {
 } from './client-face'
 
 import { BROWSER_TOOLS } from '../browser/agent-tools'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join as joinPath } from 'node:path'
+import { withShelfFile } from './media-extract'
+import {
+  LIPSYNC_TOOL_MAX_SECONDS,
+  LIPSYNC_VOICE_MAX_BYTES,
+  billedSecondsOf,
+  cutPart,
+  joinParts,
+  leadSilenceOf,
+  probeSeconds,
+  probeSize,
+  proxyShelfUrl,
+  publicShelfUrl,
+  shelfKeyOf,
+  splitPlan,
+  voiceTrack,
+} from './lipsync-voice'
 import { EDITORIAL_PREFIX, type AgentScope } from '../../editorial-key-scope'
 
 export interface ToolContext {
@@ -192,7 +211,7 @@ async function ownerAvatarUrl(ctx: any): Promise<string> {
 }
 
 /** Re-publish image bytes on our own S3; '' when the upload is refused. */
-async function publishImageBytes(
+export async function publishImageBytes(
   bytes: Buffer,
   contentType: string,
   filename: string
@@ -703,15 +722,26 @@ async function spendTokens(
    * charge two numbers for one clip. A model with no price is refused, never
    * charged the tool's flat price.
    */
-  modelId?: string
+  modelId?: string,
+  /**
+   * How many units the price is for, when the tool is sold per unit -- a
+   * lipsync by the second of voice (billing-shared PER_SECOND_OPS). One
+   * deduction for the whole quantity, so a failure refunds exactly one sum.
+   * Anything that is not a positive whole number prices to zero and is
+   * refused below, never charged as one unit.
+   */
+  quantity = 1
 ): Promise<{
   ok: boolean
   потрачено?: number
   осталось?: number
   причина?: string
 }> {
+  const units = Number.isInteger(quantity) && quantity > 0 ? quantity : 0
   const price =
-    modelId === undefined ? TOKEN_PRICES[tool] : priceForModel(tool, modelId)
+    (modelId === undefined
+      ? TOKEN_PRICES[tool]
+      : (priceForModel(tool, modelId) ?? 0)) * units
   /*
    * A TOOL WITHOUT A PRICE IS REFUSED, NOT GIVEN AWAY.
    *
@@ -771,8 +801,12 @@ async function spendTokens(
     telegramId: ctx.telegramId,
     delta: -price,
     kind: 'spend',
-    reason: modelId ? `${tool} ${modelId}` : tool,
-    meta: modelId ? { tool, modelId } : { tool },
+    reason: modelId
+      ? `${tool} ${modelId}`
+      : units > 1
+        ? `${tool} x${units}`
+        : tool,
+    meta: modelId ? { tool, modelId } : units > 1 ? { tool, units } : { tool },
   })
   if (!r.ok) {
     const balance = r.balance
@@ -951,6 +985,7 @@ import { CRM_AGENT_LINK_TOOLS } from './crm-agent-link-tool'
 import { CRM_DUET_TOOLS } from './crm-duet-tool'
 import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
 import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
+import { CRM_AVATAR_TOOLS } from './crm-avatars'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
@@ -2122,6 +2157,215 @@ export const TOOLS: AgentTool[] = [
   },
 
   {
+    name: 'lipsync_generate',
+    description:
+      'ГОВОРЯЩЕЕ ЛИЦО: фото + голос → видео, где губы идут за звуком (KIE InfiniteTalk). ' +
+      'image_url — лицо на нашей полке (результат image_edit или присланное фото). ' +
+      'voice_url — голос на нашей полке: звук ИЛИ видео; из видео берётся звуковая дорожка, ' +
+      'так голос владельца берётся из собственного рилса. ' +
+      `Цена ${TOKEN_PRICES.lipsync_generate} ток. за секунду звука, до ${LIPSYNC_TOOL_MAX_SECONDS} с. ` +
+      'lead_silence_s (0–3) — тишина в начале: ролик открывается неподвижным фото. ' +
+      'Другого способа двигать губы у тебя нет: не говори «липсинк», пока этот инструмент не вернул done.',
+    parameters: {
+      type: 'object',
+      properties: {
+        image_url: {
+          type: 'string',
+          description: 'лицо: файл на нашей полке',
+        },
+        voice_url: {
+          type: 'string',
+          description:
+            'голос: звук или видео на нашей полке (из видео берётся звук)',
+        },
+        lead_silence_s: {
+          type: 'number',
+          description:
+            'секунд тишины в начале (0–3): старт на неподвижном фото',
+        },
+      },
+      required: ['image_url', 'voice_url'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      /*
+       * EVERYTHING THAT CAN REFUSE FOR FREE REFUSES BEFORE THE CHARGE.
+       *
+       * Both files come from OUR shelf: the voice is read by key (never
+       * fetched by URL, so a pasted address cannot aim this at anything), and
+       * the face is a file the person already put there. The provider key,
+       * the daily cap and the voice itself -- its soundtrack and its length --
+       * are all settled before a token moves, because the price is per second
+       * and the seconds are only known once the track is measured.
+       */
+      const imageKey = shelfKeyOf(String(args.image_url || ''))
+      const voiceKey = shelfKeyOf(String(args.voice_url || ''))
+      if (!imageKey || !voiceKey)
+        return {
+          done: false,
+          reason:
+            'image_url и voice_url должны быть файлами на нашей полке ' +
+            '(присланные файлы, image_edit, my_assets). Ничего не списано.',
+        }
+      if (!process.env.KIE_AI_API_KEY)
+        return {
+          done: false,
+          reason:
+            'провайдер липсинка не настроен в сервисе (нет KIE_AI_API_KEY) — ничего не списано',
+        }
+      if ((await generationsLeftToday(ctx)) <= 0)
+        return {
+          done: false,
+          reason: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`,
+        }
+      const leadSilence = leadSilenceOf(args.lead_silence_s)
+      const dir = await mkdtemp(joinPath(tmpdir(), 'lipsync-'))
+      try {
+        const track = joinPath(dir, 'voice.wav')
+        let measured: number | 'missing' | 'too-big'
+        try {
+          measured = await withShelfFile(
+            proxyShelfUrl(voiceKey),
+            LIPSYNC_VOICE_MAX_BYTES,
+            async source => {
+              await voiceTrack(source, track, {
+                leadSilence,
+                maxSeconds: LIPSYNC_TOOL_MAX_SECONDS,
+              })
+              return probeSeconds(track)
+            }
+          )
+        } catch (e) {
+          return {
+            done: false,
+            reason: `в голосовом файле не нашлось звука (${String(e).slice(0, 160)}). Ничего не списано.`,
+          }
+        }
+        if (measured === 'missing' || measured === 'too-big')
+          return {
+            done: false,
+            reason:
+              measured === 'missing'
+                ? 'голосовой файл не найден на полке. Ничего не списано.'
+                : 'голосовой файл слишком большой. Ничего не списано.',
+          }
+        const parts = splitPlan(measured)
+        if (!parts.length)
+          return { done: false, reason: 'голос пустой. Ничего не списано.' }
+        const seconds = billedSecondsOf(parts)
+
+        const charge = await spendTokens(
+          ctx,
+          'lipsync_generate',
+          undefined,
+          seconds
+        )
+        if (!charge.ok) return { done: false, reason: charge['причина'] } // cyrillic-ok
+        try {
+          /*
+           * THE PARTS RUN SIDE BY SIDE, each one call of the route the Mini
+           * App uses, which takes our key and skips its own charge: this tool
+           * has paid, once, for every second. Side by side because a part
+           * takes minutes at the provider and three in a row would outlive
+           * the conversation that is waiting for them.
+           */
+          const clips = await Promise.all(
+            parts.map(async (part, i) => {
+              const wav = joinPath(dir, `part-${i}.wav`)
+              await cutPart(track, wav, part)
+              const audioUrl = await publishImageBytes(
+                await readFile(wav),
+                'audio/wav',
+                `lipsync-voice-${Date.now()}-${i}.wav`
+              )
+              if (!audioUrl) throw new Error('голос не сохранился на полке')
+              const res = await selfFetch(
+                `${selfBase()}/api/generate/lipsync`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    image_url: publicShelfUrl(imageKey),
+                    audio_url: audioUrl,
+                  }),
+                }
+              )
+              const data: any = await res.json().catch(() => null)
+              if (!res.ok || !data?.url)
+                throw new Error(
+                  `часть ${i + 1} из ${parts.length}: HTTP ${res.status} ${String(data?.error || '').slice(0, 160)}`
+                )
+              const clip = await fetch(String(data.url))
+              if (!clip.ok)
+                throw new Error(
+                  `часть ${i + 1} готова, но не скачалась: HTTP ${clip.status}`
+                )
+              const file = joinPath(dir, `part-${i}.mp4`)
+              await writeFile(file, Buffer.from(await clip.arrayBuffer()))
+              return { file, provider: String(data.provider || '') }
+            })
+          )
+          const reel =
+            clips.length === 1 ? clips[0].file : joinPath(dir, 'reel.mp4')
+          if (clips.length > 1)
+            await joinParts(
+              clips.map(c => c.file),
+              reel,
+              await probeSize(clips[0].file)
+            )
+          const url = await publishImageBytes(
+            await readFile(reel),
+            'video/mp4',
+            `lipsync-${Date.now()}.mp4`
+          )
+          if (!url) throw new Error('ролик готов, но не сохранился на полке')
+          let assetId: number | null = null
+          let assetError: string | null = null
+          try {
+            const row = await ctx.pool.query(
+              `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
+               VALUES ('generated_video', '', $1, '', $2, $3, 'agent')
+               RETURNING id`,
+              [ctx.telegramId, url, `lipsync ${seconds}s`]
+            )
+            assetId = row.rows[0]?.id ?? null
+          } catch (e) {
+            assetError = String(e).slice(0, 160)
+          }
+          return withTokens(
+            ctx,
+            'lipsync_generate',
+            {
+              done: true,
+              url,
+              id: assetId,
+              ...(assetError ? { galleryError: assetError } : {}),
+              seconds: Math.round(measured * 10) / 10,
+              parts: parts.length,
+              leadSilence,
+              provider: clips[0]?.provider || null,
+            },
+            charge['потрачено']
+          )
+        } catch (e) {
+          await refundTokens(
+            ctx,
+            'lipsync_generate',
+            'липсинк не сделан',
+            charge['потрачено']
+          )
+          return {
+            done: false,
+            reason: `липсинк не сделан: ${String(e instanceof Error ? e.message : e).slice(0, 240)}. Токены возвращены.`,
+          }
+        }
+      } finally {
+        await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+      }
+    },
+  },
+
+  {
     name: 'reel_render',
     description:
       'Собрать рилс: отрендерить композицию Remotion в готовый mp4. Список композиций — templates_list. ' +
@@ -3151,6 +3395,7 @@ TOOLS.push(...CRM_DUET_TOOLS)
 TOOLS.push(...CRM_CLIENT_TOOLS)
 // The per-client workspace reads: content plan and the client list (crm-client-workspace-tools.ts).
 TOOLS.push(...CRM_CLIENT_WORKSPACE_TOOLS)
+TOOLS.push(...CRM_AVATAR_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project
@@ -3323,7 +3568,7 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
@@ -3388,6 +3633,12 @@ export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
   'autopilot_set',
   /* Picking whom AUTO may write to is the same decision, one person at a time. */
   'autopilot_lead',
+  /*
+   * Opens the owner's Telegram session and walks up to 30 people. The CRM
+   * screen calls it to draw faces; a model turn has no reason to, and a
+   * sentence in a client's message must not be able to loop it.
+   */
+  'crm_client_avatars',
 ])
 
 let compactWarned = false

@@ -23,6 +23,7 @@ import { renderOnServer } from '@/services/renderServer/client'
 
 const ENV_KEYS = [
   'RENDER_SERVER_URL',
+  'VIBEE_RENDER_URL',
   'RAILWAY_SERVICE_VIBEE_RENDER_URL',
   'RENDER_API_KEY',
 ]
@@ -91,4 +92,17 @@ describe('renderOnServer', () => {
     })
     expect(res.outputUrl).toBe('https://render.test/renders/r2.mp4')
   }, 15000)
+
+  it('the sign-in host from Railway is not where a render is sent', async () => {
+    // auth.t27.ai answers 404 to everything but the sign-in doors
+    // (incident of 2026-09-23, services/renderServer/baseUrl.ts).
+    process.env.RAILWAY_SERVICE_VIBEE_RENDER_URL = 'auth.t27.ai'
+    post.mockResolvedValue({ status: 400, data: { error: 'stop here' } })
+    await expect(
+      renderOnServer({ compositionId: 'X', inputProps: {} })
+    ).rejects.toThrow(/HTTP 400/)
+    expect(post.mock.calls[0][0]).toBe(
+      'https://vibee-render-production.up.railway.app/render'
+    )
+  })
 })
