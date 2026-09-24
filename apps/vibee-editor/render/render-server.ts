@@ -93,6 +93,7 @@ import {
   isAcceptancePath,
   handleAcceptance,
 } from './src/agent/agent-acceptance'
+import { isTrafficPath, handleTraffic } from './src/agent/traffic'
 import {
   isBrowserPath,
   handleBrowser,
@@ -2816,8 +2817,8 @@ setInterval(
  * passed since the last run, so a redeploy neither skips a day nor runs
  * twice; a run is five agent turns. A failure or a recovery reaches the
  * owner as one line, and the /agents cards show it. Off with
- * ACCEPTANCE_DAILY=0; the first look waits ten minutes after a start, so a
- * deploy that is still settling is not what gets checked.
+ * ACCEPTANCE_DAILY=0; the first look waits three minutes after a start, so
+ * a deploy that is still settling is not what gets checked.
  */
 const ACCEPTANCE_TICK_MS = 30 * 60 * 1000
 const acceptanceTick = () => {
@@ -2834,12 +2835,18 @@ const acceptanceTick = () => {
     }
   })()
 }
+/*
+ * Three minutes, not ten: main is busy and each deploy restarts this wait,
+ * so a long one starved the run (24.09: four deploys in ten minutes). A run
+ * interrupted by a deploy loses at most the agent it was on -- each verdict
+ * is kept as it is made, and the next start runs only the agents still due.
+ */
 setTimeout(
   () => {
     acceptanceTick()
     setInterval(acceptanceTick, ACCEPTANCE_TICK_MS)
   },
-  10 * 60 * 1000
+  3 * 60 * 1000
 )
 
 /*
@@ -8733,6 +8740,24 @@ const server = createServer(async (req, res) => {
         const list = await loginsOfPerson((await getPool()) as any, who)
         return list ? accountsOf(list) : null
       },
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
+  /*
+   * A visitor arrived from a tagged link (epic #2974): counted by channel,
+   * nothing personal kept. Public, rate-limited per address in memory.
+   */
+  if (isTrafficPath(req.url?.split('?')[0] || '')) {
+    const out = await handleTraffic(req, {
+      getPool: async () => (await getPool()) as any,
+      readBody: () => readBody(req as any, 4 * 1024),
+      address:
+        String(req.headers['x-forwarded-for'] || '')
+          .split(',')[0]
+          .trim() || String(req.socket?.remoteAddress || ''),
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))

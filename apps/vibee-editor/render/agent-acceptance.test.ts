@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   handleAcceptance,
   resetAcceptanceTableForTests,
+  STREAK_DAYS,
+  streakOf,
   verdictOf,
   type AcceptanceDeps,
 } from './src/agent/agent-acceptance'
@@ -37,6 +39,9 @@ const fakePool = () => {
             at: new Date(Date.UTC(2026, 8, 24, 7, clock)).toISOString(),
           })
           return { rows: [] }
+        }
+        if (sql.includes('SELECT agent, at, pass FROM agent_acceptance')) {
+          return { rows: [...rows] }
         }
         if (sql.includes('DISTINCT ON (agent)')) {
           const latest = new Map<string, Record<string, unknown>>()
@@ -201,5 +206,58 @@ describe('which canary table a verdict was made under', () => {
       )
     )
     expect(rows[0].canaries).toBe('')
+  })
+})
+
+/*
+ * HIRE BY EVIDENCE: seven passing days in a row open a trainee to everybody.
+ * Each case is a way a streak could be counted too generously.
+ */
+describe('the passing streak', () => {
+  const NOW = Date.UTC(2026, 9, 1, 12, 0)
+  const day = (d: number, pass = true, hour = 8) => ({
+    at: new Date(Date.UTC(2026, 9, 1 - d, hour)).toISOString(),
+    pass,
+  })
+
+  it('counts consecutive passing days up to the newest', () => {
+    expect(
+      streakOf(
+        [0, 1, 2, 3, 4, 5, 6].map(d => day(d)),
+        NOW
+      )
+    ).toBe(7)
+    expect(STREAK_DAYS).toBe(7)
+  })
+
+  it('one failure that day fails the whole day', () => {
+    expect(streakOf([day(0), day(0, false, 9), day(1)], NOW)).toBe(0)
+    expect(streakOf([day(0), day(1, false), day(2), day(3)], NOW)).toBe(1)
+  })
+
+  it('a day with no check breaks the run: an outage is not evidence', () => {
+    expect(streakOf([day(0), day(1), day(3), day(4)], NOW)).toBe(2)
+  })
+
+  it('a streak whose checks stopped is not current', () => {
+    const old = [3, 4, 5, 6, 7, 8, 9].map(d => day(d))
+    expect(streakOf(old, NOW)).toBe(0)
+  })
+
+  it("the reader gets each agent's streak and whether it earned the market", async () => {
+    const { pool } = fakePool()
+    await handleAcceptance(
+      post,
+      deps(
+        pool,
+        KEEPER,
+        JSON.stringify({ verdicts: [{ agent: 'job', pass: true }] })
+      )
+    )
+    const r = await handleAcceptance(get, deps(pool, null))
+    expect(r.body.streakDays).toBe(7)
+    expect(r.body.verdicts).toMatchObject([
+      { agent: 'job', streak: expect.any(Number), earned: false },
+    ])
   })
 })

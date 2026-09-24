@@ -65,6 +65,23 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   Deploys: #2968 SUCCESS 08:07; #2969 building 08:14. First in-service run
   expected ~08:25; check-in trig_01Dwv1Qk92fpWSFQyXoNRFZ8 at 08:32 reads the
   `[acceptance]` log. Expect google FAIL until BRAVE_SEARCH_API_KEY is set.
+- Tick 6 (24.09 08:14-08:35 UTC), owner: «все три», then the Brave key and
+  «помечать каждый маркетинговый канал». Merged: #2972 `tri secret`; #2973
+  hire by evidence + a daily run that survives deploys; #2975 traffic tags
+  (epic #2974); the Brave error-code log. BRAVE_SEARCH_API_KEY set on
+  vibee-render from the chat value -> every search `brave HTTP 422`: the
+  value is most likely not a Brave key (64 hex vs `BSA...`). Owner must
+  re-issue it at api.search.brave.com and run `tri secret BRAVE_SEARCH_API_KEY`.
+  NOT done: Instagram posting (option 2) -- carried to the next tick.
+- Tick 7 (24.09 08:31-08:50 UTC): owner, screenshot: trainee circles in the
+  chat led to the market page ("реклама"); each agent its own chat, skills
+  connected. Merged #2978 (rail + agentGate + skills per agent, also fixed
+  tick 6's earned Hire button that bounced clients). trinity #1157: t27.ai
+  counts tagged arrivals (build/test/format green; "Brain Health" red as on
+  main) -- merge when `checks` finishes. Instagram: BLOCKED, the RSS items
+  carry no image; covers exist in trinity `src/data/blog/coverVersions.ts`
+  -> next: put the cover in the RSS (<enclosure>) or read it from the site.
+  Production: daily acceptance works across deploys (08:35 1/1 after 4 kept).
 - NEXT: #2964 live A2A run after merge (`tri logins` -> `tri a2a "подключи мои
 сети"` -> `tri logins`); Instagram/Threads posting through the browser
   (blog-share only does X/LinkedIn/Reddit) as a new sub-issue of #2961;
@@ -133,6 +150,23 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   files. `git diff --stat` before every commit catches it.
 - A stored verdict must say which rules made it (fingerprint), or a rule
   change silently leaves yesterday's verdict standing.
+
+## Lessons (tick 6)
+
+- A value the owner pastes is not proof of what it is. Probe it before
+  wiring it in (the container could not reach Brave, so the service's own
+  log became the probe) and make the failure name its reason.
+- Busy main starves anything that waits after a start. Work that takes long
+  must resume, not restart: record each step as it completes.
+
+## Lessons (tick 7)
+
+- A tag nobody reads is not measurement: tagging the links was half the
+  job; the landing page (another repo) had to count them.
+- A gate duplicated in two places drifts: the server let an earned trainee
+  in, the page did not. One pure decision per side, tested case by case.
+- Logs are my only eyes on production from this container: every stateful
+  background job must log each step's outcome, not only a final summary.
 
 ## Plan (next ticks)
 

@@ -151,3 +151,48 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
   verdict under another table is stale, so editing the table makes the
   daily run due at once. `tri agents` sends the same fingerprint, so a
   manual run under the current table does not trigger another.
+
+## Tick 6 (24.09.2026): hire by evidence, traffic tags, the Brave key
+
+- **Hire by evidence.** A trainee opens to everybody after 7 UTC days in a
+  row on which every daily verdict passed (`streakOf`, `STREAK_DAYS`); a day
+  without a check breaks it, a streak older than 48 h is 0. The gate is
+  `routes.ts earnedAgent`; the card says "N of 7" until then. Flipping the
+  catalogue `status` to `live` is still the owner's word -- evidence only
+  opens the door while the checks keep passing.
+- **The daily run resumes.** Each agent is due on its own (`dueCanaries`),
+  each verdict is kept as it is made, first look 3 min after a start. Why:
+  four deploys in ten minutes kept restarting a 10-minute wait.
+- **Keys never through the chat: `tri secret NAME`** (hidden prompt ->
+  Railway, prints the name and length only). The owner pasted the Brave key
+  into the chat anyway on 24.09; it was set with Railway set-variables, and
+  EVERY search then answered `brave HTTP 422`. The log now carries Brave's
+  own error code (`braveErrorCode`); `SUBSCRIPTION_TOKEN_INVALID` means the
+  value is not a Brave key (Brave keys look like `BSA...`, not 64 hex).
+- **Traffic tags** (epic #2974): `utm.ts tagged()` only on our hosts, query
+  before the `#`; blog-share tags each network; the app reports a tagged
+  visit once (`/api/traffic/arrival`, counts only); `crm_traffic` and
+  `tri traffic` read it.
+
+## Tick 7 (24.09.2026): each agent its own chat, with its skills
+
+- **The chat's circle row** (`player ChatThreads agentHref`) opens the
+  agent's OWN thread (`/agents/<id>/work`, thread `agent:<id>`) for a live
+  agent, a keeper, or a trainee that earned the market; the market card
+  only otherwise. The owner saw "an advert" because every trainee circle
+  led to `/agents`. The chat page decides with the pure `agentGate`.
+- **Skills per agent**: a skill whose NAME starts with an agent's prefix
+  (catalogue `skillPrefixes`: `Работа:`/`Job:`, `Блогер:`/`Blogger:`,
+  `Google:`, `TikTok:`, `Habr:`/`Хабр:`) belongs to that agent; a skill with
+  no agent prefix is general. `agentSkills()` (vibee-atoms) picks them for
+  both sides: the render puts them in every specialist's prompt
+  (`agent-skills.ts`, 800 chars a skill, 3000 in all), the app's agent chat
+  says which are connected. To give an agent a rule: create a skill named
+  "Работа: ..." in the profile.
+- **Production proof the daily run survives deploys**: 24.09 08:35
+  `[acceptance] 1/1 passed` -- the other four verdicts were kept by
+  interrupted runs. Each verdict now also logs its own line:
+  `[acceptance] <agent> PASS|FAIL <codes> tools=...`.
+- **Blog traffic is counted on t27.ai** too (gHashTag/trinity #1157,
+  `apps/website/src/lib/trafficArrival.ts`): the site reports a tagged visit
+  to the same `/api/traffic/arrival`.
