@@ -90,9 +90,20 @@ export function ProfilePending() {
     <div className="profile-pending">
       {ошибка && <div className="profile-empty">{ошибка}</div>}
       {список.map(п => (
-        <div key={п.id} className="profile-pending__item" data-pending-id={п.id}>
+        <div
+          key={п.id}
+          className="profile-pending__item"
+          data-pending-id={п.id}
+        >
           {п.thumbnail_url && (
-            <img src={п.thumbnail_url} alt="" className="profile-pending__cover" />
+            <img
+              src={п.thumbnail_url}
+              alt=""
+              className="profile-pending__cover"
+              onError={e => {
+                ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+              }}
+            />
           )}
           <div className="profile-pending__text">
             <div className="profile-pending__name">{п.name}</div>
