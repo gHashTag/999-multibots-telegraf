@@ -23,6 +23,7 @@
  */
 import type { AgentTool, ToolContext } from './tools'
 import { requireSeller } from './telegram-tools'
+import { ensureJournalTable } from '../hive/journal'
 
 type Pool = {
   query(sql: string, params?: unknown[]): Promise<{ rows?: any[] }>
@@ -150,6 +151,17 @@ export interface Outcomes {
   stepped_in?: Array<{ lead: string; times: number }>
   /** Presses whose client is unknown -- rows written before the column. */
   stepped_in_unknown?: number
+  /**
+   * THE NAMES COULD NOT BE READ AT ALL -- said, because silence lies here.
+   *
+   * Measured in production on 2026-09-24, an hour after the column shipped:
+   * `lead_id` is added by the WRITE path (ensureJournalTable), so between a
+   * deploy and the first note there is a window where the read fails. An
+   * empty list then means "the column is not there yet" and looks exactly
+   * like "nobody needed you" -- the better-sounding of the two, which is
+   * the one a silent failure always picks.
+   */
+  stepped_in_unreadable?: boolean
 }
 
 export function outcomesFrom(
@@ -229,6 +241,18 @@ export async function outcomesFor(
   owner: string,
   days: number
 ): Promise<Outcomes> {
+  /*
+   * THE READER PREPARES THE SCHEMA TOO, and this was measured rather than
+   * reasoned: `lead_id` is added by the WRITE path, the sweep writes about
+   * once an hour, and production sat with the column missing for the whole
+   * gap after the deploy. For that hour the honest answer to "with whom did
+   * you step in" was unavailable, and the only thing distinguishing it from
+   * "nobody" was the flag below.
+   *
+   * Cached after the first call (tableReady), and wrapped: a reader must
+   * never fail because a DDL statement did.
+   */
+  await ensureJournalTable(pool as never).catch(() => undefined)
   const count = async (sql: string) => {
     try {
       const r = await pool.query(sql, [String(owner), String(days)])
@@ -254,7 +278,9 @@ export async function outcomesFor(
      */
     pool
       .query(STEPPED_IN_SQL, [String(owner), String(days)])
-      .catch(() => ({ rows: [] })),
+      // Null, not an empty list: "could not ask" and "nothing to show" must
+      // not arrive at the reader as the same answer.
+      .catch(() => null),
   ])
   const out = outcomesFrom((now.rows ?? []) as never, days)
   const prev = outcomesFrom((before.rows ?? []) as never, days)
@@ -278,7 +304,9 @@ export async function outcomesFor(
     // The note was about an empty journal; a week with DM answers in it is
     // not empty, whatever the cards say.
     ...(dm && out.note ? { note: undefined } : {}),
-    ...steppedInFrom((steppedIn.rows ?? []) as never),
+    ...(steppedIn
+      ? steppedInFrom((steppedIn.rows ?? []) as never)
+      : { stepped_in_unreadable: true }),
   }
 }
 

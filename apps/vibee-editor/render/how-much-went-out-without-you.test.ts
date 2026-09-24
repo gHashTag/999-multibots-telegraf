@@ -88,9 +88,16 @@ describe('whose rows', () => {
       },
     }
     await outcomesFor(pool as never, '900000501', 14)
+    /*
+     * The schema step is not one of the questions. The reader runs it
+     * because `lead_id` is added by the WRITE path and production sat an
+     * hour without the column after the deploy -- but what it ASKS must
+     * still be exactly these five.
+     */
+    const asked = seen.filter(s => !/^\s*(CREATE|ALTER)/i.test(s.sql))
     // Five questions now: this window and the one before it, for cards and
     // for the answers given in his chats -- plus which clients needed him.
-    expect(new Set(seen.map(s => s.sql))).toEqual(
+    expect(new Set(asked.map(s => s.sql))).toEqual(
       new Set([
         OUTCOMES_SQL,
         OUTCOMES_BEFORE_SQL,
@@ -99,7 +106,7 @@ describe('whose rows', () => {
         STEPPED_IN_SQL,
       ])
     )
-    for (const call of seen) expect(call.params).toEqual(['900000501', '14'])
+    for (const call of asked) expect(call.params).toEqual(['900000501', '14'])
     // The window and the owner are parameters, never interpolated text.
     for (const sql of [OUTCOMES_SQL, OUTCOMES_BEFORE_SQL]) {
       expect(sql).toContain('who = $1')
@@ -293,8 +300,14 @@ describe('with whom he had to step in', () => {
     expect(STEPPED_IN_SQL).toContain("kind = 'card-pressed'")
   })
 
-  it('keeps every number when the names cannot be read', async () => {
-    // An older database without the column must still answer the share.
+  it('keeps every number when the names cannot be read, and SAYS so', async () => {
+    /*
+     * Measured in production an hour after the column shipped: lead_id is
+     * added by the WRITE path, so between a deploy and the first note the
+     * read fails. An empty list then means "the column is not there yet"
+     * and looks exactly like "nobody needed you" -- and a silent failure
+     * always picks the better-sounding of two readings.
+     */
     const pool = {
       async query(sql: string) {
         if (sql === STEPPED_IN_SQL) throw new Error('column lead_id not found')
@@ -305,5 +318,19 @@ describe('with whom he had to step in', () => {
     expect(o.auto_sent).toBe(4)
     expect(o.stepped_in).toBeUndefined()
     expect(o.stepped_in_unknown).toBeUndefined()
+    expect(o.stepped_in_unreadable).toBe(true)
+  })
+
+  it('does not cry "unreadable" when there is simply nothing', async () => {
+    // The alarm must be about the question failing, never about the answer
+    // being empty -- otherwise it fires every quiet week and stops meaning
+    // anything.
+    const pool = {
+      async query() {
+        return { rows: [] }
+      },
+    }
+    const o = await outcomesFor(pool as never, '900000501', 7)
+    expect(o.stepped_in_unreadable).toBeUndefined()
   })
 })
