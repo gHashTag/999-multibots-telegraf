@@ -125,6 +125,7 @@ tri — оболочка Trinity S³AI
   tri auto       включён ли режим AUTO: до какого часа и сколько автоотправок осталось
   tri outcomes [дней]  сколько ушло без тебя: авто, твоей кнопкой, отменено, обходы
   tri contracts  слова, которыми службы договариваются: кто говорит, а кого не слышат
+  tri dead       модули, которые никто не импортирует: написано и не включено
   tri inflight   что в работе: открытые PR, рабочие деревья, диск, последние выкатки
   tri session    сессии: срок жизни, ротация, обнаружение повторного использования
   tri pairing    вход по коду: длина, срок, попытки — и совпадают ли клиенты с сервером
@@ -1220,6 +1221,23 @@ PYEOF
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
     railway run --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/commands-answered.cjs" "$@"
+    ;;
+
+  dead)
+    # A MODULE NOTHING IMPORTS IS A FEATURE NOBODY SWITCHED ON.
+    #
+    # Named `dead`, not `orphans`: that word is taken by the invoice orphans
+    # above, and a second arm with the same name is unreachable -- the first
+    # case wins, silently, which is how this very command printed somebody
+    # else's report on its first run.
+    # Measured on my own work: two modules shipped with passing tests and no
+    # caller at all -- and a green suite on a dead module looks exactly like a
+    # green suite on a live one. Matches an IMPORT of the exact specifier,
+    # including the dynamic `import('@/services/x')` this repository uses for
+    # half its services; a matcher blind to that called fifteen live modules
+    # dead in its first run.
+    shift
+    node "$ROOT/scripts/orphan-modules.cjs" "$@"
     ;;
 
   contracts)
