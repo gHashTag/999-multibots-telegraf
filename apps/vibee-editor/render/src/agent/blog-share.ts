@@ -111,13 +111,36 @@ export function xText(a: Article, limit = X_LIMIT - X_LINK): string {
  */
 export const SUBREDDIT = process.env.BLOG_SHARE_SUBREDDIT || 't27ai'
 
+/** Threads' own composer limit, in characters. */
+export const THREADS_LIMIT = 500
+
+/**
+ * The Threads post: the title, then the link, within Threads' limit. The
+ * link is kept whole -- a cut link is a dead one -- and the title gives way.
+ * Pure.
+ */
+export function threadsText(a: Article): string {
+  const room = THREADS_LIMIT - a.link.length - 2
+  const head =
+    a.title.length <= room ? a.title : a.title.slice(0, room - 1) + '…'
+  return `${head}\n\n${a.link}`
+}
+
 /** Each network's own share page, already filled in. Pure. */
 export function shareUrls(a: Article): {
   x: string
   linkedin: string
   reddit: string
+  threads: string
 } {
   return {
+    /*
+     * Threads' own web intent (developers.facebook.com/docs/threads/
+     * threads-web-intents): it fills the composer and never posts by itself
+     * -- the Post button is pressed after the owner's yes, as on X (owner,
+     * 2026-09-24: all three next steps, the clone speaks in every network).
+     */
+    threads: `https://www.threads.net/intent/post?text=${encodeURIComponent(threadsText(a))}`,
     x: `https://x.com/intent/post?text=${encodeURIComponent(xText(a))}&url=${encodeURIComponent(a.link)}`,
     linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(a.link)}`,
     /*
@@ -133,7 +156,7 @@ export function shareUrls(a: Article): {
 /** The question the owner is asked, in their words. Pure. */
 export function questionFor(a: Article): string {
   return (
-    `Опубликовать статью блога в LinkedIn, X и r/${SUBREDDIT}: ` + // cyrillic-ok: shown to the owner
+    `Опубликовать статью блога в LinkedIn, X, Threads и r/${SUBREDDIT}: ` + // cyrillic-ok: shown to the owner
     `«${a.title}» (${a.link})`
   )
 }
