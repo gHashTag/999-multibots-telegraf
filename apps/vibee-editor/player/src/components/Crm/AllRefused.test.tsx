@@ -17,7 +17,11 @@
  * right when the notice above has already said their exact words.
  */
 import { describe, expect, it } from 'vitest'
-import { coveredByNotice, isSignInReason, oneReasonForAll } from './AllRefused'
+import {
+  coveredByNotice,
+  isSignInReason,
+  oneReasonForAll,
+} from './refusalRules'
 
 const bad = (error: string) => ({ reachable: false, error })
 const good = { reachable: true }
