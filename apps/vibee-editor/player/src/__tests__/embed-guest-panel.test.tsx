@@ -253,12 +253,17 @@ describe('a session the server refuses shows the same panel', () => {
     sessionStorage.setItem(EXPIRES, String(Date.now() + 600000))
   })
 
-  it('control: a 500 from /mcp keeps the four "Could not load" blocks', async () => {
+  // Five since the traffic panel (#2974): waiting, leads, clients, audience
+  // and traffic -- every owner panel that can fail still says so. This file
+  // kept expecting four through the traffic merge because the repository's
+  // Actions are dead, so the Docker test gate at deploy time was the first
+  // thing to run it (vibee-editor build 3f0397ac, 2026-09-24).
+  it('control: a 500 from /mcp keeps the five "Could not load" blocks', async () => {
     answer(500)
     await open('/crm')
     await settle(() => host.querySelectorAll('.crm__unreachable').length > 0)
     expect(panel()).toBeNull()
-    expect(host.querySelectorAll('.crm__unreachable')).toHaveLength(4)
+    expect(host.querySelectorAll('.crm__unreachable')).toHaveLength(5)
   })
 
   it('control: outside embed a 401 keeps the blocks', async () => {
@@ -267,7 +272,7 @@ describe('a session the server refuses shows the same panel', () => {
     await open('/crm')
     await settle(() => host.querySelectorAll('.crm__unreachable').length > 0)
     expect(panel()).toBeNull()
-    expect(host.querySelectorAll('.crm__unreachable')).toHaveLength(4)
+    expect(host.querySelectorAll('.crm__unreachable')).toHaveLength(5)
   })
 
   it('in the frame a 401 from /mcp replaces the CRM with the panel', async () => {
