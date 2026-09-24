@@ -62,6 +62,7 @@ tri — оболочка Trinity S³AI
   tri wake <модуль>  что проверить ПЕРЕД подключением мёртвого модуля: unknown как «нет», фикстуры
   tri swallow  где сбой неотличим от честного пустого ответа (форма 185)
   tri layout [селектор]  как замерить высоту ДО и ПОСЛЕ правки верстки (форма 186)
+  tri touch  какие кнопки меньше 44px под палец, и как чинить без двух ловушек (форма 190)
   tri halfdone <файл>  где защита написана для одного элемента, а нужна соседям (форма 187)
   tri byload [каталог] [тест]  падает от кода или от ЗАГРУЗКИ машины: три прогона, три числа (форма 188)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
@@ -1474,6 +1475,44 @@ RECIPE
     echo "  it('probe', async () => { const t=Date.now();"
     echo "    await import('@/pages/X'); console.log(Date.now()-t) }, 30000)"
     echo "и унеси эту цену в beforeAll со своим бюджетом."
+    ;;
+
+  touch)
+    # WHICH CONTROLS ARE TOO SMALL FOR A FINGER, AND WHICH ONE MATTERS MOST.
+    #
+    # Measured 25.09.2026: the AUTO switch -- the one that decides whether the
+    # account writes to people by itself -- was 28px tall, with no size rule
+    # at all, on a screen whose own heading button already declared 44. The
+    # rule was agreed and applied to some of what it covers. Form 190.
+    #
+    # Prints the recipe, because the measuring happens in the browser pane
+    # where the page is. Two traps are in it, both of which cost a pass.
+    shift
+    cat <<RECIPE
+Проверка целей под палец -- в панели браузера:
+
+  1. preview_start name=vibee-tma ; resize_window preset=mobile
+  2. navigate на нужный экран (НЕ pushState: замер во время перехода
+     показывает недовёрстанные числа -- 43 вместо 44)
+  3. javascript_tool:
+       const small=[]
+       document.querySelectorAll('button,a[href],[role="button"]').forEach(e=>{
+         const r=e.getBoundingClientRect()
+         if (r.height && r.width && r.height < 44)
+           small.push([e.className, Math.round(r.height)])
+       })
+       small
+
+Чинить так:
+  - то, чем включают необратимое (отправку, оплату), -- цель ВЕЗДЕ;
+  - остальное -- \`@media (pointer: coarse)\`, и блок ставить ПОСЛЕ базового
+    правила: сила та же, побеждает последний. Выше -- медиазапрос совпадёт
+    и не изменит ничего.
+
+Сторож писать на то, что решает: из всех блоков селектора применяется
+ПОСЛЕДНИЙ, цель должна быть в нём. Сравнение indexOf() обманывается тем,
+что селектор встречается и внутри медиазапроса.
+RECIPE
     ;;
 
   contracts)
