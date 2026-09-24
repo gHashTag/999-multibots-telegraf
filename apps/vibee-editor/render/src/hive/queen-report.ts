@@ -127,6 +127,7 @@ const NAMES: Record<string, string> = {
   'sweep-idle': 'обход продавца: тихо',
   'sweep-card': 'обход продавца: подготовил карточку',
   'card-pressed': 'владелец нажал на карточке', // cyrillic-ok: report text
+  'card-auto-sent': 'ушло на автопилоте, без нажатия', // cyrillic-ok: report text
   'draft-unsent': 'картинка сделана, но не отправлена', // cyrillic-ok: report text
   'gift-late': 'портрет рисуется дольше хода, придёт позже', // cyrillic-ok: report text
   'gift-recovered': 'поздний портрет готов и сохранён', // cyrillic-ok: report text

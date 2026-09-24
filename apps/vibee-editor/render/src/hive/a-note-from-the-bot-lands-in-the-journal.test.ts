@@ -15,6 +15,7 @@ function journalPool() {
           amount: params[3],
           what: params[4],
           severity: params[5],
+          lead: params[6],
         })
       }
       return { rows: [] }
@@ -65,6 +66,16 @@ describe('a note from the bot lands in the journal', () => {
       'sweep-failed',
       'sweep-held',
       'card-pressed',
+      /*
+       * Added 2026-09-24, and this is the entry the list exists for: the bot
+       * had been posting this kind since AUTO shipped and the door did not
+       * know the word. Every automatic send was refused with 400 and written
+       * nowhere, so "how much went out without you" read zero however well
+       * the autopilot worked. A pinned list only catches that if something
+       * compares it to what the bot can actually say -- see
+       * every-kind-the-bot-can-post.test.ts, written the same hour.
+       */
+      'card-auto-sent',
       'payment-unclaimed',
       // Added the next day, for the flaw the pair above shipped with: a watch
       // that only speaks when money is owed is indistinguishable from one that
@@ -135,5 +146,41 @@ describe('a note from the bot lands in the journal', () => {
       405
     )
     expect(pool.events).toHaveLength(0)
+  })
+})
+
+/*
+ * THE CLIENT AN ACT WAS ABOUT -- an id, and nothing else about them.
+ */
+describe('a note can name the client it was about', () => {
+  it('writes the id, and null when there is none', async () => {
+    const pool = journalPool()
+    await handleHiveNote(
+      post({
+        kind: 'card-auto-sent',
+        who: '900000091',
+        lead: '900000501',
+        what: 'ушло на автопилоте',
+      }),
+      deps(pool)
+    )
+    await handleHiveNote(
+      post({ kind: 'sweep-idle', who: '900000091', what: 'никого' }),
+      deps(pool)
+    )
+    expect(pool.events[0]).toMatchObject({
+      kind: 'card-auto-sent',
+      lead: '900000501',
+    })
+    expect(pool.events[1].lead).toBeNull()
+  })
+
+  it('takes an id-sized field only, so no message text can ride in it', async () => {
+    const pool = journalPool()
+    await handleHiveNote(
+      post({ kind: 'card-pressed', who: '900000091', lead: 'x'.repeat(400) }),
+      deps(pool)
+    )
+    expect(String(pool.events[0].lead)).toHaveLength(64)
   })
 })

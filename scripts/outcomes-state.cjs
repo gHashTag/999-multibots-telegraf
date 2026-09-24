@@ -94,6 +94,21 @@ async function main() {
   console.log(
     `   обходы: карточек ${out.cards_drawn}, тихо ${out.quiet}, упало ${out.failed}.` // cyrillic-ok: operator-facing
   )
+  /*
+   * WITH WHOM, not just how often. A share of 95% says the assistant is
+   * carrying the work; the five percent names the conversations where its
+   * words were not good enough, and that list is the only place the next
+   * improvement can come from.
+   */
+  if (Array.isArray(out.stepped_in) && out.stepped_in.length) {
+    const who = out.stepped_in.map(s => `${s.lead} (${s.times})`).join(', ')
+    console.log(`   вмешивался: ${who}.`) // cyrillic-ok: operator-facing
+  }
+  if (out.stepped_in_unknown) {
+    console.log(
+      `   ещё ${out.stepped_in_unknown} нажатий без клиента — записаны до 24.09.` // cyrillic-ok: operator-facing
+    )
+  }
 }
 
 void main()
