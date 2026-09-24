@@ -42,6 +42,23 @@ const WATCHED = [
   'apps/vibee-editor/render/src/agent',
 ]
 
+/**
+ * WHERE THE TESTS ARE, so a dead module with tests can be named as such.
+ *
+ * A test is not a user -- code the program cannot reach is dead however well
+ * it is covered -- but a dead module WITH tests is worse than a dead module
+ * without: its tests pass on every run and add to the green count while
+ * proving nothing about the running product. Measured 2026-09-25: ten of the
+ * thirty-one unreachable modules have tests.
+ */
+const TEST_DIRS = ['src', 'apps/vibee-editor/render']
+
+/** Test files that import this module by its exact specifier. */
+function testsFor(base, testFiles, read) {
+  const re = importerOf(base)
+  return testFiles.filter(p => re.test(read.get(p) ?? '')).length
+}
+
 /** Everything that could import one. Tests do not count: a test is not a user. */
 const SEARCHED = [
   'src',
@@ -217,6 +234,17 @@ function orphans() {
    * program reach this from its entries", which is what "switched on" means.
    */
   const live = reachable()
+  const testFiles = [...new Set(TEST_DIRS.flatMap(d => walk(d)))].filter(p =>
+    /\.(test|spec)\.(ts|tsx)$/.test(p)
+  )
+  const testRead = new Map()
+  for (const p of testFiles) {
+    try {
+      testRead.set(p, readFileSync(resolve(ROOT, p), 'utf8'))
+    } catch {
+      /* unreadable is not a test */
+    }
+  }
   const out = []
   for (const f of candidates) {
     if (live.has(f)) continue
@@ -229,14 +257,16 @@ function orphans() {
         break
       }
     }
-    out.push({ file: f, imported })
+    const base = basename(f, f.endsWith('.tsx') ? '.tsx' : '.ts')
+    out.push({ file: f, imported, tests: testsFor(base, testFiles, testRead) })
   }
   return { looked: candidates.length, live: live.size, orphans: out }
 }
 
 function main() {
   const wide = process.argv.includes('--all')
-  if (wide) WATCHED.splice(0, WATCHED.length, 'src', 'apps/vibee-editor/render/src')
+  if (wide)
+    WATCHED.splice(0, WATCHED.length, 'src', 'apps/vibee-editor/render/src')
   const { looked, live, orphans: dead } = orphans()
   console.log(
     wide
@@ -249,7 +279,17 @@ function main() {
   )
   for (const d of dead)
     console.log(
-      `  ${d.file}${d.imported ? '  (импортируется — но только мёртвыми)' : ''}` // cyrillic-ok: operator-facing
+      `  ${d.file}` + // cyrillic-ok: operator-facing
+        (d.imported ? '  (импортируется — но только мёртвыми)' : '') + // cyrillic-ok: operator-facing
+        (d.tests
+          ? `  (зелёных тестов: ${d.tests} — ни один не о работающем коде)`
+          : '') // cyrillic-ok: operator-facing
+    )
+  const tested = dead.filter(d => d.tests)
+  if (tested.length)
+    console.log(
+      `\n⚠️ ${tested.length} недостижимых модулей ИМЕЮТ тесты: они проходят каждый` + // cyrillic-ok: operator-facing
+        ' прогон и не говорят ничего о работающем продукте.' // cyrillic-ok: operator-facing
     )
   const wiring = dead.filter(d => /-wiring\.ts$/.test(d.file))
   if (wiring.length) {

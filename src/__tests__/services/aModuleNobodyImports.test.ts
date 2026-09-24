@@ -149,6 +149,22 @@ describe('the census itself', () => {
     expect(src).toContain("'--all'")
   })
 
+  it('counts the tests standing over dead code', () => {
+    /*
+     * A test is not a user: code the program cannot reach is dead however
+     * well it is covered. But a dead module WITH tests is worse than one
+     * without -- its tests pass on every run and add to the green count
+     * while proving nothing about the running product.
+     *
+     * Measured the day this was added: ten of the thirty-one unreachable
+     * modules had tests, one of them written by me two ticks earlier.
+     */
+    const { orphans: dead } = orphans()
+    const tested = dead.filter((d: { tests: number }) => d.tests > 0)
+    expect(tested.length).toBeGreaterThan(0)
+    for (const d of tested) expect(d.tests).toBeGreaterThan(0)
+  })
+
   it('says when a module is imported ONLY by dead ones', () => {
     /*
      * The one-hop version answered the weaker question: two image generators
