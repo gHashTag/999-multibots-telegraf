@@ -382,3 +382,13 @@ per network. Code: `render/src/browser/logins.ts`.
   not at load -- `browser-guard.test.ts` mocks `./cdp` partly and a load-time
   reference fails six of its tests.
 - From a terminal: `tri logins` (table) / `tri logins --json` (for a loop).
+
+## blog-share never presses "Post" on a sign-in form (24.09.2026, tick 4)
+
+`publishEverywhere` (`render/src/agent/blog-share-wiring.ts`) reads the
+browser's logins first (`loginsOfPerson`) and skips a network that is
+plainly signed out: "не подключена — вход не найден, ничего не нажато".
+Threads joined X, LinkedIn and r/t27ai through its own web intent
+(`threads.net/intent/post?text=`, fills the composer, never posts by
+itself). Instagram is NOT there: it needs a photo/video uploaded through its
+web composer (file input via CDP), a separate piece of work.
