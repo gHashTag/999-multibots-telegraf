@@ -56,6 +56,7 @@ tri — оболочка Trinity S³AI
   tri bare-fetch  вызовы приложения без подписи, которые упрутся в замок рендера (401 до обработчика)
   tri tag URL канал [кампания]  ссылка с меткой канала: utm на наших страницах, __канал в /start нашего бота
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
+  tri stop [id]  прервать идущие ходы человека (дуэт и a2a — у них нет сокета)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
@@ -1238,6 +1239,32 @@ PYEOF
     # dead in its first run.
     shift
     node "$ROOT/scripts/orphan-modules.cjs" "$@"
+    ;;
+
+  stop)
+    # STOP A TURN NOBODY IS HOLDING A SOCKET FOR, WITHOUT THE PHONE.
+    #
+    # The button in the bot aborts a fetch, which reaches the turn the person
+    # is watching and nothing else: a duet turn writes into a chat of its own
+    # and an a2a run outlives the request that started it. Both keep spending.
+    # This presses the same written stop the button now also writes -- running
+    # turns read it at their step boundary (render src/agent/agent-stops.ts).
+    #
+    # It stops runs that are ALREADY going. A stop written now says nothing
+    # about the next turn, by design: one press must not silence the seller.
+    shift
+    ID="${1:-144022504}"
+    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+           | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway link в корне копии"; exit 69; }
+    OUT=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+      "https://vibee-render-production.up.railway.app/api/agent/stop?telegram_id=$ID" \
+      -H "X-Api-Key: $KEY")
+    if [ "$OUT" = "200" ]; then
+      echo "записано: идущие ходы $ID прервутся на ближайшем шаге"
+    else
+      echo "рендер ответил $OUT — остановка НЕ записана"; exit 1
+    fi
     ;;
 
   contracts)

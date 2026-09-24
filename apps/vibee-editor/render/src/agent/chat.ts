@@ -68,6 +68,7 @@ import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
 import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
+import { stopRequested } from './agent-stops'
 
 const MAX_STEPS = 8
 
@@ -2054,6 +2055,7 @@ export async function* runAgent(
    */
   ctx = clientTurnContext(ctx, opts)
   const turnId = ctx.turn ?? randomUUID().slice(0, 8)
+  /** When THIS run began. A stop written before it is about another run. */
   const turnStartedAt = Date.now()
   let toolCallCount = 0
   /*
@@ -2501,6 +2503,24 @@ export async function* runAgent(
   for (let step = 0; step < MAX_STEPS; step++) {
     if (opts?.signal?.aborted) {
       logTurnEnd('aborted', `caller left before step ${step + 1}`)
+      return
+    }
+    /*
+     * A STOP FOR THE TURNS NOBODY IS HOLDING A SOCKET FOR.
+     *
+     * The check above is the usual one: the caller hung up, its fetch
+     * aborted, and the signal says so. It covers every turn a person is
+     * WAITING on -- and no others. The duet writes into a chat of its own;
+     * an a2a call arrives over one request and leaves the run behind it.
+     * There is no socket to close, so the press had nothing to reach.
+     *
+     * So the press is also WRITTEN DOWN, and the run asks between steps
+     * whether one was written since it began. It is one indexed read per
+     * step, at most eight per turn, and it cannot throw: see agent-stops.ts
+     * for why an unreadable flag must mean "no stop".
+     */
+    if (await stopRequested(ctx.pool, ctx.telegramId, turnStartedAt)) {
+      logTurnEnd('aborted', `owner stopped before step ${step + 1}`)
       return
     }
     let assistant: any = null
