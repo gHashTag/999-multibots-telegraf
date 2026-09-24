@@ -24,7 +24,13 @@ const ago = (days: number) => NOW - days * 86400
 
 describe('what the plan may say out loud', () => {
   it('names what is missing, concretely, not "set up your profile"', () => {
-    const l = lineFor({ id: '900000051', name: 'Пилот' }, NOW)
+    // hasProfile: false -- SOMEBODY LOOKED and there is no profile. The
+    // fixture used to leave it out, which made the test pass on a field
+    // nobody had answered: see "unknown is not no" below.
+    const l = lineFor(
+      { id: '900000051', name: 'Пилот', hasProfile: false },
+      NOW
+    )
     expect(l).toContain('Пилот')
     expect(l).toContain('фото')
     // A nudge names the step that closes it, or it is noise.
@@ -35,9 +41,14 @@ describe('what the plan may say out loud', () => {
 
   it('says nothing about a person who has been quiet for a fortnight', () => {
     expect(
-      lineFor({ id: '900000052', lastAt: ago(QUIET_DAYS + 1) }, NOW)
+      lineFor(
+        { id: '900000052', hasProfile: false, lastAt: ago(QUIET_DAYS + 1) },
+        NOW
+      )
     ).toBeNull()
-    expect(lineFor({ id: '900000052', lastAt: ago(1) }, NOW)).toBeTruthy()
+    expect(
+      lineFor({ id: '900000052', hasProfile: false, lastAt: ago(1) }, NOW)
+    ).toBeTruthy()
   })
 
   it('stays QUIET when nothing is missing -- silence is not sent', () => {
@@ -55,7 +66,10 @@ describe('what the plan may say out loud', () => {
 
   it('leaves out the owner and the bots it was told to skip', () => {
     const post = dayPlan({
-      people: [{ id: '144022504' }, { id: '900000051', name: 'Пилот' }],
+      people: [
+        { id: '144022504', hasProfile: false },
+        { id: '900000051', name: 'Пилот', hasProfile: false },
+      ],
       now: NOW,
       skip: ['144022504'],
     })
@@ -126,5 +140,58 @@ describe('a club room where the other members are reading', () => {
     expect(asText).not.toContain('долг')
     // And the material is not lost: it goes to that person, in their own chat.
     expect(split.private.tasks).toHaveLength(2)
+  })
+})
+
+describe('unknown is not "no", and here it is said about somebody in public', () => {
+  /*
+   * THE DEFECT THAT NEVER FIRED BECAUSE NOTHING CALLED THIS.
+   *
+   * `lineFor` asked `if (!p.hasProfile)`, which reads a field NOBODY FILLED
+   * as the statement "they have no profile" -- printed in a room where their
+   * colleagues are reading. The module has no caller, so it never happened;
+   * the first caller unable to answer one of these fields would have made it
+   * happen on the first morning, to a real person, in front of the others.
+   *
+   * Three states: true, false, and nobody looked. Only `false` is a claim.
+   */
+  it('a person nobody looked up produces no line at all', () => {
+    expect(
+      lineFor({ id: '900000053', name: 'Никто не смотрел' }, NOW)
+    ).toBeNull()
+  })
+
+  it('and no post: a room full of unknowns stays quiet', () => {
+    expect(
+      dayPlan({
+        people: [{ id: '900000053' }, { id: '900000054', name: 'Тоже' }],
+        now: NOW,
+      })
+    ).toBeNull()
+  })
+
+  it('"not connected" is only said to somebody we KNOW has a profile', () => {
+    // Unknown profile + unknown connection: nothing is claimed.
+    expect(lineFor({ id: '900000055', connected: false }, NOW)).toBeNull()
+    // Known profile, known missing connection: that is a fact, and it is said.
+    const l = lineFor(
+      {
+        id: '900000055',
+        name: 'Есть профиль',
+        hasProfile: true,
+        connected: false,
+      },
+      NOW
+    )
+    expect(l).toBeTruthy()
+    expect(l).toContain('приложение')
+  })
+
+  it('a false answer is still an answer: it speaks', () => {
+    // The negative control for all of the above -- if the check were simply
+    // "say nothing ever", these guards would pass while the feature was gone.
+    expect(
+      lineFor({ id: '900000056', name: 'Нет профиля', hasProfile: false }, NOW)
+    ).toBeTruthy()
   })
 })
