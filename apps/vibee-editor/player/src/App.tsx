@@ -15,6 +15,7 @@ import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { TamaguiProvider } from '@/providers/TamaguiProvider'
 import { ToastContainer } from '@/components/Toast/Toast'
+import { AiFillLayer } from '@/components/AiFill/AiFillLayer'
 import { PageTransition } from '@/components/PageTransition'
 import { TelegramProvider } from '@/components/Telegram/TelegramProvider'
 import { TelegramTabBar } from '@/components/Navigation/TelegramTabBar'
@@ -435,6 +436,10 @@ function App() {
                 <LoginModal />
                 <TelegramTabBar />
                 <ToastContainer />
+                {/* "✨ AI" beside any field worth filling (lib/aiFill.ts):
+                    one layer that follows focus, so a new form gets the
+                    button without anybody remembering to add it. */}
+                <AiFillLayer />
               </>
             </BrowserRouter>
           </LanguageProvider>
