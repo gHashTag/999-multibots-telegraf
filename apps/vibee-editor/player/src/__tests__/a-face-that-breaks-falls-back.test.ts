@@ -79,10 +79,14 @@ describe('every picture of a person can fall back', () => {
    * face is the one a person recognises as broken.
    */
   const OWED = [
+    /*
+     * NOT A DEBT, AND THE PATTERN CANNOT SEE THAT. `BRAND_MARK_URL` is
+     * '/t27-mark.svg' -- a file shipped inside the app, written into a
+     * constant, so `src={...}` matches while the picture is not data at all.
+     * If it fails nothing else works, and an error path for it is theatre
+     * (form 192). Kept on the list with its reason rather than "fixed".
+     */
     'components/BrandLoader/BrandLoader.tsx',
-    'components/Notifications/NotificationsCenter.tsx',
-    'components/Panels/FeedCard.tsx',
-    'components/Panels/GeneratePanel.tsx',
     'components/Stories/Stories.tsx',
     'components/Video/LazyVideo.tsx',
     'components/Video/ProgressiveVideo.tsx',
