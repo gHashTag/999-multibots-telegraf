@@ -211,6 +211,13 @@ pre-push:
     # Секунды на прогон, читает только текст, ничего не поднимает.
     contracts:
       run: node scripts/cross-service-vocabularies.cjs
+    # The player has its own eslint and nothing was running it: the root step
+    # lints from the repository root, whose config ignores `apps/`, so every
+    # player file it was handed printed "File ignored" and the step passed.
+    # 425 errors had accumulated. A ratchet rather than a gate -- see the
+    # script -- and on PUSH, because the player's lint takes tens of seconds.
+    player-lint:
+      run: node scripts/player-lint-ratchet.cjs
 
     # Тесты ТОЛЬКО связанные с изменёнными файлами, И ТОЛЬКО новые падения.
     #

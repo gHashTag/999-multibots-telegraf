@@ -70,6 +70,7 @@ tri — оболочка Trinity S³AI
   tri logonly  обработчики, которые только пишут в лог и ничего не чинят (форма 195)
   tri byload [каталог] [тест]  падает от кода или от ЗАГРУЗКИ машины: три прогона, три числа (форма 188)
   tri types  типы плеера ПО-НАСТОЯЩЕМУ: доказывает, что проверка не слепа (форма 196)
+  tri gates  как проверить сами шлюзы заведомым нарушением (формы 196-197)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
@@ -1679,6 +1680,35 @@ RECIPE
     fi
     "$TSC" --noEmit -p "$P/tsconfig.app.json" --pretty false 2>&1 \
       | grep "error TS" | head -30 || echo "типы плеера: чисто"
+    ;;
+
+  gates)
+    # DOES EACH GATE ACTUALLY CHECK THE FILES IT IS HANDED?
+    #
+    # Two gates in a row turned out to pass by doing nothing: the player
+    # typecheck ran a solution config with an empty file list, and the lint
+    # step ran the ROOT eslint, whose config ignores `apps/` -- it printed
+    # "File ignored" for every player file and exited zero. 425 errors had
+    # piled up behind it (forms 196, 197).
+    #
+    # Prints the recipe, because the only convincing test is a planted
+    # violation in the very file the gate claims to cover.
+    shift
+    cat <<RECIPE
+Проверка проверок -- по одной, с заведомым нарушением:
+
+  lint:          записать в src/ и в apps/vibee-editor/player/src/ файл с
+                 \`var x = 1\` и прогнать шаг шлюза. «File ignored» в выводе
+                 и код 0 -- шлюз этих файлов НЕ проверяет.
+  typecheck:     вписать \`const x: number = <строка>\` и убедиться, что
+                 печатается TS2322. Молчание = проверка пуста (tri types).
+  secrets:       положить строку вида sk-proj-AAAA... в staged-файл.
+  no-cyrillic:   комментарий по-русски в .ts.
+  spelling/…:    любое заведомо неверное слово из их словаря.
+
+Правило: если «успех» шлюза неотличим от «нечего проверять», это не шлюз.
+Проверять раз в жизни каждого шлюза -- и после любой правки его конфига.
+RECIPE
     ;;
 
   contracts)
