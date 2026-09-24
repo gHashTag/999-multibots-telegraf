@@ -2457,6 +2457,30 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     )
   })
 
+  /*
+   * THE BROWSER PERMISSION, ANSWERED INSIDE TELEGRAM.
+   *
+   * Owner, 2026-09-24: the two buttons were `url` buttons, so a tap left
+   * Telegram for the phone's default browser -- where he is not signed in.
+   * On a phone that means the permission did not work at all, and he said so
+   * twice. The rule was already written down (links open INSIDE Telegram);
+   * the approval flow had never been brought under it.
+   *
+   * The data carries the token that authorises the answer -- the same token
+   * that was in the link -- so the bot holds nothing between the question
+   * and the press, and a restart in between strands nothing.
+   */
+  bot.action(/^bap:(.+)$/, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    await stripButtons(ctx)
+    const [, token] = ctx.match as RegExpMatchArray
+    const { answerBrowserPermission } = await import(
+      '@/services/browserApproval'
+    )
+    const said = await answerBrowserPermission(token)
+    await ctx.reply(said).catch(() => undefined)
+  })
+
   bot.action(/^tgp:no:([^:]+):(.+)$/, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
     await stripButtons(ctx)
