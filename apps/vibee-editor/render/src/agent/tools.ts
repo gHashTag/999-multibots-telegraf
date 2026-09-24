@@ -30,6 +30,7 @@ import { telegramApiFor, telegramFileUrlFor } from '../telegram-api'
 import { planTools } from './plan-tools'
 import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
+import { JOB_TOOLS } from './job-tools'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import { clubOfferLine } from './club-membership'
@@ -3191,6 +3192,12 @@ TOOLS.push(...INNGEST_TOOLS)
  * only tools whose RESULT is text a stranger wrote.
  */
 TOOLS.push(...WEB_TOOLS)
+/*
+ * The job desk (job-tools.ts): who among the person's own contacts is
+ * hiring, decided by what they WROTE and never by a name. Reading only --
+ * writing to one of them is a send like any other and waits for the press.
+ */
+TOOLS.push(...JOB_TOOLS)
 
 /*
  * NO TOOL IS REGISTERED TWICE.

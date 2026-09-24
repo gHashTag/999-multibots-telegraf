@@ -66,6 +66,20 @@ export type ProposalMedia =
  */
 export type ProposalAction =
   | 'send'
+  /**
+   * A NEW GROUP IN TELEGRAM, CREATED BY THE OWNER'S HAND.
+   *
+   * Owner, 2026-09-24: "create groups by the target audience of the bots."
+   * A group made from his account carries his name in front of everyone
+   * invited to it, and it cannot be un-created -- deleting leaves the
+   * people who saw it. So it is a card he presses, like every other act
+   * that leaves the machine and reaches other people.
+   *
+   * Created EMPTY on purpose: adding people is a second act with a second
+   * card. One press that both made a group and pulled twenty contacts into
+   * it would be one press standing for twenty decisions.
+   */
+  | 'create-group'
   | 'forward'
   | 'delete'
   | 'join'
@@ -1560,7 +1574,10 @@ async function afterSend(
  * The table. Keyed by exactly the actions `execute` can carry out; a key
  * without a row is a compile error here rather than a runtime refusal below.
  */
-const EXECUTORS: Record<'send' | 'forward' | 'read', Executor> = {
+const EXECUTORS: Record<
+  'send' | 'forward' | 'read' | 'create-group',
+  Executor
+> = {
   send: {
     check: p => {
       if (!p.what && !p.media) return 'нечего отправлять: текст пуст'
@@ -1616,6 +1633,33 @@ const EXECUTORS: Record<'send' | 'forward' | 'read', Executor> = {
       const fwd = c.forwardMessages.bind(c)
       return resolvingPeer(c, [p.target, from], () =>
         fwd(p.target, { messages: ids, fromPeer: from })
+      )
+    },
+  },
+  'create-group': {
+    check: p => {
+      const title = String(p.what ?? '').trim()
+      if (!title) return 'у группы нет названия'
+      // Telegram refuses a title over 128 characters; refusing here means
+      // the card never promises something the press cannot do.
+      if (title.length > 128) return 'название длиннее 128 символов'
+      return null
+    },
+    async run(c, p) {
+      if (!c.invoke) throw new Error('этот клиент не умеет создавать группы')
+      const { Api } = await import('telegram')
+      const title = String(p.what ?? '').trim()
+      const about = String(p.args?.about ?? '').slice(0, 255)
+      /*
+       * A megagroup, not a broadcast channel: the audience is meant to talk.
+       * `forImport` stays false -- this is a new room, not a migration.
+       */
+      return c.invoke(
+        new Api.channels.CreateChannel({
+          title,
+          about,
+          megagroup: true,
+        }) as never
       )
     },
   },
