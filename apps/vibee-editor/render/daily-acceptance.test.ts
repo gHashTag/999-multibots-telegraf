@@ -4,6 +4,8 @@ import {
   ACTING,
   CANARIES,
   alertText,
+  answerMisses,
+  CANARIES_HASH,
   isDue,
   runAcceptance,
   seenOf,
@@ -29,6 +31,8 @@ const script = require('../../../scripts/agents-acceptance.cjs') as {
     a: { expect: string[] },
     run: { status: number; tools: string[]; text: string; error: string | null }
   ) => { pass: boolean; codes: string[] }
+  answerMisses: (rules: unknown, text: string) => string[]
+  canariesHash: () => string
 }
 
 const ev = (kind: string, extra: Record<string, unknown> = {}) => ({
@@ -84,12 +88,28 @@ describe('when a run is due', () => {
     at: new Date(NOW - msAgo).toISOString(),
     tools: [],
     codes: [],
+    canaries: '',
   })
 
   it('never checked: due; checked an hour ago: not; a day ago: due', () => {
     expect(isDue([], NOW, 24 * H)).toBe(true)
     expect(isDue([at(H)], NOW, 24 * H)).toBe(false)
     expect(isDue([at(25 * H)], NOW, 24 * H)).toBe(true)
+  })
+
+  it('a verdict made under another canary table is stale: due at once', () => {
+    const fresh = { ...at(H), canaries: 'aaaaaaaaaaaa' }
+    expect(isDue([fresh], NOW, 24 * H, 'aaaaaaaaaaaa')).toBe(false)
+    expect(isDue([fresh], NOW, 24 * H, 'bbbbbbbbbbbb')).toBe(true)
+    /* A run that did not say its table ('') is stale too. */
+    expect(
+      isDue([{ ...fresh, canaries: '' }], NOW, 24 * H, 'aaaaaaaaaaaa')
+    ).toBe(true)
+  })
+
+  it('tri agents and the server fingerprint the same table the same way', () => {
+    expect(script.canariesHash()).toBe(CANARIES_HASH)
+    expect(CANARIES_HASH).toMatch(/^[0-9a-f]{12}$/)
   })
 
   it('the NEWEST verdict decides, so one stale agent does not rerun all daily', () => {
@@ -107,6 +127,7 @@ describe('what the owner hears', () => {
   const was = (agent: string, pass: boolean): LatestVerdict => ({
     ...v(agent, pass),
     at: '2026-09-23T09:00:00Z',
+    canaries: '',
   })
 
   it('nothing when everything passes, as it did before', () => {
@@ -127,6 +148,9 @@ describe('what the owner hears', () => {
   })
 })
 
+const DONE =
+  'agent-mail-mcp: https://a.io https://b.io https://c.io\n1. one\n2. two\n3. three'
+
 describe('the run', () => {
   it('a canary that throws is a failed verdict; the others still run, all are recorded', async () => {
     const recorded: Verdict[][] = []
@@ -135,7 +159,8 @@ describe('the run', () => {
       turn: async function* (c) {
         if (c.id === 'job') throw new Error('Telegram is not connected')
         yield ev('инструмент', { ['имя']: c.expect[0] ?? 'web_search' }) // cyrillic-ok
-        yield ev('текст', { ['текст']: 'ok' }) // cyrillic-ok
+        /* An answer that does every canary's job (answer rules included). */
+        yield ev('текст', { ['текст']: DONE }) // cyrillic-ok
       },
       previous: async () => [],
       record: async v => void recorded.push(v),
@@ -150,5 +175,72 @@ describe('the run', () => {
     expect(recorded).toHaveLength(1)
     expect(told).toHaveLength(1)
     expect(told[0]).toContain('✗ job')
+  })
+})
+
+/*
+ * THE ANSWER IS CHECKED, NOT ONLY THE TOOL CALL. Calibrated on the real
+ * 2026-09-24 07:14 run: Google Scout PASSED while its answer began "I have
+ * not opened a single source yet" -- its search was down (HTTP 402).
+ */
+describe('what the answer must show', () => {
+  const byId = (id: string) => CANARIES.find(c => c.id === id)!
+  const googleThen =
+    'Пока не открыл ни одного — этот вопрос первый в разговоре. Ключевой поиск лежит (HTTP 402), ' +
+    'остались только открытые источники: Википедия. Честный ответ: данных мало.'
+  const googleGood =
+    'Спрос растёт: https://trends.google.com/x , https://example.com/report и https://habr.com/ru/articles/1/'
+  const tiktokThen =
+    'ТРИ ХУКА\n1. Антитеза: «Тебя нет в кадре»\n2. Вопрос-прогноз\n3. Числом\nСЦЕНАРИЙ 30 СЕКУНД'
+  const habrThen =
+    'Прочитал README (страница GitHub). Что за репо: MCP-сервер + CLI для доступа агента к Zoho Mail.'
+
+  it('the morning run Google Scout "passed" now fails, and says why', () => {
+    expect(answerMisses(byId('google').answer, googleThen)).toEqual([
+      'меньше трёх ссылок на источники',
+    ])
+    const v = verdictFor(byId('google'), {
+      tools: ['web_search'],
+      text: googleThen,
+      error: null,
+    })
+    expect(v).toMatchObject({ pass: false, codes: ['answer_shape'] })
+  })
+
+  it('real answers that did the job still pass', () => {
+    expect(answerMisses(byId('google').answer, googleGood)).toEqual([])
+    expect(answerMisses(byId('tiktok').answer, tiktokThen)).toEqual([])
+    expect(answerMisses(byId('habr').answer, habrThen)).toEqual([])
+  })
+
+  it('bold or bulleted numbering counts as a list too', () => {
+    expect(
+      answerMisses(byId('tiktok').answer, '**1.** a\n- 2) b\n### 3. c')
+    ).toEqual([])
+  })
+
+  it('the script counts exactly as the server does', () => {
+    for (const c of CANARIES)
+      for (const text of [googleThen, googleGood, tiktokThen, habrThen, ''])
+        expect(script.answerMisses(c.answer, text), `${c.id}`).toEqual(
+          answerMisses(c.answer, text)
+        )
+  })
+
+  it('an empty answer is "no answer", not also "the wrong answer"', () => {
+    const v = verdictFor(byId('google'), { tools: [], text: '', error: null })
+    expect(v.codes).toContain('no_answer')
+    expect(v.codes).not.toContain('answer_shape')
+  })
+
+  it('the owner hears which rule was missed', () => {
+    const t = alertText(
+      [{ agent: 'google', pass: false, tools: [], codes: ['answer_shape'] }],
+      [],
+      { google: ['меньше трёх ссылок на источники'] }
+    )
+    expect(t).toContain(
+      '✗ google: ответ не тот, что просили (меньше трёх ссылок на источники)'
+    )
   })
 })

@@ -20,17 +20,65 @@
  * 3. The owner hears about FAILURES and RECOVERIES only. A daily "all fine"
  *    would teach them to ignore the line that one day is not fine.
  */
+import { createHash } from 'node:crypto'
 import TABLE from './acceptance-canaries.json'
 import type { FailCode, LatestVerdict, Verdict } from './agent-acceptance'
+
+/**
+ * What the ANSWER must show, beyond "a tool was called and a word said".
+ * Calibrated on the 2026-09-24 07:14 run: Google Scout passed while its
+ * answer began "I have not opened a single source yet" (its search was
+ * down, HTTP 402) -- a tool call is not the job done.
+ */
+export interface AnswerRule {
+  /** Counted over the whole answer; the `g` flag is always added. */
+  pattern: string
+  flags?: string
+  min: number
+  /** Said to the owner when the rule is not met. */
+  why: string
+}
 
 export interface Canary {
   id: string
   canary: string
   expect: string[]
+  answer?: AnswerRule[]
 }
 
-export const CANARIES: readonly Canary[] = TABLE.agents
+export const CANARIES: readonly Canary[] = TABLE.agents as Canary[]
+
+/**
+ * The rules an answer misses, as the owner's words. The same counting as
+ * scripts/agents-acceptance.cjs answerMisses. Pure.
+ */
+export function answerMisses(
+  rules: readonly AnswerRule[] | undefined,
+  text: string
+): string[] {
+  const misses: string[] = []
+  for (const r of rules ?? []) {
+    const flags = (r.flags ?? '').includes('g')
+      ? (r.flags ?? '')
+      : `${r.flags ?? ''}g`
+    const found = String(text ?? '').match(new RegExp(r.pattern, flags))
+    if ((found?.length ?? 0) < r.min) misses.push(r.why)
+  }
+  return misses
+}
 export const ACTING: readonly string[] = TABLE.acting
+
+/**
+ * The fingerprint of the canary table. `tri agents` computes the same over
+ * the same file (scripts/agents-acceptance.cjs canariesHash).
+ */
+export function canariesHash(table: unknown = TABLE): string {
+  return createHash('sha256')
+    .update(JSON.stringify(table))
+    .digest('hex')
+    .slice(0, 12)
+}
+export const CANARIES_HASH = canariesHash()
 
 /** What one turn showed, read from the agent's own events. */
 export interface TurnSeen {
@@ -75,6 +123,8 @@ export function verdictFor(c: Canary, seen: TurnSeen, ok = true): Verdict {
   if (seen.tools.some(t => ACTING.includes(t))) codes.push('acted')
   if (c.expect.length && !seen.tools.some(t => c.expect.includes(t)))
     codes.push('expected_tool_missing')
+  if (seen.text.trim() && answerMisses(c.answer, seen.text).length)
+    codes.push('answer_shape')
   return { agent: c.id, pass: codes.length === 0, tools: seen.tools, codes }
 }
 
@@ -92,9 +142,16 @@ export function everyMs(env: NodeJS.ProcessEnv = process.env): number {
 export function isDue(
   latest: readonly LatestVerdict[],
   nowMs: number,
-  periodMs: number
+  periodMs: number,
+  /*
+   * A CHANGED TABLE MAKES EVERY VERDICT STALE. Without this, a stricter
+   * canary deployed at 08:30 would leave the card showing the morning's
+   * PASS under the old, weaker rule for a whole day.
+   */
+  hash?: string
 ): boolean {
   if (!latest.length) return true
+  if (hash && latest.some(v => v.canaries !== hash)) return true
   const newest = Math.max(...latest.map(v => Date.parse(v.at) || 0))
   return nowMs - newest >= periodMs
 }
@@ -106,6 +163,7 @@ const WHY: Record<FailCode, string> = {
   no_answer: 'не ответил ни слова', // cyrillic-ok
   acted: 'полез публиковать или отправлять', // cyrillic-ok
   expected_tool_missing: 'не взял свой инструмент', // cyrillic-ok
+  answer_shape: 'ответ не тот, что просили', // cyrillic-ok
 }
 
 /**
@@ -114,7 +172,9 @@ const WHY: Record<FailCode, string> = {
  */
 export function alertText(
   now: readonly Verdict[],
-  before: readonly LatestVerdict[]
+  before: readonly LatestVerdict[],
+  /** Per agent, the answer rules it missed (answerMisses), for the owner. */
+  misses: Readonly<Record<string, string[]>> = {}
 ): string | null {
   const wasFailing = new Set(before.filter(v => !v.pass).map(v => v.agent))
   const failed = now.filter(v => !v.pass)
@@ -123,8 +183,12 @@ export function alertText(
   const lines = [
     `🧪 Ежедневная проверка агентов: ${now.length - failed.length}/${now.length} прошли.`, // cyrillic-ok: told to the owner
   ]
-  for (const v of failed)
-    lines.push(`✗ ${v.agent}: ${v.codes.map(c => WHY[c]).join(', ')}`)
+  for (const v of failed) {
+    const detail = misses[v.agent]?.length
+      ? ` (${misses[v.agent].join('; ')})`
+      : ''
+    lines.push(`✗ ${v.agent}: ${v.codes.map(c => WHY[c]).join(', ')}${detail}`)
+  }
   for (const v of recovered) lines.push(`✓ ${v.agent}: снова работает`) // cyrillic-ok
   lines.push('Карточки на /agents уже показывают это.') // cyrillic-ok
   return lines.join('\n')
@@ -146,6 +210,7 @@ export interface RunDeps {
 export async function runAcceptance(d: RunDeps): Promise<Verdict[]> {
   const before = await d.previous().catch(() => [] as LatestVerdict[])
   const verdicts: Verdict[] = []
+  const misses: Record<string, string[]> = {}
   for (const c of CANARIES) {
     const events: Array<Record<string, unknown>> = []
     try {
@@ -154,10 +219,13 @@ export async function runAcceptance(d: RunDeps): Promise<Verdict[]> {
       /* A turn that threw is an `error` verdict; there was no HTTP here. */
       events.push({ ['тип']: 'ошибка', ['текст']: String(e).slice(0, 120) }) // cyrillic-ok: event names
     }
-    verdicts.push(verdictFor(c, seenOf(events)))
+    const seen = seenOf(events)
+    verdicts.push(verdictFor(c, seen))
+    const missed = seen.text.trim() ? answerMisses(c.answer, seen.text) : []
+    if (missed.length) misses[c.id] = missed
   }
   await d.record(verdicts)
-  const said = alertText(verdicts, before)
+  const said = alertText(verdicts, before, misses)
   if (said) await d.tell(said).catch(() => {})
   return verdicts
 }

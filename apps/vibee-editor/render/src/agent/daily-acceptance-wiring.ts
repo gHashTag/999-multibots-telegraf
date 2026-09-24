@@ -8,7 +8,12 @@
  * whose accounts the canaries read.
  */
 import type { Queryable } from '../browser/sessions'
-import { everyMs, isDue, runAcceptance } from './daily-acceptance'
+import {
+  CANARIES_HASH,
+  everyMs,
+  isDue,
+  runAcceptance,
+} from './daily-acceptance'
 
 /** A turn is given this long; a daily check is in no hurry. */
 export const CANARY_TIMEOUT_MS = 240_000
@@ -26,7 +31,8 @@ export async function runDailyAcceptanceIfDue(
   if (!owner) return 'no keeper'
   const { latestVerdicts, recordVerdicts } = await import('./agent-acceptance')
   const latest = await latestVerdicts(pool)
-  if (!opts.force && !isDue(latest, Date.now(), everyMs())) return 'not due'
+  if (!opts.force && !isDue(latest, Date.now(), everyMs(), CANARIES_HASH))
+    return 'not due'
   running = true
   try {
     const { runAgent } = await import('./chat')
@@ -49,7 +55,7 @@ export async function runDailyAcceptanceIfDue(
           }
         ) as AsyncIterable<Record<string, unknown>>,
       previous: async () => latest,
-      record: v => recordVerdicts(pool, v, owner),
+      record: v => recordVerdicts(pool, v, owner, CANARIES_HASH),
       tell: async text => {
         await sendToTelegram(owner, text)
       },

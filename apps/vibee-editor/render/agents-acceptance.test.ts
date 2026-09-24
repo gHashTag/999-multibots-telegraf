@@ -85,21 +85,27 @@ describe('agents acceptance table', () => {
  */
 describe('what the script sends the market', () => {
   it('every failure code the script can emit is one the server keeps', () => {
-    const worst = acc.verdict(
+    /*
+     * "No answer" and "the wrong answer" exclude each other, so the codes
+     * come from two worst cases: silent, and talkative but off the point.
+     */
+    const silent = acc.verdict(
       { expect: ['job_hunters'] },
       { status: 500, tools: ['tg_send'], text: '', error: 'boom' }
     )
-    expect(worst.pass).toBe(false)
-    expect(worst.codes.length).toBe(FAIL_CODES.length)
-    for (const c of worst.codes)
-      expect((FAIL_CODES as readonly string[]).includes(c), c).toBe(true)
-    const kept = verdictOf({
-      agent: 'job',
-      pass: worst.pass,
-      tools: ['tg_send'],
-      codes: worst.codes,
-    })
-    expect(kept?.codes).toEqual(worst.codes)
+    const offPoint = acc.verdict(
+      {
+        expect: ['web_search'],
+        answer: [{ pattern: 'https?://', min: 3, why: 'three links' }],
+      } as never,
+      { status: 200, tools: ['web_search'], text: 'no links here', error: null }
+    )
+    const all = new Set([...silent.codes, ...offPoint.codes])
+    expect([...all].sort()).toEqual([...FAIL_CODES].sort())
+    for (const codes of [silent.codes, offPoint.codes]) {
+      const kept = verdictOf({ agent: 'job', pass: false, codes })
+      expect(kept?.codes).toEqual(codes)
+    }
   })
 
   it('a pass sends no codes', () => {
