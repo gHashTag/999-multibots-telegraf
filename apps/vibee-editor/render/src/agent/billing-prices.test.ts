@@ -5,7 +5,11 @@ import {
   познаковаяМодель,
   тысячиЗнаковКОплате,
 } from './billing-shared'
-import { РАЗРЕШЕНИЕ_ВИДЕО, РАЗРЕШЕНИЕ_ЛИПСИНКА } from './kie-web-provider'
+import {
+  РАЗРЕШЕНИЕ_ВИДЕО, // cyrillic-ok: existing constant
+  РАЗРЕШЕНИЕ_ЛИПСИНКА, // cyrillic-ok: existing constant
+  lipsyncResolutionFor,
+} from './kie-web-provider'
 import { readFileSync } from 'fs'
 import { join as pathJoin } from 'path'
 import {
@@ -385,7 +389,21 @@ describe('разрешение выбирает тот, кто назначае�
     )
     expect(сервер).not.toMatch(/resolution: resolution \|\| '720p'/)
     expect(сервер).not.toMatch(/resolution: resolution \|\| '480p'/)
-    expect(сервер.match(/resolution: РАЗРЕШЕНИЕ_ЛИПСИНКА/g)?.length).toBe(2)
+    // fal gets the pin; KIE gets the resolution of the row each model is
+    // priced at: the pin for the price-list models, 720p for veed/fabric-1,
+    // whose cost the owner named at 720p (COST_OUTSIDE_KIE_PRICE_LIST_USD).
+    expect(сервер.match(/resolution: РАЗРЕШЕНИЕ_ЛИПСИНКА/g)?.length).toBe(1) // cyrillic-ok: existing names
+    expect(
+      сервер.match(/resolution: lipsyncResolutionFor\(selectedKieModel\)/g) // cyrillic-ok: existing name
+        ?.length
+    ).toBe(1)
+    for (const id of [
+      'infinitalk/from-audio',
+      'omnihuman-1-5',
+      'kling/ai-avatar-standard',
+    ])
+      expect(lipsyncResolutionFor(id), id).toBe(РАЗРЕШЕНИЕ_ЛИПСИНКА) // cyrillic-ok: existing constant
+    expect(lipsyncResolutionFor('veed/fabric-1')).toBe('720p')
   })
 })
 
