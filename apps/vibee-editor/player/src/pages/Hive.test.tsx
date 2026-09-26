@@ -86,12 +86,13 @@ describe('the hive page', () => {
       )
     )
 
-    const expected = `https://t27.ai/?lang=${lang}#/queen`
+    // The frame holds THIS origin's copy of the board (owner, 2026-09-26:
+    // "embed the Queen's board into the app"); t27.ai is only the way out.
     expect(container.querySelector('iframe')?.getAttribute('src')).toBe(
-      expected
+      `/queen/?lang=${lang}#/queen`
     )
     expect(container.querySelector('a.hive-out')?.getAttribute('href')).toBe(
-      expected
+      `https://t27.ai/?lang=${lang}#/queen`
     )
   })
 
@@ -379,7 +380,7 @@ describe('the hive page answers its game frame', () => {
         )
       )
       const iframe = container.querySelector('iframe')!
-      expect(iframe.getAttribute('src')).toBe('https://t27.ai/?lang=ru#/queen')
+      expect(iframe.getAttribute('src')).toBe('/queen/?lang=ru#/queen')
       load()
       // jsdom gives the frame a new window when its src changes.
       const frame = iframe.contentWindow!

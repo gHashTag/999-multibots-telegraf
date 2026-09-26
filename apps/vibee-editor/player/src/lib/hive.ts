@@ -2,16 +2,38 @@
  * The game's address. One function, imported by the page and by the test, so
  * a moved page is changed in one place and the test tells us if it was not.
  *
- * The hash route is hers: t27.ai is a single-page site and `#/queen` is the
- * board. Do not "clean it up" to `/queen` -- GitHub Pages would answer 404.
+ * ON THIS ORIGIN, NOT ON t27.ai (owner, 2026-09-26: "embed the Queen's board
+ * into the app"). The same board is built into this server at /queen/
+ * (Dockerfile stage `queen`, pinned QUEEN_REF), so the tab frames THAT copy:
+ * one origin, one session -- the board reads the session the app wrote, no
+ * token hop through the bridge -- and one address the person sees,
+ * app.t27.ai/queen. A top-level visit to /queen/ is sent back to /queen by
+ * nginx, so the board never shows without the app around it.
  *
- * The language rides in `?lang=` before the hash, because that is where her
- * page reads it (gHashTag/trinity, `apps/website/src/i18n/context.tsx`), and
- * only these codes; any other she would ignore, so it is sent as her default.
+ * The hash route is hers: `#/queen` is the board inside her single-page
+ * site. The language rides in `?lang=` before the hash, because that is where
+ * her page reads it (gHashTag/trinity, `apps/website/src/i18n/context.tsx`),
+ * and only these codes; any other she would ignore, so it is sent as her
+ * default.
  */
 const QUEEN_LANGS = ['en', 'ru', 'de', 'zh', 'es']
 
-export function queenPage(lang: string): string {
+export function queenPage(lang: string, hash = ''): string {
+  const code = QUEEN_LANGS.includes(lang) ? lang : 'en'
+  return `/queen/?lang=${code}${boardHash(hash)}`
+}
+
+/**
+ * The board's own view from the app's address: app.t27.ai/queen#/queen?tab=
+ * tri&screen=chat opens THAT view in the frame. Only her `#/queen` routes are
+ * passed on; anything else is her front page.
+ */
+export function boardHash(hash: string): string {
+  return /^#\/queen(?:[/?][^\s<>"']*)?$/.test(hash) ? hash : '#/queen'
+}
+
+/** The same board on its public site: the way out when the frame is blank. */
+export function queenPublicPage(lang: string): string {
   const code = QUEEN_LANGS.includes(lang) ? lang : 'en'
   return `https://t27.ai/?lang=${code}#/queen`
 }
