@@ -293,7 +293,7 @@ export default function CrmClientPage() {
           ))}
       </Panel>
 
-      <StoryReelPanel clientId={clientId} />
+      <StoryReelPanel clientId={clientId} noticeReason={noticeReason} />
 
       <Panel
         title={t('crm.client.duets.title')}
