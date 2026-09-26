@@ -19,17 +19,19 @@ const ctx = { telegramId: '900000051' } as never
 beforeEach(() => resetCodeBudgetForTests())
 
 describe('what may run', () => {
-  it('ts and js run; python is named but refused; anything else is a bad lang', () => {
+  it('ts, js and py run under their aliases; anything else is a bad lang', () => {
     expect(langOf('ts')).toEqual({ ok: true, lang: 'ts' })
+    expect(langOf('typescript')).toEqual({ ok: true, lang: 'ts' })
     expect(langOf('js')).toEqual({ ok: true, lang: 'js' })
+    expect(langOf('javascript')).toEqual({ ok: true, lang: 'js' })
+    expect(langOf('py')).toEqual({ ok: true, lang: 'py' })
+    expect(langOf('python')).toEqual({ ok: true, lang: 'py' })
+    expect(langOf('python3')).toEqual({ ok: true, lang: 'py' })
     expect(langOf(undefined)).toEqual({ ok: true, lang: 'ts' })
-    const py = langOf('python')
-    expect(py.ok).toBe(false)
-    if (!py.ok) expect(py.reason).toContain('python')
     expect(langOf('ruby').ok).toBe(false)
   })
 
-  it('the command denies every permission and fetches no code', () => {
+  it('the ts/js command denies every permission and fetches no code', () => {
     const { cmd, args } = commandFor('ts', '/tmp/x')
     expect(cmd).toBe('deno')
     // No --allow-* anywhere, and --no-prompt so a request is an error.
@@ -37,6 +39,21 @@ describe('what may run', () => {
     expect(args).toContain('--no-prompt')
     expect(args).toContain('--no-remote')
     expect(args).toContain('--no-npm')
+  })
+
+  it('the py command drops the network and caps the run', () => {
+    const { cmd, args } = commandFor('py', '/tmp/x')
+    // unshare -rn: a network namespace with no interfaces (no network).
+    expect(cmd).toBe('unshare')
+    expect(args).toContain('-rn')
+    // prlimit caps CPU, address space and file size.
+    expect(args).toContain('prlimit')
+    expect(args.some(a => a.startsWith('--cpu='))).toBe(true)
+    expect(args.some(a => a.startsWith('--as='))).toBe(true)
+    // python isolated from the environment, PYTHONPATH and site.
+    expect(args).toContain('python3')
+    expect(args).toContain('-I')
+    expect(args).toContain('-S')
   })
 })
 
@@ -192,15 +209,55 @@ describe.skipIf(!has('deno'))('the real sandbox', () => {
     expect(r.passed).toBe(false)
     expect(r.output).toMatch(/NotCapable|run access|--allow-run/)
   }, 30_000)
-
-  it('a language it does not run yet is refused, not faked', async () => {
-    const r = await runCode({ lang: 'python', code: 'print(1)' }, ctx)
-    expect(r).toMatchObject({ ran: false })
-    expect(String(r.reason)).toContain('python')
-  })
 })
 
+describe.skipIf(!has('python3') || !has('unshare'))(
+  'the real python sandbox',
+  () => {
+    it('runs a program and returns exactly what it printed', async () => {
+      const r = (await runCode(
+        { lang: 'py', code: 'print("".join(reversed("trinity")))' },
+        ctx
+      )) as { passed: boolean; output: string }
+      expect(r.passed).toBe(true)
+      expect(r.output).toBe('ytinirt')
+    }, 30_000)
+
+    it('cannot reach the network (unshare -rn gives it no interfaces)', async () => {
+      const r = (await runCode(
+        {
+          lang: 'py',
+          code:
+            'import socket\n' +
+            'try:\n socket.create_connection(("1.1.1.1",53),2); print("NET")\n' +
+            'except Exception as e: print("blocked", type(e).__name__)',
+        },
+        ctx
+      )) as { passed: boolean; output: string }
+      expect(r.passed).toBe(true)
+      expect(r.output).toContain('blocked')
+      expect(r.output).not.toContain('NET')
+    }, 30_000)
+
+    it('cannot read the server environment: nobody is denied /proc/1/environ', async () => {
+      const r = (await runCode(
+        {
+          lang: 'py',
+          code:
+            'try:\n open("/proc/1/environ").read(); print("READ")\n' +
+            'except Exception as e: print("denied", type(e).__name__)',
+        },
+        ctx
+      )) as { passed: boolean; output: string }
+      expect(r.output).toContain('denied')
+      expect(r.output).not.toContain('READ')
+    }, 30_000)
+  }
+)
+
 it('every offered language has a command', () => {
-  for (const lang of CODE_LANGS)
-    expect(commandFor(lang, '/tmp').cmd).toBe('deno')
+  for (const lang of CODE_LANGS) {
+    const { cmd } = commandFor(lang, '/tmp')
+    expect(cmd).toBe(lang === 'py' ? 'unshare' : 'deno')
+  }
 })
