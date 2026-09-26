@@ -554,6 +554,12 @@ export interface StoryReady {
   vip: boolean
   link: string | null
   jobs: StoryJob[]
+  /** Her own page only (my_story_reel): the plan's next topic. */
+  nextTopic: string | null
+  /** What one reel costs her, in tokens; null when it is a gift. */
+  priceTokens: number | null
+  /** Her seller pays for her reels (a VIP profile). */
+  gift: boolean
 }
 
 export interface StoryStart {
@@ -571,6 +577,9 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
     voice: bool(r['voice']) ?? false,
     vip: bool(r['vip']) ?? false,
     link: str(r['one_tap_link']),
+    nextTopic: str(r['next_topic']),
+    priceTokens: num(r['price_tokens']),
+    gift: bool(r['gift']) ?? false,
     jobs: jobs
       .filter((j): j is Record<string, unknown> => !!j && typeof j === 'object')
       .map(j => ({
@@ -588,6 +597,29 @@ export const loadStoryReel = async (lead: string) =>
   map(
     await callTool<Record<string, unknown>>('crm_story_reel', { lead }),
     toStoryReady
+  )
+
+/**
+ * The same template for the person HERSELF (tool `my_story_reel`): the /story
+ * page. No lead argument -- the server reads who is asking from the session.
+ */
+export const loadMyStory = async () =>
+  map(
+    await callTool<Record<string, unknown>>('my_story_reel', {}),
+    toStoryReady
+  )
+
+export const startMyStory = async (topic: string) =>
+  map(
+    await callTool<Record<string, unknown>>('my_story_reel', {
+      start: true,
+      ...(topic.trim() ? { topic: topic.trim() } : {}),
+    }),
+    (r): StoryStart => ({
+      started: bool(r['started']) ?? false,
+      topic: str(r['topic']),
+      why: str(r['why']),
+    })
   )
 
 export const startStoryReel = async (lead: string, topic: string) =>

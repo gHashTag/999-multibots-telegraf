@@ -66,6 +66,7 @@ export const APP_ROUTES = [
   'browser',
   'club',
   'pair',
+  'story',
 ] as const
 
 export type AppRoute = (typeof APP_ROUTES)[number]
@@ -511,6 +512,7 @@ const ROUTE_LABELS: Partial<Record<AppRoute, { ru: string; en: string }>> = {
   club: { ru: '⭐ Открыть клуб', en: '⭐ Open the club' },
   pair: { ru: '📱 Показать код входа', en: '📱 Show the sign-in code' },
   feed: { ru: '🎬 Открыть ленту', en: '🎬 Open the feed' },
+  story: { ru: '🎬 Мои рилсы', en: '🎬 My reels' },
 }
 
 export function appDoorLabel(route: AppRoute, isRu: boolean): string {

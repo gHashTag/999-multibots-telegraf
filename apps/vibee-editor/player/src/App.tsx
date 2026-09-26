@@ -43,6 +43,7 @@ const BlogPage = lazy(() => import('@/pages/Blog'))
 const GeneratePage = lazy(() => import('@/pages/Generate'))
 const HivePage = lazy(() => import('@/pages/Hive'))
 const BrowserPage = lazy(() => import('@/pages/Browser'))
+const StoryPage = lazy(() => import('@/pages/Story'))
 import { useBrowserWatch } from '@/hooks/useBrowserWatch'
 import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
 import { isBrowserPath, keepMounted, KEEP_BROWSER_MS } from '@/lib/keptBrowser'
@@ -368,6 +369,9 @@ function RouteTable() {
       {/* Rendered by KeptBrowser below, which outlives a visit to another
           tab; the route stays so nothing else claims the address. */}
       <Route path="/browser" element={null} />
+      {/* The person's own story reels: her face, her voice, any topic, one
+          press. Her bot opens it with ?start=app_story. */}
+      <Route path="/story" element={<StoryPage />} />
       <Route path="/crm" element={<CrmPage />} />
       {/* One client's workspace and the thread about them. Declared before
           `/:username`, and tested to resolve here rather than to a profile

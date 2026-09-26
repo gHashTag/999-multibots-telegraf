@@ -29,7 +29,8 @@ import {
   STORY_DEFAULT_STYLE,
   type StoryDeps,
 } from './story-template'
-import { makeCrmStoryTool } from './crm-story-tool'
+import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
+import { storyPriceEstimate } from './story-template'
 import type { AgentTool, ToolContext } from './tools'
 
 const SELLER = '900000001'
@@ -294,6 +295,17 @@ function fakeBase() {
           .filter(j => j.seller_id === p[0] && j.lead_id === p[1])
           .map(j => ({ ...j, created_at: String(j.updated) })),
       }
+    }
+    if (q.startsWith('SELECT title FROM content_plan_items')) {
+      const next = db.plan
+        .filter(
+          i =>
+            i.telegram_id === p[0] &&
+            i.status === 'idea' &&
+            !p[1].includes(i.title)
+        )
+        .sort((a, b) => a.goal_id - b.goal_id || a.id - b.id)[0]
+      return { rows: next ? [{ title: next.title }] : [] }
     }
     throw new Error(`unexpected SQL: ${q.slice(0, 90)}`)
   }
@@ -833,5 +845,105 @@ describe('crm_story_reel, the seller tool', () => {
         pool: base.pool,
       } as unknown as ToolContext)
     ).rejects.toThrow('не подключён')
+  })
+})
+
+describe('my_story_reel, the person herself (the /story page and her bot)', () => {
+  const tool = (
+    base: ReturnType<typeof fakeBase>,
+    story: StoryDeps['story'] = async () => ({})
+  ) => makeMyStoryTool({ deps: () => depsOn(base, story).deps })
+  const as = (
+    base: ReturnType<typeof fakeBase>,
+    id: string,
+    extra: object = {}
+  ) => ({ telegramId: id, pool: base.pool, ...extra }) as unknown as ToolContext
+
+  it('shows her face, voice, the next plan topic and the price BEFORE the press, taking nothing', async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.plan.push({
+      id: 80,
+      goal_id: 1,
+      telegram_id: LENA,
+      title: 'Ваза в интерьере',
+      note: '',
+      status: 'idea',
+    })
+    const out: any = await tool(base).handler({}, as(base, LENA))
+    expect(out).toMatchObject({
+      ready: true,
+      face: FACE,
+      voice: true,
+      next_topic: 'Ваза в интерьере',
+      price_tokens: storyPriceEstimate(),
+      one_tap_link: 'https://t.me/example_bot?start=reel',
+    })
+    // Looking is not taking: the card is still an idea.
+    expect(base.db.plan[0].status).toBe('idea')
+    expect(base.db.jobs).toHaveLength(0)
+  })
+
+  it('names the gift instead of a price when her seller pays', async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.profiles.push({
+      owner_id: SELLER,
+      telegram_id: LENA,
+      updated: 2,
+      profile: { story_reel: { payer: 'owner' } },
+    })
+    const out: any = await tool(base).handler({}, as(base, LENA))
+    expect(out.gift).toBe(true)
+    expect(out.price_tokens).toBeUndefined()
+  })
+
+  it('a press makes HER reel: she asks, she pays, it comes to her bot', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const seen: ToolContext[] = []
+    const t = tool(base, async (_a, ctx) => {
+      seen.push(ctx)
+      return { done: true, url: 'https://bucket.example/reel.mp4' }
+    })
+    const out: any = await t.handler(
+      { start: true, topic: 'Букет недели' },
+      as(base, LENA)
+    )
+    expect(out).toMatchObject({ started: true, topic: 'Букет недели' })
+    await drain()
+    expect(base.db.jobs[0]).toMatchObject({
+      lead_id: LENA,
+      requester: LENA,
+      bot: 'example_bot',
+    })
+    expect(seen[0].telegramId).toBe(LENA)
+  })
+
+  it('refuses in a turn working for a client: that is crm_story_reel', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const out: any = await tool(base).handler(
+      { start: true },
+      as(base, SELLER, { faceOf: LENA })
+    )
+    expect(out.ready).toBe(false)
+    expect(out.why).toContain('crm_story_reel')
+    expect(base.db.jobs).toHaveLength(0)
+  })
+
+  it('a person with no voice is told what is missing, and nothing starts', async () => {
+    const base = fakeBase()
+    qualify(base, { voice: false })
+    // Her seller is known from the profile only when there is no clone.
+    base.db.profiles.push({
+      owner_id: SELLER,
+      telegram_id: LENA,
+      updated: 2,
+      profile: { story_reel: {} },
+    })
+    const out: any = await tool(base).handler({ start: true }, as(base, LENA))
+    expect(out.started).toBe(false)
+    expect(out.why).toContain('голос')
   })
 })
