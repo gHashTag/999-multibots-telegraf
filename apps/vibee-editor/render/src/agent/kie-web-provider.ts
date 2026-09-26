@@ -138,6 +138,23 @@ export const ПОЛЯ_МАРШРУТА: Record<KieWebMediaKind, string[]> = {
   lipsync: ['image_url', 'audio_url', 'prompt'],
 }
 
+/**
+ * MODELS THAT VALIDATE AND THEN FAIL EVERY JOB -- measured, with the record.
+ *
+ * The catalogue's `state` is KIE's answer to an empty probe, and for these the
+ * answer is "live": the name exists and its fields are named. Then every job
+ * fails. Admitting such a model means taking the person's tokens, failing and
+ * refunding, every time, so it is not admitted, price or no price.
+ *
+ * veed/fabric-1: "internal error, please try again later" on all nine tries of
+ * 2026-08-31 (reel-chain.ts records every variable varied), and again on the
+ * 3-second probe of 2026-09-24, the day the owner approved its price. The
+ * price stays (COST_OUTSIDE_KIE_PRICE_LIST_USD). After a probe succeeds,
+ * delete the line here and add the model back to KIE_LIPSYNC in
+ * render-server.ts and LIPSYNC_MODELS in lipsync-voice.ts.
+ */
+export const FAILS_AT_PROVIDER: ReadonlySet<string> = new Set(['veed/fabric-1'])
+
 export const KIE_WEB_MODELS: Record<
   KieWebMediaKind,
   ReadonlySet<string>
@@ -155,6 +172,7 @@ export const KIE_WEB_MODELS: Record<
     const kind = ВИД_К_KIND[видимое.вид]
     if (!kind) continue
     if (priceForKieModel(м.id) == null) continue
+    if (FAILS_AT_PROVIDER.has(м.id)) continue // cyrillic-ok: existing loop variable
     /**
      * 4. КОНТРАКТ ИЗВЕСТЕН. Без него заявку не собрать: часть моделей
      *    отвечает «This field is required», НЕ НАЗЫВАЯ поле — ни пустая
