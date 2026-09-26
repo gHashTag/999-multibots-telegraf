@@ -16,7 +16,7 @@
  * to the person's newest watching session. The agent never drives through
  * neko (it drives through CDP), so this takes nothing from it.
  */
-import { nekoLogin } from './screen'
+import { withNekoAdmin } from './screen'
 
 export interface NekoSession {
   id: string
@@ -100,31 +100,41 @@ export async function handMouseToPerson(
   fetcher: Fetcher = fetch as unknown as Fetcher
 ): Promise<{ outcome: MouseOutcome; fixedSettings: boolean }> {
   const base = `http://${pod.endpoint}`
-  const bearer = await nekoLogin(pod.endpoint, pod.adminToken, fetcher)
-  const settings = ((await call(
+  return await withNekoAdmin(
+    pod.endpoint,
+    pod.adminToken,
     fetcher,
-    `${base}/api/room/settings`,
-    bearer
-  )) ?? {}) as RoomSettings
-  const fix = settingsToFix(settings)
-  if (fix) await call(fetcher, `${base}/api/room/settings`, bearer, 'POST', fix)
+    async bearer => {
+      const settings = ((await call(
+        fetcher,
+        `${base}/api/room/settings`,
+        bearer
+      )) ?? {}) as RoomSettings
+      const fix = settingsToFix(settings)
+      if (fix)
+        await call(fetcher, `${base}/api/room/settings`, bearer, 'POST', fix)
 
-  const sessions = ((await call(fetcher, `${base}/api/sessions`, bearer)) ??
-    []) as NekoSession[]
-  const person = pickPersonSession(Array.isArray(sessions) ? sessions : [])
-  if (!person) return { outcome: 'nobody-watching', fixedSettings: !!fix }
-  if (person.profile?.can_host === false)
-    return { outcome: 'cannot-host', fixedSettings: !!fix }
+      const sessions = ((await call(fetcher, `${base}/api/sessions`, bearer)) ??
+        []) as NekoSession[]
+      const person = pickPersonSession(Array.isArray(sessions) ? sessions : [])
+      if (!person) return { outcome: 'nobody-watching', fixedSettings: !!fix }
+      if (person.profile?.can_host === false)
+        return { outcome: 'cannot-host', fixedSettings: !!fix }
 
-  const control = ((await call(fetcher, `${base}/api/room/control`, bearer)) ??
-    {}) as { has_host?: boolean; host_id?: string }
-  if (control.has_host && control.host_id === person.id)
-    return { outcome: 'already', fixedSettings: !!fix }
-  await call(
-    fetcher,
-    `${base}/api/room/control/give/${encodeURIComponent(person.id)}`,
-    bearer,
-    'POST'
+      const control = ((await call(
+        fetcher,
+        `${base}/api/room/control`,
+        bearer
+      )) ?? {}) as { has_host?: boolean; host_id?: string }
+      if (control.has_host && control.host_id === person.id)
+        return { outcome: 'already', fixedSettings: !!fix }
+      await call(
+        fetcher,
+        `${base}/api/room/control/give/${encodeURIComponent(person.id)}`,
+        bearer,
+        'POST'
+      )
+      return { outcome: 'given', fixedSettings: !!fix }
+    }
   )
-  return { outcome: 'given', fixedSettings: !!fix }
 }
