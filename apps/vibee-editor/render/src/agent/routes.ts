@@ -1031,6 +1031,12 @@ export async function handleAgentChat(
           gate.supervisor && gate.client
             ? await agentLogFor(pool, telegramId, gate.client)
             : undefined,
+        // What worked for this owner before (crm-move-stats.ts), for the Queen.
+        movesLine: gate.supervisor
+          ? await import('./crm-move-stats')
+              .then(m => m.moveStatsFor(pool, telegramId).then(m.moveStatsLine))
+              .catch(() => '')
+          : undefined,
         // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
         // not the caller) in chat.ts clientTurnContext. Not a thread.
         faceOf: typeof body.face_of === 'string' ? body.face_of : undefined,
