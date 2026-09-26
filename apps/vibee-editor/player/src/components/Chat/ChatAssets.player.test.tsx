@@ -77,3 +77,30 @@ describe('an asset that fails to load falls back to its link', () => {
     expect(el.querySelector('a.chat-assets__link')).toBeNull()
   })
 })
+
+/**
+ * FENCED CODE (coder agent, 2026-09-26). A program shown as running prose is
+ * unreadable; a block keeps its whitespace, names its language and hands the
+ * code over in one press. Inline code stays a plain <code>.
+ */
+describe('a fenced code block', () => {
+  it('keeps the code verbatim, names the language and offers a copy button', () => {
+    const el = show('Here:\n```python\ndef f(x):\n    return x*2\n```\ndone')
+    const pre = el.querySelector('pre.chat-assets__pre')!
+    expect(pre.textContent).toBe('def f(x):\n    return x*2')
+    expect(el.querySelector('.chat-assets__codelang')?.textContent).toBe(
+      'python'
+    )
+    expect(el.querySelector('.chat-assets__codecopy')).toBeTruthy()
+    // The prose around it is still there, and not swallowed into the block.
+    expect(el.textContent).toContain('done')
+  })
+
+  it('inline code is a plain code element, not a block', () => {
+    const el = show('run `npm test` now')
+    expect(el.querySelector('pre.chat-assets__pre')).toBeNull()
+    expect(el.querySelector('code.chat-assets__code')?.textContent).toBe(
+      'npm test'
+    )
+  })
+})

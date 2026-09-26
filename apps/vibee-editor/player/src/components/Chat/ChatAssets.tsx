@@ -14,11 +14,12 @@
  * не трогаем), потом медиа-ссылки, остальное — текст.
  */
 import { useState, type ReactNode } from 'react'
+import { useLanguage } from '@/hooks/useLanguage'
 import './ChatAssets.css'
 
 type Segment =
   | { kind: 'text'; content: string }
-  | { kind: 'code'; content: string }
+  | { kind: 'code'; content: string; block?: boolean; lang?: string }
   | { kind: 'image'; url: string }
   | { kind: 'video'; url: string }
   | { kind: 'audio'; url: string }
@@ -48,6 +49,12 @@ const VIDEO_RE = /\.(mp4|mov|m4v)(\?|$)/i
 const AUDIO_RE = /\.(mp3|wav|m4a|ogg|webm|opus|flac)(\?|$)/i
 /** markdown-картинка ![alt](url) — до всего остального, иначе alt останется в тексте */
 const MD_IMAGE_RE = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g
+/**
+ * FENCED CODE BLOCK, first, so its contents are never scanned for anything
+ * else. The coder agent answers with these, and a program shown as running
+ * prose is unreadable; a block keeps its whitespace and gets a copy button.
+ */
+const FENCE_RE = /```([a-zA-Z0-9+#.-]*)\n?([\s\S]*?)```/g
 /** инлайн-код `…` — внутри него разметка не разбирается */
 const INLINE_CODE_RE = /`([^`\n]+)`/g
 
@@ -64,6 +71,15 @@ function splitSegments(text: string): Segment[] {
   // Комбинированный сканер: на каждой позиции пробуем паттерны по очереди.
   const patterns: [RegExp, (m: RegExpExecArray) => Segment | null][] = [
     [MD_IMAGE_RE, m => ({ kind: 'image', url: m[1] })],
+    [
+      FENCE_RE,
+      m => ({
+        kind: 'code',
+        block: true,
+        lang: m[1] || undefined,
+        content: m[2].replace(/\n$/, ''),
+      }),
+    ],
     [INLINE_CODE_RE, m => ({ kind: 'code', content: m[1] })],
   ]
   let i = 0
@@ -335,6 +351,51 @@ function PlayerAsset({ url, kind }: { url: string; kind: 'video' | 'audio' }) {
   )
 }
 
+/**
+ * CODE: inline as `<code>`, a fenced block as a `<pre>` with its language and
+ * a copy button. A coder agent's whole point is code you can take, so a block
+ * keeps its exact text and hands it over in one press.
+ */
+function CodeAsset({
+  content,
+  block,
+  lang,
+}: {
+  content: string
+  block?: boolean
+  lang?: string
+}) {
+  const { t } = useLanguage()
+  const [copied, setCopied] = useState(false)
+  if (!block) return <code className="chat-assets__code">{content}</code>
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // No clipboard: the text stays selectable in the block.
+    }
+  }
+  return (
+    <div className="chat-assets__codeblock">
+      <div className="chat-assets__codebar">
+        <span className="chat-assets__codelang">{lang || 'code'}</span>
+        <button
+          type="button"
+          className="chat-assets__codecopy"
+          onClick={() => void copy()}
+        >
+          {copied ? t('chat.copied') : t('chat.code.copy')}
+        </button>
+      </div>
+      <pre className="chat-assets__pre">
+        <code>{content}</code>
+      </pre>
+    </div>
+  )
+}
+
 export function ChatAssets({ text }: { text: string }) {
   const segments = splitSegments(text)
   if (!segments.length) return null
@@ -348,9 +409,12 @@ export function ChatAssets({ text }: { text: string }) {
         }
         if (s.kind === 'code') {
           return (
-            <code key={i} className="chat-assets__code">
-              {s.content}
-            </code>
+            <CodeAsset
+              key={i}
+              content={s.content}
+              block={s.block}
+              lang={s.lang}
+            />
           )
         }
         if (s.kind === 'link') {

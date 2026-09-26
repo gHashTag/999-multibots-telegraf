@@ -225,6 +225,40 @@ export default function AgentDashboardPage() {
         )}
       </section>
 
+      {/*
+        THE PROFESSION'S BENCH (owner, 2026-09-26). The signature tool this
+        agent works with, its workspace, and -- from the SAME verdict above,
+        real data -- whether the last check actually ran that tool. An agent
+        with no bench (one that answers with prose) shows nothing here.
+      */}
+      {agent.workbench ? (
+        <section className="agent-dash__card" data-testid="agent-dash-bench">
+          <h2>{t('agents.dash.bench')}</h2>
+          {agent.workbench.tool ? (
+            <p className="agent-dash__bench-tool">
+              {t('agents.dash.bench.tool', { tool: agent.workbench.tool })}
+              {verdict ? (
+                <span
+                  className={`agent-dash__bench-ran agent-dash__bench-ran--${
+                    verdict.tools.includes(agent.workbench.tool) ? 'yes' : 'no'
+                  }`}
+                >
+                  {verdict.tools.includes(agent.workbench.tool)
+                    ? ` · ${t('agents.dash.bench.ran')}`
+                    : ` · ${t('agents.dash.bench.notRan')}`}
+                </span>
+              ) : null}
+            </p>
+          ) : null}
+          <p className="agent-dash__muted">{agent.workbench.metric[l]}</p>
+          {agent.workbench.repo ? (
+            <p className="agent-dash__muted">
+              {t('agents.dash.bench.repo', { repo: agent.workbench.repo })}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="agent-dash__card">
         <h2>{t('agents.dash.skills')}</h2>
         <AgentSkillsPanel agentId={agent.id} />

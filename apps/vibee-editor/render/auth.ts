@@ -224,6 +224,9 @@ const PUBLIC_EXACT = new Set([
    * разу не дойдя до обработчика (пары, карточка агента, /api/feed/pending).
    */
   '/api/agent/history',
+  // The list of conversations beside the history: the same handler-side
+  // identity (resolveIdentity), the same reason to pass the general guard.
+  '/api/agent/conversations',
   /*
    * ПОДКЛЮЧЕНИЕ TELEGRAM пропускается общим гвардом НАМЕРЕННО — и это не
    * послабление, а УЖЕСТОЧЕНИЕ.
