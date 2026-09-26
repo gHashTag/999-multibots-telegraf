@@ -3,7 +3,7 @@ import { useSetAtom } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
 import { openLoginAtom } from '@/atoms'
 import '@/components/Auth/styles.css'
-import { answerIdentityRequests, queenPage } from '@/lib/hive'
+import { answerIdentityRequests, queenPage, queenPublicPage } from '@/lib/hive'
 import { IS_EMBED } from '@/lib/embed'
 import { API_BASE } from '@/config'
 import { getAppAccessToken } from '@/lib/appSession'
@@ -23,6 +23,13 @@ import './Hive.css'
  * bar, pointed at t27.ai/#/queen. Her comb, her specs,
  * her kanban, mission map, factory and technology tree, her Queen chat -- in
  * her own vocabulary and her own menu order, because they ARE her menu.
+ *
+ * THE FRAME HOLDS THIS ORIGIN'S COPY (owner, 2026-09-26: "embed the
+ * Queen's board into the app"). It used to point at t27.ai while the same
+ * board was already built into this server at /queen/, so the product had two
+ * addresses for one board and app.t27.ai/queen/#/queen said "queen" twice. Now
+ * the frame is /queen/ (lib/hive.ts queenPage), the address people see is
+ * app.t27.ai/queen, and t27.ai is only the way out when the frame is blank.
  *
  * WHY A FRAME AND NOT A RE-IMPLEMENTATION
  *
@@ -62,7 +69,13 @@ import './Hive.css'
 export default function HivePage() {
   const { lang, t } = useLanguage()
   const [loaded, setLoaded] = useState(false)
-  const page = queenPage(lang)
+  // The view the address asked for (app.t27.ai/queen#/queen?tab=...), read
+  // once: after that the board changes its own views inside the frame.
+  const [asked] = useState(() =>
+    typeof window === 'undefined' ? '' : window.location.hash
+  )
+  const page = queenPage(lang, asked)
+  const outside = queenPublicPage(lang)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const openLogin = useSetAtom(openLoginAtom)
 
@@ -132,7 +145,7 @@ export default function HivePage() {
             <span>{t('hive.loading')}</span>
             <a
               className="hive-out"
-              href={page}
+              href={outside}
               target="_blank"
               rel="noreferrer noopener"
             >
@@ -158,7 +171,7 @@ export default function HivePage() {
          */}
         <a
           className="hive-out hive-out--corner"
-          href={page}
+          href={outside}
           target="_blank"
           rel="noreferrer noopener"
         >

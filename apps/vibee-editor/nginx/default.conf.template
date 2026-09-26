@@ -252,7 +252,31 @@ server {
     # The fallback is /queen/index.html and NOT /index.html: the board is a hash
     # router, but a hard reload of a deep path must land in the board rather
     # than in VIBEE.
+    # THE BOARD LIVES INSIDE THE APP (owner, 2026-09-26: "embed the Queen's
+    # board into the app"; and "why does the address say queen twice"). The
+    # address a person sees is /queen -- the app, which frames /queen/ in its
+    # Hive tab. Without this block /queen fell into `location /`, whose
+    # `$uri/` found the board's directory and served the BOARD's index.html at
+    # a path where its relative assets resolve to VIBEE's root.
+    location = /queen {
+        add_header Content-Security-Policy "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://t27.ai;" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        try_files /index.html =404;
+    }
+
     location ^~ /queen/ {
+        # A person opening the board itself (a bookmark of
+        # app.t27.ai/queen/#/queen?tab=tri) is sent to the app's /queen. The
+        # browser keeps the #fragment across the redirect, and the Hive page
+        # hands it to the frame, so the same view opens -- inside the app.
+        # Only a top-level document: the Hive's own frame asks with
+        # Sec-Fetch-Dest: iframe, and assets with script/style/image.
+        if ($http_sec_fetch_dest = "document") {
+            return 302 /queen;
+        }
         try_files $uri $uri/ /queen/index.html;
 
         location ~* ^/queen/.+\.(json|txt|xml|webmanifest)$ {

@@ -163,7 +163,7 @@ describe('the hive page', () => {
   it('outside embed frames the game (control)', () => {
     mount(<HivePage />)
     expect(host.querySelector('iframe')?.getAttribute('src')).toMatch(
-      /^https:\/\/t27\.ai\/\?lang=(en|ru)#\/queen$/
+      /^\/queen\/\?lang=(en|ru)#\/queen$/
     )
     expect(host.querySelector('.hive-inside-game')).toBeNull()
   })
