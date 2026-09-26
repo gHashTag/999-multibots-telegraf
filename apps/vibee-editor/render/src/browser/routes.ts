@@ -27,8 +27,14 @@
  *   and the order is deliberate: the address of a signed-in browser should
  *   not become reachable before the thing guarding it is written.
  * - Idle pods are not stopped. A pod lives until it is stopped here.
- * - The profile is not persisted between sessions: stopping loses the logins.
  * - The agent's side (the MCP facade over CDP) is not exposed at all.
+ *
+ * THE PROFILE IS PERSISTED, and this file used to say the opposite. It is on a
+ * volume mounted at the pod's profile path (pod-driver.ts PROFILE_PATH), so
+ * stopping, starting and restarting all keep the person's logins; only DELETE
+ * /api/browser/profile wipes them. The stale line mattered: it made a restart
+ * look like something that costs the person their accounts, which is the
+ * opposite of true and is why the one cure for a broken pod was avoided.
  */
 
 import {
@@ -760,19 +766,69 @@ export function configureAgentStart(deps: () => BrowserDeps): void {
  * restart, and a restart keeps the person's logins: the profile is on a
  * volume, and only DELETE /api/browser/profile ever wipes it.
  *
+ * WHY THIS IS NOT stop-then-start ANY MORE. On the `fixed` driver -- what
+ * production runs -- `stop` is a documented no-op, so stopping and starting
+ * dropped the row, wrote a new one, and handed back THE SAME broken Chromium
+ * while this function returned true. Measured: the browser was unreadable from
+ * 2026-09-24, every round "restarted" it, and the pod had not actually
+ * restarted since 2026-09-23T11:21:26Z -- three days in which the person could
+ * not sign in to anything and nothing said why. So the driver is asked for a
+ * real restart, and the browser must ANSWER before this reports one
+ * (health.ts): HTTP liveness is what lied.
+ *
  * The person is told, because it is their browser and they may be watching
  * it at that moment.
  */
 export async function restartBrowserAsAgent(who: string): Promise<boolean> {
   const deps = agentStartDeps?.()
   if (!deps?.driver) return false
+  const driver = deps.driver
   const pool = await deps.getPool()
   await ensureBrowserSessions(pool)
   await ensureBrowserProfiles(pool)
-  await close(pool, deps.driver, who).catch(() => undefined)
-  const out = await open(pool, deps, deps.driver, who, 'agent')
-  console.log('[browser:restart]', who, out.status)
-  return out.status < 300
+
+  if (driver.restart) {
+    const existing = await readSession(pool, who)
+    const went = await driver
+      .restart(existing?.podId ?? '')
+      .catch((e: unknown) => {
+        console.warn('[browser:restart]', who, String(e).slice(0, 200))
+        return false
+      })
+    if (!went) {
+      console.log(
+        '[browser:restart]',
+        who,
+        'the driver cannot restart this pod'
+      )
+      return false
+    }
+    /* The pod it pointed at is going down: the row must not outlive it. */
+    await dropSession(pool, who)
+  } else {
+    await close(pool, driver, who).catch(() => undefined)
+  }
+
+  const out = await open(pool, deps, driver, who, 'agent')
+  if (out.status >= 300) {
+    console.log('[browser:restart]', who, out.status, 'did not come back')
+    return false
+  }
+  const back = await readSession(pool, who)
+  if (!back?.cdpEndpoint) {
+    /* No CDP means no agent can drive it; the person still has the wheel. */
+    console.log('[browser:restart]', who, out.status, 'no cdp')
+    return true
+  }
+  const { waitForBrowser, cdpHealthIo } = await import('./health')
+  const answers = await waitForBrowser(back.cdpEndpoint, await cdpHealthIo())
+  console.log(
+    '[browser:restart]',
+    who,
+    out.status,
+    answers ? 'answers' : 'still not answering'
+  )
+  return answers
 }
 
 export async function startBrowserAsAgent(who: string): Promise<boolean> {
