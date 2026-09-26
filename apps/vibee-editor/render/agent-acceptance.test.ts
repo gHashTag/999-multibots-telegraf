@@ -120,7 +120,7 @@ describe('who may write a verdict', () => {
 describe('what a verdict may carry', () => {
   it('names only: no answer text, no error prose, no odd tool names', () => {
     const v = verdictOf({
-      agent: 'habr',
+      agent: 'scientist',
       pass: false,
       tools: ['web_read', 'rm -rf /', 'browser_open'],
       codes: ['http', 'the page said: my phone is +7…'],
@@ -128,7 +128,7 @@ describe('what a verdict may carry', () => {
       error: 'stack trace',
     })
     expect(v).toEqual({
-      agent: 'habr',
+      agent: 'scientist',
       pass: false,
       tools: ['web_read', 'browser_open'],
       codes: ['http'],

@@ -172,7 +172,12 @@ export function agentMessagesAtomFor(
   clientId: string | null | undefined,
   marketplaceAgent?: string | null
 ): MessagesAtom {
-  if (marketplaceAgent) {
+  /*
+   * A CLIENT'S THREAD WINS. A specialist called into a client conversation
+   * (render routes.ts threadFor) answers in the CLIENT's thread: one
+   * conversation about one person, whoever helps with it.
+   */
+  if (marketplaceAgent && !clientId) {
     let found = marketplaceAgentThreads.get(marketplaceAgent)
     if (!found) {
       found = trimmed(

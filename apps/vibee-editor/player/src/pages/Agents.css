@@ -344,3 +344,14 @@
   font-size: 0.75rem;
   opacity: 0.75;
 }
+
+/* The way to one agent's own dashboard (pages/AgentDashboard.tsx). */
+.agent-card__dash {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  opacity: 0.8;
+  font-size: 13px;
+  text-decoration: underline;
+}

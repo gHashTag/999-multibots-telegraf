@@ -72,6 +72,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join as joinPath } from 'node:path'
 import { withShelfFile } from './media-extract'
+import { Agent as UndiciAgent } from 'undici'
 import {
   LIPSYNC_MODELS,
   LIPSYNC_TOOL_MAX_SECONDS,
@@ -81,7 +82,9 @@ import {
   cutPart,
   joinParts,
   leadSilenceOf,
+  lipsyncWaitMs,
   maxSecondsOf,
+  partTargetSecondsFor,
   probeSeconds,
   probeSize,
   proxyShelfUrl,
@@ -189,6 +192,20 @@ const noArgs = { type: 'object', properties: {}, additionalProperties: false }
  */
 const selfBase = () =>
   process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3000')
+
+/**
+ * THIS PROCESS, NOT ITS PUBLIC ADDRESS -- for a self-call that may take
+ * longer than five minutes.
+ *
+ * SELF_URL is the render's public host, so a self-call through selfBase()
+ * crosses Railway's edge, which closes a request after five minutes with no
+ * data sent. Measured 2026-09-26: the owner's 23-second Kling reel, one call
+ * of /api/generate/lipsync, was cut at exactly 300 013 ms (Railway's HTTP log:
+ * host vibee-render-production.up.railway.app, 499 upstream, 502 to us) while
+ * KIE was still drawing. The route lives in this very process; the loopback
+ * has no edge to cut it. The port is the one render-server.ts listens on.
+ */
+const loopbackBase = () => 'http://127.0.0.1:' + (process.env.PORT || '3333')
 
 /**
  * Self-call инструментов. На проде гвард в режиме enforce: вызов самого
@@ -2199,7 +2216,9 @@ export const TOOLS: AgentTool[] = [
           type: 'string',
           enum: [...LIPSYNC_MODELS],
           description:
-            'не задан — InfiniteTalk по цене инструмента; другая модель — по её цене за секунду (pricing)',
+            'kie/kling/ai-avatar-standard — выбор владельца: весь голос до 30 с ОДНИМ проходом, без стыков, 16 ток/с. ' +
+            'Не задан — InfiniteTalk по цене инструмента, куски по 10 с (на стыках лицо начинает заново). ' +
+            'Другая модель — по её цене за секунду (pricing)',
         },
       },
       required: ['image_url', 'voice_url'],
@@ -2277,7 +2296,8 @@ export const TOOLS: AgentTool[] = [
                 ? 'голосовой файл не найден на полке. Ничего не списано.'
                 : 'голосовой файл слишком большой. Ничего не списано.',
           }
-        const parts = splitPlan(measured)
+        // Parts under the NAMED model's ceiling: Kling takes the whole voice.
+        const parts = splitPlan(measured, partTargetSecondsFor(model))
         if (!parts.length)
           return { done: false, reason: 'голос пустой. Ничего не списано.' }
         const seconds = billedSecondsOf(parts)
@@ -2324,8 +2344,15 @@ export const TOOLS: AgentTool[] = [
           }
           const clips = await Promise.all(
             voiceUrls.map(async (audioUrl, i) => {
+              /*
+               * WAIT AS LONG AS THE ROUTE WAITS. The route answers only when
+               * the provider is done, and Node's fetch drops a response whose
+               * headers take over five minutes: a long part would be refunded
+               * here while the provider finished and billed us.
+               */
+              const waitMs = lipsyncWaitMs(parts[i].duration)
               const res = await selfFetch(
-                `${selfBase()}/api/generate/lipsync`,
+                `${loopbackBase()}/api/generate/lipsync`,
                 {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -2334,7 +2361,11 @@ export const TOOLS: AgentTool[] = [
                     audio_url: audioUrl,
                     ...(model ? { model } : {}),
                   }),
-                }
+                  dispatcher: new UndiciAgent({
+                    headersTimeout: waitMs,
+                    bodyTimeout: waitMs,
+                  }),
+                } as RequestInit
               )
               const data: any = await res.json().catch(() => null)
               if (!res.ok || !data?.url)

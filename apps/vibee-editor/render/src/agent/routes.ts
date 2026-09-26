@@ -112,6 +112,24 @@ async function earnedAgent(
   }
 }
 
+/**
+ * Which catalogued agent this caller may open, or null. A live agent is
+ * open to everybody; a trainee to a keeper (hive/roles.ts), or to anybody
+ * once it earned the market by STREAK_DAYS passing daily checks.
+ */
+async function availableAgent(
+  rawAgent: unknown,
+  owner: string,
+  getPool: () => any
+): Promise<ReturnType<typeof marketplaceAgentById>> {
+  return (
+    liveMarketplaceAgentById(rawAgent) ??
+    (keepers().includes(String(owner))
+      ? marketplaceAgentById(rawAgent)
+      : await earnedAgent(getPool, rawAgent))
+  )
+}
+
 export async function threadFor(
   rawClient: unknown,
   owner: string,
@@ -131,15 +149,12 @@ export async function threadFor(
   const supervisor = rawRole === 'supervisor'
   if (supervisor && (rawClient == null || rawClient === ''))
     return { ok: false, status: 400, error: 'supervisor needs a client' }
-  if (
-    rawClient != null &&
-    rawClient !== '' &&
-    rawAgent != null &&
-    rawAgent !== ''
-  ) {
-    return { ok: false, status: 400, error: 'choose client or agent, not both' }
-  }
-  if (rawAgent != null && rawAgent !== '') {
+  const wantsAgent = rawAgent != null && rawAgent !== ''
+  const wantsClient = rawClient != null && rawClient !== ''
+  // The Queen supervises a client's conversation; she brings no specialist.
+  if (supervisor && wantsAgent)
+    return { ok: false, status: 400, error: 'supervisor takes no agent' }
+  if (wantsAgent && !wantsClient) {
     /*
      * OWNER PREVIEW (#2957). A trainee goes live only after one real run,
      * and until now nobody could open a trainee at all -- so no run could
@@ -147,11 +162,7 @@ export async function threadFor(
      * may open any catalogued agent; everybody else still gets live ones
      * only, so a client is never sold a trainee.
      */
-    const agent =
-      liveMarketplaceAgentById(rawAgent) ??
-      (keepers().includes(String(owner))
-        ? marketplaceAgentById(rawAgent)
-        : await earnedAgent(getPool, rawAgent))
+    const agent = await availableAgent(rawAgent, owner, getPool)
     if (!agent)
       return { ok: false, status: 400, error: 'agent is not available' }
     return {
@@ -196,14 +207,25 @@ export async function threadFor(
     seller = false
   }
   if (!seller) return { ok: false, status: 403, error: 'not a seller' }
-  return supervisor
-    ? {
-        ok: true,
-        thread: supervisorThread(client),
-        client,
-        supervisor: true,
-      }
-    : { ok: true, thread: clientThread(client), client }
+  if (supervisor)
+    return {
+      ok: true,
+      thread: supervisorThread(client),
+      client,
+      supervisor: true,
+    }
+  if (!wantsAgent) return { ok: true, thread: clientThread(client), client }
+  /*
+   * A SPECIALIST CALLED INTO A CLIENT'S CONVERSATION (owner, 2026-09-26:
+   * "add the agents to the chat for working with clients"). The memory stays
+   * the CLIENT's -- one conversation about one person, whoever helps with
+   * it -- and the agent brings its contract and skills to that turn. The
+   * seller check above still decides whether the caller may talk about this
+   * client at all; the agent gate is the same one its own thread uses.
+   */
+  const agent = await availableAgent(rawAgent, owner, getPool)
+  if (!agent) return { ok: false, status: 400, error: 'agent is not available' }
+  return { ok: true, thread: clientThread(client), client, agent: agent.id }
 }
 
 /** The client id from the query string, or null when absent. */
