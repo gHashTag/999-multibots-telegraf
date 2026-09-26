@@ -12,6 +12,7 @@ import {
   ГОЛОСА_MINIMAX,
   входМиниМакс,
   имяДляElevenLabs,
+  isCloneVoiceId,
   скоростьРечи,
 } from './src/agent/minimax-voices'
 import * as dns from 'node:dns'
@@ -2607,9 +2608,8 @@ setInterval(
         }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
-        const { botsOwnedBy, allBotOwners } = await import(
-          './src/agent/hive-tools'
-        )
+        const { botsOwnedBy, allBotOwners } =
+          await import('./src/agent/hive-tools')
         const granted = await sweepClubGrants(
           pool,
           { botsOwnedBy, allOwners: allBotOwners },
@@ -2654,9 +2654,8 @@ setInterval(
   () => {
     void (async () => {
       try {
-        const { transcribeBacklogOnce } = await import(
-          './src/agent/transcribe-backlog'
-        )
+        const { transcribeBacklogOnce } =
+          await import('./src/agent/transcribe-backlog')
         const r = await transcribeBacklogOnce(getPool())
         /*
          * THE FIRST TICK SPEAKS EVEN WHEN THERE IS NOTHING.
@@ -2830,9 +2829,8 @@ const ACCEPTANCE_TICK_MS = 30 * 60 * 1000
 const acceptanceTick = () => {
   void (async () => {
     try {
-      const { runDailyAcceptanceIfDue } = await import(
-        './src/agent/daily-acceptance-wiring'
-      )
+      const { runDailyAcceptanceIfDue } =
+        await import('./src/agent/daily-acceptance-wiring')
       const said = await runDailyAcceptanceIfDue(getPool() as any)
       if (said !== 'off' && said !== 'not due' && said !== 'already running')
         console.log(`[acceptance] ${said}`)
@@ -3965,7 +3963,12 @@ const server = createServer(async (req, res) => {
      * его идентификатор), поэтому выбор голоса не значил ничего: три попытки
      * разными голосами стоили трижды и давали один и тот же файл.
      */
-    выбор: { voice?: unknown; speed?: unknown; trustedClone?: boolean } = {} // cyrillic-ok: existing parameter
+    выбор: {
+      voice?: unknown
+      clone?: unknown
+      speed?: unknown
+      trustedClone?: boolean
+    } = {} // cyrillic-ok: existing parameter
   ): Promise<string> {
     const REPLICATE_TOKEN =
       process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
@@ -5087,7 +5090,19 @@ const server = createServer(async (req, res) => {
       // что и модель: возврат живёт в catch.
       let оплаченныеТысячи = 1
       try {
-        const { text, voice_id, voice_name, speed, model } = JSON.parse(body)
+        const { text, voice_id, voice_name, speed, model, clone_voice } =
+          JSON.parse(body)
+        /*
+         * A CLONE (the owner's, or a client's from crm_voice_clone) comes only
+         * in `clone_voice`, and only the service's own calls may send one --
+         * audio_generate fills it from WHO is asking, never from the model's
+         * words. It lives on MiniMax, so the ElevenLabs leg is skipped: it
+         * would answer in some other voice, or not at all.
+         */
+        const cloneVoice =
+          authenticate(req).via === 'api-key' && isCloneVoiceId(clone_voice)
+            ? clone_voice
+            : undefined
         requestedModel = typeof model === 'string' ? model : undefined
 
         /**
@@ -5251,6 +5266,7 @@ const server = createServer(async (req, res) => {
         let timedCaptions: TimedCaption[] | undefined
         let audioProvider = 'elevenlabs'
         try {
+          if (cloneVoice) throw new Error('a MiniMax clone speaks on MiniMax')
           const ELEVENLABS_API_KEY = elevenLabsKey() // throws if not an sk_ key
           const ttsResponse = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}/with-timestamps`,
@@ -5321,9 +5337,10 @@ const server = createServer(async (req, res) => {
             // `voice_id` — то, что прислал клиент; чужой идентификатор
             // `входМиниМакс` отбросит сам, а не отправит провайдеру.
             voice: voice_id,
+            clone: cloneVoice,
             speed,
-            // The owner's MiniMax clone is honoured only when the service
-            // itself asks (the agent's audio_generate), never from a person.
+            // A MiniMax clone is honoured only when the service itself asks
+            // (the agent's audio_generate), never from a person.
             trustedClone: authenticate(req).via === 'api-key',
           })
           const dl = await fetch(audioUrl)
@@ -8577,9 +8594,8 @@ const server = createServer(async (req, res) => {
       if (who !== TELEGRAM_OWNER_ID)
         return sendJson(res, 403, { error: 'только владелец' })
       const { allProviders } = await import('./src/agent/provider')
-      const { chooseProvider, isProviderId } = await import(
-        './src/agent/provider-choice'
-      )
+      const { chooseProvider, isProviderId } =
+        await import('./src/agent/provider-choice')
       if (req.method === 'POST') {
         let asked: unknown = null
         try {
@@ -8649,9 +8665,8 @@ const server = createServer(async (req, res) => {
       // Counts only: which bot's initData confirms (src/auth/initdata-bot-counts.ts).
       const bot = initDataBotOf(req, who)
       if (bot) countInitDataBot(bot, 'proposal_confirm')
-      const { claimAcrossDeploy, execute, idFromBody } = await import(
-        './src/agent/tg-proposals'
-      )
+      const { claimAcrossDeploy, execute, idFromBody } =
+        await import('./src/agent/tg-proposals')
       // idFromBody, not a cast: readBody hands back the raw string, and the
       // cast that pretended otherwise made every confirm press fail silently.
       const asked = idFromBody(await readBody(req))
@@ -8681,9 +8696,8 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/cancel' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { claimAcrossDeploy, idFromBody } = await import(
-        './src/agent/tg-proposals'
-      )
+      const { claimAcrossDeploy, idFromBody } =
+        await import('./src/agent/tg-proposals')
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
       const asked = idFromBody(await readBody(req))
@@ -9456,9 +9470,8 @@ const server = createServer(async (req, res) => {
           )
           // Once per process, not per open of the mini-app: the ALTER takes
           // an exclusive lock even when it has nothing to add.
-          const { ensureInvoiceColumns } = await import(
-            './src/agent/token-invoice'
-          )
+          const { ensureInvoiceColumns } =
+            await import('./src/agent/token-invoice')
           await ensureInvoiceColumns(pool)
           /*
            * EVERY unredeemed row, cancelled ones included. This is the only

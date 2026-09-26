@@ -8,6 +8,8 @@ import {
   входМиниМакс,
   имяДляElevenLabs,
   OWNER_MINIMAX_CLONE,
+  isCloneVoiceId,
+  spokenBrand,
 } from './minimax-voices'
 
 /**
@@ -152,19 +154,45 @@ describe('скорость доходит до КАЖДОЙ ноги, а не д
  * makes, never on a voice id a person types in.
  */
 describe("the owner's MiniMax clone", () => {
-  it('reaches the provider on a trusted service call', () => {
+  it('reaches the provider on a trusted service call, in the clone field', () => {
     expect(
-      входМиниМакс('hello', { voice: OWNER_MINIMAX_CLONE, trustedClone: true }) // cyrillic-ok: existing export
+      входМиниМакс('hello', { clone: OWNER_MINIMAX_CLONE, trustedClone: true }) // cyrillic-ok: existing export
     ).toMatchObject({ voice_id: OWNER_MINIMAX_CLONE })
   })
 
   it('is dropped when a person names it, so nobody else speaks as the owner', () => {
     const body = входМиниМакс('hello', { voice: OWNER_MINIMAX_CLONE }) // cyrillic-ok: existing export
     expect(body).not.toHaveProperty('voice_id')
-    // Trusted or not, a made-up id never reaches the provider.
+    // Untrusted, the clone field is ignored too.
+    expect(
+      входМиниМакс('hello', { clone: OWNER_MINIMAX_CLONE }) // cyrillic-ok: existing export
+    ).not.toHaveProperty('voice_id')
+  })
+
+  /*
+   * THE HOLE THIS CLOSED (2026-09-26). audio_generate forwards the model's
+   * `voice_id` argument to the route with the SERVICE key, so a trusted call
+   * is not proof the service chose the voice. With the clone honoured from
+   * `voice` on a trusted call, any person's agent could write the owner's id
+   * and speak as the owner. Now `voice` is a library voice or nothing.
+   */
+  it('a clone id in `voice` is dropped even on a trusted call', () => {
+    expect(
+      входМиниМакс('hello', { voice: OWNER_MINIMAX_CLONE, trustedClone: true }) // cyrillic-ok: existing export
+    ).not.toHaveProperty('voice_id')
     expect(
       входМиниМакс('hello', { voice: 'R8_SOMEONEELSE', trustedClone: true }) // cyrillic-ok: existing export
     ).not.toHaveProperty('voice_id')
+  })
+
+  it('a clone field that is not an id never reaches the provider', () => {
+    for (const clone of ['', 'a b', 'https://x/y', '<script>', 42, null]) {
+      expect(
+        входМиниМакс('hello', { clone, trustedClone: true }) // cyrillic-ok: existing export
+      ).not.toHaveProperty('voice_id')
+    }
+    expect(isCloneVoiceId('R8_5GW2UI4A')).toBe(true)
+    expect(isCloneVoiceId('lead-voice_900000077')).toBe(true)
   })
 
   it('the route marks only its api-key callers as trusted', () => {
@@ -173,10 +201,45 @@ describe("the owner's MiniMax clone", () => {
     ) // cyrillic-ok: existing name
   })
 
-  it('audio_generate gives the clone to the house only', () => {
+  it('audio_generate gives the owner clone to the house only, in the clone field', () => {
     const tools = fs.readFileSync(path.join(__dirname, 'tools.ts'), 'utf8')
     expect(tools).toMatch(
-      /HOUSE_TELEGRAM_IDS\.includes\(ctx\.telegramId\)\s*\)\s*\{\s*voiceId = OWNER_MINIMAX_CLONE/
+      /HOUSE_TELEGRAM_IDS\.includes\(ctx\.telegramId\)\s*\)\s*\{\s*cloneVoice = OWNER_MINIMAX_CLONE/
     )
+    // The model's own voice_id never carries a clone to the route.
+    expect(tools).toMatch(/clone_voice: cloneVoice/)
+  })
+})
+
+/*
+ * "The bot is always read as TRINITY, otherwise it reads the numbers
+ * crookedly" (the owner, 2026-09-26). The spoken name is one word.
+ */
+describe('the bot is spoken as Trinity', () => {
+  it('turns the written brand into one spoken word', () => {
+    expect(spokenBrand('Я запустил Trinity S³AI DNA.')).toBe(
+      'Я запустил Тринити.' // cyrillic-ok: the spoken line
+    )
+    expect(spokenBrand('Я запустил Trinity S3AI.')).toBe('Я запустил Тринити.') // cyrillic-ok: the spoken line
+    expect(spokenBrand('Я запустил Тринити эс-три эй-ай ди-эн-эй.')).toBe(
+      'Я запустил Тринити.' // cyrillic-ok: the spoken line
+    )
+    expect(spokenBrand('Открой S³AI.')).toBe('Открой Тринити.') // cyrillic-ok: the spoken line
+  })
+
+  it('keeps an English line English', () => {
+    expect(spokenBrand('I launched Trinity S3AI DNA.')).toBe(
+      'I launched Trinity.'
+    )
+  })
+
+  it('leaves a line without the brand as it was', () => {
+    const line = 'Открой бота — подарок уже ждёт.' // cyrillic-ok: the spoken line
+    expect(spokenBrand(line)).toBe(line)
+  })
+
+  it('audio_generate speaks the line through it', () => {
+    const tools = fs.readFileSync(path.join(__dirname, 'tools.ts'), 'utf8')
+    expect(tools).toMatch(/text: spokenBrand\(String\(args\.text\)\)/)
   })
 })

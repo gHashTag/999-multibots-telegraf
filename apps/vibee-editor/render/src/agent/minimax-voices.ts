@@ -119,6 +119,27 @@ export const OWNER_MINIMAX_CLONE = (
 ).trim()
 
 /**
+ * A CLONE TRAVELS IN ITS OWN FIELD, NEVER AS `voice`.
+ *
+ * Until 2026-09-26 the owner's clone rode in `voice` and was honoured when
+ * the caller was trusted. But audio_generate forwards the model's `voice_id`
+ * argument to the route with the service key -- so ANY person whose agent
+ * wrote `voice_id: "R8_5GW2UI4A"` spoke as the owner. A clone (the owner's,
+ * or a client's made by crm_voice_clone) now arrives only as `clone`, which
+ * audio_generate fills itself from who is asking; `voice` is a library voice
+ * or nothing, whoever the caller.
+ *
+ * The shape check keeps a stray string (a URL, a sentence) from reaching the
+ * provider as an id; MiniMax ids are short tokens of letters, digits, `_`
+ * and `-` (`R8_5GW2UI4A`).
+ */
+export function isCloneVoiceId(value: unknown): value is string {
+  return (
+    typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{2,127}$/.test(value)
+  )
+}
+
+/**
  * Тот ли это голос, который MiniMax поймёт.
  *
  * Чужую строку (идентификатор ElevenLabs, запасное `sarah`, пустоту) провайдеру
@@ -162,11 +183,16 @@ export function скоростьРечи(значение: unknown): number | un
  */
 export function входМиниМакс(
   text: string,
-  выбор: { voice?: unknown; speed?: unknown; trustedClone?: boolean } = {} // cyrillic-ok: existing parameter
+  выбор: {
+    voice?: unknown
+    clone?: unknown
+    speed?: unknown
+    trustedClone?: boolean
+  } = {} // cyrillic-ok: existing parameter
 ): Record<string, unknown> {
   const голос = // cyrillic-ok: existing local
-    выбор.trustedClone && выбор.voice === OWNER_MINIMAX_CLONE // cyrillic-ok: existing parameter
-      ? OWNER_MINIMAX_CLONE
+    выбор.trustedClone && isCloneVoiceId(выбор.clone) // cyrillic-ok: existing parameter
+      ? выбор.clone // cyrillic-ok: existing parameter
       : голосMinimax(выбор.voice) // cyrillic-ok: existing names
   const скорость = скоростьРечи(выбор.speed)
   return {
@@ -198,4 +224,29 @@ export function имяДляElevenLabs(значение: unknown): string | unde
   const имя = значение.trim()
   if (!имя || имя.length > 40) return undefined
   return /^[A-Za-z][A-Za-z \-']*$/.test(имя) ? имя : undefined
+}
+
+/**
+ * THE BOT IS SPOKEN AS "TRINITY" (owner, 2026-09-26).
+ *
+ * "The bot is always read as TRINITY, otherwise it reads the numbers
+ * crookedly and nobody understands it." The story reel spelled the name out
+ * letter by letter ("es-three ay-eye dee-en-ay") -- a line of letters and a
+ * digit -- and a TTS voice turns `S³AI DNA` into worse. The written name stays on screen and
+ * in captions; the SPOKEN name is one word. Done here, before the voice, so
+ * it holds whoever wrote the line: the agent, a template, or a person.
+ */
+const HAS_CYRILLIC = /[А-Яа-яЁё]/ // cyrillic-ok: the character class itself
+const BRAND_FULL = /\bTrinity\s*S\s*[³3]\s*AI(?:\s*DNA)?\b/gi
+const BRAND_SPELLED =
+  /Тринити\s+эс[\s-]*три[\s-]*эй[\s-]*ай(?:[\s-]*ди[\s-]*эн[\s-]*эй)?/gi // cyrillic-ok: the spelled-out reading this replaces
+const BRAND_BARE = /\bS\s*[³3]\s*AI(?:\s*DNA)?\b/gi
+
+export function spokenBrand(text: string): string {
+  const name = HAS_CYRILLIC.test(text) ? 'Тринити' : 'Trinity' // cyrillic-ok: the spoken name
+  return text
+    .replace(BRAND_FULL, name)
+    .replace(BRAND_SPELLED, name)
+    .replace(BRAND_BARE, name)
+    .replace(/\bTrinity\b/g, name)
 }

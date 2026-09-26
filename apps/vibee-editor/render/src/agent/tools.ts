@@ -69,6 +69,9 @@ import {
   PORTRAIT_FRAMING_SUFFIX,
 } from './client-face'
 import { makeClientFaceTool } from './client-face-tool'
+import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
+import { cloneOnReplicate, joinVoiceNotes, leadVoiceOf } from './lead-voice'
+import { s3PutBytes } from '../lib/s3-put'
 import { ROOM_PEOPLE_TOOLS } from './room-people'
 
 import { BROWSER_TOOLS } from '../browser/agent-tools'
@@ -76,7 +79,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join as joinPath } from 'node:path'
 import { withShelfFile } from './media-extract'
-import { OWNER_MINIMAX_CLONE } from './minimax-voices'
+import { OWNER_MINIMAX_CLONE, spokenBrand } from './minimax-voices'
 import { Agent as UndiciAgent } from 'undici'
 import {
   LIPSYNC_DEFAULT_MODEL,
@@ -842,6 +845,7 @@ async function spendTokens(
     const balance = r.balance
     return {
       ok: false,
+      // cyrillic-ok: the tools’ answer fields
       причина:
         `не хватает токенов: нужно ${price}, есть ${balance}. ` +
         'Пополняется звёздами Telegram — скажи человеку и предложи бесплатные действия (лента, SOUL, ремикс из готовых файлов)',
@@ -1359,6 +1363,7 @@ export const TOOLS: AgentTool[] = [
       if (!/#\w/.test(String(args.description || ''))) {
         return {
           опубликовано: false,
+          // cyrillic-ok: the tools’ answer fields
           причина:
             'в тексте поста нет ни одного хештега. По канону проекта к видео всегда идёт текст ' +
             'для инстаграма с хештегами — добавь их и повтори.',
@@ -1838,7 +1843,8 @@ export const TOOLS: AgentTool[] = [
       if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
-          сделано: false,
+          сделано: false, // cyrillic-ok: the tools’ answer fields
+          // cyrillic-ok: the tools’ answer fields
           причина:
             `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца. ` +
             'Скажи человеку честно и предложи собрать ролик из уже готовых файлов (my_assets).',
@@ -1894,10 +1900,11 @@ export const TOOLS: AgentTool[] = [
           charge['потрачено']
         )
         return {
-          сделано: false,
+          сделано: false, // cyrillic-ok: the tools’ answer fields
           // Quoted, so the repository's Cyrillic guard reads this as the string
           // it is -- the tool's own response field -- rather than as a Russian
           // identifier newly added to code.
+          // cyrillic-ok: the tools’ answer fields
           причина:
             `генерация не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`.slice(
               0,
@@ -1923,7 +1930,7 @@ export const TOOLS: AgentTool[] = [
           charge['потрачено']
         )
         return {
-          сделано: false,
+          сделано: false, // cyrillic-ok: the tools’ answer fields
           причина: `картинка сгенерирована, но не скачалась: HTTP ${img.status}`,
           provider: servedBy,
           tried: refusals,
@@ -1958,7 +1965,7 @@ export const TOOLS: AgentTool[] = [
           charge['потрачено']
         )
         return {
-          сделано: false,
+          сделано: false, // cyrillic-ok: the tools’ answer fields
           причина: `S3 не принял файл: HTTP ${up.status}`,
           provider: servedBy,
           tried: refusals,
@@ -1992,6 +1999,7 @@ export const TOOLS: AgentTool[] = [
     description:
       'Озвучить текст голосом (ElevenLabs). Без voice_id берётся КЛОН ВЛАДЕЛЬЦА, ' +
       'а если своего клона в аккаунте нет — библиотечный, и это будет сказано в ответе. ' +
+      'for_lead — голосом клиента (его клон из crm_voice_clone), только для материалов ему же. ' +
       'Работает ТОЛЬКО при валидном ключе аккаунта: если вернулась ' +
       'ошибка про голоса — озвучка не настроена, честно скажи это и собери рилс без звука. ' +
       'Если voice_id не знаешь — не указывай, возьмётся первый доступный голос.',
@@ -2002,6 +2010,11 @@ export const TOOLS: AgentTool[] = [
         voice_id: {
           type: 'string',
           description: 'идентификатор голоса ElevenLabs, необязателен',
+        },
+        for_lead: {
+          type: 'string',
+          description:
+            'id или @username клиента, чей клон сделан crm_voice_clone: говорить ЕГО голосом',
         },
       },
       required: ['text'],
@@ -2031,7 +2044,35 @@ export const TOOLS: AgentTool[] = [
        */
       let voiceId = args.voice_id ? String(args.voice_id) : ''
       let голосВладельца = false
-      if (!voiceId) {
+      /*
+       * A CLONE IS CHOSEN HERE, FROM WHO IS ASKING -- never from the model's
+       * words. It travels to the route as `clone_voice`, which the route
+       * honours only from the service itself (minimax-voices.ts).
+       */
+      let cloneVoice = ''
+      let голосКлиента = false // cyrillic-ok: local flag next to голосВладельца
+      if (args.for_lead) {
+        const theirs = await leadVoiceOf(
+          ctx.pool,
+          String(ctx.telegramId),
+          String(args.for_lead)
+        ).catch(() => null)
+        if (!theirs) {
+          await refundTokens(
+            ctx,
+            'audio_generate',
+            'клона голоса клиента нет',
+            charge['потрачено']
+          )
+          const why =
+            'клона его голоса ещё нет: сначала crm_voice_clone {chat} из его голосовых в личке'
+          return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+        }
+        cloneVoice = theirs.voiceId
+        голосКлиента = true // cyrillic-ok: local flag
+        voiceId = ''
+      }
+      if (!voiceId && !cloneVoice) {
         const v = await selfFetch(`${base}/api/voices`)
         const vData: any = await v.json().catch(() => null)
         const list: any[] = Array.isArray(vData?.voices) ? vData.voices : []
@@ -2052,13 +2093,14 @@ export const TOOLS: AgentTool[] = [
        */
       if (
         !args.voice_id &&
+        !cloneVoice &&
         !голосВладельца && // cyrillic-ok: existing local
         HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)
       ) {
-        voiceId = OWNER_MINIMAX_CLONE
+        cloneVoice = OWNER_MINIMAX_CLONE
         голосВладельца = true // cyrillic-ok: existing local
       }
-      if (!voiceId) {
+      if (!voiceId && !cloneVoice) {
         await refundTokens(
           ctx,
           'audio_generate',
@@ -2066,21 +2108,28 @@ export const TOOLS: AgentTool[] = [
           charge['потрачено']
         )
         return {
-          сделано: false,
+          сделано: false, // cyrillic-ok: the tools’ answer fields
           причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY',
         }
       }
       // Агент должен знать, чьим голосом озвучено: если библиотечным —
       // стоит предложить человеку записать свой клон.
-      const голос = args.voice_id
-        ? 'выбран явно'
-        : голосВладельца
-          ? 'клон владельца'
-          : 'библиотечный — своего клона в аккаунте нет, предложи записать'
+      const голос = голосКлиента // cyrillic-ok: local flag
+        ? 'клон клиента'
+        : args.voice_id
+          ? 'выбран явно'
+          : голосВладельца
+            ? 'клон владельца'
+            : 'библиотечный — своего клона в аккаунте нет, предложи записать'
       const gen = await selfFetch(`${base}/api/generate/audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: String(args.text), voice_id: voiceId }),
+        body: JSON.stringify({
+          // The bot is spoken as one word, "Trinity" (minimax-voices.ts).
+          text: spokenBrand(String(args.text)),
+          voice_id: voiceId,
+          ...(cloneVoice ? { clone_voice: cloneVoice } : {}),
+        }),
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
@@ -2091,7 +2140,7 @@ export const TOOLS: AgentTool[] = [
           charge['потрачено']
         )
         return {
-          сделано: false,
+          сделано: false, // cyrillic-ok: the tools’ answer fields
           причина: `озвучка не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
         }
       }
@@ -2144,7 +2193,7 @@ export const TOOLS: AgentTool[] = [
       if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
-          сделано: false,
+          сделано: false, // cyrillic-ok: the tools’ answer fields
           причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`,
         }
       }
@@ -2180,7 +2229,7 @@ export const TOOLS: AgentTool[] = [
           charge['потрачено']
         )
         return {
-          сделано: false,
+          сделано: false, // cyrillic-ok: the tools’ answer fields
           причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}`,
         }
       }
@@ -3483,6 +3532,34 @@ TOOLS.push(
   })
 )
 /*
+ * A CLIENT'S OWN VOICE (crm_voice_clone), for the gift made for her: the
+ * second lead magnet, a story reel about her business in her voice. The
+ * notes come from the owner's own session; the charge and the refund are
+ * this file's, so the price is the one the table names (billing-shared).
+ */
+TOOLS.push(
+  makeLeadVoiceTool({
+    notes: LIVE_NOTES,
+    charge: async ctx => {
+      const c = await spendTokens(ctx, 'voice_clone')
+      return c.ok
+        ? { ok: true, spent: c['потрачено'] ?? 0 }
+        : { ok: false, why: String(c.причина) } // cyrillic-ok: the tools’ answer fields
+    },
+    refund: (ctx, why, spent) => refundTokens(ctx, 'voice_clone', why, spent),
+    put: (bytes, name, mime) => s3PutBytes(bytes, name, mime),
+    join: joinVoiceNotes,
+    clone: url =>
+      cloneOnReplicate(url, {
+        token:
+          process.env.REPLICATE_API_TOKEN ||
+          process.env.REPLICATE_API_KEY ||
+          '',
+      }),
+    price: TOKEN_PRICES.voice_clone,
+  })
+)
+/*
  * WHO IS IN THE ROOM (crm_room_people). The morning post needs the members of
  * a group, which the Bot API cannot list -- the owner's own session can. A
  * screen/timer helper like the avatars batch: DIRECT_CALL_ONLY below, so a
@@ -3696,9 +3773,13 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
  * the price list beside it would be a link with nothing said about it.
  */
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
-/** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
+/**
+ * Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them.
+ * `crm_voice_clone` is out for a plainer reason: its only use is the story-reel gift, which also needs image_edit,
+ * lipsync_generate and reel_render -- none of them in the kit -- so a small model could clone a voice and do nothing with it.
+ */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_voice_clone)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
