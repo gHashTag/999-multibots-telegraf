@@ -415,6 +415,7 @@ describe('what happens when the pod says 422', () => {
   it('DOES NOT TOUCH A SCREEN THAT IS ALREADY THE RIGHT SHAPE', async () => {
     /* Every ask restarts the video, so the cheapest ask is the one not made. */
     const asked: string[] = []
+    let loggedOut = 0
     const fetcher = async (url: string, init?: { method?: string }) => {
       const ok = (o: unknown) => ({
         ok: true,
@@ -422,6 +423,12 @@ describe('what happens when the pod says 422', () => {
         text: async () => JSON.stringify(o),
       })
       if (url.endsWith('/api/login')) return ok({ token: 'b' })
+      // Handing the admin session back (#3061 withNekoAdmin) is a POST too,
+      // and it is not a screen change: counted apart, and required.
+      if (url.endsWith('/api/logout')) {
+        loggedOut++
+        return ok({})
+      }
       if ((init?.method || 'GET') === 'POST') {
         asked.push('post')
         return ok({})
@@ -436,6 +443,7 @@ describe('what happens when the pod says 422', () => {
     )
     expect(asked).toEqual([])
     expect(got).toEqual({ width: 368, height: 536, rate: 29 })
+    expect(loggedOut).toBe(1)
   })
 
   it('does not ask twice when the exact size was taken', async () => {
