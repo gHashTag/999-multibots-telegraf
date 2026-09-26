@@ -10,6 +10,8 @@ import {
   pickForAutopilot,
   recordTouch,
   loadMoveStats,
+  loadClientTimeline,
+  type ClientTimeline as Timeline,
   recordMoveUse,
   type ClientProfile,
   type ClientHistory,
@@ -19,6 +21,11 @@ import {
 } from '@/lib/crm'
 import { Avatar } from '@/components/Crm/Avatar'
 import { ClientGroup } from '@/components/Crm/ClientGroup'
+import {
+  ClientDrafts,
+  ClientFeed,
+  ClientSummary,
+} from '@/components/Crm/ClientTimeline'
 import {
   daysSince,
   MIN_MOVE_USES,
@@ -121,6 +128,8 @@ export function ClientAside({
   const [picked, setPicked] = useState<boolean | null>(null)
   /** What followed each move for this owner's clients; null = rule order. */
   const [experience, setExperience] = useState<MoveExperience | null>(null)
+  /** The feed and the summary numbers (crm_client_timeline). */
+  const [timeline, setTimeline] = useState<Reached<Timeline>>(empty)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -128,13 +137,14 @@ export function ClientAside({
     void (async () => {
       // In parallel: five independent reads; one slow tool must not hold the
       // rest of the card off the screen.
-      const [p, c, h, pl, picks, xp] = await Promise.all([
+      const [p, c, h, pl, picks, xp, tl] = await Promise.all([
         loadClientProfile(client),
         loadLeadContext(client),
         loadClientHistory(client),
         loadClientPlan(client),
         loadAutopilotLeads(),
         loadMoveStats(),
+        loadClientTimeline(client),
       ])
       if (!alive) return
       setProfile(p)
@@ -143,6 +153,7 @@ export function ClientAside({
       setPlan(pl)
       setPicked(picks.data ? picks.data.includes(client) : null)
       setExperience(xp)
+      setTimeline(tl)
     })()
     return () => {
       alive = false
@@ -162,6 +173,7 @@ export function ClientAside({
     setNote('')
     setNoteState('saved')
     setHistory(await loadClientHistory(client))
+    setTimeline(await loadClientTimeline(client))
   }, [client, note])
 
   const ctx = context.data
@@ -301,8 +313,12 @@ export function ClientAside({
               </dd>
             </div>
           </dl>
+          <ClientSummary timeline={timeline.data ?? null} />
         </>
       )}
+
+      {/* Cards for this client waiting for the owner's press. */}
+      <ClientDrafts client={client} />
 
       {ctx?.assistantOff ? (
         <p className="chat-aside__stop">{t('crm.aside.assistantOff')}</p>
@@ -533,7 +549,9 @@ export function ClientAside({
 
         {tab === 'history' ? (
           <>
-            {!history.reachable ? (
+            {timeline.reachable && timeline.data ? (
+              <ClientFeed timeline={timeline.data} />
+            ) : !history.reachable ? (
               <p className="chat-aside__off">{t('crm.client.unreachable')}</p>
             ) : hi && hi.touches.length > 0 ? (
               <ul className="chat-aside__list chat-aside__touches">
