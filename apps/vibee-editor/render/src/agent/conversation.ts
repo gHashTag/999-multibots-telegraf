@@ -58,6 +58,11 @@ export function clientThread(clientId: string): string {
   return `client:${clientId}`
 }
 
+/** The Queen's supervision of one client: beside the agent's thread, never inside it. */
+export function supervisorThread(clientId: string): string {
+  return `client:${clientId}:queen`
+}
+
 /**
  * A ROOM HAS ITS OWN MEMORY, AND THAT IS THE WHOLE POINT.
  *

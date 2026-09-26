@@ -169,6 +169,70 @@ describe('threadFor', () => {
   })
 })
 
+/**
+ * THE QUEEN'S THREAD BESIDE A CLIENT'S (owner, 2026-09-24). Her own thread,
+ * only with a client, behind the same seller gate -- a stranger cannot open
+ * a supervisor's view of somebody else's client by adding role=supervisor.
+ */
+describe('threadFor, role=supervisor', () => {
+  it('opens the Queen thread for a seller and a client, flagged', async () => {
+    expect(
+      await threadFor(
+        CLIENT,
+        SELLER,
+        getPool,
+        undefined,
+        undefined,
+        'supervisor'
+      )
+    ).toEqual({
+      ok: true,
+      thread: 'client:' + CLIENT + ':queen',
+      client: CLIENT,
+      supervisor: true,
+    })
+  })
+  it('refuses it without a client, and for a non-seller', async () => {
+    expect(
+      await threadFor(
+        undefined,
+        SELLER,
+        getPool,
+        undefined,
+        undefined,
+        'supervisor'
+      )
+    ).toMatchObject({ ok: false, status: 400 })
+    expect(
+      await threadFor(
+        CLIENT,
+        STRANGER,
+        getPool,
+        undefined,
+        undefined,
+        'supervisor'
+      )
+    ).toMatchObject({ ok: false, status: 403 })
+  })
+  it('the Queen brings no specialist', async () => {
+    expect(
+      await threadFor(
+        CLIENT,
+        SELLER,
+        getPool,
+        'blogger',
+        undefined,
+        'supervisor'
+      )
+    ).toMatchObject({ ok: false, status: 400 })
+  })
+  it('any other role is the plain client thread', async () => {
+    expect(
+      await threadFor(CLIENT, SELLER, getPool, undefined, undefined, 'admin')
+    ).toEqual({ ok: true, thread: 'client:' + CLIENT, client: CLIENT })
+  })
+})
+
 describe('the four routes with a client', () => {
   it('chat: 400 / 403 before the stream opens and before any thread read', async () => {
     const bad = res()

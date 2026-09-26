@@ -198,7 +198,7 @@ export function drainQueue(): void {
 export function messageContentForAgent(message: Message): string {
   const oneLine = (value: string, limit: number) =>
     value
-      .replace(/[\r\n\[\]]+/g, ' ')
+      .replace(/[\r\n[\]]+/g, ' ')
       .trim()
       .slice(0, limit)
   const attachmentLines = (message.attachments ?? []).map(

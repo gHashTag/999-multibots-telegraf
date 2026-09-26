@@ -987,6 +987,36 @@ export function voiceLine(surface?: string): string {
 }
 
 /**
+ * THE QUEEN, SUPERVISING ONE CLIENT (owner, 2026-09-24: "on the right, a
+ * chat with the Queen supervisor: she has the client card and history in
+ * context and can set the agent a task directly -- that is where I make my
+ * life simpler").
+ *
+ * She sees what the agent sees about the client (the brief above) plus what
+ * the agent has been doing in the client's thread, and she has no tools. Her
+ * output that matters is a TASK for the agent, written as a marker the app
+ * turns into a "give to the agent" press (player lib/queenTasks.ts). The
+ * marker is the only channel: she never addresses the client.
+ * Exported for the test.
+ */
+export function supervisorBlock(agentLog?: string): string {
+  const log = (agentLog ?? '').trim()
+  return (
+    '\n\nТЫ — КОРОЛЕВА, СУПЕРВАЙЗЕР ПРОДАЖ ПО ЭТОМУ КЛИЕНТУ. ' + // cyrillic-ok: prompt copy
+    'Ты говоришь с владельцем, не с клиентом, и не пишешь клиенту никогда. ' + // cyrillic-ok: prompt copy
+    'Инструментов у тебя нет: ты читаешь карточку, SOUL, план и историю выше и работу агента ниже, ' + // cyrillic-ok: prompt copy
+    'видишь, где продажа застряла, и коротко говоришь, что делать. ' + // cyrillic-ok: prompt copy
+    'Когда нужно действие, поставь агенту задачу отдельной строкой: [[task: что сделать, для кого и с каким результатом]]. ' + // cyrillic-ok: prompt copy
+    'Одна строка — одна задача, конкретно и проверяемо («подготовь портрет 9:16 из её аватарки и карточку отправки с одним вопросом про ритм роликов»). ' + // cyrillic-ok: prompt copy
+    'Не больше трёх задач за ответ. Всё, что уходит клиенту, агент готовит карточкой, а отправляет владелец.' + // cyrillic-ok: prompt copy
+    (log
+      ? '\n\nЧТО АГЕНТ ДЕЛАЛ В РАЗГОВОРЕ ОБ ЭТОМ КЛИЕНТЕ (старое сверху):\n' + // cyrillic-ok: prompt copy
+        log
+      : '\n\nВ разговоре с агентом об этом клиенте пока ничего не было.') // cyrillic-ok: prompt copy
+  )
+}
+
+/**
  * WHERE THE OWNER PRESSES "SEND".
  *
  * Owner, 2026-09-24: the agent drew Farisha's portrait, prepared the send,
@@ -1774,8 +1804,7 @@ export async function* streamModel(
     const body: Record<string, unknown> = {
       model: p.model,
       messages: useParts ? withMediaParts(messages) : messages,
-      tools: toOpenAITools(p, opts.denyTools),
-      tool_choice: 'auto',
+      ...toolsField(toOpenAITools(p, opts.denyTools)),
       temperature: 0.3,
       stream: true,
     }
@@ -2004,6 +2033,15 @@ export async function* streamModel(
  * История передаётся целиком: серверная сессия пережила бы перезапуск хуже,
  * чем клиент переживёт повторную отправку, а перезапуски здесь регулярны.
  */
+/**
+ * `tools` and `tool_choice` only when there is a tool to offer: an empty
+ * list is refused outright by some providers, and a turn with every tool
+ * denied (the Queen) must still get an answer.
+ */
+export function toolsField(tools: unknown[]): Record<string, unknown> {
+  return tools.length ? { tools, tool_choice: 'auto' } : {}
+}
+
 export async function* runAgent(
   history: ChatMessage[],
   ctx: ToolContext,
@@ -2019,6 +2057,14 @@ export async function* runAgent(
     client?: string
     /** A live labour-market specialist selected by the person. */
     marketplaceAgent?: string
+    /**
+     * THE QUEEN: a supervisor's turn about `client` (routes.ts threadFor
+     * role=supervisor). No tools at all -- she reads, reasons and writes
+     * tasks for the agent; she cannot send, pay or open anything.
+     */
+    supervisor?: boolean
+    /** The agent's side of this client's conversation, for the Queen. */
+    agentLog?: string
     /**
      * The lead this turn makes pictures for, WITHOUT making it that lead's
      * thread (a scoped sweep, the "prepare" press). See clientTurnContext.
@@ -2249,7 +2295,12 @@ export async function* runAgent(
       })
     : ''
 
-  const dmContext = dmHistory + clientBrief + clientContext + personContext
+  const dmContext =
+    dmHistory +
+    clientBrief +
+    clientContext +
+    personContext +
+    (opts?.supervisor ? supervisorBlock(opts.agentLog) : '')
 
   /*
    * A CLIENT'S CHAT SEES ONLY ITSELF (client-facing.ts, 21.09.2026).
@@ -2259,7 +2310,15 @@ export async function* runAgent(
    * account holder's browser are neither listed nor run -- whoever's session
    * `ctx.telegramId` resolves to. The caller's own denials keep their reasons.
    */
-  const denial = clientSurfaceDenial(opts?.surface, opts, TOOLS_BY_NAME.keys())
+  const denial0 = clientSurfaceDenial(opts?.surface, opts, TOOLS_BY_NAME.keys())
+  // The Queen has no hands: every tool is denied, so nothing she says can
+  // reach a client, a wallet or a browser. She works through the owner.
+  const denial = opts?.supervisor
+    ? {
+        ...denial0,
+        denyTools: new Set<string>(TOOLS_BY_NAME.keys()),
+      }
+    : denial0
 
   // Decided once per turn: a seller is anyone with a connected account.
   const seller = await (async () => {

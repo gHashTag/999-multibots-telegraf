@@ -206,8 +206,8 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
 - A feature that is "connected" only after the person does something they
   were never told how to do is not connected. Check the empty state first:
   that is what the owner sees on day one.
-- A bare-fetch sweep of the app (`grep fetch(\`${API_BASE}` without auth
-  headers, then `tri reach` each path) found the two dead routes of this
+- A bare-fetch sweep of the app (`grep fetch(\`${API_BASE}`without auth
+headers, then`tri reach` each path) found the two dead routes of this
   tick in one pass. Run it after adding any route the app calls.
 
 - Related tests are not the suite. Two of my own merged ticks (3 and 7)
