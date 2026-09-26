@@ -5357,7 +5357,8 @@ Swapping `KIE_WEB_MODEL.lipsync` from `veed/fabric-1` ($0.09/s) to
 **36 tokens for a 6-token operation** — six times over. The cost entry must name
 the same provider that sits in the allowlist.
 
-And some prices are **per second**: lipsync bills `6 × ceil(audio duration)`
+And some prices are **per second**: lipsync bills `unit × ceil(audio duration)`
+(16 a second for Kling AI Avatar, the default since 2026-09-26)
 (`billedSeconds`). A client that compares a balance against the unit price will
 promise "enough" and be refused. State the unit.
 

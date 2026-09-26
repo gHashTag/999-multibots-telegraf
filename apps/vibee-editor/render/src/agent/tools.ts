@@ -77,6 +77,7 @@ import { join as joinPath } from 'node:path'
 import { withShelfFile } from './media-extract'
 import { Agent as UndiciAgent } from 'undici'
 import {
+  LIPSYNC_DEFAULT_MODEL,
   LIPSYNC_MODELS,
   LIPSYNC_TOOL_MAX_SECONDS,
   LIPSYNC_UPLOAD_RETRY_MS,
@@ -2186,7 +2187,7 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'lipsync_generate',
     description:
-      'ГОВОРЯЩЕЕ ЛИЦО: фото + голос → видео, где губы идут за звуком (KIE InfiniteTalk). ' +
+      'ГОВОРЯЩЕЕ ЛИЦО: фото + голос → видео, где губы идут за звуком (Kling AI Avatar по умолчанию — выбор владельца). ' +
       'image_url — лицо на нашей полке (результат image_edit или присланное фото). ' +
       'voice_url — голос на нашей полке: звук ИЛИ видео; из видео берётся звуковая дорожка, ' +
       'так голос владельца берётся из собственного рилса. ' +
@@ -2219,8 +2220,7 @@ export const TOOLS: AgentTool[] = [
           type: 'string',
           enum: [...LIPSYNC_MODELS],
           description:
-            'kie/kling/ai-avatar-standard — выбор владельца: весь голос до 30 с ОДНИМ проходом, без стыков, 16 ток/с. ' +
-            'Не задан — InfiniteTalk по цене инструмента, куски по 10 с (на стыках лицо начинает заново). ' +
+            'не задан — kie/kling/ai-avatar-standard (выбор владельца): голос до 30 с ОДНИМ проходом, без стыков. ' +
             'Другая модель — по её цене за секунду (pricing)',
         },
       },
@@ -2259,13 +2259,14 @@ export const TOOLS: AgentTool[] = [
           reason: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`,
         }
       /*
-       * A NAMED MODEL IS PRICED AS ITSELF, AN UNNAMED ONE AS THE TOOL -- the
-       * way the route prices the same call for the Mini App. A name outside
-       * the list is refused here, for free, rather than swapped for the
-       * default at the route after a charge.
+       * EVERY CALL NAMES ITS MODEL, and is priced as that model. Unnamed means
+       * Kling AI Avatar, the owner's pick of 2026-09-26 ("the best in quality
+       * and price"): named, it takes the whole voice in one pass and never
+       * falls back to fal. A name outside the list is refused here, for free,
+       * rather than swapped for the default at the route after a charge.
        */
-      const model = args.model ? String(args.model) : undefined
-      if (model !== undefined && !LIPSYNC_MODELS.includes(model))
+      const model = args.model ? String(args.model) : LIPSYNC_DEFAULT_MODEL
+      if (!LIPSYNC_MODELS.includes(model))
         return {
           done: false,
           reason: `модель ${model} не допущена к липсинку: ${LIPSYNC_MODELS.join(' | ')}. Ничего не списано.`,
@@ -2362,7 +2363,7 @@ export const TOOLS: AgentTool[] = [
                   body: JSON.stringify({
                     image_url: publicShelfUrl(imageKey),
                     audio_url: audioUrl,
-                    ...(model ? { model } : {}),
+                    model,
                   }),
                   dispatcher: new UndiciAgent({
                     headersTimeout: waitMs,
@@ -2423,7 +2424,7 @@ export const TOOLS: AgentTool[] = [
               seconds: Math.round(measured * 10) / 10,
               parts: parts.length,
               leadSilence,
-              model: model || null,
+              model,
               provider: clips[0]?.provider || null,
             },
             charge['потрачено']

@@ -70,6 +70,7 @@ vi.mock('./src/agent/lipsync-voice', async importOriginal => {
 })
 
 import {
+  LIPSYNC_DEFAULT_MODEL,
   LIPSYNC_MODELS,
   LIPSYNC_PART_TARGET_SECONDS,
   LIPSYNC_POLL_INTERVAL_MS,
@@ -391,15 +392,17 @@ describe('the real handler', () => {
     expect(ff.voice).toEqual([])
   })
 
-  it('a 20-second voice: one charge for every second, three parts, one reel', async () => {
+  it('a 20-second voice on a 10-second model: one charge for every second, three parts, one reel', async () => {
+    const model = 'kie/omnihuman-1-5'
     const { r, pool } = await ask({
       image_url: `${BUCKET}/assets/glam.png`,
       voice_url: `${RENDER}/s3/assets/IMG_3522.mp4`,
       lead_silence_s: 1.5,
+      model,
     })
     expect(r.done, JSON.stringify(r)).toBe(true)
     // One deduction, for 3 parts x 8 billed seconds at the per-second price.
-    const price = TOKEN_PRICES.lipsync_generate
+    const price = priceForModel('lipsync_generate', model) as number
     expect(price).toBeGreaterThan(0)
     expect(debits(pool.sqls)).toEqual([24 * price])
     expect(credits(pool.sqls)).toEqual([])
@@ -438,12 +441,15 @@ describe('the real handler', () => {
    * tried again.
    */
   it('the voice parts go on the shelf one at a time', async () => {
+    // A 10-second model, so there ARE several parts to upload.
     const { r } = await ask({
       image_url: `${BUCKET}/assets/glam.png`,
       voice_url: `${BUCKET}/assets/voice.mp4`,
       lead_silence_s: 1.5,
+      model: 'kie/omnihuman-1-5',
     })
     expect(r.done, JSON.stringify(r)).toBe(true)
+    expect(ff.cuts.length).toBeGreaterThan(1)
     expect(maxUploadsInFlight).toBe(1)
   })
 
@@ -547,27 +553,40 @@ describe('the real handler', () => {
     }
   })
 
-  it('an unnamed model leaves the route its default, at the tool price', async () => {
-    await ask({
+  it("an unnamed call is Kling, the owner's default: asked by name, one pass, priced as Kling", async () => {
+    // Owner, 2026-09-26: "the best in quality and price -- make it the default".
+    const kling = 'kie/kling/ai-avatar-standard'
+    expect(LIPSYNC_DEFAULT_MODEL).toBe(kling)
+    const { r, pool } = await ask({
       image_url: `${BUCKET}/assets/glam.png`,
       voice_url: `${BUCKET}/assets/voice.mp4`,
     })
+    expect(r.done, JSON.stringify(r)).toBe(true)
     const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
-    for (const c of routes)
-      expect((c.body as { model?: string }).model).toBeUndefined()
+    expect(routes).toHaveLength(1)
+    expect((routes[0].body as { model?: string }).model).toBe(kling)
+    const unit = priceForModel('lipsync_generate', kling) as number
+    expect(debits(pool.sqls)).toEqual([22 * unit])
+    // The operation's own price follows the default, so the Mini App's
+    // unnamed press costs what Kling costs, not InfiniteTalk's old 6.
+    expect(TOKEN_PRICES.lipsync_generate).toBe(unit)
   })
 
   it('a part the provider refuses: everything taken is given back, once', async () => {
     failPart = 2
+    const model = 'kie/omnihuman-1-5'
     const { r, pool } = await ask({
       image_url: `${BUCKET}/assets/glam.png`,
       voice_url: `${BUCKET}/assets/voice.mp4`,
       lead_silence_s: 1.5,
+      model,
     })
     expect(r.done).toBe(false)
     expect(String(r.reason)).toMatch(/возвращены/) // cyrillic-ok: the refusal copy
     const taken = debits(pool.sqls)
-    expect(taken).toEqual([24 * TOKEN_PRICES.lipsync_generate])
+    expect(taken).toEqual([
+      24 * (priceForModel('lipsync_generate', model) as number),
+    ])
     expect(credits(pool.sqls)).toEqual(taken)
   })
 
@@ -580,8 +599,12 @@ describe('the real handler', () => {
     expect(r.done, JSON.stringify(r)).toBe(true)
     expect(ff.voice[0].maxSeconds).toBe(LIPSYNC_TOOL_MAX_SECONDS)
     expect(debits(pool.sqls)).toEqual([
-      billedSecondsOf(splitPlan(LIPSYNC_TOOL_MAX_SECONDS)) *
-        TOKEN_PRICES.lipsync_generate,
+      billedSecondsOf(
+        splitPlan(
+          LIPSYNC_TOOL_MAX_SECONDS,
+          partTargetSecondsFor(LIPSYNC_DEFAULT_MODEL)
+        )
+      ) * (priceForModel('lipsync_generate', LIPSYNC_DEFAULT_MODEL) as number),
     ])
   })
 })

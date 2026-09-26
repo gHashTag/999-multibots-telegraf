@@ -101,9 +101,10 @@ describe('the markup is in the code', () => {
   it('the sale price is the cost times the markup over the base', () => {
     expect(НАЦЕНКА).toBeGreaterThan(1) // cyrillic-ok: existing export name
     expect(COST_PER_TOKEN_USD).toBeGreaterThan(0)
-    // lipsync, the operation the stale docs quoted at half.
+    // lipsync, the operation the stale docs quoted at half. Its cost is
+    // Kling AI Avatar's $0.04 a second since 2026-09-26, the owner's default.
     expect(priceFor('lipsync_generate')).toBe(
-      Math.ceil((0.015 * НАЦЕНКА) / COST_PER_TOKEN_USD) // cyrillic-ok: export name
+      Math.ceil((0.04 * НАЦЕНКА) / COST_PER_TOKEN_USD) // cyrillic-ok: export name
     )
   })
 })

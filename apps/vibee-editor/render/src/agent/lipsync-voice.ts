@@ -136,6 +136,13 @@ export const LIPSYNC_MODELS: readonly string[] = [
   'kie/kling/ai-avatar-standard',
 ]
 
+/**
+ * The model a call gets when it names none: Kling AI Avatar. The owner
+ * compared the 3-second probes and the finished reels on 2026-09-26: "the
+ * best in quality and in price -- make it the default".
+ */
+export const LIPSYNC_DEFAULT_MODEL = 'kie/kling/ai-avatar-standard'
+
 /** The largest voice file read from the shelf: the shelf's own upload limit. */
 export const LIPSYNC_VOICE_MAX_BYTES = 100 * 1024 * 1024
 
