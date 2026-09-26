@@ -66,10 +66,12 @@ export const KIE_WEB_MODELS: Record<
    * 6 токенов. Цена для человека не меняется — меняется то, что вкладка
    * начинает работать.
    */
+  // Kling AI Avatar since 2026-09-26: the owner's pick for quality and
+  // price, the server's default, and the model the operation is priced by.
   lipsync: [
     {
-      id: 'kie/infinitalk/from-audio',
-      name: 'Kie · InfiniTalk',
+      id: 'kie/kling/ai-avatar-standard',
+      name: 'Kie · Kling AI Avatar',
       description: 'Говорящий портрет по фото и голосу',
     },
   ],

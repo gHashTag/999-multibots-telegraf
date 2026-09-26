@@ -109,8 +109,14 @@ export const OPERATION_COST_USD: Record<string, number> = {
    * said "3 instead of 18" -- the same arithmetic WITHOUT the markup that the
    * skill page carried. The comment outlived the constant's arrival while
    * standing two lines away from it.
+   *
+   * NOW 0.04: Kling AI Avatar, $0.04 a second on KIE's price list, the
+   * default model since the owner chose it on 2026-09-26 ("the best in
+   * quality and in price"). The route's first model and the agent tool's
+   * default are Kling, so the operation's price follows it: 16 tokens a
+   * second, the same as Kling named.
    */
-  lipsync_generate: 0.015,
+  lipsync_generate: 0.04,
   reel_render: 0.005,
 }
 /**
