@@ -113,6 +113,41 @@ describe('the driver restarts the pod for real, or admits it cannot', () => {
     expect(sent[1]).toContain('deploymentRestart')
   })
 
+  it('asks for a SUCCESS deployment the way the API accepts it', async () => {
+    /*
+     * The double above answers any query, so it could not catch this: the live
+     * API refuses `status: 'SUCCESS'` with HTTP 400, because
+     * DeploymentStatusInput is a filter of lists. Shape pinned here, checked
+     * against the pod's own service on 2026-09-26.
+     */
+    const vars: Record<string, unknown>[] = []
+    const fetchImpl = (async (_url: string, init: { body: string }) => {
+      const body = JSON.parse(init.body) as {
+        query: string
+        variables: Record<string, unknown>
+      }
+      vars.push(body.variables)
+      return {
+        ok: true,
+        json: async () =>
+          /deployments/.test(body.query)
+            ? { data: { deployments: { edges: [{ node: { id: 'dep-7' } }] } } }
+            : { data: { deploymentRestart: true } },
+      }
+    }) as unknown as typeof fetch
+    await railwayRestart({
+      token: 't',
+      serviceId: 'svc',
+      environmentId: 'env',
+      fetchImpl,
+    })
+    expect(vars[0].input).toEqual({
+      serviceId: 'svc',
+      environmentId: 'env',
+      status: { in: ['SUCCESS'] },
+    })
+  })
+
   it('accepts a PROJECT token, which the account header refuses', async () => {
     /* The two token kinds look alike; a refusal is retried as the other. */
     const headers: string[] = []
