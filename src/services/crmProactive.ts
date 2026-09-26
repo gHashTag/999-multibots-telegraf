@@ -112,6 +112,19 @@ export interface SweepDeps {
   pendingCard?: (
     telegramId: string
   ) => Promise<{ expiresAt: number } | null | undefined>
+  /**
+   * CAN A CARD REACH THIS OWNER AT ALL.
+   *
+   * Production 2026-09-26: a seller who never opened the carrier bot was
+   * swept for 107 s, a model turn wrote a card, and Telegram answered
+   * "400: chat not found" at the last step -- filed as `failed`, paged as
+   * an ERROR, and repeated every half hour. A bot can only write to somebody
+   * who pressed /start in it, which is knowable before any of that work.
+   * False means no bot the process holds can write to this owner; unknown
+   * (a network error) must read as true, so a flapping network does not
+   * silence a seller. Absent: the sweep runs as before.
+   */
+  reach?: (telegramId: string) => Promise<boolean>
 }
 
 /**
@@ -902,6 +915,12 @@ export async function sweepOnce(
         why: 'прошлая карточка ещё жива — новая стёрла бы её вместе с оплаченной картинкой',
       }
     }
+    if (deps.reach && !(await deps.reach(ownerId).catch(() => true))) {
+      return {
+        did: 'held',
+        why: 'карточке некуда прийти: владелец не открывал ни общего бота, ни своих — нужен /start в любом из них', // cyrillic-ok: owner-facing reason
+      }
+    }
     stage = 'обновление памяти'
     try {
       if (opts.ingest !== false) {
@@ -1571,9 +1590,95 @@ async function facesViaRender(telegramId: string): Promise<unknown> {
  * Wire the sweep to a bot. Returns a stop function. The first run waits two
  * minutes so a redeploy does not fire a turn before the bot is up.
  */
+/** A Telegram error that means "this bot cannot write to this person". */
+export function cannotReach(e: unknown): boolean {
+  const m = e instanceof Error ? e.message : String(e)
+  return /chat not found|bot was blocked|user is deactivated|bot can't initiate|Forbidden/i.test(
+    m
+  )
+}
+
+type CardTelegram = Parameters<typeof pushCard>[0] & {
+  getChat: (chatId: string) => Promise<unknown>
+}
+
+/**
+ * WHICH BOT CAN WRITE TO THIS OWNER.
+ *
+ * The carrier first (CRM_PROACTIVE_BOT), then the owner's own bots in this
+ * farm (`avatars.bot_name`): every farm bot registers the same card
+ * handlers (registerCommands), so a card from the seller's own bot is
+ * pressed exactly like one from the carrier. `getChat` sends nothing and
+ * succeeds only where the person has pressed /start.
+ *
+ * Returns the first bot that can, null when none can, and the carrier when
+ * the answer is unknown (a network error is not "cannot").
+ */
+const reachCache = new Map<string, { t: CardTelegram | null; at: number }>()
+const REACH_TTL_MS = 30 * 60_000
+const unreachableWarned = new Map<string, number>()
+
+export async function carrierFor(
+  carrier: CardTelegram,
+  owner: string,
+  ownBots: (owner: string) => Promise<CardTelegram[]>,
+  now = Date.now()
+): Promise<CardTelegram | null> {
+  const hit = reachCache.get(owner)
+  if (hit && now - hit.at < REACH_TTL_MS) return hit.t
+  const candidates = [carrier, ...(await ownBots(owner).catch(() => []))]
+  for (const t of candidates) {
+    try {
+      await t.getChat(owner)
+      reachCache.set(owner, { t, at: now })
+      return t
+    } catch (e) {
+      if (!cannotReach(e)) return carrier
+    }
+  }
+  reachCache.set(owner, { t: null, at: now })
+  // Said once a day, not every half hour: it is a setup gap, not an outage.
+  const warnedAt = unreachableWarned.get(owner)
+  if (warnedAt === undefined || now - warnedAt > 24 * 60 * 60_000) {
+    unreachableWarned.set(owner, now)
+    logger.warn('[crm-proactive] no bot can write to this owner', {
+      owner,
+      tried: candidates.length,
+      fix: 'the owner presses /start in the carrier bot or in one of their own bots',
+    })
+  }
+  return null
+}
+
+export function resetReachCacheForTests(): void {
+  reachCache.clear()
+  unreachableWarned.clear()
+}
+
+/** The owner's own bots running in this process, by avatars.bot_name. */
+async function ownBotsOf(owner: string): Promise<CardTelegram[]> {
+  const [{ supabase }, { getBotByName }] = await Promise.all([
+    import('@/core/supabase'),
+    import('@/core/bot'),
+  ])
+  const { data } = await supabase
+    .from('avatars')
+    .select('bot_name')
+    .eq('telegram_id', owner)
+  const out: CardTelegram[] = []
+  for (const row of (data ?? []) as Array<{ bot_name?: string }>) {
+    const b = row.bot_name ? getBotByName(row.bot_name).bot : undefined
+    if (b) out.push(b.telegram as never)
+  }
+  return out
+}
+
 /** The real wiring: the agent, the render's ingest, the bot's own chat. */
 export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
+  const carrier = bot.telegram as unknown as CardTelegram
   return {
+    reach: async owner =>
+      (await carrierFor(carrier, owner, ownBotsOf)) !== null,
     // toolsOnly: a model that only talks cannot do step 2 or 3, and its
     // answer would be filed as a failure anyway -- better an honest one.
     ask: (owner, text, o) =>
@@ -1585,16 +1690,21 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
       }),
     ingest: ingestViaRender,
     pendingCard: pendingCardViaRender,
-    push: (owner, draft, opts) =>
-      pushCard(bot.telegram as never, owner, draft, {
-        ...(opts?.because ? { because: opts.because } : {}),
-        // The owner reads the person's history before approving the words,
-        // and can send the draft back to be written differently.
-        extraRows: ADMIN_IDS_ARRAY.includes(Number(owner))
-          ? cardMenuRows(cardLeadOf(draft as never))
-          : [],
-        rewrite: ADMIN_IDS_ARRAY.includes(Number(owner)),
-      }),
+    push: async (owner, draft, opts) =>
+      pushCard(
+        ((await carrierFor(carrier, owner, ownBotsOf)) ?? carrier) as never,
+        owner,
+        draft,
+        {
+          ...(opts?.because ? { because: opts.because } : {}),
+          // The owner reads the person's history before approving the words,
+          // and can send the draft back to be written differently.
+          extraRows: ADMIN_IDS_ARRAY.includes(Number(owner))
+            ? cardMenuRows(cardLeadOf(draft as never))
+            : [],
+          rewrite: ADMIN_IDS_ARRAY.includes(Number(owner)),
+        }
+      ),
     record: recordTurns,
     leads: owner => fetchLeadRows(owner, LOOK_LIMIT),
     faces: facesViaRender,
