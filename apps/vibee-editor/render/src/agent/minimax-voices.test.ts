@@ -7,6 +7,7 @@ import {
   скоростьРечи,
   входМиниМакс,
   имяДляElevenLabs,
+  OWNER_MINIMAX_CLONE,
 } from './minimax-voices'
 
 /**
@@ -32,7 +33,14 @@ describe('голос и скорость доходят до провайдер�
      * деньги уже списаны. Молча прочитать голосом по умолчанию лучше, чем не
      * прочитать.
      */
-    for (const чужой of ['sarah', 'rachel', 'josh', '694f9389-aac1-45b6', '', null]) {
+    for (const чужой of [
+      'sarah',
+      'rachel',
+      'josh',
+      '694f9389-aac1-45b6',
+      '',
+      null,
+    ]) {
       expect(входМиниМакс('т', { voice: чужой })).toEqual({ text: 'т' })
     }
   })
@@ -40,7 +48,10 @@ describe('голос и скорость доходят до провайдер�
   it('скорость уходит и прижимается к границам провайдера', () => {
     // Схема модели: 0.5–2.0. Вне границ Replicate отказывает на весь запрос,
     // то есть ползунок, уехавший за край, стоил бы денег и не дал ничего.
-    expect(входМиниМакс('т', { speed: 1.25 })).toEqual({ text: 'т', speed: 1.25 })
+    expect(входМиниМакс('т', { speed: 1.25 })).toEqual({
+      text: 'т',
+      speed: 1.25,
+    })
     expect(входМиниМакс('т', { speed: 5 })).toEqual({ text: 'т', speed: 2 })
     expect(входМиниМакс('т', { speed: 0.1 })).toEqual({ text: 'т', speed: 0.5 })
     expect(скоростьРечи('abc')).toBeUndefined()
@@ -121,11 +132,51 @@ describe('скорость доходит до КАЖДОЙ ноги, а не д
      * мёртвой ровно до того дня, когда починят ключ ElevenLabs, — и слайдер
      * снова перестал бы значить что-либо, без единой правки в коде.
      */
-    expect(СЕРВЕР).toMatch(/voice_settings: \{[\s\S]{0,200}?speed: скоростьРечи\(speed\)/)
+    expect(СЕРВЕР).toMatch(
+      /voice_settings: \{[\s\S]{0,200}?speed: скоростьРечи\(speed\)/
+    )
   })
 
   it('единица не шлётся ни одной ноге: это и есть значение по умолчанию', () => {
     // Лишнее поле в теле — лишняя причина для отказа.
     expect(СЕРВЕР).toMatch(/скоростьРечи\(speed\) !== 1/)
+  })
+})
+
+/**
+ * THE OWNER'S VOICE, FOR THE OWNER ONLY (2026-09-26).
+ *
+ * The story reel stopped at the voice: ElevenLabs is down across the
+ * platform, so the owner's clone there is unreachable. The owner's MiniMax
+ * clone on Replicate is honoured -- but only on a call the service itself
+ * makes, never on a voice id a person types in.
+ */
+describe("the owner's MiniMax clone", () => {
+  it('reaches the provider on a trusted service call', () => {
+    expect(
+      входМиниМакс('hello', { voice: OWNER_MINIMAX_CLONE, trustedClone: true }) // cyrillic-ok: existing export
+    ).toMatchObject({ voice_id: OWNER_MINIMAX_CLONE })
+  })
+
+  it('is dropped when a person names it, so nobody else speaks as the owner', () => {
+    const body = входМиниМакс('hello', { voice: OWNER_MINIMAX_CLONE }) // cyrillic-ok: existing export
+    expect(body).not.toHaveProperty('voice_id')
+    // Trusted or not, a made-up id never reaches the provider.
+    expect(
+      входМиниМакс('hello', { voice: 'R8_SOMEONEELSE', trustedClone: true }) // cyrillic-ok: existing export
+    ).not.toHaveProperty('voice_id')
+  })
+
+  it('the route marks only its api-key callers as trusted', () => {
+    expect(СЕРВЕР).toMatch(
+      /trustedClone: authenticate\(req\)\.via === 'api-key'/
+    ) // cyrillic-ok: existing name
+  })
+
+  it('audio_generate gives the clone to the house only', () => {
+    const tools = fs.readFileSync(path.join(__dirname, 'tools.ts'), 'utf8')
+    expect(tools).toMatch(
+      /HOUSE_TELEGRAM_IDS\.includes\(ctx\.telegramId\)\s*\)\s*\{\s*voiceId = OWNER_MINIMAX_CLONE/
+    )
   })
 })
