@@ -388,6 +388,31 @@ export function appendClients(
   return [...list, ...more.filter(r => !have.has(r.telegramId))]
 }
 
+/*
+ * THE ALL-CLIENTS PICKER'S RULES (components/Chat/ClientPicker.tsx), here so
+ * the component file exports components only.
+ */
+export type PickerFilter = 'all' | 'paid' | 'leads'
+
+/** One page of people; the next arrives on "more". */
+export const PICKER_PAGE = 100
+
+export function pickClients(
+  rows: ClientRow[],
+  q: string,
+  filter: PickerFilter
+): ClientRow[] {
+  const recency = (r: ClientRow) =>
+    r.lastSeen ? Date.parse(r.lastSeen) || 0 : 0
+  return rows
+    .filter(r => /^\d{5,15}$/.test(r.telegramId))
+    .filter(r =>
+      filter === 'paid' ? r.paid : filter === 'leads' ? !r.paid : true
+    )
+    .filter(r => matches(r, q))
+    .sort((a, b) => recency(b) - recency(a))
+}
+
 export const loadClients = async (limit?: number) =>
   map(
     await callTool<Record<string, unknown>>(
