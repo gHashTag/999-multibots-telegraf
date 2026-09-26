@@ -340,3 +340,38 @@ Anomaly watch / not mine:
 - LESSON: a true live coder run needs render, which is network-blocked from the
   session container (curl -> 000). Prove the path locally instead: `tri code
   --lang ts|py`, and t27c spec-status on a demo spec -> IMPLEMENTED.
+
+## tick 14 -- "почему пчёлы молчат?" (owner, 2026-09-26, board app.t27.ai/queen)
+
+Diagnosis, grounded in live Railway logs (NOT a guess -- render is network-
+blocked from the session, so all of this is via Railway MCP on project 999):
+
+- The hive is UP. trios-agent-server (40d67e62, deployed 12:42 today from
+  gHashTag/BrowserOS@fix/queen-worker-provider-and-prompt-size, subdir
+  trios/agent-server) ticks every ~30-60s (round 365+).
+- Every round: `Queen tick decided chosen=null refusal="nothing to choose"
+  candidates=496`; `canStartAnother running=0 freeSlots=4`. She has 4 idle
+  slots and 496 open issues and picks NONE. Per queen-tick.ts's own comments
+  (~L825) this is NOT a scheduler bug: 496 open != 496 eligible; a candidate is
+  dropped if already claimed, not a delegatable spec (no acceptanceCriteria),
+  or adversarial review found its generated code will not compile. The engine
+  calls it "the absence of a supply".
+- The one bee that ran (#3464) -> verdict=empty (criteria=0 specs=0
+  t27c=absent oracle="no witness" files=0): nothing to show, a spec-less issue.
+- Board FRAME is healthy: /queen/status, /public-board, /public-activity,
+  /public-research, /public-hardware -> 200, live viewers now. BUT
+  /queen/public-foundation and /queen/public-modules -> 404 on this build:
+  two board sub-tabs are empty because the route is absent in the deployed
+  branch. That is a silent PANEL, not silent bees.
+- Secondary: "Failed to fetch remote skill catalog: 404"; queen-proxy
+  (z.ai worker LLM proxy, db07da91) stopped since 2026-09-21; 2 STAGED-but-
+  undeployed config changes on trios-agent-server (staged 18:35 today -- owner
+  or tooling mid-fix; did NOT accept-deploy).
+- SKILL added: `why-the-bees-are-silent` -- the full diagnostic recipe
+  (where the hive lives, the Railway path, honest-tishina vs real breakage).
+- NOT fixable from this repo: the selection eligibility + the 404 routes live
+  in gHashTag/BrowserOS (out of push scope; fix branch already in flight).
+  Honest report to owner + safe next actions, no speculative cross-repo push.
+- LESSON: "chosen=null / nothing to choose" with free slots is the STEADY
+  state of an idle Queen, not an outage. Alarm only on: no fresh tick at all,
+  a capacity refusal with no real running bees, or Ring-00 disagreeing.
