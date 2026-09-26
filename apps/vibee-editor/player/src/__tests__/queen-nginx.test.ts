@@ -478,3 +478,56 @@ describe('the Dockerfile builds the board from its own repository, pinned', () =
     expect(queen).toBeGreaterThan(player)
   })
 })
+
+/**
+ * THE BOARD INSIDE THE APP, AT ONE ADDRESS (owner, 2026-09-26: "embed the
+ * Queen's board into the app", "why does the address say queen twice").
+ *
+ * /queen is the APP (its Hive tab frames /queen/), and a person who opens the
+ * board page itself is sent there. Pinned because both halves fail silently:
+ * without `location = /queen` the path fell into `location /`, whose `$uri/`
+ * served the BOARD's index.html at a path where its relative assets break; and
+ * a redirect that also caught the frame would loop the tab forever.
+ */
+describe('/queen is the app, and a top-level /queen/ is sent to it', () => {
+  const conf = fs.readFileSync(TEMPLATE, 'utf8')
+
+  function appQueen(c: string): string[] {
+    const out: string[] = []
+    const app = block(c, '= /queen')
+    if (!app) return ['no location = /queen']
+    if (!/try_files\s+\/index\.html\s+=404;/.test(app))
+      out.push('/queen does not serve the app index')
+    if (!/no-cache, no-store, must-revalidate/.test(app))
+      out.push('/queen is cacheable')
+    const board = block(c, '^~ /queen/') ?? ''
+    const redirect = board.match(
+      /if \(\$http_sec_fetch_dest = "document"\) \{\s*return 302 \/queen;\s*\}/
+    )
+    if (!redirect) out.push('no top-level redirect from /queen/ to /queen')
+    return out
+  }
+
+  it('both halves are there', () => {
+    expect(appQueen(conf)).toEqual([])
+  })
+
+  it('negative control: a redirect that ignores the fetch destination is caught', () => {
+    // It would redirect the Hive's own frame too: the tab would load itself.
+    const bad = conf.replace(
+      /if \(\$http_sec_fetch_dest = "document"\) \{\s*return 302 \/queen;\s*\}/,
+      'return 302 /queen;'
+    )
+    expect(appQueen(bad)).toContain(
+      'no top-level redirect from /queen/ to /queen'
+    )
+  })
+
+  it('negative control: /queen serving the board directory is caught', () => {
+    const bad = conf.replace(
+      /(location = \/queen \{[\s\S]*?)try_files \/index\.html =404;/,
+      '$1try_files $uri $uri/ =404;'
+    )
+    expect(appQueen(bad)).toContain('/queen does not serve the app index')
+  })
+})
