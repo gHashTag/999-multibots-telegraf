@@ -53,7 +53,7 @@ import {
   imageLegCost,
   legFitsPrice,
 } from '../image-chain'
-import { LEAD_MAGNET_MODEL } from '../kie-image'
+import { EDIT_MODEL, LEAD_MAGNET_MODEL } from '../kie-image'
 import {
   CLUB_STARS,
   CLUB_TOKEN_SHARE,
@@ -213,6 +213,21 @@ export function marginReport(usdPerToken: number = clubUsdPerToken()): {
       )
     )
   }
+  // The agent's img2img: every story-reel still. Missing from this report
+  // until 2026-09-26, which is how it sold 2 tokens against a $0.02 picture.
+  if (OPERATION_COST_USD.image_edit != null)
+    rows.push(
+      row(
+        'image',
+        `kie/${EDIT_MODEL}`,
+        'image',
+        'image_edit (agent img2img, story stills)',
+        OPERATION_COST_USD.image_edit,
+        DEAREST_VARIANT_USD[EDIT_MODEL] ?? null,
+        TOKEN_PRICES.image_edit,
+        usdPerToken
+      )
+    )
   rows.push(
     row(
       'image',
