@@ -358,6 +358,9 @@ function RouteTable() {
       <Route path="/generate/editor" element={<EditorPage />} />
       <Route path="/generate/:tab" element={<GeneratePage />} />
       <Route path="/hive" element={<HivePage />} />
+      {/* The Queen's board inside the app, at its own clean address
+          (owner, 2026-09-26). nginx sends a top-level /queen/ here. */}
+      <Route path="/queen" element={<HivePage />} />
       {/* The former sub-tab addresses still land on the hive. */}
       <Route path="/hive/*" element={<Navigate to="/hive" replace />} />
       {/* The person's own remote browser: one pod, one profile, started on

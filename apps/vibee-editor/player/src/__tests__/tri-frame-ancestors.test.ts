@@ -49,9 +49,13 @@ function problems(conf: string): string[] {
    * would quietly stop allowing the frame. /live/ is declared after
    * /index.html on purpose, so the negative control below still means the
    * /index.html copy when it says "line 2".
+   *
+   * FOUR since 2026-09-26: `location = /queen`, the app's own address for the
+   * Queen's board (owner: "embed the board into the app"). It serves the
+   * app's index.html, so it carries the app's policy, t27.ai included.
    */
-  if (lines.length !== 3) {
-    out.push(`expected 3 Content-Security-Policy lines, found ${lines.length}`)
+  if (lines.length !== 4) {
+    out.push(`expected 4 Content-Security-Policy lines, found ${lines.length}`)
   }
   lines.forEach((line, i) => {
     const directive = line.match(/frame-ancestors([^;"]*)/)
