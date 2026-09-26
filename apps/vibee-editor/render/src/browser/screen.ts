@@ -171,6 +171,50 @@ export async function nekoLogin(
 }
 
 /**
+ * Give the admin session back. A failure here is not the errand's failure:
+ * the picture was taken, the screen was set, the mouse was handed over.
+ */
+export async function nekoLogout(
+  endpoint: string,
+  bearer: string,
+  fetcher: Fetcher = fetch as unknown as Fetcher
+): Promise<void> {
+  await fetcher(`http://${endpoint}/api/logout`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${bearer}` },
+  })
+}
+
+/**
+ * ONE ADMIN SESSION PER ERRAND, AND IT IS HANDED BACK.
+ *
+ * Every admin errand used to log in and walk away. neko keeps what it hands
+ * out, so the sessions piled up: measured on the owner's own pod on
+ * 2026-09-26, `GET /api/sessions` listed 35 of them, all named `admin`, none
+ * connected -- one per screenshot, per screen resize, per handover of the
+ * mouse, over three days. It costs memory in the pod for nothing, and it
+ * makes the one list that answers "is anybody watching this browser?"
+ * (mouse.ts pickPersonSession) read through 35 of our own ghosts.
+ *
+ * The cure is the errand's own scope: log in, do the one thing, log out in
+ * `finally` so a thrown errand still gives its session back. neko answers
+ * POST /api/logout with 200 for an admin bearer, verified live the same day.
+ */
+export async function withNekoAdmin<T>(
+  endpoint: string,
+  adminToken: string,
+  fetcher: Fetcher,
+  errand: (bearer: string) => Promise<T>
+): Promise<T> {
+  const bearer = await nekoLogin(endpoint, adminToken, fetcher)
+  try {
+    return await errand(bearer)
+  } finally {
+    await nekoLogout(endpoint, bearer, fetcher).catch(() => {})
+  }
+}
+
+/**
  * THE WHOLE SCREEN, AS THE PERSON SEES IT.
  *
  * A CDP screenshot is the PAGE: no tabs, no address bar, no permission
@@ -200,13 +244,14 @@ export async function desktopShot(
   adminToken: string,
   fetcher: ShotFetcher = fetch as unknown as ShotFetcher
 ): Promise<string> {
-  const bearer = await nekoLogin(endpoint, adminToken, fetcher)
-  const res = await fetcher(`http://${endpoint}/api/room/screen/shot.jpg`, {
-    headers: { authorization: `Bearer ${bearer}` },
+  return await withNekoAdmin(endpoint, adminToken, fetcher, async bearer => {
+    const res = await fetcher(`http://${endpoint}/api/room/screen/shot.jpg`, {
+      headers: { authorization: `Bearer ${bearer}` },
+    })
+    if (!res.ok)
+      throw new Error(`the pod refused the screen shot (${res.status})`)
+    return Buffer.from(await res.arrayBuffer()).toString('base64')
   })
-  if (!res.ok)
-    throw new Error(`the pod refused the screen shot (${res.status})`)
-  return Buffer.from(await res.arrayBuffer()).toString('base64')
 }
 
 /**
@@ -320,71 +365,73 @@ export async function applyScreen(
   want: ScreenSize,
   fetcher: Fetcher = fetch as unknown as Fetcher
 ): Promise<ScreenSize> {
-  const bearer = await nekoLogin(endpoint, adminToken, fetcher)
+  return await withNekoAdmin(endpoint, adminToken, fetcher, async bearer => {
+    const current = await readScreen(endpoint, bearer, fetcher).catch(
+      () => null
+    )
+    if (current && landed(want, current)) return current
 
-  const current = await readScreen(endpoint, bearer, fetcher).catch(() => null)
-  if (current && landed(want, current)) return current
-
-  const ask = async (size: ScreenSize): Promise<ScreenSize | null> => {
-    try {
-      await asJson(
-        await fetcher(`http://${endpoint}/api/room/screen`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            authorization: `Bearer ${bearer}`,
-          },
-          body: JSON.stringify(size),
-        })
-      )
-    } catch {
-      /* 422 "cannot set screen size" is an answer, not a failure. */
-      return null
+    const ask = async (size: ScreenSize): Promise<ScreenSize | null> => {
+      try {
+        await asJson(
+          await fetcher(`http://${endpoint}/api/room/screen`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              authorization: `Bearer ${bearer}`,
+            },
+            body: JSON.stringify(size),
+          })
+        )
+      } catch {
+        /* 422 "cannot set screen size" is an answer, not a failure. */
+        return null
+      }
+      return await readScreen(endpoint, bearer, fetcher)
     }
-    return await readScreen(endpoint, bearer, fetcher)
-  }
 
-  const exact = await ask(want)
-  if (exact && landed(want, exact)) return exact
+    const exact = await ask(want)
+    if (exact && landed(want, exact)) return exact
 
-  /*
-   * REFUSED FOR ITS RATE: THE MODE NOW EXISTS, AT ONE HERTZ LESS.
-   *
-   * CVT rounds a new mode's pixel clock DOWN, so its real refresh lands just
-   * under the rate asked for, and X rounds that to the nearest whole number:
-   * 30 for a big screen, 29 for a phone-sized one (the clock step is a
-   * bigger share of a small clock). The refused ask still created the mode,
-   * so the same size at one hertz less is what lands.
-   *
-   * It cannot come from the menu: neko reads its list of sizes ONCE, at
-   * start (server/internal/desktop/manager.go), so a mode made afterwards is
-   * never on it. Relying on the menu is exactly what put the owner back on
-   * 800x1600, with black edges either side, after the fix that assumed it.
-   *
-   * Only after a refusal (422). A polite 200 that left the screen alone is
-   * not a rate problem, and a second ask would be a second video restart
-   * for nothing.
-   */
-  if (!exact) {
-    const slower = await ask({ ...want, rate: want.rate - 1 })
-    if (slower && landed(want, slower)) return slower
-  }
+    /*
+     * REFUSED FOR ITS RATE: THE MODE NOW EXISTS, AT ONE HERTZ LESS.
+     *
+     * CVT rounds a new mode's pixel clock DOWN, so its real refresh lands just
+     * under the rate asked for, and X rounds that to the nearest whole number:
+     * 30 for a big screen, 29 for a phone-sized one (the clock step is a
+     * bigger share of a small clock). The refused ask still created the mode,
+     * so the same size at one hertz less is what lands.
+     *
+     * It cannot come from the menu: neko reads its list of sizes ONCE, at
+     * start (server/internal/desktop/manager.go), so a mode made afterwards is
+     * never on it. Relying on the menu is exactly what put the owner back on
+     * 800x1600, with black edges either side, after the fix that assumed it.
+     *
+     * Only after a refusal (422). A polite 200 that left the screen alone is
+     * not a rate problem, and a second ask would be a second video restart
+     * for nothing.
+     */
+    if (!exact) {
+      const slower = await ask({ ...want, rate: want.rate - 1 })
+      if (slower && landed(want, slower)) return slower
+    }
 
-  const menu = await listConfigurations(endpoint, bearer, fetcher).catch(
-    () => [] as ScreenSize[]
-  )
+    const menu = await listConfigurations(endpoint, bearer, fetcher).catch(
+      () => [] as ScreenSize[]
+    )
 
-  const nearest = pickFromMenu(want, menu)
-  if (nearest) {
-    const settled = await ask(nearest)
-    if (settled) return settled
-  }
+    const nearest = pickFromMenu(want, menu)
+    if (nearest) {
+      const settled = await ask(nearest)
+      if (settled) return settled
+    }
 
-  /*
-   * Nothing took. The pod keeps whatever it had, and the caller is told what
-   * that is rather than what it wished for -- the frame is drawn from this.
-   */
-  return exact ?? (await readScreen(endpoint, bearer, fetcher))
+    /*
+     * Nothing took. The pod keeps whatever it had, and the caller is told what
+     * that is rather than what it wished for -- the frame is drawn from this.
+     */
+    return exact ?? (await readScreen(endpoint, bearer, fetcher))
+  })
 }
 
 /**
