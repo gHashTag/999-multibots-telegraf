@@ -531,6 +531,79 @@ export const startDuet = async (
     toDuetStart
   )
 
+/**
+ * THE STORY-REEL TEMPLATE OF ONE CLIENT (tool `crm_story_reel`): whether they
+ * have a face and a voice, their last reels, and the start of a new one on
+ * any topic. The reel is made in the background and comes to the seller in
+ * the bot first; nothing reaches the client from this screen.
+ */
+export interface StoryJob {
+  id: number
+  topic: string
+  status: string
+  url: string | null
+  error: string | null
+  createdAt: string
+}
+
+export interface StoryReady {
+  ready: boolean
+  why: string | null
+  face: string | null
+  voice: boolean
+  vip: boolean
+  link: string | null
+  jobs: StoryJob[]
+}
+
+export interface StoryStart {
+  started: boolean
+  topic: string | null
+  why: string | null
+}
+
+export function toStoryReady(r: Record<string, unknown>): StoryReady {
+  const jobs = Array.isArray(r['jobs']) ? (r['jobs'] as unknown[]) : []
+  return {
+    ready: bool(r['ready']) ?? false,
+    why: str(r['why']),
+    face: str(r['face']),
+    voice: bool(r['voice']) ?? false,
+    vip: bool(r['vip']) ?? false,
+    link: str(r['one_tap_link']),
+    jobs: jobs
+      .filter((j): j is Record<string, unknown> => !!j && typeof j === 'object')
+      .map(j => ({
+        id: num(j['id']) ?? 0,
+        topic: str(j['topic']) ?? '',
+        status: str(j['status']) ?? '',
+        url: str(j['url']),
+        error: str(j['error']),
+        createdAt: str(j['created_at']) ?? '',
+      })),
+  }
+}
+
+export const loadStoryReel = async (lead: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_story_reel', { lead }),
+    toStoryReady
+  )
+
+export const startStoryReel = async (lead: string, topic: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_story_reel', {
+      lead,
+      start: true,
+      ...(topic.trim() ? { topic: topic.trim() } : {}),
+    }),
+    (r): StoryStart => ({
+      started: bool(r['started']) ?? false,
+      topic: str(r['topic']),
+      why: str(r['why']),
+    })
+  )
+
 /** Profile, SOUL and skills of one client (tool `crm_client_profile`). */
 export interface ClientProfile {
   telegramId: string

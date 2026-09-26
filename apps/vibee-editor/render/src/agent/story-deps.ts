@@ -1,0 +1,83 @@
+/**
+ * The story template's live wiring: the chat model that writes the scenes,
+ * the story_reel tool that makes the reel, and the Bot API that tells the
+ * person. Kept apart from story-template.ts so the engine stays testable with
+ * fakes, and from tools.ts so the registry is borrowed, not imported -- the
+ * tool lives there, and a module cycle would be the alternative.
+ */
+import type { AgentTool } from './tools'
+import type { StoryDeps } from './story-template'
+import { askBuyerModel } from './crm-duet-tool'
+import { allProviders, diagnose } from './provider'
+import { botNameOf, tokenForBot } from './bot-farm'
+import { telegramApiFor } from '../telegram-api'
+
+type Pool = StoryDeps['pool']
+
+const mainToken = () => (process.env.TELEGRAM_BOT_TOKEN || '').trim()
+
+/**
+ * One message in the bot the person pressed in. The video goes along unless
+ * the render has already delivered it to this very chat through the same
+ * (main) bot -- one reel, one copy.
+ */
+export async function notifyInBot(
+  bot: string | null,
+  chatId: string,
+  text: string,
+  extra: Parameters<StoryDeps['notify']>[3] = {},
+  doFetch: typeof fetch = fetch
+): Promise<boolean> {
+  const main = mainToken()
+  const farm = bot ? await tokenForBot(bot).catch(() => null) : null
+  const token = farm?.token || main
+  if (!token) return false
+  const sameAsRender = !farm || farm.token === main
+  const withVideo =
+    Boolean(extra?.video) && !(extra?.renderSent && sameAsRender)
+  const reply_markup = extra?.button?.url
+    ? {
+        inline_keyboard: [[{ text: extra.button.text, url: extra.button.url }]],
+      }
+    : undefined
+  const body = withVideo
+    ? { chat_id: chatId, video: extra!.video, caption: text, reply_markup }
+    : { chat_id: chatId, text, reply_markup }
+  try {
+    const r = await doFetch(
+      `${telegramApiFor(token)}/${withVideo ? 'sendVideo' : 'sendMessage'}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    )
+    return r.ok
+  } catch {
+    return false
+  }
+}
+
+export function makeStoryDeps(
+  pool: Pool,
+  lookup: (name: string) => AgentTool | undefined
+): StoryDeps {
+  return {
+    pool,
+    write: messages =>
+      askBuyerModel(messages as never, allProviders(), fetch, (id, st, b) =>
+        diagnose(id as never, st, b)
+      ),
+    story: (args, ctx) => {
+      const tool = lookup('story_reel')
+      if (!tool)
+        return Promise.resolve({
+          done: false,
+          reason: 'story_reel недоступен на этом сервере',
+        })
+      return tool.handler(args, ctx)
+    },
+    notify: (bot, chatId, text, extra) => notifyInBot(bot, chatId, text, extra),
+    botOf: lead => botNameOf(lead),
+  }
+}
