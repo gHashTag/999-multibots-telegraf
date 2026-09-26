@@ -72,6 +72,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join as joinPath } from 'node:path'
 import { withShelfFile } from './media-extract'
+import { Agent as UndiciAgent } from 'undici'
 import {
   LIPSYNC_MODELS,
   LIPSYNC_TOOL_MAX_SECONDS,
@@ -81,7 +82,9 @@ import {
   cutPart,
   joinParts,
   leadSilenceOf,
+  lipsyncWaitMs,
   maxSecondsOf,
+  partTargetSecondsFor,
   probeSeconds,
   probeSize,
   proxyShelfUrl,
@@ -2199,7 +2202,9 @@ export const TOOLS: AgentTool[] = [
           type: 'string',
           enum: [...LIPSYNC_MODELS],
           description:
-            'не задан — InfiniteTalk по цене инструмента; другая модель — по её цене за секунду (pricing)',
+            'kie/kling/ai-avatar-standard — выбор владельца: весь голос до 30 с ОДНИМ проходом, без стыков, 16 ток/с. ' +
+            'Не задан — InfiniteTalk по цене инструмента, куски по 10 с (на стыках лицо начинает заново). ' +
+            'Другая модель — по её цене за секунду (pricing)',
         },
       },
       required: ['image_url', 'voice_url'],
@@ -2277,7 +2282,8 @@ export const TOOLS: AgentTool[] = [
                 ? 'голосовой файл не найден на полке. Ничего не списано.'
                 : 'голосовой файл слишком большой. Ничего не списано.',
           }
-        const parts = splitPlan(measured)
+        // Parts under the NAMED model's ceiling: Kling takes the whole voice.
+        const parts = splitPlan(measured, partTargetSecondsFor(model))
         if (!parts.length)
           return { done: false, reason: 'голос пустой. Ничего не списано.' }
         const seconds = billedSecondsOf(parts)
@@ -2324,6 +2330,13 @@ export const TOOLS: AgentTool[] = [
           }
           const clips = await Promise.all(
             voiceUrls.map(async (audioUrl, i) => {
+              /*
+               * WAIT AS LONG AS THE ROUTE WAITS. The route answers only when
+               * the provider is done, and Node's fetch drops a response whose
+               * headers take over five minutes: a long part would be refunded
+               * here while the provider finished and billed us.
+               */
+              const waitMs = lipsyncWaitMs(parts[i].duration)
               const res = await selfFetch(
                 `${selfBase()}/api/generate/lipsync`,
                 {
@@ -2334,7 +2347,11 @@ export const TOOLS: AgentTool[] = [
                     audio_url: audioUrl,
                     ...(model ? { model } : {}),
                   }),
-                }
+                  dispatcher: new UndiciAgent({
+                    headersTimeout: waitMs,
+                    bodyTimeout: waitMs,
+                  }),
+                } as RequestInit
               )
               const data: any = await res.json().catch(() => null)
               if (!res.ok || !data?.url)
