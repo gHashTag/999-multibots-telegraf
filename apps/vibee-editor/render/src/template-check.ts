@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { SplitTalkingHeadSchema } from './compositions/SplitTalkingHead'
 import { NoirReelSchema } from './compositions/NoirReel'
+import { StoryReelSchema } from './compositions/StoryReel'
 
 /**
  * Compositions whose request is checked against a schema before rendering.
@@ -29,6 +30,9 @@ import { NoirReelSchema } from './compositions/NoirReel'
 export const CHECKED_COMPOSITIONS: Record<string, z.ZodType> = {
   SplitTalkingHead: SplitTalkingHeadSchema,
   NoirReel: NoirReelSchema,
+  // A story with no scenes, or a scene with no clip, is refused at the door
+  // for the same reason NoirReel is: it would crash inside Remotion minutes in.
+  StoryReel: StoryReelSchema,
 }
 
 /**

@@ -138,7 +138,7 @@ export const PAID = [
     функция: 'lipsync_generate', // cyrillic-ok: existing field name
     токенов: priceFor('lipsync_generate'),
     единица: 'за секунду звука', // cyrillic-ok: existing field name
-    провайдер: 'Kie infinitalk (from-audio)',
+    провайдер: 'Kie kling/ai-avatar-standard', // cyrillic-ok: existing field name
   },
 ]
 
@@ -211,7 +211,7 @@ export const PROVIDERS: Record<
    */
   kie: {
     // cyrillic-ok: this reference map has Russian field names throughout
-    даёт: 'подарок-портрет из аватарки (gpt-image-2-5-flare, img2img), липсинк infinitalk', // cyrillic-ok
+    даёт: 'подарок-портрет из аватарки (gpt-image-2-5-flare, img2img), липсинк kling ai-avatar', // cyrillic-ok
     статус: 'работает', // cyrillic-ok
     env: 'KIE_AI_API_KEY',
     как: 'Ключ и пополнение — kie.ai; баланс виден на GET api.kie.ai/api/v1/chat/credit', // cyrillic-ok
