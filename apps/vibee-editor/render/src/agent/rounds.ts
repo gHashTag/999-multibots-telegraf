@@ -184,6 +184,28 @@ export function everythingWasBlank(seen: Seen[]): boolean {
   )
 }
 
+/**
+ * Is a round due? Asked against the LAST ROUND rather than against the age of
+ * this process, because the process is not long-lived: on 2026-09-26 the render
+ * service deployed 13 times in 3.5 hours and its longest life was 45 minutes,
+ * so a bare `setInterval(..., 180 min)` never reached its first tick -- no
+ * `[rounds]` line exists in any of those deployments' logs. The neighbouring
+ * daily check learned this on 2026-09-24 and asks its own table the same way.
+ *
+ * A first ever round (no `lastAtMs`) is due at once: an agent that has never
+ * looked has nothing to wait for. Pure.
+ */
+export function roundIsDue(
+  lastAtMs: number | null,
+  nowMs: number,
+  everyMs: number
+): boolean {
+  if (lastAtMs === null) return true
+  /* A clock set forward and back again must not silence the round forever. */
+  if (lastAtMs > nowMs) return true
+  return nowMs - lastAtMs >= everyMs
+}
+
 export interface RoundDeps {
   /** False when the person is driving: the round is skipped. */
   personHasTheWheel: () => Promise<boolean>
