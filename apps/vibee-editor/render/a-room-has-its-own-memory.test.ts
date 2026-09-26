@@ -66,7 +66,21 @@ describe('a room has its own memory', () => {
   it('leaves the ordinary threads exactly as they were', async () => {
     const self = await threadFor(null, OWNER, pool)
     expect(self).toMatchObject({ ok: true, thread: SELF_THREAD })
+    /*
+     * Client + agent was refused until 2026-09-26; the owner asked for
+     * specialists in client chats. It is the CLIENT's thread, never a room.
+     */
+    /*
+     * Client + agent was refused outright until 2026-09-26; the owner asked
+     * for specialists in client chats. It still passes the seller gate
+     * first -- this caller is no seller, so neither the client nor the agent
+     * opens (agent-marketplace.test.ts holds the seller's case).
+     */
     const bothAtOnce = await threadFor('900000051', OWNER, pool, 'blogger')
-    expect(bothAtOnce).toMatchObject({ ok: false, status: 400 })
+    expect(bothAtOnce).toEqual({
+      ok: false,
+      status: 403,
+      error: 'not a seller',
+    })
   })
 })

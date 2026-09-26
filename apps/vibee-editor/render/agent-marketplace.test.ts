@@ -35,17 +35,39 @@ describe('the first labour-market agent is real and isolated', () => {
     })
   })
 
-  it('will not merge a client conversation with a hired-agent conversation', async () => {
+  /*
+   * A SPECIALIST IN A CLIENT'S CONVERSATION (owner, 2026-09-26). The memory
+   * stays the client's; the agent brings its contract. Whether the caller
+   * may talk about this client at all is still the seller gate's answer.
+   */
+  it('a seller may call an agent into a client conversation; the memory stays the client’s', async () => {
+    const OWNER = process.env.OWNER_TELEGRAM_ID || '144022504'
+    const pool = async () => ({}) as never
+    await expect(threadFor('12345', OWNER, pool, 'blogger')).resolves.toEqual({
+      ok: true,
+      thread: 'client:12345',
+      client: '12345',
+      agent: 'blogger',
+    })
+  })
+
+  it('a stranger gets neither the client nor the agent', async () => {
     const getPool = () => {
-      throw new Error('the ambiguity gate must answer first')
+      throw new Error('no seller row can be read')
     }
     await expect(threadFor('12345', '42', getPool, 'blogger')).resolves.toEqual(
-      {
-        ok: false,
-        status: 400,
-        error: 'choose client or agent, not both',
-      }
+      { ok: false, status: 403, error: 'not a seller' }
     )
+  })
+
+  it('an unknown agent is refused even in a client conversation', async () => {
+    const OWNER = process.env.OWNER_TELEGRAM_ID || '144022504'
+    const pool = async () => ({}) as never
+    await expect(threadFor('12345', OWNER, pool, 'nobody')).resolves.toEqual({
+      ok: false,
+      status: 400,
+      error: 'agent is not available',
+    })
   })
 })
 
@@ -69,7 +91,7 @@ describe('a keeper can open a trainee, nobody else can', () => {
   })
 
   it('opens every catalogued trainee for the keeper, each in its own thread', async () => {
-    for (const id of ['job', 'google', 'tiktok', 'habr']) {
+    for (const id of ['job', 'google', 'tiktok', 'scientist', 'fpga', 'rtl']) {
       await expect(threadFor(null, KEEPER, getPool, id)).resolves.toEqual({
         ok: true,
         thread: `agent:${id}`,
@@ -132,8 +154,14 @@ describe('specialist contracts', () => {
     expect(marketplaceAgentPrompt('google')).toContain('не найдено') // cyrillic-ok: contract words
     expect(marketplaceAgentPrompt('tiktok')).toContain('pricing')
     expect(marketplaceAgentPrompt('tiktok')).toContain('ссылка на mp4') // cyrillic-ok: contract words
-    expect(marketplaceAgentPrompt('habr')).toContain('шаги воспроизведения') // cyrillic-ok: contract words
-    expect(marketplaceAgentPrompt('habr')).toContain('не проверено') // cyrillic-ok: contract words
+    expect(marketplaceAgentPrompt('scientist')).toContain('шаги') // cyrillic-ok: contract words
+    expect(marketplaceAgentPrompt('scientist')).toContain('не измерено') // cyrillic-ok: contract words
+    expect(marketplaceAgentPrompt('scientist')).toContain('гипотеза') // cyrillic-ok: contract words
+    /* FPGA and RTL run no synthesis or simulator: they must say so. */
+    expect(marketplaceAgentPrompt('fpga')).toContain('не запускалось') // cyrillic-ok: contract words
+    expect(marketplaceAgentPrompt('fpga')).toContain('323') // the withdrawn figure is the reason
+    expect(marketplaceAgentPrompt('rtl')).toContain('тестбенч') // cyrillic-ok: contract words
+    expect(marketplaceAgentPrompt('rtl')).toContain('не запускалось') // cyrillic-ok: contract words
   })
 })
 

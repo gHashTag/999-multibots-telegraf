@@ -44,6 +44,7 @@ const copy = {
     checked: 'Checked on a real account',
     checkFailed: 'Last check failed',
     streak: 'Daily checks passed in a row: {n} of 7 — hiring opens at 7',
+    dashboard: 'Dashboard',
     earned: 'working now — earned by 7 days of checks',
   },
   ru: {
@@ -79,6 +80,7 @@ const copy = {
     checked: 'Проверен на живом аккаунте',
     checkFailed: 'Последняя проверка не прошла',
     streak: 'Ежедневных проверок подряд: {n} из 7 — найм откроется на седьмой',
+    dashboard: 'Дашборд',
     earned: 'работает — заслужил 7 днями проверок',
   },
 } as const
@@ -186,6 +188,13 @@ export function AgentsPage() {
                   </p>
                 ) : null}
                 <p className="agent-card__role">{agent.role[l]}</p>
+                <Link
+                  className="agent-card__dash"
+                  to={`/agents/${agent.id}`}
+                  data-testid={`agent-dash-link-${agent.id}`}
+                >
+                  {text.dashboard} →
+                </Link>
                 <p className="agent-card__promise">{agent.promise[l]}</p>
                 <div className="agent-card__section">
                   <h3>{text.skills}</h3>

@@ -1,0 +1,146 @@
+/* One agent's own dashboard (AgentDashboard). */
+.agent-dash {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 16px 96px;
+  color: var(--t27-text);
+  background: var(--t27-bg);
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.agent-dash__back,
+.agent-dash__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--t27-muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.agent-dash__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.agent-dash__icon {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  border: 1px solid var(--t27-border);
+}
+
+.agent-dash__name {
+  margin: 0;
+  font-size: 22px;
+}
+
+.agent-dash__role {
+  margin: 2px 0 0;
+  color: var(--t27-muted);
+  font-size: 14px;
+}
+
+.agent-dash__status {
+  margin-left: auto;
+  flex: none;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--t27-border);
+  color: var(--t27-muted);
+}
+
+.agent-dash__status--live {
+  border-color: var(--t27-accent);
+  color: var(--t27-accent);
+}
+
+.agent-dash__promise {
+  margin: 12px 0 16px;
+  line-height: 1.5;
+}
+
+.agent-dash__card {
+  border: 1px solid var(--t27-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--t27-surface);
+}
+
+.agent-dash__card h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.agent-dash__verdict {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.agent-dash__verdict--pass {
+  color: var(--t27-accent);
+}
+
+.agent-dash__streak {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--t27-border);
+  overflow: hidden;
+}
+
+.agent-dash__streak span {
+  display: block;
+  height: 100%;
+  background: var(--t27-accent);
+}
+
+.agent-dash__muted {
+  margin: 6px 0 0;
+  color: var(--t27-muted);
+  font-size: 13px;
+}
+
+.agent-dash__recent,
+.agent-dash__evidence {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.agent-dash__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.agent-dash__cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  background: var(--t27-accent);
+  color: var(--t27-bg);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.agent-dash__cta--disabled {
+  background: transparent;
+  border: 1px solid var(--t27-border);
+  color: var(--t27-muted);
+}
