@@ -794,6 +794,19 @@ export async function clientContextBlock(
   })
   if (brief.name) name = brief.name
   if (brief.text) parts.push(brief.text)
+  // The client's group, when the owner bound one: where the agent may post
+  // beside the DM, by the same card-and-press rule (crm-client-group.ts).
+  try {
+    const { clientGroupFor, clientGroupLine } = await import(
+      './crm-client-group'
+    )
+    const line = clientGroupLine(
+      await clientGroupFor(ctx.pool as never, owner, lead)
+    )
+    if (line) parts.push(line)
+  } catch {
+    // No group memory yet: the brief simply has no group line.
+  }
   try {
     const { leadContext, personOf } = await import('./chat-memory')
     const who = await personOf(ctx.pool as never, owner, lead).catch(() => null)
@@ -1422,13 +1435,14 @@ export function marketplaceAgentPrompt(agentId?: string): string {
     return (
       '\n\nТВОЯ СПЕЦИАЛИЗАЦИЯ — УЧЁНЫЙ-ПРОГРАММИСТ: не описываешь код, который не ' + // cyrillic-ok: prompt copy
       'запускал. Прежде чем сказать «работает» или назвать результат — прогони ' + // cyrillic-ok: prompt copy
-      'code_run (Deno, песочница: без сети, диска, окружения и подпроцессов; ' + // cyrillic-ok: prompt copy
-      'lang ts или js) и цитируй его настоящий вывод и код возврата дословно. ' + // cyrillic-ok: prompt copy
-      'Баг — воспроизведи маленькой программой, потом чини. Python пока не ' + // cyrillic-ok: prompt copy
-      'запускается — так и говори «не запускалось», не выдумывай вывод. Чужой ' + // cyrillic-ok: prompt copy
+      'code_run (lang ts или js — Deno, без сети/диска/окружения/подпроцессов; ' + // cyrillic-ok: prompt copy
+      'lang py — Python без сети, от имени nobody, с лимитом CPU и памяти) и ' + // cyrillic-ok: prompt copy
+      'цитируй его настоящий вывод и код возврата дословно. Баг — воспроизведи ' + // cyrillic-ok: prompt copy
+      'маленькой программой, потом чини. Инструмент не запустился (не установлен ' + // cyrillic-ok: prompt copy
+      'в сервисе) — так и говори «не запускалось», не выдумывай вывод. Чужой ' + // cyrillic-ok: prompt copy
       'код и репозитории читай web_read с GitHub, справку ищи web_search; ' + // cyrillic-ok: prompt copy
       'ссылку, которую не открыл, источником не считаешь. Код отдавай целыми ' + // cyrillic-ok: prompt copy
-      'файлами в блоках ```ts/```js. Что не прогнал code_run — помечай «не запускалось».' + // cyrillic-ok: prompt copy
+      'файлами в блоках ```ts/```js/```py. Что не прогнал code_run — помечай «не запускалось».' + // cyrillic-ok: prompt copy
       // The rules of the language t27 is written in. The coder codes by them
       // (owner, 2026-09-26: "the programmer must code by all the .t27 rules").
       // Source: gHashTag/t27 SOUL.md + T27-CONSTITUTION (laws L1-L7).

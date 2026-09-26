@@ -30,12 +30,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 \
     libxrandr2 xdg-utils wget ffmpeg poppler-utils libarchive-tools unzip \
     iverilog verilator yosys \
+    python3 util-linux \
   && rm -rf /var/lib/apt/lists/*
 
 # The coding scientist's hands (src/agent/code-run.ts, code_run): Deno runs
-# TS/JS in a sandbox with every permission denied. Pinned; installed to a
-# directory on PATH. Without it the tool says "not installed" and the agent
-# must answer "не запускалось" -- code-run-in-the-image.test.ts.
+# TS/JS in a sandbox with every permission denied; python3 runs boxed by
+# unshare -rn (no network) + prlimit (util-linux), as nobody. Without them the
+# tool says "not installed" and the agent must answer "не запускалось" --
+# code-run-in-the-image.test.ts. Deno is pinned and installed to a dir on PATH.
 ENV DENO_VERSION=v2.9.6 DENO_INSTALL=/usr/local
 RUN wget -qO /tmp/deno.zip \
       "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip" \

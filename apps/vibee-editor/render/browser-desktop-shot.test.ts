@@ -70,9 +70,15 @@ describe('desktopShot', () => {
     try {
       const b64 = await desktopShot(pod.endpoint, 'admin-secret')
       expect(Buffer.from(b64, 'base64')).toEqual(JPEG)
+      /*
+       * The logout is part of the errand as of 2026-09-26: without it the pod
+       * kept an admin session per picture, and had 35 of them
+       * (a-browser-that-tidies-up.test.ts).
+       */
       expect(pod.seen.map(s => `${s.method} ${s.url}`)).toEqual([
         'POST /api/login',
         'GET /api/room/screen/shot.jpg',
+        'POST /api/logout',
       ])
       expect(pod.seen[1].auth).toBe('Bearer neko-bearer')
     } finally {

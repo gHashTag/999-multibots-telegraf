@@ -18,6 +18,7 @@ import {
   type Reached,
 } from '@/lib/crm'
 import { Avatar } from '@/components/Crm/Avatar'
+import { ClientGroup } from '@/components/Crm/ClientGroup'
 import {
   daysSince,
   MIN_MOVE_USES,
@@ -340,6 +341,15 @@ export function ClientAside({
           ))}
         </section>
       ) : null}
+
+      {/* The client's group (owner, 2026-09-26): bound here, posted to by
+          the agent only through a card the owner presses. */}
+      <ClientGroup
+        client={client}
+        name={name}
+        onAsk={onAsk}
+        askDisabled={askDisabled}
+      />
 
       {ctx?.lastWords ? (
         <figure className="chat-aside__quote">

@@ -197,7 +197,7 @@ describe("it proposes, and the press is somebody else's", () => {
     const { tool, q } = await seller()
     const r: any = await tool.handler(
       { chat: '@pilot_client' },
-      { ...(ownerCtx() as any), surface: 'miniapp' }
+      { ...(ownerCtx() as any), surface: 'ios' }
     )
     expect(q.pendingCount()).toBe(0)
     expect(String(r.why)).toContain('чате бота')
