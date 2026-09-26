@@ -37,6 +37,7 @@
 import type { ToolContext } from './tools'
 import { scenesOf, type StoryScene } from './story-reel-tool'
 import { leadVoiceOf } from './lead-voice'
+import { TOKEN_PRICES } from './billing-shared'
 
 type Pool = { query: (sql: string, params?: unknown[]) => Promise<any> }
 type Message = { role: 'system' | 'user' | 'assistant'; content: string }
@@ -227,6 +228,48 @@ export async function takeNextPlanItem(
   return row
     ? { id: Number(row.id), title: String(row.title), note: String(row.note) }
     : null
+}
+
+/**
+ * The next card of her plan, only LOOKED at: what a press would make. The
+ * press itself takes it with takeNextPlanItem.
+ */
+export async function peekNextPlanItem(
+  pool: Pool,
+  lead: string,
+  doneTitles: readonly string[] = []
+): Promise<string> {
+  const row = await first(
+    pool,
+    `SELECT title FROM content_plan_items
+      WHERE telegram_id = $1 AND status = 'idea' AND NOT (title = ANY($2))
+      ORDER BY goal_id, id LIMIT 1`,
+    [String(lead), [...doneTitles]]
+  )
+  return row?.title ? String(row.title) : ''
+}
+
+/** Scenes a reel of the template has. */
+export const STORY_SCENES = 3
+/**
+ * Seconds of lip-sync one reel is billed for: three lines of 2-4 s, and each
+ * clip is billed in whole seconds, rounded up (measured 2026-09-26: 11.9 s
+ * spoken across three clips).
+ */
+export const STORY_BILLED_SECONDS = 13
+
+/**
+ * What one reel costs the person who pays, in tokens, BEFORE the press --
+ * read from the same prices the borrowed tools charge, so the figure moves
+ * with them. An estimate only in the lip-sync seconds; the rest is exact.
+ */
+export function storyPriceEstimate(): number {
+  return (
+    STORY_SCENES * (TOKEN_PRICES.image_edit ?? 0) +
+    STORY_SCENES * (TOKEN_PRICES.audio_generate ?? 0) +
+    STORY_BILLED_SECONDS * (TOKEN_PRICES.lipsync_generate ?? 0) +
+    (TOKEN_PRICES.reel_render ?? 0)
+  )
 }
 
 /**

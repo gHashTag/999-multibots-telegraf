@@ -40,6 +40,7 @@ export const APP_ROUTES = [
   'browser',
   'club',
   'pair',
+  'story',
 ] as const
 
 export type AppRoute = (typeof APP_ROUTES)[number]
