@@ -8,6 +8,7 @@ import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
 import { AutoPanel } from '@/components/Crm/AutoPanel'
 import { TrafficPanel } from '@/components/Crm/TrafficPanel'
 import { Avatar } from '@/components/Crm/Avatar'
+import { CrmMap } from '@/components/Crm/CrmMap'
 import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
 import {
   LEADS_SECTIONS,
@@ -131,8 +132,8 @@ export default function CrmPage() {
    * moment before the probe answers; if the server turns out not to have
    * them, the screen falls back to its own work rather than to an empty room.
    */
-  const [asked, pick] = useSectionTab(['work', ...LEADS_SECTIONS])
-  const tab = leadsLive || asked === 'work' ? asked : 'work'
+  const [asked, pick] = useSectionTab(['work', 'map', ...LEADS_SECTIONS])
+  const tab = leadsLive || asked === 'work' || asked === 'map' ? asked : 'work'
   const [overview, setOverview] = useState<Reached<Overview>>(empty)
   const [waiting, setWaiting] = useState<Reached<WaitingList>>(empty)
   const [leads, setLeads] = useState<Reached<HotLeads>>(empty)
@@ -507,6 +508,9 @@ export default function CrmPage() {
 
   const sections = [
     { id: 'work', label: t('crm.section.work') },
+    // Owner, 2026-09-25: everybody as round avatars by sphere, the owner in
+    // the centre, links between people as a graph (components/Crm/CrmMap).
+    { id: 'map', label: t('crm.section.map') },
     ...(leadsLive
       ? LEADS_SECTIONS.map(id => ({ id, label: t(`crm.section.${id}`) }))
       : []),
@@ -533,7 +537,9 @@ export default function CrmPage() {
         />
       ) : null}
 
-      {tab === 'work' ? null : (
+      {tab === 'map' ? <CrmMap /> : null}
+
+      {tab === 'work' || tab === 'map' ? null : (
         <LeadsSections section={tab as LeadsSectionId} />
       )}
 

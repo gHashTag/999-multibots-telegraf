@@ -19,6 +19,7 @@
  */
 import { API_BASE } from '../config'
 import type { MoveExperience, MoveStat } from './clientStrategy'
+import type { MapEdgeData, MapNodeData } from './crmMap'
 import { authHeaders } from '@/lib/apiFetch'
 import { markEmbedSignInNeeded } from '@/lib/embedGuest'
 
@@ -306,6 +307,34 @@ export async function loadMoveStats(): Promise<MoveExperience | null> {
     }
   }
   return out
+}
+
+/**
+ * The owner's people as a map (tool `crm_map`, render crm-map.ts): a sphere
+ * per person from their own words, and links between people who wrote in
+ * the same group. Keys become camelCase here, once.
+ */
+export async function loadCrmMap(): Promise<
+  Reached<{ nodes: MapNodeData[]; edges: MapEdgeData[] }>
+> {
+  return map(
+    await callTool<Record<string, unknown>>('crm_map', {}),
+    (r: Record<string, unknown>) => ({
+      nodes: rows(r['nodes']).map(n => ({
+        id: String(n['id'] ?? ''),
+        name: str(n['name']),
+        username: str(n['username']),
+        avatarUrl: str(n['avatar_url']),
+        sphere: str(n['sphere']) ?? 'other',
+        talk: typeof n['talk'] === 'number' ? (n['talk'] as number) : 0,
+      })),
+      edges: rows(r['edges']).map(e => ({
+        a: String(e['a'] ?? ''),
+        b: String(e['b'] ?? ''),
+        shared: typeof e['shared'] === 'number' ? (e['shared'] as number) : 1,
+      })),
+    })
+  )
 }
 
 /** A move pressed on a card, remembered so its outcome can be measured. */
