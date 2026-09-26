@@ -66,6 +66,7 @@ import {
   screenshot,
   pageUrl,
 } from './cdp'
+import { overBudget } from './tab-budget'
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
 import { LOGINS_NOTE, NETWORKS, loginsOfPerson } from './logins'
 import {
@@ -137,7 +138,22 @@ export async function liveSession(ctx: ToolContext) {
  * the chosen tab (front-page.ts), and nothing had chosen one.
  *
  * `open` is injected so this can be tested without a pod.
+ *
+ * It is also where the tabs it opened are counted and the oldest given back
+ * (tab-budget.ts): nothing else in the path knows which tabs are ours.
  */
+const openedByUs = new Map<string, string[]>()
+
+/** Only for tests: the record of what we opened is process-local. */
+export function forgetOpenedTabs(): void {
+  openedByUs.clear()
+}
+
+export interface TabIo {
+  list: (cdp: string) => Promise<{ id: string }[]>
+  close: (cdp: string, id: string) => Promise<void>
+}
+
 export async function openAndChoose(
   telegramId: string,
   cdp: string,
@@ -145,10 +161,27 @@ export async function openAndChoose(
   open: (cdp: string, url: string) => Promise<{ id: string; url?: string }> = (
     c,
     u
-  ) => newPage(c, u)
+  ) => newPage(c, u),
+  io: TabIo = { list: listTargets, close: closePage }
 ): Promise<{ id: string; url?: string }> {
   const page = await open(cdp, url)
   rememberFront(telegramId, page.id)
+  const ours = [...(openedByUs.get(telegramId) ?? []), page.id]
+  /*
+   * A pod that cannot be listed is a pod in trouble; the tab is already open
+   * and the caller gets it. The next open tries the tidy-up again.
+   */
+  try {
+    const alive = new Set((await io.list(cdp)).map(t => t.id))
+    const { close, keep } = overBudget(ours, alive)
+    openedByUs.set(telegramId, keep)
+    for (const id of close) {
+      await io.close(cdp, id).catch(() => {})
+      forgetFront(telegramId, id)
+    }
+  } catch {
+    openedByUs.set(telegramId, ours)
+  }
   return page
 }
 

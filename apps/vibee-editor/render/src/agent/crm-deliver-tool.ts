@@ -1,5 +1,11 @@
 import type { AgentTool, ToolContext } from './tools'
-import { propose, requireSeller, requireOwner } from './telegram-tools'
+import {
+  propose,
+  requireSeller,
+  requireOwner,
+  canConfirmOn,
+  CONFIRM_ELSEWHERE,
+} from './telegram-tools'
 import { assistantMayReach } from './assistant-opt-out'
 import { resolveLead, oneLine } from './crm-offer-tool'
 import { personOf } from './chat-memory'
@@ -505,15 +511,13 @@ export function makeCrmDeliverTools(
         const chat = String(a?.chat ?? '').trim()
         const prompt = String(a?.prompt ?? '').trim()
         if (!prompt) throw new Error('не сказано, что нарисовать')
-        if (String(ctx?.surface ?? '') !== 'bot') {
-          await noteGift(ctx, 'surface is not the bot chat', 'surface')
+        if (!canConfirmOn(ctx?.surface)) {
+          await noteGift(ctx, 'surface cannot confirm a card', 'surface')
           return {
             proposal: true,
             action: 'send',
             target: chat,
-            why:
-              'Подтвердить это можно только в чате бота — там есть кнопки ' +
-              '«Отправить / Отмена». Скажи человеку открыть бота и повторить просьбу.',
+            why: CONFIRM_ELSEWHERE,
           }
         }
         const gift = a?.gift !== false

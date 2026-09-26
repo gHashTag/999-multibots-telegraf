@@ -1230,3 +1230,37 @@ export const loadGroupContext = async (chat: string) =>
       }
     }
   )
+
+/* ── A client's group (tool `crm_client_group`, render crm-client-group.ts) ── */
+
+/** The group bound to one client: where the agent may post beside the DM. */
+export interface ClientGroupLink {
+  chatId: string
+  title: string | null
+  membersCount: number | null
+}
+
+const toClientGroup = (g: unknown): ClientGroupLink | null => {
+  if (!g || typeof g !== 'object') return null
+  const x = g as Record<string, unknown>
+  const chatId = String(x['chat_id'] ?? '')
+  return GROUP_CHAT_ID.test(chatId)
+    ? { chatId, title: str(x['title']), membersCount: num(x['members_count']) }
+    : null
+}
+
+export const loadClientGroup = async (client: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_client_group', { client }),
+    r => toClientGroup(r['group'])
+  )
+
+/** Bind a group to the client, or unbind with `null`. Sends nothing. */
+export const setClientGroup = async (client: string, chat: string | null) =>
+  map(
+    await callTool<Record<string, unknown>>(
+      'crm_client_group',
+      chat ? { client, chat } : { client, unbind: true }
+    ),
+    r => toClientGroup(r['group'])
+  )

@@ -377,7 +377,20 @@ export async function railwayRestart(ref: RailwayServiceRef): Promise<boolean> {
     input: {
       serviceId: ref.serviceId,
       environmentId: ref.environmentId,
-      status: 'SUCCESS',
+      /*
+       * A FILTER, NOT A VALUE (2026-09-26). `status: 'SUCCESS'` is what this
+       * asked for first, and the live API answers HTTP 400 "Problem
+       * processing request" to it: DeploymentStatusInput is an object of
+       * `in` / `notIn` lists, so a bare enum is not even a valid document.
+       * The restart was therefore impossible in production no matter how the
+       * three variables were set, and the fault was invisible until the token
+       * existed and the query was finally sent -- there was nothing to send it
+       * with before. Verified against the pod's own service the same day: the
+       * corrected query answers with deployment 4c99ba3f, SUCCESS, created
+       * 2026-09-23T11:21:26Z, which is exactly the last time the pod really
+       * restarted.
+       */
+      status: { in: ['SUCCESS'] },
     },
   })
   const edges = (
