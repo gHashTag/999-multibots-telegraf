@@ -49,23 +49,74 @@ export interface ГолосПровайдера {
  */
 export const ГОЛОСА_MINIMAX: readonly ГолосПровайдера[] = [
   // — русские —
-  { id: 'Russian_ReliableMan', name: 'Максим — уверенный', category: 'premade' },
+  {
+    id: 'Russian_ReliableMan',
+    name: 'Максим — уверенный',
+    category: 'premade',
+  },
   { id: 'Russian_BrightHeroine', name: 'Алиса — звонкая', category: 'premade' },
   { id: 'Russian_AmbitiousWoman', name: 'Вера — деловая', category: 'premade' },
-  { id: 'Russian_HandsomeChildhoodFriend', name: 'Артём — свой парень', category: 'premade' },
-  { id: 'Russian_AttractiveGuy', name: 'Егор — обаятельный', category: 'premade' },
-  { id: 'Russian_PessimisticGirl', name: 'Ника — сдержанная', category: 'premade' },
+  {
+    id: 'Russian_HandsomeChildhoodFriend',
+    name: 'Артём — свой парень',
+    category: 'premade',
+  },
+  {
+    id: 'Russian_AttractiveGuy',
+    name: 'Егор — обаятельный',
+    category: 'premade',
+  },
+  {
+    id: 'Russian_PessimisticGirl',
+    name: 'Ника — сдержанная',
+    category: 'premade',
+  },
   { id: 'Russian_CrazyQueen', name: 'Рита — дерзкая', category: 'premade' },
-  { id: 'Russian_Bad-temperedBoy', name: 'Слава — резкий', category: 'premade' },
+  {
+    id: 'Russian_Bad-temperedBoy',
+    name: 'Слава — резкий',
+    category: 'premade',
+  },
   // — английские —
   { id: 'English_Wiselady', name: 'Wise Lady', category: 'premade' },
-  { id: 'English_Deep-VoicedGentleman', name: 'Deep-Voiced Gentleman', category: 'premade' },
+  {
+    id: 'English_Deep-VoicedGentleman',
+    name: 'Deep-Voiced Gentleman',
+    category: 'premade',
+  },
   { id: 'English_CalmWoman', name: 'Calm Woman', category: 'premade' },
-  { id: 'English_FriendlyPerson', name: 'Friendly Person', category: 'premade' },
-  { id: 'English_CaptivatingStoryteller', name: 'Captivating Storyteller', category: 'premade' },
+  {
+    id: 'English_FriendlyPerson',
+    name: 'Friendly Person',
+    category: 'premade',
+  },
+  {
+    id: 'English_CaptivatingStoryteller',
+    name: 'Captivating Storyteller',
+    category: 'premade',
+  },
 ]
 
-const ИЗВЕСТНЫЕ = new Set(ГОЛОСА_MINIMAX.map(г => г.id))
+const ИЗВЕСТНЫЕ = new Set(ГОЛОСА_MINIMAX.map(г => г.id)) // cyrillic-ok: existing names
+
+/**
+ * THE OWNER'S OWN VOICE ON MINIMAX: a clone made with Replicate's
+ * minimax/voice-cloning, the voice the bot's content factory speaks with
+ * (src/services/contentFactory/stages.ts, FACTORY_VOICE_ID).
+ *
+ * Why it is here (owner, 2026-09-26): the story reel stopped at the voice.
+ * ElevenLabs is down across the platform -- its env var holds the key's
+ * identifier, not the key -- so audio_generate had no clone of the owner at
+ * all, and without a voice there is no lipsync. This clone lives on
+ * Replicate, which works.
+ *
+ * It is the owner's voice, so it is honoured only on a call the service
+ * itself makes (`trustedClone`, the route's api-key caller), never on a voice
+ * id a person types in: anyone could otherwise speak as the owner.
+ */
+export const OWNER_MINIMAX_CLONE = (
+  process.env.OWNER_MINIMAX_VOICE_ID || 'R8_5GW2UI4A'
+).trim()
 
 /**
  * Тот ли это голос, который MiniMax поймёт.
@@ -111,9 +162,12 @@ export function скоростьРечи(значение: unknown): number | un
  */
 export function входМиниМакс(
   text: string,
-  выбор: { voice?: unknown; speed?: unknown } = {}
+  выбор: { voice?: unknown; speed?: unknown; trustedClone?: boolean } = {} // cyrillic-ok: existing parameter
 ): Record<string, unknown> {
-  const голос = голосMinimax(выбор.voice)
+  const голос = // cyrillic-ok: existing local
+    выбор.trustedClone && выбор.voice === OWNER_MINIMAX_CLONE // cyrillic-ok: existing parameter
+      ? OWNER_MINIMAX_CLONE
+      : голосMinimax(выбор.voice) // cyrillic-ok: existing names
   const скорость = скоростьРечи(выбор.speed)
   return {
     text,
