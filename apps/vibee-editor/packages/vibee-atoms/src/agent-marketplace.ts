@@ -181,26 +181,108 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
     evidence: [],
   },
   {
-    id: 'habr',
-    skillPrefixes: ['habr', 'хабр'],
-    icon: 'H',
-    name: { en: 'Habr Engineer', ru: 'Habr-инженер' },
+    /*
+     * THE PROGRAMMER BECAME THE SCIENTIST (owner, 2026-09-26). The Habr
+     * engineer wrote long-reads from code; the scientist does what that was
+     * the surface of: a claim, how it was measured, whether it reproduces.
+     * Old rules named "Хабр: ..." still reach it (skillPrefixes).
+     */
+    id: 'scientist',
+    skillPrefixes: ['учёный', 'ученый', 'scientist', 'habr', 'хабр'],
+    icon: '⚗',
+    name: { en: 'Scientist', ru: 'Учёный' },
     role: {
-      en: 'Technical long-read agent',
-      ru: 'Агент технических лонгридов',
+      en: 'Claims, measurements and reproducibility',
+      ru: 'Утверждения, измерения, воспроизводимость',
     },
     promise: {
-      en: 'Reconstructs an engineering result from code and tests, then prepares a reproducible Habr draft.',
-      ru: 'Восстанавливает инженерный результат по коду и тестам и готовит воспроизводимый черновик для Habr.',
+      en: 'Takes a claim apart into hypothesis, method and evidence, checks it against the sources and the code, and writes what holds -- with the steps to reproduce it and the number that is still missing.',
+      ru: 'Разбирает утверждение на гипотезу, метод и доказательство, сверяет с источниками и кодом и пишет то, что держится, — с шагами воспроизведения и честным «не измерено» там, где числа нет.',
     },
     status: 'training',
     creator: 'T27',
     skills: [
-      { en: 'code-to-story', ru: 'из кода в историю' },
+      { en: 'claim audit', ru: 'аудит утверждений' },
+      { en: 'literature and sources', ru: 'литература и источники' },
       { en: 'reproduction steps', ru: 'шаги воспроизведения' },
-      { en: 'technical review', ru: 'техническая редактура' },
+      { en: 'paper and long-read draft', ru: 'черновик статьи и лонгрида' },
     ],
-    evidence: [],
+    evidence: [
+      {
+        en: 'a number without a source or a command is marked "not measured"',
+        ru: 'число без источника или команды помечается «не измерено»',
+      },
+    ],
+  },
+  {
+    /*
+     * FPGA AND RTL ENGINEERS (owner, 2026-09-26). The work lives in
+     * gHashTag/trinity-fpga (openXC7, Artix-7, GF16). No agent tool runs a
+     * synthesis or a simulator yet: they read, design and review, and say
+     * "not run" for every figure a tool would have to produce -- the
+     * withdrawn 323 MHz (a ring oscillator measured as a core) is the
+     * reason that rule is in their contract, not in their goodwill.
+     */
+    id: 'fpga',
+    skillPrefixes: ['fpga', 'плис'],
+    icon: '▦',
+    name: { en: 'FPGA Engineer', ru: 'FPGA-инженер' },
+    role: {
+      en: 'Synthesis, place-and-route and timing',
+      ru: 'Синтез, размещение и тайминги',
+    },
+    promise: {
+      en: 'Plans and reviews an FPGA build -- constraints, resources, timing, the open flow (yosys, nextpnr, openXC7) -- and says which figure was measured and which was not.',
+      ru: 'Планирует и проверяет сборку под ПЛИС — ограничения, ресурсы, тайминги, открытый маршрут (yosys, nextpnr, openXC7) — и говорит, какое число измерено, а какое нет.',
+    },
+    status: 'training',
+    creator: 'T27',
+    skills: [
+      { en: 'constraints and pinout', ru: 'ограничения и распиновка' },
+      { en: 'resource and timing review', ru: 'разбор ресурсов и таймингов' },
+      {
+        en: 'open flow: yosys · nextpnr · openXC7',
+        ru: 'открытый маршрут: yosys · nextpnr · openXC7',
+      },
+      { en: 'measured vs claimed', ru: 'измерено против заявлено' },
+    ],
+    evidence: [
+      {
+        en: 'an Fmax is named only with the netlist and the path it was measured on',
+        ru: 'Fmax называется только вместе с нетлистом и путём, на котором он измерен',
+      },
+    ],
+  },
+  {
+    id: 'rtl',
+    skillPrefixes: ['rtl', 'ртл', 'verilog'],
+    icon: '⎍',
+    name: { en: 'RTL Engineer', ru: 'RTL-инженер' },
+    role: {
+      en: 'Verilog / SystemVerilog design and verification',
+      ru: 'Проектирование и верификация на Verilog / SystemVerilog',
+    },
+    promise: {
+      en: 'Writes and reviews RTL with its testbench: interfaces, reset and clock domains, corner cases -- and the exact command to simulate it.',
+      ru: 'Пишет и проверяет RTL вместе с тестбенчем: интерфейсы, сброс и домены тактов, крайние случаи — и точную команду, чтобы это просимулировать.',
+    },
+    status: 'training',
+    creator: 'T27',
+    skills: [
+      { en: 'RTL with its testbench', ru: 'RTL вместе с тестбенчем' },
+      { en: 'clock and reset review', ru: 'разбор тактов и сброса' },
+      {
+        en: 'lint and simulate: verilator · iverilog',
+        ru: 'линт и симуляция: verilator · iverilog',
+      },
+      { en: 'corner cases', ru: 'крайние случаи' },
+    ],
+    evidence: [
+      {
+        en: 'a design is "verified" only when a named testbench passed',
+        ru: 'дизайн «проверен» только когда прошёл названный тестбенч',
+      },
+    ],
   },
 ] as const
 
@@ -276,8 +358,13 @@ export function agentSkillPrefix(
   agentId: string,
   lang: 'ru' | 'en'
 ): string | null {
-  const prefixes = marketplaceAgentById(agentId)?.skillPrefixes ?? []
-  if (!prefixes.length) return null
+  const agent = marketplaceAgentById(agentId)
+  const prefixes = agent?.skillPrefixes ?? []
+  if (!agent || !prefixes.length) return null
+  /* As the agent's own name writes it: "FPGA", "TikTok", "Учёный". */
+  const name = agent.name[lang]
+  const named = prefixes.find(x => name.toLowerCase().startsWith(x))
+  if (named) return name.slice(0, named.length)
   const cyrillic = (p: string) => /[Ѐ-ӿ]/.test(p)
   const p =
     prefixes.find(x => (lang === 'ru' ? cyrillic(x) : !cyrillic(x))) ??
