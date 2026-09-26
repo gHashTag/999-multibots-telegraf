@@ -1428,7 +1428,29 @@ export function marketplaceAgentPrompt(agentId?: string): string {
       'запускается — так и говори «не запускалось», не выдумывай вывод. Чужой ' + // cyrillic-ok: prompt copy
       'код и репозитории читай web_read с GitHub, справку ищи web_search; ' + // cyrillic-ok: prompt copy
       'ссылку, которую не открыл, источником не считаешь. Код отдавай целыми ' + // cyrillic-ok: prompt copy
-      'файлами в блоках ```ts/```js. Что не прогнал code_run — помечай «не запускалось».' // cyrillic-ok: prompt copy
+      'файлами в блоках ```ts/```js. Что не прогнал code_run — помечай «не запускалось».' + // cyrillic-ok: prompt copy
+      // The rules of the language t27 is written in. The coder codes by them
+      // (owner, 2026-09-26: "the programmer must code by all the .t27 rules").
+      // Source: gHashTag/t27 SOUL.md + T27-CONSTITUTION (laws L1-L7).
+      '\n\nКОГДА ПИШЕШЬ .t27 (или .tri) — ПО ЗАКОНАМ ЯЗЫКА T27, иначе компилятор ' + // cyrillic-ok: prompt copy
+      'и CI отвергнут:\n' + // cyrillic-ok: prompt copy
+      '- L4 ТЕСТЫ: в каждом модуле есть блок test/invariant/bench. Пиши ' + // cyrillic-ok: prompt copy
+      'test "имя" { assert(...) } — фигурными скобками с настоящими assert. ' + // cyrillic-ok: prompt copy
+      'Безскобочная форма given/when/then НЕ парсится, а keyword-форма ' + // cyrillic-ok: prompt copy
+      'компилируется в ПУСТОЙ тест (2 == 999 «проходит») — это ложь, не делай так.\n' + // cyrillic-ok: prompt copy
+      '- L3 ЧИСТОТА: только ASCII, английские идентификаторы и комментарии; ' + // cyrillic-ok: prompt copy
+      'кириллицу в исходнике парсер отвергает.\n' + // cyrillic-ok: prompt copy
+      '- L5 ИДЕНТИЧНОСТЬ: сравнения f64 — с допуском; модуль заканчивай ' + // cyrillic-ok: prompt copy
+      'строкой-комментарием «phi^2 + 1/phi^2 = 3 | TRINITY».\n' + // cyrillic-ok: prompt copy
+      '- L2 ГЕНЕРАЦИЯ: поведение живёт в спеке, файлы под gen/ не правь руками.\n' + // cyrillic-ok: prompt copy
+      '- L1 СЛЕД: у PR должна быть ссылка на issue (Closes #N); L7: новых *.sh ' + // cyrillic-ok: prompt copy
+      'не заводи, запускай через tri/t27c.\n' + // cyrillic-ok: prompt copy
+      '- ПЕЧАТЬ: новый/изменённый спек под specs/ требует seal (tri seal … ' + // cyrillic-ok: prompt copy
+      '--save, файл .trinity/seals/*.json), а PR должен затронуть docs/NOW.md.\n' + // cyrillic-ok: prompt copy
+      '- ПРОВЕРКА: спек готов, только когда t27c spec-status = IMPLEMENTED или ' + // cyrillic-ok: prompt copy
+      'PARTIAL (не NOFN/NOPARSE) и t27c parse-complete дочитал до конца. Нет ' + // cyrillic-ok: prompt copy
+      't27c под рукой — так и скажи «не проверял», не выдавай парс за истину. ' + // cyrillic-ok: prompt copy
+      'О себе проект пишет на своём языке (own-language-first), а не в чужом формате.' // cyrillic-ok: prompt copy
     )
   }
   return ''

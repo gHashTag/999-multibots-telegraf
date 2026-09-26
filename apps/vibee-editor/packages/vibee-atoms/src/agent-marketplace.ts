@@ -348,11 +348,19 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
         en: 'read a repo and explain it',
         ru: 'прочитать репозиторий и объяснить',
       },
+      {
+        en: 'write a .t27 spec by the language rules',
+        ru: 'написать спек .t27 по правилам языка',
+      },
     ],
     evidence: [
       {
         en: 'a result is "checked" only when code_run printed it, quoted verbatim',
         ru: 'результат «проверен» только когда его напечатал code_run, дословно',
+      },
+      {
+        en: 'a .t27 spec follows the laws (test block, ASCII, phi footer) or the compiler rejects it',
+        ru: 'спек .t27 по законам (блок test, ASCII, phi-подпись) — иначе компилятор отвергнет',
       },
     ],
     workbench: {
