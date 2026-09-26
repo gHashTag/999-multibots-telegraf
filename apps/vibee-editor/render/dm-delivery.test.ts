@@ -1199,6 +1199,8 @@ describe('execute: typing before the act, schedule instead of now', () => {
         this.stamp('disconnect')
       }
     }
+    // The REAL clock, taken before it is faked: the pump below waits on it.
+    const realSetTimeout = globalThis.setTimeout
     vi.useFakeTimers()
     try {
       const tl: string[] = []
@@ -1225,10 +1227,21 @@ describe('execute: typing before the act, schedule instead of now', () => {
           settled = true
         }
       )
-      let advanced = 0
-      while (!settled && advanced < TYPING_MS * 2) {
+      /*
+       * THE BUDGET IS REAL TIME, NOT FAKE TIME. It used to be two typing
+       * periods of FAKE time, and advanceTimersByTimeAsync returns at once
+       * when nothing is scheduled -- so on a cold graph the whole budget was
+       * spent in a few milliseconds of real time, before the prologue had
+       * even scheduled the pause, and the draft was reported as never
+       * settling (1 run in 3 under the root runner, 2026-09-26). Each slice
+       * now also yields a few REAL milliseconds for the imports and the
+       * charge to land; the bound is about four real seconds, inside the
+       * test timeout, so a real hang still says so in its own words.
+       */
+      const deadline = 800
+      for (let i = 0; !settled && i < deadline; i++) {
         await vi.advanceTimersByTimeAsync(50)
-        advanced += 50
+        if (!settled) await new Promise(r => realSetTimeout(r, 5))
       }
       if (!settled) throw new Error('execute never settled under fake timers')
       const r = await started
