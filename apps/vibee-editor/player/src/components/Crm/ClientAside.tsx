@@ -202,11 +202,6 @@ export function ClientAside({
     .filter(i => i.status !== 'done')
     .slice(0, 4)
 
-  const ask = (text: string) => {
-    if (!onAsk || askDisabled) return
-    onAsk(text)
-  }
-
   /**
    * A move pressed is remembered as a note `move:<id>` (our memory, never
    * sent) -- that is how the system learns which moves work for this owner.
