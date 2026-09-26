@@ -20,7 +20,8 @@ vi.mock('@/hooks/useAgentAcceptance', () => ({
   useAgentAcceptance: () => null,
 }))
 
-import { ClientHelperPicker, helpersFor } from './ClientHelperPicker'
+import { ClientHelperPicker } from './ClientHelperPicker'
+import { helpersFor } from '@/lib/clientHelpers'
 
 let host: HTMLDivElement
 let root: Root
