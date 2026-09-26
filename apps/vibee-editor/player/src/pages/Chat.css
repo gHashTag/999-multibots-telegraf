@@ -598,7 +598,10 @@ html[data-keyboard='open'] .chat-page {
     max-height: none;
     border-radius: 0;
     border-top: 0;
-    border-left: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+    /* The dashboard is the LEFT column (owner, 2026-09-24: "left the
+       dashboard, centre the agent, right the Queen"). */
+    order: -1;
+    border-right: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
     box-shadow: none;
     padding-bottom: 16px;
   }
@@ -607,6 +610,84 @@ html[data-keyboard='open'] .chat-page {
   .chat-aside__close {
     display: none;
   }
+  /* Between the two widths the Queen is a panel from the right, on a press. */
+  .chat-client__queen {
+    display: inline-flex;
+  }
+  .chat-queen-backdrop {
+    display: block;
+  }
+  .queen.is-open {
+    left: auto;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 380px;
+    height: auto;
+    border-radius: 0;
+    border-top: 0;
+    border-left: 1px solid rgba(255, 215, 0, 0.35);
+  }
+}
+
+/* Wide enough for three: dashboard | agent | Queen, all at once. */
+@media (min-width: 1400px) {
+  .queen,
+  .queen.is-open {
+    display: flex;
+    position: static;
+    width: 360px;
+    flex: 0 0 360px;
+    height: auto;
+    border-radius: 0;
+    border-top: 0;
+    border-left: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  }
+  .chat-client__queen,
+  .chat-queen-backdrop {
+    display: none;
+  }
+}
+
+/* ── ONE TOP ROW ───────────────────────────────────────────────────────────
+ * The way back, the title and the controls share one row; on a client's
+ * screen the conversation circles shrink. Every pixel above the conversation
+ * is a pixel the owner scrolls for. */
+.chat-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+}
+.chat-topbar:empty {
+  display: none;
+}
+.chat-topbar .chat-client,
+.chat-topbar .chat-specialist {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.chat-topbar .chat-toolbar {
+  padding: 0;
+  border-bottom: 0;
+}
+.chat-page--client .chat-threads {
+  padding-top: 4px;
+  padding-bottom: 2px;
+}
+.chat-page--client .chat-threads__dot {
+  width: 56px;
+}
+.chat-page--client .chat-threads__circle {
+  width: 38px;
+  height: 38px;
+  font-size: 13px;
+}
+.chat-page--client .chat-threads__caption {
+  font-size: 10px;
 }
 
 .chat-aside__head {

@@ -200,7 +200,7 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
 ## Tick 8 (24.09.2026): two routes that never reached their handler
 
 - **Measured in production**: `🔒 [auth] ОТКАЗ GET /api/agents/acceptance —
-  no X-Api-Key and no Telegram initData`. The verdict endpoint (market card
+no X-Api-Key and no Telegram initData`. The verdict endpoint (market card
   line, the hire-by-evidence gate in the app) and the traffic counter
   `POST /api/traffic/arrival` (app + t27.ai) sat behind the shared guard in
   `render/auth.ts`: the app calls both with a bare fetch, t27.ai has no
