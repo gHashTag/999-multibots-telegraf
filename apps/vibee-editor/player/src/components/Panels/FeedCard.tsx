@@ -430,7 +430,14 @@ export function FeedCard({ template }: FeedCardProps) {
             ) : template.thumbnailUrl ? (
               // Show poster/thumbnail before video loads
               <div className="feed-card-poster">
-                <img src={template.thumbnailUrl} alt={template.name} />
+                <img
+                  src={template.thumbnailUrl}
+                  alt={template.name}
+                  onError={e => {
+                    ;(e.currentTarget as HTMLImageElement).style.display =
+                      'none'
+                  }}
+                />
                 {!shouldLoadVideo && (
                   <div className="feed-card-loading">
                     <Loader2 size={32} className="spinning" />
@@ -575,6 +582,10 @@ export function FeedCard({ template }: FeedCardProps) {
                     src={template.creatorAvatar}
                     alt={template.creatorName}
                     className="feed-card-avatar"
+                    onError={e => {
+                      ;(e.currentTarget as HTMLImageElement).style.display =
+                        'none'
+                    }}
                   />
                 )}
                 <div className="feed-card-meta">
@@ -592,6 +603,10 @@ export function FeedCard({ template }: FeedCardProps) {
                     src={template.creatorAvatar}
                     alt={template.creatorName}
                     className="feed-card-avatar"
+                    onError={e => {
+                      ;(e.currentTarget as HTMLImageElement).style.display =
+                        'none'
+                    }}
                   />
                 )}
                 <div className="feed-card-meta">
@@ -660,6 +675,10 @@ export function FeedCard({ template }: FeedCardProps) {
                   src={template.originalCreatorAvatar}
                   alt={template.originalCreatorName || 'Original Creator'}
                   className="remix-creator-avatar"
+                  onError={e => {
+                    ;(e.currentTarget as HTMLImageElement).style.display =
+                      'none'
+                  }}
                 />
               )}
             </div>

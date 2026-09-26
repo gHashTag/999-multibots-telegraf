@@ -2,6 +2,7 @@ import { logger } from '@/utils/logger'
 import type { Telegraf } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { спроситьАгента, recordTurns, type ОтветАгента } from './trinityAgent' // cyrillic-ok: pre-existing identifiers
+import { wasStoppedByOwner } from './agentStop'
 import {
   proposalCard,
   rememberCard,
@@ -75,7 +76,7 @@ export interface SweepDeps {
   ask: (
     telegramId: string,
     text: string,
-    o?: { faceOf?: string }
+    o?: { faceOf?: string; signal?: AbortSignal }
   ) => Promise<ОтветАгента> // cyrillic-ok: pre-existing identifiers
   ingest: (telegramId: string) => Promise<unknown>
   push: (
@@ -92,6 +93,12 @@ export interface SweepDeps {
    * sweepOnce). Absent: the model is asked to look, as before.
    */
   leads?: (telegramId: string) => Promise<Array<Record<string, unknown>>>
+  /**
+   * Fetch a few missing profile photos, so the queue's face ordering has
+   * something to order by. Optional and best-effort: absent or failing, the
+   * sweep runs exactly as it did.
+   */
+  faces?: (telegramId: string) => Promise<unknown>
   now?: () => number
   /**
    * Is a card already waiting for this owner, and until when.
@@ -127,6 +134,14 @@ export type SweepOutcome = (
   | { did: 'card'; why: string; id: string }
   | { did: 'busy'; why: string }
   | { did: 'failed'; why: string }
+  /**
+   * THE OWNER ENDED IT HIMSELF, and that is not a failure.
+   *
+   * Without its own state a stop arrives as `failed`, which pages him about
+   * something he just did -- and counts against the sweep's failure figure,
+   * which exists to show when the seller is broken.
+   */
+  | { did: 'stopped'; why: string }
 ) & { ms?: number }
 
 /** The brief. One proposal at most, nothing sent, memory first. */
@@ -155,9 +170,18 @@ export interface SweepOpts {
    * the render draws people from THEIR face in it, never the owner's.
    */
   faceOf?: string
+  /**
+   * THE OWNER'S STOP, CARRIED INTO THE TURN.
+   *
+   * A sweep started from a button is the one the owner watches, and it is the
+   * one he may want to end. The signal goes all the way to `спроситьАгента`,
+   * which turns an abort from here into `STOPPED_BY_OWNER` -- final, never
+   * replayed (issue #2721).
+   */
+  signal?: AbortSignal
 }
 /** The render's ingest tool may walk dozens of dialogs; it is not quick. */
-const INGEST_TIMEOUT_MS = 170_000
+export const INGEST_TIMEOUT_MS = 170_000
 /*
  * A SHORT DEADLINE, BECAUSE THIS QUESTION IS NOT THE WORK.
  *
@@ -340,19 +364,36 @@ export function holdFor(unpressed: number, base = HOLD_MS_DEFAULT): number {
  * ceiling was set from it. That sum went stale twice over:
  *
  *   ingest           INGEST_TIMEOUT_MS      170 s  (crm_ingest_chats)
+ *   faces            FACES_TIMEOUT_MS        60 s  (crm_client_avatars, 24.09)
  *   crm_leads        TOOL_TIMEOUT_MS        170 s  (modelSwitch, added later)
- *   model turn       agent turn ceiling     180 s  (trinityAgent)
- *   transport retry  agent turn ceiling     180 s  (once per sweep, below)
- *   no-tools retry   agent turn ceiling     180 s
+ *   model turn       TURN_CEILING_MS        420 s  (trinityAgent)
+ *   one retry        TURN_CEILING_MS        420 s  (ONE per sweep, shared by
+ *                                                  the transport retry, the
+ *                                                  no-tools retry and the
+ *                                                  abort -- see the budget
+ *                                                  below)
  *                                          ------
- *                                           880 s = 14 min 40 s
+ *                                          1240 s = 20 min 40 s
  *
  * An honest but slow sweep therefore tripped a ten-minute check, which pages
  * ("sweep stuck, releasing the flag") and then FALLS THROUGH to start a
- * second concurrent sweep -- a false alarm that also doubles the work. Fifteen
- * minutes clears the real worst case with room for the push.
+ * second concurrent sweep -- a false alarm that also doubles the work.
+ *
+ * IT WENT STALE TWICE MORE, AND THE SECOND TIME WAS NOT MINE ALONE.
+ *
+ * The faces step (24.09.2026) added sixty seconds to a sum that was already
+ * wrong: the model turn is bounded by TURN_CEILING_MS, which is 420 s and
+ * has been for some time, while this table still said 180. Nothing in the
+ * sweep sets a deadline of its own on the ask -- it catches the abort the
+ * agent's own ceiling raises -- so the honest worst case was never 880 s.
+ * A number kept by hand goes stale in the direction nobody is watching.
+ *
+ * Twenty-two minutes clears 1240 s with room for the push, and
+ * `theSweepCeilingCoversItsSteps` RECOMPUTES the sum from the constants
+ * themselves, so a step added here without a row in this table fails a test
+ * instead of re-arming a false alarm months later.
  */
-export const STUCK_SWEEP_MS = 15 * 60_000
+export const STUCK_SWEEP_MS = 22 * 60_000
 /*
  * MEMORY THAT STOPPED REFRESHING IS A FAILURE, NOT A WARNING (P1 #4).
  *
@@ -418,13 +459,37 @@ export function leadsNote(
    * before, the list is the same list in the same order and the sweep works
    * exactly as it did: silence about everybody is not a reason to go quiet.
    */
-  const ordered =
-    cold.size === 0
-      ? rows
-      : [
-          ...rows.filter(c => !cold.has(String(c.lead ?? ''))),
-          ...rows.filter(c => cold.has(String(c.lead ?? ''))),
-        ]
+  /*
+   * AND THE SAME MECHANISM FOR THE FACE.
+   *
+   * The sweep's first action is a PORTRAIT, drawn from the person's own
+   * face. A candidate whose face nobody holds turns the entire sweep into
+   * "please send me a photo" -- the weakest card there is, and by the rule
+   * three lines up a weak card DISPLACES the next one. Meanwhile somebody
+   * further down, whose face is right there, gets nothing.
+   *
+   * So a known face comes first. Nothing new for the model to weigh: the
+   * order IS the choice, exactly as with the cold ones.
+   *
+   * WHAT THIS MUST NOT BECOME. `face` has two values, 'yes' and 'unknown',
+   * and 'unknown' means NOBODY HAS LOOKED -- not "no photo". Demoting for it
+   * would bury people over a fact never checked, so unknown keeps its place
+   * among its equals; only a known face is promoted above it. A queue that
+   * has never been looked at is therefore the queue it always was.
+   *
+   * The cold rule still wins: somebody whose card was ignored stays last,
+   * face or no face. Being ignored is about the owner's attention, which is
+   * the scarce thing here.
+   */
+  const hasFace = (c: Record<string, unknown>) => String(c.face ?? '') === 'yes'
+  const warm = rows.filter(c => !cold.has(String(c.lead ?? '')))
+  const ordered = [
+    ...warm.filter(hasFace),
+    ...warm.filter(c => !hasFace(c)),
+    ...(cold.size === 0
+      ? []
+      : rows.filter(c => cold.has(String(c.lead ?? '')))),
+  ]
   const lines = ordered.slice(0, LOOK_LIMIT).map(c => {
     const who = c.display
       ? `${String(c.display)} (${String(c.lead ?? '')})`
@@ -432,7 +497,9 @@ export function leadsNote(
     const seen = cold.has(String(c.lead ?? ''))
       ? ' — ему уже готовили карточку, её не нажали'
       : ''
-    return `- ${who}: next=${String(c.next ?? '')}${seen}`
+    // Said plainly, so the model does not read a missing face as "no photo".
+    const face = hasFace(c) ? ' — лицо есть' : '' // cyrillic-ok: brief copy
+    return `- ${who}: next=${String(c.next ?? '')}${face}${seen}`
   })
   return (
     ' ШАГ 1 УЖЕ ВЫПОЛНЕН: crm_leads вернул ' +
@@ -716,7 +783,17 @@ export async function sweepOnce(
    * second attempt costs another turn of the same 180 s budget, which the
    * ten-minute ceiling above already accounts for.
    */
-  const face = opts.faceOf ? { faceOf: opts.faceOf } : undefined
+  /*
+   * The face and the stop travel together, because both belong to THIS turn:
+   * whose face a picture is drawn from, and whether the owner has ended it.
+   */
+  const face =
+    opts.faceOf || opts.signal
+      ? {
+          ...(opts.faceOf ? { faceOf: opts.faceOf } : {}),
+          ...(opts.signal ? { signal: opts.signal } : {}),
+        }
+      : undefined
   const ask = async (text: string): ReturnType<SweepDeps['ask']> => {
     try {
       return face
@@ -846,6 +923,47 @@ export async function sweepOnce(
         error,
         consecutive: st.ingestFailStreak,
       })
+    }
+    /*
+     * AND WHILE THE SESSION IS STILL WARM, LOOK AT A FEW FACES.
+     *
+     * Yesterday the queue learned to put a known face first, because the
+     * sweep's first action is a portrait and a candidate with no face turns
+     * the whole sweep into "please send me a photo". What that change did
+     * NOT fix, and this does: the face cache had exactly two writers -- the
+     * CRM screen's batch and the agent's own crm_client_face. An owner who
+     * never opens that screen has `unknown` against every name, so the
+     * ordering sorted nothing and the seller went on asking people for
+     * photos it could have fetched.
+     *
+     * A signal that depends on somebody opening a screen is not a signal.
+     * The timer fills it instead -- a few people per sweep, never the whole
+     * book, and never the model's decision (crm_client_avatars stays
+     * DIRECT_CALL_ONLY: a sentence in a client's message must not be able
+     * to open the owner's session in a loop).
+     *
+     * IT IS PLACED AFTER INGEST, NOT BECAUSE THE SESSION IS WARM. The first
+     * version of this comment said that, and it was false: withClient hangs
+     * up at the end of every tool call, so this batch opens its own cold
+     * connection whatever precedes it. What the order actually buys is that
+     * the memory this sweep works from is refreshed FIRST -- pictures must
+     * never delay somebody's answer. The batch's own cost is bounded on its
+     * side instead (crm-avatars.ts: the 200-dialog walk now happens only
+     * when somebody in the batch has no username to resolve by).
+     *
+     * Best-effort, like ingest and for the same reason: a FLOOD_WAIT on
+     * pictures must not silence somebody who has been waiting since
+     * yesterday. No faces simply means the queue is ordered as it was.
+     */
+    if (deps.faces && opts.ingest !== false) {
+      stage = 'лица' // cyrillic-ok: stage label read by the owner's alert
+      try {
+        await deps.faces(ownerId)
+      } catch (e) {
+        logger.warn('[crm-proactive] faces not fetched, order unchanged', {
+          error: e instanceof Error ? e.message : String(e),
+        })
+      }
     }
     /*
      * LOOK FIRST, THEN ASK.
@@ -1044,6 +1162,13 @@ export async function sweepOnce(
      * service and the owner needs to know which.
      */
     const raw = e instanceof Error ? e.message : String(e)
+    /*
+     * The owner's own Stop, told apart before anything decides this was a
+     * fault: a page about a button he pressed is the noise this project
+     * spends most of its effort removing.
+     */
+    if (wasStoppedByOwner(raw))
+      return { did: 'stopped', why: 'остановлено владельцем' } // cyrillic-ok: user-facing
     const dead = isTransportDeath(e)
     return {
       did: 'failed',
@@ -1401,6 +1526,48 @@ async function ingestViaRender(telegramId: string): Promise<unknown> {
 }
 
 /**
+ * A FEW FACES PER SWEEP, THROUGH THE OWNER'S OWN SESSION.
+ *
+ * Small on purpose. The tool caps a batch at 30 and re-checks a person no
+ * more than weekly; eight every half hour is a few hundred a day, which is
+ * more than the queue can ever look at, and it leaves the sweep's minutes
+ * for the work. Its own deadline, shorter than ingest's: pictures are worth
+ * seconds, not three minutes.
+ */
+export const FACES_PER_SWEEP = 8
+export const FACES_TIMEOUT_MS = 60_000
+
+async function facesViaRender(telegramId: string): Promise<unknown> {
+  const key = process.env.RENDER_API_KEY || ''
+  if (!key) throw new Error('RENDER_API_KEY не задан')
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), FACES_TIMEOUT_MS)
+  try {
+    const r = await fetch(
+      `${BASE}/mcp?telegram_id=${encodeURIComponent(telegramId)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Api-Key': key },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: 'crm_client_avatars',
+            arguments: { limit: FACES_PER_SWEEP },
+          },
+        }),
+        signal: ac.signal,
+      }
+    )
+    if (!r.ok) throw new Error(`faces HTTP ${r.status}`)
+    return await r.json()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
  * Wire the sweep to a bot. Returns a stop function. The first run waits two
  * minutes so a redeploy does not fire a turn before the bot is up.
  */
@@ -1410,7 +1577,12 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
     // toolsOnly: a model that only talks cannot do step 2 or 3, and its
     // answer would be filed as a failure anyway -- better an honest one.
     ask: (owner, text, o) =>
-      спроситьАгента(owner, text, { toolsOnly: true, faceOf: o?.faceOf }), // cyrillic-ok: pre-existing identifiers
+      спроситьАгента(owner, text, {
+        // cyrillic-ok: pre-existing identifiers
+        toolsOnly: true,
+        faceOf: o?.faceOf,
+        ...(o?.signal ? { signal: o.signal } : {}),
+      }),
     ingest: ingestViaRender,
     pendingCard: pendingCardViaRender,
     push: (owner, draft, opts) =>
@@ -1425,6 +1597,7 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
       }),
     record: recordTurns,
     leads: owner => fetchLeadRows(owner, LOOK_LIMIT),
+    faces: facesViaRender,
   }
 }
 
@@ -1589,7 +1762,28 @@ export async function runProactiveTick(
     }
   }
   const startedAt = Date.now()
-  const r = { ...(await sweepOnce(owner, deps, { holdMs: opts.holdMs })) }
+  /*
+   * THE UNATTENDED SWEEP IS STOPPABLE TOO (issue #2721).
+   *
+   * It runs in the bot's own process, so the owner's Stop can reach it -- and
+   * for a while it could not, only because the registry lived inside the
+   * button handler's closure. A turn started by a clock is exactly the one a
+   * person is most likely to want ended: he did not ask for it, and it is
+   * spending on his account while he watches.
+   */
+  const { beginOwnerRun, endOwnerRun } = await import('./ownerRuns')
+  const stopper = beginOwnerRun(owner)
+  let r: TickOutcome
+  try {
+    r = {
+      ...(await sweepOnce(owner, deps, {
+        holdMs: opts.holdMs,
+        signal: stopper.signal,
+      })),
+    }
+  } finally {
+    endOwnerRun(owner, stopper)
+  }
   // Timed HERE rather than inside the step above: the step's own measurement
   // never left the Inngest payload, and this one reaches the log and the
   // journal, which are the two places anybody actually looks.

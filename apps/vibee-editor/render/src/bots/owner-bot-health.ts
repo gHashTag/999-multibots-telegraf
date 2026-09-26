@@ -29,6 +29,8 @@
  * and Telegram's own words when the answer is no.
  */
 
+import { telegramApiFor } from '../telegram-api'
+
 export interface BotHealth {
   /** Username without the @, as the farm knows it. */
   bot: string
@@ -91,12 +93,21 @@ async function askTelegram(
   description?: string
 }> {
   try {
-    const res = await fetchImpl(
-      `https://api.telegram.org/bot${token}/${method}`,
-      {
-        method: 'GET',
-      }
-    )
+    /*
+     * THE HOST OF THIS TOKEN, NEVER THE CLOUD BY NAME.
+     *
+     * A health check that writes api.telegram.org by hand calls the CLOUD for
+     * every bot it checks -- including the ones moved to our own Bot API
+     * server. For a moved bot that single request logs it back into the cloud
+     * and its updates stop arriving where they are handled: the check would
+     * break exactly the thing it exists to watch.
+     *
+     * Caught by the census test, which stood red on main when this was
+     * written -- so the watchman was itself the hazard for two commits.
+     */
+    const res = await fetchImpl(`${telegramApiFor(token)}/${method}`, {
+      method: 'GET',
+    })
     const body = (await res.json()) as {
       ok?: boolean
       result?: Record<string, unknown>

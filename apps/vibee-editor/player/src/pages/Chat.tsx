@@ -38,7 +38,7 @@ import { SendCardView } from '@/components/Chat/SendCardView'
 import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { useEarnedAgent } from '@/hooks/useAgentAcceptance'
-import { useAgentSkills } from '@/hooks/useAgentSkills'
+import { AgentSkillsPanel } from '@/components/Chat/AgentSkillsPanel'
 import { AGENT_SUGGESTIONS, agentGate } from './agentSuggestions'
 import './Chat.css'
 
@@ -209,8 +209,6 @@ function ChatThread({
   marketplaceAgent: string | null
 }) {
   const { t } = useLanguage()
-  /* The person's skills this specialist carries (useAgentSkills). */
-  const agentSkillNames = useAgentSkills(marketplaceAgent)
   // Переписка и черновик — в атомах с хранилищем, а не в useState: страница
   // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
   const messagesAtom = useMemo(
@@ -706,19 +704,13 @@ function ChatThread({
                 </div>
               ))}
 
-              {messages.length <= 1 && marketplaceAgent && agentSkillNames ? (
+              {messages.length <= 1 && marketplaceAgent ? (
                 /*
-                  WHAT THIS AGENT CARRIES (owner, 2026-09-24): its own skills
-                  and the general ones, the same list its prompt was given.
+                  WHAT THIS AGENT CARRIES (owner, 2026-09-24): what it knows
+                  how to do, the person's rules its prompt gets, and a field
+                  to add one for this agent right here.
                 */
-                <p className="agent-skills-line" data-testid="agent-skills">
-                  {agentSkillNames.own.length || agentSkillNames.general.length
-                    ? t('chat.agentSkills.on', {
-                        own: agentSkillNames.own.join(' · ') || '—',
-                        general: agentSkillNames.general.length,
-                      })
-                    : t('chat.agentSkills.none')}
-                </p>
+                <AgentSkillsPanel agentId={marketplaceAgent} />
               ) : null}
               {messages.length <= 1 ? (
                 <div className="suggestions">

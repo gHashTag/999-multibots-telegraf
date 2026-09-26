@@ -400,6 +400,14 @@ describe('the names it reads and the shape of what it sends', () => {
     expect(caption).not.toMatch(/app\.t27\.ai|vibee-editor-production/)
   })
 
+  it('the way back says it came from the channel, so the start is counted', async () => {
+    const { db } = fakeDb({ pending: [reel({ id: 8 })] })
+    const send = sender()
+    await deliverToChannel({ db, log, send, env: LIVE_ENV })
+    const caption = String(send.mock.calls[0][0].caption)
+    expect(caption).toContain('?start=app_feed__telegram')
+  })
+
   it('it sends a URL with the resolved credentials', async () => {
     const { db } = fakeDb({ pending: [reel({ id: 5 })] })
     const send = sender()

@@ -63,6 +63,31 @@ export function supervisorThread(clientId: string): string {
   return `client:${clientId}:queen`
 }
 
+/**
+ * A ROOM HAS ITS OWN MEMORY, AND THAT IS THE WHOLE POINT.
+ *
+ * Until this existed, a turn in a group was keyed by the PERSON who wrote
+ * (`спроситьАгента(ctx.from.id, …)` in the bot). So an answer in a shared room
+ * was composed with that person's private correspondence in context, and the
+ * group turn was written back into their personal history. Issue #2644 named
+ * it and put "do not call the agent in the room" out of scope for exactly this
+ * reason: it is their DMs read out in front of everybody else.
+ *
+ * A room thread is keyed by the CHAT. The people in it are identified as
+ * themselves -- tools, wallet and rights stay personal -- but the memory of
+ * the conversation belongs to the room, which is what a person in that room
+ * would assume it does.
+ *
+ * Telegram group ids are negative, which is why this is not `clientThread`:
+ * `CLIENT_ID_RE` accepts positive digits only, and a group would have been
+ * refused as a bad client -- the trap the same issue wrote down.
+ */
+export const ROOM_ID_RE = /^-\d{5,20}$/
+
+export function roomThread(chatId: string): string {
+  return `room:${chatId}`
+}
+
 /** A hired specialist never shares memory with the general assistant. */
 export function marketplaceAgentThread(agentId: string): string {
   return `agent:${agentId}`

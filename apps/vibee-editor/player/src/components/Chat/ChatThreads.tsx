@@ -64,6 +64,33 @@ export function threadLabel(row: ClientRow): string {
  * initials. Digits are dropped: "90" from an id says nothing, and an id-only
  * row gets a neutral mark instead.
  */
+/**
+ * A FACE IN THE ROW, OR INITIALS -- INCLUDING WHEN THE PICTURE BREAKS.
+ *
+ * This row drew a bare `<img>`: a URL that no longer resolves -- a signed
+ * link that expired, which is the case `components/Crm/Avatar.tsx` was
+ * extracted for -- left the browser's broken-picture icon sitting in the
+ * circle. The same client, in the CRM list, showed initials.
+ *
+ * The rule was lifted out of this very file (Avatar imports `initialsOf`
+ * from here) and never came back to it. It keeps this row's own classes
+ * rather than borrowing that component, because `.chat-threads__circle`
+ * carries the ring for the current thread, the gold edge for a payer and the
+ * green for an agent -- styling that belongs to the row, not to the face.
+ */
+function RailFace({ url, label }: { url?: string | null; label: string }) {
+  const [broken, setBroken] = useState(false)
+  return (
+    <span className="chat-threads__circle" aria-hidden="true">
+      {url && !broken ? (
+        <img src={url} alt="" loading="lazy" onError={() => setBroken(true)} />
+      ) : (
+        initialsOf(label)
+      )}
+    </span>
+  )
+}
+
 export function initialsOf(label: string): string {
   const words = label
     .replace(/^@/, '')
@@ -212,13 +239,7 @@ export function ChatThreads({ current }: { current: string | null }) {
             aria-current={isCurrent ? 'page' : undefined}
             title={t('crm.client.chat.title', { id: label })}
           >
-            <span className="chat-threads__circle" aria-hidden="true">
-              {row.avatarUrl ? (
-                <img src={row.avatarUrl} alt="" loading="lazy" />
-              ) : (
-                initialsOf(label)
-              )}
-            </span>
+            <RailFace url={row.avatarUrl} label={label} />
             <span className="chat-threads__caption">{label}</span>
           </Link>
         )

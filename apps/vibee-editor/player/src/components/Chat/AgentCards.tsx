@@ -39,15 +39,36 @@ export function AgentCards({
         return (
           <article
             key={card.title}
-            className={`agent-card agent-card--${live ? 'live' : state} agent-card--${card.kind}`}
+            className={
+              `agent-card agent-card--${live ? 'live' : state} ` +
+              `agent-card--${card.kind}${live ? '' : ' agent-card--settled'}`
+            }
           >
             <div className="agent-card__body">
-              <h3>
-                {card.kind === 'step' ? (
-                  <span className="agent-card__n">{i + 1}</span>
+              {/*
+               * The status rides on the TITLE's row, not the card's.
+               *
+               * Measured on a 375px screen: putting it beside the whole card
+               * narrowed the body and pushed the detail onto a second line,
+               * giving back the very height this was saving (79px against
+               * 60). Beside the title it costs nothing, because a title is
+               * short and a detail keeps the full width.
+               */}
+              <div className="agent-card__head">
+                <h3>
+                  {card.kind === 'step' ? (
+                    <span className="agent-card__n">{i + 1}</span>
+                  ) : null}
+                  {card.title}
+                </h3>
+                {!live && (state === 'approved' || state === 'declined') ? (
+                  <span className="agent-card__state">
+                    {state === 'approved'
+                      ? t('chat.cards.approved')
+                      : t('chat.cards.declined')}
+                  </span>
                 ) : null}
-                {card.title}
-              </h3>
+              </div>
               {card.detail ? <p>{card.detail}</p> : null}
             </div>
             {live ? (
@@ -67,15 +88,7 @@ export function AgentCards({
                   {t('chat.cards.approve')}
                 </button>
               </div>
-            ) : (
-              <span className="agent-card__state">
-                {state === 'approved'
-                  ? t('chat.cards.approved')
-                  : state === 'declined'
-                    ? t('chat.cards.declined')
-                    : t('chat.cards.skipped')}
-              </span>
-            )}
+            ) : null}
           </article>
         )
       })}

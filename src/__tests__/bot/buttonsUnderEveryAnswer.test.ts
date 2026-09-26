@@ -1,10 +1,15 @@
 /**
- * BUTTONS UNDER EVERY MODEL ANSWER TO A USER.
+ * BUTTONS ON THE SUBSTANCE OF A MODEL ANSWER.
  *
- * Owner: "юзеру в каждом ответе модели отправлять телеграм кнопки". Every
- * path that carries a model answer to a person ends with something to tap:
- * the standard set (pay, balance, what you can, a person), a pay row when
- * the answer already holds an invoice link, and nothing a group chat would
+ * The owner asked first for buttons under every answer, and on 24.09.2026
+ * for the opposite: "on the substance, not in every message -- look at how
+ * our browser does it". The browser asks permission BY PLACE, not because an
+ * action happened; buttons now appear because the answer gives a reason, not
+ * because an answer happened.
+ *
+ * What did not change, because both were already by substance: a pay row
+ * when the answer holds an invoice link, the buttons the agent proposed
+ * itself, every id having a live handler, and nothing a group chat would
  * reject.
  */
 import { describe, it, expect } from 'vitest'
@@ -118,14 +123,13 @@ describe('the pay row and the markers', () => {
       true,
       { app: false }
     )
-    expect(callbacks(kb.markup)).toEqual([
-      'url:https://t.me/$abc',
-      'act:topup',
-      'act:topup',
-      'act:balance',
-      'act:can',
-      'act:human',
-    ])
+    /*
+     * The pay link, then the button the agent itself proposed -- and nothing
+     * more. Until 24.09.2026 the four standard buttons followed, so this
+     * answer carried `topup` twice. The owner that day: buttons "on the
+     * substance, not in every message".
+     */
+    expect(callbacks(kb.markup)).toEqual(['url:https://t.me/$abc', 'act:topup'])
     expect(kb.text).not.toContain('[[')
   })
 

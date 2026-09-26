@@ -64,6 +64,8 @@ import {
   PORTRAIT_IDENTITY_PREFIX,
   PORTRAIT_FRAMING_SUFFIX,
 } from './client-face'
+import { makeClientFaceTool } from './client-face-tool'
+import { ROOM_PEOPLE_TOOLS } from './room-people'
 
 import { BROWSER_TOOLS } from '../browser/agent-tools'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -79,6 +81,7 @@ import {
   cutPart,
   joinParts,
   leadSilenceOf,
+  maxSecondsOf,
   probeSeconds,
   probeSize,
   proxyShelfUrl,
@@ -2187,6 +2190,11 @@ export const TOOLS: AgentTool[] = [
           description:
             'секунд тишины в начале (0–3): старт на неподвижном фото',
         },
+        max_seconds: {
+          type: 'number',
+          description:
+            'взять только первые N секунд голоса (1–30); проба модели — 2–3 с, не весь ролик',
+        },
         model: {
           type: 'string',
           enum: [...LIPSYNC_MODELS],
@@ -2241,6 +2249,7 @@ export const TOOLS: AgentTool[] = [
           reason: `модель ${model} не допущена к липсинку: ${LIPSYNC_MODELS.join(' | ')}. Ничего не списано.`,
         }
       const leadSilence = leadSilenceOf(args.lead_silence_s)
+      const maxSeconds = maxSecondsOf(args.max_seconds)
       const dir = await mkdtemp(joinPath(tmpdir(), 'lipsync-'))
       try {
         const track = joinPath(dir, 'voice.wav')
@@ -2250,10 +2259,7 @@ export const TOOLS: AgentTool[] = [
             proxyShelfUrl(voiceKey),
             LIPSYNC_VOICE_MAX_BYTES,
             async source => {
-              await voiceTrack(source, track, {
-                leadSilence,
-                maxSeconds: LIPSYNC_TOOL_MAX_SECONDS,
-              })
+              await voiceTrack(source, track, { leadSilence, maxSeconds })
               return probeSeconds(track)
             }
           )
@@ -3409,6 +3415,26 @@ TOOLS.push(
     },
   })
 )
+/*
+ * THE FACE, ON DEMAND (crm_client_face). The agent could draw a face from
+ * three places and look at one from none: the only face tool was the screen's
+ * batch, which a model turn is forbidden to call. Same deps as delivery, so
+ * the rules about what counts as somebody's face stay in one module.
+ */
+TOOLS.push(
+  ...makeClientFaceTool({
+    avatar: leadAvatarUrl,
+    sentPhotos: sentPhotosFromLibrary,
+    ownAvatar: ownerAvatarUrl,
+  })
+)
+/*
+ * WHO IS IN THE ROOM (crm_room_people). The morning post needs the members of
+ * a group, which the Bot API cannot list -- the owner's own session can. A
+ * screen/timer helper like the avatars batch: DIRECT_CALL_ONLY below, so a
+ * sentence in a client's message cannot walk the owner's groups.
+ */
+TOOLS.push(...ROOM_PEOPLE_TOOLS)
 TOOLS.push(...CRM_MEMORY_TOOLS)
 TOOLS.push(...CRM_GROUP_TOOLS)
 /*
@@ -3611,7 +3637,7 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
@@ -3682,6 +3708,12 @@ export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
    * sentence in a client's message must not be able to loop it.
    */
   'crm_client_avatars',
+  /*
+   * Walks the members of the owner's groups through his own session. The
+   * morning post and the CRM screen ask for it; a model turn has no reason
+   * to, and a client's sentence must not be able to enumerate a room.
+   */
+  'crm_room_people',
 ])
 
 let compactWarned = false

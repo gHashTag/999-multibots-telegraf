@@ -3,36 +3,39 @@
 // TikTok-style sound/music display
 // ===============================
 
-import { useState, useCallback } from 'react';
-import { useAtom, useAtomValue } from 'jotai';
-import { atom } from 'jotai';
-import { atomWithStorage } from 'jotai/utils';
-import { Music2, Plus, Users, Play, Pause, ExternalLink } from 'lucide-react';
-import { useLanguage } from '@/hooks/useLanguage';
-import './SoundAttribution.css';
+import { useState, useCallback } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
+import { atom } from 'jotai'
+import { atomWithStorage } from 'jotai/utils'
+import { Music2, Plus, Users, Play, Pause, ExternalLink } from 'lucide-react'
+import { useLanguage } from '@/hooks/useLanguage'
+import './SoundAttribution.css'
 
 // Types
 export interface Sound {
-  id: string;
-  name: string;
-  artistName: string;
-  artistAvatar?: string;
-  coverUrl?: string;
-  audioUrl: string;
-  duration: number;
-  usesCount: number;
-  isOriginal?: boolean;
+  id: string
+  name: string
+  artistName: string
+  artistAvatar?: string
+  coverUrl?: string
+  audioUrl: string
+  duration: number
+  usesCount: number
+  isOriginal?: boolean
 }
 
 // Atoms
-export const currentSoundAtom = atom<Sound | null>(null);
-export const savedSoundsAtom = atomWithStorage<Sound[]>('vibee-saved-sounds', []);
+export const currentSoundAtom = atom<Sound | null>(null)
+export const savedSoundsAtom = atomWithStorage<Sound[]>(
+  'vibee-saved-sounds',
+  []
+)
 
 interface SoundAttributionProps {
-  sound?: Sound;
-  size?: 'small' | 'medium' | 'large';
-  showUseButton?: boolean;
-  onUse?: (sound: Sound) => void;
+  sound?: Sound
+  size?: 'small' | 'medium' | 'large'
+  showUseButton?: boolean
+  onUse?: (sound: Sound) => void
 }
 
 export function SoundAttribution({
@@ -41,22 +44,31 @@ export function SoundAttribution({
   showUseButton = false,
   onUse,
 }: SoundAttributionProps) {
-  const { t } = useLanguage();
+  const [coverBroken, setCoverBroken] = useState(false)
+  const { t } = useLanguage()
 
   if (!sound) {
     return (
-      <div className={`sound-attribution sound-attribution--${size} sound-attribution--empty`}>
+      <div
+        className={`sound-attribution sound-attribution--${size} sound-attribution--empty`}
+      >
         <Music2 size={size === 'small' ? 14 : 18} />
         <span>{t('sound.original')}</span>
       </div>
-    );
+    )
   }
 
   return (
     <div className={`sound-attribution sound-attribution--${size}`}>
       <div className="sound-attribution__disc">
-        {sound.coverUrl ? (
-          <img src={sound.coverUrl} alt="" />
+        {/* The note icon already stands for "no cover"; it stands for "the
+            cover did not load" too, which is the same thing to a person. */}
+        {sound.coverUrl && !coverBroken ? (
+          <img
+            src={sound.coverUrl}
+            alt=""
+            onError={() => setCoverBroken(true)}
+          />
         ) : (
           <Music2 size={16} />
         )}
@@ -68,59 +80,62 @@ export function SoundAttribution({
       </div>
 
       {showUseButton && onUse && (
-        <button
-          className="sound-attribution__use"
-          onClick={() => onUse(sound)}
-        >
+        <button className="sound-attribution__use" onClick={() => onUse(sound)}>
           <Plus size={16} />
           {t('sound.use')}
         </button>
       )}
     </div>
-  );
+  )
 }
 
 // Sound Detail Modal
 interface SoundDetailProps {
-  sound: Sound;
-  isOpen: boolean;
-  onClose: () => void;
-  onUse: (sound: Sound) => void;
+  sound: Sound
+  isOpen: boolean
+  onClose: () => void
+  onUse: (sound: Sound) => void
 }
 
-export function SoundDetail({ sound, isOpen, onClose, onUse }: SoundDetailProps) {
-  const { t } = useLanguage();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [savedSounds, setSavedSounds] = useAtom(savedSoundsAtom);
+export function SoundDetail({
+  sound,
+  isOpen,
+  onClose,
+  onUse,
+}: SoundDetailProps) {
+  const { t } = useLanguage()
+  const [coverBroken, setCoverBroken] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [savedSounds, setSavedSounds] = useAtom(savedSoundsAtom)
 
-  const isSaved = savedSounds.some(s => s.id === sound.id);
+  const isSaved = savedSounds.some(s => s.id === sound.id)
 
   const handleSave = useCallback(() => {
     if (isSaved) {
-      setSavedSounds(savedSounds.filter(s => s.id !== sound.id));
+      setSavedSounds(savedSounds.filter(s => s.id !== sound.id))
     } else {
-      setSavedSounds([...savedSounds, sound]);
+      setSavedSounds([...savedSounds, sound])
     }
-  }, [sound, isSaved, savedSounds, setSavedSounds]);
+  }, [sound, isSaved, savedSounds, setSavedSounds])
 
   const handleUse = useCallback(() => {
-    onUse(sound);
-    onClose();
-  }, [sound, onUse, onClose]);
+    onUse(sound)
+    onClose()
+  }, [sound, onUse, onClose])
 
   const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
 
   const formatCount = (count: number): string => {
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-    return count.toString();
-  };
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`
+    return count.toString()
+  }
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
     <div className="sound-detail-overlay" onClick={onClose}>
@@ -128,8 +143,12 @@ export function SoundDetail({ sound, isOpen, onClose, onUse }: SoundDetailProps)
         {/* Header */}
         <div className="sound-detail__header">
           <div className="sound-detail__cover">
-            {sound.coverUrl ? (
-              <img src={sound.coverUrl} alt="" />
+            {sound.coverUrl && !coverBroken ? (
+              <img
+                src={sound.coverUrl}
+                alt=""
+                onError={() => setCoverBroken(true)}
+              />
             ) : (
               <div className="sound-detail__cover-placeholder">
                 <Music2 size={32} />
@@ -147,7 +166,10 @@ export function SoundDetail({ sound, isOpen, onClose, onUse }: SoundDetailProps)
             <h2 className="sound-detail__name">{sound.name}</h2>
             <p className="sound-detail__artist">{sound.artistName}</p>
             <div className="sound-detail__meta">
-              <span><Users size={14} /> {formatCount(sound.usesCount)} {t('sound.videos')}</span>
+              <span>
+                <Users size={14} /> {formatCount(sound.usesCount)}{' '}
+                {t('sound.videos')}
+              </span>
               <span>{formatDuration(sound.duration)}</span>
             </div>
           </div>
@@ -155,7 +177,10 @@ export function SoundDetail({ sound, isOpen, onClose, onUse }: SoundDetailProps)
 
         {/* Actions */}
         <div className="sound-detail__actions">
-          <button className="sound-detail__btn sound-detail__btn--primary" onClick={handleUse}>
+          <button
+            className="sound-detail__btn sound-detail__btn--primary"
+            onClick={handleUse}
+          >
             <Plus size={18} />
             {t('sound.useThis')}
           </button>
@@ -176,17 +201,25 @@ export function SoundDetail({ sound, isOpen, onClose, onUse }: SoundDetailProps)
         )}
       </div>
     </div>
-  );
+  )
 }
 
 // Marquee animation for long sound names
-export function SoundMarquee({ text, className = '' }: { text: string; className?: string }) {
-  const shouldAnimate = text.length > 25;
+export function SoundMarquee({
+  text,
+  className = '',
+}: {
+  text: string
+  className?: string
+}) {
+  const shouldAnimate = text.length > 25
 
   return (
-    <div className={`sound-marquee ${className} ${shouldAnimate ? 'sound-marquee--animate' : ''}`}>
+    <div
+      className={`sound-marquee ${className} ${shouldAnimate ? 'sound-marquee--animate' : ''}`}
+    >
       <span className="sound-marquee__text">{text}</span>
       {shouldAnimate && <span className="sound-marquee__text">{text}</span>}
     </div>
-  );
+  )
 }

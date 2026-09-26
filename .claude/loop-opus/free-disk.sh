@@ -124,6 +124,96 @@ if command -v docker >/dev/null; then
   fi
 fi
 
+# ЧЕРНОВИКИ СЕССИЙ, КОТОРЫХ БОЛЬШЕ НЕТ.
+#
+# Каждая сессия Claude Code держит каталог в /private/tmp/claude-501: рабочие
+# копии, снимки страниц, профили браузера. Живая сессия может занимать
+# гигабайты законно, а мёртвая держит их ни за чем -- замерено 25.09.2026:
+# 414 МБ у сессии, чьего процесса уже нет, при 1.3 ГБ свободных на диске.
+#
+# ЖИВОСТЬ ПРОВЕРЯЕТСЯ ПО ПРОЦЕССУ, а не по времени: сессия, молчавшая час,
+# жива и её каталог трогать нельзя. `pgrep -f <id>` находит и сам процесс
+# сессии, и её фоновые команды.
+#
+# И ОШИБАЕТСЯ ТОЛЬКО В БЕЗОПАСНУЮ СТОРОНУ. `-f` смотрит всю командную строку,
+# поэтому любой процесс, где id просто УПОМЯНУТ, сойдёт за живую сессию:
+# проверено -- запуск этой уборки командой, в которой написан чужой id, её
+# каталог не тронул. Ошибка такого рода оставляет мусор на диске; обратная
+# стёрла бы работающую сессию, и выбор здесь очевиден.
+#
+# И только после `git worktree prune`: в черновике может лежать рабочая
+# копия, и удалить каталог мимо git значит оставить запись о копии, которой
+# нет.
+SCRATCH_ROOT=/private/tmp/claude-501
+if [ -d "$SCRATCH_ROOT" ]; then
+  freed_sessions=0
+  for dir in "$SCRATCH_ROOT"/*/*/; do
+    [ -d "$dir" ] || continue
+    id=$(basename "$dir")
+    # Идентификатор сессии -- uuid; каталоги вроде `chunks` пропускаем.
+    case "$id" in
+      ????????-????-????-????-????????????) ;;
+      *) continue ;;
+    esac
+    # Своя сессия жива по определению: её каталог держит эту самую уборку.
+    #
+    # НО ЗАВИСШИЙ СНИМОК ЭКРАНА -- НЕ ЖИВАЯ СЕССИЯ. Замерено 24.09.2026:
+    # три headless-процесса BrowserOS, каждый девять часов на одном кадре,
+    # держали 1.6 ГБ черновиков сессии, которой давно нет. Каждый упоминает
+    # её id в `--user-data-dir`, поэтому `pgrep -f` считал сессию живой и
+    # уборка молча проходила мимо -- при 214 МБ свободных.
+    #
+    # Поэтому признаком жизни считается процесс, который НЕ является таким
+    # вспомогательным. Остальное не меняется: ошибка по-прежнему возможна
+    # только в безопасную сторону -- любой другой процесс с этим id спасает
+    # каталог, а две проверки ниже спасают незакоммиченную работу.
+    if pgrep -f "$id" | while read -r pid; do
+         cmd=$(ps -o command= -p "$pid" 2>/dev/null)
+         case "$cmd" in
+           # The browser AND its renderer helpers: the helpers carry the same
+           # --user-data-dir and no --headless of their own, so a rule written
+           # against that flag saw three zombies as a living session.
+           *BrowserOS*|*Google\ Chrome*|*chromium*|*Chromium*) ;;
+           '') ;;
+           *) echo alive; break ;;
+         esac
+       done | grep -q alive; then continue; fi
+    # Рабочая копия внутри -- сначала сказать об этом git.
+    # `git worktree list` from wherever this runs: the script is invoked from
+    # the repository, and naming a variable that does not exist here would
+    # check nothing at all -- quietly, which is the failure this guard is for.
+    # РАБОЧАЯ КОПИЯ ВНУТРИ: снять её штатно, если терять нечего.
+    #
+    # Пропускать такой черновик -- то, что делала первая версия, -- значит
+    # оставлять нетронутыми самые крупные: замерено 25.09.2026, мёртвая
+    # сессия держала 2.3 ГБ при 486 МБ свободных, и уборка прошла мимо.
+    #
+    # «Терять нечего» проверяется ДВАЖДЫ, и обе проверки обязательны: в копии
+    # нет несохранённых правок И её коммит есть на удалённом сервере. Копия с
+    # неопубликованной работой не трогается никогда: диск дешевле чужого дня.
+    if git worktree list 2>/dev/null | grep -q "$id"; then
+      wt=$(git worktree list --porcelain | grep "^worktree .*$id" | head -1 |
+           awk '{print $2}')
+      dirty=$(git -C "$wt" status --short 2>/dev/null | head -1)
+      head_sha=$(git -C "$wt" rev-parse HEAD 2>/dev/null)
+      published=$(git branch -r --contains "$head_sha" 2>/dev/null | head -1)
+      if [ -n "$dirty" ] || [ -z "$published" ]; then
+        echo "  черновик $id: несохранённое или неопубликованное -- не трогаю"
+        continue
+      fi
+      git worktree remove --force "$wt" >/dev/null 2>&1 || {
+        echo "  черновик $id: git не отдал копию -- не трогаю"
+        continue
+      }
+    fi
+    size=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
+    [ "${size:-0}" -lt 10240 ] && continue
+    rm -rf "$dir" 2>/dev/null && freed_sessions=$(( freed_sessions + size ))
+  done
+  [ "$freed_sessions" -gt 0 ] &&
+    echo "черновики мёртвых сессий: $(( freed_sessions / 1024 )) МБ"
+fi
+
 free_after=$(df -k /System/Volumes/Data | awk '{if(NR==2)print $4}')
 echo "освобождено: $(( (free_after - free_before) / 1024 )) МБ · свободно: $(( free_after / 1024 )) МБ"
 
@@ -138,5 +228,51 @@ if [ "$free_after" -lt 2097152 ]; then
      ~/Library/Caches 2>/dev/null | sort -n | tail -4 |
     awk '{printf "  %5d МБ  %s\n", $1/1024, $2}'
   echo "Лишние устройства симулятора: xcrun simctl list devices"
+
+  # РАБОЧИЕ КОПИИ, ПОИМЁННО И С РАЗМЕРОМ.
+  #
+  # Каждая -- полная выписка репозитория: замерено 25.09.2026, от 300 до 700
+  # МБ штука, шесть штук у одной живой сессии составляли 3 ГБ из 4.1. Это не
+  # мусор и удалять их за хозяина нельзя; но пока цена не названа, она
+  # становится видимой только когда диск подходит к нулю -- то есть трижды
+  # за ночь.
+  # REBUILDABLE CACHES: nothing is lost by deleting one, only somebody's time
+  # is spent rebuilding it. Listed, never deleted here, because the time is
+  # not this script's to spend -- but at 341 MiB free a 3 GB compiler cache is
+  # the difference between the machine working and not, and nobody can weigh
+  # that without being told it exists.
+  echo "Восстановимые кеши (удалить можно, цена -- пересборка):"
+  for c in "$HOME/.cache/zig" "$HOME/.cache/uv" "$HOME/.npm" \
+           "$HOME/Library/Caches/ms-playwright"; do
+    [ -d "$c" ] || continue
+    csz=$(du -sk "$c" 2>/dev/null | awk '{print $1}')
+    [ -z "$csz" ] && continue
+    [ "$csz" -lt 51200 ] && continue   # under 50 MB is not worth a line
+    printf "  %5d МБ  %s\n" "$((csz / 1024))" "$c"
+  done
+  echo
+  echo "Рабочие копии (каждая -- полный репозиторий):"
+  git worktree list --porcelain 2>/dev/null | grep '^worktree ' |
+    awk '{print $2}' | while read -r w; do
+      [ "$w" = "$(git rev-parse --show-toplevel 2>/dev/null)" ] && continue
+      sz=$(du -sk "$w" 2>/dev/null | awk '{print $1}')
+      [ -z "$sz" ] && continue
+      # AND WHETHER IT IS SAFE TO RELEASE -- the two questions, answered here
+      # so a person deciding at a glance does not have to run them by hand.
+      # A NAMED worktree is never removed by this script: it is somebody's
+      # working directory, not a dead session's scratch. Saying "safe" is the
+      # whole contribution; the deletion stays a person's.
+      dirty=$(git -C "$w" status --short 2>/dev/null | head -1)
+      head=$(git -C "$w" rev-parse HEAD 2>/dev/null)
+      pub=$(git branch -r --contains "$head" 2>/dev/null | head -1)
+      if [ -n "$dirty" ]; then
+        verdict="НЕ трогать: есть несохранённые правки"
+      elif [ -z "$pub" ]; then
+        verdict="НЕ трогать: коммита нет на сервере"
+      else
+        verdict="можно снять: чисто и опубликовано (git worktree remove)"
+      fi
+      printf "  %5d МБ  %s\n              %s\n" "$((sz / 1024))" "$w" "$verdict"
+    done
   exit 1
 fi

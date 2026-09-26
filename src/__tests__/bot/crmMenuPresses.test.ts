@@ -191,6 +191,11 @@ describe('every press is answered first, and only for the owner in a private cha
     expect(m[0].payload.text).toContain('Pilot')
     expect(keyboardOf(m[0])).toEqual([
       'crm:prep:900000001',
+      // The gift, beside the forecast rather than instead of it. Owner,
+      // 2026-09-24: the single forecast button left no way to say "not a
+      // letter, a portrait" -- which is the move that draws somebody into
+      // the bot without asking them to read anything first.
+      'crm:gift:900000001',
       // The chat itself, and the way to stop hearing about this person: both
       // were reachable only by scrolling back to find the conversation.
       'tg://user?id=900000001',
@@ -243,7 +248,12 @@ describe('what the presses do', () => {
     expect(opts.prompt).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
     const m = sent()
     expect(m[0].payload.text).toContain('Готовлю для 900000001')
-    expect(keyboardOf(m[0])).toEqual(['crm:menu'])
+    /*
+     * The Stop rides ON the message the person is waiting at (issue #2721):
+     * a control three menus away is one they find after the thing they
+     * wanted to stop.
+     */
+    expect(keyboardOf(m[0])).toEqual(['crm:halt', 'crm:menu'])
     expect(m[1].payload.text).toContain('Тихо')
     expect(keyboardOf(m[1])).toEqual([
       'crm:lead:900000001',

@@ -1,7 +1,15 @@
 import { act, Suspense } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 /**
  * A GUEST IN THE GAME'S TRI FRAME IS TOLD WHERE THE SCREEN WORKS, NOT LEFT AT A DEAD END.
@@ -134,6 +142,24 @@ const GATED: Array<[string, string]> = [
   ['/generate/editor', 'editor'],
 ]
 
+/*
+ * THE LAZY ROUTES ARE WARMED BEFORE ANY TEST IS TIMED.
+ *
+ * `AppRoutes` loads its pages lazily, so the first test to open /crm paid a
+ * multi-second module import out of its own 5 s budget -- and the file then
+ * failed by MACHINE LOAD rather than by code: green alone, five failures in
+ * a parallel full run. The same shape as Crm.test.tsx (25.09.2026); the cost
+ * is real and stays, it is simply not charged to a stopwatch that is
+ * measuring something else.
+ */
+beforeAll(async () => {
+  await Promise.all([
+    import('@/pages/Crm'),
+    import('@/pages/CrmClient'),
+    import('@/pages/Chat'),
+  ])
+}, 60_000)
+
 describe('a guest in the TRI frame', () => {
   it.each(GATED)(
     '%s shows the panel opening screen=%s in the app, and sends nothing',
@@ -253,21 +279,47 @@ describe('a session the server refuses shows the same panel', () => {
     sessionStorage.setItem(EXPIRES, String(Date.now() + 600000))
   })
 
-  it('control: a 500 from /mcp keeps the four "Could not load" blocks', async () => {
+  // Five since the traffic panel (#2974): waiting, leads, clients, audience
+  // and traffic -- every owner panel that can fail still says so. This file
+  // kept expecting four through the traffic merge because the repository's
+  // Actions are dead, so the Docker test gate at deploy time was the first
+  // thing to run it (vibee-editor build 3f0397ac, 2026-09-24).
+  /*
+   * THESE TWO ARE CONTROLS, AND THEIR WITNESS CHANGED UNDER THEM.
+   *
+   * What they claim: outside the frame, and for a failure that is not a
+   * refused credential, the CRM STAYS -- no sign-in panel is swapped in.
+   * They used to prove it by counting five "Could not load" blocks.
+   *
+   * On 25.09.2026 those five blocks became one notice: five panels failing
+   * the same way said one sentence five times, 455px of it on a phone, with
+   * no step in any of them (components/Crm/AllRefused.tsx). The claim is
+   * untouched; only the thing that witnesses it moved.
+   *
+   * So they witness it better now: the screen is still the CRM, with all of
+   * its panels, and the reason is stated once. Counting error lines never
+   * proved the screen survived -- it proved the errors did.
+   */
+  const panelsOnScreen = () => host.querySelectorAll('.crm__panel').length
+  const notices = () => host.querySelectorAll('.crm__all-refused').length
+
+  it('control: a 500 from /mcp leaves the CRM standing, reason stated once', async () => {
     answer(500)
     await open('/crm')
-    await settle(() => host.querySelectorAll('.crm__unreachable').length > 0)
-    expect(panel()).toBeNull()
-    expect(host.querySelectorAll('.crm__unreachable')).toHaveLength(4)
+    await settle(() => notices() > 0)
+    expect(panel(), 'no sign-in panel for a broken server').toBeNull()
+    expect(panelsOnScreen(), 'the CRM is still the screen').toBe(5)
+    expect(notices()).toBe(1)
   })
 
-  it('control: outside embed a 401 keeps the blocks', async () => {
+  it('control: outside embed a 401 does the same -- no swap, one notice', async () => {
     embed.on = false
     answer(401)
     await open('/crm')
-    await settle(() => host.querySelectorAll('.crm__unreachable').length > 0)
-    expect(panel()).toBeNull()
-    expect(host.querySelectorAll('.crm__unreachable')).toHaveLength(4)
+    await settle(() => notices() > 0)
+    expect(panel(), 'the swap belongs to the frame alone').toBeNull()
+    expect(panelsOnScreen()).toBe(5)
+    expect(notices()).toBe(1)
   })
 
   it('in the frame a 401 from /mcp replaces the CRM with the panel', async () => {

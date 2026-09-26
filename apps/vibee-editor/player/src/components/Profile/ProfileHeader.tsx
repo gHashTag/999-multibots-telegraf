@@ -149,6 +149,12 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
             src={свежаяОбложка || profile.cover_url || ''}
             alt=""
             className="profile-cover__image"
+            /* A cover is decoration: a broken one goes, and the header keeps
+               its own background. The avatar beside it has initials to fall
+               back to; a cover has nothing to say. */
+            onError={e => {
+              ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+            }}
           />
         ) : null}
         <div className="profile-cover__gradient" />

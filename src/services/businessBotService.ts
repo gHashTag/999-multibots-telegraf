@@ -28,7 +28,12 @@ import {
   releaseOwnerNotice,
   claimClientAck,
 } from '@/services/assistantOptOut'
-import { payRow, stripAgentMarkers } from '@/navigation/helpers/actionButtons'
+import {
+  type LookOption,
+  parseLookOffers,
+  payRow,
+  stripAgentMarkers,
+} from '@/navigation/helpers/actionButtons'
 import { rewriteAppUrls } from '@/navigation/helpers/appLinks'
 import { splitLongAnswer, keepTyping } from '@/helpers/telegramLongAnswer'
 import { agentLanes } from '@/services/agentLanes'
@@ -54,6 +59,7 @@ import {
   fetchHistory,
   markSurface,
 } from '@/services/trinityAgent'
+import { wasStoppedByOwner } from '@/services/agentStop'
 import { turnAlreadySpent, toolsUsedOf } from '@/services/agentTurnSpend'
 import { guardAssetLinks } from '@/services/assetLinkGuard'
 import { SERVICE_CARDS, deepLink, matchCards } from '@/handlers/inlineQuery'
@@ -710,6 +716,21 @@ const AGENT_TRANSIENT_RE = new RegExp(
  * (src/utils/alertThrottle.ts, 10 min) bounds what that can cost.
  */
 export function classifyAgentFault(message: string): ProviderFault {
+  /*
+   * A STOP IS FINAL, AND IT IS CHECKED FIRST.
+   *
+   * The owner's stop ends the turn by aborting, and "abort" sits in
+   * AGENT_TRANSIENT_RE -- so without this line a stop is read as a blip and
+   * the turn is REPLAYED. The person presses Stop and the work starts again:
+   * the opposite of what the button says, which is the trap issue #2721
+   * names before anything else.
+   *
+   * 'standing' rather than a new kind: the retry gate below breaks on
+   * anything that is not transient, and inventing a third word would mean
+   * teaching every reader of ProviderFault about a case that behaves exactly
+   * like the one that already exists.
+   */
+  if (wasStoppedByOwner(message)) return 'standing'
   if (AGENT_STANDING_RE.test(message)) return 'standing'
   if (isEmptyAgentAnswer(message)) return 'transient'
   if (AGENT_TRANSIENT_RE.test(message)) return 'transient'
@@ -818,7 +839,18 @@ export async function answerClient(
    * It comes from Telegram's own connection object (`user_chat_id`), never
    * from anything a message can claim.
    */
-  seller?: string
+  seller?: string,
+  /**
+   * WHERE THE OPTIONS GO, since the text cannot carry them.
+   *
+   * Markers are stripped HERE, before the mirror, so that the string the
+   * client reads is the string the memory keeps. The keyboard is built two
+   * hundred lines later, by which time the markers are gone -- measured, by a
+   * test that got one row where it expected four. So the options are handed
+   * out through this holder rather than by moving the strip later and letting
+   * `[[…|look:1]]` into the transcript.
+   */
+  offered?: { looks: LookOption[] }
 ): Promise<string> {
   let attempts = 0
   let lastFault: ProviderFault = 'standing'
@@ -833,10 +865,9 @@ export async function answerClient(
         ...(seller ? { seller } : {}),
       })
       // Markers are the bot chat's syntax; a client must never see bracket soup.
-      const said = await guardAssetLinks(
-        stripAgentMarkers((answer.текст ?? '').trim()), // cyrillic-ok: pre-existing field
-        chatId
-      )
+      const raw = (answer.текст ?? '').trim() // cyrillic-ok: pre-existing field
+      if (offered) offered.looks = parseLookOffers(raw)
+      const said = await guardAssetLinks(stripAgentMarkers(raw), chatId)
       if (said) {
         /*
          * NOTHING IS WRITTEN HERE, AND THAT IS THE FIX (21.09.2026).
@@ -1733,6 +1764,8 @@ async function runBusinessBatch(
      * whose chat the client is writing. Looked up, never assumed: with more
      * than one connected account, assuming means answering as somebody else.
      */
+    /* Filled while the answer is cleaned, read when the keyboard is built. */
+    const offered: { looks: LookOption[] } = { looks: [] }
     const sellerId = connections.get(connId)?.ownerChatId
     if (!sellerId)
       logger.warn('[Business] no connection owner for this turn', { connId })
@@ -1754,16 +1787,39 @@ async function runBusinessBatch(
               botName: `business_${botUsername}`,
             }
           ),
-        sellerId ? String(sellerId) : undefined
+        sellerId ? String(sellerId) : undefined,
+        offered
       ),
       botUsername
     )
 
     const pay = payButton(reply)
+    /*
+     * THE CHOICES THE ANSWER OFFERS, EACH ONE A TAP.
+     *
+     * Owner, 2026-09-24: offer the looks right in the chat, and make the work
+     * as comfortable as it can be there. An open question ("which style would
+     * you like?") asks a person to compose a sentence; three taps ask nothing.
+     *
+     * A deep link, not a callback: in a business DM the bot answers as the
+     * owner and only url buttons work at all. `t.me/<bot>?start=look_<n>`
+     * opens INSIDE Telegram -- the one shape that works on his phone -- and
+     * lands the person in the bot, where the full service lives.
+     *
+     * BELOW the pay row, never above it: the row order is pinned by tests and
+     * the owner's rule is that payment is never offered first.
+     */
+    const looks = offered.looks
     const keyboard = {
       reply_markup: {
         inline_keyboard: [
           ...(pay ? [[pay]] : []),
+          ...looks.map(l => [
+            {
+              text: l.label,
+              url: `https://t.me/${botUsername}?start=look_${l.n}`,
+            },
+          ]),
           [
             {
               text: '🚀 Открыть в боте',

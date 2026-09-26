@@ -96,6 +96,17 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
 - Acceptance on production, 24.09 07:14–07:19 UTC: **5/5 PASS** (blogger,
   job, google, tiktok, habr).
 
+- Tick 8 (24.09 08:45-09:05 UTC): #2982 (verdicts + traffic counter reach
+  their handlers), #2984 (agent skills panel, rule naming line, tri reach /
+  bare-fetch), trinity#1157 (t27.ai counts arrivals), trinity-fpga#797 --
+  all MERGED.
+- Tick 9 (24.09 09:07- UTC): "where people come from" -- bot starts by
+  channel (`__channel` in /start, `traffic_starts`), CRM panel, `tri tag`.
+  Branch claude/vibrant-heisenberg-bijrhv. NEXT TO VERIFY on prod: a GET
+  /api/agents/acceptance 200 and a POST /api/traffic/arrival 200 in the
+  Railway http log (none seen yet since #2982); after this deploy, the
+  first `/api/traffic/start` from the bot service (999-multibots-telegraf).
+
 ## Anomalies seen (self-heal list)
 
 - [ ] google: `web_search` reserve (OpenRouter) answers **HTTP 402**, no
@@ -177,6 +188,35 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   in auth-public.test.ts, in the same PR as the route.
 - Read the service's refusals, not only its successes: the one `ОТКАЗ` line
   in the log was the whole finding.
+
+- A feature that is "connected" only after the person does something they
+  were never told how to do is not connected. Check the empty state first:
+  that is what the owner sees on day one.
+- A bare-fetch sweep of the app (`grep fetch(\`${API_BASE}`without auth
+headers, then`tri reach` each path) found the two dead routes of this
+  tick in one pass. Run it after adding any route the app calls.
+
+- Related tests are not the suite. Two of my own merged ticks (3 and 7)
+  left render red: a real Telegram id in a src/agent test (no-dossier) and
+  a source-shape check of chat.ts broken by an appended prompt part
+  (dm-context). Before every merge: the FULL render suite
+  (`cd apps/vibee-editor/render && npx vitest run`, ~6 min) and compare any
+  red with clean main (`git stash -u`), which also tells mine from not-mine
+  (isolated-reader times out on clean main too -- not mine, task queued).
+- `tri bare-fetch` must itself be tested with a negative control: the first
+  version counted the word "headers" as a credential and would have missed
+  the very traffic bug it was written for.
+
+## Lessons (tick 9)
+
+- A protocol between two processes (render tags, bot cuts) is pinned by a
+  round-trip test that imports BOTH sides, not by two unit tests that each
+  agree with themselves.
+- A new route next to an old one inherits the old test's assumptions: the
+  tick-8 test "every traffic path is public" rightly failed on the new
+  guarded one -- the test now names every path, so a new one is a decision.
+- A panel that is not for this viewer hides on the tool's refusal; a panel
+  that failed to load still says so. Two different states, two flags.
 
 ## Plan (next ticks)
 

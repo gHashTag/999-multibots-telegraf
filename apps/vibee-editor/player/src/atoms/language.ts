@@ -148,6 +148,13 @@ const en: Translations = {
   'crm.refresh': 'Refresh',
   'crm.refreshing': 'Refreshing…',
   'crm.unreachable': 'Could not load',
+  'sendCard.previewBroken':
+    '⚠️ The preview did not open — check the attachment before sending:',
+  'sendCard.previewOpen': 'open the file',
+  'crm.allRefused.signIn':
+    'Your session was refused — open the app again from the bot, with the "Open the app" button.',
+  'crm.allRefused.server':
+    'Nothing came back: {reason}. That is the server, not you — press Refresh in a minute.',
   'crm.waiting.title': 'Waiting for an answer',
   'crm.waiting.none':
     'Nobody is waiting for an answer. That is good news, not an empty screen.',
@@ -546,10 +553,24 @@ const en: Translations = {
   'clone.networks.ask':
     'To connect the rest, tell the agent: "connect my networks". You type passwords yourself.',
   'clone.networks.open': 'Open the browser',
-  // Skills the agent in this chat carries (pages/Chat.tsx, hooks/useAgentSkills.ts)
+  // Skills the agent in this chat carries (components/Chat/AgentSkillsPanel.tsx)
   'chat.agentSkills.on': 'Skills connected: {own} · plus {general} general',
   'chat.agentSkills.none':
-    'No skills of its own yet: in your profile, add a skill named "<agent>: ..." and it connects here.',
+    'No rules of yours for it yet: write one below, and it applies from your next message (saved as "{prefix}: ...").',
+  'chat.agentSkills.builtin': 'Knows how: {skills}',
+  // Where people come from (components/Crm/TrafficPanel.tsx)
+  'crm.traffic.title': 'Where people come from',
+  'crm.traffic.days': '{n} days',
+  'crm.traffic.row': 'visits: {visits} · bot starts: {starts}',
+  'crm.traffic.total':
+    'In all: visits {visits}, bot starts {starts}. Counts only: no person behind a number is known.',
+  'crm.traffic.empty':
+    'No tagged visits yet. Every link the agents publish carries its channel; the first visit shows here.',
+  'chat.agentSkills.add.placeholder':
+    'A rule for it, e.g. "answer briefly, with numbers"',
+  'chat.agentSkills.add.button': 'Add rule',
+  'chat.agentSkills.add.saved': 'Connected: {name}',
+  'chat.agentSkills.add.failed': 'Not saved: {reason}',
 
   'hero.badge': 'AGI game',
   'hero.title': 'An AGI game built by digital twins of real people',
@@ -2509,6 +2530,13 @@ const ru: Translations = {
   'crm.refresh': 'Обновить',
   'crm.refreshing': 'Обновляю…',
   'crm.unreachable': 'Не удалось загрузить',
+  'sendCard.previewBroken':
+    '⚠️ Превью не открылось — проверьте вложение перед отправкой:', // cyrillic-ok
+  'sendCard.previewOpen': 'открыть файл', // cyrillic-ok
+  'crm.allRefused.signIn':
+    'Сессия не принята — откройте приложение заново из бота, кнопкой «Открыть приложение».', // cyrillic-ok
+  'crm.allRefused.server':
+    'Данные не пришли: {reason}. Это сервер, не вы — нажмите «Обновить» через минуту.', // cyrillic-ok
   'crm.waiting.title': 'Ждут ответа',
   'crm.waiting.none':
     'Никто не ждёт ответа. Это хорошая новость, а не пустой экран.',
@@ -2895,7 +2923,20 @@ const ru: Translations = {
   'clone.networks.open': 'Открыть браузер',
   'chat.agentSkills.on': 'Навыки подключены: {own} · и общих: {general}',
   'chat.agentSkills.none':
-    'Своих навыков пока нет: в профиле создайте навык с именем «<агент>: …» — и он подключится здесь.',
+    'Ваших правил для него пока нет: напишите правило ниже — оно подключится со следующего сообщения (сохранится как «{prefix}: …»).',
+  'chat.agentSkills.builtin': 'Умеет: {skills}',
+  'crm.traffic.title': 'Откуда люди',
+  'crm.traffic.days': '{n} дн.',
+  'crm.traffic.row': 'переходов: {visits} · запусков бота: {starts}',
+  'crm.traffic.total':
+    'Всего: переходов {visits}, запусков бота {starts}. Только счётчики: кто за числом — неизвестно.',
+  'crm.traffic.empty':
+    'Помеченных переходов пока нет. Каждая ссылка, которую публикуют агенты, несёт свой канал — первый переход появится здесь.',
+  'chat.agentSkills.add.placeholder':
+    'Правило для него, например «отвечай коротко, с цифрами»',
+  'chat.agentSkills.add.button': 'Добавить',
+  'chat.agentSkills.add.saved': 'Подключено: {name}',
+  'chat.agentSkills.add.failed': 'Не сохранилось: {reason}',
 
   'hero.badge': 'AGI-игра',
   'hero.title': 'AGI-игра, которую строят цифровые двойники реальных людей',
