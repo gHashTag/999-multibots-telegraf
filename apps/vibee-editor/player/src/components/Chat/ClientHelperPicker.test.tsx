@@ -115,3 +115,16 @@ describe('the chat page wires it', () => {
     expect(src).not.toContain("'Блогер · работает'") // cyrillic-ok: the removed literal
   })
 })
+
+describe('a link from an agent dashboard', () => {
+  it('opens the client chat with that specialist already chosen, and only a catalogued one', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const src = readFileSync(
+      join(__dirname, '..', '..', 'pages', 'Chat.tsx'),
+      'utf8'
+    )
+    expect(src).toMatch(/params\.get\('helper'\)/)
+    expect(src).toMatch(/client && h && marketplaceAgentById\(h\) \? h : null/)
+  })
+})

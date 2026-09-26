@@ -892,6 +892,9 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
   'browser_logins',
   /* Traffic by channel (#2974): the owner's dashboard question, not a DM's. */
   'crm_traffic',
+  'agent_avatars_make',
+  'agent_clients',
+  'hdl_run',
   'tg_media',
   'tg_scheduled',
   'tg_participants',

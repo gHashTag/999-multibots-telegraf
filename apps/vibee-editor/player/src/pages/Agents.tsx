@@ -8,6 +8,8 @@ import { Header } from '@/components/Header'
 import { useLanguage, type Language } from '@/hooks/useLanguage'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { checkedDay, useAgentAcceptance } from '@/hooks/useAgentAcceptance'
+import { useAgentAvatars } from '@/hooks/useAgentAvatars'
+import { AgentFace } from '@/components/Chat/AgentFace'
 import './Agents.css'
 
 const copy = {
@@ -101,6 +103,7 @@ export function AgentsPage() {
   const text = copy[l]
   /* The measured half of the card: the last acceptance run, per agent. */
   const verdicts = useAgentAcceptance()
+  const faces = useAgentAvatars()
   // A keeper may open a trainee (#2957); asked only if there is one.
   const keeper = useIsKeeper(
     MARKETPLACE_AGENTS.some(agent => agent.status !== 'live')
@@ -153,9 +156,11 @@ export function AgentsPage() {
                   <span className="agent-card__number">
                     {String(index + 1).padStart(2, '0')}
                   </span>
-                  <span className="agent-card__icon" aria-hidden="true">
-                    {agent.icon}
-                  </span>
+                  <AgentFace
+                    className="agent-card__icon"
+                    icon={agent.icon}
+                    url={faces[agent.id]}
+                  />
                   <span className="agent-card__status">
                     <i />{' '}
                     {earned ? text.earned : statusLabel(agent.status, l, text)}

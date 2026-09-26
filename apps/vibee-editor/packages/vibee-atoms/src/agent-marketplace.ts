@@ -217,10 +217,10 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
   {
     /*
      * FPGA AND RTL ENGINEERS (owner, 2026-09-26). The work lives in
-     * gHashTag/trinity-fpga (openXC7, Artix-7, GF16). No agent tool runs a
-     * synthesis or a simulator yet: they read, design and review, and say
-     * "not run" for every figure a tool would have to produce -- the
-     * withdrawn 323 MHz (a ring oscillator measured as a core) is the
+     * gHashTag/trinity-fpga (openXC7, Artix-7, GF16). `hdl_run` gives them
+     * verilator, iverilog and yosys synthesis; place-and-route and timing
+     * still run nowhere, and every figure no tool printed is "not run" --
+     * the withdrawn 323 MHz (a ring oscillator measured as a core) is the
      * reason that rule is in their contract, not in their goodwill.
      */
     id: 'fpga',

@@ -71,9 +71,9 @@ describe('where people come from', () => {
     await act(async () => root.render(<TrafficPanel />))
     await flush()
     expect(rows()).toEqual([
-      'Xvisits: 7 · bot starts: 1',
+      'Xvisits: 7 · bot starts: 1 · 14 starts per 100 visits',
       'Telegramvisits: 0 · bot starts: 3',
-      'Redditvisits: 2 · bot starts: 0',
+      'Redditvisits: 2 · bot starts: 0 · 0 starts per 100 visits',
     ])
     expect(host.textContent).toContain('visits 9, bot starts 4')
   })

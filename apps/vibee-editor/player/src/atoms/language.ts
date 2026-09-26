@@ -545,6 +545,13 @@ const en: Translations = {
     'No rules of yours for it yet: write one below, and it applies from your next message (saved as "{prefix}: ...").',
   // One agent's own dashboard (pages/AgentDashboard.tsx)
   'agents.dash.market': 'All agents',
+  'agents.dash.clientsTitle': 'With your clients',
+  'agents.dash.clientRow': 'Client {id} · turns: {n} — call it in again →',
+  'agents.dash.noClients':
+    'Not called to a client yet: open a client chat and pick it under «Specialist».',
+  'agents.dash.face.make':
+    'Draw its avatar from my photo (GPT Image 2.5, 12 tokens)',
+  'agents.dash.face.drawing': 'Drawing…',
   'chat.specialist.dashboard': 'Dashboard',
   'agents.dash.status.live': 'live',
   'agents.dash.status.training': 'in training',
@@ -569,6 +576,7 @@ const en: Translations = {
   'crm.client.helper.none': 'Assistant',
   // Where people come from (components/Crm/TrafficPanel.tsx)
   'crm.traffic.title': 'Where people come from',
+  'crm.traffic.per100': ' · {n} starts per 100 visits',
   'crm.traffic.days': '{n} days',
   'crm.traffic.row': 'visits: {visits} · bot starts: {starts}',
   'crm.traffic.total':
@@ -2921,6 +2929,13 @@ const ru: Translations = {
   'chat.agentSkills.none':
     'Ваших правил для него пока нет: напишите правило ниже — оно подключится со следующего сообщения (сохранится как «{prefix}: …»).',
   'agents.dash.market': 'Все агенты',
+  'agents.dash.clientsTitle': 'С вашими клиентами',
+  'agents.dash.clientRow': 'Клиент {id} · ходов: {n} — позвать снова →',
+  'agents.dash.noClients':
+    'Пока не звали к клиенту: откройте чат клиента и выберите его в строке «Специалист».',
+  'agents.dash.face.make':
+    'Сделать аватар из моего фото (GPT Image 2.5, 12 токенов)',
+  'agents.dash.face.drawing': 'Рисую…',
   'chat.specialist.dashboard': 'Дашборд',
   'agents.dash.status.live': 'работает',
   'agents.dash.status.training': 'учится',
@@ -2944,6 +2959,7 @@ const ru: Translations = {
   'crm.client.helper.label': 'Специалист:',
   'crm.client.helper.none': 'Ассистент',
   'crm.traffic.title': 'Откуда люди',
+  'crm.traffic.per100': ' · {n} запусков на 100 переходов',
   'crm.traffic.days': '{n} дн.',
   'crm.traffic.row': 'переходов: {visits} · запусков бота: {starts}',
   'crm.traffic.total':
