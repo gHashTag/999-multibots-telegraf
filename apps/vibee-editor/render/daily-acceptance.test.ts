@@ -167,7 +167,8 @@ describe('what the owner hears', () => {
 const DONE =
   'agent-mail-mcp: https://a.io https://b.io https://c.io\n1. one\n2. two\n3. three\n' +
   'Гипотеза и вывод: частота не измерена. Маршрут yosys, Fmax не запускалось.\n' + // cyrillic-ok: answer fixture
-  '```verilog\nmodule m; endmodule\n```\n```verilog\nmodule tb; endmodule\n```\niverilog tb.v'
+  '```verilog\nmodule m; endmodule\n```\n```verilog\nmodule tb; endmodule\n```\niverilog tb.v\n' +
+  '```ts\nconst rev = (s: string) => [...s].reverse().join("")\n```\nвывод: ytinirt' // cyrillic-ok: answer fixture
 
 describe('the run', () => {
   it('a canary that throws is a failed verdict; the others still run, all are recorded', async () => {

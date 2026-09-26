@@ -20,6 +20,19 @@ export interface MarketplaceAgentListing {
    * agent: "Работа: ..." belongs to the job agent (agentSkills below).
    */
   skillPrefixes: readonly string[]
+  /**
+   * THE PROFESSION'S BENCH, shown on the dashboard as a panel of its own
+   * (owner, 2026-09-26: "a professional dashboard by theme for each agent").
+   * `tool` is the signature tool the daily check must exercise -- the
+   * dashboard reads the last verdict's tools and says whether it did, real
+   * data, never a guess. `repo` is the workspace the agent reads from. Both
+   * optional: an agent that answers with prose alone has neither.
+   */
+  workbench?: {
+    tool?: string
+    repo?: string
+    metric: LocalizedText
+  }
 }
 
 /**
@@ -252,6 +265,14 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
         ru: 'Fmax называется только вместе с нетлистом и путём, на котором он измерен',
       },
     ],
+    workbench: {
+      tool: 'hdl_run',
+      repo: 'github.com/gHashTag/trinity-fpga',
+      metric: {
+        en: 'syntheses run (resources)',
+        ru: 'синтезов прогнано (ресурсы)',
+      },
+    },
   },
   {
     id: 'rtl',
@@ -283,6 +304,64 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
         ru: 'дизайн «проверен» только когда прошёл названный тестбенч',
       },
     ],
+    workbench: {
+      tool: 'hdl_run',
+      repo: 'github.com/gHashTag/trinity-fpga',
+      metric: {
+        en: 'testbenches simulated',
+        ru: 'тестбенчей просимулировано',
+      },
+    },
+  },
+  {
+    /*
+     * THE CODER, AS A SCIENTIST OF THE MACHINE (owner, 2026-09-26: "the
+     * programmer -- make it a scientist"). It does not describe code it did
+     * not run: `code_run` executes what it wrote in a sandbox (Deno, no
+     * permissions, as nobody) and the answer quotes that output. A program
+     * shown as prose is a claim; a program that printed what it printed is a
+     * result. This is the same rule the RTL and FPGA engineers already keep,
+     * turned on their own language.
+     */
+    id: 'coder',
+    skillPrefixes: ['coder', 'кодер', 'code', 'код'],
+    icon: '⌘',
+    name: { en: 'Coding Scientist', ru: 'Учёный-программист' },
+    role: {
+      en: 'Reads, writes and RUNS code to answer',
+      ru: 'Читает, пишет и ЗАПУСКАЕТ код, чтобы ответить',
+    },
+    promise: {
+      en: 'Writes a program and runs it in a sandbox before answering: TypeScript/JavaScript and Python, no network, no files it was not given. It quotes the real output and its exit code, and says "did not run" rather than guessing.',
+      ru: 'Пишет программу и запускает её в песочнице до ответа: TypeScript/JavaScript и Python, без сети и без чужих файлов. Приводит настоящий вывод и код возврата, а не догадку, и честно говорит «не запускалось».',
+    },
+    status: 'training',
+    creator: 'T27',
+    skills: [
+      { en: 'write and run a program', ru: 'написать и запустить программу' },
+      { en: 'reproduce a bug from a test', ru: 'воспроизвести баг тестом' },
+      {
+        en: 'measure it: the real output, the exit code',
+        ru: 'измерить: настоящий вывод, код возврата',
+      },
+      {
+        en: 'read a repo and explain it',
+        ru: 'прочитать репозиторий и объяснить',
+      },
+    ],
+    evidence: [
+      {
+        en: 'a result is "checked" only when code_run printed it, quoted verbatim',
+        ru: 'результат «проверен» только когда его напечатал code_run, дословно',
+      },
+    ],
+    workbench: {
+      tool: 'code_run',
+      metric: {
+        en: 'programs run in the sandbox',
+        ru: 'программ прогнано в песочнице',
+      },
+    },
   },
 ] as const
 

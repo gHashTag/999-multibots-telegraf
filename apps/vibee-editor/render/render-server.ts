@@ -69,6 +69,7 @@ import {
   handleMcpCard,
   handleAgentChat,
   handleAgentHistory,
+  handleAgentConversations,
   handleAgentHistoryAppend,
   handleAgentHistoryDelete,
   handleCrmMirror,
@@ -9026,6 +9027,22 @@ const server = createServer(async (req, res) => {
    * читающие одно и то же, обязаны опознавать одинаково, иначе рано или
    * поздно один пустит туда, куда второй не пускает.
    */
+  /*
+   * /api/agent/conversations -- several conversations with the agent or a
+   * specialist: the list (GET) and a name for one (POST). Identity the same
+   * way as the history beside it.
+   */
+  if (req.url?.split('?')[0] === '/api/agent/conversations') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'не удалось определить пользователя' })) // cyrillic-ok: same answer as the history
+      return
+    }
+    await handleAgentConversations(req, res, String(who), getPool)
+    return
+  }
+
   if (req.url?.split('?')[0] === '/api/agent/history' && req.method === 'GET') {
     const who = await resolveIdentity(req, getPool)
     if (!who) {

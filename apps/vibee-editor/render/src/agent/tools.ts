@@ -36,6 +36,7 @@ import { TRAFFIC_TOOLS } from './traffic'
 import { AVATAR_TOOLS } from './agent-avatars'
 import { AGENT_CLIENT_TOOLS } from './agent-clients'
 import { HDL_TOOLS } from './hdl-run'
+import { CODE_TOOLS } from './code-run'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import { clubOfferLine } from './club-membership'
@@ -3575,6 +3576,7 @@ TOOLS.push(...TRAFFIC_TOOLS)
 TOOLS.push(...AVATAR_TOOLS)
 TOOLS.push(...AGENT_CLIENT_TOOLS)
 TOOLS.push(...HDL_TOOLS)
+TOOLS.push(...CODE_TOOLS)
 
 /*
  * NO TOOL IS REGISTERED TWICE.

@@ -63,6 +63,9 @@ import {
   supervisorThread,
   ROOM_ID_RE,
   roomThread,
+  CONVERSATION_RE,
+  conversationThread,
+  splittable,
 } from './conversation'
 
 /**
@@ -88,6 +91,8 @@ export type ThreadGate =
       supervisor?: boolean
       /** Set when the turn belongs to a room rather than to a person. */
       room?: string
+      /** One of several conversations under the base thread (withConversation). */
+      conversation?: string
     }
   | { ok: false; status: number; error: string }
 
@@ -226,6 +231,36 @@ export async function threadFor(
   const agent = await availableAgent(rawAgent, owner, getPool)
   if (!agent) return { ok: false, status: 400, error: 'agent is not available' }
   return { ok: true, thread: clientThread(client), client, agent: agent.id }
+}
+
+/**
+ * ONE OF SEVERAL CONVERSATIONS (conversation.ts CONVERSATION_RE).
+ *
+ * Applied after threadFor has said the caller may use the base thread at
+ * all, so a conversation id never opens anything its base did not. Absent,
+ * the gate is returned untouched: every existing caller -- the bot included --
+ * keeps talking to exactly the thread it did.
+ */
+export function withConversation(gate: ThreadGate, raw: unknown): ThreadGate {
+  if (!gate.ok || raw == null || raw === '') return gate
+  const conversation = String(raw)
+  if (!CONVERSATION_RE.test(conversation))
+    return { ok: false, status: 400, error: 'bad conversation' }
+  if (gate.client || gate.room || gate.supervisor || !splittable(gate.thread))
+    return {
+      ok: false,
+      status: 400,
+      error: 'only your own and a specialist thread have several conversations',
+    }
+  return {
+    ...gate,
+    thread: conversationThread(gate.thread, conversation),
+    conversation,
+  }
+}
+
+function conversationParam(req: IncomingMessage): string | null {
+  return new URL(req.url || '', 'http://x').searchParams.get('conversation')
 }
 
 /** The client id from the query string, or null when absent. */
@@ -848,13 +883,16 @@ export async function handleAgentChat(
    * `room` is how a turn in a GROUP keeps its memory in the room instead of
    * in the asker's private history (conversation.ts roomThread, issue #2644).
    */
-  const gate = await threadFor(
-    body.client,
-    telegramId,
-    getPool,
-    body.agent,
-    body.room,
-    body.role
+  const gate = withConversation(
+    await threadFor(
+      body.client,
+      telegramId,
+      getPool,
+      body.agent,
+      body.room,
+      body.role
+    ),
+    body.conversation
   )
   if (!gate.ok) return json(res, gate.status, { error: gate.error })
   const thread = gate.thread
@@ -1201,13 +1239,16 @@ export async function handleAgentHistoryDelete(
   const сырой = параметры.get('id')
   // Gate first: a client thread is cleared only by a seller, and only that
   // thread -- the self thread is never touched through `?client=`.
-  const gate = await threadFor(
-    clientParam(req),
-    telegramId,
-    getPool,
-    agentParam(req),
-    undefined,
-    roleParam(req)
+  const gate = withConversation(
+    await threadFor(
+      clientParam(req),
+      telegramId,
+      getPool,
+      agentParam(req),
+      undefined,
+      roleParam(req)
+    ),
+    conversationParam(req)
   )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
@@ -1225,6 +1266,10 @@ export async function handleAgentHistoryDelete(
       return json(res, 200, { ok: true, убрано, thread: gate.thread }) // cyrillic-ok: pre-existing identifier
     }
     const убрано = await очиститьРазговор(pool, telegramId, gate.thread) // cyrillic-ok: pre-existing identifiers
+    if (gate.conversation) {
+      const { forgetConversationTitle } = await import('./conversation')
+      await forgetConversationTitle(pool, telegramId, gate.thread)
+    }
     return json(res, 200, { ok: true, убрано, thread: gate.thread }) // cyrillic-ok: pre-existing identifier
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
@@ -1240,13 +1285,16 @@ export async function handleAgentHistory(
   const предел = Number(
     new URL(req.url || '', 'http://x').searchParams.get('limit') || 0
   )
-  const gate = await threadFor(
-    clientParam(req),
-    telegramId,
-    getPool,
-    agentParam(req),
-    undefined,
-    roleParam(req)
+  const gate = withConversation(
+    await threadFor(
+      clientParam(req),
+      telegramId,
+      getPool,
+      agentParam(req),
+      undefined,
+      roleParam(req)
+    ),
+    conversationParam(req)
   )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
@@ -1360,13 +1408,16 @@ export async function handleAgentHistoryAppend(
     ? String(body.surface)
     : 'unknown'
 
-  const gate = await threadFor(
-    body.client,
-    telegramId,
-    getPool,
-    body.agent,
-    undefined,
-    body.role
+  const gate = withConversation(
+    await threadFor(
+      body.client,
+      telegramId,
+      getPool,
+      body.agent,
+      undefined,
+      body.role
+    ),
+    body.conversation
   )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
 
@@ -1612,5 +1663,64 @@ export async function handleCrmMirror(
     return answer(200, { ok: true, ...r })
   } catch (e) {
     return answer(500, { error: String(e).slice(0, 200) })
+  }
+}
+
+/**
+ * GET  /api/agent/conversations[?agent=<id>] -- the caller's conversations
+ *      with themselves or with one specialist, most recent first.
+ * POST /api/agent/conversations {agent?, conversation, title} -- name one.
+ *
+ * The same gates as the history: threadFor says whether the base thread is
+ * the caller's to open, withConversation whether the id is well formed.
+ * Clients' threads are not listed here -- they are one conversation each.
+ */
+export async function handleAgentConversations(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string,
+  getPool: () => any
+) {
+  const { listConversations, renameConversation } = await import(
+    './conversation'
+  )
+  if (req.method === 'GET') {
+    const gate = await threadFor(null, telegramId, getPool, agentParam(req))
+    if (!gate.ok)
+      return json(res, gate.status, { ok: false, error: gate.error })
+    try {
+      const conversations = await listConversations(
+        await getPool(),
+        telegramId,
+        gate.thread
+      )
+      return json(res, 200, { ok: true, conversations })
+    } catch (e) {
+      return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
+    }
+  }
+  if (req.method !== 'POST')
+    return json(res, 405, { ok: false, error: 'GET or POST' })
+  let body: any
+  try {
+    body = JSON.parse((await readBody(req)) || '{}')
+  } catch {
+    return json(res, 400, { ok: false, error: 'body is not JSON' })
+  }
+  const gate = withConversation(
+    await threadFor(null, telegramId, getPool, body.agent),
+    body.conversation
+  )
+  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
+  try {
+    await renameConversation(
+      await getPool(),
+      telegramId,
+      gate.thread,
+      String(body.title ?? '')
+    )
+    return json(res, 200, { ok: true, thread: gate.thread })
+  } catch (e) {
+    return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }
 }

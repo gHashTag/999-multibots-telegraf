@@ -28,9 +28,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libcairo2 libcups2 \
     libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 libnspr4 libnss3 libpango-1.0-0 \
     libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 \
-    libxrandr2 xdg-utils wget ffmpeg poppler-utils libarchive-tools \
+    libxrandr2 xdg-utils wget ffmpeg poppler-utils libarchive-tools unzip \
     iverilog verilator yosys \
   && rm -rf /var/lib/apt/lists/*
+
+# The coding scientist's hands (src/agent/code-run.ts, code_run): Deno runs
+# TS/JS in a sandbox with every permission denied. Pinned; installed to a
+# directory on PATH. Without it the tool says "not installed" and the agent
+# must answer "не запускалось" -- code-run-in-the-image.test.ts.
+ENV DENO_VERSION=v2.9.6 DENO_INSTALL=/usr/local
+RUN wget -qO /tmp/deno.zip \
+      "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip" \
+  && unzip -o /tmp/deno.zip -d /usr/local/bin \
+  && rm /tmp/deno.zip \
+  && chmod +x /usr/local/bin/deno \
+  && deno --version
 
 WORKDIR /workspace
 
