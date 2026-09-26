@@ -1599,7 +1599,7 @@ export const TOOLS: AgentTool[] = [
         model: {
           type: 'string',
           description:
-            `не задан — ${EDIT_MODEL} (сохраняет лицо, цена image_generate). ` +
+            `не задан — ${EDIT_MODEL} (сохраняет лицо, цена image_edit). ` +
             `${GPT_IMAGE_25_EDIT_MODELS.join(' | ')} — GPT Image 2.5 через Kie, ` +
             'цена gpt_image_edit; другие имена отклоняются до списания',
         },
@@ -1633,7 +1633,9 @@ export const TOOLS: AgentTool[] = [
             `модель ${model} не допущена к img2img: ${EDIT_MODEL} или ` +
             GPT_IMAGE_25_EDIT_MODELS.join(' | '),
         }
-      const op = isGptImage25Edit(model) ? 'gpt_image_edit' : 'image_generate'
+      // Each img2img model is sold at its own cost x markup: nano-banana-edit
+      // is `image_edit` (billing-shared), no longer the text-to-image price.
+      const op = isGptImage25Edit(model) ? 'gpt_image_edit' : 'image_edit'
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           done: false,

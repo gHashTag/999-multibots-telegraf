@@ -1,4 +1,5 @@
 import { kieInputFor } from './agent/kie-web-provider'
+import { EDIT_MODEL } from './agent/kie-edit-model'
 /**
  * IMAGE-TO-IMAGE, the capability the service sells but did not have.
  *
@@ -35,8 +36,11 @@ import { kieInputFor } from './agent/kie-web-provider'
 
 const BASE = 'https://api.kie.ai/api/v1'
 
-/** The model that preserves the person. See the block comment for the evidence. */
-export const EDIT_MODEL = 'google/nano-banana-edit'
+/**
+ * The model that preserves the person. See the block comment for the evidence;
+ * the name lives in a module without imports so the price table can read it.
+ */
+export { EDIT_MODEL }
 
 /**
  * GPT IMAGE 2.5 (OpenAI via Kie), the owner's choice for the CRM lead magnet.

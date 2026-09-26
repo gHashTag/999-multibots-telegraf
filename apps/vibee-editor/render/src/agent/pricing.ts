@@ -29,7 +29,7 @@ import { imageChainNote } from '../image-chain'
  *    both halves. That provider's HOST appears in no runtime code at all --
  *    only its name, in the provider_setup reference, and a name is not a
  *    call. The img2img that does exist runs on Kie `google/nano-banana-edit`
- *    and charges 2 tokens through `image_generate`. (The host is spelled out
+ *    and is charged as `image_edit` (PAID below). (The host is spelled out
  *    nowhere in this file on purpose: the guard greps these sources for it,
  *    and a comment quoting it reads exactly like a call.)
  *
@@ -106,6 +106,16 @@ export const PAID = [
      * draws is now the chain's price floor, and this line reads it.
      */
     провайдер: imageChainNote(), // cyrillic-ok: existing field name
+  },
+  {
+    /*
+     * The agent's img2img, the stills of every story reel. It was sold at the
+     * text-to-image price above -- 2 tokens against a $0.02 picture -- and it
+     * was on no price list at all, so nobody could see it.
+     */
+    функция: 'image_edit', // cyrillic-ok: existing field name
+    токенов: priceFor('image_edit'), // cyrillic-ok: existing field name
+    провайдер: 'Kie nano-banana-edit, img2img: кадры рилс-истории', // cyrillic-ok: existing field name
   },
   {
     функция: 'gpt_image_edit', // cyrillic-ok: existing field name
