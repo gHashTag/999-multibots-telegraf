@@ -199,9 +199,28 @@ export function kieCostUsd(modelId: string): number | null {
  * допускаем совсем: назвать сумму до нажатия мы не можем, а брать неизвестно
  * сколько нельзя.
  */
+/**
+ * MODELS SOLD AT THEIR DEAREST VARIANT (owner, 2026-09-26: "raise only qwen3
+ * to 10").
+ *
+ * `qwen3/text-to-image` -- "Qwen image 3.0" on the Kie price list -- matches
+ * rows from $0.0025 to $0.024 a picture, and the request does not pick one,
+ * so which of them Kie bills is its choice. Priced at the cheapest it sold
+ * for 1 token, a loss whenever the dearest is billed (`tri margin`: LOSS AT
+ * DEAREST, the only one in the report). Priced at the dearest it is 10.
+ *
+ * Only this model. The seven others the report flags UNDER FLOOR AT DEAREST
+ * keep their cheapest price by the owner's decision: none of them is a loss,
+ * they only keep less than the full markup when the dearest row is billed.
+ */
+export const PRICED_AT_DEAREST: readonly string[] = ['qwen3/text-to-image']
+
 export function priceForKieModel(modelId: string): number | null {
-  const cost = kieCostUsd(modelId)
-  if (cost == null) return null
+  const cheapest = kieCostUsd(modelId)
+  if (cheapest == null) return null
+  const cost = PRICED_AT_DEAREST.includes(modelId)
+    ? Math.max(cheapest, DEAREST_VARIANT_USD[modelId] ?? cheapest)
+    : cheapest
   // A video whose bill cannot be named before the press has no price either,
   // for the same reason as the line above (see `kieVideoSale`). Every list
   // that admits a model by its price -- the catalogue, /api/balance -- drops
