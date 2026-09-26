@@ -75,8 +75,14 @@ export function isOwnUrl(url: string): boolean {
  */
 export const START_PAYLOAD_MAX = 64
 export const START_SOURCE_SEP = '__'
-const START_OWN =
-  /^(?:(?:app|svc|subscribe)_[a-z0-9_]+|club|foundry|topup(?:_[a-z]+)?)$/
+/*
+ * Our payloads: the app's screens, services, subscriptions, the club, the
+ * foundry, top-ups, and `website` (the t27.ai "open in Telegram" button).
+ * The bot keeps the very same list (appLinks.ts OWN_START_PAYLOAD); the
+ * two are compared by appLinksParity/startSource tests.
+ */
+export const START_OWN =
+  /^(?:(?:app|svc|subscribe)_[a-z0-9_]+|club|foundry|website|topup(?:_[a-z]+)?)$/
 const TELEGRAM_HOSTS = ['t.me', 'telegram.me', 'www.t.me']
 
 /** The channel as a /start suffix can carry it: [a-z0-9-] only. Pure. */

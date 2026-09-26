@@ -109,8 +109,10 @@ describe('which agents are due, each on its own', () => {
   })
 
   it('a day-old verdict is due again, and only that agent', () => {
-    const latest = CANARIES.map(c => v(c.id, c.id === 'habr' ? 25 * H : H))
-    expect(ids(dueCanaries(latest, NOW, H24, CANARIES_HASH))).toEqual(['habr'])
+    const latest = CANARIES.map(c => v(c.id, c.id === 'scientist' ? 25 * H : H))
+    expect(ids(dueCanaries(latest, NOW, H24, CANARIES_HASH))).toEqual([
+      'scientist',
+    ])
   })
 
   it('a verdict made under another canary table is stale: due at once', () => {
@@ -145,11 +147,11 @@ describe('what the owner hears', () => {
   })
 
   it('nothing when everything passes, as it did before', () => {
-    expect(alertText([v('job', true), v('habr', true)], [])).toBeNull()
+    expect(alertText([v('job', true), v('scientist', true)], [])).toBeNull()
   })
 
   it('a failure, with its reason in words', () => {
-    const t = alertText([v('job', false, ['acted']), v('habr', true)], [])
+    const t = alertText([v('job', false, ['acted']), v('scientist', true)], [])
     expect(t).toContain('1/2')
     expect(t).toContain('✗ job')
     expect(t).toContain('публиковать')
@@ -163,7 +165,9 @@ describe('what the owner hears', () => {
 })
 
 const DONE =
-  'agent-mail-mcp: https://a.io https://b.io https://c.io\n1. one\n2. two\n3. three'
+  'agent-mail-mcp: https://a.io https://b.io https://c.io\n1. one\n2. two\n3. three\n' +
+  'Гипотеза и вывод: частота не измерена. Маршрут yosys, Fmax не запускалось.\n' + // cyrillic-ok: answer fixture
+  '```verilog\nmodule m; endmodule\n```\n```verilog\nmodule tb; endmodule\n```\niverilog tb.v'
 
 describe('the run', () => {
   it('a canary that throws is a failed verdict; the others still run, all are recorded', async () => {
@@ -208,8 +212,12 @@ describe('what the answer must show', () => {
     'Спрос растёт: https://trends.google.com/x , https://example.com/report и https://habr.com/ru/articles/1/'
   const tiktokThen =
     'ТРИ ХУКА\n1. Антитеза: «Тебя нет в кадре»\n2. Вопрос-прогноз\n3. Числом\nСЦЕНАРИЙ 30 СЕКУНД'
-  const habrThen =
-    'Прочитал README (страница GitHub). Что за репо: MCP-сервер + CLI для доступа агента к Zoho Mail.'
+  const scientistThen =
+    'Гипотеза: GF16 даёт 35/35 бит-точно. Метод: README и тесты. Вывод: частота не измерена — отозвана.'
+  const fpgaThen =
+    'Маршрут: yosys -> nextpnr-xilinx -> openXC7. Fmax не запускалось; ресурсы — оценка.'
+  const rtlThen =
+    '```verilog\nmodule fifo; endmodule\n```\n```verilog\nmodule tb; endmodule\n```\niverilog -g2012 fifo.v tb.v && vvp a.out'
 
   it('the morning run Google Scout "passed" now fails, and says why', () => {
     expect(answerMisses(byId('google').answer, googleThen)).toEqual([
@@ -226,7 +234,9 @@ describe('what the answer must show', () => {
   it('real answers that did the job still pass', () => {
     expect(answerMisses(byId('google').answer, googleGood)).toEqual([])
     expect(answerMisses(byId('tiktok').answer, tiktokThen)).toEqual([])
-    expect(answerMisses(byId('habr').answer, habrThen)).toEqual([])
+    expect(answerMisses(byId('scientist').answer, scientistThen)).toEqual([])
+    expect(answerMisses(byId('fpga').answer, fpgaThen)).toEqual([])
+    expect(answerMisses(byId('rtl').answer, rtlThen)).toEqual([])
   })
 
   it('bold or bulleted numbering counts as a list too', () => {
@@ -237,7 +247,15 @@ describe('what the answer must show', () => {
 
   it('the script counts exactly as the server does', () => {
     for (const c of CANARIES)
-      for (const text of [googleThen, googleGood, tiktokThen, habrThen, ''])
+      for (const text of [
+        googleThen,
+        googleGood,
+        tiktokThen,
+        scientistThen,
+        fpgaThen,
+        rtlThen,
+        '',
+      ])
         expect(script.answerMisses(c.answer, text), `${c.id}`).toEqual(
           answerMisses(c.answer, text)
         )

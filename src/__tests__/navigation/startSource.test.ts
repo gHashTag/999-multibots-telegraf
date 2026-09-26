@@ -16,9 +16,11 @@ import {
   splitStartSource,
 } from '@/navigation/helpers/appLinks'
 import {
+  START_OWN,
   START_SOURCE_SEP as RENDER_SEP,
   tagged,
 } from '../../../apps/vibee-editor/render/src/agent/utm'
+import { OWN_START_PAYLOAD } from '@/navigation/helpers/appLinks'
 
 describe('cutting the channel off a /start payload', () => {
   it('our link keeps opening its screen, and the channel is read', () => {
@@ -76,12 +78,24 @@ describe('the render and the bot agree', () => {
     expect(RENDER_SEP).toBe(START_SOURCE_SEP)
   })
 
+  it('one list of our payloads on both sides', () => {
+    /* Two copies drift; tick 9 shipped them without `website`, the t27.ai
+       button's own payload. */
+    expect(START_OWN.source).toBe(OWN_START_PAYLOAD.source)
+    for (const p of ['website', 'foundry', 'club', 'app_feed', 'svc_reels'])
+      expect(OWN_START_PAYLOAD.test(p), p).toBe(true)
+    for (const p of ['144022504', 'ref42', 'promo', 'crm-prep-12345', 'dm'])
+      expect(OWN_START_PAYLOAD.test(p), p).toBe(false)
+  })
+
   it('every link the render tags is read back by the bot as it was built', () => {
     const payloads = [
       ...APP_ROUTES.filter(r => !UNLINKABLE_APP_ROUTES.includes(r)).map(
         r => `app_${r}`
       ),
       'club',
+      'foundry',
+      'website',
       'topup',
       'topup_rub',
     ]

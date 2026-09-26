@@ -38,6 +38,7 @@ import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-ma
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { useEarnedAgent } from '@/hooks/useAgentAcceptance'
 import { AgentSkillsPanel } from '@/components/Chat/AgentSkillsPanel'
+import { ClientHelperPicker } from '@/components/Chat/ClientHelperPicker'
 import { AGENT_SUGGESTIONS, agentGate } from './agentSuggestions'
 import './Chat.css'
 
@@ -207,7 +208,7 @@ function ChatThread({
   client: string | null
   marketplaceAgent: string | null
 }) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   // Переписка и черновик — в атомах с хранилищем, а не в useState: страница
   // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
   const messagesAtom = useMemo(
@@ -215,6 +216,11 @@ function ChatThread({
     [client, marketplaceAgent]
   )
   const [messages, setMessages] = useAtom(messagesAtom)
+  const specialist = marketplaceAgent
+    ? marketplaceAgentById(marketplaceAgent)
+    : null
+  /* The specialist called into this client's conversation, if any. */
+  const [helper, setHelper] = useState<string | null>(null)
   const [input, setInput] = useAtom(agentDraftAtom)
   // The greeting of a client thread is short and names the client: the long
   // self greeting sells the agent, which the owner has already bought.
@@ -237,7 +243,8 @@ function ChatThread({
   const queued = useAtomValue(agentQueueAtom).filter(
     q =>
       (q.options.client ?? null) === client &&
-      (q.options.agent ?? null) === marketplaceAgent
+      // A client's line belongs here whichever specialist it was sent to.
+      (client !== null || (q.options.agent ?? null) === marketplaceAgent)
   )
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [topUp, setTopUp] = useState(false)
@@ -373,13 +380,15 @@ function ChatThread({
       // leaves when the answer in progress has ended (lib/agentStream.ts).
       sendOrQueue(text, attachments, {
         client,
-        agent: marketplaceAgent,
+        // In a client's thread the agent is the specialist called in to
+        // help (ClientHelperPicker); elsewhere it is the thread's own agent.
+        agent: client ? helper : marketplaceAgent,
       })
       setInput('')
       setAttachments([])
       setAttachmentError(null)
     },
-    [attachments, client, marketplaceAgent, setInput, uploading]
+    [attachments, client, helper, marketplaceAgent, setInput, uploading]
   )
 
   /*
@@ -504,14 +513,31 @@ function ChatThread({
               </button>
             </nav>
           ) : null}
-          {marketplaceAgent ? (
-            <nav className="chat-specialist" aria-label="Блогер T27">
+          {specialist ? (
+            /*
+             * WHOSE CHAT THIS IS. Until 2026-09-26 every agent's header said
+             * "Блогер · работает" -- the RTL engineer's chat included.
+             */
+            <nav
+              className="chat-specialist"
+              aria-label={specialist.name[lang === 'ru' ? 'ru' : 'en']}
+              data-testid="chat-specialist"
+            >
               <Link to="/agents" className="chat-specialist__back">
-                {'← Биржа агентов'}
+                ← {t('agents.dash.market')}
               </Link>
               <span>
-                <i /> {'Блогер · работает'}
+                <i /> {specialist.icon}{' '}
+                {specialist.name[lang === 'ru' ? 'ru' : 'en']} ·{' '}
+                {t(`agents.dash.status.${specialist.status}`)}
               </span>
+              <Link
+                to={`/agents/${specialist.id}`}
+                className="chat-specialist__back"
+                data-testid="chat-specialist-dash"
+              >
+                {t('chat.specialist.dashboard')} →
+              </Link>
             </nav>
           ) : null}
           <div className="chat-toolbar">
@@ -713,6 +739,13 @@ function ChatThread({
           </div>
 
           <div className="chat-input-area">
+            {client ? (
+              /*
+               * SPECIALISTS FOR THIS CLIENT (owner, 2026-09-26): call an
+               * agent into the conversation; the memory stays the client's.
+               */
+              <ClientHelperPicker value={helper} onChange={setHelper} />
+            ) : null}
             {attachments.length > 0 || attachmentError ? (
               <div className="chat-attachment-tray">
                 {attachments.map(attachment => (
