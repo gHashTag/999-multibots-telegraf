@@ -312,7 +312,25 @@ const EXECUTABLE = EXECUTABLE_ACTIONS
  *
  * Add a surface here only together with a confirmation screen on it.
  */
-const CAN_CONFIRM = new Set(['bot'])
+/*
+ * `miniapp` since 2026-09-26: the app draws the card under the agent's answer
+ * (player components/Chat/SendCardView.tsx, #2980) and answers it through the
+ * same /api/tg/proposal/confirm and /cancel the bot's buttons use. Until this
+ * line it was drawn and never fed: the draft was refused here, so the owner
+ * working a client in the app (a portrait for Farisha) had no card to press.
+ * iOS still has no screen for it and stays out.
+ */
+const CAN_CONFIRM = new Set(['bot', 'miniapp'])
+
+/** Whether a draft made on this surface can be confirmed there. */
+export function canConfirmOn(surface: unknown): boolean {
+  return CAN_CONFIRM.has(String(surface ?? ''))
+}
+
+/** What to tell the person when it cannot. */
+export const CONFIRM_ELSEWHERE =
+  'Подтвердить это можно в чате бота или в приложении — там есть кнопки ' + // cyrillic-ok: tool result copy
+  '«Отправить / Отмена». Скажи человеку открыть бота или приложение и повторить просьбу.' // cyrillic-ok: tool result copy
 
 /** A numeric Telegram target is the lead itself; anything else is not known. */
 export function leadOfTarget(target: unknown): string | undefined {
@@ -525,9 +543,7 @@ async function propose(
       target,
       what,
       ...named,
-      why:
-        'Подтвердить это можно только в чате бота — там есть кнопки ' +
-        '«Отправить / Отмена». Скажи человеку открыть бота и повторить просьбу.',
+      why: CONFIRM_ELSEWHERE,
     }
   }
   return { proposal: true, id, action, target, what, ...named, why }
