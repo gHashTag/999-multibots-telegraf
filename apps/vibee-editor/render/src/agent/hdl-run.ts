@@ -18,10 +18,22 @@
  *     request), the top name is an identifier;
  *   - the child gets an EMPTY environment (PATH and HOME only), a deadline,
  *     a bounded output, and a per-person hourly budget.
+ *
+ * THE CHECK READS WHAT THE COMPILER READS (26.09, found by trying it). The
+ * first version matched FORBIDDEN against the file as written, and a macro
+ * pastes a name together after that check: `define SYS(a) $``a` then
+ * `SYS(fopen)` compiled to $fopen, and vvp read /etc/hostname on this
+ * container. So every run is first put through `iverilog -E`, the same
+ * preprocessor the simulator uses; FORBIDDEN is matched against ITS output,
+ * and synthesis reads that output rather than the raw files (yosys executes
+ * $readmemh while it synthesises). And the tools no longer run as root:
+ * inside the image the child is uid 65534, which cannot open
+ * /proc/<pid>/environ of the server -- the secrets -- whatever gets past a
+ * text check.
  * Nothing is charged: the cost is CPU seconds, and the budget bounds it.
  */
 import { execFile as execFileCb } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chown, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentTool, ToolContext } from './tools'
@@ -108,13 +120,31 @@ export interface Step {
   report?: string
 }
 
+/** The files a tool is given: .v and .sv; headers come in by `include. */
+export function sourceNames(files: readonly HdlFile[]): string[] {
+  return files.filter(f => /\.s?v$/.test(f.name)).map(f => f.name)
+}
+
+/** What the preprocessor writes: the text every check is made against. */
+export const PREPROCESSED = 'pre.v'
+
+/** The macro-expanded text through the same preprocessor iverilog compiles with. */
+export function preprocessStep(files: readonly HdlFile[]): Step {
+  return {
+    cmd: 'iverilog',
+    args: ['-g2012', '-E', '-o', PREPROCESSED, ...sourceNames(files)],
+  }
+}
+
 /** The commands for a mode. The script is ours, never the request's. Pure. */
 export function commandsFor(
   mode: HdlMode,
   files: readonly HdlFile[],
-  top: string | null
+  top: string | null,
+  /** Synthesis reads the checked, preprocessed text instead of the raw files. */
+  synthFrom?: string
 ): Step[] | { reason: string } {
-  const sources = files.filter(f => /\.s?v$/.test(f.name)).map(f => f.name)
+  const sources = sourceNames(files)
   if (!sources.length) return { reason: 'no .v or .sv file to run' }
   if (top !== null && !IDENT.test(top))
     return { reason: `bad top "${top.slice(0, 40)}"` }
@@ -154,7 +184,7 @@ export function commandsFor(
       args: [
         '-q',
         '-p',
-        `read_verilog ${sv ? '-sv ' : ''}${sources.join(' ')}; synth_xilinx -top ${top}; tee -q -o stat.txt stat`,
+        `read_verilog ${sv ? '-sv ' : ''}${synthFrom ?? sources.join(' ')}; synth_xilinx -top ${top}; tee -q -o stat.txt stat`,
       ],
       report: 'stat.txt',
     },
@@ -191,6 +221,25 @@ export type Exec = (
   opts: { cwd: string; timeoutMs: number }
 ) => Promise<ExecResult>
 
+/** uid/gid of `nobody`: who untrusted code runs as when the server is root. */
+export const SANDBOX_ID = 65534
+
+/** Run as nobody only when we can: root in the image; tests run as they are. */
+export function sandboxIds(
+  uid: number | undefined = process.getuid?.()
+): { uid: number; gid: number } | null {
+  return uid === 0 ? { uid: SANDBOX_ID, gid: SANDBOX_ID } : null
+}
+
+/** Hand the run's directory and files to nobody, so the tools can write there. */
+export async function giveToSandbox(
+  paths: string[],
+  ids = sandboxIds()
+): Promise<void> {
+  if (!ids) return
+  for (const p of paths) await chown(p, ids.uid, ids.gid)
+}
+
 /** The real runner: an empty environment, a deadline, bounded output. */
 export const execTool: Exec = (cmd, args, opts) =>
   new Promise(resolve => {
@@ -203,6 +252,7 @@ export const execTool: Exec = (cmd, args, opts) =>
         maxBuffer: 512 * 1024,
         killSignal: 'SIGKILL',
         env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: opts.cwd },
+        ...(sandboxIds() ?? {}),
       },
       (err, stdout, stderr) => {
         const e = err as
@@ -237,7 +287,7 @@ export async function runHdl(
   const checked = checkSources(args.files)
   if (!checked.ok) return { ran: false, reason: checked.reason }
   const top = args.top ? String(args.top) : null
-  const steps = commandsFor(mode, checked.files, top)
+  const steps = commandsFor(mode, checked.files, top, PREPROCESSED)
   if (!Array.isArray(steps)) return { ran: false, reason: steps.reason }
   if (!allowRun(who, (deps.now ?? Date.now)()))
     return {
@@ -248,17 +298,58 @@ export async function runHdl(
   const dir = await mkdtemp(join(tmpdir(), 'hdl-'))
   try {
     for (const f of checked.files) await writeFile(join(dir, f.name), f.content)
+    await giveToSandbox([dir, ...checked.files.map(f => join(dir, f.name))])
+    const missing = (cmd: string) => ({
+      ran: false,
+      reason: `${cmd} is not installed in the service -- say "не запускалось", do not guess its output`,
+    })
+    /*
+     * Macros first: the same preprocessor the simulator uses, so a system
+     * task pasted together by a macro is seen here by name.
+     */
+    const pre = preprocessStep(checked.files)
+    const expanded = await exec(pre.cmd, pre.args, {
+      cwd: dir,
+      timeoutMs: DEADLINE_MS.lint,
+    })
+    if (expanded.missing) return missing(pre.cmd)
+    if (expanded.code !== 0 || expanded.timedOut)
+      return {
+        ran: true,
+        mode,
+        passed: false,
+        steps: [
+          {
+            command: [pre.cmd, ...pre.args].join(' '),
+            exit: expanded.code,
+            ...(expanded.timedOut ? { timedOut: true } : {}),
+            output: clip(`${expanded.stdout}\n${expanded.stderr}`.trim()),
+          },
+        ],
+        note: "the preprocessor's own output: the sources did not get past `include/`define",
+      }
+    // No text is no pass: an unreadable expansion is refused, never waved on.
+    const text = await readFile(join(dir, PREPROCESSED), 'utf8').catch(
+      () => null
+    )
+    if (text === null)
+      return {
+        ran: false,
+        reason: 'the preprocessed sources could not be read',
+      }
+    const hidden = text.match(FORBIDDEN)
+    if (hidden)
+      return {
+        ran: false,
+        reason: `${hidden[0]} appears once the macros are expanded -- not allowed here (no file, process or environment access)`,
+      }
     const out: Array<Record<string, unknown>> = []
     for (const s of steps) {
       const r = await exec(s.cmd, s.args, {
         cwd: dir,
         timeoutMs: DEADLINE_MS[mode],
       })
-      if (r.missing)
-        return {
-          ran: false,
-          reason: `${s.cmd} is not installed in the service -- say "не запускалось", do not guess its output`,
-        }
+      if (r.missing) return missing(s.cmd)
       const report = s.report
         ? await readFile(join(dir, s.report), 'utf8').catch(() => '')
         : ''
