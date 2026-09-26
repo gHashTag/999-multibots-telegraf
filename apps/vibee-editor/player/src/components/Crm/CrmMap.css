@@ -1,0 +1,178 @@
+.crm-map {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.crm-map__note,
+.crm-map__hint {
+  color: var(--t27-muted, #888);
+  font-size: 13px;
+  margin: 8px 0;
+  text-align: center;
+}
+.crm-map__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.crm-map__chip,
+.crm-map__zoom button,
+.crm-map__actions button,
+.crm-map__actions a,
+.crm-map__close {
+  height: auto;
+  padding: 5px 10px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.crm-map__chip.is-on,
+.crm-map__actions .is-on {
+  border-color: var(--t27-accent, #00ff88);
+  color: var(--t27-accent, #00ff88);
+}
+.crm-map__zoom {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+.crm-map__zoom button {
+  width: 30px;
+  padding: 4px 0;
+}
+.crm-map__stage {
+  overflow: auto;
+  max-height: 72vh;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  background: radial-gradient(
+    circle at center,
+    rgba(0, 255, 136, 0.06),
+    transparent 70%
+  );
+}
+.crm-map__svg {
+  display: block;
+  min-width: 320px;
+  margin: 0 auto;
+}
+.crm-map__spoke {
+  stroke: var(--t27-accent, #00ff88);
+}
+.crm-map__edge {
+  stroke: #9aa7ff;
+}
+.crm-map__edge.is-lit {
+  stroke: var(--t27-accent, #00ff88);
+}
+.crm-map__label {
+  fill: var(--t27-muted, #9a9a9a);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: #050607;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+.crm-map__node {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.crm-map__node:focus {
+  outline: none;
+}
+.crm-map__disc {
+  fill: #23262d;
+}
+.crm-map__ring {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.25);
+  stroke-width: 2;
+}
+.crm-map__node[data-sphere='business'] .crm-map__ring {
+  stroke: #ffc75a;
+}
+.crm-map__node[data-sphere='content'] .crm-map__ring {
+  stroke: #ff6fb5;
+}
+.crm-map__node[data-sphere='tech'] .crm-map__ring {
+  stroke: #5ab8ff;
+}
+.crm-map__node[data-sphere='beauty'] .crm-map__ring {
+  stroke: #e38cff;
+}
+.crm-map__node[data-sphere='health'] .crm-map__ring {
+  stroke: #6fe39a;
+}
+.crm-map__node[data-sphere='education'] .crm-map__ring {
+  stroke: #ffa46b;
+}
+.crm-map__node[data-sphere='art'] .crm-map__ring {
+  stroke: #b0a4ff;
+}
+.crm-map__node.is-picked .crm-map__ring,
+.crm-map__node:focus-visible .crm-map__ring {
+  stroke: var(--t27-accent, #00ff88);
+  stroke-width: 4;
+}
+.crm-map__owner .crm-map__ring {
+  stroke: var(--t27-accent, #00ff88);
+  stroke-width: 3;
+}
+.crm-map__initials {
+  fill: #e8e8e8;
+  font-weight: 600;
+  pointer-events: none;
+}
+.crm-map__auto {
+  fill: var(--t27-accent, #00ff88);
+  stroke: #111;
+  stroke-width: 2;
+}
+.crm-map__menu {
+  position: sticky;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.14));
+  border-radius: 14px;
+  background: #17191e;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+.crm-map__menu header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.crm-map__menu header span {
+  flex: 1;
+  color: var(--t27-muted, #888);
+  font-size: 12px;
+}
+.crm-map__close {
+  width: 28px;
+  padding: 2px 0;
+  font-size: 16px;
+}
+.crm-map__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.crm-map__actions button,
+.crm-map__actions a {
+  padding: 7px 12px;
+  font-size: 13px;
+}

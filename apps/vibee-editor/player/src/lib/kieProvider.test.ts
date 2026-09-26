@@ -22,8 +22,10 @@ describe('Kie web provider catalogue', () => {
     // нет себестоимости в прайсе KieAI, а допуск отсеивает такие целиком.
     // Липсинк из веба поэтому не работал ни разу: списание проходило, следом
     // летело «Kie.ai model is not enabled for lipsync», возврат и 500.
+    // Since 2026-09-26 Kling AI Avatar (the owner's pick): priced in the
+    // KieAI list, so the server admits it -- the reason this pin exists.
     expect(KIE_WEB_MODELS.lipsync.map(model => model.id)).toContain(
-      'kie/infinitalk/from-audio'
+      'kie/kling/ai-avatar-standard'
     )
   })
 
