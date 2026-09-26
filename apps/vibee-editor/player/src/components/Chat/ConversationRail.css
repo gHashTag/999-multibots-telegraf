@@ -1,0 +1,193 @@
+.conv-rail-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 40;
+}
+
+.conv-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 280px;
+  max-width: 84vw;
+  padding: 12px;
+  background: var(--surface, #12121a);
+  border-right: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  overflow-y: auto;
+}
+
+/* Narrow screens: a sheet in from the left, hidden until opened. */
+@media (max-width: 900px) {
+  .conv-rail {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 41;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+  .conv-rail--open {
+    transform: translateX(0);
+  }
+}
+
+@media (min-width: 901px) {
+  .conv-rail-backdrop {
+    display: none;
+  }
+  .conv-rail__close {
+    display: none;
+  }
+}
+
+.conv-rail__top {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.conv-rail__new {
+  flex: 1;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent, #4f7cff);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.conv-rail__close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted, #9aa);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.conv-rail__search {
+  padding: 8px 10px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+  color: inherit;
+}
+
+.conv-rail__note {
+  color: var(--text-muted, #9aa);
+  font-size: 13px;
+  padding: 6px 2px;
+}
+
+.conv-rail__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conv-rail__day {
+  color: var(--text-muted, #9aa);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 10px 4px 2px;
+}
+
+.conv-row {
+  display: flex;
+  align-items: center;
+  border-radius: 10px;
+}
+
+.conv-row--active {
+  background: var(--surface-2, rgba(255, 255, 255, 0.06));
+}
+
+.conv-row__open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.conv-row__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent, #4f7cff);
+  margin-right: 6px;
+  animation: conv-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes conv-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.conv-row__title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conv-row__preview {
+  color: var(--text-muted, #9aa);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conv-row__rename {
+  flex: 1;
+  margin: 4px 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--accent, #4f7cff);
+  border-radius: 8px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+  color: inherit;
+}
+
+.conv-row__actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.conv-row:hover .conv-row__actions,
+.conv-row--active .conv-row__actions {
+  opacity: 1;
+}
+
+.conv-row__actions button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted, #9aa);
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.conv-row__actions button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}

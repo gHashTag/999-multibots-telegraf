@@ -33,11 +33,27 @@ import { authHeaders } from '@/lib/apiFetch'
 import { reportClientError } from '@/lib/clientErrorBeacon'
 import { markEmbedSignInNeeded } from '@/lib/embedGuest'
 
-/** Идёт ли ответ прямо сейчас. В атоме, а не в useState: переживает уход. */
-export const agentBusyAtom = atom(false)
+/**
+ * WHICH CONVERSATIONS ARE ANSWERING RIGHT NOW (owner, 2026-09-26: "so I can
+ * keep several chats going").
+ *
+ * This used to be one boolean for the whole app: while the RTL engineer
+ * answered, a question to the blogger waited in the queue behind it. Each
+ * conversation now has its own stream, its own queue and its own stop; the
+ * server already ran turns side by side. In an atom, not useState: it
+ * outlives the page.
+ */
+export const agentBusyThreadsAtom = atom<string[]>([])
 
-/** Не даём запустить второй поток поверх первого. */
-let inFlight = false
+/** Anything answering anywhere -- for places that only need "is it busy". */
+export const agentBusyAtom = atom(get => get(agentBusyThreadsAtom).length > 0)
+
+/** One stream per conversation, and the handle that stops it. */
+const inFlight = new Map<string, AbortController>()
+
+function publishBusy(): void {
+  editorStore.set(agentBusyThreadsAtom, [...inFlight.keys()])
+}
 
 function patchIn(
   thread: MessagesAtom,
@@ -130,10 +146,38 @@ export interface SendOptions {
   client?: string | null
   /** A live specialist from the labour market. */
   agent?: string | null
+  /** One of several conversations with self or a specialist (never a client). */
+  conversation?: string | null
 }
 
-export function isAgentBusy(): boolean {
-  return inFlight
+/**
+ * The conversation a send belongs to, as one key: the same names as the
+ * server's threads (render conversation.ts), so the two are read alike. A
+ * client's thread is the client's whoever helps in it, and it does not split.
+ */
+export function threadKeyOf(options: SendOptions = {}): string {
+  if (options.client) return `client:${options.client}`
+  const base = options.agent ? `agent:${options.agent}` : 'self'
+  return options.conversation ? `${base}~${options.conversation}` : base
+}
+
+/** Is this conversation answering -- or, with no key, any conversation. */
+export function isAgentBusy(threadKey?: string): boolean {
+  return threadKey === undefined ? inFlight.size > 0 : inFlight.has(threadKey)
+}
+
+/**
+ * STOP. The person pressed Stop: the stream is cut, the server sees the
+ * socket close and starts nothing new (routes.ts `gone`), and what was
+ * already written stays on screen with a note. The lines queued behind it
+ * are dropped too -- "stop" that let the next queued task start at once
+ * would not be a stop.
+ */
+export function stopAgent(threadKey: string): void {
+  editorStore.set(agentQueueAtom, q =>
+    q.filter(m => threadKeyOf(m.options) !== threadKey)
+  )
+  inFlight.get(threadKey)?.abort()
 }
 
 /**
@@ -168,7 +212,11 @@ export function sendOrQueue(
   options: SendOptions = {}
 ): 'sent' | 'queued' | 'empty' {
   if (!text.trim() && attachments.length === 0) return 'empty'
-  if (!inFlight && editorStore.get(agentQueueAtom).length === 0) {
+  const key = threadKeyOf(options)
+  const waiting = editorStore
+    .get(agentQueueAtom)
+    .some(q => threadKeyOf(q.options) === key)
+  if (!inFlight.has(key) && !waiting) {
     void sendToAgent(text, attachments, options)
     return 'sent'
   }
@@ -176,9 +224,9 @@ export function sendOrQueue(
     ...q,
     { id: `q${Date.now()}-${++queueSeq}`, text, attachments, options },
   ])
-  // A queue with a free agent (e.g. the page came back after the answer
-  // ended) must not sit waiting for an answer that will never come.
-  if (!inFlight) drainQueue()
+  // A queue with a free conversation (e.g. the page came back after the
+  // answer ended) must not sit waiting for an answer that will never come.
+  if (!inFlight.has(key)) drainQueue(key)
   return 'queued'
 }
 
@@ -186,13 +234,25 @@ export function removeQueued(id: string): void {
   editorStore.set(agentQueueAtom, q => q.filter(m => m.id !== id))
 }
 
-/** Take the first queued message and send it, if the agent is free. */
-export function drainQueue(): void {
-  if (inFlight) return
-  const [next, ...rest] = editorStore.get(agentQueueAtom)
-  if (!next) return
-  editorStore.set(agentQueueAtom, rest)
-  void sendToAgent(next.text, next.attachments, next.options)
+/**
+ * Send the first queued line of a conversation, if that conversation is
+ * free. With no key, every conversation with something waiting gets its turn.
+ */
+export function drainQueue(threadKey?: string): void {
+  const queue = editorStore.get(agentQueueAtom)
+  const keys =
+    threadKey === undefined
+      ? [...new Set(queue.map(q => threadKeyOf(q.options)))]
+      : [threadKey]
+  for (const key of keys) {
+    if (inFlight.has(key)) continue
+    const next = editorStore
+      .get(agentQueueAtom)
+      .find(q => threadKeyOf(q.options) === key)
+    if (!next) continue
+    editorStore.set(agentQueueAtom, q => q.filter(m => m.id !== next.id))
+    void sendToAgent(next.text, next.attachments, next.options)
+  }
 }
 
 export function messageContentForAgent(message: Message): string {
@@ -218,12 +278,15 @@ export async function sendToAgent(
   options: SendOptions = {}
 ): Promise<void> {
   const trimmed = text.trim()
-  if ((!trimmed && attachments.length === 0) || inFlight) return
-  inFlight = true
-  editorStore.set(agentBusyAtom, true)
+  const key = threadKeyOf(options)
+  if ((!trimmed && attachments.length === 0) || inFlight.has(key)) return
+  const stop = new AbortController()
+  inFlight.set(key, stop)
+  publishBusy()
   const client = options.client || null
   const marketplaceAgent = options.agent || null
-  const thread = agentMessagesAtomFor(client, marketplaceAgent)
+  const conversation = client ? null : options.conversation || null
+  const thread = agentMessagesAtomFor(client, marketplaceAgent, conversation)
   const patch = (agentId: string, fn: (m: Message) => Message) =>
     patchIn(thread, agentId, fn)
 
@@ -285,6 +348,7 @@ export async function sendToAgent(
     const res = await fetch(`${API_BASE}/api/agent/chat`, {
       method: 'POST',
       headers,
+      signal: stop.signal,
       body: JSON.stringify({
         messages: history,
         /*
@@ -299,6 +363,7 @@ export async function sendToAgent(
         // the self thread's request body is byte-for-byte what it was.
         ...(client ? { client } : {}),
         ...(marketplaceAgent ? { agent: marketplaceAgent } : {}),
+        ...(conversation ? { conversation } : {}),
       }),
     })
     if (!res.ok || !res.body) {
@@ -430,7 +495,7 @@ export async function sendToAgent(
         await attempt()
         break
       } catch (e) {
-        const networkDrop = e instanceof TypeError
+        const networkDrop = e instanceof TypeError && !stop.signal.aborted
         if (networkDrop && !receivedText && n < MAX_ATTEMPTS) {
           patch(agentId, m => ({
             ...m,
@@ -443,6 +508,16 @@ export async function sendToAgent(
       }
     }
   } catch (e) {
+    if (stop.signal.aborted) {
+      // The person's own Stop is not a failure: nothing to report, and what
+      // had arrived stays, marked as cut short.
+      patch(agentId, m => ({
+        ...m,
+        text: m.text ? `${m.text}\n\n⏹ Остановлено.` : '⏹ Остановлено.', // cyrillic-ok: shown to the person
+        stopped: true,
+      }))
+      return
+    }
     const detail = String(e).slice(0, 160)
     patch(agentId, m => ({
       ...m,
@@ -456,9 +531,9 @@ export async function sendToAgent(
       context: `elapsedMs=${Date.now() - startedAt} receivedText=${receivedText} turn=${turnId ?? 'none'}`,
     })
   } finally {
-    inFlight = false
-    editorStore.set(agentBusyAtom, false)
-    // The next message written while this one was answered, if any.
-    queueMicrotask(drainQueue)
+    inFlight.delete(key)
+    publishBusy()
+    // The next message written in this conversation meanwhile, if any.
+    queueMicrotask(() => drainQueue(key))
   }
 }

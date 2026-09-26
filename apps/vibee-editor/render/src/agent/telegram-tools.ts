@@ -895,6 +895,7 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
   'agent_avatars_make',
   'agent_clients',
   'hdl_run',
+  'code_run',
   'tg_media',
   'tg_scheduled',
   'tg_participants',

@@ -48,6 +48,8 @@ export interface Message {
   /** Поток размышления модели — сворачиваемый, показывается по желанию. */
   thinking?: string
   tools?: ToolCall[]
+  /** The person pressed Stop while this answer was being written. */
+  stopped?: boolean
   /**
    * A message the agent prepared FOR SOMEBODY ELSE (a client, a group), waiting
    * for the owner's press. The server has always sent it on the stream; the
@@ -168,10 +170,34 @@ const marketplaceAgentThreads = new Map<string, MessagesAtom>()
 export const marketplaceAgentThreadStorageKey = (agentId: string): string =>
   `${STORAGE_KEYS.agentChat}:agent:${agentId}`
 
+/**
+ * SEVERAL CONVERSATIONS (owner, 2026-09-26). The server names one as the base
+ * thread plus `~<id>` (render conversation.ts); here it is the same suffix on
+ * the storage key. No id is the conversation that was there first, so every
+ * stored transcript keeps its key.
+ */
+const conversationThreads = new Map<string, MessagesAtom>()
+
 export function agentMessagesAtomFor(
   clientId: string | null | undefined,
-  marketplaceAgent?: string | null
+  marketplaceAgent?: string | null,
+  conversation?: string | null
 ): MessagesAtom {
+  if (conversation && !clientId) {
+    const key = `${
+      marketplaceAgent
+        ? marketplaceAgentThreadStorageKey(marketplaceAgent)
+        : STORAGE_KEYS.agentChat
+    }~${conversation}`
+    let found = conversationThreads.get(key)
+    if (!found) {
+      found = trimmed(
+        atomWithStorage<Message[]>(key, [], undefined, { getOnInit: true })
+      )
+      conversationThreads.set(key, found)
+    }
+    return found
+  }
   /*
    * A CLIENT'S THREAD WINS. A specialist called into a client conversation
    * (render routes.ts threadFor) answers in the CLIENT's thread: one
@@ -222,3 +248,28 @@ export const agentDraftAtom = atomWithStorage<string>(
   undefined,
   { getOnInit: true }
 )
+
+/**
+ * A DRAFT PER CONVERSATION. One draft for every thread meant a half-written
+ * task for the RTL engineer reappeared in the chat about a client. The own
+ * thread keeps its old key, so a draft written before this change is still
+ * there.
+ */
+const drafts = new Map<string, WritableAtom<string, [string], void>>()
+
+export function agentDraftAtomFor(
+  threadKey: string
+): WritableAtom<string, [string], void> {
+  if (threadKey === 'self') return agentDraftAtom
+  let found = drafts.get(threadKey)
+  if (!found) {
+    found = atomWithStorage<string>(
+      `${STORAGE_KEYS.agentChatDraft}:${threadKey}`,
+      '',
+      undefined,
+      { getOnInit: true }
+    ) as WritableAtom<string, [string], void>
+    drafts.set(threadKey, found)
+  }
+  return found
+}

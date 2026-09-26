@@ -1157,3 +1157,65 @@ html[data-keyboard='open'] .chat-page {
   font-size: 0.8rem;
   opacity: 0.8;
 }
+
+/* SEVERAL CHATS and the reworked composer (owner, 2026-09-26). */
+.chat-conv-toggle {
+  font-weight: 600;
+}
+.chat-input--area {
+  resize: none;
+  max-height: 160px;
+  min-height: 40px;
+  line-height: 1.4;
+  overflow-y: auto;
+  font-family: inherit;
+}
+.send-btn--stop {
+  background: var(--danger, #d9534f);
+}
+.chat-composer-hint {
+  margin: 4px 2px 0;
+  font-size: 11px;
+  color: var(--text-muted, #9aa);
+}
+.message-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.message:hover .message-actions {
+  opacity: 1;
+}
+.message-action {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted, #9aa);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.message-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}
+/* On a wide screen the rail sits beside the conversation as a column. */
+@media (min-width: 901px) {
+  .chat-body {
+    display: flex;
+  }
+}
+.chat-conv-btn {
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: inherit;
+  border-radius: 10px;
+  padding: 7px 11px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chat-conv-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}

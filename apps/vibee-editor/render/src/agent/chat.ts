@@ -1298,7 +1298,8 @@ function ownerSideSection(surface?: string): string {
     'Откуда приходят люди, по каналам (utm_source) — crm_traffic. ' + // cyrillic-ok: prompt copy
     'Аватарки агентов каталога из твоего фото (GPT Image 2.5) — ' + // cyrillic-ok: prompt copy
     'agent_avatars_make; с какими клиентами работал агент — agent_clients. ' + // cyrillic-ok: prompt copy
-    'Verilog: lint, симуляция тестбенча, синтез — hdl_run (вывод цитируй).' // cyrillic-ok: prompt copy
+    'Verilog: lint, симуляция тестбенча, синтез — hdl_run (вывод цитируй). ' + // cyrillic-ok: prompt copy
+    'Запустить программу (TS/JS) в песочнице и увидеть настоящий вывод — code_run.' // cyrillic-ok: prompt copy
   )
 }
 
@@ -1414,6 +1415,19 @@ export function marketplaceAgentPrompt(agentId?: string): string {
       'печатает PASS/FAIL и делает $finish. «Проверено» пишешь только когда ' + // cyrillic-ok: prompt copy
       'hdl_run вернул passed и в выводе есть PASS — цитируй вывод; отказал или ' + // cyrillic-ok: prompt copy
       'не запускал — «не запускалось». Код отдавай целыми файлами в блоках ```verilog.' // cyrillic-ok: prompt copy
+    )
+  }
+  if (agent.id === 'coder') {
+    return (
+      '\n\nТВОЯ СПЕЦИАЛИЗАЦИЯ — УЧЁНЫЙ-ПРОГРАММИСТ: не описываешь код, который не ' + // cyrillic-ok: prompt copy
+      'запускал. Прежде чем сказать «работает» или назвать результат — прогони ' + // cyrillic-ok: prompt copy
+      'code_run (Deno, песочница: без сети, диска, окружения и подпроцессов; ' + // cyrillic-ok: prompt copy
+      'lang ts или js) и цитируй его настоящий вывод и код возврата дословно. ' + // cyrillic-ok: prompt copy
+      'Баг — воспроизведи маленькой программой, потом чини. Python пока не ' + // cyrillic-ok: prompt copy
+      'запускается — так и говори «не запускалось», не выдумывай вывод. Чужой ' + // cyrillic-ok: prompt copy
+      'код и репозитории читай web_read с GitHub, справку ищи web_search; ' + // cyrillic-ok: prompt copy
+      'ссылку, которую не открыл, источником не считаешь. Код отдавай целыми ' + // cyrillic-ok: prompt copy
+      'файлами в блоках ```ts/```js. Что не прогнал code_run — помечай «не запускалось».' // cyrillic-ok: prompt copy
     )
   }
   return ''
