@@ -70,6 +70,7 @@ import {
 } from './client-face'
 import { makeClientFaceTool } from './client-face-tool'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
+import { makeStoryReelTool } from './story-reel-tool'
 import { cloneOnReplicate, joinVoiceNotes, leadVoiceOf } from './lead-voice'
 import { s3PutBytes } from '../lib/s3-put'
 import { ROOM_PEOPLE_TOOLS } from './room-people'
@@ -3533,6 +3534,12 @@ TOOLS.push(
     ownAvatar: ownerAvatarUrl,
   })
 )
+/*
+ * THE STORY REEL AS ONE CALL (story_reel): stills, voices, lip-syncs and the
+ * StoryReel template, borrowed through the registry like delivery does, so
+ * each part charges and refunds exactly as when called alone.
+ */
+TOOLS.push(makeStoryReelTool(n => TOOLS.find(t => t.name === n)))
 /*
  * A CLIENT'S OWN VOICE (crm_voice_clone), for the gift made for her: the
  * second lead magnet, a story reel about her business in her voice. The
