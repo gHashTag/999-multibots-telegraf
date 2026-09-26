@@ -50,6 +50,9 @@ const GOLDEN = '#FFD700'
 /** The longest story this template is meant for, seconds (the stories cap). */
 export const STORY_MAX_SECONDS = 15
 
+/** Frames the call to action takes to appear in the pause. */
+export const CTA_IN_FRAMES = 6
+
 export const StoryReelSchema = z.object({
   /** The scenes in order: each a lip-synced clip with its own line. */
   scenes: z
@@ -64,8 +67,14 @@ export const StoryReelSchema = z.object({
     .max(6, { message: 'не больше 6 сцен' }),
   /** Frames of each scene; filled by calculateMetadata from the clips. */
   sceneFrames: z.array(z.number()).default([]),
-  /** The pause after the call to action: the last frame held, seconds. */
-  pauseSec: z.number().min(0).max(3).default(2),
+  /**
+   * The pause for the call to action: the last frame held while the call
+   * stands on screen, seconds. Three by default since 2026-09-26 -- at two,
+   * with a fade, the call was readable for well under two seconds, not long
+   * enough to decide anything (the owner: "add a pause at the end for the
+   * CTA").
+   */
+  pauseSec: z.number().min(0).max(4).default(3),
   /**
    * A breath between two lines: the scene's last frame held, silent, before
    * the cut. Without it one line ran straight into the next and the owner
@@ -164,10 +173,12 @@ const HeldFrame: React.FC<{ src: string; at: number }> = ({ src, at }) => (
 
 const CallToAction: React.FC<{ text: string }> = ({ text }) => {
   const frame = useCurrentFrame()
-  const opacity = interpolate(frame, [0, 10], [0, 1], {
+  // In at once (0.2 s) and held for the whole pause: the pause is for
+  // reading the call, not for watching it arrive.
+  const opacity = interpolate(frame, [0, CTA_IN_FRAMES], [0, 1], {
     extrapolateRight: 'clamp',
   })
-  const rise = interpolate(frame, [0, 10], [24, 0], {
+  const rise = interpolate(frame, [0, CTA_IN_FRAMES], [24, 0], {
     extrapolateRight: 'clamp',
   })
   return (
@@ -211,7 +222,7 @@ const CallToAction: React.FC<{ text: string }> = ({ text }) => {
 
 export const StoryReel: React.FC<StoryReelProps> = props => {
   const { fps, durationInFrames } = useVideoConfig()
-  const pauseFrames = Math.round((props.pauseSec ?? 0) * fps)
+  const pauseFrames = Math.round((props.pauseSec ?? 3) * fps)
   const breathFrames = Math.round((props.breathSec ?? 0) * fps)
   const timeline = storyTimeline(
     props.scenes.length,
