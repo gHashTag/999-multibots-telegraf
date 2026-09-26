@@ -1,13 +1,47 @@
 import { execFileSync } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  PREPROCESSED,
   RUNS_PER_HOUR,
+  SANDBOX_ID,
   checkSources,
   commandsFor,
   resetHdlBudgetForTests,
   runHdl,
+  sandboxIds,
   type Exec,
 } from './src/agent/hdl-run'
+
+/**
+ * A stand-in for the tools. `iverilog -E` writes the expansion it is given
+ * (`expand`), or the files as they are -- the preprocessor's file is what
+ * every check reads, so a double that never writes it would be refused.
+ */
+function fakeTools(
+  calls: Array<{ cmd: string; args: string[] }> = [],
+  expand?: (raw: string) => string
+): Exec {
+  return async (cmd, args, opts) => {
+    calls.push({ cmd, args })
+    if (args.includes('-E')) {
+      const { readFileSync } = await import('node:fs')
+      const raw = args
+        .filter(a => /\.s?v$/.test(a) && a !== PREPROCESSED)
+        .map(a => readFileSync(join(opts.cwd, a), 'utf8'))
+        .join('\n')
+      writeFileSync(join(opts.cwd, PREPROCESSED), expand ? expand(raw) : raw)
+    }
+    return {
+      code: 0,
+      stdout: `${cmd} ok`,
+      stderr: '',
+      timedOut: false,
+      missing: false,
+    }
+  }
+}
 
 /**
  * THE ENGINEERS' HANDS (owner, 2026-09-26). The source is untrusted: each
@@ -110,16 +144,6 @@ describe('what may not be run', () => {
 describe('running', () => {
   it('the child gets no environment beyond PATH and HOME, and the output is the tools’ own', async () => {
     const calls: Array<{ cmd: string; args: string[] }> = []
-    const exec: Exec = async (cmd, args) => {
-      calls.push({ cmd, args })
-      return {
-        code: 0,
-        stdout: `${cmd} ok`,
-        stderr: '',
-        timedOut: false,
-        missing: false,
-      }
-    }
     const r = await runHdl(
       {
         mode: 'sim',
@@ -130,9 +154,11 @@ describe('running', () => {
         top: 'tb',
       },
       ctx,
-      { exec }
+      { exec: fakeTools(calls) }
     )
-    expect(calls.map(c => c.cmd)).toEqual(['iverilog', 'vvp'])
+    // The preprocessor first, then the simulator's own two steps.
+    expect(calls.map(c => c.cmd)).toEqual(['iverilog', 'iverilog', 'vvp'])
+    expect(calls[0].args).toContain('-E')
     expect(r).toMatchObject({ ran: true, passed: true })
     const src = (await import('node:fs')).readFileSync(
       `${__dirname}/src/agent/hdl-run.ts`,
@@ -141,6 +167,7 @@ describe('running', () => {
     expect(src).toMatch(
       /env: \{ PATH: process\.env\.PATH \?\? '[^']*', HOME: opts\.cwd \}/
     )
+    expect(src).toMatch(/\.\.\.\(sandboxIds\(\) \?\? \{\}\)/)
   })
 
   it('a missing tool is said as missing, never guessed', async () => {
@@ -161,6 +188,32 @@ describe('running', () => {
   })
 
   it(`at most ${RUNS_PER_HOUR} runs an hour per person`, async () => {
+    const exec = fakeTools()
+    const args = { mode: 'lint', files: [{ name: 'fifo.v', content: FIFO }] }
+    for (let i = 0; i < RUNS_PER_HOUR; i += 1)
+      expect((await runHdl(args, ctx, { exec, now: () => 0 })).ran).toBe(true)
+    expect((await runHdl(args, ctx, { exec, now: () => 0 })).ran).toBe(false)
+  })
+})
+
+describe('the check reads what the compiler reads', () => {
+  const clean = [{ name: 'fifo.v', content: FIFO }]
+
+  it('a task that only appears after macro expansion is refused', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = []
+    const r = await runHdl({ mode: 'synth', files: clean, top: 'fifo' }, ctx, {
+      exec: fakeTools(
+        calls,
+        raw => `${raw}\ninitial $readmemh("/proc/1/environ", m);`
+      ),
+    })
+    expect(r).toMatchObject({ ran: false })
+    expect(String(r.reason)).toContain('$readmemh')
+    // Nothing past the preprocessor ran.
+    expect(calls).toHaveLength(1)
+  })
+
+  it('an expansion that cannot be read is a refusal, not a pass', async () => {
     const exec: Exec = async () => ({
       code: 0,
       stdout: '',
@@ -168,11 +221,50 @@ describe('running', () => {
       timedOut: false,
       missing: false,
     })
-    const args = { mode: 'lint', files: [{ name: 'fifo.v', content: FIFO }] }
-    for (let i = 0; i < RUNS_PER_HOUR; i += 1)
-      expect((await runHdl(args, ctx, { exec, now: () => 0 })).ran).toBe(true)
-    expect((await runHdl(args, ctx, { exec, now: () => 0 })).ran).toBe(false)
+    const r = await runHdl({ mode: 'lint', files: clean }, ctx, { exec })
+    expect(r).toMatchObject({ ran: false })
   })
+
+  it('a preprocessor error is the result, in its own words', async () => {
+    const exec: Exec = async () => ({
+      code: 1,
+      stdout: '',
+      stderr: 'fifo.v:3: macro BAD undefined',
+      timedOut: false,
+      missing: false,
+    })
+    const r = (await runHdl({ mode: 'sim', files: clean }, ctx, {
+      exec,
+    })) as { ran: boolean; passed: boolean; steps: Array<{ output: string }> }
+    expect(r).toMatchObject({ ran: true, passed: false })
+    expect(r.steps[0].output).toContain('macro BAD undefined')
+  })
+
+  it('synthesis reads the checked expansion, not the raw files', () => {
+    const steps = commandsFor('synth', clean, 'fifo', PREPROCESSED)
+    expect(Array.isArray(steps) && steps[0].args[2]).toContain(
+      `read_verilog ${PREPROCESSED};`
+    )
+  })
+
+  it('untrusted tools run as nobody when the server is root', () => {
+    expect(sandboxIds(0)).toEqual({ uid: SANDBOX_ID, gid: SANDBOX_ID })
+    expect(sandboxIds(1000)).toBeNull()
+  })
+
+  it.skipIf(process.getuid?.() !== 0)(
+    'nobody cannot read the server environment -- the secrets',
+    async () => {
+      const { execTool } = await import('./src/agent/hdl-run')
+      const r = await execTool('cat', [`/proc/${process.pid}/environ`], {
+        cwd: '/tmp',
+        timeoutMs: 5_000,
+      })
+      expect(r.code).not.toBe(0)
+      expect(r.stdout).toBe('')
+      expect(r.stderr).toMatch(/Permission denied/)
+    }
+  )
 })
 
 const has = (t: string) => {
@@ -225,5 +317,25 @@ describe.skipIf(!has('iverilog') || !has('verilator') || !has('yosys'))(
       expect(broken.passed).toBe(false)
       expect(broken.steps[0].exit).not.toBe(0)
     }, 90_000)
+
+    it('the macro paste that read /etc/hostname on 26.09 is refused by name', async () => {
+      const r = await runHdl(
+        {
+          mode: 'sim',
+          files: [
+            {
+              name: 'x.v',
+              content:
+                '`define SYS(a) $``a\nmodule x; integer f; initial begin ' +
+                'f = `SYS(fopen)("/etc/hostname", "r"); $display("%0d", f); ' +
+                '$finish; end endmodule\n',
+            },
+          ],
+        },
+        ctx
+      )
+      expect(r).toMatchObject({ ran: false })
+      expect(String(r.reason)).toContain('$fopen')
+    })
   }
 )
