@@ -999,8 +999,9 @@ export function voiceLine(surface?: string): string {
  * marker is the only channel: she never addresses the client.
  * Exported for the test.
  */
-export function supervisorBlock(agentLog?: string): string {
+export function supervisorBlock(agentLog?: string, movesLine?: string): string {
   const log = (agentLog ?? '').trim()
+  const moves = (movesLine ?? '').trim()
   return (
     '\n\nТЫ — КОРОЛЕВА, СУПЕРВАЙЗЕР ПРОДАЖ ПО ЭТОМУ КЛИЕНТУ. ' + // cyrillic-ok: prompt copy
     'Ты говоришь с владельцем, не с клиентом, и не пишешь клиенту никогда. ' + // cyrillic-ok: prompt copy
@@ -1012,7 +1013,11 @@ export function supervisorBlock(agentLog?: string): string {
     (log
       ? '\n\nЧТО АГЕНТ ДЕЛАЛ В РАЗГОВОРЕ ОБ ЭТОМ КЛИЕНТЕ (старое сверху):\n' + // cyrillic-ok: prompt copy
         log
-      : '\n\nВ разговоре с агентом об этом клиенте пока ничего не было.') // cyrillic-ok: prompt copy
+      : '\n\nВ разговоре с агентом об этом клиенте пока ничего не было.') + // cyrillic-ok: prompt copy
+    (moves
+      ? '\n\nЧТО РАБОТАЛО У ЭТОГО ВЛАДЕЛЬЦА (ходы из карточки и что клиенты сделали за 7 дней после; лучшие сверху — предпочитай их, если правила позволяют):\n' + // cyrillic-ok: prompt copy
+        moves
+      : '')
   )
 }
 
@@ -2060,6 +2065,8 @@ export async function* runAgent(
     supervisor?: boolean
     /** The agent's side of this client's conversation, for the Queen. */
     agentLog?: string
+    /** Which sales moves worked for this owner (crm-move-stats.ts). */
+    movesLine?: string
     /**
      * The lead this turn makes pictures for, WITHOUT making it that lead's
      * thread (a scoped sweep, the "prepare" press). See clientTurnContext.
@@ -2295,7 +2302,7 @@ export async function* runAgent(
     clientBrief +
     clientContext +
     personContext +
-    (opts?.supervisor ? supervisorBlock(opts.agentLog) : '')
+    (opts?.supervisor ? supervisorBlock(opts.agentLog, opts.movesLine) : '')
 
   /*
    * A CLIENT'S CHAT SEES ONLY ITSELF (client-facing.ts, 21.09.2026).

@@ -346,6 +346,9 @@ const en: Translations = {
   'crm.move.buildPlan': 'Paid, but no content plan',
   'crm.move.buildPlan.ask':
     'Build a content plan for {name}: three goals and the first five items.',
+  'crm.move.experience': 'worked {replied} of {used}',
+  'crm.move.experienceHint':
+    'After this move, within 7 days: bought {bought}, refused {refused}. Moves that work for your clients rise on the card.',
   'crm.move.nudge': 'Quiet after our message — one soft touch',
   'crm.move.nudge.ask':
     '{name} went quiet after our last message. Draft ONE soft, useful touch — no pressure.',
@@ -2747,6 +2750,9 @@ const ru: Translations = {
   'crm.move.buildPlan': 'Оплатил, но плана нет',
   'crm.move.buildPlan.ask':
     'Составь контент-план для {name}: три цели и первые пять единиц.',
+  'crm.move.experience': 'ответили {replied} из {used}',
+  'crm.move.experienceHint':
+    'После этого хода за 7 дней: купили {bought}, отказались {refused}. Ходы, которые работают у ваших клиентов, поднимаются выше.',
   'crm.move.nudge': 'Молчит после нашего сообщения — одно мягкое касание',
   'crm.move.nudge.ask':
     '{name} замолчал после нашего сообщения. Набросай ОДНО мягкое полезное касание — без давления.',

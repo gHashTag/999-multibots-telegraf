@@ -9,6 +9,8 @@ import {
   loadAutopilotLeads,
   pickForAutopilot,
   recordTouch,
+  loadMoveStats,
+  recordMoveUse,
   type ClientProfile,
   type ClientHistory,
   type ClientPlan,
@@ -18,7 +20,9 @@ import {
 import { Avatar } from '@/components/Crm/Avatar'
 import {
   daysSince,
+  MIN_MOVE_USES,
   nextMoves,
+  type MoveExperience,
   profileHighlights,
   temperatureOf,
 } from '@/lib/clientStrategy'
@@ -114,6 +118,8 @@ export function ClientAside({
    * sends messages.
    */
   const [picked, setPicked] = useState<boolean | null>(null)
+  /** What followed each move for this owner's clients; null = rule order. */
+  const [experience, setExperience] = useState<MoveExperience | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -121,12 +127,13 @@ export function ClientAside({
     void (async () => {
       // In parallel: five independent reads; one slow tool must not hold the
       // rest of the card off the screen.
-      const [p, c, h, pl, picks] = await Promise.all([
+      const [p, c, h, pl, picks, xp] = await Promise.all([
         loadClientProfile(client),
         loadLeadContext(client),
         loadClientHistory(client),
         loadClientPlan(client),
         loadAutopilotLeads(),
+        loadMoveStats(),
       ])
       if (!alive) return
       setProfile(p)
@@ -134,6 +141,7 @@ export function ClientAside({
       setHistory(h)
       setPlan(pl)
       setPicked(picks.data ? picks.data.includes(client) : null)
+      setExperience(xp)
     })()
     return () => {
       alive = false
@@ -167,21 +175,25 @@ export function ClientAside({
   const silent = daysSince(ctx?.lastInbound ?? null)
   const moves =
     context.reachable && ctx
-      ? nextMoves({
-          stage,
-          waitingOnUs: ctx.waitingOnUs,
-          lastInbound: ctx.lastInbound,
-          lastOutbound: ctx.lastOutbound,
-          signals: ctx.signals,
-          intentScore: ctx.intentScore,
-          balanceTokens: ctx.balanceTokens,
-          portrait: ctx.portrait,
-          assistantOff: ctx.assistantOff,
-          hasSoul: pr?.hasSoul ?? true,
-          hasProfile: pr?.hasProfile ?? true,
-          planTotal: plan.reachable ? (pl?.total ?? 0) : null,
-          planDone: plan.reachable ? (pl?.done ?? 0) : null,
-        })
+      ? nextMoves(
+          {
+            stage,
+            waitingOnUs: ctx.waitingOnUs,
+            lastInbound: ctx.lastInbound,
+            lastOutbound: ctx.lastOutbound,
+            signals: ctx.signals,
+            intentScore: ctx.intentScore,
+            balanceTokens: ctx.balanceTokens,
+            portrait: ctx.portrait,
+            assistantOff: ctx.assistantOff,
+            hasSoul: pr?.hasSoul ?? true,
+            hasProfile: pr?.hasProfile ?? true,
+            planTotal: plan.reachable ? (pl?.total ?? 0) : null,
+            planDone: plan.reachable ? (pl?.done ?? 0) : null,
+          },
+          undefined,
+          experience
+        )
       : []
   const highlights = profileHighlights(pr?.profile ?? null)
   const percent =
@@ -193,6 +205,17 @@ export function ClientAside({
   const ask = (text: string) => {
     if (!onAsk || askDisabled) return
     onAsk(text)
+  }
+
+  /**
+   * A move pressed is remembered as a note `move:<id>` (our memory, never
+   * sent) -- that is how the system learns which moves work for this owner.
+   * The press itself never waits on the write.
+   */
+  const askMove = (id: string) => {
+    if (!onAsk || askDisabled) return
+    void recordMoveUse(client, id)
+    onAsk(t(`crm.move.${id}.ask`, { name }))
   }
 
   return (
@@ -295,11 +318,25 @@ export function ClientAside({
           {moves.map(m => (
             <div key={m.id} className="chat-aside__move" data-tone={m.tone}>
               <span>{t(`crm.move.${m.id}`)}</span>
+              {(experience?.[m.id]?.used ?? 0) >= MIN_MOVE_USES ? (
+                <small
+                  className="chat-aside__move-xp"
+                  title={t('crm.move.experienceHint', {
+                    bought: experience![m.id].bought,
+                    refused: experience![m.id].refused,
+                  })}
+                >
+                  {t('crm.move.experience', {
+                    replied: experience![m.id].replied,
+                    used: experience![m.id].used,
+                  })}
+                </small>
+              ) : null}
               {m.tone !== 'stop' && onAsk ? (
                 <button
                   type="button"
                   disabled={askDisabled}
-                  onClick={() => ask(t(`crm.move.${m.id}.ask`, { name }))}
+                  onClick={() => askMove(m.id)}
                 >
                   {t('crm.aside.askAgent')}
                 </button>
