@@ -1272,3 +1272,83 @@ html[data-keyboard='open'] .chat-page {
   font: inherit;
   font-size: 13px;
 }
+
+/* The dashboard parts of the card (components/Crm/ClientTimeline.tsx). */
+.chat-aside__summary {
+  margin-top: 6px;
+  /* The talk tile carries two numbers, so it gets the wider column. */
+  grid-template-columns:
+    minmax(0, 0.8fr) minmax(0, 1.4fr) minmax(0, 0.9fr)
+    minmax(0, 1fr);
+}
+.chat-aside__summary dt,
+.chat-aside__summary dd {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-aside__summary div[data-good='yes'] dd {
+  color: var(--t27-accent, #00ff88);
+}
+.chat-aside__drafts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(0, 255, 136, 0.45);
+  border-radius: 12px;
+  background: rgba(0, 255, 136, 0.05);
+}
+.chat-aside__feed-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.chat-aside__feed-filter button {
+  height: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.15));
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chat-aside__feed-filter button.is-on {
+  border-color: var(--t27-accent, #00ff88);
+  color: var(--t27-accent, #00ff88);
+}
+.chat-aside__feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-aside__event {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 8px;
+  border-left: 2px solid var(--t27-border, rgba(255, 255, 255, 0.15));
+  font-size: 13px;
+}
+.chat-aside__event[data-kind='in'] {
+  border-left-color: #5ab8ff;
+}
+.chat-aside__event[data-kind='out'] {
+  border-left-color: var(--t27-accent, #00ff88);
+}
+.chat-aside__event[data-kind='group'] {
+  border-left-color: #b0a4ff;
+}
+.chat-aside__event[data-touch='bought'] {
+  border-left-color: #ffc75a;
+}
+.chat-aside__event[data-touch='refused'] {
+  border-left-color: #ff6b6b;
+}
+.chat-aside__event-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
