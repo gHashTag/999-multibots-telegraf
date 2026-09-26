@@ -260,3 +260,16 @@ headers, then`tri reach` each path) found the two dead routes of this
       prove before selling an agent) -> gaps in our catalogue.
 
 - 24.09.2026 07:25: Competitors (24.09): Twin (twin.so) — 'connected apps' per network (Instagram, X, LinkedIn, Facebook, TikTok), platform-optimised posts, schedule, publish to all; Meta AI Studio — creator clones answering DMs; agent marketplaces (AI Hive, MintMCP) sell on verified performance data (installs, ratings, audit trail). Our gaps: (1) no visible per-network 'connected' panel for the clone; (2) acceptance evidence is not shown on the agent card; (3) cross-posting exists only as blog-share. Sources: https://twin.so/use-cases/social-media-automation/ https://aihive.global/blog/ai-agent-marketplace/
+
+## Tick 11 follow-up (26.09 13:20Z)
+
+- trinity#1179 merged (45e3c9ff). Its `checks` job failed twice on red it had
+  inherited from main: #1173's type errors (fixed in main by #1180), then
+  `queen-fallback-parity` (QueenLanes.css 0.86 vs --hud-panel 0.88). The fix
+  was one line and went into the PR. Lesson: the trinity work report pins
+  `head_sha`, so after each push, update the body and then check `report` again.
+- vibee-editor (player) deploys FAIL when a player test is red: the image
+  runs `tsc && test-gate` during the build. #3042 changed the lipsync model
+  but not kieProvider.test, so the Mini App stayed on the old build.
+  Fixed in #3045. Check after every merge: Railway list-deployments for
+  vibee-editor 7aad4834 — a FAILED status there means a player test is red.
