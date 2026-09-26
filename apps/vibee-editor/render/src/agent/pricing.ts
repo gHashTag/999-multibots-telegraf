@@ -140,6 +140,16 @@ export const PAID = [
     единица: 'за секунду звука', // cyrillic-ok: existing field name
     провайдер: 'Kie kling/ai-avatar-standard', // cyrillic-ok: existing field name
   },
+  /**
+   * A client's voice from the voice notes she sent (crm_voice_clone). Once
+   * per person: a clone already made answers without a charge.
+   */
+  {
+    функция: 'voice_clone', // cyrillic-ok: existing field name
+    токенов: priceFor('voice_clone'), // cyrillic-ok: existing field name
+    единица: 'за клон голоса, один раз на человека', // cyrillic-ok: existing field name
+    провайдер: 'Replicate minimax/voice-cloning', // cyrillic-ok: existing field name
+  },
 ]
 
 /** Как настроить каждого провайдера. Статус — из живого аудита. */

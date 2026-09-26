@@ -118,6 +118,13 @@ export const OPERATION_COST_USD: Record<string, number> = {
    */
   lipsync_generate: 0.04,
   reel_render: 0.005,
+  /**
+   * A client's voice cloned from the voice notes she sent the owner
+   * (crm_voice_clone): Replicate minimax/voice-cloning, $3 a clone -- read
+   * 2026-09-26 from the model page ("around 33 outputs for $100"). Once per
+   * person: a clone already made is not charged again.
+   */
+  voice_clone: 3,
 }
 /**
  * НАЦЕНКА. Цена продажи = себестоимость × 2 (200% от себестоимости).
@@ -454,6 +461,7 @@ export const TOKEN_PRICES: Record<string, number> = {
   gpt_image_edit: priceFor('gpt_image_edit'), // 12
   audio_generate: priceFor('audio_generate'), // 12
   lipsync_generate: priceFor('lipsync_generate'), // 6 per audio second
+  voice_clone: priceFor('voice_clone'), // 1200
   reel_render: priceFor('reel_render'), // 2
   video_generate: priceFor('video_generate'), // 72: the default 5-second clip
 }

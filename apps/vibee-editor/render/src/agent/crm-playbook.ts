@@ -16,6 +16,35 @@
  * would start their turns with a refusal. So: empty unless `seller` is true.
  * The caller decides `seller` once per turn; this function stays synchronous.
  */
+/*
+ * THE SECOND GIFT: A STORY REEL ABOUT THEIR BUSINESS, IN THEIR VOICE (owner,
+ * 2026-09-26: "made for every client from their own data -- about her
+ * business, so she can post it to Instagram, with her photo, and her voice
+ * from the chat; the second lead magnet after the portrait").
+ *
+ * The recipe is the owner's own story reel (StoryReel, three scenes, one
+ * style, a new setting in every scene, a pause with a call to action,
+ * <= 15 s) with the client in it: their face (crm_client_face), their words
+ * about their business (crm_lead_context, their content plan), their voice
+ * (crm_voice_clone). It is delivered as a gift card the owner presses
+ * (tg_send_video gift), which is how portraitOf knows it was given.
+ *
+ * "Every scene a new setting" is written out because the owner had to say
+ * it twice: a scene that keeps the source photo's own background reads as
+ * the same picture in every reel.
+ */
+export const STORY_GIFT =
+  '4б. ВТОРОЙ ПОДАРОК — РИЛС-ИСТОРИЯ ПРО ЕГО ДЕЛО, для его Instagram (после портрета: portrait.first ' +
+  'в crm_lead_context скажет). До 15 с: 3 сцены — 3 картинки ОДНОГО стиля в РАЗНЫХ декорациях его дела, ' +
+  'image_edit из ЕГО фото с лицом (crm_client_face); каждая сцена — новая обстановка, ни одна не повторяет ' +
+  'фон исходника. 3 реплики от первого лица по 2–4 с его словами о деле (кто он и где, что делает, как ' +
+  'заказать) — из его переписки и плана (crm_client_plan). Голос — ЕГО: crm_voice_clone {chat} из его ' +
+  'голосовых, потом audio_generate {text, for_lead}; голосовых нет — попроси голосовое на 15–30 с, чужим ' +
+  'голосом не озвучивай. Каждая сцена — lipsync_generate; сборка — reel_render StoryReel ' +
+  '{scenes, pauseSec: 2, cta: призыв ЕГО дела}. Отдать — tg_send_video {chat, url, caption, gift: true}: ' +
+  '«это вам — рилс про ваше дело вашим голосом, можно сразу в Instagram» и один мягкий вопрос. Один на ' +
+  'человека, платит владелец: клон голоса — один раз, дальше только сцены; до траты назови владельцу цену.\n'
+
 export function salesPlaybook(who: {
   surface?: string
   telegramId?: string
@@ -52,7 +81,7 @@ export function salesPlaybook(who: {
       'после предложения, сделай подарок из ЕГО ЖЕ аватарки — портрет 9:16 в образе по его словам ' +
       '(crm_deliver_photo, gift по умолчанию: получатель не платит, платит владелец). Не описание ' +
       'услуги, а готовый пример с ним самим на картинке. Подпись: имя, кто сделал (ИИ-ассистент), ' +
-      'один мягкий вопрос; без цены и ссылок. Один подарок на человека — второй уже платно. ' +
+      'один мягкий вопрос; без цены и ссылок. Один портрет на человека — второй уже платно. ' +
       'Портрет — ПЕРВЫЙ подарок и клиенту с пакетом: пакет задаёт только сцену и стиль портрета ' +
       '(визуальные токены, без запрещённых формулировок); рилс и остальное — после портрета. ' +
       'ЛИЦО ОБЯЗАТЕЛЬНО: человек на картинке для клиента — только его лицо через crm_deliver_photo ' +
@@ -60,7 +89,8 @@ export function salesPlaybook(who: {
       'рисуют чужого. Нет ни фото, ни аватарки — crm_deliver_photo сам подготовит строку с просьбой ' +
       'прислать фото. «Портрет рисуется» — не делай второй: он придёт карточкой. ' +
       'Есть ли вообще лицо — посмотри заранее: crm_client_face (аватарка или присланное фото). ' +
-      'Есть лицо — начинай с образа из него, это и цепляет; нет — сперва попроси фото.\n'
+      'Есть лицо — начинай с образа из него, это и цепляет; нет — сперва попроси фото.\n' +
+      STORY_GIFT
   return (
     '\n\nПРОДАЖИ В ЛИЧКЕ (когда помогаешь владельцу писать людям):\n' +
     '1. Сначала контекст: перед любым предложением человеку вызови crm_lead_context — ' +

@@ -691,9 +691,8 @@ export async function clientBriefBlock(
   const parts: string[] = []
   let name: string | null = null
   try {
-    const { clientProfileFor, profileForPrompt } = await import(
-      './crm-client-setup-tool'
-    )
+    const { clientProfileFor, profileForPrompt } =
+      await import('./crm-client-setup-tool')
     // The profile belongs to the owner; ask as the owner, whoever is calling.
     const p = await clientProfileFor(
       { ...ctx, telegramId: owner } as ToolContext,
@@ -958,7 +957,8 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
 - РИЛС-ИСТОРИЯ (формат владельца): 3 сцены — 3 картинки в ОДНОМ стиле (тот же человек и значок, РАЗНЫЕ декорации по теме; image_edit из его эталона, не из прошлых кадров; ${'' /* cyrillic-ok: prompt copy */}
   в промпте словами: значок-треугольник ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина без пятен), ${'' /* cyrillic-ok: prompt copy */}
   3 короткие реплики его голосом (audio_generate), последняя — призыв к действию; каждая сцена — lipsync_generate; ${'' /* cyrillic-ok: prompt copy */}
-  сборка — reel_render StoryReel {scenes: [{video}], pauseSec: 2, cta}. Весь ролик с паузой не длиннее 15 с (сторис): реплики по 3–4 с. ${'' /* cyrillic-ok: prompt copy */}
+  сборка — reel_render StoryReel {scenes: [{video}], pauseSec: 2, cta}. Весь ролик с паузой не длиннее 15 с (сторис): реплики по 2–4 с. ${'' /* cyrillic-ok: prompt copy */}
+  Декорация новая в КАЖДОЙ сцене, в первой тоже: ни одна не повторяет фон исходника. Бот в речи — одно слово «Тринити», без букв и цифр (S³AI, DNA читаются коряво). ${'' /* cyrillic-ok: prompt copy */}
 - Режим AUTO: autopilot_status говорит, включён ли он, до какого часа и сколько автоотправок осталось сегодня. Включённый AUTO значит, что подготовленные карточки уходят клиенту сами. Включает и выключает его САМ владелец — кнопкой AUTO прямо над этим чатом, во вкладке «Браузер», в CRM или в боте; тебе этот переключатель не дан, и просьбу включить его словами выполняй так: скажи, где кнопка. ${'' /* cyrillic-ok: prompt copy */}
 ${WEB_RULES}
 
