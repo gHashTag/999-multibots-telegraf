@@ -1264,3 +1264,74 @@ export const setClientGroup = async (client: string, chat: string | null) =>
     ),
     r => toClientGroup(r['group'])
   )
+
+/* ── One client's feed and summary (tool `crm_client_timeline`) ── */
+
+export interface TimelineEvent {
+  at: string
+  kind: 'in' | 'out' | 'group' | 'touch'
+  text: string
+  touch: string | null
+  chat: string | null
+  chatTitle: string | null
+}
+
+export interface ClientTimeline {
+  stats: {
+    inbound: number
+    outbound: number
+    groupPosts: number
+    touches: number
+    firstAt: string | null
+    lastInAt: string | null
+    lastOutAt: string | null
+    /** null: payments could not be read -- unknown, not "never". */
+    paid: boolean | null
+  }
+  events: TimelineEvent[]
+}
+
+/**
+ * The server frames a client's own words as foreign content for the model;
+ * on the owner's screen they are just the words.
+ */
+export function stripForeign(text: string): string {
+  return text
+    .replace(/\[FOREIGN CONTENT[^\]]*\]\s*/g, '')
+    .replace(/\s*\[END FOREIGN CONTENT\]/g, '')
+    .trim()
+}
+
+export const loadClientTimeline = async (client: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_client_timeline', {
+      client,
+      limit: 80,
+    }),
+    (r): ClientTimeline => {
+      const s = (r['stats'] ?? {}) as Record<string, unknown>
+      const kinds = new Set(['in', 'out', 'group', 'touch'])
+      return {
+        stats: {
+          inbound: num(s['inbound']) ?? 0,
+          outbound: num(s['outbound']) ?? 0,
+          groupPosts: num(s['group_posts']) ?? 0,
+          touches: num(s['touches']) ?? 0,
+          firstAt: str(s['first_at']),
+          lastInAt: str(s['last_in_at']),
+          lastOutAt: str(s['last_out_at']),
+          paid: typeof s['paid'] === 'boolean' ? (s['paid'] as boolean) : null,
+        },
+        events: rows(r['events'])
+          .filter(e => kinds.has(String(e['kind'])))
+          .map(e => ({
+            at: String(e['at'] ?? ''),
+            kind: e['kind'] as TimelineEvent['kind'],
+            text: stripForeign(String(e['text'] ?? '')),
+            touch: str(e['touch']),
+            chat: str(e['chat']),
+            chatTitle: str(e['chat_title']),
+          })),
+      }
+    }
+  )
