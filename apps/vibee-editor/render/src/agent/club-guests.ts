@@ -82,6 +82,7 @@ export const DEFAULT_GUESTS: readonly string[] = [
   'dmtrled',
   'samhold',
   'farishka',
+  'turbophuket',
 ]
 
 export function normalizeGuest(raw: string): string {
