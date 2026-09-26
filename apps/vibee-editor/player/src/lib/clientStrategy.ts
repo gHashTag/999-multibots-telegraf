@@ -97,7 +97,11 @@ export function temperatureOf(
  *  4. The gift (portrait) before any offer.
  *  5. Then the slower moves: discovery, plan, top-up, a soft nudge.
  */
-export function nextMoves(x: StrategyInput, now = Date.now()): Move[] {
+export function nextMoves(
+  x: StrategyInput,
+  now = Date.now(),
+  experience: MoveExperience | null = null
+): Move[] {
   if (x.assistantOff) return [{ id: 'ownerOnly', tone: 'stop' }]
   if (x.stage === 'refused') return [{ id: 'refused', tone: 'stop' }]
 
@@ -141,7 +145,55 @@ export function nextMoves(x: StrategyInput, now = Date.now()): Move[] {
   if (x.stage === 'new' && x.lastOutbound === null) add('firstTouch')
   if (!x.hasSoul) add('writeSoul')
 
-  return moves.slice(0, 3)
+  return rankByExperience(moves, experience).slice(0, 3)
+}
+
+/**
+ * WHAT THIS OWNER'S CLIENTS DID AFTER EACH MOVE (render crm-move-stats.ts).
+ *
+ * The rules above say WHICH moves are allowed; experience only says which of
+ * the allowed ones to try first. So an `urgent` or `stop` move never moves --
+ * "answer first" cannot be out-voted by statistics -- and only the `normal`
+ * slots are reordered among themselves, by score, once a move has been used
+ * MIN_MOVE_USES times. Fewer uses than that is an anecdote, and keeps its
+ * rule order (score 0), so a proven loser sinks below an untried move.
+ */
+export interface MoveStat {
+  used: number
+  replied: number
+  bought: number
+  refused: number
+  score: number
+}
+export type MoveExperience = Record<string, MoveStat>
+
+export const MIN_MOVE_USES = 3
+
+/** The score a move is ranked by: 0 until it has been tried enough. */
+export function provenScore(
+  experience: MoveExperience | null,
+  id: string
+): number {
+  const s = experience?.[id]
+  return s && s.used >= MIN_MOVE_USES ? s.score : 0
+}
+
+export function rankByExperience(
+  moves: Move[],
+  experience: MoveExperience | null
+): Move[] {
+  if (!experience) return moves
+  const slots = moves
+    .map((m, i) => (m.tone === 'normal' ? i : -1))
+    .filter(i => i >= 0)
+  const ranked = slots
+    .map(i => moves[i])
+    .map((m, order) => ({ m, order, score: provenScore(experience, m.id) }))
+    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .map(r => r.m)
+  const out = [...moves]
+  slots.forEach((slot, k) => (out[slot] = ranked[k]))
+  return out
 }
 
 /**

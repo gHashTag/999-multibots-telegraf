@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   daysSince,
+  MIN_MOVE_USES,
   nextMoves,
+  rankByExperience,
   profileHighlights,
   temperatureOf,
   type StrategyInput,
@@ -144,5 +146,56 @@ describe('profileHighlights', () => {
     expect(profileHighlights(null)).toEqual([])
     const [h] = profileHighlights({ business: 'a'.repeat(500) }, 5, 50)
     expect(h.text.length).toBe(50)
+  })
+})
+
+describe('experience reorders only what the rules allow', () => {
+  const stat = (score: number, used = MIN_MOVE_USES) => ({
+    used,
+    replied: 0,
+    bought: 0,
+    refused: 0,
+    score,
+  })
+
+  it('ranks the normal moves by proven score, best first', () => {
+    const moves = [
+      { id: 'objection', tone: 'normal' },
+      { id: 'discovery', tone: 'normal' },
+      { id: 'nudge', tone: 'normal' },
+    ] as const
+    const out = rankByExperience([...moves], {
+      nudge: stat(2),
+      objection: stat(-1),
+    })
+    expect(out.map(m => m.id)).toEqual(['nudge', 'discovery', 'objection'])
+  })
+
+  it('never moves an urgent move, whatever the statistics say', () => {
+    const out = nextMoves(
+      { ...base, waitingOnUs: true, signals: ['objection'], hasSoul: false },
+      NOW,
+      { answer: stat(-5), writeSoul: stat(9) }
+    )
+    expect(out[0]).toEqual({ id: 'answer', tone: 'urgent' })
+    expect(out[1].id).toBe('writeSoul')
+  })
+
+  it('an anecdote (fewer uses than the minimum) keeps rule order', () => {
+    expect(
+      ids({ signals: ['objection'], hasSoul: false }) // rule order
+    ).toEqual(['objection', 'writeSoul'])
+    const out = nextMoves(
+      { ...base, signals: ['objection'], hasSoul: false },
+      NOW,
+      { writeSoul: stat(9, MIN_MOVE_USES - 1) }
+    )
+    expect(out.map(m => m.id)).toEqual(['objection', 'writeSoul'])
+  })
+
+  it('a stop stays the only move', () => {
+    expect(
+      nextMoves({ ...base, assistantOff: true }, NOW, { nudge: stat(9) })
+    ).toEqual([{ id: 'ownerOnly', tone: 'stop' }])
   })
 })
