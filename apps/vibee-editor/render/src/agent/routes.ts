@@ -60,6 +60,7 @@ import {
   CLIENT_ID_RE,
   clientThread,
   marketplaceAgentThread,
+  supervisorThread,
   ROOM_ID_RE,
   roomThread,
 } from './conversation'
@@ -83,6 +84,8 @@ export type ThreadGate =
       thread: string
       client: string | null
       agent?: string
+      /** The Queen's thread beside a client's: a supervisor, no tools. */
+      supervisor?: boolean
       /** Set when the turn belongs to a room rather than to a person. */
       room?: string
     }
@@ -133,10 +136,24 @@ export async function threadFor(
   getPool: () => any,
   rawAgent?: unknown,
   /** A group chat id, negative, when the turn belongs to a room. */
-  rawRoom?: unknown
+  rawRoom?: unknown,
+  /**
+   * `supervisor`: the Queen's conversation ABOUT this client, beside the
+   * agent's (owner, 2026-09-24: "on the right, a chat with the Queen who has
+   * the client card and history in context and can set the agent a task").
+   * Only with a client; its own thread, so neither conversation leaks into
+   * the other's memory. The same seller gate as the client thread.
+   */
+  rawRole?: unknown
 ): Promise<ThreadGate> {
+  const supervisor = rawRole === 'supervisor'
+  if (supervisor && (rawClient == null || rawClient === ''))
+    return { ok: false, status: 400, error: 'supervisor needs a client' }
   const wantsAgent = rawAgent != null && rawAgent !== ''
   const wantsClient = rawClient != null && rawClient !== ''
+  // The Queen supervises a client's conversation; she brings no specialist.
+  if (supervisor && wantsAgent)
+    return { ok: false, status: 400, error: 'supervisor takes no agent' }
   if (wantsAgent && !wantsClient) {
     /*
      * OWNER PREVIEW (#2957). A trainee goes live only after one real run,
@@ -190,6 +207,13 @@ export async function threadFor(
     seller = false
   }
   if (!seller) return { ok: false, status: 403, error: 'not a seller' }
+  if (supervisor)
+    return {
+      ok: true,
+      thread: supervisorThread(client),
+      client,
+      supervisor: true,
+    }
   if (!wantsAgent) return { ok: true, thread: clientThread(client), client }
   /*
    * A SPECIALIST CALLED INTO A CLIENT'S CONVERSATION (owner, 2026-09-26:
@@ -211,6 +235,10 @@ function clientParam(req: IncomingMessage): string | null {
 
 function agentParam(req: IncomingMessage): string | null {
   return new URL(req.url || '', 'http://x').searchParams.get('agent')
+}
+
+function roleParam(req: IncomingMessage): string | null {
+  return new URL(req.url || '', 'http://x').searchParams.get('role')
 }
 
 /**
@@ -752,6 +780,40 @@ export function chatIdentity(
   return identityWithSource(req, verified)?.id ?? null
 }
 
+/**
+ * The agent's side of a client conversation, as the Queen reads it: the last
+ * turns of `client:<id>`, newest last, each cut to a paragraph. Text only --
+ * the Queen supervises the conversation, she does not replay its tools.
+ */
+export async function agentLogFor(
+  pool: any,
+  owner: string,
+  client: string,
+  turns = 16
+): Promise<string> {
+  try {
+    // cyrillic-ok-next-line
+    const rows = await прочитатьРазговор(
+      pool,
+      owner,
+      turns,
+      clientThread(client)
+    )
+    return rows
+      .map(
+        r =>
+          `${r.role === 'user' ? 'ВЛАДЕЛЕЦ' : 'АГЕНТ'}: ${String(
+            r.content ?? ''
+          ) // cyrillic-ok: speaker labels for the model
+            .replace(/\s+/g, ' ')
+            .slice(0, 600)}`
+      )
+      .join('\n')
+  } catch {
+    return ''
+  }
+}
+
 export async function handleAgentChat(
   req: IncomingMessage,
   res: ServerResponse,
@@ -791,7 +853,8 @@ export async function handleAgentChat(
     telegramId,
     getPool,
     body.agent,
-    body.room
+    body.room,
+    body.role
   )
   if (!gate.ok) return json(res, gate.status, { error: gate.error })
   const thread = gate.thread
@@ -962,6 +1025,12 @@ export async function handleAgentChat(
             : undefined,
         client: gate.client ?? undefined,
         marketplaceAgent: gate.agent,
+        supervisor: gate.supervisor === true,
+        // What the agent has been doing with this client, for the Queen.
+        agentLog:
+          gate.supervisor && gate.client
+            ? await agentLogFor(pool, telegramId, gate.client)
+            : undefined,
         // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
         // not the caller) in chat.ts clientTurnContext. Not a thread.
         faceOf: typeof body.face_of === 'string' ? body.face_of : undefined,
@@ -1116,7 +1185,9 @@ export async function handleAgentHistoryDelete(
     clientParam(req),
     telegramId,
     getPool,
-    agentParam(req)
+    agentParam(req),
+    undefined,
+    roleParam(req)
   )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
@@ -1153,7 +1224,9 @@ export async function handleAgentHistory(
     clientParam(req),
     telegramId,
     getPool,
-    agentParam(req)
+    agentParam(req),
+    undefined,
+    roleParam(req)
   )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
@@ -1267,7 +1340,14 @@ export async function handleAgentHistoryAppend(
     ? String(body.surface)
     : 'unknown'
 
-  const gate = await threadFor(body.client, telegramId, getPool, body.agent)
+  const gate = await threadFor(
+    body.client,
+    telegramId,
+    getPool,
+    body.agent,
+    undefined,
+    body.role
+  )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
 
   try {

@@ -5,8 +5,10 @@ import { Avatar } from '@/components/Crm/Avatar'
 import {
   appendClients,
   loadClientsPage,
-  matches,
+  PICKER_PAGE as PAGE,
+  pickClients,
   type ClientRow,
+  type PickerFilter,
   type Reached,
 } from '@/lib/crm'
 import './ClientPicker.css'
@@ -25,27 +27,6 @@ import './ClientPicker.css'
  *
  * The search is the CRM screen's own `matches`, not a second copy of it.
  */
-export type PickerFilter = 'all' | 'paid' | 'leads'
-
-/** One page of people; the next arrives on "more". */
-export const PAGE = 100
-
-export function pickClients(
-  rows: ClientRow[],
-  q: string,
-  filter: PickerFilter
-): ClientRow[] {
-  const recency = (r: ClientRow) =>
-    r.lastSeen ? Date.parse(r.lastSeen) || 0 : 0
-  return rows
-    .filter(r => /^\d{5,15}$/.test(r.telegramId))
-    .filter(r =>
-      filter === 'paid' ? r.paid : filter === 'leads' ? !r.paid : true
-    )
-    .filter(r => matches(r, q))
-    .sort((a, b) => recency(b) - recency(a))
-}
-
 export function ClientPicker({ onClose }: { onClose: () => void }) {
   const { t } = useLanguage()
   const navigate = useNavigate()
