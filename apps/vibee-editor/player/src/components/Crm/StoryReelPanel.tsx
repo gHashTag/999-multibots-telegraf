@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
+import { coveredByNotice } from '@/components/Crm/refusalRules'
 import {
   loadStoryReel,
   startStoryReel,
@@ -22,7 +23,17 @@ import {
  */
 const mark = (yes: boolean) => (yes ? '✓' : '—')
 
-export function StoryReelPanel({ clientId }: { clientId: string }) {
+export function StoryReelPanel({
+  clientId,
+  noticeReason = null,
+}: {
+  clientId: string
+  /**
+   * The failure the page already states once for every panel
+   * (components/Crm/AllRefused.tsx); the same failure here stays quiet.
+   */
+  noticeReason?: string | null
+}) {
   const { t } = useLanguage()
   const [state, setState] = useState<Reached<StoryReady>>({
     reachable: true,
@@ -56,7 +67,11 @@ export function StoryReelPanel({ clientId }: { clientId: string }) {
   const s = state.data
 
   return (
-    <Panel title={t('crm.client.story.title')} state={state}>
+    <Panel
+      title={t('crm.client.story.title')}
+      state={state}
+      quiet={coveredByNotice(state, noticeReason)}
+    >
       {s && (
         <>
           <dl className="crm__stats crm-client__story-marks">
