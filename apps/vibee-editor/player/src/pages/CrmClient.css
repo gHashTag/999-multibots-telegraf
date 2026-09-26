@@ -68,11 +68,13 @@
 
 /* Profile / SOUL / skills: a mark, not a number, because "has a SOUL" is a
    yes or a no. The tick is green, the dash is quiet. */
-.crm-client__marks dd[data-mark='yes'] {
+.crm-client__marks dd[data-mark='yes'],
+.crm-client__story-marks dd[data-mark='yes'] {
   color: var(--vibee-green, #00ff88);
 }
 
-.crm-client__marks dd[data-mark='no'] {
+.crm-client__marks dd[data-mark='no'],
+.crm-client__story-marks dd[data-mark='no'] {
   color: var(--text-muted, #888);
 }
 

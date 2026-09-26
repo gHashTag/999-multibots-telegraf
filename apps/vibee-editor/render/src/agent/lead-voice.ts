@@ -120,6 +120,32 @@ export async function leadVoiceOf(
     : null
 }
 
+/**
+ * A person's OWN voice: a clone made of THEM, by whichever owner made it.
+ *
+ * The one-tap story (story-next.ts) runs as the client herself, so the
+ * owner-scoped lookup above finds nothing -- the row is (owner, her). Her own
+ * voice for her own reel is hers to use; only the caller's own id is asked
+ * for here, never another person's.
+ */
+export async function ownVoiceOf(
+  pool: Pool,
+  telegramId: string
+): Promise<{ voiceId: string; seconds: number } | null> {
+  const id = String(telegramId ?? '').trim()
+  if (!/^\d{5,15}$/.test(id)) return null
+  await ensureLeadVoices(pool)
+  const r = await pool.query(
+    `SELECT voice_id, seconds FROM lead_voices
+      WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    [id]
+  )
+  const row = r?.rows?.[0]
+  return row?.voice_id
+    ? { voiceId: String(row.voice_id), seconds: Number(row.seconds) || 0 }
+    : null
+}
+
 export async function saveLeadVoice(
   pool: Pool,
   row: {
