@@ -61,13 +61,22 @@ describe('a worker thread with a deadline and a heap ceiling', () => {
     expect(await r.run('after', 10_000)).toBe('echo:after')
   })
 
+  /*
+   * THE BUDGET IS MEASURED, NOT HOPED. On a laptop the worker hits its
+   * ceiling in milliseconds; in a sandboxed container every fresh page is a
+   * slow fault, and the same hog took 19-37 s to die (2026-09-26, node 22,
+   * 4 cores: a single 256 MB array took 23 s just to allocate). The default
+   * 5 s test timeout made this case red on such hosts while the reader did
+   * exactly its job. The assertion stays `memory` -- the ceiling must be
+   * what stops it -- and the time allowed covers the slow host.
+   */
   it('turns a heap blown by one file into a refusal, not a dead process', async () => {
     const r = reader(HOSTILE, 32)
-    const { out, ticks } = await ticking(r.run('hog', 30_000))
+    const { out, ticks } = await ticking(r.run('hog', 80_000))
     expect(out).toBe('memory')
     expect(ticks).toBeGreaterThan(0)
     expect(await r.run('after', 10_000)).toBe('echo:after')
-  })
+  }, 100_000)
 
   it('survives a thread that dies between jobs, and starts a new one', async () => {
     const r = reader()
