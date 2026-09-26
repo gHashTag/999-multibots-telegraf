@@ -214,6 +214,18 @@ describe('threadFor, role=supervisor', () => {
       )
     ).toMatchObject({ ok: false, status: 403 })
   })
+  it('the Queen brings no specialist', async () => {
+    expect(
+      await threadFor(
+        CLIENT,
+        SELLER,
+        getPool,
+        'blogger',
+        undefined,
+        'supervisor'
+      )
+    ).toMatchObject({ ok: false, status: 400 })
+  })
   it('any other role is the plain client thread', async () => {
     expect(
       await threadFor(CLIENT, SELLER, getPool, undefined, undefined, 'admin')

@@ -49,15 +49,59 @@
       ]
     },
     {
-      "id": "habr",
-      "canary": "Прочитай README репозитория github.com/gHashTag/agent-mail-mcp и предложи тему статьи для Habr с шагами воспроизведения. Не публикуй.",
-      "expect": ["web_read", "browser_open", "browser_read"],
+      "id": "scientist",
+      "canary": "Проверь утверждение из README github.com/gHashTag/trinity-fpga: что там заявлено про GF16 и чем это подтверждено? Гипотеза, метод, доказательство, вывод. Ничего не публикуй.",
+      "expect": ["web_read", "web_search", "browser_open", "browser_read"],
       "answer": [
         {
-          "pattern": "agent-mail-mcp|zoho",
+          "pattern": "гипотез|hypothes",
           "flags": "gi",
           "min": 1,
-          "why": "ответ не о том репозитории"
+          "why": "нет разбора на гипотезу"
+        },
+        {
+          "pattern": "не измерен|не проверен|не подтвержд|not measured|not verified",
+          "flags": "gi",
+          "min": 1,
+          "why": "нет честной пометки о неизмеренном"
+        }
+      ]
+    },
+    {
+      "id": "fpga",
+      "canary": "Какой маршрут сборки у github.com/gHashTag/trinity-fpga под Artix-7 и что в нём измерено, а что нет? Дай команды. Ничего не прошивай.",
+      "expect": ["web_read", "web_search", "browser_open", "browser_read"],
+      "answer": [
+        {
+          "pattern": "yosys|nextpnr|openxc7",
+          "flags": "gi",
+          "min": 1,
+          "why": "нет открытого маршрута"
+        },
+        {
+          "pattern": "не запуска|не измерен|оценк|not run|estimate",
+          "flags": "gi",
+          "min": 1,
+          "why": "числа без пометки, измерены ли они"
+        }
+      ]
+    },
+    {
+      "id": "rtl",
+      "canary": "Напиши на Verilog синхронный FIFO глубиной 16 с флагами full/empty и тестбенч к нему. Дай команду симуляции.",
+      "expect": [],
+      "answer": [
+        {
+          "pattern": "```(system)?verilog",
+          "flags": "gi",
+          "min": 2,
+          "why": "нет модуля и тестбенча кодом"
+        },
+        {
+          "pattern": "iverilog|verilator",
+          "flags": "gi",
+          "min": 1,
+          "why": "нет команды симуляции"
         }
       ]
     }

@@ -265,3 +265,31 @@ no X-Api-Key and no Telegram initData`. The verdict endpoint (market card
   `isolated-reader` (task queued), root
   `aTransientCeilingIsNotAnOutage` "the correspondence import marks
   success" (2 tests).
+
+## Tick 10 (26.09.2026): seven agents, each with a dashboard, and in client chats
+
+- **The catalogue** (`vibee-atoms agent-marketplace.ts`): the Habr engineer
+  (the "programmer") became the **Scientist** (`scientist`: hypothesis,
+  method, evidence, verdict; "not measured" for a number with no source);
+  new **FPGA Engineer** (`fpga`) and **RTL Engineer** (`rtl`), working on
+  gHashTag/trinity-fpga. No agent tool runs a synthesis or a simulator, so
+  their contracts (render `chat.ts marketplaceAgentPrompt`) make them say
+  "не запускалось" for every figure a tool would produce -- the withdrawn
+  323 MHz (a ring oscillator measured as a core) is named in the FPGA
+  contract as the reason. Old rules "Хабр: ..." still reach the Scientist.
+  Each has a daily canary with answer rules (`acceptance-canaries.json`).
+- **A specialist in a client's conversation**: `threadFor` no longer refuses
+  client + agent. The seller gate decides first; the thread stays the
+  CLIENT's (`client:<id>`), the agent brings its contract and skills. In
+  the app: the "Specialist:" row above the input in a client chat
+  (`ClientHelperPicker`), same availability rule as the agent's own chat.
+- **Every agent's own dashboard** at `/agents/<id>` (`pages/AgentDashboard`):
+  the last daily check and the streak meter toward hiring, skills and the
+  owner's rules (AgentSkillsPanel), recent work from its own thread (read
+  only when this person may open it), what it never does, the ways in. The
+  market card and the agent's chat header link to it.
+- **Found on the way**: every agent's chat header said "Блогер · работает"
+  (hard-coded) -- the RTL engineer's included. Now name and status come
+  from the catalogue.
+- **`tri agent [id]`** -- an agent's card offline, flags a missing canary or
+  a missing contract.

@@ -8,7 +8,8 @@
  * `lipsync_generate` is the missing tool. What is pinned here:
  *
  *   the money arithmetic -- parts, rounding, lead silence -- as pure functions;
- *   the part ceiling agreeing with the route's, read from render-server.ts;
+ *   one ceiling per model for the tool and the route, and Kling -- the
+ *   owner's pick -- taking the whole reel in one pass;
  *   both spellings of our shelf, and nothing else, accepted;
  *   the REAL handler against a recording pool and a recording fetch: a refusal
  *   moves no tokens and asks no route, a success is ONE charge for every
@@ -71,16 +72,22 @@ vi.mock('./src/agent/lipsync-voice', async importOriginal => {
 import {
   LIPSYNC_MODELS,
   LIPSYNC_PART_TARGET_SECONDS,
+  LIPSYNC_POLL_INTERVAL_MS,
   LIPSYNC_ROUTE_MAX_SECONDS,
   LIPSYNC_TOOL_MAX_SECONDS,
   billedSecondsOf,
   leadSilenceOf,
+  lipsyncMaxSecondsFor,
+  lipsyncPollAttempts,
+  lipsyncWaitMs,
   maxSecondsOf,
+  partTargetSecondsFor,
   shelfKeyOf,
   splitPlan,
 } from './src/agent/lipsync-voice'
 import { TOKEN_PRICES, priceForModel } from './src/agent/billing-shared'
 import {
+  FAILS_AT_PROVIDER,
   lipsyncResolutionFor,
   reviewedKieModel,
 } from './src/agent/kie-web-provider'
@@ -132,21 +139,57 @@ describe('the arithmetic of a voice cut into parts', () => {
       expect(leadSilenceOf(junk), String(junk)).toBe(0)
   })
 
-  it('the part ceiling is the route ceiling, and a planned part stays under it', () => {
+  it('the tool and the route read ONE ceiling, and a planned part stays under it', () => {
     const server = fs.readFileSync(
       path.join(__dirname, 'render-server.ts'),
       'utf8'
     )
-    const m = server.match(/const MAX_LIPSYNC_SECONDS = (\d+)/)
-    expect(
-      m,
-      'MAX_LIPSYNC_SECONDS not found in render-server.ts'
-    ).not.toBeNull()
-    expect(LIPSYNC_ROUTE_MAX_SECONDS).toBe(Number(m![1]))
+    // No second copy of the number to drift: the route asks the same function.
+    expect(server).not.toMatch(/const MAX_LIPSYNC_SECONDS/)
+    expect(server).toMatch(/lipsyncMaxSecondsFor\(model\)/)
+    expect(server).toMatch(/attempts: lipsyncPollAttempts\(billedSeconds\)/)
+    expect(lipsyncMaxSecondsFor(undefined)).toBe(LIPSYNC_ROUTE_MAX_SECONDS)
     expect(LIPSYNC_PART_TARGET_SECONDS).toBeLessThan(LIPSYNC_ROUTE_MAX_SECONDS)
-    // The longest voice the tool takes still plans into parts the route takes.
-    for (const p of splitPlan(LIPSYNC_TOOL_MAX_SECONDS))
-      expect(p.duration).toBeLessThanOrEqual(LIPSYNC_PART_TARGET_SECONDS)
+    // The longest voice the tool takes plans into parts the route takes, for
+    // every model it may name and for none.
+    for (const m of [undefined, ...LIPSYNC_MODELS])
+      for (const p of splitPlan(
+        LIPSYNC_TOOL_MAX_SECONDS,
+        partTargetSecondsFor(m)
+      )) {
+        expect(p.duration, String(m)).toBeLessThanOrEqual(
+          partTargetSecondsFor(m)
+        )
+        expect(p.duration, String(m)).toBeLessThan(lipsyncMaxSecondsFor(m))
+      }
+  })
+
+  it("Kling, the owner's pick, takes the whole reel in one pass; the rest stay at ten seconds", () => {
+    // 2026-09-24: 21.4 s in three parts looked like "short animated photos".
+    const kling = 'kie/kling/ai-avatar-standard'
+    expect(splitPlan(21.4, partTargetSecondsFor(kling))).toHaveLength(1)
+    expect(
+      splitPlan(LIPSYNC_TOOL_MAX_SECONDS, partTargetSecondsFor(kling))
+    ).toHaveLength(1)
+    for (const m of LIPSYNC_MODELS.filter(x => x !== kling))
+      expect(lipsyncMaxSecondsFor(m), m).toBe(LIPSYNC_ROUTE_MAX_SECONDS)
+    // A name that is not a model, or none, never gets the long ceiling.
+    for (const other of [undefined, '', 'kling/ai-avatar-standard', 42])
+      expect(lipsyncMaxSecondsFor(other), String(other)).toBe(
+        LIPSYNC_ROUTE_MAX_SECONDS
+      )
+  })
+
+  it('the tool waits longer than the route polls, and past the five minutes fetch allows', () => {
+    // Node's fetch drops a response whose headers take over 300 s; the old
+    // flat wait was exactly that, sized for ten-second parts.
+    for (const s of [1, 3, 9.5, 21.4, LIPSYNC_TOOL_MAX_SECONDS]) {
+      const polls = lipsyncPollAttempts(s) * LIPSYNC_POLL_INTERVAL_MS
+      expect(polls, String(s)).toBeGreaterThan(300_000)
+      expect(lipsyncWaitMs(s), String(s)).toBeGreaterThan(polls)
+    }
+    // Longer voice, longer wait.
+    expect(lipsyncPollAttempts(30)).toBeGreaterThan(lipsyncPollAttempts(10))
   })
 })
 
@@ -175,13 +218,18 @@ describe('the models the tool may name', () => {
       expect(reviewedKieModel('lipsync', m), m).toBe(m.slice(4))
   })
 
-  it('Veed Fabric is sold at the price the owner approved, and sent the 720p it is for', () => {
+  it('Veed Fabric keeps the price the owner approved, and is not sold while every job fails', () => {
     // Owner, 2026-09-24: 36 tokens a second, cost $0.09 a second at 720p.
     // A cheaper price sells it below cost; a dearer one is not what was agreed.
     expect(priceForModel('lipsync_generate', 'kie/veed/fabric-1')).toBe(36)
     expect(lipsyncResolutionFor('veed/fabric-1')).toBe('720p')
+    // Its probe that day failed like nine tries in August: a person would pay,
+    // fail and be refunded every time.
+    expect(FAILS_AT_PROVIDER.has('veed/fabric-1')).toBe(true)
+    expect(LIPSYNC_MODELS).not.toContain('kie/veed/fabric-1')
+    expect(() => reviewedKieModel('lipsync', 'kie/veed/fabric-1')).toThrow()
     // The price-list models stay on the cheapest row they are priced at.
-    for (const m of LIPSYNC_MODELS.filter(x => x !== 'kie/veed/fabric-1'))
+    for (const m of LIPSYNC_MODELS)
       expect(lipsyncResolutionFor(m.slice(4)), m).toBe('480p')
   })
 })
@@ -234,7 +282,7 @@ describe('the real handler', () => {
       .filter(q => /balance = balance \+ /i.test(q.sql))
       .map(q => Number(q.params[1]))
 
-  let calls: { url: string; body: unknown }[]
+  let calls: { url: string; body: unknown; waits: boolean }[]
   let failPart: number | null
   /** How many uploads were in flight at once, at most. */
   let maxUploadsInFlight: number
@@ -258,51 +306,56 @@ describe('the real handler', () => {
     let routeCalls = 0
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: unknown, init?: { body?: unknown }) => {
-        const u = String(url)
-        let body: unknown = null
-        try {
-          body = JSON.parse(String(init?.body ?? 'null'))
-        } catch {
-          body = null
-        }
-        calls.push({ url: u, body })
-        const json = (status: number, data: unknown) => ({
-          ok: status < 400,
-          status,
-          json: async () => data,
-          text: async () => JSON.stringify(data),
-          arrayBuffer: async () => new ArrayBuffer(8),
-          headers: new Headers(),
-        })
-        if (u.endsWith('/upload')) {
-          uploadsInFlight += 1
-          maxUploadsInFlight = Math.max(maxUploadsInFlight, uploadsInFlight)
-          // The gate holds an upload for a moment; overlapping ones would
-          // meet here.
-          await new Promise(r => setTimeout(r, 5))
-          uploadsInFlight -= 1
-          if (busyUploads > 0) {
-            busyUploads -= 1
-            return json(429, { error: 'Upload capacity is busy' })
+      vi.fn(
+        async (
+          url: unknown,
+          init?: { body?: unknown; dispatcher?: unknown }
+        ) => {
+          const u = String(url)
+          let body: unknown = null
+          try {
+            body = JSON.parse(String(init?.body ?? 'null'))
+          } catch {
+            body = null
           }
-          return json(200, {
-            success: true,
-            directUrl: `${BUCKET}/assets/up.bin`,
+          calls.push({ url: u, body, waits: Boolean(init?.dispatcher) })
+          const json = (status: number, data: unknown) => ({
+            ok: status < 400,
+            status,
+            json: async () => data,
+            text: async () => JSON.stringify(data),
+            arrayBuffer: async () => new ArrayBuffer(8),
+            headers: new Headers(),
           })
+          if (u.endsWith('/upload')) {
+            uploadsInFlight += 1
+            maxUploadsInFlight = Math.max(maxUploadsInFlight, uploadsInFlight)
+            // The gate holds an upload for a moment; overlapping ones would
+            // meet here.
+            await new Promise(r => setTimeout(r, 5))
+            uploadsInFlight -= 1
+            if (busyUploads > 0) {
+              busyUploads -= 1
+              return json(429, { error: 'Upload capacity is busy' })
+            }
+            return json(200, {
+              success: true,
+              directUrl: `${BUCKET}/assets/up.bin`,
+            })
+          }
+          if (u.endsWith('/api/generate/lipsync')) {
+            routeCalls += 1
+            if (failPart !== null && routeCalls === failPart)
+              return json(500, { success: false, error: 'provider down' })
+            return json(200, {
+              success: true,
+              url: `https://kie.test/part-${routeCalls}.mp4`,
+              provider: 'kie/infinitalk/from-audio',
+            })
+          }
+          return json(200, {})
         }
-        if (u.endsWith('/api/generate/lipsync')) {
-          routeCalls += 1
-          if (failPart !== null && routeCalls === failPart)
-            return json(500, { success: false, error: 'provider down' })
-          return json(200, {
-            success: true,
-            url: `https://kie.test/part-${routeCalls}.mp4`,
-            provider: 'kie/infinitalk/from-audio',
-          })
-        }
-        return json(200, {})
-      })
+      )
     )
   })
   afterEach(() => {
@@ -432,7 +485,7 @@ describe('the real handler', () => {
   })
 
   it('a named model is charged at its own price per second and asked by name', async () => {
-    const model = 'kie/kling/ai-avatar-standard'
+    const model = 'kie/omnihuman-1-5'
     const { r, pool } = await ask({
       image_url: `${BUCKET}/assets/glam.png`,
       voice_url: `${BUCKET}/assets/voice.mp4`,
@@ -445,6 +498,53 @@ describe('the real handler', () => {
     expect(routes).toHaveLength(3)
     for (const c of routes)
       expect((c.body as { model?: string }).model).toBe(model)
+  })
+
+  it('Kling makes the 21.4-second reel in ONE call: no seams, billed once for 22 s', async () => {
+    const model = 'kie/kling/ai-avatar-standard'
+    const { r, pool } = await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+      model,
+    })
+    expect(r.done, JSON.stringify(r)).toBe(true)
+    expect(r.parts).toBe(1)
+    const unit = priceForModel('lipsync_generate', model) as number
+    expect(debits(pool.sqls)).toEqual([22 * unit])
+    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+    expect(routes).toHaveLength(1)
+    expect((routes[0].body as { model?: string }).model).toBe(model)
+    expect(ff.cuts).toEqual([{ start: 0, duration: 21.4 }])
+    expect(ff.joined).toBe(0)
+  })
+
+  it('every route call is waited for past the five minutes fetch allows by default', async () => {
+    await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+      model: 'kie/kling/ai-avatar-standard',
+    })
+    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+    expect(routes.length).toBeGreaterThan(0)
+    for (const c of routes) expect(c.waits).toBe(true)
+  })
+
+  it('the route is called in this process, never through the public edge that cuts at five minutes', async () => {
+    // 2026-09-26: through SELF_URL (the public host) Railway's edge closed the
+    // owner's Kling reel at 300 013 ms. SELF_URL is set here to that kind of
+    // address; the call must not use it.
+    vi.stubEnv('PORT', '8080')
+    await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+      model: 'kie/kling/ai-avatar-standard',
+    })
+    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+    expect(routes.length).toBeGreaterThan(0)
+    for (const c of routes) {
+      expect(c.url).toBe('http://127.0.0.1:8080/api/generate/lipsync')
+      expect(c.url.startsWith(RENDER)).toBe(false)
+    }
   })
 
   it('an unnamed model leaves the route its default, at the tool price', async () => {

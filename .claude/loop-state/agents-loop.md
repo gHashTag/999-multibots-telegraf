@@ -107,6 +107,13 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   Railway http log (none seen yet since #2982); after this deploy, the
   first `/api/traffic/start` from the bot service (999-multibots-telegraf).
 
+- Tick 10 (26.09 UTC), owner: «изучи что сделал другой агент ... добавь
+  их в чат для работы с клиентами! у каждого агента свой дашборд!
+  программиста сделай учёного! fpga, rtl инженеров». Other sessions (24-25.09)
+  touched only chat UI polish (cards, faces, players), not the catalogue.
+  Done: scientist/fpga/rtl, client+agent turns, /agents/<id> dashboards,
+  `website` in both payload lists (tick-9 gap), `tri agent`.
+
 ## Anomalies seen (self-heal list)
 
 - [ ] google: `web_search` reserve (OpenRouter) answers **HTTP 402**, no
@@ -217,6 +224,14 @@ headers, then`tri reach` each path) found the two dead routes of this
   guarded one -- the test now names every path, so a new one is a decision.
 - A panel that is not for this viewer hides on the tool's refusal; a panel
   that failed to load still says so. Two different states, two flags.
+
+## Lessons (tick 10)
+
+- A hard-coded label survives every catalogue change: the agent chat header
+  said "Блогер" for all agents since the first agent. When a list grows,
+  grep the UI for the first item's name.
+- Two copies of one list (render START_OWN, bot OWN_START_PAYLOAD) shipped
+  already out of step (`website`); now one test compares their sources.
 
 ## Plan (next ticks)
 

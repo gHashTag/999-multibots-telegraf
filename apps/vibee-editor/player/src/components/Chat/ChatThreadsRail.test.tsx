@@ -121,10 +121,10 @@ describe('the rail', () => {
     // not keep -- and hiding it would answer the question with silence.
     const habr = dots().find(
       d =>
-        d.getAttribute('title')?.includes('Habr') ||
-        d.textContent?.includes('Habr')
+        d.textContent?.includes('Scientist') ||
+        d.textContent?.includes('Учёный') // cyrillic-ok: the agent's ru name
     )
-    expect(habr, 'Habr has no seat').toBeTruthy()
+    expect(habr, 'the Scientist has no seat').toBeTruthy()
     expect(habr?.getAttribute('data-status')).toBe('training')
     expect(habr?.getAttribute('href')).toBe('/agents')
     // And it says who they are, in the interface language.
@@ -135,16 +135,24 @@ describe('the rail', () => {
     /* Owner, 24.09: "I switch between agents in the chat and get an advert". */
     keeperAnswer = true
     await rail()
-    for (const id of ['blogger', 'job', 'google', 'tiktok', 'habr'])
+    for (const id of [
+      'blogger',
+      'job',
+      'google',
+      'tiktok',
+      'scientist',
+      'fpga',
+      'rtl',
+    ])
       expect(hrefs(), id).toContain(`/agents/${id}/work`)
     expect(hrefs()).not.toContain('/agents')
   })
 
   it('a trainee that earned the market opens for anybody', async () => {
     keeperAnswer = false
-    verdictsAnswer = { habr: { earned: true } }
+    verdictsAnswer = { scientist: { earned: true } }
     await rail()
-    expect(hrefs()).toContain('/agents/habr/work')
+    expect(hrefs()).toContain('/agents/scientist/work')
     /* The others, not yet: their card. */
     expect(hrefs()).not.toContain('/agents/google/work')
   })
