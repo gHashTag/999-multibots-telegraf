@@ -35,6 +35,7 @@ import { askForInput, asKind, optionsFor, waitForAnswer } from './input-request'
  */
 
 import type { AgentTool, ToolContext } from '../agent/tools'
+import { playbookFor } from './sign-in'
 import {
   ensureApprovals,
   askFor,
@@ -66,7 +67,7 @@ import {
   pageUrl,
 } from './cdp'
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
-import { LOGINS_NOTE, loginsOfPerson } from './logins'
+import { LOGINS_NOTE, NETWORKS, loginsOfPerson } from './logins'
 import {
   chosenFront,
   forgetFront,
@@ -602,6 +603,60 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
           .map(n => n.name),
         note: LOGINS_NOTE,
       }
+    },
+  },
+  {
+    /*
+     * THE SIGN-IN PLAYBOOK, ASKED FOR RATHER THAN REMEMBERED.
+     *
+     * Measured 2026-09-24..26: five attempts to sign the owner into Upwork,
+     * ~110 s each, none of which became a login, because every attempt started
+     * from nothing -- `LOGINS_NOTE` said "follow the sign-in playbook" and no
+     * playbook existed. This tool IS it: the door, the order, the two rules
+     * that must not bend, and what earlier presses on this very site taught us
+     * (browser_recipes). It opens nothing and presses nothing, so it is cheap
+     * to call first, and the second sign-in to a site is the fast one.
+     */
+    name: 'browser_sign_in',
+    description:
+      'The sign-in plan for ONE network (x, linkedin, instagram, tiktok, google, github, vk, ' +
+      'upwork, hh...): its sign-in page, the exact order of steps, and what earlier attempts on ' +
+      'that site learned. Opens and presses nothing -- call it BEFORE signing someone in, then ' +
+      'follow it. The person always types their own password and codes (browser_ask_input).',
+    parameters: {
+      type: 'object',
+      properties: {
+        network: {
+          type: 'string',
+          description: 'network id or name, e.g. "linkedin" or "LinkedIn"',
+        },
+      },
+      required: ['network'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const q = ctx.pool as unknown as Queryable
+      const asked = String(args.network ?? '')
+      const plan = await playbookFor(
+        q,
+        asked,
+        await loginsOfPerson(q, ctx.telegramId)
+      )
+      if (!plan) {
+        return {
+          ok: false,
+          why: `no network called "${asked}" is known here`,
+          known: NETWORKS.map(n => n.id),
+        }
+      }
+      if (plan.state === 'signed_in') {
+        return {
+          ok: true,
+          ...plan,
+          note: 'already signed in: do nothing, and say so. A second sign-in can log the first one out.',
+        }
+      }
+      return { ok: true, ...plan }
     },
   },
   {
