@@ -1,10 +1,8 @@
 import { useLanguage } from '@/hooks/useLanguage'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { useAgentAcceptance } from '@/hooks/useAgentAcceptance'
-import {
-  MARKETPLACE_AGENTS,
-  type MarketplaceAgentListing,
-} from '../../../../packages/vibee-atoms/src/agent-marketplace'
+import { MARKETPLACE_AGENTS } from '../../../../packages/vibee-atoms/src/agent-marketplace'
+import { helpersFor } from '@/lib/clientHelpers'
 import './ClientHelperPicker.css'
 
 /**
@@ -20,16 +18,6 @@ import './ClientHelperPicker.css'
  * own threads (agentGate): live for everybody, any for a keeper, a trainee
  * that earned the market by its daily checks. The server checks again.
  */
-export function helpersFor(
-  agents: readonly MarketplaceAgentListing[],
-  keeper: boolean | null,
-  earned: Record<string, { earned?: boolean }> | null
-): MarketplaceAgentListing[] {
-  return agents.filter(
-    a =>
-      a.status === 'live' || keeper === true || earned?.[a.id]?.earned === true
-  )
-}
 
 export function ClientHelperPicker({
   value,

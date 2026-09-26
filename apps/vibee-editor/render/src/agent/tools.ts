@@ -1015,6 +1015,7 @@ import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
 import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
 import { CRM_AVATAR_TOOLS } from './crm-avatars'
 import { CRM_MOVE_STATS_TOOLS } from './crm-move-stats'
+import { CRM_MAP_TOOLS } from './crm-map'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
@@ -3500,6 +3501,8 @@ TOOLS.push(...CRM_CLIENT_TOOLS)
 TOOLS.push(...CRM_CLIENT_WORKSPACE_TOOLS)
 TOOLS.push(...CRM_AVATAR_TOOLS)
 TOOLS.push(...CRM_MOVE_STATS_TOOLS)
+// The Map tab's data (crm-map.ts): a screen, so a direct call only.
+TOOLS.push(...CRM_MAP_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project
@@ -3677,7 +3680,7 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
@@ -3748,6 +3751,7 @@ export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
    * sentence in a client's message must not be able to loop it.
    */
   'crm_client_avatars',
+  'crm_map',
   /*
    * Walks the members of the owner's groups through his own session. The
    * morning post and the CRM screen ask for it; a model turn has no reason

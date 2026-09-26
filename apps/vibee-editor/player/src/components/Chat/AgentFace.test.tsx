@@ -49,20 +49,21 @@ describe('a face', () => {
 
 describe('the avatars', () => {
   it('read once from the public route; nothing made is an empty map', async () => {
-    const f = vi.fn(
-      async (_url: string) => new Response(JSON.stringify({ avatars: { rtl: 'u' } }))
+    const f = vi.fn<(url: string) => Promise<Response>>(
+      async () => new Response(JSON.stringify({ avatars: { rtl: 'u' } }))
     )
     vi.stubGlobal('fetch', f)
-    let seen: Record<string, string> = {}
+    // The hook's answer is rendered, not written to an outer variable.
     function Probe() {
-      seen = useAgentAvatars()
-      return null
+      return <i data-seen={JSON.stringify(useAgentAvatars())} />
     }
+    const seen = () =>
+      JSON.parse(host.querySelector('i')?.getAttribute('data-seen') ?? '{}')
     await act(async () => root.render(<Probe />))
     await act(async () => {
       await new Promise(r => setTimeout(r, 0))
     })
-    expect(seen).toEqual({ rtl: 'u' })
+    expect(seen()).toEqual({ rtl: 'u' })
     expect(String(f.mock.calls[0][0])).toMatch(/\/api\/agents\/avatars$/)
   })
 
