@@ -33,6 +33,9 @@ import { WEB_TOOLS, webTaintRefusal } from './web-tools'
 import { JOB_TOOLS } from './job-tools'
 import { MAIL_TOOLS } from './mail-tools'
 import { TRAFFIC_TOOLS } from './traffic'
+import { AVATAR_TOOLS } from './agent-avatars'
+import { AGENT_CLIENT_TOOLS } from './agent-clients'
+import { HDL_TOOLS } from './hdl-run'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import { clubOfferLine } from './club-membership'
@@ -3547,6 +3550,9 @@ TOOLS.push(...JOB_TOOLS)
 TOOLS.push(...MAIL_TOOLS)
 /* Where visitors come from, by channel (epic #2974). Owner only. */
 TOOLS.push(...TRAFFIC_TOOLS)
+TOOLS.push(...AVATAR_TOOLS)
+TOOLS.push(...AGENT_CLIENT_TOOLS)
+TOOLS.push(...HDL_TOOLS)
 
 /*
  * NO TOOL IS REGISTERED TWICE.

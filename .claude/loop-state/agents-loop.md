@@ -114,6 +114,13 @@ agents`, this memory file. Branch claude/vibrant-heisenberg-bijrhv, PR #2960
   Done: scientist/fpga/rtl, client+agent turns, /agents/<id> dashboards,
   `website` in both payload lists (tick-9 gap), `tri agent`.
 
+- Tick 11 (26.09 UTC), owner: «все три и сделай аватарки под их стиль из
+  моей аватарки img2img gpt 2.5». Done: agent avatars (tool, route, faces),
+  hdl_run + image tools, specialist's clients on the dashboard, starts per
+  100 visits, trinity#1179 (t27.ai -> bot channel). Avatars are NOT drawn
+  yet: the container cannot reach render; the owner presses the dashboard
+  button or asks the agent "сделай аватарки агентам" (84 tokens for 7).
+
 ## Anomalies seen (self-heal list)
 
 - [ ] google: `web_search` reserve (OpenRouter) answers **HTTP 402**, no
@@ -232,6 +239,14 @@ headers, then`tri reach` each path) found the two dead routes of this
   grep the UI for the first item's name.
 - Two copies of one list (render START_OWN, bot OWN_START_PAYLOAD) shipped
   already out of step (`website`); now one test compares their sources.
+
+## Lessons (tick 11)
+
+- A deny-list regex is a claim about every name it matches: `$f[a-z]*`
+  would have banned `$finish`, and no testbench could have ended. Write the
+  list out, and test an allowed name next to the banned ones.
+- Test the runner on the real tools when they can be installed: the yosys
+  `/dev/stdout` refusal existed only under execFile, never in a mock.
 
 ## Plan (next ticks)
 

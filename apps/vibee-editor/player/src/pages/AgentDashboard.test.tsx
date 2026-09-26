@@ -41,8 +41,19 @@ beforeEach(() => {
   asked.length = 0
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => {
+    vi.fn(async (url: string, init?: RequestInit) => {
       asked.push(url)
+      if (url.endsWith('/mcp'))
+        return new Response(
+          JSON.stringify({
+            result: {
+              structuredContent: {
+                clients: [{ client: '900000031', turns: 2, lastAt: 'x' }],
+                asked: JSON.parse(String(init?.body)).params,
+              },
+            },
+          })
+        )
       return new Response(
         JSON.stringify({
           messages: [
@@ -103,7 +114,13 @@ describe("an agent's dashboard", () => {
     expect(q('agent-dash-recent')?.textContent).toContain(
       'The testbench passes'
     )
-    expect(asked[0]).toContain('agent=rtl')
+    expect(asked.find(u => u.includes('/api/agent/history'))).toContain(
+      'agent=rtl'
+    )
+    /* Its clients, each a link back into that client's chat with it chosen. */
+    expect(q('agent-dash-client')?.getAttribute('href')).toBe(
+      '/crm/900000031/chat?helper=rtl'
+    )
     expect(q('agent-dash-open')?.getAttribute('href')).toBe('/agents/rtl/work')
   })
 

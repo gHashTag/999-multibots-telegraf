@@ -18,12 +18,18 @@ FROM node:20-bookworm-slim
 # poppler-utils for `pdftotext` (a PDF used to reach the model as a filename),
 # libarchive-tools for `bsdtar -t` (a rar/7z/tar is LISTED, never unpacked).
 # dockerfile-has-the-readers.test.ts fails if a reader's package goes missing.
+#
+# The RTL and FPGA engineers' hands (src/agent/hdl-run.ts, hdl_run):
+# verilator (lint), iverilog + vvp (simulate a testbench), yosys
+# (synth_xilinx; stat). Without them the tool says "not installed" and the
+# agent must answer "не запускалось" -- hdl-run-in-the-image.test.ts.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates fonts-liberation fonts-noto-color-emoji fonts-dejavu-core \
     libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libcairo2 libcups2 \
     libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 libnspr4 libnss3 libpango-1.0-0 \
     libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 \
     libxrandr2 xdg-utils wget ffmpeg poppler-utils libarchive-tools \
+    iverilog verilator yosys \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

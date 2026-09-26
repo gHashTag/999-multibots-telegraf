@@ -293,3 +293,29 @@ no X-Api-Key and no Telegram initData`. The verdict endpoint (market card
   from the catalogue.
 - **`tri agent [id]`** -- an agent's card offline, flags a missing canary or
   a missing contract.
+
+## Tick 11 (26.09.2026): faces, hands, clients, conversion
+
+- **Agents' faces** (`render agent-avatars.ts`): `agent_avatars_make` (keeper
+  only) calls the agent's OWN `image_edit` with GPT Image 2.5
+  (`LEAD_MAGNET_MODEL`, 1:1, no image_url -> the owner's Telegram avatar),
+  one style per agent (`AVATAR_STYLES`), in parallel; each result drawn /
+  drawing (paid, lands in "my files", re-run for that agent) / refused.
+  12 tokens each. Public `GET /api/agents/avatars`; the app shows them on the
+  rail, the market, the dashboard, with the icon as fallback (AgentFace).
+  The dashboard has the keeper's button "draw its avatar from my photo".
+- **Engineers' hands** (`hdl-run.ts`, `hdl_run`): verilator lint, iverilog +
+  vvp sim, yosys synth_xilinx + stat (report read from stat.txt: under
+  execFile yosys cannot open /dev/stdout). Untrusted source: no file I/O
+  task ($fopen, $readmem*, $dump*, $system, plusargs...), `include only of
+  its own files, our commands only, EMPTY env (PATH, HOME) so /proc cannot
+  leak secrets, deadlines, 30 runs/hour/person. Mind `$finish`: a first
+  regex `$f[a-z]*` banned it. The render image installs the three tools.
+  `tri hdl sim --top tb fifo.v tb.v` runs the same runner locally.
+- **A specialist's clients**: a client + agent turn leaves one row in
+  `agent_client_work` (no words); `agent_clients` reads the caller's own;
+  the dashboard lists them as links `/crm/<id>/chat?helper=<agent>` which
+  open the client chat with that specialist chosen.
+- **Conversion**: CRM "where people come from" shows starts per 100 visits;
+  `tri traffic` a /100 column. t27.ai carries the visitor's channel into
+  `t27ai_bot` links at click time (gHashTag/trinity#1179).

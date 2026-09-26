@@ -360,7 +360,11 @@ const PUBLIC_EXACT = new Set([
  * X-Api-Key and no Telegram initData") and every card showed nothing. Writing
  * a verdict (POST) stays behind the guard and then a keeper check.
  */
-const PUBLIC_GET_EXACT = new Set(['/api/agents/acceptance'])
+const PUBLIC_GET_EXACT = new Set([
+  '/api/agents/acceptance',
+  // The catalogue agents' faces (agent-avatars.ts): shown on every rail.
+  '/api/agents/avatars',
+])
 
 const PUBLIC_PREFIXES = [
   '/renders/',

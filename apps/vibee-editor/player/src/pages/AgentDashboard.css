@@ -144,3 +144,20 @@
   border: 1px solid var(--t27-border);
   color: var(--t27-muted);
 }
+
+.agent-dash__face {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.agent-dash__face button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  font: inherit;
+}

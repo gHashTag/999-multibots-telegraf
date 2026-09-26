@@ -7,6 +7,8 @@ import { useLanguage } from '@/hooks/useLanguage'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { checkedDay, useAgentAcceptance } from '@/hooks/useAgentAcceptance'
 import { AgentSkillsPanel } from '@/components/Chat/AgentSkillsPanel'
+import { AgentFace } from '@/components/Chat/AgentFace'
+import { makeAgentAvatars, useAgentAvatars } from '@/hooks/useAgentAvatars'
 import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { agentGate } from './agentSuggestions'
 import './AgentDashboard.css'
@@ -63,6 +65,41 @@ function useRecentWork(agentId: string, open: boolean): string[] | null {
   return open ? recent : null
 }
 
+export interface ClientWork {
+  client: string
+  turns: number
+  lastAt: string
+}
+
+/** The caller's clients this agent helped with (tool agent_clients). */
+function useAgentClients(agentId: string, open: boolean): ClientWork[] | null {
+  const [rows, setRows] = useState<ClientWork[] | null>(null)
+  useEffect(() => {
+    if (!open) return
+    let live = true
+    fetch(`${API_BASE}/mcp`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'agent_clients', arguments: { agent: agentId } },
+      }),
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        const c = d?.result?.structuredContent?.clients
+        if (live && Array.isArray(c)) setRows(c as ClientWork[])
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [agentId, open])
+  return open ? rows : null
+}
+
 export default function AgentDashboardPage() {
   const { agentId } = useParams<{ agentId: string }>()
   const agent = marketplaceAgentById(agentId)
@@ -81,6 +118,11 @@ export default function AgentDashboardPage() {
     : 'market'
   const canOpen = agent !== null && gate === agent.id
   const recent = useRecentWork(agent?.id ?? '', canOpen)
+  const clients = useAgentClients(agent?.id ?? '', canOpen)
+  const [faceVersion, setFaceVersion] = useState(0)
+  const faces = useAgentAvatars(faceVersion)
+  const [faceNote, setFaceNote] = useState<string | null>(null)
+  const [drawing, setDrawing] = useState(false)
   if (!agent) return <Navigate to="/agents" replace />
 
   const streak = typeof verdict?.streak === 'number' ? verdict.streak : null
@@ -90,9 +132,11 @@ export default function AgentDashboardPage() {
         ← {t('agents.dash.market')}
       </Link>
       <header className="agent-dash__head">
-        <span className="agent-dash__icon" aria-hidden="true">
-          {agent.icon}
-        </span>
+        <AgentFace
+          className="agent-dash__icon"
+          icon={agent.icon}
+          url={faces[agent.id]}
+        />
         <div>
           <h1 className="agent-dash__name">{agent.name[l]}</h1>
           <p className="agent-dash__role">{agent.role[l]}</p>
@@ -107,6 +151,34 @@ export default function AgentDashboardPage() {
         </span>
       </header>
       <p className="agent-dash__promise">{agent.promise[l]}</p>
+      {keeper ? (
+        /*
+         * THE OWNER'S FACE IN THIS AGENT'S STYLE (agent-avatars.ts): drawn
+         * by the agent's own image_edit, GPT Image 2.5, priced per picture.
+         */
+        <div className="agent-dash__face">
+          <button
+            type="button"
+            className="agent-dash__link"
+            disabled={drawing}
+            data-testid="agent-dash-face"
+            onClick={async () => {
+              setDrawing(true)
+              const r = await makeAgentAvatars(agent.id)
+              setFaceNote(r.text)
+              setDrawing(false)
+              setFaceVersion(v => v + 1)
+            }}
+          >
+            {drawing
+              ? t('agents.dash.face.drawing')
+              : t('agents.dash.face.make')}
+          </button>
+          {faceNote ? (
+            <span className="agent-dash__muted">{faceNote}</span>
+          ) : null}
+        </div>
+      ) : null}
 
       <section className="agent-dash__card" data-testid="agent-dash-check">
         <h2>{t('agents.dash.check')}</h2>
@@ -169,6 +241,28 @@ export default function AgentDashboardPage() {
             </ul>
           ) : (
             <p className="agent-dash__muted">{t('agents.dash.noWork')}</p>
+          )}
+        </section>
+      ) : null}
+
+      {canOpen && clients ? (
+        <section className="agent-dash__card" data-testid="agent-dash-clients">
+          <h2>{t('agents.dash.clientsTitle')}</h2>
+          {clients.length ? (
+            <ul className="agent-dash__recent">
+              {clients.map(c => (
+                <li key={c.client}>
+                  <Link
+                    to={`/crm/${c.client}/chat?helper=${agent.id}`}
+                    data-testid="agent-dash-client"
+                  >
+                    {t('agents.dash.clientRow', { id: c.client, n: c.turns })}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="agent-dash__muted">{t('agents.dash.noClients')}</p>
           )}
         </section>
       ) : null}

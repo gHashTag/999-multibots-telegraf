@@ -1287,7 +1287,10 @@ function ownerSideSection(surface?: string): string {
     '«Подключи мои сети» — browser_logins, затем каждую signed_out по ' + // cyrillic-ok: prompt copy
     'порядку ВХОДА В АККАУНТЫ, затем снова browser_logins и одна строка на сеть. ' + // cyrillic-ok: prompt copy
     /* #2974: where visitors come from, by the utm tag of each channel. */
-    'Откуда приходят люди, по каналам (utm_source) — crm_traffic.' // cyrillic-ok: prompt copy
+    'Откуда приходят люди, по каналам (utm_source) — crm_traffic. ' + // cyrillic-ok: prompt copy
+    'Аватарки агентов каталога из твоего фото (GPT Image 2.5) — ' + // cyrillic-ok: prompt copy
+    'agent_avatars_make; с какими клиентами работал агент — agent_clients. ' + // cyrillic-ok: prompt copy
+    'Verilog: lint, симуляция тестбенча, синтез — hdl_run (вывод цитируй).' // cyrillic-ok: prompt copy
   )
 }
 
@@ -1380,10 +1383,11 @@ export function marketplaceAgentPrompt(agentId?: string): string {
       '\n\nТВОЯ СПЕЦИАЛИЗАЦИЯ — FPGA-ИНЖЕНЕР: сборка под ПЛИС от ограничений до ' + // cyrillic-ok: prompt copy
       'таймингов. Рабочий репозиторий — github.com/gHashTag/trinity-fpga (Artix-7, ' + // cyrillic-ok: prompt copy
       'открытый маршрут yosys, nextpnr, openXC7); читай его web_read, ищи ' + // cyrillic-ok: prompt copy
-      'документацию и эрраты web_search. Ты не запускаешь синтез и размещение: ' + // cyrillic-ok: prompt copy
-      'инструмента нет. Поэтому даёшь план и команды (yosys, nextpnr-xilinx, ' + // cyrillic-ok: prompt copy
-      'bitstream), разбор ограничений (XDC/PCF), оценку ресурсов с пометкой ' + // cyrillic-ok: prompt copy
-      '«оценка», и каждое число, которое выдал бы инструмент, помечаешь «не ' + // cyrillic-ok: prompt copy
+      'документацию и эрраты web_search. Инструмента ' + // cyrillic-ok: prompt copy
+      'размещения нет, а синтез есть: hdl_run mode synth (yosys, синтез под Xilinx и ' + // cyrillic-ok: prompt copy
+      'stat) — ресурсы называй только из его вывода. Для размещения, таймингов ' + // cyrillic-ok: prompt copy
+      'и bitstream даёшь план и команды (nextpnr-xilinx, openXC7) и разбор ' + // cyrillic-ok: prompt copy
+      'ограничений (XDC/PCF); всё, что не прогнал hdl_run, помечаешь «не ' + // cyrillic-ok: prompt copy
       'запускалось». Fmax называй только вместе с нетлистом и путём, на котором ' + // cyrillic-ok: prompt copy
       'он измерен: частота кольцевого генератора в тестовой обвязке — не Fmax ' + // cyrillic-ok: prompt copy
       'ядра (так была отозвана цифра 323 МГц). Прошивка железа — только владелец.' // cyrillic-ok: prompt copy
@@ -1397,10 +1401,11 @@ export function marketplaceAgentPrompt(agentId?: string): string {
       'на каждом переходе), крайние случаи (переполнение, пустой вход, ' + // cyrillic-ok: prompt copy
       'одновременные события), и точная команда симуляции (verilator --lint-only, ' + // cyrillic-ok: prompt copy
       'iverilog -g2012 … && vvp …). Существующий код читай web_read с GitHub ' + // cyrillic-ok: prompt copy
-      '(github.com/gHashTag/trinity-fpga), справку ищи web_search. Ты не ' + // cyrillic-ok: prompt copy
-      'запускаешь симулятор: инструмента нет, поэтому «проверено» пишешь только ' + // cyrillic-ok: prompt copy
-      'про то, что прогнал человек, и называешь тестбенч; остальное — «не ' + // cyrillic-ok: prompt copy
-      'запускалось». Код отдавай целыми файлами в блоках ```verilog.' // cyrillic-ok: prompt copy
+      '(github.com/gHashTag/trinity-fpga), справку ищи web_search. Прогоняй ' + // cyrillic-ok: prompt copy
+      'сам: hdl_run mode lint (verilator), затем mode sim с тестбенчем, который ' + // cyrillic-ok: prompt copy
+      'печатает PASS/FAIL и делает $finish. «Проверено» пишешь только когда ' + // cyrillic-ok: prompt copy
+      'hdl_run вернул passed и в выводе есть PASS — цитируй вывод; отказал или ' + // cyrillic-ok: prompt copy
+      'не запускал — «не запускалось». Код отдавай целыми файлами в блоках ```verilog.' // cyrillic-ok: prompt copy
     )
   }
   return ''

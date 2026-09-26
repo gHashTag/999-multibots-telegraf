@@ -56,6 +56,7 @@ tri — оболочка Trinity S³AI
   tri bare-fetch  вызовы приложения без подписи, которые упрутся в замок рендера (401 до обработчика)
   tri tag URL канал [кампания]  ссылка с меткой канала: utm на наших страницах, __канал в /start нашего бота
   tri agent [id]  агент из каталога без сети: статус, навыки, префикс правил, ежедневная проверка, контракт
+  tri hdl lint|sim|synth [--top имя] файлы  Verilog через тот же hdl_run, что у RTL/FPGA-агентов (песочница та же)
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
   tri stop [id]  прервать идущие ходы человека (дуэт и a2a — у них нет сокета)
   tri faces [id]  очередь продавца в том порядке, в каком её увидит обход: у кого есть лицо
@@ -1966,6 +1967,7 @@ PYEOF
   bare-fetch) shift; bash "$ROOT/bin/helpers/bare-fetch.sh" "$ROOT" "$@" ;;
   tag) shift; bash "$ROOT/bin/helpers/tag.sh" "$ROOT" "$@" ;;
   agent) shift; bash "$ROOT/bin/helpers/agent.sh" "$ROOT" "$@" ;;
+  hdl) shift; bash "$ROOT/bin/helpers/hdl.sh" "$ROOT" "$@" ;;
   alive)  shift; bash "$ROOT/bin/helpers/alive.sh" "$ROOT" "$@" ;;
   vs-main) shift; bash "$ROOT/bin/helpers/vs-main.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;

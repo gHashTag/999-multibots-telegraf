@@ -217,7 +217,7 @@ describe('what the answer must show', () => {
   const fpgaThen =
     'Маршрут: yosys -> nextpnr-xilinx -> openXC7. Fmax не запускалось; ресурсы — оценка.'
   const rtlThen =
-    '```verilog\nmodule fifo; endmodule\n```\n```verilog\nmodule tb; endmodule\n```\niverilog -g2012 fifo.v tb.v && vvp a.out'
+    '```verilog\nmodule fifo; endmodule\n```\n```verilog\nmodule tb; endmodule\n```\niverilog -g2012 fifo.v tb.v && vvp a.out\nPASS fifo'
 
   it('the morning run Google Scout "passed" now fails, and says why', () => {
     expect(answerMisses(byId('google').answer, googleThen)).toEqual([

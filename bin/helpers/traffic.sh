@@ -44,9 +44,11 @@ if not rows and not sources:
     print(f"no tagged arrivals or bot starts in the last {out.get('days')} days"); sys.exit(0)
 if sources is not None:
     # Per channel: visits on our pages, starts of our bots (tick 9).
-    print(f"{'visits':>6} {'starts':>6}  source")
+    print(f"{'visits':>6} {'starts':>6} {'/100':>5}  source")
     for r in sources:
-        print(f"{r.get('arrivals', 0):>6} {r.get('starts', 0):>6}  {r.get('source', '')}")
+        a, st = r.get('arrivals', 0), r.get('starts', 0)
+        per = f"{round(st * 100 / a)}" if a else '-'
+        print(f"{a:>6} {st:>6} {per:>5}  {r.get('source', '')}")
     print()
 for r in rows:
     camp = r.get('campaign') or '-'
