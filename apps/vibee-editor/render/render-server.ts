@@ -8980,6 +8980,42 @@ const server = createServer(async (req, res) => {
   }
 
   /*
+   * POST /api/story/next -- the client's own one press for her next story
+   * reel (t.me/<bot>?start=reel; the bot calls with the server key and her
+   * id). Answers at once; the reel is made in the background and comes back
+   * to her in the bot she pressed in (src/agent/story-template.ts).
+   */
+  if (req.url?.split('?')[0] === '/api/story/next' && req.method === 'POST') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ started: false, why: 'кто ты — неизвестно' }))
+      return
+    }
+    let bot: string | null = null
+    try {
+      const raw = JSON.parse((await readBody(req, 4 * 1024)) || '{}')
+      bot = /^[A-Za-z0-9_]{4,64}$/.test(String(raw?.bot ?? ''))
+        ? String(raw.bot)
+        : null
+    } catch {
+      bot = null
+    }
+    const [{ startStory }, { makeStoryDeps }, { TOOLS }] = await Promise.all([
+      import('./src/agent/story-template'),
+      import('./src/agent/story-deps'),
+      import('./src/agent/tools'),
+    ])
+    const out = await startStory(
+      makeStoryDeps(getPool(), n => TOOLS.find(t => t.name === n)),
+      { lead: String(who), requester: String(who), bot }
+    ).catch(e => ({ started: false, why: String((e as Error)?.message ?? e) }))
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out))
+    return
+  }
+
+  /*
    * POST /api/agent/fill -- "fill with AI" for one form field (player
    * lib/aiFill.ts). Same identity as the chat; no tools, no history written.
    */
@@ -12762,6 +12798,22 @@ async function main() {
     console.log(`   GET  /assets       - List S3 assets`)
     console.log(`🔌 WebSocket: ws://0.0.0.0:${PORT} (real-time sync)`)
     console.log(`📦 S3 Bucket: ${S3_BUCKET}`)
+
+    /*
+     * THE STORY REELS A REDEPLOY CUT continue from what is already made, and
+     * the sweep keeps watching every two minutes (src/agent/story-template.ts).
+     */
+    void (async () => {
+      const [{ startStorySweep }, { makeStoryDeps }, { TOOLS }] =
+        await Promise.all([
+          import('./src/agent/story-template'),
+          import('./src/agent/story-deps'),
+          import('./src/agent/tools'),
+        ])
+      startStorySweep(
+        makeStoryDeps(getPool(), n => TOOLS.find(t => t.name === n))
+      )
+    })().catch(e => console.warn('[story] the sweep did not start:', String(e)))
 
     /*
      * ЗДЕСЬ РЕНДЕР КАЖДЫЕ 10 МИНУТ СТАВИЛ КАССИРУ ВЕБХУК — И ГЛУШИЛ БОТА.

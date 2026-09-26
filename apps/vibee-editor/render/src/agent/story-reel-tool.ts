@@ -227,6 +227,7 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
           else drawing.push(`${i + 1}: ${r.pending ? 'ещё рисуется' : r.why}`)
         })
       )
+      await ctx.storyProgress?.({ stills, clips }).catch(() => undefined)
       if (stills.some((u, i) => !u && !clips[i])) {
         return {
           done: false,
@@ -268,6 +269,7 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
           if (c.ok && c.url) {
             clips[i] = c.url
             seconds[i] = c.seconds
+            await ctx.storyProgress?.({ stills, clips }).catch(() => undefined)
           } else failed.push(`липсинк ${i + 1}: ${c.why}`)
         })
       )

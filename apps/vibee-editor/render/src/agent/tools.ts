@@ -71,7 +71,14 @@ import {
 import { makeClientFaceTool } from './client-face-tool'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool } from './story-reel-tool'
-import { cloneOnReplicate, joinVoiceNotes, leadVoiceOf } from './lead-voice'
+import { makeCrmStoryTool } from './crm-story-tool'
+import { makeStoryDeps } from './story-deps'
+import {
+  cloneOnReplicate,
+  joinVoiceNotes,
+  leadVoiceOf,
+  ownVoiceOf,
+} from './lead-voice'
 import { s3PutBytes } from '../lib/s3-put'
 import { ROOM_PEOPLE_TOOLS } from './room-people'
 
@@ -162,6 +169,13 @@ export interface ToolContext {
    * the caller's avatar, never from a description.
    */
   faceOf?: string
+  /**
+   * Told the stills and clips of a story reel as they are made (story_reel).
+   * Set only by code: the one-tap story job (story-next.ts) writes them to
+   * its row, so a render redeployed mid-reel resumes from them instead of
+   * drawing and paying for them again.
+   */
+  storyProgress?: (p: { stills: string[]; clips: string[] }) => Promise<unknown>
   /**
    * Told the provider's task id the moment an image edit is accepted, BEFORE
    * the wait (kie-image.ts runKieJob). Set only by code: crm_deliver_photo
@@ -2055,10 +2069,17 @@ export const TOOLS: AgentTool[] = [
       let cloneVoice = ''
       let голосКлиента = false // cyrillic-ok: local flag next to голосВладельца
       if (args.for_lead) {
-        const theirs = await leadVoiceOf(
-          ctx.pool,
-          String(ctx.telegramId),
-          String(args.for_lead)
+        // Her own voice for her own reel; anybody else's only by its owner.
+        const self =
+          String(args.for_lead).replace(/^@/, '') === String(ctx.telegramId)
+        const theirs = await (
+          self
+            ? ownVoiceOf(ctx.pool, String(ctx.telegramId))
+            : leadVoiceOf(
+                ctx.pool,
+                String(ctx.telegramId),
+                String(args.for_lead)
+              )
         ).catch(() => null)
         if (!theirs) {
           await refundTokens(
@@ -3541,6 +3562,18 @@ TOOLS.push(
  */
 TOOLS.push(makeStoryReelTool(n => TOOLS.find(t => t.name === n)))
 /*
+ * THE CRM'S STORY TEMPLATE (crm_story_reel): the same reel for any client
+ * with a face and a voice, on any topic, made in the background and handed
+ * to the seller first. One engine with the client's own one-tap press
+ * (story-template.ts).
+ */
+TOOLS.push(
+  makeCrmStoryTool({
+    deps: ctx => makeStoryDeps(ctx.pool, n => TOOLS.find(t => t.name === n)),
+    lookup: n => TOOLS.find(t => t.name === n),
+  })
+)
+/*
  * A CLIENT'S OWN VOICE (crm_voice_clone), for the gift made for her: the
  * second lead magnet, a story reel about her business in her voice. The
  * notes come from the owner's own session; the charge and the refund are
@@ -3792,7 +3825,7 @@ export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
  * lipsync_generate and reel_render -- none of them in the kit -- so a small model could clone a voice and do nothing with it.
  */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_voice_clone|crm_client_timeline)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_voice_clone|crm_story_reel|crm_client_timeline)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of

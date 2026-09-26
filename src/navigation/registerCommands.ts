@@ -239,6 +239,7 @@ import {
 // Импорт глобального middleware навигации
 import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
 import { checkAll } from '@/services/capabilityPreflight'
+import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
 
 /**
  * ✅ ЕДИНАЯ ФУНКЦИЯ РЕГИСТРАЦИИ ВСЕХ КОМАНД И ОБРАБОТЧИКОВ
@@ -2928,6 +2929,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       let wantsTopUp: { method: 'rub' | 'crypto' | null } | null = null
       /** Which look the client tapped in their own chat, when they did. */
       let pickedLook: { n: number } | null = null
+      /** The client's own press for her next story reel (?start=reel). */
+      let wantsReel = false
       let inlineService: ServiceCard | undefined
       let wantsApp: AppRoute | null = null
       if (ctx.message && 'text' in ctx.message) {
@@ -3033,6 +3036,11 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
               startParam,
               n: pickedLook?.n,
             })
+          } else if (reelIntent(startParam)) {
+            // The client's one press for her next story reel: the render
+            // makes it in the background and sends it back to this chat.
+            wantsReel = true
+            logger.info('Story reel deep-link', { telegramId })
           } else if (topupIntent(startParam)) {
             // The mini app's rouble and crypto buttons: the cashier is here.
             wantsTopUp = topupIntent(startParam)
@@ -3098,6 +3106,13 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
           ctx as never,
           `Я выбираю вариант ${n} из предложенных образов.` // cyrillic-ok: user-facing
         )
+      } else if (wantsReel) {
+        wantsReel = false
+        const answer = await askNextStory(
+          String(telegramId),
+          ctx.botInfo?.username
+        )
+        await ctx.reply(storyReply(answer))
       } else if (wantsTopUp) {
         /*
          * Straight to the cashier the person chose. A bot that hides roubles

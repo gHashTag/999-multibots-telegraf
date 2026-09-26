@@ -5,6 +5,7 @@ import './CrmClient.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
 import { AllRefused } from '@/components/Crm/AllRefused'
+import { StoryReelPanel } from '@/components/Crm/StoryReelPanel'
 import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
 import {
   loadClientProfile,
@@ -291,6 +292,8 @@ export default function CrmClientPage() {
             </>
           ))}
       </Panel>
+
+      <StoryReelPanel clientId={clientId} />
 
       <Panel
         title={t('crm.client.duets.title')}
