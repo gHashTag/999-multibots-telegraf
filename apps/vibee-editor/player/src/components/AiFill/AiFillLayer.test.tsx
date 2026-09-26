@@ -29,10 +29,10 @@ vi.stubGlobal(
   })
 )
 
-let seen = ''
+const seen = { value: '' }
 function Form() {
   const [v, setV] = useState('mine')
-  seen = v
+  seen.value = v
   return (
     <form>
       <textarea
@@ -85,13 +85,13 @@ describe('AiFillLayer', () => {
     expect(btn).toBeTruthy()
     await act(async () => btn.click())
     await tick()
-    expect(seen).toBe('Written by AI')
+    expect(seen.value).toBe('Written by AI')
     expect(requested).toMatchObject({
       field: { current: 'mine', multiline: true },
     })
     const undo = host.querySelector('.ai-fill__btn--undo') as HTMLButtonElement
     await act(async () => undo.click())
-    expect(seen).toBe('mine')
+    expect(seen.value).toBe('mine')
   })
 
   it('offers nothing on a password field', async () => {

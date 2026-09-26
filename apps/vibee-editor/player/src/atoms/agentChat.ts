@@ -142,6 +142,27 @@ export const clientThreadStorageKey = (clientId: string): string =>
   `${STORAGE_KEYS.agentChat}:client:${clientId}`
 
 const clientThreads = new Map<string, MessagesAtom>()
+const queenThreads = new Map<string, MessagesAtom>()
+
+export const queenThreadStorageKey = (clientId: string): string =>
+  `${STORAGE_KEYS.agentChat}:client:${clientId}:queen`
+
+/** The Queen's supervision of one client: its own stored thread. */
+export function queenMessagesAtomFor(clientId: string): MessagesAtom {
+  let found = queenThreads.get(clientId)
+  if (!found) {
+    found = trimmed(
+      atomWithStorage<Message[]>(
+        queenThreadStorageKey(clientId),
+        [],
+        undefined,
+        { getOnInit: true }
+      )
+    )
+    queenThreads.set(clientId, found)
+  }
+  return found
+}
 const marketplaceAgentThreads = new Map<string, MessagesAtom>()
 
 export const marketplaceAgentThreadStorageKey = (agentId: string): string =>

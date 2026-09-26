@@ -1,0 +1,170 @@
+/* The Queen, supervising one client (components/Crm/QueenPanel.tsx). */
+.queen {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px;
+  background: #07070a;
+  color: #fff;
+  font-size: 13px;
+}
+.queen > * {
+  flex-shrink: 0;
+}
+.queen__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.queen__crown {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 215, 0, 0.6);
+  color: #ffd700;
+  font-size: 18px;
+}
+.queen__who {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.queen__who small {
+  color: #888;
+  font-size: 11px;
+}
+.queen__icon {
+  height: auto;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: #bbb;
+  font-size: 15px;
+  cursor: pointer;
+}
+.queen__auto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #bbb;
+  font-size: 12px;
+}
+.queen__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.queen__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #999;
+}
+.queen__empty p {
+  margin: 0 0 4px;
+}
+.queen__suggest {
+  justify-content: flex-start;
+  height: auto;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  background: rgba(255, 215, 0, 0.04);
+  color: #f3e7a8;
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+.queen__msg {
+  max-width: 100%;
+}
+.queen__msg--user .queen__text {
+  margin-left: 24px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.queen__msg--assistant .queen__text {
+  padding: 8px 10px;
+  border-radius: 12px;
+  border-left: 2px solid #ffd700;
+  background: rgba(255, 215, 0, 0.04);
+}
+.queen__text {
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+.queen__tasks {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.queen__tasks li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed rgba(0, 255, 136, 0.45);
+}
+.queen__tasks li span {
+  flex: 1;
+}
+.queen__tasks button,
+.queen__composer button {
+  height: auto;
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 255, 136, 0.45);
+  background: transparent;
+  color: #00ff88;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.queen__tasks button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.queen__composer {
+  display: flex;
+  gap: 6px;
+}
+.queen__composer input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+}
+
+/* Narrow: a sheet, like the card. */
+.queen.is-open {
+  display: flex;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--app-tabbar-total, 56px);
+  height: calc(85dvh - var(--app-tabbar-total, 56px));
+  border-radius: 18px 18px 0 0;
+  border-top: 1px solid rgba(255, 215, 0, 0.35);
+  z-index: 60;
+}
