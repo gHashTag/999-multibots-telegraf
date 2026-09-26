@@ -712,9 +712,8 @@ describe('the briefs: the portrait first, from the face, package or not', () => 
   })
 
   it('the duet brief offers her portrait before her reel, and image_edit is no longer off-brand', async () => {
-    const { sellerBrief, OFF_BRAND_FOR_CLIENT } = await import(
-      './src/agent/crm-duet-tool'
-    )
+    const { sellerBrief, OFF_BRAND_FOR_CLIENT } =
+      await import('./src/agent/crm-duet-tool')
     const b = sellerBrief(LEAD, { reel_template: { composition: 'TestReel' } })
     const portrait = b.indexOf('Первый подарок — её портрет 9:16 из ЕЁ лица') // cyrillic-ok: the brief under test
     const reel = b.indexOf('Рилс — после портрета') // cyrillic-ok: the brief under test
@@ -801,7 +800,7 @@ describe('the briefs: the portrait first, from the face, package or not', () => 
           return {
             rows:
               gift && p[2] === SELLER_NOTE_PREFIXES.gift + '%'
-                ? [{ x: 1 }]
+                ? [{ portrait: true, reel: false }]
                 : [],
           }
         return { rows: [] }
@@ -823,21 +822,29 @@ describe('the briefs: the portrait first, from the face, package or not', () => 
     const { SELLER_NOTE_PREFIXES } = await import('./src/agent/crm-notes')
     const { forgetOwedTableForTests } = await import('./src/agent/crm-owed')
     const owed = owedDouble()
-    const gifts = new Set<string>()
+    // Per (owner|lead): the media kinds of the gifts sent.
+    const gifts = new Map<string, string[]>()
     const pool = {
       query: async (sql: string, p: unknown[] = []) => {
         const flat = sql.replace(/\s+/g, ' ').trim()
         if (/\bcrm_owed\b/.test(flat)) return owed.query(sql, p)
         if (
-          /^SELECT 1 FROM crm_touches WHERE owner_id = \$1 AND lead_id = \$2 AND note LIKE \$3 LIMIT 1$/.test(
+          /^SELECT bool_or\(note NOT LIKE \$4\) AS portrait, bool_or\(note LIKE \$4\) AS reel FROM crm_touches WHERE owner_id = \$1 AND lead_id = \$2 AND note LIKE \$3$/.test(
             flat
           )
         ) {
           // The note prefix is what makes a touch a gift; any other note is not.
-          const isGift = p[2] === SELLER_NOTE_PREFIXES.gift + '%'
+          const isGift =
+            p[2] === SELLER_NOTE_PREFIXES.gift + '%' &&
+            p[3] === SELLER_NOTE_PREFIXES.gift + 'video:%'
+          const notes = isGift ? (gifts.get(`${p[0]}|${p[1]}`) ?? []) : []
           return {
-            rows:
-              isGift && gifts.has(`${p[0]}|${p[1]}`) ? [{ '?column?': 1 }] : [],
+            rows: [
+              {
+                portrait: notes.length ? notes.some(k => k !== 'video') : null,
+                reel: notes.length ? notes.includes('video') : null,
+              },
+            ],
           }
         }
         throw new Error(`profile pool: ${flat}`)
@@ -847,10 +854,20 @@ describe('the briefs: the portrait first, from the face, package or not', () => 
     const due = await portraitOf(pool, OWNER, LEAD)
     expect(due.given).toBe(false)
     expect(due.first).toMatch(/^сначала портрет из его лица/) // cyrillic-ok: the answer under test
-    gifts.add(`${OWNER}|${LEAD}`)
+    // A reel gift alone is not the portrait: it must not cancel it.
+    gifts.set(`${OWNER}|${LEAD}`, ['video'])
+    const reelOnly = await portraitOf(pool, OWNER, LEAD)
+    expect(reelOnly.given).toBe(false)
+    expect(reelOnly.reelGiven).toBe(true)
+    gifts.set(`${OWNER}|${LEAD}`, ['photo'])
     const done = await portraitOf(pool, OWNER, LEAD)
     expect(done.given).toBe(true)
+    expect(done.reelGiven).toBe(false)
     expect(done.first).toMatch(/^портрет уже подарен/) // cyrillic-ok: the answer under test
+    expect(done.first).toMatch(/РИЛС-ПОДАРОК/) // cyrillic-ok: the second gift is named next
+    gifts.set(`${OWNER}|${LEAD}`, ['photo', 'video'])
+    const both = await portraitOf(pool, OWNER, LEAD)
+    expect(both.first).toMatch(/рилс-история тоже/) // cyrillic-ok: the answer under test
     // Another owner's gift to the same person is not this owner's.
     expect((await portraitOf(pool, '900000299', LEAD)).given).toBe(false)
   })

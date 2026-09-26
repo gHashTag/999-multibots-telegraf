@@ -400,20 +400,37 @@ export async function portraitOf(
   lead: string
 ): Promise<{
   given: boolean
+  /** The second gift, the story reel about their business, was sent too. */
+  reelGiven: boolean
   drawing: boolean
   ready: boolean
   first: string
 }> {
   let given = false
+  let reelGiven = false
   try {
     const { SELLER_NOTE_PREFIXES } = await import('./crm-notes')
+    /*
+     * TWO GIFTS NOW, TOLD APART BY WHAT WAS SENT (owner, 2026-09-26: the
+     * story reel is the second lead magnet). The confirmed-send path writes
+     * the media kind after the gift prefix (tg-proposals.ts), so a video gift
+     * is the reel and any other gift is the portrait. Counting every gift as
+     * "portrait given" would let a reel sent first cancel the portrait.
+     */
     const r = await (pool as { query: Function }).query(
-      `SELECT 1 FROM crm_touches
-        WHERE owner_id = $1 AND lead_id = $2 AND note LIKE $3
-        LIMIT 1`,
-      [String(owner), String(lead), SELLER_NOTE_PREFIXES.gift + '%']
+      `SELECT bool_or(note NOT LIKE $4) AS portrait, bool_or(note LIKE $4) AS reel
+         FROM crm_touches
+        WHERE owner_id = $1 AND lead_id = $2 AND note LIKE $3`,
+      [
+        String(owner),
+        String(lead),
+        SELLER_NOTE_PREFIXES.gift + '%',
+        SELLER_NOTE_PREFIXES.gift + 'video:%',
+      ]
     )
-    given = ((r as { rows?: unknown[] })?.rows ?? []).length > 0
+    const row = (r as { rows?: Array<Record<string, unknown>> })?.rows?.[0]
+    given = row?.portrait === true
+    reelGiven = row?.reel === true
   } catch {
     // No touches table yet is "no gift sent yet", which is also the truth.
   }
@@ -422,10 +439,13 @@ export async function portraitOf(
   const drawing = !ready && !!debt?.taskId
   return {
     given,
+    reelGiven,
     drawing,
     ready,
     first: given
-      ? 'портрет уже подарен — дальше пакет, рилс и остальное' // cyrillic-ok: message to the agent
+      ? reelGiven
+        ? 'портрет уже подарен, рилс-история тоже — дальше пакет и платно' // cyrillic-ok: message to the agent
+        : 'портрет уже подарен — второй подарок: рилс-история про его дело его голосом (РИЛС-ПОДАРОК), потом пакет' // cyrillic-ok: message to the agent
       : ready
         ? 'портрет готов — отдай его: crm_deliver_photo, заново не рисуется' // cyrillic-ok: message to the agent
         : drawing
