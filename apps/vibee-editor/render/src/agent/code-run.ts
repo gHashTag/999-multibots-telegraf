@@ -20,10 +20,16 @@
  *     permission slip might miss;
  *   - a deadline, a bounded output, and a per-person hourly budget.
  *
- * Only JavaScript and TypeScript run here (one sandboxed binary, Deno).
- * Python is named but not yet enabled: running it as safely would take its
- * own sandbox, and until that exists the tool says so rather than run
- * unsandboxed code.
+ * TypeScript and JavaScript run under Deno, whose permission model is the
+ * strongest here (subprocess itself is denied). PYTHON has no such model, so
+ * it is boxed the way the HDL tools are: `unshare -rn` gives it a network
+ * namespace with no interfaces (measured 2026-09-26: a socket to 1.1.1.1 is
+ * refused), it runs as nobody in an empty environment (so it cannot read the
+ * server's /proc/<pid>/environ -- the secrets), and `prlimit` caps its CPU,
+ * address space and file writes. Unlike Deno it may spawn a subprocess and
+ * read a world-readable file, exactly the bar the iverilog/yosys tools
+ * already run at -- no network, no secrets, bounded. The strong per-call
+ * permission story stays Deno's; a person who needs that writes ts/js.
  */
 import { execFile as execFileCb } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -37,23 +43,59 @@ import {
   sandboxIds,
 } from './hdl-run'
 
-export const CODE_LANGS = ['ts', 'js'] as const
+export const CODE_LANGS = ['ts', 'js', 'py'] as const
 export type CodeLang = (typeof CODE_LANGS)[number]
-/** Named so the agent hears itself refused, not silently ignored. */
-export const NOT_YET = ['python', 'py'] as const
+/** Spellings a person may use for a language, mapped to its canonical id. */
+const ALIASES: Readonly<Record<string, CodeLang>> = {
+  ts: 'ts',
+  typescript: 'ts',
+  js: 'js',
+  javascript: 'js',
+  py: 'py',
+  python: 'py',
+  python3: 'py',
+}
 
 export const MAX_BYTES = 64 * 1024
 export const RUNS_PER_HOUR = 40
 export const OUTPUT_CHARS = 8000
 export const DEADLINE_MS = 10_000
+/**
+ * CPU seconds, address space (1 GiB) and file writes (64 MiB) for python.
+ * The byte counts are built from small factors on purpose: a bare ten-digit
+ * byte count reads to the no-dossier guard as a Telegram id.
+ */
+const MiB = 1024 * 1024
+const PRLIMIT = ['--cpu=15', `--as=${1024 * MiB}`, `--fsize=${64 * MiB}`]
 
 const FILE = (lang: CodeLang) => `main.${lang}`
 
-/** The Deno command for a language. Ours, never the request's. Pure. */
+/**
+ * The command for a language. Ours, never the request's. Pure.
+ *
+ * ts/js: Deno, every permission denied. py: `unshare -rn` (a network
+ * namespace with no interfaces) around `prlimit` around python, run with
+ * `-I -S -B` so it ignores the environment, site and PYTHONPATH and writes no
+ * bytecode. The empty environment and the nobody uid come from execCode.
+ */
 export function commandFor(
   lang: CodeLang,
   dir: string
 ): { cmd: string; args: string[] } {
+  if (lang === 'py')
+    return {
+      cmd: 'unshare',
+      args: [
+        '-rn', // rootless user namespace + a fresh network namespace: no network
+        'prlimit',
+        ...PRLIMIT,
+        'python3',
+        '-I', // isolated: ignore env, PYTHONPATH, user site; implies -E -s
+        '-S', // no site module
+        '-B', // no .pyc written
+        join(dir, FILE(lang)),
+      ],
+    }
   return {
     cmd: 'deno',
     args: [
@@ -131,15 +173,9 @@ export function langOf(
   const l = String(raw ?? 'ts')
     .trim()
     .toLowerCase()
-  if ((CODE_LANGS as readonly string[]).includes(l))
-    return { ok: true, lang: l as CodeLang }
-  if ((NOT_YET as readonly string[]).includes(l))
-    return {
-      ok: false,
-      reason:
-        'python is not enabled yet -- only ts and js run in the sandbox; say "не запускалось" for python', // cyrillic-ok: tool answer
-    }
-  return { ok: false, reason: `lang: ${CODE_LANGS.join(' | ')}` }
+  const canon = ALIASES[l]
+  if (canon) return { ok: true, lang: canon }
+  return { ok: false, reason: 'lang: ts | js | py' }
 }
 
 export async function runCode(
@@ -171,8 +207,7 @@ export async function runCode(
     if (r.missing)
       return {
         ran: false,
-        reason:
-          'deno is not installed in the service -- say "не запускалось", do not guess the output', // cyrillic-ok: tool answer
+        reason: `${cmd} is not installed in the service -- say "не запускалось", do not guess the output`, // cyrillic-ok: tool answer
       }
     const output = clip(`${r.stdout}${r.stderr ? `\n${r.stderr}` : ''}`.trim())
     return {
@@ -193,11 +228,11 @@ export const CODE_TOOLS: AgentTool[] = [
   {
     name: 'code_run',
     description:
-      'Run a TypeScript or JavaScript program in a sandbox and get its real ' +
-      'output: Deno with every permission denied (no network, no disk, no ' +
-      'environment, no subprocess), an empty environment, a 10s deadline. ' +
-      'Use it to check what you write before you answer, and quote the output. ' +
-      'Python is not enabled yet. Free, 40 runs an hour.',
+      'Run a program in a sandbox and get its real output. lang ts or js: ' +
+      'Deno with every permission denied (no network, no disk, no environment, ' +
+      'no subprocess). lang py: Python with no network, as nobody, an empty ' +
+      'environment and capped CPU/memory. All: a 10s deadline. Use it to check ' +
+      'what you write before you answer, and quote the output. Free, 40 runs an hour.',
     parameters: {
       type: 'object',
       properties: {

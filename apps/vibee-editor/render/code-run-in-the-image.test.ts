@@ -17,4 +17,12 @@ describe('the render image', () => {
     // On PATH so execFile finds it by name.
     expect(dockerfile).toMatch(/\/usr\/local\/bin/)
   })
+
+  it('installs python3 and util-linux (unshare/prlimit) for the python sandbox', () => {
+    const dockerfile = readFileSync(`${__dirname}/Dockerfile`, 'utf8')
+    // Without these, code_run's py branch says "not installed" and the coder
+    // must answer "did not run" rather than run python unsandboxed.
+    expect(dockerfile).toMatch(/python3/)
+    expect(dockerfile).toMatch(/util-linux/)
+  })
 })
