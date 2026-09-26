@@ -256,7 +256,7 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           scenes: [] as { video: string }[],
           sceneFrames: [] as number[],
-          pauseSec: 2,
+          pauseSec: 3,
           breathSec: 0.25,
           cta: '',
           musicVolume: 0.06,
@@ -281,7 +281,7 @@ export const RemotionRoot: React.FC = () => {
             )
           )
           if (!frames.length) return {}
-          const pause = Math.round((props.pauseSec ?? 0) * 30)
+          const pause = Math.round((props.pauseSec ?? 3) * 30)
           const breath = Math.round((props.breathSec ?? 0.25) * 30)
           return {
             durationInFrames: storyDurationFrames(frames, pause, breath),

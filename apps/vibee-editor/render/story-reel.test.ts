@@ -21,6 +21,7 @@ import {
   storyDurationFrames,
   sceneVolume,
   FADE_OUT_FRAMES,
+  CTA_IN_FRAMES,
 } from './src/compositions/StoryReel'
 import {
   CHECKED_COMPOSITIONS,
@@ -52,11 +53,25 @@ describe('StoryReel at the render door', () => {
     expect(StoryReelSchema.parse(props).pauseSec).toBe(2)
   })
 
-  it('keeps the pause within 0..3 s', () => {
+  it('keeps the pause within 0..4 s', () => {
     expect(
       StoryReelSchema.safeParse({ scenes: [{ video: CLIP }], pauseSec: 5 })
         .success
     ).toBe(false)
+  })
+
+  /*
+   * "Add a pause at the end for the CTA" (the owner, 2026-09-26). At two
+   * seconds with a ten-frame fade the call stood readable for well under two
+   * seconds. Three by default, and the call is up in a fifth of a second.
+   */
+  it('ends on a three-second pause with the call up at once', () => {
+    expect(StoryReelSchema.parse({ scenes: [{ video: CLIP }] }).pauseSec).toBe(
+      3
+    )
+    expect(CTA_IN_FRAMES).toBeLessThanOrEqual(6)
+    const root = fs.readFileSync(path.join(__dirname, 'src/Root.tsx'), 'utf8')
+    expect(root).toMatch(/pauseSec: 3,/)
   })
 })
 
@@ -137,9 +152,10 @@ describe('the recipe the agent is taught', () => {
     path.join(__dirname, 'src/agent/chat.ts'),
     'utf8'
   )
-  it('names StoryReel, three scenes and the 15-second cap', () => {
-    expect(chat).toMatch(/reel_render StoryReel/)
+  it('names the one-call template, three scenes, the pause and the 15-second cap', () => {
+    expect(chat).toMatch(/story_reel \{image_url, scenes/)
     expect(chat).toMatch(/3 сцены/) // cyrillic-ok: the prompt copy
+    expect(chat).toMatch(/пауза 3 с/) // cyrillic-ok: the prompt copy
     expect(chat).toContain(`${STORY_MAX_SECONDS} с`)
   })
 
