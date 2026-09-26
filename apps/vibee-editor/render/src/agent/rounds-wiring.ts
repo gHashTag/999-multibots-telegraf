@@ -115,6 +115,65 @@ export async function runRoundNow(
   })
 }
 
+/** Where the time of the last round is kept, so a deploy cannot forget it. */
+export const LAST_ROUND_KEY = 'rounds:last-run'
+
+/** The saved time of the last round, or null if none was ever recorded. */
+export async function lastRoundAt(pool: Queryable): Promise<number | null> {
+  const { readStrategy } = await import('./strategies')
+  const row = await readStrategy(pool, LAST_ROUND_KEY)
+  const at = (row as { at?: unknown } | null)?.at
+  if (typeof at !== 'string') return null
+  const ms = Date.parse(at)
+  return Number.isFinite(ms) ? ms : null
+}
+
+let dueRunning = false
+
+/**
+ * A ROUND ON A CLOCK THAT A DEPLOY CANNOT RESET.
+ *
+ * The tick that calls this runs often and cheaply; WHETHER a round happens is
+ * decided by roundIsDue against the last round in the database, not by how long
+ * this process has been alive. Before the fix the pace lived in a bare
+ * setInterval and the service never lived long enough to reach it (see
+ * roundIsDue). The pace itself still comes from the strategy row, so changing it
+ * costs no deploy.
+ *
+ * The mark is written BEFORE the walk, not after: a round takes minutes and the
+ * deploy that interrupts it must not leave the next tick starting another one.
+ */
+export async function runRoundIfDue(
+  pool: Queryable,
+  opts: { force?: boolean } = {}
+): Promise<string> {
+  if (process.env.ROUNDS_ENABLED !== '1') return 'off'
+  if (dueRunning) return 'already running'
+  const { roundIsDue, SETTLE_MS, ROUND_SITES } = await import('./rounds')
+  const { readStrategy, writeStrategy, roundStrategyOf } = await import(
+    './strategies'
+  )
+  const { strategyKeyOf, allSites } = await import('./profiles')
+  const strategy = roundStrategyOf(
+    await readStrategy(pool, strategyKeyOf('all')),
+    {
+      sites: allSites().length ? allSites() : ROUND_SITES,
+      everyMin: Number(process.env.ROUNDS_EVERY_MIN) || 180,
+      settleMs: SETTLE_MS,
+    }
+  )
+  const last = await lastRoundAt(pool)
+  const everyMs = Math.max(1, strategy.everyMin) * 60_000
+  if (!opts.force && !roundIsDue(last, Date.now(), everyMs)) return 'not due'
+  dueRunning = true
+  try {
+    await writeStrategy(pool, LAST_ROUND_KEY, { at: new Date().toISOString() })
+    return await runEveryDeskNow(pool)
+  } finally {
+    dueRunning = false
+  }
+}
+
 /**
  * EVERY DESK AT ONCE, EACH IN ITS OWN WINDOW (browser/windows.ts).
  *
