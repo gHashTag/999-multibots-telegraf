@@ -26,6 +26,11 @@ import {
   lipsyncResolutionFor,
 } from './src/agent/kie-web-provider'
 import {
+  LIPSYNC_POLL_INTERVAL_MS,
+  lipsyncMaxSecondsFor,
+  lipsyncPollAttempts,
+} from './src/agent/lipsync-voice'
+import {
   downloadBoundedMediaToFile,
   isPublicInternetAddress,
   resolvePublicAddress,
@@ -875,8 +880,6 @@ function getVideoDuration(videoPath: string): number {
     return 0
   }
 }
-
-const MAX_LIPSYNC_SECONDS = 10
 
 /**
  * Потолок длины для моделей, которым присылают готовый РОЛИК (сегодня один
@@ -5554,12 +5557,15 @@ const server = createServer(async (req, res) => {
         const safeImageUrl = assertFetchable(image_url)
         await resolvePublicAddress(safeImageUrl.hostname)
         const duration = await measuredRemoteDuration(audio_url)
-        if (duration > MAX_LIPSYNC_SECONDS) {
+        // The ceiling is the named model's: Kling takes a whole reel in one
+        // pass, the rest ten seconds (lipsync-voice.ts says why).
+        const ceilingSeconds = lipsyncMaxSecondsFor(model)
+        if (duration > ceilingSeconds) {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(
             JSON.stringify({
               success: false,
-              error: `lipsync audio must be ${MAX_LIPSYNC_SECONDS} seconds or shorter`,
+              error: `lipsync audio must be ${ceilingSeconds} seconds or shorter`,
             })
           )
           return
@@ -5621,13 +5627,11 @@ const server = createServer(async (req, res) => {
          * туда не пропустят, а значит вызывающий не выберет, за что платить.
          */
         /*
-         * `veed/fabric-1` IS BACK, AND WHY IT WAS OUT. It was removed because
-         * it could never be chosen: admission drops every model KIE names no
-         * cost for, and the veed family is not on KIE's price list at all.
-         * On 2026-09-24 the owner named its cost -- 18 credits a second at
-         * 720p (COST_OUTSIDE_KIE_PRICE_LIST_USD in billing-shared.ts) -- so it
-         * now passes the same admission as the rest, at 36 tokens a second,
-         * and is sent the 720p that cost is for (`lipsyncResolutionFor`).
+         * `veed/fabric-1` IS OUT: every job fails at KIE with "internal
+         * error, please try again later" (FAILS_AT_PROVIDER in
+         * kie-web-provider.ts has the record). Its price, approved by the
+         * owner on 2026-09-24, stays; the model comes back here when a probe
+         * succeeds.
          *
          * `volcengine/video-to-video-lip-sync` stays out for its own reason:
          * this route cannot pass the `mode` and `video_url` its contract asks
@@ -5640,7 +5644,6 @@ const server = createServer(async (req, res) => {
           'infinitalk/from-audio',
           'omnihuman-1-5',
           'kling/ai-avatar-standard',
-          'veed/fabric-1',
         ]
         const explicitKie = model?.startsWith('kie/') ?? false
         /*
@@ -5684,7 +5687,11 @@ const server = createServer(async (req, res) => {
                 resolution: lipsyncResolutionFor(selectedKieModel),
                 prompt: 'person speaking naturally',
               },
-              { attempts: 60, intervalMs: 5_000 }
+              // The wait grows with the voice (lipsync-voice.ts says why).
+              {
+                attempts: lipsyncPollAttempts(billedSeconds),
+                intervalMs: LIPSYNC_POLL_INTERVAL_MS,
+              }
             )
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(
