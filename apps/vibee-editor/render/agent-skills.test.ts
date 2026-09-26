@@ -38,7 +38,7 @@ describe("which skills are an agent's", () => {
   })
 
   it('prefixes are matched in any case, and a Leela draft reaches no agent', () => {
-    expect(skillsFor(rows, 'habr').own.map(r => r.name)).toEqual([
+    expect(skillsFor(rows, 'scientist').own.map(r => r.name)).toEqual([
       'хабр: формат',
     ]) // cyrillic-ok
     for (const a of MARKETPLACE_AGENTS) {

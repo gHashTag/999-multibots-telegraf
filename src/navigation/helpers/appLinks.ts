@@ -117,9 +117,12 @@ export const APP_START_PREFIX = 'app_'
  */
 export const START_SOURCE_SEP = '__'
 
-/** Payloads our own links carry: only these may name a campaign. */
-const OWN_START_PAYLOAD =
-  /^(?:(?:app|svc|subscribe)_[a-z0-9_]+|club|foundry|topup(?:_[a-z]+)?)$/
+/**
+ * Payloads our own links carry: only these may name a campaign. The render
+ * tagger keeps the very same list (utm.ts START_OWN), compared by test.
+ */
+export const OWN_START_PAYLOAD =
+  /^(?:(?:app|svc|subscribe)_[a-z0-9_]+|club|foundry|website|topup(?:_[a-z]+)?)$/
 
 /**
  * `app_feed__telegram` -> { base: 'app_feed', source: 'telegram', campaign:
