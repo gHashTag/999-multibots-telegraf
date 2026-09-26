@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { useAgentAcceptance } from '@/hooks/useAgentAcceptance'
+import { useAgentAvatars } from '@/hooks/useAgentAvatars'
+import { AgentFace } from './AgentFace'
 import { ensureAvatars, loadClients, type ClientRow } from '@/lib/crm'
 import {
   MARKETPLACE_AGENTS,
@@ -145,6 +147,7 @@ export function ChatThreads({ current }: { current: string | null }) {
   /* Whose threads this person may open (agentHref). */
   const keeper = useIsKeeper(true)
   const verdicts = useAgentAcceptance()
+  const faces = useAgentAvatars()
   const [clients, setClients] = useState<ClientRow[] | null>(null)
   const [picking, setPicking] = useState(false)
   const closePicker = useCallback(() => setPicking(false), [])
@@ -221,9 +224,11 @@ export function ChatThreads({ current }: { current: string | null }) {
           title={agent.promise[lang]}
           data-status={agent.status}
         >
-          <span className="chat-threads__circle" aria-hidden="true">
-            {agent.icon}
-          </span>
+          <AgentFace
+            className="chat-threads__circle"
+            icon={agent.icon}
+            url={faces[agent.id]}
+          />
           <span className="chat-threads__caption">{agent.name[lang]}</span>
         </Link>
       ))}

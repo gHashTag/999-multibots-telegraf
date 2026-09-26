@@ -141,3 +141,9 @@ button.chat-threads__dot {
   color: #00ff88;
   font-size: 22px;
 }
+
+/* An agent's face (AgentFace): the same circle, filled by the picture. */
+img.agent-face-img {
+  object-fit: cover;
+  padding: 0;
+}

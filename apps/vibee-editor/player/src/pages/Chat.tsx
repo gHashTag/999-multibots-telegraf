@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
 import { agentMessagesAtomFor, agentDraftAtom } from '@/atoms/agentChat'
 import {
@@ -220,8 +220,16 @@ function ChatThread({
   const specialist = marketplaceAgent
     ? marketplaceAgentById(marketplaceAgent)
     : null
-  /* The specialist called into this client's conversation, if any. */
-  const [helper, setHelper] = useState<string | null>(null)
+  /*
+   * The specialist called into this client's conversation, if any. A link
+   * from an agent's dashboard (`?helper=rtl`) arrives with it chosen; the
+   * server's gate still decides whether this person may call it.
+   */
+  const [params] = useSearchParams()
+  const [helper, setHelper] = useState<string | null>(() => {
+    const h = params.get('helper')
+    return client && h && marketplaceAgentById(h) ? h : null
+  })
   const [input, setInput] = useAtom(agentDraftAtom)
   // The greeting of a client thread is short and names the client: the long
   // self greeting sells the agent, which the owner has already bought.

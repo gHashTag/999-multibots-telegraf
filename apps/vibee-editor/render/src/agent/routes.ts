@@ -858,6 +858,20 @@ export async function handleAgentChat(
   )
   if (!gate.ok) return json(res, gate.status, { error: gate.error })
   const thread = gate.thread
+  /*
+   * A specialist called into a client's conversation leaves one row for its
+   * dashboard (agent-clients.ts): who, which client, how often. No words.
+   */
+  if (gate.client && gate.agent)
+    void (async () => {
+      const { noteAgentClientTurn } = await import('./agent-clients')
+      await noteAgentClientTurn(
+        await getPool(),
+        String(telegramId),
+        gate.agent!,
+        gate.client!
+      )
+    })().catch(() => undefined)
 
   res.writeHead(200, {
     'Content-Type': 'application/x-ndjson; charset=utf-8',

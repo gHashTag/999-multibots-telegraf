@@ -100,6 +100,7 @@ import {
   handleAcceptance,
 } from './src/agent/agent-acceptance'
 import { isTrafficPath, handleTraffic } from './src/agent/traffic'
+import { isAvatarPath, handleAvatars } from './src/agent/agent-avatars'
 import {
   isBrowserPath,
   handleBrowser,
@@ -8795,6 +8796,16 @@ const server = createServer(async (req, res) => {
           .trim() || String(req.socket?.remoteAddress || ''),
       // Only a bot start needs it; the arrival stays open to any page.
       serviceKey: authenticate(req).via === 'api-key',
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
+  /* The catalogue agents' faces (agent-avatars.ts): public reading. */
+  if (isAvatarPath(req.url?.split('?')[0] || '')) {
+    const out = await handleAvatars(req, {
+      getPool: async () => (await getPool()) as any,
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))

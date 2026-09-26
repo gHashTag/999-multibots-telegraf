@@ -29,6 +29,18 @@ export function sourceName(id: string): string {
   return id
 }
 
+/**
+ * Bot starts per 100 visits of one channel: the conversion a web dashboard
+ * calls a goal rate. null without visits -- a start straight from a bot
+ * link has no visit to be a share of. Pure.
+ */
+export function startsPer100(s: {
+  arrivals: number
+  starts: number
+}): number | null {
+  return s.arrivals > 0 ? Math.round((s.starts * 100) / s.arrivals) : null
+}
+
 export function TrafficPanel({
   noticeReason = null,
 }: {
@@ -104,6 +116,9 @@ export function TrafficPanel({
                       visits: s.arrivals,
                       starts: s.starts,
                     })}
+                    {startsPer100(s) !== null
+                      ? t('crm.traffic.per100', { n: startsPer100(s)! })
+                      : ''}
                   </span>
                 </li>
               ))}

@@ -162,6 +162,9 @@ describe('specialist contracts', () => {
     expect(marketplaceAgentPrompt('fpga')).toContain('323') // the withdrawn figure is the reason
     expect(marketplaceAgentPrompt('rtl')).toContain('тестбенч') // cyrillic-ok: contract words
     expect(marketplaceAgentPrompt('rtl')).toContain('не запускалось') // cyrillic-ok: contract words
+    /* The engineers run what they write, and quote it (hdl-run.ts). */
+    expect(marketplaceAgentPrompt('rtl')).toContain('hdl_run')
+    expect(marketplaceAgentPrompt('fpga')).toContain('hdl_run mode synth')
   })
 })
 

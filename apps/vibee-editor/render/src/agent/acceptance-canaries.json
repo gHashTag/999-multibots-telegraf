@@ -70,7 +70,13 @@
     {
       "id": "fpga",
       "canary": "Какой маршрут сборки у github.com/gHashTag/trinity-fpga под Artix-7 и что в нём измерено, а что нет? Дай команды. Ничего не прошивай.",
-      "expect": ["web_read", "web_search", "browser_open", "browser_read"],
+      "expect": [
+        "hdl_run",
+        "web_read",
+        "web_search",
+        "browser_open",
+        "browser_read"
+      ],
       "answer": [
         {
           "pattern": "yosys|nextpnr|openxc7",
@@ -88,8 +94,8 @@
     },
     {
       "id": "rtl",
-      "canary": "Напиши на Verilog синхронный FIFO глубиной 16 с флагами full/empty и тестбенч к нему. Дай команду симуляции.",
-      "expect": [],
+      "canary": "Напиши на Verilog синхронный FIFO глубиной 16 с флагами full/empty и тестбенч к нему, прогони через hdl_run (lint и sim) и процитируй вывод.",
+      "expect": ["hdl_run"],
       "answer": [
         {
           "pattern": "```(system)?verilog",
@@ -98,10 +104,10 @@
           "why": "нет модуля и тестбенча кодом"
         },
         {
-          "pattern": "iverilog|verilator",
-          "flags": "gi",
+          "pattern": "PASS|FAIL|не запуска",
+          "flags": "g",
           "min": 1,
-          "why": "нет команды симуляции"
+          "why": "нет ни вывода тестбенча, ни честного «не запускалось»"
         }
       ]
     }
