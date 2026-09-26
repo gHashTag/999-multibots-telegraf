@@ -18,6 +18,7 @@
  * is used by the Hive page for the same reason.
  */
 import { API_BASE } from '../config'
+import type { MoveExperience, MoveStat } from './clientStrategy'
 import { authHeaders } from '@/lib/apiFetch'
 import { markEmbedSignInNeeded } from '@/lib/embedGuest'
 
@@ -280,6 +281,36 @@ export const recordTouch = (telegramId: string, kind: string, note?: string) =>
     kind,
     ...(note ? { note } : {}),
   })
+
+/**
+ * What this owner's clients did after each move pressed on a card (tool
+ * `crm_move_stats`, render crm-move-stats.ts). The card ranks its allowed
+ * moves by it; a failed read is `null` and the card keeps its rule order.
+ */
+export async function loadMoveStats(): Promise<MoveExperience | null> {
+  const r = await callTool<{ moves?: Record<string, Partial<MoveStat>> }>(
+    'crm_move_stats',
+    {}
+  )
+  if (!r.reachable || !r.data?.moves) return null
+  const out: MoveExperience = {}
+  for (const [id, m] of Object.entries(r.data.moves)) {
+    const n = (v: unknown) =>
+      typeof v === 'number' && Number.isFinite(v) ? v : 0
+    out[id] = {
+      used: n(m.used),
+      replied: n(m.replied),
+      bought: n(m.bought),
+      refused: n(m.refused),
+      score: n(m.score),
+    }
+  }
+  return out
+}
+
+/** A move pressed on a card, remembered so its outcome can be measured. */
+export const recordMoveUse = (telegramId: string, move: string) =>
+  recordTouch(telegramId, 'note', `move:${move}`)
 
 /* ───────────────────────────────────────────────────────────────────────────
  * ONE CLIENT, ON A SCREEN. Loaders for `/crm/:clientId`.

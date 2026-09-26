@@ -1014,6 +1014,7 @@ import { CRM_DUET_TOOLS } from './crm-duet-tool'
 import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
 import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
 import { CRM_AVATAR_TOOLS } from './crm-avatars'
+import { CRM_MOVE_STATS_TOOLS } from './crm-move-stats'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
@@ -3498,6 +3499,7 @@ TOOLS.push(...CRM_CLIENT_TOOLS)
 // The per-client workspace reads: content plan and the client list (crm-client-workspace-tools.ts).
 TOOLS.push(...CRM_CLIENT_WORKSPACE_TOOLS)
 TOOLS.push(...CRM_AVATAR_TOOLS)
+TOOLS.push(...CRM_MOVE_STATS_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project
@@ -3675,7 +3677,7 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of

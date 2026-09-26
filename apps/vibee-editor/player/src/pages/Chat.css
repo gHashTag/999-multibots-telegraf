@@ -845,6 +845,12 @@ html[data-keyboard='open'] .chat-page {
 .chat-aside__move span {
   flex: 1;
 }
+.chat-aside__move-xp {
+  flex: 0 0 auto;
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
 .chat-aside__move[data-tone='urgent'] {
   border-color: rgba(0, 255, 136, 0.45);
   background: rgba(0, 255, 136, 0.06);
