@@ -51,6 +51,12 @@ const START_PARAM_ROUTES: Record<string, string> = {
    */
   browser: '/browser',
   club: '/profile',
+  /*
+   * `story` -- THE PERSON'S OWN STORY REELS: their face, their voice, any
+   * topic, one press (pages/Story.tsx). The link a seller hands a client so
+   * she can make the next reel herself: t.me/<her bot>?start=app_story.
+   */
+  story: '/story',
   /**
    * `pair` — SIGN-IN FOR THE NATIVE APP. It was missing, and that alone made
    * signing in impossible.

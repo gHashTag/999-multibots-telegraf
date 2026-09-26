@@ -71,7 +71,7 @@ import {
 import { makeClientFaceTool } from './client-face-tool'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool } from './story-reel-tool'
-import { makeCrmStoryTool } from './crm-story-tool'
+import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
 import {
   cloneOnReplicate,
@@ -3575,6 +3575,12 @@ TOOLS.push(
     lookup: n => TOOLS.find(t => t.name === n),
   })
 )
+// And the same reel for the person herself: the /story page and her own bot.
+TOOLS.push(
+  makeMyStoryTool({
+    deps: ctx => makeStoryDeps(ctx.pool, n => TOOLS.find(t => t.name === n)),
+  })
+)
 /*
  * A CLIENT'S OWN VOICE (crm_voice_clone), for the gift made for her: the
  * second lead magnet, a story reel about her business in her voice. The
@@ -3827,7 +3833,7 @@ export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
  * lipsync_generate and reel_render -- none of them in the kit -- so a small model could clone a voice and do nothing with it.
  */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_voice_clone|crm_story_reel|crm_client_timeline)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_voice_clone|crm_story_reel|my_story_reel|crm_client_timeline)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of

@@ -20,10 +20,12 @@ import type { AgentTool, ToolContext } from './tools'
 import {
   missingFor,
   nextLink,
+  peekNextPlanItem,
   startStory,
   storyJobsOf,
   storySettingsOf,
   STORY_TOPIC_MAX,
+  storyPriceEstimate,
   type StoryDeps,
 } from './story-template'
 import { requireSeller } from './telegram-tools'
@@ -141,6 +143,90 @@ export function makeCrmStoryTool(o: {
             note: 'рилс делается в фоне 5–10 минут; готовый придёт тебе в бот на проверку',
           }
         : out
+    },
+  }
+}
+
+export const USE_THE_CRM_TOOL =
+  'в разговоре за клиента его рилс — crm_story_reel; my_story_reel — только свой' // cyrillic-ok: tool result copy
+
+/**
+ * my_story_reel -- the same reel for the person HERSELF (owner, 2026-09-26:
+ * "a link into her bot, to a page -- ideally, so she can do the same
+ * herself"). The page /story in the app and the agent in her own bot both
+ * call it; the reel is hers, paid by her (or by her seller, for a VIP whose
+ * profile says so), and comes back to her in her bot.
+ *
+ * Nothing about anybody else can be named here: the person is the caller,
+ * never an argument.
+ */
+export function makeMyStoryTool(o: {
+  deps: (ctx: ToolContext) => StoryDeps
+}): AgentTool {
+  return {
+    name: 'my_story_reel',
+    description:
+      'ТВОЙ РИЛС-ИСТОРИЯ: твоё лицо (аватарка) в новой обстановке каждой сцены, твой голос (клон), ' +
+      '3 сцены ~15 с и пауза с призывом. Без start — готово ли, следующая тема плана, цена и твои рилсы. ' +
+      'start:true — сделать на ЛЮБУЮ тему (topic; пусто — следующая из твоего контент-плана). ' +
+      'Готовый придёт в бот через 5–10 мин.',
+    parameters: {
+      type: 'object',
+      properties: {
+        start: { type: 'boolean', description: 'сделать рилс сейчас' },
+        topic: {
+          type: 'string',
+          description: 'тема своими словами; пусто — следующая из плана',
+        },
+      },
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const me = String(ctx.telegramId ?? '').trim()
+      if (!/^\d{5,15}$/.test(me))
+        return { ready: false, why: 'кто ты — неизвестно' }
+      if (String((ctx as { faceOf?: string }).faceOf ?? '').trim())
+        return { ready: false, why: USE_THE_CRM_TOOL }
+      const deps = o.deps(ctx)
+      const s = await storySettingsOf(ctx.pool, me)
+      const missing = missingFor(s)
+      if (args.start === true) {
+        if (!s || missing) return { started: false, why: missing }
+        const bot = await deps.botOf?.(me).catch(() => null)
+        const out = await startStory(deps, {
+          lead: me,
+          requester: me,
+          bot: bot ?? null,
+          topic: String(args.topic ?? '').slice(0, STORY_TOPIC_MAX),
+        })
+        return out.started
+          ? { ...out, note: 'рилс делается 5–10 минут; готовый придёт в бот' }
+          : out
+      }
+      const [next, jobs, bot] = await Promise.all([
+        s ? peekNextPlanItem(ctx.pool, me, s.done) : Promise.resolve(''),
+        s
+          ? storyJobsOf(ctx.pool, s.owner, me).catch(() => [])
+          : Promise.resolve([]),
+        deps.botOf?.(me).catch(() => null) ?? Promise.resolve(null),
+      ])
+      const gift = s?.payer === 'owner'
+      return {
+        ready: !missing,
+        ...(missing ? { why: missing } : {}),
+        ...(s
+          ? {
+              name: s.name || undefined,
+              face: s.faceUrl || undefined,
+              voice: s.hasVoice,
+              cta: s.cta,
+            }
+          : {}),
+        next_topic: next || undefined,
+        ...(gift ? { gift: true } : { price_tokens: storyPriceEstimate() }),
+        one_tap_link: nextLink(bot) || undefined,
+        jobs,
+      }
     },
   }
 }
