@@ -30,7 +30,13 @@
  * refuses rather than mint a link that would credit nobody -- or the owner.
  */
 import type { AgentTool, ToolContext } from './tools'
-import { propose, client, requireSeller } from './telegram-tools'
+import {
+  propose,
+  client,
+  requireSeller,
+  canConfirmOn,
+  CONFIRM_ELSEWHERE,
+} from './telegram-tools'
 import { hangUp } from './hang-up'
 import { mintTokenInvoice } from './token-invoice'
 import { tokenForBot } from './bot-farm'
@@ -328,14 +334,12 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
        * a draft that was then dropped. Same words the queue would have used,
        * one step earlier.
        */
-      if (String(ctx?.surface ?? '') !== 'bot') {
+      if (!canConfirmOn(ctx?.surface)) {
         return {
           proposal: true,
           action: 'send',
           target: chat,
-          why:
-            'Подтвердить это можно только в чате бота — там есть кнопки ' +
-            '«Отправить / Отмена». Скажи человеку открыть бота и повторить просьбу.',
+          why: CONFIRM_ELSEWHERE,
         }
       }
       const lead = await resolveLead(ctx, chat)

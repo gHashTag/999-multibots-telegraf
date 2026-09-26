@@ -1057,7 +1057,18 @@ describe('a draft is only prepared where it can be confirmed', () => {
     expect(q.pendingCount()).toBe(1)
   })
 
-  for (const surface of ['miniapp', 'ios', 'agent', 'unknown', undefined]) {
+  it('the app queues it: it draws the card and answers it (#2980)', async () => {
+    // Owner, 2026-09-26: working a client in the app, the portrait card never
+    // appeared -- the app had the card, the server refused to queue for it.
+    const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
+    const q = await import('./src/agent/tg-proposals')
+    q.forgetProposals()
+    const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
+    await send.handler({ chat: '@ivan', text: 'hi' }, owner('miniapp'))
+    expect(q.pendingCount()).toBe(1)
+  })
+
+  for (const surface of ['ios', 'agent', 'unknown', undefined]) {
     it(`${surface ?? 'no surface'} does NOT queue it`, async () => {
       const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
       const q = await import('./src/agent/tg-proposals')
@@ -1081,10 +1092,11 @@ describe('a draft is only prepared where it can be confirmed', () => {
     const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
     const answer = (await send.handler(
       { chat: '@ivan', text: 'привет' },
-      owner('miniapp')
+      owner('ios')
     )) as { proposal?: boolean; why?: string }
     expect(answer.proposal).toBe(true)
     expect(answer.why).toContain('чате бота')
+    expect(answer.why).toContain('приложении')
   })
 })
 
