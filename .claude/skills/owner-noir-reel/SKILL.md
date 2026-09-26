@@ -88,10 +88,11 @@ description: 'Фирменный нуар-рилс владельца: стар�
 2. `lipsync_generate` — `image_url` гламура, `voice_url` рилса владельца
    (видео годится, звук вынимается), `lead_silence_s` 1,5 — старт на фото.
    Модель — **`kie/kling/ai-avatar-standard`**: владелец выбрал её по пробам
-   24.09 («Kling AI Avatar лучше»), и она втрое дешевле OmniHuman. Умолчание
-   инструмента (`infinitalk`) 24.09 отвечало «internal error». Veed Fabric
-   (`kie/veed/fabric-1`, 36 ток/с) допущен для сравнения — цены и статусы в
-   `lipsync-cost-per-second`.
+   24.09 («Kling AI Avatar лучше»), и она втрое дешевле OmniHuman. С 26.09
+   Kling берёт весь голос (до 30 с) **одним проходом** — без стыков, на
+   которых лицо «начинает заново». Умолчание инструмента (`infinitalk`)
+   24.09 отвечало «internal error»; Veed Fabric лежит у KIE и снят. Цены и
+   статусы — в `lipsync-cost-per-second`.
 3. Готовое видео — в «мои файлы» и владельцу.
 
 Первый такой рилс: 24.09.2026, `omnihuman-1-5`, 21,4 с, три части.

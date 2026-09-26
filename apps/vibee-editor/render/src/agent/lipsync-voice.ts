@@ -18,11 +18,12 @@
  *   a few seconds of silence may lead the track, so the reel opens on the still
  *   face and only then speaks (the owner's "start with my photo");
  *
- *   the route refuses anything longer than its ceiling (MAX_LIPSYNC_SECONDS in
- *   render-server.ts, 10 s). A 20-second voice is cut into equal parts under
- *   that ceiling, each part is lip-synced on its own, and the parts are joined.
- *   The ceiling is not raised here: nobody has measured the provider on longer
- *   audio, and a raised limit that fails bills the house for work it refunds.
+ *   the route refuses anything longer than its ceiling for the model named
+ *   (`lipsyncMaxSecondsFor` below, which the route itself calls). A voice
+ *   longer than that is cut into equal parts under it, each part is
+ *   lip-synced on its own, and the parts are joined -- with a visible restart
+ *   at every seam, which is why a model measured on longer audio gets a
+ *   ceiling that takes the whole reel in one pass.
  *
  * The functions that plan are pure, so the arithmetic of money is tested
  * without ffmpeg; the functions that run ffmpeg are thin and separate.
@@ -32,18 +33,83 @@ import { assetOrigins } from './asset-links'
 import { shelfObject } from './media-parts'
 
 /**
- * The route's ceiling, in seconds. MUST equal MAX_LIPSYNC_SECONDS in
- * render-server.ts; a test reads that file, because a copy that drifts upward
- * would plan parts the route refuses after the person has paid.
+ * The route's ceiling, in seconds, for any model not listed below: ten
+ * seconds, set before anybody had measured a provider on longer audio.
  */
 export const LIPSYNC_ROUTE_MAX_SECONDS = 10
 
 /**
- * How long one part is allowed to be when planned. Below the ceiling on
- * purpose: the route measures the uploaded part itself with ffprobe, and an
- * encoded 10.000 s cut can measure 10.02 s -- refused, after the charge.
+ * THE MODELS MEASURED ON LONGER AUDIO, and the ceiling each gets.
+ *
+ * Ten seconds is OUR limit, not the providers'. It is why the owner's first
+ * reel (2026-09-24, 21.4 s of voice) came out as three 7-second parts, each
+ * restarting from the same still: "short animated photos", in the owner's
+ * words. Kling AI Avatar takes up to five minutes of audio a call on KIE
+ * (kie.ai/kling-ai-avatar), and the owner chose it over OmniHuman from the
+ * 3-second probes that day, so a call NAMING it takes a minute: the tool's
+ * whole reel (LIPSYNC_TOOL_MAX_SECONDS) in one pass, with room for the
+ * route's own measurement of the file.
+ *
+ * Every other model keeps ten seconds until it is measured longer: a ceiling
+ * raised on a guess bills the house for work that fails and is refunded. An
+ * unnamed call keeps it too, since it may fall back to fal, whose limits this
+ * does not speak for.
  */
-export const LIPSYNC_PART_TARGET_SECONDS = 9.5
+const ROUTE_MAX_SECONDS_BY_MODEL: Readonly<Record<string, number>> = {
+  'kie/kling/ai-avatar-standard': 60,
+}
+
+/** The longest voice one route call takes for this model name, seconds. */
+export function lipsyncMaxSecondsFor(model: unknown): number {
+  return (
+    (typeof model === 'string' && ROUTE_MAX_SECONDS_BY_MODEL[model]) ||
+    LIPSYNC_ROUTE_MAX_SECONDS
+  )
+}
+
+/**
+ * How far below the ceiling a planned part stays: the route measures the
+ * uploaded part itself with ffprobe, and an encoded 10.000 s cut can measure
+ * 10.02 s -- refused, after the charge.
+ */
+const PART_MARGIN_SECONDS = 0.5
+
+/** How long one part may be when planned, for the default ceiling. */
+export const LIPSYNC_PART_TARGET_SECONDS =
+  LIPSYNC_ROUTE_MAX_SECONDS - PART_MARGIN_SECONDS
+
+/** How long one part may be when planned, for this model name. */
+export function partTargetSecondsFor(model: unknown): number {
+  return lipsyncMaxSecondsFor(model) - PART_MARGIN_SECONDS
+}
+
+/**
+ * HOW LONG A LIPSYNC JOB IS WAITED FOR -- by the route polling the provider,
+ * and by the tool waiting for the route.
+ *
+ * Both waited five minutes flat: the route's 60 polls of 5 s, and Node's
+ * fetch, which gives up on a response whose headers take longer than 300 s.
+ * That was sized for 10-second parts. A provider still working at minute five
+ * finishes and bills us with nobody left to take the result, and the person
+ * is refunded for work we paid for. So the wait grows with the voice: five
+ * minutes of queue plus 75 s for every second. Polling costs nothing; a job
+ * that fails says so on the next poll and ends the wait at once.
+ */
+export const LIPSYNC_POLL_INTERVAL_MS = 5_000
+
+/** Polls of the provider for a part of this many seconds. */
+export function lipsyncPollAttempts(seconds: number): number {
+  const s =
+    Number.isFinite(seconds) && seconds > 0
+      ? Math.ceil(seconds)
+      : LIPSYNC_ROUTE_MAX_SECONDS
+  return 60 + 15 * s
+}
+
+/** How long a caller of the route waits for a part: the polls, plus slack. */
+export function lipsyncWaitMs(seconds: number): number {
+  return lipsyncPollAttempts(seconds) * LIPSYNC_POLL_INTERVAL_MS + 120_000
+}
 
 /** The longest voice the tool takes: a reel's worth, three parts at most. */
 export const LIPSYNC_TOOL_MAX_SECONDS = 30
@@ -60,15 +126,14 @@ export const LIPSYNC_TOOL_MAX_SECONDS = 30
  * model is the only way round a provider that is down, and each model keeps
  * its own per-second price (billing-shared priceForModel).
  *
- * Veed Fabric joined the same day, at the owner's word on its price (36
- * tokens a second, cost $0.09 at 720p): the owner's reel from three parts
- * showed a restart at every seam, and Veed takes up to 30 s in one call.
+ * Veed Fabric was added the same day at the owner's price, then taken out
+ * again: its first probe failed with the same "internal error" as nine
+ * attempts in August (FAILS_AT_PROVIDER in kie-web-provider.ts).
  */
 export const LIPSYNC_MODELS: readonly string[] = [
   'kie/infinitalk/from-audio',
   'kie/omnihuman-1-5',
   'kie/kling/ai-avatar-standard',
-  'kie/veed/fabric-1',
 ]
 
 /** The largest voice file read from the shelf: the shelf's own upload limit. */
