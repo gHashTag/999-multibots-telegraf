@@ -203,8 +203,21 @@ describe('what a small model is shown', () => {
      * prose went first, then the @name parameter, which the CRM row already
      * holds. The ceiling keeps only 56 tokens of headroom on purpose -- the
      * next tool must earn its place the same way.
+     *
+     * 7150 -> 7240 on 2026-09-26, for browser_sign_in (132 tokens), which
+     * earned its place exactly that way: most of its cost was paid out of
+     * prose rather than out of this ceiling. browser_ask_permission had the
+     * longest description in the kit and gave up its list of irreversible
+     * acts for three examples, and browser_sign_in's own description and
+     * parameter text were cut twice before this number moved. What it buys:
+     * from 2026-09-24 to 2026-09-26 nobody could be signed into any network
+     * through the agent, and one of the two reasons was that no procedure
+     * existed -- LOGINS_NOTE pointed at a "sign-in playbook" that appeared
+     * nowhere else in the codebase, so every attempt started from nothing.
+     * A DM seller on a 16k model that cannot sign its person in has no
+     * accounts to sell from. Headroom stays thin on purpose.
      */
-    expect(chars / 3.2).toBeLessThan(7150)
+    expect(chars / 3.2).toBeLessThan(7240)
     expect(kit.some(t => t.name === 'crm_offer')).toBe(true)
     expect(kit.some(t => t.name === 'tg_send')).toBe(true)
     // The conversational core stays; the deep reads do not.

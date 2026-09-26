@@ -65,6 +65,18 @@ export interface PodDriver {
   start(input: StartInput): Promise<PodHandle>
   stop(podId: string): Promise<void>
   alive(podId: string): Promise<boolean>
+  /**
+   * Put the browser back the way a fresh one is, keeping the profile.
+   *
+   * Only for drivers whose `stop` cannot stop anything. A driver that really
+   * stops needs nothing here: the caller stops and starts, and that IS the
+   * restart. Absent means exactly that.
+   *
+   * Returns false when this deployment has no way to do it, so the caller can
+   * say so rather than report a restart that never happened -- the bug that
+   * kept a broken browser running for three days (health.ts).
+   */
+  restart?(podId: string): Promise<boolean>
   /** The red button: the person's logins, gone. Not part of stopping. */
   wipeProfile(profileId: string): Promise<void>
 }
@@ -269,6 +281,12 @@ export function dockerDriver(opts: {
  *     request. It is a no-op here, and the idle reaper therefore frees
  *     nothing. The row still goes, so the session ends and the viewer's token
  *     stops working -- which is the part that matters for safety.
+ *   - Because `stop` is a no-op, stop-then-start is NOT a restart: it hands the
+ *     same Chromium back. A pod whose Chromium has stopped being a browser is
+ *     cured by a restart and only by a restart (health.ts), so `restart` here
+ *     goes to Railway's own API and restarts the service -- which keeps the
+ *     profile, because the profile is on a volume. Unconfigured, it returns
+ *     false instead of lying.
  *   - The profile is whatever that service has on its volume. `wipeProfile`
  *     cannot reach it from here and says so by failing, rather than
  *     pretending somebody was forgotten.
@@ -276,6 +294,103 @@ export function dockerDriver(opts: {
  * None of this is a compromise of the architecture: it is the same
  * `PodDriver` seam, with the platform's real shape behind it.
  */
+/** Railway's public API. Overridable only so a test never leaves the process. */
+export const RAILWAY_API = 'https://backboard.railway.com/graphql/v2'
+
+export interface RailwayServiceRef {
+  token: string
+  serviceId: string
+  environmentId: string
+  api?: string
+  fetchImpl?: typeof fetch
+}
+
+const DEPLOYMENT_QUERY = `query($input: DeploymentListInput!) {
+  deployments(first: 1, input: $input) { edges { node { id } } }
+}`
+
+const RESTART_MUTATION = `mutation($id: String!) { deploymentRestart(id: $id) }`
+
+/**
+ * TWO KINDS OF RAILWAY TOKEN, AND THE SHAPE DOES NOT SAY WHICH.
+ *
+ * An account token authenticates as `Authorization: Bearer`; a project token --
+ * the one worth using here, because it reaches only this project -- has its own
+ * header and is refused by the other. They are indistinguishable by looking at
+ * them, so the account header is tried first and a refusal is retried as a
+ * project token. Whoever configures this then cannot configure it wrongly.
+ */
+const AUTH_HEADERS = (token: string): Record<string, string>[] => [
+  { authorization: `Bearer ${token}` },
+  { 'project-access-token': token },
+]
+
+const REFUSED = /not authorized|unauthorized|invalid token/i
+
+async function graphql(
+  ref: RailwayServiceRef,
+  query: string,
+  variables: Record<string, unknown>
+): Promise<Record<string, unknown> | null> {
+  const call = ref.fetchImpl ?? fetch
+  let refusal = 'refused'
+  for (const auth of AUTH_HEADERS(ref.token)) {
+    const res = await call(ref.api ?? RAILWAY_API, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...auth },
+      body: JSON.stringify({ query, variables }),
+    })
+    if (res.status === 401 || res.status === 403) {
+      refusal = `HTTP ${res.status}`
+      continue
+    }
+    if (!res.ok) throw new Error(`railway API HTTP ${res.status}`)
+    const body = (await res.json()) as {
+      data?: Record<string, unknown>
+      errors?: { message?: string }[]
+    }
+    const said = body.errors?.[0]?.message
+    if (said && REFUSED.test(said)) {
+      refusal = said
+      continue
+    }
+    if (said) throw new Error(`railway API: ${said}`)
+    return body.data ?? null
+  }
+  throw new Error(`railway API: ${refusal}`)
+}
+
+/**
+ * RESTART THE SERVICE THE POD IS, WITHOUT REBUILDING IT.
+ *
+ * `deploymentRestart` restarts the container of a deployment that already
+ * exists -- no build, no new image, and the volume comes back attached, which
+ * is why the person's logins survive. A redeploy would also work and would
+ * rebuild; nothing here needs a build.
+ *
+ * The deployment id is asked for first because it changes with every deploy,
+ * so it cannot be configuration.
+ */
+export async function railwayRestart(ref: RailwayServiceRef): Promise<boolean> {
+  if (!ref.token || !ref.serviceId || !ref.environmentId) return false
+  const found = await graphql(ref, DEPLOYMENT_QUERY, {
+    input: {
+      serviceId: ref.serviceId,
+      environmentId: ref.environmentId,
+      status: 'SUCCESS',
+    },
+  })
+  const edges = (
+    found?.deployments as { edges?: { node?: { id?: unknown } }[] } | undefined
+  )?.edges
+  const id = edges?.[0]?.node?.id
+  if (typeof id !== 'string' || !id) {
+    throw new Error('railway API: the pod service has no successful deployment')
+  }
+  const done = await graphql(ref, RESTART_MUTATION, { id })
+  return done?.deploymentRestart === true
+}
+
 export function fixedDriver(opts: {
   endpoint: string
   /** Where the agent reaches this pod. Absent means agents cannot drive it. */
@@ -284,6 +399,11 @@ export function fixedDriver(opts: {
   viewPassword?: string
   /** The pod's own NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD. */
   adminPassword?: string
+  /**
+   * How this deployment restarts the service the pod is. Absent means it
+   * cannot, and `restart` says false rather than pretending.
+   */
+  restartService?: () => Promise<boolean>
 }): PodDriver {
   const endpoint = opts.endpoint.replace(/^https?:\/\//, '').replace(/\/+$/, '')
   const cdp = (opts.cdpEndpoint || '')
@@ -302,6 +422,10 @@ export function fixedDriver(opts: {
     },
     async stop() {
       /* Nothing to stop. The session row is dropped by the caller. */
+    },
+    async restart() {
+      if (!opts.restartService) return false
+      return opts.restartService()
     },
     async alive() {
       /*
@@ -326,11 +450,31 @@ export function driverFromEnv(
   const choice = (env.BROWSER_POD_DRIVER || '').trim().toLowerCase()
   if (choice === 'fixed') {
     const endpoint = (env.BROWSER_POD_ENDPOINT || '').trim()
+    /*
+     * The three that make a restart possible. The environment is the one the
+     * broker itself runs in (Railway sets RAILWAY_ENVIRONMENT_ID); the service
+     * is the POD's, which is somebody else's service, so it must be named.
+     */
+    const ref = {
+      token: (env.RAILWAY_API_TOKEN || '').trim(),
+      serviceId: (env.BROWSER_POD_SERVICE_ID || '').trim(),
+      environmentId: (
+        env.BROWSER_POD_ENVIRONMENT_ID ||
+        env.RAILWAY_ENVIRONMENT_ID ||
+        ''
+      ).trim(),
+      /* Only so a test never reaches the real API. */
+      ...((env.RAILWAY_API || '').trim()
+        ? { api: (env.RAILWAY_API || '').trim() }
+        : {}),
+    }
+    const canRestart = !!(ref.token && ref.serviceId && ref.environmentId)
     /* Configured as "fixed" with nowhere to point is not configured. */
     return endpoint
       ? fixedDriver({
           endpoint,
           cdpEndpoint: (env.BROWSER_POD_CDP || '').trim(),
+          ...(canRestart ? { restartService: () => railwayRestart(ref) } : {}),
           viewPassword:
             (env.BROWSER_POD_VIEW_PASSWORD || '').trim() || undefined,
           adminPassword:

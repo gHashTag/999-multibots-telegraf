@@ -35,6 +35,7 @@ import { askForInput, asKind, optionsFor, waitForAnswer } from './input-request'
  */
 
 import type { AgentTool, ToolContext } from '../agent/tools'
+import { playbookFor } from './sign-in'
 import {
   ensureApprovals,
   askFor,
@@ -66,7 +67,7 @@ import {
   pageUrl,
 } from './cdp'
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
-import { LOGINS_NOTE, loginsOfPerson } from './logins'
+import { LOGINS_NOTE, NETWORKS, loginsOfPerson } from './logins'
 import {
   chosenFront,
   forgetFront,
@@ -321,14 +322,18 @@ const POLL_MS = 2_000
 
 const TOOLS_UNJOURNALED: AgentTool[] = [
   {
+    /*
+     * The prose was cut on 2026-09-26 to pay for browser_sign_in inside the
+     * same pinned budget (provider.test.ts): this was the longest description
+     * in the compact kit. Nothing it said was dropped -- the list of
+     * irreversible acts became three examples, and the rule stayed.
+     */
     name: 'browser_ask_permission',
     description:
-      'СПРОСИ РАЗРЕШЕНИЯ, прежде чем сделать в браузере то, что нельзя отменить: ' + // cyrillic-ok
-      'отправить письмо или сообщение, заплатить, удалить, изменить настройки ' + // cyrillic-ok
-      'аккаунта, выдать кому-то доступ. Человек получит две кнопки в Telegram. ' + // cyrillic-ok
-      'Опиши ОДНИМ предложением, что именно произойдёт, и словами человека, а не ' + // cyrillic-ok
-      'своими: «отправить письмо Ивану со счётом на 12 000». Пока ответа нет — ' + // cyrillic-ok
-      'не делай этого действия.', // cyrillic-ok
+      'СПРОСИ РАЗРЕШЕНИЯ на то, что нельзя отменить: отправить, заплатить, ' + // cyrillic-ok
+      'удалить, изменить аккаунт. Человек получит две кнопки в Telegram. ' + // cyrillic-ok
+      'ОДНИМ предложением и его словами: «отправить письмо Ивану со счётом на ' + // cyrillic-ok
+      '12 000». Пока ответа нет — не делай.', // cyrillic-ok
     parameters: {
       type: 'object',
       properties: {
@@ -602,6 +607,62 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
           .map(n => n.name),
         note: LOGINS_NOTE,
       }
+    },
+  },
+  {
+    /*
+     * THE SIGN-IN PLAYBOOK, ASKED FOR RATHER THAN REMEMBERED.
+     *
+     * Measured 2026-09-24..26: five attempts to sign the owner into Upwork,
+     * ~110 s each, none of which became a login, because every attempt started
+     * from nothing -- `LOGINS_NOTE` said "follow the sign-in playbook" and no
+     * playbook existed. This tool IS it: the door, the order, the two rules
+     * that must not bend, and what earlier presses on this very site taught us
+     * (browser_recipes). It opens nothing and presses nothing, so it is cheap
+     * to call first, and the second sign-in to a site is the fast one.
+     *
+     * WHY THE DESCRIPTION IS THIS SHORT. The compact kit's budget is pinned by
+     * a test (provider.test.ts), with the rule that a new tool earns its place
+     * out of prose and not out of the ceiling. The plan this returns carries
+     * its own steps and rules, so the description only has to say when to ask
+     * for it.
+     */
+    name: 'browser_sign_in',
+    description:
+      'Sign-in plan for ONE network (x, linkedin, instagram, google, tiktok, vk, github, ' +
+      'upwork, hh): the sign-in page, the step order, what earlier presses learned. Call it ' +
+      'FIRST; opens nothing. Every secret the person types.',
+    parameters: {
+      type: 'object',
+      properties: {
+        network: { type: 'string', description: 'network id or name' },
+      },
+      required: ['network'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const q = ctx.pool as unknown as Queryable
+      const asked = String(args.network ?? '')
+      const plan = await playbookFor(
+        q,
+        asked,
+        await loginsOfPerson(q, ctx.telegramId)
+      )
+      if (!plan) {
+        return {
+          ok: false,
+          why: `no network called "${asked}" is known here`,
+          known: NETWORKS.map(n => n.id),
+        }
+      }
+      if (plan.state === 'signed_in') {
+        return {
+          ok: true,
+          ...plan,
+          note: 'already signed in: do nothing, and say so. A second sign-in can log the first one out.',
+        }
+      }
+      return { ok: true, ...plan }
     },
   },
   {

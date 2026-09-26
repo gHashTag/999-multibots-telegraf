@@ -196,8 +196,10 @@ export function loginsOf(
 export const LOGINS_NOTE =
   'A login cookie means the browser holds a login, not that the site still honours it: ' +
   'browser_open on the site is the proof. unknown = this network keeps its login where ' +
-  'we cannot tell; open it to see. To connect one, open its sign-in page and follow the ' +
-  'sign-in playbook: the person types passwords and codes themselves (browser_ask_input).'
+  'we cannot tell; open it to see. To connect one, call browser_sign_in with that network ' +
+  'FIRST -- it gives you the sign-in page, the order of steps and what earlier attempts on ' +
+  'that site learned -- then follow it. The person types every password and code themselves ' +
+  '(browser_ask_input); you never type one.'
 
 export interface LoginsIo {
   wsUrl: (endpoint: string) => Promise<string>
