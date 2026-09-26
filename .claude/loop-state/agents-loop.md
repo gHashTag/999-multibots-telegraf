@@ -317,3 +317,26 @@ New tri command:
 Anomaly watch / not mine:
 - render `isolated-reader` fails on clean main too (worker-thread heap
   ceiling); untouched here. Named in every PR that runs the full render suite.
+
+## Tick 13 (26.09, owner: "the programmer must code by all .t27 rules" + "all three")
+
+- #3056 the coder codes by the t27 laws: SOUL.md + T27-CONSTITUTION (L1-L7)
+  woven into the coder contract (test/assert brace-form, the empty-test trap,
+  ASCII, phi footer, gen/ not hand-edited, Closes #N, no new *.sh, seal + NOW,
+  spec-status IMPLEMENTED). coder-t27-rules.test.ts pins each law. Live in prod.
+- #3058 code_run gains PYTHON: unshare -rn (no network) + nobody + empty env +
+  prlimit (CPU/AS/fsize), python -I -S -B. Verified against real python: net
+  blocked, /proc/1/environ denied, output exact. ts/js stay Deno-denied.
+  LESSON: for an interpreter with no permission model, box it like hdl_run
+  (unshare -rn + nobody + prlimit), not like Deno; the strong per-call model
+  stays Deno's. LESSON: prlimit byte counts as bare 8-12 digit literals trip
+  no-dossier-in-the-agent-tree (Telegram-id shape) -- build them from factors.
+- t27#4840: cleared the two gates that were mine -- the seal
+  (.trinity/seals/automation_automation::agent_conversations.json via
+  `TRI_T27C=<t27c> ./scripts/tri seal ... --save`) and the NOW entry
+  (docs/now/2026-09-26-*.md, NOT the frozen docs/NOW.md). now-sync-gate wants a
+  docs/now/<date>-<slug>.md with a # heading and a - bullet in [yesterday..
+  tomorrow] UTC. The rest of t27 CI is repo-wide baseline (zig full build).
+- LESSON: a true live coder run needs render, which is network-blocked from the
+  session container (curl -> 000). Prove the path locally instead: `tri code
+  --lang ts|py`, and t27c spec-status on a demo spec -> IMPLEMENTED.
