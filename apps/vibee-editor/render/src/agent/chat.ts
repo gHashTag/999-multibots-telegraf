@@ -80,6 +80,9 @@ const MAX_STEPS = 8
  * confused with "the model failed", which is what a bare abort used to look
  * like from every side.
  */
+/** The owner's img2img source (docs/brand/club-reel-noir.md), pin ▽ from birth. */
+const OWNER_NOIR_PORTRAIT = 'https://app.t27.ai/brand/owner-noir-portrait.jpg' // app-link-ok: an image source handed to image_edit, not a link a person opens
+
 export const ABORTED_BY_CALLER = 'ход прерван: вызывающий отключился' // cyrillic-ok
 
 /**
@@ -691,8 +694,9 @@ export async function clientBriefBlock(
   const parts: string[] = []
   let name: string | null = null
   try {
-    const { clientProfileFor, profileForPrompt } =
-      await import('./crm-client-setup-tool')
+    const { clientProfileFor, profileForPrompt } = await import(
+      './crm-client-setup-tool'
+    )
     // The profile belongs to the owner; ask as the owner, whoever is calling.
     const p = await clientProfileFor(
       { ...ctx, telegramId: owner } as ToolContext,
@@ -797,8 +801,9 @@ export async function clientContextBlock(
   // The client's group, when the owner bound one: where the agent may post
   // beside the DM, by the same card-and-press rule (crm-client-group.ts).
   try {
-    const { clientGroupFor, clientGroupLine } =
-      await import('./crm-client-group')
+    const { clientGroupFor, clientGroupLine } = await import(
+      './crm-client-group'
+    )
     const line = clientGroupLine(
       await clientGroupFor(ctx.pool as never, owner, lead)
     )
@@ -955,7 +960,7 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
 - Готовые шаблоны рилсов смотри через templates_list: собрать по шаблону быстрее и дешевле, чем выдумывать сборку с нуля. ${'' /* cyrillic-ok: prompt copy */}
 - РИЛС-ИСТОРИЯ (формат владельца, постоянный шаблон) — ОДНИМ вызовом story_reel {image_url, scenes: [{setting, line}], style, cta, for_lead}: ${'' /* cyrillic-ok: prompt copy */}
   3 сцены в ОДНОМ стиле, обстановка новая в КАЖДОЙ, в первой тоже (фон исходника не повторять); реплики по 2–4 с, последняя — призыв; в конце пауза 3 с с надписью cta; весь ролик до 15 с (сторис). ${'' /* cyrillic-ok: prompt copy */}
-  Для владельца: image_url — его эталон https://app.t27.ai/brand/owner-noir-portrait.jpg, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента — его фото с лицом и for_lead (его голос). ${'' /* cyrillic-ok: prompt copy */}
+  Для владельца: image_url — его эталон ${OWNER_NOIR_PORTRAIT}, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента — его фото с лицом и for_lead (его голос). ${'' /* cyrillic-ok: prompt copy */}
   Бот в речи — одно слово «Тринити», без букв и цифр. Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
 - Режим AUTO: autopilot_status говорит, включён ли он, до какого часа и сколько автоотправок осталось сегодня. Включённый AUTO значит, что подготовленные карточки уходят клиенту сами. Включает и выключает его САМ владелец — кнопкой AUTO прямо над этим чатом, во вкладке «Браузер», в CRM или в боте; тебе этот переключатель не дан, и просьбу включить его словами выполняй так: скажи, где кнопка. ${'' /* cyrillic-ok: prompt copy */}
 ${WEB_RULES}
