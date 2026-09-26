@@ -145,9 +145,9 @@ const settle = () =>
   })
 
 function type(text: string) {
-  const input = host.querySelector<HTMLInputElement>('input.chat-input')!
+  const input = host.querySelector<HTMLTextAreaElement>('textarea.chat-input')!
   const setter = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
+    HTMLTextAreaElement.prototype,
     'value'
   )!.set!
   setter.call(input, text)

@@ -58,6 +58,10 @@ export const AVATAR_STYLES: Readonly<Record<string, string>> = {
   rtl:
     'Digital design engineer: glowing timing-diagram waveforms and a gate-level ' +
     'schematic projected around them, dark room, amber monitor light.',
+  coder:
+    'Coding scientist at a terminal: monospaced code and program output ' +
+    'glowing on a dark screen, a small brass triangle desk ornament, cool ' +
+    'green-on-black light, calm and precise.',
 }
 
 /** The full prompt for one agent's avatar, or null for an unknown one. Pure. */

@@ -161,3 +161,16 @@
   text-decoration: underline;
   font: inherit;
 }
+
+/* The profession's workbench panel (owner, 2026-09-26). */
+.agent-dash__bench-tool {
+  font-weight: 600;
+}
+.agent-dash__bench-ran--yes {
+  color: var(--ok, #48c774);
+  font-weight: 400;
+}
+.agent-dash__bench-ran--no {
+  color: var(--text-muted, #9aa);
+  font-weight: 400;
+}

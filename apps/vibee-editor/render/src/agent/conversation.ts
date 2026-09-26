@@ -93,6 +93,163 @@ export function marketplaceAgentThread(agentId: string): string {
   return `agent:${agentId}`
 }
 
+/**
+ * SEVERAL CONVERSATIONS WITH ONE AGENT (owner, 2026-09-26: "so I can keep
+ * several chats going").
+ *
+ * The person's own thread and each specialist's thread used to be ONE
+ * conversation forever: a second task meant clearing the first. A
+ * conversation is the base thread plus `~<id>` -- `self~k3x9`,
+ * `agent:rtl~a1b2` -- so every existing turn stays where it is (the base
+ * thread is the first conversation) and nothing is migrated.
+ *
+ * Only the person's own thread and a specialist's split: a client's thread is
+ * one conversation about one person, and a room's belongs to the room.
+ *
+ * Spec: t27 specs/automation/agent-conversations.t27 -- the gate order
+ * (base thread first, then the id), which threads split, and one stream per
+ * conversation, all as compiler-checked assertions.
+ */
+export const CONVERSATION_RE = /^[a-z0-9]{4,24}$/
+export const CONVERSATION_SEP = '~'
+
+export function conversationThread(base: string, conversation: string): string {
+  return `${base}${CONVERSATION_SEP}${conversation}`
+}
+
+/** A thread that may be split into conversations. Pure. */
+export function splittable(thread: string): boolean {
+  if (thread.includes(CONVERSATION_SEP)) return false
+  return thread === SELF_THREAD || /^agent:[a-z0-9_-]+$/.test(thread)
+}
+
+export interface ConversationRow {
+  /** null for the base thread: the conversation that was there first. */
+  conversation: string | null
+  title: string | null
+  turns: number
+  lastAt: string
+  preview: string
+}
+
+const TITLE_MAX = 80
+const PREVIEW_MAX = 140
+
+let titlesReady = false
+async function ensureTitles(
+  pool: Пул // cyrillic-ok: pre-existing pool type
+): Promise<void> {
+  if (titlesReady) return
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS agent_conversation_titles (
+       telegram_id text NOT NULL,
+       thread text NOT NULL,
+       title text NOT NULL,
+       PRIMARY KEY (telegram_id, thread)
+     )`
+  )
+  titlesReady = true
+}
+
+export function forgetTitlesTableForTests(): void {
+  titlesReady = false
+}
+
+const oneLine = (text: string, max: number): string => {
+  const flat = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat
+}
+
+/**
+ * The conversations under one base thread, most recent first. The title is
+ * the one the person gave, else the first thing they asked there.
+ */
+export async function listConversations(
+  pool: Пул, // cyrillic-ok: pre-existing type name
+  telegramId: string,
+  base: string,
+  limit = 50
+): Promise<ConversationRow[]> {
+  if (!telegramId || !splittable(base)) return []
+  await убедитьсяВТаблице(pool) // cyrillic-ok: pre-existing function name
+  await ensureTitles(pool)
+  const prefix = `${base}${CONVERSATION_SEP}`
+  const r = await pool.query(
+    `SELECT thread, count(*)::int AS turns, max(created_at)::text AS last_at,
+            (array_agg(content ORDER BY id) FILTER (WHERE role = 'user'))[1] AS first_user,
+            (array_agg(content ORDER BY id DESC))[1] AS last_text
+       FROM agent_messages
+      WHERE telegram_id = $1
+        AND (thread = $2 OR left(thread, length($3)) = $3)
+      GROUP BY thread
+      ORDER BY max(id) DESC
+      LIMIT $4`,
+    [String(telegramId), base, prefix, Math.max(1, Math.min(200, limit))]
+  )
+  const titles = await pool.query(
+    `SELECT thread, title FROM agent_conversation_titles
+      WHERE telegram_id = $1 AND (thread = $2 OR left(thread, length($3)) = $3)`,
+    [String(telegramId), base, prefix]
+  )
+  const named = new Map<string, string>(
+    (titles.rows || []).map(t => [String(t.thread), String(t.title)])
+  )
+  return (r.rows || []).map(row => {
+    const thread = String(row.thread)
+    const conversation =
+      thread === base ? null : thread.slice(prefix.length) || null
+    const first = row.first_user
+      ? oneLine(String(row.first_user), TITLE_MAX)
+      : ''
+    return {
+      conversation,
+      title: named.get(thread) ?? (first || null),
+      turns: Number(row.turns) || 0,
+      lastAt: String(row.last_at || ''),
+      preview: oneLine(String(row.last_text || ''), PREVIEW_MAX),
+    }
+  })
+}
+
+/** Name a conversation; an empty name goes back to the first question. */
+export async function renameConversation(
+  pool: Пул, // cyrillic-ok: pre-existing type name
+  telegramId: string,
+  thread: string,
+  title: string
+): Promise<void> {
+  await ensureTitles(pool)
+  const name = oneLine(title, TITLE_MAX)
+  if (!name) {
+    await pool.query(
+      `DELETE FROM agent_conversation_titles WHERE telegram_id = $1 AND thread = $2`,
+      [String(telegramId), thread]
+    )
+    return
+  }
+  await pool.query(
+    `INSERT INTO agent_conversation_titles (telegram_id, thread, title)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (telegram_id, thread) DO UPDATE SET title = EXCLUDED.title`,
+    [String(telegramId), thread, name]
+  )
+}
+
+/** A deleted conversation takes its name with it. */
+export async function forgetConversationTitle(
+  pool: Пул, // cyrillic-ok: pre-existing type name
+  telegramId: string,
+  thread: string
+): Promise<void> {
+  await ensureTitles(pool)
+  await pool.query(
+    `DELETE FROM agent_conversation_titles WHERE telegram_id = $1 AND thread = $2`,
+    [String(telegramId), thread]
+  )
+}
+
 export interface Реплика {
   /*
    * НОМЕР ОТДАЁТСЯ КЛИЕНТУ, иначе удаление одной реплики невозможно.

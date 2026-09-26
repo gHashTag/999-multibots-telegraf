@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
-import { agentMessagesAtomFor, agentDraftAtom } from '@/atoms/agentChat'
+import { agentMessagesAtomFor, agentDraftAtomFor } from '@/atoms/agentChat'
 import {
   sendOrQueue,
-  agentBusyAtom,
+  agentBusyThreadsAtom,
   agentQueueAtom,
   isAgentBusy,
   removeQueued,
@@ -40,6 +40,9 @@ import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { useEarnedAgent } from '@/hooks/useAgentAcceptance'
 import { AgentSkillsPanel } from '@/components/Chat/AgentSkillsPanel'
 import { ClientHelperPicker } from '@/components/Chat/ClientHelperPicker'
+import { ConversationRail } from '@/components/Chat/ConversationRail'
+import { stopAgent, threadKeyOf } from '@/lib/agentStream'
+import { isConversationId, newConversationId } from '@/lib/conversations'
 import { AGENT_SUGGESTIONS, agentGate } from './agentSuggestions'
 import './Chat.css'
 
@@ -181,10 +184,60 @@ function ChatPage() {
   const marketplaceAgent = gate === 'market' ? null : gate
   if (agentId && !marketplaceAgent) return <Navigate to="/agents" replace />
   return (
+    <ChatWithConversation client={client} marketplaceAgent={marketplaceAgent} />
+  )
+}
+
+/**
+ * WHICH OF SEVERAL CONVERSATIONS IS OPEN (owner, 2026-09-26).
+ *
+ * The own thread and a specialist's split into conversations, named by `?c=`
+ * in the URL so a chat can be linked and the back button moves between them.
+ * A client's thread does not split -- it is one conversation about one
+ * person -- so no `?c=` is read there. The conversation id keys the inner
+ * component so switching remounts it: the history fetch and greeting run for
+ * the conversation now open.
+ */
+function ChatWithConversation({
+  client,
+  marketplaceAgent,
+}: {
+  client: string | null
+  marketplaceAgent: string | null
+}) {
+  const [params, setParams] = useSearchParams()
+  const splits = !client
+  const raw = params.get('c')
+  const conversation = splits && isConversationId(raw) ? raw : null
+
+  const openConversation = useCallback(
+    (next: string | null) => {
+      setParams(
+        prev => {
+          const p = new URLSearchParams(prev)
+          if (next) p.set('c', next)
+          else p.delete('c')
+          return p
+        },
+        { replace: false }
+      )
+    },
+    [setParams]
+  )
+  const startNew = useCallback(
+    () => openConversation(newConversationId()),
+    [openConversation]
+  )
+
+  return (
     <ChatThread
-      key={client ?? marketplaceAgent ?? 'self'}
+      key={client ?? `${marketplaceAgent ?? 'self'}~${conversation ?? 'base'}`}
       client={client}
       marketplaceAgent={marketplaceAgent}
+      conversation={conversation}
+      splits={splits}
+      onOpenConversation={openConversation}
+      onNewConversation={startNew}
     />
   )
 }
@@ -193,28 +246,47 @@ function ChatPage() {
 const threadQuery = (
   client: string | null,
   marketplaceAgent: string | null,
+  conversation: string | null,
   first: boolean
 ) => {
-  const key = client ? 'client' : marketplaceAgent ? 'agent' : null
-  const value = client || marketplaceAgent
-  return key && value
-    ? `${first ? '?' : '&'}${key}=${encodeURIComponent(value)}`
-    : ''
+  const parts: string[] = []
+  if (client) parts.push(`client=${encodeURIComponent(client)}`)
+  else if (marketplaceAgent)
+    parts.push(`agent=${encodeURIComponent(marketplaceAgent)}`)
+  if (conversation)
+    parts.push(`conversation=${encodeURIComponent(conversation)}`)
+  return parts.length ? `${first ? '?' : '&'}${parts.join('&')}` : ''
 }
 
 function ChatThread({
   client,
   marketplaceAgent,
+  conversation,
+  splits,
+  onOpenConversation,
+  onNewConversation,
 }: {
   client: string | null
   marketplaceAgent: string | null
+  conversation: string | null
+  splits: boolean
+  onOpenConversation: (conversation: string | null) => void
+  onNewConversation: () => void
 }) {
   const { t, lang } = useLanguage()
+  const [railOpen, setRailOpen] = useState(false)
+  // The stream key of this exact conversation: Stop and "is this one busy"
+  // read it, so one chat answering never speaks for another.
+  const threadKey = threadKeyOf({
+    client,
+    agent: marketplaceAgent,
+    conversation,
+  })
   // Переписка и черновик — в атомах с хранилищем, а не в useState: страница
   // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
   const messagesAtom = useMemo(
-    () => agentMessagesAtomFor(client, marketplaceAgent),
-    [client, marketplaceAgent]
+    () => agentMessagesAtomFor(client, marketplaceAgent, conversation),
+    [client, marketplaceAgent, conversation]
   )
   const [messages, setMessages] = useAtom(messagesAtom)
   const specialist = marketplaceAgent
@@ -230,7 +302,8 @@ function ChatThread({
     const h = params.get('helper')
     return client && h && marketplaceAgentById(h) ? h : null
   })
-  const [input, setInput] = useAtom(agentDraftAtom)
+  const draftAtom = useMemo(() => agentDraftAtomFor(threadKey), [threadKey])
+  const [input, setInput] = useAtom(draftAtom)
   // The greeting of a client thread is short and names the client: the long
   // self greeting sells the agent, which the owner has already bought.
   const welcome: Message = useMemo(
@@ -246,17 +319,22 @@ function ChatThread({
           : WELCOME,
     [client, marketplaceAgent, t]
   )
-  // Занятость — в атоме: она принадлежит разговору, а не странице.
-  const busy = useAtomValue(agentBusyAtom)
+  // Busy lives in an atom, not the page. Read the busy state of THIS
+  // conversation only: several chats answer at once, and one chat's typing
+  // indicator must not light up in another.
+  const busy = useAtomValue(agentBusyThreadsAtom).includes(threadKey)
   // Only this thread's queued lines: a queue item remembers its thread.
   const queued = useAtomValue(agentQueueAtom).filter(
     q =>
       (q.options.client ?? null) === client &&
       // A client's line belongs here whichever specialist it was sent to.
-      (client !== null || (q.options.agent ?? null) === marketplaceAgent)
+      (client !== null ||
+        ((q.options.agent ?? null) === marketplaceAgent &&
+          (q.options.conversation ?? null) === conversation))
   )
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [topUp, setTopUp] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
   // Narrow mode: the client's card as a sheet over the conversation.
   const [asideOpen, setAsideOpen] = useState(false)
   // The Queen's panel: a column on a wide screen, a sheet otherwise.
@@ -313,7 +391,7 @@ function ChatThread({
         return
       }
       fetch(
-        `${API_BASE}/api/agent/history?limit=100${threadQuery(client, marketplaceAgent, false)}`,
+        `${API_BASE}/api/agent/history?limit=100${threadQuery(client, marketplaceAgent, conversation, false)}`,
         {
           headers: authHeaders(),
         }
@@ -394,12 +472,22 @@ function ChatThread({
         // In a client's thread the agent is the specialist called in to
         // help (ClientHelperPicker); elsewhere it is the thread's own agent.
         agent: client ? helper : marketplaceAgent,
+        // One of several conversations, when this thread splits into them.
+        conversation,
       })
       setInput('')
       setAttachments([])
       setAttachmentError(null)
     },
-    [attachments, client, helper, marketplaceAgent, setInput, uploading]
+    [
+      attachments,
+      client,
+      conversation,
+      helper,
+      marketplaceAgent,
+      setInput,
+      uploading,
+    ]
   )
 
   /*
@@ -407,6 +495,34 @@ function ChatThread({
    * answer's cards can be pressed, and not while the agent is still
    * answering; a press is sent as the person's own message.
    */
+  const copyText = useCallback(async (text: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(id)
+      window.setTimeout(() => setCopied(c => (c === id ? null : c)), 1500)
+    } catch {
+      // No clipboard (an old WebView, denied permission): nothing to do but
+      // leave the text selectable, which it already is.
+    }
+  }, [])
+
+  /*
+   * RETRY: send the question above this answer again. The last user message
+   * before the answer is resent, which starts a fresh answer after it -- the
+   * transcript keeps the first answer, so a retry never erases what came
+   * before it.
+   */
+  const retryFrom = useCallback(
+    (answerIdx: number) => {
+      for (let i = answerIdx - 1; i >= 0; i -= 1)
+        if (messages[i].role === 'user') {
+          send(messages[i].text)
+          return
+        }
+    },
+    [messages, send]
+  )
+
   let lastAnswer = -1
   messages.forEach((m, i) => {
     if (m.role === 'assistant') lastAnswer = i
@@ -496,6 +612,22 @@ function ChatThread({
         2026-09-24). In a row it starts where the conversation starts.
       */}
       <div className="chat-body">
+        {/*
+          SEVERAL CHATS (owner, 2026-09-26). The own thread and a specialist's
+          split into conversations; a client's thread does not, so the rail is
+          shown only where `splits` is true. It is a column on a wide screen
+          and a sheet on a phone (ConversationRail.css).
+        */}
+        {splits ? (
+          <ConversationRail
+            agent={marketplaceAgent}
+            current={conversation}
+            open={railOpen}
+            onClose={() => setRailOpen(false)}
+            onOpen={onOpenConversation}
+            onNew={onNewConversation}
+          />
+        ) : null}
         <div className="chat-main">
           {/* Бренд (знак + Trinity S³AI) уже стоит в Header выше — здесь его
           не повторяем, иначе название дублируется на экране дважды. */}
@@ -566,6 +698,29 @@ function ChatThread({
               </nav>
             ) : null}
             <div className="chat-toolbar">
+              {/* SEVERAL CHATS: open the list, and start a new one. Shown only
+              where the thread splits into conversations (not a client thread). */}
+              {splits ? (
+                <>
+                  <button
+                    type="button"
+                    className="chat-conv-btn chat-conv-toggle"
+                    aria-expanded={railOpen}
+                    data-testid="conv-toggle"
+                    onClick={() => setRailOpen(v => !v)}
+                  >
+                    ☰ {t('chat.conv.open')}
+                  </button>
+                  <button
+                    type="button"
+                    className="chat-conv-btn"
+                    data-testid="conv-new-top"
+                    onClick={onNewConversation}
+                  >
+                    + {t('chat.conv.new')}
+                  </button>
+                </>
+              ) : null}
               {/* Переписка теперь переживает уход со страницы — значит нужен и
           способ её закончить. Без этой кнопки старый разговор оставался
           бы на экране навсегда. */}
@@ -596,7 +751,7 @@ function ChatThread({
                     setInput('')
                     setAttachments([])
                     fetch(
-                      `${API_BASE}/api/agent/history${threadQuery(client, marketplaceAgent, true)}`,
+                      `${API_BASE}/api/agent/history${threadQuery(client, marketplaceAgent, conversation, true)}`,
                       {
                         method: 'DELETE',
                         headers: authHeaders(),
@@ -735,6 +890,29 @@ function ChatThread({
                       <div className="typing-dot" />
                     </div>
                   ) : null}
+                  {/* COPY, and RETRY on the last answer -- the two actions a
+                  chat is expected to have. Retry resends the question above
+                  this answer; shown only when nothing is being written. */}
+                  {m.text && !(m.role === 'assistant' && !m.text) ? (
+                    <div className="message-actions">
+                      <button
+                        type="button"
+                        className="message-action"
+                        onClick={() => void copyText(m.text, m.id)}
+                      >
+                        {copied === m.id ? t('chat.copied') : t('chat.copy')}
+                      </button>
+                      {m.role === 'assistant' && idx === lastAnswer && !busy ? (
+                        <button
+                          type="button"
+                          className="message-action"
+                          onClick={() => retryFrom(idx)}
+                        >
+                          ↻ {t('chat.retry')}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ))}
 
@@ -855,14 +1033,30 @@ function ChatThread({
               >
                 {uploading ? '…' : '+'}
               </button>
-              <input
-                type="text"
-                className="chat-input"
+              {/*
+               * A TEXTAREA, NOT A ONE-LINE INPUT. A task to the agent is a
+               * paragraph, and a single line hid all but its end. Enter sends,
+               * Shift+Enter is a new line -- the convention people already
+               * know from every chat; the hint under the field says so.
+               */}
+              <textarea
+                className="chat-input chat-input--area"
                 data-ai="off"
+                rows={1}
                 placeholder={t('chat.messagePlaceholder')}
                 value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && send(input)}
+                onChange={e => {
+                  setInput(e.target.value)
+                  // Grow with the text, up to the CSS max-height.
+                  e.target.style.height = 'auto'
+                  e.target.style.height = `${e.target.scrollHeight}px`
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    send(input)
+                  }
+                }}
                 onFocus={() => {
                   // The keyboard shrinks the list; keep the latest message in view.
                   window.setTimeout(() => {
@@ -872,16 +1066,30 @@ function ChatThread({
                   }, 350)
                 }}
               />
-              <button
-                className="send-btn"
-                onClick={() => send(input)}
-                disabled={
-                  uploading || (!input.trim() && attachments.length === 0)
-                }
-              >
-                {busy ? t('chat.queue.add') : t('chat.send')}
-              </button>
+              {/* While THIS conversation is answering, the send button becomes
+              Stop: it cuts this stream only (agentStream.stopAgent). */}
+              {busy ? (
+                <button
+                  type="button"
+                  className="send-btn send-btn--stop"
+                  data-testid="chat-stop"
+                  onClick={() => stopAgent(threadKey)}
+                >
+                  ⏹ {t('chat.stop')}
+                </button>
+              ) : (
+                <button
+                  className="send-btn"
+                  onClick={() => send(input)}
+                  disabled={
+                    uploading || (!input.trim() && attachments.length === 0)
+                  }
+                >
+                  {t('chat.send')}
+                </button>
+              )}
             </div>
+            <p className="chat-composer-hint">{t('chat.composer.hint')}</p>
           </div>
         </div>
         {/*
