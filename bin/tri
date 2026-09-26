@@ -58,6 +58,7 @@ tri — оболочка Trinity S³AI
   tri agent [id]  агент из каталога без сети: статус, навыки, префикс правил, ежедневная проверка, контракт
   tri hdl lint|sim|synth [--top имя] файлы  Verilog через тот же hdl_run, что у RTL/FPGA-агентов (песочница та же)
   tri code [--lang ts|js] файл  TS/JS через тот же code_run, что у агента-кодера (песочница Deno, все разрешения сняты)
+  tri spec check <файл.md>|new "<заголовок>"  возьмёт ли Королева issue из беклога: та же проверка спека (## Boundary + разделы), что у неё; new печатает готовый делегируемый шаблон
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
   tri stop [id]  прервать идущие ходы человека (дуэт и a2a — у них нет сокета)
   tri faces [id]  очередь продавца в том порядке, в каком её увидит обход: у кого есть лицо
@@ -1970,6 +1971,7 @@ PYEOF
   agent) shift; bash "$ROOT/bin/helpers/agent.sh" "$ROOT" "$@" ;;
   hdl) shift; bash "$ROOT/bin/helpers/hdl.sh" "$ROOT" "$@" ;;
   code) shift; bash "$ROOT/bin/helpers/code.sh" "$ROOT" "$@" ;;
+  spec) shift; (cd "$RENDER" && npx tsx scripts/spec-check.ts "$@") ;;
   alive)  shift; bash "$ROOT/bin/helpers/alive.sh" "$ROOT" "$@" ;;
   vs-main) shift; bash "$ROOT/bin/helpers/vs-main.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
