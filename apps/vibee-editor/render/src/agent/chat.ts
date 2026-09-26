@@ -68,6 +68,7 @@ import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
 import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
+import { stopRequested } from './agent-stops'
 
 const MAX_STEPS = 8
 
@@ -318,8 +319,11 @@ const WEB_RULES =
 /**
  * BUTTONS THE AGENT PROPOSES ITSELF.
  *
- * The owner asked that answers always arrive with something to press, so a
- * person can react without typing. The bot already renders `[[Label|act:id]]`
+ * The owner asked that answers arrive with something to press, so a person
+ * can react without typing. On 24.09.2026 he narrowed it: on the substance,
+ * not in every message. The bot's own standard set now appears only when the
+ * answer gives a reason (actionButtons.ts earnedButtons), which makes THIS
+ * instruction the main road rather than a garnish on a fixed row. The bot already renders `[[Label|act:id]]`
  * markers through `parseAgentButtons` and drops any id it cannot handle -- but
  * nothing ever told the AGENT that the syntax exists. The only prompt that knew
  * it was the bot's FALLBACK, the tool-less model used when this agent is down.
@@ -345,7 +349,41 @@ export const BUTTON_MARKERS =
   'человек сам не спросил про оплату. Другие id не работают и будут молча выброшены — не ' + // cyrillic-ok: prompt copy
   'выдумывай их. Подпись — до 40 символов, без символов ] и |. Не больше ' + // cyrillic-ok: prompt copy
   '4 маркеров. Кнопка нужна не всегда: ставь её, когда шаг реально ' + // cyrillic-ok: prompt copy
-  'есть, а не для украшения. Стандартные кнопки бот добавит и без тебя.' // cyrillic-ok: prompt copy
+  'есть, а не для украшения. Готового набора под каждым ответом БОЛЬШЕ НЕТ: ' + // cyrillic-ok: prompt copy
+  'бот добавит кнопку сам только если ответ сам о ней говорит (не хватает ' + // cyrillic-ok: prompt copy
+  'токенов, баланс, не получилось, приложение). Нужен шаг — предложи его сам.' // cyrillic-ok: prompt copy
+
+/**
+ * A CHOICE THE CLIENT TAPS, IN THEIR OWN CHAT.
+ *
+ * Owner, 2026-09-24: "offer her different looks right in the chat", and make
+ * the work there as comfortable as it can be. An open question ("which style
+ * would you like?") asks a person to compose a sentence; three taps ask
+ * nothing, and a person on a phone answers taps.
+ *
+ * Only on the business surface, and the reason is mechanical: there the bot
+ * answers AS THE OWNER, where Telegram allows url buttons alone. Each option
+ * becomes a deep link into the bot (`?start=look_<n>`), which opens INSIDE
+ * Telegram -- the one shape that works on his phone -- and lands the person
+ * where the full service lives. In the bot's own chat the `act:` vocabulary
+ * already covers what has handlers, so this section would only invite markers
+ * that nothing there reads.
+ *
+ * The NUMBER travels, not the label: a look description does not fit in a
+ * 64-character payload. What option 2 was is read back from this very
+ * conversation, so the options must be written out in the answer too -- a
+ * button whose meaning exists only inside a marker is a button nobody can
+ * make sense of in the chat history.
+ */
+export const LOOK_MARKERS =
+  '\n\nВЫБОР ОДНИМ НАЖАТИЕМ. Если уместно предложить человеку варианты — ' + // cyrillic-ok: prompt copy
+  'например образы для портрета, темы, форматы — НЕ задавай открытый вопрос. ' + // cyrillic-ok: prompt copy
+  'Перечисли их в тексте пронумерованно (1., 2., 3.) и в конце поставь по ' + // cyrillic-ok: prompt copy
+  'маркеру на каждый: [[Короткая подпись|look:1]], [[…|look:2]]. Номер в ' + // cyrillic-ok: prompt copy
+  'маркере обязан совпадать с номером в тексте. До четырёх вариантов, ' + // cyrillic-ok: prompt copy
+  'подпись до 40 символов, без ] и |. Маркеры человек не видит — он видит ' + // cyrillic-ok: prompt copy
+  'кнопки. Варианты предлагай, только когда они настоящие: украшать ответ ' + // cyrillic-ok: prompt copy
+  'кнопками не надо.' // cyrillic-ok: prompt copy
 
 /**
  * CARDS THE AGENT PROPOSES IN THE APP (owner, 2026-09-22: "steer the agent by
@@ -1365,7 +1403,13 @@ export function systemPrompt(
       ? BUTTON_MARKERS
       : surface === 'miniapp'
         ? CARD_MARKERS
-        : ''
+        : /*
+           * The client's DM gets its own kind: url-only buttons there, so the
+           * options are deep links rather than callbacks (LOOK_MARKERS).
+           */
+          surface === 'business'
+          ? LOOK_MARKERS
+          : ''
   /*
    * Not for the unattended sweep: it must call tools, not explain itself to
    * nobody. Everything else -- the bot, the business DM, the mini app -- is a
@@ -2062,6 +2106,7 @@ export async function* runAgent(
    */
   ctx = clientTurnContext(ctx, opts)
   const turnId = ctx.turn ?? randomUUID().slice(0, 8)
+  /** When THIS run began. A stop written before it is about another run. */
   const turnStartedAt = Date.now()
   let toolCallCount = 0
   /*
@@ -2522,6 +2567,24 @@ export async function* runAgent(
   for (let step = 0; step < MAX_STEPS; step++) {
     if (opts?.signal?.aborted) {
       logTurnEnd('aborted', `caller left before step ${step + 1}`)
+      return
+    }
+    /*
+     * A STOP FOR THE TURNS NOBODY IS HOLDING A SOCKET FOR.
+     *
+     * The check above is the usual one: the caller hung up, its fetch
+     * aborted, and the signal says so. It covers every turn a person is
+     * WAITING on -- and no others. The duet writes into a chat of its own;
+     * an a2a call arrives over one request and leaves the run behind it.
+     * There is no socket to close, so the press had nothing to reach.
+     *
+     * So the press is also WRITTEN DOWN, and the run asks between steps
+     * whether one was written since it began. It is one indexed read per
+     * step, at most eight per turn, and it cannot throw: see agent-stops.ts
+     * for why an unreadable flag must mean "no stop".
+     */
+    if (await stopRequested(ctx.pool, ctx.telegramId, turnStartedAt)) {
+      logTurnEnd('aborted', `owner stopped before step ${step + 1}`)
       return
     }
     let assistant: any = null

@@ -53,7 +53,24 @@ tri — оболочка Trinity S³AI
   tri secret NAME  положить секрет в Railway скрытым вводом — значение не проходит через чат
   tri traffic [дни]  откуда приходят люди, по каналам (utm_source), по умолчанию 30 дней
   tri reach /путь [метод]  пропустит ли замок рендера вызов без подписи (isPublic)
+  tri bare-fetch  вызовы приложения без подписи, которые упрутся в замок рендера (401 до обработчика)
+  tri tag URL канал [кампания]  ссылка с меткой канала: utm на наших страницах, __канал в /start нашего бота
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
+  tri stop [id]  прервать идущие ходы человека (дуэт и a2a — у них нет сокета)
+  tri faces [id]  очередь продавца в том порядке, в каком её увидит обход: у кого есть лицо
+  tri writers <колонка>  кто ПИШЕТ то, что читает код: может ли писатель не сработать ни разу
+  tri wake <модуль>  что проверить ПЕРЕД подключением мёртвого модуля: unknown как «нет», фикстуры
+  tri swallow  где сбой неотличим от честного пустого ответа (форма 185)
+  tri layout [селектор]  как замерить высоту ДО и ПОСЛЕ правки верстки (форма 186)
+  tri touch  какие кнопки меньше 44px под палец, и как чинить без двух ловушек (форма 190)
+  tri blank  как найти экран, который не нарисовал ничего и молчит об этом (форма 194)
+  tri halfdone <файл>  где защита написана для одного элемента, а нужна соседям (форма 187)
+  tri family <Компонент> [признак]  кто ещё в семье и до кого лекарство не дошло (форма 191)
+  tri owed  храповики долга в тестах: сколько мест ещё ждёт правила (форма 192)
+  tri logonly  обработчики, которые только пишут в лог и ничего не чинят (форма 195)
+  tri byload [каталог] [тест]  падает от кода или от ЗАГРУЗКИ машины: три прогона, три числа (форма 188)
+  tri types  типы плеера ПО-НАСТОЯЩЕМУ: доказывает, что проверка не слепа (форма 196)
+  tri gates  как проверить сами шлюзы заведомым нарушением (формы 196-197)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
@@ -123,6 +140,7 @@ tri — оболочка Trinity S³AI
   tri auto       включён ли режим AUTO: до какого часа и сколько автоотправок осталось
   tri outcomes [дней]  сколько ушло без тебя: авто, твоей кнопкой, отменено, обходы
   tri contracts  слова, которыми службы договариваются: кто говорит, а кого не слышат
+  tri dead       модули, которые никто не импортирует: написано и не включено
   tri inflight   что в работе: открытые PR, рабочие деревья, диск, последние выкатки
   tri session    сессии: срок жизни, ротация, обнаружение повторного использования
   tri pairing    вход по коду: длина, срок, попытки — и совпадают ли клиенты с сервером
@@ -1220,6 +1238,517 @@ PYEOF
       node "$ROOT/scripts/commands-answered.cjs" "$@"
     ;;
 
+  dead)
+    # A MODULE NOTHING IMPORTS IS A FEATURE NOBODY SWITCHED ON.
+    #
+    # Named `dead`, not `orphans`: that word is taken by the invoice orphans
+    # above, and a second arm with the same name is unreachable -- the first
+    # case wins, silently, which is how this very command printed somebody
+    # else's report on its first run.
+    # Measured on my own work: two modules shipped with passing tests and no
+    # caller at all -- and a green suite on a dead module looks exactly like a
+    # green suite on a live one. Matches an IMPORT of the exact specifier,
+    # including the dynamic `import('@/services/x')` this repository uses for
+    # half its services; a matcher blind to that called fifteen live modules
+    # dead in its first run.
+    shift
+    node "$ROOT/scripts/orphan-modules.cjs" "$@"
+    ;;
+
+  stop)
+    # STOP A TURN NOBODY IS HOLDING A SOCKET FOR, WITHOUT THE PHONE.
+    #
+    # The button in the bot aborts a fetch, which reaches the turn the person
+    # is watching and nothing else: a duet turn writes into a chat of its own
+    # and an a2a run outlives the request that started it. Both keep spending.
+    # This presses the same written stop the button now also writes -- running
+    # turns read it at their step boundary (render src/agent/agent-stops.ts).
+    #
+    # It stops runs that are ALREADY going. A stop written now says nothing
+    # about the next turn, by design: one press must not silence the seller.
+    shift
+    ID="${1:-144022504}"
+    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+           | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway link в корне копии"; exit 69; }
+    OUT=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+      "https://vibee-render-production.up.railway.app/api/agent/stop?telegram_id=$ID" \
+      -H "X-Api-Key: $KEY")
+    if [ "$OUT" = "200" ]; then
+      echo "записано: идущие ходы $ID прервутся на ближайшем шаге"
+    else
+      echo "рендер ответил $OUT — остановка НЕ записана"; exit 1
+    fi
+    ;;
+
+  faces)
+    # WHOSE FACE THE SELLER CAN ACTUALLY WORK FROM.
+    #
+    # The sweep's first action is a portrait, and a candidate with no face
+    # turns the whole sweep into "send me a photo" -- a card that displaces
+    # the portrait somebody further down would have got. This prints the
+    # queue as the brief will order it: known faces first, then the ones
+    # nobody has looked at yet. Read-only; it asks crm_leads and nothing else.
+    #
+    # Two answers, never three: 'unknown' means nobody has looked, NOT that
+    # the person has no photo. A count of unknowns is a to-do for the CRM
+    # screen (crm_client_avatars), not a verdict about those people.
+    shift
+    ID="${1:-144022504}"
+    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+           | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway link в корне копии"; exit 69; }
+    curl -s "https://vibee-render-production.up.railway.app/mcp" \
+      -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' \
+      -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"crm_leads\",\"arguments\":{\"limit\":15},\"telegram_id\":\"$ID\"}}" \
+      | node -e '
+        let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+          let j;try{j=JSON.parse(s)}catch{console.log(s.slice(0,300));process.exit(1)}
+          if(j.error){console.log("рендер:",j.error.message);process.exit(1)}
+          let t=j.result&&j.result.content&&j.result.content[0]&&j.result.content[0].text;
+          let d;try{d=JSON.parse(t)}catch{console.log(String(t).slice(0,300));process.exit(1)}
+          const c=d.candidates||[];
+          const yes=c.filter(x=>x.face==="yes"), unk=c.filter(x=>x.face!=="yes");
+          for(const x of yes) console.log("  лицо есть  ", x.display||x.lead, "next="+x.next);
+          for(const x of unk) console.log("  не смотрели", x.display||x.lead, "next="+x.next);
+          console.log(`\n${yes.length} с лицом, ${unk.length} ещё не смотрели (не «фото нет»).`);
+        })'
+    ;;
+
+  writers)
+    # WHO WRITES WHAT I READ -- and can that writer never run?
+    #
+    # A whole change can be correct, measured, mutation-checked and still do
+    # nothing, because the column it sorts by is filled only by a screen
+    # nobody opens. Prints every place a column is WRITTEN (tests excluded),
+    # so "two writers, both somebody else\'s decision" is visible before the
+    # work is built on it rather than a tick later.
+    shift
+    COL="${1:-}"
+    [ -z "$COL" ] && { echo "usage: tri writers <column>"; exit 64; }
+    echo "пишут $COL:"
+    grep -rn "SET $COL\|$COL = \|$COL=" --include="*.ts" "$ROOT/src" \
+         "$ROOT/apps/vibee-editor/render/src" 2>/dev/null \
+      | grep -viE "\.test\.|__tests__|SELECT|ADD COLUMN" | sed "s|$ROOT/||" | head -20
+    echo
+    echo "читают $COL:"
+    grep -rln "$COL" --include="*.ts" "$ROOT/src" \
+         "$ROOT/apps/vibee-editor/render/src" 2>/dev/null \
+      | grep -viE "\.test\.|__tests__" | sed "s|$ROOT/||" | head -12
+    echo
+    echo "Если писателей мало и каждый зависит от чужого решения — читатель"
+    echo "полагается на событие, которого может не быть (форма 180)."
+    echo "НИ ОДНОГО писателя — чаще всего поле ВЫЧИСЛЯЕМОЕ, а не сломанное"
+    echo "(intent_score считается из переписки). Прежде чем звать это дефектом,"
+    echo "проверь, колонка ли это вообще: grep \"<имя>:\" в источнике читателя."
+    ;;
+
+  wake)
+    # BEFORE WIRING A DEAD MODULE, READ IT AS SOMEBODY ELSE\'S CODE.
+    #
+    # A module with no caller has never run, so nothing in it has ever been
+    # wrong in production -- and its green tests may be green BECAUSE of the
+    # defect (fixtures written to match it). `groupDayPlan` would have told a
+    # real person, in a room full of their colleagues, that they have no
+    # profile, on a field nobody had filled: `!undefined` is true.
+    #
+    # This prints what to look at before the first caller exists: the optional
+    # fields read as booleans (the three-states trap, forms 178/180/184) and
+    # the tests that will need new fixtures.
+    shift
+    M="${1:-}"
+    [ -z "$M" ] && { echo "usage: tri wake <path/to/module.ts>"; exit 64; }
+    [ -f "$ROOT/$M" ] || [ -f "$M" ] || { echo "нет такого файла: $M"; exit 66; }
+    F="$ROOT/$M"; [ -f "$F" ] || F="$M"
+    echo "необязательные поля, прочитанные как «нет» (unknown == false?):"
+    grep -nE "if \(![a-zA-Z_.]+\)|\|\| *!|\? *[^:]+ *: *false" "$F" | head -12
+    echo
+    echo "их объявления (есть ли ? -- значит, бывает undefined):"
+    grep -nE "^\s+[a-zA-Z_]+\?:" "$F" | head -12
+    echo
+    echo "тесты, которые сейчас его держат:"
+    grep -rln "$(basename "$F" .ts)" "$ROOT/src/__tests__" 2>/dev/null | sed "s|$ROOT/||" | head -5
+    echo
+    echo "Зелёный тест мёртвого модуля ничего не значит: фикстуры могли быть"
+    echo "написаны ПОД дефект. Правило в blind-guards, форма 184."
+    ;;
+
+  swallow)
+    # A FAILURE THAT LOOKS EXACTLY LIKE AN HONEST EMPTY ANSWER.
+    #
+    # `catch { return [] }` is often right: a post that stays quiet beats one
+    # that crashes. It is WRONG when the caller turns the empty answer into a
+    # claim -- "nobody in this room has a profile" printed to that room
+    # because a query failed. Form 185.
+    #
+    # Prints every swallow of that shape. It does NOT judge them: most of
+    # this repository swallows in the safe direction on purpose (a fault does
+    # not mark a link dead, or a lead enrolled in AUTO). The question to ask
+    # at each one is the same: can the caller tell this from a real empty
+    # answer, and does it then SAY something about a person?
+    shift
+    echo "проглоченные ошибки, неотличимые от пустого ответа:"
+    grep -rn -A 3 "} catch {" --include="*.ts" "$ROOT/src" \
+         "$ROOT/apps/vibee-editor/render/src" 2>/dev/null \
+      | grep -E "return (\[\]|new Set|new Map|0$|false|null)" \
+      | grep -viE "\.test\.|__tests__" | sed "s|$ROOT/||" | head -25
+    echo
+    echo "Судить каждое место по одному вопросу: отличит ли вызывающий это от"
+    echo "честного пустого ответа -- и УТВЕРЖДАЕТ ли он потом что-то о человеке."
+    ;;
+
+  layout)
+    # A LAYOUT FIX HAS A NUMBER. TAKE IT BEFORE AND AFTER.
+    #
+    # Three of my four attempts at "the cards are too tall" looked like an
+    # improvement in a screenshot and were WORSE in pixels -- on the phone,
+    # which is where the owner looks. Form 186.
+    #
+    # Prints the recipe rather than doing it, because the measuring belongs
+    # in the browser pane where the page actually is.
+    shift
+    SEL="${1:-.agent-card}"
+    cat <<RECIPE
+Замер высоты для «$SEL» -- ДО и ПОСЛЕ, на обеих ширинах:
+
+  1. preview_start name=vibee-tma          (порт печатает preview_logs)
+  2. resize_window preset=mobile           (375px -- экран владельца)
+  3. javascript_tool:
+       Array.from(document.querySelectorAll('$SEL'))
+         .map(c => Math.round(c.getBoundingClientRect().height))
+  4. git stash -q  -> замерить снова -> git stash pop -q
+  5. resize_window preset=desktop          и повторить 3
+
+Впечатление от снимка не считается: подпись рядом с заголовком экономит
+строку на широком экране и ДОБАВЛЯЕТ её на телефоне, когда заголовок
+переносится. Сторож писать структурой (сколько элементов, внутри чего),
+а не словами -- в тестовой среде язык может быть другим.
+RECIPE
+    ;;
+
+  halfdone)
+    # A REMEDY APPLIED IN ONE PLACE OUT OF TWO.
+    #
+    # The cheapest defects in this repository are the ones where the rule is
+    # already written down, argued for, and wired into ONE of the siblings it
+    # covers: the image could admit it failed to load and the video could not,
+    # in the same file, under a five-line comment explaining exactly why it
+    # matters. Form 187.
+    #
+    # Lists elements that usually need a failure path beside the guards that
+    # exist in the same file, so the gap is a diff rather than a memory.
+    shift
+    F="${1:-}"
+    [ -z "$F" ] && { echo "usage: tri halfdone <файл>"; exit 64; }
+    P="$ROOT/$F"; [ -f "$P" ] || P="$F"
+    [ -f "$P" ] || { echo "нет такого файла: $F"; exit 66; }
+    echo "защита есть здесь:"
+    grep -nE "onError|onAbort|catch *\(|fallback|setBroken" "$P" | head -12
+    echo
+    echo "а полагается этим:"
+    grep -nE "<(video|audio|img|iframe|object)\b" "$P" | head -12
+    echo
+    echo "Разница между списками -- места, где правило уже признано верным и"
+    echo "не дописано. Обоснование писать не нужно: оно лежит рядом."
+    ;;
+
+  byload)
+    # DOES THIS SUITE FAIL BY CODE, OR BY MACHINE LOAD?
+    #
+    # Named `byload`, not `flaky`: that word is taken by the repeat-runner
+    # above, and a second arm with the same name is unreachable -- the first
+    # case wins, silently. The same trap `dead` was renamed out of.
+    #
+    # The player suite failed 21 times in a parallel run, 5 sequentially and
+    # 0 alone -- the count tracked the LOAD, not the code, because a 5.5 s
+    # module import sat inside a test with a 5 s budget. Twice I nearly
+    # blamed my own change for it. Form 188.
+    #
+    # Runs the same target three ways and prints the three numbers. Different
+    # numbers = a stopwatch measuring the wrong thing; look for heavy work
+    # inside the test (a lazy page import, a real fetch), not for flakiness.
+    shift
+    DIR="${1:-apps/vibee-editor/player}"
+    T="${2:-}"
+    cd "$ROOT/$DIR" 2>/dev/null || { echo "нет каталога: $DIR"; exit 66; }
+    count() { npx vitest run $T "$@" 2>&1 | grep -E "^ +Tests +[0-9]" | tail -1; }
+    echo "в одиночку / последовательно / параллельно -- три числа:"
+    [ -n "$T" ] && { printf "  одиночно:      "; count; }
+    printf "  последовательно: "; count --no-file-parallelism
+    printf "  параллельно:     "; count
+    echo
+    echo "Числа разные -- дело во ВРЕМЕНИ, а не в коде. Замерь тяжёлое:"
+    echo "  it('probe', async () => { const t=Date.now();"
+    echo "    await import('@/pages/X'); console.log(Date.now()-t) }, 30000)"
+    echo "и унеси эту цену в beforeAll со своим бюджетом."
+    ;;
+
+  touch)
+    # WHICH CONTROLS ARE TOO SMALL FOR A FINGER, AND WHICH ONE MATTERS MOST.
+    #
+    # Measured 25.09.2026: the AUTO switch -- the one that decides whether the
+    # account writes to people by itself -- was 28px tall, with no size rule
+    # at all, on a screen whose own heading button already declared 44. The
+    # rule was agreed and applied to some of what it covers. Form 190.
+    #
+    # Prints the recipe, because the measuring happens in the browser pane
+    # where the page is. Two traps are in it, both of which cost a pass.
+    shift
+    cat <<RECIPE
+Проверка целей под палец -- в панели браузера:
+
+  0. ВЗЯТЬ СПИСОК МАРШРУТОВ, а не вспоминать экраны (форма 203):
+       grep -n 'path=' apps/vibee-editor/player/src/App.tsx
+     Вложенные адреса -- /crm/:id, /crm/g/:id/chat -- это ОТДЕЛЬНЫЕ экраны
+     со своими элементами. Первый мой обход их пропустил, и два «назад»
+     (20px и 24px) прожили неделю. Обход по списку нашёл ещё 18 целей на
+     одном /generate/script -- пять экранов из тридцати ощущались полным
+     обходом (форма 204).
+  0б. И проверять location.pathname ПОСЛЕ перехода: /search в этой сборке
+     приводит на /crm, и «проверен /search» было бы ложью про экран,
+     которого не открывали.
+  1. preview_start name=vibee-tma ; resize_window preset=mobile
+  2. navigate на нужный экран (НЕ pushState: замер во время перехода
+     показывает недовёрстанные числа -- 43 вместо 44)
+  3. javascript_tool:
+       const small=[]
+       document.querySelectorAll('button,a[href],[role="button"]').forEach(e=>{
+         const r=e.getBoundingClientRect()
+         if (r.height && r.width && r.height < 44)
+           small.push([e.className, Math.round(r.height)])
+       })
+       small
+
+Чинить так:
+  - то, чем включают необратимое (отправку, оплату), -- цель ВЕЗДЕ;
+  - ВЫХОД с экрана (назад, закрыть) -- не украшение: промах оставляет
+    человека там, откуда он хотел уйти. Цель обязательна;
+  - остальное -- \`@media (pointer: coarse)\`, и блок ставить ПОСЛЕ базового
+    правила: сила та же, побеждает последний. Выше -- медиазапрос совпадёт
+    и не изменит ничего.
+
+Сторож писать на то, что решает: из всех блоков селектора применяется
+ПОСЛЕДНИЙ, цель должна быть в нём. Сравнение indexOf() обманывается тем,
+что селектор встречается и внутри медиазапроса.
+RECIPE
+    ;;
+
+  family)
+    # WHO ELSE IS IN THIS FAMILY, AND DID THE REMEDY REACH THEM?
+    #
+    # Three times in one week the cheapest defect here was a rule wired into
+    # ONE of the siblings it covers: the image could admit a failure and the
+    # video could not; the client LIST said a shared failure once and the
+    # client PAGE said it six times -- that one was mine, the morning after.
+    #
+    # Give it the component everyone shares. It prints who renders it and
+    # which of them carry the remedy, so the gap is a list rather than a
+    # memory. Form 191: guard the FAMILY, not the case you happened to hit.
+    shift
+    C="${1:-}"; R="${2:-}"
+    [ -z "$C" ] && { echo "usage: tri family <Компонент> [признак-лекарства]"; exit 64; }
+    DIRS="$ROOT/apps/vibee-editor/player/src $ROOT/src"
+    echo "рисуют <$C>:"
+    # `<Panel` is often followed by a NEWLINE rather than a space, so the
+    # class must allow end-of-line. The first version matched nothing and
+    # printed an empty family -- which reads exactly like "nobody is missing".
+    grep -rlE "<$C([ />]|$)" --include="*.tsx" $DIRS 2>/dev/null \
+      | grep -viE "\.test\." | sed "s|$ROOT/||" | head -20
+    if [ -n "$R" ]; then
+      echo
+      echo "из них НЕ несут «$R»:"
+      for f in $(grep -rlE "<$C([ />]|$)" --include="*.tsx" $DIRS 2>/dev/null | grep -viE "\.test\."); do
+        grep -q "$R" "$f" || echo "  $(echo "$f" | sed "s|$ROOT/||")"
+      done
+    fi
+    echo
+    echo "Сторожа писать на СЕМЬЮ: перечислить всех, кто рисует компонент, и"
+    echo "потребовать лекарство у каждого. Признак брать по СМЫСЛУ роли, а не"
+    echo "по виду текста -- имя из пути импорта и имя из объявления свойства"
+    echo "оба «встречаются в файле» и проверяют разное (форма 191)."
+    ;;
+
+  owed)
+    # A DEBT THAT MAY ONLY SHRINK, AND IS READ BECAUSE IT IS TRUE.
+    #
+    # A rule that is right for fifteen screens cannot be applied to fifteen
+    # screens in one night: each needs an answer to "what stands in the gap",
+    # and a hurried answer outlives whoever hurried. So the sites are listed,
+    # a NEW one fails on the day it is written, and -- the half people forget
+    # -- an entry that has been FIXED must leave the list, or the list starts
+    # lying upward and stops being read (form 192).
+    #
+    # Prints every such ratchet in the suites and how long each list is.
+    shift
+    echo "храповики долга (список, который может только уменьшаться):"
+    grep -rln "OWED\|KNOWN_BARE\|ALLOWED_DEBT" --include="*.test.ts" \
+         --include="*.test.tsx" "$ROOT/src" "$ROOT/apps/vibee-editor" 2>/dev/null \
+      | sed "s|$ROOT/||" | while read -r f; do
+          # `grep -c` exits 1 on zero matches, so `|| echo 0` printed the
+          # count AND a second zero -- two lines per file, which read as two
+          # findings. The status is ignored instead.
+          # ONLY THE ENTRIES INSIDE THE DEBT LIST.
+          #
+          # Two wrong counts before this one, and both overstated: the first
+          # matched any line containing '…tsx' and so counted the comments
+          # explaining the entries; the second matched real entries anywhere
+          # in the file and so counted a SECOND list -- the one asserting
+          # what is already done. It read 7 with 2 left.
+          #
+          # A counter that overstates a debt is the mirror of one that
+          # understates it. Both stop being read.
+          n=$(awk '/(OWED|KNOWN_BARE|ALLOWED_DEBT) *= *\[/{inlist=1; next}
+                   inlist && /^ *\]/{inlist=0}
+                   inlist && /^ *.[^ ]*\.tsx?.,/{c++}
+                   END{print c+0}' "$ROOT/$f" 2>/dev/null) || n=0
+          # Files that merely mention the word are noise: only the ones
+          # carrying an actual list are ratchets.
+          [ "$n" -gt 0 ] && printf "  %3s мест  %s\n" "$n" "$f"
+        done
+    true
+    echo
+    echo "Сторож обязан проверять ОБЕ стороны: новых нет И починенных в списке"
+    echo "нет. Без второй список копит враньё и его перестают читать."
+    ;;
+
+  blank)
+    # A SCREEN THAT RENDERS NOTHING, AND SAYS NOTHING ABOUT IT.
+    #
+    # The Hive tab was entirely black on a phone: another site refused to be
+    # framed, the browser put its own error document in the frame, and that
+    # fires `load` like any page -- so the app removed the notice and its
+    # escape link on that word. Form 194.
+    #
+    # Prints the recipe: every screen is opened and asked whether it drew
+    # anything a person can read or press. A blank one is a defect even when
+    # nothing in the console is red.
+    shift
+    cat <<RECIPE
+Проверка «экран не пустой» -- в панели браузера:
+
+  1. preview_start name=vibee-tma ; resize_window preset=mobile
+  2. на каждый экран: navigate, затем javascript_tool:
+       const main = document.querySelector('main,#root') || document.body
+       const text = (main.innerText || '').trim().length
+       const press = main.querySelectorAll('button,a[href],[role=button]').length
+       ({ path: location.pathname, text, press })
+  3. text === 0 и press <= (кнопки вкладок) -- экран пуст.
+  4. read_console_messages: отказ во встраивании, CSP и 401 не всегда
+     попадают в интерфейс.
+
+Ловушка: \`onLoad\` у рамки срабатывает и для страницы-ошибки браузера.
+Всё, что ИСЧЕЗАЕТ по этому событию (подсказка, ссылка наружу), исчезает и
+тогда, когда показать нечего. Выход должен жить независимо от него.
+RECIPE
+    ;;
+
+  logonly)
+    # A HANDLER THAT ONLY WRITES TO THE CONSOLE IS NOT A FAILURE PATH.
+    #
+    # A debt could be "paid" with a console line: the broken mark stays on the
+    # screen and the log reaches whoever is not looking at it. Worse than a
+    # missing handler, because a missing one is visible and a fake one is not.
+    # Form 195.
+    #
+    # Prints every catch/handler whose body is nothing but console calls.
+    shift
+    DIRS="$ROOT/src $ROOT/apps/vibee-editor/player/src $ROOT/apps/vibee-editor/render/src"
+    echo "обработчики, которые только логируют:"
+    grep -rnE -A 2 "onError=\{|catch \(e?\) \{|\} catch \{" --include="*.ts" \
+         --include="*.tsx" $DIRS 2>/dev/null \
+      | grep -B 1 -E "console\.(error|warn|log)" \
+      | grep -E "onError=\{\(\) => console|catch.*\{ *console" \
+      | grep -viE "\.test\." | sed "s|$ROOT/||" | head -20
+    # AN EMPTY LIST MUST PROVE IT CAN SEE.
+    #
+    # "Nothing found" and "the pattern is broken" print identically, and this
+    # session has already read one for the other twice. So the search is run
+    # against a known example first; if that is not found, the census says so
+    # instead of reporting a clean repository.
+    probe=$(printf '%s\n' 'onError={() => console.error(x)}' \
+      | grep -cE "onError=\{\(\) => console")
+    echo
+    if [ "$probe" -eq 0 ]; then
+      echo "⚠️ ПОИСК СЛОМАН: шаблон не нашёл даже заведомый пример."
+      echo "Пустой список выше ничего не значит."
+    else
+      echo "(шаблон проверен на заведомом примере -- пустой список значит пусто)"
+    fi
+    echo "Судить по одному: пусто ли тело ПОСЛЕ удаления вызовов консоли."
+    echo "Зовёт именованную функцию -- дальше читать нельзя, это не признак."
+    ;;
+
+  types)
+    # TYPECHECK THAT ACTUALLY CHECKS -- AND PROVES IT.
+    #
+    # `npx tsc --noEmit -p tsconfig.json` inside the player checks NOTHING:
+    # that file is a solution config (`"files": []` plus references), and
+    # --noEmit does not expand references. An explicit type error passes it
+    # in silence. A whole night of "tsc ok" meant nothing (form 196).
+    #
+    # This runs the real one AND proves it can see, by checking a file with a
+    # deliberate error first. A gate whose success is indistinguishable from
+    # "nothing to check" is not a gate.
+    shift
+    P="$ROOT/apps/vibee-editor/player"
+    TSC="$P/node_modules/.bin/tsc"
+    [ -x "$TSC" ] || { echo "нет $TSC -- сначала npm i в плеере"; exit 69; }
+    probe="$P/src/__tri_probe__.ts"
+    printf 'export const x: number = %s\n' "'строка'" > "$probe"
+    seen=$("$TSC" --noEmit -p "$P/tsconfig.app.json" --pretty false 2>&1 \
+           | grep -c "__tri_probe__") || seen=0
+    rm -f "$probe"
+    if [ "$seen" -eq 0 ]; then
+      echo "⚠️ ПРОВЕРКА СЛЕПА: заведомая ошибка не замечена. Вывод ниже ничего не значит."
+    else
+      echo "(проверка видит заведомую ошибку -- пустой вывод значит «чисто»)"
+    fi
+    "$TSC" --noEmit -p "$P/tsconfig.app.json" --pretty false 2>&1 \
+      | grep "error TS" | head -30 || echo "типы плеера: чисто"
+    ;;
+
+  gates)
+    # DOES EACH GATE ACTUALLY CHECK THE FILES IT IS HANDED?
+    #
+    # Two gates in a row turned out to pass by doing nothing: the player
+    # typecheck ran a solution config with an empty file list, and the lint
+    # step ran the ROOT eslint, whose config ignores `apps/` -- it printed
+    # "File ignored" for every player file and exited zero. 425 errors had
+    # piled up behind it (forms 196, 197).
+    #
+    # Prints the recipe, because the only convincing test is a planted
+    # violation in the very file the gate claims to cover.
+    shift
+    cat <<RECIPE
+Проверка проверок -- по одной, с заведомым нарушением:
+
+  lint:          записать в src/ и в apps/vibee-editor/player/src/ файл с
+                 \`var x = 1\` и прогнать шаг шлюза. «File ignored» в выводе
+                 и код 0 -- шлюз этих файлов НЕ проверяет.
+  typecheck:     вписать \`const x: number = <строка>\` и убедиться, что
+                 печатается TS2322. Молчание = проверка пуста (tri types).
+  secrets:       положить строку вида sk-proj-AAAA... в staged-файл.
+  no-cyrillic:   комментарий по-русски в .ts.
+  spelling/…:    любое заведомо неверное слово из их словаря.
+
+Правило: если «успех» шлюза неотличим от «нечего проверять», это не шлюз.
+Проверять раз в жизни каждого шлюза -- и после любой правки его конфига.
+
+СНАЧАЛА ДОКАЖИ ПОДСАДКУ, ПОТОМ СУДИ ШЛЮЗ (форма 198). Три из четырёх моих
+подсадок «прошли» не по вине шлюза:
+
+  видима?      файл в ИНДЕКСЕ (git ls-files не видит неотслеживаемое),
+               в диапазоне пуша, в каталоге, который шлюз читает;
+  в области?   шлюз может смотреть узкий класс: spelling считает только
+               toContain('имя(') -- сторожа за ВЫЗОВОМ, а toMatch(/слово/)
+               уходит в «прочее»;
+  правдоподобна? boundary ищет c.sendMessage( -- отправку ЧЕРЕЗ клиента;
+               голый sendMessage(...) в этом коде не встречается и не ловится.
+
+Подсадка, которая «прошла», говорит о ней самой, пока не показано обратное.
+RECIPE
+    ;;
+
   contracts)
     # WORDS TWO SERVICES AGREE BY, AND NOTHING CHECKING THE AGREEMENT.
     # The bot posted a journal kind the render's door never knew: 400 on
@@ -1433,6 +1962,8 @@ PYEOF
   secret) shift; bash "$ROOT/bin/helpers/secret.sh" "$ROOT" "$@" ;;
   traffic) shift; bash "$ROOT/bin/helpers/traffic.sh" "$ROOT" "$@" ;;
   reach) shift; bash "$ROOT/bin/helpers/reach.sh" "$ROOT" "$@" ;;
+  bare-fetch) shift; bash "$ROOT/bin/helpers/bare-fetch.sh" "$ROOT" "$@" ;;
+  tag) shift; bash "$ROOT/bin/helpers/tag.sh" "$ROOT" "$@" ;;
   alive)  shift; bash "$ROOT/bin/helpers/alive.sh" "$ROOT" "$@" ;;
   vs-main) shift; bash "$ROOT/bin/helpers/vs-main.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;

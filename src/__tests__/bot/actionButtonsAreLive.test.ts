@@ -90,17 +90,34 @@ describe('a rendered button always has somewhere to land', () => {
     expect(text).toBe('Готов сделать.')
   })
 
-  it('still offers the standard set when the agent proposed nothing', () => {
-    // There must always be something to press: that is the requirement.
+  it('an answer with nothing to offer offers nothing', () => {
+    /*
+     * THE RULE REVERSED, AND BY WHOM.
+     *
+     * Until 24.09.2026 this read "top-up must be offered under every
+     * answer" -- the owner's own words at the time. That day he said the
+     * opposite, and why: buttons "on the substance, not in every message".
+     * A row that is always there carries no information, and the one time
+     * it matters it looks like the hundred times it did not.
+     *
+     * So a plain answer gets no keyboard at all -- `undefined`, because
+     * Telegram refuses an inline keyboard with no buttons.
+     */
     const { text, markup } = buttonsForAnswer('Просто ответ.', true)
     expect(text).toBe('Просто ответ.')
-    const flat = markup.reply_markup.inline_keyboard.flat() as Array<{
-      callback_data?: string
-    }>
-    expect(
-      flat.some(b => b.callback_data === `${ACTION_PREFIX}topup`),
-      'top-up must be offered under every answer'
-    ).toBe(true)
+    expect(markup).toBeUndefined()
+  })
+
+  it('and an answer that names a reason offers exactly that', () => {
+    const low = buttonsForAnswer('Не хватает токенов на это.', true, {
+      app: false,
+    })
+    const ids = low
+      .markup!.reply_markup.inline_keyboard.flat()
+      .map(b => (b as { callback_data?: string }).callback_data)
+    expect(ids).toContain(`${ACTION_PREFIX}topup`)
+    // Not the whole set: nothing here is about the balance or a person.
+    expect(ids).not.toContain(`${ACTION_PREFIX}balance`)
   })
 
   it('offers the app through an inline web_app button, never a reply key', () => {

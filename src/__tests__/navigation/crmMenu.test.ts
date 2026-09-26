@@ -152,6 +152,14 @@ describe('what each keyboard offers', () => {
     const plain = allCallbacks(leadMenu(LEAD, { next: 'offer' }))
     expect(plain).toEqual([
       `crm:prep:${LEAD}`,
+      /*
+       * Owner, 2026-09-24: "why can't I choose the gift photo straight away
+       * -- there is a Reply button". The one button on the row was the
+       * render's FORECAST, so when it forecast a letter there was no way to
+       * say "not a letter, a portrait". The forecast stays a suggestion; the
+       * other move stands beside it.
+       */
+      `crm:gift:${LEAD}`,
       `crm:mute:${LEAD}`,
       `crm:later:${LEAD}`,
       `crm:refuse:${LEAD}`,

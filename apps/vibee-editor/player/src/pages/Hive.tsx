@@ -140,6 +140,30 @@ export default function HivePage() {
             </a>
           </p>
         )}
+        {/*
+         * THE WAY OUT STAYS, BECAUSE `onLoad` IS NOT PROOF OF A PAGE.
+         *
+         * A frame refused by the other site -- a `frame-ancestors` policy, an
+         * `X-Frame-Options` header, a network that blocks it -- still fires
+         * `load` for the browser's own error document. Measured in the pane
+         * on 25.09.2026: this tab went ENTIRELY BLACK. The frame reported
+         * itself loaded, the loading notice with its escape link was removed
+         * on that word, and what remained was a black rectangle above the tab
+         * bar with nothing in it and nowhere to go.
+         *
+         * Nothing here can see inside a cross-origin frame to check, and it
+         * should not try. So the link outlives the load: small, in a corner,
+         * always. A tab that cannot show the page still has to say where the
+         * page is.
+         */}
+        <a
+          className="hive-out hive-out--corner"
+          href={page}
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          {t('hive.openOutside')}
+        </a>
         <iframe
           ref={frameRef}
           className={`hive-frame${loaded ? ' hive-frame--ready' : ''}`}

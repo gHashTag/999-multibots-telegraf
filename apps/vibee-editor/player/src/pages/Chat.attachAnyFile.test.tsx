@@ -2,7 +2,15 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { Provider } from 'jotai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 /**
  * THE MINI APP'S CHAT TAKES ANY FILE.
@@ -127,6 +135,15 @@ function pickerAdmits(input: HTMLInputElement, file: File): boolean {
     return file.type === r
   })
 }
+
+/*
+ * The page is imported ONCE, before any test is timed: the module graph
+ * costs seconds, and paying it inside whichever test draws first made this
+ * file fail by MACHINE LOAD rather than by code (Crm.test.tsx, 25.09.2026).
+ */
+beforeAll(async () => {
+  await import('./Chat')
+}, 60_000)
 
 describe('the attach button', () => {
   it('lets a person choose a PDF, a spreadsheet and a text file, not only media', async () => {

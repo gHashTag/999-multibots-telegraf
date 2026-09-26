@@ -263,3 +263,53 @@ export function agentSkills<T extends { name: string }>(
   }
   return { own, general }
 }
+
+/** Longest name a skill may carry (render skills_create refuses more). */
+export const SKILL_NAME_MAX = 100
+
+/**
+ * The agent's own prefix in the person's language, capitalised: the Cyrillic
+ * one for ru, the Latin one for en ("Работа" / "Job"). null for an unknown
+ * agent. Pure.
+ */
+export function agentSkillPrefix(
+  agentId: string,
+  lang: 'ru' | 'en'
+): string | null {
+  const prefixes = marketplaceAgentById(agentId)?.skillPrefixes ?? []
+  if (!prefixes.length) return null
+  const cyrillic = (p: string) => /[Ѐ-ӿ]/.test(p)
+  const p =
+    prefixes.find(x => (lang === 'ru' ? cyrillic(x) : !cyrillic(x))) ??
+    prefixes[0]
+  return p.charAt(0).toUpperCase() + p.slice(1)
+}
+
+/**
+ * THE NAME A NEW RULE FOR THIS AGENT GETS, so agentSkills() files it under
+ * the agent: "Работа: отвечать рекрутёрам коротко". The person writes only
+ * the rule in the agent's own chat; the prefix -- the thing nobody should
+ * have to remember -- is put in here. The rest of the name is the rule's
+ * first words, cut on a word boundary. null for an unknown agent or an
+ * empty rule. Pure.
+ */
+export function agentSkillName(
+  agentId: string,
+  lang: 'ru' | 'en',
+  rule: string
+): string | null {
+  const prefix = agentSkillPrefix(agentId, lang)
+  const text = String(rule ?? '')
+    .replace(/:/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!prefix || !text) return null
+  const room = Math.min(60, SKILL_NAME_MAX - prefix.length - 2)
+  let title = text
+  if (title.length > room) {
+    const cut = title.slice(0, room - 1)
+    const space = cut.lastIndexOf(' ')
+    title = `${space > room / 2 ? cut.slice(0, space) : cut}…`
+  }
+  return `${prefix}: ${title}`
+}

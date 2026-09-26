@@ -200,7 +200,7 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
 ## Tick 8 (24.09.2026): two routes that never reached their handler
 
 - **Measured in production**: `🔒 [auth] ОТКАЗ GET /api/agents/acceptance —
-  no X-Api-Key and no Telegram initData`. The verdict endpoint (market card
+no X-Api-Key and no Telegram initData`. The verdict endpoint (market card
   line, the hire-by-evidence gate in the app) and the traffic counter
   `POST /api/traffic/arrival` (app + t27.ai) sat behind the shared guard in
   `render/auth.ts`: the app calls both with a bare fetch, t27.ai has no
@@ -216,3 +216,52 @@ The Job agent stays `training` until one real end-to-end run: a real dialog thro
   gets through. Run it for every route a page calls without signing BEFORE
   shipping -- this is the third time (pair/start, /api/navigation, now these
   two) a route was written, tested, deployed and answered 401.
+
+- **Skills are visible and addable in every agent's own chat**
+  (`player components/Chat/AgentSkillsPanel.tsx`). Self-critique of tick 7:
+  an owner with no prefixed skills saw every agent say "no skills", with a
+  literal `<агент>` in the hint. The panel now says what the agent knows how
+  to do (the catalogue's `skills`), which of the person's rules its prompt
+  gets, and has a one-line field: the person writes the rule, the catalogue
+  names it (`agentSkillName`: "Работа: отвечать коротко"), `skills_create`
+  saves it, the list is read again. The render tells every specialist to
+  file a rule it is asked to remember under its own prefix
+  (`agent-skills.ts ruleNamingLine`) -- without that line "remember: ..."
+  said in the job agent's chat became a general skill of every agent.
+- **Routes the app calls that render does not serve at all** (found by the
+  bare-fetch sweep, 2026-09-24): `/api/v1/sessions`, `/api/v1/leads/stats`,
+  `/api/triggers/list` (the Leads tab, which says "no section" itself) and
+  `/api/instagram/callback` (the old Instagram OAuth page). Not regressions;
+  the Instagram page is dead code until a backend exists.
+- **`tri bare-fetch`** sweeps the app for calls made WITHOUT a credential
+  and asks the render guard (`isPublic`) about each path; a GUARDED line is
+  a 401 before the handler, or a route render does not serve. Negative
+  control done: re-closing `/api/traffic/arrival` makes it appear.
+- **Full suite before merge** (render ~6 min): ticks 3 and 7 had left two
+  red tests on main (a real id in `job-hunters-history.test.ts`; the
+  `dm-context` shape check after `specialistSkills` was appended). Fixed in
+  tick 8.
+
+## Tick 9 (24.09.2026): where people come from, bot starts included
+
+- **Competitors**: Plausible shows Sources / Campaigns / Goals with a
+  conversion rate per source and no personal tracking; for Telegram bots the
+  `?start=` payload (64 chars, `[A-Za-z0-9_-]`) is the only way to know a
+  source (Graspil). Our gaps were: bot starts not counted at all, no
+  visit -> start view, numbers only in `tri`.
+- **Bot starts by channel**: `tagged()` also tags links into our bot
+  (`?start=app_feed__telegram`); the legacy bot's `/start` cuts the channel
+  first (`splitStartSource`) and reports it (`src/services/trafficStart.ts`,
+  service key, no person) to `POST /api/traffic/start` -> `traffic_starts`.
+  First real tagged bot link: the "see in the feed" link of every channel
+  post (`channel-delivery.ts`).
+- **The owner's screen**: CRM -> "Откуда люди" (`components/Crm/TrafficPanel`),
+  7/30 days, per channel visits and bot starts. Hidden when the tool refuses
+  (another owner's CRM), "could not load" when the server is away
+  (`Reached.refused` in `lib/crm.ts`).
+- **`tri tag URL channel [campaign]`** -- the tagged link for a hand-made
+  post; `tri traffic` shows visits and starts per source.
+- Red on clean main, not ours (checked with `git stash -u`): render
+  `isolated-reader` (task queued), root
+  `aTransientCeilingIsNotAnOutage` "the correspondence import marks
+  success" (2 tests).

@@ -201,9 +201,14 @@ describe('an empty agent answer', () => {
     expect(out).toHaveLength(1)
     expect(out[0].payload.text).toBe(fallback.honestMissLine(true, false))
     expect(out[0].payload.text).toMatch(CYRILLIC)
-    expect(callbacks(out[0])).toEqual(
-      expect.arrayContaining(['act:topup', 'act:balance', 'act:human'])
-    )
+    /*
+     * ONE BUTTON, AND IT IS THE RIGHT ONE. Since 24.09.2026 buttons follow
+     * the substance of the answer, so this line -- "I couldn't answer this
+     * time... or tap a button below" -- offers a person and nothing else.
+     * The line PROMISES a button, which is why the assertion is that one is
+     * there, not merely that the set shrank.
+     */
+    expect(callbacks(out[0])).toEqual(['act:human'])
     // The question is on record already; only the line is written back.
     expect(recordTurns).toHaveBeenCalledWith(String(USER), [
       { role: 'assistant', content: fallback.honestMissLine(true, false) },

@@ -75,10 +75,15 @@ import {
   LIPSYNC_TOOL_MAX_SECONDS,
   billedSecondsOf,
   leadSilenceOf,
+  maxSecondsOf,
   shelfKeyOf,
   splitPlan,
 } from './src/agent/lipsync-voice'
 import { TOKEN_PRICES, priceForModel } from './src/agent/billing-shared'
+import {
+  lipsyncResolutionFor,
+  reviewedKieModel,
+} from './src/agent/kie-web-provider'
 
 /** Invented id (9000000xx): no real person in the repository. */
 const CALLER = '900000047'
@@ -109,6 +114,14 @@ describe('the arithmetic of a voice cut into parts', () => {
     expect(billedSecondsOf(splitPlan(21.4))).toBe(24)
     expect(billedSecondsOf(splitPlan(7))).toBe(7)
     expect(billedSecondsOf(splitPlan(9.5))).toBe(10)
+  })
+
+  it('a probe takes only the seconds asked for, within 1..30', () => {
+    expect(maxSecondsOf(3)).toBe(3)
+    expect(maxSecondsOf(0.2)).toBe(1)
+    expect(maxSecondsOf(99)).toBe(LIPSYNC_TOOL_MAX_SECONDS)
+    for (const none of [undefined, null, 0, -2, 'abc'])
+      expect(maxSecondsOf(none), String(none)).toBe(LIPSYNC_TOOL_MAX_SECONDS)
   })
 
   it('lead silence is clamped to 0..3 s and junk means none', () => {
@@ -155,6 +168,21 @@ describe('the models the tool may name', () => {
       expect(typeof p, m).toBe('number')
       expect(p as number, m).toBeGreaterThan(0)
     }
+  })
+
+  it('each passes the route admission, which throws AFTER the charge', () => {
+    for (const m of LIPSYNC_MODELS)
+      expect(reviewedKieModel('lipsync', m), m).toBe(m.slice(4))
+  })
+
+  it('Veed Fabric is sold at the price the owner approved, and sent the 720p it is for', () => {
+    // Owner, 2026-09-24: 36 tokens a second, cost $0.09 a second at 720p.
+    // A cheaper price sells it below cost; a dearer one is not what was agreed.
+    expect(priceForModel('lipsync_generate', 'kie/veed/fabric-1')).toBe(36)
+    expect(lipsyncResolutionFor('veed/fabric-1')).toBe('720p')
+    // The price-list models stay on the cheapest row they are priced at.
+    for (const m of LIPSYNC_MODELS.filter(x => x !== 'kie/veed/fabric-1'))
+      expect(lipsyncResolutionFor(m.slice(4)), m).toBe('480p')
   })
 })
 
@@ -374,6 +402,18 @@ describe('the real handler', () => {
     })
     expect(r.done, JSON.stringify(r)).toBe(true)
     expect(credits(pool.sqls)).toEqual([])
+  })
+
+  it('a 3-second probe cuts the voice at 3 s and is billed for 3', async () => {
+    ff.seconds = 3
+    const { r, pool } = await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+      max_seconds: 3,
+    })
+    expect(r.done, JSON.stringify(r)).toBe(true)
+    expect(ff.voice[0].maxSeconds).toBe(3)
+    expect(debits(pool.sqls)).toEqual([3 * TOKEN_PRICES.lipsync_generate])
   })
 
   it('a model outside the list is refused before anything is charged', async () => {

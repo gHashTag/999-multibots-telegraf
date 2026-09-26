@@ -17,6 +17,7 @@ import {
   hubRows,
   fit,
   nameLabel,
+  giftButton,
   prepLabel,
   takeLabel,
   LEAD_ID_RE,
@@ -255,6 +256,16 @@ export function planKeyboard(
     ]
     if (p.next && p.next !== 'wait')
       row.push(btn(prepLabel(p.next), crmCallback('prep', id)))
+    /*
+     * AND THE GIFT, WITHOUT ANSWERING FIRST.
+     *
+     * Owner, 2026-09-24: "why can't I choose the gift photo straight away --
+     * there is a Reply button, and I do not want to reply in text, I want to
+     * send the gift and draw them into the bot". The forecast button is a
+     * suggestion; the other move must be one press away, not a sentence.
+     */
+    const gift = giftButton(id, p.next)
+    if (gift) row.push(gift)
     rows.push(row)
   })
   const scopeBtn = (key: string, label: string) => {

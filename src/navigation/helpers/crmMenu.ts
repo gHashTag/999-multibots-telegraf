@@ -43,6 +43,28 @@ export const ROOT_VERBS = [
   'model',
   'ingest',
   'plan',
+  /*
+   * The morning post for the room: the owner reads the exact words and
+   * presses. Nothing else writes to a room of people.
+   */
+  'room',
+  /*
+   * THE TURN THE OWNER IS WATCHING, ENDED BY HIM (issue #2721).
+   *
+   * A root verb, not a per-lead one: `inOwnerLane` serialises his turns, so
+   * there is exactly one of his running and the press needs no id to name
+   * it. A per-lead stop would also have to be right about WHICH lead the
+   * running turn is for, and being wrong there is a button that stops
+   * somebody else's work.
+   *
+   * CALLED `halt`, AND THAT IS NOT A STYLE CHOICE. `stop` is already a SCOPE
+   * (`crm:scope:stop`, the people who asked the assistant to be quiet), and
+   * `crmCallback` consults the root verbs FIRST -- so naming this one `stop`
+   * silently re-routed that existing button to this handler. Not a dead
+   * button: somebody else's button, doing the wrong thing. Caught by two
+   * pinned keyboards.
+   */
+  'halt',
 ] as const
 export const LEAD_VERBS = [
   'lead',
@@ -50,6 +72,19 @@ export const LEAD_VERBS = [
   'drop!',
   'undrop',
   'prep',
+  /*
+   * THE GIFT, WITHOUT ANSWERING FIRST.
+   *
+   * Owner, 2026-09-24: "why can't I choose the gift photo straight away --
+   * there is a Reply button, and I do not want to reply in text, I want to
+   * send the gift and draw them into the bot".
+   *
+   * The one button on a person's row is the render's FORECAST (`next`), so
+   * when it forecast `reply` there was no way to say "not a letter, a
+   * portrait". A forecast is a suggestion; this makes the other move
+   * reachable in one press, always.
+   */
+  'gift',
   'later',
   'refuse',
   'refuse!',
@@ -69,9 +104,9 @@ export const SCOPE_VERBS = [
 ] as const
 
 export const CRM_ROOT_RE =
-  /^crm:(menu|auto|autooff|leads|summary|sweep|model|ingest|plan)$/
+  /^crm:(menu|auto|autooff|leads|summary|sweep|model|ingest|plan|halt|room)$/
 export const CRM_LEAD_RE =
-  /^crm:(lead|prep|later|refuse!?|drop!?|undrop|back|unmute|mute):(\d{5,15})$/
+  /^crm:(lead|prep|gift|later|refuse!?|drop!?|undrop|back|unmute|mute):(\d{5,15})$/
 export const CRM_SCOPE_RE =
   /^crm:scope:(waiting|hot|talk|due|ours|winback|stop|status)$/
 
@@ -210,6 +245,17 @@ export function takeLabel(n: number, cap?: number): string {
   return cap !== undefined && n > cap ? `(${cap} из ${n})` : `(${n})`
 }
 
+/**
+ * The gift, offered beside the forecast -- unless the forecast IS the gift,
+ * in which case a second identical button would only ask the same question
+ * twice.
+ */
+export function giftButton(lead: string, next?: string | null) {
+  return String(next ?? '') === 'deliver'
+    ? null
+    : btn('🎁 Подарок 9:16', crmCallback('gift', lead))
+}
+
 /** The next step as the render forecasts it, worded as a button. */
 export const PREP_LABEL: Record<string, string> = {
   reply: '✍️ Ответить',
@@ -323,9 +369,13 @@ export function leadMenu(
         btn('🏠 Меню', crmCallback('menu')),
       ],
     ])
+  const gift = giftButton(lead, o.next)
   return keyboard([
     ...(o.assistantOff ? [[resumeButton(lead)]] : []),
-    [btn(`${prepLabel(o.next)}`, crmCallback('prep', lead))],
+    [
+      btn(`${prepLabel(o.next)}`, crmCallback('prep', lead)),
+      ...(gift ? [gift] : []),
+    ],
     [
       // The url opens the real conversation; the mute stops the agent
       // answering over the owner's shoulder while they are in it.
@@ -410,6 +460,46 @@ export function cardMenuRows(
   const id = String(lead ?? '')
   if (!LEAD_ID_RE.test(id)) return []
   return [[btn('👤 История', crmCallback('lead', id))]]
+}
+
+/**
+ * A CARD THAT HAS BEEN PRESSED SAYS WHAT HAPPENED, instead of going blank.
+ *
+ * Issue #2418, and #2783 names it as the piece still missing on main: today a
+ * press calls `editMessageReplyMarkup(undefined)` and the whole keyboard
+ * disappears -- including the card's own `👤 История` row, which had nothing
+ * to do with the press. The verdict arrives as a SEPARATE message, so half an
+ * hour later the card itself is a wall of text with no trace of what was
+ * decided about it. On a phone, scrolled past, that is a card the owner
+ * cannot read the outcome of at all.
+ *
+ * Bot API 10.3 (24.08.2026) added `disabled` on an inline button, so the
+ * outcome can stay ON the card, unpressable. The caller falls back to
+ * clearing when the host refuses the field -- our own Bot API server may be
+ * older, and losing the clearing too would be worse than losing the words.
+ *
+ * The history row survives on purpose: reading the person is still useful
+ * after the answer went, and it is the row a press should never have taken.
+ */
+export function settledRows(
+  outcome: string,
+  lead?: string | null
+): Array<Array<Record<string, unknown>>> {
+  const said = String(outcome ?? '')
+    .trim()
+    .slice(0, 40)
+  const rows: Array<Array<Record<string, unknown>>> = [
+    /*
+     * `crm:menu` rather than a word of its own: the button is disabled, so on
+     * a current host it cannot be pressed at all -- but an older Bot API
+     * ignores the flag, and there a press must land somewhere. A callback
+     * nothing catches is the dead button this repository keeps a census for.
+     */
+    [{ text: said, callback_data: crmCallback('menu'), disabled: true }],
+  ]
+  for (const row of cardMenuRows(lead))
+    rows.push(row as unknown as Array<Record<string, unknown>>)
+  return rows
 }
 
 export function afterSentKeyboard(lead?: string | null) {

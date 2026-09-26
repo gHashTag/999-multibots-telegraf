@@ -46,4 +46,4 @@ npx vitest run src/__tests__/services/businessDmContext.test.ts src/__tests__/se
 
 - `src/services/businessBotService.ts`, `src/navigation/helpers/actionButtons.ts` (`payRow`, `stripAgentMarkers`)
 - `apps/vibee-editor/render/src/agent/chat.ts` (`DM_CLIENT_BULLET`, `dmHistoryBlock`)
-- Скилы: `buttons-under-every-answer`, `owner-two-tap-onboarding`
+- Скилы: `buttons-by-substance`, `owner-two-tap-onboarding`

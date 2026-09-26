@@ -25,6 +25,12 @@ export interface Reached<T> {
   reachable: boolean
   data: T | null
   error?: string
+  /**
+   * The tool itself said no (a JSON-RPC error: "only the owner may..."), as
+   * opposed to a server that could not be reached. A panel that is not for
+   * this viewer hides on it; a panel that failed to load still says so.
+   */
+  refused?: boolean
 }
 
 /**
@@ -62,6 +68,7 @@ async function callTool<T>(
         reachable: false,
         data: null,
         error: String(body.error.message ?? 'отказ'),
+        refused: true,
       }
     }
     /*
@@ -169,11 +176,66 @@ function toLeads(r: RawLeads): HotLeads {
 
 const map = <A, B>(r: Reached<A>, f: (a: A) => B): Reached<B> =>
   r.data === null
-    ? { reachable: r.reachable, data: null, error: r.error }
+    ? { reachable: r.reachable, data: null, error: r.error, refused: r.refused }
     : { reachable: r.reachable, data: f(r.data), error: r.error }
 
 export const loadOverview = async () =>
   map(await callTool<RawOverview>('crm_overview'), toOverview)
+
+/*
+ * WHERE PEOPLE COME FROM (tick 9, epic #2974): per channel, visits on our
+ * pages and starts of our bots (render traffic.ts `crm_traffic`, owner only).
+ */
+export interface TrafficSource {
+  source: string
+  arrivals: number
+  starts: number
+}
+export interface Traffic {
+  days: number
+  total: number
+  totalStarts: number
+  sources: TrafficSource[]
+}
+
+/**
+ * The tool's answer as the panel reads it. A server from before bot starts
+ * were counted answers `channels` only: the sources are then built from
+ * them, with no starts, rather than drawn empty. Pure.
+ */
+export function toTraffic(r: Record<string, unknown>): Traffic {
+  const rows = (k: string) =>
+    Array.isArray(r[k]) ? (r[k] as Array<Record<string, unknown>>) : []
+  let sources: TrafficSource[] = rows('sources').map(x => ({
+    source: String(x['source'] ?? ''),
+    arrivals: num(x['arrivals']) ?? 0,
+    starts: num(x['starts']) ?? 0,
+  }))
+  if (!Array.isArray(r['sources'])) {
+    const m = new Map<string, number>()
+    for (const c of rows('channels')) {
+      const k = String(c['source'] ?? '')
+      m.set(k, (m.get(k) ?? 0) + (num(c['arrivals']) ?? 0))
+    }
+    sources = [...m]
+      .map(([source, arrivals]) => ({ source, arrivals, starts: 0 }))
+      .sort((a, b) => b.arrivals - a.arrivals)
+  }
+  sources = sources.filter(x => x.source)
+  return {
+    days: num(r['days']) ?? 0,
+    total: num(r['total']) ?? sources.reduce((n, x) => n + x.arrivals, 0),
+    totalStarts:
+      num(r['totalStarts']) ?? sources.reduce((n, x) => n + x.starts, 0),
+    sources,
+  }
+}
+
+export const loadTraffic = async (days: number) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_traffic', { days }),
+    toTraffic
+  )
 /*
  * `telegram_id` becomes `telegramId` HERE and not in the component.
  *

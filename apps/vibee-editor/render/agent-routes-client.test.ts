@@ -177,7 +177,14 @@ describe('threadFor', () => {
 describe('threadFor, role=supervisor', () => {
   it('opens the Queen thread for a seller and a client, flagged', async () => {
     expect(
-      await threadFor(CLIENT, SELLER, getPool, undefined, 'supervisor')
+      await threadFor(
+        CLIENT,
+        SELLER,
+        getPool,
+        undefined,
+        undefined,
+        'supervisor'
+      )
     ).toEqual({
       ok: true,
       thread: 'client:' + CLIENT + ':queen',
@@ -187,15 +194,29 @@ describe('threadFor, role=supervisor', () => {
   })
   it('refuses it without a client, and for a non-seller', async () => {
     expect(
-      await threadFor(undefined, SELLER, getPool, undefined, 'supervisor')
+      await threadFor(
+        undefined,
+        SELLER,
+        getPool,
+        undefined,
+        undefined,
+        'supervisor'
+      )
     ).toMatchObject({ ok: false, status: 400 })
     expect(
-      await threadFor(CLIENT, STRANGER, getPool, undefined, 'supervisor')
+      await threadFor(
+        CLIENT,
+        STRANGER,
+        getPool,
+        undefined,
+        undefined,
+        'supervisor'
+      )
     ).toMatchObject({ ok: false, status: 403 })
   })
   it('any other role is the plain client thread', async () => {
     expect(
-      await threadFor(CLIENT, SELLER, getPool, undefined, 'admin')
+      await threadFor(CLIENT, SELLER, getPool, undefined, undefined, 'admin')
     ).toEqual({ ok: true, thread: 'client:' + CLIENT, client: CLIENT })
   })
 })

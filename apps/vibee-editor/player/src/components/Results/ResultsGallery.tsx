@@ -1,40 +1,56 @@
-import { useState } from 'react';
-import { useAtomValue, useSetAtom } from 'jotai';
-import { generatedResultsAtom, removeGeneratedResultAtom, type GeneratedResult } from '@/atoms/generateResults';
-import { addAssetAtom } from '@/atoms/assets';
-import { currentFrameAtom } from '@/atoms/playback';
-import { useEditorStore } from '@/store/editorStore';
-import { useLanguage } from '@/hooks/useLanguage';
-import { toAbsoluteUrl } from '@/lib/mediaUrl';
-import { Trash2, Plus, GripVertical, Image, Video, Music, Share2 } from 'lucide-react';
-import { PublishModal } from '@/components/Modals/PublishModal';
-import type { Asset } from '@vibee/atoms';
-import { DEFAULT_AVATAR_CONFIG, DEFAULT_WIDTH, DEFAULT_HEIGHT } from '@vibee/atoms';
-import './ResultsGallery.css';
+import { useState } from 'react'
+import { useAtomValue, useSetAtom } from 'jotai'
+import {
+  generatedResultsAtom,
+  removeGeneratedResultAtom,
+  type GeneratedResult,
+} from '@/atoms/generateResults'
+import { addAssetAtom } from '@/atoms/assets'
+import { currentFrameAtom } from '@/atoms/playback'
+import { useEditorStore } from '@/store/editorStore'
+import { useLanguage } from '@/hooks/useLanguage'
+import { toAbsoluteUrl } from '@/lib/mediaUrl'
+import {
+  Trash2,
+  Plus,
+  GripVertical,
+  Image,
+  Video,
+  Music,
+  Share2,
+} from 'lucide-react'
+import { PublishModal } from '@/components/Modals/PublishModal'
+import type { Asset } from '@vibee/atoms'
+import {
+  DEFAULT_AVATAR_CONFIG,
+  DEFAULT_WIDTH,
+  DEFAULT_HEIGHT,
+} from '@vibee/atoms'
+import './ResultsGallery.css'
 
 interface ResultsGalleryProps {
-  tab: 'image' | 'video' | 'audio' | 'lipsync';
+  tab: 'image' | 'video' | 'audio' | 'lipsync'
 }
 
 export function ResultsGallery({ tab }: ResultsGalleryProps) {
-  const { t } = useLanguage();
-  const generatedResults = useAtomValue(generatedResultsAtom);
-  const removeResult = useSetAtom(removeGeneratedResultAtom);
-  const currentFrame = useAtomValue(currentFrameAtom);
-  const addItem = useEditorStore((s) => s.addItem);
+  const { t } = useLanguage()
+  const generatedResults = useAtomValue(generatedResultsAtom)
+  const removeResult = useSetAtom(removeGeneratedResultAtom)
+  const currentFrame = useAtomValue(currentFrameAtom)
+  const addItem = useEditorStore(s => s.addItem)
 
   // Publish modal state
-  const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const [publishVideoUrl, setPublishVideoUrl] = useState<string | undefined>();
+  const [publishModalOpen, setPublishModalOpen] = useState(false)
+  const [publishVideoUrl, setPublishVideoUrl] = useState<string | undefined>()
 
   // Get results for current tab
-  const results = generatedResults[tab];
+  const results = generatedResults[tab]
 
   // Handle share to feed
   const handleShare = (result: GeneratedResult) => {
-    setPublishVideoUrl(toAbsoluteUrl(result.url));
-    setPublishModalOpen(true);
-  };
+    setPublishVideoUrl(toAbsoluteUrl(result.url))
+    setPublishModalOpen(true)
+  }
 
   // Handle drag start for drag & drop to timeline
   const handleDragStart = (e: React.DragEvent, result: GeneratedResult) => {
@@ -43,34 +59,34 @@ export function ResultsGallery({ tab }: ResultsGalleryProps) {
       type: result.type,
       name: result.name,
       url: result.url,
-    };
-    e.dataTransfer.setData('application/json', JSON.stringify(asset));
-    e.dataTransfer.effectAllowed = 'copy';
-  };
+    }
+    e.dataTransfer.setData('application/json', JSON.stringify(asset))
+    e.dataTransfer.effectAllowed = 'copy'
+  }
 
   // Add result to timeline at playhead position
   const handleAddToTimeline = (result: GeneratedResult) => {
     // Determine target track based on asset type and current tab
-    let trackId: string;
-    let itemType: 'video' | 'image' | 'audio' | 'avatar';
+    let trackId: string
+    let itemType: 'video' | 'image' | 'audio' | 'avatar'
 
     // If we're on lipsync tab, treat videos as avatars
     if (tab === 'lipsync') {
-      trackId = 'track-avatar';
-      itemType = 'avatar';
+      trackId = 'track-avatar'
+      itemType = 'avatar'
     } else {
       switch (result.type) {
         case 'audio':
-          trackId = 'track-audio';
-          itemType = 'audio';
-          break;
+          trackId = 'track-audio'
+          itemType = 'audio'
+          break
         case 'image':
-          trackId = 'track-image';
-          itemType = 'image';
-          break;
+          trackId = 'track-image'
+          itemType = 'image'
+          break
         default:
-          trackId = 'track-video';
-          itemType = 'video';
+          trackId = 'track-video'
+          itemType = 'video'
       }
     }
 
@@ -82,7 +98,10 @@ export function ResultsGallery({ tab }: ResultsGalleryProps) {
       x: 0,
       y: 0,
       width: DEFAULT_WIDTH,
-      height: result.type === 'video' || tab === 'lipsync' ? DEFAULT_HEIGHT : DEFAULT_WIDTH,
+      height:
+        result.type === 'video' || tab === 'lipsync'
+          ? DEFAULT_HEIGHT
+          : DEFAULT_WIDTH,
       rotation: 0,
       opacity: 1,
       ...(itemType === 'video' && { volume: 1, playbackRate: 1 }),
@@ -93,38 +112,46 @@ export function ResultsGallery({ tab }: ResultsGalleryProps) {
         circleBottomPercent: DEFAULT_AVATAR_CONFIG.circleBottomPercent,
         circleLeftPercent: DEFAULT_AVATAR_CONFIG.circleLeftPercent,
       }),
-    });
+    })
 
     // Haptic feedback
     if ('vibrate' in navigator) {
-      navigator.vibrate(50);
+      navigator.vibrate(50)
     }
-  };
+  }
 
   // Remove result
   const handleRemoveResult = (resultId: string) => {
-    removeResult({ tab, resultId });
-  };
+    removeResult({ tab, resultId })
+  }
 
   // Get icon for empty state
   const getEmptyIcon = () => {
     switch (tab) {
-      case 'image': return <Image size={48} />;
-      case 'video': return <Video size={48} />;
-      case 'audio': return <Music size={48} />;
-      case 'lipsync': return <Video size={48} />;
+      case 'image':
+        return <Image size={48} />
+      case 'video':
+        return <Video size={48} />
+      case 'audio':
+        return <Music size={48} />
+      case 'lipsync':
+        return <Video size={48} />
     }
-  };
+  }
 
   // Get empty message
   const getEmptyMessage = () => {
     switch (tab) {
-      case 'image': return t('results.noImages') || 'No images yet. Generate some photos!';
-      case 'video': return t('results.noVideos') || 'No videos yet. Generate some videos!';
-      case 'audio': return t('results.noAudio') || 'No audio yet. Generate some voice!';
-      case 'lipsync': return t('results.noLipsync') || 'No lipsync videos yet. Generate some!';
+      case 'image':
+        return t('results.noImages') || 'No images yet. Generate some photos!'
+      case 'video':
+        return t('results.noVideos') || 'No videos yet. Generate some videos!'
+      case 'audio':
+        return t('results.noAudio') || 'No audio yet. Generate some voice!'
+      case 'lipsync':
+        return t('results.noLipsync') || 'No lipsync videos yet. Generate some!'
     }
-  };
+  }
 
   return (
     <div className="results-gallery">
@@ -135,12 +162,12 @@ export function ResultsGallery({ tab }: ResultsGalleryProps) {
         </div>
       ) : (
         <div className="results-grid">
-          {results.map((result) => (
+          {results.map(result => (
             <div
               key={result.id}
               className="result-card"
               draggable
-              onDragStart={(e) => handleDragStart(e, result)}
+              onDragStart={e => handleDragStart(e, result)}
             >
               <div className="result-drag-handle">
                 <GripVertical size={16} />
@@ -152,6 +179,10 @@ export function ResultsGallery({ tab }: ResultsGalleryProps) {
                     src={toAbsoluteUrl(result.url)}
                     alt={result.name}
                     className="result-image"
+                    onError={e => {
+                      ;(e.currentTarget as HTMLImageElement).style.display =
+                        'none'
+                    }}
                   />
                 )}
                 {result.type === 'video' && (
@@ -213,5 +244,5 @@ export function ResultsGallery({ tab }: ResultsGalleryProps) {
         videoUrl={publishVideoUrl}
       />
     </div>
-  );
+  )
 }

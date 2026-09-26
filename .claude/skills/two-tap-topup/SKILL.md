@@ -42,4 +42,4 @@ grep -n "payRow" src/navigation/helpers/actionButtons.ts src/services/businessBo
 
 - `src/navigation/helpers/actionButtons.ts`, `src/handlers/paymentHandlers/index.ts`, `src/handlers/handleSelectStars/index.ts`
 - `apps/vibee-editor/render/src/agent/billing-shared.ts`, `token-invoice.ts`, `token-packs.ts`, `bot-farm.ts`
-- Скилы: `payment-billing-expert`, `financial-audit`, `buttons-under-every-answer`
+- Скилы: `payment-billing-expert`, `financial-audit`, `buttons-by-substance`
