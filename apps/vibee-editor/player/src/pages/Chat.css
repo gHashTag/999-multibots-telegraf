@@ -1219,3 +1219,56 @@ html[data-keyboard='open'] .chat-page {
 .chat-conv-btn:hover {
   background: rgba(255, 255, 255, 0.06);
 }
+
+/* The client's group on the card (components/Crm/ClientGroup.tsx). */
+.chat-aside__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-aside__group-name {
+  margin: 0;
+  font-size: 13px;
+}
+.chat-aside__group-name span,
+.chat-aside__group-none,
+.chat-aside__group-rule {
+  color: var(--t27-muted, #888);
+  font-size: 12px;
+}
+.chat-aside__group-rule {
+  margin: 0;
+}
+.chat-aside__group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.chat-aside__group-actions button,
+.chat-aside__group-actions a {
+  height: auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--t27-accent, #00ff88);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.chat-aside__group-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.chat-aside__group-pick {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.15));
+  background: #17191e;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}

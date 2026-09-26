@@ -795,6 +795,19 @@ export async function clientContextBlock(
   })
   if (brief.name) name = brief.name
   if (brief.text) parts.push(brief.text)
+  // The client's group, when the owner bound one: where the agent may post
+  // beside the DM, by the same card-and-press rule (crm-client-group.ts).
+  try {
+    const { clientGroupFor, clientGroupLine } = await import(
+      './crm-client-group'
+    )
+    const line = clientGroupLine(
+      await clientGroupFor(ctx.pool as never, owner, lead)
+    )
+    if (line) parts.push(line)
+  } catch {
+    // No group memory yet: the brief simply has no group line.
+  }
   try {
     const { leadContext, personOf } = await import('./chat-memory')
     const who = await personOf(ctx.pool as never, owner, lead).catch(() => null)
