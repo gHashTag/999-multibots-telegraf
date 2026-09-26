@@ -3964,7 +3964,7 @@ const server = createServer(async (req, res) => {
      * его идентификатор), поэтому выбор голоса не значил ничего: три попытки
      * разными голосами стоили трижды и давали один и тот же файл.
      */
-    выбор: { voice?: unknown; speed?: unknown } = {}
+    выбор: { voice?: unknown; speed?: unknown; trustedClone?: boolean } = {} // cyrillic-ok: existing parameter
   ): Promise<string> {
     const REPLICATE_TOKEN =
       process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
@@ -5321,6 +5321,9 @@ const server = createServer(async (req, res) => {
             // `входМиниМакс` отбросит сам, а не отправит провайдеру.
             voice: voice_id,
             speed,
+            // The owner's MiniMax clone is honoured only when the service
+            // itself asks (the agent's audio_generate), never from a person.
+            trustedClone: authenticate(req).via === 'api-key',
           })
           const dl = await fetch(audioUrl)
           if (!dl.ok) {

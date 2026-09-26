@@ -75,6 +75,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join as joinPath } from 'node:path'
 import { withShelfFile } from './media-extract'
+import { OWNER_MINIMAX_CLONE } from './minimax-voices'
 import { Agent as UndiciAgent } from 'undici'
 import {
   LIPSYNC_DEFAULT_MODEL,
@@ -2039,6 +2040,21 @@ export const TOOLS: AgentTool[] = [
           (свой ?? list[0])?.id || (свой ?? list[0])?.voice_id || ''
         )
         голосВладельца = !!свой
+      }
+      /*
+       * THE OWNER SPEAKS WITH THE OWNER'S VOICE even while ElevenLabs is
+       * down (its env var holds the key's identifier, not the key): the
+       * MiniMax clone on Replicate, the one the content factory uses. Only
+       * for the house -- the owner's own voice is not a library voice to
+       * lend -- and only when no clone of the owner came back above.
+       */
+      if (
+        !args.voice_id &&
+        !голосВладельца && // cyrillic-ok: existing local
+        HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)
+      ) {
+        voiceId = OWNER_MINIMAX_CLONE
+        голосВладельца = true // cyrillic-ok: existing local
       }
       if (!voiceId) {
         await refundTokens(
