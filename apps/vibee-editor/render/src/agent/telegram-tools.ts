@@ -1525,6 +1525,11 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         url: { type: 'string', description: 'https' },
         caption: { type: 'string', description: 'подпись' },
         schedule_at: { type: 'string', description: 'когда: ISO' },
+        gift: {
+          type: 'boolean',
+          description:
+            'подарок клиенту (рилс-история про его дело): в журнале — подарок',
+        },
       },
       required: ['chat', 'url'],
     },
@@ -1542,6 +1547,12 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
             kind: 'video',
             url: String(args.url ?? ''),
           },
+          /*
+           * THE SECOND GIFT IS A VIDEO (owner, 2026-09-26). Marked here, the
+           * press writes "gift: video: ..." into the touches, which is how
+           * portraitOf tells the story reel from the portrait.
+           */
+          ...(args.gift === true ? { gift: true } : {}),
           ...scheduleExtra(args),
         }
       )

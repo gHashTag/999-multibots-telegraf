@@ -15,7 +15,12 @@ import {
   LeelaPlanReelSchema,
 } from './compositions/LeelaPlanReel'
 import { RelaunchReel, RelaunchReelSchema } from './compositions/RelaunchReel'
-import { StoryReel, StoryReelSchema } from './compositions/StoryReel'
+import {
+  StoryReel,
+  StoryReelSchema,
+  sceneFramesOf,
+  storyDurationFrames,
+} from './compositions/StoryReel'
 import { resolveMediaPath } from './shared/mediaPath'
 import {
   CAPTION_DEFAULTS,
@@ -252,6 +257,7 @@ export const RemotionRoot: React.FC = () => {
           scenes: [] as { video: string }[],
           sceneFrames: [] as number[],
           pauseSec: 2,
+          breathSec: 0.25,
           cta: '',
           musicVolume: 0.06,
         }}
@@ -265,7 +271,7 @@ export const RemotionRoot: React.FC = () => {
                   const meta = await getVideoMetadata(
                     resolveMediaPath(scene.video)
                   )
-                  return Math.max(1, Math.round(meta.durationInSeconds * 30))
+                  return sceneFramesOf(meta.durationInSeconds, 30)
                 } catch (e) {
                   throw new Error(
                     `StoryReel: scene ${i + 1} could not be measured (${String(e).slice(0, 160)})`
@@ -276,8 +282,9 @@ export const RemotionRoot: React.FC = () => {
           )
           if (!frames.length) return {}
           const pause = Math.round((props.pauseSec ?? 0) * 30)
+          const breath = Math.round((props.breathSec ?? 0.25) * 30)
           return {
-            durationInFrames: frames.reduce((a, b) => a + b, 0) + pause,
+            durationInFrames: storyDurationFrames(frames, pause, breath),
             props: { ...props, sceneFrames: frames },
           }
         }}

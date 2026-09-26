@@ -66,6 +66,12 @@ export const StoryReelSchema = z.object({
   sceneFrames: z.array(z.number()).default([]),
   /** The pause after the call to action: the last frame held, seconds. */
   pauseSec: z.number().min(0).max(3).default(2),
+  /**
+   * A breath between two lines: the scene's last frame held, silent, before
+   * the cut. Without it one line ran straight into the next and the owner
+   * heard the voice "cut off unevenly" (2026-09-26).
+   */
+  breathSec: z.number().min(0).max(1).default(0.25),
   /** Optional words shown during the pause, e.g. the bot to open. */
   cta: z.string().default(''),
   music: z.string().optional(),
@@ -74,27 +80,87 @@ export const StoryReelSchema = z.object({
 
 export type StoryReelProps = z.infer<typeof StoryReelSchema>
 
-/** Where each scene starts and how long it runs, in frames. */
+/**
+ * A clip's length in frames, rounded UP. `Math.round` cut up to half a frame
+ * off the end of every line -- the last sound of the last word -- and that is
+ * the uneven cut the owner heard (2026-09-26). A frame too long is a frame of
+ * the clip's own silence; a frame too short is a clipped word.
+ */
+export function sceneFramesOf(seconds: number, fps: number): number {
+  return Math.max(1, Math.ceil(Number((seconds * fps).toFixed(6))))
+}
+
+/** The whole story: every line, a breath between lines, then the pause. */
+export function storyDurationFrames(
+  sceneFrames: readonly number[],
+  pauseFrames: number,
+  breathFrames = 0
+): number {
+  const lines = sceneFrames.reduce((a, b) => a + b, 0)
+  return (
+    lines + breathFrames * Math.max(0, sceneFrames.length - 1) + pauseFrames
+  )
+}
+
+/** Where each scene starts, how long its line runs, and the breath after it. */
 export function storyTimeline(
   sceneCount: number,
   sceneFrames: readonly number[],
   totalFrames: number,
-  pauseFrames: number
-): { from: number; frames: number }[] {
+  pauseFrames: number,
+  breathFrames = 0
+): { from: number; frames: number; breath: number }[] {
   const measured =
     sceneFrames.length === sceneCount && sceneFrames.every(f => f > 0)
+  const breaths = breathFrames * Math.max(0, sceneCount - 1)
   const even = Math.max(
     1,
-    Math.floor((totalFrames - pauseFrames) / Math.max(1, sceneCount))
+    Math.floor((totalFrames - pauseFrames - breaths) / Math.max(1, sceneCount))
   )
   let from = 0
   return Array.from({ length: sceneCount }, (_, i) => {
     const frames = measured ? sceneFrames[i] : even
-    const at = { from, frames }
-    from += frames
+    // The last line is followed by the pause, which is a longer breath.
+    const breath = i < sceneCount - 1 ? breathFrames : 0
+    const at = { from, frames, breath }
+    from += frames + breath
     return at
   })
 }
+
+/** Frames of the fade at each end of a line: no click on the cut. */
+export const FADE_IN_FRAMES = 1
+export const FADE_OUT_FRAMES = 3
+
+/**
+ * The line's volume at a frame of its scene. A hard cut through a waveform
+ * clicks; a tenth of a second of fade at the end lands in the TTS's own
+ * trailing silence, and one frame at the start keeps the first syllable.
+ */
+export function sceneVolume(frame: number, frames: number): number {
+  if (frames <= FADE_IN_FRAMES + FADE_OUT_FRAMES + 2) return 1
+  return interpolate(
+    frame,
+    [0, FADE_IN_FRAMES, frames - FADE_OUT_FRAMES, frames],
+    [0, 1, 1, 0],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+  )
+}
+
+/** A clip's last frame, held still and silent. */
+const HeldFrame: React.FC<{ src: string; at: number }> = ({ src, at }) => (
+  // The clip starts AT its last frame and that frame is frozen: Remotion
+  // bounds a video's time by its Sequence, so freezing frame N of a clip
+  // inside a shorter Sequence showed the wrong one.
+  <Freeze frame={0}>
+    <OffthreadVideo
+      src={src}
+      trimBefore={Math.max(0, at)}
+      muted
+      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+    />
+  </Freeze>
+)
 
 const CallToAction: React.FC<{ text: string }> = ({ text }) => {
   const frame = useCurrentFrame()
@@ -146,11 +212,13 @@ const CallToAction: React.FC<{ text: string }> = ({ text }) => {
 export const StoryReel: React.FC<StoryReelProps> = props => {
   const { fps, durationInFrames } = useVideoConfig()
   const pauseFrames = Math.round((props.pauseSec ?? 0) * fps)
+  const breathFrames = Math.round((props.breathSec ?? 0) * fps)
   const timeline = storyTimeline(
     props.scenes.length,
     props.sceneFrames ?? [],
     durationInFrames,
-    pauseFrames
+    pauseFrames,
+    breathFrames
   )
   const last = timeline[timeline.length - 1]
   const lastScene = props.scenes[props.scenes.length - 1]
@@ -159,17 +227,28 @@ export const StoryReel: React.FC<StoryReelProps> = props => {
   return (
     <AbsoluteFill style={{ backgroundColor: BG }}>
       {props.scenes.map((scene, i) => (
-        <Sequence
-          key={i}
-          from={timeline[i].from}
-          durationInFrames={timeline[i].frames}
-          name={`Scene ${i + 1}`}
-        >
-          <OffthreadVideo
-            src={scene.video}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-        </Sequence>
+        <React.Fragment key={i}>
+          <Sequence
+            from={timeline[i].from}
+            durationInFrames={timeline[i].frames}
+            name={`Scene ${i + 1}`}
+          >
+            <OffthreadVideo
+              src={scene.video}
+              volume={f => sceneVolume(f, timeline[i].frames)}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          </Sequence>
+          {timeline[i].breath > 0 ? (
+            <Sequence
+              from={timeline[i].from + timeline[i].frames}
+              durationInFrames={timeline[i].breath}
+              name={`Breath ${i + 1}`}
+            >
+              <HeldFrame src={scene.video} at={timeline[i].frames - 1} />
+            </Sequence>
+          ) : null}
+        </React.Fragment>
       ))}
 
       {pauseFrames > 0 && lastScene ? (
@@ -178,17 +257,7 @@ export const StoryReel: React.FC<StoryReelProps> = props => {
           durationInFrames={pauseFrames}
           name="Pause to decide"
         >
-          {/* The clip starts AT its last frame and that frame is frozen:
-              Remotion bounds a video's time by its Sequence, so freezing
-              frame N of a clip inside a shorter pause showed the wrong one. */}
-          <Freeze frame={0}>
-            <OffthreadVideo
-              src={lastScene.video}
-              trimBefore={Math.max(0, last.frames - 1)}
-              muted
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          </Freeze>
+          <HeldFrame src={lastScene.video} at={last.frames - 1} />
           {props.cta ? <CallToAction text={props.cta} /> : null}
         </Sequence>
       ) : null}
