@@ -529,6 +529,24 @@ describe('the real handler', () => {
     for (const c of routes) expect(c.waits).toBe(true)
   })
 
+  it('the route is called in this process, never through the public edge that cuts at five minutes', async () => {
+    // 2026-09-26: through SELF_URL (the public host) Railway's edge closed the
+    // owner's Kling reel at 300 013 ms. SELF_URL is set here to that kind of
+    // address; the call must not use it.
+    vi.stubEnv('PORT', '8080')
+    await ask({
+      image_url: `${BUCKET}/assets/glam.png`,
+      voice_url: `${BUCKET}/assets/voice.mp4`,
+      model: 'kie/kling/ai-avatar-standard',
+    })
+    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+    expect(routes.length).toBeGreaterThan(0)
+    for (const c of routes) {
+      expect(c.url).toBe('http://127.0.0.1:8080/api/generate/lipsync')
+      expect(c.url.startsWith(RENDER)).toBe(false)
+    }
+  })
+
   it('an unnamed model leaves the route its default, at the tool price', async () => {
     await ask({
       image_url: `${BUCKET}/assets/glam.png`,

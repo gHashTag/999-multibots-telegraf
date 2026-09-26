@@ -194,6 +194,20 @@ const selfBase = () =>
   process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3000')
 
 /**
+ * THIS PROCESS, NOT ITS PUBLIC ADDRESS -- for a self-call that may take
+ * longer than five minutes.
+ *
+ * SELF_URL is the render's public host, so a self-call through selfBase()
+ * crosses Railway's edge, which closes a request after five minutes with no
+ * data sent. Measured 2026-09-26: the owner's 23-second Kling reel, one call
+ * of /api/generate/lipsync, was cut at exactly 300 013 ms (Railway's HTTP log:
+ * host vibee-render-production.up.railway.app, 499 upstream, 502 to us) while
+ * KIE was still drawing. The route lives in this very process; the loopback
+ * has no edge to cut it. The port is the one render-server.ts listens on.
+ */
+const loopbackBase = () => 'http://127.0.0.1:' + (process.env.PORT || '3333')
+
+/**
  * Self-call инструментов. На проде гвард в режиме enforce: вызов самого
  * себя без ключа отбивается 401 (локальный warn это маскировал — второй
  * случай ловушки «новый маршрут режется гвардом»). Представляемся
@@ -2338,7 +2352,7 @@ export const TOOLS: AgentTool[] = [
                */
               const waitMs = lipsyncWaitMs(parts[i].duration)
               const res = await selfFetch(
-                `${selfBase()}/api/generate/lipsync`,
+                `${loopbackBase()}/api/generate/lipsync`,
                 {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
