@@ -3,6 +3,9 @@ import { DEAREST_VARIANT_USD } from './kie-prices.generated'
 // Контракты моделей: `needs` решает, задаём ли длину МЫ. Модуль без импортов,
 // цикла не создаёт.
 import { KIE_MODELS } from './kie-models'
+// The img2img model's id, for the image_edit cost below. A module without
+// imports as well: reading it from kie-image.ts would close a cycle.
+import { EDIT_MODEL } from './kie-edit-model'
 // Which models the route sells as VIDEO. A module without imports, like the two above.
 import { ВИДИМЫЕ_ИМЕНА } from './kie-display-names' // cyrillic-ok: existing export name
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
@@ -87,6 +90,19 @@ export const OPERATION_COST_USD: Record<string, number> = {
    * the flat `image_generate` rate would sell it below cost.
    */
   gpt_image_edit: 0.03,
+  /**
+   * The agent's img2img (image_edit) on Kie google/nano-banana-edit -- the
+   * stills of every story reel. It was charged as `image_generate`, a price
+   * set for Replicate flux-schnell at $0.003, while Kie bills this model $0.02
+   * a picture: 2 tokens for a still the formula prices at 8, sold below cost
+   * on every call (found 2026-09-26 costing the story reel). The cost is READ
+   * from the generated Kie price list, not typed: the day Kie moves the price,
+   * this row moves with it. A list without the model leaves the row out, and
+   * a missing row is a refused charge, never a free one.
+   */
+  ...(СЕБЕСТОИМОСТЬ_USD[EDIT_MODEL] != null // cyrillic-ok: generated table name
+    ? { image_edit: СЕБЕСТОИМОСТЬ_USD[EDIT_MODEL] as number } // cyrillic-ok: generated table name
+    : {}),
   /**
    * The DEFAULT clip of the Replicate leg: 5 seconds at 720p. It read 0.1, an
    * estimate nobody had checked against the provider's page; the measured
@@ -459,6 +475,7 @@ export function секундыКОплате(duration: unknown): number {
 export const TOKEN_PRICES: Record<string, number> = {
   image_generate: priceFor('image_generate'), // 2
   gpt_image_edit: priceFor('gpt_image_edit'), // 12
+  image_edit: priceFor('image_edit'), // 8: Kie nano-banana-edit at $0.02
   audio_generate: priceFor('audio_generate'), // 12
   lipsync_generate: priceFor('lipsync_generate'), // 6 per audio second
   voice_clone: priceFor('voice_clone'), // 1200
