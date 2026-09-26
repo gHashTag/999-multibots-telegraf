@@ -1,0 +1,146 @@
+/**
+ * crm_story_reel -- the CRM's story-reel template, for the seller (owner,
+ * 2026-09-26: "create it in the CRM as a template for clients who gave their
+ * voice and an avatar photo, for any story").
+ *
+ * One tool, two uses, the same for the agent and the client's card in the
+ * app:
+ *   - without `start`: is this client ready (face? voice?), with which
+ *     settings, and the last reels made for them;
+ *   - `start: true`: a reel on any topic, made in the background
+ *     (story-template.ts). It comes to the SELLER to look at first; the
+ *     seller forwards it. A client's material never reaches the client unseen
+ *     by the person whose name is on it.
+ *
+ * The avatar is fetched here when the CRM has not looked yet: "a photo from
+ * the avatar" is half of what qualifies a client, and an empty cache is not
+ * "no photo" (crm-avatars.ts facesKnown).
+ */
+import type { AgentTool, ToolContext } from './tools'
+import {
+  missingFor,
+  nextLink,
+  startStory,
+  storyJobsOf,
+  storySettingsOf,
+  STORY_TOPIC_MAX,
+  type StoryDeps,
+} from './story-template'
+import { requireSeller } from './telegram-tools'
+
+export const NOT_THIS_CLIENT =
+  'в разговоре за клиента рилс делается только ему самому' // cyrillic-ok: tool result copy
+
+/** An id, or an @name the seller's CRM knows. */
+async function leadOf(ctx: ToolContext, raw: unknown): Promise<string | null> {
+  const v = String(raw ?? '')
+    .trim()
+    .replace(/^@/, '')
+  if (/^\d{5,15}$/.test(v)) return v
+  if (!/^[A-Za-z0-9_]{4,32}$/.test(v)) return null
+  try {
+    const r = await ctx.pool.query(
+      `SELECT lead_id FROM crm_people
+        WHERE owner_id = $1 AND lower(username) = lower($2) LIMIT 1`,
+      [String(ctx.telegramId), v]
+    )
+    return r.rows?.[0]?.lead_id ? String(r.rows[0].lead_id) : null
+  } catch {
+    return null
+  }
+}
+
+export function makeCrmStoryTool(o: {
+  deps: (ctx: ToolContext) => StoryDeps
+  lookup: (name: string) => AgentTool | undefined
+}): AgentTool {
+  return {
+    name: 'crm_story_reel',
+    description:
+      'ШАБЛОН «РИЛС-ИСТОРИЯ» CRM для клиента с лицом (аватарка) и голосом (crm_voice_clone). ' +
+      'Без start — готов ли клиент и его последние рилсы. start:true — рилс на ЛЮБУЮ тему (topic; ' +
+      'без неё — следующий пункт его контент-плана или свежая тема про его дело): 3 сцены, его лицо ' +
+      'в новой обстановке каждая, его голос, пауза с призывом. Делается в фоне 5–10 мин, готовый ' +
+      'приходит тебе на проверку — клиенту пересылаешь сам. Платит тот, кто запустил.',
+    parameters: {
+      type: 'object',
+      properties: {
+        lead: { type: 'string', description: 'id или @username клиента' },
+        start: { type: 'boolean', description: 'сделать рилс сейчас' },
+        topic: {
+          type: 'string',
+          description: 'тема рилса своими словами; пусто — план или новая',
+        },
+        about: {
+          type: 'string',
+          description:
+            'чем клиент занимается, если профиля нет (одна строка для сценария)',
+        },
+      },
+      required: ['lead'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      await requireSeller(ctx)
+      const lead = await leadOf(ctx, args.lead)
+      if (!lead) return { ready: false, why: 'lead: id или @username клиента' }
+      const forClient = String((ctx as { faceOf?: string }).faceOf ?? '').trim()
+      if (forClient && forClient !== lead)
+        return { ready: false, why: NOT_THIS_CLIENT }
+      const seller = String(ctx.telegramId)
+
+      let s = await storySettingsOf(ctx.pool, lead, seller)
+      if (s && !s.faceUrl) {
+        // The CRM has not looked at the avatar yet: look now (it is cached).
+        const face = o.lookup('crm_client_face')
+        if (face) {
+          await face.handler({ lead_id: lead }, ctx).catch(() => null)
+          s = await storySettingsOf(ctx.pool, lead, seller)
+        }
+      }
+      const missing = missingFor(s)
+
+      if (args.start !== true) {
+        const jobs = await storyJobsOf(ctx.pool, seller, lead).catch(() => [])
+        const bot = await o
+          .deps(ctx)
+          .botOf?.(lead)
+          .catch(() => null)
+        return {
+          ready: !missing,
+          ...(missing ? { why: missing } : {}),
+          lead,
+          ...(s
+            ? {
+                name: s.name || undefined,
+                face: s.faceUrl || undefined,
+                voice: s.hasVoice,
+                vip: s.vip,
+                style: s.style,
+                cta: s.cta,
+                pause_sec: s.pauseSec,
+                client_pays_own_press: s.payer === 'client',
+              }
+            : {}),
+          one_tap_link: nextLink(bot) || undefined,
+          jobs,
+        }
+      }
+
+      if (missing) return { started: false, why: missing }
+      const out = await startStory(o.deps(ctx), {
+        lead,
+        requester: seller,
+        seller,
+        topic: String(args.topic ?? '').slice(0, STORY_TOPIC_MAX),
+        about: String(args.about ?? ''),
+      })
+      return out.started
+        ? {
+            ...out,
+            note: 'рилс делается в фоне 5–10 минут; готовый придёт тебе в бот на проверку',
+          }
+        : out
+    },
+  }
+}
