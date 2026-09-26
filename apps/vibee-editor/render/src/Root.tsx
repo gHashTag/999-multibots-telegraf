@@ -15,6 +15,7 @@ import {
   LeelaPlanReelSchema,
 } from './compositions/LeelaPlanReel'
 import { RelaunchReel, RelaunchReelSchema } from './compositions/RelaunchReel'
+import { StoryReel, StoryReelSchema } from './compositions/StoryReel'
 import { resolveMediaPath } from './shared/mediaPath'
 import {
   CAPTION_DEFAULTS,
@@ -233,6 +234,52 @@ export const RemotionRoot: React.FC = () => {
             : 0
           if (!last) return {}
           return { durationInFrames: Math.round((last / 1000 + 1.2) * 30) }
+        }}
+      />
+
+      {/* StoryReel: the owner's mini-story -- one lip-synced scene per line,
+          each in its own setting, a call to action and a pause at the end.
+          Length comes from the clips, so every cut lands where a line ends. */}
+      <Composition
+        id="StoryReel"
+        component={StoryReel as never}
+        durationInFrames={450}
+        fps={30}
+        width={1080}
+        height={1920}
+        schema={StoryReelSchema}
+        defaultProps={{
+          scenes: [] as { video: string }[],
+          sceneFrames: [] as number[],
+          pauseSec: 2,
+          cta: '',
+          musicVolume: 0.06,
+        }}
+        calculateMetadata={async ({ props }) => {
+          // A scene that cannot be measured stops the render here, loudly:
+          // the fallback length would stretch every cut to the wrong place.
+          const frames = await Promise.all(
+            (props.scenes ?? []).map(
+              async (scene: { video: string }, i: number) => {
+                try {
+                  const meta = await getVideoMetadata(
+                    resolveMediaPath(scene.video)
+                  )
+                  return Math.max(1, Math.round(meta.durationInSeconds * 30))
+                } catch (e) {
+                  throw new Error(
+                    `StoryReel: scene ${i + 1} could not be measured (${String(e).slice(0, 160)})`
+                  )
+                }
+              }
+            )
+          )
+          if (!frames.length) return {}
+          const pause = Math.round((props.pauseSec ?? 0) * 30)
+          return {
+            durationInFrames: frames.reduce((a, b) => a + b, 0) + pause,
+            props: { ...props, sceneFrames: frames },
+          }
         }}
       />
 

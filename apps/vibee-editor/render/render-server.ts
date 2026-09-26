@@ -5641,10 +5641,13 @@ const server = createServer(async (req, res) => {
          * A test runs EVERY name here through that admission, so a name the
          * route cannot serve fails the build instead of the person.
          */
+        // The first name is the default for a call that names none: Kling,
+        // the owner's pick of 2026-09-26, whose cost the operation's price
+        // in billing-shared.ts is derived from.
         const KIE_LIPSYNC = [
+          'kling/ai-avatar-standard',
           'infinitalk/from-audio',
           'omnihuman-1-5',
-          'kling/ai-avatar-standard',
         ]
         const explicitKie = model?.startsWith('kie/') ?? false
         /*
