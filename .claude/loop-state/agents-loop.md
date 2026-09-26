@@ -273,3 +273,47 @@ headers, then`tri reach` each path) found the two dead routes of this
   but not kieProvider.test, so the Mini App stayed on the old build.
   Fixed in #3045. Check after every merge: Railway list-deployments for
   vibee-editor 7aad4834 — a FAILED status there means a player test is red.
+
+## Tick 12 (26.09, owner asks in chat)
+
+Owner: "a professional dashboard by theme for each agent; make the programmer
+a scientist; so I can keep several chats; rework the chat UX so we fully move
+to it; make the logic in .t27 so it is more reliable." Also found and closed a
+security hole in hdl_run.
+
+Shipped (all merged to main):
+- #3048 hdl_run hole: the forbidden-task list was matched against the source
+  as WRITTEN, but a Verilog macro pastes a name together after that check
+  (`define SYS(a) $``a` then `SYS(fopen)` -> $fopen, reproduced reading a file
+  on this container). Now every run goes through `iverilog -E` first and the
+  list is matched against the EXPANSION; synth reads the checked expansion;
+  the tools run as nobody (uid 65534) when the server is root. LESSON: a text
+  check on source a compiler will transform is not a check on what runs — put
+  it through the same preprocessor first.
+- #3052 several conversations + coder + dashboard bench:
+  - conversation = base thread + '~' + id (render conversation.ts). Only own
+    and specialist threads split; client/room do not. No id => base thread,
+    so every existing caller is byte-for-byte unchanged. withConversation runs
+    AFTER threadFor. /api/agent/conversations lists/names; player ?c=, a rail,
+    one stream/queue/Stop/draft per conversation (agentStream threadKeyOf).
+  - coder agent: code_run runs TS/JS in Deno with EVERY permission denied
+    (--no-prompt, no net/disk/env/subprocess/remote/npm), empty env, nobody,
+    10s, per-person budget. Verified against real Deno: all denials hold.
+    Dockerfile installs pinned Deno. Python named but not enabled (honest).
+  - dashboard: listing.workbench {tool, repo, metric}; the panel reads the
+    same acceptance verdict and says whether the last check ran that tool.
+- t27#4840: specs/automation/agent-conversations.t27 — the conversation logic
+  as compiler-checked t27c assertions (spec-status IMPLEMENTED). LESSON: the
+  t27 repo is /root/.cache/t27 (sparse: bootstrap cli specs); t27c built at
+  ~/.cache/t27-build/release/t27c (686 MB target, keep OUT of the sandbox —
+  CARGO_TARGET_DIR=~/.cache). Write path is /home/user/.cache != /root/.cache;
+  the tool reads /root. Zig is NOT installed, so `t27c test-report` is BLOCKED
+  and only parse + spec-status run here.
+
+New tri command:
+- `tri code [--lang ts|js] FILE` (bin/helpers/code.sh) — runs TS/JS through the
+  SAME code_run the coder uses; needs Deno on PATH (image has it).
+
+Anomaly watch / not mine:
+- render `isolated-reader` fails on clean main too (worker-thread heap
+  ceiling); untouched here. Named in every PR that runs the full render suite.
