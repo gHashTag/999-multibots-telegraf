@@ -20,9 +20,6 @@
  */
 const REMEMBER_MS = 30 * 60_000
 
-// owner-scope: per process -- this is the provider's state, not a person's.
-let lastFailure: { at: number; why: string } | null = null
-
 /**
  * Only the refusals that mean THE PROVIDER, not this request.
  *
@@ -46,20 +43,46 @@ export function looksLikeProviderOutage(why: unknown): boolean {
   return PROVIDER_IS_DOWN.test(String(why ?? ''))
 }
 
+/** One provider's last real refusal, remembered for REMEMBER_MS. */
+function lastRealOutcome() {
+  // owner-scope: per process -- this is the provider's state, not a person's.
+  let lastFailure: { at: number; why: string } | null = null
+  return {
+    failed(why: unknown, now: number): void {
+      if (!looksLikeProviderOutage(why)) return
+      lastFailure = { at: now, why: String(why).slice(0, 160) }
+    },
+    worked(): void {
+      lastFailure = null
+    },
+    down(now: number): { why: string; minutesAgo: number } | null {
+      if (!lastFailure) return null
+      const age = now - lastFailure.at
+      if (age > REMEMBER_MS) {
+        lastFailure = null
+        return null
+      }
+      return { why: lastFailure.why, minutesAgo: Math.floor(age / 60_000) }
+    },
+  }
+}
+
+const images = lastRealOutcome()
+
 /** A real attempt failed. Remembered only if the reason blames the provider. */
 export function noteImagesFailed(why: unknown, now = Date.now()): void {
-  if (!looksLikeProviderOutage(why)) return
-  lastFailure = { at: now, why: String(why).slice(0, 160) }
+  images.failed(why, now)
 }
 
 /** A real picture came back: whatever we thought, it works. */
 export function noteImagesWorked(): void {
-  lastFailure = null
+  images.worked()
 }
 
 /** For tests. */
 export function forgetImageHealthForTests(): void {
-  lastFailure = null
+  images.worked()
+  voice.worked()
 }
 
 /**
@@ -70,11 +93,37 @@ export function forgetImageHealthForTests(): void {
 export function imagesLookDown(
   now = Date.now()
 ): { why: string; minutesAgo: number } | null {
-  if (!lastFailure) return null
-  const age = now - lastFailure.at
-  if (age > REMEMBER_MS) {
-    lastFailure = null
-    return null
-  }
-  return { why: lastFailure.why, minutesAgo: Math.floor(age / 60_000) }
+  return images.down(now)
+}
+
+/*
+ * A CLIENT'S VOICE, LEARNED THE SAME WAY (2026-09-27).
+ *
+ * A client's voice -- her clone (crm_voice_clone) and every line spoken with
+ * it (audio_generate for_lead, the story reel) -- is MiniMax on Replicate.
+ * The health page asks Replicate GET /v1/account, which answers 200 with no
+ * credit at all: the 402 comes only from a real prediction. And it words
+ * ElevenLabs as "the voice". So the CRM agent, asked for a reel in a client's
+ * voice while Replicate was out of credit, read "Replicate works, voice
+ * (ElevenLabs) broken", told the owner to fix the ElevenLabs key -- which
+ * the client's voice never uses -- and assembled the reel by hand instead of
+ * the template. What the last real call said is the only honest answer.
+ */
+const voice = lastRealOutcome()
+
+/** A real clone or a line in a client's voice failed at the provider. */
+export function noteVoiceFailed(why: unknown, now = Date.now()): void {
+  voice.failed(why, now)
+}
+
+/** A real clone or line came back. */
+export function noteVoiceWorked(): void {
+  voice.worked()
+}
+
+/** Replicate's refusal of a client's voice, if seen recently enough to believe. */
+export function voiceLooksDown(
+  now = Date.now()
+): { why: string; minutesAgo: number } | null {
+  return voice.down(now)
 }

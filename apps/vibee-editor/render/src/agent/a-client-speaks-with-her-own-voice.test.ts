@@ -257,6 +257,29 @@ describe('crm_voice_clone', () => {
     expect(calls.refund).toEqual([1200])
     expect(pool.inserts).toHaveLength(0)
   })
+
+  it("Replicate out of credit is remembered as the voice's health; a clone that came back clears it", async () => {
+    // Its account check answers 200 with no credit: the next turn learns the
+    // truth only from here (image-health.ts, crm-story-reel.t27 v3).
+    const health = await import('./image-health')
+    health.forgetImageHealthForTests()
+    const broke = depsFor({
+      clone: async () => {
+        throw new Error('Replicate HTTP 402: Insufficient credit')
+      },
+    })
+    await makeLeadVoiceTool(broke.deps).handler(
+      { chat: '@example_client' },
+      ctx(poolWith())
+    )
+    expect(health.voiceLooksDown()?.why).toMatch(/402/)
+    const ok = depsFor()
+    await makeLeadVoiceTool(ok.deps).handler(
+      { chat: '@example_client' },
+      ctx(poolWith())
+    )
+    expect(health.voiceLooksDown()).toBeNull()
+  })
 })
 
 describe('the provider call', () => {

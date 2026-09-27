@@ -12,14 +12,15 @@
 //       lead-voice.ts (the clone), and src/render-feed-entry.ts (a render asked for with the
 //       service key waits for approval in the feed), src/compositions/StoryReel.tsx.
 // Generated: `t27c gen-ts` of this file is vendored into the host as
-//       apps/vibee-editor/render/src/agent/gen/crm-story-reel.gen.ts. The host imports the
+//       apps/vibee-editor/render/src/spec/crm-story-reel.gen.ts. The host imports the
 //       numbers below from there and never restates them; a host test fails when the
 //       vendored copy and this file disagree.
 // Why a reel WITH THEM: a generic lead magnet is content the person has already seen. Their
 // face, their voice and their business in one vertical story is posted, kept and forwarded.
 // This spec fixes what qualifies a client, what each step costs, how the job survives a
 // redeploy, and that nothing reaches a client's chat without the owner's press.
-// Claim status: implemented and unit-tested in the host (#3069, #3074, #3080, #3081, #3082).
+// Claim status: implemented and unit-tested in the host (#3069, #3074, #3080, #3081, #3082,
+// #3084, #3085; v3 in the host PR that vendors it).
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -30,7 +31,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 2;
+    pub const VERSION : u8 = 3;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -96,6 +97,39 @@ module automation::crm_story_reel {
     // v2: "nothing was charged" is said only when nothing was made. Every still and clip is
     // charged the moment it is made; a failure after them names them as paid for and kept.
     pub const FAILURE_NAMES_PAID_PARTS : bool = true;
+    // v3: a still that is still drawing is paid ONCE. Its task id is kept on the row the
+    // moment the provider accepts it (before the wait), with what its charge took. A resume
+    // asks the provider about that task and never orders the still again while it can still
+    // come. Before, a redeploy during the wait took the only copy of the id, and a still
+    // slower than STILL_WAIT_MS was drawn and charged a second time; a job whose every still
+    // was still drawing was failed on the spot as "nothing was charged".
+    pub const STILL_TASK_KEPT_AT_ACCEPT : bool = true;
+    pub const STILL_TASK_FROM_MODEL : bool = false;  // only the job's row names a task
+    pub const STILL_POLL_MS : u32 = 15000;
+    pub const STILL_GIVE_UP_MS : u32 = 1200000;  // image_edit's own watch bound (LATE_WATCH_MS)
+    pub const LATE_REFUND_ONCE_PER_TASK : bool = true;
+    pub const LATE_REFUND_REF_PREFIX : str = "late-image:";  // token_ledger.ref, kind refund
+    pub const PENDING_STILL_KEEPS_JOB : bool = true;  // released for the sweep, not failed
+    pub const FAILED_JOB_RETURNS_PENDING_STILLS : bool = true;
+    // What a resume does with a still whose task is known.
+    pub const RESUME_USE : u8 = 0;  // the picture exists: take it, charge nothing
+    pub const RESUME_WAIT : u8 = 1;  // still drawing: wait, order nothing
+    pub const RESUME_REDRAW : u8 = 2;  // refused or given up: its charge back once, draw anew
+
+    // ---- The seller reaches the template (v3) ---------------------------------------------
+    // Asked for "a reel in her voice", the CRM agent read the health page's "voice
+    // (ElevenLabs) broken", told the owner to fix a key the client's voice never uses, asked
+    // her for a voice note while two of hers sat in the chat, and assembled a talking clip by
+    // hand. A talking reel in a client's voice IS this job, asked first without start; her
+    // voice is Replicate; the voice notes she already sent are tried before a new one is asked;
+    // and the voice's health is the last real call, since Replicate's account check answers
+    // 200 with no credit at all.
+    pub const SELLER_TOOL : str = "crm_story_reel";
+    pub const CLONE_TOOL : str = "crm_voice_clone";
+    pub const HAND_ASSEMBLY_IN_CHAT : bool = false;
+    pub const VOICE_NEEDS_ELEVENLABS : bool = false;
+    pub const SENT_VOICE_NOTES_TRIED_FIRST : bool = true;
+    pub const VOICE_HEALTH_FROM_REAL_CALLS : bool = true;
 
     // ---- Who asks, who pays -------------------------------------------------------------
     pub const START_PARAM : str = "reel";  // t.me/<bot>?start=reel, the client's own press
@@ -175,6 +209,26 @@ module automation::crm_story_reel {
     // Whether a failure may say "nothing was charged".
     fn nothing_charged_may_be_said(stills_made: u16, clips_made: u16) -> bool {
         return stills_made == 0 && clips_made == 0;
+    }
+
+    // What a resume does with a still whose provider task is known.
+    fn still_resume(ready: bool, refused: bool, age_ms: u32) -> u8 {
+        if ready {
+            return RESUME_USE;
+        }
+        if refused {
+            return RESUME_REDRAW;
+        }
+        if age_ms >= STILL_GIVE_UP_MS {
+            return RESUME_REDRAW;
+        }
+        return RESUME_WAIT;
+    }
+
+    // Whether a job whose last call made nothing new is released for the sweep instead of
+    // failed: anything made, or any still still drawing, keeps it.
+    fn job_kept(stills_made: u16, clips_made: u16, stills_drawing: u16) -> bool {
+        return stills_made > 0 || clips_made > 0 || stills_drawing > 0;
     }
 
     // Whether the reel's card may be shown now: only when nothing else waits for the owner.
@@ -264,6 +318,45 @@ module automation::crm_story_reel {
         assert(!nothing_charged_may_be_said(2, 0));
         assert(!nothing_charged_may_be_said(0, 1));
         assert(FAILURE_NAMES_PAID_PARTS);
+    }
+
+    test "a still that is still drawing is paid once: a resume waits for it and never orders it again" {
+        assert(STILL_TASK_KEPT_AT_ACCEPT);
+        assert(!STILL_TASK_FROM_MODEL);
+        assert(still_resume(true, false, 0) == RESUME_USE);
+        assert(still_resume(true, false, STILL_GIVE_UP_MS) == RESUME_USE);
+        assert(still_resume(false, false, 0) == RESUME_WAIT);
+        assert(still_resume(false, false, STILL_GIVE_UP_MS - 1) == RESUME_WAIT);
+        assert(still_resume(false, false, STILL_GIVE_UP_MS) == RESUME_REDRAW);
+        assert(still_resume(false, true, 0) == RESUME_REDRAW);
+        assert(STILL_POLL_MS < STILL_WAIT_MS);
+        assert(STILL_WAIT_MS < STILL_GIVE_UP_MS);
+        assert(!PAID_WORK_REDONE_ON_RESUME);
+    }
+
+    test "a charge for a still that never came is given back once, whoever notices" {
+        assert(LATE_REFUND_ONCE_PER_TASK);
+        assert(LATE_REFUND_REF_PREFIX == "late-image:");
+        assert(FAILED_JOB_RETURNS_PENDING_STILLS);
+        assert(REFUND_ON_PROVIDER_FAILURE);
+    }
+
+    test "a job waiting only for a still is released for the sweep, not failed" {
+        assert(PENDING_STILL_KEEPS_JOB);
+        assert(job_kept(0, 0, 1));
+        assert(job_kept(1, 0, 0));
+        assert(job_kept(0, 1, 0));
+        assert(!job_kept(0, 0, 0));
+    }
+
+    test "the seller reaches the template, and a broken ElevenLabs key never stops a client's voice" {
+        assert(SELLER_TOOL == "crm_story_reel");
+        assert(CLONE_TOOL == "crm_voice_clone");
+        assert(!HAND_ASSEMBLY_IN_CHAT);
+        assert(VOICE_PROVIDER == "replicate");
+        assert(!VOICE_NEEDS_ELEVENLABS);
+        assert(SENT_VOICE_NOTES_TRIED_FIRST);
+        assert(VOICE_HEALTH_FROM_REAL_CALLS);
     }
 
     test "the card never displaces one the owner has not answered" {

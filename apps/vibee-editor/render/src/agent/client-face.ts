@@ -36,6 +36,8 @@
  * this person sent to this owner AND its description shows one adult face.
  * A sent file nobody has looked at yet (no description) is not a face.
  */
+// The story frame's safe zone is the spec's: gHashTag/t27 specs/automation/crm-lead-magnet.t27.
+import * as LM from '../spec/crm-lead-magnet.gen'
 
 export interface SentPhoto {
   /** Our own storage URL (media-library never stores a Telegram file link). */
@@ -107,13 +109,17 @@ export const PORTRAIT_IDENTITY_PREFIX =
   'nose, jawline, lips, skin tone and hairstyle; change only the scene, outfit, ' +
   'light and mood. '
 /**
- * The 1080x1920 story frame is covered by app UI at the top (~14%) and the
- * bottom (~35%), so the face lives in the central band and nothing is
- * written into the picture: the caption carries the words.
+ * The story frame is covered by app UI at the top and the bottom, so the face
+ * lives in the central band and nothing is written into the picture: the
+ * caption carries the words. The bands are the spec's (crm-lead-magnet.t27
+ * SAFE_ZONE_*): until v2 they lived only in this comment, and the model was
+ * told "the top or bottom band" with no size at all.
  */
 export const PORTRAIT_FRAMING_SUFFIX =
-  ' Vertical 9:16 story portrait, the face in the central third of the frame, ' +
-  'nothing important in the top or bottom band, no text, no watermark, no logo.'
+  ` Vertical ${LM.ASPECT_RATIO} story portrait, the face in the central third of the frame; ` +
+  `keep the face and anything important out of the top ${LM.SAFE_ZONE_TOP_PCT}%, ` +
+  `the bottom ${LM.SAFE_ZONE_BOTTOM_PCT}% and ${LM.SAFE_ZONE_SIDE_PCT}% at each side; ` +
+  'no text, no watermark, no logo.'
 
 /** Does what the vision model saw in this photo include a face? */
 export function showsAFace(transcript: unknown): boolean {

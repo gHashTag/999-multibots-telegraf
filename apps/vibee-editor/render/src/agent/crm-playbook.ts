@@ -1,3 +1,8 @@
+// The story reel's tools and numbers are its spec's: gHashTag/t27
+// specs/automation/crm-story-reel.t27, vendored with its `t27c gen-ts` output.
+import * as REEL from '../spec/crm-story-reel.gen'
+import { TOKEN_PRICES } from './billing-shared'
+
 /**
  * HOW TO SELL IN A DM, in the words the model reads before every turn.
  *
@@ -35,19 +40,32 @@
  * "Every scene a new setting" is written out because the owner had to say
  * it twice: a scene that keeps the source photo's own background reads as
  * the same picture in every reel.
+ *
+ * THE SELLER REACHES THE TEMPLATE (spec v3, 2026-09-27). Asked for "a reel
+ * in her voice", the CRM agent read the health page's "voice (ElevenLabs)
+ * broken", told the owner to fix a key the client's voice never uses, asked
+ * her for a voice note while two of hers sat in the chat, and assembled a
+ * talking clip by hand from lipsync_generate. So the point now says: any
+ * talking reel in a client's voice IS this template, asked first without
+ * start; her voice is Replicate, never ElevenLabs; her old voice notes are
+ * looked for before a new one is asked. The tool names, the pause and the
+ * price are the spec's.
  */
 export const STORY_GIFT =
-  '4б. ВТОРОЙ ПОДАРОК — РИЛС-ИСТОРИЯ ПРО ЕГО ДЕЛО, для его Instagram (после портрета: portrait.first ' +
-  'в crm_lead_context скажет). До 15 с: 3 сцены — 3 картинки ОДНОГО стиля в РАЗНЫХ декорациях его дела, ' +
-  'из ЕГО фото с лицом (crm_client_face); каждая сцена — новая обстановка, ни одна не повторяет ' +
-  'фон исходника. 3 реплики от первого лица по 2–4 с его словами о деле (кто он и где, что делает, как ' +
-  'заказать) — из его переписки и плана (crm_client_plan). Голос — ЕГО: crm_voice_clone {chat} из его ' +
-  'голосовых; голосовых нет — попроси голосовое на 15–30 с, чужим голосом не озвучивай. Всё остальное — ' +
-  'ОДНИМ вызовом crm_story_reel {lead, start: true, scenes, style, cta: призыв ЕГО дела, to: "dm", caption: ' +
-  '«это вам — рилс про ваше дело вашим голосом, можно сразу в Instagram» и один мягкий вопрос}: делается в фоне ' +
-  '(переживает перезапуск), в конце пауза 3 с с призывом, готовый приходит владельцу КАРТОЧКОЙ-подарком — ' +
-  'одно нажатие. Один на человека, платит владелец: клон голоса — один раз, дальше только сцены; до траты ' +
-  'назови владельцу цену.\n'
+  '4б. ВТОРОЙ ПОДАРОК — РИЛС-ИСТОРИЯ ПРО ЕГО ДЕЛО ЕГО ГОЛОСОМ, для его Instagram (после портрета: ' +
+  'portrait.first в crm_lead_context скажет). ЛЮБОЙ говорящий рилс клиента его голосом — только этот ' +
+  `шаблон: сначала ${REEL.SELLER_TOOL} {lead} без start — скажет, есть ли лицо и голос, и цену ` +
+  `(~${REEL.PRICE_ESTIMATE_TOKENS} ток.); руками из lipsync_generate и audio_generate не собирай. ` +
+  `Голос — ЕГО клон: ${REEL.CLONE_TOOL} {chat} сам найдёт голосовые, что он уже присылал ` +
+  `(${TOKEN_PRICES.voice_clone} ток., один раз) — сначала вызови его, новое голосовое проси, только если ` +
+  'их нет или мало; чужим голосом не озвучивай. Клон и реплики — MiniMax на Replicate, НЕ ElevenLabs: ' +
+  'сломанный ключ ElevenLabs им не мешает; не работает голос — providers_status (голос_клиента) скажет ' +
+  'правду, и владельцу тогда: пополнить Replicate. Сцены: 3 в ОДНОМ стиле, каждая — НОВАЯ обстановка ' +
+  'его дела из ЕГО фото (crm_client_face); реплики от первого лица по 2–4 с его словами о деле — из ' +
+  `переписки и плана (crm_client_plan). Запуск — ${REEL.SELLER_TOOL} {lead, start: true, scenes, style, ` +
+  'cta: призыв ЕГО дела, to: "dm", caption: «это вам — рилс про ваше дело вашим голосом» и один мягкий ' +
+  `вопрос}: в фоне, в конце пауза ${REEL.PAUSE_SEC} с с призывом, готовый приходит владельцу ` +
+  'КАРТОЧКОЙ-подарком — одно нажатие. Один на человека, платит владелец; до траты назови цену.\n'
 
 export function salesPlaybook(who: {
   surface?: string

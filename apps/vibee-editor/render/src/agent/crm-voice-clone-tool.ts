@@ -25,6 +25,7 @@ import {
   saveLeadVoice,
 } from './lead-voice'
 import { refuseIfClientStopped } from './assistant-opt-out'
+import { noteVoiceFailed, noteVoiceWorked } from './image-health'
 
 /** Her voice notes in the owner's private chat with her, newest first. */
 export interface LeadNotes {
@@ -214,6 +215,7 @@ export function makeLeadVoiceTool(deps: LeadVoiceDeps): AgentTool {
             'audio/mpeg'
           )
           const voiceId = await deps.clone(shelf.url)
+          noteVoiceWorked()
           await saveLeadVoice(ctx.pool, {
             owner,
             lead: got.lead,
@@ -233,6 +235,9 @@ export function makeLeadVoiceTool(deps: LeadVoiceDeps): AgentTool {
             дальше: `audio_generate {text, for_lead: "${got.lead}"}`, // cyrillic-ok: the tools’ answer fields
           }
         } catch (e) {
+          // Replicate out of credit is the provider, not this client: the
+          // health line tells the next turn before it promises a voice.
+          noteVoiceFailed((e as Error)?.message ?? e)
           await deps.refund(ctx, 'клон голоса не удался', charge.spent)
           return {
             сделано: false, // cyrillic-ok: the tools’ answer fields

@@ -2645,8 +2645,9 @@ setInterval(
         }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
-        const { botsOwnedBy, allBotOwners } =
-          await import('./src/agent/hive-tools')
+        const { botsOwnedBy, allBotOwners } = await import(
+          './src/agent/hive-tools'
+        )
         const granted = await sweepClubGrants(
           pool,
           { botsOwnedBy, allOwners: allBotOwners },
@@ -2691,8 +2692,9 @@ setInterval(
   () => {
     void (async () => {
       try {
-        const { transcribeBacklogOnce } =
-          await import('./src/agent/transcribe-backlog')
+        const { transcribeBacklogOnce } = await import(
+          './src/agent/transcribe-backlog'
+        )
         const r = await transcribeBacklogOnce(getPool())
         /*
          * THE FIRST TICK SPEAKS EVEN WHEN THERE IS NOTHING.
@@ -2880,8 +2882,9 @@ const ACCEPTANCE_TICK_MS = 30 * 60 * 1000
 const acceptanceTick = () => {
   void (async () => {
     try {
-      const { runDailyAcceptanceIfDue } =
-        await import('./src/agent/daily-acceptance-wiring')
+      const { runDailyAcceptanceIfDue } = await import(
+        './src/agent/daily-acceptance-wiring'
+      )
       const said = await runDailyAcceptanceIfDue(getPool() as any)
       if (said !== 'off' && said !== 'not due' && said !== 'already running')
         console.log(`[acceptance] ${said}`)
@@ -3716,7 +3719,9 @@ const server = createServer(async (req, res) => {
         const body = (await r.text().catch(() => '')).slice(0, 200)
         return { ok: r.ok, детали: `HTTP ${r.status} ${r.ok ? '' : body}` }
       }),
-      ping('ElevenLabs — озвучка', async () => {
+      // Library voices only: a client's voice and clone are MiniMax on
+      // Replicate (the line below), and this key is not theirs.
+      ping('ElevenLabs — библиотечные голоса', async () => {
         const k = key('ELEVENLABS_API_KEY')
         if (!k) return { ok: false, детали: 'ELEVENLABS_API_KEY не задан' }
         if (!k.startsWith('sk_')) {
@@ -3728,13 +3733,26 @@ const server = createServer(async (req, res) => {
         }
         return head('https://api.elevenlabs.io/v1/voices', { 'xi-api-key': k })
       }),
-      ping('Replicate', async () =>
-        key('REPLICATE_API_TOKEN')
-          ? head('https://api.replicate.com/v1/account', {
-              Authorization: `Bearer ${key('REPLICATE_API_TOKEN')}`,
-            })
-          : { ok: false, детали: 'REPLICATE_API_TOKEN не задан' }
-      ),
+      ping('Replicate — видео и голос клиента', async () => {
+        if (!key('REPLICATE_API_TOKEN'))
+          return { ok: false, детали: 'REPLICATE_API_TOKEN не задан' }
+        const account = await head('https://api.replicate.com/v1/account', {
+          Authorization: `Bearer ${key('REPLICATE_API_TOKEN')}`,
+        })
+        /*
+         * The account check answers 200 with no credit at all; only a real
+         * prediction says 402. So a refusal a real clone or client line met
+         * recently outranks it (src/agent/image-health.ts).
+         */
+        const { voiceLooksDown } = await import('./src/agent/image-health')
+        const down = voiceLooksDown()
+        return account.ok && down
+          ? {
+              ok: false,
+              детали: `ключ принят, но реальный вызов ${down.minutesAgo} мин назад: ${down.why}`,
+            }
+          : account
+      }),
       ping('Kie.ai — media pipeline', async () => {
         if (!key('KIE_AI_API_KEY')) {
           return { ok: false, детали: 'KIE_AI_API_KEY не задан' } // cyrillic-ok
@@ -8661,8 +8679,9 @@ const server = createServer(async (req, res) => {
       if (who !== TELEGRAM_OWNER_ID)
         return sendJson(res, 403, { error: 'только владелец' })
       const { allProviders } = await import('./src/agent/provider')
-      const { chooseProvider, isProviderId } =
-        await import('./src/agent/provider-choice')
+      const { chooseProvider, isProviderId } = await import(
+        './src/agent/provider-choice'
+      )
       if (req.method === 'POST') {
         let asked: unknown = null
         try {
@@ -8732,8 +8751,9 @@ const server = createServer(async (req, res) => {
       // Counts only: which bot's initData confirms (src/auth/initdata-bot-counts.ts).
       const bot = initDataBotOf(req, who)
       if (bot) countInitDataBot(bot, 'proposal_confirm')
-      const { claimAcrossDeploy, execute, idFromBody } =
-        await import('./src/agent/tg-proposals')
+      const { claimAcrossDeploy, execute, idFromBody } = await import(
+        './src/agent/tg-proposals'
+      )
       // idFromBody, not a cast: readBody hands back the raw string, and the
       // cast that pretended otherwise made every confirm press fail silently.
       const asked = idFromBody(await readBody(req))
@@ -8763,8 +8783,9 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/cancel' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { claimAcrossDeploy, idFromBody } =
-        await import('./src/agent/tg-proposals')
+      const { claimAcrossDeploy, idFromBody } = await import(
+        './src/agent/tg-proposals'
+      )
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
       const asked = idFromBody(await readBody(req))
@@ -9068,13 +9089,18 @@ const server = createServer(async (req, res) => {
     } catch {
       bot = null
     }
-    const [{ startStory }, { makeStoryDeps }, { TOOLS }] = await Promise.all([
-      import('./src/agent/story-template'),
-      import('./src/agent/story-deps'),
-      import('./src/agent/tools'),
-    ])
+    const [{ startStory }, { makeStoryDeps }, { TOOLS, refundLateImage }] =
+      await Promise.all([
+        import('./src/agent/story-template'),
+        import('./src/agent/story-deps'),
+        import('./src/agent/tools'),
+      ])
     const out = await startStory(
-      makeStoryDeps(getPool(), n => TOOLS.find(t => t.name === n)),
+      makeStoryDeps(
+        getPool(),
+        n => TOOLS.find(t => t.name === n),
+        refundLateImage
+      ),
       { lead: String(who), requester: String(who), bot }
     ).catch(e => ({ started: false, why: String((e as Error)?.message ?? e) }))
     res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -9573,8 +9599,9 @@ const server = createServer(async (req, res) => {
           )
           // Once per process, not per open of the mini-app: the ALTER takes
           // an exclusive lock even when it has nothing to add.
-          const { ensureInvoiceColumns } =
-            await import('./src/agent/token-invoice')
+          const { ensureInvoiceColumns } = await import(
+            './src/agent/token-invoice'
+          )
           await ensureInvoiceColumns(pool)
           /*
            * EVERY unredeemed row, cancelled ones included. This is the only
@@ -12871,14 +12898,21 @@ async function main() {
      * the sweep keeps watching every two minutes (src/agent/story-template.ts).
      */
     void (async () => {
-      const [{ startStorySweep }, { makeStoryDeps }, { TOOLS }] =
-        await Promise.all([
-          import('./src/agent/story-template'),
-          import('./src/agent/story-deps'),
-          import('./src/agent/tools'),
-        ])
+      const [
+        { startStorySweep },
+        { makeStoryDeps },
+        { TOOLS, refundLateImage },
+      ] = await Promise.all([
+        import('./src/agent/story-template'),
+        import('./src/agent/story-deps'),
+        import('./src/agent/tools'),
+      ])
       startStorySweep(
-        makeStoryDeps(getPool(), n => TOOLS.find(t => t.name === n))
+        makeStoryDeps(
+          getPool(),
+          n => TOOLS.find(t => t.name === n),
+          refundLateImage
+        )
       )
     })().catch(e => console.warn('[story] the sweep did not start:', String(e)))
 

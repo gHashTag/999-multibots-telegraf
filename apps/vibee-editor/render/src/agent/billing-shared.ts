@@ -6,6 +6,8 @@ import { KIE_MODELS } from './kie-models'
 // The img2img model's id, for the image_edit cost below. A module without
 // imports as well: reading it from kie-image.ts would close a cycle.
 import { EDIT_MODEL } from './kie-edit-model'
+// The lead magnet's model is the spec's (crm-lead-magnet.t27 MODEL).
+import { MODEL as LEAD_MAGNET_MODEL } from '../spec/crm-lead-magnet.gen'
 // Which models the route sells as VIDEO. A module without imports, like the two above.
 import { ВИДИМЫЕ_ИМЕНА } from './kie-display-names' // cyrillic-ok: existing export name
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
@@ -88,8 +90,14 @@ export const OPERATION_COST_USD: Record<string, number> = {
    * image-to-image, 1K" and the sunburst twin -- same price). This is the
    * model the CRM lead magnet is drawn with (kie-image.ts LEAD_MAGNET_MODEL);
    * the flat `image_generate` rate would sell it below cost.
+   *
+   * READ from the generated Kie price list like image_edit below, no longer
+   * typed: the spec (crm-lead-magnet.t27 COST_USD) and a test hold it to the
+   * list, so the day Kie moves the price the test names the spec to update.
    */
-  gpt_image_edit: 0.03,
+  ...(СЕБЕСТОИМОСТЬ_USD[LEAD_MAGNET_MODEL] != null // cyrillic-ok: generated table name
+    ? { gpt_image_edit: СЕБЕСТОИМОСТЬ_USD[LEAD_MAGNET_MODEL] as number } // cyrillic-ok: generated table name
+    : {}),
   /**
    * The agent's img2img (image_edit) on Kie google/nano-banana-edit -- the
    * stills of every story reel. It was charged as `image_generate`, a price
@@ -496,7 +504,7 @@ export const TOKEN_PRICES: Record<string, number> = {
   gpt_image_edit: priceFor('gpt_image_edit'), // 12
   image_edit: priceFor('image_edit'), // 8: Kie nano-banana-edit at $0.02
   audio_generate: priceFor('audio_generate'), // 12
-  lipsync_generate: priceFor('lipsync_generate'), // 6 per audio second
+  lipsync_generate: priceFor('lipsync_generate'), // 16 per audio second: Kie Kling $0.04
   voice_clone: priceFor('voice_clone'), // 1200
   reel_render: priceFor('reel_render'), // 2
   video_generate: priceFor('video_generate'), // 72: the default 5-second clip
