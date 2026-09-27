@@ -119,6 +119,38 @@ describe('a finger is 44px wherever it is attached', () => {
     )
   })
 
+  it('a slider is dragged, and a delete must be seen before it is hit', () => {
+    /*
+     * The last two screens on the route list, and the two worst shapes on
+     * it:
+     *
+     *  - the editor's volume control is a 4px track. It is DRAGGED, which is
+     *    harder than tapping, and it was the thinnest target in the app;
+     *  - the template card's delete is 18x18 AND `opacity: 0` until hover --
+     *    and a phone has no hover. An invisible corner that removes things:
+     *    it asks first, which is the only reason this was a defect rather
+     *    than an accident, but a control nobody can see is one nobody can
+     *    use on purpose either.
+     */
+    const timeline = read('components/Timeline/Timeline.css')
+    const templates = read('components/Panels/TemplatesPanel.css')
+
+    const sliderRule = ruleFor(timeline, '.volume-slider').at(-1)!
+    expect(sliderRule, 'the volume slider must be grabbable').toContain(
+      'height: var(--touch-target'
+    )
+    expect(
+      timeline,
+      'and the thin LOOK moves to the track, so nothing changes visually'
+    ).toContain('::-webkit-slider-runnable-track')
+
+    const del = ruleFor(templates, '.template-card-delete').at(-1)!
+    expect(del, 'a delete must be finger-sized').toContain(
+      'width: var(--touch-target'
+    )
+    expect(del, 'and visible where there is no hover').toContain('opacity: 1')
+  })
+
   it('THE TRAP: the LAST rule for the selector is the one with the target', () => {
     /*
      * Same specificity, so the later declaration wins. Written above the base
