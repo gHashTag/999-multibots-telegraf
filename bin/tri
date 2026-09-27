@@ -51,6 +51,7 @@ tri — оболочка Trinity S³AI
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
   tri pod        отвечает ли удалённый браузер И С КАКИХ ПОР (код 1 — не отвечает)
   tri tabs [--json]  сколько вкладок открыто в поде и близко ли до потолка PID (ничего не закрывает)
+  tri heal [--json]  перезапустить браузер, НО только если он действительно молчит (отказ — нормальный ответ)
   tri verdicts   последний итог приёмки по каждому агенту (тот, что на карточках /agents)
   tri secret NAME  положить секрет в Railway скрытым вводом — значение не проходит через чат
   tri traffic [дни]  откуда приходят люди, по каналам (utm_source), по умолчанию 30 дней
@@ -2007,6 +2008,7 @@ PYEOF
   logins) shift; bash "$ROOT/bin/helpers/logins.sh" "$ROOT" "$@" ;;
   pod) shift; bash "$ROOT/bin/helpers/pod.sh" "$ROOT" "$@" ;;
   tabs) shift; bash "$ROOT/bin/helpers/tabs.sh" "$ROOT" "$@" ;;
+  heal) shift; bash "$ROOT/bin/helpers/heal.sh" "$ROOT" "$@" ;;
   verdicts) shift; bash "$ROOT/bin/helpers/verdicts.sh" "$ROOT" "$@" ;;
   secret) shift; bash "$ROOT/bin/helpers/secret.sh" "$ROOT" "$@" ;;
   traffic) shift; bash "$ROOT/bin/helpers/traffic.sh" "$ROOT" "$@" ;;
