@@ -16,6 +16,12 @@ import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 
 const ROOT = join(import.meta.dirname, '..', '..')
+// tri gate: the tree as this check found it; record compares it at the end.
+process.env.TRI_GATE_START = spawnSync(
+  'node',
+  [join(ROOT, 'bin', 'helpers', 'gate.mjs'), 'tree'],
+  { encoding: 'utf8' }
+).stdout.trim()
 const PACKAGES = {
   render: join(ROOT, 'apps', 'vibee-editor', 'render'),
   player: join(ROOT, 'apps', 'vibee-editor', 'player'),

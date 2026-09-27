@@ -53,23 +53,39 @@ export function treeHash() {
 }
 
 const [cmd, ...rest] = process.argv.slice(2)
+if (cmd === 'tree') {
+  // A check takes this at its START (TRI_GATE_START) and record compares.
+  console.log(treeHash())
+  process.exit(0)
+}
 if (cmd === 'record') {
   const [check, verdict, ...detail] = rest
+  /*
+   * The tree at the END is the one stamped -- and the one a later `tri gate`
+   * compares with. Loop turn 9 (27.09.2026): a file made while `tri
+   * full-run` was going went into its record as tested. A check that saw
+   * the tree move under it is recorded as not ok, whatever it printed.
+   */
+  const end = treeHash()
+  const start = process.env.TRI_GATE_START
+  const moved = !!start && start !== end
   appendFileSync(
     LOG,
     JSON.stringify({
       at: new Date().toISOString(),
-      tree: treeHash(),
+      tree: end,
       check,
-      ok: verdict === 'ok',
-      detail: detail.join(' '),
+      ok: verdict === 'ok' && !moved,
+      detail: moved
+        ? `the tree changed during the run -- run it again (${detail.join(' ')})`
+        : detail.join(' '),
     }) + '\n'
   )
   process.exit(0)
 }
 if (cmd !== 'show') {
   console.error(
-    'usage: tri gate   (records come from full-run, mutants, spec-controls)'
+    'usage: tri gate   (records come from full-run, mutants, spec-controls, image-gate)'
   )
   process.exit(2)
 }
