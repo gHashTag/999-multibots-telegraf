@@ -2474,6 +2474,66 @@ describe('the shade that reads, named on a refusal (spec v12)', () => {
     expect(base.db.kept).toEqual([])
   })
 
+  it('beside the shade: her own colour and her ground (v13)', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const r: any = await tool(base).handler(
+      {
+        lead: LENA,
+        end_card: { bg: '#f5efe0', title: '#d4b04c', text: '#5a4a10' },
+      },
+      ctxOf(base)
+    )
+    expect(r.end_card_fix_palette).toEqual({ title: '#5a4a10' })
+    expect(r.end_card_fix_bg?.bg).toMatch(/^#[0-9a-f]{6}$/)
+    // A torn card: no ground for both lines -- none is named, the rest is.
+    const torn: any = await tool(base).handler(
+      {
+        lead: LENA,
+        end_card: {
+          bg: '#10182a',
+          title: '#222',
+          accent: '#fafafa',
+          button: 'x',
+        },
+      },
+      ctxOf(base)
+    )
+    expect(torn.end_card_fix).toBeTruthy()
+    expect(torn.end_card_fix_palette).toEqual({ title: '#fafafa' })
+    expect(torn.end_card_fix_bg).toBeUndefined()
+    // A refused keep carries them too; "black" carries none.
+    const kept: any = await tool(base).handler(
+      {
+        lead: LENA,
+        end_card: { bg: '#f5efe0', title: '#d4b04c', text: '#5a4a10' },
+        save_end_card: true,
+      },
+      ctxOf(base)
+    )
+    expect(kept.kept).toBe(false)
+    expect(kept.end_card_fix_palette).toEqual({ title: '#5a4a10' })
+    expect(kept.end_card_fix_bg?.bg).toBeTruthy()
+    const black: any = await tool(base).handler(
+      {
+        lead: LENA,
+        end_card: { bg: 'black', title: '#111', text: '#fff' },
+        save_end_card: true,
+      },
+      ctxOf(base)
+    )
+    expect(black.end_card_fix_palette).toBeUndefined()
+    expect(black.end_card_fix_bg).toBeUndefined()
+    const blackRead: any = await tool(base).handler(
+      { lead: LENA, end_card: { bg: 'black', title: '#111', text: '#fff' } },
+      ctxOf(base)
+    )
+    expect(blackRead.end_card_fix_palette).toBeUndefined()
+    expect(blackRead.end_card_fix_bg).toBeUndefined()
+    expect(base.db.kept).toEqual([])
+    expect(base.db.jobs).toEqual([])
+  })
+
   it("her profile's own unreadable palette is named with its shade and still not refused", async () => {
     const base = fakeBase()
     qualify(base)

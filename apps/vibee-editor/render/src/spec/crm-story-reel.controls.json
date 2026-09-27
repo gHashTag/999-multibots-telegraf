@@ -126,7 +126,32 @@
   },
   {
     "name": "never is a step",
-    "from": "pub const SUGGEST_NEVER : u16 = 11;",
-    "to": "pub const SUGGEST_NEVER : u16 = 10;"
+    "from": "pub const SUGGEST_NEVER : u16 = 65;",
+    "to": "pub const SUGGEST_NEVER : u16 = 64;"
+  },
+  {
+    "name": "her colour named twice when it is the shade",
+    "from": "return reads && !same_as_shade;",
+    "to": "return reads;"
+  },
+  {
+    "name": "a ground offered when none makes all read",
+    "from": "return unreadable && all_read_at_some_step;",
+    "to": "return unreadable;"
+  },
+  {
+    "name": "a ground offered for a card that reads",
+    "from": "return unreadable && all_read_at_some_step;",
+    "to": "return all_read_at_some_step;"
+  },
+  {
+    "name": "a ground claimed to always exist",
+    "from": "pub const BG_FIX_ALWAYS_EXISTS : bool = false;",
+    "to": "pub const BG_FIX_ALWAYS_EXISTS : bool = true;"
+  },
+  {
+    "name": "the coarse step again",
+    "from": "pub const SUGGEST_STEPS : u16 = 64;",
+    "to": "pub const SUGGEST_STEPS : u16 = 10;"
   }
 ]

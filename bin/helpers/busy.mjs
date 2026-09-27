@@ -16,6 +16,13 @@
  *   [agent:turn] {"turn": id, "event": "start"}  /  "event": "end"
  * Prints what started and did not end, oldest first. Exit 1 when anything
  * is open, 0 when the render is idle, 2 when stdin held no log lines at all
+ * A FILTER WITH A COLON FINDS NOTHING, SILENTLY (loop turn 10, 27.09.2026):
+ * Railway reads `agent:turn` as field:value, and the answer is an empty
+ * list -- the same answer as "no turns". The plain word `turn` finds the
+ * `[agent:turn]` lines (checked on a deployment with a real owner turn).
+ * Before trusting an empty filtered read, run the same filter where a
+ * positive is known to exist.
+ *
  * (an empty read is not "idle": it is no evidence -- so feed an UNFILTERED
  * window of the last 15 minutes or more, not a `[story]` filter, which is
  * empty whenever nothing ran).
