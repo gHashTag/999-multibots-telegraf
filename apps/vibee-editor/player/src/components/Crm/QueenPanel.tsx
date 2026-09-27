@@ -7,6 +7,7 @@ import {
   clearQueen,
   loadQueenHistory,
   queenBusyAtom,
+  taskTarget,
   tasksIn,
   withoutTasks,
 } from '@/lib/queen'
@@ -36,10 +37,13 @@ const readAuto = (): boolean => {
  */
 export function QueenPanel({
   client,
+  agent = null,
   open = false,
   onClose,
 }: {
   client: string
+  /** The specialist chosen in this client's thread; her tasks go to it. */
+  agent?: string | null
   open?: boolean
   onClose?: () => void
 }) {
@@ -61,7 +65,7 @@ export function QueenPanel({
   }, [client])
 
   const give = (task: string, key: string) => {
-    sendOrQueue(task, [], { client })
+    sendOrQueue(task, [], taskTarget(client, agent))
     setGiven(g => ({ ...g, [key]: true }))
   }
 

@@ -82,5 +82,11 @@
     "file": "src/agent/tools.ts",
     "from": "`Рилс клиенту CRM — ${REEL.SELLER_TOOL} {lead, start: true, topic: «план ${plan} …»}: три кадра, его лицо и голос. ` +",
     "to": "'' +"
+  },
+  {
+    "name": "the plan read says nothing of the route",
+    "file": "src/agent/crm-client-workspace-tools.ts",
+    "from": "        ...(items.length ? { reel_route: planReelRoute() } : {}),\n",
+    "to": ""
   }
 ]

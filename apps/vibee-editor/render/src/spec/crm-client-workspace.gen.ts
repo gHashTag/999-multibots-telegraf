@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "crm-client-workspace" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 2 satisfies number;
+export const VERSION = 3 satisfies number;
 export const CALLER = "seller" satisfies string;
 export const CLIENT_IS = "telegram-id" satisfies string;
 export const CLIENT_ID_MIN_DIGITS = 5 satisfies number;
@@ -16,6 +16,9 @@ export const THREAD_SELF = "self" satisfies string;
 export const THREAD_CLIENT_PREFIX = "client:" satisfies string;
 export const THREAD_SUPERVISOR_SUFFIX = ":queen" satisfies string;
 export const AGENT_KEEPS_CLIENT_MEMORY = true satisfies boolean;
+export const QUEEN_TASK_TO_CHOSEN_SPECIALIST = true satisfies boolean;
+export const TASK_TO_ASSISTANT = 0 satisfies number;
+export const TASK_TO_SPECIALIST = 1 satisfies number;
 export const THREAD_KIND_SELF = 0 satisfies number;
 export const THREAD_KIND_CLIENT = 1 satisfies number;
 export const THREAD_KIND_BAD_CLIENT = 2 satisfies number;
@@ -50,7 +53,9 @@ export const DASHBOARD_SEEN_LIVE = true satisfies boolean;
 export const RUN_SURVIVED_REDEPLOY = false satisfies boolean;
 // t27c gen-ts: fn thread_kind was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn refused_before_db was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn task_goes_to was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn run_reads_as_lost was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -60,7 +65,7 @@ export const RUN_SURVIVED_REDEPLOY = false satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CALLER", "CLIENT_IS", "CLIENT_ID_MIN_DIGITS", "CLIENT_ID_MAX_DIGITS", "THREAD_COLUMN", "THREAD_SELF", "THREAD_CLIENT_PREFIX", "THREAD_SUPERVISOR_SUFFIX", "AGENT_KEEPS_CLIENT_MEMORY", "THREAD_KIND_SELF", "THREAD_KIND_CLIENT", "THREAD_KIND_BAD_CLIENT", "THREAD_KIND_NOT_SELLER", "THREAD_PARAM", "ROUTES_WITH_THREAD", "DELETE_CLEARS_ONLY_ITS_THREAD", "CONTEXT_INJECTED", "GATE_BEFORE_DB", "ROUTE_LIST", "ROUTE_CLIENT", "ROUTE_CLIENT_CHAT", "READS_THROUGH", "PANELS", "UNREACHABLE_SAYS", "NEW_READ_TOOLS", "DASHBOARD_SENDS_NOTHING_UNASKED", "DASHBOARD_STARTS_DUET", "DUET_CONTROL_GATE", "DUET_CONTROL_DEFAULT_DRY_RUN", "DUET_CONTROL_REAL_SEND_CONFIRMS", "DUET_CONTROL_TURNS_MAX", "DUET_CONTROL_TURNS_DEFAULT", "LIST_PAID_BADGE", "LIST_FILTER", "LIST_SAYS_PAID_UNKNOWN", "TABLE_RUNS", "RUN_PERSISTED_AT", "RUN_LOST_AFTER_MIN", "RUN_LOST_IS_STORED", "DASHBOARD_SEEN_LIVE", "RUN_SURVIVED_REDEPLOY"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CALLER", "CLIENT_IS", "CLIENT_ID_MIN_DIGITS", "CLIENT_ID_MAX_DIGITS", "THREAD_COLUMN", "THREAD_SELF", "THREAD_CLIENT_PREFIX", "THREAD_SUPERVISOR_SUFFIX", "AGENT_KEEPS_CLIENT_MEMORY", "QUEEN_TASK_TO_CHOSEN_SPECIALIST", "TASK_TO_ASSISTANT", "TASK_TO_SPECIALIST", "THREAD_KIND_SELF", "THREAD_KIND_CLIENT", "THREAD_KIND_BAD_CLIENT", "THREAD_KIND_NOT_SELLER", "THREAD_PARAM", "ROUTES_WITH_THREAD", "DELETE_CLEARS_ONLY_ITS_THREAD", "CONTEXT_INJECTED", "GATE_BEFORE_DB", "ROUTE_LIST", "ROUTE_CLIENT", "ROUTE_CLIENT_CHAT", "READS_THROUGH", "PANELS", "UNREACHABLE_SAYS", "NEW_READ_TOOLS", "DASHBOARD_SENDS_NOTHING_UNASKED", "DASHBOARD_STARTS_DUET", "DUET_CONTROL_GATE", "DUET_CONTROL_DEFAULT_DRY_RUN", "DUET_CONTROL_REAL_SEND_CONFIRMS", "DUET_CONTROL_TURNS_MAX", "DUET_CONTROL_TURNS_DEFAULT", "LIST_PAID_BADGE", "LIST_FILTER", "LIST_SAYS_PAID_UNKNOWN", "TABLE_RUNS", "RUN_PERSISTED_AT", "RUN_LOST_AFTER_MIN", "RUN_LOST_IS_STORED", "DASHBOARD_SEEN_LIVE", "RUN_SURVIVED_REDEPLOY"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

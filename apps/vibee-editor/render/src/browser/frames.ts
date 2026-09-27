@@ -30,8 +30,21 @@ import { FRAMES_PATH } from './skin'
 /** One home for the path: the window's loader asks for it (skin.ts). */
 export { FRAMES_PATH }
 
-/** A bridge until the video comes, not a second stream to keep forever. */
-export const FRAMES_MAX_MS = 2 * 60 * 1000
+/**
+ * One screencast's lifetime, not the lifetime of the picture.
+ *
+ * This was two minutes, which is right for a bridge: the video arrives in
+ * seconds and the bridge is gone. It is wrong when the video never arrives --
+ * measured 2026-09-27, neko retrying and reloading until it gave up -- because
+ * then this channel IS the picture (watch mode, skin.ts) and two minutes was
+ * an expiry date on the only thing the person could see.
+ *
+ * It stays a cap: a screencast nobody is watching must not run forever, and
+ * one Chromium under `pids.max` cannot afford stray sessions. What makes the
+ * picture outlive it is the window asking again (WATCH_RETRY_MS) -- so the
+ * limit guards the resource instead of ending the view.
+ */
+export const FRAMES_MAX_MS = 10 * 60 * 1000
 
 /** A viewer that cannot keep up gets fewer frames, not a growing queue. */
 export const FRAMES_MAX_BUFFERED = 1024 * 1024
