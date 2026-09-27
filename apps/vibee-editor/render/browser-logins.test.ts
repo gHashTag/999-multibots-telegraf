@@ -169,7 +169,7 @@ describe('the tool', () => {
       string,
       unknown
     >
-    expect(out.running).toBe(false)
+    expect(out.reachable).toBe(false)
     expect(out.networks).toBeUndefined()
   })
 
@@ -182,9 +182,9 @@ describe('the tool', () => {
         liveRow('tg-900000001', '10.0.0.7:9222'),
         liveRow('tg-somebody-else', '10.0.0.8:9222'),
       ]) as never
-    )) as { running: boolean; signedIn: string[] }
+    )) as { reachable: boolean; signedIn: string[] }
     expect(calls.map(c => c.ws)).toEqual(['ws://10.0.0.7:9222/browser'])
-    expect(out.running).toBe(true)
+    expect(out.reachable).toBe(true)
     expect(out.signedIn).toEqual(['X'])
     expect(JSON.stringify(out)).not.toContain(SECRET)
   })
@@ -193,10 +193,28 @@ describe('the tool', () => {
     const step = stepOf(
       'browser_logins',
       {},
-      { result: { running: true, signedIn: ['X', 'GitHub'] } },
+      { result: { reachable: true, signedIn: ['X', 'GitHub'] } },
       12
     )
-    expect(step.detail).toEqual({ running: true, signedIn: ['X', 'GitHub'] })
+    expect(step.detail).toEqual({ reachable: true, signedIn: ['X', 'GitHub'] })
+  })
+
+  /*
+   * A COOKIE READ PROVES THE PROCESS, NOT A PAGE. It lands on the browser
+   * socket, which is exactly what kept answering on 2026-09-27 while nothing
+   * on the pod could act. So the answer must not use the word that a reader
+   * spends as "the browser works" -- #3152 named that claim `reachable`, and
+   * one vocabulary is the point.
+   */
+  it('claims only what a cookie read can prove', async () => {
+    const { io } = fakePod([cookie('auth_token', '.x.com')])
+    setLoginsIoForTests(io)
+    const out = (await tool().handler(
+      {},
+      ctxWith([liveRow('tg-900000001', '10.0.0.7:9222')]) as never
+    )) as Record<string, unknown>
+    expect(out.reachable).toBe(true)
+    expect(out.running).toBeUndefined()
   })
 })
 

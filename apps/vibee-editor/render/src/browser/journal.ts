@@ -102,7 +102,8 @@ export function stepOf(
       break
     case 'browser_logins':
       // Which networks, never which cookies: the answer carries no more.
-      detail.running = r.running === true
+      // `reachable`, because a cookie read proves the process, not a page.
+      detail.reachable = r.reachable === true
       detail.signedIn = Array.isArray(r.signedIn)
         ? r.signedIn.map(n => clip(n, 40))
         : null
