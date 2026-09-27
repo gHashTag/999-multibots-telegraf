@@ -144,6 +144,20 @@ describe('POST /api/browser/wheel', () => {
     expect(w.writes.filter(x => /person_wheel_until/.test(x.sql))).toEqual([])
   })
 
+  it('AN AGENT MAY PUT THE WHEEL DOWN, which is not the same as taking it', async () => {
+    /*
+     * Measured 2026-09-27: a probe opened the browser as the agent -- which
+     * starts with the agent holding the wheel -- and then could not let go,
+     * because the refusal was written about direction-blind "actor is not a
+     * person". The wheel sat in the agent's hands with nobody driving.
+     */
+    const w = world(null)
+    expect(
+      (await post('/api/browser/wheel?holder=person', deps(w, 'agent'))).status
+    ).toBe(200)
+    expect(w.writes.at(-1)?.sql).toMatch(/person_wheel_until = now\(\)/)
+  })
+
   it('names only person or agent, and only by POST', async () => {
     const w = world(null)
     expect(

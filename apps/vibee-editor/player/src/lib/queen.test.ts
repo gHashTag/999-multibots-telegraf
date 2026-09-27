@@ -18,6 +18,8 @@ import { editorStore } from '@/atoms/Provider'
 import { queenMessagesAtomFor } from '@/atoms/agentChat'
 import {
   askQueen,
+  loadQueenHistory,
+  queenBusyAtom,
   queenTasksIn,
   taskTarget,
   tasksIn,
@@ -128,5 +130,72 @@ describe('askQueen', () => {
     await askQueen(CLIENT, 'hi', fetchMock as never)
     const thread = editorStore.get(queenMessagesAtomFor(CLIENT))
     expect(thread[1].text).toContain('not a seller')
+  })
+})
+
+describe('loadQueenHistory', () => {
+  const OTHER = '900000032'
+  const turns = (...t: Array<[string, string]>) =>
+    new Response(
+      JSON.stringify({
+        ok: true,
+        messages: t.map(([role, content]) => ({ role, content })),
+      }),
+      { status: 200 }
+    )
+
+  beforeEach(() => {
+    editorStore.set(queenMessagesAtomFor(CLIENT), [])
+    editorStore.set(queenMessagesAtomFor(OTHER), [])
+    editorStore.set(queenBusyAtom, {})
+  })
+
+  it("brings back this client's supervisor thread into an empty panel", async () => {
+    const urls: string[] = []
+    const fetchMock = vi.fn(async (u: string) => {
+      urls.push(u)
+      return turns(
+        ['user', 'where is it stuck?'],
+        ['assistant', 'On the gift.']
+      )
+    })
+    expect(await loadQueenHistory(CLIENT, fetchMock as never)).toBe(true)
+    expect(urls[0]).toContain(`client=${CLIENT}`)
+    expect(urls[0]).toContain('role=supervisor')
+    expect(
+      editorStore.get(queenMessagesAtomFor(CLIENT)).map(m => m.text)
+    ).toEqual(['where is it stuck?', 'On the gift.'])
+    // Another client's panel is not touched.
+    expect(editorStore.get(queenMessagesAtomFor(OTHER))).toEqual([])
+  })
+
+  it('never wipes the panel with an empty, shorter or failed answer', async () => {
+    const local = [
+      { id: 'q1', role: 'user' as const, text: 'a' },
+      { id: 'q2', role: 'assistant' as const, text: 'b' },
+    ]
+    editorStore.set(queenMessagesAtomFor(CLIENT), local)
+    for (const answer of [
+      () => turns(),
+      () => turns(['user', 'a']),
+      () => new Response('nope', { status: 500 }),
+      () => {
+        throw new Error('offline')
+      },
+    ]) {
+      expect(
+        await loadQueenHistory(CLIENT, vi.fn(async () => answer()) as never)
+      ).toBe(false)
+      expect(editorStore.get(queenMessagesAtomFor(CLIENT))).toEqual(local)
+    }
+  })
+
+  it('does not replace her thread while she is answering', async () => {
+    editorStore.set(queenBusyAtom, { [CLIENT]: true })
+    const fetchMock = vi.fn(async () =>
+      turns(['user', 'x'], ['assistant', 'y'])
+    )
+    expect(await loadQueenHistory(CLIENT, fetchMock as never)).toBe(false)
+    expect(editorStore.get(queenMessagesAtomFor(CLIENT))).toEqual([])
   })
 })
