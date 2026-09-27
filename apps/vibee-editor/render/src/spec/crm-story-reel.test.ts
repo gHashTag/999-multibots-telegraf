@@ -693,7 +693,7 @@ describe("the spec's tests hold against the host", () => {
       endCardUnreadable,
     } = await import('../agent/story-reel-tool')
     expect(SPEC.SUGGEST_FIX_ARG).toBe('end_card_fix')
-    expect(SPEC.SUGGEST_STEPS).toBe(10)
+    expect(SPEC.SUGGEST_STEPS).toBe(64)
     expect(SPEC.SUGGEST_NEVER).toBe(SPEC.SUGGEST_STEPS + 1)
     expect(shadeWay(3, 7, false)).toBe(SPEC.WAY_LIGHT)
     expect(shadeWay(7, 3, true)).toBe(SPEC.WAY_DARK)
@@ -810,6 +810,128 @@ describe("the spec's tests hold against the host", () => {
     expect(SPEC.SUGGEST_KEPT_BY_ITSELF).toBe(false)
     expect(take).not.toContain('keepStoryPalette')
     expect(take).not.toContain('onKeep')
+  })
+
+  it('her own colour and her ground are offered beside the shade, each by a press', async () => {
+    // palette_offered, bg_offered and the laws behind them, against the
+    // host; the tool's answers run in a-story-reel-for-any-client.test.ts
+    // ("the shade that reads"), the card's presses in the player.
+    const {
+      paletteOffered,
+      bgOffered,
+      contrastX10,
+      endCardReadable,
+      endCardFixPalette,
+      endCardFixBg,
+      firstGroundStep,
+      readableShade,
+      shadeOf,
+    } = await import('../agent/story-reel-tool')
+    expect(SPEC.SUGGEST_PALETTE_ARG).toBe('end_card_fix_palette')
+    expect(SPEC.SUGGEST_BG_ARG).toBe('end_card_fix_bg')
+    expect(paletteOffered(true, false)).toBe(true)
+    expect(paletteOffered(false, false)).toBe(false)
+    expect(paletteOffered(true, true)).toBe(false)
+    expect(bgOffered(true, true)).toBe(true)
+    expect(bgOffered(true, false)).toBe(false)
+    expect(bgOffered(false, true)).toBe(false)
+    expect(SPEC.SUGGEST_NEVER).toBe(SPEC.SUGGEST_STEPS + 1)
+    const reads = (c: string, bg: string) => endCardReadable(contrastX10(c, bg))
+    // PALETTE_NEAREST_FIRST: of her colours that read, the nearest one.
+    const gold = { bg: '#f5efe0', title: '#d4b04c' }
+    expect(SPEC.PALETTE_NEAREST_FIRST).toBe(true)
+    expect(
+      endCardFixPalette({ ...gold, text: '#1a1a1a', accent: '#5a4a10' })
+    ).toEqual({ title: '#5a4a10' })
+    // Named once: her colour that IS the shade is not offered again.
+    const shade = readableShade('#d4b04c', '#f5efe0')
+    expect(endCardFixPalette({ ...gold, text: shade })).toBeNull()
+    // PALETTE_FROM_HER_CARD: only her card's own colours, never the ground,
+    // never the composition's defaults -- over a sweep of cards.
+    expect(SPEC.PALETTE_FROM_HER_CARD).toBe(true)
+    expect(endCardFixPalette({ bg: '#ffffff' })).toBeNull()
+    // A dark ground where the composition's default text WOULD read: the
+    // card has no text colour of its own, so there is nothing of hers.
+    expect(endCardFixPalette({ bg: '#10182a', title: '#222' })).toBeNull()
+    const hex = [...'05af'].flatMap(r =>
+      [...'05af'].flatMap(g => [...'05af'].map(b => `#${r}${g}${b}`))
+    )
+    for (const bg of hex.slice(0, 16))
+      for (const title of hex.slice(16, 32)) {
+        const card = { bg, title, text: '#fff', accent: '#123' }
+        const pick = endCardFixPalette(card)
+        if (pick?.title) {
+          expect(['#fff', '#123']).toContain(pick.title)
+          expect(reads(pick.title, bg)).toBe(true)
+        }
+      }
+    // BG_FIX_ALWAYS_EXISTS is false: a dark call and a light button share
+    // no ground -- the counterexample, found by the host's own search.
+    expect(SPEC.BG_FIX_ALWAYS_EXISTS).toBe(false)
+    const torn = {
+      bg: '#10182a',
+      title: '#222',
+      accent: '#fafafa',
+      button: 'x',
+    }
+    expect(firstGroundStep(torn, 255)).toBe(SPEC.SUGGEST_NEVER)
+    expect(firstGroundStep(torn, 0)).toBe(SPEC.SUGGEST_NEVER)
+    expect(endCardFixBg(torn)).toBeNull()
+    // When a ground is named, every line reads on it, and it is the least
+    // step of its way; a card that reads gets none.
+    expect(endCardFixBg({ bg: '#10182a', title: '#f5f5f5' })).toBeNull()
+    // Both ways are walked: a light button sends the ground dark, a dark
+    // one sends it light (turn 10: with only a light button the light way
+    // was never taken, and a mutant shading it toward black lived).
+    const ways = { light: 0, dark: 0 }
+    for (const bg of hex)
+      for (const title of ['#d4b04c', '#888', '#123', '#eee'])
+        for (const accent of ['#fafafa', '#111']) {
+          const card = { bg, title, accent, button: 'x' }
+          const ground = endCardFixBg(card)?.bg
+          if (!ground) continue
+          expect(reads(title, ground), `${title} on ${ground}`).toBe(true)
+          expect(reads(accent, ground)).toBe(true)
+          const light = firstGroundStep(card, 255)
+          const dark = firstGroundStep(card, 0)
+          const toLight =
+            light < dark ||
+            (light === dark &&
+              contrastX10(title, '#fff') >= contrastX10(title, '#000'))
+          expect(ground).toBe(
+            toLight ? shadeOf(bg, 255, light) : shadeOf(bg, 0, dark)
+          )
+          ways[toLight ? 'light' : 'dark']++
+        }
+    expect(ways.light).toBeGreaterThan(0)
+    expect(ways.dark).toBeGreaterThan(0)
+    // OPTIONS_TAKEN_BY_PRESS: the card's presses, and each checks again.
+    const PLAYER = join(HERE, '..', '..', '..', 'player', 'src')
+    const panel = readFileSync(
+      join(PLAYER, 'components', 'Crm', 'StoryPalette.tsx'),
+      'utf8'
+    )
+    const lib = readFileSync(join(PLAYER, 'lib', 'crm.ts'), 'utf8')
+    expect(SPEC.OPTIONS_TAKEN_BY_PRESS).toBe(true)
+    expect(lib).toContain(
+      `endCardFixPalette: toEndCard(r['${SPEC.SUGGEST_PALETTE_ARG}'])`
+    )
+    expect(lib).toContain(
+      `endCardFixBg: toEndCard(r['${SPEC.SUGGEST_BG_ARG}'])`
+    )
+    for (const kind of ['shade', 'palette', 'bg'])
+      expect(panel).toContain(`'${kind}'`)
+    const palette = await import(join(PLAYER, 'lib', 'storyPalette.ts'))
+    expect(palette.panelTakeOffered(true, false, true)).toBe(true)
+    expect(
+      palette.takeBg(
+        { bg: '#fff', title: '#d4b04c' },
+        { bg: '#45433f', title: '#000' }
+      )
+    ).toEqual({
+      bg: '#45433f',
+      title: '#d4b04c',
+    })
   })
 
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {

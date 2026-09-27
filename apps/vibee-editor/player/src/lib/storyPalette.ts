@@ -85,6 +85,14 @@ export function takeFix(card: StoryEndCard, fix: StoryEndCard): StoryEndCard {
 }
 
 /**
+ * The card with the server's named ground taken in (v13, end_card_fix_bg):
+ * the background only; the call and the button stay hers.
+ */
+export function takeBg(card: StoryEndCard, fix: StoryEndCard): StoryEndCard {
+  return { ...card, ...(fix.bg ? { bg: fix.bg } : {}) }
+}
+
+/**
  * A colour an `<input type="color">` takes: #rrggbb. #rgb is spelled out,
  * #rrggbbaa loses its alpha (the card is flat), anything else is black so
  * the input still opens.

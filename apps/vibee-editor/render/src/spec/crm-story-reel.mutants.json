@@ -171,7 +171,7 @@
   {
     "name": "save refused is not reported",
     "file": "src/agent/crm-story-tool.ts",
-    "from": "        if (k.action === REEL.KEEP_REFUSED)\n          return {\n            ready: false,\n            started: false,\n            kept: false,\n            why: k.why,\n            ...(k.fix ? { [REEL.SUGGEST_FIX_ARG]: k.fix } : {}),\n          }\n",
+    "from": "        if (k.action === REEL.KEEP_REFUSED)\n          return {\n            ready: false,\n            started: false,\n            kept: false,\n            why: k.why,\n            ...(k.fix ? { [REEL.SUGGEST_FIX_ARG]: k.fix } : {}),\n            ...(k.fixPalette\n              ? { [REEL.SUGGEST_PALETTE_ARG]: k.fixPalette }\n              : {}),\n            ...(k.fixBg ? { [REEL.SUGGEST_BG_ARG]: k.fixBg } : {}),\n          }\n",
     "to": "",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
@@ -268,8 +268,8 @@
   {
     "name": "v12: a keep refusal drops its shade",
     "file": "src/agent/story-reel-tool.ts",
-    "from": "        card && !endCardProblem(raw)\n",
-    "to": "        false\n",
+    "from": "      card && !endCardProblem(raw) ? mergeEndCard(card, null, profile) : null\n",
+    "to": "      false ? mergeEndCard(card!, null, profile) : null\n",
     "tests": [
       "src/spec/crm-story-reel.test.ts",
       "src/agent/a-story-reel-for-any-client.test.ts"
@@ -278,8 +278,8 @@
   {
     "name": "v12: a keep refusal shades \"black\"",
     "file": "src/agent/story-reel-tool.ts",
-    "from": "        card && !endCardProblem(raw)\n",
-    "to": "        card\n",
+    "from": "      card && !endCardProblem(raw) ? mergeEndCard(card, null, profile) : null\n",
+    "to": "      card ? mergeEndCard(card, null, profile) : null\n",
     "tests": [
       "src/spec/crm-story-reel.test.ts",
       "src/agent/a-story-reel-for-any-client.test.ts"
@@ -310,6 +310,116 @@
     "file": "src/agent/crm-story-tool.ts",
     "from": "            ...(k.fix ? { [REEL.SUGGEST_FIX_ARG]: k.fix } : {}),\n",
     "to": "",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: her colour offered when it is the shade",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return reads && !sameAsShade\n",
+    "to": "  return reads\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: a ground offered when none makes all read",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return unreadable && allReadAtSomeStep\n",
+    "to": "  return unreadable\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: a ground offered for a card that reads",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return unreadable && allReadAtSomeStep\n",
+    "to": "  return allReadAtSomeStep\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: the farthest of her colours",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "      .sort((a, b) => distance(a, colour) - distance(b, colour))[0]\n",
+    "to": "      .sort((a, b) => distance(b, colour) - distance(a, colour))[0]\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: her colour even when it does not read",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "      .filter(c => endCardReadable(contrastX10(c, bg)))\n      .sort(",
+    "to": "      .filter(c => !!c)\n      .sort(",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: the composition's default counted as hers",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  const hers = [card.title, card.text, card.accent].filter(",
+    "to": "  const hers = [card.title, card.text ?? SPEC.END_CARD_DEFAULT_TEXT, card.accent].filter(",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: the ground fixes the call and forgets the button",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "    if (pairs.every(p => endCardReadable(contrastX10(p.colour, ground))))\n",
+    "to": "    if (endCardReadable(contrastX10(pairs[0].colour, ground)))\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: the ground takes the wrong way",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "        ? shadeOf(bg, WHITE, light)\n        : shadeOf(bg, BLACK, dark),\n",
+    "to": "        ? shadeOf(bg, BLACK, light)\n        : shadeOf(bg, BLACK, dark),\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: the read drops her colour",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "                ...(fixPalette\n                  ? { [REEL.SUGGEST_PALETTE_ARG]: fixPalette }\n                  : {}),\n",
+    "to": "",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: the read drops the ground",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "                ...(fixBg ? { [REEL.SUGGEST_BG_ARG]: fixBg } : {}),\n",
+    "to": "",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v13: options for \"black\"",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "      const fixPalette = fix ? endCardFixPalette(endCard) : null\n",
+    "to": "      const fixPalette = endCardFixPalette(endCard)\n",
     "tests": [
       "src/spec/crm-story-reel.test.ts",
       "src/agent/a-story-reel-for-any-client.test.ts"
