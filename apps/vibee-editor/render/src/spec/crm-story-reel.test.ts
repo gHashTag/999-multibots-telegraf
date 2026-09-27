@@ -1022,9 +1022,6 @@ describe("the spec's tests hold against the host", () => {
   })
 
   it('the card says one reason at a time', async () => {
-    // The header's last note and VERSION say the same -- the spec's vector;
-    // scripts/check-t27-specs.mjs (law version-note) holds it for every spec.
-    expect(SPEC.VERSION).toBe(15)
     expect(SPEC.PANEL_ONE_REASON_AT_A_TIME).toBe(true)
     // The player's own rule against the spec's vectors; the panel's
     // behaviour runs in player StoryReelPanel.test.tsx ("one reason").
@@ -1043,6 +1040,36 @@ describe("the spec's tests hold against the host", () => {
     expect(panel).toContain(
       'ready.endCardWhy && panelWhyShown(open, checked !== null)'
     )
+  })
+
+  it('the price stands above the button on both screens', () => {
+    expect(SPEC.PRICE_BEFORE_PRESS).toBe(true)
+    expect(SPEC.SELLER_SEES_PRICE).toBe(true)
+    // The prices both screens name are the host's own estimates.
+    expect(storyPriceEstimate()).toBe(SPEC.PRICE_ESTIMATE_TOKENS)
+    expect(storyPriceEstimateNotes(3, 12)).toBe(218)
+    expect(storyPriceEstimateNotes()).toBeLessThan(SPEC.PRICE_ESTIMATE_TOKENS)
+    // Where they stand is the player's (StoryReelPanel.test.tsx, Story.test.tsx
+    // "above the button"; tri shot measures it on a phone). Here: in each
+    // screen the price comes before the press it prices.
+    const PLAYER = join(HERE, '..', '..', '..', 'player', 'src')
+    const read = (...p: string[]) => readFileSync(join(PLAYER, ...p), 'utf8')
+    const page = read('pages', 'Story.tsx')
+    expect(page.indexOf('data-testid="story-price"')).toBeGreaterThan(0)
+    expect(page.indexOf('data-testid="story-price"')).toBeLessThan(
+      page.indexOf("t('story.make')")
+    )
+    const card = read('components', 'Crm', 'StoryReelPanel.tsx')
+    expect(card.indexOf('data-testid="story-reel-price"')).toBeGreaterThan(0)
+    expect(card.indexOf('data-testid="story-reel-price"')).toBeLessThan(
+      card.indexOf("t('crm.client.story.start')")
+    )
+  })
+
+  it("VERSION says what the header's last note says", () => {
+    // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
+    // holds the same for every spec of record.
+    expect(SPEC.VERSION).toBe(16)
   })
 
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {

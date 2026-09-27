@@ -45,9 +45,24 @@ describe('недоступность кадрирования по лицу не
     expect(записей).toBe(2)
   })
 
+  it('"ready" is said only after a real load, never after the failure line', () => {
+    // Every start of 27.09.2026 logged "unavailable in the whole process" and then
+    // "✅ Face detection models ready": the ready line stood after the catch.
+    const warm = источник.slice(
+      источник.indexOf("console.log('👤 Loading face detection models...')")
+    )
+    const load = warm.indexOf('.loadModels()')
+    const ready = warm.indexOf("console.log('✅ Face detection models ready')")
+    const failure = warm.indexOf('распознавание лица недоступно')
+    expect(load).toBeGreaterThan(0)
+    expect(ready).toBeGreaterThan(load)
+    // Inside the try, before its catch: a failed load never reaches it.
+    expect(ready).toBeLessThan(failure)
+  })
+
   it('разовый сбой распознавания по-прежнему тихий', () => {
     // Обратная сторона: не всякий отказ надо поднимать. Лицо, не найденное
     // на конкретном кадре, — нормальный исход, и ветка else должна остаться.
-    expect(источник).toContain("console.warn(`⚠️ Face detection failed:`")
+    expect(источник).toContain('console.warn(`⚠️ Face detection failed:`')
   })
 })

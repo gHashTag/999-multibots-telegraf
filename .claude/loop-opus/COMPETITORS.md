@@ -372,3 +372,16 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 [Target size guide (TestParty)](https://testparty.ai/blog/wcag-target-size-guide),
 [Stark: Contrast Checker + Color Suggestions](https://www.getstark.co/support/getting-started/using-the-contrast-checker/),
 [Stark: Smart Suggestions](https://www.getstark.co/blog/smart-suggestions/).
+
+## 27.09, виток 13: цена до нажатия
+
+- **HeyGen Video Agent**: перед генерацией — карточка подтверждения с
+  оценкой кредитов на эту генерацию; тарифы кредитов по модели (от 4 до 48
+  в минуту), так что цена зависит от выбора — и называется ДО.
+- У нас «названо до нажатия» было комментарием спеки: её страница ставила
+  цену под кнопкой, а продавец жал платную кнопку вслепую. С v16 цена стоит
+  над кнопкой на обоих экранах (270 — её клоном, 218 — её голосовыми у
+  продавца, числа — функциями хоста), `tri shot` меряет порядок.
+
+Источники: [HeyGen: Video Agent FAQ](https://help.heygen.com/en/articles/16007192-video-agent-faq),
+[HeyGen: How to use credits](https://help.heygen.com/en/articles/15126059-how-to-use-credits-on-heygen).

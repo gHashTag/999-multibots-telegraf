@@ -224,6 +224,16 @@ drift` уже значил «влито, но не выехало»; `case` бе
   check-t27-specs.mjs: у спеки с датированными заметками VERSION равен
   последней; в тесте спеки — `assert(VERSION == N)` с контролем «VERSION
   отстал». Нашлось на снимке панели, а не проверкой — проверки не было.
+- **Правило в комментарии спеки — правило, которое никто не держит.**
+  `PRICE_ESTIMATE_TOKENS … // named to the client BEFORE the press` жил с
+  v1, а её страница ставила цену ПОД кнопкой, и тест «…the price before the
+  press» проверял лишь, что цена ЕСТЬ. Правило из комментария становится
+  константой с тестом и контролем (v16 `PRICE_BEFORE_PRESS`), а место на
+  экране меряет `tri shot` (`before`). Название теста не должно обещать
+  больше, чем он проверяет.
+- **VERSION — в отдельном тесте спеки** («VERSION says what the header's last
+  note says»): иначе каждый подъём версии правит чужой тест (v15 держал
+  `VERSION == 15` внутри теста о причинах).
 - **У t27 master краснеют 7 ворот и без тебя** (gate-topology, spec-guards,
   documented subcommands, corpus ratchet, duplicate-bodies, coverage,
   emit-bitexact) — это не твоя спека; см. комментарии в t27#4850/#4852.
