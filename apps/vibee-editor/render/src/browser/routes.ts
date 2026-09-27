@@ -105,6 +105,7 @@ export const BROWSER_PATHS = [
   '/api/browser/reach',
   '/api/browser/tabs',
   '/api/browser/watch',
+  '/api/browser/heal',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -144,6 +145,12 @@ export interface BrowserDeps {
   importCookies?: (cdpEndpoint: string, cookies: CookieParam[]) => Promise<void>
   /** Injected for tests; defaults to the pod over CDP (person-type.ts). */
   typeIo?: TypeIo
+  /**
+   * Is the browser still a browser (health.ts). Injected so the one route that
+   * asks before restarting anything can be tested without a pod, and so "it
+   * answers" is a decision made from a probe rather than from a stored row.
+   */
+  probeBrowser?: (cdpEndpoint: string) => Promise<boolean>
 }
 
 /**
@@ -579,6 +586,94 @@ export async function handleBrowser(
     return {
       status: 200,
       body: { ok: true, watch: state, said: describeWatch(state, Date.now()) },
+    }
+  }
+
+  /*
+   * THE ONE REPAIR AN AGENT MAY MAKE ITSELF, AND ONLY ON A BROWSER THAT IS
+   * DEMONSTRABLY BROKEN.
+   *
+   * Until now the watch recorded and nothing healed: `/api/browser/round`
+   * refuses an agent key on purpose (a round opens pages in somebody's
+   * browser), and the round is the only caller of `restartBrowserAsAgent`. So
+   * the PID-ceiling wedge -- the one failure that a restart cures and only a
+   * restart cures (health.ts) -- waited for a person to notice, which in
+   * September meant three days.
+   *
+   * WHY IT IS SAFE TO LET AN AGENT DO THIS, AND WHERE THE LINE IS. A restart
+   * that lands while the person is working in their own browser is worse than
+   * a wedge they can see, so the gate is not "who asked" but "is it actually
+   * broken": this probes the pod at the moment of the request and refuses
+   * while it answers. The stored watch row is not consulted for the decision
+   * -- it is up to five minutes old, and a stale row is exactly how a healthy
+   * browser gets restarted.
+   *
+   * That is not hypothetical. On 2026-09-27 I read `running: false` from
+   * `browser_status` (which was reading a deleted session row, not the
+   * browser), concluded the pod was wedged, and restarted a browser that the
+   * watch had as "answering for 16m" with eleven live pages on it. This route
+   * is built so that mistake cannot be made through it: one probe, and a
+   * refusal in plain words if the browser is well.
+   */
+  if (path === '/api/browser/heal') {
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'POST only' } }
+    }
+    const session = await readSession(pool, who)
+    const { unclaimedPodOf, ensurePodTenants } = await import('./pod-tenant')
+    await ensurePodTenants(pool)
+    const cdp =
+      (session?.state === 'live' && session.cdpEndpoint) ||
+      (await unclaimedPodOf(pool, who))
+    if (!cdp) {
+      return {
+        status: 409,
+        body: {
+          ok: false,
+          error:
+            'no browser of this person is configured, so none can be healed',
+        },
+      }
+    }
+    const { browserBootId } = await import('./boot')
+    const probe =
+      deps.probeBrowser ??
+      (async (endpoint: string) => {
+        const { browserAnswers, cdpHealthIo } = await import('./health')
+        return browserAnswers(endpoint, await cdpHealthIo())
+      })
+    const answers = await probe(cdp)
+    if (answers) {
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          healed: false,
+          /* Refusing is the useful answer here, so it is not an error. */
+          why: 'the browser answers: a restart would take a working browser away from the person',
+        },
+      }
+    }
+    const bootBefore = await browserBootId(cdp)
+    console.log('[browser:heal]', who, 'not answering, restarting')
+    const back = await restartBrowserAsAgent(who)
+    const bootAfter = await browserBootId(cdp)
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        healed: back,
+        /*
+         * The boot identity is the only witness that the pod really went down
+         * (boot.ts). Same identity and still silent means Chromium was never
+         * restarted, and waiting longer will not help -- said plainly, because
+         * the remedies differ.
+         */
+        rebooted: !!bootAfter && !!bootBefore && bootAfter !== bootBefore,
+        why: back
+          ? 'the browser was not answering and answers again'
+          : 'restarted and it still does not answer: Chromium has to be restarted inside the pod',
+      },
     }
   }
 
