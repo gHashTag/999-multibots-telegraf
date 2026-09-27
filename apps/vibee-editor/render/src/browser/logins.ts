@@ -108,7 +108,6 @@ export const NETWORKS: Network[] = [
   { id: 'vk', name: 'VK', domains: ['vk.com', 'vk.ru'], auth: ['remixsid'] },
   /* Used by the person's desks, login cookie not known here: unknown. */
   { id: 'hh', name: 'hh.ru', domains: ['hh.ru'], auth: [] },
-  { id: 'upwork', name: 'Upwork', domains: ['upwork.com'], auth: [] },
   { id: 'habr', name: 'Habr', domains: ['habr.com'], auth: [] },
   { id: 'medium', name: 'Medium', domains: ['medium.com'], auth: [] },
 ]
