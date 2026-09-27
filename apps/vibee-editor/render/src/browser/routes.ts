@@ -917,6 +917,19 @@ async function open(
     }
     await writeSession(pool, live)
     /*
+     * Remembered separately from the visit, because the visit's row is deleted
+     * on purpose while the pod keeps running with this person's accounts in it
+     * (pod-tenant.ts). Without this, "which of my networks are connected?"
+     * answers "none" ten idle minutes later.
+     */
+    if (live.cdpEndpoint) {
+      const { ensurePodTenants, rememberPodTenant } = await import(
+        './pod-tenant'
+      )
+      await ensurePodTenants(pool)
+      await rememberPodTenant(pool, live.cdpEndpoint, who)
+    }
+    /*
      * Announced AFTER the pod is up, so the button in Telegram leads to a
      * browser that exists. Announced before would race the person opening it.
      */
