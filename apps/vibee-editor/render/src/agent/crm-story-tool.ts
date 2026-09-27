@@ -36,6 +36,13 @@ import {
   type StoryDeps,
 } from './story-template'
 import { voiceMode } from './story-voice-notes'
+import {
+  END_CARD_PARAM,
+  endCardOf,
+  endCardProblem,
+  endCardUnreadable,
+  mergeEndCard,
+} from './story-reel-tool'
 import * as REEL from '../spec/crm-story-reel.gen'
 import { requireSeller } from './telegram-tools'
 import { bindClientGroup, clientGroupFor } from './crm-client-group'
@@ -74,7 +81,8 @@ export function makeCrmStoryTool(o: {
       'нарезанные по сценам, липсинк на Kie (его слова, без клона и Replicate). ' +
       'Без start — готов ли клиент и его последние рилсы. start:true — рилс на ЛЮБУЮ тему (topic; ' +
       'без неё — следующий пункт его контент-плана или свежая тема про его дело): 3 сцены, его лицо ' +
-      'в новой обстановке каждая, его голос, пауза с призывом. Свой сценарий — scenes (+style, cta); to — куда. ' +
+      'в новой обстановке каждая, его голос, пауза с призывом. Свой сценарий — scenes (+style, cta); ' +
+      'нет палитры в профиле — end_card (#hex, нечитаемую откажет до траты); to — куда. ' +
       'Делается в фоне 5–10 мин; готовый приходит тебе КАРТОЧКОЙ «в группу» или «ему в личку» — ' +
       'одно нажатие; to:none — тебе, переслать самому. Платит тот, кто запустил.',
     parameters: {
@@ -105,6 +113,7 @@ export function makeCrmStoryTool(o: {
         },
         style: { type: 'string', description: 'свой свет и тон кадров' },
         cta: { type: 'string', description: 'свой призыв в паузе' },
+        [REEL.END_CARD_ARG]: END_CARD_PARAM,
         to: {
           type: 'string',
           description:
@@ -160,6 +169,12 @@ export function makeCrmStoryTool(o: {
           : await clientGroupFor(ctx.pool as never, seller, lead)
       const deliverTo = dm ? lead : (group?.chat_id ?? null)
 
+      // The palette the reel would end on: the seller's over her profile's
+      // (spec v7), shown before any start, so a bad one is fixed for free.
+      const badColour = endCardProblem(args.end_card)
+      const endCard = mergeEndCard(endCardOf(args.end_card), s?.endCard ?? null)
+      const unreadable = endCardUnreadable(endCard)
+
       if (args.start !== true) {
         const jobs = await storyJobsOf(ctx.pool, seller, lead).catch(() => [])
         const cloneSpeaks =
@@ -190,6 +205,10 @@ export function makeCrmStoryTool(o: {
                 style: s.style,
                 cta: s.cta,
                 pause_sec: s.pauseSec,
+                end_card: endCard ?? undefined,
+                ...(badColour || unreadable
+                  ? { end_card_why: badColour || unreadable }
+                  : {}),
                 client_pays_own_press: s.payer === 'client',
               }
             : {}),
@@ -211,6 +230,7 @@ export function makeCrmStoryTool(o: {
         ...(args.scenes !== undefined ? { scenes: args.scenes } : {}),
         style: String(args.style ?? ''),
         cta: String(args.cta ?? ''),
+        ...(args.end_card !== undefined ? { endCard: args.end_card } : {}),
         deliverTo,
         caption: String(args.caption ?? ''),
       })
