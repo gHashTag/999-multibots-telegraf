@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
+import { useIsKeeper } from '@/hooks/useIsKeeper'
+import { useAgentAcceptance } from '@/hooks/useAgentAcceptance'
+import { MARKETPLACE_AGENTS } from '../../../../packages/vibee-atoms/src/agent-marketplace'
+import { helpersFor } from '@/lib/clientHelpers'
 import { queenMessagesAtomFor } from '@/atoms/agentChat'
 import {
   askQueen,
   clearQueen,
   loadQueenHistory,
   queenBusyAtom,
+  queenTasksIn,
   taskTarget,
-  tasksIn,
   withoutTasks,
+  type QueenTask,
 } from '@/lib/queen'
 import { sendOrQueue } from '@/lib/agentStream'
 import './QueenPanel.css'
@@ -47,7 +52,17 @@ export function QueenPanel({
   open?: boolean
   onClose?: () => void
 }) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
+  // Who she may name (crm-client-workspace v4): the agents this owner may
+  // call into the thread, by the picker's own rule; the server checks again.
+  const keeper = useIsKeeper(true)
+  const verdicts = useAgentAcceptance()
+  const callable = helpersFor(MARKETPLACE_AGENTS, keeper, verdicts)
+  const callableIds = callable.map(a => a.id)
+  const nameOf = (id: string) => {
+    const a = callable.find(x => x.id === id)
+    return a ? `${a.icon} ${a.name[lang === 'ru' ? 'ru' : 'en']}` : null
+  }
   const messages = useAtomValue(queenMessagesAtomFor(client))
   const busy = useAtomValue(queenBusyAtom)[client] === true
   const [input, setInput] = useState('')
@@ -64,8 +79,12 @@ export function QueenPanel({
     void loadQueenHistory(client)
   }, [client])
 
-  const give = (task: string, key: string) => {
-    sendOrQueue(task, [], taskTarget(client, agent))
+  const give = (task: QueenTask, key: string) => {
+    sendOrQueue(
+      task.text,
+      [],
+      taskTarget(client, agent, task.agent, callableIds)
+    )
     setGiven(g => ({ ...g, [key]: true }))
   }
 
@@ -74,7 +93,9 @@ export function QueenPanel({
     setInput('')
     const answer = await askQueen(client, text)
     if (auto)
-      tasksIn(answer.text).forEach(task => give(task, `${answer.id}:${task}`))
+      queenTasksIn(answer.text).forEach(task =>
+        give(task, `${answer.id}:${task.text}`)
+      )
   }
 
   const suggestions = [
@@ -152,7 +173,7 @@ export function QueenPanel({
           </div>
         ) : (
           messages.map(m => {
-            const tasks = m.role === 'assistant' ? tasksIn(m.text) : []
+            const tasks = m.role === 'assistant' ? queenTasksIn(m.text) : []
             return (
               <div key={m.id} className={`queen__msg queen__msg--${m.role}`}>
                 <div className="queen__text">
@@ -162,11 +183,23 @@ export function QueenPanel({
                 {tasks.length > 0 ? (
                   <ul className="queen__tasks">
                     {tasks.map(task => {
-                      const key = `${m.id}:${task}`
+                      const key = `${m.id}:${task.text}`
                       const done = given[key]
+                      // The agent she named, shown only when it will get it.
+                      const to = task.agent ? nameOf(task.agent) : null
                       return (
                         <li key={key}>
-                          <span>{task}</span>
+                          <span>
+                            {to ? (
+                              <em
+                                className="queen__to"
+                                data-testid="queen-task-to"
+                              >
+                                → {to}
+                              </em>
+                            ) : null}
+                            {task.text}
+                          </span>
                           <button
                             type="button"
                             disabled={done}

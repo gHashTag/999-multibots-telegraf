@@ -94,11 +94,44 @@ describe("the spec's tests hold against the host", () => {
     const lib = read('lib', 'queen.ts')
     expect(lib).toMatch(/return agent \? \{ client, agent \} : \{ client \}/)
     const panel = read('components', 'Crm', 'QueenPanel.tsx')
-    expect(panel).toContain('sendOrQueue(task, [], taskTarget(client, agent))')
+    expect(panel).toMatch(
+      /sendOrQueue\(\s*task\.text,\s*\[\],\s*taskTarget\(client, agent[,)]/
+    )
     expect(read('pages', 'Chat.tsx')).toMatch(
       /<QueenPanel[\s\S]{0,120}agent=\{helper\}/
     )
     expect(SPEC.TASK_TO_SPECIALIST).not.toBe(SPEC.TASK_TO_ASSISTANT)
+  })
+
+  it('the Queen may name who does a task; a name the owner cannot call falls back and the task is kept', async () => {
+    // task_owner(named_callable, specialist_chosen). The player's
+    // taskTarget and marker are run in player src/lib/queen.test.ts.
+    // The file mocks ../agent/chat for the routes; the Queen's block is the
+    // real one.
+    const { queenHandoffLine, supervisorBlock } =
+      await vi.importActual<typeof import('../agent/chat')>('../agent/chat')
+    const { MARKETPLACE_AGENTS } = await import(
+      '../../../packages/vibee-atoms/src/agent-marketplace'
+    )
+    const line = queenHandoffLine()
+    // QUEEN_LISTS_AGENT_IDS: the ids she may name are declared to her.
+    expect(line).toContain(SPEC.TASK_MARKER)
+    for (const a of MARKETPLACE_AGENTS) expect(line).toContain(`${a.id} (`)
+    expect(supervisorBlock('', '')).toContain(line)
+    const read = (...p: string[]) => readFileSync(join(PLAYER, ...p), 'utf8')
+    const lib = read('lib', 'queen.ts')
+    expect(lib).toContain('/\\[\\[task(?:@([a-z][a-z0-9_-]*))?:')
+    // NAMED_TASK_NEVER_LOST: only a callable name is followed.
+    expect(lib).toContain(
+      'if (named && callable.includes(named)) return { client, agent: named }'
+    )
+    const panel = read('components', 'Crm', 'QueenPanel.tsx')
+    expect(panel).toMatch(
+      /taskTarget\(client, agent, task\.agent, callableIds\)/
+    )
+    expect(panel).toContain('helpersFor(MARKETPLACE_AGENTS, keeper, verdicts)')
+    expect(SPEC.TASK_TO_NAMED).not.toBe(SPEC.TASK_TO_SPECIALIST)
+    expect(SPEC.QUEEN_LISTS_AGENT_IDS && SPEC.NAMED_TASK_NEVER_LOST).toBe(true)
   })
 
   it("the Queen's thread sits beside the agent's, and a specialist keeps the client's memory", async () => {

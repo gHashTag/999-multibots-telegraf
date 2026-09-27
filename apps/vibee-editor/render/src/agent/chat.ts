@@ -68,7 +68,11 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
-import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
+import {
+  MARKETPLACE_AGENTS,
+  marketplaceAgentById,
+} from '../../../packages/vibee-atoms/src/agent-marketplace'
+import * as WS from '../spec/crm-client-workspace.gen'
 import { stopRequested } from './agent-stops'
 
 const MAX_STEPS = 8
@@ -1028,6 +1032,20 @@ export function reelRouteLine(): string {
   )
 }
 
+/**
+ * WHO DOES THE TASK (crm-client-workspace v4, QUEEN_LISTS_AGENT_IDS). As a
+ * handoff tool declares its target, her block declares the ids she may name;
+ * the app gives a named task to that agent when the owner may call it, and
+ * otherwise to the chosen specialist or the assistant (task_owner).
+ */
+export function queenHandoffLine(): string {
+  const ids = MARKETPLACE_AGENTS.map(a => `${a.id} (${a.name.ru})`).join(', ')
+  return (
+    `Исполнителя можно назвать: ${WS.TASK_MARKER}blogger: что сделать]] — id из: ${ids}. ` + // cyrillic-ok: prompt copy
+    'Без @ задача уйдёт специалисту, которого выбрал владелец, или Ассистенту.' // cyrillic-ok: prompt copy
+  )
+}
+
 /** The same route in the Queen's words (spec v8, REEL_TOOL_IN_QUEEN_BLOCK). */
 export function queenReelLine(): string {
   return (
@@ -1062,6 +1080,8 @@ export function supervisorBlock(agentLog?: string, movesLine?: string): string {
     'Когда нужно действие, поставь агенту задачу отдельной строкой: [[task: что сделать, для кого и с каким результатом]]. ' + // cyrillic-ok: prompt copy
     'Одна строка — одна задача, конкретно и проверяемо («подготовь портрет 9:16 из её аватарки и карточку отправки с одним вопросом про ритм роликов»). ' + // cyrillic-ok: prompt copy
     'Не больше трёх задач за ответ. Всё, что уходит клиенту, агент готовит карточкой, а отправляет владелец.' + // cyrillic-ok: prompt copy
+    ' ' +
+    queenHandoffLine() +
     ' ' +
     queenReelLine() +
     (log
