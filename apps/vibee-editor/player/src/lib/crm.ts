@@ -281,6 +281,46 @@ function toWaiting(r: Record<string, unknown>): WaitingList {
   }
 }
 
+/*
+ * WHAT THE OWNER'S CLIENTS HAVE BROUGHT (render crm-revenue-tool.ts
+ * `crm_revenue`): stars from the live wallet. Every number may be null --
+ * unknown, which the panel shows as a dash and never as zero.
+ */
+export interface RevenueClient {
+  telegramId: string
+  name: string | null
+  stars: number
+}
+export interface Revenue {
+  total: number | null
+  last30: number | null
+  paying: number | null
+  ltv: number | null
+  top: RevenueClient[]
+}
+
+export function toRevenue(r: Record<string, unknown>): Revenue {
+  const top = Array.isArray(r['top'])
+    ? (r['top'] as Array<Record<string, unknown>>)
+    : []
+  return {
+    total: num(r['total']),
+    last30: num(r['last_30d']),
+    paying: num(r['paying_clients']),
+    ltv: num(r['ltv']),
+    top: top
+      .map(x => ({
+        telegramId: String(x['id'] ?? ''),
+        name: typeof x['name'] === 'string' ? x['name'] : null,
+        stars: num(x['stars']) ?? 0,
+      }))
+      .filter(x => x.telegramId),
+  }
+}
+
+export const loadRevenue = async () =>
+  map(await callTool<Record<string, unknown>>('crm_revenue', {}), toRevenue)
+
 export const loadWaiting = async () =>
   map(await callTool<Record<string, unknown>>('crm_waiting'), toWaiting)
 export const loadHotLeads = async () =>
@@ -1527,3 +1567,97 @@ export const loadClientTimeline = async (client: string) =>
       }
     }
   )
+
+/*
+ * THE FUNNEL BY STAGE (`crm_summary`, render crm-summary-tool.ts).
+ *
+ * The tool counts everybody the memory knows into `by_stage`, with the same
+ * `stageOf` the list uses. The screen only puts those counts in funnel order;
+ * it never invents a stage the server does not send.
+ */
+export interface FunnelStage {
+  stage: string
+  count: number
+}
+export interface Funnel {
+  /** People with messages; null when the server did not say. */
+  people: number | null
+  /** In funnel order; empty when the answer carried no `by_stage`. */
+  stages: FunnelStage[]
+}
+
+/** The order a person moves through. Stages not listed go last, as sent. */
+export const FUNNEL_ORDER = [
+  'new',
+  'written',
+  'talking',
+  'client',
+  'winback',
+  'later',
+  'refused',
+] as const
+
+export function toFunnel(r: Record<string, unknown>): Funnel {
+  const raw = r['by_stage']
+  const byStage =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {}
+  const known: readonly string[] = FUNNEL_ORDER
+  const keys = [
+    ...known.filter(k => k in byStage),
+    ...Object.keys(byStage).filter(k => !known.includes(k)),
+  ]
+  const stages: FunnelStage[] = []
+  for (const stage of keys) {
+    const count = num(byStage[stage])
+    if (count !== null) stages.push({ stage, count })
+  }
+  return { people: num(r['people_with_messages']), stages }
+}
+
+export const loadFunnel = async () =>
+  map(await callTool<Record<string, unknown>>('crm_summary'), toFunnel)
+
+/*
+ * WHOM TO WIN BACK (`crm_winback`, render crm-tools.ts): people who PAID
+ * before and went quiet, longest silence first. Every row the tool returns
+ * is a former buyer -- that is its filter -- so `bought` is always true
+ * here; it is kept on the row so the screen does not have to know that.
+ */
+export interface WinbackRow {
+  telegramId: string
+  name: string | null
+  link: string | null
+  bot: string | null
+  daysQuiet: number | null
+  bought: boolean
+}
+export interface WinbackList {
+  thresholdDays: number | null
+  found: number
+  shown: number
+  rows: WinbackRow[]
+}
+
+export function toWinback(r: Record<string, unknown>): WinbackList {
+  const people = rows(r['люди']) // cyrillic-ok: server keys
+  return {
+    thresholdDays: num(r['порог_дней']), // cyrillic-ok: server keys
+    found: num(r['найдено']) ?? 0, // cyrillic-ok: server keys
+    shown: num(r['показано']) ?? people.length, // cyrillic-ok: server keys
+    rows: people
+      .map(p => ({
+        telegramId: String(p['telegram_id'] ?? ''),
+        name: str(p['имя']), // cyrillic-ok: server keys
+        link: str(p['ссылка']), // cyrillic-ok: server keys
+        bot: str(p['бот']), // cyrillic-ok: server keys
+        daysQuiet: num(p['молчит_дней']), // cyrillic-ok: server keys
+        bought: true,
+      }))
+      .filter(p => p.telegramId !== ''),
+  }
+}
+
+export const loadWinback = async () =>
+  map(await callTool<Record<string, unknown>>('crm_winback'), toWinback)

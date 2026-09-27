@@ -79,7 +79,9 @@ describe('the ordinary path', () => {
   })
 
   it('never touched, never paid is new', () => {
-    expect(stageOf({ paid: false, touches: [], quietDays: 1 }).stage).toBe('new')
+    expect(stageOf({ paid: false, touches: [], quietDays: 1 }).stage).toBe(
+      'new'
+    )
   })
 
   it('"bought" without a payment row is NOT a client', () => {
@@ -145,11 +147,20 @@ describe('who is waiting on whom', () => {
 
   it('"later" comes back when later has arrived, not before', () => {
     expect(
-      waitingOn({ ...base, paid: false, touches: [t('later', 3)], quietDays: 3 })
+      waitingOn({
+        ...base,
+        paid: false,
+        touches: [t('later', 3)],
+        quietDays: 3,
+      })
     ).toBeNull()
     expect(
-      waitingOn({ ...base, paid: false, touches: [t('later', 20)], quietDays: 20 })
-        ?.waiting
+      waitingOn({
+        ...base,
+        paid: false,
+        touches: [t('later', 20)],
+        quietDays: 20,
+      })?.waiting
     ).toBe('due')
   })
 
@@ -168,7 +179,12 @@ describe('who is waiting on whom', () => {
 
   it('a client is served, not chased', () => {
     expect(
-      waitingOn({ ...base, paid: true, touches: [t('replied', 9)], quietDays: 1 })
+      waitingOn({
+        ...base,
+        paid: true,
+        touches: [t('replied', 9)],
+        quietDays: 1,
+      })
     ).toBeNull()
   })
 
@@ -177,5 +193,52 @@ describe('who is waiting on whom', () => {
     expect(
       waitingOn({ ...base, paid: false, touches: [], quietDays: 1 })
     ).toBeNull()
+  })
+})
+
+describe('we spoke last and it went quiet (2026-09-27)', () => {
+  const base = {
+    paid: false,
+    touches: [],
+    quietDays: null,
+    noAnswerAfterDays: 3,
+    laterAfterDays: 14,
+    now: NOW,
+  }
+  const w = (
+    inDays: number,
+    outDays: number,
+    sent = 1
+  ): ReturnType<typeof waitingOn> =>
+    waitingOn({
+      ...base,
+      lastInboundAt: ago(inDays),
+      lastOutboundAt: ago(outDays),
+      outboundSinceInbound: sent,
+    })
+
+  it('a live talk silent for 2..14 days after our word is a follow-up', () => {
+    expect(w(5, 3)?.waiting).toBe('theirs')
+    expect(w(5, 3)?.days).toBe(3)
+    expect(w(20, 14)?.waiting).toBe('theirs')
+  })
+
+  it('not the next morning, and not a month later -- that is winback', () => {
+    expect(w(3, 1)).toBeNull()
+    expect(w(40, 20)).toBeNull()
+  })
+
+  it('a word to somebody who last wrote long before is not a hanging talk', () => {
+    // e.g. a delivery months after their only message
+    expect(w(90, 3)).toBeNull()
+  })
+
+  it('stops after two reminders, counted from the correspondence', () => {
+    expect(w(10, 3, 3)?.waiting).toBe('theirs')
+    expect(w(10, 3, 4)).toBeNull()
+  })
+
+  it('they spoke last: still ours, as before', () => {
+    expect(w(1, 3)?.waiting).toBe('ours')
   })
 })

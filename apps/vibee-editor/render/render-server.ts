@@ -9761,6 +9761,8 @@ const server = createServer(async (req, res) => {
                 chargeId: String(match.id),
                 telegramId: String(who),
                 amount: row.tokens,
+                // The owner who issued this invoice hears the client paid.
+                invoiceId: Number(row.id),
               })
               const bal = await pool.query(
                 `SELECT balance FROM user_tokens WHERE telegram_id = $1`,
@@ -9951,6 +9953,10 @@ const server = createServer(async (req, res) => {
             chargeId,
             telegramId: tid,
             amount,
+            // Only token purchases come through here (the bot forwards
+            // `tokens:<n>:<id>`), so the newest open invoice of this amount
+            // names the owner who issued it; they are told the client paid.
+            matchOpenInvoice: true,
           })
           console.log(
             outcome.credited
