@@ -31,6 +31,7 @@ const STEPS = [
   ['check:dead-domain', 'bun', ['run', 'check:dead-domain']],
   ['check:events', 'bun', ['run', 'check:events']],
   ['check:player-types', 'bun', ['run', 'check:player-types']],
+  ['check:t27-specs', 'node', ['scripts/check-t27-specs.mjs']],
   ['security:scan', 'bun', ['run', 'security:scan']],
   ['audit', 'bun', ['audit', '--audit-level=critical']],
   ['test:bun', 'bun', ['run', 'test:bun']],
