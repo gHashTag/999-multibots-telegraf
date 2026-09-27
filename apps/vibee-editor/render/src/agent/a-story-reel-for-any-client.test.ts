@@ -662,9 +662,11 @@ describe('the seller asks from the CRM', () => {
     qualify(base)
   })
 
-  it('refuses a client without a face or a voice before anything is spent', async () => {
+  it('refuses a client without a face before anything is spent', async () => {
+    // Without a clone the seller's reel speaks her own voice notes (spec v4,
+    // below); without a face there is no reel at all.
     const bare = fakeBase()
-    qualify(bare, { voice: false })
+    qualify(bare, { face: false })
     let calls = 0
     const { deps } = depsOn(
       bare,
@@ -677,7 +679,7 @@ describe('the seller asks from the CRM', () => {
       topic: 'Ваза',
     })
     expect(out.started).toBe(false)
-    expect(out.why).toMatch('голос')
+    expect(out.why).toMatch('лицом')
     expect(calls).toBe(0)
     expect(bare.db.jobs).toHaveLength(0)
   })
@@ -1563,5 +1565,106 @@ describe('a job waiting for a still that is still drawing', () => {
     expect(failedMoneyLine({ stills: 1, clips: 0, returned: 1 })).toMatch(
       /уже оплачены.*За недорисованные кадры \(1\) токены возвращены/
     )
+  })
+})
+
+/*
+ * NO CLONE: HER OWN VOICE NOTES, ON KIE (spec v4, owner 2026-09-27: "our Kie
+ * is paid"). A reel the seller asks for, for a client with no clone, speaks
+ * her recorded words -- one piece per scene -- instead of refusing; a client
+ * pressing for herself still needs her clone.
+ */
+describe('a client with no clone: her own voice notes', () => {
+  const PIECES = ['https://s/v1.mp3', 'https://s/v2.mp3', 'https://s/v3.mp3']
+
+  it("a seller's reel speaks her recorded pieces, fetched before any still is drawn", async () => {
+    const base = fakeBase()
+    qualify(base, { voice: false })
+    const order: string[] = []
+    const seen: Array<{ args: any; ctx: ToolContext }> = []
+    const { deps } = depsOn(base, async (args, ctx) => {
+      order.push('story')
+      seen.push({ args, ctx })
+      return { done: true, url: 'https://bucket.example/reel.mp4' }
+    })
+    const asked: unknown[] = []
+    deps.voiceNotes = async (seller, lead, parts) => {
+      order.push('notes')
+      asked.push([seller, lead, parts])
+      return { urls: PIECES, seconds: 11 }
+    }
+    const out = await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    expect(out.started).toBe(true)
+    await drain()
+    expect(order).toEqual(['notes', 'story'])
+    expect(asked).toEqual([[SELLER, LENA, 3]])
+    expect(seen[0].ctx.storyVoices).toEqual(PIECES)
+    // Nothing is synthesised in her voice: no clone to ask for.
+    expect(seen[0].args.for_lead).toBeUndefined()
+    expect(base.db.jobs[0].status).toBe('done')
+  })
+
+  it('no voice notes: the job says why, and nothing is drawn', async () => {
+    const base = fakeBase()
+    qualify(base, { voice: false })
+    let drawn = 0
+    const { deps, said } = depsOn(base, async () => {
+      drawn += 1
+      return { done: true, url: 'x' }
+    })
+    deps.voiceNotes = async () => ({
+      why: 'она не присылала голосовых — попроси голосовое на 15–30 с о её деле',
+    })
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(drawn).toBe(0)
+    expect(base.db.jobs[0].status).toBe('failed')
+    expect(said[said.length - 1].text).toMatch('не присылала голосовых')
+    expect(said[said.length - 1].text).toMatch('не списаны')
+  })
+
+  it('her clone, when she has one, still speaks: the notes are not read', async () => {
+    const base = fakeBase()
+    qualify(base)
+    let read = 0
+    const seen: any[] = []
+    const { deps } = depsOn(base, async args => {
+      seen.push(args)
+      return { done: true, url: 'x' }
+    })
+    deps.voiceNotes = async () => {
+      read += 1
+      return { urls: PIECES, seconds: 11 }
+    }
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(read).toBe(0)
+    expect(seen[0].for_lead).toBe(LENA)
+  })
+
+  it('a client pressing for herself with no clone is told what is missing', async () => {
+    const base = fakeBase()
+    qualify(base, { voice: false })
+    const { deps } = depsOn(base, async () => ({ done: true, url: 'x' }))
+    deps.voiceNotes = async () => ({ urls: PIECES, seconds: 11 })
+    const out = await startStory(deps, { lead: LENA, requester: LENA })
+    expect(out.started).toBe(false)
+    expect(out.why).toBeTruthy()
+    expect(base.db.jobs).toHaveLength(0)
   })
 })
