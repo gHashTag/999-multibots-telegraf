@@ -82,6 +82,18 @@ if (!lines.length) {
   console.log('no log lines on stdin: that is no evidence, not "idle"')
   process.exit(2)
 }
+// What the window covers: a window cut by the query's own line limit looks
+// exactly like a quiet one (loop turn 7: 120 lines of one boot hid six
+// minutes), so the span is always said.
+const stamps = lines
+  .map(l => l.at)
+  .filter(Boolean)
+  .sort()
+console.log(
+  stamps.length
+    ? `window  ${stamps[0]} .. ${stamps[stamps.length - 1]}, ${lines.length} line(s)`
+    : `window  ${lines.length} line(s), no timestamps`
+)
 for (const [key, at] of cut)
   console.log(
     `CUT   ${key}${at ? `  since ${at}` : ''} (a redeploy stopped it)`

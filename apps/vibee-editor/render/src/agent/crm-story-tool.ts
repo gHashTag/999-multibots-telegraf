@@ -41,6 +41,7 @@ import {
   endCardOf,
   endCardProblem,
   endCardUnreadable,
+  keepEndCard,
   mergeEndCard,
 } from './story-reel-tool'
 import * as REEL from '../spec/crm-story-reel.gen'
@@ -82,7 +83,8 @@ export function makeCrmStoryTool(o: {
       'Без start — готов ли клиент и его последние рилсы. start:true — рилс на ЛЮБУЮ тему (topic; ' +
       'без неё — следующий пункт его контент-плана или свежая тема про его дело): 3 сцены, его лицо ' +
       'в новой обстановке каждая, его голос, пауза с призывом. Свой сценарий — scenes (+style, cta); ' +
-      'нет палитры в профиле — end_card (#hex, нечитаемую откажет до траты); to — куда. ' +
+      'нет палитры в профиле — end_card (#hex, нечитаемую откажет до траты), ' +
+      'save_end_card:true — запомнить её клиенту на следующие рилсы (пустой end_card — снять); to — куда. ' +
       'Делается в фоне 5–10 мин; готовый приходит тебе КАРТОЧКОЙ «в группу» или «ему в личку» — ' +
       'одно нажатие; to:none — тебе, переслать самому. Платит тот, кто запустил.',
     parameters: {
@@ -114,6 +116,10 @@ export function makeCrmStoryTool(o: {
         style: { type: 'string', description: 'свой свет и тон кадров' },
         cta: { type: 'string', description: 'свой призыв в паузе' },
         [REEL.END_CARD_ARG]: END_CARD_PARAM,
+        [REEL.END_CARD_SAVE_ARG]: {
+          type: 'boolean',
+          description: 'запомнить end_card клиенту для следующих рилсов',
+        },
         to: {
           type: 'string',
           description:
@@ -171,10 +177,37 @@ export function makeCrmStoryTool(o: {
           : await clientGroupFor(ctx.pool as never, seller, lead)
       const deliverTo = dm ? lead : (group?.chat_id ?? null)
 
-      // The palette the reel would end on: the seller's over her profile's
-      // (spec v7), shown before any start, so a bad one is fixed for free.
+      // HER PALETTE, KEPT (spec v10): save_end_card keeps the checked card
+      // for this seller and client, an empty card takes it off; a card that
+      // fails the checks keeps nothing and starts nothing.
+      let kept = s?.keptCard ?? null
+      let keptNote = ''
+      if (s && args[REEL.END_CARD_SAVE_ARG] === true) {
+        const k = await keepEndCard(
+          ctx.pool,
+          seller,
+          lead,
+          args.end_card,
+          s.endCard
+        )
+        if (k.action === REEL.KEEP_REFUSED)
+          return { ready: false, started: false, kept: false, why: k.why }
+        kept = k.kept
+        keptNote =
+          k.action === REEL.KEEP_CLEAR
+            ? 'палитра клиента снята: дальше — визуал профиля или умолчание' // cyrillic-ok: tool result copy
+            : 'палитра сохранена клиенту: следующие рилсы заканчиваются в ней без end_card' // cyrillic-ok: tool result copy
+      }
+
+      // The palette the reel would end on: the seller's over the kept one
+      // over her profile's (spec v7, v10), shown before any start, so a bad
+      // one is fixed for free.
       const badColour = endCardProblem(args.end_card)
-      const endCard = mergeEndCard(endCardOf(args.end_card), s?.endCard ?? null)
+      const endCard = mergeEndCard(
+        endCardOf(args.end_card),
+        kept,
+        s?.endCard ?? null
+      )
       const unreadable = endCardUnreadable(endCard)
 
       if (args.start !== true) {
@@ -208,6 +241,8 @@ export function makeCrmStoryTool(o: {
                 cta: s.cta,
                 pause_sec: s.pauseSec,
                 end_card: endCard ?? undefined,
+                end_card_kept: kept ?? undefined,
+                ...(keptNote ? { end_card_saved: keptNote } : {}),
                 ...(badColour || unreadable
                   ? { end_card_why: badColour || unreadable }
                   : {}),
@@ -239,6 +274,7 @@ export function makeCrmStoryTool(o: {
       return out.started
         ? {
             ...out,
+            ...(keptNote ? { end_card_saved: keptNote } : {}),
             note: dm
               ? 'рилс делается в фоне 5–10 минут; готовый придёт тебе в бот карточкой «ему в личку» — одно нажатие'
               : group
