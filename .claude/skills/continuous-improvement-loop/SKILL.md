@@ -1218,3 +1218,22 @@ headRefOid` через секунду после `git push` вернул про�
 - **27.09.2026.** Виток 27.09.2026 по удалённому браузеру: закрыто — уборщик метёт unclaimed-под (a8dfaa708), лог зовёт под новым именем (518a5af2f), гейт render-types (f81287871), читаемый потолок вкладок + tri tabs (105527e70). Дальше по плану docs/browser/plan-2026-09-27.md: 3.1 переусыновление живого пода в browser_sessions (это чинит 'сети не подключены'), 3.2 живость по возрасту PID 1, 3.3 рецепты быстрого входа на 5 сетей (нужна клавиатура владельца), 3.4 наблюдаемость вместо stealth. Следующий тик крона: сначала читать этот журнал и план, дополнять, не перезаписывать.
 
 - **27.09.2026.** Shift handover 2026-09-27 late: closed ebe34373c (reaper records the pod tenant before dropping the row, 12 tests) and 055c0dbef (boot-id witness for restarts, 6 tests) on branch browser-hardening, after merged PRs #3110 and #3112. Plan docs/browser/plan-2026-09-27.md items 3.1 and 3.2 are done. Remaining: 3.3 fast-sign-in .t27 recipes for instagram, threads, facebook, github, vk -- BLOCKED, needs the owner's own keyboard for passwords and 2FA; 3.4 observability borrowed from competitors (session replay), explicitly not stealth. The next tick appends to this ledger, it does not restart the plan.
+
+- **27.09.2026, поздний виток.** Закрыто в ветке `browser-hardening`: `b6b9528cf`
+  — картинка больше не исчезает вместе с загрузчиком (PR #3121, смерженo,
+  деплой `f335d2c5` SUCCESS, проверено на живом `/live/`: `setTimeout(giveUp`,
+  `watchMode`, `data-watch`, и настоящий JPEG 35 594 байта из сокета кадров);
+  `baec8c2a3` — наблюдатель «с каких пор» подключён (роут
+  `GET /api/browser/watch`, часы 5 мин в `render-server.ts`, `tri pod`), и
+  попутно починена асимметрия руля: агент мог его взять, но не мог отдать.
+  **Урок этого витка: я записал в план догадку вместо измерения.** «Medium /
+  Habr / hh, наверное, пускают через Google» — проверил на поде, и из трёх
+  верна ноль: hh.ru УЖЕ залогинен, Habr правда даёт Google (и узнаёт аккаунт
+  без пароля, упирается только в код на почту), Medium стоит за
+  бот-проверкой Cloudflare — её мы не обходим, для него только перенос
+  сессии. Записано в `sign-in.ts` как `THROUGH_GOOGLE` + новый `WALLED`.
+  **Пункт 3.3 переформулирован:** он НЕ «ждёт клавиатуры владельца». Кнопка
+  «Перенести входы» уже есть (`ImportLogins.tsx` → `/api/browser/cookies` →
+  `cookie-import.ts`), и один экспорт `storageState` закрывает все сети
+  одним файлом — это файл, а не пароль. Следующий тик: сначала читать этот
+  журнал и `docs/browser/plan-2026-09-27.md`, дополнять, не перезаписывать.
