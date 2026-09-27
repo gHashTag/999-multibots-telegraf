@@ -12924,7 +12924,7 @@ async function main() {
         for (const pod of done)
           if (pod.closed || !toldAboutTabs)
             console.log(
-              `🧹 [tabs] ${pod.telegramId}: closed ${pod.closed}, ` +
+              `🧹 [tabs] ${pod.who}: closed ${pod.closed}, ` +
                 `${pod.left} open of ${TAB_CAP} allowed`
             )
         if (done.length) toldAboutTabs = true
