@@ -8,6 +8,7 @@ import {
   planTabSweep,
   sweepEveryPod,
   sweepPodTabs,
+  viewEveryPodTabs,
   TAB_CAP,
   UNCLAIMED,
 } from './tab-sweep'
@@ -185,5 +186,44 @@ describe('sweepEveryPod', () => {
   it('sweeps nothing extra on a deployment that starts a pod per session', async () => {
     const done = await sweepEveryPod(poolOf([]) as never, ioOf([]), TAB_CAP)
     expect(done).toEqual([])
+  })
+})
+
+/** The number that was invisible while the pod wedged. */
+describe('viewEveryPodTabs', () => {
+  const poolOf = (rows: Record<string, unknown>[]) => ({
+    query: async () => ({ rows }),
+  })
+
+  it('counts pages and sites and names what a sweep would close, closing nothing', async () => {
+    const view = await viewEveryPodTabs(
+      poolOf([]) as never,
+      async () => [
+        page('a', 'https://www.reddit.com/'),
+        page('b', 'https://www.reddit.com/r/Zig/'),
+        page('c', 'https://x.com/home'),
+        { id: 'w', type: 'service_worker', url: 'https://x.com/sw.js' },
+      ],
+      'pod.internal:9223'
+    )
+    expect(view).toHaveLength(1)
+    expect(view[0].who).toBe(UNCLAIMED)
+    expect(view[0].pages).toBe(3)
+    expect(view[0].origins).toBe(2)
+    expect(view[0].cap).toBe(TAB_CAP)
+    expect(view[0].wouldClose.map(t => t.id)).toEqual(['b'])
+    expect(view[0].reachable).toBe(true)
+  })
+
+  it('says plainly that a pod could not be asked instead of reporting zero tabs', async () => {
+    const view = await viewEveryPodTabs(
+      poolOf([
+        { telegram_id: '144022504', cdp_endpoint: 'gone:9223' },
+      ]) as never,
+      async () => {
+        throw new Error('no browser there')
+      }
+    )
+    expect(view[0]).toMatchObject({ who: '144022504', reachable: false })
   })
 })
