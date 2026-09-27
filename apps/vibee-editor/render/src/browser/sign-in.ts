@@ -70,7 +70,6 @@ export const DOORS: Record<string, string> = {
   github: 'https://github.com/login',
   vk: 'https://vk.com/login',
   hh: 'https://hh.ru/account/login',
-  upwork: 'https://www.upwork.com/ab/account-security/login',
   habr: 'https://habr.com/kek/v1/auth/habrahabr/?back=/ru/all/',
   medium: 'https://medium.com/m/signin',
 }

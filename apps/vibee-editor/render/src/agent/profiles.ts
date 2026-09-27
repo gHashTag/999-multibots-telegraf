@@ -16,6 +16,7 @@
  * at it rather than by a release.
  */
 import type { Site } from './strategies'
+import { SUBREDDITS, redditSites } from './reddit'
 
 export interface Profile {
   id: string
@@ -34,7 +35,6 @@ export const PROFILES: Profile[] = [
     sites: [
       { name: 'hh.ru', url: 'https://hh.ru/applicant/negotiations' },
       { name: 'LinkedIn', url: 'https://www.linkedin.com/feed/' },
-      { name: 'Upwork', url: 'https://www.upwork.com/nx/find-work/' },
       /* Reviews, mentions and invitations to repositories (#2965). */
       { name: 'GitHub', url: 'https://github.com/notifications' },
     ],
@@ -45,7 +45,7 @@ export const PROFILES: Profile[] = [
     about: 'Что отвечают на статьи и посты', // cyrillic-ok
     sites: [
       { name: 'X', url: 'https://x.com/notifications' },
-      { name: 'Reddit', url: 'https://www.reddit.com/r/t27ai/' },
+      /* Reddit moved out to a desk of its own, below. */
       { name: 'YouTube', url: 'https://www.youtube.com/feed/subscriptions' },
       { name: 'TikTok', url: 'https://www.tiktok.com/foryou' },
       /*
@@ -58,6 +58,30 @@ export const PROFILES: Profile[] = [
       { name: 'Facebook', url: 'https://www.facebook.com/notifications' },
       { name: 'VK', url: 'https://vk.com/feed' },
     ],
+  },
+  /*
+   * REDDIT HAS A DESK OF ITS OWN because it is the one network where the work
+   * is a conversation rather than a feed: the answers arrive in an inbox, and
+   * posting is allowed only where the community says so (agent/reddit.ts).
+   * Owner, 2026-09-27: "set up my Reddit and posting into the relevant groups
+   * to get t27 moving, and have it answer the comments."
+   *
+   * The desk WALKS the inbox and the communities it may post to; answering and
+   * posting are the tick's work (agent/reddit-wiring.ts), and both wait for the
+   * owner's tap.
+   */
+  {
+    id: 'reddit',
+    name: 'Reddit',
+    about: 'Ответы в комментариях и посты в профильные сообщества', // cyrillic-ok
+    /*
+     * SHORT ON PURPOSE: the inbox, and our own community. The desk's real work
+     * in the other communities is reading their rules and asking the owner --
+     * both done through Reddit's own JSON in the tick, not by walking pages --
+     * and the whole-round walk is capped at MAX_SITES (strategies.ts), so a
+     * desk that listed eight feeds would silently push another desk's site out.
+     */
+    sites: redditSites(SUBREDDITS.filter(s => s.promo === 'own')),
   },
 ]
 

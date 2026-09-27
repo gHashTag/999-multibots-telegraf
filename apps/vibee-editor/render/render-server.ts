@@ -2931,6 +2931,33 @@ setInterval(
 )
 
 /*
+ * THE REDDIT DESK: ANSWER THE COMMENTS, POST WHERE IT IS WELCOME
+ * (src/agent/reddit.ts; owner's request 2026-09-27). Every answer and every
+ * post waits for the owner's tap, so this tick only reads an inbox and asks a
+ * question.
+ *
+ * The PACE is in the database (runRedditIfDue), not in this interval: the
+ * service rarely lives an hour, so anything paced by a timer longer than that
+ * would never fire. Five minutes here means an answered question is acted on
+ * within five minutes. Off unless REDDIT_DESK_ENABLED=1.
+ */
+setInterval(
+  () => {
+    void (async () => {
+      try {
+        const { runRedditIfDue } = await import('./src/agent/reddit-wiring')
+        const said = await runRedditIfDue(getPool() as any)
+        if (said !== 'off' && said !== 'not due')
+          console.log(`[reddit] ${said}`)
+      } catch (e) {
+        console.error('[reddit] failed:', String(e).slice(0, 300))
+      }
+    })()
+  },
+  5 * 60 * 1000
+)
+
+/*
  * THE QUEEN'S REPORT -- THE ONLY READER OF THE JOURNAL THAT ARRIVES BY ITSELF.
  *
  * The pulse tool in the agent chat answers when asked. That is not enough: the
