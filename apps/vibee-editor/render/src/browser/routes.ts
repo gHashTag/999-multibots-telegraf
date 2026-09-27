@@ -382,12 +382,19 @@ export async function handleBrowser(
     if (method !== 'GET') {
       return { status: 405, body: { ok: false, error: 'GET only' } }
     }
-    const { listTargets } = await import('./cdp')
-    const { viewEveryPodTabs } = await import('./tab-sweep')
+    const { listTargets, evaluateOn } = await import('./cdp')
+    const { viewEveryPodTabs, TAB_CAP } = await import('./tab-sweep')
+    /*
+     * The probe is the whole point of this route now. Asking only `/json/list`
+     * told us the pod was fine on 2026-09-27 while nothing on it could act, so
+     * one real page is asked to add one and one.
+     */
     const pods = await viewEveryPodTabs(
       pool,
       listTargets,
-      process.env.BROWSER_POD_CDP
+      process.env.BROWSER_POD_CDP,
+      TAB_CAP,
+      (cdp, id) => evaluateOn(cdp, id, '1 + 1')
     )
     return { status: 200, body: { ok: true, pods } }
   }
