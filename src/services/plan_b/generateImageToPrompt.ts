@@ -13,7 +13,7 @@ import { MyContext } from '@/interfaces'
 import { modeCosts } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { v4 as uuidv4 } from 'uuid'
+import { randomUUID as uuidv4 } from 'node:crypto'
 import { Markup } from 'telegraf'
 
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
