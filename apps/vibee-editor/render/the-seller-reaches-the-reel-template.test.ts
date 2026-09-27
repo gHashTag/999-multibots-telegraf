@@ -52,7 +52,8 @@ describe('the words the seller reads route a talking reel to the template', () =
     const say = (n: string) =>
       String(TOOLS.find(t => t.name === n)?.description ?? '')
     expect(say('crm_story_reel')).toMatch(/ЛЮБОЙ говорящий рилс/)
-    expect(say('crm_story_reel')).toMatch(/ElevenLabs не нужен/)
+    expect(say('crm_story_reel')).toMatch(/без клона и Replicate/) // cyrillic-ok: tool text
+    expect(say('crm_story_reel')).toMatch(/НАСТОЯЩИЕ голосовые/) // cyrillic-ok: tool text
     expect(say('audio_generate')).toMatch(
       /for_lead[^.]*Replicate, ключ ElevenLabs ему НЕ нужен/
     )

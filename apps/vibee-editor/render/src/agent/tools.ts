@@ -198,6 +198,12 @@ export interface ToolContext {
    */
   storyStillTasks?: (StillTask | null)[]
   /**
+   * Her own voice, one recorded piece per scene (story-voice-notes.ts), for
+   * a reel with no clone. Set only by code, from her own voice notes -- never
+   * from a model's arguments: a voice here is somebody's real voice.
+   */
+  storyVoices?: string[]
+  /**
    * Told the provider's task id the moment an image edit is accepted, BEFORE
    * the wait (kie-image.ts runKieJob). Set only by code: crm_deliver_photo
    * puts the id on the person's debt at once, so a second request inside the

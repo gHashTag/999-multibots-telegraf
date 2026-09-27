@@ -16,6 +16,10 @@ import { appLinkFor } from '../app-links'
 import { issueFor, pendingFor } from './tg-proposals'
 import { clientGroupFor } from './crm-client-group'
 import { offerGroupCard, type CardPort } from './story-card'
+import { voicesFromNotes } from './story-voice-notes'
+import { LIVE_NOTES } from './crm-voice-clone-tool'
+import { joinVoiceNotes, runTool } from './lead-voice'
+import { s3PutBytes } from '../lib/s3-put'
 
 type Pool = StoryDeps['pool']
 
@@ -156,5 +160,19 @@ export function makeStoryDeps(
       return g && g.chat_id === chat ? g.title : null
     },
     pageOf: bot => appLinkFor(bot, 'story'),
+    // Her own voice notes, read with the SELLER's session from the seller's
+    // chat with her (spec v4: NOTES_FROM_SELLER_DM_ONLY).
+    voiceNotes: (seller, lead, parts) =>
+      voicesFromNotes(
+        {
+          notes: LIVE_NOTES,
+          join: joinVoiceNotes,
+          ffmpeg: args => runTool('ffmpeg', args),
+          put: (bytes, name, mime) => s3PutBytes(bytes, name, mime),
+        },
+        { telegramId: seller, pool: pool as ToolContext['pool'] },
+        lead,
+        parts
+      ),
   }
 }

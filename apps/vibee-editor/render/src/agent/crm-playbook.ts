@@ -2,6 +2,7 @@
 // specs/automation/crm-story-reel.t27, vendored with its `t27c gen-ts` output.
 import * as REEL from '../spec/crm-story-reel.gen'
 import { TOKEN_PRICES } from './billing-shared'
+import { storyPriceEstimateNotes } from './story-template'
 
 /**
  * HOW TO SELL IN A DM, in the words the model reads before every turn.
@@ -60,7 +61,10 @@ export const STORY_GIFT =
   `(${TOKEN_PRICES.voice_clone} ток., один раз) — сначала вызови его, новое голосовое проси, только если ` +
   'их нет или мало; чужим голосом не озвучивай. Клон и реплики — MiniMax на Replicate, НЕ ElevenLabs: ' +
   'сломанный ключ ElevenLabs им не мешает; не работает голос — providers_status (голос_клиента) скажет ' +
-  'правду, и владельцу тогда: пополнить Replicate. Сцены: 3 в ОДНОМ стиле, каждая — НОВАЯ обстановка ' +
+  'правду, и владельцу тогда: пополнить Replicate. НЕТ КЛОНА — не беда: шаблон сам возьмёт его НАСТОЯЩИЕ ' +
+  `голосовые из лички, нарежет по сценам и сделает липсинк на Kie (до ${REEL.NOTES_MAX_SEC} с, его слова, ` +
+  `без клона и Replicate, ~${storyPriceEstimateNotes()} ток.) — запускай ${REEL.SELLER_TOOL} как обычно. ` +
+  'Сцены: 3 в ОДНОМ стиле, каждая — НОВАЯ обстановка ' +
   'его дела из ЕГО фото (crm_client_face); реплики от первого лица по 2–4 с его словами о деле — из ' +
   `переписки и плана (crm_client_plan). Запуск — ${REEL.SELLER_TOOL} {lead, start: true, scenes, style, ` +
   'cta: призыв ЕГО дела, to: "dm", caption: «это вам — рилс про ваше дело вашим голосом» и один мягкий ' +
