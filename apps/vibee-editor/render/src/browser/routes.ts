@@ -811,6 +811,17 @@ export async function restartBrowserAsAgent(who: string): Promise<boolean> {
   await ensureBrowserSessions(pool)
   await ensureBrowserProfiles(pool)
 
+  /*
+   * Read the boot identity FIRST, while the old browser is still up: it is the
+   * only thing that can later say whether the pod really went down (boot.ts).
+   * A pod that will not answer this simply leaves the verdict unknown.
+   */
+  const { browserBootId, bootVerdict } = await import('./boot')
+  const before = await readSession(pool, who)
+  const bootBefore = before?.cdpEndpoint
+    ? await browserBootId(before.cdpEndpoint)
+    : ''
+
   if (driver.restart) {
     const existing = await readSession(pool, who)
     const went = await driver
@@ -846,11 +857,20 @@ export async function restartBrowserAsAgent(who: string): Promise<boolean> {
   }
   const { waitForBrowser, cdpHealthIo } = await import('./health')
   const answers = await waitForBrowser(back.cdpEndpoint, await cdpHealthIo())
+  /*
+   * Say which of the two things happened, because the remedies differ. A
+   * browser that does not answer and kept its boot identity was never
+   * restarted -- waiting longer will not help, Chromium has to be restarted
+   * inside the pod. Reported, not acted on: this function only restarts the way
+   * the driver allows.
+   */
+  const verdict = bootVerdict(bootBefore, await browserBootId(back.cdpEndpoint))
   console.log(
     '[browser:restart]',
     who,
     out.status,
-    answers ? 'answers' : 'still not answering'
+    answers ? 'answers' : 'still not answering',
+    verdict
   )
   return answers
 }
