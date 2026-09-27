@@ -118,6 +118,89 @@ export async function closeWindow(
   }
 }
 
+export interface DeskWindowDeps {
+  /** Opens a window already at the address; returns its target id. */
+  open: (url: string) => Promise<string>
+  /** Puts it in its column. Best effort: a tile is a nicety. */
+  tile: (targetId: string) => Promise<void>
+  /** Takes the window it already has to another address. */
+  goTo: (targetId: string, url: string) => Promise<void>
+  /** Whether that window is still there -- a restart takes it away. */
+  alive: (targetId: string) => Promise<boolean>
+  /** Closes it. Best effort. */
+  close: (targetId: string) => Promise<void>
+  /** Test seam: the pause before a second attempt at opening. */
+  wait?: (ms: number) => Promise<void>
+}
+
+/** A refused connect at the start of a round is worth one more try. */
+export const REOPEN_WAIT_MS = 1500
+
+export interface DeskWindow {
+  /** The desk's window, at that address. Opens and tiles it once. */
+  at: (url: string) => Promise<string>
+  /** Gives the window back; the person's other windows are untouched. */
+  close: () => Promise<void>
+}
+
+/**
+ * ONE WINDOW PER DESK, OPENED AND TILED ONCE.
+ *
+ * What was here before tiled on EVERY look: the round opened a fresh TAB per
+ * site (`newPage`) and then moved the window that tab happened to land in.
+ * Tabs share a window, so both desks were moving the SAME window -- twelve
+ * calls per round, each overwriting the other's column, and the person
+ * watching saw one window hopping about instead of two side by side. The
+ * window helpers written for this (`openWindow`, `goTo`, `closeWindow`) had no
+ * caller at all.
+ *
+ * Measured in deployment c9316cf7 (2026-09-26, the 21:30Z round): twelve looks,
+ * two `not tiled: connect ECONNREFUSED ...:9223` in the first half-second and
+ * ten silent wins -- so the address was right and the pod was merely not
+ * listening yet. Opening once per round makes that one moment matter, so the
+ * first attempt is retried once; the tile around it stays best effort.
+ *
+ * Pure control flow -- every call is injected, so the reuse, the reopen after a
+ * restart and the retry are tested without a browser.
+ */
+export function deskWindow(d: DeskWindowDeps): DeskWindow {
+  const wait = d.wait ?? (ms => new Promise<void>(r => setTimeout(r, ms)))
+  let id: string | null = null
+
+  const openAndTile = async (url: string): Promise<string> => {
+    let opened: string
+    try {
+      opened = await d.open(url)
+    } catch (e) {
+      /* The pod may still be coming up; one more try, then it is a real fault. */
+      console.warn('[browser:windows] reopening:', String(e).slice(0, 160))
+      await wait(REOPEN_WAIT_MS)
+      opened = await d.open(url)
+    }
+    id = opened
+    await d.tile(opened)
+    return opened
+  }
+
+  return {
+    at: async url => {
+      if (id === null) return await openAndTile(url)
+      /* A browser restart mid-round takes the window with it. */
+      if (!(await d.alive(id).catch(() => false))) {
+        id = null
+        return await openAndTile(url)
+      }
+      await d.goTo(id, url)
+      return id
+    },
+    close: async () => {
+      const mine = id
+      id = null
+      if (mine !== null) await d.close(mine).catch(() => {})
+    },
+  }
+}
+
 /**
  * Run the work of several desks at once, at most `limit` of them, keeping
  * the results in the order the desks were given. Pure control flow: the
