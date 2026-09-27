@@ -517,7 +517,7 @@ export function fileBursts(
   }))
 }
 
-import { segmentOf, type Segment } from './crm-segments'
+import { segmentOf, REFUSED_QUIET_DAYS, type Segment } from './crm-segments'
 
 export type NextStep = 'reply' | 'deliver' | 'offer' | 'talk' | 'wait'
 
@@ -554,8 +554,8 @@ export interface LeadCandidate {
 /**
  * WHO NEXT. Everybody the owner has ever corresponded with, scored by what
  * a salesperson would look at first: an unanswered last word, recency, what
- * the words say, and what already happened (a refusal in the last 30 days
- * is a no; a purchase is an invitation to sell again).
+ * the words say, and what already happened (a refusal inside
+ * REFUSED_QUIET_DAYS is a no; a purchase is an invitation to sell again).
  *
  * The rule is written down so the owner can argue with it, not tuned by a
  * model that cannot say why.
@@ -768,9 +768,10 @@ export async function leadCandidates(
       const touchDays = Math.floor(
         (now.getTime() - new Date(touch.at).getTime()) / 86400_000
       )
-      if (touch.kind === 'refused' && touchDays <= 30) {
+      if (touch.kind === 'refused' && touchDays <= REFUSED_QUIET_DAYS) {
         // A "no" in the last month outweighs every other signal: the
-        // playbook says thirty days of silence, and the score must agree.
+        // playbook says a month of silence, and the score must agree --
+        // so both read REFUSED_QUIET_DAYS, not a copied literal.
         score -= 10
         why.push(`отказался ${touchDays} дн. назад`)
       } else if (touch.kind === 'later' && touchDays <= 7) {
