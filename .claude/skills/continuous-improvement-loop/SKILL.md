@@ -1417,7 +1417,7 @@ answers: true`, 9/12 tabs.
   directly" idiom). Exposed behind `errors=1` on the existing `/api/browser/journal`
   route, and read by a new **`tri saw [limit]`** (exit 0 nothing erred, 1
   something did, 3 the render did not answer — a script can gate on "did the last
-  turn stumble"). PR #3159 (see below); `80fbbf551` on the branch; 7 saw tests +
+  turn stumble"). PR #3160; `80fbbf551` on the branch; 7 saw tests +
   1 route test + 21 cookie-import all green, render-types 0.
 
   The discipline that shaped it, not decoration: **an action is never a look**
