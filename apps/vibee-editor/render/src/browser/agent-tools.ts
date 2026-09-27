@@ -725,12 +725,19 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       )
       if (!networks) {
         return {
-          running: false,
-          hint: 'the browser is off, so its logins cannot be read; browser_open starts it',
+          reachable: false,
+          hint: 'no endpoint to ask: no live session and no pod of yours; browser_open starts one',
         }
       }
       return {
-        running: true,
+        /*
+         * `reachable`, NOT `running` -- the same word #3152 put on the tabs
+         * route, for the same reason. The cookie read lands on the BROWSER
+         * socket, which answers while every renderer is wedged, so a true here
+         * says the process answered and says nothing about whether a page can
+         * act. `tri browser` (or /api/browser/tabs) is what asks a page.
+         */
+        reachable: true,
         networks,
         signedIn: networks
           .filter(n => n.state === 'signed_in')
