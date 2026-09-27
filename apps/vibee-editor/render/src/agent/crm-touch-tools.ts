@@ -235,15 +235,45 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       } catch {
         paidKnown = false
       }
-      const st = stageOf({
+      /*
+       * THE SAME FACTS AS THE LIST (CRM audit 2026-09-27, #7). The list
+       * (crm_waiting, crm_summary) derives the stage from touches AND the
+       * correspondence; this read passed touches alone, so a person who is
+       * "talking" in the list showed as "new" on their own card -- and the
+       * card's moves were chosen for a stranger. A missing table is the
+       * touch-only answer this tool gave before.
+       */
+      let lastInboundAt: string | null = null
+      let lastOutboundAt: string | null = null
+      try {
+        const r = await (
+          ctx.pool as never as {
+            query: (s: string, p: unknown[]) => Promise<{ rows: any[] }>
+          }
+        ).query(
+          `SELECT max(at) FILTER (WHERE NOT "out") AS last_in,
+                  max(at) FILTER (WHERE "out") AS last_out
+             FROM crm_messages WHERE owner_id = $1 AND lead_id = $2`,
+          [String(ctx.telegramId), leadId]
+        )
+        const row = r.rows?.[0] ?? {}
+        const iso = (v: unknown) =>
+          v ? new Date(v as string).toISOString() : null
+        lastInboundAt = iso(row.last_in)
+        lastOutboundAt = iso(row.last_out)
+      } catch {
+        // No correspondence read for this owner yet.
+      }
+      const facts = {
         paid,
         touches: past as never,
         quietDays: null,
-      })
+        lastInboundAt,
+        lastOutboundAt,
+      }
+      const st = stageOf(facts)
       const w = waitingOn({
-        paid,
-        touches: past as never,
-        quietDays: null,
+        ...facts,
         noAnswerAfterDays: 3,
         laterAfterDays: 14,
       })
