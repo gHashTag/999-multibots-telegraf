@@ -89,8 +89,13 @@ if (!here.length) {
 } else {
   console.log('| check | result |')
   console.log('|---|---|')
+  // A `|` inside a cell splits the markdown row (loop turn 8: vitest's
+  // "5006 passed | 21 skipped" broke the table in the PR comment).
+  const cell = v => String(v).replace(/\|/g, '\\|')
   for (const r of here)
-    console.log(`| \`${r.check}\` | ${r.ok ? '' : '**RED** '}${r.detail} |`)
+    console.log(
+      `| \`${cell(r.check)}\` | ${r.ok ? '' : '**RED** '}${cell(r.detail)} |`
+    )
 }
 for (const r of stale)
   console.log(`stale: ${r.check} ran on another tree (${r.at}) -- run it again`)
