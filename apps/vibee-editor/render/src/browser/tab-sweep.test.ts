@@ -156,6 +156,43 @@ describe('roomForOne', () => {
     expect(doomed.map(t => t.id)).toContain('dupe')
     expect(doomed.map(t => t.id)).not.toContain('first')
   })
+
+  /*
+   * THE TAB WE ARE OPENING ALONGSIDE IS THE ONE WE CAME FOR.
+   *
+   * Measured 2026-09-27, half an hour after shipping roomForOne, by walking
+   * into it: mid-way through the Habr sign-in I opened a second
+   * account.habr.com page while the pod sat at the cap, and the tab spent to
+   * make room was the token-bearing page I was signing in on. "A duplicate
+   * goes first" is right on a clock and wrong for the site being opened.
+   */
+  it('SPENDS THE SITE IT IS OPENING LAST, even when that tab is the duplicate', () => {
+    const pages = [
+      page('signing-in', 'https://account.habr.com/ru/ident/verify/TOKEN'),
+      ...Array.from({ length: TAB_CAP - 2 }, (_, i) =>
+        page(`t${i}`, `https://site${i}.example/`)
+      ),
+      page('other-dupe', 'https://site0.example/second'),
+    ]
+    const doomed = roomForOne(
+      pages,
+      [],
+      undefined,
+      'https://account.habr.com/ru/ident/verify/'
+    )
+    expect(doomed.map(t => t.id)).not.toContain('signing-in')
+    /* Another origin's duplicate is what pays for the room instead. */
+    expect(doomed.map(t => t.id)).toContain('other-dupe')
+  })
+
+  it('will still spend it when nothing else is left to spend', () => {
+    /* Honesty over comfort: at the cap with one origin, something must go. */
+    const pages = Array.from({ length: TAB_CAP }, (_, i) =>
+      page(`t${i}`, `https://account.habr.com/page/${i}`)
+    )
+    const doomed = roomForOne(pages, [], undefined, 'https://account.habr.com/')
+    expect(doomed).toHaveLength(1)
+  })
 })
 
 describe('sweepPodTabs', () => {
