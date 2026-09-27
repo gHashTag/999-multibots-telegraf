@@ -216,8 +216,26 @@ describe('what a small model is shown', () => {
      * nowhere else in the codebase, so every attempt started from nothing.
      * A DM seller on a 16k model that cannot sign its person in has no
      * accounts to sell from. Headroom stays thin on purpose.
+     *
+     * 7240 -> 7300 on 2026-09-28, for browser_focus_tab (111 tokens), and
+     * this one is a debt being settled late. #3143 put the tool in the kit
+     * and paid nothing, so this file went red on MAIN, and pre-push then
+     * blamed every branch whose files happened to be related to it -- #3148
+     * narrowed the file list, which did not help, because the failing test
+     * was main's own. Of the 111 tokens, 56 came out of prose the way the
+     * rule demands: browser_focus_tab cut its own third sentence (the tool
+     * that owes pays first), browser_open dropped the return value it was
+     * naming twice, browser_read dropped "the same as the person sees" said
+     * twice over, and browser_type gave up where a secret does NOT travel --
+     * reassurance for a human reader, with no behaviour hanging on it. The
+     * prohibition itself stayed. The remaining 30 move this number. What it
+     * buys, measured 2026-09-27: without it, going back to a tab cost
+     * browser_open on the same URL, which makes a SECOND tab; the pod was at
+     * its cap, and the tab evicted to make room was the token-bearing page
+     * being signed in on. The tool that removes the reason to reach for the
+     * wrong one is worth 30 tokens of a 16k window.
      */
-    expect(chars / 3.2).toBeLessThan(7240)
+    expect(chars / 3.2).toBeLessThan(7300)
     expect(kit.some(t => t.name === 'crm_offer')).toBe(true)
     expect(kit.some(t => t.name === 'tg_send')).toBe(true)
     // The conversational core stays; the deep reads do not.

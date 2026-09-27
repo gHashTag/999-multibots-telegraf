@@ -798,8 +798,13 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
   {
     name: 'browser_open',
     description:
+      /*
+       * Cut on 2026-09-28 to pay the ratchet for browser_focus_tab: the
+       * return value is visible in the answer, so naming it here bought
+       * nothing. What the person sees stays -- it governs behaviour.
+       */
       'Открыть адрес в браузере человека, в новой вкладке. Человек видит это ' + // cyrillic-ok
-      'на экране. Возвращает заголовок и адрес открытой страницы.', // cyrillic-ok
+      'на экране.', // cyrillic-ok
     parameters: {
       type: 'object',
       properties: { url: { type: 'string', description: 'полный адрес' } }, // cyrillic-ok
@@ -830,8 +835,8 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
   {
     name: 'browser_read',
     description:
-      'Прочитать видимый текст страницы, на которой сейчас браузер. ' + // cyrillic-ok
-      'Это то же, что видит человек.', // cyrillic-ok
+      /* «то же, что видит человек» said twice over; cut 2026-09-28. */ // cyrillic-ok
+      'Прочитать видимый текст страницы, на которой сейчас браузер.', // cyrillic-ok
     parameters: {
       type: 'object',
       properties: {
@@ -977,9 +982,14 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
   {
     name: 'browser_type',
     description:
+      /*
+       * Cut on 2026-09-28 to pay the ratchet for browser_focus_tab. The
+       * prohibition and who types instead both stay -- they are what the
+       * model must obey. Where the secret does NOT travel was written for a
+       * reader reassuring themselves, and no behaviour hangs on it.
+       */
       'Набрать текст там, где сейчас курсор. НИКОГДА не набирай пароли: ' + // cyrillic-ok
-      'человек вводит их сам, глядя в экран, и они не проходят ни через тебя, ' + // cyrillic-ok
-      'ни через нас.', // cyrillic-ok
+      'человек вводит их сам (browser_ask_input).', // cyrillic-ok
     parameters: {
       type: 'object',
       properties: { text: { type: 'string' } },
@@ -1054,9 +1064,14 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
      * ids from `browser_status`, so going back should cost an id, not a new tab.
      */
     description:
-      'Вернуться к уже открытой вкладке по её id из browser_status. ' + // cyrillic-ok
-      'Ничего не открывает и не закрывает — только делает вкладку текущей. ' + // cyrillic-ok
-      'Это дешевле и безопаснее, чем открывать тот же адрес второй раз.', // cyrillic-ok
+      /*
+       * Trimmed 2026-09-28, in the same commit that pays this tool's own
+       * ratchet debt: the tool that owes pays from itself first. Both facts
+       * that steer survive -- where the id comes from, and that returning
+       * beats opening the address again.
+       */
+      'Вернуться к открытой вкладке по её id из browser_status: делает её ' + // cyrillic-ok
+      'текущей, ничего не открывая. Дешевле, чем открыть адрес второй раз.', // cyrillic-ok
     parameters: {
       type: 'object',
       properties: { id: { type: 'string' } },
