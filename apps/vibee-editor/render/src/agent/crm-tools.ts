@@ -207,8 +207,50 @@ function днейНазад(дата: string | null): number | null {
  * покупатель, а как раз горячий лид, и путать их значит терять самых
  * перспективных.
  */
+type LedgerPool = {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+}
+
+/**
+ * WHO PAID INTO THE LIVE WALLET.
+ *
+ * payments_v2 is the archive (CLAUDE.md, one wallet, 2026-09-20): nothing in
+ * this codebase writes it any more. Every Stars purchase -- a crm_offer
+ * invoice, a top-up, a club month -- lands in `token_ledger` as kind
+ * 'purchase'. Reading only the archive meant a client who paid through the
+ * owner's own offer stayed "talking" and was pitched again after paying
+ * (CRM audit 2026-09-27, #1).
+ *
+ * Scope: the live wallet does not know which bot sold, so a buyer counts for
+ * an owner when that person is in the owner's audience by the same bot_name
+ * rule `люди()` uses. A grant is not a purchase and never counts.
+ */
+export async function tokenBuyers(
+  pool: LedgerPool,
+  область: string[] | null
+): Promise<Set<string>> {
+  const r = await pool.query(
+    `SELECT DISTINCT telegram_id FROM token_ledger
+      WHERE kind = 'purchase' AND delta > 0`
+  )
+  const buyers = r.rows.map(x => String(x.telegram_id)).filter(Boolean)
+  if (!область || !buyers.length) return new Set(buyers)
+  const scope = область.map(b => `"${b.replace(/"/g, '')}"`).join(',')
+  const inScope = new Set<string>()
+  for (let i = 0; i < buyers.length; i += 150) {
+    const ids = buyers.slice(i, i + 150).join(',')
+    // cyrillic-ok-next-line
+    const rows = await запрос<{ telegram_id: string | number }>(
+      `users?select=telegram_id&telegram_id=in.(${ids})&bot_name=in.(${scope})`
+    )
+    for (const row of rows) inScope.add(String(row.telegram_id))
+  }
+  return inScope
+}
+
 async function платившие(
-  область: string[] | null = null
+  область: string[] | null = null,
+  pool?: LedgerPool | null
 ): Promise<Set<string>> {
   /*
    * ONLY THE OWNER'S OWN BOTS COUNT (CRM audit 2026-09-12, P1 #2). Without
@@ -223,7 +265,17 @@ async function платившие(
   const строки = await запрос<{ telegram_id: string | number }>(
     `payments_v2?select=telegram_id&status=eq.COMPLETED&type=eq.MONEY_INCOME${scopeFilter}`
   )
-  return new Set(строки.map(с => String(с.telegram_id)))
+  const paid = new Set(строки.map(с => String(с.telegram_id)))
+  if (pool) {
+    try {
+      for (const id of await tokenBuyers(pool, область)) paid.add(id)
+    } catch (e) {
+      // The archive's answer still stands; the live half is logged, since a
+      // silent miss here is exactly the bug this closes.
+      console.warn(`[crm] token buyers not read: ${String(e).slice(0, 120)}`)
+    }
+  }
+  return paid
 }
 
 async function люди(область: string[] | null): Promise<Человек[]> {
@@ -285,7 +337,7 @@ export const CRM_TOOLS: AgentTool[] = [
       const область = await областьВидимости(ctx)
       const [все, платят] = await Promise.all([
         люди(область),
-        платившие(область),
+        платившие(область, ctx?.pool as never),
       ])
 
       const свежие = (дней: number) =>
@@ -352,7 +404,7 @@ export const CRM_TOOLS: AgentTool[] = [
       const окно = Number(a?.дней) > 0 ? Math.floor(Number(a.дней)) : 14
       const [все, платят] = await Promise.all([
         люди(область),
-        платившие(область),
+        платившие(область, ctx?.pool as never),
       ])
       const лиды = все
         .filter(ч => {
@@ -418,7 +470,7 @@ export const CRM_TOOLS: AgentTool[] = [
         Number(a?.молчит_дней) > 0 ? Math.floor(Number(a.молчит_дней)) : 30
       const [все, платят] = await Promise.all([
         люди(область),
-        платившие(область),
+        платившие(область, ctx?.pool as never),
       ])
       const ушедшие = все
         .filter(ч => {

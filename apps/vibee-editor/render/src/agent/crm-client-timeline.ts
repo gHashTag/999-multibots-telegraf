@@ -43,6 +43,13 @@ export interface TimelineStats {
   last_in_at: string | null
   last_out_at: string | null
   paid: boolean | null
+  /**
+   * Stars this person paid into the live wallet (token_ledger purchases; one
+   * star is one token), and when last. null when the ledger could not be
+   * read -- unknown is not zero.
+   */
+  revenue: number | null
+  last_paid_at: string | null
 }
 
 const CUT = 280
@@ -84,7 +91,10 @@ export async function clientTimeline(
   owner: string,
   lead: string,
   limit = 60
-): Promise<{ events: TimelineEvent[]; stats: Omit<TimelineStats, 'paid'> }> {
+): Promise<{
+  events: TimelineEvent[]
+  stats: Omit<TimelineStats, 'paid' | 'revenue' | 'last_paid_at'>
+}> {
   const dm = await rowsOf(
     pool,
     `SELECT at, "out", text FROM crm_messages
@@ -176,6 +186,32 @@ export async function clientTimeline(
   }
 }
 
+/**
+ * WHAT THIS CLIENT BROUGHT (CRM audit 2026-09-27, #4: no revenue number
+ * anywhere). The live wallet is the one place a purchase lands since the
+ * one-wallet decision; a grant is not money and is not counted. Never throws.
+ */
+export async function clientRevenue(
+  pool: Pool,
+  lead: string
+): Promise<{ revenue: number | null; last_paid_at: string | null }> {
+  try {
+    const r = await pool.query(
+      `SELECT coalesce(sum(delta), 0)::int AS stars, max(created_at) AS last
+         FROM token_ledger
+        WHERE telegram_id = $1 AND kind = 'purchase' AND delta > 0`,
+      [lead]
+    )
+    const row = r.rows[0] ?? {}
+    return {
+      revenue: Number(row.stars) || 0,
+      last_paid_at: iso(row.last),
+    }
+  } catch {
+    return { revenue: null, last_paid_at: null }
+  }
+}
+
 export const CRM_CLIENT_TIMELINE_TOOLS: AgentTool[] = [
   {
     name: 'crm_client_timeline',
@@ -203,11 +239,19 @@ export const CRM_CLIENT_TIMELINE_TOOLS: AgentTool[] = [
       )
       const t = await clientTimeline(ctx!.pool as never, owner, lead, limit)
       const money = await paidSetFor(ctx!).catch(() => null)
+      const brought = await clientRevenue(ctx!.pool as never, lead)
       const stats: TimelineStats = {
         ...t.stats,
         // null, not false, when payments could not be read: "unknown" is
-        // not "never paid".
-        paid: money && money.known ? money.paid.has(lead) : null,
+        // not "never paid". Money in the wallet is payment even when the
+        // paid list could not be read.
+        paid:
+          (brought.revenue ?? 0) > 0
+            ? true
+            : money && money.known
+              ? money.paid.has(lead)
+              : null,
+        ...brought,
       }
       return { client: lead, stats, events: t.events }
     },

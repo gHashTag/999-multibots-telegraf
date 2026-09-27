@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { clientTimeline, mergeTimeline } from './crm-client-timeline'
+import {
+  clientRevenue,
+  clientTimeline,
+  mergeTimeline,
+} from './crm-client-timeline'
 import { COMPACT_TOOLS_EXCLUDED, DIRECT_CALL_ONLY, TOOLS } from './tools'
 
 /**
@@ -122,5 +126,34 @@ describe('registry', () => {
     expect(TOOLS.some(t => t.name === 'crm_client_timeline')).toBe(true)
     expect(DIRECT_CALL_ONLY.has('crm_client_timeline')).toBe(true)
     expect(COMPACT_TOOLS_EXCLUDED.test('crm_client_timeline')).toBe(true)
+  })
+})
+
+describe('clientRevenue', () => {
+  it('sums the purchases in the live wallet and says when last', async () => {
+    const seen: string[] = []
+    const pool = {
+      query: async (sql: string) => {
+        seen.push(sql)
+        return { rows: [{ stars: 1500, last: '2026-09-20T10:00:00Z' }] }
+      },
+    }
+    expect(await clientRevenue(pool, LEAD)).toEqual({
+      revenue: 1500,
+      last_paid_at: '2026-09-20T10:00:00.000Z',
+    })
+    expect(seen[0]).toMatch(/kind = 'purchase'/)
+  })
+
+  it('an unreadable ledger is unknown, not zero', async () => {
+    const pool = {
+      query: async () => {
+        throw new Error('down')
+      },
+    }
+    expect(await clientRevenue(pool, LEAD)).toEqual({
+      revenue: null,
+      last_paid_at: null,
+    })
   })
 })

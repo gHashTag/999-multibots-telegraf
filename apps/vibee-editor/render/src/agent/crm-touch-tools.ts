@@ -229,7 +229,9 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       let paid = false
       let paidKnown = true
       try {
-        paid = (await visibleScope(ctx).then(whoPaid)).has(leadId)
+        paid = (
+          await visibleScope(ctx).then(s => whoPaid(s, ctx!.pool as never))
+        ).has(leadId)
       } catch {
         paidKnown = false
       }
@@ -324,7 +326,7 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
        */
       const [people, paid, touches, owed] = await Promise.all([
         audienceOf(scope),
-        whoPaid(scope),
+        whoPaid(scope, ctx.pool as never),
         touchesByLead(ctx.pool as never, String(ctx.telegramId)),
         openDebts(ctx.pool as never, String(ctx.telegramId)).catch(
           () => new Map()

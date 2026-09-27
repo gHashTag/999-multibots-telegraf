@@ -249,7 +249,7 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
         () => new Map<string, { kind: TouchKind; at: string }>()
       )
       const paidSet = await visibleScope(ctx)
-        .then(scope => whoPaid(scope))
+        .then(scope => whoPaid(scope, pool))
         .catch(() => new Set<string>())
       // The whole base, not a page: the buckets must count everybody.
       const list = await leadCandidates(pool, owner, {
