@@ -1356,3 +1356,45 @@ answers: true`, 9/12 tabs.
   the code from the mail (the owner allowed reading it), 3.4 observability.
   Still blocked on the owner's own keyboard: the Habr password at (740,394) —
   never typed by me, never asked for in chat, never written anywhere.
+
+- **28.09.2026 (later tick).** Reading the queue rather than restarting it, I
+  found that **the sign-in transfer of Option 1 was already fully built** — UI
+  (`ImportLogins.tsx`), client (`importBrowserLogins`), route
+  (`/api/browser/cookies`), a parser reading three export shapes including
+  Playwright's whole-profile `storageState`, and the pod write. So the honest
+  work was not to build it again but to find its weak spot — and it was **the
+  same shape as #3152, one field standing in for two facts.** The import answer
+  reported `imported`/`skipped`/`sites`: proof the browser **took** the cookies,
+  the _process_ half — the exact claim `reachable` makes. It said nothing about
+  whether a page was actually **signed in**, the _answers_ half. A person could
+  drop a file, read "214 cookies across 9 sites", and have no proof one account
+  worked. Fix: read the pod's cookies back on the same socket right after the
+  write and report `signedIn` (logins.ts, `signed_in` only, people-facing
+  names). It **never throws** — the import already succeeded, and a login cookie
+  proves the browser _holds_ a login, not that the site still honours it — so a
+  failed read leaves `signedIn` **absent**, never a false empty list reading as
+  "nothing worked". That is the `null`-is-a-third-outcome discipline again,
+  applied to a second surface. PR TBD; render-types 0, 21 cookie-import tests
+  green including "reports which networks it lit up" and "leaves signedIn absent
+  when it cannot read back". The UI shows the sign-in line only when present; an
+  empty list is a real fact and gets its own honest message
+  (`browser.import.signedInNone`), not silence.
+
+  **Self-criticism.** I nearly _rebuilt_ Option 1 from the queue text before
+  reading the tree — the queue is a hint, not a work order; read what exists
+  first, then find the gap. And the player test suite here cannot even collect
+  (`@vibee/atoms` unresolved in the worktree) — the known worktree
+  workspace-linking trap; I confirmed it fails identically on clean origin/main
+  by stashing, so it is not this change's doing and the pre-push gate resolves it
+  from the root. I did not let a red I did not cause read as my failure
+  (`git checkout`/stash is the one-command witness, cheap).
+
+  Next tick: read this journal, append, do not restart. Queue now: **Habr
+  through the Google door plus the mailed code** (still blocked only on the Habr
+  password at (740,394) — the owner's keyboard, never mine); **3.4
+  observability** (one screen: what the agent saw when it erred, over `film.ts` +
+  `journal.ts` + the watcher's since-when); and the remaining `running`-shaped
+  claim in **`browser_status`**, the tool the model calls most before deciding it
+  can act — left alone twice now because its descriptions are pinned by the
+  compact-kit token ratchet, so touching it needs a description budget, not just
+  an edit.
