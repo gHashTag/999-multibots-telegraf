@@ -9,7 +9,9 @@
  *
  * The panel computes no contrast of its own (PANEL_VERDICT_FROM_SERVER): a
  * check is the tool's read without `start`, and its `end_card_why` is the
- * verdict. "Keep" is offered only for the card the last check passed.
+ * verdict. "Keep" is offered only for the card the last check passed. A
+ * refusal for contrast names the shade of her colour that reads (v12); the
+ * panel takes it by a press and checks again -- it computes no shade either.
  */
 
 export type EndCardColour = 'bg' | 'title' | 'text' | 'accent'
@@ -55,6 +57,31 @@ export function panelKeepOffered(
   verdictClean: boolean
 ): boolean {
   return checked && !editedSinceCheck && verdictClean
+}
+
+/**
+ * The spec's panel_take_offered (v12): "take" sits only beside the verdict on
+ * the card still on screen -- a shade named for the card before an edit is
+ * not a shade for this one.
+ */
+export function panelTakeOffered(
+  checked: boolean,
+  editedSinceCheck: boolean,
+  hasFix: boolean
+): boolean {
+  return checked && !editedSinceCheck && hasFix
+}
+
+/**
+ * The card with the server's named shades taken in (v12, end_card_fix): the
+ * call and the button line only; every other field stays as it was.
+ */
+export function takeFix(card: StoryEndCard, fix: StoryEndCard): StoryEndCard {
+  return {
+    ...card,
+    ...(fix.title ? { title: fix.title } : {}),
+    ...(fix.accent ? { accent: fix.accent } : {}),
+  }
 }
 
 /**

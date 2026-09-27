@@ -35,8 +35,44 @@ import subprocess
 import sys
 
 
+def stale(path: str) -> list:
+    """Every mutation of a list whose `from` is not in its file exactly once.
+
+    Loop turn 9 (27.09.2026): a refactor of the code under a list left two
+    anchors behind; the run named the first and stopped, the second showed
+    up only after the fix. All of them, at once, without running anything.
+    """
+    with io.open(path, encoding='utf-8') as fh:
+        muts = json.load(fh)
+    out = []
+    for i, m in enumerate(muts):
+        label = m.get('name') or m['from'].strip().splitlines()[0][:60]
+        try:
+            s = io.open(m['file'], encoding='utf-8').read()
+        except OSError:
+            out.append(f'#{i + 1} {m["file"]}: no such file here ({label})')
+            continue
+        n = s.count(m['from'])
+        if n != 1:
+            out.append(f'#{i + 1} {m["file"]}: `from` occurs {n} times, need 1 ({label})')
+    return out
+
+
 def main() -> int:
     args = sys.argv[1:]
+    if args[:1] == ['--check']:
+        # tri mutants --check <list.json>... : anchors only, nothing runs.
+        if len(args) < 2:
+            print('tri mutants --check <list.json>...  (paths relative to here)')
+            return 2
+        bad = 0
+        for path in args[1:]:
+            problems = stale(path)
+            print(f'{path}: {"ok" if not problems else f"{len(problems)} stale"}')
+            for line in problems:
+                print(f'  {line}')
+            bad += len(problems)
+        return 1 if bad else 0
     if len(args) < 3 or '--' not in args:
         print('tri mutants <list.json> -- <test command>')
         print('list: [{"file": "...", "from": "...", "to": "..."}, ...]')
@@ -54,17 +90,13 @@ def main() -> int:
     # Loop turn 6 (27.09.2026): run from the repo root, the first file of the
     # list was "not found" and the answer was a Python traceback; the paths
     # are relative to where the command runs, so say that instead.
-    for i, m in enumerate(muts):
-        try:
-            s = io.open(m['file'], encoding='utf-8').read()
-        except OSError:
-            print(f'#{i + 1} {m["file"]}: no such file here -- the list\'s paths')
-            print('are relative to where you run it (cd into the package).')
-            return 2
-        n = s.count(m['from'])
-        if n != 1:
-            print(f'#{i + 1} {m["file"]}: `from` occurs {n} times, need 1')
-            return 2
+    problems = stale(args[0])
+    if problems:
+        for line in problems:
+            print(line)
+        if any('no such file' in line for line in problems):
+            print("the list's paths are relative to where you run it (cd into the package).")
+        return 2
 
     extra = []
     for m in muts:
@@ -72,6 +104,12 @@ def main() -> int:
             if t not in extra:
                 extra.append(t)
 
+    # tri gate: the tree as this batch found it; record compares it at the
+    # end (every mutation is restored, so a moved tree is someone else's).
+    os.environ['TRI_GATE_START'] = subprocess.run(
+        ['node', os.path.join(os.path.dirname(__file__), 'gate.mjs'), 'tree'],
+        capture_output=True, text=True,
+    ).stdout.strip()
     print('-- green run, no mutation --')
     # The same turn passed test FILES after `--`; the first was run as a
     # program and died with a traceback. After `--` comes a command.

@@ -88,5 +88,45 @@
     "name": "the player computes contrast",
     "from": "pub const PANEL_VERDICT_FROM_SERVER : bool = true;",
     "to": "pub const PANEL_VERDICT_FROM_SERVER : bool = false;"
+  },
+  {
+    "name": "the way that needs more steps wins",
+    "from": "if light_step < dark_step {",
+    "to": "if light_step > dark_step {"
+  },
+  {
+    "name": "a tie ignores the background",
+    "from": "if light_reads_better {",
+    "to": "if !light_reads_better {"
+  },
+  {
+    "name": "a shade for a colour that is not #hex",
+    "from": "pub const SUGGEST_FOR_BAD_HEX : bool = false;",
+    "to": "pub const SUGGEST_FOR_BAD_HEX : bool = true;"
+  },
+  {
+    "name": "a shade named for a field that reads",
+    "from": "        return !readable;\n",
+    "to": "        return readable;\n"
+  },
+  {
+    "name": "take beside a stale verdict",
+    "from": "return checked && !edited_since_check && has_fix;",
+    "to": "return checked && has_fix;"
+  },
+  {
+    "name": "taking keeps",
+    "from": "pub const SUGGEST_KEPT_BY_ITSELF : bool = false;",
+    "to": "pub const SUGGEST_KEPT_BY_ITSELF : bool = true;"
+  },
+  {
+    "name": "the last step may not read",
+    "from": "pub const EXTREME_MIN_CONTRAST_X10 : u16 = 45;",
+    "to": "pub const EXTREME_MIN_CONTRAST_X10 : u16 = 44;"
+  },
+  {
+    "name": "never is a step",
+    "from": "pub const SUGGEST_NEVER : u16 = 11;",
+    "to": "pub const SUGGEST_NEVER : u16 = 10;"
   }
 ]

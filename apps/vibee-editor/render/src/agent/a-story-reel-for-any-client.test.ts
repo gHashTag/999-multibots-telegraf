@@ -40,6 +40,8 @@ import {
   CAP_WAIT_MARK,
 } from './story-template'
 import type { AgentTool, ToolContext } from './tools'
+import { readableShade } from './story-reel-tool'
+import { END_CARD_DEFAULT_TITLE } from '../spec/crm-story-reel.gen'
 
 const SELLER = '900000001'
 const OTHER = '900000002'
@@ -2406,5 +2408,82 @@ describe('her palette, kept for every next reel (spec v10)', () => {
     )
     expect(base.db.writes.some(w => /crm_client_profiles/.test(w))).toBe(false)
     expect(base.db.profiles).toEqual([])
+  })
+})
+
+describe('the shade that reads, named on a refusal (spec v12)', () => {
+  const reel = { done: true, url: 'https://bucket.example/reel.mp4' }
+  const tool = (base: ReturnType<typeof fakeBase>) =>
+    makeCrmStoryTool({
+      deps: () => depsOn(base, async () => reel).deps,
+      lookup: () => undefined,
+    })
+  const ctxOf = (base: ReturnType<typeof fakeBase>) =>
+    ({ telegramId: SELLER, pool: base.pool }) as unknown as ToolContext
+
+  it("a check of the seller's card names the shade of her colour that reads", async () => {
+    const base = fakeBase()
+    qualify(base)
+    const r: any = await tool(base).handler(
+      { lead: LENA, end_card: { bg: '#f5efe0', title: '#d4b04c' } },
+      ctxOf(base)
+    )
+    expect(r.end_card_why).toMatch('читается #')
+    expect(r.end_card_fix).toEqual({
+      title: readableShade('#d4b04c', '#f5efe0'),
+    })
+    expect(r.end_card_why).toContain(r.end_card_fix.title)
+    // A card that reads: nothing to name.
+    const ok: any = await tool(base).handler(
+      { lead: LENA, end_card: { bg: '#10182a', title: '#f5f5f5' } },
+      ctxOf(base)
+    )
+    expect(ok.end_card_fix).toBeUndefined()
+    // SUGGEST_FOR_BAD_HEX: "black" is named back, even with a #hex call
+    // beside it that does not read on the default background.
+    const named: any = await tool(base).handler(
+      { lead: LENA, end_card: { bg: 'black', title: '#111' } },
+      ctxOf(base)
+    )
+    expect(named.end_card_why).toMatch('end_card.bg')
+    expect(named.end_card_fix).toBeUndefined()
+    expect(base.db.jobs).toEqual([])
+  })
+
+  it('a card refused at keeping carries its shade; a colour that is not #hex does not', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const pale: any = await tool(base).handler(
+      { lead: LENA, end_card: { bg: '#ffffff' }, save_end_card: true },
+      ctxOf(base)
+    )
+    expect(pale).toMatchObject({ kept: false, started: false })
+    expect(pale.end_card_fix?.title).toBe(
+      readableShade(END_CARD_DEFAULT_TITLE, '#ffffff')
+    )
+    const black: any = await tool(base).handler(
+      {
+        lead: LENA,
+        end_card: { bg: 'black', title: '#111' },
+        save_end_card: true,
+      },
+      ctxOf(base)
+    )
+    expect(black.why).toMatch('end_card.bg')
+    expect(black.end_card_fix).toBeUndefined()
+    expect(base.db.kept).toEqual([])
+  })
+
+  it("her profile's own unreadable palette is named with its shade and still not refused", async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.profiles.push({
+      owner_id: SELLER,
+      telegram_id: LENA,
+      updated: 2,
+      profile: { visual: { bg: '#ffffff', gold_title: '#ffe' } },
+    })
+    const r: any = await tool(base).handler({ lead: LENA }, ctxOf(base))
+    expect(r.end_card_fix).toEqual({ title: readableShade('#ffe', '#ffffff') })
   })
 })

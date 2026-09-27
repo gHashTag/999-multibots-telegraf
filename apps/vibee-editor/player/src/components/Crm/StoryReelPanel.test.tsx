@@ -314,6 +314,98 @@ describe('her palette on the story panel', () => {
     expect(calls.some(c => c.start)).toBe(false)
   })
 
+  // v12: the server names the shade of her colour that reads; the panel
+  // computes none, takes it by a press, and checks that card again.
+  const REFUSED = {
+    ...WITH_CARD,
+    end_card_why:
+      'призыв цветом #eeeeee на фоне #fafafa читается плохо; читается #5a5a5a',
+    end_card_fix: { title: '#5a5a5a' },
+  }
+  const fixRow = () => host.querySelector('[data-testid="story-palette-fix"]')
+
+  it('take the shade: a refused check names it, the press fills the field and checks again', async () => {
+    serve(a =>
+      a.end_card && !a.save_end_card
+        ? (a.end_card as { title?: string }).title === '#eeeeee'
+          ? REFUSED
+          : WITH_CARD
+        : WITH_CARD
+    )
+    await draw()
+    expect(fixRow()).toBeNull() // the loaded card reads: nothing to take
+    await openEditor()
+    await set(
+      host.querySelector('input[data-field="title"]') as HTMLInputElement,
+      '#eeeeee'
+    )
+    await press('check')
+    expect(fixRow()?.textContent).toContain('#5a5a5a')
+    const keep = () =>
+      host.querySelector('[data-action="keep"]') as HTMLButtonElement
+    expect(keep().disabled).toBe(true)
+    await press('take')
+    const checks = calls.filter(c => c.end_card && !c.save_end_card)
+    expect(checks.at(-1)).toEqual({
+      lead: CLIENT,
+      end_card: {
+        bg: '#10182a',
+        title: '#5a5a5a',
+        text: '#ffffff',
+        button: 'Написать мне',
+      },
+    })
+    expect(
+      (host.querySelector('input[data-field="title"]') as HTMLInputElement)
+        .value
+    ).toBe('#5a5a5a')
+    // The new check passed: keep is offered -- and was not pressed for him.
+    expect(
+      host.querySelector('[data-testid="story-palette-verdict"]')?.textContent
+    ).toBe('crm.client.story.readable')
+    expect(keep().disabled).toBe(false)
+    expect(calls.some(c => c.save_end_card || c.start)).toBe(false)
+  })
+
+  it('take the shade: an edit after the check takes the named shade back', async () => {
+    serve(a => (a.end_card && !a.save_end_card ? REFUSED : WITH_CARD))
+    await draw()
+    await openEditor()
+    await press('check')
+    expect(fixRow()).not.toBeNull()
+    await set(
+      host.querySelector('input[data-field="bg"]') as HTMLInputElement,
+      '#1a2b3c'
+    )
+    // panel_take_offered(checked, edited, has_fix) == false
+    expect(fixRow()).toBeNull()
+  })
+
+  it('take the shade: a loaded card that does not read offers it before the editor opens', async () => {
+    serve(a => (a.end_card ? WITH_CARD : REFUSED))
+    await draw()
+    expect(fixRow()?.textContent).toContain('#5a5a5a')
+    await press('take')
+    expect(calls.find(c => c.end_card)).toEqual({
+      lead: CLIENT,
+      end_card: {
+        bg: '#10182a',
+        title: '#5a5a5a',
+        text: '#ffffff',
+        button: 'Написать мне',
+      },
+    })
+    // The editor is open on the taken card, and the load's row is gone.
+    expect(host.querySelector('.crm-client__palette-edit')).not.toBeNull()
+    expect(
+      host.querySelector('[data-testid="story-palette-verdict"]')?.textContent
+    ).toBe('crm.client.story.readable')
+    expect(
+      host.querySelectorAll('[data-testid="story-palette-fix"]').length
+    ).toBe(0)
+    expect(calls.some(c => c.save_end_card || c.start)).toBe(false)
+  })
+
   it('takes the kept palette off with an empty card, and starts nothing', async () => {
     serve(a =>
       a.save_end_card

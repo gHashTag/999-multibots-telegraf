@@ -620,6 +620,11 @@ export interface StoryReady {
   endCardKept: StoryEndCard | null
   /** What does not read on that card, in the server's words; null when all does. */
   endCardWhy: string | null
+  /**
+   * The shade of her colour that reads, for each field that does not
+   * (crm-story-reel v12, end_card_fix); null when all reads.
+   */
+  endCardFix: StoryEndCard | null
 }
 
 export interface StoryStart {
@@ -655,6 +660,7 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
     endCard: toEndCard(r['end_card']),
     endCardKept: toEndCard(r['end_card_kept']),
     endCardWhy: str(r['end_card_why']),
+    endCardFix: toEndCard(r['end_card_fix']),
     jobs: jobs
       .filter((j): j is Record<string, unknown> => !!j && typeof j === 'object')
       .map(j => ({

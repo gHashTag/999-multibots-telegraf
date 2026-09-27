@@ -70,5 +70,59 @@
     "file": "src/components/Crm/StoryReelPanel.tsx",
     "from": "          <StoryPalette\n",
     "to": "          <StoryPaletteX\n"
+  },
+  {
+    "name": "v12: take beside a stale verdict",
+    "file": "src/lib/storyPalette.ts",
+    "from": "  return checked && !editedSinceCheck && hasFix\n",
+    "to": "  return checked && hasFix\n"
+  },
+  {
+    "name": "v12: the button line's shade is not taken",
+    "file": "src/lib/storyPalette.ts",
+    "from": "    ...(fix.accent ? { accent: fix.accent } : {}),\n",
+    "to": ""
+  },
+  {
+    "name": "v12: taking takes every field",
+    "file": "src/lib/storyPalette.ts",
+    "from": "    ...card,\n    ...(fix.title",
+    "to": "    ...card,\n    ...fix,\n    ...(fix.title"
+  },
+  {
+    "name": "v12: taking does not check again",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "    await onCheck(next)\n",
+    "to": ""
+  },
+  {
+    "name": "v12: taking keeps",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "    await onCheck(next)\n",
+    "to": "    await keepStoryPalette(clientId, next)\n"
+  },
+  {
+    "name": "v12: the load's shade stays with the editor open",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "{loadFix && panelTakeOffered(true, open, true)",
+    "to": "{loadFix && panelTakeOffered(true, false, true)"
+  },
+  {
+    "name": "v12: the editor's shade survives an edit",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "panelTakeOffered(checked !== null, edited, checked.fix !== null)",
+    "to": "panelTakeOffered(checked !== null, false, checked.fix !== null)"
+  },
+  {
+    "name": "v12: the check is keyed to the old draft",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "    setChecked({ key: cardKey(next), why, fix: r.data?.endCardFix ?? null })\n",
+    "to": "    setChecked({ key: cardKey(draft), why, fix: r.data?.endCardFix ?? null })\n"
+  },
+  {
+    "name": "v12: the answer's shade is dropped",
+    "file": "src/lib/crm.ts",
+    "from": "    endCardFix: toEndCard(r['end_card_fix']),\n",
+    "to": "    endCardFix: null,\n"
   }
 ]
