@@ -132,6 +132,47 @@ export async function liveSession(ctx: ToolContext) {
 }
 
 /**
+ * A BROWSER THAT IS RUNNING, WHETHER OR NOT THE VISIT IS STILL ON RECORD.
+ *
+ * `browser_status` is the first tool the agent is told to call -- "запущен ли"
+ * in the chat prompt -- and it asked the session row alone. On this platform a
+ * pod cannot be stopped, so the idle reaper deletes the row after ten minutes
+ * of quiet and the browser goes on running with the person's accounts in it.
+ * The row's absence therefore says nothing about the browser, and the tool was
+ * reading it as `running: false`.
+ *
+ * Measured 2026-09-27, on myself: `browser_status` answered `running: false`,
+ * I read that as a wedged Chromium and restarted the pod -- while
+ * `/api/browser/watch` had it "answering for 16m" and `tri tabs` counted
+ * eleven live pages on it. The browser was well. The row had died. Cost: one
+ * restart of a healthy browser, which is exactly the harm the watch was
+ * written to prevent, caused by the one health answer it does not feed.
+ *
+ * This is the same hole `loginsOfPerson` already went through and out of
+ * (pod-tenant.ts), so it goes through the same door: the person's own pod,
+ * theirs by the tenant record, and nobody else's. It starts nothing -- a
+ * status call must stay a probe -- and it says which of the two it found, so
+ * the agent is told the honest thing rather than a cheerful one.
+ */
+async function podToLookAt(
+  ctx: ToolContext
+): Promise<{ cdp: string; visitOnRecord: boolean } | null> {
+  const q = ctx.pool as unknown as Queryable
+  const session = await readSession(q, ctx.telegramId)
+  if (session?.state === 'live' && session.cdpEndpoint)
+    return { cdp: session.cdpEndpoint, visitOnRecord: true }
+  try {
+    const { ensurePodTenants, unclaimedPodOf } = await import('./pod-tenant')
+    await ensurePodTenants(q)
+    const mine = await unclaimedPodOf(q, ctx.telegramId)
+    return mine ? { cdp: mine, visitOnRecord: false } : null
+  } catch {
+    /* No tenant table, no configured pod: then we genuinely cannot say. */
+    return null
+  }
+}
+
+/**
  * WHAT IT OPENED IS WHERE IT ACTS (2026-09-23, the first round over the
  * connected accounts): the agent opened LinkedIn and then read hh.ru,
  * because opening a tab does not make it the one the tools act in -- that is
@@ -150,8 +191,45 @@ export function forgetOpenedTabs(): void {
 }
 
 export interface TabIo {
-  list: (cdp: string) => Promise<{ id: string }[]>
+  list: (cdp: string) => Promise<{ id: string; url?: string; type?: string }[]>
   close: (cdp: string, id: string) => Promise<void>
+}
+
+/**
+ * MAKE ROOM BEFORE OPENING, because a tab too many does not queue -- it kills
+ * the browser.
+ *
+ * The tidy-up below this one counts only the tabs WE opened, from a list that
+ * dies with the process, so it cannot see the person's tabs or the ones
+ * Chromium restored. The pod's real count is the one that matters against the
+ * PID ceiling, and `roomForOne` is that count read from the browser itself.
+ *
+ * Measured by doing it, 2026-09-27: 14 pages open, this function's absence,
+ * one more `browser_open`, and a browser that answered `running: false`
+ * seconds later. Failing to list is not a reason to refuse the open -- the
+ * pod is then in trouble the health check reports, and a person waiting on a
+ * page should not be told no by the tidy-up.
+ */
+async function makeRoom(
+  telegramId: string,
+  cdp: string,
+  io: TabIo
+): Promise<void> {
+  try {
+    const { roomForOne } = await import('./tab-sweep')
+    const chosen = chosenFront(telegramId)
+    const pages = (await io.list(cdp)).map(t => ({
+      id: t.id,
+      url: t.url ?? '',
+      type: t.type ?? 'page',
+    }))
+    for (const doomed of roomForOne(pages, chosen ? [chosen] : [])) {
+      await io.close(cdp, doomed.id).catch(() => {})
+      forgetFront(telegramId, doomed.id)
+    }
+  } catch {
+    /* A pod that cannot be listed still gets the open it was asked for. */
+  }
 }
 
 export async function openAndChoose(
@@ -164,6 +242,7 @@ export async function openAndChoose(
   ) => newPage(c, u),
   io: TabIo = { list: listTargets, close: closePage }
 ): Promise<{ id: string; url?: string }> {
+  await makeRoom(telegramId, cdp, io)
   const page = await open(cdp, url)
   rememberFront(telegramId, page.id)
   const ours = [...(openedByUs.get(telegramId) ?? []), page.id]
@@ -567,11 +646,8 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
-      const session = await readSession(
-        ctx.pool as unknown as Queryable,
-        ctx.telegramId
-      )
-      if (!session || session.state !== 'live') {
+      const found = await podToLookAt(ctx)
+      if (!found) {
         return {
           running: false,
           hint: 'call browser_open: it starts the browser itself, and the person is told',
@@ -585,11 +661,11 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
        */
       const front = (args as { front?: unknown }).front
       if (typeof front === 'string' && front) {
-        await activatePage(session.cdpEndpoint!, front).catch(() => {})
+        await activatePage(found.cdp, front).catch(() => {})
         /* Activating does not reorder /json/list: remember the choice. */
         rememberFront(ctx.telegramId, front)
       }
-      const targets = await listTargets(session.cdpEndpoint!).catch(() => [])
+      const targets = await listTargets(found.cdp).catch(() => [])
       return {
         running: true,
         /* No endpoints, no tokens: an agent needs neither to use the tools. */
@@ -604,7 +680,22 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
               ? { actingHere: true as const }
               : {}),
           })),
-        watchedByThePerson: true,
+        watchedByThePerson: found.visitOnRecord,
+        /*
+         * The browser outlived the visit. Said out loud, because it changes
+         * what the agent should do: the pages are real and workable, but the
+         * person is not looking at the screen, so anything that needs their
+         * eyes or their hands waits for browser_open to bring them back.
+         */
+        ...(found.visitOnRecord
+          ? {}
+          : {
+              note:
+                'the browser is running but the visit record is gone (the idle ' +
+                'reaper deletes it; the pod cannot be stopped). Its pages and ' +
+                'logins are real. Nobody is watching the screen right now: for ' +
+                'anything that needs the person, call browser_open first.',
+            }),
       }
     },
   },
