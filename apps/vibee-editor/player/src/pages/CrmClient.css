@@ -20,6 +20,22 @@
   white-space: nowrap;
 }
 
+/*
+ * WHO THIS IS, IN FULL, ON A PHONE (tri shot crm-client, turn 14).
+ *
+ * One line with an ellipsis is right on a desktop. At 390 px, beside
+ * "refresh", it left 235 px: "Клиент Анна Вет…" -- the seller could not see
+ * whose card this is, nor the @username to write to. Narrow screens wrap
+ * the name instead; a long @username breaks anywhere rather than run off.
+ */
+@media (max-width: 480px) {
+  .crm-client__head h2 {
+    font-size: 20px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
 .crm-client__crumb {
   font-size: 13px;
   color: var(--text-muted, #888);
@@ -441,7 +457,8 @@
     height: var(--touch-target, 44px);
   }
   .crm-client__duet-start label,
-  .crm-client__watch {
+  .crm-client__watch,
+  .crm-client__file {
     display: inline-flex;
     align-items: center;
     min-height: var(--touch-target, 44px);

@@ -482,7 +482,12 @@ export default function CrmClientPage() {
                   <span className="crm-client__time">{when(m.at)}</span>
                   <span className="crm-client__kind">{m.kind}</span>
                   {m.url ? (
-                    <a href={m.url} target="_blank" rel="noreferrer">
+                    <a
+                      href={m.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="crm-client__file"
+                    >
                       {m.name || m.kind}
                     </a>
                   ) : (

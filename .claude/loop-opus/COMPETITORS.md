@@ -385,3 +385,18 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 
 Источники: [HeyGen: Video Agent FAQ](https://help.heygen.com/en/articles/16007192-video-agent-faq),
 [HeyGen: How to use credits](https://help.heygen.com/en/articles/15126059-how-to-use-credits-on-heygen).
+
+## 27.09, виток 14: карточка клиента на телефоне
+
+- **Material Design**: у кнопок диалога подтверждения цель нажатия 48 dp;
+  подтверждать надо действия, которые трудно отменить. У нас такая пара —
+  «Да, отправлять по-настоящему» / «Отмена» перед дуэтом с настоящими
+  сообщениями — стояла на 40 px; теперь 44 (норма страницы).
+- HubSpot и Pipedrive называют мобильные карточки контакта главным
+  экраном продавца; разбора усечения имени в их документации не нашлось —
+  у нас замер: «Клиент Анна Вет…» на 390 px, теперь имя и @username
+  переносятся целиком.
+
+Источники: [Material: Dialogs](https://m2.material.io/components/dialogs),
+[Material: Accessibility](https://m1.material.io/usability/accessibility.html),
+[HubSpot: CRM mobile app](https://blog.hubspot.com/sales/crm-mobile-app).
