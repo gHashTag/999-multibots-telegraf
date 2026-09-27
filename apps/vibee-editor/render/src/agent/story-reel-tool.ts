@@ -335,6 +335,8 @@ export async function keepEndCard(
   action: number
   why?: string
   fix?: Pick<StoryEndCard, 'title' | 'accent'> | null
+  fixPalette?: Pick<StoryEndCard, 'title' | 'accent'> | null
+  fixBg?: Pick<StoryEndCard, 'bg'> | null
 }> {
   const given =
     !!raw &&
@@ -350,17 +352,20 @@ export async function keepEndCard(
       (card ? '' : 'end_card: ни одного цвета #hex и ни строки кнопки')
     : ''
   const action = keepAction(true, given, given && !why)
-  if (action === SPEC.KEEP_REFUSED)
+  if (action === SPEC.KEEP_REFUSED) {
+    // A #hex card that does not read gets its options (v12, v13); "black"
+    // does not.
+    const merged =
+      card && !endCardProblem(raw) ? mergeEndCard(card, null, profile) : null
     return {
       kept: null,
       action,
       why,
-      // A #hex card that does not read gets its shade (v12); "black" does not.
-      fix:
-        card && !endCardProblem(raw)
-          ? endCardFix(mergeEndCard(card, null, profile))
-          : null,
+      fix: endCardFix(merged),
+      fixPalette: endCardFixPalette(merged),
+      fixBg: endCardFixBg(merged),
     }
+  }
   await ensureKeptEndCards(pool)
   if (action === SPEC.KEEP_CLEAR) {
     await pool.query(
@@ -549,6 +554,100 @@ export function endCardFix(
     if (suggestOffered(true, endCardReadable(contrastX10(colour, bg))))
       out[field] = readableShade(colour, bg)
   return out.title || out.accent ? out : null
+}
+
+/** The spec's palette_offered. */
+export function paletteOffered(reads: boolean, sameAsShade: boolean): boolean {
+  return reads && !sameAsShade
+}
+
+/** The spec's bg_offered. */
+export function bgOffered(
+  unreadable: boolean,
+  allReadAtSomeStep: boolean
+): boolean {
+  return unreadable && allReadAtSomeStep
+}
+
+/** One spelling for a colour: #rrggbb, lower case (a shade of step 0). */
+const spelled = (c: string) => shadeOf(c, BLACK, 0)
+const distance = (a: string, b: string) => {
+  const [x, y] = [rgbOf(a), rgbOf(b)]
+  return x.reduce((sum, v, i) => sum + (v - y[i]) ** 2, 0)
+}
+
+/**
+ * HER OWN COLOUR THAT READS (spec v13, SUGGEST_PALETTE_ARG). For each field
+ * that does not read: of the colours already on her card -- the call, the
+ * text, the accent; never the ground, never the composition's defaults,
+ * never an invented one -- the one that reads there and is nearest to the
+ * refused colour. Not offered when it is the very shade already named.
+ */
+export function endCardFixPalette(
+  card: StoryEndCard | null
+): Pick<StoryEndCard, 'title' | 'accent'> | null {
+  if (!card) return null
+  const bg = card.bg ?? SPEC.END_CARD_DEFAULT_BG
+  const hers = [card.title, card.text, card.accent].filter(
+    (c): c is string => !!c
+  )
+  const out: Pick<StoryEndCard, 'title' | 'accent'> = {}
+  for (const { field, colour } of readPairs(card)) {
+    if (endCardReadable(contrastX10(colour, bg))) continue
+    const pick = hers
+      .filter(c => endCardReadable(contrastX10(c, bg)))
+      .sort((a, b) => distance(a, colour) - distance(b, colour))[0]
+    const same = !!pick && spelled(pick) === readableShade(colour, bg)
+    if (pick && paletteOffered(true, same)) out[field] = pick
+  }
+  return out.title || out.accent ? out : null
+}
+
+/** The first step of her ground toward white or black at which every line reads. */
+export function firstGroundStep(card: StoryEndCard, target: number): number {
+  const bg = card.bg ?? SPEC.END_CARD_DEFAULT_BG
+  const pairs = readPairs(card)
+  for (let step = 1; step <= SPEC.SUGGEST_STEPS; step++) {
+    const ground = shadeOf(bg, target, step)
+    if (pairs.every(p => endCardReadable(contrastX10(p.colour, ground))))
+      return step
+  }
+  return SPEC.SUGGEST_NEVER
+}
+
+/**
+ * HER GROUND, SHADED UNTIL EVERY LINE READS (spec v13, SUGGEST_BG_ARG). The
+ * least shade of her background toward white or black at which the call
+ * and the button line both read (shade_way picks the way, a tie going to
+ * the extreme the call reads better on). Null when the card reads, and
+ * when no shade of her ground does it (BG_FIX_ALWAYS_EXISTS is false: a
+ * dark call and a light button share no ground).
+ */
+export function endCardFixBg(
+  card: StoryEndCard | null
+): Pick<StoryEndCard, 'bg'> | null {
+  if (!card) return null
+  const bg = card.bg ?? SPEC.END_CARD_DEFAULT_BG
+  const pairs = readPairs(card)
+  const unreadable = pairs.some(
+    p => !endCardReadable(contrastX10(p.colour, bg))
+  )
+  const light = firstGroundStep(card, WHITE)
+  const dark = firstGroundStep(card, BLACK)
+  if (!bgOffered(unreadable, Math.min(light, dark) <= SPEC.SUGGEST_STEPS))
+    return null
+  const call = pairs[0].colour
+  const way = shadeWay(
+    light,
+    dark,
+    contrastX10(call, '#fff') >= contrastX10(call, '#000')
+  )
+  return {
+    bg:
+      way === SPEC.WAY_LIGHT
+        ? shadeOf(bg, WHITE, light)
+        : shadeOf(bg, BLACK, dark),
+  }
 }
 
 /**

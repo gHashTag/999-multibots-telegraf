@@ -104,25 +104,61 @@
   {
     "name": "v12: the load's shade stays with the editor open",
     "file": "src/components/Crm/StoryPalette.tsx",
-    "from": "{loadFix && panelTakeOffered(true, open, true)",
-    "to": "{loadFix && panelTakeOffered(true, false, true)"
+    "from": "{panelTakeOffered(true, open, loadOptions.length > 0)",
+    "to": "{panelTakeOffered(true, false, loadOptions.length > 0)"
   },
   {
     "name": "v12: the editor's shade survives an edit",
     "file": "src/components/Crm/StoryPalette.tsx",
-    "from": "panelTakeOffered(checked !== null, edited, checked.fix !== null)",
-    "to": "panelTakeOffered(checked !== null, false, checked.fix !== null)"
+    "from": "panelTakeOffered(true, edited, checked.options.length > 0)",
+    "to": "panelTakeOffered(true, false, checked.options.length > 0)"
   },
   {
     "name": "v12: the check is keyed to the old draft",
     "file": "src/components/Crm/StoryPalette.tsx",
-    "from": "    setChecked({ key: cardKey(next), why, fix: r.data?.endCardFix ?? null })\n",
-    "to": "    setChecked({ key: cardKey(draft), why, fix: r.data?.endCardFix ?? null })\n"
+    "from": "      key: cardKey(next),\n",
+    "to": "      key: cardKey(draft),\n"
   },
   {
     "name": "v12: the answer's shade is dropped",
     "file": "src/lib/crm.ts",
     "from": "    endCardFix: toEndCard(r['end_card_fix']),\n",
     "to": "    endCardFix: null,\n"
+  },
+  {
+    "name": "v13: the ground takes the call too",
+    "file": "src/lib/storyPalette.ts",
+    "from": "  return { ...card, ...(fix.bg ? { bg: fix.bg } : {}) }\n",
+    "to": "  return { ...card, ...fix }\n"
+  },
+  {
+    "name": "v13: the ground taken as a shade",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "      option.kind === 'bg'\n",
+    "to": "      option.kind === 'shade'\n"
+  },
+  {
+    "name": "v13: her colour is not offered",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "      ['palette', palette],\n",
+    "to": ""
+  },
+  {
+    "name": "v13: the ground is not offered",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "      ['bg', bg],\n",
+    "to": ""
+  },
+  {
+    "name": "v13: the answer's own colour is dropped",
+    "file": "src/lib/crm.ts",
+    "from": "    endCardFixPalette: toEndCard(r['end_card_fix_palette']),\n",
+    "to": "    endCardFixPalette: null,\n"
+  },
+  {
+    "name": "v13: the answer's ground is dropped",
+    "file": "src/lib/crm.ts",
+    "from": "    endCardFixBg: toEndCard(r['end_card_fix_bg']),\n",
+    "to": "    endCardFixBg: null,\n"
   }
 ]

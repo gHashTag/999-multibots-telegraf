@@ -544,6 +544,8 @@ const en: Translations = {
   'crm.client.story.readable': 'Reads well',
   'crm.client.story.fix': 'Reads like this:',
   'crm.client.story.take': 'Take it',
+  'crm.client.story.fixPalette': 'Or her own colour:',
+  'crm.client.story.fixBg': 'Or the background:',
   'crm.client.story.keep': 'Keep for the client',
   'crm.client.story.clear': 'Take the palette off',
   'crm.client.story.checkFirst':
@@ -3131,6 +3133,8 @@ const ru: Translations = {
   'crm.client.story.readable': 'Читается',
   'crm.client.story.fix': 'Читается так:',
   'crm.client.story.take': 'Взять',
+  'crm.client.story.fixPalette': 'Или её же цвет:',
+  'crm.client.story.fixBg': 'Или фон:',
   'crm.client.story.keep': 'Запомнить клиенту',
   'crm.client.story.clear': 'Снять палитру',
   'crm.client.story.checkFirst':
