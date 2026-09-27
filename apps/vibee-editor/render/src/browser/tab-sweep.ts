@@ -341,8 +341,21 @@ export interface PodTabView {
   cap: number
   /** What the next sweep would close, and why -- without closing it. */
   wouldClose: Doomed[]
-  /** Null when the pod could not be asked: starting, or in trouble. */
+  /**
+   * The target list answered. This is a claim about the BROWSER PROCESS only:
+   * `/json/list` is served by it and keeps answering while every renderer is
+   * stuck. See `answers` for whether a page can still do anything.
+   */
   reachable: boolean
+  /**
+   * A real page evaluated a trivial expression.
+   *
+   * `null` means nobody asked -- no prober was passed, or there was no page to
+   * ask. Nothing else in this shape can express "unknown", and the wedge this
+   * whole view exists to expose is exactly the state where `reachable` is true
+   * and this is false.
+   */
+  answers: boolean | null
 }
 
 /**
@@ -352,12 +365,21 @@ export interface PodTabView {
  * outside, and the first sign of trouble was a signed-in account that behaved
  * like a broken login. This is that number, on demand (`tri tabs`), so it can
  * be read before it becomes an outage rather than after.
+ *
+ * AND A LIST THAT ANSWERS IS NOT A BROWSER THAT WORKS. `/json/list` is served
+ * by the browser process, so it keeps answering cheerfully while every renderer
+ * is stuck -- measured on 2026-09-27, when this view reported `reachable: true`
+ * about a Chromium that could not do anything. So an optional prober is asked
+ * to evaluate a trivial expression on one real page. That is the difference
+ * between "the pod is up" and "the pod can act", and only the second one is
+ * what a caller means when it asks whether the browser is alive.
  */
 export async function viewEveryPodTabs(
   pool: Queryable,
   list: SweepIo['list'],
   alsoCdp?: string,
-  cap: number = TAB_CAP
+  cap: number = TAB_CAP,
+  probe?: (cdp: string, targetId: string) => Promise<unknown>
 ): Promise<PodTabView[]> {
   const out: PodTabView[] = []
   for (const job of await podsToSweep(pool, alsoCdp)) {
@@ -374,6 +396,7 @@ export async function viewEveryPodTabs(
         cap,
         wouldClose: plan.close,
         reachable: true,
+        answers: await pageAnswers(job.cdp, pages[0]?.id, probe),
       })
     } catch {
       out.push({
@@ -383,10 +406,36 @@ export async function viewEveryPodTabs(
         cap,
         wouldClose: [],
         reachable: false,
+        /*
+         * Not `false`: the list never answered, so no page was ever asked.
+         * Calling that "does not answer" would invent evidence.
+         */
+        answers: null,
       })
     }
   }
   return out
+}
+
+/**
+ * Did one page do something, or is this only a hopeful `null`?
+ *
+ * Deliberately swallows the failure into `false`. The caller wants the verdict,
+ * and the ways a wedged renderer refuses are many and uninteresting: a socket
+ * that never opens, a `Runtime.evaluate` that never returns, a target that
+ * disappeared between the list and the question.
+ */
+async function pageAnswers(
+  cdp: string,
+  targetId: string | undefined,
+  probe?: (cdp: string, targetId: string) => Promise<unknown>
+): Promise<boolean | null> {
+  if (!probe || !targetId) return null
+  try {
+    return (await probe(cdp, targetId)) === 2
+  } catch {
+    return false
+  }
 }
 
 export async function sweepEveryPod(

@@ -302,6 +302,64 @@ describe('viewEveryPodTabs', () => {
     expect(view[0].cap).toBe(TAB_CAP)
     expect(view[0].wouldClose.map(t => t.id)).toEqual(['b'])
     expect(view[0].reachable).toBe(true)
+    /* Nobody was asked, so the honest answer is "unknown", not "yes". */
+    expect(view[0].answers).toBeNull()
+  })
+
+  /*
+   * THE WEDGE THIS VIEW MISSED.
+   *
+   * `/json/list` is served by the browser process, so it answers with a full
+   * list of pages while every renderer is stuck. On 2026-09-27 that is exactly
+   * what happened: the route said the pod was reachable, and it was -- and
+   * nothing on it could act. Two fields, because one cannot hold two facts.
+   */
+  it('does NOT call a wedged Chromium healthy just because the list answered', async () => {
+    const view = await viewEveryPodTabs(
+      poolOf([]) as never,
+      async () => [page('a', 'https://www.reddit.com/')],
+      'pod.internal:9223',
+      TAB_CAP,
+      async () => {
+        throw new Error('Runtime.evaluate never came back')
+      }
+    )
+    expect(view[0].reachable).toBe(true)
+    expect(view[0].answers).toBe(false)
+  })
+
+  it('says a live browser answers, and asks a REAL page rather than a worker', async () => {
+    const asked: string[] = []
+    const view = await viewEveryPodTabs(
+      poolOf([]) as never,
+      async () => [
+        { id: 'w', type: 'service_worker', url: 'https://x.com/sw.js' },
+        page('a', 'https://www.reddit.com/'),
+      ],
+      'pod.internal:9223',
+      TAB_CAP,
+      async (_cdp, id) => {
+        asked.push(id)
+        return 2
+      }
+    )
+    expect(asked).toEqual(['a'])
+    expect(view[0].answers).toBe(true)
+  })
+
+  /*
+   * A prober that answers something else has NOT proved the page ran the
+   * expression -- an empty object is what a broken CDP round trip returns.
+   */
+  it('takes only the right answer as proof', async () => {
+    const view = await viewEveryPodTabs(
+      poolOf([]) as never,
+      async () => [page('a', 'https://www.reddit.com/')],
+      'pod.internal:9223',
+      TAB_CAP,
+      async () => ({}) as unknown
+    )
+    expect(view[0].answers).toBe(false)
   })
 
   it('says plainly that a pod could not be asked instead of reporting zero tabs', async () => {
@@ -313,6 +371,11 @@ describe('viewEveryPodTabs', () => {
         throw new Error('no browser there')
       }
     )
-    expect(view[0]).toMatchObject({ who: '144022504', reachable: false })
+    expect(view[0]).toMatchObject({
+      who: '144022504',
+      reachable: false,
+      /* No page was ever asked, so `false` here would invent evidence. */
+      answers: null,
+    })
   })
 })
