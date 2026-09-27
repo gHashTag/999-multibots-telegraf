@@ -1053,10 +1053,9 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
      * that removes the reason to reach for the wrong tool: the pages come with
      * ids from `browser_status`, so going back should cost an id, not a new tab.
      */
+    // One sentence: the compact kit pays for every word (provider.test.ts).
     description:
-      'Вернуться к уже открытой вкладке по её id из browser_status. ' + // cyrillic-ok
-      'Ничего не открывает и не закрывает — только делает вкладку текущей. ' + // cyrillic-ok
-      'Это дешевле и безопаснее, чем открывать тот же адрес второй раз.', // cyrillic-ok
+      'Вернуться к открытой вкладке по id из browser_status: ничего не открывает и не закрывает.', // cyrillic-ok
     parameters: {
       type: 'object',
       properties: { id: { type: 'string' } },
