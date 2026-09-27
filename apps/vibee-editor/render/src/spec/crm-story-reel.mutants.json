@@ -58,5 +58,29 @@
     "file": "src/agent/crm-story-tool.ts",
     "from": "        ...(args.end_card !== undefined ? { endCard: args.end_card } : {}),",
     "to": ""
+  },
+  {
+    "name": "the brief does not say the reel route",
+    "file": "src/agent/chat.ts",
+    "from": "      parts.push(reelRouteLine())\n",
+    "to": ""
+  },
+  {
+    "name": "the Queen does not know the reel tool",
+    "file": "src/agent/chat.ts",
+    "from": "    ' ' +\n    queenReelLine() +\n",
+    "to": ""
+  },
+  {
+    "name": "after both gifts: then the package",
+    "file": "src/agent/crm-deliver-tool.ts",
+    "from": "следующие рилсы тоже ${REEL.SELLER_TOOL} (тема — пункт его плана), уже платно; пакет — посты и тексты",
+    "to": "дальше пакет и платно"
+  },
+  {
+    "name": "leela_plan sends to the silent template",
+    "file": "src/agent/tools.ts",
+    "from": "`Рилс клиенту CRM — ${REEL.SELLER_TOOL} {lead, start: true, topic: «план ${plan} …»}: три кадра, его лицо и голос. ` +",
+    "to": "'' +"
   }
 ]

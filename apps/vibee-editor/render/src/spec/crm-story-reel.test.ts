@@ -571,6 +571,61 @@ describe("the spec's tests hold against the host", () => {
     expect(SPEC.PROFILE_BAD_COLOUR_DROPPED).toBe(true)
   })
 
+  it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {
+    // reel_route(owner_named_old): the brief, the Queen and the plan hint
+    // are where the route is said. The brief placing it before the package
+    // runs in the-client-face-is-mandatory.test.ts.
+    const { reelRouteLine, queenReelLine, supervisorBlock } = await import(
+      '../agent/chat'
+    )
+    const route = reelRouteLine()
+    expect(route).toContain(`${SPEC.SELLER_TOOL} {lead, start: true, topic}`)
+    expect(route).toContain(SPEC.OLD_PLAN_REEL)
+    expect(route).toMatch('только если владелец прямо назвал') // cyrillic-ok: the route under test
+    // PLAN_ITEM_IS_TOPIC: a plan item is named as the topic.
+    expect(route).toMatch('план 72» — это тема') // cyrillic-ok: the route under test
+    // REEL_TOOL_IN_QUEEN_BLOCK.
+    expect(supervisorBlock('', '')).toContain(queenReelLine())
+    expect(queenReelLine()).toContain(`только ${SPEC.SELLER_TOOL}`)
+    // REEL_TOOL_IN_PLAN_HINT: leela_plan answers with the story reel first.
+    const { TOOLS_BY_NAME } = await import('../agent/tools')
+    const plan: any = await TOOLS_BY_NAME.get('leela_plan')!.handler(
+      { plan: 72 },
+      {} as never
+    )
+    const hint = String(plan['подсказка']) // cyrillic-ok: the tool's field name
+    expect(hint.indexOf(SPEC.SELLER_TOOL)).toBeGreaterThanOrEqual(0)
+    expect(hint.indexOf(SPEC.SELLER_TOOL)).toBeLessThan(
+      hint.indexOf(SPEC.OLD_PLAN_REEL)
+    )
+    expect(hint).toContain('план 72') // cyrillic-ok: the hint under test
+    // REELS_STAY_STORY_AFTER_GIFTS: both gifts given, the next reel is still
+    // the story reel, never "then the package".
+    const { portraitOf } = await import('../agent/crm-deliver-tool')
+    const pool = {
+      query: async (sql: string) =>
+        /FROM crm_touches/.test(sql)
+          ? { rows: [{ portrait: true, reel: true }] }
+          : { rows: [] },
+    }
+    const both = await portraitOf(pool, '900000001', '900000077')
+    expect(both.reelGiven).toBe(true)
+    expect(both.first).toContain(`следующие рилсы тоже ${SPEC.SELLER_TOOL}`) // cyrillic-ok: the line under test
+    expect(both.first).not.toMatch('дальше пакет') // cyrillic-ok: the old line
+    const one = await portraitOf(
+      {
+        query: async (sql: string) =>
+          /FROM crm_touches/.test(sql)
+            ? { rows: [{ portrait: true, reel: false }] }
+            : { rows: [] },
+      },
+      '900000001',
+      '900000077'
+    )
+    expect(one.first).toContain(`${SPEC.SELLER_TOOL} {lead}`)
+    expect(SPEC.REEL_TOOL_IN_CLIENT_BRIEF).toBe(true)
+  })
+
   it('her notes are cut at a pause near the even cut, or at the even cut', () => {
     // cut_at(even_ms, pause_ms)
     const W = SPEC.NOTES_CUT_WINDOW_MS

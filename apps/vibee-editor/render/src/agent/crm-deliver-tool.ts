@@ -50,6 +50,7 @@ import { record } from '../hive/journal'
 // The lead magnet's numbers are the spec's: gHashTag/t27
 // specs/automation/crm-lead-magnet.t27, vendored with its `t27c gen-ts` output.
 import * as LM from '../spec/crm-lead-magnet.gen'
+import * as REEL from '../spec/crm-story-reel.gen'
 
 /**
  * THE SERVICE, DELIVERED IN THE DM -- AND, BY DEFAULT, THE LEAD MAGNET.
@@ -470,8 +471,10 @@ export async function portraitOf(
     ready,
     first: given
       ? reelGiven
-        ? 'портрет уже подарен, рилс-история тоже — дальше пакет и платно' // cyrillic-ok: message to the agent
-        : 'портрет уже подарен — второй подарок: рилс-история про его дело его голосом (РИЛС-ПОДАРОК), потом пакет' // cyrillic-ok: message to the agent
+        ? // Spec v8, REELS_STAY_STORY_AFTER_GIFTS: "then the package" sent
+          // every later reel to the package's silent template.
+          `портрет и рилс-история уже подарены — следующие рилсы тоже ${REEL.SELLER_TOOL} (тема — пункт его плана), уже платно; пакет — посты и тексты` // cyrillic-ok: message to the agent
+        : `портрет уже подарен — второй подарок: рилс-история про его дело его голосом (РИЛС-ПОДАРОК) — ${REEL.SELLER_TOOL} {lead}, потом пакет` // cyrillic-ok: message to the agent
       : ready
         ? 'портрет готов — отдай его: crm_deliver_photo, заново не рисуется' // cyrillic-ok: message to the agent
         : drawing
