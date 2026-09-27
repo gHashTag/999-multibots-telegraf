@@ -542,6 +542,8 @@ const en: Translations = {
   'crm.client.story.check': 'Check (free)',
   'crm.client.story.checking': 'Checking…',
   'crm.client.story.readable': 'Reads well',
+  'crm.client.story.fix': 'Reads like this:',
+  'crm.client.story.take': 'Take it',
   'crm.client.story.keep': 'Keep for the client',
   'crm.client.story.clear': 'Take the palette off',
   'crm.client.story.checkFirst':
@@ -3127,6 +3129,8 @@ const ru: Translations = {
   'crm.client.story.check': 'Проверить (бесплатно)',
   'crm.client.story.checking': 'Проверяю…',
   'crm.client.story.readable': 'Читается',
+  'crm.client.story.fix': 'Читается так:',
+  'crm.client.story.take': 'Взять',
   'crm.client.story.keep': 'Запомнить клиенту',
   'crm.client.story.clear': 'Снять палитру',
   'crm.client.story.checkFirst':

@@ -304,3 +304,21 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 
 Источники: [Canva: Use Design Accessibility](https://www.canva.com/help/using-design-accessibility/),
 [Canva Apps SDK: Accessibility](https://www.canva.dev/docs/apps/design-guidelines/accessibility/).
+
+## 27.09, виток 9: подсказка читаемого цвета
+
+- **Canva, «Fix for me»**: на карточке низкого контраста кнопка сдвигает цвет
+  текста к ближайшему доступному оттенку одним нажатием; вердикт — по 4,5:1.
+- **Stark (плагин Figma)**: предлагает И цвет текста, И цвет фона, которые
+  «гарантированно проходят», ближайшие к исходному; берёт кандидатов из
+  библиотеки бренда той же категории.
+- У нас с витка 9 (crm-story-reel v12) отказ по контрасту называет
+  наименьший сдвиг ЕЁ цвета к белому или чёрному, который читается
+  (`end_card_fix`, и в словах), в карточке — «Взять» с повторной проверкой.
+  Чего нет, а у Stark есть: вариант ФОНА и кандидаты из её же палитры
+  (кит/профиль) раньше сдвига; «ближайший» у нас — с точностью до десятой
+  пути и в sRGB, а не в перцептивном пространстве.
+
+Источники: [Canva: Use Design Accessibility](https://www.canva.com/help/using-design-accessibility/),
+[Clockwork: Making Your Canva Designs Accessible](https://www.cdgi.com/2025/11/canva-accessibility/),
+[Stark: Contrast Checker + Color Suggestions](https://www.getstark.co/support/getting-started/using-the-contrast-checker/).

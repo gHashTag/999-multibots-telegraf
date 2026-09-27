@@ -3,6 +3,8 @@ import {
   cardKey,
   fieldSource,
   panelKeepOffered,
+  panelTakeOffered,
+  takeFix,
   toColourInput,
 } from './storyPalette'
 
@@ -13,6 +15,30 @@ describe('her palette on the card: the pure part', () => {
     expect(panelKeepOffered(false, false, true)).toBe(false)
     expect(panelKeepOffered(true, true, true)).toBe(false)
     expect(panelKeepOffered(true, false, false)).toBe(false)
+  })
+
+  it('take is offered only beside the verdict on the card still on screen (v12)', () => {
+    expect(panelTakeOffered(true, false, true)).toBe(true)
+    expect(panelTakeOffered(false, false, true)).toBe(false)
+    expect(panelTakeOffered(true, true, true)).toBe(false)
+    expect(panelTakeOffered(true, false, false)).toBe(false)
+  })
+
+  it('taking the shade changes the call and the button line, nothing else', () => {
+    const card = { bg: '#f5efe0', title: '#d4b04c', text: '#fff', button: 'x' }
+    expect(takeFix(card, { title: '#6a5826' })).toEqual({
+      ...card,
+      title: '#6a5826',
+    })
+    expect(takeFix(card, { accent: '#2b2b2b' })).toEqual({
+      ...card,
+      accent: '#2b2b2b',
+    })
+    // Only title and accent are taken, whatever else the answer carried.
+    expect(takeFix(card, { bg: '#abc', text: '#def', button: 'y' })).toEqual(
+      card
+    )
+    expect(takeFix({}, {})).toEqual({})
   })
 
   it('a field comes from the kept palette, then her profile, then the default', () => {

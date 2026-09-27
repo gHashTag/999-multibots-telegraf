@@ -41,6 +41,8 @@ import {
   endCardOf,
   endCardProblem,
   endCardUnreadable,
+  endCardFix,
+  suggestOffered,
   keepEndCard,
   mergeEndCard,
 } from './story-reel-tool'
@@ -191,7 +193,13 @@ export function makeCrmStoryTool(o: {
           s.endCard
         )
         if (k.action === REEL.KEEP_REFUSED)
-          return { ready: false, started: false, kept: false, why: k.why }
+          return {
+            ready: false,
+            started: false,
+            kept: false,
+            why: k.why,
+            ...(k.fix ? { [REEL.SUGGEST_FIX_ARG]: k.fix } : {}),
+          }
         kept = k.kept
         keptNote =
           k.action === REEL.KEEP_CLEAR
@@ -209,6 +217,11 @@ export function makeCrmStoryTool(o: {
         s?.endCard ?? null
       )
       const unreadable = endCardUnreadable(endCard)
+      // The shade of her colour that reads, field by field (spec v12): for a
+      // #hex card that does not read -- "black" is only named back.
+      const fix = suggestOffered(!badColour, !unreadable)
+        ? endCardFix(endCard)
+        : null
 
       if (args.start !== true) {
         const jobs = await storyJobsOf(ctx.pool, seller, lead).catch(() => [])
@@ -246,6 +259,7 @@ export function makeCrmStoryTool(o: {
                 ...(badColour || unreadable
                   ? { end_card_why: badColour || unreadable }
                   : {}),
+                ...(fix ? { [REEL.SUGGEST_FIX_ARG]: fix } : {}),
                 client_pays_own_press: s.payer === 'client',
               }
             : {}),
