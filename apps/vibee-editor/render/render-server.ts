@@ -685,6 +685,7 @@ import {
   telegramFileUrlFor,
 } from './src/telegram-api'
 import { rewriteAppUrlsForToken } from './src/app-links'
+import { renderFeedEntry } from './src/render-feed-entry'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -1247,10 +1248,23 @@ async function publishTemplateRow(data: Record<string, any>): Promise<{
          WHERE id = $1 AND telegram_id = $2 LIMIT 1`,
         [requestedTemplateId, String(data.telegram_id)]
       )
-    : await pool.query(
+    : /*
+       * ONE VIDEO IS ONE POST. A finished render files itself for approval
+       * (src/render-feed-entry.ts); when the agent then publishes the same
+       * video with its name and hashtags (feed_publish), that is the same
+       * post getting its words -- not a second card to approve.
+       */
+      await pool.query(
         `SELECT id FROM public_templates
-         WHERE telegram_id = $1 AND name = $2 LIMIT 1`,
-        [String(data.telegram_id), data.name || 'Untitled']
+         WHERE telegram_id = $1
+           AND (name = $2 OR ($3 <> '' AND video_url = $3))
+         ORDER BY (name = $2) DESC
+         LIMIT 1`,
+        [
+          String(data.telegram_id),
+          data.name || 'Untitled',
+          String(data.video_url ?? ''),
+        ]
       )
 
   // A supplied remote id means "edit this exact template". Falling back to
@@ -1358,6 +1372,8 @@ interface PublishToFeedParams {
   templateSettings?: Record<string, unknown>
   assets?: unknown[]
   tracks?: unknown[]
+  /** Visible at once, or waiting for approval (src/render-feed-entry.ts). */
+  isPublic: boolean
 }
 
 /**
@@ -1447,6 +1463,21 @@ async function обложкаИзРолика(videoUrl: string): Promise<string 
   }
 }
 
+/** The feed entry of a finished /render job (src/render-feed-entry.ts). */
+function feedEntryOf(
+  job: RenderJob,
+  renderId: string,
+  projectName?: string
+): { projectName: string; isPublic: boolean } {
+  const e = renderFeedEntry({
+    viaServiceKey: job.viaServiceKey === true,
+    projectName,
+    compositionId: job.compositionId,
+    renderId,
+  })
+  return { projectName: e.name, isPublic: e.isPublic }
+}
+
 async function publishToFeed(params: PublishToFeedParams): Promise<boolean> {
   try {
     console.log(`📤 [Feed] Publishing to community feed: ${params.projectName}`)
@@ -1464,8 +1495,11 @@ async function publishToFeed(params: PublishToFeedParams): Promise<boolean> {
       template_settings: params.templateSettings || {},
       assets: params.assets || [],
       tracks: params.tracks || [],
+      is_public: params.isPublic,
     })
-    console.log(`✅ [Feed] Published to feed: ID=${row.id}`)
+    console.log(
+      `✅ [Feed] ${params.isPublic ? 'Published' : 'Saved for approval'}: ID=${row.id}`
+    )
     return true
   } catch (error) {
     console.error('❌ [Feed] Publish error:', error)
@@ -2241,6 +2275,9 @@ interface RenderJob {
   assets?: unknown[]
   tracks?: unknown[]
   inputProps?: Record<string, unknown>
+  compositionId?: string
+  /** Asked for with the service key: its feed entry waits for approval. */
+  viaServiceKey?: boolean
 }
 
 // Universal template render API types
@@ -2608,9 +2645,8 @@ setInterval(
         }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
-        const { botsOwnedBy, allBotOwners } = await import(
-          './src/agent/hive-tools'
-        )
+        const { botsOwnedBy, allBotOwners } =
+          await import('./src/agent/hive-tools')
         const granted = await sweepClubGrants(
           pool,
           { botsOwnedBy, allOwners: allBotOwners },
@@ -2655,9 +2691,8 @@ setInterval(
   () => {
     void (async () => {
       try {
-        const { transcribeBacklogOnce } = await import(
-          './src/agent/transcribe-backlog'
-        )
+        const { transcribeBacklogOnce } =
+          await import('./src/agent/transcribe-backlog')
         const r = await transcribeBacklogOnce(getPool())
         /*
          * THE FIRST TICK SPEAKS EVEN WHEN THERE IS NOTHING.
@@ -2845,9 +2880,8 @@ const ACCEPTANCE_TICK_MS = 30 * 60 * 1000
 const acceptanceTick = () => {
   void (async () => {
     try {
-      const { runDailyAcceptanceIfDue } = await import(
-        './src/agent/daily-acceptance-wiring'
-      )
+      const { runDailyAcceptanceIfDue } =
+        await import('./src/agent/daily-acceptance-wiring')
       const said = await runDailyAcceptanceIfDue(getPool() as any)
       if (said !== 'off' && said !== 'not due' && said !== 'already running')
         console.log(`[acceptance] ${said}`)
@@ -2960,7 +2994,8 @@ function resolveMediaPath(mediaPath: string): string {
 // Start render asynchronously and return immediately
 function startRenderAsync(
   req: RenderRequest,
-  onFailure?: () => Promise<void>
+  onFailure?: () => Promise<void>,
+  asked: { viaServiceKey: boolean } = { viaServiceKey: false }
 ): string {
   const renderId = randomUUID()
 
@@ -2975,6 +3010,8 @@ function startRenderAsync(
     assets: req.assets,
     tracks: req.tracks,
     inputProps: req.inputProps,
+    compositionId: req.compositionId,
+    viaServiceKey: asked.viaServiceKey,
   })
 
   // Start render in background
@@ -3353,11 +3390,13 @@ function startRenderAsync(
 
           // Auto-publish to community feed
           if (userInfo && userInfo.telegram_id) {
+            const feed = feedEntryOf(job, renderId, userInfo.project_name)
             await publishToFeed({
               telegramId: userInfo.telegram_id,
               creatorName:
                 userInfo.first_name || userInfo.username || 'Anonymous',
-              projectName: userInfo.project_name || 'Vibee Reel',
+              projectName: feed.projectName,
+              isPublic: feed.isPublic,
               videoUrl: uploadResult.signedUrl,
               templateSettings: job.inputProps || {},
               assets: job.assets || [],
@@ -3384,11 +3423,13 @@ function startRenderAsync(
           console.log(
             `📢 [Feed] Publishing with fallback URL (S3 unavailable): ${fallbackUrl}`
           )
+          const feed = feedEntryOf(job, renderId, userInfo.project_name)
           await publishToFeed({
             telegramId: userInfo.telegram_id,
             creatorName:
               userInfo.first_name || userInfo.username || 'Anonymous',
-            projectName: userInfo.project_name || 'Vibee Reel',
+            projectName: feed.projectName,
+            isPublic: feed.isPublic,
             videoUrl: fallbackUrl,
             templateSettings: job.inputProps || {},
             assets: job.assets || [],
@@ -6919,11 +6960,18 @@ const server = createServer(async (req, res) => {
 
               // Auto-publish to community feed
               if (userInfo && userInfo.telegram_id) {
+                const feed = renderFeedEntry({
+                  viaServiceKey: auth.via === 'api-key',
+                  projectName: userInfo.project_name,
+                  compositionId: request.compositionId,
+                  renderId,
+                })
                 await publishToFeed({
                   telegramId: userInfo.telegram_id,
                   creatorName:
                     userInfo.first_name || userInfo.username || 'Anonymous',
-                  projectName: userInfo.project_name || 'Vibee Reel',
+                  projectName: feed.name,
+                  isPublic: feed.isPublic,
                   videoUrl: publicUrl,
                   templateSettings: request.inputProps || request.props || {},
                   assets: (request as any).assets || [],
@@ -7052,7 +7100,9 @@ const server = createServer(async (req, res) => {
           renderOwner
             ? () =>
                 refundRenderQuota(getPool(), renderOwner, isAdmin, quotaPeriod)
-            : undefined
+            : undefined,
+          // Who asked is how the request was authenticated, not its body.
+          { viaServiceKey: auth.via === 'api-key' }
         )
         console.log(`🎬 Started async render: ${renderId}`)
 
@@ -8611,9 +8661,8 @@ const server = createServer(async (req, res) => {
       if (who !== TELEGRAM_OWNER_ID)
         return sendJson(res, 403, { error: 'только владелец' })
       const { allProviders } = await import('./src/agent/provider')
-      const { chooseProvider, isProviderId } = await import(
-        './src/agent/provider-choice'
-      )
+      const { chooseProvider, isProviderId } =
+        await import('./src/agent/provider-choice')
       if (req.method === 'POST') {
         let asked: unknown = null
         try {
@@ -8683,9 +8732,8 @@ const server = createServer(async (req, res) => {
       // Counts only: which bot's initData confirms (src/auth/initdata-bot-counts.ts).
       const bot = initDataBotOf(req, who)
       if (bot) countInitDataBot(bot, 'proposal_confirm')
-      const { claimAcrossDeploy, execute, idFromBody } = await import(
-        './src/agent/tg-proposals'
-      )
+      const { claimAcrossDeploy, execute, idFromBody } =
+        await import('./src/agent/tg-proposals')
       // idFromBody, not a cast: readBody hands back the raw string, and the
       // cast that pretended otherwise made every confirm press fail silently.
       const asked = idFromBody(await readBody(req))
@@ -8715,9 +8763,8 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/cancel' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { claimAcrossDeploy, idFromBody } = await import(
-        './src/agent/tg-proposals'
-      )
+      const { claimAcrossDeploy, idFromBody } =
+        await import('./src/agent/tg-proposals')
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
       const asked = idFromBody(await readBody(req))
@@ -9526,9 +9573,8 @@ const server = createServer(async (req, res) => {
           )
           // Once per process, not per open of the mini-app: the ALTER takes
           // an exclusive lock even when it has nothing to add.
-          const { ensureInvoiceColumns } = await import(
-            './src/agent/token-invoice'
-          )
+          const { ensureInvoiceColumns } =
+            await import('./src/agent/token-invoice')
           await ensureInvoiceColumns(pool)
           /*
            * EVERY unredeemed row, cancelled ones included. This is the only
