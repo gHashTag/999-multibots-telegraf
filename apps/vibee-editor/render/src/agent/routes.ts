@@ -37,7 +37,7 @@ import {
 } from '../../session'
 import { TOOLS_BY_NAME, toMcpTools, countInitDataToolCall } from './tools'
 import { runAgent, type ChatMessage } from './chat'
-import { honestyNote } from './claimed-but-not-done'
+import { honestyLogFields, honestyNote } from './claimed-but-not-done'
 import { rememberMiniAppFiles } from './miniapp-media'
 import { ownerWordsOf } from './assistant-opt-out'
 import { resolveProvider } from './provider'
@@ -1130,11 +1130,12 @@ export async function handleAgentChat(
      * claims browser actions no tool performed ends with a plain note, sent
      * and stored, so nobody is misled and the model sees it next turn.
      */
-    const note = honestyNote(
-      собратьОтвет(события), // cyrillic-ok: pre-existing helper
-      события as Array<Record<string, unknown>> // cyrillic-ok: pre-existing local
-    )
+    const said = собратьОтвет(события) // cyrillic-ok: pre-existing helper
+    const done = события as Array<Record<string, unknown>> // cyrillic-ok: pre-existing local
+    const note = honestyNote(said, done)
     if (note) {
+      // Which claimed action had no call, and what the turn really called.
+      const fields = honestyLogFields(said, done)
       const ev = { тип: 'текст', текст: note } // cyrillic-ok: event envelope
       события.push(ev) // cyrillic-ok: pre-existing local
       res.write(JSON.stringify(ev) + '\n')
@@ -1144,7 +1145,7 @@ export async function handleAgentChat(
             turn,
             telegram_id: telegramId,
             claim: 'browser',
-            toolCalls: 0,
+            ...fields,
           })
       )
     }
