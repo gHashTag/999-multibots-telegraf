@@ -25,16 +25,29 @@ import { authHeaders } from '@/lib/apiFetch'
 /** Which clients have a Queen answer streaming right now. */
 export const queenBusyAtom = atom<Record<string, boolean>>({})
 
-const TASK_RE = /\[\[task:\s*([\s\S]*?)\]\]/g
+// [[task: ...]] or, since crm-client-workspace v4, [[task@<agent id>: ...]].
+const TASK_RE = /\[\[task(?:@([a-z][a-z0-9_-]*))?:\s*([\s\S]*?)\]\]/g
+
+/** One task from her answer, and the agent she named for it, if any. */
+export interface QueenTask {
+  text: string
+  agent?: string
+}
 
 /** The tasks in one answer, in order, trimmed, without duplicates. */
-export function tasksIn(text: string): string[] {
-  const out: string[] = []
+export function queenTasksIn(text: string): QueenTask[] {
+  const out: QueenTask[] = []
   for (const m of text.matchAll(TASK_RE)) {
-    const t = m[1].replace(/\s+/g, ' ').trim()
-    if (t && !out.includes(t)) out.push(t)
+    const t = m[2].replace(/\s+/g, ' ').trim()
+    if (t && !out.some(o => o.text === t))
+      out.push(m[1] ? { text: t, agent: m[1] } : { text: t })
   }
   return out.slice(0, 3)
+}
+
+/** The texts of the tasks alone. */
+export function tasksIn(text: string): string[] {
+  return queenTasksIn(text).map(t => t.text)
 }
 
 /**
@@ -45,8 +58,15 @@ export function tasksIn(text: string): string[] {
  */
 export function taskTarget(
   client: string,
-  agent?: string | null
+  agent?: string | null,
+  /** The agent she named in the marker (v4, task_owner). */
+  named?: string,
+  /** The agents this owner may call into the thread (helpersFor). */
+  callable: readonly string[] = []
 ): { client: string; agent?: string } {
+  // A name the owner may not call, or no agent at all, is not followed: the
+  // task falls back and is never lost (NAMED_TASK_NEVER_LOST).
+  if (named && callable.includes(named)) return { client, agent: named }
   return agent ? { client, agent } : { client }
 }
 

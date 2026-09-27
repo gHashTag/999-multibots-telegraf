@@ -1,0 +1,17 @@
+[
+  {
+    "name": "a named task ignores whether the owner may call it",
+    "from": "        if named_callable {\n            return TASK_TO_NAMED;\n        }\n        return task_goes_to(specialist_chosen);",
+    "to": "        return TASK_TO_NAMED;"
+  },
+  {
+    "name": "the chosen specialist is skipped",
+    "from": "        if specialist_chosen {\n            return TASK_TO_SPECIALIST;\n        }\n        return TASK_TO_ASSISTANT;",
+    "to": "        return TASK_TO_ASSISTANT;"
+  },
+  {
+    "name": "a named task may be lost",
+    "from": "pub const NAMED_TASK_NEVER_LOST : bool = true;",
+    "to": "pub const NAMED_TASK_NEVER_LOST : bool = false;"
+  }
+]
