@@ -50,6 +50,19 @@ export const SEGMENT_CAPS_DEFAULT: Record<ActiveSegment, number> = {
 }
 export const DAILY_CAP_DEFAULT = 30
 
+/**
+ * A "NO" SUPPRESSES RE-APPROACH FOR THIS MANY DAYS.
+ *
+ * One policy, one home. A refusal in the last month outranks every warming
+ * signal: the playbook tells the model "crm_touch refused, do not come back
+ * for a month", the lead score subtracts hard for the same window, and this
+ * module keeps a freshly-refused person out of `warm`/`winback`. Those three
+ * once each hard-coded `30` and a comment in chat-memory.ts even said "the
+ * score must agree" with the playbook -- agreement enforced by a copied
+ * literal is the win-back bug waiting to happen. Everyone imports this now.
+ */
+export const REFUSED_QUIET_DAYS = 30
+
 /** Caps from the environment: SELLER_SEGMENT_CAPS 'hot=10,waiting=20', SELLER_DAILY_CAP '30'. */
 export function segmentCaps(
   env: NodeJS.ProcessEnv = process.env
@@ -89,7 +102,9 @@ export function segmentOf(c: SegmentInput): Segment {
   const touch = c.lastTouch
   const touchAge = touch ? ageDays(touch.at, now) : null
   const refusedLately =
-    touch?.kind === 'refused' && touchAge !== null && touchAge <= 30
+    touch?.kind === 'refused' &&
+    touchAge !== null &&
+    touchAge <= REFUSED_QUIET_DAYS
 
   if (c.next === 'offer' || c.next === 'deliver') return 'hot'
   if (asked && days !== null && days <= 7) return 'hot'

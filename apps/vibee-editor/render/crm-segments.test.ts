@@ -5,6 +5,7 @@ import {
   segmentCaps,
   SEGMENTS,
   SEGMENT_CAPS_DEFAULT,
+  REFUSED_QUIET_DAYS,
 } from './src/agent/crm-segments'
 
 /** One person, one segment, by precedence; the counts add up. */
@@ -178,5 +179,25 @@ describe('segmentOf', () => {
       day: 12,
     })
     expect(segmentCaps({ SELLER_DAILY_CAP: 'many' }).day).toBe(30)
+  })
+})
+
+/*
+ * A REFUSAL SUPPRESSES WARMING FOR EXACTLY REFUSED_QUIET_DAYS (CRM audit
+ * 2026-09-27). The window is one constant now, shared with the lead score
+ * and the playbook prompt; this pins the segment boundary to it rather than
+ * to a literal, so a change to the policy moves this test with it.
+ */
+describe('a fresh refusal keeps a warmable lead out of warm', () => {
+  const withRefusalAgeDays = (age: number) =>
+    segmentOf({ ...base, lastTouch: { kind: 'refused', at: daysAgo(age) } })
+
+  it('refused within the window is not warm (falls through to quiet)', () => {
+    expect(withRefusalAgeDays(REFUSED_QUIET_DAYS)).not.toBe('warm')
+    expect(withRefusalAgeDays(REFUSED_QUIET_DAYS)).toBe('quiet')
+  })
+
+  it('one day past the window, the same lead warms again', () => {
+    expect(withRefusalAgeDays(REFUSED_QUIET_DAYS + 1)).toBe('warm')
   })
 })
