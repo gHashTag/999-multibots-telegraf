@@ -21,10 +21,19 @@ import type { ToolContext } from './tools'
 import type { LeadNotes } from './crm-voice-clone-tool'
 import * as SPEC from '../spec/crm-story-reel.gen'
 
-/** Which voice a reel speaks (spec: voice_mode). */
-export function voiceMode(hasClone: boolean, sellerAsked: boolean): number {
-  if (hasClone) return SPEC.VOICE_CLONE
+/**
+ * Which voice a reel speaks (spec: voice_mode). Her clone, when she has one
+ * and its provider answers; else, for the seller, her own notes. A client
+ * pressing for herself speaks her clone or nothing.
+ */
+export function voiceMode(
+  hasClone: boolean,
+  cloneDown: boolean,
+  sellerAsked: boolean
+): number {
+  if (hasClone && !cloneDown) return SPEC.VOICE_CLONE
   if (sellerAsked) return SPEC.VOICE_NOTES
+  if (hasClone) return SPEC.VOICE_CLONE
   return SPEC.VOICE_NONE
 }
 

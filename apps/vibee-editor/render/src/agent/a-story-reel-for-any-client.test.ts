@@ -32,7 +32,7 @@ import {
   type StoryDeps,
 } from './story-template'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
-import { storyPriceEstimate } from './story-template'
+import { storyPriceEstimate, storyPriceEstimateNotes } from './story-template'
 import type { AgentTool, ToolContext } from './tools'
 
 const SELLER = '900000001'
@@ -969,6 +969,34 @@ describe('crm_story_reel, the seller tool', () => {
     })
   })
 
+  it('names the voice and its price before anything is spent: clone, or her notes while the clone is refused', async () => {
+    const base = fakeBase()
+    qualify(base)
+    let down = false
+    const tool = makeCrmStoryTool({
+      deps: () => ({
+        ...depsOn(base, async () => ({})).deps,
+        voiceDown: () => down,
+      }),
+      lookup: lookupNone,
+    })
+    const ctx = {
+      telegramId: SELLER,
+      pool: base.pool,
+    } as unknown as ToolContext
+    const up: any = await tool.handler({ lead: LENA }, ctx)
+    expect(up).toMatchObject({
+      voice_mode: 'clone',
+      price_tokens: storyPriceEstimate(), // secret-guard-ok: a price in tokens, not a secret
+    })
+    down = true
+    const refused: any = await tool.handler({ lead: LENA }, ctx)
+    expect(refused).toMatchObject({
+      voice_mode: 'notes',
+      price_tokens: storyPriceEstimateNotes(), // secret-guard-ok: a price in tokens, not a secret
+    })
+  })
+
   it('looks at the avatar when the CRM has not yet, then counts it', async () => {
     const base = fakeBase()
     qualify(base, { face: false })
@@ -1037,7 +1065,7 @@ describe('my_story_reel, the person herself (the /story page and her bot)', () =
       face: FACE,
       voice: true,
       next_topic: 'Ваза в интерьере',
-      price_tokens: storyPriceEstimate(),
+      price_tokens: storyPriceEstimate(), // secret-guard-ok: a price in tokens, not a secret
       one_tap_link: 'https://t.me/example_bot?start=reel',
     })
     // Looking is not taking: the card is still an idea.
@@ -1666,5 +1694,138 @@ describe('a client with no clone: her own voice notes', () => {
     expect(out.started).toBe(false)
     expect(out.why).toBeTruthy()
     expect(base.db.jobs).toHaveLength(0)
+  })
+})
+
+describe('her clone refused by its provider: her notes, in the same run (spec v5)', () => {
+  const PIECES = ['https://s/v1.mp3', 'https://s/v2.mp3', 'https://s/v3.mp3']
+  const STILLS = ['https://s/a.png', 'https://s/b.png', 'https://s/c.png']
+  const REFUSED =
+    'голос 1: озвучка не удалась: HTTP 500 Replicate TTS failed: 402 - Insufficient credit'
+
+  function refusedOnce(answer = REFUSED) {
+    const calls: Array<{ args: any; ctx: ToolContext }> = []
+    const story: StoryDeps['story'] = async (args, ctx) => {
+      calls.push({ args, ctx })
+      return calls.length === 1
+        ? { done: false, reason: answer, stills: STILLS, clips: [] }
+        : { done: true, url: 'https://bucket.example/reel.mp4' }
+    }
+    return { story, calls }
+  }
+
+  it("a seller's reel speaks her notes on the stills already paid for, no second job", async () => {
+    const base = fakeBase()
+    qualify(base)
+    const { story, calls } = refusedOnce()
+    const { deps } = depsOn(base, story)
+    const order: string[] = []
+    deps.voiceNotes = async () => {
+      order.push('notes')
+      return { urls: PIECES, seconds: 11 }
+    }
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(calls).toHaveLength(2)
+    expect(order).toEqual(['notes'])
+    expect(calls[0].args.for_lead).toBe(LENA)
+    // The second pass: her notes, no clone, the stills carried.
+    expect(calls[1].args.for_lead).toBeUndefined()
+    expect(calls[1].args.stills).toEqual(STILLS)
+    expect(calls[1].ctx.storyVoices).toEqual(PIECES)
+    expect(base.db.jobs).toHaveLength(1)
+    expect(base.db.jobs[0].status).toBe('done')
+  })
+
+  it('a failure that does not blame the provider is not a reason to swap her voice', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const { story, calls } = refusedOnce('липсинк 1: timeout after 300 s')
+    const { deps } = depsOn(base, story)
+    let read = 0
+    deps.voiceNotes = async () => {
+      read += 1
+      return { urls: PIECES, seconds: 11 }
+    }
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(read).toBe(0)
+    expect(calls).toHaveLength(1)
+    expect(base.db.jobs[0].status).not.toBe('done')
+  })
+
+  it('a client pressing for herself keeps her clone: her notes are read only for the seller', async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.profiles.push({
+      owner_id: SELLER,
+      telegram_id: LENA,
+      updated: 2,
+      profile: { vip: true, story_reel: { payer: 'owner' } },
+    })
+    const { story, calls } = refusedOnce()
+    const { deps } = depsOn(base, story)
+    let read = 0
+    deps.voiceNotes = async () => {
+      read += 1
+      return { urls: PIECES, seconds: 11 }
+    }
+    deps.voiceDown = () => true
+    await startStory(deps, { lead: LENA, requester: LENA, bot: 'example_bot' })
+    await drain()
+    expect(read).toBe(0)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].args.for_lead).toBe(LENA)
+  })
+
+  it("known down before the run: the seller's reel starts on her notes, the clone is not asked", async () => {
+    const base = fakeBase()
+    qualify(base)
+    const seen: any[] = []
+    const { deps } = depsOn(base, async (args, ctx) => {
+      seen.push({ args, ctx })
+      return { done: true, url: 'https://bucket.example/reel.mp4' }
+    })
+    deps.voiceNotes = async () => ({ urls: PIECES, seconds: 11 })
+    deps.voiceDown = () => true
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(seen).toHaveLength(1)
+    expect(seen[0].args.for_lead).toBeUndefined()
+    expect(seen[0].ctx.storyVoices).toEqual(PIECES)
+  })
+
+  it('no notes to fall back on: the stills stay kept, nothing is drawn again', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const { story, calls } = refusedOnce()
+    const { deps } = depsOn(base, story)
+    deps.voiceNotes = async () => ({ why: 'она не присылала голосовых' })
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(calls).toHaveLength(1)
+    const job = base.db.jobs[0]
+    expect(job.status).not.toBe('done')
+    expect(JSON.parse(job.stills)).toEqual(STILLS)
   })
 })

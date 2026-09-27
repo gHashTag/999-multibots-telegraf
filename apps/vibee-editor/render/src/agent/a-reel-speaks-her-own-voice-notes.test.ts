@@ -33,10 +33,16 @@ const ctx = {
 
 describe('which voice, and where her notes are cut', () => {
   it('her clone when she has one; her notes for a seller; nothing for a client alone', () => {
-    expect(voiceMode(true, true)).toBe(SPEC.VOICE_CLONE)
-    expect(voiceMode(true, false)).toBe(SPEC.VOICE_CLONE)
-    expect(voiceMode(false, true)).toBe(SPEC.VOICE_NOTES)
-    expect(voiceMode(false, false)).toBe(SPEC.VOICE_NONE)
+    expect(voiceMode(true, false, true)).toBe(SPEC.VOICE_CLONE)
+    expect(voiceMode(true, false, false)).toBe(SPEC.VOICE_CLONE)
+    expect(voiceMode(false, false, true)).toBe(SPEC.VOICE_NOTES)
+    expect(voiceMode(false, false, false)).toBe(SPEC.VOICE_NONE)
+  })
+
+  it('her clone refused by its provider: her notes for the seller, her clone for herself', () => {
+    expect(voiceMode(true, true, true)).toBe(SPEC.VOICE_NOTES)
+    expect(voiceMode(true, true, false)).toBe(SPEC.VOICE_CLONE)
+    expect(voiceMode(false, true, false)).toBe(SPEC.VOICE_NONE)
   })
 
   it('reads the pauses ffmpeg reports', () => {
