@@ -424,5 +424,65 @@
       "src/spec/crm-story-reel.test.ts",
       "src/agent/a-story-reel-for-any-client.test.ts"
     ]
+  },
+  {
+    "name": "v14: near grey judged too",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return chromaX1000 >= SPEC.HUE_CHECKED_MIN_CHROMA_X1000\n",
+    "to": "  return true\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v14: the drift bound made strict",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return driftDeg <= SPEC.HUE_DRIFT_MAX_DEG\n",
+    "to": "  return driftDeg < SPEC.HUE_DRIFT_MAX_DEG\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v14: the shade turns her hue",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return hexOfOklch(l + (to - l) * k, c, h)\n",
+    "to": "  return hexOfOklch(l + (to - l) * k, c, h + 10)\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v14: the shade drops her chroma",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return hexOfOklch(l + (to - l) * k, c, h)\n",
+    "to": "  return hexOfOklch(l + (to - l) * k, 0, h)\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v14: chroma clipped by channel, not cut",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (!shown(linearOf(l, chroma, h))) {\n",
+    "to": "  if (false) {\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v14: nearest by RGB again",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  const [x, y] = [oklabOf(a), oklabOf(b)]\n",
+    "to": "  const [x, y] = [rgbOf(a), rgbOf(b)]\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
   }
 ]

@@ -153,5 +153,30 @@
     "name": "the coarse step again",
     "from": "pub const SUGGEST_STEPS : u16 = 64;",
     "to": "pub const SUGGEST_STEPS : u16 = 10;"
+  },
+  {
+    "name": "hue drift allowed past rounding",
+    "from": "pub const HUE_DRIFT_MAX_DEG : u16 = 3;",
+    "to": "pub const HUE_DRIFT_MAX_DEG : u16 = 20;"
+  },
+  {
+    "name": "the law judges near-grey hue",
+    "from": "return chroma_x1000 >= HUE_CHECKED_MIN_CHROMA_X1000;",
+    "to": "return true;"
+  },
+  {
+    "name": "hue kept by a strict bound",
+    "from": "return drift_deg <= HUE_DRIFT_MAX_DEG;",
+    "to": "return drift_deg < HUE_DRIFT_MAX_DEG;"
+  },
+  {
+    "name": "the shade back in sRGB",
+    "from": "pub const SHADE_SPACE : str = \"oklch\";",
+    "to": "pub const SHADE_SPACE : str = \"srgb\";"
+  },
+  {
+    "name": "nearest by RGB distance",
+    "from": "pub const NEAREST_BY : str = \"oklab\";",
+    "to": "pub const NEAREST_BY : str = \"rgb\";"
   }
 ]
