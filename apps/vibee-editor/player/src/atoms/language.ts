@@ -745,6 +745,15 @@ const en: Translations = {
     'In all: visits {visits}, bot starts {starts}. Counts only: no person behind a number is known.',
   'crm.traffic.empty':
     'No tagged visits yet. Every link the agents publish carries its channel; the first visit shows here.',
+  // Revenue from the owner's clients (components/Crm/RevenuePanel.tsx)
+  'crm.revenue.title': 'Revenue',
+  'crm.revenue.total': '⭐ all time',
+  'crm.revenue.last30': '⭐ last 30 days',
+  'crm.revenue.paying': 'Paying clients',
+  'crm.revenue.ltv': '⭐ per paying client',
+  'crm.revenue.top': 'Top clients',
+  'crm.revenue.stars': '{n} ⭐',
+  'crm.revenue.none': 'No purchases from your clients yet.',
   'chat.agentSkills.add.placeholder':
     'A rule for it, e.g. "answer briefly, with numbers"',
   'chat.agentSkills.add.button': 'Add rule',
@@ -3290,6 +3299,14 @@ const ru: Translations = {
     'Всего: переходов {visits}, запусков бота {starts}. Только счётчики: кто за числом — неизвестно.',
   'crm.traffic.empty':
     'Помеченных переходов пока нет. Каждая ссылка, которую публикуют агенты, несёт свой канал — первый переход появится здесь.',
+  'crm.revenue.title': 'Выручка',
+  'crm.revenue.total': '⭐ за всё время',
+  'crm.revenue.last30': '⭐ за 30 дней',
+  'crm.revenue.paying': 'Платящих клиентов',
+  'crm.revenue.ltv': '⭐ на платящего клиента',
+  'crm.revenue.top': 'Лучшие клиенты',
+  'crm.revenue.stars': '{n} ⭐',
+  'crm.revenue.none': 'Покупок от ваших клиентов пока нет.',
   'chat.agentSkills.add.placeholder':
     'Правило для него, например «отвечай коротко, с цифрами»',
   'chat.agentSkills.add.button': 'Добавить',

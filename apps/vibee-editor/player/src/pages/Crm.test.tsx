@@ -118,6 +118,13 @@ const answers: Record<string, unknown> = {
       },
     ],
   },
+  crm_revenue: {
+    total: 4500,
+    last_30d: 500,
+    paying_clients: 2,
+    ltv: 2250,
+    top: [{ id: '777', name: 'RevenueTopName', stars: 3000 }],
+  },
   crm_clients: {
     clients: [
       {
@@ -234,6 +241,22 @@ async function draw() {
     await new Promise(r => setTimeout(r, 0))
   })
 }
+
+describe('the revenue strip', () => {
+  it('sits in the work section, and a top client links to their card', async () => {
+    serve()
+    await draw()
+    expect(calls.some(c => c.name === 'crm_revenue')).toBe(true)
+    expect(
+      host.querySelector('[data-testid="crm-revenue-total"]')?.textContent
+    ).toBe('4500')
+    const link = host.querySelector(
+      '[data-testid="crm-revenue-top"] a'
+    ) as HTMLAnchorElement | null
+    expect(link?.textContent).toBe('RevenueTopName')
+    expect(link?.getAttribute('href')).toBe('/crm/777')
+  })
+})
 
 describe('the screen puts the costly thing first', () => {
   it('somebody who answered us is rendered before somebody we chased', async () => {

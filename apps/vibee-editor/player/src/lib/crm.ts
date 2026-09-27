@@ -280,6 +280,46 @@ function toWaiting(r: Record<string, unknown>): WaitingList {
   }
 }
 
+/*
+ * WHAT THE OWNER'S CLIENTS HAVE BROUGHT (render crm-revenue-tool.ts
+ * `crm_revenue`): stars from the live wallet. Every number may be null --
+ * unknown, which the panel shows as a dash and never as zero.
+ */
+export interface RevenueClient {
+  telegramId: string
+  name: string | null
+  stars: number
+}
+export interface Revenue {
+  total: number | null
+  last30: number | null
+  paying: number | null
+  ltv: number | null
+  top: RevenueClient[]
+}
+
+export function toRevenue(r: Record<string, unknown>): Revenue {
+  const top = Array.isArray(r['top'])
+    ? (r['top'] as Array<Record<string, unknown>>)
+    : []
+  return {
+    total: num(r['total']),
+    last30: num(r['last_30d']),
+    paying: num(r['paying_clients']),
+    ltv: num(r['ltv']),
+    top: top
+      .map(x => ({
+        telegramId: String(x['id'] ?? ''),
+        name: typeof x['name'] === 'string' ? x['name'] : null,
+        stars: num(x['stars']) ?? 0,
+      }))
+      .filter(x => x.telegramId),
+  }
+}
+
+export const loadRevenue = async () =>
+  map(await callTool<Record<string, unknown>>('crm_revenue', {}), toRevenue)
+
 export const loadWaiting = async () =>
   map(await callTool<Record<string, unknown>>('crm_waiting'), toWaiting)
 export const loadHotLeads = async () =>
