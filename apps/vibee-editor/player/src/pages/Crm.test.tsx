@@ -91,6 +91,33 @@ const answers: Record<string, unknown> = {
     ],
   },
   crm_touch: { saved: true },
+  crm_summary: {
+    people_with_messages: 30,
+    by_stage: {
+      client: 3,
+      refused: 1,
+      later: 2,
+      talking: 5,
+      written: 8,
+      winback: 1,
+      new: 10,
+    },
+  },
+  // cyrillic-ok: server keys
+  crm_winback: {
+    ['порог_дней']: 30,
+    ['найдено']: 1,
+    ['показано']: 1,
+    ['люди']: [
+      {
+        telegram_id: '900000777',
+        ['имя']: 'WinbackBuyerOnly',
+        ['ссылка']: null,
+        ['бот']: 'b1',
+        ['молчит_дней']: 45,
+      },
+    ],
+  },
   crm_clients: {
     clients: [
       {
@@ -350,6 +377,69 @@ describe('prepare asks the agent, it does not send', () => {
     expect(queued).toHaveLength(1)
     expect(queued[0].options).toEqual({ client: '111' })
     expect(queued[0].text).toContain('crm.wait.prepareAsk')
+    for (const forbidden of ['tg_send', 'tg_forward', 'crm_send', 'crm_touch'])
+      expect(calls.map(c => c.name)).not.toContain(forbidden)
+  })
+})
+
+describe('the funnel and the win-back list', () => {
+  it('the funnel strip sits at the top of the work, in funnel order', async () => {
+    serve()
+    await draw()
+    const strip = host.querySelector('[data-testid="crm-funnel"]')!
+    expect(strip).toBeTruthy()
+    const stages = [...strip.querySelectorAll('[data-stage]')].map(li =>
+      li.getAttribute('data-stage')
+    )
+    expect(stages).toEqual([
+      'new',
+      'written',
+      'talking',
+      'client',
+      'winback',
+      'later',
+      'refused',
+    ])
+    // Above the waiting list: the strip comes first in the document.
+    const waitingRow = host.querySelector('.crm__row--ours')!
+    expect(
+      strip.compareDocumentPosition(waitingRow) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('an unreachable summary draws no funnel at all, not zeros', async () => {
+    serve({ fail: ['crm_summary'] })
+    await draw()
+    expect(host.querySelector('[data-testid="crm-funnel"]')).toBeNull()
+    expect(host.textContent).toContain('Ivan')
+  })
+
+  it('an unreachable win-back list says so rather than showing nobody', async () => {
+    serve({ fail: ['crm_winback'] })
+    await draw()
+    expect(host.textContent).toContain('crm.winback.title')
+    expect(host.textContent).not.toContain('crm.winback.none')
+    expect(host.textContent).toContain('crm.unreachable')
+  })
+
+  it('Return asks the agent in the client thread and sends nothing', async () => {
+    serve()
+    await draw()
+    expect(host.textContent).toContain('WinbackBuyerOnly')
+    expect(
+      [...host.querySelectorAll('a')].map(a => a.getAttribute('href'))
+    ).toContain('/crm/900000777')
+    calls = []
+    queued.length = 0
+    const btn = host.querySelector<HTMLButtonElement>('.crm__return')!
+    await act(async () => {
+      btn.click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(queued).toHaveLength(1)
+    expect(queued[0].options).toEqual({ client: '900000777' })
+    expect(queued[0].text).toContain('crm.winback.returnAsk')
     for (const forbidden of ['tg_send', 'tg_forward', 'crm_send', 'crm_touch'])
       expect(calls.map(c => c.name)).not.toContain(forbidden)
   })
