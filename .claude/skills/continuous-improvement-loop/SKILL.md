@@ -1314,3 +1314,45 @@ headRefOid` через секунду после `git push` вернул про�
   аномалия: `/api/browser/tabs` верит `/json/list` и потому назовёт
   заклиненный Chromium достижимым — у `viewEveryPodTabs` нет пробы
   «выполни что-нибудь».
+
+- **28.09.2026.** The anomaly the previous entry left open is closed, and the
+  answer to it is a shape worth reusing: **when one field is asked to hold two
+  facts, it reports the wrong one.** `/api/browser/tabs` believed `/json/list`,
+  which is served by the browser **process** and keeps answering while every
+  renderer is wedged. `PodTabView` now carries both claims separately —
+  `reachable` about the process, `answers` about a real page that evaluated
+  `1 + 1` — and `answers` is `boolean | null`, where `null` is a **third**
+  outcome: nobody asked. Spending `null` as `false` invents an outage on a deploy
+  older than the probe; spending it as `true` hides the outage the probe exists
+  to catch. The probe asks the first real **page**, never a service worker — a
+  worker answers while the visible page is dead. PR #3152 (`a8cb7abd3`), 25
+  tab-sweep tests, deploy `28b3de75`, confirmed live: `reachable: true,
+answers: true`, 9/12 tabs.
+
+  Its reader landed too: **`tri browser`** prints the two claims apart and exits
+  0 alive / 1 dead or wedged / 2 nobody asked or at the tab cap / 3 the render
+  itself did not answer, so a tick can branch without parsing prose. The cap
+  earns its own warning because the tab evicted to make room can be the page
+  being signed in on. **`tri browser-check`** proves all six verdicts against a
+  local socket over real HTTP — the live pod is alive today, so the interesting
+  answers cannot be seen against it — and mutating the wedged branch away
+  (`elif answers is False` → `elif False`) fails the first case by name. PR #3154
+  (`d5bc55cb1`).
+
+  **Self-criticism of this tick, both instances already paid for once.** The
+  `| tail` exit-code trap fired a third time: a push that had been refused by
+  `related-tests` reported 0, because the pipe returns tail's status and also
+  destroys the evidence (15 lines in the task file, the real refusal only in the
+  redirect target). Always `> file 2>&1; echo "EXIT=$?"`. And `provider.test.ts`
+  failing on the branch was **main's own** red ratchet, from my own #3143; the
+  decisive check costs one command (`git checkout -q HEAD~1 && npx vitest run`).
+  I then paid that debt a second time in parallel with another session, and on
+  finding theirs already on main I **reverted mine** (`99ff68b61`) rather than
+  fight their edits — a revert keeps landed work intact and needs no force push.
+
+  Next tick: read this journal and `docs/browser/plan-2026-09-27.md`, append,
+  do not restart. Queue unchanged: sign-in transfer as one file
+  (`storageState` → `/api/browser/cookies`), Habr through the Google door plus
+  the code from the mail (the owner allowed reading it), 3.4 observability.
+  Still blocked on the owner's own keyboard: the Habr password at (740,394) —
+  never typed by me, never asked for in chat, never written anywhere.
