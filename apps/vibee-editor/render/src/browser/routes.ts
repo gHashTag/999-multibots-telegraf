@@ -44,6 +44,7 @@ import {
   sitesOf,
   type CookieParam,
 } from './cookie-import'
+import { readLogins, type NetworkLogin } from './logins'
 import {
   ensureBrowserSessions,
   readSession,
@@ -143,6 +144,13 @@ export interface BrowserDeps {
   ) => Promise<string>
   /** Injected for tests; defaults to writing into the pod over CDP. */
   importCookies?: (cdpEndpoint: string, cookies: CookieParam[]) => Promise<void>
+  /**
+   * Injected for tests; defaults to reading the pod's cookies over CDP
+   * (logins.ts). Used to answer "which networks are now signed in" right
+   * after an import, so the person sees proof of the work, not just of the
+   * import having run.
+   */
+  readLogins?: (cdpEndpoint: string) => Promise<NetworkLogin[]>
   /** Injected for tests; defaults to the pod over CDP (person-type.ts). */
   typeIo?: TypeIo
   /**
@@ -1334,6 +1342,25 @@ async function bringLogins(
       body: { ok: false, error: 'the browser did not take them' },
     }
   }
+  /*
+   * PROOF OF THE WORK, NOT JUST OF THE IMPORT. `imported` says the browser
+   * took the cookies -- the process half, the same claim `reachable` makes on
+   * /api/browser/tabs (#3152). It does not say a single network is actually
+   * signed in. So read the pod's cookies back and report which networks the
+   * import lit up. Never throws: the import already succeeded, and a login
+   * cookie proves the browser HOLDS a login, not that the site still honours
+   * it (logins.ts) -- so a read that fails leaves `signedIn` ABSENT, never a
+   * false empty list that would read as "nothing worked".
+   */
+  let signedIn: string[] | undefined
+  try {
+    const read =
+      deps.readLogins ?? ((cdp: string) => readLogins(cdp, Date.now()))
+    const logins = await read(session.cdpEndpoint)
+    signedIn = logins.filter(n => n.state === 'signed_in').map(n => n.name)
+  } catch {
+    signedIn = undefined
+  }
   /* Counts and site names. Never a value. */
   return {
     status: 200,
@@ -1342,6 +1369,7 @@ async function bringLogins(
       imported: parsed.cookies.length,
       skipped: parsed.skipped,
       sites: sitesOf(parsed.cookies),
+      ...(signedIn !== undefined ? { signedIn } : {}),
     },
   }
 }

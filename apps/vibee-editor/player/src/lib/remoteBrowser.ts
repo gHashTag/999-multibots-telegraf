@@ -226,6 +226,14 @@ export interface LoginsImported {
   skipped: number
   /** Site names and how many cookies each got. Never a value. */
   sites: Record<string, number>
+  /**
+   * Networks the import actually lit up (a live login cookie landed), by the
+   * name the person calls them. `imported` counts what the browser took;
+   * this says what a login now works for -- proof of the work, not the
+   * import. Absent when the broker could not read it back: never an empty
+   * list standing in for "could not tell".
+   */
+  signedIn?: string[]
 }
 
 /**
@@ -248,6 +256,9 @@ export async function importBrowserLogins(
     imported: Number(answer.imported ?? 0),
     skipped: Number(answer.skipped ?? 0),
     sites: answer.sites ?? {},
+    ...(Array.isArray(answer.signedIn)
+      ? { signedIn: answer.signedIn.map(String) }
+      : {}),
   }
 }
 
