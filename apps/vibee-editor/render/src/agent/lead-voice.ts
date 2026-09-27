@@ -233,7 +233,14 @@ export async function cloneOnReplicate(
   return id
 }
 
-function run(cmd: string, args: string[]): Promise<string> {
+/**
+ * Run a media tool (ffmpeg, ffprobe) and keep both streams: ffmpeg reports
+ * what it measured -- silencedetect among it -- on stderr, not stdout.
+ */
+export function runTool(
+  cmd: string,
+  args: string[]
+): Promise<{ out: string; err: string }> {
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let out = ''
@@ -243,11 +250,14 @@ function run(cmd: string, args: string[]): Promise<string> {
     p.on('error', reject)
     p.on('close', code =>
       code === 0
-        ? resolve(out)
+        ? resolve({ out, err })
         : reject(new Error(`${cmd} exited ${code}: ${err.slice(-300)}`))
     )
   })
 }
+
+const run = (cmd: string, args: string[]): Promise<string> =>
+  runTool(cmd, args).then(r => r.out)
 
 /** ffmpeg arguments that join the notes into one mono MP3, capped in length. */
 export function joinArgs(
@@ -281,9 +291,10 @@ export function joinArgs(
 /** Join her notes into one MP3 and measure it. */
 export async function joinVoiceNotes(
   inputs: readonly string[],
-  output: string
+  output: string,
+  maxSeconds = LEAD_VOICE_MAX_SECONDS
 ): Promise<number> {
-  await run('ffmpeg', joinArgs(inputs, output))
+  await run('ffmpeg', joinArgs(inputs, output, maxSeconds))
   const out = await run('ffprobe', [
     '-v',
     'error',

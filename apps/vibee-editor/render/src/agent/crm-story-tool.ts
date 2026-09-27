@@ -32,6 +32,7 @@ import {
   storySettingsOf,
   STORY_TOPIC_MAX,
   storyPriceEstimate,
+  storyPriceEstimateNotes,
   type StoryDeps,
 } from './story-template'
 import { requireSeller } from './telegram-tools'
@@ -66,8 +67,9 @@ export function makeCrmStoryTool(o: {
   return {
     name: 'crm_story_reel',
     description:
-      'ШАБЛОН «РИЛС-ИСТОРИЯ» CRM для клиента с лицом (аватарка) и голосом (crm_voice_clone) — ЛЮБОЙ ' +
-      'говорящий рилс клиента его голосом, не ручная сборка. Голос — Replicate, ElevenLabs не нужен. ' +
+      'ШАБЛОН «РИЛС-ИСТОРИЯ» CRM для клиента с лицом (аватарка) — ЛЮБОЙ говорящий рилс клиента его голосом, ' +
+      'не ручная сборка. Голос: его клон (crm_voice_clone), а нет клона — его НАСТОЯЩИЕ голосовые из лички, ' +
+      'нарезанные по сценам, липсинк на Kie (его слова, без клона и Replicate). ' +
       'Без start — готов ли клиент и его последние рилсы. start:true — рилс на ЛЮБУЮ тему (topic; ' +
       'без неё — следующий пункт его контент-плана или свежая тема про его дело): 3 сцены, его лицо ' +
       'в новой обстановке каждая, его голос, пауза с призывом. Свой сценарий — scenes (+style, cta); to — куда. ' +
@@ -132,7 +134,8 @@ export function makeCrmStoryTool(o: {
           s = await storySettingsOf(ctx.pool, lead, seller)
         }
       }
-      const missing = missingFor(s)
+      // A seller's reel speaks her clone, or her own voice notes (spec v4).
+      const missing = missingFor(s, { notes: true })
 
       // Where the finished reel is offered: her DM, a group bound here or
       // already, or nowhere but the seller.
@@ -170,6 +173,12 @@ export function makeCrmStoryTool(o: {
                 name: s.name || undefined,
                 face: s.faceUrl || undefined,
                 voice: s.hasVoice,
+                // Her clone speaks new lines; without it, her own voice notes
+                // are lip-synced on Kie -- her words, no clone, no Replicate.
+                voice_mode: s.hasVoice ? 'clone' : 'notes',
+                price_tokens: s.hasVoice
+                  ? storyPriceEstimate()
+                  : storyPriceEstimateNotes(),
                 vip: s.vip,
                 style: s.style,
                 cta: s.cta,
