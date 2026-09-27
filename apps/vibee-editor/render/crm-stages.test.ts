@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { stageOf, waitingOn } from './src/agent/crm-stages'
+import { stageOf, waitingOn, WINBACK_QUIET_DAYS } from './src/agent/crm-stages'
+import { segmentOf } from './src/agent/crm-segments'
 import type { TouchKind } from './src/agent/crm-touches'
 
 /**
@@ -240,5 +241,43 @@ describe('we spoke last and it went quiet (2026-09-27)', () => {
 
   it('they spoke last: still ours, as before', () => {
     expect(w(1, 3)?.waiting).toBe('ours')
+  })
+})
+
+/*
+ * THE CARD AND THE LIST AGREE ON WIN-BACK (CRM audit 2026-09-27).
+ *
+ * The card (stageOf) once kept a paying customer at `client` until sixty days
+ * of silence, while the list (segmentOf) already flagged them `winback` after
+ * a month. The same person read as two stages depending on where you looked.
+ * One shared constant, WINBACK_QUIET_DAYS, now decides both, so this pins the
+ * boundary and the agreement rather than a literal day count.
+ */
+describe('a paid quiet client is win-back on the card and the list alike', () => {
+  const seg = (days: number) =>
+    segmentOf({
+      unanswered: false,
+      next: 'wait',
+      signals: [],
+      daysSinceInbound: days,
+      daysSinceOut: days + 1,
+      lastTouch: null,
+      paid: true,
+      now: NOW,
+    })
+
+  it('at the threshold, both call it winback', () => {
+    expect(
+      stageOf({ paid: true, touches: [], quietDays: WINBACK_QUIET_DAYS }).stage
+    ).toBe('winback')
+    expect(seg(WINBACK_QUIET_DAYS)).toBe('winback')
+  })
+
+  it('one day short, both call it a client, not winback', () => {
+    expect(
+      stageOf({ paid: true, touches: [], quietDays: WINBACK_QUIET_DAYS - 1 })
+        .stage
+    ).toBe('client')
+    expect(seg(WINBACK_QUIET_DAYS - 1)).not.toBe('winback')
   })
 })
