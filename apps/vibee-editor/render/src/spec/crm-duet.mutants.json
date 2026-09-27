@@ -14,14 +14,14 @@
   {
     "name": "retry after a paid call",
     "file": "src/agent/crm-duet-tool.ts",
-    "from": "    isLimitError(error) &&\n    !results.some(r => PAID_TOOLS.has(r.name))",
+    "from": "    isLimitError(error) &&\n    !results.some(callIsPaid)",
     "to": "    isLimitError(error)"
   },
   {
     "name": "discovery one turn longer",
     "file": "src/agent/crm-duet-tool.ts",
-    "from": "return sellerTurn < DISCOVERY_SELLER_TURNS ? DISCOVERY_DENIED : DUET_NEVER",
-    "to": "return sellerTurn <= DISCOVERY_SELLER_TURNS ? DISCOVERY_DENIED : DUET_NEVER"
+    "from": "if (sellerTurn < DISCOVERY_SELLER_TURNS) return DISCOVERY_DENIED",
+    "to": "if (sellerTurn <= DISCOVERY_SELLER_TURNS) return DISCOVERY_DENIED"
   },
   {
     "name": "brief loses the per-reply cap",
@@ -40,5 +40,77 @@
     "file": "src/agent/crm-duet-tool.ts",
     "from": "export const TURNS_MAX = SPEC.TURNS_MAX",
     "to": "export const TURNS_MAX = 6"
+  },
+  {
+    "name": "story read counted as paid",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "if (r.name === REEL_TOOL) return r.args?.start === true",
+    "to": "if (r.name === REEL_TOOL) return true"
+  },
+  {
+    "name": "story reel offered in a dry run",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "return dryRun ? DRY_RUN_DENIED : DUET_NEVER",
+    "to": "return DUET_NEVER"
+  },
+  {
+    "name": "promise resent despite a started story",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "if (media.length === 0 && !story && promisesFile(text))",
+    "to": "if (media.length === 0 && promisesFile(text))"
+  },
+  {
+    "name": "her own card takes the reel",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "WHERE telegram_id = $1 AND template_id IS NOT NULL",
+    "to": "WHERE telegram_id = $1"
+  },
+  {
+    "name": "the model picks where the card goes",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "String(ctx.storyTo ?? args.to ?? '')",
+    "to": "String(args.to ?? ctx.storyTo ?? '')"
+  },
+  {
+    "name": "the duet leaves the card to the model",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "    storyTo: SPEC.STORY_CARD_TO,\n",
+    "to": ""
+  },
+  {
+    "name": "lookup over her words",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "  if (own !== null) return own\n  const distinct = [...new Set(lookedUp)]\n  return distinct.length === 1 ? distinct[0] : null",
+    "to": "  const distinct = [...new Set(lookedUp)]\n  if (distinct.length === 1) return distinct[0]\n  return own"
+  },
+  {
+    "name": "no topic still takes a plan",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "  if (!topic.trim()) return null\n",
+    "to": ""
+  },
+  {
+    "name": "no topic still links",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "  if (!topic.trim()) return { plan: null, url: '', job, result: 'by_template' }\n",
+    "to": ""
+  },
+  {
+    "name": "a started story is not work",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "      ? storyJobOf(r) !== null\n",
+    "to": "      ? false\n"
+  },
+  {
+    "name": "the seller is not told the reel is being made",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "          planNote = storyNoteForSeller(entry.plan_item)",
+    "to": "          planNote = planNoteForSeller(entry.plan_item)"
+  },
+  {
+    "name": "brief keeps the old template",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "Беззвучный ролик с субтитрами, TrinityBlogReel",
+    "to": "Только LeelaPlanReel, не TrinityBlogReel"
   }
 ]
