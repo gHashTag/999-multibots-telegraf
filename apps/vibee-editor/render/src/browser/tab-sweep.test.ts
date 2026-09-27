@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   planTabSweep,
+  roomForOne,
   sweepEveryPod,
   sweepPodTabs,
   viewEveryPodTabs,
@@ -103,6 +104,57 @@ describe('planTabSweep', () => {
     ])
     expect(plan.close).toEqual([])
     expect(plan.left).toBe(1)
+  })
+})
+
+/*
+ * A CAP ENFORCED ONLY BY A CLOCK IS NOT A CAP.
+ *
+ * Measured by doing it on the live pod, 2026-09-27: 14 pages open, one more
+ * browser_open, and Chromium stopped being a browser -- browser_status said
+ * `running: false` seconds later while /json/list went on answering with the
+ * old list. The periodic sweep was deployed, green and simply not due yet.
+ */
+describe('roomForOne', () => {
+  it('MAKES ROOM AT THE CAP, where the periodic plan is still content', () => {
+    const full = Array.from({ length: TAB_CAP }, (_, i) =>
+      page(`t${i}`, `https://site${i}.example/`)
+    )
+    /* The clock's plan: nothing to do, we are exactly at the cap. */
+    expect(planTabSweep(full).close).toEqual([])
+    /* The open path's question is different: room for the NEXT one. */
+    const doomed = roomForOne(full)
+    expect(doomed.map(t => t.id)).toEqual([`t${TAB_CAP - 1}`])
+  })
+
+  it('asks for nothing when there is already room', () => {
+    const few = Array.from({ length: TAB_CAP - 2 }, (_, i) =>
+      page(`t${i}`, `https://site${i}.example/`)
+    )
+    expect(roomForOne(few)).toEqual([])
+  })
+
+  it('never gives up the tab the agent is acting in', () => {
+    const full = Array.from({ length: TAB_CAP }, (_, i) =>
+      page(`t${i}`, `https://site${i}.example/`)
+    )
+    const acting = `t${TAB_CAP - 1}`
+    const doomed = roomForOne(full, [acting])
+    expect(doomed.map(t => t.id)).not.toContain(acting)
+    expect(doomed).toHaveLength(1)
+  })
+
+  it('spends a duplicate before it spends a site opened only once', () => {
+    const pages = [
+      page('first', 'https://www.reddit.com/'),
+      ...Array.from({ length: TAB_CAP - 1 }, (_, i) =>
+        page(`t${i}`, `https://site${i}.example/`)
+      ),
+      page('dupe', 'https://www.reddit.com/r/t27ai/'),
+    ]
+    const doomed = roomForOne(pages)
+    expect(doomed.map(t => t.id)).toContain('dupe')
+    expect(doomed.map(t => t.id)).not.toContain('first')
   })
 })
 

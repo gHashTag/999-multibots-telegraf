@@ -300,6 +300,11 @@ describe('a session the server refuses shows the same panel', () => {
    * its panels, and the reason is stated once. Counting error lines never
    * proved the screen survived -- it proved the errors did.
    */
+  // Seven since #3133 (27.09.2026) added "Win back former buyers" and
+  // "Revenue" to /crm: the claim is unchanged, the screen has two more
+  // panels. The player's image build runs this file; with the count left at
+  // five it refused every deploy after that merge.
+  const CRM_PANELS = 7
   const panelsOnScreen = () => host.querySelectorAll('.crm__panel').length
   const notices = () => host.querySelectorAll('.crm__all-refused').length
 
@@ -308,7 +313,7 @@ describe('a session the server refuses shows the same panel', () => {
     await open('/crm')
     await settle(() => notices() > 0)
     expect(panel(), 'no sign-in panel for a broken server').toBeNull()
-    expect(panelsOnScreen(), 'the CRM is still the screen').toBe(5)
+    expect(panelsOnScreen(), 'the CRM is still the screen').toBe(CRM_PANELS)
     expect(notices()).toBe(1)
   })
 
@@ -318,7 +323,7 @@ describe('a session the server refuses shows the same panel', () => {
     await open('/crm')
     await settle(() => notices() > 0)
     expect(panel(), 'the swap belongs to the frame alone').toBeNull()
-    expect(panelsOnScreen()).toBe(5)
+    expect(panelsOnScreen()).toBe(CRM_PANELS)
     expect(notices()).toBe(1)
   })
 

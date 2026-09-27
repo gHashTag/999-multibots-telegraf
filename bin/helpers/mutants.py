@@ -28,6 +28,7 @@ mutation that never happened, and a green run would read as "survived").
 The file is restored in `finally`, on Ctrl-C too. Exit 1 when any survived.
 """
 import io
+import os
 import json
 import signal
 import subprocess
@@ -107,6 +108,13 @@ def main() -> int:
         survived += 0 if killed else 1
 
     print(f'-- {len(muts) - survived} of {len(muts)} killed --')
+    # tri gate: the verdict, stamped with the tree it ran on.
+    subprocess.run([
+        'node', os.path.join(os.path.dirname(__file__), 'gate.mjs'), 'record',
+        f'mutants {os.path.basename(args[0])}',
+        'fail' if survived else 'ok',
+        f'{len(muts) - survived}/{len(muts)} killed',
+    ])
     if survived:
         print('a survivor is a rule no test holds: add the vector that tells')
         print('the mutant from the code (in the spec too, if one is bound).')
