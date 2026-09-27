@@ -19,7 +19,7 @@
  * matter: ON CONFLICT DO NOTHING reports rowCount 0 for a duplicate key, and
  * the balance upsert adds rather than replaces.
  */
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { creditStarsPayment } from './src/stars-credit'
 
 /** Minimal Postgres stand-in: a charge ledger and a balance table. */
@@ -162,5 +162,182 @@ describe('it refuses rather than guessing', () => {
     expect(r.credited).toBe(false)
     expect(r.reason).toMatch(/no charge id/)
     expect(pool.balances.size).toBe(0)
+  })
+})
+
+/*
+ * THE OWNER LEARNS THAT THEIR CLIENT PAID.
+ *
+ * An owner's crm_offer stamps token_invoices.owner_id; the credit tells that
+ * owner once. Fictional ids only (900000xxx).
+ */
+describe('the owner who issued the invoice is told the client paid', () => {
+  const OWNER = '900000201'
+  const CLIENT = '900000202'
+  const PAID = { chargeId: 'charge_owner_1', telegramId: CLIENT, amount: 500 }
+
+  /** The Stars fake plus the two reads the notice makes. */
+  function poolWithInvoice(ownerId: string | null) {
+    const base = fakePool()
+    return {
+      ...base,
+      async query(sql: string, params: unknown[] = []) {
+        if (sql.includes('FROM token_invoices')) {
+          return {
+            rowCount: 1,
+            rows: [{ owner_id: ownerId, stars: 750, tokens: 500 }],
+          }
+        }
+        if (sql.includes('FROM crm_people')) {
+          return {
+            rowCount: 1,
+            rows: [{ first_name: 'Vera', username: 'vera_demo' }],
+          }
+        }
+        return base.query(sql, params)
+      },
+    }
+  }
+
+  /** The notice is fire-and-forget; let its promise chain run. */
+  const settle = async () => {
+    for (let i = 0; i < 10; i++) await new Promise(r => setImmediate(r))
+  }
+
+  it('notifies the owner once on the first credit, naming client and amount', async () => {
+    const pool = poolWithInvoice(OWNER)
+    const sent: Array<[string, string]> = []
+    const notifyOwner = async (id: string, text: string) => {
+      sent.push([id, text])
+    }
+    const r = await creditStarsPayment(
+      pool,
+      { ...PAID, invoiceId: 7 },
+      { notifyOwner }
+    )
+    await settle()
+    expect(r.credited).toBe(true)
+    expect(sent).toHaveLength(1)
+    expect(sent[0][0]).toBe(OWNER)
+    expect(sent[0][1]).toContain('Vera @vera_demo')
+    expect(sent[0][1]).toContain(CLIENT)
+    expect(sent[0][1]).toContain('750')
+  })
+
+  it('a redelivery does not notify again', async () => {
+    const pool = poolWithInvoice(OWNER)
+    const sent: string[] = []
+    const notifyOwner = async (id: string) => {
+      sent.push(id)
+    }
+    await creditStarsPayment(pool, { ...PAID, invoiceId: 7 }, { notifyOwner })
+    await settle()
+    const again = await creditStarsPayment(
+      pool,
+      { ...PAID, invoiceId: 7 },
+      { notifyOwner }
+    )
+    await settle()
+    expect(again.credited).toBe(false)
+    expect(sent).toEqual([OWNER])
+  })
+
+  it('the bot path finds the open invoice by person and amount', async () => {
+    const pool = poolWithInvoice(OWNER)
+    const sent: string[] = []
+    await creditStarsPayment(
+      pool,
+      { ...PAID, matchOpenInvoice: true },
+      {
+        notifyOwner: async id => {
+          sent.push(id)
+        },
+      }
+    )
+    await settle()
+    expect(sent).toEqual([OWNER])
+  })
+
+  it('no owner on the invoice, no notice', async () => {
+    const pool = poolWithInvoice(null)
+    const sent: string[] = []
+    const r = await creditStarsPayment(
+      pool,
+      { ...PAID, invoiceId: 7 },
+      {
+        notifyOwner: async id => {
+          sent.push(id)
+        },
+      }
+    )
+    await settle()
+    expect(r.credited).toBe(true)
+    expect(sent).toEqual([])
+  })
+
+  it('a person buying for themselves is not told about their own purchase', async () => {
+    const pool = poolWithInvoice(CLIENT)
+    const sent: string[] = []
+    await creditStarsPayment(
+      pool,
+      { ...PAID, invoiceId: 7 },
+      {
+        notifyOwner: async id => {
+          sent.push(id)
+        },
+      }
+    )
+    await settle()
+    expect(sent).toEqual([])
+  })
+
+  it('a payment with no invoice hint (a club month) reads no invoice at all', async () => {
+    const pool = poolWithInvoice(OWNER)
+    const sent: string[] = []
+    await creditStarsPayment(pool, PAID, {
+      notifyOwner: async id => {
+        sent.push(id)
+      },
+    })
+    await settle()
+    expect(sent).toEqual([])
+  })
+
+  it('the credit still succeeds when the notice throws', async () => {
+    const pool = poolWithInvoice(OWNER)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await creditStarsPayment(
+      pool,
+      { ...PAID, invoiceId: 7 },
+      {
+        notifyOwner: async () => {
+          throw new Error('Telegram answered 403: blocked')
+        },
+      }
+    )
+    await settle()
+    expect(r.credited).toBe(true)
+    expect(pool.balances.get(CLIENT)).toBe(500)
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('the credit still succeeds when the invoice read throws', async () => {
+    const base = fakePool()
+    const pool = {
+      ...base,
+      async query(sql: string, params: unknown[] = []) {
+        if (sql.includes('FROM token_invoices'))
+          throw new Error('column "owner_id" does not exist')
+        return base.query(sql, params)
+      },
+    }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await creditStarsPayment(pool, { ...PAID, invoiceId: 7 })
+    await settle()
+    expect(r.credited).toBe(true)
+    expect(base.balances.get(CLIENT)).toBe(500)
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
   })
 })

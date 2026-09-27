@@ -11,6 +11,7 @@
  */
 import { record } from './hive/journal'
 import { moveTokens } from './token-ledger'
+import { sendToTelegram } from './auth/telegram-sender'
 
 type Queryable = { query: (sql: string, params?: unknown[]) => Promise<any> }
 type Client = Queryable & { release: () => void }
@@ -64,6 +65,96 @@ async function inTransaction<T>(
   }
 }
 
+export interface CreditDeps {
+  /**
+   * How a notice reaches the owner. Defaults to sendToTelegram
+   * (src/auth/telegram-sender.ts), the service's one Telegram sender.
+   * Injected so a test can see the notice without the network.
+   */
+  notifyOwner?: (ownerId: string, text: string) => Promise<unknown>
+}
+
+/**
+ * THE OWNER LEARNS THAT THEIR CLIENT PAID.
+ *
+ * An owner's crm_offer mints an invoice for the client and stamps the owner
+ * on it (token_invoices.owner_id). When that invoice is paid, the credit
+ * lands on the client -- and until now the owner who made the sale heard
+ * nothing, and kept "warming" somebody who had already bought.
+ *
+ * Called only after a FIRST-time credit, so a redelivery is never announced
+ * twice. Fire-and-forget: every failure is caught and logged here, and the
+ * credit it follows has already committed. A notice to the OWNER only --
+ * nothing here reaches the client.
+ */
+export async function notifyOwnerOfPayment(
+  pool: Queryable,
+  payment: {
+    telegramId: string
+    amount: number
+    invoiceId?: number
+    matchOpenInvoice?: boolean
+  },
+  deps: CreditDeps = {}
+): Promise<boolean> {
+  try {
+    const payer = String(payment.telegramId)
+    let row: { owner_id?: unknown; stars?: unknown; tokens?: unknown } | null =
+      null
+    if (payment.invoiceId !== undefined && payment.invoiceId !== null) {
+      const r = await pool.query(
+        `SELECT owner_id, stars, tokens FROM token_invoices WHERE id = $1`,
+        [payment.invoiceId]
+      )
+      row = r?.rows?.[0] ?? null
+    } else if (payment.matchOpenInvoice) {
+      const r = await pool.query(
+        `SELECT owner_id, stars, tokens FROM token_invoices
+          WHERE telegram_id = $1 AND tokens = $2 AND redeemed = FALSE
+            AND owner_id IS NOT NULL
+            AND created_at > now() - interval '30 days'
+          ORDER BY created_at DESC LIMIT 1`,
+        [payer, payment.amount]
+      )
+      row = r?.rows?.[0] ?? null
+    }
+    const owner = String(row?.owner_id ?? '').trim()
+    if (!owner || owner === payer) return false
+
+    let who = payer
+    try {
+      const p = await pool.query(
+        `SELECT first_name, username FROM crm_people
+          WHERE owner_id = $1 AND lead_id = $2`,
+        [owner, payer]
+      )
+      const person = p?.rows?.[0]
+      const name = String(person?.first_name ?? '').trim()
+      const handle = String(person?.username ?? '').trim()
+      if (name || handle)
+        who = [name, handle ? `@${handle}` : ''].filter(Boolean).join(' ')
+      if (who !== payer) who = `${who} (${payer})`
+    } catch {
+      // No CRM table: the id alone still names the person.
+    }
+    const tokens = Number(row?.tokens) || payment.amount
+    const stars = Number(row?.stars) || payment.amount
+    const text =
+      `💰 Клиент ${who} оплатил ваш счёт: ${stars} ⭐, ` + // cyrillic-ok: owner notice
+      `зачислено ${tokens} токенов.\n` + // cyrillic-ok: owner notice
+      'Новое предложение сейчас ни к чему — лучше поблагодарите.' // cyrillic-ok: owner notice
+    const send = deps.notifyOwner ?? sendToTelegram
+    await send(owner, text)
+    return true
+  } catch (e) {
+    console.warn(
+      '[STARS] owner notice not delivered:',
+      String(e instanceof Error ? e.message : e).slice(0, 160)
+    )
+    return false
+  }
+}
+
 export async function creditStarsPayment(
   pool: MaybePool,
   payment: {
@@ -78,7 +169,21 @@ export async function creditStarsPayment(
      * lock, the same ledger -- and must not be recorded as Stars.
      */
     reason?: string
-  }
+    /**
+     * Which token_invoices row this payment settles, when the caller knows it
+     * (/api/tokens/verify matched the row itself). Used only to tell the
+     * owner who issued the invoice; the credit never depends on it.
+     */
+    invoiceId?: number
+    /**
+     * The caller does not know the row but the payment is a token-invoice
+     * purchase (`tokens:<n>:<id>` forwarded by the bot to /api/stars/credit):
+     * look up the newest open invoice for this person and amount. Never set
+     * for club months -- their tokens could match an unrelated invoice.
+     */
+    matchOpenInvoice?: boolean
+  },
+  deps: CreditDeps = {}
 ): Promise<{ credited: boolean; reason: string }> {
   const { chargeId, telegramId: tid, amount } = payment
   if (!(amount > 0) || !tid)
@@ -170,6 +275,12 @@ export async function creditStarsPayment(
     what: payment.reason || 'звёзды Telegram', // cyrillic-ok: journal text the keeper reads
     severity: 'normal',
   })
+
+  // The owner who issued the invoice hears about it. Not awaited: a slow or
+  // failing Telegram must never hold or fail a credit that has committed.
+  if (payment.invoiceId !== undefined || payment.matchOpenInvoice) {
+    void notifyOwnerOfPayment(pool, payment, deps)
+  }
 
   return { credited: true, reason: 'first delivery' }
 }

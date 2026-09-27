@@ -1115,6 +1115,7 @@ import { CRM_MOVE_STATS_TOOLS } from './crm-move-stats'
 import { CRM_MAP_TOOLS } from './crm-map'
 import { CRM_CLIENT_GROUP_TOOLS } from './crm-client-group'
 import { CRM_CLIENT_TIMELINE_TOOLS } from './crm-client-timeline'
+import { CRM_REVENUE_TOOLS } from './crm-revenue-tool'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
@@ -3785,6 +3786,8 @@ TOOLS.push(...CRM_MAP_TOOLS)
 TOOLS.push(...CRM_CLIENT_GROUP_TOOLS)
 // The client card's feed and summary (crm-client-timeline.ts): a screen.
 TOOLS.push(...CRM_CLIENT_TIMELINE_TOOLS)
+// The CRM screen's revenue strip (crm-revenue-tool.ts): a screen.
+TOOLS.push(...CRM_REVENUE_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project
@@ -3969,7 +3972,7 @@ export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
  * the reel is asked of the owner's full-size agent. Moving that line is the owner's call, not a refactor's.
  */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_voice_clone|crm_story_reel|my_story_reel|crm_client_timeline)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_voice_clone|crm_story_reel|my_story_reel|crm_client_timeline|crm_revenue)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
@@ -4042,6 +4045,7 @@ export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
   'crm_client_avatars',
   'crm_map',
   'crm_client_timeline',
+  'crm_revenue',
   /*
    * Walks the members of the owner's groups through his own session. The
    * morning post and the CRM screen ask for it; a model turn has no reason

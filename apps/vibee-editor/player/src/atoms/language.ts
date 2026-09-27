@@ -259,6 +259,16 @@ const en: Translations = {
   'crm.wait.prepare': '✍ Prepare',
   'crm.wait.prepareAsk':
     'Prepare the next message to {name}: {why}. Make it a send card — I will press Send myself.',
+  'crm.funnel.title': 'Funnel by stage',
+  'crm.funnel.people': 'people in conversation: {n}',
+  'crm.winback.title': 'Win back former buyers',
+  'crm.winback.counts': 'Paid before, quiet for {days}+ days: {found}',
+  'crm.winback.none': 'No former buyers have gone quiet.',
+  'crm.winback.quiet': 'quiet for {days} days',
+  'crm.winback.bought': 'bought before',
+  'crm.winback.return': '↩ Return',
+  'crm.winback.returnAsk':
+    'Draft a warm return message to {name}, a former buyer who has been quiet for {days} days. Lead with what is new since their last purchase, not a reminder of us. Make it a send card — I will press Send myself.',
   'crm.wait.theirs': 'awaiting reply',
   'crm.wait.due': 'time to return',
   // ── CRM: client list and per-client workspace ────────────────────────────
@@ -735,6 +745,15 @@ const en: Translations = {
     'In all: visits {visits}, bot starts {starts}. Counts only: no person behind a number is known.',
   'crm.traffic.empty':
     'No tagged visits yet. Every link the agents publish carries its channel; the first visit shows here.',
+  // Revenue from the owner's clients (components/Crm/RevenuePanel.tsx)
+  'crm.revenue.title': 'Revenue',
+  'crm.revenue.total': '⭐ all time',
+  'crm.revenue.last30': '⭐ last 30 days',
+  'crm.revenue.paying': 'Paying clients',
+  'crm.revenue.ltv': '⭐ per paying client',
+  'crm.revenue.top': 'Top clients',
+  'crm.revenue.stars': '{n} ⭐',
+  'crm.revenue.none': 'No purchases from your clients yet.',
   'chat.agentSkills.add.placeholder':
     'A rule for it, e.g. "answer briefly, with numbers"',
   'chat.agentSkills.add.button': 'Add rule',
@@ -2810,6 +2829,16 @@ const ru: Translations = {
   'crm.wait.prepare': '✍ Подготовить',
   'crm.wait.prepareAsk':
     'Подготовь следующее сообщение для {name}: {why}. Сделай карточкой на отправку — «Отправить» нажму сам.',
+  'crm.funnel.title': 'Воронка по этапам',
+  'crm.funnel.people': 'в переписке людей: {n}',
+  'crm.winback.title': 'Вернуть бывших покупателей',
+  'crm.winback.counts': 'Платили раньше, молчат {days}+ дней: {found}',
+  'crm.winback.none': 'Никто из покупателей не пропал.',
+  'crm.winback.quiet': 'молчит {days} дн.',
+  'crm.winback.bought': 'покупал(а)',
+  'crm.winback.return': '↩ Вернуть',
+  'crm.winback.returnAsk':
+    'Подготовь тёплое сообщение-возвращение для {name}: раньше покупал(а), молчит {days} дней. Начни с того, что нового появилось с последней покупки, а не с напоминания о нас. Сделай карточкой на отправку — «Отправить» нажму сам.',
   'crm.wait.theirs': 'ждём ответа',
   'crm.wait.due': 'пора вернуться',
   // ── CRM: client list and per-client workspace ────────────────────────────
@@ -3270,6 +3299,14 @@ const ru: Translations = {
     'Всего: переходов {visits}, запусков бота {starts}. Только счётчики: кто за числом — неизвестно.',
   'crm.traffic.empty':
     'Помеченных переходов пока нет. Каждая ссылка, которую публикуют агенты, несёт свой канал — первый переход появится здесь.',
+  'crm.revenue.title': 'Выручка',
+  'crm.revenue.total': '⭐ за всё время',
+  'crm.revenue.last30': '⭐ за 30 дней',
+  'crm.revenue.paying': 'Платящих клиентов',
+  'crm.revenue.ltv': '⭐ на платящего клиента',
+  'crm.revenue.top': 'Лучшие клиенты',
+  'crm.revenue.stars': '{n} ⭐',
+  'crm.revenue.none': 'Покупок от ваших клиентов пока нет.',
   'chat.agentSkills.add.placeholder':
     'Правило для него, например «отвечай коротко, с цифрами»',
   'chat.agentSkills.add.button': 'Добавить',

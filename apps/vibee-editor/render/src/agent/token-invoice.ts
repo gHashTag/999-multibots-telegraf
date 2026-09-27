@@ -46,6 +46,13 @@ export interface MintInput {
   /** Who the tokens are for. Numeric telegram_id, as a string. */
   forTelegramId: string
   tokens: number
+  /**
+   * The owner who issues the invoice on a client's behalf (crm_offer). Stored
+   * as token_invoices.owner_id so the credit can tell that owner the client
+   * paid (stars-credit.ts notifyOwnerOfPayment). Absent for a person buying
+   * for themselves.
+   */
+  ownerId?: string
   pool?: { query: (sql: string, params?: unknown[]) => Promise<unknown> }
   /** Injected so the mint can be tested without reaching api.telegram.org. */
   fetchImpl?: typeof fetch
@@ -101,7 +108,8 @@ export async function ensureInvoiceColumns(pool: {
       `ALTER TABLE token_invoices
          ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
          ADD COLUMN IF NOT EXISTS cancel_reason text,
-         ADD COLUMN IF NOT EXISTS star_tx_id text`
+         ADD COLUMN IF NOT EXISTS star_tx_id text,
+         ADD COLUMN IF NOT EXISTS owner_id text`
     )
     invoiceColumnsReady = true
     return true
@@ -179,10 +187,20 @@ export async function mintTokenInvoice(
       // The columns a cancelled draft stamps. Their absence must not cost
       // the pending row below: the row is what the reconcile needs.
       await ensureInvoiceColumns(input.pool)
-      const inserted = (await input.pool.query(
-        `INSERT INTO token_invoices (telegram_id, tokens, stars) VALUES ($1, $2, $3) RETURNING id`,
-        [forId, tokens, stars]
-      )) as { rows?: Array<{ id?: unknown }> } | undefined
+      const ownerId = String(input.ownerId ?? '').trim()
+      /*
+       * owner_id only when there is one: an older base whose ALTER did not
+       * run still takes the self-purchase INSERT exactly as before.
+       */
+      const inserted = (await (ownerId && ownerId !== forId
+        ? input.pool.query(
+            `INSERT INTO token_invoices (telegram_id, tokens, stars, owner_id) VALUES ($1, $2, $3, $4) RETURNING id`,
+            [forId, tokens, stars, ownerId]
+          )
+        : input.pool.query(
+            `INSERT INTO token_invoices (telegram_id, tokens, stars) VALUES ($1, $2, $3) RETURNING id`,
+            [forId, tokens, stars]
+          ))) as { rows?: Array<{ id?: unknown }> } | undefined
       const rawId = inserted?.rows?.[0]?.id
       if (
         rawId !== undefined &&

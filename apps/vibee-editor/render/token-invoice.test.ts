@@ -136,6 +136,53 @@ describe('the pending row', () => {
     expect(ins!.params[0]).toBe('900000002')
   })
 
+  it('an offer on an owner behalf stamps the owner, so the owner hears of the payment', async () => {
+    forgetInvoiceColumnsForTests()
+    const { f } = recorder()
+    const pool = poolThat(false)
+    await mintTokenInvoice({
+      forTelegramId: '900000002',
+      tokens: 10,
+      ownerId: '900000001',
+      pool,
+      fetchImpl: f,
+      botToken: 't',
+    })
+    expect(
+      pool.queries.some(q =>
+        /ADD COLUMN IF NOT EXISTS owner_id text/.test(q.sql)
+      )
+    ).toBe(true)
+    const ins = pool.queries.find(q =>
+      q.sql.startsWith('INSERT INTO token_invoices')
+    )
+    expect(ins!.sql).toContain('owner_id')
+    expect(ins!.params).toEqual([
+      '900000002',
+      10,
+      expect.any(Number),
+      '900000001',
+    ])
+  })
+
+  it('a self-purchase writes no owner', async () => {
+    const { f } = recorder()
+    const pool = poolThat(false)
+    await mintTokenInvoice({
+      forTelegramId: '900000002',
+      tokens: 10,
+      ownerId: '900000002',
+      pool,
+      fetchImpl: f,
+      botToken: 't',
+    })
+    const ins = pool.queries.find(q =>
+      q.sql.startsWith('INSERT INTO token_invoices')
+    )
+    expect(ins!.sql).not.toContain('owner_id')
+    expect(ins!.params).toHaveLength(3)
+  })
+
   it('a row that fails to write is JOURNALED, naming the person and the amount', async () => {
     /*
      * Two nets catch a Stars payment: the bot's handler credits it, and the

@@ -604,6 +604,28 @@ describe('the card names the person, beside the id', () => {
     expect(r.invoice.id).toBe(42)
     expect(q.pendingFor(OWNER)?.invoiceId).toBe(42)
   })
+
+  it('the invoice row names the owner who offered it, so the owner hears of the payment', async () => {
+    stubNet()
+    const { tool } = await seller()
+    const inserts: Array<{ sql: string; params: unknown[] }> = []
+    const ctx = {
+      ...(ownerCtx() as object),
+      pool: {
+        query: async (sql: string, params: unknown[] = []) => {
+          if (/INSERT INTO token_invoices/.test(sql)) {
+            inserts.push({ sql, params })
+            return { rows: [{ id: 43 }] }
+          }
+          return { rows: [] }
+        },
+      },
+    }
+    await tool.handler({ chat: '@pilot_client', tokens: 50 }, ctx as never)
+    expect(inserts).toHaveLength(1)
+    expect(inserts[0].sql).toContain('owner_id')
+    expect(inserts[0].params[3]).toBe(OWNER)
+  })
 })
 
 describe('displayOf', () => {
