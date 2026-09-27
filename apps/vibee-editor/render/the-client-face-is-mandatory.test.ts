@@ -712,8 +712,9 @@ describe('the briefs: the portrait first, from the face, package or not', () => 
   })
 
   it('the duet brief offers her portrait before her reel, and image_edit is no longer off-brand', async () => {
-    const { sellerBrief, OFF_BRAND_FOR_CLIENT } =
-      await import('./src/agent/crm-duet-tool')
+    const { sellerBrief, OFF_BRAND_FOR_CLIENT } = await import(
+      './src/agent/crm-duet-tool'
+    )
     const b = sellerBrief(LEAD, { reel_template: { composition: 'TestReel' } })
     const portrait = b.indexOf('Первый подарок — её портрет 9:16 из ЕЁ лица') // cyrillic-ok: the brief under test
     const reel = b.indexOf('Рилс — после портрета') // cyrillic-ok: the brief under test
@@ -812,6 +813,12 @@ describe('the briefs: the portrait first, from the face, package or not', () => 
     expect(at).toBeGreaterThanOrEqual(0)
     expect(at).toBeLessThan(due.indexOf('ПРОФИЛЬ КЛИЕНТА')) // cyrillic-ok: the brief under test
     expect(due).toContain('сначала портрет из его лица') // cyrillic-ok: the brief under test
+    // Spec v8: the reel route is said before the package that names its own
+    // reel template, as the gift is.
+    const { reelRouteLine } = await import('./src/agent/chat')
+    const route = due.indexOf(reelRouteLine())
+    expect(route).toBeGreaterThan(at)
+    expect(route).toBeLessThan(due.indexOf('ПРОФИЛЬ КЛИЕНТА')) // cyrillic-ok: the brief under test
     gift = true
     const given = (await clientBriefBlock(ctx, OWNER, LEAD)).text
     expect(given).toContain('портрет уже подарен') // cyrillic-ok: the brief under test
@@ -867,7 +874,9 @@ describe('the briefs: the portrait first, from the face, package or not', () => 
     expect(done.first).toMatch(/РИЛС-ПОДАРОК/) // cyrillic-ok: the second gift is named next
     gifts.set(`${OWNER}|${LEAD}`, ['photo', 'video'])
     const both = await portraitOf(pool, OWNER, LEAD)
-    expect(both.first).toMatch(/рилс-история тоже/) // cyrillic-ok: the answer under test
+    // Spec v8: after both gifts the next reel is still the story reel.
+    expect(both.first).toMatch(/рилс-история уже подарены/) // cyrillic-ok: the answer under test
+    expect(both.first).toMatch(/следующие рилсы тоже crm_story_reel/) // cyrillic-ok: the answer under test
     // Another owner's gift to the same person is not this owner's.
     expect((await portraitOf(pool, '900000299', LEAD)).given).toBe(false)
   })
