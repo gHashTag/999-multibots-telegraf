@@ -470,6 +470,69 @@ describe('who qualifies for the story-reel template', () => {
   })
 })
 
+describe('a client with her own visual ends on it', () => {
+  it('the template hands her end card to story_reel', async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.profiles.push({
+      owner_id: SELLER,
+      telegram_id: LENA,
+      updated: 2,
+      profile: {
+        visual: {
+          bg: '#0b0d0f',
+          gold_title: '#ffd700',
+          text: '#ffffff',
+          accent_cta: '#00ff88',
+        },
+        approved_cta: {
+          text: 'Приходите со своим вопросом.',
+          button: '🎲 Играть',
+          bot: '@example_bot',
+        },
+      },
+    })
+    const seen: any[] = []
+    const { deps } = depsOn(base, async args => {
+      seen.push(args)
+      return { done: true, url: 'https://bucket.example/reel.mp4' }
+    })
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Лила',
+    })
+    await drain()
+    expect(seen[0].end_card).toEqual({
+      bg: '#0b0d0f',
+      title: '#ffd700',
+      text: '#ffffff',
+      accent: '#00ff88',
+      button: '🎲 Играть · @example_bot',
+    })
+    expect(seen[0].cta).toBe('Приходите со своим вопросом.')
+  })
+
+  it('a client without a visual gets no card', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const seen: any[] = []
+    const { deps } = depsOn(base, async args => {
+      seen.push(args)
+      return { done: true, url: 'https://bucket.example/reel.mp4' }
+    })
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(seen[0].end_card).toBeUndefined()
+  })
+})
+
 describe('any story: the writer', () => {
   it('reads a title and scenes, as an object or a bare list', () => {
     expect(parseStory(`Вот: ${JSON.stringify(SCENES)}`)?.title).toBe(
