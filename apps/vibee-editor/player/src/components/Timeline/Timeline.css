@@ -2476,3 +2476,45 @@
     margin: 0;
   }
 }
+
+/*
+ * A SLIDER IS GRABBED WITH A FINGER, AND THIS ONE WAS FOUR PIXELS TALL.
+ *
+ * Measured at 375px on 25.09.2026 while walking the route list: the volume
+ * control on the editor is a 4px track -- the thinnest target in the app,
+ * and one people drag rather than tap, which is harder still.
+ *
+ * The LOOK does not change. The element grows to the touch target and its
+ * background moves to the track, so what a person sees is the same thin line
+ * with a much larger area around it to catch. The thumb grows too: 12px is a
+ * mouse's thumb.
+ */
+@media (pointer: coarse) {
+  .volume-slider {
+    height: var(--touch-target, 44px);
+    background: transparent;
+  }
+
+  .volume-slider::-webkit-slider-runnable-track {
+    height: 4px;
+    background: var(--bg-input);
+    border-radius: 2px;
+  }
+
+  .volume-slider::-moz-range-track {
+    height: 4px;
+    background: var(--bg-input);
+    border-radius: 2px;
+  }
+
+  .volume-slider::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+    margin-top: -8px;
+  }
+
+  .volume-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+  }
+}
