@@ -29,6 +29,9 @@
  * drawn from an agent's answer.
  */
 
+// The numbers are the spec's: gHashTag/t27 specs/automation/crm-story-reel.t27.
+import * as SPEC from '../spec/crm-story-reel.gen'
+
 export type CardOutcome = 'shown' | 'busy' | 'failed'
 
 export interface CardPort {
@@ -66,7 +69,8 @@ export interface GroupCardOffer {
   dm?: boolean
 }
 
-export const storyTurn = (jobId: number): string => `story:${jobId}`
+export const storyTurn = (jobId: number): string =>
+  `${SPEC.CARD_TURN_PREFIX}${jobId}`
 
 /** The words on the card: what, where, who sees it, and the caption. */
 export function groupCardText(o: GroupCardOffer): string {
@@ -78,7 +82,7 @@ export function groupCardText(o: GroupCardOffer): string {
   const text =
     `🎬 Рилс-история для ${who} готова: «${o.topic}».\n\n` +
     `${ask}\n\nПодпись:\n${o.caption}`
-  return text.slice(0, 1000)
+  return text.slice(0, SPEC.CARD_TEXT_MAX)
 }
 
 /** The same two buttons as every card (the bot's tgp:ok / tgp:no handlers). */
