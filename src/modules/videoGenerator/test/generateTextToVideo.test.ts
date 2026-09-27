@@ -35,9 +35,14 @@ vi.mock('../../../price/helpers', () => ({ calculateFinalPrice: vi.fn() }))
 // method with vi.hoisted so each test can steer generateVideo's return.
 const { generateVideoMock } = vi.hoisted(() => ({ generateVideoMock: vi.fn() }))
 vi.mock('../../../services/video-providers/KieAiProvider', () => ({
-  KieAiProvider: vi
-    .fn()
-    .mockImplementation(() => ({ generateVideo: generateVideoMock })),
+  // Regular function, not an arrow: dispatch does `new KieAiProvider(...)`,
+  // and vitest 5 constructs the mock implementation with Reflect.construct,
+  // which throws on an arrow ("is not a constructor"). The dispatch catches
+  // that throw and falls back, so the symptom was "generateVideo never called
+  // / returned null" rather than a visible error.
+  KieAiProvider: vi.fn().mockImplementation(function () {
+    return { generateVideo: generateVideoMock }
+  }),
 }))
 
 vi.mock('axios', () => ({
