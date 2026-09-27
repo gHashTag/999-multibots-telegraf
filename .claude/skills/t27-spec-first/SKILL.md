@@ -61,6 +61,14 @@ t27 их нет (27.09: 3) — долг: написать спеку или уб
 
 ## Рецепт: привязать вертикаль
 
+**Быстрый старт (27.09.2026): `tri spec-bind <kind/id> [t27]`** — копия спеки с
+`gen-ts`, `src/spec/<id>.test.ts` с КАЖДЫМ заголовком теста спеки как
+ПАДАЮЩЕЙ заглушкой, снятие с храповика и проверка. Существующий тест не
+трогает (прошлый виток не затирается). Остаётся умное: импорт `SPEC` в хост и
+заглушки → вызовы хоста. Первым делом читать вывод проверки: он сразу
+показывает braceless-тесты (нужна v2 в t27) и `restated` (числа, которые хост
+пишет сам).
+
 1. **Спека в t27** (`/home/user/t27` или клон `gHashTag/t27`), ветка
    `claude/<тема>` — force push запрещён, занятая ветка → новая.
    - ASCII only; шапка `// SPDX…`, `// specs/<kind>/<id>.t27 -- …`, Host,
@@ -116,15 +124,18 @@ t27 их нет (27.09: 3) — долг: написать спеку или уб
 
 | спека                              | хост                                                                         | что нашла привязка                                                                                                                                                                     |
 | ---------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| automation/crm-story-reel v5       | story-template, story-reel-tool, story-card, story-voice-notes, crm-playbook | двойная оплата кадра «ещё рисуется»; агент CRM не доходил до шаблона (голос — Replicate, не ElevenLabs); v4/v5: без клона или при 402 клона — её голосовые на Kie (t27#4860, t27#4862) |
+| automation/crm-story-reel v6       | story-template, story-reel-tool, story-card, story-voice-notes, crm-playbook | двойная оплата кадра «ещё рисуется»; агент CRM не доходил до шаблона (голос — Replicate, не ElevenLabs); v4/v5: её голосовые на Kie без клона или при 402; v6: лимит дня до траты      |
 | automation/crm-lead-magnet v2      | crm-deliver-tool, client-face, kie-image, billing-shared                     | «один подарок на человека» не держался; безопасная зона только в комментарии; подпись «по аватарке» на чужом источнике; устаревшие «не запускали», «платит получатель», «6 за секунду» |
 | automation/crm-client-workspace v2 | conversation.ts, crm-duet-tool, routes (threadFor), плеер (маршруты, панели) | v1 превращал кривой id клиента в личную ветку, а код отказывает (400); панелей 7, не 6; ветка Королевы и агент в чате клиента не были описаны                                          |
 
 ## Очередь привязки (от быстрых побед к крупным)
 
 1. ~~`automation/crm-client-workspace`~~ — привязана 27.09.
-2. `automation/crm-sellers`, `automation/crm-client-ownership`,
-   `automation/crm-duet` — тот же CRM, соседние файлы.
+   ~~`automation/crm-sellers`~~ — привязана 27.09 (v2: тесты были без скобок, реальные id).
+2. `automation/crm-client-ownership` (находка: «клиент» только по архиву
+   `payments_v2`, звёзды `star_payments` не видны), `automation/crm-duet`
+   (12 тестов без скобок → v2; `crm-duet-tool.ts` сам пишет TURNS_DEFAULT,
+   TURNS_MAX, SELLER_RETRY_ON_LIMIT, DISCOVERY_SELLER_TURNS).
 3. `automation/agent-provider-chain`, `automation/inngest-probe-suite`,
    `automation/leela-agent-link`, `automation/browser-*`.
 4. `functions/*` (26) и `crons/*` (23) — большие, по одной.

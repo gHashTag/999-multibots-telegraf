@@ -211,13 +211,35 @@ function fakePool() {
  */
 vi.setConfig({ testTimeout: 20_000 })
 
+/*
+ * ONE zep-memory mock for the whole file, switched by this state.
+ *
+ * A describe below used to register its own `vi.doMock` of the same module
+ * after this one. vitest resolves a doMock's path asynchronously, and under a
+ * full parallel run the two resolutions could land out of order: the later
+ * test then imported the file-level mock (`zepConfigured: false`) and saw no
+ * call at all -- red in about two of five full runs, never alone. A describe
+ * now flips `zep.on` and `zep.add` instead of mocking twice.
+ */
+const zep = {
+  on: false,
+  add: async (_owner: string, _lead: string, _msgs: Array<{ text: string }>) =>
+    0,
+}
+
 beforeEach(() => {
+  zep.on = false
+  zep.add = async () => 0
   vi.resetModules()
   vi.doMock('./src/agent/zep-memory', () => ({
-    zepConfigured: () => false,
+    zepConfigured: () => zep.on,
     zepEnsureUser: async () => undefined,
     zepEnsureThread: async () => undefined,
-    zepAddMessages: async () => 0,
+    zepAddMessages: (
+      owner: string,
+      lead: string,
+      msgs: Array<{ text: string }>
+    ) => zep.add(owner, lead, msgs),
     zepContext: async () => null,
   }))
 })
@@ -1531,21 +1553,13 @@ describe('a transcript that arrives late still reaches Zep', () => {
 
   beforeEach(() => {
     zepCalls.length = 0
-    vi.resetModules()
-    vi.doMock('./src/agent/zep-memory', () => ({
-      zepConfigured: () => true,
-      zepEnsureUser: async () => undefined,
-      zepEnsureThread: async () => undefined,
-      zepAddMessages: async (
-        _owner: string,
-        lead: string,
-        msgs: Array<{ text: string }>
-      ) => {
-        zepCalls.push({ lead, texts: msgs.map(m => m.text) })
-        return msgs.length
-      },
-      zepContext: async () => null,
-    }))
+    // The file's one mock, switched on (see `zep` at the top): a second
+    // doMock of the same module here raced the first under load.
+    zep.on = true
+    zep.add = async (_owner, lead, msgs) => {
+      zepCalls.push({ lead, texts: msgs.map(m => m.text) })
+      return msgs.length
+    }
   })
 
   const rowOf = () => ({
