@@ -734,6 +734,17 @@ AGENT TOOLS ON THE RENDER
                           browser HOLDS a login, not that the site still honours
                           it. Exit 0 at least one live login, 2 none (or no
                           browser running), 3 the render did not answer.
+  tri pod                 SINCE WHEN has the browser been well, or not? Reads
+                          the watch row -- the one number missing during the
+                          2026-09-24..26 outage, when nobody could say the pod
+                          had been unreadable for three days. Shows how long it
+                          has held its current state, failures in a row, and how
+                          many reboots the watch has seen (a restart that did not
+                          help still shows). Exit 0 answering, 1 NOT answering
+                          (the heal case), 2 never probed / no pod watched
+                          (nobody looked -- not "broken"), 3 the render did not
+                          answer. `describeWatch` in watch.ts promised this
+                          command; until now it did not exist.
 
 OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
@@ -1926,6 +1937,58 @@ PY
   case "$rc" in
     0) good 'the clone holds at least one live login' ;;
     2) warn 'no live login (or no browser running) -- above is the full picture' ;;
+    *) bad 'could not tell -- the render itself did not answer' ;;
+  esac
+  return "$rc"
+}
+
+# SINCE WHEN has the browser been a browser? The watch row (watch.ts) keeps the
+# one number the three-day September outage lacked. This reads it -- no probe,
+# no write. A watch that was never written (no pod, or nothing has probed yet)
+# is a THIRD outcome: nobody looked, which is neither "well" nor "wedged". It is
+# never spent as either -- exit 2, the same null-is-a-third-outcome rule that
+# tabs `answers`, cookie `signedIn`, `saw`, and `logins` already hold.
+cmd_pod() {
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+
+  LOG_KEY="$key" LOG_URL="$RENDER/api/browser/watch" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+
+req = urllib.request.Request(
+    os.environ['LOG_URL'], headers={"X-Agent-Key": os.environ['LOG_KEY']})
+try:
+    with urllib.request.urlopen(req, timeout=30) as r:
+        answer = json.loads(r.read())
+except urllib.error.HTTPError as e:
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+    print(f'  HTTP {e.code} {e.reason}{hint}')
+    sys.exit(3)
+except Exception as e:                        # DNS, TLS, timeout
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+w = answer.get('watch')
+said = answer.get('said') or 'never probed'
+print(f'  {said}')
+
+# No row, or a row that never held a probe: nobody looked. Not broken, not well.
+if not w or not w.get('at'):
+    sys.exit(2)
+
+boots = w.get('boots') or 0
+if boots:
+    print(f'  reboots seen while watching: {boots}')
+sys.exit(0 if w.get('ok') else 1)
+PY
+  local rc=$?
+  case "$rc" in
+    0) good 'the browser is a browser -- and has been, unbroken, for the time above' ;;
+    1) bad 'the browser is NOT answering -- the one wedge a restart cures (POST /api/browser/heal, which probes before acting)' ;;
+    2) warn 'nobody has watched this pod yet -- no verdict to give (not "broken")' ;;
     *) bad 'could not tell -- the render itself did not answer' ;;
   esac
   return "$rc"
@@ -4858,6 +4921,7 @@ case "$action" in
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;
   logins|входы)        cmd_logins ;;
+  pod|под)             cmd_pod ;;
   lesson|опыт)         cmd_lesson "$@" ;;
   lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
   unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
