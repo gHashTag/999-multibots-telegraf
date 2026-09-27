@@ -41,6 +41,8 @@ const TL: ClientTimeline = {
     lastInAt: null,
     lastOutAt: null,
     paid: true,
+    revenue: null,
+    lastPaidAt: null,
   },
   events: [
     {
@@ -134,6 +136,27 @@ describe('summary and feed', () => {
     expect(text).toContain('crm.summary.paid.yes')
     expect(text).toContain('↓5·↑3')
     expect(text).toContain('crm.summary.groups2')
+  })
+
+  it('money paid is shown as the sum, with the last payment on hover', async () => {
+    const { ClientSummary } = await import('./ClientTimeline')
+    act(() =>
+      root.render(
+        <ClientSummary
+          timeline={{
+            ...TL,
+            stats: {
+              ...TL.stats,
+              revenue: 1500,
+              lastPaidAt: '2026-09-20T10:00:00Z',
+            },
+          }}
+        />
+      )
+    )
+    const dd = [...host.querySelectorAll('dd')][0]
+    expect(dd.textContent).toMatch(/⭐ 1[\s\u00a0,]?500/)
+    expect(dd.getAttribute('title')).toContain('crm.summary.paid.last')
   })
 
   it('unknown payment is a dash, not "not yet"', async () => {

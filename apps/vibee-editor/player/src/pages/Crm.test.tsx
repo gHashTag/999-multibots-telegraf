@@ -11,6 +11,12 @@ import {
   vi,
 } from 'vitest'
 
+const queued: Array<{ text: string; options: Record<string, unknown> }> = []
+vi.mock('@/lib/agentStream', () => ({
+  sendOrQueue: (text: string, _a: unknown, options: Record<string, unknown>) =>
+    queued.push({ text, options }),
+}))
+
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
     // The key is returned, so these checks never depend on the wording in the
@@ -53,6 +59,8 @@ const answers: Record<string, unknown> = {
         days: 2,
         stage: 'talking',
         because: 'ответил, а мы молчим',
+        next_why: 'answer about the price he asked',
+        urgency: 'now',
       },
       {
         telegram_id: '333',
@@ -305,6 +313,48 @@ describe('the server speaks Russian keys and the screen does not have to', () =>
   })
 })
 
+describe('prepare asks the agent, it does not send', () => {
+  it("shows the server's advice and queues a draft in the client's own thread", async () => {
+    answers.crm_waiting = {
+      total: 1,
+      ours: 1,
+      due: 0,
+      theirs: 0,
+      waiting: [
+        {
+          telegram_id: '111',
+          name: 'Ivan',
+          link: null,
+          bot: 'b',
+          waiting: 'ours',
+          days: 2,
+          stage: 'talking',
+          because: 'x',
+          next_why: 'answer about the price he asked',
+          urgency: 'now',
+        },
+      ],
+    }
+    serve()
+    await draw()
+    expect(host.textContent).toContain('answer about the price he asked')
+    calls = []
+    queued.length = 0
+    const btn = host.querySelector<HTMLButtonElement>(
+      '.crm__row--ours .crm__prepare'
+    )!
+    await act(async () => {
+      btn.click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(queued).toHaveLength(1)
+    expect(queued[0].options).toEqual({ client: '111' })
+    expect(queued[0].text).toContain('crm.wait.prepareAsk')
+    for (const forbidden of ['tg_send', 'tg_forward', 'crm_send', 'crm_touch'])
+      expect(calls.map(c => c.name)).not.toContain(forbidden)
+  })
+})
+
 describe('the buttons record, they do not send', () => {
   it('a press calls crm_touch and nothing that reaches a person', async () => {
     serve()
@@ -340,7 +390,10 @@ describe('the buttons record, they do not send', () => {
     serve()
     await draw()
     calls = []
-    const btn = host.querySelector<HTMLButtonElement>('.crm__acts button')!
+    // The first LOGGING button: Prepare asks the agent and records nothing.
+    const btn = host.querySelector<HTMLButtonElement>(
+      '.crm__acts button:not(.crm__prepare)'
+    )!
     await act(async () => {
       btn.click()
       await new Promise(r => setTimeout(r, 0))

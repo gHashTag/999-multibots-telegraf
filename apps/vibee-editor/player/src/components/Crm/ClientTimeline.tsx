@@ -52,12 +52,20 @@ export function ClientSummary({ timeline }: { timeline: Timeline | null }) {
     <dl className="chat-aside__pulse chat-aside__summary">
       <div data-good={s.paid ? 'yes' : undefined}>
         <dt>{t('crm.summary.paid')}</dt>
-        <dd>
-          {s.paid === null
-            ? '—'
-            : s.paid
-              ? t('crm.summary.paid.yes')
-              : t('crm.summary.paid.no')}
+        <dd
+          title={
+            s.lastPaidAt
+              ? t('crm.summary.paid.last', { date: dayOf(s.lastPaidAt, lang) })
+              : undefined
+          }
+        >
+          {s.revenue
+            ? `⭐ ${s.revenue.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-GB')}`
+            : s.paid === null
+              ? '—'
+              : s.paid
+                ? t('crm.summary.paid.yes')
+                : t('crm.summary.paid.no')}
         </dd>
       </div>
       <div>

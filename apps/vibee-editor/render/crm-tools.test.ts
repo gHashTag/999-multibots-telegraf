@@ -493,6 +493,27 @@ describe('история касаний не показывает чужое', (
     expect(r.touches[0].note).toBe('первое')
   })
 
+  it('the card derives the stage from the correspondence too, as the list does', async () => {
+    // Audit 2026-09-27 #7: touches alone made a person who is talking in the
+    // list read as "new" on their own card.
+    stubNet({ '111': 'bot1' })
+    const base = fakePool()
+    const recent = new Date(Date.now() - 3600_000).toISOString()
+    const pool = {
+      ...base,
+      query: async (sql: string, params?: unknown[]) =>
+        /FROM crm_messages/.test(sql)
+          ? { rows: [{ last_in: recent, last_out: null }] }
+          : base.query(sql, params as never),
+    }
+    const r: any = await tool('crm_history').handler({ telegram_id: '111' }, {
+      telegramId: '77',
+      pool,
+    } as any)
+    expect(r.stage).not.toBe('new')
+    expect(r.waiting).toBe('ours')
+  })
+
   it('касания ДРУГОГО владельца по тому же человеку не видны', async () => {
     /*
      * Two owners can share a lead only if they share a bot, but the memory is
