@@ -207,3 +207,21 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 [SendPulse: Telegram CRM](https://sendpulse.com/blog/telegram-crm),
 [CRMChat](https://crmchat.ai/), [Moon AI](https://mooonai.com/en/integrations/telegram),
 [TGcrm](https://tgcrm.xyz/).
+
+## 27.09, виток 3: концовка в цветах бренда (бренд-киты)
+
+- **HeyGen Brand Kit** хранит цвета, шрифты, логотипы и отдельно — ассеты
+  концовки и призыва (CTA/end card); видео собирается уже в них. У нас
+  аналог — `visual` в профиле клиента, и с v7 — `end_card` от продавца,
+  хранимый в задаче.
+- **Canva** проверяет контраст текста к фону и предлагает цвета, если он
+  ниже нормы (4.5:1 для обычного текста). Мы с v7 делаем то же ДО траты:
+  нечитаемая палитра продавца — отказ словами, палитра профиля —
+  предупреждение.
+- Чего у нас нет: сохранить палитру продавца в профиль клиента одной
+  командой (бренд-кит на клиента) — кандидат в план.
+
+Источники: [HeyGen: Brand Kit](https://www.heygen.com/academy/brand-kit/how-to-create-your-brand-kit),
+[HeyGen: бренд-видео](https://community.heygen.com/public/resources/how-to-use-heygen-for-brand-videos),
+[Canva: Design Accessibility](https://www.canva.com/help/using-design-accessibility/),
+[Canva Apps SDK: доступность](https://www.canva.dev/docs/apps/design-guidelines/accessibility/).

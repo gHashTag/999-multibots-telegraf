@@ -12,6 +12,7 @@ import {
 import { z } from 'zod'
 import { loadFont as loadOutfit } from '@remotion/google-fonts/Outfit'
 import { loadFont as loadJost } from '@remotion/google-fonts/Jost'
+import * as REEL from '../spec/crm-story-reel.gen'
 
 /**
  * StoryReel -- a mini-story told by the owner's talking face, scene by scene.
@@ -93,10 +94,12 @@ export const StoryReelSchema = z.object({
    */
   endCard: z
     .object({
-      bg: z.string().default('#000000'),
-      title: z.string().default('#FFD700'),
-      text: z.string().default('#FFFFFF'),
-      accent: z.string().default('#00FF88'),
+      // The defaults are the spec's (v7): the story template checks the
+      // call's and the button's contrast against these same colours.
+      bg: z.string().default(REEL.END_CARD_DEFAULT_BG),
+      title: z.string().default(REEL.END_CARD_DEFAULT_TITLE),
+      text: z.string().default(REEL.END_CARD_DEFAULT_TEXT),
+      accent: z.string().default(REEL.END_CARD_DEFAULT_ACCENT),
       /** The button line under the call: "🎲 Играть в Лилу · @bot". */
       button: z.string().default(''),
     })

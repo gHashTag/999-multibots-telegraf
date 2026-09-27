@@ -1,0 +1,62 @@
+[
+  {
+    "name": "5- and 7-digit hex pass again",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "return n === 3 || n === 4 || n === 6 || n === 8",
+    "to": "return n >= 3 && n <= 8"
+  },
+  {
+    "name": "profile wins over the seller",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (sellerGave) return SPEC.FIELD_FROM_SELLER\n  if (profileHas) return SPEC.FIELD_FROM_PROFILE",
+    "to": "  if (profileHas) return SPEC.FIELD_FROM_PROFILE\n  if (sellerGave) return SPEC.FIELD_FROM_SELLER"
+  },
+  {
+    "name": "contrast rounded up",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "return Math.floor(((hi + 0.05) / (lo + 0.05)) * 10 + 1e-9)",
+    "to": "return Math.ceil(((hi + 0.05) / (lo + 0.05)) * 10)"
+  },
+  {
+    "name": "the button is not held",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "    ...(card.button\n",
+    "to": "    ...(false && card.button\n"
+  },
+  {
+    "name": "a bad colour is dropped in silence",
+    "file": "src/agent/story-template.ts",
+    "from": "  if (badColour) return { started: false, why: badColour }",
+    "to": "  if (false) return { started: false, why: badColour }"
+  },
+  {
+    "name": "an unreadable seller palette is not refused",
+    "file": "src/agent/story-template.ts",
+    "from": "  if (endCardRefused(!!sellerCard, !unreadable))",
+    "to": "  if (endCardRefused(false, !unreadable))"
+  },
+  {
+    "name": "the job forgets the seller card",
+    "file": "src/agent/story-template.ts",
+    "from": "      sellerCard ? JSON.stringify(sellerCard) : null,",
+    "to": "      null,"
+  },
+  {
+    "name": "the run ignores the job's card",
+    "file": "src/agent/story-template.ts",
+    "from": "const endCard = mergeEndCard(endCardOf(parse(job.end_card)), s.endCard)",
+    "to": "const endCard = mergeEndCard(null, s.endCard)"
+  },
+  {
+    "name": "a client press brings a palette",
+    "file": "src/agent/story-template.ts",
+    "from": "  const sellerCard = byClient ? null : endCardOf(who.endCard)",
+    "to": "  const sellerCard = endCardOf(who.endCard)"
+  },
+  {
+    "name": "the tool does not pass the card",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "        ...(args.end_card !== undefined ? { endCard: args.end_card } : {}),",
+    "to": ""
+  }
+]

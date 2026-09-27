@@ -45,6 +45,11 @@ import { voiceMode } from './story-voice-notes'
 import { looksLikeProviderOutage } from './image-health'
 import {
   endCardFromProfile,
+  endCardOf,
+  endCardProblem,
+  endCardRefused,
+  endCardUnreadable,
+  mergeEndCard,
   pauseOf,
   scenesOf,
   stillTasksOf,
@@ -422,7 +427,8 @@ const COLUMNS = `ALTER TABLE story_jobs
   ADD COLUMN IF NOT EXISTS cta        text,
   ADD COLUMN IF NOT EXISTS card_at    timestamptz,
   ADD COLUMN IF NOT EXISTS still_tasks jsonb NOT NULL DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS payer      text`
+  ADD COLUMN IF NOT EXISTS payer      text,
+  ADD COLUMN IF NOT EXISTS end_card   jsonb`
 
 let tableReady: Promise<void> | null = null
 export function ensureStoryJobs(pool: Pool): Promise<void> {
@@ -564,6 +570,8 @@ export async function startStory(
     scenes?: StoryScene[]
     style?: string
     cta?: string
+    /** The seller's palette for the end (spec v7): over her profile's, kept in the job. */
+    endCard?: unknown
     /** Where the finished reel is offered with one press (a group chat id). */
     deliverTo?: string | null
     caption?: string
@@ -609,6 +617,18 @@ export async function startStory(
   const given = who.scenes === undefined ? null : scenesOf(who.scenes)
   if (typeof given === 'string') return { started: false, why: given }
   /*
+   * HER VISUAL AT THE END, FROM THE SELLER (spec v7). A colour that is not
+   * #hex is named back, and a palette whose call or button cannot be read
+   * on its background is refused -- both before anything is spent. Her
+   * profile's own palette is never refused here: she keeps the reel she had.
+   */
+  const badColour = byClient ? '' : endCardProblem(who.endCard)
+  if (badColour) return { started: false, why: badColour }
+  const sellerCard = byClient ? null : endCardOf(who.endCard)
+  const unreadable = endCardUnreadable(mergeEndCard(sellerCard, s.endCard))
+  if (endCardRefused(!!sellerCard, !unreadable))
+    return { started: false, why: `end_card: ${unreadable}` }
+  /*
    * THE DAY'S GENERATIONS, COUNTED FIRST (spec v6). A reel the payer's daily
    * cap cannot cover is refused here, in words, before a still is drawn --
    * not three paid stills and a voice orphaned at the lip-sync.
@@ -645,8 +665,8 @@ export async function startStory(
   const deliverTo = deliveryOf(byClient, text(who.deliverTo, 40))
   const r = await deps.pool.query(
     `INSERT INTO story_jobs (lead_id, seller_id, requester, bot, item_id, topic, about, runner,
-                             scenes, style, cta, deliver_to, caption)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+                             scenes, style, cta, deliver_to, caption, end_card)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
     [
       lead,
       s.owner,
@@ -663,6 +683,8 @@ export async function startStory(
       // A client pressing for herself never sends into a group from here.
       deliverTo,
       deliverTo ? text(who.caption, SPEC.CAPTION_MAX) : null,
+      // Only the seller's own card: her profile is read again at every run.
+      sellerCard ? JSON.stringify(sellerCard) : null,
     ]
   )
   const job = Number(r?.rows?.[0]?.id)
@@ -707,10 +729,22 @@ export async function runStoryJob(deps: StoryDeps, id: number): Promise<void> {
         .catch(() => undefined),
     STORY_BEAT_MS
   )
+  /*
+   * A TRACE IN THE LOGS, NUMBERS ONLY. Nothing in the story job wrote a log
+   * line, so "is a reel generating right now?" -- the question asked before
+   * every deploy, because a deploy cuts a running reel -- had no answer from
+   * the logs. An attempt that started and has not ended is running. The job
+   * id and the attempt only: no topic, no line, no person.
+   */
+  const t0 = Date.now()
+  console.log(`[story] job ${id}: attempt ${attempts} started`)
   try {
     await runHeld(deps, job, attempts)
   } finally {
     stop()
+    console.log(
+      `[story] job ${id}: attempt ${attempts} ended after ${Math.round((Date.now() - t0) / 1000)} s`
+    )
   }
 }
 
@@ -869,6 +903,8 @@ async function runHeld(
     const why = await readNotes()
     if (why) return fail(why)
   }
+  // The seller's palette kept in the job, over her profile's (spec v7).
+  const endCard = mergeEndCard(endCardOf(parse(job.end_card)), s.endCard)
   const call = (stills: unknown[], clips: unknown[]) =>
     deps
       .story(
@@ -880,7 +916,7 @@ async function runHeld(
           ...(mode === SPEC.VOICE_CLONE ? { for_lead: lead } : {}),
           cta: String(job.cta ?? '').trim() || s.cta,
           pause_sec: s.pauseSec,
-          ...(s.endCard ? { end_card: s.endCard } : {}),
+          ...(endCard ? { end_card: endCard } : {}),
           stills,
           clips,
         },
