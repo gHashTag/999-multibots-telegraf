@@ -90,6 +90,7 @@ tri — оболочка Trinity S³AI
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri mutants <list.json> -- <команда>          пакет мутаций против одного прогона: таблица убитых и выживших; у мутанта "tests" — его файлы тестов
   tri mutants --check <list.json>...            только якоря: все мутанты, чей `from` не ровно один раз в файле (после рефакторинга), ничего не запуская
+  tri mutants --heal                            вернуть файл, в котором убитый прогон (перезапуск контейнера) оставил мутанта; сам зовётся в начале каждого прогона и в tri loop
   tri spec-controls <spec.t27> <controls.json>   отрицательные контроли спеки на копии: пойман/пропущен/не собралась (по таблице t27c)
   tri spec-check <spec.t27> [controls.json] [--seal]  ворота спеки одной строкой: тесты по таблице (BLOCKED ≠ зелёно), пустые тесты на копии в своей папке, контроли, печать; запись в tri gate
   tri stale-route '<old>' <new> [dir]          где тексты для модели ещё ведут старым путём (старое имя без нового и без «только если»)
@@ -1987,6 +1988,9 @@ PYEOF
     git -C "$ROOT" log --oneline -3 | sed "s/^/  /"
     N=$(git -C "$ROOT" status --porcelain | wc -l | tr -d " ")
     [ "$N" != "0" ] && echo "  НЕЗАКОММИЧЕНО: $N файл(ов) — следующий виток их не увидит"
+    # A batch killed mid-run (container restart) leaves a mutant in a file:
+    # put it back before anything else reads the tree (turn 14).
+    (cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" --heal) | sed "s/^/  /"
     echo
     echo "── что в работе ──"
     sed -n "/^## СЕЙЧАС В РАБОТЕ/,/^## Что уже есть/p" "$LOOPSTATE" |
