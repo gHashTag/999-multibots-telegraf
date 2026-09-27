@@ -686,6 +686,12 @@ LOOP TOOLING
                           NOT prove health: a detector that stopped detecting
                           prints exactly the same line. Both defects found in
                           anomalies.mjs on 2026-08-29 had looked green.
+  tri refs                Does every `tri X` in shipped source name a real
+                          command? Static, offline. Catches the docstring that
+                          points at a command nobody built -- the defect found
+                          by hand four ticks running (tri pod/journal/tabs/seal).
+  tri refs-check          Can `tri refs` still fail? Drives its scan over a
+                          fixture with a known phantom and asserts it rings.
   tri panel               rebuild the dashboard
   tri tests               the full run
   tri routes              client and server addresses, compared
@@ -5083,6 +5089,11 @@ case "$action" in
   # falls through to the directory argument and answers "нет каталога check".
   # A verb that cannot be mistyped into silence is worth the extra dispatch line.
   scan-check|скан-проверка) node "$TOOLS/anomalies-selftest.mjs" ;;
+  # Does every `tri X` in shipped source name a real command? Static, offline,
+  # sibling to scan/scan-check. refs-check is a top-level verb for the same
+  # reason scan-check is: a verb cannot be mistyped into silence.
+  refs|ссылки)          node "$TOOLS/tri-refs.mjs" ;;
+  refs-check|ссылки-проверка) node "$TOOLS/tri-refs-selftest.mjs" ;;
   # EVERY KIE FUNCTION, WITHOUT SPENDING A CREDIT. A rejected generation costs
   # nothing, so deliberately invalid input separates "the model exists" from
   # "the id is wrong" for free. Two seconds, and the balance is read before and
