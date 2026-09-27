@@ -2,6 +2,7 @@
 // specs/automation/crm-story-reel.t27, vendored with its `t27c gen-ts` output.
 import * as REEL from '../spec/crm-story-reel.gen'
 import { TOKEN_PRICES } from './billing-shared'
+import { REFUSED_QUIET_DAYS } from './crm-segments'
 import { storyPriceEstimateNotes } from './story-template'
 
 /**
@@ -131,7 +132,9 @@ export function salesPlaybook(who: {
     'об этом. Цена — когда спросил, честно, в токенах и звёздах.\n' +
     gift +
     '5. Возражения: «дорого» — считай цену за результат, не за токен; «потом» — назначь дату и ' +
-    'запиши crm_touch later; «не надо» — crm_touch refused и не возвращайся 30 дней.\n' +
+    'запиши crm_touch later; «не надо» — crm_touch refused и не возвращайся ' +
+    REFUSED_QUIET_DAYS +
+    ' дней.\n' +
     '6. Каскад: ждёт ответа — сегодня; молчит после предложения — напоминание через 2 дня, ' +
     // promise-checked: waitingOn stops at maxNudges (default 2); crm-nudge-cap.test.ts
     'потом через 5; больше двух без ответа — стоп, это считает crm_waiting (nudges), не ты.\n' +
