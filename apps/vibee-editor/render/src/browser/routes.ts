@@ -103,6 +103,7 @@ export const BROWSER_PATHS = [
   '/api/browser/desks',
   '/api/browser/scenarios',
   '/api/browser/reach',
+  '/api/browser/tabs',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -352,6 +353,29 @@ export async function handleBrowser(
    * presses found, newest first. Readable by the person and by their agent
    * -- it is a list of words on buttons, nothing private.
    */
+  /*
+   * HOW MANY TABS ARE OPEN, AND HOW CLOSE THAT IS TO THE CEILING.
+   *
+   * The 27-tab wedge was invisible from outside: the pod answered HTTP 200
+   * with a browser that could no longer fork. Read-only -- it lists targets
+   * and prints the plan the sweep WOULD run, closing nothing. Addresses and
+   * page titles are not returned, only counts and the doomed tabs' own urls,
+   * which the sweep already writes into the log.
+   */
+  if (path === '/api/browser/tabs') {
+    if (method !== 'GET') {
+      return { status: 405, body: { ok: false, error: 'GET only' } }
+    }
+    const { listTargets } = await import('./cdp')
+    const { viewEveryPodTabs } = await import('./tab-sweep')
+    const pods = await viewEveryPodTabs(
+      pool,
+      listTargets,
+      process.env.BROWSER_POD_CDP
+    )
+    return { status: 200, body: { ok: true, pods } }
+  }
+
   if (path === '/api/browser/learned') {
     if (method !== 'GET') {
       return { status: 405, body: { ok: false, error: 'GET only' } }

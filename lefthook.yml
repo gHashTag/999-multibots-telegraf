@@ -81,6 +81,18 @@ pre-commit:
       run: bash scripts/cloud-check.sh player-types -- node scripts/check-player-types.cjs
       fail_text: 'Ошибок типов в плеере стало больше. Это находки, а не фон.'
 
+    # 5b. Рендер — это и есть продакшен, и до 27.09.2026 у него не было НИ
+    #    ОДНОЙ проверки типов: корневая исключает `^apps/`, у плеера своя, у
+    #    рендера не было никакой. Поймано на своей же правке: поле
+    #    `PodSweep.telegramId` переименовали в `who`, строка лога осталась со
+    #    старым именем, все гейты зелёные, в логе печаталось бы `undefined`.
+    #    Тот же храповик, что у плеера (общий scripts/lib/tsc-ratchet.cjs);
+    #    порог 0 и держится — чужие файлы программы отфильтрованы.
+    render-types:
+      glob: 'apps/vibee-editor/render/**/*.ts'
+      run: bash scripts/cloud-check.sh render-types -- node scripts/check-render-types.cjs
+      fail_text: 'Ошибки типов в рендере. Это продакшен, а не песочница.'
+
     # 6. No Cyrillic in code comments. The bot is bilingual, so Cyrillic inside
     #    string literals (UI text) stays allowed — the guard strips string
     #    literals first and only rejects Cyrillic left in comments/identifiers.

@@ -49,6 +49,7 @@ tri — оболочка Trinity S³AI
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
   tri agents [--dry] [--no-record] [ids…]  приёмка агентов на владельце; итог уходит на карточки рынка
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
+  tri tabs [--json]  сколько вкладок открыто в поде и близко ли до потолка PID (ничего не закрывает)
   tri verdicts   последний итог приёмки по каждому агенту (тот, что на карточках /agents)
   tri secret NAME  положить секрет в Railway скрытым вводом — значение не проходит через чат
   tri traffic [дни]  откуда приходят люди, по каналам (utm_source), по умолчанию 30 дней
@@ -1972,6 +1973,7 @@ PYEOF
   rotten) shift; bash "$ROOT/bin/helpers/rotten.sh" "$ROOT" "$@" ;;
   books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;
   logins) shift; bash "$ROOT/bin/helpers/logins.sh" "$ROOT" "$@" ;;
+  tabs) shift; bash "$ROOT/bin/helpers/tabs.sh" "$ROOT" "$@" ;;
   verdicts) shift; bash "$ROOT/bin/helpers/verdicts.sh" "$ROOT" "$@" ;;
   secret) shift; bash "$ROOT/bin/helpers/secret.sh" "$ROOT" "$@" ;;
   traffic) shift; bash "$ROOT/bin/helpers/traffic.sh" "$ROOT" "$@" ;;
