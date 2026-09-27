@@ -102,7 +102,7 @@ t27 их нет (27.09: 3) — долг: написать спеку или уб
 - **Zig 0.15.2 не собирает** (`std.process.Init`) — нужен 0.16.0.
 - **`t27c test` только считает тесты**, исполняет их `test-report`.
 - **`scripts/tri now add` уходит в t27c** — собрать `tri` (`cargo build
-  --release` в t27) и звать `./target/release/tri`.
+--release` в t27) и звать `./target/release/tri`.
 - **Prettier не трогает `*.gen.ts`**: это байты компилятора;
   `.prettierignore` в корне. Форматировать корневым prettier 3.6.2 (у рендера
   свой 3.8.1 переформатирует чужой код).
@@ -114,14 +114,15 @@ t27 их нет (27.09: 3) — долг: написать спеку или уб
 
 ## Что уже привязано (27.09.2026)
 
-| спека | хост | что нашла привязка |
-|---|---|---|
-| automation/crm-story-reel v3 | story-template, story-reel-tool, story-card, crm-playbook | двойная оплата кадра «ещё рисуется»; агент CRM не доходил до шаблона (голос — Replicate, не ElevenLabs) |
-| automation/crm-lead-magnet v2 | crm-deliver-tool, client-face, kie-image, billing-shared | «один подарок на человека» не держался; безопасная зона только в комментарии; подпись «по аватарке» на чужом источнике; устаревшие «не запускали», «платит получатель», «6 за секунду» |
+| спека                              | хост                                                                         | что нашла привязка                                                                                                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| automation/crm-story-reel v3       | story-template, story-reel-tool, story-card, crm-playbook                    | двойная оплата кадра «ещё рисуется»; агент CRM не доходил до шаблона (голос — Replicate, не ElevenLabs)                                                                                |
+| automation/crm-lead-magnet v2      | crm-deliver-tool, client-face, kie-image, billing-shared                     | «один подарок на человека» не держался; безопасная зона только в комментарии; подпись «по аватарке» на чужом источнике; устаревшие «не запускали», «платит получатель», «6 за секунду» |
+| automation/crm-client-workspace v2 | conversation.ts, crm-duet-tool, routes (threadFor), плеер (маршруты, панели) | v1 превращал кривой id клиента в личную ветку, а код отказывает (400); панелей 7, не 6; ветка Королевы и агент в чате клиента не были описаны                                          |
 
 ## Очередь привязки (от быстрых побед к крупным)
 
-1. `automation/crm-client-workspace` — 16 цитат в коде без проверки.
+1. ~~`automation/crm-client-workspace`~~ — привязана 27.09.
 2. `automation/crm-sellers`, `automation/crm-client-ownership`,
    `automation/crm-duet` — тот же CRM, соседние файлы.
 3. `automation/agent-provider-chain`, `automation/inngest-probe-suite`,
