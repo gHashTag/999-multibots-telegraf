@@ -56,6 +56,11 @@ interface Job {
   error: string | null
   attempts: number
   updated: number
+  style?: string | null
+  cta?: string | null
+  deliver_to?: string | null
+  caption?: string | null
+  card_at?: number | null
 }
 
 /** A base that answers exactly the statements the engine sends. */
@@ -91,6 +96,9 @@ function fakeBase() {
       status: string
     }>,
     jobs: [] as Job[],
+    // Groups the CRM has read, and the one bound to each client.
+    groups: [] as Array<{ owner_id: string; chat_id: string; title: string }>,
+    bound: [] as Array<{ owner_id: string; lead_id: string; chat_id: string }>,
   }
   const row = (id: unknown) => db.jobs.find(j => j.id === Number(id))
   const query = async (
@@ -207,7 +215,6 @@ function fakeBase() {
         topic: p[5],
         about: p[6],
         runner: p[7],
-        scenes: null,
         stills: '[]',
         clips: '[]',
         status: 'running',
@@ -215,8 +222,64 @@ function fakeBase() {
         error: null,
         attempts: 0,
         updated: clock,
+        scenes: p[8] ?? null,
+        style: p[9] ?? null,
+        cta: p[10] ?? null,
+        deliver_to: p[11] ?? null,
+        caption: p[12] ?? null,
+        card_at: null,
       })
       return { rows: [{ id }] }
+    }
+    if (q.startsWith('UPDATE story_jobs SET card_at = now()')) {
+      const j = row(p[0])
+      if (!j || j.card_at) return { rows: [] }
+      j.card_at = clock
+      return { rows: [{ id: j.id }] }
+    }
+    if (q.startsWith('UPDATE story_jobs SET card_at = NULL')) {
+      const j = row(p[0])
+      if (j) j.card_at = null
+      return { rows: [] }
+    }
+    if (
+      q.startsWith(
+        "SELECT * FROM story_jobs WHERE status = 'done' AND deliver_to"
+      )
+    )
+      return {
+        rows: db.jobs.filter(
+          j => j.status === 'done' && j.deliver_to && !j.card_at && j.url
+        ),
+      }
+    // ── the client's group ──
+    if (q.startsWith('SELECT 1 FROM crm_groups'))
+      return {
+        rows: db.groups.filter(g => g.owner_id === p[0] && g.chat_id === p[1]),
+      }
+    if (q.startsWith('INSERT INTO crm_client_groups')) {
+      db.bound = db.bound.filter(
+        b => !(b.owner_id === p[0] && b.lead_id === p[1])
+      )
+      db.bound.push({ owner_id: p[0], lead_id: p[1], chat_id: p[2] })
+      return { rows: [] }
+    }
+    if (q.startsWith('SELECT b.chat_id, g.title')) {
+      const b = db.bound.find(x => x.owner_id === p[0] && x.lead_id === p[1])
+      if (!b) return { rows: [] }
+      const g = db.groups.find(
+        x => x.owner_id === b.owner_id && x.chat_id === b.chat_id
+      )
+      return {
+        rows: [
+          {
+            chat_id: b.chat_id,
+            title: g?.title ?? null,
+            username: null,
+            members_count: null,
+          },
+        ],
+      }
     }
     if (q.startsWith('SELECT * FROM story_jobs WHERE id = $1')) {
       const j = row(p[0])
@@ -1008,5 +1071,278 @@ describe('my_story_reel, the person herself (the /story page and her bot)', () =
     const out: any = await tool(base).handler({ start: true }, as(base, LENA))
     expect(out.started).toBe(false)
     expect(out.why).toContain('голос')
+  })
+})
+
+/*
+ * INTO THE PIPELINE (owner, 2026-09-27: "build it into the pipeline, not
+ * scripts by hand"). The seller brings the script, the client has a group:
+ * the job makes exactly that script and ends in ONE send card for the group
+ * in the seller's bot -- never a send without the press, never a second card
+ * over one the seller has not answered yet.
+ */
+describe('the seller brings the script, and the reel goes to her group', () => {
+  const GROUP = '-900000061'
+  const SCRIPT = [
+    { setting: 'a dark quiet room', line: 'Я веду игру.' },
+    { setting: 'a dim library', line: 'Здесь нет правильного ответа.' },
+    { setting: 'a tall window at dusk', line: 'Приходите со своим вопросом.' },
+  ]
+  let base: ReturnType<typeof fakeBase>
+  beforeEach(() => {
+    base = fakeBase()
+    qualify(base)
+    base.db.groups.push({ owner_id: SELLER, chat_id: GROUP, title: 'VIP' })
+  })
+
+  const done = async () => ({
+    done: true,
+    url: 'https://bucket.example/reel.mp4',
+    stills: [],
+    clips: [],
+  })
+
+  function withCards(outcome: 'shown' | 'busy' | 'failed' = 'shown') {
+    const offers: any[] = []
+    let written = 0
+    const seen: any[] = []
+    const { deps, said } = depsOn(base, async (args, ctx) => {
+      seen.push({ args, ctx })
+      return done()
+    })
+    deps.write = async () => ((written += 1), JSON.stringify(SCENES))
+    deps.offerCard = async o => (offers.push(o), outcome)
+    deps.groupTitle = async () => 'VIP'
+    deps.pageOf = bot => (bot ? `https://t.me/${bot}?start=app_story` : '')
+    return { deps, said, offers, seen, written: () => written }
+  }
+
+  it('makes the script as given: no writer, her look and call', async () => {
+    const w = withCards()
+    const out = await startStory(w.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT,
+      style: 'Low-key light, gold accents.',
+      cta: 'Приходите на доску.',
+    })
+    expect(out).toMatchObject({ started: true, topic: 'Я веду игру' })
+    await drain()
+    expect(w.written()).toBe(0)
+    expect(w.seen[0].args.scenes).toEqual(SCRIPT)
+    expect(w.seen[0].args).toMatchObject({
+      style: 'Low-key light, gold accents.',
+      cta: 'Приходите на доску.',
+    })
+  })
+
+  it('a broken script is refused before anything is spent', async () => {
+    const w = withCards()
+    const out = await startStory(w.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: [{ setting: 'x', line: '' }] as never,
+    })
+    expect(out.started).toBe(false)
+    expect(w.seen).toHaveLength(0)
+    expect(base.db.jobs).toHaveLength(0)
+  })
+
+  it('ends in ONE send card for her group, in the seller bot, with the caption and her page', async () => {
+    const w = withCards('shown')
+    await startStory(w.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+      deliverTo: GROUP,
+    })
+    await drain()
+    expect(w.offers).toHaveLength(1)
+    expect(w.offers[0]).toMatchObject({
+      owner: SELLER,
+      chat: GROUP,
+      groupTitle: 'VIP',
+      url: 'https://bucket.example/reel.mp4',
+      topic: 'Ваза',
+      // The render already delivered the video to the seller who paid.
+      withVideo: false,
+    })
+    expect(w.offers[0].caption).toContain('Лена')
+    expect(w.offers[0].caption).toContain(
+      'https://t.me/example_bot?start=app_story'
+    )
+    // The card is the message: no second "forward it yourself" note.
+    expect(w.said).toHaveLength(0)
+    expect(base.db.jobs[0].card_at).not.toBeNull()
+  })
+
+  it("the seller's own caption is the one the group reads", async () => {
+    const w = withCards('shown')
+    await startStory(w.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+      deliverTo: GROUP,
+      caption: 'Лена, ваш рилс!',
+    })
+    await drain()
+    expect(w.offers[0].caption).toBe('Лена, ваш рилс!')
+  })
+
+  it('while another card waits, says so, and the sweep offers it when the queue is free', async () => {
+    const w = withCards('busy')
+    await startStory(w.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+      deliverTo: GROUP,
+    })
+    await drain()
+    expect(w.said).toHaveLength(1)
+    expect(w.said[0].text).toMatch('придёт сюда')
+    expect(base.db.jobs[0].card_at).toBeNull()
+
+    w.deps.offerCard = async o => (w.offers.push(o), 'shown')
+    await sweepStoryJobs(w.deps)
+    await drain()
+    expect(w.offers).toHaveLength(2)
+    expect(w.offers[1]).toMatchObject({ chat: GROUP, withVideo: false })
+    expect(base.db.jobs[0].card_at).not.toBeNull()
+
+    // Offered once: the next sweep leaves it alone.
+    await sweepStoryJobs(w.deps)
+    await drain()
+    expect(w.offers).toHaveLength(2)
+  })
+
+  it('a card that cannot be made falls back to the video and the caption, to forward by hand', async () => {
+    const w = withCards('failed')
+    await startStory(w.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+      deliverTo: GROUP,
+      caption: 'Лена, ваш рилс!',
+    })
+    await drain()
+    expect(w.said).toHaveLength(1)
+    expect(w.said[0].text).toMatch('перешли клиенту сам')
+    expect(w.said[0].text).toContain('Лена, ваш рилс!')
+  })
+
+  it('a client pressing for herself never sends into a group', async () => {
+    const w = withCards('shown')
+    const out = await startStory(w.deps, {
+      lead: LENA,
+      requester: LENA,
+      topic: 'Ваза',
+      deliverTo: GROUP,
+    } as never)
+    expect(out.started).toBe(true)
+    await drain()
+    expect(w.offers).toHaveLength(0)
+    expect(base.db.jobs[0].deliver_to).toBeNull()
+  })
+
+  it('crm_story_reel binds the group, names it, and sends the job there', async () => {
+    const w = withCards('shown')
+    const tool = makeCrmStoryTool({
+      deps: () => w.deps,
+      lookup: () => undefined,
+    })
+    const ctx = {
+      telegramId: SELLER,
+      pool: base.pool,
+    } as unknown as ToolContext
+    const look: any = await tool.handler({ lead: LENA, to: GROUP }, ctx)
+    expect(look.group).toEqual({ chat: GROUP, title: 'VIP' })
+    const out: any = await tool.handler(
+      { lead: LENA, start: true, scenes: SCRIPT },
+      ctx
+    )
+    expect(out).toMatchObject({ started: true, to_group: GROUP })
+    expect(out.note).toMatch('в группу VIP')
+    await drain()
+    expect(w.offers.map(o => o.chat)).toEqual([GROUP])
+  })
+
+  it('a group the CRM has not read is refused, and nothing starts', async () => {
+    const w = withCards('shown')
+    const tool = makeCrmStoryTool({
+      deps: () => w.deps,
+      lookup: () => undefined,
+    })
+    const ctx = {
+      telegramId: SELLER,
+      pool: base.pool,
+    } as unknown as ToolContext
+    const out: any = await tool.handler(
+      { lead: LENA, start: true, to: '-900000069', topic: 'Ваза' },
+      ctx
+    )
+    expect(out.started).toBe(false)
+    expect(out.why).toMatch('crm_groups')
+    expect(base.db.jobs).toHaveLength(0)
+  })
+
+  it('to: "none" keeps a bound client out of her group this time', async () => {
+    base.db.bound.push({ owner_id: SELLER, lead_id: LENA, chat_id: GROUP })
+    const w = withCards('shown')
+    const tool = makeCrmStoryTool({
+      deps: () => w.deps,
+      lookup: () => undefined,
+    })
+    const ctx = {
+      telegramId: SELLER,
+      pool: base.pool,
+    } as unknown as ToolContext
+    const out: any = await tool.handler(
+      { lead: LENA, start: true, to: 'none', topic: 'Ваза' },
+      ctx
+    )
+    expect(out.started).toBe(true)
+    expect(out.to_group).toBeUndefined()
+    await drain()
+    expect(w.offers).toHaveLength(0)
+  })
+})
+
+describe('the gift to her DM goes through the same pipeline', () => {
+  it('to: "dm" ends in a gift card for HER chat, not a group', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const offers: any[] = []
+    const { deps } = depsOn(base, async () => ({
+      done: true,
+      url: 'https://bucket.example/reel.mp4',
+      stills: [],
+      clips: [],
+    }))
+    deps.offerCard = async o => (offers.push(o), 'shown')
+    deps.groupTitle = async () => 'must not be asked'
+    const tool = makeCrmStoryTool({ deps: () => deps, lookup: () => undefined })
+    const ctx = {
+      telegramId: SELLER,
+      pool: base.pool,
+    } as unknown as ToolContext
+    const out: any = await tool.handler(
+      { lead: LENA, start: true, to: 'dm', topic: 'Ваза' },
+      ctx
+    )
+    expect(out).toMatchObject({ started: true, to_group: LENA })
+    expect(out.note).toMatch('в личку')
+    await drain()
+    expect(offers).toHaveLength(1)
+    expect(offers[0]).toMatchObject({
+      chat: LENA,
+      dm: true,
+      groupTitle: null,
+    })
   })
 })
