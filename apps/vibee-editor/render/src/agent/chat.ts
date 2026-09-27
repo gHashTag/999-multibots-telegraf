@@ -2158,7 +2158,58 @@ export function toolsField(tools: unknown[]): Record<string, unknown> {
   return tools.length ? { tools, tool_choice: 'auto' } : {}
 }
 
+/** How a turn ended, as its end line says (runAgentTurn's logTurnEnd). */
+export type TurnOutcome = 'ok' | 'error' | 'truncated' | 'aborted'
+
+/** Whether a turn wrote its end line, and how to write one for it. */
+export interface TurnEnd {
+  logged: boolean
+  log?: (outcome: TurnOutcome, details?: string) => void
+}
+
+/**
+ * THE END LINE ON EVERY EXIT (loop turn 7, 27.09.2026).
+ *
+ * The turn's own comment promised one end line on every exit, and the code
+ * wrote one only where the turn itself returned. A caller that stops reading
+ * -- a `break` out of `for await` -- or a throw from inside left a start line
+ * with no end: the owner's catalogue acceptance ran five agents one after
+ * another and the log held five starts and no end, and a seller's business
+ * turns read as hung for seven minutes. `tri busy` counts such a turn as
+ * running, and a redeploy check that cannot trust "running" is no check.
+ *
+ * The inner turn marks `end.logged` when it writes; whatever it did not, the
+ * wrapper writes here: `aborted` when the caller stopped reading, `error`
+ * when the turn threw (and the throw goes on). Pure: tested with doubles.
+ */
+export async function* withTurnEnd<T>(
+  inner: AsyncGenerator<T>,
+  end: TurnEnd
+): AsyncGenerator<T> {
+  let threw = false
+  try {
+    return yield* inner
+  } catch (e) {
+    threw = true
+    if (!end.logged)
+      end.log?.('error', String((e as Error)?.message ?? e).slice(0, 200))
+    throw e
+  } finally {
+    if (!threw && !end.logged)
+      end.log?.('aborted', 'the caller stopped reading before the turn ended')
+  }
+}
+
 export async function* runAgent(
+  history: ChatMessage[],
+  ctx: ToolContext,
+  opts?: Parameters<typeof runAgentTurn>[2]
+): AsyncGenerator<AgentEvent> {
+  const end: TurnEnd = { logged: false }
+  return yield* withTurnEnd(runAgentTurn(history, ctx, opts, end), end)
+}
+
+async function* runAgentTurn(
   history: ChatMessage[],
   ctx: ToolContext,
   /**
@@ -2234,7 +2285,9 @@ export async function* runAgent(
      * agent reads. Absent means absent -- never the platform owner.
      */
     seller?: string
-  }
+  },
+  /** Filled here, read by withTurnEnd: whether the end line was written. */
+  end: TurnEnd = { logged: false }
 ): AsyncGenerator<AgentEvent> {
   /**
    * END-TO-END TURN LOGGING -- ONE START LINE, ONE END LINE.
@@ -2303,10 +2356,8 @@ export async function* runAgent(
   yield { тип: 'ход', id: turnId } // cyrillic-ok: pre-existing event envelope
 
   /** One end-of-turn line on EVERY exit from this generator, success or not. */
-  const logTurnEnd = (
-    outcome: 'ok' | 'error' | 'truncated' | 'aborted',
-    details?: string
-  ) => {
+  const logTurnEnd = (outcome: TurnOutcome, details?: string) => {
+    end.logged = true
     console.log(
       '[agent:turn]',
       JSON.stringify({
@@ -2332,6 +2383,7 @@ export async function* runAgent(
       })
     )
   }
+  end.log = logTurnEnd
 
   // ЛИЧНЫЙ SOUL звонящего: у каждого человека свой голос и свои границы,
   // агент пишет посты от его имени — значит, должен знать его SOUL так же,

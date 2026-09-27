@@ -20,6 +20,11 @@
  * window of the last 15 minutes or more, not a `[story]` filter, which is
  * empty whenever nothing ran).
  *
+ * Feed it the CURRENT deployment's window from its start (get-logs with
+ * its deploymentId): a service-wide window across deployments came back
+ * incomplete in loop turn 7 -- start lines without their end lines, then,
+ * fifteen minutes later, the same window empty.
+ *
  * Two things never write their "ended" and are not open: whatever a redeploy
  * cut (a `sending signal SIGTERM` / `Stopping Container` line after its
  * start) -- listed as CUT -- and an earlier attempt of a job whose next
@@ -82,6 +87,18 @@ if (!lines.length) {
   console.log('no log lines on stdin: that is no evidence, not "idle"')
   process.exit(2)
 }
+// What the window covers: a window cut by the query's own line limit looks
+// exactly like a quiet one (loop turn 7: 120 lines of one boot hid six
+// minutes), so the span is always said.
+const stamps = lines
+  .map(l => l.at)
+  .filter(Boolean)
+  .sort()
+console.log(
+  stamps.length
+    ? `window  ${stamps[0]} .. ${stamps[stamps.length - 1]}, ${lines.length} line(s)`
+    : `window  ${lines.length} line(s), no timestamps`
+)
 for (const [key, at] of cut)
   console.log(
     `CUT   ${key}${at ? `  since ${at}` : ''} (a redeploy stopped it)`

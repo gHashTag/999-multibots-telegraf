@@ -54,6 +54,17 @@
 // plan's items and their template_id -- LeelaPlanReel for one client's twelve items -- and not a
 // word of the route, so an agent reading "D5, template LeelaPlanReel" had every reason to render
 // it. The plan read now carries the route beside the items.
+// v10 (2026-09-27): her palette is kept once, for every next reel. v7 took the seller's end_card
+// for ONE reel; the next reel for the same client ended in the defaults again unless he said it
+// again. crm_story_reel {save_end_card: true} keeps the checked palette for this seller and this
+// client -- the brand kit a video tool keeps per brand -- and every later reel, her own press
+// included, ends in it. Field by field: the seller's word for this reel, then the kept palette,
+// then her profile's visual, then the default. It is checked before it is kept, as before a
+// start: a colour that is not #hex, or a call or button that cannot be read, is refused in words
+// and nothing is kept. An empty card with save takes the kept one off. It is NOT written into
+// her profile's story_reel block: that block is what turns her own presses on (the template
+// finds her seller by it), and keeping a palette must not start charging her for reels she
+// never set up.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -64,7 +75,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 9;
+    pub const VERSION : u8 = 10;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -197,6 +208,7 @@ module automation::crm_story_reel {
     pub const FIELD_FROM_DEFAULT : u8 = 0;
     pub const FIELD_FROM_PROFILE : u8 = 1;
     pub const FIELD_FROM_SELLER : u8 = 2;
+    pub const FIELD_FROM_KEPT : u8 = 3;  // v10: the palette kept for this seller and client
     // WCAG contrast, times ten. 4.5:1 is the rule for ordinary text: a 1080-wide reel on a phone
     // is about 2.7 times smaller, so the 44 px button line reads as 16 px text. The call (66 px,
     // title colour) and the button line (accent) are each held against the background; the
@@ -206,6 +218,18 @@ module automation::crm_story_reel {
     pub const PROFILE_PALETTE_UNREADABLE_REFUSED : bool = false;  // reported in the answer only
     pub const SELLER_BAD_COLOUR_REFUSED : bool = true;  // "black" is named back, not dropped in silence
     pub const PROFILE_BAD_COLOUR_DROPPED : bool = true;  // her profile keeps working; the default fills in
+
+    // ---- Her palette, kept (v10) ---------------------------------------------------------
+    pub const END_CARD_SAVE_ARG : str = "save_end_card";  // crm_story_reel
+    pub const KEPT_PER_SELLER_AND_CLIENT : bool = true;  // one seller's kit is never another's
+    pub const KEPT_CHECKED_BEFORE_KEEPING : bool = true;  // #hex and contrast, as before a start
+    pub const KEPT_EMPTY_CARD_CLEARS : bool = true;
+    pub const KEPT_FOR_HER_OWN_PRESS : bool = true;  // her press ends in the kit her seller kept
+    pub const KEPT_IN_PROFILE_STORY_BLOCK : bool = false;  // that block turns her own paid presses on
+    pub const KEEP_NONE : u8 = 0;
+    pub const KEEP_SAVE : u8 = 1;
+    pub const KEEP_CLEAR : u8 = 2;
+    pub const KEEP_REFUSED : u8 = 3;
 
     // ---- Every reel for a client is a story reel (v8) -----------------------------------
     pub const OLD_PLAN_REEL : str = "LeelaPlanReel";  // silent, subtitled, made from the plan's canon
@@ -368,10 +392,14 @@ module automation::crm_story_reel {
         return stills_made > 0 || clips_made > 0 || stills_drawing > 0;
     }
 
-    // Where one end-card colour comes from: the seller's word, else her profile, else the default.
-    fn end_card_field(seller_gave: bool, profile_has: bool) -> u8 {
+    // Where one end-card colour comes from: the seller's word for this reel, else the palette
+    // kept for her (v10), else her profile, else the default.
+    fn end_card_field(seller_gave: bool, kept_has: bool, profile_has: bool) -> u8 {
         if seller_gave {
             return FIELD_FROM_SELLER;
+        }
+        if kept_has {
+            return FIELD_FROM_KEPT;
         }
         if profile_has {
             return FIELD_FROM_PROFILE;
@@ -399,6 +427,21 @@ module automation::crm_story_reel {
             return SELLER_PALETTE_UNREADABLE_REFUSED;
         }
         return PROFILE_PALETTE_UNREADABLE_REFUSED;
+    }
+
+    // What a call does to the kept palette: nothing unless asked; asked with no card, it clears;
+    // asked with a card, it keeps it only when the card passed the checks a start makes.
+    fn keep_action(save_asked: bool, card_given: bool, card_ok: bool) -> u8 {
+        if !save_asked {
+            return KEEP_NONE;
+        }
+        if !card_given {
+            return KEEP_CLEAR;
+        }
+        if card_ok {
+            return KEEP_SAVE;
+        }
+        return KEEP_REFUSED;
     }
 
     // Which reel is made for a CRM client: the story reel, unless the owner named the old one.
@@ -611,10 +654,10 @@ module automation::crm_story_reel {
     test "her visual at the end: the seller's word, then her profile, then the default, kept in the job" {
         assert(END_CARD_ARG == "end_card");
         assert(END_CARD_KEPT_IN_JOB);
-        assert(end_card_field(true, true) == FIELD_FROM_SELLER);
-        assert(end_card_field(true, false) == FIELD_FROM_SELLER);
-        assert(end_card_field(false, true) == FIELD_FROM_PROFILE);
-        assert(end_card_field(false, false) == FIELD_FROM_DEFAULT);
+        assert(end_card_field(true, true, true) == FIELD_FROM_SELLER);
+        assert(end_card_field(true, false, false) == FIELD_FROM_SELLER);
+        assert(end_card_field(false, false, true) == FIELD_FROM_PROFILE);
+        assert(end_card_field(false, false, false) == FIELD_FROM_DEFAULT);
         assert(END_CARD_BUTTON_MAX == 60);
         assert(END_CARD_DEFAULT_BG == "#000000");
         assert(END_CARD_DEFAULT_TITLE == "#FFD700");
@@ -640,6 +683,22 @@ module automation::crm_story_reel {
         assert(!end_card_refused(false, true));
         assert(SELLER_BAD_COLOUR_REFUSED);
         assert(PROFILE_BAD_COLOUR_DROPPED);
+    }
+
+    test "her palette is kept once for every next reel, checked first, and never turns her presses on" {
+        assert(END_CARD_SAVE_ARG == "save_end_card");
+        assert(end_card_field(false, true, true) == FIELD_FROM_KEPT);  // kept over her profile
+        assert(end_card_field(false, true, false) == FIELD_FROM_KEPT);
+        assert(end_card_field(true, true, false) == FIELD_FROM_SELLER);  // this reel's word over the kit
+        assert(KEPT_PER_SELLER_AND_CLIENT);
+        assert(KEPT_CHECKED_BEFORE_KEEPING);
+        assert(keep_action(false, true, true) == KEEP_NONE);
+        assert(keep_action(true, true, true) == KEEP_SAVE);
+        assert(keep_action(true, true, false) == KEEP_REFUSED);
+        assert(keep_action(true, false, false) == KEEP_CLEAR);
+        assert(KEPT_EMPTY_CARD_CLEARS);
+        assert(KEPT_FOR_HER_OWN_PRESS);
+        assert(!KEPT_IN_PROFILE_STORY_BLOCK);
     }
 
     test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {
