@@ -213,7 +213,8 @@ export interface TabIo {
 async function makeRoom(
   telegramId: string,
   cdp: string,
-  io: TabIo
+  io: TabIo,
+  forUrl?: string
 ): Promise<void> {
   try {
     const { roomForOne } = await import('./tab-sweep')
@@ -223,7 +224,12 @@ async function makeRoom(
       url: t.url ?? '',
       type: t.type ?? 'page',
     }))
-    for (const doomed of roomForOne(pages, chosen ? [chosen] : [])) {
+    for (const doomed of roomForOne(
+      pages,
+      chosen ? [chosen] : [],
+      undefined,
+      forUrl
+    )) {
       await io.close(cdp, doomed.id).catch(() => {})
       forgetFront(telegramId, doomed.id)
     }
@@ -242,7 +248,7 @@ export async function openAndChoose(
   ) => newPage(c, u),
   io: TabIo = { list: listTargets, close: closePage }
 ): Promise<{ id: string; url?: string }> {
-  await makeRoom(telegramId, cdp, io)
+  await makeRoom(telegramId, cdp, io, url)
   const page = await open(cdp, url)
   rememberFront(telegramId, page.id)
   const ours = [...(openedByUs.get(telegramId) ?? []), page.id]
@@ -1033,6 +1039,52 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       return { closed: String(args.id) }
     },
   },
+  {
+    name: 'browser_focus_tab',
+    /*
+     * GOING BACK TO A TAB THAT IS ALREADY OPEN.
+     *
+     * The tool that was missing, and the gap cost a sign-in. Measured
+     * 2026-09-27: half-way through Habr's one-time-code screen I needed the
+     * tab I had been working in, and the only way back was `browser_open` with
+     * its URL -- which makes a SECOND tab of that site. The pod was at the cap,
+     * so room had to come from somewhere, and the tab it came from was the
+     * token-bearing page I was signing in on. Two fixes, and this is the one
+     * that removes the reason to reach for the wrong tool: the pages come with
+     * ids from `browser_status`, so going back should cost an id, not a new tab.
+     */
+    description:
+      'Вернуться к уже открытой вкладке по её id из browser_status. ' + // cyrillic-ok
+      'Ничего не открывает и не закрывает — только делает вкладку текущей. ' + // cyrillic-ok
+      'Это дешевле и безопаснее, чем открывать тот же адрес второй раз.', // cyrillic-ok
+    parameters: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      if (typeof args.id !== 'string' || !args.id.trim())
+        throw new Error('id is required: take it from browser_status pages')
+      const found = await podToLookAt(ctx)
+      if (!found) throw new Error('no browser is running')
+      const id = String(args.id)
+      /*
+       * The id has to be one of this browser's pages. Asked because activating
+       * an unknown id answers cheerfully and focuses nothing, and the next tool
+       * would then act on whatever WAS in front -- somebody else's page.
+       */
+      const pages = await listTargets(found.cdp)
+      const page = pages.find(t => t.id === id)
+      if (!page)
+        throw new Error(
+          'no tab with that id: call browser_status again, it may have closed'
+        )
+      await activatePage(found.cdp, id)
+      rememberFront(ctx.telegramId, id)
+      return { focused: id, url: page.url ?? '' }
+    },
+  },
 ]
 
 /*
@@ -1058,6 +1110,7 @@ const FRAME_LABEL: Record<string, string> = {
   browser_type: 'напечатал', // cyrillic-ok
   browser_evaluate: 'выполнил код', // cyrillic-ok
   browser_close_tab: 'закрыл вкладку', // cyrillic-ok
+  browser_focus_tab: 'вернулся к вкладке', // cyrillic-ok
   browser_screenshot: 'посмотрел', // cyrillic-ok
 }
 

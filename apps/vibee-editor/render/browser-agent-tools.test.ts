@@ -112,6 +112,21 @@ describe('when there is no browser', () => {
     }
   })
 
+  /*
+   * Going back to an open tab used to cost a second tab of the same site,
+   * because browser_open was the only way back. At the cap, that second tab
+   * had to be paid for -- and on 2026-09-27 it was paid for with the
+   * token-bearing page of the sign-in I was in the middle of.
+   */
+  it('has a way back to an open tab that does not open a second one', async () => {
+    const t = BROWSER_TOOLS.find(t => t.name === 'browser_focus_tab')
+    expect(t).toBeTruthy()
+    /* The id is required: activating nothing used to answer cheerfully. */
+    await expect(
+      tool('browser_focus_tab').handler({ id: '  ' }, ctxWith([]) as never)
+    ).rejects.toThrow(/id is required/)
+  })
+
   it('refuses a session that exists but is not live', async () => {
     const row = {
       telegram_id: 'tg-900000001',

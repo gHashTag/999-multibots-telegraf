@@ -158,11 +158,22 @@ export function planTabSweep(
  * and only reaches for a tab when the count says it must. Among the tabs it
  * does have to spend, a duplicate goes before a site open only once, and the
  * newest goes before an older one: the old tab is more likely the person's.
+ *
+ * `forUrl` IS THE ONE THING THAT MUST NOT BE SPENT, and the paragraph above is
+ * why. Measured 2026-09-27, half an hour after shipping this function, by
+ * walking into it: mid-way through a Habr sign-in I opened a second
+ * `account.habr.com` page, the pod was at the cap, and the tab this spent to
+ * make room was the token-bearing page I was signing in on. The rule "a
+ * duplicate goes first" is right on a clock and became wrong the moment the
+ * duplicate was of the very site being opened -- which is the mailbox case
+ * written out above, one step further along. So tabs of the group we are
+ * opening are spent LAST, after every other origin, duplicates included.
  */
 export function roomForOne(
   targets: readonly SweepPage[],
   keepIds: readonly string[] = [],
-  cap: number = TAB_CAP
+  cap: number = TAB_CAP,
+  forUrl?: string
 ): Doomed[] {
   const pages = targets.filter(t => isRealPage({ ...t, type: t.type ?? '' }))
   const mustGo = pages.length - (Math.max(1, cap) - 1)
@@ -182,8 +193,18 @@ export function roomForOne(
   }
   const isDupe = new Set(dupes.map(p => p.id))
 
+  /* The site we are opening goes to the back of every queue. */
+  const target = forUrl ? groupOf(forUrl) : null
+  const mine = (p: SweepPage) => target !== null && groupOf(p.url) === target
+  const spend = [
+    ...dupes.filter(p => !mine(p)).reverse(),
+    ...singles.filter(p => !mine(p)).reverse(),
+    ...dupes.filter(mine).reverse(),
+    ...singles.filter(mine).reverse(),
+  ]
+
   const close: Doomed[] = []
-  for (const p of [...dupes.reverse(), ...singles.reverse()]) {
+  for (const p of spend) {
     if (close.length >= mustGo) break
     if (spare.has(p.id)) continue
     /* Never the last page: a browser with no tabs looks broken to the person. */
