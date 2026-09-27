@@ -7,7 +7,8 @@
  * Measured 2026-09-13 on the render's Postgres: tg_sessions held two rows,
  * the owner's and a second seller's. Both accounts had
  * done the login in the app days earlier; what kept the second one out of the
- * CRM was `requireOwner` alone. Spec: t27 specs/automation/crm-sellers.t27.
+ * CRM was `requireOwner` alone. Spec of record: t27
+ * specs/automation/crm-sellers.t27, bound in src/spec/crm-sellers.test.ts.
  *
  * What this tool never returns: the session string, or any prefix of it. A
  * row is reduced to the id, when it was connected, and (probed) alive/dead.
@@ -16,6 +17,7 @@
  */
 import type { AgentTool, ToolContext } from './tools'
 import { requireOwner, listSellers, client } from './telegram-tools'
+import * as SPEC from '../spec/crm-sellers.gen'
 
 export interface SellerRow {
   telegram_id: string
@@ -61,7 +63,7 @@ export async function probeSeller(
 
 export const CRM_SELLERS_TOOLS: AgentTool[] = [
   {
-    name: 'crm_sellers',
+    name: SPEC.LIST_TOOL,
     description:
       'Кто подключил свой Telegram-аккаунт к CRM (список продавцов): telegram_id и дата ' +
       'подключения. С probe=true — жива ли сессия каждого. Только для владельца платформы. ' +
