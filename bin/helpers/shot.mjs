@@ -143,6 +143,173 @@ const HARNESSES = {
     ],
   },
   /*
+   * THE WHOLE CLIENT CARD (/crm/:id): six panels and the story panel, as the
+   * seller sees them on a phone. The story tool is the host's; the other six
+   * answer with the shapes CrmClient.test.tsx holds against the page's
+   * mappers, filled to real lengths (a long name, a long message) -- layout
+   * breaks on length, not on "Leela". Invented people only.
+   */
+  'crm-client': {
+    tool: 'crm_story_reel',
+    fixture: {
+      profile: {
+        bg: '#1b1b1f',
+        title: '#f5f5f5',
+        text: '#f5f5f5',
+        accent: '#ffd700',
+        button: 'Записаться на примерку',
+      },
+      jobs: JOBS,
+    },
+    fixtures: {
+      crm_client_profile: {
+        telegram_id: '900000011',
+        client: 'Анна Ветрова — флористика и декор интерьеров',
+        has_profile: true,
+        has_soul: true,
+        skills: ['рилсы', 'голос', { name: 'контент-план' }],
+        profile: { client: 'Анна Ветрова' },
+        updated_at: '2026-09-26T10:00:00Z',
+      },
+      crm_client_plan: {
+        telegram_id: '900000011',
+        goals: [
+          {
+            id: 1,
+            title: 'Прогреть подписчиков перед весенней коллекцией',
+            intent: 'три рилса в неделю, каждый — одна ваза в новом интерьере',
+            items: {
+              total: 8,
+              done: 3,
+              by_status: { idea: 3, draft: 2, done: 3 },
+            },
+          },
+          {
+            id: 2,
+            title: 'Запустить запись на мастер-классы',
+            intent: 'сторис с отзывами и ссылкой на запись',
+            items: {
+              total: 4,
+              done: 1,
+              by_status: { idea: 2, draft: 1, done: 1 },
+            },
+          },
+        ],
+        items: [],
+        total: 12,
+        done: 4,
+      },
+      crm_duet_runs: {
+        runs: [
+          {
+            id: 'duet-1',
+            buyer: '900000011',
+            state: 'done',
+            dry_run: false,
+            turns: 4,
+            started_at: '2026-09-26T09:00:00Z',
+            finished_at: '2026-09-26T09:05:00Z',
+            paid_calls: 1,
+            media_sent: 2,
+            profile_used: true,
+            coverage: { reel_render: { calls: 3, ok: 2, fail: 1 } },
+            violations: ['отправил ссылку до того, как она спросила'],
+            voice_flags: ['слишком официально', 'слишком длинно'],
+            lines: 8,
+          },
+        ],
+      },
+      crm_history: {
+        telegram_id: '900000011',
+        total: 3,
+        stage: 'talking',
+        because: 'replied',
+        waiting: 'ours',
+        touches: [
+          {
+            kind: 'written',
+            at: '2026-09-24T08:00:00Z',
+            note: null,
+            bot_name: 'b',
+          },
+          {
+            kind: 'replied',
+            at: '2026-09-25T08:00:00Z',
+            note: 'спросила цену букета на свадьбу и можно ли доставку в субботу',
+            bot_name: 'b',
+          },
+          {
+            kind: 'written',
+            at: '2026-09-26T08:00:00Z',
+            note: 'прислали прайс',
+            bot_name: 'b',
+          },
+        ],
+      },
+      crm_lead_context: {
+        name: 'Анна Ветрова',
+        username: 'anna_vetrova_flowers_demo',
+        waiting_for_reply: 1,
+        dialog: [
+          {
+            at: '2026-09-25T08:00:00Z',
+            who: 'person',
+            text: 'Здравствуйте! Сколько стоит свадебный букет из пионов и можно ли доставку в субботу к десяти утра на другой конец города?',
+          },
+          {
+            at: '2026-09-25T08:05:00Z',
+            who: 'owner',
+            text: 'Добрый день, Анна! Пришлю прайс и варианты.',
+          },
+        ],
+      },
+      crm_lead_media: {
+        items: [
+          {
+            id: 'm1',
+            kind: 'photo',
+            name: 'svadebnyj-buket-piony-variant-2-finalnyj.jpg',
+            at: '2026-09-25T08:10:00Z',
+            who: 'person',
+            url: 'https://example.invalid/m1.jpg',
+          },
+          {
+            id: 'm2',
+            kind: 'voice',
+            name: 'golosovoe.ogg',
+            at: '2026-09-25T08:12:00Z',
+            who: 'person',
+            url: 'https://example.invalid/m2.ogg',
+          },
+        ],
+      },
+    },
+    root: '.crm-client',
+    scope: '.crm-client',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.crm-client__chat').waitFor()
+          await p.locator('[data-testid=story-palette]').waitFor()
+          await p.locator('section:has(select) .crm-client__duet-go').waitFor()
+        },
+      },
+      {
+        // Dry run off, then start: the one step on the page that asks a
+        // second question before real messages go to the client.
+        id: 'duet-confirm',
+        ready: async p => {
+          await p.locator('section:has(select) input[type=checkbox]').uncheck()
+          await p.locator('section:has(select) .crm-client__duet-go').click()
+          await p.locator('.crm-client__duet-confirm').waitFor()
+        },
+      },
+    ],
+  },
+
+  /*
    * HER OWN PAGE (/story): the client presses here with her thumb, from her
    * bot. The answers are my_story_reel's shape and the host's price; "make"
    * is refused by the answer script, so the refusal line is shot too.
@@ -172,6 +339,39 @@ const HARNESSES = {
   },
 }
 
+/*
+ * tri shot all: every harness at the matrix a gate needs -- 390 px in both
+ * languages and the narrowest phone, 320 px. Three turns ran this by hand
+ * in a shell loop; a loop is where one line gets forgotten. Each run records
+ * itself in tri gate as usual. Exit: 1 if any is red, else 2 if any could
+ * not measure, else 0.
+ */
+if (name === 'all') {
+  const MATRIX = [
+    ['390', 'ru'],
+    ['390', 'en'],
+    ['320', 'ru'],
+  ]
+  let worst = 0
+  for (const each of Object.keys(HARNESSES))
+    for (const [w, l] of MATRIX) {
+      const r = spawnSync(
+        'node',
+        [process.argv[1], each, '--width', w, '--lang', l],
+        { encoding: 'utf8' }
+      )
+      const verdict = (r.stdout || '')
+        .split('\n')
+        .filter(x => /^== shot|^\s+(small|cut|overlap|order|error) /.test(x))
+      for (const x of verdict) console.log(x)
+      if (!verdict.length)
+        console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
+      const c = r.status ?? 2
+      worst = c === 1 || worst === 1 ? 1 : Math.max(worst, c)
+    }
+  process.exit(worst)
+}
+
 const h = HARNESSES[name]
 if (
   !h ||
@@ -180,7 +380,7 @@ if (
   !['ru', 'en'].includes(lang)
 ) {
   console.log(
-    `usage: tri shot [${Object.keys(HARNESSES).join('|')}] [--width 390] [--lang ru|en] [--out DIR]`
+    `usage: tri shot [${Object.keys(HARNESSES).join('|')}|all] [--width 390] [--lang ru|en] [--out DIR]`
   )
   process.exit(2)
 }
@@ -244,8 +444,14 @@ function measure({ root, scope, within: area, before = [] }) {
   const controls = [
     ...within.querySelectorAll('button, input, select, textarea, a[href]'),
   ].filter(shown)
+  // A checkbox or radio is pressed through its label: the label is the
+  // target a thumb meets (turn 14: a 13 px box inside a 44 px label is fine).
+  const hit = el =>
+    (el.matches('input[type=checkbox], input[type=radio]') &&
+      el.closest('label')) ||
+    el
   const small = controls
-    .map(el => ({ el, r: el.getBoundingClientRect() }))
+    .map(el => ({ el, r: hit(el).getBoundingClientRect() }))
     .filter(({ r }) => r.height < target - 0.5 || r.width < target - 0.5)
     .map(
       ({ el, r }) =>
@@ -346,6 +552,17 @@ try {
     const body = JSON.parse(route.request().postData() || '{}')
     const tool = body?.params?.name
     const args = body?.params?.arguments ?? {}
+    // A harness may fix other tools' answers by name (their shapes come
+    // from the page's own tests); the harness tool is always the host's.
+    const fixed = h.fixtures?.[tool]
+    if (fixed)
+      return route.fulfill({
+        json: {
+          jsonrpc: '2.0',
+          id: body.id,
+          result: { content: [{ type: 'text', text: JSON.stringify(fixed) }] },
+        },
+      })
     if (tool !== h.tool)
       return route.fulfill({
         json: {

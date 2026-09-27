@@ -1,0 +1,32 @@
+[
+  {
+    "name": "media link loses its finger-sized class",
+    "file": "src/pages/CrmClient.tsx",
+    "from": "className=\"crm-client__file\"",
+    "to": "className=\"\""
+  },
+  {
+    "name": "the name cut to one line again on a phone",
+    "file": "src/pages/CrmClient.css",
+    "from": "    white-space: normal;\n    overflow-wrap: anywhere;",
+    "to": "    white-space: nowrap;\n    overflow-wrap: anywhere;"
+  },
+  {
+    "name": "a long @username runs off instead of breaking",
+    "file": "src/pages/CrmClient.css",
+    "from": "    white-space: normal;\n    overflow-wrap: anywhere;",
+    "to": "    white-space: normal;\n    overflow-wrap: normal;"
+  },
+  {
+    "name": "send-for-real back at 40 px on a finger",
+    "file": "src/pages/Crm.css",
+    "from": "  .crm__acts button {\n    min-height: var(--touch-target, 44px);",
+    "to": "  .crm__acts button {\n    min-height: 40px;"
+  },
+  {
+    "name": "media links dropped from the finger rule",
+    "file": "src/pages/CrmClient.css",
+    "from": "  .crm-client__watch,\n  .crm-client__file {",
+    "to": "  .crm-client__watch {"
+  }
+]

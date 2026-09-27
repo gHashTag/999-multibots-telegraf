@@ -275,10 +275,14 @@ describe('every panel is about THIS client', () => {
     expect(text).toContain('crm.act.replied')
     expect(text).toContain('asked price')
 
-    // Media: kind, name, date.
+    // Media: kind, name, date -- and a link a thumb can hit (tri shot
+    // crm-client, turn 14: it was 20 px tall on a phone).
     expect(text).toContain('photo')
     expect(text).toContain('MediaOnlyName.jpg')
     expect(text).toContain('09.09')
+    expect(
+      host.querySelector('a[href="https://files.example/m1.jpg"]')?.className
+    ).toBe('crm-client__file')
 
     // Last messages, with who said what.
     expect(text).toContain('LeadSaidThis')
