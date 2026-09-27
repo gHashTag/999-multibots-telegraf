@@ -1159,8 +1159,20 @@ export const BOOT_SCRIPT = `
   var poster = el.querySelector('img.poster');
   var frames = null;
   var lastFrame = null;
-  var here = location.pathname.match(/^\\/live\\/([^/]+)/);
-  var canFrame = !!(here && poster && window.WebSocket && window.URL && URL.createObjectURL);
+  /*
+   * ASKING WHETHER FRAMES ARE POSSIBLE MUST NOT BE ABLE TO KILL THE LOADER.
+   * These reads used to sit inside the try in open(), and moving them out made
+   * a page without location (or without WebSocket, or URL) throw on the way
+   * past -- taking the language of the loader with it, which is the only part
+   * of this script that runs everywhere. A page that cannot frame simply
+   * cannot: that is an answer, not an error.
+   */
+  var here = null;
+  var canFrame = false;
+  try {
+    here = location.pathname.match(/^\\/live\\/([^/]+)/);
+    canFrame = !!(here && poster && window.WebSocket && window.URL && URL.createObjectURL);
+  } catch (e) { canFrame = false; }
   function open() {
     if (gone || !canFrame) return;
     try {
