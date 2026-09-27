@@ -1,0 +1,74 @@
+[
+  {
+    "name": "keep without a check",
+    "file": "src/lib/storyPalette.ts",
+    "from": "  return checked && !editedSinceCheck && verdictClean",
+    "to": "  return !editedSinceCheck && verdictClean"
+  },
+  {
+    "name": "keep after an edit",
+    "file": "src/lib/storyPalette.ts",
+    "from": "  return checked && !editedSinceCheck && verdictClean",
+    "to": "  return checked && verdictClean"
+  },
+  {
+    "name": "keep over the server's words",
+    "file": "src/lib/storyPalette.ts",
+    "from": "  return checked && !editedSinceCheck && verdictClean",
+    "to": "  return checked && !editedSinceCheck"
+  },
+  {
+    "name": "profile over the kept palette",
+    "file": "src/lib/storyPalette.ts",
+    "from": "  if (kept?.[field]) return 'kept'\n  if (card?.[field]) return 'profile'",
+    "to": "  if (card?.[field]) return 'profile'\n  if (kept?.[field]) return 'kept'"
+  },
+  {
+    "name": "a check starts a reel",
+    "file": "src/lib/crm.ts",
+    "from": "      lead,\n      end_card: card,\n    }),\n    toStoryReady",
+    "to": "      lead,\n      end_card: card,\n      start: true,\n    }),\n    toStoryReady"
+  },
+  {
+    "name": "keep without the save flag",
+    "file": "src/lib/crm.ts",
+    "from": "      end_card: card ?? {},\n      save_end_card: true,",
+    "to": "      end_card: card ?? {},"
+  },
+  {
+    "name": "clear sends no card",
+    "file": "src/lib/crm.ts",
+    "from": "      end_card: card ?? {},",
+    "to": "      end_card: card,"
+  },
+  {
+    "name": "the answer's card is dropped",
+    "file": "src/lib/crm.ts",
+    "from": "    endCard: toEndCard(r['end_card']),",
+    "to": "    endCard: null,"
+  },
+  {
+    "name": "the kept card is dropped",
+    "file": "src/lib/crm.ts",
+    "from": "    endCardKept: toEndCard(r['end_card_kept']),",
+    "to": "    endCardKept: null,"
+  },
+  {
+    "name": "keep ignores the rule",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "disabled={busy || !offered}",
+    "to": "disabled={busy}"
+  },
+  {
+    "name": "a stale verdict after an edit",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "{checked && !edited ? (",
+    "to": "{checked ? ("
+  },
+  {
+    "name": "the panel is not drawn",
+    "file": "src/components/Crm/StoryReelPanel.tsx",
+    "from": "          <StoryPalette\n",
+    "to": "          <StoryPaletteX\n"
+  }
+]

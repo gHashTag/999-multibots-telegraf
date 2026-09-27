@@ -300,3 +300,81 @@
 .crm-client__duet-result--no {
   color: var(--vibee-gold, #ffd700);
 }
+
+/* Her palette on the card (crm-story-reel v11): the end card, field by field. */
+.crm-client__story-palette {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+.crm-client__swatches {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crm-client__swatches li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.crm-client__swatches small {
+  opacity: 0.6;
+}
+.crm-client__swatches li[data-from='kept'] small {
+  opacity: 1;
+  font-weight: 600;
+}
+.crm-client__swatch {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(127, 127, 127, 0.5);
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0 3px,
+    rgba(127, 127, 127, 0.35) 3px 6px
+  );
+}
+.crm-client__palette-edit {
+  display: grid;
+  gap: 6px;
+}
+/* Its own buttons: the duet's class is how the page finds the duet's
+   start, and a palette button borrowing it stood in its place (turn 8). */
+.crm-client__palette-go {
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.crm-client__palette-go:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.crm-client__palette-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.crm-client__palette-edit label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.crm-client__palette-edit input[type='color'] {
+  width: 36px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+}

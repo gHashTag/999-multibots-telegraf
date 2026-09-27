@@ -133,7 +133,8 @@ describe('the story-reel panel', () => {
     }))
     await draw()
     expect(host.textContent).toContain('для рилса не хватает: голос')
-    expect(host.querySelector('button')).toBeNull()
+    // No START button: the palette can still be looked at and kept.
+    expect(host.querySelector('.crm-client__duet-start')).toBeNull()
   })
 
   it('starts a reel for THIS client on the typed topic, and says so', async () => {
@@ -141,7 +142,9 @@ describe('the story-reel panel', () => {
       a.start ? { started: true, topic: String(a.topic ?? '') } : READY
     )
     await draw()
-    const input = host.querySelector('input')!
+    const input = host.querySelector(
+      '.crm-client__duet-start input'
+    ) as HTMLInputElement
     await act(async () => {
       const set = Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,
@@ -151,7 +154,11 @@ describe('the story-reel panel', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
     await act(async () => {
-      host.querySelector('button')!.click()
+      ;(
+        host.querySelector(
+          '.crm-client__duet-start button'
+        ) as HTMLButtonElement
+      ).click()
       await new Promise(r => setTimeout(r, 0))
     })
     expect(calls).toContainEqual({
@@ -168,5 +175,159 @@ describe('the story-reel panel', () => {
     )
     await draw()
     expect(host.textContent).toBe('')
+  })
+})
+
+/*
+ * HER PALETTE ON THE CARD (crm-story-reel.t27 v11): what the next reel ends
+ * on, where each field comes from, a free check whose verdict is the
+ * server's, and "keep" only for the card the last check passed.
+ */
+describe('her palette on the story panel', () => {
+  const KEPT = { bg: '#10182a', title: '#f5f5f5' }
+  const WITH_CARD = {
+    ...READY,
+    end_card: { ...KEPT, text: '#ffffff', button: 'Написать мне' },
+    end_card_kept: KEPT,
+  }
+  const set = async (el: HTMLInputElement, value: string) =>
+    act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value'
+      )!.set!.call(el, value)
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  const press = async (action: string) =>
+    act(async () => {
+      ;(
+        host.querySelector(`[data-action="${action}"]`) as HTMLButtonElement
+      ).click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+  const openEditor = async () =>
+    act(async () => {
+      ;[...host.querySelectorAll('button')]
+        .find(b => b.textContent === 'crm.client.story.edit')!
+        .click()
+    })
+
+  it('shows the card field by field, where each field comes from, and that it is kept', async () => {
+    serve(() => WITH_CARD)
+    await draw()
+    const from = (f: string) =>
+      host
+        .querySelector(`.crm-client__swatches [data-field="${f}"]`)
+        ?.getAttribute('data-from')
+    expect(from('bg')).toBe('kept')
+    expect(from('title')).toBe('kept')
+    expect(from('text')).toBe('profile')
+    expect(from('accent')).toBe('default')
+    expect(host.textContent).toContain('Написать мне')
+    expect(
+      host.querySelector('[data-testid="story-palette-kept"]')
+    ).not.toBeNull()
+  })
+
+  it('without a card says the reel ends on its last frame', async () => {
+    serve(() => READY)
+    await draw()
+    expect(host.textContent).toContain('crm.client.story.palette.none')
+    expect(host.querySelector('[data-testid="story-palette-kept"]')).toBeNull()
+  })
+
+  it('a check is a read: the card goes without start, and the verdict is the server words', async () => {
+    serve(a =>
+      a.end_card && !a.save_end_card
+        ? { ...WITH_CARD, end_card_why: 'призыв цветом #eeeeee читается плохо' }
+        : WITH_CARD
+    )
+    await draw()
+    await openEditor()
+    await set(
+      host.querySelector('input[data-field="title"]') as HTMLInputElement,
+      '#eeeeee'
+    )
+    await press('check')
+    const check = calls.find(c => c.end_card && !c.save_end_card)!
+    expect(check).toEqual({
+      lead: CLIENT,
+      end_card: {
+        bg: '#10182a',
+        title: '#eeeeee',
+        text: '#ffffff',
+        button: 'Написать мне',
+      },
+    })
+    expect(check).not.toHaveProperty('start')
+    expect(
+      host.querySelector('[data-testid="story-palette-verdict"]')?.textContent
+    ).toBe('призыв цветом #eeeeee читается плохо')
+    // panel_keep_offered(checked, edited, clean=false) == false
+    expect(
+      (host.querySelector('[data-action="keep"]') as HTMLButtonElement).disabled
+    ).toBe(true)
+  })
+
+  it('keep is offered only for the card the last check passed; an edit takes it back', async () => {
+    serve(a =>
+      a.save_end_card
+        ? {
+            ...WITH_CARD,
+            end_card_kept: a.end_card,
+            end_card_saved: 'палитра сохранена клиенту',
+          }
+        : WITH_CARD
+    )
+    await draw()
+    await openEditor()
+    const keep = () =>
+      host.querySelector('[data-action="keep"]') as HTMLButtonElement
+    expect(keep().disabled).toBe(true) // never checked
+    await press('check')
+    expect(keep().disabled).toBe(false) // checked, clean, unedited
+    expect(
+      host.querySelector('[data-testid="story-palette-verdict"]')?.textContent
+    ).toBe('crm.client.story.readable')
+    await set(
+      host.querySelector('input[data-field="bg"]') as HTMLInputElement,
+      '#1a2b3c'
+    )
+    expect(keep().disabled).toBe(true) // edited after the check
+    // The old verdict is about another card: it is not shown for this one.
+    expect(
+      host.querySelector('[data-testid="story-palette-verdict"]')
+    ).toBeNull()
+    await press('check')
+    await press('keep')
+    const saved = calls.find(c => c.save_end_card)!
+    expect(saved).toEqual({
+      lead: CLIENT,
+      end_card: {
+        bg: '#1a2b3c',
+        title: '#f5f5f5',
+        text: '#ffffff',
+        button: 'Написать мне',
+      },
+      save_end_card: true,
+    })
+    expect(calls.some(c => c.start)).toBe(false)
+  })
+
+  it('takes the kept palette off with an empty card, and starts nothing', async () => {
+    serve(a =>
+      a.save_end_card
+        ? { ...READY, end_card_saved: 'палитра клиента снята' }
+        : WITH_CARD
+    )
+    await draw()
+    await openEditor()
+    await press('clear')
+    expect(calls.find(c => c.save_end_card)).toEqual({
+      lead: CLIENT,
+      end_card: {},
+      save_end_card: true,
+    })
+    expect(calls.some(c => c.start)).toBe(false)
   })
 })

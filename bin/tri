@@ -58,6 +58,7 @@ tri — оболочка Trinity S³AI
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
   tri pod        отвечает ли удалённый браузер И С КАКИХ ПОР (код 1 — не отвечает)
   tri tabs [--json]  сколько вкладок открыто в поде и близко ли до потолка PID (ничего не закрывает)
+  tri heal [--json]  перезапустить браузер, НО только если он действительно молчит (отказ — нормальный ответ)
   tri verdicts   последний итог приёмки по каждому агенту (тот, что на карточках /agents)
   tri secret NAME  положить секрет в Railway скрытым вводом — значение не проходит через чат
   tri traffic [дни]  откуда приходят люди, по каналам (utm_source), по умолчанию 30 дней
@@ -92,6 +93,8 @@ tri — оболочка Trinity S³AI
   tri stale-route '<old>' <new> [dir]          где тексты для модели ещё ведут старым путём (старое имя без нового и без «только если»)
   tri full-run [render|player|both]             полный прогон с путём, где он шёл (RUN), итогами и падениями; красно, если путь не тот
   tri busy < логи                               идёт ли в рендере задача рилса или ход агента (пары started/ended); код 1 — сливать рано
+  tri gate                                      таблица локальных ворот для PR из того, что реально прогнано на ЭТОМ дереве; иное — stale
+  tri image-gate                                ворота образа плеера как при деплое (tsc + scripts/test-gate.mjs); запись в tri gate
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
   tri self       сама оболочка: достижима ли каждая команда и на месте ли хелпер
@@ -2003,6 +2006,8 @@ PYEOF
   stale-route) shift; node "$ROOT/bin/helpers/stale-route.mjs" "$@" ;;
   full-run) shift; node "$ROOT/bin/helpers/full-run.mjs" "$@" ;;
   busy) shift; node "$ROOT/bin/helpers/busy.mjs" "$@" ;;
+  gate) shift; node "$ROOT/bin/helpers/gate.mjs" show "$@" ;;
+  image-gate) shift; node "$ROOT/bin/helpers/image-gate.mjs" "$@" ;;
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
@@ -2014,6 +2019,7 @@ PYEOF
   logins) shift; bash "$ROOT/bin/helpers/logins.sh" "$ROOT" "$@" ;;
   pod) shift; bash "$ROOT/bin/helpers/pod.sh" "$ROOT" "$@" ;;
   tabs) shift; bash "$ROOT/bin/helpers/tabs.sh" "$ROOT" "$@" ;;
+  heal) shift; bash "$ROOT/bin/helpers/heal.sh" "$ROOT" "$@" ;;
   verdicts) shift; bash "$ROOT/bin/helpers/verdicts.sh" "$ROOT" "$@" ;;
   secret) shift; bash "$ROOT/bin/helpers/secret.sh" "$ROOT" "$@" ;;
   traffic) shift; bash "$ROOT/bin/helpers/traffic.sh" "$ROOT" "$@" ;;

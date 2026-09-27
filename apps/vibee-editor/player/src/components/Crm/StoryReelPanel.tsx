@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
 import { coveredByNotice } from '@/components/Crm/refusalRules'
+import { StoryPalette } from '@/components/Crm/StoryPalette'
 import {
   loadStoryReel,
   startStoryReel,
@@ -101,6 +102,11 @@ export function StoryReelPanel({
             ) : null}
           </dl>
           {s.why ? <p className="crm__why">{s.why}</p> : null}
+          <StoryPalette
+            clientId={clientId}
+            ready={s}
+            onChanged={() => void reload()}
+          />
           {s.ready ? (
             <div className="crm-client__duet-start">
               <input

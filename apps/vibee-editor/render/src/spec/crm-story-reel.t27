@@ -65,6 +65,13 @@
 // her profile's story_reel block: that block is what turns her own presses on (the template
 // finds her seller by it), and keeping a palette must not start charging her for reels she
 // never set up.
+// v11 (2026-09-27): the seller sees and keeps it on the client's card, not only in words to the
+// agent. The card's story panel read the tool's answer and dropped the palette in it: the
+// seller could not see what the next reel ends on. The panel now shows the card field by
+// field and where each field comes from (kept, her profile, the default); a check is the
+// tool's read without start (free) and the verdict is the server's words -- the panel computes
+// no contrast of its own; "keep" is a press, and it is offered only for the very card the last
+// check passed, so an edit after the check has to be checked again. The panel sends nothing.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -75,7 +82,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 10;
+    pub const VERSION : u8 = 11;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -230,6 +237,12 @@ module automation::crm_story_reel {
     pub const KEEP_SAVE : u8 = 1;
     pub const KEEP_CLEAR : u8 = 2;
     pub const KEEP_REFUSED : u8 = 3;
+
+    // ---- Her palette on the client's card (v11) -------------------------------------------
+    pub const PANEL_SHOWS_END_CARD : bool = true;  // field by field, with where it comes from
+    pub const PANEL_CHECK_IS_READ : bool = true;  // crm_story_reel without start: nothing spent
+    pub const PANEL_VERDICT_FROM_SERVER : bool = true;  // no contrast computed in the player
+    pub const PANEL_KEEP_IS_PRESS : bool = true;
 
     // ---- Every reel for a client is a story reel (v8) -----------------------------------
     pub const OLD_PLAN_REEL : str = "LeelaPlanReel";  // silent, subtitled, made from the plan's canon
@@ -442,6 +455,11 @@ module automation::crm_story_reel {
             return KEEP_SAVE;
         }
         return KEEP_REFUSED;
+    }
+
+    // Whether the panel offers "keep": only for the card the last check passed, unedited since.
+    fn panel_keep_offered(checked: bool, edited_since_check: bool, verdict_clean: bool) -> bool {
+        return checked && !edited_since_check && verdict_clean;
     }
 
     // Which reel is made for a CRM client: the story reel, unless the owner named the old one.
@@ -699,6 +717,17 @@ module automation::crm_story_reel {
         assert(KEPT_EMPTY_CARD_CLEARS);
         assert(KEPT_FOR_HER_OWN_PRESS);
         assert(!KEPT_IN_PROFILE_STORY_BLOCK);
+    }
+
+    test "the card shows her palette and keeps it by a press, for the card the last check passed" {
+        assert(PANEL_SHOWS_END_CARD);
+        assert(PANEL_CHECK_IS_READ);
+        assert(PANEL_VERDICT_FROM_SERVER);
+        assert(PANEL_KEEP_IS_PRESS);
+        assert(panel_keep_offered(true, false, true));
+        assert(!panel_keep_offered(false, false, true));  // never checked
+        assert(!panel_keep_offered(true, true, true));  // edited after the check
+        assert(!panel_keep_offered(true, false, false));  // the server named a problem
     }
 
     test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {

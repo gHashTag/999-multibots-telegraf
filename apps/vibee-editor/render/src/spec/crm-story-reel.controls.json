@@ -68,5 +68,25 @@
     "name": "kept in her story block",
     "from": "pub const KEPT_IN_PROFILE_STORY_BLOCK : bool = false;",
     "to": "pub const KEPT_IN_PROFILE_STORY_BLOCK : bool = true;"
+  },
+  {
+    "name": "keep without a check",
+    "from": "return checked && !edited_since_check && verdict_clean;",
+    "to": "return !edited_since_check && verdict_clean;"
+  },
+  {
+    "name": "keep after an edit",
+    "from": "return checked && !edited_since_check && verdict_clean;",
+    "to": "return checked && verdict_clean;"
+  },
+  {
+    "name": "keep over the server's words",
+    "from": "return checked && !edited_since_check && verdict_clean;",
+    "to": "return checked && !edited_since_check;"
+  },
+  {
+    "name": "the player computes contrast",
+    "from": "pub const PANEL_VERDICT_FROM_SERVER : bool = true;",
+    "to": "pub const PANEL_VERDICT_FROM_SERVER : bool = false;"
   }
 ]

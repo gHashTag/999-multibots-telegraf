@@ -18,6 +18,7 @@
  * is used by the Hive page for the same reason.
  */
 import { API_BASE } from '../config'
+import { END_CARD_COLOURS, type StoryEndCard } from './storyPalette'
 import type { MoveExperience, MoveStat } from './clientStrategy'
 import type { MapEdgeData, MapNodeData } from './crmMap'
 import { authHeaders } from '@/lib/apiFetch'
@@ -610,12 +611,33 @@ export interface StoryReady {
   priceTokens: number | null
   /** Her seller pays for her reels (a VIP profile). */
   gift: boolean
+  /**
+   * The card the next reel ends on (crm-story-reel v11), as the server
+   * merged it; null -- no end card, the reel ends on its last frame.
+   */
+  endCard: StoryEndCard | null
+  /** The palette kept for her by this seller (v10), or null. */
+  endCardKept: StoryEndCard | null
+  /** What does not read on that card, in the server's words; null when all does. */
+  endCardWhy: string | null
 }
 
 export interface StoryStart {
   started: boolean
   topic: string | null
   why: string | null
+}
+
+/** An end card from the server's answer: its string fields, nothing else. */
+export function toEndCard(v: unknown): StoryEndCard | null {
+  if (!v || typeof v !== 'object') return null
+  const raw = v as Record<string, unknown>
+  const out: StoryEndCard = {}
+  for (const k of [...END_CARD_COLOURS, 'button'] as const) {
+    const x = str(raw[k])
+    if (x) out[k] = x
+  }
+  return Object.keys(out).length ? out : null
 }
 
 export function toStoryReady(r: Record<string, unknown>): StoryReady {
@@ -630,6 +652,9 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
     nextTopic: str(r['next_topic']),
     priceTokens: num(r['price_tokens']),
     gift: bool(r['gift']) ?? false,
+    endCard: toEndCard(r['end_card']),
+    endCardKept: toEndCard(r['end_card_kept']),
+    endCardWhy: str(r['end_card_why']),
     jobs: jobs
       .filter((j): j is Record<string, unknown> => !!j && typeof j === 'object')
       .map(j => ({
@@ -670,6 +695,53 @@ export const startMyStory = async (topic: string) =>
       topic: str(r['topic']),
       why: str(r['why']),
     })
+  )
+
+/**
+ * A CHECK OF A PALETTE IS A READ (crm-story-reel v11, PANEL_CHECK_IS_READ):
+ * the tool without `start` answers what the reel would end on with this card
+ * and what does not read on it. Nothing is spent, nothing is kept.
+ */
+export const checkStoryPalette = async (lead: string, card: StoryEndCard) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_story_reel', {
+      lead,
+      end_card: card,
+    }),
+    toStoryReady
+  )
+
+export interface StoryPaletteSaved {
+  /** The server kept (or took off) the palette. */
+  saved: boolean
+  kept: StoryEndCard | null
+  /** The server's note on what it did, or why it did nothing. */
+  note: string | null
+}
+
+/**
+ * Keep this card for her, or -- with null -- take the kept one off (v10,
+ * save_end_card). The server checks the card again before keeping it; a
+ * refusal comes back in its words and nothing is kept. Never `start`.
+ */
+export const keepStoryPalette = async (
+  lead: string,
+  card: StoryEndCard | null
+) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_story_reel', {
+      lead,
+      end_card: card ?? {},
+      save_end_card: true,
+    }),
+    (r): StoryPaletteSaved => {
+      const note = str(r['end_card_saved'])
+      return {
+        saved: r['kept'] !== false && note !== null,
+        kept: toEndCard(r['end_card_kept']),
+        note: note ?? str(r['why']),
+      }
+    }
   )
 
 export const startStoryReel = async (lead: string, topic: string) =>
