@@ -168,7 +168,7 @@ async function clientsLane(
   const owner = String(ctx.telegramId)
   const [people, paid, history] = await Promise.all([
     audienceOf(scope),
-    whoPaid(scope),
+    whoPaid(scope, ctx.pool as never),
     // Touches live in OUR postgres and are keyed by the owner who recorded
     // them, so they need no bot filter -- and never throw: a CRM that has not
     // been touched yet is an empty history, not a broken board.
