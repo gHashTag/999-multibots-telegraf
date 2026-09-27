@@ -14,7 +14,7 @@
  *     again -- one runner per job, even with two processes alive;
  *   - a failed reel gives its plan card back.
  */
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   missingFor,
   nextLink,
@@ -2173,5 +2173,36 @@ describe("the seller's palette at the end (spec v7)", () => {
     )
     expect(started.started).toBe(false)
     expect(base.db.jobs).toHaveLength(0)
+  })
+})
+
+describe('a running reel leaves a trace in the logs', () => {
+  it('each attempt says when it starts and when it ends, with numbers only', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const lines: string[] = []
+    const spy = vi
+      .spyOn(console, 'log')
+      .mockImplementation((...a: unknown[]) => void lines.push(a.join(' ')))
+    try {
+      const { deps } = depsOn(base, async () => ({
+        done: true,
+        url: 'https://bucket.example/reel.mp4',
+      }))
+      await startStory(deps, {
+        lead: LENA,
+        requester: SELLER,
+        seller: SELLER,
+        topic: 'Секретная тема',
+      })
+      await drain()
+    } finally {
+      spy.mockRestore()
+    }
+    const story = lines.filter(l => l.startsWith('[story]'))
+    expect(story[0]).toBe('[story] job 1: attempt 1 started')
+    expect(story[1]).toMatch(/^\[story\] job 1: attempt 1 ended after \d+ s$/)
+    // Numbers only: no topic, no person.
+    expect(story.join(' ')).not.toMatch(/Секретная|Лена|\d{5,}/) // cyrillic-ok: the topic and name must not leak
   })
 })
