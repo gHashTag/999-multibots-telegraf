@@ -367,7 +367,7 @@ describe("the spec's tests hold against the host", () => {
   it('what was seen live is kept apart from what is blocked', () => {
     expect(SPEC.LIVE_RUN_STATUS).toBe('delivered-2026-09-26')
     expect(SPEC.VOICE_LEG_STATUS).toBe(
-      'clone-blocked-402-notes-on-kie-2026-09-27'
+      'clone-402-falls-to-notes-on-kie-2026-09-27'
     )
     // Blocked by money, not code: the voice is Replicate's, not Kie's.
     expect(SPEC.VOICE_PROVIDER).toBe('replicate')
@@ -422,12 +422,12 @@ describe("the spec's tests hold against the host", () => {
   })
 
   it("with no clone, a seller's reel speaks her own voice notes on Kie, and nothing else does", async () => {
-    // voice_mode(has_clone, seller_asked); the job runs it in
+    // voice_mode(has_clone, clone_down, seller_asked); the job runs it in
     // a-story-reel-for-any-client.test.ts ("a client with no clone").
-    expect(voiceMode(true, true)).toBe(SPEC.VOICE_CLONE)
-    expect(voiceMode(true, false)).toBe(SPEC.VOICE_CLONE)
-    expect(voiceMode(false, true)).toBe(SPEC.VOICE_NOTES)
-    expect(voiceMode(false, false)).toBe(SPEC.VOICE_NONE)
+    expect(voiceMode(true, false, true)).toBe(SPEC.VOICE_CLONE)
+    expect(voiceMode(true, false, false)).toBe(SPEC.VOICE_CLONE)
+    expect(voiceMode(false, false, true)).toBe(SPEC.VOICE_NOTES)
+    expect(voiceMode(false, false, false)).toBe(SPEC.VOICE_NONE)
     expect(SPEC.NOTES_NEED_REPLICATE).toBe(false)
     expect(SPEC.NOTES_WORDS_ARE_HERS).toBe(true)
     expect(SPEC.NOTES_FROM_SELLER_DM_ONLY).toBe(true)
@@ -439,6 +439,31 @@ describe("the spec's tests hold against the host", () => {
     } as never
     expect(missingFor(noClone, { notes: true })).toBe('')
     expect(missingFor(noClone)).toMatch('голос') // cyrillic-ok: the answer under test
+  })
+
+  it("a seller's reel whose clone its provider refuses speaks her notes in the same run, on the stills it paid for", async () => {
+    // voice_mode(has_clone, clone_down, seller_asked). The job's same-run
+    // fallback -- the stills carried, no second job, the client's own press
+    // untouched -- runs in a-story-reel-for-any-client.test.ts ("her clone
+    // refused by its provider").
+    expect(voiceMode(true, true, true)).toBe(SPEC.VOICE_NOTES)
+    expect(voiceMode(true, true, false)).toBe(SPEC.VOICE_CLONE)
+    expect(voiceMode(false, true, true)).toBe(SPEC.VOICE_NOTES)
+    expect(voiceMode(false, true, false)).toBe(SPEC.VOICE_NONE)
+    expect(SPEC.CLONE_DOWN_FALLS_TO_NOTES).toBe(true)
+    expect(SPEC.CLONE_DOWN_SAME_RUN).toBe(true)
+    expect(SPEC.CLONE_DOWN_KEEPS_STILLS).toBe(true)
+    // Only a refusal that blames the provider swaps her voice.
+    expect(SPEC.CLONE_DOWN_ONLY_ON_PROVIDER).toBe(true)
+    const { looksLikeProviderOutage } = await import('../agent/image-health')
+    expect(
+      looksLikeProviderOutage(
+        'голос 1: озвучка не удалась: HTTP 500 Replicate TTS failed: 402 - Insufficient credit'
+      )
+    ).toBe(true)
+    expect(looksLikeProviderOutage('липсинк 1: timeout after 300 s')).toBe(
+      false
+    )
   })
 
   it('her notes are cut at a pause near the even cut, or at the even cut', () => {
