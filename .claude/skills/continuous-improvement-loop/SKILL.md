@@ -1498,3 +1498,48 @@ answers: true`, 9/12 tabs.
   routes already return the data — UI-only); sign-in completion for the absent
   networks (owner types password / Google-door + mailed code); still-open
   `browser_status` `running`-shaped claim.
+
+- **28.09.2026 (pod tick — the "since when" reader that was documented but never
+  built).** Guarded prior work first (live: main at the logins commit, `/health`
+  `b315d06`, `tri logins` answers 6/14), then read the tree, not the queue. The
+  anomaly: `describeWatch` in `watch.ts` says the person reads the watch state
+  "in `tri pod`" — and **`tri pod` did not exist**. The one number the
+  2026-09-24..26 outage lacked (SINCE WHEN the pod has been unreadable) was
+  recorded in the watch row, exposed at `GET /api/browser/watch`, logged
+  server-side — with no CLI reader. A doc naming a command nobody built is the
+  same lie-of-omission the whole liveness family exists to kill. Added
+  **`tri pod`** (reads `/api/browser/watch`, prints the `said` line + reboots-seen)
+  and corrected the docstring so it no longer promises Russian output the command
+  does not produce (it prints English, like `tri saw`/`tri logins`). PR #3165 →
+  merged `c19f4d1e2`. The route already shipped, so **no deploy needed** — verified
+  live immediately: `answering for 378m, reboots seen 2`, exit 0.
+
+  The `null`-is-a-third-outcome rule, now a **FIFTH** surface (tabs `answers`,
+  cookie `signedIn`, `saw`, `logins`, pod): a watch never written (no pod, or
+  nothing probed yet) is exit **2** — nobody looked, neither well nor wedged —
+  never spent as either. Full set: 0 answering, 1 NOT answering (the heal case),
+  2 never probed, 3 render silent.
+
+  **Self-criticism.** (1) I referenced a `tri heal` command in an exit-1 message
+  and caught it before commit — `tri heal` does not exist either; naming it would
+  have repeated the exact anomaly I was fixing. Reworded to name the mechanism
+  (`POST /api/browser/heal`, which probes before acting). The lesson: when fixing
+  a doc-names-a-missing-command bug, grep every command name you write. (2) There
+  is still **no `tri` reader for the heal _action_** (`POST /api/browser/heal`) —
+  a write, deliberately left for a tick that can gate an agent-triggered restart
+  as carefully as the route already does (it refuses while the browser answers).
+  (3) The push flaked three times with SIGPIPE (exit 141) on the SSH upload AFTER
+  the gate passed each time — pure transport, not the gate. Self-healed by adding
+  `ServerAliveInterval`/`TCPKeepAlive` to `GIT_SSH_COMMAND` and pushing quietly;
+  it landed. **New tool-lesson worth a tri note:** a flaky push is a keepalive
+  problem, not a gate problem — do not re-debug the code, add SSH keepalive.
+
+  Next tick: read this journal, append, do not restart. Queue now: a **`tri` reader
+  or safe trigger for heal** (the write side of the watch/heal pair — the last
+  observability-to-action gap in the browser family); a **player screen** for
+  `saw`/`logins`/`pod` if the owner wants them in-app (all three routes return the
+  data — UI-only); sign-in completion for the absent networks (owner's keyboard);
+  still-open `browser_status` `running`-shaped claim (deferred, needs a description
+  budget). Anomaly-watch for the next tick: grep the browser docstrings for any
+  OTHER command name that does not resolve — this tick found one by accident, a
+  deliberate sweep would find the rest.
