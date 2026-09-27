@@ -37,7 +37,7 @@ import { createAudioFileFromText } from '@/core/elevenlabs/createAudioFileFromTe
 import { KieAIService } from '@/services/kieAI'
 import { HeyGenService } from '@/services/heygenService'
 import { HedraService } from '@/services/hedra'
-import { v4 as uuidv4 } from 'uuid'
+import { randomUUID as uuidv4 } from 'node:crypto'
 import OpenAI from 'openai'
 
 // ========================

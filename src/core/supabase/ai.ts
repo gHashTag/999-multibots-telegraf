@@ -2,7 +2,7 @@ import { supabase } from '@/core/supabase'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
+import { randomUUID as uuidv4 } from 'node:crypto'
 import FormData from 'form-data'
 import axios from 'axios'
 
