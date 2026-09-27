@@ -4,7 +4,13 @@
  * this browser.
  */
 import { describe, it, expect } from 'vitest'
-import { planTabSweep, sweepPodTabs, TAB_CAP } from './tab-sweep'
+import {
+  planTabSweep,
+  sweepEveryPod,
+  sweepPodTabs,
+  TAB_CAP,
+  UNCLAIMED,
+} from './tab-sweep'
 
 const page = (id: string, url: string) => ({ id, type: 'page', url })
 
@@ -128,5 +134,56 @@ describe('sweepPodTabs', () => {
     })
     expect(out.closed).toEqual([])
     expect(out.left).toBe(2)
+  })
+})
+
+/**
+ * The state the wedge actually grew in: a pod still running with nobody named
+ * on it, because this platform's `stop` cannot stop a provisioned service.
+ */
+describe('sweepEveryPod', () => {
+  const poolOf = (rows: Record<string, unknown>[]) => ({
+    query: async () => ({ rows }),
+  })
+  const ioOf = (closed: string[][]) => ({
+    list: async (cdp: string) => [
+      page('a', `https://www.reddit.com/?pod=${cdp}`),
+      page('b', 'https://www.reddit.com/r/Zig/'),
+    ],
+    close: async (cdp: string, id: string) => {
+      closed.push([cdp, id])
+    },
+  })
+
+  it('sweeps the configured pod when no session row names it', async () => {
+    const closed: string[][] = []
+    const done = await sweepEveryPod(
+      poolOf([]) as never,
+      ioOf(closed),
+      TAB_CAP,
+      'browser-pod.railway.internal:9223'
+    )
+    expect(done.map(p => p.who)).toEqual([UNCLAIMED])
+    expect(closed).toEqual([['browser-pod.railway.internal:9223', 'b']])
+  })
+
+  it('does not sweep the same pod twice when a row already names it', async () => {
+    const closed: string[][] = []
+    const done = await sweepEveryPod(
+      poolOf([
+        { telegram_id: '144022504', cdp_endpoint: 'pod.internal:9223' },
+      ]) as never,
+      ioOf(closed),
+      TAB_CAP,
+      /* Same pod, written with a scheme and a trailing slash. */
+      'http://pod.internal:9223/'
+    )
+    expect(done.map(p => p.who)).toEqual(['144022504'])
+    expect(closed).toHaveLength(1)
+  })
+
+  it('sweeps nothing extra on a deployment that starts a pod per session', async () => {
+    const done = await sweepEveryPod(poolOf([]) as never, ioOf([]), TAB_CAP)
+    expect(done).toEqual([])
   })
 })
