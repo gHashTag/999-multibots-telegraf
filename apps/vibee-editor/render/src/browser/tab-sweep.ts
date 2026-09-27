@@ -38,6 +38,13 @@
  *
  * THE PROFILE IS NOT TOUCHED. Closing a tab signs nobody out; the cookies are
  * the profile's, not the tab's.
+ *
+ * WHY THE NUMBER REPORTED IS TABS AND NOT `pids.current`. The ceiling is a
+ * PID ceiling, so PIDs would be the honest gauge -- and they are in the POD's
+ * cgroup, not in this container's, with no shell between the two. Reading them
+ * would need a new endpoint on the pod, which is a bigger promise than this
+ * sweep needs: tabs are what we can count, tabs are what we control, and the
+ * whole measured path from 27 tabs to a browser that cannot fork is tabs.
  */
 import { isRealPage } from './front-page'
 import type { Queryable } from './sessions'
