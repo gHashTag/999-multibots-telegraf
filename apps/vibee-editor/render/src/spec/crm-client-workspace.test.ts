@@ -86,6 +86,21 @@ describe("the spec's tests hold against the host", () => {
     )
   })
 
+  it("the Queen's task goes to the specialist chosen in the thread, else to the assistant", () => {
+    // task_goes_to(specialist_chosen). The player's taskTarget is run in
+    // player src/lib/queen.test.ts; here: the panel and the page use it.
+    const read = (...p: string[]) => readFileSync(join(PLAYER, ...p), 'utf8')
+    expect(SPEC.QUEEN_TASK_TO_CHOSEN_SPECIALIST).toBe(true)
+    const lib = read('lib', 'queen.ts')
+    expect(lib).toMatch(/return agent \? \{ client, agent \} : \{ client \}/)
+    const panel = read('components', 'Crm', 'QueenPanel.tsx')
+    expect(panel).toContain('sendOrQueue(task, [], taskTarget(client, agent))')
+    expect(read('pages', 'Chat.tsx')).toMatch(
+      /<QueenPanel[\s\S]{0,120}agent=\{helper\}/
+    )
+    expect(SPEC.TASK_TO_SPECIALIST).not.toBe(SPEC.TASK_TO_ASSISTANT)
+  })
+
   it("the Queen's thread sits beside the agent's, and a specialist keeps the client's memory", async () => {
     const { threadFor } = await import('../agent/routes')
     const { supervisorThread, clientThread } = await import(

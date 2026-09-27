@@ -758,6 +758,29 @@ textarea.overlay {
 #t27-boot[data-done='1'] { opacity: 0; pointer-events: none; }
 #t27-boot { overflow: hidden; }
 /*
+ * WATCH MODE: the same element, no longer a loader (skin.ts, BOOT_SCRIPT).
+ * The frames are the picture now, so they get full brightness and the ring
+ * goes; the words move out of the middle and sit at the bottom, where a
+ * status line belongs. Taps pass through: this layer answers nothing, and
+ * neko underneath has its own card for the connection it never made.
+ */
+#t27-boot[data-watch='1'] {
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 24px 20px 28px;
+  pointer-events: none;
+  background: transparent;
+}
+#t27-boot[data-watch='1'] img.poster { filter: none; }
+#t27-boot[data-watch='1'] .ring,
+#t27-boot[data-watch='1'] img:not(.poster) { display: none; }
+#t27-boot[data-watch='1'] .said,
+#t27-boot[data-watch='1'] .hint {
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.62);
+}
+/*
  * THE PAGE UNDER THE RING. Dimmed, not blurred away: the point is that the
  * person recognises their own page at once. Everything else in the loader
  * sits above it.
@@ -1058,6 +1081,42 @@ export const BOOT_HINT_EN =
 /** Longer than a cold pod takes, shorter than anyone will stare at a ring. */
 export const BOOT_GIVE_UP_MS = 45_000
 
+/**
+ * WHEN THE VIDEO NEVER COMES AND THE PICTURES DO.
+ *
+ * Reported 2026-09-27, with a screenshot: the page was there, dimmed, under a
+ * ring that said "starting your browser". What the screenshot could not show
+ * is what happens forty-five seconds later -- the loader gives up and removes
+ * itself, and the poster is INSIDE it, so the live frames go out with the
+ * ring. The screen ends up black. "I don't see the pages on screen" was exact.
+ *
+ * The give-up was written for one failure -- a pod that never comes up, where
+ * removing the loader reveals neko's own error card underneath. It is wrong
+ * for the other failure: WebRTC that cannot cross the network while Chromium's
+ * own screencast crosses it fine. There the loader is not hiding an error, it
+ * is holding the only working picture there is.
+ *
+ * So the give-up asks first: are frames arriving? If they are, the ring and
+ * the words go, the dimming goes, and the JPEG stream becomes the picture --
+ * watch mode. View only, and it says so, because input rides the video's own
+ * channel to the pod (frames.ts) and there is nothing honest to pretend here.
+ * If the video ever does play, watch mode ends and the real video takes over.
+ */
+export const WATCH_SAID = 'Смотрите картинкой' // cyrillic-ok: read by a person
+export const WATCH_HINT =
+  'Видео не пробилось через сеть — показываю кадры браузера. Управление пока недоступно.' // cyrillic-ok
+export const WATCH_SAID_EN = 'Watching as pictures'
+export const WATCH_HINT_EN =
+  'The video could not cross the network — showing the browser frame by frame. Control is unavailable.'
+
+/**
+ * How long a picture may be stale before watch mode stops claiming to be
+ * live. Chromium sends a frame per change, so a still page sends nothing for
+ * minutes -- this is only about the socket having died, and the reconnect
+ * below is what answers it.
+ */
+export const WATCH_RETRY_MS = 3_000
+
 export const BOOT_HTML =
   `<div id="t27-boot">` +
   /*
@@ -1090,6 +1149,8 @@ export const BOOT_SCRIPT = `
     el.querySelector('.hint').textContent = __HINT_EN__;
   }
   var gone = false;
+  var watching = false;
+  var frameSeen = 0;
   /*
    * LIVE FRAMES UNDER THE LOADER until the video plays (frames.ts): the
    * page as it changes, one JPEG at a time, over a socket that is up in one
@@ -1098,9 +1159,23 @@ export const BOOT_SCRIPT = `
   var poster = el.querySelector('img.poster');
   var frames = null;
   var lastFrame = null;
+  /*
+   * ASKING WHETHER FRAMES ARE POSSIBLE MUST NOT BE ABLE TO KILL THE LOADER.
+   * These reads used to sit inside the try in open(), and moving them out made
+   * a page without location (or without WebSocket, or URL) throw on the way
+   * past -- taking the language of the loader with it, which is the only part
+   * of this script that runs everywhere. A page that cannot frame simply
+   * cannot: that is an answer, not an error.
+   */
+  var here = null;
+  var canFrame = false;
   try {
-    var here = location.pathname.match(/^\\/live\\/([^/]+)/);
-    if (here && poster && window.WebSocket && window.URL && URL.createObjectURL) {
+    here = location.pathname.match(/^\\/live\\/([^/]+)/);
+    canFrame = !!(here && poster && window.WebSocket && window.URL && URL.createObjectURL);
+  } catch (e) { canFrame = false; }
+  function open() {
+    if (gone || !canFrame) return;
+    try {
       var dpr = window.devicePixelRatio || 1;
       frames = new WebSocket(
         (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
@@ -1110,6 +1185,7 @@ export const BOOT_SCRIPT = `
       frames.binaryType = 'blob';
       frames.onmessage = function (ev) {
         if (gone) return;
+        frameSeen++;
         var url = URL.createObjectURL(ev.data);
         poster.onload = function () {
           if (lastFrame) URL.revokeObjectURL(lastFrame);
@@ -1118,16 +1194,59 @@ export const BOOT_SCRIPT = `
         poster.style.visibility = 'visible';
         poster.src = url;
       };
-    }
-  } catch (e) { frames = null; }
+      /*
+       * The server caps one screencast (FRAMES_MAX_MS) because a bridge is
+       * not meant to be held forever. In watch mode it IS the picture, so
+       * the window asks again -- the cap stays a resource guard and stops
+       * being an expiry date on the only thing the person can see.
+       */
+      frames.onclose = function () {
+        frames = null;
+        if (gone || !watching) return;
+        setTimeout(open, __RETRY__);
+      };
+    } catch (e) { frames = null; }
+  }
+  open();
   function done() {
     if (gone) return;
     gone = true;
+    watching = false;
     if (frames) { try { frames.close(); } catch (e) {} }
     el.setAttribute('data-done', '1');
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
   }
-  setTimeout(done, __GIVEUP__);
+  /*
+   * Not a loader any more: the picture, plus one honest line about what this
+   * is. Pointer events go through, so neko underneath still gets the taps --
+   * it has its own card to show for a connection it never made.
+   */
+  function watchMode() {
+    if (gone || watching) return;
+    watching = true;
+    el.setAttribute('data-watch', '1');
+    var said = el.querySelector('.said');
+    var hint = el.querySelector('.hint');
+    var ru = /^ru\\b/i.test(navigator.language || '');
+    if (said) said.textContent = ru ? __WATCH_SAID__ : __WATCH_SAID_EN__;
+    if (hint) hint.textContent = ru ? __WATCH_HINT__ : __WATCH_HINT_EN__;
+    if (!frames) open();
+  }
+  /*
+   * GIVING UP IS A CHOICE BETWEEN TWO FAILURES. No frames means the loader is
+   * hiding something -- neko's own error card -- so it must leave. Frames mean
+   * the loader is holding the only working picture, so it must stay and stop
+   * pretending to be a loader.
+   */
+  function giveUp() { if (frameSeen > 0) watchMode(); else done(); }
+  setTimeout(giveUp, __GIVEUP__);
+  /*
+   * The reconnect script (CONNECT_SCRIPT) reaches the same conclusion sooner:
+   * it has counted its retries and knows the video is not coming. It asks
+   * here rather than deciding for itself -- the choice between "leave, you are
+   * hiding an error" and "stay, you are the only picture" lives in one place.
+   */
+  try { window.__t27GiveUp = giveUp; } catch (e) {}
   function watch(v) {
     if (v.readyState >= 2 && !v.paused) return done();
     v.addEventListener('playing', done, { once: true });
@@ -1142,9 +1261,14 @@ export const BOOT_SCRIPT = `
 })();
 `
   .replace('__GIVEUP__', String(BOOT_GIVE_UP_MS))
+  .replace('__RETRY__', String(WATCH_RETRY_MS))
   .replace('__FRAMES__', FRAMES_PATH)
   .replace('__SAID_EN__', () => JSON.stringify(BOOT_SAID_EN))
   .replace('__HINT_EN__', () => JSON.stringify(BOOT_HINT_EN))
+  .replace('__WATCH_SAID__', () => JSON.stringify(WATCH_SAID))
+  .replace('__WATCH_HINT__', () => JSON.stringify(WATCH_HINT))
+  .replace('__WATCH_SAID_EN__', () => JSON.stringify(WATCH_SAID_EN))
+  .replace('__WATCH_HINT_EN__', () => JSON.stringify(WATCH_HINT_EN))
 
 /**
  * PUT THE PERSON'S OWN FACE ON THE DISC, AND COUNT THEIR OTHER SCREENS.
@@ -1283,8 +1407,15 @@ export const CONNECT_SCRIPT = `
     if (title) title.setAttribute('data-say', stuck ? words.stuck : words.lost);
     if (button) button.setAttribute('data-say', words.again);
     if (stuck) {
+      /*
+       * Out of retries. This used to remove the loader outright -- and the
+       * live frames with it, because the picture lives inside it (BOOT_HTML).
+       * On a network WebRTC cannot cross that turned a working picture into a
+       * black screen. So ask the loader, which knows whether frames arrive.
+       */
       var boot = document.getElementById('t27-boot');
-      if (boot) boot.setAttribute('data-done', '1');
+      if (typeof window.__t27GiveUp === 'function') window.__t27GiveUp();
+      else if (boot) boot.setAttribute('data-done', '1');
       return;
     }
     note(n + 1);

@@ -7,7 +7,7 @@ import {
   type CdpSocket,
   type FrameViewer,
 } from './src/browser/frames'
-import { BOOT_SCRIPT, FRAMES_PATH } from './src/browser/skin'
+import { BOOT_SCRIPT, FRAMES_PATH, WATCH_SAID_EN } from './src/browser/skin'
 
 /**
  * LIVE FRAMES WHILE THE VIDEO CONNECTS -- pictures one way, and nothing
@@ -177,12 +177,14 @@ describe('the loader asks for them, and lets go', () => {
       url: string
       closed: boolean
       onmessage?: (e: unknown) => void
+      onclose?: () => void
     }> = []
     class WebSocket {
       url: string
       closed = false
       binaryType = ''
       onmessage?: (e: unknown) => void
+      onclose?: () => void
       constructor(url: string) {
         this.url = url
         sockets.push(this)
@@ -196,10 +198,15 @@ describe('the loader asks for them, and lets go', () => {
       src: '',
       onload: null as unknown,
     }
+    const said = { textContent: '' }
+    const hint = { textContent: '' }
+    const attrs: Record<string, string> = {}
     const boot = {
       querySelector: (s: string) =>
-        s === 'img.poster' ? poster : { textContent: '' },
-      setAttribute() {},
+        s === 'img.poster' ? poster : s === '.said' ? said : hint,
+      setAttribute(k: string, v: string) {
+        attrs[k] = v
+      },
       parentNode: null,
     }
     const timers: Array<() => void> = []
@@ -210,6 +217,11 @@ describe('the loader asks for them, and lets go', () => {
     }
     class MutationObserver {
       observe() {}
+    }
+    const window: Record<string, unknown> = {
+      devicePixelRatio: 2,
+      WebSocket,
+      URL: { createObjectURL: () => 'blob:1' },
     }
     new Function(
       'document',
@@ -233,17 +245,23 @@ describe('the loader asks for them, and lets go', () => {
         protocol: 'https:',
         host: 'app.t27.ai',
       },
-      {
-        devicePixelRatio: 2,
-        WebSocket,
-        URL: { createObjectURL: () => 'blob:1' },
-      },
+      window,
       WebSocket,
       { createObjectURL: () => 'blob:1', revokeObjectURL() {} },
       390,
       700
     )
-    return { sockets, poster, giveUp: () => timers[0]?.() }
+    return {
+      sockets,
+      poster,
+      said,
+      hint,
+      attrs,
+      timers,
+      window,
+      frame: () => sockets[sockets.length - 1]?.onmessage?.({ data: {} }),
+      giveUp: () => timers[0]?.(),
+    }
   }
 
   it('OPENS THE FRAMES SOCKET AT THE WINDOW SIZE', () => {
@@ -264,6 +282,59 @@ describe('the loader asks for them, and lets go', () => {
     const r = run()
     r.giveUp()
     expect(r.sockets[0].closed).toBe(true)
+  })
+
+  /*
+   * The bug the owner saw on 2026-09-27: the page was on screen, dimmed, under
+   * a ring -- and forty-five seconds later there was nothing at all, because
+   * the picture lives inside the loader and the loader removed itself.
+   */
+  it('DOES NOT TAKE THE PICTURE AWAY WHEN THE PICTURE IS ALL THERE IS', () => {
+    const r = run()
+    r.frame()
+    r.giveUp()
+    expect(r.attrs['data-watch']).toBe('1')
+    expect(r.attrs['data-done']).toBeUndefined()
+    expect(r.sockets[0].closed).toBe(false)
+  })
+
+  it('says plainly what watch mode is, and that control is gone', () => {
+    const r = run()
+    r.frame()
+    r.giveUp()
+    expect(r.said.textContent).toBe(WATCH_SAID_EN)
+    expect(r.hint.textContent).toContain('Control is unavailable')
+  })
+
+  it('still leaves when there was never a picture, so the error underneath shows', () => {
+    const r = run()
+    r.giveUp()
+    expect(r.attrs['data-done']).toBe('1')
+    expect(r.attrs['data-watch']).toBeUndefined()
+  })
+
+  it('ASKS FOR FRAMES AGAIN when the server caps the screencast mid-watch', () => {
+    const r = run()
+    r.frame()
+    r.giveUp()
+    r.sockets[0].onclose?.()
+    /* The reconnect is a timer, like every other wait in this script. */
+    r.timers[r.timers.length - 1]?.()
+    expect(r.sockets.length).toBe(2)
+  })
+
+  it('does not reopen a socket after the loader is gone', () => {
+    /* No frames ever -> the loader left. A closed socket is then just closed. */
+    const r = run()
+    r.giveUp()
+    r.sockets[0].onclose?.()
+    r.timers.forEach(t => t())
+    expect(r.sockets.length).toBe(1)
+  })
+
+  it('lets the reconnect script use the same rule instead of its own', () => {
+    const r = run()
+    expect(typeof r.window.__t27GiveUp).toBe('function')
   })
 })
 

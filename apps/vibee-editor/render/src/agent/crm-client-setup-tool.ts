@@ -51,9 +51,9 @@ const CLIENTS_DIR = join(HERE, 'clients')
 
 /** The Leela repo's sync contract prefixes every imported private row. */
 export const SKILL_PREFIX = 'Leela: '
-export const REEL_GOAL_TITLE = 'Leela: серия рилс LeelaPlanReel v1'
+export const REEL_GOAL_TITLE = 'Leela: серия рилс LeelaPlanReel v1' // stale-route-ok: a stored goal title; the plan read carries the reel route (crm-story-reel v9)
 /** The reel template whose packages get the Leela series as their plan. */
-export const LEELA_TEMPLATE = 'LeelaPlanReel'
+export const LEELA_TEMPLATE = 'LeelaPlanReel' // stale-route-ok: the package's template id, a value the code compares
 
 /** Upper bounds for one uploaded package: a dossier, not a data dump. */
 export const PACKAGE_LIMITS = {
