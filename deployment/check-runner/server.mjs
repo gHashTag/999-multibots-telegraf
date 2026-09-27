@@ -95,6 +95,8 @@ export function suiteCommands(suite, files) {
       return ['npx tsc --noEmit --pretty false']
     case 'player-types':
       return ['node scripts/check-player-types.cjs']
+    case 'render-types':
+      return ['node scripts/check-render-types.cjs']
     default:
       return null
   }
