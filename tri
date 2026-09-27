@@ -696,6 +696,20 @@ LOOP TOOLING
                           the pipeline had been stopped for 51 hours, because it
                           tested lastPostAt for existence, not for staleness.
 
+AGENT TOOLS ON THE RENDER
+  tri mcp list            every tool the render offers, one per line
+  tri mcp <tool> [json]   call one tool; the JSON is validated here, because a
+                          malformed envelope comes back as -32600 and reads like
+                          a dead route instead of a quoting bug
+  tri mcp eval <file.js>  run a browser script read from a FILE (the only way
+                          its quotes and newlines survive the shell).
+                          `tri mcp eval --example` prints the shape that works:
+                          browser_evaluate throws on a top-level await but does
+                          resolve a RETURNED promise.
+                          The key comes from $AGENT_KEY, then
+                          $TRI_AGENT_KEY_FILE (default /tmp/.ak.tmp), then
+                          Infisical. It is never printed.
+
 OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
   tri кнопки [--json]     rendered callback ids against every catcher, both ways
@@ -1564,6 +1578,131 @@ cmd_gate() {
     return 2
   fi
   good 'можно вливать — насколько это может подтвердить одна машина'
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# ONE MCP TOOL, WITHOUT HAND-BUILDING JSON-RPC.
+#
+# Every cycle that needed the render's agent tools re-wrote the same curl by
+# hand, and on 2026-09-27 the hand-written wrapper cost two rounds: a shell
+# default of `${2:-{\}}` reached the server as a broken envelope and it
+# answered -32600 Invalid JSON-RPC request -- which reads like a dead route,
+# not like a quoting bug. The envelope is machinery; machinery is generated.
+#
+# Two things this deliberately does NOT do:
+#   * it never prints the key, not even on error. A key echoed into a terminal
+#     is a key in the scrollback, and this repo's rule for a leaked value is
+#     REVOKE, not delete.
+#   * `eval` reads the script from a FILE and encodes it with json.dumps. The
+#     code argument is a string containing quotes, newlines and braces; every
+#     attempt to pass it through the shell has mangled it.
+#
+# And the lesson the render taught on the same day, recorded where it is used:
+# browser_evaluate rejects a top-level `await` ("page threw: Uncaught") but it
+# DOES resolve a returned promise. So wrap the body in an IIFE and return the
+# chain -- see `tri mcp eval --example`.
+# ─────────────────────────────────────────────────────────────────────────
+_mcp_key() {
+  # Order matters: an explicit env var beats a scratch file, and the vault is
+  # the fallback rather than the default because it costs a network round trip.
+  if [ -n "${AGENT_KEY:-}" ]; then printf '%s' "$AGENT_KEY"; return 0; fi
+  local f="${TRI_AGENT_KEY_FILE:-/tmp/.ak.tmp}"
+  if [ -s "$f" ]; then tr -d '\r\n' < "$f"; return 0; fi
+  local v
+  v=$(infisical secrets get AGENT_KEY --plain 2>/dev/null | tr -d '\r\n')
+  [ -n "$v" ] && { printf '%s' "$v"; return 0; }
+  return 1
+}
+
+cmd_mcp() {
+  local tool="${1:-}"
+  if [ -z "$tool" ]; then
+    bad 'needs a tool: tri mcp <tool> [json] | tri mcp eval <file.js> | tri mcp list'
+    return 1
+  fi
+
+  if [ "$tool" = 'eval' ] && [ "${2:-}" = '--example' ]; then
+    cat <<'EX'
+(function(){                      /* no top-level await: the page throws */
+  return fetch('/some/endpoint', {credentials:'include'})
+    .then(r => r.json())
+    .then(j => JSON.stringify(j).slice(0, 400))
+})()
+EX
+    return 0
+  fi
+
+  local key
+  if ! key=$(_mcp_key); then
+    bad 'no agent key: set AGENT_KEY, or TRI_AGENT_KEY_FILE, or store it in Infisical as AGENT_KEY'
+    return 1
+  fi
+
+  local args_json='{}'
+  case "$tool" in
+    list)
+      args_json='__LIST__'
+      ;;
+    eval)
+      local js="${2:-}"
+      [ -f "$js" ] || { bad "no script file: ${js:-<empty>}"; return 1; }
+      args_json=$(python3 -c 'import json,sys; print(json.dumps({"code": open(sys.argv[1]).read()}))' "$js") \
+        || { bad 'could not pack the script'; return 1; }
+      tool='browser_evaluate'
+      ;;
+    *)
+      if [ -n "${2:-}" ]; then
+        # Validated HERE rather than at the server, because the server's answer
+        # to a malformed envelope looks nothing like "your JSON is wrong".
+        args_json=$(python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1])))' "$2" 2>/dev/null) \
+          || { bad "arguments are not JSON: $2"; return 1; }
+      fi
+      ;;
+  esac
+
+  MCP_KEY="$key" MCP_TOOL="$tool" MCP_ARGS="$args_json" MCP_URL="$RENDER/mcp" \
+    python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+
+tool, raw = os.environ['MCP_TOOL'], os.environ['MCP_ARGS']
+if raw == '__LIST__':
+    body = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+else:
+    body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": tool, "arguments": json.loads(raw)}}
+
+req = urllib.request.Request(
+    os.environ['MCP_URL'], data=json.dumps(body).encode(),
+    headers={"Content-Type": "application/json",
+             "X-Agent-Key": os.environ['MCP_KEY']})
+try:
+    with urllib.request.urlopen(req, timeout=240) as r:
+        answer = json.loads(r.read())
+except urllib.error.HTTPError as e:
+    # 502 here is almost always the deploy swap, not a broken call. Saying so
+    # saves the next cycle from debugging a healthy route.
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+    print(f'HTTP {e.code} {e.reason}{hint}', file=sys.stderr)
+    sys.exit(1)
+
+if 'error' in answer:
+    print(json.dumps(answer['error'], ensure_ascii=False, indent=1), file=sys.stderr)
+    sys.exit(1)
+
+result = answer.get('result', answer)
+if raw == '__LIST__':
+    for t in result.get('tools', []):
+        print(t['name'])
+    sys.exit(0)
+
+printed = False
+for chunk in (result.get('content') or []):
+    if chunk.get('type') == 'text':
+        print(chunk['text'])
+        printed = True
+if not printed:
+    print(json.dumps(result, ensure_ascii=False, indent=1))
+PY
 }
 
 cmd_lesson() {
@@ -4404,6 +4543,7 @@ case "$action" in
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
   real|живая)          cmd_real "$@" ;;
+  mcp)                 cmd_mcp "$@" ;;
   lesson|опыт)         cmd_lesson "$@" ;;
   lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
   unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
