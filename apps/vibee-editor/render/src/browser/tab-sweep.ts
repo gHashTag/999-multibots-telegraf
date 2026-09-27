@@ -140,9 +140,38 @@ export interface SweepIo {
 }
 
 export interface PodSweep {
-  telegramId: string
+  /** Whose pod it was, or `UNCLAIMED` when no session row names it. */
+  who: string
   closed: number
   left: number
+}
+
+/**
+ * THE POD NOBODY IS NAMED ON.
+ *
+ * On Railway a pod is a service somebody provisioned once, and `stop` on that
+ * driver cannot stop anything (pod-driver.ts says so plainly). So the idle
+ * reaper drops the session row after ten quiet minutes and the browser keeps
+ * running -- with the person's logins still in it, and nothing left in the
+ * database that names it.
+ *
+ * That is the state the 27-tab wedge grew in, and a sweep that walks only
+ * `browser_sessions` is blind in exactly that state: measured 2026-09-27,
+ * minutes after this sweep was deployed, the table held zero rows while the
+ * pod held nine pages. The deployment's own configured pod is therefore swept
+ * by address, not by row.
+ */
+export const UNCLAIMED = '(unclaimed pod)'
+
+/** Same pod, written two ways. Pure. */
+function sameEndpoint(a: string, b: string): boolean {
+  const bare = (s: string) =>
+    s
+      .trim()
+      .replace(/^[a-z]+:\/\//i, '')
+      .replace(/\/+$/, '')
+      .toLowerCase()
+  return !!bare(a) && bare(a) === bare(b)
 }
 
 /** One pod. A tab that refuses to close is left for the next pass. */
@@ -172,25 +201,122 @@ export async function sweepPodTabs(
  * either starting or already in the trouble the health check reports, and
  * neither is this sweep's business to announce.
  */
-export async function sweepEveryPod(
+export interface PodJob {
+  who: string
+  cdp: string
+  /** Tab ids this pod must not lose, whatever the plan says. */
+  keep: string[]
+}
+
+/**
+ * Every pod worth looking at: the rows, plus this deployment's own pod even
+ * when no row names it. One list, used by the sweep and by the read-only view,
+ * so the two can never disagree about which pods exist.
+ *
+ * @param alsoCdp this deployment's provisioned pod (`BROWSER_POD_CDP`) -- see
+ * UNCLAIMED. Absent on a deployment that starts a pod per session, where a pod
+ * with no row really is gone.
+ */
+export async function podsToSweep(
   pool: Queryable,
-  io: SweepIo,
-  cap: number = TAB_CAP
-): Promise<PodSweep[]> {
+  alsoCdp?: string
+): Promise<PodJob[]> {
   const { rows } = await pool.query(
     `SELECT telegram_id, cdp_endpoint FROM browser_sessions
       WHERE state = 'live' AND cdp_endpoint IS NOT NULL`,
     []
   )
   const { chosenFront } = await import('./front-page')
-  const out: PodSweep[] = []
-  for (const row of rows) {
+  const jobs: PodJob[] = rows.map(row => {
     const telegramId = String(row.telegram_id)
-    const cdp = String(row.cdp_endpoint)
     const chosen = chosenFront(telegramId)
+    return {
+      who: telegramId,
+      cdp: String(row.cdp_endpoint),
+      keep: chosen ? [chosen] : [],
+    }
+  })
+  /*
+   * No `keep` for the unclaimed pod: with no row, no agent holds a session on
+   * it, so there is no chosen tab to spare. The person's own tabs are still
+   * protected by the oldest-of-each-origin rule, which is the protection that
+   * matters when we cannot tell whose tab is whose.
+   */
+  const named = (alsoCdp || '').trim()
+  if (named && !jobs.some(j => sameEndpoint(j.cdp, named)))
+    jobs.push({ who: UNCLAIMED, cdp: named, keep: [] })
+  return jobs
+}
+
+export interface PodTabView {
+  who: string
+  /** Real pages open now. */
+  pages: number
+  /** How many distinct sites those pages are. */
+  origins: number
+  cap: number
+  /** What the next sweep would close, and why -- without closing it. */
+  wouldClose: Doomed[]
+  /** Null when the pod could not be asked: starting, or in trouble. */
+  reachable: boolean
+}
+
+/**
+ * HOW CLOSE IS THE POD TO THE CEILING, WITHOUT TOUCHING ANYTHING.
+ *
+ * The wedge was a number nobody could see: 27 tabs looked exactly like 9 from
+ * outside, and the first sign of trouble was a signed-in account that behaved
+ * like a broken login. This is that number, on demand (`tri tabs`), so it can
+ * be read before it becomes an outage rather than after.
+ */
+export async function viewEveryPodTabs(
+  pool: Queryable,
+  list: SweepIo['list'],
+  alsoCdp?: string,
+  cap: number = TAB_CAP
+): Promise<PodTabView[]> {
+  const out: PodTabView[] = []
+  for (const job of await podsToSweep(pool, alsoCdp)) {
     try {
-      const done = await sweepPodTabs(cdp, chosen ? [chosen] : [], io, cap)
-      out.push({ telegramId, closed: done.closed.length, left: done.left })
+      const targets = await list(job.cdp)
+      const plan = planTabSweep(targets, job.keep, cap)
+      const pages = targets.filter(t =>
+        isRealPage({ ...t, type: t.type ?? '' })
+      )
+      out.push({
+        who: job.who,
+        pages: pages.length,
+        origins: new Set(pages.map(p => groupOf(p.url))).size,
+        cap,
+        wouldClose: plan.close,
+        reachable: true,
+      })
+    } catch {
+      out.push({
+        who: job.who,
+        pages: 0,
+        origins: 0,
+        cap,
+        wouldClose: [],
+        reachable: false,
+      })
+    }
+  }
+  return out
+}
+
+export async function sweepEveryPod(
+  pool: Queryable,
+  io: SweepIo,
+  cap: number = TAB_CAP,
+  alsoCdp?: string
+): Promise<PodSweep[]> {
+  const jobs = await podsToSweep(pool, alsoCdp)
+  const out: PodSweep[] = []
+  for (const job of jobs) {
+    try {
+      const done = await sweepPodTabs(job.cdp, job.keep, io, cap)
+      out.push({ who: job.who, closed: done.closed.length, left: done.left })
     } catch {
       /* Not a browser right now. Nothing to tidy, nothing to say. */
     }

@@ -10,6 +10,7 @@
 # A throwaway worktree of origin/main (node_modules linked from the main
 # checkout, or the gates fail on imports), then:
 #   player types     node scripts/check-player-types.cjs
+#   render types     node scripts/check-render-types.cjs  (render IS production)
 #   bot bundle boots src/__tests__/bot/bundleBootsPastImports.test.ts
 #   merged = shipped scripts/railway-drift.mjs
 #   --eyes           also tri eyes (opens the owner's browser if closed)
@@ -35,6 +36,7 @@ check() { # label, command...
   if [ $rc = 0 ]; then echo "  ok    $label"; else red=1; echo "  RED   $label"; echo "$out" | tail -4 | sed 's/^/        /'; fi
 }
 check "player types"      node scripts/check-player-types.cjs
+check "render types"      node scripts/check-render-types.cjs
 check "bot bundle boots"  npx vitest run src/__tests__/bot/bundleBootsPastImports.test.ts
 check "merged = shipped"  node scripts/railway-drift.mjs
 [ $EYES = 1 ] && check "agent sees the browser" bash bin/helpers/eyes.sh "$DIR"
