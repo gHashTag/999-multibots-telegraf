@@ -424,7 +424,18 @@ const CARD = () => {
 }
 
 /** GET /mcp — карточка подключения. Публичная намеренно. */
-export function handleMcpCard(res: ServerResponse) {
+export function handleMcpCard(res: ServerResponse, accept = '') {
+  // An MCP client over HTTP opens a server stream with GET and
+  // Accept: text/event-stream. We push nothing unasked, and the transport
+  // says so with 405; the card stays for a person or an agent reading JSON.
+  if (
+    /text\/event-stream/i.test(accept) &&
+    !/application\/json/i.test(accept)
+  ) {
+    res.writeHead(405, { Allow: 'POST' })
+    res.end()
+    return
+  }
   json(res, 200, CARD())
 }
 
@@ -648,6 +659,18 @@ export async function handleMcp(
     (rpc.params !== undefined && !isObject(rpc.params))
   )
     return invalidRequest()
+
+  // An MCP notification (no id, "notifications/...") is answered by nobody:
+  // JSON-RPC forbids a reply, and an MCP client over HTTP (Claude Code, the
+  // SDKs) sends notifications/initialized right after initialize and expects
+  // 202. Our "no such method" error used to come back with id null instead.
+  // A request that merely omits its id (initialize, say) is still answered,
+  // with id null, as before.
+  if (!('id' in rpc) && rpc.method.startsWith('notifications/')) {
+    res.writeHead(202)
+    res.end()
+    return
+  }
 
   const id = rpc.id ?? null
   if (

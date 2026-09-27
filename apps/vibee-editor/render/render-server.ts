@@ -8487,7 +8487,7 @@ const server = createServer(async (req, res) => {
   // GET /mcp публичен намеренно: агент, которому дали голый адрес, первым
   // делом делает GET, и «405» стоит ему витка, ничего не объяснив.
   if (req.url?.split('?')[0] === '/mcp' && req.method === 'GET') {
-    handleMcpCard(res)
+    handleMcpCard(res, String(req.headers.accept ?? ''))
     return
   }
 
