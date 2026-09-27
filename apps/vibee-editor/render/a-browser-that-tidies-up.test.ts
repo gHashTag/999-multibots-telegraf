@@ -8,6 +8,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { overBudget, TAB_BUDGET } from './src/browser/tab-budget'
+import { TAB_CAP } from './src/browser/tab-sweep'
 import { nekoLogout, withNekoAdmin } from './src/browser/screen'
 import { forgetOpenedTabs, openAndChoose } from './src/browser/agent-tools'
 
@@ -68,6 +69,45 @@ describe('openAndChoose', () => {
     }
     expect(closed).toEqual(['t1', 't2'])
     expect(alive.size).toBe(TAB_BUDGET)
+  })
+
+  it('MAKES ROOM BEFORE IT OPENS, not on the next clock tick', async () => {
+    /*
+     * Measured by doing it on the live pod, 2026-09-27: 14 pages open, one
+     * more browser_open, and Chromium stopped being a browser seconds later.
+     * The periodic sweep was deployed and green; it was simply not due. So the
+     * order below is the whole point -- a close, and only then the open.
+     */
+    const order: string[] = []
+    const alive = new Map<string, string>(
+      Array.from({ length: TAB_CAP }, (_, i) => [
+        `t${i}`,
+        `https://site${i}.example/`,
+      ])
+    )
+    const io = {
+      list: async () => [...alive].map(([id, url]) => ({ id, url })),
+      close: async (_cdp: string, id: string) => {
+        order.push(`close ${id}`)
+        alive.delete(id)
+      },
+    }
+    const page = await openAndChoose(
+      '144022504',
+      'pod:9223',
+      'https://www.reddit.com/',
+      async () => {
+        order.push('open')
+        alive.set('fresh', 'https://www.reddit.com/')
+        return { id: 'fresh' }
+      },
+      io
+    )
+    expect(page.id).toBe('fresh')
+    expect(order[0]).toBe(`close t${TAB_CAP - 1}`)
+    expect(order[1]).toBe('open')
+    /* And the pod is left at the cap, not one over it. */
+    expect(alive.size).toBe(TAB_CAP)
   })
 
   it('still returns the tab when the pod cannot be listed', async () => {

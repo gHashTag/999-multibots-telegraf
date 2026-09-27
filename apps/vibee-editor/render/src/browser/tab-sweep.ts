@@ -134,6 +134,69 @@ export function planTabSweep(
   return { close, left: survivors.length }
 }
 
+/**
+ * ROOM FOR ONE MORE, DECIDED BEFORE THE TAB IS MADE.
+ *
+ * A cap enforced only by a clock is not a cap. Measured live 2026-09-27, by
+ * doing it: the pod held 14 pages, `browser_open` made the fifteenth, and
+ * Chromium stopped being a browser -- `browser_status` answered
+ * `running: false` within seconds, `/api/browser/watch` caught it one minute
+ * later ("NOT answering for 1m"), and `/json/list` went on answering with the
+ * old list, which is the wedge this file's header describes. The periodic
+ * sweep was in place and green the whole time; it simply had not come round
+ * yet, and nothing in the open path asked how many tabs were already open.
+ *
+ * So the question moves to where the tab is made: what must go for there to
+ * be room for one more. `cap - 1` and not `cap`, because the tab we are about
+ * to open is the one the room is for.
+ *
+ * WHY THIS IS NOT `planTabSweep` WITH `cap - 1`. That plan also closes every
+ * duplicate, which is right on a clock and wrong here: two tabs of one origin
+ * is a mailbox and the letter open beside it, and an agent that loses the
+ * second one every time it opens the first cannot read a code out of an email.
+ * So this asks the narrower question -- what must go for there to be room --
+ * and only reaches for a tab when the count says it must. Among the tabs it
+ * does have to spend, a duplicate goes before a site open only once, and the
+ * newest goes before an older one: the old tab is more likely the person's.
+ */
+export function roomForOne(
+  targets: readonly SweepPage[],
+  keepIds: readonly string[] = [],
+  cap: number = TAB_CAP
+): Doomed[] {
+  const pages = targets.filter(t => isRealPage({ ...t, type: t.type ?? '' }))
+  const mustGo = pages.length - (Math.max(1, cap) - 1)
+  if (mustGo <= 0) return []
+
+  const spare = new Set(keepIds)
+  const seen = new Set<string>()
+  const dupes: SweepPage[] = []
+  const singles: SweepPage[] = []
+  for (const p of pages) {
+    const group = groupOf(p.url)
+    if (seen.has(group)) dupes.push(p)
+    else {
+      seen.add(group)
+      singles.push(p)
+    }
+  }
+  const isDupe = new Set(dupes.map(p => p.id))
+
+  const close: Doomed[] = []
+  for (const p of [...dupes.reverse(), ...singles.reverse()]) {
+    if (close.length >= mustGo) break
+    if (spare.has(p.id)) continue
+    /* Never the last page: a browser with no tabs looks broken to the person. */
+    if (pages.length - close.length <= 1) break
+    close.push({
+      id: p.id,
+      url: p.url,
+      why: isDupe.has(p.id) ? 'duplicate' : 'over cap',
+    })
+  }
+  return close
+}
+
 export interface SweepIo {
   list: (cdp: string) => Promise<SweepPage[]>
   close: (cdp: string, id: string) => Promise<void>
