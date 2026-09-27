@@ -249,25 +249,51 @@ describe('messages that must never be answered', () => {
   it('a message the agent sent as the owner (confirmed proposal) does NOT pause the AI', async () => {
     const svc = await fresh()
     const bot = fakeBot()
-    wasAgentSent.mockResolvedValueOnce(true)
-    await svc.handleBusinessMessage(
-      dm({
-        message_id: 4242,
-        from: { id: OWNER_ID, first_name: 'Owner' },
-        text: 'Ответ агента, отправленный с аккаунта владельца',
-      }) as any,
-      bot as any,
-      BOT
+    // The service asks the render "did the agent send this message id?" via
+    // modelSwitch.wasAgentSent, which POSTs to /api/crm/agent-sent and is
+    // gated on RENDER_API_KEY. Drive the REAL function for this one test: set
+    // the key it needs and stub fetch to confirm the send. (The modelSwitch
+    // mock intercepts the connect-time ingest imports but not this deeper
+    // dynamic import under vitest 5, so we assert against the real call the
+    // service actually makes.)
+    const prevKey = process.env.RENDER_API_KEY
+    const realFetch = global.fetch
+    process.env.RENDER_API_KEY = 'test-key'
+    const fetchMock = vi.fn(async (url: unknown) =>
+      String(url).includes('/api/crm/agent-sent')
+        ? { ok: true, json: async () => ({ agent: true }) }
+        : { ok: true, json: async () => ({}) }
     )
-    expect(wasAgentSent).toHaveBeenCalledWith(OWNER_ID, 555, 4242)
-    expect(bot.telegram.sendMessage).not.toHaveBeenCalled()
-    await svc.handleBusinessMessage(
-      dm({ text: 'а можно подробнее?' }) as any,
-      bot as any,
-      BOT
-    )
-    expect(chatWithAI).toHaveBeenCalledTimes(1)
-    expect(svc.getBusinessStats().todayTakeoverSkipped).toBe(0)
+    global.fetch = fetchMock as unknown as typeof fetch
+    try {
+      await svc.handleBusinessMessage(
+        dm({
+          message_id: 4242,
+          from: { id: OWNER_ID, first_name: 'Owner' },
+          text: 'Ответ агента, отправленный с аккаунта владельца',
+        }) as any,
+        bot as any,
+        BOT
+      )
+      // The service asked the render about exactly this owner/lead/message...
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining(`/api/crm/agent-sent?telegram_id=${OWNER_ID}`),
+        expect.objectContaining({ method: 'POST' })
+      )
+      // ...and because the answer was "yes", the AI is NOT paused.
+      expect(bot.telegram.sendMessage).not.toHaveBeenCalled()
+      await svc.handleBusinessMessage(
+        dm({ text: 'а можно подробнее?' }) as any,
+        bot as any,
+        BOT
+      )
+      expect(chatWithAI).toHaveBeenCalledTimes(1)
+      expect(svc.getBusinessStats().todayTakeoverSkipped).toBe(0)
+    } finally {
+      global.fetch = realFetch
+      if (prevKey === undefined) delete process.env.RENDER_API_KEY
+      else process.env.RENDER_API_KEY = prevKey
+    }
   })
 
   it('resumeAiFor gives the chat back to the AI before the pause runs out', async () => {

@@ -45,6 +45,16 @@ import { avatarTransformScene } from '@/scenes/avatarTransformScene'
 describe('AvatarTransformScene', () => {
   let mockCtx: Partial<MyContext & WizardContext>
 
+  // A fresh telegram_id per test. The scene keeps a MODULE-LEVEL
+  // `superheroGenInFlight` Map keyed by telegram_id, whose entries are only
+  // deleted on the success path and otherwise auto-expire after 3 minutes.
+  // With the auto-mocked generators an earlier generation test leaves its
+  // lock set, so any later test reusing the same id was rejected with
+  // "already generating" before it could reach the model call (surfaced by
+  // vitest 5's tighter test timing). A unique id per test isolates that
+  // module state without touching production behavior.
+  let telegramSeq = 123456789
+
   beforeEach(() => {
     // vi.mock без фабрики делает авто-мок: функция возвращает undefined, и
     // сцена падает на `generationCheck.canGenerate`. Возвращаемые значения
@@ -100,7 +110,7 @@ describe('AvatarTransformScene', () => {
         text: '',
       },
       from: {
-        id: 123456789,
+        id: ++telegramSeq,
         username: 'testuser',
       },
       answerCbQuery: vi.fn().mockResolvedValue({}),
