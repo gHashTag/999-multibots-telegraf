@@ -35,7 +35,12 @@
  * times in one afternoon, and every cut call was paid for twice.
  */
 import type { ToolContext } from './tools'
-import { scenesOf, type StoryScene } from './story-reel-tool'
+import {
+  endCardFromProfile,
+  scenesOf,
+  type StoryEndCard,
+  type StoryScene,
+} from './story-reel-tool'
 import { leadVoiceOf } from './lead-voice'
 import { TOKEN_PRICES } from './billing-shared'
 
@@ -80,6 +85,8 @@ export interface StorySettings {
   done: string[]
   about: string
   vip: boolean
+  /** Her own visual for the end of the reel (profile.visual), when she has one. */
+  endCard: StoryEndCard | null
 }
 
 const parse = (v: unknown): any => {
@@ -176,6 +183,7 @@ export async function storySettingsOf(
       .map(String)
       .join('; '),
     vip: profile?.vip === true,
+    endCard: endCardFromProfile(profile),
   }
 }
 
@@ -648,6 +656,7 @@ async function runHeld(
         for_lead: lead,
         cta: s.cta,
         pause_sec: s.pauseSec,
+        ...(s.endCard ? { end_card: s.endCard } : {}),
         stills: list(job.stills),
         clips: list(job.clips),
       },

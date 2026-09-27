@@ -83,6 +83,24 @@ export const StoryReelSchema = z.object({
   breathSec: z.number().min(0).max(1).default(0.25),
   /** Optional words shown during the pause, e.g. the bot to open. */
   cta: z.string().default(''),
+  /**
+   * THE CLIENT'S OWN VISUAL AT THE END (owner, 2026-09-27: "with her face,
+   * and after that her visual at the end"). When set, the pause is not the
+   * held last frame: it is a card in the client's own palette -- her
+   * background, her title colour for the call, her accent for the button
+   * line -- read from `profile.visual` by the story template. Flat on
+   * purpose: no glow, no vignette (her own "avoid" list forbids both).
+   */
+  endCard: z
+    .object({
+      bg: z.string().default('#000000'),
+      title: z.string().default('#FFD700'),
+      text: z.string().default('#FFFFFF'),
+      accent: z.string().default('#00FF88'),
+      /** The button line under the call: "🎲 Играть в Лилу · @bot". */
+      button: z.string().default(''),
+    })
+    .optional(),
   music: z.string().optional(),
   musicVolume: z.number().default(0.06),
 })
@@ -220,6 +238,67 @@ const CallToAction: React.FC<{ text: string }> = ({ text }) => {
   )
 }
 
+/** The pause as the client's own card: her colours, her call, her button. */
+const EndCard: React.FC<{
+  card: NonNullable<StoryReelProps['endCard']>
+  cta: string
+}> = ({ card, cta }) => {
+  const frame = useCurrentFrame()
+  // Fades in over the held last frame, so the cut to the card is not a jump.
+  const opacity = interpolate(frame, [0, CTA_IN_FRAMES], [0, 1], {
+    extrapolateRight: 'clamp',
+  })
+  return (
+    <AbsoluteFill
+      style={{
+        opacity,
+        backgroundColor: card.bg,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '0 90px',
+      }}
+    >
+      {cta ? (
+        <div
+          style={{
+            fontFamily: font,
+            fontWeight: 500,
+            fontSize: 66,
+            lineHeight: 1.2,
+            color: card.title,
+            textAlign: 'center',
+          }}
+        >
+          {cta}
+        </div>
+      ) : null}
+      <div
+        style={{
+          marginTop: 44,
+          width: 180,
+          height: 2,
+          backgroundColor: card.text,
+          opacity: 0.35,
+        }}
+      />
+      {card.button ? (
+        <div
+          style={{
+            marginTop: 44,
+            fontFamily: font,
+            fontWeight: 400,
+            fontSize: 44,
+            color: card.accent,
+            textAlign: 'center',
+          }}
+        >
+          {card.button}
+        </div>
+      ) : null}
+    </AbsoluteFill>
+  )
+}
+
 export const StoryReel: React.FC<StoryReelProps> = props => {
   const { fps, durationInFrames } = useVideoConfig()
   const pauseFrames = Math.round((props.pauseSec ?? 3) * fps)
@@ -269,7 +348,11 @@ export const StoryReel: React.FC<StoryReelProps> = props => {
           name="Pause to decide"
         >
           <HeldFrame src={lastScene.video} at={last.frames - 1} />
-          {props.cta ? <CallToAction text={props.cta} /> : null}
+          {props.endCard ? (
+            <EndCard card={props.endCard} cta={props.cta} />
+          ) : props.cta ? (
+            <CallToAction text={props.cta} />
+          ) : null}
         </Sequence>
       ) : null}
 
