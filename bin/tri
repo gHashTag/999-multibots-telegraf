@@ -10,6 +10,13 @@
 # Каждая команда здесь — это ответ, добытый один раз и записанный, чтобы
 # следующая смена его не выводила заново.
 set -u
+# The whole script is one brace group, read to its end before anything runs
+# (loop turn 7, 27.09.2026): bash reads a plain script as it goes, and an
+# edit to this file while `tri full-run` was still running made the running
+# copy read half-old, half-new lines -- "unexpected EOF" after the run. The
+# closing `}; exit` shares one line: on a line of its own, bash read the
+# edited file after the group (measured on a copy, same day).
+{
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RENDER="$ROOT/apps/vibee-editor/render"
 LOOP="$ROOT/.claude/loop-opus"
@@ -79,7 +86,7 @@ tri — оболочка Trinity S³AI
   tri types  типы плеера ПО-НАСТОЯЩЕМУ: доказывает, что проверка не слепа (форма 196)
   tri gates  как проверить сами шлюзы заведомым нарушением (формы 196-197)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
-  tri mutants <list.json> -- <тесты>            пакет мутаций против одного прогона: таблица убитых и выживших (привязка спеки)
+  tri mutants <list.json> -- <команда>          пакет мутаций против одного прогона: таблица убитых и выживших; у мутанта "tests" — его файлы тестов
   tri spec-controls <spec.t27> <controls.json>   отрицательные контроли спеки на копии: пойман/пропущен/не собралась (по таблице t27c)
   tri stale-route '<old>' <new> [dir]          где тексты для модели ещё ведут старым путём (старое имя без нового и без «только если»)
   tri full-run [render|player|both]             полный прогон с путём, где он шёл (RUN), итогами и падениями; красно, если путь не тот
@@ -2038,3 +2045,4 @@ PYEOF
   # Under the bridge the root prints the one usage; two for one typo is noise.
   *) [ -n "${TRI_BRIDGE:-}" ] || usage; exit 64 ;;
 esac
+}; exit "$?"

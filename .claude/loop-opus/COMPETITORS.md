@@ -274,3 +274,20 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 Источники: [Sendspark: Auto-Send AI Personalized Videos](https://help.sendspark.com/en/articles/12082407-outreach-auto-send-ai-personalized-videos),
 [Tavus: Webhooks and Callbacks](https://docs.tavus.io/sections/webhooks-and-callbacks),
 [Clay: Tavus AI Video Generation](https://www.clay.com/university/lesson/deep-dive-tavus-ai-video-generation-automated-outbound).
+
+## 27.09, виток 7: бренд-кит на клиента
+
+- **HeyGen Brand Kit / Brand System**: цвета, шрифты, логотипы хранятся
+  один раз и сами подставляются в каждое видео; систему можно собрать с
+  сайта бренда.
+- **Canva для команд**: несколько бренд-китов — по одному на клиента или
+  кампанию, доступ по папкам и группам.
+- У нас до витка 7 палитра концовки рилса жила один рилс (v7). Теперь
+  `save_end_card` хранит её на пару продавец+клиент (crm-story-reel v10), и
+  каждый следующий рилс — в её цветах. Чего нет, а у HeyGen есть: собрать
+  палитру с её сайта или аватарки автоматически; шрифт и логотип.
+
+Источники: [HeyGen: Brand Kit](https://www.heygen.com/academy/brand-kit),
+[HeyGen: Brand Systems](https://heygen.noticeable.news/posts/introducing-brand-systems),
+[Canva: Set up Brand Kits](https://www.canva.com/help/brand-kit/),
+[Canva: Allocate Brand Kits to groups and folders](https://www.canva.com/help/allocate-brand-kit/).

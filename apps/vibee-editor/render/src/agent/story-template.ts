@@ -47,6 +47,7 @@ import {
   endCardFromProfile,
   endCardOf,
   endCardProblem,
+  keptEndCardOf,
   endCardRefused,
   endCardUnreadable,
   mergeEndCard,
@@ -118,6 +119,11 @@ export interface StorySettings {
   vip: boolean
   /** Her own visual for the end of the reel (profile.visual), when she has one. */
   endCard: StoryEndCard | null
+  /**
+   * The palette her seller kept for her (spec v10, crm_story_reel
+   * save_end_card): over her profile's, under the seller's word for a reel.
+   */
+  keptCard: StoryEndCard | null
 }
 
 const parse = (v: unknown): any => {
@@ -216,6 +222,8 @@ export async function storySettingsOf(
       .join('; '),
     vip: profile?.vip === true,
     endCard: endCardFromProfile(profile),
+    // Per seller and client -- read for her own press too (KEPT_FOR_HER_OWN_PRESS).
+    keptCard: await keptEndCardOf(pool, owner, id),
   }
 }
 
@@ -625,7 +633,9 @@ export async function startStory(
   const badColour = byClient ? '' : endCardProblem(who.endCard)
   if (badColour) return { started: false, why: badColour }
   const sellerCard = byClient ? null : endCardOf(who.endCard)
-  const unreadable = endCardUnreadable(mergeEndCard(sellerCard, s.endCard))
+  const unreadable = endCardUnreadable(
+    mergeEndCard(sellerCard, s.keptCard, s.endCard)
+  )
   if (endCardRefused(!!sellerCard, !unreadable))
     return { started: false, why: `end_card: ${unreadable}` }
   /*
@@ -903,8 +913,13 @@ async function runHeld(
     const why = await readNotes()
     if (why) return fail(why)
   }
-  // The seller's palette kept in the job, over her profile's (spec v7).
-  const endCard = mergeEndCard(endCardOf(parse(job.end_card)), s.endCard)
+  // The seller's palette kept in the job, over the one kept for her, over
+  // her profile's (spec v7, v10).
+  const endCard = mergeEndCard(
+    endCardOf(parse(job.end_card)),
+    s.keptCard,
+    s.endCard
+  )
   const call = (stills: unknown[], clips: unknown[]) =>
     deps
       .story(
