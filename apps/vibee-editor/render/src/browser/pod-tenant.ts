@@ -106,6 +106,38 @@ export async function podTenant(
 }
 
 /**
+ * THE POD THAT WAS ALREADY ORPHANED WHEN THIS CODE SHIPPED.
+ *
+ * Both writers above only fire from now on, so the browser that was running
+ * with nine tabs and no row at the moment of the deploy has no tenant and would
+ * stay unreachable forever -- measured after the 2026-09-27 deploy: `tri tabs`
+ * read `(unclaimed pod) 9 tabs`, `tri logins` still answered "browser is off".
+ *
+ * The journal is the witness that survived. It keeps one row per browser tool
+ * call, with the person, in the render's own Postgres, and the newest row names
+ * whoever last drove the browser.
+ *
+ * THE ONE ASSUMPTION, STATED PLAINLY. On the `fixed` driver there is exactly
+ * one pod -- `BROWSER_POD_CDP` -- and one profile volume on it, so "who last
+ * drove the browser" IS "whose accounts are in it". This is only ever consulted
+ * for that single configured address, and it cannot hand one person the pod
+ * another person used later: the newest row wins, which is the same rule the
+ * tenant table uses.
+ */
+export async function lastPodDriver(q: Queryable): Promise<string | null> {
+  try {
+    const { rows } = await q.query(
+      `SELECT telegram_id FROM browser_journal ORDER BY at DESC LIMIT 1`,
+      []
+    )
+    return rows[0]?.telegram_id ? String(rows[0].telegram_id) : null
+  } catch {
+    /* No journal yet is not an error here: it just means we cannot say. */
+    return null
+  }
+}
+
+/**
  * The address of this person's own still-running pod, when the visit is over
  * but the browser is not. Null whenever that cannot be said for certain:
  * no configured pod, or a pod recorded to somebody else.
@@ -117,6 +149,11 @@ export async function unclaimedPodOf(
 ): Promise<string | null> {
   const cdp = (configuredCdp || '').trim()
   if (!cdp) return null
-  const tenant = await podTenant(q, cdp)
+  let tenant = await podTenant(q, cdp)
+  if (!tenant) {
+    /* Nobody recorded: fall back to the journal ONCE, and write it down. */
+    tenant = await lastPodDriver(q)
+    if (tenant) await rememberPodTenant(q, cdp, tenant)
+  }
   return tenant === telegramId ? cdp : null
 }

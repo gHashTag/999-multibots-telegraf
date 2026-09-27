@@ -12,8 +12,8 @@ import {
   unclaimedPodOf,
 } from './pod-tenant'
 
-/** Enough Postgres to hold one keyed fact. */
-function fakePool() {
+/** Enough Postgres to hold one keyed fact, plus the journal's newest row. */
+function fakePool(lastDriver?: string) {
   const rows = new Map<string, string>()
   return {
     rows,
@@ -23,6 +23,8 @@ function fakePool() {
         rows.set(String(params[0]), String(params[1]))
         return { rows: [] }
       }
+      if (/browser_journal/i.test(sql))
+        return { rows: lastDriver ? [{ telegram_id: lastDriver }] : [] }
       if (/^SELECT/i.test(sql)) {
         const found = rows.get(String(params[0]))
         return { rows: found ? [{ telegram_id: found }] : [] }
@@ -97,5 +99,35 @@ describe('unclaimedPodOf', () => {
     expect(
       await unclaimedPodOf(pool as never, '144022504', 'fresh:9223')
     ).toBeNull()
+  })
+
+  it('ADOPTS THE POD THAT WAS ORPHANED BEFORE ANY OF THIS SHIPPED', async () => {
+    /*
+     * The real pod on 2026-09-27: running, nine tabs, no row and no tenant,
+     * because both writers only fire from now on. The journal survived and
+     * names who last drove it.
+     */
+    const pool = fakePool('144022504')
+    expect(await unclaimedPodOf(pool as never, '144022504', 'pod:9223')).toBe(
+      'pod:9223'
+    )
+    /* Written down, so the journal is consulted once and not every time. */
+    expect(pool.rows.get('pod:9223')).toBe('144022504')
+  })
+
+  it('does not hand that pod to anybody the journal does not name', async () => {
+    const pool = fakePool('144022504')
+    expect(
+      await unclaimedPodOf(pool as never, '999999999', 'pod:9223')
+    ).toBeNull()
+  })
+
+  it('prefers a recorded tenant over the journal', async () => {
+    /* A recorded tenant is direct knowledge; the journal is an inference. */
+    const pool = fakePool('999999999')
+    await rememberPodTenant(pool as never, 'pod:9223', '144022504')
+    expect(await unclaimedPodOf(pool as never, '144022504', 'pod:9223')).toBe(
+      'pod:9223'
+    )
   })
 })
