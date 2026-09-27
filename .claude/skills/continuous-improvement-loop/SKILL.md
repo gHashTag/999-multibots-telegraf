@@ -1543,3 +1543,56 @@ answers: true`, 9/12 tabs.
   budget). Anomaly-watch for the next tick: grep the browser docstrings for any
   OTHER command name that does not resolve — this tick found one by accident, a
   deliberate sweep would find the rest.
+
+---
+
+### Tick — 2026-09-28c: the anomaly sweep, run deliberately (`tri journal`, three phantoms closed)
+
+Last tick left a queue item: _"grep the browser docstrings for any OTHER command
+name that does not resolve — this tick found one by accident, a deliberate sweep
+would find the rest."_ This tick ran it. `grep -rhoE "tri [a-z][a-z-]+"` across
+`src/browser/*.ts` + `render-server.ts`, each name checked against the `tri`
+dispatch, found **three phantoms** — commands named in comments the CLI never
+had: `tri journal`, `tri eyes`, `tri tabs`. Two root causes, not three:
+
+- **`tri journal` was genuinely missing.** `journal.ts` promised "read by …
+  `tri journal`", but `tri saw` was the only journal reader and it only shows
+  _error_ moments. Built **`tri journal [limit] [--probes]`** — the full step
+  timeline (tool, ok/FAILED, ms, one line of what was touched), newest first,
+  reading the already-shipped `GET /api/browser/journal`. `tri saw` is now
+  correctly understood as this reader narrowed to errors. `--probes` passes
+  `probes=1` to fold in the watch checks the docstrings called `tri eyes`.
+- **`tri tabs` was a rename that never reached the docs.** It is the old name of
+  `tri browser` (both read `/api/browser/tabs`). Three docstrings corrected
+  (agent-tools, pod-tenant, tab-sweep) — no command to build.
+- **`tri eyes` was the probe view.** Folded into `tri journal --probes`;
+  `journal.ts` + `routes.ts` now name that instead.
+
+The third-outcome rule holds again in `tri journal`: an empty timeline is exit
+**2** (nobody acted — a script can tell it from exit 3, render-silent), never
+conflated with an outage. PR #3167 → merged `1359d5e44`. CLI + comment-only, so
+**no deploy needed** — verified live immediately: `tri journal 10` printed the
+real prod timeline (exit 0, down to a `browser_ask_input` waiting on a Habr
+password the person types), `--probes` honoured.
+
+**Self-criticism.** (1) The win here is that the sweep was the _queued_ task, not
+a lucky find — the doc-names-a-missing-command class is now cheap to hunt on a
+schedule (`grep tri <name>` vs dispatch), and the re-sweep after the fix returns
+zero. That grep belongs in `tri` itself as a self-check; noting it for next tick.
+(2) I still have **no `tri` reader/trigger for the heal _action_** — carried
+forward again; it is a write and wants careful gating. (3) The unused-var LSP
+warnings in `agent-tools.ts`/`routes.ts` are pre-existing (my edits there were
+comment-only) — flagged but not mine to fix in a phantom-names tick; a separate
+tick could clear them. (4) Both the commit gate and the pre-push gate ran long
+(~4–7 min each in the background, player-lint at its 409 baseline, 86/86
+providers green) — expected, not a regression; the keepalive push landed first
+try this time (PUSHEXIT=0), so the SIGPIPE self-heal from last tick held.
+
+Next tick: read this journal, append, do not restart. Queue now: **a `tri`
+self-check that greps its own docstrings for unresolved command names** (turn
+this tick's manual sweep into a standing command — the cheapest anomaly guard
+found yet); a **`tri` reader or safe trigger for heal** (still the last
+observability-to-action gap); a **player screen** for `saw`/`logins`/`pod`/`journal`
+(all routes return data — UI-only); sign-in completion for the absent networks
+(owner's keyboard); pre-existing unused-var cleanup in `src/browser/*.ts`;
+still-open `browser_status` `running`-shaped claim (deferred, description budget).
