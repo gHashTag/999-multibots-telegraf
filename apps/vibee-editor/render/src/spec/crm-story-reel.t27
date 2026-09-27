@@ -110,6 +110,12 @@
 // load's reason is on screen while the editor is closed, or open with nothing checked yet; once
 // a check has spoken for the fields, the load's reason steps aside -- as its three options
 // already did (v13). VERSION had stayed 11 through v12-v14; it now says what this header says.
+// v16 (2026-09-27): the price stands above the button, on both screens. PRICE_ESTIMATE_TOKENS
+// was "named to the client BEFORE the press" -- a comment nothing checked. Shot on a phone, her
+// own page named it BELOW "make a reel": read top to bottom, the press came first. And the
+// seller's card named no price at all, though the seller's own press is paid from the seller's
+// balance (story_payer: not the client's press -- the one who pressed). Her page names the
+// price or that it is a gift above her button; the seller's card names its price above his.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -120,7 +126,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 15;
+    pub const VERSION : u8 = 16;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -316,6 +322,10 @@ module automation::crm_story_reel {
 
     // ---- One reason on the card at a time (v15) ---------------------------------------------
     pub const PANEL_ONE_REASON_AT_A_TIME : bool = true;  // the load's words or the check's, never both
+
+    // ---- The price above the button, on both screens (v16) ----------------------------------
+    pub const PRICE_BEFORE_PRESS : bool = true;  // above the button, read before it -- not below
+    pub const SELLER_SEES_PRICE : bool = true;  // the seller's press is paid by the seller: named too
 
     // ---- Every reel for a client is a story reel (v8) -----------------------------------
     pub const OLD_PLAN_REEL : str = "LeelaPlanReel";  // silent, subtitled, made from the plan's canon
@@ -918,13 +928,24 @@ module automation::crm_story_reel {
     }
 
     test "the card says one reason at a time" {
-        assert(VERSION == 15);  // the header's last note and this number say the same
         assert(PANEL_ONE_REASON_AT_A_TIME);
         assert(panel_why_shown(false, false));  // closed: the load's reason
         assert(panel_why_shown(false, true));  // closed after a keep: the fresh load's reason
         assert(panel_why_shown(true, false));  // open, nothing checked yet: still the only reason
         assert(!panel_why_shown(true, true));  // a check has spoken: its verdict is the one
         assert(!panel_take_offered(true, true, true));  // the load's options stepped aside the same way
+    }
+
+    test "the price stands above the button on both screens" {
+        assert(PRICE_BEFORE_PRESS);
+        assert(SELLER_SEES_PRICE);
+        assert(price_estimate(SCENES_DEFAULT, BILLED_SECONDS) == PRICE_ESTIMATE_TOKENS);  // her press
+        assert(price_estimate_notes(3, 12) == 218);  // the seller's press in her own notes
+        assert(price_estimate_notes(3, NOTES_MAX_SEC) < PRICE_ESTIMATE_TOKENS);
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 16);
     }
 
     test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {

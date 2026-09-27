@@ -119,6 +119,43 @@ describe('my reels', () => {
     expect(text).toContain('Одна ваза — три комнаты')
   })
 
+  /*
+   * v16: "before the press" is a place, not a word. The title above said it
+   * and the test only checked the price was SOMEWHERE -- shot on a phone, it
+   * stood below "make a reel". Document order is reading order here.
+   */
+  const priceThenPress = () => {
+    const price = host.querySelector('[data-testid="story-price"]')!
+    const press = host.querySelector('button')!
+    return Boolean(
+      price.compareDocumentPosition(press) & Node.DOCUMENT_POSITION_FOLLOWING
+    )
+  }
+
+  it('the price stands above the button, read before the press (v16)', async () => {
+    serve(() => READY)
+    await draw()
+    expect(host.querySelector('[data-testid="story-price"]')?.textContent).toBe(
+      'story.price:270'
+    )
+    expect(priceThenPress()).toBe(true)
+  })
+
+  it('a gift is named above the button too (v16)', async () => {
+    serve(() => ({ ...READY, price_tokens: undefined, gift: true }))
+    await draw()
+    expect(host.querySelector('[data-testid="story-price"]')?.textContent).toBe(
+      'story.gift'
+    )
+    expect(priceThenPress()).toBe(true)
+  })
+
+  it('"watch" is a finger-sized link on her page, as on the seller\'s card', async () => {
+    serve(() => READY)
+    await draw()
+    expect(host.querySelector('a')?.className).toBe('crm-client__watch')
+  })
+
   it('says a gift is a gift instead of naming a price', async () => {
     serve(() => ({ ...READY, price_tokens: undefined, gift: true }))
     await draw()

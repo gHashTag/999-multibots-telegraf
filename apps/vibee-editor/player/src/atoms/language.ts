@@ -515,6 +515,7 @@ const en: Translations = {
   'crm.client.story.vip': 'VIP',
   'crm.client.story.topic': 'Topic: any. Empty = next plan card or a fresh one',
   'crm.client.story.start': 'Make a reel',
+  'crm.client.story.price': 'About {n} tokens a reel, from your balance',
   'crm.client.story.starting': 'Starting…',
   'crm.client.story.started':
     'Started: «{topic}». It comes to you in the bot in 5–10 minutes: check it and forward it to the client.',
@@ -3105,6 +3106,7 @@ const ru: Translations = {
   'crm.client.story.topic':
     'Тема — любая. Пусто = следующий пункт плана или новая',
   'crm.client.story.start': 'Сделать рилс',
+  'crm.client.story.price': 'Около {n} токенов за рилс — с вашего баланса',
   'crm.client.story.starting': 'Запускаю…',
   'crm.client.story.started':
     'Запущен: «{topic}». Придёт тебе в бот через 5–10 минут — проверь и перешли клиенту.',

@@ -9,9 +9,12 @@
  * endCardProblem, mergeEndCard, endCardUnreadable, suggestOffered,
  * endCardFix, endCardFixPalette, endCardFixBg.
  *
- * Input: argv[2] is `{ args, profile, kept }` as JSON. Output: the answer,
- * one JSON line. Keeping (save_end_card) and start are refused -- a shot
- * never writes and never starts a reel.
+ * Input: argv[2] is `{ tool, args, profile, kept, jobs, next_topic, gift }`
+ * as JSON; `tool` is crm_story_reel (the seller's panel, the default) or
+ * my_story_reel (her own page, the shape of that handler). Output: the
+ * answer, one JSON line. Keeping (save_end_card) and start are refused -- a
+ * shot never writes and never starts a reel. Prices are the host's own
+ * estimates, never a typed number.
  *
  * Run with the render's tsx: it resolves the host's imports.
  */
@@ -25,12 +28,17 @@ import {
   mergeEndCard,
   suggestOffered,
 } from '../../apps/vibee-editor/render/src/agent/story-reel-tool'
+import {
+  storyPriceEstimate,
+  storyPriceEstimateNotes,
+} from '../../apps/vibee-editor/render/src/agent/story-template'
 import * as REEL from '../../apps/vibee-editor/render/src/spec/crm-story-reel.gen'
 
 const input = JSON.parse(process.argv[2] ?? '{}')
 const args = input.args ?? {}
 const profile = endCardOf(input.profile)
 const kept = endCardOf(input.kept)
+const jobs = input.jobs ?? []
 
 if (args.start === true || args[REEL.END_CARD_SAVE_ARG] === true) {
   console.log(
@@ -38,6 +46,24 @@ if (args.start === true || args[REEL.END_CARD_SAVE_ARG] === true) {
       started: false,
       kept: false,
       why: 'tri shot: a shot never keeps and never starts',
+    })
+  )
+  process.exit(0)
+}
+
+if (input.tool === 'my_story_reel') {
+  // crm-story-tool.ts, makeMyStoryReelTool: her face and voice, the next
+  // topic of her plan, the price before the press (or that it is a gift).
+  console.log(
+    JSON.stringify({
+      ready: true,
+      name: 'Harness',
+      face: 'https://example.invalid/face.jpg',
+      voice: true,
+      next_topic: input.next_topic || undefined,
+      ...(input.gift ? { gift: true } : { price_tokens: storyPriceEstimate() }), // secret-guard-ok: a price in tokens, not a credential
+      one_tap_link: 't.me/harness_bot?start=reel',
+      jobs,
     })
   )
   process.exit(0)
@@ -58,7 +84,7 @@ console.log(
     face: 'https://example.invalid/face.jpg',
     voice: true,
     voice_mode: 'notes',
-    price_tokens: 270,
+    price_tokens: storyPriceEstimateNotes(), // secret-guard-ok: a price in tokens, not a credential
     vip: false,
     end_card: endCard ?? undefined,
     end_card_kept: kept ?? undefined,
@@ -69,6 +95,6 @@ console.log(
     ...(fixPalette ? { [REEL.SUGGEST_PALETTE_ARG]: fixPalette } : {}),
     ...(fixBg ? { [REEL.SUGGEST_BG_ARG]: fixBg } : {}),
     one_tap_link: 't.me/harness_bot?start=reel',
-    jobs: input.jobs ?? [],
+    jobs,
   })
 )
