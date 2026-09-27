@@ -640,3 +640,73 @@ describe('a segment is chosen over the whole base', () => {
     expect(top[0].segment).toBe('waiting')
   })
 })
+
+describe('an unpaid invoice is asked about, not reissued (audit 2026-09-27 #2)', () => {
+  const now = D('2026-09-20T12:00:00Z')
+  const agg = [
+    {
+      lead_id: 'billed',
+      total: 4,
+      inbound: 2,
+      last_in: '2026-09-10T09:00:00Z',
+      last_out: '2026-09-15T09:05:00Z',
+    },
+  ]
+  const recent = [{ lead_id: 'billed', text: 'сколько стоит портрет?' }]
+  const withInvoice = (at: string) =>
+    fakePool([
+      { when: /GROUP BY lead_id/, rows: agg },
+      { when: /^SELECT lead_id, text FROM crm_messages/, rows: recent },
+      { when: /FROM token_invoices/, rows: [{ telegram_id: 'billed', at }] },
+    ])
+
+  it('a pressed, unpaid invoice turns the offer into a question', async () => {
+    const touched = new Map([
+      ['billed', { kind: 'written', at: '2026-09-15T09:05:00Z' }],
+    ])
+    const [b] = await leadCandidates(
+      withInvoice('2026-09-15T09:00:00Z'),
+      OWNER,
+      {
+        touched,
+        now,
+      }
+    )
+    expect(b.next).toBe('talk')
+    expect(b.because).toContain('не оплачен')
+    expect(b.because).toContain('новый счёт не выставлять')
+  })
+
+  it('an invoice nobody pressed was never seen: selling goes on as before', async () => {
+    const touched = new Map([
+      ['billed', { kind: 'written', at: '2026-09-12T09:00:00Z' }],
+    ])
+    const [b] = await leadCandidates(
+      withInvoice('2026-09-15T09:00:00Z'),
+      OWNER,
+      {
+        touched,
+        now,
+      }
+    )
+    expect(b.next).toBe('offer')
+  })
+
+  it('no invoice table at all changes nothing', async () => {
+    const touched = new Map([
+      ['billed', { kind: 'written', at: '2026-09-15T09:05:00Z' }],
+    ])
+    const broken = fakePool([
+      { when: /GROUP BY lead_id/, rows: agg },
+      { when: /^SELECT lead_id, text FROM crm_messages/, rows: recent },
+      {
+        when: /FROM token_invoices/,
+        rows: () => {
+          throw new Error('no table')
+        },
+      },
+    ])
+    const [b] = await leadCandidates(broken, OWNER, { touched, now })
+    expect(b.next).toBe('offer')
+  })
+})
