@@ -135,6 +135,49 @@ describe("a desk's own window", () => {
     await expect(deskWindow(deps).at('https://a.test')).rejects.toThrow()
   })
 
+  it('waits for the pod to be a browser before it opens the window', async () => {
+    const { deps, said } = spyDeps({
+      ready: async () => {
+        said.push('ready')
+        return true
+      },
+    })
+    const win = deskWindow(deps)
+    await win.at('https://a.test')
+    await win.at('https://b.test')
+    /* Asked before opening, and NOT again for a window it already has. */
+    expect(said).toEqual([
+      'ready',
+      'open https://a.test',
+      'tile win-1',
+      'goTo win-1 https://b.test',
+    ])
+  })
+
+  it('opens anyway when the pod never becomes a browser', async () => {
+    /* The round's own blank-and-restart is the remedy; a skipped round is not. */
+    const { deps, said } = spyDeps({ ready: async () => false })
+    expect(await deskWindow(deps).at('https://a.test')).toBe('win-1')
+    expect(said).toEqual(['open https://a.test', 'tile win-1'])
+  })
+
+  it('asks again after a restart, because that pod is coming up too', async () => {
+    let alive = true
+    let asked = 0
+    const { deps } = spyDeps({
+      alive: async () => alive,
+      ready: async () => {
+        asked += 1
+        return true
+      },
+    })
+    const win = deskWindow(deps)
+    await win.at('https://a.test')
+    alive = false
+    await win.at('https://b.test')
+    expect(asked).toBe(2)
+  })
+
   it('closes nothing when it never opened anything, and only once after', async () => {
     const { deps, said } = spyDeps()
     const win = deskWindow(deps)

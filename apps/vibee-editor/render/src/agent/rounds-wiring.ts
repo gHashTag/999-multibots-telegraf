@@ -49,6 +49,7 @@ export async function runRoundNow(
   const { sendToTelegram } = await import('../auth/telegram-sender')
   const { deskWindow, openWindow, closeWindow, goTo, tileBounds, tileWindow } =
     await import('../browser/windows')
+  const { waitForBrowser, cdpHealthIo } = await import('../browser/health')
 
   const { loginsOfPerson } = await import('../browser/logins')
 
@@ -89,6 +90,13 @@ export async function runRoundNow(
     goTo: async (targetId, url) => await goTo(await endpoint(), targetId, url),
     alive: async targetId => !!(await pageUrl(await endpoint(), targetId)),
     close: async targetId => await closeWindow(await endpoint(), targetId),
+    /*
+     * A round can start minutes after a deploy swap, when the port answers and
+     * Chromium behind it does not (browser/health.ts). Waiting here is what
+     * stops the desk's one window from being opened into nothing.
+     */
+    ready: async () =>
+      await waitForBrowser(await endpoint(), await cdpHealthIo()),
   })
 
   try {
