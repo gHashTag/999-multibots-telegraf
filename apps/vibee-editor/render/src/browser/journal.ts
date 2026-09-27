@@ -24,12 +24,12 @@ export const READ_STEPS = 50
 /*
  * PROBES ARE NOT THE AGENT'S WORK.
  *
- * On 2026-09-22 every row of the owner's journal was a `tri eyes` check --
+ * On 2026-09-22 every row of the owner's journal was a watch check --
  * "checked tabs, looked" every hour of the night -- and a person opening the
  * panel would have read steps nobody asked for, while real ones were pushed
  * toward the 200-row limit. A caller marks a probe (MCP _meta.probe); probes
  * are kept apart (the last KEEP_PROBES), hidden from the person's view, and
- * shown to `tri journal`, where their timings are the point.
+ * shown only to `tri journal --probes`, where their timings are the point.
  */
 export const KEEP_PROBES = 20
 

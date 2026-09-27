@@ -591,7 +591,7 @@ export async function handleBrowser(
       pool,
       who,
       Number(q.get('limit')) || undefined,
-      // Probes (tri eyes) stay out of the person's view unless asked for.
+      // Probes (tri journal --probes) stay out of the person's view unless asked for.
       { probes: q.get('probes') === '1' }
     )
     /*

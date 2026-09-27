@@ -110,7 +110,7 @@ export async function podTenant(
  *
  * Both writers above only fire from now on, so the browser that was running
  * with nine tabs and no row at the moment of the deploy has no tenant and would
- * stay unreachable forever -- measured after the 2026-09-27 deploy: `tri tabs`
+ * stay unreachable forever -- measured after the 2026-09-27 deploy: `tri browser`
  * read `(unclaimed pod) 9 tabs`, `tri logins` still answered "browser is off".
  *
  * The journal is the witness that survived. It keeps one row per browser tool
