@@ -20,6 +20,7 @@
  *    показывать пятисотку там, где был связный ответ.
  */
 import { toolContentForModel } from './tool-content'
+import * as REEL from '../spec/crm-story-reel.gen'
 import {
   TOOLS_BY_NAME,
   toOpenAITools,
@@ -722,6 +723,14 @@ export async function clientBriefBlock(
             'примера, которые называет пакет: ' +
             portrait.first
         )
+      /*
+       * EVERY REEL FOR A CLIENT IS A STORY REEL (spec v8). The package below
+       * may name its own reel template -- one client's names the silent,
+       * subtitled plan reel -- and with nothing over it the agents kept
+       * making that reel after the owner had moved to the story reel. The
+       * route is said here, before the package, as the gift is.
+       */
+      parts.push(reelRouteLine())
       parts.push(
         'ПРОФИЛЬ КЛИЕНТА (crm_client_profile):\n' +
           /*
@@ -1007,6 +1016,29 @@ export function voiceLine(surface?: string): string {
 }
 
 /**
+ * The reel route for a CRM client, said before the package (spec v8,
+ * REEL_TOOL_IN_CLIENT_BRIEF): the story reel, a plan item as its topic, and
+ * the package's silent plan reel only when the owner names it.
+ */
+export function reelRouteLine(): string {
+  return (
+    `РИЛС ЭТОМУ КЛИЕНТУ — ${REEL.SELLER_TOOL}: рилс-история из трёх кадров, его лицо, его голос, новая обстановка в каждом кадре; ` + // cyrillic-ok: prompt copy
+    `тема — пункт его плана («Д5, план 72» — это тема) или его слова: ${REEL.SELLER_TOOL} {lead, start: true, topic}. ` + // cyrillic-ok: prompt copy
+    `${REEL.OLD_PLAN_REEL} из пакета — старый беззвучный рилс с субтитрами: делай его, только если владелец прямо назвал этот шаблон.` // cyrillic-ok: prompt copy
+  )
+}
+
+/** The same route in the Queen's words (spec v8, REEL_TOOL_IN_QUEEN_BLOCK). */
+export function queenReelLine(): string {
+  return (
+    `Рилс клиенту — только ${REEL.SELLER_TOOL} (три кадра, его лицо и голос; тема — пункт плана): ` + // cyrillic-ok: prompt copy
+    `задача звучит «${REEL.SELLER_TOOL} для клиента, тема: …». ` + // cyrillic-ok: prompt copy
+    `Беззвучный ${REEL.OLD_PLAN_REEL} с субтитрами не предлагай, пока владелец сам его не назвал; ` + // cyrillic-ok: prompt copy
+    `голос отдельно не проверяй — шаблон сам скажет, чего не хватает и сколько стоит.` // cyrillic-ok: prompt copy
+  )
+}
+
+/**
  * THE QUEEN, SUPERVISING ONE CLIENT (owner, 2026-09-24: "on the right, a
  * chat with the Queen supervisor: she has the client card and history in
  * context and can set the agent a task directly -- that is where I make my
@@ -1030,6 +1062,8 @@ export function supervisorBlock(agentLog?: string, movesLine?: string): string {
     'Когда нужно действие, поставь агенту задачу отдельной строкой: [[task: что сделать, для кого и с каким результатом]]. ' + // cyrillic-ok: prompt copy
     'Одна строка — одна задача, конкретно и проверяемо («подготовь портрет 9:16 из её аватарки и карточку отправки с одним вопросом про ритм роликов»). ' + // cyrillic-ok: prompt copy
     'Не больше трёх задач за ответ. Всё, что уходит клиенту, агент готовит карточкой, а отправляет владелец.' + // cyrillic-ok: prompt copy
+    ' ' +
+    queenReelLine() +
     (log
       ? '\n\nЧТО АГЕНТ ДЕЛАЛ В РАЗГОВОРЕ ОБ ЭТОМ КЛИЕНТЕ (старое сверху):\n' + // cyrillic-ok: prompt copy
         log

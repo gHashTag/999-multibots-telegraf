@@ -42,6 +42,14 @@
 // palette is only reported, so a client who has one keeps the reel she had. A colour is #hex of
 // 3, 4, 6 or 8 digits: v6's host took 5 and 7 too, which CSS drops without a word; a colour the
 // seller gives that is not #hex is named back to him, not dropped in silence.
+// v8 (2026-09-27, owner: "why does the agent not understand the video made of three frames -- it
+// keeps doing it the old way"): measured in one client's workspace, the Queen set "build D5
+// (plan 72) in LeelaPlanReel style" and the agent answered "silent, with subtitles, like plans 6
+// and 68". Nothing in code sent them there, only words: the gift line said "then the package"
+// once both gifts were given, the package's reel_template was shown with nothing over it,
+// leela_plan's hint said "render with LeelaPlanReel", and the Queen's block never named the reel
+// tool. Every reel for a CRM client is the story reel; a plan item is its topic; the silent plan
+// reel is made only when the owner names it.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -52,7 +60,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 7;
+    pub const VERSION : u8 = 8;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -194,6 +202,16 @@ module automation::crm_story_reel {
     pub const PROFILE_PALETTE_UNREADABLE_REFUSED : bool = false;  // reported in the answer only
     pub const SELLER_BAD_COLOUR_REFUSED : bool = true;  // "black" is named back, not dropped in silence
     pub const PROFILE_BAD_COLOUR_DROPPED : bool = true;  // her profile keeps working; the default fills in
+
+    // ---- Every reel for a client is a story reel (v8) -----------------------------------
+    pub const OLD_PLAN_REEL : str = "LeelaPlanReel";  // silent, subtitled, made from the plan's canon
+    pub const ROUTE_STORY : u8 = 1;
+    pub const ROUTE_OLD_PLAN_REEL : u8 = 2;
+    pub const REEL_TOOL_IN_CLIENT_BRIEF : bool = true;  // the brief names SELLER_TOOL above the package
+    pub const REEL_TOOL_IN_QUEEN_BLOCK : bool = true;  // her tasks name SELLER_TOOL, not the old template
+    pub const REEL_TOOL_IN_PLAN_HINT : bool = true;  // leela_plan's hint for a client reel
+    pub const PLAN_ITEM_IS_TOPIC : bool = true;  // "D5, plan 72" is the topic of a story reel
+    pub const REELS_STAY_STORY_AFTER_GIFTS : bool = true;  // after both gifts: paid story reels, not the package's
 
     // ---- Who asks, who pays -------------------------------------------------------------
     pub const START_PARAM : str = "reel";  // t.me/<bot>?start=reel, the client's own press
@@ -376,6 +394,14 @@ module automation::crm_story_reel {
             return SELLER_PALETTE_UNREADABLE_REFUSED;
         }
         return PROFILE_PALETTE_UNREADABLE_REFUSED;
+    }
+
+    // Which reel is made for a CRM client: the story reel, unless the owner named the old one.
+    fn reel_route(owner_named_old_template: bool) -> u8 {
+        if owner_named_old_template {
+            return ROUTE_OLD_PLAN_REEL;
+        }
+        return ROUTE_STORY;
     }
 
     // Whether the reel's card may be shown now: only when nothing else waits for the owner.
@@ -609,6 +635,18 @@ module automation::crm_story_reel {
         assert(!end_card_refused(false, true));
         assert(SELLER_BAD_COLOUR_REFUSED);
         assert(PROFILE_BAD_COLOUR_DROPPED);
+    }
+
+    test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {
+        assert(reel_route(false) == ROUTE_STORY);
+        assert(reel_route(true) == ROUTE_OLD_PLAN_REEL);
+        assert(OLD_PLAN_REEL == "LeelaPlanReel");
+        assert(SELLER_TOOL == "crm_story_reel");
+        assert(REEL_TOOL_IN_CLIENT_BRIEF);
+        assert(REEL_TOOL_IN_QUEEN_BLOCK);
+        assert(REEL_TOOL_IN_PLAN_HINT);
+        assert(PLAN_ITEM_IS_TOPIC);
+        assert(REELS_STAY_STORY_AFTER_GIFTS);
     }
 
     test "a render asked for by the service waits for approval in the feed" {

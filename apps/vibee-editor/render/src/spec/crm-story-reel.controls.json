@@ -28,5 +28,15 @@
     "name": "a failure says nothing was charged after stills were made",
     "from": "return stills_made == 0 && clips_made == 0;",
     "to": "return clips_made == 0;"
+  },
+  {
+    "name": "the silent plan reel by default",
+    "from": "        if owner_named_old_template {\n            return ROUTE_OLD_PLAN_REEL;\n        }\n        return ROUTE_STORY;",
+    "to": "        return ROUTE_OLD_PLAN_REEL;"
+  },
+  {
+    "name": "after both gifts the package's reels",
+    "from": "pub const REELS_STAY_STORY_AFTER_GIFTS : bool = true;",
+    "to": "pub const REELS_STAY_STORY_AFTER_GIFTS : bool = false;"
   }
 ]
