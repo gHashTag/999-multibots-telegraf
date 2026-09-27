@@ -709,6 +709,19 @@ AGENT TOOLS ON THE RENDER
                           The key comes from $AGENT_KEY, then
                           $TRI_AGENT_KEY_FILE (default /tmp/.ak.tmp), then
                           Infisical. It is never printed.
+  tri browser             can the remote browser ACT, not merely answer.
+                          `/json/list` is served by the browser process, so it
+                          keeps replying while every renderer is wedged -- which
+                          is how the pod looked fine on 2026-09-27 with nothing
+                          on it able to act. Prints the two claims apart:
+                          reachable (the process) and answers (a real page
+                          evaluated 1 + 1). Exit 0 alive, 1 dead or wedged,
+                          2 asked nobody or sitting at the tab cap, 3 the
+                          render itself did not answer.
+  tri browser-check       proves those verdicts against a local socket, because
+                          the live pod is alive today and cannot show the three
+                          answers that matter. A mutant that calls a wedged pod
+                          healthy fails the first case.
 
 OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
@@ -1703,6 +1716,172 @@ for chunk in (result.get('content') or []):
 if not printed:
     print(json.dumps(result, ensure_ascii=False, indent=1))
 PY
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# IS THE REMOTE BROWSER ALIVE, OR ONLY ANSWERING.
+#
+# On 2026-09-27 the pod looked healthy and could not act. `/json/list` is
+# served by the browser PROCESS, so it keeps answering while every renderer
+# is wedged, and the tabs route reported that reply as health. #3152 split
+# the claim in two -- `reachable` about the process, `answers` about a real
+# page -- and this command is the only reader that tells them apart out loud.
+#
+# `answers: null` is a THIRD outcome: nobody asked. Printing it as dead would
+# invent an outage on a deploy that predates the probe; printing it as alive
+# would hide the exact outage the probe exists to catch. So it gets its own
+# line and its own exit code.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_browser() {
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+
+  BR_KEY="$key" BR_URL="$RENDER/api/browser/tabs" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+
+req = urllib.request.Request(
+    os.environ['BR_URL'], headers={"X-Agent-Key": os.environ['BR_KEY']})
+try:
+    with urllib.request.urlopen(req, timeout=90) as r:
+        answer = json.loads(r.read())
+except urllib.error.HTTPError as e:
+    # Same reading as in `tri mcp`: 502 is the deploy swap, not a dead route.
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+    print(f'  HTTP {e.code} {e.reason}{hint}')
+    sys.exit(3)
+except Exception as e:                        # DNS, TLS, timeout
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+pods = answer.get('pods') or []
+if not pods:
+    # Not an outage. Railway cannot run pods, and the route says so by
+    # returning nothing rather than by failing.
+    print('  no pods -- this deployment does not run one')
+    sys.exit(2)
+
+worst = 0
+for p in pods:
+    who = p.get('who') or '(unclaimed pod)'
+    pages, cap = p.get('pages'), p.get('cap')
+    reachable, answers = p.get('reachable'), p.get('answers')
+    room = f'{pages}/{cap} tabs'
+
+    if not reachable:
+        print(f'  {who}: DEAD -- the target list did not answer ({room})')
+        worst = max(worst, 1)
+    elif answers is False:
+        print(f'  {who}: WEDGED -- the process answers, no page does ({room})')
+        print('        this is the 2026-09-27 shape: healthy-looking, cannot act')
+        worst = max(worst, 1)
+    elif answers is None:
+        print(f'  {who}: reachable, NOT ASKED -- no probe in this deploy ({room})')
+        worst = max(worst, 2)
+    else:
+        print(f'  {who}: alive -- a real page evaluated 1 + 1 ({room})')
+        # At the cap the tab evicted to make room can be the page being signed
+        # in on, so a full pod is worth saying before it costs a sign-in.
+        if isinstance(pages, int) and isinstance(cap, int) and pages >= cap:
+            print('        at the cap: the next open evicts a tab')
+            worst = max(worst, 2)
+
+sys.exit(worst)
+PY
+  local rc=$?
+  case "$rc" in
+    0) good 'the remote browser can act' ;;
+    1) bad 'the remote browser cannot act -- heal it before trusting a round' ;;
+    2) warn 'reachable, but the answer is not proof of a working page' ;;
+    *) bad 'could not tell -- the render itself did not answer' ;;
+  esac
+  return "$rc"
+}
+
+# A verdict nobody tested is a claim, not a check. The live pod is alive today,
+# so the interesting three answers -- dead, wedged, never asked -- cannot be
+# seen against it. They are served here from a local socket instead: the same
+# code path, real HTTP, crafted bodies. A `tri browser` that called the wedged
+# body healthy is exactly the failure #3152 exists to prevent, so it is the
+# first case.
+cmd_browser_selfcheck() {
+  command -v python3 >/dev/null 2>&1 || {
+    warn 'self-check skipped: no python3'; return 0; }
+
+  local dir port_file rc=0
+  dir=$(mktemp -d)
+  port_file="$dir/port"
+
+  BR_DIR="$dir" python3 - <<'PY' &
+import http.server, json, os, threading
+
+BODY = os.path.join(os.environ['BR_DIR'], 'body.json')
+
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        with open(BODY, 'rb') as f:
+            raw = f.read()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+    def log_message(self, *a):
+        pass
+
+srv = http.server.HTTPServer(('127.0.0.1', 0), H)
+with open(os.path.join(os.environ['BR_DIR'], 'port'), 'w') as f:
+    f.write(str(srv.server_address[1]))
+srv.serve_forever()
+PY
+  local srv_pid=$!
+
+  local waited=0
+  while [ ! -s "$port_file" ] && [ "$waited" -lt 50 ]; do
+    sleep 0.1; waited=$((waited + 1))
+  done
+  if [ ! -s "$port_file" ]; then
+    kill "$srv_pid" 2>/dev/null
+    rm -rf "$dir"
+    warn 'self-check skipped: the local socket never came up'
+    return 0
+  fi
+
+  # Shadows the global for every cmd_browser call below -- bash scoping is
+  # dynamic, so the command under test needs no test-only parameter.
+  local RENDER="http://127.0.0.1:$(cat "$port_file")"
+  local AGENT_KEY='selfcheck-not-a-real-key'
+
+  # case | body | expected exit | word the answer must contain
+  local case_name body want word out got
+  while IFS='|' read -r case_name body want word; do
+    [ -n "$case_name" ] || continue
+    printf '%s' "$body" > "$dir/body.json"
+    out=$(cmd_browser 2>&1); got=$?
+    if [ "$got" -ne "$want" ]; then
+      bad "BROKEN on $case_name: exit $got, expected $want"
+      rc=1
+    elif ! printf '%s' "$out" | grep -q "$word"; then
+      bad "BROKEN on $case_name: the answer never says \"$word\""
+      rc=1
+    else
+      good "$case_name reads as $word (exit $got)"
+    fi
+  done <<CASES
+wedged Chromium|{"ok":true,"pods":[{"who":"p","pages":3,"cap":12,"reachable":true,"answers":false}]}|1|WEDGED
+dead process|{"ok":true,"pods":[{"who":"p","pages":0,"cap":12,"reachable":false,"answers":null}]}|1|DEAD
+nobody asked|{"ok":true,"pods":[{"who":"p","pages":3,"cap":12,"reachable":true,"answers":null}]}|2|NOT ASKED
+a live page|{"ok":true,"pods":[{"who":"p","pages":3,"cap":12,"reachable":true,"answers":true}]}|0|alive
+sitting at the cap|{"ok":true,"pods":[{"who":"p","pages":12,"cap":12,"reachable":true,"answers":true}]}|2|at the cap
+no pod at all|{"ok":true,"pods":[]}|2|does not run one
+CASES
+
+  kill "$srv_pid" 2>/dev/null
+  wait "$srv_pid" 2>/dev/null
+  rm -rf "$dir"
+  return "$rc"
 }
 
 cmd_lesson() {
@@ -4544,6 +4723,8 @@ case "$action" in
   gate|ворота)         cmd_gate ;;
   real|живая)          cmd_real "$@" ;;
   mcp)                 cmd_mcp "$@" ;;
+  browser|браузер)     cmd_browser ;;
+  browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   lesson|опыт)         cmd_lesson "$@" ;;
   lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
   unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
