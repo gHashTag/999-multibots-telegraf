@@ -5,6 +5,7 @@ import { queenMessagesAtomFor } from '@/atoms/agentChat'
 import {
   askQueen,
   clearQueen,
+  loadQueenHistory,
   queenBusyAtom,
   tasksIn,
   withoutTasks,
@@ -53,6 +54,11 @@ export function QueenPanel({
   useEffect(() => {
     if (list.current) list.current.scrollTop = list.current.scrollHeight
   }, [messages])
+
+  // Her thread is kept on the server; this browser's copy may be gone.
+  useEffect(() => {
+    void loadQueenHistory(client)
+  }, [client])
 
   const give = (task: string, key: string) => {
     sendOrQueue(task, [], { client })
