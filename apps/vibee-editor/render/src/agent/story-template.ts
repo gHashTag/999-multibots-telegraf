@@ -729,10 +729,22 @@ export async function runStoryJob(deps: StoryDeps, id: number): Promise<void> {
         .catch(() => undefined),
     STORY_BEAT_MS
   )
+  /*
+   * A TRACE IN THE LOGS, NUMBERS ONLY. Nothing in the story job wrote a log
+   * line, so "is a reel generating right now?" -- the question asked before
+   * every deploy, because a deploy cuts a running reel -- had no answer from
+   * the logs. An attempt that started and has not ended is running. The job
+   * id and the attempt only: no topic, no line, no person.
+   */
+  const t0 = Date.now()
+  console.log(`[story] job ${id}: attempt ${attempts} started`)
   try {
     await runHeld(deps, job, attempts)
   } finally {
     stop()
+    console.log(
+      `[story] job ${id}: attempt ${attempts} ended after ${Math.round((Date.now() - t0) / 1000)} s`
+    )
   }
 }
 
