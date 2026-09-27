@@ -33,6 +33,15 @@
 // burned all three attempts in six minutes; the job failed with the paid parts orphaned. Now a
 // reel whose slots the day cannot cover is refused in words before a still is drawn, and a job
 // that meets the cap mid-way waits -- its attempts kept -- and is told once.
+// v7 (2026-09-27): her visual at the end comes from the seller too. One client's profile has no
+// visual, so her reel ended on the held last frame while the seller knew her palette and had
+// nowhere to say it. crm_story_reel takes end_card, the job keeps it, and a resume after a
+// redeploy renders the same card. Field by field the seller's word wins over the profile, the
+// profile over the composition's default. A palette whose call or button cannot be read on its
+// background is refused in words before anything is spent when the seller gave it; a profile
+// palette is only reported, so a client who has one keeps the reel she had. A colour is #hex of
+// 3, 4, 6 or 8 digits: v6's host took 5 and 7 too, which CSS drops without a word; a colour the
+// seller gives that is not #hex is named back to him, not dropped in silence.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -43,7 +52,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 6;
+    pub const VERSION : u8 = 7;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -164,6 +173,27 @@ module automation::crm_story_reel {
     pub const CAP_SLOT_PER_RENDER : u16 = 1;  // the assembly is counted, to be safe
     pub const CAP_WAIT_KEEPS_ATTEMPTS : bool = true;  // waiting for the day is not a failed attempt
     pub const CAP_WAIT_TOLD_ONCE : bool = true;  // the seller hears it once, not every sweep
+
+    // ---- Her visual at the end (v7) -----------------------------------------------------
+    pub const END_CARD_ARG : str = "end_card";  // crm_story_reel and story_reel
+    pub const END_CARD_KEPT_IN_JOB : bool = true;  // story_jobs.end_card: a resume renders the same card
+    pub const END_CARD_BUTTON_MAX : u16 = 60;
+    pub const END_CARD_DEFAULT_BG : str = "#000000";  // StoryReel.tsx takes its defaults from here
+    pub const END_CARD_DEFAULT_TITLE : str = "#FFD700";
+    pub const END_CARD_DEFAULT_TEXT : str = "#FFFFFF";
+    pub const END_CARD_DEFAULT_ACCENT : str = "#00FF88";
+    pub const FIELD_FROM_DEFAULT : u8 = 0;
+    pub const FIELD_FROM_PROFILE : u8 = 1;
+    pub const FIELD_FROM_SELLER : u8 = 2;
+    // WCAG contrast, times ten. 4.5:1 is the rule for ordinary text: a 1080-wide reel on a phone
+    // is about 2.7 times smaller, so the 44 px button line reads as 16 px text. The call (66 px,
+    // title colour) and the button line (accent) are each held against the background; the
+    // divider in the text colour is not text.
+    pub const END_CARD_CONTRAST_MIN_X10 : u16 = 45;
+    pub const SELLER_PALETTE_UNREADABLE_REFUSED : bool = true;  // before anything is spent
+    pub const PROFILE_PALETTE_UNREADABLE_REFUSED : bool = false;  // reported in the answer only
+    pub const SELLER_BAD_COLOUR_REFUSED : bool = true;  // "black" is named back, not dropped in silence
+    pub const PROFILE_BAD_COLOUR_DROPPED : bool = true;  // her profile keeps working; the default fills in
 
     // ---- Who asks, who pays -------------------------------------------------------------
     pub const START_PARAM : str = "reel";  // t.me/<bot>?start=reel, the client's own press
@@ -313,6 +343,39 @@ module automation::crm_story_reel {
     // failed: anything made, or any still still drawing, keeps it.
     fn job_kept(stills_made: u16, clips_made: u16, stills_drawing: u16) -> bool {
         return stills_made > 0 || clips_made > 0 || stills_drawing > 0;
+    }
+
+    // Where one end-card colour comes from: the seller's word, else her profile, else the default.
+    fn end_card_field(seller_gave: bool, profile_has: bool) -> u8 {
+        if seller_gave {
+            return FIELD_FROM_SELLER;
+        }
+        if profile_has {
+            return FIELD_FROM_PROFILE;
+        }
+        return FIELD_FROM_DEFAULT;
+    }
+
+    // Whether a #hex colour has a length CSS reads: #rgb, #rgba, #rrggbb, #rrggbbaa.
+    fn hex_digits_ok(n: u8) -> bool {
+        return n == 3 || n == 4 || n == 6 || n == 8;
+    }
+
+    // Whether text in one colour reads on a background, given their WCAG contrast times ten.
+    fn end_card_readable(contrast_x10: u16) -> bool {
+        return contrast_x10 >= END_CARD_CONTRAST_MIN_X10;
+    }
+
+    // Whether a reel is refused before anything is spent for its end card: only the seller's own
+    // palette, and only when the call or the button cannot be read.
+    fn end_card_refused(seller_gave_card: bool, readable: bool) -> bool {
+        if readable {
+            return false;
+        }
+        if seller_gave_card {
+            return SELLER_PALETTE_UNREADABLE_REFUSED;
+        }
+        return PROFILE_PALETTE_UNREADABLE_REFUSED;
     }
 
     // Whether the reel's card may be shown now: only when nothing else waits for the owner.
@@ -512,6 +575,40 @@ module automation::crm_story_reel {
         assert(!may_go_to_group(false, false));
         assert(GROUP_MUST_BE_READ_BY_CRM);
         assert(DM_SEND_RECORDED_AS_GIFT);
+    }
+
+    test "her visual at the end: the seller's word, then her profile, then the default, kept in the job" {
+        assert(END_CARD_ARG == "end_card");
+        assert(END_CARD_KEPT_IN_JOB);
+        assert(end_card_field(true, true) == FIELD_FROM_SELLER);
+        assert(end_card_field(true, false) == FIELD_FROM_SELLER);
+        assert(end_card_field(false, true) == FIELD_FROM_PROFILE);
+        assert(end_card_field(false, false) == FIELD_FROM_DEFAULT);
+        assert(END_CARD_BUTTON_MAX == 60);
+        assert(END_CARD_DEFAULT_BG == "#000000");
+        assert(END_CARD_DEFAULT_TITLE == "#FFD700");
+        assert(END_CARD_DEFAULT_TEXT == "#FFFFFF");
+        assert(END_CARD_DEFAULT_ACCENT == "#00FF88");
+    }
+
+    test "a colour is #hex that CSS reads, and an unreadable palette of the seller's is refused before spending" {
+        assert(hex_digits_ok(3));
+        assert(hex_digits_ok(4));
+        assert(hex_digits_ok(6));
+        assert(hex_digits_ok(8));
+        assert(!hex_digits_ok(5));
+        assert(!hex_digits_ok(7));
+        assert(!hex_digits_ok(9));
+        assert(END_CARD_CONTRAST_MIN_X10 == 45);
+        assert(end_card_readable(45));
+        assert(!end_card_readable(44));
+        assert(end_card_readable(210));
+        assert(end_card_refused(true, false));
+        assert(!end_card_refused(true, true));
+        assert(!end_card_refused(false, false));
+        assert(!end_card_refused(false, true));
+        assert(SELLER_BAD_COLOUR_REFUSED);
+        assert(PROFILE_BAD_COLOUR_DROPPED);
     }
 
     test "a render asked for by the service waits for approval in the feed" {
