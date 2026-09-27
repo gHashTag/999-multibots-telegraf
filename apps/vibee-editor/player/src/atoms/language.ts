@@ -147,6 +147,7 @@ const en: Translations = {
   'crm.summary.paid': 'Paid',
   'crm.summary.paid.yes': 'yes',
   'crm.summary.paid.no': 'not yet',
+  'crm.summary.paid.last': 'last payment {date}',
   'crm.summary.talk': 'Talk',
   'crm.summary.talk.hint': '↓ from them, ↑ from you',
   'crm.summary.groups': 'In groups',
@@ -255,6 +256,9 @@ const en: Translations = {
   'crm.stage.winback': 'win back',
   'crm.stage.new': 'new',
   'crm.wait.ours': 'waiting on US',
+  'crm.wait.prepare': '✍ Prepare',
+  'crm.wait.prepareAsk':
+    'Prepare the next message to {name}: {why}. Make it a send card — I will press Send myself.',
   'crm.wait.theirs': 'awaiting reply',
   'crm.wait.due': 'time to return',
   // ── CRM: client list and per-client workspace ────────────────────────────
@@ -2694,6 +2698,7 @@ const ru: Translations = {
   'crm.summary.paid': 'Платил',
   'crm.summary.paid.yes': 'да',
   'crm.summary.paid.no': 'пока нет',
+  'crm.summary.paid.last': 'последняя оплата {date}',
   'crm.summary.talk': 'Переписка',
   'crm.summary.talk.hint': '↓ от него, ↑ от вас',
   'crm.summary.groups': 'В группах',
@@ -2802,6 +2807,9 @@ const ru: Translations = {
   'crm.stage.winback': 'вернуть',
   'crm.stage.new': 'новый',
   'crm.wait.ours': 'ждёт НАС',
+  'crm.wait.prepare': '✍ Подготовить',
+  'crm.wait.prepareAsk':
+    'Подготовь следующее сообщение для {name}: {why}. Сделай карточкой на отправку — «Отправить» нажму сам.',
   'crm.wait.theirs': 'ждём ответа',
   'crm.wait.due': 'пора вернуться',
   // ── CRM: client list and per-client workspace ────────────────────────────

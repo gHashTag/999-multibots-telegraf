@@ -968,7 +968,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         () => new Map<string, { kind: string; at: string }>()
       )
       const paidSet = await visibleScope(ctx)
-        .then(scope => whoPaid(scope))
+        .then(scope => whoPaid(scope, ctx!.pool as never))
         .catch(() => new Set<string>())
       const everyone = await leadCandidates(pool, owner, {
         limit: clamp(a?.limit, 15, 50),
