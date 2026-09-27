@@ -13,6 +13,12 @@
  *   - the client, with one press of t.me/<bot>?start=reel: she asked, so the
  *     reel is hers and comes straight back to her with a button for the next.
  *
+ * A seller's reel for a client WITH A GROUP (crm_client_group) ends in a send
+ * card for that group in the seller's bot (story-card.ts): one press, and it
+ * goes from the seller's account; nothing leaves without it. The seller may
+ * also bring the script -- the scenes, the look, the call -- instead of a
+ * topic, and the job makes exactly that.
+ *
  * WHO QUALIFIES. Any client of a seller who has both halves:
  *   - a FACE -- her own avatar (crm_people.avatar_url, filled by
  *     crm_client_face and the CRM screen), or the one the seller saved in her
@@ -43,6 +49,11 @@ import {
 } from './story-reel-tool'
 import { leadVoiceOf } from './lead-voice'
 import { TOKEN_PRICES } from './billing-shared'
+import {
+  defaultGroupCaption,
+  type CardOutcome,
+  type GroupCardOffer,
+} from './story-card'
 
 type Pool = { query: (sql: string, params?: unknown[]) => Promise<any> }
 type Message = { role: 'system' | 'user' | 'assistant'; content: string }
@@ -359,10 +370,22 @@ const TABLE = `CREATE TABLE IF NOT EXISTS story_jobs (
   updated_at  timestamptz NOT NULL DEFAULT now()
 )`
 
+/*
+ * The seller's own script and the group the reel goes to. Added, not in the
+ * CREATE above, because the table already exists in production.
+ */
+const COLUMNS = `ALTER TABLE story_jobs
+  ADD COLUMN IF NOT EXISTS deliver_to text,
+  ADD COLUMN IF NOT EXISTS caption    text,
+  ADD COLUMN IF NOT EXISTS style      text,
+  ADD COLUMN IF NOT EXISTS cta        text,
+  ADD COLUMN IF NOT EXISTS card_at    timestamptz`
+
 let tableReady: Promise<void> | null = null
 export function ensureStoryJobs(pool: Pool): Promise<void> {
   tableReady ??= pool
     .query(TABLE)
+    .then(() => pool.query(COLUMNS))
     .then(() => undefined)
     .catch(e => {
       tableReady = null
@@ -394,6 +417,16 @@ export interface StoryDeps {
   ) => Promise<boolean>
   /** The bot a client lives in, for her next-reel link. */
   botOf?: (lead: string) => Promise<string | null>
+  /** The send card for a client's group (story-card.ts); absent: no card. */
+  offerCard?: (o: GroupCardOffer) => Promise<CardOutcome>
+  /** The title of a group the seller bound to the client, if known. */
+  groupTitle?: (
+    seller: string,
+    lead: string,
+    chat: string
+  ) => Promise<string | null>
+  /** Her "my reels" page in her bot, for the caption. */
+  pageOf?: (bot: string | null) => string
   /** A heartbeat while a job runs; returns its stop. A test passes a no-op. */
   beat?: (fn: () => void, ms: number) => () => void
   /** Who this process is, as a runner; a test names two. */
@@ -459,12 +492,20 @@ export async function startStory(
     bot?: string | null
     topic?: string
     about?: string
+    /** The seller's own script: the scenes are made as given, not written. */
+    scenes?: StoryScene[]
+    style?: string
+    cta?: string
+    /** Where the finished reel is offered with one press (a group chat id). */
+    deliverTo?: string | null
+    caption?: string
   }
 ): Promise<{
   started: boolean
   why?: string
   topic?: string
   job?: number
+  to_group?: string
 }> {
   const lead = String(who.lead ?? '').trim()
   const requester = String(who.requester ?? '').trim()
@@ -496,11 +537,26 @@ export async function startStory(
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, STORY_TOPIC_MAX)
-  const card = asked ? null : await takeNextPlanItem(deps.pool, lead, s.done)
-  const topic = asked || card?.title || ''
+  // A script brought by the seller is checked here, before anything is spent.
+  const given = who.scenes === undefined ? null : scenesOf(who.scenes)
+  if (typeof given === 'string') return { started: false, why: given }
+  // A script is its own topic; a plan card is taken only for a written reel.
+  const card =
+    asked || given ? null : await takeNextPlanItem(deps.pool, lead, s.done)
+  // A script with no topic is named by its first line.
+  const topic =
+    asked ||
+    card?.title ||
+    (given ? given[0].line.replace(/[.!?…]+$/, '').slice(0, 80) : '')
+  const text = (v: unknown, n: number) =>
+    String(v ?? '')
+      .trim()
+      .slice(0, n) || null
+  const deliverTo = byClient ? null : text(who.deliverTo, 40)
   const r = await deps.pool.query(
-    `INSERT INTO story_jobs (lead_id, seller_id, requester, bot, item_id, topic, about, runner)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+    `INSERT INTO story_jobs (lead_id, seller_id, requester, bot, item_id, topic, about, runner,
+                             scenes, style, cta, deliver_to, caption)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
     [
       lead,
       s.owner,
@@ -511,11 +567,22 @@ export async function startStory(
       // The seller's own words about her, for a client with no profile yet.
       String(who.about ?? '').slice(0, 400) || null,
       deps.me ?? ME,
+      given ? JSON.stringify(given) : null,
+      text(who.style, 600),
+      text(who.cta, 120),
+      // A client pressing for herself never sends into a group from here.
+      deliverTo,
+      deliverTo ? text(who.caption, 900) : null,
     ]
   )
   const job = Number(r?.rows?.[0]?.id)
   void runStoryJob(deps, job).catch(() => undefined)
-  return { started: true, topic: topic || 'новая тема про её дело', job }
+  return {
+    started: true,
+    topic: topic || 'новая тема про её дело',
+    job,
+    ...(deliverTo ? { to_group: deliverTo } : {}),
+  }
 }
 
 const list = (v: unknown): string[] => {
@@ -652,9 +719,10 @@ async function runHeld(
       {
         image_url: s.faceUrl,
         scenes,
-        style: s.style,
+        // The seller's own look and call, when the job carries them.
+        style: String(job.style ?? '').trim() || s.style,
         for_lead: lead,
-        cta: s.cta,
+        cta: String(job.cta ?? '').trim() || s.cta,
         pause_sec: s.pauseSec,
         ...(s.endCard ? { end_card: s.endCard } : {}),
         stills: list(job.stills),
@@ -697,17 +765,7 @@ async function runHeld(
         }
       )
     } else {
-      const link = nextLink(await deps.botOf?.(lead).catch(() => null))
-      await deps.notify(
-        null,
-        requester,
-        `Рилс-история для ${s.name || lead} готова: «${topic}». ` +
-          'Посмотри и перешли клиенту сам — без тебя он к ней не уйдёт.' +
-          (link
-            ? `\nСледующий она может взять сама одной кнопкой: ${link}`
-            : ''),
-        { video: url, renderSent: payer === requester }
-      )
+      await handToSeller(deps, { ...job, url, topic }, s.name, payer)
     }
     return
   }
@@ -734,6 +792,122 @@ async function runHeld(
     return
   }
   return fail(String(ans?.reason ?? 'рилс не собрался'))
+}
+
+/**
+ * A finished reel the SELLER asked for. With a group to go to: a send card
+ * (story-card.ts), or -- while another card waits for the seller -- a word
+ * that it will come, and the sweep offers it later. Without one, or when the
+ * card cannot be made: the video, to look at and forward by hand.
+ */
+async function handToSeller(
+  deps: StoryDeps,
+  job: any,
+  name: string,
+  payer: string
+): Promise<void> {
+  const lead = String(job.lead_id)
+  const seller = String(job.requester)
+  const topic = String(job.topic ?? '')
+  const url = String(job.url)
+  const renderSent = payer === seller
+  if (job.deliver_to && deps.offerCard) {
+    const outcome = await offerJobCard(deps, job, name, !renderSent)
+    if (outcome === 'shown') return
+    if (outcome === 'busy') {
+      await deps.notify(
+        null,
+        seller,
+        `Рилс-история для ${name || lead} готова: «${topic}». ` +
+          'Карточка отправки в группу придёт сюда, как только вы ответите на ту, что уже ждёт.',
+        { video: url, renderSent }
+      )
+      return
+    }
+  }
+  const link = nextLink(await deps.botOf?.(lead).catch(() => null))
+  await deps.notify(
+    null,
+    seller,
+    `Рилс-история для ${name || lead} готова: «${topic}». ` +
+      'Посмотри и перешли клиенту сам — без тебя он к ней не уйдёт.' +
+      (job.deliver_to && job.caption
+        ? `\n\nПодпись для группы:\n${job.caption}`
+        : '') +
+      (link ? `\nСледующий она может взять сама одной кнопкой: ${link}` : ''),
+    { video: url, renderSent }
+  )
+}
+
+/**
+ * Offer one job's group card. The job is claimed first (card_at), so the
+ * runner that finished it and the sweep never both offer it; a card that
+ * waits its turn gives the claim back for the sweep to try again.
+ */
+async function offerJobCard(
+  deps: StoryDeps,
+  job: any,
+  name: string,
+  withVideo: boolean
+): Promise<CardOutcome> {
+  const id = Number(job.id)
+  const lead = String(job.lead_id)
+  const seller = String(job.requester)
+  const chat = String(job.deliver_to)
+  // Her own id is her DM: the gift, not a group.
+  const dm = chat === lead
+  const claimed = await deps.pool.query(
+    `UPDATE story_jobs SET card_at = now() WHERE id = $1 AND card_at IS NULL RETURNING id`,
+    [id]
+  )
+  if (!claimed?.rows?.length) return 'shown' // somebody else holds it
+  const bot = await deps.botOf?.(lead).catch(() => null)
+  const topic = String(job.topic ?? '')
+  const outcome = await deps.offerCard!({
+    jobId: id,
+    owner: seller,
+    chat,
+    dm,
+    groupTitle: dm
+      ? null
+      : ((await deps.groupTitle?.(seller, lead, chat).catch(() => null)) ??
+        null),
+    url: String(job.url),
+    caption:
+      String(job.caption ?? '').trim() ||
+      defaultGroupCaption(name, topic, deps.pageOf?.(bot ?? null) ?? ''),
+    name: name || lead,
+    topic,
+    withVideo,
+  }).catch((): CardOutcome => 'failed')
+  if (outcome === 'busy')
+    await deps.pool
+      .query(`UPDATE story_jobs SET card_at = NULL WHERE id = $1`, [id])
+      .catch(() => undefined)
+  return outcome
+}
+
+/** Group cards that waited for the seller's queue: offered again, a day at most. */
+export async function offerWaitingCards(deps: StoryDeps): Promise<number> {
+  if (!deps.offerCard) return 0
+  const r = await deps.pool.query(
+    `SELECT * FROM story_jobs
+      WHERE status = 'done' AND deliver_to IS NOT NULL AND card_at IS NULL
+        AND url IS NOT NULL AND updated_at > now() - interval '1 day'
+      ORDER BY id LIMIT 5`
+  )
+  let shown = 0
+  for (const job of r?.rows ?? []) {
+    const s = await storySettingsOf(
+      deps.pool,
+      String(job.lead_id),
+      String(job.seller_id)
+    ).catch(() => null)
+    // The video already reached the seller when the job finished.
+    const outcome = await offerJobCard(deps, job, s?.name ?? '', false)
+    if (outcome === 'shown') shown++
+  }
+  return shown
 }
 
 /**
@@ -766,6 +940,7 @@ export async function sweepStoryJobs(deps: StoryDeps): Promise<number> {
   )
   const ids: number[] = (r?.rows ?? []).map((x: any) => Number(x.id))
   for (const id of ids) void runStoryJob(deps, id).catch(() => undefined)
+  void offerWaitingCards(deps).catch(() => undefined)
   return ids.length
 }
 

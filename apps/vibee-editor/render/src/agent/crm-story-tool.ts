@@ -15,6 +15,12 @@
  * The avatar is fetched here when the CRM has not looked yet: "a photo from
  * the avatar" is half of what qualifies a client, and an empty cache is not
  * "no photo" (crm-avatars.ts facesKnown).
+ *
+ * THE SELLER'S OWN SCRIPT AND THE CLIENT'S GROUP (owner, 2026-09-27: "build
+ * it into the pipeline, not scripts by hand"). `scenes` / `style` / `cta`
+ * make exactly the reel the seller wrote; a client with a bound group
+ * (crm_client_group, or `group` here) gets the finished reel as a send card
+ * for that group in the seller's bot -- one press (story-card.ts).
  */
 import type { AgentTool, ToolContext } from './tools'
 import {
@@ -29,6 +35,7 @@ import {
   type StoryDeps,
 } from './story-template'
 import { requireSeller } from './telegram-tools'
+import { bindClientGroup, clientGroupFor } from './crm-client-group'
 
 export const NOT_THIS_CLIENT =
   'в разговоре за клиента рилс делается только ему самому' // cyrillic-ok: tool result copy
@@ -62,8 +69,9 @@ export function makeCrmStoryTool(o: {
       'ШАБЛОН «РИЛС-ИСТОРИЯ» CRM для клиента с лицом (аватарка) и голосом (crm_voice_clone). ' +
       'Без start — готов ли клиент и его последние рилсы. start:true — рилс на ЛЮБУЮ тему (topic; ' +
       'без неё — следующий пункт его контент-плана или свежая тема про его дело): 3 сцены, его лицо ' +
-      'в новой обстановке каждая, его голос, пауза с призывом. Делается в фоне 5–10 мин, готовый ' +
-      'приходит тебе на проверку — клиенту пересылаешь сам. Платит тот, кто запустил.',
+      'в новой обстановке каждая, его голос, пауза с призывом. Свой сценарий — scenes (+style, cta); to — куда. ' +
+      'Делается в фоне 5–10 мин; готовый приходит тебе КАРТОЧКОЙ «в группу» или «ему в личку» — ' +
+      'одно нажатие; to:none — тебе, переслать самому. Платит тот, кто запустил.',
     parameters: {
       type: 'object',
       properties: {
@@ -77,6 +85,29 @@ export function makeCrmStoryTool(o: {
           type: 'string',
           description:
             'чем клиент занимается, если профиля нет (одна строка для сценария)',
+        },
+        scenes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              setting: { type: 'string', description: 'новая обстановка' },
+              line: { type: 'string', description: 'реплика 2–4 с' },
+            },
+            required: ['setting', 'line'],
+          },
+          description: 'свой сценарий вместо темы: сцены по порядку',
+        },
+        style: { type: 'string', description: 'свой свет и тон кадров' },
+        cta: { type: 'string', description: 'свой призыв в паузе' },
+        to: {
+          type: 'string',
+          description:
+            'куда готовый карточкой: "dm" — ему в личку подарком; chat_id группы из crm_groups (привяжет); "none" — только тебе; пусто — его привязанная группа',
+        },
+        caption: {
+          type: 'string',
+          description: 'подпись к рилсу; пусто — готовая',
         },
       },
       required: ['lead'],
@@ -102,6 +133,27 @@ export function makeCrmStoryTool(o: {
       }
       const missing = missingFor(s)
 
+      // Where the finished reel is offered: her DM, a group bound here or
+      // already, or nowhere but the seller.
+      const want = String(args.to ?? '').trim()
+      const dm = want === 'dm'
+      if (want && want !== 'none' && !dm) {
+        try {
+          await bindClientGroup(ctx.pool as never, seller, lead, want)
+        } catch (e) {
+          return {
+            ready: false,
+            started: false,
+            why: String((e as Error)?.message ?? e),
+          }
+        }
+      }
+      const group =
+        want === 'none' || dm
+          ? null
+          : await clientGroupFor(ctx.pool as never, seller, lead)
+      const deliverTo = dm ? lead : (group?.chat_id ?? null)
+
       if (args.start !== true) {
         const jobs = await storyJobsOf(ctx.pool, seller, lead).catch(() => [])
         const bot = await o
@@ -125,6 +177,9 @@ export function makeCrmStoryTool(o: {
               }
             : {}),
           one_tap_link: nextLink(bot) || undefined,
+          group: group
+            ? { chat: group.chat_id, title: group.title ?? undefined }
+            : undefined,
           jobs,
         }
       }
@@ -136,11 +191,20 @@ export function makeCrmStoryTool(o: {
         seller,
         topic: String(args.topic ?? '').slice(0, STORY_TOPIC_MAX),
         about: String(args.about ?? ''),
+        ...(args.scenes !== undefined ? { scenes: args.scenes } : {}),
+        style: String(args.style ?? ''),
+        cta: String(args.cta ?? ''),
+        deliverTo,
+        caption: String(args.caption ?? ''),
       })
       return out.started
         ? {
             ...out,
-            note: 'рилс делается в фоне 5–10 минут; готовый придёт тебе в бот на проверку',
+            note: dm
+              ? 'рилс делается в фоне 5–10 минут; готовый придёт тебе в бот карточкой «ему в личку» — одно нажатие'
+              : group
+                ? `рилс делается в фоне 5–10 минут; готовый придёт тебе в бот карточкой «в группу ${group.title ?? group.chat_id}» — одно нажатие`
+                : 'рилс делается в фоне 5–10 минут; готовый придёт тебе в бот на проверку',
           }
         : out
     },

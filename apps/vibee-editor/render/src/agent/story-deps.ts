@@ -11,6 +11,10 @@ import { askBuyerModel } from './crm-duet-tool'
 import { allProviders, diagnose } from './provider'
 import { botNameOf, tokenForBot } from './bot-farm'
 import { telegramApiFor } from '../telegram-api'
+import { appLinkFor } from '../app-links'
+import { issueFor, pendingFor } from './tg-proposals'
+import { clientGroupFor } from './crm-client-group'
+import { offerGroupCard, type CardPort } from './story-card'
 
 type Pool = StoryDeps['pool']
 
@@ -58,6 +62,54 @@ export async function notifyInBot(
   }
 }
 
+/**
+ * The live card port: the draft is tg_send_video made AS THE SELLER on the
+ * bot surface (the card is shown in his bot chat, where the press is taken),
+ * the secret comes from issueFor under the job's own turn, and the card is
+ * posted by the main bot -- the one whose tgp:ok / tgp:no presses the bot
+ * process answers.
+ */
+export function liveCardPort(
+  pool: Pool,
+  lookup: (name: string) => AgentTool | undefined,
+  doFetch: typeof fetch = fetch
+): CardPort {
+  return {
+    queueFree: owner => pendingFor(owner) === null,
+    draft: async (owner, turn, send) => {
+      const tool = lookup('tg_send_video')
+      if (!tool) return null
+      const r: any = await tool.handler(
+        { chat: send.chat, url: send.url, caption: send.caption, gift: true },
+        { telegramId: owner, pool, surface: 'bot', turn } as never
+      )
+      return r?.proposal && r?.id ? { id: String(r.id) } : null
+    },
+    issue: (owner, turn) => {
+      const p = issueFor(owner, turn)
+      return p ? { id: p.id, secret: p.secret } : null
+    },
+    post: async (chatId, text, buttons, video) => {
+      const token = mainToken()
+      if (!token) return false
+      const reply_markup = { inline_keyboard: buttons }
+      const r = await doFetch(
+        `${telegramApiFor(token)}/${video ? 'sendVideo' : 'sendMessage'}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(
+            video
+              ? { chat_id: chatId, video, caption: text, reply_markup }
+              : { chat_id: chatId, text, reply_markup }
+          ),
+        }
+      )
+      return r.ok
+    },
+  }
+}
+
 export function makeStoryDeps(
   pool: Pool,
   lookup: (name: string) => AgentTool | undefined
@@ -79,5 +131,11 @@ export function makeStoryDeps(
     },
     notify: (bot, chatId, text, extra) => notifyInBot(bot, chatId, text, extra),
     botOf: lead => botNameOf(lead),
+    offerCard: o => offerGroupCard(liveCardPort(pool, lookup), o),
+    groupTitle: async (seller, lead, chat) => {
+      const g = await clientGroupFor(pool as never, seller, lead)
+      return g && g.chat_id === chat ? g.title : null
+    },
+    pageOf: bot => appLinkFor(bot, 'story'),
   }
 }
