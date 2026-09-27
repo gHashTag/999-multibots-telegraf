@@ -116,7 +116,7 @@ export async function paidSetFor(
 ): Promise<{ paid: Set<string>; known: boolean }> {
   try {
     const scope = await visibleScope(ctx)
-    return { paid: await whoPaid(scope), known: true }
+    return { paid: await whoPaid(scope, ctx.pool as never), known: true }
   } catch {
     return { paid: new Set<string>(), known: false }
   }
