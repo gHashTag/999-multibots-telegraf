@@ -47,6 +47,7 @@ describe('every agent has a desk of its own', () => {
     const urls = allSites().map(s => s.url)
     expect(new Set(urls).size).toBe(urls.length)
     expect(urls).toContain('https://hh.ru/applicant/negotiations')
-    expect(urls).toContain('https://www.reddit.com/r/t27ai/')
+    /* Reddit is the reddit desk's now, and it walks the feed it can answer. */
+    expect(urls).toContain('https://www.reddit.com/r/t27ai/new/')
   })
 })

@@ -663,7 +663,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     name: 'browser_sign_in',
     description:
       'Sign-in plan for ONE network (x, linkedin, instagram, google, tiktok, vk, github, ' +
-      'upwork, hh): the sign-in page, the step order, what earlier presses learned. Call it ' +
+      'reddit, hh): the sign-in page, the step order, what earlier presses learned. Call it ' +
       'FIRST; opens nothing. Every secret the person types.',
     parameters: {
       type: 'object',
