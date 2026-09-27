@@ -7,6 +7,7 @@ import { AllRefused } from '@/components/Crm/AllRefused'
 import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
 import { AutoPanel } from '@/components/Crm/AutoPanel'
 import { TrafficPanel } from '@/components/Crm/TrafficPanel'
+import { RevenuePanel } from '@/components/Crm/RevenuePanel'
 import { Avatar } from '@/components/Crm/Avatar'
 import { FunnelStrip } from '@/components/Crm/FunnelStrip'
 import { WinbackPanel } from '@/components/Crm/WinbackPanel'
@@ -784,6 +785,9 @@ export default function CrmPage() {
               </>
             )
           )}
+
+          {/* What the owner's clients have brought, from the live wallet. */}
+          <RevenuePanel noticeReason={noticeReason} />
 
           {panel(
             t('crm.audience.title'),
