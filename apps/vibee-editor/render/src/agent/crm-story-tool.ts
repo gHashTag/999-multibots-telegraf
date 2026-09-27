@@ -150,7 +150,9 @@ export function makeCrmStoryTool(o: {
 
       // Where the finished reel is offered: her DM, a group bound here or
       // already, or nowhere but the seller.
-      const want = String(args.to ?? '').trim()
+      // A duet fixes it in the context (ToolContext.storyTo); the model's
+      // `to` counts only where code did not.
+      const want = String(ctx.storyTo ?? args.to ?? '').trim()
       const dm = want === 'dm'
       if (want && want !== 'none' && !dm) {
         try {

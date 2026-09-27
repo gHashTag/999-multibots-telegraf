@@ -182,6 +182,13 @@ export interface ToolContext {
    */
   faceOf?: string
   /**
+   * WHERE A STORY REEL STARTED IN THIS TURN IS OFFERED (crm_story_reel `to`).
+   * Set only by code: a duet sets "dm" (crm-duet.t27 v3, STORY_CARD_TO), so the
+   * finished reel comes to the owner as a card for her DM. While it is set the
+   * model's `to` is ignored -- a model's chat id would bind a group of hers.
+   */
+  storyTo?: string
+  /**
    * Told the stills and clips of a story reel as they are made (story_reel).
    * Set only by code: the one-tap story job (story-next.ts) writes them to
    * its row, so a render redeployed mid-reel resumes from them instead of

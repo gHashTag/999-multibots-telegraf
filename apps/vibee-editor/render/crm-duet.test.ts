@@ -263,12 +263,15 @@ describe('crm_duet helpers', () => {
     expect(okOf([1, 2])).toBe(true)
   })
 
-  it('the briefs carry the Leela canon and the honesty rules; the paid set has five tools', () => {
+  it('the briefs carry the Leela canon and the honesty rules; the paid set has six tools', () => {
     const brief = sellerBrief(BUYER)
     expect(brief).toContain('72 планов')
     expect(brief).toContain('t27.ai/leela')
     expect(brief).toContain('discovery')
-    expect(brief).toContain('LeelaPlanReel')
+    // crm-duet.t27 v3: the reel is the story reel; the old template is gone.
+    expect(brief).toContain('рилс-история из трёх кадров (crm_story_reel)')
+    expect(brief).not.toContain('LeelaPlanReel')
+    expect(brief).not.toContain('только шаблон')
     expect(brief).toContain('leela_plan')
     expect(brief).toContain('Профиль клиента не настроен')
     // No profile, no name: the brief says "the buyer", never a real handle.
@@ -293,7 +296,7 @@ describe('crm_duet helpers', () => {
       'Ты — @example_buyer, хранительница игры'
     )
     expect(buyerPersona('Я хозяйка стола.')).toContain('Я хозяйка стола.')
-    expect(PAID_TOOLS.size).toBe(5)
+    expect(PAID_TOOLS.size).toBe(6)
     expect(TURNS_MAX).toBe(8)
   })
 
@@ -823,6 +826,8 @@ function planPool(items: PlanItem[], afterSelect?: () => void) {
           out = out.filter(r => r.telegram_id === params[0])
         if (/template_id = \$2/.test(sql))
           out = out.filter(r => r.template_id === params[1])
+        if (/template_id IS NOT NULL/.test(sql))
+          out = out.filter(r => r.template_id !== null)
         const within = sql.match(/status IN \(([^)]*)\)/)
         if (within) {
           const allowed = (within[1].match(/'[a-z]+'/g) ?? []).map(x =>
@@ -1025,7 +1030,32 @@ describe('crm_duet: what was made goes into HER plan (t27#4522)', () => {
     expect(run.transcript[0].plan_item?.result).toBe('dry_run')
   })
 
-  it('linkReelToPlan reads only her LeelaPlanReel cards and answers without a database', async () => {
+  it('linkReelToPlan reads only her reel cards -- any reel template, never her own -- and answers without a database', async () => {
+    // crm-duet.t27 v3: a card of another reel template takes the reel for
+    // its plan; her own card (no template) about the same plan never does.
+    const own = planPool([
+      item(2, JUDGED_BUYER, 'Мой план 6, своими словами', null, null),
+      item(7, JUDGED_BUYER, PLAN6_TITLE, PLAN6_NOTE, 'StoryReel'),
+    ])
+    expect(
+      await linkReelToPlan(own.pool, {
+        buyer: JUDGED_BUYER,
+        plan: 6,
+        url: REEL_URL,
+        runId: 'duet-x',
+      })
+    ).toMatchObject({ result: 'moved', item_id: 7 })
+    const mine = planPool([
+      item(2, JUDGED_BUYER, 'Мой план 6, своими словами', null, null),
+    ])
+    expect(
+      await linkReelToPlan(mine.pool, {
+        buyer: JUDGED_BUYER,
+        plan: 6,
+        url: REEL_URL,
+        runId: 'duet-x',
+      })
+    ).toMatchObject({ result: 'no_row' })
     const { pool } = planPool(herPlan())
     const r = await linkReelToPlan(pool, {
       buyer: JUDGED_BUYER,
@@ -1269,7 +1299,9 @@ describe('crm_duet media honesty (duet-mtzrz4jo, 2026-09-13)', () => {
   it('the seller brief forbids the promise and names the honest phrasing', () => {
     const brief = sellerBrief(BUYER)
     expect(brief).toContain('Никогда не пиши «отправляю/пришлю файл»')
-    expect(brief).toContain('видео уже пришло в чат следующим сообщением')
+    expect(brief).toContain('он пришёл в чат следующим сообщением')
+    // The story reel is not the duet's to send (crm-duet.t27 v3).
+    expect(brief).toContain('рилс-историю пересылает владелец после проверки')
   })
 })
 
@@ -1708,7 +1740,8 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
     expect(DISCOVERY_SELLER_TURNS).toBe(2)
     const paidDenied = (turn: number) =>
       [...PAID_TOOLS].filter(t => deniedToolsFor(turn).has(t)).length
-    expect([0, 1, 2, 7].map(paidDenied)).toEqual([5, 5, 0, 0])
+    const all = PAID_TOOLS.size
+    expect([0, 1, 2, 7].map(paidDenied)).toEqual([all, all, 0, 0])
     for (const turn of [0, 1, 2, 7])
       expect(deniedToolsFor(turn).has('feed_publish')).toBe(true)
   })
@@ -1730,7 +1763,8 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
     expect(run.state).toBe('done')
     const paid = (s?: ReadonlySet<string>) =>
       [...PAID_TOOLS].filter(t => s?.has(t)).length
-    expect(denies.map(paid)).toEqual([5, 5, 0])
+    const all = PAID_TOOLS.size
+    expect(denies.map(paid)).toEqual([all, all, 0])
     expect(denies.map(s => s?.has('feed_publish'))).toEqual([true, true, true])
     expect(run.violations).toEqual([])
     expect(run.voice_flags).toEqual([])
