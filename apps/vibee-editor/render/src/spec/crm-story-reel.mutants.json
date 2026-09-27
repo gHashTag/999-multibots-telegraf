@@ -6,10 +6,11 @@
     "to": "return n >= 3 && n <= 8"
   },
   {
-    "name": "profile wins over the seller",
+    "name": "the kit wins over the seller",
     "file": "src/agent/story-reel-tool.ts",
-    "from": "  if (sellerGave) return SPEC.FIELD_FROM_SELLER\n  if (profileHas) return SPEC.FIELD_FROM_PROFILE",
-    "to": "  if (profileHas) return SPEC.FIELD_FROM_PROFILE\n  if (sellerGave) return SPEC.FIELD_FROM_SELLER"
+    "from": "  if (sellerGave) return SPEC.FIELD_FROM_SELLER\n  if (keptHas) return SPEC.FIELD_FROM_KEPT",
+    "to": "  if (keptHas) return SPEC.FIELD_FROM_KEPT\n  if (sellerGave) return SPEC.FIELD_FROM_SELLER",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "contrast rounded up",
@@ -27,43 +28,50 @@
     "name": "a bad colour is dropped in silence",
     "file": "src/agent/story-template.ts",
     "from": "  if (badColour) return { started: false, why: badColour }",
-    "to": "  if (false) return { started: false, why: badColour }"
+    "to": "  if (false) return { started: false, why: badColour }",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "an unreadable seller palette is not refused",
     "file": "src/agent/story-template.ts",
     "from": "  if (endCardRefused(!!sellerCard, !unreadable))",
-    "to": "  if (endCardRefused(false, !unreadable))"
+    "to": "  if (endCardRefused(false, !unreadable))",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the job forgets the seller card",
     "file": "src/agent/story-template.ts",
     "from": "      sellerCard ? JSON.stringify(sellerCard) : null,",
-    "to": "      null,"
+    "to": "      null,",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the run ignores the job's card",
     "file": "src/agent/story-template.ts",
-    "from": "const endCard = mergeEndCard(endCardOf(parse(job.end_card)), s.endCard)",
-    "to": "const endCard = mergeEndCard(null, s.endCard)"
+    "from": "    endCardOf(parse(job.end_card)),\n    s.keptCard,",
+    "to": "    null,\n    s.keptCard,",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "a client press brings a palette",
     "file": "src/agent/story-template.ts",
     "from": "  const sellerCard = byClient ? null : endCardOf(who.endCard)",
-    "to": "  const sellerCard = endCardOf(who.endCard)"
+    "to": "  const sellerCard = endCardOf(who.endCard)",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the tool does not pass the card",
     "file": "src/agent/crm-story-tool.ts",
     "from": "        ...(args.end_card !== undefined ? { endCard: args.end_card } : {}),",
-    "to": ""
+    "to": "",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the brief does not say the reel route",
     "file": "src/agent/chat.ts",
     "from": "      parts.push(reelRouteLine())\n",
-    "to": ""
+    "to": "",
+    "tests": ["the-client-face-is-mandatory.test.ts"]
   },
   {
     "name": "the Queen does not know the reel tool",
@@ -87,6 +95,84 @@
     "name": "the plan read says nothing of the route",
     "file": "src/agent/crm-client-workspace-tools.ts",
     "from": "        ...(items.length ? { reel_route: planReelRoute() } : {}),\n",
-    "to": ""
+    "to": "",
+    "tests": ["crm-client-workspace-tools.test.ts"]
+  },
+  {
+    "name": "kept palette under her profile",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (keptHas) return SPEC.FIELD_FROM_KEPT\n  if (profileHas) return SPEC.FIELD_FROM_PROFILE",
+    "to": "  if (profileHas) return SPEC.FIELD_FROM_PROFILE\n  if (keptHas) return SPEC.FIELD_FROM_KEPT",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "merge ignores the kept palette",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "    [SPEC.FIELD_FROM_KEPT]: kept,",
+    "to": "    [SPEC.FIELD_FROM_KEPT]: null,",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "a bad card is kept",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (cardOk) return SPEC.KEEP_SAVE\n  return SPEC.KEEP_REFUSED",
+    "to": "  return SPEC.KEEP_SAVE",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "kept without the contrast check",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "      (card ? endCardUnreadable(mergeEndCard(card, null, profile)) : '') ||\n",
+    "to": "",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "an empty card does not clear",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (action === SPEC.KEEP_CLEAR) {",
+    "to": "  if (action === -1) {",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "another seller's kit is read",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "`SELECT end_card FROM story_end_cards WHERE owner_id = $1 AND lead_id = $2`",
+    "to": "`SELECT end_card FROM story_end_cards WHERE lead_id = $2`",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "settings never read the kit",
+    "file": "src/agent/story-template.ts",
+    "from": "    keptCard: await keptEndCardOf(pool, owner, id),",
+    "to": "    keptCard: null,",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "the start check skips the kit",
+    "file": "src/agent/story-template.ts",
+    "from": "    mergeEndCard(sellerCard, s.keptCard, s.endCard)",
+    "to": "    mergeEndCard(sellerCard, null, s.endCard)",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "the render skips the kit",
+    "file": "src/agent/story-template.ts",
+    "from": "    endCardOf(parse(job.end_card)),\n    s.keptCard,",
+    "to": "    endCardOf(parse(job.end_card)),\n    null,",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "the tool's read skips the kit",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "        endCardOf(args.end_card),\n        kept,",
+    "to": "        endCardOf(args.end_card),\n        null,",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "save refused is not reported",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "        if (k.action === REEL.KEEP_REFUSED)\n          return { ready: false, started: false, kept: false, why: k.why }\n",
+    "to": "",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   }
 ]

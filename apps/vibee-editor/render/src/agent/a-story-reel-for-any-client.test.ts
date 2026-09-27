@@ -110,6 +110,10 @@ function fakeBase() {
     // Groups the CRM has read, and the one bound to each client.
     groups: [] as Array<{ owner_id: string; chat_id: string; title: string }>,
     bound: [] as Array<{ owner_id: string; lead_id: string; chat_id: string }>,
+    // Palettes kept per seller and client (spec v10).
+    kept: [] as Array<{ owner_id: string; lead_id: string; end_card: string }>,
+    // Every statement that writes, in order: what a test may say never ran.
+    writes: [] as string[],
   }
   const row = (id: unknown) => db.jobs.find(j => j.id === Number(id))
   const query = async (
@@ -118,6 +122,31 @@ function fakeBase() {
   ): Promise<{ rows: any[] }> => {
     const q = sql.replace(/\s+/g, ' ').trim()
     if (/^(CREATE|ALTER)\b/i.test(q)) return { rows: [] }
+    if (/^(INSERT|UPDATE|DELETE)\b/i.test(q)) db.writes.push(q)
+    // ── kept palettes ──
+    if (q.startsWith('SELECT end_card FROM story_end_cards'))
+      // Only the conditions the statement states: a dropped owner reads
+      // another seller's kit here as it would in Postgres.
+      return {
+        rows: db.kept.filter(
+          k =>
+            (!/owner_id = \$1/.test(q) || k.owner_id === p[0]) &&
+            (!/lead_id = \$2/.test(q) || k.lead_id === p[1])
+        ),
+      }
+    if (q.startsWith('INSERT INTO story_end_cards')) {
+      db.kept = db.kept.filter(
+        k => !(k.owner_id === p[0] && k.lead_id === p[1])
+      )
+      db.kept.push({ owner_id: p[0], lead_id: p[1], end_card: p[2] })
+      return { rows: [] }
+    }
+    if (q.startsWith('DELETE FROM story_end_cards')) {
+      db.kept = db.kept.filter(
+        k => !(k.owner_id === p[0] && k.lead_id === p[1])
+      )
+      return { rows: [] }
+    }
     // The seller gate reads the caller's own Telegram session.
     if (q.startsWith('SELECT session FROM tg_sessions'))
       return { rows: p[0] === SELLER ? [{ session: 'connected' }] : [] }
@@ -2204,5 +2233,178 @@ describe('a running reel leaves a trace in the logs', () => {
     expect(story[1]).toMatch(/^\[story\] job 1: attempt 1 ended after \d+ s$/)
     // Numbers only: no topic, no person.
     expect(story.join(' ')).not.toMatch(/Секретная|Лена|\d{5,}/) // cyrillic-ok: the topic and name must not leak
+  })
+})
+
+/*
+ * HER PALETTE, KEPT (spec v10). v7 took the seller's palette for ONE reel;
+ * the next one for the same client ended in the defaults unless he said it
+ * again. It is kept per seller and client -- never in her profile's
+ * story_reel block, which turns her own paid presses on.
+ */
+describe('her palette, kept for every next reel (spec v10)', () => {
+  const OTHER_SELLER = '900000077'
+  const reel = { done: true, url: 'https://bucket.example/reel.mp4' }
+  const tool = (base: ReturnType<typeof fakeBase>, seen: any[] = []) =>
+    makeCrmStoryTool({
+      deps: () =>
+        depsOn(base, async args => {
+          seen.push(args)
+          return reel
+        }).deps,
+      lookup: () => undefined,
+    })
+  const ctxOf = (base: ReturnType<typeof fakeBase>) =>
+    ({ telegramId: SELLER, pool: base.pool }) as unknown as ToolContext
+  const KIT = { bg: '#10182a', title: '#f5f5f5', button: 'Написать мне' }
+
+  it('save_end_card keeps it, and the next reel without end_card ends in it', async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.profiles.push({
+      owner_id: SELLER,
+      telegram_id: LENA,
+      updated: 2,
+      profile: { visual: { text: '#ffffff', accent_cta: '#00ff88' } },
+    })
+    const seen: any[] = []
+    const saved: any = await tool(base, seen).handler(
+      { lead: LENA, end_card: KIT, save_end_card: true },
+      ctxOf(base)
+    )
+    expect(saved.end_card_saved).toMatch('палитра сохранена')
+    expect(saved.end_card_kept).toEqual(KIT)
+    // The next reel says nothing of a palette, and ends in the kept one over
+    // her profile's visual.
+    const out = await startStory(
+      depsOn(base, async a => (seen.push(a), reel)).deps,
+      {
+        lead: LENA,
+        requester: SELLER,
+        seller: SELLER,
+        topic: 'Ваза',
+      }
+    )
+    expect(out.started).toBe(true)
+    await drain()
+    expect(seen[0].end_card).toEqual({
+      ...KIT,
+      text: '#ffffff',
+      accent: '#00ff88',
+    })
+    // This reel's own word still wins, field by field.
+    const again: any = await tool(base).handler(
+      { lead: LENA, end_card: { bg: '#0a0a0a' } },
+      ctxOf(base)
+    )
+    expect(again.end_card.bg).toBe('#0a0a0a')
+    expect(again.end_card.title).toBe('#f5f5f5')
+  })
+
+  it('her own press ends in the kit her seller kept', async () => {
+    const base = fakeBase()
+    qualify(base)
+    await tool(base).handler(
+      { lead: LENA, end_card: KIT, save_end_card: true },
+      ctxOf(base)
+    )
+    const seen: any[] = []
+    const out = await startStory(
+      depsOn(base, async a => (seen.push(a), reel)).deps,
+      { lead: LENA, requester: LENA, bot: 'example_bot' }
+    )
+    expect(out.started).toBe(true)
+    await drain()
+    expect(seen[0].end_card).toEqual(KIT)
+  })
+
+  it('a card that fails the checks keeps nothing and starts nothing', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const bad: any = await tool(base).handler(
+      {
+        lead: LENA,
+        end_card: { bg: 'black' },
+        save_end_card: true,
+        start: true,
+      },
+      ctxOf(base)
+    )
+    expect(bad).toMatchObject({ started: false, kept: false })
+    expect(bad.why).toMatch('end_card.bg: «black»')
+    // The default gold call on the white he gave: 1,4:1.
+    const pale: any = await tool(base).handler(
+      { lead: LENA, end_card: { bg: '#ffffff' }, save_end_card: true },
+      ctxOf(base)
+    )
+    expect(pale.why).toMatch('нужно не меньше 4,5:1')
+    expect(base.db.kept).toEqual([])
+    expect(base.db.jobs).toEqual([])
+  })
+
+  it("this reel's word is checked together with the kit it lands on", async () => {
+    // Her profile's dark call reads on the pale background this reel asks
+    // for; the white call of the kept kit does not -- and the kit is what
+    // renders. Refused before anything is spent.
+    const base = fakeBase()
+    qualify(base)
+    base.db.profiles.push({
+      owner_id: SELLER,
+      telegram_id: LENA,
+      updated: 2,
+      profile: { visual: { gold_title: '#1a1a1a' } },
+    })
+    await tool(base).handler(
+      {
+        lead: LENA,
+        end_card: { bg: '#0a0a0a', title: '#ffffff' },
+        save_end_card: true,
+      },
+      ctxOf(base)
+    )
+    const out = await startStory(depsOn(base, async () => reel).deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+      endCard: { bg: '#fafafa' },
+    })
+    expect(out.started).toBe(false)
+    expect(out.why).toMatch('призыв цветом #ffffff на фоне #fafafa')
+    expect(base.db.jobs).toEqual([])
+  })
+
+  it('an empty card with save takes the kept one off', async () => {
+    const base = fakeBase()
+    qualify(base)
+    await tool(base).handler(
+      { lead: LENA, end_card: KIT, save_end_card: true },
+      ctxOf(base)
+    )
+    expect(base.db.kept).toHaveLength(1)
+    const off: any = await tool(base).handler(
+      { lead: LENA, end_card: {}, save_end_card: true },
+      ctxOf(base)
+    )
+    expect(off.end_card_saved).toMatch('палитра клиента снята')
+    expect(base.db.kept).toEqual([])
+  })
+
+  it("one seller's kit is never another's, and keeping never writes her profile", async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.kept.push({
+      owner_id: OTHER_SELLER,
+      lead_id: LENA,
+      end_card: JSON.stringify(KIT),
+    })
+    const s = await storySettingsOf(base.pool, LENA, SELLER)
+    expect(s?.keptCard).toBeNull()
+    await tool(base).handler(
+      { lead: LENA, end_card: KIT, save_end_card: true },
+      ctxOf(base)
+    )
+    expect(base.db.writes.some(w => /crm_client_profiles/.test(w))).toBe(false)
+    expect(base.db.profiles).toEqual([])
   })
 })

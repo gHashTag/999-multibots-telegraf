@@ -228,33 +228,140 @@ export function endCardProblem(raw: unknown): string {
   return ''
 }
 
-/** Where one end-card colour comes from (spec v7, end_card_field). */
-export function endCardField(sellerGave: boolean, profileHas: boolean): number {
+/**
+ * Where one end-card colour comes from (spec v10, end_card_field): the
+ * seller's word for this reel, the palette kept for her, her profile, the
+ * default.
+ */
+export function endCardField(
+  sellerGave: boolean,
+  keptHas: boolean,
+  profileHas: boolean
+): number {
   if (sellerGave) return SPEC.FIELD_FROM_SELLER
+  if (keptHas) return SPEC.FIELD_FROM_KEPT
   if (profileHas) return SPEC.FIELD_FROM_PROFILE
   return SPEC.FIELD_FROM_DEFAULT
 }
 
 /**
- * The seller's card over her profile's, field by field (spec v7). Null when
- * neither gives anything: the reel then ends on its held last frame.
+ * The seller's card over the kept one over her profile's, field by field
+ * (spec v7, v10). Null when none gives anything: the reel then ends on its
+ * held last frame.
  */
 export function mergeEndCard(
   seller: StoryEndCard | null,
+  kept: StoryEndCard | null,
   profile: StoryEndCard | null
 ): StoryEndCard | null {
   const out: StoryEndCard = {}
+  const from = {
+    [SPEC.FIELD_FROM_SELLER]: seller,
+    [SPEC.FIELD_FROM_KEPT]: kept,
+    [SPEC.FIELD_FROM_PROFILE]: profile,
+  } as Record<number, StoryEndCard | null>
   for (const k of [...COLOURS, 'button'] as const) {
-    const from = endCardField(!!seller?.[k], !!profile?.[k])
     const v =
-      from === SPEC.FIELD_FROM_SELLER
-        ? seller?.[k]
-        : from === SPEC.FIELD_FROM_PROFILE
-          ? profile?.[k]
-          : undefined
+      from[endCardField(!!seller?.[k], !!kept?.[k], !!profile?.[k])]?.[k]
     if (v) out[k] = v
   }
   return Object.keys(out).length ? out : null
+}
+
+/*
+ * HER PALETTE, KEPT (spec v10). v7 took the seller's end_card for one reel;
+ * the next one ended in the defaults unless he said it again. It is kept per
+ * seller and client in its own table -- NOT in her profile's story_reel
+ * block, which is what turns her own paid presses on (story-template.ts
+ * sellerOf finds her seller by it).
+ */
+export async function ensureKeptEndCards(pool: {
+  query: (sql: string, params?: unknown[]) => Promise<any>
+}): Promise<void> {
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS story_end_cards (
+       owner_id   text NOT NULL,
+       lead_id    text NOT NULL,
+       end_card   jsonb NOT NULL,
+       updated_at timestamptz NOT NULL DEFAULT now(),
+       PRIMARY KEY (owner_id, lead_id)
+     )`
+  )
+}
+
+/** The palette kept for this seller and client, or null. */
+export async function keptEndCardOf(
+  pool: { query: (sql: string, params?: unknown[]) => Promise<any> },
+  owner: string,
+  lead: string
+): Promise<StoryEndCard | null> {
+  try {
+    const r = await pool.query(
+      `SELECT end_card FROM story_end_cards WHERE owner_id = $1 AND lead_id = $2`,
+      [String(owner), String(lead)]
+    )
+    const raw = r?.rows?.[0]?.end_card
+    return endCardOf(typeof raw === 'string' ? JSON.parse(raw) : raw)
+  } catch {
+    return null // no table yet: nothing was kept
+  }
+}
+
+/** The spec's keep_action. */
+export function keepAction(
+  saveAsked: boolean,
+  cardGiven: boolean,
+  cardOk: boolean
+): number {
+  if (!saveAsked) return SPEC.KEEP_NONE
+  if (!cardGiven) return SPEC.KEEP_CLEAR
+  if (cardOk) return SPEC.KEEP_SAVE
+  return SPEC.KEEP_REFUSED
+}
+
+/**
+ * Keep or clear her palette for this seller (spec v10). The card is checked
+ * as a start checks it -- #hex, then contrast over her profile's own card --
+ * and a card that fails is refused in words with nothing kept.
+ */
+export async function keepEndCard(
+  pool: { query: (sql: string, params?: unknown[]) => Promise<any> },
+  owner: string,
+  lead: string,
+  raw: unknown,
+  profile: StoryEndCard | null
+): Promise<{ kept: StoryEndCard | null; action: number; why?: string }> {
+  const given =
+    !!raw &&
+    typeof raw === 'object' &&
+    !Array.isArray(raw) &&
+    Object.values(raw as Record<string, unknown>).some(
+      v => v !== undefined && v !== null && String(v).trim() !== ''
+    )
+  const card = given ? endCardOf(raw) : null
+  const why = given
+    ? endCardProblem(raw) ||
+      (card ? endCardUnreadable(mergeEndCard(card, null, profile)) : '') ||
+      (card ? '' : 'end_card: ни одного цвета #hex и ни строки кнопки')
+    : ''
+  const action = keepAction(true, given, given && !why)
+  if (action === SPEC.KEEP_REFUSED) return { kept: null, action, why }
+  await ensureKeptEndCards(pool)
+  if (action === SPEC.KEEP_CLEAR) {
+    await pool.query(
+      `DELETE FROM story_end_cards WHERE owner_id = $1 AND lead_id = $2`,
+      [String(owner), String(lead)]
+    )
+    return { kept: null, action }
+  }
+  await pool.query(
+    `INSERT INTO story_end_cards (owner_id, lead_id, end_card, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (owner_id, lead_id)
+       DO UPDATE SET end_card = EXCLUDED.end_card, updated_at = now()`,
+    [String(owner), String(lead), JSON.stringify(card)]
+  )
+  return { kept: card, action }
 }
 
 const rgbOf = (c: string): [number, number, number] => {

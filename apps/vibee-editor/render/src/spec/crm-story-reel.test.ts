@@ -66,6 +66,9 @@ import { renderFeedEntry } from '../render-feed-entry'
  * Refresh: node scripts/sync-t27-spec.mjs <t27 checkout> automation/crm-story-reel
  */
 const HERE = __dirname
+// Invented ids only (the no-dossier guard): a seller and a client.
+const SELLER = '900000001'
+const CLIENT = '900000077'
 const specText = readFileSync(join(HERE, 'crm-story-reel.t27'), 'utf8')
 const genText = readFileSync(join(HERE, 'crm-story-reel.gen.ts'), 'utf8')
 
@@ -488,20 +491,20 @@ describe("the spec's tests hold against the host", () => {
   })
 
   it("her visual at the end: the seller's word, then her profile, then the default, kept in the job", async () => {
-    // end_card_field(seller_gave, profile_has). The job keeping the seller's
+    // end_card_field(seller_gave, kept_has, profile_has). The job keeping the seller's
     // card and a resume rendering it run in a-story-reel-for-any-client.test.ts
     // ("the seller's palette at the end").
     const { endCardField, mergeEndCard, END_CARD_PARAM } = await import(
       '../agent/story-reel-tool'
     )
-    expect(endCardField(true, true)).toBe(SPEC.FIELD_FROM_SELLER)
-    expect(endCardField(true, false)).toBe(SPEC.FIELD_FROM_SELLER)
-    expect(endCardField(false, true)).toBe(SPEC.FIELD_FROM_PROFILE)
-    expect(endCardField(false, false)).toBe(SPEC.FIELD_FROM_DEFAULT)
-    expect(mergeEndCard({ bg: '#111' }, { bg: '#222', title: '#eee' })).toEqual(
-      { bg: '#111', title: '#eee' }
-    )
-    expect(mergeEndCard(null, null)).toBeNull()
+    expect(endCardField(true, true, true)).toBe(SPEC.FIELD_FROM_SELLER)
+    expect(endCardField(true, false, false)).toBe(SPEC.FIELD_FROM_SELLER)
+    expect(endCardField(false, false, true)).toBe(SPEC.FIELD_FROM_PROFILE)
+    expect(endCardField(false, false, false)).toBe(SPEC.FIELD_FROM_DEFAULT)
+    expect(
+      mergeEndCard({ bg: '#111' }, null, { bg: '#222', title: '#eee' })
+    ).toEqual({ bg: '#111', title: '#eee' })
+    expect(mergeEndCard(null, null, null)).toBeNull()
     // The argument's name, and the button line's length.
     const { makeCrmStoryTool } = await import('../agent/crm-story-tool')
     const crm = makeCrmStoryTool({
@@ -528,6 +531,71 @@ describe("the spec's tests hold against the host", () => {
       'utf8'
     )
     expect(tpl).toMatch(/ADD COLUMN IF NOT EXISTS end_card\s+jsonb/)
+  })
+
+  it('her palette is kept once for every next reel, checked first, and never turns her presses on', async () => {
+    // end_card_field with the kept palette; keep_action. Keeping through the
+    // tool, her own press ending in it, and a card refused before it is kept
+    // run in a-story-reel-for-any-client.test.ts ("her palette, kept").
+    const { endCardField, mergeEndCard, keepAction, keepEndCard } =
+      await import('../agent/story-reel-tool')
+    expect(SPEC.END_CARD_SAVE_ARG).toBe('save_end_card')
+    expect(endCardField(false, true, true)).toBe(SPEC.FIELD_FROM_KEPT)
+    expect(endCardField(false, true, false)).toBe(SPEC.FIELD_FROM_KEPT)
+    expect(endCardField(true, true, false)).toBe(SPEC.FIELD_FROM_SELLER)
+    expect(
+      mergeEndCard(
+        { bg: '#111' },
+        { bg: '#1a2b3c', title: '#fafafa' },
+        { title: '#eee', text: '#ddd' }
+      )
+    ).toEqual({ bg: '#111', title: '#fafafa', text: '#ddd' })
+    expect(keepAction(false, true, true)).toBe(SPEC.KEEP_NONE)
+    expect(keepAction(true, true, true)).toBe(SPEC.KEEP_SAVE)
+    expect(keepAction(true, true, false)).toBe(SPEC.KEEP_REFUSED)
+    expect(keepAction(true, false, false)).toBe(SPEC.KEEP_CLEAR)
+    // KEPT_PER_SELLER_AND_CLIENT, KEPT_CHECKED_BEFORE_KEEPING,
+    // KEPT_EMPTY_CARD_CLEARS, !KEPT_IN_PROFILE_STORY_BLOCK: every statement
+    // keepEndCard sends, against a log.
+    const sent: Array<{ sql: string; p: unknown[] }> = []
+    const pool = {
+      query: async (sql: string, p: unknown[] = []) => {
+        sent.push({ sql, p })
+        return { rows: [] }
+      },
+    }
+    const refused = await keepEndCard(
+      pool,
+      SELLER,
+      CLIENT,
+      { bg: 'black' },
+      null
+    )
+    expect(refused.action).toBe(SPEC.KEEP_REFUSED)
+    expect(sent).toEqual([])
+    const kept = await keepEndCard(
+      pool,
+      SELLER,
+      CLIENT,
+      { bg: '#10182a', title: '#f5f5f5' },
+      null
+    )
+    expect(kept.action).toBe(SPEC.KEEP_SAVE)
+    const insert = sent.find(x => /INSERT INTO story_end_cards/.test(x.sql))!
+    expect(insert.p.slice(0, 2)).toEqual([SELLER, CLIENT])
+    const cleared = await keepEndCard(pool, SELLER, CLIENT, {}, null)
+    expect(cleared.action).toBe(SPEC.KEEP_CLEAR)
+    expect(sent.some(x => /DELETE FROM story_end_cards/.test(x.sql))).toBe(true)
+    expect(sent.some(x => /crm_client_profiles/.test(x.sql))).toBe(
+      SPEC.KEPT_IN_PROFILE_STORY_BLOCK
+    )
+    // KEPT_FOR_HER_OWN_PRESS: the settings her press reads carry it.
+    const tpl = readFileSync(
+      join(HERE, '..', 'agent', 'story-template.ts'),
+      'utf8'
+    )
+    expect(SPEC.KEPT_FOR_HER_OWN_PRESS).toBe(true)
+    expect(tpl).toContain('keptCard: await keptEndCardOf(pool, owner, id)')
   })
 
   it("a colour is #hex that CSS reads, and an unreadable palette of the seller's is refused before spending", async () => {
