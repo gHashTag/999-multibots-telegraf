@@ -44,6 +44,7 @@ import {
 import { clientProfileFor } from './crm-client-setup-tool'
 import { assistantMayReach } from './assistant-opt-out'
 import { violatesLeelaVoice, LEELA_CTA_RU, LEELA_PLAY_RU } from './leela-canon'
+import * as SPEC from '../spec/crm-duet.gen'
 
 /**
  * The refusal when no buyer is named. The tool used to fall back to one real
@@ -52,8 +53,10 @@ import { violatesLeelaVoice, LEELA_CTA_RU, LEELA_PLAY_RU } from './leela-canon'
  */
 export const NO_BUYER_REASON =
   'Укажите buyer — Telegram ID покупателя: дуэт не выбирает человека сам.'
-export const TURNS_DEFAULT = 4
-export const TURNS_MAX = 8
+// Turn limits, the retry and the discovery gate come from the spec of record
+// (crm-duet.t27 v2, bound in src/spec/crm-duet.test.ts).
+export const TURNS_DEFAULT = SPEC.TURNS_DEFAULT
+export const TURNS_MAX = SPEC.TURNS_MAX
 export const PAID_TOOLS = new Set([
   'image_generate',
   'image_edit',
@@ -388,8 +391,8 @@ export interface DuetDeps {
  * is not retried; waiting would not change the answer. A turn whose failed
  * attempt already paid for a generation is never replayed.
  */
-export const SELLER_RETRY_ON_LIMIT = 1
-export const SELLER_RETRY_PAUSE_MS = 30_000
+export const SELLER_RETRY_ON_LIMIT = SPEC.SELLER_RETRY_ON_LIMIT
+export const SELLER_RETRY_PAUSE_MS = SPEC.SELLER_RETRY_PAUSE_MS
 // "limit" covers "rate limit" and "limit reached"; the last alternative is the
 // word provider.ts diagnose() uses for 429 in Russian.
 const LIMIT_RE =
@@ -581,7 +584,7 @@ export function sellerBrief(
       ? ['Запрещённые формулировки:', ...lines(p.forbidden_claims)]
       : []),
     'Слова давления запрещены: «сегодня», «срочно», «последний шанс», «серия», «прогресс», «молодец», «успех», поздравления. Цены, скидки, проценты и отзывы не называй; о цене говори только если она сама спросила, и только цифрами из ответа pricing.',
-    'Инструменты — по делу: сначала crm_client_profile и crm_lead_context (что о ней уже известно), leela_plan — свободно; платная генерация — один портрет и один ролик за диалог, и только после того, как она сказала, чего хочет.',
+    'Инструменты — по делу: сначала crm_client_profile и crm_lead_context (что о ней уже известно), leela_plan — свободно; платная генерация — один портрет и один ролик за диалог, не больше одной за реплику, и только после того, как она сказала, чего хочет.',
     NO_LIVED_EXPERIENCE_RULE,
     NO_PUBLISH_RULE,
     'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт — готовый ролик уходит ей файлом отдельным сообщением сразу после твоего текста. Никогда не пиши «отправляю/пришлю файл»: если она просит файл, скажи, что видео уже пришло в чат следующим сообщением после ссылки, и спроси, что в нём не в стиле. Ссылку на приложение или бота давай не больше одного раза за диалог.',
@@ -733,7 +736,7 @@ export function producedWork(results: ToolResultEvent[]): boolean {
  * (`{ ошибка, отказано: true }`, nothing spent). Spec: crm-duet.t27 // cyrillic-ok
  * DISCOVERY_SELLER_TURNS, DISCOVERY_HIDES_PAID_TOOLS, DISCOVERY_REFUSES_PAID_CALL.
  */
-export const DISCOVERY_SELLER_TURNS = 2
+export const DISCOVERY_SELLER_TURNS = SPEC.DISCOVERY_SELLER_TURNS
 
 /**
  * PERSONA CONSENT IS NOT CONSENT (gHashTag/t27#4522).
@@ -823,6 +826,19 @@ export function madeThisTurnNote(results: ToolResultEvent[]): string {
   return files.length
     ? `В этом ходу уже готово: ${files.join(', ')} — файл уйдёт ей сразу после твоей реплики. На правке меняются только слова; генерацию заново не вызывай.`
     : 'На правке меняются только слова; генерацию и публикацию не вызывай.'
+}
+
+/**
+ * The state a finished loop stores (spec: state_after): done only for a full
+ * transcript, failed otherwise -- a run that broke off at line 3 of 8 once
+ * read "finished, 0 violations" on the dashboard.
+ */
+export function stateAfter(
+  lines: number,
+  turns: number,
+  errored: boolean
+): 'done' | 'failed' {
+  return errored || lines < turns * 2 ? SPEC.ABORTED_RUN_STATE : 'done'
 }
 
 /** Discovery turns: the first DISCOVERY_SELLER_TURNS seller turns. */
@@ -1712,7 +1728,7 @@ export async function runDuet(
     }
     if (!aborted && run.transcript.length < run.turns * 2)
       aborted = `transcript has ${run.transcript.length} of ${run.turns * 2} lines`
-    run.state = aborted ? 'failed' : 'done'
+    run.state = stateAfter(run.transcript.length, run.turns, !!aborted)
     if (aborted) run.error = aborted
   } catch (e) {
     run.state = 'failed'
