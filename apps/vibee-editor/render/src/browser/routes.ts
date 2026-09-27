@@ -583,6 +583,15 @@ export async function handleBrowser(
       // Probes (tri eyes) stay out of the person's view unless asked for.
       { probes: q.get('probes') === '1' }
     )
+    /*
+     * errors=1 asks the focused question instead of the whole log: for each
+     * failed step, what did the agent actually look at just before it (saw.ts).
+     * A derived view over the same rows -- no second read, no second table.
+     */
+    if (q.get('errors') === '1') {
+      const { sawAtErrors } = await import('./saw')
+      return { status: 200, body: { ok: true, errors: sawAtErrors(steps) } }
+    }
     return { status: 200, body: { ok: true, steps } }
   }
 

@@ -722,6 +722,12 @@ AGENT TOOLS ON THE RENDER
                           the live pod is alive today and cannot show the three
                           answers that matter. A mutant that calls a wedged pod
                           healthy fails the first case.
+  tri saw [limit]         what the agent SAW when it erred. For each failed
+                          browser step in the last [limit] (default 50), the
+                          last thing it actually looked at and how long before
+                          -- the 2026-09-22 "Queen's board vs a Google sign-in"
+                          mismatch, answered in one read. Exit 0 nothing erred,
+                          1 something did, 3 the render did not answer.
 
 OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
@@ -1795,6 +1801,76 @@ PY
     0) good 'the remote browser can act' ;;
     1) bad 'the remote browser cannot act -- heal it before trusting a round' ;;
     2) warn 'reachable, but the answer is not proof of a working page' ;;
+    *) bad 'could not tell -- the render itself did not answer' ;;
+  esac
+  return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# WHAT THE AGENT SAW WHEN IT ERRED.
+#
+# On 2026-09-22 the agent said the screen showed "the Queen's board" while it
+# showed a Google sign-in; finding that out took an evening of re-running its
+# calls by hand. The journal has held the answer ever since, but reading it
+# meant scrolling fifty steps and guessing which look came before which error.
+# This asks the journal the focused question (saw.ts, errors=1): for each
+# failed step, the last thing the agent actually looked at, and how long
+# before. Exit 0 when nothing erred, 1 when something did, 3 when the render
+# did not answer -- so a script can gate on "did the last turn err".
+# ─────────────────────────────────────────────────────────────────────────
+cmd_saw() {
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+
+  SAW_KEY="$key" SAW_URL="$RENDER/api/browser/journal?errors=1&limit=${1:-50}" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+
+req = urllib.request.Request(
+    os.environ['SAW_URL'], headers={"X-Agent-Key": os.environ['SAW_KEY']})
+try:
+    with urllib.request.urlopen(req, timeout=30) as r:
+        answer = json.loads(r.read())
+except urllib.error.HTTPError as e:
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+    print(f'  HTTP {e.code} {e.reason}{hint}')
+    sys.exit(3)
+except Exception as e:                        # DNS, TLS, timeout
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+errors = answer.get('errors') or []
+if not errors:
+    print('  no errors in the last steps -- the agent did not stumble')
+    sys.exit(0)
+
+def ago(ms):
+    s = ms / 1000.0
+    return f'{s:.0f}s' if s < 60 else f'{s/60:.0f}m'
+
+for e in errors:
+    tool = e.get('tool', '?')
+    at = (e.get('at') or '')[11:19]              # HH:MM:SS, the date rarely matters here
+    msg = e.get('error') or '(no message kept)'
+    print(f'  {at}  {tool} FAILED: {msg}')
+    saw = e.get('saw')
+    if not saw:
+        # The third outcome, kept out loud: nothing looked at is not
+        # looked-and-saw-nothing.
+        print('        saw: nothing looked at before this')
+        continue
+    what = saw.get('seen') or saw.get('title') or saw.get('url') or '(a page)'
+    where = f" <{saw['url']}>" if saw.get('url') and saw.get('seen') is None and saw.get('title') is None else ''
+    print(f"        saw {ago(saw.get('agoMs', 0))} before ({saw.get('tool','?')}): {what}{where}")
+
+sys.exit(1)
+PY
+  local rc=$?
+  case "$rc" in
+    0) good 'the last turn did not err' ;;
+    1) warn 'the last turn erred -- above is what the agent saw each time' ;;
     *) bad 'could not tell -- the render itself did not answer' ;;
   esac
   return "$rc"
@@ -4725,6 +4801,7 @@ case "$action" in
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
+  saw|увидел)          cmd_saw "$@" ;;
   lesson|опыт)         cmd_lesson "$@" ;;
   lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
   unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
