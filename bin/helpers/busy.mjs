@@ -20,6 +20,11 @@
  * window of the last 15 minutes or more, not a `[story]` filter, which is
  * empty whenever nothing ran).
  *
+ * Feed it the CURRENT deployment's window from its start (get-logs with
+ * its deploymentId): a service-wide window across deployments came back
+ * incomplete in loop turn 7 -- start lines without their end lines, then,
+ * fifteen minutes later, the same window empty.
+ *
  * Two things never write their "ended" and are not open: whatever a redeploy
  * cut (a `sending signal SIGTERM` / `Stopping Container` line after its
  * start) -- listed as CUT -- and an earlier attempt of a job whose next
