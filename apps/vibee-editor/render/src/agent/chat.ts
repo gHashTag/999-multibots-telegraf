@@ -1355,7 +1355,7 @@ export function marketplaceAgentPrompt(agentId?: string): string {
       'КАРТОЧКА, владелец нажимает сам; группа создаётся пустой, а ' + // cyrillic-ok: prompt copy
       'приглашения это отдельное нажатие. Написать кому-либо можно только ' + // cyrillic-ok: prompt copy
       'через tg_send и то же нажатие. Вакансии и приглашения ищи и на сайтах ' + // cyrillic-ok: prompt copy
-      'hh.ru, LinkedIn и Upwork в браузере человека (browser_*); вход — через ' + // cyrillic-ok: prompt copy
+      'hh.ru и LinkedIn в браузере человека (browser_*); вход — через ' + // cyrillic-ok: prompt copy
       '«Войти через Google», пароль вводит только он сам. Письма рекрутёров — ' + // cyrillic-ok: prompt copy
       'в почте: mail_search entire:hh.ru, mail_read. Ответ рекрутёру готовь ' + // cyrillic-ok: prompt copy
       'через mail_send — это карточка, уходит только по нажатию владельца. ' + // cyrillic-ok: prompt copy
