@@ -4,6 +4,7 @@ import {
   fieldSource,
   panelKeepOffered,
   panelTakeOffered,
+  takeBg,
   takeFix,
   toColourInput,
 } from './storyPalette'
@@ -39,6 +40,13 @@ describe('her palette on the card: the pure part', () => {
       card
     )
     expect(takeFix({}, {})).toEqual({})
+  })
+
+  it('taking the ground changes the background, nothing else (v13)', () => {
+    const card = { bg: '#f5efe0', title: '#d4b04c', button: 'x' }
+    expect(takeBg(card, { bg: '#45433f' })).toEqual({ ...card, bg: '#45433f' })
+    expect(takeBg(card, { title: '#000', accent: '#111' })).toEqual(card)
+    expect(takeBg({}, {})).toEqual({})
   })
 
   it('a field comes from the kept palette, then her profile, then the default', () => {

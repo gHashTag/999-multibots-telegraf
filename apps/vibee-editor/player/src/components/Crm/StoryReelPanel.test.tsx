@@ -406,6 +406,87 @@ describe('her palette on the story panel', () => {
     expect(calls.some(c => c.save_end_card || c.start)).toBe(false)
   })
 
+  // v13: beside the shade, her own colour and her ground -- each a press.
+  const OPTIONS = {
+    ...REFUSED,
+    end_card_fix_palette: { title: '#5a4a10' },
+    end_card_fix_bg: { bg: '#45433f' },
+  }
+  const lastCheck = () =>
+    calls.filter(c => c.end_card && !c.save_end_card).at(-1)
+
+  it('take her own colour: the press fills the call with it and checks again', async () => {
+    serve(a =>
+      a.end_card && !a.save_end_card
+        ? (a.end_card as { title?: string }).title === '#eeeeee'
+          ? OPTIONS
+          : WITH_CARD
+        : WITH_CARD
+    )
+    await draw()
+    await openEditor()
+    await set(
+      host.querySelector('input[data-field="title"]') as HTMLInputElement,
+      '#eeeeee'
+    )
+    await press('check')
+    for (const id of ['fix', 'fix-palette', 'fix-bg'])
+      expect(
+        host.querySelector(`[data-testid="story-palette-${id}"]`)
+      ).not.toBeNull()
+    await press('take-palette')
+    expect(lastCheck()).toEqual({
+      lead: CLIENT,
+      end_card: {
+        bg: '#10182a',
+        title: '#5a4a10',
+        text: '#ffffff',
+        button: 'Написать мне',
+      },
+    })
+    expect(calls.some(c => c.save_end_card || c.start)).toBe(false)
+  })
+
+  it('take the ground: only the background changes, then the card is checked again', async () => {
+    serve(a =>
+      a.end_card && !a.save_end_card
+        ? (a.end_card as { bg?: string }).bg === '#45433f'
+          ? WITH_CARD
+          : OPTIONS
+        : WITH_CARD
+    )
+    await draw()
+    await openEditor()
+    await press('check')
+    await press('take-bg')
+    expect(lastCheck()).toEqual({
+      lead: CLIENT,
+      end_card: {
+        bg: '#45433f',
+        title: '#f5f5f5',
+        text: '#ffffff',
+        button: 'Написать мне',
+      },
+    })
+    // The new check read clean: no options left, keep is offered.
+    expect(
+      host.querySelector('[data-testid="story-palette-fix-bg"]')
+    ).toBeNull()
+    expect(
+      (host.querySelector('[data-action="keep"]') as HTMLButtonElement).disabled
+    ).toBe(false)
+    expect(calls.some(c => c.save_end_card || c.start)).toBe(false)
+  })
+
+  it('a loaded card that does not read offers every option before the editor opens', async () => {
+    serve(a => (a.end_card ? WITH_CARD : OPTIONS))
+    await draw()
+    expect(host.querySelectorAll('.crm-client__palette-fix').length).toBe(3)
+    await press('take-bg')
+    expect(lastCheck()?.end_card).toMatchObject({ bg: '#45433f' })
+    expect(host.querySelector('.crm-client__palette-edit')).not.toBeNull()
+  })
+
   it('takes the kept palette off with an empty card, and starts nothing', async () => {
     serve(a =>
       a.save_end_card

@@ -42,6 +42,8 @@ import {
   endCardProblem,
   endCardUnreadable,
   endCardFix,
+  endCardFixBg,
+  endCardFixPalette,
   suggestOffered,
   keepEndCard,
   mergeEndCard,
@@ -199,6 +201,10 @@ export function makeCrmStoryTool(o: {
             kept: false,
             why: k.why,
             ...(k.fix ? { [REEL.SUGGEST_FIX_ARG]: k.fix } : {}),
+            ...(k.fixPalette
+              ? { [REEL.SUGGEST_PALETTE_ARG]: k.fixPalette }
+              : {}),
+            ...(k.fixBg ? { [REEL.SUGGEST_BG_ARG]: k.fixBg } : {}),
           }
         kept = k.kept
         keptNote =
@@ -222,6 +228,9 @@ export function makeCrmStoryTool(o: {
       const fix = suggestOffered(!badColour, !unreadable)
         ? endCardFix(endCard)
         : null
+      // Beside the shade, her own colour and her ground (spec v13).
+      const fixPalette = fix ? endCardFixPalette(endCard) : null
+      const fixBg = fix ? endCardFixBg(endCard) : null
 
       if (args.start !== true) {
         const jobs = await storyJobsOf(ctx.pool, seller, lead).catch(() => [])
@@ -260,6 +269,10 @@ export function makeCrmStoryTool(o: {
                   ? { end_card_why: badColour || unreadable }
                   : {}),
                 ...(fix ? { [REEL.SUGGEST_FIX_ARG]: fix } : {}),
+                ...(fixPalette
+                  ? { [REEL.SUGGEST_PALETTE_ARG]: fixPalette }
+                  : {}),
+                ...(fixBg ? { [REEL.SUGGEST_BG_ARG]: fixBg } : {}),
                 client_pays_own_press: s.payer === 'client',
               }
             : {}),
