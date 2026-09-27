@@ -1,6 +1,6 @@
 // В файле src/core/supabase/directPayment.ts
 
-import { v4 as uuidv4 } from 'uuid'
+import { randomUUID as uuidv4 } from 'node:crypto'
 import { supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'

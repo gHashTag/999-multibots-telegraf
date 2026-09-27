@@ -152,11 +152,37 @@ async function readAsThePerson(
   owner: string,
   url: string
 ): Promise<unknown> {
-  const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
+  const { listTargets, newPage, evaluateOn, closePage, activatePage } =
+    await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
-  const page = await newPage(cdp, 'https://www.reddit.com/')
+  /*
+   * A TAB THAT IS ALREADY THERE IS WORTH MORE THAN A FRESH ONE, and not only
+   * because it is cheaper: a tab Chromium has frozen answers nothing at all
+   * (start-chromium.sh records the measurement), and the tab most likely to
+   * be awake is the one the browser already has on Reddit. Reading is a fetch
+   * from the page's own origin, so it changes nothing the person can see.
+   */
+  const mine = choosePage(
+    await listTargets(cdp).catch(() => []),
+    'https://www.reddit.com'
+  )
+  const page = mine
+    ? { id: mine }
+    : await newPage(cdp, 'https://www.reddit.com/')
   try {
-    await settle(4_000)
+    /* An activated tab is not a background tab, and so is not a frozen one. */
+    await activatePage(cdp, page.id).catch(() => {})
+    /*
+     * THE FETCH MUST RUN FROM REDDIT'S OWN ORIGIN, NOT FROM A TAB THAT IS
+     * STILL BLANK. On the first live tick (2026-09-27) the account was signed
+     * in and the inbox held five unread replies, and the desk still reported
+     * that the inbox had not answered: a flat 4-second wait ended while the
+     * tab was on about:blank, so the request went out cross-origin, CORS
+     * refused it, and `fetch` failed for a reason that had nothing to do with
+     * Reddit. Asking the page where it IS costs one round trip and cannot be
+     * wrong about it.
+     */
+    await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
     const text = await evaluateOn(
       cdp,
       page.id,
@@ -173,8 +199,71 @@ async function readAsThePerson(
       throw new Error(`reddit answered with no json: ${body.slice(0, 80)}`)
     return body
   } finally {
-    await closePage(cdp, page.id).catch(() => {})
+    /* Close only what this read opened: a tab that was the person's stays. */
+    if (!mine) await closePage(cdp, page.id).catch(() => {})
   }
+}
+
+/**
+ * The id of a page already open at that origin, or null. Reading is done in
+ * such a page when there is one -- see readAsThePerson for why.
+ */
+export function choosePage(
+  targets: Array<{ id: string; type: string; url: string }>,
+  origin: string
+): string | null {
+  /*
+   * Compared as ORIGINS, not as a prefix: `https://www.reddit.com.evil.test/`
+   * starts with `https://www.reddit.com` and is a different site entirely, and
+   * this page is about to be handed the account's cookie.
+   */
+  const at = (url: string): string => {
+    try {
+      return new URL(url).origin
+    } catch {
+      return ''
+    }
+  }
+  const want = at(origin)
+  const hit = targets.find(t => t.type === 'page' && at(t.url) === want)
+  return hit ? hit.id : null
+}
+
+/**
+ * Waits until the tab reports the origin it was opened at, and says what it
+ * reported instead when it never does -- a wrong origin is exactly the failure
+ * this helper exists to name.
+ */
+async function waitForOrigin(
+  cdp: string,
+  pageId: string,
+  want: string,
+  tries = 14,
+  everyMs = 1_500
+): Promise<void> {
+  const { evaluateOn } = await import('../browser/cdp')
+  let saw = ''
+  /*
+   * WHY IT NEVER ANSWERED IS THE WHOLE ANSWER. The first version reported
+   * "it is at nowhere" for a tab whose renderer was frozen and timing out
+   * every call -- true, useless, and it cost a day. The last error travels.
+   */
+  let why = ''
+  for (let i = 0; i < tries; i++) {
+    await settle(everyMs)
+    const at = await evaluateOn(cdp, pageId, 'location.origin').catch(
+      (e: unknown) => {
+        why = String(e instanceof Error ? e.message : e).slice(0, 120)
+        return ''
+      }
+    )
+    saw = typeof at === 'string' ? at : ''
+    if (saw === want) return
+  }
+  throw new Error(
+    `the tab never reached ${want}, it is at ${saw || 'nowhere'}` +
+      (why ? ` (${why})` : '')
+  )
 }
 
 /**
@@ -245,10 +334,14 @@ async function replyOnReddit(
   m: Mention,
   text: string
 ): Promise<string> {
-  const { newPage, typeText } = await import('../browser/cdp')
+  const { newPage, typeText, activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
   const page = await newPage(cdp, m.link)
-  await settle(8_000)
+  /* Front, so the tab is awake -- and so the person sees what is typed. */
+  await activatePage(cdp, page.id).catch(() => {})
+  /* The same trap as the inbox: press nothing until the page is really here. */
+  await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
+  await settle(3_000)
   /* Reddit's own words on the comment's own reply control. */
   await pressOne(cdp, page.id, ['reply', 'ответить'])
   await settle(1_500)
@@ -269,10 +362,13 @@ async function submitOnReddit(
   owner: string,
   p: PlannedPost
 ): Promise<string> {
-  const { newPage } = await import('../browser/cdp')
+  const { newPage, activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
   const page = await newPage(cdp, submitUrl(p))
-  await settle(8_000)
+  /* Front, so the tab is awake -- and so the person sees what is posted. */
+  await activatePage(cdp, page.id).catch(() => {})
+  await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
+  await settle(3_000)
   const pressed = await pressOne(cdp, page.id, ['post', 'опубликовать'])
   return `опубликовано («${pressed}») в r/${p.subreddit}` // cyrillic-ok: told to the owner
 }

@@ -27,8 +27,30 @@ set -e
 # CDP to loopback only (measured 2026-09-20), which is what we want: this
 # port must never be published out of the container, because whoever reaches
 # CDP reads every cookie and acts as the person.
+# A FROZEN TAB DOES NOT ANSWER THE AGENT AT ALL.
+#
+# Measured in the live pod 2026-09-27, one browser, three questions:
+#
+#   Runtime.evaluate on the FRONT tab              -> answers at once
+#   Runtime.evaluate on a BACKGROUND tab           -> silence until timeout
+#   Runtime.evaluate on a tab just created         -> silence, url still ""
+#
+# Nobody is looking at this window the way Chromium counts looking, so it
+# treats every tab but the front one as hidden and freezes the renderer;
+# a frozen renderer takes the command and never runs it. That is not a slow
+# page, it is no page: the Reddit desk reported "the inbox did not answer"
+# while the account was signed in and holding unread replies, because the tab
+# it opened was frozen before it ever loaded.
+#
+# These flags say: this browser is always watched. Occlusion is not a reason
+# to background a window, a background renderer is not a reason to throttle
+# it, and the memory-saver features that discard and freeze tabs are off.
 exec /usr/bin/chromium \
   --no-sandbox \
+  --disable-backgrounding-occluded-windows \
+  --disable-renderer-backgrounding \
+  --disable-background-timer-throttling \
+  --disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling,HighEfficiencyModeAvailable,FreezingOnEnergySaver \
   --window-position=0,0 \
   --display="${DISPLAY}" \
   --user-data-dir=/home/neko/.config/chromium \
