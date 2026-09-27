@@ -97,12 +97,22 @@ describe('the tick that asks the database', () => {
     ])
     const pool = fakePool(rows)
     const before = Date.now()
-    /* The walk itself needs a browser and fails here; the mark must still be
-     * written, because a round that dies half way is a round that happened. */
-    await runRoundIfDue(pool).catch(() => {})
-    const at = await lastRoundAt(pool)
-    expect(at === null).toBe(false)
-    expect(Number(at)).toBeGreaterThanOrEqual(before)
+    /*
+     * The walk is injected and dies at once, the way a deploy kills a real
+     * one -- with or without a browser on the machine running the test. What
+     * it saw is the point: the mark was already written when it started.
+     */
+    let seenByWalk: number | null = null
+    await runRoundIfDue(pool, {
+      walk: async p => {
+        seenByWalk = await lastRoundAt(p)
+        throw new Error('the deploy killed the walk')
+      },
+    }).catch(() => {})
+    expect(seenByWalk === null).toBe(false)
+    expect(Number(seenByWalk)).toBeGreaterThanOrEqual(before)
+    /* And a round that died half way still counts as a round that happened. */
+    expect(Number(await lastRoundAt(pool))).toBeGreaterThanOrEqual(before)
   })
 
   it('reads the mark it wrote, and reads nothing from an empty table', async () => {

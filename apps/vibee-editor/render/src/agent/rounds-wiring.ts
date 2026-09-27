@@ -159,10 +159,17 @@ let dueRunning = false
  *
  * The mark is written BEFORE the walk, not after: a round takes minutes and the
  * deploy that interrupts it must not leave the next tick starting another one.
+ *
+ * The walk is a parameter (the live one by default), like every browser call
+ * of deskWindow: whether a browser is installed where the tests run must not
+ * decide what the test of this ordering does.
  */
 export async function runRoundIfDue(
   pool: Queryable,
-  opts: { force?: boolean } = {}
+  opts: {
+    force?: boolean
+    walk?: (pool: Queryable) => Promise<string>
+  } = {}
 ): Promise<string> {
   if (process.env.ROUNDS_ENABLED !== '1') return 'off'
   if (dueRunning) return 'already running'
@@ -185,7 +192,7 @@ export async function runRoundIfDue(
   dueRunning = true
   try {
     await writeStrategy(pool, LAST_ROUND_KEY, { at: new Date().toISOString() })
-    return await runEveryDeskNow(pool)
+    return await (opts.walk ?? runEveryDeskNow)(pool)
   } finally {
     dueRunning = false
   }
