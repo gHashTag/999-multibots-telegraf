@@ -598,6 +598,43 @@ describe("the spec's tests hold against the host", () => {
     expect(tpl).toContain('keptCard: await keptEndCardOf(pool, owner, id)')
   })
 
+  it('the card shows her palette and keeps it by a press, for the card the last check passed', async () => {
+    // The player's own logic, run here against the spec's vectors; the
+    // panel's behaviour (check without start, keep, clear) runs in player
+    // src/components/Crm/StoryReelPanel.test.tsx ("her palette on the story panel").
+    const PLAYER = join(HERE, '..', '..', '..', 'player', 'src')
+    const palette = await import(join(PLAYER, 'lib', 'storyPalette.ts'))
+    expect(palette.panelKeepOffered(true, false, true)).toBe(true)
+    expect(palette.panelKeepOffered(false, false, true)).toBe(false)
+    expect(palette.panelKeepOffered(true, true, true)).toBe(false)
+    expect(palette.panelKeepOffered(true, false, false)).toBe(false)
+    const read = (...p: string[]) => readFileSync(join(PLAYER, ...p), 'utf8')
+    const lib = read('lib', 'crm.ts')
+    const panel = read('components', 'Crm', 'StoryPalette.tsx')
+    // PANEL_SHOWS_END_CARD: the answer's card reaches the panel.
+    expect(SPEC.PANEL_SHOWS_END_CARD).toBe(true)
+    expect(lib).toContain("endCard: toEndCard(r['end_card'])")
+    expect(read('components', 'Crm', 'StoryReelPanel.tsx')).toContain(
+      '<StoryPalette'
+    )
+    // PANEL_CHECK_IS_READ: the check is the tool without start.
+    expect(SPEC.PANEL_CHECK_IS_READ).toBe(true)
+    const check = lib.slice(
+      lib.indexOf('export const checkStoryPalette'),
+      lib.indexOf('export interface StoryPaletteSaved')
+    )
+    expect(check).toContain("'crm_story_reel'")
+    expect(check).not.toMatch(/start/)
+    // PANEL_VERDICT_FROM_SERVER: no contrast is computed in the player.
+    expect(SPEC.PANEL_VERDICT_FROM_SERVER).toBe(true)
+    for (const src of [lib, panel, read('lib', 'storyPalette.ts')])
+      expect(src).not.toMatch(/luminance|contrastX10|relativeLuminance/)
+    // PANEL_KEEP_IS_PRESS: kept from a button, never from an effect.
+    expect(SPEC.PANEL_KEEP_IS_PRESS).toBe(true)
+    expect(panel).not.toContain('useEffect')
+    expect(panel).toContain('onClick={() => void onKeep(draft)}')
+  })
+
   it("a colour is #hex that CSS reads, and an unreadable palette of the seller's is refused before spending", async () => {
     const {
       hexDigitsOk,
