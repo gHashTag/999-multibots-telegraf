@@ -37,9 +37,23 @@ export function ImportLogins() {
       const sites = sitesInWords(got.sites, n =>
         t('browser.import.andMore', { n })
       )
+      /*
+       * The count proves the browser took the cookies; the sign-in line
+       * proves the work. `signedIn` absent means the broker could not read it
+       * back -- say nothing rather than claim nothing worked. An empty list
+       * IS a fact: the cookies landed, no network lit up.
+       */
+      const proof =
+        got.signedIn === undefined
+          ? ''
+          : got.signedIn.length
+            ? ` ${t('browser.import.signedIn', {
+                networks: got.signedIn.join(', '),
+              })}`
+            : ` ${t('browser.import.signedInNone')}`
       setSaid({
         ok: true,
-        line: t('browser.import.done', { n: got.imported, sites }),
+        line: t('browser.import.done', { n: got.imported, sites }) + proof,
       })
       /* The keys have done their job; do not leave them on the screen. */
       setText('')

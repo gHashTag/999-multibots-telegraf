@@ -127,6 +127,9 @@ const en: Translations = {
   'browser.import.go': 'Bring them in',
   'browser.import.going': 'Bringing them in…',
   'browser.import.done': 'Done: {n} cookies for {sites}.',
+  'browser.import.signedIn': 'Signed in to {networks}.',
+  'browser.import.signedInNone':
+    'No network is signed in yet — those sites may need you to sign in again.',
   'browser.import.andMore': 'and {n} more',
   'browser.import.fail': 'Could not bring them in: {error}',
   'browser.import.warn':
@@ -2723,6 +2726,9 @@ const ru: Translations = {
   'browser.import.go': 'Перенести',
   'browser.import.going': 'Переношу…',
   'browser.import.done': 'Готово: {n} cookies для {sites}.',
+  'browser.import.signedIn': 'Вошли в {networks}.',
+  'browser.import.signedInNone':
+    'Пока ни в одну сеть не вошли — эти сайты могут попросить войти заново.',
   'browser.import.andMore': 'и ещё {n}',
   'browser.import.fail': 'Не удалось перенести: {error}',
   'browser.import.warn':
