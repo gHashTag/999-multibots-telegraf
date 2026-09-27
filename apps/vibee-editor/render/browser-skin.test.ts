@@ -118,7 +118,16 @@ describe('the loader, while the browser comes up', () => {
      * a ring that spins forever, with the real error underneath it.
      */
     expect(BOOT_SCRIPT).toContain(String(BOOT_GIVE_UP_MS))
-    expect(BOOT_SCRIPT).toMatch(/setTimeout\(done/)
+    /*
+     * The timer now wakes a choice rather than the exit itself: no frames means
+     * leave (this test), frames mean stay and show them (browser-frames.test.ts,
+     * "DOES NOT TAKE THE PICTURE AWAY WHEN THE PICTURE IS ALL THERE IS"). The
+     * behaviour this test names is the `else done()` half of it.
+     */
+    expect(BOOT_SCRIPT).toMatch(/setTimeout\(giveUp/)
+    expect(BOOT_SCRIPT).toMatch(
+      /frameSeen > 0 \? watchMode\(\) : done\(\)|else done\(\)/
+    )
     expect(BOOT_GIVE_UP_MS).toBeGreaterThan(20_000)
     expect(BOOT_GIVE_UP_MS).toBeLessThanOrEqual(60_000)
   })
