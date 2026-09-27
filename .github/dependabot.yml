@@ -41,6 +41,15 @@ updates:
           - "*"
         update-types:
           - "security"
+    # Мажоры автоматически НЕ тянем. Один пакет #3031 собрал шесть major-
+    # прыжков разом (@infisical/sdk 4->5 — загрузка секретов, elevenlabs
+    # 0.16->1.59 — другой API, uuid 9->14 — только ESM, vitest 3->5,
+    # react-native 0.76->0.87): влить без миграции кода = уронить секреты и
+    # TTS на проде, а CI-раннеров нет. Мажор мигрируется отдельным PR с живой
+    # проверкой провайдера. security-обновления идут МИМО ignore.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # Обновления Docker базовых образов
   - package-ecosystem: "docker"
