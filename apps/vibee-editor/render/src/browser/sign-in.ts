@@ -74,8 +74,31 @@ export const DOORS: Record<string, string> = {
   medium: 'https://medium.com/m/signin',
 }
 
-/** Networks whose door is a Google account, so signing into one signs in both. */
-export const THROUGH_GOOGLE = ['youtube'] as const
+/**
+ * Networks whose door is a Google account, so signing into one signs in both.
+ *
+ * Measured on the pod 2026-09-27, not assumed: habr's login page offers
+ * "Войти с помощью GitHub / VK / Google", and pressing the Google one was
+ * recognised as the owner's own account without a password being typed. It
+ * stopped one step short -- habr asks for a code mailed to the account because
+ * nobody had signed in for a long time -- so this list says "the door is
+ * Google", not "the door opens by itself".
+ */
+export const THROUGH_GOOGLE = ['youtube', 'habr'] as const
+
+/**
+ * DOORS WE DO NOT KNOCK ON.
+ *
+ * medium.com/m/signin answered "Performing security verification ... protect
+ * against malicious bots" (Cloudflare) on the pod, 2026-09-27. Getting past
+ * that means pretending not to be what we are, and this project does not build
+ * that -- so medium is reachable only by carrying a session in from a browser
+ * the person already signed in with (cookie-import.ts), and a round that finds
+ * this wall should say so and stop rather than retry.
+ */
+export const WALLED: Record<string, string> = {
+  medium: 'bot-verification wall at the sign-in page; import a session instead',
+}
 
 export interface Step {
   /** The tool that does it. Named so an agent does not have to guess. */
