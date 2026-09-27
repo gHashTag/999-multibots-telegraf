@@ -30,7 +30,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -87,6 +87,15 @@ module automation::crm_story_reel {
     pub const STILL_WAIT_MS : u32 = 360000;
     pub const PAID_WORK_REDONE_ON_RESUME : bool = false;
     pub const PLAN_CARD_RETURNED_ON_FAILURE : bool = true;
+    // v2: a job is never left running. Dead again after its last attempt, or silent past
+    // ABANDON_MINUTES, it is failed and closed like any failure: the plan card goes back and
+    // whoever asked is told. Before, the sweep reclaimed a job that killed its process every
+    // time (each claim refreshed its clock), and an abandoned job told nobody.
+    pub const EXHAUSTED_JOB_CLOSED : bool = true;
+    pub const ABANDONED_JOB_CLOSED : bool = true;
+    // v2: "nothing was charged" is said only when nothing was made. Every still and clip is
+    // charged the moment it is made; a failure after them names them as paid for and kept.
+    pub const FAILURE_NAMES_PAID_PARTS : bool = true;
 
     // ---- Who asks, who pays -------------------------------------------------------------
     pub const START_PARAM : str = "reel";  // t.me/<bot>?start=reel, the client's own press
@@ -156,6 +165,16 @@ module automation::crm_story_reel {
     // Whether a running job whose row has been silent `silent_ms` is claimed by the sweep.
     fn sweep_claims(silent_ms: u32) -> bool {
         return silent_ms > DEAD_MS;
+    }
+
+    // Whether the sweep gives a running job up instead of claiming it again.
+    fn sweep_gives_up(attempts: u16, silent_ms: u32) -> bool {
+        return attempts >= JOB_ATTEMPTS && silent_ms > DEAD_MS;
+    }
+
+    // Whether a failure may say "nothing was charged".
+    fn nothing_charged_may_be_said(stills_made: u16, clips_made: u16) -> bool {
+        return stills_made == 0 && clips_made == 0;
     }
 
     // Whether the reel's card may be shown now: only when nothing else waits for the owner.
@@ -229,6 +248,22 @@ module automation::crm_story_reel {
         assert(!PAID_WORK_REDONE_ON_RESUME);
         assert(RUNNING_JOBS_PER_CLIENT == 1);
         assert(JOB_ATTEMPTS == 3);
+    }
+
+    test "a job that keeps dying is given up after its last attempt and closed like any failure" {
+        assert(!sweep_gives_up(JOB_ATTEMPTS - 1, DEAD_MS + 1));
+        assert(sweep_gives_up(JOB_ATTEMPTS, DEAD_MS + 1));
+        assert(!sweep_gives_up(JOB_ATTEMPTS, DEAD_MS));
+        assert(EXHAUSTED_JOB_CLOSED);
+        assert(ABANDONED_JOB_CLOSED);
+        assert(PLAN_CARD_RETURNED_ON_FAILURE);
+    }
+
+    test "a failure says nothing was charged only when nothing was made" {
+        assert(nothing_charged_may_be_said(0, 0));
+        assert(!nothing_charged_may_be_said(2, 0));
+        assert(!nothing_charged_may_be_said(0, 1));
+        assert(FAILURE_NAMES_PAID_PARTS);
     }
 
     test "the card never displaces one the owner has not answered" {

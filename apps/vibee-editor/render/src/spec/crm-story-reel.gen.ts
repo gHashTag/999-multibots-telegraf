@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "crm-story-reel" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const FACE_REQUIRED = true satisfies boolean;
 export const VOICE_REQUIRED = true satisfies boolean;
 export const VOICE_SOURCE = "own-voice-notes-in-owner-dm" satisfies string;
@@ -52,6 +52,9 @@ export const ABANDON_MINUTES = 120 satisfies number;
 export const STILL_WAIT_MS = 360000 satisfies number;
 export const PAID_WORK_REDONE_ON_RESUME = false satisfies boolean;
 export const PLAN_CARD_RETURNED_ON_FAILURE = true satisfies boolean;
+export const EXHAUSTED_JOB_CLOSED = true satisfies boolean;
+export const ABANDONED_JOB_CLOSED = true satisfies boolean;
+export const FAILURE_NAMES_PAID_PARTS = true satisfies boolean;
 export const START_PARAM = "reel" satisfies string;
 export const PAGE_ROUTE = "story" satisfies string;
 export const SELLER_SCRIPT_ACCEPTED = true satisfies boolean;
@@ -85,6 +88,8 @@ export const Job = Object.freeze({ __struct__: "Job", fields: [["has_face", "boo
 // t27c gen-ts: fn scenes_ok was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn pause_of was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn sweep_claims was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn sweep_gives_up was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn nothing_charged_may_be_said was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn card_may_show was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_go_to_group was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn leaves_for_client was not emitted -- this backend lowers declarations, not bodies.
@@ -99,10 +104,12 @@ export const Job = Object.freeze({ __struct__: "Job", fields: [["has_face", "boo
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = ["Job"] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "FACE_REQUIRED", "VOICE_REQUIRED", "VOICE_SOURCE", "CLONE_PER_SELLER", "CLONE_MODEL", "CLONE_COST_USD", "CLONE_MIN_SECONDS", "CLONE_GOOD_SECONDS", "CLONE_MAX_SECONDS", "SCENES_DEFAULT", "SCENES_MIN", "SCENES_MAX", "NEW_SETTING_EACH_SCENE", "PAUSE_SEC", "PAUSE_SEC_MIN", "PAUSE_SEC_MAX", "BREATH_MS", "REEL_MAX_SEC", "COMPOSITION", "ASPECT_RATIO", "TOPIC_MAX", "BOT_SPOKEN_AS", "STILL_MODEL", "VOICE_MODEL", "VOICE_PROVIDER", "VOICE_ON_KIE", "LIPSYNC_MODEL", "TOKENS_PER_STILL", "TOKENS_PER_LINE", "TOKENS_PER_LIPSYNC_SEC", "TOKENS_PER_ASSEMBLY", "BILLED_SECONDS", "PRICE_ESTIMATE_TOKENS", "REFUND_ON_PROVIDER_FAILURE", "JOB_TABLE", "RUNNING_JOBS_PER_CLIENT", "JOB_ATTEMPTS", "BEAT_MS", "DEAD_MS", "SWEEP_MS", "SWEEP_CLAIM_BATCH", "ABANDON_MINUTES", "STILL_WAIT_MS", "PAID_WORK_REDONE_ON_RESUME", "PLAN_CARD_RETURNED_ON_FAILURE", "START_PARAM", "PAGE_ROUTE", "SELLER_SCRIPT_ACCEPTED", "DELIVER_DM", "DELIVER_NONE", "SENT_WITHOUT_PRESS", "CLIENT_PRESS_SENDS_TO_GROUP", "GROUP_MUST_BE_READ_BY_CRM", "PRESSABLE_CARDS_PER_PERSON", "CARD_DISPLACES_UNANSWERED", "CARD_TURN_PREFIX", "CARD_TEXT_MAX", "CAPTION_MAX", "CALLBACK_BYTES_MAX", "WAITING_CARD_WINDOW_HOURS", "DM_SEND_RECORDED_AS_GIFT", "AUTOPILOT_SENDS_CARD", "SERVICE_RENDER_FEED_PUBLIC", "LIVE_RUN_STATUS", "VOICE_LEG_STATUS", "Job"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "FACE_REQUIRED", "VOICE_REQUIRED", "VOICE_SOURCE", "CLONE_PER_SELLER", "CLONE_MODEL", "CLONE_COST_USD", "CLONE_MIN_SECONDS", "CLONE_GOOD_SECONDS", "CLONE_MAX_SECONDS", "SCENES_DEFAULT", "SCENES_MIN", "SCENES_MAX", "NEW_SETTING_EACH_SCENE", "PAUSE_SEC", "PAUSE_SEC_MIN", "PAUSE_SEC_MAX", "BREATH_MS", "REEL_MAX_SEC", "COMPOSITION", "ASPECT_RATIO", "TOPIC_MAX", "BOT_SPOKEN_AS", "STILL_MODEL", "VOICE_MODEL", "VOICE_PROVIDER", "VOICE_ON_KIE", "LIPSYNC_MODEL", "TOKENS_PER_STILL", "TOKENS_PER_LINE", "TOKENS_PER_LIPSYNC_SEC", "TOKENS_PER_ASSEMBLY", "BILLED_SECONDS", "PRICE_ESTIMATE_TOKENS", "REFUND_ON_PROVIDER_FAILURE", "JOB_TABLE", "RUNNING_JOBS_PER_CLIENT", "JOB_ATTEMPTS", "BEAT_MS", "DEAD_MS", "SWEEP_MS", "SWEEP_CLAIM_BATCH", "ABANDON_MINUTES", "STILL_WAIT_MS", "PAID_WORK_REDONE_ON_RESUME", "PLAN_CARD_RETURNED_ON_FAILURE", "EXHAUSTED_JOB_CLOSED", "ABANDONED_JOB_CLOSED", "FAILURE_NAMES_PAID_PARTS", "START_PARAM", "PAGE_ROUTE", "SELLER_SCRIPT_ACCEPTED", "DELIVER_DM", "DELIVER_NONE", "SENT_WITHOUT_PRESS", "CLIENT_PRESS_SENDS_TO_GROUP", "GROUP_MUST_BE_READ_BY_CRM", "PRESSABLE_CARDS_PER_PERSON", "CARD_DISPLACES_UNANSWERED", "CARD_TURN_PREFIX", "CARD_TEXT_MAX", "CAPTION_MAX", "CALLBACK_BYTES_MAX", "WAITING_CARD_WINDOW_HOURS", "DM_SEND_RECORDED_AS_GIFT", "AUTOPILOT_SENDS_CARD", "SERVICE_RENDER_FEED_PUBLIC", "LIVE_RUN_STATUS", "VOICE_LEG_STATUS", "Job"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not
