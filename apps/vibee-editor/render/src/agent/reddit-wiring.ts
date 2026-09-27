@@ -156,7 +156,17 @@ async function readAsThePerson(
   const cdp = await endpointOf(pool, owner)
   const page = await newPage(cdp, 'https://www.reddit.com/')
   try {
-    await settle(4_000)
+    /*
+     * THE FETCH MUST RUN FROM REDDIT'S OWN ORIGIN, NOT FROM A TAB THAT IS
+     * STILL BLANK. On the first live tick (2026-09-27) the account was signed
+     * in and the inbox held five unread replies, and the desk still reported
+     * that the inbox had not answered: a flat 4-second wait ended while the
+     * tab was on about:blank, so the request went out cross-origin, CORS
+     * refused it, and `fetch` failed for a reason that had nothing to do with
+     * Reddit. Asking the page where it IS costs one round trip and cannot be
+     * wrong about it.
+     */
+    await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
     const text = await evaluateOn(
       cdp,
       page.id,
@@ -175,6 +185,29 @@ async function readAsThePerson(
   } finally {
     await closePage(cdp, page.id).catch(() => {})
   }
+}
+
+/**
+ * Waits until the tab reports the origin it was opened at, and says what it
+ * reported instead when it never does -- a wrong origin is exactly the failure
+ * this helper exists to name.
+ */
+async function waitForOrigin(
+  cdp: string,
+  pageId: string,
+  want: string,
+  tries = 14,
+  everyMs = 1_500
+): Promise<void> {
+  const { evaluateOn } = await import('../browser/cdp')
+  let saw = ''
+  for (let i = 0; i < tries; i++) {
+    await settle(everyMs)
+    const at = await evaluateOn(cdp, pageId, 'location.origin').catch(() => '')
+    saw = typeof at === 'string' ? at : ''
+    if (saw === want) return
+  }
+  throw new Error(`the tab never reached ${want}, it is at ${saw || 'nowhere'}`)
 }
 
 /**
@@ -248,7 +281,9 @@ async function replyOnReddit(
   const { newPage, typeText } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
   const page = await newPage(cdp, m.link)
-  await settle(8_000)
+  /* The same trap as the inbox: press nothing until the page is really here. */
+  await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
+  await settle(3_000)
   /* Reddit's own words on the comment's own reply control. */
   await pressOne(cdp, page.id, ['reply', 'ответить'])
   await settle(1_500)
@@ -272,7 +307,8 @@ async function submitOnReddit(
   const { newPage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
   const page = await newPage(cdp, submitUrl(p))
-  await settle(8_000)
+  await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
+  await settle(3_000)
   const pressed = await pressOne(cdp, page.id, ['post', 'опубликовать'])
   return `опубликовано («${pressed}») в r/${p.subreddit}` // cyrillic-ok: told to the owner
 }

@@ -147,6 +147,9 @@ export function subredditsOf(raw: unknown): Subreddit[] {
   return out.length ? out : SUBREDDITS
 }
 
+/** Not-an-empty-inbox: what a failed read returns, distinct from any JSON. */
+const FAILED_TO_READ = Symbol('failed to read')
+
 /** Where the account's unread replies are, as the account's own JSON. */
 export const INBOX_URL = 'https://www.reddit.com/message/unread.json?limit=25'
 
@@ -552,9 +555,19 @@ export async function redditTick(d: RedditDeps): Promise<string> {
    * empty inbox: the tick stops there rather than moving on to posting, so a
    * signed-out browser never turns into a desk that only advertises.
    */
-  const unread = Symbol('unread')
-  const raw = await d.readJson(INBOX_URL).catch(() => unread)
-  if (raw === unread) return 'the inbox did not answer'
+  /*
+   * The REASON travels with the failure. The first live tick (2026-09-27) said
+   * only "the inbox did not answer" while the account was in fact signed in
+   * and holding five unread replies -- the fault was on our side of the wire,
+   * and a swallowed error left nothing to read. A diagnosis nobody can make is
+   * a second outage.
+   */
+  let why = ''
+  const raw = await d.readJson(INBOX_URL).catch((e: unknown) => {
+    why = String(e instanceof Error ? e.message : e).slice(0, 200)
+    return FAILED_TO_READ
+  })
+  if (raw === FAILED_TO_READ) return `the inbox did not answer: ${why}`
   const inbox = parseInbox(raw)
   const next = inbox.find(m => !known.has(`reply:${m.name}`))
   if (next) {
