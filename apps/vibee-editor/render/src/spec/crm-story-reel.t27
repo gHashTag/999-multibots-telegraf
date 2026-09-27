@@ -93,6 +93,17 @@
 // 64 steps, at most 4 of 255 per channel, below what the eye tells apart on a phone; ten steps
 // could darken a gold a tenth of the way when a sixtieth read. Every option is taken by a press
 // and checked again.
+// v14 (2026-09-27): the shade keeps her hue. v12 and v13 mixed her colour with white or black
+// in sRGB: gold stayed gold but lost a third of its saturation, and a dark blue on a navy
+// ground turned lavender -- its hue moved 19.8 degrees (measured over a sweep of colours and
+// grounds). The shade now moves only the LIGHTNESS of her colour in OKLCH, the space a
+// contrast-based generator like Adobe Leonardo works in; her hue and chroma stay, chroma cut
+// back only as far as sRGB can show it. After rounding to 8 bits a colour with chroma of at
+// least 0.05 keeps its hue within 3 degrees (measured worst 2.5); below that chroma a colour is
+// near grey and its hue is noise, not hers. The last step is still pure white or pure black --
+// lightness 1 or 0 holds no chroma -- so a shade still always exists. The ground walks the same
+// path, and "the nearest of her colours" is measured in OKLab, by the difference the eye sees,
+// not by distance in RGB.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -288,6 +299,14 @@ module automation::crm_story_reel {
     pub const PALETTE_NEAREST_FIRST : bool = true;  // of hers that read, the nearest to the one refused
     pub const BG_FIX_ALWAYS_EXISTS : bool = false;  // a dark call and a light button share no ground
     pub const OPTIONS_TAKEN_BY_PRESS : bool = true;  // each option: a press, then a check again
+
+    // ---- The shade keeps her hue (v14) ------------------------------------------------------
+    pub const SHADE_SPACE : str = "oklch";  // only lightness moves; hue and chroma are hers
+    pub const SHADE_CHROMA_CUT_TO_SRGB : bool = true;  // as far as a screen can show it, no further
+    pub const HUE_DRIFT_MAX_DEG : u16 = 3;  // after rounding to 8 bits; measured worst 2.5
+    pub const HUE_CHECKED_MIN_CHROMA_X1000 : u16 = 50;  // below it a colour is near grey: hue is noise
+    pub const SRGB_MIX_DRIFT_DEG : u16 = 20;  // what the v13 mix did to a dark blue (19.8, measured)
+    pub const NEAREST_BY : str = "oklab";  // her nearest colour by the difference the eye sees
 
     // ---- Every reel for a client is a story reel (v8) -----------------------------------
     pub const OLD_PLAN_REEL : str = "LeelaPlanReel";  // silent, subtitled, made from the plan's canon
@@ -540,6 +559,16 @@ module automation::crm_story_reel {
     // makes every line on it read at once.
     fn bg_offered(unreadable: bool, all_read_at_some_step: bool) -> bool {
         return unreadable && all_read_at_some_step;
+    }
+
+    // Whether a colour's hue is hers to keep: near grey, the hue is rounding noise.
+    fn hue_checked(chroma_x1000: u16) -> bool {
+        return chroma_x1000 >= HUE_CHECKED_MIN_CHROMA_X1000;
+    }
+
+    // Whether a shade kept her hue: it moved no more than rounding to 8 bits moves it.
+    fn hue_kept(drift_deg: u16) -> bool {
+        return drift_deg <= HUE_DRIFT_MAX_DEG;
     }
 
     // Whether the card offers "take": only beside the verdict on the card still on screen.
@@ -859,6 +888,19 @@ module automation::crm_story_reel {
         assert(OPTIONS_TAKEN_BY_PRESS);
         assert(panel_take_offered(true, false, true));  // one rule for every option
         assert(SUGGEST_NEVER == SUGGEST_STEPS + 1);
+    }
+
+    test "the shade moves only her lightness: her hue stays within rounding" {
+        assert(SHADE_SPACE == "oklch");
+        assert(SHADE_CHROMA_CUT_TO_SRGB);
+        assert(NEAREST_BY == "oklab");
+        assert(hue_kept(0));
+        assert(hue_kept(HUE_DRIFT_MAX_DEG));
+        assert(!hue_kept(HUE_DRIFT_MAX_DEG + 1));
+        assert(!hue_kept(SRGB_MIX_DRIFT_DEG));  // the v13 mix breaks the law it replaces
+        assert(hue_checked(HUE_CHECKED_MIN_CHROMA_X1000));
+        assert(!hue_checked(HUE_CHECKED_MIN_CHROMA_X1000 - 1));  // near grey: not judged
+        assert(end_card_readable(EXTREME_MIN_CONTRAST_X10));  // the last step is still white or black
     }
 
     test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {
