@@ -1,0 +1,44 @@
+[
+  {
+    "name": "negation window 3 words instead of 2",
+    "file": "src/agent/leela-canon.ts",
+    "from": "const WORDS_BETWEEN = DUET.NEGATION_WINDOW_WORDS - 1",
+    "to": "const WORDS_BETWEEN = DUET.NEGATION_WINDOW_WORDS"
+  },
+  {
+    "name": "done after half the lines",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "return errored || lines < turns * 2 ? SPEC.ABORTED_RUN_STATE : 'done'",
+    "to": "return errored || lines < turns ? SPEC.ABORTED_RUN_STATE : 'done'"
+  },
+  {
+    "name": "retry after a paid call",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "    isLimitError(error) &&\n    !results.some(r => PAID_TOOLS.has(r.name))",
+    "to": "    isLimitError(error)"
+  },
+  {
+    "name": "discovery one turn longer",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "return sellerTurn < DISCOVERY_SELLER_TURNS ? DISCOVERY_DENIED : DUET_NEVER",
+    "to": "return sellerTurn <= DISCOVERY_SELLER_TURNS ? DISCOVERY_DENIED : DUET_NEVER"
+  },
+  {
+    "name": "brief loses the per-reply cap",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": ", не больше одной за реплику,",
+    "to": ","
+  },
+  {
+    "name": "owner may be the buyer",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "      if (buyer === owner)\n",
+    "to": "      if (buyer === owner + 'x')\n"
+  },
+  {
+    "name": "turn limit restated",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "export const TURNS_MAX = SPEC.TURNS_MAX",
+    "to": "export const TURNS_MAX = 6"
+  }
+]

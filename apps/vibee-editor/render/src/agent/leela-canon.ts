@@ -1,5 +1,6 @@
 import plansRu from '../assets/leela-plans.ru.json'
 import plansEn from '../assets/leela-plans.en.json'
+import * as DUET from '../spec/crm-duet.gen'
 
 /**
  * Leela (Leela Chakra) canon: board geometry, snakes, arrows, rows and the
@@ -76,15 +77,63 @@ export interface LeelaRow {
 
 /** Eight rows, bottom -> top. */
 export const ROWS: LeelaRow[] = [
-  { index: 1, plans: [1, 9], chakraRu: 'Муладхара', chakraEn: 'Muladhara', inlay: '#8c3a2a' },
-  { index: 2, plans: [10, 18], chakraRu: 'Свадхистхана', chakraEn: 'Svadhisthana', inlay: '#b5612a' },
-  { index: 3, plans: [19, 27], chakraRu: 'Манипура', chakraEn: 'Manipura', inlay: '#b8912f' },
-  { index: 4, plans: [28, 36], chakraRu: 'Анахата', chakraEn: 'Anahata', inlay: '#35624a' },
-  { index: 5, plans: [37, 45], chakraRu: 'Вишуддха', chakraEn: 'Vishuddha', inlay: '#4a7a8c' },
-  { index: 6, plans: [46, 54], chakraRu: 'Аджна', chakraEn: 'Ajna', inlay: '#2f5fd0' },
+  {
+    index: 1,
+    plans: [1, 9],
+    chakraRu: 'Муладхара',
+    chakraEn: 'Muladhara',
+    inlay: '#8c3a2a',
+  },
+  {
+    index: 2,
+    plans: [10, 18],
+    chakraRu: 'Свадхистхана',
+    chakraEn: 'Svadhisthana',
+    inlay: '#b5612a',
+  },
+  {
+    index: 3,
+    plans: [19, 27],
+    chakraRu: 'Манипура',
+    chakraEn: 'Manipura',
+    inlay: '#b8912f',
+  },
+  {
+    index: 4,
+    plans: [28, 36],
+    chakraRu: 'Анахата',
+    chakraEn: 'Anahata',
+    inlay: '#35624a',
+  },
+  {
+    index: 5,
+    plans: [37, 45],
+    chakraRu: 'Вишуддха',
+    chakraEn: 'Vishuddha',
+    inlay: '#4a7a8c',
+  },
+  {
+    index: 6,
+    plans: [46, 54],
+    chakraRu: 'Аджна',
+    chakraEn: 'Ajna',
+    inlay: '#2f5fd0',
+  },
   // Rows 7-8: colours are an editorial inference, not canon (see LeelaRow.inlay).
-  { index: 7, plans: [55, 63], chakraRu: 'Сахасрара', chakraEn: 'Sahasrara', inlay: '#6b4a8c' },
-  { index: 8, plans: [64, 72], chakraRu: 'за пределами чакр', chakraEn: 'beyond the chakras', inlay: '#e0b544' },
+  {
+    index: 7,
+    plans: [55, 63],
+    chakraRu: 'Сахасрара',
+    chakraEn: 'Sahasrara',
+    inlay: '#6b4a8c',
+  },
+  {
+    index: 8,
+    plans: [64, 72],
+    chakraRu: 'за пределами чакр',
+    chakraEn: 'beyond the chakras',
+    inlay: '#e0b544',
+  },
 ]
 
 export interface BoardCell {
@@ -176,10 +225,12 @@ export interface PlanInfo {
 
 export function planInfo(plan: number, lang: LeelaLang = 'ru'): PlanInfo {
   const p = Math.min(PLAN_COUNT, Math.max(1, Math.floor(plan)))
-  const rec = PLANS[lang].find(r => r.plan === p) ?? PLANS.ru.find(r => r.plan === p)!
+  const rec =
+    PLANS[lang].find(r => r.plan === p) ?? PLANS.ru.find(r => r.plan === p)!
   const row = rowOf(p)
   const event: LeelaEvent = SNAKES[p] ? 'snake' : ARROWS[p] ? 'arrow' : 'none'
-  const to = event === 'snake' ? SNAKES[p] : event === 'arrow' ? ARROWS[p] : undefined
+  const to =
+    event === 'snake' ? SNAKES[p] : event === 'arrow' ? ARROWS[p] : undefined
   return {
     plan: p,
     title: rec.title,
@@ -248,9 +299,17 @@ export function violatesLeelaVoice(text: string): string[] {
  * claim word under negation is not a claim. Pressure words stay flagged:
  * "not today" still presses. Spec: crm-duet.t27 CLAIM_NEGATION_EXEMPT,
  * NEGATION_WINDOW_WORDS, PRESSURE_NEGATION_EXEMPT=false.
+ *
+ * The window counts the negation's distance from the hit (the spec's
+ * claim_hit_counts): distance 1 is "without predictions", distance 2 has one
+ * word between. Until the binding (2026-09-27) the regex allowed TWO words
+ * between -- distance 3 -- so "without any exact predictions" passed too.
  */
-const NEGATION_BEFORE =
-  /(?:^|[^\u0430-\u044f\u0451])(?:\u0431\u0435\u0437|\u043d\u0435|\u043d\u0435\u0442|\u043d\u0438\u043a\u0430\u043a\u0438\u0445|\u043d\u0438|\u043d\u0438\u043a\u043e\u0433\u0434\u0430)\s+(?:[\u0430-\u044f\u0451-]+\s+){0,2}$/iu
+const WORDS_BETWEEN = DUET.NEGATION_WINDOW_WORDS - 1
+const NEGATION_BEFORE = new RegExp(
+  String.raw`(?:^|[^\u0430-\u044f\u0451])(?:\u0431\u0435\u0437|\u043d\u0435|\u043d\u0435\u0442|\u043d\u0438\u043a\u0430\u043a\u0438\u0445|\u043d\u0438|\u043d\u0438\u043a\u043e\u0433\u0434\u0430)\s+(?:[\u0430-\u044f\u0451-]+\s+){0,${WORDS_BETWEEN}}$`,
+  'iu'
+)
 
 export function negatedBefore(text: string, index: number): boolean {
   return NEGATION_BEFORE.test(text.slice(Math.max(0, index - 60), index))

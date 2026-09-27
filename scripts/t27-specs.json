@@ -19,7 +19,6 @@
     "automation/browser-pod-restart",
     "automation/browser-sign-in",
     "automation/crm-client-ownership",
-    "automation/crm-duet",
     "automation/inngest-probe-suite",
     "automation/leela-agent-link",
     "crons/999-multibots-telegraf-agent-autopilot-L1118",
