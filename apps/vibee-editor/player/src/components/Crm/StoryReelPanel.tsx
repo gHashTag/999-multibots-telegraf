@@ -107,6 +107,13 @@ export function StoryReelPanel({
             ready={s}
             onChanged={() => void reload()}
           />
+          {/* The seller's own press is paid from the seller's balance:
+              its price stands above the button (spec v16). */}
+          {s.ready && s.priceTokens != null ? (
+            <p className="crm__counts" data-testid="story-reel-price">
+              {t('crm.client.story.price', { n: s.priceTokens })}
+            </p>
+          ) : null}
           {s.ready ? (
             <div className="crm-client__duet-start">
               <input

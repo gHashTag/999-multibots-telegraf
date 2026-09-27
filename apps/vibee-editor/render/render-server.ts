@@ -1812,20 +1812,18 @@ async function initBundle() {
 
   // Preload face detection models
   console.log('👤 Loading face detection models...')
+  // Warming the models up is no reason to fail the start: without face
+  // detection everything else must still work. "Ready" is said only after a
+  // real load -- every start of 27.09.2026 logged "unavailable in the whole
+  // process" and then "ready", and a log that says both says nothing.
   try {
-    // Прогрев моделей — не повод ронять запуск: если распознавание не
-    // собралось, всё остальное обязано работать.
-    try {
-      await (await faceApi()).loadModels()
-    } catch (e) {
-      console.warn(
-        '[face] распознавание лица недоступно:',
-        String(e).slice(0, 200)
-      )
-    }
+    await (await faceApi()).loadModels()
     console.log('✅ Face detection models ready')
-  } catch (error) {
-    console.warn('⚠️ Face detection models failed to load:', error)
+  } catch (e) {
+    console.warn(
+      '[face] распознавание лица недоступно:',
+      String(e).slice(0, 200)
+    )
   }
 }
 

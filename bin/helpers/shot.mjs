@@ -21,7 +21,11 @@
  *   - wider: the page scrolls sideways (documentElement.scrollWidth);
  *   - small: a button, input or link under the target on either side;
  *   - cut: text clipped by its own box (scrollWidth > clientWidth);
- *   - overlap: two controls whose boxes intersect.
+ *   - overlap: two controls whose boxes intersect;
+ *   - order: what a harness says must be read first (its `before` pairs:
+ *     the price above the button, spec v16) stands higher on the screen.
+ *     A pair whose first element is missing is out of order too: "the
+ *     price is above the button" is not true of a price that is not there.
  * Exit 0 clean, 1 something measured wrong, 2 could not measure. The
  * verdict goes to `tri gate`. Nothing is written or started: keeping and
  * start are refused by the answer script.
@@ -69,8 +73,27 @@ const out = resolve(opt('out', join(ROOT, gitDir || '.git', 'tri-shot')))
  * walk it from state to state. The card is a real refusal: a dark call on a
  * dark ground, the case the three options exist for (spec v12-v14).
  */
+/* Two reels of hers: one made, one that failed and says why. */
+const JOBS = [
+  {
+    id: 2,
+    topic: 'Одна ваза — три комнаты',
+    status: 'done',
+    url: 'https://example.invalid/reel.mp4',
+    created_at: '2026-09-27T10:00:00Z',
+  },
+  {
+    id: 1,
+    topic: 'Весенняя коллекция',
+    status: 'failed',
+    error: 'голос не ответил, токены возвращены',
+    created_at: '2026-09-26T10:00:00Z',
+  },
+]
+
 const HARNESSES = {
   'story-palette': {
+    tool: 'crm_story_reel',
     fixture: {
       profile: {
         bg: '#10182a',
@@ -79,25 +102,16 @@ const HARNESSES = {
         accent: '#23305a',
         button: 'Записаться на примерку',
       },
-      jobs: [
-        {
-          id: 2,
-          topic: 'Одна ваза — три комнаты',
-          status: 'done',
-          url: 'https://example.invalid/reel.mp4',
-          created_at: '2026-09-27T10:00:00Z',
-        },
-        {
-          id: 1,
-          topic: 'Весенняя коллекция',
-          status: 'failed',
-          error: 'голос не ответил, токены возвращены',
-          created_at: '2026-09-26T10:00:00Z',
-        },
-      ],
+      jobs: JOBS,
     },
     root: '[data-testid=story-palette]',
     scope: '.crm-client',
+    // The whole story panel around the palette: its start row and reels too.
+    within: 'section',
+    // Spec v16: the seller's press is paid by the seller -- price first.
+    before: [
+      ['[data-testid=story-reel-price]', 'section .crm-client__duet-go'],
+    ],
     states: [
       {
         id: 'load',
@@ -128,6 +142,34 @@ const HARNESSES = {
       },
     ],
   },
+  /*
+   * HER OWN PAGE (/story): the client presses here with her thumb, from her
+   * bot. The answers are my_story_reel's shape and the host's price; "make"
+   * is refused by the answer script, so the refusal line is shot too.
+   */
+  'my-story': {
+    tool: 'my_story_reel',
+    fixture: { next_topic: 'Как выбрать вазу под свой интерьер', jobs: JOBS },
+    root: '.story',
+    scope: '.story',
+    within: 'root',
+    // Spec v16: her price (or that it is a gift) is read before her press.
+    before: [['[data-testid=story-price]', '.story .crm-client__duet-go']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => p.locator('.story .crm-client__duet-go').waitFor(),
+      },
+      {
+        id: 'pressed',
+        ready: async p => {
+          await p.locator('.story input[type=text]').fill('Весенний букет')
+          await p.locator('.story .crm-client__duet-go').click()
+          await p.locator('.story [role=status]').waitFor()
+        },
+      },
+    ],
+  },
 }
 
 const h = HARNESSES[name]
@@ -154,12 +196,12 @@ const freePort = () =>
     })
   })
 
-const answer = args => {
+const answer = (tool, args) => {
   const r = spawnSync(
     join(RENDER, 'node_modules/.bin/tsx'),
     [
       join(HERE, 'shot-story-answer.ts'),
-      JSON.stringify({ ...h.fixture, args }),
+      JSON.stringify({ ...h.fixture, tool, args }),
     ],
     { cwd: RENDER, encoding: 'utf8' }
   )
@@ -168,7 +210,7 @@ const answer = args => {
 }
 
 /* Measured in the page: the target is the page's own --touch-target. */
-function measure({ root, scope }) {
+function measure({ root, scope, within: area, before = [] }) {
   const target =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue(
@@ -177,7 +219,8 @@ function measure({ root, scope }) {
     ) || 44
   const box = document.querySelector(scope) ?? document.body
   const panel = document.querySelector(root)
-  const within = panel?.closest('section') ?? panel ?? box
+  const within =
+    (area === 'section' ? panel?.closest('section') : panel) ?? panel ?? box
   const name = el => {
     const tag = el.tagName.toLowerCase()
     const tagged =
@@ -233,7 +276,19 @@ function measure({ root, scope }) {
   const wider = document.documentElement.scrollWidth - window.innerWidth
   // Whether this is still a phone: the finger rules are `pointer: coarse`.
   const coarse = matchMedia('(pointer: coarse)').matches
+  const order = before
+    .map(([first, then]) => {
+      const a = document.querySelector(first)
+      const b = document.querySelector(then)
+      if (!b) return null
+      if (!a) return `${first} missing, ${then} is there`
+      return a.getBoundingClientRect().bottom <= b.getBoundingClientRect().top
+        ? null
+        : `${first} is not above ${then}`
+    })
+    .filter(x => x !== null)
   return {
+    order,
     target,
     controls: controls.length,
     wider,
@@ -291,7 +346,7 @@ try {
     const body = JSON.parse(route.request().postData() || '{}')
     const tool = body?.params?.name
     const args = body?.params?.arguments ?? {}
-    if (tool !== 'crm_story_reel')
+    if (tool !== h.tool)
       return route.fulfill({
         json: {
           jsonrpc: '2.0',
@@ -299,7 +354,7 @@ try {
           error: { message: `tri shot: no ${tool}` },
         },
       })
-    const result = answer(args)
+    const result = answer(tool, args)
     return route.fulfill({
       json: {
         jsonrpc: '2.0',
@@ -316,7 +371,12 @@ try {
   for (const s of h.states) {
     await s.ready(page)
     await page.waitForTimeout(150)
-    const m = await page.evaluate(measure, { root: h.root, scope: h.scope })
+    const m = await page.evaluate(measure, {
+      root: h.root,
+      scope: h.scope,
+      within: h.within,
+      before: h.before,
+    })
     /*
      * A DESKTOP MEASURED AND CALLED A PHONE. Measured 27.09.2026: after one
      * `screenshot({ fullPage: true })` this Chromium answers
@@ -338,15 +398,20 @@ try {
     await page.screenshot({ path: file })
     await page.setViewportSize({ width, height: 844 })
     const wrong =
-      (m.wider > 0 ? 1 : 0) + m.small.length + m.cut.length + m.overlap.length
+      (m.wider > 0 ? 1 : 0) +
+      m.small.length +
+      m.cut.length +
+      m.overlap.length +
+      m.order.length
     bad += wrong
     lines.push(
       `${wrong ? 'RED  ' : 'ok   '}${s.id}: ${m.controls} controls, target ${m.target}px, ` +
-        `wider ${m.wider}px, small ${m.small.length}, cut ${m.cut.length}, overlap ${m.overlap.length} · ${file}`
+        `wider ${m.wider}px, small ${m.small.length}, cut ${m.cut.length}, overlap ${m.overlap.length}, order ${m.order.length} · ${file}`
     )
     for (const x of m.small) lines.push(`       small   ${x}`)
     for (const x of m.cut) lines.push(`       cut     ${x}`)
     for (const x of m.overlap) lines.push(`       overlap ${x}`)
+    for (const x of m.order) lines.push(`       order   ${x}`)
   }
   if (errors.length) {
     bad += errors.length
@@ -373,7 +438,9 @@ console.log(`== shot ${verdict} -- ${name} at ${width}px (${lang})`)
 spawnSync('node', [
   join(HERE, 'gate.mjs'),
   'record',
-  `shot ${name} ${width}`,
+  // One record per language: English words are shorter, so its targets
+  // differ, and a second language must not stand in for the first.
+  `shot ${name} ${width} ${lang}`,
   code === 0 ? 'ok' : 'fail',
   lines
     .filter(l => !l.startsWith('       '))

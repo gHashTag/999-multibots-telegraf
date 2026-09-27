@@ -208,5 +208,29 @@
     "file": "src/pages/CrmClient.css",
     "from": "  .crm-client__watch {\n    min-width: var(--touch-target, 44px);",
     "to": "  .crm-client__watch {\n    min-width: 0;"
+  },
+  {
+    "name": "v16: her price gone from above the button",
+    "file": "src/pages/Story.tsx",
+    "from": "t('story.price', { n: s.priceTokens })",
+    "to": "null"
+  },
+  {
+    "name": "v16: the seller presses blind",
+    "file": "src/components/Crm/StoryReelPanel.tsx",
+    "from": "{s.ready && s.priceTokens != null ? (",
+    "to": "{false ? ("
+  },
+  {
+    "name": "her watch link back to 17 px",
+    "file": "src/pages/Story.tsx",
+    "from": "className=\"crm-client__watch\"",
+    "to": "className=\"\""
+  },
+  {
+    "name": "the seller's watch link back to 17 px",
+    "file": "src/components/Crm/StoryReelPanel.tsx",
+    "from": "className=\"crm-client__watch\"",
+    "to": "className=\"\""
   }
 ]
