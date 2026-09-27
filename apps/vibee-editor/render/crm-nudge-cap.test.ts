@@ -188,21 +188,34 @@ describe('a conversation nobody recorded a touch for', () => {
     expect(w?.days).toBe(5)
   })
 
-  it('we answered after them, so nobody is waiting', () => {
+  it('we answered after them yesterday, so nobody is waiting yet', () => {
+    const w = waitingOn({
+      ...base,
+      touches: [],
+      lastInboundAt: daysAgo(5),
+      lastOutboundAt: daysAgo(1),
+    })
+    expect(w).toBeNull()
+  })
+
+  it('we answered and they went quiet for days: a follow-up (owner, 2026-09-27)', () => {
+    // The old rule withheld this entirely; the owner chose the follow-up
+    // competitors sell first. The narrow window lives in crm-stages.test.ts.
     const w = waitingOn({
       ...base,
       touches: [],
       lastInboundAt: daysAgo(5),
       lastOutboundAt: daysAgo(4),
     })
-    expect(w).toBeNull()
+    expect(w?.waiting).toBe('theirs')
   })
 
   it('an outbound at the same moment does not count as owing them', () => {
     const at = daysAgo(5)
     expect(
       waitingOn({ ...base, touches: [], lastInboundAt: at, lastOutboundAt: at })
-    ).toBeNull()
+        ?.waiting
+    ).not.toBe('ours')
   })
 
   it('our messages alone never make THEM the ones who owe an answer', () => {
