@@ -489,6 +489,11 @@ export interface StoryDeps {
    */
   voiceDown?: () => boolean
   /**
+   * The payer's generations left in the day's window (tools.ts
+   * generationsLeftToday); absent: not counted here, each tool still asks.
+   */
+  generationsLeft?: (payer: string) => Promise<number>
+  /**
    * Give back, once per task, the charge of a still that was ordered and
    * never came (tools.ts refundLateImage); absent: nothing is given back
    * here and image_edit's own watch is the only path.
@@ -603,6 +608,28 @@ export async function startStory(
   // A script brought by the seller is checked here, before anything is spent.
   const given = who.scenes === undefined ? null : scenesOf(who.scenes)
   if (typeof given === 'string') return { started: false, why: given }
+  /*
+   * THE DAY'S GENERATIONS, COUNTED FIRST (spec v6). A reel the payer's daily
+   * cap cannot cover is refused here, in words, before a still is drawn --
+   * not three paid stills and a voice orphaned at the lip-sync.
+   */
+  if (deps.generationsLeft) {
+    const payer = storyPayer({
+      byClient,
+      vipGift: s.payer === 'owner',
+      seller: s.owner,
+      lead,
+      requester,
+    })
+    const clone =
+      voiceMode(s.hasVoice, deps.voiceDown?.() === true, !byClient) ===
+      SPEC.VOICE_CLONE
+    const needed = slotsNeeded(given ? given.length : STORY_SCENES, 0, 0, clone)
+    const left = await deps.generationsLeft(payer).catch(() => needed)
+    if (!dayCovers(left, needed)) {
+      return { started: false, why: capWhy(left, needed) }
+    }
+  }
   // A script is its own topic; a plan card is taken only for a written reel.
   const card =
     asked || given ? null : await takeNextPlanItem(deps.pool, lead, s.done)
@@ -795,6 +822,39 @@ async function runHeld(
   const sellerAsked = !byClient
   let mode = voiceMode(s.hasVoice, deps.voiceDown?.() === true, sellerAsked)
   const allClips = list(job.clips).filter(Boolean).length >= scenes.length
+  /*
+   * THE DAY'S CAP MET MID-WAY (spec v6): the job waits for the window to
+   * free, its attempt given back, and the one who asked is told once. The
+   * sweep burned all three attempts in six minutes on 2026-09-27 and failed
+   * a job whose stills and voice were already paid.
+   */
+  if (deps.generationsLeft) {
+    const needed = slotsNeeded(
+      scenes.length,
+      list(job.stills).filter(Boolean).length,
+      list(job.clips).filter(Boolean).length,
+      mode === SPEC.VOICE_CLONE
+    )
+    const left = await deps.generationsLeft(payer).catch(() => needed)
+    if (!dayCovers(left, needed)) {
+      const why = capWhy(left, needed)
+      const toldAlready = String(job.error ?? '').startsWith(CAP_WAIT_MARK)
+      await pool.query(
+        `UPDATE story_jobs SET attempts = $2, runner = NULL, error = $3,
+                updated_at = now() WHERE id = $1`,
+        [id, Math.max(0, attempts - 1), `${CAP_WAIT_MARK} ${why}`.slice(0, 500)]
+      )
+      if (!toldAlready)
+        await deps
+          .notify(
+            byClient ? bot : null,
+            requester,
+            `Рилс «${topic || 'история'}» ждёт: ${why}. Сделанное сохранено — продолжу сам, как окно освободится.`
+          )
+          .catch(() => undefined)
+      return
+    }
+  }
   const readNotes = async (): Promise<string> => {
     const got = deps.voiceNotes
       ? await deps
@@ -926,6 +986,37 @@ async function runHeld(
     still_tasks: JSON.stringify(tasks),
     payer,
   })
+}
+
+/** Marks a job that waits for the day's generations (error column). */
+export const CAP_WAIT_MARK = '[лимит]' // cyrillic-ok: marker the seller may see
+
+/**
+ * Generations a reel still needs (spec: slots_needed): the missing stills, a
+ * clone's line per missing clip, the missing lip-syncs, and the assembly.
+ * Her own notes are cut on our shelf and cost no slot.
+ */
+export function slotsNeeded(
+  scenes: number,
+  stillsHave: number,
+  clipsHave: number,
+  clone: boolean
+): number {
+  const stills = Math.max(0, scenes - stillsHave)
+  const clips = Math.max(0, scenes - clipsHave)
+  return stills + (clone ? clips : 0) + clips + SPEC.CAP_SLOT_PER_RENDER
+}
+
+/** Whether the day's generations cover what is still needed (spec: day_covers). */
+export function dayCovers(left: number, needed: number): boolean {
+  return left >= needed
+}
+
+function capWhy(left: number, needed: number): string {
+  return (
+    `суточный лимит генераций: осталось ${Math.max(0, left)}, рилсу нужно ${needed} — ` +
+    'ничего не потрачено сверх сделанного'
+  )
 }
 
 /**

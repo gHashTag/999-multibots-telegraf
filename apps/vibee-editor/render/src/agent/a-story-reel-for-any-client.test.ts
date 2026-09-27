@@ -32,7 +32,13 @@ import {
   type StoryDeps,
 } from './story-template'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
-import { storyPriceEstimate, storyPriceEstimateNotes } from './story-template'
+import {
+  storyPriceEstimate,
+  storyPriceEstimateNotes,
+  slotsNeeded,
+  dayCovers,
+  CAP_WAIT_MARK,
+} from './story-template'
 import type { AgentTool, ToolContext } from './tools'
 
 const SELLER = '900000001'
@@ -288,6 +294,19 @@ function fakeBase() {
     if (q.startsWith('SELECT * FROM story_jobs WHERE id = $1')) {
       const j = row(p[0])
       return { rows: j ? [{ ...j }] : [] }
+    }
+    if (
+      q.startsWith(
+        'UPDATE story_jobs SET attempts = $2, runner = NULL, error = $3'
+      )
+    ) {
+      Object.assign(row(p[0])!, {
+        attempts: p[1],
+        runner: null,
+        error: p[2],
+        updated: clock,
+      })
+      return { rows: [] }
     }
     if (q.startsWith('UPDATE story_jobs SET attempts')) {
       const j = row(p[0])!
@@ -1827,5 +1846,101 @@ describe('her clone refused by its provider: her notes, in the same run (spec v5
     const job = base.db.jobs[0]
     expect(job.status).not.toBe('done')
     expect(JSON.parse(job.stills)).toEqual(STILLS)
+  })
+})
+
+describe("the day's generations, counted before anything is spent (spec v6)", () => {
+  it('a reel the day cannot cover is refused in words before a still is drawn', async () => {
+    const base = fakeBase()
+    qualify(base)
+    let drawn = 0
+    const { deps } = depsOn(base, async () => {
+      drawn += 1
+      return { done: true, url: 'x' }
+    })
+    const asked: string[] = []
+    deps.generationsLeft = async payer => {
+      asked.push(payer)
+      return slotsNeeded(3, 0, 0, true) - 1
+    }
+    const out = await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(out.started).toBe(false)
+    expect(out.why).toMatch('суточный лимит генераций')
+    expect(out.why).toMatch(`нужно ${slotsNeeded(3, 0, 0, true)}`)
+    expect(asked).toEqual([SELLER])
+    expect(base.db.jobs).toHaveLength(0)
+    expect(drawn).toBe(0)
+  })
+
+  it('exactly enough starts; her notes need fewer slots than her clone', async () => {
+    const base = fakeBase()
+    qualify(base, { voice: false })
+    const { deps } = depsOn(base, async () => ({ done: true, url: 'x' }))
+    deps.voiceNotes = async () => ({
+      urls: ['https://s/1.mp3', 'https://s/2.mp3', 'https://s/3.mp3'],
+      seconds: 11,
+    })
+    deps.generationsLeft = async () => slotsNeeded(3, 0, 0, false)
+    const out = await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(out.started).toBe(true)
+    expect(base.db.jobs[0].status).toBe('done')
+    expect(slotsNeeded(3, 0, 0, false)).toBeLessThan(slotsNeeded(3, 0, 0, true))
+  })
+
+  it('met mid-way: the job waits with its attempt given back, and is told once', async () => {
+    const base = fakeBase()
+    qualify(base)
+    let drawn = 0
+    const { deps, said } = depsOn(base, async () => {
+      drawn += 1
+      return { done: true, url: 'x' }
+    })
+    // Enough to start; by the time the job runs, the day is spent.
+    const left = [20, 2, 2]
+    deps.generationsLeft = async () => left.shift() ?? 2
+    const out = await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(out.started).toBe(true)
+    const job = base.db.jobs[0]
+    expect(drawn).toBe(0)
+    expect(job.status).toBe('running')
+    expect(job.runner).toBe(null)
+    expect(job.attempts).toBe(0)
+    expect(String(job.error)).toMatch(CAP_WAIT_MARK)
+    const told = said.filter(x => /ждёт/.test(x.text)).length // cyrillic-ok: the seller's word under test
+    expect(told).toBe(1)
+    // The sweep takes it again while the day is still spent: still waiting,
+    // the attempt still kept, nobody told a second time.
+    job.runner = 'runner-a'
+    await runStoryJob(deps, job.id)
+    await drain()
+    expect(job.attempts).toBe(0)
+    expect(job.status).toBe('running')
+    expect(said.filter(x => /ждёт/.test(x.text)).length).toBe(told) // cyrillic-ok: the seller's word under test
+    expect(drawn).toBe(0)
+  })
+
+  it('what a resumed job still needs is only its missing parts', () => {
+    expect(slotsNeeded(3, 3, 0, false)).toBe(4)
+    expect(slotsNeeded(3, 3, 2, true)).toBe(3)
+    expect(dayCovers(3, 3)).toBe(true)
+    expect(dayCovers(2, 3)).toBe(false)
   })
 })
