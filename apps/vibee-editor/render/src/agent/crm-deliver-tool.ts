@@ -47,6 +47,9 @@ import {
   type SentPhoto,
 } from './client-face'
 import { record } from '../hive/journal'
+// The lead magnet's numbers are the spec's: gHashTag/t27
+// specs/automation/crm-lead-magnet.t27, vendored with its `t27c gen-ts` output.
+import * as LM from '../spec/crm-lead-magnet.gen'
 
 /**
  * THE SERVICE, DELIVERED IN THE DM -- AND, BY DEFAULT, THE LEAD MAGNET.
@@ -123,8 +126,8 @@ export const PORTRAIT_GIVE_UP_MS = 60 * 60_000
 export const LEAD_MAGNET = {
   model: LEAD_MAGNET_MODEL,
   /** The op the OWNER pays when the gift is drawn from the person's photo. */
-  op: 'gpt_image_edit',
-  aspectRatio: '9:16',
+  op: LM.OP,
+  aspectRatio: LM.ASPECT_RATIO,
   /**
    * Identity FIRST, scene second. Face-consistency guides for img2img models
    * agree on the order: the model weighs the opening of the prompt most, so
@@ -144,20 +147,41 @@ export const LEAD_MAGNET = {
  * The gift caption: one line, a name, who made it, one soft question. No
  * price, no link. It names the photo it was drawn from: "your avatar" on a
  * portrait drawn from a photo they sent is a small untruth they can check.
+ *
+ * WHEN THE SOURCE IS NOT KNOWN, IT SAYS "YOUR PHOTO" -- true of both. A late
+ * portrait recovered from its debt does not carry where its face came from,
+ * and it used to say "your avatar" whatever the truth was. And a picture with
+ * NOBODY in it (`none`) is not "you": it used to be captioned "this is you,
+ * a portrait", under a picture of a room.
  */
 export function giftCaption(
   firstName: string | null | undefined,
-  from: 'avatar' | 'sent' = 'avatar'
+  from?: 'avatar' | 'sent' | 'none'
 ): string {
   const name = String(firstName ?? '').trim()
+  const frame = `в формате сторис ${LM.ASPECT_RATIO}`
+  if (from === 'none')
+    return (
+      (name ? `${name}, ` : '') +
+      `это для вас — мой ИИ-ассистент сделал картинку за минуту, ${frame}. ` +
+      'Это подарок, без оплаты. Хотите ещё одну — про ваше дело?'
+    )
   return (
     (name ? `${name}, ` : '') +
     'это вы — мой ИИ-ассистент сделал портрет по ' +
-    (from === 'sent' ? 'вашему фото' : 'вашей аватарке') +
-    ' за минуту, ' +
-    'в формате сторис 9:16. Это подарок, без оплаты. ' +
+    (from === 'avatar' ? 'вашей аватарке' : 'вашему фото') +
+    ` за минуту, ${frame}. Это подарок, без оплаты. ` +
     'Хотите ещё один — в другом образе?'
   )
+}
+
+/**
+ * May this call give a portrait away free (spec: gift_allowed)? One portrait
+ * per person is the gift; the second is a paid service, and the next free
+ * thing is the story reel (crm-lead-magnet.t27 v2 GIFTS_PER_PERSON).
+ */
+export function giftAllowed(portraitsGiven: number): boolean {
+  return portraitsGiven < LM.GIFTS_PER_PERSON
 }
 
 /** What the seller is told while the portrait is still being drawn. */
@@ -167,8 +191,8 @@ export const PORTRAIT_DRAWING =
   'Не рисуй этому человеку другой картинки и не пиши, что не получилось.' // cyrillic-ok: message to the agent
 
 /**
- * image_generate speaks width/height, not aspect_ratio. 1080x1920 is the
- * story frame; the other two are the ratios the tool advertises.
+ * image_generate speaks width/height, not aspect_ratio. The story frame is
+ * the spec's STORY_PX; the other two are the ratios the tool advertises.
  */
 export function sizeFor(aspectRatio: string): {
   width: number
@@ -179,8 +203,10 @@ export function sizeFor(aspectRatio: string): {
       return { width: 1024, height: 1024 }
     case '3:4':
       return { width: 1080, height: 1440 }
-    default:
-      return { width: 1080, height: 1920 }
+    default: {
+      const [width, height] = LM.STORY_PX.split('x').map(Number)
+      return { width, height }
+    }
   }
 }
 
@@ -653,7 +679,8 @@ export function makeCrmDeliverTools(
           charge: { op: string; tokens: number } | null = gift
             ? null
             : { op: paidOp, tokens: price },
-          from: 'avatar' | 'sent' = 'avatar'
+          // Unknown (a recovered portrait) is captioned "your photo": true of both.
+          from?: 'avatar' | 'sent' | 'none'
         ): Promise<Record<string, unknown>> => {
           const charged = charge !== null
           noteImagesWorked()
@@ -813,6 +840,37 @@ export function makeCrmDeliverTools(
             }
           }
 
+          /*
+           * ONE PORTRAIT PER PERSON IS A GIFT (crm-lead-magnet.t27 v2).
+           *
+           * The spec said so from v1 and nothing held it: gift defaults to
+           * true, so every call gave another portrait away on the owner's
+           * wallet, and the caption invites "another one". A portrait already
+           * given is not given again: the second is paid (gift=false), and
+           * the next free thing is the story reel. A portrait already PAID
+           * FOR is still handed over above -- this only stops a new drawing.
+           */
+          if (gift && !noPerson && ctx?.pool) {
+            const had = await portraitOf(pool, owner, lead.id).catch(() => null)
+            if (had && !giftAllowed(had.given ? 1 : 0)) {
+              await noteGift(
+                ctx,
+                'a portrait was already given to this person',
+                'gift-used'
+              )
+              return {
+                delivered: false,
+                gift_used: true,
+                price: 0,
+                // cyrillic-ok: public API field
+                причина:
+                  'портрет этому человеку уже подарен — подарок один на человека. ' + // cyrillic-ok: message to the agent
+                  'Второй портрет платный (gift=false, с получателя при нажатии); ' + // cyrillic-ok: message to the agent
+                  'следующий бесплатный подарок — рилс-история (crm_story_reel).', // cyrillic-ok: message to the agent
+              }
+            }
+          }
+
           have = free
             ? Number.POSITIVE_INFINITY
             : ((await balanceOf(pool, lead.id)) ?? FIRST_ROW_GRANT)
@@ -862,10 +920,15 @@ export function makeCrmDeliverTools(
                 source: 'без людей, по описанию',
               }
             }
-            return card(made.url, {
-              source: 'без людей, по описанию',
-              model: 'image_generate',
-            })
+            return card(
+              made.url,
+              {
+                source: 'без людей, по описанию',
+                model: 'image_generate',
+              },
+              undefined,
+              'none'
+            )
           }
 
           /*

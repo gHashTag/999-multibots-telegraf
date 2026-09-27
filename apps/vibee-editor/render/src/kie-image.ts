@@ -1,5 +1,8 @@
 import { kieInputFor } from './agent/kie-web-provider'
 import { EDIT_MODEL } from './agent/kie-edit-model'
+// The lead magnet's model, tier and input field are the spec's: gHashTag/t27
+// specs/automation/crm-lead-magnet.t27, vendored with its `t27c gen-ts` output.
+import * as LM from './spec/crm-lead-magnet.gen'
 /**
  * IMAGE-TO-IMAGE, the capability the service sells but did not have.
  *
@@ -66,7 +69,8 @@ export { EDIT_MODEL }
  * Two things the run settled that reading could not. The contract holds: this
  * model really does want `input_urls` where nano-banana wants `image_urls`,
  * and editInputFor already sends the right one. And the 12 tokens the gift
- * charges a recipient are not a guess -- the charge came back as 12.
+ * charges the OWNER are not a guess -- the charge came back as 12 (the
+ * recipient of a gift pays nothing: crm-lead-magnet.t27 RECIPIENT_CHARGED).
  *
  * NOT probed by the free empty-input method the catalogue was built with.
  * That method has a named hole three paragraphs into kie-models.ts:
@@ -78,15 +82,12 @@ export { EDIT_MODEL }
  * `sunburst` remains unrun. It is the premium sibling, and nothing needs it
  * yet.
  */
-export const GPT_IMAGE_25_EDIT_MODELS = [
-  'gpt-image-2-5-flare-image-to-image',
-  'gpt-image-2-5-sunburst-image-to-image',
-] as const
+export const GPT_IMAGE_25_EDIT_MODELS = [LM.MODEL, LM.MODEL_ALT] as const
 /** Flare is Kie's stated default for creator/social visuals; Sunburst is the premium one. */
 export const LEAD_MAGNET_MODEL: (typeof GPT_IMAGE_25_EDIT_MODELS)[number] =
-  'gpt-image-2-5-flare-image-to-image'
+  LM.MODEL
 /** 1K is the priced tier the lead magnet is budgeted at ($0.03). */
-export const LEAD_MAGNET_RESOLUTION = '1K'
+export const LEAD_MAGNET_RESOLUTION = LM.RESOLUTION
 
 export function isGptImage25Edit(model: string): boolean {
   return (GPT_IMAGE_25_EDIT_MODELS as readonly string[]).includes(model)
@@ -103,11 +104,11 @@ export function editInputFor(
   model: string,
   opts: { prompt: string; imageUrl: string; aspectRatio?: string }
 ): Record<string, unknown> {
-  const aspect_ratio = opts.aspectRatio || '9:16'
+  const aspect_ratio = opts.aspectRatio || LM.ASPECT_RATIO
   if (isGptImage25Edit(model)) {
     return {
       prompt: opts.prompt,
-      input_urls: [opts.imageUrl],
+      [LM.KIE_INPUT_URLS_FIELD]: [opts.imageUrl],
       aspect_ratio,
       resolution: LEAD_MAGNET_RESOLUTION,
     }
