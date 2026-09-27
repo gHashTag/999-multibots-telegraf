@@ -1419,6 +1419,11 @@ answers: true`, 9/12 tabs.
   something did, 3 the render did not answer — a script can gate on "did the last
   turn stumble"). PR #3160; `80fbbf551` on the branch; 7 saw tests +
   1 route test + 21 cookie-import all green, render-types 0.
+  **CLOSED 2026-09-28:** merged squash `9da0ff6c2`, Railway deploy `2fa2d8a9`
+  SUCCESS, `/health` version `9da0ff6`, `tri saw` answers live prod for real
+  ("no errors in the last steps"), `cmd_saw` on origin/main — the deploy-window
+  degradation below is over. Next tick: nothing to redo here; pick the next
+  `running`-shaped claim (`browser_status`, still the last one open).
 
   The discipline that shaped it, not decoration: **an action is never a look**
   (a failed click's answer is the prior page, not the click); **a read that
