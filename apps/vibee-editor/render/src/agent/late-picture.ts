@@ -24,6 +24,17 @@
  * caller's decision (tools.ts image_edit), made once, where the charge was.
  */
 import type { KieTaskState } from '../kie-image'
+// The ledger reference is the spec's: gHashTag/t27 specs/automation/crm-story-reel.t27.
+import * as SPEC from '../spec/crm-story-reel.gen'
+
+/**
+ * The ledger reference of a late picture's refund: one per provider task, so
+ * the two paths that can notice a picture never came (image_edit's watch, a
+ * story job resuming after a redeploy) give its charge back once between them.
+ */
+export function lateRefundRef(taskId: string): string {
+  return `${SPEC.LATE_REFUND_REF_PREFIX}${String(taskId ?? '').trim()}`
+}
 
 /** How long a background watch keeps asking before it lets the stored id carry on. */
 export const LATE_WATCH_MS = 20 * 60_000
