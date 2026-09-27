@@ -83,9 +83,34 @@ if (cmd === 'record') {
   )
   process.exit(0)
 }
+if (cmd === 'forget') {
+  /*
+   * A CHECK THAT WILL NEVER RUN AGAIN UNDER ITS OLD NAME. Loop turn 13: the
+   * shot records gained the language (`shot x 390` -> `shot x 390 ru`), and
+   * the old names stayed in the log as "stale -- run it again" forever:
+   * nothing runs under them any more, so the table could never be clean.
+   * The log only grows; a tombstone says the name is retired, and why.
+   */
+  const [check, ...why] = rest
+  if (!check) {
+    console.error('usage: tri gate forget <check name> [why]')
+    process.exit(2)
+  }
+  appendFileSync(
+    LOG,
+    JSON.stringify({
+      at: new Date().toISOString(),
+      check,
+      forgotten: true,
+      detail: why.join(' '),
+    }) + '\n'
+  )
+  console.log(`forgot "${check}": it no longer counts, fresh or stale`)
+  process.exit(0)
+}
 if (cmd !== 'show') {
   console.error(
-    'usage: tri gate   (records come from full-run, mutants, spec-controls, image-gate)'
+    'usage: tri gate [forget <check> [why]]   (records come from full-run, mutants, spec-controls, image-gate, shot)'
   )
   process.exit(2)
 }
@@ -98,6 +123,8 @@ const rows = existsSync(LOG)
   : []
 const latest = new Map()
 for (const r of rows) latest.set(r.check, r)
+// A retired name (tri gate forget) counts neither as fresh nor as stale.
+for (const [check, r] of latest) if (r.forgotten) latest.delete(check)
 const here = [...latest.values()].filter(r => r.tree === now)
 const stale = [...latest.values()].filter(r => r.tree !== now)
 if (!here.length) {
