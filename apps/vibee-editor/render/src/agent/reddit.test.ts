@@ -482,7 +482,11 @@ describe('one tick, one step', () => {
         throw new Error('ECONNRESET')
       },
     })
-    /* An inbox we could not read is not an empty inbox. */
-    expect(await redditTick(deps)).toBe('the inbox did not answer')
+    /*
+     * An inbox we could not read is not an empty inbox -- and the reason comes
+     * with it, because the first live tick said only "did not answer" and left
+     * nobody able to tell a signed-out account from a broken wire.
+     */
+    expect(await redditTick(deps)).toBe('the inbox did not answer: ECONNRESET')
   })
 })
