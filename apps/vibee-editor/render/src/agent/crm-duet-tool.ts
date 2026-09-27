@@ -27,6 +27,8 @@
  * the media forwarded, the count of paid generations. Never a session string.
  */
 import type { AgentTool, ToolContext } from './tools'
+// The lost-run threshold is the spec's (crm-client-workspace.t27 RUN_LOST_AFTER_MIN).
+import * as WS from '../spec/crm-client-workspace.gen'
 import type { AgentEvent, ChatMessage, ToolDenial } from './chat'
 import {
   requireOwner,
@@ -137,8 +139,8 @@ type RunsPool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
 }
 
-/** A running run whose process died shows as lost after this long. */
-export const LOST_AFTER_MS = 30 * 60_000
+/** A running run whose process died shows as lost after this long (spec: RUN_LOST_AFTER_MIN). */
+export const LOST_AFTER_MS = WS.RUN_LOST_AFTER_MIN * 60_000
 
 /** What a reader sees: the stored state, or `lost` derived from the clock. */
 export type DuetRunView = Omit<DuetRun, 'state'> & {
