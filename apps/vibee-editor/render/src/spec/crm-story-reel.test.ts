@@ -369,6 +369,9 @@ describe("the spec's tests hold against the host", () => {
     expect(SPEC.VOICE_LEG_STATUS).toBe(
       'clone-402-falls-to-notes-on-kie-2026-09-27'
     )
+    expect(SPEC.CAP_LEG_STATUS).toBe(
+      'lipsync-met-daily-cap-attempts-burned-2026-09-27'
+    )
     // Blocked by money, not code: the voice is Replicate's, not Kie's.
     expect(SPEC.VOICE_PROVIDER).toBe('replicate')
     expect(SPEC.VOICE_ON_KIE).toBe(false)
@@ -464,6 +467,24 @@ describe("the spec's tests hold against the host", () => {
     expect(looksLikeProviderOutage('липсинк 1: timeout after 300 s')).toBe(
       false
     )
+  })
+
+  it("the day's generations are counted before anything is spent, and a waiting job keeps its attempts", async () => {
+    // slots_needed(scenes, stills_have, clips_have, clone), day_covers(left,
+    // needed). The refusal before spend, the wait with the attempt given back
+    // and the single word to the seller run in
+    // a-story-reel-for-any-client.test.ts ("the day's generations").
+    const { slotsNeeded, dayCovers } = await import('../agent/story-template')
+    expect(slotsNeeded(3, 0, 0, true)).toBe(10)
+    expect(slotsNeeded(3, 0, 0, false)).toBe(7)
+    expect(slotsNeeded(3, 3, 0, false)).toBe(4)
+    expect(slotsNeeded(3, 3, 2, true)).toBe(3)
+    expect(slotsNeeded(3, 3, 3, true)).toBe(SPEC.CAP_SLOT_PER_RENDER)
+    expect(dayCovers(9, 10)).toBe(false)
+    expect(dayCovers(10, 10)).toBe(true)
+    expect(SPEC.CAP_ASKED_BEFORE_SPEND).toBe(true)
+    expect(SPEC.CAP_WAIT_KEEPS_ATTEMPTS).toBe(true)
+    expect(SPEC.CAP_WAIT_TOLD_ONCE).toBe(true)
   })
 
   it('her notes are cut at a pause near the even cut, or at the even cut', () => {

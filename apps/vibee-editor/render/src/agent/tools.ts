@@ -503,7 +503,7 @@ export async function keepGeneratedImage(
  * честнее счётчика в памяти: переживает рестарт и виден человеку в файлах.
  */
 const DAILY_GENERATION_CAP = 60
-async function generationsLeftToday(ctx: ToolContext): Promise<number> {
+export async function generationsLeftToday(ctx: ToolContext): Promise<number> {
   const r = await ctx.pool.query(
     `SELECT COUNT(*)::int AS n FROM assets
      WHERE telegram_id = $1 AND bot_name = 'agent'

@@ -28,6 +28,11 @@
 // v5 (2026-09-27): a client WITH a clone whose provider refuses (402, no credit) is no dead end
 // for the seller: the same run speaks her voice notes instead, on the stills it already paid
 // for. A client pressing for herself still gets her clone; nothing else is put in her mouth.
+// v6 (2026-09-27): the day's generation cap is asked BEFORE anything is spent. Measured live: a
+// reel's stills and voice were paid, its three lip-syncs met the payer's daily cap, and the sweep
+// burned all three attempts in six minutes; the job failed with the paid parts orphaned. Now a
+// reel whose slots the day cannot cover is refused in words before a still is drawn, and a job
+// that meets the cap mid-way waits -- its attempts kept -- and is told once.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -38,7 +43,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 5;
+    pub const VERSION : u8 = 6;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -154,6 +159,11 @@ module automation::crm_story_reel {
     pub const CLONE_DOWN_SAME_RUN : bool = true;  // no wait for the sweep, no second job
     pub const CLONE_DOWN_KEEPS_STILLS : bool = true;  // the stills already paid for are carried
     pub const CLONE_DOWN_ONLY_ON_PROVIDER : bool = true;  // 401/402/403/429, balance, key; not a bad line
+    // ---- The day's generation cap, asked before spending (v6) ---------------------------
+    pub const CAP_ASKED_BEFORE_SPEND : bool = true;  // start and every resume count the slots first
+    pub const CAP_SLOT_PER_RENDER : u16 = 1;  // the assembly is counted, to be safe
+    pub const CAP_WAIT_KEEPS_ATTEMPTS : bool = true;  // waiting for the day is not a failed attempt
+    pub const CAP_WAIT_TOLD_ONCE : bool = true;  // the seller hears it once, not every sweep
 
     // ---- Who asks, who pays -------------------------------------------------------------
     pub const START_PARAM : str = "reel";  // t.me/<bot>?start=reel, the client's own press
@@ -180,6 +190,7 @@ module automation::crm_story_reel {
     // ---- What was seen live -------------------------------------------------------------
     pub const LIVE_RUN_STATUS : str = "delivered-2026-09-26";
     pub const VOICE_LEG_STATUS : str = "clone-402-falls-to-notes-on-kie-2026-09-27";
+    pub const CAP_LEG_STATUS : str = "lipsync-met-daily-cap-attempts-burned-2026-09-27";
 
     struct Job {
         has_face: bool,
@@ -263,6 +274,22 @@ module automation::crm_story_reel {
             return VOICE_CLONE;
         }
         return VOICE_NONE;
+    }
+
+    // Generations a reel still needs: the missing stills, a clone's line per missing clip, the
+    // missing lip-syncs and the assembly. Her own notes are cut on our shelf and cost no slot.
+    fn slots_needed(scenes: u16, stills_have: u16, clips_have: u16, clone: bool) -> u16 {
+        const stills = scenes - stills_have;
+        const clips = scenes - clips_have;
+        if clone {
+            return stills + clips + clips + CAP_SLOT_PER_RENDER;
+        }
+        return stills + clips + CAP_SLOT_PER_RENDER;
+    }
+
+    // Whether the day's generations cover what the reel still needs.
+    fn day_covers(left: u16, needed: u16) -> bool {
+        return left >= needed;
     }
 
     // Where one cut falls: on a pause near the even cut, or on the even cut itself.
@@ -439,6 +466,19 @@ module automation::crm_story_reel {
         assert(CLONE_DOWN_ONLY_ON_PROVIDER);
     }
 
+    test "the day's generations are counted before anything is spent, and a waiting job keeps its attempts" {
+        assert(slots_needed(3, 0, 0, true) == 10);
+        assert(slots_needed(3, 0, 0, false) == 7);
+        assert(slots_needed(3, 3, 0, false) == 4);
+        assert(slots_needed(3, 3, 2, true) == 3);
+        assert(slots_needed(3, 3, 3, true) == CAP_SLOT_PER_RENDER);
+        assert(!day_covers(9, 10));
+        assert(day_covers(10, 10));
+        assert(CAP_ASKED_BEFORE_SPEND);
+        assert(CAP_WAIT_KEEPS_ATTEMPTS);
+        assert(CAP_WAIT_TOLD_ONCE);
+    }
+
     test "her notes are cut at a pause near the even cut, or at the even cut" {
         assert(cut_at(4000, 4600) == 4600);
         assert(cut_at(4000, 3000) == 3000);
@@ -482,6 +522,7 @@ module automation::crm_story_reel {
     test "what was seen live is kept apart from what is blocked" {
         assert(LIVE_RUN_STATUS == "delivered-2026-09-26");
         assert(VOICE_LEG_STATUS == "clone-402-falls-to-notes-on-kie-2026-09-27");
+        assert(CAP_LEG_STATUS == "lipsync-met-daily-cap-attempts-burned-2026-09-27");
     }
 }
 
