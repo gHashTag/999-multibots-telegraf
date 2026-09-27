@@ -322,3 +322,21 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 Источники: [Canva: Use Design Accessibility](https://www.canva.com/help/using-design-accessibility/),
 [Clockwork: Making Your Canva Designs Accessible](https://www.cdgi.com/2025/11/canva-accessibility/),
 [Stark: Contrast Checker + Color Suggestions](https://www.getstark.co/support/getting-started/using-the-contrast-checker/).
+
+## 27.09, виток 10: несколько вариантов вместо одного
+
+- **Stark**: к непроходящей паре — варианты И цвета текста, И фона,
+  «гарантированно проходящие», ближайшие к исходному, из библиотеки бренда.
+- **Adobe Leonardo** (открытый код): цвета строятся от целевого контраста
+  к общему фону, в перцептивных пространствах (OKLCH, CAM02) — оттенок
+  сохраняется, меняется светлота.
+- **Coolors и подобные**: «умные подсказки» — чуть темнее или светлее,
+  «маленький сдвиг светлоты решает».
+- У нас с витка 10 (crm-story-reel v13) — три варианта с «Взять» у каждого:
+  оттенок её цвета (64 шага), её собственный цвет с карточки, её фон. Чего
+  нет, а у Leonardo есть: сдвиг в OKLCH (у нас sRGB — к белому бледнеет).
+
+Источники: [Stark: Contrast Checker + Color Suggestions](https://www.getstark.co/support/getting-started/using-the-contrast-checker/),
+[adobe/leonardo](https://github.com/adobe/leonardo),
+[Leonardo: contrast-based color generator](https://medium.com/@NateBaldwin/leonardo-an-open-source-contrast-based-color-generator-92d61b6521d2),
+[Coolors: Contrast Checker](https://coolors.co/contrast-checker).
