@@ -35,6 +35,8 @@ import {
   storyPriceEstimateNotes,
   type StoryDeps,
 } from './story-template'
+import { voiceMode } from './story-voice-notes'
+import * as REEL from '../spec/crm-story-reel.gen'
 import { requireSeller } from './telegram-tools'
 import { bindClientGroup, clientGroupFor } from './crm-client-group'
 
@@ -160,6 +162,10 @@ export function makeCrmStoryTool(o: {
 
       if (args.start !== true) {
         const jobs = await storyJobsOf(ctx.pool, seller, lead).catch(() => [])
+        const cloneSpeaks =
+          !!s &&
+          voiceMode(s.hasVoice, o.deps(ctx).voiceDown?.() === true, true) ===
+            REEL.VOICE_CLONE
         const bot = await o
           .deps(ctx)
           .botOf?.(lead)
@@ -173,10 +179,11 @@ export function makeCrmStoryTool(o: {
                 name: s.name || undefined,
                 face: s.faceUrl || undefined,
                 voice: s.hasVoice,
-                // Her clone speaks new lines; without it, her own voice notes
-                // are lip-synced on Kie -- her words, no clone, no Replicate.
-                voice_mode: s.hasVoice ? 'clone' : 'notes',
-                price_tokens: s.hasVoice
+                // Her clone speaks new lines; without it -- or while its
+                // provider refuses (spec v5) -- her own voice notes are
+                // lip-synced on Kie: her words, no clone, no Replicate.
+                voice_mode: cloneSpeaks ? 'clone' : 'notes',
+                price_tokens: cloneSpeaks
                   ? storyPriceEstimate()
                   : storyPriceEstimateNotes(),
                 vip: s.vip,

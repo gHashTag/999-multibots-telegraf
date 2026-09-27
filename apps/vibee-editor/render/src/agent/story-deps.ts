@@ -20,6 +20,7 @@ import { voicesFromNotes } from './story-voice-notes'
 import { LIVE_NOTES } from './crm-voice-clone-tool'
 import { joinVoiceNotes, runTool } from './lead-voice'
 import { s3PutBytes } from '../lib/s3-put'
+import { voiceLooksDown } from './image-health'
 
 type Pool = StoryDeps['pool']
 
@@ -174,5 +175,8 @@ export function makeStoryDeps(
         lead,
         parts
       ),
+    // Her clone's provider refused a real call lately (spec v5): the seller's
+    // reel speaks her notes instead of paying for stills a 402 will orphan.
+    voiceDown: () => voiceLooksDown() !== null,
   }
 }

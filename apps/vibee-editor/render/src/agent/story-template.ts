@@ -42,6 +42,7 @@
  */
 import type { ToolContext } from './tools'
 import { voiceMode } from './story-voice-notes'
+import { looksLikeProviderOutage } from './image-health'
 import {
   endCardFromProfile,
   pauseOf,
@@ -229,7 +230,7 @@ export function missingFor(
     s.faceUrl
       ? ''
       : 'фото с лицом (crm_client_face: аватарка или присланное фото)',
-    voiceMode(s.hasVoice, o.notes === true) !== SPEC.VOICE_NONE
+    voiceMode(s.hasVoice, false, o.notes === true) !== SPEC.VOICE_NONE
       ? ''
       : 'голос (crm_voice_clone из её голосовых в личке)',
   ].filter(Boolean)
@@ -482,6 +483,11 @@ export interface StoryDeps {
     lead: string,
     parts: number
   ) => Promise<{ urls: string[]; seconds: number } | { why: string }>
+  /**
+   * Whether her clone's provider refused a real call lately (image-health's
+   * voiceLooksDown); absent: no reason to doubt it.
+   */
+  voiceDown?: () => boolean
   /**
    * Give back, once per task, the charge of a still that was ordered and
    * never came (tools.ts refundLateImage); absent: nothing is given back
@@ -786,34 +792,66 @@ async function runHeld(
    * her mouth. Fetched before any still is drawn, so a reel with no voice
    * costs nothing; skipped once every scene has its clip.
    */
-  const mode = voiceMode(s.hasVoice, !byClient)
+  const sellerAsked = !byClient
+  let mode = voiceMode(s.hasVoice, deps.voiceDown?.() === true, sellerAsked)
   const allClips = list(job.clips).filter(Boolean).length >= scenes.length
-  if (mode === SPEC.VOICE_NOTES && !allClips) {
+  const readNotes = async (): Promise<string> => {
     const got = deps.voiceNotes
       ? await deps
           .voiceNotes(seller, lead, scenes.length)
           .catch(e => ({ why: String((e as Error)?.message ?? e) }))
       : { why: 'голосовые на этом сервере не читаются' }
-    if ('why' in got) return fail(got.why)
+    if ('why' in got) return got.why
     ctx.storyVoices = got.urls
+    return ''
   }
-  const ans = await deps
-    .story(
-      {
-        image_url: s.faceUrl,
-        scenes,
-        // The seller's own look and call, when the job carries them.
-        style: String(job.style ?? '').trim() || s.style,
-        ...(mode === SPEC.VOICE_CLONE ? { for_lead: lead } : {}),
-        cta: String(job.cta ?? '').trim() || s.cta,
-        pause_sec: s.pauseSec,
-        ...(s.endCard ? { end_card: s.endCard } : {}),
-        stills: list(job.stills),
-        clips: list(job.clips),
-      },
-      ctx
-    )
-    .catch(e => ({ done: false, reason: String((e as Error)?.message ?? e) }))
+  if (mode === SPEC.VOICE_NOTES && !allClips) {
+    const why = await readNotes()
+    if (why) return fail(why)
+  }
+  const call = (stills: unknown[], clips: unknown[]) =>
+    deps
+      .story(
+        {
+          image_url: s.faceUrl,
+          scenes,
+          // The seller's own look and call, when the job carries them.
+          style: String(job.style ?? '').trim() || s.style,
+          ...(mode === SPEC.VOICE_CLONE ? { for_lead: lead } : {}),
+          cta: String(job.cta ?? '').trim() || s.cta,
+          pause_sec: s.pauseSec,
+          ...(s.endCard ? { end_card: s.endCard } : {}),
+          stills,
+          clips,
+        },
+        ctx
+      )
+      .catch(e => ({
+        done: false,
+        reason: String((e as Error)?.message ?? e),
+      }))
+  let ans: any = await call(list(job.stills), list(job.clips))
+
+  /*
+   * HER CLONE REFUSED BY ITS PROVIDER (spec v5). A 402 from Replicate is no
+   * dead end for the seller: in the same run her own voice notes speak
+   * instead, on the stills this run already paid for -- no wait for the
+   * sweep, no second job. Only a refusal that blames the provider (a bad
+   * line is not an outage), and never for a client pressing for herself.
+   */
+  if (
+    !ans?.done &&
+    mode === SPEC.VOICE_CLONE &&
+    voiceMode(s.hasVoice, true, sellerAsked) === SPEC.VOICE_NOTES &&
+    looksLikeProviderOutage(ans?.reason)
+  ) {
+    mode = SPEC.VOICE_NOTES
+    const why = await readNotes()
+    if (!why) {
+      ctx.storyStillTasks = stillTasksOf(ans?.still_tasks, n)
+      ans = await call(list(ans?.stills), list(ans?.clips))
+    }
+  }
 
   if (ans?.done && ans?.url) {
     const url = String(ans.url)
