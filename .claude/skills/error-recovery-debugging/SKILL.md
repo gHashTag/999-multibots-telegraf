@@ -10,11 +10,13 @@ description: Comprehensive error recovery and debugging strategies for productio
 ## 🎯 Core Principles
 
 ### Principle 1: Fail-Fast, Recover-Fast
+
 ```
 Detect → Diagnose → Decide → Act → Verify
 ```
 
 ### Principle 2: User Communication
+
 ```
 NEVER silent failures
 ALWAYS inform user what happened
@@ -22,6 +24,7 @@ ALWAYS provide next steps
 ```
 
 ### Principle 3: System Safety
+
 ```
 Production >>> Feature
 Rollback >>> Fix forward
@@ -31,6 +34,7 @@ Data integrity >>> Speed
 ## 🔍 Error Detection Layers
 
 ### Layer 1: Proactive Monitoring
+
 ```bash
 Automated:
   - /autonomous-monitor  - 24/7 error detection
@@ -43,6 +47,7 @@ Manual:
 ```
 
 ### Layer 2: User Reports
+
 ```
 Patterns that trigger investigation:
   - "Not working"       → /user-check + /check
@@ -52,6 +57,7 @@ Patterns that trigger investigation:
 ```
 
 ### Layer 3: System Metrics
+
 ```
 Critical Metrics:
   - Container CPU/Memory usage
@@ -66,6 +72,7 @@ Critical Metrics:
 ### Category 1: Telegram Bot Errors
 
 #### Error: "Cannot read property 'text' of undefined"
+
 ```typescript
 Cause: Accessing message.text without checking message type
 
@@ -87,6 +94,7 @@ Prevention:
 ```
 
 #### Error: "400: Bad Request: query is too old"
+
 ```typescript
 Cause: Calling answerCbQuery() twice or too late
 
@@ -104,6 +112,7 @@ Prevention:
 ```
 
 #### Error: "Cannot set property of undefined"
+
 ```typescript
 Cause: Session not initialized
 
@@ -124,6 +133,7 @@ Prevention:
 ### Category 2: Database Errors
 
 #### Error: "Connection pool exhausted"
+
 ```typescript
 Cause: Too many concurrent DB operations
 
@@ -144,6 +154,7 @@ Prevention:
 ```
 
 #### Error: "User not found"
+
 ```typescript
 Cause: User not in database
 
@@ -167,6 +178,7 @@ Prevention:
 ### Category 3: AI Provider Errors
 
 #### Error: "Rate limit exceeded"
+
 ```typescript
 Cause: Too many API requests
 
@@ -194,6 +206,7 @@ Prevention:
 ```
 
 #### Error: "Model prediction failed"
+
 ```typescript
 Cause: Various - bad input, model error, timeout
 
@@ -227,6 +240,7 @@ Prevention:
 ### Category 4: Payment Errors
 
 #### Error: "Balance deduction failed"
+
 ```typescript
 Cause: Race condition, insufficient balance, DB error
 
@@ -250,6 +264,7 @@ Prevention:
 ```
 
 #### Error: "Payment webhook not received"
+
 ```typescript
 Cause: Network issues, provider downtime
 
@@ -271,6 +286,7 @@ Prevention:
 ### Category 5: Deployment Errors
 
 #### Error: "Docker build failed"
+
 ```bash
 Cause: Build errors, dependency issues
 
@@ -295,6 +311,7 @@ Prevention:
 ```
 
 #### Error: "Container crash loop"
+
 ```bash
 Cause: Runtime error on startup
 
@@ -322,6 +339,7 @@ Prevention:
 ## 🔄 Recovery Workflows
 
 ### Workflow 1: User Reports Issue
+
 ```yaml
 Triggered by: User message mentioning problem
 
@@ -362,6 +380,7 @@ Step 7: Follow-up
 ```
 
 ### Workflow 2: Production Error Detected
+
 ```yaml
 Triggered by: /check showing errors OR autonomous-monitor alert
 
@@ -422,6 +441,7 @@ Step 6: Post-Mortem
 ```
 
 ### Workflow 3: Rollback Procedure
+
 ```yaml
 Triggered by: Deployment causes critical issues
 
@@ -474,6 +494,7 @@ Step 6: Documentation
 ## 🔧 Diagnostic Tools & Commands
 
 ### Quick Diagnostics
+
 ```bash
 # Health check
 /check
@@ -492,6 +513,7 @@ ssh root@188.137.250.69 'docker stats 999-multibots --no-stream'
 ```
 
 ### Deep Diagnostics
+
 ```bash
 # Full log analysis
 ssh root@188.137.250.69 'docker logs 999-multibots --tail 500 | grep ERROR'
@@ -507,6 +529,7 @@ ssh root@188.137.250.69 'cd /root/999-agents-telegraf && npm run secrets:test'
 ```
 
 ### Performance Diagnostics
+
 ```bash
 # API response times
 ssh root@188.137.250.69 'docker logs 999-multibots --tail 1000 | grep "duration"'
@@ -521,6 +544,7 @@ Check Supabase dashboard → Logs → Slow queries
 ## 📊 Error Pattern Library
 
 ### Pattern: Session Lost
+
 ```typescript
 Symptom: User loses progress in wizard
 
@@ -541,6 +565,7 @@ Prevention:
 ```
 
 ### Pattern: Balance Desync
+
 ```typescript
 Symptom: User balance different than expected
 
@@ -571,6 +596,7 @@ Prevention:
 ```
 
 ### Pattern: Infinite Loading
+
 ```typescript
 Symptom: Button shows loading forever
 
@@ -592,6 +618,7 @@ Prevention:
 ## 🎯 Prevention Strategies
 
 ### Strategy 1: Comprehensive Testing
+
 ```yaml
 Before ANY deployment:
   - Unit tests: Core logic
@@ -602,9 +629,9 @@ Before ANY deployment:
 ```
 
 ### Strategy 2: Gradual Rollout
+
 ```yaml
-For major changes:
-  1. Deploy to staging first
+For major changes: 1. Deploy to staging first
   2. Test with team members
   3. Deploy to production
   4. Monitor closely for 1 hour
@@ -612,6 +639,7 @@ For major changes:
 ```
 
 ### Strategy 3: Defensive Programming
+
 ```typescript
 // Always validate inputs
 const validateInput = (input: unknown): input is ValidType => {
@@ -635,6 +663,7 @@ await ctx.editMessageText('✅ Done!')
 ```
 
 ### Strategy 4: Monitoring & Alerting
+
 ```yaml
 Automated Monitoring:
   - /autonomous-monitor ON
@@ -671,6 +700,7 @@ Error Recovery provides:
 ## 📚 Related Skills & Agents
 
 ### Skills
+
 ```
 - master-orchestrator        - Coordination
 - project-knowledge-base     - File locations
@@ -679,6 +709,7 @@ Error Recovery provides:
 ```
 
 ### Agents
+
 ```
 - server-health-checker      - /check
 - js-error-fixer             - Auto-fix JS errors
@@ -693,3 +724,7 @@ Error Recovery provides:
 **Version**: 1.0
 **Status**: Production-ready ✅
 **Updates**: Add new error patterns as discovered
+
+- **27.09.2026.** Гейт pre-push печатает имена упавших тестов, а lefthook их проглатывает — в выводе push видна только строка «Упали тесты, которых не было в базе». Имена достаются одной командой: node scripts/test-guard.cjs (он же перепроверяет каждый файл по одному и отличает шумный тест от сломанного).
+
+- **27.09.2026.** Скрипт, который вшивается в чужую страницу, весь живёт в одной IIFE: одно необёрнутое чтение (location, WebSocket, URL) роняет ВСЁ ниже него, включая язык загрузчика. Вынести такое чтение из try при рефакторинге — тихая регрессия; вопрос «а можно ли тут показать кадры» должен отвечать false, а не бросать.

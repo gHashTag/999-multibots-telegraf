@@ -104,6 +104,7 @@ export const BROWSER_PATHS = [
   '/api/browser/scenarios',
   '/api/browser/reach',
   '/api/browser/tabs',
+  '/api/browser/watch',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -273,25 +274,33 @@ export async function handleBrowser(
    * WHO HOLDS THE WHEEL (sessions.ts setWheel). The person's door only: the
    * person takes it by touching the picture and hands it back by a press;
    * an agent key may not take it from them, or give itself the wheel back.
+   *
+   * LETTING GO IS NOT TAKING. That rule was written about an agent GAINING
+   * control and refused both directions, so an agent that opened the browser
+   * itself (POST /api/browser/session starts with the agent holding the wheel)
+   * could never put it down -- measured 2026-09-27, a probe left the wheel in
+   * the agent's hands with nobody driving. Handing the wheel to the PERSON only
+   * ever reduces what the agent may do, so it is allowed from either door; the
+   * agent still cannot give itself the wheel.
    */
   if (path === '/api/browser/wheel') {
     if (method !== 'POST') {
       return { status: 405, body: { ok: false, error: 'POST only' } }
-    }
-    if (deps.actor(req) !== 'person') {
-      return {
-        status: 403,
-        body: {
-          ok: false,
-          error: "the wheel is the person's to take and give",
-        },
-      }
     }
     const holder = new URLSearchParams((req.url || '').split('?')[1] || '').get(
       'holder'
     )
     if (holder !== 'person' && holder !== 'agent') {
       return { status: 400, body: { ok: false, error: 'holder=person|agent' } }
+    }
+    if (deps.actor(req) !== 'person' && holder !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: "the wheel is the person's to take; an agent may only give it",
+        },
+      }
     }
     await setWheel(pool, who, holder)
     /*
@@ -553,6 +562,24 @@ export async function handleBrowser(
       { probes: q.get('probes') === '1' }
     )
     return { status: 200, body: { ok: true, steps } }
+  }
+
+  /*
+   * SINCE WHEN IS THE BROWSER NOT A BROWSER (watch.ts). Read-only, and it
+   * probes nothing itself: the clock in render-server.ts writes the row, this
+   * only reads it. The pod was unreadable for three days in September and the
+   * one number nobody had was how long -- that number is here now.
+   */
+  if (path === '/api/browser/watch') {
+    if (method !== 'GET') {
+      return { status: 405, body: { ok: false, error: 'GET only' } }
+    }
+    const { readWatch, describeWatch } = await import('./watch')
+    const state = await readWatch(pool)
+    return {
+      status: 200,
+      body: { ok: true, watch: state, said: describeWatch(state, Date.now()) },
+    }
   }
 
   if (path === '/api/browser/profile') {
