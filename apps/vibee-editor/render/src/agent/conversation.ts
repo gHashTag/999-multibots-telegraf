@@ -32,6 +32,10 @@
  * (перезапуск сервера не рвёт разговор) и добавляет общую память.
  */
 
+// The thread keys and the client id's shape are the spec's: gHashTag/t27
+// specs/automation/crm-client-workspace.t27, vendored with its `t27c gen-ts` output.
+import * as WS from '../spec/crm-client-workspace.gen'
+
 /** Минимальная форма пула, чтобы модуль проверялся без настоящей базы. */
 export interface Пул {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -49,18 +53,20 @@ export type РольРеплики = 'user' | 'assistant'
  * everywhere, so no caller changes); `'client:<id>'` is the owner's thread
  * ABOUT one client. Spec: t27 specs/automation/crm-client-workspace.t27.
  */
-export const SELF_THREAD = 'self'
+export const SELF_THREAD = WS.THREAD_SELF
 
 /** A client is a numeric Telegram id, like everywhere else in this service. */
-export const CLIENT_ID_RE = /^\d{5,15}$/
+export const CLIENT_ID_RE = new RegExp(
+  `^\\d{${WS.CLIENT_ID_MIN_DIGITS},${WS.CLIENT_ID_MAX_DIGITS}}$`
+)
 
 export function clientThread(clientId: string): string {
-  return `client:${clientId}`
+  return `${WS.THREAD_CLIENT_PREFIX}${clientId}`
 }
 
 /** The Queen's supervision of one client: beside the agent's thread, never inside it. */
 export function supervisorThread(clientId: string): string {
-  return `client:${clientId}:queen`
+  return `${clientThread(clientId)}${WS.THREAD_SUPERVISOR_SUFFIX}`
 }
 
 /**
