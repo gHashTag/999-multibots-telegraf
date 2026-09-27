@@ -146,13 +146,24 @@ def main() -> int:
         survived += 0 if killed else 1
 
     print(f'-- {len(muts) - survived} of {len(muts)} killed --')
-    # tri gate: the verdict, stamped with the tree it ran on.
-    subprocess.run([
-        'node', os.path.join(os.path.dirname(__file__), 'gate.mjs'), 'record',
-        f'mutants {os.path.basename(args[0])}',
-        'fail' if survived else 'ok',
-        f'{len(muts) - survived}/{len(muts)} killed',
-    ])
+    # tri gate: the verdict, stamped with the tree it ran on -- for a list
+    # that lives in the repo. A one-off list from a scratch folder is an
+    # experiment, not a gate: loop turn 10 (27.09.2026) found three of them
+    # holding `tri gate` red forever as "stale", with nothing to re-run.
+    root = subprocess.run(
+        ['git', 'rev-parse', '--show-toplevel'], capture_output=True, text=True
+    ).stdout.strip()
+    listed = os.path.realpath(args[0])
+    if root and listed.startswith(os.path.realpath(root) + os.sep):
+        subprocess.run([
+            'node', os.path.join(os.path.dirname(__file__), 'gate.mjs'),
+            'record',
+            f'mutants {os.path.basename(args[0])}',
+            'fail' if survived else 'ok',
+            f'{len(muts) - survived}/{len(muts)} killed',
+        ])
+    else:
+        print('(a list outside the repo: not recorded for tri gate)')
     if survived:
         print('a survivor is a rule no test holds: add the vector that tells')
         print('the mutant from the code (in the spec too, if one is bound).')
