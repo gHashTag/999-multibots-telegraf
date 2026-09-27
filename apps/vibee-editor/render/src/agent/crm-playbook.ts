@@ -26,8 +26,11 @@
  * style, a new setting in every scene, a pause with a call to action,
  * <= 15 s) with the client in it: their face (crm_client_face), their words
  * about their business (crm_lead_context, their content plan), their voice
- * (crm_voice_clone). It is delivered as a gift card the owner presses
- * (tg_send_video gift), which is how portraitOf knows it was given.
+ * (crm_voice_clone). It is made as a JOB (crm_story_reel, story-template.ts)
+ * -- not one long call inside a chat turn, which a redeploy cut and a resume
+ * depended on the model to repeat -- and it ends in a gift card for the
+ * client's DM the owner presses (story-card.ts: tg_send_video gift), which
+ * is how portraitOf knows it was given.
  *
  * "Every scene a new setting" is written out because the owner had to say
  * it twice: a scene that keeps the source photo's own background reads as
@@ -40,10 +43,11 @@ export const STORY_GIFT =
   'фон исходника. 3 реплики от первого лица по 2–4 с его словами о деле (кто он и где, что делает, как ' +
   'заказать) — из его переписки и плана (crm_client_plan). Голос — ЕГО: crm_voice_clone {chat} из его ' +
   'голосовых; голосовых нет — попроси голосовое на 15–30 с, чужим голосом не озвучивай. Всё остальное — ' +
-  'ОДНИМ вызовом story_reel {image_url: его фото, scenes, style, for_lead, cta: призыв ЕГО дела}: в конце ' +
-  'пауза 3 с с призывом. Отдать — tg_send_video {chat, url, caption, gift: true}: ' +
-  '«это вам — рилс про ваше дело вашим голосом, можно сразу в Instagram» и один мягкий вопрос. Один на ' +
-  'человека, платит владелец: клон голоса — один раз, дальше только сцены; до траты назови владельцу цену.\n'
+  'ОДНИМ вызовом crm_story_reel {lead, start: true, scenes, style, cta: призыв ЕГО дела, to: "dm", caption: ' +
+  '«это вам — рилс про ваше дело вашим голосом, можно сразу в Instagram» и один мягкий вопрос}: делается в фоне ' +
+  '(переживает перезапуск), в конце пауза 3 с с призывом, готовый приходит владельцу КАРТОЧКОЙ-подарком — ' +
+  'одно нажатие. Один на человека, платит владелец: клон голоса — один раз, дальше только сцены; до траты ' +
+  'назови владельцу цену.\n'
 
 export function salesPlaybook(who: {
   surface?: string
