@@ -84,7 +84,9 @@ describe('the calls behind the sheet', () => {
   })
 
   it('reading the focus never throws', async () => {
-    apiFetch.mockRejectedValue(new Error('down'))
+    // readBrowserFocus makes exactly one call, so reject that one — a
+    // persistent mockRejectedValue leaves a rejected result vitest 5 flags.
+    apiFetch.mockRejectedValueOnce(new Error('down'))
     expect(await readBrowserFocus()).toBeNull()
   })
 })
