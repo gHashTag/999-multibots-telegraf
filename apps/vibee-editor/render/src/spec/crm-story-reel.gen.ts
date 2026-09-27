@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "crm-story-reel" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 5 satisfies number;
+export const VERSION = 6 satisfies number;
 export const FACE_REQUIRED = true satisfies boolean;
 export const VOICE_REQUIRED = true satisfies boolean;
 export const VOICE_SOURCE = "own-voice-notes-in-owner-dm" satisfies string;
@@ -86,6 +86,10 @@ export const CLONE_DOWN_FALLS_TO_NOTES = true satisfies boolean;
 export const CLONE_DOWN_SAME_RUN = true satisfies boolean;
 export const CLONE_DOWN_KEEPS_STILLS = true satisfies boolean;
 export const CLONE_DOWN_ONLY_ON_PROVIDER = true satisfies boolean;
+export const CAP_ASKED_BEFORE_SPEND = true satisfies boolean;
+export const CAP_SLOT_PER_RENDER = 1 satisfies number;
+export const CAP_WAIT_KEEPS_ATTEMPTS = true satisfies boolean;
+export const CAP_WAIT_TOLD_ONCE = true satisfies boolean;
 export const START_PARAM = "reel" satisfies string;
 export const PAGE_ROUTE = "story" satisfies string;
 export const SELLER_SCRIPT_ACCEPTED = true satisfies boolean;
@@ -106,6 +110,7 @@ export const AUTOPILOT_SENDS_CARD = false satisfies boolean;
 export const SERVICE_RENDER_FEED_PUBLIC = false satisfies boolean;
 export const LIVE_RUN_STATUS = "delivered-2026-09-26" satisfies string;
 export const VOICE_LEG_STATUS = "clone-402-falls-to-notes-on-kie-2026-09-27" satisfies string;
+export const CAP_LEG_STATUS = "lipsync-met-daily-cap-attempts-burned-2026-09-27" satisfies string;
 export interface Job {
   readonly has_face: boolean;
   readonly has_voice: boolean;
@@ -123,6 +128,8 @@ export const Job = Object.freeze({ __struct__: "Job", fields: [["has_face", "boo
 // t27c gen-ts: fn nothing_charged_may_be_said was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn still_resume was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn voice_mode was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn slots_needed was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn day_covers was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn cut_at was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn price_estimate_notes was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn job_kept was not emitted -- this backend lowers declarations, not bodies.
@@ -150,10 +157,11 @@ export const Job = Object.freeze({ __struct__: "Job", fields: [["has_face", "boo
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = ["Job"] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "FACE_REQUIRED", "VOICE_REQUIRED", "VOICE_SOURCE", "CLONE_PER_SELLER", "CLONE_MODEL", "CLONE_COST_USD", "CLONE_MIN_SECONDS", "CLONE_GOOD_SECONDS", "CLONE_MAX_SECONDS", "SCENES_DEFAULT", "SCENES_MIN", "SCENES_MAX", "NEW_SETTING_EACH_SCENE", "PAUSE_SEC", "PAUSE_SEC_MIN", "PAUSE_SEC_MAX", "BREATH_MS", "REEL_MAX_SEC", "COMPOSITION", "ASPECT_RATIO", "TOPIC_MAX", "BOT_SPOKEN_AS", "STILL_MODEL", "VOICE_MODEL", "VOICE_PROVIDER", "VOICE_ON_KIE", "LIPSYNC_MODEL", "TOKENS_PER_STILL", "TOKENS_PER_LINE", "TOKENS_PER_LIPSYNC_SEC", "TOKENS_PER_ASSEMBLY", "BILLED_SECONDS", "PRICE_ESTIMATE_TOKENS", "REFUND_ON_PROVIDER_FAILURE", "JOB_TABLE", "RUNNING_JOBS_PER_CLIENT", "JOB_ATTEMPTS", "BEAT_MS", "DEAD_MS", "SWEEP_MS", "SWEEP_CLAIM_BATCH", "ABANDON_MINUTES", "STILL_WAIT_MS", "PAID_WORK_REDONE_ON_RESUME", "PLAN_CARD_RETURNED_ON_FAILURE", "EXHAUSTED_JOB_CLOSED", "ABANDONED_JOB_CLOSED", "FAILURE_NAMES_PAID_PARTS", "STILL_TASK_KEPT_AT_ACCEPT", "STILL_TASK_FROM_MODEL", "STILL_POLL_MS", "STILL_GIVE_UP_MS", "LATE_REFUND_ONCE_PER_TASK", "LATE_REFUND_REF_PREFIX", "PENDING_STILL_KEEPS_JOB", "FAILED_JOB_RETURNS_PENDING_STILLS", "RESUME_USE", "RESUME_WAIT", "RESUME_REDRAW", "SELLER_TOOL", "CLONE_TOOL", "HAND_ASSEMBLY_IN_CHAT", "VOICE_NEEDS_ELEVENLABS", "SENT_VOICE_NOTES_TRIED_FIRST", "VOICE_HEALTH_FROM_REAL_CALLS", "VOICE_NONE", "VOICE_CLONE", "VOICE_NOTES", "NOTES_NEED_REPLICATE", "NOTES_WORDS_ARE_HERS", "NOTES_FROM_SELLER_DM_ONLY", "NOTES_MIN_SEC", "NOTES_MAX_SEC", "NOTES_CUT_WINDOW_MS", "NOTES_PART_MIN_MS", "CLONE_DOWN_FALLS_TO_NOTES", "CLONE_DOWN_SAME_RUN", "CLONE_DOWN_KEEPS_STILLS", "CLONE_DOWN_ONLY_ON_PROVIDER", "START_PARAM", "PAGE_ROUTE", "SELLER_SCRIPT_ACCEPTED", "DELIVER_DM", "DELIVER_NONE", "SENT_WITHOUT_PRESS", "CLIENT_PRESS_SENDS_TO_GROUP", "GROUP_MUST_BE_READ_BY_CRM", "PRESSABLE_CARDS_PER_PERSON", "CARD_DISPLACES_UNANSWERED", "CARD_TURN_PREFIX", "CARD_TEXT_MAX", "CAPTION_MAX", "CALLBACK_BYTES_MAX", "WAITING_CARD_WINDOW_HOURS", "DM_SEND_RECORDED_AS_GIFT", "AUTOPILOT_SENDS_CARD", "SERVICE_RENDER_FEED_PUBLIC", "LIVE_RUN_STATUS", "VOICE_LEG_STATUS", "Job"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "FACE_REQUIRED", "VOICE_REQUIRED", "VOICE_SOURCE", "CLONE_PER_SELLER", "CLONE_MODEL", "CLONE_COST_USD", "CLONE_MIN_SECONDS", "CLONE_GOOD_SECONDS", "CLONE_MAX_SECONDS", "SCENES_DEFAULT", "SCENES_MIN", "SCENES_MAX", "NEW_SETTING_EACH_SCENE", "PAUSE_SEC", "PAUSE_SEC_MIN", "PAUSE_SEC_MAX", "BREATH_MS", "REEL_MAX_SEC", "COMPOSITION", "ASPECT_RATIO", "TOPIC_MAX", "BOT_SPOKEN_AS", "STILL_MODEL", "VOICE_MODEL", "VOICE_PROVIDER", "VOICE_ON_KIE", "LIPSYNC_MODEL", "TOKENS_PER_STILL", "TOKENS_PER_LINE", "TOKENS_PER_LIPSYNC_SEC", "TOKENS_PER_ASSEMBLY", "BILLED_SECONDS", "PRICE_ESTIMATE_TOKENS", "REFUND_ON_PROVIDER_FAILURE", "JOB_TABLE", "RUNNING_JOBS_PER_CLIENT", "JOB_ATTEMPTS", "BEAT_MS", "DEAD_MS", "SWEEP_MS", "SWEEP_CLAIM_BATCH", "ABANDON_MINUTES", "STILL_WAIT_MS", "PAID_WORK_REDONE_ON_RESUME", "PLAN_CARD_RETURNED_ON_FAILURE", "EXHAUSTED_JOB_CLOSED", "ABANDONED_JOB_CLOSED", "FAILURE_NAMES_PAID_PARTS", "STILL_TASK_KEPT_AT_ACCEPT", "STILL_TASK_FROM_MODEL", "STILL_POLL_MS", "STILL_GIVE_UP_MS", "LATE_REFUND_ONCE_PER_TASK", "LATE_REFUND_REF_PREFIX", "PENDING_STILL_KEEPS_JOB", "FAILED_JOB_RETURNS_PENDING_STILLS", "RESUME_USE", "RESUME_WAIT", "RESUME_REDRAW", "SELLER_TOOL", "CLONE_TOOL", "HAND_ASSEMBLY_IN_CHAT", "VOICE_NEEDS_ELEVENLABS", "SENT_VOICE_NOTES_TRIED_FIRST", "VOICE_HEALTH_FROM_REAL_CALLS", "VOICE_NONE", "VOICE_CLONE", "VOICE_NOTES", "NOTES_NEED_REPLICATE", "NOTES_WORDS_ARE_HERS", "NOTES_FROM_SELLER_DM_ONLY", "NOTES_MIN_SEC", "NOTES_MAX_SEC", "NOTES_CUT_WINDOW_MS", "NOTES_PART_MIN_MS", "CLONE_DOWN_FALLS_TO_NOTES", "CLONE_DOWN_SAME_RUN", "CLONE_DOWN_KEEPS_STILLS", "CLONE_DOWN_ONLY_ON_PROVIDER", "CAP_ASKED_BEFORE_SPEND", "CAP_SLOT_PER_RENDER", "CAP_WAIT_KEEPS_ATTEMPTS", "CAP_WAIT_TOLD_ONCE", "START_PARAM", "PAGE_ROUTE", "SELLER_SCRIPT_ACCEPTED", "DELIVER_DM", "DELIVER_NONE", "SENT_WITHOUT_PRESS", "CLIENT_PRESS_SENDS_TO_GROUP", "GROUP_MUST_BE_READ_BY_CRM", "PRESSABLE_CARDS_PER_PERSON", "CARD_DISPLACES_UNANSWERED", "CARD_TURN_PREFIX", "CARD_TEXT_MAX", "CAPTION_MAX", "CALLBACK_BYTES_MAX", "WAITING_CARD_WINDOW_HOURS", "DM_SEND_RECORDED_AS_GIFT", "AUTOPILOT_SENDS_CARD", "SERVICE_RENDER_FEED_PUBLIC", "LIVE_RUN_STATUS", "VOICE_LEG_STATUS", "CAP_LEG_STATUS", "Job"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

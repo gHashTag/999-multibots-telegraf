@@ -59,6 +59,7 @@ tri — оболочка Trinity S³AI
   tri hdl lint|sim|synth [--top имя] файлы  Verilog через тот же hdl_run, что у RTL/FPGA-агентов (песочница та же)
   tri code [--lang ts|js] файл  TS/JS через тот же code_run, что у агента-кодера (песочница Deno, все разрешения сняты)
   tri spec check <файл.md>|new "<заголовок>"  возьмёт ли Королева issue из беклога: та же проверка спека (## Boundary + разделы), что у неё; new печатает готовый делегируемый шаблон
+  tri spec-bind <kind/id> [t27]  начать привязку спеки t27: копия+gen-ts, тест с дословными заголовками (падающие заглушки), снять с храповика
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
   tri stop [id]  прервать идущие ходы человека (дуэт и a2a — у них нет сокета)
   tri faces [id]  очередь продавца в том порядке, в каком её увидит обход: у кого есть лицо
@@ -1981,6 +1982,7 @@ PYEOF
   hdl) shift; bash "$ROOT/bin/helpers/hdl.sh" "$ROOT" "$@" ;;
   code) shift; bash "$ROOT/bin/helpers/code.sh" "$ROOT" "$@" ;;
   spec) shift; (cd "$RENDER" && npx tsx scripts/spec-check.ts "$@") ;;
+  spec-bind) shift; node "$ROOT/bin/helpers/spec-bind.mjs" "$@" ;;
   alive)  shift; bash "$ROOT/bin/helpers/alive.sh" "$ROOT" "$@" ;;
   vs-main) shift; bash "$ROOT/bin/helpers/vs-main.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;

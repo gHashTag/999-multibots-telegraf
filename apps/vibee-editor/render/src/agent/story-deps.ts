@@ -178,5 +178,14 @@ export function makeStoryDeps(
     // Her clone's provider refused a real call lately (spec v5): the seller's
     // reel speaks her notes instead of paying for stills a 402 will orphan.
     voiceDown: () => voiceLooksDown() !== null,
+    // The payer's day, counted before a still is drawn (spec v6): the same
+    // count every generation tool asks, read once for the whole reel.
+    generationsLeft: async payer => {
+      const { generationsLeftToday } = await import('./tools')
+      return generationsLeftToday({
+        telegramId: payer,
+        pool: pool as ToolContext['pool'],
+      } as ToolContext)
+    },
   }
 }
