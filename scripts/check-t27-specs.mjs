@@ -17,6 +17,9 @@
  *   header-path    line 2 names the spec's path in gHashTag/t27
  *   module         one `module <kind>::<id>` agreeing with KIND and ID
  *   frame          KIND, ID, REPO ("999-multibots-telegraf") and VERSION are declared
+ *   version-note   a header with dated notes (`// v15 (2026-...)`) and VERSION
+ *                  name the same version: crm-story-reel carried notes v12,
+ *                  v13 and v14 while VERSION still said 11 (27.09.2026)
  *   braced-tests   every `test "..."` opens a brace; at least one test; each asserts
  *   gen-header     the generated file says it is the compiler's, from this spec
  *   gen-values     every `pub const` has the same value in the generated file
@@ -183,6 +186,20 @@ export function checkSpec({
     say('frame', 'VERSION is not a whole number from 1')
   if (id !== undefined && id !== basename(file, '.t27'))
     say('frame', `ID "${id}" is not the file name`)
+  // Only where the header keeps dated notes: a spec without them has no
+  // second place to disagree with.
+  const notes = head
+    .map(l => /^\/\/ v(\d+) \(/.exec(l))
+    .filter(m => m !== null)
+    .map(m => Number(m[1]))
+  if (notes.length && consts.has('VERSION')) {
+    const last = Math.max(...notes)
+    if (last !== consts.get('VERSION'))
+      say(
+        'version-note',
+        `the header's last note is v${last}, VERSION says ${consts.get('VERSION')}`
+      )
+  }
   const modules = [...spec.matchAll(/^module\s+(\w+)::(\w+)\s*\{/gm)]
   if (modules.length !== 1)
     say('module', `${modules.length} module declarations`)

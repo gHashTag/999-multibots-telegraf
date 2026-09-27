@@ -73,6 +73,19 @@ export function panelTakeOffered(
 }
 
 /**
+ * The spec's panel_why_shown (v15): the load's reason stays on the card until
+ * a check has spoken for the fields. Shot on a phone, the card printed the
+ * same refusal twice -- the load's words above, the check's verdict below --
+ * about the very same card.
+ */
+export function panelWhyShown(
+  editorOpen: boolean,
+  checkedSinceOpen: boolean
+): boolean {
+  return !editorOpen || !checkedSinceOpen
+}
+
+/**
  * The card with the server's named shades taken in (v12, end_card_fix): the
  * call and the button line only; every other field stays as it was.
  */
