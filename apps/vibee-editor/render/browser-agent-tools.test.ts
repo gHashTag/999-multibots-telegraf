@@ -68,6 +68,50 @@ describe('when there is no browser', () => {
     }
   })
 
+  /*
+   * A DEAD ROW IS NOT A DEAD BROWSER, and browser_status used to say it was.
+   *
+   * Measured 2026-09-27 on myself: the tool answered `running: false`, I read
+   * it as a wedged Chromium and restarted the pod -- while the watch had the
+   * browser "answering for 16m" and eleven live pages were on it. The reaper
+   * had deleted the visit row, which is its job; the browser cannot be stopped
+   * on this platform, which is the platform's. So the tool now asks the
+   * person's own pod, and says plainly that nobody is watching the screen.
+   */
+  it('does not call a live browser dead just because the visit row is gone', async () => {
+    const before = process.env.BROWSER_POD_CDP
+    process.env.BROWSER_POD_CDP = 'pod.invalid.test:9223'
+    try {
+      const { resetPodTenantsCache } = await import('./src/browser/pod-tenant')
+      resetPodTenantsCache()
+      const ctx = {
+        telegramId: 'tg-900000001',
+        pool: {
+          async query(sql: string) {
+            /* No session row; the pod is on record as this person's. */
+            if (/browser_pod_tenants/.test(sql) && /SELECT/i.test(sql))
+              return { rows: [{ telegram_id: 'tg-900000001' }] }
+            return { rows: [] }
+          },
+        },
+      }
+      const out = (await tool('browser_status').handler({}, ctx as never)) as {
+        running: boolean
+        watchedByThePerson: boolean
+        note?: string
+      }
+      expect(out.running).toBe(true)
+      /* And it does not pretend the person is at the screen. */
+      expect(out.watchedByThePerson).toBe(false)
+      expect(out.note).toMatch(/visit record is gone/)
+    } finally {
+      if (before === undefined) delete process.env.BROWSER_POD_CDP
+      else process.env.BROWSER_POD_CDP = before
+      const { resetPodTenantsCache } = await import('./src/browser/pod-tenant')
+      resetPodTenantsCache()
+    }
+  })
+
   it('refuses a session that exists but is not live', async () => {
     const row = {
       telegram_id: 'tg-900000001',
