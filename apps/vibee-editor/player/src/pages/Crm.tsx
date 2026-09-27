@@ -7,8 +7,11 @@ import { AllRefused } from '@/components/Crm/AllRefused'
 import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
 import { AutoPanel } from '@/components/Crm/AutoPanel'
 import { TrafficPanel } from '@/components/Crm/TrafficPanel'
+import { RevenuePanel } from '@/components/Crm/RevenuePanel'
 import { Avatar } from '@/components/Crm/Avatar'
-import { sendOrQueue } from '@/lib/agentStream'
+import { FunnelStrip } from '@/components/Crm/FunnelStrip'
+import { WinbackPanel } from '@/components/Crm/WinbackPanel'
+import { askAgentInThread } from '@/lib/crmAsk'
 import { CrmMap } from '@/components/Crm/CrmMap'
 import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
 import {
@@ -21,6 +24,10 @@ import {
   loadOverview,
   loadWaiting,
   loadHotLeads,
+  loadFunnel,
+  loadWinback,
+  type Funnel,
+  type WinbackList,
   matches,
   ensureAvatars,
   loadClientsPage,
@@ -139,6 +146,8 @@ export default function CrmPage() {
   const [overview, setOverview] = useState<Reached<Overview>>(empty)
   const [waiting, setWaiting] = useState<Reached<WaitingList>>(empty)
   const [leads, setLeads] = useState<Reached<HotLeads>>(empty)
+  const [funnel, setFunnel] = useState<Reached<Funnel>>(empty)
+  const [winback, setWinback] = useState<Reached<WinbackList>>(empty)
   const [clients, setClients] = useState<Reached<ClientsList>>(empty)
   const [clientsFilter, setClientsFilter] = useState<ClientsFilter>('all')
   /* The owner's groups (#2950): null until read, [] when there are none. */
@@ -166,6 +175,11 @@ export default function CrmPage() {
     // In parallel: four independent panels, and one slow load must not hold
     // the others off the screen.
     void loadGroups().then(g => setGroups(g.data ?? null))
+    // The funnel and the win-back list are read beside the four, not with
+    // them: a slow summary over the whole base must not hold the waiting
+    // list off the screen.
+    void loadFunnel().then(setFunnel)
+    void loadWinback().then(setWinback)
     const [o, w, l, c, picks] = await Promise.all([
       loadOverview(),
       loadWaiting(),
@@ -303,17 +317,15 @@ export default function CrmPage() {
    * this button -- it only asks the agent (CRM audit 2026-09-27, #6: the
    * list said who waits and gave only buttons that log a touch).
    */
-  const prepare = (r: WaitingRow) => {
-    sendOrQueue(
+  const prepare = (r: WaitingRow) =>
+    askAgentInThread(
+      r.telegramId,
       t('crm.wait.prepareAsk', {
         name: r.name || r.telegramId,
         why: r.nextWhy || r.because,
       }),
-      [],
-      { client: r.telegramId }
+      navigate
     )
-    navigate(`/crm/${r.telegramId}/chat`)
-  }
 
   const touch = async (telegramId: string, kind: string) => {
     await recordTouch(telegramId, kind)
@@ -573,6 +585,9 @@ export default function CrmPage() {
 
       {tab !== 'work' ? null : (
         <>
+          {/* How many stand at each stage; nothing at all when unknown. */}
+          <FunnelStrip state={funnel} />
+
           {/* The one control that changes what happens without the owner. */}
           <AutoPanel />
 
@@ -650,6 +665,20 @@ export default function CrmPage() {
               </>
             )
           )}
+
+          {/*
+            Former buyers gone quiet. A tool that refuses this viewer hides
+            the panel; a server that could not be reached says so.
+          */}
+          {winback.refused
+            ? null
+            : panel(
+                t('crm.winback.title'),
+                winback,
+                winback.data ? (
+                  <WinbackPanel list={winback.data} faces={faces} />
+                ) : null
+              )}
 
           {panel(
             t('crm.clients.title'),
@@ -756,6 +785,9 @@ export default function CrmPage() {
               </>
             )
           )}
+
+          {/* What the owner's clients have brought, from the live wallet. */}
+          <RevenuePanel noticeReason={noticeReason} />
 
           {panel(
             t('crm.audience.title'),

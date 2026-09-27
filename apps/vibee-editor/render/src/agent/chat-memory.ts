@@ -533,6 +533,13 @@ export interface LeadCandidate {
   total: number
   inbound: number
   lastInboundAt: Date | null
+  /** Our last word to them; null when we never wrote. */
+  lastOutboundAt: Date | null
+  /**
+   * How many messages we sent since their last word -- the reminders a
+   * follow-up has already cost them. 0 when they spoke last.
+   */
+  outSinceIn: number
   daysSinceInbound: number | null
   /** Days since our last word to them; null when we never wrote. */
   daysSinceOut: number | null
@@ -671,6 +678,30 @@ export async function leadCandidates(
       GROUP BY lead_id`,
     [owner]
   )
+  /*
+   * OUR MESSAGES SINCE THEIR LAST WORD, per person: the count a follow-up
+   * cascade needs ("two reminders, then stop") and that no touch records
+   * when the owner writes from Telegram itself. Unreadable is zero -- the
+   * cascade then allows one reminder, never an endless one (waitingOn caps
+   * on the date as well).
+   */
+  const since = new Map<string, number>()
+  try {
+    const r = await pool.query(
+      `WITH li AS (
+         SELECT lead_id, max(at) AS last_in FROM crm_messages
+          WHERE owner_id = $1 AND NOT "out" GROUP BY lead_id
+       )
+       SELECT m.lead_id, count(*)::int AS n
+         FROM crm_messages m JOIN li ON li.lead_id = m.lead_id
+        WHERE m.owner_id = $1 AND m."out" AND m.at > li.last_in
+        GROUP BY m.lead_id`,
+      [owner]
+    )
+    for (const x of r.rows ?? []) since.set(String(x.lead_id), Number(x.n) || 0)
+  } catch {
+    // Older table shapes: the count stays unknown (zero).
+  }
   const recent = await pool.query(
     `SELECT lead_id, text FROM crm_messages
       WHERE owner_id = $1 AND NOT "out" AND at > $2
@@ -928,6 +959,8 @@ export async function leadCandidates(
       total: Number(r.total),
       inbound: Number(r.inbound),
       lastInboundAt: lastIn,
+      lastOutboundAt: lastOut,
+      outSinceIn: since.get(lead) ?? 0,
       daysSinceInbound: days,
       daysSinceOut,
       unanswered,
