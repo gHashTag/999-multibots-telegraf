@@ -33,6 +33,13 @@ import { tmpdir } from 'node:os'
 import { basename, delimiter, join } from 'node:path'
 import { readTestReport } from '../../scripts/check-t27-specs.mjs'
 
+// tri gate: the tree as this check found it; record compares it at the end.
+process.env.TRI_GATE_START = spawnSync(
+  'node',
+  [join(import.meta.dirname, 'gate.mjs'), 'tree'],
+  { encoding: 'utf8' }
+).stdout.trim()
+
 const [spec, list] = process.argv.slice(2)
 if (!spec || !list) {
   console.error('usage: tri spec-controls <spec.t27> <controls.json>')
