@@ -72,6 +72,20 @@ export interface StageInput {
 }
 
 /**
+ * A PAID CLIENT WHO HAS BEEN QUIET THIS MANY DAYS IS A WIN-BACK.
+ *
+ * One number, one home. The segment classifier (`crm-segments.ts`) already
+ * flagged a paying customer as `winback` after a month of silence, but the
+ * card kept them at `client` until sixty days -- so the same person read as
+ * two different stages on the list and on their card (CRM audit 2026-09-27,
+ * the winback-threshold split). The list is the source of truth and its
+ * threshold is the documented one ("quiet a month or more"), so the card
+ * bends to it. Both sides import this constant; neither hard-codes a day
+ * count again.
+ */
+export const WINBACK_QUIET_DAYS = 30
+
+/**
  * The stage, and the fact it rests on.
  *
  * The reason travels with the answer on purpose: a stage nobody can explain is
@@ -89,7 +103,7 @@ export function stageOf(input: StageInput): { stage: Stage; because: string } {
    */
   if (paid) {
     const quiet = input.quietDays
-    if (quiet !== null && quiet > 60) {
+    if (quiet !== null && quiet >= WINBACK_QUIET_DAYS) {
       return { stage: 'winback', because: `платил, молчит ${quiet} дней` }
     }
     return { stage: 'client', because: 'есть завершённый платёж' }
