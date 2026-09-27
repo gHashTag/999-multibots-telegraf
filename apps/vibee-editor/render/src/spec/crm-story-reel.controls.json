@@ -1,0 +1,32 @@
+[
+  {
+    "name": "contrast minimum lowered",
+    "from": "pub const END_CARD_CONTRAST_MIN_X10 : u16 = 45;",
+    "to": "pub const END_CARD_CONTRAST_MIN_X10 : u16 = 44;"
+  },
+  {
+    "name": "the seller's unreadable palette is let through",
+    "from": "pub const SELLER_PALETTE_UNREADABLE_REFUSED : bool = true;",
+    "to": "pub const SELLER_PALETTE_UNREADABLE_REFUSED : bool = false;"
+  },
+  {
+    "name": "5- and 7-digit hex accepted",
+    "from": "return n == 3 || n == 4 || n == 6 || n == 8;",
+    "to": "return n >= 3 && n <= 8;"
+  },
+  {
+    "name": "the profile wins over the seller",
+    "from": "        if seller_gave {\n            return FIELD_FROM_SELLER;\n        }\n        if profile_has {\n            return FIELD_FROM_PROFILE;\n        }",
+    "to": "        if profile_has {\n            return FIELD_FROM_PROFILE;\n        }\n        if seller_gave {\n            return FIELD_FROM_SELLER;\n        }"
+  },
+  {
+    "name": "cap slots skip the assembly",
+    "from": "pub const CAP_SLOT_PER_RENDER : u16 = 1;",
+    "to": "pub const CAP_SLOT_PER_RENDER : u16 = 0;"
+  },
+  {
+    "name": "a failure says nothing was charged after stills were made",
+    "from": "return stills_made == 0 && clips_made == 0;",
+    "to": "return clips_made == 0;"
+  }
+]

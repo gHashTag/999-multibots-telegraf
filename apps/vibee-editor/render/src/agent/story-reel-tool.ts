@@ -175,9 +175,20 @@ export interface StoryEndCard {
   button?: string
 }
 
-const HEX = /^#[0-9a-fA-F]{3,8}$/
-const hex = (v: unknown): string | undefined =>
-  HEX.test(String(v ?? '').trim()) ? String(v).trim() : undefined
+/*
+ * A COLOUR IS #HEX THAT CSS READS (spec v7, hex_digits_ok): #rgb, #rgba,
+ * #rrggbb, #rrggbbaa. v6 took 5 and 7 digits too, and CSS drops those
+ * without a word -- the card rendered in its defaults.
+ */
+export function hexDigitsOk(n: number): boolean {
+  return n === 3 || n === 4 || n === 6 || n === 8
+}
+const HEX_BODY = /^#[0-9a-fA-F]+$/
+const hex = (v: unknown): string | undefined => {
+  const t = String(v ?? '').trim()
+  return HEX_BODY.test(t) && hexDigitsOk(t.length - 1) ? t : undefined
+}
+const COLOURS = ['bg', 'title', 'text', 'accent'] as const
 
 /**
  * The end card as given, checked: colours are #hex or dropped, the button
@@ -189,21 +200,146 @@ export function endCardOf(raw: unknown): StoryEndCard | null {
   const button = String(r.button ?? '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 60)
-  const card: StoryEndCard = {
-    ...(hex(r.bg) ? { bg: hex(r.bg) } : {}),
-    ...(hex(r.title) ? { title: hex(r.title) } : {}),
-    ...(hex(r.text) ? { text: hex(r.text) } : {}),
-    ...(hex(r.accent) ? { accent: hex(r.accent) } : {}),
-    ...(button ? { button } : {}),
+    .slice(0, SPEC.END_CARD_BUTTON_MAX)
+  const card: StoryEndCard = {}
+  for (const k of COLOURS) {
+    const c = hex(r[k])
+    if (c) card[k] = c
   }
+  if (button) card.button = button
   return Object.keys(card).length ? card : null
+}
+
+/**
+ * What is wrong with a card the SELLER gave, in words he can act on; '' when
+ * nothing is (spec v7, SELLER_BAD_COLOUR_REFUSED). "black" used to be dropped
+ * in silence and the reel ended in the default gold on black.
+ */
+export function endCardProblem(raw: unknown): string {
+  if (raw === undefined || raw === null) return ''
+  if (typeof raw !== 'object' || Array.isArray(raw))
+    return 'end_card: объект {bg, title, text, accent, button}'
+  const r = raw as Record<string, unknown>
+  for (const k of COLOURS) {
+    if (r[k] === undefined || r[k] === null || r[k] === '') continue
+    if (!hex(r[k]))
+      return `end_card.${k}: «${String(r[k]).slice(0, 20)}» — нужен цвет #hex: #rgb или #rrggbb, например #1a1a1a`
+  }
+  return ''
+}
+
+/** Where one end-card colour comes from (spec v7, end_card_field). */
+export function endCardField(sellerGave: boolean, profileHas: boolean): number {
+  if (sellerGave) return SPEC.FIELD_FROM_SELLER
+  if (profileHas) return SPEC.FIELD_FROM_PROFILE
+  return SPEC.FIELD_FROM_DEFAULT
+}
+
+/**
+ * The seller's card over her profile's, field by field (spec v7). Null when
+ * neither gives anything: the reel then ends on its held last frame.
+ */
+export function mergeEndCard(
+  seller: StoryEndCard | null,
+  profile: StoryEndCard | null
+): StoryEndCard | null {
+  const out: StoryEndCard = {}
+  for (const k of [...COLOURS, 'button'] as const) {
+    const from = endCardField(!!seller?.[k], !!profile?.[k])
+    const v =
+      from === SPEC.FIELD_FROM_SELLER
+        ? seller?.[k]
+        : from === SPEC.FIELD_FROM_PROFILE
+          ? profile?.[k]
+          : undefined
+    if (v) out[k] = v
+  }
+  return Object.keys(out).length ? out : null
+}
+
+const rgbOf = (c: string): [number, number, number] => {
+  const h = c.slice(1)
+  const full =
+    h.length <= 4
+      ? h
+          .slice(0, 3)
+          .split('')
+          .map(x => x + x)
+          .join('')
+      : h.slice(0, 6)
+  return [0, 2, 4].map(i => parseInt(full.slice(i, i + 2), 16)) as [
+    number,
+    number,
+    number,
+  ]
+}
+const luminance = (c: string): number => {
+  const [r, g, b] = rgbOf(c).map(v => {
+    const x = v / 255
+    return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/**
+ * WCAG contrast of two #hex colours, times ten and rounded down, so 4.49:1
+ * is 44 and reads as unreadable. Alpha is ignored: the card is flat.
+ */
+export function contrastX10(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return Math.floor(((hi + 0.05) / (lo + 0.05)) * 10 + 1e-9)
+}
+
+/** The spec's end_card_readable. */
+export function endCardReadable(x10: number): boolean {
+  return x10 >= SPEC.END_CARD_CONTRAST_MIN_X10
+}
+
+/** The spec's end_card_refused: only the seller's own palette stops a reel. */
+export function endCardRefused(
+  sellerGave: boolean,
+  readable: boolean
+): boolean {
+  if (readable) return false
+  return sellerGave
+    ? SPEC.SELLER_PALETTE_UNREADABLE_REFUSED
+    : SPEC.PROFILE_PALETTE_UNREADABLE_REFUSED
+}
+
+const ratio = (x10: number) => (x10 / 10).toFixed(1).replace('.', ',')
+
+/**
+ * Whether the call and the button read on the card as it will render (the
+ * composition's defaults fill what the card leaves out); '' when they do,
+ * else what does not, in words.
+ */
+export function endCardUnreadable(card: StoryEndCard | null): string {
+  if (!card) return ''
+  const bg = card.bg ?? SPEC.END_CARD_DEFAULT_BG
+  const pairs: Array<[string, string]> = [
+    ['призыв', card.title ?? SPEC.END_CARD_DEFAULT_TITLE],
+    ...(card.button
+      ? [
+          ['строка кнопки', card.accent ?? SPEC.END_CARD_DEFAULT_ACCENT] as [
+            string,
+            string,
+          ],
+        ]
+      : []),
+  ]
+  for (const [what, colour] of pairs) {
+    const x10 = contrastX10(colour, bg)
+    if (!endCardReadable(x10))
+      return `${what} цветом ${colour} на фоне ${bg} читается плохо: контраст ${ratio(x10)}:1, нужно не меньше ${ratio(SPEC.END_CARD_CONTRAST_MIN_X10)}:1`
+  }
+  return ''
 }
 
 /**
  * The client's own visual as an end card, from her profile: `visual` (or
  * `visual_tokens`) for the colours, `approved_cta` for the button line.
- * A profile without a visual has no card.
+ * A profile without a visual has no card; a colour that is not #hex is
+ * dropped there (spec v7, PROFILE_BAD_COLOUR_DROPPED), not refused.
  */
 export function endCardFromProfile(profile: any): StoryEndCard | null {
   const v = profile?.visual ?? profile?.visual_tokens
@@ -221,6 +357,21 @@ export function endCardFromProfile(profile: any): StoryEndCard | null {
     button,
   })
 }
+
+/** The end_card parameter, one schema for story_reel and crm_story_reel. */
+export const END_CARD_PARAM = {
+  type: 'object',
+  description:
+    'финал в визуале клиента вместо стоп-кадра: bg, title (призыв), text, accent (кнопка) — #hex; button — строка кнопки',
+  properties: {
+    bg: { type: 'string' },
+    title: { type: 'string' },
+    text: { type: 'string' },
+    accent: { type: 'string' },
+    button: { type: 'string' },
+  },
+  additionalProperties: false,
+} as const
 
 /** A list the caller passed back, kept only where it matches the scenes. */
 function carried(raw: unknown, n: number): string[] {
@@ -308,19 +459,7 @@ export function makeStoryReelTool(
           description: 'id клиента: говорить ЕГО голосом (crm_voice_clone)',
         },
         cta: { type: 'string', description: 'надпись в паузе в конце' },
-        end_card: {
-          type: 'object',
-          description:
-            'финал в визуале клиента вместо стоп-кадра: bg, title, text, accent (#hex), button — строка кнопки',
-          properties: {
-            bg: { type: 'string' },
-            title: { type: 'string' },
-            text: { type: 'string' },
-            accent: { type: 'string' },
-            button: { type: 'string' },
-          },
-          additionalProperties: false,
-        },
+        [SPEC.END_CARD_ARG]: END_CARD_PARAM,
         pause_sec: {
           type: 'number',
           description: `пауза с призывом в конце, 1–4 с (по умолчанию ${STORY_PAUSE_SEC})`,

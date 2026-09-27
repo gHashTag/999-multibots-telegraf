@@ -79,6 +79,7 @@ tri — оболочка Trinity S³AI
   tri gates  как проверить сами шлюзы заведомым нарушением (формы 196-197)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri mutants <list.json> -- <тесты>            пакет мутаций против одного прогона: таблица убитых и выживших (привязка спеки)
+  tri spec-controls <spec.t27> <controls.json>   отрицательные контроли спеки на копии: пойман/пропущен/не собралась (по таблице t27c)
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
   tri self       сама оболочка: достижима ли каждая команда и на месте ли хелпер
@@ -1966,6 +1967,7 @@ PYEOF
 
   mutate) shift; bash "$ROOT/bin/helpers/mutate.sh" "$@" ;;
   mutants) shift; python3 "$ROOT/bin/helpers/mutants.py" "$@" ;;
+  spec-controls) shift; node "$ROOT/bin/helpers/spec-controls.mjs" "$@" ;;
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 

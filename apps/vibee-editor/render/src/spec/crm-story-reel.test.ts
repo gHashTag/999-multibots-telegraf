@@ -487,6 +487,90 @@ describe("the spec's tests hold against the host", () => {
     expect(SPEC.CAP_WAIT_TOLD_ONCE).toBe(true)
   })
 
+  it("her visual at the end: the seller's word, then her profile, then the default, kept in the job", async () => {
+    // end_card_field(seller_gave, profile_has). The job keeping the seller's
+    // card and a resume rendering it run in a-story-reel-for-any-client.test.ts
+    // ("the seller's palette at the end").
+    const { endCardField, mergeEndCard, END_CARD_PARAM } = await import(
+      '../agent/story-reel-tool'
+    )
+    expect(endCardField(true, true)).toBe(SPEC.FIELD_FROM_SELLER)
+    expect(endCardField(true, false)).toBe(SPEC.FIELD_FROM_SELLER)
+    expect(endCardField(false, true)).toBe(SPEC.FIELD_FROM_PROFILE)
+    expect(endCardField(false, false)).toBe(SPEC.FIELD_FROM_DEFAULT)
+    expect(mergeEndCard({ bg: '#111' }, { bg: '#222', title: '#eee' })).toEqual(
+      { bg: '#111', title: '#eee' }
+    )
+    expect(mergeEndCard(null, null)).toBeNull()
+    // The argument's name, and the button line's length.
+    const { makeCrmStoryTool } = await import('../agent/crm-story-tool')
+    const crm = makeCrmStoryTool({
+      deps: () => ({}) as never,
+      lookup: () => undefined,
+    })
+    expect((crm.parameters as any).properties[SPEC.END_CARD_ARG]).toBe(
+      END_CARD_PARAM
+    )
+    const { endCardOf } = await import('../agent/story-reel-tool')
+    expect(
+      endCardOf({ button: 'x'.repeat(SPEC.END_CARD_BUTTON_MAX + 5) })!.button
+    ).toHaveLength(SPEC.END_CARD_BUTTON_MAX)
+    // The composition's defaults are the spec's, not a copy.
+    const reel = readFileSync(
+      join(HERE, '..', 'compositions', 'StoryReel.tsx'),
+      'utf8'
+    )
+    for (const k of ['BG', 'TITLE', 'TEXT', 'ACCENT'])
+      expect(reel).toContain(`.default(REEL.END_CARD_DEFAULT_${k})`)
+    expect(SPEC.END_CARD_KEPT_IN_JOB).toBe(true)
+    const tpl = readFileSync(
+      join(HERE, '..', 'agent', 'story-template.ts'),
+      'utf8'
+    )
+    expect(tpl).toMatch(/ADD COLUMN IF NOT EXISTS end_card\s+jsonb/)
+  })
+
+  it("a colour is #hex that CSS reads, and an unreadable palette of the seller's is refused before spending", async () => {
+    const {
+      hexDigitsOk,
+      endCardOf,
+      endCardProblem,
+      contrastX10,
+      endCardReadable,
+      endCardRefused,
+      endCardUnreadable,
+    } = await import('../agent/story-reel-tool')
+    for (const n of [3, 4, 6, 8]) expect(hexDigitsOk(n)).toBe(true)
+    for (const n of [5, 7, 9]) expect(hexDigitsOk(n)).toBe(false)
+    // v6 took #12345; CSS drops it without a word.
+    expect(endCardOf({ bg: '#12345' })).toBeNull()
+    expect(endCardOf({ bg: '#123456' })).toEqual({ bg: '#123456' })
+    expect(endCardReadable(SPEC.END_CARD_CONTRAST_MIN_X10)).toBe(true)
+    expect(endCardReadable(SPEC.END_CARD_CONTRAST_MIN_X10 - 1)).toBe(false)
+    // WCAG: black on white is 21:1; the default gold on white is 1,4:1.
+    expect(contrastX10('#000000', '#ffffff')).toBe(210)
+    expect(contrastX10('#fff', '#000')).toBe(210)
+    expect(contrastX10(SPEC.END_CARD_DEFAULT_TITLE, '#ffffff')).toBe(14)
+    // #767676 on white is the classic 4,54:1 -- readable; #777 is 4,48 -- not.
+    expect(endCardReadable(contrastX10('#767676', '#ffffff'))).toBe(true)
+    expect(endCardReadable(contrastX10('#777777', '#ffffff'))).toBe(false)
+    expect(endCardRefused(true, false)).toBe(true)
+    expect(endCardRefused(true, true)).toBe(false)
+    expect(endCardRefused(false, false)).toBe(false)
+    expect(endCardRefused(false, true)).toBe(false)
+    expect(endCardUnreadable({ bg: '#ffffff' })).toMatch('призыв')
+    // The button is held too, and only when there is one.
+    expect(endCardUnreadable({ accent: '#111111' })).toBe('')
+    expect(endCardUnreadable({ accent: '#111111', button: 'Играть' })).toMatch(
+      'строка кнопки'
+    )
+    expect(SPEC.SELLER_BAD_COLOUR_REFUSED).toBe(true)
+    expect(endCardProblem({ bg: 'black' })).toMatch('end_card.bg')
+    expect(endCardProblem({ bg: '#000' })).toBe('')
+    expect(endCardProblem(undefined)).toBe('')
+    expect(SPEC.PROFILE_BAD_COLOUR_DROPPED).toBe(true)
+  })
+
   it('her notes are cut at a pause near the even cut, or at the even cut', () => {
     // cut_at(even_ms, pause_ms)
     const W = SPEC.NOTES_CUT_WINDOW_MS
