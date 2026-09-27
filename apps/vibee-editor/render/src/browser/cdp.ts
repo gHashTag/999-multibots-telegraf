@@ -112,7 +112,7 @@ export function forgetResolved(): void {
 /** Long enough for a page, short enough that a hung pod is not a hung agent. */
 const CALL_TIMEOUT_MS = 20_000
 
-const httpBase = (endpoint: string) =>
+export const httpBase = (endpoint: string) =>
   endpoint.startsWith('http') ? endpoint : `http://${endpoint}`
 
 /**
