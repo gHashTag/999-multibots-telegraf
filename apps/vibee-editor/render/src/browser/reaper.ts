@@ -46,6 +46,8 @@ export interface ReapCandidate {
   telegramId: string
   sessionId: string
   podId: string | null
+  /** Where the pod answers, when it has a bridge. See the drop below. */
+  cdpEndpoint?: string | null
   lastSeenMs: number
   createdMs: number
 }
@@ -91,7 +93,7 @@ export async function sweepIdleSessions(
   idleMs: number = IDLE_LIMIT_MS
 ): Promise<SweepResult> {
   const { rows } = await pool.query(
-    `SELECT telegram_id, session_id, pod_id,
+    `SELECT telegram_id, session_id, pod_id, cdp_endpoint,
             extract(epoch from last_seen_at) * 1000 AS last_seen_ms,
             extract(epoch from created_at)   * 1000 AS created_ms
        FROM browser_sessions`,
@@ -103,6 +105,7 @@ export async function sweepIdleSessions(
     sessionId: String(r.session_id),
     podId:
       r.pod_id === null || r.pod_id === undefined ? null : String(r.pod_id),
+    cdpEndpoint: r.cdp_endpoint ? String(r.cdp_endpoint) : null,
     lastSeenMs: Number(r.last_seen_ms) || 0,
     createdMs: Number(r.created_ms) || 0,
   }))
@@ -111,6 +114,19 @@ export async function sweepIdleSessions(
   for (const c of dueForReaping(candidates, nowMs, idleMs)) {
     try {
       if (c.podId) await driver.stop(c.podId)
+      /*
+       * The row is about to go, and with it the only record of whose accounts
+       * are in that browser. On this platform `driver.stop` is a no-op, so the
+       * browser keeps running; remember its tenant FIRST, or the person is told
+       * "not connected" about a pod still holding their logins (pod-tenant.ts).
+       */
+      if (c.cdpEndpoint) {
+        const { ensurePodTenants, rememberPodTenant } = await import(
+          './pod-tenant'
+        )
+        await ensurePodTenants(pool)
+        await rememberPodTenant(pool, c.cdpEndpoint, c.telegramId)
+      }
       await dropSession(pool, c.telegramId)
       out.reaped.push(c.sessionId)
     } catch {
