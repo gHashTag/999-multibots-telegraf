@@ -25,7 +25,18 @@ to the command for that mutation, and to the green run.
 
 Every `from` must occur exactly once (a pattern that matches nothing is a
 mutation that never happened, and a green run would read as "survived").
-The file is restored in `finally`, on Ctrl-C too. Exit 1 when any survived.
+The file is restored in `finally`, on Ctrl-C and SIGTERM too. Exit 1 when
+any survived.
+
+A KILLED RUN LEAVES A MUTANT BEHIND -- `finally` does not run when the
+process is killed outright. Loop turn 14 (27.09.2026): the container was
+restarted mid-batch and story-reel-tool.ts stayed with `hueChecked` returning
+`true` -- a mutant one careless `git add -A` away from shipping. So before
+each mutation the original and the mutation are written to a journal in
+.git (tri-mutants.pending.json); a restore removes it. `tri mutants --heal`
+(also run at the start of every batch and by `tri loop`) puts back a file
+that still holds exactly that mutant, and says so; a file that has moved on
+since is left alone and named.
 """
 import io
 import os
@@ -33,6 +44,39 @@ import json
 import signal
 import subprocess
 import sys
+
+
+def journal_path() -> str:
+    git_dir = subprocess.run(
+        ['git', 'rev-parse', '--absolute-git-dir'], capture_output=True, text=True
+    ).stdout.strip()
+    return os.path.join(git_dir or '.git', 'tri-mutants.pending.json')
+
+
+def heal() -> int:
+    """Put back a file a killed batch left mutated. 0 nothing or healed, 1 not safe."""
+    jp = journal_path()
+    if not os.path.exists(jp):
+        return 0
+    with io.open(jp, encoding='utf-8') as fh:
+        j = json.load(fh)
+    f = j['file']
+    try:
+        now = io.open(f, encoding='utf-8').read()
+    except OSError:
+        now = None
+    if now == j['mutated']:
+        io.open(f, 'w', encoding='utf-8').write(j['original'])
+        os.remove(jp)
+        print(f'HEALED  {f}: a killed mutant batch left "{j["name"]}" in it; restored')
+        return 0
+    if now == j['original']:
+        os.remove(jp)
+        return 0
+    print(f'NOT HEALED  {f}: a killed batch left a journal for "{j["name"]}",')
+    print('  but the file holds neither the original nor that mutant -- look at it')
+    print(f'  (journal: {jp})')
+    return 1
 
 
 def stale(path: str) -> list:
@@ -60,6 +104,11 @@ def stale(path: str) -> list:
 
 def main() -> int:
     args = sys.argv[1:]
+    if args[:1] == ['--heal']:
+        return heal()
+    # A batch never starts on top of a mutant a killed batch left behind.
+    if heal() != 0:
+        return 2
     if args[:1] == ['--check']:
         # tri mutants --check <list.json>... : anchors only, nothing runs.
         if len(args) < 2:
@@ -125,14 +174,23 @@ def main() -> int:
         return 2
 
     signal.signal(signal.SIGINT, signal.default_int_handler)
+    # A container stop sends SIGTERM first: restore the file then, too.
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
+    jp = journal_path()
     survived = 0
     for i, m in enumerate(muts):
         f = m['file']
         original = io.open(f, encoding='utf-8').read()
+        mutated = original.replace(m['from'], m['to'], 1)
+        label = m.get('name') or m['from'].strip().splitlines()[0][:60]
         try:
-            io.open(f, 'w', encoding='utf-8').write(
-                original.replace(m['from'], m['to'], 1)
-            )
+            with io.open(jp, 'w', encoding='utf-8') as jf:
+                json.dump(
+                    {'file': os.path.abspath(f), 'name': label,
+                     'original': original, 'mutated': mutated},
+                    jf,
+                )
+            io.open(f, 'w', encoding='utf-8').write(mutated)
             killed = (
                 subprocess.run(
                     cmd + m.get('tests', []), capture_output=True
@@ -141,7 +199,8 @@ def main() -> int:
             )
         finally:
             io.open(f, 'w', encoding='utf-8').write(original)
-        label = m.get('name') or m['from'].strip().splitlines()[0][:60]
+            if os.path.exists(jp):
+                os.remove(jp)
         print(f'{"killed  " if killed else "SURVIVED"}  #{i + 1} {f}: {label}')
         survived += 0 if killed else 1
 
@@ -171,4 +230,9 @@ def main() -> int:
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        # Ctrl-C or SIGTERM: `finally` already put the file back.
+        print('interrupted -- the mutated file was restored')
+        sys.exit(130)

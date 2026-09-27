@@ -97,3 +97,44 @@ describe('the story panel on a phone', () => {
     )
   })
 })
+
+/*
+ * THE WHOLE CLIENT CARD (tri shot crm-client, turn 14). Measured at 390 px:
+ * the pair that sends REAL messages ("yes, send for real" / "cancel") stood
+ * at 40 px, the media links at 20, and the heading cut the client's name to
+ * "Клиент Анна Вет…" beside "refresh" (cyrillic-ok: the measured text).
+ */
+const crmSheet = fs
+  .readFileSync(path.join(__dirname, 'Crm.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+
+describe('the client card on a phone', () => {
+  it('the action rows reach the target on a finger, after their base rule', () => {
+    const block = coarseBlocks(crmSheet).find(b =>
+      b.body.includes('.crm__acts button')
+    )
+    expect(block).toBeTruthy()
+    expect(crmSheet.indexOf('.crm__acts button {')).toBeLessThan(block!.at)
+    expect(rulesOf(block!.body).get('.crm__acts button')?.['min-height']).toBe(
+      TARGET
+    )
+  })
+
+  it('a media link is a finger-sized target', () => {
+    expect(rulesOf(block!.body).get('.crm-client__file')?.['min-height']).toBe(
+      TARGET
+    )
+  })
+
+  it("a narrow screen wraps the client's name instead of cutting it", () => {
+    const narrow = /@media\s*\(max-width:\s*480px\)\s*\{([\s\S]*?\})\s*\}/.exec(
+      sheet
+    )
+    expect(narrow).toBeTruthy()
+    const h2 = rulesOf(narrow![1]).get('.crm-client__head h2')
+    expect(h2?.['white-space']).toBe('normal')
+    expect(h2?.['overflow-wrap']).toBe('anywhere')
+    // After the one-line base rule, which it has to override.
+    expect(sheet.indexOf('.crm-client__head h2 {')).toBeLessThan(narrow!.index)
+  })
+})
