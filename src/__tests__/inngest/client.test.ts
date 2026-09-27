@@ -19,9 +19,13 @@ vi.mock('@/utils/logger', () => ({
 // Mock Inngest class
 const mockSend = vi.fn()
 vi.mock('inngest', () => ({
-  Inngest: vi.fn().mockImplementation(() => ({
-    send: mockSend,
-  })),
+  // A regular function, not an arrow: the client does `new Inngest(...)`, and
+  // vitest 5 constructs the mock implementation with Reflect.construct, which
+  // throws "is not a constructor" on an arrow. A function expression is
+  // constructable and returns this object as the instance.
+  Inngest: vi.fn().mockImplementation(function () {
+    return { send: mockSend }
+  }),
 }))
 
 describe('inngest client', () => {

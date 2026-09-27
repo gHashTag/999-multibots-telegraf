@@ -136,6 +136,7 @@ import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { checkSuperheroGenerationUsage } from '@/core/supabase/checkSuperheroGenerationUsage'
+import { processBalanceOperation } from '@/price/helpers/processBalanceOperation'
 import { generateSeeDream45 } from '@/services/generateSeeDream45'
 import { generateGptImage25 } from '@/services/generateGptImage25'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
@@ -235,6 +236,16 @@ beforeEach(() => {
   saveFile.mockReset().mockResolvedValue('/tmp/seedream45-test.png')
   save.mockReset().mockResolvedValue('prompt-1')
   refund.mockReset().mockResolvedValue(undefined)
+  // The deduct-failure test overrides this with a persistent success:false;
+  // reset it to the charge-succeeds default so a later test (the refund case)
+  // is not left believing the charge never went through. (vitest 5 keeps a
+  // mockResolvedValue across tests more stickily than 3 did.)
+  vi.mocked(processBalanceOperation)
+    .mockReset()
+    .mockResolvedValue({
+      success: true,
+      newBalance: 100,
+    } as any)
 
   gptImage.mockReset()
   nanoBanana.mockReset()
