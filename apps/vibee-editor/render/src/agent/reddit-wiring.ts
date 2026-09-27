@@ -152,56 +152,90 @@ async function readAsThePerson(
   owner: string,
   url: string
 ): Promise<unknown> {
-  const { listTargets, newPage, evaluateOn, closePage, activatePage } =
-    await import('../browser/cdp')
+  const { listTargets, newPage, closePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
   /*
-   * A TAB THAT IS ALREADY THERE IS WORTH MORE THAN A FRESH ONE, and not only
-   * because it is cheaper: a tab Chromium has frozen answers nothing at all
-   * (start-chromium.sh records the measurement), and the tab most likely to
-   * be awake is the one the browser already has on Reddit. Reading is a fetch
-   * from the page's own origin, so it changes nothing the person can see.
+   * TWO PLACES TO READ IN, AND NEITHER IS TRUSTWORTHY ALONE.
+   *
+   * A tab already on Reddit is the cheap one, and it is usually warm. But a
+   * tab is not a promise of a live renderer: measured in this pod 2026-09-27,
+   * the profile's reddit tab answered NOTHING -- not Runtime.evaluate, not
+   * even Page.navigate -- while five other tabs in other windows answered at
+   * once, and activating it did not change that. Its renderer was a corpse,
+   * and a desk that always prefers the open tab would have read that corpse
+   * forever. So: the open tab first, briefly, then a fresh one.
    */
   const mine = choosePage(
     await listTargets(cdp).catch(() => []),
     'https://www.reddit.com'
   )
-  const page = mine
-    ? { id: mine }
-    : await newPage(cdp, 'https://www.reddit.com/')
+  let first = ''
+  if (mine) {
+    try {
+      return await readIn(cdp, mine, url, 4)
+    } catch (e) {
+      first = e instanceof Error ? e.message : String(e)
+    }
+  }
+  const page = await newPage(cdp, 'https://www.reddit.com/')
   try {
-    /* An activated tab is not a background tab, and so is not a frozen one. */
-    await activatePage(cdp, page.id).catch(() => {})
+    return await readIn(cdp, page.id, url)
+  } catch (e) {
+    const why = e instanceof Error ? e.message : String(e)
     /*
-     * THE FETCH MUST RUN FROM REDDIT'S OWN ORIGIN, NOT FROM A TAB THAT IS
-     * STILL BLANK. On the first live tick (2026-09-27) the account was signed
-     * in and the inbox held five unread replies, and the desk still reported
-     * that the inbox had not answered: a flat 4-second wait ended while the
-     * tab was on about:blank, so the request went out cross-origin, CORS
-     * refused it, and `fetch` failed for a reason that had nothing to do with
-     * Reddit. Asking the page where it IS costs one round trip and cannot be
-     * wrong about it.
+     * BOTH SILENT MEANS THE BROWSER, NOT THE PAGE. When the pod ran out of
+     * process slots the zygote never recovered: every renderer started after
+     * that hung, old tabs kept working, and only restarting chromium cured it
+     * (`supervisorctl restart chromium`). Saying so here saves the next day.
      */
-    await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
-    const text = await evaluateOn(
-      cdp,
-      page.id,
-      `fetch(${JSON.stringify(url)}, { credentials: 'include' })
-         .then(r => r.text()).catch(e => String(e))`
+    throw new Error(
+      first
+        ? `${why}; the tab already open on reddit did not answer either (${first}) -- chromium is not starting renderers, restart it`
+        : why
     )
-    /*
-     * Reddit answers JSON when the account is signed in and HTML when it is
-     * not. Anything that is not JSON is a FAILURE to read, not an empty
-     * inbox -- reddit.ts stops on a throw, and would have posted on a null.
-     */
-    const body = typeof text === 'string' ? text.trim() : ''
-    if (!body.startsWith('{') && !body.startsWith('['))
-      throw new Error(`reddit answered with no json: ${body.slice(0, 80)}`)
-    return body
   } finally {
     /* Close only what this read opened: a tab that was the person's stays. */
-    if (!mine) await closePage(cdp, page.id).catch(() => {})
+    await closePage(cdp, page.id).catch(() => {})
   }
+}
+
+/** The read itself, in one named tab. */
+async function readIn(
+  cdp: string,
+  pageId: string,
+  url: string,
+  tries?: number
+): Promise<unknown> {
+  const { evaluateOn, activatePage } = await import('../browser/cdp')
+  const page = { id: pageId }
+  /* An activated tab is not a background tab, and so is not a frozen one. */
+  await activatePage(cdp, page.id).catch(() => {})
+  /*
+   * THE FETCH MUST RUN FROM REDDIT'S OWN ORIGIN, NOT FROM A TAB THAT IS
+   * STILL BLANK. On the first live tick (2026-09-27) the account was signed
+   * in and the inbox held five unread replies, and the desk still reported
+   * that the inbox had not answered: a flat 4-second wait ended while the
+   * tab was on about:blank, so the request went out cross-origin, CORS
+   * refused it, and `fetch` failed for a reason that had nothing to do with
+   * Reddit. Asking the page where it IS costs one round trip and cannot be
+   * wrong about it.
+   */
+  await waitForOrigin(cdp, page.id, 'https://www.reddit.com', tries)
+  const text = await evaluateOn(
+    cdp,
+    page.id,
+    `fetch(${JSON.stringify(url)}, { credentials: 'include' })
+         .then(r => r.text()).catch(e => String(e))`
+  )
+  /*
+   * Reddit answers JSON when the account is signed in and HTML when it is
+   * not. Anything that is not JSON is a FAILURE to read, not an empty
+   * inbox -- reddit.ts stops on a throw, and would have posted on a null.
+   */
+  const body = typeof text === 'string' ? text.trim() : ''
+  if (!body.startsWith('{') && !body.startsWith('['))
+    throw new Error(`reddit answered with no json: ${body.slice(0, 80)}`)
+  return body
 }
 
 /**
