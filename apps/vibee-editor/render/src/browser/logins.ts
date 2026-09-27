@@ -244,12 +244,25 @@ export async function readLogins(
  * The logins of ONE person's own browser, or null when it is not running.
  * The only door: the tool and the clone status both come through here, so
  * "whose pod" is decided in one place -- by the caller's own telegram id.
+ *
+ * A LIVE ROW IS NOT THE SAME QUESTION AS A LIVE BROWSER. On this platform a
+ * pod cannot be stopped, so the idle reaper deletes the row and the browser
+ * keeps running with the person's accounts in it. Asking only the row answered
+ * "not connected" for a browser holding six live logins, which the owner read
+ * as having been signed out (pod-tenant.ts). So when there is no row, the
+ * person's own still-running pod is asked -- theirs and only theirs, by the
+ * tenant record.
  */
 export async function loginsOfPerson(
   q: Queryable,
   telegramId: string
 ): Promise<NetworkLogin[] | null> {
   const session = await readSession(q, telegramId)
-  if (!session || session.state !== 'live' || !session.cdpEndpoint) return null
-  return readLogins(session.cdpEndpoint, Date.now())
+  if (session?.state === 'live' && session.cdpEndpoint)
+    return readLogins(session.cdpEndpoint, Date.now())
+  const { ensurePodTenants, unclaimedPodOf } = await import('./pod-tenant')
+  await ensurePodTenants(q)
+  const mine = await unclaimedPodOf(q, telegramId)
+  if (!mine) return null
+  return readLogins(mine, Date.now())
 }
