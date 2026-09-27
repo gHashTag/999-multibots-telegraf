@@ -3719,7 +3719,9 @@ const server = createServer(async (req, res) => {
         const body = (await r.text().catch(() => '')).slice(0, 200)
         return { ok: r.ok, детали: `HTTP ${r.status} ${r.ok ? '' : body}` }
       }),
-      ping('ElevenLabs — озвучка', async () => {
+      // Library voices only: a client's voice and clone are MiniMax on
+      // Replicate (the line below), and this key is not theirs.
+      ping('ElevenLabs — библиотечные голоса', async () => {
         const k = key('ELEVENLABS_API_KEY')
         if (!k) return { ok: false, детали: 'ELEVENLABS_API_KEY не задан' }
         if (!k.startsWith('sk_')) {
@@ -3731,13 +3733,26 @@ const server = createServer(async (req, res) => {
         }
         return head('https://api.elevenlabs.io/v1/voices', { 'xi-api-key': k })
       }),
-      ping('Replicate', async () =>
-        key('REPLICATE_API_TOKEN')
-          ? head('https://api.replicate.com/v1/account', {
-              Authorization: `Bearer ${key('REPLICATE_API_TOKEN')}`,
-            })
-          : { ok: false, детали: 'REPLICATE_API_TOKEN не задан' }
-      ),
+      ping('Replicate — видео и голос клиента', async () => {
+        if (!key('REPLICATE_API_TOKEN'))
+          return { ok: false, детали: 'REPLICATE_API_TOKEN не задан' }
+        const account = await head('https://api.replicate.com/v1/account', {
+          Authorization: `Bearer ${key('REPLICATE_API_TOKEN')}`,
+        })
+        /*
+         * The account check answers 200 with no credit at all; only a real
+         * prediction says 402. So a refusal a real clone or client line met
+         * recently outranks it (src/agent/image-health.ts).
+         */
+        const { voiceLooksDown } = await import('./src/agent/image-health')
+        const down = voiceLooksDown()
+        return account.ok && down
+          ? {
+              ok: false,
+              детали: `ключ принят, но реальный вызов ${down.minutesAgo} мин назад: ${down.why}`,
+            }
+          : account
+      }),
       ping('Kie.ai — media pipeline', async () => {
         if (!key('KIE_AI_API_KEY')) {
           return { ok: false, детали: 'KIE_AI_API_KEY не задан' } // cyrillic-ok

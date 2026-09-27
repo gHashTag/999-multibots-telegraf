@@ -116,6 +116,21 @@ module automation::crm_story_reel {
     pub const RESUME_WAIT : u8 = 1;  // still drawing: wait, order nothing
     pub const RESUME_REDRAW : u8 = 2;  // refused or given up: its charge back once, draw anew
 
+    // ---- The seller reaches the template (v3) ---------------------------------------------
+    // Asked for "a reel in her voice", the CRM agent read the health page's "voice
+    // (ElevenLabs) broken", told the owner to fix a key the client's voice never uses, asked
+    // her for a voice note while two of hers sat in the chat, and assembled a talking clip by
+    // hand. A talking reel in a client's voice IS this job, asked first without start; her
+    // voice is Replicate; the voice notes she already sent are tried before a new one is asked;
+    // and the voice's health is the last real call, since Replicate's account check answers
+    // 200 with no credit at all.
+    pub const SELLER_TOOL : str = "crm_story_reel";
+    pub const CLONE_TOOL : str = "crm_voice_clone";
+    pub const HAND_ASSEMBLY_IN_CHAT : bool = false;
+    pub const VOICE_NEEDS_ELEVENLABS : bool = false;
+    pub const SENT_VOICE_NOTES_TRIED_FIRST : bool = true;
+    pub const VOICE_HEALTH_FROM_REAL_CALLS : bool = true;
+
     // ---- Who asks, who pays -------------------------------------------------------------
     pub const START_PARAM : str = "reel";  // t.me/<bot>?start=reel, the client's own press
     pub const PAGE_ROUTE : str = "story";  // t.me/<bot>?start=app_story, "my reels"
@@ -332,6 +347,16 @@ module automation::crm_story_reel {
         assert(job_kept(1, 0, 0));
         assert(job_kept(0, 1, 0));
         assert(!job_kept(0, 0, 0));
+    }
+
+    test "the seller reaches the template, and a broken ElevenLabs key never stops a client's voice" {
+        assert(SELLER_TOOL == "crm_story_reel");
+        assert(CLONE_TOOL == "crm_voice_clone");
+        assert(!HAND_ASSEMBLY_IN_CHAT);
+        assert(VOICE_PROVIDER == "replicate");
+        assert(!VOICE_NEEDS_ELEVENLABS);
+        assert(SENT_VOICE_NOTES_TRIED_FIRST);
+        assert(VOICE_HEALTH_FROM_REAL_CALLS);
     }
 
     test "the card never displaces one the owner has not answered" {
