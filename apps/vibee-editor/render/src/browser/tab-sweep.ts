@@ -363,7 +363,7 @@ export interface PodTabView {
  *
  * The wedge was a number nobody could see: 27 tabs looked exactly like 9 from
  * outside, and the first sign of trouble was a signed-in account that behaved
- * like a broken login. This is that number, on demand (`tri tabs`), so it can
+ * like a broken login. This is that number, on demand (`tri browser`), so it can
  * be read before it becomes an outage rather than after.
  *
  * AND A LIST THAT ANSWERS IS NOT A BROWSER THAT WORKS. `/json/list` is served

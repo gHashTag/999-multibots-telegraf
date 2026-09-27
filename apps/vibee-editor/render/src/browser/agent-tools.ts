@@ -143,7 +143,7 @@ export async function liveSession(ctx: ToolContext) {
  *
  * Measured 2026-09-27, on myself: `browser_status` answered `running: false`,
  * I read that as a wedged Chromium and restarted the pod -- while
- * `/api/browser/watch` had it "answering for 16m" and `tri tabs` counted
+ * `/api/browser/watch` had it "answering for 16m" and `tri browser` counted
  * eleven live pages on it. The browser was well. The row had died. Cost: one
  * restart of a healthy browser, which is exactly the harm the watch was
  * written to prevent, caused by the one health answer it does not feed.
