@@ -45,48 +45,66 @@ export async function runRoundNow(
   const { startBrowserAsAgent, restartBrowserAsAgent } = await import(
     '../browser/routes'
   )
-  const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
+  const { evaluateOn, pageUrl } = await import('../browser/cdp')
   const { sendToTelegram } = await import('../auth/telegram-sender')
+  const { deskWindow, openWindow, closeWindow, goTo, tileBounds, tileWindow } =
+    await import('../browser/windows')
 
   const { loginsOfPerson } = await import('../browser/logins')
 
-  return await runRound({
-    personHasTheWheel: async () =>
-      personHasTheWheel(await readSession(pool, owner), Date.now()),
-    /* A network the browser is not signed into is named, not walked (#2965). */
-    logins: () => loginsOfPerson(pool, owner),
-    look: async url => {
-      let s = await readSession(pool, owner)
-      if (!s || s.state !== 'live' || !s.cdpEndpoint) {
-        await startBrowserAsAgent(owner)
-        s = await readSession(pool, owner)
-      }
-      if (!s?.cdpEndpoint) throw new Error('the browser did not start')
-      const page = await newPage(s.cdpEndpoint, url)
-      try {
-        /*
-         * A DESK WORKS IN A WINDOW OF ITS OWN (browser/windows.ts), tiled so
-         * the person sees every agent at once instead of one hiding another.
-         * A tile that fails is a nicety lost, not a round lost.
-         */
-        if (desk) {
-          const { tileBounds, tileWindow } = await import('../browser/windows')
-          const at = PROFILE_ORDER.indexOf(desk.id)
-          await tileWindow(
-            s.cdpEndpoint,
-            page.id,
-            tileBounds(
-              { width: 1496, height: 880 },
-              at < 0 ? 0 : at,
-              PROFILE_ORDER.length
-            )
-          )
-        }
+  /** The endpoint of the person's browser, started if it is not up yet. */
+  const endpoint = async (): Promise<string> => {
+    let s = await readSession(pool, owner)
+    if (!s || s.state !== 'live' || !s.cdpEndpoint) {
+      await startBrowserAsAgent(owner)
+      s = await readSession(pool, owner)
+    }
+    if (!s?.cdpEndpoint) throw new Error('the browser did not start')
+    return s.cdpEndpoint
+  }
+
+  /*
+   * A DESK WORKS IN A WINDOW OF ITS OWN (browser/windows.ts), tiled so the
+   * person sees every agent at once instead of one hiding another. Opened and
+   * tiled ONCE per round and then walked from site to site: a tab per site
+   * shared one window between the desks, so they overwrote each other's column
+   * twelve times a round and the window only ever hopped. A tile that fails is
+   * still a nicety lost, not a round lost.
+   */
+  const at = PROFILE_ORDER.indexOf(desk?.id ?? '')
+  const win = deskWindow({
+    open: async url => await openWindow(await endpoint(), url),
+    tile: async targetId => {
+      if (!desk) return
+      await tileWindow(
+        await endpoint(),
+        targetId,
+        tileBounds(
+          { width: 1496, height: 880 },
+          at < 0 ? 0 : at,
+          PROFILE_ORDER.length
+        )
+      )
+    },
+    goTo: async (targetId, url) => await goTo(await endpoint(), targetId, url),
+    alive: async targetId => !!(await pageUrl(await endpoint(), targetId)),
+    close: async targetId => await closeWindow(await endpoint(), targetId),
+  })
+
+  try {
+    return await runRound({
+      personHasTheWheel: async () =>
+        personHasTheWheel(await readSession(pool, owner), Date.now()),
+      /* A network the browser is not signed into is named, not walked (#2965). */
+      logins: () => loginsOfPerson(pool, owner),
+      look: async url => {
+        const target = await win.at(url)
+        const where = await endpoint()
         await settle(strategy.settleMs)
         const { itemsProbe, itemsOf } = await import('../browser/items')
         const got = (await evaluateOn(
-          s.cdpEndpoint,
-          page.id,
+          where,
+          target,
           `(() => {
              const main = document.querySelector('main, article') || document.body
              return { title: document.title, text: (main.innerText || '').slice(0, 400) }
@@ -94,25 +112,24 @@ export async function runRoundNow(
         )) as { title?: unknown; text?: unknown }
         /* What the page LISTS, not only what it says (browser/items.ts). */
         const rows = itemsOf(
-          await evaluateOn(s.cdpEndpoint, page.id, itemsProbe()).catch(
-            () => null
-          )
+          await evaluateOn(where, target, itemsProbe()).catch(() => null)
         )
         return {
           title: typeof got?.title === 'string' ? got.title : '',
           text: typeof got?.text === 'string' ? got.text : '',
           items: rows,
         }
-      } finally {
-        /* A round leaves no tabs behind: the person's browser is theirs. */
-        await closePage(s.cdpEndpoint, page.id).catch(() => {})
-      }
-    },
-    tell: text => sendToTelegram(owner, desk ? `[${desk.name}] ${text}` : text),
-    restart: () => restartBrowserAsAgent(owner),
-    now: () => new Date(),
-    sites: strategy.sites,
-  })
+      },
+      tell: text =>
+        sendToTelegram(owner, desk ? `[${desk.name}] ${text}` : text),
+      restart: () => restartBrowserAsAgent(owner),
+      now: () => new Date(),
+      sites: strategy.sites,
+    })
+  } finally {
+    /* A round leaves no windows behind: the person's browser is theirs. */
+    await win.close()
+  }
 }
 
 /** Where the time of the last round is kept, so a deploy cannot forget it. */

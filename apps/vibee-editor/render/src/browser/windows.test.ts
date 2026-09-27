@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { tileBounds, sideBySide, MAX_WINDOWS } from './windows'
+import {
+  tileBounds,
+  sideBySide,
+  deskWindow,
+  MAX_WINDOWS,
+  type DeskWindowDeps,
+} from './windows'
 
 const SCREEN = { width: 1496, height: 880 }
 
@@ -35,6 +41,109 @@ describe('where each desk s window sits', () => {
 
   it('a window is never a sliver', () => {
     expect(tileBounds({ width: 300, height: 400 }, 0, 3).width).toBe(320)
+  })
+})
+
+/** A desk's window with every browser call written down instead of made. */
+function spyDeps(over: Partial<DeskWindowDeps> = {}) {
+  const said: string[] = []
+  let opened = 0
+  const deps: DeskWindowDeps = {
+    open: async url => {
+      said.push(`open ${url}`)
+      return `win-${++opened}`
+    },
+    tile: async id => void said.push(`tile ${id}`),
+    goTo: async (id, url) => void said.push(`goTo ${id} ${url}`),
+    alive: async () => true,
+    close: async id => void said.push(`close ${id}`),
+    wait: async () => void said.push('wait'),
+    ...over,
+  }
+  return { deps, said }
+}
+
+describe("a desk's own window", () => {
+  it('opens and tiles once, then walks the same window from site to site', async () => {
+    const { deps, said } = spyDeps()
+    const win = deskWindow(deps)
+    expect(await win.at('https://a.test')).toBe('win-1')
+    expect(await win.at('https://b.test')).toBe('win-1')
+    expect(await win.at('https://c.test')).toBe('win-1')
+    await win.close()
+    /* One open and ONE tile for three sites: the column is set, not re-set. */
+    expect(said).toEqual([
+      'open https://a.test',
+      'tile win-1',
+      'goTo win-1 https://b.test',
+      'goTo win-1 https://c.test',
+      'close win-1',
+    ])
+  })
+
+  it('opens a new window, tiled again, when a restart took the old one', async () => {
+    let alive = true
+    const { deps, said } = spyDeps({ alive: async () => alive })
+    const win = deskWindow(deps)
+    await win.at('https://a.test')
+    alive = false
+    expect(await win.at('https://b.test')).toBe('win-2')
+    expect(said).toEqual([
+      'open https://a.test',
+      'tile win-1',
+      'open https://b.test',
+      'tile win-2',
+    ])
+  })
+
+  it('tries once more when the pod is not listening yet', async () => {
+    let tries = 0
+    const { deps, said } = spyDeps({
+      open: async url => {
+        said.push(`open ${url}`)
+        if (++tries === 1) throw new Error('connect ECONNREFUSED 10.0.0.1:9223')
+        return 'win-1'
+      },
+    })
+    expect(await deskWindow(deps).at('https://a.test')).toBe('win-1')
+    expect(said).toEqual([
+      'open https://a.test',
+      'wait',
+      'open https://a.test',
+      'tile win-1',
+    ])
+  })
+
+  it('gives up on a second refusal, rather than walking without a window', async () => {
+    const { deps } = spyDeps({
+      open: async () => {
+        throw new Error('connect ECONNREFUSED 10.0.0.1:9223')
+      },
+    })
+    await expect(deskWindow(deps).at('https://a.test')).rejects.toThrow(
+      'ECONNREFUSED'
+    )
+  })
+
+  it('a tile that fails loses a nicety, not the round', async () => {
+    const { deps } = spyDeps({
+      tile: async () => {
+        throw new Error('not tiled')
+      },
+    })
+    /* tileWindow itself swallows; a dep that throws must not lose the window. */
+    await expect(deskWindow(deps).at('https://a.test')).rejects.toThrow()
+  })
+
+  it('closes nothing when it never opened anything, and only once after', async () => {
+    const { deps, said } = spyDeps()
+    const win = deskWindow(deps)
+    await win.close()
+    expect(said).toEqual([])
+    await win.at('https://a.test')
+    await win.close()
+    await win.close()
+    expect(said.filter(s => s.startsWith('close'))).toEqual(['close win-1'])
   })
 })
 
