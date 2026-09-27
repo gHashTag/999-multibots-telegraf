@@ -63,6 +63,8 @@ interface Job {
   deliver_to?: string | null
   caption?: string | null
   card_at?: number | null
+  still_tasks?: string
+  payer?: string | null
 }
 
 /** A base that answers exactly the statements the engine sends. */
@@ -310,22 +312,30 @@ function fakeBase() {
     }
     if (
       q.startsWith(
-        'UPDATE story_jobs SET stills = $2, clips = $3, runner = NULL'
+        'UPDATE story_jobs SET stills = $2, clips = $3, still_tasks = $4, payer = $5, runner = NULL'
       )
     ) {
       const j = row(p[0])!
       Object.assign(j, {
         stills: p[1],
         clips: p[2],
+        still_tasks: p[3],
+        payer: p[4],
         runner: null,
-        error: p[3],
+        error: p[5],
         updated: clock,
       })
       return { rows: [] }
     }
     if (q.startsWith('UPDATE story_jobs SET stills')) {
       const j = row(p[0])!
-      Object.assign(j, { stills: p[1], clips: p[2], updated: clock })
+      Object.assign(j, {
+        stills: p[1],
+        clips: p[2],
+        still_tasks: p[3],
+        payer: p[4],
+        updated: clock,
+      })
       return { rows: [] }
     }
     if (q.startsWith("UPDATE story_jobs SET status = 'done'")) {
@@ -1456,5 +1466,102 @@ describe('a job that keeps dying, and the money line of a failure', () => {
     const told = last.said[last.said.length - 1]
     expect(told.text).toMatch('кадров: 3')
     expect(told.text).toMatch('клипов: 1')
+  })
+})
+
+/*
+ * A STILL THAT IS STILL DRAWING IS PAID ONCE (spec v3), at the job's level:
+ * the task reaches the row, the job waits for it instead of failing, the
+ * next run is handed it, and a job that fails for good gives its charge back.
+ */
+describe('a job waiting for a still that is still drawing', () => {
+  const TASK = { task: 'task-b', at: 1_000, charged: 8, op: 'image_edit' }
+
+  it('is released for the sweep, not failed, and the next run is handed the task', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const calls: { args: any; ctx: ToolContext }[] = []
+    let round = 0
+    const story: StoryDeps['story'] = async (args, ctx) => {
+      calls.push({ args, ctx })
+      round += 1
+      if (round === 1) {
+        // Every still is drawing: nothing made, one paid for.
+        await ctx.storyProgress?.({
+          stills: ['', '', ''],
+          clips: ['', '', ''],
+          stillTasks: [null, TASK, null],
+        })
+        return {
+          done: false,
+          reason: 'кадры не все',
+          stills: ['', '', ''],
+          clips: ['', '', ''],
+          still_tasks: [null, TASK, null],
+        }
+      }
+      return { done: true, url: 'https://bucket.example/reel.mp4' }
+    }
+    const a = depsOn(base, story, 'runner-a')
+    await startStory(a.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    const job = base.db.jobs[0]
+    expect(job).toMatchObject({ status: 'running', runner: null })
+    expect(JSON.parse(job.still_tasks!)[1]).toMatchObject({ task: 'task-b' })
+    expect(job.payer).toBe(SELLER)
+    base.tick(STORY_DEAD_MS + 1)
+    expect(await sweepStoryJobs(a.deps)).toBe(1)
+    await drain()
+    expect(calls).toHaveLength(2)
+    expect(calls[1].ctx.storyStillTasks?.[1]).toMatchObject({
+      task: 'task-b',
+      charged: 8,
+    })
+    expect(job.status).toBe('done')
+  })
+
+  it('a job given up with a still still drawing gives its charge back, once, and says so', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const hang = depsOn(base, () => new Promise(() => undefined), 'runner-a')
+    await startStory(hang.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    const job = base.db.jobs[0]
+    Object.assign(job, {
+      attempts: STORY_JOB_ATTEMPTS,
+      still_tasks: JSON.stringify([null, TASK, null]),
+      payer: SELLER,
+    })
+    const refunded: { payer: string; task: string }[] = []
+    const { deps, said } = depsOn(base, hang.deps.story, 'runner-a')
+    deps.refundStill = async (payer, t) => {
+      refunded.push({ payer, task: t.task })
+    }
+    base.tick(STORY_DEAD_MS + 1)
+    expect(await sweepStoryJobs(deps)).toBe(0)
+    await drain()
+    expect(job).toMatchObject({ status: 'failed', error: 'exhausted' })
+    expect(refunded).toEqual([{ payer: SELLER, task: 'task-b' }])
+    const told = said.find(x => x.text.includes('прерывалась'))
+    expect(told?.text).toMatch('За недорисованные кадры (1) токены возвращены')
+  })
+
+  it('the money line names stills given back apart from parts made', () => {
+    expect(failedMoneyLine({ stills: 0, clips: 0, returned: 2 })).toBe(
+      'За несделанное токены не списаны. За недорисованные кадры (2) токены возвращены.'
+    )
+    expect(failedMoneyLine({ stills: 1, clips: 0, returned: 1 })).toMatch(
+      /уже оплачены.*За недорисованные кадры \(1\) токены возвращены/
+    )
   })
 })

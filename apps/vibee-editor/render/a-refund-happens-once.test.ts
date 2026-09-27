@@ -181,3 +181,38 @@ describe('a refund gives the same charge back once', () => {
     expect(r.ok).toBe(true)
   })
 })
+
+/*
+ * A LATE PICTURE'S CHARGE COMES BACK ONCE, WHOEVER NOTICES (crm-story-reel
+ * spec v3). Two paths can learn that a paid picture never came: image_edit's
+ * own background watch, and a story job resuming after a redeploy killed that
+ * watch. Both give back under one ledger reference per provider task.
+ */
+describe("a late picture's charge comes back once, whoever notices", () => {
+  beforeEach(() => forgetTokenLedgerTables())
+
+  it('the second refund of one task adds nothing; another task is its own', async () => {
+    const { refundLateImage } = await import('./src/agent/tools')
+    const db = fakeDb(1000)
+    const ctx = { telegramId: '900000031', pool: db } as never
+    const t = { task: 'task-b', charged: 8, op: 'image_edit' }
+    await refundLateImage(ctx, t, 'the watch gave up')
+    await refundLateImage(ctx, t, 'the story job gave up')
+    expect(db.balance).toBe(1008)
+    const back = db.ledger.filter(r => r.kind === 'refund')
+    expect(back).toEqual([
+      expect.objectContaining({ ref: 'late-image:task-b', delta: 8 }),
+    ])
+    await refundLateImage(ctx, { ...t, task: 'task-c' }, 'another still')
+    expect(db.balance).toBe(1016)
+  })
+
+  it('an unknown charge gives nothing back: never re-derived from a price table', async () => {
+    const { refundLateImage } = await import('./src/agent/tools')
+    const db = fakeDb(1000)
+    const ctx = { telegramId: '900000031', pool: db } as never
+    await refundLateImage(ctx, { task: 'task-d' }, 'no charge on record')
+    expect(db.balance).toBe(1000)
+    expect(db.ledger.filter(r => r.kind === 'refund')).toHaveLength(0)
+  })
+})

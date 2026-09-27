@@ -44,6 +44,8 @@ import type { ToolContext } from './tools'
 import {
   endCardFromProfile,
   scenesOf,
+  stillTasksOf,
+  type StillTask,
   type StoryEndCard,
   type StoryScene,
 } from './story-reel-tool'
@@ -389,7 +391,9 @@ const COLUMNS = `ALTER TABLE story_jobs
   ADD COLUMN IF NOT EXISTS caption    text,
   ADD COLUMN IF NOT EXISTS style      text,
   ADD COLUMN IF NOT EXISTS cta        text,
-  ADD COLUMN IF NOT EXISTS card_at    timestamptz`
+  ADD COLUMN IF NOT EXISTS card_at    timestamptz,
+  ADD COLUMN IF NOT EXISTS still_tasks jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS payer      text`
 
 let tableReady: Promise<void> | null = null
 export function ensureStoryJobs(pool: Pool): Promise<void> {
@@ -441,6 +445,12 @@ export interface StoryDeps {
   beat?: (fn: () => void, ms: number) => () => void
   /** Who this process is, as a runner; a test names two. */
   me?: string
+  /**
+   * Give back, once per task, the charge of a still that was ordered and
+   * never came (tools.ts refundLateImage); absent: nothing is given back
+   * here and image_edit's own watch is the only path.
+   */
+  refundStill?: (payer: string, t: StillTask, why: string) => Promise<void>
 }
 
 const beatWith = (deps: StoryDeps) =>
@@ -650,7 +660,12 @@ async function runHeld(
 
   const fail = async (
     why: string,
-    made?: { stills?: unknown; clips?: unknown }
+    made?: {
+      stills?: unknown
+      clips?: unknown
+      still_tasks?: unknown
+      payer?: string
+    }
   ) => {
     await pool.query(
       `UPDATE story_jobs SET status = 'failed', error = $2, updated_at = now() WHERE id = $1`,
@@ -698,14 +713,25 @@ async function runHeld(
    * the reels are the seller's gift to her.
    */
   const payer = byClient ? (s.payer === 'owner' ? seller : lead) : requester
+  const n = scenes.length
   const ctx: ToolContext = {
     telegramId: payer,
     pool: pool as ToolContext['pool'],
     surface: 'story',
+    // The stills this job ordered and still waits for: asked about on a
+    // resume, never ordered and paid for again (spec v3).
+    storyStillTasks: stillTasksOf(job.still_tasks, n),
     storyProgress: async p => {
       await pool.query(
-        `UPDATE story_jobs SET stills = $2, clips = $3, updated_at = now() WHERE id = $1`,
-        [id, JSON.stringify(p.stills), JSON.stringify(p.clips)]
+        `UPDATE story_jobs SET stills = $2, clips = $3, still_tasks = $4,
+                payer = $5, updated_at = now() WHERE id = $1`,
+        [
+          id,
+          JSON.stringify(p.stills),
+          JSON.stringify(p.clips),
+          JSON.stringify(p.stillTasks ?? []),
+          payer,
+        ]
       )
     },
   }
@@ -767,20 +793,28 @@ async function runHeld(
 
   const stills = list(ans?.stills)
   const clips = list(ans?.clips)
-  const partial = stills.some(Boolean) || clips.some(Boolean)
-  if (partial && attempts < STORY_JOB_ATTEMPTS) {
+  const tasks = stillTasksOf(ans?.still_tasks, n)
+  const count = (v: unknown[]) => v.filter(Boolean).length
+  if (
+    jobKept(count(stills), count(clips), count(tasks)) &&
+    attempts < STORY_JOB_ATTEMPTS
+  ) {
     /*
-     * Part of it is made and paid for: keep it, and let the sweep take the
-     * job again once it has been quiet long enough. Released, not retried
-     * here -- one path back into a job, so two runners never hold one.
+     * Part of it is made and paid for, or a still is paid for and drawing:
+     * keep it, and let the sweep take the job again once it has been quiet
+     * long enough. Released, not retried here -- one path back into a job,
+     * so two runners never hold one.
      */
     await pool.query(
-      `UPDATE story_jobs SET stills = $2, clips = $3, runner = NULL,
-              error = $4, updated_at = now() WHERE id = $1`,
+      `UPDATE story_jobs SET stills = $2, clips = $3, still_tasks = $4,
+              payer = $5, runner = NULL, error = $6, updated_at = now()
+        WHERE id = $1`,
       [
         id,
         JSON.stringify(stills),
         JSON.stringify(clips),
+        JSON.stringify(tasks),
+        payer,
         String(ans?.reason ?? '').slice(0, 500),
       ]
     )
@@ -789,7 +823,23 @@ async function runHeld(
   return fail(String(ans?.reason ?? 'рилс не собрался'), {
     stills: JSON.stringify(stills),
     clips: JSON.stringify(clips),
+    still_tasks: JSON.stringify(tasks),
+    payer,
   })
+}
+
+/**
+ * Whether a job whose call ended without a reel is released for the sweep
+ * instead of failed (spec: job_kept): anything made, or a still paid for and
+ * still drawing. Before v3 a job whose every still was drawing was failed on
+ * the spot and told "nothing was charged".
+ */
+export function jobKept(
+  stillsMade: number,
+  clipsMade: number,
+  stillsDrawing: number
+): boolean {
+  return stillsMade > 0 || clipsMade > 0 || stillsDrawing > 0
 }
 
 /**
@@ -925,16 +975,45 @@ function madeParts(job: any): { stills: number; clips: number } {
 export function failedMoneyLine(made: {
   stills: number
   clips: number
+  /** Stills that were paid for, never came, and were given back. */
+  returned?: number
 }): string {
-  if (!made.stills && !made.clips) return 'За несделанное токены не списаны.'
+  const back = made.returned
+    ? ` За недорисованные кадры (${made.returned}) токены возвращены.`
+    : ''
+  if (!made.stills && !made.clips)
+    return 'За несделанное токены не списаны.' + back
   const parts = [
     made.stills ? `кадров: ${made.stills}` : '',
     made.clips ? `клипов: ${made.clips}` : '',
   ].filter(Boolean)
   return (
     `Готовые части (${parts.join(', ')}) уже оплачены и сохранены; ` +
-    'за несделанное токены не списаны.'
+    'за несделанное токены не списаны.' +
+    back
   )
+}
+
+/**
+ * A failed job's stills that were paid for and are still drawing: their
+ * charge back, once per task (spec: FAILED_JOB_RETURNS_PENDING_STILLS). A
+ * picture that arrives later is still kept in the payer's files; it was just
+ * not charged for. Returns how many were given back.
+ */
+async function returnDrawing(deps: StoryDeps, job: any): Promise<number> {
+  const payer = String(job.payer ?? '').trim()
+  if (!payer || !deps.refundStill) return 0
+  const raw = parse(job.still_tasks)
+  const all = stillTasksOf(raw, Array.isArray(raw) ? raw.length : 0)
+  let n = 0
+  for (const t of all) {
+    if (!t) continue
+    await deps
+      .refundStill(payer, t, 'рилс не собрался — кадр не дождались')
+      .then(() => n++)
+      .catch(() => undefined)
+  }
+  return n
 }
 
 /**
@@ -951,6 +1030,7 @@ async function closeFailed(
   const byClient = requester === String(job.lead_id)
   const bot = job.bot ? String(job.bot) : null
   const topic = String(job.topic ?? '')
+  const returned = await returnDrawing(deps, job)
   if (job.item_id)
     await deps.pool
       .query(
@@ -964,7 +1044,7 @@ async function closeFailed(
       byClient ? bot : null,
       requester,
       `Рилс${topic ? ` «${topic}»` : ''} не получился: ${why.slice(0, 200)}. ` +
-        failedMoneyLine(madeParts(job)) +
+        failedMoneyLine({ ...madeParts(job), returned }) +
         (byClient ? ' Попробуй ещё раз кнопкой.' : ''),
       byClient
         ? { button: { text: '🎬 Попробовать ещё', url: nextLink(bot) } }

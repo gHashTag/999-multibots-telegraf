@@ -5,7 +5,8 @@
  * fakes, and from tools.ts so the registry is borrowed, not imported -- the
  * tool lives there, and a module cycle would be the alternative.
  */
-import type { AgentTool } from './tools'
+import type { AgentTool, ToolContext } from './tools'
+import type { StillTask } from './story-reel-tool'
 import type { StoryDeps } from './story-template'
 import { askBuyerModel } from './crm-duet-tool'
 import { allProviders, diagnose } from './provider'
@@ -110,12 +111,30 @@ export function liveCardPort(
   }
 }
 
+/** tools.ts refundLateImage, passed in: this module does not import the registry. */
+export type RefundLate = (
+  ctx: ToolContext,
+  t: StillTask,
+  why: string
+) => Promise<void>
+
 export function makeStoryDeps(
   pool: Pool,
-  lookup: (name: string) => AgentTool | undefined
+  lookup: (name: string) => AgentTool | undefined,
+  refundLate?: RefundLate
 ): StoryDeps {
   return {
     pool,
+    ...(refundLate
+      ? {
+          refundStill: (payer: string, t: StillTask, why: string) =>
+            refundLate(
+              { telegramId: payer, pool: pool as ToolContext['pool'] },
+              t,
+              why
+            ),
+        }
+      : {}),
     write: messages =>
       askBuyerModel(messages as never, allProviders(), fetch, (id, st, b) =>
         diagnose(id as never, st, b)
