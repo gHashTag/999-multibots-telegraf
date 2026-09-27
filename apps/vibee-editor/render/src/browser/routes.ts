@@ -44,7 +44,7 @@ import {
   sitesOf,
   type CookieParam,
 } from './cookie-import'
-import { readLogins, type NetworkLogin } from './logins'
+import { readLogins, loginsOfPerson, type NetworkLogin } from './logins'
 import {
   ensureBrowserSessions,
   readSession,
@@ -107,6 +107,7 @@ export const BROWSER_PATHS = [
   '/api/browser/tabs',
   '/api/browser/watch',
   '/api/browser/heal',
+  '/api/browser/logins',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -151,6 +152,16 @@ export interface BrowserDeps {
    * import having run.
    */
   readLogins?: (cdpEndpoint: string) => Promise<NetworkLogin[]>
+  /**
+   * Injected for tests; defaults to logins.ts. Answers the read-only
+   * GET /api/browser/logins -- which networks the clone is signed into RIGHT
+   * NOW, without importing anything. Returns null when no browser is running,
+   * and null is a THIRD outcome: "nobody to ask", never "signed out of all".
+   */
+  personLogins?: (
+    q: Queryable,
+    telegramId: string
+  ) => Promise<NetworkLogin[] | null>
   /** Injected for tests; defaults to the pod over CDP (person-type.ts). */
   typeIo?: TypeIo
   /**
@@ -593,6 +604,31 @@ export async function handleBrowser(
       return { status: 200, body: { ok: true, errors: sawAtErrors(steps) } }
     }
     return { status: 200, body: { ok: true, steps } }
+  }
+
+  /*
+   * WHICH NETWORKS THE CLONE IS SIGNED INTO, READ-ONLY (logins.ts). The only
+   * way to see this before was to IMPORT cookies (a write) and read the
+   * `signedIn` it echoes back, or to call the browser_logins agent tool. This
+   * asks the same question without touching anything: no page opens, no cookie
+   * is written, so it runs even while the person drives.
+   *
+   * `running: false` is the third outcome, kept apart on purpose: no browser is
+   * running, so nobody was asked -- NOT "signed out of everything", which is
+   * what an empty list would have read as. Only when a pod answers do we report
+   * per-network state, and even `signed_in` means the browser HOLDS a login,
+   * not that the site still honours it (logins.ts). Never a cookie value.
+   */
+  if (path === '/api/browser/logins') {
+    if (method !== 'GET') {
+      return { status: 405, body: { ok: false, error: 'GET only' } }
+    }
+    const read = deps.personLogins ?? loginsOfPerson
+    const networks = await read(pool, who)
+    if (networks === null) {
+      return { status: 200, body: { ok: true, running: false } }
+    }
+    return { status: 200, body: { ok: true, running: true, networks } }
   }
 
   /*

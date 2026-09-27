@@ -728,6 +728,12 @@ AGENT TOOLS ON THE RENDER
                           -- the 2026-09-22 "Queen's board vs a Google sign-in"
                           mismatch, answered in one read. Exit 0 nothing erred,
                           1 something did, 3 the render did not answer.
+  tri logins              which social networks the clone is signed into RIGHT
+                          NOW, read from the browser's cookies without opening a
+                          page or writing anything. A login cookie means the
+                          browser HOLDS a login, not that the site still honours
+                          it. Exit 0 at least one live login, 2 none (or no
+                          browser running), 3 the render did not answer.
 
 OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
@@ -1871,6 +1877,55 @@ PY
   case "$rc" in
     0) good 'the last turn did not err' ;;
     1) warn 'the last turn erred -- above is what the agent saw each time' ;;
+    *) bad 'could not tell -- the render itself did not answer' ;;
+  esac
+  return "$rc"
+}
+
+# Which social networks the clone is signed into RIGHT NOW, read from the
+# browser's own cookies -- no page opens, nothing is written, so it runs while
+# the person drives. running:false is the third outcome: no browser to ask, NOT
+# "signed out of everything". A login cookie means the browser HOLDS a login,
+# not that the site still honours it -- open the site to be sure.
+cmd_logins() {
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+
+  LOG_KEY="$key" LOG_URL="$RENDER/api/browser/logins" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+
+req = urllib.request.Request(
+    os.environ['LOG_URL'], headers={"X-Agent-Key": os.environ['LOG_KEY']})
+try:
+    with urllib.request.urlopen(req, timeout=30) as r:
+        answer = json.loads(r.read())
+except urllib.error.HTTPError as e:
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+    print(f'  HTTP {e.code} {e.reason}{hint}')
+    sys.exit(3)
+except Exception as e:                        # DNS, TLS, timeout
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+if not answer.get('running'):
+    print('  no browser running -- nobody to ask (not "signed out of everything")')
+    sys.exit(2)
+
+nets = answer.get('networks') or []
+mark = {'signed_in': '  ✓', 'expired': '  ⌛', 'signed_out': '  ·', 'unknown': '  ?'}
+inn = [n for n in nets if n.get('state') == 'signed_in']
+for n in nets:
+    print(f"{mark.get(n.get('state'), '  ?')} {n.get('name','?'):<12} {n.get('state','?')}")
+print(f'  --- {len(inn)}/{len(nets)} signed in')
+sys.exit(0 if inn else 2)
+PY
+  local rc=$?
+  case "$rc" in
+    0) good 'the clone holds at least one live login' ;;
+    2) warn 'no live login (or no browser running) -- above is the full picture' ;;
     *) bad 'could not tell -- the render itself did not answer' ;;
   esac
   return "$rc"
@@ -4802,6 +4857,7 @@ case "$action" in
   browser|браузер)     cmd_browser ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;
+  logins|входы)        cmd_logins ;;
   lesson|опыт)         cmd_lesson "$@" ;;
   lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
   unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
