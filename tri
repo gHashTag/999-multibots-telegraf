@@ -745,6 +745,16 @@ AGENT TOOLS ON THE RENDER
                           (nobody looked -- not "broken"), 3 the render did not
                           answer. `describeWatch` in watch.ts promised this
                           command; until now it did not exist.
+  tri journal [limit]     the browser's full timeline: every step the agent took
+     [--probes]           (default 50), newest first -- tool, ok/FAILED, ms, and
+                          one line of what it touched. `tri saw` is this reader
+                          narrowed to error moments; this is the whole record its
+                          timings were meant to be read from. --probes folds in
+                          the on-a-clock watch checks (what the docstrings called
+                          `tri eyes`), kept out of the view otherwise. Exit 0
+                          steps shown, 2 none recorded yet (nobody acted -- not
+                          "broken"), 3 the render did not answer. journal.ts
+                          named this command; until now it did not exist.
 
 OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
@@ -1889,6 +1899,86 @@ PY
     0) good 'the last turn did not err' ;;
     1) warn 'the last turn erred -- above is what the agent saw each time' ;;
     *) bad 'could not tell -- the render itself did not answer' ;;
+  esac
+  return "$rc"
+}
+
+# The full journal (journal.ts): every step the agent took, newest first, tool
+# + ok + ms + one line of what it touched. cmd_saw is this narrowed to error
+# moments; this is the whole timeline its timings were meant to be read from.
+# `--probes` folds in the on-a-clock watch checks (the doc's "tri eyes"), which
+# are trimmed apart from real work and hidden otherwise. Exit 0 steps shown,
+# 2 none recorded yet (the third outcome: nobody acted, not an outage), 3 the
+# render did not answer -- so a script can tell "empty" from "unreachable".
+# ─────────────────────────────────────────────────────────────────────────
+cmd_journal() {
+  local key limit=50 probes=
+  for a in "$@"; do
+    case "$a" in
+      --probes|--eyes) probes=1 ;;
+      *[!0-9]*|'') : ;;                 # ignore non-numeric args
+      *) limit="$a" ;;
+    esac
+  done
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+
+  local url="$RENDER/api/browser/journal?limit=$limit"
+  [ -n "$probes" ] && url="$url&probes=1"
+
+  JRN_KEY="$key" JRN_URL="$url" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+
+req = urllib.request.Request(
+    os.environ['JRN_URL'], headers={"X-Agent-Key": os.environ['JRN_KEY']})
+try:
+    with urllib.request.urlopen(req, timeout=30) as r:
+        answer = json.loads(r.read())
+except urllib.error.HTTPError as e:
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+    print(f'  HTTP {e.code} {e.reason}{hint}')
+    sys.exit(3)
+except Exception as e:                        # DNS, TLS, timeout
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+steps = answer.get('steps') or []
+if not steps:
+    # The third outcome, kept out loud: an empty journal is nobody-acted,
+    # not a broken render. A script gates on this being distinct from exit 3.
+    print('  nothing recorded yet -- the agent has taken no steps')
+    sys.exit(2)
+
+def clip(v, n):
+    s = str(v)
+    return s if len(s) <= n else s[:n - 1] + '…'
+
+for s in steps:
+    at = (s.get('at') or '')[11:19]                # HH:MM:SS
+    tool = s.get('tool', '?')
+    mark = ' ok ' if s.get('ok') else 'FAIL'
+    ms = s.get('ms', 0)
+    d = s.get('detail') or {}
+    what = d.get('seen') or d.get('title') or d.get('what') or d.get('url') or ''
+    if not what and d.get('x') is not None:
+        what = f"({d['x']},{d['y']})"
+    tag = ' ·probe' if d.get('probe') else ''
+    line = f"  {at}  {mark}  {tool} {ms}ms{tag}"
+    if what:
+        line += f"  {clip(what, 90)}"
+    print(line)
+    if not s.get('ok') and d.get('error'):
+        print(f"        error: {clip(d['error'], 120)}")
+
+sys.exit(0)
+PY
+  local rc=$?
+  case "$rc" in
+    0) good 'the browser has a timeline -- above is the record, newest first' ;;
+    2) warn 'nothing recorded yet -- nobody has driven the browser' ;;
+    *) bad 'could not read the journal -- the render itself did not answer' ;;
   esac
   return "$rc"
 }
@@ -4920,6 +5010,7 @@ case "$action" in
   browser|браузер)     cmd_browser ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;
+  journal|журнал)      cmd_journal "$@" ;;
   logins|входы)        cmd_logins ;;
   pod|под)             cmd_pod ;;
   lesson|опыт)         cmd_lesson "$@" ;;
