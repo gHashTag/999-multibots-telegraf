@@ -60,6 +60,12 @@ react@18.3.1 react-dom@18.3.1`) — иначе pre-push ложно красне�
       только по архиву payments_v2 — чтение денег, осторожно.
 - [ ] P8 crm-duet: привязка — `tri spec-bind automation/crm-duet` показал: 12 тестов
       без скобок (нужна v2 в t27), 4 числа в crm-duet-tool.ts пишутся руками.
+- [ ] P10 Флейк media-library.test.ts «tells Zep the words when the row was
+      already there»: красный 2 раза из ~5 ПОЛНЫХ прогонов рендера (27.09),
+      зелёный отдельно, -t и 4 параллельных запуска. Не тайм-аут, а
+      zepCalls = 0 — mirrorOneToZep не дошёл до мока. Гипотеза: холодный
+      динамический import('./crm-mirror') после vi.resetModules под нагрузкой.
+      Проверять: tri flaky 3 apps/vibee-editor/render media-library.test.ts <соседи>.
 - [ ] P9 Пакетный лид-магнит №2 на сегмент (из конкурентов: кампании CRMChat),
       безопасен только с v6 — с лимитом дня и сметой на весь сегмент.
 
