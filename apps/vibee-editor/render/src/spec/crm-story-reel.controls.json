@@ -178,5 +178,30 @@
     "name": "nearest by RGB distance",
     "from": "pub const NEAREST_BY : str = \"oklab\";",
     "to": "pub const NEAREST_BY : str = \"rgb\";"
+  },
+  {
+    "name": "the load's reason stays beside the verdict",
+    "from": "return !editor_open || !checked_since_open;",
+    "to": "return true;"
+  },
+  {
+    "name": "the load's reason gone as soon as the editor opens",
+    "from": "return !editor_open || !checked_since_open;",
+    "to": "return !editor_open;"
+  },
+  {
+    "name": "the load's reason gone after a keep closes the editor",
+    "from": "return !editor_open || !checked_since_open;",
+    "to": "return !checked_since_open;"
+  },
+  {
+    "name": "VERSION lags the header again",
+    "from": "pub const VERSION : u8 = 15;",
+    "to": "pub const VERSION : u8 = 11;"
+  },
+  {
+    "name": "two reasons on the card allowed",
+    "from": "pub const PANEL_ONE_REASON_AT_A_TIME : bool = true;",
+    "to": "pub const PANEL_ONE_REASON_AT_A_TIME : bool = false;"
   }
 ]

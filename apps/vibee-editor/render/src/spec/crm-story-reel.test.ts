@@ -1021,6 +1021,30 @@ describe("the spec's tests hold against the host", () => {
     ).toEqual({ title: '#00c' })
   })
 
+  it('the card says one reason at a time', async () => {
+    // The header's last note and VERSION say the same -- the spec's vector;
+    // scripts/check-t27-specs.mjs (law version-note) holds it for every spec.
+    expect(SPEC.VERSION).toBe(15)
+    expect(SPEC.PANEL_ONE_REASON_AT_A_TIME).toBe(true)
+    // The player's own rule against the spec's vectors; the panel's
+    // behaviour runs in player StoryReelPanel.test.tsx ("one reason").
+    const PLAYER = join(HERE, '..', '..', '..', 'player', 'src')
+    const palette = await import(join(PLAYER, 'lib', 'storyPalette.ts'))
+    expect(palette.panelWhyShown(false, false)).toBe(true)
+    expect(palette.panelWhyShown(false, true)).toBe(true)
+    expect(palette.panelWhyShown(true, false)).toBe(true)
+    expect(palette.panelWhyShown(true, true)).toBe(false)
+    expect(palette.panelTakeOffered(true, true, true)).toBe(false)
+    // The load's reason reaches the card only through the rule.
+    const panel = readFileSync(
+      join(PLAYER, 'components', 'Crm', 'StoryPalette.tsx'),
+      'utf8'
+    )
+    expect(panel).toContain(
+      'ready.endCardWhy && panelWhyShown(open, checked !== null)'
+    )
+  })
+
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {
     // reel_route(owner_named_old): the brief, the Queen and the plan hint
     // are where the route is said. The brief placing it before the package

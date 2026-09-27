@@ -1,0 +1,383 @@
+#!/usr/bin/env node
+/**
+ * tri shot [story-palette] [--width 390] [--lang ru|en] [--out DIR]
+ *
+ * A screen measured on a phone, not described. The player's own dev server
+ * serves harness/<name>.html -- the real component, the page's wrapper, the
+ * app's sheets -- and real Chromium opens it as a phone would: narrow,
+ * touch, a coarse pointer (the page's finger-sized rules are written for
+ * `pointer: coarse` and never apply on a desktop viewport). The panel's
+ * tool calls are answered by the host's own functions
+ * (shot-story-answer.ts), so the refusal and its three options on the
+ * picture are the server's, not a fixture's.
+ *
+ * WHY. Four turns (8-11) built the palette panel and checked it with DOM
+ * tests only; jsdom has no layout, so "the button is there" passed for a
+ * button 32 px tall that a thumb misses. The page states its own target --
+ * `--touch-target: 44px` in index.css -- and this reads it FROM THE PAGE
+ * rather than hard-coding a number that could drift from it.
+ *
+ * Each state is a PNG plus four measurements, all inside the panel:
+ *   - wider: the page scrolls sideways (documentElement.scrollWidth);
+ *   - small: a button, input or link under the target on either side;
+ *   - cut: text clipped by its own box (scrollWidth > clientWidth);
+ *   - overlap: two controls whose boxes intersect.
+ * Exit 0 clean, 1 something measured wrong, 2 could not measure. The
+ * verdict goes to `tri gate`. Nothing is written or started: keeping and
+ * start are refused by the answer script.
+ */
+import { spawn, spawnSync } from 'node:child_process'
+import { mkdirSync, existsSync } from 'node:fs'
+import { createServer } from 'node:net'
+import { createRequire } from 'node:module'
+import { join, resolve } from 'node:path'
+
+const HERE = import.meta.dirname
+const ROOT = resolve(HERE, '../..')
+const PLAYER = join(ROOT, 'apps/vibee-editor/player')
+const RENDER = join(ROOT, 'apps/vibee-editor/render')
+
+// tri gate: the tree as this check found it; record compares it at the end.
+process.env.TRI_GATE_START = spawnSync(
+  'node',
+  [join(HERE, 'gate.mjs'), 'tree'],
+  {
+    encoding: 'utf8',
+  }
+).stdout.trim()
+
+const argv = process.argv.slice(2)
+const opt = (name, fallback) => {
+  const i = argv.indexOf(`--${name}`)
+  return i >= 0 && argv[i + 1] ? argv[i + 1] : fallback
+}
+const flags = new Set(['--width', '--lang', '--out'])
+const positional = argv.filter(
+  (a, i) => !a.startsWith('--') && !flags.has(argv[i - 1])
+)
+const name = positional[0] ?? 'story-palette'
+const width = Number(opt('width', '390'))
+const lang = opt('lang', 'ru')
+const gitDir = spawnSync('git', ['rev-parse', '--git-dir'], {
+  cwd: ROOT,
+  encoding: 'utf8',
+}).stdout.trim()
+const out = resolve(opt('out', join(ROOT, gitDir || '.git', 'tri-shot')))
+
+/*
+ * Every harness is a story: the answers its panel gets and the presses that
+ * walk it from state to state. The card is a real refusal: a dark call on a
+ * dark ground, the case the three options exist for (spec v12-v14).
+ */
+const HARNESSES = {
+  'story-palette': {
+    fixture: {
+      profile: {
+        bg: '#10182a',
+        title: '#1d2a4a',
+        text: '#f5f5f5',
+        accent: '#23305a',
+        button: 'Записаться на примерку',
+      },
+      jobs: [
+        {
+          id: 2,
+          topic: 'Одна ваза — три комнаты',
+          status: 'done',
+          url: 'https://example.invalid/reel.mp4',
+          created_at: '2026-09-27T10:00:00Z',
+        },
+        {
+          id: 1,
+          topic: 'Весенняя коллекция',
+          status: 'failed',
+          error: 'голос не ответил, токены возвращены',
+          created_at: '2026-09-26T10:00:00Z',
+        },
+      ],
+    },
+    root: '[data-testid=story-palette]',
+    scope: '.crm-client',
+    states: [
+      {
+        id: 'load',
+        ready: async p =>
+          p.locator('[data-testid=story-palette-fix]').waitFor(),
+      },
+      {
+        id: 'refused',
+        ready: async p => {
+          await p.locator('[data-testid=story-palette] > button').click()
+          await p.locator('[data-action=check]').click()
+          await p.locator('[data-testid=story-palette-verdict]').waitFor()
+          await p
+            .locator('.crm-client__palette-edit [data-action=take]')
+            .waitFor()
+        },
+      },
+      {
+        id: 'taken',
+        ready: async p => {
+          await p
+            .locator('.crm-client__palette-edit [data-action=take]')
+            .click()
+          await p
+            .locator('[data-testid=story-palette-verdict].crm__counts')
+            .waitFor()
+        },
+      },
+    ],
+  },
+}
+
+const h = HARNESSES[name]
+if (
+  !h ||
+  !Number.isInteger(width) ||
+  width < 240 ||
+  !['ru', 'en'].includes(lang)
+) {
+  console.log(
+    `usage: tri shot [${Object.keys(HARNESSES).join('|')}] [--width 390] [--lang ru|en] [--out DIR]`
+  )
+  process.exit(2)
+}
+
+const freePort = () =>
+  new Promise((ok, fail) => {
+    const s = createServer()
+    s.unref()
+    s.on('error', fail)
+    s.listen(0, '127.0.0.1', () => {
+      const { port } = s.address()
+      s.close(() => ok(port))
+    })
+  })
+
+const answer = args => {
+  const r = spawnSync(
+    join(RENDER, 'node_modules/.bin/tsx'),
+    [
+      join(HERE, 'shot-story-answer.ts'),
+      JSON.stringify({ ...h.fixture, args }),
+    ],
+    { cwd: RENDER, encoding: 'utf8' }
+  )
+  if (r.status !== 0) throw new Error(`answer script: ${r.stderr.trim()}`)
+  return JSON.parse(r.stdout.trim().split('\n').pop())
+}
+
+/* Measured in the page: the target is the page's own --touch-target. */
+function measure({ root, scope }) {
+  const target =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        '--touch-target'
+      )
+    ) || 44
+  const box = document.querySelector(scope) ?? document.body
+  const panel = document.querySelector(root)
+  const within = panel?.closest('section') ?? panel ?? box
+  const name = el => {
+    const tag = el.tagName.toLowerCase()
+    const tagged =
+      el.getAttribute('data-action') ??
+      el.getAttribute('data-field') ??
+      el.getAttribute('type') ??
+      ''
+    const text = (el.textContent || el.getAttribute('aria-label') || '')
+      .trim()
+      .slice(0, 24)
+    return `${tag}${tagged ? `[${tagged}]` : ''}${text ? ` «${text}»` : ''}`
+  }
+  const shown = el => {
+    const r = el.getBoundingClientRect()
+    return (
+      r.width > 0 &&
+      r.height > 0 &&
+      getComputedStyle(el).visibility !== 'hidden'
+    )
+  }
+  const controls = [
+    ...within.querySelectorAll('button, input, select, textarea, a[href]'),
+  ].filter(shown)
+  const small = controls
+    .map(el => ({ el, r: el.getBoundingClientRect() }))
+    .filter(({ r }) => r.height < target - 0.5 || r.width < target - 0.5)
+    .map(
+      ({ el, r }) =>
+        `${name(el)} ${Math.round(r.width)}×${Math.round(r.height)}`
+    )
+  const cut = [...within.querySelectorAll('*')]
+    .filter(shown)
+    .filter(el => {
+      const s = getComputedStyle(el)
+      return (
+        s.overflowX !== 'visible' &&
+        el.scrollWidth > el.clientWidth + 1 &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)
+      )
+    })
+    .map(el => `${name(el)} ${el.scrollWidth}>${el.clientWidth}`)
+  const overlap = []
+  const rects = controls.map(el => ({ el, r: el.getBoundingClientRect() }))
+  for (let i = 0; i < rects.length; i++)
+    for (let j = i + 1; j < rects.length; j++) {
+      const a = rects[i].r
+      const b = rects[j].r
+      const x = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+      const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+      if (x > 1 && y > 1)
+        overlap.push(`${name(rects[i].el)} ∩ ${name(rects[j].el)}`)
+    }
+  const wider = document.documentElement.scrollWidth - window.innerWidth
+  // Whether this is still a phone: the finger rules are `pointer: coarse`.
+  const coarse = matchMedia('(pointer: coarse)').matches
+  return {
+    target,
+    controls: controls.length,
+    wider,
+    small,
+    cut,
+    overlap,
+    coarse,
+  }
+}
+
+let server
+let browser
+let code = 2
+const lines = []
+try {
+  const require = createRequire(join(PLAYER, 'package.json'))
+  const { chromium } = require('playwright')
+  const port = await freePort()
+  server = spawn(
+    join(PLAYER, 'node_modules/.bin/vite'),
+    ['--host', '127.0.0.1', '--port', String(port), '--strictPort'],
+    { cwd: PLAYER, stdio: ['ignore', 'pipe', 'pipe'], detached: true }
+  )
+  let log = ''
+  server.stdout.on('data', c => (log += c))
+  server.stderr.on('data', c => (log += c))
+  const url = `http://127.0.0.1:${port}/harness/${name}.html`
+  const until = Date.now() + 120_000
+  for (;;) {
+    const ok = await fetch(url)
+      .then(r => r.ok)
+      .catch(() => false)
+    if (ok) break
+    if (Date.now() > until || server.exitCode !== null)
+      throw new Error(`dev server did not answer ${url}\n${log.slice(-1500)}`)
+    await new Promise(r => setTimeout(r, 500))
+  }
+
+  /* The container's Chromium, whatever revision this playwright expects. */
+  const exe = ['/opt/pw-browsers/chromium', chromium.executablePath()].find(p =>
+    existsSync(p)
+  )
+  browser = await chromium.launch({ executablePath: exe })
+  const context = await browser.newContext({
+    viewport: { width, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    locale: lang === 'ru' ? 'ru-RU' : 'en-US',
+  })
+  const page = await context.newPage()
+  const errors = []
+  page.on('pageerror', e => errors.push(String(e)))
+  await page.route('**/mcp', async route => {
+    const body = JSON.parse(route.request().postData() || '{}')
+    const tool = body?.params?.name
+    const args = body?.params?.arguments ?? {}
+    if (tool !== 'crm_story_reel')
+      return route.fulfill({
+        json: {
+          jsonrpc: '2.0',
+          id: body.id,
+          error: { message: `tri shot: no ${tool}` },
+        },
+      })
+    const result = answer(args)
+    return route.fulfill({
+      json: {
+        jsonrpc: '2.0',
+        id: body.id,
+        result: { content: [{ type: 'text', text: JSON.stringify(result) }] },
+      },
+    })
+  })
+  await page.goto(url, { waitUntil: 'domcontentloaded' })
+  await page.locator(h.root).waitFor({ timeout: 60_000 })
+
+  mkdirSync(out, { recursive: true })
+  let bad = 0
+  for (const s of h.states) {
+    await s.ready(page)
+    await page.waitForTimeout(150)
+    const m = await page.evaluate(measure, { root: h.root, scope: h.scope })
+    /*
+     * A DESKTOP MEASURED AND CALLED A PHONE. Measured 27.09.2026: after one
+     * `screenshot({ fullPage: true })` this Chromium answers
+     * `(pointer: coarse)` false for the rest of the page's life, and every
+     * later state was measured with the finger rules off -- the fix looked
+     * like it worked in one state and not in two. So: no fullPage (a
+     * viewport as tall as the page instead, which keeps the emulation), and
+     * a state measured without a coarse pointer is not measured at all.
+     */
+    if (!m.coarse)
+      throw new Error(
+        `${s.id}: the page no longer has a coarse pointer -- not a phone, not measured`
+      )
+    const file = join(out, `${name}-${s.id}-${width}-${lang}.png`)
+    const tall = await page.evaluate(
+      () => document.documentElement.scrollHeight
+    )
+    await page.setViewportSize({ width, height: Math.max(844, tall) })
+    await page.screenshot({ path: file })
+    await page.setViewportSize({ width, height: 844 })
+    const wrong =
+      (m.wider > 0 ? 1 : 0) + m.small.length + m.cut.length + m.overlap.length
+    bad += wrong
+    lines.push(
+      `${wrong ? 'RED  ' : 'ok   '}${s.id}: ${m.controls} controls, target ${m.target}px, ` +
+        `wider ${m.wider}px, small ${m.small.length}, cut ${m.cut.length}, overlap ${m.overlap.length} · ${file}`
+    )
+    for (const x of m.small) lines.push(`       small   ${x}`)
+    for (const x of m.cut) lines.push(`       cut     ${x}`)
+    for (const x of m.overlap) lines.push(`       overlap ${x}`)
+  }
+  if (errors.length) {
+    bad += errors.length
+    for (const e of errors) lines.push(`       error   ${e.slice(0, 200)}`)
+  }
+  code = bad ? 1 : 0
+} catch (e) {
+  lines.push(`could not measure: ${e instanceof Error ? e.message : e}`)
+  code = 2
+} finally {
+  await browser?.close().catch(() => {})
+  if (server?.pid) {
+    try {
+      process.kill(-server.pid, 'SIGTERM')
+    } catch {
+      /* already gone */
+    }
+  }
+}
+
+for (const l of lines) console.log(l)
+const verdict = code === 0 ? 'green' : code === 1 ? 'RED' : 'NOT MEASURED'
+console.log(`== shot ${verdict} -- ${name} at ${width}px (${lang})`)
+spawnSync('node', [
+  join(HERE, 'gate.mjs'),
+  'record',
+  `shot ${name} ${width}`,
+  code === 0 ? 'ok' : 'fail',
+  lines
+    .filter(l => !l.startsWith('       '))
+    .join(' | ')
+    .slice(0, 400),
+])
+process.exit(code)
