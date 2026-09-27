@@ -37,6 +37,19 @@ export function tasksIn(text: string): string[] {
   return out.slice(0, 3)
 }
 
+/**
+ * WHO RECEIVES HER TASK: the specialist the owner has chosen in this client's
+ * thread, or the plain assistant when none is. Her tasks used to go to the
+ * assistant always, so a task for the Blogger was done by someone else,
+ * without the specialist's brief (2026-09-27).
+ */
+export function taskTarget(
+  client: string,
+  agent?: string | null
+): { client: string; agent?: string } {
+  return agent ? { client, agent } : { client }
+}
+
 /** The answer with the markers taken out, for reading. */
 export function withoutTasks(text: string): string {
   return text

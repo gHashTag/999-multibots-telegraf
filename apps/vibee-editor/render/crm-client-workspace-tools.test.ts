@@ -132,6 +132,49 @@ describe('crm_client_plan', () => {
     expect(out.telegram_id).toBe('900000999')
   })
 
+  // crm-story-reel v9, REEL_TOOL_IN_PLAN_READ: one client's items all say
+  // template_id LeelaPlanReel, and the plan read said nothing of the route.
+  it('answers with the reel route beside the items, and only when there are items', async () => {
+    const withItems = {
+      query: async (sql: string) => {
+        if (/content_plan_goals WHERE/.test(sql))
+          return { rows: [{ id: 1, title: 'g', intent: null }] }
+        if (/FROM content_plan_items WHERE/.test(sql))
+          return {
+            rows: [
+              {
+                id: 5,
+                goal_id: 1,
+                title: 'D5, plan 72',
+                status: 'idea',
+                template_id: 'LeelaPlanReel',
+                updated_at: 't',
+              },
+            ],
+          }
+        return { rows: [] }
+      },
+    }
+    const tool = CRM_CLIENT_WORKSPACE_TOOLS.find(
+      t => t.name === 'crm_client_plan'
+    )!
+    const ctx = (pool: unknown) =>
+      ({ telegramId: OWNER, pool }) as unknown as ToolContext
+    const out = (await tool.handler(
+      { telegram_id: '900000999' },
+      ctx(withItems)
+    )) as any
+    expect(out.reel_route).toMatch(
+      /^.*crm_story_reel \{lead, start: true, topic/
+    )
+    expect(out.reel_route).toContain('LeelaPlanReel')
+    const empty = (await tool.handler(
+      { telegram_id: '900000999' },
+      ctx({ query: async () => ({ rows: [] }) })
+    )) as any
+    expect(empty.reel_route).toBeUndefined()
+  })
+
   /*
    * The correspondence path, exercised by somebody who is NOT the keeper --
    * the keeper is waved through before any of it runs, so only a plain seller
