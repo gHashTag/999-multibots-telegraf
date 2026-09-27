@@ -82,12 +82,21 @@ describe('who has gone quiet', () => {
 
 function poolWith(rows: Array<Record<string, unknown>>) {
   const deleted: string[] = []
-  const pool: Queryable & { deleted: string[] } = {
+  /* In order, so a test can say what was written BEFORE the row went. */
+  const order: string[] = []
+  const pool: Queryable & { deleted: string[]; order: string[] } = {
     deleted,
+    order,
     async query(sql, params = []) {
-      if (sql.trim().toUpperCase().startsWith('SELECT')) return { rows }
-      if (sql.trim().toUpperCase().startsWith('DELETE')) {
+      const head = sql.trim().toUpperCase()
+      if (head.startsWith('SELECT')) return { rows }
+      if (head.startsWith('DELETE')) {
         deleted.push(String(params[0]))
+        order.push(`delete:${params[0]}`)
+        return { rows: [] }
+      }
+      if (head.startsWith('INSERT INTO BROWSER_POD_TENANTS')) {
+        order.push(`tenant:${params[0]}=${params[1]}`)
         return { rows: [] }
       }
       return { rows: [] }
@@ -149,6 +158,29 @@ describe('one sweep', () => {
     expect(pool.deleted).toEqual([])
     expect(out.failed).toEqual(['s1'])
     expect(out.reaped).toEqual([])
+  })
+
+  it('REMEMBERS WHOSE BROWSER IT IS BEFORE THE ROW GOES', async () => {
+    /*
+     * `driver.stop` is a no-op on this platform: the row goes, the browser
+     * stays up with the person's accounts in it. Measured 2026-09-27 -- zero
+     * rows, nine pages, 192 cookies -- and every "which of my networks are
+     * connected?" answered "not connected". The tenant must be written while
+     * the knowledge still exists, which is here, one statement before the
+     * delete.
+     */
+    const pool = poolWith([dbRow({ cdp_endpoint: 'http://pod.internal:9223' })])
+    await sweepIdleSessions(pool, driverThat(async () => {}), NOW)
+    expect(pool.order).toEqual([
+      'tenant:pod.internal:9223=tg-900000001',
+      'delete:tg-900000001',
+    ])
+  })
+
+  it('reaps a session with no bridge without inventing a tenant', async () => {
+    const pool = poolWith([dbRow({ cdp_endpoint: null })])
+    await sweepIdleSessions(pool, driverThat(async () => {}), NOW)
+    expect(pool.order).toEqual(['delete:tg-900000001'])
   })
 
   it('touches nothing that is still in use', async () => {
