@@ -16,6 +16,7 @@ import {
   failedMoneyLine,
   jobKept,
   missingFor,
+  storyPriceEstimateNotes,
   storyPayer,
   storyPriceEstimate,
   type StorySettings,
@@ -32,6 +33,7 @@ import {
   stillResume,
 } from '../agent/story-reel-tool'
 import { lateRefundRef, LATE_WATCH_MS } from '../agent/late-picture'
+import { cutAt, voiceMode } from '../agent/story-voice-notes'
 import { cardButtons, storyTurn } from '../agent/story-card'
 import { TOKEN_PRICES } from '../agent/billing-shared'
 import { EDIT_MODEL } from '../agent/kie-edit-model'
@@ -364,7 +366,9 @@ describe("the spec's tests hold against the host", () => {
 
   it('what was seen live is kept apart from what is blocked', () => {
     expect(SPEC.LIVE_RUN_STATUS).toBe('delivered-2026-09-26')
-    expect(SPEC.VOICE_LEG_STATUS).toBe('blocked-402-2026-09-27')
+    expect(SPEC.VOICE_LEG_STATUS).toBe(
+      'clone-blocked-402-notes-on-kie-2026-09-27'
+    )
     // Blocked by money, not code: the voice is Replicate's, not Kie's.
     expect(SPEC.VOICE_PROVIDER).toBe('replicate')
     expect(SPEC.VOICE_ON_KIE).toBe(false)
@@ -415,6 +419,46 @@ describe("the spec's tests hold against the host", () => {
     expect(VOICE_CLONE_MODEL).toBe(SPEC.CLONE_MODEL)
     expect(SPEC.SENT_VOICE_NOTES_TRIED_FIRST).toBe(true)
     expect(SPEC.VOICE_HEALTH_FROM_REAL_CALLS).toBe(true)
+  })
+
+  it("with no clone, a seller's reel speaks her own voice notes on Kie, and nothing else does", async () => {
+    // voice_mode(has_clone, seller_asked); the job runs it in
+    // a-story-reel-for-any-client.test.ts ("a client with no clone").
+    expect(voiceMode(true, true)).toBe(SPEC.VOICE_CLONE)
+    expect(voiceMode(true, false)).toBe(SPEC.VOICE_CLONE)
+    expect(voiceMode(false, true)).toBe(SPEC.VOICE_NOTES)
+    expect(voiceMode(false, false)).toBe(SPEC.VOICE_NONE)
+    expect(SPEC.NOTES_NEED_REPLICATE).toBe(false)
+    expect(SPEC.NOTES_WORDS_ARE_HERS).toBe(true)
+    expect(SPEC.NOTES_FROM_SELLER_DM_ONLY).toBe(true)
+    expect(SPEC.NOTES_MAX_SEC + SPEC.PAUSE_SEC).toBe(SPEC.REEL_MAX_SEC)
+    // The seller's gate lets a no-clone client through; hers alone does not.
+    const noClone = {
+      faceUrl: 'https://ours/face.jpg',
+      hasVoice: false,
+    } as never
+    expect(missingFor(noClone, { notes: true })).toBe('')
+    expect(missingFor(noClone)).toMatch('голос') // cyrillic-ok: the answer under test
+  })
+
+  it('her notes are cut at a pause near the even cut, or at the even cut', () => {
+    // cut_at(even_ms, pause_ms)
+    const W = SPEC.NOTES_CUT_WINDOW_MS
+    expect(cutAt(4000, 4600)).toBe(4600)
+    expect(cutAt(4000, 3000)).toBe(3000)
+    expect(cutAt(4000, 4000 + W)).toBe(4000 + W)
+    expect(cutAt(4000, 4000 + W + 1)).toBe(4000)
+    expect(cutAt(4000, 1000)).toBe(4000)
+    expect(SPEC.NOTES_PART_MIN_MS).toBeLessThanOrEqual(W)
+  })
+
+  it('a reel in her own voice costs its stills, her seconds of lip-sync and the cut', () => {
+    // price_estimate_notes(scenes, seconds)
+    expect(storyPriceEstimateNotes(3, 12)).toBe(218)
+    expect(storyPriceEstimateNotes(3, SPEC.NOTES_MAX_SEC)).toBeLessThan(
+      SPEC.PRICE_ESTIMATE_TOKENS
+    )
+    expect(storyPriceEstimateNotes(1, 5)).toBe(90)
   })
 
   it('a job waiting only for a still is released for the sweep, not failed (v3)', () => {

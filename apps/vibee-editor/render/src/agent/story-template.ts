@@ -41,8 +41,10 @@
  * times in one afternoon, and every cut call was paid for twice.
  */
 import type { ToolContext } from './tools'
+import { voiceMode } from './story-voice-notes'
 import {
   endCardFromProfile,
+  pauseOf,
   scenesOf,
   stillTasksOf,
   type StillTask,
@@ -198,7 +200,8 @@ export async function storySettingsOf(
       [s.cta, profile?.approved_cta?.text, profile?.approved_cta]
         .find(v => typeof v === 'string' && v.trim())
         ?.trim() || STORY_DEFAULT_CTA,
-    pauseSec: Math.min(4, Math.max(1, Number(s.pause_sec) || 3)),
+    // The spec's pause_of: the same clamp the template renders with.
+    pauseSec: pauseOf(s.pause_sec),
     payer: s.payer === 'owner' ? 'owner' : 'client',
     done: Array.isArray(s.done) ? s.done.map(String) : [],
     about: [profile?.role, business?.product, business?.city]
@@ -211,14 +214,24 @@ export async function storySettingsOf(
 }
 
 /** What is missing, in words the seller can act on; '' when nothing is. */
-export function missingFor(s: StorySettings | null): string {
+export function missingFor(
+  s: StorySettings | null,
+  /**
+   * A reel the seller asks for may speak her own voice notes when she has no
+   * clone (spec v4, voice_mode): the voice is then found at run time, from
+   * the seller's chat with her, and is not a precondition here.
+   */
+  o: { notes?: boolean } = {}
+): string {
   if (!s)
     return 'рилсы-истории для тебя ещё не настроены — напиши владельцу бота'
   const lacks = [
     s.faceUrl
       ? ''
       : 'фото с лицом (crm_client_face: аватарка или присланное фото)',
-    s.hasVoice ? '' : 'голос (crm_voice_clone из её голосовых в личке)',
+    voiceMode(s.hasVoice, o.notes === true) !== SPEC.VOICE_NONE
+      ? ''
+      : 'голос (crm_voice_clone из её голосовых в личке)',
   ].filter(Boolean)
   return lacks.length ? `для рилса не хватает: ${lacks.join(' и ')}` : ''
 }
@@ -299,6 +312,21 @@ export function storyPriceEstimate(): number {
     STORY_SCENES * (TOKEN_PRICES.image_edit ?? 0) +
     STORY_SCENES * (TOKEN_PRICES.audio_generate ?? 0) +
     STORY_BILLED_SECONDS * (TOKEN_PRICES.lipsync_generate ?? 0) +
+    (TOKEN_PRICES.reel_render ?? 0)
+  )
+}
+
+/**
+ * The estimate of a reel in her own voice notes (spec: price_estimate_notes):
+ * no clone and no synthesis -- her seconds of lip-sync, up to NOTES_MAX_SEC.
+ */
+export function storyPriceEstimateNotes(
+  scenes = STORY_SCENES,
+  seconds = SPEC.NOTES_MAX_SEC
+): number {
+  return (
+    scenes * (TOKEN_PRICES.image_edit ?? 0) +
+    seconds * (TOKEN_PRICES.lipsync_generate ?? 0) +
     (TOKEN_PRICES.reel_render ?? 0)
   )
 }
@@ -446,6 +474,15 @@ export interface StoryDeps {
   /** Who this process is, as a runner; a test names two. */
   me?: string
   /**
+   * Her own voice, one recorded piece per scene, from the seller's chat with
+   * her (story-voice-notes.ts); absent: a reel with no clone cannot speak.
+   */
+  voiceNotes?: (
+    seller: string,
+    lead: string,
+    parts: number
+  ) => Promise<{ urls: string[]; seconds: number } | { why: string }>
+  /**
    * Give back, once per task, the charge of a still that was ordered and
    * never came (tools.ts refundLateImage); absent: nothing is given back
    * here and image_edit's own watch is the only path.
@@ -550,7 +587,7 @@ export async function startStory(
     lead,
     byClient ? undefined : requester
   )
-  const missing = missingFor(s)
+  const missing = missingFor(s, { notes: !byClient })
   if (!s || missing) return { started: false, why: missing }
 
   const asked = String(who.topic ?? '')
@@ -675,7 +712,7 @@ async function runHeld(
   }
 
   const s = await storySettingsOf(pool, lead, seller)
-  const missing = missingFor(s)
+  const missing = missingFor(s, { notes: !byClient })
   if (!s || missing) return fail(missing)
 
   let scenes: StoryScene[] | null = job.scenes ? parse(job.scenes) : null
@@ -741,6 +778,25 @@ async function runHeld(
       )
     },
   }
+  /*
+   * WHICH VOICE (spec v4, voice_mode). Her clone speaks new lines when she
+   * has one. Without it, a reel the seller asked for speaks her OWN voice
+   * notes from the seller's chat with her -- cut at their pauses, one piece
+   * per scene, lip-synced on Kie: no clone, no Replicate, and no words put in
+   * her mouth. Fetched before any still is drawn, so a reel with no voice
+   * costs nothing; skipped once every scene has its clip.
+   */
+  const mode = voiceMode(s.hasVoice, !byClient)
+  const allClips = list(job.clips).filter(Boolean).length >= scenes.length
+  if (mode === SPEC.VOICE_NOTES && !allClips) {
+    const got = deps.voiceNotes
+      ? await deps
+          .voiceNotes(seller, lead, scenes.length)
+          .catch(e => ({ why: String((e as Error)?.message ?? e) }))
+      : { why: 'голосовые на этом сервере не читаются' }
+    if ('why' in got) return fail(got.why)
+    ctx.storyVoices = got.urls
+  }
   const ans = await deps
     .story(
       {
@@ -748,7 +804,7 @@ async function runHeld(
         scenes,
         // The seller's own look and call, when the job carries them.
         style: String(job.style ?? '').trim() || s.style,
-        for_lead: lead,
+        ...(mode === SPEC.VOICE_CLONE ? { for_lead: lead } : {}),
         cta: String(job.cta ?? '').trim() || s.cta,
         pause_sec: s.pauseSec,
         ...(s.endCard ? { end_card: s.endCard } : {}),

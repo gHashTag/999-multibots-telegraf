@@ -498,24 +498,33 @@ export function makeStoryReelTool(
         }
       }
 
-      // 2 + 3. A voice and a lip-sync per scene that has no clip yet.
+      // 2 + 3. A voice and a lip-sync per scene that has no clip yet. Her
+      // own recorded piece, when the job brought one (spec v4: no clone,
+      // her words), is spoken as it is -- nothing is synthesised.
       const seconds: number[] = Array(n).fill(0)
       let voiceKind = ''
       const failed: string[] = []
+      const recorded = (ctx.storyVoices ?? []).map(u =>
+        /^https?:\/\//.test(String(u ?? '')) ? String(u) : ''
+      )
       await Promise.all(
         scenes.map(async (s, i) => {
           if (clips[i]) return
-          const v = outcome(
-            await speak
-              .handler(
-                {
-                  text: s.line,
-                  ...(args.for_lead ? { for_lead: String(args.for_lead) } : {}),
-                },
-                ctx
+          const v = recorded[i]
+            ? outcome({ done: true, url: recorded[i], голос: 'её голосовое' }) // cyrillic-ok: audio_generate's own answer keys
+            : outcome(
+                await speak
+                  .handler(
+                    {
+                      text: s.line,
+                      ...(args.for_lead
+                        ? { for_lead: String(args.for_lead) }
+                        : {}),
+                    },
+                    ctx
+                  )
+                  .catch(e => ({ сделано: false, причина: String(e) })) // cyrillic-ok: audio_generate's own answer keys
               )
-              .catch(e => ({ сделано: false, причина: String(e) })) // cyrillic-ok: audio_generate's own answer keys
-          )
           if (!v.ok || !v.url) {
             failed.push(`голос ${i + 1}: ${v.why}`)
             return
