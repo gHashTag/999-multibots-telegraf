@@ -3,6 +3,8 @@ import {
   DOORS,
   PLAYBOOK,
   RULES,
+  THROUGH_GOOGLE,
+  WALLED,
   lessonsFor,
   networkNamed,
   playbookFor,
@@ -81,6 +83,31 @@ describe('the doors', () => {
     expect(networkNamed(' x ')?.id).toBe('x')
     expect(networkNamed('github.com')?.id).toBe('github')
     expect(networkNamed('myspace')).toBeUndefined()
+  })
+
+  it('NAMES A GOOGLE DOOR ONLY WHERE ONE WAS SEEN', () => {
+    /*
+     * These two lists are the only claims in this file that are about the wider
+     * internet rather than about our own code, so they are the two that rot. A
+     * name here means somebody opened the page on the pod and read the button.
+     */
+    for (const id of THROUGH_GOOGLE) expect(DOORS[id], id).toBeTruthy()
+    expect([...THROUGH_GOOGLE]).toContain('habr')
+  })
+
+  it('A WALL IS A DOOR WE DO NOT KNOCK ON, and it says why in words', () => {
+    /*
+     * The point is the reason, not the list: a bare set of ids invites the next
+     * reader to "just retry harder" at exactly the place where retrying harder
+     * is the thing this project refuses to build.
+     */
+    expect(Object.keys(WALLED).length).toBeGreaterThan(0)
+    for (const [id, why] of Object.entries(WALLED)) {
+      expect(DOORS[id], id).toBeTruthy()
+      expect(why.length, id).toBeGreaterThan(20)
+      expect(why, id).toMatch(/instead|import/)
+      expect([...THROUGH_GOOGLE], id).not.toContain(id)
+    }
   })
 })
 

@@ -12934,6 +12934,36 @@ async function main() {
     })()
   }, 5 * 60_000).unref?.()
 
+  /*
+   * SINCE WHEN (src/browser/watch.ts). The pod answered /json/version perfectly
+   * while Runtime.evaluate timed out, from 2026-09-24 to 26, and afterwards
+   * nobody could say when it had started: every probe printed a line and forgot
+   * it. This keeps one row -- ok, since when, how many failures, which boot --
+   * so the question is one read instead of an archaeology dig.
+   *
+   * It only records. Restarting stays in the round (rounds-wiring.ts), because
+   * two clocks restarting the same pod would fight, and a restart that lands
+   * while the person is typing is worse than a wedge they can see.
+   *
+   * Five minutes, like the sweep above: one Runtime.evaluate and one
+   * /json/version per pass. The interval is deliberately short of the deploy
+   * window -- anything slower than ~45 minutes never fires here at all, because
+   * Railway swaps the process long before (see the September deploy storm).
+   */
+  setInterval(() => {
+    void (async () => {
+      const { runWatch, describeWatch } = await import('./src/browser/watch')
+      const state = await runWatch(
+        (await getPool()) as any,
+        process.env.BROWSER_POD_CDP,
+        Date.now()
+      )
+      /* Silence while it is well; a change or a failure is worth a line. */
+      if (state && (!state.ok || state.at === state.since))
+        console.log(`👁 [browser:watch] ${describeWatch(state, Date.now())}`)
+    })()
+  }, 5 * 60_000).unref?.()
+
   server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`🚀 Remotion render server running on 0.0.0.0:${PORT}`)
     console.log(

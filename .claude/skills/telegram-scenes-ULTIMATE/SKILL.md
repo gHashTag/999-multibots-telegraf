@@ -1420,3 +1420,5 @@ Before submitting scene code, verify:
 **IF YOU FOLLOW THIS GUIDE, YOU WILL NEVER MAKE SCENE ERRORS AGAIN.**
 
 This is the ULTIMATE, COMPLETE, ZERO-ERROR REFERENCE extracted from **67 production files**.
+
+- **27.09.2026.** Комментарий внутри template literal не безобиден: обратная кавычка в тексте комментария закрывает строку, и TypeScript начинает разбирать JS-код скрипта как TypeScript (ошибки «',' expected» на строке комментария). В BOOT_SCRIPT/BRAND_CSS писать location, а не `location`.

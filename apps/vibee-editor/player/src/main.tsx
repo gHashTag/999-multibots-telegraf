@@ -18,6 +18,7 @@ import { startAppSessionHealing } from './lib/appSession'
 import { IS_EMBED, announceStorageBlocked } from './lib/embed'
 import { applyShell, shellOf } from './lib/shell'
 import { isTelegram } from './lib/telegram'
+import { survivesStorageReset } from '@/lib/storageReset'
 
 // Initialize Sentry error tracking
 initSentry()
@@ -47,6 +48,7 @@ if (import.meta.env.DEV) {
 // Bump this value whenever production defaults are updated
 // ===============================
 const STORAGE_VERSION = '4'
+
 const VERSION_KEY = 'vibee-storage-version'
 
 /**
@@ -68,31 +70,12 @@ const storedVersion = localStorageOrNull()
   : STORAGE_VERSION
 if (storedVersion !== STORAGE_VERSION) {
   // Clear all VIBEE storage keys so new defaults take effect
-  /**
-   * ЧТО ПЕРЕЖИВАЕТ СБРОС.
-   *
-   * Сброс задуман для УМОЛЧАНИЙ редактора: поднимаем версию — новые значения
-   * вступают в силу. Но подметал он всё подряд по префиксу «vibee-», включая
-   * переписку человека с агентом и его недописанное сообщение. Это не
-   * настройка: туда пишут задание — «сделай рилс про то-то, вот таким
-   * голосом». Терять его при обновлении приложения нельзя, а владелец
-   * сообщил ровно об этом: «история чата после перезагрузки».
-   *
-   * Список именно положительный: всё новое по умолчанию сбрасывается, как и
-   * раньше, а уцелеть должно только то, что человек написал сам.
-   */
-  const KEEP = new Set([
-    'vibee-agent-chat',
-    'vibee-agent-chat-draft',
-    'vibee-last-route',
-    'vibee-soul',
-  ])
   const keysToRemove: string[] = []
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
     if (
       key &&
-      !KEEP.has(key) &&
+      !survivesStorageReset(key) &&
       (key.startsWith('vibee-') ||
         key.startsWith('@vibee/') ||
         key.startsWith('editor:'))
