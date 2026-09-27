@@ -84,6 +84,25 @@ export function unbackedClaims(
     .map(c => c.tools[0])
 }
 
+/**
+ * What the server log says about a flagged turn. Loop turn 6 (27.09.2026):
+ * the log line carried `toolCalls: 0` written as a constant, and a turn with
+ * seven calls (browser_ask_permission among them) was logged as having none
+ * -- a flag nobody could tell from a false positive. The log now names the
+ * claimed actions no call backed, and the browser calls the turn really made.
+ * No words of the answer: they are the person's conversation. Pure.
+ */
+export function honestyLogFields(
+  text: string,
+  events: Array<Record<string, unknown>>
+): { unbacked: string[]; browserCalls: number; toolCalls: number } {
+  return {
+    unbacked: unbackedClaims(text, events),
+    browserCalls: browserCalls(events),
+    toolCalls: calledTools(events).length,
+  }
+}
+
 export const HONESTY_NOTE =
   '\n\n⚠️ Проверка: в этом ответе агент описал действия в браузере, но не ' + // cyrillic-ok: shown to the person
   'выполнил их — часть описанного не происходила. Попросите его ' + // cyrillic-ok

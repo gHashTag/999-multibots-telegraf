@@ -3,9 +3,12 @@
  * tool calls. The real text of that answer is the positive case here.
  */
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   claimsBrowserWork,
   browserCalls,
+  honestyLogFields,
   honestyNote,
   HONESTY_NOTE,
 } from './src/agent/claimed-but-not-done'
@@ -64,5 +67,37 @@ describe('each claim needs its own tool (the second invented session)', () => {
       'browser_status',
     ].map(tool)
     expect(honestyNote(SECOND, all)).toBe('')
+  })
+})
+
+/*
+ * Loop turn 6 (27.09.2026): the server log said `toolCalls: 0` for a turn
+ * that had made seven calls -- the zero was a constant. A flag has to say
+ * WHAT was claimed without its tool, or nobody can tell it from a false
+ * positive.
+ */
+describe('the honesty log says what was unbacked and what really ran', () => {
+  it('names the unbacked claim and counts the calls the turn made', () => {
+    const events = [
+      tool('browser_ask_permission'),
+      tool('browser_status'),
+      tool('crm_client_card'),
+    ]
+    expect(honestyLogFields(INVENTED, events)).toEqual({
+      unbacked: ['browser_open', 'browser_screenshot'],
+      browserCalls: 2,
+      toolCalls: 3,
+    })
+  })
+
+  it('the route logs those fields, not a constant', () => {
+    const src = readFileSync(
+      join(__dirname, 'src', 'agent', 'routes.ts'),
+      'utf8'
+    )
+    const line = src.slice(src.indexOf("'[agent:honesty] '"))
+    expect(line.slice(0, 400)).toContain('...fields')
+    expect(src).toContain('const fields = honestyLogFields(said, done)')
+    expect(line.slice(0, 400)).not.toMatch(/toolCalls:\s*0/)
   })
 })
