@@ -392,3 +392,5 @@ Threads joined X, LinkedIn and r/t27ai through its own web intent
 (`threads.net/intent/post?text=`, fills the composer, never posts by
 itself). Instagram is NOT there: it needs a photo/video uploaded through its
 web composer (file input via CDP), a separate piece of work.
+
+- **27.09.2026.** Под, на котором никто не записан, — корень трёх разных баг-репортов. На Railway под это заранее поднятый сервис, stop() у fixedDriver ничего не останавливает, жнец удаляет строку browser_sessions через 10 минут тишины — и браузер живёт с логинами, а в базе его никто не называет. Измерено 27.09.2026: 0 строк в таблице, 9 страниц и 192 куки в поде. Отсюда и 'ни одна сеть не подключена' (loginsOfPerson требует state=live), и слепой уборщик вкладок, и вера в HTTP 200 как в признак живости. Любой обход browser_sessions надо дополнять адресом BROWSER_POD_CDP (в коде — UNCLAIMED). Смотреть числом: tri tabs.
