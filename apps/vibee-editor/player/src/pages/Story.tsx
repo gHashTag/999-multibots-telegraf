@@ -104,6 +104,15 @@ export default function StoryPage() {
                   {t('story.next', { topic: s.nextTopic })}
                 </p>
               ) : null}
+              {/* The price (or that it is a gift) ABOVE the button: read
+                  before the press, not after it (spec v16). */}
+              <p className="crm__counts" data-testid="story-price">
+                {s.gift
+                  ? t('story.gift')
+                  : s.priceTokens != null
+                    ? t('story.price', { n: s.priceTokens })
+                    : null}
+              </p>
               <div className="crm-client__duet-start">
                 <input
                   type="text"
@@ -123,13 +132,6 @@ export default function StoryPage() {
                   {busy ? t('story.making') : t('story.make')}
                 </button>
               </div>
-              <p className="crm__counts">
-                {s.gift
-                  ? t('story.gift')
-                  : s.priceTokens != null
-                    ? t('story.price', { n: s.priceTokens })
-                    : null}
-              </p>
             </>
           ) : null}
           {result ? (
@@ -160,7 +162,12 @@ export default function StoryPage() {
                     </span>
                   </div>
                   {j.url ? (
-                    <a href={j.url} target="_blank" rel="noreferrer">
+                    <a
+                      href={j.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="crm-client__watch"
+                    >
                       {t('crm.client.story.watch')}
                     </a>
                   ) : j.status === 'failed' && j.error ? (

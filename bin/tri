@@ -96,6 +96,7 @@ tri — оболочка Trinity S³AI
   tri full-run [render|player|both]             полный прогон с путём, где он шёл (RUN), итогами и падениями; красно, если путь не тот
   tri busy < логи                               идёт ли в рендере задача рилса или ход агента (пары started/ended); код 1 — сливать рано
   tri gate                                      таблица локальных ворот для PR из того, что реально прогнано на ЭТОМ дереве; иное — stale
+  tri gate forget <имя> [почему]                снять с учёта проверку, которую больше не запустят под этим именем (переименована) — иначе она вечно stale
   tri image-gate                                ворота образа плеера как при деплое (tsc + scripts/test-gate.mjs); запись в tri gate
   tri tail [N] -- <команда>                     последние N строк И код САМОЙ команды (не tail); одна строка в кавычках — bash с pipefail; весь вывод — .git/tri-tail.log
   tri main-drift [база] [--no-fetch]            main сдвинулся, пока шли ворота: задел ли он рендер/плеер/пакеты/lock-файлы (код 1 — прогнать ворота снова после слияния)
@@ -2015,7 +2016,9 @@ PYEOF
   stale-route) shift; node "$ROOT/bin/helpers/stale-route.mjs" "$@" ;;
   full-run) shift; node "$ROOT/bin/helpers/full-run.mjs" "$@" ;;
   busy) shift; node "$ROOT/bin/helpers/busy.mjs" "$@" ;;
-  gate) shift; node "$ROOT/bin/helpers/gate.mjs" show "$@" ;;
+  gate) shift
+    if [ "${1:-}" = forget ]; then node "$ROOT/bin/helpers/gate.mjs" "$@"
+    else node "$ROOT/bin/helpers/gate.mjs" show "$@"; fi ;;
   image-gate) shift; node "$ROOT/bin/helpers/image-gate.mjs" "$@" ;;
   tail) shift; node "$ROOT/bin/helpers/tail.mjs" "$@" ;;
   spec-check) shift; node "$ROOT/bin/helpers/spec-check.mjs" "$@" ;;

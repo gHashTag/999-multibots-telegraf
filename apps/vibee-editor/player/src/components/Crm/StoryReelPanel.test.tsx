@@ -124,6 +124,35 @@ describe('the story-reel panel', () => {
     )
   })
 
+  /*
+   * v16: the seller's own press is paid from the seller's balance -- the
+   * answer carried its price and the card showed none.
+   */
+  it("names the seller's price above the start button (v16)", async () => {
+    serve(() => ({ ...READY, price_tokens: 218 }))
+    await draw()
+    const price = host.querySelector('[data-testid="story-reel-price"]')
+    expect(price?.textContent).toBe('crm.client.story.price:218')
+    const press = host.querySelector('.crm-client__duet-go')!
+    expect(
+      Boolean(
+        price!.compareDocumentPosition(press) & Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true)
+  })
+
+  it('"watch" is a finger-sized link (tri shot: it was 17 px)', async () => {
+    serve(() => READY)
+    await draw()
+    expect(host.querySelector('a')?.className).toBe('crm-client__watch')
+  })
+
+  it('names no price when the answer carries none', async () => {
+    serve(() => READY)
+    await draw()
+    expect(host.querySelector('[data-testid="story-reel-price"]')).toBeNull()
+  })
+
   it('names what is missing and offers no button', async () => {
     serve(() => ({
       ready: false,

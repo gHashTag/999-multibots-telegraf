@@ -196,12 +196,22 @@
   },
   {
     "name": "VERSION lags the header again",
-    "from": "pub const VERSION : u8 = 15;",
-    "to": "pub const VERSION : u8 = 11;"
+    "from": "pub const VERSION : u8 = 16;",
+    "to": "pub const VERSION : u8 = 15;"
   },
   {
     "name": "two reasons on the card allowed",
     "from": "pub const PANEL_ONE_REASON_AT_A_TIME : bool = true;",
     "to": "pub const PANEL_ONE_REASON_AT_A_TIME : bool = false;"
+  },
+  {
+    "name": "the price below the button again",
+    "from": "pub const PRICE_BEFORE_PRESS : bool = true;",
+    "to": "pub const PRICE_BEFORE_PRESS : bool = false;"
+  },
+  {
+    "name": "the seller presses a paid button blind",
+    "from": "pub const SELLER_SEES_PRICE : bool = true;",
+    "to": "pub const SELLER_SEES_PRICE : bool = false;"
   }
 ]
