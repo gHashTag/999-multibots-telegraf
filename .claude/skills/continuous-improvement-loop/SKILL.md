@@ -1457,3 +1457,44 @@ answers: true`, 9/12 tabs.
   description budget, not just an edit). A `tri saw` that reads real error moments
   can only be exercised once the agent has actually erred against the live pod —
   worth checking next tick whether the deploy carried it and the view is non-empty.
+
+- **28.09.2026 (logins tick — "which networks am I signed into, asked read-only").**
+  Pivoted OFF the queued `browser_status` after reading the tree, not the queue
+  text: the higher-value gap was that learning per-network sign-in state required
+  a **write** — you imported cookies and read the `signedIn` the import echoed
+  back, or called the agent tool. Observing state should never mean mutating it.
+  Added a read-only `GET /api/browser/logins` over the existing
+  `loginsOfPerson(q, telegramId)` (already the source of truth in `logins.ts`, no
+  new query, no schema change) + a new **`tri logins`** (✓/⌛/·/? per network,
+  "N/M signed in"; exit 0 ≥1 live login, 2 none/no browser, 3 render silent).
+  PR #3163; `14e99d606` on the branch → merged squash **`b315d066d`**; 4 route
+  tests + 51 sibling browser-route tests = 55/55 green, render-types 0 on my files,
+  all pre-push gates green (86/86 mock-functions, related-tests 0 failing).
+
+  The `null`-is-a-third-outcome rule, now a **FOURTH** surface (tabs `answers`,
+  cookie `signedIn`, `saw`, and here): `loginsOfPerson` returns `null` when there
+  is no live session AND no unclaimed pod. The route maps that to
+  `{ ok: true, running: false }` with **no `networks` key** — never an empty
+  signed-out list. "Nobody was asked" is not "signed out of everything." Pinned by
+  a test asserting `'networks' in body === false` on the null path, and by a second
+  test asserting the wire body never matches `/value|cookie|auth_token/i` — only
+  network id/name/state cross, never a cookie value.
+
+  **Self-criticism.** (1) `tri logins` smoke-tested against prod BEFORE this
+  deploy returned HTTP 404 → exit 3 (route absent), degrading in the SAFE
+  direction (silence, not a false "signed out") — the opposite of last tick's
+  `saw` unsafe-omission, because here absence is a transport 404, not a field the
+  old server silently drops. Closes when `b315d066d` deploys. (2) I did NOT build
+  sign-in completion for the absent networks (instagram/threads/facebook/vk/github)
+  — that needs the owner to type a password (their keyboard, never mine) or a
+  Google-door + mailed code, so it is not a solo-tick deliverable; `tri logins`
+  now makes the gap _visible_, which is the honest first step. (3) `browser_status`
+  deferred a FOURTH time — same reason: its descriptions are pinned by the
+  compact-kit token ratchet, needs a description budget not an edit.
+
+  Next tick: read this journal, append, do not restart. Queue now: verify
+  `tri logins` answers live prod post-`b315d066d` and read real per-network state;
+  a **player screen** for `saw` and/or `logins` if the owner wants it in-app (both
+  routes already return the data — UI-only); sign-in completion for the absent
+  networks (owner types password / Google-door + mailed code); still-open
+  `browser_status` `running`-shaped claim.
