@@ -45,26 +45,31 @@ vi.mock('../../../config', () => ({
 // значения, поэтому поток обрывался сразу после запроса и до списания
 // средств не доходил.
 vi.mock('../../../services/video-providers/KieAiProvider', () => ({
-  KieAiProvider: vi.fn().mockImplementation(() => ({
-    generateVideo: vi.fn(() =>
-      // Ответ провайдера обёрнут: код читает kieResponse.data.taskId /
-      // .videoUrl и падает с «Kie.ai API returned no data», если data нет.
-      Promise.resolve({
-        success: true,
-        data: {
-          taskId: 'test-task-id',
+  // Regular function, not an arrow: code does `new KieAiProvider(...)`, and
+  // vitest 5 constructs the mock implementation with Reflect.construct, which
+  // throws on an arrow ("is not a constructor").
+  KieAiProvider: vi.fn().mockImplementation(function () {
+    return {
+      generateVideo: vi.fn(() =>
+        // Ответ провайдера обёрнут: код читает kieResponse.data.taskId /
+        // .videoUrl и падает с «Kie.ai API returned no data», если data нет.
+        Promise.resolve({
+          success: true,
+          data: {
+            taskId: 'test-task-id',
+            videoUrl: 'https://example.com/generated-video.mp4',
+          },
+        })
+      ),
+      checkVideoStatus: vi.fn(() =>
+        Promise.resolve({
+          success: true,
+          status: 'completed',
           videoUrl: 'https://example.com/generated-video.mp4',
-        },
-      })
-    ),
-    checkVideoStatus: vi.fn(() =>
-      Promise.resolve({
-        success: true,
-        status: 'completed',
-        videoUrl: 'https://example.com/generated-video.mp4',
-      })
-    ),
-  })),
+        })
+      ),
+    }
+  }),
 }))
 
 vi.mock('axios', () => ({
