@@ -25,6 +25,8 @@ import {
   sweepStoryJobs,
   writerMessages,
   STORY_DEAD_MS,
+  STORY_JOB_ATTEMPTS,
+  failedMoneyLine,
   STORY_DEFAULT_CTA,
   STORY_DEFAULT_STYLE,
   type StoryDeps,
@@ -343,9 +345,30 @@ function fakeBase() {
     ) {
       return { rows: [] } // nothing here is two hours old
     }
+    if (
+      q.startsWith(
+        "UPDATE story_jobs SET status = 'failed', error = 'exhausted'"
+      )
+    ) {
+      const out = db.jobs.filter(
+        j =>
+          j.status === 'running' &&
+          j.attempts >= Number(p[1]) &&
+          clock - j.updated > Number(p[0])
+      )
+      out.forEach(j => ((j.status = 'failed'), (j.error = 'exhausted')))
+      return { rows: out.map(j => ({ ...j })) }
+    }
     if (q.startsWith('UPDATE story_jobs SET runner = $1')) {
       const dead = db.jobs
-        .filter(j => j.status === 'running' && clock - j.updated > Number(p[1]))
+        .filter(
+          j =>
+            j.status === 'running' &&
+            // Only when the statement itself says so: the fake must not
+            // supply a rule the SQL forgot.
+            (!q.includes('attempts < $4') || j.attempts < Number(p[3])) &&
+            clock - j.updated > Number(p[1])
+        )
         .slice(0, 5)
       dead.forEach(j => ((j.runner = p[0]), (j.updated = clock)))
       return { rows: dead.map(j => ({ id: j.id })) }
@@ -1344,5 +1367,94 @@ describe('the gift to her DM goes through the same pipeline', () => {
       dm: true,
       groupTitle: null,
     })
+  })
+})
+
+/*
+ * A JOB THAT KEEPS DYING IS GIVEN UP, AND SAID SO; A FAILURE TELLS THE TRUTH
+ * ABOUT MONEY. Before: the sweep claimed a job that killed its process
+ * forever (each claim refreshed its clock), an abandoned job kept its plan
+ * card and told nobody, and every failure said "nothing was charged" even
+ * after stills and clips had been paid for.
+ */
+describe('a job that keeps dying, and the money line of a failure', () => {
+  it('after its last attempt the sweep gives it up, returns the plan card and tells the seller', async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.plan.push({
+      id: 81,
+      goal_id: 1,
+      telegram_id: LENA,
+      title: 'Ваза',
+      note: '',
+      status: 'idea',
+    })
+    // The runner "dies" mid-reel every time: it never answers.
+    const story: StoryDeps['story'] = () => new Promise(() => undefined)
+    const { deps, said } = depsOn(base, story, 'runner-a')
+    await startStory(deps, { lead: LENA, requester: SELLER, seller: SELLER })
+    await drain()
+    const job = base.db.jobs[0]
+    job.stills = JSON.stringify(['https://s/1', 'https://s/2', ''])
+    expect(job.attempts).toBe(1)
+    // Two more deaths: each sweep claims it again, one attempt more each time.
+    for (let i = 0; i < STORY_JOB_ATTEMPTS - 1; i++) {
+      base.tick(STORY_DEAD_MS + 1)
+      expect(await sweepStoryJobs(deps)).toBe(1)
+      await drain()
+    }
+    expect(job.attempts).toBe(STORY_JOB_ATTEMPTS)
+    // Dead again after the last attempt: not claimed, given up.
+    base.tick(STORY_DEAD_MS + 1)
+    expect(await sweepStoryJobs(deps)).toBe(0)
+    await drain()
+    expect(job).toMatchObject({ status: 'failed', error: 'exhausted' })
+    expect(base.db.plan[0].status).toBe('idea')
+    const told = said.find(x => x.text.includes('прерывалась'))
+    expect(told?.chat).toBe(SELLER)
+    expect(told?.text).toMatch('кадров: 2')
+    expect(told?.text).toMatch('уже оплачены')
+  })
+
+  it('a failure with nothing made says nothing was charged; with parts made, names them', () => {
+    expect(failedMoneyLine({ stills: 0, clips: 0 })).toBe(
+      'За несделанное токены не списаны.'
+    )
+    const some = failedMoneyLine({ stills: 3, clips: 1 })
+    expect(some).toMatch('кадров: 3')
+    expect(some).toMatch('клипов: 1')
+    expect(some).toMatch('уже оплачены')
+  })
+
+  it('the final failure of a reel counts the parts it made', async () => {
+    const base = fakeBase()
+    qualify(base)
+    // The first runner never answers; its row is then handed to a second one.
+    const hang = depsOn(base, () => new Promise(() => undefined), 'runner-a')
+    await startStory(hang.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    const job = base.db.jobs[0]
+    // The row as the sweep leaves it before the LAST attempt.
+    Object.assign(job, { attempts: STORY_JOB_ATTEMPTS - 1, runner: 'runner-b' })
+    const last = depsOn(
+      base,
+      async () => ({
+        done: false,
+        reason: 'сборка: ошибка',
+        stills: ['https://s/1', 'https://s/2', 'https://s/3'],
+        clips: ['https://c/1', '', ''],
+      }),
+      'runner-b'
+    )
+    await runStoryJob(last.deps, job.id)
+    expect(job.status).toBe('failed')
+    const told = last.said[last.said.length - 1]
+    expect(told.text).toMatch('кадров: 3')
+    expect(told.text).toMatch('клипов: 1')
   })
 })

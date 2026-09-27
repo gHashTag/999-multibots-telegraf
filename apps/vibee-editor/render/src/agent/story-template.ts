@@ -648,30 +648,15 @@ async function runHeld(
   const bot = job.bot ? String(job.bot) : null
   let topic = String(job.topic ?? '')
 
-  const fail = async (why: string) => {
+  const fail = async (
+    why: string,
+    made?: { stills?: unknown; clips?: unknown }
+  ) => {
     await pool.query(
       `UPDATE story_jobs SET status = 'failed', error = $2, updated_at = now() WHERE id = $1`,
       [id, why.slice(0, 500)]
     )
-    // The card goes back to the plan: a failed reel is not a made one.
-    if (job.item_id)
-      await pool
-        .query(
-          `UPDATE content_plan_items SET status = 'idea', updated_at = now()
-            WHERE id = $1 AND status = 'doing'`,
-          [job.item_id]
-        )
-        .catch(() => undefined)
-    await deps.notify(
-      byClient ? bot : null,
-      requester,
-      `Рилс${topic ? ` «${topic}»` : ''} не получился: ${why.slice(0, 200)}. ` +
-        'За несделанное токены не списаны.' +
-        (byClient ? ' Попробуй ещё раз кнопкой.' : ''),
-      byClient
-        ? { button: { text: '🎬 Попробовать ещё', url: nextLink(bot) } }
-        : undefined
-    )
+    await closeFailed(deps, { ...job, topic, ...(made ?? {}) }, why)
   }
 
   const s = await storySettingsOf(pool, lead, seller)
@@ -801,7 +786,10 @@ async function runHeld(
     )
     return
   }
-  return fail(String(ans?.reason ?? 'рилс не собрался'))
+  return fail(String(ans?.reason ?? 'рилс не собрался'), {
+    stills: JSON.stringify(stills),
+    clips: JSON.stringify(clips),
+  })
 }
 
 /**
@@ -922,6 +910,69 @@ export async function offerWaitingCards(deps: StoryDeps): Promise<number> {
   return shown
 }
 
+/** How many stills and clips a job holds: each was made and paid for. */
+function madeParts(job: any): { stills: number; clips: number } {
+  const n = (v: unknown) => list(v).filter(Boolean).length
+  return { stills: n(job.stills), clips: n(job.clips) }
+}
+
+/**
+ * THE TRUTH ABOUT MONEY WHEN A REEL FAILS. "Nothing was charged" was said
+ * for every failure, but each still and clip is charged the moment it is
+ * made, and a failure after them keeps them (they are in the job, and a new
+ * reel on the same job would reuse them). The words say which is which.
+ */
+export function failedMoneyLine(made: {
+  stills: number
+  clips: number
+}): string {
+  if (!made.stills && !made.clips) return 'За несделанное токены не списаны.'
+  const parts = [
+    made.stills ? `кадров: ${made.stills}` : '',
+    made.clips ? `клипов: ${made.clips}` : '',
+  ].filter(Boolean)
+  return (
+    `Готовые части (${parts.join(', ')}) уже оплачены и сохранены; ` +
+    'за несделанное токены не списаны.'
+  )
+}
+
+/**
+ * A job that ended without a reel: its plan card goes back to the plan (a
+ * failed reel is not a made one), and whoever asked is told why, with the
+ * honest money line and, for the client's own press, the button to retry.
+ */
+async function closeFailed(
+  deps: StoryDeps,
+  job: any,
+  why: string
+): Promise<void> {
+  const requester = String(job.requester)
+  const byClient = requester === String(job.lead_id)
+  const bot = job.bot ? String(job.bot) : null
+  const topic = String(job.topic ?? '')
+  if (job.item_id)
+    await deps.pool
+      .query(
+        `UPDATE content_plan_items SET status = 'idea', updated_at = now()
+          WHERE id = $1 AND status = 'doing'`,
+        [job.item_id]
+      )
+      .catch(() => undefined)
+  await deps
+    .notify(
+      byClient ? bot : null,
+      requester,
+      `Рилс${topic ? ` «${topic}»` : ''} не получился: ${why.slice(0, 200)}. ` +
+        failedMoneyLine(madeParts(job)) +
+        (byClient ? ' Попробуй ещё раз кнопкой.' : ''),
+      byClient
+        ? { button: { text: '🎬 Попробовать ещё', url: nextLink(bot) } }
+        : undefined
+    )
+    .catch(() => false)
+}
+
 /**
  * THE SWEEP: at boot and every STORY_SWEEP_MS. A running job that stopped
  * beating lost its process -- a redeploy, most often -- and is claimed here in
@@ -933,22 +984,46 @@ export async function sweepStoryJobs(deps: StoryDeps): Promise<number> {
   const { pool } = deps
   const me = deps.me ?? ME
   await ensureStoryJobs(pool)
-  await pool.query(
+  /*
+   * GIVEN UP, AND SAID SO. A job silent past STORY_ABANDON_MINUTES, or dead
+   * again after its last attempt (a job that kills its process every time
+   * would otherwise be claimed forever: each claim refreshes its clock), is
+   * failed in one statement and closed like any failure -- its plan card
+   * back, whoever asked told, the money line honest.
+   */
+  const abandoned = await pool.query(
     `UPDATE story_jobs SET status = 'failed',
             error = COALESCE(NULLIF(error, ''), 'abandoned'), updated_at = now()
       WHERE status = 'running'
-        AND updated_at < now() - ($1 || ' minutes')::interval`,
+        AND updated_at < now() - ($1 || ' minutes')::interval
+      RETURNING *`,
     [String(STORY_ABANDON_MINUTES)]
   )
+  const exhausted = await pool.query(
+    `UPDATE story_jobs SET status = 'failed',
+            error = 'exhausted', updated_at = now()
+      WHERE status = 'running' AND attempts >= $2
+        AND updated_at < now() - ($1 || ' milliseconds')::interval
+      RETURNING *`,
+    [String(STORY_DEAD_MS), STORY_JOB_ATTEMPTS]
+  )
+  for (const job of abandoned?.rows ?? [])
+    await closeFailed(deps, job, 'задача замолчала и снята')
+  for (const job of exhausted?.rows ?? [])
+    await closeFailed(
+      deps,
+      job,
+      `сборка прерывалась ${STORY_JOB_ATTEMPTS} раза подряд`
+    )
   const r = await pool.query(
     `UPDATE story_jobs SET runner = $1, updated_at = now()
       WHERE id IN (SELECT id FROM story_jobs
-                    WHERE status = 'running'
+                    WHERE status = 'running' AND attempts < $4
                       AND updated_at < now() - ($2 || ' milliseconds')::interval
                     ORDER BY id LIMIT $3
                     FOR UPDATE SKIP LOCKED)
       RETURNING id`,
-    [me, String(STORY_DEAD_MS), SPEC.SWEEP_CLAIM_BATCH]
+    [me, String(STORY_DEAD_MS), SPEC.SWEEP_CLAIM_BATCH, STORY_JOB_ATTEMPTS]
   )
   const ids: number[] = (r?.rows ?? []).map((x: any) => Number(x.id))
   for (const id of ids) void runStoryJob(deps, id).catch(() => undefined)

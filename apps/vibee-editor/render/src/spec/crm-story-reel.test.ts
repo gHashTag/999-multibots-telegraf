@@ -12,6 +12,7 @@ import {
   STORY_START_PARAM,
   STORY_SWEEP_MS,
   STORY_TOPIC_MAX,
+  failedMoneyLine,
   storyPriceEstimate,
 } from '../agent/story-template'
 import {
@@ -220,6 +221,32 @@ describe("the spec's tests hold against the host", () => {
     expect(
       renderFeedEntry({ viaServiceKey: true, renderId: 'aaaaaaaa' }).isPublic
     ).toBe(SPEC.SERVICE_RENDER_FEED_PUBLIC)
+  })
+
+  it('a failure says nothing was charged only when nothing was made (v2)', () => {
+    // nothing_charged_may_be_said(0, 0) / (2, 0) / (0, 1)
+    const none = failedMoneyLine({ stills: 0, clips: 0 })
+    expect(SPEC.FAILURE_NAMES_PAID_PARTS).toBe(true)
+    expect(none).toMatch('не списаны')
+    expect(none).not.toMatch('оплачены')
+    expect(failedMoneyLine({ stills: 2, clips: 0 })).toMatch('оплачены')
+    expect(failedMoneyLine({ stills: 0, clips: 1 })).toMatch('оплачены')
+  })
+
+  it('a job that keeps dying is given up and closed like any failure (v2)', () => {
+    // sweep_gives_up(attempts >= JOB_ATTEMPTS, silent > DEAD_MS); the
+    // behaviour itself is run in a-story-reel-for-any-client.test.ts.
+    const tpl = readFileSync(
+      join(HERE, '..', 'agent', 'story-template.ts'),
+      'utf8'
+    )
+    const sweep = tpl.slice(
+      tpl.indexOf('export async function sweepStoryJobs(')
+    )
+    expect(SPEC.EXHAUSTED_JOB_CLOSED && SPEC.ABANDONED_JOB_CLOSED).toBe(true)
+    expect(sweep).toMatch(/attempts >= \$2/)
+    expect(sweep).toMatch(/\[String\(STORY_DEAD_MS\), STORY_JOB_ATTEMPTS\]/)
+    expect(sweep.match(/closeFailed\(/g)?.length).toBeGreaterThanOrEqual(2)
   })
 
   it('the one-press links are the spec routes', () => {
