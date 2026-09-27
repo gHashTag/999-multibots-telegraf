@@ -625,6 +625,10 @@ export interface StoryReady {
    * (crm-story-reel v12, end_card_fix); null when all reads.
    */
   endCardFix: StoryEndCard | null
+  /** Her own card colour that reads there (v13, end_card_fix_palette). */
+  endCardFixPalette: StoryEndCard | null
+  /** Her background, shaded until every line reads (v13, end_card_fix_bg). */
+  endCardFixBg: StoryEndCard | null
 }
 
 export interface StoryStart {
@@ -661,6 +665,8 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
     endCardKept: toEndCard(r['end_card_kept']),
     endCardWhy: str(r['end_card_why']),
     endCardFix: toEndCard(r['end_card_fix']),
+    endCardFixPalette: toEndCard(r['end_card_fix_palette']),
+    endCardFixBg: toEndCard(r['end_card_fix_bg']),
     jobs: jobs
       .filter((j): j is Record<string, unknown> => !!j && typeof j === 'object')
       .map(j => ({

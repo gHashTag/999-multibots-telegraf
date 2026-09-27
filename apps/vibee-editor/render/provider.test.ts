@@ -216,8 +216,17 @@ describe('what a small model is shown', () => {
      * nowhere else in the codebase, so every attempt started from nothing.
      * A DM seller on a 16k model that cannot sign its person in has no
      * accounts to sell from. Headroom stays thin on purpose.
+     *
+     * 7240 -> 7300 on 2026-09-27, for browser_focus_tab (#3143, 78 tokens
+     * now). It came into the kit through the `browser_` prefix without this
+     * test being run, and main stood red at 7325; the pre-push gate then
+     * refused every push that touched the render agent. Its prose was cut
+     * first -- three sentences to one, 33 tokens -- and only the rest moved
+     * this number. What it buys: going back to an open tab costs an id, not
+     * a second tab of the same site, which at the tab cap was paid for with
+     * the token-bearing page of a sign-in in progress (#3143's own account).
      */
-    expect(chars / 3.2).toBeLessThan(7240)
+    expect(chars / 3.2).toBeLessThan(7300)
     expect(kit.some(t => t.name === 'crm_offer')).toBe(true)
     expect(kit.some(t => t.name === 'tg_send')).toBe(true)
     // The conversational core stays; the deep reads do not.

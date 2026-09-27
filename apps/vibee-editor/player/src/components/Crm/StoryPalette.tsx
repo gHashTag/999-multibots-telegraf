@@ -7,10 +7,51 @@ import {
   fieldSource,
   panelKeepOffered,
   panelTakeOffered,
+  takeBg,
   takeFix,
   toColourInput,
   type StoryEndCard,
 } from '@/lib/storyPalette'
+
+/**
+ * What the server named beside a refusal (v12, v13): the shade of her
+ * colour, her own card colour that reads, her ground shaded until all
+ * reads. Each is taken by a press and the card is checked again.
+ */
+type FixKind = 'shade' | 'palette' | 'bg'
+interface FixOption {
+  kind: FixKind
+  fix: StoryEndCard
+}
+const OPTION: Record<FixKind, { label: string; action: string; id: string }> = {
+  shade: {
+    label: 'crm.client.story.fix',
+    action: 'take',
+    id: 'story-palette-fix',
+  },
+  palette: {
+    label: 'crm.client.story.fixPalette',
+    action: 'take-palette',
+    id: 'story-palette-fix-palette',
+  },
+  bg: {
+    label: 'crm.client.story.fixBg',
+    action: 'take-bg',
+    id: 'story-palette-fix-bg',
+  },
+}
+const optionsOf = (
+  shade: StoryEndCard | null | undefined,
+  palette: StoryEndCard | null | undefined,
+  bg: StoryEndCard | null | undefined
+): FixOption[] =>
+  (
+    [
+      ['shade', shade],
+      ['palette', palette],
+      ['bg', bg],
+    ] as const
+  ).flatMap(([kind, fix]) => (fix ? [{ kind, fix }] : []))
 
 /**
  * HER PALETTE ON THE CLIENT'S CARD (crm-story-reel.t27 v11).
@@ -41,11 +82,11 @@ export function StoryPalette({
   const [draft, setDraft] = useState<StoryEndCard>({})
   const [busy, setBusy] = useState(false)
   // The key of the card the last check was about, what it said, and the
-  // shade it named (v12).
+  // options it named (v12, v13).
   const [checked, setChecked] = useState<{
     key: string
     why: string
-    fix: StoryEndCard | null
+    options: FixOption[]
   } | null>(null)
   const [note, setNote] = useState<string | null>(null)
 
@@ -53,7 +94,11 @@ export function StoryPalette({
     setDraft(next)
     setNote(null)
   }
-  const loadFix = ready.endCardFix
+  const loadOptions = optionsOf(
+    ready.endCardFix,
+    ready.endCardFixPalette,
+    ready.endCardFixBg
+  )
   const edited = checked !== null && checked.key !== cardKey(draft)
   const offered = panelKeepOffered(
     checked !== null,
@@ -73,13 +118,24 @@ export function StoryPalette({
     const r = await checkStoryPalette(clientId, next)
     setBusy(false)
     const why = r.data ? (r.data.endCardWhy ?? '') : (r.error ?? '?')
-    setChecked({ key: cardKey(next), why, fix: r.data?.endCardFix ?? null })
+    setChecked({
+      key: cardKey(next),
+      why,
+      options: optionsOf(
+        r.data?.endCardFix,
+        r.data?.endCardFixPalette,
+        r.data?.endCardFixBg
+      ),
+    })
   }
 
-  // Take the named shade into the fields and check that card (v12): the
-  // verdict is the server's again, and keeping is still its own press.
-  const onTake = async (from: StoryEndCard, fix: StoryEndCard) => {
-    const next = takeFix(from, fix)
+  // Take a named option into the fields and check that card (v12, v13):
+  // the verdict is the server's again, and keeping is still its own press.
+  const onTake = async (from: StoryEndCard, option: FixOption) => {
+    const next =
+      option.kind === 'bg'
+        ? takeBg(from, option.fix)
+        : takeFix(from, option.fix)
     edit(next)
     setOpen(true)
     await onCheck(next)
@@ -96,28 +152,35 @@ export function StoryPalette({
     }
   }
 
-  const fixRow = (fix: StoryEndCard, from: StoryEndCard) => (
-    <div className="crm-client__palette-fix" data-testid="story-palette-fix">
-      <span>{t('crm.client.story.fix')}</span>
-      {(['title', 'accent'] as const)
-        .filter(k => fix[k])
+  const fixRow = (option: FixOption, from: StoryEndCard) => (
+    <div
+      key={option.kind}
+      className="crm-client__palette-fix"
+      data-testid={OPTION[option.kind].id}
+    >
+      <span>{t(OPTION[option.kind].label)}</span>
+      {(option.kind === 'bg'
+        ? (['bg'] as const)
+        : (['title', 'accent'] as const)
+      )
+        .filter(k => option.fix[k])
         .map(k => (
           <span key={k} data-field={k}>
             <i
               className="crm-client__swatch"
-              style={{ background: fix[k] }}
+              style={{ background: option.fix[k] }}
               aria-hidden="true"
             />
             <small>{t(`crm.client.story.field.${k}`)}</small>
-            <code>{fix[k]}</code>
+            <code>{option.fix[k]}</code>
           </span>
         ))}
       <button
         type="button"
         className="crm-client__palette-go"
-        data-action="take"
+        data-action={OPTION[option.kind].action}
         disabled={busy}
-        onClick={() => void onTake(from, fix)}
+        onClick={() => void onTake(from, option)}
       >
         {t('crm.client.story.take')}
       </button>
@@ -164,8 +227,8 @@ export function StoryPalette({
       {ready.endCardWhy ? <p className="crm__why">{ready.endCardWhy}</p> : null}
       {/* The load is the read of this very card; once the editor is open,
           its fields are what the next check is about. */}
-      {loadFix && panelTakeOffered(true, open, true)
-        ? fixRow(loadFix, { ...(card ?? {}) })
+      {panelTakeOffered(true, open, loadOptions.length > 0)
+        ? loadOptions.map(o => fixRow(o, { ...(card ?? {}) }))
         : null}
       {!open ? (
         <button
@@ -244,9 +307,8 @@ export function StoryPalette({
               {checked.why || t('crm.client.story.readable')}
             </p>
           ) : null}
-          {checked?.fix &&
-          panelTakeOffered(checked !== null, edited, checked.fix !== null)
-            ? fixRow(checked.fix, draft)
+          {checked && panelTakeOffered(true, edited, checked.options.length > 0)
+            ? checked.options.map(o => fixRow(o, draft))
             : null}
         </div>
       )}

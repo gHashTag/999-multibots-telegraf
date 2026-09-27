@@ -83,6 +83,16 @@
 // card's "take" is a press that fills the fields and checks them again, and keeping stays its
 // own press. A colour that is not #hex gets no shade -- there is nothing of hers to shade --
 // and is named back as before.
+// v13 (2026-09-27): the shade is one option of three, as a contrast tool offers them. A seller
+// who refused a gold call wants to see it gold, and one who loves the gold wants the ground to
+// move instead. Beside the shade the answer names HER OWN colour that reads there -- one of the
+// colours already on her card, never an invented one, the nearest to the refused colour -- and
+// her BACKGROUND shaded until every line on the card reads. The ground is not always there: a
+// dark call and a light button cannot both read on one ground, and then nothing is offered for
+// it rather than a ground that fixes one line and breaks the other. The shade itself is finer:
+// 64 steps, at most 4 of 255 per channel, below what the eye tells apart on a phone; ten steps
+// could darken a gold a tenth of the way when a sixtieth read. Every option is taken by a press
+// and checked again.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -257,8 +267,9 @@ module automation::crm_story_reel {
 
     // ---- The colour that reads, named on a refusal (v12) ---------------------------------
     pub const SUGGEST_FIX_ARG : str = "end_card_fix";  // crm_story_reel's answer, field by field
-    pub const SUGGEST_STEPS : u16 = 10;  // her colour to white or to black in ten equal steps
-    pub const SUGGEST_NEVER : u16 = 11;  // this way never reads
+    // v13: 64 steps -- at most 4 of 255 per channel, below what the eye tells apart on a phone.
+    pub const SUGGEST_STEPS : u16 = 64;  // her colour to white or to black in equal steps
+    pub const SUGGEST_NEVER : u16 = 65;  // this way never reads
     // Over every background, the better of white and black contrasts at least sqrt(21) = 4.58:1
     // -- times ten, rounded down, 45 -- so the last step always reads.
     pub const EXTREME_MIN_CONTRAST_X10 : u16 = 45;
@@ -269,6 +280,14 @@ module automation::crm_story_reel {
     pub const SUGGEST_FOR_BAD_HEX : bool = false;  // "black" is named back: no colour to shade
     pub const SUGGEST_TAKEN_BY_PRESS : bool = true;  // the card fills the fields and checks again
     pub const SUGGEST_KEPT_BY_ITSELF : bool = false;  // taking is not keeping
+
+    // ---- Her own colour and her ground, beside the shade (v13) ---------------------------
+    pub const SUGGEST_PALETTE_ARG : str = "end_card_fix_palette";  // her own card colour that reads
+    pub const SUGGEST_BG_ARG : str = "end_card_fix_bg";  // her background, shaded until all reads
+    pub const PALETTE_FROM_HER_CARD : bool = true;  // the card's own colours -- never an invented one
+    pub const PALETTE_NEAREST_FIRST : bool = true;  // of hers that read, the nearest to the one refused
+    pub const BG_FIX_ALWAYS_EXISTS : bool = false;  // a dark call and a light button share no ground
+    pub const OPTIONS_TAKEN_BY_PRESS : bool = true;  // each option: a press, then a check again
 
     // ---- Every reel for a client is a story reel (v8) -----------------------------------
     pub const OLD_PLAN_REEL : str = "LeelaPlanReel";  // silent, subtitled, made from the plan's canon
@@ -509,6 +528,18 @@ module automation::crm_story_reel {
             return SUGGEST_FOR_BAD_HEX;
         }
         return !readable;
+    }
+
+    // Whether her own colour is offered for a field: one of her card's colours reads there, and
+    // it is not the shade already named.
+    fn palette_offered(reads: bool, same_as_shade: bool) -> bool {
+        return reads && !same_as_shade;
+    }
+
+    // Whether her ground is offered: the card does not read, and some shade of her background
+    // makes every line on it read at once.
+    fn bg_offered(unreadable: bool, all_read_at_some_step: bool) -> bool {
+        return unreadable && all_read_at_some_step;
     }
 
     // Whether the card offers "take": only beside the verdict on the card still on screen.
@@ -786,7 +817,7 @@ module automation::crm_story_reel {
 
     test "a refusal for contrast names the least shade of her own colour that reads" {
         assert(SUGGEST_FIX_ARG == "end_card_fix");
-        assert(SUGGEST_STEPS == 10);
+        assert(SUGGEST_STEPS == 64);
         assert(SUGGEST_NEVER == SUGGEST_STEPS + 1);
         assert(end_card_readable(EXTREME_MIN_CONTRAST_X10));  // the last step always reads
         assert(shade_way(3, 7, false) == WAY_LIGHT);  // fewer steps wins
@@ -811,6 +842,23 @@ module automation::crm_story_reel {
         assert(!panel_take_offered(true, true, true));  // the fix was for the card before the edit
         assert(!panel_take_offered(true, false, false));  // nothing to take
         assert(!panel_keep_offered(true, true, true));  // taking edits the fields: keep waits
+    }
+
+    test "her own colour and her ground are offered beside the shade, each by a press" {
+        assert(SUGGEST_PALETTE_ARG == "end_card_fix_palette");
+        assert(SUGGEST_BG_ARG == "end_card_fix_bg");
+        assert(palette_offered(true, false));
+        assert(!palette_offered(false, false));  // none of her colours reads there
+        assert(!palette_offered(true, true));  // the shade already is that colour: named once
+        assert(bg_offered(true, true));
+        assert(!bg_offered(true, false));  // no ground makes every line read: nothing offered
+        assert(!bg_offered(false, true));  // it reads already
+        assert(!BG_FIX_ALWAYS_EXISTS);
+        assert(PALETTE_FROM_HER_CARD);
+        assert(PALETTE_NEAREST_FIRST);
+        assert(OPTIONS_TAKEN_BY_PRESS);
+        assert(panel_take_offered(true, false, true));  // one rule for every option
+        assert(SUGGEST_NEVER == SUGGEST_STEPS + 1);
     }
 
     test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {

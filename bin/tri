@@ -91,6 +91,7 @@ tri — оболочка Trinity S³AI
   tri mutants <list.json> -- <команда>          пакет мутаций против одного прогона: таблица убитых и выживших; у мутанта "tests" — его файлы тестов
   tri mutants --check <list.json>...            только якоря: все мутанты, чей `from` не ровно один раз в файле (после рефакторинга), ничего не запуская
   tri spec-controls <spec.t27> <controls.json>   отрицательные контроли спеки на копии: пойман/пропущен/не собралась (по таблице t27c)
+  tri spec-check <spec.t27> [controls.json] [--seal]  ворота спеки одной строкой: тесты по таблице (BLOCKED ≠ зелёно), пустые тесты на копии в своей папке, контроли, печать; запись в tri gate
   tri stale-route '<old>' <new> [dir]          где тексты для модели ещё ведут старым путём (старое имя без нового и без «только если»)
   tri full-run [render|player|both]             полный прогон с путём, где он шёл (RUN), итогами и падениями; красно, если путь не тот
   tri busy < логи                               идёт ли в рендере задача рилса или ход агента (пары started/ended); код 1 — сливать рано
@@ -2011,6 +2012,7 @@ PYEOF
   gate) shift; node "$ROOT/bin/helpers/gate.mjs" show "$@" ;;
   image-gate) shift; node "$ROOT/bin/helpers/image-gate.mjs" "$@" ;;
   tail) shift; node "$ROOT/bin/helpers/tail.mjs" "$@" ;;
+  spec-check) shift; node "$ROOT/bin/helpers/spec-check.mjs" "$@" ;;
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
