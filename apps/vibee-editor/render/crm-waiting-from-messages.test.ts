@@ -171,7 +171,19 @@ describe('crm_waiting reads the messages too, not only the touch log', () => {
     expect(r.waiting[0].from).toBe('messages')
   })
 
-  it('a conversation we answered is nobody waiting', async () => {
+  it('a conversation we answered today is nobody waiting', async () => {
+    stubNet({ '111': 'bot1' })
+    const r = await ask(
+      poolWith([
+        { lead: '111', out: false, daysAgo: 4 },
+        { lead: '111', out: true, daysAgo: 0 },
+      ])
+    )
+    expect(r.total).toBe(0)
+  })
+
+  it('a conversation we answered and that went quiet is a follow-up, from messages', async () => {
+    // Owner, 2026-09-27: we spoke last, 3 days of silence in a live talk.
     stubNet({ '111': 'bot1' })
     const r = await ask(
       poolWith([
@@ -179,7 +191,9 @@ describe('crm_waiting reads the messages too, not only the touch log', () => {
         { lead: '111', out: true, daysAgo: 3 },
       ])
     )
-    expect(r.total).toBe(0)
+    expect(r.total).toBe(1)
+    expect(r.waiting[0].waiting).toBe('theirs')
+    expect(r.waiting[0].from).toBe('messages')
   })
 
   it('an answer that was never recorded as a touch flips theirs into ours', async () => {

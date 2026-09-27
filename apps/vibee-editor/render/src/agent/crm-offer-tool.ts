@@ -383,6 +383,8 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
       const minted = await mintTokenInvoice({
         forTelegramId: leadId,
         tokens,
+        // The owner is told when this client pays (stars-credit.ts).
+        ownerId: String(ctx?.telegramId ?? ''),
         pool: ctx?.pool as never,
         ...(cashier ? { botToken: cashier.token } : {}),
       })

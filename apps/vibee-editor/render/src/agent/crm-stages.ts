@@ -63,6 +63,12 @@ export interface StageInput {
    */
   lastInboundAt?: string | null
   lastOutboundAt?: string | null
+  /**
+   * Our messages since their last word (chat-memory `outSinceIn`). Lets the
+   * cascade stop when the owner writes from Telegram, where no touch is
+   * recorded.
+   */
+  outboundSinceInbound?: number
 }
 
 /**
@@ -175,6 +181,12 @@ export interface WaitingInput extends StageInput {
   now?: number
 }
 
+/** Follow-up window after OUR last word, when no touch was recorded. */
+export const THEIR_SILENCE_MIN_DAYS = 2
+export const THEIR_SILENCE_MAX_DAYS = 14
+/** They must have written this recently before our word: a live talk. */
+export const LIVE_CONVERSATION_DAYS = 30
+
 /** Touch kinds that are the PERSON acting, not us. */
 const THEIR_KINDS: TouchKind[] = ['replied', 'later', 'refused', 'bought']
 
@@ -269,7 +281,43 @@ export function waitingOn(input: WaitingInput): {
     const inb = input.lastInboundAt ? Date.parse(input.lastInboundAt) : NaN
     if (Number.isNaN(inb)) return null
     const outb = input.lastOutboundAt ? Date.parse(input.lastOutboundAt) : NaN
-    if (!Number.isNaN(outb) && outb >= inb) return null
+    if (!Number.isNaN(outb) && outb >= inb) {
+      /*
+       * WE SPOKE LAST AND THE CONVERSATION WENT QUIET (owner, 2026-09-27:
+       * the follow-up competitors sell first -- Kommo, SaleBot, Pipedrive's
+       * rotting deals).
+       *
+       * Withheld above for a reason that still holds: an outbound message is
+       * often the delivery of what was asked, not a question left hanging. So
+       * this is narrow on purpose, and every edge is a number:
+       *   - a LIVE conversation: they wrote within 30 days before our word;
+       *   - the playbook's cascade: 2 days of silence first, 14 at most --
+       *     older is winback, not follow-up;
+       *   - at most two reminders after our first message, counted from the
+       *     correspondence itself, since the owner writing from Telegram
+       *     records no touch.
+       * The row is a suggestion; a message still goes out only on a press.
+       */
+      const days = daysBetween(input.lastOutboundAt as string, now)
+      const cap = Number.isFinite(input.maxNudges as number)
+        ? Number(input.maxNudges)
+        : 2
+      const sent = input.outboundSinceInbound ?? 1
+      if (
+        days !== null &&
+        days >= THEIR_SILENCE_MIN_DAYS &&
+        days <= THEIR_SILENCE_MAX_DAYS &&
+        outb - inb <= LIVE_CONVERSATION_DAYS * 86_400_000 &&
+        sent <= cap + 1
+      ) {
+        return {
+          waiting: 'theirs',
+          days,
+          because: 'мы написали последними, ответа нет', // cyrillic-ok: shown to the owner as is
+        }
+      }
+      return null
+    }
     const d = daysBetween(input.lastInboundAt as string, now)
     if (d === null) return null
     return { waiting: 'ours', days: d, because: 'написал, а ответа не было' }

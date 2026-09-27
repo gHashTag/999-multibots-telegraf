@@ -11,7 +11,8 @@
  *   1. a move is USED when the owner presses it on a card -- the app records
  *      a `note` touch `move:<id>` (our memory only, nothing is sent);
  *   2. its OUTCOME is what the client did in the next 7 days: wrote back
- *      (an inbound message), bought (a `bought` touch), or said no (a
+ *      (an inbound message), bought (a `bought` touch or a purchase in the
+ *      live wallet), or said no (a
  *      `refused` touch);
  *   3. each move gets counts and a score; the card ranks the moves it would
  *      offer anyway by that score once a move has been used a few times, and
@@ -168,6 +169,30 @@ export async function moveStatsFor(
       })
   } catch {
     // Same: an unreadable table costs that outcome, not the answer.
+  }
+  /*
+   * A PAYMENT IS A PURCHASE, TOUCH OR NO TOUCH (CRM audit 2026-09-27, #8).
+   * A `bought` touch is written only for a token-charged delivery, never for
+   * a Stars payment -- so the 3x weight of "bought" was near zero and a move
+   * that led to money could not rise above one that led to chatter. Every
+   * purchase lands in the live wallet (token_ledger 'purchase'; a grant is
+   * not money). The lead's own id is the wallet key.
+   */
+  try {
+    const r = await pool.query(
+      `SELECT telegram_id, created_at FROM token_ledger
+        WHERE kind = 'purchase' AND delta > 0 AND telegram_id = ANY($1)
+          AND created_at > now() - ($2 || ' days')::interval`,
+      [leads, String(Number(span) + OUTCOME_DAYS)]
+    )
+    for (const x of r.rows ?? [])
+      events.push({
+        lead: String(x.telegram_id),
+        at: new Date(x.created_at).getTime(),
+        kind: 'bought',
+      })
+  } catch {
+    // No wallet table here: payments are simply not counted.
   }
   return scoreMoves(uses, events)
 }

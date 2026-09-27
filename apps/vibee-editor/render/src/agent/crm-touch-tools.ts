@@ -383,7 +383,12 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
        */
       let fromMessages = new Map<
         string,
-        { lastIn: string | null; unanswered: boolean }
+        {
+          lastIn: string | null
+          lastOut: string | null
+          outSinceIn: number
+          unanswered: boolean
+        }
       >()
       try {
         const cands = await leadCandidates(
@@ -396,6 +401,8 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
             String(c.lead),
             {
               lastIn: c.lastInboundAt ? c.lastInboundAt.toISOString() : null,
+              lastOut: c.lastOutboundAt ? c.lastOutboundAt.toISOString() : null,
+              outSinceIn: c.outSinceIn,
               /*
                * `unanswered` is taken as the boolean it is, not rebuilt from
                * `daysSinceOut`. That field is a whole number of days, so a
@@ -442,11 +449,15 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
           laterAfterDays,
           lastInboundAt: msg?.lastIn ?? null,
           /*
-           * "Answered" is expressed as an outbound at the same moment as
-           * their message, which is exactly what `unanswered: false` means
-           * and all this function needs to know: whose turn it is.
+           * The REAL time of our last word (2026-09-27). It used to be made
+           * up -- "answered" written as an outbound at the very moment of
+           * their message -- which answered whose turn it is and nothing
+           * else, so "we spoke last and they went quiet" could never be
+           * seen. `unanswered` stays the tie-breaker for equal timestamps.
            */
-          lastOutboundAt: msg && !msg.unanswered ? msg.lastIn : null,
+          lastOutboundAt:
+            msg && !msg.unanswered ? (msg.lastOut ?? msg.lastIn) : null,
+          outboundSinceInbound: msg?.outSinceIn,
         })
         if (!w) continue
         // NOT SILENTLY DROPPED. Somebody who wrote in March and never got an

@@ -174,7 +174,8 @@
 
 /* Prepare asks the agent for a draft -- still nothing is sent -- but it is
    the step that moves money, so it stands out from the three loggers. */
-.crm__acts button.crm__prepare {
+.crm__acts button.crm__prepare,
+.crm__acts button.crm__return {
   border-color: var(--accent, #2f9e6b);
   color: var(--accent, #2f9e6b);
   font-weight: 600;
