@@ -150,8 +150,45 @@ export function forgetOpenedTabs(): void {
 }
 
 export interface TabIo {
-  list: (cdp: string) => Promise<{ id: string }[]>
+  list: (cdp: string) => Promise<{ id: string; url?: string; type?: string }[]>
   close: (cdp: string, id: string) => Promise<void>
+}
+
+/**
+ * MAKE ROOM BEFORE OPENING, because a tab too many does not queue -- it kills
+ * the browser.
+ *
+ * The tidy-up below this one counts only the tabs WE opened, from a list that
+ * dies with the process, so it cannot see the person's tabs or the ones
+ * Chromium restored. The pod's real count is the one that matters against the
+ * PID ceiling, and `roomForOne` is that count read from the browser itself.
+ *
+ * Measured by doing it, 2026-09-27: 14 pages open, this function's absence,
+ * one more `browser_open`, and a browser that answered `running: false`
+ * seconds later. Failing to list is not a reason to refuse the open -- the
+ * pod is then in trouble the health check reports, and a person waiting on a
+ * page should not be told no by the tidy-up.
+ */
+async function makeRoom(
+  telegramId: string,
+  cdp: string,
+  io: TabIo
+): Promise<void> {
+  try {
+    const { roomForOne } = await import('./tab-sweep')
+    const chosen = chosenFront(telegramId)
+    const pages = (await io.list(cdp)).map(t => ({
+      id: t.id,
+      url: t.url ?? '',
+      type: t.type ?? 'page',
+    }))
+    for (const doomed of roomForOne(pages, chosen ? [chosen] : [])) {
+      await io.close(cdp, doomed.id).catch(() => {})
+      forgetFront(telegramId, doomed.id)
+    }
+  } catch {
+    /* A pod that cannot be listed still gets the open it was asked for. */
+  }
 }
 
 export async function openAndChoose(
@@ -164,6 +201,7 @@ export async function openAndChoose(
   ) => newPage(c, u),
   io: TabIo = { list: listTargets, close: closePage }
 ): Promise<{ id: string; url?: string }> {
+  await makeRoom(telegramId, cdp, io)
   const page = await open(cdp, url)
   rememberFront(telegramId, page.id)
   const ours = [...(openedByUs.get(telegramId) ?? []), page.id]
