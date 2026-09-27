@@ -105,6 +105,17 @@ pre-commit:
       run: bash bin/helpers/bench.sh .
       fail_text: "Агент стал хуже находить кнопки: смотрите, какой случай упал."
 
+    # 8. Specs of record in t27 (owner, 2026-09-27: "the specs are the standard
+    #    by default, checked strictly"). Every vendored .t27 keeps t27's laws,
+    #    its generated module is the compiler's, every spec test is run against
+    #    the host, no bound file restates a spec number, and no spec a comment
+    #    cites is left unbound unless scripts/t27-specs.json names it as debt.
+    #    Offline, about a second. With a t27 checkout: --t27 <dir> --run.
+    t27-specs:
+      glob: '*.{ts,tsx,mjs,cjs,js,t27,json}'
+      run: node scripts/check-t27-specs.mjs
+      fail_text: 'A .t27 spec of record breaks a law: see the lines above (skill t27-spec-first).'
+
 commit-msg:
   commands:
     # Сообщение коммита уходит в публичный репозиторий вместе с кодом:

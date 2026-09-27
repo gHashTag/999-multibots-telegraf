@@ -572,7 +572,7 @@ export async function startStory(
     String(v ?? '')
       .trim()
       .slice(0, n) || null
-  const deliverTo = byClient ? null : text(who.deliverTo, 40)
+  const deliverTo = deliveryOf(byClient, text(who.deliverTo, 40))
   const r = await deps.pool.query(
     `INSERT INTO story_jobs (lead_id, seller_id, requester, bot, item_id, topic, about, runner,
                              scenes, style, cta, deliver_to, caption)
@@ -712,7 +712,13 @@ async function runHeld(
    * nothing). The client who pressed pays herself, unless her profile says
    * the reels are the seller's gift to her.
    */
-  const payer = byClient ? (s.payer === 'owner' ? seller : lead) : requester
+  const payer = storyPayer({
+    byClient,
+    vipGift: s.payer === 'owner',
+    seller,
+    lead,
+    requester,
+  })
   const n = scenes.length
   const ctx: ToolContext = {
     telegramId: payer,
@@ -826,6 +832,35 @@ async function runHeld(
     still_tasks: JSON.stringify(tasks),
     payer,
   })
+}
+
+/**
+ * WHO PAYS (spec: seller_pays). The seller who asked pays for their own
+ * request. The client who pressed pays herself, unless her profile makes the
+ * reels the seller's gift to her.
+ */
+export function storyPayer(j: {
+  byClient: boolean
+  vipGift: boolean
+  seller: string
+  lead: string
+  requester: string
+}): string {
+  if (!j.byClient) return j.requester
+  return j.vipGift ? j.seller : j.lead
+}
+
+/**
+ * WHERE A FINISHED REEL MAY BE OFFERED (spec: may_go_to_group). A client
+ * pressing for herself never sends into a group, whatever was asked: the
+ * reel comes back to her. The seller's own request goes where it was bound.
+ */
+export function deliveryOf(
+  byClient: boolean,
+  asked: string | null | undefined
+): string | null {
+  if (byClient) return null
+  return asked ? asked : null
 }
 
 /**

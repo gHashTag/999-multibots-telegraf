@@ -64,3 +64,25 @@ if (flag === '--check') {
 writeFileSync(specOut, spec)
 writeFileSync(genOut, gen)
 console.log(`wrote ${specOut}\nwrote ${genOut}`)
+
+/*
+ * And straight away, every law over every vendored spec, against the same
+ * checkout (scripts/check-t27-specs.mjs): a sync that leaves a spec unbound,
+ * its tests unmirrored or a number restated is not finished.
+ */
+const checker = join(
+  here,
+  '..',
+  '..',
+  '..',
+  '..',
+  'scripts',
+  'check-t27-specs.mjs'
+)
+try {
+  execFileSync(process.execPath, [checker, '--t27', t27Dir], {
+    stdio: 'inherit',
+  })
+} catch {
+  process.exit(1)
+}
