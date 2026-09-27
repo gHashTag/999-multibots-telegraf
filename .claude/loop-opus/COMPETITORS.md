@@ -291,3 +291,16 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 [HeyGen: Brand Systems](https://heygen.noticeable.news/posts/introducing-brand-systems),
 [Canva: Set up Brand Kits](https://www.canva.com/help/brand-kit/),
 [Canva: Allocate Brand Kits to groups and folders](https://www.canva.com/help/allocate-brand-kit/).
+
+## 27.09, виток 8: палитра на экране и проверка контраста
+
+- **Canva, проверка доступности дизайна**: боковая панель с карточками
+  проблем (типографика, контраст, alt-текст); на карточке низкого контраста
+  — готовые цвета текста, которые проблему решают, одним нажатием.
+- У нас с витка 8 палитра видна в карточке клиента, проверка бесплатна и
+  отвечает словами сервера, «запомнить» — только проверенную. Чего нет, а у
+  Canva есть: ПРЕДЛОЖИТЬ цвет, который читается (белый или чёрный на её фоне
+  — сервер это уже может посчитать), одним нажатием.
+
+Источники: [Canva: Use Design Accessibility](https://www.canva.com/help/using-design-accessibility/),
+[Canva Apps SDK: Accessibility](https://www.canva.dev/docs/apps/design-guidelines/accessibility/).

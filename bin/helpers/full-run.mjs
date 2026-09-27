@@ -53,5 +53,13 @@ for (const name of names) {
   console.log(`   tests   ${tests}`)
   for (const f of failing) console.log(`   FAIL    ${f}`)
   if (!ok) bad++
+  // tri gate: the verdict, stamped with the tree it ran on.
+  spawnSync('node', [
+    join(ROOT, 'bin', 'helpers', 'gate.mjs'),
+    'record',
+    `full-run ${name}`,
+    ok ? 'ok' : 'fail',
+    here ? `files ${files}; tests ${tests}` : `ran in ${ran}, not ${dir}`,
+  ])
 }
 process.exit(bad ? 1 : 0)

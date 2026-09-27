@@ -20,7 +20,7 @@
  * Zig: on PATH, or its directory in T27_ZIG_DIR. t27c: T27C, or
  * /home/user/t27/target/release/t27c.
  */
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import {
   copyFileSync,
   existsSync,
@@ -112,6 +112,14 @@ try {
   rmSync(dir, { recursive: true, force: true })
 }
 console.log(`-- ${controls.length - missed} of ${controls.length} caught --`)
+// tri gate: the verdict, stamped with the tree it ran on.
+spawnSync('node', [
+  join(import.meta.dirname, 'gate.mjs'),
+  'record',
+  `spec-controls ${basename(spec)}`,
+  missed ? 'fail' : 'ok',
+  `${controls.length - missed}/${controls.length} caught`,
+])
 if (missed)
   console.log(
     'a missed control is a rule the spec states and never tests: add the vector.'
