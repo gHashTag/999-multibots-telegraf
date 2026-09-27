@@ -12,6 +12,13 @@
         "INNGEST_SIGNING_KEY": "${INNGEST_SIGNING_KEY}",
         "INNGEST_BASE_URL": "https://inngestinngest-production-c468.up.railway.app"
       }
+    },
+    "vibee-render": {
+      "type": "http",
+      "url": "https://vibee-render-production.up.railway.app/mcp",
+      "headers": {
+        "X-Agent-Key": "${VIBEE_AGENT_KEY:-}"
+      }
     }
   }
 }
