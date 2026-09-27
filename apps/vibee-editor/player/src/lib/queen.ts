@@ -21,6 +21,11 @@ import { editorStore } from '@/atoms/Provider'
 import { queenMessagesAtomFor, type Message } from '@/atoms/agentChat'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
+import {
+  adoptHistory,
+  shouldAdoptHistory,
+  turnsFromResponse,
+} from '@/lib/agentHistory'
 
 /** Which clients have a Queen answer streaming right now. */
 export const queenBusyAtom = atom<Record<string, boolean>>({})
@@ -166,6 +171,43 @@ export async function askQueen(
     editorStore.set(queenBusyAtom, b => ({ ...b, [client]: false }))
   }
   return { id: answerId, text: full }
+}
+
+/**
+ * HER CONVERSATION COMES BACK FROM THE SERVER, NOT ONLY FROM THIS BROWSER.
+ *
+ * Owner, 2026-09-27: "the chat is not kept in the CRM between clients". The
+ * centre chat has read its thread back from the server since #2980; the
+ * Queen's never did -- her panel drew whatever this browser's storage held.
+ * The server has kept her thread (client:<id>:queen) all along, so a webview
+ * whose storage does not survive a restart (Telegram on a Mac), another
+ * device, or a cleared browser showed her as a stranger to every client.
+ *
+ * The same merge rule as the centre chat (lib/agentHistory.ts): an empty or
+ * shorter server answer never wipes what is on screen, and nothing is
+ * replaced while her answer is streaming.
+ */
+export async function loadQueenHistory(
+  client: string,
+  doFetch: typeof fetch = fetch
+): Promise<boolean> {
+  try {
+    const r = await doFetch(
+      `${API_BASE}/api/agent/history?limit=100&client=${encodeURIComponent(client)}&role=supervisor`,
+      { headers: authHeaders() }
+    )
+    if (!r.ok) return false
+    const server = turnsFromResponse(await r.json().catch(() => null))
+    const thread = queenMessagesAtomFor(client)
+    const busy = editorStore.get(queenBusyAtom)[client] === true
+    const local = editorStore.get(thread)
+    if (!shouldAdoptHistory({ server, local, busy })) return false
+    editorStore.set(thread, adoptHistory(server))
+    return true
+  } catch {
+    // Unreachable history costs the old turns, never the panel.
+    return false
+  }
 }
 
 /** Start the Queen's conversation about this client over. */
