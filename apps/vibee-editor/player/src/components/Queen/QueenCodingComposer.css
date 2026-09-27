@@ -1,0 +1,179 @@
+/* Кодинг у Королевы — pure black, no green fills or glow. Green is a thin
+ * signal only (a met check, "рой возьмёт: да"); everything else is greyscale. */
+.qcode {
+  --qc-bg: #000;
+  --qc-line: #1d1d1d;
+  --qc-ink: #ececec;
+  --qc-muted: #8a8a8a;
+  --qc-faint: #565656;
+  --qc-ok: #46c98a;
+  --qc-no: #c8756c;
+  background: var(--qc-bg);
+  border: 1px solid var(--qc-line);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* Always-on swarm banner: an idle swarm is a blocker, never hidden. */
+.qcode__swarm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 8px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--qc-line);
+  background: transparent;
+  color: var(--qc-muted);
+}
+.qcode__bee {
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+.qcode__reason {
+  font-weight: 600;
+}
+.qcode__swarm.is-work {
+  color: var(--qc-ok);
+  border-color: #244a3a;
+}
+.qcode__swarm.is-idle {
+  color: var(--qc-no);
+  border-color: #3a2321;
+}
+.qcode__swarm.is-sos {
+  color: #e46b60;
+  border-color: #5a2a26;
+}
+
+.qcode__meter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.qcode__chk,
+.qcode__gate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 3px 9px;
+  border: 1px solid var(--qc-line);
+  border-radius: 999px;
+  color: var(--qc-faint);
+  background: transparent;
+}
+.qcode__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #333;
+}
+.qcode__chk.is-ok {
+  color: var(--qc-ok);
+  border-color: #244a3a;
+}
+.qcode__chk.is-ok .qcode__dot {
+  background: var(--qc-ok);
+}
+.qcode__gate {
+  margin-left: auto;
+}
+.qcode__gate.is-yes {
+  color: var(--qc-ok);
+  border-color: #244a3a;
+}
+.qcode__gate.is-yes .qcode__dot {
+  background: var(--qc-ok);
+}
+.qcode__gate.is-no {
+  color: var(--qc-no);
+  border-color: #3a2321;
+}
+.qcode__gate.is-no .qcode__dot {
+  background: var(--qc-no);
+}
+
+.qcode__row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.qcode__ta {
+  flex: 1;
+  min-height: 78px;
+  max-height: 260px;
+  resize: vertical;
+  background: #060606;
+  color: var(--qc-ink);
+  border: 1px solid var(--qc-line);
+  border-radius: 9px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.qcode__ta:focus {
+  outline: none;
+  border-color: #333;
+}
+.qcode__btns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.qcode__send {
+  padding: 10px 16px;
+  border-radius: 9px;
+  border: 1px solid var(--qc-ok);
+  background: transparent;
+  color: var(--qc-ok);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.qcode__send:disabled {
+  border-color: var(--qc-line);
+  color: var(--qc-faint);
+  cursor: not-allowed;
+}
+.qcode__ghost {
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--qc-line);
+  background: transparent;
+  color: var(--qc-muted);
+  font: inherit;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.qcode__ghost:hover {
+  color: var(--qc-ink);
+  border-color: #333;
+}
+.qcode__hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--qc-faint);
+  line-height: 1.5;
+}
+
+@media (max-width: 520px) {
+  .qcode__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .qcode__btns {
+    flex-direction: row;
+  }
+  .qcode__send {
+    flex: 1;
+  }
+}
