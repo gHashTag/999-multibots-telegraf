@@ -38,7 +38,9 @@ describe('the words the seller reads route a talking reel to the template', () =
       /руками из lipsync_generate и audio_generate не собирай/
     )
     expect(STORY_GIFT).toMatch(/НЕ ElevenLabs/)
-    expect(STORY_GIFT).toMatch(/пополнить Replicate/)
+    // Owner, 2026-09-27: Kie is paid -- a refused clone is no dead end.
+    expect(STORY_GIFT).toMatch(/Replicate отказал ему \(402\) — не беда/) // cyrillic-ok: playbook text
+    expect(STORY_GIFT).not.toMatch(/пополнить Replicate/) // cyrillic-ok: playbook text
     expect(STORY_GIFT).toContain(`~${REEL.PRICE_ESTIMATE_TOKENS} ток.`)
     expect(STORY_GIFT).toContain(`пауза ${REEL.PAUSE_SEC} с`)
     // Every seller's turn reads it.

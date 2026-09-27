@@ -25,6 +25,9 @@
 // seller asks for speaks her OWN voice notes -- the ones she sent the seller -- cut at pauses,
 // one piece per scene, lip-synced on Kie. Nothing is put in her mouth: the words are hers,
 // and neither Replicate nor ElevenLabs is on the path.
+// v5 (2026-09-27): a client WITH a clone whose provider refuses (402, no credit) is no dead end
+// for the seller: the same run speaks her voice notes instead, on the stills it already paid
+// for. A client pressing for herself still gets her clone; nothing else is put in her mouth.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -35,7 +38,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 4;
+    pub const VERSION : u8 = 5;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -146,6 +149,11 @@ module automation::crm_story_reel {
     pub const NOTES_MAX_SEC : u16 = 12;  // REEL_MAX_SEC minus the pause
     pub const NOTES_CUT_WINDOW_MS : u32 = 1500;  // a pause this near the even cut wins
     pub const NOTES_PART_MIN_MS : u32 = 1500;  // no scene shorter than this
+    // ---- Her clone refused by its provider (v5) -----------------------------------------
+    pub const CLONE_DOWN_FALLS_TO_NOTES : bool = true;  // the seller's reel, not the client's own
+    pub const CLONE_DOWN_SAME_RUN : bool = true;  // no wait for the sweep, no second job
+    pub const CLONE_DOWN_KEEPS_STILLS : bool = true;  // the stills already paid for are carried
+    pub const CLONE_DOWN_ONLY_ON_PROVIDER : bool = true;  // 401/402/403/429, balance, key; not a bad line
 
     // ---- Who asks, who pays -------------------------------------------------------------
     pub const START_PARAM : str = "reel";  // t.me/<bot>?start=reel, the client's own press
@@ -171,7 +179,7 @@ module automation::crm_story_reel {
 
     // ---- What was seen live -------------------------------------------------------------
     pub const LIVE_RUN_STATUS : str = "delivered-2026-09-26";
-    pub const VOICE_LEG_STATUS : str = "clone-blocked-402-notes-on-kie-2026-09-27";
+    pub const VOICE_LEG_STATUS : str = "clone-402-falls-to-notes-on-kie-2026-09-27";
 
     struct Job {
         has_face: bool,
@@ -241,14 +249,18 @@ module automation::crm_story_reel {
         return RESUME_WAIT;
     }
 
-    // Which voice a reel speaks: her clone when she has one; otherwise, for a reel the seller
-    // asked for, her own voice notes; a client pressing for herself without a clone has none.
-    fn voice_mode(has_clone: bool, seller_asked: bool) -> u8 {
-        if has_clone {
+    // Which voice a reel speaks: her clone when she has one and its provider answers; otherwise,
+    // for a reel the seller asked for, her own voice notes. A client pressing for herself speaks
+    // her clone or nothing: her notes are read only for the seller.
+    fn voice_mode(has_clone: bool, clone_down: bool, seller_asked: bool) -> u8 {
+        if has_clone && !clone_down {
             return VOICE_CLONE;
         }
         if seller_asked {
             return VOICE_NOTES;
+        }
+        if has_clone {
+            return VOICE_CLONE;
         }
         return VOICE_NONE;
     }
@@ -405,15 +417,26 @@ module automation::crm_story_reel {
     }
 
     test "with no clone, a seller's reel speaks her own voice notes on Kie, and nothing else does" {
-        assert(voice_mode(true, true) == VOICE_CLONE);
-        assert(voice_mode(true, false) == VOICE_CLONE);
-        assert(voice_mode(false, true) == VOICE_NOTES);
-        assert(voice_mode(false, false) == VOICE_NONE);
+        assert(voice_mode(true, false, true) == VOICE_CLONE);
+        assert(voice_mode(true, false, false) == VOICE_CLONE);
+        assert(voice_mode(false, false, true) == VOICE_NOTES);
+        assert(voice_mode(false, false, false) == VOICE_NONE);
         assert(!NOTES_NEED_REPLICATE);
         assert(NOTES_WORDS_ARE_HERS);
         assert(NOTES_FROM_SELLER_DM_ONLY);
         assert(NOTES_MAX_SEC + PAUSE_SEC == REEL_MAX_SEC);
         assert(NOTES_MIN_SEC <= NOTES_MAX_SEC);
+    }
+
+    test "a seller's reel whose clone its provider refuses speaks her notes in the same run, on the stills it paid for" {
+        assert(voice_mode(true, true, true) == VOICE_NOTES);
+        assert(voice_mode(true, true, false) == VOICE_CLONE);
+        assert(voice_mode(false, true, true) == VOICE_NOTES);
+        assert(voice_mode(false, true, false) == VOICE_NONE);
+        assert(CLONE_DOWN_FALLS_TO_NOTES);
+        assert(CLONE_DOWN_SAME_RUN);
+        assert(CLONE_DOWN_KEEPS_STILLS);
+        assert(CLONE_DOWN_ONLY_ON_PROVIDER);
     }
 
     test "her notes are cut at a pause near the even cut, or at the even cut" {
@@ -458,7 +481,7 @@ module automation::crm_story_reel {
 
     test "what was seen live is kept apart from what is blocked" {
         assert(LIVE_RUN_STATUS == "delivered-2026-09-26");
-        assert(VOICE_LEG_STATUS == "clone-blocked-402-notes-on-kie-2026-09-27");
+        assert(VOICE_LEG_STATUS == "clone-402-falls-to-notes-on-kie-2026-09-27");
     }
 }
 
