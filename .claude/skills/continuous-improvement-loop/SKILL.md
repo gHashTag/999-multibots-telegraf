@@ -151,11 +151,11 @@ cat docs/OWNER-DECISIONS.md
     tri ворота          то, что должен был проверить CI, локально
     tri цвета           литеральные цвета мимо Theme.swift
     tri опыт <загл>     дописать урок в скилл со stdin
-    tri mcp <инстр>     вызвать инструмент агента на рендере; аргументы
-                        проверяются локально, потому что ответ сервера на
-                        битый конверт (-32600) выглядит как мёртвый маршрут
-    tri mcp eval <file> браузерный скрипт ИЗ ФАЙЛА — единственный способ
-                        сохранить его кавычки и переводы строк через shell
+    tri mcp <tool>      call one agent tool on the render; the arguments are
+                        validated locally, because the server's answer to a
+                        broken envelope (-32600) reads like a dead route
+    tri mcp eval <file> a browser script read from a FILE -- the only way its
+                        quotes and newlines survive the shell
 
 ### Что упёрлось во владельца
 
@@ -189,36 +189,40 @@ cat docs/OWNER-DECISIONS.md
 5. Локальный main может молча отстать на сотню коммитов; ветку брать ОТ
    origin/main, и мерить не по локальной копии.
 
-### Уроки 27.09.2026: вход в соцсети через ИИ-браузер
+### Lessons of 2026-09-27: signing in to networks through the agent's browser
 
-6. **Сообщение на странице — не приговор сервера.** Хабр трижды написал
-   «Неверный код», хотя код был верный: собственный JSON эндпоинта
-   `/ru/ident/verify/check` отвечал «Сессия входа истекла. Войдите заново».
-   Спрашивать надо эндпоинт, а не отрисованный текст, иначе лечишь не ту
-   болезнь — я успел заподозрить и чтение почты, и ввод.
-7. **Свёрнутая ветка в Gmail показывает НЕ последнее письмо.** Сниппет отдавал
-   прошлый код, пока в ветке уже лежал новый. Достоверно читается Atom-лента
-   `https://mail.google.com/mail/u/0/feed/atom`: обычный GET, у каждой записи
-   есть `<summary>` и `<issued>`, и внутрь Gmail кликать не нужно — что важно,
-   потому что действия на `mail.google.com` гвард рендера и так запрещает.
-8. **`input.value` из JS — это не ввод.** У страницы проверки кода Хабра две
-   формы и НИ ОДНОЙ кнопки внутри них: «Войти» лежит снаружи и обработана
-   скриптом. Запись в DOM модель фреймворка не видит, отправлять нечего.
-   Правдивый ввод — только настоящие нажатия: `browser_click` по полю, затем
-   `browser_type`. И перед этим `i.focus(); i.select()`, иначе прошлое
-   значение склеится с новым — так получилось «159010159010».
-9. **`browser_evaluate` на рендере падает на top-level `await`** («page threw:
-   Uncaught»), но возвращённый промис РАЗРЕШАЕТ. Обёртка — IIFE с
-   `return fetch(...).then(...)`; образец печатает `tri mcp eval --example`.
-10. **Возврат на открытую вкладку — отдельный инструмент.** Пока единственным
-    путём был `browser_open`, возврат стоил второй вкладки того же сайта; на
-    упоре в лимит эта вторая вкладка была оплачена страницей с токеном того
-    самого входа. `browser_focus_tab` (PR #3143) это закрыл и в тот же день
-    подтвердился в ровно той ситуации, которая его породила.
-11. **Пароль по-прежнему набирает человек, и это не тупик, а инструмент.**
-    `browser_ask_input` с `kind: password` и координатами поля ставит запрос
-    на его экран: значение приходит в страницу, минуя меня и минуя переписку.
-    Спрашивать пароль в чате нельзя — ответ тула говорит это прямым текстом.
+6. **A page's error message is not the server's verdict.** Habr said «Неверный
+   код» three times while the code was right: the endpoint's own JSON at
+   `/ru/ident/verify/check` answered «Сессия входа истекла» -- the sign-in
+   session had expired. Ask the endpoint, not the rendered text, or you treat
+   the wrong illness: I had already begun suspecting the mail reading and the
+   typing.
+7. **Gmail's collapsed thread does not show the newest message.** The snippet
+   kept serving the previous code while a newer one was already in the thread.
+   The reliable read is the Atom feed
+   `https://mail.google.com/mail/u/0/feed/atom`: a plain GET, every entry
+   carries `<summary>` and `<issued>`, and no click inside Gmail is needed --
+   which matters, because the render's own guard forbids acting on
+   `mail.google.com` anyway.
+8. **`input.value` set from JS is not input.** Habr's verify page has two forms
+   and NO button inside either: "Войти" sits outside and is handled by script.
+   A DOM write is invisible to the page's model, so there is nothing to submit.
+   The only truthful input is real keystrokes: `browser_click` on the field,
+   then `browser_type`. And `i.focus(); i.select()` first, or the old value is
+   concatenated with the new one -- that is how "159010159010" happened.
+9. **`browser_evaluate` on the render throws on a top-level `await`** ("page
+   threw: Uncaught") but it DOES resolve a returned promise. The wrapper is an
+   IIFE with `return fetch(...).then(...)`; `tri mcp eval --example` prints it.
+10. **Going back to an open tab needs its own tool.** While `browser_open` was
+    the only way back, returning cost a second tab of the same site; at the cap
+    that second tab was paid for with the token-bearing page of the sign-in in
+    progress. `browser_focus_tab` (PR #3143) closed that, and it proved itself
+    the same day in exactly the situation that produced it.
+11. **The person still types the password, and that is a tool, not a dead end.**
+    `browser_ask_input` with `kind: password` and the field's coordinates puts
+    the request on their screen: the value reaches the page without passing
+    through me or through the chat. Asking for a password in chat is forbidden
+    -- the tool's own answer says so in as many words.
 
 ### Урок 07.09.2026: защита, которая сама и есть авария
 

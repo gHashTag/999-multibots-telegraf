@@ -1617,7 +1617,7 @@ _mcp_key() {
 cmd_mcp() {
   local tool="${1:-}"
   if [ -z "$tool" ]; then
-    bad 'нужен инструмент: tri mcp <tool> [json] | tri mcp eval <file.js> | tri mcp list'
+    bad 'needs a tool: tri mcp <tool> [json] | tri mcp eval <file.js> | tri mcp list'
     return 1
   fi
 
@@ -1634,7 +1634,7 @@ EX
 
   local key
   if ! key=$(_mcp_key); then
-    bad 'нет ключа агента: задай AGENT_KEY, или TRI_AGENT_KEY_FILE, или положи его в Infisical как AGENT_KEY'
+    bad 'no agent key: set AGENT_KEY, or TRI_AGENT_KEY_FILE, or store it in Infisical as AGENT_KEY'
     return 1
   fi
 
@@ -1645,9 +1645,9 @@ EX
       ;;
     eval)
       local js="${2:-}"
-      [ -f "$js" ] || { bad "нет файла со скриптом: ${js:-<пусто>}"; return 1; }
+      [ -f "$js" ] || { bad "no script file: ${js:-<empty>}"; return 1; }
       args_json=$(python3 -c 'import json,sys; print(json.dumps({"code": open(sys.argv[1]).read()}))' "$js") \
-        || { bad 'не удалось упаковать скрипт'; return 1; }
+        || { bad 'could not pack the script'; return 1; }
       tool='browser_evaluate'
       ;;
     *)
@@ -1655,7 +1655,7 @@ EX
         # Validated HERE rather than at the server, because the server's answer
         # to a malformed envelope looks nothing like "your JSON is wrong".
         args_json=$(python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1])))' "$2" 2>/dev/null) \
-          || { bad "аргументы не JSON: $2"; return 1; }
+          || { bad "arguments are not JSON: $2"; return 1; }
       fi
       ;;
   esac
@@ -1681,7 +1681,7 @@ try:
 except urllib.error.HTTPError as e:
     # 502 here is almost always the deploy swap, not a broken call. Saying so
     # saves the next cycle from debugging a healthy route.
-    hint = ' (похоже на окно деплоя: повтори через минуту)' if e.code == 502 else ''
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
     print(f'HTTP {e.code} {e.reason}{hint}', file=sys.stderr)
     sys.exit(1)
 
