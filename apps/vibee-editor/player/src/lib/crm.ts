@@ -132,6 +132,14 @@ export interface WaitingRow {
   days: number
   stage: string
   because: string
+  /**
+   * The server's advice (crm_waiting): what to do about it and why that and
+   * not something else. Dropped here until 2026-09-27, so the list said who
+   * waits but never what to do (CRM audit #6). Empty when an older server
+   * does not send it.
+   */
+  nextWhy: string
+  urgency: string | null
 }
 
 export interface WaitingList {
@@ -266,6 +274,8 @@ function toWaiting(r: Record<string, unknown>): WaitingList {
       days: num(x['days']) ?? 0,
       stage: String(x['stage'] ?? 'new'),
       because: String(x['because'] ?? ''),
+      nextWhy: String(x['next_why'] ?? ''),
+      urgency: str(x['urgency']),
     })),
   }
 }
