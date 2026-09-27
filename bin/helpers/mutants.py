@@ -44,15 +44,31 @@ def main() -> int:
 
     # Check every mutation BEFORE running anything: one bad pattern halfway
     # through would leave a table that reads as a verdict.
+    # Loop turn 6 (27.09.2026): run from the repo root, the first file of the
+    # list was "not found" and the answer was a Python traceback; the paths
+    # are relative to where the command runs, so say that instead.
     for i, m in enumerate(muts):
-        s = io.open(m['file'], encoding='utf-8').read()
+        try:
+            s = io.open(m['file'], encoding='utf-8').read()
+        except OSError:
+            print(f'#{i + 1} {m["file"]}: no such file here -- the list\'s paths')
+            print('are relative to where you run it (cd into the package).')
+            return 2
         n = s.count(m['from'])
         if n != 1:
             print(f'#{i + 1} {m["file"]}: `from` occurs {n} times, need 1')
             return 2
 
     print('-- green run, no mutation --')
-    if subprocess.run(cmd, capture_output=True).returncode != 0:
+    # The same turn passed test FILES after `--`; the first was run as a
+    # program and died with a traceback. After `--` comes a command.
+    try:
+        green = subprocess.run(cmd, capture_output=True).returncode
+    except OSError as e:
+        print(f'cannot run `{cmd[0]}` ({e.strerror}): after -- comes a COMMAND,')
+        print('e.g. -- npx vitest run src/spec/x.test.ts')
+        return 2
+    if green != 0:
         print('the tests fail WITHOUT a mutation: fix the run first,')
         print('or every mutation will read as killed.')
         return 2

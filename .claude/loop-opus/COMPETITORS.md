@@ -256,3 +256,21 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 
 Источники: [OpenAI Agents SDK: Handoffs](https://openai.github.io/openai-agents-python/handoffs/),
 [Handoffs, Guardrails & Tracing](https://ai-tldr.dev/learn/agent-frameworks/provider-agent-sdks/openai-agents-sdk-handoffs/).
+
+## 27.09, виток 6: персональное видео, которое готовится минутами
+
+- **Sendspark (Outreach)**: шаг секвенции с персональным AI-видео ждёт,
+  пока видео сгенерируется, и только потом уходит письмо — обещание не
+  опережает файл.
+- **Tavus**: генерация асинхронная, готовность приходит колбэком
+  (`callback_url`); в продукте есть согласование и версии перед отправкой.
+- У нас рилс-история тоже готовится 5–10 минут и приходит владельцу
+  карточкой «ей в личку» — одно нажатие, его (как согласование у Tavus). До
+  витка 6 дуэт «исполнял» обещание прислать видео, пересылая последний файл
+  — её портрет (crm-duet v3, STORY_START_KEEPS_PROMISE). Чего нет: дуэт не
+  узнаёт, что рилс готов, — следующий шаг по аналогии со Sendspark: ход
+  продавца после готовности задачи.
+
+Источники: [Sendspark: Auto-Send AI Personalized Videos](https://help.sendspark.com/en/articles/12082407-outreach-auto-send-ai-personalized-videos),
+[Tavus: Webhooks and Callbacks](https://docs.tavus.io/sections/webhooks-and-callbacks),
+[Clay: Tavus AI Video Generation](https://www.clay.com/university/lesson/deep-dive-tavus-ai-video-generation-automated-outbound).

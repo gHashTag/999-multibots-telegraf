@@ -57,13 +57,36 @@ export const NO_BUYER_REASON =
 // (crm-duet.t27 v2, bound in src/spec/crm-duet.test.ts).
 export const TURNS_DEFAULT = SPEC.TURNS_DEFAULT
 export const TURNS_MAX = SPEC.TURNS_MAX
+/**
+ * THE DUET'S REEL IS THE STORY REEL (crm-duet.t27 v3): three frames, her
+ * face, her voice. It was in no set here -- listed on discovery turns,
+ * callable on a rewrite round, never counted -- so it joins the paid set;
+ * only a call that STARTS a reel is a paid call (callIsPaid).
+ */
+export const REEL_TOOL = SPEC.REEL_TOOL
 export const PAID_TOOLS = new Set([
   'image_generate',
   'image_edit',
   'audio_generate',
   'video_generate',
   'reel_render',
+  REEL_TOOL,
 ])
+
+/** A call spends: the story reel's readiness read does not, its start does. */
+export function callIsPaid(r: ToolResultEvent): boolean {
+  if (r.name === REEL_TOOL) return r.args?.start === true
+  return PAID_TOOLS.has(r.name)
+}
+
+/** The story job a call started, or null (a read, a refusal, a failure). */
+export function storyJobOf(r: ToolResultEvent): number | null {
+  if (r.name !== REEL_TOOL || !r.value || typeof r.value !== 'object')
+    return null
+  const v = r.value as Record<string, unknown>
+  const job = Number(v.job)
+  return v.started === true && Number.isInteger(job) && job > 0 ? job : null
+}
 /**
  * Tools the seller must not call: sending is the duet's job, not the model's,
  * and publishing is hers (DUET_NEVER refuses it; this reports one that got by).
@@ -411,7 +434,7 @@ export function retryAllowed(
   return (
     retriesDone < SELLER_RETRY_ON_LIMIT &&
     isLimitError(error) &&
-    !results.some(r => PAID_TOOLS.has(r.name))
+    !results.some(callIsPaid)
   )
 }
 
@@ -536,7 +559,6 @@ export function sellerBrief(
   const name = buyerTag(profile) ?? 'покупателем'
   const cta = p.approved_cta?.text ?? LEELA_CTA_RU
   const button = p.approved_cta?.button ?? LEELA_PLAY_RU
-  const template = p.reel_template?.composition ?? 'LeelaPlanReel' // stale-route-ok: the duet links its reel to her plan cards of this template (crm-duet.t27)
   return [
     `Ты ведёшь РЕАЛЬНЫЙ диалог в Telegram с ${name}, Telegram ID ${buyer}. Она ведёт игру самопознания «Лила Чакра» и впервые смотрит на этот бот как на инструмент для продвижения её игры.`,
     'Порядок работы — как у профессионала с клиентом: сначала УЗНАТЬ, потом ПРЕДЛОЖИТЬ. Первые 1–2 реплики — только знакомство и вопросы discovery (по одному за реплику). Предложение делай только после её ответов и опирайся на них дословно.',
@@ -575,7 +597,10 @@ export function sellerBrief(
     // name only the reel, and a seller with her package in hand made reels and
     // never the portrait every other person gets first.
     'Первый подарок — её портрет 9:16 из ЕЁ лица: image_edit (в этом диалоге он сам берёт её аватарку или присланное ею фото), сцена и стиль — из визуальных токенов профиля, без текста на картинке и без запрещённых формулировок. Человек на картинке — только её лицо: не image_generate и не рисунок по описанию.',
-    `Рилс — после портрета, и только шаблон ${template}: возьми канон плана инструментом leela_plan {plan}, подставь reel_props в reel_render. Не предлагай TrinityBlogReel, PromoReel и картинки image_generate: они не в стиле игры, а сгенерированный текст на картинке нечитаем.`,
+    // THE REEL IS THE STORY REEL (crm-duet.t27 v3; owner, 2026-09-27: "why
+    // does the agent keep doing it the old way"). This line said "only the
+    // LeelaPlanReel template" -- the last place a model was told the old route.
+    `Рилс — после портрета, и это рилс-история из трёх кадров (${REEL_TOOL}): её лицо в новой обстановке в каждом кадре, её голос, в конце пауза с призывом. Сначала ${REEL_TOOL} {lead: ${buyer}} без start — готова ли она (лицо, голос) и сколько это стоит; потом {lead: ${buyer}, start: true, topic: «план N — …»}: тема — план, который она выбрала, смысл плана — из leela_plan. Рилс собирается 5–10 минут и приходит владельцу на проверку, в её чат сам не уходит: не говори, что он готов или уже у неё, — скажи, что соберёшь и сначала посмотришь сам. Беззвучный ролик с субтитрами, TrinityBlogReel, PromoReel и картинки image_generate не предлагай: они не её голосом, а сгенерированный текст на картинке нечитаем.`,
     PLAN_MEANING_RULE,
     `Одобренный призыв: «${cta}» и кнопка «${button}». Других обещаний и призывов не придумывай.`,
     'Факты об игре — только эти:',
@@ -587,7 +612,7 @@ export function sellerBrief(
     'Инструменты — по делу: сначала crm_client_profile и crm_lead_context (что о ней уже известно), leela_plan — свободно; платная генерация — один портрет и один ролик за диалог, не больше одной за реплику, и только после того, как она сказала, чего хочет.',
     NO_LIVED_EXPERIENCE_RULE,
     NO_PUBLISH_RULE,
-    'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт — готовый ролик уходит ей файлом отдельным сообщением сразу после твоего текста. Никогда не пиши «отправляю/пришлю файл»: если она просит файл, скажи, что видео уже пришло в чат следующим сообщением после ссылки, и спроси, что в нём не в стиле. Ссылку на приложение или бота давай не больше одного раза за диалог.',
+    'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт — готовая картинка уходит ей файлом отдельным сообщением сразу после твоего текста; рилс-историю пересылает владелец после проверки. Никогда не пиши «отправляю/пришлю файл»: если она просит файл, который уже ушёл, скажи, что он пришёл в чат следующим сообщением после твоего текста, и спроси, что в нём не в стиле. Ссылку на приложение или бота давай не больше одного раза за диалог.',
     'О результате инструмента говори только то, что в нём есть: не описывай ролик или картинку, которых не видел, не хвали «читаемость» текста. Генерация занимает минуты; не обещай сроки «за день». Токены списываются с твоего баланса — не пиши ей «списано» и не называй свой остаток.',
     'Если у неё уже есть SOUL-черновик или скиллы «Leela: …» — скажи, что заготовка стоит, и попроси её поправить любое слово, которое не её.',
     'Ты пишешь от лица владельца бота — Дмитрия, в мужском роде: «я собрал», «я не видел», «сам». Никаких «я задавала», «сама».',
@@ -724,7 +749,13 @@ export function claimsDoneWork(text: string): boolean {
 
 /** Any producing tool (image, audio, video, reel) answered in this turn. */
 export function producedWork(results: ToolResultEvent[]): boolean {
-  return results.some(r => PAID_TOOLS.has(r.name) && okOf(r.value))
+  // A started story reel is work under way: "I am putting it together" after
+  // it is not a false claim (STORY_START_COUNTS_AS_WORK).
+  return results.some(r =>
+    r.name === REEL_TOOL
+      ? storyJobOf(r) !== null
+      : PAID_TOOLS.has(r.name) && okOf(r.value)
+  )
 }
 
 /**
@@ -780,9 +811,38 @@ const DISCOVERY_DENIED: ReadonlySet<string> = new Set([
   ...DUET_NEVER,
 ])
 
-/** Paid tools wait for discovery; the duet-never tools wait for ever. */
-export function deniedToolsFor(sellerTurn: number): ReadonlySet<string> {
-  return sellerTurn < DISCOVERY_SELLER_TURNS ? DISCOVERY_DENIED : DUET_NEVER
+/**
+ * A DRY RUN SENDS NOTHING (DRY_RUN_SENDS), and a started story reel ends in a
+ * card in the owner's Telegram: in a dry run the story reel is refused, with
+ * words the model can act on (crm-duet.t27 v3, STORY_IN_DRY_RUN).
+ */
+const DRY_RUN_DENIED: ReadonlySet<string> = new Set([...DUET_NEVER, REEL_TOOL])
+export const DRY_RUN_DENY_REASONS: ReadonlyMap<string, string> = new Map([
+  ...DUET_DENY_REASONS,
+  [
+    REEL_TOOL,
+    'это пробный прогон: рилс-историю не запускай — её карточка пришла бы владельцу в Telegram, а пробный прогон ничего не отправляет. Скажи, какой план взял бы темой.',
+  ],
+])
+
+/**
+ * Paid tools wait for discovery; the duet-never tools wait for ever; the
+ * story reel never runs dry.
+ */
+export function deniedToolsFor(
+  sellerTurn: number,
+  dryRun = false
+): ReadonlySet<string> {
+  if (sellerTurn < DISCOVERY_SELLER_TURNS) return DISCOVERY_DENIED
+  return dryRun ? DRY_RUN_DENIED : DUET_NEVER
+}
+
+/** The gate of one seller turn: what is refused, and in which words. */
+export function gateFor(sellerTurn: number, dryRun = false): ToolDenial {
+  return {
+    denyTools: deniedToolsFor(sellerTurn, dryRun),
+    denyReasons: dryRun ? DRY_RUN_DENY_REASONS : DUET_DENY_REASONS,
+  }
 }
 
 /**
@@ -1165,12 +1225,25 @@ export function okOf(value: unknown): boolean {
  * the owner's explicit word first. Until then no text the model, the client
  * or the card reads may say the reel "waits for her approval".
  */
-export const LEELA_REEL_TEMPLATE = 'LeelaPlanReel' // stale-route-ok: the duet's plan-card link (crm-duet.t27)
+export const LEELA_REEL_TEMPLATE = 'LeelaPlanReel' // stale-route-ok: the composition of a reel_render reel about one plan (crm-duet.t27)
+
+/*
+ * HER REEL CARD, WHATEVER REEL TEMPLATE IT NAMES (crm-duet.t27 v3).
+ *
+ * v2 moved only cards of the LeelaPlanReel template, so the story reel -- the
+ * duet's reel since v3 -- could never reach the card her package made for
+ * that very plan. A reel for plan N now goes to her card about plan N that
+ * has a template (a reel card, PLAN_LINK_ANY_REEL_TEMPLATE); a card with no
+ * template is her own note and is never moved (PLAN_LINK_OWN_CARDS).
+ */
 
 /** What happened to her plan when a turn produced a reel. */
 export interface PlanLink {
   plan: number | null
+  /** The reel's file; empty for a story reel, which is still being made. */
   url: string
+  /** The story job a started story reel is (storyJobOf). */
+  job?: number
   result:
     | 'moved'
     | 'noted'
@@ -1180,6 +1253,7 @@ export interface PlanLink {
     | 'not_leela'
     | 'dry_run'
     | 'changed'
+    | 'by_template'
     | 'failed'
   item_id?: number
   title?: string
@@ -1263,18 +1337,20 @@ type PlanRow = {
  */
 export async function linkReelToPlan(
   pool: RunsPool | undefined,
-  p: { buyer: string; plan: number; url: string; runId: string }
+  p: { buyer: string; plan: number; url: string; runId: string; job?: number }
 ): Promise<PlanLink> {
-  const base = { plan: p.plan, url: p.url }
+  const base = { plan: p.plan, url: p.url, ...(p.job ? { job: p.job } : {}) }
   if (!pool || typeof pool.query !== 'function')
     return { ...base, result: 'failed', error: 'no database' }
+  // What the note records, and what tells the same reel twice apart.
+  const mark = p.job ? storyMark(p.job) : p.url
   try {
     const r = await pool.query(
       `SELECT id, title, note, status FROM content_plan_items
-        WHERE telegram_id = $1 AND template_id = $2
+        WHERE telegram_id = $1 AND template_id IS NOT NULL
           AND status IN ('idea', 'doing')
         ORDER BY id`,
-      [p.buyer, LEELA_REEL_TEMPLATE]
+      [p.buyer]
     )
     // The SQL decides which cards may move at all (never `done`); here only
     // which one: a card still an idea before one already in work.
@@ -1284,10 +1360,12 @@ export async function linkReelToPlan(
     if (!row) return { ...base, result: 'no_row' }
     const card = { item_id: Number(row.id), title: String(row.title) }
     const note = row.note ?? ''
-    if (note.includes(p.url)) return { ...base, ...card, result: 'already' }
+    if (note.includes(mark)) return { ...base, ...card, result: 'already' }
     // No "waits for your approval": the card has no approve control and
     // nothing here writes her approval queue -- see the note above.
-    const line = `Рилс из дуэта ${p.runId} (черновик, не опубликован): ${p.url}`
+    const line = p.job
+      ? `Рилс-история из дуэта ${p.runId} (${mark}, делается; не опубликована)`
+      : `Рилс из дуэта ${p.runId} (черновик, не опубликован): ${p.url}`
     // `telegram_id` here repeats the SELECT's: the id already came from her
     // rows, so no test can see it -- it is kept for a write under another
     // person's id, not claimed as tested.
@@ -1322,13 +1400,15 @@ export function planLinkLine(t: number, l: PlanLink): string {
     case 'already':
       return `turn ${t}: ${plan} — этот рилс уже записан в карточке ${card}`
     case 'no_row':
-      return `turn ${t}: ${plan} — в её плане нет карточки ${LEELA_REEL_TEMPLATE} для этого плана в статусе idea/doing, ничего не записано`
+      return `turn ${t}: ${plan} — в её плане нет карточки рилса про этот план в статусе idea/doing, ничего не записано`
     case 'plan_unknown':
       return `turn ${t}: рилс без номера плана (нет props.plan и ровно одного leela_plan) — в план не записан`
     case 'not_leela':
-      return `turn ${t}: рилс не по шаблону ${LEELA_REEL_TEMPLATE} — в план не записан`
+      return `turn ${t}: ролик не про план её игры — в план не записан`
     case 'dry_run':
       return `turn ${t}: ${plan} — dry_run, её план не тронут`
+    case 'by_template':
+      return `turn ${t}: рилс-история без темы — следующую карточку её плана взял сам шаблон рилса`
     case 'changed':
       return `turn ${t}: ${plan} — карточка ${card} изменилась во время прогона, не тронута`
     default:
@@ -1357,11 +1437,65 @@ export function planNoteForSeller(l: PlanLink): string {
   const why: Record<string, string> = {
     no_row: 'в её плане нет подходящей карточки',
     plan_unknown: 'номер плана неизвестен',
-    not_leela: `ролик не по шаблону ${LEELA_REEL_TEMPLATE}`,
+    not_leela: 'ролик не про план её игры',
     dry_run: 'пробный прогон',
     changed: 'карточка менялась во время прогона',
   }
   return `[дуэт] Ролик прошлого хода в её контент-план НЕ записан (${why[l.result] ?? 'ошибка записи'}). Не говори ей, что он в плане или ждёт одобрения.`
+}
+
+/** How a story job is named in her card's note: the same job is noted once. */
+export function storyMark(job: number): string {
+  return `задача ${job}`
+}
+
+const TOPIC_PLAN_RE = new RegExp(
+  `(?<![0-9${CYR}])${PLAN_WORD}\\s*№?\\s*([0-9]{1,2})(?![0-9])`,
+  'iu'
+)
+
+/** The plan a story topic names: "plan N" in it, or a leading N; else null. */
+export function planInTopic(topic: string): number | null {
+  const named = TOPIC_PLAN_RE.exec(topic)?.[1]
+  const leading = /^\s*([0-9]{1,2})(?![0-9])/.exec(topic)?.[1]
+  return asPlan(named ?? leading)
+}
+
+/**
+ * The plan a story reel is about (crm-duet.t27 story_plan): the plan its
+ * topic names, else the ONE plan looked up this run. No topic: null -- the
+ * story template takes her next card itself, and the duet links none.
+ */
+export function storyPlanOf(
+  topic: string,
+  lookedUp: readonly number[]
+): number | null {
+  if (!topic.trim()) return null
+  const own = planInTopic(topic)
+  if (own !== null) return own
+  const distinct = [...new Set(lookedUp)]
+  return distinct.length === 1 ? distinct[0] : null
+}
+
+/**
+ * What the seller hears on its next turn about a story reel it started: it is
+ * being made and comes to the owner as a card -- not ready, not in her chat --
+ * and where it went in her plan (STORY_NOTE_NEXT_TURN).
+ */
+export function storyNoteForSeller(l: PlanLink): string {
+  const made = `[дуэт] Рилс-история прошлого хода делается (${storyMark(l.job ?? 0)}, 5–10 минут) и придёт владельцу карточкой «ей в личку» — в её чат сама не уходит. Не говори, что она готова или уже у неё.`
+  if (IN_HER_PLAN.has(l.result)) {
+    const card = l.title ? `«${l.title}»` : `плана ${l.plan}`
+    return `${made} В её контент-плане: карточка ${card}, статус «в работе».`
+  }
+  if (l.result === 'by_template')
+    return `${made} Тему взял шаблон рилса — следующую карточку её плана.`
+  const why: Record<string, string> = {
+    no_row: 'в её плане нет карточки рилса про этот план',
+    plan_unknown: 'в теме нет номера плана',
+    changed: 'карточка менялась во время прогона',
+  }
+  return `${made} В её контент-план НЕ записана (${why[l.result] ?? 'ошибка записи'}).`
 }
 
 /** A call's arguments: the envelope carries a JSON string, a double an object. */
@@ -1393,6 +1527,28 @@ async function planLinkFor(
     plan,
     url,
     runId: run.id,
+  })
+}
+
+/** The plan link of a turn that started a story reel. */
+async function storyLinkFor(
+  run: DuetRun,
+  ownerCtx: ToolContext,
+  story: ToolResultEvent,
+  lookedUp: readonly number[]
+): Promise<PlanLink> {
+  const job = storyJobOf(story) ?? 0
+  const topic = String(story.args?.topic ?? '')
+  if (!topic.trim()) return { plan: null, url: '', job, result: 'by_template' }
+  const plan = storyPlanOf(topic, lookedUp)
+  if (plan === null) return { plan: null, url: '', job, result: 'plan_unknown' }
+  if (run.dry_run) return { plan, url: '', job, result: 'dry_run' }
+  return linkReelToPlan(ownerCtx.pool as RunsPool | undefined, {
+    buyer: run.buyer,
+    plan,
+    url: '',
+    runId: run.id,
+    job,
   })
 }
 
@@ -1453,7 +1609,13 @@ export async function runDuet(
    * from the buyer's own face -- her photo or her avatar. Sending and the
    * plan links still act as the owner (ownerCtx below).
    */
-  const sellerCtx = { ...ownerCtx, faceOf: run.buyer } as ToolContext
+  // Where her story reel is offered is the duet's, not the model's: a card to
+  // the owner for her DM (crm-duet.t27 v3, STORY_CARD_TO).
+  const sellerCtx = {
+    ...ownerCtx,
+    faceOf: run.buyer,
+    storyTo: SPEC.STORY_CARD_TO,
+  } as ToolContext
   // The profile is read by the duet, not left to the model's discretion: the
   // brief is built from it, and the buyer persona borrows her draft voice.
   let profile: ClientProfile = null
@@ -1497,10 +1659,7 @@ export async function runDuet(
     for (let i = 0; i < run.turns * 2; i++) {
       const fromSeller = i % 2 === 0
       if (fromSeller) {
-        const gate: ToolDenial = {
-          denyTools: deniedToolsFor(i / 2),
-          denyReasons: DUET_DENY_REASONS,
-        }
+        const gate = gateFor(i / 2, run.dry_run)
         let { text, results, error } = await sellerTurn(
           deps,
           seller,
@@ -1628,7 +1787,7 @@ export async function runDuet(
             )
           } else if (refused) {
             run.violations.push(`turn ${i}: ${r.name} до discovery — отклонён`) // cyrillic-ok
-          } else if (PAID_TOOLS.has(r.name)) run.paid_calls++
+          } else if (callIsPaid(results[k])) run.paid_calls++
           if (FORBIDDEN_FOR_SELLER.test(r.name) && !refused)
             run.violations.push(`turn ${i}: ${r.name}`)
           if (profile && OFF_BRAND_FOR_CLIENT.has(r.name))
@@ -1654,7 +1813,11 @@ export async function runDuet(
         // A promised file must exist in this very turn. When it does not, the
         // duet keeps the promise with the last file it forwarded (no new paid
         // call) and reports the turn; with nothing to resend it only reports.
-        if (media.length === 0 && promisesFile(text)) {
+        // A story reel started in this turn keeps the promise itself: it
+        // reaches her by the owner's card, and the last file here would be
+        // her portrait (crm-duet.t27 v3, STORY_START_KEEPS_PROMISE).
+        const story = results.find(r => storyJobOf(r) !== null)
+        if (media.length === 0 && !story && promisesFile(text)) {
           if (lastMedia) {
             entry.resent = [lastMedia]
             run.violations.push(
@@ -1697,6 +1860,14 @@ export async function runDuet(
             plansLookedUp
           )
           planNote = planNoteForSeller(entry.plan_item)
+        } else if (story) {
+          entry.plan_item = await storyLinkFor(
+            run,
+            ownerCtx,
+            story,
+            plansLookedUp
+          )
+          planNote = storyNoteForSeller(entry.plan_item)
         }
         seller.push({ role: 'assistant', content: text })
         buyer.push({

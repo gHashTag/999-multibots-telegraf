@@ -11,17 +11,21 @@ import {
   NO_PUBLISH_RULE,
   PAID_TOOLS,
   PLAN_MEANING_RULE,
+  REEL_TOOL,
   SELLER_RETRY_ON_LIMIT,
   SELLER_RETRY_PAUSE_MS,
   TURNS_DEFAULT,
   TURNS_MAX,
   DISCOVERY_SELLER_TURNS,
   buyerRequestBody,
+  callIsPaid,
   claimsDoneWork,
   claimsFamiliarity,
   claimsLivedExperience,
   deniedToolsFor,
+  gateFor,
   isDiscoveryTurn,
+  linkReelToPlan,
   mediaOf,
   producedWork,
   promisesFile,
@@ -31,6 +35,7 @@ import {
   sellerBrief,
   sellerGenderSlip,
   stateAfter,
+  storyPlanOf,
   summaryOf,
   viewOf,
   type DuetDeps,
@@ -53,6 +58,10 @@ import type { ToolContext } from '../agent/tools'
  * real people's ids. Binding found two drifts and settled both on the spec's
  * side: the negation window reached three words back, and the brief's soft
  * cap had been two per run, not three.
+ *
+ * v3: the duet's reel is the story reel (crm_story_reel). Wiring it found it
+ * in no set of the duet, a promise to send it "kept" by resending her
+ * portrait, and her plan read only for the old template's cards.
  *
  * Refresh: node scripts/sync-t27-spec.mjs <t27 checkout> automation/crm-duet
  */
@@ -127,6 +136,73 @@ const result = (name: string, value: unknown) => ({
   мс: 5, // cyrillic-ok
 })
 const failure = (t: string) => ({ тип: 'ошибка', текст: t }) // cyrillic-ok
+const announce = (name: string, args: unknown) => ({
+  тип: 'инструмент', // cyrillic-ok: agent event keys
+  имя: name, // cyrillic-ok
+  аргументы: JSON.stringify(args), // cyrillic-ok
+})
+/** A seller turn that starts her story reel, as crm_story_reel answers it. */
+const storyStart = (job: number, args: Record<string, unknown>) => [
+  announce(REEL_TOOL, { lead: BUYER, start: true, ...args }),
+  result(REEL_TOOL, { started: true, topic: 'x', job, note: 'в фоне' }),
+]
+
+type Card = {
+  id: number
+  telegram_id: string
+  title: string
+  note: string | null
+  status: string
+  template_id: string | null
+}
+/**
+ * content_plan_items as Postgres would answer the SQL the host sends: rows
+ * are filtered only by the conditions the SQL states, so a dropped condition
+ * shows here as it would there.
+ */
+function cardsPool(cards: Card[]) {
+  const queries: string[] = []
+  const pool = {
+    async query(sql: string, params: unknown[] = []) {
+      queries.push(sql)
+      if (/^\s*SELECT/i.test(sql)) {
+        let out = cards
+        if (/telegram_id = \$1/.test(sql))
+          out = out.filter(r => r.telegram_id === params[0])
+        if (/template_id = \$2/.test(sql))
+          out = out.filter(r => r.template_id === params[1])
+        if (/template_id IS NOT NULL/.test(sql))
+          out = out.filter(r => r.template_id !== null)
+        if (/status IN \('idea', 'doing'\)/.test(sql))
+          out = out.filter(r => ['idea', 'doing'].includes(r.status))
+        // Copies, as a driver returns them: a later UPDATE does not reach back.
+        return { rows: out.map(r => ({ ...r })).sort((a, b) => a.id - b.id) }
+      }
+      if (/^\s*UPDATE content_plan_items/i.test(sql)) {
+        const hit = cards.filter(
+          r =>
+            r.id === params[0] &&
+            r.telegram_id === params[1] &&
+            r.status === params[3] &&
+            r.note === (params[4] ?? null)
+        )
+        for (const r of hit) {
+          r.status = 'doing'
+          r.note = String(params[2])
+        }
+        return { rows: hit.map(r => ({ id: r.id })) }
+      }
+      throw new Error(`unexpected query: ${sql.slice(0, 60)}`)
+    },
+  }
+  return { pool, queries }
+}
+const card = (
+  id: number,
+  title: string,
+  template_id: string | null,
+  telegram_id = BUYER
+): Card => ({ id, telegram_id, title, note: null, status: 'idea', template_id })
 const tool = (name: string) => CRM_DUET_TOOLS.find(t => t.name === name)!
 
 /** A base where only `ids` have a connected Telegram session. */
@@ -225,6 +301,7 @@ describe("the spec's tests hold against the host", () => {
     expect(PAID_TOOLS.size).toBe(SPEC.PAID_TOOLS)
     expect([...PAID_TOOLS].sort()).toEqual([
       'audio_generate',
+      'crm_story_reel',
       'image_edit',
       'image_generate',
       'reel_render',
@@ -256,6 +333,184 @@ describe("the spec's tests hold against the host", () => {
     expect(run.paid_calls).toBe(3)
     expect(run.paid_calls).toBeGreaterThan(SPEC.PAID_PER_RUN_SOFT)
     expect(reportOf(run)).toContain('платных генераций: 3')
+  })
+
+  it("the duet's reel is the story reel, paid only when it starts", async () => {
+    expect(REEL_TOOL).toBe(SPEC.REEL_TOOL)
+    expect(SPEC.REEL_TOOL).toBe('crm_story_reel')
+    // OLD_REEL_IN_BRIEF = false: the brief names the story reel, not the template.
+    const brief = sellerBrief(BUYER)
+    expect(SPEC.OLD_REEL_IN_BRIEF).toBe(false)
+    expect(brief).not.toContain('LeelaPlanReel')
+    expect(brief).toContain(`${SPEC.REEL_TOOL} {lead: ${BUYER}} без start`)
+    expect(brief).toContain(`{lead: ${BUYER}, start: true, topic:`)
+    // call_is_paid(paid_tool, story_reel, start)
+    const call = (name: string, args?: Record<string, unknown>) =>
+      callIsPaid({ name, value: {}, ms: 1, ...(args ? { args } : {}) })
+    expect(call(REEL_TOOL, { lead: BUYER, start: true })).toBe(true)
+    expect(call(REEL_TOOL, { lead: BUYER })).toBe(false)
+    expect(call('reel_render')).toBe(true)
+    expect(call('leela_plan')).toBe(false)
+    // The run counts the start, not the read.
+    const seller: Array<Array<Record<string, unknown>>> = []
+    for (let i = 0; i < DISCOVERY_SELLER_TURNS; i++)
+      seller.push([text('Какой план вам ближе?')])
+    seller.push([
+      announce(REEL_TOOL, { lead: BUYER }),
+      result(REEL_TOOL, { ready: true, lead: BUYER, price_tokens: 270 }),
+      ...storyStart(41, {}),
+      text('Соберу рилс-историю по вашему плану и сначала посмотрю её сам.'),
+    ])
+    const { d } = deps(seller, ['План 6.', 'Шестой.', 'Жду.'])
+    const run = await runDuet(
+      freshRun({ turns: DISCOVERY_SELLER_TURNS + 1 }),
+      ctx,
+      d
+    )
+    expect(run.paid_calls).toBe(1)
+    expect(run.coverage[REEL_TOOL]).toEqual({ calls: 2, ok: 2, fail: 0 })
+    // STORY_START_COUNTS_AS_WORK: "the finished reel comes after my check"
+    // is honest after a start and a false claim without one.
+    const LINE = 'Готовый рилс придёт после моей проверки.'
+    const started = {
+      name: REEL_TOOL,
+      value: { started: true, job: 41 },
+      ms: 1,
+      args: { start: true },
+    }
+    expect(SPEC.STORY_START_COUNTS_AS_WORK).toBe(true)
+    expect(claimIsHonest(LINE, [started])).toBe(true)
+    expect(claimIsHonest(LINE, [])).toBe(false)
+  })
+
+  it('the story reel waits for discovery and never runs dry', async () => {
+    // story_offered(seller_turn, dry_run)
+    const offered = (t: number, dry: boolean) =>
+      !deniedToolsFor(t, dry).has(REEL_TOOL)
+    expect(offered(0, false)).toBe(false)
+    expect(offered(1, false)).toBe(false)
+    expect(offered(2, false)).toBe(true)
+    expect(offered(2, true)).toBe(false)
+    expect(SPEC.STORY_IN_DRY_RUN).toBe(false)
+    // The refusal says why, in words the model can act on.
+    expect(gateFor(2, true).denyReasons?.get(REEL_TOOL)).toContain(
+      'пробный прогон'
+    )
+    // The loop hands the agent that gate on every seller turn.
+    const script = [
+      [text('Где живёт игра?')],
+      [text('Кто играет?')],
+      [text('Какой план взять темой?')],
+    ]
+    const dry = deps(script, ['В боте.', 'Друзья.', 'План 6.'])
+    await runDuet(freshRun({ turns: 3, dry_run: true }), ctx, dry.d)
+    expect(dry.denies.map(s => s?.has(REEL_TOOL))).toEqual([true, true, true])
+    const live = deps(script, ['В боте.', 'Друзья.', 'План 6.'])
+    await runDuet(freshRun({ turns: 3 }), ctx, live.d)
+    expect(live.denies.map(s => s?.has(REEL_TOOL))).toEqual([true, true, false])
+  })
+
+  it("the story reel reaches her by the owner's card, and a promise is not a resend", async () => {
+    expect(SPEC.STORY_REEL_FORWARDED).toBe(false)
+    const PORTRAIT = 'https://x/portrait.png'
+    const PROMISE = 'Пришлю видео, как только сам его посмотрю.'
+    const turns = DISCOVERY_SELLER_TURNS + 3
+    const seller: Array<Array<Record<string, unknown>>> = []
+    for (let i = 0; i < DISCOVERY_SELLER_TURNS; i++)
+      seller.push([text('Какой план вам ближе?')])
+    seller.push([
+      result('image_edit', { done: true, url: PORTRAIT }),
+      text('Это ваш портрет.'),
+    ])
+    const storyTurn = seller.length
+    seller.push([...storyStart(42, { topic: 'план 6' }), text(PROMISE)])
+    seller.push([text('Что поправить в портрете, пока рилс собирается?')])
+    const buyers = ['План 6.', 'Шестой.', 'Красиво. А видео?', 'Жду.', 'Ок.']
+    const { d, sent, histories } = deps(seller, buyers)
+    const ctxs: ToolContext[] = []
+    const agent = d.agent
+    d.agent = (h, c, o) => {
+      ctxs.push(c)
+      return agent(h, c, o)
+    }
+    const run = await runDuet(freshRun({ turns }), ctx, d)
+    expect(run.state).toBe('done')
+    // resend_for_promise(0, story_started=true, has_last=true) == false: the
+    // portrait went once; the story reel is not the duet's to send.
+    expect(sent.filter(s => s.url)).toEqual([
+      { from: OWNER, to: BUYER, url: PORTRAIT },
+    ])
+    expect(run.transcript[storyTurn * 2].resent).toBeUndefined()
+    expect(run.violations).toEqual([])
+    // STORY_CARD_TO: the duet, not the model, says where the card goes.
+    expect(SPEC.STORY_CARD_TO).toBe('dm')
+    expect(ctxs.every(c => c.storyTo === SPEC.STORY_CARD_TO)).toBe(true)
+    const story = readFileSync(
+      join(__dirname, '..', 'agent', 'crm-story-tool.ts'),
+      'utf8'
+    )
+    expect(story).toContain('String(ctx.storyTo ?? args.to ??')
+    // STORY_NOTE_NEXT_TURN: the seller reads, in front of her next reply,
+    // that the reel is being made -- not ready, not in her chat.
+    expect(SPEC.STORY_NOTE_NEXT_TURN).toBe(true)
+    const note = String(histories[storyTurn + 1].at(-1)?.content ?? '')
+    expect(note).toContain('[дуэт] Рилс-история прошлого хода делается')
+    expect(note).toContain('Не говори, что она готова')
+    // resend_for_promise(0, false, true) == true: without a story reel the
+    // same promise is kept with the last file, and reported.
+    const old = deps(
+      [...seller.slice(0, storyTurn), [text(PROMISE)], seller[storyTurn + 1]],
+      buyers
+    )
+    const replay = await runDuet(freshRun({ turns }), ctx, old.d)
+    expect(replay.transcript[storyTurn * 2].resent).toEqual([PORTRAIT])
+  })
+
+  it('her reel card is found by the plan, not by the template', async () => {
+    expect(SPEC.PLAN_LINK_ANY_REEL_TEMPLATE).toBe(true)
+    expect(SPEC.PLAN_LINK_OWN_CARDS).toBe(false)
+    // card_takes_reel(names_plan, has_template)
+    const cards = [
+      card(1, 'Мой план 6, своими словами', null), // hers: (true, false)
+      card(2, '12 → 8: змея Зависти — план 12', 'LeelaPlanReel'), // (false, true)
+      card(3, 'Вход с шестёрки — план 6', 'StoryReel'), // (true, true)
+    ]
+    const { pool } = cardsPool(cards)
+    const link = await linkReelToPlan(pool as never, {
+      buyer: BUYER,
+      plan: 6,
+      url: '',
+      runId: 'duet-spec',
+      job: 43,
+    })
+    expect(link).toMatchObject({ result: 'moved', item_id: 3, job: 43 })
+    expect(cards.map(c => c.status)).toEqual(['idea', 'idea', 'doing'])
+    expect(cards[2].note).toContain('задача 43')
+    // story_plan(topic_given, plan_in_topic, looked_up_single)
+    expect(storyPlanOf('план 6 — Заблуждение', [])).toBe(6)
+    expect(storyPlanOf('Заблуждение', [12])).toBe(12)
+    expect(storyPlanOf('План 6: Заблуждение', [12])).toBe(6)
+    expect(storyPlanOf('', [12])).toBeNull()
+    expect(storyPlanOf('Заблуждение', [])).toBeNull()
+    // STORY_WITHOUT_TOPIC_TAKES_CARD: no topic, the duet links nothing.
+    expect(SPEC.STORY_WITHOUT_TOPIC_TAKES_CARD).toBe(true)
+    const seller: Array<Array<Record<string, unknown>>> = []
+    for (let i = 0; i < DISCOVERY_SELLER_TURNS; i++)
+      seller.push([text('Какой план вам ближе?')])
+    seller.push([...storyStart(44, {}), text('Соберу рилс-историю.')])
+    const plan = cardsPool([card(3, 'Вход с шестёрки — план 6', 'StoryReel')])
+    const { d } = deps(seller, ['План 6.', 'Шестой.', 'Жду.'])
+    d.clientProfile = async () => ({ has_profile: false })
+    const run = await runDuet(
+      freshRun({ turns: DISCOVERY_SELLER_TURNS + 1 }),
+      { ...ctx, pool: plan.pool } as unknown as ToolContext,
+      d
+    )
+    expect(run.transcript.at(-2)?.plan_item).toMatchObject({
+      result: 'by_template',
+      job: 44,
+    })
+    expect(plan.queries).toEqual([])
   })
 
   it('turns are bounded and the buyer side never calls tools', () => {
