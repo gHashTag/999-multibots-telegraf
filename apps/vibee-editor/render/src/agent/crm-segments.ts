@@ -22,6 +22,8 @@
  * Caps bound what one day may start; the daily cap counts every send.
  */
 
+import { WINBACK_QUIET_DAYS } from './crm-stages'
+
 export const SEGMENTS = [
   'hot',
   'objection',
@@ -125,7 +127,12 @@ export function segmentOf(c: SegmentInput): Segment {
     (c.daysSinceOut === null || c.daysSinceOut >= 7)
   )
     return 'warm'
-  if (c.paid && days !== null && days >= 30 && touch?.kind !== 'refused')
+  if (
+    c.paid &&
+    days !== null &&
+    days >= WINBACK_QUIET_DAYS &&
+    touch?.kind !== 'refused'
+  )
     return 'winback'
   return 'quiet'
 }
