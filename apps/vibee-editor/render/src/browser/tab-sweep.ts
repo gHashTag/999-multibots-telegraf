@@ -201,24 +201,33 @@ export async function sweepPodTabs(
  * either starting or already in the trouble the health check reports, and
  * neither is this sweep's business to announce.
  */
-export async function sweepEveryPod(
+export interface PodJob {
+  who: string
+  cdp: string
+  /** Tab ids this pod must not lose, whatever the plan says. */
+  keep: string[]
+}
+
+/**
+ * Every pod worth looking at: the rows, plus this deployment's own pod even
+ * when no row names it. One list, used by the sweep and by the read-only view,
+ * so the two can never disagree about which pods exist.
+ *
+ * @param alsoCdp this deployment's provisioned pod (`BROWSER_POD_CDP`) -- see
+ * UNCLAIMED. Absent on a deployment that starts a pod per session, where a pod
+ * with no row really is gone.
+ */
+export async function podsToSweep(
   pool: Queryable,
-  io: SweepIo,
-  cap: number = TAB_CAP,
-  /**
-   * This deployment's provisioned pod (`BROWSER_POD_CDP`), swept even when no
-   * row names it -- see UNCLAIMED. Absent on a deployment that starts a pod
-   * per session, where a pod with no row really is gone.
-   */
   alsoCdp?: string
-): Promise<PodSweep[]> {
+): Promise<PodJob[]> {
   const { rows } = await pool.query(
     `SELECT telegram_id, cdp_endpoint FROM browser_sessions
       WHERE state = 'live' AND cdp_endpoint IS NOT NULL`,
     []
   )
   const { chosenFront } = await import('./front-page')
-  const jobs: { who: string; cdp: string; keep: string[] }[] = rows.map(row => {
+  const jobs: PodJob[] = rows.map(row => {
     const telegramId = String(row.telegram_id)
     const chosen = chosenFront(telegramId)
     return {
@@ -236,7 +245,73 @@ export async function sweepEveryPod(
   const named = (alsoCdp || '').trim()
   if (named && !jobs.some(j => sameEndpoint(j.cdp, named)))
     jobs.push({ who: UNCLAIMED, cdp: named, keep: [] })
+  return jobs
+}
 
+export interface PodTabView {
+  who: string
+  /** Real pages open now. */
+  pages: number
+  /** How many distinct sites those pages are. */
+  origins: number
+  cap: number
+  /** What the next sweep would close, and why -- without closing it. */
+  wouldClose: Doomed[]
+  /** Null when the pod could not be asked: starting, or in trouble. */
+  reachable: boolean
+}
+
+/**
+ * HOW CLOSE IS THE POD TO THE CEILING, WITHOUT TOUCHING ANYTHING.
+ *
+ * The wedge was a number nobody could see: 27 tabs looked exactly like 9 from
+ * outside, and the first sign of trouble was a signed-in account that behaved
+ * like a broken login. This is that number, on demand (`tri tabs`), so it can
+ * be read before it becomes an outage rather than after.
+ */
+export async function viewEveryPodTabs(
+  pool: Queryable,
+  list: SweepIo['list'],
+  alsoCdp?: string,
+  cap: number = TAB_CAP
+): Promise<PodTabView[]> {
+  const out: PodTabView[] = []
+  for (const job of await podsToSweep(pool, alsoCdp)) {
+    try {
+      const targets = await list(job.cdp)
+      const plan = planTabSweep(targets, job.keep, cap)
+      const pages = targets.filter(t =>
+        isRealPage({ ...t, type: t.type ?? '' })
+      )
+      out.push({
+        who: job.who,
+        pages: pages.length,
+        origins: new Set(pages.map(p => groupOf(p.url))).size,
+        cap,
+        wouldClose: plan.close,
+        reachable: true,
+      })
+    } catch {
+      out.push({
+        who: job.who,
+        pages: 0,
+        origins: 0,
+        cap,
+        wouldClose: [],
+        reachable: false,
+      })
+    }
+  }
+  return out
+}
+
+export async function sweepEveryPod(
+  pool: Queryable,
+  io: SweepIo,
+  cap: number = TAB_CAP,
+  alsoCdp?: string
+): Promise<PodSweep[]> {
+  const jobs = await podsToSweep(pool, alsoCdp)
   const out: PodSweep[] = []
   for (const job of jobs) {
     try {
