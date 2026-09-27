@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
@@ -8,6 +8,7 @@ import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
 import { AutoPanel } from '@/components/Crm/AutoPanel'
 import { TrafficPanel } from '@/components/Crm/TrafficPanel'
 import { Avatar } from '@/components/Crm/Avatar'
+import { sendOrQueue } from '@/lib/agentStream'
 import { CrmMap } from '@/components/Crm/CrmMap'
 import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
 import {
@@ -106,6 +107,7 @@ export { matches }
 
 export default function CrmPage() {
   const { t } = useLanguage()
+  const navigate = useNavigate()
   /*
    * LEADS ARE CLIENT WORK, SO THEY ARE SECTIONS HERE.
    *
@@ -295,6 +297,24 @@ export default function CrmPage() {
       setDropped(d => ({ ...d, [telegramId]: false }))
   }
 
+  /*
+   * PREPARE: the agent drafts the answer in this client's own thread, and the
+   * owner lands there to press Send or not. Nothing reaches the client from
+   * this button -- it only asks the agent (CRM audit 2026-09-27, #6: the
+   * list said who waits and gave only buttons that log a touch).
+   */
+  const prepare = (r: WaitingRow) => {
+    sendOrQueue(
+      t('crm.wait.prepareAsk', {
+        name: r.name || r.telegramId,
+        why: r.nextWhy || r.because,
+      }),
+      [],
+      { client: r.telegramId }
+    )
+    navigate(`/crm/${r.telegramId}/chat`)
+  }
+
   const touch = async (telegramId: string, kind: string) => {
     await recordTouch(telegramId, kind)
     /*
@@ -361,7 +381,15 @@ export default function CrmPage() {
       <p className="crm__why">
         {t(`crm.wait.${r.waiting}`)} · {r.days} · {r.because}
       </p>
+      {r.nextWhy ? <p className="crm__next">{r.nextWhy}</p> : null}
       <div className="crm__acts">
+        <button
+          type="button"
+          className="crm__prepare"
+          onClick={() => prepare(r)}
+        >
+          {t('crm.wait.prepare')}
+        </button>
         {/*
           The three that describe what actually happened. No "warm" or "in
           progress": a month later nobody can count those.

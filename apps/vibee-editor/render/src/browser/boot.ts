@@ -20,15 +20,27 @@
  * saw.
  */
 
-import { httpBase } from './cdp'
+import { httpBase, ipEndpoint } from './cdp'
 
-/** The browser's boot identity, or '' when the pod would not say. */
+/**
+ * The browser's boot identity, or '' when the pod would not say.
+ *
+ * THE ADDRESS HAS TO BE AN IP, and that is not a detail. Chromium refuses a
+ * DevTools HTTP request whose `Host` is a name rather than an address, so every
+ * other caller in cdp.ts resolves first (`listTargets`, `newPage`,
+ * `browserWsUrl`); this one did not, and the consequence was invisible because
+ * a refusal returns '' by design. Measured 2026-09-27 on the live service:
+ * `GET /api/browser/watch` reported `ok: true` with `bootId: ""` and
+ * `boots: 0` -- health answered through a resolved address while this function
+ * was being turned away, so the witness of a restart had never once seen one.
+ */
 export async function browserBootId(
   cdpEndpoint: string,
   timeoutMs = 10_000
 ): Promise<string> {
   try {
-    const res = await fetch(`${httpBase(cdpEndpoint)}/json/version`, {
+    const endpoint = await ipEndpoint(cdpEndpoint)
+    const res = await fetch(`${httpBase(endpoint)}/json/version`, {
       signal: AbortSignal.timeout(timeoutMs),
     })
     if (!res.ok) return ''

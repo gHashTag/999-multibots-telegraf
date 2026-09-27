@@ -80,6 +80,7 @@ tri — оболочка Trinity S³AI
   tri blank  как найти экран, который не нарисовал ничего и молчит об этом (форма 194)
   tri halfdone <файл>  где защита написана для одного элемента, а нужна соседям (форма 187)
   tri family <Компонент> [признак]  кто ещё в семье и до кого лекарство не дошло (форма 191)
+  tri paid-sources  кто решает «клиент заплатил» и читает ли живой кошелёк (не только архив payments_v2)
   tri owed  храповики долга в тестах: сколько мест ещё ждёт правила (форма 192)
   tri logonly  обработчики, которые только пишут в лог и ничего не чинят (форма 195)
   tri byload [каталог] [тест]  падает от кода или от ЗАГРУЗКИ машины: три прогона, три числа (форма 188)
@@ -1596,6 +1597,26 @@ RECIPE
     echo "оба «встречаются в файле» и проверяют разное (форма 191)."
     ;;
 
+  paid-sources)
+    # WHO DECIDES "THIS CLIENT PAID", AND DOES IT READ THE LIVE WALLET?
+    #
+    # 27.09.2026: whoPaid read only payments_v2, the archive nothing writes
+    # since the one-wallet decision, so a client who paid through the owner's
+    # own offer was pitched again. The pool argument adds token_ledger. This
+    # lists every call and marks the ones that read the archive alone; the
+    # suite render/paid-reads-the-live-wallet.test.ts fails on such a call.
+    shift
+    echo "who decides 'paid' (render/src):"
+    grep -rnE "whoPaid\(|\.then\(whoPaid\)" "$RENDER/src" --include=*.ts \
+      | grep -v "\.test\.ts" | grep -v "export const whoPaid" \
+      | while IFS= read -r line; do
+          if echo "$line" | grep -qE "whoPaid\([^(),]*\)|\.then\(whoPaid\)"; then
+            echo "  ✗ archive only  ${line#$RENDER/}"
+          else
+            echo "  ✓ live wallet   ${line#$RENDER/}"
+          fi
+        done
+    ;;
   owed)
     # A DEBT THAT MAY ONLY SHRINK, AND IS READ BECAUSE IT IS TRUE.
     #

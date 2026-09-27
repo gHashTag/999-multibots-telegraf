@@ -589,6 +589,41 @@ export async function lastWordsOf(
   }
 }
 
+/** How long an unpaid invoice is asked about before selling starts over. */
+export const UNPAID_INVOICE_DAYS = 14
+
+/**
+ * The newest unpaid, uncancelled invoice per person since `since`. Never
+ * throws: no table (nobody was ever invoiced) or an older table without the
+ * cancel column is an empty answer, and the plan is what it was before.
+ */
+export async function unpaidInvoicesSince(
+  pool: Pool,
+  since: Date
+): Promise<Map<string, Date>> {
+  const read = async (cancelled: boolean) =>
+    (
+      await pool.query(
+        `SELECT telegram_id, max(created_at) AS at FROM token_invoices
+          WHERE NOT redeemed AND created_at > $1${cancelled ? ' AND cancelled_at IS NULL' : ''}
+          GROUP BY telegram_id`,
+        [since]
+      )
+    ).rows ?? []
+  let rows: any[] = []
+  try {
+    rows = await read(true)
+  } catch {
+    rows = await read(false).catch(() => [])
+  }
+  const out = new Map<string, Date>()
+  for (const r of rows) {
+    const at = new Date(r.at)
+    if (!Number.isNaN(at.getTime())) out.set(String(r.telegram_id), at)
+  }
+  return out
+}
+
 export async function leadCandidates(
   pool: Pool,
   owner: string,
@@ -650,6 +685,10 @@ export async function leadCandidates(
       WHERE owner_id = $1 AND NOT "out"
       ORDER BY lead_id, at DESC`,
     [owner]
+  )
+  const pendingInvoices = await unpaidInvoicesSince(
+    pool,
+    new Date(now.getTime() - UNPAID_INVOICE_DAYS * 86400_000)
   )
   const words = new Map<string, string>()
   for (const r of last.rows as any[]) {
@@ -766,6 +805,36 @@ export async function leadCandidates(
       now.getTime() - new Date(touch.at).getTime() < 3 * 86400_000
     )
       next = 'wait'
+    /*
+     * AN INVOICE THAT WENT OUT AND WAS NOT PAID IS ASKED ABOUT, NOT REISSUED
+     * (CRM audit 2026-09-27, #2).
+     *
+     * After the three-day cool-down above, the word "price" in their history
+     * made this `offer` again, and the seller drafted a NEW invoice on top of
+     * the unpaid one -- a second bill to somebody who has not answered the
+     * first. What a salesperson does instead is ask whether it worked. So a
+     * sent, unpaid invoice from the last fortnight turns the step into
+     * `talk` (no price, no link) with the reason spelled out.
+     *
+     * "Sent" is the owner's press: an invoice is minted when a card is
+     * DRAFTED, and only a confirmed send writes the `written` touch. An
+     * invoice with no press after it was never seen by the client and does
+     * not count.
+     */
+    const pending = pendingInvoices.get(lead)
+    if (
+      pending &&
+      (next === 'offer' || next === 'deliver') &&
+      !unanswered &&
+      touch?.kind === 'written' &&
+      new Date(touch.at).getTime() >= pending.getTime() - 5 * 60_000
+    ) {
+      const ago = Math.floor((now.getTime() - pending.getTime()) / 86400_000)
+      next = 'talk'
+      why.push(
+        `счёт от ${ago} дн. назад не оплачен — спросить, получилось ли оплатить; новый счёт не выставлять`
+      )
+    }
     /*
      * A DELIVERY NEEDS SOMETHING TO DELIVER WITH.
      *
