@@ -234,4 +234,45 @@ describe('GET /api/browser/journal', () => {
     )
     expect(out.status).toBe(405)
   })
+
+  it('errors=1 answers the focused view -- each error and the look before it', async () => {
+    const pool = memoryPool()
+    // A look, then a failed click after it: the 2026-09-22 shape.
+    await recordStep(
+      pool,
+      OWNER,
+      stepOf(
+        'browser_read',
+        {},
+        {
+          result: {
+            url: 'https://accounts.google.com/signin?x=1',
+            title: 'Sign in',
+          },
+        },
+        7
+      )
+    )
+    await recordStep(
+      pool,
+      OWNER,
+      stepOf('browser_click', { x: 740, y: 394 }, { error: 'no element' }, 5)
+    )
+    const out = await handleBrowser(
+      { url: '/api/browser/journal?errors=1', method: 'GET' },
+      deps(pool) as never
+    )
+    expect(out.status).toBe(200)
+    const body = out.body as {
+      errors: { tool: string; saw: { title?: string; url?: string } | null }[]
+      steps?: unknown
+    }
+    // The focused view, not the whole log.
+    expect('steps' in body).toBe(false)
+    expect(body.errors).toHaveLength(1)
+    expect(body.errors[0].tool).toBe('browser_click')
+    expect(body.errors[0].saw?.title).toBe('Sign in')
+    // The address kept its query stripped, as bareUrl does everywhere.
+    expect(body.errors[0].saw?.url).toBe('https://accounts.google.com/signin')
+  })
 })
