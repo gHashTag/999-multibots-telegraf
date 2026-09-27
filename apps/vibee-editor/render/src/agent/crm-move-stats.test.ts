@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   MIN_USES,
+  moveStatsFor,
   moveStatsLine,
   scoreMoves,
   type LeadEvent,
@@ -91,5 +92,74 @@ describe('wiring', () => {
       'ЧТО РАБОТАЛО У ЭТОГО ВЛАДЕЛЬЦА' // cyrillic-ok
     )
     expect(supervisorBlock('', '')).not.toContain('ЧТО РАБОТАЛО') // cyrillic-ok
+  })
+})
+
+describe('moveStatsFor counts a Stars payment as a purchase (audit #8)', () => {
+  it('a purchase in the live wallet after the move is "bought"', async () => {
+    const now = Date.now()
+    const seen: string[] = []
+    const pool = {
+      query: async (sql: string) => {
+        seen.push(sql)
+        if (/FROM crm_touches[\s\S]*note LIKE/.test(sql))
+          return {
+            rows: [
+              {
+                lead_id: '900000041',
+                note: 'move:offer',
+                at: new Date(now - 3 * DAY).toISOString(),
+              },
+            ],
+          }
+        if (/FROM token_ledger/.test(sql))
+          return {
+            rows: [
+              {
+                telegram_id: '900000041',
+                created_at: new Date(now - 2 * DAY).toISOString(),
+              },
+            ],
+          }
+        return { rows: [] }
+      },
+    }
+    const stats = await moveStatsFor(pool, '900000040')
+    expect(stats.offer.bought).toBe(1)
+    expect(seen.find(q => /FROM token_ledger/.test(q))).toMatch(
+      /kind = 'purchase' AND delta > 0/
+    )
+  })
+
+  it('an unreadable wallet leaves the other outcomes standing', async () => {
+    const now = Date.now()
+    const pool = {
+      query: async (sql: string) => {
+        if (/FROM token_ledger/.test(sql)) throw new Error('no table')
+        if (/note LIKE/.test(sql))
+          return {
+            rows: [
+              {
+                lead_id: '900000042',
+                note: 'move:talk',
+                at: new Date(now - 3 * DAY).toISOString(),
+              },
+            ],
+          }
+        if (/FROM crm_messages/.test(sql))
+          return {
+            rows: [
+              {
+                lead_id: '900000042',
+                at: new Date(now - 2 * DAY).toISOString(),
+              },
+            ],
+          }
+        return { rows: [] }
+      },
+    }
+    const stats = await moveStatsFor(pool, '900000040')
+    expect(stats.talk.replied).toBe(1)
+    expect(stats.talk.bought).toBe(0)
   })
 })
