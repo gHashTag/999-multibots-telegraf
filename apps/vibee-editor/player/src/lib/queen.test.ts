@@ -16,12 +16,26 @@ vi.mock('@/config', async importOriginal => ({
 
 import { editorStore } from '@/atoms/Provider'
 import { queenMessagesAtomFor } from '@/atoms/agentChat'
-import { askQueen, tasksIn, withoutTasks } from './queen'
+import { askQueen, taskTarget, tasksIn, withoutTasks } from './queen'
 
 const CLIENT = '900000031'
 
 const stream = (lines: string[]) =>
   new Response(lines.map(l => l + '\n').join(''), { status: 200 })
+
+describe('taskTarget', () => {
+  it("her task goes to the specialist chosen in the client's thread", () => {
+    expect(taskTarget(CLIENT, 'blogger')).toEqual({
+      client: CLIENT,
+      agent: 'blogger',
+    })
+  })
+
+  it('and to the plain assistant when none is chosen', () => {
+    expect(taskTarget(CLIENT, null)).toEqual({ client: CLIENT })
+    expect(taskTarget(CLIENT)).toEqual({ client: CLIENT })
+  })
+})
 
 describe('tasksIn / withoutTasks', () => {
   it('reads up to three distinct tasks and hides the markers', () => {

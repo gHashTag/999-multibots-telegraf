@@ -225,3 +225,20 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 [HeyGen: бренд-видео](https://community.heygen.com/public/resources/how-to-use-heygen-for-brand-videos),
 [Canva: Design Accessibility](https://www.canva.com/help/using-design-accessibility/),
 [Canva Apps SDK: доступность](https://www.canva.dev/docs/apps/design-guidelines/accessibility/).
+
+## 27.09, виток 4: супервайзер и специалисты (кому уходит задача)
+
+- **LangGraph Supervisor**: центральный супервайзер решает, какого агента
+  звать под каждую задачу, и передаёт работу через «передающие инструменты»
+  (`create_handoff_tool`) — исполнитель назван в самом вызове.
+- **CrewAI (hierarchical)**: менеджер делегирует задачи агентам по их
+  ролям и целям.
+- У нас до витка 4 задачи Королевы шли ПРОСТОМУ Ассистенту, какого бы
+  специалиста владелец ни выбрал. Теперь — выбранному (task_goes_to).
+  Следующий шаг по аналогии с handoff: Королева сама называет исполнителя в
+  маркере задачи (`[[task@blogger: …]]`), а панель отдаёт ему.
+
+Источники: [LangGraph Supervisor](https://reference.langchain.com/python/langgraph-supervisor),
+[langgraph-supervisor-py](https://github.com/langchain-ai/langgraph-supervisor-py),
+[Supervisor vs Swarm](https://focused.io/lab/multi-agent-orchestration-in-langgraph-supervisor-vs-swarm-tradeoffs-and-architecture),
+[LangGraph и CrewAI: передачи между агентами](https://digitalthoughtdisruption.com/2025/08/05/multi-agent-langgraph-crewai-workflows/).

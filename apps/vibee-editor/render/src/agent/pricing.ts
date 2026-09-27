@@ -61,7 +61,10 @@ export const FREE = [
     как: 'локальный Remotion, без платных генераций',
   },
   {
-    что: 'Лила: канон плана (leela_plan) и рил LeelaPlanReel', // cyrillic-ok: field name
+    // Spec crm-story-reel v8: a client's reel is the story reel; the silent
+    // plan reel is made only when the owner names it. No crm_ name here: the
+    // price list is also read in a client's DM.
+    что: 'Лила: канон плана (leela_plan); рилс клиенту — рилс-история из трёх кадров (шаблон CRM), беззвучный LeelaPlanReel — только если владелец назвал', // cyrillic-ok: field name
     // The canon lookup and the template are free; the mp4 itself still goes
     // through reel_render and is quoted in PAID below like every other render.
     как: 'локальный Remotion + данные канона; сам рендер — по цене reel_render', // cyrillic-ok: field name

@@ -50,6 +50,10 @@
 // leela_plan's hint said "render with LeelaPlanReel", and the Queen's block never named the reel
 // tool. Every reel for a CRM client is the story reel; a plan item is its topic; the silent plan
 // reel is made only when the owner names it.
+// v9 (2026-09-27): a fifth place still pointed the old way. crm_client_plan answered with the
+// plan's items and their template_id -- LeelaPlanReel for one client's twelve items -- and not a
+// word of the route, so an agent reading "D5, template LeelaPlanReel" had every reason to render
+// it. The plan read now carries the route beside the items.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -60,7 +64,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 8;
+    pub const VERSION : u8 = 9;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -210,6 +214,7 @@ module automation::crm_story_reel {
     pub const REEL_TOOL_IN_CLIENT_BRIEF : bool = true;  // the brief names SELLER_TOOL above the package
     pub const REEL_TOOL_IN_QUEEN_BLOCK : bool = true;  // her tasks name SELLER_TOOL, not the old template
     pub const REEL_TOOL_IN_PLAN_HINT : bool = true;  // leela_plan's hint for a client reel
+    pub const REEL_TOOL_IN_PLAN_READ : bool = true;  // crm_client_plan answers with the route (v9)
     pub const PLAN_ITEM_IS_TOPIC : bool = true;  // "D5, plan 72" is the topic of a story reel
     pub const REELS_STAY_STORY_AFTER_GIFTS : bool = true;  // after both gifts: paid story reels, not the package's
 
@@ -645,6 +650,7 @@ module automation::crm_story_reel {
         assert(REEL_TOOL_IN_CLIENT_BRIEF);
         assert(REEL_TOOL_IN_QUEEN_BLOCK);
         assert(REEL_TOOL_IN_PLAN_HINT);
+        assert(REEL_TOOL_IN_PLAN_READ);
         assert(PLAN_ITEM_IS_TOPIC);
         assert(REELS_STAY_STORY_AFTER_GIFTS);
     }

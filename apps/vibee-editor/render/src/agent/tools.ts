@@ -1368,7 +1368,7 @@ export const TOOLS: AgentTool[] = [
       return {
         ...info,
         reel_props: {
-          compositionId: 'LeelaPlanReel',
+          compositionId: 'LeelaPlanReel', // stale-route-ok: the old template's own props; the hint below names the story reel first
           props: { lang, plan, hook, quote, cta },
         },
         voice_check: hits.length
