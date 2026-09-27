@@ -20,23 +20,27 @@ import {
   stillPrompt,
   KEEP_THE_PERSON,
   STORY_PAUSE_SEC,
+  type StillTask,
+  type StoryLate,
 } from './story-reel-tool'
+import type { LateOutcome } from './late-picture'
+import * as SPEC from '../spec/crm-story-reel.gen'
 
 type Call = { name: string; args: Record<string, any> }
 
 function fakeTools(
-  o: Partial<Record<string, (a: any, i: number) => any>> = {}
+  o: Partial<Record<string, (a: any, i: number, c: any) => any>> = {}
 ) {
   const calls: Call[] = []
   const counters: Record<string, number> = {}
-  const make = (name: string, answer: (a: any, i: number) => any) => ({
+  const make = (name: string, answer: (a: any, i: number, c: any) => any) => ({
     name,
     description: '',
     parameters: {},
-    handler: async (args: Record<string, any>) => {
+    handler: async (args: Record<string, any>, c: any) => {
       calls.push({ name, args })
       counters[name] = (counters[name] ?? 0) + 1
-      return answer(args, counters[name] - 1)
+      return answer(args, counters[name] - 1, c)
     },
   })
   const tools: Record<string, any> = {
@@ -284,5 +288,176 @@ describe("story_reel ends on the client's own visual", () => {
       button: '',
     })
     expect(parsed.endCard?.bg).toMatch(/^#0+$/)
+  })
+})
+
+/*
+ * A STILL THAT IS STILL DRAWING IS PAID ONCE (spec v3). The still has no URL
+ * yet, so `stills` cannot carry it: before, the next call ordered it again and
+ * paid again. The job keeps the provider's task, and a resume asks about it.
+ */
+describe('a still that is still drawing is paid once', () => {
+  const T0 = 1_000_000_000_000
+  function lateWith(
+    verdict: (taskId: string) => LateOutcome['state'],
+    clock = { t: T0 }
+  ) {
+    const looked: string[] = []
+    const refunded: { t: StillTask; why: string }[] = []
+    const late: StoryLate = {
+      look: async taskId => {
+        looked.push(taskId)
+        const st = verdict(taskId)
+        return st === 'ready'
+          ? { state: 'ready', taskId, url: `https://ours/late-${taskId}.png` }
+          : st === 'failed'
+            ? { state: 'failed', taskId, reason: 'refused' }
+            : ({ state: st, taskId, reason: '' } as LateOutcome)
+      },
+      refund: async (t, _c, why) => {
+        refunded.push({ t, why })
+      },
+      now: () => clock.t,
+      // Waiting moves the clock; the test never sleeps.
+      sleep: async ms => {
+        clock.t += ms
+      },
+    }
+    return { late, looked, refunded, clock }
+  }
+  const jobCtx = (tasks: (StillTask | null)[], progress: any[] = []): any => ({
+    telegramId: '900000001',
+    pool: { query: async () => ({ rows: [] }) },
+    storyStillTasks: tasks,
+    storyProgress: async (p: any) => {
+      progress.push(JSON.parse(JSON.stringify(p)))
+    },
+  })
+  const count = (calls: Call[], n: string) =>
+    calls.filter(c => c.name === n).length
+
+  it('keeps the task the moment the provider accepts it, with what its charge took', async () => {
+    const progress: any[] = []
+    let onRowDuringWait: any = null
+    const { lookup } = fakeTools({
+      image_edit: async (_a, i, c) => {
+        if (i !== 1) return { done: true, url: `https://ours/still-${i}.png` }
+        // Accepted, charged 8 ...
+        await c.onImageTask('task-b', { charged: 8, op: 'image_edit' })
+        // ... and a redeploy here would end the call: the row already has it.
+        onRowDuringWait = progress.find(
+          p => p.stillTasks?.[1]?.task === 'task-b'
+        )
+        return { done: false, pending: true, taskId: 'task-b', charged: 8 }
+      },
+    })
+    const { late } = lateWith(() => 'running')
+    const r: any = await makeStoryReelTool(lookup, late).handler(
+      ARGS,
+      jobCtx([], progress)
+    )
+    expect(r.done).toBe(false)
+    // Written to the row BEFORE the wait ended: a redeploy mid-wait keeps it.
+    expect(onRowDuringWait, 'the task reached the row at accept').toBeTruthy()
+    expect(onRowDuringWait.stillTasks[1]).toMatchObject({
+      task: 'task-b',
+      charged: 8,
+      op: 'image_edit',
+    })
+    expect(r.still_tasks[1]).toMatchObject({ task: 'task-b', charged: 8 })
+    expect(r.stills[1]).toBe('')
+  })
+
+  it('a resume takes the finished picture and orders nothing', async () => {
+    const { lookup, calls } = fakeTools()
+    const { late, refunded } = lateWith(() => 'ready')
+    const task: StillTask = { task: 'task-b', at: T0, charged: 8 }
+    const r: any = await makeStoryReelTool(lookup, late).handler(
+      { ...ARGS, stills: ['https://ours/a.png', '', 'https://ours/c.png'] },
+      jobCtx([null, task, null])
+    )
+    expect(r.done).toBe(true)
+    expect(count(calls, 'image_edit'), 'the still was not ordered again').toBe(
+      0
+    )
+    expect(r.stills[1]).toBe('https://ours/late-task-b.png')
+    expect(refunded).toEqual([])
+  })
+
+  it('a resume waits for a still that is still drawing and never orders it again', async () => {
+    const { lookup, calls } = fakeTools()
+    const { late, refunded, looked } = lateWith(() => 'running')
+    const task: StillTask = { task: 'task-b', at: T0, charged: 8 }
+    const r: any = await makeStoryReelTool(lookup, late).handler(
+      { ...ARGS, stills: ['https://ours/a.png', '', 'https://ours/c.png'] },
+      jobCtx([null, task, null])
+    )
+    expect(r.done).toBe(false)
+    expect(count(calls, 'image_edit')).toBe(0)
+    expect(count(calls, 'audio_generate'), 'no voice before every still').toBe(
+      0
+    )
+    // Asked through the whole wait, at the spec's pace.
+    expect(looked.length).toBe(
+      Math.floor(SPEC.STILL_WAIT_MS / SPEC.STILL_POLL_MS) + 1
+    )
+    expect(r.still_tasks[1]).toMatchObject({ task: 'task-b', at: T0 })
+    expect(refunded).toEqual([])
+  })
+
+  it('a still the provider refused is given back once and drawn anew', async () => {
+    const { lookup, calls } = fakeTools()
+    const { late, refunded } = lateWith(() => 'failed')
+    const task: StillTask = { task: 'task-b', at: T0, charged: 8 }
+    const r: any = await makeStoryReelTool(lookup, late).handler(
+      { ...ARGS, stills: ['https://ours/a.png', '', 'https://ours/c.png'] },
+      jobCtx([null, task, null])
+    )
+    expect(r.done).toBe(true)
+    expect(refunded).toHaveLength(1)
+    expect(refunded[0].t).toMatchObject({ task: 'task-b', charged: 8 })
+    expect(count(calls, 'image_edit')).toBe(1)
+  })
+
+  it('a still silent past the give-up is given back once and drawn anew', async () => {
+    const { lookup, calls } = fakeTools()
+    const clock = { t: T0 + SPEC.STILL_GIVE_UP_MS }
+    const { late, refunded, looked } = lateWith(() => 'unknown', clock)
+    const task: StillTask = { task: 'task-b', at: T0, charged: 8 }
+    const r: any = await makeStoryReelTool(lookup, late).handler(
+      { ...ARGS, stills: ['https://ours/a.png', '', 'https://ours/c.png'] },
+      jobCtx([null, task, null])
+    )
+    expect(r.done).toBe(true)
+    expect(looked).toEqual(['task-b'])
+    expect(refunded).toHaveLength(1)
+    expect(count(calls, 'image_edit')).toBe(1)
+  })
+
+  it("a task named in a model's arguments is never asked about or given back", async () => {
+    const { lookup, calls } = fakeTools()
+    const { late, looked, refunded } = lateWith(() => 'failed')
+    const r: any = await makeStoryReelTool(lookup, late).handler(
+      {
+        ...ARGS,
+        still_tasks: [{ task: 'someone-elses', at: 1, charged: 999 }],
+      },
+      ctx
+    )
+    expect(r.done).toBe(true)
+    expect(looked).toEqual([])
+    expect(refunded).toEqual([])
+    expect(count(calls, 'image_edit')).toBe(3)
+  })
+
+  it('without a way to ask, a known task is still never ordered again', async () => {
+    const { lookup, calls } = fakeTools()
+    const task: StillTask = { task: 'task-b', at: T0, charged: 8 }
+    const r: any = await makeStoryReelTool(lookup).handler(
+      { ...ARGS, stills: ['https://ours/a.png', '', 'https://ours/c.png'] },
+      jobCtx([null, task, null])
+    )
+    expect(r.done).toBe(false)
+    expect(count(calls, 'image_edit')).toBe(0)
   })
 })

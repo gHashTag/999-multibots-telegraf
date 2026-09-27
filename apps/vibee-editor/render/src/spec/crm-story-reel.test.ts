@@ -13,6 +13,7 @@ import {
   STORY_SWEEP_MS,
   STORY_TOPIC_MAX,
   failedMoneyLine,
+  jobKept,
   storyPriceEstimate,
 } from '../agent/story-template'
 import {
@@ -23,7 +24,9 @@ import {
   STORY_STILL_WAIT_MS,
   pauseOf,
   scenesOf,
+  stillResume,
 } from '../agent/story-reel-tool'
+import { lateRefundRef, LATE_WATCH_MS } from '../agent/late-picture'
 import { cardButtons, storyTurn } from '../agent/story-card'
 import { TOKEN_PRICES } from '../agent/billing-shared'
 import { EDIT_MODEL } from '../agent/kie-edit-model'
@@ -252,5 +255,40 @@ describe("the spec's tests hold against the host", () => {
   it('the one-press links are the spec routes', () => {
     expect(SPEC.START_PARAM).toBe('reel')
     expect(isAppRoute(SPEC.PAGE_ROUTE)).toBe(true)
+  })
+
+  it('a still that is still drawing is paid once: a resume waits for it and never orders it again (v3)', () => {
+    // still_resume(ready, refused, age_ms), the spec's own vectors.
+    const G = SPEC.STILL_GIVE_UP_MS
+    expect(SPEC.STILL_TASK_KEPT_AT_ACCEPT).toBe(true)
+    expect(SPEC.STILL_TASK_FROM_MODEL).toBe(false)
+    expect(stillResume(true, false, 0)).toBe(SPEC.RESUME_USE)
+    expect(stillResume(true, false, G)).toBe(SPEC.RESUME_USE)
+    expect(stillResume(false, false, 0)).toBe(SPEC.RESUME_WAIT)
+    expect(stillResume(false, false, G - 1)).toBe(SPEC.RESUME_WAIT)
+    expect(stillResume(false, false, G)).toBe(SPEC.RESUME_REDRAW)
+    expect(stillResume(false, true, 0)).toBe(SPEC.RESUME_REDRAW)
+    expect(SPEC.STILL_POLL_MS).toBeLessThan(SPEC.STILL_WAIT_MS)
+    expect(SPEC.STILL_WAIT_MS).toBeLessThan(G)
+    // The give-up is image_edit's own watch bound: past it, that watch has
+    // already given the charge back, so drawing anew never pays twice.
+    expect(G).toBe(LATE_WATCH_MS)
+  })
+
+  it('a charge for a still that never came is given back once, whoever notices (v3)', () => {
+    expect(SPEC.LATE_REFUND_ONCE_PER_TASK).toBe(true)
+    expect(lateRefundRef('abc')).toBe(`${SPEC.LATE_REFUND_REF_PREFIX}abc`)
+    expect(SPEC.FAILED_JOB_RETURNS_PENDING_STILLS).toBe(true)
+    const line = failedMoneyLine({ stills: 0, clips: 0, returned: 1 })
+    expect(line).toMatch('возвращены')
+  })
+
+  it('a job waiting only for a still is released for the sweep, not failed (v3)', () => {
+    // job_kept(stills_made, clips_made, stills_drawing)
+    expect(SPEC.PENDING_STILL_KEEPS_JOB).toBe(true)
+    expect(jobKept(0, 0, 1)).toBe(true)
+    expect(jobKept(1, 0, 0)).toBe(true)
+    expect(jobKept(0, 1, 0)).toBe(true)
+    expect(jobKept(0, 0, 0)).toBe(false)
   })
 })

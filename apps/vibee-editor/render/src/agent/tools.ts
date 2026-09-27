@@ -59,7 +59,13 @@ import {
   LEAD_MAGNET_MODEL,
   isGptImage25Edit,
 } from '../kie-image'
-import { watchLate } from './late-picture'
+import {
+  isWatching,
+  lateRefundRef,
+  lookOnce,
+  watchLate,
+  type LateOutcome,
+} from './late-picture'
 import { resolvingPeer } from './tg-proposals'
 import {
   clientFace,
@@ -70,7 +76,7 @@ import {
 } from './client-face'
 import { makeClientFaceTool } from './client-face-tool'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
-import { makeStoryReelTool } from './story-reel-tool'
+import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
 import {
@@ -175,14 +181,27 @@ export interface ToolContext {
    * its row, so a render redeployed mid-reel resumes from them instead of
    * drawing and paying for them again.
    */
-  storyProgress?: (p: { stills: string[]; clips: string[] }) => Promise<unknown>
+  storyProgress?: (p: {
+    stills: string[]
+    clips: string[]
+    stillTasks?: (StillTask | null)[]
+  }) => Promise<unknown>
+  /**
+   * The stills a story job ordered and is still waiting for, one per scene
+   * (story_reel). Set only by code, from the job's row -- never from a
+   * model's arguments: a task named here can give a charge back.
+   */
+  storyStillTasks?: (StillTask | null)[]
   /**
    * Told the provider's task id the moment an image edit is accepted, BEFORE
    * the wait (kie-image.ts runKieJob). Set only by code: crm_deliver_photo
    * puts the id on the person's debt at once, so a second request inside the
    * wait, or a render killed during it, does not pay for the portrait again.
    */
-  onImageTask?: (taskId: string) => unknown
+  onImageTask?: (
+    taskId: string,
+    paid?: { charged: number; op: string }
+  ) => unknown
   /**
    * A turn of the unattended seller (the timer's sweep, /sweep, the owner's
    * "prepare" press -- all `tools_only`). Every picture in it is for a lead,
@@ -916,7 +935,14 @@ async function refundTokens(
    * already went wrong in the sibling implementation: 540 charged, 60 given
    * back. One number cannot drift from itself.
    */
-  exact?: number
+  exact?: number,
+  /**
+   * Give back AT MOST ONCE under this reference (token_ledger's unique
+   * (kind, ref)). A late picture has two paths that can notice it never
+   * came -- image_edit's own watch, and a story job resuming after a
+   * redeploy killed that watch -- and only one of them may pay.
+   */
+  ref?: string
 ): Promise<void> {
   const price =
     typeof exact === 'number' && exact > 0 ? exact : TOKEN_PRICES[tool]
@@ -967,13 +993,21 @@ async function refundTokens(
   }
 
   try {
-    await moveTokens(ctx.pool, {
+    const moved = await moveTokens(ctx.pool, {
       telegramId: ctx.telegramId,
       delta: price,
       kind: 'refund',
       reason: `refund: ${tool} (${why})`,
       meta: { tool, why },
+      ...(ref ? { ref, once: true } : {}),
     })
+    if (!moved.ok) {
+      // The other path already gave it back: that is the guard working.
+      console.log(
+        `[токены] возврат не повторён (${moved.reason}): «${tool}» ${ref ?? ''}`
+      ) // cyrillic-ok: log text
+      return
+    }
     console.log(`[токены] возврат ${price} за «${tool}»: ${why}`)
     /*
      * A refund is ATTENTION, not an ordinary event.
@@ -1008,6 +1042,29 @@ async function refundTokens(
       severity: 'alarm',
     })
   }
+}
+
+/**
+ * GIVE BACK THE CHARGE OF A PICTURE THAT NEVER CAME -- at most once per task.
+ *
+ * For a caller that kept the task and what its charge took (a story job,
+ * story-template.ts): the same refund, under the same ledger reference, as
+ * image_edit's own watch gives. Whichever of the two notices first pays;
+ * the other finds the reference taken. An unknown charge gives nothing back:
+ * a refund is never re-derived from a price table.
+ */
+export async function refundLateImage(
+  ctx: ToolContext,
+  t: { task: string; op?: string; charged?: number },
+  why: string
+): Promise<void> {
+  await refundTokens(
+    ctx,
+    t.op || 'image_edit',
+    why,
+    t.charged ?? 0,
+    lateRefundRef(t.task)
+  )
 }
 
 /** Допишет стоимость к результату инструмента, если она есть. */
@@ -1732,7 +1789,12 @@ export const TOOLS: AgentTool[] = [
         aspectRatio,
         model,
         timeoutMs: ctx.imageWaitMs,
-        onCreated: ctx.onImageTask,
+        // The id leaves with what its charge took, so a caller that keeps it
+        // (a story job) can give exactly that back if the picture never comes.
+        onCreated: ctx.onImageTask
+          ? id =>
+              ctx.onImageTask!(id, { charged: charge['потрачено'] ?? 0, op }) // cyrillic-ok: the charge helper's own answer key
+          : undefined,
       })
       if (!edited.ok && edited.pending && edited.taskId) {
         /*
@@ -1756,13 +1818,16 @@ export const TOOLS: AgentTool[] = [
         })
           .then(async out => {
             if (out.state === 'ready') return
+            // Keyed by the task: a story job that notices the same picture
+            // never came, after a redeploy, gives nothing back a second time.
             await refundTokens(
               ctx,
               op,
               out.state === 'failed'
                 ? 'провайдер отказал после хода'
                 : 'провайдер не закончил за время наблюдения',
-              charge['потрачено']
+              charge['потрачено'],
+              lateRefundRef(taskId)
             )
           })
           .catch(() => undefined)
@@ -3562,7 +3627,27 @@ TOOLS.push(
  * StoryReel template, borrowed through the registry like delivery does, so
  * each part charges and refunds exactly as when called alone.
  */
-TOOLS.push(makeStoryReelTool(n => TOOLS.find(t => t.name === n)))
+TOOLS.push(
+  makeStoryReelTool(n => TOOLS.find(t => t.name === n), {
+    // A still that is drawing is asked about, never ordered again. While
+    // image_edit's own watch is on it, that watch copies it (one copy).
+    look: (taskId, ctx): Promise<LateOutcome> =>
+      isWatching(taskId)
+        ? Promise.resolve({ state: 'running', taskId })
+        : lookOnce(taskId, {
+            check: kieTaskState,
+            keep: async url => {
+              const kept = await keepGeneratedImage(
+                ctx,
+                url,
+                `story still, late task ${taskId}`
+              )
+              return kept.ok ? kept.url : ''
+            },
+          }),
+    refund: (t, ctx, why) => refundLateImage(ctx, t, why),
+  })
+)
 /*
  * THE CRM'S STORY TEMPLATE (crm_story_reel): the same reel for any client
  * with a face and a voice, on any topic, made in the background and handed
@@ -3571,14 +3656,24 @@ TOOLS.push(makeStoryReelTool(n => TOOLS.find(t => t.name === n)))
  */
 TOOLS.push(
   makeCrmStoryTool({
-    deps: ctx => makeStoryDeps(ctx.pool, n => TOOLS.find(t => t.name === n)),
+    deps: ctx =>
+      makeStoryDeps(
+        ctx.pool,
+        n => TOOLS.find(t => t.name === n),
+        refundLateImage
+      ),
     lookup: n => TOOLS.find(t => t.name === n),
   })
 )
 // And the same reel for the person herself: the /story page and her own bot.
 TOOLS.push(
   makeMyStoryTool({
-    deps: ctx => makeStoryDeps(ctx.pool, n => TOOLS.find(t => t.name === n)),
+    deps: ctx =>
+      makeStoryDeps(
+        ctx.pool,
+        n => TOOLS.find(t => t.name === n),
+        refundLateImage
+      ),
   })
 )
 /*

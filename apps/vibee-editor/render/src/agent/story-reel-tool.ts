@@ -24,10 +24,20 @@
  * with them, and the next call passes them in (`stills`, `clips`): the parts
  * already paid for are never made twice.
  *
+ * A STILL THAT IS STILL DRAWING IS PAID ONCE (spec v3). It has no URL yet, so
+ * `stills` cannot carry it: until 2026-09-27 the next call ordered it again
+ * and paid again -- after a redeploy during the wait (the id died with the
+ * process) and after any still slower than STILL_WAIT_MS. Now a story job
+ * keeps the provider's task id on its row the moment the task is accepted
+ * (ctx.storyStillTasks, set only by code), and a resume ASKS about that task
+ * (stillResume): take the picture, wait for it, or -- refused, or silent past
+ * STILL_GIVE_UP_MS -- give its charge back once and draw anew.
+ *
  * Each borrowed tool charges for itself exactly as when called alone (the
  * house pays nothing), so this file holds no prices of its own.
  */
 import type { AgentTool, ToolContext } from './tools'
+import type { LateOutcome } from './late-picture'
 // The numbers are the spec's: gHashTag/t27 specs/automation/crm-story-reel.t27,
 // vendored with its `t27c gen-ts` output (see story-template.ts).
 import * as SPEC from '../spec/crm-story-reel.gen'
@@ -55,6 +65,70 @@ export function pauseOf(asked: unknown): number {
  * three and arrived in "my files" twenty seconds after the tool had given up.
  */
 export const STORY_STILL_WAIT_MS = SPEC.STILL_WAIT_MS
+
+/** A still ordered, paid for, and not drawn yet: the provider's task. */
+export interface StillTask {
+  task: string
+  /** When the provider accepted it, ms since the epoch. */
+  at: number
+  /** What its charge took; the refund gives back exactly this, never a table price. */
+  charged?: number
+  /** The op it was charged under. */
+  op?: string
+}
+
+/**
+ * What a resume does with a still whose task is known (spec: still_resume):
+ * RESUME_USE the picture, RESUME_WAIT for it, or RESUME_REDRAW -- its charge
+ * back once, then draw anew.
+ */
+export function stillResume(
+  ready: boolean,
+  refused: boolean,
+  ageMs: number
+): number {
+  if (ready) return SPEC.RESUME_USE
+  if (refused) return SPEC.RESUME_REDRAW
+  if (ageMs >= SPEC.STILL_GIVE_UP_MS) return SPEC.RESUME_REDRAW
+  return SPEC.RESUME_WAIT
+}
+
+/** The still tasks a job's row holds, one per scene; junk is dropped. */
+export function stillTasksOf(raw: unknown, n: number): (StillTask | null)[] {
+  let v = raw
+  if (typeof v === 'string') {
+    try {
+      v = JSON.parse(v)
+    } catch {
+      v = []
+    }
+  }
+  const list = Array.isArray(v) ? v : []
+  return Array.from({ length: n }, (_, i) => {
+    const t = list[i] as Partial<StillTask> | null | undefined
+    const task = String(t?.task ?? '').trim()
+    const at = Number(t?.at)
+    if (!/^[\w-]{1,128}$/.test(task) || !Number.isFinite(at) || at <= 0)
+      return null
+    const charged = Number(t?.charged)
+    return {
+      task,
+      at,
+      ...(Number.isFinite(charged) && charged > 0 ? { charged } : {}),
+      ...(t?.op ? { op: String(t.op) } : {}),
+    }
+  })
+}
+
+/** How the tool asks about a still task and gives its charge back. */
+export interface StoryLate {
+  /** One question about a task: never creates or charges anything. */
+  look: (taskId: string, ctx: ToolContext) => Promise<LateOutcome>
+  /** Give a still's charge back, at most once per task. */
+  refund: (t: StillTask, ctx: ToolContext, why: string) => Promise<void>
+  now?: () => number
+  sleep?: (ms: number) => Promise<void>
+}
 
 export const KEEP_THE_PERSON =
   'Keep the person EXACTLY as in the source photo -- the same face, features, hair, age and outfit; ' +
@@ -164,6 +238,8 @@ function outcome(v: any): {
   url: string
   why: string
   pending: boolean
+  taskId: string
+  charged: number
   seconds: number
   voice: string
 } {
@@ -174,12 +250,20 @@ function outcome(v: any): {
     url: String(v?.url ?? ''),
     why: String(v?.reason ?? v?.['причина'] ?? v?.error ?? ''),
     pending: v?.pending === true,
+    taskId: String(v?.taskId ?? ''),
+    charged: Number(v?.charged) || 0,
     seconds: Number(v?.seconds) || 0,
     voice: String(v?.['голос'] ?? ''),
   }
 }
 
-export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
+export function makeStoryReelTool(
+  lookup: (name: string) => Tool,
+  late?: StoryLate
+): AgentTool {
+  const now = late?.now ?? Date.now
+  const sleep =
+    late?.sleep ?? ((ms: number) => new Promise(r => setTimeout(r, ms)))
   return {
     name: 'story_reel',
     description:
@@ -269,12 +353,57 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
       const endCard = endCardOf(args.end_card)
       const stills = carried(args.stills, n)
       const clips = carried(args.clips, n)
+      // Only the job's row names a task (spec: STILL_TASK_FROM_MODEL false).
+      const tasks = stillTasksOf(ctx.storyStillTasks ?? [], n)
+      const progress = () =>
+        ctx
+          .storyProgress?.({ stills, clips, stillTasks: tasks })
+          .catch(() => undefined)
       const sofar = () => ({
         stills,
         clips,
+        ...(tasks.some(Boolean) ? { still_tasks: tasks } : {}),
         how_to_continue:
           'повтори story_reel с теми же scenes и этими stills и clips: готовое не делается заново',
       })
+
+      /*
+       * A still whose task is known: ask, within the same wait a new still
+       * gets, and never order it again while it can still come.
+       */
+      const settle = async (
+        t: StillTask
+      ): Promise<{ act: number; url: string; why: string }> => {
+        // No way to ask is no way to give back either: drawing anew would
+        // be the second charge this exists to prevent. Wait.
+        if (!late)
+          return { act: SPEC.RESUME_WAIT, url: '', why: 'не у кого спросить' }
+        const until = now() + STORY_STILL_WAIT_MS
+        for (;;) {
+          const out: LateOutcome = await late.look(t.task, ctx).catch(
+            (e): LateOutcome => ({
+              state: 'unknown',
+              taskId: t.task,
+              reason: String(e),
+            })
+          )
+          const act = stillResume(
+            out.state === 'ready',
+            out.state === 'failed',
+            now() - t.at
+          )
+          if (act !== SPEC.RESUME_WAIT || now() >= until)
+            return {
+              act,
+              url: out.state === 'ready' ? out.url : '',
+              why:
+                out.state === 'failed'
+                  ? `провайдер отказал: ${out.reason}`
+                  : 'провайдер не ответил за время ожидания',
+            }
+          await sleep(SPEC.STILL_POLL_MS)
+        }
+      }
 
       const edit = lookup('image_edit')
       const speak = lookup('audio_generate')
@@ -287,28 +416,78 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
         }
 
       // 1. The stills that are missing, all at once, from the one source.
-      const drawCtx: ToolContext = { ...ctx, imageWaitMs: STORY_STILL_WAIT_MS }
       const drawing: string[] = []
       await Promise.all(
         scenes.map(async (s, i) => {
-          if (stills[i] || clips[i]) return
+          if (stills[i] || clips[i]) {
+            tasks[i] = null
+            return
+          }
+          const known = tasks[i]
+          if (known) {
+            const v = await settle(known)
+            if (v.act === SPEC.RESUME_USE && v.url) {
+              stills[i] = v.url
+              tasks[i] = null
+              return
+            }
+            if (v.act !== SPEC.RESUME_REDRAW) {
+              drawing.push(
+                `${i + 1}: ещё рисуется (оплачен, заново не заказан)`
+              )
+              return
+            }
+            // Refused, or given up on: its charge back once, then anew.
+            await late?.refund(known, ctx, v.why).catch(() => undefined)
+            tasks[i] = null
+          }
+          const drawCtx: ToolContext = {
+            ...ctx,
+            imageWaitMs: STORY_STILL_WAIT_MS,
+            // The id is kept the moment the provider accepts it: a redeploy
+            // during the wait no longer takes the only copy with it.
+            onImageTask: (task, paid) => {
+              tasks[i] = {
+                task,
+                at: now(),
+                charged: paid?.charged ?? 0,
+                op: paid?.op ?? 'image_edit',
+              }
+              return progress()
+            },
+          }
           const r = outcome(
             await edit
               .handler(
                 {
                   image_url: source,
                   prompt: stillPrompt(s.setting, style),
-                  aspect_ratio: '9:16',
+                  aspect_ratio: SPEC.ASPECT_RATIO,
                 },
                 drawCtx
               )
               .catch(e => ({ done: false, reason: String(e) }))
           )
-          if (r.ok && r.url) stills[i] = r.url
-          else drawing.push(`${i + 1}: ${r.pending ? 'ещё рисуется' : r.why}`)
+          if (r.ok && r.url) {
+            stills[i] = r.url
+            tasks[i] = null
+          } else if (r.pending && r.taskId) {
+            const had = tasks[i]
+            tasks[i] = {
+              task: r.taskId,
+              at: had?.task === r.taskId ? had.at : now(),
+              charged: r.charged || had?.charged || 0,
+              op: had?.op ?? 'image_edit',
+            }
+            drawing.push(`${i + 1}: ещё рисуется (оплачен, придёт сам)`)
+          } else {
+            // Refused on the spot: image_edit gave its charge back itself.
+            tasks[i] = null
+            drawing.push(`${i + 1}: ${r.why}`)
+          }
         })
       )
-      await ctx.storyProgress?.({ stills, clips }).catch(() => undefined)
+      await progress()
       if (stills.some((u, i) => !u && !clips[i])) {
         return {
           done: false,
@@ -350,7 +529,7 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
           if (c.ok && c.url) {
             clips[i] = c.url
             seconds[i] = c.seconds
-            await ctx.storyProgress?.({ stills, clips }).catch(() => undefined)
+            await progress()
           } else failed.push(`липсинк ${i + 1}: ${c.why}`)
         })
       )
