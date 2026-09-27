@@ -340,3 +340,17 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 [adobe/leonardo](https://github.com/adobe/leonardo),
 [Leonardo: contrast-based color generator](https://medium.com/@NateBaldwin/leonardo-an-open-source-contrast-based-color-generator-92d61b6521d2),
 [Coolors: Contrast Checker](https://coolors.co/contrast-checker).
+
+## 27.09, виток 11: оттенки в перцептивном пространстве
+
+- **Tailwind CSS v4**: вся палитра по умолчанию переведена в OKLCH — тон
+  стабилен от оттенка к оттенку; в HSL/sRGB «синий становится мутно-
+  фиолетовым, оранжевый — коричневым». Ровно наш замер: тёмно-синий →
+  лавандовый на 19,8° при смешении в sRGB.
+- **Adobe Leonardo**: цвета от целевого контраста в OKLCH/CAM02.
+- У нас с витка 11 (crm-story-reel v14) оттенок меняет только светлоту в
+  OKLCH, тон уходит не дальше 3° (замер 2,54°), «ближайший» — по OKLab.
+
+Источники: [Tailwind v4 OKLCH](https://medium.com/design-bootcamp/tailwind-v4-oklch-why-your-colors-got-better-without-changing-class-names-5e7e7565ee1e),
+[OKLCH Colors in Tailwind](https://stevekinney.com/courses/tailwind/oklch-colors),
+[adobe/leonardo](https://github.com/adobe/leonardo).

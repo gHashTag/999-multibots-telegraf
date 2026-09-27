@@ -495,16 +495,111 @@ export function suggestOffered(colourOk: boolean, readable: boolean): boolean {
 const WHITE = 255
 const BLACK = 0
 
-/** Her colour, `step` of SUGGEST_STEPS of the way to white or black. */
-export function shadeOf(colour: string, target: number, step: number): string {
-  const k = Math.min(step, SPEC.SUGGEST_STEPS) / SPEC.SUGGEST_STEPS
-  return `#${rgbOf(colour)
-    .map(v =>
-      Math.round(v + (target - v) * k)
+/*
+ * OKLCH (spec v14): lightness, chroma and hue as the eye sees them. The
+ * shade moves only the lightness, so her hue and chroma stay hers; the sRGB
+ * mix of v12 and v13 turned a dark blue 19.8 degrees toward lavender.
+ */
+const toLinear = (v: number) => {
+  const x = v / 255
+  return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
+}
+const toGamma = (x: number) =>
+  x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055
+
+/** A #hex colour in OKLab: [L, a, b]. */
+export function oklabOf(colour: string): [number, number, number] {
+  const [r, g, b] = rgbOf(colour).map(toLinear)
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ]
+}
+
+/** A #hex colour in OKLCH: lightness 0..1, chroma, hue in degrees. */
+export function oklchOf(colour: string): { l: number; c: number; h: number } {
+  const [l, a, b] = oklabOf(colour)
+  return {
+    l,
+    c: Math.hypot(a, b),
+    h: ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360,
+  }
+}
+
+const linearOf = (l: number, c: number, h: number) => {
+  const [a, b] = [
+    c * Math.cos((h * Math.PI) / 180),
+    c * Math.sin((h * Math.PI) / 180),
+  ]
+  const L = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3
+  const M = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3
+  const S = (l - 0.0894841775 * a - 1.291485548 * b) ** 3
+  return [
+    4.0767416621 * L - 3.3077115913 * M + 0.2309699292 * S,
+    -1.2684380046 * L + 2.6097574011 * M - 0.3413193965 * S,
+    -0.0041960863 * L - 0.7034186147 * M + 1.707614701 * S,
+  ]
+}
+const shown = (v: number[]) => v.every(x => x >= -1e-6 && x <= 1 + 1e-6)
+
+/**
+ * An OKLCH colour as #rrggbb. Chroma a screen cannot show is cut back
+ * (SHADE_CHROMA_CUT_TO_SRGB) -- by halving, so the hue stays -- never
+ * clipped channel by channel, which would turn it.
+ */
+export function hexOfOklch(l: number, c: number, h: number): string {
+  let chroma = c
+  if (!shown(linearOf(l, chroma, h))) {
+    let [lo, hi] = [0, c]
+    for (let i = 0; i < 24; i++) {
+      const mid = (lo + hi) / 2
+      if (shown(linearOf(l, mid, h))) lo = mid
+      else hi = mid
+    }
+    chroma = lo
+  }
+  return `#${linearOf(l, chroma, h)
+    .map(x =>
+      Math.round(
+        Math.min(1, Math.max(0, toGamma(Math.min(1, Math.max(0, x))))) * 255
+      )
         .toString(16)
         .padStart(2, '0')
     )
     .join('')}`
+}
+
+/** The spec's hue_checked. */
+export function hueChecked(chromaX1000: number): boolean {
+  return chromaX1000 >= SPEC.HUE_CHECKED_MIN_CHROMA_X1000
+}
+
+/** The spec's hue_kept. */
+export function hueKept(driftDeg: number): boolean {
+  return driftDeg <= SPEC.HUE_DRIFT_MAX_DEG
+}
+
+/** How far two hues are apart, in whole degrees, rounded up. */
+export function hueDrift(a: string, b: string): number {
+  const d = Math.abs(oklchOf(a).h - oklchOf(b).h) % 360
+  return Math.ceil(d > 180 ? 360 - d : d)
+}
+
+/**
+ * Her colour, `step` of SUGGEST_STEPS of the way to white or black -- in
+ * OKLCH lightness only (spec v14). Step 0 is her colour itself; the last
+ * step is lightness 1 or 0, which holds no chroma: pure white or black.
+ */
+export function shadeOf(colour: string, target: number, step: number): string {
+  const k = Math.min(step, SPEC.SUGGEST_STEPS) / SPEC.SUGGEST_STEPS
+  if (k === 0) return spelled(colour)
+  const { l, c, h } = oklchOf(colour)
+  const to = target === WHITE ? 1 : 0
+  return hexOfOklch(l + (to - l) * k, c, h)
 }
 
 /** The first step toward white or black at which her colour reads on bg. */
@@ -570,9 +665,15 @@ export function bgOffered(
 }
 
 /** One spelling for a colour: #rrggbb, lower case (a shade of step 0). */
-const spelled = (c: string) => shadeOf(c, BLACK, 0)
+/** One spelling for a colour: #rrggbb, lower case. */
+function spelled(c: string): string {
+  return `#${rgbOf(c)
+    .map(v => v.toString(16).padStart(2, '0'))
+    .join('')}`
+}
+/** The difference the eye sees (spec v14, NEAREST_BY): distance in OKLab. */
 const distance = (a: string, b: string) => {
-  const [x, y] = [rgbOf(a), rgbOf(b)]
+  const [x, y] = [oklabOf(a), oklabOf(b)]
   return x.reduce((sum, v, i) => sum + (v - y[i]) ** 2, 0)
 }
 
