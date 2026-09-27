@@ -2,13 +2,31 @@
   {
     "name": "the Queen's task goes to the assistant again",
     "file": "../player/src/components/Crm/QueenPanel.tsx",
-    "from": "sendOrQueue(task, [], taskTarget(client, agent))",
-    "to": "sendOrQueue(task, [], { client })"
+    "from": "taskTarget(client, agent, task.agent, callableIds)",
+    "to": "{ client }"
   },
   {
     "name": "the page does not pass the chosen specialist",
     "file": "../player/src/pages/Chat.tsx",
     "from": "              agent={helper}\n",
     "to": ""
+  },
+  {
+    "name": "a named task ignores the name",
+    "file": "../player/src/components/Crm/QueenPanel.tsx",
+    "from": "taskTarget(client, agent, task.agent, callableIds)",
+    "to": "taskTarget(client, agent)"
+  },
+  {
+    "name": "the Queen is not told the ids",
+    "file": "src/agent/chat.ts",
+    "from": "    queenHandoffLine() +\n",
+    "to": ""
+  },
+  {
+    "name": "a forbidden name is followed",
+    "file": "../player/src/lib/queen.ts",
+    "from": "if (named && callable.includes(named)) return { client, agent: named }",
+    "to": "if (named) return { client, agent: named }"
   }
 ]

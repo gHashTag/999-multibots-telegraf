@@ -16,7 +16,13 @@ vi.mock('@/config', async importOriginal => ({
 
 import { editorStore } from '@/atoms/Provider'
 import { queenMessagesAtomFor } from '@/atoms/agentChat'
-import { askQueen, taskTarget, tasksIn, withoutTasks } from './queen'
+import {
+  askQueen,
+  queenTasksIn,
+  taskTarget,
+  tasksIn,
+  withoutTasks,
+} from './queen'
 
 const CLIENT = '900000031'
 
@@ -31,9 +37,48 @@ describe('taskTarget', () => {
     })
   })
 
+  it('a task she named goes to that agent when the owner may call it (v4)', () => {
+    expect(taskTarget(CLIENT, null, 'blogger', ['blogger', 'job'])).toEqual({
+      client: CLIENT,
+      agent: 'blogger',
+    })
+    // Her name wins over the chosen specialist.
+    expect(taskTarget(CLIENT, 'job', 'blogger', ['blogger', 'job'])).toEqual({
+      client: CLIENT,
+      agent: 'blogger',
+    })
+  })
+
+  it('a name the owner may not call, or no agent at all, falls back and the task is kept', () => {
+    expect(taskTarget(CLIENT, 'job', 'fpga', ['blogger', 'job'])).toEqual({
+      client: CLIENT,
+      agent: 'job',
+    })
+    expect(taskTarget(CLIENT, null, 'nobody', ['blogger'])).toEqual({
+      client: CLIENT,
+    })
+  })
+
   it('and to the plain assistant when none is chosen', () => {
     expect(taskTarget(CLIENT, null)).toEqual({ client: CLIENT })
     expect(taskTarget(CLIENT)).toEqual({ client: CLIENT })
+  })
+})
+
+describe('queenTasksIn: the agent she named', () => {
+  it('reads [[task@id: ...]] beside plain [[task: ...]], and hides both', () => {
+    const a =
+      'Two things.\n[[task@blogger: story reel for her, topic: plan 72]]\n' +
+      '[[task: check the plan]]'
+    expect(queenTasksIn(a)).toEqual([
+      { text: 'story reel for her, topic: plan 72', agent: 'blogger' },
+      { text: 'check the plan' },
+    ])
+    expect(tasksIn(a)).toEqual([
+      'story reel for her, topic: plan 72',
+      'check the plan',
+    ])
+    expect(withoutTasks(a)).toBe('Two things.')
   })
 })
 
