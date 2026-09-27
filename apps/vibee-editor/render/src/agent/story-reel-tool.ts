@@ -28,18 +28,33 @@
  * house pays nothing), so this file holds no prices of its own.
  */
 import type { AgentTool, ToolContext } from './tools'
+// The numbers are the spec's: gHashTag/t27 specs/automation/crm-story-reel.t27,
+// vendored with its `t27c gen-ts` output (see story-template.ts).
+import * as SPEC from '../spec/crm-story-reel.gen'
 
 /** Scenes a story holds: the owner's form is three. */
-export const STORY_SCENES_MIN = 1
-export const STORY_SCENES_MAX = 4
+export const STORY_SCENES_MIN = SPEC.SCENES_MIN
+export const STORY_SCENES_MAX = SPEC.SCENES_MAX
 /** The pause for the call to action, seconds (StoryReel's own default). */
-export const STORY_PAUSE_SEC = 3
+export const STORY_PAUSE_SEC = SPEC.PAUSE_SEC
+/** The quiet between two scenes, seconds. */
+export const STORY_BREATH_SEC = SPEC.BREATH_MS / 1000
+
+/** The pause the template renders, whatever was asked (spec: pause_of). */
+export function pauseOf(asked: unknown): number {
+  // Not given is the default; a number given, zero included, is clamped.
+  if (asked === undefined || asked === null || asked === '')
+    return STORY_PAUSE_SEC
+  const n = Number(asked)
+  if (!Number.isFinite(n)) return STORY_PAUSE_SEC
+  return Math.min(SPEC.PAUSE_SEC_MAX, Math.max(SPEC.PAUSE_SEC_MIN, n))
+}
 /**
  * How long a still may draw inside this call. image_edit alone waits about
  * three minutes; measured 2026-09-26, two stills of a client took just over
  * three and arrived in "my files" twenty seconds after the tool had given up.
  */
-export const STORY_STILL_WAIT_MS = 6 * 60_000
+export const STORY_STILL_WAIT_MS = SPEC.STILL_WAIT_MS
 
 export const KEEP_THE_PERSON =
   'Keep the person EXACTLY as in the source photo -- the same face, features, hair, age and outfit; ' +
@@ -250,10 +265,7 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
         return { done: false, reason: 'image_url: ссылка на фото с лицом' }
       const style = String(args.style ?? '')
       const n = scenes.length
-      const pause = Math.min(
-        4,
-        Math.max(1, Number(args.pause_sec) || STORY_PAUSE_SEC)
-      )
+      const pause = pauseOf(args.pause_sec)
       const endCard = endCardOf(args.end_card)
       const stills = carried(args.stills, n)
       const clips = carried(args.clips, n)
@@ -355,7 +367,7 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
               props: {
                 scenes: clips.map(video => ({ video })),
                 pauseSec: pause,
-                breathSec: 0.25,
+                breathSec: STORY_BREATH_SEC,
                 cta: String(args.cta ?? ''),
                 ...(endCard ? { endCard } : {}),
               },
@@ -375,7 +387,11 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
         clips,
         ...(voiceKind ? { voice: voiceKind } : {}),
         ...(spoken
-          ? { seconds: Math.round((spoken + 0.25 * (n - 1) + pause) * 10) / 10 }
+          ? {
+              seconds:
+                Math.round((spoken + STORY_BREATH_SEC * (n - 1) + pause) * 10) /
+                10,
+            }
           : {}),
         give_to_person: r.url,
       }
