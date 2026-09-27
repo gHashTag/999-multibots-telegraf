@@ -142,17 +142,6 @@ describe('createModelTrainingLocal', () => {
   // Сервис после models.create ждёт 5 секунд («Wait for model to be fully
   // initialized»), что упирается в дефолтный таймаут теста в 5000 мс.
   it('should create training with destination model', async () => {
-    // Mock replicate module
-    const mockReplicate = {
-      models: {
-        get: vi.fn(),
-        create: vi.fn(),
-      },
-      trainings: {
-        create: vi.fn(),
-      },
-    }
-
     fs.existsSync.mockReturnValue(true)
     fs.statSync.mockReturnValue({ size: 1000000 } as any)
     fs.readFileSync.mockReturnValue(Buffer.from('test-zip-data'))
@@ -168,12 +157,11 @@ describe('createModelTrainingLocal', () => {
       status: 'starting',
     } as any)
 
-    // Mock the module import
-    vi.mock('@/core/replicate', () => ({
-      replicate: mockReplicate,
-    }))
-
-    // Re-import after mocking
+    // The replicate client is mocked at the top of this file via the hoisted
+    // `replicateMocks` (vi.mock('replicate')); the service's `@/core/replicate`
+    // wraps that mock. An in-test `vi.mock('@/core/replicate')` is hoisted away
+    // from here and never reached the service, and vitest 5 rejects it as a
+    // vi.mock outside the module top level, so it is gone.
     const { createModelTrainingLocal: createModelTrainingLocalMocked } =
       await import('@/services/createModelTrainingLocal')
 
@@ -326,25 +314,14 @@ describe('createModelTrainingLocal', () => {
   it.skip('should use fallback username if REPLICATE_USERNAME not set', async () => {
     delete process.env.REPLICATE_USERNAME
 
-    // Mock Replicate module
-    const mockReplicate = {
-      models: {
-        get: vi.fn(),
-        create: vi.fn(),
-      },
-      trainings: {
-        create: vi.fn().mockResolvedValue({
-          id: 'training_123',
-          status: 'starting',
-        } as any),
-      },
-    }
+    // Replicate is mocked at file top via the hoisted replicateMocks; steer the
+    // training result there rather than an in-test vi.mock (hoisted away, and
+    // rejected by vitest 5 as a vi.mock outside the module top level).
+    replicateMocks.trainingsCreate.mockResolvedValue({
+      id: 'training_123',
+      status: 'starting',
+    } as any)
 
-    vi.mock('@/core/replicate', () => ({
-      replicate: mockReplicate,
-    }))
-
-    // Re-import after mocking
     const { createModelTrainingLocal: createModelTrainingLocalMocked } =
       await import('@/services/createModelTrainingLocal')
 
@@ -399,26 +376,11 @@ describe('createModelTrainingLocal', () => {
 
   it('should handle file cleanup on error', async () => {
     // Ошибку задаём общему спаю: локальный mockReplicate в сервис не попадает
-    // (vi.mock внутри it() не работает).
+    // (vi.mock внутри it() не работает). // cyrillic-ok
     replicateMocks.trainingsCreate.mockRejectedValueOnce(
       new Error('Replicate API error')
     )
-    // Mock Replicate module with error
-    const mockReplicate = {
-      models: {
-        get: vi.fn(),
-        create: vi.fn(),
-      },
-      trainings: {
-        create: vi.fn(),
-      },
-    }
 
-    vi.mock('@/core/replicate', () => ({
-      replicate: mockReplicate,
-    }))
-
-    // Re-import after mocking
     const { createModelTrainingLocal: createModelTrainingLocalMocked } =
       await import('@/services/createModelTrainingLocal')
 

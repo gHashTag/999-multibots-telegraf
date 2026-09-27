@@ -147,6 +147,7 @@ import {
 import { telegramName } from './src/browser/telegram-name'
 import { FRAMES_PATH, frameSize, serveFrames } from './src/browser/frames'
 import { sweepIdleSessions, IDLE_LIMIT_MS } from './src/browser/reaper'
+import { sweepEveryPod, TAB_CAP } from './src/browser/tab-sweep'
 import {
   ensureApprovals,
   decide as decideApproval,
@@ -12885,6 +12886,45 @@ async function main() {
     },
     Math.max(60_000, Math.floor(IDLE_LIMIT_MS / 5))
   ).unref?.()
+
+  /*
+   * TABS ARE PROCESSES, AND THE POD CAN COUNT TO A THOUSAND. 27 open tabs
+   * restored at once exhausted the container's PID cgroup on 2026-09-27 and
+   * left a browser that could not start another renderer until chromium was
+   * restarted. The rule, and why the agent's own tab budget was not enough,
+   * are in src/browser/tab-sweep.ts.
+   *
+   * Every five minutes, not on a database pace: this costs one /json/list per
+   * live pod and there is nothing to remember between passes -- the browser
+   * itself holds the count.
+   */
+  let toldAboutTabs = false
+  setInterval(() => {
+    void (async () => {
+      try {
+        const { listTargets, closePage } = await import('./src/browser/cdp')
+        const done = await sweepEveryPod((await getPool()) as any, {
+          list: listTargets,
+          close: closePage,
+        })
+        /*
+         * A tidy pod says nothing after the first pass -- but the FIRST pass
+         * says something either way: a sweep that never ran and a sweep that
+         * found nothing to do look identical in a log, and this pod has
+         * already spent three days looking healthy while it was not.
+         */
+        for (const pod of done)
+          if (pod.closed || !toldAboutTabs)
+            console.log(
+              `🧹 [tabs] ${pod.telegramId}: closed ${pod.closed}, ` +
+                `${pod.left} open of ${TAB_CAP} allowed`
+            )
+        if (done.length) toldAboutTabs = true
+      } catch (e) {
+        console.warn('[tabs] sweep failed:', String(e).slice(0, 160))
+      }
+    })()
+  }, 5 * 60_000).unref?.()
 
   server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`🚀 Remotion render server running on 0.0.0.0:${PORT}`)

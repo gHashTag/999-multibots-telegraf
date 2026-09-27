@@ -20,14 +20,19 @@ vi.mock('@/utils/logger', () => ({
 
 // Mock apify-client to avoid package resolution issues
 vi.mock('apify-client', () => ({
-  ApifyClient: vi.fn().mockImplementation(() => ({
-    actor: vi.fn().mockReturnValue({
-      call: vi.fn().mockResolvedValue({ defaultDatasetId: 'test' }),
-    }),
-    dataset: vi.fn().mockReturnValue({
-      listItems: vi.fn().mockResolvedValue({ items: [] }),
-    }),
-  })),
+  // Regular function, not an arrow: code does `new ApifyClient(...)`, and
+  // vitest 5 constructs the mock implementation with Reflect.construct, which
+  // throws on an arrow ("is not a constructor").
+  ApifyClient: vi.fn().mockImplementation(function () {
+    return {
+      actor: vi.fn().mockReturnValue({
+        call: vi.fn().mockResolvedValue({ defaultDatasetId: 'test' }),
+      }),
+      dataset: vi.fn().mockReturnValue({
+        listItems: vi.fn().mockResolvedValue({ items: [] }),
+      }),
+    }
+  }),
 }))
 
 /*
