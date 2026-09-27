@@ -93,6 +93,7 @@ tri — оболочка Trinity S³AI
   tri full-run [render|player|both]             полный прогон с путём, где он шёл (RUN), итогами и падениями; красно, если путь не тот
   tri busy < логи                               идёт ли в рендере задача рилса или ход агента (пары started/ended); код 1 — сливать рано
   tri gate                                      таблица локальных ворот для PR из того, что реально прогнано на ЭТОМ дереве; иное — stale
+  tri image-gate                                ворота образа плеера как при деплое (tsc + scripts/test-gate.mjs); запись в tri gate
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
   tri self       сама оболочка: достижима ли каждая команда и на месте ли хелпер
@@ -2005,6 +2006,7 @@ PYEOF
   full-run) shift; node "$ROOT/bin/helpers/full-run.mjs" "$@" ;;
   busy) shift; node "$ROOT/bin/helpers/busy.mjs" "$@" ;;
   gate) shift; node "$ROOT/bin/helpers/gate.mjs" show "$@" ;;
+  image-gate) shift; node "$ROOT/bin/helpers/image-gate.mjs" "$@" ;;
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
