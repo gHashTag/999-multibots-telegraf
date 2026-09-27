@@ -26,6 +26,7 @@
  */
 
 import { createHash } from 'node:crypto'
+import * as REEL from '../spec/crm-story-reel.gen'
 import { telegramApiFor, telegramFileUrlFor } from '../telegram-api'
 import { planTools } from './plan-tools'
 import { INNGEST_TOOLS } from './inngest-tools'
@@ -1332,8 +1333,9 @@ export const TOOLS: AgentTool[] = [
     name: 'leela_plan',
     description:
       'Канонический текст плана Лилы по номеру (1..72): название, описание, ряд и чакра, змея или ' +
-      'стрела с клеткой назначения, готовый крючок и готовые props для шаблона LeelaPlanReel. ' +
-      'Бесплатно. Текст — из канона игры, не пересказ: в рил он идёт как есть.',
+      `стрела с клеткой назначения, готовый крючок и props беззвучного шаблона ${REEL.OLD_PLAN_REEL}. ` + // cyrillic-ok: tool description
+      'Бесплатно. Текст — из канона игры, не пересказ. Рилс клиенту CRM по этому плану — ' +
+      `${REEL.SELLER_TOOL} с темой плана; ${REEL.OLD_PLAN_REEL} — только если владелец назвал его сам.`, // cyrillic-ok: tool description
     parameters: {
       type: 'object',
       properties: {
@@ -1374,7 +1376,10 @@ export const TOOLS: AgentTool[] = [
           : 'чисто: без слов давления, цен и обещаний',
         // cyrillic-ok: existing field name
         подсказка:
-          'Рендер — reel_render с compositionId LeelaPlanReel и этими props. ' +
+          // Spec v8, REEL_TOOL_IN_PLAN_HINT: this hint alone sent client
+          // reels to the silent template.
+          `Рилс клиенту CRM — ${REEL.SELLER_TOOL} {lead, start: true, topic: «план ${plan} …»}: три кадра, его лицо и голос. ` + // cyrillic-ok: tool hint
+          `Беззвучный reel_render с compositionId ${REEL.OLD_PLAN_REEL} и этими props — только если владелец прямо назвал этот шаблон. ` + // cyrillic-ok: tool hint
           'Название клетки человеку не приписывать; змея — не наказание, стрела — не награда.',
       }
     },
