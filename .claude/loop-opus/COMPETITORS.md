@@ -354,3 +354,21 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 Источники: [Tailwind v4 OKLCH](https://medium.com/design-bootcamp/tailwind-v4-oklch-why-your-colors-got-better-without-changing-class-names-5e7e7565ee1e),
 [OKLCH Colors in Tailwind](https://stevekinney.com/courses/tailwind/oklch-colors),
 [adobe/leonardo](https://github.com/adobe/leonardo).
+
+## 27.09, виток 12: панель на телефоне — размер цели
+
+- **WCAG 2.2**: 2.5.8 (AA) — цель не меньше 24×24 CSS px или 24 px отступа;
+  2.5.5 (AAA) — 44×44. **Apple HIG** — 44 pt, **Material** — 48 dp.
+- **Stark**: рядом с непроходящей парой — светлее/темнее образцы и для
+  текста, и для фона, выбор одним нажатием с перепроверкой; цели «крупные
+  для всех». Наши три варианта с «Взять» — то же, но до витка 12 кнопки
+  были 32 px, поля цвета 24.
+- У нас цель — `--touch-target: 44px` самой страницы (index.css), то есть
+  уровень AAA/Apple, и `tri shot` читает её со страницы, а не из головы.
+  С витка 12 панель рилс-истории держит 44 px на пальце во всех трёх
+  состояниях, на русском и английском, на 390 и 320 px.
+
+Источники: [WCAG 2.5.8 Target Size (Minimum)](https://www.w3.org/TR/WCAG22/),
+[Target size guide (TestParty)](https://testparty.ai/blog/wcag-target-size-guide),
+[Stark: Contrast Checker + Color Suggestions](https://www.getstark.co/support/getting-started/using-the-contrast-checker/),
+[Stark: Smart Suggestions](https://www.getstark.co/blog/smart-suggestions/).

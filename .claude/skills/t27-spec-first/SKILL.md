@@ -218,6 +218,12 @@ drift` уже значил «влито, но не выехало»; `case` бе
 - **Prettier в pre-commit пишет (`--write` + `stage_fixed`)**: файл, который
   раньше обошёл форматирование, переформатируется целиком при первой правке.
   Это не твой шум — назови его в PR.
+- **VERSION поднимается вместе с заметкой в заголовке.** crm-story-reel
+  прожила v12, v13 и v14 с `VERSION = 11`: три витка дописывали
+  `// vN (дата)` и не трогали число. Закон `version-note` в
+  check-t27-specs.mjs: у спеки с датированными заметками VERSION равен
+  последней; в тесте спеки — `assert(VERSION == N)` с контролем «VERSION
+  отстал». Нашлось на снимке панели, а не проверкой — проверки не было.
 - **У t27 master краснеют 7 ворот и без тебя** (gate-topology, spec-guards,
   documented subcommands, corpus ratchet, duplicate-bodies, coverage,
   emit-bitexact) — это не твоя спека; см. комментарии в t27#4850/#4852.
