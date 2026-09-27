@@ -11,7 +11,10 @@
  *   4. a client's reel speaks with the client's clone (for_lead).
  */
 import { describe, it, expect } from 'vitest'
+import { StoryReelSchema } from '../compositions/StoryReel'
 import {
+  endCardFromProfile,
+  endCardOf,
   makeStoryReelTool,
   scenesOf,
   stillPrompt,
@@ -198,5 +201,88 @@ describe('story_reel', () => {
         t => t.name === 'story_reel'
       )
     ).toBe(false)
+  })
+})
+
+/*
+ * THE CLIENT'S OWN VISUAL AT THE END (owner, 2026-09-27: "with her face, and
+ * after that her visual at the end"). A client whose profile carries a
+ * visual gets an end card in her palette instead of the held last frame.
+ */
+describe("story_reel ends on the client's own visual", () => {
+  const PROFILE = {
+    visual: {
+      bg: '#0b0d0f',
+      text: '#ffffff',
+      gold_title: '#ffd700',
+      win: '#e0b544',
+      accent_cta: '#00ff88',
+      font: 'Outfit 300/400/500',
+    },
+    approved_cta: {
+      text: 'Приходите на доску со своим вопросом.', // cyrillic-ok: a call to action
+      button: '🎲 Играть',
+      bot: '@example_bot',
+    },
+  }
+
+  it('builds the card from the profile: her colours, her button line', () => {
+    expect(endCardFromProfile(PROFILE)).toEqual({
+      bg: '#0b0d0f',
+      title: '#ffd700',
+      text: '#ffffff',
+      accent: '#00ff88',
+      button: '🎲 Играть · @example_bot',
+    })
+  })
+
+  it('a profile without a visual has no card, and the reel ends as before', () => {
+    expect(
+      endCardFromProfile({ approved_cta: PROFILE.approved_cta })
+    ).toBeNull()
+    expect(endCardFromProfile(null)).toBeNull()
+  })
+
+  it('keeps only real colours: anything not #hex is dropped', () => {
+    expect(
+      endCardOf({ bg: 'url(javascript:x)', title: '#FFD700', accent: 'red' })
+    ).toEqual({ title: '#FFD700' })
+    expect(endCardOf({ bg: 'nope' })).toBeNull()
+  })
+
+  it('hands the card to the StoryReel render', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup).handler(
+      { ...ARGS, end_card: endCardFromProfile(PROFILE) },
+      ctx
+    )
+    expect(r.done).toBe(true)
+    const render = calls.find(c => c.name === 'reel_render')!.args
+    expect(render.props.endCard).toMatchObject({
+      bg: '#0b0d0f',
+      title: '#ffd700',
+    })
+  })
+
+  it('without a card the render carries none', async () => {
+    const { lookup, calls } = fakeTools()
+    await makeStoryReelTool(lookup).handler(ARGS, ctx)
+    const render = calls.find(c => c.name === 'reel_render')!.args
+    expect(render.props.endCard).toBeUndefined()
+  })
+
+  it('the StoryReel template accepts the card and fills its defaults', () => {
+    const parsed = StoryReelSchema.parse({
+      scenes: [{ video: 'https://ours/clip-0.mp4' }],
+      endCard: { title: '#ffd700' },
+    })
+    // Black, white and green by default; only the title was given.
+    expect(parsed.endCard).toMatchObject({
+      title: '#ffd700',
+      text: '#FFFFFF',
+      accent: '#00FF88',
+      button: '',
+    })
+    expect(parsed.endCard?.bg).toMatch(/^#0+$/)
   })
 })
