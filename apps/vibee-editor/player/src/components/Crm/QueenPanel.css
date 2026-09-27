@@ -168,3 +168,12 @@
   border-top: 1px solid rgba(255, 215, 0, 0.35);
   z-index: 60;
 }
+
+/* The agent she named for a task (crm-client-workspace v4). */
+.queen__to {
+  display: block;
+  font-style: normal;
+  font-size: 0.85em;
+  opacity: 0.75;
+  margin-bottom: 2px;
+}

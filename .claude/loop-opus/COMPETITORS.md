@@ -242,3 +242,17 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 [langgraph-supervisor-py](https://github.com/langchain-ai/langgraph-supervisor-py),
 [Supervisor vs Swarm](https://focused.io/lab/multi-agent-orchestration-in-langgraph-supervisor-vs-swarm-tradeoffs-and-architecture),
 [LangGraph и CrewAI: передачи между агентами](https://digitalthoughtdisruption.com/2025/08/05/multi-agent-langgraph-crewai-workflows/).
+
+## 27.09, виток 5: исполнитель в самой задаче (handoff)
+
+- **OpenAI Agents SDK**: передача — это инструмент на каждого получателя
+  (`transfer_to_<agent>`); модель может назвать только объявленных агентов,
+  передача видна в трассе как обычный вызов.
+- У нас у Королевы инструментов нет, поэтому объявление — список id в её
+  блоке, а передача — маркер `[[task@<id>: …]]`. Чего нет у SDK в
+  документации — поведения для неизвестного имени; у нас оно задано
+  спекой: чужое или неизвестное имя не теряет задачу, она уходит выбранному
+  специалисту или Ассистенту (crm-client-workspace v4, NAMED_TASK_NEVER_LOST).
+
+Источники: [OpenAI Agents SDK: Handoffs](https://openai.github.io/openai-agents-python/handoffs/),
+[Handoffs, Guardrails & Tracing](https://ai-tldr.dev/learn/agent-frameworks/provider-agent-sdks/openai-agents-sdk-handoffs/).
