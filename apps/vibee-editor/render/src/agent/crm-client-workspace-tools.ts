@@ -22,6 +22,7 @@ import { ensurePlanTables, ensureProfileTable } from './crm-client-setup-tool'
 import { stageOf, type Stage } from './crm-stages'
 import { visibleScope, whoPaid } from './crm-tools'
 import { touchesByLead, type TouchKind } from './crm-touches'
+import * as REEL from '../spec/crm-story-reel.gen'
 
 const ID_RE = /^\d{5,15}$/
 
@@ -225,6 +226,14 @@ async function tryQuery<T = any>(
   }
 }
 
+/** How a reel is made from a plan item, said where the plan is read. */
+export function planReelRoute(): string {
+  return (
+    `рилс по пункту плана — ${REEL.SELLER_TOOL} {lead, start: true, topic: название пункта}: три кадра, лицо и голос клиента; ` + // cyrillic-ok: tool result copy
+    `template_id пункта (${REEL.OLD_PLAN_REEL}) — старый беззвучный шаблон, только если владелец назвал его сам` // cyrillic-ok: tool result copy
+  )
+}
+
 export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
   {
     name: 'crm_client_plan',
@@ -272,7 +281,17 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
            FROM content_plan_items WHERE telegram_id = $1 ORDER BY goal_id, id`,
         [telegramId]
       )
-      return { telegram_id: telegramId, ...aggregatePlan(goals, items) }
+      return {
+        telegram_id: telegramId,
+        ...aggregatePlan(goals, items),
+        /*
+         * THE ROUTE BESIDE THE ITEMS (crm-story-reel v9, REEL_TOOL_IN_PLAN_READ).
+         * One client's twelve items carry template_id LeelaPlanReel; read with
+         * nothing beside them, "D5, template LeelaPlanReel" was a reason to
+         * render the silent reel the owner had moved away from.
+         */
+        ...(items.length ? { reel_route: planReelRoute() } : {}),
+      }
     },
   },
   {

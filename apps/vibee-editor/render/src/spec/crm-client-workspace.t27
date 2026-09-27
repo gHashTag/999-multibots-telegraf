@@ -34,6 +34,10 @@
 //       panels since the story reel (2026-09-26). The Queen's supervision of a client has its
 //       own thread beside the agent's ('client:<id>:queen', 2026-09-24), and a specialist called
 //       into a client's conversation keeps the CLIENT's memory (2026-09-26).
+// v3 (2026-09-27): the Queen's tasks went to the plain assistant whatever specialist the owner had
+//       chosen in the client's thread, so a task set for the Blogger was done by someone else,
+//       without the Blogger's brief. A task goes to the chosen specialist, or to the assistant
+//       when none is chosen (task_goes_to).
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::crm_client_workspace {
@@ -41,7 +45,7 @@ module automation::crm_client_workspace {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-client-workspace";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 2;
+    pub const VERSION : u8 = 3;
 
     // ---- Who ----------------------------------------------------------------------------
     pub const CALLER : str = "seller";  // owner id or a row in tg_sessions (crm-sellers.t27)
@@ -55,6 +59,9 @@ module automation::crm_client_workspace {
     pub const THREAD_CLIENT_PREFIX : str = "client:";  // 'client:<id>' -- the seller's thread about one client
     pub const THREAD_SUPERVISOR_SUFFIX : str = ":queen";  // 'client:<id>:queen' -- the Queen's, beside it
     pub const AGENT_KEEPS_CLIENT_MEMORY : bool = true;  // a specialist in a client's chat writes to 'client:<id>'
+    pub const QUEEN_TASK_TO_CHOSEN_SPECIALIST : bool = true;  // v3
+    pub const TASK_TO_ASSISTANT : u8 = 0;
+    pub const TASK_TO_SPECIALIST : u8 = 1;
     // What a request's thread comes to (thread_kind).
     pub const THREAD_KIND_SELF : u8 = 0;  // no client named
     pub const THREAD_KIND_CLIENT : u8 = 1;  // 'client:<id>'
@@ -121,6 +128,14 @@ module automation::crm_client_workspace {
         return malformed || is_caller || !is_seller;
     }
 
+    // Who does a task the Queen set: the specialist chosen in the thread, else the assistant.
+    fn task_goes_to(specialist_chosen: bool) -> u8 {
+        if specialist_chosen {
+            return TASK_TO_SPECIALIST;
+        }
+        return TASK_TO_ASSISTANT;
+    }
+
     fn run_reads_as_lost(state_running: bool, minutes_since_start: u8) -> bool {
         return state_running && minutes_since_start > RUN_LOST_AFTER_MIN;
     }
@@ -150,6 +165,12 @@ module automation::crm_client_workspace {
     test "the Queen's thread sits beside the agent's, and a specialist keeps the client's memory" {
         assert(THREAD_SUPERVISOR_SUFFIX == ":queen");
         assert(AGENT_KEEPS_CLIENT_MEMORY);
+    }
+
+    test "the Queen's task goes to the specialist chosen in the thread, else to the assistant" {
+        assert(QUEEN_TASK_TO_CHOSEN_SPECIALIST);
+        assert(task_goes_to(true) == TASK_TO_SPECIALIST);
+        assert(task_goes_to(false) == TASK_TO_ASSISTANT);
     }
 
     test "the dashboard reads through the tool gate, sends nothing unasked and says unavailable rather than zero" {
