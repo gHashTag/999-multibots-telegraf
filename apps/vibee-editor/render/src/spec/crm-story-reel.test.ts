@@ -676,6 +676,142 @@ describe("the spec's tests hold against the host", () => {
     expect(SPEC.PROFILE_BAD_COLOUR_DROPPED).toBe(true)
   })
 
+  it('a refusal for contrast names the least shade of her own colour that reads', async () => {
+    // shade_way, suggest_offered, and the law behind "a shade always
+    // exists"; the tool's answers (read, keep refused, "black") run in
+    // a-story-reel-for-any-client.test.ts ("the shade that reads").
+    const {
+      shadeWay,
+      suggestOffered,
+      shadeOf,
+      firstReadableStep,
+      readableShade,
+      contrastX10,
+      endCardReadable,
+      endCardRefused,
+      endCardFix,
+      endCardUnreadable,
+    } = await import('../agent/story-reel-tool')
+    expect(SPEC.SUGGEST_FIX_ARG).toBe('end_card_fix')
+    expect(SPEC.SUGGEST_STEPS).toBe(10)
+    expect(SPEC.SUGGEST_NEVER).toBe(SPEC.SUGGEST_STEPS + 1)
+    expect(shadeWay(3, 7, false)).toBe(SPEC.WAY_LIGHT)
+    expect(shadeWay(7, 3, true)).toBe(SPEC.WAY_DARK)
+    expect(shadeWay(SPEC.SUGGEST_NEVER, 10, true)).toBe(SPEC.WAY_DARK)
+    expect(shadeWay(4, SPEC.SUGGEST_NEVER, false)).toBe(SPEC.WAY_LIGHT)
+    expect(shadeWay(5, 5, true)).toBe(SPEC.WAY_LIGHT)
+    expect(shadeWay(5, 5, false)).toBe(SPEC.WAY_DARK)
+    expect(suggestOffered(true, false)).toBe(true)
+    expect(suggestOffered(true, true)).toBe(false)
+    expect(suggestOffered(false, false)).toBe(false)
+    // EXTREME_MIN_CONTRAST_X10 against the host's own contrast: over every
+    // #rgb background and every grey, the better of white and black never
+    // falls under it -- and it is met, so the constant is the bound itself.
+    const H = '0123456789abcdef'
+    const greys = Array.from({ length: 256 }, (_, v) =>
+      `#${v.toString(16).padStart(2, '0')}`.repeat(3).replace(/#/g, '')
+    ).map(g => `#${g}`)
+    const backgrounds = [
+      ...[...H].flatMap(r =>
+        [...H].flatMap(g => [...H].map(b => `#${r}${g}${b}`))
+      ),
+      ...greys,
+    ]
+    const worst = Math.min(
+      ...backgrounds.map(bg =>
+        Math.max(contrastX10('#fff', bg), contrastX10('#000', bg))
+      )
+    )
+    expect(worst).toBe(SPEC.EXTREME_MIN_CONTRAST_X10)
+    expect(endCardReadable(SPEC.EXTREME_MIN_CONTRAST_X10)).toBe(true)
+    // SUGGEST_KEEPS_HER_COLOUR: the shade is hers, the least step that
+    // reads, and it reads -- on every background of a sweep, from every
+    // colour of a sweep.
+    const sweep = [...'0369cf'].flatMap(r =>
+      [...'0369cf'].flatMap(g => [...'0369cf'].map(b => `#${r}${g}${b}`))
+    )
+    for (const bg of sweep)
+      for (const colour of ['#d4b04c', '#777', '#1a2b3c', '#f0e', '#8fbc8f']) {
+        const shade = readableShade(colour, bg)
+        expect(
+          endCardReadable(contrastX10(shade, bg)),
+          `${colour} on ${bg}`
+        ).toBe(true)
+        const light = firstReadableStep(colour, bg, 255)
+        const dark = firstReadableStep(colour, bg, 0)
+        expect(Math.min(light, dark)).toBeLessThanOrEqual(SPEC.SUGGEST_STEPS)
+        const step = Math.min(light, dark)
+        expect([
+          shadeOf(colour, 255, step),
+          shadeOf(colour, 0, step),
+        ]).toContain(shade)
+        if (step > 1)
+          for (const t of [255, 0])
+            expect(
+              endCardReadable(contrastX10(shadeOf(colour, t, step - 1), bg))
+            ).toBe(false)
+      }
+    // Her gold call on her cream: a darker gold, not a stock black.
+    const fix = endCardFix({ bg: '#f5efe0', title: '#d4b04c' })
+    expect(fix?.title).toBe(readableShade('#d4b04c', '#f5efe0'))
+    expect(fix?.title).not.toBe('#000000')
+    expect(endCardUnreadable({ bg: '#f5efe0', title: '#d4b04c' })).toContain(
+      `читается ${fix?.title}`
+    )
+    // A card that reads has no fix; the button is held only when there is one.
+    expect(endCardFix({ bg: '#10182a', title: '#f5f5f5' })).toBeNull()
+    expect(
+      endCardFix({ bg: '#ffffff', title: '#111', accent: '#ffe' })
+    ).toBeNull()
+    expect(
+      Object.keys(
+        endCardFix({
+          bg: '#ffffff',
+          title: '#111',
+          accent: '#ffe',
+          button: 'x',
+        })!
+      )
+    ).toEqual(['accent'])
+    // SUGGEST_FOR_PROFILE_PALETTE: named with its fix, and still not refused.
+    expect(SPEC.SUGGEST_FOR_PROFILE_PALETTE).toBe(true)
+    expect(endCardRefused(false, false)).toBe(false)
+  })
+
+  it('the card takes the named shade by a press and checks it again before keeping', async () => {
+    // The player's own logic against the spec's vectors; the panel's
+    // behaviour runs in player StoryReelPanel.test.tsx ("take the shade").
+    const PLAYER = join(HERE, '..', '..', '..', 'player', 'src')
+    const palette = await import(join(PLAYER, 'lib', 'storyPalette.ts'))
+    expect(palette.panelTakeOffered(true, false, true)).toBe(true)
+    expect(palette.panelTakeOffered(false, false, true)).toBe(false)
+    expect(palette.panelTakeOffered(true, true, true)).toBe(false)
+    expect(palette.panelTakeOffered(true, false, false)).toBe(false)
+    expect(palette.panelKeepOffered(true, true, true)).toBe(false)
+    expect(
+      palette.takeFix(
+        { bg: '#f5efe0', title: '#d4b04c', button: 'x' },
+        { title: '#6a5826' }
+      )
+    ).toEqual({ bg: '#f5efe0', title: '#6a5826', button: 'x' })
+    const read = (...p: string[]) => readFileSync(join(PLAYER, ...p), 'utf8')
+    const lib = read('lib', 'crm.ts')
+    const panel = read('components', 'Crm', 'StoryPalette.tsx')
+    expect(lib).toContain(`endCardFix: toEndCard(r['${SPEC.SUGGEST_FIX_ARG}'])`)
+    // SUGGEST_TAKEN_BY_PRESS: from a button, and the press checks again.
+    expect(SPEC.SUGGEST_TAKEN_BY_PRESS).toBe(true)
+    expect(panel).not.toContain('useEffect')
+    const take = panel.slice(
+      panel.indexOf('const onTake'),
+      panel.indexOf('const onKeep')
+    )
+    expect(take).toContain('onCheck(')
+    // SUGGEST_KEPT_BY_ITSELF: taking never keeps.
+    expect(SPEC.SUGGEST_KEPT_BY_ITSELF).toBe(false)
+    expect(take).not.toContain('keepStoryPalette')
+    expect(take).not.toContain('onKeep')
+  })
+
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {
     // reel_route(owner_named_old): the brief, the Queen and the plan hint
     // are where the route is said. The brief placing it before the package

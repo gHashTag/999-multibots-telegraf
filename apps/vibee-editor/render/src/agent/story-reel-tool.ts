@@ -330,7 +330,12 @@ export async function keepEndCard(
   lead: string,
   raw: unknown,
   profile: StoryEndCard | null
-): Promise<{ kept: StoryEndCard | null; action: number; why?: string }> {
+): Promise<{
+  kept: StoryEndCard | null
+  action: number
+  why?: string
+  fix?: Pick<StoryEndCard, 'title' | 'accent'> | null
+}> {
   const given =
     !!raw &&
     typeof raw === 'object' &&
@@ -345,7 +350,17 @@ export async function keepEndCard(
       (card ? '' : 'end_card: ни одного цвета #hex и ни строки кнопки')
     : ''
   const action = keepAction(true, given, given && !why)
-  if (action === SPEC.KEEP_REFUSED) return { kept: null, action, why }
+  if (action === SPEC.KEEP_REFUSED)
+    return {
+      kept: null,
+      action,
+      why,
+      // A #hex card that does not read gets its shade (v12); "black" does not.
+      fix:
+        card && !endCardProblem(raw)
+          ? endCardFix(mergeEndCard(card, null, profile))
+          : null,
+    }
   await ensureKeptEndCards(pool)
   if (action === SPEC.KEEP_CLEAR) {
     await pool.query(
@@ -416,30 +431,124 @@ export function endCardRefused(
 const ratio = (x10: number) => (x10 / 10).toFixed(1).replace('.', ',')
 
 /**
- * Whether the call and the button read on the card as it will render (the
- * composition's defaults fill what the card leaves out); '' when they do,
- * else what does not, in words.
+ * The pairs held against the background, as the card will render (the
+ * composition's defaults fill what the card leaves out): the call in the
+ * title colour, and the button line in the accent -- only when there is one.
+ */
+const readPairs = (
+  card: StoryEndCard
+): Array<{ what: string; field: 'title' | 'accent'; colour: string }> => [
+  {
+    what: 'призыв',
+    field: 'title',
+    colour: card.title ?? SPEC.END_CARD_DEFAULT_TITLE,
+  },
+  ...(card.button
+    ? [
+        {
+          what: 'строка кнопки',
+          field: 'accent' as const,
+          colour: card.accent ?? SPEC.END_CARD_DEFAULT_ACCENT,
+        },
+      ]
+    : []),
+]
+
+/**
+ * Whether the call and the button read on the card as it will render; ''
+ * when they do, else what does not, in words, with the shade of that colour
+ * that does read (spec v12), so the words alone are enough to fix it.
  */
 export function endCardUnreadable(card: StoryEndCard | null): string {
   if (!card) return ''
   const bg = card.bg ?? SPEC.END_CARD_DEFAULT_BG
-  const pairs: Array<[string, string]> = [
-    ['призыв', card.title ?? SPEC.END_CARD_DEFAULT_TITLE],
-    ...(card.button
-      ? [
-          ['строка кнопки', card.accent ?? SPEC.END_CARD_DEFAULT_ACCENT] as [
-            string,
-            string,
-          ],
-        ]
-      : []),
-  ]
-  for (const [what, colour] of pairs) {
+  for (const { what, colour } of readPairs(card)) {
     const x10 = contrastX10(colour, bg)
     if (!endCardReadable(x10))
-      return `${what} цветом ${colour} на фоне ${bg} читается плохо: контраст ${ratio(x10)}:1, нужно не меньше ${ratio(SPEC.END_CARD_CONTRAST_MIN_X10)}:1`
+      return `${what} цветом ${colour} на фоне ${bg} читается плохо: контраст ${ratio(x10)}:1, нужно не меньше ${ratio(SPEC.END_CARD_CONTRAST_MIN_X10)}:1; читается ${readableShade(colour, bg)}`
   }
   return ''
+}
+
+/** The spec's shade_way. */
+export function shadeWay(
+  lightStep: number,
+  darkStep: number,
+  lightReadsBetter: boolean
+): number {
+  if (lightStep < darkStep) return SPEC.WAY_LIGHT
+  if (darkStep < lightStep) return SPEC.WAY_DARK
+  return lightReadsBetter ? SPEC.WAY_LIGHT : SPEC.WAY_DARK
+}
+
+/** The spec's suggest_offered. */
+export function suggestOffered(colourOk: boolean, readable: boolean): boolean {
+  if (!colourOk) return SPEC.SUGGEST_FOR_BAD_HEX
+  return !readable
+}
+
+const WHITE = 255
+const BLACK = 0
+
+/** Her colour, `step` of SUGGEST_STEPS of the way to white or black. */
+export function shadeOf(colour: string, target: number, step: number): string {
+  const k = Math.min(step, SPEC.SUGGEST_STEPS) / SPEC.SUGGEST_STEPS
+  return `#${rgbOf(colour)
+    .map(v =>
+      Math.round(v + (target - v) * k)
+        .toString(16)
+        .padStart(2, '0')
+    )
+    .join('')}`
+}
+
+/** The first step toward white or black at which her colour reads on bg. */
+export function firstReadableStep(
+  colour: string,
+  bg: string,
+  target: number
+): number {
+  for (let step = 1; step <= SPEC.SUGGEST_STEPS; step++)
+    if (endCardReadable(contrastX10(shadeOf(colour, target, step), bg)))
+      return step
+  return SPEC.SUGGEST_NEVER
+}
+
+/**
+ * THE LEAST SHADE OF HER COLOUR THAT READS (spec v12). Her colour mixed
+ * toward white or toward black in SUGGEST_STEPS equal steps; the way that
+ * reads in fewer steps, a tie to the extreme that reads better on bg. The
+ * last step is pure white or black, and one of the two always reads
+ * (EXTREME_MIN_CONTRAST_X10), so there is always an answer.
+ */
+export function readableShade(colour: string, bg: string): string {
+  const light = firstReadableStep(colour, bg, WHITE)
+  const dark = firstReadableStep(colour, bg, BLACK)
+  const way = shadeWay(
+    light,
+    dark,
+    contrastX10('#fff', bg) >= contrastX10('#000', bg)
+  )
+  return way === SPEC.WAY_LIGHT
+    ? shadeOf(colour, WHITE, light)
+    : shadeOf(colour, BLACK, dark)
+}
+
+/**
+ * The shade that reads for each field that does not, by the card's own
+ * field names (spec v12, SUGGEST_FIX_ARG); null when all of it reads.
+ */
+export function endCardFix(
+  card: StoryEndCard | null
+): Pick<StoryEndCard, 'title' | 'accent'> | null {
+  if (!card) return null
+  const bg = card.bg ?? SPEC.END_CARD_DEFAULT_BG
+  const out: Pick<StoryEndCard, 'title' | 'accent'> = {}
+  // Her card's colours passed endCardOf: every one is #hex.
+  for (const { field, colour } of readPairs(card))
+    if (suggestOffered(true, endCardReadable(contrastX10(colour, bg))))
+      out[field] = readableShade(colour, bg)
+  return out.title || out.accent ? out : null
 }
 
 /**

@@ -21,8 +21,8 @@
   {
     "name": "the button is not held",
     "file": "src/agent/story-reel-tool.ts",
-    "from": "    ...(card.button\n",
-    "to": "    ...(false && card.button\n"
+    "from": "  ...(card.button\n    ? [\n",
+    "to": "  ...(false && card.button\n    ? [\n"
   },
   {
     "name": "a bad colour is dropped in silence",
@@ -171,8 +171,148 @@
   {
     "name": "save refused is not reported",
     "file": "src/agent/crm-story-tool.ts",
-    "from": "        if (k.action === REEL.KEEP_REFUSED)\n          return { ready: false, started: false, kept: false, why: k.why }\n",
+    "from": "        if (k.action === REEL.KEEP_REFUSED)\n          return {\n            ready: false,\n            started: false,\n            kept: false,\n            why: k.why,\n            ...(k.fix ? { [REEL.SUGGEST_FIX_ARG]: k.fix } : {}),\n          }\n",
     "to": "",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v12: the way that needs more steps wins",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (lightStep < darkStep) return SPEC.WAY_LIGHT\n",
+    "to": "  if (lightStep > darkStep) return SPEC.WAY_LIGHT\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: a tie ignores the background",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return lightReadsBetter ? SPEC.WAY_LIGHT : SPEC.WAY_DARK\n",
+    "to": "  return SPEC.WAY_DARK\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: a shade for a colour that is not #hex",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (!colourOk) return SPEC.SUGGEST_FOR_BAD_HEX\n",
+    "to": "  if (!colourOk) return true\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: a shade for a field that reads",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (!colourOk) return SPEC.SUGGEST_FOR_BAD_HEX\n  return !readable\n",
+    "to": "  if (!colourOk) return SPEC.SUGGEST_FOR_BAD_HEX\n  return true\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: the least step is skipped",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  for (let step = 1; step <= SPEC.SUGGEST_STEPS; step++)\n",
+    "to": "  for (let step = 2; step <= SPEC.SUGGEST_STEPS; step++)\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: the light way shaded toward black",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "    ? shadeOf(colour, WHITE, light)\n",
+    "to": "    ? shadeOf(colour, BLACK, light)\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: the fix is her colour unchanged",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "      out[field] = readableShade(colour, bg)\n",
+    "to": "      out[field] = colour\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: a fix for a field that reads",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "    if (suggestOffered(true, endCardReadable(contrastX10(colour, bg))))\n",
+    "to": "    if (suggestOffered(true, false))\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: the words do not name the shade",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "; читается ${readableShade(colour, bg)}`",
+    "to": "`",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: a keep refusal drops its shade",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "        card && !endCardProblem(raw)\n",
+    "to": "        false\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: a keep refusal shades \"black\"",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "        card && !endCardProblem(raw)\n",
+    "to": "        card\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: the read drops the shade",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "                ...(fix ? { [REEL.SUGGEST_FIX_ARG]: fix } : {}),\n",
+    "to": "",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: the read shades \"black\"",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "      const fix = suggestOffered(!badColour, !unreadable)\n",
+    "to": "      const fix = suggestOffered(true, !unreadable)\n",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v12: the keep refusal is sent without its shade",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "            ...(k.fix ? { [REEL.SUGGEST_FIX_ARG]: k.fix } : {}),\n",
+    "to": "",
+    "tests": [
+      "src/spec/crm-story-reel.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
   }
 ]
