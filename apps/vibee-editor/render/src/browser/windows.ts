@@ -129,6 +129,11 @@ export interface DeskWindowDeps {
   alive: (targetId: string) => Promise<boolean>
   /** Closes it. Best effort. */
   close: (targetId: string) => Promise<void>
+  /**
+   * Waits until the pod is a BROWSER, not merely a port (browser/health.ts),
+   * and says whether it became one. Asked before opening, never instead of it.
+   */
+  ready?: () => Promise<boolean>
   /** Test seam: the pause before a second attempt at opening. */
   wait?: (ms: number) => Promise<void>
 }
@@ -160,14 +165,31 @@ export interface DeskWindow {
  * listening yet. Opening once per round makes that one moment matter, so the
  * first attempt is retried once; the tile around it stays best effort.
  *
+ * AND THE POD IS ASKED WHETHER IT IS A BROWSER BEFORE THE WINDOW IS OPENED.
+ * Measured again in deployment 051d4285 (2026-09-27, the 03:45Z round, four
+ * minutes after a deploy swap): both desks' only tile failed, `read ECONNRESET`
+ * three seconds in, then three `fetch failed` opens -- and once the round had
+ * restarted the browser every open and tile went silent. Nothing was wrong with
+ * the window; the round had simply walked into a pod that was not up yet. So
+ * `ready` waits for the answer `1 + 1` from a real tab (browser/health.ts,
+ * whose `waitForBrowser` had no caller either) -- and when it never comes the
+ * window is opened anyway, because the round's own blank-and-restart is the
+ * remedy for a dead browser and a skipped round is not.
+ *
  * Pure control flow -- every call is injected, so the reuse, the reopen after a
- * restart and the retry are tested without a browser.
+ * restart, the retry and the wait are tested without a browser.
  */
 export function deskWindow(d: DeskWindowDeps): DeskWindow {
   const wait = d.wait ?? (ms => new Promise<void>(r => setTimeout(r, ms)))
   let id: string | null = null
 
   const openAndTile = async (url: string): Promise<string> => {
+    if (d.ready && !(await d.ready().catch(() => false))) {
+      /* Opening anyway: see above -- the round restarts a browser, we do not. */
+      console.warn(
+        '[browser:windows] the pod is not a browser yet; opening all the same'
+      )
+    }
     let opened: string
     try {
       opened = await d.open(url)
