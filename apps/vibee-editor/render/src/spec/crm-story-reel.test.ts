@@ -283,6 +283,22 @@ describe("the spec's tests hold against the host", () => {
     expect(line).toMatch('возвращены')
   })
 
+  it("the seller reaches the template, and a broken ElevenLabs key never stops a client's voice", async () => {
+    // The behaviour (the playbook's words, providers_status on a real 402)
+    // runs in the-seller-reaches-the-reel-template.test.ts.
+    const { STORY_GIFT } = await import('../agent/crm-playbook')
+    expect(SPEC.SELLER_TOOL).toBe('crm_story_reel')
+    expect(SPEC.CLONE_TOOL).toBe('crm_voice_clone')
+    expect(STORY_GIFT).toContain(SPEC.SELLER_TOOL)
+    expect(STORY_GIFT).toContain(SPEC.CLONE_TOOL)
+    expect(SPEC.HAND_ASSEMBLY_IN_CHAT).toBe(false)
+    expect(SPEC.VOICE_PROVIDER).toBe('replicate')
+    expect(SPEC.VOICE_NEEDS_ELEVENLABS).toBe(false)
+    expect(VOICE_CLONE_MODEL).toBe(SPEC.CLONE_MODEL)
+    expect(SPEC.SENT_VOICE_NOTES_TRIED_FIRST).toBe(true)
+    expect(SPEC.VOICE_HEALTH_FROM_REAL_CALLS).toBe(true)
+  })
+
   it('a job waiting only for a still is released for the sweep, not failed (v3)', () => {
     // job_kept(stills_made, clips_made, stills_drawing)
     expect(SPEC.PENDING_STILL_KEEPS_JOB).toBe(true)

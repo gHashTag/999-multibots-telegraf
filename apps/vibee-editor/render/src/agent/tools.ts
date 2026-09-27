@@ -68,6 +68,11 @@ import {
 } from './late-picture'
 import { resolvingPeer } from './tg-proposals'
 import {
+  noteVoiceFailed,
+  noteVoiceWorked,
+  voiceLooksDown,
+} from './image-health'
+import {
   clientFace,
   sentPhotosFromLibrary,
   NO_PERSON_PREFIX,
@@ -2081,12 +2086,10 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'audio_generate',
     description:
-      'Озвучить текст голосом (ElevenLabs). Без voice_id берётся КЛОН ВЛАДЕЛЬЦА, ' +
-      'а если своего клона в аккаунте нет — библиотечный, и это будет сказано в ответе. ' +
-      'for_lead — голосом клиента (его клон из crm_voice_clone), только для материалов ему же. ' +
-      'Работает ТОЛЬКО при валидном ключе аккаунта: если вернулась ' +
-      'ошибка про голоса — озвучка не настроена, честно скажи это и собери рилс без звука. ' +
-      'Если voice_id не знаешь — не указывай, возьмётся первый доступный голос.',
+      'Озвучить текст. for_lead — голосом клиента (его клон из crm_voice_clone), только для материалов ' +
+      'ему же: это MiniMax на Replicate, ключ ElevenLabs ему НЕ нужен. Без for_lead и voice_id — ' +
+      'клон владельца, а если своего нет — библиотечный голос ElevenLabs (нужен его ключ), и это ' +
+      'будет сказано в ответе. Ошибка — скажи честно, что именно, и собери рилс без звука.',
     parameters: {
       type: 'object',
       properties: {
@@ -2230,11 +2233,15 @@ export const TOOLS: AgentTool[] = [
           'провайдер не выполнил работу',
           charge['потрачено']
         )
+        const why = `озвучка не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`
+        // A clone speaks on Replicate: its refusal is the voice's health.
+        if (cloneVoice) noteVoiceFailed(why)
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
-          причина: `озвучка не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
+          причина: why,
         }
       }
+      if (cloneVoice) noteVoiceWorked()
       // /api/generate/audio отдаёт прокси-путь /s3/... — делаем абсолютным,
       // чтобы ссылку можно было отдать и в рендер, и в ленту.
       const absolute = genData.url.startsWith('http')
@@ -3415,8 +3422,9 @@ export const TOOLS: AgentTool[] = [
      */
     name: 'providers_status',
     description:
-      'Что из платного работает ПРЯМО СЕЙЧАС: картинки (FAL), озвучка (ElevenLabs), ' +
-      'видео (Replicate), сам агент (GLM). Зови ПЕРЕД тем, как предложить платное ' +
+      'Что из платного работает ПРЯМО СЕЙЧАС: картинки (Kie, FAL), видео и голос клиента (Replicate), ' +
+      'библиотечные голоса (ElevenLabs), сам агент (GLM). Голос клиента и его клон — Replicate MiniMax: ' +
+      'сломанный ElevenLabs ему не мешает, смотри поле голос_клиента. Зови ПЕРЕД тем, как предложить платное ' +
       'действие или пообещать результат: провайдер бывает мёртв по балансу или ключу, ' +
       'и обещать в этот момент нечестно. Если что-то не работает — скажи человеку прямо, ' +
       'что именно и почему, и предложи бесплатное: ленту, файлы, план, ремикс готового. ' +
@@ -3438,10 +3446,23 @@ export const TOOLS: AgentTool[] = [
         .map(
           (p: any) => `${p['провайдер']}: ${String(p['детали']).slice(0, 160)}`
         )
+      /*
+       * THE CLIENT'S VOICE, SAID APART. Its provider is Replicate, whose
+       * account check answers 200 with no credit; only a real call says 402.
+       * So the answer here is the last real call (image-health.ts), and it
+       * names what to fix -- never the ElevenLabs key, which it does not use.
+       */
+      const voiceDown = voiceLooksDown()
+      const голосКлиента = voiceDown // cyrillic-ok: answer field beside the others
+        ? `НЕ работает: Replicate ${voiceDown.minutesAgo} мин назад ответил «${voiceDown.why}» — ` +
+          'нужно пополнить Replicate (не ключ ElevenLabs); клон и реплики клиента до этого не сделать'
+        : 'Replicate MiniMax: отказов не было — клон (crm_voice_clone) и рилс его голосом ' +
+          '(crm_story_reel) доступны; ключ ElevenLabs для них не нужен'
       return {
         работает: d['работает'],
         всего: d['всего'],
         неработает: мёртвые,
+        голос_клиента: голосКлиента, // cyrillic-ok: answer field beside the others
         подсказка: мёртвые.length
           ? 'НЕ ОБЕЩАЙ то, что в списке «неработает». Скажи человеку честно, ' +
             'что именно сломано, и предложи бесплатное действие взамен.'
@@ -3924,8 +3945,10 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /**
  * Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them.
- * `crm_voice_clone` is out for a plainer reason: its only use is the story-reel gift, which also needs image_edit,
- * lipsync_generate and reel_render -- none of them in the kit -- so a small model could clone a voice and do nothing with it.
+ * `crm_voice_clone`, `crm_story_reel` and `my_story_reel` are out for their size, not their use: the reel is a
+ * background job now (story-template.ts), which needs no other tool in the kit, but the three schemas are ~930
+ * tokens (crm_story_reel alone ~550; measured 2026-09-27) against a kit at 7214 of its 7240 (provider.test.ts). A DM seller on a 16k model gives the portrait;
+ * the reel is asked of the owner's full-size agent. Moving that line is the owner's call, not a refactor's.
  */
 export const COMPACT_TOOLS_EXCLUDED =
   /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_voice_clone|crm_story_reel|my_story_reel|crm_client_timeline)$/
