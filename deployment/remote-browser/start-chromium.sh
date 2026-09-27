@@ -42,15 +42,24 @@ set -e
 # while the account was signed in and holding unread replies, because the tab
 # it opened was frozen before it ever loaded.
 #
-# These flags say: this browser is always watched. Occlusion is not a reason
-# to background a window, a background renderer is not a reason to throttle
-# it, and the memory-saver features that discard and freeze tabs are off.
+# AND WAKING EVERY TAB AT ONCE IS NOT THE CURE. Measured half an hour later,
+# same pod: with renderer backgrounding and the memory-saver freeze disabled,
+# the profile's 27 restored tabs all came up as live renderers and the
+# container ran out of process slots -- `crun: fork: Resource temporarily
+# unavailable`, no shell, no CDP list. A browser that cannot fork is worse
+# than a browser with a frozen tab.
+#
+# So only the WINDOW-level economies are off -- this window is watched by a
+# person over neko even when nothing is occluding it, and its timers must
+# keep time -- while per-tab freezing stays as Chromium ships it. Waking the
+# ONE tab it is about to use is the agent's job, and it does it by activating
+# that tab first (agent/reddit-wiring.ts). The person's tabs survive a restart
+# by the owner's own decision (RestoreOnStartup 1 in the Dockerfile), so the
+# number of tabs is not something this file gets to assume away.
 exec /usr/bin/chromium \
   --no-sandbox \
   --disable-backgrounding-occluded-windows \
-  --disable-renderer-backgrounding \
   --disable-background-timer-throttling \
-  --disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling,HighEfficiencyModeAvailable,FreezingOnEnergySaver \
   --window-position=0,0 \
   --display="${DISPLAY}" \
   --user-data-dir=/home/neko/.config/chromium \
