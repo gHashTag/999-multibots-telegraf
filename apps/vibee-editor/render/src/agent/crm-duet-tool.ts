@@ -536,7 +536,7 @@ export function sellerBrief(
   const name = buyerTag(profile) ?? 'покупателем'
   const cta = p.approved_cta?.text ?? LEELA_CTA_RU
   const button = p.approved_cta?.button ?? LEELA_PLAY_RU
-  const template = p.reel_template?.composition ?? 'LeelaPlanReel'
+  const template = p.reel_template?.composition ?? 'LeelaPlanReel' // stale-route-ok: the duet links its reel to her plan cards of this template (crm-duet.t27)
   return [
     `Ты ведёшь РЕАЛЬНЫЙ диалог в Telegram с ${name}, Telegram ID ${buyer}. Она ведёт игру самопознания «Лила Чакра» и впервые смотрит на этот бот как на инструмент для продвижения её игры.`,
     'Порядок работы — как у профессионала с клиентом: сначала УЗНАТЬ, потом ПРЕДЛОЖИТЬ. Первые 1–2 реплики — только знакомство и вопросы discovery (по одному за реплику). Предложение делай только после её ответов и опирайся на них дословно.',
@@ -1165,7 +1165,7 @@ export function okOf(value: unknown): boolean {
  * the owner's explicit word first. Until then no text the model, the client
  * or the card reads may say the reel "waits for her approval".
  */
-export const LEELA_REEL_TEMPLATE = 'LeelaPlanReel'
+export const LEELA_REEL_TEMPLATE = 'LeelaPlanReel' // stale-route-ok: the duet's plan-card link (crm-duet.t27)
 
 /** What happened to her plan when a turn produced a reel. */
 export interface PlanLink {

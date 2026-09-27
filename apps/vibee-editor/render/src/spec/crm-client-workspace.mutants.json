@@ -1,0 +1,14 @@
+[
+  {
+    "name": "the Queen's task goes to the assistant again",
+    "file": "../player/src/components/Crm/QueenPanel.tsx",
+    "from": "sendOrQueue(task, [], taskTarget(client, agent))",
+    "to": "sendOrQueue(task, [], { client })"
+  },
+  {
+    "name": "the page does not pass the chosen specialist",
+    "file": "../player/src/pages/Chat.tsx",
+    "from": "              agent={helper}\n",
+    "to": ""
+  }
+]

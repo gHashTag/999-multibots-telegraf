@@ -1126,10 +1126,12 @@ function ChatThread({
               />
             ) : null}
             {/* The Queen supervises this client beside the agent
-                (QueenPanel.tsx); her tasks land in the agent's queue. */}
+                (QueenPanel.tsx); her tasks land in the queue of the
+                specialist chosen here, not the plain assistant's. */}
             <QueenPanel
               key={`queen-${client}`}
               client={client}
+              agent={helper}
               open={queenOpen}
               onClose={() => setQueenOpen(false)}
             />

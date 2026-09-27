@@ -624,6 +624,16 @@ describe("the spec's tests hold against the host", () => {
     )
     expect(one.first).toContain(`${SPEC.SELLER_TOOL} {lead}`)
     expect(SPEC.REEL_TOOL_IN_CLIENT_BRIEF).toBe(true)
+    // REEL_TOOL_IN_PLAN_READ (v9): the plan read carries the route; the tool
+    // answering with it runs in crm-client-workspace-tools.test.ts.
+    const { planReelRoute } = await import(
+      '../agent/crm-client-workspace-tools'
+    )
+    expect(planReelRoute()).toContain(
+      `${SPEC.SELLER_TOOL} {lead, start: true, topic`
+    )
+    expect(planReelRoute()).toMatch(`${SPEC.OLD_PLAN_REEL}) — старый`) // cyrillic-ok: the route under test
+    expect(SPEC.REEL_TOOL_IN_PLAN_READ).toBe(true)
   })
 
   it('her notes are cut at a pause near the even cut, or at the even cut', () => {
