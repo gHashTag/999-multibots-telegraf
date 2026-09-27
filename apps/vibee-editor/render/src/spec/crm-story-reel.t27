@@ -72,6 +72,17 @@
 // tool's read without start (free) and the verdict is the server's words -- the panel computes
 // no contrast of its own; "keep" is a press, and it is offered only for the very card the last
 // check passed, so an edit after the check has to be checked again. The panel sends nothing.
+// v12 (2026-09-27): a refusal for contrast names the colour that reads. v7 said "the call in
+// #d4b04c on #f5efe0 reads badly: 1,9:1, needs 4,5:1" and stopped there: the seller had to
+// guess a colour and check again, and the card had nothing to press. The answer now carries,
+// for each field that does not read, the least change of HER OWN colour that does: her colour
+// mixed toward white, or toward black, in SUGGEST_STEPS equal steps -- the first step that
+// reads, whichever way needs fewer steps (a tie goes to the extreme that reads better on that
+// background). The last step is pure white or pure black, and on any background one of the
+// two reads (EXTREME_MIN_CONTRAST_X10), so a shade always exists. It is a suggestion: the
+// card's "take" is a press that fills the fields and checks them again, and keeping stays its
+// own press. A colour that is not #hex gets no shade -- there is nothing of hers to shade --
+// and is named back as before.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -243,6 +254,21 @@ module automation::crm_story_reel {
     pub const PANEL_CHECK_IS_READ : bool = true;  // crm_story_reel without start: nothing spent
     pub const PANEL_VERDICT_FROM_SERVER : bool = true;  // no contrast computed in the player
     pub const PANEL_KEEP_IS_PRESS : bool = true;
+
+    // ---- The colour that reads, named on a refusal (v12) ---------------------------------
+    pub const SUGGEST_FIX_ARG : str = "end_card_fix";  // crm_story_reel's answer, field by field
+    pub const SUGGEST_STEPS : u16 = 10;  // her colour to white or to black in ten equal steps
+    pub const SUGGEST_NEVER : u16 = 11;  // this way never reads
+    // Over every background, the better of white and black contrasts at least sqrt(21) = 4.58:1
+    // -- times ten, rounded down, 45 -- so the last step always reads.
+    pub const EXTREME_MIN_CONTRAST_X10 : u16 = 45;
+    pub const WAY_LIGHT : u8 = 1;
+    pub const WAY_DARK : u8 = 2;
+    pub const SUGGEST_KEEPS_HER_COLOUR : bool = true;  // a shade of hers, not a stock white
+    pub const SUGGEST_FOR_PROFILE_PALETTE : bool = true;  // named with its fix, still never refused
+    pub const SUGGEST_FOR_BAD_HEX : bool = false;  // "black" is named back: no colour to shade
+    pub const SUGGEST_TAKEN_BY_PRESS : bool = true;  // the card fills the fields and checks again
+    pub const SUGGEST_KEPT_BY_ITSELF : bool = false;  // taking is not keeping
 
     // ---- Every reel for a client is a story reel (v8) -----------------------------------
     pub const OLD_PLAN_REEL : str = "LeelaPlanReel";  // silent, subtitled, made from the plan's canon
@@ -460,6 +486,34 @@ module automation::crm_story_reel {
     // Whether the panel offers "keep": only for the card the last check passed, unedited since.
     fn panel_keep_offered(checked: bool, edited_since_check: bool, verdict_clean: bool) -> bool {
         return checked && !edited_since_check && verdict_clean;
+    }
+
+    // Which way her colour is shaded: the way that reads in fewer steps (SUGGEST_NEVER loses to
+    // any step); on a tie, toward the extreme that reads better on this background.
+    fn shade_way(light_step: u16, dark_step: u16, light_reads_better: bool) -> u8 {
+        if light_step < dark_step {
+            return WAY_LIGHT;
+        }
+        if dark_step < light_step {
+            return WAY_DARK;
+        }
+        if light_reads_better {
+            return WAY_LIGHT;
+        }
+        return WAY_DARK;
+    }
+
+    // Whether a shade is named for a field: only for a #hex colour that does not read.
+    fn suggest_offered(colour_ok: bool, readable: bool) -> bool {
+        if !colour_ok {
+            return SUGGEST_FOR_BAD_HEX;
+        }
+        return !readable;
+    }
+
+    // Whether the card offers "take": only beside the verdict on the card still on screen.
+    fn panel_take_offered(checked: bool, edited_since_check: bool, has_fix: bool) -> bool {
+        return checked && !edited_since_check && has_fix;
     }
 
     // Which reel is made for a CRM client: the story reel, unless the owner named the old one.
@@ -728,6 +782,35 @@ module automation::crm_story_reel {
         assert(!panel_keep_offered(false, false, true));  // never checked
         assert(!panel_keep_offered(true, true, true));  // edited after the check
         assert(!panel_keep_offered(true, false, false));  // the server named a problem
+    }
+
+    test "a refusal for contrast names the least shade of her own colour that reads" {
+        assert(SUGGEST_FIX_ARG == "end_card_fix");
+        assert(SUGGEST_STEPS == 10);
+        assert(SUGGEST_NEVER == SUGGEST_STEPS + 1);
+        assert(end_card_readable(EXTREME_MIN_CONTRAST_X10));  // the last step always reads
+        assert(shade_way(3, 7, false) == WAY_LIGHT);  // fewer steps wins
+        assert(shade_way(7, 3, true) == WAY_DARK);
+        assert(shade_way(SUGGEST_NEVER, 10, true) == WAY_DARK);  // a way that never reads loses
+        assert(shade_way(4, SUGGEST_NEVER, false) == WAY_LIGHT);
+        assert(shade_way(5, 5, true) == WAY_LIGHT);  // a tie: the extreme that reads better
+        assert(shade_way(5, 5, false) == WAY_DARK);
+        assert(suggest_offered(true, false));
+        assert(!suggest_offered(true, true));
+        assert(!suggest_offered(false, false));  // not #hex: named back, nothing to shade
+        assert(SUGGEST_KEEPS_HER_COLOUR);
+        assert(SUGGEST_FOR_PROFILE_PALETTE);
+        assert(!end_card_refused(false, false));  // her profile's shade is named, the reel still goes
+    }
+
+    test "the card takes the named shade by a press and checks it again before keeping" {
+        assert(SUGGEST_TAKEN_BY_PRESS);
+        assert(!SUGGEST_KEPT_BY_ITSELF);
+        assert(panel_take_offered(true, false, true));
+        assert(!panel_take_offered(false, false, true));  // never checked
+        assert(!panel_take_offered(true, true, true));  // the fix was for the card before the edit
+        assert(!panel_take_offered(true, false, false));  // nothing to take
+        assert(!panel_keep_offered(true, true, true));  // taking edits the fields: keep waits
     }
 
     test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {

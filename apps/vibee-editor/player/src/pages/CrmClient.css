@@ -365,6 +365,19 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+/* The shade that reads, named on a refusal (v12), with its "take". */
+.crm-client__palette-fix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.crm-client__palette-fix > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .crm-client__palette-edit label {
   display: flex;
   align-items: center;

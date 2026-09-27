@@ -6,6 +6,8 @@ import {
   cardKey,
   fieldSource,
   panelKeepOffered,
+  panelTakeOffered,
+  takeFix,
   toColourInput,
   type StoryEndCard,
 } from '@/lib/storyPalette'
@@ -18,6 +20,8 @@ import {
  * the tool's read without start -- free -- and the verdict is the server's
  * words; this screen computes no contrast. "Keep" is offered only for the
  * card the last check passed, so an edit after the check is checked again.
+ * A refusal for contrast comes with the shade of her colour that reads
+ * (v12): "take" fills the fields and checks again; keeping stays a press.
  * Nothing here starts a reel or sends anything to the client.
  */
 export function StoryPalette({
@@ -36,16 +40,20 @@ export function StoryPalette({
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<StoryEndCard>({})
   const [busy, setBusy] = useState(false)
-  // The key of the card the last check was about, and what it said.
-  const [checked, setChecked] = useState<{ key: string; why: string } | null>(
-    null
-  )
+  // The key of the card the last check was about, what it said, and the
+  // shade it named (v12).
+  const [checked, setChecked] = useState<{
+    key: string
+    why: string
+    fix: StoryEndCard | null
+  } | null>(null)
   const [note, setNote] = useState<string | null>(null)
 
   const edit = (next: StoryEndCard) => {
     setDraft(next)
     setNote(null)
   }
+  const loadFix = ready.endCardFix
   const edited = checked !== null && checked.key !== cardKey(draft)
   const offered = panelKeepOffered(
     checked !== null,
@@ -60,12 +68,21 @@ export function StoryPalette({
     setOpen(true)
   }
 
-  const onCheck = async () => {
+  const onCheck = async (next: StoryEndCard = draft) => {
     setBusy(true)
-    const r = await checkStoryPalette(clientId, draft)
+    const r = await checkStoryPalette(clientId, next)
     setBusy(false)
     const why = r.data ? (r.data.endCardWhy ?? '') : (r.error ?? '?')
-    setChecked({ key: cardKey(draft), why })
+    setChecked({ key: cardKey(next), why, fix: r.data?.endCardFix ?? null })
+  }
+
+  // Take the named shade into the fields and check that card (v12): the
+  // verdict is the server's again, and keeping is still its own press.
+  const onTake = async (from: StoryEndCard, fix: StoryEndCard) => {
+    const next = takeFix(from, fix)
+    edit(next)
+    setOpen(true)
+    await onCheck(next)
   }
 
   const onKeep = async (next: StoryEndCard | null) => {
@@ -78,6 +95,34 @@ export function StoryPalette({
       onChanged()
     }
   }
+
+  const fixRow = (fix: StoryEndCard, from: StoryEndCard) => (
+    <div className="crm-client__palette-fix" data-testid="story-palette-fix">
+      <span>{t('crm.client.story.fix')}</span>
+      {(['title', 'accent'] as const)
+        .filter(k => fix[k])
+        .map(k => (
+          <span key={k} data-field={k}>
+            <i
+              className="crm-client__swatch"
+              style={{ background: fix[k] }}
+              aria-hidden="true"
+            />
+            <small>{t(`crm.client.story.field.${k}`)}</small>
+            <code>{fix[k]}</code>
+          </span>
+        ))}
+      <button
+        type="button"
+        className="crm-client__palette-go"
+        data-action="take"
+        disabled={busy}
+        onClick={() => void onTake(from, fix)}
+      >
+        {t('crm.client.story.take')}
+      </button>
+    </div>
+  )
 
   return (
     <div className="crm-client__story-palette" data-testid="story-palette">
@@ -117,6 +162,11 @@ export function StoryPalette({
         </p>
       ) : null}
       {ready.endCardWhy ? <p className="crm__why">{ready.endCardWhy}</p> : null}
+      {/* The load is the read of this very card; once the editor is open,
+          its fields are what the next check is about. */}
+      {loadFix && panelTakeOffered(true, open, true)
+        ? fixRow(loadFix, { ...(card ?? {}) })
+        : null}
       {!open ? (
         <button
           type="button"
@@ -194,6 +244,10 @@ export function StoryPalette({
               {checked.why || t('crm.client.story.readable')}
             </p>
           ) : null}
+          {checked?.fix &&
+          panelTakeOffered(checked !== null, edited, checked.fix !== null)
+            ? fixRow(checked.fix, draft)
+            : null}
         </div>
       )}
       {note ? (
