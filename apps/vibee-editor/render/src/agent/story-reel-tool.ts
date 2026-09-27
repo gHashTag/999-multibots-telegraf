@@ -78,6 +78,61 @@ export function scenesOf(raw: unknown): StoryScene[] | string {
   return out
 }
 
+export interface StoryEndCard {
+  bg?: string
+  title?: string
+  text?: string
+  accent?: string
+  button?: string
+}
+
+const HEX = /^#[0-9a-fA-F]{3,8}$/
+const hex = (v: unknown): string | undefined =>
+  HEX.test(String(v ?? '').trim()) ? String(v).trim() : undefined
+
+/**
+ * The end card as given, checked: colours are #hex or dropped, the button
+ * line is short. Nothing usable -- no card, and the reel ends as before.
+ */
+export function endCardOf(raw: unknown): StoryEndCard | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const button = String(r.button ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60)
+  const card: StoryEndCard = {
+    ...(hex(r.bg) ? { bg: hex(r.bg) } : {}),
+    ...(hex(r.title) ? { title: hex(r.title) } : {}),
+    ...(hex(r.text) ? { text: hex(r.text) } : {}),
+    ...(hex(r.accent) ? { accent: hex(r.accent) } : {}),
+    ...(button ? { button } : {}),
+  }
+  return Object.keys(card).length ? card : null
+}
+
+/**
+ * The client's own visual as an end card, from her profile: `visual` (or
+ * `visual_tokens`) for the colours, `approved_cta` for the button line.
+ * A profile without a visual has no card.
+ */
+export function endCardFromProfile(profile: any): StoryEndCard | null {
+  const v = profile?.visual ?? profile?.visual_tokens
+  if (!v || typeof v !== 'object') return null
+  const cta = profile?.approved_cta
+  const button =
+    cta && typeof cta === 'object'
+      ? [cta.button, cta.bot].filter(Boolean).map(String).join(' · ')
+      : ''
+  return endCardOf({
+    bg: hex(v.bg) ?? hex(v.surface),
+    title: hex(v.gold_title) ?? hex(v.title) ?? hex(v.win),
+    text: hex(v.text),
+    accent: hex(v.accent_cta) ?? hex(v.accent),
+    button,
+  })
+}
+
 /** A list the caller passed back, kept only where it matches the scenes. */
 function carried(raw: unknown, n: number): string[] {
   const list = Array.isArray(raw) ? raw.map(x => String(x ?? '').trim()) : []
@@ -154,6 +209,19 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
           description: 'id клиента: говорить ЕГО голосом (crm_voice_clone)',
         },
         cta: { type: 'string', description: 'надпись в паузе в конце' },
+        end_card: {
+          type: 'object',
+          description:
+            'финал в визуале клиента вместо стоп-кадра: bg, title, text, accent (#hex), button — строка кнопки',
+          properties: {
+            bg: { type: 'string' },
+            title: { type: 'string' },
+            text: { type: 'string' },
+            accent: { type: 'string' },
+            button: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
         pause_sec: {
           type: 'number',
           description: `пауза с призывом в конце, 1–4 с (по умолчанию ${STORY_PAUSE_SEC})`,
@@ -186,6 +254,7 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
         4,
         Math.max(1, Number(args.pause_sec) || STORY_PAUSE_SEC)
       )
+      const endCard = endCardOf(args.end_card)
       const stills = carried(args.stills, n)
       const clips = carried(args.clips, n)
       const sofar = () => ({
@@ -288,6 +357,7 @@ export function makeStoryReelTool(lookup: (name: string) => Tool): AgentTool {
                 pauseSec: pause,
                 breathSec: 0.25,
                 cta: String(args.cta ?? ''),
+                ...(endCard ? { endCard } : {}),
               },
             },
             ctx
