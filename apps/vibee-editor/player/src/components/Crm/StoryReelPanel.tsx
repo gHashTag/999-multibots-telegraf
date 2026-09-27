@@ -159,7 +159,12 @@ export function StoryReelPanel({
                     </span>
                   </div>
                   {j.url ? (
-                    <a href={j.url} target="_blank" rel="noreferrer">
+                    <a
+                      href={j.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="crm-client__watch"
+                    >
                       {t('crm.client.story.watch')}
                     </a>
                   ) : j.status === 'failed' && j.error ? (

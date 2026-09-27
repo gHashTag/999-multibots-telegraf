@@ -487,6 +487,28 @@ describe('her palette on the story panel', () => {
     expect(host.querySelector('.crm-client__palette-edit')).not.toBeNull()
   })
 
+  /*
+   * v15: shot on a phone, the card printed the same refusal twice -- the
+   * load's reason above and the check's verdict below, for the same card.
+   */
+  it('one reason at a time: the load speaks until a check has spoken for the fields', async () => {
+    serve(() => REFUSED)
+    await draw()
+    const why = () => host.querySelector('[data-testid="story-palette-why"]')
+    const verdict = () =>
+      host.querySelector('[data-testid="story-palette-verdict"]')
+    expect(why()?.textContent).toBe(REFUSED.end_card_why)
+    // Open, nothing checked yet: the load's reason is still the only one.
+    await openEditor()
+    expect(why()).not.toBeNull()
+    expect(verdict()).toBeNull()
+    // Checked: the verdict is the reason, and the words stand once.
+    await press('check')
+    expect(verdict()?.textContent).toBe(REFUSED.end_card_why)
+    expect(why()).toBeNull()
+    expect(host.textContent!.split(REFUSED.end_card_why).length - 1).toBe(1)
+  })
+
   it('takes the kept palette off with an empty card, and starts nothing', async () => {
     serve(a =>
       a.save_end_card

@@ -4,6 +4,7 @@ import {
   fieldSource,
   panelKeepOffered,
   panelTakeOffered,
+  panelWhyShown,
   takeBg,
   takeFix,
   toColourInput,
@@ -23,6 +24,13 @@ describe('her palette on the card: the pure part', () => {
     expect(panelTakeOffered(false, false, true)).toBe(false)
     expect(panelTakeOffered(true, true, true)).toBe(false)
     expect(panelTakeOffered(true, false, false)).toBe(false)
+  })
+
+  it("the load's reason stands until a check has spoken for the fields (v15)", () => {
+    expect(panelWhyShown(false, false)).toBe(true)
+    expect(panelWhyShown(false, true)).toBe(true)
+    expect(panelWhyShown(true, false)).toBe(true)
+    expect(panelWhyShown(true, true)).toBe(false)
   })
 
   it('taking the shade changes the call and the button line, nothing else', () => {

@@ -7,6 +7,7 @@ import {
   fieldSource,
   panelKeepOffered,
   panelTakeOffered,
+  panelWhyShown,
   takeBg,
   takeFix,
   toColourInput,
@@ -159,22 +160,26 @@ export function StoryPalette({
       data-testid={OPTION[option.kind].id}
     >
       <span>{t(OPTION[option.kind].label)}</span>
-      {(option.kind === 'bg'
-        ? (['bg'] as const)
-        : (['title', 'accent'] as const)
-      )
-        .filter(k => option.fix[k])
-        .map(k => (
-          <span key={k} data-field={k}>
-            <i
-              className="crm-client__swatch"
-              style={{ background: option.fix[k] }}
-              aria-hidden="true"
-            />
-            <small>{t(`crm.client.story.field.${k}`)}</small>
-            <code>{option.fix[k]}</code>
-          </span>
-        ))}
+      {/* Its colours in one cell: on a phone they wrapped under the label
+          and "take" stood beside the wrong line (tri shot, turn 12). */}
+      <span className="crm-client__palette-fix-colours">
+        {(option.kind === 'bg'
+          ? (['bg'] as const)
+          : (['title', 'accent'] as const)
+        )
+          .filter(k => option.fix[k])
+          .map(k => (
+            <span key={k} data-field={k}>
+              <i
+                className="crm-client__swatch"
+                style={{ background: option.fix[k] }}
+                aria-hidden="true"
+              />
+              <small>{t(`crm.client.story.field.${k}`)}</small>
+              <code>{option.fix[k]}</code>
+            </span>
+          ))}
+      </span>
       <button
         type="button"
         className="crm-client__palette-go"
@@ -224,7 +229,13 @@ export function StoryPalette({
           {t('crm.client.story.kept')}
         </p>
       ) : null}
-      {ready.endCardWhy ? <p className="crm__why">{ready.endCardWhy}</p> : null}
+      {/* One reason at a time (v15): once a check has spoken for the
+          fields, its verdict is the reason, and the load's steps aside. */}
+      {ready.endCardWhy && panelWhyShown(open, checked !== null) ? (
+        <p className="crm__why" data-testid="story-palette-why">
+          {ready.endCardWhy}
+        </p>
+      ) : null}
       {/* The load is the read of this very card; once the editor is open,
           its fields are what the next check is about. */}
       {panelTakeOffered(true, open, loadOptions.length > 0)
