@@ -144,3 +144,23 @@ describe("the client's voice is as healthy as its last real call", () => {
     expect(h.imagesLookDown()).toBeNull()
   })
 })
+
+describe('the provider reference card says what the last real call said', () => {
+  it('Replicate reads "needs payment" after a real 402, and "works" again after a clone', async () => {
+    const h = await import('./src/agent/image-health')
+    const { providerSetup } = await import('./src/agent/pricing')
+    h.forgetImageHealthForTests()
+    const ok: any = providerSetup('replicate')
+    expect(ok['статус']).toBe('работает') // cyrillic-ok: the answer field under test
+    h.noteVoiceFailed('Replicate HTTP 402: Insufficient credit')
+    const broke: any = providerSetup('replicate')
+    expect(broke['статус']).toBe('нужна оплата') // cyrillic-ok: the answer field under test
+    expect(broke['заметка']).toMatch(/402/) // cyrillic-ok: the answer field under test
+    const all: any = providerSetup()
+    expect(all['совет']).toMatch(/пополни/) // cyrillic-ok: the answer field under test
+    // ElevenLabs is not the client's voice, and the card says so.
+    expect(all['провайдеры'].elevenlabs['даёт']).toMatch(/НЕ голос клиента/) // cyrillic-ok: the answer field under test
+    h.noteVoiceWorked()
+    expect((providerSetup('replicate') as any)['статус']).toBe('работает') // cyrillic-ok: the answer field under test
+  })
+})

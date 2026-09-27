@@ -6,6 +6,7 @@ import {
 } from './billing-shared'
 import { CLUB_OFFER_WHEN, clubOffer, spacedNumber } from './club-membership'
 import { imageChainNote } from '../image-chain'
+import { voiceLooksDown } from './image-health'
 
 /**
  * ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ: что бесплатно, что платно, как настроить провайдеров.
@@ -175,12 +176,14 @@ export const PROVIDERS: Record<
   }
 > = {
   replicate: {
-    даёт: 'картинки (flux), видео (seedance), озвучка (minimax) — основной рабочий провайдер',
+    даёт: 'картинки (flux), видео (seedance), голос клиента и его клон (minimax) — основной рабочий провайдер', // cyrillic-ok: existing reference field
     статус: 'работает',
     env: 'REPLICATE_API_TOKEN',
     как: 'Ключ в replicate.com/account/api-tokens; пополнение — replicate.com/account/billing',
-    стоимость: 'pay-as-you-go: картинка ~$0.003, видео ~$0.1',
-    заметка: 'ОПЛАЧЕН и отдаёт реальный вывод — на нём держится таб с ИИ',
+    стоимость: 'pay-as-you-go: картинка ~$0.003, видео ~$0.1, клон голоса $3',
+    заметка:
+      'Есть ли на нём деньги, видно только по реальному вызову: проверка аккаунта отвечает 200 ' + // cyrillic-ok: reference copy
+      'и без денег. Статус выше — из последнего реального вызова голоса.', // cyrillic-ok: reference copy
   },
   fal: {
     даёт: 'доп. картинки (nano-banana-pro) и липсинк из фото+аудио (veed/fabric-1.0)',
@@ -193,7 +196,7 @@ export const PROVIDERS: Record<
       'и цепочка их пропускает: пополнение баланса само их не оживит, нужна другая цена.', // cyrillic-ok: reference copy
   },
   elevenlabs: {
-    даёт: 'премиум-озвучка и клон голоса',
+    даёт: 'библиотечные голоса и клон владельца вне дома — НЕ голос клиента (он на Replicate)', // cyrillic-ok: existing reference field
     статус: 'нужен ключ',
     env: 'ELEVENLABS_API_KEY',
     как: 'В кабинете ElevenLabs → Profile → API Key. Настоящий ключ начинается с «sk_».',
@@ -304,14 +307,37 @@ export function pricingSummary(surface?: string) {
 }
 
 /** Инструкция по настройке провайдера (или всех). */
+/**
+ * The reference card with Replicate's state as the last real call left it.
+ * The card is typed text; Replicate's own account check answers 200 with no
+ * credit, so "works" here said nothing about money -- on 2026-09-27 it read
+ * "works, PAID" while every clone met a 402 (image-health.ts).
+ */
+function withLiveState(): Record<string, (typeof PROVIDERS)[string]> {
+  const down = voiceLooksDown()
+  if (!down) return PROVIDERS
+  return {
+    ...PROVIDERS,
+    replicate: {
+      ...PROVIDERS.replicate,
+      статус: 'нужна оплата', // cyrillic-ok: reference copy
+      заметка: `Реальный вызов ${down.minutesAgo} мин назад: ${down.why}. Пополнить баланс Replicate.`, // cyrillic-ok: reference copy
+    },
+  }
+}
+
 export function providerSetup(name?: string) {
+  const providers = withLiveState()
   if (!name)
     return {
-      провайдеры: PROVIDERS,
-      совет: 'Начни с Replicate (уже работает) или Pollinations (бесплатно).',
+      провайдеры: providers,
+      совет:
+        providers.replicate.статус === 'работает' // cyrillic-ok: existing reference field
+          ? 'Начни с Replicate (отказов не было) или Pollinations (бесплатно).' // cyrillic-ok: reference copy
+          : 'Replicate без денег — пополни его; бесплатно работает Pollinations.', // cyrillic-ok: reference copy
     }
   const key = name.toLowerCase().replace(/[^a-z]/g, '')
-  const p = PROVIDERS[key]
+  const p = providers[key]
   if (!p) {
     return {
       ошибка: `провайдер «${name}» неизвестен`,

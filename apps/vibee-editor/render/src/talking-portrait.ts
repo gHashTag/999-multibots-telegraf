@@ -36,6 +36,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Db, Log } from './autopilot-state'
+import { lipsyncResolutionFor } from './agent/kie-web-provider'
 
 /** kie.ai price of veed/fabric-1, from src/config/lipsync-models.config.ts. */
 export const CREDITS_PER_SECOND = 18
@@ -486,9 +487,17 @@ export function kieProvider(opts: {
           method: 'POST',
           body: JSON.stringify({
             model: MODEL,
-            // Exactly the two keys the model asks for. Measured: an unknown
-            // extra key is not worth guessing when a rejection costs a cycle.
-            input: { image_url: input.imageUrl, audio_url: input.audioUrl },
+            // Exactly the keys the model asks for. It asked for two until
+            // 2026-09-24, when Kie began refusing it with "resolution is
+            // required" (code 500, nothing charged): the lipsync route was
+            // fixed that day, this call was not, and the autopilot's talking
+            // portrait stopped. The resolution is the one its price is for,
+            // from the same helper the route uses.
+            input: {
+              image_url: input.imageUrl,
+              audio_url: input.audioUrl,
+              resolution: lipsyncResolutionFor(MODEL),
+            },
           }),
         },
         30_000,
