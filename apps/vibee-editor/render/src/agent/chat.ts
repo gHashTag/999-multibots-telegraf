@@ -1516,7 +1516,7 @@ export function marketplaceAgentPrompt(agentId?: string): string {
       '- L2 ГЕНЕРАЦИЯ: поведение живёт в спеке, файлы под gen/ не правь руками.\n' + // cyrillic-ok: prompt copy
       '- L1 СЛЕД: у PR должна быть ссылка на issue (Closes #N); L7: новых *.sh ' + // cyrillic-ok: prompt copy
       'не заводи, запускай через tri/t27c.\n' + // cyrillic-ok: prompt copy
-      '- ПЕЧАТЬ: новый/изменённый спек под specs/ требует seal (tri seal … ' + // cyrillic-ok: prompt copy
+      '- ПЕЧАТЬ: новый/изменённый спек под specs/ требует seal (t27c seal … ' + // cyrillic-ok: prompt copy
       '--save, файл .trinity/seals/*.json), а PR должен затронуть docs/NOW.md.\n' + // cyrillic-ok: prompt copy
       '- ПРОВЕРКА: спек готов, только когда t27c spec-status = IMPLEMENTED или ' + // cyrillic-ok: prompt copy
       'PARTIAL (не NOFN/NOPARSE) и t27c parse-complete дочитал до конца. Нет ' + // cyrillic-ok: prompt copy

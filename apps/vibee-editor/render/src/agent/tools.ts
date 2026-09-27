@@ -149,7 +149,7 @@ export interface ToolContext {
   surface?: string
   /**
    * The caller declared this call a health probe (MCP `params._meta.probe`),
-   * e.g. `tri eyes`. The browser journal keeps probes apart so a person's
+   * e.g. `tri journal --probes`. The browser journal keeps probes apart so a person's
    * view of what the agent did is not filled with checks nobody asked for.
    */
   probe?: boolean

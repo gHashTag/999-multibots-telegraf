@@ -744,7 +744,7 @@ export async function handleMcp(
         telegramId: identity.telegramId,
         scope: identity.scope,
         pool,
-        // A caller that says it is only checking (tri eyes) -- journal.ts.
+        // A caller that says it is only checking (tri journal --probes) -- journal.ts.
         probe:
           (rpc.params as { _meta?: { probe?: unknown } } | undefined)?._meta
             ?.probe === true,
