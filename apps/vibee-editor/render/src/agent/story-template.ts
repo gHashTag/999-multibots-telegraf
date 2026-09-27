@@ -55,23 +55,33 @@ import {
   type GroupCardOffer,
 } from './story-card'
 
+/*
+ * THE NUMBERS BELOW ARE THE SPEC'S, NOT THIS FILE'S (owner, 2026-09-27: t27 is
+ * the language everything is rewritten in). gHashTag/t27
+ * specs/automation/crm-story-reel.t27 is vendored in ../spec/ with its
+ * `t27c gen-ts` output; src/spec/crm-story-reel.test.ts fails when a number
+ * here is restated instead of imported, or when the host stops doing what the
+ * spec's own tests say. Change the spec, run scripts/sync-t27-spec.mjs.
+ */
+import * as SPEC from '../spec/crm-story-reel.gen'
+
 type Pool = { query: (sql: string, params?: unknown[]) => Promise<any> }
 type Message = { role: 'system' | 'user' | 'assistant'; content: string }
 
-export const STORY_JOB_ATTEMPTS = 3
+export const STORY_JOB_ATTEMPTS = SPEC.JOB_ATTEMPTS
 /**
  * A running job beats every STORY_BEAT_MS; one silent for STORY_DEAD_MS lost
  * its process (a redeploy) and the sweep takes it over. Silent longer than
  * STORY_ABANDON_MINUTES, it is given up.
  */
-export const STORY_BEAT_MS = 30_000
-export const STORY_DEAD_MS = 100_000
-export const STORY_SWEEP_MS = 120_000
-export const STORY_ABANDON_MINUTES = 120
+export const STORY_BEAT_MS = SPEC.BEAT_MS
+export const STORY_DEAD_MS = SPEC.DEAD_MS
+export const STORY_SWEEP_MS = SPEC.SWEEP_MS
+export const STORY_ABANDON_MINUTES = SPEC.ABANDON_MINUTES
 /** This process, as the runner of the jobs it holds. */
 const ME = `${process.pid}-${Math.random().toString(36).slice(2, 8)}`
-export const STORY_START_PARAM = 'reel'
-export const STORY_TOPIC_MAX = 200
+export const STORY_START_PARAM = SPEC.START_PARAM
+export const STORY_TOPIC_MAX = SPEC.TOPIC_MAX
 
 /** The look when the seller set none: calm, warm, one for every frame. */
 export const STORY_DEFAULT_STYLE =
@@ -269,13 +279,13 @@ export async function peekNextPlanItem(
 }
 
 /** Scenes a reel of the template has. */
-export const STORY_SCENES = 3
+export const STORY_SCENES = SPEC.SCENES_DEFAULT
 /**
  * Seconds of lip-sync one reel is billed for: three lines of 2-4 s, and each
  * clip is billed in whole seconds, rounded up (measured 2026-09-26: 11.9 s
  * spoken across three clips).
  */
-export const STORY_BILLED_SECONDS = 13
+export const STORY_BILLED_SECONDS = SPEC.BILLED_SECONDS
 
 /**
  * What one reel costs the person who pays, in tokens, BEFORE the press --
@@ -572,7 +582,7 @@ export async function startStory(
       text(who.cta, 120),
       // A client pressing for herself never sends into a group from here.
       deliverTo,
-      deliverTo ? text(who.caption, 900) : null,
+      deliverTo ? text(who.caption, SPEC.CAPTION_MAX) : null,
     ]
   )
   const job = Number(r?.rows?.[0]?.id)
@@ -893,8 +903,10 @@ export async function offerWaitingCards(deps: StoryDeps): Promise<number> {
   const r = await deps.pool.query(
     `SELECT * FROM story_jobs
       WHERE status = 'done' AND deliver_to IS NOT NULL AND card_at IS NULL
-        AND url IS NOT NULL AND updated_at > now() - interval '1 day'
-      ORDER BY id LIMIT 5`
+        AND url IS NOT NULL
+        AND updated_at > now() - ($1 || ' hours')::interval
+      ORDER BY id LIMIT $2`,
+    [String(SPEC.WAITING_CARD_WINDOW_HOURS), SPEC.SWEEP_CLAIM_BATCH]
   )
   let shown = 0
   for (const job of r?.rows ?? []) {
@@ -933,10 +945,10 @@ export async function sweepStoryJobs(deps: StoryDeps): Promise<number> {
       WHERE id IN (SELECT id FROM story_jobs
                     WHERE status = 'running'
                       AND updated_at < now() - ($2 || ' milliseconds')::interval
-                    ORDER BY id LIMIT 5
+                    ORDER BY id LIMIT $3
                     FOR UPDATE SKIP LOCKED)
       RETURNING id`,
-    [me, String(STORY_DEAD_MS)]
+    [me, String(STORY_DEAD_MS), SPEC.SWEEP_CLAIM_BATCH]
   )
   const ids: number[] = (r?.rows ?? []).map((x: any) => Number(x.id))
   for (const id of ids) void runStoryJob(deps, id).catch(() => undefined)

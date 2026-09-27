@@ -160,6 +160,29 @@ crm_story_reel {lead, start: true,
   клиенту невозможен — сказать владельцу «пополните Replicate», а не
   озвучивать чужим голосом.
 
+## Числа живут в спеке t27, не здесь (с 27.09.2026)
+
+Спека записи — `gHashTag/t27` `specs/automation/crm-story-reel.t27`
+(t27#4849, t27#4850). В рендер она положена как есть в
+`apps/vibee-editor/render/src/spec/` вместе с выводом `t27c gen-ts`, и код
+(`story-template.ts`, `story-reel-tool.ts`, `story-card.ts`) ИМПОРТИРУЕТ
+оттуда числа: лимиты, тайминги задачи, цены, правила карточки.
+`src/spec/crm-story-reel.test.ts` падает, если сгенерированный модуль
+разошёлся со спекой, если код написал число сам, или если хост перестал
+делать то, что говорят тесты спеки.
+
+Поменять число — только в спеке, затем:
+
+```
+cargo build --release -p t27c           # в клоне t27 (~4 мин)
+pip download --no-deps ziglang==0.16.0  # test-report гоняет тесты через Zig 0.16
+t27c test-report specs/automation/crm-story-reel.t27   # тесты спеки по-настоящему
+node apps/vibee-editor/render/scripts/sync-t27-spec.mjs <t27> automation/crm-story-reel
+```
+
+`t27c test` только СЧИТАЕТ тесты; выполняет их `test-report`. Проверка
+«может ли упасть»: сломать один assert — должен быть FAIL.
+
 ## Цена (замер 26.09.2026; «дом» себе не платит)
 
 | Часть | Себестоимость | Клиенту |
