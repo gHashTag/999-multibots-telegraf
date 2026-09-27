@@ -12,9 +12,13 @@ import {
   STORY_START_PARAM,
   STORY_SWEEP_MS,
   STORY_TOPIC_MAX,
+  deliveryOf,
   failedMoneyLine,
   jobKept,
+  missingFor,
+  storyPayer,
   storyPriceEstimate,
+  type StorySettings,
 } from '../agent/story-template'
 import {
   STORY_BREATH_SEC,
@@ -22,6 +26,7 @@ import {
   STORY_SCENES_MAX,
   STORY_SCENES_MIN,
   STORY_STILL_WAIT_MS,
+  makeStoryReelTool,
   pauseOf,
   scenesOf,
   stillResume,
@@ -236,7 +241,7 @@ describe("the spec's tests hold against the host", () => {
     expect(failedMoneyLine({ stills: 0, clips: 1 })).toMatch('оплачены')
   })
 
-  it('a job that keeps dying is given up and closed like any failure (v2)', () => {
+  it('a job that keeps dying is given up after its last attempt and closed like any failure', () => {
     // sweep_gives_up(attempts >= JOB_ATTEMPTS, silent > DEAD_MS); the
     // behaviour itself is run in a-story-reel-for-any-client.test.ts.
     const tpl = readFileSync(
@@ -250,6 +255,119 @@ describe("the spec's tests hold against the host", () => {
     expect(sweep).toMatch(/attempts >= \$2/)
     expect(sweep).toMatch(/\[String\(STORY_DEAD_MS\), STORY_JOB_ATTEMPTS\]/)
     expect(sweep.match(/closeFailed\(/g)?.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('a client qualifies with a face and a voice, and with nothing less', () => {
+    // qualifies(j) = has_face && has_voice
+    const s = (face: boolean, voice: boolean) =>
+      ({
+        faceUrl: face ? 'https://ours/face.jpg' : '',
+        hasVoice: voice,
+      }) as StorySettings
+    expect(SPEC.FACE_REQUIRED && SPEC.VOICE_REQUIRED).toBe(true)
+    expect(missingFor(s(true, true))).toBe('')
+    expect(missingFor(s(true, false))).toMatch('голос') // cyrillic-ok: the answer under test
+    expect(missingFor(s(false, true))).toMatch('лицом') // cyrillic-ok: the answer under test
+    expect(missingFor(null)).not.toBe('')
+  })
+
+  it('the seller pays for what the seller asked; the client pays unless it is a gift', () => {
+    // seller_pays(j) = !asked_by_client || vip_gift
+    const who = { seller: '900000001', lead: '900000077' }
+    const pays = (byClient: boolean, vipGift: boolean) =>
+      storyPayer({
+        byClient,
+        vipGift,
+        ...who,
+        requester: byClient ? who.lead : who.seller,
+      })
+    expect(pays(false, false)).toBe(who.seller)
+    expect(pays(true, false)).toBe(who.lead)
+    expect(pays(true, true)).toBe(who.seller)
+  })
+
+  it('a job whose process died is claimed by the sweep and continued, not redone', async () => {
+    // sweep_claims(silent_ms) = silent_ms > DEAD_MS. The claim itself runs
+    // in a-story-reel-for-any-client.test.ts ("a reel cut halfway"); here,
+    // "not redone": a resume with every part made orders nothing again.
+    expect(SPEC.BEAT_MS).toBeLessThan(SPEC.DEAD_MS)
+    expect(SPEC.DEAD_MS).toBeLessThan(SPEC.SWEEP_MS)
+    expect(SPEC.PAID_WORK_REDONE_ON_RESUME).toBe(false)
+    expect(SPEC.RUNNING_JOBS_PER_CLIENT).toBe(1)
+    const called: string[] = []
+    const tool = (name: string, answer: object) => ({
+      name,
+      description: '',
+      parameters: {},
+      handler: async () => {
+        called.push(name)
+        return answer
+      },
+    })
+    const tools: Record<string, any> = {
+      image_edit: tool('image_edit', {
+        done: true,
+        url: 'https://ours/new.png',
+      }),
+      audio_generate: tool('audio_generate', {
+        done: true,
+        url: 'https://ours/v.mp3',
+      }),
+      lipsync_generate: tool('lipsync_generate', {
+        done: true,
+        url: 'https://ours/c.mp4',
+      }),
+      reel_render: tool('reel_render', {
+        done: true,
+        url: 'https://ours/reel.mp4',
+      }),
+    }
+    const made = [
+      'https://ours/c1.mp4',
+      'https://ours/c2.mp4',
+      'https://ours/c3.mp4',
+    ]
+    const r: any = await makeStoryReelTool(n => tools[n]).handler(
+      {
+        image_url: 'https://ours/face.jpg',
+        scenes: [1, 2, 3].map(i => ({
+          setting: `room ${i}`,
+          line: `line ${i}`,
+        })),
+        stills: [
+          'https://ours/s1.png',
+          'https://ours/s2.png',
+          'https://ours/s3.png',
+        ],
+        clips: made,
+      },
+      {
+        telegramId: '900000001',
+        pool: { query: async () => ({ rows: [] }) },
+      } as never
+    )
+    expect(r.done).toBe(true)
+    expect(called).toEqual(['reel_render'])
+  })
+
+  it("nothing reaches a client chat without the owner's press, and a client press never reaches a group", () => {
+    // may_go_to_group(asked_by_client, group_bound); leaves_for_client(owner_pressed).
+    // The press itself is the card (story-card.test.ts: offerGroupCard).
+    expect(SPEC.SENT_WITHOUT_PRESS).toBe(false)
+    expect(SPEC.CLIENT_PRESS_SENDS_TO_GROUP).toBe(false)
+    expect(deliveryOf(true, '-900000061')).toBeNull()
+    expect(deliveryOf(false, '-900000061')).toBe('-900000061')
+    expect(deliveryOf(false, null)).toBeNull()
+    expect(SPEC.GROUP_MUST_BE_READ_BY_CRM).toBe(true)
+    expect(SPEC.DM_SEND_RECORDED_AS_GIFT).toBe(true)
+  })
+
+  it('what was seen live is kept apart from what is blocked', () => {
+    expect(SPEC.LIVE_RUN_STATUS).toBe('delivered-2026-09-26')
+    expect(SPEC.VOICE_LEG_STATUS).toBe('blocked-402-2026-09-27')
+    // Blocked by money, not code: the voice is Replicate's, not Kie's.
+    expect(SPEC.VOICE_PROVIDER).toBe('replicate')
+    expect(SPEC.VOICE_ON_KIE).toBe(false)
   })
 
   it('the one-press links are the spec routes', () => {

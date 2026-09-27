@@ -548,3 +548,38 @@ describe('the record that lands in the published recipe', () => {
     expect(rec.credits).toBe(108)
   })
 })
+
+describe('the request is the one Kie accepts today', () => {
+  it('sends the resolution fabric-1 is priced at: without it Kie refuses (2026-09-24)', async () => {
+    const { kieProvider, MODEL } = await import('./src/talking-portrait')
+    const { lipsyncResolutionFor } = await import(
+      './src/agent/kie-web-provider'
+    )
+    const sent: any[] = []
+    const provider = kieProvider({
+      apiBase: 'https://kie.example/api/v1',
+      key: 'test-key',
+      fetchImpl: (async (_url: string, init: any) => {
+        sent.push(JSON.parse(String(init?.body ?? '{}')))
+        return new Response(
+          JSON.stringify({ code: 200, data: { taskId: 't-1' } }),
+          {
+            status: 200,
+          }
+        )
+      }) as never,
+    })
+    const r = await provider.createTask({
+      imageUrl: 'https://ours/face.jpg',
+      audioUrl: 'https://ours/voice.mp3',
+    } as never)
+    expect(r.taskId).toBe('t-1')
+    expect(sent[0].model).toBe(MODEL)
+    expect(sent[0].input).toEqual({
+      image_url: 'https://ours/face.jpg',
+      audio_url: 'https://ours/voice.mp3',
+      resolution: lipsyncResolutionFor(MODEL),
+    })
+    expect(sent[0].input.resolution).toBe('720p')
+  })
+})

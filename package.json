@@ -65,6 +65,7 @@
     "test:player": "cd apps/vibee-editor/player && npx --no-install vitest run",
     "test:bun:live": "RUN_LIVE_AI_TESTS=1 bun test src/__tests__/services/ai-models.test.ts",
     "verify": "node scripts/verify.cjs",
+    "check:t27-specs": "node scripts/check-t27-specs.mjs",
     "inngest:mcp-proxy": "npx tsx src/inngest_app/mcp-rest-proxy.ts",
     "mcp:doctor": "node scripts/mcp-doctor.mjs"
   },

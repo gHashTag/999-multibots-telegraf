@@ -42,9 +42,20 @@ export default function StoryPage() {
     setLoaded(true)
   }, [])
 
+  // The first load sets state from the answer, never synchronously in the
+  // effect (react-hooks/set-state-in-effect); a page left mid-load is not
+  // written to.
   useEffect(() => {
-    void reload()
-  }, [reload])
+    let live = true
+    void loadMyStory().then(r => {
+      if (!live) return
+      setState(r)
+      setLoaded(true)
+    })
+    return () => {
+      live = false
+    }
+  }, [])
 
   const onMake = async () => {
     setBusy(true)

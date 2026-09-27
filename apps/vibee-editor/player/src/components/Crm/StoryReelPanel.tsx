@@ -47,9 +47,19 @@ export function StoryReelPanel({
     if (clientId) setState(await loadStoryReel(clientId))
   }, [clientId])
 
+  // The first load sets state from the answer, never synchronously in the
+  // effect (react-hooks/set-state-in-effect); a client switched mid-load is
+  // not written over by the old answer.
   useEffect(() => {
-    void reload()
-  }, [reload])
+    if (!clientId) return
+    let live = true
+    void loadStoryReel(clientId).then(r => {
+      if (live) setState(r)
+    })
+    return () => {
+      live = false
+    }
+  }, [clientId])
 
   const onStart = async () => {
     setBusy(true)
