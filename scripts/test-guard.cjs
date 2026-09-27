@@ -56,6 +56,7 @@ const gitDirOf = () => {
   }
 }
 const { reportPaths, foreignResults } = require('./lib/test-guard-report.cjs')
+const { ownOnly } = require('./lib/pushed-files.cjs')
 const { out: OUT, confirm: OUT_CONFIRM } = reportPaths(root, gitDirOf())
 
 /**
@@ -113,7 +114,10 @@ function filesBeingPushed() {
   if (!base) return []
 
   const out = git('diff', '--name-only', `${base}..HEAD`)
-  return out ? out.split('\n').filter(Boolean) : []
+  const pushed = out ? out.split('\n').filter(Boolean) : []
+  // A merge of main is not this branch's change (lib/pushed-files.cjs).
+  const own = git('diff', '--name-only', 'origin/main...HEAD')
+  return ownOnly(pushed, own === null ? null : own.split('\n').filter(Boolean))
 }
 
 /**
