@@ -99,6 +99,7 @@ tri — оболочка Trinity S³AI
   tri image-gate                                ворота образа плеера как при деплое (tsc + scripts/test-gate.mjs); запись в tri gate
   tri tail [N] -- <команда>                     последние N строк И код САМОЙ команды (не tail); одна строка в кавычках — bash с pipefail; весь вывод — .git/tri-tail.log
   tri main-drift [база] [--no-fetch]            main сдвинулся, пока шли ворота: задел ли он рендер/плеер/пакеты/lock-файлы (код 1 — прогнать ворота снова после слияния)
+  tri shot [story-palette] [--width 390] [--lang ru|en]  экран на ТЕЛЕФОНЕ, а не в jsdom: Chromium с пальцем, ответы — функциями хоста; снимки + замер (цель — --touch-target страницы, сдвиг вбок, обрезка, наложения); код 1 — красно, 2 — не измерено
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
   tri self       сама оболочка: достижима ли каждая команда и на месте ли хелпер
@@ -2015,6 +2016,7 @@ PYEOF
   tail) shift; node "$ROOT/bin/helpers/tail.mjs" "$@" ;;
   spec-check) shift; node "$ROOT/bin/helpers/spec-check.mjs" "$@" ;;
   main-drift) shift; node "$ROOT/bin/helpers/main-drift.mjs" "$@" ;;
+  shot) shift; node "$ROOT/bin/helpers/shot.mjs" "$@" ;;
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 

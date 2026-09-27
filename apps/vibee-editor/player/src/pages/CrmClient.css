@@ -365,18 +365,37 @@
   flex-wrap: wrap;
   gap: 6px;
 }
-/* The shade that reads, named on a refusal (v12), with its "take". */
+/*
+ * The options named on a refusal (v12, v13), one row each: what it is and
+ * its colours on the left, its "take" on the right across both lines. As a
+ * wrapping line, a phone put the colours under the label and "take" beside
+ * the button's colour -- which "take" was whose could not be seen (tri shot,
+ * 390 px, turn 12).
+ */
 .crm-client__palette-fix {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  column-gap: 10px;
+  row-gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(127, 127, 127, 0.25);
   font-size: 13px;
 }
-.crm-client__palette-fix > span {
+.crm-client__palette-fix-colours {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.crm-client__palette-fix-colours > span {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+.crm-client__palette-fix > .crm-client__palette-go {
+  grid-column: 2;
+  grid-row: 1 / span 2;
 }
 .crm-client__palette-edit label {
   display: flex;
@@ -390,4 +409,45 @@
   padding: 0;
   border: none;
   background: none;
+}
+
+/*
+ * FINGER-SIZED WHERE THE POINTER IS A FINGER (tri shot story-palette).
+ *
+ * Measured at 390 px with a coarse pointer, 27.09.2026: not one control of
+ * the story panel reached the page's own --touch-target -- "take" 32 px,
+ * the colour fields 24, the topic 24, "watch" 17 -- while the crumb and the
+ * chat button above it already did. Four turns built this panel and checked
+ * it in jsdom, which has no layout. The topic row is also the client's own
+ * page (/story), where she makes her reel with her thumb.
+ *
+ * AFTER the base rules, as in Crm.css: same specificity, the later wins.
+ * Coarse pointers only: on a desktop the panel stays as compact as it reads.
+ */
+@media (pointer: coarse) {
+  .crm-client__palette-go,
+  .crm-client__duet-go,
+  .crm-client__duet-start select,
+  .crm-client__duet-start input[type='text'],
+  .crm-client__palette-edit input[type='text'] {
+    min-height: var(--touch-target, 44px);
+  }
+  .crm-client__duet-start input[type='text'] {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+  .crm-client__palette-edit input[type='color'] {
+    width: var(--touch-target, 44px);
+    height: var(--touch-target, 44px);
+  }
+  .crm-client__duet-start label,
+  .crm-client__watch {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target, 44px);
+  }
+  /* "watch" is 42 px of text in English: a short word is a narrow target. */
+  .crm-client__watch {
+    min-width: var(--touch-target, 44px);
+  }
 }

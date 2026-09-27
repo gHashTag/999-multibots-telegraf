@@ -104,6 +104,12 @@
 // lightness 1 or 0 holds no chroma -- so a shade still always exists. The ground walks the same
 // path, and "the nearest of her colours" is measured in OKLab, by the difference the eye sees,
 // not by distance in RGB.
+// v15 (2026-09-27): the card says one reason at a time. Shot on a phone (390 px, real Chromium,
+// answers from the host's own functions), the refusal stood on the card twice, word for word:
+// the load's reason above and the check's verdict below, both about the very same card. The
+// load's reason is on screen while the editor is closed, or open with nothing checked yet; once
+// a check has spoken for the fields, the load's reason steps aside -- as its three options
+// already did (v13). VERSION had stayed 11 through v12-v14; it now says what this header says.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -114,7 +120,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 11;
+    pub const VERSION : u8 = 15;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -307,6 +313,9 @@ module automation::crm_story_reel {
     pub const HUE_CHECKED_MIN_CHROMA_X1000 : u16 = 50;  // below it a colour is near grey: hue is noise
     pub const SRGB_MIX_DRIFT_DEG : u16 = 20;  // what the v13 mix did to a dark blue (19.8, measured)
     pub const NEAREST_BY : str = "oklab";  // her nearest colour by the difference the eye sees
+
+    // ---- One reason on the card at a time (v15) ---------------------------------------------
+    pub const PANEL_ONE_REASON_AT_A_TIME : bool = true;  // the load's words or the check's, never both
 
     // ---- Every reel for a client is a story reel (v8) -----------------------------------
     pub const OLD_PLAN_REEL : str = "LeelaPlanReel";  // silent, subtitled, made from the plan's canon
@@ -574,6 +583,11 @@ module automation::crm_story_reel {
     // Whether the card offers "take": only beside the verdict on the card still on screen.
     fn panel_take_offered(checked: bool, edited_since_check: bool, has_fix: bool) -> bool {
         return checked && !edited_since_check && has_fix;
+    }
+
+    // Whether the card shows the load's reason: until a check has spoken for the fields.
+    fn panel_why_shown(editor_open: bool, checked_since_open: bool) -> bool {
+        return !editor_open || !checked_since_open;
     }
 
     // Which reel is made for a CRM client: the story reel, unless the owner named the old one.
@@ -901,6 +915,16 @@ module automation::crm_story_reel {
         assert(hue_checked(HUE_CHECKED_MIN_CHROMA_X1000));
         assert(!hue_checked(HUE_CHECKED_MIN_CHROMA_X1000 - 1));  // near grey: not judged
         assert(end_card_readable(EXTREME_MIN_CONTRAST_X10));  // the last step is still white or black
+    }
+
+    test "the card says one reason at a time" {
+        assert(VERSION == 15);  // the header's last note and this number say the same
+        assert(PANEL_ONE_REASON_AT_A_TIME);
+        assert(panel_why_shown(false, false));  // closed: the load's reason
+        assert(panel_why_shown(false, true));  // closed after a keep: the fresh load's reason
+        assert(panel_why_shown(true, false));  // open, nothing checked yet: still the only reason
+        assert(!panel_why_shown(true, true));  // a check has spoken: its verdict is the one
+        assert(!panel_take_offered(true, true, true));  // the load's options stepped aside the same way
     }
 
     test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {

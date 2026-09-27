@@ -147,6 +147,24 @@ describe('each law fails when it should', () => {
     expect(checkSpec({ ...real, hostFiles: unrelated })).toEqual([])
   })
 
+  it('version-note: the header notes a version VERSION does not say', () => {
+    /*
+     * crm-story-reel carried notes v12, v13 and v14 while VERSION still said
+     * 11 (27.09.2026): three turns bumped the header and not the number.
+     */
+    // Below line 2, which must stay the spec's path (header-path).
+    const [first, path, ...rest] = real.spec.split('\n')
+    const noted = (n: number) =>
+      [first, path, `// v${n} (2026-09-27): a later version.`, ...rest].join(
+        '\n'
+      )
+    expect(laws(checkSpec({ ...real, spec: noted(3) }))).toEqual([
+      'version-note',
+    ])
+    // The note that agrees with VERSION is no problem, and neither is none.
+    expect(checkSpec({ ...real, spec: noted(2) })).toEqual([])
+  })
+
   it('frame and module: the spec names another repository', () => {
     const spec = swap(
       real.spec,

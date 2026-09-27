@@ -160,5 +160,53 @@
     "file": "src/lib/crm.ts",
     "from": "    endCardFixBg: toEndCard(r['end_card_fix_bg']),\n",
     "to": "    endCardFixBg: null,\n"
+  },
+  {
+    "name": "the load's reason beside the verdict",
+    "file": "src/lib/storyPalette.ts",
+    "from": "  return !editorOpen || !checkedSinceOpen",
+    "to": "  return true"
+  },
+  {
+    "name": "the load's reason gone as soon as the editor opens",
+    "file": "src/lib/storyPalette.ts",
+    "from": "  return !editorOpen || !checkedSinceOpen",
+    "to": "  return !editorOpen"
+  },
+  {
+    "name": "the load's reason gone after a keep",
+    "file": "src/lib/storyPalette.ts",
+    "from": "  return !editorOpen || !checkedSinceOpen",
+    "to": "  return !checkedSinceOpen"
+  },
+  {
+    "name": "the card ignores the one-reason rule",
+    "file": "src/components/Crm/StoryPalette.tsx",
+    "from": "{ready.endCardWhy && panelWhyShown(open, checked !== null) ? (",
+    "to": "{ready.endCardWhy ? ("
+  },
+  {
+    "name": "the options wrap again: take loses its column",
+    "file": "src/pages/CrmClient.css",
+    "from": "  grid-column: 2;\n  grid-row: 1 / span 2;",
+    "to": "  grid-column: auto;\n  grid-row: auto;"
+  },
+  {
+    "name": "take back at 32 px on a phone",
+    "file": "src/pages/CrmClient.css",
+    "from": "  .crm-client__palette-go,\n  .crm-client__duet-go,",
+    "to": "  .crm-client__duet-go,"
+  },
+  {
+    "name": "colour fields back at 24 px on a phone",
+    "file": "src/pages/CrmClient.css",
+    "from": "  .crm-client__palette-edit input[type='color'] {\n    width: var(--touch-target, 44px);\n    height: var(--touch-target, 44px);",
+    "to": "  .crm-client__palette-edit input[type='color'] {\n    width: 36px;\n    height: 24px;"
+  },
+  {
+    "name": "watch narrow in English",
+    "file": "src/pages/CrmClient.css",
+    "from": "  .crm-client__watch {\n    min-width: var(--touch-target, 44px);",
+    "to": "  .crm-client__watch {\n    min-width: 0;"
   }
 ]
