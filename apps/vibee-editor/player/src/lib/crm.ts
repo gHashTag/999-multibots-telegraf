@@ -1392,6 +1392,9 @@ export interface ClientTimeline {
     lastOutAt: string | null
     /** null: payments could not be read -- unknown, not "never". */
     paid: boolean | null
+    /** Stars paid into the live wallet; null when it could not be read. */
+    revenue: number | null
+    lastPaidAt: string | null
   }
   events: TimelineEvent[]
 }
@@ -1426,6 +1429,8 @@ export const loadClientTimeline = async (client: string) =>
           lastInAt: str(s['last_in_at']),
           lastOutAt: str(s['last_out_at']),
           paid: typeof s['paid'] === 'boolean' ? (s['paid'] as boolean) : null,
+          revenue: num(s['revenue']) ?? null,
+          lastPaidAt: str(s['last_paid_at']),
         },
         events: rows(r['events'])
           .filter(e => kinds.has(String(e['kind'])))
