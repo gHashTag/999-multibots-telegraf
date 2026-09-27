@@ -934,6 +934,93 @@ describe("the spec's tests hold against the host", () => {
     })
   })
 
+  it('the shade moves only her lightness: her hue stays within rounding', async () => {
+    // hue_checked, hue_kept and the drift law, against the host's own
+    // OKLCH conversion over a sweep of colours and grounds.
+    const {
+      hueChecked,
+      hueKept,
+      hueDrift,
+      oklchOf,
+      hexOfOklch,
+      readableShade,
+      shadeOf,
+      contrastX10,
+      endCardReadable,
+      endCardFixPalette,
+    } = await import('../agent/story-reel-tool')
+    expect(SPEC.SHADE_SPACE).toBe('oklch')
+    expect(SPEC.SHADE_CHROMA_CUT_TO_SRGB).toBe(true)
+    expect(SPEC.NEAREST_BY).toBe('oklab')
+    expect(hueKept(0)).toBe(true)
+    expect(hueKept(SPEC.HUE_DRIFT_MAX_DEG)).toBe(true)
+    expect(hueKept(SPEC.HUE_DRIFT_MAX_DEG + 1)).toBe(false)
+    expect(hueChecked(SPEC.HUE_CHECKED_MIN_CHROMA_X1000)).toBe(true)
+    expect(hueChecked(SPEC.HUE_CHECKED_MIN_CHROMA_X1000 - 1)).toBe(false)
+    // SRGB_MIX_DRIFT_DEG is a measurement: the v13 mix took a dark blue on
+    // navy (#006 on #10182a) to #7c7cb0 -- and it breaks the law.
+    expect(hueDrift('#006', '#7c7cb0')).toBe(SPEC.SRGB_MIX_DRIFT_DEG)
+    expect(hueKept(SPEC.SRGB_MIX_DRIFT_DEG)).toBe(false)
+    // The law over the sweep: every shade reads, and every one whose hue
+    // is hers to keep keeps it.
+    const digits = '0369cf'
+    let checked = 0
+    for (const r of digits)
+      for (const g of digits)
+        for (const b of digits)
+          for (const ground of [
+            '#ffffff',
+            '#000000',
+            '#f5efe0',
+            '#10182a',
+            '#777777',
+          ]) {
+            const colour = `#${r}${g}${b}`
+            if (endCardReadable(contrastX10(colour, ground))) continue
+            const shade = readableShade(colour, ground)
+            expect(endCardReadable(contrastX10(shade, ground))).toBe(true)
+            const [was, now] = [oklchOf(colour).c, oklchOf(shade).c]
+            if (
+              !hueChecked(Math.round(was * 1000)) ||
+              !hueChecked(Math.round(now * 1000))
+            )
+              continue
+            checked++
+            expect(
+              hueKept(hueDrift(colour, shade)),
+              `${colour} on ${ground} -> ${shade}`
+            ).toBe(true)
+          }
+    expect(checked).toBeGreaterThan(400)
+    // Her chroma stays: gold on cream keeps more of it than the v13 mix
+    // (#7e692d) did.
+    expect(oklchOf(readableShade('#d4b04c', '#f5efe0')).c).toBeGreaterThan(
+      oklchOf('#7e692d').c + 0.02
+    )
+    // The last step is still white or black: a shade always exists.
+    expect(shadeOf('#d4b04c', 255, SPEC.SUGGEST_STEPS)).toBe('#ffffff')
+    expect(shadeOf('#d4b04c', 0, SPEC.SUGGEST_STEPS)).toBe('#000000')
+    // The conversion is exact both ways on 8-bit colours.
+    for (const c of ['#d4b04c', '#123456', '#ffffff', '#000000', '#ff00ee']) {
+      const o = oklchOf(c)
+      expect(hexOfOklch(o.l, o.c, o.h)).toBe(c)
+    }
+    // SHADE_CHROMA_CUT_TO_SRGB: chroma a screen cannot show is cut back,
+    // not clipped channel by channel -- the hue stays.
+    const cut = oklchOf(hexOfOklch(0.7, 0.5, 90)).h
+    expect(Math.abs(cut - 90)).toBeLessThanOrEqual(SPEC.HUE_DRIFT_MAX_DEG)
+    // NEAREST_BY oklab: for gold refused on cream, blue is nearer to the eye
+    // than black -- RGB distance would have said black.
+    expect(
+      endCardFixPalette({
+        bg: '#f5efe0',
+        title: '#d4b04c',
+        text: '#000',
+        accent: '#00c',
+      })
+    ).toEqual({ title: '#00c' })
+  })
+
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {
     // reel_route(owner_named_old): the brief, the Queen and the plan hint
     // are where the route is said. The brief placing it before the package
