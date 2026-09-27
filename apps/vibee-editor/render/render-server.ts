@@ -12903,10 +12903,18 @@ async function main() {
     void (async () => {
       try {
         const { listTargets, closePage } = await import('./src/browser/cdp')
-        const done = await sweepEveryPod((await getPool()) as any, {
-          list: listTargets,
-          close: closePage,
-        })
+        const done = await sweepEveryPod(
+          (await getPool()) as any,
+          { list: listTargets, close: closePage },
+          TAB_CAP,
+          /*
+           * The provisioned pod is swept by address as well as by row: on this
+           * platform `stop` cannot stop it, so the idle reaper drops the row
+           * and leaves the browser running. Measured minutes after this sweep
+           * first deployed -- zero rows, nine pages open. See UNCLAIMED.
+           */
+          process.env.BROWSER_POD_CDP
+        )
         /*
          * A tidy pod says nothing after the first pass -- but the FIRST pass
          * says something either way: a sweep that never ran and a sweep that
