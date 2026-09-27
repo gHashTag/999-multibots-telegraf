@@ -12,6 +12,19 @@ export {
   type LocalizedText,
 } from './agent-marketplace'
 
+// Queen-delegatable spec gate (mirror of the BrowserOS engine's QueenSpecQuality)
+// -- read by the app's coding composer and the render `tri spec` CLI from ONE copy.
+export {
+  judge,
+  scaffold,
+  shortfall,
+  boundaryPaths,
+  pathToken,
+  CRITERIA_HEADINGS,
+  type SpecCheck,
+  type SpecVerdict,
+} from './spec-quality'
+
 // ===============================
 // Types - Unified type definitions
 // ===============================
