@@ -38,6 +38,12 @@
 //       chosen in the client's thread, so a task set for the Blogger was done by someone else,
 //       without the Blogger's brief. A task goes to the chosen specialist, or to the assistant
 //       when none is chosen (task_goes_to).
+// v4 (2026-09-27): the Queen names who does a task, as a handoff names its target: the marker
+//       [[task@<agent id>: ...]] with the catalogue's ids listed in her block (OpenAI's handoff
+//       tools and LangGraph's supervisor do the same: the model can name only declared agents).
+//       A named agent the owner may call gets the task; a name the owner may not call, or one
+//       that is no agent, falls back to the chosen specialist, then the assistant -- the task is
+//       never lost (task_owner).
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::crm_client_workspace {
@@ -45,7 +51,7 @@ module automation::crm_client_workspace {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-client-workspace";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 3;
+    pub const VERSION : u8 = 4;
 
     // ---- Who ----------------------------------------------------------------------------
     pub const CALLER : str = "seller";  // owner id or a row in tg_sessions (crm-sellers.t27)
@@ -62,6 +68,10 @@ module automation::crm_client_workspace {
     pub const QUEEN_TASK_TO_CHOSEN_SPECIALIST : bool = true;  // v3
     pub const TASK_TO_ASSISTANT : u8 = 0;
     pub const TASK_TO_SPECIALIST : u8 = 1;
+    pub const TASK_TO_NAMED : u8 = 2;  // v4
+    pub const TASK_MARKER : str = "[[task@";  // [[task@<agent id>: ...]]; plain [[task: ...]] still works
+    pub const QUEEN_LISTS_AGENT_IDS : bool = true;  // her block declares the ids she may name
+    pub const NAMED_TASK_NEVER_LOST : bool = true;  // an unknown or forbidden name falls back
     // What a request's thread comes to (thread_kind).
     pub const THREAD_KIND_SELF : u8 = 0;  // no client named
     pub const THREAD_KIND_CLIENT : u8 = 1;  // 'client:<id>'
@@ -136,6 +146,15 @@ module automation::crm_client_workspace {
         return TASK_TO_ASSISTANT;
     }
 
+    // Who does a task the Queen set, v4: the agent she named when the owner may call it, else
+    // the specialist chosen in the thread, else the assistant.
+    fn task_owner(named_callable: bool, specialist_chosen: bool) -> u8 {
+        if named_callable {
+            return TASK_TO_NAMED;
+        }
+        return task_goes_to(specialist_chosen);
+    }
+
     fn run_reads_as_lost(state_running: bool, minutes_since_start: u8) -> bool {
         return state_running && minutes_since_start > RUN_LOST_AFTER_MIN;
     }
@@ -171,6 +190,16 @@ module automation::crm_client_workspace {
         assert(QUEEN_TASK_TO_CHOSEN_SPECIALIST);
         assert(task_goes_to(true) == TASK_TO_SPECIALIST);
         assert(task_goes_to(false) == TASK_TO_ASSISTANT);
+    }
+
+    test "the Queen may name who does a task; a name the owner cannot call falls back and the task is kept" {
+        assert(TASK_MARKER == "[[task@");
+        assert(QUEEN_LISTS_AGENT_IDS);
+        assert(NAMED_TASK_NEVER_LOST);
+        assert(task_owner(true, true) == TASK_TO_NAMED);
+        assert(task_owner(true, false) == TASK_TO_NAMED);
+        assert(task_owner(false, true) == TASK_TO_SPECIALIST);
+        assert(task_owner(false, false) == TASK_TO_ASSISTANT);
     }
 
     test "the dashboard reads through the tool gate, sends nothing unasked and says unavailable rather than zero" {
