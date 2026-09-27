@@ -224,6 +224,9 @@ describe('the door', () => {
     actor?: 'person' | 'agent'
     session?: Record<string, unknown> | null
     body?: string
+    readLogins?: (
+      cdp: string
+    ) => Promise<{ id: string; name: string; state: string }[]>
   }) {
     const imported: CookieParam[][] = []
     return {
@@ -244,6 +247,7 @@ describe('the door', () => {
         importCookies: async (_cdp: string, cookies: CookieParam[]) => {
           imported.push(cookies)
         },
+        ...(opts.readLogins ? { readLogins: opts.readLogins } : {}),
       },
     }
   }
@@ -271,6 +275,38 @@ describe('the door', () => {
     expect(out.body.sites).toEqual({ 'habr.com': 1 })
     expect(JSON.stringify(out.body)).not.toContain('SECRETVALUE')
     expect(d.imported[0][0].name).toBe('sid')
+  })
+
+  it('REPORTS WHICH NETWORKS THE IMPORT LIT UP -- proof of the work', async () => {
+    const d = deps({
+      session: LIVE,
+      readLogins: async cdp => {
+        expect(cdp).toBe('pod:9223') // the same socket it wrote to
+        return [
+          { id: 'habr', name: 'Habr', state: 'signed_in' },
+          { id: 'x', name: 'X', state: 'signed_out' },
+          { id: 'google', name: 'Google', state: 'expired' },
+        ]
+      },
+    })
+    const out = await post(d.deps)
+    expect(out.status).toBe(200)
+    /* Only signed_in networks, by their people-facing name. */
+    expect(out.body.signedIn).toEqual(['Habr'])
+  })
+
+  it('leaves signedIn ABSENT when it cannot read back -- never a false empty list', async () => {
+    const d = deps({
+      session: LIVE,
+      readLogins: async () => {
+        throw new Error('pod went away between write and read')
+      },
+    })
+    const out = await post(d.deps)
+    /* The import still succeeded; the proof simply could not be taken. */
+    expect(out.status).toBe(200)
+    expect(out.body).toMatchObject({ ok: true, imported: 1 })
+    expect('signedIn' in out.body).toBe(false)
   })
 
   it('says what is wrong with a bad file, and imports nothing', async () => {
