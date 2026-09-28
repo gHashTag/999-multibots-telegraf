@@ -2,6 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { renderFeedEntry } from './render-feed-entry'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceBetween } = require('../../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * A RENDER THE AGENT ASKED FOR WAITS FOR APPROVAL; A PERSON'S IS HERS.
@@ -84,14 +86,16 @@ describe('render-server wires the rule into every render publish', () => {
   })
 
   it('publishToFeed passes the visibility to publishTemplateRow', () => {
-    const fn = src.slice(src.indexOf('async function publishToFeed('))
-    const body = fn.slice(0, fn.indexOf('\n}\n'))
+    const body = sliceBetween(src, 'async function publishToFeed(', '\n}\n')
     expect(body).toMatch(/is_public:\s*params\.isPublic/)
   })
 
   it('one video is one post: publishing a rendered video again updates its row', () => {
-    const fn = src.slice(src.indexOf('async function publishTemplateRow('))
-    const body = fn.slice(0, fn.indexOf('\n}\n'))
+    const body = sliceBetween(
+      src,
+      'async function publishTemplateRow(',
+      '\n}\n'
+    )
     expect(body).toMatch(/video_url = \$3/)
   })
 

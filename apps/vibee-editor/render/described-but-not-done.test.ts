@@ -12,6 +12,8 @@ import {
   honestyNote,
   HONESTY_NOTE,
 } from './src/agent/claimed-but-not-done'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 const INVENTED =
   'Продолжаю: открываю страницу входа X.Страница входа X открыта. Смотрю, что на экране.' + // cyrillic-ok: the recorded answer
@@ -95,9 +97,9 @@ describe('the honesty log says what was unbacked and what really ran', () => {
       join(__dirname, 'src', 'agent', 'routes.ts'),
       'utf8'
     )
-    const line = src.slice(src.indexOf("'[agent:honesty] '"))
-    expect(line.slice(0, 400)).toContain('...fields')
+    const line = sliceFrom(src, "'[agent:honesty] '", 400)
+    expect(line).toContain('...fields')
     expect(src).toContain('const fields = honestyLogFields(said, done)')
-    expect(line.slice(0, 400)).not.toMatch(/toolCalls:\s*0/)
+    expect(line).not.toMatch(/toolCalls:\s*0/)
   })
 })
