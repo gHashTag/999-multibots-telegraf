@@ -1862,3 +1862,54 @@ Queue change from this addendum: **NEW TOP — the owner decision on the lock**
 then the env-red narrowing below as written. Diagnostic recipe for any future
 deps change: clean-room dry-run BEFORE push, watch the deploy to SUCCESS after
 merge — SKIPPED is not green.
+
+## Tick — 2026-09-28i — the owner decision became PR #3179 and the render suite went fully green
+
+Two halves, and a correction the gates had to give me.
+
+**Half 1: the de-peer (PR #3179, OPEN — awaiting the owner's word).** The
+"react-in-image" dilemma dissolved under investigation, but not into my
+authority to decide. Traced: root **prod** dep `x402-express@^0.7.3` → `x402`
+→ `wagmi`/`viem`/`porto` → react peers. That package's only import in the
+repo is `paymentMiddleware` in `x402.routes.ts:14` — a binding used exactly
+zero times in 1026 lines, yet static and reachable from both entry points,
+so the whole wallet stack loaded on EVERY BOT BOOT. jotai (the other react
+peer) is dev-only, imported nowhere in `src/`, react marked `optional` in its
+peerDependenciesMeta — so x402-express is the SOLE react-peer source. Clean
+room (npm@10.8.2, Docker's node:20 npm), package.json minus x402-express,
+@types/node ^22, lock regen: **0 packages added, 466 removed (the wallet
+universe, incl. a second nested express 4.22.3), exactly 1 version change
+(@types/node 20.19.43→22.20.4, dev-only), react ABSENT, real install exit 0
+with NO flag**. Watchdogs that read the file as text: 32/32. tsc clean.
+Gates green. Dockerfile flags reverted with a no-return comment.
+
+And then the merge was refused — rightly. Tick h queued this as the OWNER's
+decision; my «дальше» did not dissolve it, and "the obvious option" is still
+me grading my own homework. PR #3179 sits open with the full evidence.
+Lesson recorded: a queue item marked "owner decision" keeps that mark even
+after investigation makes one option look inevitable — say so to the owner,
+merge on their word, not on my conviction.
+
+**Half 2: the env-reds (PR #3180, MERGED; vibee-render deploy `c19f1534`
+SUCCESS 17:41).** Correction of tick h first: the "2 deterministic reds" were
+one deterministic red and one flake. `hdl-run` — the synth assertion pinned
+yosys ≤0.4x wording ("Number of cells"); this runner's yosys 0.67+post prints
+a bare `N cells` inventory line (captured live via the same
+`synth_xilinx; tee -o stat.txt stat` pipeline). Now asserts the intent —
+report names the top module and counts its cells — matching both shapes.
+`media-library` — the route fires `void transcribeAndMirror(...)` and the
+test napped 10 ms hoping the UPDATE lands in one scheduler tick; a coin flip
+on a busy runner (green in isolation today, red in the baseline run).
+`vi.waitFor` polls the real condition. After: **419/419 files, 5100 passed,
+9 skipped, 0 failed — the render suite fully green on this runner for the
+first time** (baseline 5098/2/9); media-library stress 10×45 green. Bot and
+editor deploys SKIPPED after the merge — correct, not the trap: their watch
+paths exclude `apps/**` render tests, and nothing runtime-facing reached the
+bot since `ad214e33` (SUCCESS).
+
+Queue from here: **owner word on PR #3179** — on merge, watch the BOT deploy
+to SUCCESS (Dockerfile+lock change → build expected, SKIPPED unacceptable);
+then root `test:vitest` clean-tree measurement; player screen (UI-only);
+sign-in completion (owner's keyboard); 7 orphaned dirty render files in
+/tmp/brhard; unused-var cleanup in `src/browser/*.ts` + `agent/*.ts`;
+`browser_status` running-claim (description budget).
