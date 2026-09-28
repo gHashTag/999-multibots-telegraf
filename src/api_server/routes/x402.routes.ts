@@ -11,7 +11,13 @@
 
 import { Router, Request, Response } from 'express'
 import { redactSensitiveHeaders } from '@/utils/redactHeaders'
-import { paymentMiddleware } from 'x402-express'
+// 'x402-express' is deliberately NOT imported. Until 2026-09-28 this file
+// carried `import { paymentMiddleware } from 'x402-express'` where the binding
+// was used exactly zero times -- and the static import still loaded the whole
+// wagmi/viem wallet stack on every boot (index.ts -> api_server -> here).
+// That package was also the sole source of react peers in the root prod tree,
+// which is what made the lock un-installable without --legacy-peer-deps.
+// When settlement is actually implemented, re-add the import WITH a use.
 import { logger } from '@/utils/logger'
 import {
   getX402Config,
