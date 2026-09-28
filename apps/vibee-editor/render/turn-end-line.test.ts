@@ -10,6 +10,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { withTurnEnd, type TurnEnd, type TurnOutcome } from './src/agent/chat'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 function recorder() {
   const lines: Array<{ outcome: TurnOutcome; details?: string }> = []
@@ -68,8 +70,8 @@ describe('the turn writes one end line on every exit', () => {
     expect(src).toContain(
       'return yield* withTurnEnd(runAgentTurn(history, ctx, opts, end), end)'
     )
-    const logger = src.slice(src.indexOf('const logTurnEnd = '))
-    expect(logger.slice(0, 200)).toContain('end.logged = true')
+    const logger = sliceFrom(src, 'const logTurnEnd = ', 200)
+    expect(logger).toContain('end.logged = true')
     expect(src).toContain('  end.log = logTurnEnd\n')
   })
 })
