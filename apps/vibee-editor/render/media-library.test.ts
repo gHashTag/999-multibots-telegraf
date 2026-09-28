@@ -425,10 +425,15 @@ describe('idempotence', () => {
       lead_id: LEAD,
       kind: 'video',
     })
-    // Let the fire-and-forget describe run: a video is marked attempted, no fetch.
-    await new Promise(r => setTimeout(r, 10))
+    // Let the fire-and-forget describe run: a video is marked attempted, no
+    // fetch. `transcribeAndMirror` is an un-awaited promise, and the old
+    // `setTimeout(10)` nap assumed its UPDATE lands within one scheduler
+    // tick -- a coin flip on a busy runner (flake seen in the 2026-09-28h
+    // render baseline). waitFor polls the actual condition instead.
+    await vi.waitFor(() => {
+      expect(pool.rows[0].transcribed_at).not.toBeNull()
+    })
     expect(fetchSpy).not.toHaveBeenCalled()
-    expect(pool.rows[0].transcribed_at).not.toBeNull()
     expect(pool.rows[0].transcript).toBeNull()
   })
 
