@@ -18,7 +18,19 @@ COPY package-lock.json* ./
 # сразу после установки, а prepare зовёт этот файл. Без него сборка падает
 # с 'Cannot find module'. Сам скрипт видит, что .git нет, и молча выходит.
 COPY scripts/install-hooks.cjs ./scripts/
-RUN npm install --omit=dev
+# ⚠️ --legacy-peer-deps — ЕДИНСТВЕННЫЙ способ поставить этот lock.
+#
+# vitest@5.0.2 (миграция 3→5, 2026-09-27) требует peerOptional
+# @types/node "^22.0.0 || >=24.0.0", а корень пинит "20". В чистой комнате
+# (без node_modules, как здесь) npm умирает с ERESOLVE, не поставив ни одного
+# пакета — так молча упал деплой 8919e33f (2026-09-28, build PR #3175), и так
+# упадёт каждый следующий кодовый деплой. Lock совместим только с этим флагом —
+# он им и был создан.
+#
+# Альтернатива — @types/node ^22 и перегенерация lock — тянет в образ бота
+# react и @tanstack/react-query (npm-автоустановка пиров; в package.json их
+# НЕТ). Это решение владельца, а не деплой-фикс: стоит в очереди лупа.
+RUN npm install --omit=dev --legacy-peer-deps
 
 # Stage 2: Builder с esbuild
 FROM node:20-slim AS builder
@@ -40,7 +52,7 @@ RUN npm install -g esbuild
 COPY package.json ./
 COPY package-lock.json* ./
 COPY scripts/install-hooks.cjs ./scripts/
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 COPY . .
 
