@@ -734,6 +734,13 @@ AGENT TOOLS ON THE RENDER
                           evaluated 1 + 1). Exit 0 alive, 1 dead or wedged,
                           2 asked nobody or sitting at the tab cap, 3 the
                           render itself did not answer.
+  tri heal                the action `tri browser` points at: POST the heal.
+                          Safe at ANY time -- the endpoint PROBES FIRST and
+                          refuses to restart a browser that answers, so it can
+                          never take a working browser from the person. Exit 0
+                          healed or nothing to do, 1 restarted and STILL dead
+                          (Chromium must come up inside the pod), 2 no browser
+                          configured to heal, 3 the render did not answer.
   tri browser-check       proves those verdicts against a local socket, because
                           the live pod is alive today and cannot show the three
                           answers that matter. A mutant that calls a wedged pod
@@ -1842,8 +1849,95 @@ PY
   local rc=$?
   case "$rc" in
     0) good 'the remote browser can act' ;;
-    1) bad 'the remote browser cannot act -- heal it before trusting a round' ;;
+    1) bad 'the remote browser cannot act -- run `tri heal` before trusting a round' ;;
     2) warn 'reachable, but the answer is not proof of a working page' ;;
+    *) bad 'could not tell -- the render itself did not answer' ;;
+  esac
+  return "$rc"
+}
+
+cmd_heal() {
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+
+  # HEAL THE REMOTE BROWSER -- the action `tri browser` kept pointing at.
+  #
+  # `tri browser` ends a wedged verdict with "run `tri heal`", and for four
+  # ticks the only heal was a raw `curl -X POST /api/browser/heal` copied from
+  # a docstring -- observability with no wired way to act. This is that verb.
+  #
+  # Safe to run at ANY time, and that safety is the server's promise, not this
+  # script's: /api/browser/heal PROBES FIRST and REFUSES to restart a browser
+  # that answers (routes.ts, "a restart would take a working browser away from
+  # the person") -- built to stop the exact 2026-09-27 mistake of restarting a
+  # healthy pod on a misread `running: false`. So this reader does not gate
+  # behind a --force or a second probe of its own: the one authority on "is it
+  # well" is the endpoint, and asking twice is just a chance to disagree with it.
+  #
+  # Exit codes match the family: 0 nothing to do or healed, 1 restarted and
+  # STILL dead (Chromium must come up inside the pod -- a different remedy),
+  # 2 no browser of this person configured, 3 the render did not answer.
+  BR_KEY="$key" BR_URL="$RENDER/api/browser/heal" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+
+req = urllib.request.Request(
+    os.environ['BR_URL'],
+    data=b'{}',
+    method='POST',
+    headers={"X-Agent-Key": os.environ['BR_KEY'],
+             "Content-Type": "application/json"})
+try:
+    with urllib.request.urlopen(req, timeout=120) as r:
+        answer = json.loads(r.read())
+except urllib.error.HTTPError as e:
+    # 409 is the route saying no browser of this person is configured to heal
+    # -- not an outage. Everything else that carries an HTTP code we surface.
+    body = ''
+    try:
+        body = e.read().decode('utf-8', 'replace')
+    except Exception:
+        pass
+    if e.code == 409:
+        print('  no browser of this person is configured -- none to heal')
+        sys.exit(2)
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+    print(f'  HTTP {e.code} {e.reason}{hint}')
+    if body:
+        print(f'  {body[:300]}')
+    sys.exit(3)
+except Exception as e:                        # DNS, TLS, timeout
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+why = answer.get('why') or ''
+healed = answer.get('healed')
+rebooted = answer.get('rebooted')
+if why:
+    print(f'  {why}')
+
+# healed is False in TWO worlds: the browser was well and a restart was refused
+# (good -- nothing to do), or a restart was tried and it still does not answer
+# (bad -- a deeper remedy). `why` tells them apart in prose; `rebooted` tells
+# them apart in a field, so gate on the field, not the sentence.
+if healed:
+    sys.exit(0)                                # was down, answers again
+if rebooted is False and 'answers' in why.lower():
+    sys.exit(0)                                # refused: the browser was well
+if rebooted:
+    print('  the pod rebooted but the page is still silent')
+    sys.exit(1)                                # restarted, still dead
+if healed is False and 'still does not answer' in why.lower():
+    sys.exit(1)                                # restart did not take
+sys.exit(0)
+PY
+  local rc=$?
+  case "$rc" in
+    0) good 'the remote browser is well -- healed, or never needed it' ;;
+    1) bad 'restarted and it STILL does not answer -- Chromium must be restarted inside the pod' ;;
+    2) warn 'nothing to heal -- no browser of this person is configured' ;;
     *) bad 'could not tell -- the render itself did not answer' ;;
   esac
   return "$rc"
@@ -2093,7 +2187,7 @@ PY
   local rc=$?
   case "$rc" in
     0) good 'the browser is a browser -- and has been, unbroken, for the time above' ;;
-    1) bad 'the browser is NOT answering -- the one wedge a restart cures (POST /api/browser/heal, which probes before acting)' ;;
+    1) bad 'the browser is NOT answering -- the one wedge a restart cures (run `tri heal`, which probes before acting)' ;;
     2) warn 'nobody has watched this pod yet -- no verdict to give (not "broken")' ;;
     *) bad 'could not tell -- the render itself did not answer' ;;
   esac
@@ -5024,6 +5118,7 @@ case "$action" in
   real|живая)          cmd_real "$@" ;;
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
+  heal|исцели)         cmd_heal ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;
   journal|журнал)      cmd_journal "$@" ;;
