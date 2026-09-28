@@ -1768,3 +1768,74 @@ keyboard); **the 7 orphaned dirty render files in `/tmp/brhard`** — decide wit
 the owner whether they are live work or should be reset; pre-existing unused-var
 cleanup in `src/browser/*.ts` + `agent/*.ts`; still-open `browser_status`
 `running`-shaped claim (deferred, description budget).
+
+## Tick — 2026-09-28h — the atoms "prebundle" red was a foreign symlink, and now the trap has a name
+
+(Tick g — PR #3175, the blind-slice census and the seller mock — was recorded
+in agent memory rather than here; its merge is `db44984cc`.)
+
+This tick took the queue's top recommendation at face value and REPRODUCED
+FIRST. The reproduction killed the recommendation:
+
+- On a clean worktree of origin/main with its own `npm ci` (render),
+  `spec-quality.test.ts` is **10/10 green** — from the render config AND from
+  the root config.
+- **There is no prebundle.** vitest 4's `.vite/vitest` cache for this run holds
+  only `results.json`; the dep optimizer never touches `@vibee/atoms`. The
+  tick-g diagnosis — "vite dep-prebundle drops the first two re-export blocks"
+  — named a mechanism that does not exist in this setup.
+- **Controlled A/B, same tree, one variable:** `render/node_modules/@vibee/atoms`
+  pointed at this tree's `packages/vibee-atoms` → 10/10 green; repointed at the
+  main checkout's copy (sitting on a branch whose barrel predates the
+  spec-quality export block) → 10/10 red, `judge is not a function` ×10. So the
+  "pre-existing red on clean origin/main" from tick g was measured through a
+  BORROWED node_modules: clean code, contaminated environment. The install's
+  relative `../../../packages/vibee/atoms`-style symlink (`file:` dep) is what
+  makes a healthy install tree-local and a borrowed one tree-foreign: the
+  symlink resolves relative to whichever tree owns the node_modules, and a
+  worktree that symlinks another checkout's render/node_modules tests THAT
+  checkout's barrel. Third sighting of the leak class (the brhard `bun
+install`, the player's "Cannot find package `@vibee/atoms`", tick-g's
+  spec-quality) — same root, three costumes.
+
+Deliverable — the honest fix for an environmental red is a guard, not a config
+change: **`apps/vibee-editor/render/atoms-resolve-in-tree.test.ts`** resolves
+`@vibee/atoms` exactly the way the tests do, realpaths both sides, and on
+mismatch fails WITH THE CAUSE AND THE CURE in the message (own `npm ci`; never
+share node_modules across trees). A/B-proven both ways: green on the own-tree
+symlink, red-with-message on the foreign one. An hour of archaeology becomes a
+named line in the output.
+
+Measured for the queue's env-red item — full render suite on the clean tree:
+**5098 passed / 2 failed / 9 skipped (419 files, 27 s)**. Both reds are
+pre-existing, deterministic, and orthogonal to this diff: `hdl-run.test.ts`
+(runs REAL iverilog/verilator/yosys via `execFileSync`; this machine's yosys
+prints synthesis statistics without the "Number of cells" line the assertion
+expects) and `media-library.test.ts` (a `transcribed_at` write expected within a
+10 ms wait). spec-quality/atoms is NOT among them — that red never existed on a
+clean tree.
+
+**Self-criticism.** (1) My own first "before" run was contaminated exactly like
+tick-g's — I symlinked the worktree's render/node_modules to the main checkout,
+saw 10 red, and nearly reported it as the reproduction; only the barrel diff
+(explaining WHY they differed) caught that the main checkout sits on an older
+branch. The honest reproduction cost one `npm ci`. Rule: **a worktree's
+"before" is only real once its file: symlinks resolve inside its own tree.**
+(2) I began this tick ready to write the recommended
+exclude-from-prebundle config; reproducing first turned a config PR into a
+guard PR. The queue's recommendation encoded the misdiagnosis — following it
+would have shipped a change that is unfalsifiable in the good direction
+("excluded from a prebundle that never ran" would have looked green in every
+environment, proving nothing and leaving the real trap unnamed).
+
+Next tick: read this, append, do not restart. Queue now: **env-red item,
+narrowed by today's numbers** — the render suite is 2 reds from green on a
+clean tree: version-pin or reword the yosys statistics assertion in
+`hdl-run.test.ts`, and fix the `media-library.test.ts` 10 ms-wait expectation;
+then measure the ROOT `test:vitest` run the same way (clean tree, own installs)
+so `bun run verify` can be trusted as a merge gate; a **player screen** for
+`saw`/`logins`/`pod`/`journal` (UI-only); sign-in completion for the absent
+networks (owner's keyboard); **the 7 orphaned dirty render files in
+`/tmp/brhard`** — decide with the owner; pre-existing unused-var cleanup in
+`src/browser/*.ts` + `agent/*.ts`; still-open `browser_status` `running`-shaped
+claim (deferred, description budget).
