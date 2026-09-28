@@ -20,14 +20,23 @@
  * unresolved reference, 0 when every `tri X` in scope is a real command -- so a
  * loop tick can put it up front and not gate on eyeballs.
  *
- * WHAT IT GUARDS: shipped source (SCAN_DIRS). A `tri X` in code the render runs
- * and the agent reads is a claim acted on at runtime. The loop's own planning
- * docs (.claude/loop-*, and tri.reference.sh -- itself a third, archived
- * dispatcher whose `tri X` lines document its OWN arms) name commands more
- * loosely and are a separate, lower-stakes cleanup; scanning them here would
- * drown the real signal in prose and a gate that cries wolf gets ignored --
- * which is the whole disease. Widen SCAN_DIRS only with a plan to clean what it
- * surfaces.
+ * WHAT IT GUARDS (SCAN_DIRS): shipped source AND the loop's own tooling
+ * .claude/loop-opus. A `tri X` in render code is a claim acted on at runtime; a
+ * `tri X` in the tooling (an audit-script header, a LESSONS.md rule that tells a
+ * future tick which command to run) is a claim acted on by the next loop. Both
+ * rot the same way. loop-opus was NOT scanned until 2026-09-28e -- the earlier
+ * note here said doing so would "drown the real signal in prose". That was true
+ * WHILE it was dirty: five audit-script headers named unbuilt commands and a
+ * LESSONS "Оснастка:" line named three (tri anomalies/providers/verify) that had
+ * become tri scan / tri keys / bun run verify. The precondition this file set
+ * for itself -- "widen only with a plan to clean what it surfaces" -- was met by
+ * cleaning all of it first, then widening. It now sits at zero.
+ *
+ * A `*-selftest.mjs` names phantom commands ON PURPOSE (its fixtures), and today
+ * each is skipped as a dispatcher (its fixture embeds `case "${1:-}"`). If a
+ * future fixture trips this without that pattern, the escape hatch is a
+ * documented ALLOW entry -- NOT narrowing SCAN_DIRS back and losing the guard.
+ * tri.reference.sh (a third, archived dispatcher) is skipped by content.
  *
  * NOT A LIVE CHECK. This reads code, not prod (unlike anomalies.mjs / `tri
  * scan`), so it is fast and offline. "Does the CLI tell the truth about itself"
@@ -57,7 +66,7 @@ export const ALLOW = new Map([
   // e.g. ['foo', 'reason it is not a tri command and the reference is right'],
 ])
 
-const SCAN_DIRS = ['apps/vibee-editor/render/src']
+const SCAN_DIRS = ['apps/vibee-editor/render/src', '.claude/loop-opus']
 const SKIP = /(^|\/)(node_modules|\.git|dist|build|\.next|coverage)(\/|$)/
 const TEXT = /\.(ts|tsx|js|mjs|cjs|md|sh|json|t27)$/
 
@@ -155,7 +164,9 @@ if (process.argv[1] && realp(process.argv[1]) === realp(SELF)) {
   console.log(dim(`  scanned ${scanned} files; allowlist has ${ALLOW.size}`))
   if (found.size === 0) {
     console.log(
-      green('  OK   every `tri X` in shipped source is a real command')
+      green(
+        '  OK   every `tri X` in scanned source + tooling is a real command'
+      )
     )
     process.exit(0)
   }

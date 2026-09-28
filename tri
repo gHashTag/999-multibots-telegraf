@@ -686,12 +686,22 @@ LOOP TOOLING
                           NOT prove health: a detector that stopped detecting
                           prints exactly the same line. Both defects found in
                           anomalies.mjs on 2026-08-29 had looked green.
-  tri refs                Does every `tri X` in shipped source name a real
-                          command? Static, offline. Catches the docstring that
-                          points at a command nobody built -- the defect found
-                          by hand four ticks running (tri pod/journal/tabs/seal).
+  tri refs                Does every `tri X` in render source AND the loop's own
+                          tooling (.claude/loop-opus) name a real command?
+                          Static, offline. Catches the docstring or LESSONS rule
+                          that points at a command nobody built -- the defect
+                          found by hand four ticks running (tri pod/journal/seal).
   tri refs-check          Can `tri refs` still fail? Drives its scan over a
                           fixture with a known phantom and asserts it rings.
+  tri money-map           Repo-wide census of money-mutation CALL SITES. --json
+                          for the machine-readable list.
+  tri repo-hygiene        Flag repo-hygiene leaks a dead CI won't catch
+                          (tracked dumps, stray secrets-shaped files).
+  tri rpc-audit           List supabase RPCs the code CALLS but that are not
+                          defined in the tracked SQL -- a deploy-time 404.
+  tri single-telegram     Find `.single()` on a users query filtered by
+                          telegram_id, which throws on the duplicate rows that
+                          exist in prod. Use maybeSingle or .limit(1).
   tri panel               rebuild the dashboard
   tri tests               the full run
   tri routes              client and server addresses, compared
@@ -5094,6 +5104,14 @@ case "$action" in
   # reason scan-check is: a verb cannot be mistyped into silence.
   refs|ссылки)          node "$TOOLS/tri-refs.mjs" ;;
   refs-check|ссылки-проверка) node "$TOOLS/tri-refs-selftest.mjs" ;;
+  # Four census/audit scripts that already read this tree accurately but had no
+  # human-facing verb -- each header promised a `tri X` that resolved to nothing.
+  # Wiring them is the fix `tri refs` asks for: build the command, don't excuse
+  # the reference. `--json` and other flags pass straight through.
+  money-map|деньги-карта)     ( cd "$ROOT" && node "$TOOLS/money-map.mjs" "$@" ) ;;
+  repo-hygiene|гигиена)       ( cd "$ROOT" && node "$TOOLS/repo-hygiene-audit.mjs" "$@" ) ;;
+  rpc-audit|rpc-аудит)        ( cd "$ROOT" && node "$TOOLS/rpc-audit.mjs" "$@" ) ;;
+  single-telegram|один-телеграм) ( cd "$ROOT" && node "$TOOLS/single-telegram-audit.mjs" "$@" ) ;;
   # EVERY KIE FUNCTION, WITHOUT SPENDING A CREDIT. A rejected generation costs
   # nothing, so deliberately invalid input separates "the model exists" from
   # "the id is wrong" for free. Two seconds, and the balance is read before and

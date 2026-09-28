@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// tri axios-timeout-audit -- find axios calls that lack a `timeout`, reliably.
+// tri timeouts -- find axios calls that lack a `timeout`, reliably.
 //
 // WHY THIS EXISTS. A line-window sweep for `timeout` near an `axios(` gives
 // ~50% FALSE POSITIVES: axios option objects are often 15-28 lines long, so the
