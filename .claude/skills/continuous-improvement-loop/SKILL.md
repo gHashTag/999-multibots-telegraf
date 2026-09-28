@@ -1713,3 +1713,58 @@ test setup, or split env-dependent tests behind a flag); a **player screen** for
 completion for the absent networks (owner's keyboard); pre-existing unused-var
 cleanup in `src/browser/*.ts` + `agent/*.ts`; still-open `browser_status`
 `running`-shaped claim (deferred, description budget).
+
+## Tick — 2026-09-28f — the heal verb: observability finally acts
+
+The top of last tick's queue. For four ticks `tri browser` ended a wedged
+verdict with "heal it before trusting a round" and the only heal was a raw
+`curl -X POST /api/browser/heal` copied from a docstring — a reader that names
+an action with no wired way to take it. Closed it: **`tri heal`** (alias
+`исцели`), wired to `POST /api/browser/heal`, exit codes matching the browser
+family (0 healed/nothing-to-do, 1 restarted-still-dead, 2 none configured, 3
+render silent). Also repointed the two docstrings that said "POST
+/api/browser/heal" to say "run `tri heal`". PR #3173, merged (`246368e94`).
+
+**The design decision worth recording: the safety is the server's, and asking
+twice would weaken it.** `/api/browser/heal` probes first and refuses to restart
+a browser that answers ("a restart would take a working browser away from the
+person" — routes.ts, the guard built to stop the 2026-09-27 healthy-pod
+restart). So `tri heal` deliberately gates NOTHING of its own — no `--force`, no
+second local probe. The endpoint is the one authority on "is it well"; a second
+probe in the CLI would only be a chance to disagree with the authority and act
+on the disagreement. When the risky action already has the right guard, the
+reader's job is to call it, not to re-litigate it. This is the inverse of the
+usual liveness lesson (don't trust one field for two facts): here the field is
+trustworthy because the endpoint, not the caller, owns the judgement.
+
+**Verified live, not grepped.** `tri browser` = alive, real page evaluated 1+1
+(9/12 tabs); `tri heal` = the refusal path, "the browser answers…", exit 0 —
+proven against the live healthy pod, so the safety claim is empirical. `tri
+refs` stays green (449 files); all pre-push gates green (86/86 providers,
+player-lint 409 as recorded).
+
+**Self-criticism.** (1) **The first push was detached at the 120s foreground
+timeout and its ref never transferred** even though all gates passed — I read
+"gates ✔️" as "pushed" until `git ls-remote` came back empty. The rule held:
+141 ≠ pushed, and empty-gate-output ≠ pushed either; only `ls-remote` proves a
+ref. Re-pushed honestly (gates re-ran ~4min, no `--no-verify`), then confirmed
+the ref and the merge commit. (2) **The worktree carried 7 pre-existing dirty
+render files** (`render-server.ts`, `agent/profiles.ts`, `browser/sign-in.ts`,
+`browser/logins.ts`, …) I did not author — leftover from an interrupted prior
+session. I staged only `tri` (`git add tri`, verified the commit is 1 file) and
+left them untouched: they may be someone's in-progress work, and blindly
+committing or reverting them would be the destructive move. Flagged, not
+touched. (3) `--delete-branch` on merge failed because `main` is held by another
+worktree (`/private/tmp/br-login`); the merge itself landed — deleted the remote
+branch separately. A merge-tool convenience failing is not a merge failing;
+checked the merge commit on `origin/main` directly.
+
+Next tick: read this, append, do not restart. Queue now: **fix or quarantine the
+env-red suites** so `bun run verify` is a trustworthy merge gate again (stub
+ffprobe/`TELEGRAM_*` in test-setup, or flag env-dependent render tests) — now
+the top item; a **player screen** for `saw`/`logins`/`pod`/`journal` (routes
+return data — UI-only); sign-in completion for the absent networks (owner's
+keyboard); **the 7 orphaned dirty render files in `/tmp/brhard`** — decide with
+the owner whether they are live work or should be reset; pre-existing unused-var
+cleanup in `src/browser/*.ts` + `agent/*.ts`; still-open `browser_status`
+`running`-shaped claim (deferred, description budget).
