@@ -1839,3 +1839,26 @@ networks (owner's keyboard); **the 7 orphaned dirty render files in
 `/tmp/brhard`** — decide with the owner; pre-existing unused-var cleanup in
 `src/browser/*.ts` + `agent/*.ts`; still-open `browser_status` `running`-shaped
 claim (deferred, description budget).
+
+**Tick h addendum — same tick, second fire found and put out (PR #3177).**
+Checking the deployment list after PR #3176's merge (a habit, not a task) found
+the bot deploy `8919e33f` **FAILED** — and not for tick-g's code: every clean-room
+`npm install` on main dies with ERESOLVE (`vitest@5.0.2` peers
+`@types/node "^22 || >=24"` against the root pin `"20"`), so the vitest 3→5
+migration of 2026-09-27 left every code deploy broken; three SKIPPED docs-only
+deploys since had masked it. Reproduced without Docker (bare dir + `npm install
+--dry-run`; the worktree dry-run LIES — its node_modules symlink satisfies the
+resolver) and shipped the minimal fix: `--legacy-peer-deps` on both `RUN npm
+install` lines of the Dockerfile — the only way this lock installs, and how it
+was generated. Proven end-to-end: deploy `ad214e33` = **SUCCESS** (FAILED
+before the flag, same tree otherwise). Deliberately NOT smuggled in: the clean
+reconciliation (`@types/node` ^22 + lock regen) auto-installs `react` +
+`@tanstack/react-query` into the bot image — packages its package.json never
+declared. That is an owner decision and now sits at the top of the queue with
+the evidence in PR #3177's body.
+
+Queue change from this addendum: **NEW TOP — the owner decision on the lock**
+(accept react-in-image, or de-peer the source, or keep the flag forever);
+then the env-red narrowing below as written. Diagnostic recipe for any future
+deps change: clean-room dry-run BEFORE push, watch the deploy to SUCCESS after
+merge — SKIPPED is not green.
