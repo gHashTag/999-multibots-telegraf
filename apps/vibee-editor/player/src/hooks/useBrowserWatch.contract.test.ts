@@ -34,6 +34,9 @@ describe('the wiring actually moves the screen', () => {
     /* No second copy of the rules hiding in the effect. */
     expect(hook).not.toMatch(/state === 'live'/)
     expect(hook).not.toMatch(/startsWith\('\/browser'\)/)
+    /* The throne routes are the rule's business, not the wiring's. */
+    expect(hook).not.toContain('/queen')
+    expect(hook).not.toContain('/hive')
   })
 
   it('remembers the session BEFORE navigating, or it would loop', () => {
