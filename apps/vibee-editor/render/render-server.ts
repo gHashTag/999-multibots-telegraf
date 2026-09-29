@@ -216,6 +216,7 @@ import {
   imageChainCeilingUsd,
   falEndpointFor,
 } from './src/image-chain'
+import { generateImageViaPollinations } from './src/pollinations-image'
 import fs from 'node:fs'
 import { randomUUID, createHmac, createHash } from 'node:crypto'
 import { execSync, execFileSync, spawn } from 'node:child_process'
@@ -4361,7 +4362,10 @@ const server = createServer(async (req, res) => {
          * Replicate flux-schnell at about $0.003, then Kie google/nano-banana
          * at 4 credits ($0.02) -- the only purse known to be funded, and the
          * same purse the talking heads spend from at 18 credits a second, which
-         * is why the funded one is last and not first.
+         * is why the funded one is last and not first. Between Replicate and
+         * Kie sits pollinations/flux at $0 (2026-09-29): the rescue leg that
+         * drew nothing while both paid purses had money, and everything the
+         * day both refused -- ordering and prices live in src/image-chain.ts.
          *
          * The ordering and the record-keeping live in src/image-chain.ts, and
          * they live there so that image-chain.test.ts can drive them with fake
@@ -4385,6 +4389,8 @@ const server = createServer(async (req, res) => {
           imageChainLegs(modelEndpoint, {
             fal: () => generateImageViaFal(prompt, aspectRatio, modelEndpoint),
             replicate: () => generateImageViaReplicate(prompt, aspectRatio),
+            pollinations: () =>
+              generateImageViaPollinations(prompt, aspectRatio),
             kie: () => generateImageViaKie(prompt, aspectRatio),
           }),
           {
