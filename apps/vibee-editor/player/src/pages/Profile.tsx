@@ -16,6 +16,7 @@ import {
   ProfileEdit,
   BotsCard,
   CrmCard,
+  StoryCard,
 } from '@/components/Profile'
 import { SoulCard } from '@/components/Profile/SoulCard'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
@@ -367,6 +368,12 @@ export function ProfilePage() {
             See CrmCard for why a card here rather than a seventh tab.
           */}
           <CrmCard isOwn={isOwn} />
+          {/*
+            THE STORY PAGE HAD NO DOOR EITHER (2026-09-29): /story answered
+            only to the bot's deep link. Same place, same rule as the CRM
+            card above -- the viewer's own profile only.
+          */}
+          <StoryCard isOwn={isOwn} />
           {/*
             IS MY BOT ALIVE -- ON THE SCREEN, NOT ONLY IN AN ALARM.
 
