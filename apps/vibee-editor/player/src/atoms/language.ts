@@ -739,6 +739,7 @@ const en: Translations = {
     'No rules of yours for it yet: write one below, and it applies from your next message (saved as "{prefix}: ...").',
   // One agent's own dashboard (pages/AgentDashboard.tsx)
   'agents.dash.market': 'All agents',
+  'agents.dash.switch': 'Switch agent',
   'agents.dash.clientsTitle': 'With your clients',
   'agents.dash.clientRow': 'Client {id} · turns: {n} — call it in again →',
   'agents.dash.noClients':
@@ -747,6 +748,19 @@ const en: Translations = {
     'Draw its avatar from my photo (GPT Image 2.5, 12 tokens)',
   'agents.dash.face.drawing': 'Drawing…',
   'chat.specialist.dashboard': 'Dashboard',
+  /*
+   * The agent's own repeat buttons (owner, 2026-09-29) and its panel beside
+   * the conversation: the configured work back in one press, its clients,
+   * the door to the full dashboard.
+   */
+  'chat.templates.reel': 'Repeat my reel by template',
+  'chat.templates.photo': 'Neuro-photo by my template',
+  'chat.templates.gift': 'Gift a client again',
+  'chat.agentAside.label': 'Agent panel',
+  'chat.agentAside.open': 'Panel',
+  'chat.agentAside.clients': 'Clients of this agent',
+  'chat.agentAside.noClients': 'No client work through this agent yet',
+  'chat.agentAside.dash': 'Full dashboard',
   'agents.dash.status.live': 'live',
   'agents.dash.status.training': 'in training',
   'agents.dash.status.earned': 'hireable by evidence',
@@ -3329,6 +3343,7 @@ const ru: Translations = {
   'chat.agentSkills.none':
     'Ваших правил для него пока нет: напишите правило ниже — оно подключится со следующего сообщения (сохранится как «{prefix}: …»).',
   'agents.dash.market': 'Все агенты',
+  'agents.dash.switch': 'Сменить агента',
   'agents.dash.clientsTitle': 'С вашими клиентами',
   'agents.dash.clientRow': 'Клиент {id} · ходов: {n} — позвать снова →',
   'agents.dash.noClients':
@@ -3337,6 +3352,14 @@ const ru: Translations = {
     'Сделать аватар из моего фото (GPT Image 2.5, 12 токенов)',
   'agents.dash.face.drawing': 'Рисую…',
   'chat.specialist.dashboard': 'Дашборд',
+  'chat.templates.reel': 'Повторить мой рилс по шаблону',
+  'chat.templates.photo': 'Нейро-фото по моему шаблону',
+  'chat.templates.gift': 'Снова подарок клиенту',
+  'chat.agentAside.label': 'Панель агента',
+  'chat.agentAside.open': 'Панель',
+  'chat.agentAside.clients': 'Клиенты этого агента',
+  'chat.agentAside.noClients': 'Через этого агента с клиентами ещё не работали',
+  'chat.agentAside.dash': 'Полный дашборд',
   'agents.dash.status.live': 'работает',
   'agents.dash.status.training': 'учится',
   'agents.dash.status.earned': 'нанимается по доказательствам',

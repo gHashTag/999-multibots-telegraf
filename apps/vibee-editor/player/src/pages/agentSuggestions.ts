@@ -60,6 +60,51 @@ export const AGENT_SUGGESTIONS: Readonly<Record<string, readonly string[]>> = {
 }
 
 /**
+ * THE AGENT'S OWN REPEAT BUTTONS (owner, 2026-09-29: "let me repeat the
+ * configured reel or the neuro-photo by template when the Blogger agent is
+ * chosen -- and make a client gift again").
+ *
+ * A configured template is work the person has already set up once (the
+ * story-reel template, the portrait style); these buttons bring it back in
+ * ONE press instead of a description from memory. The press sends a prompt
+ * into the agent's own thread -- and holds the same rule the starters above
+ * hold: it asks for a READING or a card to confirm. The agent shows the
+ * template and proposes the run as a card; the send is the second press.
+ *
+ * An agent with no configured template of its own has no entry; an agent
+ * that gains one lights up wherever AGENT_TEMPLATES is read -- the fresh
+ * thread and the agent panel both draw from here, nothing is copied.
+ */
+export interface AgentTemplate {
+  /** Dictionary key of the button's label -- labels are interface text. */
+  labelKey: string
+  /** What the press sends, verbatim, into the agent's thread. */
+  prompt: string
+}
+
+export const AGENT_TEMPLATES: Readonly<
+  Record<string, readonly AgentTemplate[]>
+> = {
+  blogger: [
+    {
+      labelKey: 'chat.templates.reel',
+      prompt:
+        'Покажи мой настроенный шаблон рилс-истории: лицо, голос, стиль и следующий сюжет по плану. Предложи запуск карточкой — не запускай сам.',
+    },
+    {
+      labelKey: 'chat.templates.photo',
+      prompt:
+        'Сделай нейро-фото по моему настроенному шаблону: моё лицо из шаблона, новое окружение, фирменный стиль. Покажи карточкой — не отправляй сам.',
+    },
+    {
+      labelKey: 'chat.templates.gift',
+      prompt:
+        'Покажи, кому из моих клиентов ещё не подарено: портрет и рилс-историю. Предложи подарок карточкой — отправить должен я.',
+    },
+  ],
+}
+
+/**
  * WHO MAY OPEN AN AGENT'S THREAD, decided before the page draws. 'wait'
  * while an answer is still on its way (so a keeper is not bounced), the
  * agent's id when this person may talk to it -- live, a keeper's preview,
