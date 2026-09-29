@@ -36,8 +36,19 @@ const CONTEXT = {
   ],
 }
 const PROFILE = { telegram_id: '900000301', has_profile: true }
+/** What `crm_story_reel` answers for this client in the tests below. */
+const STORY = {
+  face: 'https://pics.example/face.jpg',
+  voice: true,
+  ready: true,
+  price_tokens: 60,
+  jobs: [],
+}
+/** Set `story` to this to make the tool answer with a JSON-RPC error. */
+const REFUSED = Symbol('refused')
 let context: unknown = CONTEXT
 let profile: unknown = PROFILE
+let story: unknown = STORY
 let fail = false
 let picks: unknown = { leads: [], count: 0 }
 let lastPick: { lead: unknown; on: unknown } | null = null
@@ -49,14 +60,25 @@ vi.stubGlobal(
     const name = String(body?.params?.name ?? '')
     const args = (body?.params?.arguments ?? {}) as Record<string, unknown>
     if (fail) return new Response('nope', { status: 500 })
+    if (name === 'crm_story_reel' && story === REFUSED)
+      return new Response(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          error: { message: 'только продавец' }, // cyrillic-ok: the tool's words
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
     const data =
       name === 'crm_lead_context'
         ? context
-        : name === 'autopilot_leads'
-          ? picks
-          : name === 'autopilot_lead'
-            ? (lastPick = { lead: args.lead, on: args.on })
-            : profile
+        : name === 'crm_story_reel'
+          ? story
+          : name === 'autopilot_leads'
+            ? picks
+            : name === 'autopilot_lead'
+              ? (lastPick = { lead: args.lead, on: args.on })
+              : profile
     return new Response(
       JSON.stringify({
         jsonrpc: '2.0',
@@ -74,6 +96,7 @@ let root: Root
 beforeEach(() => {
   context = CONTEXT
   profile = PROFILE
+  story = STORY
   fail = false
   picks = { leads: [], count: 0 }
   lastPick = null
@@ -251,5 +274,75 @@ describe('the cockpit', () => {
     expect(moves[0].getAttribute('data-tone')).toBe('stop')
     expect(moves[0].querySelector('button')).toBeNull()
     expect(text()).toContain('crm.aside.assistantOff')
+  })
+})
+
+/**
+ * THE TWO GIFTS, ALWAYS ON THE CARD.
+ *
+ * Owner, 2026-09-29: "why are there no gift buttons?" The portrait had lived
+ * only as a strategy move -- one of three slots a hot client's card fills
+ * with other things -- and the reel panel only on the client page, one
+ * navigation away from the conversation. Pinned: both gifts are on the card
+ * beside the chat, and a press still only asks the agent here -- it is never
+ * a message to the client.
+ */
+describe('the two gifts', () => {
+  const click = async (el: Element | null | undefined) => {
+    await act(async () => {
+      ;(el as HTMLElement).click()
+    })
+  }
+  const giftRow = () => host.querySelector('[data-testid="gift-portrait"]')
+
+  it('a portrait not yet given is a give button that asks the agent here', async () => {
+    const asked: string[] = []
+    await show('900000301', t => asked.push(t))
+    expect(text()).toContain('crm.aside.gifts')
+    const btn = giftRow()?.querySelector('button')
+    expect(btn?.textContent).toContain('crm.aside.gift.portrait.give')
+    await click(btn)
+    expect(asked).toEqual(['crm.move.portraitGive.ask:A Client'])
+  })
+
+  it('a portrait being drawn is a state, not a button', async () => {
+    context = { ...(context as object), portrait: { drawing: true } }
+    await show('900000301', () => undefined)
+    expect(giftRow()?.textContent).toContain('crm.aside.portrait.drawing')
+    expect(giftRow()?.querySelector('button')).toBeNull()
+  })
+
+  it('a ready portrait offers to send, which still only asks the agent', async () => {
+    const asked: string[] = []
+    context = { ...(context as object), portrait: { ready: true } }
+    await show('900000301', t => asked.push(t))
+    const btn = giftRow()?.querySelector('button')
+    expect(btn?.textContent).toContain('crm.aside.gift.portrait.send')
+    await click(btn)
+    expect(asked).toEqual(['crm.move.portraitSend.ask:A Client'])
+  })
+
+  it('a given portrait closes the row', async () => {
+    // A fresh mount, not a second render into the same one: the aside loads
+    // once per client, so a re-render with a new portrait state would show
+    // the stale answer forever.
+    context = { ...(context as object), portrait: { given: true } }
+    await show('900000301', () => undefined)
+    expect(giftRow()?.textContent).toContain('crm.aside.portrait.given')
+    expect(giftRow()?.querySelector('button')).toBeNull()
+  })
+
+  it('the story-reel panel is on the card too, not a page away', async () => {
+    await show()
+    expect(text()).toContain('crm.client.story.title')
+    expect(text()).toContain('crm.client.story.price:60')
+  })
+
+  it('a reel tool that refuses for this viewer leaves the card without it', async () => {
+    // The panel goes null on refusal (its own test pins that); here the card
+    // must not break or show a ghost section when it does.
+    story = REFUSED
+    await show()
+    expect(text()).toContain('crm.aside.gifts')
   })
 })
