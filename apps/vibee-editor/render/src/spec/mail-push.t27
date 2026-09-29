@@ -18,10 +18,19 @@
 // Difference from the bridge: one push target, not a fan-out. The local bridge serves
 //       several chats and tracks delivery per chat; the cloud pushes the owner's card
 //       alone, so the cursor is one row, and there is no observer to protect.
-// Claim status: implemented and unit-tested in the host worktree (branch
-//       feat/mail-push-sweep); NOT yet run live -- the cron is not deployed, so no letter
-//       has been pushed by it. The card and transmit halves it reuses ARE live: the mail
-//       desk answered mail_whoami in production on 2026-09-29 (admin@t27.ai, can_send).
+// v2, 2026-09-29 (#5174): the push and jcrm become one system. jcrm (job-search
+//       crm/jcrm.py) already derives the whole campaign from this same mailbox; v2 closes
+//       the other direction -- the card carries the matter's CRM context from a digest
+//       jcrm exports, the draft is composed with the matter's recent history, every tap
+//       outcome is written back for jcrm to read, the Sent folder is watched so a manual
+//       reply becomes evidence and is paired with the draft that was offered, and a daily
+//       heartbeat alarms when the sweep goes quiet. Identity everywhere is the
+//       enumeration message_id, because the search index is twelve days stale (measured
+//       in the correspondence-crm skill, 2026-08-28) and an id out of search is a lie.
+// Claim status: v1 is LIVE -- the cron fired on schedule from 2026-09-29 10:30
+//       (measured: Inngest runs 10:30/10:35/10:40/10:45/10:50, the debut baselined the
+//       Inbox, no letter has been carded yet -- none arrived). RUN_LIVE flips when the
+//       cron cards its first real letter.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::mail_push {
@@ -29,7 +38,7 @@ module automation::mail_push {
     pub const KIND : str = "automation";
     pub const ID : str = "mail-push";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- The door -------------------------------------------------------------------
     pub const TOOL : str = "mail_push_sweep";  // in the render's registry, owner-gated
@@ -64,8 +73,30 @@ module automation::mail_push {
     pub const SEND_TOOL : str = "mail_send";  // the only thing that can leave (agent-mail-mcp OUTWARD_TOOLS)
     pub const SEND_NEEDS_TAP : bool = true;  // the card IS the gate; the sweep itself never transmits
 
+    // ---- v2: the CRM convergence (#5174) ---------------------------------------------
+    pub const SENT_WATCH : bool = true;  // the Sent folder is watched too: a reply typed by
+                                         // hand in the webmail is evidence the CRM must see
+    pub const SENT_LIMIT : u8 = 25;  // the same window discipline as the Inbox
+    pub const OUTCOMES_TABLE : str = "mail_push_outcomes";  // every settle written back for jcrm
+    pub const FEEDBACK_TABLE : str = "mail_push_feedback";  // the draft offered vs the reply
+                                                            // the owner actually sent
+    pub const DIGEST_TABLE : str = "crm_matter_digest";  // jcrm's export; the card reads it
+    pub const DIGEST_STALE_H : u8 = 26;  // a day and a bit: older context is not shown
+                                         // (channels.json law: a stale number is never
+                                         // presented as current)
+    pub const HISTORY_MESSAGES : u8 = 6;  // recent both-direction lines feeding the draft
+    pub const HISTORY_CHARS : u16 = 200;  // per line: subject and summary, never the body
+    pub const FEEDBACK_PAIR_H : u8 = 48;  // a manual reply pairs with an offered draft of
+                                          // the same matter within two days
+    pub const IDENTITY : str = "enumeration message_id";  // search ids are 12 days stale
+    pub const PULSE_TOOL : str = "mail_push_pulse";  // reads the cursor's heartbeat
+    pub const PULSE_CRON : str = "17 9 * * *";  // daily, off the :00 mark
+    pub const PULSE_STALE_MIN : u16 = 30;  // six missed 5-min ticks means the sweep is down
+
     // ---- Not claimed ----------------------------------------------------------------
-    pub const RUN_LIVE : bool = false;  // not deployed; the whoami proof covers the desk, not the push
+    pub const RUN_LIVE : bool = false;  // the cron IS live (first run 2026-09-29 10:30,
+                                        // measured); RUN_LIVE flips only when it cards
+                                        // its first real letter
 
     // A letter is announced when the cursor was baselined before (not the first sweep)
     // and the letter's id is not in the seen set. The first sweep baselines and says nothing.
@@ -86,6 +117,29 @@ module automation::mail_push {
             return SEEN_CAP;
         }
         return seen;
+    }
+
+    // A digest older than DIGEST_STALE_H is refused, not shown: context that lies is
+    // worse than no context, and the CRM's own counters carry the same law.
+    fn digest_fresh(age_h: u8) -> bool {
+        return age_h <= DIGEST_STALE_H;
+    }
+
+    // A Sent item is news only when the sweep did not send it itself and has not
+    // already recorded it: the send's own answer names our message by its id.
+    fn sent_is_news(id_known_ours: bool, already_recorded: bool) -> bool {
+        return !id_known_ours && !already_recorded;
+    }
+
+    // A manual reply is paired with the draft that was offered when the matter is the
+    // same and the card has not gone cold: the pair is how drafts get measured.
+    fn pairs(thread_same: bool, card_age_h: u8) -> bool {
+        return thread_same && card_age_h <= FEEDBACK_PAIR_H;
+    }
+
+    // The heartbeat is fresh while the cursor moved within six missed ticks.
+    fn pulse_fresh(age_min: u16) -> bool {
+        return age_min <= PULSE_STALE_MIN;
     }
 
     test "the first sweep announces nothing, and only unseen mail after" {
@@ -132,6 +186,47 @@ module automation::mail_push {
         assert(TOOL == "mail_push_sweep");
         assert(DOOR == "/mcp");
         assert(CALLER == "inngest-cron");
+    }
+
+    test "a stale digest is refused, not shown" {
+        assert(digest_fresh(0));
+        assert(digest_fresh(26));
+        assert(!digest_fresh(27));
+        assert(DIGEST_STALE_H == 26);
+        assert(HISTORY_MESSAGES >= 1);
+        assert(HISTORY_CHARS <= 200);
+        assert(DIGEST_TABLE == "crm_matter_digest");
+    }
+
+    test "the Sent folder separates our tap-sends from the owner's manual replies" {
+        assert(SENT_WATCH);
+        assert(!sent_is_news(true, false));
+        assert(!sent_is_news(false, true));
+        assert(sent_is_news(false, false));
+        assert(SENT_LIMIT <= SEEN_CAP);
+        assert(IDENTITY == "enumeration message_id");
+    }
+
+    test "every outcome is written back: allowed sends, denials and expiries" {
+        assert(OUTCOMES_TABLE == "mail_push_outcomes");
+        assert(may_transmit("allowed"));
+        assert(!may_transmit("denied"));
+    }
+
+    test "a manual reply is paired with the draft that was offered" {
+        assert(pairs(true, 0));
+        assert(pairs(true, 48));
+        assert(!pairs(true, 49));
+        assert(!pairs(false, 0));
+        assert(FEEDBACK_TABLE == "mail_push_feedback");
+    }
+
+    test "the heartbeat alarms when the sweep goes quiet" {
+        assert(pulse_fresh(0));
+        assert(pulse_fresh(30));
+        assert(!pulse_fresh(31));
+        assert(PULSE_TOOL == "mail_push_pulse");
+        assert(PULSE_CRON == "17 9 * * *");
     }
 }
 
