@@ -14,8 +14,12 @@ import { pricingSummary } from './src/agent/pricing'
  *    tokens -- and the SAME FILE listed reel_render under PAID. The price
  *    list contradicted itself, and nothing noticed.
  *  - "img2img-сцены из фото — Pollinations FLUX — keyless, $0" was false in
- *    both halves: pollinations.ai is called by no runtime code at all, and
+ *    both halves: pollinations.ai was called by no runtime code at all, and
  *    the img2img that exists runs on Kie and charges through image_generate.
+ *    (Resolved 2026-09-29, in the direction the guard demanded: the provider
+ *    became a real call -- the free t2i leg of the image chain -- not a
+ *    reworded claim. It is still NOT in the free list: the person pays the
+ *    same tokens whichever leg draws.)
  *
  * Both are structural mistakes, not typos, so the guards below are
  * structural: what CHARGES must be quoted, and a provider named in the free
@@ -128,9 +132,15 @@ describe('a free entry names no imaginary provider', () => {
     expect(RUNTIME_TEXT.length).toBeGreaterThan(100_000)
     // A provider the code demonstrably calls: its host is there.
     expect(RUNTIME_TEXT).toContain('replicate.com')
-    // And the one the free list claimed: named in prose, never called.
-    expect(RUNTIME_TEXT).toContain('pollinations')
-    expect(RUNTIME_TEXT).not.toContain('pollinations.ai')
+    // And the one this guard was written for: on 2026-09-22 its host was in
+    // NO runtime file -- a name in prose, never a call -- which is how the
+    // free list could claim it. On 2026-09-29 the host arrived in
+    // src/pollinations-image.ts, the free leg of the image chain, and the
+    // claim it backs moved to the provider reference. This is a control,
+    // not a demand: it pins that the host arrives from the call and not
+    // from prose, and goes red again the day the call is deleted while the
+    // claims about the provider stay.
+    expect(RUNTIME_TEXT).toContain('pollinations.ai')
   })
 
   it('every provider a free entry names is one the code calls', () => {
