@@ -33,6 +33,7 @@ export const SENT_LIMIT = 25 satisfies number;
 export const OUTCOMES_TABLE = "mail_push_outcomes" satisfies string;
 export const FEEDBACK_TABLE = "mail_push_feedback" satisfies string;
 export const DIGEST_TABLE = "crm_matter_digest" satisfies string;
+export const DIGEST_DOOR = "mail_push_digest" satisfies string;
 export const DIGEST_STALE_H = 26 satisfies number;
 export const HISTORY_MESSAGES = 6 satisfies number;
 export const HISTORY_CHARS = 200 satisfies number;
@@ -59,10 +60,11 @@ export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TOOL", "CALLER", "DOOR", "CRON", "CONCURRENCY", "RETRIES", "STATE_TABLE", "SEEN_CAP", "VIEW_LIMIT", "FIRST_SWEEP_ANNOUNCES_NOTHING", "OLDEST_FIRST", "PUSH_PER_TICK", "PREVIEW_CHARS", "SEEN_ON_PUSH", "DRAFT_WITH_PUSH", "DRAFT_NO_TOOLS", "DRAFT_TIMEOUT_S", "DRAFT_MAX_TOKENS", "DRAFT_FAILURE_PUSHES_ANYWAY", "SEND_TOOL", "SEND_NEEDS_TAP", "SENT_WATCH", "SENT_LIMIT", "OUTCOMES_TABLE", "FEEDBACK_TABLE", "DIGEST_TABLE", "DIGEST_STALE_H", "HISTORY_MESSAGES", "HISTORY_CHARS", "FEEDBACK_PAIR_H", "IDENTITY", "PULSE_TOOL", "PULSE_CRON", "PULSE_STALE_MIN", "RUN_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TOOL", "CALLER", "DOOR", "CRON", "CONCURRENCY", "RETRIES", "STATE_TABLE", "SEEN_CAP", "VIEW_LIMIT", "FIRST_SWEEP_ANNOUNCES_NOTHING", "OLDEST_FIRST", "PUSH_PER_TICK", "PREVIEW_CHARS", "SEEN_ON_PUSH", "DRAFT_WITH_PUSH", "DRAFT_NO_TOOLS", "DRAFT_TIMEOUT_S", "DRAFT_MAX_TOKENS", "DRAFT_FAILURE_PUSHES_ANYWAY", "SEND_TOOL", "SEND_NEEDS_TAP", "SENT_WATCH", "SENT_LIMIT", "OUTCOMES_TABLE", "FEEDBACK_TABLE", "DIGEST_TABLE", "DIGEST_DOOR", "DIGEST_STALE_H", "HISTORY_MESSAGES", "HISTORY_CHARS", "FEEDBACK_PAIR_H", "IDENTITY", "PULSE_TOOL", "PULSE_CRON", "PULSE_STALE_MIN", "RUN_LIVE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not
