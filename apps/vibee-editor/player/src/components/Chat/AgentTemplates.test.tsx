@@ -7,10 +7,11 @@ import { AgentTemplates } from './AgentTemplates'
  * THE REPEAT BUTTONS, PINNED (owner, 2026-09-29).
  *
  * The configured templates had to be described from memory every time; the
- * pin here is the contract of the button that ends that: the Blogger's
- * thread carries its three template buttons, a press sends the template's
- * own prompt (verbatim, not the label), and an agent with no templates
- * shows none -- no invented buttons for a profession that has none.
+ * pin here is the contract of the button that ends that: each catalogued
+ * agent's thread carries its own (the Blogger its three, the Job agent its
+ * two), a press sends the template's own prompt (verbatim, not the label),
+ * and an agent with no templates shows none -- no invented buttons for a
+ * profession that has none.
  */
 ;(
   globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
@@ -23,6 +24,8 @@ vi.mock('@/hooks/useLanguage', () => ({
         'chat.templates.reel': 'Повторить мой рилс по шаблону',
         'chat.templates.photo': 'Нейро-фото по моему шаблону',
         'chat.templates.gift': 'Снова подарок клиенту',
+        'chat.templates.reply': 'Повторить мой отклик по шаблону',
+        'chat.templates.recruiters': 'Кто ждёт моего ответа',
       })[key] ?? key,
   }),
 }))
@@ -77,8 +80,21 @@ describe("the agent's repeat buttons", () => {
     expect(sent).toEqual([AGENT_TEMPLATES.blogger[0].prompt])
   })
 
+  it('the Job agent carries its reply and recruiter buttons', async () => {
+    await show('job')
+    const buttons = [
+      ...host.querySelectorAll<HTMLButtonElement>(
+        '[data-testid^="agent-template-"]'
+      ),
+    ]
+    expect(buttons.map(b => b.textContent)).toEqual([
+      'Повторить мой отклик по шаблону',
+      'Кто ждёт моего ответа',
+    ])
+  })
+
   it('an agent with no templates shows no buttons', async () => {
-    await show('fpga')
+    await show('not-an-agent')
     expect(host.querySelector('[data-testid="agent-templates"]')).toBeNull()
     expect(host.textContent).toBe('')
   })
