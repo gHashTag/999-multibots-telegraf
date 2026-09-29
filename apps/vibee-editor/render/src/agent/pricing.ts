@@ -41,6 +41,15 @@ import { voiceLooksDown } from './image-health'
  * reads it, presses, and is billed. Nothing about what is CHARGED changed
  * here -- only what is claimed. The guard is
  * nothing-free-is-charged.test.ts.
+ *
+ * THE POLLINATIONS HALF FOUND ITS ENDING ON 2026-09-29, AND NOT BY COMING
+ * BACK HERE. The provider became real that day -- the free rescue leg of the
+ * image chain (src/pollinations-image.ts, keyless GET, priced $0 in
+ * image-chain.ts) -- but a picture STILL costs the person the same 2 tokens
+ * whichever leg draws: one price per operation is the chain's rule, so
+ * "free-for-us" must not be sold as "free-for-you". The entry stays off this
+ * list; where it lives is the provider reference below (PROVIDERS), which is
+ * about what the PLATFORM can call, not what the person is charged.
  */
 export const FREE = [
   {
@@ -252,12 +261,16 @@ export const PROVIDERS: Record<
       'Живой запуск из нашего кода — 16.09.2026: 75 с, 6 кредитов, лицо сохранено.', // cyrillic-ok
   },
   pollinations: {
-    даёт: 'бесплатный img2img (сцены из фото)',
-    статус: 'работает',
-    env: '(ключ не нужен)',
-    как: 'Ничего настраивать не надо — keyless HTTP',
-    стоимость: '$0',
-    заметка: 'Держит образ персонажа, не точное лицо 1:1',
+    // cyrillic-ok: this reference map has Russian field names throughout
+    даёт: 'бесплатные text-to-image — спасательное звено цепочки image_generate (после платных FAL/Replicate, до Kie)', // cyrillic-ok
+    статус: 'работает', // cyrillic-ok
+    env: '(ключ не нужен)', // cyrillic-ok
+    как: 'Ничего настраивать не надо — keyless HTTP', // cyrillic-ok
+    стоимость: '$0', // cyrillic-ok
+    заметка:
+      'Подключено 2026-09-29: пока платные кошельки отказывают (FAL locked, Replicate без денег), ' + // cyrillic-ok
+      'картинки рисует оно. Человек платит те же 2 токена — бесплатно это для платформы, не для него. ' + // cyrillic-ok
+      'Качество ниже платных; img2img-пути у нас нет и не было — прежняя карточка его обещала зря.', // cyrillic-ok
   },
 }
 
