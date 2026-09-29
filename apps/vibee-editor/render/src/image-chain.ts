@@ -58,6 +58,17 @@
  * they were quoted. The cost of the choice: a leg too dear for the price is
  * not a fallback any more -- when every leg the price covers refuses, the
  * picture fails and is refunded rather than drawn at a loss.
+ *
+ * ON THE FREE LEG'S PLACE IN THE ORDER (added 2026-09-29). pollinations/flux
+ * sits AFTER both paid legs and BEFORE Kie. After the paid ones because $0 is
+ * not a reason to draw worse pictures while a funded provider says yes:
+ * quality is paid for first, and the free leg is a rescue, not a default.
+ * Before Kie because Kie is the talking heads' purse and stays last whatever
+ * else joins the chain. The day it was added, the order was the whole point:
+ * FAL and Replicate both refused on money the code cannot top up, Kie was
+ * priced out, and a chain with no runnable leg is not a chain -- every reel
+ * and poster on the platform died on the same step (the Tim reel among
+ * them). The free leg makes that day cost seconds instead of the feature.
  */
 
 import { TOKEN_PRICES, costCeilingUsd } from './agent/billing-shared'
@@ -103,6 +114,7 @@ export function falEndpointFor(model: unknown): string {
 }
 
 export const REPLICATE_IMAGE_LEG = 'replicate/flux-schnell'
+export const POLLINATIONS_IMAGE_LEG = 'pollinations/flux'
 export const KIE_IMAGE_LEG = `kie/${T2I_MODEL}`
 export const falLeg = (endpoint: string): string => `fal/${endpoint}`
 
@@ -122,6 +134,13 @@ export const falLeg = (endpoint: string): string => `fal/${endpoint}`
  *   kie/...          the generated Kie price list (kie-prices.generated.ts),
  *                    the same table every explicit Kie model is charged by;
  *                    measured end to end at 4 credits (kie-image.ts).
+ *   pollinations/... there is no bill to read: the call is a keyless GET
+ *                    with no account behind it (pollinations-image.ts,
+ *                    probed live 2026-09-29), so $0 is not an estimate but
+ *                    the absence of a charging surface. It is the ONLY $0
+ *                    row on purpose -- a second "free" vendor would need the
+ *                    same proof, and a $0 guessed for a billed provider is
+ *                    the floor's worst lie.
  *
  * A leg name that is not here reads as `null`, so a new leg added without a
  * price is skipped, not run at a loss -- and image-chain.test.ts fails on it.
@@ -132,6 +151,7 @@ export const IMAGE_LEG_COST_USD: Readonly<Record<string, number | null>> = {
   [falLeg('fal-ai/flux-pro/v1.1-ultra')]: 0.06,
   [falLeg('fal-ai/reve/text-to-image')]: 0.04,
   [REPLICATE_IMAGE_LEG]: 0.003,
+  [POLLINATIONS_IMAGE_LEG]: 0,
   [KIE_IMAGE_LEG]: СЕБЕСТОИМОСТЬ_USD[T2I_MODEL] ?? null, // cyrillic-ok: generated table name
 }
 
@@ -141,7 +161,12 @@ export function imageLegCost(name: string): number | null {
 }
 
 /** The vendors the chain has a provider call for. */
-export const IMAGE_VENDORS = ['fal', 'replicate', 'kie'] as const
+export const IMAGE_VENDORS = [
+  'fal',
+  'replicate',
+  'pollinations',
+  'kie',
+] as const
 export type ImageVendor = (typeof IMAGE_VENDORS)[number]
 
 /**
@@ -174,18 +199,26 @@ export function imageChainLegs(
   falEndpoint: string,
   run: Readonly<Record<ImageVendor, () => Promise<string>>>
 ): ImageLeg[] {
-  return [falLeg(falEndpoint), REPLICATE_IMAGE_LEG, KIE_IMAGE_LEG].map(
-    name => ({
-      name,
-      costUsd: imageLegCost(name),
-      run: run[vendorOfLeg(name)],
-    })
-  )
+  return [
+    falLeg(falEndpoint),
+    REPLICATE_IMAGE_LEG,
+    POLLINATIONS_IMAGE_LEG,
+    KIE_IMAGE_LEG,
+  ].map(name => ({
+    name,
+    costUsd: imageLegCost(name),
+    run: run[vendorOfLeg(name)],
+  }))
 }
 
 /** Every leg the route can build, for the census and the price note. */
 export function everyImageLegName(): string[] {
-  return [...FAL_IMAGE_MODELS.map(falLeg), REPLICATE_IMAGE_LEG, KIE_IMAGE_LEG]
+  return [
+    ...FAL_IMAGE_MODELS.map(falLeg),
+    REPLICATE_IMAGE_LEG,
+    POLLINATIONS_IMAGE_LEG,
+    KIE_IMAGE_LEG,
+  ]
 }
 
 /** What the `image_generate` price covers at the provider. */
