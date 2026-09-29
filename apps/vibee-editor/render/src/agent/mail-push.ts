@@ -60,6 +60,7 @@ import {
 import { askBuyerModel } from './crm-duet-tool'
 import { allProviders } from './provider'
 import {
+  DIGEST_DOOR,
   DIGEST_STALE_H,
   DRAFT_MAX_TOKENS,
   DRAFT_TIMEOUT_S,
@@ -996,6 +997,19 @@ async function newestSentIds(
 
 /* ------------------------------------------------------------------ tools */
 
+/** Digest-row coercion: a wrong type becomes null, never a thrown door. */
+function str(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v : null
+}
+function num(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null
+}
+function strArr(v: unknown): string[] {
+  return Array.isArray(v)
+    ? v.filter((x): x is string => typeof x === 'string')
+    : []
+}
+
 export const MAIL_PUSH_TOOLS: AgentTool[] = [
   {
     name: 'mail_push_sweep',
@@ -1039,6 +1053,112 @@ export const MAIL_PUSH_TOOLS: AgentTool[] = [
         fresh: pulseFresh(ageMin),
         seen: (row.seen as string[]).length,
         sent_seen: ((row.sent as string[] | null) ?? []).length,
+      }
+    },
+  },
+  {
+    // v2.1 (#5174): the PostgREST gateway serves a different database than
+    // this ledger (measured: mail_push_state is 42P01 through the gateway
+    // while the sweep writes it), so the digest arrives through the only
+    // door that reaches the ledger -- this one. The receiver stamps
+    // exported_at: one clock decides freshness, not whatever jcrm's laptop
+    // thinks the time is.
+    name: DIGEST_DOOR,
+    description:
+      'Дверь для CRM-дайджеста: jcrm export кладёт сюда сводку по материям, ' + // cyrillic-ok: tool description for the model
+      'карточка письма и черновик отвечают потом из неё. Всё свежее — по часам ' + // cyrillic-ok: tool description for the model
+      'приёмника, протухшее (26 ч) показано не будет.', // cyrillic-ok: tool description for the model
+    parameters: {
+      type: 'object',
+      properties: {
+        rows: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              matter: { type: 'string' },
+              stage: { type: ['string', 'null'] },
+              owes_reply: { type: ['string', 'null'] },
+              days_since: { type: ['integer', 'null'] },
+              next_action: { type: ['string', 'null'] },
+              counterparties: { type: 'array', items: { type: 'string' } },
+              channels: { type: 'array', items: { type: 'string' } },
+              history: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    at: { type: 'string' },
+                    dir: { type: 'string' },
+                    subject: { type: ['string', 'null'] },
+                    summary: { type: ['string', 'null'] },
+                  },
+                  required: ['at', 'dir'],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ['matter'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['rows'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx?: ToolContext) {
+      requireOwner(ctx!)
+      await ensureStateTable(ctx!.pool)
+      const rows = (args as { rows: unknown[] }).rows ?? []
+      const accepted: string[] = []
+      const refused: Array<{ matter: string; why: string }> = []
+      for (const r of rows) {
+        const row = r as Record<string, unknown>
+        const matter = typeof row.matter === 'string' ? row.matter.trim() : ''
+        if (!matter) {
+          refused.push({
+            matter: String(row.matter ?? '(absent)'),
+            why: 'matter must be a non-empty string',
+          })
+          continue
+        }
+        await ctx!.pool.query(
+          `INSERT INTO ${DIGEST_TABLE}
+             (matter, stage, owes_reply, days_since, next_action,
+              counterparties, channels, history, exported_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, now())
+           ON CONFLICT (matter) DO UPDATE SET
+             stage = $2, owes_reply = $3, days_since = $4, next_action = $5,
+             counterparties = $6, channels = $7, history = $8::jsonb,
+             exported_at = now()`,
+          [
+            matter,
+            str(row.stage),
+            str(row.owes_reply),
+            num(row.days_since),
+            str(row.next_action),
+            strArr(row.counterparties),
+            strArr(row.channels),
+            JSON.stringify(
+              (Array.isArray(row.history) ? row.history : []).map(h => {
+                const x = h as Record<string, unknown>
+                return {
+                  at: str(x.at) ?? '',
+                  dir: str(x.dir) ?? '',
+                  subject: str(x.subject),
+                  summary: str(x.summary),
+                }
+              })
+            ),
+          ]
+        )
+        accepted.push(matter)
+      }
+      return {
+        accepted: accepted.length,
+        matters: accepted,
+        refused,
+        stamped_by: 'receiver clock',
       }
     },
   },
