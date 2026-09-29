@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
+// Its own classes: the panel used to live only on the CRM client page, which
+// imported these for it. It now mounts in the chat aside too, where neither
+// page css is loaded -- so it carries them itself (vibee-stack-hard-won: a
+// fix in a file nobody renders is no fix).
+import '../../pages/Crm.css'
+import '../../pages/CrmClient.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
 import { coveredByNotice } from '@/components/Crm/refusalRules'
