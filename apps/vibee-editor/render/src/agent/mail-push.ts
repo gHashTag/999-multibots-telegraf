@@ -176,12 +176,17 @@ export async function saveSeen(
   seen: string[],
   sent?: string[]
 ): Promise<void> {
+  // $3 is always a real array, never undefined: an untyped COALESCE($3, '{}')
+  // makes Postgres infer the expression as text, and text[] rejects it
+  // (measured live: "column \"sent\" is of type text[] but expression is of
+  // type text" on the first v2 sweep). A bare $3 infers text[] from the column,
+  // exactly like seen = $2 always has.
   await pool.query(
     `INSERT INTO mail_push_state (owner, seen, sent, updated_at)
-     VALUES ($1, $2, COALESCE($3, '{}'), now())
+     VALUES ($1, $2, $3, now())
      ON CONFLICT (owner)
      DO UPDATE SET seen = $2, updated_at = now()${sent ? ', sent = $3' : ''}`,
-    [owner, capSeen(seen), sent ? capSeen(sent) : undefined]
+    [owner, capSeen(seen), capSeen(sent ?? [])]
   )
 }
 
