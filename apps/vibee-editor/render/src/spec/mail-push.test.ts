@@ -7,9 +7,9 @@ import * as SPEC from './mail-push.gen'
  * gHashTag/t27 specs/automation/mail-push.t27 is the spec of record; that
  * the vendored copy, its generated module and the host agree is held by
  * scripts/check-t27-specs.mjs. Here each `test` of the spec runs against the
- * HOST: the pure decisions and the sweep of src/agent/mail-push.ts (the tool
- * mail_push_sweep), with a stubbed mailbox, stubbed cards and a stubbed
- * composer -- no Zoho, no Telegram, no provider is touched.
+ * HOST: the pure decisions and the sweep of src/agent/mail-push.ts (the tools
+ * mail_push_sweep and mail_push_pulse), with a stubbed mailbox, stubbed cards
+ * and a stubbed composer -- no Zoho, no Telegram, no provider is touched.
  *
  * Refresh: node scripts/sync-t27-spec.mjs <t27 checkout> automation/mail-push
  */
@@ -22,6 +22,8 @@ type Outcome = {
   settled: Array<{ messageId: string; sent: boolean; state: string }>
   drafts_failed: number
   carried: number
+  /** v2: manual replies the Sent watch caught and recorded this tick. */
+  sent_watched: number
   busy?: boolean
 }
 
@@ -37,17 +39,45 @@ function letter(id: number, from = 'Someone <s@example.com>') {
   }
 }
 
-/** The mailbox as the sweep sees it: folders, one view, letter bodies, sends. */
-function stubMailbox(letters: Array<Record<string, unknown>>) {
+/** One item in the stubbed Sent folder -- ids are Zoho sent ids, not ours. */
+function sentItem(id: string, subject: string, to = 'hr@counter.example') {
+  return {
+    messageId: id,
+    folderId: 'f-sent',
+    fromAddress: 'admin@t27.ai',
+    toAddress: to,
+    subject,
+    receivedTime: Date.now(),
+  }
+}
+
+/**
+ * The mailbox as the sweep sees it: folders, one view per folder, letter
+ * bodies, sends. With `sentLetters` the Sent folder exists too and the view
+ * dispatches by folderId -- otherwise the Sent watch finds no folder, exactly
+ * like a mailbox where it is hidden.
+ */
+function stubMailbox(
+  letters: Array<Record<string, unknown>>,
+  sentLetters: Array<Record<string, unknown>> | null = null
+) {
   const sends: Array<Record<string, unknown>> = []
   return {
     sends,
     whoAccount: async () => ({ id: 'acct', email: 'admin@t27.ai' }),
     api: async (path: string, query?: Record<string, unknown>) => {
       if (path.endsWith('/folders')) {
-        return { data: [{ folderId: 'f-inbox', folderType: 'Inbox' }] }
+        return {
+          data: [
+            { folderId: 'f-inbox', folderType: 'Inbox' },
+            ...(sentLetters
+              ? [{ folderId: 'f-sent', folderType: 'Sent' }]
+              : []),
+          ],
+        }
       }
       if (path.endsWith('/messages/view')) {
+        if (query?.folderId === 'f-sent') return { data: sentLetters ?? [] }
         const limit = Number(query?.limit ?? SPEC.VIEW_LIMIT)
         return { data: letters.slice(0, limit) }
       }
@@ -63,7 +93,12 @@ function stubMailbox(letters: Array<Record<string, unknown>>) {
   }
 }
 
-/** Cards out, taps back, sends recorded -- the whole owner side, stubbed. */
+/**
+ * Cards out, taps back, sends recorded, settles written back -- the whole
+ * owner side, stubbed. v2: `record` collects every outcome row and
+ * `recordFeedback` every manual reply the Sent watch catches, so the tests
+ * can hold the write-back law, not just trust it.
+ */
 function stubDeps(
   taps: Record<string, string> = {},
   compose: (m: unknown) => Promise<string | null> = async () =>
@@ -71,10 +106,16 @@ function stubDeps(
 ) {
   const cards: string[] = []
   const sent: Array<Record<string, unknown>> = []
+  const recorded: Array<Record<string, unknown>> = []
+  const feedback: Array<Record<string, unknown>> = []
+  const composed: Array<{ subject: unknown; history: unknown }> = []
   let n = 0
   return {
     cards,
     sent,
+    recorded,
+    feedback,
+    composed,
     deps: {
       ask: async (_ctx: unknown, what: string) => {
         cards.push(what)
@@ -82,29 +123,77 @@ function stubDeps(
       },
       answer: async (_ctx: unknown, id: string) =>
         taps[id] ? { state: taps[id], telegramId: OWNER } : null,
-      compose,
+      compose: async (m: { subject: unknown; history?: unknown }) => {
+        composed.push({ subject: m.subject, history: m.history })
+        return compose(m)
+      },
       send: async (p: Record<string, unknown>) => {
         sent.push(p)
         return { messageId: 'sent-1' }
+      },
+      record: async (_ctx: unknown, o: Record<string, unknown>) => {
+        recorded.push(o)
+      },
+      recordFeedback: async (_ctx: unknown, f: Record<string, unknown>) => {
+        feedback.push(f)
       },
     },
   }
 }
 
-/** The sweep's Postgres: one table, the seen set read back per test. */
-function statePool(rows: Array<{ seen: string[] }> = []) {
+/**
+ * The sweep's Postgres: the cursor read back per test, the digest and the
+ * offered-draft lookup answered from fixtures. Nothing ours is ever in the
+ * outcomes table here -- `knownOursId` must say no, so the only thing that
+ * can mark a Sent id ours in these tests is the send itself.
+ */
+function statePool(
+  rows: Array<{ seen: string[]; sent?: string[] | null }> = [],
+  extra: {
+    digest?: Array<Record<string, unknown>>
+    outcomeDrafts?: Array<{ thread: string; draft: string; at: string }>
+  } = {}
+) {
   const pool = {
     saved: null as string[] | null,
+    savedSent: null as string[] | null,
     async query(_sql: string, params: unknown[] = []) {
+      if (/FROM crm_matter_digest/i.test(_sql))
+        return { rows: extra.digest ?? [] }
+      if (/sent_id = \$1/i.test(_sql)) return { rows: [] }
+      if (/draft IS NOT NULL/i.test(_sql)) {
+        const thread = String(params[0] ?? '')
+        return {
+          rows: (extra.outcomeDrafts ?? []).filter(o => o.thread === thread),
+        }
+      }
       if (/SELECT seen/i.test(_sql)) return { rows }
+      if (/SELECT sent/i.test(_sql)) return { rows }
       if (/INSERT INTO mail_push_state/i.test(_sql)) {
         pool.saved = params[1] as string[]
+        if (params[2]) pool.savedSent = params[2] as string[]
         return { rows: [] }
       }
       return { rows: [] }
     },
   }
   return pool
+}
+
+/** The pulse's one query, answered with one cursor row (or none). */
+function pulsePool(updatedAt: string | null) {
+  return {
+    async query(sql: string) {
+      if (/SELECT seen, sent, updated_at/i.test(sql)) {
+        return updatedAt
+          ? {
+              rows: [{ seen: ['1'], sent: ['s1'], updated_at: updatedAt }],
+            }
+          : { rows: [] }
+      }
+      return { rows: [] }
+    },
+  }
 }
 
 async function host() {
@@ -116,24 +205,46 @@ async function sweepWith(
   letters: Array<Record<string, unknown>>,
   opts: {
     seen?: string[] | null
+    /** The Sent cursor's baseline: what the watch already knows. */
+    sentSeen?: string[]
     taps?: Record<string, string>
     compose?: (m: unknown) => Promise<string | null>
+    /** Sent-folder contents; null = the mailbox exposes no Sent folder. */
+    sentLetters?: Array<Record<string, unknown>> | null
+    digest?: Array<Record<string, unknown>>
+    outcomeDrafts?: Array<{ thread: string; draft: string; at: string }>
     /** Runs after the stubs are in, before the sweep: seed pending cards. */
     seed?: (mp: Awaited<ReturnType<typeof host>>) => void
   } = {}
 ) {
   const mp = await host()
-  const box = stubMailbox(letters)
+  const box = stubMailbox(letters, opts.sentLetters ?? null)
   mp.setMailboxForPushTests(box as never)
-  const { deps, cards, sent } = stubDeps(opts.taps, opts.compose)
+  const { deps, cards, sent, recorded, feedback, composed } = stubDeps(
+    opts.taps,
+    opts.compose
+  )
   mp.setPushDepsForTests(deps as never)
   opts.seed?.(mp)
   const pool = statePool(
-    opts.seen === undefined ? [] : [{ seen: opts.seen ?? [] }]
+    opts.seen === undefined
+      ? []
+      : [{ seen: opts.seen ?? [], sent: opts.sentSeen ?? null }],
+    { digest: opts.digest, outcomeDrafts: opts.outcomeDrafts }
   )
   const ctx = { telegramId: OWNER, pool } as never
   const result = (await mp.MAIL_PUSH_TOOLS[0].handler({}, ctx)) as Outcome
-  return { result, cards, pool, sends: box.sends, sentDeps: sent, mp }
+  return {
+    result,
+    cards,
+    pool,
+    sends: box.sends,
+    sentDeps: sent,
+    recorded,
+    feedback,
+    composed,
+    mp,
+  }
 }
 
 beforeEach(() => {
@@ -358,5 +469,269 @@ describe("the spec's tests hold against the host", () => {
     const ctx = { telegramId: OWNER, pool: statePool() } as never
     const out = await mp.MAIL_PUSH_TOOLS[0].handler({}, ctx)
     expect(out).toMatchObject({ configured: false })
+  })
+
+  it('a stale digest is refused, not shown', async () => {
+    const mp = await host()
+    expect(mp.digestFresh(0)).toBe(true)
+    expect(mp.digestFresh(26)).toBe(true)
+    expect(mp.digestFresh(27)).toBe(false)
+    expect(SPEC.DIGEST_STALE_H).toBe(26)
+    expect(SPEC.HISTORY_MESSAGES).toBeGreaterThanOrEqual(1)
+    expect(SPEC.HISTORY_CHARS).toBeLessThanOrEqual(200)
+    expect(SPEC.DIGEST_TABLE).toBe('crm_matter_digest')
+
+    // jcrm's export, fresh and stale: same matter, one exported now, one 27 h ago
+    const digest = (exportedAt: string) => ({
+      matter: 'm-labs',
+      stage: 'interview',
+      owes_reply: 'us',
+      days_since: 3,
+      next_action: 'send the reminder',
+      counterparties: ['hr@mlabs.example'],
+      channels: ['mail', 'hh'],
+      history: Array.from({ length: 8 }, (_, i) => ({
+        at: '2026-09-28',
+        dir: i % 2 ? 'out' : 'in',
+        subject: `thread line ${i}`,
+        summary: 'x'.repeat(260),
+      })),
+      exported_at: exportedAt,
+    })
+    const now = new Date().toISOString()
+    const stale = new Date(Date.now() - 27 * 3_600_000).toISOString()
+
+    // matterBlock refuses the stale digest outright: no CRM line, ever
+    expect(mp.matterBlock(digest(now))).toContain('CRM: m-labs')
+    expect(mp.matterBlock(digest(stale))).toBe(null)
+
+    // A fresh digest rides on the card and feeds the composer -- clipped to
+    // the spec's six lines and 200 chars each
+    const fresh = await sweepWith([letter(31, 'HR <hr@mlabs.example>')], {
+      seen: [],
+      digest: [digest(now)],
+    })
+    expect(fresh.cards[0]).toContain(
+      'CRM: m-labs — stage interview, WE owe the reply (3d since the last word)'
+    )
+    expect(fresh.cards[0]).toContain('channels: mail, hh')
+    expect(fresh.composed[0].history).toBeTruthy()
+    const lines = String(fresh.composed[0].history).split('\n')
+    expect(lines).toHaveLength(SPEC.HISTORY_MESSAGES)
+    for (const l of lines)
+      expect(l.length).toBeLessThanOrEqual(SPEC.HISTORY_CHARS + 1)
+
+    // The stale one is refused on both roads: no card line, no history
+    const cold = await sweepWith([letter(32, 'HR <hr@mlabs.example>')], {
+      seen: [],
+      digest: [digest(stale)],
+    })
+    expect(cold.cards[0]).not.toContain('CRM:')
+    expect(cold.composed[0].history).toBe(null)
+  })
+
+  it("the Sent folder separates our tap-sends from the owner's manual replies", async () => {
+    const mp = await host()
+    expect(SPEC.SENT_WATCH).toBe(true)
+    expect(mp.sentIsNews(true, false)).toBe(false)
+    expect(mp.sentIsNews(false, true)).toBe(false)
+    expect(mp.sentIsNews(false, false)).toBe(true)
+    expect(SPEC.SENT_LIMIT).toBeLessThanOrEqual(SPEC.SEEN_CAP)
+    expect(SPEC.IDENTITY).toBe('enumeration message_id')
+
+    // One tick, three Sent items: 'sent-1' is OURS (the send below returns
+    // that id and the process remembers it), 'sent-2' was typed by hand in
+    // the webmail, 'sent-3' the cursor already knows. Only the manual reply
+    // is evidence; our own send must not come back as a "manual" reply.
+    const base = {
+      to: 's@example.com',
+      subject: 'Re: subject 9',
+      body: 'the drafted reply',
+      owner: OWNER,
+      at: Date.now(),
+    }
+    const run = await sweepWith([letter(30)], {
+      seen: [],
+      taps: { 'tap-allow': 'allowed' },
+      sentLetters: [
+        sentItem('sent-1', 'Re: subject 9'),
+        sentItem('sent-2', 'Re: subject 9'),
+        sentItem('sent-3', 'Re: an old matter'),
+      ],
+      sentSeen: ['sent-3'],
+      seed: mp => {
+        mp.pendingPushes().set('tap-allow', { ...base, replyTo: '25' })
+      },
+    })
+    expect(run.result.settled).toContainEqual({
+      messageId: '25',
+      sent: true,
+      state: 'allowed',
+    })
+    expect(run.result.sent_watched).toBe(1)
+    expect(run.feedback).toHaveLength(1)
+    expect(run.feedback[0]).toMatchObject({
+      letter_subject: 'Re: subject 9',
+      offered_draft: null,
+    })
+    expect(String(run.feedback[0].actual_text)).toContain('the letter body')
+    // The cursor learned all three: nothing is re-examined next tick
+    expect([...(run.pool.savedSent ?? [])].sort()).toEqual([
+      'sent-1',
+      'sent-2',
+      'sent-3',
+    ])
+  })
+
+  it('every outcome is written back: allowed sends, denials and expiries', async () => {
+    const mp = await host()
+    expect(SPEC.OUTCOMES_TABLE).toBe('mail_push_outcomes')
+    expect(mp.mayTransmit('allowed')).toBe(true)
+    expect(mp.mayTransmit('denied')).toBe(false)
+
+    // Three cards settle in one tick -- Allow, Deny, and one whose TTL ran
+    // out between ticks. Three outcome rows leave with it, the Allow's
+    // carrying the id of the copy now sitting in Sent.
+    const base = {
+      to: 's@example.com',
+      subject: 'Re: subject 9',
+      body: 'the drafted reply',
+      owner: OWNER,
+      at: Date.now(),
+    }
+    const run = await sweepWith([letter(13)], {
+      seen: [],
+      taps: { 'tap-allow': 'allowed', 'tap-deny': 'denied' },
+      seed: mp => {
+        mp.pendingPushes().set('tap-allow', { ...base, replyTo: '9' })
+        mp.pendingPushes().set('tap-deny', { ...base, replyTo: '10' })
+        mp.pendingPushes().set('tap-old', {
+          ...base,
+          replyTo: '11',
+          at: Date.now() - 11 * 60 * 1000,
+        })
+      },
+    })
+    expect(run.recorded).toHaveLength(3)
+    expect(run.recorded).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message_id: '9',
+          thread: 'subject 9',
+          state: 'allowed',
+          sent: true,
+          sent_id: 'sent-1',
+        }),
+        expect.objectContaining({
+          message_id: '10',
+          state: 'denied',
+          sent: false,
+          sent_id: null,
+        }),
+        expect.objectContaining({
+          message_id: '11',
+          state: 'expired',
+          sent: false,
+          sent_id: null,
+        }),
+      ])
+    )
+  })
+
+  it('a manual reply is paired with the draft that was offered', async () => {
+    const mp = await host()
+    expect(mp.pairsManualReply(true, 0)).toBe(true)
+    expect(mp.pairsManualReply(true, 48)).toBe(true)
+    expect(mp.pairsManualReply(true, 49)).toBe(false)
+    expect(mp.pairsManualReply(false, 0)).toBe(false)
+    expect(SPEC.FEEDBACK_TABLE).toBe('mail_push_feedback')
+    expect(SPEC.FEEDBACK_PAIR_H).toBe(48)
+
+    // Same thread, card still warm: the feedback row carries the draft this
+    // desk offered for that matter
+    const warm = await sweepWith([letter(14)], {
+      seen: [],
+      sentLetters: [sentItem('sent-7', 'Re: subject 9')],
+      sentSeen: [],
+      outcomeDrafts: [
+        {
+          thread: 'subject 9',
+          draft: 'the offered draft',
+          at: new Date().toISOString(),
+        },
+      ],
+    })
+    expect(warm.feedback).toHaveLength(1)
+    expect(warm.feedback[0]).toMatchObject({
+      offered_draft: 'the offered draft',
+    })
+
+    // Card gone cold (49 h): the reply is still recorded as evidence, but no
+    // pair is forced -- a draft from last week proves nothing about today's
+    const cold = await sweepWith([letter(15)], {
+      seen: [],
+      sentLetters: [sentItem('sent-8', 'Re: subject 9')],
+      sentSeen: [],
+      outcomeDrafts: [
+        {
+          thread: 'subject 9',
+          draft: 'the offered draft',
+          at: new Date(Date.now() - 49 * 3_600_000).toISOString(),
+        },
+      ],
+    })
+    expect(cold.feedback).toHaveLength(1)
+    expect(cold.feedback[0].offered_draft).toBe(null)
+
+    // And a draft of ANOTHER matter never pairs, however warm
+    const other = await sweepWith([letter(16)], {
+      seen: [],
+      sentLetters: [sentItem('sent-9', 'Re: subject 9')],
+      sentSeen: [],
+      outcomeDrafts: [
+        {
+          thread: 'a different matter',
+          draft: 'the offered draft',
+          at: new Date().toISOString(),
+        },
+      ],
+    })
+    expect(other.feedback).toHaveLength(1)
+    expect(other.feedback[0].offered_draft).toBe(null)
+  })
+
+  it('the heartbeat alarms when the sweep goes quiet', async () => {
+    const mp = await host()
+    expect(mp.pulseFresh(0)).toBe(true)
+    expect(mp.pulseFresh(30)).toBe(true)
+    expect(mp.pulseFresh(31)).toBe(false)
+    expect(SPEC.PULSE_TOOL).toBe('mail_push_pulse')
+    expect(SPEC.PULSE_CRON).toBe('17 9 * * *')
+    expect(SPEC.PULSE_STALE_MIN).toBe(30)
+
+    const pulse = mp.MAIL_PUSH_TOOLS.find(t => t.name === SPEC.PULSE_TOOL)
+    expect(pulse).toBeTruthy()
+    const at = (updatedAt: string | null) =>
+      ({ telegramId: OWNER, pool: pulsePool(updatedAt) }) as never
+
+    // The cursor moved this tick: fresh
+    const live = (await pulse!.handler(
+      {},
+      at(new Date().toISOString())
+    )) as Record<string, unknown>
+    expect(live).toMatchObject({ baselined: true, fresh: true, age_min: 0 })
+
+    // Six missed ticks and more: the pulse is stale -- this is what the
+    // daily cron throws on, so its failure handler alarms
+    const stale = (await pulse!.handler(
+      {},
+      at(new Date(Date.now() - 40 * 60_000).toISOString())
+    )) as { fresh: boolean; age_min: number }
+    expect(stale.fresh).toBe(false)
+    expect(stale.age_min).toBeGreaterThanOrEqual(31)
+
+    // No cursor row at all: not fresh either -- silence is not health
+    const none = (await pulse!.handler({}, at(null))) as Record<string, unknown>
+    expect(none).toMatchObject({ baselined: false, fresh: false })
   })
 })

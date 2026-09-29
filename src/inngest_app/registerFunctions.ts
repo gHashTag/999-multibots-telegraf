@@ -73,6 +73,7 @@ import { robokassaUnclaimedWatch } from './functions/money/robokassaUnclaimedWat
 
 // Mail Functions
 import { mailPushSweep } from './functions/mail/mailPushSweep'
+import { mailPushHeartbeat } from './functions/mail/mailPushHeartbeat'
 
 // Analytics Functions
 import { dailySalesAdvisor } from './functions/analytics/dailySalesAdvisor'
@@ -163,10 +164,13 @@ const allFunctionsRaw = [
   // CRM (1): the seller's 30-min tick, moved from setInterval to a cron run
   // so every sweep has a trace (CRM_SWEEP_DRIVER=timer restores the interval).
   crmProactiveSweep,
-  // Mail (1): the owner's mailbox pushed -- every 5 min the render's
+  // Mail (2): the owner's mailbox pushed -- every 5 min the render's
   // mail_push_sweep (specs/automation/mail-push.t27) cards new letters to
-  // his chat with a drafted reply, sent only by his tap.
+  // his chat with a drafted reply, sent only by his tap; and a daily
+  // mail_push_pulse that THROWS when the sweep's cursor goes quiet past the
+  // spec's 30 min, so a dead cron alarms instead of silencing.
   mailPushSweep,
+  mailPushHeartbeat,
   // Hourly: coins on the chain that nothing ever credited. Reads only; the
   // TON channel completes on the payer's press, so without this nobody looks.
   tonPendingWatch,
