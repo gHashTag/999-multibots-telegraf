@@ -11,6 +11,9 @@
  *   - it follows a session ONCE. After that the person may walk away and
  *     stay away; the app will not drag them back every ten seconds.
  *   - it never interrupts somebody already looking at the browser.
+ *   - it never drags anybody off the Queen's throne: there the work is
+ *     already on screen, embedded in the board with the agent's journal
+ *     beside it, so the jump would trade the better view for a worse one.
  *   - a new session is a new event, because that is a new piece of work
  *     worth seeing.
  *
@@ -32,11 +35,22 @@ export interface FollowInput {
 
 export const BROWSER_ROUTE = '/browser'
 
+/*
+ * The Queen's throne: /queen and /hive both render the board, and the board's
+ * browser tab shows the live pod inside its own window (owner, 2026-09-29 --
+ * it opens embedded; the full screen is a button there, not a takeover
+ * either). A person sitting there is watching the agent already.
+ */
+export const THRONE_ROUTES = ['/queen', '/hive'] as const
+
 export function shouldFollow(i: FollowInput): boolean {
   if (i.state !== 'live') return false
   if (!i.sessionId) return false
   /* Already watching: nothing to jump to. */
   if (i.currentPath.startsWith(BROWSER_ROUTE)) return false
+  /* On the throne the board itself shows the work -- a jump would steal
+   * the screen away from the better view. */
+  if (THRONE_ROUTES.some(r => i.currentPath.startsWith(r))) return false
   /* Followed once already -- their choice to be elsewhere stands. */
   if (i.followedSessionId === i.sessionId) return false
   return true
