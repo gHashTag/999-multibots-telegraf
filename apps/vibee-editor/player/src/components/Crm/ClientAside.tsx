@@ -21,6 +21,7 @@ import {
 } from '@/lib/crm'
 import { Avatar } from '@/components/Crm/Avatar'
 import { ClientGroup } from '@/components/Crm/ClientGroup'
+import { StoryReelPanel } from '@/components/Crm/StoryReelPanel'
 import {
   ClientDrafts,
   ClientFeed,
@@ -209,6 +210,32 @@ export function ClientAside({
         )
       : []
   const highlights = profileHighlights(pr?.profile ?? null)
+  /**
+   * THE PORTRAIT GIFT, as one row with a state and at most one button. The
+   * same `crm.move.*.ask` texts the strategy moves use, so the agent is
+   * asked identically from either place; a drawing or given portrait is a
+   * fact the server owns, and the row shows it without a button to press.
+   */
+  const portrait = ctx?.portrait
+  const portraitState = portrait?.given
+    ? t('crm.aside.portrait.given')
+    : portrait?.ready
+      ? t('crm.aside.portrait.ready')
+      : portrait?.drawing
+        ? t('crm.aside.portrait.drawing')
+        : t('crm.aside.portrait.none')
+  const portraitMove: 'portraitGive' | 'portraitSend' | null = portrait?.given
+    ? null
+    : portrait?.drawing
+      ? null
+      : portrait?.ready
+        ? 'portraitSend'
+        : 'portraitGive'
+  // The gifts section above owns the portrait now; a move list that repeats
+  // it next to the same button says the same thing twice.
+  const shownMoves = moves.filter(
+    m => m.id !== 'portraitGive' && m.id !== 'portraitSend'
+  )
   const percent =
     pl && pl.total > 0 ? Math.round((pl.done / pl.total) * 100) : 0
   const openItems = (pl?.items ?? [])
@@ -320,14 +347,52 @@ export function ClientAside({
       {/* Cards for this client waiting for the owner's press. */}
       <ClientDrafts client={client} />
 
+      {/* THE TWO LEAD MAGNETS, ALWAYS ON THE CARD (owner, 2026-09-29: "why
+          are there no gift buttons?"). Until now the portrait lived only as a
+          strategy move -- crowded out by the three-move cap -- and the reel
+          panel only on the client page, one navigation away from the chat.
+          Both are presses that put a task to the agent in THIS conversation:
+          the agent proposes a card, the owner sends it. Nothing here writes
+          to the client directly. */}
+      {context.reachable ? (
+        <section
+          className="chat-aside__gifts"
+          aria-label={t('crm.aside.gifts')}
+          data-testid="chat-aside-gifts"
+        >
+          <h3 className="chat-aside__label">{t('crm.aside.gifts')}</h3>
+          {/* No. 1: the portrait. One gift per person; a portrait being drawn
+              or already given is a state, not a button. */}
+          <div className="chat-aside__gift" data-testid="gift-portrait">
+            <span>{t('crm.aside.portrait')}</span>
+            <small>{portraitState}</small>
+            {portraitMove && onAsk ? (
+              <button
+                type="button"
+                disabled={askDisabled}
+                onClick={() => askMove(portraitMove)}
+              >
+                {portraitMove === 'portraitSend'
+                  ? t('crm.aside.gift.portrait.send')
+                  : t('crm.aside.gift.portrait.give')}
+              </button>
+            ) : null}
+          </div>
+          {/* No. 2: the story reel. The panel asks the server itself, refuses
+              quietly for a viewer it is not for, and starts a job whose
+              finished reel comes back here as a press-to-send card. */}
+          <StoryReelPanel clientId={client} />
+        </section>
+      ) : null}
+
       {ctx?.assistantOff ? (
         <p className="chat-aside__stop">{t('crm.aside.assistantOff')}</p>
       ) : null}
 
-      {moves.length > 0 ? (
+      {shownMoves.length > 0 ? (
         <section className="chat-aside__moves" aria-label={t('crm.aside.next')}>
           <h3 className="chat-aside__label">{t('crm.aside.next')}</h3>
-          {moves.map(m => (
+          {shownMoves.map(m => (
             <div key={m.id} className="chat-aside__move" data-tone={m.tone}>
               <span>{t(`crm.move.${m.id}`)}</span>
               {(experience?.[m.id]?.used ?? 0) >= MIN_MOVE_USES ? (

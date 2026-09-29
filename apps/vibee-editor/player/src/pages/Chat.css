@@ -834,6 +834,41 @@ html[data-keyboard='open'] .chat-page {
   flex-direction: column;
   gap: 6px;
 }
+/* The gifts section owns its rows (the reel panel brings its own). A gift
+   row is NOT a move: no tone, no re-ranking, always on the card. */
+.chat-aside__gifts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-aside__gift {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+}
+.chat-aside__gift span {
+  flex: 1;
+}
+.chat-aside__gift small {
+  flex: 0 0 auto;
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+.chat-aside__gift button {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--t27-accent, #00ff88);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
 .chat-aside__move {
   display: flex;
   align-items: center;

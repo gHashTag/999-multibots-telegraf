@@ -415,6 +415,9 @@ const en: Translations = {
   'crm.aside.portrait.ready': 'ready — not sent yet',
   'crm.aside.portrait.drawing': 'being drawn',
   'crm.aside.portrait.none': 'not yet',
+  'crm.aside.gifts': 'Gifts',
+  'crm.aside.gift.portrait.give': 'Give',
+  'crm.aside.gift.portrait.send': 'Send',
   'crm.aside.package.none': 'No client package: no rules written yet.',
   'crm.aside.plan.none': 'No content plan yet.',
   'crm.aside.note.placeholder': 'A note about this client…',
@@ -712,6 +715,11 @@ const en: Translations = {
   'crm.card.note':
     'Who wrote and is waiting, who is warm, the content plan and the launch tasks.',
   'crm.card.open': 'Open CRM',
+  // The person's own story reels, own profile only (components/Profile/StoryCard.tsx)
+  'story.card.title': '🎬 My story reels',
+  'story.card.note':
+    'My face, my voice, any topic: a reel in one press, when both halves are set.',
+  'story.card.open': 'Open story reels',
   // The clone's networks, own profile only (components/Profile/CloneNetworksCard.tsx)
   'clone.networks.title': "🌐 My clone's networks",
   'clone.networks.note':
@@ -3011,6 +3019,9 @@ const ru: Translations = {
   'crm.aside.portrait.ready': 'готов — ещё не отправлен',
   'crm.aside.portrait.drawing': 'рисуется',
   'crm.aside.portrait.none': 'ещё нет',
+  'crm.aside.gifts': 'Подарки',
+  'crm.aside.gift.portrait.give': 'Подарить',
+  'crm.aside.gift.portrait.send': 'Отправить',
   'crm.aside.package.none': 'Пакета нет: правила не записаны.',
   'crm.aside.plan.none': 'Контент-плана пока нет.',
   'crm.aside.note.placeholder': 'Заметка о клиенте…',
@@ -3298,6 +3309,10 @@ const ru: Translations = {
   'crm.card.note':
     'Кто написал и ждёт, кто горячий, контент-план и задачи запуска.',
   'crm.card.open': 'Открыть CRM',
+  'story.card.title': '🎬 Мои рилсы-истории',
+  'story.card.note':
+    'Моё лицо, мой голос, любая тема: рилс одним нажатием, когда обе половины готовы.',
+  'story.card.open': 'Открыть рилсы',
   'clone.networks.title': '🌐 Сети моего клона',
   'clone.networks.note':
     'Где ваш браузер уже вошёл — по его входам. Пароли не видит никто, даже агент.',
