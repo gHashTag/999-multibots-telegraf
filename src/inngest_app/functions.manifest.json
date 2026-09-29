@@ -1378,6 +1378,35 @@
       ]
     },
     {
+      "id": "mail-push-heartbeat",
+      "legacy_id": "",
+      "domain": "mail",
+      "trigger": "cron",
+      "event": "",
+      "legacy_events": [],
+      "cron": "17 9 * * *",
+      "tz": "UTC",
+      "file": "src/inngest_app/functions/mail/mailPushHeartbeat.ts",
+      "steps": ["pulse"],
+      "retries": 0,
+      "on_failure": "admin-telegram",
+      "side_effects": [],
+      "guard": "none",
+      "safe_probe": "{}",
+      "probe_result": "not-deployed",
+      "probe_expect": "COMPLETED",
+      "deployed_2026_09_09": false,
+      "control": "spec+code",
+      "export": "mailPushHeartbeat",
+      "notes": [
+        "2026-09-29: the sweep's pulse, asked once a day -- one POST to the render's mail_push_pulse as the owner over /mcp; a cursor older than the spec's 30 min (six missed 5-min ticks) THROWS, and the throw is the alarm: the failure handler writes admin Telegram",
+        "a failed probe call alarms too: 'cannot prove the sweep lives' is the same silence as a stale cursor; one alarm per outage day, retries 0",
+        "the judgement lives in the render tool (mail_push_pulse reads mail_push_state.updated_at); this cron only refuses to be quiet",
+        "safe mode (e2e_test=true probe): skipped entirely; the run COMPLETES with {skipped:true}",
+        "spec of record: gHashTag/t27 specs/automation/mail-push.t27 v2 (issue #5174): PULSE_CRON 17 9 * * *, PULSE_STALE_MIN 30"
+      ]
+    },
+    {
       "id": "ton-pending-watch",
       "legacy_id": "",
       "domain": "money",

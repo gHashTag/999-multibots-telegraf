@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "mail-push" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const TOOL = "mail_push_sweep" satisfies string;
 export const CALLER = "inngest-cron" satisfies string;
 export const DOOR = "/mcp" satisfies string;
@@ -28,10 +28,32 @@ export const DRAFT_MAX_TOKENS = 700 satisfies number;
 export const DRAFT_FAILURE_PUSHES_ANYWAY = true satisfies boolean;
 export const SEND_TOOL = "mail_send" satisfies string;
 export const SEND_NEEDS_TAP = true satisfies boolean;
+export const SENT_WATCH = true satisfies boolean;
+export const SENT_LIMIT = 25 satisfies number;
+export const OUTCOMES_TABLE = "mail_push_outcomes" satisfies string;
+export const FEEDBACK_TABLE = "mail_push_feedback" satisfies string;
+export const DIGEST_TABLE = "crm_matter_digest" satisfies string;
+export const DIGEST_STALE_H = 26 satisfies number;
+export const HISTORY_MESSAGES = 6 satisfies number;
+export const HISTORY_CHARS = 200 satisfies number;
+export const FEEDBACK_PAIR_H = 48 satisfies number;
+export const IDENTITY = "enumeration message_id" satisfies string;
+export const PULSE_TOOL = "mail_push_pulse" satisfies string;
+export const PULSE_CRON = "17 9 * * *" satisfies string;
+export const PULSE_STALE_MIN = 30 satisfies number;
 export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn announces was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_transmit was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn capped was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn digest_fresh was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn sent_is_news was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn pairs was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn pulse_fresh was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -40,7 +62,7 @@ export const RUN_LIVE = false satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TOOL", "CALLER", "DOOR", "CRON", "CONCURRENCY", "RETRIES", "STATE_TABLE", "SEEN_CAP", "VIEW_LIMIT", "FIRST_SWEEP_ANNOUNCES_NOTHING", "OLDEST_FIRST", "PUSH_PER_TICK", "PREVIEW_CHARS", "SEEN_ON_PUSH", "DRAFT_WITH_PUSH", "DRAFT_NO_TOOLS", "DRAFT_TIMEOUT_S", "DRAFT_MAX_TOKENS", "DRAFT_FAILURE_PUSHES_ANYWAY", "SEND_TOOL", "SEND_NEEDS_TAP", "RUN_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TOOL", "CALLER", "DOOR", "CRON", "CONCURRENCY", "RETRIES", "STATE_TABLE", "SEEN_CAP", "VIEW_LIMIT", "FIRST_SWEEP_ANNOUNCES_NOTHING", "OLDEST_FIRST", "PUSH_PER_TICK", "PREVIEW_CHARS", "SEEN_ON_PUSH", "DRAFT_WITH_PUSH", "DRAFT_NO_TOOLS", "DRAFT_TIMEOUT_S", "DRAFT_MAX_TOKENS", "DRAFT_FAILURE_PUSHES_ANYWAY", "SEND_TOOL", "SEND_NEEDS_TAP", "SENT_WATCH", "SENT_LIMIT", "OUTCOMES_TABLE", "FEEDBACK_TABLE", "DIGEST_TABLE", "DIGEST_STALE_H", "HISTORY_MESSAGES", "HISTORY_CHARS", "FEEDBACK_PAIR_H", "IDENTITY", "PULSE_TOOL", "PULSE_CRON", "PULSE_STALE_MIN", "RUN_LIVE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not
