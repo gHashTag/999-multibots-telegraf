@@ -6,6 +6,7 @@ import {
   wheelAfterTouch,
   wheelAfterHandBack,
   BROWSER_ROUTE,
+  THRONE_ROUTES,
   WATCH_INTERVAL_MS,
 } from './browserWatch'
 
@@ -43,6 +44,20 @@ describe('following an agent to the browser', () => {
     expect(shouldFollow({ ...base, currentPath: '/browser/anything' })).toBe(
       false
     )
+  })
+
+  it("never drags anybody off the Queen's throne", () => {
+    /*
+     * The throne (/queen, /hive) shows the board, and the board's browser
+     * tab carries the live pod inside its own window -- the person there is
+     * watching the agent already. Jumping away would replace the better
+     * view with the plain one.
+     */
+    for (const path of THRONE_ROUTES) {
+      expect(shouldFollow({ ...base, currentPath: path })).toBe(false)
+    }
+    /* A first visit elsewhere still follows, as it always did. */
+    expect(shouldFollow({ ...base, currentPath: '/feed' })).toBe(true)
   })
 
   it('FOLLOWS A SESSION ONCE, then leaves the person alone', () => {
