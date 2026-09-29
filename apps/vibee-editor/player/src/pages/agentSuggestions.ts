@@ -64,16 +64,18 @@ export const AGENT_SUGGESTIONS: Readonly<Record<string, readonly string[]>> = {
  * configured reel or the neuro-photo by template when the Blogger agent is
  * chosen -- and make a client gift again").
  *
- * A configured template is work the person has already set up once (the
- * story-reel template, the portrait style); these buttons bring it back in
- * ONE press instead of a description from memory. The press sends a prompt
- * into the agent's own thread -- and holds the same rule the starters above
- * hold: it asks for a READING or a card to confirm. The agent shows the
- * template and proposes the run as a card; the send is the second press.
+ * A template is either work the person has already set up once (the
+ * story-reel template, the portrait style) or the pattern of their last
+ * work with this agent (the fix recipe, the reply that worked); these
+ * buttons bring it back in ONE press instead of a description from memory.
+ * The press sends a prompt into the agent's own thread -- and holds the same
+ * rule the starters above hold: it asks for a READING or a card to confirm.
+ * The agent shows the template and proposes the run as a card; the send is
+ * the second press.
  *
- * An agent with no configured template of its own has no entry; an agent
- * that gains one lights up wherever AGENT_TEMPLATES is read -- the fresh
- * thread and the agent panel both draw from here, nothing is copied.
+ * An agent with no template of its own has no entry; an agent that gains
+ * one lights up wherever AGENT_TEMPLATES is read -- the fresh thread and
+ * the agent panel both draw from here, nothing is copied.
  */
 export interface AgentTemplate {
   /** Dictionary key of the button's label -- labels are interface text. */
@@ -100,6 +102,60 @@ export const AGENT_TEMPLATES: Readonly<
       labelKey: 'chat.templates.gift',
       prompt:
         'Покажи, кому из моих клиентов ещё не подарено: портрет и рилс-историю. Предложи подарок карточкой — отправить должен я.',
+    },
+  ],
+  job: [
+    {
+      labelKey: 'chat.templates.reply',
+      prompt:
+        'Покажи мой настроенный шаблон отклика нанимающему и свежие вакансии, куда он ещё не отправлен. Предложи следующий отклик карточкой — не отправляй сам.',
+    },
+    {
+      labelKey: 'chat.templates.recruiters',
+      prompt:
+        'Собери сводку: кто из нанимающих писал за неделю и чей ответ ещё висит. Покажи каждого карточкой — отвечать буду я.',
+    },
+  ],
+  google: [
+    {
+      labelKey: 'chat.templates.demand',
+      prompt:
+        'Повтори анализ спроса по моей услуге по образцу прошлого раза: поиск, конкуренты, пробел. Предложи вывод карточкой.',
+    },
+  ],
+  tiktok: [
+    {
+      labelKey: 'chat.templates.hook',
+      prompt:
+        'Повтори мой лучший хук по шаблону прошлых роликов и собери под него сценарий на 30 секунд с монтажным планом. Покажи карточкой.',
+    },
+  ],
+  scientist: [
+    {
+      labelKey: 'chat.templates.claim',
+      prompt:
+        'Проверь утверждение по моему чек-листу прошлой проверки: гипотеза, метод, доказательства, источники. Покажи разбор карточкой.',
+    },
+  ],
+  fpga: [
+    {
+      labelKey: 'chat.templates.build',
+      prompt:
+        'Повтори маршрут сборки по моим последним настройкам платы и покажи, что изменится с прошлого запуска. Предложи запуск карточкой — не запускай сам.',
+    },
+  ],
+  rtl: [
+    {
+      labelKey: 'chat.templates.module',
+      prompt:
+        'Собери модуль по шаблону моего последнего: порты, сброс, крайние случаи и тестбенч с прогоном в симуляторе. Покажи результат карточкой — не коммить сам.',
+    },
+  ],
+  coder: [
+    {
+      labelKey: 'chat.templates.fix',
+      prompt:
+        'Покажи мой последний исправленный баг как рецепт: тест, фикс, прогон. Предложи применить тот же рецепт к проблеме, которую я назову, изменениями карточкой — не коммить сам.',
     },
   ],
 }
