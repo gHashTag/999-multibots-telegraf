@@ -1349,6 +1349,35 @@
       ]
     },
     {
+      "id": "mail-push-sweep",
+      "legacy_id": "",
+      "domain": "mail",
+      "trigger": "cron",
+      "event": "",
+      "legacy_events": [],
+      "cron": "*/5 * * * *",
+      "tz": "UTC",
+      "file": "src/inngest_app/functions/mail/mailPushSweep.ts",
+      "steps": ["sweep"],
+      "retries": 0,
+      "on_failure": "admin-telegram",
+      "side_effects": ["messages-user", "paid-api", "db-write"],
+      "guard": "none",
+      "safe_probe": "{}",
+      "probe_result": "not-deployed",
+      "probe_expect": "COMPLETED",
+      "deployed_2026_09_09": false,
+      "control": "spec+code",
+      "export": "mailPushSweep",
+      "notes": [
+        "2026-09-29: the owner's mailbox pushed -- every 5 min one POST to the render's mail_push_sweep as the owner over /mcp (the CRM sweep's own door); every new letter reaches his Telegram as a card that already carries a drafted reply, sent only by his tap",
+        "the whole push lives in the render tool (apps/vibee-editor/render/src/agent/mail-push.ts); this cron is only its heartbeat, with the 90 s step budget imported from crmProactiveSweep: the step reports, the render finishes the sweep regardless",
+        "retries 0 and concurrency 1 (and a render-side latch): two sweeps would race the one mail_push_state cursor row, and a retry after a partial push pushes the same letters twice",
+        "safe mode (e2e_test=true probe): skipped entirely, nothing is sent; the run COMPLETES with {skipped:true}",
+        "spec of record: gHashTag/t27 specs/automation/mail-push.t27 (issue #5152); RUN_LIVE false until a letter is actually carded"
+      ]
+    },
+    {
       "id": "ton-pending-watch",
       "legacy_id": "",
       "domain": "money",
