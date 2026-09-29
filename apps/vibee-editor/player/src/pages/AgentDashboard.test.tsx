@@ -162,3 +162,22 @@ describe('recent work', () => {
     expect(r.slice(1)).toEqual(['two', 'one'])
   })
 })
+
+describe('switching the agent switches the dashboard (owner, 2026-09-29)', () => {
+  it('offers the other agents; the current one says where you are', async () => {
+    /* A keeper sees every agent's face here, trainees included -- the row
+     * offers exactly what helpersFor allows, the client picker's rule. */
+    state.keeper = true
+    state.verdicts = {}
+    await open('blogger')
+    const row = host.querySelector('[data-testid="agent-switcher"]')
+    expect(row).not.toBeNull()
+    const current = row?.querySelector('[data-testid="agent-switch-blogger"]')
+    expect(current?.tagName).toBe('SPAN')
+    expect(current?.className).toContain('is-current')
+    const other = row?.querySelector<HTMLAnchorElement>(
+      '[data-testid="agent-switch-coder"]'
+    )
+    expect(other?.getAttribute('href')).toBe('/agents/coder')
+  })
+})

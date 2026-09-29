@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_SUGGESTIONS, agentGate } from './agentSuggestions'
+import {
+  AGENT_SUGGESTIONS,
+  AGENT_TEMPLATES,
+  agentGate,
+} from './agentSuggestions'
 import { MARKETPLACE_AGENTS } from '../../../packages/vibee-atoms/src/agent-marketplace'
 
 describe('every specialist opens on its own questions (#2958)', () => {
@@ -34,5 +38,34 @@ describe('who may open an agent thread', () => {
     expect(g('training', false, true)).toBe('job')
     expect(g('training', false, false)).toBe('market')
     expect(g('training', false, null)).toBe('wait')
+  })
+})
+
+describe("the agent's repeat buttons (owner, 2026-09-29)", () => {
+  it('every template carries a label key and a prompt', () => {
+    for (const [id, list] of Object.entries(AGENT_TEMPLATES)) {
+      expect(list.length, id).toBeGreaterThan(0)
+      for (const tp of list) {
+        expect(tp.labelKey, id).toMatch(/^chat\.templates\./)
+        expect(tp.prompt.length, id).toBeGreaterThan(20)
+      }
+    }
+  })
+
+  it('no template publishes or sends on the first press either', () => {
+    const all = Object.values(AGENT_TEMPLATES)
+      .flat()
+      .map(tp => tp.prompt)
+      .join('\n')
+    expect(all).not.toMatch(/опубликуй|отправь(?!ляй)/i) // cyrillic-ok: matches send/publish words
+    /* Every prompt must hold the guard itself: the proposal is the agent's,
+     * the send is the person's press on the card. */
+    expect(all).toMatch(/карточк/i) // cyrillic-ok: the card guard
+  })
+
+  it('only catalogued agents have templates', () => {
+    const ids = new Set(MARKETPLACE_AGENTS.map(a => a.id))
+    for (const id of Object.keys(AGENT_TEMPLATES))
+      expect(ids.has(id), id).toBe(true)
   })
 })

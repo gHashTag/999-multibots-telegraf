@@ -65,6 +65,19 @@ html[data-keyboard='open'] .chat-page {
   color: var(--t27-text);
   text-decoration: none;
 }
+/* The agent panel's toggle: the client nav's card button, for the agent's
+ * own panel (AgentAside). Same pill so both cards open the same way. */
+.chat-specialist__panel {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid rgba(0, 255, 136, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--t27-accent, #00ff88);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
 .chat-specialist span {
   color: var(--t27-accent);
 }
@@ -836,6 +849,41 @@ html[data-keyboard='open'] .chat-page {
 }
 /* The gifts section owns its rows (the reel panel brings its own). A gift
    row is NOT a move: no tone, no re-ranking, always on the card. */
+/* The agent panel's client rows and its door (AgentAside). */
+.chat-aside__agent-clients {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-aside__agent-client {
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  color: var(--t27-text);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.chat-aside__agent-client:hover {
+  border-color: rgba(0, 255, 136, 0.4);
+}
+
+.chat-aside__door {
+  display: block;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 255, 136, 0.35);
+  color: var(--t27-accent, #00ff88);
+  text-decoration: none;
+  font-size: 13px;
+  text-align: center;
+}
+
 .chat-aside__gifts {
   display: flex;
   flex-direction: column;

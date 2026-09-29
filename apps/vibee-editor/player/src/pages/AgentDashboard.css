@@ -19,6 +19,41 @@
   font-size: 14px;
 }
 
+/* SWITCHING THE AGENT SWITCHES THE DASHBOARD (owner, 2026-09-29): a row of
+ * the openable agents' faces above the head; the current one is ringed and
+ * is not a link -- it says where you already are. */
+.agent-dash__switch {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.agent-dash__switch-face {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  color: var(--t27-text);
+  text-decoration: none;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.agent-dash__switch-face i {
+  font-style: normal;
+}
+
+.agent-dash__switch-face.is-current {
+  border-color: rgba(0, 255, 136, 0.6);
+  color: var(--t27-accent, #00ff88);
+  cursor: default;
+}
+
 .agent-dash__head {
   display: flex;
   align-items: center;

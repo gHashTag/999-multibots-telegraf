@@ -39,6 +39,8 @@ import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-ma
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { useEarnedAgent } from '@/hooks/useAgentAcceptance'
 import { AgentSkillsPanel } from '@/components/Chat/AgentSkillsPanel'
+import { AgentTemplates } from '@/components/Chat/AgentTemplates'
+import { AgentAside } from '@/components/Chat/AgentAside'
 import { ClientHelperPicker } from '@/components/Chat/ClientHelperPicker'
 import { ConversationRail } from '@/components/Chat/ConversationRail'
 import { stopAgent, threadKeyOf } from '@/lib/agentStream'
@@ -337,6 +339,7 @@ function ChatThread({
   const [copied, setCopied] = useState<string | null>(null)
   // Narrow mode: the client's card as a sheet over the conversation.
   const [asideOpen, setAsideOpen] = useState(false)
+  const [agentAsideOpen, setAgentAsideOpen] = useState(false)
   // The Queen's panel: a column on a wide screen, a sheet otherwise.
   const [queenOpen, setQueenOpen] = useState(false)
   /*
@@ -688,6 +691,15 @@ function ChatThread({
                   {specialist.name[lang === 'ru' ? 'ru' : 'en']} ·{' '}
                   {t(`agents.dash.status.${specialist.status}`)}
                 </span>
+                <button
+                  type="button"
+                  className="chat-specialist__panel"
+                  aria-expanded={agentAsideOpen}
+                  data-testid="chat-specialist-panel"
+                  onClick={() => setAgentAsideOpen(v => !v)}
+                >
+                  {t('chat.agentAside.open')}
+                </button>
                 <Link
                   to={`/agents/${specialist.id}`}
                   className="chat-specialist__back"
@@ -924,6 +936,20 @@ function ChatThread({
                 */
                 <AgentSkillsPanel agentId={marketplaceAgent} />
               ) : null}
+              {/*
+                THE AGENT'S OWN REPEAT BUTTONS (owner, 2026-09-29): the
+                configured reel, the neuro-photo, the client gift -- here the
+                moment the agent is chosen, and in the agent panel for the
+                rest of the conversation. A press sends a READING prompt; the
+                agent proposes the run as a card (agentSuggestions' rule).
+              */}
+              {messages.length <= 1 && marketplaceAgent ? (
+                <AgentTemplates
+                  agentId={marketplaceAgent}
+                  onSend={send}
+                  disabled={busy || uploading}
+                />
+              ) : null}
               {messages.length <= 1 ? (
                 <div className="suggestions">
                   {(client
@@ -1099,6 +1125,33 @@ function ChatThread({
         under the page. A move pressed on the card becomes a question in THIS
         conversation: the agent proposes, the owner confirms.
       */}
+        {!client && specialist ? (
+          <>
+            {agentAsideOpen ? (
+              <div
+                className="chat-aside-backdrop"
+                aria-hidden="true"
+                onClick={() => setAgentAsideOpen(false)}
+              />
+            ) : null}
+            {/*
+              THE AGENT'S OWN PANEL (owner, 2026-09-29): its repeat buttons,
+              its clients, the door to its dashboard -- the client card's
+              counterpart for the agent's thread. A template pressed becomes
+              a message in THIS conversation.
+            */}
+            <AgentAside
+              agentId={specialist.id}
+              onAsk={prompt => {
+                setAgentAsideOpen(false)
+                send(prompt)
+              }}
+              askDisabled={busy || uploading}
+              open={agentAsideOpen}
+              onClose={() => setAgentAsideOpen(false)}
+            />
+          </>
+        ) : null}
         {client ? (
           <>
             {asideOpen ? (
