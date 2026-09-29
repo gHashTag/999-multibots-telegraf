@@ -2003,13 +2003,19 @@ export async function askBuyerModel(
   }>,
   doFetch: typeof fetch = fetch,
   explain: (id: string, status: number, body: string) => string = (id, s) =>
-    `${id}: HTTP ${s}`
+    `${id}: HTTP ${s}`,
+  /**
+   * Bounds another caller owns. The mail push drafts with the spec's numbers
+   * (specs/automation/mail-push.t27): a composer is not a persona, and the
+   * letter must not wait on the buyer's 90 s.
+   */
+  opts: { maxTokens?: number; timeoutMs?: number } = {}
 ): Promise<string> {
   if (!providers.length) throw new Error('buyer model: no provider configured')
   const reasons: string[] = []
   for (const p of providers) {
     const ac = new AbortController()
-    const timer = setTimeout(() => ac.abort(), 90_000)
+    const timer = setTimeout(() => ac.abort(), opts.timeoutMs ?? 90_000)
     try {
       const r = await doFetch(`${p.base}/chat/completions`, {
         method: 'POST',
@@ -2017,7 +2023,11 @@ export async function askBuyerModel(
           Authorization: `Bearer ${p.key}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(buyerRequestBody(p, messages)),
+        body: JSON.stringify(
+          opts.maxTokens === undefined
+            ? buyerRequestBody(p, messages)
+            : { ...buyerRequestBody(p, messages), max_tokens: opts.maxTokens }
+        ),
         signal: ac.signal,
       })
       if (!r.ok) {

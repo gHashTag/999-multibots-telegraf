@@ -33,6 +33,7 @@ import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
 import { JOB_TOOLS } from './job-tools'
 import { MAIL_TOOLS } from './mail-tools'
+import { MAIL_PUSH_TOOLS } from './mail-push'
 import { TRAFFIC_TOOLS } from './traffic'
 import { AVATAR_TOOLS } from './agent-avatars'
 import { AGENT_CLIENT_TOOLS } from './agent-clients'
@@ -3839,6 +3840,12 @@ TOOLS.push(...WEB_TOOLS)
  */
 TOOLS.push(...JOB_TOOLS)
 TOOLS.push(...MAIL_TOOLS)
+/*
+ * The push half of the mail desk (spec: specs/automation/mail-push.t27): the
+ * cron calls it as the owner every five minutes, so new mail reaches the
+ * owner's chat with a drafted reply under it -- sent only by the tap.
+ */
+TOOLS.push(...MAIL_PUSH_TOOLS)
 /* Where visitors come from, by channel (epic #2974). Owner only. */
 TOOLS.push(...TRAFFIC_TOOLS)
 TOOLS.push(...AVATAR_TOOLS)
