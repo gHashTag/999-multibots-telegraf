@@ -734,4 +734,73 @@ describe("the spec's tests hold against the host", () => {
     const none = (await pulse!.handler({}, at(null))) as Record<string, unknown>
     expect(none).toMatchObject({ baselined: false, fresh: false })
   })
+
+  it("the digest lands through the render's own door, not a second database", async () => {
+    const mp = await host()
+    expect(SPEC.DIGEST_DOOR).toBe('mail_push_digest')
+    // The export door is not the sweep door, and one table has one home
+    expect(SPEC.DIGEST_DOOR).not.toBe(SPEC.TOOL)
+    expect(SPEC.DIGEST_TABLE).toBe('crm_matter_digest')
+
+    const door = mp.MAIL_PUSH_TOOLS.find(t => t.name === SPEC.DIGEST_DOOR)
+    expect(door).toBeTruthy()
+
+    const writes: Array<{ sql: string; params: unknown[] }> = []
+    const pool = {
+      query: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params })
+        return { rows: [] }
+      },
+    }
+    const out = (await door!.handler(
+      {
+        rows: [
+          {
+            matter: 'Playerok',
+            stage: 'interview',
+            owes_reply: null,
+            days_since: 3,
+            next_action: 'fill the questionnaire',
+            counterparties: ['hr@playerok.example'],
+            channels: ['mail', 'hh'],
+            history: [
+              {
+                at: '2026-09-28',
+                dir: 'in',
+                subject: 'анкета',
+                summary: 'прислали форму',
+              },
+            ],
+          },
+          { stage: 'x' }, // refused: no matter to key the row on
+          { matter: 'Efinix', counterparties: 7 }, // coerced, not rejected
+        ],
+      },
+      { telegramId: OWNER, pool } as never
+    )) as Record<string, unknown>
+
+    expect(out.accepted).toBe(2)
+    expect(out.matters).toEqual(['Playerok', 'Efinix'])
+    expect(out.refused).toEqual([
+      { matter: '(absent)', why: 'matter must be a non-empty string' },
+    ])
+
+    const insert = writes.find(w =>
+      /INSERT INTO crm_matter_digest/.test(w.sql)
+    )!
+    expect(insert).toBeTruthy()
+    // Freshness is the receiver's clock, never the exporter's
+    expect(insert.sql).toContain('now()')
+    expect(insert.sql).toContain('ON CONFLICT (matter)')
+    // jsonb carries an explicit cast -- an untyped parameter is how the sent
+    // column taught us a sweep dies
+    expect(insert.sql).toContain('$8::jsonb')
+    expect(insert.params[5]).toEqual(['hr@playerok.example'])
+    expect(String(insert.params[7])).toContain('анкета')
+    // A wrong type is coerced, not thrown: the door stays open for the rest
+    const efinix = writes
+      .filter(w => /INSERT INTO crm_matter_digest/.test(w.sql))
+      .map(w => w.params)
+    expect(efinix[1][5]).toEqual([])
+  })
 })

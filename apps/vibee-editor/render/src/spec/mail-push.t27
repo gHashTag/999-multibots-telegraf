@@ -27,6 +27,12 @@
 //       heartbeat alarms when the sweep goes quiet. Identity everywhere is the
 //       enumeration message_id, because the search index is twelve days stale (measured
 //       in the correspondence-crm skill, 2026-08-28) and an id out of search is a lie.
+// v2.1, 2026-09-29: the digest travels through the render's own door (tool
+//       mail_push_digest), not the PostgREST gateway. Measured live: SUPABASE_URL's
+//       PostgREST serves a different database than the one the render's ledger lives
+//       in (mail_push_state is 42P01 through the gateway while the sweep writes it),
+//       so a PostgREST table would be a second home for the truth -- the one home is
+//       the ledger db, and the only door that reaches it is the render's own MCP door.
 // Claim status: v1 is LIVE -- the cron fired on schedule from 2026-09-29 10:30
 //       (measured: Inngest runs 10:30/10:35/10:40/10:45/10:50, the debut baselined the
 //       Inbox, no letter has been carded yet -- none arrived). RUN_LIVE flips when the
@@ -81,6 +87,10 @@ module automation::mail_push {
     pub const FEEDBACK_TABLE : str = "mail_push_feedback";  // the draft offered vs the reply
                                                             // the owner actually sent
     pub const DIGEST_TABLE : str = "crm_matter_digest";  // jcrm's export; the card reads it
+    pub const DIGEST_DOOR : str = "mail_push_digest";  // the tool the export calls; the
+                                                       // digest lands in the ledger db the
+                                                       // card reads, exported_at is stamped
+                                                       // by the receiver's clock (v2.1)
     pub const DIGEST_STALE_H : u8 = 26;  // a day and a bit: older context is not shown
                                          // (channels.json law: a stale number is never
                                          // presented as current)
@@ -196,6 +206,12 @@ module automation::mail_push {
         assert(HISTORY_MESSAGES >= 1);
         assert(HISTORY_CHARS <= 200);
         assert(DIGEST_TABLE == "crm_matter_digest");
+    }
+
+    test "the digest lands through the render's own door, not a second database" {
+        assert(DIGEST_DOOR == "mail_push_digest");
+        assert(DIGEST_DOOR != TOOL);  // the export door is not the sweep door
+        assert(DIGEST_TABLE == "crm_matter_digest");  // one table, one home
     }
 
     test "the Sent folder separates our tap-sends from the owner's manual replies" {
