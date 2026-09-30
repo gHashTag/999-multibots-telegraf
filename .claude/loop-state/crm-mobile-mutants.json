@@ -175,5 +175,41 @@
     "from": "      : typeof handed === 'string' && handed",
     "to": "      : false && handed",
     "name": "chat: the handed-over name is ignored"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "    picked === null ? null : (\n      <span className=\"crm__col-auto\"",
+    "to": "    false ? null : (\n      <span className=\"crm__col-auto\"",
+    "name": "AUTO column label before the ticks are read"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "<span className=\"crm__col-auto\" aria-hidden=\"true\">",
+    "to": "<span className=\"crm__col-auto\">",
+    "name": "AUTO column label read aloud twice"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "              {t('crm.vip.title')} {underWay.length}\n              {autoColumn}",
+    "to": "              {t('crm.vip.title')} {underWay.length}",
+    "name": "under-way heading loses the AUTO column label"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "                  {t('crm.clients.rest')} {shownClients.length}\n                  {autoColumn}",
+    "to": "                  {t('crm.clients.rest')} {shownClients.length}",
+    "name": "rest heading loses the AUTO column label"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "<span className=\"crm__auto-word\">{t('crm.row.auto')}</span>",
+    "to": "<span>{t('crm.row.auto')}</span>",
+    "name": "row tick word not marked for phone clipping"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  .crm__auto-word {\n    position: absolute;\n    width: 1px;\n    height: 1px;\n    overflow: hidden;\n    clip-path: inset(50%);",
+    "to": "  .crm__auto-word {\n    display: none;",
+    "name": "tick word hidden from screen readers too"
   }
 ]

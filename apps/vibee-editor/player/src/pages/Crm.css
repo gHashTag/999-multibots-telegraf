@@ -540,6 +540,11 @@
   accent-color: var(--vibee-green, #00ff88);
 }
 
+/* Only a phone's rows drop the word; elsewhere the pill says it itself. */
+.crm__col-auto {
+  display: none;
+}
+
 .crm__auto--on {
   color: var(--vibee-green, #00ff88);
   border-color: rgba(0, 255, 136, 0.45);
@@ -746,6 +751,43 @@
   .crm__contacts .crm__finder {
     background: var(--color-bg-primary, #000);
   }
+
+  /* The tick alone on the row; the heading names its column (Crm.tsx,
+     autoColumn). 73px -> 44px, and the name gets the difference. */
+  .crm__auto {
+    justify-content: center;
+    width: var(--touch-target, 44px);
+    padding: 0;
+  }
+
+  .crm__auto input {
+    width: 20px;
+    height: 20px;
+  }
+
+  .crm__auto-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Over the ticks: the row's right padding (6px) + border (1px) + "..."
+     (36px) + the gap (8px) from the list's edge. */
+  .crm__subtitle {
+    display: flex;
+    align-items: baseline;
+  }
+
+  .crm__col-auto {
+    display: block;
+    width: var(--touch-target, 44px);
+    margin: 0 51px 0 auto;
+    font-size: 11px;
+    text-align: center;
+  }
 }
 
 /* The narrowest phones (320px): AUTO and "..." give the name what they can
@@ -755,15 +797,12 @@
     gap: 6px;
   }
 
-  .crm__auto {
-    gap: 4px;
-    padding: 0 6px;
-    font-size: 10px;
-    letter-spacing: 0;
-  }
-
   .crm__contact-toggle {
     width: 28px;
+  }
+
+  .crm__col-auto {
+    margin-right: 41px;
   }
 }
 
