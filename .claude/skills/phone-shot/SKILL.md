@@ -189,6 +189,20 @@ document.documentElement, 'scrollTop', {get, set})`.
   entry. Carry `state.firstEntry` and test through `isFirstEntry()`.
   **Check:** for every `navigate(-1)` crumb, grep every `<Link to=` that
   reaches that route.
+  Tick 7 found that tick 6 had applied that check to one link and not to
+  the other: the card beside the chat had a second "open the card" link,
+  and the loop lived on through it. Grep the ROUTE, not the component
+  you just edited: `grep -rn '/crm/\${' src`.
+- **"In parallel" is not "progressive".** `const [a, b] = await
+Promise.all([...])` followed by `setA(a); setB(b)` reads in parallel but
+  DRAWS after the slowest read. The name in the chat title waited about
+  1 s for a media list, under a comment that claimed the opposite. On a
+  phone that is a second of an id instead of a name on every visit. **Fix:**
+  `load().then(land(setX))` per read, with a guard, so that a late answer
+  for the client just left does not land (`alive` in an effect, or a
+  reload counter). **Test:** one tool never answers
+  (`new Promise(() => {})`), and the other panels are still drawn. Better
+  still, hand what the opener already knows (the name) over in link state.
 - **A harness must mount the app's own chrome.** Without `TelegramTabBar`,
   pages reserve 0 px for the bar (`body[data-tabbar]` is never set), and the
   header's fallback bottom bar covers the composer. That overlap exists only
