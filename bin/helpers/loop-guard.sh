@@ -27,7 +27,11 @@
 # The loop names its branch and PR in its state file:
 #   <!-- loop-branch: fix/crm-mobile-ux -->
 #   <!-- loop-pr: 3199 -->
-# (absent: the current branch, and gh's PR for it).
+#   <!-- loop-tests: cd apps/vibee-editor/player && npx vitest run ... -->
+# (absent: the current branch, and gh's PR for it, and no tests).
+# `--tests` wins over loop-tests. The marker exists because the command was
+# retyped every tick: tick 5 added a test file, and the next tick's copy
+# without it would have reported five proven mutations as survivors.
 #
 # Exit 0 go, 1 stop (the reason is printed), 2 could not check.
 set -uo pipefail
@@ -46,6 +50,10 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
+if [ -z "$TESTS" ]; then
+  TESTS=$(sed -n 's/.*<!-- loop-tests: *\(.*[^ ]\) *-->.*/\1/p' "$STATE" 2>/dev/null | head -1)
+fi
 
 if [ "$MODE" = end ]; then
   rm -f "$LOCK"; echo "loop-guard: $NAME released"; exit 0
