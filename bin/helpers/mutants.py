@@ -198,6 +198,19 @@ def main() -> int:
                 != 0
             )
         finally:
+            # Someone edited the file while it held the mutant (CRM loop tick
+            # 7, 01.10.2026: a batch ran in the background while the next
+            # item was about to be written). Writing `original` back would
+            # erase that edit without a word -- keep it beside the file.
+            try:
+                now = io.open(f, encoding='utf-8').read()
+            except OSError:
+                now = mutated
+            if now != mutated:
+                kept = f + '.edited-during-mutants'
+                io.open(kept, 'w', encoding='utf-8').write(now)
+                print(f'WARNING  {f} changed during mutation #{i + 1}: the edit '
+                      f'(mutant included) is kept in {kept}')
             io.open(f, 'w', encoding='utf-8').write(original)
             if os.path.exists(jp):
                 os.remove(jp)
