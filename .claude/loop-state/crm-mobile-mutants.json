@@ -373,5 +373,65 @@
     "from": "    top: 0;\n    left: 58px;\n",
     "to": "    top: 0;\n    left: 0;\n",
     "name": "hairline under the faces"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "  return line === key ? words : line\n",
+    "to": "  return line\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "  return line === key ? words : line\n",
+    "to": "  return words\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "      becauseCode: str(x['because_code']),\n",
+    "to": "      becauseCode: null,\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "      nextWhyCode: str(x['next_why_code']),\n",
+    "to": "      nextWhyCode: null,\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "      nextWhyVars: reasonVars(x['next_why_vars']),\n",
+    "to": "      nextWhyVars: null,\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "          ? reasonLine(t, r.nextWhyCode, r.nextWhyVars, r.nextWhy)\n",
+    "to": "          ? r.nextWhy\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "          {reasonLine(t, r.nextWhyCode, r.nextWhyVars, r.nextWhy)}\n",
+    "to": "          {r.nextWhy}\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "        {reasonLine(t, r.becauseCode, null, r.because)}\n",
+    "to": "        {r.because}\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "  const byId = new Map(inFilter.map(x => [x.telegramId, x]))\n",
+    "to": "  const byId = new Map((c?.clients ?? []).map(x => [x.telegramId, x]))\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "{t('crm.wait.days', { n: r.days })}",
+    "to": "{r.days}"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "    if (typeof x === 'string' || typeof x === 'number') out[k] = x\n",
+    "to": "    out[k] = x as string\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "  if (!v || typeof v !== 'object' || Array.isArray(v)) return null\n",
+    "to": "  if (!v || typeof v !== 'object') return null\n"
   }
 ]

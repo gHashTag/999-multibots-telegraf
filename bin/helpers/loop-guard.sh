@@ -59,6 +59,18 @@ if [ -z "$TESTS" ]; then
   TESTS=$(sed -n 's/.*<!-- loop-tests: *\(.*[^ ]\) *-->.*/\1/p' "$STATE" 2>/dev/null | head -1)
 fi
 
+# The guards run the suite with --bail=1: a killed mutant needs only its
+# first failing test, and a survivor still runs everything, so no verdict
+# changes. CRM loop tick 12 (01.10.2026): 67 guards took ~11 min at start;
+# three measured 65 s -> 43 s with it. Only when the (last) command is
+# vitest and does not bail already -- appended text lands on the last
+# command of a `&&` chain.
+MTESTS="$TESTS"
+case "$TESTS" in
+  *--bail*) ;;
+  *"vitest run"*) case "${TESTS##*&&}" in *"vitest run"*) MTESTS="$TESTS --bail=1" ;; esac ;;
+esac
+
 MUTANTS="$ROOT/.claude/loop-state/$NAME-mutants.json"
 # The list as the tick found it: `end` runs only what was added since.
 SNAP="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants-at-start.json"
@@ -95,7 +107,7 @@ PY
 )
     if [ "${N:-0}" -gt 0 ]; then
       NLOG="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants-new.log"
-      (cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" "$NEW" -- bash -c "$TESTS") > "$NLOG" 2>&1
+      (cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" "$NEW" -- bash -c "$MTESTS") > "$NLOG" 2>&1
       if [ $? -eq 0 ]; then
         echo "  ok    $N guard(s) adopted this tick die under the loop-tests marker"
       else
@@ -213,7 +225,7 @@ fi
 if [ -n "$TESTS" ] && [ -f "$MUTANTS" ] && [ "$STOP" = 0 ]; then
   echo "  ..    past guards: $(basename "$MUTANTS")"
   MLOG="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants.log"
-  (cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" "$MUTANTS" -- bash -c "$TESTS") > "$MLOG" 2>&1
+  (cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" "$MUTANTS" -- bash -c "$MTESTS") > "$MLOG" 2>&1
   case $? in
     0) note "past guards: $(grep -E '^-- [0-9]+ of [0-9]+ killed' "$MLOG" | tr -d -)" ;;
     1) stop "a past mutation SURVIVES -- a guard stopped guarding; see $MLOG"

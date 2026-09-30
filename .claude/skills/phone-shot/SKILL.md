@@ -273,6 +273,17 @@ Promise.all([...])` followed by `setA(a); setB(b)` reads in parallel but
 - **44 px targets without growing the row:** use `min-height: 44px` plus
   negative `margin-block` under `(pointer: coarse)`, so the target reaches
   into the row's padding.
+- **Server prose on the screen is a language bug waiting.** The CRM's
+  waiting reasons were Russian sentences built on the server, so an English
+  screen printed them verbatim (tick 12). Send a code next to the words
+  (`because_code`, `next_why_code` + `next_why_vars`), translate the code,
+  and keep the words as the fallback for a code the screen does not know
+  yet. A test reads the code list from the server's own source, so a new
+  code without a line in both dictionaries fails at once.
+- **`new URL(`...${x}`, import.meta.url)` in a player test is an asset glob
+  to Vite**, and a path outside the player is refused ("Denied ID ...?url").
+  Read the server source with `resolve(dirname(fileURLToPath(
+import.meta.url)), ...)` and `readFileSync`.
 
 ## Related Resources
 

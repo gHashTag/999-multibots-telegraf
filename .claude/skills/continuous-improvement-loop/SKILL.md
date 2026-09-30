@@ -1957,3 +1957,23 @@ the guards added since `start` under the marker and stops on a survivor
 restore writes back the pre-mutation snapshot. `tri mutants` now keeps such
 an edit as `<file>.edited-during-mutants`, but that is a rescue, not a way
 to work.
+
+### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
+
+The screen now translates a waiting reason by code and falls back to the
+server's words when `t` returns the bare key (the real `t`'s sign for a
+missing line). The page test mocks `t` to echo the key. So for every code
+without numbers the mock said "missing", the screen showed the words, and a
+mutant that dropped the translation on that path SURVIVED. The mock now
+treats `crm.why.*` as found (`key:`), and the mutant dies. **When code
+branches on what a mock returns, check the mock can return both answers.**
+
+Two more from the same tick:
+
+- **A shared fixture mutated by one test leaks into the next.** It passed
+  for weeks only because of file order. Keep a `structuredClone` of the
+  fixture and restore it in `afterEach`, not in each test.
+- **Server mutants need the server's tests in the marker.** Eight render
+  mutants were killed by hand (8/8) but not adopted: the marker runs the
+  player only, so the next `start` would call them survivors. Adopt only
+  what the marker can kill.
