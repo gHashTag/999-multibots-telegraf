@@ -102,6 +102,61 @@ def stale(path: str) -> list:
     return out
 
 
+def adopt(args: list) -> int:
+    """tri mutants --adopt <proven.json> <guards.json>: keep a batch for good.
+
+    A cron loop keeps every proven mutation in a guard list that
+    `tri loop-guard start` re-runs (paths from the repo root). The batch was
+    run from the package, so its paths are relative to there. CRM loop ticks
+    7 and 8 (01.10.2026) moved them across by hand: a python one-off that
+    prefixed the paths, and once rewrote the whole list with a different
+    indent -- a 390-line diff for six entries. This re-roots the paths, skips
+    what the list already holds, keeps its two-space JSON and checks every
+    anchor of the result before writing it.
+    """
+    if len(args) != 2:
+        print('tri mutants --adopt <proven.json> <guards.json>  (run where the batch ran)')
+        return 2
+    src, dst = args
+    root = subprocess.run(
+        ['git', 'rev-parse', '--show-toplevel'], capture_output=True, text=True
+    ).stdout.strip()
+    here = os.path.relpath(os.getcwd(), root) if root else '.'
+    with io.open(src, encoding='utf-8') as fh:
+        new = json.load(fh)
+    with io.open(dst, encoding='utf-8') as fh:
+        old = json.load(fh)
+    seen = {(m['file'], m['from'], m['to']) for m in old}
+    added = 0
+    for m in new:
+        m = dict(m)
+        if here != '.':
+            m['file'] = os.path.normpath(os.path.join(here, m['file']))
+        if (m['file'], m['from'], m['to']) in seen:
+            continue
+        seen.add((m['file'], m['from'], m['to']))
+        old.append(m)
+        added += 1
+    tmp = dst + '.adopt'
+    with io.open(tmp, 'w', encoding='utf-8') as fh:
+        fh.write(json.dumps(old, ensure_ascii=False, indent=2) + '\n')
+    # The guard list's paths are from the repo root: check from there.
+    cwd = os.getcwd()
+    tmp_abs = os.path.abspath(tmp)
+    os.chdir(root or '.')
+    problems = stale(tmp_abs)
+    os.chdir(cwd)
+    if problems:
+        os.remove(tmp)
+        print(f'NOT adopted -- the result would hold {len(problems)} stale anchor(s):')
+        for line in problems:
+            print(f'  {line}')
+        return 1
+    os.replace(tmp, dst)
+    print(f'{dst}: +{added} ({len(new) - added} already there), {len(old)} in all, anchors ok')
+    return 0
+
+
 def main() -> int:
     args = sys.argv[1:]
     if args[:1] == ['--heal']:
@@ -109,6 +164,8 @@ def main() -> int:
     # A batch never starts on top of a mutant a killed batch left behind.
     if heal() != 0:
         return 2
+    if args[:1] == ['--adopt']:
+        return adopt(args[1:])
     if args[:1] == ['--check']:
         # tri mutants --check <list.json>... : anchors only, nothing runs.
         if len(args) < 2:
