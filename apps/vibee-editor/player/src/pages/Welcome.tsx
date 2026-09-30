@@ -26,7 +26,7 @@ const copy = {
     ],
     working: 'Working now',
     open: 'Open',
-    packages: 'Three agents for sale',
+    packages: 'Agents to order',
     packagesLead:
       'Launch price includes the first month; the team sets the bot up for you.',
     how: 'What happens after "Order"',
@@ -42,7 +42,8 @@ const copy = {
       ],
     ],
     market: 'Go to the Agent Market',
-    later: 'Just look around',
+    later: 'Skip',
+    laterLabel: 'Skip the introduction and open the feed',
     lang: 'Русский',
   },
   ru: {
@@ -62,7 +63,7 @@ const copy = {
     ],
     working: 'Уже работают',
     open: 'Открыть',
-    packages: 'Три агента на выбор',
+    packages: 'Агенты на заказ',
     packagesLead:
       'В цену запуска входит первый месяц; бота настраивает команда.',
     how: 'Что будет после «Заказать»',
@@ -78,7 +79,8 @@ const copy = {
       ],
     ],
     market: 'Перейти на рынок агентов',
-    later: 'Сначала осмотреться',
+    later: 'Пропустить',
+    laterLabel: 'Пропустить знакомство и открыть ленту',
     lang: 'English',
   },
 } as const
@@ -111,9 +113,22 @@ export function WelcomePage() {
         <header className="welcome-hero">
           <div className="welcome-topline">
             <p className="welcome-eyebrow">{text.eyebrow}</p>
+            {/*
+             * A way out on the first screen. The page is several screens
+             * tall on a phone; somebody who came for the feed should not
+             * have to scroll past the whole pitch to leave it.
+             */}
+            <Link
+              className="welcome-skip"
+              to="/feed"
+              aria-label={text.laterLabel}
+            >
+              {text.later}
+            </Link>
             <button
               type="button"
               className="welcome-lang"
+              lang={l === 'ru' ? 'en' : 'ru'}
               onClick={() => setLang(l === 'ru' ? 'en' : 'ru')}
             >
               {text.lang}
@@ -132,8 +147,13 @@ export function WelcomePage() {
         </header>
 
         {working.length > 0 ? (
-          <section className="welcome-working" aria-label={text.working}>
-            <h2 className="welcome-section-title">{text.working}</h2>
+          <section
+            className="welcome-working"
+            aria-labelledby="welcome-working-title"
+          >
+            <h2 className="welcome-section-title" id="welcome-working-title">
+              {text.working}
+            </h2>
             {working.map(agent => (
               <Link
                 key={agent.id}
@@ -149,20 +169,29 @@ export function WelcomePage() {
                   <strong>{agent.name[l]}</strong>
                   <span>{agent.role[l]}</span>
                 </span>
-                <span className="welcome-agent__open">{text.open} →</span>
+                <span className="welcome-agent__open">
+                  {text.open} <span aria-hidden="true">→</span>
+                </span>
               </Link>
             ))}
           </section>
         ) : null}
 
-        <section className="welcome-packages" aria-label={text.packages}>
-          <h2 className="welcome-section-title">{text.packages}</h2>
+        <section
+          className="welcome-packages"
+          aria-labelledby="welcome-packages-title"
+        >
+          <h2 className="welcome-section-title" id="welcome-packages-title">
+            {text.packages}
+          </h2>
           <p className="welcome-packages__lead">{text.packagesLead}</p>
           <PackageCards lang={l} />
         </section>
 
-        <section className="welcome-how" aria-label={text.how}>
-          <h2 className="welcome-section-title">{text.how}</h2>
+        <section className="welcome-how" aria-labelledby="welcome-how-title">
+          <h2 className="welcome-section-title" id="welcome-how-title">
+            {text.how}
+          </h2>
           <ol className="welcome-steps">
             {text.steps.map(([title, body]) => (
               <li key={title}>
@@ -173,12 +202,10 @@ export function WelcomePage() {
           </ol>
         </section>
 
+        {/* Pinned to the bottom, so the one main action is always in reach. */}
         <nav className="welcome-exits">
           <Link className="welcome-exit welcome-exit--primary" to="/agents">
-            {text.market} →
-          </Link>
-          <Link className="welcome-exit" to="/feed">
-            {text.later}
+            {text.market} <span aria-hidden="true">→</span>
           </Link>
         </nav>
       </main>

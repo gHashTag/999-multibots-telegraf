@@ -50,7 +50,8 @@ const HOME = '/feed'
 
 /**
  * THE FIRST SCREEN OF A FIRST LAUNCH: who we are and what is sold
- * (pages/Welcome.tsx). Shown once; the page sets the flag on any exit.
+ * (pages/Welcome.tsx). Shown once; the page sets the flag as it opens
+ * (lib/welcomeMemory.ts).
  */
 export const WELCOME = '/welcome'
 
