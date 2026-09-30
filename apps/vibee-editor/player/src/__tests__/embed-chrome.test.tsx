@@ -120,8 +120,10 @@ describe('route memory', () => {
   })
 
   // REMEMBERED is read once at module load, so these import a fresh copy.
+  // A returning person: already greeted, so the welcome screen stays out.
   const launch = async () => {
     localStorage.setItem('vibee-last-route', '/chat')
+    localStorage.setItem('vibee-welcome-seen', '1')
     vi.resetModules()
     const { LaunchRedirect } = await import(
       '@/components/Navigation/RouteMemory'

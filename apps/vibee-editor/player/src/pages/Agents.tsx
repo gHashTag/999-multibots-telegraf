@@ -10,11 +10,12 @@ import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { checkedDay, useAgentAcceptance } from '@/hooks/useAgentAcceptance'
 import { useAgentAvatars } from '@/hooks/useAgentAvatars'
 import { AgentFace } from '@/components/Chat/AgentFace'
+import { PackageCards } from '@/components/Agents/PackageCards'
 import './Agents.css'
 
 const copy = {
   en: {
-    eyebrow: 'T27 AGENT LABOUR MARKET',
+    eyebrow: 'T27 AGENT MARKET',
     title: 'Hire an outcome, not a chat.',
     intro:
       'The first specialist is already working. Every live agent has a visible scope, an isolated thread and evidence. Training agents cannot be hired yet.',
@@ -48,9 +49,12 @@ const copy = {
     streak: 'Daily checks passed in a row: {n} of 7 — hiring opens at 7',
     dashboard: 'Dashboard',
     earned: 'working now — earned by 7 days of checks',
+    packages: 'Order an agent of your own',
+    packagesBody:
+      'Each one lives in its own Telegram bot, set up by the team. The launch price includes the first month.',
   },
   ru: {
-    eyebrow: 'T27 · БИРЖА АГЕНТНОГО ТРУДА',
+    eyebrow: 'T27 · РЫНОК АГЕНТОВ',
     title: 'Нанимайте результат, а не чат.',
     intro:
       'Первый специалист уже работает. У каждого живого агента есть явная зона ответственности, отдельная переписка и доказательства. Агентов на обучении нанять пока нельзя.',
@@ -84,6 +88,9 @@ const copy = {
     streak: 'Ежедневных проверок подряд: {n} из 7 — найм откроется на седьмой',
     dashboard: 'Дашборд',
     earned: 'работает — заслужил 7 днями проверок',
+    packages: 'Закажите своего агента',
+    packagesBody:
+      'Каждый живёт в собственном Telegram-боте, бота настраивает команда. В цену запуска входит первый месяц.',
   },
 } as const
 
@@ -245,6 +252,13 @@ export function AgentsPage() {
               </article>
             )
           })}
+        </section>
+
+        <section className="agents-packages" id="packages">
+          <p className="agents-eyebrow">T27 · AGENTS</p>
+          <h2>{text.packages}</h2>
+          <p>{text.packagesBody}</p>
+          <PackageCards lang={l} />
         </section>
 
         <section className="harness-callout">
