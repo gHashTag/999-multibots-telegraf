@@ -473,16 +473,25 @@ export default function CrmPage() {
         {/*
           The three that describe what actually happened. No "warm" or "in
           progress": a month later nobody can count those.
+
+          ONE GROUP, SO IT WRAPS AS ONE. On a phone the four buttons used to
+          wrap one at a time: "Refused" alone on a second line in English,
+          and in Russian "Отказался" stretched across the whole row. As a
+          group the three share a line with "Prepare" when they fit and
+          move down together, in even thirds, when they do not.
+          (cyrillic-ok: the measured label)
         */}
-        {(['written', 'replied', 'refused'] as const).map(kind => (
-          <button
-            key={kind}
-            type="button"
-            onClick={() => void touch(r.telegramId, kind)}
-          >
-            {t(`crm.act.${kind}`)}
-          </button>
-        ))}
+        <div className="crm__outcomes" role="group">
+          {(['written', 'replied', 'refused'] as const).map(kind => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => void touch(r.telegramId, kind)}
+            >
+              {t(`crm.act.${kind}`)}
+            </button>
+          ))}
+        </div>
       </div>
     </li>
   )

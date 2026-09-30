@@ -522,6 +522,51 @@ describe('the buttons record, they do not send', () => {
     await draw()
     expect(host.textContent).toContain('crm.note')
   })
+
+  /*
+   * ONE GROUP, SO IT WRAPS AS ONE. On a phone the buttons wrapped one at a
+   * time: "Refused" alone on a second line, and in Russian stretched across
+   * the whole row. The stylesheet moves the group; it needs the group.
+   */
+  it('keeps the three outcomes in one group, beside "Prepare"', async () => {
+    serve()
+    await draw()
+    const acts = host.querySelector('.crm__row--ours .crm__acts')!
+    const group = acts.querySelector(':scope > .crm__outcomes')
+    expect(group, 'no outcome group').not.toBeNull()
+    expect(group!.getAttribute('role')).toBe('group')
+    expect(
+      [...group!.querySelectorAll('button')].map(b => b.textContent)
+    ).toEqual(['crm.act.written', 'crm.act.replied', 'crm.act.refused'])
+    expect(acts.querySelector(':scope > .crm__prepare')).not.toBeNull()
+  })
+
+  it('on a phone, grows the group and never a lone button', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const css = readFileSync(join(__dirname, 'Crm.css'), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      ''
+    )
+    const at = css.indexOf('@media (max-width: 480px)')
+    expect(at).toBeGreaterThan(-1)
+    let depth = 0
+    let end = css.indexOf('{', at)
+    for (let i = end; i < css.length; i++) {
+      if (css[i] === '{') depth++
+      if (css[i] === '}' && --depth === 0) {
+        end = i
+        break
+      }
+    }
+    const phone = css.slice(at, end)
+    // A grow on every `.crm__acts button` stretches the lone "Wrote" of a
+    // hot lead, or the restore button, across the whole row.
+    for (const m of phone.matchAll(/([^{}]+){([^}]*)}/g))
+      if (/\.crm__acts button(?![-\w])/.test(m[1]))
+        expect(m[2], m[1].trim()).not.toMatch(/flex/)
+    expect(phone).toMatch(/\.crm__outcomes button\s*{[^}]*flex:\s*1 1 0/)
+  })
 })
 
 describe('every person on the list is a way into their own page', () => {
