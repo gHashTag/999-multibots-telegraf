@@ -188,6 +188,24 @@ describe('the welcome screen', () => {
     expect(targets).toContain('/feed')
   })
 
+  it('lets a person skip from the first screen, not only from the bottom', async () => {
+    await render()
+    const skip = host.querySelector('.welcome-topline a[href="/feed"]')
+    expect(skip).not.toBeNull()
+    expect(skip?.getAttribute('aria-label')).toMatch(/ленту/) // cyrillic-ok
+  })
+
+  it('names every section by its own heading', async () => {
+    await render()
+    const sections = host.querySelectorAll('section')
+    expect(sections.length).toBeGreaterThan(0)
+    for (const section of sections) {
+      const id = section.getAttribute('aria-labelledby')
+      expect(id, section.className).toBeTruthy()
+      expect(host.querySelector(`#${id}`)?.tagName).toBe('H2')
+    }
+  })
+
   it('names which agent each order button orders', async () => {
     await render()
     for (const pkg of AGENT_PACKAGES) {
