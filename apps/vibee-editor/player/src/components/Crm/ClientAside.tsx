@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useBackTo } from '@/lib/backTo'
 import { useLanguage } from '@/hooks/useLanguage'
 import {
   loadClientProfile,
@@ -110,6 +111,9 @@ export function ClientAside({
   onName?: (name: string) => void
 }) {
   const { t } = useLanguage()
+  // Opening the card from the chat is the chat's own way back (tick 7: the
+  // top row's link was fixed in tick 6, this one still pushed -- the loop).
+  const backToCard = useBackTo(`/crm/${client}`)
   const [profile, setProfile] = useState<Reached<ClientProfile>>(empty)
   const [context, setContext] = useState<Reached<LeadContext>>(empty)
   const [history, setHistory] = useState<Reached<ClientHistory>>(empty)
@@ -138,27 +142,23 @@ export function ClientAside({
 
   useEffect(() => {
     let alive = true
-    void (async () => {
-      // In parallel: five independent reads; one slow tool must not hold the
-      // rest of the card off the screen.
-      const [p, c, h, pl, picks, xp, tl] = await Promise.all([
-        loadClientProfile(client),
-        loadLeadContext(client),
-        loadClientHistory(client),
-        loadClientPlan(client),
-        loadAutopilotLeads(),
-        loadMoveStats(),
-        loadClientTimeline(client),
-      ])
-      if (!alive) return
-      setProfile(p)
-      setContext(c)
-      setHistory(h)
-      setPlan(pl)
-      setPicked(picks.data ? picks.data.includes(client) : null)
-      setExperience(xp)
-      setTimeline(tl)
-    })()
+    // Seven independent reads, each drawn as it answers. They were read in
+    // parallel but drawn together, after the slowest: the name in the
+    // chat's top row came a second late on every visit (CRM loop, tick 7).
+    const land =
+      <T,>(set: (v: T) => void) =>
+      (v: T) => {
+        if (alive) set(v)
+      }
+    void loadClientProfile(client).then(land(setProfile))
+    void loadLeadContext(client).then(land(setContext))
+    void loadClientHistory(client).then(land(setHistory))
+    void loadClientPlan(client).then(land(setPlan))
+    void loadAutopilotLeads().then(
+      land(picks => setPicked(picks.data ? picks.data.includes(client) : null))
+    )
+    void loadMoveStats().then(land(setExperience))
+    void loadClientTimeline(client).then(land(setTimeline))
     return () => {
       alive = false
     }
@@ -696,7 +696,11 @@ export function ClientAside({
       )}
 
       <div className="chat-aside__actions">
-        <Link className="chat-aside__link" to={`/crm/${client}`}>
+        <Link
+          className="chat-aside__link"
+          to={`/crm/${client}`}
+          onClick={backToCard}
+        >
           {t('crm.aside.open')}
         </Link>
         <a

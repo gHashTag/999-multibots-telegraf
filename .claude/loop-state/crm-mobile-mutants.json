@@ -96,7 +96,7 @@
   },
   {
     "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
-    "from": "        state={cameFrom(`/crm/${clientId}`)}\n",
+    "from": "          ...cameFrom(`/crm/${clientId}`),\n",
     "to": ""
   },
   {
@@ -126,12 +126,54 @@
   },
   {
     "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
-    "from": "                  {named?.id === client\n                    ? named.name\n                    : t('crm.client.chat.title', { id: client })}",
+    "from": "                  {clientName ?? t('crm.client.chat.title', { id: client })}",
     "to": "                  {t('crm.client.chat.title', { id: client })}"
   },
   {
     "file": "apps/vibee-editor/player/src/components/Crm/ClientAside.tsx",
     "from": "    if (known) onName?.(known)",
     "to": "    if (known) void 0"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "        if (reloads.current === mine) set(v)",
+    "to": "        set(v)",
+    "name": "card: a late answer for the last client lands"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "      loadLeadContext(clientId).then(land(setContext)),",
+    "to": "      loadLeadContext(clientId).then(async v => {\n        await loadLeadMedia(clientId)\n        land(setContext)(v)\n      }),",
+    "name": "card: messages wait for the media read"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "          ...(displayName !== clientId ? { name: displayName } : {}),",
+    "to": "",
+    "name": "card: the chat link hands no name over"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/components/Crm/ClientAside.tsx",
+    "from": "        if (alive) set(v)",
+    "to": "        set(v)",
+    "name": "aside: a read for the last client lands"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/components/Crm/ClientAside.tsx",
+    "from": "    void loadClientProfile(client).then(land(setProfile))",
+    "to": "    void Promise.all([loadClientProfile(client), loadClientTimeline(client)]).then(([p]) => land(setProfile)(p))",
+    "name": "aside: profile waits for the timeline"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/components/Crm/ClientAside.tsx",
+    "from": "          onClick={backToCard}\n",
+    "to": "",
+    "name": "aside: open-the-card link pushes again"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
+    "from": "      : typeof handed === 'string' && handed",
+    "to": "      : false && handed",
+    "name": "chat: the handed-over name is ignored"
   }
 ]

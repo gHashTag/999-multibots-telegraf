@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
 import { agentMessagesAtomFor, agentDraftAtomFor } from '@/atoms/agentChat'
 import {
@@ -355,6 +361,16 @@ function ChatThread({
     },
     [client]
   )
+  // The card page hands the name over with the link (tick 7), so the row
+  // names the client before the card beside it has read anything. The state
+  // belongs to this entry, whose address holds this client.
+  const handed = (useLocation().state as { name?: unknown } | null)?.name
+  const clientName =
+    named?.id === client
+      ? named.name
+      : typeof handed === 'string' && handed
+        ? handed
+        : null
   /*
    * The balance and the buy flow moved to useTokenTopUp so the PROFILE can use
    * the same one. A second copy is how one of the two quietly stops verifying.
@@ -672,9 +688,7 @@ function ChatThread({
                   </span>
                 </Link>
                 <span className="chat-client__title">
-                  {named?.id === client
-                    ? named.name
-                    : t('crm.client.chat.title', { id: client })}
+                  {clientName ?? t('crm.client.chat.title', { id: client })}
                 </span>
                 {/* Narrow screens: the card opens as a sheet. Hidden in wide mode,
               where it is always beside the conversation. */}
