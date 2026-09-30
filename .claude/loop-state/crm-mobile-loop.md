@@ -184,3 +184,5 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - 01.10.2026 03:57: tick 8: the default item (140px top chrome) measured as not the pain -- the AUTO word on every row was: 73 of 352px; heading names the column once, name 179->208px. Hand-copying proven mutants into the guard list rewrote its indent -> tri mutants --adopt
 
 - 01.10.2026 04:27: tick 9: waiting row's outcomes wrap as one group (EN 237->185px); first try fit English and stretched a lone Russian button across the row -- measure in the owner's language, scope grow rules to a group
+
+- 01.10.2026 05:14: tick 10: WORK-tab waiting row puts stage under the name on a phone (grid, row-gap 0); contacts section headings pinned under the finder via usePublishedHeight (--crm-finder-h on parent); tri mutants --reanchor for indent-only moves; 57/57 guards killed. Open: waiting 'because' text is Russian server prose in EN UI; sticky unverified in the real Telegram #root scroller.
