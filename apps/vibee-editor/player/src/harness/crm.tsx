@@ -2,9 +2,11 @@
  * THE CRM LIST, FOR A PHONE-WIDTH LOOK (tri shot crm).
  *
  * /crm as the router mounts it, under the app's own sheets in the order of
- * main.tsx, with the real card on /crm/:id so a round trip list -> card ->
- * Back measures what the phone does (scroll, kept search). Every tool call
- * is answered in the page from crmFixtures.ts and crmClientFixtures.json.
+ * main.tsx, with the real card on /crm/:id and its chat on /crm/:id/chat, so
+ * a round trip list -> card -> chat -> Back measures what the phone does
+ * (scroll, kept search, no Back loop). Every tool call is answered in the
+ * page from crmFixtures.ts and crmClientFixtures.json; the chat's own
+ * /api/agent/* calls go to the network and fail, leaving the greeting.
  *
  * Nothing here is built into the app: vite serves harness/*.html in dev only.
  */
@@ -17,6 +19,8 @@ import '../styles/telegram.css'
 import '../styles/board-shell.css'
 import CrmPage from '@/pages/Crm'
 import CrmClientPage from '@/pages/CrmClient'
+import ChatPage from '@/pages/Chat'
+import { TelegramTabBar } from '@/components/Navigation/TelegramTabBar'
 import { answerCrmToolsInPage, CRM_FIXTURES } from './crmFixtures'
 import cardFixtures from './crmClientFixtures.json'
 
@@ -37,7 +41,13 @@ if (root)
         <Routes>
           <Route path="/crm" element={<CrmPage />} />
           <Route path="/crm/:clientId" element={<CrmClientPage />} />
+          <Route path="/crm/:clientId/chat" element={<ChatPage />} />
         </Routes>
+        {/* The app's own bottom bar (App.tsx). Without it the header's
+            fallback bar sat over the chat's composer -- a harness-only
+            overlap, since pages reserve the height only while this bar
+            publishes body[data-tabbar] (tick 6). */}
+        <TelegramTabBar />
       </MemoryRouter>
     </StrictMode>
   )
