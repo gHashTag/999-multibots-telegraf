@@ -29,6 +29,7 @@ import {
   type Funnel,
   type WinbackList,
   matches,
+  searchNeedle,
   ensureAvatars,
   loadClientsPage,
   appendClients,
@@ -607,7 +608,7 @@ export default function CrmPage() {
    * row that is not on the screen.
    */
   const allClients = (c?.clients ?? []).filter(x => matches(x, query))
-  const q = query.trim().toLowerCase()
+  const q = searchNeedle(query)
   const shownGroups = (groups ?? []).filter(
     g =>
       !q ||

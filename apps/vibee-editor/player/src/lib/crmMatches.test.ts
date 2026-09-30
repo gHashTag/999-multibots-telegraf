@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matches, type ClientRow } from './crm'
+import { matches, searchNeedle, type ClientRow } from './crm'
 
 /**
  * The contact search reads a username the way Telegram prints it.
@@ -39,5 +39,12 @@ describe('matches', () => {
 
   it('a bare @ is not a search yet', () => {
     expect(matches(igor, '@')).toBe(true)
+  })
+})
+
+describe('searchNeedle', () => {
+  it('drops one leading @ and the case, keeps the rest', () => {
+    expect(searchNeedle('  @Buyers_Club ')).toBe('buyers_club')
+    expect(searchNeedle('a@b')).toBe('a@b')
   })
 })

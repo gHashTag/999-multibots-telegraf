@@ -800,6 +800,43 @@ describe('groups on /crm (#2950)', () => {
       delete answers.crm_groups
     }
   })
+
+  // Tick 2 of the CRM mobile loop: the groups filter read "@buyers" with
+  // the @ and found nothing; one needle now serves people and groups.
+  it('a group is found by its @username', async () => {
+    answers.crm_groups = {
+      groups: [
+        {
+          chat_id: '-1002222222222',
+          kind: 'supergroup',
+          title: 'Wholesale',
+          username: 'buyers_club',
+          members_count: 40,
+          messages: 12,
+        },
+      ],
+    }
+    try {
+      serve()
+      await draw(CONTACTS)
+      const input = host.querySelector<HTMLInputElement>(
+        'input[type="search"]'
+      )!
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value'
+        )!.set!.call(input, '@buyers')
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      const chip = [...host.querySelectorAll('button')].find(b =>
+        b.textContent?.startsWith('crm.clients.filter.groups')
+      )!
+      expect(chip.textContent).toBe('crm.clients.filter.groups 1')
+    } finally {
+      delete answers.crm_groups
+    }
+  })
 })
 
 /*
