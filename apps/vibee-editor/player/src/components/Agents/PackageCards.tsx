@@ -5,8 +5,8 @@ import {
   tryableAgentOf,
 } from '../../../../packages/vibee-atoms/src/agent-packages'
 import type { Language } from '@/hooks/useLanguage'
-import { hasCredential } from '@/lib/embedGuest'
 import { openTelegramLink } from '@/lib/telegram'
+import { tryFreeNote } from './tryFree'
 import './PackageCards.css'
 
 const copy = {
@@ -19,8 +19,6 @@ const copy = {
     tryFirst: 'Try it first',
     // Starts with the visible words, so voice control can say what it sees.
     tryLabel: (name: string) => `Try it first: ${name}, free`,
-    tryFree: 'Free: chatting costs nothing',
-    tryFreeSignIn: 'Free, with a Telegram sign-in',
   },
   ru: {
     popular: 'Выбирают чаще',
@@ -30,8 +28,6 @@ const copy = {
     orderLabel: (name: string) => `Заказать: ${name}`,
     tryFirst: 'Сначала попробовать',
     tryLabel: (name: string) => `Сначала попробовать: ${name}, бесплатно`,
-    tryFree: 'Бесплатно: переписка ничего не стоит',
-    tryFreeSignIn: 'Бесплатно, нужен вход через Telegram',
   },
 } as const
 
@@ -55,9 +51,10 @@ export function PackageCards({ lang }: { lang: Language }) {
    * Telegram the chat turned out to need a sign-in. The agent chat is on the
    * FREE list (render/src/agent/pricing.ts) -- the price claim is pinned to
    * that list by a test -- and a browser with no credential is told up front
-   * that it will be asked to sign in.
+   * that it will be asked to sign in. The words live in ./tryFree.ts, shared
+   * with the welcome screen's own try button.
    */
-  const tryNote = hasCredential() ? text.tryFree : text.tryFreeSignIn
+  const tryNote = tryFreeNote(l)
   return (
     <div className="package-cards">
       {AGENT_PACKAGES.map(pkg => {

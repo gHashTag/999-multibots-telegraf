@@ -7,6 +7,7 @@ import { useAgentAcceptance } from '@/hooks/useAgentAcceptance'
 import { AgentFace } from '@/components/Chat/AgentFace'
 import { PackageCards } from '@/components/Agents/PackageCards'
 import { VerdictLine } from '@/components/Agents/VerdictLine'
+import { tryFreeNote } from '@/components/Agents/tryFree'
 import { markWelcomed } from '@/lib/welcomeMemory'
 import './Welcome.css'
 
@@ -30,7 +31,9 @@ const copy = {
       ],
     ],
     working: 'Working now',
-    open: 'Open',
+    open: 'Details',
+    talk: 'Talk to the agent',
+    talkLabel: (name: string) => `Talk to the agent: ${name}, free`,
     proof: 'What proves the job',
     packages: 'Agents to order',
     packagesLead:
@@ -71,7 +74,9 @@ const copy = {
       ],
     ],
     working: 'Уже работают',
-    open: 'Открыть',
+    open: 'Подробнее',
+    talk: 'Написать агенту',
+    talkLabel: (name: string) => `Написать агенту: ${name}, бесплатно`,
     proof: 'Чем подтверждается работа',
     packages: 'Агенты на заказ',
     packagesLead:
@@ -218,6 +223,24 @@ export function WelcomePage() {
                     </ul>
                   </div>
                 ) : null}
+                {/*
+                 * THE SHORTEST WAY TO A FIRST ANSWER. The card's own link
+                 * opens the agent's dashboard (details, checks); talking to
+                 * it used to wait two sections down, on a package card.
+                 * Competitors put "Chat with Ava" (Artisan) or "Try for
+                 * free" with its condition (Lindy) at the first mention of
+                 * the agent -- so does this, with what it costs under it.
+                 */}
+                <div className="welcome-agent__try">
+                  <Link
+                    className="welcome-agent__talk"
+                    to={`/agents/${agent.id}/work`}
+                    aria-label={text.talkLabel(agent.name[l])}
+                  >
+                    {text.talk} <span aria-hidden="true">→</span>
+                  </Link>
+                  <p>{tryFreeNote(l)}</p>
+                </div>
               </div>
             ))}
           </section>

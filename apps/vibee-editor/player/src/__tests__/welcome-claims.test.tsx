@@ -20,6 +20,7 @@ import { checkedDay } from '@/hooks/useAgentAcceptance'
 
 const ui = vi.hoisted(() => ({
   lang: 'en' as 'en' | 'ru',
+  credential: true,
   verdicts: null as Record<
     string,
     {
@@ -38,6 +39,10 @@ vi.mock('@/hooks/useAgentAvatars', () => ({ useAgentAvatars: () => ({}) }))
 vi.mock('@/hooks/useAgentAcceptance', async importOriginal => ({
   ...(await importOriginal<typeof import('@/hooks/useAgentAcceptance')>()),
   useAgentAcceptance: () => ui.verdicts,
+}))
+vi.mock('@/lib/embedGuest', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/embedGuest')>()),
+  hasCredential: () => ui.credential,
 }))
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
@@ -251,5 +256,59 @@ describe('the last daily check on the welcome card', () => {
     points('en')
     expect(checked()).toBeNull()
     expect(host.textContent).not.toMatch(/not checked|never checked/i)
+  })
+})
+
+// The working card's only action used to open the operator dashboard; the
+// way to talk to the agent waited two sections down on a package card.
+describe('talking to a live agent from its welcome card', () => {
+  const RU_TALK = /^Написать агенту: .+, бесплатно$/ // cyrillic-ok
+
+  beforeEach(() => {
+    ui.credential = true
+  })
+
+  function talk(): HTMLAnchorElement | null {
+    return host.querySelector('.welcome-agent-card .welcome-agent__talk')
+  }
+
+  it('is one tap away, and opens the agent at work, not its dashboard', () => {
+    points('en')
+    const live = MARKETPLACE_AGENTS.filter(a => a.status === 'live')
+    const links = host.querySelectorAll('.welcome-agent__talk')
+    expect(links).toHaveLength(live.length)
+    expect(talk()?.getAttribute('href')).toBe(`/agents/${live[0].id}/work`)
+    expect(talk()?.getAttribute('aria-label')).toMatch(
+      /^Talk to the agent: .+, free$/
+    )
+    expect(talk()?.textContent).toMatch(/^Talk to the agent/)
+  })
+
+  it('says what it costs, in the words of the package cards', () => {
+    points('en')
+    const note = talk()?.nextElementSibling?.textContent
+    expect(note).toBe('Free: chatting costs nothing')
+    const onPackage = host.querySelector('.package-card__try-note')
+    if (onPackage) expect(onPackage.textContent).toBe(note)
+  })
+
+  it('warns about the Telegram sign-in before the press, not after', () => {
+    ui.credential = false
+    points('en')
+    expect(talk()?.nextElementSibling?.textContent).toBe(
+      'Free, with a Telegram sign-in'
+    )
+  })
+
+  it('and in Russian', () => {
+    points('ru')
+    expect(talk()?.getAttribute('aria-label')).toMatch(RU_TALK)
+  })
+
+  it('the dashboard link no longer claims to "open" the agent', () => {
+    points('en')
+    expect(host.querySelector('.welcome-agent__open')?.textContent).toMatch(
+      /^Details/
+    )
   })
 })
