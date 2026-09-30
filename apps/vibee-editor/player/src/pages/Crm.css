@@ -461,24 +461,9 @@
   cursor: pointer;
 }
 
-/* On the work section: the way into the contacts, drawn as the search box it
-   opens. */
-.crm__find {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: var(--touch-target, 44px);
-  padding: 10px 14px;
-  font: inherit;
-  font-size: 16px;
-  text-align: left;
+/* On the work section: the way into the contacts is the same search box. */
+.crm__find input::placeholder {
   color: var(--text-muted, #888);
-  background: var(--t27-surface-2, rgba(255, 255, 255, 0.08));
-  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
-  border-radius: 12px;
-  cursor: pointer;
-  justify-content: flex-start;
 }
 
 .crm__subtitle {

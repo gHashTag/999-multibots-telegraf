@@ -822,17 +822,53 @@ describe('contacts on a phone', () => {
     serve()
     await draw()
     expect(host.querySelector('.crm__row--client')).toBeNull()
-    expect(host.querySelector('input[type="search"]')).toBeNull()
-    const find = host.querySelector<HTMLButtonElement>('.crm__find')!
-    expect(find.textContent).toContain('crm.contacts.find')
+    // The way in is a real field (iOS opens the keyboard only for a focus
+    // made inside the tap), not a button that opens one a task later.
+    const find = host.querySelector<HTMLInputElement>('.crm__find input')!
+    expect(find.placeholder).toBe('crm.contacts.find')
     await act(async () => {
-      find.click()
+      find.focus()
     })
-    const input = host.querySelector<HTMLInputElement>('input[type="search"]')
+    const input = host.querySelector<HTMLInputElement>(
+      '.crm__finder input[type="search"]'
+    )
     expect(input).not.toBeNull()
+    expect(host.querySelector('.crm__find')).toBeNull()
     // Came for a person: the box already has the cursor.
     expect(document.activeElement).toBe(input)
     expect(host.textContent).toContain('ClientOnlyName')
+  })
+
+  it('clear and the chips keep the keyboard: they never take the focus', async () => {
+    serve()
+    await draw(CONTACTS)
+    const input = host.querySelector<HTMLInputElement>('input[type="search"]')!
+    await typeInto(input, 'q')
+    const press = (el: Element) => {
+      const e = new Event('pointerdown', { bubbles: true, cancelable: true })
+      el.dispatchEvent(e)
+      return e.defaultPrevented
+    }
+    expect(press(host.querySelector('.crm__search-clear')!)).toBe(true)
+    expect(press(host.querySelector('.crm__chip')!)).toBe(true)
+  })
+
+  it('no "More clients" under an answered search: the server looked at all', async () => {
+    const saved = answers.crm_clients as Record<string, unknown>
+    answers.crm_clients = { ...saved, next_offset: 50 }
+    try {
+      serve()
+      await draw(CONTACTS)
+      // There IS a next page: without a query the button is offered.
+      expect(host.querySelector('.crm__more')).not.toBeNull()
+      const input = host.querySelector<HTMLInputElement>(
+        'input[type="search"]'
+      )!
+      await typeInto(input, 'qq')
+      expect(host.querySelector('.crm__more')).toBeNull()
+    } finally {
+      answers.crm_clients = saved
+    }
   })
 
   it('a search that finds nobody says so and KEEPS the box to change it', async () => {
