@@ -206,8 +206,16 @@ export const CRM_FIXTURES: Record<string, unknown> = {
   },
 }
 
-/** Answer every MCP tool call from the fixtures; anything else is refused. */
-export function answerCrmToolsInPage() {
+/**
+ * Answer MCP tool calls from fixtures, in the page itself -- so a harness
+ * works in any browser, not only under `tri shot`'s network interception.
+ * A tool without a fixture is refused, or with `passThrough` left to the
+ * network (where `tri shot` answers its own tool with the host's functions).
+ */
+export function answerCrmToolsInPage(
+  fixtures: Record<string, unknown> = CRM_FIXTURES,
+  { passThrough = false }: { passThrough?: boolean } = {}
+) {
   const real = window.fetch.bind(window)
   window.fetch = async (input, init) => {
     const url =
@@ -220,7 +228,8 @@ export function answerCrmToolsInPage() {
     const body = JSON.parse(String(init?.body ?? '{}'))
     const tool: string = body?.params?.name
     const args = body?.params?.arguments ?? {}
-    const fixed = CRM_FIXTURES[tool]
+    const fixed = fixtures[tool]
+    if (!fixed && passThrough) return real(input, init)
     // A search is answered as the server would: only the rows it matches.
     const answer =
       tool === 'crm_clients' && args.query
