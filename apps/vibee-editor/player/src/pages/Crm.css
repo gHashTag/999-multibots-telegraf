@@ -11,12 +11,42 @@
  */
 
 .crm {
+  /* The page inset, named: the rows that scroll sideways bleed out by it. */
+  --crm-pad: var(--space-md, 16px);
   display: flex;
   flex-direction: column;
   gap: var(--space-md, 16px);
-  padding: var(--space-md, 16px);
+  padding: var(--crm-pad);
   max-width: 720px;
   margin: 0 auto;
+}
+
+/* ROWS THAT SCROLL SIDEWAYS RUN TO THE SCREEN EDGE, AND START IN LINE.
+   The section strip carries its own 16px inset for pages without one; here
+   it sat on top of the page's, so the tabs began 16px right of everything
+   under them. The funnel row stopped at the page inset instead, and its
+   last chip was simply cut -- nothing said the row scrolls. Both now bleed
+   through the page inset and keep it as their own, and fade out on the
+   right the way the strip does. */
+.crm > .section-strip,
+.crm .crm-funnel__stages {
+  margin-inline: calc(-1 * var(--crm-pad));
+  padding-left: var(--crm-pad);
+  padding-right: 28px;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--crm-pad),
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--crm-pad),
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
 }
 
 .crm__top {
@@ -674,8 +704,9 @@
  */
 @media (max-width: 480px) {
   .crm {
+    --crm-pad: 10px;
     gap: 12px;
-    padding: 12px 10px;
+    padding: 12px var(--crm-pad);
   }
 
   /* Refresh is the rarest tap on the screen; it was the loudest thing on it. */
