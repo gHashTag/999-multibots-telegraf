@@ -1933,6 +1933,10 @@ change, before its commit. Run `tri mutants --check <list>` after every edit
 to guarded code. The details live in the header of
 `bin/helpers/loop-guard.sh`; they are not copied here.
 
+A proven batch goes into the guard list with `tri mutants --adopt
+<batch.json> <guards.json>`, run where the batch ran. The hand-made copy
+it replaces once rewrote the whole list's indent.
+
 **Never edit a file while a mutation batch runs in the background.** The
 restore writes back the pre-mutation snapshot. `tri mutants` now keeps such
 an edit as `<file>.edited-during-mutants`, but that is a rescue, not a way

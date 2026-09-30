@@ -164,3 +164,5 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - 01.10.2026 03:03: tick 6: tick 4's real-Back crumb built a Back loop with the chat's pushing link (useBackTo/cameFrom, firstEntry state); chat top row widened the page to 502px -- min-width:0, 44px targets, client name in title; the harness lacked TelegramTabBar and faked an overlap
 
 - 01.10.2026 03:26: tick 7: loop-guard warned-and-went on a stale anchor (27 guards unchecked) -> stop at start, end keeps the lock; Promise.all drew every panel after the slowest read -> each lands as it answers, name handed over in link state; tick 6 fixed 1 of 2 links into the card -> grep the route
+
+- 01.10.2026 03:57: tick 8: the default item (140px top chrome) measured as not the pain -- the AUTO word on every row was: 73 of 352px; heading names the column once, name 179->208px. Hand-copying proven mutants into the guard list rewrote its indent -> tri mutants --adopt
