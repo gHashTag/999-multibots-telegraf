@@ -121,6 +121,20 @@ small 0, cut 0, overlap 0, order 0 · <png>`. Код 0 — чисто, 1 — к�
 - **Gates in a worktree** -- `tri worktree <branch>` links the root and
   render node_modules; without them npx pulls a foreign ESLint/tsc and
   pre-commit goes red for nothing.
+- **`npx tsc -p .` in the player checks nothing.** Its tsconfig.json is a
+  solution file with references; the gate runs `tsconfig.app.json`. CRM
+  loop tick 2 saw "clean", then lost a commit to player-types
+  (`Avatar name` got `string | null`). Run `./bin/tri precommit
+player-types` (~10 s) before committing.
+- **An exit code alone is not a verdict -- read the log.** The first
+  `tri precommit` probe exited 1 on a planted type error and looked
+  proven; the log said lefthook rejected the flag (`--commands`, the flag
+  is `--command`). The clean run exited 1 too. A red probe proves the gate
+  only if the log names the planted error.
+- **Recent/remembered rows draw only ids the server just listed.** A
+  localStorage id is shown only if it is in the current list (privacy on
+  a shared device, and no dead links). Consequence: the list is paged, so
+  someone past the first page is not offered back.
 
 ## Related Resources
 
