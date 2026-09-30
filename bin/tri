@@ -92,6 +92,7 @@ tri — оболочка Trinity S³AI
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri mutants <list.json> -- <команда>          пакет мутаций против одного прогона: таблица убитых и выживших; у мутанта "tests" — его файлы тестов
   tri mutants --check <list.json>...            только якоря: все мутанты, чей `from` не ровно один раз в файле (после рефакторинга), ничего не запуская
+  tri mutants --adopt <proven.json> <guards.json>  keep a killed batch in a loop's guard list: paths re-rooted from where the batch ran, duplicates skipped, anchors checked before writing
   tri mutants --heal                            вернуть файл, в котором убитый прогон (перезапуск контейнера) оставил мутанта; сам зовётся в начале каждого прогона и в tri loop
   tri spec-controls <spec.t27> <controls.json>   отрицательные контроли спеки на копии: пойман/пропущен/не собралась (по таблице t27c)
   tri spec-check <spec.t27> [controls.json] [--seal]  ворота спеки одной строкой: тесты по таблице (BLOCKED ≠ зелёно), пустые тесты на копии в своей папке, контроли, печать; запись в tri gate

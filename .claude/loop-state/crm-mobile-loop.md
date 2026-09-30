@@ -37,7 +37,9 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
    keyboard.
 4. Every new test is proven by a mutation -- with `tri mutants`, not by
    hand (tick 4 hand-rolled it a third time). Add each proven mutation to
-   `crm-mobile-mutants.json`: `loop-guard start` re-runs the whole list, so
+   `crm-mobile-mutants.json` with `tri mutants --adopt <batch.json>
+<guards.json>`, run where the batch ran (tick 8: the hand copy once
+   rewrote the whole list's indent): `loop-guard start` re-runs the whole list, so
    a later tick that weakens a past guard is stopped, not merely green.
    A new test file goes into the `loop-tests` marker in the same commit,
    or its mutations read as survivors next tick (tick 5).
@@ -124,6 +126,15 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - [x] Harness mounts the app's TelegramTabBar: without it the header's
       fallback bar covered the chat composer -- a harness-only overlap that
       read as a bug (tick 6)
+- [x] AUTO pill took 73px of every 352px row at 390px: the name had 179px,
+      4 of 12 names and 6 fact lines cut. On a phone the row keeps the
+      tick alone (44px) and the list heading names the column once, aligned
+      at 390 and 320. Name 179 -> 208px, fact lines cut 6 -> 4 (tick 8)
+- [ ] The AUTO column label scrolls away with its heading; a long list shows
+      bare ticks. Owner knows them; a sticky heading under the sticky finder
+      is the fix if anyone asks what the round box is
+- [x] `tri mutants --adopt`: a proven batch into the guard list, re-rooted,
+      deduplicated, anchors checked (tick 8)
 - [ ] Recents ignore the chip (leads chip still shows a client in Recent).
       Deliberate for now (HubSpot recents are filter-free); watch for
       confusion
