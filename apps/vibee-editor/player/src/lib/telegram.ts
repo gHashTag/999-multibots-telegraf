@@ -251,3 +251,17 @@ export function openInvoice(
     }
   })
 }
+
+/**
+ * Open a t.me link the way the mini app should: Telegram's own opener inside
+ * Telegram (a plain link would leave the app for a browser tab), a new tab
+ * outside it -- the same page opened in a browser has no Telegram to ask.
+ */
+export function openTelegramLink(url: string): void {
+  const webApp = getWebApp()
+  if (typeof webApp?.openTelegramLink === 'function') {
+    webApp.openTelegramLink(url)
+    return
+  }
+  window.open(url, '_blank', 'noopener')
+}

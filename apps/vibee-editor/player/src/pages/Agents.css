@@ -208,6 +208,22 @@
   color: #626262;
 }
 
+.agents-packages {
+  margin-top: 64px;
+}
+.agents-packages h2 {
+  margin: 12px 0 8px;
+  font-size: clamp(30px, 4.5vw, 46px);
+  font-weight: 520;
+  letter-spacing: -0.035em;
+}
+.agents-packages > p:not(.agents-eyebrow) {
+  max-width: 640px;
+  margin: 0 0 26px;
+  color: #a7a7a7;
+  line-height: 1.6;
+}
+
 .harness-callout,
 .economy-card {
   margin-top: 16px;

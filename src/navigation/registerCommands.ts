@@ -240,6 +240,11 @@ import {
 import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
 import { checkAll } from '@/services/capabilityPreflight'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
+import {
+  agentPackageIntent,
+  agentPackageOrderReply,
+  notifyTeamOfPackageOrder,
+} from '@/services/agentPackageOrder'
 
 /**
  * ✅ ЕДИНАЯ ФУНКЦИЯ РЕГИСТРАЦИИ ВСЕХ КОМАНД И ОБРАБОТЧИКОВ
@@ -2931,6 +2936,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       let pickedLook: { n: number } | null = null
       /** The client's own press for her next story reel (?start=reel). */
       let wantsReel = false
+      /** The agent package ordered from the mini app (?start=agentpkg_<id>). */
+      let orderedPackage: string | null = null
       let inlineService: ServiceCard | undefined
       let wantsApp: AppRoute | null = null
       if (ctx.message && 'text' in ctx.message) {
@@ -3041,6 +3048,13 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             // makes it in the background and sends it back to this chat.
             wantsReel = true
             logger.info('Story reel deep-link', { telegramId })
+          } else if (agentPackageIntent(startParam)) {
+            // A package card's "Order" press: a request for the team.
+            orderedPackage = agentPackageIntent(startParam)
+            logger.info('Agent package deep-link', {
+              telegramId,
+              package: orderedPackage,
+            })
           } else if (topupIntent(startParam)) {
             // The mini app's rouble and crypto buttons: the cashier is here.
             wantsTopUp = topupIntent(startParam)
@@ -3072,10 +3086,29 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
       console.log('🔴 [DEBUG /start] userExists:', userDetails.isExist)
 
+      /*
+       * THE ORDER IS TAKEN BEFORE ANYTHING ELSE. A new person is about to be
+       * sent through CreateUserScene, and a local variable does not survive
+       * that trip -- so the team hears of the order and the person is told
+       * it arrived now, whoever they turn out to be.
+       */
+      if (orderedPackage && ctx.from) {
+        await notifyTeamOfPackageOrder(
+          ctx.telegram,
+          orderedPackage,
+          ctx.from,
+          ctx.botInfo?.username
+        )
+        await ctx.reply(agentPackageOrderReply(isRussianFromState(ctx)))
+      }
+
       if (!userDetails.isExist) {
         console.log('🔴 [DEBUG /start] Entering CreateUserScene...')
         await ctx.scene.enter(ModeEnum.CreateUserScene)
         console.log('🔴 [DEBUG /start] CreateUserScene entered')
+      } else if (orderedPackage) {
+        // Answered above; a greeting on top would bury the confirmation.
+        orderedPackage = null
       } else if (wantsApp) {
         ctx.session.appDeepLink = undefined
         await sendAppDoor(ctx as any, wantsApp, isRussianFromState(ctx))

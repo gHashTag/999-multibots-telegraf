@@ -1,0 +1,162 @@
+/**
+ * THE WELCOME SCREEN OPENS ONCE, AND NEVER IN SOMEONE ELSE'S WAY.
+ *
+ * Owner, 2026-09-30: "a welcome screen right when the app opens". The root
+ * already had two masters -- a link that names a screen, and the screen the
+ * person was interrupted on -- and both have to keep winning where they won:
+ * a pairing code must not lose to a greeting, and a returning person must
+ * not be greeted again after a version bump sweeps the storage.
+ */
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { MemoryRouter, useLocation } from 'react-router-dom'
+import { STORAGE_KEYS } from '@vibee/atoms'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AGENT_PACKAGES } from '../../../packages/vibee-atoms/src/agent-packages'
+import { survivesStorageReset } from '@/lib/storageReset'
+
+vi.mock('@/hooks/useTelegramWebApp', () => ({
+  useTelegramWebApp: () => undefined,
+}))
+vi.mock('@/hooks/useAgentAvatars', () => ({ useAgentAvatars: () => ({}) }))
+vi.mock('@/hooks/useLanguage', () => ({
+  useLanguage: () => ({ lang: 'ru', setLang: () => {}, t: (k: string) => k }),
+}))
+;(
+  globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
+
+async function freshMemory() {
+  vi.resetModules()
+  return import('@/components/Navigation/RouteMemory')
+}
+
+function WhereAmI({ report }: { report: (path: string) => void }) {
+  const l = useLocation()
+  report(l.pathname)
+  return null
+}
+
+describe('the first launch', () => {
+  let host: HTMLDivElement
+  let root: Root | null = null
+
+  beforeEach(() => {
+    window.localStorage.clear()
+    host = document.createElement('div')
+    document.body.appendChild(host)
+  })
+
+  afterEach(() => {
+    act(() => root?.unmount())
+    root = null
+    host.remove()
+    window.localStorage.clear()
+    window.history.replaceState({}, '', '/')
+  })
+
+  async function landing(): Promise<string> {
+    const memory = await freshMemory()
+    let landedOn = ''
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={['/']}>
+          <memory.LaunchRedirect />
+          <WhereAmI report={p => (landedOn = p)} />
+        </MemoryRouter>
+      )
+    })
+    return landedOn
+  }
+
+  it('greets a person who was never greeted', async () => {
+    expect(await landing()).toBe('/welcome')
+  })
+
+  it('greets them even over a remembered screen', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.lastRoute, '/chat')
+    expect(await landing()).toBe('/welcome')
+  })
+
+  it('returns a greeted person where they were', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.welcomeSeen, '1')
+    window.localStorage.setItem(STORAGE_KEYS.lastRoute, '/chat')
+    expect(await landing()).toBe('/chat')
+  })
+
+  it('sends a greeted person with no memory to the feed', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.welcomeSeen, '1')
+    expect(await landing()).toBe('/feed')
+  })
+
+  it('lets a link that names a screen outrank the greeting', async () => {
+    window.history.replaceState({}, '', '/?tgWebAppStartParam=pair')
+    // TelegramProvider takes it from the feed to /pair.
+    expect(await landing()).toBe('/feed')
+  })
+
+  it('keeps "greeted" through the storage reset', () => {
+    expect(survivesStorageReset(STORAGE_KEYS.welcomeSeen)).toBe(true)
+  })
+})
+
+describe('the welcome screen', () => {
+  let host: HTMLDivElement
+  let root: Root | null = null
+
+  beforeEach(() => {
+    window.localStorage.clear()
+    host = document.createElement('div')
+    document.body.appendChild(host)
+  })
+
+  afterEach(() => {
+    act(() => root?.unmount())
+    root = null
+    host.remove()
+    window.localStorage.clear()
+  })
+
+  async function render() {
+    const { WelcomePage } = await import('@/pages/Welcome')
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={['/welcome']}>
+          <WelcomePage />
+        </MemoryRouter>
+      )
+    })
+  }
+
+  it('marks the person greeted as soon as it is shown', async () => {
+    await render()
+    expect(window.localStorage.getItem(STORAGE_KEYS.welcomeSeen)).toBe('1')
+  })
+
+  it('offers the three agents from the catalogue, at its prices', async () => {
+    await render()
+    for (const pkg of AGENT_PACKAGES) {
+      const card = host.querySelector(`[data-testid="package-${pkg.id}"]`)
+      expect(card, pkg.id).not.toBeNull()
+      expect(card!.textContent).toContain(pkg.name.ru)
+      expect(card!.textContent).toContain(`$${pkg.setupUsd}`)
+      expect(card!.textContent).toContain(`$${pkg.monthlyUsd}`)
+    }
+  })
+
+  it('never says "exchange" (325-FZ art. 9)', async () => {
+    await render()
+    expect(host.textContent).not.toMatch(/бирж|exchange/i) // cyrillic-ok
+  })
+
+  it('always has a way out to the market and to the feed', async () => {
+    await render()
+    const targets = [...host.querySelectorAll('a')].map(a =>
+      a.getAttribute('href')
+    )
+    expect(targets).toContain('/agents')
+    expect(targets).toContain('/feed')
+  })
+})

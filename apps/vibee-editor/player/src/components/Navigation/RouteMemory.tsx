@@ -48,11 +48,33 @@ function isRestorable(path: string): boolean {
 const HOME = '/feed'
 
 /**
+ * THE FIRST SCREEN OF A FIRST LAUNCH: who we are and what is sold
+ * (pages/Welcome.tsx). Shown once; the page sets the flag on any exit.
+ */
+export const WELCOME = '/welcome'
+
+/**
  * Снято ДО монтирования React — по той же причине, что и LAUNCH_PATH в
  * TelegramProvider: к моменту эффектов путь уже переписан редиректом, а
  * записыватель ниже успел бы положить в хранилище «/feed» поверх запомненного.
  */
 const REMEMBERED = readRemembered()
+
+/** Snapshotted with REMEMBERED, for the same reason. */
+const WELCOMED = readWelcomed()
+
+/**
+ * Storage that cannot be read counts as "already greeted": a screen that
+ * could never be dismissed for good would open on every launch.
+ */
+function readWelcomed(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    return window.localStorage.getItem(STORAGE_KEYS.welcomeSeen) !== null
+  } catch {
+    return true
+  }
+}
 
 /**
  * A third-party frame (the game's TRI tab) may have no storage at all: a
@@ -84,10 +106,16 @@ export function LaunchRedirect() {
   const startParam = launchStartParam()
   // Inside the game's TRI frame the game chose the screen; the remembered one
   // belongs to the real app.
+  // A person who has never been greeted sees who we are first -- unless a
+  // link asked for a screen, or the game's frame chose one.
   const target =
-    !IS_EMBED && !startParam && REMEMBERED && isRestorable(REMEMBERED)
-      ? REMEMBERED
-      : HOME
+    IS_EMBED || startParam
+      ? HOME
+      : !WELCOMED
+        ? WELCOME
+        : REMEMBERED && isRestorable(REMEMBERED)
+          ? REMEMBERED
+          : HOME
 
   return <Navigate to={target} replace />
 }
