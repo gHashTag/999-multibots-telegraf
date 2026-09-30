@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
@@ -13,6 +13,7 @@ import { FunnelStrip } from '@/components/Crm/FunnelStrip'
 import { WinbackPanel } from '@/components/Crm/WinbackPanel'
 import { askAgentInThread } from '@/lib/crmAsk'
 import { recentContactIds } from '@/lib/crmRecent'
+import { useUrlMirror } from '@/lib/useUrlMirror'
 import { CrmMap } from '@/components/Crm/CrmMap'
 import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
 import {
@@ -85,6 +86,7 @@ const isClient = (x: ClientRow) =>
   x.paid || x.stage === 'client' || x.stage === 'winback'
 
 type ClientsFilter = 'all' | 'clients' | 'leads' | 'groups'
+const CLIENTS_FILTERS: ClientsFilter[] = ['all', 'clients', 'leads', 'groups']
 
 /** One page of the clients list; "More" asks for the next (#2947). */
 const CLIENTS_PAGE = 100
@@ -190,10 +192,20 @@ export default function CrmPage() {
   const [funnel, setFunnel] = useState<Reached<Funnel>>(empty)
   const [winback, setWinback] = useState<Reached<WinbackList>>(empty)
   const [clients, setClients] = useState<Reached<ClientsList>>(empty)
-  const [clientsFilter, setClientsFilter] = useState<ClientsFilter>('all')
+  /*
+   * The filter and the search live in the address too (?who=, ?q=), so Back
+   * from a contact's card lands on the list as it was left, not on a fresh
+   * one. Read once here; useUrlMirror below writes every change back.
+   */
+  const [params] = useSearchParams()
+  const [clientsFilter, setClientsFilter] = useState<ClientsFilter>(() => {
+    const who = params.get('who') as ClientsFilter | null
+    return who && CLIENTS_FILTERS.includes(who) ? who : 'all'
+  })
   /* The owner's groups (#2950): null until read, [] when there are none. */
   const [groups, setGroups] = useState<GroupRow[] | null>(null)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(() => params.get('q') ?? '')
+  useUrlMirror({ q: query, who: clientsFilter === 'all' ? '' : clientsFilter })
   /** A server search is on its way: "nothing found" would be premature. */
   // The last query the server has answered; "searching" is derived from it
   // rather than set in the effect, so a cleared box is idle at once.

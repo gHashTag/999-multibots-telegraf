@@ -15,6 +15,7 @@ import '../styles/telegram.css'
 import '../styles/board-shell.css'
 import CrmPage from '@/pages/Crm'
 import { answerCrmToolsInPage } from './crmFixtures'
+import { CrmCardStub } from './crmCardStub'
 
 answerCrmToolsInPage()
 
@@ -22,9 +23,11 @@ const root = document.getElementById('root')
 if (root)
   createRoot(root).render(
     <StrictMode>
-      <MemoryRouter initialEntries={['/crm']}>
+      {/* The page's own ?tab=&who=&q= reach the list, so a state is a link. */}
+      <MemoryRouter initialEntries={[`/crm${window.location.search}`]}>
         <Routes>
           <Route path="/crm" element={<CrmPage />} />
+          <Route path="/crm/:clientId" element={<CrmCardStub />} />
         </Routes>
       </MemoryRouter>
     </StrictMode>
