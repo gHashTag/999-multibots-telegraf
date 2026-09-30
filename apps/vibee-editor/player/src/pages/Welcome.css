@@ -131,8 +131,40 @@
   color: inherit;
   text-decoration: none;
 }
-.welcome-agent + .welcome-agent {
+.welcome-agent-card + .welcome-agent-card {
   margin-top: 8px;
+}
+.welcome-agent__proof {
+  padding: 10px 16px 14px;
+  border: 1px solid rgba(0, 255, 136, 0.34);
+  border-top: 0;
+}
+.welcome-agent__proof h3 {
+  margin: 0 0 6px;
+  color: #8f8f8f;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.welcome-agent__proof ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.welcome-agent__proof li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.welcome-agent__proof li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #00ff88;
 }
 .welcome-agent__face {
   display: grid;

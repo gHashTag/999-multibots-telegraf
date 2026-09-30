@@ -122,4 +122,40 @@ describe('"Work with receipts"', () => {
       ).toBe(true)
     }
   })
+
+  // The point says "the card below" -- so the welcome card itself has to
+  // carry the proof, not only the market page behind it.
+  it('the welcome card of every live agent shows its proof, in EN', () => {
+    points('en')
+    const live = MARKETPLACE_AGENTS.filter(a => a.status === 'live')
+    const cards = [...host.querySelectorAll('.welcome-agent-card')]
+    expect(cards).toHaveLength(live.length)
+    live.forEach((agent, i) => {
+      const shown = [...cards[i].querySelectorAll('.welcome-agent__proof li')]
+      expect(shown.map(li => li.textContent)).toEqual(
+        agent.evidence.map(e => e.en)
+      )
+    })
+  })
+
+  it('and in Russian', () => {
+    points('ru')
+    const live = MARKETPLACE_AGENTS.filter(a => a.status === 'live')
+    const card = host.querySelector('.welcome-agent-card')!
+    const shown = [...card.querySelectorAll('.welcome-agent__proof li')].map(
+      li => li.textContent
+    )
+    expect(shown).toEqual(live[0].evidence.map(e => e.ru))
+  })
+
+  it('keeps the proof out of the link, so its name stays short', () => {
+    points('en')
+    const link = host.querySelector('.welcome-agent')!
+    expect(link.querySelector('.welcome-agent__proof')).toBeNull()
+    const list = host.querySelector('.welcome-agent__proof ul')!
+    const heading = document.getElementById(
+      list.getAttribute('aria-labelledby')!
+    )
+    expect(heading?.textContent).toBe('What proves the job')
+  })
 })

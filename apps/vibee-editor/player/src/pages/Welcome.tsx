@@ -24,11 +24,12 @@ const copy = {
       ],
       [
         'Work with receipts',
-        "A live agent's card says what proves its work; a job without live receipts is not done.",
+        "Each live agent's card below says what proves its work; a job without live receipts is not done.",
       ],
     ],
     working: 'Working now',
     open: 'Open',
+    proof: 'What proves the job',
     packages: 'Agents to order',
     packagesLead:
       'Launch price includes the first month; the team sets the bot up for you.',
@@ -64,11 +65,12 @@ const copy = {
       ],
       [
         'Работа с доказательствами',
-        'На карточке живого агента написано, чем подтверждается его работа; без живых подтверждений задача не закрыта.',
+        'На карточке живого агента ниже написано, чем подтверждается его работа; без живых подтверждений задача не закрыта.',
       ],
     ],
     working: 'Уже работают',
     open: 'Открыть',
+    proof: 'Чем подтверждается работа',
     packages: 'Агенты на заказ',
     packagesLead:
       'В цену запуска входит первый месяц; бота настраивает команда.',
@@ -168,24 +170,37 @@ export function WelcomePage() {
               {text.working}
             </h2>
             {working.map(agent => (
-              <Link
-                key={agent.id}
-                className="welcome-agent"
-                to={`/agents/${agent.id}`}
-              >
-                <AgentFace
-                  className="welcome-agent__face"
-                  icon={agent.icon}
-                  url={faces[agent.id]}
-                />
-                <span className="welcome-agent__text">
-                  <strong>{agent.name[l]}</strong>
-                  <span>{agent.role[l]}</span>
-                </span>
-                <span className="welcome-agent__open">
-                  {text.open} <span aria-hidden="true">→</span>
-                </span>
-              </Link>
+              <div key={agent.id} className="welcome-agent-card">
+                <Link className="welcome-agent" to={`/agents/${agent.id}`}>
+                  <AgentFace
+                    className="welcome-agent__face"
+                    icon={agent.icon}
+                    url={faces[agent.id]}
+                  />
+                  <span className="welcome-agent__text">
+                    <strong>{agent.name[l]}</strong>
+                    <span>{agent.role[l]}</span>
+                  </span>
+                  <span className="welcome-agent__open">
+                    {text.open} <span aria-hidden="true">→</span>
+                  </span>
+                </Link>
+                {/*
+                 * The third point promises that a live agent's card says
+                 * what proves its work. This is that card, so the proof is
+                 * on it -- outside the link, so the link's name stays short.
+                 */}
+                {agent.evidence.length > 0 ? (
+                  <div className="welcome-agent__proof">
+                    <h3 id={`welcome-proof-${agent.id}`}>{text.proof}</h3>
+                    <ul aria-labelledby={`welcome-proof-${agent.id}`}>
+                      {agent.evidence.map(item => (
+                        <li key={item.en}>{item[l]}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
             ))}
           </section>
         ) : null}
