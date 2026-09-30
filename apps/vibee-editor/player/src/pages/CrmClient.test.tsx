@@ -6,6 +6,7 @@ import {
   Route,
   Routes,
   useLocation,
+  type InitialEntry,
 } from 'react-router-dom'
 import {
   afterEach,
@@ -378,7 +379,7 @@ describe('the way into the conversation', () => {
       return <p className="probe-list">{at.search}</p>
     }
 
-    async function drawWithHistory(entries: string[]) {
+    async function drawWithHistory(entries: InitialEntry[]) {
       const { default: CrmClientPage } = await import('./CrmClient')
       await act(async () => {
         root.render(
@@ -447,6 +448,23 @@ describe('the way into the conversation', () => {
         '?tab=contacts'
       )
     })
+
+    /*
+     * A chat opened from a link replaces itself with the card on "to the
+     * client" (tick 6, useBackTo). That card is not the app's first entry by
+     * key, but nothing is behind it: the crumb must still go to the contacts,
+     * not step back out of the app.
+     */
+    it('put in place of a first-entry chat, it still goes to the contacts', async () => {
+      serve()
+      await drawWithHistory([
+        '/elsewhere',
+        { pathname: `/crm/${CLIENT}`, state: { firstEntry: true } },
+      ])
+      expect(host.querySelector('.probe-list')?.textContent).toBe(
+        '?tab=contacts'
+      )
+    })
   })
 
   /*
@@ -457,6 +475,38 @@ describe('the way into the conversation', () => {
    * crmClientThumb.test.ts. Measured live: 12px off the bottom at every
    * scroll position, settling in place at the end.
    */
+  /*
+   * The chat learns it was opened from THIS card, so its "to the client"
+   * steps back instead of pushing a second card (tick 6: the Back loop).
+   */
+  it('the primary button tells the chat which card it came from', async () => {
+    serve()
+    const { default: CrmClientPage } = await import('./CrmClient')
+    function ChatProbe() {
+      const at = useLocation()
+      return <p className="probe-chat">{JSON.stringify(at.state)}</p>
+    }
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={[`/crm/${CLIENT}`]}>
+          <Routes>
+            <Route path="/crm/:clientId" element={<CrmClientPage />} />
+            <Route path="/crm/:clientId/chat" element={<ChatProbe />} />
+          </Routes>
+        </MemoryRouter>
+      )
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+    await act(async () => {
+      host.querySelector<HTMLAnchorElement>('a.crm-client__chat')!.click()
+    })
+    expect(host.querySelector('.probe-chat')?.textContent).toBe(
+      JSON.stringify({ backTo: `/crm/${CLIENT}` })
+    )
+  })
+
   it('the primary button comes after every panel', async () => {
     serve()
     await draw()

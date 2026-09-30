@@ -2,7 +2,7 @@
 
 <!-- loop-branch: fix/crm-mobile-ux -->
 <!-- loop-pr: 3199 -->
-<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx -->
+<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx -->
 
 Started 30.09.2026 by the owner's `/loop 30m`: find the weak spots of mobile
 layout and UI/UX, study competitors, write a decomposed plan, implement it,
@@ -97,6 +97,12 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       Now the card starts at its top on a tap, and Back restores the list
       once it is re-read -- window and Telegram's #root alike (tick 5,
       `useScrollMemory`). Measured live: crumb -485 -> 12; row 1231 -> 734
+- [x] Back loop (found tick 6, caused by tick 4): a chat opened from the
+      threads, picker or map -> "to the client" PUSHED the card -> the card's
+      Back (a real history step) returned to the chat -> loop, the list never
+      reached. `useBackTo` steps back when the chat came from that card
+      (`cameFrom`), else REPLACES the chat with the card; `firstEntry` state
+      keeps the crumb from stepping out of the app
 - [ ] Recents ignore the chip (leads chip still shows a client in Recent).
       Deliberate for now (HubSpot recents are filter-free); watch for
       confusion

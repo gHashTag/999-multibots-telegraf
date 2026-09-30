@@ -45,6 +45,7 @@ import { ClientHelperPicker } from '@/components/Chat/ClientHelperPicker'
 import { ConversationRail } from '@/components/Chat/ConversationRail'
 import { stopAgent, threadKeyOf } from '@/lib/agentStream'
 import { isConversationId, newConversationId } from '@/lib/conversations'
+import { useBackTo } from '@/lib/backTo'
 import { AGENT_SUGGESTIONS, agentGate } from './agentSuggestions'
 import './Chat.css'
 
@@ -342,6 +343,9 @@ function ChatThread({
   const [agentAsideOpen, setAgentAsideOpen] = useState(false)
   // The Queen's panel: a column on a wide screen, a sheet otherwise.
   const [queenOpen, setQueenOpen] = useState(false)
+  // "To the client" steps back to the card it came from, or takes the
+  // chat's place in history -- never pushes a card whose Back returns here.
+  const backToClient = useBackTo(client ? `/crm/${client}` : '/crm')
   /*
    * The balance and the buy flow moved to useTokenTopUp so the PROFILE can use
    * the same one. A second copy is how one of the two quietly stops verifying.
@@ -647,7 +651,11 @@ function ChatThread({
                 className="chat-client"
                 aria-label={t('crm.client.chat.title', { id: client })}
               >
-                <Link to={`/crm/${client}`} className="chat-client__back">
+                <Link
+                  to={`/crm/${client}`}
+                  className="chat-client__back"
+                  onClick={backToClient}
+                >
                   ← {t('crm.client.chat.back')}
                 </Link>
                 <span className="chat-client__title">

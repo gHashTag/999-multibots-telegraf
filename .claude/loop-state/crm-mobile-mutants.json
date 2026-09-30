@@ -68,5 +68,40 @@
     "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
     "from": "          KEY + keyRef.current,",
     "to": "          KEY + 'x',"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
+    "from": "                  onClick={backToClient}\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/backTo.ts",
+    "from": "    if (from === path) navigate(-1)",
+    "to": "    if (from) navigate(-1)"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/backTo.ts",
+    "from": "        replace: true,",
+    "to": "        replace: false,"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/backTo.ts",
+    "from": "        state: isFirstEntry(location) ? { firstEntry: true } : null,",
+    "to": "        state: null,"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/backTo.ts",
+    "from": "    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return\n    e.preventDefault()",
+    "to": "    e.preventDefault()"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "        state={cameFrom(`/crm/${clientId}`)}\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "              if (isFirstEntry(location)) return",
+    "to": "              if (location.key === 'default') return"
   }
 ]
