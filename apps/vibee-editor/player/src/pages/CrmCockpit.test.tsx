@@ -242,10 +242,10 @@ beforeAll(async () => {
   CrmPage = (await import('./Crm')).default
 }, 60_000)
 
-async function screen() {
+async function screen(at = '/crm') {
   await act(async () => {
     root.render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[at]}>
         <CrmPage />
       </MemoryRouter>
     )
@@ -270,7 +270,7 @@ const byText = (needle: string) =>
 
 describe('under way', () => {
   it('shows the people somebody has already invested in, and only them', async () => {
-    await screen()
+    await screen('/crm?tab=contacts')
     const lists = rowsUnder('crm.vip.title')
     // The first list under the heading is "under way": paid and packaged.
     const under = lists[lists.length - 2]?.textContent ?? ''
@@ -280,14 +280,14 @@ describe('under way', () => {
   })
 
   it('counts them in the heading, so the number matches the rows', async () => {
-    await screen()
+    await screen('/crm?tab=contacts')
     expect(text()).toContain('crm.vip.title 2')
   })
 })
 
 describe('the search', () => {
   it('narrows the rows AND the chip counts together', async () => {
-    await screen()
+    await screen('/crm?tab=contacts')
     const input = host.querySelector('input[type="search"]')!
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(
@@ -390,7 +390,7 @@ describe('the week before', () => {
  */
 describe('AUTO on a client row', () => {
   it('sends the person and the intent, and remembers the answer', async () => {
-    await screen()
+    await screen('/crm?tab=contacts')
     const boxes = [...host.querySelectorAll('.crm__auto input')]
     expect(boxes.length).toBeGreaterThan(0)
     const first = boxes[0] as HTMLInputElement
@@ -407,7 +407,7 @@ describe('AUTO on a client row', () => {
 
   it('draws a tick as ON for somebody already chosen', async () => {
     picks = ['900000201']
-    await screen()
+    await screen('/crm?tab=contacts')
     const row = [...host.querySelectorAll('.crm__row--client')].find(r =>
       (r.textContent ?? '').includes('Paid Person')
     )!

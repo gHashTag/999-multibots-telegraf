@@ -87,6 +87,19 @@ type ClientsFilter = 'all' | 'clients' | 'leads' | 'groups'
 /** One page of the clients list; "More" asks for the next (#2947). */
 const CLIENTS_PAGE = 100
 
+/*
+ * CONTACTS ARE A SECTION, NOT THE FIFTH PANEL DOWN.
+ *
+ * Owner, 2026-10-01: "on a phone the CRM is awkward for finding a contact,
+ * and there is no room". Measured at 390px with three people waiting: the
+ * search box sat 1523px down -- under the funnel, AUTO, the waiting list,
+ * hot leads and win-back -- and each contact row stood 140-160px tall with
+ * 150px left for the name. Finding one person was a scroll through almost
+ * two screens of other work. Now the list is one tap from the top, with the
+ * search pinned above it.
+ */
+const OWN_SECTIONS = ['work', 'contacts', 'map']
+
 /** A week, in milliseconds: the window "touched recently" means. */
 const UNDER_WAY_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -111,6 +124,32 @@ export const isUnderWay = (x: ClientRow, now = Date.now()) => {
 // Lives in lib/crm.ts so the all-clients picker in the chat searches the
 // same way without importing this page; re-exported for its tests.
 export { matches }
+
+/** A magnifier drawn in the text colour, so it needs no icon set. */
+const SearchGlyph = () => (
+  <svg
+    className="crm__glyph"
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    aria-hidden="true"
+  >
+    <circle
+      cx="11"
+      cy="11"
+      r="7"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    />
+    <path
+      d="M20 20l-4-4"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </svg>
+)
 
 export default function CrmPage() {
   const { t } = useLanguage()
@@ -141,8 +180,8 @@ export default function CrmPage() {
    * moment before the probe answers; if the server turns out not to have
    * them, the screen falls back to its own work rather than to an empty room.
    */
-  const [asked, pick] = useSectionTab(['work', 'map', ...LEADS_SECTIONS])
-  const tab = leadsLive || asked === 'work' || asked === 'map' ? asked : 'work'
+  const [asked, pick] = useSectionTab([...OWN_SECTIONS, ...LEADS_SECTIONS])
+  const tab = leadsLive || OWN_SECTIONS.includes(asked) ? asked : 'work'
   const [overview, setOverview] = useState<Reached<Overview>>(empty)
   const [waiting, setWaiting] = useState<Reached<WaitingList>>(empty)
   const [leads, setLeads] = useState<Reached<HotLeads>>(empty)
@@ -153,6 +192,15 @@ export default function CrmPage() {
   /* The owner's groups (#2950): null until read, [] when there are none. */
   const [groups, setGroups] = useState<GroupRow[] | null>(null)
   const [query, setQuery] = useState('')
+  /** A server search is on its way: "nothing found" would be premature. */
+  // The last query the server has answered; "searching" is derived from it
+  // rather than set in the effect, so a cleared box is idle at once.
+  const [answeredFor, setAnsweredFor] = useState('')
+  const searching = query.trim().length >= 2 && answeredFor !== query.trim()
+  /** The one contact row whose details and remove button are open. */
+  const [openRow, setOpenRow] = useState<string | null>(null)
+  /** Came here from "find a contact": the keyboard should already be up. */
+  const [focusSearch, setFocusSearch] = useState(false)
   /** Ids the screen has removed in this session, with the way back on the row. */
   const [dropped, setDropped] = useState<Record<string, boolean>>({})
   /**
@@ -244,8 +292,10 @@ export default function CrmPage() {
     let live = true
     const timer = setTimeout(() => {
       void loadClientsPage({ limit: CLIENTS_PAGE, query: q }).then(found => {
+        if (!live) return
         // A search result is not a page of the list: nextOffset stays.
-        if (live && found.data) addClients(found.data, undefined)
+        if (found.data) addClients(found.data, undefined)
+        setAnsweredFor(q)
       })
     }, 300)
     return () => {
@@ -423,87 +473,128 @@ export default function CrmPage() {
    * ONE PERSON IN THE CLIENTS LIST -- the same row under both headings, so
    * "under way" and "the rest" cannot drift into two different rows.
    *
+   * ONE LINE OF NAME, ONE LINE OF FACTS, ABOUT 64PX. The row was 140-160px on
+   * a phone: the name shared its line with the handle, the badge and the
+   * stage, and every row carried a full-size "Remove from CRM" button. Now
+   * the name has its line to itself, the facts sit under it, and the AUTO
+   * tick stays on the row -- it is the one setting that must be reachable
+   * from a phone (see CrmCockpit.test) -- while the details and the remove
+   * button wait behind "...".
+   *
    * The remove button is the only destructive control on this screen, so it
    * asks first and, once done, the row keeps the way back rather than
    * vanishing: a list that silently loses a line teaches nobody what happened.
    */
-  const clientRow = (x: ClientRow) => (
-    <li key={x.telegramId} className="crm__row crm__row--client">
-      <div className="crm__who">
-        <Avatar name={x.name || x.telegramId} url={x.avatarUrl} size={36} />
-        <Link to={`/crm/${x.telegramId}`} className="crm__open">
-          {x.name || x.telegramId}
-          {x.username ? (
-            <span className="crm__muted"> @{x.username}</span>
-          ) : null}
-        </Link>
-        <span className="crm__stage">
-          {x.paid ? (
-            <span className="crm__badge crm__badge--paid">
-              {t('crm.clients.paid')}
+  const toggleAuto = async (telegramId: string, on: boolean) => {
+    // Optimistic, then corrected by the server: this tick decides whether
+    // messages go to a real person, so the screen must end up showing what
+    // the server says, not what it hoped.
+    setPicked(prev => {
+      const next = new Set(prev ?? [])
+      if (on) next.add(telegramId)
+      else next.delete(telegramId)
+      return next
+    })
+    const r = await pickForAutopilot(telegramId, on)
+    if (!r.reachable)
+      setPicked(prev => {
+        const back = new Set(prev ?? [])
+        if (on) back.delete(telegramId)
+        else back.add(telegramId)
+        return back
+      })
+  }
+
+  const clientRow = (x: ClientRow) => {
+    const isDropped = !!dropped[x.telegramId]
+    // A removed row stays open: the way back must not hide behind "...".
+    const open = openRow === x.telegramId || isDropped
+    const facts = [
+      t(`crm.stage.${x.stage}`),
+      x.client,
+      x.username ? `@${x.username}` : null,
+    ].filter(Boolean)
+    return (
+      <li
+        key={x.telegramId}
+        className={`crm__row crm__row--client crm__contact${
+          isDropped ? ' crm__contact--dropped' : ''
+        }`}
+      >
+        <div className="crm__contact-line">
+          <Avatar name={x.name || x.telegramId} url={x.avatarUrl} size={40} />
+          <Link to={`/crm/${x.telegramId}`} className="crm__contact-main">
+            <span className="crm__contact-name">
+              {x.name || x.username || x.telegramId}
             </span>
-          ) : null}
-          {t(`crm.stage.${x.stage}`)}
-        </span>
-      </div>
-      <p className="crm__why">
-        {x.client ?? '—'}
-        {' · '}
-        {t('crm.clients.profile')} {x.hasProfile ? '✓' : '—'}
-        {' · '}
-        {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
-        {' · '}
-        {t('crm.clients.duets', { n: x.duets })}
-      </p>
-      <div className="crm__acts">
-        {picked === null ? null : (
-          <label className="crm__auto">
-            <input
-              type="checkbox"
-              checked={picked.has(x.telegramId)}
-              onChange={async e => {
-                const on = e.target.checked
-                // Optimistic, then corrected by the server: this tick decides
-                // whether messages go to a real person, so the screen must end
-                // up showing what the server says, not what it hoped.
-                setPicked(prev => {
-                  const next = new Set(prev ?? [])
-                  if (on) next.add(x.telegramId)
-                  else next.delete(x.telegramId)
-                  return next
-                })
-                const r = await pickForAutopilot(x.telegramId, on)
-                if (!r.reachable)
-                  setPicked(prev => {
-                    const back = new Set(prev ?? [])
-                    if (on) back.delete(x.telegramId)
-                    else back.add(x.telegramId)
-                    return back
-                  })
-              }}
-            />
-            <span>{t('crm.row.auto')}</span>
-          </label>
-        )}
-        {dropped[x.telegramId] ? (
-          <>
-            <span className="crm__muted">{t('crm.row.dropped')}</span>
-            <button type="button" onClick={() => void undrop(x.telegramId)}>
-              {t('crm.row.restore')}
-            </button>
-          </>
-        ) : (
+            <span className="crm__contact-facts">
+              {x.paid ? (
+                <span className="crm__badge crm__badge--paid">
+                  {t('crm.clients.paid')}
+                </span>
+              ) : null}
+              {facts.join(' · ')}
+            </span>
+          </Link>
+          {picked === null ? null : (
+            <label
+              className={`crm__auto${
+                picked.has(x.telegramId) ? ' crm__auto--on' : ''
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={picked.has(x.telegramId)}
+                onChange={e => void toggleAuto(x.telegramId, e.target.checked)}
+              />
+              <span>{t('crm.row.auto')}</span>
+            </label>
+          )}
           <button
             type="button"
-            className="crm__danger"
-            onClick={() => void drop(x)}
+            className="crm__contact-toggle"
+            aria-expanded={open}
+            aria-label={t('crm.row.more')}
+            onClick={() => setOpenRow(open ? null : x.telegramId)}
           >
-            {t('crm.row.drop')}
+            ⋯
           </button>
-        )}
-      </div>
-    </li>
-  )
+        </div>
+        {open ? (
+          <div className="crm__contact-extra">
+            <p className="crm__why">
+              {t('crm.clients.profile')} {x.hasProfile ? '✓' : '—'}
+              {' · '}
+              {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
+              {' · '}
+              {t('crm.clients.duets', { n: x.duets })}
+            </p>
+            <div className="crm__acts">
+              {isDropped ? (
+                <>
+                  <span className="crm__muted">{t('crm.row.dropped')}</span>
+                  <button
+                    type="button"
+                    onClick={() => void undrop(x.telegramId)}
+                  >
+                    {t('crm.row.restore')}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="crm__danger"
+                  onClick={() => void drop(x)}
+                >
+                  {t('crm.row.drop')}
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </li>
+    )
+  }
 
   const w = waiting.data
   const l = leads.data
@@ -546,8 +637,149 @@ export default function CrmPage() {
       : []),
   ]
 
+  const nothingAtAll = !!c && (c.clients ?? []).length === 0 && !query.trim()
+  const contactsPanel = panel(
+    t('crm.clients.title'),
+    clients,
+    nothingAtAll ? (
+      <p className="crm__empty">{t('crm.clients.none')}</p>
+    ) : (
+      <>
+        {c ? (
+          /*
+            PINNED WHILE THE LIST SCROLLS. The search and the chips are how
+            this list is used; scrolling back up two hundred rows to change
+            one letter is how it was not.
+          */
+          <div className="crm__finder">
+            <label className="crm__search">
+              <SearchGlyph />
+              <input
+                type="search"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder={t('crm.filter.search')}
+                aria-label={t('crm.filter.search')}
+                enterKeyHint="search"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                autoFocus={focusSearch}
+                onBlur={() => setFocusSearch(false)}
+              />
+              {query ? (
+                <button
+                  type="button"
+                  className="crm__search-clear"
+                  aria-label={t('crm.filter.clear')}
+                  onClick={() => setQuery('')}
+                >
+                  ✕
+                </button>
+              ) : null}
+            </label>
+            <div className="crm__filter" role="group">
+              {filterChips.map(([kind, n]) => (
+                <button
+                  key={kind}
+                  type="button"
+                  className={`crm__chip${
+                    clientsFilter === kind ? ' crm__chip--on' : ''
+                  }`}
+                  aria-pressed={clientsFilter === kind}
+                  onClick={() => setClientsFilter(kind)}
+                >
+                  {t(`crm.clients.filter.${kind}`)} {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {c && !c.paidKnown ? (
+          // Payments could not be read: every `paid` below is false for
+          // lack of data, and the reader must not take it for a fact.
+          <p className="crm__counts crm__paid-unknown">
+            {t('crm.clients.paidUnknown')}
+          </p>
+        ) : null}
+        {clientsFilter === 'groups' ? (
+          /*
+            GROUPS ARE NOT CLIENTS (#2950): a group is where clients
+            speak. Each opens read-only, with who speaks there.
+          */
+          shownGroups.length === 0 ? (
+            <p className="crm__empty">{t('crm.groups.none')}</p>
+          ) : (
+            <ul className="crm__list">
+              {shownGroups.map(g => (
+                <li key={g.chatId} className="crm__row">
+                  <Link to={`/crm/g/${g.chatId}/chat`}>
+                    {g.title || (g.username ? `@${g.username}` : g.chatId)}
+                  </Link>{' '}
+                  <span className="crm__muted">
+                    {t('crm.groups.row', {
+                      members: g.membersCount ?? '—',
+                      messages: g.messages,
+                    })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : c && inFilter.length === 0 ? (
+          /*
+            A search that found nobody says so -- and keeps the box above,
+            so the letters can be changed. It used to replace the whole
+            panel with "no clients yet", search box included.
+          */
+          <p className="crm__empty">
+            {searching
+              ? t('crm.clients.searching')
+              : t('crm.clients.notFound', { q: query.trim() })}
+          </p>
+        ) : (
+          <>
+            {/*
+              UNDER WAY, FIRST AND SEPARATELY. These are the people
+              somebody has already invested in; starting them again from
+              the top of the list is how a client hears the same opening
+              twice.
+            */}
+            <h4 className="crm__subtitle" title={t('crm.vip.note')}>
+              {t('crm.vip.title')} {underWay.length}
+            </h4>
+            {underWay.length === 0 ? (
+              <p className="crm__counts">{t('crm.vip.empty')}</p>
+            ) : (
+              <ul className="crm__list">{underWay.map(clientRow)}</ul>
+            )}
+            {shownClients.length ? (
+              <>
+                <h4 className="crm__subtitle">
+                  {t('crm.clients.rest')} {shownClients.length}
+                </h4>
+                <ul className="crm__list">{shownClients.map(clientRow)}</ul>
+              </>
+            ) : null}
+          </>
+        )}
+        {clientsFilter !== 'groups' && c && c.nextOffset !== null ? (
+          <button
+            type="button"
+            className="crm__more"
+            onClick={() => void loadMoreClients()}
+            disabled={loadingMore}
+          >
+            {loadingMore ? t('crm.clients.loadingMore') : t('crm.clients.more')}
+          </button>
+        ) : null}
+      </>
+    )
+  )
+
   const sections = [
     { id: 'work', label: t('crm.section.work') },
+    { id: 'contacts', label: t('crm.section.contacts') },
     // Owner, 2026-09-25: everybody as round avatars by sphere, the owner in
     // the centre, links between people as a graph (components/Crm/CrmMap).
     { id: 'map', label: t('crm.section.map') },
@@ -579,12 +811,32 @@ export default function CrmPage() {
 
       {tab === 'map' ? <CrmMap /> : null}
 
-      {tab === 'work' || tab === 'map' ? null : (
+      {OWN_SECTIONS.includes(tab) ? null : (
         <LeadsSections section={tab as LeadsSectionId} />
       )}
 
+      {tab === 'contacts' ? (
+        <div className="crm__contacts">{contactsPanel}</div>
+      ) : null}
+
       {tab !== 'work' ? null : (
         <>
+          {/*
+            The way to a person, first on the screen people land on. It looks
+            like the search it opens, because that is what it is.
+          */}
+          <button
+            type="button"
+            className="crm__find"
+            onClick={() => {
+              setFocusSearch(true)
+              pick('contacts')
+            }}
+          >
+            <SearchGlyph />
+            <span>{t('crm.contacts.find')}</span>
+          </button>
+
           {/* How many stand at each stage; nothing at all when unknown. */}
           <FunnelStrip state={funnel} />
 
@@ -679,112 +931,6 @@ export default function CrmPage() {
                   <WinbackPanel list={winback.data} faces={faces} />
                 ) : null
               )}
-
-          {panel(
-            t('crm.clients.title'),
-            clients,
-            c && allClients.length === 0 ? (
-              <p className="crm__empty">{t('crm.clients.none')}</p>
-            ) : (
-              <>
-                {c && !c.paidKnown ? (
-                  // Payments could not be read: every `paid` below is false for
-                  // lack of data, and the reader must not take it for a fact.
-                  <p className="crm__counts crm__paid-unknown">
-                    {t('crm.clients.paidUnknown')}
-                  </p>
-                ) : null}
-                {c ? (
-                  <>
-                    <label className="crm__search">
-                      <span className="crm__muted">
-                        {t('crm.filter.search')}
-                      </span>
-                      <input
-                        type="search"
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                        aria-label={t('crm.filter.search')}
-                      />
-                    </label>
-                    <div className="crm__filter" role="group">
-                      {filterChips.map(([kind, n]) => (
-                        <button
-                          key={kind}
-                          type="button"
-                          className={`crm__chip${
-                            clientsFilter === kind ? ' crm__chip--on' : ''
-                          }`}
-                          aria-pressed={clientsFilter === kind}
-                          onClick={() => setClientsFilter(kind)}
-                        >
-                          {t(`crm.clients.filter.${kind}`)} {n}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                ) : null}
-                {/*
-                  UNDER WAY, FIRST AND SEPARATELY. These are the people
-                  somebody has already invested in; starting them again from
-                  the top of the list is how a client hears the same opening
-                  twice.
-                */}
-                {clientsFilter === 'groups' ? (
-                  /*
-                    GROUPS ARE NOT CLIENTS (#2950): a group is where clients
-                    speak. Each opens read-only, with who speaks there.
-                  */
-                  shownGroups.length === 0 ? (
-                    <p className="crm__empty">{t('crm.groups.none')}</p>
-                  ) : (
-                    <ul className="crm__list">
-                      {shownGroups.map(g => (
-                        <li key={g.chatId} className="crm__row">
-                          <Link to={`/crm/g/${g.chatId}/chat`}>
-                            {g.title ||
-                              (g.username ? `@${g.username}` : g.chatId)}
-                          </Link>{' '}
-                          <span className="crm__muted">
-                            {t('crm.groups.row', {
-                              members: g.membersCount ?? '—',
-                              messages: g.messages,
-                            })}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )
-                ) : null}
-                {clientsFilter === 'groups' ? null : (
-                  <>
-                    <h4 className="crm__subtitle">
-                      {t('crm.vip.title')} {underWay.length}
-                    </h4>
-                    <p className="crm__counts">{t('crm.vip.note')}</p>
-                    {underWay.length === 0 ? (
-                      <p className="crm__empty">{t('crm.vip.empty')}</p>
-                    ) : (
-                      <ul className="crm__list">{underWay.map(clientRow)}</ul>
-                    )}
-                    <ul className="crm__list">{shownClients.map(clientRow)}</ul>
-                  </>
-                )}
-                {clientsFilter !== 'groups' && c && c.nextOffset !== null ? (
-                  <button
-                    type="button"
-                    className="crm__more"
-                    onClick={() => void loadMoreClients()}
-                    disabled={loadingMore}
-                  >
-                    {loadingMore
-                      ? t('crm.clients.loadingMore')
-                      : t('crm.clients.more')}
-                  </button>
-                ) : null}
-              </>
-            )
-          )}
 
           {/* What the owner's clients have brought, from the live wallet. */}
           <RevenuePanel noticeReason={noticeReason} />
