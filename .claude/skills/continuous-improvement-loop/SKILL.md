@@ -1913,3 +1913,27 @@ then root `test:vitest` clean-tree measurement; player screen (UI-only);
 sign-in completion (owner's keyboard); 7 orphaned dirty render files in
 /tmp/brhard; unused-var cleanup in `src/browser/*.ts` + `agent/*.ts`;
 `browser_status` running-claim (description budget).
+
+### Lesson of 01.10.2026: a guard that skips itself is not a guard (CRM mobile loop, tick 7)
+
+A cron loop keeps every mutation a past tick proved in
+`.claude/loop-state/<name>-mutants.json`, and `tri loop-guard start`
+re-runs them all. Tick 6 rewrote one line that an entry was anchored to.
+`tri mutants` refuses a list with any stale anchor, so tick 7 started with
+**all 27 guards unchecked**, and loop-guard printed a `warn` and GO.
+**Unchecked is not green.**
+
+- `start`: a stale anchor now stops the tick.
+- `end`: the lock is kept while the anchors do not match the code or the
+  tree is dirty. The tick that moved the code knows the new line; the next
+  tick would have to guess.
+
+The new `end` check caught two more stale anchors in the same tick's own
+change, before its commit. Run `tri mutants --check <list>` after every edit
+to guarded code. The details live in the header of
+`bin/helpers/loop-guard.sh`; they are not copied here.
+
+**Never edit a file while a mutation batch runs in the background.** The
+restore writes back the pre-mutation snapshot. `tri mutants` now keeps such
+an edit as `<file>.edited-during-mutants`, but that is a rescue, not a way
+to work.
