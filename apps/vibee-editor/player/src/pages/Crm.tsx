@@ -15,6 +15,7 @@ import { askAgentInThread } from '@/lib/crmAsk'
 import { recentContactIds } from '@/lib/crmRecent'
 import { useUrlMirror } from '@/lib/useUrlMirror'
 import { useScrollMemory } from '@/lib/useScrollMemory'
+import { usePublishedHeight } from '@/lib/usePublishedHeight'
 import { CrmMap } from '@/components/Crm/CrmMap'
 import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
 import {
@@ -235,6 +236,8 @@ export default function CrmPage() {
   // Back from a card returns to the row that was tapped, once the list that
   // held it is drawn again (it is re-read on every mount).
   useScrollMemory(!busy && (clients.data !== null || overview.data !== null))
+  // The finder's real height, for the section headings pinned under it.
+  const finderRef = usePublishedHeight('--crm-finder-h')
 
   const reload = useCallback(async () => {
     setBusy(true)
@@ -706,7 +709,7 @@ export default function CrmPage() {
             this list is used; scrolling back up two hundred rows to change
             one letter is how it was not.
           */
-          <div className="crm__finder">
+          <div className="crm__finder" ref={finderRef}>
             <label className="crm__search">
               <SearchGlyph />
               <input
@@ -824,23 +827,32 @@ export default function CrmPage() {
               the top of the list is how a client hears the same opening
               twice.
             */}
-            <h4 className="crm__subtitle" title={t('crm.vip.note')}>
-              {t('crm.vip.title')} {underWay.length}
-              {autoColumn}
-            </h4>
-            {underWay.length === 0 ? (
-              <p className="crm__counts">{t('crm.vip.empty')}</p>
-            ) : (
-              <ul className="crm__list">{underWay.map(clientRow)}</ul>
-            )}
+            {/*
+              ONE SECTION PER HEADING. On a phone the heading (and the AUTO
+              column's name in it) stays under the finder while its own
+              rows scroll, and the next section's heading takes over -- a
+              sticky element is held inside its parent, so each heading
+              needs a parent of its own.
+            */}
+            <section className="crm__group">
+              <h4 className="crm__subtitle" title={t('crm.vip.note')}>
+                {t('crm.vip.title')} {underWay.length}
+                {autoColumn}
+              </h4>
+              {underWay.length === 0 ? (
+                <p className="crm__counts">{t('crm.vip.empty')}</p>
+              ) : (
+                <ul className="crm__list">{underWay.map(clientRow)}</ul>
+              )}
+            </section>
             {shownClients.length ? (
-              <>
+              <section className="crm__group">
                 <h4 className="crm__subtitle">
                   {t('crm.clients.rest')} {shownClients.length}
                   {autoColumn}
                 </h4>
                 <ul className="crm__list">{shownClients.map(clientRow)}</ul>
-              </>
+              </section>
             ) : null}
           </>
         )}

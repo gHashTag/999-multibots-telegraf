@@ -2,7 +2,7 @@
 
 <!-- loop-branch: fix/crm-mobile-ux -->
 <!-- loop-pr: 3199 -->
-<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx -->
+<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx -->
 
 Started 30.09.2026 by the owner's `/loop 30m`: find the weak spots of mobile
 layout and UI/UX, study competitors, write a decomposed plan, implement it,
@@ -130,9 +130,11 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       4 of 12 names and 6 fact lines cut. On a phone the row keeps the
       tick alone (44px) and the list heading names the column once, aligned
       at 390 and 320. Name 179 -> 208px, fact lines cut 6 -> 4 (tick 8)
-- [ ] The AUTO column label scrolls away with its heading; a long list shows
-      bare ticks. Owner knows them; a sticky heading under the sticky finder
-      is the fix if anyone asks what the round box is
+- [x] The AUTO column label scrolled away with its heading; a long list
+      showed bare ticks. Each heading + its rows is a `<section>`; the
+      heading is pinned under the finder (top = the finder's real height,
+      `usePublishedHeight`) until its section ends, as in iOS contacts.
+      Label and ticks share a centre at 390 (307) and 320 (247) (tick 10)
 - [x] `tri mutants --adopt`: a proven batch into the guard list, re-rooted,
       deduplicated, anchors checked (tick 8)
 - [x] Waiting row at 390px: Prepare + 3 outcomes needed 371 of 318px, one
@@ -140,9 +142,13 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       whole: EN one line (237 -> 185px), RU Prepare on line 1 and outcomes
       in even thirds on line 2, nothing cut at 320. The first try was
       measured in English only and stretched a lone RU button (tick 9)
-- [ ] WORK tab in Russian: the stage pill ("t.me разговариваем") shares the
-      name's line and cuts the name to a few letters at 390. Stage under the
-      name on a phone, or a shorter stage word -- measure cut names first
+- [x] WORK tab in Russian: the stage ("t.me" + stage word, 131px) shared
+      the name's line; a double-barrelled name got 131px. On a phone the
+      stage is the name's subtitle, the face spans both: name 131 -> 272px
+      at 390, row 36 -> 37px (tick 10; first try 52px -- grid row-gap)
+- [x] `tri mutants --reanchor`: an indent-only move (code wrapped in one
+      more element) re-anchors its guards; a changed token stays stale
+      (tick 10)
 - [ ] Waiting "because" line is server text in Russian even in the English
       UI -- a data question (the reason is stored as prose), not layout
 - [ ] Recents ignore the chip (leads chip still shows a client in Recent).
