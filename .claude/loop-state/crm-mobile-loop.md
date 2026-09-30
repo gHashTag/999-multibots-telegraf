@@ -193,3 +193,5 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - 01.10.2026 04:27: tick 9: waiting row's outcomes wrap as one group (EN 237->185px); first try fit English and stretched a lone Russian button across the row -- measure in the owner's language, scope grow rules to a group
 
 - 01.10.2026 05:14: tick 10: WORK-tab waiting row puts stage under the name on a phone (grid, row-gap 0); contacts section headings pinned under the finder via usePublishedHeight (--crm-finder-h on parent); tri mutants --reanchor for indent-only moves; 57/57 guards killed. Open: waiting 'because' text is Russian server prose in EN UI; sticky unverified in the real Telegram #root scroller.
+
+- 01.10.2026 05:41: tick 11: contacts are one grouped surface on a phone (pitch 74->62, +1 row); search marks its hit in name/facts, hit fact leads, id shown when found only by id; sticky verified in the tg #root scroller; loop-guard end now runs this tick's adopted guards under the loop-tests marker (caught 3 guards alive only in crmMatches.test.ts). 10/10 mutants killed, 67 adopted.
