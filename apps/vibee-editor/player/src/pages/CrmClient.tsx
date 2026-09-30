@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { rememberContact } from '@/lib/crmRecent'
 import './Crm.css'
 import './CrmClient.css'
@@ -74,6 +74,8 @@ const mark = (yes: boolean) => (yes ? '✓' : '—')
 export default function CrmClientPage() {
   const { t } = useLanguage()
   const { clientId = '' } = useParams<{ clientId: string }>()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [profile, setProfile] = useState<Reached<ClientProfile>>(empty)
   const [plan, setPlan] = useState<Reached<ClientPlan>>(empty)
   const [duets, setDuets] = useState<Reached<DuetRun[]>>(empty)
@@ -191,7 +193,24 @@ export default function CrmClientPage() {
     <div className="crm crm-client">
       <header className="crm__top">
         <div className="crm-client__head">
-          <Link to="/crm" className="crm-client__crumb">
+          {/*
+            BACK IS BACK. The crumb went to /crm -- the work section, with
+            the search and filter the owner came from gone. Inside the app it
+            now steps back in history, the same as Telegram's own Back button,
+            and the list returns as it was left (?tab=, ?who=, ?q=). Opened
+            straight from a link, there is nothing to step back to: it goes
+            to the contacts, where this card lives.
+          */}
+          <Link
+            to="/crm?tab=contacts"
+            className="crm-client__crumb"
+            onClick={e => {
+              if (location.key === 'default') return
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+              e.preventDefault()
+              navigate(-1)
+            }}
+          >
             ← {t('crm.client.back')}
           </Link>
           <h2>

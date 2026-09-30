@@ -1,6 +1,6 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import {
   afterEach,
   beforeAll,
@@ -357,7 +357,62 @@ describe('the way into the conversation', () => {
     expect(chat.textContent).toBe('crm.client.chatButton')
     expect(chat.getAttribute('href')).toBe(`/crm/${CLIENT}/chat`)
     const crumb = host.querySelector<HTMLAnchorElement>('a.crm-client__crumb')!
-    expect(crumb.getAttribute('href')).toBe('/crm')
+    expect(crumb.getAttribute('href')).toBe('/crm?tab=contacts')
+  })
+
+  /*
+   * BACK IS BACK (CRM mobile loop, tick 4). The crumb went to /crm -- the
+   * work section -- so the list the owner came from, with its search and
+   * chip, was gone. Inside the app it steps back in history now; opened
+   * from a link, it goes to the contacts.
+   */
+  describe('the back crumb', () => {
+    function ListProbe() {
+      const at = useLocation()
+      return <p className="probe-list">{at.search}</p>
+    }
+
+    async function drawWithHistory(entries: string[]) {
+      const { default: CrmClientPage } = await import('./CrmClient')
+      await act(async () => {
+        root.render(
+          <MemoryRouter
+            initialEntries={entries}
+            initialIndex={entries.length - 1}
+          >
+            <Routes>
+              <Route path="/crm" element={<ListProbe />} />
+              <Route path="/crm/:clientId" element={<CrmClientPage />} />
+            </Routes>
+          </MemoryRouter>
+        )
+      })
+      await act(async () => {
+        await new Promise(r => setTimeout(r, 0))
+      })
+      await act(async () => {
+        host.querySelector<HTMLAnchorElement>('a.crm-client__crumb')!.click()
+      })
+    }
+
+    it('returns to the list exactly as it was left', async () => {
+      serve()
+      await drawWithHistory([
+        '/crm?tab=contacts&who=leads&q=ana',
+        `/crm/${CLIENT}`,
+      ])
+      expect(host.querySelector('.probe-list')?.textContent).toBe(
+        '?tab=contacts&who=leads&q=ana'
+      )
+    })
+
+    it('opened from a link, it goes to the contacts', async () => {
+      serve()
+      await drawWithHistory([`/crm/${CLIENT}`])
+      expect(host.querySelector('.probe-list')?.textContent).toBe(
+        '?tab=contacts'
+      )
+    })
   })
 
   /*

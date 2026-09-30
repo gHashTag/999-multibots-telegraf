@@ -1,6 +1,6 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import {
   afterEach,
   beforeAll,
@@ -988,5 +988,88 @@ describe('recent contacts', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(recentRow()).toBeNull()
+  })
+})
+
+/*
+ * BACK FROM A CARD LANDS ON THE LIST AS IT WAS LEFT (CRM mobile loop, tick
+ * 4). /crm and /crm/:id are sibling routes, so opening a contact unmounted
+ * the list; Back mounted it fresh with the search and the chip gone.
+ */
+describe('the list survives a visit to a card', () => {
+  function Card() {
+    const navigate = useNavigate()
+    return (
+      <button className="probe-back" onClick={() => navigate(-1)}>
+        back
+      </button>
+    )
+  }
+
+  const box = () =>
+    host.querySelector<HTMLInputElement>('input[type="search"]')!
+  const chipOn = () =>
+    host.querySelector('.crm__filter .crm__chip[aria-pressed="true"]')
+      ?.textContent
+
+  async function type(text: string) {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value'
+      )!.set!.call(box(), text)
+      box().dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+
+  async function click(el: Element) {
+    await act(async () => {
+      ;(el as HTMLElement).click()
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+  }
+
+  it('an address with ?who= and ?q= opens with that chip and that search', async () => {
+    serve()
+    await draw('/crm?tab=contacts&who=leads&q=Lead')
+    expect(box().value).toBe('Lead')
+    expect(chipOn()).toMatch(/^crm\.clients\.filter\.leads/)
+  })
+
+  it('an unknown ?who= is the whole list, not an empty one', async () => {
+    serve()
+    await draw('/crm?tab=contacts&who=nonsense')
+    expect(chipOn()).toMatch(/^crm\.clients\.filter\.all/)
+  })
+
+  it('search and chip are there again after Back', async () => {
+    serve()
+    const { default: CrmPage } = await import('./Crm')
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={[CONTACTS]}>
+          <Routes>
+            <Route path="/crm" element={<CrmPage />} />
+            <Route path="/crm/:clientId" element={<Card />} />
+          </Routes>
+        </MemoryRouter>
+      )
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+    const leadsChip = [
+      ...host.querySelectorAll('.crm__filter .crm__chip'),
+    ].find(b => b.textContent?.startsWith('crm.clients.filter.leads'))!
+    await click(leadsChip)
+    await type('Lead')
+    await click(host.querySelector('a[href="/crm/666"]')!)
+    expect(host.querySelector('.probe-back')).not.toBeNull()
+
+    await click(host.querySelector('.probe-back')!)
+    expect(box().value).toBe('Lead')
+    expect(chipOn()).toMatch(/^crm\.clients\.filter\.leads/)
   })
 })
