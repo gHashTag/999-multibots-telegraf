@@ -1945,6 +1945,14 @@ indent-only move: the `from` found once with every line shifted by the same
 amount, and `to` shifted with it. A changed token stays stale and is named;
 someone decides what that mutation should now be.
 
+**A guard is adopted with the files that killed it; the next start runs it
+with the marker.** Tick 11 adopted three guards that only
+`crmMatches.test.ts` killed. The `<!-- loop-tests: -->` marker did not name
+that file, so the next start would have reported "a past mutation SURVIVES",
+a false regression blamed on the wrong tick. `tri loop-guard end` now runs
+the guards added since `start` under the marker and stops on a survivor
+(ten guards took 95 s). Add the killing test file to the marker.
+
 **Never edit a file while a mutation batch runs in the background.** The
 restore writes back the pre-mutation snapshot. `tri mutants` now keeps such
 an edit as `<file>.edited-during-mutants`, but that is a rescue, not a way
