@@ -229,6 +229,36 @@ beforeAll(async () => {
 /** The contacts live in their own section since the phone redesign. */
 const CONTACTS = '/crm?tab=contacts'
 
+/**
+ * The rules of Crm.css's phone block (`max-width: 480px`), comments out.
+ * jsdom lays nothing out, so a phone layout is pinned in its stylesheet.
+ * Depth by braces: the block holds nested rules.
+ */
+async function phoneRules() {
+  const { readFileSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const css = readFileSync(join(__dirname, 'Crm.css'), 'utf8').replace(
+    /\/\*[\s\S]*?\*\//g,
+    ''
+  )
+  const at = css.indexOf('@media (max-width: 480px)')
+  expect(at).toBeGreaterThan(-1)
+  let depth = 0
+  let end = css.indexOf('{', at)
+  for (let i = end; i < css.length; i++) {
+    if (css[i] === '{') depth++
+    if (css[i] === '}' && --depth === 0) {
+      end = i
+      break
+    }
+  }
+  const block = css.slice(css.indexOf('{', at) + 1, end)
+  return [...block.matchAll(/([^{}]+){([^}]*)}/g)].map(m => ({
+    selector: m[1].trim(),
+    body: m[2],
+  }))
+}
+
 async function draw(at = '/crm') {
   const { default: CrmPage } = await import('./Crm')
   await act(async () => {
@@ -542,30 +572,54 @@ describe('the buttons record, they do not send', () => {
   })
 
   it('on a phone, grows the group and never a lone button', async () => {
-    const { readFileSync } = await import('node:fs')
-    const { join } = await import('node:path')
-    const css = readFileSync(join(__dirname, 'Crm.css'), 'utf8').replace(
-      /\/\*[\s\S]*?\*\//g,
-      ''
-    )
-    const at = css.indexOf('@media (max-width: 480px)')
-    expect(at).toBeGreaterThan(-1)
-    let depth = 0
-    let end = css.indexOf('{', at)
-    for (let i = end; i < css.length; i++) {
-      if (css[i] === '{') depth++
-      if (css[i] === '}' && --depth === 0) {
-        end = i
-        break
-      }
-    }
-    const phone = css.slice(at, end)
+    const rules = await phoneRules()
     // A grow on every `.crm__acts button` stretches the lone "Wrote" of a
     // hot lead, or the restore button, across the whole row.
-    for (const m of phone.matchAll(/([^{}]+){([^}]*)}/g))
-      if (/\.crm__acts button(?![-\w])/.test(m[1]))
-        expect(m[2], m[1].trim()).not.toMatch(/flex/)
-    expect(phone).toMatch(/\.crm__outcomes button\s*{[^}]*flex:\s*1 1 0/)
+    for (const r of rules)
+      if (/\.crm__acts button(?![-\w])/.test(r.selector))
+        expect(r.body, r.selector).not.toMatch(/flex/)
+    const outcomes = rules.find(r => r.selector === '.crm__outcomes button')
+    expect(outcomes?.body).toMatch(/flex:\s*1 1 0/)
+  })
+})
+
+/*
+ * NAME OVER STAGE. A waiting row's head was one line: face, name, stage.
+ * The stage never shrinks, and in Russian "t.me" plus "talking" is 131px of
+ * a 318px row -- "Anna-Maria Vetrova-Sokolovskaya" was cut after one word.
+ * On a phone the stage is the name's subtitle and the face spans both.
+ */
+describe('a waiting row on a phone', () => {
+  const rule = (rules: Awaited<ReturnType<typeof phoneRules>>, sel: string) =>
+    rules.find(r => r.selector === sel)?.body ?? ''
+
+  it('puts the stage under the name, beside one face', async () => {
+    const rules = await phoneRules()
+    const head = rule(rules, '.crm__who:has(> .crm-avatar)')
+    expect(head).toMatch(/display:\s*grid/)
+    // `1fr` alone is minmax(auto, 1fr): an unbreakable name would widen
+    // the column past the row instead of being cut.
+    expect(head).toMatch(/grid-template-columns:\s*auto minmax\(0, 1fr\)/)
+    // The row's own `gap: 10px` would part the name from its subtitle.
+    expect(head).toMatch(/row-gap:\s*0/)
+    expect(rule(rules, '.crm__who:has(> .crm-avatar) > .crm-avatar')).toMatch(
+      /grid-row:\s*span 2/
+    )
+  })
+
+  it('keeps the face first in the head, the stage after the name', async () => {
+    serve()
+    await draw()
+    const heads = [...host.querySelectorAll('.crm__who')].filter(w =>
+      w.querySelector(':scope > .crm-avatar')
+    )
+    expect(heads.length).toBeGreaterThan(0)
+    for (const w of heads)
+      expect([...w.children].map(c => c.className.split(' ')[0])).toEqual([
+        'crm-avatar',
+        'crm__open',
+        'crm__stage',
+      ])
   })
 })
 
