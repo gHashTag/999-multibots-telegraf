@@ -185,6 +185,12 @@
 
 /* Recording a fact, not sending anything -- so these are quiet outline
    buttons, not the green one that means "do the thing". */
+/* The three outcomes: a group inside the row, so they wrap together. */
+.crm__outcomes {
+  display: flex;
+  gap: inherit;
+}
+
 .crm__acts button {
   min-height: 40px;
   padding: 8px 14px;
@@ -750,6 +756,32 @@
 
   .crm__contacts .crm__finder {
     background: var(--color-bg-primary, #000);
+  }
+
+  /* A WAITING ROW'S ACTIONS: ONE LINE WHEN THEY FIT, TWO TIDY ONES WHEN
+     NOT. At 15px with 14px sides, "Prepare / Wrote / Replied / Refused"
+     needed 371px of a 318px row: "Refused" wrapped alone, and every waiting
+     row was 237px tall. Narrower sides and 14px fit English in 309px -- one
+     line. Russian needs about 420px, so the outcome group (Crm.tsx) moves
+     down whole: "Prepare" gets the first line, the three outcomes the
+     second, in even thirds. */
+  .crm__acts:has(> .crm__outcomes) {
+    gap: 6px;
+  }
+
+  .crm__acts > .crm__prepare,
+  .crm__outcomes {
+    flex: 1 1 auto;
+  }
+
+  .crm__acts > .crm__prepare,
+  .crm__outcomes button {
+    padding: 8px;
+    font-size: 14px;
+  }
+
+  .crm__outcomes button {
+    flex: 1 1 0;
   }
 
   /* The tick alone on the row; the heading names its column (Crm.tsx,

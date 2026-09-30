@@ -211,5 +211,29 @@
     "from": "  .crm__auto-word {\n    position: absolute;\n    width: 1px;\n    height: 1px;\n    overflow: hidden;\n    clip-path: inset(50%);",
     "to": "  .crm__auto-word {\n    display: none;",
     "name": "tick word hidden from screen readers too"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "<div className=\"crm__outcomes\" role=\"group\">",
+    "to": "<div className=\"crm__outcome-row\" role=\"group\">",
+    "name": "outcome buttons lose their group"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "<div className=\"crm__outcomes\" role=\"group\">",
+    "to": "<div className=\"crm__outcomes\">",
+    "name": "outcome group not announced as a group"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  .crm__outcomes button {\n    flex: 1 1 0;\n  }",
+    "to": "  .crm__acts button {\n    flex: 1 1 auto;\n  }",
+    "name": "phone grows every action button (lone Wrote stretched)"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  .crm__outcomes button {\n    flex: 1 1 0;\n  }",
+    "to": "",
+    "name": "phone outcomes not in even thirds"
   }
 ]
