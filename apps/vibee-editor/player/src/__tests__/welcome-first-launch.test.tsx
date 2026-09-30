@@ -31,7 +31,9 @@ vi.mock('@/hooks/useLanguage', () => ({
 
 async function freshMemory() {
   vi.resetModules()
-  return import('@/components/Navigation/RouteMemory')
+  const memory = await import('@/components/Navigation/RouteMemory')
+  const { markWelcomed } = await import('@/lib/welcomeMemory')
+  return { ...memory, markWelcomed }
 }
 
 function WhereAmI({ report }: { report: (path: string) => void }) {

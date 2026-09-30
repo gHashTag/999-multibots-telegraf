@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from '@vibee/atoms'
 import { myProfileAtom } from '@/atoms'
 import { launchStartParam } from '@/lib/telegram'
 import { IS_EMBED } from '@/lib/embed'
+import { isWelcomed } from '@/lib/welcomeMemory'
 
 /**
  * Приложение открывается там, где человека прервали.
@@ -61,43 +62,6 @@ export const WELCOME = '/welcome'
 const REMEMBERED = readRemembered()
 
 /**
- * Snapshotted with REMEMBERED, for the same reason -- and updated in memory
- * by markWelcomed(), or the header logo (a link to "/") would send a person
- * back to the greeting for the rest of their first session.
- */
-let welcomed = readWelcomed()
-
-/**
- * Storage that cannot be read, or cannot be written, counts as "already
- * greeted": the flag could never stick, so a screen that could never be
- * dismissed for good would open on every launch. A full quota is the likely
- * case -- chats and drafts live in the same storage.
- */
-function readWelcomed(): boolean {
-  if (typeof window === 'undefined') return true
-  try {
-    if (window.localStorage.getItem(STORAGE_KEYS.welcomeSeen) !== null)
-      return true
-    window.localStorage.setItem(STORAGE_KEYS.welcomeSeen + ':probe', '1')
-    window.localStorage.removeItem(STORAGE_KEYS.welcomeSeen + ':probe')
-    return false
-  } catch {
-    return true
-  }
-}
-
-/** The welcome screen was shown: remember it for this session and the next. */
-export function markWelcomed(): void {
-  welcomed = true
-  try {
-    window.localStorage.setItem(STORAGE_KEYS.welcomeSeen, '1')
-  } catch {
-    // This session already knows; the next launch reads storage that cannot
-    // be written as "greeted" too, so the screen cannot loop.
-  }
-}
-
-/**
  * A third-party frame (the game's TRI tab) may have no storage at all: a
  * browser that blocks third-party storage throws from the `localStorage`
  * getter itself, and a throw here, at module load, kills the whole bundle.
@@ -132,7 +96,7 @@ export function LaunchRedirect() {
   const target =
     IS_EMBED || startParam
       ? HOME
-      : !welcomed
+      : !isWelcomed()
         ? WELCOME
         : REMEMBERED && isRestorable(REMEMBERED)
           ? REMEMBERED
