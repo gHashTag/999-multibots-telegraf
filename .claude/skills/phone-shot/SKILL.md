@@ -213,6 +213,16 @@ Promise.all([...])` followed by `setA(a); setB(b)` reads in parallel but
   is `aria-hidden`. Pin that with a stylesheet test: jsdom cannot see it.
   **Measure first:** `scrollWidth > clientWidth` over every name and fact
   line gives the count of cut rows, before and after.
+- **Measure in the owner's language; English fitting proves nothing.** CRM
+  tick 9: `.crm__acts button{flex:1 1 auto}` put four English buttons on one
+  line. In Russian ("Отказался" is wider) the last button wrapped ALONE and
+  grew to 318px, a lone full-width button. The same rule on a shared
+  selector also stretched single buttons in other panels. The fix: wrap the
+  buttons that belong together in one group (`role="group"`, `display:flex`).
+  The group wraps as one, and only its children grow (`flex:1 1 0`, even
+  thirds). A stylesheet test forbids a grow on the shared selector. Switch
+  the language (`localStorage['vibee-lang']`) and re-measure at 390 and 320
+  before calling a row fixed.
 - **A harness must mount the app's own chrome.** Without `TelegramTabBar`,
   pages reserve 0 px for the bar (`body[data-tabbar]` is never set), and the
   header's fallback bottom bar covers the composer. That overlap exists only

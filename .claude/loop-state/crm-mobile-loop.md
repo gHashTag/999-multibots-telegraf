@@ -135,6 +135,16 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       is the fix if anyone asks what the round box is
 - [x] `tri mutants --adopt`: a proven batch into the guard list, re-rooted,
       deduplicated, anchors checked (tick 8)
+- [x] Waiting row at 390px: Prepare + 3 outcomes needed 371 of 318px, one
+      button wrapped alone, row 237px. The outcomes are one group that wraps
+      whole: EN one line (237 -> 185px), RU Prepare on line 1 and outcomes
+      in even thirds on line 2, nothing cut at 320. The first try was
+      measured in English only and stretched a lone RU button (tick 9)
+- [ ] WORK tab in Russian: the stage pill ("t.me разговариваем") shares the
+      name's line and cuts the name to a few letters at 390. Stage under the
+      name on a phone, or a shorter stage word -- measure cut names first
+- [ ] Waiting "because" line is server text in Russian even in the English
+      UI -- a data question (the reason is stored as prose), not layout
 - [ ] Recents ignore the chip (leads chip still shows a client in Recent).
       Deliberate for now (HubSpot recents are filter-free); watch for
       confusion
@@ -166,3 +176,5 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - 01.10.2026 03:26: tick 7: loop-guard warned-and-went on a stale anchor (27 guards unchecked) -> stop at start, end keeps the lock; Promise.all drew every panel after the slowest read -> each lands as it answers, name handed over in link state; tick 6 fixed 1 of 2 links into the card -> grep the route
 
 - 01.10.2026 03:57: tick 8: the default item (140px top chrome) measured as not the pain -- the AUTO word on every row was: 73 of 352px; heading names the column once, name 179->208px. Hand-copying proven mutants into the guard list rewrote its indent -> tri mutants --adopt
+
+- 01.10.2026 04:27: tick 9: waiting row's outcomes wrap as one group (EN 237->185px); first try fit English and stretched a lone Russian button across the row -- measure in the owner's language, scope grow rules to a group
