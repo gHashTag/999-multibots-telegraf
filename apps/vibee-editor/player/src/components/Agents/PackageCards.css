@@ -131,6 +131,14 @@
   color: #d0d0d0;
 }
 
+.package-card__try-note {
+  margin: 8px 0 0;
+  color: #8f8f8f;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
 @media (max-width: 860px) {
   .package-cards {
     grid-template-columns: minmax(0, 1fr);
