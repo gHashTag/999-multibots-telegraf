@@ -118,6 +118,13 @@ describe('the modal answers the door that opened it', () => {
     expect(body().toLowerCase()).not.toMatch(/render|export/)
   })
 
+  it('chat talks about the agent and promises no renders', () => {
+    openedBy('chat')
+    expect(title().toLowerCase()).toMatch(/agent/)
+    expect(body().toLowerCase()).toMatch(/free/)
+    expect(body().toLowerCase()).not.toMatch(/render|export|board/)
+  })
+
   it('no reason promises nothing in particular', () => {
     openedBy(null)
     // The general case has to stay true at every door, including ones not
@@ -127,7 +134,14 @@ describe('the modal answers the door that opened it', () => {
   })
 
   it('every branch renders words, never a raw key', () => {
-    for (const reason of ['export', 'generate', 'follow', 'board', null]) {
+    for (const reason of [
+      'export',
+      'generate',
+      'follow',
+      'board',
+      'chat',
+      null,
+    ]) {
       openedBy(reason)
       expect(host.textContent).not.toMatch(/login\.[a-zA-Z]/)
       act(() => root!.unmount())
