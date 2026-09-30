@@ -5,7 +5,7 @@ import { useLanguage, type Language } from '@/hooks/useLanguage'
 import { useAgentAvatars } from '@/hooks/useAgentAvatars'
 import { AgentFace } from '@/components/Chat/AgentFace'
 import { PackageCards } from '@/components/Agents/PackageCards'
-import { markWelcomed } from '@/components/Navigation/RouteMemory'
+import { markWelcomed } from '@/lib/welcomeMemory'
 import './Welcome.css'
 
 const copy = {
