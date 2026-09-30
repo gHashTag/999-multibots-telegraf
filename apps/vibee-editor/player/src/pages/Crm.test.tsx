@@ -668,6 +668,98 @@ describe('section headings on a phone', () => {
   })
 })
 
+describe('a search shows why each row is there', () => {
+  const rowOf = (name: string) =>
+    [...host.querySelectorAll('.crm__contact')].find(li =>
+      li.textContent?.includes(name)
+    )!
+  const marks = (el: Element) =>
+    [...el.querySelectorAll('mark.crm__hit')].map(m => m.textContent)
+
+  it('marks the typed letters in the name', async () => {
+    serve()
+    await draw(`${CONTACTS}&q=clientonlyn`)
+    const name = rowOf('ClientOnlyName').querySelector('.crm__contact-name')!
+    expect(marks(name)).toEqual(['ClientOnlyN'])
+    expect(name.textContent).toBe('ClientOnlyName')
+  })
+
+  it('puts the fact the letters were found in first, before the stage', async () => {
+    // The facts line ends in an ellipsis on a phone: a hit behind the
+    // stage and a long package name was past it.
+    serve()
+    await draw(`${CONTACTS}&q=clientonly`)
+    const facts = rowOf('ClientOnlyName').querySelector('.crm__contact-facts')!
+    expect(marks(facts)).toEqual(['clientonly'])
+    expect(facts.textContent).toMatch(/^crm\.clients\.paid@clientonly · /)
+  })
+
+  it('a hit deep in a long package name cuts what is before it', async () => {
+    const saved = answers.crm_clients as { clients: object[] }
+    answers.crm_clients = {
+      ...saved,
+      clients: [
+        { ...saved.clients[0], client: 'Floristics and decor studio' },
+        saved.clients[1],
+      ],
+    }
+    try {
+      serve()
+      await draw(`${CONTACTS}&q=studio`)
+      const facts = rowOf('ClientOnlyName').querySelector(
+        '.crm__contact-facts'
+      )!
+      expect(marks(facts)).toEqual(['studio'])
+      expect(facts.textContent).toMatch(/…\S* studio · /)
+    } finally {
+      answers.crm_clients = saved
+    }
+  })
+
+  it('a row found by its id alone names the id', async () => {
+    serve()
+    await draw(`${CONTACTS}&q=666`)
+    const facts = rowOf('LeadRowOnlyName').querySelector('.crm__contact-facts')!
+    expect(marks(facts)).toEqual(['666'])
+    expect(facts.textContent).toMatch(/^id 666 · /)
+  })
+
+  it('no search, no marks and no id', async () => {
+    serve()
+    await draw(CONTACTS)
+    expect(host.querySelector('mark')).toBeNull()
+    expect(host.querySelector('.crm__contacts')?.textContent).not.toMatch(
+      /id 666/
+    )
+  })
+})
+
+describe('contacts on a phone are one surface', () => {
+  const rule = async (sel: string) =>
+    (await phoneRules()).find(r => r.selector.replace(/\s+/g, ' ') === sel)
+      ?.body ?? ''
+
+  it('the list carries the frame, not a gap between framed rows', async () => {
+    const list = await rule('.crm__contacts .crm__group > .crm__list')
+    expect(list).toMatch(/gap:\s*0/)
+    expect(list).toMatch(/border:\s*1px/)
+    const row = await rule(
+      '.crm__contacts .crm__group > .crm__list > .crm__contact'
+    )
+    expect(row).toMatch(/border:\s*0/)
+    expect(row).toMatch(/background:\s*transparent/)
+  })
+
+  it('a hairline between rows starts where the names do', async () => {
+    const line = await rule(
+      '.crm__contacts .crm__group > .crm__list > .crm__contact + .crm__contact::before'
+    )
+    // 10px row padding + 40px face + 8px gap.
+    expect(line).toMatch(/left:\s*58px/)
+    expect(line).toMatch(/height:\s*1px/)
+  })
+})
+
 describe('every person on the list is a way into their own page', () => {
   const hrefs = () =>
     [...host.querySelectorAll('a')].map(a => a.getAttribute('href'))

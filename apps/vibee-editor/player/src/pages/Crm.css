@@ -662,6 +662,18 @@
   color: var(--text-muted, #888);
 }
 
+/* The typed letters in a result (Crm.tsx, Hit). The name keeps its green;
+   in the grey facts line the found part is the one bright thing. */
+.crm__hit {
+  color: inherit;
+  background: rgba(0, 255, 136, 0.2);
+  border-radius: 3px;
+}
+
+.crm__contact-facts .crm__hit {
+  color: var(--text-primary, #fff);
+}
+
 .crm__contact-facts .crm__badge {
   padding: 0 6px;
   font-size: 10px;
@@ -853,6 +865,40 @@
     background: var(--color-bg-primary, #000);
   }
 
+  /* ONE SURFACE, NOT A STACK OF CARDS. Each contact was its own framed card
+     with 10px of black between: a 64px row cost 74px, and a phone showed
+     eight people. Telegram's and iOS's contact lists are one grouped
+     surface with a hairline between rows, indented past the face so the
+     faces read as one column. Same rows, same 44px targets: a ninth person
+     fits. */
+  .crm__contacts .crm__group > .crm__list {
+    gap: 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .crm__contacts .crm__group > .crm__list > .crm__contact {
+    position: relative;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .crm__contacts
+    .crm__group
+    > .crm__list
+    > .crm__contact
+    + .crm__contact::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 58px;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
   .crm__col-auto {
     display: block;
     width: var(--touch-target, 44px);
@@ -867,6 +913,15 @@
 @media (max-width: 359px) {
   .crm__contact-line {
     gap: 6px;
+  }
+
+  /* The hairline starts where the name does: 10 + 40 + the narrower gap. */
+  .crm__contacts
+    .crm__group
+    > .crm__list
+    > .crm__contact
+    + .crm__contact::before {
+    left: 56px;
   }
 
   .crm__contact-toggle {

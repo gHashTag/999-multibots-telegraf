@@ -2,7 +2,7 @@
 
 <!-- loop-branch: fix/crm-mobile-ux -->
 <!-- loop-pr: 3199 -->
-<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx -->
+<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx src/lib/crmMatches.test.ts -->
 
 Started 30.09.2026 by the owner's `/loop 30m`: find the weak spots of mobile
 layout and UI/UX, study competitors, write a decomposed plan, implement it,
@@ -85,8 +85,15 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       on the card to move -- the card only reads; one button was the scope
 - [ ] Media rows look padded at 390px: NOT a bug -- the file link is a 44px
       touch target on purpose. Leave it (tick 3 false alarm)
-- [ ] Sticky finder and sticky chat button are proven in the harness only;
-      the real shell's scroll container is unverified on a phone
+- [x] Sticky finder and headings checked in the Telegram shell's scroller
+      (html[data-tg=1], #root scrolls): finder at 0, heading at 114 while
+      its rows pass (tick 11). A real iPhone is still the owner's to try
+- [x] Contacts are one grouped surface on a phone, hairline past the face:
+      pitch 74 -> 62 px, about one more person per screen (tick 11)
+- [x] Search marks the typed letters; the fact they were found in comes
+      first; a row found by id alone shows the id (tick 11)
+- [x] `tri loop-guard end` runs the guards adopted this tick under the
+      loop-tests marker (tick 11: three would have failed the next start)
 - [x] Back from a contact returns to the list as it was left: search and
       chip in the address (?q=, ?who=), the card's crumb steps back instead
       of linking to the work section (4736b9659, tick 4). This was the real

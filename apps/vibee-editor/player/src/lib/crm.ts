@@ -482,6 +482,50 @@ export const matches = (x: ClientRow, q: string) => {
 }
 
 /**
+ * A text cut where the search found it, so a row can show WHY it is among
+ * the results (Telegram and iOS Contacts mark the typed letters). Only the
+ * first place: a name is short, and one mark is where the eye goes.
+ *
+ * Lowercasing can change a string's length (Turkish dotted I); then an
+ * index into the lowercase copy is not an index into the text, so nothing
+ * is marked rather than the wrong letters.
+ *
+ * `keepBefore`: a found part far into a long text would sit past the
+ * line's ellipsis; the text before it is then cut to that many letters
+ * after a "…", the way Telegram's search shows a hit inside a message.
+ */
+export function splitByNeedle(
+  text: string,
+  q: string,
+  keepBefore?: number
+): Array<{ text: string; hit: boolean }> {
+  const needle = searchNeedle(q)
+  const low = text.toLowerCase()
+  const at = needle && low.length === text.length ? low.indexOf(needle) : -1
+  if (at < 0) return [{ text, hit: false }]
+  const end = at + needle.length
+  const from =
+    keepBefore !== undefined && at > keepBefore + 1 ? at - keepBefore : 0
+  return [
+    { text: (from > 0 ? '…' : '') + text.slice(from, at), hit: false },
+    { text: text.slice(at, end), hit: true },
+    { text: text.slice(end), hit: false },
+  ].filter(p => p.text !== '')
+}
+
+/**
+ * Found by the id alone. A row shows no id, so such a row sits in the
+ * results with nothing on it that was typed; the row then names the id.
+ */
+export const foundOnlyById = (x: ClientRow, q: string) => {
+  const needle = searchNeedle(q)
+  if (!needle || !x.telegramId.toLowerCase().includes(needle)) return false
+  return ![x.name, x.username, x.client]
+    .filter(Boolean)
+    .some(v => String(v).toLowerCase().includes(needle))
+}
+
+/**
  * One page of the clients list, or a search over ALL of them (#2947). The
  * contact book puts hundreds of people in the CRM; the first fifty is not
  * "the clients".
