@@ -523,6 +523,23 @@ export default function CrmPage() {
       })
   }
 
+  /**
+   * "AUTO" ONCE, OVER THE COLUMN, NOT ON EVERY ROW. On a phone the word on
+   * each row's tick took 73px of 352: the name had 179px, and four of twelve
+   * names were cut ("Anna-Maria Vetrova-Sok..."). A phone's rows show only
+   * the tick (still 44px to land on), and the heading names the column --
+   * the way a table does, and the way Gmail's list does not repeat "select".
+   * The word stays in each row for a screen reader; the heading copy is
+   * aria-hidden, so it is not read twice. None before the ticks are read:
+   * a column label over no ticks labels nothing.
+   */
+  const autoColumn =
+    picked === null ? null : (
+      <span className="crm__col-auto" aria-hidden="true">
+        {t('crm.row.auto')}
+      </span>
+    )
+
   const clientRow = (x: ClientRow) => {
     const isDropped = !!dropped[x.telegramId]
     // A removed row stays open: the way back must not hide behind "...".
@@ -565,7 +582,7 @@ export default function CrmPage() {
                 checked={picked.has(x.telegramId)}
                 onChange={e => void toggleAuto(x.telegramId, e.target.checked)}
               />
-              <span>{t('crm.row.auto')}</span>
+              <span className="crm__auto-word">{t('crm.row.auto')}</span>
             </label>
           )}
           <button
@@ -800,6 +817,7 @@ export default function CrmPage() {
             */}
             <h4 className="crm__subtitle" title={t('crm.vip.note')}>
               {t('crm.vip.title')} {underWay.length}
+              {autoColumn}
             </h4>
             {underWay.length === 0 ? (
               <p className="crm__counts">{t('crm.vip.empty')}</p>
@@ -810,6 +828,7 @@ export default function CrmPage() {
               <>
                 <h4 className="crm__subtitle">
                   {t('crm.clients.rest')} {shownClients.length}
+                  {autoColumn}
                 </h4>
                 <ul className="crm__list">{shownClients.map(clientRow)}</ul>
               </>
