@@ -39,7 +39,7 @@ export function agentPackageIntent(payload: string | undefined): string | null {
  */
 export function agentPackageOrderReply(
   isRu: boolean,
-  outcome: 'sent' | 'repeat' | 'undelivered' = 'sent'
+  outcome: PackageOrderOutcome = 'sent'
 ): string {
   if (outcome === 'undelivered') {
     return isRu
@@ -63,24 +63,52 @@ export function agentPackageOrderReply(
  * one repeated note to the team.
  */
 export const REPEAT_ORDER_WINDOW_MS = 10 * 60 * 1000
-const lastOrderAt = new Map<string, number>()
 
-/** True when this person ordered this package within the window. Records it otherwise. */
-export function isRepeatOrder(
+export type PackageOrderOutcome = 'sent' | 'repeat' | 'undelivered'
+
+interface OrderRecord {
+  at: number
+  /** Settles to true once the team got it; a failed order is dropped. */
+  delivered: Promise<boolean>
+}
+const orders = new Map<string, OrderRecord>()
+
+/**
+ * Tell the team once per person and package inside the window.
+ *
+ * Telegraf handles a batch of updates at once, so a double tap reaches here
+ * twice before the first note is out. The second press waits for the first
+ * one's answer instead of guessing: "already with the team" only after the
+ * team really has it, "could not pass it on" when it failed. A failed order
+ * is forgotten, so pressing again retries at once.
+ */
+export async function placePackageOrder(
   telegramId: number,
   packageId: string,
+  deliver: () => Promise<number>,
   now: number = Date.now()
-): boolean {
+): Promise<PackageOrderOutcome> {
+  for (const [key, record] of orders) {
+    if (now - record.at >= REPEAT_ORDER_WINDOW_MS) orders.delete(key)
+  }
   const key = `${telegramId}:${packageId}`
-  const last = lastOrderAt.get(key)
-  if (last !== undefined && now - last < REPEAT_ORDER_WINDOW_MS) return true
-  lastOrderAt.set(key, now)
-  return false
+  const earlier = orders.get(key)
+  if (earlier) return (await earlier.delivered) ? 'repeat' : 'undelivered'
+
+  const delivered = deliver().then(
+    count => count > 0,
+    () => false
+  )
+  const record: OrderRecord = { at: now, delivered }
+  orders.set(key, record)
+  const ok = await delivered
+  if (!ok && orders.get(key) === record) orders.delete(key)
+  return ok ? 'sent' : 'undelivered'
 }
 
-/** Forget an order, so an undelivered one can be pressed again at once. */
-export function forgetOrder(telegramId: number, packageId: string): void {
-  lastOrderAt.delete(`${telegramId}:${packageId}`)
+/** How many orders are remembered -- expired ones are dropped on the next order. */
+export function rememberedOrderCount(): number {
+  return orders.size
 }
 
 export interface PackageOrderer {

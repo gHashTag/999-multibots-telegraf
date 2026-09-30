@@ -13,9 +13,9 @@ import {
   agentPackageIntent,
   agentPackageOrderReply,
   agentPackageTeamNote,
-  forgetOrder,
-  isRepeatOrder,
   notifyTeamOfPackageOrder,
+  placePackageOrder,
+  rememberedOrderCount,
 } from '@/services/agentPackageOrder'
 import { reelIntent } from '@/services/storyReel'
 import { topupIntent, lookIntent } from '@/navigation/registerCommands'
@@ -86,24 +86,41 @@ describe('the agent package order link', () => {
     expect(src).toMatch(
       /agentPackageIntent\(startParam\)[\s\S]{0,200}orderedPackage = agentPackageIntent/
     )
-    const notify = src.indexOf('await notifyTeamOfPackageOrder(')
+    const notify = src.indexOf('await placePackageOrder(')
     const newUser = src.indexOf('if (!userDetails.isExist)')
     expect(notify).toBeGreaterThan(0)
     expect(notify).toBeLessThan(newUser)
     expect(src).toMatch(/else if \(orderedPackage\) \{/)
   })
 
-  it('/start tells the team once per repeat window, and frees an undelivered order', () => {
+  it('/start orders through the single-flight guard', () => {
     const src = readFileSync(
       join(__dirname, '../../navigation/registerCommands.ts'),
       'utf8'
     )
     expect(src).toMatch(
-      /if \(!isRepeatOrder\(ctx\.from\.id, orderedPackage\)\) \{[\s\S]{0,120}await notifyTeamOfPackageOrder\(/
+      /await placePackageOrder\(orderer\.id, pkg, \(\) =>\s*notifyTeamOfPackageOrder\(/
     )
-    expect(src).toMatch(
-      /if \(delivered === 0\) forgetOrder\(ctx\.from\.id, orderedPackage\)/
+  })
+
+  it('a new person who ordered is not sent into the photo onboarding', () => {
+    const start = readFileSync(
+      join(__dirname, '../../navigation/registerCommands.ts'),
+      'utf8'
     )
+    expect(start).toMatch(
+      /if \(!userDetails\.isExist\) \{\s*if \(orderedPackage\) ctx\.session\.agentPackageOrdered = true/
+    )
+    const scene = readFileSync(
+      join(__dirname, '../../scenes/createUserScene.ts'),
+      'utf8'
+    )
+    const skip = scene.indexOf('if (ctx.session.agentPackageOrdered) {')
+    const photo = scene.indexOf(
+      'return ctx.scene.enter(ModeEnum.AvatarTransform)'
+    )
+    expect(skip).toBeGreaterThan(0)
+    expect(skip).toBeLessThan(photo)
   })
 })
 
@@ -160,22 +177,82 @@ describe('the order reaches the team and the person', () => {
 })
 
 describe('one order, however many presses', () => {
-  it('tells the team once per person and package inside the window', () => {
+  const sends = (count: number) => vi.fn(async () => count)
+
+  it('tells the team once per person and package inside the window', async () => {
     const t = 1_000_000
-    expect(isRepeatOrder(900000101, 'blogger', t)).toBe(false)
-    expect(isRepeatOrder(900000101, 'blogger', t + 1000)).toBe(true)
-    expect(isRepeatOrder(900000101, 'twin', t + 1000)).toBe(false)
-    expect(isRepeatOrder(900000102, 'blogger', t + 1000)).toBe(false)
+    const deliver = sends(1)
+    expect(await placePackageOrder(900000101, 'blogger', deliver, t)).toBe(
+      'sent'
+    )
     expect(
-      isRepeatOrder(900000101, 'blogger', t + REPEAT_ORDER_WINDOW_MS + 1)
-    ).toBe(false)
+      await placePackageOrder(900000101, 'blogger', deliver, t + 1000)
+    ).toBe('repeat')
+    expect(await placePackageOrder(900000101, 'twin', deliver, t + 1000)).toBe(
+      'sent'
+    )
+    expect(
+      await placePackageOrder(900000102, 'blogger', deliver, t + 1000)
+    ).toBe('sent')
+    expect(
+      await placePackageOrder(
+        900000101,
+        'blogger',
+        deliver,
+        t + REPEAT_ORDER_WINDOW_MS + 1
+      )
+    ).toBe('sent')
+    expect(deliver).toHaveBeenCalledTimes(4)
   })
 
-  it('an undelivered order can be pressed again at once', () => {
+  it('an undelivered order can be pressed again at once', async () => {
     const t = 2_000_000
-    expect(isRepeatOrder(900000103, 'manager', t)).toBe(false)
-    forgetOrder(900000103, 'manager')
-    expect(isRepeatOrder(900000103, 'manager', t + 1)).toBe(false)
+    expect(await placePackageOrder(900000103, 'manager', sends(0), t)).toBe(
+      'undelivered'
+    )
+    expect(await placePackageOrder(900000103, 'manager', sends(1), t + 1)).toBe(
+      'sent'
+    )
+  })
+
+  it('a thrown delivery counts as undelivered, not as a crash', async () => {
+    const boom = vi.fn(async (): Promise<number> => {
+      throw new Error('telegram down')
+    })
+    expect(await placePackageOrder(900000104, 'twin', boom, 3_000_000)).toBe(
+      'undelivered'
+    )
+  })
+
+  it('a double tap waits for the first press, so the two answers agree', async () => {
+    let finish!: (count: number) => void
+    const slow = vi.fn(() => new Promise<number>(resolve => (finish = resolve)))
+    const t = 4_000_000
+    const first = placePackageOrder(900000105, 'blogger', slow, t)
+    const second = placePackageOrder(900000105, 'blogger', slow, t + 10)
+    finish(0)
+    expect(await first).toBe('undelivered')
+    expect(await second).toBe('undelivered')
+    expect(slow).toHaveBeenCalledTimes(1)
+
+    const ok = sends(1)
+    const third = placePackageOrder(900000105, 'blogger', ok, t + 20)
+    const fourth = placePackageOrder(900000105, 'blogger', ok, t + 30)
+    expect(await third).toBe('sent')
+    expect(await fourth).toBe('repeat')
+    expect(ok).toHaveBeenCalledTimes(1)
+  })
+
+  it('forgets orders older than the window', async () => {
+    const t = 9_000_000_000
+    await placePackageOrder(900000106, 'twin', sends(1), t)
+    await placePackageOrder(
+      900000107,
+      'twin',
+      sends(1),
+      t + REPEAT_ORDER_WINDOW_MS * 2
+    )
+    expect(rememberedOrderCount()).toBe(1)
   })
 
   it('never says "accepted" when the team did not get it', () => {

@@ -243,9 +243,8 @@ import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
 import {
   agentPackageIntent,
   agentPackageOrderReply,
-  forgetOrder,
-  isRepeatOrder,
   notifyTeamOfPackageOrder,
+  placePackageOrder,
 } from '@/services/agentPackageOrder'
 
 /**
@@ -3095,23 +3094,23 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
        * it arrived now, whoever they turn out to be.
        */
       if (orderedPackage && ctx.from) {
-        let outcome: 'sent' | 'repeat' | 'undelivered' = 'repeat'
-        if (!isRepeatOrder(ctx.from.id, orderedPackage)) {
-          const delivered = await notifyTeamOfPackageOrder(
+        const orderer = ctx.from
+        const pkg = orderedPackage
+        const outcome = await placePackageOrder(orderer.id, pkg, () =>
+          notifyTeamOfPackageOrder(
             ctx.telegram,
-            orderedPackage,
-            ctx.from,
+            pkg,
+            orderer,
             ctx.botInfo?.username
           )
-          outcome = delivered > 0 ? 'sent' : 'undelivered'
-          if (delivered === 0) forgetOrder(ctx.from.id, orderedPackage)
-        }
+        )
         await ctx.reply(
           agentPackageOrderReply(isRussianFromState(ctx), outcome)
         )
       }
 
       if (!userDetails.isExist) {
+        if (orderedPackage) ctx.session.agentPackageOrdered = true
         console.log('🔴 [DEBUG /start] Entering CreateUserScene...')
         await ctx.scene.enter(ModeEnum.CreateUserScene)
         console.log('🔴 [DEBUG /start] CreateUserScene entered')

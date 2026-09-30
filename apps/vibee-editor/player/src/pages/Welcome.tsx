@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { STORAGE_KEYS } from '@vibee/atoms'
 import { MARKETPLACE_AGENTS } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { useLanguage, type Language } from '@/hooks/useLanguage'
 import { useAgentAvatars } from '@/hooks/useAgentAvatars'
 import { AgentFace } from '@/components/Chat/AgentFace'
 import { PackageCards } from '@/components/Agents/PackageCards'
+import { markWelcomed } from '@/components/Navigation/RouteMemory'
 import './Welcome.css'
 
 const copy = {
@@ -102,12 +102,7 @@ export function WelcomePage() {
   const working = MARKETPLACE_AGENTS.filter(agent => agent.status === 'live')
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEYS.welcomeSeen, '1')
-    } catch {
-      // Storage that cannot be written: LaunchRedirect treats unreadable
-      // storage as "greeted" too, so this screen cannot loop.
-    }
+    markWelcomed()
   }, [])
 
   return (

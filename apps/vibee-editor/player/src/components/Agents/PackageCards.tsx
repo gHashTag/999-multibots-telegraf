@@ -70,14 +70,19 @@ export function PackageCards({ lang }: { lang: Language }) {
               ))}
             </ul>
             <div className="package-card__actions">
-              <button
-                type="button"
+              <a
                 className="package-card__order"
+                href={agentPackageOrderUrl(pkg)}
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label={text.orderLabel(pkg.name[l])}
-                onClick={() => openTelegramLink(agentPackageOrderUrl(pkg))}
+                onClick={event => {
+                  if (openTelegramLink(agentPackageOrderUrl(pkg)))
+                    event.preventDefault()
+                }}
               >
                 {text.order} →
-              </button>
+              </a>
               {tryable ? (
                 <Link
                   className="package-card__try"

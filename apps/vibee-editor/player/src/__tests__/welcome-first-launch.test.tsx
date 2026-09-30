@@ -12,7 +12,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { STORAGE_KEYS } from '@vibee/atoms'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AGENT_PACKAGES } from '../../../packages/vibee-atoms/src/agent-packages'
+import {
+  AGENT_PACKAGES,
+  agentPackageOrderUrl,
+} from '../../../packages/vibee-atoms/src/agent-packages'
 import { survivesStorageReset } from '@/lib/storageReset'
 
 vi.mock('@/hooks/useTelegramWebApp', () => ({
@@ -55,8 +58,10 @@ describe('the first launch', () => {
     window.history.replaceState({}, '', '/')
   })
 
-  async function landing(): Promise<string> {
-    const memory = await freshMemory()
+  async function landing(
+    memory?: Awaited<ReturnType<typeof freshMemory>>
+  ): Promise<string> {
+    memory ??= await freshMemory()
     let landedOn = ''
     root = createRoot(host)
     await act(async () => {
@@ -94,6 +99,27 @@ describe('the first launch', () => {
     window.history.replaceState({}, '', '/?tgWebAppStartParam=pair')
     // TelegramProvider takes it from the feed to /pair.
     expect(await landing()).toBe('/feed')
+  })
+
+  it('does not greet twice in one session -- the header logo links to "/"', async () => {
+    const memory = await freshMemory()
+    memory.markWelcomed()
+    // Even when the write to storage was lost.
+    window.localStorage.clear()
+    expect(await landing(memory)).toBe('/feed')
+  })
+
+  it('does not greet on every launch when storage cannot be written', async () => {
+    const write = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new DOMException('full', 'QuotaExceededError')
+      })
+    try {
+      expect(await landing()).toBe('/feed')
+    } finally {
+      write.mockRestore()
+    }
   })
 
   it('keeps "greeted" through the storage reset', () => {
@@ -173,5 +199,17 @@ describe('the welcome screen', () => {
   it('says what happens after "Order", in three steps', async () => {
     await render()
     expect(host.querySelectorAll('.welcome-steps li')).toHaveLength(3)
+  })
+
+  it('orders through a real link, so a browser or the game frame can follow it', async () => {
+    await render()
+    for (const pkg of AGENT_PACKAGES) {
+      const order = host.querySelector(
+        `[data-testid="package-${pkg.id}"] .package-card__order`
+      )
+      expect(order?.tagName, pkg.id).toBe('A')
+      expect(order?.getAttribute('href')).toBe(agentPackageOrderUrl(pkg))
+      expect(order?.getAttribute('target')).toBe('_blank')
+    }
   })
 })
