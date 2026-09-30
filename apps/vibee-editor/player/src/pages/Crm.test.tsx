@@ -21,8 +21,13 @@ vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
     // The key is returned, so these checks never depend on the wording in the
     // dictionary -- only on which key the screen decided to show.
+    // A reason line (`crm.why.*`) without numbers still ends in ":": the
+    // real `t` hands back the bare key only for a MISSING line, and the
+    // screen reads that as "use the server's words instead".
     t: (key: string, vars?: Record<string, unknown>) =>
-      vars ? `${key}:${Object.values(vars).join(',')}` : key,
+      vars || key.startsWith('crm.why.')
+        ? `${key}:${Object.values(vars ?? {}).join(',')}`
+        : key,
   }),
 }))
 
@@ -158,6 +163,14 @@ const answers: Record<string, unknown> = {
   },
 }
 
+/*
+ * Every test starts from these answers. Tests replace one of them to draw a
+ * case; without the reset the replacement leaked into every later test, and
+ * a test passed or failed by where it sat in the file (loop tick 12: a new
+ * describe left no "ours" row and three tests below it broke).
+ */
+const pristine = structuredClone(answers)
+
 let calls: Array<{ name: string; args: Record<string, unknown> }> = []
 
 function serve(opts: { fail?: string[] } = {}) {
@@ -206,6 +219,8 @@ afterEach(() => {
   act(() => root.unmount())
   host.remove()
   vi.unstubAllGlobals()
+  for (const k of Object.keys(answers)) delete answers[k]
+  Object.assign(answers, structuredClone(pristine))
 })
 
 /*
@@ -435,6 +450,78 @@ describe('prepare asks the agent, it does not send', () => {
     expect(queued[0].text).toContain('crm.wait.prepareAsk')
     for (const forbidden of ['tg_send', 'tg_forward', 'crm_send', 'crm_touch'])
       expect(calls.map(c => c.name)).not.toContain(forbidden)
+  })
+})
+
+describe('a waiting reason is said in the screen language', () => {
+  /*
+   * The server's reasons are Russian words; an English screen printed them
+   * as they came (loop tick 12). A code now travels next to the words. The
+   * mocked `t` echoes the key with its numbers, so a translated line reads
+   * "crm.why.<code>:<vars>" here and the server's words are the fallback.
+   */
+  const row = (over: Record<string, unknown>) => ({
+    telegram_id: '111',
+    name: 'Ivan',
+    link: null,
+    bot: 'b',
+    waiting: 'theirs',
+    days: 9,
+    stage: 'written',
+    because: 'WORDS-BECAUSE',
+    next_why: 'WORDS-NEXT',
+    urgency: 'today',
+    ...over,
+  })
+
+  it('translates a reason that comes with a code, and asks the agent in it', async () => {
+    answers.crm_waiting = {
+      total: 1,
+      ours: 1,
+      due: 0,
+      theirs: 0,
+      waiting: [
+        row({
+          waiting: 'ours',
+          because_code: 'we_wrote',
+          next_why_code: 'we_wrote_days',
+          next_why_vars: { days: 9 },
+        }),
+      ],
+    }
+    serve()
+    await draw()
+    expect(host.querySelector('.crm__next')!.textContent).toBe(
+      'crm.why.we_wrote_days:9'
+    )
+    expect(host.querySelector('.crm__why')!.textContent).toBe(
+      'crm.wait.ours · crm.wait.days:9 · crm.why.we_wrote:'
+    )
+    expect(host.textContent).not.toContain('WORDS-NEXT')
+    expect(host.textContent).not.toContain('WORDS-BECAUSE')
+    queued.length = 0
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.crm__prepare')!.click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(queued[0].text).toContain('crm.why.we_wrote_days:9')
+  })
+
+  it("shows the server's words when a reason has no code", async () => {
+    answers.crm_waiting = {
+      total: 1,
+      ours: 0,
+      due: 0,
+      theirs: 1,
+      waiting: [row({})],
+    }
+    serve()
+    await draw()
+    expect(host.querySelector('.crm__why')!.textContent).toBe(
+      // The age says its unit: a bare "9" said nothing.
+      'crm.wait.theirs · crm.wait.days:9 · WORDS-BECAUSE'
+    )
+    expect(host.querySelector('.crm__next')!.textContent).toBe('WORDS-NEXT')
   })
 })
 
@@ -1208,6 +1295,15 @@ describe('recent contacts', () => {
     await draw(CONTACTS)
     const links = [...(recentRow()?.querySelectorAll('a') ?? [])]
     expect(links.map(a => a.getAttribute('href'))).toEqual(['/crm/555'])
+  })
+
+  it('keeps to the chip: under Leads a paying client is not offered', async () => {
+    // 555 paid, 666 is a lead. The row used to show both under any chip.
+    window.localStorage.setItem('vibee.crm.recent', '["555","666"]')
+    serve()
+    await draw('/crm?tab=contacts&who=leads')
+    const links = [...(recentRow()?.querySelectorAll('a') ?? [])]
+    expect(links.map(a => a.getAttribute('href'))).toEqual(['/crm/666'])
   })
 
   it('typing a search hides the row', async () => {

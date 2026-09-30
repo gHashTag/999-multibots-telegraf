@@ -48,6 +48,9 @@ export const CRM_FIXTURES: Record<string, unknown> = {
         days: 2,
         stage: 'talking',
         because: 'ответила, а мы молчим',
+        because_code: 'they_replied',
+        // No code: a reason the server wrote in words only. The screen
+        // shows the words (reasonLine).
         next_why: 'спросила цену свадебного букета и доставку в субботу',
       },
       {
@@ -59,7 +62,10 @@ export const CRM_FIXTURES: Record<string, unknown> = {
         days: 1,
         stage: 'written',
         because: 'ответил, а мы молчим',
-        next_why: '',
+        because_code: 'they_replied',
+        next_why: 'ждёт ответа 1 дн.',
+        next_why_code: 'waits_days',
+        next_why_vars: { days: 1 },
       },
       {
         telegram_id: '900000103',
@@ -70,6 +76,10 @@ export const CRM_FIXTURES: Record<string, unknown> = {
         days: 9,
         stage: 'written',
         because: 'написали, ответа нет',
+        because_code: 'we_wrote',
+        next_why: 'мы написали 9 дн. назад, ответа нет',
+        next_why_code: 'we_wrote_days',
+        next_why_vars: { days: 9 },
       },
     ],
   },

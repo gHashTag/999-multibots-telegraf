@@ -140,6 +140,15 @@ export interface WaitingRow {
    * does not send it.
    */
   nextWhy: string
+  /**
+   * The same two reasons as codes (`because_code`, `next_why_code`), for the
+   * screen's own language: the words above are Russian, and an English
+   * screen printed them as they came (loop tick 12). Null from an older
+   * server, and then the words are shown. See `reasonLine`.
+   */
+  becauseCode: string | null
+  nextWhyCode: string | null
+  nextWhyVars: Record<string, string | number> | null
   urgency: string | null
 }
 
@@ -257,7 +266,7 @@ export const loadTraffic = async (days: number) =>
  * match the component instead of the server, which is the fake agreeing with
  * the code rather than with the world.
  */
-function toWaiting(r: Record<string, unknown>): WaitingList {
+export function toWaiting(r: Record<string, unknown>): WaitingList {
   const rows = Array.isArray(r['waiting'])
     ? (r['waiting'] as Array<Record<string, unknown>>)
     : []
@@ -276,9 +285,43 @@ function toWaiting(r: Record<string, unknown>): WaitingList {
       stage: String(x['stage'] ?? 'new'),
       because: String(x['because'] ?? ''),
       nextWhy: String(x['next_why'] ?? ''),
+      becauseCode: str(x['because_code']),
+      nextWhyCode: str(x['next_why_code']),
+      nextWhyVars: reasonVars(x['next_why_vars']),
       urgency: str(x['urgency']),
     })),
   }
+}
+
+/*
+ * A REASON IN THE SCREEN'S LANGUAGE, OR THE SERVER'S WORDS.
+ *
+ * The server sends each reason twice: Russian words for the agent, and a
+ * code. A code the dictionary knows becomes `crm.why.<code>` with its
+ * numbers; a code it does not know (a server newer than this screen), or no
+ * code at all (a server older than it), shows the words, which are at least
+ * true. Never the bare key: `t` returns the key for a missing line, and
+ * "crm.why.promise_late" on a phone says nothing to anybody.
+ */
+export function reasonLine(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  code: string | null,
+  vars: Record<string, string | number> | null,
+  words: string
+): string {
+  if (!code) return words
+  const key = `crm.why.${code}`
+  const line = t(key, vars ?? undefined)
+  return line === key ? words : line
+}
+
+function reasonVars(v: unknown): Record<string, string | number> | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null
+  const out: Record<string, string | number> = {}
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof x === 'string' || typeof x === 'number') out[k] = x
+  }
+  return out
 }
 
 /*
