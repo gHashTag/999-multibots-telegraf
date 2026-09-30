@@ -131,6 +131,17 @@ player-types` (~10 s) before committing.
   proven; the log said lefthook rejected the flag (`--commands`, the flag
   is `--command`). The clean run exited 1 too. A red probe proves the gate
   only if the log names the planted error.
+- **A harness that only `tri shot` can feed is blind in the preview.**
+  crm-client.html got its answers from Playwright's route interception;
+  in the preview browser the card said "session refused". Harness pages
+  answer their own tools in-page from a JSON fixture that shot.mjs reads
+  too (`answerCrmToolsInPage(fixtures, { passThrough: true })`), so one
+  source serves both and the host-answered tool still reaches `tri shot`.
+- **Bottom actions: sticky, last in the DOM, not fixed.** A primary action
+  placed after every panel with `position: sticky; bottom: calc(max(
+var(--app-tabbar-total, 0px), var(--app-safe-bottom, 0px)) + 12px)` stays
+  under the thumb on a long page and settles in place at the end; no
+  duplicate button, no scroll listener (CrmClient, tick 3).
 - **Recent/remembered rows draw only ids the server just listed.** A
   localStorage id is shown only if it is in the current list (privacy on
   a shared device, and no dead links). Consequence: the list is paged, so

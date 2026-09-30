@@ -71,7 +71,15 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - [x] Inputs >= 16px: already solved, styles/design-system.css:527
       (pointer: coarse). Same planning slip
 - [x] `tri precommit [gate]`: the commit's gates without the commit
-- [ ] Contact card `/crm/:id`: big "write / take on" actions at the bottom, under the thumb
+- [x] Harness /harness/crm-client.html drew "session refused" outside `tri shot`;
+      now answers in-page from crmClientFixtures.json (f2749188e, tick 3)
+- [x] Contact card: the chat button follows every panel, sticky 12px above
+      the tab bar / home indicator (963ce987f). There is no "take on" action
+      on the card to move -- the card only reads; one button was the scope
+- [ ] Media rows look padded at 390px: NOT a bug -- the file link is a 44px
+      touch target on purpose. Leave it (tick 3 false alarm)
+- [ ] Sticky finder and sticky chat button are proven in the harness only;
+      the real shell's scroll container is unverified on a phone
 - [ ] Quick filter "views" persist between visits (Pipedrive saved views)
 
 ## Что уже есть
@@ -87,3 +95,5 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
   px; 3 -> 7 contacts per screen; page 3918 -> 1240 px.
 
 - 01.10.2026 01:34: tick 2: recents shipped (e178d41b6); tsc -p . in the player is a no-op -> tri precommit player-types; an exit code proved nothing until the log was read
+
+- 01.10.2026 01:44: tick 3: fixed the blind client-card harness first (you cannot improve a page you cannot see), then sticky chat button; media 'gap' was a deliberate 44px target -- measure before calling it a bug
