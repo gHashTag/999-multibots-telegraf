@@ -2,7 +2,7 @@
 
 <!-- loop-branch: fix/crm-mobile-ux -->
 <!-- loop-pr: 3199 -->
-<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx src/lib/crmMatches.test.ts -->
+<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx src/lib/crmMatches.test.ts src/lib/crmReason.test.ts -->
 
 Started 30.09.2026 by the owner's `/loop 30m`: find the weak spots of mobile
 layout and UI/UX, study competitors, write a decomposed plan, implement it,
@@ -156,11 +156,25 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - [x] `tri mutants --reanchor`: an indent-only move (code wrapped in one
       more element) re-anchors its guards; a changed token stays stale
       (tick 10)
-- [ ] Waiting "because" line is server text in Russian even in the English
-      UI -- a data question (the reason is stored as prose), not layout
-- [ ] Recents ignore the chip (leads chip still shows a client in Recent).
-      Deliberate for now (HubSpot recents are filter-free); watch for
-      confusion
+- [x] Waiting "because" line is server text in Russian even in the English
+      UI. The server now sends a code next to the words (`because_code`,
+      `next_why_code` + `next_why_vars`); the screen translates a known
+      code and shows the words for an unknown one. A contract test reads
+      the codes from the server's own source (tick 12)
+- [x] Recents ignore the chip: a paying client sat in "Recent" under the
+      Leads chip. Recents now follow the chip (tick 12)
+- [x] The age on a waiting row was a bare number ("9"); it says its unit
+      now ("9 d" / "9 дн.") -- Pipedrive's "rotting N days" (tick 12)
+- [x] Test-order leak in Crm.test: one test changed the shared `answers`
+      and later tests saw it. `afterEach` restores a pristine copy (tick 12)
+- [ ] The lead list's `because` (chat memory, `'давно тихо'` and friends)
+      is still Russian prose on an English screen -- same cure: codes
+- [~] `tri loop-guard start` took ~11 min: every guard runs the whole
+  marker. The guards now run it with `--bail=1` (3 guards: 65 -> 43 s,
+  same verdicts). Next step if still slow: each guard against its
+  killing file first, the marker only for a survivor
+- [ ] Server-side reason codes are held by 8 render mutants (8/8 killed,
+      tick 12) that are NOT in the adopted list: the marker is player-only
 
 ## Что уже есть
 
@@ -195,3 +209,5 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - 01.10.2026 05:14: tick 10: WORK-tab waiting row puts stage under the name on a phone (grid, row-gap 0); contacts section headings pinned under the finder via usePublishedHeight (--crm-finder-h on parent); tri mutants --reanchor for indent-only moves; 57/57 guards killed. Open: waiting 'because' text is Russian server prose in EN UI; sticky unverified in the real Telegram #root scroller.
 
 - 01.10.2026 05:41: tick 11: contacts are one grouped surface on a phone (pitch 74->62, +1 row); search marks its hit in name/facts, hit fact leads, id shown when found only by id; sticky verified in the tg #root scroller; loop-guard end now runs this tick's adopted guards under the loop-tests marker (caught 3 guards alive only in crmMatches.test.ts). 10/10 mutants killed, 67 adopted.
+
+- 01.10.2026 06:19: tick 12: waiting reasons travel as codes (5 WaitWhy + 14 NextWhy), translated on the screen with the server's words as fallback; contract test reads the codes from the server source; age with its unit; Recent follows the chip; Crm.test pristine fixture reset; mock t now says 'found' for reason lines (a mutant hid behind it). Mutations 12/12 player adopted (79 guards), 8/8 render by hand. tri: loop guards run vitest with --bail=1 (65->43 s on 3).
