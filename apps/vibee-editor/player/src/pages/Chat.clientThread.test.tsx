@@ -1,6 +1,14 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useNavigationType,
+  type InitialEntry,
+} from 'react-router-dom'
 import { Provider } from 'jotai'
 import {
   afterEach,
@@ -211,6 +219,78 @@ describe('the thread about a client', () => {
     expect(back.getAttribute('href')).toBe(`/crm/${CLIENT}`)
     // The greeting is the client one, not the self one.
     expect(host.textContent).toContain(`crm.client.chat.welcome:${CLIENT}`)
+  })
+
+  /*
+   * THE BACK LOOP (tick 6). Opened from anywhere but the card, "to the
+   * client" pushed the card, whose Back (a real history step since tick 4)
+   * returned to this chat: chat, card, chat, card, and never the list.
+   * Now it takes the chat's place, so the card's Back leaves both.
+   */
+  describe('"to the client"', () => {
+    function CardProbe() {
+      const navigate = useNavigate()
+      return (
+        <button className="probe-card" onClick={() => navigate(-1)}>
+          {useNavigationType()}
+        </button>
+      )
+    }
+    function Where() {
+      return <p className="probe-at">{useLocation().pathname}</p>
+    }
+
+    async function drawFrom(entries: InitialEntry[]) {
+      const { default: ChatPage } = await import('./Chat')
+      await act(async () => {
+        root.render(
+          <Provider store={editorStore}>
+            <MemoryRouter
+              initialEntries={entries}
+              initialIndex={entries.length - 1}
+            >
+              <Where />
+              <Routes>
+                <Route path="/threads" element={null} />
+                <Route path="/crm/:clientId" element={<CardProbe />} />
+                <Route path="/crm/:clientId/chat" element={<ChatPage />} />
+              </Routes>
+            </MemoryRouter>
+          </Provider>
+        )
+      })
+      await act(async () => {
+        await new Promise(r => setTimeout(r, 0))
+      })
+      await act(async () => {
+        host.querySelector<HTMLAnchorElement>('a.chat-client__back')!.click()
+      })
+    }
+    const at = () => host.querySelector('.probe-at')?.textContent
+
+    it('from elsewhere, the card replaces the chat and its Back leaves both', async () => {
+      serve()
+      await drawFrom(['/threads', `/crm/${CLIENT}/chat`])
+      expect(at()).toBe(`/crm/${CLIENT}`)
+      expect(host.querySelector('.probe-card')?.textContent).toBe('REPLACE')
+      await act(async () => {
+        host.querySelector<HTMLButtonElement>('.probe-card')!.click()
+      })
+      expect(at()).toBe('/threads')
+    })
+
+    it('from the card, it steps back to that card', async () => {
+      serve()
+      await drawFrom([
+        `/crm/${CLIENT}`,
+        {
+          pathname: `/crm/${CLIENT}/chat`,
+          state: { backTo: `/crm/${CLIENT}` },
+        },
+      ])
+      expect(at()).toBe(`/crm/${CLIENT}`)
+      expect(host.querySelector('.probe-card')?.textContent).toBe('POP')
+    })
   })
 
   it('keeps its messages under its own storage key, apart from the self thread', async () => {

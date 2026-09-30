@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { rememberContact } from '@/lib/crmRecent'
 import { useScrollTopOnPush } from '@/lib/useScrollMemory'
+import { cameFrom, isFirstEntry } from '@/lib/backTo'
 import './Crm.css'
 import './CrmClient.css'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -208,7 +209,7 @@ export default function CrmClientPage() {
             to="/crm?tab=contacts"
             className="crm-client__crumb"
             onClick={e => {
-              if (location.key === 'default') return
+              if (isFirstEntry(location)) return
               if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
               e.preventDefault()
               navigate(-1)
@@ -567,7 +568,11 @@ export default function CrmClientPage() {
         reads right before answering. Here it sits under the thumb from the
         first screen down, and settles in place at the end.
       */}
-      <Link to={`/crm/${clientId}/chat`} className="crm-client__chat">
+      <Link
+        to={`/crm/${clientId}/chat`}
+        state={cameFrom(`/crm/${clientId}`)}
+        className="crm-client__chat"
+      >
         {t('crm.client.chatButton')}
       </Link>
 
