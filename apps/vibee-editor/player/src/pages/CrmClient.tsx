@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { rememberContact } from '@/lib/crmRecent'
+import { useScrollTopOnPush } from '@/lib/useScrollMemory'
 import './Crm.css'
 import './CrmClient.css'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -85,6 +86,8 @@ export default function CrmClientPage() {
   const [busy, setBusy] = useState(false)
   // Opened = recent: the contacts list offers this person back first.
   useEffect(() => rememberContact(clientId), [clientId])
+  // Opened from a list scrolled far down: start at the name, not mid-card.
+  useScrollTopOnPush(clientId)
 
   // The start-duet control. `confirming` is the inline step between a click
   // with dry run OFF and the call that sends real messages.

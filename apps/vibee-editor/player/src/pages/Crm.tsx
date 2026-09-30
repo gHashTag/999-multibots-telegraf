@@ -14,6 +14,7 @@ import { WinbackPanel } from '@/components/Crm/WinbackPanel'
 import { askAgentInThread } from '@/lib/crmAsk'
 import { recentContactIds } from '@/lib/crmRecent'
 import { useUrlMirror } from '@/lib/useUrlMirror'
+import { useScrollMemory } from '@/lib/useScrollMemory'
 import { CrmMap } from '@/components/Crm/CrmMap'
 import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
 import {
@@ -231,6 +232,9 @@ export default function CrmPage() {
    */
   const [picked, setPicked] = useState<Set<string> | null>(null)
   const [busy, setBusy] = useState(false)
+  // Back from a card returns to the row that was tapped, once the list that
+  // held it is drawn again (it is re-read on every mount).
+  useScrollMemory(!busy && (clients.data !== null || overview.data !== null))
 
   const reload = useCallback(async () => {
     setBusy(true)

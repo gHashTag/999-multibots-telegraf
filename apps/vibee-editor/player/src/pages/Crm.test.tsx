@@ -1072,4 +1072,33 @@ describe('the list survives a visit to a card', () => {
     expect(box().value).toBe('Lead')
     expect(chipOn()).toMatch(/^crm\.clients\.filter\.leads/)
   })
+
+  it('Back lands on the row that was tapped, not at the top (tick 5)', async () => {
+    serve()
+    window.sessionStorage.clear()
+    const { default: CrmPage } = await import('./Crm')
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={[CONTACTS]}>
+          <Routes>
+            <Route path="/crm" element={<CrmPage />} />
+            <Route path="/crm/:clientId" element={<Card />} />
+          </Routes>
+        </MemoryRouter>
+      )
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+    try {
+      document.documentElement.scrollTop = 777
+      await click(host.querySelector('a[href="/crm/666"]')!)
+      document.documentElement.scrollTop = 0 // the card starts at its top
+      await click(host.querySelector('.probe-back')!)
+      expect(box()).not.toBeNull()
+      expect(document.documentElement.scrollTop).toBe(777)
+    } finally {
+      document.documentElement.scrollTop = 0
+    }
+  })
 })
