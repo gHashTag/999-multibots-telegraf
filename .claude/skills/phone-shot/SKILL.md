@@ -228,6 +228,24 @@ Promise.all([...])` followed by `setA(a); setB(b)` reads in parallel but
   than copying 114px into the stylesheet. Give the heading an opaque
   background. Scroll to a few depths and read each heading's `top`: it
   should equal the bar's bottom until its section ends.
+- **Check a pinned element in the Telegram shell, not only the page.**
+  Inside Telegram `#root` scrolls, not the window (`telegram.css`). The
+  harness loads that stylesheet, so set `html.dataset.tg = '1'` and
+  `--app-vh-stable` to the viewport height, then scroll `#root` and measure
+  `top` relative to `#root`'s rect. Scroll the window back to 0 first: a
+  window offset left from before the switch makes every sticky element
+  look broken (CRM tick 11: -410px, a false alarm).
+- **"Not enough room" is often the space BETWEEN rows.** CRM tick 11: each
+  64px contact was its own framed card with a 10px gap, a 74px pitch.
+  Telegram and iOS Contacts use one grouped surface with a hairline indented
+  past the face. The same rows then pitch at 62px, about one more person per
+  phone screen, with no touch target smaller. Measure the pitch (the
+  distance between rows' tops), not the row height.
+- **A search result must show what was typed.** Mark the hit (`<mark>`).
+  Put the fact it was found in before the ones that can push it past the
+  ellipsis, and name a hidden field (the id) when it was the only match.
+  CRM tick 11: "ор" matched a package name that rendered as "... · Ф▮…",
+  a hit cut in half by the ellipsis.
 - **Measure in the owner's language; English fitting proves nothing.** CRM
   tick 9: `.crm__acts button{flex:1 1 auto}` put four English buttons on one
   line. In Russian ("Отказался" is wider) the last button wrapped ALONE and

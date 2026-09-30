@@ -60,6 +60,8 @@ if [ -z "$TESTS" ]; then
 fi
 
 MUTANTS="$ROOT/.claude/loop-state/$NAME-mutants.json"
+# The list as the tick found it: `end` runs only what was added since.
+SNAP="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants-at-start.json"
 
 # `end` does not release a tick that leaves the next one blind. Tick 6 of
 # the CRM loop (01.10.2026) rewrote a line a past mutation was anchored to;
@@ -75,6 +77,35 @@ if [ "$MODE" = end ]; then
       BAD=1
     fi
   fi
+  # A guard adopted this tick must die under the loop-tests marker, not only
+  # under the files the tick ran it with. Tick 11 (01.10.2026) adopted three
+  # guards killed by crmMatches.test.ts, which the marker did not name: the
+  # next start would have stopped on "a past mutation SURVIVES" -- a false
+  # regression, blamed on the wrong tick. Only the new ones: ten took 95 s
+  # (each runs the whole marker suite), the full list would take minutes.
+  if [ "$BAD" = 0 ] && [ -n "$TESTS" ] && [ -f "$MUTANTS" ] && [ -f "$SNAP" ]; then
+    NEW="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants-new.json"
+    N=$(python3 - "$SNAP" "$MUTANTS" "$NEW" <<'PY'
+import json, sys
+old = json.load(open(sys.argv[1]))
+new = [m for m in json.load(open(sys.argv[2])) if m not in old]
+json.dump(new, open(sys.argv[3], "w"), ensure_ascii=False, indent=2)
+print(len(new))
+PY
+)
+    if [ "${N:-0}" -gt 0 ]; then
+      NLOG="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants-new.log"
+      (cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" "$NEW" -- bash -c "$TESTS") > "$NLOG" 2>&1
+      if [ $? -eq 0 ]; then
+        echo "  ok    $N guard(s) adopted this tick die under the loop-tests marker"
+      else
+        echo "  STOP  a guard adopted this tick SURVIVES the loop-tests marker --"
+        echo "        add the test file that kills it to <!-- loop-tests: --> ($NLOG):"
+        grep -E '^(SURVIVED|survived)' "$NLOG" | head -5 | sed 's/^/          /'
+        BAD=1
+      fi
+    fi
+  fi
   DIRTY=$(git -C "$ROOT" status --porcelain | head -5)
   if [ -n "$DIRTY" ]; then
     echo "  STOP  uncommitted files -- the next tick would stop on them:"
@@ -84,7 +115,7 @@ if [ "$MODE" = end ]; then
   if [ "$BAD" = 1 ]; then
     echo "── lock kept: fix the above, then tri loop-guard end again ──"; exit 1
   fi
-  rm -f "$LOCK"; echo "loop-guard: $NAME released"; exit 0
+  rm -f "$LOCK" "$SNAP"; echo "loop-guard: $NAME released"; exit 0
 fi
 
 STOP=0
@@ -198,7 +229,9 @@ if [ "$STOP" = 1 ]; then
   echo "── STOP: resolve the above; the lock was not taken ──"; exit 1
 fi
 if [ "$MODE" = start ]; then
-  date +%s > "$LOCK"; echo "── GO: lock taken; finish with tri loop-guard end ──"
+  date +%s > "$LOCK"
+  if [ -f "$MUTANTS" ]; then cp "$MUTANTS" "$SNAP"; else echo '[]' > "$SNAP"; fi
+  echo "── GO: lock taken; finish with tri loop-guard end ──"
 else
   echo "── GO ──"
 fi
