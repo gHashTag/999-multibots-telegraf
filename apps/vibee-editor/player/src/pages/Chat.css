@@ -520,6 +520,52 @@ html[data-keyboard='open'] .chat-page {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* It gives way, not the page. */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+/* NO SIDEWAYS PAGE (CRM mobile loop, tick 6). At 390px the row was 490px
+   wide -- the title could not shrink inside a row that could not shrink --
+   and the whole page scrolled sideways to 502px, the Queen off the screen.
+   The row now stops at the screen and the title takes the cut. */
+.chat-client {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+/* A phone: the arrow says "back", the name is the title (Telegram's own
+   chat header), and every control is a 44px target. */
+@media (max-width: 560px) {
+  .chat-client__back-text {
+    display: none;
+  }
+}
+/* Card and Queen share a class, so both took `margin-left: auto` and split
+   the free space: the pair stood apart in the middle of the row. Only the
+   first of them pushes; at 1100px+ the card is hidden and the Queen pushes. */
+@media (max-width: 1099px) {
+  /* Two classes: the plain rule is later in this file. */
+  .chat-client__card.chat-client__queen {
+    margin-left: 0;
+  }
+}
+@media (pointer: coarse) {
+  .chat-client__back,
+  .chat-client__card {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+  }
+  /* The target reaches into the row's 6px gap and padding above and below
+     instead of pushing the conversation down; no neighbour is overlapped. */
+  .chat-client__back,
+  .chat-client__card {
+    margin-block: -6px;
+  }
+  .chat-client__back {
+    min-width: 44px;
+  }
 }
 
 /* ── THE CLIENT'S CARD BESIDE THE CONVERSATION ─────────────────────────────

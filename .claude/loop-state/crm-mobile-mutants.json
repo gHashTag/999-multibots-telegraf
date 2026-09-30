@@ -103,5 +103,35 @@
     "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
     "from": "              if (isFirstEntry(location)) return",
     "to": "              if (location.key === 'default') return"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.css",
+    "from": ".chat-client {\n  flex: 1 1 auto;\n  min-width: 0;\n  max-width: 100%;\n}",
+    "to": ".chat-client {\n  flex: 1 1 auto;\n}"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.css",
+    "from": "  flex: 0 1 auto;\n  min-width: 0;\n}",
+    "to": "  flex: 0 1 auto;\n}"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.css",
+    "from": "    min-height: 44px;\n  }",
+    "to": "    min-height: 28px;\n  }"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.css",
+    "from": "  .chat-client__card.chat-client__queen {\n    margin-left: 0;",
+    "to": "  .chat-client__queen {\n    margin-left: 0;"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
+    "from": "                  {named?.id === client\n                    ? named.name\n                    : t('crm.client.chat.title', { id: client })}",
+    "to": "                  {t('crm.client.chat.title', { id: client })}"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/components/Crm/ClientAside.tsx",
+    "from": "    if (known) onName?.(known)",
+    "to": "    if (known) void 0"
   }
 ]

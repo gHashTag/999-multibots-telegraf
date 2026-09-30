@@ -97,6 +97,7 @@ export function ClientAside({
   askDisabled = false,
   open = false,
   onClose,
+  onName,
 }: {
   client: string
   /** Put a question to the agent in this conversation. */
@@ -105,6 +106,8 @@ export function ClientAside({
   /** Narrow mode: the card is a sheet, shown only while open. */
   open?: boolean
   onClose?: () => void
+  /** The client's name once it is read, for the conversation's top row. */
+  onName?: (name: string) => void
 }) {
   const { t } = useLanguage()
   const [profile, setProfile] = useState<Reached<ClientProfile>>(empty)
@@ -181,7 +184,13 @@ export function ClientAside({
   const pr = profile.data
   const hi = history.data
   const pl = plan.data
-  const name = ctx?.name || pr?.client || client
+  const known = ctx?.name || pr?.client || null
+  const name = known || client
+  // The chat's top row names the client from the same read: an id alone
+  // names nobody, and a second profile read would be the same answer.
+  useEffect(() => {
+    if (known) onName?.(known)
+  }, [known, onName])
   const stage = hi?.stage ?? ctx?.stage ?? null
   const stageLabel =
     stage && KNOWN_STAGES.has(stage) ? t(`crm.stage.${stage}`) : stage

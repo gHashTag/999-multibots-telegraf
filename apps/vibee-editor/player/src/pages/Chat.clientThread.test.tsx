@@ -222,6 +222,45 @@ describe('the thread about a client', () => {
   })
 
   /*
+   * A NAME, NOT A NUMBER (tick 6). The top row said "Conversation about
+   * client 900000113"; on a phone it was cut to "Conversation about cli…"
+   * and named nobody. Once the card beside the conversation has read the
+   * profile, the row says who it is (Telegram's own chat header does).
+   */
+  it('names the client by name once the card has read it', async () => {
+    serve()
+    const answer = fetch
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).endsWith('/mcp')) {
+          const tool = JSON.parse(String(init?.body)).params?.name
+          if (tool === 'crm_client_profile')
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                jsonrpc: '2.0',
+                id: 1,
+                result: {
+                  structuredContent: { telegram_id: CLIENT, client: 'Anna V.' },
+                },
+              }),
+            }
+        }
+        return answer(url, init)
+      })
+    )
+    await draw(`/crm/${CLIENT}/chat`)
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(host.querySelector('.chat-client__title')?.textContent).toBe(
+      'Anna V.'
+    )
+  })
+
+  /*
    * THE BACK LOOP (tick 6). Opened from anywhere but the card, "to the
    * client" pushed the card, whose Back (a real history step since tick 4)
    * returned to this chat: chat, card, chat, card, and never the list.
