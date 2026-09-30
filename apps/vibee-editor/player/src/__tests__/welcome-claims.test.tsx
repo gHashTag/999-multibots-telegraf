@@ -16,10 +16,27 @@ import {
   type AgentPackage,
 } from '../../../packages/vibee-atoms/src/agent-packages'
 import { MARKETPLACE_AGENTS } from '../../../packages/vibee-atoms/src/agent-marketplace'
+import { checkedDay } from '@/hooks/useAgentAcceptance'
 
-const ui = vi.hoisted(() => ({ lang: 'en' as 'en' | 'ru' }))
+const ui = vi.hoisted(() => ({
+  lang: 'en' as 'en' | 'ru',
+  verdicts: null as Record<
+    string,
+    {
+      agent: string
+      pass: boolean
+      at: string
+      tools: string[]
+      codes: string[]
+    }
+  > | null,
+}))
 
 vi.mock('@/hooks/useAgentAvatars', () => ({ useAgentAvatars: () => ({}) }))
+vi.mock('@/hooks/useAgentAcceptance', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/hooks/useAgentAcceptance')>()),
+  useAgentAcceptance: () => ui.verdicts,
+}))
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
     lang: ui.lang,
@@ -63,6 +80,7 @@ function points(lang: 'en' | 'ru'): string[] {
 }
 
 beforeEach(() => {
+  ui.verdicts = null
   window.localStorage.clear()
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -157,5 +175,41 @@ describe('"Work with receipts"', () => {
       list.getAttribute('aria-labelledby')!
     )
     expect(heading?.textContent).toBe('What proves the job')
+  })
+})
+
+// "Receipts" should not rest on the promise list alone: the same newest
+// daily acceptance verdict the market card shows stands on top of it.
+describe('the last daily check on the welcome card', () => {
+  const at = '2026-09-30T15:22:07.000Z'
+  const checked = () =>
+    host.querySelector('.welcome-agent-card .welcome-agent__checked')
+
+  it('says it passed, with the day', () => {
+    ui.verdicts = {
+      blogger: { agent: 'blogger', pass: true, at, tools: [], codes: [] },
+    }
+    points('en')
+    // The day comes from the shared formatter: ICU spells it "Sep" or "Sept".
+    expect(checked()?.textContent).toBe(
+      `✓ Checked on a real account · ${checkedDay(at, 'en')}`
+    )
+    expect(checked()?.getAttribute('data-pass')).toBe('yes')
+  })
+
+  it('says it failed, rather than keep quiet about it', () => {
+    ui.verdicts = {
+      blogger: { agent: 'blogger', pass: false, at, tools: [], codes: ['X'] },
+    }
+    const failed = /^✗ Последняя проверка не прошла · 30/ // cyrillic-ok
+    points('ru')
+    expect(checked()?.textContent).toMatch(failed)
+    expect(checked()?.getAttribute('data-pass')).toBe('no')
+  })
+
+  it('shows nothing when the server has not answered', () => {
+    points('en')
+    expect(checked()).toBeNull()
+    expect(host.textContent).not.toMatch(/not checked|never checked/i)
   })
 })

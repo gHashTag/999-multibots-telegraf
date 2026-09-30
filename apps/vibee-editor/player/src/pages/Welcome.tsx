@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { MARKETPLACE_AGENTS } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { useLanguage, type Language } from '@/hooks/useLanguage'
 import { useAgentAvatars } from '@/hooks/useAgentAvatars'
+import { checkedDay, useAgentAcceptance } from '@/hooks/useAgentAcceptance'
 import { AgentFace } from '@/components/Chat/AgentFace'
 import { PackageCards } from '@/components/Agents/PackageCards'
 import { markWelcomed } from '@/lib/welcomeMemory'
@@ -30,6 +31,8 @@ const copy = {
     working: 'Working now',
     open: 'Open',
     proof: 'What proves the job',
+    checked: 'Checked on a real account',
+    checkFailed: 'Last check failed',
     packages: 'Agents to order',
     packagesLead:
       'Launch price includes the first month; the team sets the bot up for you.',
@@ -71,6 +74,8 @@ const copy = {
     working: 'Уже работают',
     open: 'Открыть',
     proof: 'Чем подтверждается работа',
+    checked: 'Проверен на живом аккаунте',
+    checkFailed: 'Последняя проверка не прошла',
     packages: 'Агенты на заказ',
     packagesLead:
       'В цену запуска входит первый месяц; бота настраивает команда.',
@@ -116,6 +121,7 @@ export function WelcomePage() {
   const l: Language = lang === 'ru' ? 'ru' : 'en'
   const text = copy[l]
   const faces = useAgentAvatars()
+  const verdicts = useAgentAcceptance()
   const working = MARKETPLACE_AGENTS.filter(agent => agent.status === 'live')
 
   useEffect(() => {
@@ -192,6 +198,24 @@ export function WelcomePage() {
                  */}
                 {agent.evidence.length > 0 ? (
                   <div className="welcome-agent__proof">
+                    {/*
+                     * What was MEASURED above what is promised: the newest
+                     * daily acceptance run and its day, the same line the
+                     * market card shows. A failure is shown too; no answer
+                     * shows nothing, never "not checked".
+                     */}
+                    {verdicts?.[agent.id] ? (
+                      <p
+                        className="welcome-agent__checked"
+                        data-pass={verdicts[agent.id].pass ? 'yes' : 'no'}
+                      >
+                        {verdicts[agent.id].pass ? '✓' : '✗'}{' '}
+                        {verdicts[agent.id].pass
+                          ? text.checked
+                          : text.checkFailed}{' '}
+                        · {checkedDay(verdicts[agent.id].at, l)}
+                      </p>
+                    ) : null}
                     <h3 id={`welcome-proof-${agent.id}`}>{text.proof}</h3>
                     <ul aria-labelledby={`welcome-proof-${agent.id}`}>
                       {agent.evidence.map(item => (
