@@ -206,11 +206,6 @@ export default function CrmClientPage() {
         </button>
       </header>
 
-      {/* THE PRIMARY ACTION: a conversation that is only about this client. */}
-      <Link to={`/crm/${clientId}/chat`} className="crm-client__chat">
-        {t('crm.client.chatButton')}
-      </Link>
-
       {noticeReason ? <AllRefused reason={noticeReason} /> : null}
 
       <Panel
@@ -542,6 +537,17 @@ export default function CrmClientPage() {
           </>
         )}
       </Panel>
+
+      {/*
+        THE PRIMARY ACTION: a conversation that is only about this client.
+        Last in the page and sticky at the bottom (CRM mobile loop, tick 3):
+        at the top it was 1500px away from "Last messages", the panel one
+        reads right before answering. Here it sits under the thumb from the
+        first screen down, and settles in place at the end.
+      */}
+      <Link to={`/crm/${clientId}/chat`} className="crm-client__chat">
+        {t('crm.client.chatButton')}
+      </Link>
 
       <p className="crm__note">{t('crm.note')}</p>
     </div>

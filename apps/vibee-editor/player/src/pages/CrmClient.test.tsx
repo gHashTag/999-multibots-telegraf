@@ -360,6 +360,29 @@ describe('the way into the conversation', () => {
     expect(crumb.getAttribute('href')).toBe('/crm')
   })
 
+  /*
+   * UNDER THE THUMB (CRM mobile loop, tick 3). At the top of the page the
+   * button was 1500px above "Last messages" at 390px -- the panel read right
+   * before answering. It is now after every panel and sticky at the bottom;
+   * jsdom has no layout, so the order is held here and the stickiness in
+   * crmClientThumb.test.ts. Measured live: 12px off the bottom at every
+   * scroll position, settling in place at the end.
+   */
+  it('the primary button comes after every panel', async () => {
+    serve()
+    await draw()
+    const chat = host.querySelector('a.crm-client__chat')!
+    const panels = [
+      ...host.querySelectorAll('.crm-client section, .crm-client h3'),
+    ]
+    expect(panels.length).toBeGreaterThan(0)
+    for (const p of panels) {
+      expect(
+        p.compareDocumentPosition(chat) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    }
+  })
+
   it('reads nothing that sends: only crm_* readers are called', async () => {
     serve()
     await draw()
