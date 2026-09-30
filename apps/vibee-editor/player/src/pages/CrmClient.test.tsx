@@ -1,6 +1,12 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import {
+  Link,
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom'
 import {
   afterEach,
   beforeAll,
@@ -404,6 +410,34 @@ describe('the way into the conversation', () => {
       expect(host.querySelector('.probe-list')?.textContent).toBe(
         '?tab=contacts&who=leads&q=ana'
       )
+    })
+
+    it('opened by a tap on a scrolled list, the card starts at its top', async () => {
+      serve()
+      const { default: CrmClientPage } = await import('./CrmClient')
+      function Row() {
+        return <Link to={`/crm/${CLIENT}`}>row</Link>
+      }
+      await act(async () => {
+        root.render(
+          <MemoryRouter initialEntries={['/crm']}>
+            <Routes>
+              <Route path="/crm" element={<Row />} />
+              <Route path="/crm/:clientId" element={<CrmClientPage />} />
+            </Routes>
+          </MemoryRouter>
+        )
+      })
+      try {
+        document.documentElement.scrollTop = 498
+        await act(async () => {
+          host.querySelector<HTMLAnchorElement>('a')!.click()
+        })
+        expect(host.querySelector('a.crm-client__crumb')).not.toBeNull()
+        expect(document.documentElement.scrollTop).toBe(0)
+      } finally {
+        document.documentElement.scrollTop = 0
+      }
     })
 
     it('opened from a link, it goes to the contacts', async () => {
