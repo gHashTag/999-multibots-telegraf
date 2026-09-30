@@ -12,6 +12,7 @@ import { Avatar } from '@/components/Crm/Avatar'
 import { FunnelStrip } from '@/components/Crm/FunnelStrip'
 import { WinbackPanel } from '@/components/Crm/WinbackPanel'
 import { askAgentInThread } from '@/lib/crmAsk'
+import { recentContactIds } from '@/lib/crmRecent'
 import { CrmMap } from '@/components/Crm/CrmMap'
 import { SectionStrip, useSectionTab } from '@/components/common/SectionStrip'
 import {
@@ -638,6 +639,17 @@ export default function CrmPage() {
       : []),
   ]
 
+  /*
+   * RECENTLY OPENED, ONE TAP BACK. Only under an empty search (typing is
+   * already a way to find someone), and only people the server just listed:
+   * an id this device remembers but the list does not know draws nothing.
+   */
+  const byId = new Map((c?.clients ?? []).map(x => [x.telegramId, x]))
+  const recent =
+    query.trim() || clientsFilter === 'groups'
+      ? []
+      : recentContactIds().flatMap(id => byId.get(id) ?? [])
+
   const nothingAtAll = !!c && (c.clients ?? []).length === 0 && !query.trim()
   const contactsPanel = panel(
     t('crm.clients.title'),
@@ -705,6 +717,27 @@ export default function CrmPage() {
           <p className="crm__counts crm__paid-unknown">
             {t('crm.clients.paidUnknown')}
           </p>
+        ) : null}
+        {recent.length ? (
+          <nav className="crm__recent" aria-label={t('crm.clients.recent')}>
+            <h4 className="crm__subtitle">{t('crm.clients.recent')}</h4>
+            <ul>
+              {recent.map(x => (
+                <li key={x.telegramId}>
+                  <Link to={`/crm/${x.telegramId}`}>
+                    <Avatar
+                      name={x.name || x.telegramId}
+                      url={x.avatarUrl}
+                      size={40}
+                    />
+                    <span>
+                      {x.name || (x.username ? `@${x.username}` : x.telegramId)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
         ) : null}
         {clientsFilter === 'groups' ? (
           /*

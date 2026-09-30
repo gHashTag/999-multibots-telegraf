@@ -944,3 +944,49 @@ describe('contacts on a phone', () => {
     expect(row.textContent).toContain('crm.row.drop')
   })
 })
+
+/*
+ * RECENTLY OPENED (CRM mobile loop, tick 2; HubSpot and Pipedrive both put
+ * recent records under an empty search). Going back to a person was: type a
+ * name, wait for the server, tap.
+ */
+describe('recent contacts', () => {
+  afterEach(() => window.localStorage.clear())
+
+  const recentRow = () => host.querySelector('.crm__recent')
+
+  it('an empty search offers the people opened last, newest first', async () => {
+    window.localStorage.setItem('vibee.crm.recent', '["666","555"]')
+    serve()
+    await draw(CONTACTS)
+    const links = [...(recentRow()?.querySelectorAll('a') ?? [])]
+    expect(links.map(a => a.getAttribute('href'))).toEqual([
+      '/crm/666',
+      '/crm/555',
+    ])
+  })
+
+  it('an id the server did not list draws nothing', async () => {
+    window.localStorage.setItem('vibee.crm.recent', '["999999","555"]')
+    serve()
+    await draw(CONTACTS)
+    const links = [...(recentRow()?.querySelectorAll('a') ?? [])]
+    expect(links.map(a => a.getAttribute('href'))).toEqual(['/crm/555'])
+  })
+
+  it('typing a search hides the row', async () => {
+    window.localStorage.setItem('vibee.crm.recent', '["555"]')
+    serve()
+    await draw(CONTACTS)
+    expect(recentRow()).not.toBeNull()
+    const input = host.querySelector<HTMLInputElement>('input[type="search"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value'
+      )!.set!.call(input, 'Lead')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(recentRow()).toBeNull()
+  })
+})

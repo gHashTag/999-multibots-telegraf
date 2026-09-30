@@ -300,6 +300,22 @@ describe('every panel is about THIS client', () => {
   })
 })
 
+describe('opening a contact', () => {
+  // The contacts list offers the people opened last (CRM mobile loop, tick 2).
+  it('remembers this person first among the recently opened', async () => {
+    window.localStorage.setItem('vibee.crm.recent', '["111"]')
+    try {
+      serve()
+      await draw()
+      expect(
+        JSON.parse(window.localStorage.getItem('vibee.crm.recent')!)
+      ).toEqual([CLIENT, '111'])
+    } finally {
+      window.localStorage.clear()
+    }
+  })
+})
+
 describe('a panel that could not load says so', () => {
   it('an unreachable plan says unavailable and shows no zero progress', async () => {
     serve({ fail: ['crm_client_plan', 'crm_duet_runs'] })
