@@ -1,0 +1,37 @@
+[
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "  useUrlMirror({ q: query, who: clientsFilter === 'all' ? '' : clientsFilter })\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "return who && CLIENTS_FILTERS.includes(who) ? who : 'all'",
+    "to": "return 'all'"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "return who && CLIENTS_FILTERS.includes(who) ? who : 'all'",
+    "to": "return who ?? 'all'"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "              e.preventDefault()\n              navigate(-1)\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "if (location.key === 'default') return",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "  useEffect(() => rememberContact(clientId), [clientId])",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "query.trim() || clientsFilter === 'groups'\n      ? []",
+    "to": "clientsFilter === 'groups'\n      ? []"
+  }
+]

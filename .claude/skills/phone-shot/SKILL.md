@@ -28,8 +28,10 @@ description: 'Measure a screen of the app on a PHONE, not in jsdom: `tri shot <h
 Стенды: `story-palette` — панель рилс-истории в карточке клиента (продавец),
 `my-story` — её страница `/story` (жмёт сама клиентка), `crm-client` — вся
 карточка `/crm/:id` (шесть панелей, рилс, дуэт с подтверждением).
-`crm` is the `/crm` list (fixtures in `src/harness/crmFixtures.ts`; the
-harness ignores `?tab=` -- switch sections by tapping).
+`crm` is the `/crm` list (fixtures in `src/harness/crmFixtures.ts`). The
+harness passes its own query string to the list, so
+`/harness/crm.html?tab=contacts&who=leads&q=an` opens that state; a row
+opens a card stand-in whose "back" is `navigate(-1)` (round trips).
 
 Строка на состояние: `ok|RED <state>: N controls, target 44px, wider 0px,
 small 0, cut 0, overlap 0, order 0 · <png>`. Код 0 — чисто, 1 — красно, 2 — НЕ
@@ -146,6 +148,17 @@ var(--app-tabbar-total, 0px), var(--app-safe-bottom, 0px)) + 12px)` stays
   localStorage id is shown only if it is in the current list (privacy on
   a shared device, and no dead links). Consequence: the list is paged, so
   someone past the first page is not offered back.
+
+- **Sibling routes forget.** `/crm` and `/crm/:id` are siblings: opening
+  a card unmounts the list, and Back mounts it fresh. Any state the person
+  built on the list (search, chip) must live in the address --
+  `useUrlMirror` (ordinary state, written with `replace`; a controlled input
+  fed through a router transition drops letters). And a "Back" link to a
+  fixed path is not Back: step `navigate(-1)` unless
+  `location.key === 'default'` (opened from a link). Tick 4.
+- **A hidden preview pane throttles timers.** A `javascript_tool` script
+  that awaits `setTimeout` sleeps timed out after 45 s while the pane was
+  hidden. Do one action per call and read the result in the next call.
 
 ## Related Resources
 
