@@ -183,6 +183,51 @@
   color: #00ff88;
 }
 
+/* What happens after "Order": the three steps, numbered by the list itself. */
+.welcome-how {
+  margin-top: 34px;
+}
+.welcome-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: welcome-step;
+}
+.welcome-steps li {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px 12px 52px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  counter-increment: welcome-step;
+}
+.welcome-steps li::before {
+  content: counter(welcome-step);
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(255, 215, 0, 0.5);
+  color: #ffd700;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 24px;
+  text-align: center;
+}
+.welcome-steps strong {
+  color: #e8e8e8;
+  font-size: 14px;
+  font-weight: 600;
+}
+.welcome-steps span {
+  color: #8f8f8f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 @media (max-width: 720px) {
   .welcome-points {
     grid-template-columns: minmax(0, 1fr);
