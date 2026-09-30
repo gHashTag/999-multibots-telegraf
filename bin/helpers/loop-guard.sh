@@ -22,7 +22,11 @@
 #             fault -- write it down instead of "fixing" it blindly.
 #   mutants   with --tests and .claude/loop-state/<name>-mutants.json: every
 #             mutation proven by a past tick must still be killed by the
-#             same tests (tri mutants). A survivor stops the tick.
+#             same tests (tri mutants). A survivor stops the tick; so does
+#             a stale anchor (unchecked is not green).
+#   end       releases the lock only if the list's anchors still match the
+#             code and the tree is clean: the tick that moved the code
+#             re-anchors, not the next one.
 #
 # The loop names its branch and PR in its state file:
 #   <!-- loop-branch: fix/crm-mobile-ux -->
@@ -55,7 +59,31 @@ if [ -z "$TESTS" ]; then
   TESTS=$(sed -n 's/.*<!-- loop-tests: *\(.*[^ ]\) *-->.*/\1/p' "$STATE" 2>/dev/null | head -1)
 fi
 
+MUTANTS="$ROOT/.claude/loop-state/$NAME-mutants.json"
+
+# `end` does not release a tick that leaves the next one blind. Tick 6 of
+# the CRM loop (01.10.2026) rewrote a line a past mutation was anchored to;
+# the list went stale, and tick 7's start could check none of its 27 guards.
+# The tick that moved the code knows the new line -- it re-anchors, now.
 if [ "$MODE" = end ]; then
+  BAD=0
+  if [ -f "$MUTANTS" ]; then
+    CHK=$(cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" --check "$MUTANTS" 2>&1)
+    if [ $? -ne 0 ]; then
+      echo "  STOP  past guards no longer match the code -- re-anchor them:"
+      echo "$CHK" | sed 's/^/          /'
+      BAD=1
+    fi
+  fi
+  DIRTY=$(git -C "$ROOT" status --porcelain | head -5)
+  if [ -n "$DIRTY" ]; then
+    echo "  STOP  uncommitted files -- the next tick would stop on them:"
+    echo "$DIRTY" | sed 's/^/          /'
+    BAD=1
+  fi
+  if [ "$BAD" = 1 ]; then
+    echo "── lock kept: fix the above, then tri loop-guard end again ──"; exit 1
+  fi
   rm -f "$LOCK"; echo "loop-guard: $NAME released"; exit 0
 fi
 
@@ -151,7 +179,6 @@ fi
 # tick can weaken a test (or move the code it watched) and stay green. The
 # loop keeps every proven mutation in <name>-mutants.json; each must still
 # be killed. Only with --tests (the same command), only if the list exists.
-MUTANTS="$ROOT/.claude/loop-state/$NAME-mutants.json"
 if [ -n "$TESTS" ] && [ -f "$MUTANTS" ] && [ "$STOP" = 0 ]; then
   echo "  ..    past guards: $(basename "$MUTANTS")"
   MLOG="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants.log"
@@ -160,7 +187,9 @@ if [ -n "$TESTS" ] && [ -f "$MUTANTS" ] && [ "$STOP" = 0 ]; then
     0) note "past guards: $(grep -E '^-- [0-9]+ of [0-9]+ killed' "$MLOG" | tr -d -)" ;;
     1) stop "a past mutation SURVIVES -- a guard stopped guarding; see $MLOG"
        grep -E '^SURVIVED' "$MLOG" | head -5 | sed 's/^/          /' ;;
-    *) warn "past guards not checked (the list no longer matches the code?); see $MLOG"
+    # A stale anchor used to be a warning and a GO: tick 7 started with all
+    # 27 guards unchecked because of one line. Unchecked is not green.
+    *) stop "past guards NOT checked -- a stale anchor blinds the whole list; re-anchor (tri mutants --check $MUTANTS)"
        tail -3 "$MLOG" | sed 's/^/          /' ;;
   esac
 fi
