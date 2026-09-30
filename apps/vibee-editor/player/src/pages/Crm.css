@@ -838,6 +838,21 @@
     align-items: baseline;
   }
 
+  /* THE HEADING STAYS WHILE ITS ROWS SCROLL. The AUTO column is named once,
+     in the heading -- and the heading scrolled away with the first rows, so
+     a long list showed bare round boxes. As in iOS and Telegram contacts,
+     it is pinned under the finder (whose real height Crm.tsx publishes as
+     --crm-finder-h) until its section ends and the next heading takes
+     over. Opaque, or rows show through; under the finder, above the rows. */
+  .crm__contacts .crm__group > .crm__subtitle {
+    position: sticky;
+    top: var(--crm-finder-h, 0px);
+    z-index: 1;
+    margin: 0;
+    padding: 12px 0 2px;
+    background: var(--color-bg-primary, #000);
+  }
+
   .crm__col-auto {
     display: block;
     width: var(--touch-target, 44px);

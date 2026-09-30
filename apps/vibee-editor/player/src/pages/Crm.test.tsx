@@ -623,6 +623,51 @@ describe('a waiting row on a phone', () => {
   })
 })
 
+/*
+ * THE COLUMN'S NAME STAYS ON SCREEN. On a phone AUTO is named once, in the
+ * section heading -- which scrolled away with the first rows, leaving a long
+ * list of bare round boxes. The heading is pinned under the finder (iOS and
+ * Telegram contacts do the same) until its section ends.
+ */
+describe('section headings on a phone', () => {
+  it('gives each heading a section of its own', async () => {
+    // A sticky element is held inside its parent: two headings in one
+    // parent stay pinned together, and the first never leaves.
+    serve()
+    await draw(CONTACTS)
+    const lists = [...host.querySelectorAll('.crm__list')]
+    expect(lists.length).toBeGreaterThan(1)
+    for (const list of lists) {
+      const group = list.parentElement!
+      expect(group.matches('section.crm__group')).toBe(true)
+      expect(group.querySelectorAll(':scope > .crm__subtitle')).toHaveLength(1)
+      expect(group.firstElementChild?.matches('.crm__subtitle')).toBe(true)
+    }
+  })
+
+  it("publishes the finder's height where the headings can read it", async () => {
+    serve()
+    await draw(CONTACTS)
+    const finder = host.querySelector('.crm__finder')!
+    const scope = finder.parentElement!
+    expect(scope.style.getPropertyValue('--crm-finder-h')).toMatch(/^\d+px$/)
+    for (const group of host.querySelectorAll('.crm__group'))
+      expect(scope.contains(group)).toBe(true)
+  })
+
+  it('pins the heading under the finder, opaque', async () => {
+    const rules = await phoneRules()
+    const head =
+      rules.find(
+        r => r.selector === '.crm__contacts .crm__group > .crm__subtitle'
+      )?.body ?? ''
+    expect(head).toMatch(/position:\s*sticky/)
+    // A copied number is true only until the finder grows.
+    expect(head).toMatch(/top:\s*var\(--crm-finder-h/)
+    expect(head).toMatch(/background:/)
+  })
+})
+
 describe('every person on the list is a way into their own page', () => {
   const hrefs = () =>
     [...host.querySelectorAll('a')].map(a => a.getAttribute('href'))

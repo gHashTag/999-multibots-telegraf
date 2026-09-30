@@ -190,8 +190,8 @@
   },
   {
     "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
-    "from": "              {t('crm.vip.title')} {underWay.length}\n              {autoColumn}",
-    "to": "              {t('crm.vip.title')} {underWay.length}",
+    "from": "                {t('crm.vip.title')} {underWay.length}\n                {autoColumn}",
+    "to": "                {t('crm.vip.title')} {underWay.length}",
     "name": "under-way heading loses the AUTO column label"
   },
   {
@@ -265,5 +265,53 @@
     "from": "        <Link to={`/crm/${r.telegramId}`} className=\"crm__open\">\n          {r.name || r.telegramId}\n        </Link>\n        <span className=\"crm__stage\">",
     "to": "        <span className=\"crm__stage\">",
     "name": "waiting head loses the name link"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "    position: sticky;\n    top: var(--crm-finder-h, 0px);",
+    "to": "    position: static;\n    top: var(--crm-finder-h, 0px);",
+    "name": "heading scrolls away again"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "top: var(--crm-finder-h, 0px);",
+    "to": "top: 114px;",
+    "name": "finder height copied as a number"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "    padding: 12px 0 2px;\n    background: var(--color-bg-primary, #000);",
+    "to": "    padding: 12px 0 2px;",
+    "name": "see-through pinned heading"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "<div className=\"crm__finder\" ref={finderRef}>",
+    "to": "<div className=\"crm__finder\">",
+    "name": "finder height never published"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "              <section className=\"crm__group\">\n                <h4 className=\"crm__subtitle\">\n",
+    "to": "              <section className=\"crm__rest\">\n                <h4 className=\"crm__subtitle\">\n",
+    "name": "rest section not a group"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/usePublishedHeight.ts",
+    "from": "const host = el?.parentElement",
+    "to": "const host = el ? document.documentElement : null",
+    "name": "published on the page, not the parent"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/usePublishedHeight.ts",
+    "from": "      ro?.observe(el)\n",
+    "to": "",
+    "name": "stops following resizes"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/usePublishedHeight.ts",
+    "from": "      stop.current?.()\n",
+    "to": "",
+    "name": "value outlives the element"
   }
 ]
