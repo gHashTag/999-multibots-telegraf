@@ -279,7 +279,10 @@ describe('the thread about a client', () => {
       return <p className="probe-at">{useLocation().pathname}</p>
     }
 
-    async function drawFrom(entries: InitialEntry[]) {
+    async function drawFrom(
+      entries: InitialEntry[],
+      link = 'a.chat-client__back'
+    ) {
       const { default: ChatPage } = await import('./Chat')
       await act(async () => {
         root.render(
@@ -302,7 +305,7 @@ describe('the thread about a client', () => {
         await new Promise(r => setTimeout(r, 0))
       })
       await act(async () => {
-        host.querySelector<HTMLAnchorElement>('a.chat-client__back')!.click()
+        host.querySelector<HTMLAnchorElement>(link)!.click()
       })
     }
     const at = () => host.querySelector('.probe-at')?.textContent
@@ -330,6 +333,86 @@ describe('the thread about a client', () => {
       expect(at()).toBe(`/crm/${CLIENT}`)
       expect(host.querySelector('.probe-card')?.textContent).toBe('POP')
     })
+
+    // Tick 7: tick 6 fixed the top row's link and missed the card's own
+    // "open the card" link beside the conversation -- the same loop.
+    it('the card beside the chat opens the client the same way', async () => {
+      serve()
+      await drawFrom(
+        ['/threads', `/crm/${CLIENT}/chat`],
+        `a.chat-aside__link[href="/crm/${CLIENT}"]`
+      )
+      expect(at()).toBe(`/crm/${CLIENT}`)
+      expect(host.querySelector('.probe-card')?.textContent).toBe('REPLACE')
+    })
+  })
+
+  /*
+   * THE NAME AT ONCE (tick 7). The row waited for the card beside it, and
+   * the card waited for the slowest of its seven reads: about a second of
+   * "Conversation about 900000113" on every visit. The card page already
+   * knows the name and hands it over; the card beside shows each read as
+   * it answers.
+   */
+  it('shows the name the card page handed over, before any read answers', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {}))
+    )
+    const { default: ChatPage } = await import('./Chat')
+    await act(async () => {
+      root.render(
+        <Provider store={editorStore}>
+          <MemoryRouter
+            initialEntries={[
+              {
+                pathname: `/crm/${CLIENT}/chat`,
+                state: { backTo: `/crm/${CLIENT}`, name: 'Anna V.' },
+              },
+            ]}
+          >
+            <Routes>
+              <Route path="/crm/:clientId/chat" element={<ChatPage />} />
+            </Routes>
+          </MemoryRouter>
+        </Provider>
+      )
+    })
+    expect(host.querySelector('.chat-client__title')?.textContent).toBe(
+      'Anna V.'
+    )
+  })
+
+  it('names the client while a slower read of the card is still out', async () => {
+    serve()
+    const answer = fetch
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).endsWith('/mcp')) {
+          const tool = JSON.parse(String(init?.body)).params?.name
+          if (tool === 'crm_client_timeline') return new Promise(() => {})
+          if (tool === 'crm_client_profile')
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                jsonrpc: '2.0',
+                id: 1,
+                result: {
+                  structuredContent: { telegram_id: CLIENT, client: 'Anna V.' },
+                },
+              }),
+            }
+        }
+        return answer(url, init)
+      })
+    )
+    await draw(`/crm/${CLIENT}/chat`)
+    await settle()
+    expect(host.querySelector('.chat-client__title')?.textContent).toBe(
+      'Anna V.'
+    )
   })
 
   it('keeps its messages under its own storage key, apart from the self thread', async () => {

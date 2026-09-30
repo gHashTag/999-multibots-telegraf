@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { rememberContact } from '@/lib/crmRecent'
 import { useScrollTopOnPush } from '@/lib/useScrollMemory'
@@ -98,26 +98,30 @@ export default function CrmClientPage() {
   const [duetBusy, setDuetBusy] = useState(false)
   const [duetResult, setDuetResult] = useState<Reached<DuetStart> | null>(null)
 
+  const reloads = useRef(0)
   const reload = useCallback(async () => {
     if (!clientId) return
     setBusy(true)
-    // In parallel: six independent panels; one slow tool must not hold the
-    // other five off the screen.
-    const [pr, pl, du, hi, ctx, me] = await Promise.all([
-      loadClientProfile(clientId),
-      loadClientPlan(clientId),
-      loadDuetRuns(clientId),
-      loadClientHistory(clientId),
-      loadLeadContext(clientId),
-      loadLeadMedia(clientId),
+    // Six independent panels, each drawn as its read answers. They were
+    // read in parallel but drawn together, after the slowest -- the name
+    // and the messages waited for the media list (CRM mobile loop, tick 7).
+    // Drawn one by one, a late answer for the LAST client could land on
+    // this one: only the newest reload may draw.
+    const mine = ++reloads.current
+    const land =
+      <T,>(set: (v: T) => void) =>
+      (v: T) => {
+        if (reloads.current === mine) set(v)
+      }
+    await Promise.all([
+      loadClientProfile(clientId).then(land(setProfile)),
+      loadClientPlan(clientId).then(land(setPlan)),
+      loadDuetRuns(clientId).then(land(setDuets)),
+      loadClientHistory(clientId).then(land(setHistory)),
+      loadLeadContext(clientId).then(land(setContext)),
+      loadLeadMedia(clientId).then(land(setMedia)),
     ])
-    setProfile(pr)
-    setPlan(pl)
-    setDuets(du)
-    setHistory(hi)
-    setContext(ctx)
-    setMedia(me)
-    setBusy(false)
+    if (reloads.current === mine) setBusy(false)
   }, [clientId])
 
   useEffect(() => {
@@ -570,7 +574,12 @@ export default function CrmClientPage() {
       */}
       <Link
         to={`/crm/${clientId}/chat`}
-        state={cameFrom(`/crm/${clientId}`)}
+        state={{
+          ...cameFrom(`/crm/${clientId}`),
+          // The chat's top row names the client at once, not after its own
+          // reads (tick 7). Only a name: the id is already in the address.
+          ...(displayName !== clientId ? { name: displayName } : {}),
+        }}
         className="crm-client__chat"
       >
         {t('crm.client.chatButton')}

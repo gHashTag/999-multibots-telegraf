@@ -153,7 +153,12 @@ const answers: Record<string, unknown> = {
 let calls: Array<{ name: string; args: Record<string, unknown> }> = []
 
 function serve(
-  opts: { fail?: string[]; refuse?: Record<string, string> } = {}
+  opts: {
+    fail?: string[]
+    refuse?: Record<string, string>
+    /** Tools that never answer: a slow server, stretched to forever. */
+    hang?: string[]
+  } = {}
 ) {
   vi.stubGlobal(
     'fetch',
@@ -161,6 +166,7 @@ function serve(
       const body = JSON.parse(String(init?.body ?? '{}'))
       const name = body?.params?.name
       calls.push({ name, args: body?.params?.arguments ?? {} })
+      if (opts.hang?.includes(name)) return new Promise(() => {})
       if (opts.refuse && name in opts.refuse) {
         // The tool itself threw -- a JSON-RPC error with the server's words,
         // which is how an owner-only tool answers a non-owner.
@@ -503,8 +509,74 @@ describe('the way into the conversation', () => {
       host.querySelector<HTMLAnchorElement>('a.crm-client__chat')!.click()
     })
     expect(host.querySelector('.probe-chat')?.textContent).toBe(
-      JSON.stringify({ backTo: `/crm/${CLIENT}` })
+      JSON.stringify({ backTo: `/crm/${CLIENT}`, name: 'Geya' })
     )
+  })
+
+  /*
+   * ONE SLOW READ HELD THE WHOLE CARD (tick 7). The six reads ran in
+   * parallel, but the page waited for all of them before drawing any --
+   * the name, the messages, everything waited for the slowest tool.
+   */
+  it('a read that is still out holds only its own panel', async () => {
+    serve({ hang: ['crm_lead_media'] })
+    await draw()
+    const text = host.textContent ?? ''
+    expect(text).toContain('crm.client.title:Geya')
+    expect(text).toContain('WeSaidThat')
+    expect(text).not.toContain('MediaOnlyName.jpg')
+  })
+
+  it("a late answer for the last client is not drawn on this one's card", async () => {
+    const OTHER = '900000777'
+    let late: (v: unknown) => void = () => {}
+    const reply = (content: unknown) => ({
+      ok: true,
+      json: async () => ({
+        jsonrpc: '2.0',
+        id: 1,
+        result: { structuredContent: content },
+      }),
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init: RequestInit) => {
+        const body = JSON.parse(String(init?.body ?? '{}'))
+        if (body?.params?.name !== 'crm_lead_context') return reply({})
+        if (body.params.arguments?.chat === CLIENT)
+          return new Promise(r => {
+            late = r
+          })
+        return reply({ name: 'Other P.', dialog: [] })
+      })
+    )
+    const { default: CrmClientPage } = await import('./CrmClient')
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={[`/crm/${CLIENT}`]}>
+          <Link className="probe-other" to={`/crm/${OTHER}`}>
+            other
+          </Link>
+          <Routes>
+            <Route path="/crm/:clientId" element={<CrmClientPage />} />
+          </Routes>
+        </MemoryRouter>
+      )
+    })
+    await act(async () => {
+      host.querySelector<HTMLAnchorElement>('a.probe-other')!.click()
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+    await act(async () => {
+      late(reply(answers.crm_lead_context))
+      await new Promise(r => setTimeout(r, 0))
+    })
+    const text = host.textContent ?? ''
+    expect(text).toContain('crm.client.title:Other P.')
+    expect(text).not.toContain('Geya')
+    expect(text).not.toContain('WeSaidThat')
   })
 
   it('the primary button comes after every panel', async () => {

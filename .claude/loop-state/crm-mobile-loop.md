@@ -2,7 +2,7 @@
 
 <!-- loop-branch: fix/crm-mobile-ux -->
 <!-- loop-pr: 3199 -->
-<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts -->
+<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx -->
 
 Started 30.09.2026 by the owner's `/loop 30m`: find the weak spots of mobile
 layout and UI/UX, study competitors, write a decomposed plan, implement it,
@@ -108,9 +108,19 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       cli…". Now 390px, 44px targets, arrow-only back on a phone, the
       client's NAME in the title (read by the card beside it), Card+Queen
       together at the right (tick 6)
-- [ ] The name arrives ~1s late: ClientAside waits for all 7 reads
-      (Promise.all). Candidate: pass the name from the card in link state,
-      or set it as soon as the profile read answers
+- [x] The name arrived ~1s late -- and not only the name. The card page
+      and the card beside the chat read in parallel but DREW together,
+      after the slowest read, under a comment claiming the opposite. Now
+      each panel lands as its read answers (a late answer for the last
+      client is dropped), and the card hands the name to the chat in link
+      state: the title is right on the first frame (tick 7)
+- [x] The card beside the chat had a second "open the card" link that
+      still PUSHED: tick 6 fixed one of two links into the card, and the
+      Back loop lived on through the other (tick 7; now `useBackTo`)
+- [x] `tri loop-guard`: a stale mutation anchor used to warn and GO --
+      tick 7 started with all 27 guards unchecked. Now STOP at start, and
+      `end` keeps the lock until anchors match and the tree is clean.
+      `tri mutants` keeps an edit made while a file held a mutant
 - [x] Harness mounts the app's TelegramTabBar: without it the header's
       fallback bar covered the chat composer -- a harness-only overlap that
       read as a bug (tick 6)
