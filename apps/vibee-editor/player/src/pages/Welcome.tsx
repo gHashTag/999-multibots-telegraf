@@ -12,16 +12,19 @@ const copy = {
   en: {
     eyebrow: 'T27 · AGENT MARKET',
     title: 'Hire an AI agent that lives in its own Telegram bot.',
-    lead: 'Hire an outcome, not a chat. Every agent is a separate bot that works for you around the clock.',
+    lead: 'Hire an outcome, not a chat. Every agent you hire gets a bot of its own and works for you around the clock.',
     points: [
-      ['Its own bot', 'Each agent answers from a Telegram bot of its own.'],
+      [
+        'Its own bot',
+        'Every agent you order gets a separate Telegram bot in your name; the team sets it up.',
+      ],
       [
         'Your face and voice',
-        'Reels and replies with your clone, not a stock avatar.',
+        'From the Blogger Agent up: reels with a clone of your own face and voice, not a stock avatar.',
       ],
       [
         'Work with receipts',
-        'Live agents are checked on a real account; the result is on the card.',
+        "A live agent's card says what proves its work; a job without live receipts is not done.",
       ],
     ],
     working: 'Working now',
@@ -49,16 +52,19 @@ const copy = {
   ru: {
     eyebrow: 'T27 · РЫНОК АГЕНТОВ',
     title: 'Наймите ИИ-агента со своим Telegram-ботом.',
-    lead: 'Нанимайте результат, а не чат. Каждый агент — отдельный бот, который работает на вас круглосуточно.',
+    lead: 'Нанимайте результат, а не чат. Каждый нанятый агент получает своего бота и работает на вас круглосуточно.',
     points: [
-      ['Свой бот', 'Каждый агент отвечает из собственного Telegram-бота.'],
+      [
+        'Свой бот',
+        'Каждый заказанный агент получает отдельного Telegram-бота на ваше имя; настраивает команда.',
+      ],
       [
         'Ваше лицо и голос',
-        'Рилсы и ответы с вашим клоном, а не со стоковым аватаром.',
+        'Начиная с «Агента-блогера»: рилсы с клоном вашего лица и голоса, а не стоковый аватар.',
       ],
       [
         'Работа с доказательствами',
-        'Живых агентов проверяют на реальном аккаунте, результат — на карточке.',
+        'На карточке живого агента написано, чем подтверждается его работа; без живых подтверждений задача не закрыта.',
       ],
     ],
     working: 'Уже работают',
@@ -95,6 +101,13 @@ const copy = {
  *
  * Nothing here is invented: the working agents are the live ones from the
  * market catalogue, the packages come from the one package catalogue.
+ *
+ * The three points are claims, and each is held to the catalogue it rests on
+ * (welcome-claims.test.ts). They used to speak of "each agent" in the present
+ * tense -- "answers from a Telegram bot of its own" -- while the one live
+ * agent has no bot at all (no `bot` in agent-marketplace.ts): the own bot is
+ * what an ORDERED agent gets, and the face-and-voice clone starts at the
+ * Blogger package, not at Manager.
  */
 export function WelcomePage() {
   const { lang, setLang } = useLanguage()
