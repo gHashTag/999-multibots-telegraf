@@ -33,5 +33,40 @@
     "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
     "from": "query.trim() || clientsFilter === 'groups'\n      ? []",
     "to": "clientsFilter === 'groups'\n      ? []"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "  useScrollMemory(!busy && (clients.data !== null || overview.data !== null))\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "  useScrollTopOnPush(clientId)\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
+    "from": "if (navType !== 'POP') appScroller().scrollTop = 0",
+    "to": "appScroller().scrollTop = 0"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
+    "from": "Math.abs(box.scrollTop - target) > 1 && tries < TRIES",
+    "to": "false"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
+    "from": "if (!ready || done.current || target === null) return",
+    "to": "if (done.current || target === null) return"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
+    "from": "  if (document.documentElement.getAttribute('data-tg') === '1') {",
+    "to": "  if (false) {"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
+    "from": "          KEY + keyRef.current,",
+    "to": "          KEY + 'x',"
   }
 ]

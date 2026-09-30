@@ -2,6 +2,7 @@
 
 <!-- loop-branch: fix/crm-mobile-ux -->
 <!-- loop-pr: 3199 -->
+<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx -->
 
 Started 30.09.2026 by the owner's `/loop 30m`: find the weak spots of mobile
 layout and UI/UX, study competitors, write a decomposed plan, implement it,
@@ -12,8 +13,7 @@ Worktree: `~/crm-mobile-ux` (not the main checkout). Every tick:
 
 ```
 cd ~/crm-mobile-ux
-TRI_LOOP=crm-mobile ./bin/tri loop-guard start --tests \
-  "cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts"
+TRI_LOOP=crm-mobile ./bin/tri loop-guard start   # tests: the loop-tests marker above
 TRI_LOOP=crm-mobile ./bin/tri loop
 ... work ...
 TRI_LOOP=crm-mobile ./bin/tri loop-note "what was learned"
@@ -39,6 +39,8 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
    hand (tick 4 hand-rolled it a third time). Add each proven mutation to
    `crm-mobile-mutants.json`: `loop-guard start` re-runs the whole list, so
    a later tick that weakens a past guard is stopped, not merely green.
+   A new test file goes into the `loop-tests` marker in the same commit,
+   or its mutations read as survivors next tick (tick 5).
 5. Cyrillic in a code regex only with a `// cyrillic-ok` marker on the same
    line (the no-cyrillic gate).
 6. Player lint: 3 errors in Crm.tsx (fast-refresh x2, setState in an
@@ -90,9 +92,11 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       between days. Cross-visit memory (localStorage) is NOT done: a link
       is shareable and cannot leak on a shared device; revisit only if the
       owner asks
-- [ ] Scroll position after Back: the list re-reads on mount and opens at
-      the top; the person is found again by the kept search, but a long
-      unfiltered list loses its place
+- [x] Scroll: a card opened from a scrolled list started 497 px down (crumb
+      off screen); Back put the list at the top, the tapped row 1231 px away.
+      Now the card starts at its top on a tap, and Back restores the list
+      once it is re-read -- window and Telegram's #root alike (tick 5,
+      `useScrollMemory`). Measured live: crumb -485 -> 12; row 1231 -> 734
 - [ ] Recents ignore the chip (leads chip still shows a client in Recent).
       Deliberate for now (HubSpot recents are filter-free); watch for
       confusion
@@ -105,7 +109,8 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - Harness `apps/vibee-editor/player/harness/crm.html` +
   `src/harness/crmFixtures.ts`; `tri shot crm` needs chrome-headless-shell
   (no download without the owner's yes) -- otherwise the preview browser.
-  The harness honours `?tab=&who=&q=` (tick 4); rows open a card stub.
+  The harness honours `?tab=&who=&q=` (tick 4); rows open the REAL card
+  (tick 5 -- the stub hid the card's own scroll behaviour).
 - Measured at 390 px: search 1523 -> 149 px from the top; row 140-160 -> 64
   px; 3 -> 7 contacts per screen; page 3918 -> 1240 px.
 
@@ -114,3 +119,5 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - 01.10.2026 01:44: tick 3: fixed the blind client-card harness first (you cannot improve a page you cannot see), then sticky chat button; media 'gap' was a deliberate 44px target -- measure before calling it a bug
 
 - 01.10.2026 01:58: tick 4: Back from a card reset the list (sibling routes) and the crumb went to the work tab; state now in the address via useUrlMirror, crumb steps back. The owner's 'saved views' pain was per-visit, not per-day
+
+- 01.10.2026 02:29: tick 5: card opened mid-page and Back lost the list's place (no route scroll handling anywhere); useScrollMemory saves in a layout cleanup (a scroll listener lost the race), restores after re-read; a stub card had hidden it -- harness mounts the real card now; loop-tests marker ends the hand-copied tests command

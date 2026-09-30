@@ -31,7 +31,9 @@ description: 'Measure a screen of the app on a PHONE, not in jsdom: `tri shot <h
 `crm` is the `/crm` list (fixtures in `src/harness/crmFixtures.ts`). The
 harness passes its own query string to the list, so
 `/harness/crm.html?tab=contacts&who=leads&q=an` opens that state; a row
-opens a card stand-in whose "back" is `navigate(-1)` (round trips).
+opens the REAL card (`/crm/:clientId`), so list -> card -> Back measures
+scroll and kept search as the phone sees them. A stand-in card hid the
+scroll defect for a whole tick.
 
 Строка на состояние: `ok|RED <state>: N controls, target 44px, wider 0px,
 small 0, cut 0, overlap 0, order 0 · <png>`. Код 0 — чисто, 1 — красно, 2 — НЕ
@@ -159,6 +161,22 @@ var(--app-tabbar-total, 0px), var(--app-safe-bottom, 0px)) + 12px)` stays
 - **A hidden preview pane throttles timers.** A `javascript_tool` script
   that awaits `setTimeout` sleeps timed out after 45 s while the pane was
   hidden. Do one action per call and read the result in the next call.
+
+- **Route changes do not touch scroll -- measure the round trip.** Tick 5
+  (01.10.2026): a card opened from a list scrolled 497 px opened 497 px
+  down, crumb at -485; Back put the list at the top, the tapped row 1231 px
+  away. `useScrollMemory(ready)` on the list + `useScrollTopOnPush(id)` on
+  the detail (`src/lib/useScrollMemory.ts`). Three traps:
+  - the scroller is `#root` inside Telegram (`html[data-tg='1']`), the
+    window elsewhere -- check both (`data-tg=1` and `--app-vh-stable:844px`
+    on `<html>` in the preview turns the harness into the Telegram shape);
+  - save the offset in a `useLayoutEffect` CLEANUP, not a scroll listener:
+    the cleanup runs before React removes the DOM; the listener lost the
+    offset whenever the tap beat the scroll event (always, in a hidden pane);
+  - restore only after the re-read list is drawn (`ready`), and retry per
+    frame while it is still shorter than the old offset.
+    jsdom has no layout: fake the clamp with `Object.defineProperty(
+document.documentElement, 'scrollTop', {get, set})`.
 
 ## Related Resources
 
