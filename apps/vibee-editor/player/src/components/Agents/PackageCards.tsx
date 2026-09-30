@@ -5,6 +5,7 @@ import {
   tryableAgentOf,
 } from '../../../../packages/vibee-atoms/src/agent-packages'
 import type { Language } from '@/hooks/useLanguage'
+import { hasCredential } from '@/lib/embedGuest'
 import { openTelegramLink } from '@/lib/telegram'
 import './PackageCards.css'
 
@@ -16,6 +17,10 @@ const copy = {
     order: 'Order',
     orderLabel: (name: string) => `Order ${name}`,
     tryFirst: 'Try it first',
+    // Starts with the visible words, so voice control can say what it sees.
+    tryLabel: (name: string) => `Try it first: ${name}, free`,
+    tryFree: 'Free: chatting costs nothing',
+    tryFreeSignIn: 'Free, with a Telegram sign-in',
   },
   ru: {
     popular: 'Выбирают чаще',
@@ -24,6 +29,9 @@ const copy = {
     order: 'Заказать',
     orderLabel: (name: string) => `Заказать: ${name}`,
     tryFirst: 'Сначала попробовать',
+    tryLabel: (name: string) => `Сначала попробовать: ${name}, бесплатно`,
+    tryFree: 'Бесплатно: переписка ничего не стоит',
+    tryFreeSignIn: 'Бесплатно, нужен вход через Telegram',
   },
 } as const
 
@@ -40,6 +48,16 @@ const copy = {
 export function PackageCards({ lang }: { lang: Language }) {
   const l = lang === 'ru' ? 'ru' : 'en'
   const text = copy[l]
+  /*
+   * WHAT "TRY IT FIRST" COSTS, SAID UNDER THE BUTTON. Every competitor states
+   * the condition next to the try button (Lindy: "no credit card required";
+   * Relevance AI: "Free" on each template); ours said nothing, and outside
+   * Telegram the chat turned out to need a sign-in. The agent chat is on the
+   * FREE list (render/src/agent/pricing.ts) -- the price claim is pinned to
+   * that list by a test -- and a browser with no credential is told up front
+   * that it will be asked to sign in.
+   */
+  const tryNote = hasCredential() ? text.tryFree : text.tryFreeSignIn
   return (
     <div className="package-cards">
       {AGENT_PACKAGES.map(pkg => {
@@ -87,11 +105,15 @@ export function PackageCards({ lang }: { lang: Language }) {
                 <Link
                   className="package-card__try"
                   to={`/agents/${tryable}/work`}
+                  aria-label={text.tryLabel(pkg.name[l])}
                 >
                   {text.tryFirst}
                 </Link>
               ) : null}
             </div>
+            {tryable ? (
+              <p className="package-card__try-note">{tryNote}</p>
+            ) : null}
           </article>
         )
       })}
