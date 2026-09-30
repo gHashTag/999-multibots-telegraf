@@ -71,7 +71,7 @@ tri — оболочка Trinity S³AI
   tri spec check <файл.md>|new "<заголовок>"  возьмёт ли Королева issue из беклога: та же проверка спека (## Boundary + разделы), что у неё; new печатает готовый делегируемый шаблон
   tri spec-bind <kind/id> [t27]  начать привязку спеки t27: копия+gen-ts, тест с дословными заголовками (падающие заглушки), снять с храповика
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
-  tri loop-guard [start|end] [--tests "<cmd>"]  (tests default: the journal's <!-- loop-tests: --> marker) may this cron tick touch the branch: lock against overlapping ticks, uncommitted files, behind origin, PR merged/closed, main touched the same files, baseline run BEFORE edits, past mutations (.claude/loop-state/<name>-mutants.json) still killed; exit 1 = stop
+  tri loop-guard [start|end] [--tests "<cmd>"]  (tests default: the journal's <!-- loop-tests: --> marker) may this cron tick touch the branch: lock against overlapping ticks, uncommitted files, behind origin, PR merged/closed, main touched the same files, baseline run BEFORE edits, past mutations (.claude/loop-state/<name>-mutants.json) still killed, stale anchor = stop; `end` keeps the lock while anchors are stale or the tree is dirty; exit 1 = stop
   tri precommit [gate ...]                     run the commit's lefthook gates (all, or the named ones) without committing, in the loop's stripped env; e.g. tri precommit player-types -- the player's tsconfig.json checks nothing, the gate uses tsconfig.app.json
   tri stop [id]  прервать идущие ходы человека (дуэт и a2a — у них нет сокета)
   tri faces [id]  очередь продавца в том порядке, в каком её увидит обход: у кого есть лицо

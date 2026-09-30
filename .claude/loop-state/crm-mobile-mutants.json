@@ -21,7 +21,7 @@
   },
   {
     "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
-    "from": "if (location.key === 'default') return",
+    "from": "if (isFirstEntry(location)) return",
     "to": ""
   },
   {
