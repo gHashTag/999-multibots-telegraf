@@ -1937,6 +1937,14 @@ A proven batch goes into the guard list with `tri mutants --adopt
 <batch.json> <guards.json>`, run where the batch ran. The hand-made copy
 it replaces once rewrote the whole list's indent.
 
+**Wrapping code re-indents its guards.** Tick 10 wrapped a heading and its
+list in a `<section>`: not a token changed, but a past mutation anchored
+inside went stale, and `--adopt` refused the new batch (as it should).
+`tri mutants --reanchor <guards.json>`, run from the repo root, follows an
+indent-only move: the `from` found once with every line shifted by the same
+amount, and `to` shifted with it. A changed token stays stale and is named;
+someone decides what that mutation should now be.
+
 **Never edit a file while a mutation batch runs in the background.** The
 restore writes back the pre-mutation snapshot. `tri mutants` now keeps such
 an edit as `<file>.edited-during-mutants`, but that is a rescue, not a way
