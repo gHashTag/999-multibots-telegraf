@@ -139,6 +139,30 @@
   border: 1px solid rgba(0, 255, 136, 0.34);
   border-top: 0;
 }
+.welcome-agent__calls {
+  margin: 4px 0 10px;
+  color: #b8b8b8;
+  font-size: 13px;
+}
+.welcome-agent__calls summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: #00ff88;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.welcome-agent__calls ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.welcome-agent__calls li + li {
+  margin-top: 4px;
+}
+.checked-tools__times {
+  color: #8f8f8f;
+}
 .welcome-agent__try {
   padding: 12px 16px 14px;
   border: 1px solid rgba(0, 255, 136, 0.34);
