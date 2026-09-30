@@ -226,12 +226,15 @@ beforeAll(async () => {
   await import('./Crm')
 }, 60_000)
 
-async function draw() {
+/** The contacts live in their own section since the phone redesign. */
+const CONTACTS = '/crm?tab=contacts'
+
+async function draw(at = '/crm') {
   const { default: CrmPage } = await import('./Crm')
   await act(async () => {
     // Rows link to `/crm/:clientId`, and a <Link> needs a router around it.
     root.render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[at]}>
         <CrmPage />
       </MemoryRouter>
     )
@@ -522,6 +525,9 @@ describe('the buttons record, they do not send', () => {
 })
 
 describe('every person on the list is a way into their own page', () => {
+  const hrefs = () =>
+    [...host.querySelectorAll('a')].map(a => a.getAttribute('href'))
+
   it('client rows and lead rows link to /crm/:clientId', async () => {
     /*
      * Spec: t27 specs/automation/crm-client-workspace.t27 -- "the list links
@@ -530,24 +536,24 @@ describe('every person on the list is a way into their own page', () => {
      */
     serve()
     await draw()
+    expect(hrefs()).toContain('/crm/111')
+    expect(hrefs()).toContain('/crm/444')
+    // The t.me link is still there, as the secondary control.
+    expect(hrefs()).toContain('https://t.me/p')
+
+    act(() => root.unmount())
+    root = createRoot(host)
+    await draw(CONTACTS)
     const text = String(host.textContent)
     expect(text).toContain('crm.clients.title')
     expect(text).toContain('ClientOnlyName')
     expect(text).toContain('@clientonly')
-    expect(text).toContain('crm.clients.duets:7')
-    const hrefs = [...host.querySelectorAll('a')].map(a =>
-      a.getAttribute('href')
-    )
-    expect(hrefs).toContain('/crm/555')
-    expect(hrefs).toContain('/crm/111')
-    expect(hrefs).toContain('/crm/444')
-    // The t.me link is still there, as the secondary control.
-    expect(hrefs).toContain('https://t.me/p')
+    expect(hrefs()).toContain('/crm/555')
   })
 
   it('an unreachable client list says so rather than showing nobody', async () => {
     serve({ fail: ['crm_clients'] })
-    await draw()
+    await draw(CONTACTS)
     expect(host.textContent).not.toContain('crm.clients.none')
     expect(host.textContent).toContain('crm.unreachable')
   })
@@ -560,7 +566,7 @@ describe('paid is a fact from payments, shown as such', () => {
    */
   it('a row with paid:true wears the badge and a row without does not', async () => {
     serve()
-    await draw()
+    await draw(CONTACTS)
     const rows = [...host.querySelectorAll('.crm__row--client')]
     const paidRow = rows.find(r => r.textContent?.includes('ClientOnlyName'))!
     const leadRow = rows.find(r => r.textContent?.includes('LeadRowOnlyName'))!
@@ -576,7 +582,7 @@ describe('paid is a fact from payments, shown as such', () => {
     const saved = answers.crm_clients as Record<string, unknown>
     answers.crm_clients = { ...saved, paid_known: false }
     serve()
-    await draw()
+    await draw(CONTACTS)
     const text = String(host.textContent)
     expect(text.split('crm.clients.paidUnknown').length - 1).toBe(1)
     // The rows are still there: the note qualifies the list, it does not
@@ -594,7 +600,7 @@ describe('the client list can be narrowed to clients or leads', () => {
 
   it('opens on all, with counts in the chips', async () => {
     serve()
-    await draw()
+    await draw(CONTACTS)
     expect(chip('all').getAttribute('aria-pressed')).toBe('true')
     expect(chip('all').textContent).toBe('crm.clients.filter.all 2')
     expect(chip('clients').textContent).toBe('crm.clients.filter.clients 1')
@@ -604,7 +610,7 @@ describe('the client list can be narrowed to clients or leads', () => {
 
   it('clients keeps the paid one, leads keeps the other', async () => {
     serve()
-    await draw()
+    await draw(CONTACTS)
     await act(async () => {
       chip('clients').click()
     })
@@ -643,7 +649,7 @@ describe('the client list can be narrowed to clients or leads', () => {
       paid_known: false,
     }
     serve()
-    await draw()
+    await draw(CONTACTS)
     await act(async () => {
       chip('clients').click()
     })
@@ -715,7 +721,7 @@ describe('the clients list pages past the first', () => {
 
   it('asks for page one, then appends page two on More, then hides More', async () => {
     servePaged()
-    await draw()
+    await draw(CONTACTS)
     const first = calls.find(c => c.name === 'crm_clients')!
     expect(first.args).toMatchObject({ offset: 0 })
     expect(host.textContent).toContain('FirstPageName')
@@ -739,7 +745,7 @@ describe('the clients list pages past the first', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       servePaged()
-      await draw()
+      await draw(CONTACTS)
       const input = host.querySelector<HTMLInputElement>(
         'input[type="search"]'
       )!
@@ -779,7 +785,7 @@ describe('groups on /crm (#2950)', () => {
     }
     try {
       serve()
-      await draw()
+      await draw(CONTACTS)
       const chip = [...host.querySelectorAll('button')].find(b =>
         b.textContent?.startsWith('crm.clients.filter.groups')
       )!
@@ -793,5 +799,75 @@ describe('groups on /crm (#2950)', () => {
     } finally {
       delete answers.crm_groups
     }
+  })
+})
+
+/*
+ * THE PHONE REDESIGN (owner, 2026-10-01: "finding a contact in the CRM is
+ * awkward on a phone, and there is no room"). Measured at 390px before it:
+ * the search box 1523px down the work section, rows 140-160px tall.
+ */
+describe('contacts on a phone', () => {
+  const typeInto = async (input: HTMLInputElement, value: string) => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value'
+      )!.set!.call(input, value)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+
+  it('the work section holds no contact list, and one tap opens the search', async () => {
+    serve()
+    await draw()
+    expect(host.querySelector('.crm__row--client')).toBeNull()
+    expect(host.querySelector('input[type="search"]')).toBeNull()
+    const find = host.querySelector<HTMLButtonElement>('.crm__find')!
+    expect(find.textContent).toContain('crm.contacts.find')
+    await act(async () => {
+      find.click()
+    })
+    const input = host.querySelector<HTMLInputElement>('input[type="search"]')
+    expect(input).not.toBeNull()
+    // Came for a person: the box already has the cursor.
+    expect(document.activeElement).toBe(input)
+    expect(host.textContent).toContain('ClientOnlyName')
+  })
+
+  it('a search that finds nobody says so and KEEPS the box to change it', async () => {
+    // It used to swap the whole panel for "no clients yet", search box
+    // included, so the letters could not even be erased.
+    serve()
+    await draw(CONTACTS)
+    const input = host.querySelector<HTMLInputElement>('input[type="search"]')!
+    await typeInto(input, 'q')
+    expect(host.textContent).toContain('crm.clients.notFound:q')
+    expect(host.textContent).not.toContain('crm.clients.none')
+    const clear = host.querySelector<HTMLButtonElement>('.crm__search-clear')!
+    await act(async () => {
+      clear.click()
+    })
+    expect(input.value).toBe('')
+    expect(host.textContent).toContain('ClientOnlyName')
+  })
+
+  it('details and removal wait behind "..."; AUTO stays on the row', async () => {
+    serve()
+    await draw(CONTACTS)
+    const row = [...host.querySelectorAll('.crm__row--client')].find(r =>
+      r.textContent?.includes('ClientOnlyName')
+    )!
+    expect(row.querySelector('.crm__auto input')).not.toBeNull()
+    expect(row.textContent).not.toContain('crm.clients.duets')
+    expect(row.textContent).not.toContain('crm.row.drop')
+    const more = row.querySelector<HTMLButtonElement>('.crm__contact-toggle')!
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    await act(async () => {
+      more.click()
+    })
+    expect(more.getAttribute('aria-expanded')).toBe('true')
+    expect(row.textContent).toContain('crm.clients.duets:7')
+    expect(row.textContent).toContain('crm.row.drop')
   })
 })

@@ -310,6 +310,40 @@ const HARNESSES = {
   },
 
   /*
+   * THE CRM LIST (/crm): the owner's contact book, opened on a phone to find
+   * one person. The harness answers its own tool calls in the page
+   * (src/harness/crmFixtures.ts) so the same fixtures serve `tri shot` and a
+   * preview pane with no Chromium of its own; `tool` is never reached.
+   */
+  crm: {
+    tool: 'crm_clients',
+    root: '.crm',
+    scope: '.crm',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => p.locator('.crm__row').first().waitFor(),
+      },
+      {
+        // The owner's complaint, 2026-10-01: finding one contact on a phone.
+        // Open the contacts section where there is one, then type.
+        id: 'search',
+        ready: async p => {
+          const tab = p.locator('.section-strip__item', {
+            hasText: /Контакты|Contacts/, // cyrillic-ok: the RU label
+          })
+          if (await tab.count()) await tab.first().click()
+          const box = p.locator('.crm input[type=search]')
+          await box.scrollIntoViewIfNeeded()
+          await box.fill('ан')
+          await p.waitForTimeout(400)
+        },
+      },
+    ],
+  },
+
+  /*
    * HER OWN PAGE (/story): the client presses here with her thumb, from her
    * bot. The answers are my_story_reel's shape and the host's price; "make"
    * is refused by the answer script, so the refusal line is shot too.
