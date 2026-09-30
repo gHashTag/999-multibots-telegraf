@@ -213,6 +213,21 @@ Promise.all([...])` followed by `setA(a); setB(b)` reads in parallel but
   is `aria-hidden`. Pin that with a stylesheet test: jsdom cannot see it.
   **Measure first:** `scrollWidth > clientWidth` over every name and fact
   line gives the count of cut rows, before and after.
+- **A title with a subtitle beside a face is a grid, and `gap` there is
+  two gaps.** CRM tick 10: on one line, a stage that never shrinks cut a
+  long name to one word. Moving the stage under the name (face spanning
+  both lines, as in Pipedrive and HubSpot) gave the name 131 -> 272px. The
+  first try grew the row from 36 to 52px, because in a grid the flex row's
+  `gap: 10px` is also a ROW gap. Set `row-gap: 0` and measure the row
+  height, not just the name width.
+- **A pinned section heading needs a parent of its own and the real height
+  of the bar above it.** A sticky element is held inside its parent. Two
+  headings in one parent stay pinned together, so wrap each heading and
+  its rows in a `<section>`. `top` is the pinned bar's height. Publish it
+  with `usePublishedHeight` (a ResizeObserver, on the bar's parent) rather
+  than copying 114px into the stylesheet. Give the heading an opaque
+  background. Scroll to a few depths and read each heading's `top`: it
+  should equal the bar's bottom until its section ends.
 - **Measure in the owner's language; English fitting proves nothing.** CRM
   tick 9: `.crm__acts button{flex:1 1 auto}` put four English buttons on one
   line. In Russian ("Отказался" is wider) the last button wrapped ALONE and

@@ -102,6 +102,70 @@ def stale(path: str) -> list:
     return out
 
 
+def reanchor(path: str) -> int:
+    """tri mutants --reanchor <list.json>: follow an INDENT-ONLY move.
+
+    Wrapping code in one more element re-indents it, and every mutation
+    anchored inside goes stale although not one token changed. CRM loop
+    ticks 6 and 10 (01.10.2026) re-anchored such lists by hand. This fixes
+    exactly that case: the `from` found once with only its leading
+    whitespace different, shifted by one amount on every line. `to` gets
+    the same shift. Anything else is left stale and named -- a changed
+    token needs a human to say what the mutation should now be.
+    """
+    import re
+
+    with io.open(path, encoding='utf-8') as fh:
+        muts = json.load(fh)
+    fixed, left = 0, []
+    for i, m in enumerate(muts):
+        label = m.get('name') or m['from'].strip().splitlines()[0][:60]
+        try:
+            s = io.open(m['file'], encoding='utf-8').read()
+        except OSError:
+            left.append(f'#{i + 1} {m["file"]}: no such file ({label})')
+            continue
+        if s.count(m['from']) == 1:
+            continue
+        old = m['from'].split('\n')
+        pat = ''.join(
+            ('\n' if k else '')
+            + ('[ \t]*' if (k or line[:1] in ' \t') else '')
+            + re.escape(line.lstrip(' \t'))
+            for k, line in enumerate(old)
+        )
+        found = list(re.finditer(pat, s))
+        if len(found) != 1:
+            left.append(f'#{i + 1} {m["file"]}: {len(found)} indent-blind matches ({label})')
+            continue
+        new = found[0].group(0).split('\n')
+        width = lambda x: len(x) - len(x.lstrip(' \t'))
+        shifts = {width(n) - width(o) for o, n in zip(old, new) if o.strip()}
+        if len(shifts) != 1:
+            left.append(f'#{i + 1} {m["file"]}: lines moved by different amounts ({label})')
+            continue
+        d = shifts.pop()
+
+        def move(line: str, first: bool) -> str:
+            if first and line[:1] not in ' \t':
+                return line
+            if not line.strip():
+                return line
+            return ' ' * max(0, width(line) + d) + line.lstrip(' \t')
+
+        m['from'] = found[0].group(0)
+        m['to'] = '\n'.join(move(x, k == 0) for k, x in enumerate(m['to'].split('\n')))
+        fixed += 1
+        print(f'reanchored  #{i + 1} {m["file"]}: indent {d:+d} ({label})')
+    if fixed:
+        with io.open(path, 'w', encoding='utf-8') as fh:
+            fh.write(json.dumps(muts, ensure_ascii=False, indent=2) + '\n')
+    for line in left:
+        print(f'STILL STALE  {line}')
+    print(f'{path}: {fixed} reanchored, {len(left)} left stale')
+    return 1 if left else 0
+
+
 def adopt(args: list) -> int:
     """tri mutants --adopt <proven.json> <guards.json>: keep a batch for good.
 
@@ -166,6 +230,13 @@ def main() -> int:
         return 2
     if args[:1] == ['--adopt']:
         return adopt(args[1:])
+    if args[:1] == ['--reanchor']:
+        # Paths in the list are relative to where it is run (the repo root
+        # for a loop's guard list).
+        if len(args) != 2:
+            print('tri mutants --reanchor <list.json>  (run where its paths start)')
+            return 2
+        return reanchor(args[1])
     if args[:1] == ['--check']:
         # tri mutants --check <list.json>... : anchors only, nothing runs.
         if len(args) < 2:
