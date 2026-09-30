@@ -20,6 +20,9 @@
 #             merge base = a conflict waiting; merge main in first.
 #   --tests   the baseline, BEFORE editing. Red here is not this tick's
 #             fault -- write it down instead of "fixing" it blindly.
+#   mutants   with --tests and .claude/loop-state/<name>-mutants.json: every
+#             mutation proven by a past tick must still be killed by the
+#             same tests (tri mutants). A survivor stops the tick.
 #
 # The loop names its branch and PR in its state file:
 #   <!-- loop-branch: fix/crm-mobile-ux -->
@@ -133,6 +136,25 @@ if [ -n "$TESTS" ]; then
     stop "baseline RED before any edit -- not this tick's fault; see ${TMPDIR:-/tmp}/tri-loop-$NAME-baseline.log"
     tail -5 "${TMPDIR:-/tmp}/tri-loop-$NAME-baseline.log" | sed 's/^/          /'
   fi
+fi
+
+# 7. Past guards still bite. A green baseline says the tests pass; it does
+# not say they would still FAIL if last night's fix were undone -- a later
+# tick can weaken a test (or move the code it watched) and stay green. The
+# loop keeps every proven mutation in <name>-mutants.json; each must still
+# be killed. Only with --tests (the same command), only if the list exists.
+MUTANTS="$ROOT/.claude/loop-state/$NAME-mutants.json"
+if [ -n "$TESTS" ] && [ -f "$MUTANTS" ] && [ "$STOP" = 0 ]; then
+  echo "  ..    past guards: $(basename "$MUTANTS")"
+  MLOG="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants.log"
+  (cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" "$MUTANTS" -- bash -c "$TESTS") > "$MLOG" 2>&1
+  case $? in
+    0) note "past guards: $(grep -E '^-- [0-9]+ of [0-9]+ killed' "$MLOG" | tr -d -)" ;;
+    1) stop "a past mutation SURVIVES -- a guard stopped guarding; see $MLOG"
+       grep -E '^SURVIVED' "$MLOG" | head -5 | sed 's/^/          /' ;;
+    *) warn "past guards not checked (the list no longer matches the code?); see $MLOG"
+       tail -3 "$MLOG" | sed 's/^/          /' ;;
+  esac
 fi
 
 if [ "$STOP" = 1 ]; then

@@ -13,7 +13,7 @@ Worktree: `~/crm-mobile-ux` (not the main checkout). Every tick:
 ```
 cd ~/crm-mobile-ux
 TRI_LOOP=crm-mobile ./bin/tri loop-guard start --tests \
-  "cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx"
+  "cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts"
 TRI_LOOP=crm-mobile ./bin/tri loop
 ... work ...
 TRI_LOOP=crm-mobile ./bin/tri loop-note "what was learned"
@@ -35,7 +35,10 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
    the preview at 390x844 (`/harness/crm.html`) before the commit. In tick 1
    jsdom said "focus is in the box" while the browser said BODY: no iOS
    keyboard.
-4. Every new test is proven by a mutation: break the line, see red, restore.
+4. Every new test is proven by a mutation -- with `tri mutants`, not by
+   hand (tick 4 hand-rolled it a third time). Add each proven mutation to
+   `crm-mobile-mutants.json`: `loop-guard start` re-runs the whole list, so
+   a later tick that weakens a past guard is stopped, not merely green.
 5. Cyrillic in a code regex only with a `// cyrillic-ok` marker on the same
    line (the no-cyrillic gate).
 6. Player lint: 3 errors in Crm.tsx (fast-refresh x2, setState in an
@@ -80,7 +83,19 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       touch target on purpose. Leave it (tick 3 false alarm)
 - [ ] Sticky finder and sticky chat button are proven in the harness only;
       the real shell's scroll container is unverified on a phone
-- [ ] Quick filter "views" persist between visits (Pipedrive saved views)
+- [x] Back from a contact returns to the list as it was left: search and
+      chip in the address (?q=, ?who=), the card's crumb steps back instead
+      of linking to the work section (4736b9659, tick 4). This was the real
+      "saved views" pain -- the state was lost on every card visit, not
+      between days. Cross-visit memory (localStorage) is NOT done: a link
+      is shareable and cannot leak on a shared device; revisit only if the
+      owner asks
+- [ ] Scroll position after Back: the list re-reads on mount and opens at
+      the top; the person is found again by the kept search, but a long
+      unfiltered list loses its place
+- [ ] Recents ignore the chip (leads chip still shows a client in Recent).
+      Deliberate for now (HubSpot recents are filter-free); watch for
+      confusion
 
 ## Что уже есть
 
@@ -90,10 +105,12 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - Harness `apps/vibee-editor/player/harness/crm.html` +
   `src/harness/crmFixtures.ts`; `tri shot crm` needs chrome-headless-shell
   (no download without the owner's yes) -- otherwise the preview browser.
-  The harness ignores `?tab=`: switch sections by tapping.
+  The harness honours `?tab=&who=&q=` (tick 4); rows open a card stub.
 - Measured at 390 px: search 1523 -> 149 px from the top; row 140-160 -> 64
   px; 3 -> 7 contacts per screen; page 3918 -> 1240 px.
 
 - 01.10.2026 01:34: tick 2: recents shipped (e178d41b6); tsc -p . in the player is a no-op -> tri precommit player-types; an exit code proved nothing until the log was read
 
 - 01.10.2026 01:44: tick 3: fixed the blind client-card harness first (you cannot improve a page you cannot see), then sticky chat button; media 'gap' was a deliberate 44px target -- measure before calling it a bug
+
+- 01.10.2026 01:58: tick 4: Back from a card reset the list (sibling routes) and the crumb went to the work tab; state now in the address via useUrlMirror, crumb steps back. The owner's 'saved views' pain was per-visit, not per-day
