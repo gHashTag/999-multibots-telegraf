@@ -672,6 +672,8 @@ export default function CrmPage() {
                   type="button"
                   className="crm__search-clear"
                   aria-label={t('crm.filter.clear')}
+                  // Keep the focus (and the phone's keyboard) in the box.
+                  onPointerDown={e => e.preventDefault()}
                   onClick={() => setQuery('')}
                 >
                   ✕
@@ -687,6 +689,7 @@ export default function CrmPage() {
                     clientsFilter === kind ? ' crm__chip--on' : ''
                   }`}
                   aria-pressed={clientsFilter === kind}
+                  onPointerDown={e => e.preventDefault()}
                   onClick={() => setClientsFilter(kind)}
                 >
                   {t(`crm.clients.filter.${kind}`)} {n}
@@ -763,7 +766,15 @@ export default function CrmPage() {
             ) : null}
           </>
         )}
-        {clientsFilter !== 'groups' && c && c.nextOffset !== null ? (
+        {/*
+          Not while a search is answered: the server has already looked
+          through everyone, and "More clients" under "nobody found" read as
+          a way to find more of nobody.
+        */}
+        {clientsFilter !== 'groups' &&
+        c &&
+        c.nextOffset !== null &&
+        query.trim().length < 2 ? (
           <button
             type="button"
             className="crm__more"
@@ -825,17 +836,34 @@ export default function CrmPage() {
             The way to a person, first on the screen people land on. It looks
             like the search it opens, because that is what it is.
           */}
-          <button
-            type="button"
-            className="crm__find"
-            onClick={() => {
-              setFocusSearch(true)
-              pick('contacts')
-            }}
-          >
+          {/*
+            A REAL FIELD, NOT A BUTTON THAT OPENS ONE. iOS raises the
+            keyboard only for a focus() made inside the tap itself; the
+            contacts section mounts a task later (the router switches in a
+            transition), so a button left the person in front of a field
+            with no keyboard. Here the tap focuses this field natively, and
+            the section's box takes the focus over from it in one commit --
+            input to input, which keeps the keyboard up. Letters typed in
+            between land in the same query.
+          */}
+          <label className="crm__search crm__find">
             <SearchGlyph />
-            <span>{t('crm.contacts.find')}</span>
-          </button>
+            <input
+              type="search"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onFocus={() => {
+                setFocusSearch(true)
+                pick('contacts')
+              }}
+              placeholder={t('crm.contacts.find')}
+              aria-label={t('crm.contacts.find')}
+              enterKeyHint="search"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+          </label>
 
           {/* How many stand at each stage; nothing at all when unknown. */}
           <FunnelStrip state={funnel} />
