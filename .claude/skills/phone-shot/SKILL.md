@@ -203,6 +203,16 @@ Promise.all([...])` followed by `setA(a); setB(b)` reads in parallel but
   reload counter). **Test:** one tool never answers
   (`new Promise(() => {})`), and the other panels are still drawn. Better
   still, hand what the opener already knows (the name) over in link state.
+- **A word on every row is a column header in disguise.** The CRM list
+  repeated "AUTO" on each row's tick: 73px of a 352px row, and the name
+  was cut at 179px. On a phone, keep the control alone (a 44px target
+  still) and name the column ONCE in the list heading. Measure that the
+  label and the controls share a `left` at 390 and 320. Keep the word
+  inside each control for a screen reader. It must be clipped
+  (`clip-path: inset(50%)`), never `display:none`, and the heading copy
+  is `aria-hidden`. Pin that with a stylesheet test: jsdom cannot see it.
+  **Measure first:** `scrollWidth > clientWidth` over every name and fact
+  line gives the count of cut rows, before and after.
 - **A harness must mount the app's own chrome.** Without `TelegramTabBar`,
   pages reserve 0 px for the bar (`body[data-tabbar]` is never set), and the
   header's fallback bottom bar covers the composer. That overlap exists only
