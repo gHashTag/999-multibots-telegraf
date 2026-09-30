@@ -145,8 +145,12 @@
   font-size: 13px;
   font-weight: 600;
 }
-.welcome-agent__checked[data-pass='no'] {
+.welcome-agent__checked[data-tone='fail'] {
   color: #ff6b6b;
+}
+.welcome-agent__checked[data-tone='stale'] {
+  color: #8f8f8f;
+  font-weight: 400;
 }
 .welcome-agent__proof h3 {
   margin: 0 0 6px;
