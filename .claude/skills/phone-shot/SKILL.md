@@ -21,12 +21,15 @@ description: 'Measure a screen of the app on a PHONE, not in jsdom: `tri shot <h
 ./bin/tri shot story-palette --width 320  # самый узкий телефон
 ./bin/tri shot my-story                   # её собственная страница «Мои рилсы»
 ./bin/tri shot crm-client                 # вся карточка клиента /crm/:id
+./bin/tri shot crm                        # the /crm list itself: work, contacts, search
 ./bin/tri shot all                        # все стенды × 390 ru, 390 en, 320 ru — для ворот
 ```
 
 Стенды: `story-palette` — панель рилс-истории в карточке клиента (продавец),
 `my-story` — её страница `/story` (жмёт сама клиентка), `crm-client` — вся
 карточка `/crm/:id` (шесть панелей, рилс, дуэт с подтверждением).
+`crm` is the `/crm` list (fixtures in `src/harness/crmFixtures.ts`; the
+harness ignores `?tab=` -- switch sections by tapping).
 
 Строка на состояние: `ok|RED <state>: N controls, target 44px, wider 0px,
 small 0, cut 0, overlap 0, order 0 · <png>`. Код 0 — чисто, 1 — красно, 2 — НЕ
@@ -96,6 +99,28 @@ small 0, cut 0, overlap 0, order 0 · <png>`. Код 0 — чисто, 1 — к�
 - **WebKit (iOS Telegram) здесь не снять** — в контейнере только Chromium.
   Что WebKit игнорирует (`min-height: fit-content` у flex-кнопки) — см.
   `modelCardsFitTheirText.test.ts`.
+
+- **jsdom lies about focus -- and the iOS keyboard depends on it.** Turn 1 of
+  the CRM-on-a-phone loop (30.09.2026): a "Find a contact" button switched
+  the section and focused the box in an effect. The `activeElement === input`
+  test was green; the live browser showed `BODY` right after the tap and the
+  input only later. iOS raises the keyboard only for a `focus()` made inside
+  the gesture itself, so on a phone there was no keyboard. Fix: the entry is
+  a real `<input>` and focus is handed input to input in one commit
+  (`onFocus` switches the section, the second box has `autoFocus`, the text
+  is shared). Check it live: read `document.activeElement` IMMEDIATELY
+  after `click()`, in the same script.
+- **Buttons next to a field drop the keyboard.** Clear and filter chips take
+  focus on tap. `onPointerDown={e => e.preventDefault()}` keeps it in the
+  field; test it with `dispatchEvent(new PointerEvent('pointerdown',
+{cancelable: true}))` and `defaultPrevented`.
+- **No chrome-headless-shell for `tri shot`?** Downloading it needs the
+  owner's yes. Use the preview browser instead: `resize_window` 390x844,
+  `/harness/crm.html`, `getBoundingClientRect` via `javascript_tool`; reset
+  to `desktop` at the end of the turn.
+- **Gates in a worktree** -- `tri worktree <branch>` links the root and
+  render node_modules; without them npx pulls a foreign ESLint/tsc and
+  pre-commit goes red for nothing.
 
 ## Related Resources
 
