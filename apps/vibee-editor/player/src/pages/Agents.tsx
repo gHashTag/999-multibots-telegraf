@@ -7,7 +7,8 @@ import {
 import { Header } from '@/components/Header'
 import { useLanguage, type Language } from '@/hooks/useLanguage'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
-import { checkedDay, useAgentAcceptance } from '@/hooks/useAgentAcceptance'
+import { useAgentAcceptance } from '@/hooks/useAgentAcceptance'
+import { VerdictLine } from '@/components/Agents/VerdictLine'
 import { useAgentAvatars } from '@/hooks/useAgentAvatars'
 import { AgentFace } from '@/components/Chat/AgentFace'
 import { PackageCards } from '@/components/Agents/PackageCards'
@@ -44,8 +45,6 @@ const copy = {
     reserve: 'quality reserve',
     platform: 'platform',
     honest: 'Token settlement: designed, not active yet',
-    checked: 'Checked on a real account',
-    checkFailed: 'Last check failed',
     streak: 'Daily checks passed in a row: {n} of 7 — hiring opens at 7',
     dashboard: 'Dashboard',
     earned: 'working now — earned by 7 days of checks',
@@ -83,8 +82,6 @@ const copy = {
     reserve: 'резерв качества',
     platform: 'платформа',
     honest: 'Расчёты токенами: спроектированы, ещё не включены',
-    checked: 'Проверен на живом аккаунте',
-    checkFailed: 'Последняя проверка не прошла',
     streak: 'Ежедневных проверок подряд: {n} из 7 — найм откроется на седьмой',
     dashboard: 'Дашборд',
     earned: 'работает — заслужил 7 днями проверок',
@@ -180,14 +177,11 @@ export function AgentsPage() {
                     acceptance verdict and its day. A failure is shown too --
                     a card that only ever says "checked" is an advert.
                   */
-                  <p
+                  <VerdictLine
                     className="agent-card__checked"
-                    data-pass={verdicts[agent.id].pass ? 'yes' : 'no'}
-                  >
-                    {verdicts[agent.id].pass ? '✓' : '✗'}{' '}
-                    {verdicts[agent.id].pass ? text.checked : text.checkFailed}{' '}
-                    · {checkedDay(verdicts[agent.id].at, l)}
-                  </p>
+                    verdict={verdicts[agent.id]}
+                    lang={l}
+                  />
                 ) : null}
                 {agent.status !== 'live' &&
                 !earned &&

@@ -28,6 +28,8 @@ const ui = vi.hoisted(() => ({
       at: string
       tools: string[]
       codes: string[]
+      streak?: number
+      fresh?: boolean
     }
   > | null,
 }))
@@ -205,6 +207,44 @@ describe('the last daily check on the welcome card', () => {
     points('ru')
     expect(checked()?.textContent).toMatch(failed)
     expect(checked()?.getAttribute('data-pass')).toBe('no')
+  })
+
+  it('adds the run of passing days when there is one', () => {
+    ui.verdicts = {
+      blogger: {
+        agent: 'blogger',
+        pass: true,
+        at,
+        tools: [],
+        codes: [],
+        streak: 7,
+        fresh: true,
+      },
+    }
+    points('en')
+    expect(checked()?.textContent).toMatch(/· 7 days running$/)
+  })
+
+  // Directories that re-check listings drop the badge once checks stop;
+  // a pass from a fortnight ago must not look as green as yesterday's.
+  it('a check that is no longer current loses its tick, keeps its day', () => {
+    ui.verdicts = {
+      blogger: {
+        agent: 'blogger',
+        pass: true,
+        at,
+        tools: [],
+        codes: [],
+        streak: 0,
+        fresh: false,
+      },
+    }
+    points('en')
+    expect(checked()?.textContent).toBe(
+      `○ Last check · ${checkedDay(at, 'en')} · none since`
+    )
+    expect(checked()?.getAttribute('data-tone')).toBe('stale')
+    expect(checked()?.textContent).not.toMatch(/✓|Checked on/)
   })
 
   it('shows nothing when the server has not answered', () => {

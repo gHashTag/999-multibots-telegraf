@@ -350,8 +350,13 @@
   opacity: 0.85;
 }
 
-.agent-card__checked[data-pass='no'] {
+.agent-card__checked[data-tone='fail'] {
   color: var(--color-danger, #c0392b);
+}
+
+/* The checks stopped: the day is kept, the tick is not (verdictLine). */
+.agent-card__checked[data-tone='stale'] {
+  opacity: 0.6;
 }
 
 /* Passing daily checks in a row, toward hiring by evidence. */
