@@ -38,10 +38,14 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 4. Every new test is proven by a mutation: break the line, see red, restore.
 5. Cyrillic in a code regex only with a `// cyrillic-ok` marker on the same
    line (the no-cyrillic gate).
-6. Player lint: 3 errors in Crm.tsx (117, 126 fast-refresh; 254 setState in
-   an effect) and the unused `heading` in CrmCockpit.test exist on main and
-   are not ours. No new ones.
-7. Everything authored is English (skills, docs, `tri` strings, commits);
+6. Player lint: 3 errors in Crm.tsx (fast-refresh x2, setState in an
+   effect), 1 in CrmClient.tsx (setState in an effect) and the unused
+   `heading` in CrmCockpit.test exist on main and are not ours; line numbers
+   drift with edits. No new ones.
+7. Types: `npx tsc -p .` in the player checks NOTHING (solution tsconfig).
+   Run `./bin/tri precommit player-types` (the real gate, ~10 s) before
+   committing. Tick 2 lost a commit to this.
+8. Everything authored is English (skills, docs, `tri` strings, commits);
    only text a bot user reads is Russian. Tick 1 slipped here and caught it
    before the commit.
 
@@ -56,12 +60,17 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - [x] Clear and chips keep the keyboard up (pointerdown preventDefault)
 - [x] "More clients" stays out of an answered search
 - [x] `tri loop-guard`: a tick cannot land on top of the last one
-- [ ] Section strip starts at x=26, content at x=12: align the insets
-- [ ] Stats row is clipped on the right at 390 px: wrap or scroll
-- [ ] Recent contacts in an empty search (localStorage; HubSpot's "Recent")
-- [ ] Search by @username and phone, not only the name (Pipedrive searches every field)
-- [ ] Height from `--tg-viewport-height`, not 100vh; safeAreaInset / contentSafeAreaInset
-- [ ] Every CRM input at font-size >= 16px (iOS zooms the page otherwise)
+- [x] Section strip and funnel row start in line with the page and run to the edge (tick 2)
+- [x] Funnel row clipped at 390 px: bleeds to the edge with a fade (same commit)
+- [x] Recent contacts in an empty search (e178d41b6). Limit: only people on the
+      first page of the list (100) are offered back
+- [x] "@lapin" finds people and groups (one `searchNeedle`). Phone: there is
+      no phone field in crm_people -- nothing to search, dropped
+- [x] Height/safe area: already solved at the shell (styles/telegram.css
+      --app-safe-\*); /crm has no 100vh. Tick 1 planned it without looking
+- [x] Inputs >= 16px: already solved, styles/design-system.css:527
+      (pointer: coarse). Same planning slip
+- [x] `tri precommit [gate]`: the commit's gates without the commit
 - [ ] Contact card `/crm/:id`: big "write / take on" actions at the bottom, under the thumb
 - [ ] Quick filter "views" persist between visits (Pipedrive saved views)
 
@@ -76,3 +85,5 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
   The harness ignores `?tab=`: switch sections by tapping.
 - Measured at 390 px: search 1523 -> 149 px from the top; row 140-160 -> 64
   px; 3 -> 7 contacts per screen; page 3918 -> 1240 px.
+
+- 01.10.2026 01:34: tick 2: recents shipped (e178d41b6); tsc -p . in the player is a no-op -> tri precommit player-types; an exit code proved nothing until the log was read
