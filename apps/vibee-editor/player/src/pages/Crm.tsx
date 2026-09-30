@@ -42,6 +42,7 @@ import {
   searchNeedle,
   splitByNeedle,
   foundOnlyById,
+  reasonLine,
   ensureAvatars,
   loadClientsPage,
   appendClients,
@@ -429,7 +430,9 @@ export default function CrmPage() {
       r.telegramId,
       t('crm.wait.prepareAsk', {
         name: r.name || r.telegramId,
-        why: r.nextWhy || r.because,
+        why: r.nextWhy
+          ? reasonLine(t, r.nextWhyCode, r.nextWhyVars, r.nextWhy)
+          : reasonLine(t, r.becauseCode, null, r.because),
       }),
       navigate
     )
@@ -498,9 +501,14 @@ export default function CrmPage() {
         </span>
       </div>
       <p className="crm__why">
-        {t(`crm.wait.${r.waiting}`)} · {r.days} · {r.because}
+        {t(`crm.wait.${r.waiting}`)} · {t('crm.wait.days', { n: r.days })} ·{' '}
+        {reasonLine(t, r.becauseCode, null, r.because)}
       </p>
-      {r.nextWhy ? <p className="crm__next">{r.nextWhy}</p> : null}
+      {r.nextWhy ? (
+        <p className="crm__next">
+          {reasonLine(t, r.nextWhyCode, r.nextWhyVars, r.nextWhy)}
+        </p>
+      ) : null}
       <div className="crm__acts">
         <button
           type="button"
@@ -765,8 +773,10 @@ export default function CrmPage() {
    * RECENTLY OPENED, ONE TAP BACK. Only under an empty search (typing is
    * already a way to find someone), and only people the server just listed:
    * an id this device remembers but the list does not know draws nothing.
+   * Only people under the chip, too: "Leads" with a paying client in the row
+   * above them says the chip did not work (loop tick 12).
    */
-  const byId = new Map((c?.clients ?? []).map(x => [x.telegramId, x]))
+  const byId = new Map(inFilter.map(x => [x.telegramId, x]))
   const recent =
     query.trim() || clientsFilter === 'groups'
       ? []
