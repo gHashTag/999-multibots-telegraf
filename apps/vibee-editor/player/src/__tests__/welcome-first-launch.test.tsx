@@ -159,4 +159,19 @@ describe('the welcome screen', () => {
     expect(targets).toContain('/agents')
     expect(targets).toContain('/feed')
   })
+
+  it('names which agent each order button orders', async () => {
+    await render()
+    for (const pkg of AGENT_PACKAGES) {
+      const button = host.querySelector(
+        `[data-testid="package-${pkg.id}"] .package-card__order`
+      )
+      expect(button?.getAttribute('aria-label'), pkg.id).toContain(pkg.name.ru)
+    }
+  })
+
+  it('says what happens after "Order", in three steps', async () => {
+    await render()
+    expect(host.querySelectorAll('.welcome-steps li')).toHaveLength(3)
+  })
 })

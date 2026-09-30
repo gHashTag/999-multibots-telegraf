@@ -243,6 +243,8 @@ import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
 import {
   agentPackageIntent,
   agentPackageOrderReply,
+  forgetOrder,
+  isRepeatOrder,
   notifyTeamOfPackageOrder,
 } from '@/services/agentPackageOrder'
 
@@ -3093,13 +3095,20 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
        * it arrived now, whoever they turn out to be.
        */
       if (orderedPackage && ctx.from) {
-        await notifyTeamOfPackageOrder(
-          ctx.telegram,
-          orderedPackage,
-          ctx.from,
-          ctx.botInfo?.username
+        let outcome: 'sent' | 'repeat' | 'undelivered' = 'repeat'
+        if (!isRepeatOrder(ctx.from.id, orderedPackage)) {
+          const delivered = await notifyTeamOfPackageOrder(
+            ctx.telegram,
+            orderedPackage,
+            ctx.from,
+            ctx.botInfo?.username
+          )
+          outcome = delivered > 0 ? 'sent' : 'undelivered'
+          if (delivered === 0) forgetOrder(ctx.from.id, orderedPackage)
+        }
+        await ctx.reply(
+          agentPackageOrderReply(isRussianFromState(ctx), outcome)
         )
-        await ctx.reply(agentPackageOrderReply(isRussianFromState(ctx)))
       }
 
       if (!userDetails.isExist) {

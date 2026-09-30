@@ -29,6 +29,18 @@ const copy = {
     packages: 'Three agents for sale',
     packagesLead:
       'Launch price includes the first month; the team sets the bot up for you.',
+    how: 'What happens after "Order"',
+    steps: [
+      ['You press "Order"', 'The request goes to the team from the T27 bot.'],
+      [
+        'The team writes to you',
+        'In the same chat: your tasks, your tone, what the agent may do.',
+      ],
+      [
+        'Your bot goes live',
+        'The agent is checked on your account first; the invoice comes with it.',
+      ],
+    ],
     market: 'Go to the Agent Market',
     later: 'Just look around',
     lang: 'Русский',
@@ -53,6 +65,18 @@ const copy = {
     packages: 'Три агента на выбор',
     packagesLead:
       'В цену запуска входит первый месяц; бота настраивает команда.',
+    how: 'Что будет после «Заказать»',
+    steps: [
+      ['Вы жмёте «Заказать»', 'Заявка уходит команде через бота T27.'],
+      [
+        'Команда пишет вам',
+        'В том же чате: ваши задачи, ваш тон, что агенту можно делать.',
+      ],
+      [
+        'Ваш бот начинает работать',
+        'Сначала агента проверяют на вашем аккаунте, вместе с этим приходит счёт.',
+      ],
+    ],
     market: 'Перейти на рынок агентов',
     later: 'Сначала осмотреться',
     lang: 'English',
@@ -63,8 +87,9 @@ const copy = {
  * THE FIRST SCREEN OF A FIRST LAUNCH (owner, 2026-09-30: "a welcome screen
  * right when the app opens"). LaunchRedirect sends a person here once; the
  * flag is set as soon as the screen is shown, so a reload, a return from the
- * bot or a closed app never brings it back uninvited. `?startapp=welcome`
- * opens it again on purpose.
+ * bot or a closed app never brings it back uninvited. There is no start
+ * parameter for it on purpose: a new one has to land in three mirrored route
+ * tables at once (appLinksParity.test.ts), and nothing sends people back here.
  *
  * Nothing here is invented: the working agents are the live ones from the
  * market catalogue, the packages come from the one package catalogue.
@@ -139,6 +164,18 @@ export function WelcomePage() {
           <h2 className="welcome-section-title">{text.packages}</h2>
           <p className="welcome-packages__lead">{text.packagesLead}</p>
           <PackageCards lang={l} />
+        </section>
+
+        <section className="welcome-how" aria-label={text.how}>
+          <h2 className="welcome-section-title">{text.how}</h2>
+          <ol className="welcome-steps">
+            {text.steps.map(([title, body]) => (
+              <li key={title}>
+                <strong>{title}</strong>
+                <span>{body}</span>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <nav className="welcome-exits">

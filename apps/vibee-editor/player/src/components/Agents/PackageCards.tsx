@@ -14,6 +14,7 @@ const copy = {
     setup: 'launch',
     monthly: (usd: number) => `then $${usd}/month · first month included`,
     order: 'Order',
+    orderLabel: (name: string) => `Order ${name}`,
     tryFirst: 'Try it first',
   },
   ru: {
@@ -21,6 +22,7 @@ const copy = {
     setup: 'запуск',
     monthly: (usd: number) => `далее $${usd}/мес · первый месяц включён`,
     order: 'Заказать',
+    orderLabel: (name: string) => `Заказать: ${name}`,
     tryFirst: 'Сначала попробовать',
   },
 } as const
@@ -71,6 +73,7 @@ export function PackageCards({ lang }: { lang: Language }) {
               <button
                 type="button"
                 className="package-card__order"
+                aria-label={text.orderLabel(pkg.name[l])}
                 onClick={() => openTelegramLink(agentPackageOrderUrl(pkg))}
               >
                 {text.order} →
