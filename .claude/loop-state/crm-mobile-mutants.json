@@ -313,5 +313,65 @@
     "from": "      stop.current?.()\n",
     "to": "",
     "name": "value outlives the element"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "  const at = needle && low.length === text.length ? low.indexOf(needle) : -1\n",
+    "to": "  const at = needle ? low.indexOf(needle) : -1\n",
+    "name": "hit marked at a shifted index"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "    keepBefore !== undefined && at > keepBefore + 1 ? at - keepBefore : 0\n",
+    "to": "    keepBefore !== undefined && at > keepBefore ? at - keepBefore : 0\n",
+    "name": "ellipsis that saves nothing"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "  ].filter(p => p.text !== '')\n",
+    "to": "  ]\n",
+    "name": "empty parts in a split"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "            <Hit text={x.client} q={query} keepBefore={FACT_LEAD} />\n",
+    "to": "            <Hit text={x.client} q={query} />\n",
+    "name": "deep package hit past the ellipsis"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "      foundOnlyById(x, query)\n        ? found(\n",
+    "to": "      false\n        ? found(\n",
+    "name": "id-only result names nothing typed"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "      ...searched.filter(f => f.hit).map(f => f.node),\n      t(`crm.stage.${x.stage}`),\n",
+    "to": "      t(`crm.stage.${x.stage}`),\n      ...searched.filter(f => f.hit).map(f => f.node),\n",
+    "name": "hit fact behind the stage"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "              <Hit text={x.name || x.username || x.telegramId} q={query} />\n",
+    "to": "              {x.name || x.username || x.telegramId}\n",
+    "name": "name hit unmarked"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  .crm__contacts .crm__group > .crm__list {\n    gap: 0;\n",
+    "to": "  .crm__contacts .crm__group > .crm__list {\n    gap: 10px;\n",
+    "name": "contact cards stacked again"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "    position: relative;\n    border: 0;\n    border-radius: 0;\n",
+    "to": "    position: relative;\n    border: 1px solid;\n    border-radius: 0;\n",
+    "name": "row frame inside the list frame"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "    top: 0;\n    left: 58px;\n",
+    "to": "    top: 0;\n    left: 0;\n",
+    "name": "hairline under the faces"
   }
 ]

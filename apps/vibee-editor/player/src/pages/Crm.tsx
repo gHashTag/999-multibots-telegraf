@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -34,6 +40,8 @@ import {
   type WinbackList,
   matches,
   searchNeedle,
+  splitByNeedle,
+  foundOnlyById,
   ensureAvatars,
   loadClientsPage,
   appendClients,
@@ -132,6 +140,34 @@ export const isUnderWay = (x: ClientRow, now = Date.now()) => {
 export { matches }
 
 /** A magnifier drawn in the text colour, so it needs no icon set. */
+/** Letters kept before a hit far into a package name (splitByNeedle). */
+const FACT_LEAD = 6
+
+/** The typed letters, marked where the search found them. */
+function Hit({
+  text,
+  q,
+  keepBefore,
+}: {
+  text: string
+  q: string
+  keepBefore?: number
+}) {
+  return (
+    <>
+      {splitByNeedle(text, q, keepBefore).map((p, i) =>
+        p.hit ? (
+          <mark key={i} className="crm__hit">
+            {p.text}
+          </mark>
+        ) : (
+          <Fragment key={i}>{p.text}</Fragment>
+        )
+      )}
+    </>
+  )
+}
+
 const SearchGlyph = () => (
   <svg
     className="crm__glyph"
@@ -556,11 +592,47 @@ export default function CrmPage() {
     const isDropped = !!dropped[x.telegramId]
     // A removed row stays open: the way back must not hide behind "...".
     const open = openRow === x.telegramId || isDropped
-    const facts = [
+    /*
+     * WHY THIS ROW IS IN THE RESULTS. The typed letters are marked, and the
+     * fact they were found in comes first, before the stage: the line ends
+     * in an ellipsis on a phone, and a hit in a username or deep in a long
+     * package name sat past it -- a row with nothing on it that was typed
+     * (measured at 390px: "разговариваем · Ф▮…"). A hit far into a package
+     * name also cuts what is before it (FACT_LEAD).
+     */
+    const found = (text: string, node: ReactNode) => ({
+      node,
+      hit: splitByNeedle(text, query).some(p => p.hit),
+    })
+    const searched = [
+      x.client
+        ? found(
+            x.client,
+            <Hit text={x.client} q={query} keepBefore={FACT_LEAD} />
+          )
+        : null,
+      x.username
+        ? found(
+            x.username,
+            <>
+              @<Hit text={x.username} q={query} />
+            </>
+          )
+        : null,
+      foundOnlyById(x, query)
+        ? found(
+            x.telegramId,
+            <>
+              id <Hit text={x.telegramId} q={query} />
+            </>
+          )
+        : null,
+    ].filter(f => f !== null)
+    const facts: ReactNode[] = [
+      ...searched.filter(f => f.hit).map(f => f.node),
       t(`crm.stage.${x.stage}`),
-      x.client,
-      x.username ? `@${x.username}` : null,
-    ].filter(Boolean)
+      ...searched.filter(f => !f.hit).map(f => f.node),
+    ]
     return (
       <li
         key={x.telegramId}
@@ -572,7 +644,7 @@ export default function CrmPage() {
           <Avatar name={x.name || x.telegramId} url={x.avatarUrl} size={40} />
           <Link to={`/crm/${x.telegramId}`} className="crm__contact-main">
             <span className="crm__contact-name">
-              {x.name || x.username || x.telegramId}
+              <Hit text={x.name || x.username || x.telegramId} q={query} />
             </span>
             <span className="crm__contact-facts">
               {x.paid ? (
@@ -580,7 +652,12 @@ export default function CrmPage() {
                   {t('crm.clients.paid')}
                 </span>
               ) : null}
-              {facts.join(' · ')}
+              {facts.map((f, i) => (
+                <Fragment key={i}>
+                  {i > 0 ? ' · ' : null}
+                  {f}
+                </Fragment>
+              ))}
             </span>
           </Link>
           {picked === null ? null : (
