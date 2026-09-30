@@ -2,7 +2,7 @@
 
 <!-- loop-branch: fix/crm-mobile-ux -->
 <!-- loop-pr: 3199 -->
-<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx -->
+<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts -->
 
 Started 30.09.2026 by the owner's `/loop 30m`: find the weak spots of mobile
 layout and UI/UX, study competitors, write a decomposed plan, implement it,
@@ -103,6 +103,17 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       reached. `useBackTo` steps back when the chat came from that card
       (`cameFrom`), else REPLACES the chat with the card; `firstEntry` state
       keeps the crumb from stepping out of the app
+- [x] Client chat's top row at 390px: 490px wide, the page scrolled sideways
+      to 502px, Queen off screen, targets 20/28px, title "Conversation about
+      cli…". Now 390px, 44px targets, arrow-only back on a phone, the
+      client's NAME in the title (read by the card beside it), Card+Queen
+      together at the right (tick 6)
+- [ ] The name arrives ~1s late: ClientAside waits for all 7 reads
+      (Promise.all). Candidate: pass the name from the card in link state,
+      or set it as soon as the profile read answers
+- [x] Harness mounts the app's TelegramTabBar: without it the header's
+      fallback bar covered the chat composer -- a harness-only overlap that
+      read as a bug (tick 6)
 - [ ] Recents ignore the chip (leads chip still shows a client in Recent).
       Deliberate for now (HubSpot recents are filter-free); watch for
       confusion
@@ -116,7 +127,8 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
   `src/harness/crmFixtures.ts`; `tri shot crm` needs chrome-headless-shell
   (no download without the owner's yes) -- otherwise the preview browser.
   The harness honours `?tab=&who=&q=` (tick 4); rows open the REAL card
-  (tick 5 -- the stub hid the card's own scroll behaviour).
+  (tick 5 -- the stub hid the card's own scroll behaviour); the card's chat
+  button opens the REAL client chat, under the app's own tab bar (tick 6).
 - Measured at 390 px: search 1523 -> 149 px from the top; row 140-160 -> 64
   px; 3 -> 7 contacts per screen; page 3918 -> 1240 px.
 

@@ -346,6 +346,15 @@ function ChatThread({
   // "To the client" steps back to the card it came from, or takes the
   // chat's place in history -- never pushes a card whose Back returns here.
   const backToClient = useBackTo(client ? `/crm/${client}` : '/crm')
+  // The client's name, as the card beside the conversation reads it. Kept
+  // with its id: a name must not outlive a switch to another client.
+  const [named, setNamed] = useState<{ id: string; name: string } | null>(null)
+  const onClientName = useCallback(
+    (name: string) => {
+      if (client) setNamed({ id: client, name })
+    },
+    [client]
+  )
   /*
    * The balance and the buy flow moved to useTokenTopUp so the PROFILE can use
    * the same one. A second copy is how one of the two quietly stops verifying.
@@ -654,12 +663,18 @@ function ChatThread({
                 <Link
                   to={`/crm/${client}`}
                   className="chat-client__back"
+                  aria-label={t('crm.client.chat.back')}
                   onClick={backToClient}
                 >
-                  ← {t('crm.client.chat.back')}
+                  ←{' '}
+                  <span className="chat-client__back-text">
+                    {t('crm.client.chat.back')}
+                  </span>
                 </Link>
                 <span className="chat-client__title">
-                  {t('crm.client.chat.title', { id: client })}
+                  {named?.id === client
+                    ? named.name
+                    : t('crm.client.chat.title', { id: client })}
                 </span>
                 {/* Narrow screens: the card opens as a sheet. Hidden in wide mode,
               where it is always beside the conversation. */}
@@ -1178,6 +1193,7 @@ function ChatThread({
               askDisabled={busy || uploading}
               open={asideOpen}
               onClose={() => setAsideOpen(false)}
+              onName={onClientName}
             />
             {queenOpen ? (
               <div
