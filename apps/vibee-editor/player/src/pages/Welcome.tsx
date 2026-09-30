@@ -7,6 +7,7 @@ import { useAgentAcceptance } from '@/hooks/useAgentAcceptance'
 import { AgentFace } from '@/components/Chat/AgentFace'
 import { PackageCards } from '@/components/Agents/PackageCards'
 import { VerdictLine } from '@/components/Agents/VerdictLine'
+import { CheckedTools } from '@/components/Agents/CheckedTools'
 import { tryFreeNote } from '@/components/Agents/tryFree'
 import { markWelcomed } from '@/lib/welcomeMemory'
 import './Welcome.css'
@@ -208,12 +209,19 @@ export function WelcomePage() {
                      * checked".
                      */}
                     {verdicts?.[agent.id] ? (
-                      <VerdictLine
-                        className="welcome-agent__checked"
-                        verdict={verdicts[agent.id]}
-                        lang={l}
-                        withStreak
-                      />
+                      <>
+                        <VerdictLine
+                          className="welcome-agent__checked"
+                          verdict={verdicts[agent.id]}
+                          lang={l}
+                          withStreak
+                        />
+                        <CheckedTools
+                          className="welcome-agent__calls"
+                          verdict={verdicts[agent.id]}
+                          lang={l}
+                        />
+                      </>
                     ) : null}
                     <h3 id={`welcome-proof-${agent.id}`}>{text.proof}</h3>
                     <ul aria-labelledby={`welcome-proof-${agent.id}`}>

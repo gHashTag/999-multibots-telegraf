@@ -312,3 +312,55 @@ describe('talking to a live agent from its welcome card', () => {
     )
   })
 })
+
+// "Checked" is a claim; the calls the check made are its receipt. Folded by
+// default, so the card stays as short as it was.
+describe('what the last check called, on the welcome card', () => {
+  const at = '2026-09-30T15:22:07.000Z'
+  const RU_SUMMARY = /^Что вызвала проверка \(3\)$/ // cyrillic-ok
+
+  function calls(): HTMLDetailsElement | null {
+    return host.querySelector('.welcome-agent-card .welcome-agent__calls')
+  }
+
+  function verdictWith(tools: string[]) {
+    ui.verdicts = {
+      blogger: {
+        agent: 'blogger',
+        pass: true,
+        at,
+        tools,
+        codes: [],
+        streak: 7,
+        fresh: true,
+      },
+    }
+  }
+
+  it('lists each call in words, with how many times, folded', () => {
+    verdictWith(['hive_pulse', 'web_read', 'web_read'])
+    points('en')
+    expect(calls()?.open).toBe(false)
+    expect(calls()?.querySelector('summary')?.textContent).toBe(
+      'What the check called (3)'
+    )
+    expect(
+      [...(calls()?.querySelectorAll('li') ?? [])].map(li => li.textContent)
+    ).toEqual([
+      "Read the project's pulse for the last day",
+      'Read a web page ×2',
+    ])
+  })
+
+  it('and in Russian', () => {
+    verdictWith(['hive_pulse', 'web_read', 'web_read'])
+    points('ru')
+    expect(calls()?.querySelector('summary')?.textContent).toMatch(RU_SUMMARY)
+  })
+
+  it('says nothing when the check recorded no calls', () => {
+    verdictWith([])
+    points('en')
+    expect(calls()).toBeNull()
+  })
+})
