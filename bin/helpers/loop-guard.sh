@@ -71,6 +71,10 @@ case "$TESTS" in
   *"vitest run"*) case "${TESTS##*&&}" in *"vitest run"*) MTESTS="$TESTS --bail=1" ;; esac ;;
 esac
 
+# The guard log is written as each guard finishes, so `tail -f` shows
+# progress; block-buffered, it stayed empty for the whole 9-minute run.
+export PYTHONUNBUFFERED=1
+
 MUTANTS="$ROOT/.claude/loop-state/$NAME-mutants.json"
 # The list as the tick found it: `end` runs only what was added since.
 SNAP="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants-at-start.json"
@@ -89,6 +93,12 @@ if [ "$MODE" = end ]; then
       BAD=1
     fi
   fi
+  # ...and so must a PAST guard on a file this tick changed. Tick 12 of the
+  # CRM loop (01.10.2026) narrowed Crm.tsx's "recent" row to the chip; an
+  # old test then passed with or without the line a guard mutates, and only
+  # tick 13's start found it -- a whole tick late, blamed on nobody. The
+  # files come from the HEAD `start` recorded; TRI_GUARD_ALL=1 runs every
+  # guard (a change to a TEST file can weaken a guard too, unseen here).
   # A guard adopted this tick must die under the loop-tests marker, not only
   # under the files the tick ran it with. Tick 11 (01.10.2026) adopted three
   # guards killed by crmMatches.test.ts, which the marker did not name: the
@@ -97,10 +107,17 @@ if [ "$MODE" = end ]; then
   # (each runs the whole marker suite), the full list would take minutes.
   if [ "$BAD" = 0 ] && [ -n "$TESTS" ] && [ -f "$MUTANTS" ] && [ -f "$SNAP" ]; then
     NEW="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants-new.json"
-    N=$(python3 - "$SNAP" "$MUTANTS" "$NEW" <<'PY'
-import json, sys
+    TOUCHED=""
+    if [ -f "$SNAP.head" ]; then
+      TOUCHED=$(git -C "$ROOT" diff --name-only "$(cat "$SNAP.head")" HEAD 2>/dev/null)
+    fi
+    N=$(TOUCHED="$TOUCHED" ALL="${TRI_GUARD_ALL:-}" python3 - "$SNAP" "$MUTANTS" "$NEW" <<'PY'
+import json, os, sys
 old = json.load(open(sys.argv[1]))
-new = [m for m in json.load(open(sys.argv[2])) if m not in old]
+touched = set(os.environ.get("TOUCHED", "").split())
+every = os.environ.get("ALL") == "1"
+new = [m for m in json.load(open(sys.argv[2]))
+       if every or m not in old or m["file"] in touched]
 json.dump(new, open(sys.argv[3], "w"), ensure_ascii=False, indent=2)
 print(len(new))
 PY
@@ -109,10 +126,11 @@ PY
       NLOG="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants-new.log"
       (cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" "$NEW" -- bash -c "$MTESTS") > "$NLOG" 2>&1
       if [ $? -eq 0 ]; then
-        echo "  ok    $N guard(s) adopted this tick die under the loop-tests marker"
+        echo "  ok    $N guard(s) -- adopted this tick or on a file it changed -- die under the loop-tests marker"
       else
-        echo "  STOP  a guard adopted this tick SURVIVES the loop-tests marker --"
-        echo "        add the test file that kills it to <!-- loop-tests: --> ($NLOG):"
+        echo "  STOP  a guard adopted this tick, or on a file it changed, SURVIVES --"
+        echo "        a new one: add its killing test to <!-- loop-tests: -->;"
+        echo "        an old one: this tick's change let it through ($NLOG):"
         grep -E '^(SURVIVED|survived)' "$NLOG" | head -5 | sed 's/^/          /'
         BAD=1
       fi
@@ -127,7 +145,7 @@ PY
   if [ "$BAD" = 1 ]; then
     echo "── lock kept: fix the above, then tri loop-guard end again ──"; exit 1
   fi
-  rm -f "$LOCK" "$SNAP"; echo "loop-guard: $NAME released"; exit 0
+  rm -f "$LOCK" "$SNAP" "$SNAP.head"; echo "loop-guard: $NAME released"; exit 0
 fi
 
 STOP=0
@@ -243,6 +261,7 @@ fi
 if [ "$MODE" = start ]; then
   date +%s > "$LOCK"
   if [ -f "$MUTANTS" ]; then cp "$MUTANTS" "$SNAP"; else echo '[]' > "$SNAP"; fi
+  git -C "$ROOT" rev-parse HEAD > "$SNAP.head"
   echo "── GO: lock taken; finish with tri loop-guard end ──"
 else
   echo "── GO ──"

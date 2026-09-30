@@ -1316,9 +1316,14 @@ describe('recent contacts', () => {
       Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,
         'value'
-      )!.set!.call(input, 'Lead')
+      )!.set!.call(input, 'ClientOnly')
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
+    // The search FINDS the recent person: the row must still go, or the
+    // same face shows twice. "Lead" (the old search) did not find 555, so
+    // since the row keeps to the list (tick 12) it hid either way and the
+    // test held nothing -- a past guard survived at tick 13's start.
+    expect(host.textContent).toContain('ClientOnlyName')
     expect(recentRow()).toBeNull()
   })
 })
