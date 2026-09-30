@@ -766,3 +766,40 @@
     width: 28px;
   }
 }
+
+/*
+ * RECENTLY OPENED -- a row of faces under an empty search. It scrolls
+ * sideways rather than wrapping: six people on two lines would push the
+ * list itself below the fold, which is what the row exists to avoid.
+ */
+.crm__recent ul {
+  list-style: none;
+  margin: 0;
+  padding: 2px 0 4px;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.crm__recent ul::-webkit-scrollbar {
+  display: none;
+}
+
+.crm__recent a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 60px;
+  color: inherit;
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.crm__recent a span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
