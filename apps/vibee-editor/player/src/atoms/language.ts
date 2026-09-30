@@ -1057,6 +1057,11 @@ const en: Translations = {
   'login.boardTitle': 'Sign in to your board',
   'login.boardBody':
     'Sign in with Telegram and the board opens under your name: your clients and your tasks.',
+  // The agent chat's door: /api/agent/chat answers 401 to a browser with no
+  // session, and the chat itself is free (render/src/agent/pricing.ts).
+  'login.chatTitle': 'Sign in to talk to the agent',
+  'login.chatBody':
+    'The agent answers people it knows. Sign in with Telegram — chatting is free.',
   'login.tgSignedTitle': 'You are already signed in',
   'login.tgSignedBody':
     'Telegram already identified you — no separate login exists inside the Mini App.',
@@ -3638,6 +3643,9 @@ const ru: Translations = {
   'login.boardTitle': 'Вход на вашу доску',
   'login.boardBody':
     'Войдите через Telegram — доска откроется под вашим именем: ваши клиенты и ваши задачи.',
+  'login.chatTitle': 'Войдите, чтобы поговорить с агентом',
+  'login.chatBody':
+    'Агент отвечает тем, кого знает. Войдите через Telegram — переписка бесплатна.',
   'login.tgSignedTitle': 'Вы уже вошли',
   'login.tgSignedBody':
     'Telegram уже определил вас — отдельного входа внутри мини-аппа не существует.',
