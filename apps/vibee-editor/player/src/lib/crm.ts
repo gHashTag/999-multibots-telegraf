@@ -462,9 +462,15 @@ function toClients(r: Record<string, unknown>): ClientsList {
   }
 }
 
-/** One search for every list of people: name, @username, package, id. */
+/**
+ * One search for every list of people: name, @username, package, id.
+ *
+ * A leading @ is how Telegram shows a username, so it is how people type
+ * one. The server's clientQuery drops it; this did not, and "@lapin" hid
+ * the very person the server had just found (CRM mobile loop, tick 2).
+ */
 export const matches = (x: ClientRow, q: string) => {
-  const needle = q.trim().toLowerCase()
+  const needle = q.trim().replace(/^@/, '').toLowerCase()
   if (!needle) return true
   return [x.name, x.username, x.client, x.telegramId]
     .filter(Boolean)

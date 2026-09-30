@@ -495,7 +495,7 @@ const en: Translations = {
   'crm.auto.chosen.some': '{n} picked',
   'crm.auto.hint':
     'Prepared cards go out by themselves; each send is reported with a stop button.',
-  'crm.filter.search': 'Search by name or id',
+  'crm.filter.search': 'Name, @username or id',
   'crm.filter.segment': 'Segment',
   'crm.vip.title': 'Under way',
   'crm.vip.note': 'Paid, or with a package, or touched this week',
@@ -3126,7 +3126,7 @@ const ru: Translations = {
   'crm.auto.chosen.some': 'выбрано {n}',
   'crm.auto.hint':
     'Подготовленные карточки уходят сами; о каждой отправке приходит отчёт с кнопкой «Выключить».',
-  'crm.filter.search': 'Поиск по имени или id',
+  'crm.filter.search': 'Имя, @username или id',
   'crm.filter.segment': 'Сегмент',
   'crm.vip.title': 'В работе',
   'crm.vip.note': 'Оплатившие, с пакетом или с касанием на этой неделе',
