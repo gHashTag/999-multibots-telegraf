@@ -235,5 +235,35 @@
     "from": "  .crm__outcomes button {\n    flex: 1 1 0;\n  }",
     "to": "",
     "name": "phone outcomes not in even thirds"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  .crm__who:has(> .crm-avatar) {\n    display: grid;",
+    "to": "  .crm__who:has(> .crm-avatar) {\n    display: flex;",
+    "name": "phone head back to one flex line"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "grid-template-columns: auto minmax(0, 1fr);",
+    "to": "grid-template-columns: auto 1fr;",
+    "name": "name column may widen past the row"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "    row-gap: 0;",
+    "to": "    row-gap: 10px;",
+    "name": "name parted from its subtitle"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "grid-row: span 2;",
+    "to": "grid-row: auto;",
+    "name": "face on the name line only"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "        <Link to={`/crm/${r.telegramId}`} className=\"crm__open\">\n          {r.name || r.telegramId}\n        </Link>\n        <span className=\"crm__stage\">",
+    "to": "        <span className=\"crm__stage\">",
+    "name": "waiting head loses the name link"
   }
 ]
