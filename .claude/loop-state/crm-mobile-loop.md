@@ -139,3 +139,5 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - 01.10.2026 01:58: tick 4: Back from a card reset the list (sibling routes) and the crumb went to the work tab; state now in the address via useUrlMirror, crumb steps back. The owner's 'saved views' pain was per-visit, not per-day
 
 - 01.10.2026 02:29: tick 5: card opened mid-page and Back lost the list's place (no route scroll handling anywhere); useScrollMemory saves in a layout cleanup (a scroll listener lost the race), restores after re-read; a stub card had hidden it -- harness mounts the real card now; loop-tests marker ends the hand-copied tests command
+
+- 01.10.2026 03:03: tick 6: tick 4's real-Back crumb built a Back loop with the chat's pushing link (useBackTo/cameFrom, firstEntry state); chat top row widened the page to 502px -- min-width:0, 44px targets, client name in title; the harness lacked TelegramTabBar and faked an overlap

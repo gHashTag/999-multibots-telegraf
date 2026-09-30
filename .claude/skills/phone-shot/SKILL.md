@@ -178,6 +178,35 @@ var(--app-tabbar-total, 0px), var(--app-safe-bottom, 0px)) + 12px)` stays
     jsdom has no layout: fake the clamp with `Object.defineProperty(
 document.documentElement, 'scrollTop', {get, set})`.
 
+- **A crumb that is a real Back needs every link INTO its screen to
+  cooperate.** Tick 6 found a loop that tick 4 caused. The card's crumb
+  became `navigate(-1)`, but the chat's "to the client" still PUSHED the
+  card. So chat -> card -> Back -> chat -> card went on forever. Fix
+  (`src/lib/backTo.ts`): the opener passes `state={cameFrom(path)}`, and the
+  child's back link calls `useBackTo(path)`. That steps back when it came
+  from `path` and otherwise REPLACES itself with `path`. A replace gets a
+  fresh key, so `key === 'default'` alone forgets that this was the first
+  entry. Carry `state.firstEntry` and test through `isFirstEntry()`.
+  **Check:** for every `navigate(-1)` crumb, grep every `<Link to=` that
+  reaches that route.
+- **A harness must mount the app's own chrome.** Without `TelegramTabBar`,
+  pages reserve 0 px for the bar (`body[data-tabbar]` is never set), and the
+  header's fallback bottom bar covers the composer. That overlap exists only
+  in the harness. Before calling an overlap a bug, check that the harness
+  mounts what `App.tsx` mounts.
+- **A flex row without `min-width: 0` defeats the ellipsis and widens the
+  PAGE.** The chat top row was 490 px wide at 390, and the document scrolled
+  sideways to 502. Measure `document.documentElement.scrollWidth`, not only
+  the row. **Fix:** the row gets `min-width: 0; max-width: 100%`, the title
+  gets `min-width: 0`.
+- **A shared class with `margin-left: auto` splits the free space.** Card and
+  Queen both pushed, so they stood apart mid-row. The override must win on
+  specificity (`.a.b`), because an earlier plain `.b` rule loses to the
+  later shared one.
+- **44 px targets without growing the row:** use `min-height: 44px` plus
+  negative `margin-block` under `(pointer: coarse)`, so the target reaches
+  into the row's padding.
+
 ## Related Resources
 
 - `bin/helpers/shot.mjs`, `bin/helpers/shot-story-answer.ts`
