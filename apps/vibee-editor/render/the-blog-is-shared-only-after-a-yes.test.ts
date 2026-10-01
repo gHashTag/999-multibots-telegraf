@@ -343,3 +343,18 @@ describe('a press is not a post', () => {
     ) // cyrillic-ok: test
   })
 })
+
+describe('the headline says what is known', () => {
+  it('pressed everywhere, confirmed nowhere, is NOT "published"', async () => {
+    const { headlineOf, LEFT_THE_FORM } = await import('./src/agent/blog-share')
+    const unconfirmed = {
+      X: 'нажато «Post» · не подтверждено: страница не сменилась',
+    } // cyrillic-ok: test
+    expect(headlineOf(unconfirmed)).not.toMatch(/Опубликовано/) // cyrillic-ok: test
+    const published = 'Опубликовано' // cyrillic-ok: test
+    expect(headlineOf({ X: `нажато «Post» · ${LEFT_THE_FORM}` })).toContain(
+      published
+    ) // cyrillic-ok: test
+    expect(headlineOf({ error: 'x' })).toMatch(/Не получилось/) // cyrillic-ok: test
+  })
+})
