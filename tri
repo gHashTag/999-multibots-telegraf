@@ -393,6 +393,20 @@ CHECKS THAT EACH COST A CYCLE
         The server caps the window at 200 events, so the oldest day in the
         output is partial and its count means nothing on its own.
 
+  tri voice | tri голос
+        The voice mode end to end: status, warm-up, a fixed phrase spoken in
+        Russian and English by OUR engine, and each heard back by OUR whisper.
+        No microphone needed. Times are printed so days compare; over 3 s to
+        speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
+        (the render's AGENT_KEYS, first entry, up to ':'); without it only the
+        public status is read and the exit code says NOT MEASURED (2).
+
+  tri loop | tri виток
+        Where the last loop cycle stopped, before this one starts: dirty tree,
+        gates or pushes running IN THIS TREE, this branch's PR, and the newest
+        player/render deploys. Exit 1 = work in flight, continue it; a FAILED
+        deploy on main blocks every later merge of that service.
+
   tri pay [--invoice] | tri оплата
         Can a client pay RIGHT NOW, rail by rail.
 
@@ -1778,8 +1792,15 @@ _mcp_key() {
   local f="${TRI_AGENT_KEY_FILE:-/tmp/.ak.tmp}"
   if [ -s "$f" ]; then tr -d '\r\n' < "$f"; return 0; fi
   local v
-  v=$(infisical secrets get AGENT_KEY --plain 2>/dev/null | tr -d '\r\n')
-  [ -n "$v" ] && { printf '%s' "$v"; return 0; }
+  # Bounded and with no terminal: logged out, the CLI falls into an
+  # interactive `infisical login` and waits for ever. On 2026-10-02 that hung
+  # `tri voice` for five minutes with no output, and every command that needs
+  # a key (browser, heal, saw, journal) hangs the same way.
+  v=$(timeout 15 infisical secrets get AGENT_KEY --plain </dev/null 2>/dev/null | tr -d '\r\n')
+  # A key is one token of plain characters. The CLI also prints notices to
+  # stdout (an update banner with an arrow in it), and that text was handed
+  # on as the key and broke the very first header that carried it.
+  [[ "$v" =~ ^[A-Za-z0-9._:-]{16,}$ ]] && { printf '%s' "$v"; return 0; }
   return 1
 }
 
@@ -5134,6 +5155,181 @@ cmd_secrets() {
   node "$ROOT/scripts/scan-secrets-on-disk.cjs" "${roots[@]}"
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# tri voice: the voice mode end to end, measured instead of believed.
+#
+# "The voice works" was said four times in one night (2026-10-01) and each
+# time something else was wrong: the models were cold (10 s to the first
+# word), the Russian sentence went to an English voice, the answer read card
+# markup aloud. Each of those is a number this command prints. The round trip
+# (our own TTS -> our own whisper) is the one check that needs no microphone
+# and still proves both ears and mouth are the ones a person gets.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_voice() {
+  local key
+  key=$(_mcp_key 2>/dev/null) || key=''
+  V_KEY="$key" V_BASE="$RENDER" python3 -u - <<'PY'
+import json, os, sys, time, urllib.error, urllib.request
+
+base, key = os.environ['V_BASE'], os.environ['V_KEY']
+
+def call(path, body=None, ctype='application/json', timeout=90):
+    data = body if isinstance(body, (bytes, type(None))) else json.dumps(body).encode()
+    req = urllib.request.Request(base + path, data=data, method='POST' if data is not None else 'GET')
+    if data is not None:
+        req.add_header('Content-Type', ctype)
+    if key:
+        req.add_header('X-Agent-Key', key)
+    t = time.monotonic()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, r.read(), int((time.monotonic() - t) * 1000)
+    except urllib.error.HTTPError as e:
+        return e.code, e.read(), int((time.monotonic() - t) * 1000)
+    except Exception as e:
+        return 0, str(e).encode(), int((time.monotonic() - t) * 1000)
+
+worst = 0
+def mark(level):
+    global worst
+    worst = max(worst, level)
+
+code, body, ms = call('/api/voice/status')
+if code != 200:
+    why = body[:120].decode(errors='replace') if code == 0 else f'HTTP {code}'
+    print(f'  status: {why} -- the voice routes did not answer')
+    sys.exit(3)
+st = json.loads(body)
+print(f"  status: hear={st.get('hear')} speak={st.get('speak')} "
+      f"voices ru={len(st.get('voices', {}).get('ru', []))} en={len(st.get('voices', {}).get('en', []))}")
+if not (st.get('hear') and st.get('speak')):
+    mark(1)
+if not key:
+    print('  no agent key: only the public status was read (NOT MEASURED past it)')
+    sys.exit(2)
+
+code, body, ms = call('/api/voice/warm', {'lang': 'ru'})
+if code == 401:
+    print('  warm: 401 -- this key is not a person; voice routes need one')
+    sys.exit(2)
+print(f'  warm ru: HTTP {code} {body[:80].decode(errors="replace")} in {ms} ms')
+if code != 200:
+    mark(1)
+
+# The same two phrases every run, so the timings compare across days.
+phrases = {'ru': 'Проверка голоса: раз, два, три, четыре.',  # cyrillic-ok: the phrase IS the probe
+           'en': 'Voice check: one, two, three, four.'}
+audio = {}
+for lang, text in phrases.items():
+    code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
+    if code == 200 and len(body) > 1000:
+        audio[lang] = body
+        verdict = 'ok' if ms < 3000 else 'SLOW (the first word waits for this)'
+        print(f'  speak {lang}: {len(body)} bytes in {ms} ms -- {verdict}')
+        if ms >= 3000:
+            mark(2)
+    else:
+        print(f'  speak {lang}: HTTP {code} {body[:100].decode(errors="replace")}')
+        mark(1)
+
+for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: the expected word
+    if lang not in audio:
+        continue
+    code, body, ms = call(f'/api/voice/transcribe?lang={lang}', audio[lang], 'audio/mpeg')
+    heard = json.loads(body).get('text', '') if code == 200 else body[:100].decode(errors='replace')
+    ok = code == 200 and probe in heard.lower()
+    # A four-second phrase heard in more than three seconds is the wait a
+    # person sits through after every question (first run: ru 4.6 s, en 2.1 s).
+    slow = ok and ms >= 3000
+    print(f'  round trip {lang}: "{heard[:60]}" in {ms} ms -- '
+          f'{"WRONG" if not ok else "SLOW (the person waits this after speaking)" if slow else "ok"}')
+    mark(1 if not ok else 2 if slow else 0)
+
+sys.exit(worst)
+PY
+  local rc=$?
+  case "$rc" in
+    0) good 'the voice hears and speaks both languages' ;;
+    1) bad 'part of the voice is broken -- the lines above say which' ;;
+    2) warn 'not fully measured, or slow -- see above' ;;
+    *) bad 'the render did not answer' ;;
+  esac
+  return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri loop: where the last cycle stopped, before this one starts.
+#
+# A cron loop fires every 15 minutes whether the previous cycle finished or
+# not. The way a new cycle breaks the old one is not a bad edit, it is a
+# blind start: a second branch over a dirty tree, a second push while a hook
+# run still holds the first, a merge while the deploy of the last one is red.
+# This prints all of it in one screen, and the exit code says whether it is
+# safe to begin something new (0) or there is work in flight to continue (1).
+# ─────────────────────────────────────────────────────────────────────────
+cmd_loop() {
+  local busy=0 branch dirty ahead
+  branch=$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)
+  git -C "$ROOT" fetch origin main --quiet 2>/dev/null
+  dirty=$(git -C "$ROOT" status --porcelain | grep -v '\.claude/launch\.json$' | wc -l | tr -d ' ')
+  ahead=$(git -C "$ROOT" rev-list --count origin/main..HEAD 2>/dev/null || echo '?')
+  printf '  branch %s: %s uncommitted, %s commits not in main\n' "$branch" "$dirty" "$ahead"
+  [ "$dirty" != 0 ] && { warn 'uncommitted work: finish and commit it before anything new'; busy=1; }
+
+  # Only processes working IN THIS TREE. Every session on this machine pushes
+  # and runs gates; the first version of this check counted another session's
+  # `git push` as ours and would have parked this loop behind it for ever.
+  local pid running=''
+  for pid in $(pgrep -f 'lefthook run|test-gate\.mjs|vitest run|git push' 2>/dev/null); do
+    case "$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" in
+      "$ROOT"|"$ROOT"/*) running+="$(ps -o pid=,command= -p "$pid" | cut -c1-130)"$'\n' ;;
+    esac
+  done
+  if [ -n "$running" ]; then
+    warn 'a gate or push is still running in this tree -- wait, do not start a second:'
+    printf '%s' "$running" | sed 's/^/        /'
+    busy=1
+  fi
+
+  if command -v gh >/dev/null; then
+    local mine
+    mine=$(gh pr list --head "$branch" --state all --json number,state,title \
+      --jq '.[0] | select(.) | "#\(.number) \(.state) -- \(.title)"' 2>/dev/null)
+    printf '  this branch PR: %s\n' "${mine:-none yet}"
+  fi
+
+  # Each service's newest deploy. A FAILED one on main blocks every later
+  # merge of that service: fix it first, or nothing you merge goes live.
+  local svc name
+  for svc in 7aad4834-8ac0-4d6b-a031-44ec694ad8de:player 6339df9c-15b8-4f51-ba26-4af0b55c596a:render; do
+    name=${svc#*:}
+    timeout 30 railway deployment list -p 564d9ebd-7aa8-44fe-93ec-e0b03c87158d \
+      -e e4d200ad-b8a9-4edf-9b25-190a32613b32 -s "${svc%%:*}" --limit 1 --json 2>/dev/null \
+      | python3 -c '
+import json, sys
+name = sys.argv[1]
+try:
+    d = json.load(sys.stdin)[0]
+except Exception:
+    print("  " + name + ": deploy state unknown (railway did not answer)")
+    sys.exit(2)
+m = d.get("meta") or {}
+msg = (m.get("commitMessage") or "").splitlines()[0][:60]
+print("  %s: %s %s %s" % (name, d["status"], (m.get("commitHash") or "")[:9], msg))
+# 4, not 1: a crash of this very script also exits 1, and must not read as
+# "the deploy failed" -- the first run of this check said exactly that.
+sys.exit(4 if d["status"] in ("FAILED", "CRASHED") else 0)
+' "$name"
+    if [ "${PIPESTATUS[1]}" = 4 ]; then
+      bad "$name: the last deploy failed -- fix it before merging more"
+      busy=1
+    fi
+  done
+
+  if [ "$busy" = 0 ]; then good 'nothing in flight: safe to start the next item'; fi
+  return "$busy"
+}
+
 case "$action" in
   # English is the primary name; the Russian one stays as an alias because loop
   # scripts, skills and the journal already call it. Renaming without the alias
@@ -5219,6 +5415,8 @@ case "$action" in
   iphone|айфон)        cmd_iphone "$@" ;;   # cyrillic-ok: alias, like its neighbours
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
+  voice|голос)         cmd_voice ;;
+  loop|виток)          cmd_loop ;;
   heal|исцели)         cmd_heal ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;

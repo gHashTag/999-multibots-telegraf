@@ -58,6 +58,9 @@ function Storyboard({
   cta: string
 }) {
   const { t } = useLanguage()
+  // A face that will not load shows the empty frame, not a broken icon; a
+  // replaced photo gets its own chance.
+  const [brokenFace, setBrokenFace] = useState<string | null>(null)
   const card = ready.endCard ?? {}
   return (
     <ol
@@ -67,8 +70,14 @@ function Storyboard({
     >
       {Array.from({ length: count }, (_, i) => (
         <li key={i} className="story-reel__frame">
-          {face ? (
-            <img src={face} alt="" loading="lazy" draggable={false} />
+          {face && face !== brokenFace ? (
+            <img
+              src={face}
+              alt=""
+              loading="lazy"
+              draggable={false}
+              onError={() => setBrokenFace(face)}
+            />
           ) : (
             <span className="story-reel__frame-empty" aria-hidden>
               ◎
