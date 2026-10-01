@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "kanban-card-chat" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 3 satisfies number;
+export const VERSION = 4 satisfies number;
 export const THREAD_PREFIX = "task:" satisfies string;
 export const NUMBER_SEP = "#" satisfies string;
 export const TASK_OWNER = "gHashTag" satisfies string;
@@ -71,10 +71,33 @@ export const CHECKS_ONE_READ = true satisfies boolean;
 export const PUBLIC_READS_HOUR = 60 satisfies number;
 export const READS_PER_OPEN_MAX = 4 satisfies number;
 export const OPENS_PER_HOUR_MIN = 15 satisfies number;
+export const STATUS_DOOR = "/api/card-status" satisfies string;
+export const SERVER_TOKEN_ENV = "GITHUB_READ_TOKEN" satisfies string;
+export const STATUS_DOOR_NEEDS_PERSON = true satisfies boolean;
+export const SERVER_READS_PER_OPEN = 1 satisfies number;
+export const SERVER_REFS_LAST = 100 satisfies number;
+export const SERVER_SHARED_CACHE = true satisfies boolean;
+export const SERVER_CACHE_CARDS_MAX = 1000 satisfies number;
+export const SERVER_READS_ONLY = true satisfies boolean;
+export const SOURCE_SERVER = 0 satisfies number;
+export const SOURCE_CLIENT = 1 satisfies number;
 export const CARDS_ON_KANBAN = true satisfies boolean;
 export const ACTIONS_ON_TAP_ONLY = true satisfies boolean;
 export const MOVE_OFFERED = false satisfies boolean;
 export const AGENT_OPENS_PR = false satisfies boolean;
+export const COL_BACKLOG = 0 satisfies number;
+export const COL_BLOCKED = 1 satisfies number;
+export const COL_RUNNING = 2 satisfies number;
+export const COL_REVIEW = 3 satisfies number;
+export const COL_DONE = 4 satisfies number;
+export const COL_DROPPED = 5 satisfies number;
+export const COLUMNS = 6 satisfies number;
+export const MOVE_DOOR = "/queen/move" satisfies string;
+export const MOVE_DOOR_EXISTS = false satisfies boolean;
+export const MOVE_DOOR_ONE_CARD = true satisfies boolean;
+export const REGISTRY_PUT_IS_A_MOVE = false satisfies boolean;
+export const MOVE_SAYS_FROM = true satisfies boolean;
+export const MOVE_ANSWER_HAS_REASON = true satisfies boolean;
 export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn number_ok was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn repo_ok was not emitted -- this backend lowers declarations, not bodies.
@@ -87,7 +110,15 @@ export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn prs_shown was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn pages_read was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn more_is_lower_bound was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn status_source was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn refs_partial was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn move_offered was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn move_target_ok was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn move_applies was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn action_runs was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -107,7 +138,7 @@ export const RUN_LIVE = false satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "THREAD_PREFIX", "NUMBER_SEP", "TASK_OWNER", "REPO_FROM_BOARD", "BOARD_CACHE_S", "REPO_NAME_MAX", "NUMBER_MAX", "PER_PERSON", "SPLITS", "WITH_AGENT", "WITH_CLIENT", "WITH_ROOM", "WITH_CONVERSATION", "FIELD", "CHAT_DOOR", "HISTORY_DOOR", "SURFACE", "HISTORY_LIMIT", "NOTE_SOURCE", "NOTE_MAX", "NOTE_FENCED", "NOTE_WITHOUT_BOARD", "UNTITLED_SAYS_SO", "MSG_V", "MSG_TYPE", "MSG_KIND", "SAME_ORIGIN_ONLY", "TITLE_MAX", "CARD_PARAM", "REPO_PARAM", "DETENT_PEEK", "DETENT_HALF", "DETENT_FULL", "OPEN_DETENT", "DETENT_PEEK_RANK", "DETENT_HALF_RANK", "DETENT_FULL_RANK", "OPEN_DETENT_RANK", "COMPOSER_PINNED", "GITHUB_IS_SECONDARY", "TOUCH_TARGET_PX", "A2A_META_KEY", "A2A_CONTEXT_IS_THREAD", "A2A_HISTORY_TURNS", "A2A_PERSISTS", "STATUS_CACHE_S", "PRS_SHOWN_MAX", "CHECKS_PRS_MAX", "CHECK_PASS_RANK", "CHECK_PENDING_RANK", "CHECK_FAIL_RANK", "CHECK_NONE_RANK", "STATUS_UNMEASURED", "STATUS_NO_PR", "STATUS_PRS", "UNMEASURED_IS_NOT_NONE", "LIMIT_SAYS_WHEN", "TIMELINE_PAGE", "TIMELINE_PAGES_MAX", "MIDDLE_SAYS_AT_LEAST", "CHECKS_ONE_READ", "PUBLIC_READS_HOUR", "READS_PER_OPEN_MAX", "OPENS_PER_HOUR_MIN", "CARDS_ON_KANBAN", "ACTIONS_ON_TAP_ONLY", "MOVE_OFFERED", "AGENT_OPENS_PR", "RUN_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "THREAD_PREFIX", "NUMBER_SEP", "TASK_OWNER", "REPO_FROM_BOARD", "BOARD_CACHE_S", "REPO_NAME_MAX", "NUMBER_MAX", "PER_PERSON", "SPLITS", "WITH_AGENT", "WITH_CLIENT", "WITH_ROOM", "WITH_CONVERSATION", "FIELD", "CHAT_DOOR", "HISTORY_DOOR", "SURFACE", "HISTORY_LIMIT", "NOTE_SOURCE", "NOTE_MAX", "NOTE_FENCED", "NOTE_WITHOUT_BOARD", "UNTITLED_SAYS_SO", "MSG_V", "MSG_TYPE", "MSG_KIND", "SAME_ORIGIN_ONLY", "TITLE_MAX", "CARD_PARAM", "REPO_PARAM", "DETENT_PEEK", "DETENT_HALF", "DETENT_FULL", "OPEN_DETENT", "DETENT_PEEK_RANK", "DETENT_HALF_RANK", "DETENT_FULL_RANK", "OPEN_DETENT_RANK", "COMPOSER_PINNED", "GITHUB_IS_SECONDARY", "TOUCH_TARGET_PX", "A2A_META_KEY", "A2A_CONTEXT_IS_THREAD", "A2A_HISTORY_TURNS", "A2A_PERSISTS", "STATUS_CACHE_S", "PRS_SHOWN_MAX", "CHECKS_PRS_MAX", "CHECK_PASS_RANK", "CHECK_PENDING_RANK", "CHECK_FAIL_RANK", "CHECK_NONE_RANK", "STATUS_UNMEASURED", "STATUS_NO_PR", "STATUS_PRS", "UNMEASURED_IS_NOT_NONE", "LIMIT_SAYS_WHEN", "TIMELINE_PAGE", "TIMELINE_PAGES_MAX", "MIDDLE_SAYS_AT_LEAST", "CHECKS_ONE_READ", "PUBLIC_READS_HOUR", "READS_PER_OPEN_MAX", "OPENS_PER_HOUR_MIN", "STATUS_DOOR", "SERVER_TOKEN_ENV", "STATUS_DOOR_NEEDS_PERSON", "SERVER_READS_PER_OPEN", "SERVER_REFS_LAST", "SERVER_SHARED_CACHE", "SERVER_CACHE_CARDS_MAX", "SERVER_READS_ONLY", "SOURCE_SERVER", "SOURCE_CLIENT", "CARDS_ON_KANBAN", "ACTIONS_ON_TAP_ONLY", "MOVE_OFFERED", "AGENT_OPENS_PR", "COL_BACKLOG", "COL_BLOCKED", "COL_RUNNING", "COL_REVIEW", "COL_DONE", "COL_DROPPED", "COLUMNS", "MOVE_DOOR", "MOVE_DOOR_EXISTS", "MOVE_DOOR_ONE_CARD", "REGISTRY_PUT_IS_A_MOVE", "MOVE_SAYS_FROM", "MOVE_ANSWER_HAS_REASON", "RUN_LIVE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

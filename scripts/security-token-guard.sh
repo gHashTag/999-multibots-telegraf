@@ -167,9 +167,12 @@ for i in "${!PATTERNS[@]}"; do
   #    ключи так не выглядят: в них есть строчные буквы или разделители.
   #    Отсеиваем ТОЛЬКО значение целиком из [A-Z0-9_] — одна строчная буква
   #    внутри, и строка снова считается подозрительной.
+  #    `t27c gen-ts` emits the same name as
+  #      export const SERVER_TOKEN_ENV = "GITHUB_READ_TOKEN" satisfies string;
+  #    -- the ` satisfies string;` tail is allowed, the value is still [A-Z0-9_].
   hits="$(printf '%s\n' "$raw" \
     | grep -v 'secret-guard-ok' \
-    | grep -vE "[=:][[:space:]]*[\"']?[A-Z][A-Z0-9_]{7,}[\"']?,?[[:space:]]*$")"
+    | grep -vE "[=:][[:space:]]*[\"']?[A-Z][A-Z0-9_]{7,}[\"']?( satisfies string)?[,;]?[[:space:]]*$")"
   # grep: 0 — нашёл, 1 — не нашёл, >=2 — сам сломался. Третий случай нельзя
   # молча считать чистотой.
   if [ "$rc" -ge 2 ]; then

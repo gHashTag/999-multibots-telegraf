@@ -266,6 +266,63 @@ describe('readCardStatus', () => {
   })
 })
 
+describe('readCardStatus with the server door (v4)', () => {
+  const prs = {
+    kind: 'prs',
+    prs: [
+      {
+        repo: 'o/r',
+        number: 1,
+        title: 'x',
+        state: 'open',
+        draft: false,
+        url: 'u',
+        checks: 'pass',
+      },
+    ],
+    more: 0,
+    partial: false,
+  }
+
+  it('a measured answer is used and cached; GitHub is not read', async () => {
+    const storage = memory()
+    const github = vi.fn(async () => json([]))
+    const door = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ configured: true, measured: true, status: prs })
+        )
+    )
+    const opts = { storage, door, fetchImpl: github as never }
+    expect(await readCardStatus('o/r', 9, opts)).toEqual(prs)
+    expect(await readCardStatus('o/r', 9, opts)).toEqual(prs)
+    expect(door).toHaveBeenCalledTimes(1)
+    expect(github).not.toHaveBeenCalled()
+  })
+
+  it('a door that is down or answers nonsense is skipped, not trusted', async () => {
+    for (const door of [
+      async () => {
+        throw new TypeError('Failed to fetch')
+      },
+      async () => new Response('<html>', { status: 200 }),
+      async () =>
+        new Response(
+          JSON.stringify({ measured: true, status: { kind: 'prs' } })
+        ),
+    ]) {
+      const github = vi.fn(async () => json([]))
+      const s = await readCardStatus('o/r', 9, {
+        storage: null,
+        door,
+        fetchImpl: github as never,
+      })
+      expect(github).toHaveBeenCalled()
+      expect(s).toEqual({ kind: 'none' })
+    }
+  })
+})
+
 describe('lastPage', () => {
   it('reads rel="last" and nothing else', () => {
     expect(

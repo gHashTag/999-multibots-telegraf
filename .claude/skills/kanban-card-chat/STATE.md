@@ -26,6 +26,13 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 - [x] L2.2 The card's status, PR and checks in the sheet; move / open-PR only on the person's tap -- spec v2 (t27 b8daa6b06 on t27#5389), `cardStatus.ts`, WorkStrip, agent cards in the sheet, `KANBAN_LIMITS` in the prompt; no move button (the column is the Queen's verdict, render has no GitHub token)
 - [x] L2.4 v2 checked against live GitHub, two defects found and fixed in spec v3 (t27 455740292 on t27#5389): the timeline is read at both ends (page 1 + last page, `Link` rel="last"), the middle is said as "at least N more"; checks by `commits/refs/pull/<n>/head/check-runs` -- one read, no `pulls/<n>` (CHECKS_ONE_READ); one open costs <= 4 of the 60 public reads/hour (READS_PER_OPEN_MAX)
 
+### Loop 3 (owner: "все три" again -- live check, server reads, S15)
+
+- [x] L3.1 `tri card-check [n]` -- GETs only, three verdicts (task thread, /api/card-status, the PRs merged); exit 0 live / 2 waiting / 1 wrong. Run 2026-10-01: all `wait` (nothing merged, render still answers `self`, the door 404)
+- [x] L3.2 Spec v4 (t27 ea1fac67b on t27#5389, 19/19): STATUS_DOOR `/api/card-status`; render `src/agent/card-status.ts` -- one GraphQL query (never a mutation) for the newest 100 references with check rollups, a cache shared by everyone (1000 cards), concurrent opens coalesced; a person required (resolveIdentity before the door). INERT until the owner sets `GITHUB_READ_TOKEN` on vibee-render: 503 `{configured:false}`, and the client reads as in v3. Player: door first, any unmeasured / broken answer falls back. Parity test: server order == client `linkedPrs` order
+- [x] L3.3 S15 move: the Queen has NO door to move one card (read on BrowserOS trios/agent-server #517: the column is computed from registry -> dispatch verdict -> open issue; `PUT /queen/registry` replaces the whole array; `/queen/move` 404). Spec v4 holds the contract for a one-card door (MOVE_SAYS_FROM, target only backlog/dropped, answer with a reason); player `lib/cardMove.ts`; the sheet shows nothing (MOVE_OFFERED = moveOffered(false, ...))
+- [x] L3.4 Merged origin/main (#3223 Tasks tab) by hand: the sync tool timed out on `git ls-remote` twice
+
 ## Weak spots (S0)
 
 1. Card tap opens GitHub in a new tab; nothing about the agent.
@@ -79,6 +86,15 @@ git-dir>)`). Fix: `resolve`, and the stray dir removed. A tool that writes
   opens an hour emptied the public allowance. Fix: spec v3 -- first and last
   page at per_page=100, "at least" for the unread middle, a partial read
   never says "no PR", checks by the PR's head ref in one read; <= 4 reads.
+- **2026-10-01, the merge tool timed out.** `sync_with_base_branch` failed
+  twice on `git ls-remote`; a hand `git merge origin/main` worked. Conflict
+  with #3223 in `language.ts` (`nav.hive` became "Game", `nav.tasks` added)
+  and `chat.ts` dmContext (main added `defects`): both kept.
+- **iOS Tasks tab (#3223) has a NATIVE fallback kanban** when the web host
+  fails; a tap there does not open the card chat. Not ours to change in this
+  PR -- noted for the iOS owner.
+- **The live render answers `?task=` with `self`** (2026-10-01, card-check):
+  the deploy is the owner's merge, not a defect.
 
 ## PRs
 
@@ -100,5 +116,10 @@ git-dir>)`). Fix: `resolve`, and the stray dir removed. A tool that writes
    the sheet with no GitHub tab (open-card path, not the anchor catch).
 3. On a live card with a PR: the strip shows the PR chip and a checks dot;
    past 60 reads/hour it must say "limit, again after HH:MM", never "no PR".
-4. On an issue with > 200 timeline events (#999 of this repo has 149; find a
+4. `tri card-check` -- one command for 1-3 below; `wait` lines name what is
+   missing (merge, deploy, token).
+5. On an issue with > 200 timeline events (#999 of this repo has 149; find a
    bigger one): the chip says "at least N more", and the newest PR is first.
+6. After the owner sets `GITHUB_READ_TOKEN` (read-only, public repos): `tri
+card-check` line 2 says `ok server read`, and opening a card in the app
+   makes no request to api.github.com (network panel).

@@ -30,6 +30,24 @@ import {
   cardStates,
   parseCards,
 } from '../../../player/src/lib/agentCards'
+import {
+  linkedPrs,
+  readCardStatus as readOnClient,
+} from '../../../player/src/lib/cardStatus'
+import {
+  moveApplies,
+  moveOffered,
+  moveTargetOk,
+} from '../../../player/src/lib/cardMove'
+import {
+  CARD_STATUS_QUERY,
+  clearCardStatusCache,
+  handleCardStatus,
+  refsPartial,
+  statusFromGraphql,
+  statusSource,
+} from '../agent/card-status'
+import { readFileSync } from 'node:fs'
 
 /**
  * THE KANBAN CARD CHAT IS WRITTEN IN t27 FIRST (skill t27-spec-first).
@@ -368,9 +386,234 @@ describe('kanban-card-chat.t27 against the host', () => {
     expect(SPEC.AGENT_OPENS_PR).toBe(false)
   })
 
+  // The server's door, called the way render-server calls it.
+  const door = async (
+    url: string,
+    opts: Parameters<typeof handleCardStatus>[2]
+  ) => {
+    let code = 0
+    let body = ''
+    await handleCardStatus(
+      { url } as never,
+      {
+        writeHead: (c: number) => void (code = c),
+        end: (b: string) => void (body = b),
+      } as never,
+      opts
+    )
+    return { code, body: JSON.parse(body) }
+  }
+  const gqlNode = (
+    n: number,
+    at: string,
+    extra: Record<string, unknown> = {},
+    rollup: string | null = 'SUCCESS'
+  ) => ({
+    createdAt: at,
+    source: {
+      number: n,
+      title: `PR ${n}`,
+      state: 'OPEN',
+      isDraft: false,
+      url: `https://github.com/gHashTag/t27/pull/${n}`,
+      merged: false,
+      repository: { nameWithOwner: 'gHashTag/t27' },
+      commits: {
+        nodes: [{ commit: { statusCheckRollup: rollup && { state: rollup } } }],
+      },
+      ...extra,
+    },
+  })
+  const gql = (nodes: unknown[], totalCount = nodes.length) =>
+    new Response(
+      JSON.stringify({
+        data: {
+          repository: { issue: { timelineItems: { totalCount, nodes } } },
+        },
+      })
+    )
+
+  it('with no token the door says so and the client reads for itself', async () => {
+    expect(statusSource(true, true)).toBe(SPEC.SOURCE_SERVER)
+    expect(statusSource(true, false)).toBe(SPEC.SOURCE_CLIENT)
+    expect(statusSource(false, true)).toBe(SPEC.SOURCE_CLIENT)
+    expect(statusSource(false, false)).toBe(SPEC.SOURCE_CLIENT)
+    clearCardStatusCache()
+    const github = vi.fn(async () => gql([]))
+    // No token: "not configured", and GitHub is never asked.
+    const off = await door('/api/card-status?repo=gHashTag/t27&n=5', {
+      env: {},
+      fetchImpl: github as never,
+    })
+    expect(off).toEqual({ code: 503, body: { configured: false } })
+    expect(github).not.toHaveBeenCalled()
+    // Not ours: refused, never read.
+    expect(
+      (await door('/api/card-status?repo=someone/else&n=5', { env: {} })).code
+    ).toBe(400)
+    // UNMEASURED_IS_NOT_NONE: GitHub silent is "not measured", not "no PR".
+    const silent = await door('/api/card-status?repo=gHashTag/t27&n=6', {
+      env: { [SPEC.SERVER_TOKEN_ENV]: 't' },
+      fetchImpl: (async () => new Response('', { status: 502 })) as never,
+    })
+    expect(silent.body).toEqual({ configured: true, measured: false })
+    // The client takes a measured answer and otherwise reads GitHub itself.
+    for (const [answer, clientReads] of [
+      [new Response('{"configured":false}', { status: 503 }), true],
+      [new Response('{"configured":true,"measured":false}'), true],
+      [
+        new Response(
+          JSON.stringify({
+            configured: true,
+            measured: true,
+            status: { kind: 'none' },
+          })
+        ),
+        false,
+      ],
+    ] as const) {
+      const reads = vi.fn(async () => new Response('[]'))
+      const s = await readOnClient('gHashTag/t27', 7, {
+        storage: null,
+        door: async () => answer,
+        fetchImpl: reads as never,
+      })
+      expect(reads.mock.calls.length > 0).toBe(clientReads)
+      expect(s).toEqual({ kind: 'none' })
+    }
+    // STATUS_DOOR_NEEDS_PERSON: the route resolves a person before the door.
+    const server = readFileSync(
+      new URL('../../render-server.ts', import.meta.url),
+      'utf8'
+    )
+    const route = server.slice(server.indexOf(`=== '${SPEC.STATUS_DOOR}'`))
+    expect(route.indexOf('resolveIdentity')).toBeGreaterThan(-1)
+    expect(route.indexOf('resolveIdentity')).toBeLessThan(
+      route.indexOf('handleCardStatus')
+    )
+  })
+
+  it('the server reads once for everyone, newest first, and says when there were more', async () => {
+    expect(SPEC.SERVER_READS_PER_OPEN).toBe(1)
+    expect(SPEC.SERVER_READS_PER_OPEN).toBeLessThan(SPEC.READS_PER_OPEN_MAX)
+    expect(SPEC.SERVER_REFS_LAST).toBe(SPEC.TIMELINE_PAGE)
+    expect(SPEC.SERVER_CACHE_CARDS_MAX).toBeGreaterThanOrEqual(900)
+    expect(refsPartial(150, 100)).toBe(true)
+    expect(refsPartial(40, 40)).toBe(false)
+    expect(refsPartial(0, 0)).toBe(false)
+    // SERVER_READS_ONLY: the one read is a query.
+    expect(CARD_STATUS_QUERY).toMatch(/^query /)
+    expect(CARD_STATUS_QUERY).not.toMatch(/mutation/i)
+    expect(CARD_STATUS_QUERY).toContain(`last: ${SPEC.SERVER_REFS_LAST}`)
+    // SERVER_SHARED_CACHE: two people, three opens, one read.
+    clearCardStatusCache()
+    const github = vi.fn(async () =>
+      gql(
+        [
+          gqlNode(1, '2026-10-01T08:00:00Z', {}, 'FAILURE'),
+          gqlNode(2, '2026-10-01T09:00:00Z', {}, 'PENDING'),
+          gqlNode(3, '2026-10-01T10:00:00Z', { merged: true, state: 'MERGED' }),
+        ],
+        150
+      )
+    )
+    const opts = {
+      env: { [SPEC.SERVER_TOKEN_ENV]: 't' },
+      fetchImpl: github as never,
+    }
+    const [a, b] = await Promise.all([
+      door('/api/card-status?repo=gHashTag/t27&n=9', opts),
+      door('/api/card-status?repo=t27&n=9', opts),
+    ])
+    await door('/api/card-status?repo=gHashTag/t27&n=9', opts)
+    expect(github).toHaveBeenCalledTimes(SPEC.SERVER_READS_PER_OPEN)
+    expect(b.body).toEqual(a.body)
+    // Newest open first, checks on open PRs only, and a floor past 100 refs.
+    expect(a.body.status).toMatchObject({ kind: 'prs', more: 0, partial: true })
+    expect(
+      a.body.status.prs.map((p: { number: number; checks?: string }) => [
+        p.number,
+        p.checks,
+      ])
+    ).toEqual([
+      [2, 'pending'],
+      [1, 'fail'],
+      [3, undefined],
+    ])
+    // The same order as the client's own read of the same references.
+    const rest = [
+      [1, '2026-10-01T08:00:00Z', 'open', null],
+      [2, '2026-10-01T09:00:00Z', 'open', null],
+      [3, '2026-10-01T10:00:00Z', 'closed', '2026-10-01'],
+      [2, '2026-10-01T11:00:00Z', 'open', null],
+    ].map(([n, at, state, merged]) => ({
+      event: 'cross-referenced',
+      created_at: at,
+      source: {
+        issue: {
+          number: n,
+          state,
+          repository: { full_name: 'gHashTag/t27' },
+          pull_request: { html_url: 'u', merged_at: merged },
+        },
+      },
+    }))
+    const server = statusFromGraphql(
+      await gql([
+        gqlNode(1, '2026-10-01T08:00:00Z'),
+        gqlNode(2, '2026-10-01T09:00:00Z'),
+        gqlNode(3, '2026-10-01T10:00:00Z', { merged: true, state: 'MERGED' }),
+        gqlNode(2, '2026-10-01T11:00:00Z'),
+      ]).json()
+    )
+    expect(
+      server?.kind === 'prs' && server.prs.map(p => [p.number, p.state])
+    ).toEqual(linkedPrs(rest).map(p => [p.number, p.state]))
+    // Nothing referenced and nothing beyond: "no PR" is said once measured.
+    expect(statusFromGraphql(await gql([]).json())).toEqual({ kind: 'none' })
+    expect(statusFromGraphql({ errors: [{ message: 'x' }] })).toBeNull()
+  })
+
+  it("a move is one card through the Queen's door, and there is no door yet", () => {
+    expect(SPEC.COLUMNS).toBe(6)
+    expect(SPEC.MOVE_DOOR_EXISTS).toBe(false)
+    expect(SPEC.MOVE_OFFERED).toBe(
+      moveOffered(SPEC.MOVE_DOOR_EXISTS, SPEC.MOVE_DOOR_ONE_CARD)
+    )
+    expect(moveOffered(true, false)).toBe(false)
+    expect(moveOffered(true, true)).toBe(true)
+    expect(SPEC.REGISTRY_PUT_IS_A_MOVE).toBe(false)
+    expect(SPEC.MOVE_SAYS_FROM).toBe(true)
+    expect(SPEC.MOVE_ANSWER_HAS_REASON).toBe(true)
+    expect(moveTargetOk(SPEC.COL_BACKLOG)).toBe(true)
+    expect(moveTargetOk(SPEC.COL_DROPPED)).toBe(true)
+    for (const c of [
+      SPEC.COL_DONE,
+      SPEC.COL_RUNNING,
+      SPEC.COL_REVIEW,
+      SPEC.COL_BLOCKED,
+    ])
+      expect(moveTargetOk(c)).toBe(false)
+    expect(moveApplies(true, true, true, SPEC.COL_DROPPED, true)).toBe(true)
+    expect(moveApplies(false, true, true, SPEC.COL_DROPPED, true)).toBe(false)
+    expect(moveApplies(true, false, true, SPEC.COL_DROPPED, true)).toBe(false)
+    expect(moveApplies(true, true, false, SPEC.COL_DROPPED, true)).toBe(false)
+    expect(moveApplies(true, true, true, SPEC.COL_DONE, true)).toBe(false)
+    expect(moveApplies(true, true, true, SPEC.COL_BACKLOG, false)).toBe(false)
+    // The sheet itself offers nothing to move with while there is no door.
+    const sheet = readFileSync(
+      new URL(
+        '../../../player/src/components/Queen/CardChat.tsx',
+        import.meta.url
+      ),
+      'utf8'
+    )
+    expect(sheet).not.toMatch(/queen\/move|moveCard|COL_DROPPED/)
+  })
+
   it('the card chat is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(3)
+    expect(SPEC.VERSION).toBe(4)
     expect(SPEC.CHAT_DOOR).toBe('/api/agent/chat')
     expect(SPEC.HISTORY_DOOR).toBe('/api/agent/history')
     expect(SPEC.HISTORY_LIMIT).toBe(100)

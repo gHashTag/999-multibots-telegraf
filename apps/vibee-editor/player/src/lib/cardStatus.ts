@@ -2,11 +2,13 @@ import * as SPEC from '../spec/kanban-card-chat.gen'
 
 /**
  * WHAT THE TASK'S WORK LOOKS LIKE, SAID IN THE CARD'S SHEET (spec
- * kanban-card-chat.t27 v2).
+ * kanban-card-chat.t27 v2-v4).
  *
  * The pull requests that name the issue -- from any repository -- and the
  * worst state of their checks. Read by the person's own client from GitHub's
- * public API: the server holds no GitHub token. That API allows sixty reads
+ * public API, unless the server's STATUS_DOOR answers first (v4: it does once
+ * the owner gives it a read-only token; until then it says "not configured"
+ * and nothing here changes). That API allows sixty reads
  * an hour per address, so a read can fail for a reason that says nothing
  * about the task; then the strip says it did NOT measure and when it can
  * again, never "no pull request" (UNMEASURED_IS_NOT_NONE).
@@ -202,6 +204,8 @@ export async function readCardStatus(
     fetchImpl?: typeof fetch
     storage?: Pick<Storage, 'getItem' | 'setItem'> | null
     now?: () => number
+    /** The server's STATUS_DOOR for this card; its answer wins when measured. */
+    door?: () => Promise<Response>
   } = {}
 ): Promise<CardStatus> {
   const fetchImpl = opts.fetchImpl ?? fetch
@@ -222,6 +226,34 @@ export async function readCardStatus(
   } catch {
     // A broken cache entry is a miss.
   }
+
+  const keep = (status: CardStatus) => {
+    try {
+      storage?.setItem(key, JSON.stringify({ at: now(), status }))
+    } catch {
+      // A full storage only costs the next open a read.
+    }
+  }
+
+  // One read on the server for everyone; any other answer -- not configured,
+  // GitHub silent, the door down -- and the client reads for itself.
+  if (opts.door)
+    try {
+      const r = await opts.door()
+      const body = r.ok
+        ? ((await r.json()) as { measured?: boolean; status?: CardStatus })
+        : null
+      const s = body?.measured ? body.status : undefined
+      if (
+        s &&
+        (s.kind === 'none' || (s.kind === 'prs' && Array.isArray(s.prs)))
+      ) {
+        keep(s)
+        return s
+      }
+    } catch {
+      // The door is a shortcut, never a dependency.
+    }
 
   // The timeline runs oldest first: the newest PRs are on the LAST page.
   let prs: LinkedPr[]
@@ -277,11 +309,6 @@ export async function readCardStatus(
           partial,
         }
   const complete = open.every(p => p.checks !== undefined)
-  if (complete)
-    try {
-      storage?.setItem(key, JSON.stringify({ at: now(), status }))
-    } catch {
-      // A full storage only costs the next open a read.
-    }
+  if (complete) keep(status)
   return status
 }

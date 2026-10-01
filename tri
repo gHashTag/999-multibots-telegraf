@@ -735,6 +735,14 @@ AGENT TOOLS ON THE RENDER
                           thread, marked surface `agent`. Exit 0 ok, 1 refused,
                           2 the render has no task threads yet (nothing sent),
                           3 the render did not answer. Key as for `tri mcp`.
+  tri card-check [n]      is the card chat LIVE (spec kanban-card-chat.t27):
+                          GETs only, nothing written. Three verdicts --
+                          the card's thread is `task:` (render deployed),
+                          /api/card-status answers (404 = not deployed,
+                          503 = no GITHUB_READ_TOKEN: the client reads), and
+                          the PRs that carry it are merged. <n> defaults to
+                          5382, the EPIC. Exit 0 all live, 2 waiting on a
+                          merge, deploy or token, 1 something answered wrong.
   tri browser             can the remote browser ACT, not merely answer.
                           `/json/list` is served by the browser process, so it
                           keeps replying while every renderer is wedged -- which
@@ -1969,6 +1977,84 @@ try:
         print()
 except Exception as e:
     fail(e)
+PY
+}
+
+# tri card-check -- is the kanban card chat live, end to end, after the
+# owner merges and render deploys? Read-only: every request is a GET.
+cmd_card_check() {
+  local task="${1:-5382}"
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+  local merged
+  merged=$(for pr in gHashTag/999-multibots-telegraf#3208 gHashTag/t27#5389; do
+    gh pr view "${pr#*#}" -R "${pr%#*}" --json state -q .state 2>/dev/null \
+      | sed "s|^|$pr |"
+  done)
+  CARD_KEY="$key" CARD_URL="$RENDER" CARD_TASK="$task" CARD_MERGED="$merged" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.parse, urllib.request
+
+base, task = os.environ['CARD_URL'], os.environ['CARD_TASK']
+head = {"X-Agent-Key": os.environ['CARD_KEY']}
+verdicts = []
+
+def say(kind, what):
+    verdicts.append(kind)
+    print(f'  {kind:<5} {what}')
+
+def get(path):
+    req = urllib.request.Request(base + path, headers=head)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.status, json.loads(r.read() or b'null')
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read() or b'null')
+        except Exception:
+            return e.code, None
+    except Exception as e:
+        return 0, str(e)
+
+# 1. The card's thread: a render with task threads answers `task:`.
+code, h = get('/api/agent/history?' + urllib.parse.urlencode({'task': task, 'limit': 1}))
+thread = (h or {}).get('thread', '') if isinstance(h, dict) else ''
+if code == 200 and thread.startswith('task:'):
+    say('ok', f'thread {thread}')
+elif code == 200:
+    say('wait', f'render answers thread {thread!r}: task threads not deployed')
+else:
+    say('fail' if code and code < 500 else 'wait', f'history HTTP {code}')
+
+# 2. The server's status door.
+ref = thread.removeprefix('task:') if thread.startswith('task:') else ''
+repo, _, n = ref.rpartition('#')
+if not ref:
+    repo, n = 'gHashTag/t27', task.rpartition('#')[2]
+code, s = get('/api/card-status?' + urllib.parse.urlencode({'repo': repo, 'n': n}))
+if code == 404:
+    say('wait', '/api/card-status not deployed (the client reads GitHub itself)')
+elif code == 503:
+    say('wait', 'card-status deployed, no GITHUB_READ_TOKEN: the owner\'s call; the client reads')
+elif code == 200 and isinstance(s, dict) and s.get('measured'):
+    st = s.get('status') or {}
+    prs = ', '.join(f"{p['repo'].split('/')[1]}#{p['number']} {p['state']}"
+                    + (f" checks={p['checks']}" if p.get('checks') else '')
+                    for p in st.get('prs', []))
+    say('ok', f"server read: {st.get('kind')} {prs}".rstrip())
+elif code == 200:
+    say('fail', 'card-status configured but GitHub did not answer (token scope or limit?)')
+else:
+    say('fail' if code and code < 500 else 'wait', f'card-status HTTP {code}')
+
+# 3. The pull requests that carry it.
+for line in filter(None, os.environ.get('CARD_MERGED', '').splitlines()):
+    pr, state = line.rsplit(' ', 1)
+    say('ok' if state == 'MERGED' else 'wait', f'{pr} {state.lower()}')
+
+sys.exit(1 if 'fail' in verdicts else 2 if 'wait' in verdicts else 0)
 PY
 }
 
@@ -5236,6 +5322,7 @@ case "$action" in
   browser|браузер)     cmd_browser ;;
   heal|исцели)         cmd_heal ;;
   card|карточка)       cmd_card "$@" ;;
+  card-check|карточка-проверка) cmd_card_check "$@" ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;
   journal|журнал)      cmd_journal "$@" ;;

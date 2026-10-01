@@ -168,6 +168,7 @@ export const CARD_SHEET = {
   openDetent: SPEC.OPEN_DETENT as 'peek' | 'half' | 'full',
   historyLimit: SPEC.HISTORY_LIMIT,
   historyDoor: SPEC.HISTORY_DOOR,
+  statusDoor: SPEC.STATUS_DOOR,
   field: SPEC.FIELD,
   touchPx: SPEC.TOUCH_TARGET_PX,
 }

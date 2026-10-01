@@ -34,7 +34,7 @@ module automation::kanban_card_chat {
     pub const KIND : str = "automation";
     pub const ID : str = "kanban-card-chat";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 3;
+    pub const VERSION : u8 = 4;
 
     // ---- The thread -----------------------------------------------------------------
     // One conversation per (person, task): "task:gHashTag/t27#3587". The person is
@@ -156,6 +156,23 @@ module automation::kanban_card_chat {
     pub const READS_PER_OPEN_MAX : u8 = 4;  // TIMELINE_PAGES_MAX + CHECKS_PRS_MAX
     pub const OPENS_PER_HOUR_MIN : u8 = 15;  // uncached card opens before the limit
 
+    // ---- The server reads for everyone (v4) -----------------------------------------
+    // With a read-only GitHub token on the server (SERVER_TOKEN_ENV -- the owner's call)
+    // one GraphQL query returns the NEWEST cross-references and each PR's check rollup,
+    // and its answer serves every person for STATUS_CACHE_S. Without the token the door
+    // says it is not configured and the client reads for itself as in v3. A door that
+    // did not measure never answers "no pull request"; the client then reads itself.
+    pub const STATUS_DOOR : str = "/api/card-status";
+    pub const SERVER_TOKEN_ENV : str = "GITHUB_READ_TOKEN";
+    pub const STATUS_DOOR_NEEDS_PERSON : bool = true;  // nobody burns the token anonymously
+    pub const SERVER_READS_PER_OPEN : u8 = 1;  // one query: references and rollups
+    pub const SERVER_REFS_LAST : u8 = 100;  // the newest end of the timeline, not the oldest
+    pub const SERVER_SHARED_CACHE : bool = true;  // one read serves every person
+    pub const SERVER_CACHE_CARDS_MAX : u16 = 1000;  // the board holds ~900 cards
+    pub const SERVER_READS_ONLY : bool = true;  // the query is never a mutation
+    pub const SOURCE_SERVER : u8 = 0;
+    pub const SOURCE_CLIENT : u8 = 1;
+
     // ---- What the agent may do with the card (v2) -----------------------------------
     // The agent proposes; the person decides. A proposal is a card in the conversation
     // with approve and decline, and nothing outside the conversation happens before the
@@ -164,7 +181,28 @@ module automation::kanban_card_chat {
     pub const CARDS_ON_KANBAN : bool = true;  // the card chat gets the proposal cards
     pub const ACTIONS_ON_TAP_ONLY : bool = true;
     pub const MOVE_OFFERED : bool = false;
-    pub const AGENT_OPENS_PR : bool = false;  // the server has no GitHub token to do it
+    pub const AGENT_OPENS_PR : bool = false;  // a read token cannot write; writing is the owner's call
+
+    // ---- Moving a card: the contract for a door that does not exist yet (v4, S15) ----
+    // Read on the Queen's deployed server (BrowserOS trios/agent-server, #517): a column
+    // is computed when the board is read -- registry task first, then the dispatch
+    // verdict, then the open issue -- and no route sets one. The only write that could
+    // change a column, PUT /queen/registry, replaces the whole task array: a sheet that
+    // used it to move one card would race every other writer. So the sheet offers no
+    // move until the Queen has a door for ONE card, and this is that door's contract.
+    pub const COL_BACKLOG : u8 = 0;
+    pub const COL_BLOCKED : u8 = 1;
+    pub const COL_RUNNING : u8 = 2;
+    pub const COL_REVIEW : u8 = 3;
+    pub const COL_DONE : u8 = 4;
+    pub const COL_DROPPED : u8 = 5;
+    pub const COLUMNS : u8 = 6;
+    pub const MOVE_DOOR : str = "/queen/move";  // proposed; 404 on the live server
+    pub const MOVE_DOOR_EXISTS : bool = false;
+    pub const MOVE_DOOR_ONE_CARD : bool = true;  // one issue per request, never the registry
+    pub const REGISTRY_PUT_IS_A_MOVE : bool = false;
+    pub const MOVE_SAYS_FROM : bool = true;  // the column the person saw; stale -> refused
+    pub const MOVE_ANSWER_HAS_REASON : bool = true;  // accepted or declined, always said why
 
     // ---- Not claimed ----------------------------------------------------------------
     pub const RUN_LIVE : bool = false;
@@ -252,6 +290,37 @@ module automation::kanban_card_chat {
     // Whether "more on GitHub" is a lower bound: some pages were not read.
     fn more_is_lower_bound(pages: u16) -> bool {
         return pages > TIMELINE_PAGES_MAX;
+    }
+
+    // Who reads the card's work: the server when it holds the token and measured,
+    // otherwise the person's own client (v3).
+    fn status_source(token_set: bool, door_measured: bool) -> u8 {
+        if token_set && door_measured {
+            return SOURCE_SERVER;
+        }
+        return SOURCE_CLIENT;
+    }
+
+    // The server's read is a floor when GitHub holds more references than it returned.
+    fn refs_partial(total: u16, returned: u16) -> bool {
+        return total > returned;
+    }
+
+    // The sheet offers a move only when the Queen has a door for one card.
+    fn move_offered(door_exists: bool, one_card: bool) -> bool {
+        return door_exists && one_card;
+    }
+
+    // A person may only ask for "later" or "not doing": running and review are a
+    // dispatch, blocked is a boundary, done is the Queen's acceptance.
+    fn move_target_ok(to: u8) -> bool {
+        return to == COL_BACKLOG || to == COL_DROPPED;
+    }
+
+    // A move happens when the door exists, the person tapped, the column is still the
+    // one they saw, the target is theirs to ask for, and the Queen accepted.
+    fn move_applies(door_exists: bool, tapped: bool, from_matches: bool, to: u8, queen_accepts: bool) -> bool {
+        return door_exists && tapped && from_matches && move_target_ok(to) && queen_accepts;
     }
 
     // An action the agent proposed runs only when the person tapped approve.
@@ -376,6 +445,28 @@ module automation::kanban_card_chat {
         assert(PUBLIC_READS_HOUR / READS_PER_OPEN_MAX >= OPENS_PER_HOUR_MIN);
     }
 
+    test "with no token the door says so and the client reads for itself" {
+        assert(status_source(false, false) == SOURCE_CLIENT);
+        assert(status_source(false, true) == SOURCE_CLIENT);
+        assert(status_source(true, false) == SOURCE_CLIENT);
+        assert(status_source(true, true) == SOURCE_SERVER);
+        assert(SOURCE_SERVER != SOURCE_CLIENT);
+        assert(STATUS_DOOR_NEEDS_PERSON);
+        assert(UNMEASURED_IS_NOT_NONE);
+    }
+
+    test "the server reads once for everyone, newest first, and says when there were more" {
+        assert(SERVER_READS_PER_OPEN == 1);
+        assert(SERVER_READS_PER_OPEN < READS_PER_OPEN_MAX);
+        assert(SERVER_SHARED_CACHE);
+        assert(SERVER_READS_ONLY);
+        assert(SERVER_REFS_LAST == TIMELINE_PAGE);
+        assert(refs_partial(150, 100));
+        assert(!refs_partial(40, 40));
+        assert(!refs_partial(0, 0));
+        assert(SERVER_CACHE_CARDS_MAX >= 900);
+    }
+
     test "the agent proposes, the person's tap decides" {
         assert(CARDS_ON_KANBAN);
         assert(ACTIONS_ON_TAP_ONLY);
@@ -386,9 +477,32 @@ module automation::kanban_card_chat {
         assert(!AGENT_OPENS_PR);
     }
 
+    test "a move is one card through the Queen's door, and there is no door yet" {
+        assert(COLUMNS == 6);
+        assert(!MOVE_DOOR_EXISTS);
+        assert(MOVE_OFFERED == move_offered(MOVE_DOOR_EXISTS, MOVE_DOOR_ONE_CARD));
+        assert(!move_offered(true, false));
+        assert(move_offered(true, true));
+        assert(!REGISTRY_PUT_IS_A_MOVE);
+        assert(MOVE_SAYS_FROM);
+        assert(MOVE_ANSWER_HAS_REASON);
+        assert(move_target_ok(COL_BACKLOG));
+        assert(move_target_ok(COL_DROPPED));
+        assert(!move_target_ok(COL_DONE));
+        assert(!move_target_ok(COL_RUNNING));
+        assert(!move_target_ok(COL_REVIEW));
+        assert(!move_target_ok(COL_BLOCKED));
+        assert(move_applies(true, true, true, COL_DROPPED, true));
+        assert(!move_applies(false, true, true, COL_DROPPED, true));
+        assert(!move_applies(true, false, true, COL_DROPPED, true));
+        assert(!move_applies(true, true, false, COL_DROPPED, true));
+        assert(!move_applies(true, true, true, COL_DONE, true));
+        assert(!move_applies(true, true, true, COL_BACKLOG, false));
+    }
+
     test "the card chat is designed, not yet live" {
         assert(!RUN_LIVE);
-        assert(VERSION == 3);
+        assert(VERSION == 4);
         assert(HISTORY_LIMIT == 100);
     }
 }

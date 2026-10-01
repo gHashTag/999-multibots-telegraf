@@ -1,6 +1,6 @@
 ---
 name: 'kanban-card-chat'
-description: 'Tap any card on the game kanban (app.t27.ai/game/kanban) and a chat with the agent opens with the task history, so the person can write and continue the task; the same thread is shared with every A2A agent. Use when touching the kanban card click, the task thread (task:<owner>/<repo>#<n>), the card-chat sheet in the Hive, A2A contextId for a task, or `tri card`.'
+description: 'Tap any card on the game kanban (app.t27.ai/game/kanban) and a chat with the agent opens with the task history, so the person can write and continue the task; the same thread is shared with every A2A agent. Use when touching the kanban card click, the task thread (task:<owner>/<repo>#<n>), the card-chat sheet in the Hive, A2A contextId for a task, or `tri card` / `tri card-check`, or /api/card-status.'
 ---
 
 # Kanban card chat
@@ -117,6 +117,17 @@ TRI_T27C=<t27c>` and add a `docs/now/<date>-<slug>.md` entry. A t27c with
 - **Render's binding test imports player modules by relative path**
   (`../../../player/src/lib/cardStatus`) -- so `cardStatus.ts` and
   `agentCards.ts` must keep relative imports only, no `@/`.
+- **The server door is a shortcut, never a dependency** (v4). Without
+  `GITHUB_READ_TOKEN` it answers 503 and the client reads as before; a
+  `measured:false`, a 404 (old render), a non-JSON body or a status without
+  `prs` all fall back. Never trust a door answer that is not `measured`.
+- **No move button until the Queen has a ONE-card door.** The column is
+  computed (registry -> dispatch verdict -> open issue); the only write is
+  `PUT /queen/registry`, which replaces every task -- using it from a sheet
+  races every writer. Contract: spec v4 MOVE\_\*, `player/src/lib/cardMove.ts`.
+- **The agent key for live GETs** lives in vibee-render `AGENT_KEYS`
+  (`key:id[,..]`). Pass it as `AGENT_KEY=$(... | cut -d: -f1) tri card-check`
+  for one run; never write it to a file or print it.
 - **`tri shot` stubs every `api.github.com` read as over the limit** unless
   the harness routes it; a stub must send the CORS expose list GitHub sends,
   or the browser hides the very header under test.
@@ -136,6 +147,7 @@ sheet shows them as "via another agent".
 ## The two standing checks (every loop starts here)
 
 ```bash
+tri card-check                # live, GETs only: thread, status door, merges
 tri card 5382                 # live: 0 task thread, 2 render still answers self
 tri shot card-chat 390 ru     # phone: the real sheet, doors answered by routes
 tri shot card-chat-empty 320 ru

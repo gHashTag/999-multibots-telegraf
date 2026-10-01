@@ -67,12 +67,22 @@ export function CardChat({
   const logRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<CardStatus | null>(null)
 
-  // The task's work, read by this client from GitHub's public API.
+  // The task's work: the server's one read when it has a token, else this
+  // client's own read of GitHub's public API.
   useEffect(() => {
     let alive = true
     setStatus(null)
     if (!card.repo) return
-    readCardStatus(card.repo, card.number).then(s => alive && setStatus(s))
+    const q = new URLSearchParams({
+      repo: card.repo,
+      n: String(card.number),
+    })
+    readCardStatus(card.repo, card.number, {
+      door: () =>
+        fetch(`${API_BASE}${CARD_SHEET.statusDoor}?${q}`, {
+          headers: authHeaders(),
+        }),
+    }).then(s => alive && setStatus(s))
     return () => {
       alive = false
     }

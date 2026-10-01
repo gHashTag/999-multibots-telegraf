@@ -136,6 +136,7 @@ function browserBrokerDeps(): BrowserDeps {
 }
 configureAgentStart(browserBrokerDeps)
 import { identityWithSource } from './src/agent/routes'
+import { handleCardStatus } from './src/agent/card-status'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import {
@@ -9307,6 +9308,22 @@ const server = createServer(async (req, res) => {
    * читающие одно и то же, обязаны опознавать одинаково, иначе рано или
    * поздно один пустит туда, куда второй не пускает.
    */
+  /*
+   * GET /api/card-status -- a kanban card's pull requests and checks, read
+   * once by the server for everyone (spec kanban-card-chat.t27 v4). A person
+   * only; without GITHUB_READ_TOKEN it answers 503 and the client reads.
+   */
+  if (req.url?.split('?')[0] === '/api/card-status' && req.method === 'GET') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleCardStatus(req, res)
+    return
+  }
+
   /*
    * /api/agent/conversations -- several conversations with the agent or a
    * specialist: the list (GET) and a name for one (POST). Identity the same
