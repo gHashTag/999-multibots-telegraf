@@ -1102,4 +1102,57 @@ extension API {
     else { return [] }
     return ответ.пакеты
   }
+
+  enum TokenPurchaseError: LocalizedError {
+    case refused(String)
+    var errorDescription: String? {
+      if case .refused(let why) = self { return why }
+      return nil
+    }
+  }
+
+  /**
+   An invoice for a pack, as a t.me link. The web opens it with
+   `Telegram.WebApp.openInvoice` and outside Telegram says "available inside
+   Telegram"; the app has a better door than that -- the Telegram app itself,
+   which opens the same link and takes the Stars. The server mints it for the
+   app session the same way (chatIdentity accepts a Bearer session), and the
+   cashier's webhook does the crediting: nothing the client says is believed.
+   */
+  static func tokenInvoice(pack: String) async throws -> URL {
+    var r = URLRequest(url: base.appendingPathComponent("api/tokens/invoice"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    r.httpBody = try JSONSerialization.data(withJSONObject: ["pack": pack])
+    let (data, _) = try await URLSession.shared.data(for: r)
+    let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+    guard body["ok"] as? Bool == true, let link = body["link"] as? String,
+      let url = URL(string: link)
+    else {
+      throw TokenPurchaseError.refused(String(describing: body["error"] ?? "no invoice"))
+    }
+    return url
+  }
+
+  /// What `/api/tokens/verify` found: the balance after crediting, or nothing
+  /// yet. The Stars reach the Bot API with a delay, so "nothing yet" is normal.
+  struct TokenVerify {
+    let credited: Int?
+    let balance: Int?
+  }
+
+  static func verifyTokens() async -> TokenVerify {
+    var r = URLRequest(url: base.appendingPathComponent("api/tokens/verify"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    r.httpBody = Data("{}".utf8)
+    guard let (data, _) = try? await URLSession.shared.data(for: r),
+      let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    else { return TokenVerify(credited: nil, balance: nil) }
+    let balance = body["баланс"] as? Int
+    guard body["ok"] as? Bool == true else { return TokenVerify(credited: nil, balance: balance) }
+    return TokenVerify(credited: body["зачислено_токенов"] as? Int, balance: balance)
+  }
 }
