@@ -969,3 +969,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The next page of clients and "pick everyone waiting" are tapped with a
+   thumb on a phone: 36px and an unsized button were under the touch token. */
+@media (pointer: coarse) {
+  .crm__more,
+  .crm__pick-all {
+    min-height: var(--touch-target, 44px);
+  }
+}
