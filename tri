@@ -5267,11 +5267,25 @@ cmd_voice() {
   case "${1:-}" in --runs) runs="${2:-3}" ;; --runs=*) runs="${1#--runs=}" ;; esac
   [[ "$runs" =~ ^[1-9][0-9]?$ ]] || { bad "--runs takes 1..99, not '$runs'"; return 2; }
   key=$(_mcp_key 2>/dev/null) || key=''
-  V_KEY="$key" V_BASE="$RENDER" V_RUNS="$runs" python3 -u - <<'PY'
-import json, os, statistics, sys, time, urllib.error, urllib.request
+  V_KEY="$key" V_BASE="$RENDER" V_RUNS="$runs" \
+    V_SESSION="$ROOT/apps/vibee-editor/player/src/lib/voice/session.ts" python3 -u - <<'PY'
+import json, os, re, statistics, sys, time, urllib.error, urllib.request
 
 base, key = os.environ['V_BASE'], os.environ['V_KEY']
 RUNS = int(os.environ['V_RUNS'])
+
+# The person's wait is not the round trip alone: first the player judges the
+# pause (END_OF_TURN_MS), and since voice-loop-4 it asks for the words after
+# EAGER_HEAR_MS of it, so that much of the hearing hides inside the pause.
+# Read from the player itself -- a copy here would drift from it.
+def player_ms(name):
+    try:
+        src = open(os.environ['V_SESSION']).read()
+    except OSError:
+        return None
+    m = re.search(r'const ' + name + r' = ([0-9_]+)', src)
+    return int(m.group(1).replace('_', '')) if m else None
+END_MS, EAGER_MS = player_ms('END_OF_TURN_MS'), player_ms('EAGER_HEAR_MS')
 
 last_timing = {}
 def server_timing(h):
@@ -5395,6 +5409,11 @@ for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: th
           f'[{min(times)}..{max(times)}]{split} -- '
           f'{"SLOW (the person waits this after speaking)" if slow else "ok"}')
     mark(2 if slow else 0)
+    if END_MS:
+        hidden = min(med, END_MS - EAGER_MS) if EAGER_MS else 0
+        print(f'    felt after the last word: pause {END_MS} + words {med - hidden}'
+              f' = {END_MS + med - hidden} ms'
+              + (f' (early hearing hides {hidden}; not on Safari mp4)' if hidden else ''))
 
 sys.exit(worst)
 PY
