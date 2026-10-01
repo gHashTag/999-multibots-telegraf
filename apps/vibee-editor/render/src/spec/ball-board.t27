@@ -58,6 +58,15 @@
 //       moved live conversations off "on us". An address on a relay domain speaks for a
 //       person: it is never a machine's, whatever its marker. Only the real machines
 //       stay nobody's move.
+// v7 (2026-10-01), owner: "one status of where the ball is, per client". Measured: no
+//       CRM person matches a mail matter by name, username or address (crm_people has
+//       no email), so the join stays the explicit link v2 made and nothing is guessed.
+//       The defect is the other way round: jcrm keys a matter by its domain, so gmail.com
+//       is ONE matter of 14 people under one stage ("rejected", terminal, so nobody's
+//       move) while 3 of them wrote last within a day. A matter named by a shared domain
+//       with more than one person in it is a mailbox, not a client: the board COUNTS it
+//       and says so on the card. The ball stays jcrm's -- there is no per-person stage
+//       on this side to put in its place; the split belongs to jcrm.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::ball_board {
@@ -65,7 +74,7 @@ module automation::ball_board {
     pub const KIND : str = "automation";
     pub const ID : str = "ball-board";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 6;
+    pub const VERSION : u8 = 7;
 
     // ---- The doors ------------------------------------------------------------------
     pub const TOOL : str = "ball_board";  // read: the whole board, grouped by client
@@ -176,6 +185,11 @@ module automation::ball_board {
     pub const AUTOMATED_IS_COUNTED : bool = true;  // reported as a number, never dropped
     pub const AUTOMATED_SEEN : u8 = 5;  // such matters "on us" on the first live read
 
+    // ---- One matter, many people -----------------------------------------------------
+    pub const POOLED_IS_COUNTED : bool = true;  // reported as a number; the ball stays jcrm's
+    pub const POOLED_SEEN : u8 = 2;  // gmail.com (14 people) and groups.io (4 lists)
+    pub const CRM_MAIL_OVERLAP_SEEN : u8 = 0;  // CRM people found in the mail, measured
+
     // ---- Not claimed ----------------------------------------------------------------
     pub const RUN_LIVE : bool = false;
 
@@ -221,6 +235,12 @@ module automation::ball_board {
             return BALL_NONE;
         }
         return mail_ball(owes_reply);
+    }
+
+    // A mailbox, not a client: a matter named by a shared domain with more than one
+    // person (an address that is not a machine's or the owner's) in it.
+    fn pooled_matter(matter_is_shared: bool, people: u8) -> bool {
+        return matter_is_shared && people > 1;
     }
 
     // Code work. A repository the owner merges alone has nobody else to wait on, so an
@@ -543,13 +563,26 @@ module automation::ball_board {
         assert(RELAY_SEEN < 53);
     }
 
+    test "a mailbox provider's matter is not one client" {
+        assert(pooled_matter(true, 2));
+        assert(pooled_matter(true, 4));
+        assert(!pooled_matter(true, 1));
+        assert(!pooled_matter(false, 4));
+        assert(shared_domain("gmail.com"));
+        assert(shared_domain("groups.io"));
+        assert(!shared_domain("google.com"));
+        assert(POOLED_IS_COUNTED);
+        assert(POOLED_SEEN == 2);
+        assert(CRM_MAIL_OVERLAP_SEEN == 0);
+    }
+
     test "the board is designed, not yet live" {
         assert(!RUN_LIVE);
         assert(TOOL == "ball_board");
         assert(PUSH_TOOL == "ball_work_push");
         assert(LINK_TOOL == "ball_link");
         assert(DOOR == "/mcp");
-        assert(VERSION == 6);
+        assert(VERSION == 7);
     }
 }
 
