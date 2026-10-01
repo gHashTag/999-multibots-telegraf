@@ -11,6 +11,7 @@ import {
   agentBusyThreadsAtom,
   agentQueueAtom,
   sendOrQueue,
+  stopAgent,
   threadKeyOf,
   type SendOptions,
 } from '@/lib/agentStream'
@@ -44,10 +45,11 @@ export function createChatVoiceSession(
   const key = threadKeyOf(options)
   return new VoiceSession({
     lang,
-    voice: () => editorStore.get(voiceNameAtom)[lang()] ?? null,
+    voice: l => editorStore.get(voiceNameAtom)[l] ?? null,
     send: text => {
       sendOrQueue(text, [], options)
     },
+    stop: () => stopAgent(key),
     messages: () => editorStore.get(thread),
     answering: () =>
       editorStore.get(agentBusyThreadsAtom).includes(key) ||

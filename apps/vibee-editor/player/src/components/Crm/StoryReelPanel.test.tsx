@@ -113,10 +113,10 @@ describe('the story-reel panel', () => {
     serve(() => READY)
     await draw()
     expect(calls[0]).toEqual({ lead: CLIENT })
-    const marks = [...host.querySelectorAll('.crm-client__story-marks dd')].map(
-      d => d.getAttribute('data-mark')
+    const marks = [...host.querySelectorAll('.story-reel__chips li')].map(d =>
+      d.getAttribute('data-mark')
     )
-    expect(marks).toEqual(['yes', 'yes', 'yes'])
+    expect(marks).toEqual(['yes', 'yes', 'vip'])
     expect(host.textContent).toContain('https://t.me/example_bot?start=reel')
     expect(host.textContent).toContain('Одна ваза — три комнаты')
     expect(host.querySelector('a')?.getAttribute('href')).toBe(
@@ -133,12 +133,64 @@ describe('the story-reel panel', () => {
     await draw()
     const price = host.querySelector('[data-testid="story-reel-price"]')
     expect(price?.textContent).toBe('crm.client.story.price:218')
-    const press = host.querySelector('.crm-client__duet-go')!
+    const press = host.querySelector('.story-reel__go')!
     expect(
       Boolean(
         price!.compareDocumentPosition(press) & Node.DOCUMENT_POSITION_FOLLOWING
       )
     ).toBe(true)
+  })
+
+  /*
+   * Owner 2026-10-02: the count of frames is the seller's to set -- three by
+   * default, the server's range, the price of the chosen count above the
+   * press, and the count sent with the start.
+   */
+  it('sets the number of frames, prices it and sends it', async () => {
+    serve(a =>
+      a.start
+        ? { started: true, topic: '' }
+        : {
+            ...READY,
+            price_tokens: 270,
+            scenes: {
+              default: 3,
+              min: 1,
+              max: 4,
+              price_tokens: { 1: 100, 2: 185, 3: 270, 4: 355 },
+            },
+          }
+    )
+    await draw()
+    const count = () =>
+      host.querySelector('[data-testid="story-reel-count"]')?.textContent
+    const tiles = () => host.querySelectorAll('.story-reel__frame').length
+    expect(count()).toBe('3')
+    expect(tiles()).toBe(4) // three frames and the call
+    const [less, more] = [
+      ...host.querySelectorAll('.story-reel__stepper button'),
+    ] as HTMLButtonElement[]
+    await act(async () => more.click())
+    expect(count()).toBe('4')
+    expect(more.disabled).toBe(true)
+    expect(tiles()).toBe(5)
+    expect(
+      host.querySelector('[data-testid="story-reel-price"]')?.textContent
+    ).toBe('crm.client.story.price:355')
+    await act(async () => {
+      less.click()
+      less.click()
+    })
+    await act(async () => {
+      ;(host.querySelector('.story-reel__go') as HTMLButtonElement).click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(calls).toContainEqual({
+      lead: CLIENT,
+      start: true,
+      scene_count: 2,
+      to: 'dm',
+    })
   })
 
   it('"watch" is a finger-sized link (tri shot: it was 17 px)', async () => {
@@ -163,7 +215,7 @@ describe('the story-reel panel', () => {
     await draw()
     expect(host.textContent).toContain('для рилса не хватает: голос')
     // No START button: the palette can still be looked at and kept.
-    expect(host.querySelector('.crm-client__duet-start')).toBeNull()
+    expect(host.querySelector('.story-reel__go')).toBeNull()
   })
 
   it('starts a reel for THIS client on the typed topic, and says so', async () => {
@@ -172,28 +224,25 @@ describe('the story-reel panel', () => {
     )
     await draw()
     const input = host.querySelector(
-      '.crm-client__duet-start input'
-    ) as HTMLInputElement
+      '.story-reel__topic'
+    ) as HTMLTextAreaElement
     await act(async () => {
       const set = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
+        HTMLTextAreaElement.prototype,
         'value'
       )!.set!
       set.call(input, 'Букет недели')
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
     await act(async () => {
-      ;(
-        host.querySelector(
-          '.crm-client__duet-start button'
-        ) as HTMLButtonElement
-      ).click()
+      ;(host.querySelector('.story-reel__go') as HTMLButtonElement).click()
       await new Promise(r => setTimeout(r, 0))
     })
     expect(calls).toContainEqual({
       lead: CLIENT,
       start: true,
       topic: 'Букет недели',
+      to: 'dm',
     })
     expect(host.textContent).toContain('crm.client.story.started:Букет недели')
   })

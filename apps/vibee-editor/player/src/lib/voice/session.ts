@@ -14,9 +14,21 @@
  * - The answer is spoken sentence by sentence while it is still being written
  *   (lib/voice/sentences.ts), up to two sentences synthesised ahead.
  * - Speaking over the agent interrupts it (barge-in): playback stops at once
- *   and the new words are recorded.
+ *   and the new words are recorded. A new question -- spoken, typed, or the
+ *   Stop button -- also stops the answer on the server: otherwise it would
+ *   queue behind the slow answer it was meant to replace (owner, 2026-10-02:
+ *   "I want to interrupt when it is stuck").
+ * - Each sentence is spoken in the language it is WRITTEN in, not the app's:
+ *   a Russian answer under an English interface was read by the English
+ *   voice (owner, 2026-10-02: "she does not speak Russian").
  * - The mic and the voice each feed an AnalyserNode, which is what the logo
  *   visual reads (components/Voice/VoiceOrb.tsx).
+ * - Opening voice mode asks the server to load the transcriber and the voice
+ *   (warm), and once the session knows which language is spoken it names it
+ *   to the transcriber (lib/voice/spokenLang.ts) -- the two biggest waits
+ *   measured on 2026-10-02.
+ * - No microphone is not the end of the conversation: the person can type,
+ *   and the agent still answers aloud (`keyboard`, `type`).
  *
  * Nothing here is React. The page creates a session on a tap -- browsers,
  * and iOS above all, only open the mic and the speaker from a user gesture.
@@ -26,8 +38,15 @@ import type { Message } from '@/atoms/agentChat'
 import { ReplyFollower } from './replyFollower'
 import { hasMicApi, micErrorKey } from './micError'
 import {
+  RELEARN_EVERY,
+  guessSpokenLang,
+  seedSpokenLang,
+  sentenceLang,
+} from './spokenLang'
+import {
   synthesize as httpSynthesize,
   transcribe as httpTranscribe,
+  warmVoice as httpWarm,
 } from './voiceApi'
 
 export type VoicePhase =
@@ -50,11 +69,15 @@ export interface VoiceSnapshot {
   error: string | null
   /** True when the device's own voice is speaking because ours was unreachable. */
   fallbackVoice: boolean
+  /** The microphone failed: the person types instead, and is still answered aloud. */
+  keyboard: boolean
 }
 
 export interface VoiceDeps {
+  /** The app's language: the fallback when nothing better is known. */
   lang: () => Language
-  voice: () => string | null
+  /** The voice the person picked for this language, null for the default. */
+  voice: (lang: Language) => string | null
   /** Send the words as a chat message in the current conversation. */
   send: (text: string) => void
   /** The current conversation's messages. */
@@ -63,8 +86,11 @@ export interface VoiceDeps {
   answering: () => boolean
   /** Call back whenever messages or the answering state change. */
   subscribe: (cb: () => void) => () => void
+  /** Stop the answer being written (and anything queued behind it). */
+  stop?: () => void
   transcribe?: typeof httpTranscribe
   synthesize?: typeof httpSynthesize
+  warm?: typeof httpWarm
 }
 
 const TICK_MS = 40
@@ -99,6 +125,7 @@ export class VoiceSession {
     muted: false,
     error: null,
     fallbackVoice: false,
+    keyboard: false,
   }
   private listeners = new Set<() => void>()
 
@@ -112,6 +139,12 @@ export class VoiceSession {
   private recordStartedAt = 0
   private timer: number | null = null
   private unsub: (() => void) | null = null
+  /** Why the microphone failed, kept while the person types. */
+  private micError: string | null = null
+
+  // The language being spoken, once known (spokenLang.ts).
+  private spokenLang: Language | null = null
+  private phrases = 0
 
   // Voice activity state.
   private floor = 0.01
@@ -125,6 +158,7 @@ export class VoiceSession {
   private playing: AudioBufferSourceNode | null = null
   private utterance: SpeechSynthesisUtterance | null = null
   private pumping = false
+  private threadCheck = false
   private generation = 0
   private readonly level = new Float32Array(2048)
 
@@ -153,17 +187,23 @@ export class VoiceSession {
 
   async start(): Promise<void> {
     if (this.snap.phase !== 'off' && this.snap.phase !== 'error') return
-    this.set({ phase: 'starting', error: null })
+    // A retry after typing: the old audio graph goes before a new one.
+    if (this.ctx) this.teardown()
+    this.micError = null
+    this.set({ phase: 'starting', error: null, keyboard: false })
     const gen = this.generation
+    const lang = this.deps.lang()
+    // Before the mic prompt: the person reading it is time the server can use.
+    this.warm(lang)
+    this.spokenLang = seedSpokenLang(
+      lang,
+      typeof navigator !== 'undefined' ? navigator.languages : undefined
+    )
+    this.phrases = 0
     let stream: MediaStream
     try {
-      const Ctx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext })
-          .webkitAudioContext
-      this.ctx = new Ctx()
       // Resumed inside the same tap that started us, or iOS keeps it silent.
-      void this.ctx.resume()
+      this.openContext()
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -174,7 +214,8 @@ export class VoiceSession {
     } catch (err) {
       if (gen !== this.generation) return
       this.teardown()
-      this.set({ phase: 'error', error: micErrorKey(err, hasMicApi()) })
+      this.micError = micErrorKey(err, hasMicApi())
+      this.set({ phase: 'error', error: this.micError, keyboard: true })
       return
     }
     // Closed while the browser was still asking for the microphone: give
@@ -189,22 +230,43 @@ export class VoiceSession {
     this.micAnalyser.fftSize = 2048
     this.micAnalyser.smoothingTimeConstant = 0.6
     ctx.createMediaStreamSource(this.stream).connect(this.micAnalyser)
-    this.outAnalyser = ctx.createAnalyser()
-    this.outAnalyser.fftSize = 2048
-    this.outAnalyser.smoothingTimeConstant = 0.7
-    this.outGain = ctx.createGain()
-    this.outGain.connect(this.outAnalyser)
-    this.outAnalyser.connect(ctx.destination)
+    this.openOutput()
 
-    this.unsub = this.deps.subscribe(() => this.onThread())
+    this.unsub = this.deps.subscribe(() => this.threadChanged())
     this.timer = window.setInterval(() => this.tick(), TICK_MS)
     this.listen()
+  }
+
+  /**
+   * A typed question, for when there is no microphone. It goes to the chat
+   * like a spoken one and the answer is spoken the same way. Called from the
+   * form's submit, which is the gesture iOS wants before it plays sound.
+   */
+  type(text: string): void {
+    const words = text.trim()
+    if (!words || !this.snap.keyboard) return
+    // A new question replaces whatever was still being said.
+    this.silence()
+    try {
+      this.openContext()
+      this.openOutput()
+    } catch {
+      // No Web Audio at all: the device's own voice reads the answer.
+    }
+    if (!this.unsub)
+      this.unsub = this.deps.subscribe(() => this.threadChanged())
+    this.ask(words)
   }
 
   stop(): void {
     this.generation++
     this.teardown()
-    this.set({ phase: 'off', saying: '', fallbackVoice: false })
+    this.set({
+      phase: 'off',
+      saying: '',
+      fallbackVoice: false,
+      keyboard: false,
+    })
   }
 
   toggleMute(): void {
@@ -215,15 +277,26 @@ export class VoiceSession {
     if (!muted && this.snap.phase === 'listening') this.listen()
   }
 
-  /** Tap on the orb while it speaks: be quiet and listen. */
+  /**
+   * The orb or the Stop button while the agent thinks or speaks: stop the
+   * answer itself, not only its sound, and listen.
+   */
   interrupt(): void {
     if (this.snap.phase === 'speaking' || this.snap.phase === 'thinking') {
+      if (this.follower || this.deps.answering()) this.deps.stop?.()
       this.silence()
-      this.listen()
+      this.idle()
     }
   }
 
   // ---- listening ----------------------------------------------------------
+
+  /** Nothing to say: listen, or -- with no microphone -- wait for typing. */
+  private idle(): void {
+    if (this.stream) return this.listen()
+    if (this.snap.keyboard)
+      this.set({ phase: 'error', error: this.micError, saying: '' })
+  }
 
   private listen(): void {
     if (!this.stream) return
@@ -354,8 +427,22 @@ export class VoiceSession {
     const wasThinking = this.snap.phase === 'thinking'
     this.set({ phase: 'hearing' })
     let text = ''
+    // Named when known, except one phrase in RELEARN_EVERY, which re-checks.
+    const hint =
+      this.phrases++ % RELEARN_EVERY === RELEARN_EVERY - 1
+        ? null
+        : this.spokenLang
     try {
-      text = await (this.deps.transcribe || httpTranscribe)(blob)
+      text = await (this.deps.transcribe || httpTranscribe)(blob, {
+        lang: hint,
+      })
+      // Only an undirected transcript says which language it was: a directed
+      // one is written in the language it was told.
+      if (!hint) {
+        const learned = guessSpokenLang(text)
+        if (learned && learned !== this.spokenLang) this.warm(learned)
+        this.spokenLang = learned || this.spokenLang
+      }
     } catch {
       if (gen !== this.generation) return
       this.set({ error: 'voice.error.hear' })
@@ -369,15 +456,49 @@ export class VoiceSession {
       } else this.listen()
       return
     }
-    this.set({ heard: text, error: null })
+    this.ask(text)
+    this.beginRecording()
+  }
+
+  /** Send a question; one still being answered is stopped, not queued behind. */
+  private ask(text: string): void {
+    if (this.follower || this.deps.answering()) {
+      this.deps.stop?.()
+      this.silence()
+    }
+    this.set({ heard: text, saying: '', error: null })
     this.follower = new ReplyFollower(this.deps.messages())
     this.deps.send(text)
     this.set({ phase: 'thinking' })
-    this.beginRecording()
     this.onThread()
   }
 
+  private warm(lang: Language): void {
+    void (this.deps.warm || httpWarm)(lang, this.deps.voice(lang))
+  }
+
+  /** The language a sentence is spoken in: its own, else the person's. */
+  private sentenceLang(text: string): Language {
+    return sentenceLang(text) || this.spokenLang || this.deps.lang()
+  }
+
   // ---- speaking -----------------------------------------------------------
+
+  /*
+   * Looked at on the next microtask, not inside the store's notification:
+   * the chat queue drops a line BEFORE the line's stream registers as busy,
+   * and in that instant "nobody is answering and there is no reply" made the
+   * follower give up on an answer that was about to start -- so a question
+   * asked while the agent was still answering was never spoken.
+   */
+  private threadChanged(): void {
+    if (this.threadCheck) return
+    this.threadCheck = true
+    queueMicrotask(() => {
+      this.threadCheck = false
+      this.onThread()
+    })
+  }
 
   private onThread(): void {
     const f = this.follower
@@ -398,10 +519,11 @@ export class VoiceSession {
   private async render(text: string): Promise<AudioBuffer | null> {
     if (!this.ctx) return null
     try {
+      const lang = this.sentenceLang(text)
       const bytes = await (this.deps.synthesize || httpSynthesize)(
         text,
-        this.deps.lang(),
-        this.deps.voice()
+        lang,
+        this.deps.voice(lang)
       )
       return await this.ctx.decodeAudioData(bytes)
     } catch {
@@ -428,7 +550,7 @@ export class VoiceSession {
       if (gen !== this.generation) return
       if (this.follower?.finished) {
         this.follower = null
-        this.listen()
+        this.idle()
       } else if (this.follower) {
         this.set({ phase: 'thinking', saying: '' })
       }
@@ -436,6 +558,31 @@ export class VoiceSession {
       // silence() already freed the pump for the next generation.
       if (gen === this.generation) this.pumping = false
     }
+  }
+
+  private openContext(): void {
+    if (this.ctx) {
+      void this.ctx.resume()
+      return
+    }
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext
+    this.ctx = new Ctx()
+    void this.ctx.resume()
+  }
+
+  /** The agent's voice goes through a gain and an analyser the visual reads. */
+  private openOutput(): void {
+    const ctx = this.ctx
+    if (!ctx || this.outGain) return
+    this.outAnalyser = ctx.createAnalyser()
+    this.outAnalyser.fftSize = 2048
+    this.outAnalyser.smoothingTimeConstant = 0.7
+    this.outGain = ctx.createGain()
+    this.outGain.connect(this.outAnalyser)
+    this.outAnalyser.connect(ctx.destination)
   }
 
   private playBuffer(buffer: AudioBuffer): Promise<void> {
@@ -462,7 +609,7 @@ export class VoiceSession {
         typeof window !== 'undefined' ? window.speechSynthesis : undefined
       if (!synth) return resolve()
       const u = new SpeechSynthesisUtterance(text)
-      u.lang = this.deps.lang() === 'ru' ? 'ru-RU' : 'en-US'
+      u.lang = this.sentenceLang(text) === 'ru' ? 'ru-RU' : 'en-US'
       u.onend = () => resolve()
       u.onerror = () => resolve()
       this.utterance = u

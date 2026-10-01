@@ -151,6 +151,49 @@ extension EnvironmentValues {
   }
 }
 
+/*
+ * WHAT `TabView` DID FOR FREE, AND THE OWN BAR HAS TO DO BY HAND.
+ *
+ * Under `TabView` a tab's `.task` and `.onAppear` ran again on every return
+ * and were cancelled on leaving. Screens leaned on that without saying so:
+ * the profile re-read the balance after a generation in the AI tab, the AI
+ * tab re-read its saved templates, the chat pulled the history shared with
+ * the web. The own bar keeps screens alive in a ZStack, so a plain `.task`
+ * now runs ONCE per launch -- and each of those went quietly stale.
+ *
+ * `taskWhileShown` restores the old contract in one place: it runs when the
+ * tab comes forward and is cancelled when it goes back. Outside the bar
+ * (`tabIsShown` defaults to true) it is an ordinary `.task`.
+ */
+private struct ShownKey<ID: Equatable>: Equatable {
+  let id: ID
+  let shown: Bool
+}
+
+private struct TaskWhileShown<ID: Equatable>: ViewModifier {
+  @Environment(\.tabIsShown) private var shown
+  let id: ID
+  let action: () async -> Void
+
+  func body(content: Content) -> some View {
+    content.task(id: ShownKey(id: id, shown: shown)) {
+      if shown { await action() }
+    }
+  }
+}
+
+extension View {
+  /// `.task(id:)` that also re-runs each time the tab comes forward.
+  func taskWhileShown<ID: Equatable>(id: ID, _ action: @escaping () async -> Void) -> some View {
+    modifier(TaskWhileShown(id: id, action: action))
+  }
+
+  /// `.task` that re-runs each time the tab comes forward.
+  func taskWhileShown(_ action: @escaping () async -> Void) -> some View {
+    modifier(TaskWhileShown(id: 0, action: action))
+  }
+}
+
 /// The row of tabs under every screen, measured from the web's
 /// TelegramTabBar (`Тема.ТабБар`): opaque, full width, one row for all.
 struct BottomTabBar: View {
@@ -186,6 +229,11 @@ struct BottomTabBar: View {
     .overlay(alignment: .top) {
       Тема.ТабБар.граница.frame(height: Тема.ТабБар.толщинаГраницы) // cyrillic-ok
     }
+    // `TabView`'s bar told VoiceOver "tab bar" itself. SwiftUI has no such
+    // trait (only UIKit's `.tabBar`), so the row is at least a named group:
+    // "Tabs", then six buttons, rather than six buttons out of nowhere.
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel(say("Tabs", "Вкладки"))
   }
 }
 
