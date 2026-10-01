@@ -736,12 +736,14 @@ AGENT TOOLS ON THE RENDER
                           2 the render has no task threads yet (nothing sent),
                           3 the render did not answer. Key as for `tri mcp`.
   tri card-check [n]      is the card chat LIVE (spec kanban-card-chat.t27):
-                          GETs only, nothing written. Three verdicts --
+                          GETs only, nothing written. Four verdicts --
                           the card's thread is `task:` (render deployed),
                           /api/card-status answers (404 = not deployed,
                           503 = no GITHUB_READ_TOKEN: the client reads), and
-                          the PRs that carry it are merged. <n> defaults to
-                          5382, the EPIC. Exit 0 all live, 2 waiting on a
+                          the PRs that carry it are merged; plus the
+                          server's GraphQL query against live GitHub (local
+                          `gh` login, read-only) compared with the client's
+                          read. <n> (t27#n, repo#n) defaults to 5382, the EPIC. Exit 0 all live, 2 waiting on a
                           merge, deploy or token, 1 something answered wrong.
   tri browser             can the remote browser ACT, not merely answer.
                           `/json/list` is served by the browser process, so it
@@ -1994,7 +1996,19 @@ cmd_card_check() {
     gh pr view "${pr#*#}" -R "${pr%#*}" --json state -q .state 2>/dev/null \
       | sed "s|^|$pr |"
   done)
-  CARD_KEY="$key" CARD_URL="$RENDER" CARD_TASK="$task" CARD_MERGED="$merged" python3 - <<'PY'
+  # 4. The server's GraphQL query against LIVE GitHub, with the local `gh`
+  # token (read-only use, never printed), compared with the client's read.
+  # Holds before any merge: a GitHub schema change breaks it here first.
+  local pr_n="${task##*#}" pr_repo="${task%#*}" parity=''
+  [ "$pr_repo" = "$task" ] && pr_repo='gHashTag/t27'
+  case "$pr_repo" in */*) ;; *) pr_repo="gHashTag/$pr_repo" ;; esac
+  if command -v gh >/dev/null && gh auth token >/dev/null 2>&1; then
+    parity=$(cd "$ROOT/apps/vibee-editor/render" \
+      && GH_READ=$(gh auth token) ./node_modules/.bin/tsx \
+        scripts/card-status-parity.ts "$pr_repo" "$pr_n" 2>/dev/null | tail -1)
+  fi
+  CARD_KEY="$key" CARD_URL="$RENDER" CARD_TASK="$task" CARD_MERGED="$merged" \
+    CARD_PARITY="$parity" python3 - <<'PY'
 import json, os, sys, urllib.error, urllib.parse, urllib.request
 
 base, task = os.environ['CARD_URL'], os.environ['CARD_TASK']
@@ -2053,6 +2067,24 @@ else:
 for line in filter(None, os.environ.get('CARD_MERGED', '').splitlines()):
     pr, state = line.rsplit(' ', 1)
     say('ok' if state == 'MERGED' else 'wait', f'{pr} {state.lower()}')
+
+# 4. The server's query against live GitHub, the same card both ways.
+raw = os.environ.get('CARD_PARITY', '')
+try:
+    par = json.loads(raw) if raw else None
+except ValueError:
+    par = None
+if par is None:
+    say('wait', 'query vs live GitHub: not run (no `gh` login or no answer)')
+elif par.get('error'):
+    say('fail' if 'broke' in par['error'] else 'wait', f"query vs live GitHub: {par['error']}")
+elif par.get('client') == 'unmeasured':
+    say('wait', 'query answered; the client read was refused (limit)')
+elif par.get('same'):
+    srv = par.get('server') or {}
+    say('ok', f"query vs live GitHub: server == client ({len(srv.get('prs', []))} shown, +{srv.get('more', 0)})")
+else:
+    say('fail', f"server != client: {json.dumps(par.get('server'))} vs {json.dumps(par.get('client'))}")
 
 sys.exit(1 if 'fail' in verdicts else 2 if 'wait' in verdicts else 0)
 PY

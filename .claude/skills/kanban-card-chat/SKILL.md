@@ -121,10 +121,28 @@ TRI_T27C=<t27c>` and add a `docs/now/<date>-<slug>.md` entry. A t27c with
   `GITHUB_READ_TOKEN` it answers 503 and the client reads as before; a
   `measured:false`, a 404 (old render), a non-JSON body or a status without
   `prs` all fall back. Never trust a door answer that is not `measured`.
-- **No move button until the Queen has a ONE-card door.** The column is
-  computed (registry -> dispatch verdict -> open issue); the only write is
-  `PUT /queen/registry`, which replaces every task -- using it from a sheet
-  races every writer. Contract: spec v4 MOVE\_\*, `player/src/lib/cardMove.ts`.
+- **No move button until the Queen's ONE-card door is MERGED.** The column
+  is computed (registry -> dispatch verdict -> open issue); `PUT
+/queen/registry` replaces every task, and a sheet using it races every
+  writer. The door is gHashTag/BrowserOS#519 (`POST /queen/move`, table
+  `queen_card_move` keyed (repo, number)). Only two moves are a person's:
+  backlog/blocked -> dropped, and taking a person's own drop back. The drop
+  is read by BOTH the board and the round's candidates, because the tick
+  takes every open issue and a board-only drop would draw "dropped" while a
+  bee was handed the card. Flip `MOVE_DOOR_EXISTS` only after #519 is merged
+  AND `QUEEN_REF` is bumped. Contract: spec v4 MOVE\_\*,
+  `player/src/lib/cardMove.ts`.
+- **`tri card-check` has four verdicts.** The 4th, parity, is
+  `render/scripts/card-status-parity.ts`. It sends the server's
+  `CARD_STATUS_QUERY` to live GitHub (the gh token, reads only) and compares
+  the result with the client's v3 read of the same card. If they differ, the
+  door and the sheet disagree, even while the door has no token.
+- **iOS: the same card, the same thread.** In `HiveScreen` (Kanban panel),
+  a card tap opens `AgentChatView(task:taskTitle:)` as a sheet keyed by
+  `OpenCard.id` = `<owner>/<repo>#<n>`. Writing stays locked until the
+  history answers `thread == task:<ref>`. An older render answers `self`, and
+  a turn written then would land in the person's own chat
+  (`threadAnswered`). Tests: `VibeeTests/CardChatTaskTests`.
 - **The agent key for live GETs** lives in vibee-render `AGENT_KEYS`
   (`key:id[,..]`). Pass it as `AGENT_KEY=$(... | cut -d: -f1) tri card-check`
   for one run; never write it to a file or print it.

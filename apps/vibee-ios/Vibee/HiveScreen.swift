@@ -390,8 +390,25 @@ private struct ModuleCard: View {
     .background(Palette.surface, in: RoundedRectangle(cornerRadius: Corner.lg))
   }
 }
+/// The card a tap opened: its task reference is the chat's thread key.
+struct OpenCard: Identifiable, Equatable {
+  let task: String
+  let title: String
+  var id: String { task }
+
+  /// An untitled card says so instead of repeating its number.
+  init(repo: String, card: HiveAPI.Card) {
+    task = AgentChatView.taskRef(repo: repo, number: card.id)
+    let trimmed = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    title = trimmed.isEmpty || trimmed == "#\(card.id)" ? "#\(card.id)" : trimmed
+  }
+}
+
 private struct KanbanPanel: View {
   @StateObject private var loader = HiveLoader<HiveAPI.Board>()
+  /// Tap a card, talk about it: the same task thread the web sheet and the
+  /// A2A agents use (spec kanban-card-chat.t27), half a screen first.
+  @State private var opened: OpenCard?
 
   var body: some View {
     Panel(loader: loader) { board in
@@ -401,15 +418,28 @@ private struct KanbanPanel: View {
           SectionCard(title: column.title, count: column.count) {
             Note(text: column.blurb)
             ForEach(board.cards.filter { $0.column == column.key }.prefix(6)) { card in
-              HStack(alignment: .top, spacing: 6) {
-                Text("#\(card.id)")
-                  .font(Typeface.style(.caption2))
-                  .foregroundStyle(Palette.textMuted)
-                  .monospacedDigit()
-                Text(card.title).font(Typeface.style(.caption))
+              Button {
+                opened = OpenCard(repo: board.repo, card: card)
+              } label: {
+                HStack(alignment: .top, spacing: 6) {
+                  Text("#\(card.id)")
+                    .font(Typeface.style(.caption2))
+                    .foregroundStyle(Palette.textMuted)
+                    .monospacedDigit()
+                  Text(card.title).font(Typeface.style(.caption))
+                    .multilineTextAlignment(.leading)
+                  Spacer(minLength: 0)
+                  Image(systemName: "bubble.left")
+                    .font(Typeface.style(.caption2))
+                    .foregroundStyle(Palette.textMuted)
+                    .accessibilityHidden(true)
+                }
+                .foregroundStyle(Palette.text)
+                .frame(maxWidth: .infinity, minHeight: Touch.minimum, alignment: .leading)
+                .contentShape(Rectangle())
               }
-              .foregroundStyle(Palette.text)
-              .frame(maxWidth: .infinity, alignment: .leading)
+              .buttonStyle(.plain)
+              .accessibilityHint(speaksRussian ? "Открыть чат по задаче" : "Open the task's chat")
             }
             if column.count > 6 {
               Note(
@@ -421,6 +451,11 @@ private struct KanbanPanel: View {
       }
     }
     .task { await loader.load { try await HiveAPI.board() } }
+    .sheet(item: $opened) { card in
+      AgentChatView(task: card.task, taskTitle: card.title)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
   }
 }
 

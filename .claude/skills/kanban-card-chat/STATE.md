@@ -33,7 +33,11 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 - [x] L3.3 S15 move: the Queen has NO door to move one card (read on BrowserOS trios/agent-server #517: the column is computed from registry -> dispatch verdict -> open issue; `PUT /queen/registry` replaces the whole array; `/queen/move` 404). Spec v4 holds the contract for a one-card door (MOVE_SAYS_FROM, target only backlog/dropped, answer with a reason); player `lib/cardMove.ts`; the sheet shows nothing (MOVE_OFFERED = moveOffered(false, ...))
 - [x] L3.4 Merged origin/main (#3223 Tasks tab) by hand: the sync tool timed out on `git ls-remote` twice
 
-## Weak spots (S0)
+### Loop 4 (owner: "все три" -- live check, the Queen's door, iOS)
+
+- [x] L4.1 `tri card-check` 4th verdict: `scripts/card-status-parity.ts` sends CARD_STATUS_QUERY to LIVE GitHub (gh token, reads only) and compares it with the client's v3 read of the same card. 999#999 and t27#5388: server == client; negative control (a broken query) exits 1
+- [x] L4.2 The Queen's one-card door -- gHashTag/BrowserOS#519 (to `feat/queen-supervisor`, no merge): `POST /queen/move`, table `queen_card_move` keyed (repo, number), read by BOTH the board and the round's candidates; app button stays off until merged (MOVE_DOOR_EXISTS)
+- [~] L4.3 iOS (BUILT, tests compiled; NOT yet run -- at load ~420 the simulator stopped answering even `simctl get_app_container`, two runs hung at launch; the next loop runs `CardChatTaskTests` first): the native kanban (Hive -> Kanban, and the Tasks fallback of #3223) -- a card tap opens `AgentChatView(task:)` as a sheet on the task thread; writing is locked until the server answers `thread == task:<ref>` (an old render answers `self`); `VibeeTests/CardChatTaskTests`
 
 1. Card tap opens GitHub in a new tab; nothing about the agent.
 2. Cards carry no agent, no conversation, no history.
@@ -107,6 +111,25 @@ git-dir>)`). Fix: `resolve`, and the stray dir removed. A tool that writes
   worktree root). The merge with main is what pulled it into related-tests.
 - **The live render answers `?task=` with `self`** (2026-10-01, card-check):
   the deploy is the owner's merge, not a defect.
+
+- **2026-10-01, the Queen's round takes EVERY open issue as a candidate**
+  (queen-tick.ts, `open.map(i => i.number)`). A drop only the board read
+  would draw a card in DROPPED while the next round handed it to a bee. Fix:
+  the round filters the same `queen_card_move` rows the board draws; both
+  fail open (missing table = no drops) so they still agree.
+- **2026-10-01, the board's repository changed once already** (trios -> t27):
+  a drop keyed by number alone would land on another repo's issue. Keyed
+  `(repo, number)`; the door refuses a body naming another repo (409).
+- **BrowserOS `apps/server/node_modules` is a TRACKED symlink** to another
+  person's home (`/Users/playom/...`): tests in a fresh worktree fail with
+  3 import errors. Fix for a worktree only: `git update-index
+--skip-worktree node_modules`, then a local symlink; never commit it.
+- **iOS simulator: "Simulator device failed to launch ... system shell
+  probably crashed"** after a clean compile -- the simulator, not the code.
+  `simctl shutdown` + `boot` + `bootstatus -b`, then `test-without-building`.
+- **The route-guard gate pins mount counts** (BrowserOS
+  `tests/api/routes/route-guard.test.ts`): a new guarded door is 45 -> 46
+  mounts and one more wrapper; re-measure with a dated comment, never loosen.
 
 ## PRs
 
