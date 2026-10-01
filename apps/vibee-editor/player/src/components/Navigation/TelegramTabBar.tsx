@@ -45,6 +45,7 @@ const TABS: TabItem[] = PRIMARY_NAV_ITEMS.map(item => ({
 const HIDDEN_EXACT = new Set([
   '/', // transient — redirects to /feed
   '/home', // marketing landing
+  '/welcome', // first-launch screen, has its own way out
   '/privacy-policy',
   '/terms-service',
   '/terms-of-service',

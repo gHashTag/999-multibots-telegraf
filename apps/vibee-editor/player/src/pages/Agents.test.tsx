@@ -142,6 +142,24 @@ describe('what was measured, next to what is promised', () => {
     expect(fail?.textContent).toContain('Last check failed')
   })
 
+  it('a check that is no longer current is not drawn as a pass', () => {
+    verdictsAnswer = {
+      blogger: {
+        agent: 'blogger',
+        pass: true,
+        at: '2026-09-24T07:14:00Z',
+        tools: [],
+        codes: [],
+        fresh: false,
+      },
+    }
+    draw()
+    const line = host.querySelector('.agent-card__checked')
+    expect(line?.getAttribute('data-tone')).toBe('stale')
+    expect(line?.textContent).toContain('Last check')
+    expect(line?.textContent).not.toContain('Checked on a real account')
+  })
+
   it('no answer from the server draws no line, never "unchecked"', () => {
     verdictsAnswer = null
     draw()
