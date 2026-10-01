@@ -1367,6 +1367,10 @@ function ownerSideSection(surface?: string): string {
     'порядку ВХОДА В АККАУНТЫ, затем снова browser_logins и одна строка на сеть. ' + // cyrillic-ok: prompt copy
     /* #2974: where visitors come from, by the utm tag of each channel. */
     'Откуда приходят люди, по каналам (utm_source) — crm_traffic. ' + // cyrillic-ok: prompt copy
+    /* automation/ball-board.t27: one board of CRM, mail and code work by client. */
+    'Где мяч по всем делам сразу — CRM, почта, открытые PR и баги, по ' + // cyrillic-ok: prompt copy
+    'клиентам, чей ход — ball_board; адрес, домен, репо или метку к ' + // cyrillic-ok: prompt copy
+    'клиенту — ball_link. ' + // cyrillic-ok: prompt copy
     'Аватарки агентов каталога из твоего фото (GPT Image 2.5) — ' + // cyrillic-ok: prompt copy
     'agent_avatars_make; с какими клиентами работал агент — agent_clients. ' + // cyrillic-ok: prompt copy
     'Verilog: lint, симуляция тестбенча, синтез — hdl_run (вывод цитируй). ' + // cyrillic-ok: prompt copy
