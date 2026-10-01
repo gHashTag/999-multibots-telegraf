@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { boardHash, queenPage, queenPublicPage } from './hive'
+import {
+  boardHash,
+  frameHashFor,
+  gamePathFor,
+  queenPage,
+  queenPublicPage,
+} from './hive'
 import { PRIMARY_NAV_ITEMS } from './primaryNavigation'
 
 describe('the hive tab is her page, whole', () => {
@@ -28,7 +34,11 @@ describe('the hive tab is her page, whole', () => {
   it('is a top-level tab, and any old sub-tab address still lights it up', () => {
     const hive = PRIMARY_NAV_ITEMS.find(x => x.id === 'hive')
     expect(hive, 'the hive tab is missing from the bar').toBeTruthy()
-    expect(hive!.route).toBe('/hive')
+    // Owner, 2026-10-01: "rename the main page to app.t27.ai/game".
+    expect(hive!.route).toBe('/game')
+    expect(hive!.match.test('/game')).toBe(true)
+    expect(hive!.match.test('/game/kanban')).toBe(true)
+    expect(hive!.match.test('/gamer')).toBe(false)
     // Links to the former sub-tabs (`/hive/comb`, `/hive/tree`) may still be
     // out there in chats; they must land on the hive, not on a blank screen.
     expect(hive!.match.test('/hive')).toBe(true)
@@ -36,5 +46,60 @@ describe('the hive tab is her page, whole', () => {
     // The board's own address in the app lights the same tab.
     expect(hive!.match.test('/queen')).toBe(true)
     expect(hive!.match.test('/queenly')).toBe(false)
+  })
+})
+
+/**
+ * EVERY VIEW OF THE BOARD HAS ITS OWN ADDRESS (owner, 2026-10-01).
+ *
+ * The board names its view in the frame's hash; the app names it in the path.
+ * The page converts with these two and nothing else, so a round trip that
+ * lost a key would lose a link.
+ */
+describe('the game address and the frame hash are one mapping', () => {
+  it('names the view in the path and keeps her other keys as the query', () => {
+    expect(gamePathFor('#/queen')).toBe('/game')
+    expect(gamePathFor('#/queen?tab=kanban')).toBe('/game/kanban')
+    expect(gamePathFor('#/queen?tab=tri&screen=chat')).toBe(
+      '/game/tri?screen=chat'
+    )
+    expect(gamePathFor('#/queen?screen=chat&tab=tri')).toBe(
+      '/game/tri?screen=chat'
+    )
+  })
+
+  it('refuses what is not her board, or not a view name', () => {
+    expect(gamePathFor('')).toBeNull()
+    expect(gamePathFor('#/profile')).toBeNull()
+    expect(gamePathFor('#/queenx')).toBeNull()
+    expect(gamePathFor('#/queen?tab=Kanban')).toBeNull()
+    expect(gamePathFor('#/queen?tab=../x')).toBeNull()
+    expect(gamePathFor('#/queen?x="><script>')).toBeNull()
+  })
+
+  it('goes back the other way, and only for /game paths', () => {
+    expect(frameHashFor('/game', '')).toBe('#/queen')
+    expect(frameHashFor('/game/', '')).toBe('#/queen')
+    expect(frameHashFor('/game/kanban', '')).toBe('#/queen?tab=kanban')
+    expect(frameHashFor('/game/tri', '?screen=chat')).toBe(
+      '#/queen?tab=tri&screen=chat'
+    )
+    // The path names the view; a tab= in the query cannot overrule it.
+    expect(frameHashFor('/game/specs', '?tab=wars')).toBe('#/queen?tab=specs')
+    expect(frameHashFor('/game/Kanban', '')).toBe('#/queen')
+    expect(frameHashFor('/game/a/b', '')).toBe('#/queen')
+  })
+
+  it('a round trip changes nothing', () => {
+    for (const hash of [
+      '#/queen',
+      '#/queen?tab=wars',
+      '#/queen?tab=skills&skill=t27%2Ftri',
+      '#/queen?tab=tri&screen=profile&path=%2Fanna',
+    ]) {
+      const path = gamePathFor(hash)!
+      const [p, q = ''] = path.split('?')
+      expect(frameHashFor(p, q ? `?${q}` : '')).toBe(hash)
+    }
   })
 })

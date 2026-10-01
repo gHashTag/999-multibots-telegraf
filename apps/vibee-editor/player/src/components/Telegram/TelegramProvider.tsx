@@ -41,7 +41,7 @@ const START_PARAM_ROUTES: Record<string, string> = {
    * on the profile because the welcome road and the club card live there;
    * one screen, two addresses, same reasoning as `pair` below.
    */
-  hive: '/hive',
+  hive: '/game',
   chat: '/chat',
   /*
    * `browser` — THE PERSON'S OWN BROWSER. It sits next to `chat` because

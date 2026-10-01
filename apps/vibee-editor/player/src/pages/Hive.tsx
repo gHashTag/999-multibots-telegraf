@@ -1,9 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
 import { openLoginAtom } from '@/atoms'
 import '@/components/Auth/styles.css'
-import { answerIdentityRequests, queenPage, queenPublicPage } from '@/lib/hive'
+import {
+  answerIdentityRequests,
+  boardHash,
+  frameHashFor,
+  gamePathFor,
+  queenPage,
+  queenPublicPage,
+} from '@/lib/hive'
 import { IS_EMBED } from '@/lib/embed'
 import { API_BASE } from '@/config'
 import { getAppAccessToken } from '@/lib/appSession'
@@ -63,17 +71,43 @@ import './Hive.css'
  * that is how it must be".
  *
  * The "open in the browser" link is still the explanation for a dark
- * rectangle (WebGL off, third-party frame blocked), but it lives in the
- * loading placeholder now: visible until the frame reports `load`, gone after.
+ * rectangle (WebGL off, a frame blocked), but it lives in the placeholder:
+ * visible until the board has drawn itself, and again if it never does.
+ *
+ * ONE ADDRESS PER VIEW (owner, 2026-10-01: "every tab must have its own
+ * unique link", "rename the main page to /game"). The board writes its view
+ * into the frame's hash with replaceState, which fires no event, and the
+ * frame is this origin's /queen/ -- so the page reads the frame's hash on a
+ * short timer and writes the matching /game/<tab> into the app's address
+ * (lib/hive.ts gamePathFor). Back, a link, or the tab bar moving the app's
+ * address moves the frame the other way (frameHashFor).
  */
+/** How long a loaded frame may stay empty before the way out comes back. */
+export const BOARD_GRACE_MS = 8000
+/** How often the frame's address and drawing are read. */
+const WATCH_MS = 400
+
 export default function HivePage() {
   const { lang, t } = useLanguage()
   const [loaded, setLoaded] = useState(false)
-  // The view the address asked for (app.t27.ai/queen#/queen?tab=...), read
-  // once: after that the board changes its own views inside the frame.
+  const [stuck, setStuck] = useState(false)
+  const loadedAt = useRef<number | null>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
+  // The view the address asked for (/game/kanban), read once: after that the
+  // board changes its own views inside the frame and the address follows it.
+  // A bookmark from before /game -- /queen/#/queen?tab=kanban, sent here by
+  // nginx with its fragment -- still names its view by hash, and wins.
   const [asked] = useState(() =>
-    typeof window === 'undefined' ? '' : window.location.hash
+    /^#\/queen/.test(location.hash)
+      ? boardHash(location.hash)
+      : frameHashFor(location.pathname, location.search)
   )
+  // The address as the router holds it, for the timer below to compare with.
+  const here = useRef('')
+  useEffect(() => {
+    here.current = `${location.pathname}${location.search}${location.hash}`
+  }, [location.pathname, location.search, location.hash])
   const page = queenPage(lang, asked)
   const outside = queenPublicPage(lang)
   const frameRef = useRef<HTMLIFrameElement>(null)
@@ -121,6 +155,47 @@ export default function HivePage() {
     })
   }, [openLogin])
 
+  // The frame -> the address, and "did the board draw anything". The frame is
+  // this origin's, so both are plain reads; a frame holding somebody else's
+  // document (the browser's error page) throws, and that counts as not drawn.
+  useEffect(() => {
+    if (IS_EMBED) return
+    let seen: string | null = null
+    const id = window.setInterval(() => {
+      const frame = frameRef.current
+      if (!frame || loadedAt.current === null) return
+      let hash = ''
+      let drawn = false
+      try {
+        hash = frame.contentWindow?.location.hash ?? ''
+        const board = frame.contentDocument?.getElementById('root')
+        drawn = (board?.childElementCount ?? 0) > 0
+      } catch {
+        // Not this origin's document: nothing to follow, nothing drawn.
+      }
+      setStuck(!drawn && Date.now() - loadedAt.current > BOARD_GRACE_MS)
+      if (hash === seen) return
+      seen = hash
+      const to = gamePathFor(hash)
+      if (to && to !== here.current) navigate(to, { replace: true })
+    }, WATCH_MS)
+    return () => window.clearInterval(id)
+  }, [navigate])
+
+  // The address -> the frame: Back, a link to /game/specs, the tab bar. The
+  // frame's fragment is replaced, not assigned, so Back steps the app.
+  useEffect(() => {
+    const win = frameRef.current?.contentWindow
+    if (IS_EMBED || !win || loadedAt.current === null) return
+    const want = frameHashFor(location.pathname, location.search)
+    try {
+      if (gamePathFor(win.location.hash) === gamePathFor(want)) return
+      win.location.replace(`${win.location.href.split('#')[0]}${want}`)
+    } catch {
+      // Not this origin's document: it has no view to move.
+    }
+  }, [location.pathname, location.search])
+
   // Inside the game's TRI frame the hive IS the page around this frame.
   // Framing it again would nest game > app > game > app without end, so no
   // path that reaches /hive there (the welcome exit, a start_param, a typed
@@ -140,9 +215,9 @@ export default function HivePage() {
   return (
     <div className="hive-page">
       <div className="hive-stage">
-        {!loaded && (
+        {(!loaded || stuck) && (
           <p className="hive-loading">
-            <span>{t('hive.loading')}</span>
+            <span>{t(stuck ? 'hive.stuck' : 'hive.loading')}</span>
             <a
               className="hive-out"
               href={outside}
@@ -154,29 +229,13 @@ export default function HivePage() {
           </p>
         )}
         {/*
-         * THE WAY OUT STAYS, BECAUSE `onLoad` IS NOT PROOF OF A PAGE.
-         *
-         * A frame refused by the other site -- a `frame-ancestors` policy, an
-         * `X-Frame-Options` header, a network that blocks it -- still fires
-         * `load` for the browser's own error document. Measured in the pane
-         * on 25.09.2026: this tab went ENTIRELY BLACK. The frame reported
-         * itself loaded, the loading notice with its escape link was removed
-         * on that word, and what remained was a black rectangle above the tab
-         * bar with nothing in it and nowhere to go.
-         *
-         * Nothing here can see inside a cross-origin frame to check, and it
-         * should not try. So the link outlives the load: small, in a corner,
-         * always. A tab that cannot show the page still has to say where the
-         * page is.
+         * NO CORNER LINK OVER THE BOARD (owner, 2026-10-01: "remove the
+         * button, it covers the header"). It was there because `onLoad` is
+         * not proof of a page: a refused frame loads the browser's error
+         * document and the tab went black (25.09.2026). The frame is this
+         * origin's now, so the page can look: the way out comes back when
+         * the board has not drawn itself BOARD_GRACE_MS after the load.
          */}
-        <a
-          className="hive-out hive-out--corner"
-          href={outside}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          {t('hive.openOutside')}
-        </a>
         <iframe
           ref={frameRef}
           className={`hive-frame${loaded ? ' hive-frame--ready' : ''}`}
@@ -186,6 +245,7 @@ export default function HivePage() {
           referrerPolicy="strict-origin-when-cross-origin"
           onLoad={() => {
             loads.current += 1
+            loadedAt.current = Date.now()
             setLoaded(true)
           }}
         />
