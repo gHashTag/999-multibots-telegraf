@@ -622,9 +622,21 @@ struct HiveScreen: View {
   }
 }
 
+/// The Tasks tab: the web board's kanban, app.t27.ai/game/kanban, with all of
+/// its controls -- and the native kanban panel when the page cannot load.
+struct TasksScreen: View {
+  @ObservedObject private var host = HiveHost.tasks
+
+  var body: some View {
+    WebPage(host: host, runsUnderTabBar: true) {
+      NativeHiveBoard(tab: .kanban)
+    }
+  }
+}
+
 /// The board drawn natively from the same API: the fallback for the web one.
 struct NativeHiveBoard: View {
-  @State private var tab: HiveTab = .comb
+  @State var tab: HiveTab = .comb
 
   var body: some View {
     VStack(spacing: 0) {
