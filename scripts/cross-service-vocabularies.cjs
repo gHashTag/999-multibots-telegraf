@@ -19,7 +19,7 @@
  * one of these mistakes takes.
  */
 const { readFileSync } = require('node:fs')
-const { resolve } = require('node:path')
+const { resolve, posix } = require('node:path')
 
 const ROOT = resolve(__dirname, '..')
 const read = p => {
@@ -84,8 +84,26 @@ function sources(dir, out = []) {
  */
 function registeredTools() {
   const names = new Set()
-  for (const f of sources('apps/vibee-editor/render/src/agent'))
-    for (const m of read(f).matchAll(/name: '([a-z_0-9]+)'/g)) names.add(m[1])
+  for (const f of sources('apps/vibee-editor/render/src/agent')) {
+    const src = read(f)
+    for (const m of src.matchAll(/name: '([a-z_0-9]+)'/g)) names.add(m[1])
+    /*
+     * A tool bound to a .t27 spec takes its name from the generated module
+     * (`name: SPEC.PUSH_TOOL`), so the literal reader never saw it: on
+     * 01.10.2026 crm_sellers had been invisible here since it was bound, and
+     * ball_work_push was reported as a DIRECT_CALL_ONLY name with no tool.
+     * Resolve the namespace import to its .gen.ts and read the constant.
+     */
+    for (const m of src.matchAll(/name: ([A-Za-z_]+)\.([A-Z_0-9]+),/g)) {
+      const imp = src.match(new RegExp(`import \\* as ${m[1]} from '([^']+)'`))
+      if (!imp) continue
+      const gen = posix.join(posix.dirname(f), `${imp[1]}.ts`)
+      const val = read(gen).match(
+        new RegExp(`export const ${m[2]} = "([a-z_0-9]+)"`)
+      )
+      if (val) names.add(val[1])
+    }
+  }
   return [...names]
 }
 

@@ -188,4 +188,4 @@ export function soulSeed(user: SoulSeedSource | null | undefined): {
 }
 
 /** Where the last card of the road sends a person: the game. */
-export const WELCOME_EXIT_ROUTE = '/hive'
+export const WELCOME_EXIT_ROUTE = '/game'

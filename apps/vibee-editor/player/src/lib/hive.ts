@@ -7,8 +7,9 @@
  * (Dockerfile stage `queen`, pinned QUEEN_REF), so the tab frames THAT copy:
  * one origin, one session -- the board reads the session the app wrote, no
  * token hop through the bridge -- and one address the person sees,
- * app.t27.ai/queen. A top-level visit to /queen/ is sent back to /queen by
- * nginx, so the board never shows without the app around it.
+ * app.t27.ai/game (it was /queen until 2026-10-01; that address and /hive
+ * still lead here). A top-level visit to /queen/ is sent to /game by nginx,
+ * so the board never shows without the app around it.
  *
  * The hash route is hers: `#/queen` is the board inside her single-page
  * site. The language rides in `?lang=` before the hash, because that is where
@@ -30,6 +31,44 @@ export function queenPage(lang: string, hash = ''): string {
  */
 export function boardHash(hash: string): string {
   return /^#\/queen(?:[/?][^\s<>"']*)?$/.test(hash) ? hash : '#/queen'
+}
+
+/**
+ * THE GAME'S OWN ADDRESS, ONE PER VIEW (owner, 2026-10-01: "every tab must
+ * have its own unique link", "rename the main page to app.t27.ai/game").
+ *
+ * The board writes its view into its OWN hash, #/queen?tab=kanban, inside the
+ * frame -- so the app's address said /queen whatever was open, and a link to
+ * the kanban could not be sent. The app's address now carries the view as a
+ * path: /game/kanban is #/queen?tab=kanban, and every other key of hers rides
+ * along as the query (/game/tri?screen=chat). These two functions are the
+ * whole mapping; the page only calls them.
+ */
+export const GAME_PATH = '/game'
+
+/** A view name as her `?tab=` accepts it: lower-case letters (queenHud HUD_VIEWS). */
+const GAME_TAB = /^[a-z]{1,16}$/
+
+/** The app's address for the frame's hash, or null for a hash that is not her board. */
+export function gamePathFor(hash: string): string | null {
+  const m = /^#\/queen(?:\?(.*))?$/.exec(hash)
+  if (!m || boardHash(hash) !== hash) return null
+  const query = new URLSearchParams(m[1] ?? '')
+  const tab = query.get('tab')
+  query.delete('tab')
+  if (tab !== null && !GAME_TAB.test(tab)) return null
+  const rest = query.toString()
+  return `${GAME_PATH}${tab ? `/${tab}` : ''}${rest ? `?${rest}` : ''}`
+}
+
+/** The frame's hash for an app address: /game/kanban?x=1 -> #/queen?tab=kanban&x=1. */
+export function frameHashFor(pathname: string, search: string): string {
+  const tab = /^\/game\/([a-z]{1,16})\/?$/.exec(pathname)?.[1]
+  const query = new URLSearchParams(search)
+  query.delete('tab')
+  const rest = query.toString()
+  const params = [tab ? `tab=${tab}` : '', rest].filter(Boolean).join('&')
+  return boardHash(params ? `#/queen?${params}` : '#/queen')
 }
 
 /** The same board on its public site: the way out when the frame is blank. */

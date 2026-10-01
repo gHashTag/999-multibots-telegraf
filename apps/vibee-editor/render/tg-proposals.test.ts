@@ -1068,7 +1068,16 @@ describe('a draft is only prepared where it can be confirmed', () => {
     expect(q.pendingCount()).toBe(1)
   })
 
-  for (const surface of ['ios', 'agent', 'unknown', undefined]) {
+  it('the iOS app queues it: its chat draws the same card', async () => {
+    const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
+    const q = await import('./src/agent/tg-proposals')
+    q.forgetProposals()
+    const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
+    await send.handler({ chat: '@ivan', text: 'hi' }, owner('ios'))
+    expect(q.pendingCount()).toBe(1)
+  })
+
+  for (const surface of ['agent', 'unknown', undefined]) {
     it(`${surface ?? 'no surface'} does NOT queue it`, async () => {
       const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
       const q = await import('./src/agent/tg-proposals')
@@ -1091,8 +1100,8 @@ describe('a draft is only prepared where it can be confirmed', () => {
     const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
     const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
     const answer = (await send.handler(
-      { chat: '@ivan', text: 'привет' },
-      owner('ios')
+      { chat: '@ivan', text: 'hi' },
+      owner('agent')
     )) as { proposal?: boolean; why?: string }
     expect(answer.proposal).toBe(true)
     expect(answer.why).toContain('чате бота')
