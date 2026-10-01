@@ -10977,6 +10977,8 @@ Iteration 6: the agent chat and the AI screen follow `say` too. Two traps:
   (`packages/vibee-atoms/src/defaults.ts`) through `КаталогСценария.label`, <!-- cyrillic-ok: Swift type name -->
   never by changing the value. A default argument does not survive a function
   reference: pass `{ Catalog.label($0) }`, not `Catalog.label`.
-- **Open anomaly, not fixed:** iOS maps the "other" niche to server key
-  `general` and the casual style to `conversational`; the web sends `other` /
-  `casual`. Check what the server accepts before aligning either side.
+- **Key mismatch, checked and kept:** iOS sends niche `general` and style
+  `conversational` where the web sends `other` / `casual`. The render server
+  puts both into the prompt as free text (`render-server.ts`, "in the X
+  niche"), so any word works -- and "general niche" reads better. Read the
+  consumer before "aligning" two clients.
