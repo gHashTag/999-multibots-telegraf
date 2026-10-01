@@ -331,11 +331,11 @@ enum ИсточникТаймлайна: Equatable {
 
   var подпись: String {
     switch self {
-    case .загрузка: return "Загружаю проект…"
-    case .проект(let имя): return имя.isEmpty ? "Без названия" : имя
-    case .демоБезВхода: return "Демо — войдите, чтобы открыть свой проект"
-    case .демоНетПроектов: return "Демо — проектов пока нет, сохраните первый"
-    case .демоОтказ(let почему): return "Демо — проект не загрузился: \(почему)"
+    case .загрузка: return say("Loading the project…", "Загружаю проект…")
+    case .проект(let имя): return имя.isEmpty ? say("Untitled", "Без названия") : имя
+    case .демоБезВхода: return say("Demo — sign in to open your project", "Демо — войдите, чтобы открыть свой проект")
+    case .демоНетПроектов: return say("Demo — no projects yet, save your first", "Демо — проектов пока нет, сохраните первый")
+    case .демоОтказ(let почему): return say("Demo — the project did not load: \(почему)", "Демо — проект не загрузился: \(почему)")
     }
   }
 }
@@ -456,7 +456,7 @@ struct EditorScreen: View {
       if let собранная = слои.готоваяКомпозиция {
         composition = собранная
         слои.готоваяКомпозиция = nil
-        источник = .проект(имя: "Сборка из «ИИ»")
+        источник = .проект(имя: say("Built in AI", "Сборка из «ИИ»"))
         return
       }
       await загрузить()
@@ -496,7 +496,7 @@ struct EditorScreen: View {
       try await рендер.export(to: адрес)
       готовыйФайл = ФайлНаОтдачу(url: адрес)
     } catch {
-      сообщение = "Экспорт не удался: \(error.localizedDescription)"
+      сообщение = say("Export failed: \(error.localizedDescription)", "Экспорт не удался: \(error.localizedDescription)")
     }
   }
 
@@ -520,7 +520,7 @@ struct EditorScreen: View {
             if сохраняется {
               ProgressView().controlSize(.mini)
             } else {
-              Text(идПроекта == nil ? "Создать" : "Сохранить").font(Тема.Шрифт.стиль(.caption, .bold))
+              Text(идПроекта == nil ? say("Create", "Создать") : say("Save", "Сохранить")).font(Тема.Шрифт.стиль(.caption, .bold))
             }
           }
           // Высота ЯВНО и ВНУТРИ label. `.controlSize(.small)` давал около
@@ -548,7 +548,7 @@ struct EditorScreen: View {
             if экспортируется {
               ProgressView().controlSize(.mini)
             } else {
-              Label("Экспорт", systemImage: "square.and.arrow.down")
+              Label(say("Export", "Экспорт"), systemImage: "square.and.arrow.down")
                 .font(Тема.Шрифт.стиль(.caption, .bold))
             }
           }
@@ -611,14 +611,14 @@ struct EditorScreen: View {
     if case .проект(let текущее) = источник, !текущее.isEmpty {
       имя = текущее
     } else {
-      имя = "Мой проект"
+      имя = say("My project", "Мой проект")
     }
 
     do {
       let итог = try await API.saveProject(id: id, name: имя, composition: composition)
       идПроекта = итог.id
       источник = .проект(имя: итог.name)
-      сообщение = "Сохранено"
+      сообщение = say("Saved", "Сохранено")
     } catch {
       // Отказ НЕ прячем за общим словом: текст приходит из тела ответа
       // сервера, и в нём сказано, что именно не так.
@@ -641,16 +641,16 @@ extension Composition {
     Composition(
       fps: 30, width: 1080, height: 1920,
       tracks: [
-        Track(id: "t1", type: "video", name: "Видео", items: [
-          Clip(id: "c1", trackId: "t1", name: "Видео с губами",
+        Track(id: "t1", type: "video", name: say("Video", "Видео"), items: [
+          Clip(id: "c1", trackId: "t1", name: say("Lip-sync video", "Видео с губами"),
                startFrame: 0, durationInFrames: 150),
         ]),
-        Track(id: "t2", type: "image", name: "Фон", items: [
-          Clip(id: "c2", trackId: "t2", name: "Фон 1",
+        Track(id: "t2", type: "image", name: say("Background", "Фон"), items: [
+          Clip(id: "c2", trackId: "t2", name: say("Background 1", "Фон 1"),
                startFrame: 45, durationInFrames: 105),
         ]),
-        Track(id: "t3", type: "audio", name: "Звук", items: [
-          Clip(id: "c3", trackId: "t3", name: "Озвучка",
+        Track(id: "t3", type: "audio", name: say("Sound", "Звук"), items: [
+          Clip(id: "c3", trackId: "t3", name: say("Voice-over", "Озвучка"),
                startFrame: 0, durationInFrames: 150),
         ]),
       ])
