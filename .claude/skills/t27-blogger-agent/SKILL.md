@@ -49,3 +49,23 @@ Deliver a verified campaign, not a list of ideas.
 числа вернём независимо от результата. Гипотеза его — результат тоже его.
 
 - **24.09.2026.** Читатель, давший совет про ссылку во втором посте, сам пишет, что публикует мало и это может быть совпадением, и обещает поделиться находками. Значит, наша проверка охвата нужна не только нам: до чисел не называть правилом.
+
+## Why the blog was not reaching the networks (2026-10-02)
+
+**Measured:** `blog_shares` held 11 articles: 1 posted, 10 `declined` — each
+closed exactly 30 minutes after the question. The owner never said no.
+
+**Cause:** the desk asks through `requestPermission` (browser approvals), whose
+lifetime was a single global `APPROVAL_TTL_MS` = 10 min. The desk believes it
+waits `ANSWER_WAIT_MS` = 24 h, but `readApproval` already answered `expired`
+at minute 10, and the next tick closed the row as declined — silently. The
+Reddit desk had the identical defect.
+
+**Fix:** `browser_approvals.ttl_ms` — each question carries its own lifetime
+(null = 10 min for clicks); blog and Reddit desks pass 24 h. An expired
+question is now told to the owner; a run where no network took the post is
+`failed`, not `posted`. Tick every 5 min (the pace lives in the table): a
+30-min timer rarely survives the render's deploy cadence.
+
+**First look next time:** `tri blog-share` — states, minutes-to-close, and
+what each network did. Uniform `min_to_close` = a timer, not a person.

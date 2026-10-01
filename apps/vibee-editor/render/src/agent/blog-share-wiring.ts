@@ -4,6 +4,7 @@
  */
 import type { Queryable } from '../browser/sessions'
 import {
+  ANSWER_WAIT_MS,
   blogShareTick,
   RSS_URL,
   shareUrls,
@@ -30,7 +31,7 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
       if (!r.ok) throw new Error(`feed answered ${r.status}`)
       return await r.text()
     },
-    ask: what => requestPermission(pool, owner, what),
+    ask: what => requestPermission(pool, owner, what, ANSWER_WAIT_MS),
     answerOf: async id =>
       ((await readApproval(pool, id))?.state ?? 'expired') as Answer,
     publish: a => publishEverywhere(pool, owner, a),

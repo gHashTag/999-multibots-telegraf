@@ -57,6 +57,7 @@ tri — оболочка Trinity S³AI
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
   tri agents [--dry] [--no-record] [ids…]  приёмка агентов на владельце; итог уходит на карточки рынка
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
+  tri blog-share [N]  судьба последних статей блога в соцсетях: спрошено, закрыто через сколько минут, что сделала каждая сеть
   tri pod        отвечает ли удалённый браузер И С КАКИХ ПОР (код 1 — не отвечает)
   tri tabs [--json]  сколько вкладок открыто в поде и близко ли до потолка PID (ничего не закрывает)
   tri heal [--json]  перезапустить браузер, НО только если он действительно молчит (отказ — нормальный ответ)
@@ -2044,6 +2045,7 @@ PYEOF
   books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;
   logins) shift; bash "$ROOT/bin/helpers/logins.sh" "$ROOT" "$@" ;;
   pod) shift; bash "$ROOT/bin/helpers/pod.sh" "$ROOT" "$@" ;;
+  blog-share) shift; bash "$ROOT/bin/helpers/blog-share.sh" "$ROOT" "$@" ;;
   tabs) shift; bash "$ROOT/bin/helpers/tabs.sh" "$ROOT" "$@" ;;
   heal) shift; bash "$ROOT/bin/helpers/heal.sh" "$ROOT" "$@" ;;
   verdicts) shift; bash "$ROOT/bin/helpers/verdicts.sh" "$ROOT" "$@" ;;
