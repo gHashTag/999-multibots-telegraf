@@ -9151,7 +9151,7 @@ const server = createServer(async (req, res) => {
       getPool,
       personOf: personIdentity,
       readBody: (r, maxBytes) => readBody(r as any, maxBytes),
-      proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai',
+      proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
     })
   )
     return
