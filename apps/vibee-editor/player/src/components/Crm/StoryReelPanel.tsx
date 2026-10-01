@@ -13,12 +13,14 @@ import { StoryPalette } from '@/components/Crm/StoryPalette'
 import {
   loadStoryIdeas,
   loadStoryReel,
+  saveStoryFace,
   startStoryReel,
   type Reached,
   type StoryReady,
   type StoryScenes,
   type StoryStart,
 } from '@/lib/crm'
+import { uploadToS3 } from '@/lib/s3Upload'
 
 /**
  * THE STORY-REEL TEMPLATE ON THE CLIENT'S CARD (owner, 2026-09-26: "create
@@ -127,6 +129,35 @@ export function StoryReelPanel({
   // The finished reel goes straight to her DM unless the seller says not.
   const [toDm, setToDm] = useState(true)
   const [result, setResult] = useState<Reached<StoryStart> | null>(null)
+  const [faceBusy, setFaceBusy] = useState(false)
+  const [faceWhy, setFaceWhy] = useState('')
+
+  // Her avatar is the default face; the seller can put any photo over it,
+  // and take it off again. The server's answer is the new state.
+  const setFace = async (url: string) => {
+    const r = await saveStoryFace(clientId, url)
+    if (r.data && !r.data.why) setState(r)
+    else setFaceWhy(r.data?.why ?? r.error ?? '')
+  }
+  const onPhoto = async (file: File | undefined) => {
+    if (!file) return
+    setFaceBusy(true)
+    setFaceWhy('')
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+    const url = await uploadToS3(
+      file,
+      `story-face-${clientId}-${Date.now()}.${ext}`
+    )
+    if (url) await setFace(url)
+    else setFaceWhy(t('crm.client.story.photo.failed'))
+    setFaceBusy(false)
+  }
+  const onAvatar = async () => {
+    setFaceBusy(true)
+    setFaceWhy('')
+    await setFace('')
+    setFaceBusy(false)
+  }
 
   const reload = useCallback(async () => {
     if (clientId) setState(await loadStoryReel(clientId))
@@ -218,6 +249,40 @@ export function StoryReelPanel({
             ready={s}
             cta={cta || s.cta || ''}
           />
+
+          <div className="story-reel__photo">
+            <span className="story-reel__label">
+              {s.faceCustom
+                ? t('crm.client.story.photo.own')
+                : t('crm.client.story.photo.avatar')}
+            </span>
+            <label className="story-reel__photo-btn" aria-disabled={faceBusy}>
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                disabled={faceBusy || busy}
+                onChange={e => {
+                  void onPhoto(e.target.files?.[0])
+                  e.target.value = ''
+                }}
+              />
+              {faceBusy
+                ? t('crm.client.story.photo.uploading')
+                : t('crm.client.story.photo.replace')}
+            </label>
+            {s.faceCustom ? (
+              <button
+                type="button"
+                className="story-reel__photo-btn"
+                disabled={faceBusy || busy}
+                onClick={() => void onAvatar()}
+              >
+                {t('crm.client.story.photo.reset')}
+              </button>
+            ) : null}
+            {faceWhy ? <p className="story-reel__why">{faceWhy}</p> : null}
+          </div>
 
           <div className="story-reel__count">
             <span className="story-reel__label">
