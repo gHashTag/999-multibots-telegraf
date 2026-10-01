@@ -2000,3 +2000,14 @@ Two more from the same tick:
   mutants were killed by hand (8/8) but not adopted: the marker runs the
   player only, so the next `start` would call them survivors. Adopt only
   what the marker can kill.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 6): a counter that drops faster than the work is lying
+
+`tri iphone ru` fell 326 -> 279 for one screen, but only 11 of those lines
+were real translations; 36 were protocol (JSON keys, `case "x":` labels,
+en/ru literal pairs) that the counter had been calling "Russian UI". When a
+counter learns a new filter, **diff its old and new line lists** and read
+every line that disappears outside the file you worked on. Run the OLD tool
+from inside the same worktree (a copy at `./tri-old-tmp`, deleted after) --
+run from `/tmp` it resolved another app path and printed an empty diff that
+looked like "no change".
