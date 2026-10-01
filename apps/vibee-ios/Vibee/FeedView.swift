@@ -149,9 +149,15 @@ struct FeedView: View {
     }
   }
 
-  /// Текущий по версии системы; до первой прокрутки — первый в списке.
+  /// The feed's tab is the open one. The bar keeps this screen alive while
+  /// another tab is open, and a kept screen gets no `onDisappear`.
+  @Environment(\.tabIsShown) private var tabIsShown
+
+  /// Текущий по версии системы; до первой прокрутки — первый в списке. // cyrillic-ok
+  /// Only while the feed is on screen: a hidden tab plays nothing.
   private func активен(_ t: API.Template) -> Bool {
-    текущий == nil ? t.id == items.first?.id : текущий == t.id
+    guard tabIsShown else { return false }
+    return текущий == nil ? t.id == items.first?.id : текущий == t.id
   }
 
   /**

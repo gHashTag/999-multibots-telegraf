@@ -510,7 +510,7 @@ struct WebHostView: UIViewRepresentable {
  */
 struct WebPage<Fallback: View>: View {
   @ObservedObject var host: WebHost
-  /// The page runs to the bottom edge, under the floating tab bar, and keeps
+  /// The page runs to the bottom edge, under the tab bar, and keeps
   /// its own controls clear of it (the hive: its map is the background).
   var runsUnderTabBar = false
   @ViewBuilder var fallback: () -> Fallback
@@ -740,8 +740,8 @@ enum HiveHost {
 
   private static func board(id: String, fallback: String) -> WebHost {
     let host = WebHost(path: Navigation.bundled.first { $0.id == id }?.route ?? fallback)
-    // It runs under the tab bar on purpose; an automatic inset there would
-    // let the whole board scroll up by the home indicator's height.
+    // The board lays out its own edges; an automatic inset would let the
+    // whole board scroll up by the home indicator's height.
     host.webView.scrollView.contentInsetAdjustmentBehavior = .never
     return host
   }
