@@ -53,7 +53,7 @@ function rules(css: string): [string, string[], string][] {
 
 function bodiesFor(css: string, selector: string, media: RegExp | '') {
   return rules(css)
-    .filter(([m, s]) => s.includes(selector))
+    .filter(([, s]) => s.includes(selector))
     .filter(([m]) => (media === '' ? m === '' : media.test(m)))
     .map(([, , b]) => b)
 }
