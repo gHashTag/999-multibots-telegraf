@@ -1349,16 +1349,18 @@ export async function handleAgentHistoryDelete(
   }
 }
 
-export async function handleAgentHistory(
+/**
+ * Which thread a history read is about: the client, specialist, conversation
+ * and task parts of the query, resolved one way for every reader -- the
+ * history and its live stream (thread-live.ts) must never disagree on whose
+ * rows they show.
+ */
+export async function historyGate(
   req: IncomingMessage,
-  res: ServerResponse,
   telegramId: string,
   getPool: () => any
 ) {
-  const предел = Number(
-    new URL(req.url || '', 'http://x').searchParams.get('limit') || 0
-  )
-  const gate = await withTask(
+  return withTask(
     withConversation(
       await threadFor(
         clientParam(req),
@@ -1372,6 +1374,18 @@ export async function handleAgentHistory(
     ),
     taskParam(req)
   )
+}
+
+export async function handleAgentHistory(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string,
+  getPool: () => any
+) {
+  const предел = Number(
+    new URL(req.url || '', 'http://x').searchParams.get('limit') || 0
+  )
+  const gate = await historyGate(req, telegramId, getPool)
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
     const pool = await getPool()

@@ -21,7 +21,9 @@
 //       sheet's first height, the task note's size, and how an A2A call finds the same
 //       thread; since v2 also what the sheet says about the task's work (linked pull
 //       requests and their checks, measured or honestly not) and that an action the
-//       agent proposes runs only on the person's tap. What it does NOT decide: what the
+//       agent proposes runs only on the person's tap; since v5 the person's way to the
+//       Queen's move door (a keeper, through render, two taps), the thread live in an
+//       open sheet, and the one issue the nightly check keeps. What it does NOT decide: what the
 //       agent does in the task (that is the agent's own loop), where a card's column
 //       goes (that is the Queen's verdict), or who may merge (that stays the owner's).
 // Claim status: designed and bound by tests; RUN_LIVE flips when a card tapped on
@@ -34,7 +36,7 @@ module automation::kanban_card_chat {
     pub const KIND : str = "automation";
     pub const ID : str = "kanban-card-chat";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 4;
+    pub const VERSION : u8 = 5;
 
     // ---- The thread -----------------------------------------------------------------
     // One conversation per (person, task): "task:gHashTag/t27#3587". The person is
@@ -204,6 +206,44 @@ module automation::kanban_card_chat {
     pub const MOVE_SAYS_FROM : bool = true;  // the column the person saw; stale -> refused
     pub const MOVE_ANSWER_HAS_REASON : bool = true;  // accepted or declined, always said why
 
+    // ---- The person's way to the door (v5, S16) -------------------------------------
+    // The Queen's door takes the deployment's own credential and nothing else: a
+    // browser cannot reach it. The person taps in the sheet; render checks the person
+    // is a keeper of the hive, then calls the door with the token it holds. The token
+    // never reaches a browser. The Queen's reason comes back as she said it.
+    pub const MOVE_PROXY : str = "/api/card-move";
+    pub const MOVE_TOKEN_ENV : str = "TRIOS_API_TOKEN";
+    pub const MOVE_NEEDS_KEEPER : bool = true;  // a bee or a bot owner sees no button
+    pub const MOVE_TOKEN_TO_BROWSER : bool = false;
+    pub const MOVE_REASON_MAX : u8 = 200;  // the door's own limit, one sentence
+    pub const MOVE_CONFIRM_TAPS : u8 = 2;  // the first tap arms, the second sends
+    pub const MOVE_ARM_S : u8 = 5;  // an armed button disarms itself after this long
+    pub const MOVE_NONE : u8 = 6;  // == COLUMNS: no move is offered from this column
+
+    // ---- The thread live (v5, S17) --------------------------------------------------
+    // An A2A agent writing into the same task thread shows up in the open sheet without
+    // a reload. One stream per open sheet, scoped to the person like the history; it
+    // sends only turns newer than the last id the sheet holds, and the server looks
+    // again on its own every LIVE_RECHECK_S so a turn written by another replica is not
+    // lost. The stream ends after LIVE_STREAM_MAX_S and the browser reconnects with
+    // the last id it saw: no stream lives forever on a proxy that cuts idle ones.
+    pub const LIVE_DOOR : str = "/api/agent/history/live";
+    pub const LIVE_PER_PERSON : bool = true;
+    pub const LIVE_RECHECK_S : u8 = 15;
+    pub const LIVE_STREAM_MAX_S : u16 = 300;
+    pub const LIVE_PING_S : u8 = 25;  // under the 30 s idle cut of the platform proxy
+    pub const LIVE_AFTER_ID : bool = true;  // resume from the last id, never from zero
+
+    // ---- The nightly look (v5, S18) -------------------------------------------------
+    // tri card-check compares the server's read of a card with the client's. Drift is
+    // written into ONE issue under the EPIC and updated there, never a new issue a
+    // night; the issue is closed by the check that finds the two agreeing again.
+    pub const DRIFT_ONE_ISSUE : bool = true;
+    pub const DRIFT_NONE : u8 = 0;
+    pub const DRIFT_OPEN : u8 = 1;
+    pub const DRIFT_COMMENT : u8 = 2;
+    pub const DRIFT_CLOSE : u8 = 3;
+
     // ---- Not claimed ----------------------------------------------------------------
     pub const RUN_LIVE : bool = false;
 
@@ -321,6 +361,44 @@ module automation::kanban_card_chat {
     // one they saw, the target is theirs to ask for, and the Queen accepted.
     fn move_applies(door_exists: bool, tapped: bool, from_matches: bool, to: u8, queen_accepts: bool) -> bool {
         return door_exists && tapped && from_matches && move_target_ok(to) && queen_accepts;
+    }
+
+    // The button shows only to a keeper, only when render holds the token and only
+    // when the Queen's door is deployed.
+    fn move_allowed(is_keeper: bool, token_set: bool, door_exists: bool) -> bool {
+        return is_keeper && token_set && door_exists;
+    }
+
+    // The one move the sheet offers from a column, or MOVE_NONE. A card that is not
+    // anybody's yet can be dropped; a dropped card can go back -- the Queen refuses,
+    // with her reason, when the drop was her own verdict.
+    fn move_choice(col: u8) -> u8 {
+        if col == COL_BACKLOG || col == COL_BLOCKED {
+            return COL_DROPPED;
+        }
+        if col == COL_DROPPED {
+            return COL_BACKLOG;
+        }
+        return MOVE_NONE;
+    }
+
+    // A turn the open sheet does not hold yet.
+    fn live_fresh(id: u32, last_seen: u32) -> bool {
+        return id > last_seen;
+    }
+
+    // What the nightly check does with its drift issue.
+    fn drift_action(drifted: bool, issue_open: bool) -> u8 {
+        if drifted && issue_open {
+            return DRIFT_COMMENT;
+        }
+        if drifted {
+            return DRIFT_OPEN;
+        }
+        if issue_open {
+            return DRIFT_CLOSE;
+        }
+        return DRIFT_NONE;
     }
 
     // An action the agent proposed runs only when the person tapped approve.
@@ -500,9 +578,49 @@ module automation::kanban_card_chat {
         assert(!move_applies(true, true, true, COL_BACKLOG, false));
     }
 
+    test "the person reaches the door through render, and only a keeper" {
+        assert(MOVE_NEEDS_KEEPER);
+        assert(!MOVE_TOKEN_TO_BROWSER);
+        assert(MOVE_CONFIRM_TAPS == 2);
+        assert(MOVE_ARM_S >= 3);
+        assert(MOVE_NONE == COLUMNS);
+        assert(move_allowed(true, true, true));
+        assert(!move_allowed(false, true, true));
+        assert(!move_allowed(true, false, true));
+        assert(!move_allowed(true, true, false));
+        assert(!move_allowed(true, true, MOVE_DOOR_EXISTS));
+        assert(move_choice(COL_BACKLOG) == COL_DROPPED);
+        assert(move_choice(COL_BLOCKED) == COL_DROPPED);
+        assert(move_choice(COL_DROPPED) == COL_BACKLOG);
+        assert(move_choice(COL_RUNNING) == MOVE_NONE);
+        assert(move_choice(COL_REVIEW) == MOVE_NONE);
+        assert(move_choice(COL_DONE) == MOVE_NONE);
+        assert(move_target_ok(move_choice(COL_BACKLOG)));
+        assert(move_target_ok(move_choice(COL_DROPPED)));
+    }
+
+    test "the sheet sees a new turn without a reload, from the last id on" {
+        assert(LIVE_PER_PERSON);
+        assert(LIVE_AFTER_ID);
+        assert(LIVE_PING_S < 30);
+        assert(LIVE_RECHECK_S < LIVE_PING_S);
+        assert(LIVE_STREAM_MAX_S >= 60);
+        assert(live_fresh(11, 10));
+        assert(!live_fresh(10, 10));
+        assert(!live_fresh(9, 10));
+    }
+
+    test "drift lives in one issue, updated, and closed by agreement" {
+        assert(DRIFT_ONE_ISSUE);
+        assert(drift_action(true, false) == DRIFT_OPEN);
+        assert(drift_action(true, true) == DRIFT_COMMENT);
+        assert(drift_action(false, true) == DRIFT_CLOSE);
+        assert(drift_action(false, false) == DRIFT_NONE);
+    }
+
     test "the card chat is designed, not yet live" {
         assert(!RUN_LIVE);
-        assert(VERSION == 4);
+        assert(VERSION == 5);
         assert(HISTORY_LIMIT == 100);
     }
 }

@@ -35,10 +35,17 @@ import {
   readCardStatus as readOnClient,
 } from '../../../player/src/lib/cardStatus'
 import {
+  columnCode as playerColumnCode,
   moveApplies,
+  moveChoice as playerMoveChoice,
   moveOffered,
   moveTargetOk,
+  readMoveOffer,
 } from '../../../player/src/lib/cardMove'
+import { liveFresh as playerLiveFresh } from '../../../player/src/lib/threadLive'
+import { columnCode, moveAllowed, moveChoice } from '../agent/card-move'
+import { liveFresh } from '../agent/thread-live'
+import { DRIFT_VERBS, driftAction } from '../hive/card-drift'
 import {
   CARD_STATUS_QUERY,
   clearCardStatusCache,
@@ -611,9 +618,78 @@ describe('kanban-card-chat.t27 against the host', () => {
     expect(sheet).not.toMatch(/queen\/move|moveCard|COL_DROPPED/)
   })
 
+  it('the person reaches the door through render, and only a keeper', async () => {
+    expect(SPEC.MOVE_NEEDS_KEEPER).toBe(true)
+    expect(SPEC.MOVE_TOKEN_TO_BROWSER).toBe(false)
+    expect(SPEC.MOVE_CONFIRM_TAPS).toBe(2)
+    expect(SPEC.MOVE_ARM_S).toBeGreaterThanOrEqual(3)
+    expect(SPEC.MOVE_NONE).toBe(SPEC.COLUMNS)
+    expect(SPEC.MOVE_PROXY).toBe('/api/card-move')
+    expect(SPEC.MOVE_TOKEN_ENV).toBe('TRIOS_API_TOKEN')
+    expect(moveAllowed(true, true, true)).toBe(true)
+    expect(moveAllowed(false, true, true)).toBe(false)
+    expect(moveAllowed(true, false, true)).toBe(false)
+    expect(moveAllowed(true, true, false)).toBe(false)
+    expect(moveAllowed(true, true, SPEC.MOVE_DOOR_EXISTS)).toBe(false)
+    for (const choice of [moveChoice, playerMoveChoice]) {
+      expect(choice(SPEC.COL_BACKLOG)).toBe(SPEC.COL_DROPPED)
+      expect(choice(SPEC.COL_BLOCKED)).toBe(SPEC.COL_DROPPED)
+      expect(choice(SPEC.COL_DROPPED)).toBe(SPEC.COL_BACKLOG)
+      expect(choice(SPEC.COL_RUNNING)).toBe(SPEC.MOVE_NONE)
+      expect(choice(SPEC.COL_REVIEW)).toBe(SPEC.MOVE_NONE)
+      expect(choice(SPEC.COL_DONE)).toBe(SPEC.MOVE_NONE)
+      expect(moveTargetOk(choice(SPEC.COL_BACKLOG))).toBe(true)
+      expect(moveTargetOk(choice(SPEC.COL_DROPPED))).toBe(true)
+    }
+    // The board's column names map onto the spec's codes the same both sides.
+    for (const name of [
+      'backlog',
+      'blocked',
+      'running',
+      'review',
+      'done',
+      'dropped',
+    ])
+      expect(playerColumnCode(name)).toBe(columnCode(name))
+    expect(columnCode('dropped')).toBe(SPEC.COL_DROPPED)
+    expect(columnCode('nonsense')).toBe(SPEC.MOVE_NONE)
+    // While the door is not deployed the sheet does not even ask render.
+    const fetchImpl = vi.fn()
+    expect(await readMoveOffer('', {}, fetchImpl as never)).toBe(false)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('the sheet sees a new turn without a reload, from the last id on', () => {
+    expect(SPEC.LIVE_PER_PERSON).toBe(true)
+    expect(SPEC.LIVE_AFTER_ID).toBe(true)
+    expect(SPEC.LIVE_PING_S).toBeLessThan(30)
+    expect(SPEC.LIVE_RECHECK_S).toBeLessThan(SPEC.LIVE_PING_S)
+    expect(SPEC.LIVE_STREAM_MAX_S).toBeGreaterThanOrEqual(60)
+    expect(SPEC.LIVE_DOOR).toBe('/api/agent/history/live')
+    for (const fresh of [liveFresh, playerLiveFresh]) {
+      expect(fresh(11, 10)).toBe(true)
+      expect(fresh(10, 10)).toBe(false)
+      expect(fresh(9, 10)).toBe(false)
+    }
+  })
+
+  it('drift lives in one issue, updated, and closed by agreement', () => {
+    expect(SPEC.DRIFT_ONE_ISSUE).toBe(true)
+    expect(driftAction(true, false)).toBe(SPEC.DRIFT_OPEN)
+    expect(driftAction(true, true)).toBe(SPEC.DRIFT_COMMENT)
+    expect(driftAction(false, true)).toBe(SPEC.DRIFT_CLOSE)
+    expect(driftAction(false, false)).toBe(SPEC.DRIFT_NONE)
+    expect(Object.values(DRIFT_VERBS).sort()).toEqual([
+      'close',
+      'comment',
+      'none',
+      'open',
+    ])
+  })
+
   it('the card chat is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(4)
+    expect(SPEC.VERSION).toBe(5)
     expect(SPEC.CHAT_DOOR).toBe('/api/agent/chat')
     expect(SPEC.HISTORY_DOOR).toBe('/api/agent/history')
     expect(SPEC.HISTORY_LIMIT).toBe(100)

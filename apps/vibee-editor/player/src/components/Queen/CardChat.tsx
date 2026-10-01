@@ -18,6 +18,15 @@ import {
 import { CARD_SHEET, cardFromHistory, type OpenCard } from '@/lib/cardChat'
 import { answerFor, cardStates, parseCards } from '@/lib/agentCards'
 import { readCardStatus, type CardStatus } from '@/lib/cardStatus'
+import {
+  COLUMN_NAMES,
+  columnCode,
+  moveChoice,
+  readMoveOffer,
+  requestMove,
+} from '@/lib/cardMove'
+import { lastIdOf, subscribeThread } from '@/lib/threadLive'
+import * as SPEC from '@/spec/kanban-card-chat.gen'
 import { AgentCards } from '@/components/Chat/AgentCards'
 import { useLanguage } from '@/hooks/useLanguage'
 import { API_BASE } from '@/config'
@@ -39,6 +48,12 @@ import './CardChat.css'
  * answer, never as "no PR". The agent proposes with approve/decline cards
  * and acts on the tap (ACTIONS_ON_TAP_ONLY); the column is the Queen's
  * verdict, so no move is offered (MOVE_OFFERED false).
+ *
+ * v5: the thread is live while the sheet is open (lib/threadLive.ts): a
+ * turn another agent writes into this task brings a fresh read of the
+ * history. And a keeper may say "not doing" / "back to backlog" with two taps
+ * (MoveRow) -- render asks the Queen's door with its own token. The row stays
+ * dark until the door is deployed (MOVE_DOOR_EXISTS) and render says so.
  */
 export function CardChat({
   card,
@@ -88,38 +103,82 @@ export function CardChat({
     }
   }, [card.repo, card.number])
 
-  // The server's thread, read once per card. Silent on failure: the local
-  // copy is shown and writing is never blocked by an unreachable history.
-  useEffect(() => {
-    let alive = true
-    setLoading(true)
+  // The server's thread: read when the card opens, and again whenever the
+  // live stream says a turn was written. Silent on failure: the local copy
+  // is shown and writing is never blocked by an unreachable history.
+  const lastId = useRef(0)
+  const [heard, setHeard] = useState(false)
+  const readHistory = useRef<() => Promise<void>>(async () => undefined)
+  readHistory.current = async () => {
     const q = new URLSearchParams({
       limit: String(CARD_SHEET.historyLimit),
       [CARD_SHEET.field]: card.task,
     })
-    fetch(`${API_BASE}${CARD_SHEET.historyDoor}?${q}`, {
+    const body = await fetch(`${API_BASE}${CARD_SHEET.historyDoor}?${q}`, {
       headers: authHeaders(),
     })
       .then(r => (r.ok ? r.json() : null))
-      .then(body => {
-        if (!alive) return
-        const server = turnsFromResponse(body)
-        setMessages(local =>
-          shouldAdoptHistory({ server, local, busy: isAgentBusy(key) })
-            ? adoptHistory(server)
-            : local
-        )
-        const resolved = cardFromHistory(body, card)
-        if (resolved) onResolved?.(resolved)
-      })
-      .catch(() => undefined)
-      .finally(() => alive && setLoading(false))
+      .catch(() => null)
+    if (!body) return
+    lastId.current = Math.max(lastId.current, lastIdOf(body))
+    const server = turnsFromResponse(body)
+    setMessages(local =>
+      shouldAdoptHistory({ server, local, busy: isAgentBusy(key) })
+        ? adoptHistory(server)
+        : local
+    )
+    const resolved = cardFromHistory(body, card)
+    if (resolved) onResolved?.(resolved)
+  }
+
+  useEffect(() => {
+    let alive = true
+    lastId.current = 0
+    setLoading(true)
+    setHeard(false)
+    readHistory.current().finally(() => {
+      if (!alive) return
+      setLoading(false)
+      setHeard(true)
+    })
     return () => {
       alive = false
     }
-    // One read per card; `key` and `setMessages` follow `card.task`.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // One read per card; `readHistory` follows `card.task`.
   }, [card.task])
+
+  // Live: after the first read, listen for turns newer than it (LIVE_AFTER_ID).
+  // A turn that lands while this sheet's own answer streams waits for it, so
+  // the stream never fights the read.
+  const pending = useRef(false)
+  useEffect(() => {
+    if (!heard) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const stop = subscribeThread({
+      base: API_BASE,
+      task: card.task,
+      after: lastId.current,
+      headers: () => authHeaders(),
+      onTurn: () => {
+        if (isAgentBusy(key)) {
+          pending.current = true
+          return
+        }
+        clearTimeout(timer)
+        timer = setTimeout(() => void readHistory.current(), 300)
+      },
+    })
+    return () => {
+      clearTimeout(timer)
+      stop()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heard, card.task])
+  useEffect(() => {
+    if (busy || !pending.current) return
+    pending.current = false
+    void readHistory.current()
+  }, [busy])
 
   // Newest turn in view, as a chat does.
   useEffect(() => {
@@ -264,6 +323,7 @@ export function CardChat({
             label={t('cardChat.status.label')}
           />
         )}
+        <MoveRow card={card} onMoved={c => onResolved?.(c)} />
         <div
           className="card-chat__log"
           ref={logRef}
@@ -360,6 +420,95 @@ export function CardChat({
  * scroll; each chip is a way out to GitHub (GITHUB_IS_SECONDARY), never an
  * action. A read that did not happen says so and, if GitHub said, when.
  */
+/**
+ * "Not doing" / "back to backlog", two taps, a keeper only (spec v5, S16).
+ * Asks render whether to show itself only once the door is deployed; the
+ * first tap arms for MOVE_ARM_S, the second sends; the Queen's reason is
+ * shown either way.
+ */
+function MoveRow({
+  card,
+  onMoved,
+}: {
+  card: OpenCard
+  onMoved: (card: OpenCard) => void
+}) {
+  const { t } = useLanguage()
+  const [offered, setOffered] = useState(false)
+  const [armed, setArmed] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [said, setSaid] = useState<{ ok: boolean; text: string } | null>(null)
+  const target = moveChoice(columnCode(card.column))
+
+  useEffect(() => {
+    let alive = true
+    setOffered(false)
+    setSaid(null)
+    setArmed(false)
+    readMoveOffer(API_BASE, authHeaders()).then(o => alive && setOffered(o))
+    return () => {
+      alive = false
+    }
+  }, [card.task])
+
+  useEffect(() => {
+    if (!armed) return
+    const off = setTimeout(() => setArmed(false), SPEC.MOVE_ARM_S * 1000)
+    return () => clearTimeout(off)
+  }, [armed])
+
+  if (!offered || target === SPEC.MOVE_NONE || !card.column) return null
+  const to = COLUMN_NAMES[target]
+  const label = t(`cardChat.move.${to}`)
+
+  const tap = async () => {
+    if (!armed) {
+      setArmed(true)
+      setSaid(null)
+      return
+    }
+    setArmed(false)
+    setSending(true)
+    const answer = await requestMove(API_BASE, authHeaders(), {
+      number: card.number,
+      from: card.column!,
+      to,
+    })
+    setSending(false)
+    setSaid({
+      ok: answer.moved,
+      text: answer.reason || t('cardChat.move.failed'),
+    })
+    if (answer.moved) onMoved({ ...card, column: answer.column ?? to })
+  }
+
+  return (
+    <div className="card-chat__move">
+      <button
+        type="button"
+        className={`card-chat__move-btn${armed ? ' card-chat__move-btn--armed' : ''}`}
+        aria-pressed={armed}
+        disabled={sending}
+        onClick={tap}
+      >
+        {sending
+          ? t('cardChat.move.sending')
+          : armed
+            ? t('cardChat.move.confirm', { label })
+            : label}
+      </button>
+      {said && (
+        <span
+          className={`card-chat__move-said${said.ok ? '' : ' card-chat__move-said--no'}`}
+          role="status"
+        >
+          {said.text}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function WorkStrip({
   status,
   issue,

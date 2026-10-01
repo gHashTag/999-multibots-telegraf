@@ -12,7 +12,9 @@
  *
  * Reads only. The token comes from the environment and is never printed.
  * Prints one JSON line: {same, server, client} or {error}. Exit 0 same,
- * 1 differ or the query broke, 2 nothing to compare (no token, no answer).
+ * 1 differ or the query broke, 2 nothing to compare (no token, no answer,
+ * a read that threw). Exit 1 is DRIFT for `tri card-drift`, so a network
+ * error must not be one: a read that did not happen says nothing.
  */
 import { readCardStatus } from '../../player/src/lib/cardStatus'
 import {
@@ -99,6 +101,6 @@ main().then(
   code => process.exit(code),
   e => {
     console.log(JSON.stringify({ error: String((e as Error)?.message ?? e) }))
-    process.exit(1)
+    process.exit(2)
   }
 )

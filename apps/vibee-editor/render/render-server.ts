@@ -137,6 +137,8 @@ function browserBrokerDeps(): BrowserDeps {
 configureAgentStart(browserBrokerDeps)
 import { identityWithSource } from './src/agent/routes'
 import { handleCardStatus } from './src/agent/card-status'
+import { handleCardMove } from './src/agent/card-move'
+import { handleThreadLive } from './src/agent/thread-live'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import {
@@ -9325,6 +9327,22 @@ const server = createServer(async (req, res) => {
   }
 
   /*
+   * /api/card-move -- a keeper moves ONE card through the Queen's door
+   * (spec kanban-card-chat.t27 v5, S16). GET says whether the sheet offers
+   * the button; POST asks her with the token this server holds.
+   */
+  if (req.url?.split('?')[0] === '/api/card-move') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleCardMove(req, res, String(who))
+    return
+  }
+
+  /*
    * /api/agent/conversations -- several conversations with the agent or a
    * specialist: the list (GET) and a name for one (POST). Identity the same
    * way as the history beside it.
@@ -9337,6 +9355,25 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleAgentConversations(req, res, String(who), getPool)
+    return
+  }
+
+  /*
+   * GET /api/agent/history/live?task=... -- a card's thread as a stream
+   * (spec kanban-card-chat.t27 v5, S17): the same person and the same gate
+   * as the history, only the rows after ?after=.
+   */
+  if (
+    req.url?.split('?')[0] === '/api/agent/history/live' &&
+    req.method === 'GET'
+  ) {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleThreadLive(req, res, String(who), getPool)
     return
   }
 

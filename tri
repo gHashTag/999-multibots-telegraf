@@ -745,6 +745,16 @@ AGENT TOOLS ON THE RENDER
                           `gh` login, read-only) compared with the client's
                           read. <n> (t27#n, repo#n) defaults to 5382, the EPIC. Exit 0 all live, 2 waiting on a
                           merge, deploy or token, 1 something answered wrong.
+  tri card-drift [n] [--dry]
+                          the nightly half of card-check: the server's
+                          card-status query against live GitHub vs the
+                          client's read (needs only a `gh` login). Drift is
+                          kept in ONE issue in gHashTag/t27 under the EPIC
+                          #5388: opened on the first drifting night,
+                          commented on the next, closed on the first night
+                          they agree; a night measuring nothing touches
+                          nothing. --dry prints the verb, writes nothing.
+                          Exit 0 agree, 1 drift, 2 not measured.
   tri browser             can the remote browser ACT, not merely answer.
                           `/json/list` is served by the browser process, so it
                           keeps replying while every renderer is wedged -- which
@@ -2088,6 +2098,68 @@ else:
 
 sys.exit(1 if 'fail' in verdicts else 2 if 'wait' in verdicts else 0)
 PY
+}
+
+# tri card-drift -- the nightly drift watch (spec kanban-card-chat.t27 v5,
+# DRIFT_ONE_ISSUE). The verb comes from render's driftAction (bound by the
+# spec test); this function only carries it out with `gh`.
+cmd_card_drift() {
+  local dry=0 task='5382' a
+  for a in "$@"; do
+    case "$a" in --dry) dry=1 ;; *) task="$a" ;; esac
+  done
+  local n="${task##*#}" repo="${task%#*}"
+  [ "$repo" = "$task" ] && repo='gHashTag/t27'
+  case "$repo" in */*) ;; *) repo="gHashTag/$repo" ;; esac
+  local render="$ROOT/apps/vibee-editor/render"
+  if ! gh auth token >/dev/null 2>&1; then
+    warn 'no `gh` login: nothing measured, nothing written'
+    return 2
+  fi
+  local parity
+  parity=$(cd "$render" && GH_READ=$(gh auth token) ./node_modules/.bin/tsx \
+    scripts/card-status-parity.ts "$repo" "$n" 2>/dev/null | tail -1)
+  # The pipeline's status is tail's; ask the JSON instead.
+  local drifted
+  drifted=$(printf '%s' "$parity" | python3 -c '
+import json, sys
+try:
+    p = json.loads(sys.stdin.read() or "null")
+except ValueError:
+    p = None
+if not isinstance(p, dict) or p.get("client") == "unmeasured":
+    print("x")
+elif "same" in p:
+    print("0" if p["same"] else "1")
+elif "broke" in (p.get("error") or "") or "gone" in (p.get("error") or ""):
+    print("1")
+else:
+    print("x")')
+  if [ "$drifted" = x ]; then
+    warn "not measured tonight: ${parity:-no answer} -- the issue is left as it is"
+    return 2
+  fi
+  local title='card-check drift: the server card-status read disagrees with GitHub'
+  local open_n
+  open_n=$(gh issue list -R gHashTag/t27 --state open --limit 5 \
+    --search "in:title \"card-check drift\"" --json number -q '.[0].number' 2>/dev/null)
+  local verb
+  verb=$(cd "$render" && ./node_modules/.bin/tsx scripts/card-drift.ts \
+    "$drifted" "$([ -n "$open_n" ] && echo 1 || echo 0)")
+  local when
+  when=$(date -u +%Y-%m-%dT%H:%MZ)
+  local body
+  body=$(printf '%s\n\n```json\n%s\n```\n\nCard: %s#%s. Measured %s by `tri card-drift` (spec kanban-card-chat.t27 v5, DRIFT_ONE_ISSUE). Part of #5388.' \
+    "$([ "$drifted" = 1 ] && echo 'The server read and the client read of the same card differ (or the query broke).' || echo 'The two reads agree again.')" \
+    "$parity" "$repo" "$n" "$when")
+  echo "  drift=$drifted issue=${open_n:-none} -> $verb"
+  [ "$dry" = 1 ] && { [ "$drifted" = 1 ] && return 1 || return 0; }
+  case "$verb" in
+    open) gh issue create -R gHashTag/t27 --title "$title" --body "$body" ;;
+    comment) gh issue comment "$open_n" -R gHashTag/t27 --body "$body" ;;
+    close) gh issue close "$open_n" -R gHashTag/t27 --comment "$body" ;;
+  esac
+  [ "$drifted" = 1 ] && return 1 || return 0
 }
 
 cmd_heal() {
@@ -5355,6 +5427,7 @@ case "$action" in
   heal|исцели)         cmd_heal ;;
   card|карточка)       cmd_card "$@" ;;
   card-check|карточка-проверка) cmd_card_check "$@" ;;
+  card-drift) cmd_card_drift "$@" ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;
   journal|журнал)      cmd_journal "$@" ;;

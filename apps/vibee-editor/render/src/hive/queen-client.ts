@@ -313,6 +313,65 @@ export async function queenIndex(cacheMs: number): Promise<QueenIndex> {
   return value
 }
 
+export interface QueenMoveAnswer {
+  status: number
+  moved: boolean
+  reason: string
+  column?: string
+}
+
+/**
+ * POST /queen/move: ask her to move ONE card (BrowserOS#519).
+ *
+ * Her door admits the deployment's own credential and nothing else, so this
+ * runs on the server with the token it holds -- the token never reaches a
+ * browser. Her answer's status and reason come back as she said them; a
+ * network failure or a body that is not hers throws, and the caller says a
+ * fixed sentence rather than ours or pg's diagnostics.
+ */
+export async function queenMove(
+  body: {
+    number: number
+    from: string
+    to: string
+    reason: string
+    by: string
+  },
+  token: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<QueenMoveAnswer> {
+  const stop = new AbortController()
+  const timer = setTimeout(() => stop.abort(), TIMEOUT_MS)
+  try {
+    const res = await fetchImpl(`${BASE}/queen/move`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+      signal: stop.signal,
+    })
+    const said = (await res.json().catch(() => null)) as {
+      moved?: unknown
+      reason?: unknown
+      column?: unknown
+    } | null
+    if (!said || typeof said.reason !== 'string') {
+      throw new Error(`the Queen answered ${res.status} without a reason`)
+    }
+    return {
+      status: res.status,
+      moved: said.moved === true,
+      reason: clean(said.reason, 300),
+      column:
+        typeof said.column === 'string' ? clean(said.column, 30) : undefined,
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** For tests: forget the cached board. */
 export function forgetQueenIndex(): void {
   index = null
