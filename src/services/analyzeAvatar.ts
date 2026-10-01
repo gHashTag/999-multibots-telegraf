@@ -33,6 +33,133 @@ const DENIES_FACE =
 const AFFIRMS_FACE =
   /\b(?:yes|faces?|persons?|people|human|man|woman|portrait|selfie)\b/
 
+const ANALYZE_PROMPT =
+  'Analyze this image. Answer these questions:\n1. Is there a human face clearly visible in this image? (yes/no)\n2. If yes, what is the apparent gender of the person? (male/female/unclear)\nAnswer in format: FACE:yes/no GENDER:male/female/unclear'
+
+const MOONDREAM =
+  'lucataco/moondream2:72ccb656353c348c1385df54b237eeb7bfa874bf11486cf0b9473e691b662d31'
+
+/*
+ * OUR OWN EYES FIRST, A PAID PROVIDER ONLY AFTER THEM.
+ *
+ * Log 2026-10-01: every new user paged the owner with "[AnalyzeAvatar]
+ * Analysis failed ... 402 Payment Required: Insufficient credit" -- the
+ * Replicate account ran dry, and Replicate was the only way this question was
+ * ever asked. The project already runs its own vision model on Railway's
+ * private network (the `vision` service: llama.cpp + Qwen3-VL, the one render
+ * reads photos with, render/src/agent/media-vision.ts). So the question goes
+ * there first, and Moondream on Replicate is only the fallback.
+ *
+ * Configured as in render: VISION_API_KEY (without it this step is skipped),
+ * VISION_BASE_URL (default the private host), VISION_MODEL. The photo is
+ * fetched here and inlined as a data: URL, because the self-hosted server is
+ * not asked to reach the outside.
+ */
+const OWN_VISION_BASE = 'http://vision.railway.internal:8000/v1'
+const OWN_VISION_MODEL = 'qwen3-vl-2b-instruct'
+/** CPU inference: a photo takes seconds, a cold one up to a minute. */
+const OWN_VISION_TIMEOUT_MS = 60_000
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024
+
+async function withTimeout<T>(
+  ms: number,
+  work: (signal: AbortSignal) => Promise<T>
+): Promise<T> {
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), ms)
+  try {
+    return await work(ac.signal)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** The answer of our own vision model, or null when it is not configured. */
+export async function askOwnVision(
+  imageUrl: string,
+  prompt: string
+): Promise<string | null> {
+  const key = process.env.VISION_API_KEY
+  if (!key) return null
+  const base = (process.env.VISION_BASE_URL || OWN_VISION_BASE).replace(
+    /\/+$/,
+    ''
+  )
+  return withTimeout(OWN_VISION_TIMEOUT_MS, async signal => {
+    const photo = await fetch(imageUrl, { signal })
+    if (!photo.ok) throw new Error(`photo answered ${photo.status}`)
+    const bytes = Buffer.from(await photo.arrayBuffer())
+    if (!bytes.length || bytes.length > MAX_PHOTO_BYTES)
+      throw new Error(`photo of ${bytes.length} bytes is outside the range`)
+    const mime = photo.headers.get('content-type') || 'image/jpeg'
+    const r = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: process.env.VISION_MODEL || OWN_VISION_MODEL,
+        max_tokens: 60,
+        temperature: 0,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mime};base64,${bytes.toString('base64')}`,
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    })
+    if (!r.ok) throw new Error(`own vision answered ${r.status}`)
+    const data = (await r.json()) as {
+      choices?: Array<{ message?: { content?: unknown } }>
+    }
+    const text = data.choices?.[0]?.message?.content
+    if (typeof text !== 'string' || !text.trim())
+      throw new Error('own vision answered nothing')
+    return text
+  })
+}
+
+/**
+ * Ask the photo a question: our own model first; Replicate when ours is not
+ * configured or failed. When both fail, the error says both reasons.
+ */
+async function askVision(imageUrl: string, prompt: string): Promise<unknown> {
+  let ownFailure: string | null = null
+  try {
+    const own = await askOwnVision(imageUrl, prompt)
+    if (own !== null) return own
+  } catch (error) {
+    ownFailure = error instanceof Error ? error.message : String(error)
+    logger.warn('[AnalyzeAvatar] Own vision failed, trying Replicate', {
+      error: ownFailure,
+    })
+  }
+  try {
+    return await replicate.run(MOONDREAM as any, {
+      input: { image: imageUrl, prompt },
+    })
+  } catch (error) {
+    const replicateFailure =
+      error instanceof Error ? error.message : String(error)
+    throw new Error(
+      ownFailure
+        ? `own vision: ${ownFailure}; replicate: ${replicateFailure}`
+        : replicateFailure
+    )
+  }
+}
+
 /**
  * Result of avatar analysis
  */
@@ -45,12 +172,8 @@ export interface AvatarAnalysisResult {
 }
 
 /**
- * Analyze avatar image using Replicate vision model
- * Detects if there's a human face and determines gender
- *
- * Uses Moondream2 - fast and efficient vision model
- * Model: vikhyatk/moondream2
- * Cost: ~$0.0001 per image (very cheap)
+ * Detect whether the avatar shows a human face, and the apparent gender.
+ * Asked of our own vision model first, then Moondream2 on Replicate.
  */
 export async function analyzeAvatar(
   imageUrl: string
@@ -72,19 +195,7 @@ export async function analyzeAvatar(
       imageUrl: imageUrl.substring(0, 50) + '...',
     })
 
-    // Use Moondream2 - fast vision model for image analysis
-    // Model: lucataco/moondream2 (updated from vikhyatk/moondream2)
-    // Prompt designed to get structured response about face and gender
-    const output = await replicate.run(
-      'lucataco/moondream2:72ccb656353c348c1385df54b237eeb7bfa874bf11486cf0b9473e691b662d31' as any,
-      {
-        input: {
-          image: imageUrl,
-          prompt:
-            'Analyze this image. Answer these questions:\n1. Is there a human face clearly visible in this image? (yes/no)\n2. If yes, what is the apparent gender of the person? (male/female/unclear)\nAnswer in format: FACE:yes/no GENDER:male/female/unclear',
-        },
-      }
-    )
+    const output = await askVision(imageUrl, ANALYZE_PROMPT)
 
     logger.info('[AnalyzeAvatar] Raw response', { output })
 
@@ -157,14 +268,9 @@ export async function analyzeAvatar(
  */
 export async function quickFaceCheck(imageUrl: string): Promise<boolean> {
   try {
-    const output = await replicate.run(
-      'lucataco/moondream2:72ccb656353c348c1385df54b237eeb7bfa874bf11486cf0b9473e691b662d31' as any,
-      {
-        input: {
-          image: imageUrl,
-          prompt: 'Is there a human face in this image? Answer only yes or no.',
-        },
-      }
+    const output = await askVision(
+      imageUrl,
+      'Is there a human face in this image? Answer only yes or no.'
     )
 
     const response = String(output).toLowerCase()

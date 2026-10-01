@@ -144,3 +144,92 @@ describe('a broken vision model is still ours', () => {
     ).toContain('[AnalyzeAvatar] Analysis failed')
   })
 })
+
+/*
+ * Log 2026-10-01: Replicate answered 402 "Insufficient credit" and every new
+ * user paged the owner. The project's own vision model is asked first.
+ */
+describe('our own eyes first, Replicate only after them', () => {
+  const photo = () =>
+    new Response(new Uint8Array([0xff, 0xd8, 0xff]), {
+      headers: { 'content-type': 'image/jpeg' },
+    })
+  const answer = (text: string) =>
+    new Response(JSON.stringify({ choices: [{ message: { content: text } }] }))
+
+  beforeEach(() => {
+    vi.stubEnv('VISION_API_KEY', 'test-vision-key')
+    vi.stubEnv('VISION_BASE_URL', 'http://vision.test/v1')
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  it('asks our vision model and never pays Replicate when it answers', async () => {
+    const calls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push(String(url))
+        if (String(url).startsWith('http://vision.test')) {
+          const body = JSON.parse(String(init?.body))
+          expect(body.messages[0].content[1].image_url.url).toMatch(
+            /^data:image\/jpeg;base64,/
+          )
+          return answer('FACE:yes GENDER:female')
+        }
+        return photo()
+      })
+    )
+
+    const result = await analyzeAvatar(URL)
+
+    expect(result.hasFace).toBe(true)
+    expect(result.gender).toBe('female')
+    expect(run).not.toHaveBeenCalled()
+    expect(calls).toEqual([URL, 'http://vision.test/v1/chat/completions'])
+  })
+
+  it('falls back to Replicate when our model is down', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        String(url).startsWith('http://vision.test')
+          ? new Response('down', { status: 503 })
+          : photo()
+      )
+    )
+    run.mockResolvedValue('FACE:yes GENDER:male')
+
+    const result = await analyzeAvatar(URL)
+
+    expect(result.gender).toBe('male')
+    expect(run).toHaveBeenCalledOnce()
+  })
+
+  it('names both failures when both are down', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        String(url).startsWith('http://vision.test')
+          ? new Response('down', { status: 503 })
+          : photo()
+      )
+    )
+    run.mockRejectedValue(new Error('402 Payment Required'))
+
+    const result = await analyzeAvatar(URL)
+
+    expect(result.hasFace).toBe(false)
+    expect(result.error).toContain('own vision answered 503')
+    expect(result.error).toContain('402 Payment Required')
+  })
+
+  it('without a key keeps the old path: Replicate alone', async () => {
+    vi.stubEnv('VISION_API_KEY', '')
+    run.mockResolvedValue('Yes')
+    expect(await quickFaceCheck(URL)).toBe(true)
+    expect(run).toHaveBeenCalledOnce()
+  })
+})
