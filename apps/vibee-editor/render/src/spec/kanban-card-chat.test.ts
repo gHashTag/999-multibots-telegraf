@@ -14,6 +14,20 @@ import {
   taskThread,
 } from '../agent/task-thread'
 import { withTask } from '../agent/routes'
+import { CARD_MARKERS, KANBAN_LIMITS, systemPrompt } from '../agent/chat'
+// v2's host is the player (the person's client reads GitHub); its pure
+// functions are imported across, as web-models-are-servable.test.ts does.
+import {
+  checksRank,
+  prsShown,
+  readCardStatus,
+  statusState,
+} from '../../../player/src/lib/cardStatus'
+import {
+  answerFor,
+  cardStates,
+  parseCards,
+} from '../../../player/src/lib/agentCards'
 
 /**
  * THE KANBAN CARD CHAT IS WRITTEN IN t27 FIRST (skill t27-spec-first).
@@ -236,8 +250,62 @@ describe('kanban-card-chat.t27 against the host', () => {
     expect(await a2aTask({})).toBeNull()
   })
 
+  it('one failed check outranks the rest', () => {
+    expect(checksRank(1, 5, 9)).toBe(SPEC.CHECK_FAIL_RANK)
+    expect(checksRank(0, 1, 9)).toBe(SPEC.CHECK_PENDING_RANK)
+    expect(checksRank(0, 0, 9)).toBe(SPEC.CHECK_PASS_RANK)
+    expect(checksRank(0, 0, 0)).toBe(SPEC.CHECK_NONE_RANK)
+  })
+
+  it('a read that did not happen never says no pull request', async () => {
+    expect(statusState(false, 0)).toBe(SPEC.STATUS_UNMEASURED)
+    expect(statusState(false, 4)).toBe(SPEC.STATUS_UNMEASURED)
+    expect(statusState(true, 0)).toBe(SPEC.STATUS_NO_PR)
+    expect(statusState(true, 2)).toBe(SPEC.STATUS_PRS)
+    // The host's read, end to end: GitHub's limit is "not measured" and
+    // says when (LIMIT_SAYS_WHEN), not { kind: 'none' }.
+    const limited = async () =>
+      new Response('{}', {
+        status: 403,
+        headers: { 'x-ratelimit-reset': '1790000000' },
+      })
+    expect(
+      await readCardStatus('gHashTag/t27', 5382, {
+        fetchImpl: limited as never,
+        storage: null,
+      })
+    ).toEqual({ kind: 'unmeasured', retryAt: 1790000000000 })
+  })
+
+  it('the strip is short and cheap', () => {
+    expect(prsShown(1)).toBe(1)
+    expect(prsShown(40)).toBe(SPEC.PRS_SHOWN_MAX)
+    expect(SPEC.CHECKS_PRS_MAX).toBeLessThanOrEqual(SPEC.PRS_SHOWN_MAX)
+    expect(SPEC.STATUS_CACHE_S).toBe(300)
+  })
+
+  it("the agent proposes, the person's tap decides", () => {
+    // CARDS_ON_KANBAN: the card chat's prompt carries the proposal cards and
+    // the two promises the agent must not make (move, open a PR).
+    const kanban = systemPrompt(SPEC.SURFACE)
+    expect(kanban).toContain(CARD_MARKERS)
+    expect(kanban).toContain(KANBAN_LIMITS)
+    expect(systemPrompt(SPEC.SURFACE, true)).not.toContain(CARD_MARKERS)
+    expect(systemPrompt('miniapp')).not.toContain(KANBAN_LIMITS)
+    // ACTIONS_ON_TAP_ONLY: a proposal is approved only by the words the tap
+    // sends; anything else the person writes leaves it open.
+    const { cards } = parseCards('Ok.\n[[card: Write the spec | draft it]]')
+    expect(cardStates(cards, [])).toEqual(['open'])
+    expect(cardStates(cards, ['yes, write the spec'])).toEqual(['open'])
+    expect(cardStates(cards, [answerFor(cards, true)])).toEqual(['approved'])
+    expect(cardStates(cards, [answerFor(cards, false)])).toEqual(['declined'])
+    expect(SPEC.MOVE_OFFERED).toBe(false)
+    expect(SPEC.AGENT_OPENS_PR).toBe(false)
+  })
+
   it('the card chat is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
+    expect(SPEC.VERSION).toBe(2)
     expect(SPEC.CHAT_DOOR).toBe('/api/agent/chat')
     expect(SPEC.HISTORY_DOOR).toBe('/api/agent/history')
     expect(SPEC.HISTORY_LIMIT).toBe(100)

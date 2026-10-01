@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { DetentSheet } from '@/components/DetentSheet/DetentSheet'
 import type { Detent } from '@/lib/sheetDetents'
@@ -16,6 +16,9 @@ import {
   turnsFromResponse,
 } from '@/lib/agentHistory'
 import { CARD_SHEET, cardFromHistory, type OpenCard } from '@/lib/cardChat'
+import { answerFor, cardStates, parseCards } from '@/lib/agentCards'
+import { readCardStatus, type CardStatus } from '@/lib/cardStatus'
+import { AgentCards } from '@/components/Chat/AgentCards'
 import { useLanguage } from '@/hooks/useLanguage'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
@@ -30,6 +33,12 @@ import './CardChat.css'
  * the header, never the tap (GITHUB_IS_SECONDARY). The history is the
  * server's task thread -- the same rows `tri card` and any A2A agent write --
  * so what an outside agent said is here when the person opens the card.
+ *
+ * v2: under the title, the pull requests that name the issue and their
+ * checks (lib/cardStatus.ts) -- said as "not measured" when GitHub would not
+ * answer, never as "no PR". The agent proposes with approve/decline cards
+ * and acts on the tap (ACTIONS_ON_TAP_ONLY); the column is the Queen's
+ * verdict, so no move is offered (MOVE_OFFERED false).
  */
 export function CardChat({
   card,
@@ -56,6 +65,18 @@ export function CardChat({
   // A board title runs to TITLE_MAX; two lines until the thumb asks for all.
   const [titleOpen, setTitleOpen] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
+  const [status, setStatus] = useState<CardStatus | null>(null)
+
+  // The task's work, read by this client from GitHub's public API.
+  useEffect(() => {
+    let alive = true
+    setStatus(null)
+    if (!card.repo) return
+    readCardStatus(card.repo, card.number).then(s => alive && setStatus(s))
+    return () => {
+      alive = false
+    }
+  }, [card.repo, card.number])
 
   // The server's thread, read once per card. Silent on failure: the local
   // copy is shown and writing is never blocked by an unreachable history.
@@ -139,6 +160,26 @@ export function CardChat({
   const issue = card.repo
     ? `https://github.com/${card.repo}/issues/${card.number}`
     : null
+  let lastAnswer = -1
+  messages.forEach((m, i) => {
+    if (m.role === 'assistant') lastAnswer = i
+  })
+  const cardsOf = (text: string, idx: number) => {
+    const { cards } = parseCards(text)
+    if (cards.length === 0) return null
+    const later = messages
+      .slice(idx + 1)
+      .filter(x => x.role === 'user')
+      .map(x => x.text || '')
+    return (
+      <AgentCards
+        cards={cards}
+        states={cardStates(cards, later)}
+        actionable={idx === lastAnswer && !busy}
+        onAnswer={(chosen, approve) => send(answerFor(chosen, approve))}
+      />
+    )
+  }
   const starters = [
     t('cardChat.starter.state'),
     t('cardChat.starter.continue'),
@@ -168,7 +209,9 @@ export function CardChat({
           <div className="card-chat__meta">
             <span className="card-chat__no">#{card.number}</span>
             {card.column && (
-              <span className="card-chat__column">{card.column}</span>
+              <span className="card-chat__column" title={t('cardChat.verdict')}>
+                {card.column}
+              </span>
             )}
             {card.repo && (
               // The owner is every card's (TASK_OWNER); the name is the news.
@@ -204,6 +247,13 @@ export function CardChat({
         >
           {title}
         </button>
+        {card.repo && (
+          <WorkStrip
+            status={status}
+            issue={issue}
+            label={t('cardChat.status.label')}
+          />
+        )}
         <div
           className="card-chat__log"
           ref={logRef}
@@ -229,18 +279,24 @@ export function CardChat({
               )}
             </div>
           )}
-          {messages.map(m => (
-            <div
-              key={m.id}
-              className={`card-chat__msg card-chat__msg--${m.role}`}
-            >
-              {m.surface === 'agent' && m.role === 'assistant' && (
-                <span className="card-chat__via">{t('cardChat.viaA2A')}</span>
-              )}
-              {m.text ||
-                (m.role === 'assistant' && busy ? t('cardChat.thinking') : '')}
-            </div>
-          ))}
+          {messages.map((m, idx) => {
+            const assistant = m.role === 'assistant'
+            // The markers are the agent's proposals; the bubble shows words.
+            const text = assistant ? parseCards(m.text || '').text : m.text
+            return (
+              <div key={m.id} className="card-chat__turn">
+                <div className={`card-chat__msg card-chat__msg--${m.role}`}>
+                  {m.surface === 'agent' && assistant && (
+                    <span className="card-chat__via">
+                      {t('cardChat.viaA2A')}
+                    </span>
+                  )}
+                  {text || (assistant && busy ? t('cardChat.thinking') : '')}
+                </div>
+                {assistant && m.text && cardsOf(m.text, idx)}
+              </div>
+            )
+          })}
         </div>
         <form
           className="card-chat__composer"
@@ -286,5 +342,97 @@ export function CardChat({
         </form>
       </div>
     </DetentSheet>
+  )
+}
+
+/**
+ * The pull requests that name the issue, one short row the thumb can
+ * scroll; each chip is a way out to GitHub (GITHUB_IS_SECONDARY), never an
+ * action. A read that did not happen says so and, if GitHub said, when.
+ */
+function WorkStrip({
+  status,
+  issue,
+  label,
+}: {
+  status: CardStatus | null
+  issue: string | null
+  label: string
+}) {
+  const { t } = useLanguage()
+  let body: ReactNode
+  if (status === null)
+    body = (
+      <span className="card-chat__work-note">
+        {t('cardChat.status.reading')}
+      </span>
+    )
+  else if (status.kind === 'unmeasured')
+    body = (
+      <span
+        className="card-chat__work-note card-chat__work-note--unmeasured"
+        data-retry-at={status.retryAt ?? undefined}
+      >
+        {status.retryAt
+          ? t('cardChat.status.retryAt', {
+              time: new Date(status.retryAt).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+            })
+          : t('cardChat.status.unmeasured')}
+      </span>
+    )
+  else if (status.kind === 'none')
+    body = (
+      <span className="card-chat__work-note">{t('cardChat.status.none')}</span>
+    )
+  else
+    body = (
+      <>
+        {status.prs.map(p => {
+          const state = p.state === 'open' && p.draft ? 'draft' : p.state
+          const checks = p.state === 'open' ? (p.checks ?? 'unknown') : null
+          return (
+            <a
+              key={`${p.repo}#${p.number}`}
+              className={`card-chat__pr card-chat__pr--${state}`}
+              href={p.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              title={p.title}
+            >
+              <span className="card-chat__pr-no">
+                {p.repo.split('/').pop()}#{p.number}
+              </span>
+              <span className="card-chat__pr-state">
+                {t(`cardChat.pr.${state}`)}
+              </span>
+              {checks && (
+                <span
+                  className={`card-chat__checks card-chat__checks--${checks}`}
+                  aria-label={t(`cardChat.checks.${checks}`)}
+                  title={t(`cardChat.checks.${checks}`)}
+                />
+              )}
+            </a>
+          )
+        })}
+        {status.more > 0 && issue && (
+          <a
+            className="card-chat__pr card-chat__pr--more"
+            href={issue}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            {t('cardChat.status.more', { n: status.more })}
+          </a>
+        )}
+      </>
+    )
+  return (
+    <section className="card-chat__work" aria-label={label} aria-live="polite">
+      {body}
+    </section>
   )
 }

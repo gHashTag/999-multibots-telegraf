@@ -19,6 +19,10 @@ import { DetentSheet } from '@/components/DetentSheet/DetentSheet'
 const TITLE =
   'EPIC: tap any kanban card and its agent conversation opens -- history, composer, A2A sync, mobile-first detent sheet'
 
+// The doors the sheet reads: its history, and GitHub's public API.
+let history: unknown[] = []
+let github: () => Response = () => new Response('[]')
+
 describe('CardChat on the board', () => {
   let host: HTMLDivElement
   let root: Root
@@ -26,9 +30,16 @@ describe('CardChat on the board', () => {
     host = document.createElement('div')
     document.body.appendChild(host)
     root = createRoot(host)
+    sessionStorage.clear()
+    history = []
+    github = () => new Response('[]')
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({ messages: [] })))
+      vi.fn(async (url: string) =>
+        String(url).startsWith('https://api.github.com/')
+          ? github()
+          : new Response(JSON.stringify({ messages: history }))
+      )
     )
   })
   afterEach(() => {
@@ -74,6 +85,73 @@ describe('CardChat on the board', () => {
     expect(host.querySelector('.card-chat__meta')?.textContent).toContain(
       '#5382'
     )
+  })
+
+  it('says GitHub did not answer, and when -- never that there is no PR', async () => {
+    github = () =>
+      new Response('{}', {
+        status: 403,
+        headers: { 'x-ratelimit-reset': '1790000000' },
+      })
+    await open()
+    const work = host.querySelector('.card-chat__work')
+    expect(
+      work
+        ?.querySelector('.card-chat__work-note--unmeasured')
+        ?.getAttribute('data-retry-at')
+    ).toBe('1790000000000')
+    expect(host.querySelector('.card-chat__pr')).toBeNull()
+  })
+
+  it('lists the linked PR with its state as a way out to GitHub', async () => {
+    github = () =>
+      new Response(
+        JSON.stringify([
+          {
+            event: 'cross-referenced',
+            source: {
+              issue: {
+                number: 5389,
+                title: 'spec',
+                state: 'closed',
+                repository: { full_name: 'gHashTag/t27' },
+                pull_request: {
+                  html_url: 'https://github.com/gHashTag/t27/pull/5389',
+                  merged_at: '2026-10-01T12:00:00Z',
+                },
+              },
+            },
+          },
+        ])
+      )
+    await open()
+    const pr = host.querySelector<HTMLAnchorElement>('.card-chat__pr')
+    expect(pr?.className).toContain('card-chat__pr--merged')
+    expect(pr?.href).toBe('https://github.com/gHashTag/t27/pull/5389')
+    expect(pr?.textContent).toContain('t27#5389')
+  })
+
+  it("draws the agent's proposals as cards and keeps the marker out of the bubble", async () => {
+    history = [
+      { role: 'user', content: 'Carry this task on' },
+      {
+        role: 'assistant',
+        content: 'Two ways.\n[[card: Write the spec | I will draft it]]',
+      },
+    ]
+    await open()
+    const bubble = host.querySelector('.card-chat__msg--assistant')
+    expect(bubble?.textContent).toBe('Two ways.')
+    expect(host.querySelector('.agent-cards')?.textContent).toContain(
+      'Write the spec'
+    )
+  })
+
+  it("offers no move: the column is the Queen's verdict, said as such", async () => {
+    await open()
+    const column = host.querySelector('.card-chat__column')
+    expect(column?.getAttribute('title')).toBeTruthy()
+    expect(column?.tagName).toBe('SPAN')
   })
 
   it('opens at HALF with the compact handle: no second, cut title', async () => {

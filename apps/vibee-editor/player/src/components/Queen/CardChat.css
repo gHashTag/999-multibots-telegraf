@@ -250,3 +250,92 @@
   background: rgba(255, 255, 255, 0.85);
   font-size: 14px;
 }
+
+/* One turn: the bubble, then the agent's proposals under it. */
+.card-chat__turn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/*
+ * The task's work (spec v2): one row the thumb scrolls sideways, so the log
+ * keeps its height at HALF however many pull requests there are.
+ */
+.card-chat__work {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 32px;
+}
+.card-chat__work-note {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.card-chat__work-note--unmeasured {
+  color: #ffcc66;
+}
+.card-chat__pr {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.card-chat__pr-no {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.card-chat__pr-state {
+  color: rgba(255, 255, 255, 0.6);
+}
+.card-chat__pr--merged {
+  border-color: rgba(170, 120, 255, 0.5);
+}
+.card-chat__pr--closed {
+  opacity: 0.6;
+}
+.card-chat__pr--more {
+  color: rgba(255, 255, 255, 0.7);
+}
+.card-chat__checks {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+}
+.card-chat__checks--pass {
+  background: #00ff88;
+}
+.card-chat__checks--fail {
+  background: #ff5566;
+}
+.card-chat__checks--pending {
+  background: #ffcc66;
+}
+/* Not read is a ring, not a colour: it claims nothing. */
+.card-chat__checks--unknown {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.5);
+}
+
+/* The shared cards are 40px tall; on the card's sheet the thumb gets 44. */
+.card-chat .agent-card__buttons button {
+  height: auto;
+  min-height: 44px;
+}

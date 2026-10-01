@@ -19,8 +19,11 @@
 // What this spec decides: the task thread's key and who may open it, which thread
 //       kinds it combines with, the frame -> app message, the card's address, the
 //       sheet's first height, the task note's size, and how an A2A call finds the same
-//       thread. What it does NOT decide: what the agent does in the task (that is the
-//       agent's own loop), or who may merge (that stays the owner's).
+//       thread; since v2 also what the sheet says about the task's work (linked pull
+//       requests and their checks, measured or honestly not) and that an action the
+//       agent proposes runs only on the person's tap. What it does NOT decide: what the
+//       agent does in the task (that is the agent's own loop), where a card's column
+//       goes (that is the Queen's verdict), or who may merge (that stays the owner's).
 // Claim status: designed and bound by tests; RUN_LIVE flips when a card tapped on
 //       app.t27.ai/game/kanban opens its chat and an A2A message/send with the same
 //       task shows up in it.
@@ -31,7 +34,7 @@ module automation::kanban_card_chat {
     pub const KIND : str = "automation";
     pub const ID : str = "kanban-card-chat";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- The thread -----------------------------------------------------------------
     // One conversation per (person, task): "task:gHashTag/t27#3587". The person is
@@ -122,6 +125,34 @@ module automation::kanban_card_chat {
     pub const A2A_PERSISTS : bool = true;  // the conversation outlives a deploy; the
                                            // in-memory task map only tracks the run
 
+    // ---- The task's work, said in the sheet (v2) -------------------------------------
+    // Under the title: the pull requests that name the issue (cross-repository too) and
+    // the worst state of their checks. Read from GitHub's public API by the person's own
+    // client; the server holds no GitHub token. Over the public limit the strip says it
+    // was NOT measured and when it can be again -- never "no pull request".
+    pub const STATUS_CACHE_S : u16 = 300;  // one read serves five minutes of opens
+    pub const PRS_SHOWN_MAX : u8 = 3;  // more are behind the GitHub link
+    pub const CHECKS_PRS_MAX : u8 = 2;  // checks are read for this many open PRs only
+    pub const CHECK_PASS_RANK : u8 = 0;  // neutral and skipped count as passed
+    pub const CHECK_PENDING_RANK : u8 = 1;
+    pub const CHECK_FAIL_RANK : u8 = 2;
+    pub const CHECK_NONE_RANK : u8 = 3;  // the PR has no checks at all
+    pub const STATUS_UNMEASURED : u8 = 0;
+    pub const STATUS_NO_PR : u8 = 1;
+    pub const STATUS_PRS : u8 = 2;
+    pub const UNMEASURED_IS_NOT_NONE : bool = true;
+    pub const LIMIT_SAYS_WHEN : bool = true;
+
+    // ---- What the agent may do with the card (v2) -----------------------------------
+    // The agent proposes; the person decides. A proposal is a card in the conversation
+    // with approve and decline, and nothing outside the conversation happens before the
+    // tap. The column is the Queen's verdict, computed from the registry and the
+    // dispatch: the sheet offers no move, because no door could honour it.
+    pub const CARDS_ON_KANBAN : bool = true;  // the card chat gets the proposal cards
+    pub const ACTIONS_ON_TAP_ONLY : bool = true;
+    pub const MOVE_OFFERED : bool = false;
+    pub const AGENT_OPENS_PR : bool = false;  // the server has no GitHub token to do it
+
     // ---- Not claimed ----------------------------------------------------------------
     pub const RUN_LIVE : bool = false;
 
@@ -162,6 +193,44 @@ module automation::kanban_card_chat {
             return A2A_HISTORY_TURNS;
         }
         return stored;
+    }
+
+    // The worst state among a PR's checks: one failure outranks everything.
+    fn checks_rank(failed: u16, pending: u16, passed: u16) -> u8 {
+        if failed > 0 {
+            return CHECK_FAIL_RANK;
+        }
+        if pending > 0 {
+            return CHECK_PENDING_RANK;
+        }
+        if passed > 0 {
+            return CHECK_PASS_RANK;
+        }
+        return CHECK_NONE_RANK;
+    }
+
+    // What the strip says: a read that did not happen is not an empty answer.
+    fn status_state(measured: bool, found: u16) -> u8 {
+        if !measured {
+            return STATUS_UNMEASURED;
+        }
+        if found == 0 {
+            return STATUS_NO_PR;
+        }
+        return STATUS_PRS;
+    }
+
+    // How many pull requests the strip lists.
+    fn prs_shown(found: u16) -> u16 {
+        if found > PRS_SHOWN_MAX {
+            return PRS_SHOWN_MAX;
+        }
+        return found;
+    }
+
+    // An action the agent proposed runs only when the person tapped approve.
+    fn action_runs(proposed: bool, approved_by_tap: bool) -> bool {
+        return proposed && approved_by_tap;
     }
 
     test "a task thread is keyed by owner, repository and number" {
@@ -238,8 +307,45 @@ module automation::kanban_card_chat {
         assert(a2a_turns(500) == A2A_HISTORY_TURNS);
     }
 
+    test "one failed check outranks the rest" {
+        assert(checks_rank(1, 5, 9) == CHECK_FAIL_RANK);
+        assert(checks_rank(0, 1, 9) == CHECK_PENDING_RANK);
+        assert(checks_rank(0, 0, 9) == CHECK_PASS_RANK);
+        assert(checks_rank(0, 0, 0) == CHECK_NONE_RANK);
+        assert(CHECK_PASS_RANK < CHECK_PENDING_RANK);
+        assert(CHECK_PENDING_RANK < CHECK_FAIL_RANK);
+    }
+
+    test "a read that did not happen never says no pull request" {
+        assert(UNMEASURED_IS_NOT_NONE);
+        assert(LIMIT_SAYS_WHEN);
+        assert(status_state(false, 0) == STATUS_UNMEASURED);
+        assert(status_state(false, 4) == STATUS_UNMEASURED);
+        assert(status_state(true, 0) == STATUS_NO_PR);
+        assert(status_state(true, 2) == STATUS_PRS);
+        assert(STATUS_UNMEASURED != STATUS_NO_PR);
+    }
+
+    test "the strip is short and cheap" {
+        assert(prs_shown(1) == 1);
+        assert(prs_shown(40) == PRS_SHOWN_MAX);
+        assert(CHECKS_PRS_MAX <= PRS_SHOWN_MAX);
+        assert(STATUS_CACHE_S >= BOARD_CACHE_S);
+    }
+
+    test "the agent proposes, the person's tap decides" {
+        assert(CARDS_ON_KANBAN);
+        assert(ACTIONS_ON_TAP_ONLY);
+        assert(action_runs(true, true));
+        assert(!action_runs(true, false));
+        assert(!action_runs(false, true));
+        assert(!MOVE_OFFERED);
+        assert(!AGENT_OPENS_PR);
+    }
+
     test "the card chat is designed, not yet live" {
         assert(!RUN_LIVE);
+        assert(VERSION == 2);
         assert(HISTORY_LIMIT == 100);
     }
 }

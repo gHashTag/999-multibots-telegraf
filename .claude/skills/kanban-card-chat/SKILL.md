@@ -98,6 +98,19 @@ TRI_T27C=<t27c>` and add a `docs/now/<date>-<slug>.md` entry. A t27c with
   now bounded (`TRI_VAULT_TIMEOUT_S`, 20 s) and shape-checked. Key for a run:
   `railway variables -s vibee-render -e production --kv`, `AGENT_KEYS`, first
   entry up to `:`, into `AGENT_KEY` -- never printed.
+- **The sheet's work strip (v2) reads GitHub from the person's client.**
+  Render has no GitHub token, so PRs and checks come from the public API (60
+  reads/hour per address, `x-ratelimit-reset` exposed by CORS). A refused read
+  is `unmeasured` with a retry time -- never "no PR" (UNMEASURED_IS_NOT_NONE);
+  an unmeasured answer is never cached. The column is the Queen's verdict:
+  there is no move button and the prompt (`KANBAN_LIMITS`) forbids promising
+  one. Actions are agent cards, run only on the person's tap.
+- **Render's binding test imports player modules by relative path**
+  (`../../../player/src/lib/cardStatus`) -- so `cardStatus.ts` and
+  `agentCards.ts` must keep relative imports only, no `@/`.
+- **`tri shot` stubs every `api.github.com` read as over the limit** unless
+  the harness routes it; a stub must send the CORS expose list GitHub sends,
+  or the browser hides the very header under test.
 - jsdom frames in `Hive.test.tsx` have a stub `contentDocument` without
   `addEventListener`; `catchCardTaps` checks the function before listening.
 
@@ -110,6 +123,23 @@ tri card t27#5382 "what's left?" # say it; the agent's answer streams back
 
 Same thread as the sheet and A2A; turns are marked surface `agent`, so the
 sheet shows them as "via another agent".
+
+## The two standing checks (every loop starts here)
+
+```bash
+tri card 5382                 # live: 0 task thread, 2 render still answers self
+tri shot card-chat 390 ru     # phone: the real sheet, doors answered by routes
+tri shot card-chat-empty 320 ru
+```
+
+`tri shot all` walks every harness, so the card sheet is on it without a
+list to keep. What the phone found on 2026-10-01 and the jsdom guard that
+holds each fix (`CardChat.test.tsx`): the title was one cut line in the
+peek (now a two-line disclosure, `aria-expanded`); the handle said number
+and title a second time above PEEK (`DetentSheet compactHandle`, +28 px to
+the body); the 320 px repo pill was cut (repo name only, the meta row
+wraps); a short log floated at the top (`margin-top: auto` on the first
+turn). Recipe and traps: skill `phone-shot`.
 
 ## Related Resources
 

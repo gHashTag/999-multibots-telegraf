@@ -60,8 +60,14 @@ const positional = argv.filter(
   (a, i) => !a.startsWith('--') && !flags.has(argv[i - 1])
 )
 const name = positional[0] ?? 'story-palette'
-const width = Number(opt('width', '390'))
-const lang = opt('lang', 'ru')
+// `tri shot card-chat 320 ru` reads as width and language. These were once
+// dropped without a word, and a "320px green" was in fact a 390px run.
+const rest = positional.slice(1)
+const posWidth = rest.find(a => /^\d+$/.test(a))
+const posLang = rest.find(a => a === 'ru' || a === 'en')
+const unread = rest.filter(a => a !== posWidth && a !== posLang)
+const width = Number(opt('width', posWidth ?? '390'))
+const lang = opt('lang', posLang ?? 'ru')
 const gitDir = spawnSync('git', ['rev-parse', '--git-dir'], {
   cwd: ROOT,
   encoding: 'utf8',
@@ -373,8 +379,9 @@ const HARNESSES = {
               },
               {
                 role: 'assistant',
+                // Two proposals: the cards under the last answer (spec v2).
                 content:
-                  'Проверил через tri card 5382: нить task:gHashTag/t27#5382 общая, мои ответы здесь видны.',
+                  'Проверил через tri card 5382: нить общая.\n[[card: Поднять QUEEN_REF | попрошу владельца в эпике]]\n[[card: Тест доски | добавлю тест на open-card]]',
                 surface: 'agent',
               },
             ],
@@ -396,6 +403,45 @@ const HARNESSES = {
             '\n',
         }),
       ],
+      // The task's work (spec v2): two linked PRs, one green, one running.
+      [
+        'https://api.github.com/repos/*/*/issues/*/timeline**',
+        () => ({
+          json: [
+            ['gHashTag/999-multibots-telegraf', 3208],
+            ['gHashTag/t27', 5389],
+          ].map(([repo, number]) => ({
+            event: 'cross-referenced',
+            created_at: '2026-10-01T10:00:00Z',
+            source: {
+              issue: {
+                number,
+                title: `PR ${number}`,
+                state: 'open',
+                repository: { full_name: repo },
+                pull_request: {
+                  html_url: `https://github.com/${repo}/pull/${number}`,
+                  merged_at: null,
+                },
+              },
+            },
+          })),
+        }),
+      ],
+      [
+        'https://api.github.com/repos/*/*/pulls/*',
+        req => ({ json: { head: { sha: req.url().split('/').pop() } } }),
+      ],
+      [
+        'https://api.github.com/repos/*/*/commits/*/check-runs**',
+        req => ({
+          json: {
+            check_runs: req.url().includes('/commits/3208/')
+              ? [{ status: 'completed', conclusion: 'success' }]
+              : [{ status: 'in_progress', conclusion: null }],
+          },
+        }),
+      ],
     ],
     root: '.card-chat-sheet',
     scope: '.card-chat-sheet',
@@ -405,7 +451,11 @@ const HARNESSES = {
     states: [
       {
         id: 'load',
-        ready: async p => p.locator('.card-chat__msg').first().waitFor(),
+        ready: async p => {
+          await p.locator('.card-chat__msg').first().waitFor()
+          await p.locator('.agent-cards').waitFor()
+          await p.locator('.card-chat__checks--pass').waitFor()
+        },
       },
       {
         // The composer focused: the sheet goes FULL, the thumb types.
@@ -447,7 +497,13 @@ const HARNESSES = {
     states: [
       {
         id: 'load',
-        ready: async p => p.locator('.card-chat__starter').first().waitFor(),
+        ready: async p => {
+          await p.locator('.card-chat__starter').first().waitFor()
+          // GitHub over its limit: said as not measured, never as "no PR".
+          await p
+            .locator('.card-chat__work-note--unmeasured[data-retry-at]')
+            .waitFor()
+        },
       },
     ],
   },
@@ -489,6 +545,8 @@ if (name === 'all') {
 const h = HARNESSES[name]
 if (
   !h ||
+  unread.length > 0 ||
+  argv.includes('--help') ||
   !Number.isInteger(width) ||
   width < 240 ||
   !['ru', 'en'].includes(lang)
@@ -741,6 +799,21 @@ try {
   if (h.routes) {
     await page.route('**/api/**', route =>
       route.fulfill({ status: 404, json: { error: 'tri shot: no such door' } })
+    )
+    // GitHub's public API answers as over its limit unless a harness says
+    // otherwise: a shot never spends the machine's sixty reads an hour.
+    await page.route('https://api.github.com/**', route =>
+      route.fulfill({
+        status: 403,
+        // As GitHub does: without the expose list the browser hides the
+        // reset, and the sheet could not say when it will read again.
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-expose-headers': 'X-RateLimit-Reset',
+          'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 1800),
+        },
+        json: { message: 'tri shot: API rate limit exceeded' },
+      })
     )
     for (const [glob, reply] of h.routes)
       await page.route(glob, route => route.fulfill(reply(route.request())))
