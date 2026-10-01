@@ -214,6 +214,36 @@ export const CRM_FIXTURES: Record<string, unknown> = {
       avatar_url: null,
     })),
   },
+  // The map tab had no fixture, so its controls were never measured at
+  // phone width -- the harness only said "the map did not load".
+  crm_map: {
+    nodes: (
+      [
+        ['900000101', 'Анна-Мария Ветрова-Соколовская', 'beauty', 9],
+        ['900000102', 'Игорь Лапин', 'tech', 4],
+        ['900000104', 'Светлана Николаевна Кузнецова', 'health', 7],
+        ['900000105', 'Дима', 'tech', 2],
+        ['900000106', 'Екатерина Смирнова', 'content', 6],
+        ['900000107', 'Максим Орлов', 'other', 1],
+        ['900000109', 'Ростислав Белоусов-Кременецкий', 'business', 5],
+        ['900000110', 'Юлия Петрова', 'content', 3],
+        ['900000112', 'Наталья Громова', 'business', 4],
+        ['900000113', 'Артём Сергеевич Васнецов', 'art', 2],
+      ] as Array<[string, string, string, number]>
+    ).map(([id, name, sphere, talk]) => ({
+      id,
+      name,
+      username: null,
+      avatar_url: null,
+      sphere,
+      talk,
+    })),
+    edges: [
+      { a: '900000101', b: '900000113', shared: 2 },
+      { a: '900000102', b: '900000105', shared: 1 },
+      { a: '900000106', b: '900000110', shared: 3 },
+    ],
+  },
 }
 
 /**
