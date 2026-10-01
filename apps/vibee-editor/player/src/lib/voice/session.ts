@@ -55,6 +55,7 @@ import {
 import {
   synthesize as httpSynthesize,
   transcribe as httpTranscribe,
+  wakeRoad as httpWakeRoad,
   warmVoice as httpWarm,
 } from './voiceApi'
 
@@ -100,6 +101,8 @@ export interface VoiceDeps {
   transcribe?: typeof httpTranscribe
   synthesize?: typeof httpSynthesize
   warm?: typeof httpWarm
+  /** Reopen a quiet connection to the server while the person talks. */
+  wakeRoad?: () => void
 }
 
 const TICK_MS = 40
@@ -117,6 +120,14 @@ const END_OF_TURN_MS = 850
  * (EagerEndOfTurn) and LiveKit (preemptive generation) do the same.
  */
 const EAGER_HEAR_MS = 300
+/*
+ * The rate a phrase is recorded at. Chrome's own is 128 kbit/s (measured
+ * 2026-10-02: 48 KB for 3 s), music quality, for ears that hear 16 kHz mono
+ * anyway -- and every byte is uploaded after the person stops talking, across
+ * an edge ~250 ms from the render: 33 KB took 0.5-1 s of the road. Opus
+ * speech is clear at 32 kbit/s, a quarter of the bytes.
+ */
+const SPEECH_BITS_PER_SECOND = 32_000
 const MAX_UTTERANCE_MS = 30_000
 const IDLE_RESTART_MS = 12_000
 /*
@@ -386,13 +397,20 @@ export class VoiceSession {
     this.dropRecording()
     if (!this.stream || this.snap.muted) return
     const mime = pickMime()
+    const typed = mime ? { mimeType: mime } : {}
     try {
-      this.recorder = mime
-        ? new MediaRecorder(this.stream, { mimeType: mime })
-        : new MediaRecorder(this.stream)
+      this.recorder = new MediaRecorder(this.stream, {
+        ...typed,
+        audioBitsPerSecond: SPEECH_BITS_PER_SECOND,
+      })
     } catch {
-      this.set({ phase: 'error', error: 'voice.error.recorder' })
-      return
+      // A browser that refuses the rate still records at its own.
+      try {
+        this.recorder = new MediaRecorder(this.stream, typed)
+      } catch {
+        this.set({ phase: 'error', error: 'voice.error.recorder' })
+        return
+      }
     }
     this.chunks = []
     this.spoke = false
@@ -467,6 +485,7 @@ export class VoiceSession {
       this.pause()
       this.set({ phase: 'listening', saying: '' })
       this.spoke = true
+      this.wakeRoad()
       if (!this.recorder) this.beginRecording()
       return
     }
@@ -484,6 +503,7 @@ export class VoiceSession {
       now - this.loudSince > SPEECH_ONSET_MS
     ) {
       this.spoke = true
+      this.wakeRoad()
     }
     const long = now - this.recordStartedAt
     if (this.spoke) {
@@ -628,6 +648,15 @@ export class VoiceSession {
     this.deps.send(text)
     this.set({ phase: 'thinking' })
     this.onThread()
+  }
+
+  /*
+   * The person has started a phrase: if the connection went quiet, reopen it
+   * now, so its handshake runs while they talk (voiceApi.ts, THE ROAD).
+   */
+  private wakeRoad(): void {
+    const wake = this.deps.wakeRoad || httpWakeRoad
+    wake()
   }
 
   private warm(lang: Language): void {

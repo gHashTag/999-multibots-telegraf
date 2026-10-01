@@ -404,6 +404,15 @@ CHECKS THAT EACH COST A CYCLE
         Over 3 s to speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
         (the render's AGENT_KEYS, first entry, up to ':'); without it only the
         public status is read and the exit code says NOT MEASURED (2).
+        Every call goes over ONE kept-alive connection, as in the browser;
+        the handshake and the warm round trip are printed on their own line.
+
+  tri road | tri дорога
+        Just that road line: which Railway edge answered, what a new
+        connection costs (DNS + TCP/TLS), and the warm round trip every call
+        still pays (median of 5 empty status calls). Over 0.4 s warm is SLOW
+        (exit 2). On 2026-10-02: edge sin1, render in sfo, ~250-290 ms warm.
+        No key needed.
 
   tri loop | tri виток
         Where the last loop cycle stopped, before this one starts: dirty tree,
@@ -5387,7 +5396,7 @@ cmd_voice() {
   case "${1:-}" in --runs) runs="${2:-3}" ;; --runs=*) runs="${1#--runs=}" ;; esac
   [[ "$runs" =~ ^[1-9][0-9]?$ ]] || { bad "--runs takes 1..99, not '$runs'"; return 2; }
   key=$(_mcp_key 2>/dev/null) || key=''
-  V_KEY="$key" V_BASE="$RENDER" V_RUNS="$runs" \
+  V_KEY="$key" V_BASE="$RENDER" V_RUNS="$runs" V_ROAD_ONLY="${V_ROAD_ONLY:-}" \
     V_SESSION="$ROOT/apps/vibee-editor/player/src/lib/voice/session.ts" python3 -u - <<'PY'
 import json, os, re, statistics, sys, time, urllib.error, urllib.request
 
@@ -5427,36 +5436,90 @@ def server_timing(h):
                 out[name + '.desc'] = v.strip('"')
     return out
 
-def call(path, body=None, ctype='application/json', timeout=90):
-    data = body if isinstance(body, (bytes, type(None))) else json.dumps(body).encode()
-    req = urllib.request.Request(base + path, data=data, method='POST' if data is not None else 'GET')
-    if data is not None:
-        req.add_header('Content-Type', ctype)
-    if key:
-        req.add_header('X-Agent-Key', key)
-    global last_timing
-    last_timing = {}
+# ONE connection for every call, the way a browser keeps one. urllib opened
+# a new one per request, so every "road" it reported carried a fresh DNS +
+# TCP + TLS (150-400 ms) that a person in the app pays once, not per phrase
+# (cycle 7). The handshake is now measured on its own, below.
+from urllib.parse import urlsplit
+import http.client, socket
+u = urlsplit(base)
+conn = None
+def connect():
+    global conn
+    if conn:
+        conn.close()
+    Conn = http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection
+    conn = Conn(u.hostname, u.port, timeout=240)
     t = time.monotonic()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            last_timing = server_timing(r.headers.get('Server-Timing'))
-            return r.status, r.read(), int((time.monotonic() - t) * 1000)
-    except urllib.error.HTTPError as e:
-        return e.code, e.read(), int((time.monotonic() - t) * 1000)
-    except Exception as e:
+        socket.getaddrinfo(u.hostname, u.port or 443)
+        dns = int((time.monotonic() - t) * 1000)
+        conn.connect()
+    except Exception:
+        return None, None
+    return dns, int((time.monotonic() - t) * 1000) - dns
+
+last_timing, last_headers = {}, {}
+def call(path, body=None, ctype='application/json', timeout=90, retry=True):
+    data = body if isinstance(body, (bytes, type(None))) else json.dumps(body).encode()
+    headers = {}
+    if data is not None:
+        headers['Content-Type'] = ctype
+    if key:
+        headers['X-Agent-Key'] = key
+    global last_timing, last_headers
+    last_timing, last_headers = {}, {}
+    if conn is None:
+        connect()
+    conn.timeout = timeout
+    if conn.sock:
+        conn.sock.settimeout(timeout)
+    t = time.monotonic()
+    try:
+        conn.request('POST' if data is not None else 'GET', u.path.rstrip('/') + path, body=data, headers=headers)
+        r = conn.getresponse()
+        out = r.read()
+    except (http.client.RemoteDisconnected, BrokenPipeError, ConnectionResetError, http.client.CannotSendRequest) as e:
+        # The edge closed an idle connection: open a new one and say nothing
+        # -- that is what a browser does too.
+        if retry:
+            connect()
+            return call(path, body, ctype, timeout, False)
         return 0, str(e).encode(), int((time.monotonic() - t) * 1000)
+    except Exception as e:
+        connect()
+        return 0, str(e).encode(), int((time.monotonic() - t) * 1000)
+    last_timing = server_timing(r.getheader('Server-Timing'))
+    last_headers = {k.lower(): v for k, v in r.getheaders()}
+    return r.status, out, int((time.monotonic() - t) * 1000)
 
 worst = 0
 def mark(level):
     global worst
     worst = max(worst, level)
 
+# THE ROAD, split (cycle 7): the handshake a new connection pays, then the
+# round trip a warm one still pays -- the edge reaching the render and back.
+# On 2026-10-02 the edge was sin1 (Singapore) and the render ran in sfo:
+# ~250 ms warm, on every call, even for this empty status.
+dns, tls = connect()
 code, body, ms = call('/api/voice/status')
 if code != 200:
     why = body[:120].decode(errors='replace') if code == 0 else f'HTTP {code}'
     print(f'  status: {why} -- the voice routes did not answer')
     sys.exit(3)
 st = json.loads(body)
+pings = [ms] + [call('/api/voice/status')[2] for _ in range(4)]
+ping = int(statistics.median(pings))
+edge = last_headers.get('x-railway-edge', '?')
+if dns is not None:
+    print(f'  road: edge {edge}, new connection {dns + tls} ms (dns {dns} + tcp/tls {tls}), '
+          f'warm round trip {ping} ms [{min(pings)}..{max(pings)}] -- every call pays the warm one')
+if ping >= 400:
+    print('  road: SLOW -- the warm round trip alone is 0.4 s; is the render far from this edge? (tri road)')
+    mark(2)
+if os.environ.get('V_ROAD_ONLY'):
+    sys.exit(worst)
 print(f"  status: hear={st.get('hear')} (ru via {st.get('hearRu', 'whisper')}, en via {st.get('hearEn', 'whisper')}) speak={st.get('speak')} (via {st.get('speakVia', 'speaches')}) "
       f"voices ru={len(st.get('voices', {}).get('ru', []))} en={len(st.get('voices', {}).get('en', []))}")
 if not (st.get('hear') and st.get('speak')):
@@ -5559,7 +5622,8 @@ for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: th
         # Which ears heard it: "gigaam"/"parakeet", "whisper", or both when
         # the fast ears fell back on some runs -- that mix is itself the finding.
         ears = '/'.join(sorted(engines)) or 'whisper'
-        split = f' = upload {r} + {ears} {h} + road {max(0, med - h - r)}'
+        road = max(0, med - h - r)
+        split = f' = upload {r} + {ears} {h} + road {road} (warm round trip {ping})'
     else:
         split = ' (no Server-Timing: render older than voice-loop-2)'
     print(f'  round trip {lang}: "{heard[:40]}" median {med} ms of {len(times)} '
@@ -5575,6 +5639,14 @@ for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: th
 sys.exit(worst)
 PY
   local rc=$?
+  if [ -n "${V_ROAD_ONLY:-}" ]; then
+    case "$rc" in
+      0) good 'the road answers, warm round trip under 0.4 s' ;;
+      2) warn 'the road is slow -- see above' ;;
+      *) bad 'the render did not answer' ;;
+    esac
+    return "$rc"
+  fi
   case "$rc" in
     0) good 'the voice hears and speaks both languages' ;;
     1) bad 'part of the voice is broken -- the lines above say which' ;;
@@ -5827,6 +5899,7 @@ case "$action" in
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
   voice|голос)         cmd_voice "$@" ;;
+  road|дорога)         V_ROAD_ONLY=1 cmd_voice "$@" ;;
   ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
   mouth|рот)           cmd_ears "$@" mouth ;;  # cyrillic-ok: the voice's mouth, cycle 6
   gigaam|гигаам)       cmd_ears "$@" ru ;;  # cyrillic-ok: the name it had in voice-loop-3
