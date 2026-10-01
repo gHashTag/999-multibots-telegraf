@@ -7,7 +7,7 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 
 - [x] S0 Audit weak spots (listed below)
 - [x] S1 Skill + this ledger
-- [ ] S2 Competitor research -> docs/research/kanban-card-chat-competitors.md
+- [x] S2 Competitor research -> docs/research/kanban-card-chat-competitors.md
 - [ ] S3 `.t27` spec in gHashTag/t27 (worktree /Users/playra/t27-kanban-card-chat), PR
 - [ ] S4 Bind spec in render (src/spec/kanban-card-chat.*, scripts/t27-specs.json)
 - [ ] S5 Render: task thread in threadFor + history + chat, task context injection
@@ -35,6 +35,15 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 ## Anomalies
 
 (append: date, what, evidence, fix)
+
+- 2026-10-01 The board's repository is gHashTag/t27 now, not trios
+  (`/queen/public-board` .repo, 866 cards). Fix: no repository is written in
+  the spec; a bare number belongs to the board's own repo (REPO_FROM_BOARD).
+- 2026-10-01 245 of 866 cards carry no title -- the title is literally
+  "#5382". Fix: the note says "untitled" (UNTITLED_SAYS_SO).
+- 2026-10-01 /Users/playra/t27 checkout is on an old branch and its t27c has
+  no `gen-ts`; t27's default branch is `master`, not `main`. Fix: worktree
+  /Users/playra/t27-kanban-card-chat off origin/master, t27c built there.
 
 ## PRs
 
