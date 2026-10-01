@@ -44,7 +44,7 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
  * label. Never throws for one network: the other still gets its turn, and
  * the owner is told what each did.
  */
-async function publishEverywhere(
+export async function publishEverywhere(
   pool: Queryable,
   owner: string,
   a: Article
