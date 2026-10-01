@@ -454,7 +454,24 @@ export default function CrmPage() {
         {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
         {' · '}
         {t('crm.clients.duets', { n: x.duets })}
+        {x.tasksTotal > 0 ? (
+          <>
+            {' · '}
+            {t('crm.clients.tasks', { done: x.tasksDone, n: x.tasksTotal })}
+          </>
+        ) : null}
+        {x.faultsOpen > 0 ? (
+          <>
+            {' · '}
+            {t('crm.clients.faults', { n: x.faultsOpen })}
+          </>
+        ) : null}
       </p>
+      {x.bots.length ? (
+        <p className="crm__why">
+          {t('crm.clients.bots')} {x.bots.map(b => `@${b}`).join(', ')}
+        </p>
+      ) : null}
       <div className="crm__acts">
         {picked === null ? null : (
           <label className="crm__auto">
