@@ -16,8 +16,8 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 - [x] S8 Trinity: card tap posts open-card -- gHashTag/trinity feat/kanban-card-opens-chat 91e365910, `npm run test:card-chat` 4/4 (QUEEN_REF bump = owner)
 - [x] S9 `tri card <n> [text]` (refuses a non-task thread, exit 2)
 - [x] S10 EPIC https://github.com/gHashTag/t27/issues/5388 (epic, priority/critical) -- in gHashTag/t27, not trios + children, priority for the queen
-- [ ] S11 Gates green, PR opened (no merge)
-- [ ] S12 Report + three options for the next loop
+- [x] S11 Gates green (pre-push 12/12), PR https://github.com/gHashTag/999-multibots-telegraf/pull/3208 (no merge)
+- [x] S12 Report + three options for the next loop (chat, 2026-10-01)
 
 ## Weak spots (S0)
 
@@ -49,3 +49,18 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 ## PRs
 
 (append: repo#n, what, state)
+
+- gHashTag/t27#5389 -- the spec, open.
+- gHashTag/t27#5388 -- the EPIC, S0-S9 and S11 ticked.
+- gHashTag/trinity#1203 -- the board posts open-card, open; QUEEN_REF bump = owner.
+- gHashTag/999-multibots-telegraf#3208 -- render + player + tri, open. Red CI
+  checks (Secrets Detection on old test fixtures, Dependency Audit
+  brace-expansion, Validate PR Rules, claude-review) are red on #3207 and on
+  main too -- the repository's baseline, not this PR. Local pre-push: 12/12.
+
+## Next loop: what to verify first
+
+1. After the owner merges #3208 and render deploys: `tri card <n>` must print a
+   `task:` thread, not exit 2 (exit 2 = the live render still answers `self`).
+2. After the QUEEN_REF bump: on a phone, a tap on a card at /game/kanban opens
+   the sheet with no GitHub tab (open-card path, not the anchor catch).
