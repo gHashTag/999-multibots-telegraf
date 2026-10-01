@@ -129,6 +129,21 @@ export function VoiceOverlay({ session, onClose }: Props) {
           <span className="voice-overlay__dot" aria-hidden="true" />
           {snap.muted ? t('voice.muted') : t(`voice.phase.${snap.phase}`)}
         </p>
+        {snap.phase === 'thinking' || snap.phase === 'speaking' ? (
+          // Spelled out: the orb tap does the same, but nobody guesses that
+          // while the agent is stuck thinking.
+          <button
+            type="button"
+            className="voice-overlay__action voice-overlay__stop"
+            onClick={() => session.interrupt()}
+            data-testid="voice-stop"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="7" y="7" width="10" height="10" rx="2" />
+            </svg>
+            {t('voice.stop')}
+          </button>
+        ) : null}
         {snap.error && snap.phase !== 'error' ? (
           // A passing miss ("say it again"): a hint, not an alarm.
           <p className="voice-overlay__hint">{t(snap.error)}</p>

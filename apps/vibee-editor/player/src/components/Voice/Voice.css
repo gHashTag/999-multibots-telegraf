@@ -381,6 +381,18 @@
   box-shadow: 0 0 22px rgba(0, 255, 136, 0.35);
 }
 
+.voice-overlay .voice-overlay__stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.voice-overlay__stop svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
 .voice-overlay__line {
   display: -webkit-box;
   -webkit-line-clamp: 3;

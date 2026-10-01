@@ -14,7 +14,13 @@
  * - The answer is spoken sentence by sentence while it is still being written
  *   (lib/voice/sentences.ts), up to two sentences synthesised ahead.
  * - Speaking over the agent interrupts it (barge-in): playback stops at once
- *   and the new words are recorded.
+ *   and the new words are recorded. A new question -- spoken, typed, or the
+ *   Stop button -- also stops the answer on the server: otherwise it would
+ *   queue behind the slow answer it was meant to replace (owner, 2026-10-02:
+ *   "I want to interrupt when it is stuck").
+ * - Each sentence is spoken in the language it is WRITTEN in, not the app's:
+ *   a Russian answer under an English interface was read by the English
+ *   voice (owner, 2026-10-02: "she does not speak Russian").
  * - The mic and the voice each feed an AnalyserNode, which is what the logo
  *   visual reads (components/Voice/VoiceOrb.tsx).
  * - Opening voice mode asks the server to load the transcriber and the voice
@@ -31,7 +37,12 @@ import type { Language } from '@/atoms/language'
 import type { Message } from '@/atoms/agentChat'
 import { ReplyFollower } from './replyFollower'
 import { hasMicApi, micErrorKey } from './micError'
-import { RELEARN_EVERY, guessSpokenLang, seedSpokenLang } from './spokenLang'
+import {
+  RELEARN_EVERY,
+  guessSpokenLang,
+  seedSpokenLang,
+  sentenceLang,
+} from './spokenLang'
 import {
   synthesize as httpSynthesize,
   transcribe as httpTranscribe,
@@ -63,8 +74,10 @@ export interface VoiceSnapshot {
 }
 
 export interface VoiceDeps {
+  /** The app's language: the fallback when nothing better is known. */
   lang: () => Language
-  voice: () => string | null
+  /** The voice the person picked for this language, null for the default. */
+  voice: (lang: Language) => string | null
   /** Send the words as a chat message in the current conversation. */
   send: (text: string) => void
   /** The current conversation's messages. */
@@ -73,6 +86,8 @@ export interface VoiceDeps {
   answering: () => boolean
   /** Call back whenever messages or the answering state change. */
   subscribe: (cb: () => void) => () => void
+  /** Stop the answer being written (and anything queued behind it). */
+  stop?: () => void
   transcribe?: typeof httpTranscribe
   synthesize?: typeof httpSynthesize
   warm?: typeof httpWarm
@@ -143,6 +158,7 @@ export class VoiceSession {
   private playing: AudioBufferSourceNode | null = null
   private utterance: SpeechSynthesisUtterance | null = null
   private pumping = false
+  private threadCheck = false
   private generation = 0
   private readonly level = new Float32Array(2048)
 
@@ -178,7 +194,7 @@ export class VoiceSession {
     const gen = this.generation
     const lang = this.deps.lang()
     // Before the mic prompt: the person reading it is time the server can use.
-    void (this.deps.warm || httpWarm)(lang, this.deps.voice())
+    this.warm(lang)
     this.spokenLang = seedSpokenLang(
       lang,
       typeof navigator !== 'undefined' ? navigator.languages : undefined
@@ -216,7 +232,7 @@ export class VoiceSession {
     ctx.createMediaStreamSource(this.stream).connect(this.micAnalyser)
     this.openOutput()
 
-    this.unsub = this.deps.subscribe(() => this.onThread())
+    this.unsub = this.deps.subscribe(() => this.threadChanged())
     this.timer = window.setInterval(() => this.tick(), TICK_MS)
     this.listen()
   }
@@ -237,12 +253,9 @@ export class VoiceSession {
     } catch {
       // No Web Audio at all: the device's own voice reads the answer.
     }
-    if (!this.unsub) this.unsub = this.deps.subscribe(() => this.onThread())
-    this.set({ heard: words, saying: '', error: null })
-    this.follower = new ReplyFollower(this.deps.messages())
-    this.deps.send(words)
-    this.set({ phase: 'thinking' })
-    this.onThread()
+    if (!this.unsub)
+      this.unsub = this.deps.subscribe(() => this.threadChanged())
+    this.ask(words)
   }
 
   stop(): void {
@@ -264,9 +277,13 @@ export class VoiceSession {
     if (!muted && this.snap.phase === 'listening') this.listen()
   }
 
-  /** Tap on the orb while it speaks: be quiet and listen. */
+  /**
+   * The orb or the Stop button while the agent thinks or speaks: stop the
+   * answer itself, not only its sound, and listen.
+   */
   interrupt(): void {
     if (this.snap.phase === 'speaking' || this.snap.phase === 'thinking') {
+      if (this.follower || this.deps.answering()) this.deps.stop?.()
       this.silence()
       this.idle()
     }
@@ -421,7 +438,11 @@ export class VoiceSession {
       })
       // Only an undirected transcript says which language it was: a directed
       // one is written in the language it was told.
-      if (!hint) this.spokenLang = guessSpokenLang(text) || this.spokenLang
+      if (!hint) {
+        const learned = guessSpokenLang(text)
+        if (learned && learned !== this.spokenLang) this.warm(learned)
+        this.spokenLang = learned || this.spokenLang
+      }
     } catch {
       if (gen !== this.generation) return
       this.set({ error: 'voice.error.hear' })
@@ -435,15 +456,49 @@ export class VoiceSession {
       } else this.listen()
       return
     }
-    this.set({ heard: text, error: null })
+    this.ask(text)
+    this.beginRecording()
+  }
+
+  /** Send a question; one still being answered is stopped, not queued behind. */
+  private ask(text: string): void {
+    if (this.follower || this.deps.answering()) {
+      this.deps.stop?.()
+      this.silence()
+    }
+    this.set({ heard: text, saying: '', error: null })
     this.follower = new ReplyFollower(this.deps.messages())
     this.deps.send(text)
     this.set({ phase: 'thinking' })
-    this.beginRecording()
     this.onThread()
   }
 
+  private warm(lang: Language): void {
+    void (this.deps.warm || httpWarm)(lang, this.deps.voice(lang))
+  }
+
+  /** The language a sentence is spoken in: its own, else the person's. */
+  private sentenceLang(text: string): Language {
+    return sentenceLang(text) || this.spokenLang || this.deps.lang()
+  }
+
   // ---- speaking -----------------------------------------------------------
+
+  /*
+   * Looked at on the next microtask, not inside the store's notification:
+   * the chat queue drops a line BEFORE the line's stream registers as busy,
+   * and in that instant "nobody is answering and there is no reply" made the
+   * follower give up on an answer that was about to start -- so a question
+   * asked while the agent was still answering was never spoken.
+   */
+  private threadChanged(): void {
+    if (this.threadCheck) return
+    this.threadCheck = true
+    queueMicrotask(() => {
+      this.threadCheck = false
+      this.onThread()
+    })
+  }
 
   private onThread(): void {
     const f = this.follower
@@ -464,10 +519,11 @@ export class VoiceSession {
   private async render(text: string): Promise<AudioBuffer | null> {
     if (!this.ctx) return null
     try {
+      const lang = this.sentenceLang(text)
       const bytes = await (this.deps.synthesize || httpSynthesize)(
         text,
-        this.deps.lang(),
-        this.deps.voice()
+        lang,
+        this.deps.voice(lang)
       )
       return await this.ctx.decodeAudioData(bytes)
     } catch {
@@ -553,7 +609,7 @@ export class VoiceSession {
         typeof window !== 'undefined' ? window.speechSynthesis : undefined
       if (!synth) return resolve()
       const u = new SpeechSynthesisUtterance(text)
-      u.lang = this.deps.lang() === 'ru' ? 'ru-RU' : 'en-US'
+      u.lang = this.sentenceLang(text) === 'ru' ? 'ru-RU' : 'en-US'
       u.onend = () => resolve()
       u.onerror = () => resolve()
       this.utterance = u

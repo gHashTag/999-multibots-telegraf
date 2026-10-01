@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { guessSpokenLang, seedSpokenLang } from './spokenLang'
+import { guessSpokenLang, seedSpokenLang, sentenceLang } from './spokenLang'
 
 describe('guessSpokenLang', () => {
   it('reads the script of what was heard', () => {
@@ -25,5 +25,19 @@ describe('seedSpokenLang', () => {
     expect(seedSpokenLang('ru', ['en-US', 'ru'])).toBeNull()
     expect(seedSpokenLang('en', [])).toBeNull()
     expect(seedSpokenLang('en', undefined)).toBeNull()
+  })
+})
+
+describe('sentenceLang', () => {
+  it('any Cyrillic is read by the Russian voice', () => {
+    expect(sentenceLang('Твой API отвечает за 3 секунды.')).toBe('ru')
+    expect(sentenceLang('Your API answers in 3 seconds.')).toBe('en')
+    // Mostly Latin letters, still Russian: the English voice cannot read it.
+    expect(sentenceLang('Открой Google Docs')).toBe('ru')
+  })
+
+  it('no letters is left to the session', () => {
+    expect(sentenceLang('42.')).toBeNull()
+    expect(sentenceLang('👍')).toBeNull()
   })
 })
