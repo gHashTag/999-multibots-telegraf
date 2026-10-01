@@ -24,12 +24,15 @@
  */
 import type { AgentTool, ToolContext } from './tools'
 import {
+  storyTopicIdeas,
+  keepStoryFace,
   missingFor,
   nextLink,
   peekNextPlanItem,
   startStory,
   storyJobsOf,
   storySettingsOf,
+  STORY_SCENES,
   STORY_TOPIC_MAX,
   storyPriceEstimate,
   storyPriceEstimateNotes,
@@ -96,6 +99,11 @@ export function makeCrmStoryTool(o: {
       properties: {
         lead: { type: 'string', description: 'id или @username клиента' },
         start: { type: 'boolean', description: 'сделать рилс сейчас' },
+        ideas: {
+          type: 'boolean',
+          description:
+            'только темы: до 4 идей из договорённостей и SOUL клиента',
+        },
         topic: {
           type: 'string',
           description: 'тема рилса своими словами; пусто — план или новая',
@@ -117,12 +125,21 @@ export function makeCrmStoryTool(o: {
           },
           description: 'свой сценарий вместо темы: сцены по порядку',
         },
+        scene_count: {
+          type: 'number',
+          description: 'сколько сцен (кадров) написать: 1–4, по умолчанию 3',
+        },
         style: { type: 'string', description: 'свой свет и тон кадров' },
         cta: { type: 'string', description: 'свой призыв в паузе' },
         [REEL.END_CARD_ARG]: END_CARD_PARAM,
         [REEL.END_CARD_SAVE_ARG]: {
           type: 'boolean',
           description: 'запомнить end_card клиенту для следующих рилсов',
+        },
+        face_url: {
+          type: 'string',
+          description:
+            'своё фото для рилсов клиента вместо аватарки (https); пустая строка — снова аватарка',
         },
         to: {
           type: 'string',
@@ -154,6 +171,27 @@ export function makeCrmStoryTool(o: {
           await face.handler({ lead_id: lead }, ctx).catch(() => null)
           s = await storySettingsOf(ctx.pool, lead, seller)
         }
+      }
+      // The seller's own photo over her avatar, kept for her next reels.
+      if (s && typeof args.face_url === 'string') {
+        const k = await keepStoryFace(
+          ctx.pool as never,
+          seller,
+          lead,
+          args.face_url
+        )
+        if (k.why) return { ready: false, started: false, why: k.why }
+        s = await storySettingsOf(ctx.pool, lead, seller)
+      }
+      if (args.ideas === true) {
+        const ideas = await storyTopicIdeas(
+          ctx.pool as never,
+          o.deps(ctx).write,
+          seller,
+          lead,
+          s
+        ).catch(() => [])
+        return { lead, ideas }
       }
       // A seller's reel speaks her clone, or her own voice notes (spec v4).
       const missing = missingFor(s, { notes: true })
@@ -250,6 +288,8 @@ export function makeCrmStoryTool(o: {
             ? {
                 name: s.name || undefined,
                 face: s.faceUrl || undefined,
+                face_custom: s.faceCustom,
+                avatar: s.avatarUrl || undefined,
                 voice: s.hasVoice,
                 // Her clone speaks new lines; without it -- or while its
                 // provider refuses (spec v5) -- her own voice notes are
@@ -258,6 +298,27 @@ export function makeCrmStoryTool(o: {
                 price_tokens: cloneSpeaks
                   ? storyPriceEstimate()
                   : storyPriceEstimateNotes(),
+                // The price of every count the panel offers, so the figure
+                // above the button follows the stepper without a guess.
+                scenes: {
+                  default: STORY_SCENES,
+                  min: REEL.SCENES_MIN,
+                  max: REEL.SCENES_MAX,
+                  price_tokens: Object.fromEntries(
+                    Array.from(
+                      { length: REEL.SCENES_MAX - REEL.SCENES_MIN + 1 },
+                      (_, i) => {
+                        const n = REEL.SCENES_MIN + i
+                        return [
+                          n,
+                          cloneSpeaks
+                            ? storyPriceEstimate(n)
+                            : storyPriceEstimateNotes(n),
+                        ]
+                      }
+                    )
+                  ),
+                },
                 vip: s.vip,
                 style: s.style,
                 cta: s.cta,
@@ -292,6 +353,9 @@ export function makeCrmStoryTool(o: {
         topic: String(args.topic ?? '').slice(0, STORY_TOPIC_MAX),
         about: String(args.about ?? ''),
         ...(args.scenes !== undefined ? { scenes: args.scenes } : {}),
+        ...(args.scene_count !== undefined
+          ? { sceneCount: Number(args.scene_count) }
+          : {}),
         style: String(args.style ?? ''),
         cta: String(args.cta ?? ''),
         ...(args.end_card !== undefined ? { endCard: args.end_card } : {}),
