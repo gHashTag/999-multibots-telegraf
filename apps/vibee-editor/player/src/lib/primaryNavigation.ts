@@ -29,6 +29,7 @@ export type PrimaryTabId =
   | 'browser'
   | 'ai'
   | 'hive'
+  | 'tasks'
   | 'profile'
 
 export interface PrimaryNavigationItem {
@@ -49,7 +50,10 @@ export const TAB_ROUTE_PATTERNS: Record<PrimaryTabId, RegExp> = {
   browser: /^\/browser/,
   ai: /^\/generate/,
   // /game is the board's address since 2026-10-01; /hive and /queen lead to it.
-  hive: /^\/(game|hive|queen)(\/|$)/,
+  // Its kanban view is a tab of its own (owner, 2026-10-01: "make a tab with
+  // the tasks"), so /game/kanban lights Tasks and not the board.
+  hive: /^\/(game|hive|queen)(?!\/kanban(?:[/?#]|$))(\/|$)/,
+  tasks: /^\/game\/kanban(\/|$)/,
   profile: /^\/profile/,
 }
 

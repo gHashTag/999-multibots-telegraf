@@ -713,6 +713,7 @@ enum WebHosts {
   static func renewAll() async {
     await SectionHost.shared.renewIfStarted()
     await HiveHost.shared.renewIfStarted()
+    await HiveHost.tasks.renewIfStarted()
   }
 }
 
@@ -729,10 +730,19 @@ enum HiveHost {
   static let shared: WebHost = {
     // The board's address is the list's (it moved /hive -> /game on
     // 2026-10-01); the old one only redirects, and a redirect is a second load.
-    let host = WebHost(path: Navigation.bundled.first { $0.id == "hive" }?.route ?? "/game")
+    board(id: "hive", fallback: "/game")
+  }()
+
+  /// The Tasks tab: the same board opened on its kanban (owner, 2026-10-01:
+  /// "make a tab with the tasks"). A host of its own, so switching tabs does
+  /// not drag the other one's view along with it.
+  static let tasks: WebHost = board(id: "tasks", fallback: "/game/kanban")
+
+  private static func board(id: String, fallback: String) -> WebHost {
+    let host = WebHost(path: Navigation.bundled.first { $0.id == id }?.route ?? fallback)
     // It runs under the tab bar on purpose; an automatic inset there would
     // let the whole board scroll up by the home indicator's height.
     host.webView.scrollView.contentInsetAdjustmentBehavior = .never
     return host
-  }()
+  }
 }
