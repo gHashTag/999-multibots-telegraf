@@ -254,8 +254,8 @@ server {
     # than in VIBEE.
     # THE BOARD LIVES INSIDE THE APP (owner, 2026-09-26: "embed the Queen's
     # board into the app"; and "why does the address say queen twice"). The
-    # address a person sees is /queen -- the app, which frames /queen/ in its
-    # Hive tab. Without this block /queen fell into `location /`, whose
+    # address a person sees is /game (it was /queen until 2026-10-01; the app
+    # sends /queen on to /game) -- the app, which frames /queen/ in its Hive tab. Without this block /queen fell into `location /`, whose
     # `$uri/` found the board's directory and served the BOARD's index.html at
     # a path where its relative assets resolve to VIBEE's root.
     location = /queen {
@@ -269,13 +269,16 @@ server {
 
     location ^~ /queen/ {
         # A person opening the board itself (a bookmark of
-        # app.t27.ai/queen/#/queen?tab=tri) is sent to the app's /queen. The
+        # app.t27.ai/queen/#/queen?tab=tri) is sent to the app's /game. The
         # browser keeps the #fragment across the redirect, and the Hive page
-        # hands it to the frame, so the same view opens -- inside the app.
+        # hands it to the frame, so the same view opens -- inside the app --
+        # and writes it into the address as /game/tri. /game itself needs no
+        # block: no directory of that name exists, so `location /` serves the
+        # app's index.html.
         # Only a top-level document: the Hive's own frame asks with
         # Sec-Fetch-Dest: iframe, and assets with script/style/image.
         if ($http_sec_fetch_dest = "document") {
-            return 302 /queen;
+            return 302 /game;
         }
         try_files $uri $uri/ /queen/index.html;
 

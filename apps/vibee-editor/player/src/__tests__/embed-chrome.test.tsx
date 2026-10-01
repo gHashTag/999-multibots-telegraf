@@ -152,7 +152,11 @@ describe('route memory', () => {
 describe('the hive page', () => {
   it('in embed shows a notice and never frames the game inside the game', () => {
     embed.on = true
-    mount(<HivePage />)
+    mount(
+      <MemoryRouter initialEntries={['/game']}>
+        <HivePage />
+      </MemoryRouter>
+    )
     expect(host.querySelector('iframe')).toBeNull()
     const notice = host.querySelector('.hive-inside-game')
     expect(notice).not.toBeNull()
@@ -161,7 +165,11 @@ describe('the hive page', () => {
   })
 
   it('outside embed frames the game (control)', () => {
-    mount(<HivePage />)
+    mount(
+      <MemoryRouter initialEntries={['/game']}>
+        <HivePage />
+      </MemoryRouter>
+    )
     expect(host.querySelector('iframe')?.getAttribute('src')).toMatch(
       /^\/queen\/\?lang=(en|ru)#\/queen$/
     )

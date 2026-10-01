@@ -46,7 +46,8 @@ export const TAB_ROUTE_PATTERNS: Record<PrimaryTabId, RegExp> = {
   chat: /^\/(agents|chat)/,
   browser: /^\/browser/,
   ai: /^\/generate/,
-  hive: /^\/(hive|queen)(\/|$)/,
+  // /game is the board's address since 2026-10-01; /hive and /queen lead to it.
+  hive: /^\/(game|hive|queen)(\/|$)/,
   profile: /^\/profile/,
 }
 
