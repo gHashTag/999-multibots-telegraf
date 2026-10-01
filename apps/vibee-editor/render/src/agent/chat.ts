@@ -2283,6 +2283,12 @@ async function* runAgentTurn(
      */
     personNote?: string
     /**
+     * The kanban card this conversation is about (task-thread.ts taskNote).
+     * Built by the server from the board, already fenced there: an issue
+     * title is a stranger's words. Absent for every other thread.
+     */
+    taskNote?: string
+    /**
      * Whose chat a business turn is: the account the Telegram business
      * connection belongs to. Accepted only behind the server key (routes.ts),
      * because it decides whose correspondence, client packages and debts the
@@ -2474,6 +2480,7 @@ async function* runAgentTurn(
     clientBrief +
     clientContext +
     personContext +
+    (opts?.taskNote ?? '') +
     (opts?.supervisor ? supervisorBlock(opts.agentLog, opts.movesLine) : '')
 
   /*

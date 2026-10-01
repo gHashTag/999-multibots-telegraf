@@ -21,7 +21,7 @@
  */
 import { atom } from 'jotai'
 import { editorStore } from '@/atoms/Provider'
-import { agentMessagesAtomFor } from '@/atoms/agentChat'
+import { agentMessagesAtomFor, taskMessagesAtomFor } from '@/atoms/agentChat'
 import type {
   AgentAttachment,
   Message,
@@ -148,6 +148,8 @@ export interface SendOptions {
   agent?: string | null
   /** One of several conversations with self or a specialist (never a client). */
   conversation?: string | null
+  /** A kanban card, "gHashTag/t27#5382": its own conversation (never a client). */
+  task?: string | null
 }
 
 /**
@@ -156,6 +158,7 @@ export interface SendOptions {
  * client's thread is the client's whoever helps in it, and it does not split.
  */
 export function threadKeyOf(options: SendOptions = {}): string {
+  if (options.task && !options.client) return `task:${options.task}`
   if (options.client) return `client:${options.client}`
   const base = options.agent ? `agent:${options.agent}` : 'self'
   return options.conversation ? `${base}~${options.conversation}` : base
@@ -285,8 +288,11 @@ export async function sendToAgent(
   publishBusy()
   const client = options.client || null
   const marketplaceAgent = options.agent || null
-  const conversation = client ? null : options.conversation || null
-  const thread = agentMessagesAtomFor(client, marketplaceAgent, conversation)
+  const task = client ? null : options.task || null
+  const conversation = client || task ? null : options.conversation || null
+  const thread = task
+    ? taskMessagesAtomFor(task)
+    : agentMessagesAtomFor(client, marketplaceAgent, conversation)
   const patch = (agentId: string, fn: (m: Message) => Message) =>
     patchIn(thread, agentId, fn)
 
@@ -358,12 +364,13 @@ export async function sendToAgent(
          * сверяется сервером со списком известных — своему клиенту тут тоже
          * не верим на слово.
          */
-        surface: 'miniapp',
+        surface: task ? 'kanban' : 'miniapp',
         // Only when talking about a client: the key is absent otherwise, so
         // the self thread's request body is byte-for-byte what it was.
         ...(client ? { client } : {}),
         ...(marketplaceAgent ? { agent: marketplaceAgent } : {}),
         ...(conversation ? { conversation } : {}),
+        ...(task ? { task } : {}),
       }),
     })
     if (!res.ok || !res.body) {

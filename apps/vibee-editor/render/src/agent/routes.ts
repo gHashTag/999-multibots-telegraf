@@ -93,6 +93,8 @@ export type ThreadGate =
       room?: string
       /** One of several conversations under the base thread (withConversation). */
       conversation?: string
+      /** The kanban card the turn is about, "gHashTag/t27#5382" (withTask). */
+      task?: string
     }
   | { ok: false; status: number; error: string }
 
@@ -257,6 +259,40 @@ export function withConversation(gate: ThreadGate, raw: unknown): ThreadGate {
     thread: conversationThread(gate.thread, conversation),
     conversation,
   }
+}
+
+/**
+ * A KANBAN CARD'S CONVERSATION (task-thread.ts; spec kanban-card-chat.t27).
+ *
+ * Applied after threadFor and withConversation, so it narrows and never
+ * widens: the caller's own thread becomes the task's, a specialist may come
+ * along (WITH_AGENT), and a client, a room, the Queen's seat or a ?c= under it
+ * is refused rather than silently dropped. Absent, the gate is untouched.
+ */
+export async function withTask(
+  gate: ThreadGate,
+  raw: unknown
+): Promise<ThreadGate> {
+  if (!gate.ok || raw == null || raw === '') return gate
+  const { resolveTask, taskThread, taskLabel, combines } = await import(
+    './task-thread'
+  )
+  if (
+    gate.supervisor ||
+    !combines(!!gate.client, !!gate.room, !!gate.conversation)
+  )
+    return {
+      ok: false,
+      status: 400,
+      error: 'a task is its own conversation: no client, room or conversation',
+    }
+  const task = await resolveTask(raw)
+  if (!task) return { ok: false, status: 400, error: 'bad task' }
+  return { ...gate, thread: taskThread(task), task: taskLabel(task) }
+}
+
+function taskParam(req: IncomingMessage): string | null {
+  return new URL(req.url || '', 'http://x').searchParams.get('task')
 }
 
 function conversationParam(req: IncomingMessage): string | null {
@@ -906,16 +942,19 @@ export async function handleAgentChat(
    * `room` is how a turn in a GROUP keeps its memory in the room instead of
    * in the asker's private history (conversation.ts roomThread, issue #2644).
    */
-  const gate = withConversation(
-    await threadFor(
-      body.client,
-      telegramId,
-      getPool,
-      body.agent,
-      body.room,
-      body.role
+  const gate = await withTask(
+    withConversation(
+      await threadFor(
+        body.client,
+        telegramId,
+        getPool,
+        body.agent,
+        body.room,
+        body.role
+      ),
+      body.conversation
     ),
-    body.conversation
+    body.task
   )
   if (!gate.ok) return json(res, gate.status, { error: gate.error })
   const thread = gate.thread
@@ -976,6 +1015,7 @@ export async function handleAgentChat(
     'ios',
     'business',
     'queen',
+    'kanban',
   ]) // cyrillic-ok: pre-existing name
   const поверхность = ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ.has(String(body.surface))
     ? String(body.surface)
@@ -1119,6 +1159,12 @@ export async function handleAgentChat(
           typeof body.person_note === 'string' && body.person_note.trim()
             ? body.person_note.slice(0, 600)
             : undefined,
+        // The card the person opened on the game's kanban (withTask).
+        taskNote: gate.task
+          ? await import('./task-thread').then(async m =>
+              m.taskNote(m.parseTask(gate.task)!)
+            )
+          : undefined,
       }
     )) {
       события.push(ev as { тип?: string; текст?: string })
@@ -1263,16 +1309,19 @@ export async function handleAgentHistoryDelete(
   const сырой = параметры.get('id')
   // Gate first: a client thread is cleared only by a seller, and only that
   // thread -- the self thread is never touched through `?client=`.
-  const gate = withConversation(
-    await threadFor(
-      clientParam(req),
-      telegramId,
-      getPool,
-      agentParam(req),
-      undefined,
-      roleParam(req)
+  const gate = await withTask(
+    withConversation(
+      await threadFor(
+        clientParam(req),
+        telegramId,
+        getPool,
+        agentParam(req),
+        undefined,
+        roleParam(req)
+      ),
+      conversationParam(req)
     ),
-    conversationParam(req)
+    taskParam(req)
   )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
@@ -1309,16 +1358,19 @@ export async function handleAgentHistory(
   const предел = Number(
     new URL(req.url || '', 'http://x').searchParams.get('limit') || 0
   )
-  const gate = withConversation(
-    await threadFor(
-      clientParam(req),
-      telegramId,
-      getPool,
-      agentParam(req),
-      undefined,
-      roleParam(req)
+  const gate = await withTask(
+    withConversation(
+      await threadFor(
+        clientParam(req),
+        telegramId,
+        getPool,
+        agentParam(req),
+        undefined,
+        roleParam(req)
+      ),
+      conversationParam(req)
     ),
-    conversationParam(req)
+    taskParam(req)
   )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
@@ -1330,7 +1382,19 @@ export async function handleAgentHistory(
       предел > 0 ? предел : РЕПЛИК_ПО_УМОЛЧАНИЮ, // cyrillic-ok: pre-existing identifiers
       gate.thread
     )
-    return json(res, 200, { ok: true, messages: реплики, thread: gate.thread }) // cyrillic-ok: pre-existing identifier
+    // A card's thread also says what the board calls the card, so the sheet
+    // can title itself before the frame tells it anything (task-thread.ts).
+    const card = gate.task
+      ? await import('./task-thread').then(m =>
+          m.taskCard(m.parseTask(gate.task)!)
+        )
+      : undefined
+    return json(res, 200, {
+      ok: true,
+      messages: реплики, // cyrillic-ok: pre-existing identifier
+      thread: gate.thread,
+      ...(card ? { card } : {}),
+    })
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }
@@ -1427,21 +1491,25 @@ export async function handleAgentHistoryAppend(
     'ios',
     'business',
     'queen',
+    'kanban',
   ])
   const surface = KNOWN_SURFACES.has(String(body.surface))
     ? String(body.surface)
     : 'unknown'
 
-  const gate = withConversation(
-    await threadFor(
-      body.client,
-      telegramId,
-      getPool,
-      body.agent,
-      undefined,
-      body.role
+  const gate = await withTask(
+    withConversation(
+      await threadFor(
+        body.client,
+        telegramId,
+        getPool,
+        body.agent,
+        undefined,
+        body.role
+      ),
+      body.conversation
     ),
-    body.conversation
+    body.task
   )
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
 

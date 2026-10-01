@@ -263,6 +263,61 @@ function pulseOf(raw: unknown): QueenPulse | undefined {
   return Object.keys(out).length ? out : undefined
 }
 
+/**
+ * ONE CARD, BY ITS NUMBER -- for the chat a card opens (agent/task-thread.ts).
+ *
+ * `queenBoard` rations the cards per column, so the card somebody tapped is
+ * usually not in its sample. This reads the whole board and keeps it for
+ * `cacheMs`: a person tapping through ten cards costs one read, not ten.
+ * `needs` is what she says the issue lacks ("boundary", "scenarios"...).
+ */
+export interface QueenCardDetail {
+  number: number
+  title: string
+  column: string
+  criteria?: number
+  needs: string[]
+}
+
+export interface QueenIndex {
+  repo: string
+  cards: Map<number, QueenCardDetail>
+}
+
+let index: { at: number; value: QueenIndex } | null = null
+
+export async function queenIndex(cacheMs: number): Promise<QueenIndex> {
+  if (index && Date.now() - index.at < cacheMs) return index.value
+  const b = await ask<any>('/queen/public-board')
+  const cards = new Map<number, QueenCardDetail>()
+  for (const c of Array.isArray(b?.cards) ? b.cards : []) {
+    const number = Number(c?.number)
+    if (!Number.isInteger(number) || number <= 0) continue
+    const criteria = Number(c?.criteria)
+    cards.set(number, {
+      number,
+      title: safeTitle(c?.title),
+      column: clean(c?.column, 30) || 'unknown',
+      criteria:
+        c?.criteria == null || !Number.isFinite(criteria)
+          ? undefined
+          : criteria,
+      needs: (Array.isArray(c?.needs) ? c.needs : [])
+        .slice(0, 8)
+        .map((n: unknown) => clean(n, 30))
+        .filter(Boolean),
+    })
+  }
+  const value = { repo: clean(b?.repo, 140), cards }
+  index = { at: Date.now(), value }
+  return value
+}
+
+/** For tests: forget the cached board. */
+export function forgetQueenIndex(): void {
+  index = null
+}
+
 export async function queenBoard(): Promise<QueenBoard> {
   try {
     const b = await ask<any>('/queen/public-board')

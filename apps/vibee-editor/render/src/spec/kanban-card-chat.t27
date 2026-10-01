@@ -1,0 +1,247 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/kanban-card-chat.t27 -- tap ANY card on the game's kanban and a chat
+// with the agent opens over the board, with the whole history of that task, so the
+// person can write and carry the task on; every A2A agent the person brings reads and
+// writes the SAME conversation.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/agent/task-thread.ts (the
+//       thread key, the gate, the task note), wired into routes.ts (chat, history,
+//       append) and a2a.ts (message/send, message/stream). The sheet: the player's
+//       pages/Hive.tsx + components/CardChat. The card: gHashTag/trinity
+//       apps/website/src/pages/Queen.tsx KanbanView.
+// Owner, 2026-10-01: "make every card on app.t27.ai/game/kanban open a chat and the
+//       history with the agent, so any task can be written to and continued; mobile
+//       first; synchronised with all A2A agents; the interface between agents and the
+//       person tied through .t27".
+// Law lineage: automation/crm-client-workspace (one thread per subject, keyed by the
+//       person; a thread kind is a prefix, never a second table); the hive board (the
+//       board's own words are foreign text -- an issue title is written by whoever
+//       opened it, so it reaches the model fenced, never as an instruction).
+// What this spec decides: the task thread's key and who may open it, which thread
+//       kinds it combines with, the frame -> app message, the card's address, the
+//       sheet's first height, the task note's size, and how an A2A call finds the same
+//       thread. What it does NOT decide: what the agent does in the task (that is the
+//       agent's own loop), or who may merge (that stays the owner's).
+// Claim status: designed and bound by tests; RUN_LIVE flips when a card tapped on
+//       app.t27.ai/game/kanban opens its chat and an A2A message/send with the same
+//       task shows up in it.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::kanban_card_chat {
+
+    pub const KIND : str = "automation";
+    pub const ID : str = "kanban-card-chat";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // ---- The thread -----------------------------------------------------------------
+    // One conversation per (person, task): "task:gHashTag/t27#3587". The person is
+    // the row's telegram_id, as for every other thread, so two people talking about
+    // the same card never read each other.
+    pub const THREAD_PREFIX : str = "task:";
+    pub const NUMBER_SEP : str = "#";
+    pub const TASK_OWNER : str = "gHashTag";  // only this owner's repositories have cards
+    pub const REPO_FROM_BOARD : bool = true;  // a bare number belongs to the repository
+                                              // the board publishes (it moved from trios
+                                              // to t27 on its own -- measured 2026-10-01),
+                                              // never to a name written here
+    pub const BOARD_CACHE_S : u16 = 60;  // one read of the board serves a minute of taps
+    pub const REPO_NAME_MAX : u8 = 100;  // GitHub's own limit on a repository name
+    pub const NUMBER_MAX : u32 = 999999999;  // nine digits; an issue number is never 0
+    pub const PER_PERSON : bool = true;
+    pub const SPLITS : bool = false;  // one task, one conversation: no ?c= under it
+
+    // ---- What a task thread combines with -------------------------------------------
+    // A specialist may be called into a task (the memory stays the task's, as with a
+    // client); a task is not a client, not a room, and not one of several conversations.
+    pub const WITH_AGENT : bool = true;
+    pub const WITH_CLIENT : bool = false;
+    pub const WITH_ROOM : bool = false;
+    pub const WITH_CONVERSATION : bool = false;
+
+    // ---- The doors ------------------------------------------------------------------
+    pub const FIELD : str = "task";  // body field and query parameter: "gHashTag/t27#3587"
+    pub const CHAT_DOOR : str = "/api/agent/chat";
+    pub const HISTORY_DOOR : str = "/api/agent/history";
+    pub const SURFACE : str = "kanban";  // the surface a card's turns are stored under
+    pub const HISTORY_LIMIT : u8 = 100;  // turns the sheet reads when it opens
+
+    // ---- The task note --------------------------------------------------------------
+    // What the agent is told about the card: number, title, column, criteria, needs,
+    // read from the board the person sees. Fenced: an issue title is foreign text.
+    pub const NOTE_SOURCE : str = "/queen/public-board";
+    pub const NOTE_MAX : u16 = 1200;
+    pub const NOTE_FENCED : bool = true;
+    pub const NOTE_WITHOUT_BOARD : bool = true;  // the board down: the note still names
+                                                 // the task by its key, and says so
+    pub const UNTITLED_SAYS_SO : bool = true;  // a card whose title is just "#5382" is
+                                               // told to the model as untitled, not as a
+                                               // title that happens to be a number
+
+    // ---- The frame -> the app -------------------------------------------------------
+    // The board is this origin's /queen/ inside the app's frame. A card tap posts
+    // {v:1, type:'t27-app', kind:'open-card', repo, number, title, column} to the page.
+    pub const MSG_V : u8 = 1;
+    pub const MSG_TYPE : str = "t27-app";
+    pub const MSG_KIND : str = "open-card";
+    pub const SAME_ORIGIN_ONLY : bool = true;  // only the app's own frame is listened to
+    pub const TITLE_MAX : u16 = 200;  // the header shows at most this much of a title
+
+    // ---- The address ----------------------------------------------------------------
+    // /game/kanban?card=3587 opens the board with that card's chat; ?repo= only when the
+    // card is not the board's own repository. A card the board does not have still
+    // opens: its chat says the board does not know it, it never falls back to the feed.
+    pub const CARD_PARAM : str = "card";
+    pub const REPO_PARAM : str = "repo";
+
+    // ---- The sheet ------------------------------------------------------------------
+    // Mobile first: the chat rises over the board to HALF, the board stays visible above
+    // it; a drag or a focus in the composer takes it to FULL. The composer is pinned to
+    // the bottom at every height, and GitHub is a small link in the header, never the tap.
+    pub const DETENT_PEEK : str = "peek";
+    pub const DETENT_HALF : str = "half";
+    pub const DETENT_FULL : str = "full";
+    pub const OPEN_DETENT : str = "half";
+    // The same heights as ranks, lower is shorter: the backend compares numbers,
+    // not strings, so the order of the three is stated where it can be checked.
+    pub const DETENT_PEEK_RANK : u8 = 0;
+    pub const DETENT_HALF_RANK : u8 = 1;
+    pub const DETENT_FULL_RANK : u8 = 2;
+    pub const OPEN_DETENT_RANK : u8 = 1;
+    pub const COMPOSER_PINNED : bool = true;
+    pub const GITHUB_IS_SECONDARY : bool = true;
+    pub const TOUCH_TARGET_PX : u8 = 44;
+
+    // ---- A2A ------------------------------------------------------------------------
+    // An outside agent continues the task by naming it: message.metadata.task, or a
+    // contextId that IS the thread key. Either way the turn is read from and written to
+    // the person's task thread, so the sheet shows what the agent said, and the agent
+    // sees what the person said.
+    pub const A2A_META_KEY : str = "task";
+    pub const A2A_CONTEXT_IS_THREAD : bool = true;
+    pub const A2A_HISTORY_TURNS : u8 = 20;  // prior turns handed to the model per call
+    pub const A2A_PERSISTS : bool = true;  // the conversation outlives a deploy; the
+                                           // in-memory task map only tracks the run
+
+    // ---- Not claimed ----------------------------------------------------------------
+    pub const RUN_LIVE : bool = false;
+
+    // An issue number the thread accepts.
+    fn number_ok(n: u32) -> bool {
+        return n >= 1 && n <= NUMBER_MAX;
+    }
+
+    // A repository the thread accepts: this owner's, and a name GitHub could have.
+    fn repo_ok(owner_is_ours: bool, name_len: u8) -> bool {
+        return owner_is_ours && name_len >= 1 && name_len <= REPO_NAME_MAX;
+    }
+
+    // A task thread next to the other thread parts of a request. Only a specialist
+    // may come along; anything else is refused, not silently dropped.
+    fn combines(has_client: bool, has_room: bool, has_conversation: bool) -> bool {
+        return !has_client && !has_room && !has_conversation;
+    }
+
+    // The frame's message opens a card only when it is the app's own frame and the
+    // envelope is the one this spec names.
+    fn opens_card(same_origin: bool, v: u8, kind_ok: bool, number: u32) -> bool {
+        return same_origin && v == MSG_V && kind_ok && number_ok(number);
+    }
+
+    // How much of the board's text about a card reaches the model.
+    fn note_len(available: u16) -> u16 {
+        if available > NOTE_MAX {
+            return NOTE_MAX;
+        }
+        return available;
+    }
+
+
+    // Which turns an A2A call hands to the model: the last A2A_HISTORY_TURNS.
+    fn a2a_turns(stored: u16) -> u16 {
+        if stored > A2A_HISTORY_TURNS {
+            return A2A_HISTORY_TURNS;
+        }
+        return stored;
+    }
+
+    test "a task thread is keyed by owner, repository and number" {
+        assert(REPO_FROM_BOARD);
+        assert(BOARD_CACHE_S <= 300);
+        assert(number_ok(1));
+        assert(number_ok(3587));
+        assert(number_ok(NUMBER_MAX));
+        assert(!number_ok(0));
+        assert(!number_ok(1000000000));
+    }
+
+    test "only this owner's repositories have task threads" {
+        assert(repo_ok(true, 5));
+        assert(!repo_ok(false, 5));
+        assert(!repo_ok(true, 0));
+        assert(!repo_ok(true, 101));
+        assert(repo_ok(true, REPO_NAME_MAX));
+    }
+
+    test "the thread is the person's and does not split" {
+        assert(PER_PERSON);
+        assert(!SPLITS);
+        assert(!WITH_CONVERSATION);
+    }
+
+    test "a specialist may join a task, a client or a room may not" {
+        assert(WITH_AGENT);
+        assert(!WITH_CLIENT);
+        assert(!WITH_ROOM);
+        assert(combines(false, false, false));
+        assert(!combines(true, false, false));
+        assert(!combines(false, true, false));
+        assert(!combines(false, false, true));
+    }
+
+    test "the frame opens a card only through the named envelope" {
+        assert(SAME_ORIGIN_ONLY);
+        assert(opens_card(true, 1, true, 3587));
+        assert(!opens_card(false, 1, true, 3587));
+        assert(!opens_card(true, 2, true, 3587));
+        assert(!opens_card(true, 1, false, 3587));
+        assert(!opens_card(true, 1, true, 0));
+    }
+
+    test "the task note is bounded and fenced" {
+        assert(note_len(10) == 10);
+        assert(note_len(1200) == 1200);
+        assert(note_len(5000) == NOTE_MAX);
+        assert(NOTE_FENCED);
+        assert(NOTE_WITHOUT_BOARD);
+        assert(UNTITLED_SAYS_SO);
+    }
+
+    test "the sheet opens at half with the composer pinned" {
+        assert(OPEN_DETENT_RANK == DETENT_HALF_RANK);
+        assert(DETENT_PEEK_RANK < DETENT_HALF_RANK);
+        assert(DETENT_HALF_RANK < DETENT_FULL_RANK);
+        assert(COMPOSER_PINNED);
+        assert(GITHUB_IS_SECONDARY);
+        assert(TOUCH_TARGET_PX >= 44);
+    }
+
+    test "a card has its own address" {
+        // The names themselves (card, repo, task, kanban) are strings, which the
+        // backend does not compare; the host test pins each one against the code.
+        assert(TITLE_MAX >= 80);
+    }
+
+    test "an A2A agent continues the same thread" {
+        assert(A2A_CONTEXT_IS_THREAD);
+        assert(A2A_PERSISTS);
+        assert(a2a_turns(3) == 3);
+        assert(a2a_turns(500) == A2A_HISTORY_TURNS);
+    }
+
+    test "the card chat is designed, not yet live" {
+        assert(!RUN_LIVE);
+        assert(HISTORY_LIMIT == 100);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

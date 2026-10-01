@@ -8,14 +8,14 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 - [x] S0 Audit weak spots (listed below)
 - [x] S1 Skill + this ledger
 - [x] S2 Competitor research -> docs/research/kanban-card-chat-competitors.md
-- [ ] S3 `.t27` spec in gHashTag/t27 (worktree /Users/playra/t27-kanban-card-chat), PR
-- [ ] S4 Bind spec in render (src/spec/kanban-card-chat.*, scripts/t27-specs.json)
-- [ ] S5 Render: task thread in threadFor + history + chat, task context injection
-- [ ] S6 Render: A2A message/send persists into the task thread (metadata.task / contextId)
-- [ ] S7 Player: CardChatSheet + Hive listener + anchor fallback + /game/kanban?card=N
+- [x] S3 `.t27` spec in gHashTag/t27 -- PR https://github.com/gHashTag/t27/pull/5389 (10/10, negative control fails 1)
+- [x] S4 Bind spec in render (src/spec/kanban-card-chat.\*, scripts/t27-specs.json) + byte copy player/src/spec (held by cardChat.test.ts)
+- [x] S5 Render: task thread in threadFor + history + chat, task context injection
+- [x] S6 Render: A2A message/send persists into the task thread (metadata.task / contextId)
+- [x] S7 Player: CardChatSheet + Hive listener + anchor fallback + /game/kanban?card=N
 - [ ] S8 Trinity: card tap posts open-card (worktree, PR; QUEEN_REF bump = owner)
-- [ ] S9 `tri card <n> [text]`
-- [ ] S10 EPIC in gHashTag/trios + children, priority for the queen
+- [x] S9 `tri card <n> [text]` (refuses a non-task thread, exit 2)
+- [x] S10 EPIC https://github.com/gHashTag/t27/issues/5388 (epic, priority/critical) -- in gHashTag/t27, not trios + children, priority for the queen
 - [ ] S11 Gates green, PR opened (no merge)
 - [ ] S12 Report + three options for the next loop
 

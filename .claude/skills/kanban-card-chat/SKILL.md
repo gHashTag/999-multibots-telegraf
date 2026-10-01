@@ -63,6 +63,44 @@ The numbers and shapes live in ONE place: the `.t27` spec
   conversation in `agent_messages`, not in that map.
 - `splittable()` threads only: `self`, `agent:*`. A task thread is one
   conversation, it does not split.
+- **Spec tests are numbers and booleans only.** t27c's Zig backend refuses
+  `==` on `[]const u8`; `test-report` then says BLOCKED, not FAIL. Pin string
+  values in the host test (`render/src/spec/kanban-card-chat.test.ts`); rank
+  enums as `u8` constants (`DETENT_*_RANK`).
+- **Committing in the t27 checkout:** `.githooks/pre-commit` calls whatever
+  `tri` is first on PATH, and both 999's and trios' `tri` reject `hooks`.
+  Commit with `PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin
+TRI_T27C=<t27c>` and add a `docs/now/<date>-<slug>.md` entry. A t27c with
+  `gen-ts` builds from the t27 checkout's `bootstrap/` (`cargo build --release
+--offline`); pass it to the sync script as `T27C=`.
+- **The player cannot import render.** Its build stage sees only `player/`, so
+  the gen module is byte-copied to `player/src/spec/` and held equal by
+  `cardChat.test.ts` (the Dockerfile's test stage copies `render/` for such
+  reads). Both copies are in `.prettierignore`.
+- **A long issue title pushed the column out of the task note.** The note is
+  fenced and capped at `NOTE_MAX`; the title is capped at `TITLE_MAX` first.
+  The spec test is what caught it -- keep the hostile-title case.
+- **The live render predates task threads until this PR deploys:** it ignores
+  `?task=` and answers with the person's `self` thread. `tri card` checks the
+  answered `thread` and sends nothing unless it starts with `task:` (exit 2).
+  Any client that writes to a card must do the same check.
+- **`tri`'s vault lookup:** logged-out `infisical` used to wait forever for an
+  interactive login, or print a notice that went out as `X-Agent-Key`. It is
+  now bounded (`TRI_VAULT_TIMEOUT_S`, 20 s) and shape-checked. Key for a run:
+  `railway variables -s vibee-render -e production --kv`, `AGENT_KEYS`, first
+  entry up to `:`, into `AGENT_KEY` -- never printed.
+- jsdom frames in `Hive.test.tsx` have a stub `contentDocument` without
+  `addEventListener`; `catchCardTaps` checks the function before listening.
+
+## Speed: `tri card`
+
+```bash
+tri card 5382                    # the card, its column, the last 12 turns
+tri card t27#5382 "what's left?" # say it; the agent's answer streams back
+```
+
+Same thread as the sheet and A2A; turns are marked surface `agent`, so the
+sheet shows them as "via another agent".
 
 ## Related Resources
 

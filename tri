@@ -725,6 +725,16 @@ AGENT TOOLS ON THE RENDER
                           The key comes from $AGENT_KEY, then
                           $TRI_AGENT_KEY_FILE (default /tmp/.ak.tmp), then
                           Infisical. It is never printed.
+  tri card <n> [text]     a kanban card's conversation, from the terminal --
+                          the SAME thread the app's card sheet and every A2A
+                          agent use (spec gHashTag/t27 kanban-card-chat.t27):
+                          `task:gHashTag/<repo>#<n>`. <n> is 5382 (the board's
+                          repository), t27#5382 or gHashTag/trinity#7. No text:
+                          print the card and its last turns. With text: say it
+                          and stream the agent's answer; both turns land in the
+                          thread, marked surface `agent`. Exit 0 ok, 1 refused,
+                          2 the render has no task threads yet (nothing sent),
+                          3 the render did not answer. Key as for `tri mcp`.
   tri browser             can the remote browser ACT, not merely answer.
                           `/json/list` is served by the browser process, so it
                           keeps replying while every renderer is wedged -- which
@@ -1678,8 +1688,16 @@ _mcp_key() {
   local f="${TRI_AGENT_KEY_FILE:-/tmp/.ak.tmp}"
   if [ -s "$f" ]; then tr -d '\r\n' < "$f"; return 0; fi
   local v
-  v=$(infisical secrets get AGENT_KEY --plain 2>/dev/null | tr -d '\r\n')
-  [ -n "$v" ] && { printf '%s' "$v"; return 0; }
+  # Logged out, infisical does not fail -- it starts an interactive login and
+  # waits for a person forever, and every command needing the key hung with it
+  # (seen 2026-10-01 under an unattended loop). It gets 20 s and no terminal.
+  command -v infisical > /dev/null 2>&1 || return 1
+  v=$(perl -e 'alarm shift; exec @ARGV' "${TRI_VAULT_TIMEOUT_S:-20}" \
+        infisical secrets get AGENT_KEY --plain < /dev/null 2>/dev/null | tr -d '\r\n')
+  # Logged out, it may also PRINT a notice on stdout (311 characters of prose
+  # on 2026-10-01), which used to go out as the X-Agent-Key header. A key is
+  # one token, so anything else is no key at all.
+  [[ "$v" =~ ^[A-Za-z0-9_.:-]{16,256}$ ]] && { printf '%s' "$v"; return 0; }
   return 1
 }
 
@@ -1854,6 +1872,104 @@ PY
     *) bad 'could not tell -- the render itself did not answer' ;;
   esac
   return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri card -- a kanban card's conversation without opening the app.
+#
+# One thread, many pilots: the sheet on /game/kanban?card=N, this command and
+# an outside agent over A2A (metadata.task) all read and write the rows of
+# `task:gHashTag/<repo>#<n>`. The server resolves a bare number against the
+# board it reads, so this command never guesses a repository.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_card() {
+  local task="${1:-}"
+  if [ -z "$task" ]; then
+    bad 'needs a card: tri card <n|repo#n|gHashTag/repo#n> [text]'
+    return 1
+  fi
+  shift
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+  CARD_KEY="$key" CARD_URL="$RENDER" CARD_TASK="$task" CARD_TEXT="$*" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.parse, urllib.request
+
+base, task, text = os.environ['CARD_URL'], os.environ['CARD_TASK'], os.environ['CARD_TEXT'].strip()
+head = {"X-Agent-Key": os.environ['CARD_KEY'], "Content-Type": "application/json"}
+
+def call(path, body=None, timeout=60):
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(base + path, data=data, headers=head,
+                                 method='GET' if body is None else 'POST')
+    return urllib.request.urlopen(req, timeout=timeout)
+
+def fail(e):
+    if isinstance(e, urllib.error.HTTPError):
+        try:
+            why = json.loads(e.read()).get('error', '')
+        except Exception:
+            why = ''
+        hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+        print(f'  HTTP {e.code} {why or e.reason}{hint}')
+        sys.exit(1 if 400 <= e.code < 500 else 3)
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+q = urllib.parse.urlencode({'task': task, 'limit': 100})
+try:
+    with call(f'/api/agent/history?{q}') as r:
+        hist = json.loads(r.read())
+except Exception as e:
+    fail(e)
+
+thread = hist.get('thread') or ''
+if not thread.startswith('task:'):
+    # A render that predates task threads ignores ?task= and answers with the
+    # person's OWN thread. Saying anything now would land in the wrong
+    # conversation, so nothing is sent.
+    print(f'  this render answered thread {thread or "(none)"!r}, not a task thread:')
+    print('  task threads are not deployed there yet -- nothing was sent')
+    sys.exit(2)
+card = hist.get('card') or {}
+turns = hist.get('messages') or []
+title = card.get('title') or '(untitled on the board)'
+print(f"  {thread.removeprefix('task:')}  [{card.get('column') or '?'}]  {title}")
+
+if not text:
+    if not turns:
+        print('  no conversation yet -- `tri card <n> "<text>"` starts one')
+    for t in turns[-12:]:
+        who = 'you  ' if t.get('role') == 'user' else 'agent'
+        line = ' '.join(str(t.get('content') or '').split())
+        print(f'  {who} {line[:300]}')
+    sys.exit(0)
+
+history = [{'role': t.get('role'), 'content': t.get('content')}
+           for t in turns[-20:] if t.get('role') in ('user', 'assistant')]
+history.append({'role': 'user', 'content': text})
+try:
+    with call('/api/agent/chat', {'messages': history, 'task': task,
+                                  'surface': 'agent'}, timeout=600) as r:
+        print('  agent ', end='', flush=True)
+        for raw in r:
+            try:
+                ev = json.loads(raw)
+            except Exception:
+                continue
+            kind = ev.get('\u0442\u0438\u043f')        # the stream's own key
+            words = str(ev.get('\u0442\u0435\u043a\u0441\u0442') or '')
+            if kind == '\u0442\u0435\u043a\u0441\u0442':
+                print(words, end='', flush=True)
+            elif kind == '\u043e\u0448\u0438\u0431\u043a\u0430':
+                print(f'\n  error: {words}')
+                sys.exit(1)
+        print()
+except Exception as e:
+    fail(e)
+PY
 }
 
 cmd_heal() {
@@ -5119,6 +5235,7 @@ case "$action" in
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
   heal|исцели)         cmd_heal ;;
+  card|карточка)       cmd_card "$@" ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;
   journal|журнал)      cmd_journal "$@" ;;

@@ -122,13 +122,12 @@ function messageText(message: any): string {
 /** Прогнать движок агента до конца, собрать финальный текст и результаты. */
 async function runToResult(
   history: ChatMessage[],
-  telegramId: string,
-  pool: unknown
+  options: any
 ): Promise<{ text: string; data: unknown[]; обрыв?: string }> {
   let text = ''
   const data: unknown[] = []
   let обрыв: string | undefined
-  for await (const ev of runAgent(history, { telegramId, pool } as any)) {
+  for await (const ev of runAgent(history, options)) {
     if (ev.тип === 'текст') text += ev.текст
     else if (ev.тип === 'результат')
       data.push({ инструмент: ev.имя, значение: ev.значение })
@@ -207,6 +206,54 @@ function rememberTask(t: any, owner: string) {
 }
 
 /** POST /a2a — JSON-RPC 2.0. */
+/**
+ * The person's task thread around one A2A turn: the last A2A_HISTORY_TURNS
+ * turns as history, the new line recorded before the run (so a crash keeps
+ * what was asked), and `answer` to record the reply. Surface 'agent': the
+ * sheet labels it as an outside agent's turn, not the person's.
+ */
+async function taskConversation(
+  pool: any,
+  owner: string,
+  card: import('./task-thread').TaskRef,
+  text: string
+): Promise<{
+  history: ChatMessage[]
+  note: string
+  answer: (out: string) => Promise<void>
+}> {
+  const { taskThread, taskNote, a2aTurns } = await import('./task-thread')
+  const { A2A_HISTORY_TURNS } = await import('../spec/kanban-card-chat.gen')
+  const conversation = await import('./conversation')
+  const readTurns = conversation.прочитатьРазговор // cyrillic-ok: pre-existing helper
+  const recordTurn = conversation.записатьРеплику // cyrillic-ok: pre-existing helper
+  const thread = taskThread(card)
+  const before = await readTurns(pool, owner, A2A_HISTORY_TURNS, thread)
+  const prior = before.slice(-a2aTurns(before.length))
+  await recordTurn(
+    pool,
+    owner,
+    { role: 'user', content: text, surface: 'agent' },
+    thread
+  )
+  return {
+    history: [
+      ...prior.map(r => ({ role: r.role, content: r.content }) as ChatMessage),
+      { role: 'user', content: text },
+    ],
+    note: await taskNote(card),
+    answer: async out => {
+      if (!out.trim()) return
+      await recordTurn(
+        pool,
+        owner,
+        { role: 'assistant', content: out, surface: 'agent' },
+        thread
+      )
+    },
+  }
+}
+
 export async function handleA2A(
   req: IncomingMessage,
   res: ServerResponse,
@@ -250,7 +297,23 @@ export async function handleA2A(
   if (method === 'message/send' || method === 'message/stream') {
     const message = params.message
     if (!message) return err(-32602, 'params.message обязателен.')
-    const contextId = message.contextId || randomUUID()
+    /*
+     * A KANBAN CARD'S CONVERSATION (task-thread.ts a2aTask). An outside agent
+     * that names a task reads the person's task thread and writes back into
+     * it, so the sheet on the board shows what it said and it sees what the
+     * person said. Named but unreadable is refused, never run without memory.
+     */
+    const named =
+      message?.metadata?.task != null ||
+      String(message?.contextId ?? '').startsWith('task:')
+    const card = named
+      ? await import('./task-thread').then(m => m.a2aTask(message))
+      : null
+    if (named && !card)
+      return err(-32602, 'Задача не разобрана: нужен "gHashTag/<repo>#<n>".')
+    const contextId = card
+      ? (await import('./task-thread')).taskThread(card)
+      : message.contextId || randomUUID()
     const taskId = message.taskId || randomUUID()
 
     // Прямой вызов инструмента: детерминированный сквозной доступ.
@@ -287,7 +350,20 @@ export async function handleA2A(
       // Естественный язык → полный движок агента.
       const text = messageText(message)
       if (!text) return err(-32602, 'Пустое сообщение: нужен текст задачи.')
-      const history: ChatMessage[] = [{ role: 'user', content: text }]
+      const thread = card
+        ? await taskConversation(pool, owner, card, text)
+        : null
+      const history: ChatMessage[] = thread
+        ? thread.history
+        : [{ role: 'user', content: text }]
+      const options = (
+        thread
+          ? { telegramId: owner, pool, taskNote: thread.note }
+          : {
+              telegramId: owner,
+              pool,
+            }
+      ) as any
 
       if (stream) {
         // SSE-поток статусов и артефактов (A2A message/stream).
@@ -310,10 +386,7 @@ export async function handleA2A(
         let acc = ''
         const data: unknown[] = []
         try {
-          for await (const ev of runAgent(history, {
-            telegramId: owner,
-            pool,
-          } as any)) {
+          for await (const ev of runAgent(history, options)) {
             if (ev.тип === 'текст') {
               acc += ev.текст
               send({
@@ -336,6 +409,7 @@ export async function handleA2A(
           }
           const task = completedTask(taskId, contextId, message, acc, data)
           rememberTask(task, owner)
+          if (thread) await thread.answer(acc)
           send({
             taskId,
             contextId,
@@ -366,9 +440,10 @@ export async function handleA2A(
       }
 
       // Синхронный message/send.
-      const { text: out, data } = await runToResult(history, owner, pool)
+      const { text: out, data } = await runToResult(history, options)
       const task = completedTask(taskId, contextId, message, out, data)
       rememberTask(task, owner)
+      if (thread) await thread.answer(out)
       return ok(task)
     } catch (e) {
       return err(-32603, `Задача упала: ${String(e).slice(0, 300)}`)
