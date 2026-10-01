@@ -63,13 +63,13 @@ const copy = {
     giftLabel: (name: string) => `Get my portrait from ${name}`,
     packages: 'Agents to order',
     packagesLead:
-      'Launch price includes the first month; the team sets the bot up for you.',
-    wallet: 'Where the monthly fee goes',
+      'One price a month, setup included; the team sets the bot up for you.',
+    wallet: 'What a month buys',
     walletRows: (perUsd: number, days: number, warn: number) =>
       [
         [
-          'All of it becomes tokens',
-          `$1 = ${perUsd} tokens, no fee kept back.`,
+          'An allowance in tokens',
+          `Every month includes the agent's tokens, at $1 = ${perUsd} tokens.`,
         ],
         [
           `A month lives ${days} days`,
@@ -83,7 +83,7 @@ const copy = {
     steps: [
       [
         'You pay in Stars, or ask first',
-        'The launch includes the first month; the team gets your order at once.',
+        'The month is paid in Stars; the team gets your order at once.',
       ],
       [
         'The team writes to you',
@@ -91,7 +91,7 @@ const copy = {
       ],
       [
         'Your bot goes live',
-        'The agent is checked on your account first; then a monthly subscription in Stars.',
+        'The agent is checked on your account first; then you pay in Stars every month.',
       ],
     ],
     market: 'Go to the Agent Market',
@@ -136,11 +136,14 @@ const copy = {
     giftLabel: (name: string) => `Получить портрет: ${name}`,
     packages: 'Агенты на заказ',
     packagesLead:
-      'В цену запуска входит первый месяц; бота настраивает команда.',
-    wallet: 'Куда идёт абонентка',
+      'Одна цена в месяц, настройка включена; бота настраивает команда.',
+    wallet: 'Что даёт месяц',
     walletRows: (perUsd: number, days: number, warn: number) =>
       [
-        ['Вся — в токены', `$1 = ${perUsd} токенов, ничего не удерживаем.`],
+        [
+          'Лимит в токенах',
+          `В каждый месяц входят токены агента по курсу $1 = ${perUsd} токенов.`,
+        ],
         [
           `Месяц живёт ${days} дней`,
           `Что не потрачено — сгорает: агент делает контент, а не копит. Напомним за ${warn} дней.`,
@@ -153,7 +156,7 @@ const copy = {
     steps: [
       [
         'Вы платите звёздами — или сначала спрашиваете',
-        'Первый месяц входит в запуск, команда сразу получает заказ.',
+        'Месяц оплачивается звёздами, команда сразу получает заказ.',
       ],
       [
         'Команда пишет вам',
@@ -161,7 +164,7 @@ const copy = {
       ],
       [
         'Ваш бот начинает работать',
-        'Сначала агента проверяют на вашем аккаунте, дальше — подписка звёздами раз в месяц.',
+        'Сначала агента проверяют на вашем аккаунте, дальше — оплата звёздами каждый месяц.',
       ],
     ],
     market: 'Перейти на рынок агентов',
@@ -211,7 +214,7 @@ export function WelcomePage() {
   const giftAgentName = MARKETPLACE_AGENTS.find(a => a.id === giftAgent)?.name[
     l
   ]
-  const featuredReels = reelsIn(monthTokens(featured.monthlyUsd))
+  const featuredReels = reelsIn(monthTokens(featured.allowanceUsd))
   const packagesRef = useRef<HTMLElement>(null)
   const [atPackages, setAtPackages] = useState(false)
 

@@ -2,7 +2,7 @@
  * AN AGENT PACKAGE CHARGE IS BOOKED BY THE RENDER, AND THE AGENT BOT IS PAID
  * FORWARD ONCE.
  *
- * The package invoice (`agentpkg:<id>:<setup|month>:<id>`) is minted by the
+ * The package invoice (`agentpkg:<id>:<month|once>:<id>`) is minted by the
  * render with the cashier bot's token, so its `successful_payment` arrives in
  * handleSuccessfulPayment like the club's. Unrouted, it would fall into the
  * generic Stars top-up and become spendable tokens. Routed, the render books
@@ -110,7 +110,7 @@ function verdict(booked: number, packageId = 'blogger') {
     booked: Array.from({ length: booked }, (_, i) => ({
       telegramId: String(PAYER),
       packageId,
-      charge: 'setup',
+      charge: 'month',
       stars: 9375,
       starTxId: `tx${i}`,
       until: UNTIL,
@@ -141,7 +141,7 @@ describe('an agent package charge', () => {
   it('asks the render to book it for the payer, and writes no archive row', async () => {
     botsOf.mockResolvedValue([])
     const { said } = await pay(
-      `agentpkg:blogger:setup:${PAYER}`,
+      `agentpkg:blogger:month:${PAYER}`,
       9375,
       verdict(1)
     )
@@ -153,7 +153,7 @@ describe('an agent package charge', () => {
         key: KEY,
       },
     ])
-    expect(said).toContain('Оплата запуска агента получена')
+    expect(said).toContain('Месяц работы агента оплачен')
     expect(said).toContain('31 октября 2026')
   })
 
@@ -167,7 +167,7 @@ describe('an agent package charge', () => {
       paidUntil: new Date(UNTIL),
     })
     const { team } = await pay(
-      `agentpkg:blogger:setup:${PAYER}`,
+      `agentpkg:blogger:month:${PAYER}`,
       9375,
       verdict(1)
     )
@@ -178,7 +178,7 @@ describe('an agent package charge', () => {
   it('the Manager Agent stays text only', async () => {
     botsOf.mockResolvedValue([{ botUsername: 'crm_bot', status: 'live' }])
     extend.mockResolvedValue(null)
-    await pay(`agentpkg:manager:month:${PAYER}`, 938, verdict(1, 'manager'))
+    await pay(`agentpkg:manager:month:${PAYER}`, 6250, verdict(1, 'manager'))
     expect(extend).toHaveBeenCalledWith('crm_bot', 30, false)
   })
 
@@ -186,7 +186,7 @@ describe('an agent package charge', () => {
     botsOf.mockResolvedValue([{ botUsername: 'my_agent_bot', status: 'live' }])
     const { team, said } = await pay(
       `agentpkg:blogger:month:${PAYER}`,
-      2188,
+      9375,
       verdict(0)
     )
     expect(extend).not.toHaveBeenCalled()
@@ -200,7 +200,7 @@ describe('an agent package charge', () => {
       { botUsername: 'b_bot' },
     ])
     const { team } = await pay(
-      `agentpkg:twin:setup:${PAYER}`,
+      `agentpkg:twin:once:${PAYER}`,
       12500,
       verdict(1, 'twin')
     )
@@ -210,19 +210,19 @@ describe('an agent package charge', () => {
 
   it('survives the render being down: the person is told, the team is told', async () => {
     const { said, team } = await pay(
-      `agentpkg:blogger:setup:${PAYER}`,
+      `agentpkg:blogger:month:${PAYER}`,
       9375,
       'down'
     )
     expect(setPayments).not.toHaveBeenCalled()
     expect(extend).not.toHaveBeenCalled()
     expect(said).toContain('в течение часа')
-    expect(team).toContain('Agent package paid: blogger (setup)')
+    expect(team).toContain('Agent package paid: blogger (month)')
   })
 
   it('is a row in the funnel', async () => {
     botsOf.mockResolvedValue([])
-    await pay(`agentpkg:blogger:setup:${PAYER}`, 9375, verdict(1))
+    await pay(`agentpkg:blogger:month:${PAYER}`, 9375, verdict(1))
     await vi.waitFor(() =>
       expect(db.rows('user_events').map(r => r.event)).toEqual([
         'agent_package_paid',
@@ -244,9 +244,10 @@ describe('what is not a package charge does not take the package branch', () => 
       telegramId: String(PAYER),
     })
     for (const bad of [
-      `agentpkg:nobody:setup:${PAYER}`,
+      `agentpkg:nobody:month:${PAYER}`,
       `agentpkg:blogger:year:${PAYER}`,
-      'agentpkg:blogger:setup:',
+      'agentpkg:blogger:month:',
+      `agentpkg:blogger:setup:${PAYER}`,
       `agentpkg_blogger`,
       `club:10000:${PAYER}`,
       `tokens:150:${PAYER}`,
@@ -266,8 +267,6 @@ describe('what is not a package charge does not take the package branch', () => 
       ),
       'utf8'
     )
-    expect(src).toContain(
-      '/^agentpkg:([a-z]{2,20}):(setup|month):(\\d{5,15})$/'
-    )
+    expect(src).toContain('/^agentpkg:([a-z]{2,20}):(month|once):(\\d{5,15})$/')
   })
 })

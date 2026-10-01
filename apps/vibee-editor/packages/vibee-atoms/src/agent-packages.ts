@@ -6,13 +6,13 @@ const CREATOR_SHARE = `${MARKETPLACE_ECONOMY.creatorBps / 100}%`
 /**
  * THE THREE AGENT PACKAGES -- what a person buys on the Agent Market.
  *
- * Owner, 2026-09-30: three packages -- a Telegram agent for $100, a blogger
- * agent for $150, the person's own agent for $200 -- sold as setup plus a
- * monthly fee (the first month is inside the setup), each agent living in a
- * Telegram bot of its own that the team sets up for the client.
+ * Owner, 2026-09-30: three packages, each agent living in a Telegram bot of
+ * its own that the team sets up for the client.
  *
- * Names follow one pattern, "<Role> Agent" and its Russian mirror (owner's pick,
- * 2026-09-30): what is sold is an agent, and the role says what it does.
+ * Owner, 2026-10-01: the price is MONTHLY -- 6250 / 9375 / 12500 Stars
+ * (= $100 / $150 / $200) every month, no separate launch fee -- and the
+ * third package is the Developer Agent. Names follow one pattern, "<Role>
+ * Agent" and its Russian mirror, the role word followed by "agent".
  *
  * One home for the catalogue: the welcome screen and the market screen both
  * read it, and the bot's order link carries only the id (`agentpkg_<id>`),
@@ -31,10 +31,14 @@ export interface AgentPackage {
   name: LocalizedText
   /** One sentence: the result the person gets. */
   promise: LocalizedText
-  /** One-time setup, USD. The first month is included. */
-  setupUsd: number
-  /** Monthly fee from the second month, USD. */
+  /** The price of one month, USD. Charged every month, from the first. */
   monthlyUsd: number
+  /**
+   * The part of the month that is the agent's token allowance, USD: what the
+   * month's replies and media run on. The rest of the price is the team's
+   * work on the agent and its bot.
+   */
+  allowanceUsd: number
   includes: readonly LocalizedText[]
   /** The live specialist a person can try before paying, if there is one. */
   agentId?: string
@@ -45,7 +49,7 @@ export interface AgentPackage {
    */
   media: boolean
   /**
-   * The farm bot a buyer talks to for this package. Absent for the Twin Agent,
+   * The farm bot a buyer talks to for this package. Absent for the Developer Agent,
    * which lives in a bot of the buyer's own, created through /mybot.
    */
   bot?: string
@@ -55,13 +59,13 @@ export const AGENT_PACKAGES: readonly AgentPackage[] = [
   {
     id: 'manager',
     icon: '◎',
-    name: { en: 'Manager Agent', ru: 'Агент-менеджер' },
+    name: { en: 'Manager Agent', ru: 'Менеджер агент' },
     promise: {
       en: 'Your own Telegram bot that answers clients around the clock in your voice and brings the leads to your CRM.',
       ru: 'Собственный Telegram-бот, который круглосуточно отвечает клиентам в вашем тоне и приносит заявки в CRM.',
     },
-    setupUsd: 100,
-    monthlyUsd: 15,
+    monthlyUsd: 100,
+    allowanceUsd: 15,
     includes: [
       { en: 'a separate bot in your name', ru: 'отдельный бот на ваше имя' },
       {
@@ -77,15 +81,15 @@ export const AGENT_PACKAGES: readonly AgentPackage[] = [
   {
     id: 'blogger',
     icon: '✦',
-    name: { en: 'Blogger Agent', ru: 'Агент-блогер' },
+    name: { en: 'Blogger Agent', ru: 'Блогер агент' },
     promise: {
       en: 'Reels with your face and voice, a content plan and publishing — the blogger agent working for your channel.',
       ru: 'Рилсы с вашим лицом и голосом, контент-план и публикации — агент-блогер работает на ваш канал.',
     },
-    setupUsd: 150,
-    monthlyUsd: 35,
+    monthlyUsd: 150,
+    allowanceUsd: 35,
     includes: [
-      { en: 'everything in Manager Agent', ru: 'всё из «Агента-менеджера»' },
+      { en: 'everything in Manager Agent', ru: 'всё из «Менеджер агента»' },
       { en: 'your face and voice clone', ru: 'клон лица и голоса' },
       { en: 'story reels on any topic', ru: 'рилсы-истории на любую тему' },
       { en: 'EN/RU posts with receipts', ru: 'посты EN/RU с подтверждениями' },
@@ -98,16 +102,19 @@ export const AGENT_PACKAGES: readonly AgentPackage[] = [
   {
     id: 'twin',
     icon: '◈',
-    name: { en: 'Twin Agent', ru: 'Агент-двойник' },
+    name: { en: 'Developer Agent', ru: 'Разработчик агент' },
     promise: {
-      en: 'Your own agent: your character, voice, face and skills in a bot of its own — ready to be listed on the market.',
-      ru: 'Ваш собственный агент: ваш характер, голос, лицо и навыки в отдельном боте — готов к выходу на рынок агентов.',
+      en: 'An agent the team develops for your task: your character, voice, face, skills and tools in a bot of its own — ready to be listed on the market.',
+      ru: 'Агент, которого команда разрабатывает под вашу задачу: ваш характер, голос, лицо, навыки и инструменты в отдельном боте — готов к выходу на рынок агентов.',
     },
-    setupUsd: 200,
-    monthlyUsd: 50,
+    monthlyUsd: 200,
+    allowanceUsd: 50,
     includes: [
-      { en: 'everything in Blogger Agent', ru: 'всё из «Агента-блогера»' },
-      { en: 'your own skills and tools', ru: 'ваши навыки и инструменты' },
+      { en: 'everything in Blogger Agent', ru: 'всё из «Блогер агента»' },
+      {
+        en: 'skills and tools developed for your task',
+        ru: 'навыки и инструменты под вашу задачу',
+      },
       {
         en: `a market listing — ${CREATOR_SHARE} to you once payouts open`,
         ru: `место на рынке — ${CREATOR_SHARE} вам, когда откроются выплаты`,
@@ -154,7 +161,7 @@ export function agentPackageOrderUrl(pkg: AgentPackage): string {
  * Star, the same number the bot prices every generation with
  * (src/price/constants STAR_COST_USD; agent-packages.test.ts fails the day the
  * two differ). Nothing below is typed by hand -- a price change is a change of
- * `setupUsd` / `monthlyUsd`, and the Stars follow.
+ * `monthlyUsd`, and the Stars follow.
  */
 export const STAR_PRICE_USD = 0.016
 
@@ -164,26 +171,32 @@ export function starsForUsd(usd: number): number {
   return Math.ceil(Math.round((usd / STAR_PRICE_USD) * 1e6) / 1e6)
 }
 
-/** What a package's launch (first month included) and each next month cost in Stars. */
-export function agentPackageStars(pkg: AgentPackage): {
-  setup: number
-  month: number
-} {
-  return {
-    setup: starsForUsd(pkg.setupUsd),
-    month: starsForUsd(pkg.monthlyUsd),
-  }
+/** What one month of a package costs in Stars. */
+export function agentPackageStars(pkg: AgentPackage): number {
+  return starsForUsd(pkg.monthlyUsd)
 }
 
 /**
- * Which charge an invoice is: the launch (one payment, the first month
- * included) or the month (a Telegram Stars subscription, renewed by Telegram
- * every 30 days until the person cancels it).
+ * The most a Telegram Stars subscription may charge per period (Bot API,
+ * createInvoiceLink: `subscription_period` prices are capped at 10000).
  */
-export type AgentPackageCharge = 'setup' | 'month'
+export const STARS_SUBSCRIPTION_MAX = 10_000
 
 /**
- * The invoice payload: `agentpkg:<id>:<setup|month>:<telegram_id>`. The render
+ * How a package's month is charged. Under the subscription cap it is a
+ * Telegram Stars subscription ('month'), renewed by Telegram every 30 days
+ * until the person cancels it. Above the cap Telegram refuses a subscription,
+ * so the month is a one-off invoice ('once') that pays 30 days and is bought
+ * again each month -- the Developer Agent at 12500 Stars.
+ */
+export type AgentPackageCharge = 'month' | 'once'
+
+export function agentPackageCharge(pkg: AgentPackage): AgentPackageCharge {
+  return agentPackageStars(pkg) <= STARS_SUBSCRIPTION_MAX ? 'month' : 'once'
+}
+
+/**
+ * The invoice payload: `agentpkg:<id>:<month|once>:<telegram_id>`. The render
  * mints it (render/src/agent/agent-package-sale.ts), Telegram returns it on
  * every charge -- renewals included -- and the bot routes the payment by it
  * (src/handlers/paymentHandlers/agentPackagePayment.ts).
@@ -201,7 +214,7 @@ export function parseAgentPackagePayload(payload: unknown): {
   charge: AgentPackageCharge
   telegramId: string
 } | null {
-  const m = /^agentpkg:([a-z]{2,20}):(setup|month):(\d{5,15})$/.exec(
+  const m = /^agentpkg:([a-z]{2,20}):(month|once):(\d{5,15})$/.exec(
     String(payload ?? '')
   )
   if (!m) return null

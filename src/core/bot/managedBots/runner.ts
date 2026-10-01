@@ -75,7 +75,7 @@ export const COPY = {
 /**
  * Where the owner of a paused bot pays to switch it back on: the package
  * order in the manager bot (src/services/agentPackageOrder.ts reads the
- * payload). A bot that makes media is a Twin Agent -- a bot of the buyer's
+ * payload). A bot that makes media is a Developer Agent -- a bot of the buyer's
  * own is where the catalogue puts it -- and a text bot is a Manager Agent.
  */
 export const renewUrl = (manager: string, media: boolean): string =>

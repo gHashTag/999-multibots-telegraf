@@ -45,7 +45,7 @@ function server(verify: Record<string, unknown>) {
           json: async () => ({
             ok: true,
             link: 'https://t.me/$inv',
-            charge: 'setup',
+            charge: 'month',
             stars: 9375,
           }),
         }
@@ -77,17 +77,22 @@ afterEach(() => {
 })
 
 describe('the Stars button on a package card', () => {
-  it('names the launch price in Stars and its dollar equivalent', () => {
+  it('names the monthly price in Stars and its dollar equivalent', () => {
     draw('ru')
     for (const pkg of AGENT_PACKAGES) {
-      const stars = agentPackageStars(pkg).setup.toLocaleString('ru-RU')
-      expect(button(pkg.id).textContent).toBe(`Купить за ${stars} ⭐`)
+      const stars = agentPackageStars(pkg).toLocaleString('ru-RU')
+      expect(button(pkg.id).textContent).toBe(`Купить за ${stars} ⭐ в месяц`)
       expect(button(pkg.id).getAttribute('aria-label')).toContain(pkg.name.ru)
       const note = host.querySelector(
         `[data-testid="package-${pkg.id}"] .package-card__buy-note`
       )
-      expect(note?.textContent).toContain(`$${pkg.setupUsd}`)
+      expect(note?.textContent).toContain(`$${pkg.monthlyUsd} в месяц`)
     }
+    // Above Telegram's subscription cap the month is a one-off invoice.
+    const card = (id: string) =>
+      host.querySelector(`[data-testid="package-${id}"]`)?.textContent ?? ''
+    expect(card('blogger')).toContain('подписка звёздами Telegram')
+    expect(card('twin')).toContain('один месяц за платёж')
   })
 
   it('outside Telegram it mints nothing and says where paying works', async () => {

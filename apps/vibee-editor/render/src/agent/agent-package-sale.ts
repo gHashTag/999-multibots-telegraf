@@ -1,30 +1,32 @@
 /**
  * SELLING THE THREE AGENT PACKAGES FOR TELEGRAM STARS.
  *
- * Owner, 2026-09-30: a package is a launch price with the first month inside
- * it, then a monthly fee. Until now the only way to buy one was to press
+ * Owner, 2026-10-01: a package is a monthly price, charged every month from
+ * the first (agent-packages.ts). Until now the only way to buy one was to press
  * "Order", wait for the team and pay them by hand; the price in the card had
  * no till behind it. Inside Telegram a digital good is sold for Stars only, so
  * the till is a Stars one, built the way the club's is (club-membership.ts):
  *
- * - THE LAUNCH is a one-off invoice at `agentPackageStars(pkg).setup` and
- *   opens 30 days.
- * - THE MONTH is a Telegram Stars subscription at `.month`, offered once the
- *   launch is on file. Telegram charges it again every 30 days without asking
- *   us, so renewals are found the only way they can be: by reading the
+ * - UNDER THE SUBSCRIPTION CAP (10000 Stars) the month is a Telegram Stars
+ *   subscription ('month'). Telegram charges it again every 30 days without
+ *   asking us, so renewals are found the only way they can be: by reading the
  *   cashier's own ledger (getStarTransactions) on verify and on the hourly
- *   sweep. Each charge adds 30 days to whatever is left, so paying early never
- *   loses a day.
+ *   sweep.
+ * - ABOVE THE CAP Telegram refuses a subscription, so the month is a one-off
+ *   invoice ('once') bought again each month.
+ *
+ * Each charge adds 30 days to whatever is left, so paying early never loses
+ * a day.
  *
  * Every price is computed in the one catalogue
  * (packages/vibee-atoms/src/agent-packages.ts) from the dollar price at one
  * Star rate; nothing here restates a number. A charge is recognised by its
- * invoice payload, `agentpkg:<id>:<setup|month>:<telegram_id>`, which Telegram
+ * invoice payload, `agentpkg:<id>:<month|once>:<telegram_id>`, which Telegram
  * carries on the transaction itself, and it is booked exactly once: the Stars
  * transaction id is unique in `agent_package_period`.
  *
  * What a booked period does: it is the fact the team and the bot read. The
- * team sets the agent's bot up after the launch is paid (done-for-you, the
+ * team sets the agent's bot up after the first month is paid (done-for-you, the
  * owner's decision); the bot that receives the payment tells the team and pays
  * the buyer's managed bot forward (src/handlers/paymentHandlers/
  * agentPackagePayment.ts). Nothing here grants tokens: a package month is a
@@ -34,6 +36,7 @@
 import {
   AGENT_PACKAGES,
   agentPackageById,
+  agentPackageCharge,
   agentPackagePayload,
   agentPackageStars,
   parseAgentPackagePayload,
@@ -69,7 +72,7 @@ let tablesReady = false
 
 /**
  * One row per Stars transaction that paid for a package period. The unique
- * star_tx_id is the idempotency key for the launch and every renewal alike.
+ * star_tx_id is the idempotency key for the first month and every renewal alike.
  */
 export async function ensureAgentPackageTables(pool: Queryable): Promise<void> {
   if (tablesReady) return
@@ -113,15 +116,15 @@ async function periodsOf(pool: Queryable, who: string): Promise<PeriodRow[]> {
 
 export interface PackageStanding {
   id: string
-  setup_stars: number
+  /** What one month costs. */
   month_stars: number
-  /** The launch is on file: the next invoice is the monthly subscription. */
-  launched: boolean
+  /** The month is a Telegram subscription (true) or a one-off invoice (false). */
+  renews: boolean
   /** A paid period runs now. */
   active: boolean
   until: string | null
   days_left: number
-  /** A monthly charge has been booked whose period has not ended. */
+  /** A subscription charge has been booked whose period has not ended. */
   subscribed: boolean
 }
 
@@ -135,12 +138,10 @@ function standingOf(
     .map(r => new Date(r.until))
     .sort((a, b) => b.getTime() - a.getTime())[0]
   const active = !!latest && latest.getTime() > now.getTime()
-  const { setup, month } = agentPackageStars(pkg)
   return {
     id: pkg.id,
-    setup_stars: setup,
-    month_stars: month,
-    launched: mine.some(r => r.charge === 'setup'),
+    month_stars: agentPackageStars(pkg),
+    renews: agentPackageCharge(pkg) === 'month',
     active,
     until: latest ? latest.toISOString() : null,
     days_left: active
@@ -161,14 +162,14 @@ export async function agentPackageStanding(
 }
 
 /**
- * Which invoice a person is sold next: the launch until it is paid, then the
- * monthly subscription. Null while a subscribed month still runs -- Telegram
- * renews it by itself, and a second subscription would charge twice.
+ * Which invoice a person is sold next: the subscription, or for a package
+ * above the cap the one-off month, which can be bought ahead at any time.
+ * Null while a subscribed month still runs -- Telegram renews it by itself,
+ * and a second subscription would charge twice.
  */
 export function nextCharge(s: PackageStanding): AgentPackageCharge | null {
-  if (!s.launched) return 'setup'
-  if (s.subscribed) return null
-  return 'month'
+  if (!s.renews) return 'once'
+  return s.subscribed ? null : 'month'
 }
 
 export interface MintedPackageInvoice {
@@ -193,17 +194,14 @@ export async function mintAgentPackageInvoice(input: {
     throw new Error('нужен числовой telegram_id получателя') // cyrillic-ok: user-facing error
   }
   const { pkg, charge } = input
-  const stars = agentPackageStars(pkg)[charge]
+  const stars = agentPackageStars(pkg)
   const payload = agentPackagePayload(pkg.id, charge, forId)
   // Telegram: title up to 32 characters, description up to 255.
-  const title = (
-    pkg.name.ru + (charge === 'setup' ? ' — запуск' : ' — 30 дней')
-  ) // cyrillic-ok: invoice copy
-    .slice(0, 32)
+  const title = `${pkg.name.ru} — 30 дней`.slice(0, 32) // cyrillic-ok: invoice copy
   const description = (
-    charge === 'setup'
-      ? `${pkg.promise.ru} Первый месяц включён.` // cyrillic-ok: invoice copy
-      : `${pkg.promise.ru} Продлевается каждые 30 дней, отмена — в настройках Telegram.`
+    charge === 'month'
+      ? `${pkg.promise.ru} Продлевается каждые 30 дней, отмена — в настройках Telegram.` // cyrillic-ok: invoice copy
+      : `${pkg.promise.ru} Оплата каждый месяц новым счётом, дни складываются.`
   ) // cyrillic-ok: invoice copy
     .slice(0, 255)
   const doFetch = input.fetchImpl ?? fetch
@@ -274,7 +272,7 @@ export interface BookedPackagePeriod {
  * Book every package charge in `txs` that is not on file yet. Each adds one
  * period to what the person has left on that package (or starts from the
  * payment, when nothing is left). Idempotent on star_tx_id. Oldest first, so
- * a launch and its renewals chain in the order they were paid.
+ * a first month and its renewals chain in the order they were paid.
  */
 export async function bookAgentPackagePeriods(
   pool: Queryable,
@@ -322,7 +320,7 @@ export async function bookAgentPackagePeriods(
         who: c!.payer,
         amount: Number(t.amount),
         what:
-          `пакет «${c!.pkg.name.ru}»: ${c!.charge === 'setup' ? 'запуск' : 'месяц'} оплачен, ` + // cyrillic-ok: journal text
+          `пакет «${c!.pkg.name.ru}»: ${c!.charge === 'month' ? 'подписка' : 'месяц счётом'} оплачен, ` + // cyrillic-ok: journal text
           `период до ${until.toISOString().slice(0, 10)}`, // cyrillic-ok: journal text
         severity: 'normal',
       })
@@ -486,7 +484,7 @@ export async function handleAgentPackageSale(
 }
 
 /**
- * The hourly sweep: books launches nobody verified and every renewal Telegram
+ * The hourly sweep: books payments nobody verified and every renewal Telegram
  * made by itself. Never throws -- a failed sweep is logged and retried.
  */
 export async function sweepAgentPackageSales(

@@ -12,7 +12,7 @@ import {
 } from '@/services/agentPackageSale'
 import { extendManagedBot, managedBotsOf } from '@/core/bot/managedBots/store'
 
-/** Days one charge pays for: the launch includes the first month. */
+/** Days one charge pays for: every charge is one month. */
 export const PACKAGE_PERIOD_DAYS = 30
 
 export interface AgentPackagePaymentDeps {
@@ -24,7 +24,7 @@ export interface AgentPackagePaymentDeps {
 /**
  * AN AGENT PACKAGE CHARGE ARRIVED AT THE BOT. THE RENDER BOOKS IT.
  *
- * Payload `agentpkg:<id>:<setup|month>:<id>`, minted by the render. As with
+ * Payload `agentpkg:<id>:<month|once>:<id>`, minted by the render. As with
  * the club, nothing is written here -- this branch exists so the charge does
  * not fall into the generic Stars top-up below it and become spendable tokens.
  *
@@ -135,18 +135,18 @@ export async function handleAgentPackagePayment(
           timeZone: 'UTC',
         })
       : null
-  const launch = sale.charge === 'setup'
+  const renewal = payment.recurring === true
   await ctx.reply(
     isRu
-      ? (launch
-          ? '⭐ Оплата запуска агента получена!\n\nКоманда напишет вам здесь, чтобы настроить отдельного бота для вашего агента. Первый месяц входит в запуск.'
-          : '⭐ Месяц работы агента оплачен!') +
+      ? (renewal
+          ? '⭐ Подписка продлена — ещё месяц работы агента оплачен!'
+          : '⭐ Месяц работы агента оплачен!\n\nЕсли бот агента ещё не настроен, команда напишет вам здесь.') +
           (until
             ? `\n\nАгент оплачен до ${until}.`
             : '\n\nОплата отразится в течение часа.')
-      : (launch
-          ? '⭐ Your agent launch is paid!\n\nThe team will write to you here to set up a separate bot for your agent. The first month is included.'
-          : '⭐ A month of your agent is paid!') +
+      : (renewal
+          ? '⭐ Your subscription renewed — another month of your agent is paid!'
+          : '⭐ A month of your agent is paid!\n\nIf the agent bot is not set up yet, the team will write to you here.') +
           (until
             ? `\n\nYour agent is paid until ${until}.`
             : '\n\nThe payment shows up within the hour.')

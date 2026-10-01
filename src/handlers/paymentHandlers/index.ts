@@ -307,7 +307,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
   }
 
   /*
-   * AN AGENT PACKAGE: payload `agentpkg:<id>:<setup|month>:<id>`, minted by
+   * AN AGENT PACKAGE: payload `agentpkg:<id>:<month|once>:<id>`, minted by
    * the render like the club and booked by it the same way. Before the generic
    * top-up for the same reason: unrouted, it would become spendable tokens.
    */

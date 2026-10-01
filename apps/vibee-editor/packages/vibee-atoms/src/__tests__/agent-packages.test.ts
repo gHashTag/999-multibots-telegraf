@@ -4,7 +4,9 @@ import { join } from 'node:path'
 import {
   AGENT_PACKAGES,
   STAR_PRICE_USD,
+  STARS_SUBSCRIPTION_MAX,
   agentPackageById,
+  agentPackageCharge,
   agentPackageOrderUrl,
   agentPackagePayload,
   agentPackageStars,
@@ -15,20 +17,27 @@ import {
 import { MARKETPLACE_ECONOMY, marketplaceAgentById } from '../agent-marketplace'
 
 describe('agent packages', () => {
-  it('sells the three agents at the owner prices', () => {
-    expect(
-      AGENT_PACKAGES.map(pkg => [pkg.id, pkg.setupUsd, pkg.monthlyUsd])
-    ).toEqual([
-      ['manager', 100, 15],
-      ['blogger', 150, 35],
-      ['twin', 200, 50],
+  it('sells the three agents at the owner monthly prices', () => {
+    expect(AGENT_PACKAGES.map(pkg => [pkg.id, pkg.monthlyUsd])).toEqual([
+      ['manager', 100],
+      ['blogger', 150],
+      ['twin', 200],
     ])
+    for (const pkg of AGENT_PACKAGES) {
+      expect(pkg.allowanceUsd, pkg.id).toBeGreaterThan(0)
+      expect(pkg.allowanceUsd, pkg.id).toBeLessThan(pkg.monthlyUsd)
+    }
   })
 
-  it('names every package in one pattern: <Role> Agent / Агент-<роль>', () => {
+  it('names every package in one pattern: <Role> Agent / <Роль> агент', () => {
+    expect(AGENT_PACKAGES.map(pkg => pkg.name.en)).toEqual([
+      'Manager Agent',
+      'Blogger Agent',
+      'Developer Agent',
+    ])
     for (const pkg of AGENT_PACKAGES) {
       expect(pkg.name.en).toMatch(/^[A-Z][a-z]+ Agent$/)
-      expect(pkg.name.ru).toMatch(/^Агент-[а-яё]+$/) // cyrillic-ok
+      expect(pkg.name.ru).toMatch(/^[А-ЯЁ][а-яё]+ агент$/) // cyrillic-ok
     }
   })
 
@@ -86,7 +95,7 @@ describe('agent packages', () => {
   it('binds each farm package to a real bot username', () => {
     expect(agentPackageById('manager')?.bot).toBe('t27ai_bot')
     expect(agentPackageById('blogger')?.bot).toBe('neuro_blogger_bot')
-    // The Twin lives in a bot of the buyer's own.
+    // The Developer Agent lives in a bot of the buyer's own.
     expect(agentPackageById('twin')?.bot).toBeUndefined()
     for (const pkg of AGENT_PACKAGES)
       if (pkg.bot) expect(pkg.bot).toMatch(/^[A-Za-z][A-Za-z0-9_]{3,30}bot$/i)
@@ -95,9 +104,9 @@ describe('agent packages', () => {
   it('charges Stars computed from the dollar prices at one rate', () => {
     expect(AGENT_PACKAGES.map(pkg => [pkg.id, agentPackageStars(pkg)])).toEqual(
       [
-        ['manager', { setup: 6250, month: 938 }],
-        ['blogger', { setup: 9375, month: 2188 }],
-        ['twin', { setup: 12500, month: 3125 }],
+        ['manager', 6250],
+        ['blogger', 9375],
+        ['twin', 12500],
       ]
     )
     // Rounded up, never below the dollar price; float noise is not a Star.
@@ -105,14 +114,22 @@ describe('agent packages', () => {
     expect(starsForUsd(0.01)).toBe(1)
   })
 
-  it('fits Telegram limits: a month under the subscription ceiling, a launch under the one-off one', () => {
+  it('renews by subscription under the Telegram cap, by a monthly one-off invoice above it', () => {
     // render/src/agent/token-packs.ts: 10 000 per subscription period,
     // 100 000 per one-off invoice (measured against the Bot API).
+    expect(STARS_SUBSCRIPTION_MAX).toBe(10_000)
+    expect(
+      AGENT_PACKAGES.map(pkg => [pkg.id, agentPackageCharge(pkg)])
+    ).toEqual([
+      ['manager', 'month'],
+      ['blogger', 'month'],
+      ['twin', 'once'],
+    ])
     for (const pkg of AGENT_PACKAGES) {
-      const { setup, month } = agentPackageStars(pkg)
-      expect(month, pkg.id).toBeLessThanOrEqual(10_000)
-      expect(setup, pkg.id).toBeLessThanOrEqual(100_000)
-      expect(month, pkg.id).toBeGreaterThan(0)
+      const stars = agentPackageStars(pkg)
+      if (agentPackageCharge(pkg) === 'month')
+        expect(stars, pkg.id).toBeLessThanOrEqual(STARS_SUBSCRIPTION_MAX)
+      expect(stars, pkg.id).toBeLessThanOrEqual(100_000)
     }
   })
 
@@ -127,6 +144,9 @@ describe('agent packages', () => {
   })
 
   it('round-trips the invoice payload and refuses anything else', () => {
+    expect(
+      parseAgentPackagePayload('agentpkg:twin:once:144022504')?.charge
+    ).toBe('once')
     const payload = agentPackagePayload('blogger', 'month', '144022504')
     expect(payload).toBe('agentpkg:blogger:month:144022504')
     const parsed = parseAgentPackagePayload(payload)
