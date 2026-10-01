@@ -14,8 +14,16 @@ import {
   threadKeyOf,
   type SendOptions,
 } from '@/lib/agentStream'
-import type { VoiceMode } from '@/components/Voice/VoiceOrb'
 import { VoiceSession } from './session'
+
+export const VOICE_MODES = [
+  'pulse',
+  'spectrum',
+  'orbit',
+  'hologram',
+  'shatter',
+] as const
+export type VoiceMode = (typeof VOICE_MODES)[number]
 
 /** The visual a person picked last time. */
 export const voiceModeAtom = atomWithStorage<VoiceMode>(

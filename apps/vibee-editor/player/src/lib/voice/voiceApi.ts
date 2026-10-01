@@ -68,3 +68,9 @@ export async function fetchVoiceStatus(): Promise<VoiceStatus> {
     return { hear: false, speak: false, voices: {} }
   }
 }
+
+/** "af_heart" -> "Heart", "irina" -> "Irina". */
+export function voiceLabel(id: string): string {
+  const name = id.replace(/^[a-z]{2}_/, '')
+  return name.charAt(0).toUpperCase() + name.slice(1)
+}
