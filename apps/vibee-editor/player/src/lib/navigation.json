@@ -3,12 +3,20 @@
   "version": 1,
   "destinations": [
     {
+      "id": "hive",
+      "route": "/hive",
+      "platforms": ["web", "ios"],
+      "labelKey": "nav.hive",
+      "label": { "en": "Hive", "ru": "Улей" },
+      "icon": { "lucide": "Hexagon", "sf": "hexagon" }
+    },
+    {
       "id": "feed",
       "route": "/feed",
       "platforms": ["web", "ios"],
       "labelKey": "nav.feed",
       "label": { "en": "Feed", "ru": "Лента" },
-      "icon": { "lucide": "Globe", "sf": "house" }
+      "icon": { "lucide": "Home", "sf": "house" }
     },
     {
       "id": "chat",
@@ -16,7 +24,7 @@
       "platforms": ["web", "ios"],
       "labelKey": "nav.agents",
       "label": { "en": "Agents", "ru": "Агенты" },
-      "icon": { "lucide": "Bot", "sf": "cpu" }
+      "icon": { "lucide": "Users", "sf": "person.2" }
     },
     {
       "id": "browser",
@@ -24,7 +32,7 @@
       "platforms": ["web"],
       "labelKey": "nav.browser",
       "label": { "en": "Browser", "ru": "Браузер" },
-      "icon": { "lucide": "Globe2", "sf": "globe" }
+      "icon": { "lucide": "Globe", "sf": "globe" }
     },
     {
       "id": "ai",
@@ -33,14 +41,6 @@
       "labelKey": "tabs.ai",
       "label": { "en": "AI", "ru": "ИИ" },
       "icon": { "lucide": "Sparkles", "sf": "sparkles" }
-    },
-    {
-      "id": "hive",
-      "route": "/hive",
-      "platforms": ["web", "ios"],
-      "labelKey": "nav.hive",
-      "label": { "en": "Hive", "ru": "Улей" },
-      "icon": { "lucide": "Hexagon", "sf": "hexagon" }
     },
     {
       "id": "profile",

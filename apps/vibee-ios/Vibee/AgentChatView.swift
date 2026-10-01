@@ -32,6 +32,9 @@ struct AgentChatView: View {
   @State private var сообщения: [Реплика] = AgentChatView.загрузитьИсторию()
   @State private var ввод = ""
   @State private var идёт = false
+  /// What answering a card said, per turn: a refusal must be readable.
+  @State private var proposalNotes: [UUID: String] = [:]
+  @State private var answering: Set<UUID> = []
 
   struct Реплика: Identifiable, Codable, Equatable {
     /// `var`, а не `let`: `let id = UUID()` при декодировании даёт новый
@@ -69,6 +72,10 @@ struct AgentChatView: View {
     var пояснение: String
     /// Решение человека. `nil` — ещё не отвечал; окно висит до ответа.
     var одобрено: Bool?
+    /// The draft's id and one-time secret from the stream's `proposal` event.
+    /// Without both the card cannot be answered, so it is not drawn.
+    var id: String?
+    var secret: String?
   }
 
   /**
@@ -466,6 +473,12 @@ struct AgentChatView: View {
               lineWidth: Тема.Чат.толщинаГраницы
             )
         )
+
+      // Under the answer that prepared it, as on the web (SendCardView.tsx).
+      // cyrillic-ok-next-line
+      if let card = m.предложение, card.secret != nil {
+        proposalCard(card, turn: m.id)
+      }
     }
     // `.message { max-width: 88% }` — Chat.css:75. Пузырь во всю ширину
     // экрана читается хуже: глазу негде поймать край строки.
@@ -676,6 +689,17 @@ struct AgentChatView: View {
           if let errorText = o["текст"] as? String, !errorText.isEmpty {
             сообщения[i].текст += (сообщения[i].текст.isEmpty ? "" : "\n\n") + "⚠️ \(errorText)"
           }
+        case "proposal":
+          /*
+           * A MESSAGE PREPARED FOR SOMEBODY ELSE, waiting for the press. The
+           * same event the web reads (player lib/agentStream.ts toSendCard):
+           * the draft with its one-time secret, sent only to the client whose
+           * turn made it. Before this case the event fell to `default` and the
+           * card below was declared and never shown.
+           */
+          if let card = AgentChatView.proposalCard(o["proposal"]) {
+            сообщения[i].предложение = card  // cyrillic-ok: existing state
+          }
         case "готово":
           // The truncation-reason field only arrives when the step limit is
           // hit -- the server explains the reason in the same words it gives
@@ -807,5 +831,104 @@ struct ОкноПодтверждения: View {
       RoundedRectangle(cornerRadius: 14)
         .stroke(Тема.Цвет.предупреждение.opacity(0.5), lineWidth: 1)
     )
+  }
+}
+
+// MARK: - Answering a prepared message
+
+extension AgentChatView {
+  /// The stream's `proposal`, narrowed like the web's `toSendCard`: anything
+  /// without an id and a secret is no card at all.
+  // cyrillic-ok-next-line
+  static func proposalCard(_ raw: Any?) -> Предложение? {
+    guard let r = raw as? [String: Any],
+      let id = r["id"] as? String, !id.isEmpty,
+      let secret = r["secret"] as? String, !secret.isEmpty
+    else { return nil }
+    let target = (r["display"] as? String) ?? (r["target"] as? String) ?? ""
+    var why = say(
+      "Nothing is sent until you press Send.",
+      "Ничего не уйдёт, пока вы не нажмёте «Отправить».")
+    if let media = r["media"] as? [String: Any], let kind = media["kind"] as? String {
+      why = say("Attached: \(kind). ", "Вложение: \(kind). ") + why
+    }
+    // cyrillic-ok-next-line
+    return Предложение(
+      // cyrillic-ok-next-line
+      действие: (r["action"] as? String) ?? "send", куда: target, что: r["what"] as? String,
+      // cyrillic-ok-next-line
+      пояснение: why, одобрено: nil, id: id, secret: secret)
+  }
+
+  @ViewBuilder
+  // cyrillic-ok-next-line
+  func proposalCard(_ card: Предложение, turn: UUID) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      // cyrillic-ok-next-line
+      switch card.одобрено {
+      case nil:
+        // cyrillic-ok-next-line
+        ОкноПодтверждения(предложение: card) { send in
+          Task { await answerProposal(turn: turn, send: send) }
+        }
+        .disabled(answering.contains(turn))
+        .opacity(answering.contains(turn) ? 0.6 : 1)
+      case true?:
+        Label(say("Sent", "Отправлено"), systemImage: "paperplane")
+          .font(Typeface.style(.footnote))
+          .foregroundStyle(Palette.accent)
+      case false?:
+        Label(say("Not sent", "Не отправлено"), systemImage: "xmark")
+          .font(Typeface.style(.footnote))
+          .foregroundStyle(Palette.textMuted)
+      }
+      if let note = proposalNotes[turn] {
+        Text(note)
+          .font(Typeface.style(.footnote))
+          .foregroundStyle(Palette.warning)
+      }
+    }
+  }
+
+  /**
+   The same two doors the bot's buttons and the web card use, authorised by
+   the card's one-time secret AND this app's session. The decision is recorded
+   only when the server took it: a send that failed must stay answerable, or
+   the person would read "sent" over a message nobody received.
+   */
+  func answerProposal(turn: UUID, send: Bool) async {
+    // cyrillic-ok-next-line
+    guard let i = сообщения.firstIndex(where: { $0.id == turn }),
+      // cyrillic-ok-next-line
+      let card = сообщения[i].предложение, let id = card.id, let secret = card.secret
+    else { return }
+    answering.insert(turn)
+    defer { answering.remove(turn) }
+    proposalNotes[turn] = nil
+    var r = URLRequest(
+      url: API.base.appendingPathComponent("api/tg/proposal/\(send ? "confirm" : "cancel")"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    r.httpBody = try? JSONSerialization.data(withJSONObject: ["id": id, "secret": secret])
+    do {
+      let (data, resp) = try await URLSession.shared.data(for: r)
+      let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+      let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+      if (200..<300).contains(status), body["ok"] as? Bool != false {
+        // cyrillic-ok-next-line
+        if let j = сообщения.firstIndex(where: { $0.id == turn }) {
+          // cyrillic-ok-next-line
+          сообщения[j].предложение?.одобрено = send
+        }
+      } else {
+        let why = (body["error"] as? String) ?? "HTTP \(status)"
+        proposalNotes[turn] = say("Not done: \(why)", "Не получилось: \(why)")
+      }
+    } catch {
+      proposalNotes[turn] = say(
+        "No connection: \(error.localizedDescription)",
+        "Нет связи: \(error.localizedDescription)")
+    }
   }
 }
