@@ -307,6 +307,18 @@ html[data-keyboard='open'] .chat-page {
   opacity: 0.45;
   cursor: default;
 }
+.voice-btn {
+  flex: 0 0 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  border-radius: 10px;
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--t27-accent);
+  cursor: pointer;
+}
 .chat-attachment-tray {
   display: flex;
   flex-wrap: wrap;

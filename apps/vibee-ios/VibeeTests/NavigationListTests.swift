@@ -42,7 +42,7 @@ final class NavigationListTests: XCTestCase {
     // The screens this build can open, mirrored from `screen(for:)` in
     // VibeeApp.swift. A destination the list names and this app cannot draw
     // would be a tab that opens nothing.
-    let known: Set<String> = ["feed", "chat", "ai", "hive", "profile"]
+    let known: Set<String> = ["feed", "chat", "ai", "hive", "tasks", "profile"]
     for destination in Navigation.bundled {
       XCTAssertTrue(
         known.contains(destination.id),
@@ -52,12 +52,13 @@ final class NavigationListTests: XCTestCase {
   }
 
   func testTheOrderIsTheListsOrder() {
-    // The order is a product decision recorded in the shared file: the hive
-    // comes BEFORE the profile, because the last place in the row is the one
-    // a thumb reaches without looking.
+    // The order is a product decision recorded in the shared file. Owner,
+    // 2026-10-01: "make Hive the first tab" -- the board is what the app opens
+    // on. The profile keeps the last place, the one a thumb reaches without
+    // looking.
     XCTAssertEqual(
       Navigation.bundled.map(\.id),
-      ["feed", "chat", "ai", "hive", "profile"]
+      ["hive", "tasks", "feed", "chat", "ai", "profile"]
     )
   }
 

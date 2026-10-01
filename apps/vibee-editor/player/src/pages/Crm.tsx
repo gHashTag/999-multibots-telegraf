@@ -639,6 +639,10 @@ export default function CrmPage() {
     const facts: ReactNode[] = [
       ...searched.filter(f => f.hit).map(f => f.node),
       t(`crm.stage.${x.stage}`),
+      // An open fault is the one fact that must not hide behind "...".
+      ...(x.faultsOpen > 0
+        ? [t('crm.clients.faults', { n: x.faultsOpen })]
+        : []),
       ...searched.filter(f => !f.hit).map(f => f.node),
     ]
     return (
@@ -700,7 +704,21 @@ export default function CrmPage() {
               {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
               {' · '}
               {t('crm.clients.duets', { n: x.duets })}
+              {x.tasksTotal > 0 ? (
+                <>
+                  {' · '}
+                  {t('crm.clients.tasks', {
+                    done: x.tasksDone,
+                    n: x.tasksTotal,
+                  })}
+                </>
+              ) : null}
             </p>
+            {x.bots.length ? (
+              <p className="crm__why">
+                {t('crm.clients.bots')} {x.bots.map(b => `@${b}`).join(', ')}
+              </p>
+            ) : null}
             <div className="crm__acts">
               {isDropped ? (
                 <>

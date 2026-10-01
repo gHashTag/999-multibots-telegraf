@@ -582,6 +582,37 @@ describe('POST /api/auth/logout-all', () => {
     expect(neighbour.status, JSON.stringify(neighbour.body)).toBe(200)
   })
 
+  /*
+   * A SESSION MINTED AFTER THE CUTOFF MAY STILL ISSUE A CODE.
+   *
+   * The Bearer door of pair/start has no initData, and the cutoff used to be
+   * read off it anyway: auth_date of an empty string is 0, so every person who
+   * had ever pressed "sign out everywhere" was refused a code forever, from a
+   * session minted a second ago. The iOS app asks for one each time it opens a
+   * web page signed in, so this was every such person's web pages in the app.
+   */
+  it('a session minted after sign-out everywhere can start a pairing code', async () => {
+    const fromWidget = await signInWithWidget(ALICE)
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+
+    const fresh = await signInWithInitData(ALICE, 'after-logout-all')
+    const started = await call(
+      '/api/auth/pair/start',
+      {},
+      { authorization: `Bearer ${fresh.access_token}` }
+    )
+    expect(started.status, JSON.stringify(started.body)).toBe(200)
+    const claimed = await call('/api/auth/pair/claim', {
+      code: started.body.code,
+    })
+    expect(claimed.status, JSON.stringify(claimed.body)).toBe(200)
+  })
+
   it('another replica learns the cutoff from the revocation poll', async () => {
     const now = Math.floor(Date.now() / 1000)
     const seenBefore = launchAt(ALICE, 'replica-before', now - 5)

@@ -14,6 +14,7 @@
  *
  *   node scripts/sync-t27-spec.mjs <t27 checkout> <spec id>          # write
  *   node scripts/sync-t27-spec.mjs <t27 checkout> <spec id> --check  # compare
+ *   ... --out=<dir>   # another host's spec dir (scripts/t27-specs.json "hosts")
  *
  * <spec id> is the path under specs/ without the extension, e.g.
  * automation/crm-story-reel. T27C names the compiler (default: the release
@@ -21,12 +22,16 @@
  */
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const [t27Dir, specId, flag] = process.argv.slice(2)
+const [t27Dir, specId, ...rest] = process.argv.slice(2)
+const flag = rest.includes('--check') ? '--check' : undefined
+const outArg = rest.find(a => a.startsWith('--out='))?.slice('--out='.length)
 if (!t27Dir || !specId) {
-  console.error('usage: sync-t27-spec.mjs <t27 checkout> <spec id> [--check]')
+  console.error(
+    'usage: sync-t27-spec.mjs <t27 checkout> <spec id> [--check] [--out=<dir>]'
+  )
   process.exit(2)
 }
 const source = join(t27Dir, 'specs', `${specId}.t27`)
@@ -38,7 +43,7 @@ const local = join(t27Dir, 'target', 'release', 't27c')
 const t27c = process.env.T27C || (existsSync(local) ? local : 't27c')
 
 const here = dirname(fileURLToPath(import.meta.url))
-const outDir = join(here, '..', 'src', 'spec')
+const outDir = outArg ? resolve(outArg) : join(here, '..', 'src', 'spec')
 const name = basename(specId)
 const specOut = join(outDir, `${name}.t27`)
 const genOut = join(outDir, `${name}.gen.ts`)

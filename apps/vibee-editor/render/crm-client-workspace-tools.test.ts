@@ -326,6 +326,10 @@ describe('crm_clients', () => {
       // The picture the app draws the circle with; null when we have none
       // stored, and nothing is fetched from Telegram to fill it in.
       avatar_url: null,
+      // Not a bot owner, and no plan or fault filed: an empty, not a missing,
+      // record of the work.
+      bots: [],
+      tasks: { total: 0, done: 0, faults_open: 0 },
     })
     expect(rows[0]).toMatchObject({
       name: 'Ivan P',

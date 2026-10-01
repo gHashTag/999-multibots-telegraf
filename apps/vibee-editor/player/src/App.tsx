@@ -35,6 +35,7 @@ const HomePage = lazy(() => import('@/pages/Home'))
 const EditorPage = lazy(() => import('@/pages/Editor'))
 const ChatPage = lazy(() => import('@/pages/Chat'))
 const AgentsPage = lazy(() => import('@/pages/Agents'))
+const WelcomePage = lazy(() => import('@/pages/Welcome'))
 const AgentHarnessPage = lazy(() => import('@/pages/AgentHarness'))
 const AgentDashboardPage = lazy(() => import('@/pages/AgentDashboard'))
 const ProfilePage = lazy(() => import('@/pages/Profile'))
@@ -42,6 +43,7 @@ const FeedPage = lazy(() => import('@/pages/Feed'))
 const BlogPage = lazy(() => import('@/pages/Blog'))
 const GeneratePage = lazy(() => import('@/pages/Generate'))
 const HivePage = lazy(() => import('@/pages/Hive'))
+import { GAME_PATH, gamePathFor } from '@/lib/hive'
 const BrowserPage = lazy(() => import('@/pages/Browser'))
 const StoryPage = lazy(() => import('@/pages/Story'))
 import { useBrowserWatch } from '@/hooks/useBrowserWatch'
@@ -284,6 +286,16 @@ export function AppRoutes() {
 }
 
 /**
+ * The board's former addresses -- /queen and /hive -- open it at /game, on the
+ * view their hash named: /queen#/queen?tab=kanban is /game/kanban. A hash
+ * that names no view of hers opens the board's front page.
+ */
+function ToGame() {
+  const { hash } = useLocation()
+  return <Navigate to={gamePathFor(hash) ?? GAME_PATH} replace />
+}
+
+/**
  * The Browser tab, kept alive and hidden for a while after the person leaves
  * it, so coming back is instant instead of a full reconnect. The rule is in
  * lib/keptBrowser.ts; this only applies it.
@@ -358,12 +370,14 @@ function RouteTable() {
       <Route path="/generate/script" element={<ScriptPage />} />
       <Route path="/generate/editor" element={<EditorPage />} />
       <Route path="/generate/:tab" element={<GeneratePage />} />
-      <Route path="/hive" element={<HivePage />} />
-      {/* The Queen's board inside the app, at its own clean address
-          (owner, 2026-09-26). nginx sends a top-level /queen/ here. */}
-      <Route path="/queen" element={<HivePage />} />
-      {/* The former sub-tab addresses still land on the hive. */}
-      <Route path="/hive/*" element={<Navigate to="/hive" replace />} />
+      {/* The Queen's board inside the app: /game, and /game/<view> for each
+          of her views (owner, 2026-10-01). One route, so moving between views
+          never remounts the frame. nginx sends a top-level /queen/ here. */}
+      <Route path="/game/*" element={<HivePage />} />
+      {/* Its former addresses, with the view their hash named. */}
+      <Route path="/queen" element={<ToGame />} />
+      <Route path="/hive" element={<ToGame />} />
+      <Route path="/hive/*" element={<Navigate to="/game" replace />} />
       {/* The person's own remote browser: one pod, one profile, started on
           demand. See docs/architecture/remote-browser-per-user.md. */}
       {/* Rendered by KeptBrowser below, which outlives a visit to another
@@ -381,6 +395,7 @@ function RouteTable() {
       {/* One group, read-only: what was said and who said it (#2950). */}
       <Route path="/crm/g/:chatId/chat" element={<CrmGroupPage />} />
       <Route path="/templates" element={<TemplatesPage />} />
+      <Route path="/welcome" element={<WelcomePage />} />
       <Route path="/agents" element={<AgentsPage />} />
       <Route path="/agents/connect" element={<AgentHarnessPage />} />
       <Route path="/agents/:agentId/work" element={<ChatPage />} />
