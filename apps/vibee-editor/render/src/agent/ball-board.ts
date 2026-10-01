@@ -41,6 +41,11 @@
  * v4: the caller's own meetings are a fifth source. An ended meeting nobody
  * answered is due, one starting within a day is ours. A card carries the five
  * MEETING_FIELDS -- never the tap or calendar token, the call link or the place.
+ *
+ * v5: jcrm owes the reply whenever the newest message is inbound, and a
+ * machine's message always is. A matter whose every address is a machine's or
+ * the owner's own domain has nobody to answer: its ball is none, and it is
+ * counted as `automated`, never dropped.
  */
 
 import { ensureApprovals, pendingApprovalFor } from '../browser/approvals'
@@ -269,6 +274,47 @@ function addressOf(raw: string): string {
   return (angled ? angled[1] : raw).trim().toLowerCase()
 }
 
+// The spec's `automated_marker` list, in the spec's order.
+const AUTOMATED_MARKERS = [
+  'noreply',
+  'donotreply',
+  'mailerdaemon',
+  'postmaster',
+  'bounce',
+  'dmarc',
+  'notification',
+] as const
+
+export function automatedMarker(marker: string): boolean {
+  return (AUTOMATED_MARKERS as readonly string[]).includes(marker)
+}
+
+/** A machine's address (a marker, separators removed) or the owner's own domain. */
+export function machineOrOwn(raw: string): boolean {
+  const a = addressOf(raw)
+  const domain = a.split('@')[1] ?? ''
+  if (domain === SPEC.OWN_DOMAIN || domain.endsWith(`.${SPEC.OWN_DOMAIN}`))
+    return true
+  const flat = a.replace(/[.\-_+]/g, '')
+  return AUTOMATED_MARKERS.some(m => flat.includes(m))
+}
+
+/** The spec's `nobody_to_answer`: a matter with no address is not judged. */
+export function nobodyToAnswer(
+  addresses: number,
+  machineOrOwnN: number
+): boolean {
+  return addresses > 0 && machineOrOwnN === addresses
+}
+
+/** The spec's `mail_ball_weighed`: nobody to answer is none, else jcrm's call. */
+export function mailBallWeighed(
+  owesReply: string | null | undefined,
+  nobody: boolean
+): Ball {
+  return nobody ? (SPEC.BALL_NONE as Ball) : mailBall(owesReply)
+}
+
 /** The client of a mail matter: an exact address link first, then a domain. */
 export function mailClient(
   counterparties: string[],
@@ -451,6 +497,8 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
     async handler(_args, ctx: ToolContext) {
       const owner = callerIsOwner(ctx)
       const entries: Array<{ key: string; name: string; card: Card }> = []
+      // Mail matters only machines or the owner wrote (AUTOMATED_IS_COUNTED).
+      let automated = 0
       const sources: Record<Source, SourceStatus> = {
         crm: { status: 'empty', cards: 0 },
         mail: { status: 'empty', cards: 0 },
@@ -523,7 +571,13 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
           } else {
             for (const m of rows) {
               if (!fresh(ageH(m.exported_at))) continue
-              const linked = mailClient(m.counterparties ?? [], links)
+              const cps: string[] = m.counterparties ?? []
+              const nobody = nobodyToAnswer(
+                cps.length,
+                cps.filter(machineOrOwn).length
+              )
+              if (nobody) automated += 1
+              const linked = mailClient(cps, links)
               entries.push({
                 key: linked ? clientKey(linked) : `mail:${m.matter}`,
                 name: linked ?? String(m.matter),
@@ -531,9 +585,13 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
                   source: 'mail',
                   ref: String(m.matter),
                   title: String(m.next_action ?? m.stage ?? m.matter),
-                  ball: mailBall(m.owes_reply),
+                  ball: mailBallWeighed(m.owes_reply, nobody),
                   days: typeof m.days_since === 'number' ? m.days_since : null,
-                  because: m.stage ? String(m.stage) : null,
+                  because: nobody
+                    ? 'only machines or our own address wrote'
+                    : m.stage
+                      ? String(m.stage)
+                      : null,
                   link: null,
                   spec: cardSpec(SPEC.SOURCE_MAIL, '') || null,
                 },
@@ -739,6 +797,7 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
         total: entries.length,
         counts,
         unspecced,
+        automated,
         sources,
         clients: shown,
         clients_total: clients.length,
