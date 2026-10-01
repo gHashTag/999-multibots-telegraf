@@ -18,6 +18,7 @@ import {
   mailBall,
   mailBallWeighed,
   nobodyToAnswer,
+  relayDomain,
   mayLink,
   mayRead,
   meetingBall,
@@ -817,9 +818,49 @@ describe('automation/ball-board -- the spec, against the host', () => {
     expect(b.sources.mail.cards).toBe(4)
   })
 
+  it("a relay's no-reply speaks for a person", async () => {
+    expect(relayDomain('hh.ru')).toBe(true)
+    expect(relayDomain('spb.hh.ru')).toBe(true)
+    expect(relayDomain('osf.io')).toBe(false)
+    expect(relayDomain('fastmaildmarc.com')).toBe(false)
+    expect(SPEC.RELAY_DOMAIN).toBe('hh.ru')
+    expect(SPEC.RELAY_SEEN).toBe(48)
+
+    // "A message from the employer" arrives from hh.ru's no-reply.
+    expect(machineOrOwn('noreply@hh.ru')).toBe(false)
+    expect(machineOrOwn('openscienceframework-noreply@osf.io')).toBe(true)
+
+    stubCrm([])
+    const b = await board(
+      stubPool({
+        mail: [
+          {
+            matter: 'Bell Integrator',
+            owes_reply: 'us',
+            stage: 'contacted',
+            counterparties: ['noreply@hh.ru'],
+            exported_at: hoursAgo(1),
+          },
+          {
+            matter: 'osf.io',
+            owes_reply: 'us',
+            stage: 'contacted',
+            counterparties: ['openscienceframework-noreply@osf.io'],
+            exported_at: hoursAgo(1),
+          },
+        ],
+      })
+    )
+    const ball = (ref: string) =>
+      b.clients.flatMap(c => c.cards).find(c => c.ref === ref)?.ball
+    expect(ball('Bell Integrator')).toBe(SPEC.BALL_OURS)
+    expect(ball('osf.io')).toBe(SPEC.BALL_NONE)
+    expect(b.automated).toBe(1)
+  })
+
   it('the board is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(5)
+    expect(SPEC.VERSION).toBe(6)
     expect(BALL_BOARD_TOOLS.map(t => t.name)).toEqual([
       SPEC.TOOL,
       SPEC.PUSH_TOOL,
