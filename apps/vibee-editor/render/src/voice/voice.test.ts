@@ -18,7 +18,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_SPEAK_CHARS,
-  RU_EARS_TIMEOUT_MS,
+  EARS_TIMEOUT_MS,
   hear,
   pickVoice,
   resetVoiceBudgetForTests,
@@ -26,6 +26,7 @@ import {
   speakable,
   spokenLanguage,
   ttsConfig,
+  voiceStatus,
   warm,
   withinBudget,
 } from './voice'
@@ -36,6 +37,8 @@ beforeEach(() => {
   delete process.env.TTS_API_KEY
   delete process.env.VOICE_HEAR_RU_URL
   delete process.env.VOICE_HEAR_RU_KEY
+  delete process.env.VOICE_HEAR_EN_URL
+  delete process.env.VOICE_HEAR_EN_KEY
   process.env.WHISPER_BASE_URL = 'http://whisper.railway.internal:8000/v1'
   process.env.WHISPER_API_KEY = 'k'
   resetVoiceBudgetForTests()
@@ -264,7 +267,7 @@ describe('hear', () => {
           )
         })
         const heard = hear(audio, 'audio/webm', 'ru')
-        await vi.advanceTimersByTimeAsync(RU_EARS_TIMEOUT_MS + 1)
+        await vi.advanceTimersByTimeAsync(EARS_TIMEOUT_MS + 1)
         expect(await heard).toEqual({ text: 'от whisper', engine: 'whisper' })
         expect(doors[0]).toBe('gigaam')
       } finally {
@@ -285,6 +288,75 @@ describe('hear', () => {
       const { doors } = ears(() => json({ text: 'не должно' }))
       expect((await hear(audio, 'audio/webm', 'ru'))?.engine).toBe('whisper')
       expect(doors.includes('gigaam')).toBe(false)
+    })
+  })
+
+  describe('English ears (Parakeet)', () => {
+    const audio = Buffer.from([1, 2, 3])
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      })
+    /** Each door is told apart by its host; whisper answers everything else. */
+    function doors(parakeet: () => Response) {
+      const knocked: string[] = []
+      const keys: Array<string | null> = []
+      vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+        const host = new URL(url).hostname.split('.')[0]
+        knocked.push(
+          host === 'parakeet' || host === 'gigaam' ? host : 'whisper'
+        )
+        if (host === 'parakeet') {
+          keys.push(new Headers(init.headers).get('authorization'))
+          return parakeet()
+        }
+        if (host === 'gigaam') return json({ text: 'по-русски' })
+        return json({ text: ' from whisper ' })
+      })
+      return { knocked, keys }
+    }
+    beforeEach(() => {
+      process.env.VOICE_HEAR_RU_URL = 'http://gigaam.railway.internal:8080'
+      process.env.VOICE_HEAR_RU_KEY = 'gk'
+      process.env.VOICE_HEAR_EN_URL = 'http://parakeet.railway.internal:8080/'
+      process.env.VOICE_HEAR_EN_KEY = 'pk'
+    })
+
+    it('hears English through Parakeet alone, with its own key', async () => {
+      const { knocked, keys } = doors(() =>
+        json({ text: ' Open my calendar. ' })
+      )
+      expect(await hear(audio, 'audio/webm', 'en')).toEqual({
+        text: 'Open my calendar.',
+        engine: 'parakeet',
+      })
+      expect(knocked).toEqual(['parakeet'])
+      expect(keys).toEqual(['Bearer pk'])
+    })
+
+    it('keeps Russian on GigaAM and an unnamed language on whisper', async () => {
+      const { knocked } = doors(() => json({ text: 'should not' }))
+      expect((await hear(audio, 'audio/webm', 'ru'))?.engine).toBe('gigaam')
+      expect((await hear(audio, 'audio/webm'))?.engine).toBe('whisper')
+      expect(knocked.includes('parakeet')).toBe(false)
+    })
+
+    it('falls back to whisper when Parakeet fails', async () => {
+      const { knocked } = doors(() => json({ error: 'down' }, 503))
+      expect(await hear(audio, 'audio/webm', 'en')).toEqual({
+        text: 'from whisper',
+        engine: 'whisper',
+      })
+      expect(knocked[0]).toBe('parakeet')
+    })
+
+    it('says which ears each language has', () => {
+      delete process.env.VOICE_HEAR_RU_KEY
+      expect(voiceStatus()).toMatchObject({
+        hearRu: 'whisper',
+        hearEn: 'parakeet',
+      })
     })
   })
 
