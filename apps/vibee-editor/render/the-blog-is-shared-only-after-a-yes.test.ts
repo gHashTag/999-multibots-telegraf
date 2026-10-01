@@ -330,3 +330,16 @@ describe('every network carries its own tag', () => {
     expect(questionFor(article)).toContain(`(${article.link})`)
   })
 })
+
+describe('a press is not a post', () => {
+  it('a share page still on screen after the press is NOT confirmed', async () => {
+    const { receiptOf } = await import('./src/agent/blog-share')
+    expect(receiptOf('https://x.com/intent', 'https://x.com/intent')).toMatch(
+      /не подтверждено/
+    ) // cyrillic-ok: test
+    expect(receiptOf('https://x.com/intent', '')).toMatch(/не подтверждено/) // cyrillic-ok: test
+    expect(receiptOf('https://x.com/intent', 'https://x.com/home')).not.toMatch(
+      /не подтверждено/
+    ) // cyrillic-ok: test
+  })
+})

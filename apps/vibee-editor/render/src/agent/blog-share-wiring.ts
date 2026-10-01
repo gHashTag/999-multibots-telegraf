@@ -85,6 +85,7 @@ async function publishEverywhere(
    */
   const { loginsOfPerson } = await import('../browser/logins')
   const { isNotConnected } = await import('./rounds')
+  const { receiptOf } = await import('./blog-share')
   const logins = await loginsOfPerson(pool, owner).catch(() => null)
   for (const [net, url, labels] of [
     ['X', urls.x, ['post']],
@@ -109,14 +110,21 @@ async function publishEverywhere(
           await evaluateOn(cdp, page.id, findProbe(label)).catch(() => null)
         )
         if (found) {
+          const before = String(
+            await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+          )
           await clickAt(cdp, page.id, found.x, found.y)
-          pressed = found.label
+          await settle(5_000)
+          const after = String(
+            await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+          )
+          pressed = `${found.label}» · ${receiptOf(before, after)}`
           break
         }
       }
       if (net === 'X') void noteShape(pool, a.slug, 'single')
       out[net] = pressed
-        ? `нажато «${pressed}»` // cyrillic-ok: told to the owner
+        ? `нажато «${pressed}` // cyrillic-ok: told to the owner
         : 'кнопка публикации не найдена — окно оставлено открытым' // cyrillic-ok: told to the owner
     } catch (e) {
       out[net] = `ошибка: ${String(e).slice(0, 120)}` // cyrillic-ok: told to the owner

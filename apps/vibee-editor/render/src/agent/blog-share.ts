@@ -297,3 +297,16 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
   )
   return `asked about ${next.slug}`
 }
+
+/**
+ * A PRESS IS NOT A POST. "Pressed" only says a button was clicked; a share
+ * page that is still on screen afterwards usually means the network refused
+ * (a captcha, an empty field, a sign-in wall). The page leaving its share
+ * address is the cheapest receipt the browser can give without reading a feed.
+ */
+export function receiptOf(before: string, after: string): string {
+  if (!before || !after) return 'не подтверждено: адрес не прочитан' // cyrillic-ok: told to the owner
+  return before === after
+    ? 'не подтверждено: страница не сменилась' // cyrillic-ok: told to the owner
+    : 'страница ушла с формы' // cyrillic-ok: told to the owner
+}
