@@ -98,6 +98,16 @@ describe('the services agree by words', () => {
     expect(calledTools().length).toBeGreaterThan(5)
   })
 
+  it('reads a tool named from its .t27 spec, not only from a literal', () => {
+    // crm_sellers (crm-sellers-tool.ts) and the ball board take their names
+    // from the generated spec module (`name: SPEC.LIST_TOOL`); the literal
+    // reader missed them, and a DIRECT_CALL_ONLY entry for one read as a
+    // guard on a tool that does not exist.
+    const reg = registeredTools()
+    expect(reg).toContain('crm_sellers')
+    expect(reg).toContain('ball_work_push')
+  })
+
   /*
    * A MARKER FORM IS THREE PLACES: parsed, STRIPPED, and taught in the prompt.
    *
