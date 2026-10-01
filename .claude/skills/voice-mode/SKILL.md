@@ -88,6 +88,10 @@ Other guarantees, each pinned by a test in `session.test.ts`:
 | -- of which upload            | 232 ms                      | 20 ms                       |
 | -- of which whisper           | 1819 ms                     | 2067 ms                     |
 | -- of which the road          | 554 ms                      | 529 ms                      |
+| hear, after #3252, x7         | median 745 [683..780]       | median 3202 [2835..3482]    |
+| -- of which upload            | 87 ms                       | 18 ms                       |
+| -- of which the ears          | 175 ms (gigaam)             | 2617 ms (whisper)           |
+| -- of which the road          | 483 ms                      | 567 ms                      |
 
 What the pod measurements showed (cycle 2, inside the whisper pod):
 
@@ -101,7 +105,15 @@ What the pod measurements showed (cycle 2, inside the whisper pod):
 - The next real gain is a model that does not pad to 30 s: GigaAM (Russian
   CTC) as its own service. 24 threads would buy ~10% and steal CPU from TTS.
 
-Server-Timing settles it: whisper is ~70% of the wait, the road ~0.55 s,
+After #3252 Russian waits 745 ms, and the ears are the SMALLEST leg: the
+road between the browser, render and the ears is now what to cut -- and,
+before it, the player's own wait: `END_OF_TURN_MS = 850` of silence before the
+phrase is even sent, more than hearing and the road together. That makes #8
+(a model that knows the turn is over) the largest wait left. English
+did not change (whisper 2.1-2.8 s between runs is its spread, not a
+regression -- the whisper pod was idle at 475 threads during the run).
+
+Server-Timing settled it before GigaAM: whisper was ~70% of the wait, the road ~0.55 s,
 upload 0.2 s. The drop from 3649 to 2605 ms between the two rows is NOT a
 fix -- #3248 did not touch hearing; it is the same night-time variance the
 max column shows. Faster hearing means a faster model, nothing else.
@@ -175,6 +187,7 @@ the PR merges. A merge alone ships the render, not the ears.
 | 10  | first sound waits for a whole first sentence       | FIXED cycle 2 (first clause)  |
 | 11  | voice picker only for the app language             | OPEN                          |
 | 12  | product words misheard by every engine ("рилс")    | OPEN -- hotword fix-up        |
+| 13  | English hearing is still whisper, ~2.6 s           | OPEN -- Parakeet v3 service   |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 
