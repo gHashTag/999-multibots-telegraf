@@ -51,6 +51,7 @@ tri — оболочка Trinity S³AI
   tri prices     таблица цен: модель, токены, единица
   tri margin     маржа каждой картинки и видео: себестоимость, токены, выручка по курсу клуба
   tri card       как выглядит карточка владельца на живых данных
+  tri ball [show|push [--dry] [owner/repo ...]]  доска «где мяч»: CRM + почта + открытые PR и баги по клиентам (specs/automation/ball-board.t27)
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
@@ -648,6 +649,7 @@ case "${1:-}" in
   disk)     bash "$LOOP/check-free-disk.sh" && bash "$LOOP/free-disk.sh" ;;
   pipeline) (cd "$RENDER" && npx tsx scripts/pipeline-check.ts) ;;
   card)   shift; bash "$ROOT/bin/helpers/card.sh" "$ROOT" "$@" ;;
+  ball)   shift; bash "$ROOT/bin/helpers/ball.sh" "$ROOT" "$@" ;;
   prices)   (cd "$RENDER" && npx tsx scripts/prices.ts) ;;
   # The margin of every image and video the code can sell, from the code's
   # own tables: no network, no tokens. Exit 1 when any sale is below cost.

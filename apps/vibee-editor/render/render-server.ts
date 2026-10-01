@@ -688,6 +688,7 @@ import {
 } from './src/telegram-api'
 import { rewriteAppUrlsForToken } from './src/app-links'
 import { renderFeedEntry } from './src/render-feed-entry'
+import * as MEETINGS from './src/spec/meeting-reminders.gen'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -2868,6 +2869,29 @@ setTimeout(
   },
   3 * 60 * 1000
 )
+
+/*
+ * MEETING REMINDERS (src/agent/meetings.ts, spec automation/meeting-reminders).
+ * The pace lives in agent_meeting_reminders.fire_at; this tick only asks the
+ * database what is due, so a redeploy loses no reminder and repeats none.
+ * MEETINGS_REMINDERS=0 turns the sending off; the rows wait for it.
+ */
+const meetingsTick = () => {
+  if (process.env.MEETINGS_REMINDERS === '0') return
+  void (async () => {
+    try {
+      const { sweepMeetings } = await import('./src/agent/meetings')
+      const r = await sweepMeetings((await getPool()) as any)
+      if (r.claimed) console.log(`[meetings] ${JSON.stringify(r)}`)
+    } catch (e) {
+      console.error('[meetings] failed:', String(e).slice(0, 300))
+    }
+  })()
+}
+setTimeout(() => {
+  meetingsTick()
+  setInterval(meetingsTick, MEETINGS.TICK_S * 1000)
+}, MEETINGS.FIRST_TICK_S * 1000)
 
 /*
  * EVERY MARKETPLACE AGENT, CHECKED EVERY DAY (src/agent/daily-acceptance.ts;
@@ -8805,6 +8829,60 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true })
     }
 
+    /*
+     * VOICE MODE: hear one utterance, speak one sentence. Both go to our own
+     * speaches service on Railway (src/voice/voice.ts says why and how fast).
+     * The words a person said are sent as an ordinary chat message by the
+     * player, so the agent keeps every tool and the transcript keeps the turn.
+     */
+    if (route.startsWith('/api/voice/')) {
+      const voice = await import('./src/voice/voice')
+      if (route === '/api/voice/status' && req.method === 'GET') {
+        return sendJson(res, 200, voice.voiceStatus())
+      }
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      if (route === '/api/voice/transcribe' && req.method === 'POST') {
+        if (!voice.withinBudget(who, 'hear'))
+          return sendJson(res, 429, { error: 'too many utterances' })
+        let bytes: Buffer
+        try {
+          bytes = await voice.readBytes(req)
+        } catch (e) {
+          return sendJson(res, 413, { error: String((e as Error).message) })
+        }
+        if (bytes.length < 512) return sendJson(res, 200, { text: '' })
+        try {
+          const text = await voice.hear(bytes, req.headers['content-type'])
+          if (text === null)
+            return sendJson(res, 503, { error: 'no transcriber configured' })
+          return sendJson(res, 200, { text })
+        } catch (e) {
+          console.warn(`[voice] transcribe failed: ${(e as Error).message}`)
+          return sendJson(res, 502, { error: 'transcriber failed' })
+        }
+      }
+      if (route === '/api/voice/speak' && req.method === 'POST') {
+        if (!voice.withinBudget(who, 'speak'))
+          return sendJson(res, 429, { error: 'too many sentences' })
+        let body: Record<string, unknown>
+        try {
+          body = JSON.parse(await readBody(req, 64 * 1024))
+        } catch {
+          return sendJson(res, 400, { error: 'bad json' })
+        }
+        const out = await voice.speak(body)
+        if (!out.ok) return sendJson(res, out.status, { error: out.error })
+        res.writeHead(200, {
+          'Content-Type': out.contentType,
+          'Content-Length': out.audio.length,
+          'Cache-Control': 'no-store',
+        })
+        return res.end(out.audio)
+      }
+      return sendJson(res, 404, { error: 'unknown voice route' })
+    }
+
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
@@ -9012,6 +9090,33 @@ const server = createServer(async (req, res) => {
    * is the whole credential, it was never given to the agent, and it is spent
    * once (see src/browser/approvals.ts).
    */
+  /*
+   * A meeting's calendar file, for the "add to calendar" button on its card.
+   * BEFORE authenticate(): a phone's calendar app fetches it with no session.
+   * The meeting's own ics_token is the whole key; it is never the tap token.
+   */
+  if (
+    (req.url?.split('?')[0] || '') === MEETINGS.ICS_PATH &&
+    req.method === 'GET'
+  ) {
+    const token = new URL(req.url || '', 'http://x').searchParams.get('t') || ''
+    const { icsByToken } = await import('./src/agent/meetings')
+    const ics = await icsByToken((await getPool()) as any, token).catch(
+      () => null
+    )
+    if (!ics) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+      res.end('not found')
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="meeting.ics"',
+      'Cache-Control': 'private, no-store',
+    })
+    res.end(ics)
+    return
+  }
   if ((req.url?.split('?')[0] || '') === '/api/browser/approve') {
     const url = new URL(req.url || '', 'http://x')
     const id = url.searchParams.get('id') || ''

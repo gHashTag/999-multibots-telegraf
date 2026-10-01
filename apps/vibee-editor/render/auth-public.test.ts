@@ -257,6 +257,18 @@ describe('the public counters', () => {
     ).toBe(false)
   })
 
+  it('a meeting calendar file opens without a signature, for reading only', async () => {
+    const { isPublic } = await import('./auth')
+    const { ICS_PATH } = await import('./src/spec/meeting-reminders.gen')
+    expect(
+      isPublic({ url: `${ICS_PATH}?token=x`, method: 'GET' } as never)
+    ).toBe(true)
+    expect(isPublic({ url: ICS_PATH, method: 'POST' } as never)).toBe(false)
+    expect(isPublic({ url: `${ICS_PATH}-admin`, method: 'GET' } as never)).toBe(
+      false
+    )
+  })
+
   it('an arrival is counted without a signature; a bot start is not', async () => {
     const { isPublic } = await import('./auth')
     const { TRAFFIC_PATHS } = await import('./src/agent/traffic')
@@ -276,5 +288,15 @@ describe('the public counters', () => {
     expect(
       isPublic({ url: '/api/traffic/start', method: 'POST' } as never)
     ).toBe(false)
+  })
+
+  it('the voice list is public to read; hearing and speaking are not', async () => {
+    const { isPublic } = await import('./auth')
+    const get = (url: string) => isPublic({ url, method: 'GET' } as never)
+    const post = (url: string) => isPublic({ url, method: 'POST' } as never)
+    expect(get('/api/voice/status')).toBe(true)
+    expect(post('/api/voice/status')).toBe(false)
+    expect(post('/api/voice/transcribe')).toBe(false)
+    expect(post('/api/voice/speak')).toBe(false)
   })
 })

@@ -121,6 +121,8 @@ struct ProfileScreen: View {
   @State private var ошибкаПлана: String?
   /// Всё сгенерированное — то, за что уже заплачено токенами.
   @State private var файлы: [API.Файл] = []
+  @StateObject private var purchase = TokenPurchase()
+  @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
     ScrollView {
@@ -187,12 +189,22 @@ struct ProfileScreen: View {
             сетка
           }
         }
+
+        // The web screens this app has no native form of, opened as the web's
+        // own pages (AppWebView.swift). For guests too: the blog, the lessons
+        // and the agents are readable without an account.
+        WebSectionsList(username: профиль?.username)  // cyrillic-ok: existing state
       }
       .padding(Тема.Отступ.md)
     }
     // #050505, а не #000000 общей темы: Profile.css:1114 и :1122.
     .background(Тема.Профиль.фон)
     .task(id: версия) { await загрузить() }
+    .onChange(of: scenePhase) { _, phase in
+      guard phase == .active else { return }
+      // cyrillic-ok-next-line
+      Task { await purchase.checkAfterReturn { остаток = $0 } }
+    }
   }
 
   // MARK: - Куски
@@ -215,6 +227,9 @@ struct ProfileScreen: View {
         Button {
           Task {
             await Identity.logout()
+            // Sign the pages inside the app out too, or a second session
+            // would outlive the one the person just ended.
+            await WebHosts.renewAll()
             профиль = nil
             ролики = []
             версия += 1
@@ -249,7 +264,10 @@ struct ProfileScreen: View {
            * держу второй жёлтый ради статусной семантики.
            */
           .foregroundStyle(Тема.Профиль.акцент)
-        SignInView { версия += 1 }
+        SignInView {
+          версия += 1  // cyrillic-ok: existing state
+          Task { await WebHosts.renewAll() }
+        }
       }
     }
   }
@@ -290,8 +308,14 @@ struct ProfileScreen: View {
         }
         HStack(spacing: Тема.Профиль.просветСетки) {
           ForEach(пакеты) { пакет in
-            ПлиткаПакета(пакет: пакет)
+            // cyrillic-ok-next-line
+            TokenPackButton(pack: пакет.id, purchase: purchase) { ПлиткаПакета(пакет: пакет) }
           }
+        }
+        if let note = purchase.note {
+          Text(note)
+            .font(Typeface.style(.footnote))
+            .foregroundStyle(Palette.textMuted)
         }
       }
     }

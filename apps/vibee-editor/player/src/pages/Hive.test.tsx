@@ -1,4 +1,4 @@
-import { act } from 'react'
+import { act, useEffect } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -52,13 +52,40 @@ vi.mock('@/lib/framedSession', async importOriginal => {
 
 import { getDefaultStore } from 'jotai'
 import { showLoginModalAtom } from '@/atoms'
-import HivePage from './Hive'
+import HivePage, { BOARD_GRACE_MS } from './Hive'
 // Mounted here because App.tsx mounts it: ONE card above the routes, not
 // one per page. Hive used to render its own, and these cases read the card
 // out of the page's own tree. The page's job is to OPEN the door, and that
 // is asserted on the atom below; the card is drawn by the app root, so the
 // app root is what the harness has to reproduce.
 import { LoginModal } from '@/components/Auth/LoginModal'
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
+
+/** Where the app's address is, as the router holds it. */
+const where: { path: string; go: (to: string) => void } = {
+  path: '',
+  go: () => {},
+}
+function Where() {
+  const loc = useLocation()
+  const navigate = useNavigate()
+  useEffect(() => {
+    where.path = `${loc.pathname}${loc.search}${loc.hash}`
+    where.go = to => navigate(to)
+  }, [loc, navigate])
+  return null
+}
+
+/** The page as App.tsx routes it: inside a router, at /game unless told. */
+function Page({ at = '/game' }: { at?: string }) {
+  return (
+    <MemoryRouter initialEntries={[at]}>
+      <HivePage />
+      <LoginModal />
+      <Where />
+    </MemoryRouter>
+  )
+}
 
 let container: HTMLDivElement
 let root: Root
@@ -77,14 +104,7 @@ afterEach(() => {
 describe('the hive page', () => {
   it.each(['ru', 'en'])('frames and links the game in %s', lang => {
     language.lang = lang
-    act(() =>
-      root.render(
-        <>
-          <HivePage />
-          <LoginModal />
-        </>
-      )
-    )
+    act(() => root.render(<Page />))
 
     // The frame holds THIS origin's copy of the board (owner, 2026-09-26:
     // "embed the Queen's board into the app"); t27.ai is only the way out.
@@ -96,52 +116,145 @@ describe('the hive page', () => {
     )
   })
 
-  /**
-   * A BLACK RECTANGLE WITH NOWHERE TO GO.
-   *
-   * Measured in the pane on 25.09.2026: this tab rendered ENTIRELY black.
-   * The other site refused to be framed -- a `frame-ancestors` policy -- and
-   * the browser put its own error document in the frame, which fires `load`
-   * like any other. The page took that word for proof, removed the loading
-   * notice with its escape link, and left a black rectangle above the tab
-   * bar with nothing in it.
-   *
-   * Nothing here can look inside a cross-origin frame to check, and it
-   * should not try. So the exit stops depending on a signal that lies: it
-   * is there before the load and after it.
-   */
-  it('the way out survives the frame reporting itself loaded', () => {
-    act(() =>
-      root.render(
-        <>
-          <HivePage />
-          <LoginModal />
-        </>
-      )
-    )
-    const frame = container.querySelector('iframe')!
+  it('no link sits over the board once it has loaded', () => {
+    // Owner, 2026-10-01, with a screenshot: the corner pill covered the
+    // board's own header (LIVE, MENU). The way out lives in the placeholder.
+    act(() => root.render(<Page />))
+    expect(container.querySelector('a.hive-out')).toBeTruthy()
     act(() => {
-      frame.dispatchEvent(new Event('load'))
+      container.querySelector('iframe')!.dispatchEvent(new Event('load'))
     })
-    // The loading notice may go -- it says "loading", and the load happened.
-    const out = container.querySelector('a.hive-out--corner')
-    expect(
-      out,
-      'a tab that cannot show the page must say where it is'
-    ).toBeTruthy()
-    expect(out!.getAttribute('href')).toContain('t27.ai')
+    expect(container.querySelector('a.hive-out')).toBeNull()
+  })
+})
+
+/**
+ * ONE ADDRESS PER VIEW, AND A WAY OUT WHEN THE BOARD NEVER DRAWS.
+ *
+ * The frame is this origin's /queen/, so the page reads it directly. Here its
+ * window and document are doubles: jsdom does not load /queen/, and the
+ * doubles say exactly what the board would -- the hash it wrote, and whether
+ * its #root has children.
+ */
+describe('the game address follows the board, and the board the address', () => {
+  type Board = {
+    hash: string
+    drawn: boolean
+    replace: ReturnType<typeof vi.fn>
+  }
+  let board: Board
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    language.lang = 'en'
+    board = { hash: '#/queen', drawn: true, replace: vi.fn() }
+  })
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
-  it('and it is there before the load as well', () => {
-    act(() =>
-      root.render(
-        <>
-          <HivePage />
-          <LoginModal />
-        </>
-      )
+  function open(at = '/game') {
+    act(() => root.render(<Page at={at} />))
+    const iframe = container.querySelector('iframe')!
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      get: () => ({
+        location: {
+          get hash() {
+            return board.hash
+          },
+          href: `https://app.t27.ai/queen/?lang=en${board.hash}`,
+          replace: board.replace,
+        },
+        postMessage: () => {},
+      }),
+    })
+    Object.defineProperty(iframe, 'contentDocument', {
+      configurable: true,
+      get: () => ({
+        getElementById: (id: string) =>
+          id === 'root' ? { childElementCount: board.drawn ? 1 : 0 } : null,
+      }),
+    })
+    act(() => {
+      iframe.dispatchEvent(new Event('load'))
+    })
+    return iframe
+  }
+  const tick = (ms = 400) =>
+    act(() => {
+      vi.advanceTimersByTime(ms)
+    })
+
+  it('/game/<view> opens that view in the frame, the rest of the query with it', () => {
+    act(() => root.render(<Page at="/game/tri?screen=chat" />))
+    expect(container.querySelector('iframe')!.getAttribute('src')).toBe(
+      '/queen/?lang=en#/queen?tab=tri&screen=chat'
     )
-    expect(container.querySelector('a.hive-out--corner')).toBeTruthy()
+  })
+
+  it('a view picked inside the board becomes the address /game/<view>', () => {
+    open()
+    board.hash = '#/queen?tab=kanban'
+    tick()
+    expect(where.path).toBe('/game/kanban')
+    board.hash = '#/queen?tab=skills&skill=t27%2Ftri'
+    tick()
+    expect(where.path).toBe('/game/skills?skill=t27%2Ftri')
+    // The address followed the board; the board is not sent anywhere for it
+    // (a replace here would reload her view on every pick).
+    expect(board.replace).not.toHaveBeenCalled()
+  })
+
+  it('a bookmark from before /game (its view in the hash) lands on the same view', () => {
+    // nginx sends app.t27.ai/queen/#/queen?tab=wars to /game, fragment kept.
+    act(() => root.render(<Page at="/game#/queen?tab=wars" />))
+    expect(container.querySelector('iframe')!.getAttribute('src')).toBe(
+      '/queen/?lang=en#/queen?tab=wars'
+    )
+  })
+
+  it('the address moved by the app (Back, a link) moves the frame, once', () => {
+    open('/game/kanban')
+    board.hash = '#/queen?tab=kanban'
+    tick()
+    act(() => where.go('/game/wars'))
+    expect(board.replace).toHaveBeenCalledTimes(1)
+    expect(board.replace).toHaveBeenCalledWith(
+      'https://app.t27.ai/queen/?lang=en#/queen?tab=wars'
+    )
+    // The board writing the view it already shows moves nothing back.
+    board.hash = '#/queen?tab=wars'
+    tick()
+    expect(where.path).toBe('/game/wars')
+    expect(board.replace).toHaveBeenCalledTimes(1)
+  })
+
+  it('a hash that is not her board leaves the address alone', () => {
+    open('/game/kanban')
+    board.hash = '#/profile'
+    tick()
+    expect(where.path).toBe('/game/kanban')
+  })
+
+  it('a board that never draws brings the way out back after the grace', () => {
+    // The black rectangle of 25.09.2026: the frame fired `load` for the
+    // browser's error page. Now the page can look, so it does.
+    board.drawn = false
+    open()
+    tick(BOARD_GRACE_MS - 400)
+    expect(container.querySelector('a.hive-out')).toBeNull()
+    tick(800)
+    const out = container.querySelector('a.hive-out')
+    expect(out, 'a board that is not there must say where it is').toBeTruthy()
+    expect(out!.getAttribute('href')).toContain('t27.ai')
+    expect(container.textContent).toContain('hive.stuck')
+  })
+
+  it('control: a board that drew itself keeps the screen to itself', () => {
+    open()
+    tick(BOARD_GRACE_MS + 800)
+    expect(container.querySelector('a.hive-out')).toBeNull()
   })
 })
 
@@ -185,14 +298,7 @@ describe('the hive page answers its game frame', () => {
   })
 
   function renderAndSpy() {
-    act(() =>
-      root.render(
-        <>
-          <HivePage />
-          <LoginModal />
-        </>
-      )
-    )
+    act(() => root.render(<Page />))
     const frame = container.querySelector('iframe')!.contentWindow!
     const post = vi.spyOn(frame, 'postMessage').mockImplementation(() => {})
     return { frame, post }
@@ -371,14 +477,7 @@ describe('the hive page answers its game frame', () => {
       const { load } = renderFrame()
       load()
       language.lang = 'ru'
-      act(() =>
-        root.render(
-          <>
-            <HivePage />
-            <LoginModal />
-          </>
-        )
-      )
+      act(() => root.render(<Page />))
       const iframe = container.querySelector('iframe')!
       expect(iframe.getAttribute('src')).toBe('/queen/?lang=ru#/queen')
       load()
