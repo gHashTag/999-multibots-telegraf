@@ -52,12 +52,13 @@ final class NavigationListTests: XCTestCase {
   }
 
   func testTheOrderIsTheListsOrder() {
-    // The order is a product decision recorded in the shared file: the hive
-    // comes BEFORE the profile, because the last place in the row is the one
-    // a thumb reaches without looking.
+    // The order is a product decision recorded in the shared file. Owner,
+    // 2026-10-01: "make Hive the first tab" -- the board is what the app opens
+    // on. The profile keeps the last place, the one a thumb reaches without
+    // looking.
     XCTAssertEqual(
       Navigation.bundled.map(\.id),
-      ["feed", "chat", "ai", "hive", "profile"]
+      ["hive", "feed", "chat", "ai", "profile"]
     )
   }
 
