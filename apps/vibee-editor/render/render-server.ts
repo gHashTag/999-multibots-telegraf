@@ -688,6 +688,7 @@ import {
 } from './src/telegram-api'
 import { rewriteAppUrlsForToken } from './src/app-links'
 import { renderFeedEntry } from './src/render-feed-entry'
+import * as MEETINGS from './src/spec/meeting-reminders.gen'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -2868,6 +2869,29 @@ setTimeout(
   },
   3 * 60 * 1000
 )
+
+/*
+ * MEETING REMINDERS (src/agent/meetings.ts, spec automation/meeting-reminders).
+ * The pace lives in agent_meeting_reminders.fire_at; this tick only asks the
+ * database what is due, so a redeploy loses no reminder and repeats none.
+ * MEETINGS_REMINDERS=0 turns the sending off; the rows wait for it.
+ */
+const meetingsTick = () => {
+  if (process.env.MEETINGS_REMINDERS === '0') return
+  void (async () => {
+    try {
+      const { sweepMeetings } = await import('./src/agent/meetings')
+      const r = await sweepMeetings((await getPool()) as any)
+      if (r.claimed) console.log(`[meetings] ${JSON.stringify(r)}`)
+    } catch (e) {
+      console.error('[meetings] failed:', String(e).slice(0, 300))
+    }
+  })()
+}
+setTimeout(() => {
+  meetingsTick()
+  setInterval(meetingsTick, MEETINGS.TICK_S * 1000)
+}, MEETINGS.FIRST_TICK_S * 1000)
 
 /*
  * EVERY MARKETPLACE AGENT, CHECKED EVERY DAY (src/agent/daily-acceptance.ts;
@@ -8984,6 +9008,33 @@ const server = createServer(async (req, res) => {
    * is the whole credential, it was never given to the agent, and it is spent
    * once (see src/browser/approvals.ts).
    */
+  /*
+   * A meeting's calendar file, for the "add to calendar" button on its card.
+   * BEFORE authenticate(): a phone's calendar app fetches it with no session.
+   * The meeting's own ics_token is the whole key; it is never the tap token.
+   */
+  if (
+    (req.url?.split('?')[0] || '') === MEETINGS.ICS_PATH &&
+    req.method === 'GET'
+  ) {
+    const token = new URL(req.url || '', 'http://x').searchParams.get('t') || ''
+    const { icsByToken } = await import('./src/agent/meetings')
+    const ics = await icsByToken((await getPool()) as any, token).catch(
+      () => null
+    )
+    if (!ics) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+      res.end('not found')
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="meeting.ics"',
+      'Cache-Control': 'private, no-store',
+    })
+    res.end(ics)
+    return
+  }
   if ((req.url?.split('?')[0] || '') === '/api/browser/approve') {
     const url = new URL(req.url || '', 'http://x')
     const id = url.searchParams.get('id') || ''
