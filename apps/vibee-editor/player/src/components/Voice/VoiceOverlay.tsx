@@ -142,7 +142,8 @@ export function VoiceOverlay({ session, onClose }: Props) {
               <div className="voice-overlay__actions">
                 <button
                   type="button"
-                  className="voice-overlay__action"
+                  // Outside Telegram it is the only way forward, so it leads.
+                  className={`voice-overlay__action${inTelegram ? '' : ' voice-overlay__action--primary'}`}
                   onClick={restart}
                   data-testid="voice-retry"
                 >

@@ -17,27 +17,12 @@ import { BRAND_MARK_URL } from '@/components/BrandLoader/BrandLoader'
 import type { VoicePhase } from '@/lib/voice/session'
 import type { VoiceMode } from '@/lib/voice/chatVoice'
 import { parseMark, type Mark } from './logoFacets'
-import { bandAt, easeHue, mixHue } from './orbMath'
+import { PALETTE, bandAt, easeHue, mixHue } from './orbMath'
 
 const BANDS = 27
 const LOW_HZ = 90
 const HIGH_HZ = 7000
 const TAU = Math.PI * 2
-
-/**
- * Two hues and a saturation per phase: one glance says whose turn it is.
- * The aura blends the pair, so every phase reads as a gradient, not a flat
- * colour.
- */
-const PALETTE: Record<VoicePhase, [number, number, number]> = {
-  off: [222, 250, 12],
-  starting: [222, 252, 45],
-  listening: [188, 226, 95],
-  hearing: [270, 318, 90],
-  thinking: [36, 8, 95],
-  speaking: [46, 16, 100],
-  error: [356, 18, 55],
-}
 
 /**
  * The aura is blurred anyway: drawing it at a fraction of the screen's
@@ -184,10 +169,12 @@ export function VoiceOrb({
       } else if (
         phase === 'thinking' ||
         phase === 'starting' ||
-        phase === 'hearing'
+        phase === 'hearing' ||
+        phase === 'error'
       ) {
-        // No sound to read: a slow light travelling around the mark.
-        const speed = phase === 'hearing' ? 1.4 : 0.55
+        // No sound to read: a slow light travelling around the mark. Stopped,
+        // it is slower still: the mark is the button that starts again.
+        const speed = phase === 'hearing' ? 1.4 : phase === 'error' ? 0.3 : 0.55
         for (let b = 0; b < BANDS; b++) {
           const c = Math.cos(TAU * (b / BANDS - t * speed))
           target[b] = 0.14 + 0.66 * Math.pow(Math.max(0, c), 6)
