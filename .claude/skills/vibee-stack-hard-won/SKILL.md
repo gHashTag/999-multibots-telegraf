@@ -10930,3 +10930,14 @@ simulator down when the check is done (`xcrun simctl shutdown <udid>`); the
 pre-push gates need that memory.
 A probe is quicker as a fact from the source than as a log line: the iframe
 was in `Hive.tsx` all along.
+
+The native tabs got the same tap later (iteration 3): Profile and AI scroll to
+the top through `.scrollsToTopOnReselect()` (`VibeeApp.swift`, a
+`ScrollViewReader` on the first view inside the `ScrollView`, because
+`ScrollPosition(edge:)` is iOS 18 and the app targets 17). AI with the editor
+pushed pops back to the root first, as UIKit's pop-to-root does. The agent
+chat goes to the LATEST reply, not the top: in a conversation that is "home".
+Checked live on the simulator: Profile and AI. NOT checked live: the editor
+pop and the chat (both need a signed-in account -- say so, do not imply it).
+`xcodebuild test` shuts its simulator down when it ends; `./tri iphone sim`
+now boots one, and `./tri iphone off` gives the ~10 GB back.

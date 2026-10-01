@@ -112,6 +112,7 @@ struct GenerateScreen: View {
   @State private var модель: Модель?
   @ObservedObject private var слои = Слои.общие
   @State private var открытьРедактор = false
+  @Environment(\.tabReselects) private var tabReselects
 
   /**
    * WHAT WAS ACTUALLY BROKEN ABOUT "Взять" (Take).
@@ -777,7 +778,8 @@ struct GenerateScreen: View {
             показ(результат)
           }
         }
-        .padding(Тема.Отступ.md)
+        .padding(Тема.Отступ.md)  // cyrillic-ok: existing theme token
+        .scrollsToTopOnReselect(unless: открытьРедактор)  // cyrillic-ok: existing state
       }
       .background(Тема.Цвет.фон)
       .navigationTitle("ИИ")
@@ -819,6 +821,9 @@ struct GenerateScreen: View {
        * путь, а конвейер — это как раз про то, чтобы шаг за шагом идти
        * туда и обратно.
        */
+      // A repeat tap on the tab while the editor is open goes back to the
+      // root first -- UIKit's pop-to-root. The scroll waits for the next tap.
+      .onChange(of: tabReselects) { открытьРедактор = false }  // cyrillic-ok: existing state
       .navigationDestination(isPresented: $открытьРедактор) {
         EditorScreen()
           .navigationTitle("Редактор")

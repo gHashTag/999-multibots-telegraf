@@ -179,6 +179,34 @@ extension EnvironmentValues {
   }
 }
 
+/// Scroll-to-top on a repeat tap, for a native screen. Put it on the FIRST
+/// view inside the `ScrollView`: the reader then scrolls the enclosing one.
+/// `ScrollPosition(edge:)` would be shorter but is iOS 18; the app targets 17.
+/// `unless` skips the scroll while the screen shows something pushed over its
+/// root -- the tap closes that first, as UIKit's pop-to-root does.
+struct ScrollsToTopOnReselect: ViewModifier {
+  static let anchor = "tab-top"
+  var unless = false
+  @Environment(\.tabReselects) private var tabReselects
+
+  func body(content: Content) -> some View {
+    ScrollViewReader { proxy in
+      content
+        .id(Self.anchor)
+        .onChange(of: tabReselects) {
+          guard !unless else { return }
+          withAnimation { proxy.scrollTo(Self.anchor, anchor: .top) }
+        }
+    }
+  }
+}
+
+extension View {
+  func scrollsToTopOnReselect(unless: Bool = false) -> some View {
+    modifier(ScrollsToTopOnReselect(unless: unless))
+  }
+}
+
 /*
  * WHAT `TabView` DID FOR FREE, AND THE OWN BAR HAS TO DO BY HAND.
  *

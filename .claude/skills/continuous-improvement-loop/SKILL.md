@@ -652,7 +652,8 @@ resource the disk guard does not: memory. A booted simulator holds ~10 GB of a
 `launch` 2 (2026-10-02). I first blamed my own leftover `log stream`s, killed
 them, and it hung again -- a cause named before it was measured. The command
 warns on swap < 1 GB and on stray streams, and has deadlines; the loop must
-still shut the simulator down when the check is done.
+still shut the simulator down when the check is done. `./tri iphone off` closes that door again: shut the simulator before the
+pre-push gates, they need the same memory.
 
 И третий: **я объяснил остановку неверно**. В отчёте назвал причиной `/tmp/dd`
 и свои сборки. Проверил на следующий день: `run.sh` пишет в `build2`, там было
