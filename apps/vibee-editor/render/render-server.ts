@@ -137,6 +137,7 @@ function browserBrokerDeps(): BrowserDeps {
 configureAgentStart(browserBrokerDeps)
 import { identityWithSource, personIdentity } from './src/agent/routes'
 import { handleTriWallet } from './src/tri-wallet'
+import { handleTriClaim, liveOutside, type Outside } from './src/tri-claim'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import {
@@ -157,6 +158,27 @@ import {
 import { markAllowed, ensureBrowserSessions } from './src/browser/sessions'
 
 /** Who asked, so the yes lands on their session and nobody else's. */
+/** The claim side's outside world, from env; null (503 on claims) until it is all set. */
+let triOutside: Outside | null | undefined
+function triClaimOutside(): Outside | null {
+  if (triOutside !== undefined) return triOutside
+  const signerUrls = (process.env.TRI_SIGNER_URLS ?? '')
+    .split(',')
+    .map(u => u.trim())
+    .filter(Boolean)
+  const { QUEEN_URL, TRI_MINTER } = process.env
+  triOutside =
+    QUEEN_URL && TRI_MINTER && signerUrls.length
+      ? liveOutside({
+          queenUrl: QUEEN_URL,
+          signerUrls,
+          minter: TRI_MINTER,
+          toncenterKey: process.env.TONCENTER_API_KEY,
+        })
+      : null
+  return triOutside
+}
+
 const approvalOwner = async (pool: any, id: string) =>
   (await readApproval(pool, id))?.telegramId ?? null
 import { touchSessionById } from './src/browser/sessions'
@@ -2647,8 +2669,9 @@ setInterval(
         }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
-        const { botsOwnedBy, allBotOwners } =
-          await import('./src/agent/hive-tools')
+        const { botsOwnedBy, allBotOwners } = await import(
+          './src/agent/hive-tools'
+        )
         const granted = await sweepClubGrants(
           pool,
           { botsOwnedBy, allOwners: allBotOwners },
@@ -2693,8 +2716,9 @@ setInterval(
   () => {
     void (async () => {
       try {
-        const { transcribeBacklogOnce } =
-          await import('./src/agent/transcribe-backlog')
+        const { transcribeBacklogOnce } = await import(
+          './src/agent/transcribe-backlog'
+        )
         const r = await transcribeBacklogOnce(getPool())
         /*
          * THE FIRST TICK SPEAKS EVEN WHEN THERE IS NOTHING.
@@ -2905,8 +2929,9 @@ const ACCEPTANCE_TICK_MS = 30 * 60 * 1000
 const acceptanceTick = () => {
   void (async () => {
     try {
-      const { runDailyAcceptanceIfDue } =
-        await import('./src/agent/daily-acceptance-wiring')
+      const { runDailyAcceptanceIfDue } = await import(
+        './src/agent/daily-acceptance-wiring'
+      )
       const said = await runDailyAcceptanceIfDue(getPool() as any)
       if (said !== 'off' && said !== 'not due' && said !== 'already running')
         console.log(`[acceptance] ${said}`)
@@ -3283,7 +3308,12 @@ function startRenderAsync(
 
       // Video render
       const codec = (req.codec || 'h264') as
-        'h264' | 'h265' | 'vp8' | 'vp9' | 'prores' | 'gif'
+        | 'h264'
+        | 'h265'
+        | 'vp8'
+        | 'vp9'
+        | 'prores'
+        | 'gif'
       const ext = codec === 'gif' ? 'gif' : 'mp4'
       const outputPath = path.join(OUTPUT_DIR, `${renderId}.${ext}`)
 
@@ -8728,8 +8758,9 @@ const server = createServer(async (req, res) => {
       if (who !== TELEGRAM_OWNER_ID)
         return sendJson(res, 403, { error: 'только владелец' })
       const { allProviders } = await import('./src/agent/provider')
-      const { chooseProvider, isProviderId } =
-        await import('./src/agent/provider-choice')
+      const { chooseProvider, isProviderId } = await import(
+        './src/agent/provider-choice'
+      )
       if (req.method === 'POST') {
         let asked: unknown = null
         try {
@@ -8799,8 +8830,9 @@ const server = createServer(async (req, res) => {
       // Counts only: which bot's initData confirms (src/auth/initdata-bot-counts.ts).
       const bot = initDataBotOf(req, who)
       if (bot) countInitDataBot(bot, 'proposal_confirm')
-      const { claimAcrossDeploy, execute, idFromBody } =
-        await import('./src/agent/tg-proposals')
+      const { claimAcrossDeploy, execute, idFromBody } = await import(
+        './src/agent/tg-proposals'
+      )
       // idFromBody, not a cast: readBody hands back the raw string, and the
       // cast that pretended otherwise made every confirm press fail silently.
       const asked = idFromBody(await readBody(req))
@@ -8830,8 +8862,9 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/cancel' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { claimAcrossDeploy, idFromBody } =
-        await import('./src/agent/tg-proposals')
+      const { claimAcrossDeploy, idFromBody } = await import(
+        './src/agent/tg-proposals'
+      )
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
       const asked = idFromBody(await readBody(req))
@@ -9152,6 +9185,22 @@ const server = createServer(async (req, res) => {
       personOf: personIdentity,
       readBody: (r, maxBytes) => readBody(r as any, maxBytes),
       proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
+    })
+  )
+    return
+
+  /*
+   * /api/tri/github*, /api/tri/payee, /api/tri/claim[s] -- a person links the
+   * GitHub account Queen credits, and claims an accepted spec as a mint their
+   * own wallet sends (src/tri-claim.ts). Testnet only; without QUEEN_URL,
+   * TRI_SIGNER_URLS and TRI_MINTER the claim side answers 503.
+   */
+  if (
+    await handleTriClaim(req, res, {
+      getPool,
+      personOf: personIdentity,
+      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      outside: triClaimOutside(),
     })
   )
     return
@@ -9688,8 +9737,9 @@ const server = createServer(async (req, res) => {
           )
           // Once per process, not per open of the mini-app: the ALTER takes
           // an exclusive lock even when it has nothing to add.
-          const { ensureInvoiceColumns } =
-            await import('./src/agent/token-invoice')
+          const { ensureInvoiceColumns } = await import(
+            './src/agent/token-invoice'
+          )
           await ensureInvoiceColumns(pool)
           /*
            * EVERY unredeemed row, cancelled ones included. This is the only
