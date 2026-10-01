@@ -14,6 +14,7 @@
 
 import { Telegraf } from 'telegraf'
 import { logger } from '@/utils/logger'
+import { telegramClientOptionsFor } from '@/services/telegramApi'
 import { launchWithConflictRetry } from '@/core/bot/launchWithConflictRetry'
 import type { ManagedBotAccess, ManagedBotRow } from './store'
 
@@ -196,7 +197,12 @@ export async function launchManagedBot(
     running.delete(row.botId)
   }
 
-  const bot = new Telegraf(token, { handlerTimeout: Infinity })
+  // The token's own Bot API host: a managed bot moved to our server must never
+  // be polled on the cloud (telegramApiRootCensus.test.ts).
+  const bot = new Telegraf(token, {
+    handlerTimeout: Infinity,
+    telegram: telegramClientOptionsFor(token),
+  })
   bot.on('message', async ctx => {
     const m = ctx.message as {
       text?: string
