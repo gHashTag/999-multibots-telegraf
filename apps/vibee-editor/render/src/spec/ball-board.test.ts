@@ -13,7 +13,11 @@ import {
   cardSpec,
   fresh,
   groupByClient,
+  automatedMarker,
+  machineOrOwn,
   mailBall,
+  mailBallWeighed,
+  nobodyToAnswer,
   mayLink,
   mayRead,
   meetingBall,
@@ -102,6 +106,7 @@ function stubCrm(waiting: Array<Record<string, unknown>>) {
 type Board = {
   total: number
   unspecced: number
+  automated: number
   counts: Record<string, number>
   sources: Record<string, { status: string; cards: number; age_h?: number }>
   clients: Array<{
@@ -749,9 +754,72 @@ describe('automation/ball-board -- the spec, against the host', () => {
     expect(b2.sources.meeting).toMatchObject({ status: 'empty', cards: 0 })
   })
 
+  it("a matter only machines or the owner wrote is nobody's move", async () => {
+    for (const m of ['noreply', 'dmarc', 'notification'])
+      expect(automatedMarker(m)).toBe(true)
+    for (const m of ['help', 'jobs']) expect(automatedMarker(m)).toBe(false)
+    expect(nobodyToAnswer(2, 2)).toBe(true)
+    expect(nobodyToAnswer(2, 1)).toBe(false)
+    expect(nobodyToAnswer(0, 0)).toBe(false)
+    expect(mailBallWeighed('us', true)).toBe(SPEC.BALL_NONE)
+    expect(mailBallWeighed('us', false)).toBe(SPEC.BALL_OURS)
+    expect(mailBallWeighed('them', false)).toBe(SPEC.BALL_THEIRS)
+    expect(SPEC.OWN_DOMAIN).toBe('t27.ai')
+    expect(SPEC.AUTOMATED_IS_COUNTED).toBe(true)
+    expect(SPEC.AUTOMATED_SEEN).toBe(5)
+
+    // The addresses the live board showed as "a reply owed", 2026-10-01.
+    for (const a of [
+      'reports@fastmaildmarc.com',
+      'dmarcreport@microsoft.com',
+      'openscienceframework-noreply@osf.io',
+      'identity@notification.elsevier.com',
+      'No-Reply <no-reply@example.org>',
+      'dmitrii.f@t27.ai',
+    ])
+      expect(machineOrOwn(a)).toBe(true)
+    // People stay people, however official the mailbox sounds.
+    for (const a of [
+      'help@arxiv.org',
+      'em@editorialmanager.com',
+      'jobs@m-labs.hk',
+      'fchollet@google.com',
+    ])
+      expect(machineOrOwn(a)).toBe(false)
+
+    stubCrm([])
+    const mail = (matter: string, counterparties: string[]) => ({
+      matter,
+      owes_reply: 'us',
+      stage: 'contacted',
+      counterparties,
+      exported_at: hoursAgo(1),
+    })
+    const b = await board(
+      stubPool({
+        mail: [
+          mail('fastmaildmarc.com', ['reports@fastmaildmarc.com']),
+          mail('t27.ai', ['dmitrii.f@t27.ai', 'admin@t27.ai']),
+          mail('arxiv.org', ['e-prints@arxiv.org', 'help@arxiv.org']),
+          mail('nobody listed', []),
+        ],
+      })
+    )
+    const ball = (ref: string) =>
+      b.clients.flatMap(c => c.cards).find(c => c.ref === ref)?.ball
+    expect(ball('fastmaildmarc.com')).toBe(SPEC.BALL_NONE)
+    expect(ball('t27.ai')).toBe(SPEC.BALL_NONE)
+    // One human address keeps jcrm's decision.
+    expect(ball('arxiv.org')).toBe(SPEC.BALL_OURS)
+    expect(ball('nobody listed')).toBe(SPEC.BALL_OURS)
+    // Counted, never dropped.
+    expect(b.automated).toBe(2)
+    expect(b.sources.mail.cards).toBe(4)
+  })
+
   it('the board is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(4)
+    expect(SPEC.VERSION).toBe(5)
     expect(BALL_BOARD_TOOLS.map(t => t.name)).toEqual([
       SPEC.TOOL,
       SPEC.PUSH_TOOL,

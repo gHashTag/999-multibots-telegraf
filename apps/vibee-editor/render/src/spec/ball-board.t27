@@ -45,6 +45,13 @@
 //       date (due); one that starts within a day is on us; a later one owes nothing yet.
 //       A meeting card carries neither the tap token nor the calendar token, nor the
 //       meeting's link or place: the reminder in Telegram already holds those.
+// v5 (2026-10-01), from the live board (mail: 115 cards "on us"): jcrm says "we owe"
+//       whenever the newest message is inbound, and a machine's message is always
+//       inbound -- a DMARC report, a "noreply" notice, a sign-in mail from a publisher
+//       sat on the board as a reply owed. A matter whose every address is a machine's
+//       (a marker in the address) or the owner's own domain has nobody to answer: its
+//       ball is none, and the board COUNTS such matters instead of hiding them. One
+//       human address among them keeps the matter as jcrm decided it.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::ball_board {
@@ -52,7 +59,7 @@ module automation::ball_board {
     pub const KIND : str = "automation";
     pub const ID : str = "ball-board";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 4;
+    pub const VERSION : u8 = 5;
 
     // ---- The doors ------------------------------------------------------------------
     pub const TOOL : str = "ball_board";  // read: the whole board, grouped by client
@@ -156,6 +163,11 @@ module automation::ball_board {
     pub const MEETING_CARD_NO_TOKEN : bool = true;  // no tap or ics token, no link, no place
     pub const MEETING_OPEN_STATUS : str = "planned";  // done, missed, cancelled are history
 
+    // ---- Mail nobody can answer ------------------------------------------------------
+    pub const OWN_DOMAIN : str = "t27.ai";  // the owner writing to himself owes nobody
+    pub const AUTOMATED_IS_COUNTED : bool = true;  // reported as a number, never dropped
+    pub const AUTOMATED_SEEN : u8 = 5;  // such matters "on us" on the first live read
+
     // ---- Not claimed ----------------------------------------------------------------
     pub const RUN_LIVE : bool = false;
 
@@ -169,6 +181,32 @@ module automation::ball_board {
             return BALL_THEIRS;
         }
         return BALL_NONE;
+    }
+
+    // A machine's address. The host looks for a marker in the address with the
+    // separators . - _ + removed (so "no-reply" is "noreply"); finding one is enough.
+    fn automated_marker(marker: str) -> bool {
+        if marker == "noreply" || marker == "donotreply" || marker == "mailerdaemon" {
+            return true;
+        }
+        if marker == "postmaster" || marker == "bounce" || marker == "dmarc" {
+            return true;
+        }
+        return marker == "notification";
+    }
+
+    // Nobody to answer: every address is a machine's or the owner's own. A matter with
+    // no address at all is not judged here -- nothing is invented.
+    fn nobody_to_answer(addresses: u8, machine_or_own: u8) -> bool {
+        return addresses > 0 && machine_or_own == addresses;
+    }
+
+    // The mail ball, once the addresses are weighed.
+    fn mail_ball_weighed(owes_reply: str, nobody: bool) -> str {
+        if nobody {
+            return BALL_NONE;
+        }
+        return mail_ball(owes_reply);
     }
 
     // Code work. A repository the owner merges alone has nobody else to wait on, so an
@@ -465,13 +503,30 @@ module automation::ball_board {
         assert(card_spec(SOURCE_MEETING, "") == SPEC_OF_MEETING);
     }
 
+    test "a matter only machines or the owner wrote is nobody's move" {
+        assert(automated_marker("noreply"));
+        assert(automated_marker("dmarc"));
+        assert(automated_marker("notification"));
+        assert(!automated_marker("help"));
+        assert(!automated_marker("jobs"));
+        assert(nobody_to_answer(2, 2));
+        assert(!nobody_to_answer(2, 1));
+        assert(!nobody_to_answer(0, 0));
+        assert(mail_ball_weighed("us", true) == BALL_NONE);
+        assert(mail_ball_weighed("us", false) == BALL_OURS);
+        assert(mail_ball_weighed("them", false) == BALL_THEIRS);
+        assert(OWN_DOMAIN == "t27.ai");
+        assert(AUTOMATED_IS_COUNTED);
+        assert(AUTOMATED_SEEN == 5);
+    }
+
     test "the board is designed, not yet live" {
         assert(!RUN_LIVE);
         assert(TOOL == "ball_board");
         assert(PUSH_TOOL == "ball_work_push");
         assert(LINK_TOOL == "ball_link");
         assert(DOOR == "/mcp");
-        assert(VERSION == 4);
+        assert(VERSION == 5);
     }
 }
 
