@@ -80,6 +80,13 @@
   font-size: 12px;
 }
 
+.package-card__tokens {
+  margin: 8px 0 0;
+  color: #00ff88;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .package-card__promise {
   margin: 16px 0 14px;
   color: #b4b4b4;

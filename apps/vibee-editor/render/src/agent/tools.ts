@@ -552,6 +552,7 @@ export {
   COST_PER_TOKEN_USD,
   OPERATION_COST_USD,
 } from './billing-shared'
+import { START_TOKENS } from '../../../packages/vibee-atoms/src/token-wallet'
 import {
   TOKEN_PRICES,
   COST_PER_TOKEN_USD,
@@ -562,7 +563,8 @@ import {
   replicateClipTokens,
 } from './billing-shared'
 
-const TOKEN_START = 20
+// The start gift: specs/automation/token-wallet.t27 START_TOKENS.
+const TOKEN_START = START_TOKENS
 
 /**
  * Wallets that belong to the HOUSE, not to a customer: the autopilot and any

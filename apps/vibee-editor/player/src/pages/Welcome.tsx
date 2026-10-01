@@ -1,6 +1,20 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MARKETPLACE_AGENTS } from '../../../packages/vibee-atoms/src/agent-marketplace'
+import {
+  AGENT_PACKAGES,
+  agentPackageOrderUrl,
+  tryableAgentOf,
+} from '../../../packages/vibee-atoms/src/agent-packages'
+import {
+  MONTH_DAYS,
+  monthTokens,
+  PORTRAIT_TOKENS,
+  REEL_TOKENS,
+  reelsIn,
+  START_TOKENS,
+  WARN_DAYS_FIRST,
+} from '../../../packages/vibee-atoms/src/token-wallet'
 import { useLanguage, type Language } from '@/hooks/useLanguage'
 import { useAgentAvatars } from '@/hooks/useAgentAvatars'
 import { useAgentAcceptance } from '@/hooks/useAgentAcceptance'
@@ -10,12 +24,15 @@ import { VerdictLine } from '@/components/Agents/VerdictLine'
 import { CheckedTools } from '@/components/Agents/CheckedTools'
 import { tryFreeNote } from '@/components/Agents/tryFree'
 import { markWelcomed } from '@/lib/welcomeMemory'
+import { openTelegramLink } from '@/lib/telegram'
 import './Welcome.css'
 
 const copy = {
   en: {
     eyebrow: 'T27 · AGENT MARKET',
     title: 'Hire an AI agent that lives in its own Telegram bot.',
+    outcome: (agent: string, reels: number) =>
+      `${agent}: ≈${reels} reels with your face, every month.`,
     lead: 'Hire an outcome, not a chat. Every agent you hire gets a bot of its own and works for you around the clock.',
     points: [
       [
@@ -36,9 +53,31 @@ const copy = {
     talk: 'Talk to the agent',
     talkLabel: (name: string) => `Talk to the agent: ${name}, free`,
     proof: 'What proves the job',
+    gift: 'Your first step: a gift',
+    giftTitle: (tokens: number) => `${tokens} tokens to try, on us`,
+    giftBody: (cost: number) =>
+      `Enough for a story portrait drawn from your own face (${cost} tokens). Send the agent a photo of yourself and ask for one.`,
+    giftCta: 'Get my portrait',
+    giftShort: (tokens: number) => `Get my portrait · ${tokens} tokens free`,
+    giftLabel: (name: string) => `Get my portrait from ${name}`,
     packages: 'Agents to order',
     packagesLead:
       'Launch price includes the first month; the team sets the bot up for you.',
+    wallet: 'Where the monthly fee goes',
+    walletRows: (perUsd: number, days: number, warn: number) =>
+      [
+        [
+          'All of it becomes tokens',
+          `$1 = ${perUsd} tokens, no fee kept back.`,
+        ],
+        [
+          `A month lives ${days} days`,
+          `What is not spent burns, so the agent makes content instead of saving it. We remind you ${warn} days before.`,
+        ],
+      ] as const,
+    priceReel: (tokens: number) => `a story reel ≈ ${tokens} tokens`,
+    pricePortrait: (tokens: number) =>
+      `a portrait from your face = ${tokens} tokens`,
     how: 'What happens after "Order"',
     steps: [
       ['You press "Order"', 'The request goes to the team from the T27 bot.'],
@@ -52,6 +91,8 @@ const copy = {
       ],
     ],
     market: 'Go to the Agent Market',
+    allAgents: 'All agents',
+    order: (name: string) => `Order: ${name}`,
     later: 'Skip',
     laterLabel: 'Skip the introduction and open the feed',
     lang: 'Русский',
@@ -59,6 +100,8 @@ const copy = {
   ru: {
     eyebrow: 'T27 · РЫНОК АГЕНТОВ',
     title: 'Наймите ИИ-агента со своим Telegram-ботом.',
+    outcome: (agent: string, reels: number) =>
+      `${agent}: ≈${reels} рилсов с вашим лицом каждый месяц.`,
     lead: 'Нанимайте результат, а не чат. Каждый нанятый агент получает своего бота и работает на вас круглосуточно.',
     points: [
       [
@@ -79,9 +122,29 @@ const copy = {
     talk: 'Написать агенту',
     talkLabel: (name: string) => `Написать агенту: ${name}, бесплатно`,
     proof: 'Чем подтверждается работа',
+    gift: 'Первый шаг: подарок',
+    giftTitle: (tokens: number) => `${tokens} токенов на пробу — от нас`,
+    giftBody: (cost: number) =>
+      `Хватит на портрет-сторис с вашим лицом (${cost} токенов). Пришлите агенту своё фото и попросите портрет.`,
+    giftCta: 'Получить портрет',
+    giftShort: (tokens: number) =>
+      `Получить портрет · ${tokens} токенов в подарок`,
+    giftLabel: (name: string) => `Получить портрет: ${name}`,
     packages: 'Агенты на заказ',
     packagesLead:
       'В цену запуска входит первый месяц; бота настраивает команда.',
+    wallet: 'Куда идёт абонентка',
+    walletRows: (perUsd: number, days: number, warn: number) =>
+      [
+        ['Вся — в токены', `$1 = ${perUsd} токенов, ничего не удерживаем.`],
+        [
+          `Месяц живёт ${days} дней`,
+          `Что не потрачено — сгорает: агент делает контент, а не копит. Напомним за ${warn} дней.`,
+        ],
+      ] as const,
+    priceReel: (tokens: number) => `рилс-история ≈ ${tokens} токенов`,
+    pricePortrait: (tokens: number) =>
+      `портрет с вашим лицом = ${tokens} токенов`,
     how: 'Что будет после «Заказать»',
     steps: [
       ['Вы жмёте «Заказать»', 'Заявка уходит команде через бота T27.'],
@@ -95,6 +158,8 @@ const copy = {
       ],
     ],
     market: 'Перейти на рынок агентов',
+    allAgents: 'Все агенты',
+    order: (name: string) => `Заказать: ${name}`,
     later: 'Пропустить',
     laterLabel: 'Пропустить знакомство и открыть ленту',
     lang: 'English',
@@ -126,9 +191,43 @@ export function WelcomePage() {
   const faces = useAgentAvatars()
   const verdicts = useAgentAcceptance()
   const working = MARKETPLACE_AGENTS.filter(agent => agent.status === 'live')
+  /*
+   * THE LADDER. Promise (what a month buys), proof (the live agent and its
+   * check), a gift (the start tokens, spent on the person's own face), how
+   * ordering works, then the packages in tokens and results. Every number
+   * on the way comes from specs/automation/token-wallet.t27.
+   */
+  const featured = AGENT_PACKAGES.find(pkg => pkg.popular) ?? AGENT_PACKAGES[0]
+  const giftAgent = tryableAgentOf(featured)
+  const giftAgentName = MARKETPLACE_AGENTS.find(a => a.id === giftAgent)?.name[
+    l
+  ]
+  const featuredReels = reelsIn(monthTokens(featured.monthlyUsd))
+  const packagesRef = useRef<HTMLElement>(null)
+  const [atPackages, setAtPackages] = useState(false)
 
   useEffect(() => {
     markWelcomed()
+  }, [])
+
+  /*
+   * THE PINNED BUTTON FOLLOWS THE LADDER: above the packages it offers the
+   * gift (the free step), from the packages on it orders the featured one.
+   * Without IntersectionObserver (old webviews, jsdom) it stays on the gift.
+   */
+  useEffect(() => {
+    const el = packagesRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    // The bottom 40% of the screen does not count: the pinned bar covers
+    // part of it, and a heading peeking out under the bar is not "in view".
+    const seen = new IntersectionObserver(
+      ([entry]) => {
+        setAtPackages(entry.isIntersecting || entry.boundingClientRect.top < 0)
+      },
+      { rootMargin: '0px 0px -40% 0px' }
+    )
+    seen.observe(el)
+    return () => seen.disconnect()
   }, [])
 
   return (
@@ -159,6 +258,9 @@ export function WelcomePage() {
             </button>
           </div>
           <h1>{text.title}</h1>
+          <p className="welcome-outcome">
+            {text.outcome(featured.name[l], featuredReels)}
+          </p>
           <p className="welcome-lead">{text.lead}</p>
           <ul className="welcome-points">
             {text.points.map(([title, body]) => (
@@ -254,16 +356,29 @@ export function WelcomePage() {
           </section>
         ) : null}
 
-        <section
-          className="welcome-packages"
-          aria-labelledby="welcome-packages-title"
-        >
-          <h2 className="welcome-section-title" id="welcome-packages-title">
-            {text.packages}
-          </h2>
-          <p className="welcome-packages__lead">{text.packagesLead}</p>
-          <PackageCards lang={l} />
-        </section>
+        {giftAgent && giftAgentName ? (
+          <section
+            className="welcome-gift"
+            aria-labelledby="welcome-gift-title"
+          >
+            <h2 className="welcome-section-title" id="welcome-gift-title">
+              {text.gift}
+            </h2>
+            <p className="welcome-gift__title">
+              {text.giftTitle(START_TOKENS)}
+            </p>
+            <p className="welcome-gift__body">
+              {text.giftBody(PORTRAIT_TOKENS)}
+            </p>
+            <Link
+              className="welcome-gift__cta"
+              to={`/agents/${giftAgent}/work`}
+              aria-label={text.giftLabel(giftAgentName)}
+            >
+              {text.giftCta} <span aria-hidden="true">→</span>
+            </Link>
+          </section>
+        ) : null}
 
         <section className="welcome-how" aria-labelledby="welcome-how-title">
           <h2 className="welcome-section-title" id="welcome-how-title">
@@ -279,10 +394,63 @@ export function WelcomePage() {
           </ol>
         </section>
 
+        <section
+          ref={packagesRef}
+          className="welcome-packages"
+          aria-labelledby="welcome-packages-title"
+        >
+          <h2 className="welcome-section-title" id="welcome-packages-title">
+            {text.packages}
+          </h2>
+          <p className="welcome-packages__lead">{text.packagesLead}</p>
+          <div className="welcome-wallet">
+            <h3>{text.wallet}</h3>
+            <dl>
+              {text
+                .walletRows(monthTokens(1), MONTH_DAYS, WARN_DAYS_FIRST)
+                .map(([term, detail]) => (
+                  <div key={term}>
+                    <dt>{term}</dt>
+                    <dd>{detail}</dd>
+                  </div>
+                ))}
+            </dl>
+            <p className="welcome-wallet__prices">
+              {text.priceReel(REEL_TOKENS)} ·{' '}
+              {text.pricePortrait(PORTRAIT_TOKENS)}
+            </p>
+          </div>
+          <PackageCards lang={l} />
+        </section>
+
         {/* Pinned to the bottom, so the one main action is always in reach. */}
         <nav className="welcome-exits">
-          <Link className="welcome-exit welcome-exit--primary" to="/agents">
-            {text.market} <span aria-hidden="true">→</span>
+          {atPackages ? (
+            <a
+              className="welcome-exit welcome-exit--primary"
+              data-stage="order"
+              href={agentPackageOrderUrl(featured)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={event => {
+                if (openTelegramLink(agentPackageOrderUrl(featured)))
+                  event.preventDefault()
+              }}
+            >
+              {text.order(featured.name[l])} <span aria-hidden="true">→</span>
+            </a>
+          ) : giftAgent ? (
+            <Link
+              className="welcome-exit welcome-exit--primary"
+              data-stage="gift"
+              to={`/agents/${giftAgent}/work`}
+            >
+              {text.giftShort(START_TOKENS)} <span aria-hidden="true">→</span>
+            </Link>
+          ) : null}
+          <Link className="welcome-exit welcome-exit--quiet" to="/agents">
+            {giftAgent || atPackages ? text.allAgents : text.market}{' '}
+            <span aria-hidden="true">→</span>
           </Link>
         </nav>
       </main>

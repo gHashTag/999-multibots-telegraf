@@ -370,3 +370,103 @@
   outline: 2px solid #00ff88;
   outline-offset: 2px;
 }
+
+/* The promise in one line: what the featured month buys. */
+.welcome-outcome {
+  margin: -4px 0 14px;
+  color: #ffd700;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* The gift: the free step between the proof and the price. */
+.welcome-gift {
+  margin-top: 34px;
+  padding: 18px 16px;
+  border: 1px solid rgba(255, 215, 0, 0.45);
+  background: rgba(255, 215, 0, 0.05);
+}
+.welcome-gift__title {
+  margin: 0 0 6px;
+  color: #ffd700;
+  font-size: 20px;
+  font-weight: 620;
+}
+.welcome-gift__body {
+  margin: 0 0 14px;
+  color: #b8b8b8;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.welcome-gift__cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border: 1px solid #ffd700;
+  background: rgba(255, 215, 0, 0.12);
+  color: #ffd700;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Where the monthly fee goes: tokens, and the burn that keeps them moving. */
+.welcome-wallet {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.welcome-wallet h3 {
+  margin: 0 0 8px;
+  color: #8f8f8f;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.welcome-wallet dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.welcome-wallet dt {
+  color: #e8e8e8;
+  font-size: 14px;
+  font-weight: 600;
+}
+.welcome-wallet dd {
+  margin: 2px 0 0;
+  color: #8f8f8f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.welcome-wallet__prices {
+  margin: 10px 0 0;
+  color: #00ff88;
+  font-size: 13px;
+}
+
+.welcome-exits {
+  display: grid;
+  gap: 8px;
+}
+/* Opaque: the bar's gradient is clear at its top, where this button sits. */
+.welcome-exit--primary[data-stage='gift'] {
+  border-color: #ffd700;
+  background: #1a1600;
+  color: #ffd700;
+}
+.welcome-exit--primary[data-stage='order'] {
+  background: #00ff88;
+  color: #000;
+  font-weight: 600;
+}
+.welcome-exit--quiet {
+  padding: 6px 16px;
+  border: 0;
+  color: #8f8f8f;
+  font-size: 13px;
+}
