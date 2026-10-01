@@ -11,6 +11,14 @@
       "icon": { "lucide": "Hexagon", "sf": "hexagon" }
     },
     {
+      "id": "tasks",
+      "route": "/game/kanban",
+      "platforms": ["web", "ios"],
+      "labelKey": "nav.tasks",
+      "label": { "en": "Tasks", "ru": "Задачи" },
+      "icon": { "lucide": "ListTodo", "sf": "checklist" }
+    },
+    {
       "id": "feed",
       "route": "/feed",
       "platforms": ["web", "ios"],

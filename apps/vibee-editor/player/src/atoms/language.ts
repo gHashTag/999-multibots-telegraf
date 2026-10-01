@@ -1947,6 +1947,7 @@ const en: Translations = {
   'nav.agent': 'Agent',
   'nav.agents': 'Agents',
   'nav.hive': 'Game',
+  'nav.tasks': 'Tasks',
   'hive.loading': 'Opening the hive on t27.ai…',
   'hive.frameTitle': 'The hive — t27.ai/#/queen',
   'hive.openOutside': 'Open in the browser: t27.ai/#/queen ↗',
@@ -4560,6 +4561,7 @@ const ru: Translations = {
   'nav.agent': 'Агент',
   'nav.agents': 'Агенты',
   'nav.hive': 'Игра', // cyrillic-ok
+  'nav.tasks': 'Задачи', // cyrillic-ok
   'hive.loading': 'Открываем улей на t27.ai…',
   'hive.frameTitle': 'Улей — t27.ai/#/queen',
   'hive.openOutside': 'Открыть в браузере: t27.ai/#/queen ↗',
