@@ -1,0 +1,214 @@
+/* Voice mode: full-screen overlay, the t27 mark as the orb. */
+
+.voice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(12px + var(--safe-area-top, 0px)) 16px
+    calc(16px + var(--safe-area-bottom, 0px));
+  color: #f4f4f5;
+  background:
+    radial-gradient(
+      120% 80% at 50% 38%,
+      rgba(40, 40, 52, 0.55),
+      transparent 70%
+    ),
+    #030304;
+  animation: voice-overlay-in 220ms ease-out;
+  overscroll-behavior: contain;
+  touch-action: manipulation;
+}
+
+@keyframes voice-overlay-in {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.voice-overlay__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 560px;
+}
+
+.voice-overlay__title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
+}
+
+.voice-overlay__icon {
+  min-width: var(--touch-target, 44px);
+  min-height: var(--touch-target, 44px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.voice-overlay__icon.is-on {
+  background: rgba(248, 113, 113, 0.18);
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.voice-overlay__stage {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+}
+
+.voice-orb {
+  position: relative;
+  width: min(78vw, 46vh, 420px);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.voice-orb:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 6px;
+}
+
+.voice-orb__canvas {
+  position: absolute;
+  inset: -18%;
+  width: 136%;
+  height: 136%;
+  pointer-events: none;
+}
+
+.voice-orb__mark {
+  position: absolute;
+  inset: 22%;
+  width: 56%;
+  height: 56%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.voice-orb--error .voice-orb__mark {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.voice-overlay__captions {
+  width: 100%;
+  max-width: 560px;
+  min-height: 108px;
+  text-align: center;
+}
+
+.voice-overlay__phase {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.voice-overlay__phase--error,
+.voice-overlay__error {
+  color: #fca5a5;
+}
+
+.voice-overlay__error,
+.voice-overlay__note {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.voice-overlay__note {
+  opacity: 0.65;
+}
+
+.voice-overlay__line {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0 0 6px;
+  font-size: 15px;
+  line-height: 1.4;
+  opacity: 0.75;
+}
+
+.voice-overlay__line--agent {
+  opacity: 1;
+}
+
+.voice-overlay__controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 560px;
+  margin-top: 8px;
+}
+
+.voice-overlay__chips {
+  display: flex;
+  gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.voice-chip {
+  flex: 0 0 auto;
+  min-height: var(--touch-target-sm, 36px);
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.voice-chip.is-active {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.voice-overlay__voice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.voice-overlay__voice select {
+  min-height: var(--touch-target-sm, 36px);
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: #111;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-overlay {
+    animation: none;
+  }
+}
