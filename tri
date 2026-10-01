@@ -5537,12 +5537,16 @@ msg = (m.get("commitMessage") or "").splitlines()[0][:60]
 print("  %s: %s %s %s" % (name, d["status"], (m.get("commitHash") or "")[:9], msg))
 # 4, not 1: a crash of this very script also exits 1, and must not read as
 # "the deploy failed" -- the first run of this check said exactly that.
-sys.exit(4 if d["status"] in ("FAILED", "CRASHED") else 0)
+# 5: still on its way. Cycle 4 read "nothing in flight" with the player
+# BUILDING -- a merge whose deploy is unverified IS work in flight.
+if d["status"] in ("FAILED", "CRASHED"):
+    sys.exit(4)
+sys.exit(5 if d["status"] in ("BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING") else 0)
 ' "$name"
-    if [ "${PIPESTATUS[1]}" = 4 ]; then
-      bad "$name: the last deploy failed -- fix it before merging more"
-      busy=1
-    fi
+    case "${PIPESTATUS[1]}" in
+      4) bad "$name: the last deploy failed -- fix it before merging more"; busy=1 ;;
+      5) warn "$name: still deploying -- wait for SUCCESS before the next item"; busy=1 ;;
+    esac
   done
 
   if [ "$busy" = 0 ]; then good 'nothing in flight: safe to start the next item'; fi
