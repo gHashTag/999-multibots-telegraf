@@ -9,6 +9,7 @@
  * reported yet. It never touches audio, so it can be tested on plain arrays.
  */
 import type { Message } from '@/atoms/agentChat'
+import { parseCards, type AgentCard } from '@/lib/agentCards'
 import { takeSentences } from './sentences'
 
 export class ReplyFollower {
@@ -16,9 +17,18 @@ export class ReplyFollower {
   private replyId: string | null = null
   private spokenUpTo = 0
   private done = false
+  private offered: AgentCard[] = []
 
   constructor(existing: readonly Message[]) {
     this.before = new Set(existing.map(m => m.id))
+  }
+
+  /**
+   * The cards the finished answer proposed. The chat draws them as buttons;
+   * a listener cannot see buttons, so voice mode names them instead.
+   */
+  get cards(): readonly AgentCard[] {
+    return this.offered
   }
 
   /** True once the answer has been followed to its end. */
@@ -47,9 +57,21 @@ export class ReplyFollower {
       return []
     }
     const final = !answering
-    const cut = takeSentences(reply.text || '', this.spokenUpTo, final)
+    /*
+     * The answer WITHOUT its card markers. Read raw, "[[card: Make a reel |
+     * I will cut it from the photos]]" was spoken aloud word for word,
+     * "card" included (found 2026-10-02: the mini app's prompt asks for
+     * cards at the end of most answers). parseCards also hides a marker
+     * still arriving, and removing a marker only ever changes text after
+     * what was already spoken, so the offset stays valid.
+     */
+    const { text, cards } = parseCards(reply.text || '')
+    const cut = takeSentences(text, this.spokenUpTo, final)
     this.spokenUpTo = cut.next
-    if (final) this.done = true
+    if (final) {
+      this.done = true
+      this.offered = cards
+    }
     return cut.sentences
   }
 }
