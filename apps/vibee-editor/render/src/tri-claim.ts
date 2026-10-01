@@ -27,6 +27,7 @@
 import { createHash, createPublicKey, verify } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Address, beginCell, Dictionary } from '@ton/core'
+import { ensureTriWalletTables } from './tri-wallet'
 
 /** The "Trinity S3AI" OAuth App. A client id is public; device flow needs no secret. */
 export const TRI_GITHUB_CLIENT_ID = 'Ov23lin1tYAHrKx2IaDw'
@@ -425,6 +426,9 @@ interface Queryable {
 }
 
 export async function ensureTriClaimTables(pool: Queryable): Promise<void> {
+  // The payee record and the claim join tri_wallets; a signer can ask before
+  // anybody opened the wallet card, so this side creates it too.
+  await ensureTriWalletTables(pool)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS tri_github_flows (
       device_code text PRIMARY KEY,

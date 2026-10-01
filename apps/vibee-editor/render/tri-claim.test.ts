@@ -194,7 +194,9 @@ function fakePool() {
   const wallets: Row[] = [
     { telegram_id: '7', chain: 'ton', network: '-3', address: PAYEE_RAW },
   ]
+  const created: string[] = []
   const pool = {
+    created,
     flows,
     links,
     linkEvents,
@@ -202,7 +204,10 @@ function fakePool() {
     wallets,
     async query(text: string, p: any[] = []) {
       const t = text.replace(/\s+/g, ' ').trim()
-      if (t.startsWith('CREATE ')) return { rows: [] }
+      if (t.startsWith('CREATE ')) {
+        created.push(t)
+        return { rows: [] }
+      }
       if (t.startsWith('DELETE FROM tri_github_flows')) {
         for (let i = flows.length - 1; i >= 0; i--)
           if (flows[i].telegram_id === p[0]) flows.splice(i, 1)
@@ -515,6 +520,20 @@ describe('the TRI claim routes', () => {
       (await call(depsFor(pool, '7', outside), 'POST', '/api/tri/github/poll'))
         ?.status
     ).toBe(410)
+  })
+
+  it('the payee record answers on a database the wallet route never touched', async () => {
+    // A signer may ask before anybody opened the wallet card: the claim side
+    // joins tri_wallets, so it has to create that table itself.
+    const pool = fakePool()
+    await call(
+      depsFor(pool, null),
+      'GET',
+      '/api/tri/payee?github=gHashTag&network=-3'
+    )
+    expect(
+      pool.created.some(t => /^CREATE TABLE IF NOT EXISTS tri_wallets\b/.test(t))
+    ).toBe(true)
   })
 
   it('publishes the payee record a signer reads, and only a bound one', async () => {
