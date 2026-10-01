@@ -83,29 +83,32 @@ Other guarantees, each pinned by a test in `session.test.ts`:
 
 ## Measured numbers (2026-10-02)
 
-| step                          | ru                          | en                                 |
-| ----------------------------- | --------------------------- | ---------------------------------- |
-| warm (already loaded)         | 487 ms                      |                                    |
-| speak one sentence            | 1209 ms                     | 2115 ms                            |
-| hear a 4 s phrase, from here  | median 3649 [3335..7910] x5 | median 3371 [2819..5499] x5        |
-| whisper alone, inside its pod | median ~2.3 s [1.8..2.8]    |                                    |
-| hear, after #3248, x5         | median 2605 [2134..3453]    | median 2616 [2176..4305]           |
-| -- of which upload            | 232 ms                      | 20 ms                              |
-| -- of which whisper           | 1819 ms                     | 2067 ms                            |
-| -- of which the road          | 554 ms                      | 529 ms                             |
-| hear, after #3252, x7         | median 745 [683..780]       | median 3202 [2835..3482]           |
-| -- of which upload            | 87 ms                       | 18 ms                              |
-| -- of which the ears          | 175 ms (gigaam)             | 2617 ms (whisper)                  |
-| -- of which the road          | 483 ms                      | 567 ms                             |
-| hear, cycle 4 (before #8), x5 | median 1118 [763..6074]     | median 4183 [3539..7162]           |
-| -- of which the road          | 849 ms                      | 1189 ms                            |
-| felt after the last word      | 850 + 568 = 1418 ms         | 850 + 3633 = 4483 ms               |
-| hear, cycle 5 (#3261), x7     | median 701 [650..790]       | median 648 [592..785]              |
-| -- of which the ears          | 180 ms (gigaam)             | 187 ms (parakeet)                  |
-| -- of which the road          | 434 ms                      | 443 ms                             |
-| felt after the last word      | 850 + 151 = 1001 ms         | 850 + 98 = 948 ms                  |
-| speak, cycle 5, x3 / x5       | median 1152 [916..2496]     | median 1949-2300, tail 4.4s        |
-| speak, inside the mouth, x3   | 94-154 ms (irina, dmitri)   | 272-318 ms short, ~0.8 s 100 chars |
+| step                          | ru                                | en                                  |
+| ----------------------------- | --------------------------------- | ----------------------------------- |
+| warm (already loaded)         | 487 ms                            |                                     |
+| speak one sentence            | 1209 ms                           | 2115 ms                             |
+| hear a 4 s phrase, from here  | median 3649 [3335..7910] x5       | median 3371 [2819..5499] x5         |
+| whisper alone, inside its pod | median ~2.3 s [1.8..2.8]          |                                     |
+| hear, after #3248, x5         | median 2605 [2134..3453]          | median 2616 [2176..4305]            |
+| -- of which upload            | 232 ms                            | 20 ms                               |
+| -- of which whisper           | 1819 ms                           | 2067 ms                             |
+| -- of which the road          | 554 ms                            | 529 ms                              |
+| hear, after #3252, x7         | median 745 [683..780]             | median 3202 [2835..3482]            |
+| -- of which upload            | 87 ms                             | 18 ms                               |
+| -- of which the ears          | 175 ms (gigaam)                   | 2617 ms (whisper)                   |
+| -- of which the road          | 483 ms                            | 567 ms                              |
+| hear, cycle 4 (before #8), x5 | median 1118 [763..6074]           | median 4183 [3539..7162]            |
+| -- of which the road          | 849 ms                            | 1189 ms                             |
+| felt after the last word      | 850 + 568 = 1418 ms               | 850 + 3633 = 4483 ms                |
+| hear, cycle 5 (#3261), x7     | median 701 [650..790]             | median 648 [592..785]               |
+| -- of which the ears          | 180 ms (gigaam)                   | 187 ms (parakeet)                   |
+| -- of which the road          | 434 ms                            | 443 ms                              |
+| felt after the last word      | 850 + 151 = 1001 ms               | 850 + 98 = 948 ms                   |
+| speak, cycle 5, x3 / x5       | median 1152 [916..2496]           | median 1949-2300, tail 4.4s         |
+| speak, inside the mouth, x3   | 94-154 ms (irina, dmitri)         | 272-318 ms short, ~0.8 s 100 chars  |
+| speak, cycle 6 (#3264), x3    | median 836 [682..849]             | median 924 [802..985]               |
+| -- of which the mouth         | 196 ms                            | 410 ms                              |
+| hear, cycle 6, x5             | median 748 (gigaam 182, road 447) | median 665 (parakeet 173, road 467) |
 
 "Felt" is what `tri voice` prints since cycle 4: the player's pause
 (`END_OF_TURN_MS`) plus the hearing that is NOT hidden inside it by early
@@ -265,6 +268,18 @@ same files (same package versions: kokoro-onnx 0.4.5, piper-tts 1.3.0,
 onnxruntime 1.22.0) on `MOUTH_THREADS=8`, two sentences at a time. Its own
 pod measured English 272-318 ms short and ~0.8 s for 100 characters,
 Russian 94-154 ms -- mp3 encoding included.
+
+Live after #3264 (`tri voice --runs 5`): English speaks in a median 924 ms
+(was 1949-2300 with a 4.4 s tail), Russian 836 ms (was 1152). Of that the
+mouth is 410 / 196 ms; the rest, ~450-500 ms, is the same road as hearing
+(#14) -- now the largest leg in BOTH directions.
+
+**The voice is noisy on purpose.** The first live run called the Russian
+round trip WRONG: GigaAM heard "Пверка" (cyrillic-ok) in one clip. Twelve
+more clips, each heard once, were all right -- Piper's noise_scale made one
+short clip (31 KB vs ~33 KB) swallow a syllable. Since cycle 6 `tri voice`
+hears every clip it spoke in turn: all misheard is WRONG, a third or more is
+CHECK (exit 2), fewer is "one noisy sample, not a fault".
 
 - Render: `VOICE_SPEAK_URL` (`http://mouth.railway.internal:8080`) and
   `VOICE_SPEAK_KEY` (the mouth's `MOUTH_KEY`). Unset -> speaches, as before.
