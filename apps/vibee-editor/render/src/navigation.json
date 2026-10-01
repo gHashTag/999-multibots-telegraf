@@ -16,7 +16,7 @@
       "platforms": ["web", "ios"],
       "labelKey": "nav.feed",
       "label": { "en": "Feed", "ru": "Лента" },
-      "icon": { "lucide": "Home", "sf": "house" }
+      "icon": { "lucide": "Film", "sf": "film" }
     },
     {
       "id": "chat",
