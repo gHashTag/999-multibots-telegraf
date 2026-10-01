@@ -154,7 +154,7 @@ async function publishEverywhere(
  */
 async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   const { xThread } = await import('./blog-share')
-  const { newPage, evaluateOn, clickAt, typeText } =
+  const { newPage, evaluateOn, clickAt, typeText, closePage } =
     await import('../browser/cdp')
   const { findProbe, foundOf } = await import('../browser/find-target')
   const thread = xThread(a)
@@ -182,10 +182,21 @@ async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   await settle(1_000)
   await typeText(cdp, page.id, thread.second)
   await settle(1_000)
+  const before = String(
+    await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+  )
   const pressed = await press([
     'post all',
     'опубликовать все',
     'опубликовать всё',
   ])
-  return `тред опубликован («${pressed}»): текст, ссылка вторым постом` // cyrillic-ok: told to the owner
+  await settle(5_000)
+  const after = String(
+    await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+  )
+  const { receiptOf, LEFT_THE_FORM } = await import('./blog-share')
+  const receipt = receiptOf(before, after)
+  if (receipt === LEFT_THE_FORM)
+    await closePage(cdp, page.id).catch(() => undefined)
+  return `тред опубликован («${pressed}»): текст, ссылка вторым постом · ${receipt}` // cyrillic-ok: told to the owner
 }
