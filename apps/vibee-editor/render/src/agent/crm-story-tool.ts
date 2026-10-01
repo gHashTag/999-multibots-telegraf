@@ -25,6 +25,7 @@
 import type { AgentTool, ToolContext } from './tools'
 import {
   storyTopicIdeas,
+  keepStoryFace,
   missingFor,
   nextLink,
   peekNextPlanItem,
@@ -135,6 +136,11 @@ export function makeCrmStoryTool(o: {
           type: 'boolean',
           description: 'запомнить end_card клиенту для следующих рилсов',
         },
+        face_url: {
+          type: 'string',
+          description:
+            'своё фото для рилсов клиента вместо аватарки (https); пустая строка — снова аватарка',
+        },
         to: {
           type: 'string',
           description:
@@ -165,6 +171,17 @@ export function makeCrmStoryTool(o: {
           await face.handler({ lead_id: lead }, ctx).catch(() => null)
           s = await storySettingsOf(ctx.pool, lead, seller)
         }
+      }
+      // The seller's own photo over her avatar, kept for her next reels.
+      if (s && typeof args.face_url === 'string') {
+        const k = await keepStoryFace(
+          ctx.pool as never,
+          seller,
+          lead,
+          args.face_url
+        )
+        if (k.why) return { ready: false, started: false, why: k.why }
+        s = await storySettingsOf(ctx.pool, lead, seller)
       }
       if (args.ideas === true) {
         const ideas = await storyTopicIdeas(
@@ -271,6 +288,8 @@ export function makeCrmStoryTool(o: {
             ? {
                 name: s.name || undefined,
                 face: s.faceUrl || undefined,
+                face_custom: s.faceCustom,
+                avatar: s.avatarUrl || undefined,
                 voice: s.hasVoice,
                 // Her clone speaks new lines; without it -- or while its
                 // provider refuses (spec v5) -- her own voice notes are

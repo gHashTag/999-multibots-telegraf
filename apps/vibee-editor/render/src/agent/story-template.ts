@@ -124,6 +124,10 @@ export interface StorySettings {
    * save_end_card): over her profile's, under the seller's word for a reel.
    */
   keptCard: StoryEndCard | null
+  /** True when the seller set a photo of their own over her avatar. */
+  faceCustom: boolean
+  /** Her avatar, the default the seller can go back to; '' when none. */
+  avatarUrl: string
 }
 
 const parse = (v: unknown): any => {
@@ -195,9 +199,19 @@ export async function storySettingsOf(
       WHERE owner_id = $1 AND lead_id = $2`,
     [owner, id]
   )
+  // The seller's own photo for her reels (keepStoryFace), over the
+  // profile's, over her avatar -- the avatar is only the default.
+  const kept = await first(
+    pool,
+    `SELECT face_url FROM story_faces WHERE owner_id = $1 AND lead_id = $2`,
+    [owner, id]
+  )
+  const isUrl = (u: string) => /^https?:\/\//.test(u)
+  const keptFace = String(kept?.face_url ?? '').trim()
   const own = String(s.face_url ?? '').trim()
   const avatar = String(person?.avatar_url ?? '').trim()
-  const faceUrl = [own, avatar].find(u => /^https?:\/\//.test(u)) ?? ''
+  const faceUrl = [keptFace, own, avatar].find(isUrl) ?? ''
+  const faceCustom = isUrl(keptFace) || isUrl(own)
   const voice = await leadVoiceOf(pool as never, owner, id).catch(() => null)
   const business = profile?.business ?? {}
   return {
@@ -205,6 +219,8 @@ export async function storySettingsOf(
     lead: id,
     name: String(profile?.name ?? person?.first_name ?? '').trim(),
     faceUrl,
+    faceCustom,
+    avatarUrl: isUrl(avatar) ? avatar : '',
     hasVoice: Boolean(voice),
     style: String(s.style ?? '').trim() || STORY_DEFAULT_STYLE,
     // approved_cta is {text, button} in a client package, a string by hand.
@@ -1541,4 +1557,40 @@ export function parseIdeas(text: string): string[] {
     if (out.length >= STORY_IDEAS_MAX) break
   }
   return out
+}
+
+/**
+ * The photo a seller picks for her reels instead of her avatar. An empty url
+ * takes it off, and the avatar is the face again.
+ */
+export async function keepStoryFace(
+  pool: Pool,
+  owner: string,
+  lead: string,
+  url: string
+): Promise<{ kept: boolean; why?: string }> {
+  const u = String(url ?? '').trim()
+  if (u && !/^https:\/\/\S+$/.test(u))
+    return { kept: false, why: 'face_url: нужна ссылка https на фото' } // cyrillic-ok: tool result copy
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS story_faces (
+       owner_id text NOT NULL, lead_id text NOT NULL, face_url text NOT NULL,
+       updated_at timestamptz NOT NULL DEFAULT now(),
+       PRIMARY KEY (owner_id, lead_id))`
+  )
+  if (!u) {
+    await pool.query(
+      `DELETE FROM story_faces WHERE owner_id = $1 AND lead_id = $2`,
+      [String(owner), String(lead)]
+    )
+    return { kept: false }
+  }
+  await pool.query(
+    `INSERT INTO story_faces (owner_id, lead_id, face_url, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (owner_id, lead_id)
+     DO UPDATE SET face_url = EXCLUDED.face_url, updated_at = now()`,
+    [String(owner), String(lead), u]
+  )
+  return { kept: true }
 }

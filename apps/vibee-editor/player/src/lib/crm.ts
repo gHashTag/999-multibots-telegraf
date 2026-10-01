@@ -625,6 +625,10 @@ export interface StoryReady {
   ready: boolean
   why: string | null
   face: string | null
+  /** The seller's own photo stands over her avatar. */
+  faceCustom: boolean
+  /** Her avatar: the default face to go back to. */
+  avatar: string | null
   voice: boolean
   vip: boolean
   link: string | null
@@ -722,6 +726,8 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
     ready: bool(r['ready']) ?? false,
     why: str(r['why']),
     face: str(r['face']),
+    faceCustom: bool(r['face_custom']) ?? false,
+    avatar: str(r['avatar']),
     voice: bool(r['voice']) ?? false,
     vip: bool(r['vip']) ?? false,
     link: str(r['one_tap_link']),
@@ -753,6 +759,19 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
 export const loadStoryReel = async (lead: string) =>
   map(
     await callTool<Record<string, unknown>>('crm_story_reel', { lead }),
+    toStoryReady
+  )
+
+/**
+ * The seller's own photo for her reels instead of her avatar; '' puts the
+ * avatar back. The answer is the panel's new state.
+ */
+export const saveStoryFace = async (lead: string, url: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_story_reel', {
+      lead,
+      face_url: url,
+    }),
     toStoryReady
   )
 
