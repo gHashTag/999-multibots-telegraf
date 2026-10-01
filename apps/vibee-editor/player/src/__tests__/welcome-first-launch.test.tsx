@@ -29,6 +29,12 @@ vi.mock('@/hooks/useLanguage', () => ({
   globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
+// Every test re-imports the router and the welcome page cold (resetModules
+// below). Alone that takes well under a second; inside the full player suite
+// on a loaded machine one cold import outran the default 5s and the rest of
+// the file failed behind it, so the budget here is for the imports.
+vi.setConfig({ testTimeout: 30_000 })
+
 async function freshMemory() {
   vi.resetModules()
   const memory = await import('@/components/Navigation/RouteMemory')
