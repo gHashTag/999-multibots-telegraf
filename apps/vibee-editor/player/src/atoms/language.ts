@@ -920,7 +920,8 @@ const en: Translations = {
   'pricing.tokens.feature2': 'One balance for everything, no seats',
   'pricing.tokens.feature3':
     'The price of each action is shown before you press',
-  'pricing.tokens.feature4': 'Tokens do not expire and are not billed monthly',
+  'pricing.tokens.feature4':
+    'Unspent tokens burn 30 days after they arrive; we remind you 7, 3 and 1 day before',
   'pricing.tokens.note':
     'First tokens on sign-up, no card. An invoice for any amount is written by the agent in the bot.',
 
@@ -3529,7 +3530,8 @@ const ru: Translations = {
   'pricing.tokens.feature1': 'Картинки, озвучка, видео, сборка рилса',
   'pricing.tokens.feature2': 'Один баланс на всё, без мест и участников',
   'pricing.tokens.feature3': 'Цена каждого действия видна до нажатия',
-  'pricing.tokens.feature4': 'Токены не сгорают и не списываются ежемесячно',
+  'pricing.tokens.feature4':
+    'Неистраченные токены сгорают через 30 дней; напомним за 7, 3 и 1 день',
   'pricing.tokens.note':
     'Первые токены — при входе, без карты. Счёт на любое количество выпишет агент в боте.',
 
