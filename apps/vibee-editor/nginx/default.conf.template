@@ -339,6 +339,17 @@ server {
         }
     }
 
+    # The TON Connect manifest (player/public/tonconnect-manifest.json). A
+    # wallet fetches it to show who is asking for a proof, and a browser-
+    # extension wallet fetches it cross-origin, so it carries an open CORS
+    # header. It is public by design: a name, an address and an icon.
+    location = /tonconnect-manifest.json {
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Cache-Control "public, max-age=300" always;
+        try_files $uri =404;
+    }
+
     # Данные — до SPA-fallback. Иначе отсутствующий manifest.json отдавался
     # как index.html с кодом 200: парсер получал HTML вместо JSON, и поломка
     # была не видна ни в консоли, ни в логах. Ровно так и случилось.
