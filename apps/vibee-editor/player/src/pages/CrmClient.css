@@ -64,7 +64,18 @@
 
 /* THE PRIMARY ACTION. The only full-width green thing on the page: talking
    about this client is what the page is for. */
+/* Sticky at the bottom, above the app's tab bar when it is drawn (the shell
+   sets --app-tabbar-total to 0 when it is not) and the home indicator. The
+   shadow separates it from the text it passes over. */
 .crm-client__chat {
+  position: sticky;
+  bottom: calc(
+    max(var(--app-tabbar-total, 0px), var(--app-safe-bottom, 0px)) + 12px
+  );
+  z-index: 2;
+  box-shadow:
+    0 0 0 6px var(--t27-bg, #000),
+    0 -8px 24px rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;

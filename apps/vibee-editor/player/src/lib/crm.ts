@@ -140,6 +140,15 @@ export interface WaitingRow {
    * does not send it.
    */
   nextWhy: string
+  /**
+   * The same two reasons as codes (`because_code`, `next_why_code`), for the
+   * screen's own language: the words above are Russian, and an English
+   * screen printed them as they came (loop tick 12). Null from an older
+   * server, and then the words are shown. See `reasonLine`.
+   */
+  becauseCode: string | null
+  nextWhyCode: string | null
+  nextWhyVars: Record<string, string | number> | null
   urgency: string | null
 }
 
@@ -257,7 +266,7 @@ export const loadTraffic = async (days: number) =>
  * match the component instead of the server, which is the fake agreeing with
  * the code rather than with the world.
  */
-function toWaiting(r: Record<string, unknown>): WaitingList {
+export function toWaiting(r: Record<string, unknown>): WaitingList {
   const rows = Array.isArray(r['waiting'])
     ? (r['waiting'] as Array<Record<string, unknown>>)
     : []
@@ -276,9 +285,43 @@ function toWaiting(r: Record<string, unknown>): WaitingList {
       stage: String(x['stage'] ?? 'new'),
       because: String(x['because'] ?? ''),
       nextWhy: String(x['next_why'] ?? ''),
+      becauseCode: str(x['because_code']),
+      nextWhyCode: str(x['next_why_code']),
+      nextWhyVars: reasonVars(x['next_why_vars']),
       urgency: str(x['urgency']),
     })),
   }
+}
+
+/*
+ * A REASON IN THE SCREEN'S LANGUAGE, OR THE SERVER'S WORDS.
+ *
+ * The server sends each reason twice: Russian words for the agent, and a
+ * code. A code the dictionary knows becomes `crm.why.<code>` with its
+ * numbers; a code it does not know (a server newer than this screen), or no
+ * code at all (a server older than it), shows the words, which are at least
+ * true. Never the bare key: `t` returns the key for a missing line, and
+ * "crm.why.promise_late" on a phone says nothing to anybody.
+ */
+export function reasonLine(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  code: string | null,
+  vars: Record<string, string | number> | null,
+  words: string
+): string {
+  if (!code) return words
+  const key = `crm.why.${code}`
+  const line = t(key, vars ?? undefined)
+  return line === key ? words : line
+}
+
+function reasonVars(v: unknown): Record<string, string | number> | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null
+  const out: Record<string, string | number> = {}
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof x === 'string' || typeof x === 'number') out[k] = x
+  }
+  return out
 }
 
 /*
@@ -486,11 +529,65 @@ function toClients(r: Record<string, unknown>): ClientsList {
   }
 }
 
+/**
+ * What a typed search looks for, the same for every list on the page.
+ *
+ * A leading @ is how Telegram shows a username, so it is how people type
+ * one. The server's clientQuery drops it; the player did not, and "@lapin"
+ * hid the very person the server had just found (CRM mobile loop, tick 2).
+ */
+export const searchNeedle = (q: string) =>
+  q.trim().replace(/^@/, '').toLowerCase()
+
 /** One search for every list of people: name, @username, package, id. */
 export const matches = (x: ClientRow, q: string) => {
-  const needle = q.trim().toLowerCase()
+  const needle = searchNeedle(q)
   if (!needle) return true
   return [x.name, x.username, x.client, x.telegramId, ...x.bots]
+    .filter(Boolean)
+    .some(v => String(v).toLowerCase().includes(needle))
+}
+
+/**
+ * A text cut where the search found it, so a row can show WHY it is among
+ * the results (Telegram and iOS Contacts mark the typed letters). Only the
+ * first place: a name is short, and one mark is where the eye goes.
+ *
+ * Lowercasing can change a string's length (Turkish dotted I); then an
+ * index into the lowercase copy is not an index into the text, so nothing
+ * is marked rather than the wrong letters.
+ *
+ * `keepBefore`: a found part far into a long text would sit past the
+ * line's ellipsis; the text before it is then cut to that many letters
+ * after a "…", the way Telegram's search shows a hit inside a message.
+ */
+export function splitByNeedle(
+  text: string,
+  q: string,
+  keepBefore?: number
+): Array<{ text: string; hit: boolean }> {
+  const needle = searchNeedle(q)
+  const low = text.toLowerCase()
+  const at = needle && low.length === text.length ? low.indexOf(needle) : -1
+  if (at < 0) return [{ text, hit: false }]
+  const end = at + needle.length
+  const from =
+    keepBefore !== undefined && at > keepBefore + 1 ? at - keepBefore : 0
+  return [
+    { text: (from > 0 ? '…' : '') + text.slice(from, at), hit: false },
+    { text: text.slice(at, end), hit: true },
+    { text: text.slice(end), hit: false },
+  ].filter(p => p.text !== '')
+}
+
+/**
+ * Found by the id alone. A row shows no id, so such a row sits in the
+ * results with nothing on it that was typed; the row then names the id.
+ */
+export const foundOnlyById = (x: ClientRow, q: string) => {
+  const needle = searchNeedle(q)
+  if (!needle || !x.telegramId.toLowerCase().includes(needle)) return false
+  return ![x.name, x.username, x.client]
     .filter(Boolean)
     .some(v => String(v).toLowerCase().includes(needle))
 }

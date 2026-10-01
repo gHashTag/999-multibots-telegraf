@@ -1,0 +1,437 @@
+[
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "  useUrlMirror({ q: query, who: clientsFilter === 'all' ? '' : clientsFilter })\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "return who && CLIENTS_FILTERS.includes(who) ? who : 'all'",
+    "to": "return 'all'"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "return who && CLIENTS_FILTERS.includes(who) ? who : 'all'",
+    "to": "return who ?? 'all'"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "              e.preventDefault()\n              navigate(-1)\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "if (isFirstEntry(location)) return",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "  useEffect(() => rememberContact(clientId), [clientId])",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "query.trim() || clientsFilter === 'groups'\n      ? []",
+    "to": "clientsFilter === 'groups'\n      ? []"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "  useScrollMemory(!busy && (clients.data !== null || overview.data !== null))\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "  useScrollTopOnPush(clientId)\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
+    "from": "if (navType !== 'POP') appScroller().scrollTop = 0",
+    "to": "appScroller().scrollTop = 0"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
+    "from": "Math.abs(box.scrollTop - target) > 1 && tries < TRIES",
+    "to": "false"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
+    "from": "if (!ready || done.current || target === null) return",
+    "to": "if (done.current || target === null) return"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
+    "from": "  if (document.documentElement.getAttribute('data-tg') === '1') {",
+    "to": "  if (false) {"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/useScrollMemory.ts",
+    "from": "          KEY + keyRef.current,",
+    "to": "          KEY + 'x',"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
+    "from": "                  onClick={backToClient}\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/backTo.ts",
+    "from": "    if (from === path) navigate(-1)",
+    "to": "    if (from) navigate(-1)"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/backTo.ts",
+    "from": "        replace: true,",
+    "to": "        replace: false,"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/backTo.ts",
+    "from": "        state: isFirstEntry(location) ? { firstEntry: true } : null,",
+    "to": "        state: null,"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/backTo.ts",
+    "from": "    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return\n    e.preventDefault()",
+    "to": "    e.preventDefault()"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "          ...cameFrom(`/crm/${clientId}`),\n",
+    "to": ""
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "              if (isFirstEntry(location)) return",
+    "to": "              if (location.key === 'default') return"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.css",
+    "from": ".chat-client {\n  flex: 1 1 auto;\n  min-width: 0;\n  max-width: 100%;\n}",
+    "to": ".chat-client {\n  flex: 1 1 auto;\n}"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.css",
+    "from": "  flex: 0 1 auto;\n  min-width: 0;\n}",
+    "to": "  flex: 0 1 auto;\n}"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.css",
+    "from": "    min-height: 44px;\n  }",
+    "to": "    min-height: 28px;\n  }"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.css",
+    "from": "  .chat-client__card.chat-client__queen {\n    margin-left: 0;",
+    "to": "  .chat-client__queen {\n    margin-left: 0;"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
+    "from": "                  {clientName ?? t('crm.client.chat.title', { id: client })}",
+    "to": "                  {t('crm.client.chat.title', { id: client })}"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/components/Crm/ClientAside.tsx",
+    "from": "    if (known) onName?.(known)",
+    "to": "    if (known) void 0"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "        if (reloads.current === mine) set(v)",
+    "to": "        set(v)",
+    "name": "card: a late answer for the last client lands"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "      loadLeadContext(clientId).then(land(setContext)),",
+    "to": "      loadLeadContext(clientId).then(async v => {\n        await loadLeadMedia(clientId)\n        land(setContext)(v)\n      }),",
+    "name": "card: messages wait for the media read"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/CrmClient.tsx",
+    "from": "          ...(displayName !== clientId ? { name: displayName } : {}),",
+    "to": "",
+    "name": "card: the chat link hands no name over"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/components/Crm/ClientAside.tsx",
+    "from": "        if (alive) set(v)",
+    "to": "        set(v)",
+    "name": "aside: a read for the last client lands"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/components/Crm/ClientAside.tsx",
+    "from": "    void loadClientProfile(client).then(land(setProfile))",
+    "to": "    void Promise.all([loadClientProfile(client), loadClientTimeline(client)]).then(([p]) => land(setProfile)(p))",
+    "name": "aside: profile waits for the timeline"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/components/Crm/ClientAside.tsx",
+    "from": "          onClick={backToCard}\n",
+    "to": "",
+    "name": "aside: open-the-card link pushes again"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
+    "from": "      : typeof handed === 'string' && handed",
+    "to": "      : false && handed",
+    "name": "chat: the handed-over name is ignored"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "    picked === null ? null : (\n      <span className=\"crm__col-auto\"",
+    "to": "    false ? null : (\n      <span className=\"crm__col-auto\"",
+    "name": "AUTO column label before the ticks are read"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "<span className=\"crm__col-auto\" aria-hidden=\"true\">",
+    "to": "<span className=\"crm__col-auto\">",
+    "name": "AUTO column label read aloud twice"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "                {t('crm.vip.title')} {underWay.length}\n                {autoColumn}",
+    "to": "                {t('crm.vip.title')} {underWay.length}",
+    "name": "under-way heading loses the AUTO column label"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "                  {t('crm.clients.rest')} {shownClients.length}\n                  {autoColumn}",
+    "to": "                  {t('crm.clients.rest')} {shownClients.length}",
+    "name": "rest heading loses the AUTO column label"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "<span className=\"crm__auto-word\">{t('crm.row.auto')}</span>",
+    "to": "<span>{t('crm.row.auto')}</span>",
+    "name": "row tick word not marked for phone clipping"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  .crm__auto-word {\n    position: absolute;\n    width: 1px;\n    height: 1px;\n    overflow: hidden;\n    clip-path: inset(50%);",
+    "to": "  .crm__auto-word {\n    display: none;",
+    "name": "tick word hidden from screen readers too"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "<div className=\"crm__outcomes\" role=\"group\">",
+    "to": "<div className=\"crm__outcome-row\" role=\"group\">",
+    "name": "outcome buttons lose their group"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "<div className=\"crm__outcomes\" role=\"group\">",
+    "to": "<div className=\"crm__outcomes\">",
+    "name": "outcome group not announced as a group"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  .crm__outcomes button {\n    flex: 1 1 0;\n  }",
+    "to": "  .crm__acts button {\n    flex: 1 1 auto;\n  }",
+    "name": "phone grows every action button (lone Wrote stretched)"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  .crm__outcomes button {\n    flex: 1 1 0;\n  }",
+    "to": "",
+    "name": "phone outcomes not in even thirds"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  .crm__who:has(> .crm-avatar) {\n    display: grid;",
+    "to": "  .crm__who:has(> .crm-avatar) {\n    display: flex;",
+    "name": "phone head back to one flex line"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "grid-template-columns: auto minmax(0, 1fr);",
+    "to": "grid-template-columns: auto 1fr;",
+    "name": "name column may widen past the row"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "    row-gap: 0;",
+    "to": "    row-gap: 10px;",
+    "name": "name parted from its subtitle"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "grid-row: span 2;",
+    "to": "grid-row: auto;",
+    "name": "face on the name line only"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "        <Link to={`/crm/${r.telegramId}`} className=\"crm__open\">\n          {r.name || r.telegramId}\n        </Link>\n        <span className=\"crm__stage\">",
+    "to": "        <span className=\"crm__stage\">",
+    "name": "waiting head loses the name link"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "    position: sticky;\n    top: var(--crm-finder-h, 0px);",
+    "to": "    position: static;\n    top: var(--crm-finder-h, 0px);",
+    "name": "heading scrolls away again"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "top: var(--crm-finder-h, 0px);",
+    "to": "top: 114px;",
+    "name": "finder height copied as a number"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "    padding: 12px 0 2px;\n    background: var(--color-bg-primary, #000);",
+    "to": "    padding: 12px 0 2px;",
+    "name": "see-through pinned heading"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "<div className=\"crm__finder\" ref={finderRef}>",
+    "to": "<div className=\"crm__finder\">",
+    "name": "finder height never published"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "              <section className=\"crm__group\">\n                <h4 className=\"crm__subtitle\">\n",
+    "to": "              <section className=\"crm__rest\">\n                <h4 className=\"crm__subtitle\">\n",
+    "name": "rest section not a group"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/usePublishedHeight.ts",
+    "from": "const host = el?.parentElement",
+    "to": "const host = el ? document.documentElement : null",
+    "name": "published on the page, not the parent"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/usePublishedHeight.ts",
+    "from": "      ro?.observe(el)\n",
+    "to": "",
+    "name": "stops following resizes"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/usePublishedHeight.ts",
+    "from": "      stop.current?.()\n",
+    "to": "",
+    "name": "value outlives the element"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "  const at = needle && low.length === text.length ? low.indexOf(needle) : -1\n",
+    "to": "  const at = needle ? low.indexOf(needle) : -1\n",
+    "name": "hit marked at a shifted index"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "    keepBefore !== undefined && at > keepBefore + 1 ? at - keepBefore : 0\n",
+    "to": "    keepBefore !== undefined && at > keepBefore ? at - keepBefore : 0\n",
+    "name": "ellipsis that saves nothing"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "  ].filter(p => p.text !== '')\n",
+    "to": "  ]\n",
+    "name": "empty parts in a split"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "            <Hit text={x.client} q={query} keepBefore={FACT_LEAD} />\n",
+    "to": "            <Hit text={x.client} q={query} />\n",
+    "name": "deep package hit past the ellipsis"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "      foundOnlyById(x, query)\n        ? found(\n",
+    "to": "      false\n        ? found(\n",
+    "name": "id-only result names nothing typed"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "      ...searched.filter(f => f.hit).map(f => f.node),\n      t(`crm.stage.${x.stage}`),\n",
+    "to": "      t(`crm.stage.${x.stage}`),\n      ...searched.filter(f => f.hit).map(f => f.node),\n",
+    "name": "hit fact behind the stage"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "              <Hit text={x.name || x.username || x.telegramId} q={query} />\n",
+    "to": "              {x.name || x.username || x.telegramId}\n",
+    "name": "name hit unmarked"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  .crm__contacts .crm__group > .crm__list {\n    gap: 0;\n",
+    "to": "  .crm__contacts .crm__group > .crm__list {\n    gap: 10px;\n",
+    "name": "contact cards stacked again"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "    position: relative;\n    border: 0;\n    border-radius: 0;\n",
+    "to": "    position: relative;\n    border: 1px solid;\n    border-radius: 0;\n",
+    "name": "row frame inside the list frame"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "    top: 0;\n    left: 58px;\n",
+    "to": "    top: 0;\n    left: 0;\n",
+    "name": "hairline under the faces"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "  return line === key ? words : line\n",
+    "to": "  return line\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "  return line === key ? words : line\n",
+    "to": "  return words\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "      becauseCode: str(x['because_code']),\n",
+    "to": "      becauseCode: null,\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "      nextWhyCode: str(x['next_why_code']),\n",
+    "to": "      nextWhyCode: null,\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "      nextWhyVars: reasonVars(x['next_why_vars']),\n",
+    "to": "      nextWhyVars: null,\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "          ? reasonLine(t, r.nextWhyCode, r.nextWhyVars, r.nextWhy)\n",
+    "to": "          ? r.nextWhy\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "          {reasonLine(t, r.nextWhyCode, r.nextWhyVars, r.nextWhy)}\n",
+    "to": "          {r.nextWhy}\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "        {reasonLine(t, r.becauseCode, null, r.because)}\n",
+    "to": "        {r.because}\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "  const byId = new Map(inFilter.map(x => [x.telegramId, x]))\n",
+    "to": "  const byId = new Map((c?.clients ?? []).map(x => [x.telegramId, x]))\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/pages/Crm.tsx",
+    "from": "{t('crm.wait.days', { n: r.days })}",
+    "to": "{r.days}"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "    if (typeof x === 'string' || typeof x === 'number') out[k] = x\n",
+    "to": "    out[k] = x as string\n"
+  },
+  {
+    "file": "apps/vibee-editor/player/src/lib/crm.ts",
+    "from": "  if (!v || typeof v !== 'object' || Array.isArray(v)) return null\n",
+    "to": "  if (!v || typeof v !== 'object') return null\n"
+  }
+]

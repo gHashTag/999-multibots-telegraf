@@ -1913,3 +1913,67 @@ then root `test:vitest` clean-tree measurement; player screen (UI-only);
 sign-in completion (owner's keyboard); 7 orphaned dirty render files in
 /tmp/brhard; unused-var cleanup in `src/browser/*.ts` + `agent/*.ts`;
 `browser_status` running-claim (description budget).
+
+### Lesson of 01.10.2026: a guard that skips itself is not a guard (CRM mobile loop, tick 7)
+
+A cron loop keeps every mutation a past tick proved in
+`.claude/loop-state/<name>-mutants.json`, and `tri loop-guard start`
+re-runs them all. Tick 6 rewrote one line that an entry was anchored to.
+`tri mutants` refuses a list with any stale anchor, so tick 7 started with
+**all 27 guards unchecked**, and loop-guard printed a `warn` and GO.
+**Unchecked is not green.**
+
+- `start`: a stale anchor now stops the tick.
+- `end`: the lock is kept while the anchors do not match the code or the
+  tree is dirty. The tick that moved the code knows the new line; the next
+  tick would have to guess.
+
+The new `end` check caught two more stale anchors in the same tick's own
+change, before its commit. Run `tri mutants --check <list>` after every edit
+to guarded code. The details live in the header of
+`bin/helpers/loop-guard.sh`; they are not copied here.
+
+A proven batch goes into the guard list with `tri mutants --adopt
+<batch.json> <guards.json>`, run where the batch ran. The hand-made copy
+it replaces once rewrote the whole list's indent.
+
+**Wrapping code re-indents its guards.** Tick 10 wrapped a heading and its
+list in a `<section>`: not a token changed, but a past mutation anchored
+inside went stale, and `--adopt` refused the new batch (as it should).
+`tri mutants --reanchor <guards.json>`, run from the repo root, follows an
+indent-only move: the `from` found once with every line shifted by the same
+amount, and `to` shifted with it. A changed token stays stale and is named;
+someone decides what that mutation should now be.
+
+**A guard is adopted with the files that killed it; the next start runs it
+with the marker.** Tick 11 adopted three guards that only
+`crmMatches.test.ts` killed. The `<!-- loop-tests: -->` marker did not name
+that file, so the next start would have reported "a past mutation SURVIVES",
+a false regression blamed on the wrong tick. `tri loop-guard end` now runs
+the guards added since `start` under the marker and stops on a survivor
+(ten guards took 95 s). Add the killing test file to the marker.
+
+**Never edit a file while a mutation batch runs in the background.** The
+restore writes back the pre-mutation snapshot. `tri mutants` now keeps such
+an edit as `<file>.edited-during-mutants`, but that is a rescue, not a way
+to work.
+
+### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
+
+The screen now translates a waiting reason by code and falls back to the
+server's words when `t` returns the bare key (the real `t`'s sign for a
+missing line). The page test mocks `t` to echo the key. So for every code
+without numbers the mock said "missing", the screen showed the words, and a
+mutant that dropped the translation on that path SURVIVED. The mock now
+treats `crm.why.*` as found (`key:`), and the mutant dies. **When code
+branches on what a mock returns, check the mock can return both answers.**
+
+Two more from the same tick:
+
+- **A shared fixture mutated by one test leaks into the next.** It passed
+  for weeks only because of file order. Keep a `structuredClone` of the
+  fixture and restore it in `afterEach`, not in each test.
+- **Server mutants need the server's tests in the marker.** Eight render
+  mutants were killed by hand (8/8) but not adopted: the marker runs the
+  player only, so the next `start` would call them survivors. Adopt only
+  what the marker can kill.
