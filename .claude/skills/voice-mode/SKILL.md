@@ -92,6 +92,17 @@ Other guarantees, each pinned by a test in `session.test.ts`:
 | -- of which upload            | 87 ms                       | 18 ms                       |
 | -- of which the ears          | 175 ms (gigaam)             | 2617 ms (whisper)           |
 | -- of which the road          | 483 ms                      | 567 ms                      |
+| hear, cycle 4 (before #8), x5 | median 1118 [763..6074]     | median 4183 [3539..7162]    |
+| -- of which the road          | 849 ms                      | 1189 ms                     |
+| felt after the last word      | 850 + 568 = 1418 ms         | 850 + 3633 = 4483 ms        |
+
+"Felt" is what `tri voice` prints since cycle 4: the player's pause
+(`END_OF_TURN_MS`) plus the hearing that is NOT hidden inside it by early
+hearing (`END_OF_TURN_MS - EAGER_HEAR_MS` = 550 ms). Both constants are read
+from `session.ts` itself, never copied. Without early hearing the ru row
+would be 850 + 1118 = 1968 ms. The road doubled against cycle 3 (483 -> 849)
+with the same code: night-time variance and a 6 s outlier, not a change --
+but it is now the largest leg after the pause, see #14.
 
 What the pod measurements showed (cycle 2, inside the whisper pod):
 
@@ -157,7 +168,38 @@ A new model gets its own service, like `gigaam` (`GIGAAM_THREADS`, default 8).
 `gigaam` is NOT wired to GitHub: `./tri gigaam deploy` from a clean tree after
 the PR merges. A merge alone ships the render, not the ears.
 
+## Early hearing (cycle 4, 2026-10-02)
+
+After GigaAM the person's wait was mostly the player's own: 850 ms of silence
+to judge the turn over, THEN the words. Now (`session.ts`):
+
+- After `EAGER_HEAR_MS` (300) of silence, `requestData()`; the next data
+  event snapshots the chunks and transcribes them with an AbortSignal.
+- Any loud tick drops the guess (`dropEager`): the person kept talking.
+- At the turn end, if the guess is there with the same language hint, its
+  words are the turn's words; one transcribe, not two. A guess that FAILED
+  falls back to hearing the whole recording -- never an error on its own.
+- Only text is guessed. Nothing is SENT to the agent before the turn ends:
+  a question can make an invoice or send a message, and those cannot be
+  taken back. (LiveKit's preemptive generation drafts the ANSWER early; that
+  needs an undo the agent does not have.)
+- webm/ogg only (`canHearEarly`). Safari records mp4 with its index at the
+  end, so a cut of it is not a file; Safari keeps the old path.
+- Cost: one extra transcription per pause of 300..850 ms inside a phrase.
+  GigaAM does it in ~170 ms; English is a second whisper run, aborted
+  client-side (whisper itself finishes the work anyway).
+
+Why not Smart Turn v3 (the model #8 named): on the server it pays the road
+(~0.5-0.8 s) to save at most the 850 ms; in the browser it needs
+onnxruntime-web, an 8 MB model and log-mel in JS. Early hearing removes
+the same wait for the common case with no model at all. #8's other half --
+a slow speaker cut off mid-thought by a fixed pause -- is still open.
+
 ## Competitors (researched 2026-10-02)
+
+- Deepgram Flux: `EagerEndOfTurn` fires a draft transcript before the turn is
+  sure, `TurnResumed` cancels it, `EndOfTurn` confirms. Our early hearing is
+  the same three events inside the player.
 
 - LiveKit Agents: barge-in after ~0.5 s of speech; on a "false interruption"
   (no transcript within ~2 s) the agent resumes. Our step 1-2 copies this.
@@ -173,21 +215,23 @@ the PR merges. A merge alone ships the render, not the ears.
 
 ## Weak spots, with status
 
-| #   | weak spot                                          | status                        |
-| --- | -------------------------------------------------- | ----------------------------- |
-| 1   | card markup read aloud                             | FIXED cycle 1                 |
-| 2   | any sound killed the answer (280 ms, no resume)    | FIXED cycle 1 (pause/resume)  |
-| 3   | its own voice through the speaker interrupted it   | FIXED cycle 1 (onset + echo)  |
-| 4   | stuck "speaking" on a suspended AudioContext       | FIXED cycle 1 (watchdog)      |
-| 5   | silence after the phrase looked like "not heard"   | FIXED cycle 1 (earcon)        |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)     | FIXED cycle 3 (GigaAM, #3252) |
-| 7   | energy VAD: a fan or street noise counts as speech | OPEN -- Silero vad-web        |
-| 8   | turn end is a fixed pause; slow speakers get cut   | OPEN -- Smart Turn v3         |
-| 9   | nothing said while the agent thinks for long       | OPEN -- filler after ~3 s     |
-| 10  | first sound waits for a whole first sentence       | FIXED cycle 2 (first clause)  |
-| 11  | voice picker only for the app language             | OPEN                          |
-| 12  | product words misheard by every engine ("рилс")    | OPEN -- hotword fix-up        |
-| 13  | English hearing is still whisper, ~2.6 s           | OPEN -- Parakeet v3 service   |
+| #   | weak spot                                            | status                        |
+| --- | ---------------------------------------------------- | ----------------------------- |
+| 1   | card markup read aloud                               | FIXED cycle 1                 |
+| 2   | any sound killed the answer (280 ms, no resume)      | FIXED cycle 1 (pause/resume)  |
+| 3   | its own voice through the speaker interrupted it     | FIXED cycle 1 (onset + echo)  |
+| 4   | stuck "speaking" on a suspended AudioContext         | FIXED cycle 1 (watchdog)      |
+| 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)        |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252) |
+| 7   | energy VAD: a fan or street noise counts as speech   | OPEN -- Silero vad-web        |
+| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)         |
+| 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3         |
+| 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s     |
+| 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)  |
+| 11  | voice picker only for the app language               | OPEN                          |
+| 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up        |
+| 13  | English hearing is still whisper, ~2.6 s             | OPEN -- Parakeet v3 service   |
+| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s | OPEN -- measure per hop       |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 

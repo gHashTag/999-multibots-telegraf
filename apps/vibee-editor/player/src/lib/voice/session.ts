@@ -11,6 +11,9 @@
  * - Each utterance is transcribed by OUR whisper (render /api/voice/transcribe)
  *   and then sent as an ordinary chat message: the agent keeps every tool it
  *   has, and the transcript in the chat shows the turn like any other.
+ * - The words are asked for 300 ms into the pause that ends a phrase, while
+ *   the pause is still being judged, and thrown away if the person goes on
+ *   (EAGER_HEAR_MS): the turn's end no longer waits for the words too.
  * - The answer is spoken sentence by sentence while it is still being written
  *   (lib/voice/sentences.ts), up to two sentences synthesised ahead.
  * - Speaking over the agent PAUSES it (barge-in): playback stops at once and
@@ -102,6 +105,18 @@ export interface VoiceDeps {
 const TICK_MS = 40
 const SPEECH_ONSET_MS = 160
 const END_OF_TURN_MS = 850
+/*
+ * EAGER HEARING. The 850 ms of silence that ends a turn was, after GigaAM
+ * (#3252), the longest wait left: Russian is heard in ~745 ms, so the person
+ * waited for the pause to be judged, then for the words. Now the words are
+ * asked for after the first EAGER_HEAR_MS of silence, while the pause is
+ * still being judged. If the person speaks again the guess is thrown away;
+ * if the turn ends, the words are usually already here. Only text is
+ * guessed -- nothing is SENT to the agent before the turn ends, because a
+ * question can have side effects (an invoice, a message). Deepgram Flux
+ * (EagerEndOfTurn) and LiveKit (preemptive generation) do the same.
+ */
+const EAGER_HEAR_MS = 300
 const MAX_UTTERANCE_MS = 30_000
 const IDLE_RESTART_MS = 12_000
 /*
@@ -119,6 +134,21 @@ const SYNTH_AHEAD = 2
  * session "speaking" forever. Past its own length plus this, it is over.
  */
 const PLAYBACK_GRACE_MS = 1500
+
+/** Words asked for while the pause was still being judged. */
+interface EagerHearing {
+  hint: Language | null
+  text: Promise<string>
+  abort: AbortController
+}
+
+/*
+ * A webm or ogg recording cut after any chunk is still a file the server can
+ * read; Safari's mp4 writes its index at the end, so it is never guessed.
+ */
+function canHearEarly(mime: string): boolean {
+  return /webm|ogg/i.test(mime)
+}
 
 interface Spoken {
   text: string
@@ -177,6 +207,10 @@ export class VoiceSession {
   private outGain: GainNode | null = null
   private recorder: MediaRecorder | null = null
   private chunks: Blob[] = []
+  /** The words of the recording so far, asked for at the start of a pause. */
+  private eager: EagerHearing | null = null
+  /** A chunk was requested for the eager guess and has not come yet. */
+  private eagerWanted = false
   private recordStartedAt = 0
   private timer: number | null = null
   private unsub: (() => void) | null = null
@@ -367,11 +401,13 @@ export class VoiceSession {
     this.recordStartedAt = performance.now()
     this.recorder.ondataavailable = e => {
       if (e.data.size) this.chunks.push(e.data)
+      if (this.eagerWanted) this.hearEarly()
     }
     this.recorder.start(250)
   }
 
   private dropRecording(): void {
+    this.dropEager()
     const r = this.recorder
     this.recorder = null
     if (r && r.state !== 'inactive') {
@@ -413,6 +449,8 @@ export class VoiceSession {
     if (loud) {
       if (!this.loudSince) this.loudSince = now
       this.quietSince = 0
+      // More words: the guess made at the start of the pause is short of them.
+      this.dropEager()
     } else {
       this.loudSince = 0
       if (!this.quietSince) this.quietSince = now
@@ -449,18 +487,68 @@ export class VoiceSession {
     }
     const long = now - this.recordStartedAt
     if (this.spoke) {
-      const ended = this.quietSince && now - this.quietSince > END_OF_TURN_MS
+      const quiet = this.quietSince ? now - this.quietSince : 0
+      const ended = quiet > END_OF_TURN_MS
       if (ended || long > MAX_UTTERANCE_MS) void this.finishUtterance()
+      else if (
+        quiet > EAGER_HEAR_MS &&
+        !this.eager &&
+        !this.eagerWanted &&
+        canHearEarly(this.recorder.mimeType)
+      ) {
+        // The chunk holding the last words comes with the next data event.
+        this.eagerWanted = true
+        try {
+          this.recorder.requestData()
+        } catch {
+          this.eagerWanted = false
+        }
+      }
     } else if (long > IDLE_RESTART_MS) {
       // Keep the recording short while nobody talks.
       this.beginRecording()
     }
   }
 
+  /** The language to name to the transcriber for the next phrase. */
+  private nextHint(): Language | null {
+    // Named when known, except one phrase in RELEARN_EVERY, which re-checks.
+    return this.phrases % RELEARN_EVERY === RELEARN_EVERY - 1
+      ? null
+      : this.spokenLang
+  }
+
+  /** Ask for the words recorded so far, before the turn is known to be over. */
+  private hearEarly(): void {
+    this.eagerWanted = false
+    const r = this.recorder
+    if (!r || this.eager || !this.chunks.length) return
+    const blob = new Blob(this.chunks, { type: r.mimeType || 'audio/webm' })
+    const hint = this.nextHint()
+    const abort = new AbortController()
+    const text = (this.deps.transcribe || httpTranscribe)(blob, {
+      lang: hint,
+      signal: abort.signal,
+    })
+    // Thrown away unheard is not an error anybody should see.
+    text.catch(() => {})
+    this.eager = { hint, text, abort }
+  }
+
+  private dropEager(): void {
+    this.eagerWanted = false
+    this.eager?.abort.abort()
+    this.eager = null
+  }
+
   private async finishUtterance(): Promise<void> {
     const r = this.recorder
     if (!r) return
     this.recorder = null
+    // Taken before the stop below, whose last chunk must not start a new one.
+    const eager = this.eager
+    this.eager = null
+    this.eagerWanted = false
     const gen = this.generation
     const blob = await new Promise<Blob>(resolve => {
       r.onstop = () =>
@@ -479,15 +567,21 @@ export class VoiceSession {
     // Heard: the three-second wait for the words is not silence to wonder at.
     if (!this.paused) this.cue()
     let text = ''
-    // Named when known, except one phrase in RELEARN_EVERY, which re-checks.
-    const hint =
-      this.phrases++ % RELEARN_EVERY === RELEARN_EVERY - 1
-        ? null
-        : this.spokenLang
+    const hint = this.nextHint()
+    this.phrases++
     try {
-      text = await (this.deps.transcribe || httpTranscribe)(blob, {
-        lang: hint,
-      })
+      // Nothing was said after the guess, so its words are the turn's words;
+      // a guess that failed is not the end -- the whole recording is heard.
+      let early: string | null = null
+      if (eager && eager.hint === hint)
+        early = await eager.text.catch(() => null)
+      else eager?.abort.abort()
+      if (gen !== this.generation) return
+      text =
+        early ??
+        (await (this.deps.transcribe || httpTranscribe)(blob, {
+          lang: hint,
+        }))
       // Only an undirected transcript says which language it was: a directed
       // one is written in the language it was told.
       if (!hint) {
