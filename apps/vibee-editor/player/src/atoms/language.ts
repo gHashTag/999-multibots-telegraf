@@ -1916,7 +1916,7 @@ const en: Translations = {
   'nav.learn': 'Learn',
   'nav.agent': 'Agent',
   'nav.agents': 'Agents',
-  'nav.hive': 'Hive',
+  'nav.hive': 'Game',
   'hive.loading': 'Opening the hive on t27.ai…',
   'hive.frameTitle': 'The hive — t27.ai/#/queen',
   'hive.openOutside': 'Open in the browser: t27.ai/#/queen ↗',
@@ -4499,7 +4499,7 @@ const ru: Translations = {
   'nav.learn': 'Обучение',
   'nav.agent': 'Агент',
   'nav.agents': 'Агенты',
-  'nav.hive': 'Улей',
+  'nav.hive': 'Игра', // cyrillic-ok
   'hive.loading': 'Открываем улей на t27.ai…',
   'hive.frameTitle': 'Улей — t27.ai/#/queen',
   'hive.openOutside': 'Открыть в браузере: t27.ai/#/queen ↗',
