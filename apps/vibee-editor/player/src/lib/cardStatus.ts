@@ -94,7 +94,7 @@ const STATE_ORDER = { open: 0, merged: 1, closed: 2 } as const
  */
 export function linkedPrs(timeline: unknown): LinkedPr[] {
   if (!Array.isArray(timeline)) return []
-  const seen = new Map<string, LinkedPr & { at: string }>()
+  const seen = new Map<string, { pr: LinkedPr; at: string }>()
   for (const e of timeline as Array<Record<string, unknown>>) {
     if (e?.event !== 'cross-referenced') continue
     const issue = (e.source as { issue?: Record<string, unknown> })?.issue
@@ -110,25 +110,28 @@ export function linkedPrs(timeline: unknown): LinkedPr[] {
     const key = `${repo}#${number}`
     if (seen.has(key)) continue
     seen.set(key, {
-      repo,
-      number,
-      title: String(issue.title ?? ''),
-      state: pr.merged_at
-        ? 'merged'
-        : issue.state === 'open'
-          ? 'open'
-          : 'closed',
-      draft: issue.draft === true,
-      url: String(pr.html_url ?? issue.html_url ?? ''),
       at: String(e.created_at ?? ''),
+      pr: {
+        repo,
+        number,
+        title: String(issue.title ?? ''),
+        state: pr.merged_at
+          ? 'merged'
+          : issue.state === 'open'
+            ? 'open'
+            : 'closed',
+        draft: issue.draft === true,
+        url: String(pr.html_url ?? issue.html_url ?? ''),
+      },
     })
   }
   return [...seen.values()]
     .sort(
       (a, b) =>
-        STATE_ORDER[a.state] - STATE_ORDER[b.state] || b.at.localeCompare(a.at)
+        STATE_ORDER[a.pr.state] - STATE_ORDER[b.pr.state] ||
+        b.at.localeCompare(a.at)
     )
-    .map(({ at: _at, ...pr }) => pr)
+    .map(({ pr }) => pr)
 }
 
 const API = 'https://api.github.com'
