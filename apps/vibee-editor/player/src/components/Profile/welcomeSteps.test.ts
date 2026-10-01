@@ -205,6 +205,6 @@ describe('the fast road (owner, 2026-09-12)', () => {
     expect(welcomeStart({ club: true, connected: false, soul: false })).toBe(
       'connect'
     )
-    expect(WELCOME_EXIT_ROUTE).toBe('/hive')
+    expect(WELCOME_EXIT_ROUTE).toBe('/game')
   })
 })

@@ -1920,6 +1920,7 @@ const en: Translations = {
   'hive.loading': 'Opening the hive on t27.ai…',
   'hive.frameTitle': 'The hive — t27.ai/#/queen',
   'hive.openOutside': 'Open in the browser: t27.ai/#/queen ↗',
+  'hive.stuck': 'The board did not open here.',
   'hive.insideGame':
     'You are already inside the game: the hive is the page around this frame.',
   // Sign-in inside the game's TRI frame on t27.ai (LoginModal).
@@ -4502,6 +4503,7 @@ const ru: Translations = {
   'hive.loading': 'Открываем улей на t27.ai…',
   'hive.frameTitle': 'Улей — t27.ai/#/queen',
   'hive.openOutside': 'Открыть в браузере: t27.ai/#/queen ↗',
+  'hive.stuck': 'Доска здесь не открылась.',
   'hive.insideGame':
     'Вы уже внутри игры: улей — это страница вокруг этого фрейма.',
   // Sign-in inside the game's TRI frame on t27.ai (LoginModal).
