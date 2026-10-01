@@ -53,7 +53,17 @@ const copy = {
  * and tells the team, who set the agent's bot up by hand. There is no
  * checkout here yet, and the button does not pretend there is.
  */
-export function PackageCards({ lang }: { lang: Language }) {
+export function PackageCards({
+  lang,
+  onAction,
+}: {
+  lang: Language
+  /**
+   * Told which button was pressed on which package. The welcome screen
+   * counts it for its heatmap; the market page passes nothing.
+   */
+  onAction?: (action: 'order' | 'try', packageId: string) => void
+}) {
   const l = lang === 'ru' ? 'ru' : 'en'
   const text = copy[l]
   /*
@@ -124,6 +134,7 @@ export function PackageCards({ lang }: { lang: Language }) {
                 rel="noopener noreferrer"
                 aria-label={text.orderLabel(pkg.name[l])}
                 onClick={event => {
+                  onAction?.('order', pkg.id)
                   if (openTelegramLink(agentPackageOrderUrl(pkg)))
                     event.preventDefault()
                 }}
@@ -135,6 +146,7 @@ export function PackageCards({ lang }: { lang: Language }) {
                   className="package-card__try"
                   to={`/agents/${tryable}/work`}
                   aria-label={text.tryLabel(pkg.name[l])}
+                  onClick={() => onAction?.('try', pkg.id)}
                 >
                   {text.tryFirst}
                 </Link>
