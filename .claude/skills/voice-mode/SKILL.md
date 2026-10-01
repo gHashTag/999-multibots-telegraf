@@ -6,14 +6,16 @@ description: 'The voice mode in the app chat (orb, talk to the agent hands-free)
 # Voice mode
 
 A person opens the orb in the chat and talks; the agent answers aloud in the
-same conversation. Everything is ours and free: whisper (speaches) on Railway
-for ears, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
+same conversation. Everything is ours and free: GigaAM v3 (its own `gigaam`
+service) for Russian ears, whisper (speaches) on Railway for English and as
+the fallback, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 
 ## When to use this skill
 
 - Editing `apps/vibee-editor/player/src/lib/voice/*` or `components/Voice/*`.
 - Editing the render routes `/api/voice/{status,warm,transcribe,speak}`
   (`render/render-server.ts`, `render/src/voice/voice.ts`).
+- Editing `deployment/gigaam/*` (the Russian ears) or the `whisper` service.
 - A report: "it does not answer", "it speaks English to me", "it reads
   brackets aloud", "I cannot interrupt it", "it stops when I cough".
 - A loop cycle on the voice: start with **Loop handoff** below.
@@ -23,13 +25,16 @@ for ears, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 ```bash
 ./tri loop     # tri виток: in-flight work, this branch's PR, last deploys
 ./tri voice    # tri голос: status, warm, speak ru/en, hear them back, times
+./tri gigaam   # Russian ears: newest deploy, does the render route ru to it
 ```
 
 `tri voice` needs a person's key in `$AGENT_KEY` (render `AGENT_KEYS`, first
 entry, up to `:`). Without one it exits 2, NOT MEASURED -- not green.
 `tri voice --runs N` (default 3) hears each phrase N times and prints the
 **median** with `[min..max]`, split by the render's `Server-Timing` header
-into `upload + whisper + road`. SLOW (exit 2) when the median is >= 3 s.
+into `upload + <engine> + road`, where the engine comes from the header's
+`desc` (`gigaam`, `whisper`, or `gigaam/whisper` when some runs fell back --
+that mix means GigaAM is failing). SLOW (exit 2) when the median is >= 3 s.
 
 ## Map
 
@@ -42,6 +47,7 @@ player/src/lib/voice/chatVoice.ts      binds a session to one chat thread (send,
 player/src/lib/voice/voiceApi.ts       the four HTTP calls
 player/src/components/Voice/*          orb (five visual modes from the logo), overlay
 render/src/voice/voice.ts              speakable(), pickVoice(), warm(), hear(), speak()
+deployment/gigaam/server.py            Russian ears: POST /hear, GET /health (GigaAM v3, onnx-asr)
 UI strings                             player/src/atoms/language.ts, keys voice.*
 ```
 
@@ -104,6 +110,41 @@ max column shows. Faster hearing means a faster model, nothing else.
 whisper; the pod says whisper is half of that. Medians of >= 3 runs only, and
 re-measure after any whisper model or CPU change.
 
+## Russian ears: GigaAM (cycle 3, 2026-10-02)
+
+Same six phrases, inside the whisper pod, model in memory:
+
+| engine                                | per phrase  | Russian                      |
+| ------------------------------------- | ----------- | ---------------------------- |
+| whisper large-v3-turbo, `language=ru` | 2.1-3.0 s   | good                         |
+| Parakeet TDT 0.6b v3 (onnx)           | 0.9-1.9 s   | unusable ("Люпсинка")        |
+| GigaAM v3 e2e-ctc (onnx-asr 0.12.0)   | 0.05-0.10 s | correct, punctuated, numbers |
+| GigaAM v3 ctc                         | same        | lowercase, no punctuation    |
+
+As a service (`POST /hear`, ffmpeg decode of webm/opus included): 140-210 ms.
+GigaAM knows only Russian -- English stays on whisper.
+
+Routing (`hear()` in `voice.ts`), each rule pinned by a test in
+`voice.test.ts`, all eight mutants killed:
+
+- `lang=ru` and `VOICE_HEAR_RU_URL` + `VOICE_HEAR_RU_KEY` set -> GigaAM, 4 s
+  timeout. A refusal, a non-2xx, a body without `text`, a timeout -> whisper.
+- An EMPTY text from GigaAM is trusted (silence); whisper invents sentences
+  out of silence, so asking it again would be worse, not safer.
+- No `lang` (every 6th phrase, `RELEARN_EVERY`) or `en` -> whisper. That is
+  how the player keeps re-learning the person's language, so routing by the
+  hint never locks a person into Russian.
+
+**The whisper pod is full: never load another model into it.** Its container
+has `pids.max = 1000`; every ONNX model takes a thread pool sized to the 48
+visible cores and speaches has no knob for it (`OMP_NUM_THREADS` is ignored).
+Whisper + 4 Piper + Kokoro + Silero hold ~470; Parakeet beside them reached
+986 and Python could not start a thread (numpy/OpenBLAS errors, a segfault).
+A new model gets its own service, like `gigaam` (`GIGAAM_THREADS`, default 8).
+
+`gigaam` is NOT wired to GitHub: `./tri gigaam deploy` from a clean tree after
+the PR merges. A merge alone ships the render, not the ears.
+
 ## Competitors (researched 2026-10-02)
 
 - LiveKit Agents: barge-in after ~0.5 s of speech; on a "false interruption"
@@ -120,19 +161,20 @@ re-measure after any whisper model or CPU change.
 
 ## Weak spots, with status
 
-| #   | weak spot                                          | status                       |
-| --- | -------------------------------------------------- | ---------------------------- |
-| 1   | card markup read aloud                             | FIXED cycle 1                |
-| 2   | any sound killed the answer (280 ms, no resume)    | FIXED cycle 1 (pause/resume) |
-| 3   | its own voice through the speaker interrupted it   | FIXED cycle 1 (onset + echo) |
-| 4   | stuck "speaking" on a suspended AudioContext       | FIXED cycle 1 (watchdog)     |
-| 5   | silence after the phrase looked like "not heard"   | FIXED cycle 1 (earcon)       |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)     | OPEN -- GigaAM, see numbers  |
-| 7   | energy VAD: a fan or street noise counts as speech | OPEN -- Silero vad-web       |
-| 8   | turn end is a fixed pause; slow speakers get cut   | OPEN -- Smart Turn v3        |
-| 9   | nothing said while the agent thinks for long       | OPEN -- filler after ~3 s    |
-| 10  | first sound waits for a whole first sentence       | FIXED cycle 2 (first clause) |
-| 11  | voice picker only for the app language             | OPEN                         |
+| #   | weak spot                                          | status                        |
+| --- | -------------------------------------------------- | ----------------------------- |
+| 1   | card markup read aloud                             | FIXED cycle 1                 |
+| 2   | any sound killed the answer (280 ms, no resume)    | FIXED cycle 1 (pause/resume)  |
+| 3   | its own voice through the speaker interrupted it   | FIXED cycle 1 (onset + echo)  |
+| 4   | stuck "speaking" on a suspended AudioContext       | FIXED cycle 1 (watchdog)      |
+| 5   | silence after the phrase looked like "not heard"   | FIXED cycle 1 (earcon)        |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)     | FIXED cycle 3 (GigaAM, #3252) |
+| 7   | energy VAD: a fan or street noise counts as speech | OPEN -- Silero vad-web        |
+| 8   | turn end is a fixed pause; slow speakers get cut   | OPEN -- Smart Turn v3         |
+| 9   | nothing said while the agent thinks for long       | OPEN -- filler after ~3 s     |
+| 10  | first sound waits for a whole first sentence       | FIXED cycle 2 (first clause)  |
+| 11  | voice picker only for the app language             | OPEN                          |
+| 12  | product words misheard by every engine ("рилс")    | OPEN -- hotword fix-up        |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 
@@ -145,7 +187,8 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    deploy runs the whole vitest suite). Fix it in the same PR if nobody else
    is on it -- cycle 1 found #3242's bare `<img>` this way.
 3. Take the top OPEN row above. One row per PR is fine; mutation-test it.
-4. After merge: `./tri loop` until player SUCCESS, then `./tri voice`.
+4. After merge: `./tri loop` until player SUCCESS, then `./tri voice`. If
+   the PR touched `deployment/gigaam`, also `./tri gigaam deploy`.
 5. Update the tables here in the same PR.
 
 ## Common issues
