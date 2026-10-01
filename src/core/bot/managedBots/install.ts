@@ -14,6 +14,7 @@
 
 import type { Telegraf } from 'telegraf'
 import { logger } from '@/utils/logger'
+import { isAdmin } from '@/middleware/adminOnly'
 import {
   readManagedBotCreated,
   readManagedBotUpdate,
@@ -23,6 +24,7 @@ import {
   type ManagedBotEvent,
 } from './protocol'
 import {
+  extendManagedBot,
   liveManagedBots,
   managedBotsOf,
   rememberManagedBot,
@@ -41,6 +43,10 @@ export const MANAGER_COPY = {
     elsewhere: (manager: string) =>
       `Ботов создаёт @${manager}. Откройте его и отправьте /mybot.`,
     have: (list: string) => `Ваши боты: ${list}`,
+    until: (date: string) => `оплачен до ${date}`,
+    paused: 'на паузе',
+    extended: (bot: string, date: string) =>
+      `✅ @${bot} оплачен до ${date} и отвечает вашим клиентам.`,
     created: (bot: string) =>
       `✅ Бот @${bot} создан и уже отвечает. Отправьте ему сообщение, чтобы проверить, как агент говорит с вашими клиентами.`,
     notYet: (bot: string) =>
@@ -53,6 +59,10 @@ export const MANAGER_COPY = {
     elsewhere: (manager: string) =>
       `Bots are created by @${manager}. Open it and send /mybot.`,
     have: (list: string) => `Your bots: ${list}`,
+    until: (date: string) => `paid until ${date}`,
+    paused: 'paused',
+    extended: (bot: string, date: string) =>
+      `✅ @${bot} is paid until ${date} and answering your clients.`,
     created: (bot: string) =>
       `✅ @${bot} is created and already answering. Send it a message to see how the agent talks to your clients.`,
     notYet: (bot: string) =>
@@ -62,6 +72,42 @@ export const MANAGER_COPY = {
 
 const copyFor = (language?: string) =>
   (language ?? 'ru').startsWith('ru') ? MANAGER_COPY.ru : MANAGER_COPY.en
+
+const day = (d: Date) => d.toISOString().slice(0, 10)
+
+/** One owned bot as /mybot lists it: the name and whether it answers. */
+export function ownedLine(
+  bot: { botUsername: string; status: string; paidUntil?: Date },
+  copy: { until: (date: string) => string; paused: string },
+  now = new Date()
+): string {
+  const answering =
+    bot.status === 'live' && bot.paidUntil && bot.paidUntil > now
+  return `@${bot.botUsername} (${answering ? copy.until(day(bot.paidUntil!)) : copy.paused})`
+}
+
+export const AGENT_BOT_USAGE =
+  'Как оплатить бота клиента после оплаты владельцем:\n' +
+  '/agentbot @username <дней> — продлить на столько дней\n' +
+  '/agentbot @username <дней> text — пакет «Агент-менеджер», только текст\n' +
+  '/agentbot @username <дней> media — пакет с медиа (рилсы, лицо, голос)'
+
+/** The team's /agentbot words, or null when they do not parse. */
+export function parseAgentBotArgs(
+  text: string
+): { botUsername: string; days: number; media?: boolean } | null {
+  const [, name, daysWord, kind, ...rest] = text.trim().split(/\s+/)
+  if (!name || !daysWord || rest.length) return null
+  const botUsername = name.replace(/^@/, '')
+  if (!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(botUsername)) return null
+  if (!/^\d{1,4}$/.test(daysWord)) return null
+  const days = Number(daysWord)
+  if (days < 1 || days > 400) return null
+  if (kind === undefined) return { botUsername, days }
+  if (kind === 'text') return { botUsername, days, media: false }
+  if (kind === 'media') return { botUsername, days, media: true }
+  return null
+}
 
 const canManage = (botInfo: unknown): boolean =>
   (botInfo as { can_manage_bots?: boolean } | undefined)?.can_manage_bots ===
@@ -90,7 +136,8 @@ export async function onManagedBot(
         botName: event.botName,
         ownerId: event.ownerId,
       },
-      deps
+      deps,
+      managerUsername
     )
     if (announce)
       await deps.tellOwner(event.ownerId, copy.created(event.botUsername))
@@ -139,11 +186,9 @@ export function installManagedBots(bot: Telegraf<any>, deps: RunnerDeps): void {
       await ctx.reply(copy.elsewhere(MANAGER_BOT))
       return
     }
-    const owned: { botUsername: string }[] = await managedBotsOf(from.id).catch(
-      () => []
-    )
+    const owned = await managedBotsOf(from.id).catch(() => [])
     if (owned.length) {
-      await ctx.reply(copy.have(owned.map(b => `@${b.botUsername}`).join(', ')))
+      await ctx.reply(copy.have(owned.map(b => ownedLine(b, copy)).join(', ')))
     }
     const ru = (from.language_code ?? 'ru').startsWith('ru')
     const name = [from.first_name, from.last_name].filter(Boolean).join(' ')
@@ -153,6 +198,51 @@ export function installManagedBots(bot: Telegraf<any>, deps: RunnerDeps): void {
         name: suggestBotName(name, ru),
       }) as any,
     })
+  })
+
+  /*
+   * The team switches a client's bot on after the owner paid (there is no
+   * checkout yet, as with the package orders): the date moves forward, the
+   * package may change, and the owner hears it from the manager bot.
+   */
+  bot.command('agentbot', async ctx => {
+    // Silent for everybody else: the command is the team's, not a feature.
+    if (!ctx.from || !isAdmin(ctx.from.id)) return
+    const text = ctx.message && 'text' in ctx.message ? ctx.message.text : ''
+    const args = parseAgentBotArgs(text)
+    if (!args) {
+      await ctx.reply(AGENT_BOT_USAGE)
+      return
+    }
+    try {
+      const done = await extendManagedBot(
+        args.botUsername,
+        args.days,
+        args.media
+      )
+      if (!done) {
+        await ctx.reply(
+          `Бота @${args.botUsername} нет среди созданных через /mybot.`
+        )
+        return
+      }
+      const date = day(done.paidUntil)
+      await ctx.reply(
+        `@${done.botUsername}: оплачен до ${date}, ${done.media ? 'с медиа' : 'только текст'}.`
+      )
+      await deps
+        .tellOwner(
+          done.ownerId,
+          MANAGER_COPY.ru.extended(done.botUsername, date)
+        )
+        .catch(() => undefined)
+    } catch (error) {
+      logger.error('[managed-bots] /agentbot failed', {
+        bot: args.botUsername,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      await ctx.reply('Не получилось записать оплату: база не ответила.')
+    }
   })
 }
 
@@ -178,7 +268,7 @@ export async function relaunchManagedBots(
   let up = 0
   for (const row of rows) {
     try {
-      await launchManagedBot(bot, row, deps)
+      await launchManagedBot(bot, row, deps, botInfo.username)
       up += 1
     } catch (error) {
       logger.error('[managed-bots] relaunch failed', {
