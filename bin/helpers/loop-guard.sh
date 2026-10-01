@@ -83,6 +83,27 @@ SNAP="${TMPDIR:-/tmp}/tri-loop-$NAME-mutants-at-start.json"
 # the CRM loop (01.10.2026) rewrote a line a past mutation was anchored to;
 # the list went stale, and tick 7's start could check none of its 27 guards.
 # The tick that moved the code knows the new line -- it re-anchors, now.
+# ONE GUARD AT A TIME. start and end both run the mutation list, which
+# rewrites source files in place; start also --heals any journalled mutant.
+# On 01.10.2026 a start that a tool timeout pushed into the background kept
+# running while a second start went ahead: the second one's --heal reverted
+# the first one's live mutant (a false SURVIVED), and the first one's mutant
+# turned the second one's baseline red. Neither report was true. The lock
+# below is taken only after those checks, so it cannot catch this; a busy
+# marker with the running guard's pid, taken first, does.
+BUSY="${TMPDIR:-/tmp}/tri-loop-$NAME.busy"
+if [ "$MODE" = start ] || [ "$MODE" = end ]; then
+  OTHER=$(cat "$BUSY" 2>/dev/null)
+  if [ -n "$OTHER" ] && kill -0 "$OTHER" 2>/dev/null; then
+    echo "── loop-guard: $NAME ──"
+    echo "  STOP  another loop-guard (pid $OTHER) is still running -- it may hold a"
+    echo "        mutant in the tree right now; wait for it, do not edit or heal"
+    exit 1
+  fi
+  echo $$ > "$BUSY"
+  trap 'rm -f "$BUSY"' EXIT
+fi
+
 if [ "$MODE" = end ]; then
   BAD=0
   if [ -f "$MUTANTS" ]; then
