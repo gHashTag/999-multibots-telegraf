@@ -63,4 +63,32 @@ describe('ReplyFollower', () => {
     expect(f.update(before, false)).toEqual([])
     expect(f.finished).toBe(true)
   })
+
+  it('never speaks a card marker, and hands the cards over at the end', () => {
+    const f = new ReplyFollower(before)
+    const grow = (text: string, answering: boolean) =>
+      f.update([...before, agent('a2', text)], answering)
+    const heard: string[] = []
+    heard.push(
+      ...grow('I can do it two ways right now.\n[[card: Make a re', true)
+    )
+    heard.push(
+      ...grow(
+        'I can do it two ways right now.\n[[card: Make a reel | cut it from the photos]]\n[[card: Write a post | three paragraphs]]',
+        false
+      )
+    )
+    expect(heard.join(' ')).toBe('I can do it two ways right now.')
+    expect(heard.join(' ')).not.toMatch(/card|\[\[|reel/i)
+    expect(f.cards.map(c => c.title)).toEqual(['Make a reel', 'Write a post'])
+  })
+
+  it('offers no cards until the answer is finished', () => {
+    const f = new ReplyFollower(before)
+    f.update(
+      [...before, agent('a2', 'Two ways to go about it. [[card: A | a]] ')],
+      true
+    )
+    expect(f.cards).toEqual([])
+  })
 })
