@@ -130,16 +130,25 @@ describe('the wallet', () => {
     expect(wallet).toContain(`Месяц живёт ${MONTH_DAYS} дней`) // cyrillic-ok
   })
 
-  it('every package card shows its month in tokens and reels', () => {
+  it('every package card shows its month in tokens, and reels only where it makes them', () => {
     show()
     for (const pkg of AGENT_PACKAGES) {
       const line = text(
         `[data-testid="package-${pkg.id}"] .package-card__tokens`
       )
+      const month = monthTokens(pkg.monthlyUsd).toLocaleString('en-US')
       expect(line).toBe(
-        `${monthTokens(pkg.monthlyUsd).toLocaleString('en-US')} tokens a month ≈ ${reelsIn(monthTokens(pkg.monthlyUsd))} reels`
+        pkg.media
+          ? `${month} tokens a month ≈ ${reelsIn(monthTokens(pkg.monthlyUsd))} reels`
+          : `${month} tokens a month for client replies · text only`
       )
     }
+  })
+
+  it('never offers reels on the Manager Agent card: a text model for the CRM', () => {
+    show()
+    const card = text('[data-testid="package-manager"]')
+    expect(card).not.toMatch(/reel|face|voice clone/i)
   })
 })
 
