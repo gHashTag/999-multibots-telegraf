@@ -144,6 +144,8 @@ const answers: Record<string, unknown> = {
         paid: true,
         last_seen: '2026-09-12T10:00:00Z',
         duets: 7,
+        bots: ['leela_chakra_ai_bot'],
+        tasks: { total: 12, done: 3, faults_open: 2 },
       },
       {
         telegram_id: '666',
@@ -879,6 +881,31 @@ describe('every person on the list is a way into their own page', () => {
     await draw(CONTACTS)
     expect(host.textContent).not.toContain('crm.clients.none')
     expect(host.textContent).toContain('crm.unreachable')
+  })
+})
+
+describe('a bot owner wears their bots and their work', () => {
+  /*
+   * Owner, 2026-10-01: the client table had "no information and no tasks".
+   * The row now says which of our bots the person owns, how far their content
+   * plan has got and how many of their faults are open -- and a row from a
+   * server that sends none of it says nothing rather than "0/0".
+   */
+  it('shows bots, plan and faults where sent, and nothing where not', async () => {
+    serve()
+    await draw()
+    const rows = [...host.querySelectorAll('.crm__row--client')]
+    const owner = rows.find(r => r.textContent?.includes('ClientOnlyName'))!
+    const lead = rows.find(r => r.textContent?.includes('LeadRowOnlyName'))!
+    expect(owner.textContent).toContain('crm.clients.bots @leela_chakra_ai_bot')
+    expect(owner.textContent).toContain('crm.clients.tasks:3,12')
+    expect(owner.textContent).toContain('crm.clients.faults:2')
+    for (const k of [
+      'crm.clients.bots',
+      'crm.clients.tasks',
+      'crm.clients.faults',
+    ])
+      expect(lead.textContent).not.toContain(k)
   })
 })
 

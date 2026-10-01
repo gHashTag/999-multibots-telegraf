@@ -1,0 +1,516 @@
+/* Voice mode: full-screen overlay, the t27 mark as the orb.
+ *
+ * --voice-h / --voice-h2 / --voice-s are written by VoiceOrb's frame loop
+ * (only when they change), so the room is tinted with the colour of the
+ * moment: cyan listening, violet hearing, amber thinking, gold speaking.
+ *
+ * Every <button> here resets height and padding: design-system.css gives all
+ * buttons a 28px height, and that is what once squeezed the orb to a 28px
+ * strip with a 15px mark in it.
+ */
+
+.voice-overlay {
+  --voice-h: 188;
+  --voice-h2: 226;
+  --voice-s: 95%;
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  padding: calc(10px + var(--safe-area-top, 0px)) 16px
+    calc(14px + var(--safe-area-bottom, 0px));
+  color: #f5f5f7;
+  background: #040406;
+  font-feature-settings: 'ss01';
+  animation: voice-overlay-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  overscroll-behavior: contain;
+  touch-action: manipulation;
+}
+
+.voice-overlay button {
+  height: auto;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.voice-overlay__bg {
+  position: absolute;
+  inset: -10%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      55% 40% at 50% 40%,
+      hsl(var(--voice-h) var(--voice-s) 45% / 0.22),
+      transparent 70%
+    ),
+    radial-gradient(
+      70% 50% at 15% 105%,
+      hsl(var(--voice-h2) var(--voice-s) 40% / 0.2),
+      transparent 70%
+    ),
+    radial-gradient(
+      60% 45% at 90% -5%,
+      hsl(var(--voice-h2) var(--voice-s) 45% / 0.12),
+      transparent 70%
+    );
+  transition: opacity 400ms ease;
+}
+
+/* A faint vignette and grain so the black has depth, not a flat fill. */
+.voice-overlay__bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(0, 0, 0, 0.65)),
+    repeating-radial-gradient(
+      circle at 30% 20%,
+      rgba(255, 255, 255, 0.012) 0 1px,
+      transparent 1px 3px
+    );
+}
+
+.voice-overlay > :not(.voice-overlay__bg) {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes voice-overlay-in {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- top bar ---- */
+
+.voice-overlay__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 640px;
+}
+
+.voice-overlay__title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.voice-overlay .voice-overlay__icon {
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-target, 44px);
+  min-width: var(--touch-target, 44px);
+  height: var(--touch-target, 44px);
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 120ms ease;
+}
+
+.voice-overlay .voice-overlay__icon:active {
+  transform: scale(0.94);
+}
+
+.voice-overlay__icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.voice-overlay .voice-overlay__icon.is-on {
+  color: #bbf7d0;
+  background: rgba(0, 255, 136, 0.16);
+  border-color: rgba(0, 255, 136, 0.5);
+}
+
+/* ---- the orb ---- */
+
+.voice-overlay__stage {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+}
+
+.voice-overlay .voice-orb {
+  --orb: min(90vw, 54vh, 560px);
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--orb);
+  height: var(--orb);
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.voice-overlay .voice-orb:active {
+  transform: scale(0.97);
+}
+
+.voice-orb:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 6px;
+}
+
+.voice-orb__aura,
+.voice-orb__canvas {
+  position: absolute;
+  inset: -30%;
+  width: 160%;
+  height: 160%;
+  pointer-events: none;
+}
+
+.voice-orb__aura {
+  filter: blur(calc(var(--orb) * 0.045)) saturate(1.3);
+  opacity: 0.95;
+}
+
+.voice-orb__mark {
+  position: absolute;
+  inset: 19%;
+  width: 62%;
+  height: 62%;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(
+      0 0 calc(var(--orb) * 0.03) hsl(var(--voice-h) 100% 70% / 0.55)
+    )
+    drop-shadow(
+      0 calc(var(--orb) * 0.02) calc(var(--orb) * 0.05) rgba(0, 0, 0, 0.6)
+    );
+  transition:
+    opacity 300ms ease,
+    filter 300ms ease;
+}
+
+.voice-orb--off .voice-orb__mark {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+/* Stopped is not dead: the mark is the button that starts again. */
+.voice-orb--error .voice-orb__mark {
+  opacity: 0.92;
+}
+
+/* ---- captions ---- */
+
+.voice-overlay__captions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 600px;
+  min-height: 112px;
+  text-align: center;
+}
+
+.voice-overlay__phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 14px 6px 12px;
+  border: 1px solid hsl(var(--voice-h) var(--voice-s) 65% / 0.28);
+  border-radius: 999px;
+  background: hsl(var(--voice-h) var(--voice-s) 50% / 0.1);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.voice-overlay__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(var(--voice-h) var(--voice-s) 62%);
+  box-shadow: 0 0 10px hsl(var(--voice-h) var(--voice-s) 60%);
+  animation: voice-dot 1.6s ease-in-out infinite;
+}
+
+.voice-overlay--off .voice-overlay__dot,
+.voice-overlay--error .voice-overlay__dot {
+  animation: none;
+}
+
+@keyframes voice-dot {
+  50% {
+    transform: scale(0.6);
+    opacity: 0.55;
+  }
+}
+
+.voice-overlay__alert {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 255, 136, 0.26);
+  border-radius: 16px;
+  background: rgba(2, 64, 40, 0.3);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.voice-overlay__error {
+  margin: 0;
+  color: #d1fae5;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.voice-overlay__hint {
+  margin: 0;
+  color: #fde68a;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.voice-overlay__note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  opacity: 0.65;
+}
+
+.voice-overlay__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.voice-overlay .voice-overlay__action {
+  min-height: var(--touch-target-sm, 36px);
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.voice-overlay .voice-overlay__action--primary {
+  border-color: transparent;
+  background: #00ff88;
+  color: #04120b;
+  box-shadow: 0 0 22px rgba(0, 255, 136, 0.35);
+}
+
+.voice-overlay__line {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: rgba(245, 245, 247, 0.55);
+}
+
+.voice-overlay__line--agent {
+  -webkit-line-clamp: 4;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: #fafafa;
+  text-wrap: balance;
+}
+
+.voice-overlay__who {
+  margin-right: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  vertical-align: 0.15em;
+  opacity: 0.6;
+}
+
+/* ---- controls ---- */
+
+.voice-overlay__controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 520px;
+  margin-top: 10px;
+}
+
+.voice-overlay__modes {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.045);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+.voice-overlay .voice-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 6px 2px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: transparent;
+  color: rgba(245, 245, 247, 0.55);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.voice-mode span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-mode__icon {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.voice-overlay .voice-mode:focus {
+  outline: none;
+}
+
+.voice-overlay .voice-mode:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.45);
+  outline-offset: -2px;
+}
+
+.voice-overlay .voice-mode:not(.is-active) {
+  border-color: transparent;
+}
+
+.voice-overlay .voice-mode:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(245, 245, 247, 0.85);
+}
+
+.voice-overlay .voice-mode.is-active {
+  color: #fff;
+  border-color: hsl(var(--voice-h) var(--voice-s) 70% / 0.35);
+  background: linear-gradient(
+    160deg,
+    hsl(var(--voice-h) var(--voice-s) 55% / 0.28),
+    hsl(var(--voice-h2) var(--voice-s) 50% / 0.16)
+  );
+  box-shadow: 0 0 18px hsl(var(--voice-h) var(--voice-s) 55% / 0.25);
+}
+
+.voice-overlay .voice-mode.is-active .voice-mode__icon {
+  filter: drop-shadow(0 0 6px hsl(var(--voice-h) var(--voice-s) 65% / 0.9));
+}
+
+.voice-overlay__voice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 247, 0.5);
+}
+
+.voice-overlay__voice select {
+  min-height: var(--touch-target-sm, 36px);
+  padding: 0 34px 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")
+      no-repeat right 13px center,
+    rgba(255, 255, 255, 0.06);
+  color: #f5f5f7;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.voice-overlay__voice select option {
+  background: #111114;
+}
+
+@media (min-width: 720px) {
+  .voice-overlay .voice-mode {
+    flex-direction: row;
+    gap: 8px;
+    min-height: 44px;
+    font-size: 12.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-overlay,
+  .voice-overlay__dot {
+    animation: none;
+  }
+}

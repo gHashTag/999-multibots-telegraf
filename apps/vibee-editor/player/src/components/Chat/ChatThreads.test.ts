@@ -25,6 +25,10 @@ const row = (
   duets: 0,
   // No stored picture: the rail draws initials for such a row.
   avatarUrl: null,
+  bots: [],
+  tasksTotal: 0,
+  tasksDone: 0,
+  faultsOpen: 0,
   ...over,
 })
 

@@ -29,6 +29,10 @@ const igor: ClientRow = {
   lastSeen: null,
   duets: 0,
   avatarUrl: null,
+  bots: [],
+  tasksTotal: 0,
+  tasksDone: 0,
+  faultsOpen: 0,
 }
 
 describe('matches', () => {

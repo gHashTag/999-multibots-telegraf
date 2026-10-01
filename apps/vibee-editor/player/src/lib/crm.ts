@@ -464,6 +464,12 @@ export interface ClientRow {
   duets: number
   /** The picture the rail draws; null means initials (ChatThreads.tsx). */
   avatarUrl: string | null
+  /** The bots this person owns on the platform; only the keeper is sent any. */
+  bots: string[]
+  /** Content-plan cards, of them done, and faults still open. */
+  tasksTotal: number
+  tasksDone: number
+  faultsOpen: number
 }
 
 /**
@@ -482,6 +488,18 @@ export interface ClientsList {
   nextOffset: number | null
 }
 
+/** An older server sends no `tasks`: zero work recorded, not an error. */
+function tasksOf(
+  t: unknown
+): Pick<ClientRow, 'tasksTotal' | 'tasksDone' | 'faultsOpen'> {
+  const o = t && typeof t === 'object' ? (t as Record<string, unknown>) : {}
+  return {
+    tasksTotal: num(o['total']) ?? 0,
+    tasksDone: num(o['done']) ?? 0,
+    faultsOpen: num(o['faults_open']) ?? 0,
+  }
+}
+
 function toClients(r: Record<string, unknown>): ClientsList {
   return {
     clients: rows(r['clients']).map(c => ({
@@ -497,6 +515,12 @@ function toClients(r: Record<string, unknown>): ClientsList {
       lastSeen: str(c['last_seen']),
       duets: num(c['duets']) ?? 0,
       avatarUrl: str(c['avatar_url']),
+      bots: Array.isArray(c['bots'])
+        ? (c['bots'] as unknown[]).filter(
+            (b): b is string => typeof b === 'string' && b !== ''
+          )
+        : [],
+      ...tasksOf(c['tasks']),
     })),
     // An older server that does not send the flag is treated as knowing:
     // the note is for a server that SAID it could not read payments.
@@ -519,7 +543,7 @@ export const searchNeedle = (q: string) =>
 export const matches = (x: ClientRow, q: string) => {
   const needle = searchNeedle(q)
   if (!needle) return true
-  return [x.name, x.username, x.client, x.telegramId]
+  return [x.name, x.username, x.client, x.telegramId, ...x.bots]
     .filter(Boolean)
     .some(v => String(v).toLowerCase().includes(needle))
 }

@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from '@vibee/atoms'
+
 /**
  * WHAT SURVIVES THE STORAGE RESET (main.tsx).
  *
@@ -15,6 +17,12 @@ const KEEP = new Set([
   'vibee-agent-chat-draft',
   'vibee-last-route',
   'vibee-soul',
+  /*
+   * Not written by the person, but about them: "you have been greeted".
+   * Swept, it would put the welcome screen back in front of a returning
+   * person at every version bump.
+   */
+  STORAGE_KEYS.welcomeSeen,
 ])
 
 /*

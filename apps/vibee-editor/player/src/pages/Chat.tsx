@@ -50,6 +50,9 @@ import { AgentAside } from '@/components/Chat/AgentAside'
 import { ClientHelperPicker } from '@/components/Chat/ClientHelperPicker'
 import { ConversationRail } from '@/components/Chat/ConversationRail'
 import { stopAgent, threadKeyOf } from '@/lib/agentStream'
+import { createChatVoiceSession } from '@/lib/voice/chatVoice'
+import type { VoiceSession } from '@/lib/voice/session'
+import { VoiceOverlay } from '@/components/Voice/VoiceOverlay'
 import { isConversationId, newConversationId } from '@/lib/conversations'
 import { useBackTo } from '@/lib/backTo'
 import { AGENT_SUGGESTIONS, agentGate } from './agentSuggestions'
@@ -521,6 +524,36 @@ function ChatThread({
       uploading,
     ]
   )
+
+  /*
+   * VOICE MODE. The session is created and started inside the tap itself:
+   * iOS opens the microphone and audio output only in direct response to a
+   * gesture, and a session started from an effect would stay silent there.
+   * It is bound to this conversation, so leaving the conversation ends it.
+   * Stopped explicitly rather than from an effect cleanup on `voice`, which
+   * StrictMode would run at once and cut the session it just opened.
+   */
+  const [voice, setVoice] = useState<VoiceSession | null>(null)
+  const voiceRef = useRef<VoiceSession | null>(null)
+  const langRef = useRef(lang)
+  langRef.current = lang
+  const openVoice = () => {
+    voiceRef.current?.stop()
+    const session = createChatVoiceSession(
+      messagesAtom,
+      { client, agent: client ? helper : marketplaceAgent, conversation },
+      () => langRef.current
+    )
+    void session.start()
+    voiceRef.current = session
+    setVoice(session)
+  }
+  const closeVoice = useCallback(() => {
+    voiceRef.current?.stop()
+    voiceRef.current = null
+    setVoice(null)
+  }, [])
+  useEffect(() => closeVoice, [threadKey, closeVoice])
 
   /*
    * THE AGENT'S PROPOSALS AS CARDS (lib/agentCards.ts). Only the latest
@@ -1129,6 +1162,26 @@ function ChatThread({
                   }, 350)
                 }}
               />
+              <button
+                type="button"
+                className="voice-btn"
+                data-testid="chat-voice"
+                aria-label={t('voice.open')}
+                title={t('voice.open')}
+                onClick={openVoice}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"
+                  />
+                </svg>
+              </button>
               {/* While THIS conversation is answering, the send button becomes
               Stop: it cuts this stream only (agentStream.stopAgent). */}
               {busy ? (
@@ -1153,6 +1206,9 @@ function ChatThread({
               )}
             </div>
             <p className="chat-composer-hint">{t('chat.composer.hint')}</p>
+            {voice ? (
+              <VoiceOverlay session={voice} onClose={closeVoice} />
+            ) : null}
           </div>
         </div>
         {/*

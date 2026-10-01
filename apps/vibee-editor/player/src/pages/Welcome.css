@@ -1,0 +1,472 @@
+.welcome-page {
+  min-height: var(--app-vh-stable, 100dvh);
+  background:
+    radial-gradient(
+      ellipse 80% 40% at 50% 0%,
+      rgba(0, 255, 136, 0.12),
+      transparent 70%
+    ),
+    #000;
+  color: #f5f2e8;
+  font-family: 'Outfit', system-ui, sans-serif;
+}
+
+.welcome-main {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  /* --app-safe-*, not env(): inside Telegram env() is 0 (styles/telegram.css). */
+  padding: calc(var(--app-safe-top, 0px) + 28px) 20px 0;
+}
+
+.welcome-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.welcome-eyebrow {
+  margin: 0;
+  color: #00ff88;
+  font:
+    700 11px/1.2 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.16em;
+}
+
+.welcome-skip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-left: auto;
+  padding: 0 6px;
+  color: #8f8f8f;
+  font-size: 15px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.welcome-lang {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: #bdbdbd;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.welcome-hero h1 {
+  margin: 22px 0 14px;
+  font-size: clamp(36px, 7vw, 72px);
+  font-weight: 540;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  background: linear-gradient(180deg, #ffffff 30%, #9dffcf);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.welcome-lead {
+  max-width: 640px;
+  margin: 0;
+  color: #a7a7a7;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.welcome-points {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.welcome-points li {
+  display: grid;
+  gap: 4px;
+  padding: 16px 18px;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+.welcome-points li:last-child {
+  border-right: 0;
+}
+.welcome-points strong {
+  color: #ffd700;
+  font-size: 15px;
+  font-weight: 620;
+}
+.welcome-points span {
+  color: #8f8f8f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.welcome-section-title {
+  margin: 0 0 12px;
+  color: #777;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.welcome-working {
+  margin-top: 34px;
+}
+
+.welcome-agent {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 44px;
+  padding: 14px 16px;
+  border: 1px solid rgba(0, 255, 136, 0.34);
+  background: rgba(0, 255, 136, 0.04);
+  color: inherit;
+  text-decoration: none;
+}
+.welcome-agent-card + .welcome-agent-card {
+  margin-top: 8px;
+}
+.welcome-agent__proof {
+  padding: 10px 16px 14px;
+  border: 1px solid rgba(0, 255, 136, 0.34);
+  border-top: 0;
+}
+.welcome-agent__calls {
+  margin: 4px 0 10px;
+  color: #b8b8b8;
+  font-size: 13px;
+}
+.welcome-agent__calls summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: #00ff88;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.welcome-agent__calls ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.welcome-agent__calls li + li {
+  margin-top: 4px;
+}
+.checked-tools__times {
+  color: #8f8f8f;
+}
+/* A failed check: the summary and each reason in the failure's colour. */
+.welcome-agent__calls[data-tone='fail'] summary {
+  color: #ff6b6b;
+}
+.welcome-agent__proof .checked-tools__reasons li::before {
+  content: '✗';
+  color: #ff6b6b;
+}
+.checked-tools__head {
+  margin: 8px 0 4px;
+  color: #8f8f8f;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.welcome-agent__try {
+  padding: 12px 16px 14px;
+  border: 1px solid rgba(0, 255, 136, 0.34);
+  border-top: 0;
+}
+.welcome-agent__talk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border: 1px solid #00ff88;
+  background: rgba(0, 255, 136, 0.12);
+  color: #00ff88;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.welcome-agent__try p {
+  margin: 8px 0 0;
+  color: #8f8f8f;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+.welcome-agent__checked {
+  margin: 0 0 10px;
+  color: #00ff88;
+  font-size: 13px;
+  font-weight: 600;
+}
+.welcome-agent__checked[data-tone='fail'] {
+  color: #ff6b6b;
+}
+.welcome-agent__checked[data-tone='stale'] {
+  color: #8f8f8f;
+  font-weight: 400;
+}
+.welcome-agent__proof h3 {
+  margin: 0 0 6px;
+  color: #8f8f8f;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.welcome-agent__proof ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.welcome-agent__proof li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.welcome-agent__proof li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #00ff88;
+}
+.welcome-agent__face {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #ffd700;
+  font-size: 22px;
+  object-fit: cover;
+}
+.welcome-agent__text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.welcome-agent__text strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+.welcome-agent__text span {
+  color: #8f8f8f;
+  font-size: 13px;
+}
+.welcome-agent__open {
+  color: #00ff88;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.welcome-packages {
+  margin-top: 38px;
+}
+.welcome-packages__lead {
+  margin: -4px 0 22px;
+  color: #8f8f8f;
+  font-size: 13px;
+}
+
+.welcome-exits {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 30px -20px 0;
+  padding: 24px 20px calc(var(--app-safe-bottom, 0px) + 12px);
+  background: linear-gradient(180deg, transparent, #000 40%);
+}
+.welcome-exit {
+  display: block;
+  min-height: 44px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #d0d0d0;
+  text-align: center;
+  text-decoration: none;
+  font-size: 14px;
+}
+.welcome-exit--primary {
+  border-color: #00ff88;
+  color: #00ff88;
+}
+
+/* What happens after "Order": the three steps, numbered by the list itself. */
+.welcome-how {
+  margin-top: 34px;
+}
+.welcome-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: welcome-step;
+}
+.welcome-steps li {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px 12px 52px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  counter-increment: welcome-step;
+}
+.welcome-steps li::before {
+  content: counter(welcome-step);
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(255, 215, 0, 0.5);
+  color: #ffd700;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 24px;
+  text-align: center;
+}
+.welcome-steps strong {
+  color: #e8e8e8;
+  font-size: 14px;
+  font-weight: 600;
+}
+.welcome-steps span {
+  color: #8f8f8f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .welcome-points {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .welcome-points li {
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .welcome-points li:last-child {
+    border-bottom: 0;
+  }
+}
+
+/* A ring the eye can find on the black page; the browser default is faint. */
+.welcome-page a:focus-visible,
+.welcome-page button:focus-visible {
+  outline: 2px solid #00ff88;
+  outline-offset: 2px;
+}
+
+/* The promise in one line: what the featured month buys. */
+.welcome-outcome {
+  margin: -4px 0 14px;
+  color: #ffd700;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* The gift: the free step between the proof and the price. */
+.welcome-gift {
+  margin-top: 34px;
+  padding: 18px 16px;
+  border: 1px solid rgba(255, 215, 0, 0.45);
+  background: rgba(255, 215, 0, 0.05);
+}
+.welcome-gift__title {
+  margin: 0 0 6px;
+  color: #ffd700;
+  font-size: 20px;
+  font-weight: 620;
+}
+.welcome-gift__body {
+  margin: 0 0 14px;
+  color: #b8b8b8;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.welcome-gift__cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border: 1px solid #ffd700;
+  background: rgba(255, 215, 0, 0.12);
+  color: #ffd700;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Where the monthly fee goes: tokens, and the burn that keeps them moving. */
+.welcome-wallet {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.welcome-wallet h3 {
+  margin: 0 0 8px;
+  color: #8f8f8f;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.welcome-wallet dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.welcome-wallet dt {
+  color: #e8e8e8;
+  font-size: 14px;
+  font-weight: 600;
+}
+.welcome-wallet dd {
+  margin: 2px 0 0;
+  color: #8f8f8f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.welcome-wallet__prices {
+  margin: 10px 0 0;
+  color: #00ff88;
+  font-size: 13px;
+}
+
+.welcome-exits {
+  display: grid;
+  gap: 8px;
+}
+/* Opaque: the bar's gradient is clear at its top, where this button sits. */
+.welcome-exit--primary[data-stage='gift'] {
+  border-color: #ffd700;
+  background: #1a1600;
+  color: #ffd700;
+}
+.welcome-exit--primary[data-stage='order'] {
+  background: #00ff88;
+  color: #000;
+  font-weight: 600;
+}
+.welcome-exit--quiet {
+  padding: 6px 16px;
+  border: 0;
+  color: #8f8f8f;
+  font-size: 13px;
+}
