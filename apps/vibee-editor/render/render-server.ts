@@ -8853,7 +8853,16 @@ const server = createServer(async (req, res) => {
         }
         if (bytes.length < 512) return sendJson(res, 200, { text: '' })
         try {
-          const text = await voice.hear(bytes, req.headers['content-type'])
+          // The player names the language it heard last; a known language
+          // halves whisper's time (voice.ts has the measurement).
+          const lang = new URL(req.url || '', 'http://x').searchParams.get(
+            'lang'
+          )
+          const text = await voice.hear(
+            bytes,
+            req.headers['content-type'],
+            lang
+          )
           if (text === null)
             return sendJson(res, 503, { error: 'no transcriber configured' })
           return sendJson(res, 200, { text })
@@ -8861,6 +8870,19 @@ const server = createServer(async (req, res) => {
           console.warn(`[voice] transcribe failed: ${(e as Error).message}`)
           return sendJson(res, 502, { error: 'transcriber failed' })
         }
+      }
+      if (route === '/api/voice/warm' && req.method === 'POST') {
+        // The player calls this as the voice overlay opens, so the models are
+        // in memory before the first phrase is finished.
+        if (!voice.withinBudget(who, 'warm'))
+          return sendJson(res, 429, { error: 'too many warm-ups' })
+        let body: Record<string, unknown> = {}
+        try {
+          body = JSON.parse((await readBody(req, 4 * 1024)) || '{}')
+        } catch {
+          return sendJson(res, 400, { error: 'bad json' })
+        }
+        return sendJson(res, 200, await voice.warm(body.lang, body.voice))
       }
       if (route === '/api/voice/speak' && req.method === 'POST') {
         if (!voice.withinBudget(who, 'speak'))
@@ -13122,6 +13144,21 @@ async function main() {
      * disagreement is visible at a glance in the boot log -- instead of a day
      * later, as a channel that quietly received nothing.
      */
+    /*
+     * Voice models are not in memory until asked for (PRELOAD_MODELS only
+     * downloads them), and a cold one costs the first sentence 2-5 s. Load the
+     * transcriber and the default voice of each language now; the whisper
+     * service keeps them for good (STT_MODEL_TTL=-1).
+     */
+    void import('./src/voice/voice').then(async voice => {
+      const [ru, en] = await Promise.all([
+        voice.warm('ru', 'irina'),
+        voice.warm('en', 'af_heart'),
+      ])
+      console.log(
+        `🎙 Voice warm: hear=${ru.hear} ru=${ru.speak} en=${en.speak}`
+      )
+    })
     const chCfg = readChannelConfig()
     console.log(
       `📣 Channel: token=${chCfg.token ? `set (${chCfg.tokenFrom})` : `MISSING (${ENV_NAMES.token.join('|')})`} ` +

@@ -534,7 +534,13 @@ export async function whisperBytes(
   bytes: Buffer,
   contentType: string | null,
   name: string | null,
-  timeoutMs: number
+  timeoutMs: number,
+  /**
+   * ISO 639-1 code when the caller already knows it. Measured in the whisper
+   * pod on 2026-10-02: a 2.7 s Russian phrase took 5.5 s undirected and 3.2 s
+   * with `language=ru` -- detection is a second encoder pass, not a lookup.
+   */
+  language?: string
 ): Promise<string | null> {
   if (!bytes.length || bytes.length > WHISPER_MAX_BYTES)
     throw new Error(`audio of ${bytes.length} bytes is outside Whisper's range`)
@@ -583,6 +589,7 @@ export async function whisperBytes(
    * either shape, so a server that answers plain text is still understood.
    */
   form.append('response_format', 'json')
+  if (language) form.append('language', language)
   /*
    * `stream=false`, SAID OUT LOUD, BECAUSE THE SERVER GUESSED WRONG.
    *
