@@ -87,6 +87,27 @@ import {
   withTimeout,
 } from '@/core/bot/launchWhenItAnswers'
 import { redactBotToken } from '@/utils/redactBotToken'
+import {
+  installManagedBots,
+  relaunchManagedBots,
+} from '@/core/bot/managedBots/install'
+import { stopManagedBots, type RunnerDeps } from '@/core/bot/managedBots/runner'
+
+/*
+ * What a managed bot needs from the rest of the bot. businessBotService is
+ * imported lazily, at the first client message, and never at the top of this
+ * file: the static import once closed an init-order cycle that crashed every
+ * start (see the shutdown notices below for the whole story).
+ */
+const managedBotDeps = (manager: Telegraf<MyContext>): RunnerDeps => ({
+  answer: async (clientId, text, fallback, seller) => {
+    const { answerClient } = await import('@/services/businessBotService')
+    return answerClient(clientId, text, fallback, seller)
+  },
+  tellOwner: async (ownerId, text) => {
+    await manager.telegram.sendMessage(ownerId, text)
+  },
+})
 import { startBotApiServerMonitor } from '@/services/botApiServerMonitor'
 
 // Инициализация ботов
@@ -544,6 +565,15 @@ async function initializeBots() {
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
     bot.on('successful_payment', handleSuccessfulPayment as any)
 
+    /*
+     * A CLIENT'S OWN AGENT BOT (Telegram Managed Bots, Bot API 9.6).
+     *
+     * Before the scenes for the reason above: the "bot created" service
+     * message is a `message`, and a wizard step would swallow it. Inert on a
+     * bot without Bot Management Mode -- see core/bot/managedBots/install.ts.
+     */
+    installManagedBots(bot, managedBotDeps(bot))
+
     registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
     // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
     setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
@@ -661,7 +691,16 @@ async function initializeBots() {
       'business_connection',
       'business_message',
       'inline_query',
+      'managed_bot',
     ])
+
+    // Every agent bot this one created is brought back after the restart.
+    void relaunchManagedBots(bot, botInfo, managedBotDeps(bot)).then(up => {
+      if (up)
+        console.log(
+          `🤖 [MANAGED] ${botInfo.username}: ${up} agent bot(s) answering`
+        )
+    })
 
     botPromises.push(botPromise)
   }
@@ -745,6 +784,7 @@ async function gracefulShutdown(signal: string) {
   console.log(`🚨 Получен сигнал ${signal}. Завершение работы...`)
   // Each bot is stopped independently: one that never came up throws
   // synchronously and used to end the shutdown. See utils/stopBotsQuietly.
+  stopManagedBots(signal)
   const outcomes = await stopBotsQuietly(botInstances)
   for (const o of outcomes) {
     if (o.result === 'stopped') {
