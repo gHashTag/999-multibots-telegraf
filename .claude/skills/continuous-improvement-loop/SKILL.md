@@ -654,6 +654,12 @@ them, and it hung again -- a cause named before it was measured. The command
 warns on swap < 1 GB and on stray streams, and has deadlines; the loop must
 still shut the simulator down when the check is done. `./tri iphone off` closes that door again: shut the simulator before the
 pre-push gates, they need the same memory.
+`./tri iphone test [Class]` runs the unit tests under a 25-min deadline.
+Two traps it now refuses: its first version had a derived-data dir of its own,
+so every run was a cold build and missed the deadline under load (on the
+shared `tri-iphone-dd-sim` cache: 1.5 min); and a misspelt class ran 0 tests
+while `xcodebuild` reported success -- 0 executed with a filter is now a
+failure. Its timeout message prints the end of the log, not a guessed cause.
 
 И третий: **я объяснил остановку неверно**. В отчёте назвал причиной `/tmp/dd`
 и свои сборки. Проверил на следующий день: `run.sh` пишет в `build2`, там было

@@ -411,7 +411,10 @@ describe('isNoise', () => {
  * a sentence is "being said" until `endSentence()`. The transcriber returns
  * the next of `heard` on each utterance.
  */
-async function speakingSession(heard: string[]) {
+async function speakingSession(
+  heard: string[],
+  Recorder: typeof FakeRecorder = FakeRecorder
+) {
   const level = { value: 0 }
   class LoudContext extends ListeningAudioContext {
     createAnalyser = () => ({
@@ -425,7 +428,7 @@ async function speakingSession(heard: string[]) {
   }
   const track = { stop: () => {}, enabled: true }
   vi.stubGlobal('AudioContext', LoudContext)
-  vi.stubGlobal('MediaRecorder', FakeRecorder)
+  vi.stubGlobal('MediaRecorder', Recorder)
   vi.stubGlobal('navigator', {
     languages: ['en-US'],
     mediaDevices: {
@@ -692,5 +695,88 @@ describe('VoiceSession: a sound that never ends', () => {
     await vi.advanceTimersByTimeAsync(200)
     expect(over).toBe(true)
     expect(stopped).toHaveBeenCalled()
+  })
+})
+
+/** A recorder that hands over what it has whenever it is asked, as browsers do. */
+class DeliveringRecorder extends FakeRecorder {
+  requestData() {
+    ;(this.ondataavailable as ((e: { data: Blob }) => void) | null)?.({
+      data: new Blob(['opus']),
+    })
+  }
+}
+class SafariRecorder extends DeliveringRecorder {
+  mimeType = 'audio/mp4'
+}
+
+describe('VoiceSession: hearing the words while the pause is judged', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  /** Loud from `from` to `to`, then quiet up to `until`, one tick each 40 ms. */
+  function say(
+    v: { level: { value: number }; tick(at: number): void },
+    from: number,
+    to: number,
+    until = to
+  ) {
+    for (let t = from; t <= until; t += 40) {
+      v.level.value = t <= to ? 0.5 : 0
+      v.tick(t)
+    }
+  }
+
+  it('asks for the words early and sends them when the turn ends, heard once', async () => {
+    const v = await speakingSession(['open my calendar'], DeliveringRecorder)
+    say(v, 1100, 1600, 1600 + 400)
+    // The pause is not over yet, and the words are already being heard.
+    expect(v.d.transcribe).toHaveBeenCalledTimes(1)
+    expect(v.d.send).not.toHaveBeenCalled()
+    say(v, 2040, 0, 2040 + 600)
+    await flush()
+    expect(v.d.transcribe).toHaveBeenCalledTimes(1)
+    expect(v.d.send).toHaveBeenCalledWith('open my calendar')
+  })
+
+  it('speaking again throws the early words away', async () => {
+    const v = await speakingSession(
+      ['open my', 'open my calendar'],
+      DeliveringRecorder
+    )
+    say(v, 1100, 1600, 1600 + 400)
+    const first = v.d.transcribe.mock.calls[0] as unknown as [
+      Blob,
+      { signal?: AbortSignal },
+    ]
+    say(v, 2040, 2400, 2400 + 1000)
+    await flush()
+    expect(first[1].signal?.aborted).toBe(true)
+    expect(v.d.send).toHaveBeenCalledTimes(1)
+    expect(v.d.send).toHaveBeenCalledWith('open my calendar')
+  })
+
+  it('an early guess that failed is not the end: the whole phrase is heard', async () => {
+    const v = await speakingSession(['open my calendar'], DeliveringRecorder)
+    v.d.transcribe.mockImplementationOnce(async () => {
+      throw new Error('503')
+    })
+    say(v, 1100, 1600, 1600 + 1000)
+    await flush()
+    expect(v.d.transcribe).toHaveBeenCalledTimes(2)
+    expect(v.d.send).toHaveBeenCalledWith('open my calendar')
+    expect(v.s.snapshot.error).toBeNull()
+  })
+
+  it("Safari's mp4 cannot be cut short, so it is heard only at the end", async () => {
+    const v = await speakingSession(['open my calendar'], SafariRecorder)
+    say(v, 1100, 1600, 1600 + 600)
+    expect(v.d.transcribe).not.toHaveBeenCalled()
+    say(v, 2240, 0, 2240 + 400)
+    await flush()
+    expect(v.d.transcribe).toHaveBeenCalledTimes(1)
+    expect(v.d.send).toHaveBeenCalledWith('open my calendar')
   })
 })
