@@ -38,6 +38,7 @@ struct RootView: View {
   @State private var keyboardUp = false
   /// Taps on a tab's button while that tab was already open, per tab.
   @State private var reselects: [String: Int] = [:]
+  @ObservedObject private var net = Connectivity.shared
 
   /// The open tab: the picked one while the list still has it.
   private var current: String? {
@@ -112,9 +113,13 @@ struct RootView: View {
     }
     .safeAreaInset(edge: .bottom, spacing: 0) {
       if !keyboardUp {
-        BottomTabBar(destinations: destinations, selected: current) { id in
-          if id == current { reselects[id, default: 0] += 1 } else { picked = id }
+        VStack(spacing: 0) {
+          if !net.online { OfflineBanner().transition(.move(edge: .bottom).combined(with: .opacity)) }
+          BottomTabBar(destinations: destinations, selected: current) { id in
+            if id == current { reselects[id, default: 0] += 1 } else { picked = id }
+          }
         }
+        .animation(.easeInOut(duration: 0.2), value: net.online)
       }
     }
     .onChange(of: current, initial: true) { _, id in

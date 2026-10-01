@@ -370,6 +370,17 @@ final class WebHost: NSObject, ObservableObject {
     webView.load(URLRequest(url: url(path)))
   }
 
+  /// The network came back (`Connectivity.returns`). Only a page that FAILED
+  /// reloads: one that loaded may hold the person's place, a half-typed card.
+  static func reloadsOnReturn(_ phase: Phase) -> Bool {
+    if case .failed = phase { return true }
+    return false
+  }
+
+  func networkCameBack() {
+    if Self.reloadsOnReturn(phase) { reload() }
+  }
+
   /// What a repeat tap on this page's tab does (see `tabReselects`).
   enum Reselect: Equatable { case goToRoot, scrollToTop }
 
@@ -592,6 +603,7 @@ struct WebPage<Fallback: View>: View {
   @ObservedObject var host: WebHost
   @Environment(\.tabIsShown) private var tabIsShown
   @Environment(\.tabReselects) private var tabReselects
+  @ObservedObject private var net = Connectivity.shared
   @ViewBuilder var fallback: () -> Fallback
 
   var body: some View {
@@ -625,6 +637,7 @@ struct WebPage<Fallback: View>: View {
     .background(Palette.background.ignoresSafeArea())
     .task { await host.start() }
     .onChange(of: tabReselects) { Task { await host.returnToStart() } }
+    .onChange(of: net.returns) { host.networkCameBack() }
     .sheet(isPresented: $host.wantsSignIn) {
       ScrollView {
         VStack(alignment: .leading, spacing: Space.md) {

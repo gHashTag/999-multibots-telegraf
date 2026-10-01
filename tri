@@ -316,7 +316,7 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
-  tri iphone [check|build|sim|off]
+  tri iphone [check|build|sim|off|test]
         The Vibee app on the REAL phone: build, install, launch -- one command.
         `sim` does the same on the simulator, with a deadline on install.
         Asks devicectl first, so a locked or unplugged phone is named as such
@@ -1374,6 +1374,8 @@ print(n)' 2>/dev/null)
 #                       pushed swap to 5 of 6 GB. Both now have deadlines; an
 #                       install that misses it gets one simulator reboot.
 #   tri iphone off      shut every running simulator down (gives ~10 GB back)
+#   tri iphone test [Class]  unit tests with a 25-min deadline and a one-line
+#                       verdict (Class = one test class, e.g. ConnectivityTests)
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
 # The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
 # next build need it back. One word instead of remembering the udid.
@@ -1384,6 +1386,48 @@ iphone_sim_off() {
   local u
   for u in $booted; do xcrun simctl shutdown "$u" && good "shut down $u"; done
   echo "  …    swap now: $(sysctl -n vm.swapusage | sed -E 's/.*(used = [^ ]+ +free = [^ ]+).*/\1/')"
+}
+
+# The unit tests, with the deadline and the summary every loop iteration
+# typed by hand: under load they take 10+ minutes, and the verdict is one line
+# in a 3000-line log. `tri iphone test FeedHandleTests` runs one class.
+iphone_test() {
+  local ios="$1" only="${2:-}" sim="${VIBEE_SIM:-}"
+  # Same build cache as `tri iphone sim`: a cache of its own made the first
+  # run a cold build, which missed the deadline under load.
+  local dd="${TMPDIR:-/tmp}/tri-iphone-dd-sim" log="${TMPDIR:-/tmp}/tri-iphone-test-${2:-all}.log"
+  local deadline
+  deadline=$(command -v timeout || command -v gtimeout) \
+    || { bad "no timeout(1) -- brew install coreutils"; return 2; }
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p' | head -1)
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices available | sed -nE 's/^ +iPhone.*\(([0-9A-F-]{36})\) \(Shutdown\).*/\1/p' | head -1)
+  [ -n "$sim" ] || { bad "no iPhone simulator at all -- create one in Xcode, or set VIBEE_SIM=udid"; return 1; }
+  local free_mb
+  free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
+  [ "${free_mb:-0}" -lt 2048 ] && { bad "only ${free_mb} MB free, need 2048 -- see tri disk, or rm -rf $dd"; return 1; }
+  local target="VibeeTests${only:+/$only}"
+  echo "  …    $target on $sim, deadline 25 min (log: $log)"
+  ( cd "$ios" && xcodegen generate --quiet && "$deadline" 1500 xcodebuild test -scheme Vibee \
+      -destination "id=$sim" -derivedDataPath "$dd" -only-testing:"$target" ) >"$log" 2>&1
+  local rc=$?
+  local verdict
+  verdict=$(grep -E "Executed [0-9]+ tests?" "$log" | tail -1 | sed -E 's/^[[:space:]]+//')
+  # A misspelt class runs nothing and xcodebuild still says success.
+  if [ "$rc" -eq 0 ] && grep -qE "Executed 0 tests" <<<"$verdict"; then
+    bad "ran 0 tests -- is there a class named '$only' in VibeeTests?"; return 1
+  fi
+  if [ "$rc" -eq 0 ]; then
+    good "${verdict:-tests passed}"
+  elif [ "$rc" -eq 124 ]; then
+    # Say where it stopped, not why: the first such message named a cause
+    # (a starved machine) nobody had measured. Swap is a lead, not a verdict.
+    bad "no verdict in 25 min; swap: $(sysctl -n vm.swapusage | sed -E 's/.*(free = [^ ]+).*/\1/'); the log ends with:"
+    tail -4 "$log" | cut -c1-140 | sed 's/^/       /'
+  else
+    bad "${verdict:-did not build}"
+    grep -E "error: |: error:|failed \(" "$log" | sort -u | head -10 | sed 's/^/       /'
+  fi
+  return "$rc"
 }
 
 iphone_sim() {
@@ -1461,6 +1505,7 @@ cmd_iphone() {
 
   [ "$mode" = "sim" ] && { iphone_sim "$ios"; return; }
   [ "$mode" = "off" ] && { iphone_sim_off; return; }
+  [ "$mode" = "test" ] && { iphone_test "$ios" "${2:-}"; return; }
 
   if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
     bad "devicectl did not answer (Xcode command line tools?)"; return 2
