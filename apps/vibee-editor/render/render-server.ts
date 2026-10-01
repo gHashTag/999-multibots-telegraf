@@ -8866,18 +8866,20 @@ const server = createServer(async (req, res) => {
           const lang = new URL(req.url || '', 'http://x').searchParams.get(
             'lang'
           )
-          const text = await voice.hear(
+          const heard = await voice.hear(
             bytes,
             req.headers['content-type'],
             lang
           )
+          // desc names the engine, so `tri voice` can tell GigaAM from a
+          // fallback to whisper without seeing a single word.
           res.setHeader(
             'Server-Timing',
-            `read;dur=${t1 - t0}, hear;dur=${Date.now() - t1}`
+            `read;dur=${t1 - t0}, hear;dur=${Date.now() - t1};desc="${heard?.engine ?? 'none'}"`
           )
-          if (text === null)
+          if (heard === null)
             return sendJson(res, 503, { error: 'no transcriber configured' })
-          return sendJson(res, 200, { text })
+          return sendJson(res, 200, { text: heard.text })
         } catch (e) {
           console.warn(`[voice] transcribe failed: ${(e as Error).message}`)
           return sendJson(res, 502, { error: 'transcriber failed' })

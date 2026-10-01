@@ -175,28 +175,89 @@ export function spokenLanguage(lang: unknown): VoiceLang | undefined {
   return lang === 'ru' || lang === 'en' ? lang : undefined
 }
 
-/** One utterance to text. `null` when this server has no ears configured. */
+/** Which engine turned the utterance into words. */
+export type Ears = 'gigaam' | 'whisper'
+
+export interface Heard {
+  text: string
+  engine: Ears
+}
+
+/**
+ * The Russian-only ears (deployment/gigaam), when this server has them.
+ * GigaAM hears a Russian phrase in ~0.15 s where whisper takes ~2 s, because
+ * it does not pad every call to a 30 s window (numbers in its server.py).
+ */
+export function ruEarsConfig(): { url: string; key: string } | null {
+  const url = (process.env.VOICE_HEAR_RU_URL || '').replace(/\/+$/, '')
+  const key = process.env.VOICE_HEAR_RU_KEY || ''
+  return url && key ? { url, key } : null
+}
+
+/** GigaAM answers in ~0.2 s; past this, whisper is the faster bet. */
+export const RU_EARS_TIMEOUT_MS = 4_000
+
+async function hearRussian(
+  ears: { url: string; key: string },
+  bytes: Buffer
+): Promise<string | null> {
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), RU_EARS_TIMEOUT_MS)
+  try {
+    const r = await fetch(`${ears.url}/hear`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${ears.key}`,
+        'content-type': 'application/octet-stream',
+      },
+      body: new Uint8Array(bytes),
+      signal: ac.signal,
+    })
+    if (!r.ok) {
+      console.warn(`[voice] gigaam ${r.status}, falling back to whisper`)
+      return null
+    }
+    const body = (await r.json()) as { text?: unknown }
+    return typeof body.text === 'string' ? body.text.trim() : null
+  } catch (e) {
+    const why = ac.signal.aborted ? 'timed out' : (e as Error).message
+    console.warn(`[voice] gigaam ${why}, falling back to whisper`)
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * One utterance to text. `null` when this server has no ears configured.
+ *
+ * Russian goes to GigaAM first when it is configured; any failure there --
+ * refused, too long, down, slow -- falls back to whisper, so the person never
+ * loses a phrase to the faster engine. An EMPTY answer from GigaAM is trusted:
+ * it means nothing was said, and whisper, asked the same, tends to invent a
+ * sentence out of silence. Without a language the phrase goes to whisper,
+ * which detects it -- that is how the player re-learns a person's language.
+ */
 export async function hear(
   bytes: Buffer,
   contentType: string | undefined,
   lang?: unknown,
   timeoutMs = 45_000
-): Promise<string | null> {
+): Promise<Heard | null> {
+  const spoken = spokenLanguage(lang)
+  const ears = spoken === 'ru' ? ruEarsConfig() : null
+  if (ears) {
+    const text = await hearRussian(ears, bytes)
+    if (text !== null) return { text, engine: 'gigaam' }
+  }
   const w = whisperConfig()
   if (!w) return null
   const type = String(contentType || 'audio/webm')
     .split(';')[0]
     .trim()
   const name = `utterance.${EXT[type] || 'webm'}`
-  const words = await whisperBytes(
-    w,
-    bytes,
-    type,
-    name,
-    timeoutMs,
-    spokenLanguage(lang)
-  )
-  return (words || '').trim()
+  const words = await whisperBytes(w, bytes, type, name, timeoutMs, spoken)
+  return { text: (words || '').trim(), engine: 'whisper' }
 }
 
 /**
@@ -318,6 +379,7 @@ export async function speak(
 export function voiceStatus() {
   return {
     hear: Boolean(whisperConfig()),
+    hearRu: ruEarsConfig() ? 'gigaam' : 'whisper',
     speak: Boolean(ttsConfig()),
     voices: VOICES,
   }
