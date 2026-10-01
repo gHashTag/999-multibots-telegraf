@@ -27,8 +27,21 @@
  * Mail and code work are the owner's alone, and are refused BEFORE they are
  * read (the hive board's law): a source the caller may not see comes back as
  * `not_yours`, never as rows that happened to be filtered.
+ *
+ * v2, from the first live read: a domain link on a domain strangers share
+ * (hh.ru was on 50 unrelated matters) is refused; a `title` link claims work
+ * by its title's first word ("blog: ..."); every card names the .t27 spec it
+ * stands on, and code work that names none is counted as `unspecced`.
+ *
+ * v3: the agent's browser is a fourth source, read for the CALLER'S OWN
+ * session only -- the owner included. A card says what the agent is on and
+ * whether it asks the person; it carries no token, endpoint or pod (those
+ * columns are never selected) and opens the app's /game/browser view.
  */
 
+import { ensureApprovals, pendingApprovalFor } from '../browser/approvals'
+import { inputRequestView, pendingInput } from '../browser/input-request'
+import { readJournal } from '../browser/journal'
 import * as SPEC from '../spec/ball-board.gen'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { OWNER_TELEGRAM_ID, requireOwner } from './telegram-tools'
@@ -36,8 +49,8 @@ import type { AgentTool, ToolContext } from './tools'
 
 type Pool = ToolContext['pool']
 type Ball = 'ours' | 'due' | 'theirs' | 'none'
-type Source = 'crm' | 'mail' | 'github'
-type LinkKind = 'email' | 'domain' | 'repo' | 'label'
+type Source = 'crm' | 'mail' | 'github' | 'browser'
+type LinkKind = 'email' | 'domain' | 'repo' | 'label' | 'title'
 
 /* ------------------------------------------------------ the spec's decisions */
 
@@ -82,7 +95,121 @@ export function isWaitingLabel(label: string): boolean {
   return label.toLowerCase().includes(SPEC.WAITING_LABEL)
 }
 
+/** The spec's `shared_domain`: a domain many unrelated senders share. */
+export function sharedDomain(domain: string): boolean {
+  return SHARED_DOMAINS.has(domain.trim().toLowerCase())
+}
+
+// The spec's list, in the spec's order: job boards and ATSs, mailbox
+// providers, lists and submission systems.
+const SHARED_DOMAINS = new Set([
+  'hh.ru',
+  'getmatch.ru',
+  'linkedin.com',
+  'greenhouse.io',
+  'lever.co',
+  'workable.com',
+  'gmail.com',
+  'googlemail.com',
+  'yahoo.com',
+  'outlook.com',
+  'hotmail.com',
+  'icloud.com',
+  'mail.ru',
+  'yandex.ru',
+  'proton.me',
+  'groups.io',
+  'googlegroups.com',
+  'editorialmanager.com',
+  'github.com',
+])
+
+const LINK_KINDS: readonly string[] = [
+  SPEC.LINK_EMAIL,
+  SPEC.LINK_DOMAIN,
+  SPEC.LINK_REPO,
+  SPEC.LINK_LABEL,
+  SPEC.LINK_TITLE,
+]
+
+/** The spec's `may_link`: only a domain link can claim strangers. */
+export function mayLink(kind: string, value: string): boolean {
+  if (kind === SPEC.LINK_DOMAIN && sharedDomain(value)) return false
+  return LINK_KINDS.includes(kind)
+}
+
+/** A title's head: its first word, lower-cased, cut at the first ':' or space. */
+export function titleHead(title: string): string {
+  return title.trim().toLowerCase().split(/[:\s]/)[0] ?? ''
+}
+
+/** The spec's `title_claims`: a title link claims work by the title's head. */
+export function titleClaims(head: string, value: string): boolean {
+  return value !== '' && head === value
+}
+
+/** A .t27 path a title names, if any: a path under specs/ ending in .t27. */
+export function specInTitle(title: string): string {
+  return /\bspecs\/[\w./-]+\.t27\b/.exec(title)?.[0] ?? ''
+}
+
+/** The spec's `card_spec`: the title's path, else the source's spec of record. */
+export function cardSpec(source: string, titleSpec: string): string {
+  if (titleSpec !== '') return titleSpec
+  if (source === SPEC.SOURCE_CRM) return SPEC.SPEC_OF_CRM
+  if (source === SPEC.SOURCE_MAIL) return SPEC.SPEC_OF_MAIL
+  if (source === SPEC.SOURCE_BROWSER) return SPEC.SPEC_OF_BROWSER
+  return ''
+}
+
 /* ------------------------------------------------------------------ clients */
+
+/* -------------------------------------------------- the agent's browser (v3) */
+
+/** An open ask, or the person at the wheel, is the person's move. */
+export function browserBall(
+  asksPerson: boolean,
+  personHasWheel: boolean
+): Ball {
+  return asksPerson || personHasWheel
+    ? (SPEC.BALL_OURS as Ball)
+    : (SPEC.BALL_THEIRS as Ball)
+}
+
+export function browserIsCard(state: string): boolean {
+  return state === SPEC.STATE_LIVE || state === SPEC.STATE_STARTING
+}
+
+/**
+ * The only browser_sessions columns a card may carry. Everything else there is
+ * a key to the stream or the pod, so the read SELECTs exactly these -- a column
+ * added later is refused by default, never leaked by a `SELECT *`.
+ */
+export const BROWSER_FIELDS = [
+  'state',
+  'last_seen_at',
+  'person_wheel_until',
+] as const
+
+export function browserFieldShown(field: string): boolean {
+  return (BROWSER_FIELDS as readonly string[]).includes(field)
+}
+
+export function browserVisible(rowIsCallers: boolean): boolean {
+  return rowIsCallers
+}
+
+/** The page a journal step was on, without its query or fragment. */
+function bareUrl(detail: Record<string, unknown> | null | undefined): string {
+  const u = detail?.url
+  if (typeof u !== 'string') return ''
+  try {
+    const x = new URL(u)
+    return `${x.host}${x.pathname === '/' ? '' : x.pathname}`
+  } catch {
+    return ''
+  }
+}
 
 export interface Link {
   client: string
@@ -128,17 +255,26 @@ export function mailClient(
   return null
 }
 
-/** The client of a PR or issue: a label link first, then its repository. */
+/**
+ * The client of a PR or issue: a label link first, then a title link, then
+ * its repository -- the more specific claim first.
+ */
 export function workClient(
   repo: string,
   labels: string[],
-  links: Link[]
+  links: Link[],
+  title = ''
 ): string | null {
   const lower = labels.map(l => l.toLowerCase())
   const byLabel = links.find(
     l => l.kind === SPEC.LINK_LABEL && lower.includes(l.value.toLowerCase())
   )
   if (byLabel) return byLabel.client
+  const head = titleHead(title)
+  const byTitle = links.find(
+    l => l.kind === SPEC.LINK_TITLE && titleClaims(head, l.value.toLowerCase())
+  )
+  if (byTitle) return byTitle.client
   const byRepo = links.find(
     l =>
       l.kind === SPEC.LINK_REPO && l.value.toLowerCase() === repo.toLowerCase()
@@ -156,6 +292,8 @@ export interface Card {
   days: number | null
   because: string | null
   link: string | null
+  /** The .t27 spec the card stands on, or null when it names none. */
+  spec: string | null
 }
 
 export interface ClientRow {
@@ -269,7 +407,8 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
   {
     name: SPEC.TOOL,
     description:
-      'Board of everything in progress, grouped by client: CRM people, mail matters, open PRs and bugs. ' +
+      'Board of everything in progress, grouped by client: CRM people, mail matters, open PRs and bugs, ' +
+      "and the caller's own AI-browser session (what the agent is on, whether it asks the person). " +
       'Each card says whose move it is (ours / due / theirs / none). Sends nothing.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     async handler(_args, ctx: ToolContext) {
@@ -279,6 +418,7 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
         crm: { status: 'empty', cards: 0 },
         mail: { status: 'empty', cards: 0 },
         github: { status: 'empty', cards: 0 },
+        browser: { status: 'empty', cards: 0 },
       }
 
       // Links are the owner's; anybody else simply has none to apply.
@@ -310,6 +450,7 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
               days: typeof p.days === 'number' ? p.days : null,
               because: p.because ? String(p.because) : null,
               link: p.link ? String(p.link) : null,
+              spec: cardSpec(SPEC.SOURCE_CRM, '') || null,
             },
           })
           sources.crm.cards += 1
@@ -356,6 +497,7 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
                   days: typeof m.days_since === 'number' ? m.days_since : null,
                   because: m.stage ? String(m.stage) : null,
                   link: null,
+                  spec: cardSpec(SPEC.SOURCE_MAIL, '') || null,
                 },
               })
               sources.mail.cards += 1
@@ -393,7 +535,7 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
           for (const w of rows) {
             const isPr = w.kind === 'pr'
             const labels: string[] = w.labels ?? []
-            const linked = workClient(w.repo, labels, links)
+            const linked = workClient(w.repo, labels, links, String(w.title))
             entries.push({
               key: linked ? clientKey(linked) : `name:${SPEC.PROJECT_CLIENT}`,
               name: linked ?? SPEC.PROJECT_CLIENT,
@@ -415,6 +557,9 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
                       : 'open, awaits our merge'
                   : labels.join(', ') || null,
                 link: w.url ?? null,
+                spec:
+                  cardSpec(SPEC.SOURCE_WORK, specInTitle(String(w.title))) ||
+                  null,
               },
             })
             sources.github.cards += 1
@@ -424,9 +569,71 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
         }
       }
 
+      // The agent's browser: the caller's own session, whoever the caller is
+      // (BROWSER_OWN_ONLY). Only BROWSER_FIELDS are selected; the card opens
+      // the app's own view (BROWSER_OPEN_AT), never the stream.
+      try {
+        const me = String(ctx.telegramId)
+        const r = await ctx.pool.query(
+          `SELECT telegram_id, ${BROWSER_FIELDS.join(', ')}
+             FROM browser_sessions WHERE telegram_id = $1`,
+          [me]
+        )
+        const row = (r.rows ?? []).find(x =>
+          browserVisible(String(x.telegram_id) === me)
+        )
+        if (row && browserIsCard(String(row.state))) {
+          const ask = inputRequestView(pendingInput(me))
+          await ensureApprovals(ctx.pool)
+          const approval = await pendingApprovalFor(
+            ctx.pool,
+            me,
+            SPEC.ASK_TTL_MIN * 60_000
+          )
+          const wheel =
+            row.person_wheel_until != null &&
+            new Date(row.person_wheel_until).getTime() > Date.now()
+          const [last] = await readJournal(ctx.pool, me, 1, { probes: false })
+          const lastStep = last
+            ? `${last.tool}${bareUrl(last.detail) ? ` ${bareUrl(last.detail)}` : ''}`
+            : null
+          const title = ask
+            ? `asks: ${ask.why || ask.label || ask.kind}`
+            : approval
+              ? `asks to approve: ${approval.what}`
+              : wheel
+                ? 'you hold the wheel'
+                : (lastStep ?? `browser ${row.state}`)
+          entries.push({
+            key: `name:${SPEC.SOURCE_BROWSER}`,
+            name: SPEC.SOURCE_BROWSER,
+            card: {
+              source: 'browser',
+              ref: me,
+              title,
+              ball: browserBall(Boolean(ask || approval), wheel),
+              days: daysSince(row.last_seen_at),
+              because: ask || approval ? lastStep : String(row.state),
+              link: SPEC.BROWSER_OPEN_AT,
+              spec: cardSpec(SPEC.SOURCE_BROWSER, '') || null,
+            },
+          })
+          sources.browser.cards += 1
+        }
+        sources.browser.status = sources.browser.cards ? 'ok' : 'empty'
+      } catch (e) {
+        // No browser was ever started here: no table is no browser, not an outage.
+        const msg = e instanceof Error ? e.message : String(e)
+        sources.browser = /does not exist/.test(msg)
+          ? { status: 'empty', cards: 0 }
+          : { status: 'unreachable', cards: 0, why: msg }
+      }
+
       const clients = groupByClient(entries)
       const counts = { ours: 0, due: 0, theirs: 0, none: 0 }
       for (const e of entries) counts[e.card.ball] += 1
+      // A card with no spec is counted, never given one (UNSPECCED_IS_COUNTED).
+      const unspecced = entries.filter(e => !e.card.spec).length
       // Counts over everything; only CARDS_MAX cards travel.
       let budget = SPEC.CARDS_MAX
       const shown = clients
@@ -439,6 +646,7 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
       return {
         total: entries.length,
         counts,
+        unspecced,
         sources,
         clients: shown,
         clients_total: clients.length,
@@ -541,12 +749,16 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
   {
     name: SPEC.LINK_TOOL,
     description:
-      'Owner only. Tie an email, domain, repo or label to a client (a CRM telegram id or a name), or untie it.',
+      'Owner only. Tie an email, domain, repo, label or title head (e.g. "blog") to a client ' +
+      '(a CRM telegram id or a name), or untie it. A domain many strangers share (hh.ru, gmail.com) is refused.',
     parameters: {
       type: 'object',
       properties: {
         client: { type: 'string' },
-        kind: { type: 'string', enum: ['email', 'domain', 'repo', 'label'] },
+        kind: {
+          type: 'string',
+          enum: ['email', 'domain', 'repo', 'label', 'title'],
+        },
         value: { type: 'string' },
         remove: { type: 'boolean' },
       },
@@ -563,13 +775,13 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
         .toLowerCase()
       if (!client || !value)
         throw new Error('client and value must be non-empty')
-      if (
-        ![SPEC.LINK_EMAIL, SPEC.LINK_DOMAIN, SPEC.LINK_REPO, SPEC.LINK_LABEL]
-          .map(String)
-          .includes(kind)
-      ) {
-        throw new Error(`kind must be email, domain, repo or label`)
-      }
+      if (!LINK_KINDS.includes(kind))
+        throw new Error(`kind must be ${LINK_KINDS.join(', ')}`)
+      // Untying is always allowed: a link set before v2 must be removable.
+      if (!args.remove && !mayLink(kind, value))
+        throw new Error(
+          `${value} is shared by many unrelated senders -- link the address, not the domain`
+        )
       const owner = String(ctx.telegramId)
       if (args.remove) {
         await ctx.pool.query(
