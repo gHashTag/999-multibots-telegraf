@@ -144,9 +144,9 @@
 }
 
 .voice-overlay .voice-overlay__icon.is-on {
-  color: #fecaca;
-  background: rgba(248, 113, 113, 0.2);
-  border-color: rgba(248, 113, 113, 0.55);
+  color: #bbf7d0;
+  background: rgba(0, 255, 136, 0.16);
+  border-color: rgba(0, 255, 136, 0.5);
 }
 
 /* ---- the orb ---- */
@@ -219,10 +219,14 @@
     filter 300ms ease;
 }
 
-.voice-orb--off .voice-orb__mark,
-.voice-orb--error .voice-orb__mark {
+.voice-orb--off .voice-orb__mark {
   opacity: 0.5;
   filter: grayscale(1);
+}
+
+/* Stopped is not dead: the mark is the button that starts again. */
+.voice-orb--error .voice-orb__mark {
+  opacity: 0.92;
 }
 
 /* ---- captions ---- */
@@ -280,16 +284,16 @@
   gap: 8px;
   width: 100%;
   padding: 12px 14px;
-  border: 1px solid rgba(248, 113, 113, 0.28);
+  border: 1px solid rgba(0, 255, 136, 0.26);
   border-radius: 16px;
-  background: rgba(127, 29, 29, 0.22);
+  background: rgba(2, 64, 40, 0.3);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
 
 .voice-overlay__error {
   margin: 0;
-  color: #fecaca;
+  color: #d1fae5;
   font-size: 14px;
   line-height: 1.4;
 }
@@ -328,8 +332,9 @@
 
 .voice-overlay .voice-overlay__action--primary {
   border-color: transparent;
-  background: #f5f5f7;
-  color: #0a0a0c;
+  background: #00ff88;
+  color: #04120b;
+  box-shadow: 0 0 22px rgba(0, 255, 136, 0.35);
 }
 
 .voice-overlay__line {
