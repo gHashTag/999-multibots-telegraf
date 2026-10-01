@@ -9,9 +9,10 @@ const CREATOR_SHARE = `${MARKETPLACE_ECONOMY.creatorBps / 100}%`
  * Owner, 2026-09-30: three packages, each agent living in a Telegram bot of
  * its own that the team sets up for the client.
  *
- * Owner, 2026-10-01: the price is MONTHLY -- 6250 / 9375 / 12500 Stars
- * (= $100 / $150 / $200) every month, no separate launch fee -- and the
- * third package is the Developer Agent. Names follow one pattern, "<Role>
+ * Owner, 2026-10-01: the price is MONTHLY, every month, no separate launch
+ * fee -- and the third package is the Developer Agent. Owner, 2026-10-02:
+ * the Blogger Agent is 10000 Stars, exactly the subscription cap, so the
+ * prices are 6250 / 10000 / 12500 Stars (= $100 / $160 / $200). Names follow one pattern, "<Role>
  * Agent" and its Russian mirror, the role word followed by "agent".
  *
  * One home for the catalogue: the welcome screen and the market screen both
@@ -86,7 +87,7 @@ export const AGENT_PACKAGES: readonly AgentPackage[] = [
       en: 'Reels with your face and voice, a content plan and publishing — the blogger agent working for your channel.',
       ru: 'Рилсы с вашим лицом и голосом, контент-план и публикации — агент-блогер работает на ваш канал.',
     },
-    monthlyUsd: 150,
+    monthlyUsd: 160,
     allowanceUsd: 35,
     includes: [
       { en: 'everything in Manager Agent', ru: 'всё из «Менеджер агента»' },

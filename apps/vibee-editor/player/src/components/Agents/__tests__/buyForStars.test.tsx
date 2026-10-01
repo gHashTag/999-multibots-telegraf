@@ -46,7 +46,7 @@ function server(verify: Record<string, unknown>) {
             ok: true,
             link: 'https://t.me/$inv',
             charge: 'month',
-            stars: 9375,
+            stars: 10000,
           }),
         }
       }

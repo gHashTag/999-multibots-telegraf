@@ -20,7 +20,7 @@ describe('agent packages', () => {
   it('sells the three agents at the owner monthly prices', () => {
     expect(AGENT_PACKAGES.map(pkg => [pkg.id, pkg.monthlyUsd])).toEqual([
       ['manager', 100],
-      ['blogger', 150],
+      ['blogger', 160],
       ['twin', 200],
     ])
     for (const pkg of AGENT_PACKAGES) {
@@ -105,7 +105,7 @@ describe('agent packages', () => {
     expect(AGENT_PACKAGES.map(pkg => [pkg.id, agentPackageStars(pkg)])).toEqual(
       [
         ['manager', 6250],
-        ['blogger', 9375],
+        ['blogger', 10000],
         ['twin', 12500],
       ]
     )
