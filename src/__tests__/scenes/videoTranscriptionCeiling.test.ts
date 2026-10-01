@@ -29,8 +29,8 @@ import { transcribeVideoFromDirectUrl } from '@/services/videoTranscription'
  * own Bot API server that is false twice over: its ceiling is 2000 MB, and a
  * person told "20" sends a worse file for no reason.
  */
-const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved'
-const STAYS = '900000022:ZZstaysstaysstaysstaysstaysstaysstays'
+const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token (ZZ, not the AA real-token shape)
+const STAYS = '900000022:ZZstaysstaysstaysstaysstaysstaysstays' // secret-guard-ok: fake fixture token (ZZ, not the AA real-token shape)
 
 const saved = { ...process.env }
 beforeEach(() => {

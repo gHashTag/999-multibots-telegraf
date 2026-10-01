@@ -31,8 +31,8 @@ const allowedBots = createRequire(__filename)(
  * that ordinary traffic -- Telegraf's multipart, undici's FormData, a message
  * that merely says "Profile:" -- passes untouched.
  */
-const LISTED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved'
-const STRANGER = '900000099:ZZstrangerstrangerstrangerstrangerst'
+const LISTED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token (ZZ, not the AA real-token shape)
+const STRANGER = '900000099:ZZstrangerstrangerstrangerstrangerst' // secret-guard-ok: fake fixture token (ZZ, not the AA real-token shape)
 
 type Seen = { url: string; body: Buffer; complete: boolean; headers: any }
 let seen: Seen[] = []

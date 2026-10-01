@@ -41,8 +41,8 @@ import {
  * could have taken; one that says "2000" for the second promises what the
  * cloud will not deliver.
  */
-const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved'
-const STAYS = '900000022:ZZstaysstaysstaysstaysstaysstaysstays'
+const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token (ZZ, not the AA real-token shape)
+const STAYS = '900000022:ZZstaysstaysstaysstaysstaysstaysstays' // secret-guard-ok: fake fixture token (ZZ, not the AA real-token shape)
 const MB = 1024 * 1024
 const ABS = `/var/lib/telegram-bot-api/${MOVED}/videos/file_9.mp4`
 
