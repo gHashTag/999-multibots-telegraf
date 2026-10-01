@@ -51,7 +51,8 @@ async function publishEverywhere(
 ): Promise<Record<string, string>> {
   const { startBrowserAsAgent } = await import('../browser/routes')
   const { readSession } = await import('../browser/sessions')
-  const { newPage, evaluateOn, clickAt } = await import('../browser/cdp')
+  const { newPage, evaluateOn, clickAt, closePage } =
+    await import('../browser/cdp')
   const { findProbe, foundOf } = await import('../browser/find-target')
   let s = await readSession(pool, owner)
   if (!s || s.state !== 'live' || !s.cdpEndpoint) {
@@ -85,7 +86,7 @@ async function publishEverywhere(
    */
   const { loginsOfPerson } = await import('../browser/logins')
   const { isNotConnected } = await import('./rounds')
-  const { receiptOf } = await import('./blog-share')
+  const { receiptOf, LEFT_THE_FORM } = await import('./blog-share')
   const logins = await loginsOfPerson(pool, owner).catch(() => null)
   for (const [net, url, labels] of [
     ['X', urls.x, ['post']],
@@ -118,7 +119,15 @@ async function publishEverywhere(
           const after = String(
             await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
           )
-          pressed = `${found.label}» · ${receiptOf(before, after)}`
+          const receipt = receiptOf(before, after)
+          pressed = `${found.label}» · ${receipt}`
+          /*
+           * Every run used to leave its tabs in the person's browser, day
+           * after day. A confirmed post closes its tab; an unconfirmed one
+           * stays open -- it is the only evidence of what went wrong.
+           */
+          if (receipt === LEFT_THE_FORM)
+            await closePage(cdp, page.id).catch(() => undefined)
           break
         }
       }
@@ -145,9 +154,8 @@ async function publishEverywhere(
  */
 async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   const { xThread } = await import('./blog-share')
-  const { newPage, evaluateOn, clickAt, typeText } = await import(
-    '../browser/cdp'
-  )
+  const { newPage, evaluateOn, clickAt, typeText } =
+    await import('../browser/cdp')
   const { findProbe, foundOf } = await import('../browser/find-target')
   const thread = xThread(a)
   const page = await newPage(cdp, 'https://x.com/compose/post')
