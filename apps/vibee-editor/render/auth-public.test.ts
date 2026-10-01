@@ -264,9 +264,13 @@ describe('the public counters', () => {
     expect([...TRAFFIC_PATHS].sort()).toEqual([
       '/api/traffic/arrival',
       '/api/traffic/start',
+      '/api/traffic/welcome',
     ])
     expect(
       isPublic({ url: '/api/traffic/arrival', method: 'POST' } as never)
+    ).toBe(true)
+    expect(
+      isPublic({ url: '/api/traffic/welcome', method: 'POST' } as never)
     ).toBe(true)
     /* The bot process sends starts with the service key; pages never do. */
     expect(

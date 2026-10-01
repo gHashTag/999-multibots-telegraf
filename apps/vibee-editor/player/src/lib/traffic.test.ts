@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { arrivalFromSearch, reportArrival } from './traffic'
+import { arrivalFromSearch, reportArrival, reportWelcomeStep } from './traffic'
 
 /**
  * THE APP COUNTS A TAGGED VISIT ONCE (epic #2974). Each case is a way the
@@ -52,5 +52,37 @@ describe('reporting it', () => {
     await expect(reportArrival('?utm_source=threads', send)).resolves.toBe(
       false
     )
+  })
+})
+
+describe('a step on the welcome screen', () => {
+  beforeEach(() => sessionStorage.clear())
+
+  it('is sent once per session per step and item, with nothing personal', async () => {
+    const send = vi.fn(
+      async () => new Response('{}')
+    ) as unknown as typeof fetch
+    expect(await reportWelcomeStep('lang', '', send)).toBe(true)
+    expect(await reportWelcomeStep('lang', '', send)).toBe(false)
+    expect(await reportWelcomeStep('package_order', 'blogger', send)).toBe(true)
+    expect(await reportWelcomeStep('package_order', 'twin', send)).toBe(true)
+    expect(send).toHaveBeenCalledTimes(3)
+    const calls = (send as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls
+    expect(String(calls[0][0])).toMatch(/\/api\/traffic\/welcome$/)
+    expect(JSON.parse((calls[0][1] as RequestInit).body as string)).toEqual({
+      step: 'lang',
+    })
+    expect(JSON.parse((calls[1][1] as RequestInit).body as string)).toEqual({
+      step: 'package_order',
+      item: 'blogger',
+    })
+  })
+
+  it('a failed call is dropped, never thrown', async () => {
+    const send = vi.fn(async () => {
+      throw new Error('offline')
+    }) as unknown as typeof fetch
+    expect(await reportWelcomeStep('shown', '', send)).toBe(false)
   })
 })

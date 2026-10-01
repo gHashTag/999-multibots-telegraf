@@ -25,6 +25,7 @@ import { CheckedTools } from '@/components/Agents/CheckedTools'
 import { tryFreeNote } from '@/components/Agents/tryFree'
 import { markWelcomed } from '@/lib/welcomeMemory'
 import { openTelegramLink } from '@/lib/telegram'
+import { reportWelcomeStep } from '@/lib/traffic'
 import './Welcome.css'
 
 const copy = {
@@ -210,7 +211,17 @@ export function WelcomePage() {
 
   useEffect(() => {
     markWelcomed()
+    void reportWelcomeStep('shown')
   }, [])
+
+  /*
+   * THE HEATMAP. Each way off this screen, and reaching the packages, is
+   * counted once per visit (lib/traffic.ts, render traffic.ts): the owner
+   * reads which step loses people with crm_traffic. Nothing personal.
+   */
+  useEffect(() => {
+    if (atPackages) void reportWelcomeStep('packages_seen')
+  }, [atPackages])
 
   /*
    * THE PINNED BUTTON FOLLOWS THE LADDER: above the packages it offers the
@@ -247,6 +258,7 @@ export function WelcomePage() {
               className="welcome-skip"
               to="/feed"
               aria-label={text.laterLabel}
+              onClick={() => void reportWelcomeStep('skip')}
             >
               {text.later}
             </Link>
@@ -254,7 +266,10 @@ export function WelcomePage() {
               type="button"
               className="welcome-lang"
               lang={l === 'ru' ? 'en' : 'ru'}
-              onClick={() => setLang(l === 'ru' ? 'en' : 'ru')}
+              onClick={() => {
+                void reportWelcomeStep('lang')
+                setLang(l === 'ru' ? 'en' : 'ru')
+              }}
             >
               {text.lang}
             </button>
@@ -284,7 +299,11 @@ export function WelcomePage() {
             </h2>
             {working.map(agent => (
               <div key={agent.id} className="welcome-agent-card">
-                <Link className="welcome-agent" to={`/agents/${agent.id}`}>
+                <Link
+                  className="welcome-agent"
+                  to={`/agents/${agent.id}`}
+                  onClick={() => void reportWelcomeStep('agent_open', agent.id)}
+                >
                   <AgentFace
                     className="welcome-agent__face"
                     icon={agent.icon}
@@ -348,6 +367,9 @@ export function WelcomePage() {
                     className="welcome-agent__talk"
                     to={`/agents/${agent.id}/work`}
                     aria-label={text.talkLabel(agent.name[l])}
+                    onClick={() =>
+                      void reportWelcomeStep('agent_talk', agent.id)
+                    }
                   >
                     {text.talk} <span aria-hidden="true">→</span>
                   </Link>
@@ -376,6 +398,7 @@ export function WelcomePage() {
               className="welcome-gift__cta"
               to={`/agents/${giftAgent}/work`}
               aria-label={text.giftLabel(giftAgentName)}
+              onClick={() => void reportWelcomeStep('gift', giftAgent)}
             >
               {text.giftCta} <span aria-hidden="true">→</span>
             </Link>
@@ -422,7 +445,15 @@ export function WelcomePage() {
               {text.pricePortrait(PORTRAIT_TOKENS)}
             </p>
           </div>
-          <PackageCards lang={l} />
+          <PackageCards
+            lang={l}
+            onAction={(action, id) =>
+              void reportWelcomeStep(
+                action === 'order' ? 'package_order' : 'package_try',
+                id
+              )
+            }
+          />
         </section>
 
         {/* Pinned to the bottom, so the one main action is always in reach. */}
@@ -435,6 +466,7 @@ export function WelcomePage() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={event => {
+                void reportWelcomeStep('pinned_order', featured.id)
                 if (openTelegramLink(agentPackageOrderUrl(featured)))
                   event.preventDefault()
               }}
@@ -446,11 +478,16 @@ export function WelcomePage() {
               className="welcome-exit welcome-exit--primary"
               data-stage="gift"
               to={`/agents/${giftAgent}/work`}
+              onClick={() => void reportWelcomeStep('pinned_gift', giftAgent)}
             >
               {text.giftShort(START_TOKENS)} <span aria-hidden="true">→</span>
             </Link>
           ) : null}
-          <Link className="welcome-exit welcome-exit--quiet" to="/agents">
+          <Link
+            className="welcome-exit welcome-exit--quiet"
+            to="/agents"
+            onClick={() => void reportWelcomeStep('market')}
+          >
             {giftAgent || atPackages ? text.allAgents : text.market}{' '}
             <span aria-hidden="true">→</span>
           </Link>
