@@ -14,8 +14,8 @@ import * as render from '../../apps/vibee-editor/render/src/telegram-api'
  */
 const scripts = createRequire(__filename)('../../scripts/lib/telegram-api.cjs')
 
-const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved'
-const STAYS = '900000022:ZZstaysstaysstaysstaysstaysstaysstays'
+const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token
+const STAYS = '900000022:ZZstaysstaysstaysstaysstaysstaysstays' // secret-guard-ok: fake fixture token
 const OURS = 'http://telegram-bot-api.railway.internal:8081'
 const FILES = 'http://telegram-bot-api.railway.internal:8082/'
 
