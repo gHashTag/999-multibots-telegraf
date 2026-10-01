@@ -486,19 +486,24 @@ export default function CrmPage() {
           url={faces.get(r.telegramId)}
           size={36}
         />
-        {/* The name opens the client's own page; the t.me link stays as a
-            small secondary control so the primary tap lands inside the app. */}
+        {/* The name opens the client's own page; the t.me link is a
+            secondary control so the primary tap lands inside the app. It is
+            its own finger-sized target after the stage: inside the stage
+            text it was a 28x16 speck (tri shot crm, 2026-10-02). */}
         <Link to={`/crm/${r.telegramId}`} className="crm__open">
           {r.name || r.telegramId}
         </Link>
-        <span className="crm__stage">
-          {r.link ? (
-            <a href={r.link} target="_blank" rel="noreferrer">
-              t.me
-            </a>
-          ) : null}{' '}
-          {t(`crm.stage.${r.stage}`)}
-        </span>
+        <span className="crm__stage">{t(`crm.stage.${r.stage}`)}</span>
+        {r.link ? (
+          <a
+            className="crm__tme"
+            href={r.link}
+            target="_blank"
+            rel="noreferrer"
+          >
+            t.me
+          </a>
+        ) : null}
       </div>
       <p className="crm__why">
         {t(`crm.wait.${r.waiting}`)} · {t('crm.wait.days', { n: r.days })} ·{' '}
@@ -547,13 +552,15 @@ export default function CrmPage() {
    * ONE PERSON IN THE CLIENTS LIST -- the same row under both headings, so
    * "under way" and "the rest" cannot drift into two different rows.
    *
-   * ONE LINE OF NAME, ONE LINE OF FACTS, ABOUT 64PX. The row was 140-160px on
+   * A NAME LINE AND A FACTS LINE, ABOUT 64PX. The row was 140-160px on
    * a phone: the name shared its line with the handle, the badge and the
    * stage, and every row carried a full-size "Remove from CRM" button. Now
    * the name has its line to itself, the facts sit under it, and the AUTO
    * tick stays on the row -- it is the one setting that must be reachable
    * from a phone (see CrmCockpit.test) -- while the details and the remove
-   * button wait behind "...".
+   * button wait behind "...". A name or facts line too long for a phone
+   * wraps to a second line rather than being cut with an ellipsis: a cut
+   * name is a different person's name (tri shot crm, 2026-10-02).
    *
    * The remove button is the only destructive control on this screen, so it
    * asks first and, once done, the row keeps the way back rather than
@@ -1114,12 +1121,16 @@ export default function CrmPage() {
                         <Link to={`/crm/${p.telegramId}`} className="crm__open">
                           {p.name || p.telegramId}
                         </Link>
+                        {/* The same finger-sized t.me as a waiting row's. */}
                         {p.link ? (
-                          <span className="crm__stage">
-                            <a href={p.link} target="_blank" rel="noreferrer">
-                              t.me
-                            </a>
-                          </span>
+                          <a
+                            className="crm__tme"
+                            href={p.link}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            t.me
+                          </a>
                         ) : null}
                       </div>
                       <p className="crm__why">

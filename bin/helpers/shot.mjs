@@ -374,6 +374,16 @@ function measure({ root, scope, within: area, before = [] }) {
       ({ el, r }) =>
         `${name(el)} ${Math.round(r.width)}×${Math.round(r.height)}`
     )
+  /*
+   * A visually hidden word (the usual sr-only recipe: a 1px box clipped to
+   * nothing) is cut ON PURPOSE -- the eye is meant to miss it and the screen
+   * reader to read it -- so it is not a cut. Counting it made the CRM's
+   * AUTO word "cut 33>1" in every row (2026-10-02).
+   */
+  const srOnly = (el, s) =>
+    s.clipPath === 'inset(50%)' ||
+    s.clip === 'rect(0px, 0px, 0px, 0px)' ||
+    (el.clientWidth <= 1 && el.clientHeight <= 1 && s.position === 'absolute')
   const cut = [...within.querySelectorAll('*')]
     .filter(shown)
     .filter(el => {
@@ -381,7 +391,8 @@ function measure({ root, scope, within: area, before = [] }) {
       return (
         s.overflowX !== 'visible' &&
         el.scrollWidth > el.clientWidth + 1 &&
-        !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) &&
+        !srOnly(el, s)
       )
     })
     .map(el => `${name(el)} ${el.scrollWidth}>${el.clientWidth}`)
