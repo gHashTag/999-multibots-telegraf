@@ -49,8 +49,8 @@ import {
  * deployment/telegram-bot-api/file-server.mjs): it records which path was
  * asked for and answers with bytes, chunked or with a length.
  */
-const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved'
-const STAYS = '900000022:ZZstaysstaysstaysstaysstaysstaysstays'
+const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token
+const STAYS = '900000022:ZZstaysstaysstaysstaysstaysstaysstays' // secret-guard-ok: fake fixture token
 const ABS = `/var/lib/telegram-bot-api/${MOVED}/videos/file_3.mp4`
 
 let server: Server

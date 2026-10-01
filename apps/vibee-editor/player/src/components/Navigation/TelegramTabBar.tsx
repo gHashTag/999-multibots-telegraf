@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Home, User, Users, Sparkles, Hexagon, Globe } from 'lucide-react'
 import { myProfileAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { revealInStrip } from '@/components/Profile/revealInStrip'
 import { haptic } from '@/lib/telegram'
 import { PRIMARY_NAV_ITEMS, type PrimaryTabId } from '@/lib/primaryNavigation'
+import { TAB_GLYPHS } from '@/lib/tabGlyphs'
 import { IS_EMBED } from '@/lib/embed'
 import './TelegramTabBar.css'
 
@@ -36,26 +36,16 @@ interface TabItem {
  * tab, in the same order as native iOS, with the editor as its final stage.
  * Agent remains the second product tab as requested by the owner.
  */
-const TAB_ICONS: Record<PrimaryTabId, React.ReactNode> = {
-  feed: <Home size={20} />,
-  chat: <Users size={20} />,
-  // The person's own browser. A globe: it is the open web, not a tool.
-  browser: <Globe size={20} />,
-  ai: <Sparkles size={20} />,
-  // The hive. A hexagon because the comb is her own metaphor for the board.
-  hive: <Hexagon size={20} />,
-  profile: <User size={20} />,
-}
-
 const TABS: TabItem[] = PRIMARY_NAV_ITEMS.map(item => ({
   ...item,
-  icon: TAB_ICONS[item.id],
+  icon: TAB_GLYPHS[item.icon],
 }))
 
 /** Pages that own the full screen and must not be overlapped. */
 const HIDDEN_EXACT = new Set([
   '/', // transient — redirects to /feed
   '/home', // marketing landing
+  '/welcome', // first-launch screen, has its own way out
   '/privacy-policy',
   '/terms-service',
   '/terms-of-service',

@@ -35,6 +35,7 @@ import { JOB_TOOLS } from './job-tools'
 import { MAIL_TOOLS } from './mail-tools'
 import { MAIL_PUSH_TOOLS } from './mail-push'
 import { BALL_BOARD_TOOLS } from './ball-board'
+import { MEETING_TOOLS } from './meetings'
 import { TRAFFIC_TOOLS } from './traffic'
 import { AVATAR_TOOLS } from './agent-avatars'
 import { AGENT_CLIENT_TOOLS } from './agent-clients'
@@ -237,6 +238,13 @@ export interface ToolContext {
    * is how a draft proves they are his rather than the model's.
    */
   ownerSaid?: string
+  /**
+   * The seller whose business DM this turn answers in: the server-keyed
+   * seller_id (routes.ts), copied here by clientTurnContext on the business
+   * surface only. Never from a model argument. Read by report_defect, which
+   * files the client's fault under this owner.
+   */
+  dmSeller?: string
 }
 
 export interface AgentTool {
@@ -553,6 +561,7 @@ export {
   COST_PER_TOKEN_USD,
   OPERATION_COST_USD,
 } from './billing-shared'
+import { START_TOKENS } from '../../../packages/vibee-atoms/src/token-wallet'
 import {
   TOKEN_PRICES,
   COST_PER_TOKEN_USD,
@@ -563,7 +572,8 @@ import {
   replicateClipTokens,
 } from './billing-shared'
 
-const TOKEN_START = 20
+// The start gift: specs/automation/token-wallet.t27 START_TOKENS.
+const TOKEN_START = START_TOKENS
 
 /**
  * Wallets that belong to the HOUSE, not to a customer: the autopilot and any
@@ -1119,6 +1129,7 @@ import { CRM_CLIENT_GROUP_TOOLS } from './crm-client-group'
 import { CRM_CLIENT_TIMELINE_TOOLS } from './crm-client-timeline'
 import { CRM_REVENUE_TOOLS } from './crm-revenue-tool'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
+import { DEFECT_TOOLS } from './client-defects'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
@@ -3631,6 +3642,8 @@ TOOLS.push(...TELEGRAM_TOOLS)
  */
 TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...CRM_TOUCH_TOOLS)
+// A client's fault in the DM, filed and closed (client-defects.ts).
+TOOLS.push(...DEFECT_TOOLS)
 TOOLS.push(...CRM_OFFER_TOOLS)
 // The club invoice for the person in this chat, beside the token invoice:
 // the same route decision the bot's club card reaches (club-invoice-tool.ts).
@@ -3849,6 +3862,8 @@ TOOLS.push(...MAIL_TOOLS)
 TOOLS.push(...MAIL_PUSH_TOOLS)
 // One board by client: CRM, mail, code work -- whose move (automation/ball-board).
 TOOLS.push(...BALL_BOARD_TOOLS)
+// Meetings made by talking, reminded in Telegram (automation/meeting-reminders).
+TOOLS.push(...MEETING_TOOLS)
 /* Where visitors come from, by channel (epic #2974). Owner only. */
 TOOLS.push(...TRAFFIC_TOOLS)
 TOOLS.push(...AVATAR_TOOLS)

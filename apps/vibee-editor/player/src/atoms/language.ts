@@ -298,6 +298,9 @@ const en: Translations = {
   'crm.clients.profile': 'profile',
   'crm.clients.soul': 'SOUL',
   'crm.clients.duets': 'duets: {n}',
+  'crm.clients.tasks': 'plan: {done}/{n}',
+  'crm.clients.faults': 'open faults: {n}',
+  'crm.clients.bots': 'owns bots:',
   'crm.clients.paid': 'paid',
   'crm.clients.paidUnknown': 'payments unavailable — stage from touches only',
   'crm.clients.filter.all': 'all',
@@ -920,7 +923,8 @@ const en: Translations = {
   'pricing.tokens.feature2': 'One balance for everything, no seats',
   'pricing.tokens.feature3':
     'The price of each action is shown before you press',
-  'pricing.tokens.feature4': 'Tokens do not expire and are not billed monthly',
+  'pricing.tokens.feature4':
+    'Unspent tokens burn 30 days after they arrive; we remind you 7, 3 and 1 day before',
   'pricing.tokens.note':
     'First tokens on sign-up, no card. An invoice for any amount is written by the agent in the bot.',
 
@@ -1057,6 +1061,11 @@ const en: Translations = {
   'login.boardTitle': 'Sign in to your board',
   'login.boardBody':
     'Sign in with Telegram and the board opens under your name: your clients and your tasks.',
+  // The agent chat's door: /api/agent/chat answers 401 to a browser with no
+  // session, and the chat itself is free (render/src/agent/pricing.ts).
+  'login.chatTitle': 'Sign in to talk to the agent',
+  'login.chatBody':
+    'The agent answers people it knows. Sign in with Telegram — chatting is free.',
   'login.tgSignedTitle': 'You are already signed in',
   'login.tgSignedBody':
     'Telegram already identified you — no separate login exists inside the Mini App.',
@@ -1262,6 +1271,36 @@ const en: Translations = {
   'chat.messagePlaceholder': 'Message the agent…',
   'chat.attachAny': 'Attach a file: photo, video, voice, PDF, document',
   'chat.send': 'Send',
+  // -- Voice mode -------------------------------------------------------------
+  'voice.open': 'Talk to the agent by voice',
+  'voice.title': 'Voice mode',
+  'voice.close': 'Close voice mode',
+  'voice.mute': 'Mute the microphone',
+  'voice.unmute': 'Unmute the microphone',
+  'voice.muted': 'Microphone is off',
+  'voice.phase.off': 'Off',
+  'voice.phase.starting': 'Starting...',
+  'voice.phase.listening': 'Listening',
+  'voice.phase.hearing': 'Hearing you',
+  'voice.phase.thinking': 'Thinking',
+  'voice.phase.speaking': 'Speaking. Talk over it to interrupt',
+  'voice.phase.error': 'Voice mode stopped',
+  'voice.error.mic':
+    'No access to the microphone. Allow it in the browser and tap the logo.',
+  'voice.error.recorder': 'This browser cannot record audio.',
+  'voice.error.hear': 'Could not make out the words. Please say it again.',
+  'voice.you': 'You',
+  'voice.agent': 'Agent',
+  'voice.mode': 'Visual',
+  'voice.mode.pulse': 'Pulse',
+  'voice.mode.spectrum': 'Spectrum',
+  'voice.mode.orbit': 'Orbit',
+  'voice.mode.hologram': 'Hologram',
+  'voice.mode.shatter': 'Shatter',
+  'voice.voice': 'Voice',
+  'voice.deviceVoice':
+    'Our voice server is unreachable, so your device is reading the answer.',
+  'voice.orb': 'Tap to interrupt the agent',
   'chat.welcome':
     "Hi! I'm your Trinity S³AI AI assistant. I can help you create and edit video templates. What would you like to build today?",
   'chat.cleared': 'Chat cleared. How can I help?',
@@ -1916,7 +1955,8 @@ const en: Translations = {
   'nav.learn': 'Learn',
   'nav.agent': 'Agent',
   'nav.agents': 'Agents',
-  'nav.hive': 'Hive',
+  'nav.hive': 'Game',
+  'nav.tasks': 'Tasks',
   'hive.loading': 'Opening the hive on t27.ai…',
   'hive.frameTitle': 'The hive — t27.ai/#/queen',
   'hive.openOutside': 'Open in the browser: t27.ai/#/queen ↗',
@@ -2927,6 +2967,9 @@ const ru: Translations = {
   'crm.clients.profile': 'профиль',
   'crm.clients.soul': 'SOUL',
   'crm.clients.duets': 'дуэтов: {n}',
+  'crm.clients.tasks': 'план: {done}/{n}',
+  'crm.clients.faults': 'открытых ошибок: {n}',
+  'crm.clients.bots': 'владеет ботами:',
   'crm.clients.paid': 'оплатил',
   'crm.clients.paidUnknown': 'платежи недоступны — стадия только по касаниям',
   'crm.clients.filter.all': 'все',
@@ -3525,7 +3568,8 @@ const ru: Translations = {
   'pricing.tokens.feature1': 'Картинки, озвучка, видео, сборка рилса',
   'pricing.tokens.feature2': 'Один баланс на всё, без мест и участников',
   'pricing.tokens.feature3': 'Цена каждого действия видна до нажатия',
-  'pricing.tokens.feature4': 'Токены не сгорают и не списываются ежемесячно',
+  'pricing.tokens.feature4':
+    'Неистраченные токены сгорают через 30 дней; напомним за 7, 3 и 1 день',
   'pricing.tokens.note':
     'Первые токены — при входе, без карты. Счёт на любое количество выпишет агент в боте.',
 
@@ -3639,6 +3683,9 @@ const ru: Translations = {
   'login.boardTitle': 'Вход на вашу доску',
   'login.boardBody':
     'Войдите через Telegram — доска откроется под вашим именем: ваши клиенты и ваши задачи.',
+  'login.chatTitle': 'Войдите, чтобы поговорить с агентом',
+  'login.chatBody':
+    'Агент отвечает тем, кого знает. Войдите через Telegram — переписка бесплатна.',
   'login.tgSignedTitle': 'Вы уже вошли',
   'login.tgSignedBody':
     'Telegram уже определил вас — отдельного входа внутри мини-аппа не существует.',
@@ -3843,6 +3890,36 @@ const ru: Translations = {
   'chat.messagePlaceholder': 'Сообщение агенту…',
   'chat.attachAny': 'Прикрепить файл: фото, видео, голос, PDF, документ',
   'chat.send': 'Отправить',
+  // -- Voice mode -------------------------------------------------------------
+  'voice.open': 'Говорить с агентом голосом',
+  'voice.title': 'Голосовой режим',
+  'voice.close': 'Закрыть голосовой режим',
+  'voice.mute': 'Выключить микрофон',
+  'voice.unmute': 'Включить микрофон',
+  'voice.muted': 'Микрофон выключен',
+  'voice.phase.off': 'Выключено',
+  'voice.phase.starting': 'Запускаю...',
+  'voice.phase.listening': 'Слушаю',
+  'voice.phase.hearing': 'Слышу вас',
+  'voice.phase.thinking': 'Думаю',
+  'voice.phase.speaking': 'Говорю. Перебейте голосом, чтобы остановить',
+  'voice.phase.error': 'Голосовой режим остановлен',
+  'voice.error.mic':
+    'Нет доступа к микрофону. Разрешите его в браузере и нажмите на логотип.',
+  'voice.error.recorder': 'Этот браузер не умеет записывать звук.',
+  'voice.error.hear': 'Не разобрал слова. Повторите, пожалуйста.',
+  'voice.you': 'Вы',
+  'voice.agent': 'Агент',
+  'voice.mode': 'Визуал',
+  'voice.mode.pulse': 'Пульс',
+  'voice.mode.spectrum': 'Спектр',
+  'voice.mode.orbit': 'Орбита',
+  'voice.mode.hologram': 'Голограмма',
+  'voice.mode.shatter': 'Осколки',
+  'voice.voice': 'Голос',
+  'voice.deviceVoice':
+    'Наш голосовой сервер недоступен, ответ читает голос устройства.',
+  'voice.orb': 'Нажмите, чтобы перебить агента',
   'chat.welcome':
     'Привет! Я Trinity S³AI AI ассистент. Могу помочь создать и отредактировать видео шаблоны. Что хотите сделать?',
   'chat.cleared': 'Чат очищен. Чем могу помочь?',
@@ -4499,7 +4576,8 @@ const ru: Translations = {
   'nav.learn': 'Обучение',
   'nav.agent': 'Агент',
   'nav.agents': 'Агенты',
-  'nav.hive': 'Улей',
+  'nav.hive': 'Игра', // cyrillic-ok
+  'nav.tasks': 'Задачи', // cyrillic-ok
   'hive.loading': 'Открываем улей на t27.ai…',
   'hive.frameTitle': 'Улей — t27.ai/#/queen',
   'hive.openOutside': 'Открыть в браузере: t27.ai/#/queen ↗',

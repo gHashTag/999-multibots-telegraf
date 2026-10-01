@@ -34,7 +34,12 @@ export async function sendToTelegram(
    * sender "but with a keyboard" would drift from this one exactly as the
    * two copies of the send itself once drifted.
    */
-  replyMarkup?: unknown
+  replyMarkup?: unknown,
+  /**
+   * HTML for a card that carries its own markup (a `tg-time` entity, bold).
+   * The caller escapes the person's text; plain text stays the default.
+   */
+  options?: { parseMode?: 'HTML' }
 ): Promise<void> {
   const t = токен()
   if (!t) {
@@ -53,6 +58,7 @@ export async function sendToTelegram(
       // only when there is such a URL, on this bot's own Bot API host.
       text: await rewriteAppUrlsForToken(message, t),
       ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      ...(options?.parseMode ? { parse_mode: options.parseMode } : {}),
     }),
   })
   if (!о.ok) {
