@@ -95,6 +95,11 @@ Other guarantees, each pinned by a test in `session.test.ts`:
 | hear, cycle 4 (before #8), x5 | median 1118 [763..6074]     | median 4183 [3539..7162]    |
 | -- of which the road          | 849 ms                      | 1189 ms                     |
 | felt after the last word      | 850 + 568 = 1418 ms         | 850 + 3633 = 4483 ms        |
+| hear, cycle 5 (#3261), x7     | median 701 [650..790]       | median 648 [592..785]       |
+| -- of which the ears          | 180 ms (gigaam)             | 187 ms (parakeet)           |
+| -- of which the road          | 434 ms                      | 443 ms                      |
+| felt after the last word      | 850 + 151 = 1001 ms         | 850 + 98 = 948 ms           |
+| speak, cycle 5, x3 / x5       | median 1152 [916..2496]     | median 1949-2300, tail 4.4s |
 
 "Felt" is what `tri voice` prints since cycle 4: the player's pause
 (`END_OF_TURN_MS`) plus the hearing that is NOT hidden inside it by early
@@ -171,6 +176,13 @@ the render, not the ears.
 
 ## English ears: Parakeet (cycle 5, 2026-10-02)
 
+Live after #3261: English heard in a median 648 ms (was 4183), felt 948 ms
+after the last word (was 4483) -- now level with Russian. Both languages'
+hearing is ~180 ms; what is left is the pause (850), the road (~440) and,
+for English, the first sound: Kokoro takes ~2 s a sentence (#15). `tri
+voice` gives speaking a median of up to 3 runs since one 4.6 s sample
+called it SLOW.
+
 The same image (`deployment/gigaam`) as a second service, `parakeet`
 (6d9197c7), with `GIGAAM_MODEL=nemo-parakeet-tdt-0.6b-v2 GIGAAM_QUANT=int8`.
 Railway hands service variables to the build as ARGs, so the model a service
@@ -216,8 +228,8 @@ to judge the turn over, THEN the words. Now (`session.ts`):
 - webm/ogg only (`canHearEarly`). Safari records mp4 with its index at the
   end, so a cut of it is not a file; Safari keeps the old path.
 - Cost: one extra transcription per pause of 300..850 ms inside a phrase.
-  GigaAM does it in ~170 ms; English is a second whisper run, aborted
-  client-side (whisper itself finishes the work anyway).
+  GigaAM and Parakeet each do it in ~180 ms (before cycle 5 English was a
+  second whisper run, aborted client-side while whisper finished anyway).
 
 Why not Smart Turn v3 (the model #8 named): on the server it pays the road
 (~0.5-0.8 s) to save at most the 850 ms; in the browser it needs
@@ -245,23 +257,24 @@ a slow speaker cut off mid-thought by a fixed pause -- is still open.
 
 ## Weak spots, with status
 
-| #   | weak spot                                            | status                        |
-| --- | ---------------------------------------------------- | ----------------------------- |
-| 1   | card markup read aloud                               | FIXED cycle 1                 |
-| 2   | any sound killed the answer (280 ms, no resume)      | FIXED cycle 1 (pause/resume)  |
-| 3   | its own voice through the speaker interrupted it     | FIXED cycle 1 (onset + echo)  |
-| 4   | stuck "speaking" on a suspended AudioContext         | FIXED cycle 1 (watchdog)      |
-| 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)        |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252) |
-| 7   | energy VAD: a fan or street noise counts as speech   | OPEN -- Silero vad-web        |
-| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)         |
-| 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3         |
-| 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s     |
-| 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)  |
-| 11  | voice picker only for the app language               | OPEN                          |
-| 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up        |
-| 13  | English hearing is still whisper, ~2.6 s             | FIXED cycle 5 (Parakeet v2)   |
-| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s | OPEN -- measure per hop       |
+| #   | weak spot                                            | status                         |
+| --- | ---------------------------------------------------- | ------------------------------ |
+| 1   | card markup read aloud                               | FIXED cycle 1                  |
+| 2   | any sound killed the answer (280 ms, no resume)      | FIXED cycle 1 (pause/resume)   |
+| 3   | its own voice through the speaker interrupted it     | FIXED cycle 1 (onset + echo)   |
+| 4   | stuck "speaking" on a suspended AudioContext         | FIXED cycle 1 (watchdog)       |
+| 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)         |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252)  |
+| 7   | energy VAD: a fan or street noise counts as speech   | OPEN -- Silero vad-web         |
+| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)          |
+| 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3          |
+| 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s      |
+| 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)   |
+| 11  | voice picker only for the app language               | OPEN                           |
+| 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up         |
+| 13  | English hearing is still whisper, ~2.6 s             | FIXED cycle 5 (Parakeet v2)    |
+| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s | OPEN -- measure per hop        |
+| 15  | English first sound ~2 s (Kokoro in the whisper pod) | OPEN -- own service / Piper en |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 
