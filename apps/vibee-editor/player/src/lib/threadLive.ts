@@ -14,6 +14,11 @@ import * as SPEC from '../spec/kanban-card-chat.gen'
  * stream -- an older server without the door, a 401 -- stops listening for
  * good: the sheet then works as it did, read once per open.
  *
+ * v6 (S19): the same stream carries `event: work` while an agent runs a turn
+ * in this task -- a kind and, for a tool, its name, never its words. The
+ * sheet shows one line for it and drops the line after WORK_IDLE_S of
+ * silence (`workShown`), so a turn that died unseen is not shown as running.
+ *
  * Relative imports only: render's binding test imports this file.
  */
 
@@ -68,6 +73,46 @@ export function liveFresh(id: number, lastSeen: number): boolean {
   return id > lastSeen
 }
 
+/** What the agent is doing in this task: a kind and, for a tool, its name. */
+export interface Work {
+  kind: number
+  name?: string
+}
+
+const KINDS = new Set([
+  SPEC.WORK_THINKING,
+  SPEC.WORK_TOOL,
+  SPEC.WORK_WRITING,
+  SPEC.WORK_DONE,
+])
+
+/** A `work` event's data as Work, or null for anything else. */
+export function workFrom(data: string): Work | null {
+  let body: unknown
+  try {
+    body = JSON.parse(data)
+  } catch {
+    return null
+  }
+  const kind = Number((body as { kind?: unknown } | null)?.kind)
+  if (!KINDS.has(kind as never)) return null
+  const name = (body as { name?: unknown }).name
+  return typeof name === 'string' &&
+    /^[A-Za-z0-9_.:-]+$/.test(name) &&
+    name.length <= SPEC.WORK_NAME_MAX
+    ? { kind, name }
+    : { kind }
+}
+
+/** A running kind heard less than WORK_IDLE_S ago is shown. */
+export function workShown(kind: number, quietS: number): boolean {
+  return (
+    kind !== SPEC.WORK_NONE &&
+    kind !== SPEC.WORK_DONE &&
+    quietS < SPEC.WORK_IDLE_S
+  )
+}
+
 /**
  * Listen on a card's thread. `onTurn` gets each new row's id; the caller
  * decides what to read. Returns the function that stops listening.
@@ -78,6 +123,7 @@ export function subscribeThread({
   after,
   headers,
   onTurn,
+  onWork,
   fetchImpl = fetch,
   sleep = ms => new Promise(r => setTimeout(r, ms)),
 }: {
@@ -86,6 +132,7 @@ export function subscribeThread({
   after: number
   headers: () => HeadersInit
   onTurn: (id: number) => void
+  onWork?: (work: Work) => void
   fetchImpl?: typeof fetch
   sleep?: (ms: number) => Promise<unknown>
 }): () => void {
@@ -120,6 +167,9 @@ export function subscribeThread({
                 last = id
                 onTurn(id)
               }
+            } else if (e.event === SPEC.WORK_EVENT) {
+              const work = workFrom(e.data)
+              if (work) onWork?.(work)
             } else if (e.event === 'end') {
               ended = true
             }

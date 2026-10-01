@@ -1093,82 +1093,90 @@ export async function handleAgentChat(
     const события: Array<{ тип?: string; текст?: string }> = []
     // The work report covers the journal steps from here on (browser/report.ts).
     const turnStartedAt = Date.now()
-    for await (const ev of runAgent(
-      history,
-      {
-        telegramId,
-        pool,
-        turn,
-        surface: поверхность, // cyrillic-ok: pre-existing local
-        // Per-bot privileged path counters (src/auth/initdata-bot-counts.ts).
-        initDataBot: initDataBotOf(req, telegramId) ?? undefined,
-        // The caller's own words: the one draft a stopped client may still get.
-        ownerSaid: ownerWordsOf(history, поверхность, ephemeral), // cyrillic-ok: pre-existing local
-      },
-      // The surface was already parsed and allow-listed above; the agent needs
-      // it so that button markers are proposed in the bot and nowhere else.
-      // tools_only: the caller (the seller's sweep) needs a model that calls
-      // tools, not one that talks about them. Anything but `true` is false.
-      // client: the thread is about this person; the agent reads their
-      // profile and the owner's history with them before the first word.
-      // person_note: what Telegram openly says about the person writing -- see
-      // the block in chat.ts. A string or nothing; never an object, because
-      // this service does not decide how the bot phrases it.
-      {
-        surface: поверхность, // cyrillic-ok: local defined earlier in this file
-        signal: gone.signal,
-        toolsOnly: body.tools_only === true,
-        // The Manager Agent: words only. It can only remove tools, so it is
-        // taken from any caller (client-facing.ts TEXT_ONLY_TOOLS).
-        textOnly: body.text_only === true,
-        /*
-         * WHOSE CHAT A BUSINESS TURN IS -- AND ONLY FROM THE BOT.
-         *
-         * The seller is the account the Telegram business connection belongs
-         * to; the bot reads it from the connection object and sends it here.
-         * It decides which correspondence, which client packages and whose
-         * debts the agent reads, so it is accepted ONLY behind the server key:
-         * from a Mini App session it would be a way to ask for somebody
-         * else's CRM by writing their id in a request body.
-         *
-         * Absent means absent. It must never fall back to the platform owner
-         * -- that fallback is exactly the defect this fixes (owner,
-         * 2026-09-23: the agent in his wife's profile answered as him).
-         */
-        seller:
-          hasServerKey(req) &&
-          typeof body.seller_id === 'string' &&
-          /^\d{5,15}$/.test(body.seller_id)
-            ? body.seller_id
+    const { announcingWork } = await import('./thread-bus')
+    // A card's open sheet sees the agent at work (spec v6, S19): names only.
+    for await (const ev of announcingWork(
+      runAgent(
+        history,
+        {
+          telegramId,
+          pool,
+          turn,
+          surface: поверхность, // cyrillic-ok: pre-existing local
+          // Per-bot privileged path counters (src/auth/initdata-bot-counts.ts).
+          initDataBot: initDataBotOf(req, telegramId) ?? undefined,
+          // The caller's own words: the one draft a stopped client may still get.
+          ownerSaid: ownerWordsOf(history, поверхность, ephemeral), // cyrillic-ok: pre-existing local
+        },
+        // The surface was already parsed and allow-listed above; the agent needs
+        // it so that button markers are proposed in the bot and nowhere else.
+        // tools_only: the caller (the seller's sweep) needs a model that calls
+        // tools, not one that talks about them. Anything but `true` is false.
+        // client: the thread is about this person; the agent reads their
+        // profile and the owner's history with them before the first word.
+        // person_note: what Telegram openly says about the person writing -- see
+        // the block in chat.ts. A string or nothing; never an object, because
+        // this service does not decide how the bot phrases it.
+        {
+          surface: поверхность, // cyrillic-ok: local defined earlier in this file
+          signal: gone.signal,
+          toolsOnly: body.tools_only === true,
+          // The Manager Agent: words only. It can only remove tools, so it is
+          // taken from any caller (client-facing.ts TEXT_ONLY_TOOLS).
+          textOnly: body.text_only === true,
+          /*
+           * WHOSE CHAT A BUSINESS TURN IS -- AND ONLY FROM THE BOT.
+           *
+           * The seller is the account the Telegram business connection belongs
+           * to; the bot reads it from the connection object and sends it here.
+           * It decides which correspondence, which client packages and whose
+           * debts the agent reads, so it is accepted ONLY behind the server key:
+           * from a Mini App session it would be a way to ask for somebody
+           * else's CRM by writing their id in a request body.
+           *
+           * Absent means absent. It must never fall back to the platform owner
+           * -- that fallback is exactly the defect this fixes (owner,
+           * 2026-09-23: the agent in his wife's profile answered as him).
+           */
+          seller:
+            hasServerKey(req) &&
+            typeof body.seller_id === 'string' &&
+            /^\d{5,15}$/.test(body.seller_id)
+              ? body.seller_id
+              : undefined,
+          client: gate.client ?? undefined,
+          marketplaceAgent: gate.agent,
+          supervisor: gate.supervisor === true,
+          // What the agent has been doing with this client, for the Queen.
+          agentLog:
+            gate.supervisor && gate.client
+              ? await agentLogFor(pool, telegramId, gate.client)
+              : undefined,
+          // What worked for this owner before (crm-move-stats.ts), for the Queen.
+          movesLine: gate.supervisor
+            ? await import('./crm-move-stats')
+                .then(m =>
+                  m.moveStatsFor(pool, telegramId).then(m.moveStatsLine)
+                )
+                .catch(() => '')
             : undefined,
-        client: gate.client ?? undefined,
-        marketplaceAgent: gate.agent,
-        supervisor: gate.supervisor === true,
-        // What the agent has been doing with this client, for the Queen.
-        agentLog:
-          gate.supervisor && gate.client
-            ? await agentLogFor(pool, telegramId, gate.client)
+          // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
+          // not the caller) in chat.ts clientTurnContext. Not a thread.
+          faceOf: typeof body.face_of === 'string' ? body.face_of : undefined,
+          personNote:
+            typeof body.person_note === 'string' && body.person_note.trim()
+              ? body.person_note.slice(0, 600)
+              : undefined,
+          // The card the person opened on the game's kanban (withTask).
+          taskNote: gate.task
+            ? await import('./task-thread').then(async m =>
+                m.taskNote(m.parseTask(gate.task)!)
+              )
             : undefined,
-        // What worked for this owner before (crm-move-stats.ts), for the Queen.
-        movesLine: gate.supervisor
-          ? await import('./crm-move-stats')
-              .then(m => m.moveStatsFor(pool, telegramId).then(m.moveStatsLine))
-              .catch(() => '')
-          : undefined,
-        // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
-        // not the caller) in chat.ts clientTurnContext. Not a thread.
-        faceOf: typeof body.face_of === 'string' ? body.face_of : undefined,
-        personNote:
-          typeof body.person_note === 'string' && body.person_note.trim()
-            ? body.person_note.slice(0, 600)
-            : undefined,
-        // The card the person opened on the game's kanban (withTask).
-        taskNote: gate.task
-          ? await import('./task-thread').then(async m =>
-              m.taskNote(m.parseTask(gate.task)!)
-            )
-          : undefined,
-      }
+        }
+      ),
+      String(telegramId),
+      thread
     )) {
       события.push(ev as { тип?: string; текст?: string })
       res.write(JSON.stringify(ev) + '\n')

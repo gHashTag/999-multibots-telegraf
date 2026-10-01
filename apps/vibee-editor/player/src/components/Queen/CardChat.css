@@ -175,6 +175,33 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+.card-chat__doing {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.card-chat__doing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: card-chat-doing-pulse 1.2s ease-in-out infinite;
+}
+@keyframes card-chat-doing-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-chat__doing-dot {
+    animation: none;
+  }
+}
+
 .card-chat__empty {
   margin: auto 0;
   text-align: center;

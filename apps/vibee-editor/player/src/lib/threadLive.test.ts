@@ -4,6 +4,8 @@ import {
   parseSse,
   reconnectDelay,
   subscribeThread,
+  type Work,
+  workFrom,
 } from './threadLive'
 
 /**
@@ -93,5 +95,43 @@ describe('threadLive', () => {
     })
     await new Promise(r => setTimeout(r, 20))
     expect(calls).toBe(1)
+  })
+
+  it('hears the agent at work, a kind and a safe name only (v6)', async () => {
+    const works: Work[] = []
+    let stop = () => {}
+    const done = new Promise<void>(resolve => {
+      let calls = 0
+      stop = subscribeThread({
+        base: '',
+        task: '1',
+        after: 0,
+        headers: () => ({}),
+        onTurn: () => undefined,
+        onWork: w => works.push(w),
+        fetchImpl: (async () => {
+          if (++calls === 1)
+            return sseResponse([
+              'event: work\ndata: {"kind":1}\n\n',
+              'event: work\ndata: {"kind":2,"name":"browser_open"}\n\n',
+              'event: work\ndata: {"kind":9}\n\n',
+              'event: work\ndata: not json\n\n',
+              'event: work\ndata: {"kind":4}\n\n',
+              'event: end\ndata: {"after":0}\n\n',
+            ])
+          stop()
+          resolve()
+          return new Response('', { status: 404 })
+        }) as typeof fetch,
+        sleep: async () => undefined,
+      })
+    })
+    await done
+    expect(works).toEqual([
+      { kind: 1 },
+      { kind: 2, name: 'browser_open' },
+      { kind: 4 },
+    ])
+    expect(workFrom('{"kind":2,"name":"<b>x</b>"}')).toEqual({ kind: 2 })
   })
 })

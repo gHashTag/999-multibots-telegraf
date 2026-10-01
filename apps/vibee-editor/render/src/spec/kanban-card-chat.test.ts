@@ -42,9 +42,13 @@ import {
   moveTargetOk,
   readMoveOffer,
 } from '../../../player/src/lib/cardMove'
-import { liveFresh as playerLiveFresh } from '../../../player/src/lib/threadLive'
+import {
+  liveFresh as playerLiveFresh,
+  workShown as playerWorkShown,
+} from '../../../player/src/lib/threadLive'
 import { columnCode, moveAllowed, moveChoice } from '../agent/card-move'
 import { liveFresh } from '../agent/thread-live'
+import { workSend, workShown } from '../agent/thread-bus'
 import { DRIFT_VERBS, driftAction } from '../hive/card-drift'
 import {
   CARD_STATUS_QUERY,
@@ -683,6 +687,31 @@ describe('kanban-card-chat.t27 against the host', () => {
     }
   })
 
+  it('the sheet shows the agent at work, by name, never its words', () => {
+    expect(SPEC.WORK_NAMES_ONLY).toBe(true)
+    expect(SPEC.WORK_STORED).toBe(false)
+    expect(SPEC.WORK_EVENT).toBe('work')
+    expect(SPEC.WORK_IDLE_S).toBeGreaterThan(SPEC.LIVE_PING_S)
+    expect(SPEC.WORK_IDLE_S).toBeLessThan(SPEC.LIVE_STREAM_MAX_S)
+    const { WORK_NONE, WORK_THINKING, WORK_TOOL, WORK_WRITING, WORK_DONE } =
+      SPEC
+    expect(workSend(WORK_NONE, WORK_THINKING, true)).toBe(true)
+    expect(workSend(WORK_THINKING, WORK_THINKING, true)).toBe(false)
+    expect(workSend(WORK_THINKING, WORK_TOOL, true)).toBe(true)
+    expect(workSend(WORK_TOOL, WORK_TOOL, true)).toBe(false)
+    expect(workSend(WORK_TOOL, WORK_TOOL, false)).toBe(true)
+    expect(workSend(WORK_WRITING, WORK_WRITING, false)).toBe(false)
+    expect(workSend(WORK_WRITING, WORK_DONE, true)).toBe(true)
+    // The server's memory of a running turn and the sheet's line, one law.
+    for (const shown of [workShown, playerWorkShown]) {
+      expect(shown(WORK_THINKING, 0)).toBe(true)
+      expect(shown(WORK_TOOL, 89)).toBe(true)
+      expect(shown(WORK_TOOL, 90)).toBe(false)
+      expect(shown(WORK_DONE, 0)).toBe(false)
+      expect(shown(WORK_NONE, 0)).toBe(false)
+    }
+  })
+
   it('drift lives in one issue, updated, and closed by agreement', () => {
     expect(SPEC.DRIFT_ONE_ISSUE).toBe(true)
     expect(driftAction(true, false)).toBe(SPEC.DRIFT_OPEN)
@@ -699,7 +728,7 @@ describe('kanban-card-chat.t27 against the host', () => {
 
   it('the card chat is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(5)
+    expect(SPEC.VERSION).toBe(6)
     expect(SPEC.CHAT_DOOR).toBe('/api/agent/chat')
     expect(SPEC.HISTORY_DOOR).toBe('/api/agent/history')
     expect(SPEC.HISTORY_LIMIT).toBe(100)

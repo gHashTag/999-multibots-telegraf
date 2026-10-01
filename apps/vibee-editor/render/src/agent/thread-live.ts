@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import * as SPEC from '../spec/kanban-card-chat.gen'
-import { onTurn } from './thread-bus'
+import { onTurn, onWork, workNow, workSend, type Work } from './thread-bus'
 import { historyGate } from './routes'
 
 /**
@@ -18,6 +18,7 @@ import { historyGate } from './routes'
  * with the last id it saw.
  *
  *   event: turn   data: {id, role, content, surface, created_at}
+ *   event: work   data: {kind, name?}  the agent at work (v6, S19), names only
  *   event: end    data: {after}      reconnect with ?after=<after>
  */
 
@@ -110,6 +111,22 @@ export async function handleThreadLive(
   }
 
   const stopListening = onTurn(telegramId, thread, () => void pull())
+  // v6: what the agent is doing, sent only when it changes (work_send). A
+  // sheet opened mid-turn hears the running kind at once (workNow).
+  let sent: Work = { kind: SPEC.WORK_NONE }
+  const sendWork = (work: Work) => {
+    if (closed || !workSend(sent.kind, work.kind, work.name === sent.name))
+      return
+    sent = work
+    res.write(
+      `event: ${SPEC.WORK_EVENT}\ndata: ${JSON.stringify(
+        work.name ? { kind: work.kind, name: work.name } : { kind: work.kind }
+      )}\n\n`
+    )
+  }
+  const stopWork = onWork(telegramId, thread, sendWork)
+  const running = workNow(telegramId, thread)
+  if (running) sendWork(running)
   const recheck = setInterval(
     () => void pull(),
     opts.recheckMs ?? SPEC.LIVE_RECHECK_S * 1000
@@ -122,6 +139,7 @@ export async function handleThreadLive(
     if (closed) return
     closed = true
     stopListening()
+    stopWork()
     clearInterval(recheck)
     clearInterval(ping)
     clearTimeout(ending)

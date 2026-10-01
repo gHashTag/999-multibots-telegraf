@@ -2117,7 +2117,7 @@ if flag == 'true' and door != 'MERGED':
 elif flag == 'true':
     say('ok', 'move door merged and the spec says so')
 elif door == 'MERGED':
-    say('wait', 'BrowserOS#519 merged: once deployed, spec v6 flips MOVE_DOOR_EXISTS')
+    say('wait', 'BrowserOS#519 merged: once deployed, spec v7 flips MOVE_DOOR_EXISTS')
 else:
     say('wait', f'move row dark: BrowserOS#519 {door.lower() or "unread"}')
 

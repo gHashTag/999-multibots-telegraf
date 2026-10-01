@@ -9,7 +9,9 @@ vi.mock('./routes', () => ({
 }))
 
 const { handleThreadLive } = await import('./thread-live')
-const { announceTurn } = await import('./thread-bus')
+const { announceTurn, announceWork, announcingWork, workOf, workNow } =
+  await import('./thread-bus')
+const SPEC = await import('../spec/kanban-card-chat.gen')
 
 function stream(url: string) {
   const req = Object.assign(new EventEmitter(), { url })
@@ -46,6 +48,15 @@ function poolOf(rows: Array<{ id: number }>) {
   }))
   return { query }
 }
+
+// Agent events as chat.ts emits them; the keys are the engine's own words.
+const ev = (kind: string, more: Record<string, unknown> = {}) => ({
+  ['тип']: kind,
+  ...more,
+})
+const words = (kind: string, said: string) => ev(kind, { ['текст']: said })
+const tool = (kind: string, name: string, args = '') =>
+  ev(kind, { ['имя']: name, ['аргументы']: args })
 
 const tick = () => new Promise(r => setTimeout(r, 5))
 
@@ -121,5 +132,82 @@ describe('a card thread, live (spec v5, S17)', () => {
     await new Promise(r => setTimeout(r, 30))
     expect(res.out).toContain('event: end\ndata: {"after":3}')
     expect(res.ended).toBe(true)
+  })
+
+  it('carries the agent at work, by name, never its words (v6, S19)', async () => {
+    const T = 'task:gHashTag/t27#7'
+    const { req, res } = stream('/x?task=7')
+    await handleThreadLive(req as never, res as never, '1', () => poolOf([]), {
+      recheckMs: 60_000,
+      pingMs: 60_000,
+      maxMs: 60_000,
+    })
+    async function* turn() {
+      yield ev('ход', { id: 'x' })
+      yield words('размышление', 'the secret plan')
+      yield words('размышление', 'more of it')
+      yield tool('инструмент', 'browser_open', '{"url":"https://bank"}')
+      yield tool('ждём', 'browser_open')
+      yield tool('инструмент', 'browser_read', '{}')
+      yield words('текст', 'Here is')
+      yield words('текст', ' the answer')
+    }
+    const seen: unknown[] = []
+    for await (const ev of announcingWork(turn(), '1', T)) seen.push(ev)
+    // The turn's own reader gets every event, unchanged.
+    expect(seen).toHaveLength(8)
+    const works = res.out
+      .split('\n\n')
+      .filter(b => b.startsWith(`event: ${SPEC.WORK_EVENT}`))
+      .map(b => JSON.parse(b.split('data: ')[1]))
+    expect(works).toEqual([
+      { kind: SPEC.WORK_THINKING },
+      { kind: SPEC.WORK_TOOL, name: 'browser_open' },
+      { kind: SPEC.WORK_TOOL, name: 'browser_read' },
+      { kind: SPEC.WORK_WRITING },
+      // No 'done' event came: the end is announced anyway.
+      { kind: SPEC.WORK_DONE },
+    ])
+    expect(res.out).not.toContain('secret')
+    expect(res.out).not.toContain('bank')
+    expect(res.out).not.toContain('answer')
+    // Another person's work is not this stream's.
+    const before = res.out
+    announceWork('2', T, { kind: SPEC.WORK_THINKING })
+    expect(res.out).toBe(before)
+    req.emit('close')
+  })
+
+  it('a sheet opened mid-turn hears the running kind, until it goes quiet', async () => {
+    const T = 'task:gHashTag/t27#7'
+    announceWork('1', T, { kind: SPEC.WORK_TOOL, name: 'gh_read' })
+    const { req, res } = stream('/x?task=7')
+    await handleThreadLive(req as never, res as never, '1', () => poolOf([]), {
+      recheckMs: 60_000,
+      pingMs: 60_000,
+      maxMs: 60_000,
+    })
+    expect(res.out).toContain('event: work\ndata: {"kind":2,"name":"gh_read"}')
+    req.emit('close')
+    const later = Date.now() + SPEC.WORK_IDLE_S * 1000
+    expect(workNow('1', T, later)).toBeNull()
+    announceWork('1', T, { kind: SPEC.WORK_DONE })
+    expect(workNow('1', T)).toBeNull()
+  })
+
+  it('reads a kind and a safe name, nothing else', () => {
+    expect(workOf(ev('результат', { value: 1 }))).toBeNull()
+    expect(workOf(ev('провайдер'))).toBeNull()
+    expect(workOf(null)).toBeNull()
+    expect(workOf(words('ошибка', 'boom'))).toEqual({
+      kind: SPEC.WORK_DONE,
+    })
+    // A name that is not an identifier is dropped, never echoed.
+    expect(workOf(tool('инструмент', '<img src=x>'))).toEqual({
+      kind: SPEC.WORK_TOOL,
+    })
+    expect(
+      workOf(tool('инструмент', 'a'.repeat(SPEC.WORK_NAME_MAX + 1)))
+    ).toEqual({ kind: SPEC.WORK_TOOL })
   })
 })

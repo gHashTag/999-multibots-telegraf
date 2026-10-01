@@ -22,6 +22,7 @@ const TITLE =
 // The doors the sheet reads: its history, and GitHub's public API.
 let history: unknown[] = []
 let github: () => Response = () => new Response('[]')
+let live: (() => Response) | null = null
 
 describe('CardChat on the board', () => {
   let host: HTMLDivElement
@@ -33,12 +34,15 @@ describe('CardChat on the board', () => {
     sessionStorage.clear()
     history = []
     github = () => new Response('[]')
+    live = null
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) =>
         String(url).startsWith('https://api.github.com/')
           ? github()
-          : new Response(JSON.stringify({ messages: history }))
+          : String(url).includes('/api/agent/history/live') && live
+            ? live()
+            : new Response(JSON.stringify({ messages: history }))
       )
     )
   })
@@ -145,6 +149,42 @@ describe('CardChat on the board', () => {
     expect(host.querySelector('.agent-cards')?.textContent).toContain(
       'Write the spec'
     )
+  })
+
+  it('shows the agent at work by name while the live stream says so (v6)', async () => {
+    let feed!: ReadableStreamDefaultController<Uint8Array>
+    const body = new ReadableStream<Uint8Array>({
+      start: c => {
+        feed = c
+      },
+    })
+    let served = false
+    live = () => {
+      if (served) return new Response('{}', { status: 404 })
+      served = true
+      return new Response(body, {
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    }
+    const say = async (s: string) => {
+      await act(async () => {
+        feed.enqueue(new TextEncoder().encode(s))
+        await new Promise(r => setTimeout(r, 10))
+      })
+    }
+    await open()
+    await act(async () => new Promise(r => setTimeout(r, 10)))
+    expect(host.querySelector('.card-chat__doing')).toBeNull()
+    await say('event: work\ndata: {"kind":2,"name":"gh_read"}\n\n')
+    const line = host.querySelector('.card-chat__doing')
+    expect(line?.getAttribute('role')).toBe('status')
+    expect(line?.textContent).toBe('The agent is using gh_read…')
+    await say('event: work\ndata: {"kind":3}\n\n')
+    expect(host.querySelector('.card-chat__doing')?.textContent).toBe(
+      'The agent is writing the answer…'
+    )
+    await say('event: work\ndata: {"kind":4}\n\n')
+    expect(host.querySelector('.card-chat__doing')).toBeNull()
   })
 
   it("offers no move: the column is the Queen's verdict, said as such", async () => {

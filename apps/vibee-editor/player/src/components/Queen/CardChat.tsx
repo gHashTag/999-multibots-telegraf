@@ -25,7 +25,12 @@ import {
   readMoveOffer,
   requestMove,
 } from '@/lib/cardMove'
-import { lastIdOf, subscribeThread } from '@/lib/threadLive'
+import {
+  lastIdOf,
+  subscribeThread,
+  type Work,
+  workShown,
+} from '@/lib/threadLive'
 import * as SPEC from '@/spec/kanban-card-chat.gen'
 import { AgentCards } from '@/components/Chat/AgentCards'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -157,6 +162,13 @@ export function CardChat({
   // A turn that lands while this sheet's own answer streams waits for it, so
   // the stream never fights the read.
   const pending = useRef(false)
+  const [work, setWork] = useState<Work | null>(null)
+  // Silence for WORK_IDLE_S drops the line (work_shown): each event restarts it.
+  useEffect(() => {
+    if (!work) return
+    const quiet = setTimeout(() => setWork(null), SPEC.WORK_IDLE_S * 1000)
+    return () => clearTimeout(quiet)
+  }, [work])
   useEffect(() => {
     if (!heard) return
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -165,6 +177,8 @@ export function CardChat({
       task: card.task,
       after: lastId.current,
       headers: () => authHeaders(),
+      // v6: what an agent is doing in this task right now, by name only.
+      onWork: w => setWork(workShown(w.kind, 0) ? w : null),
       onTurn: () => {
         if (isAgentBusy(key)) {
           pending.current = true
@@ -177,6 +191,7 @@ export function CardChat({
     return () => {
       clearTimeout(timer)
       stop()
+      setWork(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heard, card.task])
@@ -260,6 +275,18 @@ export function CardChat({
     t('cardChat.starter.continue'),
     t('cardChat.starter.lacks'),
   ]
+  // The agent at work (v6). While this sheet's own answer streams, its bubble
+  // already says "thinking"/the words, so only a tool is worth a line then.
+  const workSaid =
+    !work || (busy && work.kind !== SPEC.WORK_TOOL)
+      ? ''
+      : work.kind === SPEC.WORK_THINKING
+        ? t('cardChat.work.thinking')
+        : work.kind === SPEC.WORK_WRITING
+          ? t('cardChat.work.writing')
+          : work.name
+            ? t('cardChat.work.tool', { name: work.name })
+            : t('cardChat.work.toolUnnamed')
 
   return (
     <DetentSheet
@@ -384,6 +411,12 @@ export function CardChat({
               </div>
             )
           })}
+          {workSaid && (
+            <p className="card-chat__doing" role="status">
+              <span className="card-chat__doing-dot" aria-hidden="true" />
+              {workSaid}
+            </p>
+          )}
         </div>
         <form
           className="card-chat__composer"

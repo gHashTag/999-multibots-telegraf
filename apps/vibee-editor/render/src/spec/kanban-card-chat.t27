@@ -23,7 +23,9 @@
 //       requests and their checks, measured or honestly not) and that an action the
 //       agent proposes runs only on the person's tap; since v5 the person's way to the
 //       Queen's move door (a keeper, through render, two taps), the thread live in an
-//       open sheet, and the one issue the nightly check keeps. What it does NOT decide: what the
+//       open sheet, and the one issue the nightly check keeps; since v6 what the sheet
+//       shows while the agent works (a kind and a tool's name, never its words). What it
+//       does NOT decide: what the
 //       agent does in the task (that is the agent's own loop), where a card's column
 //       goes (that is the Queen's verdict), or who may merge (that stays the owner's).
 // Claim status: designed and bound by tests; RUN_LIVE flips when a card tapped on
@@ -36,7 +38,7 @@ module automation::kanban_card_chat {
     pub const KIND : str = "automation";
     pub const ID : str = "kanban-card-chat";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 5;
+    pub const VERSION : u8 = 6;
 
     // ---- The thread -----------------------------------------------------------------
     // One conversation per (person, task): "task:gHashTag/t27#3587". The person is
@@ -234,6 +236,27 @@ module automation::kanban_card_chat {
     pub const LIVE_PING_S : u8 = 25;  // under the 30 s idle cut of the platform proxy
     pub const LIVE_AFTER_ID : bool = true;  // resume from the last id, never from zero
 
+    // ---- The agent at work (v6, S19) ------------------------------------------------
+    // A turn takes seconds to minutes and the sheet showed nothing until the answer was
+    // written. While a turn runs in a task thread, the live stream also carries what
+    // the agent is doing: thinking, calling a tool by NAME, writing the answer, done.
+    // Names only -- the thinking text and a tool's arguments are the turn's own and
+    // never leave it. The signal is not stored: it reaches a sheet listening on the
+    // replica that runs the turn, and a sheet elsewhere still gets the answer by the
+    // recheck. The stream sends a kind only when it changes, and the sheet drops the
+    // line after WORK_IDLE_S of silence, so a turn that died unseen does not show as
+    // running forever.
+    pub const WORK_EVENT : str = "work";
+    pub const WORK_NAMES_ONLY : bool = true;
+    pub const WORK_STORED : bool = false;
+    pub const WORK_NONE : u8 = 0;
+    pub const WORK_THINKING : u8 = 1;
+    pub const WORK_TOOL : u8 = 2;
+    pub const WORK_WRITING : u8 = 3;
+    pub const WORK_DONE : u8 = 4;
+    pub const WORK_NAME_MAX : u8 = 64;
+    pub const WORK_IDLE_S : u8 = 90;  // longer than a slow tool, shorter than a doubt
+
     // ---- The nightly look (v5, S18) -------------------------------------------------
     // tri card-check compares the server's read of a card with the client's. Drift is
     // written into ONE issue under the EPIC and updated there, never a new issue a
@@ -246,6 +269,17 @@ module automation::kanban_card_chat {
 
     // ---- Not claimed ----------------------------------------------------------------
     pub const RUN_LIVE : bool = false;
+
+    // The stream sends a work kind only when it differs from the last one it sent
+    // (for a tool: or the tool's name differs).
+    fn work_send(last: u8, kind: u8, same_name: bool) -> bool {
+        return kind != last || (kind == WORK_TOOL && !same_name);
+    }
+
+    // The sheet shows the line for a running kind heard less than WORK_IDLE_S ago.
+    fn work_shown(kind: u8, quiet_s: u16) -> bool {
+        return kind != WORK_NONE && kind != WORK_DONE && quiet_s < WORK_IDLE_S;
+    }
 
     // An issue number the thread accepts.
     fn number_ok(n: u32) -> bool {
@@ -610,6 +644,25 @@ module automation::kanban_card_chat {
         assert(!live_fresh(9, 10));
     }
 
+    test "the sheet shows the agent at work, by name, never its words" {
+        assert(WORK_NAMES_ONLY);
+        assert(!WORK_STORED);
+        assert(WORK_IDLE_S > LIVE_PING_S);
+        assert(WORK_IDLE_S < LIVE_STREAM_MAX_S);
+        assert(work_send(WORK_NONE, WORK_THINKING, true));
+        assert(!work_send(WORK_THINKING, WORK_THINKING, true));
+        assert(work_send(WORK_THINKING, WORK_TOOL, true));
+        assert(!work_send(WORK_TOOL, WORK_TOOL, true));
+        assert(work_send(WORK_TOOL, WORK_TOOL, false));
+        assert(!work_send(WORK_WRITING, WORK_WRITING, false));
+        assert(work_send(WORK_WRITING, WORK_DONE, true));
+        assert(work_shown(WORK_THINKING, 0));
+        assert(work_shown(WORK_TOOL, 89));
+        assert(!work_shown(WORK_TOOL, 90));
+        assert(!work_shown(WORK_DONE, 0));
+        assert(!work_shown(WORK_NONE, 0));
+    }
+
     test "drift lives in one issue, updated, and closed by agreement" {
         assert(DRIFT_ONE_ISSUE);
         assert(drift_action(true, false) == DRIFT_OPEN);
@@ -620,7 +673,7 @@ module automation::kanban_card_chat {
 
     test "the card chat is designed, not yet live" {
         assert(!RUN_LIVE);
-        assert(VERSION == 5);
+        assert(VERSION == 6);
         assert(HISTORY_LIMIT == 100);
     }
 }

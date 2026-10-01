@@ -122,12 +122,18 @@ function messageText(message: any): string {
 /** Прогнать движок агента до конца, собрать финальный текст и результаты. */
 async function runToResult(
   history: ChatMessage[],
-  options: any
+  options: any,
+  thread = ''
 ): Promise<{ text: string; data: unknown[]; обрыв?: string }> {
   let text = ''
   const data: unknown[] = []
   let обрыв: string | undefined
-  for await (const ev of runAgent(history, options)) {
+  const { announcingWork } = await import('./thread-bus')
+  for await (const ev of announcingWork(
+    runAgent(history, options),
+    String(options.telegramId),
+    thread
+  )) {
     if (ev.тип === 'текст') text += ev.текст
     else if (ev.тип === 'результат')
       data.push({ инструмент: ev.имя, значение: ev.значение })
@@ -220,6 +226,7 @@ async function taskConversation(
 ): Promise<{
   history: ChatMessage[]
   note: string
+  key: string
   answer: (out: string) => Promise<void>
 }> {
   const { taskThread, taskNote, a2aTurns } = await import('./task-thread')
@@ -242,6 +249,7 @@ async function taskConversation(
       { role: 'user', content: text },
     ],
     note: await taskNote(card),
+    key: thread,
     answer: async out => {
       if (!out.trim()) return
       await recordTurn(
@@ -386,7 +394,13 @@ export async function handleA2A(
         let acc = ''
         const data: unknown[] = []
         try {
-          for await (const ev of runAgent(history, options)) {
+          const { announcingWork } = await import('./thread-bus')
+          // The card's open sheet sees this agent at work (spec v6, S19).
+          for await (const ev of announcingWork(
+            runAgent(history, options),
+            owner,
+            thread?.key ?? ''
+          )) {
             if (ev.тип === 'текст') {
               acc += ev.текст
               send({
@@ -440,7 +454,11 @@ export async function handleA2A(
       }
 
       // Синхронный message/send.
-      const { text: out, data } = await runToResult(history, options)
+      const { text: out, data } = await runToResult(
+        history,
+        options,
+        thread?.key
+      )
       const task = completedTask(taskId, contextId, message, out, data)
       rememberTask(task, owner)
       if (thread) await thread.answer(out)
