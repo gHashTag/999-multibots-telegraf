@@ -30,6 +30,13 @@
  */
 
 import * as SPEC from '../spec/ball-board.gen'
+import * as GRANTS from '../spec/ball-grants.gen'
+import {
+  grantCovers,
+  liveGrantsFor,
+  mayReadMail,
+  recordRead,
+} from './ball-grants'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { OWNER_TELEGRAM_ID, requireOwner } from './telegram-tools'
 import type { AgentTool, ToolContext } from './tools'
@@ -230,6 +237,16 @@ export async function ensureBallTables(pool: Pool): Promise<void> {
   `)
 }
 
+/** The owner's links: what a granted viewer's mail cards are grouped by. */
+async function ownerLinks(pool: Pool): Promise<Link[]> {
+  await ensureBallTables(pool)
+  const r = await pool.query(
+    `SELECT client, kind, value FROM ${SPEC.LINK_TABLE} WHERE owner = $1`,
+    [OWNER_TELEGRAM_ID]
+  )
+  return (r.rows ?? []) as Link[]
+}
+
 function callerIsOwner(ctx: ToolContext): boolean {
   try {
     requireOwner(ctx)
@@ -323,11 +340,24 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
         }
       }
 
-      // Mail: the owner's, refused before the read.
-      if (!mayRead(SPEC.MAIL_OWNER_ONLY, owner)) {
+      // Mail: the owner's -- or a viewer's the owner granted it to
+      // (automation/ball-grants) -- refused before the read either way.
+      const grants = owner
+        ? []
+        : await liveGrantsFor(ctx.pool, String(ctx.telegramId)).catch(
+            () => [] as string[]
+          )
+      const grantKeys = grants.map(g =>
+        g === GRANTS.ALL_CLIENTS ? g : clientKey(g)
+      )
+      // MAIL_OWNER_ONLY, with the owner's one exception: a live grant.
+      if (!mayReadMail(owner, grants.length > 0)) {
         sources.mail = { status: 'not_yours', cards: 0 }
       } else {
         try {
+          // A viewer's cards find their client through the OWNER's links,
+          // applied here; the links themselves never leave the server.
+          const mailLinks = owner ? links : await ownerLinks(ctx.pool)
           const r = await ctx.pool.query(
             `SELECT matter, stage, owes_reply, days_since, next_action,
                     counterparties, exported_at
@@ -344,7 +374,16 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
           } else {
             for (const m of rows) {
               if (!fresh(ageH(m.exported_at))) continue
-              const linked = mailClient(m.counterparties ?? [], links)
+              const linked = mailClient(m.counterparties ?? [], mailLinks)
+              // A viewer gets only the clients granted, never an unlinked
+              // matter, and no count of the rest.
+              if (
+                !owner &&
+                !grantKeys.some(g =>
+                  grantCovers(g, linked ? clientKey(linked) : '')
+                )
+              )
+                continue
               entries.push({
                 key: linked ? clientKey(linked) : `mail:${m.matter}`,
                 name: linked ?? String(m.matter),
@@ -362,6 +401,8 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
             }
             sources.mail.status = sources.mail.cards ? 'ok' : 'empty'
             if (rows.length) sources.mail.age_h = Math.round(newest)
+            // The owner sees who looked (ball-grants READ_RECORDED).
+            if (!owner) await recordRead(ctx.pool, String(ctx.telegramId))
           }
         } catch (e) {
           sources.mail = {
