@@ -46,6 +46,15 @@
  * machine's message always is. A matter whose every address is a machine's or
  * the owner's own domain has nobody to answer: its ball is none, and it is
  * counted as `automated`, never dropped.
+ *
+ * v6: hh.ru is a relay. An employer's message arrives from its no-reply
+ * address, so an address on `RELAY_DOMAIN` is never a machine's.
+ *
+ * v7: jcrm keys a matter by domain, so a mailbox provider (gmail.com) is one
+ * matter of many people under one stage. Such a matter is counted as `pooled`
+ * and its card says so; the ball stays jcrm's -- there is no per-person stage
+ * here to replace it. No CRM person matched a mail matter when measured, so
+ * the CRM-mail join stays the explicit `ball_link`.
  */
 
 import { ensureApprovals, pendingApprovalFor } from '../browser/approvals'
@@ -290,11 +299,19 @@ export function automatedMarker(marker: string): boolean {
 }
 
 /** A machine's address (a marker, separators removed) or the owner's own domain. */
+export function relayDomain(domain: string): boolean {
+  return (
+    domain === SPEC.RELAY_DOMAIN || domain.endsWith(`.${SPEC.RELAY_DOMAIN}`)
+  )
+}
+
 export function machineOrOwn(raw: string): boolean {
   const a = addressOf(raw)
   const domain = a.split('@')[1] ?? ''
   if (domain === SPEC.OWN_DOMAIN || domain.endsWith(`.${SPEC.OWN_DOMAIN}`))
     return true
+  // A relay's no-reply delivers a person's words (v6): never a machine.
+  if (relayDomain(domain)) return false
   const flat = a.replace(/[.\-_+]/g, '')
   return AUTOMATED_MARKERS.some(m => flat.includes(m))
 }
@@ -305,6 +322,11 @@ export function nobodyToAnswer(
   machineOrOwnN: number
 ): boolean {
   return addresses > 0 && machineOrOwnN === addresses
+}
+
+/** The spec's `pooled_matter`: a shared-domain matter with more than one person. */
+export function pooledMatter(matterIsShared: boolean, people: number): boolean {
+  return matterIsShared && people > 1
 }
 
 /** The spec's `mail_ball_weighed`: nobody to answer is none, else jcrm's call. */
@@ -499,6 +521,8 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
       const entries: Array<{ key: string; name: string; card: Card }> = []
       // Mail matters only machines or the owner wrote (AUTOMATED_IS_COUNTED).
       let automated = 0
+      // Matters that are a mailbox provider, not one client (POOLED_IS_COUNTED).
+      let pooled = 0
       const sources: Record<Source, SourceStatus> = {
         crm: { status: 'empty', cards: 0 },
         mail: { status: 'empty', cards: 0 },
@@ -577,6 +601,9 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
                 cps.filter(machineOrOwn).length
               )
               if (nobody) automated += 1
+              const people = cps.filter(a => !machineOrOwn(a)).length
+              const pool = pooledMatter(sharedDomain(String(m.matter)), people)
+              if (pool) pooled += 1
               const linked = mailClient(cps, links)
               entries.push({
                 key: linked ? clientKey(linked) : `mail:${m.matter}`,
@@ -589,9 +616,11 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
                   days: typeof m.days_since === 'number' ? m.days_since : null,
                   because: nobody
                     ? 'only machines or our own address wrote'
-                    : m.stage
-                      ? String(m.stage)
-                      : null,
+                    : pool
+                      ? `${people} people share ${m.matter}: one stage for all of them`
+                      : m.stage
+                        ? String(m.stage)
+                        : null,
                   link: null,
                   spec: cardSpec(SPEC.SOURCE_MAIL, '') || null,
                 },
@@ -798,6 +827,7 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
         counts,
         unspecced,
         automated,
+        pooled,
         sources,
         clients: shown,
         clients_total: clients.length,

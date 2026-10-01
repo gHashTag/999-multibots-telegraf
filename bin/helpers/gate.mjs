@@ -14,7 +14,8 @@
  *   node gate.mjs record <check> <ok|fail> <detail...>
  *   node gate.mjs show            (tri gate)
  *
- * The log is .git/tri-gate.log: per clone, never committed.
+ * The log is <git dir>/tri-gate.log: per clone (per worktree), never
+ * committed.
  */
 import { execFileSync } from 'node:child_process'
 import {
@@ -28,7 +29,20 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const ROOT = join(import.meta.dirname, '..', '..')
-const LOG = join(ROOT, '.git', 'tri-gate.log')
+/*
+ * The git dir, not ROOT/.git: in a worktree (`tri worktree`, every loop
+ * tick) .git is a FILE pointing at the real one, and appending to
+ * .git/tri-gate.log threw ENOTDIR -- after the checks had run, so every
+ * verdict recorded from a worktree was lost behind a stack trace while the
+ * command still exited 0 (CRM mobile loop, tick 4).
+ */
+const LOG = join(
+  execFileSync('git', ['rev-parse', '--absolute-git-dir'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  }).trim(),
+  'tri-gate.log'
+)
 
 /**
  * The tree the working directory holds -- tracked edits and new files, as

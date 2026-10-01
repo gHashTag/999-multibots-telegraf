@@ -599,6 +599,13 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     return ctx.scene.leave()
   }
 
+  // Somebody who came to order an agent has been answered already; the photo
+  // onboarding would push that answer out of sight.
+  if (ctx.session.agentPackageOrdered) {
+    ctx.session.agentPackageOrdered = undefined
+    return ctx.scene.leave()
+  }
+
   return ctx.scene.enter(ModeEnum.AvatarTransform)
 }
 

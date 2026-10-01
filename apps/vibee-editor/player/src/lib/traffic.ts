@@ -1,4 +1,5 @@
 import { API_BASE } from '@/config'
+import type { WelcomeStep } from '../../../packages/vibee-atoms/src/welcome-steps'
 
 /**
  * A VISITOR FROM A TAGGED LINK IS COUNTED ONCE (epic #2974).
@@ -59,6 +60,40 @@ export async function reportArrival(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tags),
+      keepalive: true,
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A STEP ON THE WELCOME SCREEN, COUNTED ONCE PER SESSION (its heatmap).
+ *
+ * The steps are one closed list shared with render (vibee-atoms
+ * welcome-steps.ts); render drops anything else. A step and its item are
+ * reported once per browser session, so pressing the language toggle five
+ * times is one "lang", and the counts read as visitors, not clicks. Like an
+ * arrival, nothing about the person is sent and the page never waits.
+ */
+export async function reportWelcomeStep(
+  step: WelcomeStep,
+  item = '',
+  send: typeof fetch = fetch
+): Promise<boolean> {
+  const key = `traffic:welcome:${step}:${item}`
+  try {
+    if (sessionStorage.getItem(key)) return false
+    sessionStorage.setItem(key, '1')
+  } catch {
+    /* no storage: count anyway */
+  }
+  try {
+    await send(`${API_BASE}/api/traffic/welcome`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item ? { step, item } : { step }),
       keepalive: true,
     })
     return true

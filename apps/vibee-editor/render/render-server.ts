@@ -2985,6 +2985,34 @@ setInterval(
 )
 
 /*
+ * UNSPENT TOKENS BURN A MONTH AFTER THEY LAND (src/token-burn.ts; the wallet
+ * spec's rule, promised on the welcome screen). Every pass is idempotent -- a
+ * burn is written once per batch, a warning once per threshold -- so the pace
+ * needs no row of its own: ten minutes means a burn lands within ten minutes
+ * of its date. TOKEN_BURN_OFF=1 stops it without a deploy.
+ */
+setInterval(
+  () => {
+    void (async () => {
+      if (process.env.TOKEN_BURN_OFF === '1') return
+      try {
+        const { sweepTokenBurns } = await import('./src/token-burn')
+        const said = await sweepTokenBurns(getPool() as any, {
+          send: (id, text) => sendToTelegram(id, text),
+        })
+        if (said.burned > 0 || said.warned > 0)
+          console.log(
+            `[token-burn] burned ${said.burned} tokens, warned ${said.warned} people`
+          )
+      } catch (e) {
+        console.error('[token-burn] failed:', String(e).slice(0, 300))
+      }
+    })()
+  },
+  10 * 60 * 1000
+)
+
+/*
  * THE QUEEN'S REPORT -- THE ONLY READER OF THE JOURNAL THAT ARRIVES BY ITSELF.
  *
  * The pulse tool in the agent chat answers when asked. That is not enough: the

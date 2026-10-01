@@ -265,10 +265,27 @@ const daysBetween = (iso: string, now: number): number | null => {
  *
  * A "waiting" list that includes everybody is a list nobody opens twice.
  */
+/**
+ * The same reason as `because`, as a code a screen can translate.
+ *
+ * `because` stays Russian prose: the agent reads it and so does the owner in
+ * a Russian chat. A screen in English showed that prose verbatim (loop tick
+ * 12), so the reason now travels twice -- words for a reader, a code for a
+ * translator. A new reason needs a new code AND its line in the player's
+ * `crm.why.*` dictionary; the player falls back to `because` until then.
+ */
+export type WaitWhy =
+  | 'we_wrote_last'
+  | 'they_wrote'
+  | 'they_replied'
+  | 'later_due'
+  | 'we_wrote'
+
 export function waitingOn(input: WaitingInput): {
   waiting: Waiting
   days: number
   because: string
+  why: WaitWhy
 } | null {
   const now = input.now ?? Date.now()
   const latest = input.touches[0]
@@ -328,13 +345,19 @@ export function waitingOn(input: WaitingInput): {
           waiting: 'theirs',
           days,
           because: 'мы написали последними, ответа нет', // cyrillic-ok: shown to the owner as is
+          why: 'we_wrote_last',
         }
       }
       return null
     }
     const d = daysBetween(input.lastInboundAt as string, now)
     if (d === null) return null
-    return { waiting: 'ours', days: d, because: 'написал, а ответа не было' }
+    return {
+      waiting: 'ours',
+      days: d,
+      because: 'написал, а ответа не было',
+      why: 'they_wrote',
+    }
   }
 
   const age = daysBetween(latest.at, now)
@@ -352,7 +375,12 @@ export function waitingOn(input: WaitingInput): {
   if (!Number.isNaN(inbound) && inbound > Date.parse(latest.at)) {
     const d = daysBetween(input.lastInboundAt as string, now)
     if (d !== null) {
-      return { waiting: 'ours', days: d, because: 'ответил, а мы молчим' }
+      return {
+        waiting: 'ours',
+        days: d,
+        because: 'ответил, а мы молчим',
+        why: 'they_replied',
+      }
     }
   }
 
@@ -362,13 +390,19 @@ export function waitingOn(input: WaitingInput): {
      * is a day the person is deciding we are not interested, and it is the one
      * kind of silence that costs a deal already in motion.
      */
-    return { waiting: 'ours', days: age, because: 'ответил, а мы молчим' }
+    return {
+      waiting: 'ours',
+      days: age,
+      because: 'ответил, а мы молчим',
+      why: 'they_replied',
+    }
   }
   if (latest.kind === 'later' && age >= input.laterAfterDays) {
     return {
       waiting: 'due',
       days: age,
       because: 'просил позже — позже настало',
+      why: 'later_due',
     }
   }
   if (latest.kind === 'written' && age >= input.noAnswerAfterDays) {
@@ -387,7 +421,12 @@ export function waitingOn(input: WaitingInput): {
       ? Number(input.maxNudges)
       : 2
     if (nudgesSince(input) > cap) return null
-    return { waiting: 'theirs', days: age, because: 'написали, ответа нет' }
+    return {
+      waiting: 'theirs',
+      days: age,
+      because: 'написали, ответа нет',
+      why: 'we_wrote',
+    }
   }
   return null
 }

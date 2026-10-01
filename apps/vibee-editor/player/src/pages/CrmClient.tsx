@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { rememberContact } from '@/lib/crmRecent'
+import { useScrollTopOnPush } from '@/lib/useScrollMemory'
+import { cameFrom, isFirstEntry } from '@/lib/backTo'
 import './Crm.css'
 import './CrmClient.css'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -73,6 +76,8 @@ const mark = (yes: boolean) => (yes ? '✓' : '—')
 export default function CrmClientPage() {
   const { t } = useLanguage()
   const { clientId = '' } = useParams<{ clientId: string }>()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [profile, setProfile] = useState<Reached<ClientProfile>>(empty)
   const [plan, setPlan] = useState<Reached<ClientPlan>>(empty)
   const [duets, setDuets] = useState<Reached<DuetRun[]>>(empty)
@@ -80,6 +85,10 @@ export default function CrmClientPage() {
   const [context, setContext] = useState<Reached<LeadContext>>(empty)
   const [media, setMedia] = useState<Reached<LeadMedia[]>>(empty)
   const [busy, setBusy] = useState(false)
+  // Opened = recent: the contacts list offers this person back first.
+  useEffect(() => rememberContact(clientId), [clientId])
+  // Opened from a list scrolled far down: start at the name, not mid-card.
+  useScrollTopOnPush(clientId)
 
   // The start-duet control. `confirming` is the inline step between a click
   // with dry run OFF and the call that sends real messages.
@@ -89,26 +98,30 @@ export default function CrmClientPage() {
   const [duetBusy, setDuetBusy] = useState(false)
   const [duetResult, setDuetResult] = useState<Reached<DuetStart> | null>(null)
 
+  const reloads = useRef(0)
   const reload = useCallback(async () => {
     if (!clientId) return
     setBusy(true)
-    // In parallel: six independent panels; one slow tool must not hold the
-    // other five off the screen.
-    const [pr, pl, du, hi, ctx, me] = await Promise.all([
-      loadClientProfile(clientId),
-      loadClientPlan(clientId),
-      loadDuetRuns(clientId),
-      loadClientHistory(clientId),
-      loadLeadContext(clientId),
-      loadLeadMedia(clientId),
+    // Six independent panels, each drawn as its read answers. They were
+    // read in parallel but drawn together, after the slowest -- the name
+    // and the messages waited for the media list (CRM mobile loop, tick 7).
+    // Drawn one by one, a late answer for the LAST client could land on
+    // this one: only the newest reload may draw.
+    const mine = ++reloads.current
+    const land =
+      <T,>(set: (v: T) => void) =>
+      (v: T) => {
+        if (reloads.current === mine) set(v)
+      }
+    await Promise.all([
+      loadClientProfile(clientId).then(land(setProfile)),
+      loadClientPlan(clientId).then(land(setPlan)),
+      loadDuetRuns(clientId).then(land(setDuets)),
+      loadClientHistory(clientId).then(land(setHistory)),
+      loadLeadContext(clientId).then(land(setContext)),
+      loadLeadMedia(clientId).then(land(setMedia)),
     ])
-    setProfile(pr)
-    setPlan(pl)
-    setDuets(du)
-    setHistory(hi)
-    setContext(ctx)
-    setMedia(me)
-    setBusy(false)
+    if (reloads.current === mine) setBusy(false)
   }, [clientId])
 
   useEffect(() => {
@@ -188,7 +201,24 @@ export default function CrmClientPage() {
     <div className="crm crm-client">
       <header className="crm__top">
         <div className="crm-client__head">
-          <Link to="/crm" className="crm-client__crumb">
+          {/*
+            BACK IS BACK. The crumb went to /crm -- the work section, with
+            the search and filter the owner came from gone. Inside the app it
+            now steps back in history, the same as Telegram's own Back button,
+            and the list returns as it was left (?tab=, ?who=, ?q=). Opened
+            straight from a link, there is nothing to step back to: it goes
+            to the contacts, where this card lives.
+          */}
+          <Link
+            to="/crm?tab=contacts"
+            className="crm-client__crumb"
+            onClick={e => {
+              if (isFirstEntry(location)) return
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+              e.preventDefault()
+              navigate(-1)
+            }}
+          >
             ← {t('crm.client.back')}
           </Link>
           <h2>
@@ -202,11 +232,6 @@ export default function CrmClientPage() {
           {busy ? t('crm.refreshing') : t('crm.refresh')}
         </button>
       </header>
-
-      {/* THE PRIMARY ACTION: a conversation that is only about this client. */}
-      <Link to={`/crm/${clientId}/chat`} className="crm-client__chat">
-        {t('crm.client.chatButton')}
-      </Link>
 
       {noticeReason ? <AllRefused reason={noticeReason} /> : null}
 
@@ -539,6 +564,26 @@ export default function CrmClientPage() {
           </>
         )}
       </Panel>
+
+      {/*
+        THE PRIMARY ACTION: a conversation that is only about this client.
+        Last in the page and sticky at the bottom (CRM mobile loop, tick 3):
+        at the top it was 1500px away from "Last messages", the panel one
+        reads right before answering. Here it sits under the thumb from the
+        first screen down, and settles in place at the end.
+      */}
+      <Link
+        to={`/crm/${clientId}/chat`}
+        state={{
+          ...cameFrom(`/crm/${clientId}`),
+          // The chat's top row names the client at once, not after its own
+          // reads (tick 7). Only a name: the id is already in the address.
+          ...(displayName !== clientId ? { name: displayName } : {}),
+        }}
+        className="crm-client__chat"
+      >
+        {t('crm.client.chatButton')}
+      </Link>
 
       <p className="crm__note">{t('crm.note')}</p>
     </div>

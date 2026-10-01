@@ -147,6 +147,8 @@ const en: Translations = {
   'crm.sections': 'CRM sections',
   'crm.section.work': 'Work',
   'crm.section.map': 'Map',
+  'crm.section.contacts': 'Contacts',
+  'crm.contacts.find': 'Find a contact',
   'crm.summary.paid': 'Paid',
   'crm.summary.paid.yes': 'yes',
   'crm.summary.paid.no': 'not yet',
@@ -274,6 +276,29 @@ const en: Translations = {
     'Draft a warm return message to {name}, a former buyer who has been quiet for {days} days. Lead with what is new since their last purchase, not a reminder of us. Make it a send card — I will press Send myself.',
   'crm.wait.theirs': 'awaiting reply',
   'crm.wait.due': 'time to return',
+  // A bare number on the waiting line said nothing about its unit.
+  'crm.wait.days': '{n} d',
+  // Why somebody is in "waiting" and why that next step (render
+  // crm-stages.ts WaitWhy, sales-playbook.ts NextWhy). The server's Russian
+  // words stay the fallback for a code missing here -- see reasonLine.
+  'crm.why.we_wrote_last': 'we wrote last, no answer',
+  'crm.why.they_wrote': 'they wrote, nobody answered',
+  'crm.why.they_replied': 'they replied, we are silent',
+  'crm.why.later_due': 'asked for later — later is here',
+  'crm.why.we_wrote': 'we wrote, no answer',
+  'crm.why.refused': 'said no — write only if they write first',
+  'crm.why.promise_late': 'promised, and the date has passed: {what}',
+  'crm.why.promise_today': 'promised, due today: {what}',
+  'crm.why.waits_days': 'waiting for an answer for {days} d',
+  'crm.why.they_spoke_last': 'they spoke last, no answer yet',
+  'crm.why.later_until': 'asked to come back later: {date}',
+  'crm.why.paid_serve': 'paid — there is something to deliver, nothing to sell',
+  'crm.why.paid_quiet': 'paid before and went quiet',
+  'crm.why.no_talk_yet': 'no conversation yet',
+  'crm.why.warm_offer': 'a warm talk, they saw a result, no offer yet',
+  'crm.why.silence_after_us': 'silent {days} d after our message',
+  'crm.why.we_wrote_days': 'we wrote {days} d ago, no answer',
+  'crm.why.just_answered': 'we just answered — their turn',
   // ── CRM: client list and per-client workspace ────────────────────────────
   'crm.clients.title': 'Clients',
   'crm.clients.none': 'No clients with a profile or a conversation yet.',
@@ -496,7 +521,7 @@ const en: Translations = {
   'crm.auto.chosen.some': '{n} picked',
   'crm.auto.hint':
     'Prepared cards go out by themselves; each send is reported with a stop button.',
-  'crm.filter.search': 'Search by name or id',
+  'crm.filter.search': 'Name, @username or id',
   'crm.filter.segment': 'Segment',
   'crm.vip.title': 'Under way',
   'crm.vip.note': 'Paid, or with a package, or touched this week',
@@ -509,6 +534,12 @@ const en: Translations = {
   'crm.row.dropped': 'Removed from the CRM',
   'crm.row.restore': 'Bring back',
   'crm.row.open': 'Open',
+  'crm.row.more': 'Details and removal',
+  'crm.filter.clear': 'Clear the search',
+  'crm.clients.searching': 'Searching all contacts…',
+  'crm.clients.notFound': 'Nobody found for “{q}”',
+  'crm.clients.rest': 'Everyone else',
+  'crm.clients.recent': 'Recent',
   'crm.client.empty': 'nothing yet',
   'crm.client.profile.title': 'Profile / SOUL / skills',
   'crm.client.profile.profile': 'profile',
@@ -923,7 +954,8 @@ const en: Translations = {
   'pricing.tokens.feature2': 'One balance for everything, no seats',
   'pricing.tokens.feature3':
     'The price of each action is shown before you press',
-  'pricing.tokens.feature4': 'Tokens do not expire and are not billed monthly',
+  'pricing.tokens.feature4':
+    'Unspent tokens burn 30 days after they arrive; we remind you 7, 3 and 1 day before',
   'pricing.tokens.note':
     'First tokens on sign-up, no card. An invoice for any amount is written by the agent in the bot.',
 
@@ -1060,6 +1092,11 @@ const en: Translations = {
   'login.boardTitle': 'Sign in to your board',
   'login.boardBody':
     'Sign in with Telegram and the board opens under your name: your clients and your tasks.',
+  // The agent chat's door: /api/agent/chat answers 401 to a browser with no
+  // session, and the chat itself is free (render/src/agent/pricing.ts).
+  'login.chatTitle': 'Sign in to talk to the agent',
+  'login.chatBody':
+    'The agent answers people it knows. Sign in with Telegram — chatting is free.',
   'login.tgSignedTitle': 'You are already signed in',
   'login.tgSignedBody':
     'Telegram already identified you — no separate login exists inside the Mini App.',
@@ -1281,6 +1318,17 @@ const en: Translations = {
   'voice.phase.error': 'Voice mode stopped',
   'voice.error.mic':
     'No access to the microphone. Allow it in the browser and tap the logo.',
+  'voice.error.mic.denied':
+    'The microphone is blocked for this site. Tap the lock icon next to the address, allow the microphone, then tap the logo.',
+  'voice.error.mic.none': 'No microphone found. Connect one and tap the logo.',
+  'voice.error.mic.busy':
+    'The microphone is busy in another app (a call, a recorder). Close it and tap the logo.',
+  'voice.error.mic.unsupported':
+    'This window cannot use the microphone. Open voice mode in your browser.',
+  'voice.mic.inTelegram':
+    'Telegram may not pass the microphone to the app. Allow Telegram to use the microphone in the phone settings, or open voice mode in the browser.',
+  'voice.openBrowser': 'Open in browser',
+  'voice.retry': 'Try again',
   'voice.error.recorder': 'This browser cannot record audio.',
   'voice.error.hear': 'Could not make out the words. Please say it again.',
   'voice.you': 'You',
@@ -2851,6 +2899,8 @@ const ru: Translations = {
   'crm.sections': 'Разделы CRM',
   'crm.section.work': 'Работа',
   'crm.section.map': 'Карта',
+  'crm.section.contacts': 'Контакты',
+  'crm.contacts.find': 'Найти контакт',
   'crm.summary.paid': 'Платил',
   'crm.summary.paid.yes': 'да',
   'crm.summary.paid.no': 'пока нет',
@@ -2978,6 +3028,26 @@ const ru: Translations = {
     'Подготовь тёплое сообщение-возвращение для {name}: раньше покупал(а), молчит {days} дней. Начни с того, что нового появилось с последней покупки, а не с напоминания о нас. Сделай карточкой на отправку — «Отправить» нажму сам.',
   'crm.wait.theirs': 'ждём ответа',
   'crm.wait.due': 'пора вернуться',
+  'crm.wait.days': '{n} дн.',
+  'crm.why.we_wrote_last': 'мы написали последними, ответа нет',
+  'crm.why.they_wrote': 'написал, а ответа не было',
+  'crm.why.they_replied': 'ответил, а мы молчим',
+  'crm.why.later_due': 'просил позже — позже настало',
+  'crm.why.we_wrote': 'написали, ответа нет',
+  'crm.why.refused': 'человек отказался — пишем только если напишет сам',
+  'crm.why.promise_late': 'обещано и срок прошёл: {what}',
+  'crm.why.promise_today': 'обещано, срок сегодня: {what}',
+  'crm.why.waits_days': 'ждёт ответа {days} дн.',
+  'crm.why.they_spoke_last': 'написал последним, ответа нет',
+  'crm.why.later_until': 'просил вернуться позже: {date}',
+  'crm.why.paid_serve': 'оплатил — есть что доставить, нечего продавать',
+  'crm.why.paid_quiet': 'платил раньше и замолчал',
+  'crm.why.no_talk_yet': 'разговора ещё не было',
+  'crm.why.warm_offer':
+    'разговор тёплый, человек видел результат, предложения не было',
+  'crm.why.silence_after_us': 'молчание {days} дн. после нашего сообщения',
+  'crm.why.we_wrote_days': 'мы написали {days} дн. назад, ответа нет',
+  'crm.why.just_answered': 'мы ответили только что — очередь за человеком',
   // ── CRM: client list and per-client workspace ────────────────────────────
   'crm.clients.title': 'Клиенты',
   'crm.clients.none': 'Пока нет клиентов с профилем или перепиской.',
@@ -3195,7 +3265,7 @@ const ru: Translations = {
   'crm.auto.chosen.some': 'выбрано {n}',
   'crm.auto.hint':
     'Подготовленные карточки уходят сами; о каждой отправке приходит отчёт с кнопкой «Выключить».',
-  'crm.filter.search': 'Поиск по имени или id',
+  'crm.filter.search': 'Имя, @username или id',
   'crm.filter.segment': 'Сегмент',
   'crm.vip.title': 'В работе',
   'crm.vip.note': 'Оплатившие, с пакетом или с касанием на этой неделе',
@@ -3207,6 +3277,12 @@ const ru: Translations = {
   'crm.row.dropped': 'Убран из CRM',
   'crm.row.restore': 'Вернуть',
   'crm.row.open': 'Открыть',
+  'crm.row.more': 'Подробнее и удаление',
+  'crm.filter.clear': 'Очистить поиск',
+  'crm.clients.searching': 'Ищу по всем контактам…',
+  'crm.clients.notFound': 'По запросу «{q}» никого нет',
+  'crm.clients.rest': 'Остальные',
+  'crm.clients.recent': 'Недавние',
   'crm.client.empty': 'пока пусто',
   'crm.client.profile.title': 'Профиль / SOUL / скилы',
   'crm.client.profile.profile': 'профиль',
@@ -3602,7 +3678,8 @@ const ru: Translations = {
   'pricing.tokens.feature1': 'Картинки, озвучка, видео, сборка рилса',
   'pricing.tokens.feature2': 'Один баланс на всё, без мест и участников',
   'pricing.tokens.feature3': 'Цена каждого действия видна до нажатия',
-  'pricing.tokens.feature4': 'Токены не сгорают и не списываются ежемесячно',
+  'pricing.tokens.feature4':
+    'Неистраченные токены сгорают через 30 дней; напомним за 7, 3 и 1 день',
   'pricing.tokens.note':
     'Первые токены — при входе, без карты. Счёт на любое количество выпишет агент в боте.',
 
@@ -3716,6 +3793,9 @@ const ru: Translations = {
   'login.boardTitle': 'Вход на вашу доску',
   'login.boardBody':
     'Войдите через Telegram — доска откроется под вашим именем: ваши клиенты и ваши задачи.',
+  'login.chatTitle': 'Войдите, чтобы поговорить с агентом',
+  'login.chatBody':
+    'Агент отвечает тем, кого знает. Войдите через Telegram — переписка бесплатна.',
   'login.tgSignedTitle': 'Вы уже вошли',
   'login.tgSignedBody':
     'Telegram уже определил вас — отдельного входа внутри мини-аппа не существует.',
@@ -3936,6 +4016,18 @@ const ru: Translations = {
   'voice.phase.error': 'Голосовой режим остановлен',
   'voice.error.mic':
     'Нет доступа к микрофону. Разрешите его в браузере и нажмите на логотип.',
+  'voice.error.mic.denied':
+    'Микрофон запрещён для этого сайта. Нажмите на замок рядом с адресом, разрешите микрофон и нажмите на логотип.',
+  'voice.error.mic.none':
+    'Микрофон не найден. Подключите его и нажмите на логотип.',
+  'voice.error.mic.busy':
+    'Микрофон занят другим приложением (звонок, диктофон). Закройте его и нажмите на логотип.',
+  'voice.error.mic.unsupported':
+    'В этом окне микрофон недоступен. Откройте голосовой режим в браузере.',
+  'voice.mic.inTelegram':
+    'Telegram может не передавать микрофон приложению. Разрешите Telegram доступ к микрофону в настройках телефона или откройте голосовой режим в браузере.',
+  'voice.openBrowser': 'Открыть в браузере',
+  'voice.retry': 'Попробовать снова',
   'voice.error.recorder': 'Этот браузер не умеет записывать звук.',
   'voice.error.hear': 'Не разобрал слова. Повторите, пожалуйста.',
   'voice.you': 'Вы',

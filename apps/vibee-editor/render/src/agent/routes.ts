@@ -1118,6 +1118,9 @@ export async function handleAgentChat(
         surface: поверхность, // cyrillic-ok: local defined earlier in this file
         signal: gone.signal,
         toolsOnly: body.tools_only === true,
+        // The Manager Agent: words only. It can only remove tools, so it is
+        // taken from any caller (client-facing.ts TEXT_ONLY_TOOLS).
+        textOnly: body.text_only === true,
         /*
          * WHOSE CHAT A BUSINESS TURN IS -- AND ONLY FROM THE BOT.
          *

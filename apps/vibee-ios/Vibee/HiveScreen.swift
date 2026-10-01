@@ -649,9 +649,11 @@ struct HiveScreen: View {
   @ObservedObject private var host = HiveHost.shared
 
   var body: some View {
-    // The map runs under the floating tab bar instead of stopping above an
-    // empty band -- owner, 2026-10-01: "remove the empty field under the tab".
-    WebPage(host: host, runsUnderTabBar: true) {
+    // Owner, 2026-10-01: "remove the empty field under the tab". The band
+    // was the gap under the system's floating bar; the bar is now the web's
+    // opaque row (RootView), so the board ends at its top edge -- running
+    // under it would hide the board's own bottom controls.
+    WebPage(host: host) {
       NativeHiveBoard()
     }
   }
@@ -663,7 +665,7 @@ struct TasksScreen: View {
   @ObservedObject private var host = HiveHost.tasks
 
   var body: some View {
-    WebPage(host: host, runsUnderTabBar: true) {
+    WebPage(host: host) {
       NativeHiveBoard(tab: .kanban)
     }
   }
@@ -729,18 +731,6 @@ struct NativeHiveBoard: View {
           .frame(minHeight: Touch.minimum)
         }
         .padding(Space.md)
-      }
-      /*
-       * Keep the last row clear of the floating tab bar.
-       *
-       * Seen on the simulator before this existed: on Comb, Kanban and Mission
-       * the final card ran under the bar and its text was unreadable -- and on
-       * Specs, whose content is short, everything looked fine. That is the
-       * trap: the defect only appears once there is enough to scroll, which is
-       * exactly when somebody is reading.
-       */
-      .safeAreaInset(edge: .bottom) {
-        Color.clear.frame(height: Space.aboveTabBar)
       }
     }
     .background(Palette.background.ignoresSafeArea())
