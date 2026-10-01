@@ -71,6 +71,24 @@ case "$TESTS" in
   *"vitest run"*) case "${TESTS##*&&}" in *"vitest run"*) MTESTS="$TESTS --bail=1" ;; esac ;;
 esac
 
+# A test file the branch adds but the marker does not name is never run by
+# the baseline nor by the guards. The rule "a new test file goes into the
+# marker in the same commit" lived only in the journal: on 01.10.2026 three
+# such files had slipped past it (crmInsets, crmClientThumb,
+# embed-guest-panel) before tick 18 counted. Now it is checked.
+unlisted_tests() {
+  [ -n "$TESTS" ] || return 0
+  local dir base
+  dir=$(printf '%s' "$TESTS" | sed -n 's/^cd \([^ &]*\) *&&.*/\1/p')
+  base=$(git -C "$ROOT" merge-base HEAD origin/main 2>/dev/null) || return 0
+  git -C "$ROOT" diff --name-only --diff-filter=A "$base" HEAD -- \
+      "${dir:-.}/*.test.ts" "${dir:-.}/*.test.tsx" 2>/dev/null |
+    while read -r f; do
+      rel="${f#"$dir"/}"
+      case " $TESTS " in *" $rel "*) ;; *) echo "$rel" ;; esac
+    done
+}
+
 # The guard log is written as each guard finishes, so `tail -f` shows
 # progress; block-buffered, it stayed empty for the whole 9-minute run.
 export PYTHONUNBUFFERED=1
@@ -156,6 +174,12 @@ PY
         BAD=1
       fi
     fi
+  fi
+  UNL=$(unlisted_tests)
+  if [ -n "$UNL" ]; then
+    echo "  STOP  test file(s) this branch adds that <!-- loop-tests: --> does not run:"
+    echo "$UNL" | sed 's/^/          /'
+    BAD=1
   fi
   DIRTY=$(git -C "$ROOT" status --porcelain | head -5)
   if [ -n "$DIRTY" ]; then
@@ -249,6 +273,15 @@ if [ -n "$BOTH" ]; then
   echo "$BOTH" | head -8 | sed 's/^/          /'
 else
   note "main has not touched this branch's files ($(git -C "$ROOT" rev-list --count HEAD..origin/main) commits behind main)"
+fi
+
+# 5b. Tests the marker forgets.
+UNL=$(unlisted_tests)
+if [ -n "$UNL" ]; then
+  stop "test file(s) this branch adds that <!-- loop-tests: --> does not run:"
+  echo "$UNL" | sed 's/^/          /'
+else
+  [ -n "$TESTS" ] && note "every test file this branch adds is in loop-tests"
 fi
 
 # 6. Baseline.

@@ -2,7 +2,7 @@
 
 <!-- loop-branch: fix/crm-mobile-ux -->
 <!-- loop-pr: 3199 -->
-<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx src/lib/crmMatches.test.ts src/lib/crmReason.test.ts -->
+<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx src/lib/crmMatches.test.ts src/lib/crmReason.test.ts src/__tests__/embed-guest-panel.test.tsx src/pages/crmClientThumb.test.ts src/pages/crmInsets.test.ts src/pages/touchTargets.test.ts -->
 
 Started 30.09.2026 by the owner's `/loop 30m`: find the weak spots of mobile
 layout and UI/UX, study competitors, write a decomposed plan, implement it,
@@ -211,3 +211,5 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
 - 01.10.2026 05:41: tick 11: contacts are one grouped surface on a phone (pitch 74->62, +1 row); search marks its hit in name/facts, hit fact leads, id shown when found only by id; sticky verified in the tg #root scroller; loop-guard end now runs this tick's adopted guards under the loop-tests marker (caught 3 guards alive only in crmMatches.test.ts). 10/10 mutants killed, 67 adopted.
 
 - 01.10.2026 06:19: tick 12: waiting reasons travel as codes (5 WaitWhy + 14 NextWhy), translated on the screen with the server's words as fallback; contract test reads the codes from the server source; age with its unit; Recent follows the chip; Crm.test pristine fixture reset; mock t now says 'found' for reason lines (a mutant hid behind it). Mutations 12/12 player adopted (79 guards), 8/8 render by hand. tri: loop guards run vitest with --bail=1 (65->43 s on 3).
+
+- 01.10.2026 13:05: tick 18: touch reach. Message copy/retry sat at opacity 0 until a :hover a finger never makes -- now visible, quiet only under (hover: hover) and (pointer: fine) with :focus-within; on coarse pointers aside close 32->44, message actions ->36, crm more/pick-all ->44; 8 cosmetic :hover paints moved under (hover: hover). touchTargets.test.ts is media-aware (red 4/4 on the old CSS). Self-critique: 3 test files of past ticks were never in loop-tests (the rule lived only here) -- loop-guard now stops on a test file the branch adds that the marker does not name. Trap: `ln -sfn src node_modules` onto an EXISTING node_modules dir makes node_modules/node_modules and broke vitest (std-env isAgent) -- check `[ -e ]` first.
