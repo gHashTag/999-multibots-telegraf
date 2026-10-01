@@ -224,7 +224,7 @@ a slow speaker cut off mid-thought by a fixed pause -- is still open.
 | 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)        |
 | 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252) |
 | 7   | energy VAD: a fan or street noise counts as speech   | OPEN -- Silero vad-web        |
-| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (early hearing) |
+| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)         |
 | 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3         |
 | 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s     |
 | 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)  |
