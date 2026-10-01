@@ -59,9 +59,15 @@ export function CardChat({
   card,
   onClose,
   onResolved,
+  moveDoor,
 }: {
   card: OpenCard
   onClose: () => void
+  /**
+   * The phone stand only (`tri shot card-chat-move`): look at the move row
+   * before the spec says the Queen's door exists. The app never passes it.
+   */
+  moveDoor?: boolean
   /**
    * The server named the card: the full key for a bare `#5382` (history
    * `thread`) and what the board calls it (history `card`).
@@ -278,8 +284,14 @@ export function CardChat({
           <div className="card-chat__meta">
             <span className="card-chat__no">#{card.number}</span>
             {card.column && (
-              <span className="card-chat__column" title={t('cardChat.verdict')}>
-                {card.column}
+              <span
+                className="card-chat__column"
+                title={t('cardChat.verdict')}
+                data-column={card.column}
+              >
+                {columnCode(card.column) === SPEC.MOVE_NONE
+                  ? card.column
+                  : t(`cardChat.col.${card.column}`)}
               </span>
             )}
             {card.repo && (
@@ -323,7 +335,12 @@ export function CardChat({
             label={t('cardChat.status.label')}
           />
         )}
-        <MoveRow key={card.task} card={card} onMoved={c => onResolved?.(c)} />
+        <MoveRow
+          key={card.task}
+          card={card}
+          doorExists={moveDoor}
+          onMoved={c => onResolved?.(c)}
+        />
         <div
           className="card-chat__log"
           ref={logRef}
@@ -428,9 +445,11 @@ export function CardChat({
  */
 function MoveRow({
   card,
+  doorExists,
   onMoved,
 }: {
   card: OpenCard
+  doorExists?: boolean
   onMoved: (card: OpenCard) => void
 }) {
   const { t } = useLanguage()
@@ -443,10 +462,14 @@ function MoveRow({
   // Keyed by the task where it is mounted, so a new card starts clean.
   useEffect(() => {
     let alive = true
-    readMoveOffer(API_BASE, authHeaders()).then(o => alive && setOffered(o))
+    readMoveOffer(API_BASE, authHeaders(), undefined, doorExists).then(
+      o => alive && setOffered(o)
+    )
     return () => {
       alive = false
     }
+    // Mount-only: the stand's flag does not change under a card.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

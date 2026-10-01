@@ -152,6 +152,9 @@ describe('CardChat on the board', () => {
     const column = host.querySelector('.card-chat__column')
     expect(column?.getAttribute('title')).toBeTruthy()
     expect(column?.tagName).toBe('SPAN')
+    // Said in the person's words; the board's own name stays on the element.
+    expect(column?.getAttribute('data-column')).toBe('running')
+    expect(column?.textContent).not.toBe('running')
   })
 
   it('opens at HALF with the compact handle: no second, cut title', async () => {

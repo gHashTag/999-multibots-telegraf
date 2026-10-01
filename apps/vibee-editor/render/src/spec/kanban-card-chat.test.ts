@@ -657,6 +657,16 @@ describe('kanban-card-chat.t27 against the host', () => {
     const fetchImpl = vi.fn()
     expect(await readMoveOffer('', {}, fetchImpl as never)).toBe(false)
     expect(fetchImpl).not.toHaveBeenCalled()
+    // Once the door is there (the stand's preview, then v6): one GET to the
+    // proxy, and only `offered: true` lights the row.
+    const asked = vi.fn(async (_url: string) =>
+      Response.json({ offered: true })
+    )
+    expect(await readMoveOffer('', {}, asked as never, true)).toBe(true)
+    expect(asked).toHaveBeenCalledTimes(1)
+    expect(String(asked.mock.calls[0][0])).toBe(SPEC.MOVE_PROXY)
+    const refused = vi.fn(async () => Response.json({ offered: 'yes' }))
+    expect(await readMoveOffer('', {}, refused as never, true)).toBe(false)
   })
 
   it('the sheet sees a new turn without a reload, from the last id on', () => {

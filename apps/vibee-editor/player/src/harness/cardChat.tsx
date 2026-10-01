@@ -33,6 +33,12 @@ export function Stand() {
           card={card}
           onClose={() => setCard(null)}
           onResolved={setCard}
+          // `&door=1`: preview the move row the spec's next version lights.
+          moveDoor={
+            new URLSearchParams(window.location.search).get('door') === '1'
+              ? true
+              : undefined
+          }
         />
       )}
     </div>

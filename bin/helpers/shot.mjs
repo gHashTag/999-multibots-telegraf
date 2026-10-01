@@ -421,6 +421,75 @@ const HARNESSES = {
       },
     ],
   },
+  /*
+   * THE MOVE ROW A KEEPER SEES (spec v5, S16): a backlog card, the Queen's
+   * door on. `&door=1` is the stand's preview of the version that flips
+   * MOVE_DOOR_EXISTS -- the app itself keeps the row dark until then. One
+   * tap arms, the second asks; the Queen's own reason is what is shown.
+   */
+  'card-chat-move': {
+    page: 'card-chat',
+    query: '?card=5384&repo=gHashTag/t27&door=1',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({
+          json: {
+            thread: 'task:gHashTag/t27#5384',
+            card: {
+              title: 'Port the drift check to the iOS hive tab',
+              column: 'backlog',
+            },
+            messages: [
+              {
+                role: 'assistant',
+                content: 'Задача в бэклоге, никто её не взял.',
+                surface: 'kanban',
+              },
+            ],
+          },
+        }),
+      ],
+      [
+        '**/api/card-move',
+        req =>
+          req.method() === 'POST'
+            ? {
+                json: {
+                  moved: true,
+                  column: 'dropped',
+                  reason: 'Moved to dropped by a keeper: not doing this one.',
+                },
+              }
+            : { json: { offered: true, keeper: true, door: true } },
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.card-chat__move-btn').waitFor()
+        },
+      },
+      {
+        id: 'armed',
+        ready: async p => {
+          await p.locator('.card-chat__move-btn').click()
+          await p.locator('.card-chat__move-btn--armed').waitFor()
+        },
+      },
+      {
+        id: 'moved',
+        ready: async p => {
+          await p.locator('.card-chat__move-btn--armed').click()
+          await p.locator('.card-chat__move-said').waitFor()
+        },
+      },
+    ],
+  },
 }
 
 /*

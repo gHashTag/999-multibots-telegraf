@@ -754,6 +754,13 @@ AGENT TOOLS ON THE RENDER
                           commented on the next, closed on the first night
                           they agree; a night measuring nothing touches
                           nothing. --dry prints the verb, writes nothing.
+  tri hive-nightly [--shots] [--dry]
+                          every card-sheet watch in one night, each with its
+                          own ONE issue in gHashTag/t27 (opened, commented,
+                          closed by the same verbs as card-drift): the drift,
+                          the live card-check (waiting on a merge or deploy
+                          is not a regression), and on Sundays or with
+                          --shots `tri shot all`. Unmeasured touches nothing.
                           Exit 0 agree, 1 drift, 2 not measured.
   tri browser             can the remote browser ACT, not merely answer.
                           `/json/list` is served by the browser process, so it
@@ -2006,6 +2013,12 @@ cmd_card_check() {
     gh pr view "${pr#*#}" -R "${pr%#*}" --json state -q .state 2>/dev/null \
       | sed "s|^|$pr |"
   done)
+  # 5. The Queen's move door (BrowserOS#519) against the spec's flag: the
+  # sheet's move row may light only once the door is merged (spec v5 S16).
+  local door_pr door_flag
+  door_pr=$(gh pr view 519 -R gHashTag/BrowserOS --json state -q .state 2>/dev/null)
+  door_flag=$(grep -o 'MOVE_DOOR_EXISTS = [a-z]*' \
+    "$ROOT/apps/vibee-editor/render/src/spec/kanban-card-chat.gen.ts" | awk '{print $3}')
   # 4. The server's GraphQL query against LIVE GitHub, with the local `gh`
   # token (read-only use, never printed), compared with the client's read.
   # Holds before any merge: a GitHub schema change breaks it here first.
@@ -2018,7 +2031,8 @@ cmd_card_check() {
         scripts/card-status-parity.ts "$pr_repo" "$pr_n" 2>/dev/null | tail -1)
   fi
   CARD_KEY="$key" CARD_URL="$RENDER" CARD_TASK="$task" CARD_MERGED="$merged" \
-    CARD_PARITY="$parity" python3 - <<'PY'
+    CARD_PARITY="$parity" CARD_DOOR_PR="$door_pr" CARD_DOOR_FLAG="$door_flag" \
+    python3 - <<'PY'
 import json, os, sys, urllib.error, urllib.parse, urllib.request
 
 base, task = os.environ['CARD_URL'], os.environ['CARD_TASK']
@@ -2096,6 +2110,17 @@ elif par.get('same'):
 else:
     say('fail', f"server != client: {json.dumps(par.get('server'))} vs {json.dumps(par.get('client'))}")
 
+# 5. The move door against the flag: a lit row on a missing door is a lie.
+door, flag = os.environ.get('CARD_DOOR_PR', ''), os.environ.get('CARD_DOOR_FLAG', '')
+if flag == 'true' and door != 'MERGED':
+    say('fail', f'MOVE_DOOR_EXISTS is true but BrowserOS#519 is {door.lower() or "unread"}')
+elif flag == 'true':
+    say('ok', 'move door merged and the spec says so')
+elif door == 'MERGED':
+    say('wait', 'BrowserOS#519 merged: once deployed, spec v6 flips MOVE_DOOR_EXISTS')
+else:
+    say('wait', f'move row dark: BrowserOS#519 {door.lower() or "unread"}')
+
 sys.exit(1 if 'fail' in verdicts else 2 if 'wait' in verdicts else 0)
 PY
 }
@@ -2139,27 +2164,98 @@ else:
     warn "not measured tonight: ${parity:-no answer} -- the issue is left as it is"
     return 2
   fi
-  local title='card-check drift: the server card-status read disagrees with GitHub'
-  local open_n
-  open_n=$(gh issue list -R gHashTag/t27 --state open --limit 5 \
-    --search "in:title \"card-check drift\"" --json number -q '.[0].number' 2>/dev/null)
-  local verb
-  verb=$(cd "$render" && ./node_modules/.bin/tsx scripts/card-drift.ts \
-    "$drifted" "$([ -n "$open_n" ] && echo 1 || echo 0)")
-  local when
-  when=$(date -u +%Y-%m-%dT%H:%MZ)
   local body
-  body=$(printf '%s\n\n```json\n%s\n```\n\nCard: %s#%s. Measured %s by `tri card-drift` (spec kanban-card-chat.t27 v5, DRIFT_ONE_ISSUE). Part of #5388.' \
+  body=$(printf '%s\n\n```json\n%s\n```\n\nCard: %s#%s.' \
     "$([ "$drifted" = 1 ] && echo 'The server read and the client read of the same card differ (or the query broke).' || echo 'The two reads agree again.')" \
-    "$parity" "$repo" "$n" "$when")
-  echo "  drift=$drifted issue=${open_n:-none} -> $verb"
-  [ "$dry" = 1 ] && { [ "$drifted" = 1 ] && return 1 || return 0; }
-  case "$verb" in
-    open) gh issue create -R gHashTag/t27 --title "$title" --body "$body" ;;
-    comment) gh issue comment "$open_n" -R gHashTag/t27 --body "$body" ;;
-    close) gh issue close "$open_n" -R gHashTag/t27 --comment "$body" ;;
-  esac
-  [ "$drifted" = 1 ] && return 1 || return 0
+    "$parity" "$repo" "$n")
+  _one_issue 'card-check drift' \
+    'card-check drift: the server card-status read disagrees with GitHub' \
+    "$drifted" "$body" "$dry"
+}
+
+# One issue per watch (spec kanban-card-chat.t27 v5, DRIFT_ONE_ISSUE): opened
+# on the first bad night, commented on while it stays bad, closed on the first
+# good night; a night that measured nothing (bad=x) touches nothing. The verb
+# is render's driftAction; the issue is found by its title's KEY prefix, not
+# by GitHub's fuzzy search alone. Exit 1 bad, 2 unmeasured, 0 good.
+_one_issue() {
+  local key="$1" title="$2" bad="$3" text="$4" dry="$5"
+  local render="$ROOT/apps/vibee-editor/render"
+  if [ "$bad" = x ]; then
+    warn "$key: not measured tonight -- the issue is left as it is"
+    return 2
+  fi
+  local open_n verb
+  open_n=$(gh issue list -R gHashTag/t27 --state open --limit 10 \
+    --search "in:title \"$key\"" --json number,title \
+    -q "[.[] | select(.title | startswith(\"$key\"))][0].number // empty" 2>/dev/null)
+  verb=$(cd "$render" && ./node_modules/.bin/tsx scripts/card-drift.ts \
+    "$bad" "$([ -n "$open_n" ] && echo 1 || echo 0)")
+  local body
+  body=$(printf '%s\n\nMeasured %s by `tri hive-nightly` (spec kanban-card-chat.t27, DRIFT_ONE_ISSUE). Part of #5388.' \
+    "$text" "$(date -u +%Y-%m-%dT%H:%MZ)")
+  echo "  $key: bad=$bad issue=${open_n:-none} -> $verb"
+  if [ "$dry" != 1 ]; then
+    case "$verb" in
+      open) gh issue create -R gHashTag/t27 --title "$title" --body "$body" ;;
+      comment) gh issue comment "$open_n" -R gHashTag/t27 --body "$body" ;;
+      close) gh issue close "$open_n" -R gHashTag/t27 --comment "$body" ;;
+    esac
+  fi
+  [ "$bad" = 1 ] && return 1 || return 0
+}
+
+# tri hive-nightly -- every watch of the card sheet in one night, each keeping
+# its own ONE issue: the drift (server read vs client read), the live
+# card-check against render, and on Sundays (or --shots) every phone stand.
+# A watch that could not measure (no key, no login, nothing deployed yet)
+# says so and touches nothing. Exit: 1 if any watch is bad, else 2 if any
+# measured nothing, else 0.
+cmd_hive_nightly() {
+  local dry=0 shots=0 a
+  for a in "$@"; do
+    case "$a" in --dry) dry=1 ;; --shots) shots=1 ;; esac
+  done
+  [ "$(date +%u)" = 7 ] && shots=1
+  if ! gh auth token >/dev/null 2>&1; then
+    warn 'no `gh` login: nothing measured, nothing written'
+    return 2
+  fi
+  local worst=0 rc out bad
+  _worse() { [ "$1" = 1 ] && worst=1; [ "$1" = 2 ] && [ "$worst" = 0 ] && worst=2; }
+
+  echo '== drift'
+  cmd_card_drift $([ "$dry" = 1 ] && echo --dry)
+  _worse $?
+
+  echo '== card-check (live)'
+  if _mcp_key >/dev/null 2>&1; then
+    out=$(cmd_card_check 2>&1); rc=$?
+    printf '%s\n' "$out"
+    # Waiting on a merge or a deploy is the normal state, not a regression.
+    case "$rc" in 0) bad=0 ;; 1) bad=1 ;; *) bad=x ;; esac
+    # Our own key refused is not the sheet answering wrong: unmeasured.
+    case "$out" in *'HTTP 401'*) bad=x ;; esac
+  else
+    out='no agent key'; bad=x
+    echo '  no agent key: set $AGENT_KEY or log into Infisical'
+  fi
+  _one_issue 'card-check live' \
+    'card-check live: the deployed card sheet answers wrong' \
+    "$bad" "$(printf 'tri card-check:\n\n```\n%s\n```' "$out")" "$dry"
+  _worse $?
+
+  if [ "$shots" = 1 ]; then
+    echo '== tri shot all'
+    out=$(TRI_BRIDGE=1 "$ROOT/bin/tri" shot all 2>&1); rc=$?
+    printf '%s\n' "$out" | grep -E '^(ok|red|FAIL|==)|shot (green|red)' | tail -40
+    case "$rc" in 0) bad=0 ;; 1) bad=1 ;; *) bad=x ;; esac
+    _one_issue 'phone-shot regression' \
+      'phone-shot regression: a stand is red at phone width' \
+      "$bad" "$(printf 'tri shot all:\n\n```\n%s\n```' "$(printf '%s\n' "$out" | grep -vE '^ok ' | tail -40)")" "$dry"
+    _worse $?
+  fi
+  return "$worst"
 }
 
 cmd_heal() {
@@ -5428,6 +5524,7 @@ case "$action" in
   card|карточка)       cmd_card "$@" ;;
   card-check|карточка-проверка) cmd_card_check "$@" ;;
   card-drift) cmd_card_drift "$@" ;;
+  hive-nightly) cmd_hive_nightly "$@" ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;
   journal|журнал)      cmd_journal "$@" ;;

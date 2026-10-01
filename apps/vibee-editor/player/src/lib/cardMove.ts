@@ -77,14 +77,16 @@ export interface MoveAnswer {
 /**
  * Whether render offers the button to this person (keeper, token, door). Not
  * asked at all while the spec says the door does not exist: no request is
- * spent on a button that cannot light.
+ * spent on a button that cannot light. `doorExists` is the spec's word; only
+ * the phone stand overrides it, to look at the row the next version lights.
  */
 export async function readMoveOffer(
   base: string,
   headers: HeadersInit,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  doorExists: boolean = SPEC.MOVE_DOOR_EXISTS
 ): Promise<boolean> {
-  if (!SPEC.MOVE_DOOR_EXISTS) return false
+  if (!doorExists) return false
   try {
     const r = await fetchImpl(`${base}${SPEC.MOVE_PROXY}`, { headers })
     if (!r.ok) return false
