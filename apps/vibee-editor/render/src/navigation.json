@@ -7,7 +7,7 @@
       "route": "/game",
       "platforms": ["web", "ios"],
       "labelKey": "nav.hive",
-      "label": { "en": "Hive", "ru": "Улей" },
+      "label": { "en": "Game", "ru": "Игра" },
       "icon": { "lucide": "Hexagon", "sf": "hexagon" }
     },
     {
