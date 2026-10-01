@@ -316,7 +316,7 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
-  tri iphone [check|build|sim|off|test]
+  tri iphone [check|build|sim|off|test|ru]
         The Vibee app on the REAL phone: build, install, launch -- one command.
         `sim` does the same on the simulator, with a deadline on install.
         Asks devicectl first, so a locked or unplugged phone is named as such
@@ -1389,6 +1389,7 @@ print(n)' 2>/dev/null)
 #   tri iphone off      shut every running simulator down (gives ~10 GB back)
 #   tri iphone test [Class]  unit tests with a 25-min deadline and a one-line
 #                       verdict (Class = one test class, e.g. ConnectivityTests)
+#   tri iphone ru [File]  native strings still Russian-only (count / lines)
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
 # The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
 # next build need it back. One word instead of remembering the udid.
@@ -1399,6 +1400,75 @@ iphone_sim_off() {
   local u
   for u in $booted; do xcrun simctl shutdown "$u" && good "shut down $u"; done
   echo "  …    swap now: $(sysctl -n vm.swapusage | sed -E 's/.*(used = [^ ]+ +free = [^ ]+).*/\1/')"
+}
+
+# Native strings that only exist in Russian. The tab bar follows the phone's
+# language through say(en, ru); a screen that still hard-codes Russian shows
+# an English phone a mixed app. This counts what is left, so a loop can watch
+# the number go down instead of re-grepping -- a plain grep both missed and
+# double-counted: it saw say( calls that span lines as Russian-only.
+# Not counted: say(...) spans, comments, NSLog/print, and lines marked
+# ru-only-ok (data that IS Russian: a server status key, a demo project).
+#   tri iphone ru          count per file and the total
+#   tri iphone ru File     the lines in one file
+iphone_ru() {
+  local ios="$1" only="${2:-}"
+  python3 - "$ios/Vibee" "$only" <<'PY'
+import os, re, sys
+root, only = sys.argv[1], sys.argv[2]
+CYR = re.compile('[Ѐ-ӿ]')
+LIT = re.compile(r'"(?:[^"\\]|\\.)*"')
+# "\(лайков)" is a variable inside an interpolation, not Russian text
+INTERP = re.compile(r'\\\([^)]*\)')
+
+def blank_calls(src, names):
+    # Replace name( ... ) with spaces, matching parens outside strings, so
+    # line numbers survive and a call spread over lines counts as one.
+    out = list(src)
+    for m in re.finditer(r'\b(?:' + '|'.join(names) + r')\(', src):
+        i, depth, instr = m.end(), 1, False
+        while i < len(src) and depth:
+            c = src[i]
+            if instr:
+                if c == '\\': i += 1
+                elif c == '"': instr = False
+            elif c == '"': instr = True
+            elif c == '(': depth += 1
+            elif c == ')': depth -= 1
+            i += 1
+        for k in range(m.start(), i):
+            if out[k] != '\n': out[k] = ' '
+    return ''.join(out)
+
+def comments_out(src):
+    src = re.sub(r'/\*.*?\*/', lambda m: re.sub(r'[^\n]', ' ', m.group()), src, flags=re.S)
+    lines = []
+    for line in src.split('\n'):
+        # a // outside a string literal starts a comment
+        bare = LIT.sub(lambda m: 'x' * len(m.group()), line)
+        k = bare.find('//')
+        lines.append(line if k < 0 else line[:k])
+    return lines
+
+total, per = 0, []
+for f in sorted(os.listdir(root)):
+    if not f.endswith('.swift') or (only and f != only and f != only + '.swift'):
+        continue
+    raw = open(os.path.join(root, f), encoding='utf-8').read()
+    marks = raw.split('\n')
+    lines = comments_out(blank_calls(raw, ['say', 'NSLog', 'print']))
+    hits = [(n + 1, marks[n].strip()) for n, l in enumerate(lines)
+            if 'ru-only-ok' not in marks[n]
+            and any(CYR.search(INTERP.sub('', x)) for x in LIT.findall(l))]
+    if hits:
+        total += len(hits); per.append((len(hits), f, hits))
+for n, f, hits in sorted(per, reverse=True):
+    if only:
+        for ln, text in hits: print(f'  {f}:{ln}  {text[:120]}')
+    else:
+        print(f'  {n:4d}  {f}')
+print(f'  total {total} Russian-only line(s)')
+PY
 }
 
 # The unit tests, with the deadline and the summary every loop iteration
@@ -1519,6 +1589,7 @@ cmd_iphone() {
   [ "$mode" = "sim" ] && { iphone_sim "$ios"; return; }
   [ "$mode" = "off" ] && { iphone_sim_off; return; }
   [ "$mode" = "test" ] && { iphone_test "$ios" "${2:-}"; return; }
+  [ "$mode" = "ru" ] && { iphone_ru "$ios" "${2:-}"; return; }
 
   if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
     bad "devicectl did not answer (Xcode command line tools?)"; return 2

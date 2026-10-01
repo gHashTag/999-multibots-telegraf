@@ -10950,3 +10950,17 @@ nothing jumps under the finger. A cold start counts as no return (`online`
 starts true). The return itself was NOT checked live: the simulator shares the
 Mac's network and toggling the Mac's network is off-limits, so the decision is
 pinned by `ConnectivityTests` instead. Say so in the report.
+
+Language (iteration 5): native screens follow the phone through `say(en, ru)`
+(HiveScreen.swift) -- the ONE language rule, same as the web's. Not a String
+Catalog: iOS picks a catalog language from the whole preferred list, so a
+`[de, ru]` phone would get Russian from the catalog and English from `say`.
+`./tri iphone ru [File]` counts what is still Russian-only (407 on main ->
+326 after Feed, sign-in, Telegram connect, Profile, shell). Data that IS
+Russian -- a server JSON key or status, a UI-test id -- carries `ru-only-ok`.
+A hand-made `speaksRussian ? ru : en` is a second copy of `say`; replace it.
+While translating, the sign-in field's VoiceOver label still said "six
+digits" -- the server's code is eight; the label now names no length.
+UI text takes the real dash: an English `say` string written with the ASCII
+`--` of code comments shows two hyphens on screen next to the Russian "—"
+(seen live, iteration 5; the offline line of iteration 4 had it too).

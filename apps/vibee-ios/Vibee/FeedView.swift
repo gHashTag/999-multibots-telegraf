@@ -59,14 +59,14 @@ struct FeedView: View {
         // ровно та ошибка, которую весь вчерашний день чинил в вебе.
         VStack(spacing: 10) {
           Image(systemName: "wifi.exclamationmark").font(Тема.Шрифт.значок(.largeTitle))
-          Text("Лента не загрузилась").font(Тема.Шрифт.стиль(.headline, .semibold))
+          Text(say("The feed did not load", "Лента не загрузилась")).font(Тема.Шрифт.стиль(.headline, .semibold))
           Text(ошибка).font(Тема.Шрифт.стиль(.footnote)).foregroundStyle(Тема.Цвет.текстПриглушённый)
             .multilineTextAlignment(.center)
           Button { Task { await загрузить() } } label: {
             // Высота ВНУТРИ label. Снаружи `.frame` растягивает только
             // контейнер, а заливку рисует стиль по своему содержимому —
             // замерено 34.3 pt при формальных 44.
-            Text("Ещё раз")
+            Text(say("Try again", "Ещё раз"))
               .frame(minHeight: Тема.Кнопка.высота)
               .padding(.horizontal, Тема.Кнопка.отступПоГоризонтали)
           }
@@ -76,7 +76,7 @@ struct FeedView: View {
         }
         .padding(Тема.Отступ.xl)
       } else if items.isEmpty {
-        Text("В ленте пока пусто").foregroundStyle(Тема.Цвет.текстПриглушённый)
+        Text(say("Nothing in the feed yet", "В ленте пока пусто")).foregroundStyle(Тема.Цвет.текстПриглушённый)
       } else {
         /// Вертикальный пейджинг БЕЗ хака с поворотом.
         ///
@@ -354,7 +354,7 @@ struct ReelView: View {
         активна: лайкнут,
         // #e30b5c — FeedPanel.css:495 (`.like-btn.liked`).
         цветАктивной: Тема.Цвет.лайк,
-        доступность: лайкнут ? "Убрать лайк" : "Нравится"
+        доступность: лайкнут ? say("Unlike", "Убрать лайк") : say("Like", "Нравится")
       ) {
         Task { await переключитьЛайк() }
       }
@@ -383,7 +383,7 @@ struct ReelView: View {
                            активна: false, цветАктивной: Тема.Цвет.текст)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Поделиться роликом")
+        .accessibilityLabel(say("Share the video", "Поделиться роликом"))
       }
 
       КнопкаДействия(
@@ -391,7 +391,7 @@ struct ReelView: View {
         подпись: nil,
         активна: false,
         цветАктивной: Тема.Цвет.текст,
-        доступность: звукВыключен ? "Включить звук" : "Выключить звук"
+        доступность: звукВыключен ? say("Sound on", "Включить звук") : say("Sound off", "Выключить звук")
       ) {
         звукВыключен.toggle()
       }

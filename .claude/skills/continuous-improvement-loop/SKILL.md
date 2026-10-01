@@ -660,6 +660,10 @@ so every run was a cold build and missed the deadline under load (on the
 shared `tri-iphone-dd-sim` cache: 1.5 min); and a misspelt class ran 0 tests
 while `xcodebuild` reported success -- 0 executed with a filter is now a
 failure. Its timeout message prints the end of the log, not a guessed cause.
+`./tri iphone ru` is the counter a migration loop needs: a plain grep for
+Cyrillic literals both double-counted (a `say(` call spread over lines looked
+Russian-only) and miscounted (`"\(variable)"` with a Cyrillic name). Track the
+number in the loop state; it should only go down.
 
 И третий: **я объяснил остановку неверно**. В отчёте назвал причиной `/tmp/dd`
 и свои сборки. Проверил на следующий день: `run.sh` пишет в `build2`, там было
