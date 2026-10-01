@@ -104,7 +104,7 @@ function tx(
 const T0 = Date.UTC(2026, 9, 1) / 1000
 const blogger = agentPackageById('blogger')!
 const developer = agentPackageById('twin')!
-const BLOGGER = 9375
+const BLOGGER = 10000
 const DEVELOPER = 12500
 const sub = (who = PERSON) => `agentpkg:blogger:month:${who}`
 const once = (who = PERSON) => `agentpkg:twin:once:${who}`
@@ -254,7 +254,7 @@ describe('the agent package till', () => {
     ])
     expect(pk).toEqual([
       ['manager', 6250, true, false],
-      ['blogger', 9375, true, false],
+      ['blogger', 10000, true, false],
       ['twin', 12500, false, false],
     ])
     for (const url of [

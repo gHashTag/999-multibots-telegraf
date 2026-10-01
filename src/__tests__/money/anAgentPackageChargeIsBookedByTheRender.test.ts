@@ -111,7 +111,7 @@ function verdict(booked: number, packageId = 'blogger') {
       telegramId: String(PAYER),
       packageId,
       charge: 'month',
-      stars: 9375,
+      stars: 10000,
       starTxId: `tx${i}`,
       until: UNTIL,
     })),
@@ -142,7 +142,7 @@ describe('an agent package charge', () => {
     botsOf.mockResolvedValue([])
     const { said } = await pay(
       `agentpkg:blogger:month:${PAYER}`,
-      9375,
+      10000,
       verdict(1)
     )
     expect(setPayments).not.toHaveBeenCalled()
@@ -168,7 +168,7 @@ describe('an agent package charge', () => {
     })
     const { team } = await pay(
       `agentpkg:blogger:month:${PAYER}`,
-      9375,
+      10000,
       verdict(1)
     )
     expect(extend).toHaveBeenCalledWith('my_agent_bot', 30, true)
@@ -186,7 +186,7 @@ describe('an agent package charge', () => {
     botsOf.mockResolvedValue([{ botUsername: 'my_agent_bot', status: 'live' }])
     const { team, said } = await pay(
       `agentpkg:blogger:month:${PAYER}`,
-      9375,
+      10000,
       verdict(0)
     )
     expect(extend).not.toHaveBeenCalled()
@@ -211,7 +211,7 @@ describe('an agent package charge', () => {
   it('survives the render being down: the person is told, the team is told', async () => {
     const { said, team } = await pay(
       `agentpkg:blogger:month:${PAYER}`,
-      9375,
+      10000,
       'down'
     )
     expect(setPayments).not.toHaveBeenCalled()
@@ -222,7 +222,7 @@ describe('an agent package charge', () => {
 
   it('is a row in the funnel', async () => {
     botsOf.mockResolvedValue([])
-    await pay(`agentpkg:blogger:month:${PAYER}`, 9375, verdict(1))
+    await pay(`agentpkg:blogger:month:${PAYER}`, 10000, verdict(1))
     await vi.waitFor(() =>
       expect(db.rows('user_events').map(r => r.event)).toEqual([
         'agent_package_paid',
