@@ -323,7 +323,7 @@ export function CardChat({
             label={t('cardChat.status.label')}
           />
         )}
-        <MoveRow card={card} onMoved={c => onResolved?.(c)} />
+        <MoveRow key={card.task} card={card} onMoved={c => onResolved?.(c)} />
         <div
           className="card-chat__log"
           ref={logRef}
@@ -440,16 +440,14 @@ function MoveRow({
   const [said, setSaid] = useState<{ ok: boolean; text: string } | null>(null)
   const target = moveChoice(columnCode(card.column))
 
+  // Keyed by the task where it is mounted, so a new card starts clean.
   useEffect(() => {
     let alive = true
-    setOffered(false)
-    setSaid(null)
-    setArmed(false)
     readMoveOffer(API_BASE, authHeaders()).then(o => alive && setOffered(o))
     return () => {
       alive = false
     }
-  }, [card.task])
+  }, [])
 
   useEffect(() => {
     if (!armed) return

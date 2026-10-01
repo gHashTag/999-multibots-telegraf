@@ -37,7 +37,15 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 
 - [x] L4.1 `tri card-check` 4th verdict: `scripts/card-status-parity.ts` sends CARD_STATUS_QUERY to LIVE GitHub (gh token, reads only) and compares it with the client's v3 read of the same card. 999#999 and t27#5388: server == client; negative control (a broken query) exits 1
 - [x] L4.2 The Queen's one-card door -- gHashTag/BrowserOS#519 (to `feat/queen-supervisor`, no merge): `POST /queen/move`, table `queen_card_move` keyed (repo, number), read by BOTH the board and the round's candidates; app button stays off until merged (MOVE_DOOR_EXISTS)
-- [~] L4.3 iOS (BUILT, tests compiled; NOT yet run -- at load ~420 the simulator stopped answering even `simctl get_app_container`, two runs hung at launch; the next loop runs `CardChatTaskTests` first): the native kanban (Hive -> Kanban, and the Tasks fallback of #3223) -- a card tap opens `AgentChatView(task:)` as a sheet on the task thread; writing is locked until the server answers `thread == task:<ref>` (an old render answers `self`); `VibeeTests/CardChatTaskTests`
+- [x] L4.3 iOS: the native kanban (Hive -> Kanban, and the Tasks fallback of #3223) -- a card tap opens `AgentChatView(task:)` as a sheet on the task thread; writing is locked until the server answers `thread == task:<ref>` (an old render answers `self`). RAN 2026-10-02 after `simctl shutdown` + `boot` + `bootstatus -b`: 22/22, `CardChatTaskTests` 10/10 (the earlier "system shell probably crashed" was the simulator, not the code)
+
+### Loop 5 (owner: "все три" -- iOS + the move button behind a flag, live thread, nightly drift)
+
+- [x] L5.1 spec v5 (t27#5389, 22/22, resealed): MOVE*PROXY / LIVE_DOOR / DRIFT*\* and `move_allowed`, `move_choice`, `live_fresh`, `drift_action`, each bound by the host test (render AND player for the shared ones)
+- [x] L5.2 render `/api/card-move` (`agent/card-move.ts`): GET says `offered`; POST only for a keeper (`HIVE_KEEPERS`), with render's `TRIOS_API_TOKEN` (never to the browser), the Queen's status and reason passed through, 502 when she is silent. Sheet: `MoveRow` two taps (arm MOVE_ARM_S), dark while `MOVE_DOOR_EXISTS` is false -- `readMoveOffer` does not even ask
+- [x] L5.3 live thread: `thread-bus.ts` (every `записатьРеплику` announces), `GET /api/agent/history/live` SSE after `?after=`, recheck 15 s for another replica, ping 25 s, end at 300 s with the last id. Sheet: `threadLive.ts subscribeThread`, a turn = re-read the history (deferred while the sheet's own answer streams); a render without the door is asked once and left alone
+- [x] L5.4 `tri card-drift [n] [--dry]` + scheduled task `card-drift-nightly` (03:26 local): one issue "card-check drift" in gHashTag/t27, open/comment/close by `driftAction`; an unmeasured night touches nothing. card-status-parity now exits 2 (not 1 = drift) when its read threw
+- [x] L5.5 phone: `tri shot card-chat 390 ru` green after the change (11 controls, 44 px, nothing cut)
 
 1. Card tap opens GitHub in a new tab; nothing about the agent.
 2. Cards carry no agent, no conversation, no history.
@@ -144,6 +152,12 @@ git-dir>)`). Fix: `resolve`, and the stray dir removed. A tool that writes
   main too -- the repository's baseline, not this PR. Local pre-push: 12/12.
 
 ## Next loop: what to verify first
+
+0. (v5) `tri card-drift --dry` must print a verb; the nightly task's runs
+   (Scheduled sidebar) must not say "not measured" three nights running.
+   After BrowserOS#519 merges and deploys: flip `MOVE_DOOR_EXISTS` in the t27
+   spec (v6), re-gen, and `GET /api/card-move` as a keeper must say
+   `offered: true` once `TRIOS_API_TOKEN` + `HIVE_KEEPERS` are on vibee-render.
 
 1. After the owner merges #3208 and render deploys: `tri card <n>` must print a
    `task:` thread, not exit 2 (exit 2 = the live render still answers `self`).

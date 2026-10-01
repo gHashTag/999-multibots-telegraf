@@ -152,6 +152,24 @@ TRI_T27C=<t27c>` and add a `docs/now/<date>-<slug>.md` entry. A t27c with
 - jsdom frames in `Hive.test.tsx` have a stub `contentDocument` without
   `addEventListener`; `catchCardTaps` checks the function before listening.
 
+- **Live thread = signal, not payload (v5).** The SSE door sends rows, but
+  the sheet only uses the id: it re-reads the history and merges with
+  `shouldAdoptHistory`, so the person's own optimistic turns are never
+  doubled. While the sheet's own answer streams, the re-read waits (a
+  `pending` ref flushed when `busy` falls). The bus is in-process; another
+  replica's write arrives through the 15 s recheck.
+- **The move button is dark by construction.** `readMoveOffer` returns false
+  WITHOUT a request while `MOVE_DOOR_EXISTS` is false; flipping it is a spec
+  version (v6), not a code edit. The Queen's door admits only a Bearer
+  `TRIOS_API_TOKEN` from off-box, so the browser can never call it directly
+  -- render proxies, a keeper only.
+- **t27 commits need the repo's own `tri`.** The hook runs `tri hooks
+pre-commit`; an older `tri` says "unknown command: hooks". Build it:
+  `nice cargo build --release -p tri --offline`, then commit with
+  `PATH="$PWD/target/release:$PATH"`.
+- **iOS "system shell probably crashed"** is the simulator: `simctl shutdown`,
+  `boot`, `bootstatus -b`, then `test-without-building` -- 22/22.
+
 ## Speed: `tri card`
 
 ```bash
@@ -166,6 +184,7 @@ sheet shows them as "via another agent".
 
 ```bash
 tri card-check                # live, GETs only: thread, status door, merges
+tri card-drift --dry          # nightly drift verb, writes nothing with --dry
 tri card 5382                 # live: 0 task thread, 2 render still answers self
 tri shot card-chat 390 ru     # phone: the real sheet, doors answered by routes
 tri shot card-chat-empty 320 ru
