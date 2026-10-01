@@ -30,6 +30,7 @@ import SwiftUI
 /// баланса токенов, а нативного баланса нет — см. `Тема.Чат.золото`.
 struct AgentChatView: View {
   @State private var сообщения: [Реплика] = AgentChatView.загрузитьИсторию()
+  @Environment(\.tabReselects) private var tabReselects
   @State private var ввод = ""
   @State private var идёт = false
   /// What answering a card said, per turn: a refusal must be readable.
@@ -325,6 +326,11 @@ struct AgentChatView: View {
         }
         .onChange(of: сообщения.count) {
           withAnimation { proxy.scrollTo(сообщения.last?.id, anchor: .bottom) }
+        }
+        // A repeat tap on the tab goes to the LATEST reply, not the top: in a
+        // conversation (Telegram, iMessage) "home" is the newest message.
+        .onChange(of: tabReselects) {
+          withAnimation { proxy.scrollTo(сообщения.last?.id, anchor: .bottom) }  // cyrillic-ok: existing state
         }
       }
 

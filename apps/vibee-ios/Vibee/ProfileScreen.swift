@@ -195,7 +195,8 @@ struct ProfileScreen: View {
         // and the agents are readable without an account.
         WebSectionsList(username: профиль?.username)  // cyrillic-ok: existing state
       }
-      .padding(Тема.Отступ.md)
+      .padding(Тема.Отступ.md)  // cyrillic-ok: existing theme token
+      .scrollsToTopOnReselect()
     }
     // #050505, а не #000000 общей темы: Profile.css:1114 и :1122.
     .background(Тема.Профиль.фон)

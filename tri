@@ -316,7 +316,7 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
-  tri iphone [check|build|sim]
+  tri iphone [check|build|sim|off]
         The Vibee app on the REAL phone: build, install, launch -- one command.
         `sim` does the same on the simulator, with a deadline on install.
         Asks devicectl first, so a locked or unplugged phone is named as such
@@ -1368,11 +1368,24 @@ print(n)' 2>/dev/null)
 #   tri iphone check    is the phone reachable right now (exit 0 = yes)
 #   tri iphone build    compile for the phone only (no install)
 #   tri iphone sim      build, install, launch on the SIMULATOR (VIBEE_SIM=udid,
-#                       default: the booted one). `simctl install` once hung for
+#                       default: the booted one, else boots the first iPhone
+#                       simulator). `simctl install` once hung for
 #                       11 min and `launch` for 2: the simulator (~10 GB) had
 #                       pushed swap to 5 of 6 GB. Both now have deadlines; an
 #                       install that misses it gets one simulator reboot.
+#   tri iphone off      shut every running simulator down (gives ~10 GB back)
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
+# The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
+# next build need it back. One word instead of remembering the udid.
+iphone_sim_off() {
+  local booted
+  booted=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p')
+  [ -n "$booted" ] || { good "no simulator is running"; return 0; }
+  local u
+  for u in $booted; do xcrun simctl shutdown "$u" && good "shut down $u"; done
+  echo "  …    swap now: $(sysctl -n vm.swapusage | sed -E 's/.*(used = [^ ]+ +free = [^ ]+).*/\1/')"
+}
+
 iphone_sim() {
   local ios="$1" sim="${VIBEE_SIM:-}"
   local dd="${TMPDIR:-/tmp}/tri-iphone-dd-sim" log="${TMPDIR:-/tmp}/tri-iphone-sim.log"
@@ -1380,7 +1393,17 @@ iphone_sim() {
   deadline=$(command -v timeout || command -v gtimeout) \
     || { bad "no timeout(1) -- brew install coreutils"; return 2; }
   [ -n "$sim" ] || sim=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p' | head -1)
-  [ -n "$sim" ] || { bad "no booted simulator -- boot one, or set VIBEE_SIM=udid"; return 1; }
+  # `xcodebuild test` shuts its simulator down when it finishes, so "nothing
+  # booted" is the normal state right after the tests -- boot one instead of
+  # failing. Same deadline idea as install: a starved machine boots for minutes.
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices available | sed -nE 's/^ +iPhone.*\(([0-9A-F-]{36})\) \(Shutdown\).*/\1/p' | head -1)
+  [ -n "$sim" ] || { bad "no iPhone simulator at all -- create one in Xcode, or set VIBEE_SIM=udid"; return 1; }
+  if ! xcrun simctl list devices booted | grep -q "$sim"; then
+    echo "  …    booting simulator $sim"
+    xcrun simctl boot "$sim" 2>/dev/null
+    "$deadline" 300 xcrun simctl bootstatus "$sim" -b >/dev/null 2>&1 \
+      || { bad "simulator $sim did not finish booting in 300 s"; return 1; }
+  fi
   local free_mb
   free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
   if [ "${free_mb:-0}" -lt 2048 ]; then
@@ -1437,6 +1460,7 @@ cmd_iphone() {
   local keyjson="$HOME/.appstoreconnect/fastlane-key.json"
 
   [ "$mode" = "sim" ] && { iphone_sim "$ios"; return; }
+  [ "$mode" = "off" ] && { iphone_sim_off; return; }
 
   if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
     bad "devicectl did not answer (Xcode command line tools?)"; return 2
