@@ -529,7 +529,7 @@ async function transcribeWithWhisper(
  * on 2026-09-22 so a video's soundtrack can be handed over without a trip
  * through the `/s3/` route, which would transcode the whole video first.
  */
-async function whisperBytes(
+export async function whisperBytes(
   w: WhisperConfig,
   bytes: Buffer,
   contentType: string | null,

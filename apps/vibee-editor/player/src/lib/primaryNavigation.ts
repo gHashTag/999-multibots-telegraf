@@ -35,6 +35,8 @@ export interface PrimaryNavigationItem {
   id: PrimaryTabId
   route: string
   labelKey: string
+  /** The Lucide glyph, named in the shared list beside the iOS SF Symbol. */
+  icon: string
   match: RegExp
 }
 
@@ -58,6 +60,7 @@ export const PRIMARY_NAV_ITEMS: readonly PrimaryNavigationItem[] =
       id: d.id as PrimaryTabId,
       route: d.route,
       labelKey: d.labelKey,
+      icon: d.icon.lucide,
       match: TAB_ROUTE_PATTERNS[d.id as PrimaryTabId],
     }))
 

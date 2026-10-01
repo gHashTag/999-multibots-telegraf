@@ -603,7 +603,27 @@ private struct SpecsPanel: View {
 
 // MARK: - The screen
 
+/**
+ The Hive tab is the web's own board, the same page app.t27.ai/hive shows --
+ owner, 2026-10-01: "make the comb map the original one". The board is a 3-D
+ scene that changes weekly; a Swift redraw of it was always a second, older
+ board. The native panels below stay as what the tab shows when the page
+ cannot load, so a dead network still leaves something to read.
+ */
 struct HiveScreen: View {
+  @ObservedObject private var host = HiveHost.shared
+
+  var body: some View {
+    // The map runs under the floating tab bar instead of stopping above an
+    // empty band -- owner, 2026-10-01: "remove the empty field under the tab".
+    WebPage(host: host, runsUnderTabBar: true) {
+      NativeHiveBoard()
+    }
+  }
+}
+
+/// The board drawn natively from the same API: the fallback for the web one.
+struct NativeHiveBoard: View {
   @State private var tab: HiveTab = .comb
 
   var body: some View {
