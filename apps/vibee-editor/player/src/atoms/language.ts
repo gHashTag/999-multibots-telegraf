@@ -18,6 +18,72 @@ export interface Translations {
 // ===============================
 
 const en: Translations = {
+  'hiveAccount.title': 'My keys and contribution',
+  'hiveAccount.short': 'Keys & XP',
+  'hiveAccount.back': 'Back to the game',
+  'hiveAccount.lead':
+    'Manage the API keys you lend to the Queen and see the work credited to you.',
+  'hiveAccount.refresh': 'Refresh',
+  'hiveAccount.loading': 'Loading your contribution…',
+  'hiveAccount.signin': 'Sign in',
+  'hiveAccount.retry': 'Try again',
+  'hiveAccount.working': 'Saving…',
+  'hiveAccount.progress': 'Checking keys: {done} of {total}',
+  'hiveAccount.saved': 'Key saved. Check it before using it.',
+  'hiveAccount.checked': 'Check finished. The result is shown beside the key.',
+  'hiveAccount.checkedAll':
+    'All checks finished. Review the result beside each key.',
+  'hiveAccount.updated': 'Key updated.',
+  'hiveAccount.attribution': 'Contribution owner',
+  'hiveAccount.attributionNote':
+    'Ownership is confirmed by the server. Keys and XP are shown only for your account.',
+  'hiveAccount.unlinked': 'GitHub is not linked to this account yet.',
+  'hiveAccount.xp': 'XP earned',
+  'hiveAccount.accepted': 'Accepted tasks',
+  'hiveAccount.specs': '.t27 specs',
+  'hiveAccount.hours': 'Bee hours',
+  'hiveAccount.scoring':
+    '{accepted} XP per accepted task, {spec} additional XP per .t27 spec, and {hour} XP per bee hour. These are game points, not a payment balance.',
+  'hiveAccount.keys': 'Your keys · {n}',
+  'hiveAccount.probeAll': 'Check all keys',
+  'hiveAccount.probe': 'Check API',
+  'hiveAccount.probeNote':
+    'A check makes a small model request and uses provider quota. A successful check proves this model answered at the stated time.',
+  'hiveAccount.empty':
+    'No keys are linked to your account yet. Add a key below to start contributing.',
+  'hiveAccount.never': 'Not checked yet',
+  'hiveAccount.fingerprintUnavailable': 'Fingerprint unavailable',
+  'hiveAccount.enabled': 'Enabled for the swarm',
+  'hiveAccount.disabled': 'Disabled for the swarm',
+  'hiveAccount.keyWork': 'Accepted tasks: {n}',
+  'hiveAccount.enable': 'Enable',
+  'hiveAccount.disable': 'Disable',
+  'hiveAccount.add': 'Add a key',
+  'hiveAccount.secretNote':
+    'The key goes to the server and is never shown again. Only its fingerprint is listed here. Use a key with a spending limit.',
+  'hiveAccount.provider': 'Provider',
+  'hiveAccount.label': 'Name (optional)',
+  'hiveAccount.secret': 'API key',
+  'hiveAccount.save': 'Save key',
+  'hiveAccount.health.ok': 'Model answered',
+  'hiveAccount.health.invalid': 'Key rejected',
+  'hiveAccount.health.rate_limited': 'Quota or rate limit',
+  'hiveAccount.health.unavailable': 'Provider unavailable',
+  'hiveAccount.health.not_checked': 'Not checked',
+  'hiveAccount.error.signin':
+    'Sign in to manage your own keys and contribution.',
+  'hiveAccount.error.attribution':
+    'This account is not linked to a contribution owner. Ask the operator to verify your account and GitHub identity.',
+  'hiveAccount.error.duplicate':
+    'This key is already registered. Refresh the list or use another key.',
+  'hiveAccount.error.rate': 'Too many checks. Wait a moment and try again.',
+  'hiveAccount.error.setup':
+    'Key management is not connected on the server yet. The operator must configure the Queen connection and your verified owner mapping.',
+  'hiveAccount.error.input':
+    'The key could not be saved. Check the provider, key and name, then enter the key again.',
+  'hiveAccount.error.network':
+    'The service did not answer. Try again; after saving a key, refresh the list before adding it again.',
+
   // ── Remote browser ────────────────────────────────────────────────────────
   'nav.browser': 'Browser',
   'browser.title': 'My browser',
@@ -2759,6 +2825,73 @@ types:
 }
 
 const ru: Translations = {
+  'hiveAccount.title': 'Мои ключи и вклад',
+  'hiveAccount.short': 'Ключи и XP',
+  'hiveAccount.back': 'Вернуться в игру',
+  'hiveAccount.lead':
+    'Управляйте API-ключами, переданными Королеве, и смотрите, какая работа засчитана вам.',
+  'hiveAccount.refresh': 'Обновить',
+  'hiveAccount.loading': 'Загружаем ваш вклад…',
+  'hiveAccount.signin': 'Войти',
+  'hiveAccount.retry': 'Повторить',
+  'hiveAccount.working': 'Сохраняем…',
+  'hiveAccount.progress': 'Проверяем ключи: {done} из {total}',
+  'hiveAccount.saved': 'Ключ сохранён. Проверьте его перед использованием.',
+  'hiveAccount.checked': 'Проверка завершена. Результат указан рядом с ключом.',
+  'hiveAccount.checkedAll':
+    'Все проверки завершены. Посмотрите результат каждого ключа.',
+  'hiveAccount.updated': 'Ключ обновлён.',
+  'hiveAccount.attribution': 'Кому засчитывается вклад',
+  'hiveAccount.attributionNote':
+    'Владение подтверждает сервер. Здесь видны только ключи и XP вашего аккаунта.',
+  'hiveAccount.unlinked': 'GitHub ещё не привязан к этому аккаунту.',
+  'hiveAccount.xp': 'Заработано XP',
+  'hiveAccount.accepted': 'Принято задач',
+  'hiveAccount.specs': 'Спецификации .t27',
+  'hiveAccount.hours': 'Часы работы пчёл',
+  'hiveAccount.scoring':
+    '{accepted} XP за принятую задачу, ещё {spec} XP за спецификацию .t27 и {hour} XP за час работы пчёл. Это игровые очки, а не платёжный баланс.',
+  'hiveAccount.keys': 'Ваши ключи · {n}',
+  'hiveAccount.probeAll': 'Проверить все ключи',
+  'hiveAccount.probe': 'Проверить API',
+  'hiveAccount.probeNote':
+    'Проверка делает короткий запрос к модели и расходует квоту провайдера. Успех означает, что эта модель ответила в указанное время.',
+  'hiveAccount.empty':
+    'К вашему аккаунту пока не привязаны ключи. Добавьте ключ ниже, чтобы участвовать в работе роя.',
+  'hiveAccount.never': 'Проверки ещё не было',
+  'hiveAccount.fingerprintUnavailable': 'Отпечаток недоступен',
+  'hiveAccount.enabled': 'Включён для роя',
+  'hiveAccount.disabled': 'Отключён от роя',
+  'hiveAccount.keyWork': 'Принято задач: {n}',
+  'hiveAccount.enable': 'Включить',
+  'hiveAccount.disable': 'Отключить',
+  'hiveAccount.add': 'Добавить ключ',
+  'hiveAccount.secretNote':
+    'Ключ отправляется на сервер и больше не показывается. В списке остаётся только его отпечаток. Используйте ключ с лимитом расходов.',
+  'hiveAccount.provider': 'Провайдер',
+  'hiveAccount.label': 'Название (необязательно)',
+  'hiveAccount.secret': 'API-ключ',
+  'hiveAccount.save': 'Сохранить ключ',
+  'hiveAccount.health.ok': 'Модель ответила',
+  'hiveAccount.health.invalid': 'Ключ отклонён',
+  'hiveAccount.health.rate_limited': 'Лимит запросов или квоты',
+  'hiveAccount.health.unavailable': 'Провайдер недоступен',
+  'hiveAccount.health.not_checked': 'Не проверен',
+  'hiveAccount.error.signin':
+    'Войдите, чтобы управлять своими ключами и видеть свой вклад.',
+  'hiveAccount.error.attribution':
+    'Аккаунт пока не связан с владельцем вклада. Попросите оператора подтвердить привязку вашего аккаунта и GitHub.',
+  'hiveAccount.error.duplicate':
+    'Этот ключ уже зарегистрирован. Обновите список или используйте другой ключ.',
+  'hiveAccount.error.rate':
+    'Слишком много проверок. Немного подождите и повторите.',
+  'hiveAccount.error.setup':
+    'Управление ключами ещё не подключено на сервере. Оператору нужно настроить связь с Королевой и подтверждённую привязку владельца.',
+  'hiveAccount.error.input':
+    'Ключ не удалось сохранить. Проверьте провайдера, ключ и название, затем введите ключ заново.',
+  'hiveAccount.error.network':
+    'Сервис не ответил. Повторите запрос; после сохранения ключа сначала обновите список, прежде чем добавлять его ещё раз.',
+
   // ── Remote browser ────────────────────────────────────────────────────────
   'nav.browser': 'Браузер',
   'browser.title': 'Мой браузер',

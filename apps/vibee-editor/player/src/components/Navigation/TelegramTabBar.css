@@ -38,6 +38,35 @@
   scrollbar-width: none;
 }
 
+/* A contextual door into contribution settings, outside the game canvas. */
+.tma-tabbar--game {
+  display: flex;
+}
+.tma-tabbar--game .tma-tabbar__scroll {
+  flex: 1;
+  min-width: 0;
+}
+.tma-tabbar__account {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 0 0 78px;
+  min-height: 56px;
+  color: var(--vibee-text, #f4f4f6);
+  font-size: 10px;
+  text-decoration: none;
+  border-right: 1px solid var(--vibee-border, #32343a);
+}
+.tma-tabbar__account[aria-current='page'] {
+  color: var(--vibee-accent, #00ff88);
+}
+.tma-tabbar__account:focus-visible {
+  outline: 2px solid var(--vibee-accent, #00ff88);
+  outline-offset: -4px;
+}
+
 .tma-tabbar__scroll::-webkit-scrollbar {
   display: none;
 }

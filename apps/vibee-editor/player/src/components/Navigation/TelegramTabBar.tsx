@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
+import { KeyRound } from 'lucide-react'
 import { myProfileAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { revealInStrip } from '@/components/Profile/revealInStrip'
@@ -163,7 +164,23 @@ export function TelegramTabBar() {
       : undefined)
 
   return (
-    <nav ref={tabbarRef} className="tma-tabbar" aria-label="Primary">
+    <nav
+      ref={tabbarRef}
+      className={`tma-tabbar${location.pathname.startsWith('/game') ? ' tma-tabbar--game' : ''}`}
+      aria-label="Primary"
+    >
+      {location.pathname.startsWith('/game') && (
+        <Link
+          to="/game/account"
+          className="tma-tabbar__account"
+          aria-current={
+            location.pathname === '/game/account' ? 'page' : undefined
+          }
+        >
+          <KeyRound size={20} aria-hidden="true" />
+          <span>{t('hiveAccount.short')}</span>
+        </Link>
+      )}
       <div
         ref={scrollRef}
         className={`tma-tabbar__scroll${edges.start ? ' has-start' : ''}${edges.end ? ' has-end' : ''}`}
