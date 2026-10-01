@@ -78,6 +78,10 @@ Other guarantees, each pinned by a test in `session.test.ts`:
 | speak one sentence            | 1209 ms                     | 2115 ms                     |
 | hear a 4 s phrase, from here  | median 3649 [3335..7910] x5 | median 3371 [2819..5499] x5 |
 | whisper alone, inside its pod | median ~2.3 s [1.8..2.8]    |                             |
+| hear, after #3248, x5         | median 2605 [2134..3453]    | median 2616 [2176..4305]    |
+| -- of which upload            | 232 ms                      | 20 ms                       |
+| -- of which whisper           | 1819 ms                     | 2067 ms                     |
+| -- of which the road          | 554 ms                      | 529 ms                      |
 
 What the pod measurements showed (cycle 2, inside the whisper pod):
 
@@ -90,6 +94,11 @@ What the pod measurements showed (cycle 2, inside the whisper pod):
   (one run 7.9 s). `Server-Timing` now says which leg each run lost.
 - The next real gain is a model that does not pad to 30 s: GigaAM (Russian
   CTC) as its own service. 24 threads would buy ~10% and steal CPU from TTS.
+
+Server-Timing settles it: whisper is ~70% of the wait, the road ~0.55 s,
+upload 0.2 s. The drop from 3649 to 2605 ms between the two rows is NOT a
+fix -- #3248 did not touch hearing; it is the same night-time variance the
+max column shows. Faster hearing means a faster model, nothing else.
 
 **One sample lies.** Cycle 1 recorded "ru 4.6 s" from a single run and blamed
 whisper; the pod says whisper is half of that. Medians of >= 3 runs only, and
