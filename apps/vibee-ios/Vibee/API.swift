@@ -1156,3 +1156,12 @@ extension API {
     return TokenVerify(credited: body["зачислено_токенов"] as? Int, balance: balance)
   }
 }
+
+extension API.Template {
+  /// "@name", or nil when the author has no username. The web's FeedCard
+  /// shows no handle then; the app drew a bare "@" under the title.
+  var handle: String? {
+    let name = creatorUsername.trimmingCharacters(in: .whitespaces)
+    return name.isEmpty ? nil : "@" + name
+  }
+}

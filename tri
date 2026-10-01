@@ -316,8 +316,9 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
-  tri iphone [check|build]
+  tri iphone [check|build|sim]
         The Vibee app on the REAL phone: build, install, launch -- one command.
+        `sim` does the same on the simulator, with a deadline on install.
         Asks devicectl first, so a locked or unplugged phone is named as such
         instead of xcodebuild's "Unable to find a destination". `check` only
         answers whether the phone is reachable (exit 0); `build` compiles for
@@ -1365,7 +1366,67 @@ print(n)' 2>/dev/null)
 #   tri iphone          build, install, launch
 #   tri iphone check    is the phone reachable right now (exit 0 = yes)
 #   tri iphone build    compile for the phone only (no install)
+#   tri iphone sim      build, install, launch on the SIMULATOR (VIBEE_SIM=udid,
+#                       default: the booted one). `simctl install` once hung for
+#                       11 min and `launch` for 2: the simulator (~10 GB) had
+#                       pushed swap to 5 of 6 GB. Both now have deadlines; an
+#                       install that misses it gets one simulator reboot.
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
+iphone_sim() {
+  local ios="$1" sim="${VIBEE_SIM:-}"
+  local dd="${TMPDIR:-/tmp}/tri-iphone-dd-sim" log="${TMPDIR:-/tmp}/tri-iphone-sim.log"
+  local deadline
+  deadline=$(command -v timeout || command -v gtimeout) \
+    || { bad "no timeout(1) -- brew install coreutils"; return 2; }
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p' | head -1)
+  [ -n "$sim" ] || { bad "no booted simulator -- boot one, or set VIBEE_SIM=udid"; return 1; }
+  local free_mb
+  free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
+  if [ "${free_mb:-0}" -lt 2048 ]; then
+    bad "only ${free_mb} MB free, need 2048 -- see tri disk, or rm -rf $dd"; return 1
+  fi
+  # A booted iPhone simulator is ~140 processes and ~10 GB resident; on this
+  # 16 GB machine that pushed swap to 5 of 6 GB and install/launch hung with
+  # no error (2026-10-02). `memory_pressure` still said 38% free, so ask swap.
+  local swap_free
+  swap_free=$(sysctl -n vm.swapusage | sed -E 's/.*free = ([0-9]+)\..*/\1/')
+  [ "${swap_free:-9999}" -lt 1024 ] && warn "swap has ${swap_free} MB left -- the simulator will crawl; close what you can"
+  # Only the simctl process itself: wrappers (xcrun, a tool's launcher) carry
+  # the same command line and would count one stream twice. The simulator
+  # panel keeps a narrow orientation stream of its own; that one is cheap.
+  local stray
+  stray=$(pgrep -fl "bin/simctl spawn $sim log (stream|show)" | grep -v "interface orientation")
+  [ -n "$stray" ] && warn "log stream/show on $sim (each loads the simulator; kill yours):" \
+    && sed -E 's/.*(log (stream|show))/       \1/' <<<"$stray" | cut -c1-120
+  echo "  …    building for simulator $sim (log: $log)"
+  if ! ( cd "$ios" && xcodegen generate --quiet && xcodebuild -scheme Vibee \
+      -destination "id=$sim" -derivedDataPath "$dd" build -quiet ) >"$log" 2>&1; then
+    bad "build failed:"; grep -E "error:" "$log" | head -8 | sed 's/^/       /'
+    return 1
+  fi
+  good "built"
+  local app="$dd/Build/Products/Debug-iphonesimulator/Vibee.app"
+  if ! "$deadline" 240 xcrun simctl install "$sim" "$app" >>"$log" 2>&1; then
+    warn "install did not finish in 240 s -- rebooting the simulator once"
+    "$deadline" 90 xcrun simctl shutdown "$sim" >>"$log" 2>&1
+    "$deadline" 120 xcrun simctl boot "$sim" >>"$log" 2>&1
+    "$deadline" 120 xcrun simctl bootstatus "$sim" -b >>"$log" 2>&1
+    "$deadline" 240 xcrun simctl install "$sim" "$app" >>"$log" 2>&1 \
+      || { bad "install failed after a reboot too: tail $log"; return 1; }
+  fi
+  good "installed"
+  local rc
+  "$deadline" 120 xcrun simctl launch --terminate-running-process "$sim" ai.t27.vibee >>"$log" 2>&1
+  rc=$?
+  if [ "$rc" = 124 ]; then
+    bad "launch did not answer in 120 s -- the simulator is starved (swap? tri iphone sim warns), not the app"
+    return 1
+  elif [ "$rc" != 0 ]; then
+    bad "launch failed: tail $log"; return 1
+  fi
+  good "launched the fresh build on simulator $sim"
+}
+
 cmd_iphone() {
   local mode="${1:-all}" name="${VIBEE_DEVICE:-t27_dev}"
   local json="${TMPDIR:-/tmp}/tri-iphone-devices.json"
@@ -1373,6 +1434,8 @@ cmd_iphone() {
   local ios="$ROOT/apps/vibee-ios"
   local key="$HOME/.appstoreconnect/private_keys/AuthKey_R3JF4GL93F.p8"
   local keyjson="$HOME/.appstoreconnect/fastlane-key.json"
+
+  [ "$mode" = "sim" ] && { iphone_sim "$ios"; return; }
 
   if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
     bad "devicectl did not answer (Xcode command line tools?)"; return 2
