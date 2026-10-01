@@ -106,7 +106,10 @@ What the pod measurements showed (cycle 2, inside the whisper pod):
   CTC) as its own service. 24 threads would buy ~10% and steal CPU from TTS.
 
 After #3252 Russian waits 745 ms, and the ears are the SMALLEST leg: the
-road between the browser, render and the ears is now what to cut. English
+road between the browser, render and the ears is now what to cut -- and,
+before it, the player's own wait: `END_OF_TURN_MS = 850` of silence before the
+phrase is even sent, more than hearing and the road together. That makes #8
+(a model that knows the turn is over) the largest wait left. English
 did not change (whisper 2.1-2.8 s between runs is its spread, not a
 regression -- the whisper pod was idle at 475 threads during the run).
 
