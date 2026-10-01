@@ -499,9 +499,14 @@ const CREATOR_MONEY_BULLET = [
 const DM_CLIENT_BULLET = [
   '- ТЫ ОТВЕЧАЕШЬ В ЛИЧНОЙ ПЕРЕПИСКЕ ОТ ИМЕНИ ВЛАДЕЛЬЦА ЕГО КЛИЕНТУ. Продолжай',
   '  разговор по истории ниже: отвечай на то, что человек написал, помни, о чём',
-  '  говорили раньше, обращайся так, как он сам себя назвал. Клиенту ни тарифов,',
+  '  говорили раньше, обращайся так, как он сам себя назвал. За картинки, рилсы и озвучку клиенту ни тарифов,',
   '  ни подписок, ни клуба не предлагай — только токены за звёзды Telegram;',
-  '  пакеты: %%PACKS_LINE%%. НЕ ПРЕДЛАГАЙ ОПЛАТУ САМ: ни счёта, ни «оплатить», ни цены, пока человек не',
+  '  пакеты: %%PACKS_LINE%%. Спрашивает про другой продукт владельца (бот по ссылке,',
+  '  приложение, игра) — цены только из блока ПРОДУКТЫ ВЛАДЕЛЬЦА ниже; нет там такого',
+  '  продукта или блока — цифр не называй, скажи, что уточнишь у владельца.',
+  '  Человек пишет, что что-то сломалось или не работает — посочувствуй одной фразой,',
+  '  вызови report_defect и скажи, что передал владельцу и напишешь, когда починят.',
+  '  НЕ ПРЕДЛАГАЙ ОПЛАТУ САМ: ни счёта, ни «оплатить», ни цены, пока человек не',
   '  спросил — клиент должен захотеть сам. Счёт (tokens_invoice) — только когда он',
   '  сам сказал «хочу оплатить», «как купить», «пополнить» или спросил цену и',
   '  согласился; тогда одна ссылка одной строкой, сумма только из ответа',
@@ -656,7 +661,13 @@ export async function dmHistoryBlock(
  */
 export function clientTurnContext(
   ctx: ToolContext,
-  opts?: { client?: string; faceOf?: string; toolsOnly?: boolean }
+  opts?: {
+    client?: string
+    faceOf?: string
+    toolsOnly?: boolean
+    surface?: string
+    seller?: string
+  }
 ): ToolContext {
   const numeric = (v: unknown) => /^\d{5,15}$/.test(String(v ?? ''))
   let out = ctx
@@ -670,6 +681,14 @@ export function clientTurnContext(
   }
   if (opts?.toolsOnly === true && !out.sellerSweep)
     out = { ...out, sellerSweep: true }
+  // The business DM's owner, for report_defect. From the server-keyed
+  // seller_id only, and never the client himself.
+  if (
+    opts?.surface === 'business' &&
+    numeric(opts.seller) &&
+    String(opts.seller) !== String(ctx.telegramId)
+  )
+    out = { ...out, dmSeller: String(opts.seller) }
   return out
 }
 
@@ -1371,6 +1390,10 @@ function ownerSideSection(surface?: string): string {
     'Где мяч по всем делам сразу — CRM, почта, открытые PR и баги, по ' + // cyrillic-ok: prompt copy
     'клиентам, чей ход — ball_board; адрес, домен, репо или метку к ' + // cyrillic-ok: prompt copy
     'клиенту — ball_link. ' + // cyrillic-ok: prompt copy
+    /* client-defects.ts: a client's fault from the DM, filed by report_defect. */
+    'Поломки, о которых клиенты сказали в личке (их заводит report_defect в ' + // cyrillic-ok: prompt copy
+    'переписке с клиентом) — defects_open; починил — defect_close с номером ' + // cyrillic-ok: prompt copy
+    'и что сделано, и клиент узнает в своей переписке. ' + // cyrillic-ok: prompt copy
     'Аватарки агентов каталога из твоего фото (GPT Image 2.5) — ' + // cyrillic-ok: prompt copy
     'agent_avatars_make; с какими клиентами работал агент — agent_clients. ' + // cyrillic-ok: prompt copy
     'Verilog: lint, симуляция тестбенча, синтез — hdl_run (вывод цитируй). ' + // cyrillic-ok: prompt copy
@@ -2469,11 +2492,39 @@ async function* runAgentTurn(
       })
     : ''
 
+  /*
+   * The seller's other products and their live prices (product-catalog.ts).
+   * Only the seller's own: ownership is roles.ts's answer, never this file's.
+   */
+  const products =
+    opts?.surface === 'business'
+      ? await (async () => {
+          const { productsBlock } = await import('./product-catalog')
+          const { botsOwnedBy } = await import('./hive-tools')
+          return productsBlock(opts?.seller, { botsOwnedBy }).catch(() => '')
+        })()
+      : ''
+
+  // This client's own reported faults: open, or fixed and not yet told.
+  const defects =
+    opts?.surface === 'business' && ctx.dmSeller && ctx.pool
+      ? await (async () => {
+          const { defectsBlock } = await import('./client-defects')
+          return defectsBlock(
+            ctx.pool,
+            ctx.dmSeller!,
+            String(ctx.telegramId ?? '')
+          ).catch(() => '')
+        })()
+      : ''
+
   const dmContext =
     dmHistory +
     clientBrief +
     clientContext +
     personContext +
+    products +
+    defects +
     (opts?.supervisor ? supervisorBlock(opts.agentLog, opts.movesLine) : '')
 
   /*
