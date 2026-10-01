@@ -321,11 +321,14 @@ export const STORY_BILLED_SECONDS = SPEC.BILLED_SECONDS
  * read from the same prices the borrowed tools charge, so the figure moves
  * with them. An estimate only in the lip-sync seconds; the rest is exact.
  */
-export function storyPriceEstimate(): number {
+export function storyPriceEstimate(scenes = STORY_SCENES): number {
+  // The billed seconds are measured for the default three; another count
+  // speaks proportionally more or less, rounded up.
+  const seconds = Math.ceil((STORY_BILLED_SECONDS * scenes) / STORY_SCENES)
   return (
-    STORY_SCENES * (TOKEN_PRICES.image_edit ?? 0) +
-    STORY_SCENES * (TOKEN_PRICES.audio_generate ?? 0) +
-    STORY_BILLED_SECONDS * (TOKEN_PRICES.lipsync_generate ?? 0) +
+    scenes * (TOKEN_PRICES.image_edit ?? 0) +
+    scenes * (TOKEN_PRICES.audio_generate ?? 0) +
+    seconds * (TOKEN_PRICES.lipsync_generate ?? 0) +
     (TOKEN_PRICES.reel_render ?? 0)
   )
 }
@@ -346,25 +349,46 @@ export function storyPriceEstimateNotes(
 }
 
 /**
- * What the model is asked for: a title and three scenes, as JSON. An empty
+ * The scene count asked for, clamped to the spec's range; anything that is
+ * not a number is the default three.
+ */
+export function sceneCountOf(asked: unknown): number {
+  const n = Math.round(Number(asked))
+  if (
+    asked === undefined ||
+    asked === null ||
+    asked === '' ||
+    !Number.isFinite(n)
+  )
+    return STORY_SCENES
+  return Math.min(SPEC.SCENES_MAX, Math.max(SPEC.SCENES_MIN, n))
+}
+
+/**
+ * What the model is asked for: a title and `count` scenes, as JSON. An empty
  * topic means "pick one": the writer is told which ones she already has.
  */
 export function writerMessages(
   topic: { title: string; note: string },
   s: Pick<StorySettings, 'about' | 'cta' | 'name'>,
-  had: readonly string[] = []
+  had: readonly string[] = [],
+  count = STORY_SCENES
 ): Message[] {
+  const n = sceneCountOf(count)
   const pick = !topic.title.trim()
   return [
     {
       role: 'system',
       content:
-        'Ты пишешь короткий рилс-историю из 3 сцен для Instagram от первого лица героини (героя). ' +
-        'Верни ТОЛЬКО JSON: {"title": "...", "scenes": [{"setting": "...", "line": "..."}, ×3]}. ' +
+        `Ты пишешь короткий рилс-историю из ${n} ${n === 1 ? 'сцены' : 'сцен'} для Instagram от первого лица героини (героя). ` +
+        `Верни ТОЛЬКО JSON: {"title": "...", "scenes": [{"setting": "...", "line": "..."}, ×${n}]}. ` +
         'title — тема по-русски, до 60 знаков. ' +
         'setting — по-английски, одна НОВАЯ обстановка на сцену (фон не повторять), человек в кадре. ' +
         'line — по-русски, 2–4 секунды речи, от первого лица, простыми словами; названия и цифры словами. ' +
-        'Последняя реплика — мягкий призыв к действию.',
+        'Первая реплика — крючок за 1–2 секунды: вопрос, смелое обещание или неожиданный факт; без приветствий и «привет, меня зовут». ' +
+        'Одна мысль на весь рилс: проблема → поворот → результат, конкретные детали, а не общие слова. ' +
+        'В первой сцене лицо крупным планом. Надписей в кадре нет. ' +
+        'Последняя реплика — мягкий мостик к одному призыву к действию и перекликается с первой, чтобы рилс хотелось пересмотреть.',
     },
     {
       role: 'user',
@@ -385,7 +409,8 @@ export function writerMessages(
 
 /** The title and scenes out of the model's answer, or null. */
 export function parseStory(
-  text: string
+  text: string,
+  want = STORY_SCENES
 ): { title: string; scenes: StoryScene[] } | null {
   const obj = text.indexOf('{')
   const arr = text.indexOf('[')
@@ -399,7 +424,9 @@ export function parseStory(
     return null
   }
   const scenes = scenesOf(raw?.scenes)
-  if (typeof scenes === 'string' || scenes.length < 2) return null
+  // One scene is a story only when one was asked for.
+  if (typeof scenes === 'string' || scenes.length < Math.min(2, want))
+    return null
   return { title: String(raw?.title ?? '').trim(), scenes }
 }
 
@@ -436,7 +463,8 @@ const COLUMNS = `ALTER TABLE story_jobs
   ADD COLUMN IF NOT EXISTS card_at    timestamptz,
   ADD COLUMN IF NOT EXISTS still_tasks jsonb NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS payer      text,
-  ADD COLUMN IF NOT EXISTS end_card   jsonb`
+  ADD COLUMN IF NOT EXISTS end_card   jsonb,
+  ADD COLUMN IF NOT EXISTS scene_count integer`
 
 let tableReady: Promise<void> | null = null
 export function ensureStoryJobs(pool: Pool): Promise<void> {
@@ -576,6 +604,8 @@ export async function startStory(
     about?: string
     /** The seller's own script: the scenes are made as given, not written. */
     scenes?: StoryScene[]
+    /** How many scenes the writer makes (spec SCENES_MIN..MAX); a script sets its own. */
+    sceneCount?: number
     style?: string
     cta?: string
     /** The seller's palette for the end (spec v7): over her profile's, kept in the job. */
@@ -624,6 +654,7 @@ export async function startStory(
   // A script brought by the seller is checked here, before anything is spent.
   const given = who.scenes === undefined ? null : scenesOf(who.scenes)
   if (typeof given === 'string') return { started: false, why: given }
+  const count = given ? given.length : sceneCountOf(who.sceneCount)
   /*
    * HER VISUAL AT THE END, FROM THE SELLER (spec v7). A colour that is not
    * #hex is named back, and a palette whose call or button cannot be read
@@ -654,7 +685,7 @@ export async function startStory(
     const clone =
       voiceMode(s.hasVoice, deps.voiceDown?.() === true, !byClient) ===
       SPEC.VOICE_CLONE
-    const needed = slotsNeeded(given ? given.length : STORY_SCENES, 0, 0, clone)
+    const needed = slotsNeeded(given ? given.length : count, 0, 0, clone)
     const left = await deps.generationsLeft(payer).catch(() => needed)
     if (!dayCovers(left, needed)) {
       return { started: false, why: capWhy(left, needed) }
@@ -675,8 +706,8 @@ export async function startStory(
   const deliverTo = deliveryOf(byClient, text(who.deliverTo, 40))
   const r = await deps.pool.query(
     `INSERT INTO story_jobs (lead_id, seller_id, requester, bot, item_id, topic, about, runner,
-                             scenes, style, cta, deliver_to, caption, end_card)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+                             scenes, style, cta, deliver_to, caption, end_card, scene_count)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
     [
       lead,
       s.owner,
@@ -695,6 +726,7 @@ export async function startStory(
       deliverTo ? text(who.caption, SPEC.CAPTION_MAX) : null,
       // Only the seller's own card: her profile is read again at every run.
       sellerCard ? JSON.stringify(sellerCard) : null,
+      count,
     ]
   )
   const job = Number(r?.rows?.[0]?.id)
@@ -805,13 +837,15 @@ async function runHeld(
     const about = s.about || String(job.about ?? '')
     const text = await deps
       .write(
-        writerMessages({ title: topic, note: '' }, { ...s, about }, [
-          ...s.done,
-          ...had,
-        ])
+        writerMessages(
+          { title: topic, note: '' },
+          { ...s, about },
+          [...s.done, ...had],
+          sceneCountOf(job.scene_count)
+        )
       )
       .catch(() => '')
-    const story = parseStory(text)
+    const story = parseStory(text, sceneCountOf(job.scene_count))
     if (!story) return fail('не вышло написать сцены')
     scenes = story.scenes
     topic ||= story.title || 'история про моё дело'
@@ -1387,4 +1421,124 @@ export function startStorySweep(deps: StoryDeps): () => void {
   const tick = () => void sweepStoryJobs(deps).catch(() => undefined)
   tick()
   return beatWith(deps)(tick, STORY_SWEEP_MS)
+}
+
+/** How many topic ideas the panel offers at once. */
+export const STORY_IDEAS_MAX = 4
+
+/**
+ * Topics for her next reel, from what the seller and she agreed on (the
+ * correspondence) and her SOUL.md. One short model call; an empty list
+ * when there is nothing to read or the model is silent.
+ */
+export async function storyTopicIdeas(
+  pool: { query: (q: string, p: unknown[]) => Promise<{ rows: any[] }> },
+  write: (messages: Message[]) => Promise<string>,
+  seller: string,
+  lead: string,
+  s: Pick<StorySettings, 'about' | 'name'> | null
+): Promise<string[]> {
+  // A day's cache per seller and client: opening the card twice is not two
+  // model calls. A missing table is a miss, never an error.
+  await pool
+    .query(
+      `CREATE TABLE IF NOT EXISTS story_ideas (
+         seller_id text NOT NULL,
+         lead_id   text NOT NULL,
+         ideas     jsonb NOT NULL,
+         at        timestamptz NOT NULL DEFAULT now(),
+         PRIMARY KEY (seller_id, lead_id)
+       )`,
+      []
+    )
+    .catch(() => null)
+  const cached = await pool
+    .query(
+      `SELECT ideas FROM story_ideas WHERE seller_id = $1 AND lead_id = $2
+         AND at > now() - interval '${STORY_IDEAS_TTL_HOURS} hours'`,
+      [seller, lead]
+    )
+    .then(r => r.rows?.[0]?.ideas)
+    .catch(() => null)
+  if (Array.isArray(cached) && cached.length)
+    return parseIdeas(JSON.stringify(cached))
+  const fresh = await writeIdeas(pool, write, seller, lead, s)
+  if (fresh.length)
+    await pool
+      .query(
+        `INSERT INTO story_ideas (seller_id, lead_id, ideas) VALUES ($1, $2, $3)
+           ON CONFLICT (seller_id, lead_id) DO UPDATE SET ideas = $3, at = now()`,
+        [seller, lead, JSON.stringify(fresh)]
+      )
+      .catch(() => null)
+  return fresh
+}
+
+/** How long a client's topic ideas are kept before they are written again. */
+export const STORY_IDEAS_TTL_HOURS = 24
+
+async function writeIdeas(
+  pool: { query: (q: string, p: unknown[]) => Promise<{ rows: any[] }> },
+  write: (messages: Message[]) => Promise<string>,
+  seller: string,
+  lead: string,
+  s: Pick<StorySettings, 'about' | 'name'> | null
+): Promise<string[]> {
+  const soul = await pool
+    .query(`SELECT content FROM user_soul WHERE telegram_id = $1`, [lead])
+    .then(r => String(r.rows?.[0]?.content ?? '').slice(0, 2000))
+    .catch(() => '')
+  const talk = await pool
+    .query(
+      `SELECT "out", text FROM crm_messages WHERE owner_id = $1 AND lead_id = $2
+         ORDER BY at DESC LIMIT 20`,
+      [seller, lead]
+    )
+    .then(r =>
+      (r.rows ?? [])
+        .reverse()
+        .map(m => `${m.out ? 'Я' : 'Клиент'}: ${String(m.text).slice(0, 300)}`) // cyrillic-ok
+        .join('\n')
+    )
+    .catch(() => '')
+  if (!soul && !talk && !s?.about) return []
+  const text = await write([
+    {
+      role: 'system',
+      content:
+        `Предложи ${STORY_IDEAS_MAX} темы короткого рилса-истории от лица клиента о его деле. ` + // cyrillic-ok
+        'Опирайся на договорённости из переписки и на его SOUL. Каждая тема — до 60 символов, ' + // cyrillic-ok
+        'на языке переписки. Ответ — только JSON-массив строк.', // cyrillic-ok
+    },
+    {
+      role: 'user',
+      content:
+        `Клиент: ${s?.name || '—'}. Чем занимается: ${s?.about || '—'}.\n` + // cyrillic-ok
+        `SOUL:\n${soul || '—'}\n\nПереписка:\n${talk || '—'}`, // cyrillic-ok
+    },
+  ] as Message[]).catch(() => '')
+  return parseIdeas(text)
+}
+
+/** The model's JSON list, cleaned: short, distinct, at most STORY_IDEAS_MAX. */
+export function parseIdeas(text: string): string[] {
+  const m = /\[[\s\S]*\]/.exec(text || '')
+  if (!m) return []
+  let raw: unknown
+  try {
+    raw = JSON.parse(m[0])
+  } catch {
+    return []
+  }
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  for (const v of raw) {
+    const t = String(v ?? '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .slice(0, STORY_TOPIC_MAX)
+    if (t && !out.includes(t)) out.push(t)
+    if (out.length >= STORY_IDEAS_MAX) break
+  }
+  return out
 }

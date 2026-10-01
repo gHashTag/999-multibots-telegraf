@@ -217,7 +217,15 @@ export function StoryPalette({
               data-from={fieldSource('button', kept, card)}
             >
               <span>{t('crm.client.story.field.button')}</span>
-              <code>{card.button}</code>
+              <code
+                className="crm-client__palette-pill"
+                style={{
+                  background: card.accent ?? '#00ff88',
+                  color: card.bg ?? '#000000',
+                }}
+              >
+                {card.button}
+              </code>
             </li>
           ) : null}
         </ul>
