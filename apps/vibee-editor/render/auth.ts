@@ -29,6 +29,7 @@ import {
 import { countInitDataBot } from './src/auth/initdata-bot-counts'
 import type { IncomingMessage } from 'node:http'
 import { editorialAccess, type AgentScope } from './editorial-key-scope'
+import { ICS_PATH as MEETING_ICS_PATH } from './src/spec/meeting-reminders.gen'
 
 // Env читается ЛЕНИВО, а не на импорте. На импорте это делало модуль
 // непроверяемым (ESM поднимает import выше любого присваивания process.env в
@@ -367,6 +368,21 @@ const PUBLIC_GET_EXACT = new Set([
   '/api/agents/acceptance',
   // The catalogue agents' faces (agent-avatars.ts): shown on every rail.
   '/api/agents/avatars',
+  /*
+   * A meeting's calendar file (src/agent/meetings.ts). A phone calendar fetches
+   * it with no Telegram and no key, so behind the guard the link in every
+   * reminder card answered 401 (measured on the first deploy, 2026-10-01).
+   * The handler reveals nothing without the meeting's own ics token and
+   * answers a wrong token exactly like a missing one.
+   */
+  MEETING_ICS_PATH,
+  /*
+   * Which voices voice mode can speak with: model names, nobody's data. The
+   * player reads it with a bare fetch, so behind the guard it answered 401 on
+   * the first deploy (2026-10-01) and the voice picker never appeared.
+   * Hearing and speaking (/api/voice/transcribe, /speak) stay signed.
+   */
+  '/api/voice/status',
 ])
 
 const PUBLIC_PREFIXES = [
