@@ -496,11 +496,44 @@ private final class WeakHandler: NSObject, WKScriptMessageHandler {
 
 // MARK: - SwiftUI
 
-/// The host's web view, placed. The view is the host's, so it survives redraws.
+/**
+ The host's web view, placed. The view is the host's, so it survives redraws.
+
+ IN THE WINDOW ONLY WHILE ITS TAB IS SHOWN. The bar keeps every visited
+ screen alive in a ZStack, and a transparent web view is, to WebKit, a
+ visible one: the board's animation frames and timers kept running on
+ another tab and spent the battery. WebKit counts a page as hidden only when
+ its view has no window -- `isHidden` and opacity do not count -- so the view
+ is lifted out of a container while the tab is back and put back when it
+ comes forward. `TabView` did the same by taking the tab out of the window.
+ */
 struct WebHostView: UIViewRepresentable {
   let host: WebHost
-  func makeUIView(context: Context) -> WKWebView { host.webView }
-  func updateUIView(_ view: WKWebView, context: Context) {}
+  var shown = true
+
+  func makeUIView(context: Context) -> UIView {
+    let box = UIView()
+    box.backgroundColor = .clear
+    return box
+  }
+
+  func updateUIView(_ box: UIView, context: Context) {
+    Self.place(host.webView, in: box, shown: shown)
+  }
+
+  /// Put the page in its box while shown, lift it out while not. A page
+  /// that some OTHER box holds is left where it is when this one hides.
+  static func place(_ web: UIView, in box: UIView, shown: Bool) {
+    if shown {
+      guard web.superview !== box else { return }
+      web.removeFromSuperview()
+      web.frame = box.bounds
+      web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      box.addSubview(web)
+    } else if web.superview === box {
+      web.removeFromSuperview()
+    }
+  }
 }
 
 /**
@@ -510,15 +543,12 @@ struct WebHostView: UIViewRepresentable {
  */
 struct WebPage<Fallback: View>: View {
   @ObservedObject var host: WebHost
-  /// The page runs to the bottom edge, under the tab bar, and keeps
-  /// its own controls clear of it (the hive: its map is the background).
-  var runsUnderTabBar = false
+  @Environment(\.tabIsShown) private var tabIsShown
   @ViewBuilder var fallback: () -> Fallback
 
   var body: some View {
     ZStack {
-      WebHostView(host: host)
-        .ignoresSafeArea(.container, edges: runsUnderTabBar ? .bottom : [])
+      WebHostView(host: host, shown: tabIsShown)
         .opacity(host.phase == .ready ? 1 : 0)
       switch host.phase {
       case .starting, .loading:
