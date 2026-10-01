@@ -168,7 +168,7 @@ the PR merges. A merge alone ships the render, not the ears.
 | 3   | its own voice through the speaker interrupted it   | FIXED cycle 1 (onset + echo) |
 | 4   | stuck "speaking" on a suspended AudioContext       | FIXED cycle 1 (watchdog)     |
 | 5   | silence after the phrase looked like "not heard"   | FIXED cycle 1 (earcon)       |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)     | FIXED cycle 3 (GigaAM, #PR)  |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)     | FIXED cycle 3 (GigaAM, #3252)|
 | 7   | energy VAD: a fan or street noise counts as speech | OPEN -- Silero vad-web       |
 | 8   | turn end is a fixed pause; slow speakers get cut   | OPEN -- Smart Turn v3        |
 | 9   | nothing said while the agent thinks for long       | OPEN -- filler after ~3 s    |
