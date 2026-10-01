@@ -5415,7 +5415,7 @@ for lang, text in phrases.items():
         code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
         if code != 200 or len(body) <= 1000:
             break
-        audio[lang] = body
+        audio.setdefault(lang, []).append(body)
         times.append(ms)
         engines.add(last_timing.get('speak.desc', '?'))
         if 'speak' in last_timing:
@@ -5442,25 +5442,42 @@ for lang, text in phrases.items():
 # phrase then measured 2.3 s and 5.8 s back to back. So: RUNS samples, the
 # median is the verdict, and the server's own Server-Timing splits the wait
 # into upload (read), whisper (hear) and the road (everything else).
+#
+# The same goes for the VOICE: Piper and Kokoro add noise on purpose, so no
+# two clips of one phrase are alike, and cycle 6 called the round trip
+# WRONG because one clip in ~13 swallowed a syllable ("Пверка"). So every  # cyrillic-ok: what was heard
+# clip spoken above is heard in turn: all misheard is broken, some is noted.
 for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: the expected word
     if lang not in audio:
         continue
-    times, hears, reads, engines, heard, ok = [], [], [], set(), '', True
-    for _ in range(RUNS):
-        code, body, ms = call(f'/api/voice/transcribe?lang={lang}', audio[lang], 'audio/mpeg')
-        heard = json.loads(body).get('text', '') if code == 200 else body[:100].decode(errors='replace')
-        if not (code == 200 and probe in heard.lower()):
-            ok = False
-            break
+    clips = audio[lang]
+    times, hears, reads, engines, heard, missed = [], [], [], set(), '', []
+    for i in range(RUNS):
+        code, body, ms = call(f'/api/voice/transcribe?lang={lang}', clips[i % len(clips)], 'audio/mpeg')
+        text = json.loads(body).get('text', '') if code == 200 else body[:100].decode(errors='replace')
+        if not (code == 200 and probe in text.lower()):
+            missed.append(text)
+            if code != 200:
+                break
+            continue
+        heard = text
         times.append(ms)
         if 'hear' in last_timing:
             hears.append(last_timing['hear'])
             reads.append(last_timing.get('read', 0))
             engines.add(last_timing.get('hear.desc', 'whisper'))
-    if not ok:
-        print(f'  round trip {lang}: "{heard[:60]}" -- WRONG')
+    if not times:
+        print(f'  round trip {lang}: "{(missed or [""])[-1][:60]}" -- WRONG')
         mark(1)
         continue
+    if missed:
+        # A third or more of the clips misheard is the voice or the ears
+        # going bad, not one unlucky sample.
+        many = len(missed) * 3 >= len(missed) + len(times)
+        print(f'  round trip {lang}: {len(missed)} of {len(missed) + len(times)} clips misheard, '
+              f'e.g. "{missed[0][:50]}" -- {"CHECK the voice and the ears" if many else "one noisy sample, not a fault"}')
+        if many:
+            mark(2)
     med = int(statistics.median(times))
     # A four-second phrase heard in three seconds or more is the wait a
     # person sits through after every question.
