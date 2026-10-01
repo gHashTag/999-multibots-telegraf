@@ -10964,3 +10964,19 @@ digits" -- the server's code is eight; the label now names no length.
 UI text takes the real dash: an English `say` string written with the ASCII
 `--` of code comments shows two hyphens on screen next to the Russian "—"
 (seen live, iteration 5; the offline line of iteration 4 had it too).
+
+Iteration 6: the agent chat and the AI screen follow `say` too. Two traps:
+
+- **A confirm button must name the action.** The chat's confirm sheet said
+  "Send" under "Mark as read?" and "Forward?" -- one title switch, one
+  hard-coded button. `ОкноПодтверждения.labels(for:russian:)` returns title, <!-- cyrillic-ok: Swift type name -->
+  confirm and cancel together, and a test asserts no non-send action borrows
+  the send label in either language.
+- **A chip's label is not its value.** Niche/style chips send the Russian
+  name to the server; English shows the web's `labelEn`
+  (`packages/vibee-atoms/src/defaults.ts`) through `КаталогСценария.label`, <!-- cyrillic-ok: Swift type name -->
+  never by changing the value. A default argument does not survive a function
+  reference: pass `{ Catalog.label($0) }`, not `Catalog.label`.
+- **Open anomaly, not fixed:** iOS maps the "other" niche to server key
+  `general` and the casual style to `conversational`; the web sends `other` /
+  `casual`. Check what the server accepts before aligning either side.
