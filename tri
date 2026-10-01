@@ -399,7 +399,9 @@ CHECKS THAT EACH COST A CYCLE
         Russian and English by OUR engine, and each heard back by OUR whisper
         N times (default 3). The MEDIAN is the verdict -- one sample lied by
         2.5 s -- and the render's Server-Timing splits it into upload, whisper
-        and the road. Over 3 s to speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
+        and the road; the hearing leg is named by the engine that did it
+        (gigaam, whisper, or both when GigaAM fell back on some runs).
+        Over 3 s to speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
         (the render's AGENT_KEYS, first entry, up to ':'); without it only the
         public status is read and the exit code says NOT MEASURED (2).
 
@@ -408,6 +410,13 @@ CHECKS THAT EACH COST A CYCLE
         gates or pushes running IN THIS TREE, this branch's PR, and the newest
         player/render deploys. Exit 1 = work in flight, continue it; a FAILED
         deploy on main blocks every later merge of that service.
+
+  tri gigaam [deploy] | tri гигаам
+        The Russian ears of voice mode (deployment/gigaam, GigaAM v3, ~0.15 s
+        a phrase where whisper takes ~2 s). Without arguments: its newest
+        deploy and whether the render routes Russian to it. `deploy` uploads
+        deployment/gigaam from a CLEAN tree -- the service is not wired to
+        GitHub, so a merge alone does not ship it.
 
   tri pay [--invoice] | tri оплата
         Can a client pay RIGHT NOW, rail by rail.
@@ -5266,15 +5275,22 @@ RUNS = int(os.environ['V_RUNS'])
 
 last_timing = {}
 def server_timing(h):
-    # "read;dur=12, hear;dur=2100" -> {'read': 12, 'hear': 2100}
+    # 'read;dur=12, hear;dur=2100;desc="gigaam"'
+    #   -> {'read': 12, 'hear': 2100, 'hear.desc': 'gigaam'}
+    # Parameters are split on ';' -- reading "dur=" to the end of the entry
+    # dropped every timing the moment the render added a desc.
     out = {}
     for part in (h or '').split(','):
-        name, _, rest = part.strip().partition(';')
-        if rest.startswith('dur='):
-            try:
-                out[name] = int(float(rest[4:]))
-            except ValueError:
-                pass
+        name, *params = [p.strip() for p in part.split(';')]
+        for p in params:
+            k, _, v = p.partition('=')
+            if k == 'dur':
+                try:
+                    out[name] = int(float(v))
+                except ValueError:
+                    pass
+            elif k == 'desc':
+                out[name + '.desc'] = v.strip('"')
     return out
 
 def call(path, body=None, ctype='application/json', timeout=90):
@@ -5307,7 +5323,7 @@ if code != 200:
     print(f'  status: {why} -- the voice routes did not answer')
     sys.exit(3)
 st = json.loads(body)
-print(f"  status: hear={st.get('hear')} speak={st.get('speak')} "
+print(f"  status: hear={st.get('hear')} (ru via {st.get('hearRu', 'whisper')}) speak={st.get('speak')} "
       f"voices ru={len(st.get('voices', {}).get('ru', []))} en={len(st.get('voices', {}).get('en', []))}")
 if not (st.get('hear') and st.get('speak')):
     mark(1)
@@ -5346,7 +5362,7 @@ for lang, text in phrases.items():
 for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: the expected word
     if lang not in audio:
         continue
-    times, hears, reads, heard, ok = [], [], [], '', True
+    times, hears, reads, engines, heard, ok = [], [], [], set(), '', True
     for _ in range(RUNS):
         code, body, ms = call(f'/api/voice/transcribe?lang={lang}', audio[lang], 'audio/mpeg')
         heard = json.loads(body).get('text', '') if code == 200 else body[:100].decode(errors='replace')
@@ -5357,6 +5373,7 @@ for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: th
         if 'hear' in last_timing:
             hears.append(last_timing['hear'])
             reads.append(last_timing.get('read', 0))
+            engines.add(last_timing.get('hear.desc', 'whisper'))
     if not ok:
         print(f'  round trip {lang}: "{heard[:60]}" -- WRONG')
         mark(1)
@@ -5368,7 +5385,10 @@ for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: th
     split = ''
     if hears:
         h, r = int(statistics.median(hears)), int(statistics.median(reads))
-        split = f' = upload {r} + whisper {h} + road {max(0, med - h - r)}'
+        # Which ears heard it: "gigaam", "whisper", or both when GigaAM
+        # fell back on some runs -- that mix is itself the finding.
+        ears = '/'.join(sorted(engines)) or 'whisper'
+        split = f' = upload {r} + {ears} {h} + road {max(0, med - h - r)}'
     else:
         split = ' (no Server-Timing: render older than voice-loop-2)'
     print(f'  round trip {lang}: "{heard[:40]}" median {med} ms of {len(times)} '
@@ -5386,6 +5406,55 @@ PY
     *) bad 'the render did not answer' ;;
   esac
   return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri gigaam: the Russian ears of voice mode (deployment/gigaam).
+#
+# GigaAM is not wired to GitHub: it changes rarely and its image carries a
+# ~1 GB model, so it ships by `railway up` from a CLEAN tree -- a dirty one
+# would put code on the network that no PR has seen. Everything else about it
+# is in deployment/gigaam/server.py and the voice-mode skill.
+#
+#   tri gigaam            newest deploy + whether the render routes ru to it
+#   tri gigaam deploy     upload deployment/gigaam and build it
+# ─────────────────────────────────────────────────────────────────────────
+GIGAAM_SVC=1532ed17-3739-4ece-986a-2732288fdde0
+cmd_gigaam() {
+  local p=564d9ebd-7aa8-44fe-93ec-e0b03c87158d e=e4d200ad-b8a9-4edf-9b25-190a32613b32
+  case "${1:-status}" in
+    deploy)
+      if [ -n "$(git -C "$ROOT" status --porcelain -- deployment/gigaam)" ]; then
+        bad 'deployment/gigaam has uncommitted changes: commit them first'
+        return 2
+      fi
+      local sha
+      sha=$(git -C "$ROOT" rev-parse --short HEAD)
+      railway up "$ROOT/deployment/gigaam" --path-as-root -p "$p" -e "$e" \
+        -s "$GIGAAM_SVC" --detach --json --message "gigaam from $sha" 2>/dev/null
+      ;;
+    status)
+      timeout 30 railway deployment list -p "$p" -e "$e" -s "$GIGAAM_SVC" \
+        --limit 1 --json 2>/dev/null | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)[0]
+except Exception:
+    print("  gigaam: deploy state unknown (railway did not answer)"); sys.exit(2)
+print("  gigaam: %s %s" % (d["status"], (d.get("meta") or {}).get("deploymentMessage") or ""))
+sys.exit(0 if d["status"] == "SUCCESS" else 1)'
+      local rc=$?
+      curl -s -m 15 "$RENDER/api/voice/status" | python3 -c '
+import json, sys
+try:
+    via = json.load(sys.stdin).get("hearRu") or "whisper (render older than voice-loop-3)"
+except Exception:
+    via = "unknown (render did not answer)"
+print("  render hears ru via: " + via)'
+      return "$rc"
+      ;;
+    *) bad "tri gigaam [status|deploy], not '$1'"; return 2 ;;
+  esac
 }
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -5547,6 +5616,7 @@ case "$action" in
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
   voice|голос)         cmd_voice "$@" ;;
+  gigaam|гигаам)       cmd_gigaam "$@" ;;   # cyrillic-ok: alias, like its neighbours
   loop|виток)          cmd_loop ;;
   heal|исцели)         cmd_heal ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
