@@ -174,6 +174,12 @@ BR="${BR:-$CUR}"
 if [ "$CUR" != "$BR" ]; then
   stop "on '$CUR', the loop works on '$BR'"
 fi
+# A session that ended mid-batch (tick 13, 01.10.2026) left useScrollMemory.ts
+# holding a mutant: `finally` never ran. The journal in .git knows the exact
+# mutant, so put it back before calling the tree dirty -- otherwise the next
+# tick stops on, or worse commits, a file it never edited.
+HEALED=$(cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" --heal 2>&1) || stop "mutant journal: $HEALED"
+[ -n "$HEALED" ] && [ "$STOP" = 0 ] && warn "$HEALED"
 DIRTY=$(git -C "$ROOT" status --porcelain --untracked-files=no | wc -l | tr -d ' ')
 if [ "$DIRTY" != 0 ]; then
   stop "$DIRTY tracked file(s) uncommitted -- the last tick died mid-edit:"
