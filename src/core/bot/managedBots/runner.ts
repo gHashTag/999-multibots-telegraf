@@ -14,7 +14,8 @@
 
 import { Telegraf } from 'telegraf'
 import { logger } from '@/utils/logger'
-import type { ManagedBotRow } from './store'
+import { launchWithConflictRetry } from '@/core/bot/launchWithConflictRetry'
+import type { ManagedBotAccess, ManagedBotRow } from './store'
 
 /** What the runner needs from the outside, injectable for tests. */
 export interface RunnerDeps {
@@ -23,15 +24,20 @@ export interface RunnerDeps {
     clientId: string,
     text: string,
     fallback: () => Promise<string>,
-    seller: string
+    seller: string,
+    /** No media tools: the Manager Agent is a text model for the CRM. */
+    textOnly: boolean
   ) => Promise<string>
   /** Tell the owner something, through the manager bot they started. */
   tellOwner: (ownerId: number, text: string) => Promise<void>
+  /** Whether the bot is paid for, and whether its package makes media. */
+  access: (botId: number) => Promise<ManagedBotAccess>
 }
 
 export interface IncomingText {
   fromId: number
   fromName: string
+  fromUsername?: string
   language?: string
   text?: string
 }
@@ -44,14 +50,43 @@ export const COPY = {
     busy: 'Не получилось ответить прямо сейчас. Я передал ваше сообщение, вам ответят здесь.',
     ownerMissed: (bot: string, who: string, text: string) =>
       `@${bot}: агент не смог ответить клиенту ${who}. Сообщение: «${text.slice(0, 300)}»`,
+    paused:
+      'Сейчас ассистент не отвечает. Ваше сообщение передано владельцу, он свяжется с вами.',
+    ownerForward: (bot: string, who: string, text: string) =>
+      `@${bot} на паузе, клиент ${who} написал: «${text.slice(0, 300)}»`,
+    ownerPaused: (bot: string, renew: string) =>
+      `@${bot} не отвечает вашим клиентам: оплаченный срок закончился. Сообщения клиентов я пересылаю сюда. Продлить: ${renew}`,
   },
   en: {
     textOnly: 'For now I read text only. Please write it in words 🙏',
     busy: "I couldn't answer right now. Your message has been passed on, and you'll get a reply here.",
     ownerMissed: (bot: string, who: string, text: string) =>
       `@${bot}: the agent could not answer ${who}. Message: "${text.slice(0, 300)}"`,
+    paused:
+      'The assistant is not answering right now. Your message has been passed to the owner, who will get in touch.',
+    ownerForward: (bot: string, who: string, text: string) =>
+      `@${bot} is paused; your client ${who} wrote: "${text.slice(0, 300)}"`,
+    ownerPaused: (bot: string, renew: string) =>
+      `@${bot} is not answering your clients: the paid period is over. Their messages are forwarded here. Renew: ${renew}`,
   },
 } as const
+
+/**
+ * Where the owner of a paused bot pays to switch it back on: the package
+ * order in the manager bot (src/services/agentPackageOrder.ts reads the
+ * payload). A bot that makes media is a Twin Agent -- a bot of the buyer's
+ * own is where the catalogue puts it -- and a text bot is a Manager Agent.
+ */
+export const renewUrl = (manager: string, media: boolean): string =>
+  `https://t.me/${manager}?start=agentpkg_${media ? 'twin' : 'manager'}`
+
+const NOTICE_EVERY_MS = 24 * 60 * 60 * 1000
+const lastPausedNotice = new Map<number, number>()
+
+/** For tests: forget when each owner was last told their bot is paused. */
+export function clearPausedNotices(): void {
+  lastPausedNotice.clear()
+}
 
 /**
  * One incoming message to one managed bot, to the text that goes back.
@@ -59,16 +94,43 @@ export const COPY = {
  * A fallback that apologises and hands the message to the owner is the only
  * one allowed here: the owner's agent must never be replaced by a tool-less
  * model that could invent a price in their name.
+ *
+ * A bot whose paid period is over does not ask the agent at all -- every
+ * turn is a model call nobody pays for. Its client is not left in silence:
+ * the message goes to the owner, and the owner hears why at most once a day.
  */
 export async function replyToClient(
   deps: RunnerDeps,
-  bot: Pick<ManagedBotRow, 'botUsername' | 'ownerId'>,
-  msg: IncomingText
+  bot: Pick<ManagedBotRow, 'botId' | 'botUsername' | 'ownerId'> & {
+    manager: string
+  },
+  msg: IncomingText,
+  now = Date.now()
 ): Promise<string> {
   const copy = isRu(msg.language) ? COPY.ru : COPY.en
   const text = msg.text?.trim()
   if (!text) return copy.textOnly
-  const who = msg.fromName || String(msg.fromId)
+  const who =
+    [msg.fromName, msg.fromUsername ? `@${msg.fromUsername}` : '']
+      .filter(Boolean)
+      .join(' ') || String(msg.fromId)
+  const access = await deps.access(bot.botId)
+  if (!access.paid) {
+    await deps
+      .tellOwner(bot.ownerId, copy.ownerForward(bot.botUsername, who, text))
+      .catch(() => undefined)
+    const last = lastPausedNotice.get(bot.botId)
+    if (last === undefined || now - last >= NOTICE_EVERY_MS) {
+      lastPausedNotice.set(bot.botId, now)
+      await deps
+        .tellOwner(
+          bot.ownerId,
+          copy.ownerPaused(bot.botUsername, renewUrl(bot.manager, access.media))
+        )
+        .catch(() => undefined)
+    }
+    return copy.paused
+  }
   return deps.answer(
     String(msg.fromId),
     text,
@@ -78,7 +140,8 @@ export async function replyToClient(
         .catch(() => undefined)
       return copy.busy
     },
-    String(bot.ownerId)
+    String(bot.ownerId),
+    !access.media
   )
 }
 
@@ -107,7 +170,9 @@ export function stopManagedBots(reason = 'SIGTERM'): void {
 export async function launchManagedBot(
   manager: Telegraf<any>,
   row: ManagedBotRow,
-  deps: RunnerDeps
+  deps: RunnerDeps,
+  /** The manager's username, for the renewal link a paused bot sends. */
+  managerUsername: string
 ): Promise<void> {
   const token = String(
     await manager.telegram.callApi(
@@ -136,17 +201,27 @@ export async function launchManagedBot(
     const m = ctx.message as {
       text?: string
       caption?: string
-      from?: { id: number; first_name?: string; language_code?: string }
+      from?: {
+        id: number
+        first_name?: string
+        username?: string
+        language_code?: string
+      }
     }
     if (!m.from) return
     try {
       await ctx.sendChatAction('typing').catch(() => undefined)
-      const reply = await replyToClient(deps, row, {
-        fromId: m.from.id,
-        fromName: m.from.first_name ?? '',
-        language: m.from.language_code,
-        text: m.text ?? m.caption,
-      })
+      const reply = await replyToClient(
+        deps,
+        { ...row, manager: managerUsername },
+        {
+          fromId: m.from.id,
+          fromName: m.from.first_name ?? '',
+          fromUsername: m.from.username,
+          language: m.from.language_code,
+          text: m.text ?? m.caption,
+        }
+      )
       if (reply) await ctx.reply(reply)
     } catch (error) {
       logger.error('[managed-bots] a client message went unanswered', {
@@ -163,16 +238,18 @@ export async function launchManagedBot(
   })
 
   running.set(row.botId, bot)
-  // Not awaited: launch() resolves only when polling stops.
-  bot
-    .launch({ allowedUpdates: ['message'], dropPendingUpdates: false })
-    .catch(error => {
-      running.delete(row.botId)
-      logger.error('[managed-bots] polling stopped', {
-        bot: row.botUsername,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
+  // Not awaited: launch() resolves only when polling stops. A redeploy
+  // overlaps two instances polling the same token, so 409 is waited out as
+  // it is for the farm bots -- unless this instance was replaced meanwhile.
+  void launchWithConflictRetry(
+    bot,
+    row.botUsername,
+    ['message'],
+    8,
+    () => running.get(row.botId) === bot
+  ).then(polled => {
+    if (!polled && running.get(row.botId) === bot) running.delete(row.botId)
+  })
   logger.info('[managed-bots] answering', {
     bot: row.botUsername,
     owner: row.ownerId,
