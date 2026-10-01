@@ -2574,6 +2574,33 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     await ctx.reply(said).catch(() => undefined)
   })
 
+  /*
+   * A MEETING CARD, ANSWERED (spec: t27 specs/automation/meeting-reminders).
+   *
+   * The render sent the card; the press goes back to it as the PRESSER, and
+   * the render honours it only from the meeting's owner. The card keeps its
+   * join / directions / calendar rows and shows the outcome as a disabled
+   * button; when the render cannot be reached the buttons are stripped and
+   * the person is told so.
+   */
+  bot.action(
+    /^mtg:(ok|later|cancel|done|missed):([A-Za-z0-9_-]{16,})$/,
+    async ctx => {
+      await ctx.answerCbQuery().catch(() => undefined)
+      const [, action, token] = ctx.match as RegExpMatchArray
+      const { answerMeeting } = await import('@/services/meetingAnswer')
+      const r = await answerMeeting(String(ctx.from?.id ?? ''), action, token)
+      if (r.markup) {
+        await ctx
+          .editMessageReplyMarkup(r.markup as any)
+          .catch(() => stripButtons(ctx))
+      } else {
+        await stripButtons(ctx)
+      }
+      await ctx.reply(r.said).catch(() => undefined)
+    }
+  )
+
   bot.action(/^tgp:no:([^:]+):(.+)$/, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
     await stripButtons(ctx)
