@@ -4028,6 +4028,13 @@ export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
    */
   'botfather_main_app',
   /*
+   * The ball board's code-work snapshot REPLACES what the board shows for
+   * its repositories (ball-board.t27 SNAPSHOT_REPLACES). It is pushed from
+   * the owner's machine by `tri ball push`; a sentence in somebody's message
+   * must not be able to empty the board or fill it with work that is not.
+   */
+  'ball_work_push',
+  /*
    * `autopilot_set` DECIDES WHETHER MESSAGES LEAVE WITHOUT A PRESS.
    *
    * Added the morning after the switch shipped, by its author. The tool was an
