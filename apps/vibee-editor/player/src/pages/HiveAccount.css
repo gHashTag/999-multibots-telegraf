@@ -128,10 +128,9 @@
 }
 .hive-account__key {
   display: grid;
-  grid-template-columns: minmax(180px, 1.5fr) minmax(160px, 1fr) minmax(
-      90px,
-      0.6fr
-    ) auto;
+  grid-template-columns:
+    minmax(180px, 1.5fr) minmax(160px, 1fr) minmax(90px, 0.6fr)
+    auto;
   align-items: center;
   gap: 20px;
   padding: 20px 0;
