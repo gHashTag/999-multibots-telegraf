@@ -55,6 +55,26 @@ describe('VoiceSession.start', () => {
     expect(s.snapshot.phase).toBe('error')
     expect(s.snapshot.error).toBe('voice.error.mic')
   })
+
+  it('a mic blocked by permission says so, not "no access"', async () => {
+    vi.stubGlobal('AudioContext', FakeAudioContext)
+    const denied = Object.assign(new Error('x'), { name: 'NotAllowedError' })
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia: () => Promise.reject(denied) },
+    })
+    const s = new VoiceSession(deps())
+    await s.start()
+    expect(s.snapshot.error).toBe('voice.error.mic.denied')
+  })
+
+  it('a window with no microphone API is told to open a browser', async () => {
+    vi.stubGlobal('AudioContext', FakeAudioContext)
+    vi.stubGlobal('navigator', {})
+    const s = new VoiceSession(deps())
+    await s.start()
+    expect(s.snapshot.phase).toBe('error')
+    expect(s.snapshot.error).toBe('voice.error.mic.unsupported')
+  })
 })
 
 describe('isNoise', () => {
