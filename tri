@@ -394,11 +394,12 @@ CHECKS THAT EACH COST A CYCLE
         The server caps the window at 200 events, so the oldest day in the
         output is partial and its count means nothing on its own.
 
-  tri voice | tri голос
+  tri voice [--runs N] | tri голос
         The voice mode end to end: status, warm-up, a fixed phrase spoken in
-        Russian and English by OUR engine, and each heard back by OUR whisper.
-        No microphone needed. Times are printed so days compare; over 3 s to
-        speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
+        Russian and English by OUR engine, and each heard back by OUR whisper
+        N times (default 3). The MEDIAN is the verdict -- one sample lied by
+        2.5 s -- and the render's Server-Timing splits it into upload, whisper
+        and the road. Over 3 s to speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
         (the render's AGENT_KEYS, first entry, up to ':'); without it only the
         public status is read and the exit code says NOT MEASURED (2).
 
@@ -5229,12 +5230,28 @@ cmd_secrets() {
 # and still proves both ears and mouth are the ones a person gets.
 # ─────────────────────────────────────────────────────────────────────────
 cmd_voice() {
-  local key
+  local key runs=3
+  case "${1:-}" in --runs) runs="${2:-3}" ;; --runs=*) runs="${1#--runs=}" ;; esac
+  [[ "$runs" =~ ^[1-9][0-9]?$ ]] || { bad "--runs takes 1..99, not '$runs'"; return 2; }
   key=$(_mcp_key 2>/dev/null) || key=''
-  V_KEY="$key" V_BASE="$RENDER" python3 -u - <<'PY'
-import json, os, sys, time, urllib.error, urllib.request
+  V_KEY="$key" V_BASE="$RENDER" V_RUNS="$runs" python3 -u - <<'PY'
+import json, os, statistics, sys, time, urllib.error, urllib.request
 
 base, key = os.environ['V_BASE'], os.environ['V_KEY']
+RUNS = int(os.environ['V_RUNS'])
+
+last_timing = {}
+def server_timing(h):
+    # "read;dur=12, hear;dur=2100" -> {'read': 12, 'hear': 2100}
+    out = {}
+    for part in (h or '').split(','):
+        name, _, rest = part.strip().partition(';')
+        if rest.startswith('dur='):
+            try:
+                out[name] = int(float(rest[4:]))
+            except ValueError:
+                pass
+    return out
 
 def call(path, body=None, ctype='application/json', timeout=90):
     data = body if isinstance(body, (bytes, type(None))) else json.dumps(body).encode()
@@ -5243,9 +5260,12 @@ def call(path, body=None, ctype='application/json', timeout=90):
         req.add_header('Content-Type', ctype)
     if key:
         req.add_header('X-Agent-Key', key)
+    global last_timing
+    last_timing = {}
     t = time.monotonic()
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
+            last_timing = server_timing(r.headers.get('Server-Timing'))
             return r.status, r.read(), int((time.monotonic() - t) * 1000)
     except urllib.error.HTTPError as e:
         return e.code, e.read(), int((time.monotonic() - t) * 1000)
@@ -5295,18 +5315,42 @@ for lang, text in phrases.items():
         print(f'  speak {lang}: HTTP {code} {body[:100].decode(errors="replace")}')
         mark(1)
 
+# ONE sample lies. Cycle 1 reported "ru 4.6 s" from a single run; the same
+# phrase then measured 2.3 s and 5.8 s back to back. So: RUNS samples, the
+# median is the verdict, and the server's own Server-Timing splits the wait
+# into upload (read), whisper (hear) and the road (everything else).
 for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: the expected word
     if lang not in audio:
         continue
-    code, body, ms = call(f'/api/voice/transcribe?lang={lang}', audio[lang], 'audio/mpeg')
-    heard = json.loads(body).get('text', '') if code == 200 else body[:100].decode(errors='replace')
-    ok = code == 200 and probe in heard.lower()
-    # A four-second phrase heard in more than three seconds is the wait a
-    # person sits through after every question (first run: ru 4.6 s, en 2.1 s).
-    slow = ok and ms >= 3000
-    print(f'  round trip {lang}: "{heard[:60]}" in {ms} ms -- '
-          f'{"WRONG" if not ok else "SLOW (the person waits this after speaking)" if slow else "ok"}')
-    mark(1 if not ok else 2 if slow else 0)
+    times, hears, reads, heard, ok = [], [], [], '', True
+    for _ in range(RUNS):
+        code, body, ms = call(f'/api/voice/transcribe?lang={lang}', audio[lang], 'audio/mpeg')
+        heard = json.loads(body).get('text', '') if code == 200 else body[:100].decode(errors='replace')
+        if not (code == 200 and probe in heard.lower()):
+            ok = False
+            break
+        times.append(ms)
+        if 'hear' in last_timing:
+            hears.append(last_timing['hear'])
+            reads.append(last_timing.get('read', 0))
+    if not ok:
+        print(f'  round trip {lang}: "{heard[:60]}" -- WRONG')
+        mark(1)
+        continue
+    med = int(statistics.median(times))
+    # A four-second phrase heard in three seconds or more is the wait a
+    # person sits through after every question.
+    slow = med >= 3000
+    split = ''
+    if hears:
+        h, r = int(statistics.median(hears)), int(statistics.median(reads))
+        split = f' = upload {r} + whisper {h} + road {max(0, med - h - r)}'
+    else:
+        split = ' (no Server-Timing: render older than voice-loop-2)'
+    print(f'  round trip {lang}: "{heard[:40]}" median {med} ms of {len(times)} '
+          f'[{min(times)}..{max(times)}]{split} -- '
+          f'{"SLOW (the person waits this after speaking)" if slow else "ok"}')
+    mark(2 if slow else 0)
 
 sys.exit(worst)
 PY
@@ -5478,7 +5522,7 @@ case "$action" in
   iphone|айфон)        cmd_iphone "$@" ;;   # cyrillic-ok: alias, like its neighbours
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
-  voice|голос)         cmd_voice ;;
+  voice|голос)         cmd_voice "$@" ;;
   loop|виток)          cmd_loop ;;
   heal|исцели)         cmd_heal ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;

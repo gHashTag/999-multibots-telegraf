@@ -27,6 +27,9 @@ for ears, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 
 `tri voice` needs a person's key in `$AGENT_KEY` (render `AGENT_KEYS`, first
 entry, up to `:`). Without one it exits 2, NOT MEASURED -- not green.
+`tri voice --runs N` (default 3) hears each phrase N times and prints the
+**median** with `[min..max]`, split by the render's `Server-Timing` header
+into `upload + whisper + road`. SLOW (exit 2) when the median is >= 3 s.
 
 ## Map
 
@@ -67,16 +70,30 @@ Other guarantees, each pinned by a test in `session.test.ts`:
 - A short earcon (660 -> 990 Hz) when the phrase is taken, so silence while
   whisper works is not mistaken for "it did not hear me".
 
-## Measured numbers (tri voice, 2026-10-02)
+## Measured numbers (2026-10-02)
 
-| step                   | ru      | en      |
-| ---------------------- | ------- | ------- |
-| warm (already loaded)  | 483 ms  |         |
-| speak one sentence     | 1263 ms | 1814 ms |
-| hear a 4 s phrase back | 4646 ms | 2086 ms |
+| step                          | ru                          | en                          |
+| ----------------------------- | --------------------------- | --------------------------- |
+| warm (already loaded)         | 487 ms                      |                             |
+| speak one sentence            | 1209 ms                     | 2115 ms                     |
+| hear a 4 s phrase, from here  | median 3649 [3335..7910] x5 | median 3371 [2819..5499] x5 |
+| whisper alone, inside its pod | median ~2.3 s [1.8..2.8]    |                             |
 
-Russian transcription is the largest wait a person feels. Re-measure after any
-whisper model or CPU change and update this table.
+What the pod measurements showed (cycle 2, inside the whisper pod):
+
+- The turbo model's encoder over a padded 30 s window is the cost. Beam size
+  changes nothing; threads 8 -> 16 -> 24 give 3.1 -> 2.85 -> 2.45 s.
+- Naming the language (`language=ru`) halves it: 1.7-2.1 s vs ~4 s on
+  auto-detect. `hear()` already passes it.
+- So of the ~3.6 s a person waits, ~2.3 s is whisper and the rest is upload
+  and the road between the browser, render and whisper -- with a long tail
+  (one run 7.9 s). `Server-Timing` now says which leg each run lost.
+- The next real gain is a model that does not pad to 30 s: GigaAM (Russian
+  CTC) as its own service. 24 threads would buy ~10% and steal CPU from TTS.
+
+**One sample lies.** Cycle 1 recorded "ru 4.6 s" from a single run and blamed
+whisper; the pod says whisper is half of that. Medians of >= 3 runs only, and
+re-measure after any whisper model or CPU change.
 
 ## Competitors (researched 2026-10-02)
 
@@ -87,8 +104,10 @@ whisper model or CPU change and update this table.
   phrase after ~3 s of thinking.
 - Silero VAD in the browser: `@ricky0123/vad-web` (MIT/ISC, ~2 MB model).
   Pipecat Smart Turn v3: 8 MB ONNX end-of-turn model, CPU, knows Russian.
-- Latency trick everyone uses: send the first clause to TTS, not the first
-  sentence.
+- Latency trick everyone uses (LiveKit, Pipecat, Vapi): send the first
+  clause to TTS, not the first sentence. Ours since cycle 2: the first comma,
+  semicolon or colon after 24 chars, followed by a space, when both halves
+  stand alone (`firstClause` in `sentences.ts`). Only the first piece.
 
 ## Weak spots, with status
 
@@ -99,11 +118,11 @@ whisper model or CPU change and update this table.
 | 3   | its own voice through the speaker interrupted it   | FIXED cycle 1 (onset + echo) |
 | 4   | stuck "speaking" on a suspended AudioContext       | FIXED cycle 1 (watchdog)     |
 | 5   | silence after the phrase looked like "not heard"   | FIXED cycle 1 (earcon)       |
-| 6   | Russian transcription 4.6 s                        | OPEN -- model/CPU, measure   |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)     | OPEN -- GigaAM, see numbers  |
 | 7   | energy VAD: a fan or street noise counts as speech | OPEN -- Silero vad-web       |
 | 8   | turn end is a fixed pause; slow speakers get cut   | OPEN -- Smart Turn v3        |
 | 9   | nothing said while the agent thinks for long       | OPEN -- filler after ~3 s    |
-| 10  | first sound waits for a whole first sentence       | OPEN -- first-clause split   |
+| 10  | first sound waits for a whole first sentence       | FIXED cycle 2 (first clause) |
 | 11  | voice picker only for the app language             | OPEN                         |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
