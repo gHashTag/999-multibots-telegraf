@@ -304,9 +304,11 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
  * (a captcha, an empty field, a sign-in wall). The page leaving its share
  * address is the cheapest receipt the browser can give without reading a feed.
  */
+export const LEFT_THE_FORM = 'страница ушла с формы' // cyrillic-ok: told to the owner
+
 export function receiptOf(before: string, after: string): string {
   if (!before || !after) return 'не подтверждено: адрес не прочитан' // cyrillic-ok: told to the owner
   return before === after
     ? 'не подтверждено: страница не сменилась' // cyrillic-ok: told to the owner
-    : 'страница ушла с формы' // cyrillic-ok: told to the owner
+    : LEFT_THE_FORM
 }
