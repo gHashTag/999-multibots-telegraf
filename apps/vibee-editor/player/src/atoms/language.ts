@@ -1941,6 +1941,8 @@ const en: Translations = {
   'cardChat.status.retryAt':
     "GitHub's limit: pull requests not checked, again after {time}",
   'cardChat.status.more': '+{n} on GitHub',
+  'cardChat.status.moreAtLeast': 'at least {n} more on GitHub',
+  'cardChat.status.moreUnread': 'more history on GitHub',
   'cardChat.pr.open': 'open',
   'cardChat.pr.draft': 'draft',
   'cardChat.pr.merged': 'merged',
@@ -4556,6 +4558,8 @@ const ru: Translations = {
   'cardChat.status.retryAt':
     'Лимит GitHub — PR не проверены, снова после {time}',
   'cardChat.status.more': 'ещё {n} на GitHub',
+  'cardChat.status.moreAtLeast': 'ещё не меньше {n} на GitHub',
+  'cardChat.status.moreUnread': 'остальная история — на GitHub',
   'cardChat.pr.open': 'открыт',
   'cardChat.pr.draft': 'черновик',
   'cardChat.pr.merged': 'влит',

@@ -105,6 +105,15 @@ TRI_T27C=<t27c>` and add a `docs/now/<date>-<slug>.md` entry. A t27c with
   an unmeasured answer is never cached. The column is the Queen's verdict:
   there is no move button and the prompt (`KANBAN_LIMITS`) forbids promising
   one. Actions are agent cards, run only on the person's tap.
+- **GitHub's issue timeline runs OLDEST first** (v3). One page shows the
+  oldest PRs; the newest -- the ones that matter -- are on the LAST page.
+  Read page 1 and the `Link` rel="last" page (per_page=100); the middle is a
+  floor ("at least N more"), and a partial read never says "no PR".
+- **Checks in one read** (v3, CHECKS_ONE_READ):
+  `repos/<r>/commits/refs/pull/<n>/head/check-runs` -- not `pulls/<n>` for
+  the sha first. One open costs <= READS_PER_OPEN_MAX (4) of the 60/hour.
+  `tri shot` routes must match the same path, or the checks fall into the
+  403 stub and the shot is green with no dots -- look at the PNG.
 - **Render's binding test imports player modules by relative path**
   (`../../../player/src/lib/cardStatus`) -- so `cardStatus.ts` and
   `agentCards.ts` must keep relative imports only, no `@/`.

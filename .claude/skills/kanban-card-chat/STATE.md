@@ -24,6 +24,7 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 - [x] L2.1 Phone: `tri shot card-chat` / `card-chat-empty` (390/320, ru/en), four layout defects fixed + jsdom guards -- ac686c5bc on #3208
 - [x] L2.3 Red CI baseline -- PR https://github.com/gHashTag/999-multibots-telegraf/pull/3214 (secrets markers, brace-expansion/grpc in bun.lock, PR rules vs claude/ branches); claude-review needs the owner's new OAuth token
 - [x] L2.2 The card's status, PR and checks in the sheet; move / open-PR only on the person's tap -- spec v2 (t27 b8daa6b06 on t27#5389), `cardStatus.ts`, WorkStrip, agent cards in the sheet, `KANBAN_LIMITS` in the prompt; no move button (the column is the Queen's verdict, render has no GitHub token)
+- [x] L2.4 v2 checked against live GitHub, two defects found and fixed in spec v3 (t27 455740292 on t27#5389): the timeline is read at both ends (page 1 + last page, `Link` rel="last"), the middle is said as "at least N more"; checks by `commits/refs/pull/<n>/head/check-runs` -- one read, no `pulls/<n>` (CHECKS_ONE_READ); one open costs <= 4 of the 60 public reads/hour (READS_PER_OPEN_MAX)
 
 ## Weak spots (S0)
 
@@ -70,6 +71,15 @@ git-dir>)`). Fix: `resolve`, and the stray dir removed. A tool that writes
   wraps, the repo#n ellipsizes, card buttons get 44px in the card sheet only
   (the main chat's 40px is the same defect, left for its own change).
 
+- 2026-10-01 Live check of v2 on gHashTag/999-multibots-telegraf#999: 149
+  timeline events, 58 linked PRs. v2 read one page of 100 (oldest first), so
+  the strip showed the OLDEST PRs and said "+42 more" where 55 were hidden --
+  the newest work, the one the person asks about, was never in view. And one
+  open cost 1 + 2x2 = 5 reads (pulls/<n> for the sha, then check-runs): 12
+  opens an hour emptied the public allowance. Fix: spec v3 -- first and last
+  page at per_page=100, "at least" for the unread middle, a partial read
+  never says "no PR", checks by the PR's head ref in one read; <= 4 reads.
+
 ## PRs
 
 (append: repo#n, what, state)
@@ -90,3 +100,5 @@ git-dir>)`). Fix: `resolve`, and the stray dir removed. A tool that writes
    the sheet with no GitHub tab (open-card path, not the anchor catch).
 3. On a live card with a PR: the strip shows the PR chip and a checks dot;
    past 60 reads/hour it must say "limit, again after HH:MM", never "no PR".
+4. On an issue with > 200 timeline events (#999 of this repo has 149; find a
+   bigger one): the chip says "at least N more", and the newest PR is first.

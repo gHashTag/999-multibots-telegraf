@@ -428,15 +428,12 @@ const HARNESSES = {
           })),
         }),
       ],
+      // Spec v3 (CHECKS_ONE_READ): checks by the PR's head ref, no pulls/<n>.
       [
-        'https://api.github.com/repos/*/*/pulls/*',
-        req => ({ json: { head: { sha: req.url().split('/').pop() } } }),
-      ],
-      [
-        'https://api.github.com/repos/*/*/commits/*/check-runs**',
+        'https://api.github.com/repos/*/*/commits/refs/pull/*/head/check-runs**',
         req => ({
           json: {
-            check_runs: req.url().includes('/commits/3208/')
+            check_runs: req.url().includes('/refs/pull/3208/')
               ? [{ status: 'completed', conclusion: 'success' }]
               : [{ status: 'in_progress', conclusion: null }],
           },

@@ -34,7 +34,7 @@ module automation::kanban_card_chat {
     pub const KIND : str = "automation";
     pub const ID : str = "kanban-card-chat";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 2;
+    pub const VERSION : u8 = 3;
 
     // ---- The thread -----------------------------------------------------------------
     // One conversation per (person, task): "task:gHashTag/t27#3587". The person is
@@ -142,6 +142,19 @@ module automation::kanban_card_chat {
     pub const STATUS_PRS : u8 = 2;
     pub const UNMEASURED_IS_NOT_NONE : bool = true;
     pub const LIMIT_SAYS_WHEN : bool = true;
+    // v3, measured on a live issue (999-multibots-telegraf#999: 149 events, 58 PRs):
+    // one page of 100 said "+42" for 55 and, the timeline running oldest first, would
+    // hide the newest open PR on page two. Read the first page and the last; what lies
+    // between is said as "at least", never as a count.
+    pub const TIMELINE_PAGE : u8 = 100;
+    pub const TIMELINE_PAGES_MAX : u8 = 2;  // the first and the last
+    pub const MIDDLE_SAYS_AT_LEAST : bool = true;
+    // Check runs are read by the PR's head ref (refs/pull/<n>/head): one read, not a
+    // pulls/<n> read for the head sha and then another.
+    pub const CHECKS_ONE_READ : bool = true;
+    pub const PUBLIC_READS_HOUR : u8 = 60;  // GitHub's unauthenticated limit per address
+    pub const READS_PER_OPEN_MAX : u8 = 4;  // TIMELINE_PAGES_MAX + CHECKS_PRS_MAX
+    pub const OPENS_PER_HOUR_MIN : u8 = 15;  // uncached card opens before the limit
 
     // ---- What the agent may do with the card (v2) -----------------------------------
     // The agent proposes; the person decides. A proposal is a card in the conversation
@@ -226,6 +239,19 @@ module automation::kanban_card_chat {
             return PRS_SHOWN_MAX;
         }
         return found;
+    }
+
+    // Timeline pages read for an issue with `pages` pages in all.
+    fn pages_read(pages: u16) -> u16 {
+        if pages > TIMELINE_PAGES_MAX {
+            return TIMELINE_PAGES_MAX;
+        }
+        return pages;
+    }
+
+    // Whether "more on GitHub" is a lower bound: some pages were not read.
+    fn more_is_lower_bound(pages: u16) -> bool {
+        return pages > TIMELINE_PAGES_MAX;
     }
 
     // An action the agent proposed runs only when the person tapped approve.
@@ -333,6 +359,23 @@ module automation::kanban_card_chat {
         assert(STATUS_CACHE_S >= BOARD_CACHE_S);
     }
 
+    test "a long timeline is read at both ends, the middle said as at least" {
+        assert(TIMELINE_PAGE == 100);
+        assert(pages_read(1) == 1);
+        assert(pages_read(2) == 2);
+        assert(pages_read(9) == TIMELINE_PAGES_MAX);
+        assert(!more_is_lower_bound(1));
+        assert(!more_is_lower_bound(2));
+        assert(more_is_lower_bound(3));
+        assert(MIDDLE_SAYS_AT_LEAST);
+    }
+
+    test "one open of a card costs at most four public reads" {
+        assert(CHECKS_ONE_READ);
+        assert(READS_PER_OPEN_MAX == TIMELINE_PAGES_MAX + CHECKS_PRS_MAX);
+        assert(PUBLIC_READS_HOUR / READS_PER_OPEN_MAX >= OPENS_PER_HOUR_MIN);
+    }
+
     test "the agent proposes, the person's tap decides" {
         assert(CARDS_ON_KANBAN);
         assert(ACTIONS_ON_TAP_ONLY);
@@ -345,7 +388,7 @@ module automation::kanban_card_chat {
 
     test "the card chat is designed, not yet live" {
         assert(!RUN_LIVE);
-        assert(VERSION == 2);
+        assert(VERSION == 3);
         assert(HISTORY_LIMIT == 100);
     }
 }

@@ -34,7 +34,13 @@ export type CardStatus =
       retryAt: number | null
     }
   | { kind: 'none' }
-  | { kind: 'prs'; prs: LinkedPr[]; more: number }
+  | {
+      kind: 'prs'
+      prs: LinkedPr[]
+      more: number
+      /** Pages between the first and the last were not read: `more` is a floor. */
+      partial: boolean
+    }
 
 /** The worst state among a PR's checks; one failure outranks the rest. */
 export function checksRank(
@@ -58,6 +64,29 @@ export function statusState(measured: boolean, found: number): number {
 /** How many pull requests the strip lists; the rest are behind GitHub. */
 export function prsShown(found: number): number {
   return Math.min(found, SPEC.PRS_SHOWN_MAX)
+}
+
+/** Timeline pages read for an issue with `pages` pages in all. */
+export function pagesRead(pages: number): number {
+  return Math.min(pages, SPEC.TIMELINE_PAGES_MAX)
+}
+
+/** Whether "more on GitHub" is a lower bound: some pages were not read. */
+export function moreIsLowerBound(pages: number): boolean {
+  return pages > SPEC.TIMELINE_PAGES_MAX
+}
+
+/**
+ * The last page of a paginated GitHub answer, from its Link header (which
+ * GitHub exposes to browsers): its URL and number, or null on a single page.
+ */
+export function lastPage(
+  link: string | null
+): { url: string; page: number } | null {
+  const m = /<([^>]+)>;\s*rel="last"/.exec(link ?? '')
+  if (!m) return null
+  const page = Number(new URL(m[1]).searchParams.get('page'))
+  return Number.isInteger(page) && page > 1 ? { url: m[1], page } : null
 }
 
 const RANK_TO_STATE: Record<number, CheckState> = {
@@ -144,16 +173,22 @@ class Unmeasured extends Error {
   }
 }
 
-async function read(url: string, fetchImpl: typeof fetch): Promise<unknown> {
+async function readPage(
+  url: string,
+  fetchImpl: typeof fetch
+): Promise<{ body: unknown; link: string | null }> {
   const r = await fetchImpl(url, {
     headers: { Accept: 'application/vnd.github+json' },
   })
-  if (r.ok) return r.json()
+  if (r.ok) return { body: await r.json(), link: r.headers.get('link') }
   const reset = Number(r.headers.get('x-ratelimit-reset'))
   throw new Unmeasured(
     Number.isFinite(reset) && reset > 0 ? reset * 1000 : null
   )
 }
+
+const read = async (url: string, fetchImpl: typeof fetch) =>
+  (await readPage(url, fetchImpl)).body
 
 /**
  * The card's status: from the session cache when it is younger than
@@ -188,14 +223,22 @@ export async function readCardStatus(
     // A broken cache entry is a miss.
   }
 
+  // The timeline runs oldest first: the newest PRs are on the LAST page.
   let prs: LinkedPr[]
+  let partial = false
   try {
-    prs = linkedPrs(
-      await read(
-        `${API}/repos/${repo}/issues/${number}/timeline?per_page=100`,
-        fetchImpl
-      )
+    const first = await readPage(
+      `${API}/repos/${repo}/issues/${number}/timeline?per_page=${SPEC.TIMELINE_PAGE}`,
+      fetchImpl
     )
+    const last = lastPage(first.link)
+    const events = Array.isArray(first.body) ? [...first.body] : []
+    if (last && pagesRead(last.page) > 1) {
+      const tail = await read(last.url, fetchImpl)
+      if (Array.isArray(tail)) events.push(...tail)
+      partial = moreIsLowerBound(last.page)
+    }
+    prs = linkedPrs(events)
   } catch (e) {
     return {
       kind: 'unmeasured',
@@ -210,15 +253,10 @@ export async function readCardStatus(
   await Promise.all(
     open.map(async p => {
       try {
-        const pull = (await read(
-          `${API}/repos/${p.repo}/pulls/${p.number}`,
-          fetchImpl
-        )) as { head?: { sha?: string } }
-        const sha = pull?.head?.sha
-        if (!sha) return
+        // By the PR's head ref: one read (CHECKS_ONE_READ), no pulls/<n>.
         p.checks = rollupChecks(
           await read(
-            `${API}/repos/${p.repo}/commits/${sha}/check-runs?per_page=100`,
+            `${API}/repos/${p.repo}/commits/refs/pull/${p.number}/head/check-runs?per_page=100`,
             fetchImpl
           )
         )
@@ -229,9 +267,15 @@ export async function readCardStatus(
   )
 
   const status: CardStatus =
-    statusState(true, prs.length) === SPEC.STATUS_NO_PR
+    // Unread pages may hold a PR: "none" only when the whole timeline was read.
+    statusState(true, prs.length) === SPEC.STATUS_NO_PR && !partial
       ? { kind: 'none' }
-      : { kind: 'prs', prs: shown, more: prs.length - shown.length }
+      : {
+          kind: 'prs',
+          prs: shown,
+          more: prs.length - shown.length,
+          partial,
+        }
   const complete = open.every(p => p.checks !== undefined)
   if (complete)
     try {

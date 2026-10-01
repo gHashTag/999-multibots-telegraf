@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "kanban-card-chat" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 2 satisfies number;
+export const VERSION = 3 satisfies number;
 export const THREAD_PREFIX = "task:" satisfies string;
 export const NUMBER_SEP = "#" satisfies string;
 export const TASK_OWNER = "gHashTag" satisfies string;
@@ -64,6 +64,13 @@ export const STATUS_NO_PR = 1 satisfies number;
 export const STATUS_PRS = 2 satisfies number;
 export const UNMEASURED_IS_NOT_NONE = true satisfies boolean;
 export const LIMIT_SAYS_WHEN = true satisfies boolean;
+export const TIMELINE_PAGE = 100 satisfies number;
+export const TIMELINE_PAGES_MAX = 2 satisfies number;
+export const MIDDLE_SAYS_AT_LEAST = true satisfies boolean;
+export const CHECKS_ONE_READ = true satisfies boolean;
+export const PUBLIC_READS_HOUR = 60 satisfies number;
+export const READS_PER_OPEN_MAX = 4 satisfies number;
+export const OPENS_PER_HOUR_MIN = 15 satisfies number;
 export const CARDS_ON_KANBAN = true satisfies boolean;
 export const ACTIONS_ON_TAP_ONLY = true satisfies boolean;
 export const MOVE_OFFERED = false satisfies boolean;
@@ -78,7 +85,11 @@ export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn checks_rank was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn status_state was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn prs_shown was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn pages_read was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn more_is_lower_bound was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn action_runs was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -96,7 +107,7 @@ export const RUN_LIVE = false satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "THREAD_PREFIX", "NUMBER_SEP", "TASK_OWNER", "REPO_FROM_BOARD", "BOARD_CACHE_S", "REPO_NAME_MAX", "NUMBER_MAX", "PER_PERSON", "SPLITS", "WITH_AGENT", "WITH_CLIENT", "WITH_ROOM", "WITH_CONVERSATION", "FIELD", "CHAT_DOOR", "HISTORY_DOOR", "SURFACE", "HISTORY_LIMIT", "NOTE_SOURCE", "NOTE_MAX", "NOTE_FENCED", "NOTE_WITHOUT_BOARD", "UNTITLED_SAYS_SO", "MSG_V", "MSG_TYPE", "MSG_KIND", "SAME_ORIGIN_ONLY", "TITLE_MAX", "CARD_PARAM", "REPO_PARAM", "DETENT_PEEK", "DETENT_HALF", "DETENT_FULL", "OPEN_DETENT", "DETENT_PEEK_RANK", "DETENT_HALF_RANK", "DETENT_FULL_RANK", "OPEN_DETENT_RANK", "COMPOSER_PINNED", "GITHUB_IS_SECONDARY", "TOUCH_TARGET_PX", "A2A_META_KEY", "A2A_CONTEXT_IS_THREAD", "A2A_HISTORY_TURNS", "A2A_PERSISTS", "STATUS_CACHE_S", "PRS_SHOWN_MAX", "CHECKS_PRS_MAX", "CHECK_PASS_RANK", "CHECK_PENDING_RANK", "CHECK_FAIL_RANK", "CHECK_NONE_RANK", "STATUS_UNMEASURED", "STATUS_NO_PR", "STATUS_PRS", "UNMEASURED_IS_NOT_NONE", "LIMIT_SAYS_WHEN", "CARDS_ON_KANBAN", "ACTIONS_ON_TAP_ONLY", "MOVE_OFFERED", "AGENT_OPENS_PR", "RUN_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "THREAD_PREFIX", "NUMBER_SEP", "TASK_OWNER", "REPO_FROM_BOARD", "BOARD_CACHE_S", "REPO_NAME_MAX", "NUMBER_MAX", "PER_PERSON", "SPLITS", "WITH_AGENT", "WITH_CLIENT", "WITH_ROOM", "WITH_CONVERSATION", "FIELD", "CHAT_DOOR", "HISTORY_DOOR", "SURFACE", "HISTORY_LIMIT", "NOTE_SOURCE", "NOTE_MAX", "NOTE_FENCED", "NOTE_WITHOUT_BOARD", "UNTITLED_SAYS_SO", "MSG_V", "MSG_TYPE", "MSG_KIND", "SAME_ORIGIN_ONLY", "TITLE_MAX", "CARD_PARAM", "REPO_PARAM", "DETENT_PEEK", "DETENT_HALF", "DETENT_FULL", "OPEN_DETENT", "DETENT_PEEK_RANK", "DETENT_HALF_RANK", "DETENT_FULL_RANK", "OPEN_DETENT_RANK", "COMPOSER_PINNED", "GITHUB_IS_SECONDARY", "TOUCH_TARGET_PX", "A2A_META_KEY", "A2A_CONTEXT_IS_THREAD", "A2A_HISTORY_TURNS", "A2A_PERSISTS", "STATUS_CACHE_S", "PRS_SHOWN_MAX", "CHECKS_PRS_MAX", "CHECK_PASS_RANK", "CHECK_PENDING_RANK", "CHECK_FAIL_RANK", "CHECK_NONE_RANK", "STATUS_UNMEASURED", "STATUS_NO_PR", "STATUS_PRS", "UNMEASURED_IS_NOT_NONE", "LIMIT_SAYS_WHEN", "TIMELINE_PAGE", "TIMELINE_PAGES_MAX", "MIDDLE_SAYS_AT_LEAST", "CHECKS_ONE_READ", "PUBLIC_READS_HOUR", "READS_PER_OPEN_MAX", "OPENS_PER_HOUR_MIN", "CARDS_ON_KANBAN", "ACTIONS_ON_TAP_ONLY", "MOVE_OFFERED", "AGENT_OPENS_PR", "RUN_LIVE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

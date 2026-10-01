@@ -418,14 +418,18 @@ function WorkStrip({
             </a>
           )
         })}
-        {status.more > 0 && issue && (
+        {(status.more > 0 || status.partial) && issue && (
           <a
             className="card-chat__pr card-chat__pr--more"
             href={issue}
             target="_blank"
             rel="noreferrer noopener"
           >
-            {t('cardChat.status.more', { n: status.more })}
+            {!status.partial
+              ? t('cardChat.status.more', { n: status.more })
+              : status.more > 0
+                ? t('cardChat.status.moreAtLeast', { n: status.more })
+                : t('cardChat.status.moreUnread')}
           </a>
         )}
       </>

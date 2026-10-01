@@ -19,6 +19,8 @@ import { CARD_MARKERS, KANBAN_LIMITS, systemPrompt } from '../agent/chat'
 // functions are imported across, as web-models-are-servable.test.ts does.
 import {
   checksRank,
+  moreIsLowerBound,
+  pagesRead,
   prsShown,
   readCardStatus,
   statusState,
@@ -284,6 +286,69 @@ describe('kanban-card-chat.t27 against the host', () => {
     expect(SPEC.STATUS_CACHE_S).toBe(300)
   })
 
+  it('a long timeline is read at both ends, the middle said as at least', async () => {
+    expect(SPEC.TIMELINE_PAGE).toBe(100)
+    expect(pagesRead(1)).toBe(1)
+    expect(pagesRead(2)).toBe(2)
+    expect(pagesRead(9)).toBe(SPEC.TIMELINE_PAGES_MAX)
+    expect(moreIsLowerBound(2)).toBe(false)
+    expect(moreIsLowerBound(3)).toBe(true)
+    // MIDDLE_SAYS_AT_LEAST, against the reader: nine pages, the first and
+    // the last read, and an empty answer is a floor, not "no PR".
+    expect(SPEC.MIDDLE_SAYS_AT_LEAST).toBe(true)
+    const pages: string[] = []
+    const status = await readCardStatus('o/r', 1, {
+      storage: null,
+      fetchImpl: (async (url: string) => {
+        pages.push(new URL(url).searchParams.get('page') ?? '1')
+        return new Response('[]', {
+          headers: {
+            link: '<https://api.github.com/x?page=2>; rel="next", <https://api.github.com/x?page=9>; rel="last"',
+          },
+        })
+      }) as never,
+    })
+    expect(pages).toEqual(['1', '9'])
+    expect(status).toMatchObject({ kind: 'prs', partial: true })
+  })
+
+  it('one open of a card costs at most four public reads', async () => {
+    expect(SPEC.CHECKS_ONE_READ).toBe(true)
+    expect(SPEC.READS_PER_OPEN_MAX).toBe(
+      SPEC.TIMELINE_PAGES_MAX + SPEC.CHECKS_PRS_MAX
+    )
+    expect(
+      Math.floor(SPEC.PUBLIC_READS_HOUR / SPEC.READS_PER_OPEN_MAX)
+    ).toBeGreaterThanOrEqual(SPEC.OPENS_PER_HOUR_MIN)
+    // The worst case, counted on the reader: two pages, five open PRs.
+    let reads = 0
+    const pr = (n: number) => ({
+      event: 'cross-referenced',
+      source: {
+        issue: {
+          number: n,
+          state: 'open',
+          repository: { full_name: 'o/r' },
+          pull_request: { html_url: 'u', merged_at: null },
+        },
+      },
+    })
+    await readCardStatus('o/r', 1, {
+      storage: null,
+      fetchImpl: (async (url: string) => {
+        reads += 1
+        if (url.includes('/check-runs'))
+          return new Response('{"check_runs":[]}')
+        return new Response(JSON.stringify([1, 2, 3, 4, 5].map(pr)), {
+          headers: url.includes('page=2')
+            ? {}
+            : { link: '<https://api.github.com/x?page=2>; rel="last"' },
+        })
+      }) as never,
+    })
+    expect(reads).toBe(SPEC.READS_PER_OPEN_MAX)
+  })
+
   it("the agent proposes, the person's tap decides", () => {
     // CARDS_ON_KANBAN: the card chat's prompt carries the proposal cards and
     // the two promises the agent must not make (move, open a PR).
@@ -305,7 +370,7 @@ describe('kanban-card-chat.t27 against the host', () => {
 
   it('the card chat is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(2)
+    expect(SPEC.VERSION).toBe(3)
     expect(SPEC.CHAT_DOOR).toBe('/api/agent/chat')
     expect(SPEC.HISTORY_DOOR).toBe('/api/agent/history')
     expect(SPEC.HISTORY_LIMIT).toBe(100)

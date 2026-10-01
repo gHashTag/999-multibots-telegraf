@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { linkedPrs, readCardStatus, rollupChecks } from './cardStatus'
+import { lastPage, linkedPrs, readCardStatus, rollupChecks } from './cardStatus'
 
 /**
  * THE TASK'S WORK IN THE CARD'S SHEET (spec kanban-card-chat.t27 v2).
@@ -160,7 +160,6 @@ describe('readCardStatus', () => {
           xref('o/r', 4),
           xref('o/r', 5, { state: 'closed' }),
         ])
-      if (url.includes('/pulls/')) return json({ head: { sha: 'abc' } })
       return json({
         check_runs: [{ status: 'completed', conclusion: 'failure' }],
       })
@@ -175,7 +174,13 @@ describe('readCardStatus', () => {
     expect(status.prs).toHaveLength(3)
     expect(status.more).toBe(2)
     expect(status.prs.map(p => p.checks)).toEqual(['fail', 'fail', undefined])
-    expect(urls.filter(u => u.includes('/pulls/'))).toHaveLength(2)
+    // One read per PR, by its head ref: no pulls/<n> read for the sha.
+    expect(urls.filter(u => u.includes('/pulls/'))).toHaveLength(0)
+    expect(urls.filter(u => u.includes('/check-runs'))).toEqual([
+      'https://api.github.com/repos/o/r/commits/refs/pull/1/head/check-runs?per_page=100',
+      'https://api.github.com/repos/o/r/commits/refs/pull/2/head/check-runs?per_page=100',
+    ])
+    expect(status.partial).toBe(false)
     expect(storage.size()).toBe(1)
   })
 
@@ -203,5 +208,72 @@ describe('readCardStatus', () => {
     t += 2_000
     await readCardStatus('o/r', 9, opts)
     expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  const paged = (body: unknown, last: number) =>
+    new Response(JSON.stringify(body), {
+      headers: {
+        link: `<https://api.github.com/repositories/1/issues/9/timeline?per_page=100&page=2>; rel="next", <https://api.github.com/repositories/1/issues/9/timeline?per_page=100&page=${last}>; rel="last"`,
+      },
+    })
+
+  it('reads the last page too: the newest PRs live there', async () => {
+    const urls: string[] = []
+    const status = await readCardStatus('o/r', 9, {
+      storage: null,
+      fetchImpl: vi.fn(async (url: string) => {
+        urls.push(url)
+        if (url.includes('page=2')) return json([xref('o/r', 77)])
+        if (url.includes('/timeline'))
+          return paged([xref('o/r', 1, { state: 'closed' })], 2)
+        return json({ check_runs: [] })
+      }) as never,
+    })
+    expect(urls.filter(u => u.includes('/timeline'))).toHaveLength(2)
+    expect(status.kind === 'prs' && status.prs[0]).toMatchObject({
+      number: 77,
+      state: 'open',
+    })
+    // Two pages are the whole timeline: the count is a count.
+    expect(status.kind === 'prs' && status.partial).toBe(false)
+  })
+
+  it('skips the middle and says so: "more" is a floor', async () => {
+    const urls: string[] = []
+    const status = await readCardStatus('o/r', 9, {
+      storage: null,
+      fetchImpl: vi.fn(async (url: string) => {
+        urls.push(url)
+        if (url.includes('page=5')) return json([])
+        return paged(
+          [1, 2, 3, 4].map(n => xref('o/r', n, { state: 'closed' })),
+          5
+        )
+      }) as never,
+    })
+    expect(urls).toHaveLength(2)
+    expect(status).toMatchObject({ kind: 'prs', more: 1, partial: true })
+  })
+
+  it('no PR at either end of a long timeline is not "no PR"', async () => {
+    const status = await readCardStatus('o/r', 9, {
+      storage: null,
+      fetchImpl: vi.fn(async (url: string) =>
+        url.includes('page=3') ? json([]) : paged([], 3)
+      ) as never,
+    })
+    expect(status).toEqual({ kind: 'prs', prs: [], more: 0, partial: true })
+  })
+})
+
+describe('lastPage', () => {
+  it('reads rel="last" and nothing else', () => {
+    expect(
+      lastPage(
+        '<https://api.github.com/x?page=2>; rel="next", <https://api.github.com/x?page=4>; rel="last"'
+      )
+    ).toEqual({ url: 'https://api.github.com/x?page=4', page: 4 })
+    expect(lastPage('<https://api.github.com/x?page=2>; rel="next"')).toBeNull()
+    expect(lastPage(null)).toBeNull()
   })
 })
