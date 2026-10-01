@@ -5775,6 +5775,11 @@ cmd_loop() {
     mine=$(gh pr list --head "$branch" --state all --json number,state,title \
       --jq '.[0] | select(.) | "#\(.number) \(.state) -- \(.title)"' 2>/dev/null)
     printf '  this branch PR: %s\n' "${mine:-none yet}"
+    # An OPEN PR here is work in flight: merge it (or close it) before a new
+    # cycle branches -- cycle 7 found this path saying "nothing in flight".
+    case "$mine" in
+      *' OPEN -- '*) warn 'this branch PR is still OPEN -- merge or close it first'; busy=1 ;;
+    esac
   fi
 
   # Each service's newest deploy. A FAILED one on main blocks every later

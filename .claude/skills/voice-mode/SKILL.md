@@ -384,7 +384,7 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
 1. `./tri loop`. Exit 1 means work in flight: a dirty tree, a gate or push
    running in THIS tree, an open PR on this branch, a FAILED deploy, or one
    still BUILDING/DEPLOYING (until cycle 4 that last case read "nothing in
-   flight"). Finish
+   flight"; until cycle 7 an OPEN PR on this branch did too). Finish
    that first; never start a second branch over a dirty tree.
 2. A FAILED player deploy on main blocks every later player merge (the
    deploy runs the whole vitest suite). Fix it in the same PR if nobody else
