@@ -18,6 +18,7 @@ import {
   CrmCard,
   StoryCard,
   TriWalletCard,
+  TriClaimCard,
 } from '@/components/Profile'
 import { SoulCard } from '@/components/Profile/SoulCard'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
@@ -394,6 +395,11 @@ export function ProfilePage() {
             be paid, proved by the wallet's signature. Own profile only.
           */}
           <TriWalletCard isOwn={isOwn} />
+          {/*
+            TRI FOR ACCEPTED SPECS (render src/tri-claim.ts): link GitHub,
+            then Withdraw -- a mint the person's own wallet sends. Testnet.
+          */}
+          <TriClaimCard isOwn={isOwn} />
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />
