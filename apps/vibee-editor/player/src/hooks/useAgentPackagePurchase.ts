@@ -1,9 +1,9 @@
 /**
  * BUYING AN AGENT PACKAGE FOR STARS, FROM THE CARD THAT SHOWS IT.
  *
- * The render mints the invoice (POST /api/agents/packages/invoice): the launch
- * the first time, the monthly subscription after it, nothing while a
- * subscription is running. Telegram opens it; the render books the charge from
+ * The render mints the invoice (POST /api/agents/packages/invoice): a month,
+ * as a Telegram subscription under the Stars cap or a one-off invoice above
+ * it, and nothing while a subscription is running. Telegram opens it; the render books the charge from
  * its cashier's own Stars ledger (POST /api/agents/packages/verify), never on
  * the client's word. Same flow and the same patience as useTokenTopUp: a Stars
  * transaction reaches the Bot API with a delay, so "not booked yet" is checked

@@ -12,12 +12,13 @@ import {
   agentPackageStanding,
 } from './src/agent/agent-package-sale'
 import type { StarTx } from './src/agent/club-membership'
-import { agentPackageById, agentPackageStars } from '@vibee/atoms'
+import { agentPackageById } from '@vibee/atoms'
 import { isPublic } from './auth'
 
 /**
- * AN AGENT PACKAGE IS PAID IN STARS: THE LAUNCH ONCE, THEN A MONTHLY
- * SUBSCRIPTION -- AND NO CHARGE IS EVER BOOKED TWICE OR LOST.
+ * AN AGENT PACKAGE IS PAID IN STARS EVERY MONTH: A TELEGRAM SUBSCRIPTION
+ * UNDER THE 10000-STAR CAP, A ONE-OFF MONTHLY INVOICE ABOVE IT -- AND NO
+ * CHARGE IS EVER BOOKED TWICE OR LOST.
  */
 
 const PERSON = '144022504'
@@ -102,7 +103,11 @@ function tx(
 
 const T0 = Date.UTC(2026, 9, 1) / 1000
 const blogger = agentPackageById('blogger')!
-const { setup: SETUP, month: MONTH } = agentPackageStars(blogger)
+const developer = agentPackageById('twin')!
+const BLOGGER = 9375
+const DEVELOPER = 12500
+const sub = (who = PERSON) => `agentpkg:blogger:month:${who}`
+const once = (who = PERSON) => `agentpkg:twin:once:${who}`
 
 beforeEach(() => forgetAgentPackageTablesForTests())
 
@@ -118,19 +123,12 @@ describe('the agent package till', () => {
     }
   })
 
-  it('mints the launch as a one-off invoice and the month as a 30-day subscription', async () => {
+  it('mints a month under the cap as a 30-day subscription, above it as a one-off invoice', async () => {
     const sent: any[] = []
     const fetchImpl = (async (_url: string, init: any) => {
       sent.push(JSON.parse(init.body))
       return { json: async () => ({ ok: true, result: 'https://t.me/$abc' }) }
     }) as unknown as typeof fetch
-    const setup = await mintAgentPackageInvoice({
-      pkg: blogger,
-      charge: 'setup',
-      forTelegramId: PERSON,
-      botToken: 'x',
-      fetchImpl,
-    })
     const month = await mintAgentPackageInvoice({
       pkg: blogger,
       charge: 'month',
@@ -138,14 +136,22 @@ describe('the agent package till', () => {
       botToken: 'x',
       fetchImpl,
     })
-    expect(setup.stars).toBe(9375)
-    expect(month.stars).toBe(2188)
+    const one = await mintAgentPackageInvoice({
+      pkg: developer,
+      charge: 'once',
+      forTelegramId: PERSON,
+      botToken: 'x',
+      fetchImpl,
+    })
+    expect(month.stars).toBe(BLOGGER)
+    expect(one.stars).toBe(DEVELOPER)
     expect(sent[0].currency).toBe('XTR')
-    expect(sent[0].prices[0].amount).toBe(9375)
-    expect(sent[0].subscription_period).toBeUndefined()
-    expect(sent[0].payload).toBe(`agentpkg:blogger:setup:${PERSON}`)
-    expect(sent[1].subscription_period).toBe(PACKAGE_PERIOD_S)
-    expect(sent[1].payload).toBe(`agentpkg:blogger:month:${PERSON}`)
+    expect(sent[0].prices[0].amount).toBe(BLOGGER)
+    expect(sent[0].subscription_period).toBe(PACKAGE_PERIOD_S)
+    expect(sent[0].payload).toBe(sub())
+    expect(sent[1].prices[0].amount).toBe(DEVELOPER)
+    expect(sent[1].subscription_period).toBeUndefined()
+    expect(sent[1].payload).toBe(once())
     for (const b of sent) {
       expect(b.title.length).toBeLessThanOrEqual(32)
       expect(b.description.length).toBeLessThanOrEqual(255)
@@ -153,18 +159,16 @@ describe('the agent package till', () => {
   })
 
   it('recognises a charge by its payload, and the subscription mark must agree', () => {
-    const payload = `agentpkg:blogger:setup:${PERSON}`
-    expect(packageChargeOf(tx('a', SETUP, payload, T0))?.charge).toBe('setup')
-    // A launch payload on a subscription transaction is not a launch.
     expect(
-      packageChargeOf(tx('b', SETUP, payload, T0, PACKAGE_PERIOD_S))
-    ).toBeNull()
-    // A month must carry the one period Telegram allows.
-    const m = `agentpkg:blogger:month:${PERSON}`
-    expect(
-      packageChargeOf(tx('c', MONTH, m, T0, PACKAGE_PERIOD_S))?.charge
+      packageChargeOf(tx('a', BLOGGER, sub(), T0, PACKAGE_PERIOD_S))?.charge
     ).toBe('month')
-    expect(packageChargeOf(tx('d', MONTH, m, T0))).toBeNull()
+    // A month must carry the one period Telegram allows.
+    expect(packageChargeOf(tx('b', BLOGGER, sub(), T0))).toBeNull()
+    expect(packageChargeOf(tx('c', DEVELOPER, once(), T0))?.charge).toBe('once')
+    // A one-off payload on a subscription transaction is not a one-off.
+    expect(
+      packageChargeOf(tx('d', DEVELOPER, once(), T0, PACKAGE_PERIOD_S))
+    ).toBeNull()
     // Club and token charges are not ours.
     expect(
       packageChargeOf(
@@ -176,22 +180,15 @@ describe('the agent package till', () => {
 
   it('books each charge once and chains the periods without losing a day', async () => {
     const pool = fakePool()
-    const launch = tx('L1', SETUP, `agentpkg:blogger:setup:${PERSON}`, T0)
-    // Subscribed on day 10, while the launch month still runs.
-    const month1 = tx(
-      'M1',
-      MONTH,
-      `agentpkg:blogger:month:${PERSON}`,
-      T0 + 10 * DAY,
-      PACKAGE_PERIOD_S
-    )
-    const first = await bookAgentPackagePeriods(pool, [month1, launch])
-    expect(first.map(b => b.charge)).toEqual(['setup', 'month'])
-    // Launch: 30 days from payment; month: 30 more from where the launch ends.
-    expect(first[0].until).toBe(new Date((T0 + 30 * DAY) * 1000).toISOString())
-    expect(first[1].until).toBe(new Date((T0 + 60 * DAY) * 1000).toISOString())
+    const first = tx('O1', DEVELOPER, once(), T0)
+    // The next month bought ahead on day 10, while the first still runs.
+    const ahead = tx('O2', DEVELOPER, once(), T0 + 10 * DAY)
+    const booked = await bookAgentPackagePeriods(pool, [ahead, first])
+    expect(booked.map(b => b.starTxId)).toEqual(['O1', 'O2'])
+    expect(booked[0].until).toBe(new Date((T0 + 30 * DAY) * 1000).toISOString())
+    expect(booked[1].until).toBe(new Date((T0 + 60 * DAY) * 1000).toISOString())
     // The same ledger read again books nothing.
-    expect(await bookAgentPackagePeriods(pool, [launch, month1])).toEqual([])
+    expect(await bookAgentPackagePeriods(pool, [first, ahead])).toEqual([])
     expect(pool.periods).toHaveLength(2)
     expect(pool.journal).toHaveLength(2)
   })
@@ -199,15 +196,9 @@ describe('the agent package till', () => {
   it('a renewal after a lapse starts from its own payment, not from the past', async () => {
     const pool = fakePool()
     await bookAgentPackagePeriods(pool, [
-      tx('L1', SETUP, `agentpkg:blogger:setup:${PERSON}`, T0),
+      tx('M1', BLOGGER, sub(), T0, PACKAGE_PERIOD_S),
     ])
-    const late = tx(
-      'M1',
-      MONTH,
-      `agentpkg:blogger:month:${PERSON}`,
-      T0 + 45 * DAY,
-      PACKAGE_PERIOD_S
-    )
+    const late = tx('M2', BLOGGER, sub(), T0 + 45 * DAY, PACKAGE_PERIOD_S)
     const [b] = await bookAgentPackagePeriods(pool, [late])
     expect(b.until).toBe(new Date((T0 + 75 * DAY) * 1000).toISOString())
   })
@@ -215,8 +206,8 @@ describe('the agent package till', () => {
   it('verify books only the asking person; the sweep books everyone', async () => {
     const other = '900000061'
     const txs = [
-      tx('A', SETUP, `agentpkg:blogger:setup:${PERSON}`, T0),
-      tx('B', SETUP, `agentpkg:blogger:setup:${other}`, T0, undefined, other),
+      tx('A', BLOGGER, sub(), T0, PACKAGE_PERIOD_S),
+      tx('B', BLOGGER, sub(other), T0, PACKAGE_PERIOD_S, other),
     ]
     const pool = fakePool()
     expect(
@@ -229,30 +220,22 @@ describe('the agent package till', () => {
     expect(swept.map(b => b.telegramId)).toEqual([other])
   })
 
-  it('sells the launch first, then the month, and no second subscription while one runs', () => {
+  it('no second subscription while one runs; a one-off month can always be bought ahead', () => {
     const base = {
       id: 'blogger',
-      setup_stars: SETUP,
-      month_stars: MONTH,
+      month_stars: BLOGGER,
       until: null,
       days_left: 0,
     }
-    expect(
-      nextCharge({ ...base, launched: false, active: false, subscribed: false })
-    ).toBe('setup')
-    expect(
-      nextCharge({ ...base, launched: true, active: true, subscribed: false })
-    ).toBe('month')
-    expect(
-      nextCharge({ ...base, launched: true, active: true, subscribed: true })
-    ).toBeNull()
-    // A lapsed subscription can be bought again.
-    expect(
-      nextCharge({ ...base, launched: true, active: false, subscribed: false })
-    ).toBe('month')
+    const s = { ...base, renews: true }
+    expect(nextCharge({ ...s, active: false, subscribed: false })).toBe('month')
+    expect(nextCharge({ ...s, active: true, subscribed: true })).toBeNull()
+    const o = { ...base, id: 'twin', month_stars: DEVELOPER, renews: false }
+    expect(nextCharge({ ...o, active: false, subscribed: false })).toBe('once')
+    expect(nextCharge({ ...o, active: true, subscribed: false })).toBe('once')
   })
 
-  it('answers the public prices without identity, and refuses invoice and verify', async () => {
+  it('answers the public monthly prices without identity, and refuses invoice and verify', async () => {
     const deps = {
       getPool: async () => fakePool(),
       identity: () => null,
@@ -265,14 +248,14 @@ describe('the agent package till', () => {
     expect(status.status).toBe(200)
     const pk = (status.body.packages as any[]).map(p => [
       p.id,
-      p.setup_stars,
       p.month_stars,
+      p.renews,
       p.active,
     ])
     expect(pk).toEqual([
-      ['manager', 6250, 938, false],
-      ['blogger', 9375, 2188, false],
-      ['twin', 12500, 3125, false],
+      ['manager', 6250, true, false],
+      ['blogger', 9375, true, false],
+      ['twin', 12500, false, false],
     ])
     for (const url of [
       '/api/agents/packages/invoice?package=blogger',
@@ -283,7 +266,7 @@ describe('the agent package till', () => {
     }
   })
 
-  it('the invoice route mints the next charge and refuses an unknown package', async () => {
+  it('the invoice route mints the month, refuses an unknown package and a second subscription', async () => {
     const pool = fakePool()
     const bodies: any[] = []
     const fetchImpl = (async (_u: string, init: any) => {
@@ -297,38 +280,36 @@ describe('the agent package till', () => {
       fetchImpl,
       now: () => new Date((T0 + DAY) * 1000),
     }
-    const bad = await handleAgentPackageSale(
-      { url: '/api/agents/packages/invoice?package=nobody', method: 'POST' },
-      deps
-    )
-    expect(bad.status).toBe(400)
-    const first = await handleAgentPackageSale(
-      { url: '/api/agents/packages/invoice?package=blogger', method: 'POST' },
-      deps
-    )
-    expect(first.body).toMatchObject({
-      ok: true,
-      charge: 'setup',
-      stars: 9375,
-      link: 'https://t.me/$inv',
-    })
-    await bookAgentPackagePeriods(pool, [
-      tx('L1', SETUP, `agentpkg:blogger:setup:${PERSON}`, T0),
-    ])
-    const second = await handleAgentPackageSale(
-      { url: '/api/agents/packages/invoice?package=blogger', method: 'POST' },
-      deps
-    )
-    expect(second.body).toMatchObject({
+    const invoice = (pkg: string) =>
+      handleAgentPackageSale(
+        { url: `/api/agents/packages/invoice?package=${pkg}`, method: 'POST' },
+        deps
+      )
+    expect((await invoice('nobody')).status).toBe(400)
+    expect((await invoice('blogger')).body).toMatchObject({
       ok: true,
       charge: 'month',
-      stars: 2188,
+      stars: BLOGGER,
+      link: 'https://t.me/$inv',
     })
-    expect(bodies[1].subscription_period).toBe(PACKAGE_PERIOD_S)
+    expect(bodies[0].subscription_period).toBe(PACKAGE_PERIOD_S)
+    await bookAgentPackagePeriods(pool, [
+      tx('M1', BLOGGER, sub(), T0, PACKAGE_PERIOD_S),
+    ])
+    expect((await invoice('blogger')).body).toMatchObject({
+      ok: false,
+      already_subscribed: true,
+      days_left: 29,
+    })
+    expect((await invoice('twin')).body).toMatchObject({
+      ok: true,
+      charge: 'once',
+      stars: DEVELOPER,
+    })
     const standing = await agentPackageStanding(pool, PERSON, deps.now())
     expect(standing.find(s => s.id === 'blogger')).toMatchObject({
-      launched: true,
       active: true,
+      subscribed: true,
       days_left: 29,
     })
   })

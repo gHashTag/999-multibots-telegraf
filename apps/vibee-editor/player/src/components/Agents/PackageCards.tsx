@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import {
   AGENT_PACKAGES,
+  agentPackageCharge,
   agentPackageOrderUrl,
   agentPackageStars,
   tryableAgentOf,
@@ -18,17 +19,20 @@ import './PackageCards.css'
 const copy = {
   en: {
     popular: 'Most chosen',
-    setup: 'launch',
-    monthly: (usd: number) => `then $${usd}/month · first month included`,
+    perMonth: 'a month',
+    renewal: (renews: boolean) =>
+      renews
+        ? 'renews by itself in Telegram · cancel any time'
+        : 'paid every month with a new invoice · days add up',
     tokens: (tokens: string, reels: number) =>
       `${tokens} tokens a month ≈ ${reels} reels`,
     textTokens: (tokens: string) =>
       `${tokens} tokens a month for client replies · text only`,
-    buy: (stars: string) => `Buy for ${stars} ⭐`,
+    buy: (stars: string) => `Buy for ${stars} ⭐ a month`,
     buyLabel: (name: string, stars: string, usd: number) =>
-      `Buy ${name} for ${stars} Telegram Stars, about $${usd}`,
-    buyNote: (usd: number, month: string) =>
-      `≈ $${usd} · then ${month} ⭐ a month by subscription`,
+      `Buy ${name} for ${stars} Telegram Stars a month, about $${usd}`,
+    buyNote: (usd: number, renews: boolean) =>
+      `≈ $${usd} a month · ${renews ? 'a Telegram Stars subscription' : 'one month per payment'}`,
     order: 'Ask the team first',
     orderLabel: (name: string) => `Ask the team first about ${name}`,
     tryFirst: 'Try it first',
@@ -37,17 +41,20 @@ const copy = {
   },
   ru: {
     popular: 'Выбирают чаще',
-    setup: 'запуск',
-    monthly: (usd: number) => `далее $${usd}/мес · первый месяц включён`,
+    perMonth: 'в месяц',
+    renewal: (renews: boolean) =>
+      renews
+        ? 'продлевается сам в Telegram · отмена в любой момент'
+        : 'оплата каждый месяц новым счётом · дни складываются',
     tokens: (tokens: string, reels: number) =>
       `${tokens} токенов в месяц ≈ ${reels} рилсов`,
     textTokens: (tokens: string) =>
       `${tokens} токенов в месяц на ответы клиентам · только текст`,
-    buy: (stars: string) => `Купить за ${stars} ⭐`,
+    buy: (stars: string) => `Купить за ${stars} ⭐ в месяц`,
     buyLabel: (name: string, stars: string, usd: number) =>
-      `Купить ${name} за ${stars} звёзд Telegram, около $${usd}`,
-    buyNote: (usd: number, month: string) =>
-      `≈ $${usd} · далее ${month} ⭐ в месяц по подписке`,
+      `Купить ${name} за ${stars} звёзд Telegram в месяц, около $${usd}`,
+    buyNote: (usd: number, renews: boolean) =>
+      `≈ $${usd} в месяц · ${renews ? 'подписка звёздами Telegram' : 'один месяц за платёж'}`,
     order: 'Сначала спросить команду',
     orderLabel: (name: string) => `Сначала спросить команду: ${name}`,
     tryFirst: 'Сначала попробовать',
@@ -61,8 +68,9 @@ const copy = {
  * /agents#packages -- one component, so the two screens cannot quote
  * different prices.
  *
- * "Buy" pays in Telegram Stars (useAgentPackagePurchase): the launch first,
- * then the monthly subscription; the render books the charge from its own
+ * "Buy" pays a month in Telegram Stars (useAgentPackagePurchase): a
+ * subscription under Telegram's cap, a one-off monthly invoice above it
+ * (agentPackageCharge); the render books the charge from its own
  * Stars ledger and the bot tells the team, who set the agent's bot up.
  * "Ask the team first" opens the bot with `agentpkg_<id>` for anyone who
  * wants to talk before paying, or who is outside Telegram.
@@ -97,8 +105,9 @@ export function PackageCards({
     <div className="package-cards">
       {AGENT_PACKAGES.map(pkg => {
         const tryable = tryableAgentOf(pkg)
-        const stars = agentPackageStars(pkg)
-        const setupStars = stars.setup.toLocaleString(locale)
+        const monthStars = agentPackageStars(pkg).toLocaleString(locale)
+        const renews = agentPackageCharge(pkg) === 'month'
+        const tokens = monthTokens(pkg.allowanceUsd)
         const note = purchase.noteFor(pkg.id)
         return (
           <article
@@ -114,30 +123,19 @@ export function PackageCards({
             </span>
             <h3 className="package-card__name">{pkg.name[l]}</h3>
             <p className="package-card__price">
-              <strong>${pkg.setupUsd}</strong> <span>{text.setup}</span>
+              <strong>${pkg.monthlyUsd}</strong> <span>{text.perMonth}</span>
             </p>
-            <p className="package-card__monthly">
-              {text.monthly(pkg.monthlyUsd)}
-            </p>
+            <p className="package-card__monthly">{text.renewal(renews)}</p>
             {/*
-             * THE MONTH IN TOKENS AND RESULTS. The whole monthly fee becomes
+             * THE MONTH IN TOKENS AND RESULTS. The month's allowance becomes
              * tokens at the one rate (specs/automation/token-wallet.t27), and
              * a reel is the story reel's own estimate -- so this line moves
              * when a price moves, never by hand.
              */}
             <p className="package-card__tokens">
               {pkg.media
-                ? text.tokens(
-                    monthTokens(pkg.monthlyUsd).toLocaleString(
-                      l === 'ru' ? 'ru-RU' : 'en-US'
-                    ),
-                    reelsIn(monthTokens(pkg.monthlyUsd))
-                  )
-                : text.textTokens(
-                    monthTokens(pkg.monthlyUsd).toLocaleString(
-                      l === 'ru' ? 'ru-RU' : 'en-US'
-                    )
-                  )}
+                ? text.tokens(tokens.toLocaleString(locale), reelsIn(tokens))
+                : text.textTokens(tokens.toLocaleString(locale))}
             </p>
             <p className="package-card__promise">{pkg.promise[l]}</p>
             <ul className="package-card__includes">
@@ -151,8 +149,8 @@ export function PackageCards({
                 className="package-card__buy"
                 aria-label={text.buyLabel(
                   pkg.name[l],
-                  setupStars,
-                  pkg.setupUsd
+                  monthStars,
+                  pkg.monthlyUsd
                 )}
                 disabled={purchase.busy !== null}
                 aria-busy={purchase.busy === pkg.id}
@@ -161,10 +159,10 @@ export function PackageCards({
                   void purchase.buy(pkg.id)
                 }}
               >
-                {text.buy(setupStars)}
+                {text.buy(monthStars)}
               </button>
               <p className="package-card__buy-note">
-                {text.buyNote(pkg.setupUsd, stars.month.toLocaleString(locale))}
+                {text.buyNote(pkg.monthlyUsd, renews)}
               </p>
               {note ? (
                 <p className="package-card__pay-note" role="status">

@@ -21,7 +21,11 @@ import {
   type ClubCallOptions,
 } from '@/services/clubMembership'
 
-export type AgentPackageCharge = 'setup' | 'month'
+/**
+ * 'month' is a Telegram Stars subscription; 'once' is a one-off invoice for
+ * one month, for a package priced above the subscription cap.
+ */
+export type AgentPackageCharge = 'month' | 'once'
 
 export interface AgentPackageChargePayload {
   packageId: string
@@ -29,8 +33,8 @@ export interface AgentPackageChargePayload {
   telegramId: string
 }
 
-/** Same shape the render mints: `agentpkg:<id>:<setup|month>:<telegram_id>`. */
-const PAYLOAD = /^agentpkg:([a-z]{2,20}):(setup|month):(\d{5,15})$/
+/** Same shape the render mints: `agentpkg:<id>:<month|once>:<telegram_id>`. */
+const PAYLOAD = /^agentpkg:([a-z]{2,20}):(month|once):(\d{5,15})$/
 
 /** The charge a payment payload is for, or null when it is not a package. */
 export function parseAgentPackageChargePayload(
@@ -122,7 +126,7 @@ export async function requestAgentPackageInvoice(
   if (
     !b.ok ||
     !/^https:\/\/t\.me\//.test(link) ||
-    (b.charge !== 'setup' && b.charge !== 'month') ||
+    (b.charge !== 'month' && b.charge !== 'once') ||
     !Number.isFinite(stars) ||
     stars <= 0
   ) {
