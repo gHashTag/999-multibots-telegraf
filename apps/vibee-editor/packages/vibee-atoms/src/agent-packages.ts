@@ -145,3 +145,68 @@ export const AGENT_PACKAGE_ORDER_BOT = 't27ai_bot'
 export function agentPackageOrderUrl(pkg: AgentPackage): string {
   return `https://t.me/${AGENT_PACKAGE_ORDER_BOT}?start=${AGENT_PACKAGE_START_PREFIX}${pkg.id}`
 }
+
+/**
+ * PAYING FOR A PACKAGE IN TELEGRAM STARS.
+ *
+ * Inside Telegram a digital good is sold for Stars only, so the dollar prices
+ * above are charged in Stars at ONE rate: what a person pays Telegram for one
+ * Star, the same number the bot prices every generation with
+ * (src/price/constants STAR_COST_USD; agent-packages.test.ts fails the day the
+ * two differ). Nothing below is typed by hand -- a price change is a change of
+ * `setupUsd` / `monthlyUsd`, and the Stars follow.
+ */
+export const STAR_PRICE_USD = 0.016
+
+/** Dollars to whole Stars, rounded up so a package is never sold below its price. */
+export function starsForUsd(usd: number): number {
+  // Rounded to a millionth first: 100 / 0.016 is 6250.000000000001 in floats.
+  return Math.ceil(Math.round((usd / STAR_PRICE_USD) * 1e6) / 1e6)
+}
+
+/** What a package's launch (first month included) and each next month cost in Stars. */
+export function agentPackageStars(pkg: AgentPackage): {
+  setup: number
+  month: number
+} {
+  return {
+    setup: starsForUsd(pkg.setupUsd),
+    month: starsForUsd(pkg.monthlyUsd),
+  }
+}
+
+/**
+ * Which charge an invoice is: the launch (one payment, the first month
+ * included) or the month (a Telegram Stars subscription, renewed by Telegram
+ * every 30 days until the person cancels it).
+ */
+export type AgentPackageCharge = 'setup' | 'month'
+
+/**
+ * The invoice payload: `agentpkg:<id>:<setup|month>:<telegram_id>`. The render
+ * mints it (render/src/agent/agent-package-sale.ts), Telegram returns it on
+ * every charge -- renewals included -- and the bot routes the payment by it
+ * (src/handlers/paymentHandlers/agentPackagePayment.ts).
+ */
+export function agentPackagePayload(
+  id: AgentPackageId,
+  charge: AgentPackageCharge,
+  telegramId: string
+): string {
+  return `agentpkg:${id}:${charge}:${telegramId}`
+}
+
+export function parseAgentPackagePayload(payload: unknown): {
+  pkg: AgentPackage
+  charge: AgentPackageCharge
+  telegramId: string
+} | null {
+  const m = /^agentpkg:([a-z]{2,20}):(setup|month):(\d{5,15})$/.exec(
+    String(payload ?? '')
+  )
+  if (!m) return null
+  const pkg = agentPackageById(m[1])
+  return pkg
+    ? { pkg, charge: m[2] as AgentPackageCharge, telegramId: m[3] }
+    : null
+}

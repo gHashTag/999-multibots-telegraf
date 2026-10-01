@@ -12,6 +12,19 @@ export {
   type LocalizedText,
 } from './agent-marketplace'
 
+export {
+  AGENT_PACKAGES,
+  agentPackageById,
+  agentPackageStars,
+  agentPackagePayload,
+  parseAgentPackagePayload,
+  starsForUsd,
+  STAR_PRICE_USD,
+  type AgentPackage,
+  type AgentPackageId,
+  type AgentPackageCharge,
+} from './agent-packages'
+
 // Queen-delegatable spec gate (mirror of the BrowserOS engine's QueenSpecQuality)
 // -- read by the app's coding composer and the render `tri spec` CLI from ONE copy.
 export {

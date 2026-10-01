@@ -79,16 +79,19 @@ const copy = {
     priceReel: (tokens: number) => `a story reel ≈ ${tokens} tokens`,
     pricePortrait: (tokens: number) =>
       `a portrait from your face = ${tokens} tokens`,
-    how: 'What happens after "Order"',
+    how: 'What happens after you order',
     steps: [
-      ['You press "Order"', 'The request goes to the team from the T27 bot.'],
+      [
+        'You pay in Stars, or ask first',
+        'The launch includes the first month; the team gets your order at once.',
+      ],
       [
         'The team writes to you',
         'In the same chat: your tasks, your tone, what the agent may do.',
       ],
       [
         'Your bot goes live',
-        'The agent is checked on your account first; the invoice comes with it.',
+        'The agent is checked on your account first; then a monthly subscription in Stars.',
       ],
     ],
     market: 'Go to the Agent Market',
@@ -146,16 +149,19 @@ const copy = {
     priceReel: (tokens: number) => `рилс-история ≈ ${tokens} токенов`,
     pricePortrait: (tokens: number) =>
       `портрет с вашим лицом = ${tokens} токенов`,
-    how: 'Что будет после «Заказать»',
+    how: 'Что будет после заказа',
     steps: [
-      ['Вы жмёте «Заказать»', 'Заявка уходит команде через бота T27.'],
+      [
+        'Вы платите звёздами — или сначала спрашиваете',
+        'Первый месяц входит в запуск, команда сразу получает заказ.',
+      ],
       [
         'Команда пишет вам',
         'В том же чате: ваши задачи, ваш тон, что агенту можно делать.',
       ],
       [
         'Ваш бот начинает работать',
-        'Сначала агента проверяют на вашем аккаунте, вместе с этим приходит счёт.',
+        'Сначала агента проверяют на вашем аккаунте, дальше — подписка звёздами раз в месяц.',
       ],
     ],
     market: 'Перейти на рынок агентов',
@@ -449,7 +455,11 @@ export function WelcomePage() {
             lang={l}
             onAction={(action, id) =>
               void reportWelcomeStep(
-                action === 'order' ? 'package_order' : 'package_try',
+                action === 'order'
+                  ? 'package_order'
+                  : action === 'buy'
+                    ? 'package_buy'
+                    : 'package_try',
                 id
               )
             }

@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   AGENT_PACKAGES,
+  STAR_PRICE_USD,
   agentPackageById,
   agentPackageOrderUrl,
+  agentPackagePayload,
+  agentPackageStars,
+  parseAgentPackagePayload,
+  starsForUsd,
   tryableAgentOf,
 } from '../agent-packages'
 import { MARKETPLACE_ECONOMY, marketplaceAgentById } from '../agent-marketplace'
@@ -83,5 +90,57 @@ describe('agent packages', () => {
     expect(agentPackageById('twin')?.bot).toBeUndefined()
     for (const pkg of AGENT_PACKAGES)
       if (pkg.bot) expect(pkg.bot).toMatch(/^[A-Za-z][A-Za-z0-9_]{3,30}bot$/i)
+  })
+
+  it('charges Stars computed from the dollar prices at one rate', () => {
+    expect(AGENT_PACKAGES.map(pkg => [pkg.id, agentPackageStars(pkg)])).toEqual(
+      [
+        ['manager', { setup: 6250, month: 938 }],
+        ['blogger', { setup: 9375, month: 2188 }],
+        ['twin', { setup: 12500, month: 3125 }],
+      ]
+    )
+    // Rounded up, never below the dollar price; float noise is not a Star.
+    expect(starsForUsd(100)).toBe(6250)
+    expect(starsForUsd(0.01)).toBe(1)
+  })
+
+  it('fits Telegram limits: a month under the subscription ceiling, a launch under the one-off one', () => {
+    // render/src/agent/token-packs.ts: 10 000 per subscription period,
+    // 100 000 per one-off invoice (measured against the Bot API).
+    for (const pkg of AGENT_PACKAGES) {
+      const { setup, month } = agentPackageStars(pkg)
+      expect(month, pkg.id).toBeLessThanOrEqual(10_000)
+      expect(setup, pkg.id).toBeLessThanOrEqual(100_000)
+      expect(month, pkg.id).toBeGreaterThan(0)
+    }
+  })
+
+  it('uses the same Star rate the bot prices with', () => {
+    const constants = readFileSync(
+      join(__dirname, '../../../../../../src/price/constants/index.ts'),
+      'utf8'
+    )
+    const m = /export const STAR_COST_USD = ([\d.]+)/.exec(constants)
+    expect(m, 'STAR_COST_USD not found').not.toBeNull()
+    expect(Number(m![1])).toBe(STAR_PRICE_USD)
+  })
+
+  it('round-trips the invoice payload and refuses anything else', () => {
+    const payload = agentPackagePayload('blogger', 'month', '144022504')
+    expect(payload).toBe('agentpkg:blogger:month:144022504')
+    const parsed = parseAgentPackagePayload(payload)
+    expect(parsed?.pkg.id).toBe('blogger')
+    expect(parsed?.charge).toBe('month')
+    expect(parsed?.telegramId).toBe('144022504')
+    for (const bad of [
+      'agentpkg:nobody:setup:144022504',
+      'agentpkg:twin:year:144022504',
+      'agentpkg:twin:setup:12',
+      'agentpkg_twin',
+      'club:10000:144022504',
+      null,
+    ])
+      expect(parseAgentPackagePayload(bad), String(bad)).toBeNull()
   })
 })
