@@ -161,20 +161,20 @@ the PR merges. A merge alone ships the render, not the ears.
 
 ## Weak spots, with status
 
-| #   | weak spot                                          | status                       |
-| --- | -------------------------------------------------- | ---------------------------- |
-| 1   | card markup read aloud                             | FIXED cycle 1                |
-| 2   | any sound killed the answer (280 ms, no resume)    | FIXED cycle 1 (pause/resume) |
-| 3   | its own voice through the speaker interrupted it   | FIXED cycle 1 (onset + echo) |
-| 4   | stuck "speaking" on a suspended AudioContext       | FIXED cycle 1 (watchdog)     |
-| 5   | silence after the phrase looked like "not heard"   | FIXED cycle 1 (earcon)       |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)     | FIXED cycle 3 (GigaAM, #3252)|
-| 7   | energy VAD: a fan or street noise counts as speech | OPEN -- Silero vad-web       |
-| 8   | turn end is a fixed pause; slow speakers get cut   | OPEN -- Smart Turn v3        |
-| 9   | nothing said while the agent thinks for long       | OPEN -- filler after ~3 s    |
-| 10  | first sound waits for a whole first sentence       | FIXED cycle 2 (first clause) |
-| 11  | voice picker only for the app language             | OPEN                         |
-| 12  | product words misheard by every engine ("рилс")    | OPEN -- hotword fix-up       |
+| #   | weak spot                                          | status                        |
+| --- | -------------------------------------------------- | ----------------------------- |
+| 1   | card markup read aloud                             | FIXED cycle 1                 |
+| 2   | any sound killed the answer (280 ms, no resume)    | FIXED cycle 1 (pause/resume)  |
+| 3   | its own voice through the speaker interrupted it   | FIXED cycle 1 (onset + echo)  |
+| 4   | stuck "speaking" on a suspended AudioContext       | FIXED cycle 1 (watchdog)      |
+| 5   | silence after the phrase looked like "not heard"   | FIXED cycle 1 (earcon)        |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)     | FIXED cycle 3 (GigaAM, #3252) |
+| 7   | energy VAD: a fan or street noise counts as speech | OPEN -- Silero vad-web        |
+| 8   | turn end is a fixed pause; slow speakers get cut   | OPEN -- Smart Turn v3         |
+| 9   | nothing said while the agent thinks for long       | OPEN -- filler after ~3 s     |
+| 10  | first sound waits for a whole first sentence       | FIXED cycle 2 (first clause)  |
+| 11  | voice picker only for the app language             | OPEN                          |
+| 12  | product words misheard by every engine ("рилс")    | OPEN -- hotword fix-up        |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 
