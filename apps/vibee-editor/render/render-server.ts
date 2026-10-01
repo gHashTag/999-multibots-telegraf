@@ -8845,12 +8845,20 @@ const server = createServer(async (req, res) => {
       if (route === '/api/voice/transcribe' && req.method === 'POST') {
         if (!voice.withinBudget(who, 'hear'))
           return sendJson(res, 429, { error: 'too many utterances' })
+        /*
+         * Server-Timing splits the wait a person feels into the upload
+         * (`read`) and whisper itself (`hear`); the rest is the road. One
+         * number from outside (4.6 s, cycle 1) was blamed on whisper, which
+         * measured 1.8-2.8 s inside its own pod -- `tri voice` reads these.
+         */
+        const t0 = Date.now()
         let bytes: Buffer
         try {
           bytes = await voice.readBytes(req)
         } catch (e) {
           return sendJson(res, 413, { error: String((e as Error).message) })
         }
+        const t1 = Date.now()
         if (bytes.length < 512) return sendJson(res, 200, { text: '' })
         try {
           // The player names the language it heard last; a known language
@@ -8862,6 +8870,10 @@ const server = createServer(async (req, res) => {
             bytes,
             req.headers['content-type'],
             lang
+          )
+          res.setHeader(
+            'Server-Timing',
+            `read;dur=${t1 - t0}, hear;dur=${Date.now() - t1}`
           )
           if (text === null)
             return sendJson(res, 503, { error: 'no transcriber configured' })
