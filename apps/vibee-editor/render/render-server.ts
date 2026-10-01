@@ -8801,6 +8801,60 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true })
     }
 
+    /*
+     * VOICE MODE: hear one utterance, speak one sentence. Both go to our own
+     * speaches service on Railway (src/voice/voice.ts says why and how fast).
+     * The words a person said are sent as an ordinary chat message by the
+     * player, so the agent keeps every tool and the transcript keeps the turn.
+     */
+    if (route.startsWith('/api/voice/')) {
+      const voice = await import('./src/voice/voice')
+      if (route === '/api/voice/status' && req.method === 'GET') {
+        return sendJson(res, 200, voice.voiceStatus())
+      }
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      if (route === '/api/voice/transcribe' && req.method === 'POST') {
+        if (!voice.withinBudget(who, 'hear'))
+          return sendJson(res, 429, { error: 'too many utterances' })
+        let bytes: Buffer
+        try {
+          bytes = await voice.readBytes(req)
+        } catch (e) {
+          return sendJson(res, 413, { error: String((e as Error).message) })
+        }
+        if (bytes.length < 512) return sendJson(res, 200, { text: '' })
+        try {
+          const text = await voice.hear(bytes, req.headers['content-type'])
+          if (text === null)
+            return sendJson(res, 503, { error: 'no transcriber configured' })
+          return sendJson(res, 200, { text })
+        } catch (e) {
+          console.warn(`[voice] transcribe failed: ${(e as Error).message}`)
+          return sendJson(res, 502, { error: 'transcriber failed' })
+        }
+      }
+      if (route === '/api/voice/speak' && req.method === 'POST') {
+        if (!voice.withinBudget(who, 'speak'))
+          return sendJson(res, 429, { error: 'too many sentences' })
+        let body: Record<string, unknown>
+        try {
+          body = JSON.parse(await readBody(req, 64 * 1024))
+        } catch {
+          return sendJson(res, 400, { error: 'bad json' })
+        }
+        const out = await voice.speak(body)
+        if (!out.ok) return sendJson(res, out.status, { error: out.error })
+        res.writeHead(200, {
+          'Content-Type': out.contentType,
+          'Content-Length': out.audio.length,
+          'Cache-Control': 'no-store',
+        })
+        return res.end(out.audio)
+      }
+      return sendJson(res, 404, { error: 'unknown voice route' })
+    }
+
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
