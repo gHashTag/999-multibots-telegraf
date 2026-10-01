@@ -109,6 +109,16 @@ Other guarantees, each pinned by a test in `session.test.ts`:
 | speak, cycle 6 (#3264), x3    | median 836 [682..849]             | median 924 [802..985]               |
 | -- of which the mouth         | 196 ms                            | 410 ms                              |
 | hear, cycle 6, x5             | median 748 (gigaam 182, road 447) | median 665 (parakeet 173, road 467) |
+| one connection (#3266), x5    | road 266, warm round trip 246     | road 291, warm round trip 246       |
+| hear, cycle 7, x5             | median 798 (gigaam 160)           | median 645 (parakeet 185)           |
+| speak, cycle 7, x3            | median 605 (mouth 210)            | median 684 (mouth 428)              |
+
+Cycle 7's lower speak and road are mostly the MEASUREMENT getting honest:
+`tri voice` stopped paying a TLS handshake per call, which a browser pays
+once. What is left of the hearing road (266/291 ms) is now the warm round
+trip itself (246 ms) -- the sin1 -> sfo distance. `tri voice` still uploads
+our TTS mp3 (33 KB), not the player's 32 kbit/s opus, so the bitrate gain
+shows only in the A/B (ru 128k 0.88 s -> 32k 0.75 s, one sample each).
 
 "Felt" is what `tri voice` prints since cycle 4: the player's pause
 (`END_OF_TURN_MS`) plus the hearing that is NOT hidden inside it by early
