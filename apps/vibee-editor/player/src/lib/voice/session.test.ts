@@ -18,6 +18,7 @@ function deps() {
     warm: vi.fn<(lang: string, voice: string | null) => Promise<void>>(
       async () => {}
     ),
+    wakeRoad: vi.fn(),
   }
 }
 
@@ -564,8 +565,11 @@ describe('VoiceSession: talking over the agent', () => {
     const v = await midAnswer([])
     talkOver(v, 2300 + 400)
     expect(v.s.snapshot.phase).toBe('speaking')
+    expect(v.d.wakeRoad).not.toHaveBeenCalled()
     talkOver(v, 2300 + 560)
     expect(v.s.snapshot.phase).toBe('listening')
+    // Talking over the answer is a new phrase too: its road is woken.
+    expect(v.d.wakeRoad).toHaveBeenCalledTimes(1)
   })
 
   it('a cough held it, and the answer goes on from the cut sentence', async () => {
@@ -710,6 +714,42 @@ class SafariRecorder extends DeliveringRecorder {
   mimeType = 'audio/mp4'
 }
 
+describe('VoiceSession: the bytes a phrase costs', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('records speech at 32 kbit/s, not the browser music rate', async () => {
+    const made: unknown[] = []
+    class Recorder extends FakeRecorder {
+      constructor(_s?: unknown, opts?: unknown) {
+        super()
+        made.push(opts)
+      }
+    }
+    await speakingSession([], Recorder)
+    expect(made[0]).toEqual({
+      mimeType: 'audio/webm;codecs=opus',
+      audioBitsPerSecond: 32_000,
+    })
+  })
+
+  it('a browser that refuses the rate still records', async () => {
+    const made: unknown[] = []
+    class Picky extends DeliveringRecorder {
+      constructor(_s?: unknown, opts?: { audioBitsPerSecond?: number }) {
+        if (opts?.audioBitsPerSecond) throw new Error('NotSupportedError')
+        super()
+        made.push(opts)
+      }
+    }
+    const v = await speakingSession(['open my calendar'], Picky)
+    expect(made[0]).toEqual({ mimeType: 'audio/webm;codecs=opus' })
+    expect(v.s.snapshot.error).toBeNull()
+  })
+})
+
 describe('VoiceSession: hearing the words while the pause is judged', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -768,6 +808,21 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
     expect(v.d.transcribe).toHaveBeenCalledTimes(2)
     expect(v.d.send).toHaveBeenCalledWith('open my calendar')
     expect(v.s.snapshot.error).toBeNull()
+  })
+
+  it('the road is woken as the person starts talking, once a phrase', async () => {
+    const v = await speakingSession(['open my calendar'], DeliveringRecorder)
+    say(v, 1100, 1200)
+    // Not yet: 100 ms of sound may be a click, not a person.
+    expect(v.d.wakeRoad).not.toHaveBeenCalled()
+    say(v, 1240, 1600)
+    // Woken while they still talk -- before the words are asked for.
+    expect(v.d.wakeRoad).toHaveBeenCalledTimes(1)
+    expect(v.d.transcribe).not.toHaveBeenCalled()
+    say(v, 1640, 0, 1640 + 1000)
+    await flush()
+    expect(v.d.send).toHaveBeenCalledWith('open my calendar')
+    expect(v.d.wakeRoad).toHaveBeenCalledTimes(1)
   })
 
   it("Safari's mp4 cannot be cut short, so it is heard only at the end", async () => {
