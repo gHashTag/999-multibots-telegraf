@@ -89,6 +89,7 @@ struct RootView: View {
     case "chat": AgentChatView()
     case "ai": GenerateScreen()
     case "hive": HiveScreen()
+    case "tasks": TasksScreen()
     case "profile": ProfileView()
     default: EmptyView()
     }

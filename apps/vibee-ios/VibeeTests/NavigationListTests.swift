@@ -42,7 +42,7 @@ final class NavigationListTests: XCTestCase {
     // The screens this build can open, mirrored from `screen(for:)` in
     // VibeeApp.swift. A destination the list names and this app cannot draw
     // would be a tab that opens nothing.
-    let known: Set<String> = ["feed", "chat", "ai", "hive", "profile"]
+    let known: Set<String> = ["feed", "chat", "ai", "hive", "tasks", "profile"]
     for destination in Navigation.bundled {
       XCTAssertTrue(
         known.contains(destination.id),
@@ -58,7 +58,7 @@ final class NavigationListTests: XCTestCase {
     // looking.
     XCTAssertEqual(
       Navigation.bundled.map(\.id),
-      ["hive", "feed", "chat", "ai", "profile"]
+      ["hive", "tasks", "feed", "chat", "ai", "profile"]
     )
   }
 
