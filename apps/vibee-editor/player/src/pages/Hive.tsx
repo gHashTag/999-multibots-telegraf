@@ -158,16 +158,20 @@ export default function HivePage() {
     [navigate]
   )
 
-  // The address -> the sheet: a shared link, Back, a bookmark.
-  useEffect(() => {
-    const asked = cardFromSearch(location.search)
+  // The address -> the sheet: a shared link, Back, a bookmark. Adjusted while
+  // rendering, not in an effect, so the sheet never paints one frame behind
+  // the address (react.dev, "adjusting some state when a prop changes").
+  const [seenSearch, setSeenSearch] = useState(location.search)
+  if (seenSearch !== location.search) {
+    setSeenSearch(location.search)
+    const fromAddress = cardFromSearch(location.search)
     setCard(open =>
-      asked?.number === open?.number &&
-      (asked?.repo || open?.repo) === open?.repo
+      fromAddress?.number === open?.number &&
+      (fromAddress?.repo || open?.repo) === open?.repo
         ? open
-        : asked
+        : fromAddress
     )
-  }, [location.search])
+  }
 
   // The board asks: {v:1, type:'t27-app', kind:'open-card', repo, number}.
   // Only from the frame this page holds, on this origin (SAME_ORIGIN_ONLY).

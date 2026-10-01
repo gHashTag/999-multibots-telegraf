@@ -54,8 +54,17 @@ The numbers and shapes live in ONE place: the `.t27` spec
   bump of that ref. Until then the player-side anchor interceptor is what
   makes the tap work.
 - The frame is same-origin (`/queen/` on app.t27.ai). `answerIdentityRequests`
-  in `player/src/lib/hive.ts` still demands `event.origin === 'https://t27.ai'`
-  -- check before trusting any postMessage path from the frame.
+  in `player/src/lib/hive.ts` demands `event.origin === 'https://t27.ai'`. Not a
+  defect (checked 2026-10-01): on app.t27.ai the board reads the app session
+  directly (trinity `appSessionIdentity.ts`) and never asks. Any NEW message
+  from the frame checks `event.origin === location.origin` and `event.source`.
+- **Prettier moves a trailing `// cyrillic-ok` onto the closing `)` line** of a
+  wrapped call, and the guard then blocks the call's first line. Alias the
+  Cyrillic helper once (`const recordTurn = conversation.записатьРеплику //
+cyrillic-ok`) and call the English name.
+- **The board's half (S8):** trinity `src/lib/queenCardChat.ts` posts the
+  envelope only when `window.parent.location.origin` is readable and equal
+  (cross-origin read throws); test `npm run test:card-chat`.
 - `/Users/playra/trinity` main checkout has someone's uncommitted work: use a
   separate worktree off `origin/main`.
 - `t27c test-report` exits 0 on FAIL: read the table.

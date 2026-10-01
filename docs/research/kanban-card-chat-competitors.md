@@ -17,18 +17,18 @@ agent, and how does it behave on a phone?
 
 ## 1. Summary table
 
-| Product | Where the chat opens | History shows | Continue / steer | Card / list signal | Mobile |
-|---|---|---|---|---|---|
-| Linear (Agents, Linear Agent) | Agent session inside the issue, in an "agent panel" | Typed activities: thought, action, elicitation, response, error; plus a plan checklist | Reply in the session thread; Stop; line-comments on diffs feed the next message | Session state: pending / active / awaitingInput / error / complete / stale | Native app: open session, realtime reasoning, send steering messages, review diffs |
-| GitHub Copilot cloud agent | Agents panel (header popover) and Agents page/tab -> session log | Step log: reasoning + tools; overview; files changed | Prompt box under the log (applied after current tool call); `@copilot` in PR comments; Stop | queued / running / awaiting feedback / completed / failed; eyes reaction on issue | Copilot tab: session list filtered by state, native session logs, stop, create PR |
-| OpenAI Codex (cloud) | Task list -> task detail page | Summary, logs, diff | Follow-up turn in the same task (queued by default); "Push / Create PR" | Task list with states; archive tab | ChatGPT iOS/Android: Codex tab with tasks and threads, approvals, steering |
-| Devin | Session page: chat left, workspace right (collapsible) | Chat + workspace timeline (shell, browser, editor, planner) scrubbable; Task / Plan / PR / Summary | Message in session (web, Slack thread, or Linear agent session); sleep / wake | Session manager filters; sleeping sessions | No native app found; Slack is the phone surface |
-| Cursor Cloud Agents | cursor.com/agents (web, PWA) and native iOS app | Live chat stream, subagent transcripts, diffs, screenshots, videos, logs | Follow-up messages to a running agent; voice input; slash commands | Push: finished / needs input / ready for review; Live Activities on lock screen | Native iOS (beta, 2026-06-29); Android via PWA |
-| Google Jules | Task view: activity feed + chat + diff | Plan (expandable steps), activity feed, mini diffs | Chat box any time; "approve plan"; pause; PR comments | Working / awaiting feedback / paused | Web only; browser notifications; no official native app found |
-| Factory (Droids) | Web/mobile session view; also inside Linear/Jira | Chat history, tool calls, terminal output, diff | Unblock, leave feedback, approve diffs; take over via shared link | Sessions grouped/filtered across surfaces | Web + mobile tuned for small screens; shareable live session URL |
-| Plane | Agent run threaded into work-item comments | Prompt, response, elicitation visible; thought/action ephemeral | Reply to the agent's comment continues the same run | created / in_progress / awaiting / completed / stopping / stopped / failed / stale | Not researched in detail [unverified] |
-| Asana AI Teammates | Task comments (plus Asana Dash / smart chat) | Plan comment, subtasks, status comments | Comment / @mention / reassign; redirect at checkpoints | "Like" on the task as acknowledgement [secondary] | Not researched in detail |
-| A2A protocol | n/a (wire protocol) | `Task.history` (messages) + `artifacts` | Same `taskId` while interrupted; same `contextId` + new task after terminal; `referenceTaskIds` | TaskState enum incl. INPUT_REQUIRED, AUTH_REQUIRED | n/a; reconnect via SubscribeToTask |
+| Product                       | Where the chat opens                                             | History shows                                                                                      | Continue / steer                                                                                | Card / list signal                                                                 | Mobile                                                                             |
+| ----------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Linear (Agents, Linear Agent) | Agent session inside the issue, in an "agent panel"              | Typed activities: thought, action, elicitation, response, error; plus a plan checklist             | Reply in the session thread; Stop; line-comments on diffs feed the next message                 | Session state: pending / active / awaitingInput / error / complete / stale         | Native app: open session, realtime reasoning, send steering messages, review diffs |
+| GitHub Copilot cloud agent    | Agents panel (header popover) and Agents page/tab -> session log | Step log: reasoning + tools; overview; files changed                                               | Prompt box under the log (applied after current tool call); `@copilot` in PR comments; Stop     | queued / running / awaiting feedback / completed / failed; eyes reaction on issue  | Copilot tab: session list filtered by state, native session logs, stop, create PR  |
+| OpenAI Codex (cloud)          | Task list -> task detail page                                    | Summary, logs, diff                                                                                | Follow-up turn in the same task (queued by default); "Push / Create PR"                         | Task list with states; archive tab                                                 | ChatGPT iOS/Android: Codex tab with tasks and threads, approvals, steering         |
+| Devin                         | Session page: chat left, workspace right (collapsible)           | Chat + workspace timeline (shell, browser, editor, planner) scrubbable; Task / Plan / PR / Summary | Message in session (web, Slack thread, or Linear agent session); sleep / wake                   | Session manager filters; sleeping sessions                                         | No native app found; Slack is the phone surface                                    |
+| Cursor Cloud Agents           | cursor.com/agents (web, PWA) and native iOS app                  | Live chat stream, subagent transcripts, diffs, screenshots, videos, logs                           | Follow-up messages to a running agent; voice input; slash commands                              | Push: finished / needs input / ready for review; Live Activities on lock screen    | Native iOS (beta, 2026-06-29); Android via PWA                                     |
+| Google Jules                  | Task view: activity feed + chat + diff                           | Plan (expandable steps), activity feed, mini diffs                                                 | Chat box any time; "approve plan"; pause; PR comments                                           | Working / awaiting feedback / paused                                               | Web only; browser notifications; no official native app found                      |
+| Factory (Droids)              | Web/mobile session view; also inside Linear/Jira                 | Chat history, tool calls, terminal output, diff                                                    | Unblock, leave feedback, approve diffs; take over via shared link                               | Sessions grouped/filtered across surfaces                                          | Web + mobile tuned for small screens; shareable live session URL                   |
+| Plane                         | Agent run threaded into work-item comments                       | Prompt, response, elicitation visible; thought/action ephemeral                                    | Reply to the agent's comment continues the same run                                             | created / in_progress / awaiting / completed / stopping / stopped / failed / stale | Not researched in detail [unverified]                                              |
+| Asana AI Teammates            | Task comments (plus Asana Dash / smart chat)                     | Plan comment, subtasks, status comments                                                            | Comment / @mention / reassign; redirect at checkpoints                                          | "Like" on the task as acknowledgement [secondary]                                  | Not researched in detail                                                           |
+| A2A protocol                  | n/a (wire protocol)                                              | `Task.history` (messages) + `artifacts`                                                            | Same `taskId` while interrupted; same `contextId` + new task after terminal; `referenceTaskIds` | TaskState enum incl. INPUT_REQUIRED, AUTH_REQUIRED                                 | n/a; reconnect via SubscribeToTask                                                 |
 
 Height (Height Copilot) shut down on 2025-09-24 and is excluded [secondary].
 
@@ -513,6 +513,7 @@ highest.
 ## Sources
 
 Linear
+
 - https://linear.app/docs/agents-in-linear
 - https://linear.app/docs/assigning-issues
 - https://linear.app/docs/coding-sessions
@@ -529,9 +530,10 @@ Linear
 - https://github.com/tokezooo/linear-agent-bridge
 
 GitHub Copilot
+
 - https://github.blog/ai-and-ml/github-copilot/how-to-orchestrate-agents-using-mission-control/
 - https://github.blog/changelog/2025-10-28-a-mission-control-to-assign-steer-and-track-copilot-coding-agent-tasks/
-- https://github.blog/changelog/2025-10-28-ask-copilot-coding-agent-to-make-changes-in-any-pull-request-with-copilot/
+- https://github.blog/changelog/2025-10-28-ask-copilot-coding-agent-to-make-changes-in-any-pull-request-with-copilot/ <!-- secret-guard-ok: blog URL slug "ask-copilot", not a key -->
 - https://github.blog/news-insights/product-news/agents-panel-launch-copilot-coding-agent-tasks-anywhere-on-github/
 - https://github.blog/changelog/2025-09-24-start-and-track-copilot-coding-agent-tasks-in-github-mobile/
 - https://github.blog/changelog/2026-04-01-github-mobile-stay-in-flow-with-a-refreshed-copilot-tab-and-native-session-logs/
@@ -542,6 +544,7 @@ GitHub Copilot
 - https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/troubleshoot-coding-agent
 
 OpenAI Codex
+
 - https://learn.chatgpt.com/docs/cloud
 - https://help.openai.com/en/articles/20001275-chatgpt-work-and-codex (403 to fetcher; via search summary)
 - https://openai.com/index/introducing-upgrades-to-codex/ (via search summary)
@@ -552,6 +555,7 @@ OpenAI Codex
 - https://github.com/openai/codex/issues/49505
 
 Devin
+
 - https://docs.devin.ai/integrations/linear
 - https://docs.devin.ai/integrations/jira
 - https://docs.devin.ai/integrations/slack
@@ -561,6 +565,7 @@ Devin
 - https://ppaolo.substack.com/p/in-depth-product-analysis-devin-cognition-labs
 
 Cursor
+
 - https://cursor.com/help/ai-features/background-agents
 - https://cursor.com/docs/cloud-agent
 - https://cursor.com/changelog/ios-mobile-app
@@ -568,6 +573,7 @@ Cursor
 - https://siliconangle.com/2025/06/30/anyspheres-cursor-brings-ai-coding-agents-web-mobile-browsers/
 
 Google Jules
+
 - https://jules.google/docs/running-tasks/
 - https://jules.google/docs/review-plan/
 - https://jules.google/docs/faq/
@@ -575,11 +581,13 @@ Google Jules
 - https://developers.google.com/jules/api
 
 Factory
+
 - https://factory.com/product/web
 - https://factory.ai/product/ai-project-manager
 - https://docs.factory.com/factory-app/overview
 
 Plane, Asana, Height
+
 - https://developers.plane.so/dev-tools/agents/overview
 - https://developers.plane.so/dev-tools/agents/signals-content-payload
 - https://plane.so/ai
@@ -589,6 +597,7 @@ Plane, Asana, Height
 - https://www.toolify.ai/tool/height-copilot
 
 A2A
+
 - https://a2a-protocol.org/latest/specification/
 - https://a2a-protocol.org/v1.0.0/specification/
 - https://github.com/a2aproject/A2A/releases
@@ -597,6 +606,7 @@ A2A
 - https://www.linuxfoundation.org/press/a2a-protocol-surpasses-150-organizations-lands-in-major-cloud-platforms-and-sees-enterprise-production-use-in-first-year
 
 Mobile UI and accessibility references
+
 - https://core.telegram.org/bots/webapps
 - https://developer.apple.com/design/human-interface-guidelines/sheets
 - https://m3.material.io/components/bottom-sheets

@@ -13,7 +13,7 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 - [x] S5 Render: task thread in threadFor + history + chat, task context injection
 - [x] S6 Render: A2A message/send persists into the task thread (metadata.task / contextId)
 - [x] S7 Player: CardChatSheet + Hive listener + anchor fallback + /game/kanban?card=N
-- [ ] S8 Trinity: card tap posts open-card (worktree, PR; QUEEN_REF bump = owner)
+- [x] S8 Trinity: card tap posts open-card -- gHashTag/trinity feat/kanban-card-opens-chat 91e365910, `npm run test:card-chat` 4/4 (QUEEN_REF bump = owner)
 - [x] S9 `tri card <n> [text]` (refuses a non-task thread, exit 2)
 - [x] S10 EPIC https://github.com/gHashTag/t27/issues/5388 (epic, priority/critical) -- in gHashTag/t27, not trios + children, priority for the queen
 - [ ] S11 Gates green, PR opened (no merge)
@@ -30,7 +30,8 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 5. No thread is keyed by a task.
 6. The agent is not told which task the person is talking about.
 7. `answerIdentityRequests` accepts only origin https://t27.ai, but the frame
-   is same-origin now (to verify).
+   is same-origin now. Checked 2026-10-01: not a defect -- on app.t27.ai the
+   board reads the app session directly (trinity `appSessionIdentity.ts`).
 
 ## Anomalies
 
