@@ -25,7 +25,7 @@ the fallback, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 ```bash
 ./tri loop     # tri виток: in-flight work, this branch's PR, last deploys
 ./tri voice    # tri голос: status, warm, speak ru/en, hear them back, times
-./tri gigaam   # Russian ears: newest deploy, does the render route ru to it
+./tri ears     # tri уши: gigaam (ru) + parakeet (en) deploys, render routing
 ```
 
 `tri voice` needs a person's key in `$AGENT_KEY` (render `AGENT_KEYS`, first
@@ -33,7 +33,7 @@ entry, up to `:`). Without one it exits 2, NOT MEASURED -- not green.
 `tri voice --runs N` (default 3) hears each phrase N times and prints the
 **median** with `[min..max]`, split by the render's `Server-Timing` header
 into `upload + <engine> + road`, where the engine comes from the header's
-`desc` (`gigaam`, `whisper`, or `gigaam/whisper` when some runs fell back --
+`desc` (`gigaam`, `parakeet`, `whisper`, or `gigaam/whisper` when some runs fell back --
 that mix means GigaAM is failing). SLOW (exit 2) when the median is >= 3 s.
 
 ## Map
@@ -165,8 +165,38 @@ Whisper + 4 Piper + Kokoro + Silero hold ~470; Parakeet beside them reached
 986 and Python could not start a thread (numpy/OpenBLAS errors, a segfault).
 A new model gets its own service, like `gigaam` (`GIGAAM_THREADS`, default 8).
 
-`gigaam` is NOT wired to GitHub: `./tri gigaam deploy` from a clean tree after
-the PR merges. A merge alone ships the render, not the ears.
+`gigaam` is NOT wired to GitHub: `./tri ears deploy ru` (old name: `tri
+gigaam deploy`) from a clean tree after the PR merges. A merge alone ships
+the render, not the ears.
+
+## English ears: Parakeet (cycle 5, 2026-10-02)
+
+The same image (`deployment/gigaam`) as a second service, `parakeet`
+(6d9197c7), with `GIGAAM_MODEL=nemo-parakeet-tdt-0.6b-v2 GIGAAM_QUANT=int8`.
+Railway hands service variables to the build as ARGs, so the model a service
+bakes is the one it loads. Inside its pod, two phrases our TTS spoke, x3:
+
+| phrase                                   | Parakeet v2 int8 | whisper (tri voice) |
+| ---------------------------------------- | ---------------- | ------------------- |
+| "Voice check: one, two, three, four." 2s | 229-268 ms       | ~2.6-3.0 s          |
+| a 5 s sentence with a name and a time    | 348-441 ms       |                     |
+
+Text was exact, punctuated ("...call Anna at five in the evening."). One
+quirk: spoken digits come back joined, "one, two, three, four" -> "1234".
+
+- v2, not v3: v2 is English-only and leads the Open ASR board; v3 is
+  multilingual but its Russian was unusable (cycle 3). One specialist per
+  language, whisper behind both as the fallback.
+- int8: a 630 MB model where fp32 is 2.4 GB; the image stays small and the
+  speed above is with it.
+- Render: `VOICE_HEAR_EN_URL` / `VOICE_HEAR_EN_KEY` (the parakeet service's
+  `GIGAAM_KEY`). Unset -> English stays on whisper, exactly as before.
+  `earsConfig(lang)` in `voice.ts` is the one table: ru -> gigaam,
+  en -> parakeet; an unnamed language goes to whisper, never to either.
+- `/api/voice/status` says `hearRu` and `hearEn`; `tri ears` and `tri voice`
+  print both.
+- Deploy both after a merge that touches `deployment/gigaam`:
+  `./tri ears deploy` (both) from a clean tree.
 
 ## Early hearing (cycle 4, 2026-10-02)
 
@@ -230,7 +260,7 @@ a slow speaker cut off mid-thought by a fixed pause -- is still open.
 | 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)  |
 | 11  | voice picker only for the app language               | OPEN                          |
 | 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up        |
-| 13  | English hearing is still whisper, ~2.6 s             | OPEN -- Parakeet v3 service   |
+| 13  | English hearing is still whisper, ~2.6 s             | FIXED cycle 5 (Parakeet v2)   |
 | 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s | OPEN -- measure per hop       |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
@@ -247,7 +277,8 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    is on it -- cycle 1 found #3242's bare `<img>` this way.
 3. Take the top OPEN row above. One row per PR is fine; mutation-test it.
 4. After merge: `./tri loop` until player SUCCESS, then `./tri voice`. If
-   the PR touched `deployment/gigaam`, also `./tri gigaam deploy`.
+   the PR touched `deployment/gigaam`, also `./tri ears deploy` (both
+   services; `./tri ears` then shows each deploy and the render's routing).
 5. Update the tables here in the same PR.
 
 ## Common issues
