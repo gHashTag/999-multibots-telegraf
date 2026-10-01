@@ -4,6 +4,10 @@ import {
   agentPackageOrderUrl,
   tryableAgentOf,
 } from '../../../../packages/vibee-atoms/src/agent-packages'
+import {
+  monthTokens,
+  reelsIn,
+} from '../../../../packages/vibee-atoms/src/token-wallet'
 import type { Language } from '@/hooks/useLanguage'
 import { openTelegramLink } from '@/lib/telegram'
 import { tryFreeNote } from './tryFree'
@@ -14,6 +18,8 @@ const copy = {
     popular: 'Most chosen',
     setup: 'launch',
     monthly: (usd: number) => `then $${usd}/month · first month included`,
+    tokens: (tokens: string, reels: number) =>
+      `${tokens} tokens a month ≈ ${reels} reels`,
     order: 'Order',
     orderLabel: (name: string) => `Order ${name}`,
     tryFirst: 'Try it first',
@@ -24,6 +30,8 @@ const copy = {
     popular: 'Выбирают чаще',
     setup: 'запуск',
     monthly: (usd: number) => `далее $${usd}/мес · первый месяц включён`,
+    tokens: (tokens: string, reels: number) =>
+      `${tokens} токенов в месяц ≈ ${reels} рилсов`,
     order: 'Заказать',
     orderLabel: (name: string) => `Заказать: ${name}`,
     tryFirst: 'Сначала попробовать',
@@ -77,6 +85,20 @@ export function PackageCards({ lang }: { lang: Language }) {
             </p>
             <p className="package-card__monthly">
               {text.monthly(pkg.monthlyUsd)}
+            </p>
+            {/*
+             * THE MONTH IN TOKENS AND RESULTS. The whole monthly fee becomes
+             * tokens at the one rate (specs/automation/token-wallet.t27), and
+             * a reel is the story reel's own estimate -- so this line moves
+             * when a price moves, never by hand.
+             */}
+            <p className="package-card__tokens">
+              {text.tokens(
+                monthTokens(pkg.monthlyUsd).toLocaleString(
+                  l === 'ru' ? 'ru-RU' : 'en-US'
+                ),
+                reelsIn(monthTokens(pkg.monthlyUsd))
+              )}
             </p>
             <p className="package-card__promise">{pkg.promise[l]}</p>
             <ul className="package-card__includes">
