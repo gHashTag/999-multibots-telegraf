@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import {
   AGENT_PACKAGES,
   agentPackageOrderUrl,
+  agentPackageStars,
   tryableAgentOf,
 } from '../../../../packages/vibee-atoms/src/agent-packages'
 import {
@@ -10,6 +11,7 @@ import {
 } from '../../../../packages/vibee-atoms/src/token-wallet'
 import type { Language } from '@/hooks/useLanguage'
 import { openTelegramLink } from '@/lib/telegram'
+import { useAgentPackagePurchase } from '@/hooks/useAgentPackagePurchase'
 import { tryFreeNote } from './tryFree'
 import './PackageCards.css'
 
@@ -22,8 +24,13 @@ const copy = {
       `${tokens} tokens a month ≈ ${reels} reels`,
     textTokens: (tokens: string) =>
       `${tokens} tokens a month for client replies · text only`,
-    order: 'Order',
-    orderLabel: (name: string) => `Order ${name}`,
+    buy: (stars: string) => `Buy for ${stars} ⭐`,
+    buyLabel: (name: string, stars: string, usd: number) =>
+      `Buy ${name} for ${stars} Telegram Stars, about $${usd}`,
+    buyNote: (usd: number, month: string) =>
+      `≈ $${usd} · then ${month} ⭐ a month by subscription`,
+    order: 'Ask the team first',
+    orderLabel: (name: string) => `Ask the team first about ${name}`,
     tryFirst: 'Try it first',
     // Starts with the visible words, so voice control can say what it sees.
     tryLabel: (name: string) => `Try it first: ${name}, free`,
@@ -36,8 +43,13 @@ const copy = {
       `${tokens} токенов в месяц ≈ ${reels} рилсов`,
     textTokens: (tokens: string) =>
       `${tokens} токенов в месяц на ответы клиентам · только текст`,
-    order: 'Заказать',
-    orderLabel: (name: string) => `Заказать: ${name}`,
+    buy: (stars: string) => `Купить за ${stars} ⭐`,
+    buyLabel: (name: string, stars: string, usd: number) =>
+      `Купить ${name} за ${stars} звёзд Telegram, около $${usd}`,
+    buyNote: (usd: number, month: string) =>
+      `≈ $${usd} · далее ${month} ⭐ в месяц по подписке`,
+    order: 'Сначала спросить команду',
+    orderLabel: (name: string) => `Сначала спросить команду: ${name}`,
     tryFirst: 'Сначала попробовать',
     tryLabel: (name: string) => `Сначала попробовать: ${name}, бесплатно`,
   },
@@ -49,9 +61,11 @@ const copy = {
  * /agents#packages -- one component, so the two screens cannot quote
  * different prices.
  *
- * "Order" opens the bot with `agentpkg_<id>`: the bot confirms the request
- * and tells the team, who set the agent's bot up by hand. There is no
- * checkout here yet, and the button does not pretend there is.
+ * "Buy" pays in Telegram Stars (useAgentPackagePurchase): the launch first,
+ * then the monthly subscription; the render books the charge from its own
+ * Stars ledger and the bot tells the team, who set the agent's bot up.
+ * "Ask the team first" opens the bot with `agentpkg_<id>` for anyone who
+ * wants to talk before paying, or who is outside Telegram.
  */
 export function PackageCards({
   lang,
@@ -62,10 +76,12 @@ export function PackageCards({
    * Told which button was pressed on which package. The welcome screen
    * counts it for its heatmap; the market page passes nothing.
    */
-  onAction?: (action: 'order' | 'try', packageId: string) => void
+  onAction?: (action: 'buy' | 'order' | 'try', packageId: string) => void
 }) {
   const l = lang === 'ru' ? 'ru' : 'en'
   const text = copy[l]
+  const purchase = useAgentPackagePurchase(l)
+  const locale = l === 'ru' ? 'ru-RU' : 'en-US'
   /*
    * WHAT "TRY IT FIRST" COSTS, SAID UNDER THE BUTTON. Every competitor states
    * the condition next to the try button (Lindy: "no credit card required";
@@ -81,6 +97,9 @@ export function PackageCards({
     <div className="package-cards">
       {AGENT_PACKAGES.map(pkg => {
         const tryable = tryableAgentOf(pkg)
+        const stars = agentPackageStars(pkg)
+        const setupStars = stars.setup.toLocaleString(locale)
+        const note = purchase.noteFor(pkg.id)
         return (
           <article
             key={pkg.id}
@@ -127,6 +146,31 @@ export function PackageCards({
               ))}
             </ul>
             <div className="package-card__actions">
+              <button
+                type="button"
+                className="package-card__buy"
+                aria-label={text.buyLabel(
+                  pkg.name[l],
+                  setupStars,
+                  pkg.setupUsd
+                )}
+                disabled={purchase.busy !== null}
+                aria-busy={purchase.busy === pkg.id}
+                onClick={() => {
+                  onAction?.('buy', pkg.id)
+                  void purchase.buy(pkg.id)
+                }}
+              >
+                {text.buy(setupStars)}
+              </button>
+              <p className="package-card__buy-note">
+                {text.buyNote(pkg.setupUsd, stars.month.toLocaleString(locale))}
+              </p>
+              {note ? (
+                <p className="package-card__pay-note" role="status">
+                  {note}
+                </p>
+              ) : null}
               <a
                 className="package-card__order"
                 href={agentPackageOrderUrl(pkg)}
@@ -139,7 +183,7 @@ export function PackageCards({
                     event.preventDefault()
                 }}
               >
-                {text.order} →
+                {text.order}
               </a>
               {tryable ? (
                 <Link

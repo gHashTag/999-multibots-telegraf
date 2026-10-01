@@ -17,6 +17,7 @@ import { ModeEnum } from '@/interfaces'
 import { telegramLogService } from '@/services/telegram-log.service'
 import { resolveAdminChatId } from '@/helpers/adminChatId'
 import { handleClubPayment } from './clubPayment'
+import { handleAgentPackagePayment } from './agentPackagePayment'
 
 /**
  * Валидация URL для серверных запросов бота: только http/https, хост не
@@ -295,6 +296,23 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
    */
   if (
     await handleClubPayment(ctx, {
+      payload: payload ?? '',
+      chargeId: telegramPaymentChargeId,
+      totalAmount: successfulPayment.total_amount,
+      recurring: (successfulPayment as { is_recurring?: boolean }).is_recurring,
+    })
+  ) {
+    await ctx.scene?.leave?.()
+    return
+  }
+
+  /*
+   * AN AGENT PACKAGE: payload `agentpkg:<id>:<setup|month>:<id>`, minted by
+   * the render like the club and booked by it the same way. Before the generic
+   * top-up for the same reason: unrouted, it would become spendable tokens.
+   */
+  if (
+    await handleAgentPackagePayment(ctx, {
       payload: payload ?? '',
       chargeId: telegramPaymentChargeId,
       totalAmount: successfulPayment.total_amount,
