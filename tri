@@ -316,6 +316,13 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
+  tri iphone [check|build]
+        The Vibee app on the REAL phone: build, install, launch -- one command.
+        Asks devicectl first, so a locked or unplugged phone is named as such
+        instead of xcodebuild's "Unable to find a destination". `check` only
+        answers whether the phone is reachable (exit 0); `build` compiles for
+        the phone without it. VIBEE_DEVICE picks another paired phone.
+
   tri gate
         Run what CI should have run: types, tests, the iOS build, Cyrillic.
         Not an equal substitute -- one machine, one Node, one Xcode -- but
@@ -1326,6 +1333,99 @@ print(n)' 2>/dev/null)
 # паритет. Поэтому перед переносом спрашиваем не «есть ли в вебе кнопка», а
 # «делает ли она что-нибудь».
 # ─────────────────────────────────────────────────────────────────────────
+# tri iphone [check|build|install] — the Vibee app on the REAL phone, one command.
+#
+# Every step had its own way to fail without saying why:
+#   * a locked or unplugged phone makes xcodebuild print "Unable to find a
+#     destination matching the provided destination specifier" -- nothing
+#     about the phone. devicectl knows (`tunnelState`), so ask it FIRST;
+#   * the phone has TWO ids: xcodebuild wants the hardware udid
+#     (00008110-...), devicectl wants the CoreDevice identifier (BF368496-...).
+#     Passing one where the other belongs fails as "device not found";
+#   * Xcode on this machine has no Apple ID: signing goes through the App
+#     Store Connect API key, and without -authenticationKey* the build stops
+#     at provisioning (memory: ios-device-build-via-asc-key);
+#   * `launch` without --terminate-existing raises the OLD process, and the
+#     screen shows yesterday's build.
+#
+#   tri iphone          build, install, launch
+#   tri iphone check    is the phone reachable right now (exit 0 = yes)
+#   tri iphone build    compile for the phone only (no install)
+#   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
+cmd_iphone() {
+  local mode="${1:-all}" name="${VIBEE_DEVICE:-t27_dev}"
+  local json="${TMPDIR:-/tmp}/tri-iphone-devices.json"
+  local dd="${TMPDIR:-/tmp}/tri-iphone-dd"
+  local ios="$ROOT/apps/vibee-ios"
+  local key="$HOME/.appstoreconnect/private_keys/AuthKey_R3JF4GL93F.p8"
+  local keyjson="$HOME/.appstoreconnect/fastlane-key.json"
+
+  if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
+    bad "devicectl did not answer (Xcode command line tools?)"; return 2
+  fi
+  local row
+  row=$(python3 - "$json" "$name" <<'PY'
+import json, sys
+devs = json.load(open(sys.argv[1]))["result"]["devices"]
+for d in devs:
+    if d["deviceProperties"].get("name") == sys.argv[2]:
+        c = d.get("connectionProperties", {})
+        print(d["identifier"], d["hardwareProperties"].get("udid", ""),
+              c.get("tunnelState", "?"), c.get("pairingState", "?"))
+        break
+PY
+)
+  if [ -z "$row" ]; then
+    bad "no paired device named '$name' -- set VIBEE_DEVICE, known:"
+    python3 -c "import json,sys;[print('       '+d['deviceProperties'].get('name','?')) for d in json.load(open(sys.argv[1]))['result']['devices']]" "$json"
+    return 2
+  fi
+  local core udid tunnel pairing
+  read -r core udid tunnel pairing <<<"$row"
+  if [ "$mode" = "build" ]; then
+    : # compiling for the phone does not need the phone
+  elif [ "$tunnel" != "connected" ]; then
+    bad "$name is $tunnel (paired: $pairing) -- unlock it and keep it on the cable or the same Wi-Fi"
+    return 1
+  else
+    good "$name reachable (udid $udid, core $core)"
+  fi
+  [ "$mode" = "check" ] && return 0
+
+  # The iOS build is the largest single eater of disk here (run.sh paid for
+  # this: a full disk left the loop unable even to write). Refuse up front;
+  # the derived-data dir is ONE fixed path, so builds reuse it, not stack.
+  local free_mb
+  free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
+  if [ "${free_mb:-0}" -lt 2048 ]; then
+    bad "only ${free_mb} MB free, need 2048 -- see tri disk, or rm -rf $dd"; return 1
+  fi
+  [ -f "$key" ] && [ -f "$keyjson" ] || { bad "App Store Connect key missing: $key / $keyjson"; return 2; }
+  local issuer
+  issuer=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['issuer_id'])" "$keyjson") || return 2
+  local dest="id=$udid"
+  [ "$mode" = "build" ] && dest="generic/platform=iOS"
+  local log="${TMPDIR:-/tmp}/tri-iphone-build.log"
+  echo "  …    building for $dest (log: $log)"
+  if ! ( cd "$ios" && xcodegen generate --quiet && xcodebuild -scheme Vibee -destination "$dest" \
+      -derivedDataPath "$dd" -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
+      -authenticationKeyPath "$key" -authenticationKeyID R3JF4GL93F \
+      -authenticationKeyIssuerID "$issuer" build -quiet ) >"$log" 2>&1; then
+    bad "build failed:"; grep -E "error:" "$log" | head -8 | sed 's/^/       /'
+    return 1
+  fi
+  good "built"
+  [ "$mode" = "build" ] && return 0
+
+  local app="$dd/Build/Products/Debug-iphoneos/Vibee.app"
+  xcrun devicectl device install app --device "$core" "$app" >"$log" 2>&1 \
+    || { bad "install failed:"; tail -5 "$log" | sed 's/^/       /'; return 1; }
+  good "installed"
+  xcrun devicectl device process launch --device "$core" --terminate-existing ai.t27.vibee >"$log" 2>&1 \
+    || { bad "launch failed (phone locked?):"; tail -5 "$log" | sed 's/^/       /'; return 1; }
+  good "launched the fresh build on $name"
+}
+
 cmd_real() {
   local name="${1:?нужно имя функции, например like или comment}"
   local web="$ROOT/apps/vibee-editor/player/src"
@@ -5116,6 +5216,7 @@ case "$action" in
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
   real|живая)          cmd_real "$@" ;;
+  iphone|айфон)        cmd_iphone "$@" ;;   # cyrillic-ok: alias, like its neighbours
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
   heal|исцели)         cmd_heal ;;

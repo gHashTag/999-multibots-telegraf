@@ -303,7 +303,7 @@ struct AgentChatView: View {
        * `onAppear` would need a `Task` that nobody cancels, and the answer
        * would land on a screen that is already gone.
        */
-      .task { await loadSharedHistory() }
+      .taskWhileShown { await loadSharedHistory() }
   }
 
   private var основное: some View {
