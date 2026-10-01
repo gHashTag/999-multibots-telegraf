@@ -160,6 +160,10 @@ const approvalOwner = async (pool: any, id: string) =>
   (await readApproval(pool, id))?.telegramId ?? null
 import { touchSessionById } from './src/browser/sessions'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
+import {
+  isContributorKeyPath,
+  handleContributorKeys,
+} from './src/hive/contributor-keys-route'
 import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
 import {
   isPayOutcomePath,
@@ -8972,6 +8976,18 @@ const server = createServer(async (req, res) => {
         error: taken.ok ? undefined : taken.why,
       })
     }
+  }
+
+  // Personal credentials use a full app session or signed Telegram identity.
+  // Game and delegated agent tokens never cross this server-to-server door.
+  if (isContributorKeyPath(req.url?.split('?')[0] || '')) {
+    const out = await handleContributorKeys(req, {})
+    res.writeHead(out.status, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+    })
+    res.end(JSON.stringify(out.body))
+    return
   }
 
   // Another service writing into the hive journal (the seller's sweep).
