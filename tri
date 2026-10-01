@@ -5404,15 +5404,26 @@ if code != 200:
 phrases = {'ru': 'Проверка голоса: раз, два, три, четыре.',  # cyrillic-ok: the phrase IS the probe
            'en': 'Voice check: one, two, three, four.'}
 audio = {}
+# Speaking gets a median too: in cycle 5 one 4.6 s sample called English
+# TTS "SLOW" when five more measured 2.0-2.5 s with a single 4.4 s tail.
+SPEAK_RUNS = min(RUNS, 3)
 for lang, text in phrases.items():
-    code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
-    if code == 200 and len(body) > 1000:
+    times = []
+    for _ in range(SPEAK_RUNS):
+        code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
+        if code != 200 or len(body) <= 1000:
+            break
         audio[lang] = body
-        verdict = 'ok' if ms < 3000 else 'SLOW (the first word waits for this)'
-        print(f'  speak {lang}: {len(body)} bytes in {ms} ms -- {verdict}')
-        if ms >= 3000:
+        times.append(ms)
+    if len(times) == SPEAK_RUNS:
+        med = int(statistics.median(times))
+        verdict = 'ok' if med < 3000 else 'SLOW (the first word waits for this)'
+        print(f'  speak {lang}: {len(body)} bytes, median {med} ms of {len(times)} '
+              f'[{min(times)}..{max(times)}] -- {verdict}')
+        if med >= 3000:
             mark(2)
     else:
+        audio.pop(lang, None)
         print(f'  speak {lang}: HTTP {code} {body[:100].decode(errors="replace")}')
         mark(1)
 
