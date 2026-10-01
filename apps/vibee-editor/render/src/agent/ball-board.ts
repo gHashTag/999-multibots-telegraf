@@ -37,19 +37,24 @@
  * session only -- the owner included. A card says what the agent is on and
  * whether it asks the person; it carries no token, endpoint or pod (those
  * columns are never selected) and opens the app's /game/browser view.
+ *
+ * v4: the caller's own meetings are a fifth source. An ended meeting nobody
+ * answered is due, one starting within a day is ours. A card carries the five
+ * MEETING_FIELDS -- never the tap or calendar token, the call link or the place.
  */
 
 import { ensureApprovals, pendingApprovalFor } from '../browser/approvals'
 import { inputRequestView, pendingInput } from '../browser/input-request'
 import { readJournal } from '../browser/journal'
 import * as SPEC from '../spec/ball-board.gen'
+import { TABLE as MEETINGS_TABLE } from '../spec/meeting-reminders.gen'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { OWNER_TELEGRAM_ID, requireOwner } from './telegram-tools'
 import type { AgentTool, ToolContext } from './tools'
 
 type Pool = ToolContext['pool']
 type Ball = 'ours' | 'due' | 'theirs' | 'none'
-type Source = 'crm' | 'mail' | 'github' | 'browser'
+type Source = 'crm' | 'mail' | 'github' | 'browser' | 'meeting'
 type LinkKind = 'email' | 'domain' | 'repo' | 'label' | 'title'
 
 /* ------------------------------------------------------ the spec's decisions */
@@ -159,6 +164,7 @@ export function cardSpec(source: string, titleSpec: string): string {
   if (source === SPEC.SOURCE_CRM) return SPEC.SPEC_OF_CRM
   if (source === SPEC.SOURCE_MAIL) return SPEC.SPEC_OF_MAIL
   if (source === SPEC.SOURCE_BROWSER) return SPEC.SPEC_OF_BROWSER
+  if (source === SPEC.SOURCE_MEETING) return SPEC.SPEC_OF_MEETING
   return ''
 }
 
@@ -197,6 +203,37 @@ export function browserFieldShown(field: string): boolean {
 
 export function browserVisible(rowIsCallers: boolean): boolean {
   return rowIsCallers
+}
+
+/* ------------------------------------------------------- meetings (v4) */
+
+/** The spec's `meeting_ball`: an ended, unanswered meeting is due; a near one is ours. */
+export function meetingBall(
+  ended: boolean,
+  answered: boolean,
+  startsSoon: boolean
+): Ball {
+  if (ended && !answered) return SPEC.BALL_DUE as Ball
+  if (ended) return SPEC.BALL_NONE as Ball
+  if (startsSoon) return SPEC.BALL_OURS as Ball
+  return SPEC.BALL_NONE as Ball
+}
+
+/**
+ * The only meeting columns a card may carry. The tap and calendar tokens are
+ * keys, the call link and the place are the person's own, so the read SELECTs
+ * exactly these -- a column added later is refused by default.
+ */
+export const MEETING_FIELDS = [
+  'title',
+  'starts_at',
+  'ends_at',
+  'mode',
+  'status',
+] as const
+
+export function meetingFieldShown(field: string): boolean {
+  return (MEETING_FIELDS as readonly string[]).includes(field)
 }
 
 /** The page a journal step was on, without its query or fragment. */
@@ -419,6 +456,7 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
         mail: { status: 'empty', cards: 0 },
         github: { status: 'empty', cards: 0 },
         browser: { status: 'empty', cards: 0 },
+        meeting: { status: 'empty', cards: 0 },
       }
 
       // Links are the owner's; anybody else simply has none to apply.
@@ -625,6 +663,60 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
         // No browser was ever started here: no table is no browser, not an outage.
         const msg = e instanceof Error ? e.message : String(e)
         sources.browser = /does not exist/.test(msg)
+          ? { status: 'empty', cards: 0 }
+          : { status: 'unreachable', cards: 0, why: msg }
+      }
+
+      // Meetings: the caller's own (MEETING_OWN_ONLY), open, from
+      // MEETING_ASK_BACK_H behind to MEETING_AHEAD_H ahead. Only MEETING_FIELDS
+      // are selected; a card has no link -- the call link is not the board's.
+      try {
+        const r = await ctx.pool.query(
+          `SELECT id, ${MEETING_FIELDS.join(', ')}
+             FROM ${MEETINGS_TABLE}
+            WHERE telegram_id = $1 AND status = $2
+              AND starts_at < now() + make_interval(hours => $3)
+              AND ends_at > now() - make_interval(hours => $4)
+            ORDER BY starts_at`,
+          [
+            String(ctx.telegramId),
+            SPEC.MEETING_OPEN_STATUS,
+            SPEC.MEETING_AHEAD_H,
+            SPEC.MEETING_ASK_BACK_H,
+          ]
+        )
+        const now = Date.now()
+        for (const m of r.rows ?? []) {
+          const starts = new Date(m.starts_at).getTime()
+          const ended = new Date(m.ends_at).getTime() <= now
+          const ball = meetingBall(
+            ended,
+            String(m.status) !== SPEC.MEETING_OPEN_STATUS,
+            !ended && starts - now <= SPEC.MEETING_SOON_H * 3_600_000
+          )
+          entries.push({
+            key: `name:${SPEC.SOURCE_MEETING}`,
+            name: SPEC.SOURCE_MEETING,
+            card: {
+              source: 'meeting',
+              ref: String(m.id),
+              title: String(m.title),
+              ball,
+              days: ended ? daysSince(m.ends_at) : null,
+              because: ended
+                ? 'ended, not answered'
+                : `${m.mode} ${new Date(m.starts_at).toISOString()}`,
+              link: null,
+              spec: cardSpec(SPEC.SOURCE_MEETING, '') || null,
+            },
+          })
+          sources.meeting.cards += 1
+        }
+        sources.meeting.status = sources.meeting.cards ? 'ok' : 'empty'
+      } catch (e) {
+        // Nobody ever booked a meeting here: no table is no meetings, not an outage.
+        const msg = e instanceof Error ? e.message : String(e)
+        sources.meeting = /does not exist/.test(msg)
           ? { status: 'empty', cards: 0 }
           : { status: 'unreachable', cards: 0, why: msg }
       }

@@ -4,6 +4,7 @@ import {
   BALL_BOARD_TOOLS,
   BALL_OWNER,
   BROWSER_FIELDS,
+  MEETING_FIELDS,
   ballRank,
   browserBall,
   browserFieldShown,
@@ -15,6 +16,8 @@ import {
   mailBall,
   mayLink,
   mayRead,
+  meetingBall,
+  meetingFieldShown,
   specInTitle,
   titleClaims,
   titleHead,
@@ -22,6 +25,7 @@ import {
   workClient,
 } from '../agent/ball-board'
 import { CRM_TOUCH_TOOLS } from '../agent/crm-touch-tools'
+import { TABLE as MEETINGS_TABLE } from './meeting-reminders.gen'
 import {
   askForInput,
   resetInputRequestsForTests,
@@ -54,6 +58,7 @@ interface Tables {
   browser?: Array<Record<string, unknown>>
   approvals?: Array<Record<string, unknown>>
   journal?: Array<Record<string, unknown>>
+  meetings?: Array<Record<string, unknown>>
 }
 
 /** A pool that answers by table name and records every statement. */
@@ -78,6 +83,8 @@ function stubPool(t: Tables) {
         return { rows: t.approvals ?? [] }
       if (/^\s*SELECT/.test(q) && q.includes('FROM browser_journal'))
         return { rows: t.journal ?? [] }
+      if (/^\s*SELECT/.test(q) && q.includes(`FROM ${MEETINGS_TABLE}`))
+        return { rows: t.meetings ?? [] }
       return { rows: [] }
     },
   }
@@ -633,9 +640,118 @@ describe('automation/ball-board -- the spec, against the host', () => {
     expect(b2.sources.browser).toMatchObject({ status: 'empty', cards: 0 })
   })
 
+  it('a meeting that ended unanswered is due, one within a day is ours', async () => {
+    expect(meetingBall(true, false, false)).toBe(SPEC.BALL_DUE)
+    expect(meetingBall(true, true, false)).toBe(SPEC.BALL_NONE)
+    expect(meetingBall(false, false, true)).toBe(SPEC.BALL_OURS)
+    expect(meetingBall(false, false, false)).toBe(SPEC.BALL_NONE)
+    expect(SPEC.MEETING_SOON_H).toBe(24)
+    expect(SPEC.MEETING_AHEAD_H).toBe(168)
+    expect(SPEC.MEETING_ASK_BACK_H).toBe(72)
+    expect(cardSpec(SPEC.SOURCE_MEETING, '')).toBe(SPEC.SPEC_OF_MEETING)
+
+    const me = '900000556'
+    stubCrm([])
+    const at = (h: number) => new Date(Date.now() + h * 3_600_000)
+    const pool = stubPool({
+      meetings: [
+        {
+          id: 1,
+          title: 'standup',
+          starts_at: at(-3),
+          ends_at: at(-2),
+          mode: 'online',
+          status: 'planned',
+        },
+        {
+          id: 2,
+          title: 'demo',
+          starts_at: at(5),
+          ends_at: at(6),
+          mode: 'online',
+          status: 'planned',
+        },
+        {
+          id: 3,
+          title: 'dinner',
+          starts_at: at(72),
+          ends_at: at(74),
+          mode: 'offline',
+          status: 'planned',
+        },
+      ],
+    })
+    const b = await board(pool, me)
+    const sel = pool.sql.findIndex(q => q.includes(`FROM ${MEETINGS_TABLE}`))
+    // The window and the open status are the spec's, passed, not restated.
+    expect(pool.params[sel]).toEqual([
+      me,
+      SPEC.MEETING_OPEN_STATUS,
+      SPEC.MEETING_AHEAD_H,
+      SPEC.MEETING_ASK_BACK_H,
+    ])
+    expect(b.sources.meeting).toMatchObject({ status: 'ok', cards: 3 })
+    const cards = b.clients.flatMap(c => c.cards)
+    const ball = (ref: string) => cards.find(c => c.ref === ref)?.ball
+    expect(ball('1')).toBe(SPEC.BALL_DUE)
+    expect(ball('2')).toBe(SPEC.BALL_OURS)
+    expect(ball('3')).toBe(SPEC.BALL_NONE)
+    expect(cards.every(c => c.source === SPEC.SOURCE_MEETING)).toBe(true)
+  })
+
+  it("a meeting card is the caller's own and carries no token, link or place", async () => {
+    expect(SPEC.MEETING_OWN_ONLY).toBe(true)
+    expect(SPEC.MEETING_CARD_NO_TOKEN).toBe(true)
+    for (const f of ['title', 'starts_at', 'ends_at', 'mode', 'status'])
+      expect(meetingFieldShown(f)).toBe(true)
+    for (const f of ['tap_token', 'ics_token', 'url', 'place', 'notes'])
+      expect(meetingFieldShown(f)).toBe(false)
+
+    const me = '900000557'
+    stubCrm([])
+    const pool = stubPool({
+      meetings: [
+        {
+          id: 7,
+          title: 'call',
+          starts_at: new Date(Date.now() + 3_600_000),
+          ends_at: new Date(Date.now() + 7_200_000),
+          mode: 'online',
+          status: 'planned',
+          tap_token: 'SECRET',
+          url: 'https://meet.example/SECRET',
+          place: 'SECRET street',
+        },
+      ],
+    })
+    const b = await board(pool, me)
+    const sel = pool.sql.findIndex(q => q.includes(`FROM ${MEETINGS_TABLE}`))
+    expect(pool.params[sel]?.[0]).toBe(me)
+    expect(pool.sql[sel]).toMatch(/WHERE telegram_id = \$1/)
+    expect(pool.sql[sel]).not.toMatch(/\*|token|\burl\b|\bplace\b|notes/)
+    for (const f of MEETING_FIELDS) expect(pool.sql[sel]).toContain(f)
+    const card = b.clients[0].cards[0]
+    expect(card.link).toBeNull()
+    expect(card.spec).toBe(SPEC.SPEC_OF_MEETING)
+    expect(JSON.stringify(b)).not.toContain('SECRET')
+
+    // Nobody ever booked a meeting: no table is an empty source, not an outage.
+    const none = {
+      sql: [] as string[],
+      params: [] as unknown[][],
+      async query(q: string, p: unknown[] = []) {
+        if (q.includes(`FROM ${MEETINGS_TABLE}`))
+          throw new Error(`relation "${MEETINGS_TABLE}" does not exist`)
+        return stubPool({}).query(q, p)
+      },
+    }
+    const b2 = await board(none as never, me)
+    expect(b2.sources.meeting).toMatchObject({ status: 'empty', cards: 0 })
+  })
+
   it('the board is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(3)
+    expect(SPEC.VERSION).toBe(4)
     expect(BALL_BOARD_TOOLS.map(t => t.name)).toEqual([
       SPEC.TOOL,
       SPEC.PUSH_TOOL,
