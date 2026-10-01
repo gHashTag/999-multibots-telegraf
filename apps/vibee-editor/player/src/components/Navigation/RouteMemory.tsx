@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from '@vibee/atoms'
 import { myProfileAtom } from '@/atoms'
 import { launchStartParam } from '@/lib/telegram'
 import { IS_EMBED } from '@/lib/embed'
+import { isWelcomed } from '@/lib/welcomeMemory'
 
 /**
  * Приложение открывается там, где человека прервали.
@@ -48,6 +49,13 @@ function isRestorable(path: string): boolean {
 const HOME = '/feed'
 
 /**
+ * THE FIRST SCREEN OF A FIRST LAUNCH: who we are and what is sold
+ * (pages/Welcome.tsx). Shown once; the page sets the flag as it opens
+ * (lib/welcomeMemory.ts).
+ */
+export const WELCOME = '/welcome'
+
+/**
  * Снято ДО монтирования React — по той же причине, что и LAUNCH_PATH в
  * TelegramProvider: к моменту эффектов путь уже переписан редиректом, а
  * записыватель ниже успел бы положить в хранилище «/feed» поверх запомненного.
@@ -84,10 +92,16 @@ export function LaunchRedirect() {
   const startParam = launchStartParam()
   // Inside the game's TRI frame the game chose the screen; the remembered one
   // belongs to the real app.
+  // A person who has never been greeted sees who we are first -- unless a
+  // link asked for a screen, or the game's frame chose one.
   const target =
-    !IS_EMBED && !startParam && REMEMBERED && isRestorable(REMEMBERED)
-      ? REMEMBERED
-      : HOME
+    IS_EMBED || startParam
+      ? HOME
+      : !isWelcomed()
+        ? WELCOME
+        : REMEMBERED && isRestorable(REMEMBERED)
+          ? REMEMBERED
+          : HOME
 
   return <Navigate to={target} replace />
 }

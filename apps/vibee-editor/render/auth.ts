@@ -353,6 +353,11 @@ const PUBLIC_EXACT = new Set([
    * counted. The handler keeps no person and limits each address per minute.
    */
   '/api/traffic/arrival',
+  /*
+   * A step on the welcome screen (the screen's heatmap), sent the same way
+   * and bounded the same way: a closed list of steps, no person.
+   */
+  '/api/traffic/welcome',
 ])
 
 /*

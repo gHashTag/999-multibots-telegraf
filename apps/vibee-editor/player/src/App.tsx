@@ -35,6 +35,7 @@ const HomePage = lazy(() => import('@/pages/Home'))
 const EditorPage = lazy(() => import('@/pages/Editor'))
 const ChatPage = lazy(() => import('@/pages/Chat'))
 const AgentsPage = lazy(() => import('@/pages/Agents'))
+const WelcomePage = lazy(() => import('@/pages/Welcome'))
 const AgentHarnessPage = lazy(() => import('@/pages/AgentHarness'))
 const AgentDashboardPage = lazy(() => import('@/pages/AgentDashboard'))
 const ProfilePage = lazy(() => import('@/pages/Profile'))
@@ -394,6 +395,7 @@ function RouteTable() {
       {/* One group, read-only: what was said and who said it (#2950). */}
       <Route path="/crm/g/:chatId/chat" element={<CrmGroupPage />} />
       <Route path="/templates" element={<TemplatesPage />} />
+      <Route path="/welcome" element={<WelcomePage />} />
       <Route path="/agents" element={<AgentsPage />} />
       <Route path="/agents/connect" element={<AgentHarnessPage />} />
       <Route path="/agents/:agentId/work" element={<ChatPage />} />

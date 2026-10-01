@@ -923,7 +923,8 @@ const en: Translations = {
   'pricing.tokens.feature2': 'One balance for everything, no seats',
   'pricing.tokens.feature3':
     'The price of each action is shown before you press',
-  'pricing.tokens.feature4': 'Tokens do not expire and are not billed monthly',
+  'pricing.tokens.feature4':
+    'Unspent tokens burn 30 days after they arrive; we remind you 7, 3 and 1 day before',
   'pricing.tokens.note':
     'First tokens on sign-up, no card. An invoice for any amount is written by the agent in the bot.',
 
@@ -1060,6 +1061,11 @@ const en: Translations = {
   'login.boardTitle': 'Sign in to your board',
   'login.boardBody':
     'Sign in with Telegram and the board opens under your name: your clients and your tasks.',
+  // The agent chat's door: /api/agent/chat answers 401 to a browser with no
+  // session, and the chat itself is free (render/src/agent/pricing.ts).
+  'login.chatTitle': 'Sign in to talk to the agent',
+  'login.chatBody':
+    'The agent answers people it knows. Sign in with Telegram — chatting is free.',
   'login.tgSignedTitle': 'You are already signed in',
   'login.tgSignedBody':
     'Telegram already identified you — no separate login exists inside the Mini App.',
@@ -3562,7 +3568,8 @@ const ru: Translations = {
   'pricing.tokens.feature1': 'Картинки, озвучка, видео, сборка рилса',
   'pricing.tokens.feature2': 'Один баланс на всё, без мест и участников',
   'pricing.tokens.feature3': 'Цена каждого действия видна до нажатия',
-  'pricing.tokens.feature4': 'Токены не сгорают и не списываются ежемесячно',
+  'pricing.tokens.feature4':
+    'Неистраченные токены сгорают через 30 дней; напомним за 7, 3 и 1 день',
   'pricing.tokens.note':
     'Первые токены — при входе, без карты. Счёт на любое количество выпишет агент в боте.',
 
@@ -3676,6 +3683,9 @@ const ru: Translations = {
   'login.boardTitle': 'Вход на вашу доску',
   'login.boardBody':
     'Войдите через Telegram — доска откроется под вашим именем: ваши клиенты и ваши задачи.',
+  'login.chatTitle': 'Войдите, чтобы поговорить с агентом',
+  'login.chatBody':
+    'Агент отвечает тем, кого знает. Войдите через Telegram — переписка бесплатна.',
   'login.tgSignedTitle': 'Вы уже вошли',
   'login.tgSignedBody':
     'Telegram уже определил вас — отдельного входа внутри мини-аппа не существует.',

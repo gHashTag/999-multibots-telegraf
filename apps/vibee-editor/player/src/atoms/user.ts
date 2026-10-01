@@ -105,7 +105,7 @@ export const showLoginModalAtom = atom<boolean>(false)
  * is the honest general case -- the header's own Login button has no ulterior
  * purpose, and inventing one would be the same lie in a new coat.
  */
-export type LoginReason = 'export' | 'generate' | 'follow' | 'board'
+export type LoginReason = 'export' | 'generate' | 'follow' | 'board' | 'chat'
 
 export const loginReasonAtom = atom<LoginReason | null>(null)
 
