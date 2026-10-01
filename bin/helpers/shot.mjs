@@ -66,7 +66,8 @@ const gitDir = spawnSync('git', ['rev-parse', '--git-dir'], {
   cwd: ROOT,
   encoding: 'utf8',
 }).stdout.trim()
-const out = resolve(opt('out', join(ROOT, gitDir || '.git', 'tri-shot')))
+// --git-dir is absolute in a worktree; resolve keeps it, join glued it on.
+const out = resolve(opt('out', resolve(ROOT, gitDir || '.git', 'tri-shot')))
 
 /*
  * Every harness is a story: the answers its panel gets and the presses that
@@ -337,6 +338,119 @@ const HARNESSES = {
       },
     ],
   },
+  /*
+   * THE KANBAN CARD'S AGENT SHEET (/game/kanban?card=<n>): a thumb taps a
+   * card and the conversation rises at HALF over the board. No MCP tool --
+   * the sheet reads render's task thread and writes to the agent's chat
+   * door, so both are answered in the host's shapes (task-thread.ts, the
+   * chat's NDJSON events). The title is the board's longest kind: a real
+   * epic title, cut by the server at TITLE_MAX, never by the phone.
+   */
+  'card-chat': {
+    query: '?card=5382&repo=gHashTag/t27',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({
+          json: {
+            thread: 'task:gHashTag/t27#5382',
+            card: {
+              title:
+                'EPIC: tap any kanban card and its agent conversation opens -- history, composer, A2A sync, mobile-first detent sheet, spec-first interface between agents and the person',
+              column: 'running',
+            },
+            messages: [
+              {
+                role: 'user',
+                content: 'Что с этой задачей? Где мы остановились?',
+                surface: 'kanban',
+              },
+              {
+                role: 'assistant',
+                content:
+                  'PR #3208 открыт: лист с историей и полем ввода готов, тесты зелёные. Осталось поднять QUEEN_REF, чтобы доска слала open-card.',
+                surface: 'kanban',
+              },
+              {
+                role: 'assistant',
+                content:
+                  'Проверил через tri card 5382: нить task:gHashTag/t27#5382 общая, мои ответы здесь видны.',
+                surface: 'agent',
+              },
+            ],
+          },
+        }),
+      ],
+      [
+        '**/api/agent/chat',
+        () => ({
+          contentType: 'application/x-ndjson',
+          body:
+            // The stream's keys are the server's own words (agentStream.ts).
+            JSON.stringify({ тип: 'ход', id: 'shot-1' }) + // cyrillic-ok
+            '\n' +
+            JSON.stringify({
+              тип: 'текст', // cyrillic-ok
+              текст: 'Продолжаю: открою PR, когда скажешь.', // cyrillic-ok
+            }) +
+            '\n',
+        }),
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    // The conversation is read above the place to write into it.
+    before: [['.card-chat__log', '.card-chat__composer']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => p.locator('.card-chat__msg').first().waitFor(),
+      },
+      {
+        // The composer focused: the sheet goes FULL, the thumb types.
+        id: 'full',
+        ready: async p => {
+          await p.locator('.card-chat__input').focus()
+          await p.locator('.detent-sheet--full').waitFor()
+          await p.locator('.card-chat__input').fill('Продолжай, открой PR')
+        },
+      },
+      {
+        id: 'sent',
+        ready: async p => {
+          await p.locator('.card-chat__send').click()
+          await p
+            .locator('.card-chat__msg--assistant', { hasText: 'Продолжаю' })
+            .waitFor()
+        },
+      },
+    ],
+  },
+
+  /*
+   * A CARD NOBODY HAS TALKED ABOUT YET: no title from the board, no turns --
+   * the three starters are the first thing the thumb meets.
+   */
+  'card-chat-empty': {
+    page: 'card-chat',
+    query: '?card=5383&repo=gHashTag/t27',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({ json: { thread: 'task:gHashTag/t27#5383', messages: [] } }),
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => p.locator('.card-chat__starter').first().waitFor(),
+      },
+    ],
+  },
 }
 
 /*
@@ -468,8 +582,33 @@ function measure({ root, scope, within: area, before = [] }) {
       )
     })
     .map(el => `${name(el)} ${el.scrollWidth}>${el.clientWidth}`)
+  /*
+   * What of a control is on screen: its box cut by every clipping ancestor
+   * (a scrolled log). A starter half-scrolled under the log's edge does not
+   * lie under the composer -- the screen shows the log's edge between them
+   * (measured 01.10.2026, card-chat-empty). Size is still the whole box: a
+   * thumb meets it whole once scrolled to.
+   */
+  const onScreen = el => {
+    const r = el.getBoundingClientRect()
+    let { left, top, right, bottom } = r
+    for (
+      let p = el.parentElement;
+      p && p !== document.body;
+      p = p.parentElement
+    ) {
+      const s = getComputedStyle(p)
+      if (s.overflowX === 'visible' && s.overflowY === 'visible') continue
+      const c = p.getBoundingClientRect()
+      left = Math.max(left, c.left)
+      top = Math.max(top, c.top)
+      right = Math.min(right, c.right)
+      bottom = Math.min(bottom, c.bottom)
+    }
+    return { left, top, right, bottom }
+  }
   const overlap = []
-  const rects = controls.map(el => ({ el, r: el.getBoundingClientRect() }))
+  const rects = controls.map(el => ({ el, r: onScreen(el) }))
   for (let i = 0; i < rects.length; i++)
     for (let j = i + 1; j < rects.length; j++) {
       const a = rects[i].r
@@ -521,7 +660,7 @@ try {
   let log = ''
   server.stdout.on('data', c => (log += c))
   server.stderr.on('data', c => (log += c))
-  const url = `http://127.0.0.1:${port}/harness/${name}.html`
+  const url = `http://127.0.0.1:${port}/harness/${h.page ?? name}.html${h.query ?? ''}`
   const until = Date.now() + 120_000
   for (;;) {
     const ok = await fetch(url)
@@ -534,9 +673,17 @@ try {
   }
 
   /* The container's Chromium, whatever revision this playwright expects. */
-  const exe = ['/opt/pw-browsers/chromium', chromium.executablePath()].find(p =>
-    existsSync(p)
-  )
+  // On a Mac with no playwright download, any installed Chromium-family
+  // browser opens the page the same way (a fresh temp profile, never the
+  // person's own); TRI_SHOT_CHROME names one explicitly.
+  const exe = [
+    process.env.TRI_SHOT_CHROME,
+    '/opt/pw-browsers/chromium',
+    chromium.executablePath(),
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/Applications/BrowserOS.app/Contents/MacOS/BrowserOS',
+  ].find(p => p && existsSync(p))
   browser = await chromium.launch({ executablePath: exe })
   const context = await browser.newContext({
     viewport: { width, height: 844 },
@@ -548,6 +695,12 @@ try {
   const page = await context.newPage()
   const errors = []
   page.on('pageerror', e => errors.push(String(e)))
+  // TRI_SHOT_DEBUG=1: the page's console and every request it makes, for a
+  // state that waits forever (a harness without the app's store did).
+  if (process.env.TRI_SHOT_DEBUG) {
+    page.on('console', m => console.error('console', m.type(), m.text()))
+    page.on('request', r => console.error('request', r.method(), r.url()))
+  }
   await page.route('**/mcp', async route => {
     const body = JSON.parse(route.request().postData() || '{}')
     const tool = body?.params?.name
@@ -580,6 +733,18 @@ try {
       },
     })
   })
+  /*
+   * A harness whose page talks to render's own doors (not /mcp) answers
+   * them here, in the host's shapes. Every other render door is refused, so
+   * a shot never reaches production; playwright tries the last route first.
+   */
+  if (h.routes) {
+    await page.route('**/api/**', route =>
+      route.fulfill({ status: 404, json: { error: 'tri shot: no such door' } })
+    )
+    for (const [glob, reply] of h.routes)
+      await page.route(glob, route => route.fulfill(reply(route.request())))
+  }
   await page.goto(url, { waitUntil: 'domcontentloaded' })
   await page.locator(h.root).waitFor({ timeout: 60_000 })
 

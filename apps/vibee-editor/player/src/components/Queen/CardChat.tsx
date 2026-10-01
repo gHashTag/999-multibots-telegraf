@@ -53,6 +53,8 @@ export function CardChat({
   const busy = busyThreads.includes(key)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
+  // A board title runs to TITLE_MAX; two lines until the thumb asks for all.
+  const [titleOpen, setTitleOpen] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
 
   // The server's thread, read once per card. Silent on failure: the local
@@ -149,6 +151,8 @@ export function CardChat({
       onDetent={d => setDetent(d)}
       label={t('cardChat.label', { n: card.number })}
       className="card-chat-sheet"
+      // The body says the number and the whole title; the handle need not.
+      compactHandle
       peek={
         <div className="card-chat__peek">
           <span className="card-chat__no">#{card.number}</span>
@@ -162,10 +166,16 @@ export function CardChat({
       <div className="card-chat" role="dialog" aria-label={title}>
         <header className="card-chat__head">
           <div className="card-chat__meta">
+            <span className="card-chat__no">#{card.number}</span>
             {card.column && (
               <span className="card-chat__column">{card.column}</span>
             )}
-            {card.repo && <span className="card-chat__repo">{card.repo}</span>}
+            {card.repo && (
+              // The owner is every card's (TASK_OWNER); the name is the news.
+              <span className="card-chat__repo" title={card.repo}>
+                {card.repo.split('/').pop()}
+              </span>
+            )}
           </div>
           {issue && (
             <a
@@ -186,6 +196,14 @@ export function CardChat({
             ×
           </button>
         </header>
+        <button
+          type="button"
+          className={`card-chat__heading${titleOpen ? ' card-chat__heading--open' : ''}`}
+          aria-expanded={titleOpen}
+          onClick={() => setTitleOpen(o => !o)}
+        >
+          {title}
+        </button>
         <div
           className="card-chat__log"
           ref={logRef}

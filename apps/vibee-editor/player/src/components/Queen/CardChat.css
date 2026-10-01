@@ -56,8 +56,9 @@
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow: hidden;
 }
 .card-chat__column,
 .card-chat__repo {
@@ -72,6 +73,36 @@
 .card-chat__column {
   background: rgba(0, 255, 136, 0.14);
   color: #00ff88;
+}
+
+.card-chat__heading {
+  flex: 0 0 auto;
+  min-height: 44px;
+  margin: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  /* The app's buttons are one line (design-system.css); this one wraps. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.card-chat__heading--open {
+  -webkit-line-clamp: unset;
+  line-clamp: none;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 
 /* GitHub is a small way out, never the tap (GITHUB_IS_SECONDARY). */
@@ -109,6 +140,14 @@
   gap: 8px;
   padding: 2px 0;
 }
+/*
+ * A short conversation sits on the composer, as every chat's does, not at
+ * the top of an empty sheet. Margin, not justify-content: flex-end, which
+ * would make the oldest turns unreachable by scrolling.
+ */
+.card-chat__log > :first-child {
+  margin-top: auto;
+}
 
 .card-chat__msg {
   max-width: 86%;
@@ -140,6 +179,10 @@
   margin: auto 0;
   text-align: center;
   color: rgba(255, 255, 255, 0.7);
+}
+/* The browser's 1em paragraph margins cost the third starter at HALF. */
+.card-chat__empty p {
+  margin: 0;
 }
 .card-chat__starters {
   display: flex;
@@ -175,6 +218,8 @@
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
+  /* A textarea keeps the browser's serif unless told (seen by tri shot). */
+  font-family: inherit;
   /* 16px or iOS zooms the page on focus. */
   font-size: 16px;
   line-height: 20px;
