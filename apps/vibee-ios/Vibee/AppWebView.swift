@@ -171,6 +171,28 @@ private enum PageScripts {
    the head keeps a margin for the bar. Measured at 402x780: the map was 235px
    tall with the board's rules alone and 583px with the four below.
    */
+  /// The web scrolls in inner containers as well as the window (the board's
+  /// columns, the agent's list), so every scrolled box goes back up.
+  /// Game and Tasks draw the board inside an iframe of this same origin
+  /// (`/queen/`, see the player's Hive.tsx), so the column that scrolls is in
+  /// the frame's document, not the page's. The walk enters every frame it is
+  /// allowed into; a cross-origin frame throws on `contentDocument` access and
+  /// is skipped, which is the most the page may do there.
+  static let scrollToTop = """
+    (() => {
+      const walk = (doc) => {
+        doc.defaultView.scrollTo({ top: 0, behavior: 'smooth' });
+        for (const el of doc.querySelectorAll('*')) {
+          if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior: 'smooth' });
+          if (el.tagName === 'IFRAME') {
+            try { if (el.contentDocument) walk(el.contentDocument); } catch (_) {}
+          }
+        }
+      };
+      walk(document);
+    })();
+    """
+
   static let boardFullscreen = """
     (function () {
       if (location.origin !== '\(WebSessionMint.appOrigin)') return;
@@ -346,6 +368,31 @@ final class WebHost: NSObject, ObservableObject {
   func reload() {
     phase = .loading
     webView.load(URLRequest(url: url(path)))
+  }
+
+  /// What a repeat tap on this page's tab does (see `tabReselects`).
+  enum Reselect: Equatable { case goToRoot, scrollToTop }
+
+  /// Away from the tab's own page -> back to it, as the web's tab link does;
+  /// already on it -> to the top. The query is ignored: `lang` and the
+  /// board's own filters do not make it another page. A page on another
+  /// site (a link the person followed) is "away", whatever its path.
+  static func reselect(at here: URL?, root: String) -> Reselect {
+    func bare(_ p: String) -> String { p.count > 1 && p.hasSuffix("/") ? String(p.dropLast()) : p }
+    guard let here, let rootPath = URLComponents(string: root)?.path,
+      here.host == URL(string: WebSessionMint.appOrigin)?.host
+    else { return .goToRoot }
+    return bare(here.path) == bare(rootPath) ? .scrollToTop : .goToRoot
+  }
+
+  /// The repeat tap itself. Nothing before the first load: there is no page.
+  func returnToStart() async {
+    guard started else { return }
+    switch Self.reselect(at: webView.url, root: path) {
+    case .goToRoot: reload()
+    case .scrollToTop:
+      _ = try? await webView.evaluateJavaScript(PageScripts.scrollToTop)
+    }
   }
 
   private func install(grant: WebGrant?) async {
@@ -544,6 +591,7 @@ struct WebHostView: UIViewRepresentable {
 struct WebPage<Fallback: View>: View {
   @ObservedObject var host: WebHost
   @Environment(\.tabIsShown) private var tabIsShown
+  @Environment(\.tabReselects) private var tabReselects
   @ViewBuilder var fallback: () -> Fallback
 
   var body: some View {
@@ -576,6 +624,7 @@ struct WebPage<Fallback: View>: View {
     }
     .background(Palette.background.ignoresSafeArea())
     .task { await host.start() }
+    .onChange(of: tabReselects) { Task { await host.returnToStart() } }
     .sheet(isPresented: $host.wantsSignIn) {
       ScrollView {
         VStack(alignment: .leading, spacing: Space.md) {

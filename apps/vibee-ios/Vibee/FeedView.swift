@@ -40,6 +40,7 @@ struct FeedView: View {
    * системы. Пока прокрутки не было, он `nil` — тогда текущим считаем первый.
    */
   @State private var текущий: String?
+  @Environment(\.tabReselects) private var tabReselects
 
   /// Короткое сообщение поверх ленты: единственный способ ответить на
   /// действие, которое не удалось. Пустой экран вместо ответа — та самая
@@ -146,6 +147,11 @@ struct FeedView: View {
     .task {
       настроитьЗвук()
       await загрузить()
+    }
+    // A repeat tap on the open Feed tab goes back to the first reel, as the
+    // web's tab link and the Reels/TikTok tab do (see `tabReselects`).
+    .onChange(of: tabReselects) {
+      withAnimation { текущий = items.first?.id } // cyrillic-ok: existing state
     }
   }
 
@@ -291,8 +297,10 @@ struct ReelView: View {
     VStack(alignment: .leading, spacing: 6) {
       Text(template.name)
         .font(Тема.Шрифт.стиль(.title3, .semibold))
-      Text("@\(template.creatorUsername)")
-        .font(Тема.Шрифт.стиль(.subheadline)).foregroundStyle(Тема.Цвет.акцент)
+      if let handle = template.handle {
+        Text(handle)
+          .font(Тема.Шрифт.стиль(.subheadline)).foregroundStyle(Тема.Цвет.акцент) // cyrillic-ok
+      }
       Text(template.description)
         .font(Тема.Шрифт.стиль(.footnote)).foregroundStyle(Тема.Цвет.текстПриглушённый)
         .lineLimit(2)
@@ -363,7 +371,7 @@ struct ReelView: View {
         ShareLink(
           item: url,
           subject: Text(template.name),
-          message: Text("«\(template.name)» — @\(template.creatorUsername)")
+          message: Text(["«\(template.name)»", template.handle].compactMap { $0 }.joined(separator: " — "))
         ) {
           СодержимоеКнопки(значок: "square.and.arrow.up", подпись: nil,
                            активна: false, цветАктивной: Тема.Цвет.текст)
