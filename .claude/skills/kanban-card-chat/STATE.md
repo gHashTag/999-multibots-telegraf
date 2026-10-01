@@ -47,6 +47,12 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 - [x] L5.4 `tri card-drift [n] [--dry]` + scheduled task `card-drift-nightly` (03:26 local): one issue "card-check drift" in gHashTag/t27, open/comment/close by `driftAction`; an unmeasured night touches nothing. card-status-parity now exits 2 (not 1 = drift) when its read threw
 - [x] L5.5 phone: `tri shot card-chat 390 ru` green after the change (11 controls, 44 px, nothing cut)
 
+### Loop 6 (owner: "все три" -- the move door flip, the agent at work, a nightly look)
+
+- [ ] L6.1 flip `MOVE_DOOR_EXISTS` -- now spec **v7** (v6 went to L6.2). Waits on BrowserOS#519 merge + deploy; `tri card-check` says so in a `wait` line
+- [x] L6.2 spec v6 (t27#5389, a6626feb1): `event: work` on the live door -- WORK*THINKING / TOOL (by name) / WRITING / DONE, `work_send` dedupe, `work_shown` idle cut at 90 s; names only, never stored. Render: `announcingWork` wraps `runAgent` in the chat route AND A2A (DONE in `finally`), `workNow` answers a sheet opened mid-turn. Player: `workFrom` takes a valid kind and a `[A-Za-z0-9*.:-]{1,64}`name only; CardChat line`.card-chat\_\_doing` role=status. Tests: render thread-live 6/6, spec binding 30/30, player 15/15 (999 6a51c79e8)
+- [x] L6.3 `tri hive-nightly [--dry] [--shots]` (408279b5e): drift + live card-check + weekly `tri shot all`; a regression opens/updates ONE issue in the EPIC by title prefix; unmeasured (no agent key, 401) touches nothing
+
 1. Card tap opens GitHub in a new tab; nothing about the agent.
 2. Cards carry no agent, no conversation, no history.
 3. A2A tasks live in memory (500 cap), lost on every deploy, cannot be
@@ -135,6 +141,17 @@ git-dir>)`). Fix: `resolve`, and the stray dir removed. A tool that writes
 - **iOS simulator: "Simulator device failed to launch ... system shell
   probably crashed"** after a clean compile -- the simulator, not the code.
   `simctl shutdown` + `boot` + `bootstatus -b`, then `test-without-building`.
+- **2026-10-02, a class name already taken twice.** The work line was first
+  `.card-chat__work` (the WorkStrip section) then `.card-chat__busy` (the
+  send button state): both styled something else. Grep the CSS before naming;
+  it is `.card-chat__doing` now.
+- **2026-10-02, the work signal is same-replica only.** The bus is
+  in-process: a sheet on another replica sees no "using gh_read" line, only
+  the answer by the 15 s recheck. Honest degradation, not a bug -- say it if
+  a phone test runs against two replicas.
+- **`tri shot all` is ~1 min per stand x width x language** and prints nothing
+  until the end inside `hive-nightly` (captured by `$(...)`); 30 min of
+  silence is progress, not a hang -- check `pgrep -P` for the current stand.
 - **The route-guard gate pins mount counts** (BrowserOS
   `tests/api/routes/route-guard.test.ts`): a new guarded door is 45 -> 46
   mounts and one more wrapper; re-measure with a dated comment, never loosen.
@@ -156,7 +173,7 @@ git-dir>)`). Fix: `resolve`, and the stray dir removed. A tool that writes
 0. (v5) `tri card-drift --dry` must print a verb; the nightly task's runs
    (Scheduled sidebar) must not say "not measured" three nights running.
    After BrowserOS#519 merges and deploys: flip `MOVE_DOOR_EXISTS` in the t27
-   spec (v6), re-gen, and `GET /api/card-move` as a keeper must say
+   spec (v7), re-gen, and `GET /api/card-move` as a keeper must say
    `offered: true` once `TRIOS_API_TOKEN` + `HIVE_KEEPERS` are on vibee-render.
 
 1. After the owner merges #3208 and render deploys: `tri card <n>` must print a

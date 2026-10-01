@@ -160,9 +160,21 @@ TRI_T27C=<t27c>` and add a `docs/now/<date>-<slug>.md` entry. A t27c with
   replica's write arrives through the 15 s recheck.
 - **The move button is dark by construction.** `readMoveOffer` returns false
   WITHOUT a request while `MOVE_DOOR_EXISTS` is false; flipping it is a spec
-  version (v6), not a code edit. The Queen's door admits only a Bearer
+  version (v7), not a code edit. The Queen's door admits only a Bearer
   `TRIOS_API_TOKEN` from off-box, so the browser can never call it directly
   -- render proxies, a keeper only.
+- **The agent at work = names only (v6).** The live door also sends
+  `event: work` (`{kind, name?}`): thinking, a tool by name, writing, done.
+  Never the agent's words, never the tool's arguments, never stored. Wrap
+  every `runAgent` that may run on a task thread in `announcingWork` (the
+  chat route and both A2A paths do); it no-ops off `task:` threads and
+  announces DONE in `finally`. While the sheet streams its own answer it
+  shows tool lines only -- the bubble already says "Thinking...".
+- **Cyrillic event keys in tests.** Agent events are `{ тип, имя, текст }`;
+  the guard blocks Cyrillic identifiers, so build them with computed string
+  keys (`{ ['тип']: kind }`) in a helper, not object-literal keys.
+- **Typing a vitest mock's parameter** (`vi.fn((url: string) => ...)`) can
+  raise TS2493 on `mock.calls[0][0]`; read calls via `String(call[0])`.
 - **t27 commits need the repo's own `tri`.** The hook runs `tri hooks
 pre-commit`; an older `tri` says "unknown command: hooks". Build it:
   `nice cargo build --release -p tri --offline`, then commit with
@@ -198,6 +210,17 @@ and title a second time above PEEK (`DetentSheet compactHandle`, +28 px to
 the body); the 320 px repo pill was cut (repo name only, the meta row
 wraps); a short log floated at the top (`margin-top: auto` on the first
 turn). Recipe and traps: skill `phone-shot`.
+
+## The nightly look: `tri hive-nightly`
+
+```bash
+tri hive-nightly --dry           # drift + live card-check, writes nothing
+tri hive-nightly --dry --shots   # + every phone stand (slow: ~1 min each)
+```
+
+Without `--dry` a regression opens or comments ONE issue in the EPIC repo,
+matched by title prefix; an unmeasured night (no agent key, 401) leaves it
+as it is. The scheduled task `card-drift-nightly` runs it.
 
 ## Related Resources
 

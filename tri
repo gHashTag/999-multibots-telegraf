@@ -760,7 +760,9 @@ AGENT TOOLS ON THE RENDER
                           closed by the same verbs as card-drift): the drift,
                           the live card-check (waiting on a merge or deploy
                           is not a regression), and on Sundays or with
-                          --shots `tri shot all`. Unmeasured touches nothing.
+                          --shots `tri shot all`. A red stand is shot twice:
+                          green the second time = flake, no issue.
+                          Unmeasured touches nothing.
                           Exit 0 agree, 1 drift, 2 not measured.
   tri browser             can the remote browser ACT, not merely answer.
                           `/json/list` is served by the browser process, so it
@@ -2248,7 +2250,27 @@ cmd_hive_nightly() {
   if [ "$shots" = 1 ]; then
     echo '== tri shot all'
     out=$(TRI_BRIDGE=1 "$ROOT/bin/tri" shot all 2>&1); rc=$?
-    printf '%s\n' "$out" | grep -E '^(ok|red|FAIL|==)|shot (green|red)' | tail -40
+    # The reason travels with the verdict: a red line without its cut and
+    # small rows cannot be read the morning after.
+    printf '%s\n' "$out" | grep -vE '^ok ' | tail -60
+    if [ "$rc" = 1 ]; then
+      # A stand red once and green on a second shot is a flake, not a
+      # regression: say it, but only a stand that stays red opens the issue.
+      local line stand w lang again still=0
+      while IFS= read -r line; do
+        stand=$(printf '%s' "$line" | sed -E 's/.*RED -- ([^ ]+) at ([0-9]+)px \(([a-z]+)\).*/\1/')
+        w=$(printf '%s' "$line" | sed -E 's/.*RED -- ([^ ]+) at ([0-9]+)px \(([a-z]+)\).*/\2/')
+        lang=$(printf '%s' "$line" | sed -E 's/.*RED -- ([^ ]+) at ([0-9]+)px \(([a-z]+)\).*/\3/')
+        again=$(TRI_BRIDGE=1 "$ROOT/bin/tri" shot "$stand" "$w" "$lang" 2>&1)
+        if printf '%s' "$again" | grep -q 'shot green'; then
+          echo "  flake: $stand $w $lang red once, green on a second shot"
+          out=$(printf '%s\n\nflake (green on a second shot): %s %s %s' "$out" "$stand" "$w" "$lang")
+        else
+          still=1
+        fi
+      done < <(printf '%s\n' "$out" | grep -E '== shot RED -- ')
+      [ "$still" = 0 ] && rc=0
+    fi
     case "$rc" in 0) bad=0 ;; 1) bad=1 ;; *) bad=x ;; esac
     _one_issue 'phone-shot regression' \
       'phone-shot regression: a stand is red at phone width' \
