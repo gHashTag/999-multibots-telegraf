@@ -93,6 +93,18 @@ git-dir>)`). Fix: `resolve`, and the stray dir removed. A tool that writes
 - **iOS Tasks tab (#3223) has a NATIVE fallback kanban** when the web host
   fails; a tap there does not open the card chat. Not ours to change in this
   PR -- noted for the iOS owner.
+- **2026-10-01, the secrets gate stopped the v4 commit** on
+  the gen.ts line that holds the env NAME of the server token: its
+  name-as-value filter wanted the line to END at the name,
+  and `t27c gen-ts` appends ` satisfies string;`. Fix in
+  `scripts/security-token-guard.sh`: that tail is allowed; a lowercase value
+  is still caught (negative control run). Any spec constant holding an env
+  NAME would have hit this.
+- **2026-10-01, pre-push red on `bundleBootsPastImports`** (main's test, not
+  ours): it runs `ROOT/node_modules/.bin/esbuild`, and the worktree root had
+  no node_modules (only the test's own `.cache`). Fix: root `node_modules` is
+  a symlink to the main checkout's (per skill memory: never install at the
+  worktree root). The merge with main is what pulled it into related-tests.
 - **The live render answers `?task=` with `self`** (2026-10-01, card-check):
   the deploy is the owner's merge, not a defect.
 
