@@ -893,13 +893,24 @@ describe('a bot owner wears their bots and their work', () => {
    */
   it('shows bots, plan and faults where sent, and nothing where not', async () => {
     serve()
-    await draw()
+    // The client rows live on the contacts tab since #3199; /crm alone is
+    // the work section and lists nobody.
+    await draw(CONTACTS)
     const rows = [...host.querySelectorAll('.crm__row--client')]
     const owner = rows.find(r => r.textContent?.includes('ClientOnlyName'))!
     const lead = rows.find(r => r.textContent?.includes('LeadRowOnlyName'))!
+    // An open fault stays on the row; bots and plan wait behind "...".
+    expect(owner.textContent).toContain('crm.clients.faults:2')
+    expect(owner.textContent).not.toContain('crm.clients.bots')
+    // One row is open at a time, so each is opened in turn.
+    const more = (row: Element) =>
+      act(async () => {
+        row.querySelector<HTMLButtonElement>('.crm__contact-toggle')!.click()
+      })
+    await more(owner)
     expect(owner.textContent).toContain('crm.clients.bots @leela_chakra_ai_bot')
     expect(owner.textContent).toContain('crm.clients.tasks:3,12')
-    expect(owner.textContent).toContain('crm.clients.faults:2')
+    await more(lead)
     for (const k of [
       'crm.clients.bots',
       'crm.clients.tasks',
