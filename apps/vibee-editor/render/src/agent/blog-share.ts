@@ -267,7 +267,7 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
     )
     await d
       .tell(
-        (ok ? '✅ Опубликовано: ' : '⚠️ Не получилось опубликовать: ') + // cyrillic-ok: shown to the owner
+        headlineOf(result) +
           `«${article.title}»\n` +
           Object.entries(result)
             .map(([k, v]) => `${k}: ${v}`)
@@ -311,4 +311,15 @@ export function receiptOf(before: string, after: string): string {
   return before === after
     ? 'не подтверждено: страница не сменилась' // cyrillic-ok: told to the owner
     : LEFT_THE_FORM
+}
+
+/**
+ * The headline says what is KNOWN. "Published" over a list where every
+ * network reads "not confirmed" was the old message: a press shown as a post.
+ */
+export function headlineOf(result: Record<string, string>): string {
+  if (!publishedSomewhere(result)) return '⚠️ Не получилось опубликовать: ' // cyrillic-ok: shown to the owner
+  return Object.values(result).some(v => String(v).includes(LEFT_THE_FORM))
+    ? '✅ Опубликовано: ' // cyrillic-ok: shown to the owner
+    : '❔ Нажато, но не подтверждено — проверьте вкладки в «Браузере»: ' // cyrillic-ok: shown to the owner
 }
