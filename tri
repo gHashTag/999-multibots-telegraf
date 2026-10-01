@@ -316,7 +316,7 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
-  tri iphone [check|build|sim|off]
+  tri iphone [check|build|sim|off|test]
         The Vibee app on the REAL phone: build, install, launch -- one command.
         `sim` does the same on the simulator, with a deadline on install.
         Asks devicectl first, so a locked or unplugged phone is named as such
@@ -399,7 +399,9 @@ CHECKS THAT EACH COST A CYCLE
         Russian and English by OUR engine, and each heard back by OUR whisper
         N times (default 3). The MEDIAN is the verdict -- one sample lied by
         2.5 s -- and the render's Server-Timing splits it into upload, whisper
-        and the road. Over 3 s to speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
+        and the road; the hearing leg is named by the engine that did it
+        (gigaam/parakeet, whisper, or both when they fell back on some runs).
+        Over 3 s to speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
         (the render's AGENT_KEYS, first entry, up to ':'); without it only the
         public status is read and the exit code says NOT MEASURED (2).
 
@@ -408,6 +410,15 @@ CHECKS THAT EACH COST A CYCLE
         gates or pushes running IN THIS TREE, this branch's PR, and the newest
         player/render deploys. Exit 1 = work in flight, continue it; a FAILED
         deploy on main blocks every later merge of that service.
+
+  tri ears [status|deploy] [ru|en|all] | tri уши   (tri gigaam = tri ears ru)
+        The fast ears of voice mode, one image (deployment/gigaam) as two
+        services: gigaam hears Russian (GigaAM v3, ~0.15 s a phrase), parakeet
+        hears English (Parakeet TDT v2 int8, ~0.3 s), where whisper takes 2-3 s.
+        Without arguments: each one's newest deploy and which ears the render
+        routes each language to. `deploy` uploads deployment/gigaam from a
+        CLEAN tree -- neither service is wired to GitHub, so a merge alone
+        does not ship them.
 
   tri pay [--invoice] | tri оплата
         Can a client pay RIGHT NOW, rail by rail.
@@ -1374,6 +1385,8 @@ print(n)' 2>/dev/null)
 #                       pushed swap to 5 of 6 GB. Both now have deadlines; an
 #                       install that misses it gets one simulator reboot.
 #   tri iphone off      shut every running simulator down (gives ~10 GB back)
+#   tri iphone test [Class]  unit tests with a 25-min deadline and a one-line
+#                       verdict (Class = one test class, e.g. ConnectivityTests)
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
 # The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
 # next build need it back. One word instead of remembering the udid.
@@ -1384,6 +1397,48 @@ iphone_sim_off() {
   local u
   for u in $booted; do xcrun simctl shutdown "$u" && good "shut down $u"; done
   echo "  …    swap now: $(sysctl -n vm.swapusage | sed -E 's/.*(used = [^ ]+ +free = [^ ]+).*/\1/')"
+}
+
+# The unit tests, with the deadline and the summary every loop iteration
+# typed by hand: under load they take 10+ minutes, and the verdict is one line
+# in a 3000-line log. `tri iphone test FeedHandleTests` runs one class.
+iphone_test() {
+  local ios="$1" only="${2:-}" sim="${VIBEE_SIM:-}"
+  # Same build cache as `tri iphone sim`: a cache of its own made the first
+  # run a cold build, which missed the deadline under load.
+  local dd="${TMPDIR:-/tmp}/tri-iphone-dd-sim" log="${TMPDIR:-/tmp}/tri-iphone-test-${2:-all}.log"
+  local deadline
+  deadline=$(command -v timeout || command -v gtimeout) \
+    || { bad "no timeout(1) -- brew install coreutils"; return 2; }
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p' | head -1)
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices available | sed -nE 's/^ +iPhone.*\(([0-9A-F-]{36})\) \(Shutdown\).*/\1/p' | head -1)
+  [ -n "$sim" ] || { bad "no iPhone simulator at all -- create one in Xcode, or set VIBEE_SIM=udid"; return 1; }
+  local free_mb
+  free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
+  [ "${free_mb:-0}" -lt 2048 ] && { bad "only ${free_mb} MB free, need 2048 -- see tri disk, or rm -rf $dd"; return 1; }
+  local target="VibeeTests${only:+/$only}"
+  echo "  …    $target on $sim, deadline 25 min (log: $log)"
+  ( cd "$ios" && xcodegen generate --quiet && "$deadline" 1500 xcodebuild test -scheme Vibee \
+      -destination "id=$sim" -derivedDataPath "$dd" -only-testing:"$target" ) >"$log" 2>&1
+  local rc=$?
+  local verdict
+  verdict=$(grep -E "Executed [0-9]+ tests?" "$log" | tail -1 | sed -E 's/^[[:space:]]+//')
+  # A misspelt class runs nothing and xcodebuild still says success.
+  if [ "$rc" -eq 0 ] && grep -qE "Executed 0 tests" <<<"$verdict"; then
+    bad "ran 0 tests -- is there a class named '$only' in VibeeTests?"; return 1
+  fi
+  if [ "$rc" -eq 0 ]; then
+    good "${verdict:-tests passed}"
+  elif [ "$rc" -eq 124 ]; then
+    # Say where it stopped, not why: the first such message named a cause
+    # (a starved machine) nobody had measured. Swap is a lead, not a verdict.
+    bad "no verdict in 25 min; swap: $(sysctl -n vm.swapusage | sed -E 's/.*(free = [^ ]+).*/\1/'); the log ends with:"
+    tail -4 "$log" | cut -c1-140 | sed 's/^/       /'
+  else
+    bad "${verdict:-did not build}"
+    grep -E "error: |: error:|failed \(" "$log" | sort -u | head -10 | sed 's/^/       /'
+  fi
+  return "$rc"
 }
 
 iphone_sim() {
@@ -1461,6 +1516,7 @@ cmd_iphone() {
 
   [ "$mode" = "sim" ] && { iphone_sim "$ios"; return; }
   [ "$mode" = "off" ] && { iphone_sim_off; return; }
+  [ "$mode" = "test" ] && { iphone_test "$ios" "${2:-}"; return; }
 
   if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
     bad "devicectl did not answer (Xcode command line tools?)"; return 2
@@ -5258,23 +5314,44 @@ cmd_voice() {
   case "${1:-}" in --runs) runs="${2:-3}" ;; --runs=*) runs="${1#--runs=}" ;; esac
   [[ "$runs" =~ ^[1-9][0-9]?$ ]] || { bad "--runs takes 1..99, not '$runs'"; return 2; }
   key=$(_mcp_key 2>/dev/null) || key=''
-  V_KEY="$key" V_BASE="$RENDER" V_RUNS="$runs" python3 -u - <<'PY'
-import json, os, statistics, sys, time, urllib.error, urllib.request
+  V_KEY="$key" V_BASE="$RENDER" V_RUNS="$runs" \
+    V_SESSION="$ROOT/apps/vibee-editor/player/src/lib/voice/session.ts" python3 -u - <<'PY'
+import json, os, re, statistics, sys, time, urllib.error, urllib.request
 
 base, key = os.environ['V_BASE'], os.environ['V_KEY']
 RUNS = int(os.environ['V_RUNS'])
 
+# The person's wait is not the round trip alone: first the player judges the
+# pause (END_OF_TURN_MS), and since voice-loop-4 it asks for the words after
+# EAGER_HEAR_MS of it, so that much of the hearing hides inside the pause.
+# Read from the player itself -- a copy here would drift from it.
+def player_ms(name):
+    try:
+        src = open(os.environ['V_SESSION']).read()
+    except OSError:
+        return None
+    m = re.search(r'const ' + name + r' = ([0-9_]+)', src)
+    return int(m.group(1).replace('_', '')) if m else None
+END_MS, EAGER_MS = player_ms('END_OF_TURN_MS'), player_ms('EAGER_HEAR_MS')
+
 last_timing = {}
 def server_timing(h):
-    # "read;dur=12, hear;dur=2100" -> {'read': 12, 'hear': 2100}
+    # 'read;dur=12, hear;dur=2100;desc="gigaam"'
+    #   -> {'read': 12, 'hear': 2100, 'hear.desc': 'gigaam'}
+    # Parameters are split on ';' -- reading "dur=" to the end of the entry
+    # dropped every timing the moment the render added a desc.
     out = {}
     for part in (h or '').split(','):
-        name, _, rest = part.strip().partition(';')
-        if rest.startswith('dur='):
-            try:
-                out[name] = int(float(rest[4:]))
-            except ValueError:
-                pass
+        name, *params = [p.strip() for p in part.split(';')]
+        for p in params:
+            k, _, v = p.partition('=')
+            if k == 'dur':
+                try:
+                    out[name] = int(float(v))
+                except ValueError:
+                    pass
+            elif k == 'desc':
+                out[name + '.desc'] = v.strip('"')
     return out
 
 def call(path, body=None, ctype='application/json', timeout=90):
@@ -5307,7 +5384,7 @@ if code != 200:
     print(f'  status: {why} -- the voice routes did not answer')
     sys.exit(3)
 st = json.loads(body)
-print(f"  status: hear={st.get('hear')} speak={st.get('speak')} "
+print(f"  status: hear={st.get('hear')} (ru via {st.get('hearRu', 'whisper')}, en via {st.get('hearEn', 'whisper')}) speak={st.get('speak')} "
       f"voices ru={len(st.get('voices', {}).get('ru', []))} en={len(st.get('voices', {}).get('en', []))}")
 if not (st.get('hear') and st.get('speak')):
     mark(1)
@@ -5327,15 +5404,26 @@ if code != 200:
 phrases = {'ru': 'Проверка голоса: раз, два, три, четыре.',  # cyrillic-ok: the phrase IS the probe
            'en': 'Voice check: one, two, three, four.'}
 audio = {}
+# Speaking gets a median too: in cycle 5 one 4.6 s sample called English
+# TTS "SLOW" when five more measured 2.0-2.5 s with a single 4.4 s tail.
+SPEAK_RUNS = min(RUNS, 3)
 for lang, text in phrases.items():
-    code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
-    if code == 200 and len(body) > 1000:
+    times = []
+    for _ in range(SPEAK_RUNS):
+        code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
+        if code != 200 or len(body) <= 1000:
+            break
         audio[lang] = body
-        verdict = 'ok' if ms < 3000 else 'SLOW (the first word waits for this)'
-        print(f'  speak {lang}: {len(body)} bytes in {ms} ms -- {verdict}')
-        if ms >= 3000:
+        times.append(ms)
+    if len(times) == SPEAK_RUNS:
+        med = int(statistics.median(times))
+        verdict = 'ok' if med < 3000 else 'SLOW (the first word waits for this)'
+        print(f'  speak {lang}: {len(body)} bytes, median {med} ms of {len(times)} '
+              f'[{min(times)}..{max(times)}] -- {verdict}')
+        if med >= 3000:
             mark(2)
     else:
+        audio.pop(lang, None)
         print(f'  speak {lang}: HTTP {code} {body[:100].decode(errors="replace")}')
         mark(1)
 
@@ -5346,7 +5434,7 @@ for lang, text in phrases.items():
 for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: the expected word
     if lang not in audio:
         continue
-    times, hears, reads, heard, ok = [], [], [], '', True
+    times, hears, reads, engines, heard, ok = [], [], [], set(), '', True
     for _ in range(RUNS):
         code, body, ms = call(f'/api/voice/transcribe?lang={lang}', audio[lang], 'audio/mpeg')
         heard = json.loads(body).get('text', '') if code == 200 else body[:100].decode(errors='replace')
@@ -5357,6 +5445,7 @@ for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: th
         if 'hear' in last_timing:
             hears.append(last_timing['hear'])
             reads.append(last_timing.get('read', 0))
+            engines.add(last_timing.get('hear.desc', 'whisper'))
     if not ok:
         print(f'  round trip {lang}: "{heard[:60]}" -- WRONG')
         mark(1)
@@ -5368,13 +5457,21 @@ for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: th
     split = ''
     if hears:
         h, r = int(statistics.median(hears)), int(statistics.median(reads))
-        split = f' = upload {r} + whisper {h} + road {max(0, med - h - r)}'
+        # Which ears heard it: "gigaam"/"parakeet", "whisper", or both when
+        # the fast ears fell back on some runs -- that mix is itself the finding.
+        ears = '/'.join(sorted(engines)) or 'whisper'
+        split = f' = upload {r} + {ears} {h} + road {max(0, med - h - r)}'
     else:
         split = ' (no Server-Timing: render older than voice-loop-2)'
     print(f'  round trip {lang}: "{heard[:40]}" median {med} ms of {len(times)} '
           f'[{min(times)}..{max(times)}]{split} -- '
           f'{"SLOW (the person waits this after speaking)" if slow else "ok"}')
     mark(2 if slow else 0)
+    if END_MS:
+        hidden = min(med, END_MS - EAGER_MS) if EAGER_MS else 0
+        print(f'    felt after the last word: pause {END_MS} + words {med - hidden}'
+              f' = {END_MS + med - hidden} ms'
+              + (f' (early hearing hides {hidden}; not on Safari mp4)' if hidden else ''))
 
 sys.exit(worst)
 PY
@@ -5385,6 +5482,73 @@ PY
     2) warn 'not fully measured, or slow -- see above' ;;
     *) bad 'the render did not answer' ;;
   esac
+  return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri gigaam: the Russian ears of voice mode (deployment/gigaam).
+#
+# GigaAM is not wired to GitHub: it changes rarely and its image carries a
+# ~1 GB model, so it ships by `railway up` from a CLEAN tree -- a dirty one
+# would put code on the network that no PR has seen. Everything else about it
+# is in deployment/gigaam/server.py and the voice-mode skill.
+#
+#   tri gigaam            newest deploy + whether the render routes ru to it
+#   tri gigaam deploy     upload deployment/gigaam and build it
+# ─────────────────────────────────────────────────────────────────────────
+# One image, two services: deployment/gigaam built with GigaAM v3 for Russian
+# and with Parakeet TDT v2 (int8) for English. Neither is wired to GitHub.
+EARS_SVC_RU=1532ed17-3739-4ece-986a-2732288fdde0   # gigaam
+EARS_SVC_EN=6d9197c7-d467-42bc-8e92-27bc231302a6   # parakeet
+cmd_ears() {
+  local p=564d9ebd-7aa8-44fe-93ec-e0b03c87158d e=e4d200ad-b8a9-4edf-9b25-190a32613b32
+  local action=status langs='ru en' a
+  for a in "$@"; do
+    case "$a" in
+      status|deploy) action=$a ;;
+      ru|en) langs=$a ;;
+      all) langs='ru en' ;;
+      *) bad "tri ears [status|deploy] [ru|en|all], not '$a'"; return 2 ;;
+    esac
+  done
+  local lang svc name rc=0
+  if [ "$action" = deploy ]; then
+    if [ -n "$(git -C "$ROOT" status --porcelain -- deployment/gigaam)" ]; then
+      bad 'deployment/gigaam has uncommitted changes: commit them first'
+      return 2
+    fi
+    local sha
+    sha=$(git -C "$ROOT" rev-parse --short HEAD)
+    for lang in $langs; do
+      if [ "$lang" = ru ]; then svc=$EARS_SVC_RU name=gigaam; else svc=$EARS_SVC_EN name=parakeet; fi
+      railway up "$ROOT/deployment/gigaam" --path-as-root -p "$p" -e "$e" \
+        -s "$svc" --detach --json --message "$name from $sha" 2>/dev/null || rc=1
+    done
+    return "$rc"
+  fi
+  for lang in $langs; do
+    if [ "$lang" = ru ]; then svc=$EARS_SVC_RU name=gigaam; else svc=$EARS_SVC_EN name=parakeet; fi
+    timeout 30 railway deployment list -p "$p" -e "$e" -s "$svc" \
+      --limit 1 --json 2>/dev/null | python3 -c '
+import json, sys
+name = sys.argv[1]
+try:
+    d = json.load(sys.stdin)[0]
+except Exception:
+    print("  %s: deploy state unknown (railway did not answer)" % name); sys.exit(2)
+print("  %s: %s %s" % (name, d["status"], (d.get("meta") or {}).get("deploymentMessage") or ""))
+sys.exit(0 if d["status"] == "SUCCESS" else 1)' "$name" || rc=1
+  done
+  curl -s -m 15 "$RENDER/api/voice/status" | python3 -c '
+import json, sys
+try:
+    st = json.load(sys.stdin)
+    via = "ru via %s, en via %s" % (
+        st.get("hearRu") or "whisper (render older than voice-loop-3)",
+        st.get("hearEn") or "whisper (render older than voice-loop-5)")
+except Exception:
+    via = "unknown (render did not answer)"
+print("  render hears " + via)'
   return "$rc"
 }
 
@@ -5449,12 +5613,16 @@ msg = (m.get("commitMessage") or "").splitlines()[0][:60]
 print("  %s: %s %s %s" % (name, d["status"], (m.get("commitHash") or "")[:9], msg))
 # 4, not 1: a crash of this very script also exits 1, and must not read as
 # "the deploy failed" -- the first run of this check said exactly that.
-sys.exit(4 if d["status"] in ("FAILED", "CRASHED") else 0)
+# 5: still on its way. Cycle 4 read "nothing in flight" with the player
+# BUILDING -- a merge whose deploy is unverified IS work in flight.
+if d["status"] in ("FAILED", "CRASHED"):
+    sys.exit(4)
+sys.exit(5 if d["status"] in ("BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING") else 0)
 ' "$name"
-    if [ "${PIPESTATUS[1]}" = 4 ]; then
-      bad "$name: the last deploy failed -- fix it before merging more"
-      busy=1
-    fi
+    case "${PIPESTATUS[1]}" in
+      4) bad "$name: the last deploy failed -- fix it before merging more"; busy=1 ;;
+      5) warn "$name: still deploying -- wait for SUCCESS before the next item"; busy=1 ;;
+    esac
   done
 
   if [ "$busy" = 0 ]; then good 'nothing in flight: safe to start the next item'; fi
@@ -5547,6 +5715,8 @@ case "$action" in
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
   voice|голос)         cmd_voice "$@" ;;
+  ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
+  gigaam|гигаам)       cmd_ears "$@" ru ;;  # cyrillic-ok: the name it had in voice-loop-3
   loop|виток)          cmd_loop ;;
   heal|исцели)         cmd_heal ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;

@@ -175,28 +175,105 @@ export function spokenLanguage(lang: unknown): VoiceLang | undefined {
   return lang === 'ru' || lang === 'en' ? lang : undefined
 }
 
-/** One utterance to text. `null` when this server has no ears configured. */
+/** Which engine turned the utterance into words. */
+export type Ears = 'gigaam' | 'parakeet' | 'whisper'
+
+export interface Heard {
+  text: string
+  engine: Ears
+}
+
+/*
+ * Fast ears, one per language, each its own service built from the same
+ * image (deployment/gigaam): GigaAM v3 for Russian, Parakeet TDT v2 for
+ * English. Neither pads every call to a 30 s window the way whisper does,
+ * so a phrase costs what its own seconds cost (numbers in server.py and
+ * the voice-mode skill). Whisper stays as the fallback for both.
+ */
+const FAST_EARS: Record<VoiceLang, { engine: Ears; env: string }> = {
+  ru: { engine: 'gigaam', env: 'VOICE_HEAR_RU' },
+  en: { engine: 'parakeet', env: 'VOICE_HEAR_EN' },
+}
+
+export interface FastEars {
+  engine: Ears
+  url: string
+  key: string
+}
+
+/** The fast ears for a language, when this server has both their URL and key. */
+export function earsConfig(lang: VoiceLang | undefined): FastEars | null {
+  if (!lang) return null
+  const { engine, env } = FAST_EARS[lang]
+  const url = (process.env[`${env}_URL`] || '').replace(/\/+$/, '')
+  const key = process.env[`${env}_KEY`] || ''
+  return url && key ? { engine, url, key } : null
+}
+
+/** Fast ears answer in well under a second; past this, whisper is the better bet. */
+export const EARS_TIMEOUT_MS = 4_000
+
+async function hearFast(ears: FastEars, bytes: Buffer): Promise<string | null> {
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), EARS_TIMEOUT_MS)
+  try {
+    const r = await fetch(`${ears.url}/hear`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${ears.key}`,
+        'content-type': 'application/octet-stream',
+      },
+      body: new Uint8Array(bytes),
+      signal: ac.signal,
+    })
+    if (!r.ok) {
+      console.warn(
+        `[voice] ${ears.engine} ${r.status}, falling back to whisper`
+      )
+      return null
+    }
+    const body = (await r.json()) as { text?: unknown }
+    return typeof body.text === 'string' ? body.text.trim() : null
+  } catch (e) {
+    const why = ac.signal.aborted ? 'timed out' : (e as Error).message
+    console.warn(`[voice] ${ears.engine} ${why}, falling back to whisper`)
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * One utterance to text. `null` when this server has no ears configured.
+ *
+ * A named language goes to its fast ears first when they are configured
+ * (Russian: GigaAM, English: Parakeet); any failure there -- refused, too
+ * long, down, slow -- falls back to whisper, so the person never loses a
+ * phrase to the faster engine. An EMPTY answer from fast ears is trusted:
+ * it means nothing was said, and whisper, asked the same, tends to invent a
+ * sentence out of silence. Without a language the phrase goes to whisper,
+ * which detects it -- that is how the player re-learns a person's language.
+ */
 export async function hear(
   bytes: Buffer,
   contentType: string | undefined,
   lang?: unknown,
   timeoutMs = 45_000
-): Promise<string | null> {
+): Promise<Heard | null> {
+  const spoken = spokenLanguage(lang)
+  const ears = earsConfig(spoken)
+  if (ears) {
+    const text = await hearFast(ears, bytes)
+    if (text !== null) return { text, engine: ears.engine }
+  }
   const w = whisperConfig()
   if (!w) return null
   const type = String(contentType || 'audio/webm')
     .split(';')[0]
     .trim()
   const name = `utterance.${EXT[type] || 'webm'}`
-  const words = await whisperBytes(
-    w,
-    bytes,
-    type,
-    name,
-    timeoutMs,
-    spokenLanguage(lang)
-  )
-  return (words || '').trim()
+  const words = await whisperBytes(w, bytes, type, name, timeoutMs, spoken)
+  return { text: (words || '').trim(), engine: 'whisper' }
 }
 
 /**
@@ -318,6 +395,8 @@ export async function speak(
 export function voiceStatus() {
   return {
     hear: Boolean(whisperConfig()),
+    hearRu: earsConfig('ru')?.engine ?? 'whisper',
+    hearEn: earsConfig('en')?.engine ?? 'whisper',
     speak: Boolean(ttsConfig()),
     voices: VOICES,
   }

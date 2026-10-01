@@ -10941,3 +10941,12 @@ Checked live on the simulator: Profile and AI. NOT checked live: the editor
 pop and the chat (both need a signed-in account -- say so, do not imply it).
 `xcodebuild test` shuts its simulator down when it ends; `./tri iphone sim`
 now boots one, and `./tri iphone off` gives the ~10 GB back.
+
+Offline (iteration 4): `Connectivity.swift` watches the path with
+`NWPathMonitor`; while it is gone a line above the tab bar says the app will
+reload by itself, and on return ONLY a screen that failed reloads (Feed with an
+error, a web tab in `.failed`) -- a screen that loaded is left alone, so
+nothing jumps under the finger. A cold start counts as no return (`online`
+starts true). The return itself was NOT checked live: the simulator shares the
+Mac's network and toggling the Mac's network is off-limits, so the decision is
+pinned by `ConnectivityTests` instead. Say so in the report.

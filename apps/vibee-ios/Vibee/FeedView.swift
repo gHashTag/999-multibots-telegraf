@@ -41,6 +41,7 @@ struct FeedView: View {
    */
   @State private var текущий: String?
   @Environment(\.tabReselects) private var tabReselects
+  @ObservedObject private var net = Connectivity.shared
 
   /// Короткое сообщение поверх ленты: единственный способ ответить на
   /// действие, которое не удалось. Пустой экран вместо ответа — та самая
@@ -152,6 +153,11 @@ struct FeedView: View {
     // web's tab link and the Reels/TikTok tab do (see `tabReselects`).
     .onChange(of: tabReselects) {
       withAnimation { текущий = items.first?.id } // cyrillic-ok: existing state
+    }
+    // The network came back: a feed that failed loads again by itself (see
+    // `Connectivity`). A loaded feed stays where the person is.
+    .onChange(of: net.returns) {
+      if ошибка != nil { Task { await загрузить() } }  // cyrillic-ok: existing state
     }
   }
 

@@ -6,14 +6,16 @@ description: 'The voice mode in the app chat (orb, talk to the agent hands-free)
 # Voice mode
 
 A person opens the orb in the chat and talks; the agent answers aloud in the
-same conversation. Everything is ours and free: whisper (speaches) on Railway
-for ears, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
+same conversation. Everything is ours and free: GigaAM v3 (its own `gigaam`
+service) for Russian ears, whisper (speaches) on Railway for English and as
+the fallback, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 
 ## When to use this skill
 
 - Editing `apps/vibee-editor/player/src/lib/voice/*` or `components/Voice/*`.
 - Editing the render routes `/api/voice/{status,warm,transcribe,speak}`
   (`render/render-server.ts`, `render/src/voice/voice.ts`).
+- Editing `deployment/gigaam/*` (the Russian ears) or the `whisper` service.
 - A report: "it does not answer", "it speaks English to me", "it reads
   brackets aloud", "I cannot interrupt it", "it stops when I cough".
 - A loop cycle on the voice: start with **Loop handoff** below.
@@ -23,13 +25,16 @@ for ears, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 ```bash
 ./tri loop     # tri виток: in-flight work, this branch's PR, last deploys
 ./tri voice    # tri голос: status, warm, speak ru/en, hear them back, times
+./tri ears     # tri уши: gigaam (ru) + parakeet (en) deploys, render routing
 ```
 
 `tri voice` needs a person's key in `$AGENT_KEY` (render `AGENT_KEYS`, first
 entry, up to `:`). Without one it exits 2, NOT MEASURED -- not green.
 `tri voice --runs N` (default 3) hears each phrase N times and prints the
 **median** with `[min..max]`, split by the render's `Server-Timing` header
-into `upload + whisper + road`. SLOW (exit 2) when the median is >= 3 s.
+into `upload + <engine> + road`, where the engine comes from the header's
+`desc` (`gigaam`, `parakeet`, `whisper`, or `gigaam/whisper` when some runs fell back --
+that mix means GigaAM is failing). SLOW (exit 2) when the median is >= 3 s.
 
 ## Map
 
@@ -42,6 +47,7 @@ player/src/lib/voice/chatVoice.ts      binds a session to one chat thread (send,
 player/src/lib/voice/voiceApi.ts       the four HTTP calls
 player/src/components/Voice/*          orb (five visual modes from the logo), overlay
 render/src/voice/voice.ts              speakable(), pickVoice(), warm(), hear(), speak()
+deployment/gigaam/server.py            Russian ears: POST /hear, GET /health (GigaAM v3, onnx-asr)
 UI strings                             player/src/atoms/language.ts, keys voice.*
 ```
 
@@ -82,6 +88,26 @@ Other guarantees, each pinned by a test in `session.test.ts`:
 | -- of which upload            | 232 ms                      | 20 ms                       |
 | -- of which whisper           | 1819 ms                     | 2067 ms                     |
 | -- of which the road          | 554 ms                      | 529 ms                      |
+| hear, after #3252, x7         | median 745 [683..780]       | median 3202 [2835..3482]    |
+| -- of which upload            | 87 ms                       | 18 ms                       |
+| -- of which the ears          | 175 ms (gigaam)             | 2617 ms (whisper)           |
+| -- of which the road          | 483 ms                      | 567 ms                      |
+| hear, cycle 4 (before #8), x5 | median 1118 [763..6074]     | median 4183 [3539..7162]    |
+| -- of which the road          | 849 ms                      | 1189 ms                     |
+| felt after the last word      | 850 + 568 = 1418 ms         | 850 + 3633 = 4483 ms        |
+| hear, cycle 5 (#3261), x7     | median 701 [650..790]       | median 648 [592..785]       |
+| -- of which the ears          | 180 ms (gigaam)             | 187 ms (parakeet)           |
+| -- of which the road          | 434 ms                      | 443 ms                      |
+| felt after the last word      | 850 + 151 = 1001 ms         | 850 + 98 = 948 ms           |
+| speak, cycle 5, x3 / x5       | median 1152 [916..2496]     | median 1949-2300, tail 4.4s |
+
+"Felt" is what `tri voice` prints since cycle 4: the player's pause
+(`END_OF_TURN_MS`) plus the hearing that is NOT hidden inside it by early
+hearing (`END_OF_TURN_MS - EAGER_HEAR_MS` = 550 ms). Both constants are read
+from `session.ts` itself, never copied. Without early hearing the ru row
+would be 850 + 1118 = 1968 ms. The road doubled against cycle 3 (483 -> 849)
+with the same code: night-time variance and a 6 s outlier, not a change --
+but it is now the largest leg after the pause, see #14.
 
 What the pod measurements showed (cycle 2, inside the whisper pod):
 
@@ -95,7 +121,15 @@ What the pod measurements showed (cycle 2, inside the whisper pod):
 - The next real gain is a model that does not pad to 30 s: GigaAM (Russian
   CTC) as its own service. 24 threads would buy ~10% and steal CPU from TTS.
 
-Server-Timing settles it: whisper is ~70% of the wait, the road ~0.55 s,
+After #3252 Russian waits 745 ms, and the ears are the SMALLEST leg: the
+road between the browser, render and the ears is now what to cut -- and,
+before it, the player's own wait: `END_OF_TURN_MS = 850` of silence before the
+phrase is even sent, more than hearing and the road together. That makes #8
+(a model that knows the turn is over) the largest wait left. English
+did not change (whisper 2.1-2.8 s between runs is its spread, not a
+regression -- the whisper pod was idle at 475 threads during the run).
+
+Server-Timing settled it before GigaAM: whisper was ~70% of the wait, the road ~0.55 s,
 upload 0.2 s. The drop from 3649 to 2605 ms between the two rows is NOT a
 fix -- #3248 did not touch hearing; it is the same night-time variance the
 max column shows. Faster hearing means a faster model, nothing else.
@@ -104,7 +138,110 @@ max column shows. Faster hearing means a faster model, nothing else.
 whisper; the pod says whisper is half of that. Medians of >= 3 runs only, and
 re-measure after any whisper model or CPU change.
 
+## Russian ears: GigaAM (cycle 3, 2026-10-02)
+
+Same six phrases, inside the whisper pod, model in memory:
+
+| engine                                | per phrase  | Russian                      |
+| ------------------------------------- | ----------- | ---------------------------- |
+| whisper large-v3-turbo, `language=ru` | 2.1-3.0 s   | good                         |
+| Parakeet TDT 0.6b v3 (onnx)           | 0.9-1.9 s   | unusable ("Люпсинка")        |
+| GigaAM v3 e2e-ctc (onnx-asr 0.12.0)   | 0.05-0.10 s | correct, punctuated, numbers |
+| GigaAM v3 ctc                         | same        | lowercase, no punctuation    |
+
+As a service (`POST /hear`, ffmpeg decode of webm/opus included): 140-210 ms.
+GigaAM knows only Russian -- English stays on whisper.
+
+Routing (`hear()` in `voice.ts`), each rule pinned by a test in
+`voice.test.ts`, all eight mutants killed:
+
+- `lang=ru` and `VOICE_HEAR_RU_URL` + `VOICE_HEAR_RU_KEY` set -> GigaAM, 4 s
+  timeout. A refusal, a non-2xx, a body without `text`, a timeout -> whisper.
+- An EMPTY text from GigaAM is trusted (silence); whisper invents sentences
+  out of silence, so asking it again would be worse, not safer.
+- No `lang` (every 6th phrase, `RELEARN_EVERY`) or `en` -> whisper. That is
+  how the player keeps re-learning the person's language, so routing by the
+  hint never locks a person into Russian.
+
+**The whisper pod is full: never load another model into it.** Its container
+has `pids.max = 1000`; every ONNX model takes a thread pool sized to the 48
+visible cores and speaches has no knob for it (`OMP_NUM_THREADS` is ignored).
+Whisper + 4 Piper + Kokoro + Silero hold ~470; Parakeet beside them reached
+986 and Python could not start a thread (numpy/OpenBLAS errors, a segfault).
+A new model gets its own service, like `gigaam` (`GIGAAM_THREADS`, default 8).
+
+`gigaam` is NOT wired to GitHub: `./tri ears deploy ru` (old name: `tri
+gigaam deploy`) from a clean tree after the PR merges. A merge alone ships
+the render, not the ears.
+
+## English ears: Parakeet (cycle 5, 2026-10-02)
+
+Live after #3261: English heard in a median 648 ms (was 4183), felt 948 ms
+after the last word (was 4483) -- now level with Russian. Both languages'
+hearing is ~180 ms; what is left is the pause (850), the road (~440) and,
+for English, the first sound: Kokoro takes ~2 s a sentence (#15). `tri
+voice` gives speaking a median of up to 3 runs since one 4.6 s sample
+called it SLOW.
+
+The same image (`deployment/gigaam`) as a second service, `parakeet`
+(6d9197c7), with `GIGAAM_MODEL=nemo-parakeet-tdt-0.6b-v2 GIGAAM_QUANT=int8`.
+Railway hands service variables to the build as ARGs, so the model a service
+bakes is the one it loads. Inside its pod, two phrases our TTS spoke, x3:
+
+| phrase                                   | Parakeet v2 int8 | whisper (tri voice) |
+| ---------------------------------------- | ---------------- | ------------------- |
+| "Voice check: one, two, three, four." 2s | 229-268 ms       | ~2.6-3.0 s          |
+| a 5 s sentence with a name and a time    | 348-441 ms       |                     |
+
+Text was exact, punctuated ("...call Anna at five in the evening."). One
+quirk: spoken digits come back joined, "one, two, three, four" -> "1234".
+
+- v2, not v3: v2 is English-only and leads the Open ASR board; v3 is
+  multilingual but its Russian was unusable (cycle 3). One specialist per
+  language, whisper behind both as the fallback.
+- int8: a 630 MB model where fp32 is 2.4 GB; the image stays small and the
+  speed above is with it.
+- Render: `VOICE_HEAR_EN_URL` / `VOICE_HEAR_EN_KEY` (the parakeet service's
+  `GIGAAM_KEY`). Unset -> English stays on whisper, exactly as before.
+  `earsConfig(lang)` in `voice.ts` is the one table: ru -> gigaam,
+  en -> parakeet; an unnamed language goes to whisper, never to either.
+- `/api/voice/status` says `hearRu` and `hearEn`; `tri ears` and `tri voice`
+  print both.
+- Deploy both after a merge that touches `deployment/gigaam`:
+  `./tri ears deploy` (both) from a clean tree.
+
+## Early hearing (cycle 4, 2026-10-02)
+
+After GigaAM the person's wait was mostly the player's own: 850 ms of silence
+to judge the turn over, THEN the words. Now (`session.ts`):
+
+- After `EAGER_HEAR_MS` (300) of silence, `requestData()`; the next data
+  event snapshots the chunks and transcribes them with an AbortSignal.
+- Any loud tick drops the guess (`dropEager`): the person kept talking.
+- At the turn end, if the guess is there with the same language hint, its
+  words are the turn's words; one transcribe, not two. A guess that FAILED
+  falls back to hearing the whole recording -- never an error on its own.
+- Only text is guessed. Nothing is SENT to the agent before the turn ends:
+  a question can make an invoice or send a message, and those cannot be
+  taken back. (LiveKit's preemptive generation drafts the ANSWER early; that
+  needs an undo the agent does not have.)
+- webm/ogg only (`canHearEarly`). Safari records mp4 with its index at the
+  end, so a cut of it is not a file; Safari keeps the old path.
+- Cost: one extra transcription per pause of 300..850 ms inside a phrase.
+  GigaAM and Parakeet each do it in ~180 ms (before cycle 5 English was a
+  second whisper run, aborted client-side while whisper finished anyway).
+
+Why not Smart Turn v3 (the model #8 named): on the server it pays the road
+(~0.5-0.8 s) to save at most the 850 ms; in the browser it needs
+onnxruntime-web, an 8 MB model and log-mel in JS. Early hearing removes
+the same wait for the common case with no model at all. #8's other half --
+a slow speaker cut off mid-thought by a fixed pause -- is still open.
+
 ## Competitors (researched 2026-10-02)
+
+- Deepgram Flux: `EagerEndOfTurn` fires a draft transcript before the turn is
+  sure, `TurnResumed` cancels it, `EndOfTurn` confirms. Our early hearing is
+  the same three events inside the player.
 
 - LiveKit Agents: barge-in after ~0.5 s of speech; on a "false interruption"
   (no transcript within ~2 s) the agent resumes. Our step 1-2 copies this.
@@ -120,32 +257,41 @@ re-measure after any whisper model or CPU change.
 
 ## Weak spots, with status
 
-| #   | weak spot                                          | status                       |
-| --- | -------------------------------------------------- | ---------------------------- |
-| 1   | card markup read aloud                             | FIXED cycle 1                |
-| 2   | any sound killed the answer (280 ms, no resume)    | FIXED cycle 1 (pause/resume) |
-| 3   | its own voice through the speaker interrupted it   | FIXED cycle 1 (onset + echo) |
-| 4   | stuck "speaking" on a suspended AudioContext       | FIXED cycle 1 (watchdog)     |
-| 5   | silence after the phrase looked like "not heard"   | FIXED cycle 1 (earcon)       |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)     | OPEN -- GigaAM, see numbers  |
-| 7   | energy VAD: a fan or street noise counts as speech | OPEN -- Silero vad-web       |
-| 8   | turn end is a fixed pause; slow speakers get cut   | OPEN -- Smart Turn v3        |
-| 9   | nothing said while the agent thinks for long       | OPEN -- filler after ~3 s    |
-| 10  | first sound waits for a whole first sentence       | FIXED cycle 2 (first clause) |
-| 11  | voice picker only for the app language             | OPEN                         |
+| #   | weak spot                                            | status                         |
+| --- | ---------------------------------------------------- | ------------------------------ |
+| 1   | card markup read aloud                               | FIXED cycle 1                  |
+| 2   | any sound killed the answer (280 ms, no resume)      | FIXED cycle 1 (pause/resume)   |
+| 3   | its own voice through the speaker interrupted it     | FIXED cycle 1 (onset + echo)   |
+| 4   | stuck "speaking" on a suspended AudioContext         | FIXED cycle 1 (watchdog)       |
+| 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)         |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252)  |
+| 7   | energy VAD: a fan or street noise counts as speech   | OPEN -- Silero vad-web         |
+| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)          |
+| 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3          |
+| 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s      |
+| 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)   |
+| 11  | voice picker only for the app language               | OPEN                           |
+| 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up         |
+| 13  | English hearing is still whisper, ~2.6 s             | FIXED cycle 5 (Parakeet v2)    |
+| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s | OPEN -- measure per hop        |
+| 15  | English first sound ~2 s (Kokoro in the whisper pod) | OPEN -- own service / Piper en |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 
 ## Loop handoff (so a new cycle does not break the last)
 
 1. `./tri loop`. Exit 1 means work in flight: a dirty tree, a gate or push
-   running in THIS tree, an open PR on this branch, or a FAILED deploy. Finish
+   running in THIS tree, an open PR on this branch, a FAILED deploy, or one
+   still BUILDING/DEPLOYING (until cycle 4 that last case read "nothing in
+   flight"). Finish
    that first; never start a second branch over a dirty tree.
 2. A FAILED player deploy on main blocks every later player merge (the
    deploy runs the whole vitest suite). Fix it in the same PR if nobody else
    is on it -- cycle 1 found #3242's bare `<img>` this way.
 3. Take the top OPEN row above. One row per PR is fine; mutation-test it.
-4. After merge: `./tri loop` until player SUCCESS, then `./tri voice`.
+4. After merge: `./tri loop` until player SUCCESS, then `./tri voice`. If
+   the PR touched `deployment/gigaam`, also `./tri ears deploy` (both
+   services; `./tri ears` then shows each deploy and the render's routing).
 5. Update the tables here in the same PR.
 
 ## Common issues
