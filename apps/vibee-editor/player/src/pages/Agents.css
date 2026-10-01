@@ -359,6 +359,36 @@
   opacity: 0.6;
 }
 
+/* The verdict's receipt, folded: the calls, or why it failed (CheckedTools). */
+.agent-card__calls {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+}
+.agent-card__calls summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  opacity: 0.85;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.agent-card__calls[data-tone='fail'] summary {
+  color: var(--color-danger, #c0392b);
+}
+.agent-card__calls ul {
+  margin: 0 0 4px;
+  padding-left: 18px;
+}
+.agent-card__calls .checked-tools__head {
+  margin: 6px 0 2px;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+.agent-card__calls .checked-tools__times {
+  opacity: 0.6;
+}
+
 /* Passing daily checks in a row, toward hiring by evidence. */
 .agent-card__streak {
   margin: 2px 0 0;

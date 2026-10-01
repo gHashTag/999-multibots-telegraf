@@ -364,3 +364,52 @@ describe('what the last check called, on the welcome card', () => {
     expect(calls()).toBeNull()
   })
 })
+
+// "Last check failed" alone is as much a matter of trust as "checked".
+describe('why the last check failed, on the welcome card', () => {
+  const at = '2026-09-30T15:22:07.000Z'
+  const RU_WHY = /^Почему не прошла$/ // cyrillic-ok
+
+  function receipt(): HTMLDetailsElement | null {
+    return host.querySelector('.welcome-agent-card .welcome-agent__calls')
+  }
+
+  function failedWith(codes: string[], tools: string[]) {
+    ui.verdicts = {
+      blogger: { agent: 'blogger', pass: false, at, tools, codes, fresh: true },
+    }
+  }
+
+  it('leads with the reasons, then what it did call', () => {
+    failedWith(['error', 'expected_tool_missing'], ['web_read'])
+    points('en')
+    expect(receipt()?.getAttribute('data-tone')).toBe('fail')
+    expect(receipt()?.querySelector('summary')?.textContent).toBe(
+      'Why it failed'
+    )
+    expect(
+      [
+        ...(receipt()?.querySelectorAll('.checked-tools__reasons li') ?? []),
+      ].map(li => li.textContent)
+    ).toEqual([
+      'The run broke off with an error',
+      'It did not use the tool the task needs',
+    ])
+    expect(
+      receipt()?.querySelector('.checked-tools__calls li')?.textContent
+    ).toBe('Read a web page')
+  })
+
+  it('a failure with no calls still says why', () => {
+    failedWith(['no_answer'], [])
+    points('en')
+    expect(receipt()?.querySelector('.checked-tools__calls')).toBeNull()
+    expect(receipt()?.textContent).toMatch(/The agent gave no answer/)
+  })
+
+  it('and in Russian', () => {
+    failedWith(['no_answer'], [])
+    points('ru')
+    expect(receipt()?.querySelector('summary')?.textContent).toMatch(RU_WHY)
+  })
+})

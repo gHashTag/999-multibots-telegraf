@@ -6,7 +6,12 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { WORDED_TOOLS, checkedTools } from '../toolWords'
+import {
+  WORDED_REASONS,
+  WORDED_TOOLS,
+  checkedTools,
+  failReasons,
+} from '../checkWords'
 
 const RENDER_SRC = join(
   __dirname,
@@ -33,7 +38,7 @@ function declaredTools(dir: string, out = new Set<string>()): Set<string> {
   return out
 }
 
-describe('toolWords', () => {
+describe('checkWords: calls', () => {
   it('words only tools the render server declares', () => {
     const declared = declaredTools(RENDER_SRC)
     expect(declared.size).toBeGreaterThan(20)
@@ -51,5 +56,34 @@ describe('toolWords', () => {
     expect(checkedTools(['brand_new_tool'], 'ru')).toEqual([
       { name: 'brand_new_tool', label: 'brand_new_tool', times: 1 },
     ])
+  })
+})
+
+describe('checkWords: why a check failed', () => {
+  const declared = (() => {
+    const src = readFileSync(
+      join(RENDER_SRC, 'agent', 'agent-acceptance.ts'),
+      'utf8'
+    )
+    const block = /export const FAIL_CODES = \[([\s\S]*?)\] as const/.exec(
+      src
+    )?.[1]
+    return [...(block ?? '').matchAll(/'([a-z_]+)'/g)].map(m => m[1])
+  })()
+
+  it('has words for exactly the codes the server can send', () => {
+    expect(declared.length).toBeGreaterThan(3)
+    expect([...WORDED_REASONS].sort()).toEqual([...declared].sort())
+  })
+
+  it('each reason once, in order', () => {
+    expect(failReasons(['error', 'no_answer', 'error'], 'en')).toEqual([
+      'The run broke off with an error',
+      'The agent gave no answer',
+    ])
+  })
+
+  it('shows a code it has no words for as it is', () => {
+    expect(failReasons(['brand_new_code'], 'en')).toEqual(['brand_new_code'])
   })
 })

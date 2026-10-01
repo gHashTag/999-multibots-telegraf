@@ -9,6 +9,7 @@ import { useLanguage, type Language } from '@/hooks/useLanguage'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { useAgentAcceptance } from '@/hooks/useAgentAcceptance'
 import { VerdictLine } from '@/components/Agents/VerdictLine'
+import { CheckedTools } from '@/components/Agents/CheckedTools'
 import { useAgentAvatars } from '@/hooks/useAgentAvatars'
 import { AgentFace } from '@/components/Chat/AgentFace'
 import { PackageCards } from '@/components/Agents/PackageCards'
@@ -177,11 +178,18 @@ export function AgentsPage() {
                     acceptance verdict and its day. A failure is shown too --
                     a card that only ever says "checked" is an advert.
                   */
-                  <VerdictLine
-                    className="agent-card__checked"
-                    verdict={verdicts[agent.id]}
-                    lang={l}
-                  />
+                  <>
+                    <VerdictLine
+                      className="agent-card__checked"
+                      verdict={verdicts[agent.id]}
+                      lang={l}
+                    />
+                    <CheckedTools
+                      className="agent-card__calls"
+                      verdict={verdicts[agent.id]}
+                      lang={l}
+                    />
+                  </>
                 ) : null}
                 {agent.status !== 'live' &&
                 !earned &&
