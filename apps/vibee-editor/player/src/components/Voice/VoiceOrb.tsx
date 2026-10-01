@@ -14,16 +14,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { BRAND_MARK_URL } from '@/components/BrandLoader/BrandLoader'
 import type { VoicePhase } from '@/lib/voice/session'
+import type { VoiceMode } from '@/lib/voice/chatVoice'
 import { parseMark, type Mark } from './logoFacets'
-
-export const VOICE_MODES = [
-  'pulse',
-  'spectrum',
-  'orbit',
-  'hologram',
-  'shatter',
-] as const
-export type VoiceMode = (typeof VOICE_MODES)[number]
 
 const BANDS = 27
 const LOW_HZ = 90
@@ -96,7 +88,9 @@ export function VoiceOrb({
     reducedMotion,
     getAnalyser,
   })
-  live.current = { phase, mode, syntheticVoice, reducedMotion, getAnalyser }
+  useEffect(() => {
+    live.current = { phase, mode, syntheticVoice, reducedMotion, getAnalyser }
+  })
 
   useEffect(() => {
     let alive = true

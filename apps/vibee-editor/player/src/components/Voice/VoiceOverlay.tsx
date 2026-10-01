@@ -10,20 +10,22 @@ import { useAtom } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import type { VoiceSession } from '@/lib/voice/session'
-import { fetchVoiceStatus, type VoiceStatus } from '@/lib/voice/voiceApi'
-import { voiceModeAtom, voiceNameAtom } from '@/lib/voice/chatVoice'
-import { VOICE_MODES, VoiceOrb } from './VoiceOrb'
+import {
+  fetchVoiceStatus,
+  voiceLabel,
+  type VoiceStatus,
+} from '@/lib/voice/voiceApi'
+import {
+  VOICE_MODES,
+  voiceModeAtom,
+  voiceNameAtom,
+} from '@/lib/voice/chatVoice'
+import { VoiceOrb } from './VoiceOrb'
 import './Voice.css'
 
 interface Props {
   session: VoiceSession
   onClose: () => void
-}
-
-/** "af_heart" -> "Heart", "irina" -> "Irina". */
-export function voiceLabel(id: string): string {
-  const name = id.replace(/^[a-z]{2}_/, '')
-  return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
 export function VoiceOverlay({ session, onClose }: Props) {
