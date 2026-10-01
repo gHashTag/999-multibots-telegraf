@@ -323,24 +323,59 @@ mouth`) from a clean tree after a merge that touches `deployment/mouth`.
 
 ## Weak spots, with status
 
-| #   | weak spot                                            | status                           |
-| --- | ---------------------------------------------------- | -------------------------------- |
-| 1   | card markup read aloud                               | FIXED cycle 1                    |
-| 2   | any sound killed the answer (280 ms, no resume)      | FIXED cycle 1 (pause/resume)     |
-| 3   | its own voice through the speaker interrupted it     | FIXED cycle 1 (onset + echo)     |
-| 4   | stuck "speaking" on a suspended AudioContext         | FIXED cycle 1 (watchdog)         |
-| 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)           |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252)    |
-| 7   | energy VAD: a fan or street noise counts as speech   | OPEN -- Silero vad-web           |
-| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)            |
-| 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3            |
-| 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s        |
-| 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)     |
-| 11  | voice picker only for the app language               | OPEN                             |
-| 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up           |
-| 13  | English hearing is still whisper, ~2.6 s             | FIXED cycle 5 (Parakeet v2)      |
-| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s | OPEN -- measure per hop          |
-| 15  | English first sound ~2 s (Kokoro in the whisper pod) | FIXED cycle 6 (mouth, 8 threads) |
+## The road, split (cycle 7)
+
+`tri road` (= the first line of `tri voice`) measured it from the owner's
+Mac on 2026-10-02:
+
+| leg                                           | cost            | who pays it                          |
+| --------------------------------------------- | --------------- | ------------------------------------ |
+| new connection: DNS + TCP + TLS to the edge   | 160-400 ms      | the first call after 50-60 s quiet   |
+| warm round trip, edge `sin1` <-> render `sfo` | 240-320 ms      | EVERY call, even the empty status    |
+| upload of the phrase                          | 0.5-1 s (33 KB) | every phrase, after the person stops |
+
+- The edge is Singapore, the render and every pod run in `sfo`
+  (`railway status --json` -> `multiRegionConfig.sfo`). The ~250 ms warm
+  round trip is that distance; only moving the render (and its database)
+  removes it -- an owner decision, not a loop's.
+- The edge closes an idle connection after 50-60 s (alive at 50, closed at
+  60). The player now notes every call and, when the person STARTS talking
+  after 15 s of quiet, sends one plain GET of `/api/voice/status`
+  (`wakeRoad`, `voiceApi.ts`): the handshake runs inside their phrase. Plain
+  on purpose -- a custom header would add a CORS preflight to the road it
+  opens.
+- Chrome records at 128 kbit/s by default (48 KB for 3 s), and the recording
+  holds the silence before the first word too (up to `IDLE_RESTART_MS`, 12 s).
+  `SPEECH_BITS_PER_SECOND = 32_000`: same words from GigaAM and Parakeet at
+  128k, 32k and 24k (checked live), 4.5x fewer bytes. A browser that refuses
+  the rate records at its own.
+- `tri voice` used to open a new connection per call (urllib), so every road
+  it printed carried a handshake a person pays once. It now keeps ONE
+  connection like a browser, prints the handshake and the warm round trip on
+  their own line, and puts the warm round trip next to each hearing road.
+- **A warm python connection looked slower than fresh ones** (upload 1189 ms
+  median) -- the A/B with curl over HTTP/2 (what the browser speaks) showed
+  no difference; it was the network that minute. Measure an anomaly against
+  the browser's own protocol before acting on it.
+
+| #   | weak spot                                            | status                                                         |
+| --- | ---------------------------------------------------- | -------------------------------------------------------------- |
+| 1   | card markup read aloud                               | FIXED cycle 1                                                  |
+| 2   | any sound killed the answer (280 ms, no resume)      | FIXED cycle 1 (pause/resume)                                   |
+| 3   | its own voice through the speaker interrupted it     | FIXED cycle 1 (onset + echo)                                   |
+| 4   | stuck "speaking" on a suspended AudioContext         | FIXED cycle 1 (watchdog)                                       |
+| 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)                                         |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252)                                  |
+| 7   | energy VAD: a fan or street noise counts as speech   | OPEN -- Silero vad-web                                         |
+| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)                                          |
+| 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3                                          |
+| 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s                                      |
+| 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)                                   |
+| 11  | voice picker only for the app language               | OPEN                                                           |
+| 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up                                         |
+| 13  | English hearing is still whisper, ~2.6 s             | FIXED cycle 5 (Parakeet v2)                                    |
+| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s | PARTLY cycle 7 (wakeRoad, 32k); sin1->sfo 250 ms is the region |
+| 15  | English first sound ~2 s (Kokoro in the whisper pod) | FIXED cycle 6 (mouth, 8 threads)                               |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 
@@ -355,7 +390,8 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    deploy runs the whole vitest suite). Fix it in the same PR if nobody else
    is on it -- cycle 1 found #3242's bare `<img>` this way.
 3. Take the top OPEN row above. One row per PR is fine; mutation-test it.
-4. After merge: `./tri loop` until player SUCCESS, then `./tri voice`. If
+4. After merge: `./tri loop` until player SUCCESS, then `./tri voice`
+   (`./tri road` alone answers "is it the network?" in two seconds). If
    the PR touched `deployment/gigaam`, also `./tri ears deploy ru` and
    `./tri ears deploy en`; if it touched `deployment/mouth`,
    `./tri mouth deploy`. `./tri ears` then shows every deploy and the
