@@ -1287,6 +1287,17 @@ const en: Translations = {
   'voice.phase.error': 'Voice mode stopped',
   'voice.error.mic':
     'No access to the microphone. Allow it in the browser and tap the logo.',
+  'voice.error.mic.denied':
+    'The microphone is blocked for this site. Tap the lock icon next to the address, allow the microphone, then tap the logo.',
+  'voice.error.mic.none': 'No microphone found. Connect one and tap the logo.',
+  'voice.error.mic.busy':
+    'The microphone is busy in another app (a call, a recorder). Close it and tap the logo.',
+  'voice.error.mic.unsupported':
+    'This window cannot use the microphone. Open voice mode in your browser.',
+  'voice.mic.inTelegram':
+    'Telegram may not pass the microphone to the app. Allow Telegram to use the microphone in the phone settings, or open voice mode in the browser.',
+  'voice.openBrowser': 'Open in browser',
+  'voice.retry': 'Try again',
   'voice.error.recorder': 'This browser cannot record audio.',
   'voice.error.hear': 'Could not make out the words. Please say it again.',
   'voice.you': 'You',
@@ -3906,6 +3917,18 @@ const ru: Translations = {
   'voice.phase.error': 'Голосовой режим остановлен',
   'voice.error.mic':
     'Нет доступа к микрофону. Разрешите его в браузере и нажмите на логотип.',
+  'voice.error.mic.denied':
+    'Микрофон запрещён для этого сайта. Нажмите на замок рядом с адресом, разрешите микрофон и нажмите на логотип.',
+  'voice.error.mic.none':
+    'Микрофон не найден. Подключите его и нажмите на логотип.',
+  'voice.error.mic.busy':
+    'Микрофон занят другим приложением (звонок, диктофон). Закройте его и нажмите на логотип.',
+  'voice.error.mic.unsupported':
+    'В этом окне микрофон недоступен. Откройте голосовой режим в браузере.',
+  'voice.mic.inTelegram':
+    'Telegram может не передавать микрофон приложению. Разрешите Telegram доступ к микрофону в настройках телефона или откройте голосовой режим в браузере.',
+  'voice.openBrowser': 'Открыть в браузере',
+  'voice.retry': 'Попробовать снова',
   'voice.error.recorder': 'Этот браузер не умеет записывать звук.',
   'voice.error.hear': 'Не разобрал слова. Повторите, пожалуйста.',
   'voice.you': 'Вы',

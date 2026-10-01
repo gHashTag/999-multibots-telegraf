@@ -24,6 +24,7 @@
 import type { Language } from '@/atoms/language'
 import type { Message } from '@/atoms/agentChat'
 import { ReplyFollower } from './replyFollower'
+import { hasMicApi, micErrorKey } from './micError'
 import {
   synthesize as httpSynthesize,
   transcribe as httpTranscribe,
@@ -170,10 +171,10 @@ export class VoiceSession {
           autoGainControl: true,
         },
       })
-    } catch {
+    } catch (err) {
       if (gen !== this.generation) return
       this.teardown()
-      this.set({ phase: 'error', error: 'voice.error.mic' })
+      this.set({ phase: 'error', error: micErrorKey(err, hasMicApi()) })
       return
     }
     // Closed while the browser was still asking for the microphone: give
