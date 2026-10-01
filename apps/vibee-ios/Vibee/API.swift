@@ -193,7 +193,7 @@ enum API {
     ])
     let (d, http) = try await сЛичностью(r)
     guard http.statusCode == 200 else {
-      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+      throw ProjectError.разбор(serverAnswered(http.statusCode))
     }
     let тело = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
     /*
@@ -329,7 +329,7 @@ enum API {
     r.httpMethod = "GET"
     let (d, http) = try await сЛичностью(r)
     guard http.statusCode == 200 else {
-      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+      throw ProjectError.разбор(serverAnswered(http.statusCode))
     }
     /*
      * ФОРМА ОТВЕТА ИЗМЕРЕНА, А НЕ УГАДАНА.
@@ -357,7 +357,7 @@ enum API {
     r.httpBody = try JSONSerialization.data(withJSONObject: ["id": id])
     let (_, http) = try await сЛичностью(r)
     guard http.statusCode == 200 else {
-      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+      throw ProjectError.разбор(serverAnswered(http.statusCode))
     }
   }
 

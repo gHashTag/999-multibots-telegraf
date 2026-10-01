@@ -39,6 +39,12 @@ func say(_ en: String, _ ru: String) -> String {
   speaksRussian ? ru : en
 }
 
+/// The fallback when a request fails without a reason of its own. It was
+/// typed four times (API x3, Connect) and only in Russian.
+func serverAnswered(_ status: Int) -> String {
+  say("the server answered \(status)", "сервер ответил \(status)")
+}
+
 enum HiveTab: String, CaseIterable, Identifiable {
   case comb, specs, kanban, mission, factory, tree
   var id: String { rawValue }
@@ -413,8 +419,7 @@ private struct KanbanPanel: View {
             }
             if column.count > 6 {
               Note(
-                text: speaksRussian
-                  ? "и ещё \(column.count - 6)" : "and \(column.count - 6) more")
+                text: say("and \(column.count - 6) more", "и ещё \(column.count - 6)"))
             }
           }
         }
