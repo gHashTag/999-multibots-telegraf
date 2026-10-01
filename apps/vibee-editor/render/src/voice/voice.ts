@@ -5,6 +5,22 @@
  * WHY THIS STACK, measured inside the `whisper` pod on 2026-10-01 (48 CPU):
  *
  *   hearing   faster-whisper-large-v3-turbo   ~5.5 s for a 6 s phrase (warm)
+ *
+ * Re-measured 2026-10-02 after two fixes, for a 2.7 s Russian phrase:
+ *
+ *             4 threads (the default)     16 threads (WHISPER__CPU_THREADS)
+ *   detected  8.0 s                       5.5 s
+ *   language  4.2 s                       3.2 s     <- what voice mode pays
+ *
+ * The time barely moves with the phrase's length (2.7 s and 8.8 s of speech
+ * cost the same): whisper pads every call to a 30 s window, and naming the
+ * language skips a second pass over it. That is also why cutting a phrase
+ * into pieces and transcribing them as they come would be SLOWER here -- each
+ * piece pays the whole window. The player names the language instead.
+ *
+ * Nothing is in memory until something asks for it (PRELOAD_MODELS only
+ * downloads), and a cold voice costs 2-5 s on its first sentence. `warm`
+ * loads them before the person has finished their first phrase.
  *   RU voice  Piper ru_RU-*-medium            0.3-1.6 s per sentence
  *   EN voice  Kokoro-82M v1.0 ONNX (fp32)     2.4-3.6 s per sentence
  *             Kokoro int8 was SLOWER (6-7 s) on the same CPU, so fp32 it is.
@@ -88,7 +104,7 @@ export function speakable(text: unknown): string {
  * only stops one open tab from turning the shared CPU into its own.
  */
 const WINDOW_MS = 60_000
-const LIMITS = { speak: 90, hear: 30 } as const
+const LIMITS = { speak: 90, hear: 30, warm: 20 } as const
 const spent = new Map<string, { at: number; n: number }>()
 
 export function withinBudget(
@@ -154,10 +170,16 @@ const EXT: Record<string, string> = {
   'audio/x-wav': 'wav',
 }
 
+/** A language the transcriber may be told, or nothing to let it detect. */
+export function spokenLanguage(lang: unknown): VoiceLang | undefined {
+  return lang === 'ru' || lang === 'en' ? lang : undefined
+}
+
 /** One utterance to text. `null` when this server has no ears configured. */
 export async function hear(
   bytes: Buffer,
   contentType: string | undefined,
+  lang?: unknown,
   timeoutMs = 45_000
 ): Promise<string | null> {
   const w = whisperConfig()
@@ -166,8 +188,81 @@ export async function hear(
     .split(';')[0]
     .trim()
   const name = `utterance.${EXT[type] || 'webm'}`
-  const words = await whisperBytes(w, bytes, type, name, timeoutMs)
+  const words = await whisperBytes(
+    w,
+    bytes,
+    type,
+    name,
+    timeoutMs,
+    spokenLanguage(lang)
+  )
   return (words || '').trim()
+}
+
+/**
+ * What a warm-up found: `loaded` it just now, it was `ready` already, it
+ * `failed`, or there is nothing of ours to warm (`none`).
+ */
+export type WarmState = 'loaded' | 'ready' | 'failed' | 'none'
+
+/** speaches keeps its model admin beside /v1, not under it. */
+function adminBase(base: string): string {
+  return base.replace(/\/v1$/, '')
+}
+
+async function load(
+  base: string,
+  key: string,
+  model: string,
+  fetchImpl: typeof fetch,
+  timeoutMs: number
+): Promise<WarmState> {
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), timeoutMs)
+  try {
+    const r = await fetchImpl(`${adminBase(base)}/api/ps/${model}`, {
+      method: 'POST',
+      headers: key ? { Authorization: `Bearer ${key}` } : {},
+      signal: ac.signal,
+    })
+    // 409 is speaches saying "already loaded": exactly what we wanted.
+    return r.status === 409 ? 'ready' : r.ok ? 'loaded' : 'failed'
+  } catch {
+    return 'failed'
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Put the transcriber and one voice in memory before they are needed. Only
+ * our own speaches is warmed: a hosted whisper has no such door and is never
+ * cold. Both loads run at once; neither ever throws.
+ */
+export async function warm(
+  lang: unknown,
+  voice: unknown,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 60_000
+): Promise<{ hear: WarmState; speak: WarmState }> {
+  const w = whisperConfig()
+  const own = w && !/groq\.com|openai\.com/.test(w.base) ? w : null
+  const tts = ttsConfig()
+  const [hearState, speakState] = await Promise.all([
+    own
+      ? load(own.base, own.key, own.model, fetchImpl, timeoutMs)
+      : ('none' as const),
+    tts
+      ? load(
+          tts.base,
+          tts.key,
+          pickVoice(lang, voice).model,
+          fetchImpl,
+          timeoutMs
+        )
+      : ('none' as const),
+  ])
+  return { hear: hearState, speak: speakState }
 }
 
 export type Speech =

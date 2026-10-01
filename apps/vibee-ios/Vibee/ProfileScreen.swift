@@ -199,7 +199,7 @@ struct ProfileScreen: View {
     }
     // #050505, а не #000000 общей темы: Profile.css:1114 и :1122.
     .background(Тема.Профиль.фон)
-    .task(id: версия) { await загрузить() }
+    .taskWhileShown(id: версия) { await загрузить() }  // cyrillic-ok: existing state
     .onChange(of: scenePhase) { _, phase in
       guard phase == .active else { return }
       // cyrillic-ok-next-line

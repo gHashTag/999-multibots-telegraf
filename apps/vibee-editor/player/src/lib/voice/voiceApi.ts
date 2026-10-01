@@ -17,13 +17,15 @@ export class VoiceHttpError extends Error {
 
 export async function transcribe(
   audio: Blob,
-  signal?: AbortSignal
+  opts: { lang?: Language | null; signal?: AbortSignal } = {}
 ): Promise<string> {
-  const r = await fetch(`${API_BASE}/api/voice/transcribe`, {
+  // The language, when known, saves whisper a detection pass (spokenLang.ts).
+  const q = opts.lang ? `?lang=${opts.lang}` : ''
+  const r = await fetch(`${API_BASE}/api/voice/transcribe${q}`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': audio.type || 'audio/webm' }),
     body: audio,
-    signal,
+    signal: opts.signal,
   })
   if (!r.ok) throw new VoiceHttpError(r.status, `transcribe ${r.status}`)
   const body = (await r.json()) as { text?: unknown }
@@ -44,6 +46,26 @@ export async function synthesize(
   })
   if (!r.ok) throw new VoiceHttpError(r.status, `speak ${r.status}`)
   return r.arrayBuffer()
+}
+
+/**
+ * Ask the server to load the transcriber and this voice now, while the person
+ * is still drawing breath: a cold voice costs its first sentence 2-5 s. Best
+ * effort -- a failed warm-up only means the first phrase is slower.
+ */
+export async function warmVoice(
+  lang: Language,
+  voice: string | null
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/voice/warm`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ lang, voice }),
+    })
+  } catch {
+    /* the first phrase will simply load what it needs */
+  }
 }
 
 export interface VoiceStatus {

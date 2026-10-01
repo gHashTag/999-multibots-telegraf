@@ -929,27 +929,24 @@ describe('a bot owner wears their bots and their work', () => {
    */
   it('shows bots, plan and faults where sent, and nothing where not', async () => {
     serve()
-    // The client rows live on the contacts section, not on the work one, and
-    // bots and plan wait behind "..." while an open fault stays on the row.
-    // The bare draw() found no rows and failed on main since #3213.
+    // The client rows live on the contacts tab since #3199; /crm alone is
+    // the work section and lists nobody.
     await draw(CONTACTS)
-    const rows = () => [...host.querySelectorAll('.crm__row--client')]
-    const row = (name: string) =>
-      rows().find(r => r.textContent?.includes(name))!
-    const more = async (name: string) => {
-      await act(async () => {
-        row(name)
-          .querySelector<HTMLButtonElement>('.crm__contact-toggle')!
-          .click()
+    const rows = [...host.querySelectorAll('.crm__row--client')]
+    const owner = rows.find(r => r.textContent?.includes('ClientOnlyName'))!
+    const lead = rows.find(r => r.textContent?.includes('LeadRowOnlyName'))!
+    // An open fault stays on the row; bots and plan wait behind "...".
+    expect(owner.textContent).toContain('crm.clients.faults:2')
+    expect(owner.textContent).not.toContain('crm.clients.bots')
+    // One row is open at a time, so each is opened in turn.
+    const more = (row: Element) =>
+      act(async () => {
+        row.querySelector<HTMLButtonElement>('.crm__contact-toggle')!.click()
       })
-      return row(name)
-    }
-    expect(row('ClientOnlyName').textContent).toContain('crm.clients.faults:2')
-    const owner = await more('ClientOnlyName')
+    await more(owner)
     expect(owner.textContent).toContain('crm.clients.bots @leela_chakra_ai_bot')
     expect(owner.textContent).toContain('crm.clients.tasks:3,12')
-    const lead = await more('LeadRowOnlyName')
-    expect(lead.querySelector('.crm__contact-extra')).not.toBeNull()
+    await more(lead)
     for (const k of [
       'crm.clients.bots',
       'crm.clients.tasks',
