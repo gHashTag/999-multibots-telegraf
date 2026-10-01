@@ -133,6 +133,12 @@ export const STORAGE_KEYS = {
   /** Последний открытый экран. Telegram умеет запускать мини-апп только с
    * корня, поэтому без этого каждый возврат начинался с ленты. */
   lastRoute: 'vibee-last-route',
+  /**
+   * The last conversation: the agent's chat or a client's chat in the CRM.
+   * On launch it wins over a screen a person only passed through, such as
+   * the sales page (components/Navigation/RouteMemory.tsx).
+   */
+  lastChat: 'vibee-last-chat',
   timelineZoom: 'vibee-timeline-zoom',
   snapSettings: 'vibee-snap-settings',
   playbackRate: 'vibee-playback-rate',
@@ -233,6 +239,12 @@ export const STORAGE_KEYS = {
    * version bump would greet a returning person as a stranger.
    */
   welcomeSeen: 'vibee-welcome-seen',
+  /**
+   * The level an admin switched to, to see the app as a manager, a blogger
+   * or a developer (player/src/hooks/useUserLevel.ts). Layout only; swept by
+   * the storage reset like any setting.
+   */
+  viewLevel: 'vibee-view-level',
 
   // ============= NEW: Performance =============
   renderQuality: 'vibee-render-quality',

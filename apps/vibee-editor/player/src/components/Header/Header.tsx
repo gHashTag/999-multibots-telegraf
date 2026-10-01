@@ -42,6 +42,7 @@ import {
 } from '@/lib/appSession'
 import { AI_PIPELINE_STAGES } from '@/lib/aiPipeline'
 import { IS_EMBED } from '@/lib/embed'
+import { LevelSwitch } from '@/components/Level/LevelSwitch'
 
 // Page navigation tabs. Editor belongs to the AI creation pipeline.
 const NAV_TABS = [
@@ -434,6 +435,9 @@ export function Header() {
         </div>
 
         <div className="header-right">
+          {/* View the app as another level: admins and dev builds only. */}
+          <LevelSwitch variant="select" />
+
           {/* Language Switcher */}
           <button
             className="header-button lang-toggle"

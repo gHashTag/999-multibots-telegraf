@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
+import { useUserLevel } from '@/hooks/useUserLevel'
+import { crmShows, type CrmBlock } from '@vibee/atoms'
+import { LevelSwitch } from '@/components/Level/LevelSwitch'
+import { LevelDashboard } from '@/components/Level/LevelDashboard'
 import { Panel } from '@/components/Crm/Panel'
 import { AllRefused } from '@/components/Crm/AllRefused'
 import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
@@ -113,7 +117,14 @@ export const isUnderWay = (x: ClientRow, now = Date.now()) => {
 export { matches }
 
 export default function CrmPage() {
-  const { t } = useLanguage()
+  const { lang, t } = useLanguage()
+  /*
+   * EACH LEVEL ITS OWN DASHBOARD (owner, 2026-10-02). The level only leaves
+   * blocks out (CRM_DASHBOARD in packages/vibee-atoms/src/user-level.ts);
+   * no level is the whole screen, as it was.
+   */
+  const { level, switched } = useUserLevel()
+  const shows = (block: CrmBlock) => crmShows(level, block)
   const navigate = useNavigate()
   /*
    * LEADS ARE CLIENT WORK, SO THEY ARE SECTIONS HERE.
@@ -142,7 +153,10 @@ export default function CrmPage() {
    * them, the screen falls back to its own work rather than to an empty room.
    */
   const [asked, pick] = useSectionTab(['work', 'map', ...LEADS_SECTIONS])
-  const tab = leadsLive || asked === 'work' || asked === 'map' ? asked : 'work'
+  const reachable =
+    asked === 'work' ||
+    (asked === 'map' ? shows('map') : leadsLive && shows('leadSections'))
+  const tab = reachable ? asked : 'work'
   const [overview, setOverview] = useState<Reached<Overview>>(empty)
   const [waiting, setWaiting] = useState<Reached<WaitingList>>(empty)
   const [leads, setLeads] = useState<Reached<HotLeads>>(empty)
@@ -567,8 +581,8 @@ export default function CrmPage() {
     { id: 'work', label: t('crm.section.work') },
     // Owner, 2026-09-25: everybody as round avatars by sphere, the owner in
     // the centre, links between people as a graph (components/Crm/CrmMap).
-    { id: 'map', label: t('crm.section.map') },
-    ...(leadsLive
+    ...(shows('map') ? [{ id: 'map', label: t('crm.section.map') }] : []),
+    ...(leadsLive && shows('leadSections')
       ? LEADS_SECTIONS.map(id => ({ id, label: t(`crm.section.${id}`) }))
       : []),
   ]
@@ -581,6 +595,8 @@ export default function CrmPage() {
           {busy ? t('crm.refreshing') : t('crm.refresh')}
         </button>
       </header>
+
+      <LevelSwitch variant="chips" />
 
       {noticeReason ? <AllRefused reason={noticeReason} /> : null}
 
@@ -602,92 +618,103 @@ export default function CrmPage() {
 
       {tab !== 'work' ? null : (
         <>
+          <LevelDashboard
+            level={level}
+            switched={switched}
+            lang={lang === 'ru' ? 'ru' : 'en'}
+          />
+
           {/* How many stand at each stage; nothing at all when unknown. */}
-          <FunnelStrip state={funnel} />
+          {shows('funnel') ? <FunnelStrip state={funnel} /> : null}
 
           {/* The one control that changes what happens without the owner. */}
-          <AutoPanel />
+          {shows('autopilot') ? <AutoPanel /> : null}
 
-          {panel(
-            t('crm.waiting.title'),
-            waiting,
-            w && w.total === 0 ? (
-              <p className="crm__empty">{t('crm.waiting.none')}</p>
-            ) : (
-              <>
-                {w && (
+          {shows('waiting') &&
+            panel(
+              t('crm.waiting.title'),
+              waiting,
+              w && w.total === 0 ? (
+                <p className="crm__empty">{t('crm.waiting.none')}</p>
+              ) : (
+                <>
+                  {w && (
+                    <p className="crm__counts">
+                      {t('crm.waiting.counts', {
+                        ours: w.ours,
+                        due: w.due,
+                        theirs: w.theirs,
+                      })}
+                    </p>
+                  )}
+                  {w && picked !== null && w.ours > 0 ? (
+                    <button
+                      type="button"
+                      className="crm__pick-all"
+                      onClick={() => void pickEveryoneWaiting()}
+                    >
+                      {t('crm.waiting.pickAll', { n: w.ours })}
+                    </button>
+                  ) : null}
+                  <ul className="crm__list">{(w?.waiting ?? []).map(row)}</ul>
+                </>
+              )
+            )}
+
+          {shows('leads') &&
+            panel(
+              t('crm.leads.title'),
+              leads,
+              l && (
+                <>
                   <p className="crm__counts">
-                    {t('crm.waiting.counts', {
-                      ours: w.ours,
-                      due: w.due,
-                      theirs: w.theirs,
-                    })}
+                    {t('crm.leads.counts', { found: l.found })}
+                    {l.setAsideTouched > 0
+                      ? ` · ${t('crm.leads.setAside', { n: l.setAsideTouched })}`
+                      : ''}
                   </p>
-                )}
-                {w && picked !== null && w.ours > 0 ? (
-                  <button
-                    type="button"
-                    className="crm__pick-all"
-                    onClick={() => void pickEveryoneWaiting()}
-                  >
-                    {t('crm.waiting.pickAll', { n: w.ours })}
-                  </button>
-                ) : null}
-                <ul className="crm__list">{(w?.waiting ?? []).map(row)}</ul>
-              </>
-            )
-          )}
-
-          {panel(
-            t('crm.leads.title'),
-            leads,
-            l && (
-              <>
-                <p className="crm__counts">
-                  {t('crm.leads.counts', { found: l.found })}
-                  {l.setAsideTouched > 0
-                    ? ` · ${t('crm.leads.setAside', { n: l.setAsideTouched })}`
-                    : ''}
-                </p>
-                <ul className="crm__list">
-                  {l.leads.map(p => (
-                    <li key={p.telegramId} className="crm__row">
-                      <div className="crm__who">
-                        <Link to={`/crm/${p.telegramId}`} className="crm__open">
-                          {p.name || p.telegramId}
-                        </Link>
-                        {p.link ? (
-                          <span className="crm__stage">
-                            <a href={p.link} target="_blank" rel="noreferrer">
-                              t.me
-                            </a>
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="crm__why">
-                        {p.bot ?? '—'} ·{' '}
-                        {t('crm.leads.quiet', { days: p.quietDays ?? '?' })}
-                      </p>
-                      <div className="crm__acts">
-                        <button
-                          type="button"
-                          onClick={() => void touch(p.telegramId, 'written')}
-                        >
-                          {t('crm.act.written')}
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )
-          )}
+                  <ul className="crm__list">
+                    {l.leads.map(p => (
+                      <li key={p.telegramId} className="crm__row">
+                        <div className="crm__who">
+                          <Link
+                            to={`/crm/${p.telegramId}`}
+                            className="crm__open"
+                          >
+                            {p.name || p.telegramId}
+                          </Link>
+                          {p.link ? (
+                            <span className="crm__stage">
+                              <a href={p.link} target="_blank" rel="noreferrer">
+                                t.me
+                              </a>
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="crm__why">
+                          {p.bot ?? '—'} ·{' '}
+                          {t('crm.leads.quiet', { days: p.quietDays ?? '?' })}
+                        </p>
+                        <div className="crm__acts">
+                          <button
+                            type="button"
+                            onClick={() => void touch(p.telegramId, 'written')}
+                          >
+                            {t('crm.act.written')}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )
+            )}
 
           {/*
             Former buyers gone quiet. A tool that refuses this viewer hides
             the panel; a server that could not be reached says so.
           */}
-          {winback.refused
+          {winback.refused || !shows('winback')
             ? null
             : panel(
                 t('crm.winback.title'),
@@ -697,145 +724,153 @@ export default function CrmPage() {
                 ) : null
               )}
 
-          {panel(
-            t('crm.clients.title'),
-            clients,
-            c && allClients.length === 0 ? (
-              <p className="crm__empty">{t('crm.clients.none')}</p>
-            ) : (
-              <>
-                {c && !c.paidKnown ? (
-                  // Payments could not be read: every `paid` below is false for
-                  // lack of data, and the reader must not take it for a fact.
-                  <p className="crm__counts crm__paid-unknown">
-                    {t('crm.clients.paidUnknown')}
-                  </p>
-                ) : null}
-                {c ? (
-                  <>
-                    <label className="crm__search">
-                      <span className="crm__muted">
-                        {t('crm.filter.search')}
-                      </span>
-                      <input
-                        type="search"
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                        aria-label={t('crm.filter.search')}
-                      />
-                    </label>
-                    <div className="crm__filter" role="group">
-                      {filterChips.map(([kind, n]) => (
-                        <button
-                          key={kind}
-                          type="button"
-                          className={`crm__chip${
-                            clientsFilter === kind ? ' crm__chip--on' : ''
-                          }`}
-                          aria-pressed={clientsFilter === kind}
-                          onClick={() => setClientsFilter(kind)}
-                        >
-                          {t(`crm.clients.filter.${kind}`)} {n}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                ) : null}
-                {/*
+          {shows('clients') &&
+            panel(
+              t('crm.clients.title'),
+              clients,
+              c && allClients.length === 0 ? (
+                <p className="crm__empty">{t('crm.clients.none')}</p>
+              ) : (
+                <>
+                  {c && !c.paidKnown ? (
+                    // Payments could not be read: every `paid` below is false for
+                    // lack of data, and the reader must not take it for a fact.
+                    <p className="crm__counts crm__paid-unknown">
+                      {t('crm.clients.paidUnknown')}
+                    </p>
+                  ) : null}
+                  {c ? (
+                    <>
+                      <label className="crm__search">
+                        <span className="crm__muted">
+                          {t('crm.filter.search')}
+                        </span>
+                        <input
+                          type="search"
+                          value={query}
+                          onChange={e => setQuery(e.target.value)}
+                          aria-label={t('crm.filter.search')}
+                        />
+                      </label>
+                      <div className="crm__filter" role="group">
+                        {filterChips.map(([kind, n]) => (
+                          <button
+                            key={kind}
+                            type="button"
+                            className={`crm__chip${
+                              clientsFilter === kind ? ' crm__chip--on' : ''
+                            }`}
+                            aria-pressed={clientsFilter === kind}
+                            onClick={() => setClientsFilter(kind)}
+                          >
+                            {t(`crm.clients.filter.${kind}`)} {n}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                  {/*
                   UNDER WAY, FIRST AND SEPARATELY. These are the people
                   somebody has already invested in; starting them again from
                   the top of the list is how a client hears the same opening
                   twice.
                 */}
-                {clientsFilter === 'groups' ? (
-                  /*
+                  {clientsFilter === 'groups' ? (
+                    /*
                     GROUPS ARE NOT CLIENTS (#2950): a group is where clients
                     speak. Each opens read-only, with who speaks there.
                   */
-                  shownGroups.length === 0 ? (
-                    <p className="crm__empty">{t('crm.groups.none')}</p>
-                  ) : (
-                    <ul className="crm__list">
-                      {shownGroups.map(g => (
-                        <li key={g.chatId} className="crm__row">
-                          <Link to={`/crm/g/${g.chatId}/chat`}>
-                            {g.title ||
-                              (g.username ? `@${g.username}` : g.chatId)}
-                          </Link>{' '}
-                          <span className="crm__muted">
-                            {t('crm.groups.row', {
-                              members: g.membersCount ?? '—',
-                              messages: g.messages,
-                            })}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )
-                ) : null}
-                {clientsFilter === 'groups' ? null : (
-                  <>
-                    <h4 className="crm__subtitle">
-                      {t('crm.vip.title')} {underWay.length}
-                    </h4>
-                    <p className="crm__counts">{t('crm.vip.note')}</p>
-                    {underWay.length === 0 ? (
-                      <p className="crm__empty">{t('crm.vip.empty')}</p>
+                    shownGroups.length === 0 ? (
+                      <p className="crm__empty">{t('crm.groups.none')}</p>
                     ) : (
-                      <ul className="crm__list">{underWay.map(clientRow)}</ul>
-                    )}
-                    <ul className="crm__list">{shownClients.map(clientRow)}</ul>
-                  </>
-                )}
-                {clientsFilter !== 'groups' && c && c.nextOffset !== null ? (
-                  <button
-                    type="button"
-                    className="crm__more"
-                    onClick={() => void loadMoreClients()}
-                    disabled={loadingMore}
-                  >
-                    {loadingMore
-                      ? t('crm.clients.loadingMore')
-                      : t('crm.clients.more')}
-                  </button>
-                ) : null}
-              </>
-            )
-          )}
+                      <ul className="crm__list">
+                        {shownGroups.map(g => (
+                          <li key={g.chatId} className="crm__row">
+                            <Link to={`/crm/g/${g.chatId}/chat`}>
+                              {g.title ||
+                                (g.username ? `@${g.username}` : g.chatId)}
+                            </Link>{' '}
+                            <span className="crm__muted">
+                              {t('crm.groups.row', {
+                                members: g.membersCount ?? '—',
+                                messages: g.messages,
+                              })}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )
+                  ) : null}
+                  {clientsFilter === 'groups' ? null : (
+                    <>
+                      <h4 className="crm__subtitle">
+                        {t('crm.vip.title')} {underWay.length}
+                      </h4>
+                      <p className="crm__counts">{t('crm.vip.note')}</p>
+                      {underWay.length === 0 ? (
+                        <p className="crm__empty">{t('crm.vip.empty')}</p>
+                      ) : (
+                        <ul className="crm__list">{underWay.map(clientRow)}</ul>
+                      )}
+                      <ul className="crm__list">
+                        {shownClients.map(clientRow)}
+                      </ul>
+                    </>
+                  )}
+                  {clientsFilter !== 'groups' && c && c.nextOffset !== null ? (
+                    <button
+                      type="button"
+                      className="crm__more"
+                      onClick={() => void loadMoreClients()}
+                      disabled={loadingMore}
+                    >
+                      {loadingMore
+                        ? t('crm.clients.loadingMore')
+                        : t('crm.clients.more')}
+                    </button>
+                  ) : null}
+                </>
+              )
+            )}
 
           {/* What the owner's clients have brought, from the live wallet. */}
-          <RevenuePanel noticeReason={noticeReason} />
+          {shows('revenue') ? (
+            <RevenuePanel noticeReason={noticeReason} />
+          ) : null}
 
-          {panel(
-            t('crm.audience.title'),
-            overview,
-            o && (
-              <dl className="crm__stats">
-                <div>
-                  <dt>{t('crm.audience.total')}</dt>
-                  <dd>{o.people ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>{t('crm.audience.paying')}</dt>
-                  <dd>
-                    {o.paying ?? '—'}{' '}
-                    <span className="crm__muted">{o.payingShare ?? ''}</span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>{t('crm.audience.came7')}</dt>
-                  <dd>{o.came7 ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>{t('crm.audience.came30')}</dt>
-                  <dd>{o.came30 ?? '—'}</dd>
-                </div>
-              </dl>
-            )
-          )}
+          {shows('audience') &&
+            panel(
+              t('crm.audience.title'),
+              overview,
+              o && (
+                <dl className="crm__stats">
+                  <div>
+                    <dt>{t('crm.audience.total')}</dt>
+                    <dd>{o.people ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('crm.audience.paying')}</dt>
+                    <dd>
+                      {o.paying ?? '—'}{' '}
+                      <span className="crm__muted">{o.payingShare ?? ''}</span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{t('crm.audience.came7')}</dt>
+                    <dd>{o.came7 ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('crm.audience.came30')}</dt>
+                    <dd>{o.came30 ?? '—'}</dd>
+                  </div>
+                </dl>
+              )
+            )}
 
           {/* Where people come from (#2974): the owner's only. */}
-          <TrafficPanel noticeReason={noticeReason} />
+          {shows('traffic') ? (
+            <TrafficPanel noticeReason={noticeReason} />
+          ) : null}
 
           <p className="crm__note">{t('crm.note')}</p>
         </>

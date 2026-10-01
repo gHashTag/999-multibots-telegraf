@@ -6,6 +6,12 @@ import { myProfileAtom } from '@/atoms'
 import { launchStartParam } from '@/lib/telegram'
 import { IS_EMBED } from '@/lib/embed'
 import { isWelcomed } from '@/lib/welcomeMemory'
+import {
+  HOME,
+  isConversation,
+  isRestorable,
+  resumeTarget,
+} from '@/lib/launchMemory'
 
 /**
  * Приложение открывается там, где человека прервали.
@@ -21,34 +27,6 @@ import { isWelcomed } from '@/lib/welcomeMemory'
  */
 
 /**
- * Куда можно возвращать.
- *
- * Список ЯВНЫЙ, а не «всё кроме служебного», из-за маршрута `/:username`: он
- * ловит любую одиночную строку, поэтому мусор в хранилище отрендерился бы
- * страницей профиля. Профиль возвращается по каноническому `/profile` —
- * см. запись ниже.
- */
-const RESTORABLE = [
-  /^\/feed(\/|$)/,
-  /^\/chat(\/|$)/,
-  /^\/agents(\/|$)/,
-  /^\/editor(\/|$)/,
-  /^\/generate(\/|$)/,
-  /^\/templates(\/|$)/,
-  /^\/search(\/|$)/,
-  /^\/blog(\/|$)/,
-  /^\/learn(\/|$)/,
-  /^\/profile(\/|$)/,
-]
-
-function isRestorable(path: string): boolean {
-  return RESTORABLE.some(re => re.test(path))
-}
-
-/** Куда уходит корень, когда памяти нет. */
-const HOME = '/feed'
-
-/**
  * THE FIRST SCREEN OF A FIRST LAUNCH: who we are and what is sold
  * (pages/Welcome.tsx). Shown once; the page sets the flag as it opens
  * (lib/welcomeMemory.ts).
@@ -60,17 +38,18 @@ export const WELCOME = '/welcome'
  * TelegramProvider: к моменту эффектов путь уже переписан редиректом, а
  * записыватель ниже успел бы положить в хранилище «/feed» поверх запомненного.
  */
-const REMEMBERED = readRemembered()
+const REMEMBERED = readRemembered(STORAGE_KEYS.lastRoute)
+const LAST_CHAT = readRemembered(STORAGE_KEYS.lastChat)
 
 /**
  * A third-party frame (the game's TRI tab) may have no storage at all: a
  * browser that blocks third-party storage throws from the `localStorage`
  * getter itself, and a throw here, at module load, kills the whole bundle.
  */
-function readRemembered(): string | null {
+function readRemembered(key: string): string | null {
   if (typeof window === 'undefined') return null
   try {
-    return window.localStorage.getItem(STORAGE_KEYS.lastRoute)
+    return window.localStorage.getItem(key)
   } catch {
     return null
   }
@@ -99,9 +78,7 @@ export function LaunchRedirect() {
       ? HOME
       : !isWelcomed()
         ? WELCOME
-        : REMEMBERED && isRestorable(REMEMBERED)
-          ? REMEMBERED
-          : HOME
+        : resumeTarget(REMEMBERED, LAST_CHAT)
 
   return <Navigate to={target} replace />
 }
@@ -127,6 +104,9 @@ export function RouteMemory() {
     if (!isRestorable(toStore)) return
     try {
       window.localStorage.setItem(STORAGE_KEYS.lastRoute, toStore)
+      if (isConversation(toStore)) {
+        window.localStorage.setItem(STORAGE_KEYS.lastChat, toStore)
+      }
     } catch {
       // Приватный режим или переполненная квота. Потеря памяти о вкладке —
       // не повод ронять навигацию.
