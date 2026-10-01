@@ -2935,7 +2935,10 @@ setTimeout(
  * THE BLOG GOES TO LINKEDIN AND X, ONE ARTICLE A DAY, ONLY AFTER A YES
  * (src/agent/blog-share.ts; owner's decision 2026-09-22). The tick is
  * cheap -- a database row, and the feed at most once a day -- so it runs
- * every half hour and an answered question is acted on within that.
+ * every five minutes and an answered question is acted on within that.
+ * Not thirty: the service rarely lives forty-five minutes, so a half-hour
+ * timer restarted by every deploy often never fired at all. The pace (once
+ * a day) lives in blog_shares.asked_at, not here.
  * Off unless BLOG_SHARE_ENABLED=1.
  */
 setInterval(
@@ -2951,7 +2954,7 @@ setInterval(
       }
     })()
   },
-  30 * 60 * 1000
+  5 * 60 * 1000
 )
 
 /*

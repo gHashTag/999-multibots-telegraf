@@ -48,7 +48,10 @@ if os.environ.get('JSON') == '--json':
     print(json.dumps(out, ensure_ascii=False))
     sys.exit(0)
 
-if not out.get('running'):
+# The tool answers `reachable` (since #3152); `running` was its old name.
+# Reading only the old one printed "browser is off" for a browser that
+# answered with eight signed-in networks (2026-10-02).
+if not (out.get('reachable') or out.get('running')):
     print('browser is off -- its logins cannot be read (' + str(out.get('hint', '')) + ')')
     sys.exit(3)
 
