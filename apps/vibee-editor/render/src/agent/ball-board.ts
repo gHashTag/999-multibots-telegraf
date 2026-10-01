@@ -46,6 +46,9 @@
  * machine's message always is. A matter whose every address is a machine's or
  * the owner's own domain has nobody to answer: its ball is none, and it is
  * counted as `automated`, never dropped.
+ *
+ * v6: hh.ru is a relay. An employer's message arrives from its no-reply
+ * address, so an address on `RELAY_DOMAIN` is never a machine's.
  */
 
 import { ensureApprovals, pendingApprovalFor } from '../browser/approvals'
@@ -290,11 +293,19 @@ export function automatedMarker(marker: string): boolean {
 }
 
 /** A machine's address (a marker, separators removed) or the owner's own domain. */
+export function relayDomain(domain: string): boolean {
+  return (
+    domain === SPEC.RELAY_DOMAIN || domain.endsWith(`.${SPEC.RELAY_DOMAIN}`)
+  )
+}
+
 export function machineOrOwn(raw: string): boolean {
   const a = addressOf(raw)
   const domain = a.split('@')[1] ?? ''
   if (domain === SPEC.OWN_DOMAIN || domain.endsWith(`.${SPEC.OWN_DOMAIN}`))
     return true
+  // A relay's no-reply delivers a person's words (v6): never a machine.
+  if (relayDomain(domain)) return false
   const flat = a.replace(/[.\-_+]/g, '')
   return AUTOMATED_MARKERS.some(m => flat.includes(m))
 }
