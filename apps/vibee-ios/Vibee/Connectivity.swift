@@ -46,7 +46,7 @@ final class Connectivity: ObservableObject {
 struct OfflineBanner: View {
   var body: some View {
     Label(
-      say("No connection -- the app will reload when it is back",
+      say("No connection — the app will reload when it is back",
           "Нет сети — приложение обновится само, когда она появится"),
       systemImage: "wifi.slash"
     )
