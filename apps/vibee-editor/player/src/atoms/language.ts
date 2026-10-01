@@ -1283,7 +1283,7 @@ const en: Translations = {
   'voice.phase.listening': 'Listening',
   'voice.phase.hearing': 'Hearing you',
   'voice.phase.thinking': 'Thinking',
-  'voice.phase.speaking': 'Speaking. Talk over it to interrupt',
+  'voice.phase.speaking': 'Speaking. Talk over it or tap Stop',
   'voice.phase.error': 'Voice mode stopped',
   'voice.error.mic':
     'No access to the microphone. Allow it in the browser and tap the logo.',
@@ -1301,6 +1301,7 @@ const en: Translations = {
   'voice.type.label': 'Type instead — the agent answers aloud',
   'voice.type.placeholder': 'Ask the agent…',
   'voice.type.send': 'Send',
+  'voice.stop': 'Stop',
   'voice.error.recorder': 'This browser cannot record audio.',
   'voice.error.hear': 'Could not make out the words. Please say it again.',
   'voice.you': 'You',
@@ -3916,7 +3917,7 @@ const ru: Translations = {
   'voice.phase.listening': 'Слушаю',
   'voice.phase.hearing': 'Слышу вас',
   'voice.phase.thinking': 'Думаю',
-  'voice.phase.speaking': 'Говорю. Перебейте голосом, чтобы остановить',
+  'voice.phase.speaking': 'Говорю. Перебейте голосом или нажмите «Остановить»',
   'voice.phase.error': 'Голосовой режим остановлен',
   'voice.error.mic':
     'Нет доступа к микрофону. Разрешите его в браузере и нажмите на логотип.',
@@ -3935,6 +3936,7 @@ const ru: Translations = {
   'voice.type.label': 'Напишите — агент ответит голосом',
   'voice.type.placeholder': 'Спросите агента…',
   'voice.type.send': 'Отправить',
+  'voice.stop': 'Остановить',
   'voice.error.recorder': 'Этот браузер не умеет записывать звук.',
   'voice.error.hear': 'Не разобрал слова. Повторите, пожалуйста.',
   'voice.you': 'Вы',

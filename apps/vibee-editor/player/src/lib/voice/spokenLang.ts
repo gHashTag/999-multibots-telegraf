@@ -33,6 +33,18 @@ export function guessSpokenLang(text: string): Language | null {
 }
 
 /**
+ * The voice to read a sentence with. Looser than guessSpokenLang on purpose,
+ * and lopsided: a Russian voice reading "Google Docs" stays understandable,
+ * an English voice reading Russian is noise -- so ANY Cyrillic makes it
+ * Russian. Null when the sentence has no letters at all ("42.", an emoji).
+ */
+export function sentenceLang(text: string): Language | null {
+  if (/[\u0400-\u04ff]/.test(text)) return 'ru'
+  if (/[A-Za-z]/.test(text)) return 'en'
+  return null
+}
+
+/**
  * The language to assume before anything was heard: the app's own, but only
  * when the browser's first language says the same.
  */
