@@ -39,6 +39,12 @@
 //       says what the agent is on and whether it waits on the person, and opens the
 //       app's own browser view; it never carries a viewing token, a pod address or
 //       anything the person typed.
+// v4 (2026-10-01), owner: "the board is the control centre of the whole game". A fifth
+//       source, the caller's own meetings (automation/meeting-reminders), read ONLY for
+//       the caller like the browser. A meeting that ended with no answer is past its
+//       date (due); one that starts within a day is on us; a later one owes nothing yet.
+//       A meeting card carries neither the tap token nor the calendar token, nor the
+//       meeting's link or place: the reminder in Telegram already holds those.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::ball_board {
@@ -46,7 +52,7 @@ module automation::ball_board {
     pub const KIND : str = "automation";
     pub const ID : str = "ball-board";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 3;
+    pub const VERSION : u8 = 4;
 
     // ---- The doors ------------------------------------------------------------------
     pub const TOOL : str = "ball_board";  // read: the whole board, grouped by client
@@ -60,6 +66,8 @@ module automation::ball_board {
     pub const SOURCE_WORK : str = "github";  // open PRs and bugs: ball_work_digest
     pub const SOURCE_BROWSER : str = "browser";  // the agent's browser: the caller's own
                                                  // session, its open ask, its last step
+    pub const SOURCE_MEETING : str = "meeting";  // the caller's own meetings: upcoming,
+                                                 // and ended ones nobody answered yet
     pub const CRM_TOOL : str = "crm_waiting";  // CALLED with the caller's context: its
                                                // scope gate and its waitingOn are the
                                                // only ones; this board adds none
@@ -114,6 +122,7 @@ module automation::ball_board {
     pub const SPEC_OF_MAIL : str = "specs/automation/mail-push.t27";
     pub const SPEC_OF_BOARD : str = "specs/automation/ball-board.t27";
     pub const SPEC_OF_BROWSER : str = "specs/automation/browser-sign-in.t27";
+    pub const SPEC_OF_MEETING : str = "specs/automation/meeting-reminders.t27";
     pub const UNSPECCED_IS_COUNTED : bool = true;  // a card with no spec is reported,
                                                    // never given one it does not have
 
@@ -138,6 +147,14 @@ module automation::ball_board {
     pub const ASK_TTL_MIN : u8 = 10;  // an ask or an approval older than this is gone
     pub const STATE_LIVE : str = "live";
     pub const STATE_STARTING : str = "starting";
+
+    // ---- Meetings: the caller's own, and whose move ---------------------------------
+    pub const MEETING_OWN_ONLY : bool = true;  // WHERE telegram_id = the caller, always
+    pub const MEETING_SOON_H : u8 = 24;  // starts within this: on us to be there
+    pub const MEETING_AHEAD_H : u8 = 168;  // later than this is not on the board yet
+    pub const MEETING_ASK_BACK_H : u8 = 72;  // an unanswered ended meeting stays this long
+    pub const MEETING_CARD_NO_TOKEN : bool = true;  // no tap or ics token, no link, no place
+    pub const MEETING_OPEN_STATUS : str = "planned";  // done, missed, cancelled are history
 
     // ---- Not claimed ----------------------------------------------------------------
     pub const RUN_LIVE : bool = false;
@@ -246,6 +263,9 @@ module automation::ball_board {
         if source == SOURCE_BROWSER {
             return SPEC_OF_BROWSER;
         }
+        if source == SOURCE_MEETING {
+            return SPEC_OF_MEETING;
+        }
         return "";
     }
 
@@ -268,6 +288,27 @@ module automation::ball_board {
     // stream or the pod, and is refused by name so a new column is refused by default.
     fn browser_field_shown(field: str) -> bool {
         return field == "state" || field == "last_seen_at" || field == "person_wheel_until";
+    }
+
+    // A meeting's ball. Ended with no answer: past its date, the person still owes how it
+    // went. Starting within MEETING_SOON_H: on us to be there. Later: nobody's move yet.
+    fn meeting_ball(ended: bool, answered: bool, starts_soon: bool) -> str {
+        if ended && !answered {
+            return BALL_DUE;
+        }
+        if ended {
+            return BALL_NONE;
+        }
+        if starts_soon {
+            return BALL_OURS;
+        }
+        return BALL_NONE;
+    }
+
+    // What a meeting card may carry. The tokens open the buttons and the calendar file,
+    // the link and the place are the person's own; none of them belong on a board.
+    fn meeting_field_shown(field: str) -> bool {
+        return field == "title" || field == "starts_at" || field == "ends_at" || field == "mode" || field == "status";
     }
 
     // A browser row is read only for its own person.
@@ -401,13 +442,36 @@ module automation::ball_board {
         assert(card_spec(SOURCE_BROWSER, "") == SPEC_OF_BROWSER);
     }
 
+    test "a meeting that ended unanswered is due, one within a day is ours" {
+        assert(meeting_ball(true, false, false) == BALL_DUE);
+        assert(meeting_ball(true, true, false) == BALL_NONE);
+        assert(meeting_ball(false, false, true) == BALL_OURS);
+        assert(meeting_ball(false, false, false) == BALL_NONE);
+        assert(MEETING_SOON_H == 24);
+        assert(MEETING_SOON_H < MEETING_AHEAD_H);
+        assert(MEETING_OPEN_STATUS == "planned");
+    }
+
+    test "a meeting card is the caller's own and carries no token, link or place" {
+        assert(MEETING_OWN_ONLY);
+        assert(MEETING_CARD_NO_TOKEN);
+        assert(meeting_field_shown("title"));
+        assert(meeting_field_shown("starts_at"));
+        assert(!meeting_field_shown("tap_token"));
+        assert(!meeting_field_shown("ics_token"));
+        assert(!meeting_field_shown("url"));
+        assert(!meeting_field_shown("place"));
+        assert(!meeting_field_shown("notes"));
+        assert(card_spec(SOURCE_MEETING, "") == SPEC_OF_MEETING);
+    }
+
     test "the board is designed, not yet live" {
         assert(!RUN_LIVE);
         assert(TOOL == "ball_board");
         assert(PUSH_TOOL == "ball_work_push");
         assert(LINK_TOOL == "ball_link");
         assert(DOOR == "/mcp");
-        assert(VERSION == 3);
+        assert(VERSION == 4);
     }
 }
 
