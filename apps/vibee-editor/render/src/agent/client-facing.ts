@@ -90,6 +90,8 @@ export const CLIENT_SURFACE_TOOLS: ReadonlySet<string> = new Set([
   'leela_plan',
   'web_search',
   'web_read',
+  // Files THIS client's fault under the owner of this chat; reads nobody.
+  'report_defect',
 ])
 
 /**

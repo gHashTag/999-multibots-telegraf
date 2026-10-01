@@ -238,6 +238,13 @@ export interface ToolContext {
    * is how a draft proves they are his rather than the model's.
    */
   ownerSaid?: string
+  /**
+   * The seller whose business DM this turn answers in: the server-keyed
+   * seller_id (routes.ts), copied here by clientTurnContext on the business
+   * surface only. Never from a model argument. Read by report_defect, which
+   * files the client's fault under this owner.
+   */
+  dmSeller?: string
 }
 
 export interface AgentTool {
@@ -1120,6 +1127,7 @@ import { CRM_CLIENT_GROUP_TOOLS } from './crm-client-group'
 import { CRM_CLIENT_TIMELINE_TOOLS } from './crm-client-timeline'
 import { CRM_REVENUE_TOOLS } from './crm-revenue-tool'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
+import { DEFECT_TOOLS } from './client-defects'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
@@ -3632,6 +3640,8 @@ TOOLS.push(...TELEGRAM_TOOLS)
  */
 TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...CRM_TOUCH_TOOLS)
+// A client's fault in the DM, filed and closed (client-defects.ts).
+TOOLS.push(...DEFECT_TOOLS)
 TOOLS.push(...CRM_OFFER_TOOLS)
 // The club invoice for the person in this chat, beside the token invoice:
 // the same route decision the bot's club card reaches (club-invoice-tool.ts).
