@@ -20,6 +20,7 @@ import {
   MAX_SPEAK_CHARS,
   EARS_TIMEOUT_MS,
   hear,
+  mouthTimeoutMs,
   pickVoice,
   resetVoiceBudgetForTests,
   speak,
@@ -39,6 +40,8 @@ beforeEach(() => {
   delete process.env.VOICE_HEAR_RU_KEY
   delete process.env.VOICE_HEAR_EN_URL
   delete process.env.VOICE_HEAR_EN_KEY
+  delete process.env.VOICE_SPEAK_URL
+  delete process.env.VOICE_SPEAK_KEY
   process.env.WHISPER_BASE_URL = 'http://whisper.railway.internal:8000/v1'
   process.env.WHISPER_API_KEY = 'k'
   resetVoiceBudgetForTests()
@@ -143,6 +146,126 @@ describe('speak', () => {
       status: 502,
     })
     expect(calls).toBe(1)
+  })
+})
+
+describe('the mouth (own Kokoro/Piper pool)', () => {
+  const mp3 = () => new Response(new Uint8Array([7, 7]), { status: 200 })
+  const set = () => {
+    process.env.VOICE_SPEAK_URL = 'http://mouth.railway.internal:8080/'
+    process.env.VOICE_SPEAK_KEY = 'mk'
+  }
+
+  it('speaks through the mouth first, with its key, lang and voice', async () => {
+    set()
+    const urls: string[] = []
+    let seen: RequestInit | null = null
+    const fake = (async (url: string, init: RequestInit) => {
+      urls.push(url)
+      seen = init
+      return mp3()
+    }) as unknown as typeof fetch
+    const out = await speak(
+      { text: 'Hello **there**', lang: 'en', voice: 'bm_george' },
+      fake
+    )
+    expect(out).toMatchObject({ ok: true, engine: 'mouth' })
+    expect(urls).toEqual(['http://mouth.railway.internal:8080/speak'])
+    expect(JSON.parse(String(seen!.body))).toEqual({
+      input: 'Hello there',
+      lang: 'en',
+      voice: 'bm_george',
+    })
+    expect((seen!.headers as Record<string, string>).authorization).toBe(
+      'Bearer mk'
+    )
+    expect(voiceStatus().speakVia).toBe('mouth')
+  })
+
+  it('falls back to speaches when the mouth refuses, fails or is silent', async () => {
+    set()
+    for (const broken of [
+      () => new Response('no', { status: 500 }),
+      () => {
+        throw new Error('ECONNREFUSED')
+      },
+      () => new Response(new Uint8Array(0), { status: 200 }),
+    ]) {
+      const urls: string[] = []
+      const fake = (async (url: string) => {
+        urls.push(url)
+        return url.includes('mouth') ? broken() : mp3()
+      }) as unknown as typeof fetch
+      const out = await speak({ text: 'Привет', lang: 'ru' }, fake)
+      expect(out).toMatchObject({ ok: true, engine: 'speaches' })
+      expect(urls).toEqual([
+        'http://mouth.railway.internal:8080/speak',
+        'http://whisper.railway.internal:8000/v1/audio/speech',
+      ])
+    }
+  })
+
+  it('gives up on a hung mouth within its budget and asks speaches', async () => {
+    set()
+    vi.useFakeTimers()
+    try {
+      const fake = (async (url: string, init: RequestInit) => {
+        if (!url.includes('mouth')) return mp3()
+        return new Promise((_, reject) =>
+          init.signal!.addEventListener('abort', () =>
+            reject(new Error('aborted'))
+          )
+        )
+      }) as unknown as typeof fetch
+      const pending = speak({ text: 'Hi', lang: 'en' }, fake)
+      await vi.advanceTimersByTimeAsync(mouthTimeoutMs(2) - 1)
+      let done = false
+      void pending.then(() => (done = true))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(done).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(await pending).toMatchObject({ ok: true, engine: 'speaches' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('without its URL and key, only speaches is asked', async () => {
+    process.env.VOICE_SPEAK_URL = 'http://mouth.railway.internal:8080'
+    const urls: string[] = []
+    const fake = (async (url: string) => {
+      urls.push(url)
+      return mp3()
+    }) as unknown as typeof fetch
+    expect(await speak({ text: 'Hi', lang: 'en' }, fake)).toMatchObject({
+      engine: 'speaches',
+    })
+    expect(urls).toEqual([
+      'http://whisper.railway.internal:8000/v1/audio/speech',
+    ])
+    expect(voiceStatus().speakVia).toBe('speaches')
+  })
+
+  it('a mouth alone still speaks, and its failure is a 502', async () => {
+    set()
+    delete process.env.WHISPER_BASE_URL
+    delete process.env.TTS_BASE_URL
+    const ok = (async () => mp3()) as unknown as typeof fetch
+    expect(await speak({ text: 'Hi' }, ok)).toMatchObject({
+      ok: true,
+      engine: 'mouth',
+    })
+    const bad = (async () =>
+      new Response('x', { status: 500 })) as unknown as typeof fetch
+    expect(await speak({ text: 'Hi' }, bad)).toMatchObject({
+      ok: false,
+      status: 502,
+    })
+  })
+
+  it('grows the budget with the text', () => {
+    expect(mouthTimeoutMs(600)).toBeGreaterThan(mouthTimeoutMs(20))
+    expect(mouthTimeoutMs(20)).toBeGreaterThanOrEqual(3_000)
   })
 })
 

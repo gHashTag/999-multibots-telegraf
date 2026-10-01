@@ -25,6 +25,10 @@
  *   EN voice  Kokoro-82M v1.0 ONNX (fp32)     2.4-3.6 s per sentence
  *             Kokoro int8 was SLOWER (6-7 s) on the same CPU, so fp32 it is.
  *
+ * Those voice numbers were the 48-thread pool, not the models: the same
+ * files in our own `mouth` pod on 8 threads speak an English phrase in
+ * ~0.3 s and a Russian one in ~0.1 s (2026-10-02). See `mouthConfig`.
+ *
  * All of it is free and runs on a service we already pay for. Ruled out:
  * Silero/XTTS/F5/Fish (non-commercial licences) and Edge TTS (unofficial API).
  * Kokoro has no Russian, which is why the language picks the engine.
@@ -342,30 +346,101 @@ export async function warm(
   return { hear: hearState, speak: speakState }
 }
 
+/** Which engine spoke: our own pool (deployment/mouth) or speaches. */
+export type Mouth = 'mouth' | 'speaches'
+
 export type Speech =
-  | { ok: true; audio: Buffer; contentType: string }
+  | { ok: true; audio: Buffer; contentType: string; engine: Mouth }
   | { ok: false; status: number; error: string }
 
-/** One sentence to mp3 through speaches' OpenAI-compatible /audio/speech. */
+/*
+ * The mouth: the same Kokoro and Piper files as speaches, served by a pod
+ * whose ONNX sessions run on 8 threads instead of all 48 visible cores.
+ * Measured 2026-10-02 (deployment/mouth/server.py): an English phrase
+ * 1.2-1.7 s in speaches, ~0.3 s in the mouth; Russian 0.3-0.8 s vs ~0.1 s.
+ * speaches stays as the fallback for anything the mouth fails on.
+ */
+export function mouthConfig(): { url: string; key: string } | null {
+  const url = (process.env.VOICE_SPEAK_URL || '').replace(/\/+$/, '')
+  const key = process.env.VOICE_SPEAK_KEY || ''
+  return url && key ? { url, key } : null
+}
+
+/**
+ * How long the mouth may take before speaches is asked instead: a short
+ * phrase is ~0.3 s and 100 characters ~0.8 s, so the budget grows with the
+ * text -- a hung pod must not hold a 600-character sentence hostage, and a
+ * long one must not be cut off just for being long.
+ */
+export function mouthTimeoutMs(chars: number): number {
+  return 3_000 + 12 * chars
+}
+
+async function speakFast(
+  mouth: { url: string; key: string },
+  input: string,
+  lang: VoiceLang,
+  voice: string,
+  fetchImpl: typeof fetch
+): Promise<Buffer | null> {
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), mouthTimeoutMs(input.length))
+  try {
+    const r = await fetchImpl(`${mouth.url}/speak`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${mouth.key}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ input, lang, voice }),
+      signal: ac.signal,
+    })
+    if (!r.ok) {
+      console.warn(`[voice] mouth ${r.status}, falling back to speaches`)
+      return null
+    }
+    const audio = Buffer.from(await r.arrayBuffer())
+    return audio.length ? audio : null
+  } catch (e) {
+    const why = ac.signal.aborted ? 'timed out' : (e as Error).message
+    console.warn(`[voice] mouth ${why}, falling back to speaches`)
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * One sentence to mp3: the mouth first when configured, then speaches'
+ * OpenAI-compatible /audio/speech.
+ */
 export async function speak(
   body: { text?: unknown; lang?: unknown; voice?: unknown },
   fetchImpl: typeof fetch = fetch,
   timeoutMs = 30_000
 ): Promise<Speech> {
+  const mouth = mouthConfig()
   const cfg = ttsConfig()
-  if (!cfg)
+  if (!cfg && !mouth)
     return { ok: false, status: 503, error: 'no voice engine configured' }
   const input = speakable(body.text)
   if (!input) return { ok: false, status: 400, error: 'nothing to say' }
   const { model, voice } = pickVoice(body.lang, body.voice)
+  if (mouth) {
+    const lang: VoiceLang = body.lang === 'en' ? 'en' : 'ru'
+    const audio = await speakFast(mouth, input, lang, voice, fetchImpl)
+    if (audio)
+      return { ok: true, audio, contentType: 'audio/mpeg', engine: 'mouth' }
+    if (!cfg) return { ok: false, status: 502, error: 'voice engine failed' }
+  }
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), timeoutMs)
   try {
-    const r = await fetchImpl(`${cfg.base}/audio/speech`, {
+    const r = await fetchImpl(`${cfg!.base}/audio/speech`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(cfg.key ? { Authorization: `Bearer ${cfg.key}` } : {}),
+        ...(cfg!.key ? { Authorization: `Bearer ${cfg!.key}` } : {}),
       },
       body: JSON.stringify({ model, voice, input, response_format: 'mp3' }),
       signal: ac.signal,
@@ -381,7 +456,7 @@ export async function speak(
     const audio = Buffer.from(await r.arrayBuffer())
     if (!audio.length)
       return { ok: false, status: 502, error: 'voice engine returned nothing' }
-    return { ok: true, audio, contentType: 'audio/mpeg' }
+    return { ok: true, audio, contentType: 'audio/mpeg', engine: 'speaches' }
   } catch (e) {
     const msg = ac.signal.aborted
       ? 'voice engine timed out'
@@ -397,7 +472,8 @@ export function voiceStatus() {
     hear: Boolean(whisperConfig()),
     hearRu: earsConfig('ru')?.engine ?? 'whisper',
     hearEn: earsConfig('en')?.engine ?? 'whisper',
-    speak: Boolean(ttsConfig()),
+    speak: Boolean(ttsConfig() || mouthConfig()),
+    speakVia: mouthConfig() ? 'mouth' : 'speaches',
     voices: VOICES,
   }
 }

@@ -411,14 +411,16 @@ CHECKS THAT EACH COST A CYCLE
         player/render deploys. Exit 1 = work in flight, continue it; a FAILED
         deploy on main blocks every later merge of that service.
 
-  tri ears [status|deploy] [ru|en|all] | tri уши   (tri gigaam = tri ears ru)
+  tri ears [status|deploy] [ru|en|mouth|all] | tri уши   (tri gigaam = tri ears ru, tri mouth = tri ears mouth)
         The fast ears of voice mode, one image (deployment/gigaam) as two
         services: gigaam hears Russian (GigaAM v3, ~0.15 s a phrase), parakeet
         hears English (Parakeet TDT v2 int8, ~0.3 s), where whisper takes 2-3 s.
         Without arguments: each one's newest deploy and which ears the render
         routes each language to. `deploy` uploads deployment/gigaam from a
         CLEAN tree -- neither service is wired to GitHub, so a merge alone
-        does not ship them.
+        does not ship them. `mouth` is the voice's own Kokoro + Piper pool
+        (deployment/mouth, ~0.3 s an English phrase where speaches took
+        1.2-1.7 s); it ships the same way.
 
   tri pay [--invoice] | tri оплата
         Can a client pay RIGHT NOW, rail by rail.
@@ -5384,7 +5386,7 @@ if code != 200:
     print(f'  status: {why} -- the voice routes did not answer')
     sys.exit(3)
 st = json.loads(body)
-print(f"  status: hear={st.get('hear')} (ru via {st.get('hearRu', 'whisper')}, en via {st.get('hearEn', 'whisper')}) speak={st.get('speak')} "
+print(f"  status: hear={st.get('hear')} (ru via {st.get('hearRu', 'whisper')}, en via {st.get('hearEn', 'whisper')}) speak={st.get('speak')} (via {st.get('speakVia', 'speaches')}) "
       f"voices ru={len(st.get('voices', {}).get('ru', []))} en={len(st.get('voices', {}).get('en', []))}")
 if not (st.get('hear') and st.get('speak')):
     mark(1)
@@ -5408,20 +5410,29 @@ audio = {}
 # TTS "SLOW" when five more measured 2.0-2.5 s with a single 4.4 s tail.
 SPEAK_RUNS = min(RUNS, 3)
 for lang, text in phrases.items():
-    times = []
+    times, engines, engine_ms = [], set(), []
     for _ in range(SPEAK_RUNS):
         code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
         if code != 200 or len(body) <= 1000:
             break
         audio[lang] = body
         times.append(ms)
+        engines.add(last_timing.get('speak.desc', '?'))
+        if 'speak' in last_timing:
+            engine_ms.append(last_timing['speak'])
     if len(times) == SPEAK_RUNS:
         med = int(statistics.median(times))
         verdict = 'ok' if med < 3000 else 'SLOW (the first word waits for this)'
-        print(f'  speak {lang}: {len(body)} bytes, median {med} ms of {len(times)} '
-              f'[{min(times)}..{max(times)}] -- {verdict}')
+        inside = f', engine {int(statistics.median(engine_ms))} ms' if engine_ms else ''
+        print(f'  speak {lang}: {len(body)} bytes via {"/".join(sorted(engines))}, '
+              f'median {med} ms{inside} of {len(times)} [{min(times)}..{max(times)}] -- {verdict}')
         if med >= 3000:
             mark(2)
+        # The mouth is configured but speaches answered: it is down or
+        # refusing, and every sentence is paying for the fallback (cycle 6).
+        if st.get('speakVia') == 'mouth' and engines != {'mouth'}:
+            print(f'  speak {lang}: ANOMALY -- the mouth is configured but {"/".join(sorted(engines))} spoke (tri ears mouth)')
+            mark(1)
     else:
         audio.pop(lang, None)
         print(f'  speak {lang}: HTTP {code} {body[:100].decode(errors="replace")}')
@@ -5500,34 +5511,38 @@ PY
 # and with Parakeet TDT v2 (int8) for English. Neither is wired to GitHub.
 EARS_SVC_RU=1532ed17-3739-4ece-986a-2732288fdde0   # gigaam
 EARS_SVC_EN=6d9197c7-d467-42bc-8e92-27bc231302a6   # parakeet
+# The mouth (deployment/mouth): Kokoro + Piper on an 8-thread pool, cycle 6.
+# It speaks rather than hears, but it ships and is checked the same way.
+MOUTH_SVC=2455209b-6611-4814-bb55-7d3b5d994656
 cmd_ears() {
   local p=564d9ebd-7aa8-44fe-93ec-e0b03c87158d e=e4d200ad-b8a9-4edf-9b25-190a32613b32
-  local action=status langs='ru en' a
+  local action=status langs='ru en mouth' a
   for a in "$@"; do
     case "$a" in
       status|deploy) action=$a ;;
-      ru|en) langs=$a ;;
-      all) langs='ru en' ;;
-      *) bad "tri ears [status|deploy] [ru|en|all], not '$a'"; return 2 ;;
+      ru|en|mouth) langs=$a ;;
+      all) langs='ru en mouth' ;;
+      *) bad "tri ears [status|deploy] [ru|en|mouth|all], not '$a'"; return 2 ;;
     esac
   done
   local lang svc name rc=0
   if [ "$action" = deploy ]; then
-    if [ -n "$(git -C "$ROOT" status --porcelain -- deployment/gigaam)" ]; then
-      bad 'deployment/gigaam has uncommitted changes: commit them first'
+    if [ -n "$(git -C "$ROOT" status --porcelain -- deployment/gigaam deployment/mouth)" ]; then
+      bad 'deployment/gigaam or deployment/mouth has uncommitted changes: commit them first'
       return 2
     fi
-    local sha
+    local sha dir
     sha=$(git -C "$ROOT" rev-parse --short HEAD)
     for lang in $langs; do
-      if [ "$lang" = ru ]; then svc=$EARS_SVC_RU name=gigaam; else svc=$EARS_SVC_EN name=parakeet; fi
-      railway up "$ROOT/deployment/gigaam" --path-as-root -p "$p" -e "$e" \
+      _ears_svc "$lang"
+      dir=gigaam; [ "$lang" = mouth ] && dir=mouth
+      railway up "$ROOT/deployment/$dir" --path-as-root -p "$p" -e "$e" \
         -s "$svc" --detach --json --message "$name from $sha" 2>/dev/null || rc=1
     done
     return "$rc"
   fi
   for lang in $langs; do
-    if [ "$lang" = ru ]; then svc=$EARS_SVC_RU name=gigaam; else svc=$EARS_SVC_EN name=parakeet; fi
+    _ears_svc "$lang"
     timeout 30 railway deployment list -p "$p" -e "$e" -s "$svc" \
       --limit 1 --json 2>/dev/null | python3 -c '
 import json, sys
@@ -5543,13 +5558,22 @@ sys.exit(0 if d["status"] == "SUCCESS" else 1)' "$name" || rc=1
 import json, sys
 try:
     st = json.load(sys.stdin)
-    via = "ru via %s, en via %s" % (
+    via = "ru via %s, en via %s; speaks via %s" % (
         st.get("hearRu") or "whisper (render older than voice-loop-3)",
-        st.get("hearEn") or "whisper (render older than voice-loop-5)")
+        st.get("hearEn") or "whisper (render older than voice-loop-5)",
+        st.get("speakVia") or "speaches (render older than voice-loop-6)")
 except Exception:
     via = "unknown (render did not answer)"
 print("  render hears " + via)'
   return "$rc"
+}
+# Sets svc and name for one of: ru, en, mouth.
+_ears_svc() {
+  case "$1" in
+    ru) svc=$EARS_SVC_RU name=gigaam ;;
+    en) svc=$EARS_SVC_EN name=parakeet ;;
+    mouth) svc=$MOUTH_SVC name=mouth ;;
+  esac
 }
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -5716,6 +5740,7 @@ case "$action" in
   browser|браузер)     cmd_browser ;;
   voice|голос)         cmd_voice "$@" ;;
   ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
+  mouth|рот)           cmd_ears "$@" mouth ;;  # cyrillic-ok: the voice's mouth, cycle 6
   gigaam|гигаам)       cmd_ears "$@" ru ;;  # cyrillic-ok: the name it had in voice-loop-3
   loop|виток)          cmd_loop ;;
   heal|исцели)         cmd_heal ;;
