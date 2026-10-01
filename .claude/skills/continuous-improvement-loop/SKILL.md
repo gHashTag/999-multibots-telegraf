@@ -642,6 +642,11 @@ in JSON at position 8192`. Причина — не в тестах: `money-map.m
 шла через другую — ровно тот же узор, что «выход показывается там, где не
 работает» и «сторож стоит не на том пути».
 
+2026-10-02: the third door, `./tri iphone` (device build), got the same
+<2 GB refusal before `xcodebuild`, and builds into ONE fixed derived-data dir
+so repeated runs reuse it instead of stacking. Any new build door must carry
+the guard too -- grep `2048` in `tri` and `run.sh` to see them all.
+
 И третий: **я объяснил остановку неверно**. В отчёте назвал причиной `/tmp/dd`
 и свои сборки. Проверил на следующий день: `run.sh` пишет в `build2`, там было
 94 МБ, а том занят на 197 ГБ чужими данными. Диагноз по памяти вместо замера —
