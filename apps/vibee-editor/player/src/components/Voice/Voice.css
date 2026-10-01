@@ -239,6 +239,8 @@
   width: 100%;
   max-width: 600px;
   min-height: 112px;
+  /* The orb gives way, never the words or the field under them. */
+  flex-shrink: 0;
   text-align: center;
 }
 
@@ -317,6 +319,48 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
+}
+
+/* Typing instead of talking: the orb steps back to leave room for the field. */
+.voice-overlay--keyboard .voice-orb {
+  --orb: min(70vw, 36vh, 420px);
+}
+
+.voice-overlay__type {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.voice-overlay__type-row {
+  display: flex;
+  gap: 8px;
+}
+
+.voice-overlay__type input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-target-sm, 36px);
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  /* 16px keeps iOS from zooming the page when the field takes focus. */
+  font-size: 16px;
+}
+
+.voice-overlay__type input:focus {
+  outline: none;
+  border-color: #00ff88;
+}
+
+.voice-overlay .voice-overlay__action:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
 }
 
 .voice-overlay .voice-overlay__action {

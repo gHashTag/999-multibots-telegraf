@@ -7,16 +7,23 @@
  *   2. markdown, links and emoji are not read aloud;
  *   3. a hosted whisper (Groq/OpenAI) is not mistaken for a free voice engine;
  *   4. the request that reaches speaches is the OpenAI shape it expects;
- *   5. one person cannot spend the shared CPU without bound.
+ *   5. one person cannot spend the shared CPU without bound;
+ *   6. the transcriber is told the language when the caller knows it, and
+ *      only a language it was offered;
+ *   7. warming loads the models through speaches' own admin door, treats
+ *      "already loaded" as success, never warms a hosted whisper, never throws.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_SPEAK_CHARS,
+  hear,
   pickVoice,
   resetVoiceBudgetForTests,
   speak,
   speakable,
+  spokenLanguage,
   ttsConfig,
+  warm,
   withinBudget,
 } from './voice'
 
@@ -30,6 +37,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   process.env = { ...saved }
+  vi.unstubAllGlobals()
 })
 
 describe('pickVoice', () => {
@@ -138,5 +146,92 @@ describe('withinBudget', () => {
     expect(allowed).toBe(30)
     expect(withinBudget('b', 'hear', t)).toBe(true)
     expect(withinBudget('a', 'hear', t + 61_000)).toBe(true)
+  })
+})
+
+describe('hear', () => {
+  it('names the language when told one, and only ru or en', async () => {
+    process.env.WHISPER_MODEL = 'deepdml/faster-whisper-large-v3-turbo-ct2'
+    const sent: Array<string | null> = []
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      sent.push((init.body as FormData).get('language') as string | null)
+      return new Response(JSON.stringify({ text: ' привет ' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+    const audio = Buffer.from([1, 2, 3])
+    // whisperBytes may knock twice (streamed, then plain); every knock counts.
+    expect(await hear(audio, 'audio/webm;codecs=opus', 'ru')).toBe('привет')
+    expect(sent.length).toBeGreaterThan(0)
+    expect(sent.every(l => l === 'ru')).toBe(true)
+    sent.length = 0
+    expect(await hear(audio, 'audio/webm', 'de')).toBe('привет')
+    expect(await hear(audio, 'audio/webm')).toBe('привет')
+    expect(sent.length).toBeGreaterThan(0)
+    expect(sent.every(l => l === null)).toBe(true)
+  })
+
+  it('spokenLanguage passes only what the player may say', () => {
+    expect(spokenLanguage('en')).toBe('en')
+    expect(spokenLanguage('ru')).toBe('ru')
+    expect(spokenLanguage('RU')).toBeUndefined()
+    expect(spokenLanguage(['ru'])).toBeUndefined()
+  })
+})
+
+describe('warm', () => {
+  const recorder = (status: number) => {
+    const urls: string[] = []
+    const auth: string[] = []
+    const fake = (async (url: string, init: RequestInit) => {
+      urls.push(url)
+      auth.push((init.headers as Record<string, string>).Authorization)
+      expect(init.method).toBe('POST')
+      return new Response('', { status })
+    }) as unknown as typeof fetch
+    return { urls, auth, fake }
+  }
+
+  it('loads the transcriber and the chosen voice beside /v1', async () => {
+    process.env.WHISPER_MODEL = 'deepdml/faster-whisper-large-v3-turbo-ct2'
+    const r = recorder(201)
+    expect(await warm('ru', 'dmitri', r.fake)).toEqual({
+      hear: 'loaded',
+      speak: 'loaded',
+    })
+    expect(r.urls.sort()).toEqual([
+      'http://whisper.railway.internal:8000/api/ps/deepdml/faster-whisper-large-v3-turbo-ct2',
+      'http://whisper.railway.internal:8000/api/ps/speaches-ai/piper-ru_RU-dmitri-medium',
+    ])
+    expect(r.auth).toEqual(['Bearer k', 'Bearer k'])
+  })
+
+  it('"already loaded" is ready, anything else failed, a throw is failed', async () => {
+    expect(await warm('en', 'af_heart', recorder(409).fake)).toEqual({
+      hear: 'ready',
+      speak: 'ready',
+    })
+    expect(await warm('en', 'af_heart', recorder(403).fake)).toEqual({
+      hear: 'failed',
+      speak: 'failed',
+    })
+    const boom = (async () => {
+      throw new Error('down')
+    }) as unknown as typeof fetch
+    expect(await warm('en', 'af_heart', boom)).toEqual({
+      hear: 'failed',
+      speak: 'failed',
+    })
+  })
+
+  it('never knocks on a hosted whisper', async () => {
+    process.env.WHISPER_BASE_URL = 'https://api.groq.com/openai/v1'
+    const r = recorder(201)
+    expect(await warm('ru', 'irina', r.fake)).toEqual({
+      hear: 'none',
+      speak: 'none',
+    })
+    expect(r.urls).toEqual([])
   })
 })
