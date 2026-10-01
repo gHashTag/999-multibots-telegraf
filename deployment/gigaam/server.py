@@ -1,5 +1,9 @@
 """
-Russian ears for voice mode: GigaAM v3 (Sber, MIT) behind one HTTP door.
+Fast ears for voice mode: one onnx-asr model behind one HTTP door. The same
+image runs as two Railway services, picked by GIGAAM_MODEL / GIGAAM_QUANT:
+
+    gigaam    gigaam-v3-e2e-ctc (Sber, MIT)                   Russian
+    parakeet  nemo-parakeet-tdt-0.6b-v2, int8 (NVIDIA, CC-BY)  English
 
 WHY A SEPARATE SERVICE, measured 2026-10-02 inside the `whisper` pod
 (48 CPU, the same six synthesized phrases, model already in memory):
@@ -9,9 +13,19 @@ WHY A SEPARATE SERVICE, measured 2026-10-02 inside the `whisper` pod
     GigaAM v3 e2e-ctc (onnx-asr 0.12.0)   0.05-0.10 s, punctuated, correct
 
 GigaAM does not pad every call to a 30 s window the way whisper does, so a
-4 s phrase costs what 4 s of audio costs. It knows only Russian; English
-stays with whisper, and so does anything this service fails on (the render
-falls back on any error, see render/src/voice/voice.ts `hear`).
+4 s phrase costs what 4 s of audio costs. It knows only Russian.
+
+English, measured 2026-10-02 inside the `parakeet` pod (8 threads, two
+phrases our own TTS spoke, three runs each):
+
+    whisper large-v3-turbo, language=en   ~3.0 s per phrase (tri voice)
+    Parakeet TDT 0.6b v2 int8             0.23-0.27 s (2 s), 0.35-0.44 s (5 s)
+
+v2 is English-only and leads the Open ASR board; v3 is multilingual but its
+Russian was unusable, so each language gets its own specialist. int8 is a
+630 MB download where fp32 is 2.4 GB. Anything either service fails on goes
+to whisper (the render falls back on any error, render/src/voice/voice.ts
+`hear`).
 
 It cannot live inside speaches: speaches lists only its own model families,
 and that container is capped at 1000 processes+threads (pids.max). Every
@@ -43,6 +57,8 @@ import onnx_asr
 import onnxruntime as rt
 
 MODEL = os.environ.get("GIGAAM_MODEL", "gigaam-v3-e2e-ctc")
+# "int8" for Parakeet: 630 MB instead of 2.4 GB; GigaAM ships one precision.
+QUANT = os.environ.get("GIGAAM_QUANT") or None
 KEY = os.environ.get("GIGAAM_KEY", "")
 PORT = int(os.environ.get("PORT", "8080"))
 THREADS = int(os.environ.get("GIGAAM_THREADS", "8"))
@@ -59,7 +75,7 @@ BUSY = threading.BoundedSemaphore(int(os.environ.get("GIGAAM_PARALLEL", "2")))
 so = rt.SessionOptions()
 so.intra_op_num_threads = THREADS
 so.inter_op_num_threads = 1
-model = onnx_asr.load_model(MODEL, sess_options=so)
+model = onnx_asr.load_model(MODEL, quantization=QUANT, sess_options=so)
 
 
 def decode(audio: bytes) -> np.ndarray:
@@ -87,7 +103,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            return self.reply(200, {"ok": True, "model": MODEL})
+            return self.reply(200, {"ok": True, "model": MODEL, "quant": QUANT})
         self.reply(404, {"error": "not found"})
 
     def do_POST(self) -> None:
@@ -120,7 +136,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class Server(ThreadingHTTPServer):
-    # Railway's private network (gigaam.railway.internal) is IPv6; the
+    # Railway's private network (<service>.railway.internal) is IPv6; the
     # healthcheck may come over IPv4. "::" with V6ONLY off takes both.
     address_family = socket.AF_INET6
     daemon_threads = True
@@ -131,5 +147,5 @@ class Server(ThreadingHTTPServer):
 
 
 if __name__ == "__main__":
-    print(f"gigaam {MODEL} threads={THREADS} on :{PORT}", flush=True)
+    print(f"ears {MODEL} quant={QUANT} threads={THREADS} on :{PORT}", flush=True)
     Server(("::", PORT), Handler).serve_forever()

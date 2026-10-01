@@ -400,7 +400,7 @@ CHECKS THAT EACH COST A CYCLE
         N times (default 3). The MEDIAN is the verdict -- one sample lied by
         2.5 s -- and the render's Server-Timing splits it into upload, whisper
         and the road; the hearing leg is named by the engine that did it
-        (gigaam, whisper, or both when GigaAM fell back on some runs).
+        (gigaam/parakeet, whisper, or both when they fell back on some runs).
         Over 3 s to speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
         (the render's AGENT_KEYS, first entry, up to ':'); without it only the
         public status is read and the exit code says NOT MEASURED (2).
@@ -411,12 +411,14 @@ CHECKS THAT EACH COST A CYCLE
         player/render deploys. Exit 1 = work in flight, continue it; a FAILED
         deploy on main blocks every later merge of that service.
 
-  tri gigaam [deploy] | tri гигаам
-        The Russian ears of voice mode (deployment/gigaam, GigaAM v3, ~0.15 s
-        a phrase where whisper takes ~2 s). Without arguments: its newest
-        deploy and whether the render routes Russian to it. `deploy` uploads
-        deployment/gigaam from a CLEAN tree -- the service is not wired to
-        GitHub, so a merge alone does not ship it.
+  tri ears [status|deploy] [ru|en|all] | tri уши   (tri gigaam = tri ears ru)
+        The fast ears of voice mode, one image (deployment/gigaam) as two
+        services: gigaam hears Russian (GigaAM v3, ~0.15 s a phrase), parakeet
+        hears English (Parakeet TDT v2 int8, ~0.3 s), where whisper takes 2-3 s.
+        Without arguments: each one's newest deploy and which ears the render
+        routes each language to. `deploy` uploads deployment/gigaam from a
+        CLEAN tree -- neither service is wired to GitHub, so a merge alone
+        does not ship them.
 
   tri pay [--invoice] | tri оплата
         Can a client pay RIGHT NOW, rail by rail.
@@ -5337,7 +5339,7 @@ if code != 200:
     print(f'  status: {why} -- the voice routes did not answer')
     sys.exit(3)
 st = json.loads(body)
-print(f"  status: hear={st.get('hear')} (ru via {st.get('hearRu', 'whisper')}) speak={st.get('speak')} "
+print(f"  status: hear={st.get('hear')} (ru via {st.get('hearRu', 'whisper')}, en via {st.get('hearEn', 'whisper')}) speak={st.get('speak')} "
       f"voices ru={len(st.get('voices', {}).get('ru', []))} en={len(st.get('voices', {}).get('en', []))}")
 if not (st.get('hear') and st.get('speak')):
     mark(1)
@@ -5399,8 +5401,8 @@ for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: th
     split = ''
     if hears:
         h, r = int(statistics.median(hears)), int(statistics.median(reads))
-        # Which ears heard it: "gigaam", "whisper", or both when GigaAM
-        # fell back on some runs -- that mix is itself the finding.
+        # Which ears heard it: "gigaam"/"parakeet", "whisper", or both when
+        # the fast ears fell back on some runs -- that mix is itself the finding.
         ears = '/'.join(sorted(engines)) or 'whisper'
         split = f' = upload {r} + {ears} {h} + road {max(0, med - h - r)}'
     else:
@@ -5438,42 +5440,60 @@ PY
 #   tri gigaam            newest deploy + whether the render routes ru to it
 #   tri gigaam deploy     upload deployment/gigaam and build it
 # ─────────────────────────────────────────────────────────────────────────
-GIGAAM_SVC=1532ed17-3739-4ece-986a-2732288fdde0
-cmd_gigaam() {
+# One image, two services: deployment/gigaam built with GigaAM v3 for Russian
+# and with Parakeet TDT v2 (int8) for English. Neither is wired to GitHub.
+EARS_SVC_RU=1532ed17-3739-4ece-986a-2732288fdde0   # gigaam
+EARS_SVC_EN=6d9197c7-d467-42bc-8e92-27bc231302a6   # parakeet
+cmd_ears() {
   local p=564d9ebd-7aa8-44fe-93ec-e0b03c87158d e=e4d200ad-b8a9-4edf-9b25-190a32613b32
-  case "${1:-status}" in
-    deploy)
-      if [ -n "$(git -C "$ROOT" status --porcelain -- deployment/gigaam)" ]; then
-        bad 'deployment/gigaam has uncommitted changes: commit them first'
-        return 2
-      fi
-      local sha
-      sha=$(git -C "$ROOT" rev-parse --short HEAD)
+  local action=status langs='ru en' a
+  for a in "$@"; do
+    case "$a" in
+      status|deploy) action=$a ;;
+      ru|en) langs=$a ;;
+      all) langs='ru en' ;;
+      *) bad "tri ears [status|deploy] [ru|en|all], not '$a'"; return 2 ;;
+    esac
+  done
+  local lang svc name rc=0
+  if [ "$action" = deploy ]; then
+    if [ -n "$(git -C "$ROOT" status --porcelain -- deployment/gigaam)" ]; then
+      bad 'deployment/gigaam has uncommitted changes: commit them first'
+      return 2
+    fi
+    local sha
+    sha=$(git -C "$ROOT" rev-parse --short HEAD)
+    for lang in $langs; do
+      if [ "$lang" = ru ]; then svc=$EARS_SVC_RU name=gigaam; else svc=$EARS_SVC_EN name=parakeet; fi
       railway up "$ROOT/deployment/gigaam" --path-as-root -p "$p" -e "$e" \
-        -s "$GIGAAM_SVC" --detach --json --message "gigaam from $sha" 2>/dev/null
-      ;;
-    status)
-      timeout 30 railway deployment list -p "$p" -e "$e" -s "$GIGAAM_SVC" \
-        --limit 1 --json 2>/dev/null | python3 -c '
+        -s "$svc" --detach --json --message "$name from $sha" 2>/dev/null || rc=1
+    done
+    return "$rc"
+  fi
+  for lang in $langs; do
+    if [ "$lang" = ru ]; then svc=$EARS_SVC_RU name=gigaam; else svc=$EARS_SVC_EN name=parakeet; fi
+    timeout 30 railway deployment list -p "$p" -e "$e" -s "$svc" \
+      --limit 1 --json 2>/dev/null | python3 -c '
 import json, sys
+name = sys.argv[1]
 try:
     d = json.load(sys.stdin)[0]
 except Exception:
-    print("  gigaam: deploy state unknown (railway did not answer)"); sys.exit(2)
-print("  gigaam: %s %s" % (d["status"], (d.get("meta") or {}).get("deploymentMessage") or ""))
-sys.exit(0 if d["status"] == "SUCCESS" else 1)'
-      local rc=$?
-      curl -s -m 15 "$RENDER/api/voice/status" | python3 -c '
+    print("  %s: deploy state unknown (railway did not answer)" % name); sys.exit(2)
+print("  %s: %s %s" % (name, d["status"], (d.get("meta") or {}).get("deploymentMessage") or ""))
+sys.exit(0 if d["status"] == "SUCCESS" else 1)' "$name" || rc=1
+  done
+  curl -s -m 15 "$RENDER/api/voice/status" | python3 -c '
 import json, sys
 try:
-    via = json.load(sys.stdin).get("hearRu") or "whisper (render older than voice-loop-3)"
+    st = json.load(sys.stdin)
+    via = "ru via %s, en via %s" % (
+        st.get("hearRu") or "whisper (render older than voice-loop-3)",
+        st.get("hearEn") or "whisper (render older than voice-loop-5)")
 except Exception:
     via = "unknown (render did not answer)"
-print("  render hears ru via: " + via)'
-      return "$rc"
-      ;;
-    *) bad "tri gigaam [status|deploy], not '$1'"; return 2 ;;
-  esac
+print("  render hears " + via)'
+  return "$rc"
 }
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -5639,7 +5659,8 @@ case "$action" in
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
   voice|голос)         cmd_voice "$@" ;;
-  gigaam|гигаам)       cmd_gigaam "$@" ;;   # cyrillic-ok: alias, like its neighbours
+  ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
+  gigaam|гигаам)       cmd_ears "$@" ru ;;  # cyrillic-ok: the name it had in voice-loop-3
   loop|виток)          cmd_loop ;;
   heal|исцели)         cmd_heal ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
