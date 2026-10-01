@@ -75,7 +75,7 @@ export function VoiceOverlay({ session, onClose }: Props) {
 
   return (
     <div
-      className={`voice-overlay voice-overlay--${snap.phase}`}
+      className={`voice-overlay voice-overlay--${snap.phase}${snap.keyboard ? ' voice-overlay--keyboard' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label={t('voice.title')}
@@ -129,6 +129,21 @@ export function VoiceOverlay({ session, onClose }: Props) {
           <span className="voice-overlay__dot" aria-hidden="true" />
           {snap.muted ? t('voice.muted') : t(`voice.phase.${snap.phase}`)}
         </p>
+        {snap.phase === 'thinking' || snap.phase === 'speaking' ? (
+          // Spelled out: the orb tap does the same, but nobody guesses that
+          // while the agent is stuck thinking.
+          <button
+            type="button"
+            className="voice-overlay__action voice-overlay__stop"
+            onClick={() => session.interrupt()}
+            data-testid="voice-stop"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="7" y="7" width="10" height="10" rx="2" />
+            </svg>
+            {t('voice.stop')}
+          </button>
+        ) : null}
         {snap.error && snap.phase !== 'error' ? (
           // A passing miss ("say it again"): a hint, not an alarm.
           <p className="voice-overlay__hint">{t(snap.error)}</p>
@@ -162,6 +177,9 @@ export function VoiceOverlay({ session, onClose }: Props) {
               </div>
             ) : null}
           </div>
+        ) : null}
+        {snap.keyboard ? (
+          <TypeInstead onSend={text => session.type(text)} />
         ) : null}
         {snap.heard ? (
           <p className="voice-overlay__line">
@@ -217,6 +235,47 @@ export function VoiceOverlay({ session, onClose }: Props) {
         ) : null}
       </div>
     </div>
+  )
+}
+
+/** No microphone: the question is typed, and the answer still comes aloud. */
+function TypeInstead({ onSend }: { onSend: (text: string) => void }) {
+  const { t } = useLanguage()
+  const [text, setText] = useState('')
+  return (
+    <form
+      className="voice-overlay__type"
+      onSubmit={e => {
+        e.preventDefault()
+        if (!text.trim()) return
+        onSend(text)
+        setText('')
+      }}
+    >
+      <label className="voice-overlay__note" htmlFor="voice-type-input">
+        {t('voice.type.label')}
+      </label>
+      <div className="voice-overlay__type-row">
+        <input
+          id="voice-type-input"
+          type="text"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder={t('voice.type.placeholder')}
+          enterKeyHint="send"
+          autoComplete="off"
+          data-testid="voice-type-input"
+        />
+        <button
+          type="submit"
+          className="voice-overlay__action voice-overlay__action--primary"
+          disabled={!text.trim()}
+          data-testid="voice-type-send"
+        >
+          {t('voice.type.send')}
+        </button>
+      </div>
+    </form>
   )
 }
 

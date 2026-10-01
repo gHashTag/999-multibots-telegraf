@@ -1,15 +1,28 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Message } from '@/atoms/agentChat'
 import { VoiceSession, isNoise } from './session'
 
 function deps() {
   return {
     lang: () => 'en' as const,
-    voice: () => null,
+    voice: vi.fn((): string | null => null) as (
+      lang: 'ru' | 'en'
+    ) => string | null,
     send: vi.fn(),
-    messages: () => [],
+    messages: (): readonly Message[] => [],
     answering: () => false,
-    subscribe: () => () => {},
+    subscribe: (cb: () => void) => {
+      void cb
+      return () => {}
+    },
+    warm: vi.fn<(lang: string, voice: string | null) => Promise<void>>(
+      async () => {}
+    ),
   }
+}
+
+const flush = async () => {
+  for (let i = 0; i < 10; i++) await new Promise(r => setTimeout(r, 0))
 }
 
 class FakeAudioContext {
@@ -74,6 +87,312 @@ describe('VoiceSession.start', () => {
     await s.start()
     expect(s.snapshot.phase).toBe('error')
     expect(s.snapshot.error).toBe('voice.error.mic.unsupported')
+  })
+})
+
+describe('VoiceSession: no microphone, the person types', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('a typed question is sent, answered aloud, and the field comes back', async () => {
+    vi.stubGlobal('AudioContext', FakeAudioContext)
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia: () => Promise.reject(new Error('denied')) },
+    })
+    let thread: Message[] = []
+    let answering = false
+    let changed = () => {}
+    const d = {
+      ...deps(),
+      // Like sendOrQueue: the conversation is answering from the send on.
+      send: vi.fn(() => {
+        answering = true
+      }),
+      // Our voice unreachable: the device reads it (here, instantly).
+      synthesize: vi.fn(async (): Promise<ArrayBuffer> => {
+        throw new Error('offline')
+      }),
+      messages: () => thread,
+      answering: () => answering,
+      subscribe: (cb: () => void) => {
+        changed = cb
+        return () => {}
+      },
+    }
+    const s = new VoiceSession(d)
+    const said: string[] = []
+    s.subscribe(() => {
+      if (s.snapshot.saying) said.push(s.snapshot.saying)
+    })
+    await s.start()
+    expect(s.snapshot).toMatchObject({ phase: 'error', keyboard: true })
+
+    s.type('  what time is it ')
+    expect(d.send).toHaveBeenCalledWith('what time is it')
+    expect(s.snapshot).toMatchObject({
+      phase: 'thinking',
+      heard: 'what time is it',
+    })
+
+    thread = [
+      { id: 'u', role: 'user', text: 'what time is it' },
+      { id: 'a', role: 'assistant', text: 'It is noon.' },
+    ]
+    answering = false
+    changed()
+    await flush()
+    expect(said).toContain('It is noon.')
+    // Answered: back to the mic's error and the field, not to a dead "listening".
+    expect(s.snapshot).toMatchObject({
+      phase: 'error',
+      error: 'voice.error.mic',
+      keyboard: true,
+    })
+  })
+
+  it('with a working microphone there is nothing to type into', () => {
+    const d = deps()
+    const s = new VoiceSession(d)
+    s.type('hello')
+    expect(d.send).not.toHaveBeenCalled()
+  })
+
+  it('the server is asked to warm the voice as the session opens', async () => {
+    vi.stubGlobal('AudioContext', FakeAudioContext)
+    vi.stubGlobal('navigator', {})
+    const d = deps()
+    await new VoiceSession(d).start()
+    expect(d.warm).toHaveBeenCalledWith('en', null)
+  })
+})
+
+/**
+ * A session with no mic, typed into, over a fake conversation: the reply,
+ * the answering flag and the store's notification are all in the test's hands.
+ */
+async function typedSession(extra: Record<string, unknown> = {}) {
+  vi.stubGlobal('AudioContext', FakeAudioContext)
+  vi.stubGlobal('navigator', {
+    mediaDevices: { getUserMedia: () => Promise.reject(new Error('denied')) },
+  })
+  const c = {
+    thread: [] as Message[],
+    answering: false,
+    changed: () => {},
+  }
+  const d = {
+    ...deps(),
+    send: vi.fn(() => {
+      c.answering = true
+    }),
+    stop: vi.fn(() => {
+      c.answering = false
+    }),
+    synthesize: vi.fn(async (): Promise<ArrayBuffer> => {
+      throw new Error('offline')
+    }),
+    messages: () => c.thread,
+    answering: () => c.answering,
+    subscribe: (cb: () => void) => {
+      c.changed = cb
+      return () => {}
+    },
+    ...extra,
+  }
+  const s = new VoiceSession(d)
+  await s.start()
+  let n = 0
+  const reply = async (text: string) => {
+    n++
+    c.thread = [
+      ...c.thread,
+      { id: `u${n}`, role: 'user', text: 'q' },
+      { id: `a${n}`, role: 'assistant', text },
+    ]
+    c.answering = false
+    c.changed()
+    await flush()
+  }
+  return { s, d, c, reply }
+}
+
+describe('VoiceSession: stopping a slow answer', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('the orb while it thinks stops the answer itself, not only its sound', async () => {
+    const { s, d } = await typedSession()
+    s.type('a long question')
+    expect(s.snapshot.phase).toBe('thinking')
+    s.interrupt()
+    expect(d.stop).toHaveBeenCalledTimes(1)
+    expect(s.snapshot.phase).toBe('error')
+  })
+
+  it('a new question replaces the one still answering, it does not queue', async () => {
+    const { s, d } = await typedSession()
+    s.type('first')
+    expect(d.stop).not.toHaveBeenCalled()
+    s.type('second')
+    expect(d.stop).toHaveBeenCalledTimes(1)
+    expect(d.send).toHaveBeenLastCalledWith('second')
+    // stop() came before the new send, or the new send would be stopped too.
+    expect(d.stop.mock.invocationCallOrder[0]).toBeLessThan(
+      d.send.mock.invocationCallOrder[1]
+    )
+    expect(s.snapshot).toMatchObject({ phase: 'thinking', heard: 'second' })
+  })
+
+  it('nothing to stop when the agent is idle', async () => {
+    const { s, d } = await typedSession()
+    s.interrupt()
+    s.type('hello')
+    expect(d.stop).not.toHaveBeenCalled()
+  })
+
+  it('the instant between leaving the queue and streaming does not end the wait', async () => {
+    const { s, c, reply } = await typedSession()
+    const said: string[] = []
+    s.subscribe(() => {
+      if (s.snapshot.saying) said.push(s.snapshot.saying)
+    })
+    s.type('queued')
+    // drainQueue: off the queue (nobody answering, no reply) ...
+    c.answering = false
+    c.changed()
+    // ... and in the same task the stream registers as busy.
+    c.answering = true
+    await flush()
+    expect(s.snapshot.phase).toBe('thinking')
+    await reply('Done.')
+    expect(said).toContain('Done.')
+  })
+})
+
+describe('VoiceSession: the language it speaks', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('a Russian answer under an English app is read by the Russian voice', async () => {
+    const voice = vi.fn((l: 'ru' | 'en') => (l === 'ru' ? 'irina' : 'heart'))
+    const { s, d, reply } = await typedSession({ voice })
+    s.type('как дела')
+    await reply('Открой Google Docs.')
+    s.type('and in English?')
+    await reply('Yes, it answers.')
+    const calls = d.synthesize.mock.calls as unknown as unknown[][]
+    expect(calls.map(c => c.slice(0, 3))).toEqual([
+      ['Открой Google Docs.', 'ru', 'irina'],
+      ['Yes, it answers.', 'en', 'heart'],
+    ])
+  })
+
+  it('the device voice too is told the sentence language', async () => {
+    const spoken: string[] = []
+    vi.stubGlobal(
+      'SpeechSynthesisUtterance',
+      class {
+        lang = ''
+        onend: (() => void) | null = null
+        onerror: (() => void) | null = null
+        constructor(public text: string) {}
+      }
+    )
+    vi.stubGlobal('speechSynthesis', {
+      cancel: () => {},
+      speak: (u: { lang: string; onend: () => void }) => {
+        spoken.push(u.lang)
+        u.onend()
+      },
+    })
+    const { s, reply } = await typedSession()
+    s.type('q')
+    await reply('Привет.')
+    expect(spoken).toEqual(['ru-RU'])
+  })
+})
+
+/** Enough of Web Audio and MediaRecorder for a session to listen. */
+class ListeningAudioContext extends FakeAudioContext {
+  destination = {}
+  createAnalyser = () => ({
+    fftSize: 2048,
+    smoothingTimeConstant: 0,
+    connect: () => {},
+    getFloatTimeDomainData: () => {},
+  })
+  createMediaStreamSource = () => ({ connect: () => {} })
+  createGain = () => ({ connect: () => {} })
+}
+class FakeRecorder {
+  static isTypeSupported = () => true
+  state = 'recording'
+  mimeType = 'audio/webm'
+  ondataavailable: unknown = null
+  onstop: (() => void) | null = null
+  start() {}
+  requestData() {}
+  stop() {
+    this.state = 'inactive'
+    this.onstop?.()
+  }
+}
+
+describe('VoiceSession: the spoken language', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  async function session(ui: 'ru' | 'en', browser: string[], heard: string) {
+    const track = { stop: () => {}, enabled: true }
+    vi.stubGlobal('AudioContext', ListeningAudioContext)
+    vi.stubGlobal('MediaRecorder', FakeRecorder)
+    vi.stubGlobal('navigator', {
+      languages: browser,
+      mediaDevices: {
+        getUserMedia: async () => ({
+          getTracks: () => [track],
+          getAudioTracks: () => [track],
+        }),
+      },
+    })
+    const hints: Array<string | null | undefined> = []
+    const d = deps()
+    const s = new VoiceSession({
+      ...d,
+      lang: () => ui,
+      transcribe: async (_a: Blob, o?: { lang?: string | null }) => {
+        hints.push(o?.lang)
+        return heard
+      },
+    })
+    await s.start()
+    const phrase = () =>
+      (s as unknown as { finishUtterance(): Promise<void> }).finishUtterance()
+    return { s, d, hints, phrase }
+  }
+
+  it('named from the first phrase when the app and the browser agree', async () => {
+    const { s, hints, phrase } = await session('ru', ['ru-RU'], 'Привет')
+    await phrase()
+    expect(hints).toEqual(['ru'])
+    s.stop()
+  })
+
+  it('otherwise learned from what was heard, and re-checked now and then', async () => {
+    const { s, d, hints, phrase } = await session(
+      'ru',
+      ['en-US'],
+      'Открой мой календарь'
+    )
+    for (let i = 0; i < 7; i++) await phrase()
+    expect(hints).toEqual([null, 'ru', 'ru', 'ru', 'ru', null, 'ru'])
+    // Learning a language warms its voice once, not on every re-check.
+    expect(d.warm.mock.calls.map(c => c[0])).toEqual(['ru', 'ru'])
+    s.stop()
   })
 })
 
