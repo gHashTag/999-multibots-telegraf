@@ -10861,3 +10861,38 @@ handlers in this codebase already carry more of these than a skim suggests.
 
 **Commands.** `tri turn-log <id>` — grep live Railway logs for both ends of a
 turn logged under `[agent:turn]` (added this same session).
+
+## REPLACING `TabView` WITH YOUR OWN BAR DROPS TWO CONTRACTS SILENTLY (2026-10-02)
+
+PR #3226 swapped the iOS `TabView` for a custom six-tab bar over a `ZStack`
+(to get rid of the system "More" tab). It built, every screen looked right,
+and it shipped two regressions nobody could see in a screenshot:
+
+- **Refresh on return was gone.** Under `TabView` a tab's `.task`/`.onAppear`
+  re-run on every visit and are cancelled on leave. In a `ZStack` every screen
+  stays alive, so they run ONCE: the profile stopped re-reading the balance,
+  the AI tab its templates, the chat the shared history. Fix: one modifier,
+  `taskWhileShown` in `apps/vibee-ios/Vibee/VibeeApp.swift`, keyed on the
+  `tabIsShown` environment value; use it instead of `.task` for anything that
+  should refresh when the tab is shown again.
+- **Hidden web tabs kept running as visible.** WebKit treats a page as hidden
+  only when the `WKWebView` has NO WINDOW; `isHidden`, opacity and being
+  covered do not count. So timers, video and rAF in five hidden pages kept
+  burning the battery. Fix: `WebHostView.place` (`AppWebView.swift`) lifts the
+  web view out of its box while the tab is not shown; covered by
+  `VibeeTests/HiddenTabTests.swift`.
+
+> The rule: when you replace a framework container, list what the container
+> did implicitly (lifecycle, visibility, accessibility -- `TabView` also told
+> VoiceOver "tab bar") and re-provide each one, or say in the PR it is dropped.
+
+Also learned on the way:
+
+- `Vibee.xcodeproj/project.pbxproj` is gitignored and GENERATED from
+  `apps/vibee-ios/project.yml`. A new `.swift` file needs only
+  `xcodegen generate`, never a pbxproj edit.
+- The phone has two ids: devicectl wants the CoreDevice identifier, xcodebuild
+  the hardware udid. `./tri iphone check` says whether the phone is reachable
+  (`tunnelState`), `./tri iphone` builds, installs and launches it,
+  `./tri iphone build` needs no phone. Signing details: memory note
+  `ios-device-build-via-asc-key`.
