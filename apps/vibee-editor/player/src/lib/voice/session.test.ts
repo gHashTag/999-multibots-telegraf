@@ -405,3 +405,292 @@ describe('isNoise', () => {
     expect(isNoise('Thank you, now open my calendar')).toBe(false)
   })
 })
+
+/**
+ * A listening session whose answers are read by a device voice the test holds:
+ * a sentence is "being said" until `endSentence()`. The transcriber returns
+ * the next of `heard` on each utterance.
+ */
+async function speakingSession(heard: string[]) {
+  const level = { value: 0 }
+  class LoudContext extends ListeningAudioContext {
+    createAnalyser = () => ({
+      fftSize: 2048,
+      smoothingTimeConstant: 0,
+      connect: () => {},
+      getFloatTimeDomainData: ((b: Float32Array) => {
+        b.fill(level.value)
+      }) as () => void,
+    })
+  }
+  const track = { stop: () => {}, enabled: true }
+  vi.stubGlobal('AudioContext', LoudContext)
+  vi.stubGlobal('MediaRecorder', FakeRecorder)
+  vi.stubGlobal('navigator', {
+    languages: ['en-US'],
+    mediaDevices: {
+      getUserMedia: async () => ({
+        getTracks: () => [track],
+        getAudioTracks: () => [track],
+      }),
+    },
+  })
+  const spoken: string[] = []
+  let ending: (() => void) | null = null
+  vi.stubGlobal(
+    'SpeechSynthesisUtterance',
+    class {
+      lang = ''
+      onend: (() => void) | null = null
+      onerror: (() => void) | null = null
+      constructor(public text: string) {}
+    }
+  )
+  vi.stubGlobal('speechSynthesis', {
+    cancel: () => {
+      ending = null
+    },
+    speak: (u: { text: string; onend: () => void }) => {
+      spoken.push(u.text)
+      ending = u.onend
+    },
+  })
+  let now = 1000
+  vi.spyOn(performance, 'now').mockImplementation(() => now)
+  const c = { thread: [] as Message[], answering: false, changed: () => {} }
+  const d = {
+    ...deps(),
+    send: vi.fn(() => {
+      c.answering = true
+    }),
+    stop: vi.fn(() => {
+      c.answering = false
+    }),
+    synthesize: vi.fn(async (): Promise<ArrayBuffer> => {
+      throw new Error('offline')
+    }),
+    transcribe: vi.fn(async () => heard.shift() ?? ''),
+    messages: () => c.thread,
+    answering: () => c.answering,
+    subscribe: (cb: () => void) => {
+      c.changed = cb
+      return () => {}
+    },
+  }
+  const s = new VoiceSession(d)
+  await s.start()
+  const inner = s as unknown as {
+    tick(): void
+    finishUtterance(): Promise<void>
+  }
+  let n = 0
+  return {
+    s,
+    d,
+    spoken,
+    level,
+    tick: (at: number) => {
+      now = at
+      inner.tick()
+    },
+    utterance: async () => {
+      await inner.finishUtterance()
+      await flush()
+    },
+    endSentence: async () => {
+      const e = ending
+      ending = null
+      e?.()
+      await flush()
+    },
+    /** A new answer: whole, or (`streaming`) its first part. */
+    reply: async (text: string, streaming = false) => {
+      n++
+      c.thread = [
+        ...c.thread,
+        { id: `u${n}`, role: 'user', text: 'q' },
+        { id: `a${n}`, role: 'assistant', text },
+      ]
+      c.answering = streaming
+      c.changed()
+      await flush()
+    },
+    /** More of the answer streams in. */
+    stream: async (text: string) => {
+      c.thread = [
+        ...c.thread.filter(m => m.id !== `a${n}`),
+        { id: `a${n}`, role: 'assistant', text },
+      ]
+      c.changed()
+      await flush()
+    },
+  }
+}
+
+const ANSWER =
+  'The first long sentence of the answer. The second long sentence of it.'
+
+describe('VoiceSession: talking over the agent', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  /** Asked, answered, and the first sentence is being said at t=2000. */
+  async function midAnswer(heard: string[]) {
+    const v = await speakingSession(['what is new', ...heard])
+    await v.utterance()
+    await v.reply(ANSWER)
+    expect(v.s.snapshot).toMatchObject({
+      phase: 'speaking',
+      saying: 'The first long sentence of the answer.',
+    })
+    return v
+  }
+
+  /** Loud from t=2300 on (the sentence began at t=1000), sampled up to `until`. */
+  function talkOver(
+    v: { level: { value: number }; tick(at: number): void },
+    until: number
+  ) {
+    v.level.value = 0.5
+    for (let t = 2300; t <= until; t += 40) v.tick(t)
+  }
+
+  it('a short sound does not stop it; half a second of talking does', async () => {
+    const v = await midAnswer([])
+    talkOver(v, 2300 + 400)
+    expect(v.s.snapshot.phase).toBe('speaking')
+    talkOver(v, 2300 + 560)
+    expect(v.s.snapshot.phase).toBe('listening')
+  })
+
+  it('a cough held it, and the answer goes on from the cut sentence', async () => {
+    const v = await midAnswer(['Угу.'])
+    talkOver(v, 2900)
+    expect(v.s.snapshot.phase).toBe('listening')
+    await v.utterance()
+    expect(v.d.send).toHaveBeenCalledTimes(1)
+    expect(v.d.stop).not.toHaveBeenCalled()
+    expect(v.spoken).toEqual([
+      'The first long sentence of the answer.',
+      'The first long sentence of the answer.',
+    ])
+    await v.endSentence()
+    expect(v.spoken.at(-1)).toBe('The second long sentence of it.')
+  })
+
+  it('its own voice coming back through the speaker is not a question', async () => {
+    const v = await midAnswer(['the first long sentence of the answer'])
+    talkOver(v, 2900)
+    await v.utterance()
+    expect(v.d.send).toHaveBeenCalledTimes(1)
+    expect(v.s.snapshot.phase).toBe('speaking')
+  })
+
+  it('real words over it become the new question, and the old answer stops', async () => {
+    const v = await midAnswer(['wait, open my calendar instead'])
+    talkOver(v, 2900)
+    await v.utterance()
+    expect(v.d.send).toHaveBeenLastCalledWith('wait, open my calendar instead')
+    expect(v.s.snapshot.phase).toBe('thinking')
+    await v.endSentence()
+    expect(v.spoken).toEqual(['The first long sentence of the answer.'])
+  })
+
+  it("the sentence's own onset in the mic is not the person", async () => {
+    const v = await midAnswer([])
+    v.level.value = 0.5
+    for (let t = 1040; t <= 1800; t += 40) v.tick(t)
+    expect(v.s.snapshot.phase).toBe('speaking')
+  })
+
+  it('held, it stays quiet while more of the answer streams in', async () => {
+    const v = await speakingSession(['what is new', 'Угу.'])
+    await v.utterance()
+    await v.reply('The first long sentence of the answer. The sec', true)
+    expect(v.spoken).toEqual(['The first long sentence of the answer.'])
+    talkOver(v, 2900)
+    await v.stream(`${ANSWER} And a third one is coming`)
+    expect(v.spoken).toHaveLength(1)
+    await v.utterance()
+    expect(v.spoken).toHaveLength(2)
+  })
+
+  it('the orb stops a held answer too', async () => {
+    const v = await midAnswer([])
+    talkOver(v, 2900)
+    v.s.interrupt()
+    expect(v.d.stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('cards are named at the end, never read as markup', async () => {
+    const v = await speakingSession(['what can you do'])
+    await v.utterance()
+    await v.reply(
+      'Two ways to go about this one.\n[[card: Make a reel | from photos]]\n[[card: Write a post | short]]'
+    )
+    await v.endSentence()
+    expect(v.spoken).toEqual([
+      'Two ways to go about this one.',
+      'You can choose: Make a reel, Write a post.',
+    ])
+  })
+})
+
+describe('isBackchannel and isEcho', () => {
+  it('"uh-huh" is listening; a request that starts with "yes" is not', async () => {
+    const { isBackchannel } = await import('./session')
+    expect(isBackchannel('Угу.')).toBe(true)
+    expect(isBackchannel('Mm-hmm, okay.')).toBe(true)
+    expect(isBackchannel('Да, да.')).toBe(true)
+    expect(isBackchannel('Да, открой календарь')).toBe(false)
+    expect(isBackchannel('yes and send it to Anna')).toBe(false)
+  })
+
+  it('the transcript of our own sentence is an echo; a new request is not', async () => {
+    const { isEcho } = await import('./session')
+    const said = 'Сегодня в календаре три встречи, первая в десять.'
+    expect(isEcho('сегодня в календаре три встречи', said)).toBe(true)
+    expect(isEcho('отмени первую встречу', said)).toBe(false)
+    expect(isEcho('anything', '')).toBe(false)
+  })
+})
+
+describe('VoiceSession: a sound that never ends', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('is given up after its length and a grace, so the answer goes on', async () => {
+    vi.useFakeTimers()
+    const stopped = vi.fn()
+    const src = {
+      buffer: null,
+      onended: null as null | (() => void),
+      connect: () => {},
+      start: () => {},
+      stop: stopped,
+    }
+    const s = new VoiceSession(deps())
+    const inner = s as unknown as {
+      ctx: unknown
+      outGain: unknown
+      playBuffer(b: { duration: number }): Promise<void>
+    }
+    // A context the system suspended: start() plays nothing, onended never comes.
+    inner.ctx = {
+      state: 'suspended',
+      resume: async () => {},
+      createBufferSource: () => src,
+    }
+    inner.outGain = {}
+    let over = false
+    void inner.playBuffer({ duration: 2 }).then(() => (over = true))
+    await vi.advanceTimersByTimeAsync(2000 + 1400)
+    expect(over).toBe(false)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(over).toBe(true)
+    expect(stopped).toHaveBeenCalled()
+  })
+})

@@ -13,8 +13,14 @@
  *   has, and the transcript in the chat shows the turn like any other.
  * - The answer is spoken sentence by sentence while it is still being written
  *   (lib/voice/sentences.ts), up to two sentences synthesised ahead.
- * - Speaking over the agent interrupts it (barge-in): playback stops at once
- *   and the new words are recorded. A new question -- spoken, typed, or the
+ * - Speaking over the agent PAUSES it (barge-in): playback stops at once and
+ *   the new words are recorded. Words become a new question; a cough, a
+ *   "mm", or the agent's own voice coming back through the speaker resumes
+ *   the answer from the sentence it was cut in (`paused`, `isEcho`). Until
+ *   2026-10-02 any loud noise threw the rest of the answer away for good.
+ * - Cards the agent proposes are not read as markup; their titles are named
+ *   at the end of the answer, since a listener cannot see the buttons.
+ * - A new question -- spoken, typed, or the
  *   Stop button -- also stops the answer on the server: otherwise it would
  *   queue behind the slow answer it was meant to replace (owner, 2026-10-02:
  *   "I want to interrupt when it is stuck").
@@ -33,7 +39,7 @@
  * Nothing here is React. The page creates a session on a tap -- browsers,
  * and iOS above all, only open the mic and the speaker from a user gesture.
  */
-import type { Language } from '@/atoms/language'
+import { translations, type Language } from '@/atoms/language'
 import type { Message } from '@/atoms/agentChat'
 import { ReplyFollower } from './replyFollower'
 import { hasMicApi, micErrorKey } from './micError'
@@ -98,12 +104,47 @@ const SPEECH_ONSET_MS = 160
 const END_OF_TURN_MS = 850
 const MAX_UTTERANCE_MS = 30_000
 const IDLE_RESTART_MS = 12_000
-const BARGE_IN_MS = 280
+/*
+ * Talk over the agent this long to stop it. Was 280 ms, the most
+ * trigger-happy setting of any stack surveyed on 2026-10-02 (LiveKit 500,
+ * Hume 800): a cough or a door cut answers off.
+ */
+const BARGE_IN_MS = 500
+/* The first moments of each sentence are its own onset in the mic, not a person. */
+const ONSET_DEAF_MS = 150
 const SYNTH_AHEAD = 2
+/*
+ * A sentence whose audio never reports its end -- iOS suspends the audio
+ * context on a call or a lock and `ended` never fires -- would keep the
+ * session "speaking" forever. Past its own length plus this, it is over.
+ */
+const PLAYBACK_GRACE_MS = 1500
 
 interface Spoken {
   text: string
   audio: Promise<AudioBuffer | null> | null
+}
+
+/*
+ * Echo cancellation for EVERYTHING the page plays. Plain `true` lets Chrome
+ * cancel only audio arriving over WebRTC, and ours is Web Audio, so the agent
+ * heard itself; Chrome 141 added 'all'. A browser that rejects the word gets
+ * the old constraint -- a refusal of the microphone itself is not retried.
+ */
+async function openMic(): Promise<MediaStream> {
+  const audio = (echoCancellation: boolean | string) =>
+    ({
+      echoCancellation,
+      noiseSuppression: true,
+      autoGainControl: true,
+    }) as MediaTrackConstraints
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio: audio('all') })
+  } catch (err) {
+    const name = (err as { name?: string } | null)?.name
+    if (name !== 'TypeError' && name !== 'OverconstrainedError') throw err
+    return navigator.mediaDevices.getUserMedia({ audio: audio(true) })
+  }
 }
 
 function pickMime(): string {
@@ -158,6 +199,10 @@ export class VoiceSession {
   private playing: AudioBufferSourceNode | null = null
   private utterance: SpeechSynthesisUtterance | null = null
   private pumping = false
+  /** Barge-in held the answer: it resumes if the words turn out to be noise. */
+  private paused = false
+  /** When the current sentence began to sound. */
+  private soundingSince = 0
   private threadCheck = false
   private generation = 0
   private readonly level = new Float32Array(2048)
@@ -204,13 +249,7 @@ export class VoiceSession {
     try {
       // Resumed inside the same tap that started us, or iOS keeps it silent.
       this.openContext()
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      })
+      stream = await openMic()
     } catch (err) {
       if (gen !== this.generation) return
       this.teardown()
@@ -282,7 +321,11 @@ export class VoiceSession {
    * answer itself, not only its sound, and listen.
    */
   interrupt(): void {
-    if (this.snap.phase === 'speaking' || this.snap.phase === 'thinking') {
+    if (
+      this.paused ||
+      this.snap.phase === 'speaking' ||
+      this.snap.phase === 'thinking'
+    ) {
       if (this.follower || this.deps.answering()) this.deps.stop?.()
       this.silence()
       this.idle()
@@ -375,9 +418,15 @@ export class VoiceSession {
       if (!this.quietSince) this.quietSince = now
     }
 
-    // Barge-in: the person talks over the agent.
-    if (agentTalking && this.loudSince && now - this.loudSince > BARGE_IN_MS) {
-      this.silence()
+    // Barge-in: the person talks over the agent. Held, not dropped, until
+    // the words say whether it was a question or a cough.
+    if (
+      agentTalking &&
+      this.loudSince &&
+      now - this.loudSince > BARGE_IN_MS &&
+      this.loudSince - this.soundingSince > ONSET_DEAF_MS
+    ) {
+      this.pause()
       this.set({ phase: 'listening', saying: '' })
       this.spoke = true
       if (!this.recorder) this.beginRecording()
@@ -425,7 +474,10 @@ export class VoiceSession {
     })
     if (gen !== this.generation) return
     const wasThinking = this.snap.phase === 'thinking'
+    const cut = this.paused ? this.queue[0]?.text || '' : ''
     this.set({ phase: 'hearing' })
+    // Heard: the three-second wait for the words is not silence to wonder at.
+    if (!this.paused) this.cue()
     let text = ''
     // Named when known, except one phrase in RELEARN_EVERY, which re-checks.
     const hint =
@@ -445,9 +497,20 @@ export class VoiceSession {
       }
     } catch {
       if (gen !== this.generation) return
-      this.set({ error: 'voice.error.hear' })
+      // A held answer goes on rather than wait for words that never came.
+      if (!this.paused) this.set({ error: 'voice.error.hear' })
     }
     if (gen !== this.generation) return
+    if (
+      this.paused &&
+      (!text || isNoise(text) || isBackchannel(text) || isEcho(text, cut))
+    ) {
+      // A false barge-in: the answer goes on from the sentence it was cut in.
+      this.paused = false
+      this.beginRecording()
+      void this.pump()
+      return
+    }
     if (!text || isNoise(text)) {
       // Nothing worth sending: back to whatever was going on before.
       if (wasThinking && this.follower) {
@@ -503,10 +566,21 @@ export class VoiceSession {
   private onThread(): void {
     const f = this.follower
     if (!f) return
+    const wasFinished = f.finished
     const sentences = f.update(this.deps.messages(), this.deps.answering())
     for (const text of sentences) this.queue.push({ text, audio: null })
+    if (!wasFinished && f.finished && f.cards.length) {
+      this.queue.push({ text: this.optionsSentence(f.cards), audio: null })
+    }
     this.prefetch()
     void this.pump()
+  }
+
+  /** "Options: Make a reel, Write a post." in the language of the titles. */
+  private optionsSentence(cards: readonly { title: string }[]): string {
+    const list = cards.map(c => c.title.replace(/[.!?…]+$/, '')).join(', ')
+    const lang = this.sentenceLang(list)
+    return translations[lang]['voice.options'].replace('{list}', list)
   }
 
   private prefetch(): void {
@@ -532,7 +606,8 @@ export class VoiceSession {
   }
 
   private async pump(): Promise<void> {
-    if (this.pumping) return
+    // Held by a barge-in: new sentences queue up, nothing plays.
+    if (this.pumping || this.paused) return
     this.pumping = true
     const gen = this.generation
     try {
@@ -542,6 +617,7 @@ export class VoiceSession {
         const buffer = await item.audio
         if (gen !== this.generation) return
         this.set({ phase: 'speaking', saying: item.text })
+        this.soundingSince = performance.now()
         if (buffer) await this.playBuffer(buffer)
         else await this.speakWithDevice(item.text)
         if (gen !== this.generation) return
@@ -573,6 +649,32 @@ export class VoiceSession {
     void this.ctx.resume()
   }
 
+  /**
+   * A soft rising tick: "I heard you, I am on it". Synthesised, so nothing is
+   * fetched; quiet, so it never reads as the agent's speech.
+   */
+  private cue(): void {
+    const ctx = this.ctx
+    if (!ctx) return
+    try {
+      const t = ctx.currentTime
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(660, t)
+      osc.frequency.exponentialRampToValueAtTime(990, t + 0.09)
+      gain.gain.setValueAtTime(0.0001, t)
+      gain.gain.exponentialRampToValueAtTime(0.05, t + 0.015)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(t)
+      osc.stop(t + 0.13)
+    } catch {
+      /* a cue is a courtesy */
+    }
+  }
+
   /** The agent's voice goes through a gain and an analyser the visual reads. */
   private openOutput(): void {
     const ctx = this.ctx
@@ -592,13 +694,30 @@ export class VoiceSession {
       const src = ctx.createBufferSource()
       src.buffer = buffer
       src.connect(this.outGain)
-      src.onended = () => {
+      let watchdog: ReturnType<typeof setTimeout> | null = null
+      const done = () => {
+        if (watchdog !== null) clearTimeout(watchdog)
+        watchdog = null
         if (this.playing === src) this.playing = null
         resolve()
       }
+      src.onended = done
       this.playing = src
       this.set({ fallbackVoice: false })
+      // A context the system suspended (a call, the lock screen) plays nothing.
+      if (ctx.state !== 'running') void ctx.resume().catch(() => undefined)
       src.start()
+      watchdog = setTimeout(
+        () => {
+          try {
+            src.stop()
+          } catch {
+            /* never started */
+          }
+          done()
+        },
+        buffer.duration * 1000 + PLAYBACK_GRACE_MS
+      )
     })
   }
 
@@ -618,12 +737,29 @@ export class VoiceSession {
     })
   }
 
+  /**
+   * Stop the sound but keep the answer: the sentence cut short stays first in
+   * the queue (the pump only drops a sentence it finished), and the follower
+   * keeps collecting the rest.
+   */
+  private pause(): void {
+    this.paused = true
+    this.generation++
+    this.pumping = false
+    this.stopSound()
+  }
+
   /** Stop speaking now and forget the rest of this answer. */
   private silence(): void {
+    this.paused = false
     this.generation++
     this.queue = []
     this.follower = null
     this.pumping = false
+    this.stopSound()
+  }
+
+  private stopSound(): void {
     try {
       this.playing?.stop()
     } catch {
@@ -670,4 +806,36 @@ const NOISE = [
 ]
 export function isNoise(text: string): boolean {
   return NOISE.some(re => re.test(text.trim()))
+}
+
+/*
+ * "Uh-huh" said over the agent is listening, not interrupting (LiveKit,
+ * Vapi and ElevenLabs all keep such a list). Only the whole utterance counts:
+ * "yes, and open the calendar" is a request.
+ */
+const BACKCHANNEL =
+  // cyrillic-ok-next-line
+  /^(?:(?:ага|угу|ну|да|ок|окей|хорошо|понятно|так|mm+-?hmm+|uh-?huh|hmm+|mhm|ok|okay|yeah|yes|right|sure|got it|i see)[\s.,!?…-]*){1,3}$/i
+export function isBackchannel(text: string): boolean {
+  return BACKCHANNEL.test(text.trim())
+}
+
+/*
+ * The agent hearing itself. Echo cancellation does not always take the
+ * speaker out of the mic (measured on phones by every voice stack that ships
+ * one), and a barge-in made of our own sentence came back from whisper as
+ * that sentence -- then went to the agent as the person's question. Most of
+ * the transcript's words found in the sentence being spoken means it was us.
+ */
+export function isEcho(heard: string, saying: string): boolean {
+  const words = (s: string) =>
+    s
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(w => w.length > 1)
+  const said = new Set(words(saying))
+  const got = words(heard)
+  if (!said.size || !got.length) return false
+  const found = got.filter(w => said.has(w)).length
+  return found / got.length >= 0.6
 }
