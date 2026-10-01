@@ -39,6 +39,16 @@ export interface AgentPackage {
   /** The live specialist a person can try before paying, if there is one. */
   agentId?: string
   popular?: boolean
+  /**
+   * Whether the package makes media (reels, face, voice). The Manager Agent is
+   * a text model for the CRM and nothing else: its month is spent on replies.
+   */
+  media: boolean
+  /**
+   * The farm bot a buyer talks to for this package. Absent for the Twin Agent,
+   * which lives in a bot of the buyer's own, created through /mybot.
+   */
+  bot?: string
 }
 
 export const AGENT_PACKAGES: readonly AgentPackage[] = [
@@ -61,6 +71,8 @@ export const AGENT_PACKAGES: readonly AgentPackage[] = [
       { en: 'leads in the CRM', ru: 'заявки в CRM' },
       { en: 'set up by the team', ru: 'настройка командой' },
     ],
+    media: false,
+    bot: 't27ai_bot',
   },
   {
     id: 'blogger',
@@ -80,6 +92,8 @@ export const AGENT_PACKAGES: readonly AgentPackage[] = [
     ],
     agentId: 'blogger',
     popular: true,
+    media: true,
+    bot: 'neuro_blogger_bot',
   },
   {
     id: 'twin',
@@ -100,6 +114,7 @@ export const AGENT_PACKAGES: readonly AgentPackage[] = [
       },
       { en: 'acceptance on your account', ru: 'приёмка на вашем аккаунте' },
     ],
+    media: true,
   },
 ]
 

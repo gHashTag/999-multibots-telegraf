@@ -68,4 +68,20 @@ describe('agent packages', () => {
       expect(start).toBe(`agentpkg_${pkg.id}`)
     }
   })
+  it('the Manager Agent is text only; the media packages make reels', () => {
+    expect(AGENT_PACKAGES.map(pkg => [pkg.id, pkg.media])).toEqual([
+      ['manager', false],
+      ['blogger', true],
+      ['twin', true],
+    ])
+  })
+
+  it('binds each farm package to a real bot username', () => {
+    expect(agentPackageById('manager')?.bot).toBe('t27ai_bot')
+    expect(agentPackageById('blogger')?.bot).toBe('neuro_blogger_bot')
+    // The Twin lives in a bot of the buyer's own.
+    expect(agentPackageById('twin')?.bot).toBeUndefined()
+    for (const pkg of AGENT_PACKAGES)
+      if (pkg.bot) expect(pkg.bot).toMatch(/^[A-Za-z][A-Za-z0-9_]{3,30}bot$/i)
+  })
 })

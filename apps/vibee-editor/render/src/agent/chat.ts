@@ -52,6 +52,7 @@ import { inlineUnperceivedMedia } from './media-inline'
 import { createLinkGate } from './asset-links'
 import {
   clientSurfaceDenial,
+  textOnlyDenial,
   createContactGuard,
   isClientFacing,
   ownPhones,
@@ -2221,6 +2222,8 @@ async function* runAgentTurn(
   opts?: {
     surface?: string
     toolsOnly?: boolean
+    /** The Manager Agent: words only, no media tools (client-facing.ts). */
+    textOnly?: boolean
     client?: string
     /** A live labour-market specialist selected by the person. */
     marketplaceAgent?: string
@@ -2480,7 +2483,11 @@ async function* runAgentTurn(
    * account holder's browser are neither listed nor run -- whoever's session
    * `ctx.telegramId` resolves to. The caller's own denials keep their reasons.
    */
-  const denial0 = clientSurfaceDenial(opts?.surface, opts, TOOLS_BY_NAME.keys())
+  const denial0 = textOnlyDenial(
+    opts?.textOnly,
+    clientSurfaceDenial(opts?.surface, opts, TOOLS_BY_NAME.keys()),
+    TOOLS_BY_NAME.keys()
+  )
   // The Queen has no hands: every tool is denied, so nothing she says can
   // reach a client, a wallet or a browser. She works through the owner.
   const denial = opts?.supervisor

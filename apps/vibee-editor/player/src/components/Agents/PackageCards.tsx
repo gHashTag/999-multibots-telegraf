@@ -20,6 +20,8 @@ const copy = {
     monthly: (usd: number) => `then $${usd}/month · first month included`,
     tokens: (tokens: string, reels: number) =>
       `${tokens} tokens a month ≈ ${reels} reels`,
+    textTokens: (tokens: string) =>
+      `${tokens} tokens a month for client replies · text only`,
     order: 'Order',
     orderLabel: (name: string) => `Order ${name}`,
     tryFirst: 'Try it first',
@@ -32,6 +34,8 @@ const copy = {
     monthly: (usd: number) => `далее $${usd}/мес · первый месяц включён`,
     tokens: (tokens: string, reels: number) =>
       `${tokens} токенов в месяц ≈ ${reels} рилсов`,
+    textTokens: (tokens: string) =>
+      `${tokens} токенов в месяц на ответы клиентам · только текст`,
     order: 'Заказать',
     orderLabel: (name: string) => `Заказать: ${name}`,
     tryFirst: 'Сначала попробовать',
@@ -93,12 +97,18 @@ export function PackageCards({ lang }: { lang: Language }) {
              * when a price moves, never by hand.
              */}
             <p className="package-card__tokens">
-              {text.tokens(
-                monthTokens(pkg.monthlyUsd).toLocaleString(
-                  l === 'ru' ? 'ru-RU' : 'en-US'
-                ),
-                reelsIn(monthTokens(pkg.monthlyUsd))
-              )}
+              {pkg.media
+                ? text.tokens(
+                    monthTokens(pkg.monthlyUsd).toLocaleString(
+                      l === 'ru' ? 'ru-RU' : 'en-US'
+                    ),
+                    reelsIn(monthTokens(pkg.monthlyUsd))
+                  )
+                : text.textTokens(
+                    monthTokens(pkg.monthlyUsd).toLocaleString(
+                      l === 'ru' ? 'ru-RU' : 'en-US'
+                    )
+                  )}
             </p>
             <p className="package-card__promise">{pkg.promise[l]}</p>
             <ul className="package-card__includes">

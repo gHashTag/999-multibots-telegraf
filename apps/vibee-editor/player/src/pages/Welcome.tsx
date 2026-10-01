@@ -197,7 +197,9 @@ export function WelcomePage() {
    * ordering works, then the packages in tokens and results. Every number
    * on the way comes from specs/automation/token-wallet.t27.
    */
-  const featured = AGENT_PACKAGES.find(pkg => pkg.popular) ?? AGENT_PACKAGES[0]
+  // The featured month is counted in reels, so it is always a media package.
+  const media = AGENT_PACKAGES.filter(pkg => pkg.media)
+  const featured = media.find(pkg => pkg.popular) ?? media[0]
   const giftAgent = tryableAgentOf(featured)
   const giftAgentName = MARKETPLACE_AGENTS.find(a => a.id === giftAgent)?.name[
     l
