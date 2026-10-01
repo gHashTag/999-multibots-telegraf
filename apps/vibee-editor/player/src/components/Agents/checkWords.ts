@@ -8,7 +8,7 @@
  * but none of the listings found shows the calls of a real run on the card.
  *
  * Every key below is a tool the render server declares (pinned by
- * toolWords.test.ts). A name with no words here is shown as it is -- an
+ * checkWords.test.ts). A name with no words here is shown as it is -- an
  * unexplained name is still true; a guessed description would not be.
  */
 const WORDS: Record<string, { en: string; ru: string }> = {
@@ -49,7 +49,7 @@ const WORDS: Record<string, { en: string; ru: string }> = {
   },
 }
 
-/** The tool names this file has words for (toolWords.test.ts). */
+/** The tool names this file has words for (checkWords.test.ts). */
 export const WORDED_TOOLS = Object.keys(WORDS)
 
 export interface CheckedTool {
@@ -74,4 +74,43 @@ export function checkedTools(
     else out.set(name, { name, label: WORDS[name]?.[lang] ?? name, times: 1 })
   }
   return [...out.values()]
+}
+
+/**
+ * WHY A CHECK FAILED, for the buyer. "Last check failed" alone asks to be
+ * taken on trust just as much as "checked" did. The run says why in codes
+ * (render agent-acceptance.ts FAIL_CODES; the owner gets their own words in
+ * daily-acceptance.ts); these are the buyer's. Every code has words here
+ * (pinned by checkWords.test.ts); an unknown one is shown as it is.
+ */
+const REASONS: Record<string, { en: string; ru: string }> = {
+  http: { en: 'The service did not respond', ru: 'Сервис не ответил' },
+  error: {
+    en: 'The run broke off with an error',
+    ru: 'Ход оборвался с ошибкой',
+  },
+  no_answer: { en: 'The agent gave no answer', ru: 'Агент ничего не ответил' },
+  acted: {
+    en: 'It tried to publish or send without being asked',
+    ru: 'Попытался публиковать или отправлять без просьбы',
+  },
+  expected_tool_missing: {
+    en: 'It did not use the tool the task needs',
+    ru: 'Не взял инструмент, нужный для задачи',
+  },
+  answer_shape: {
+    en: 'The answer was not what was asked',
+    ru: 'Ответ не тот, что просили',
+  },
+}
+
+/** The fail codes this file has words for (checkWords.test.ts). */
+export const WORDED_REASONS = Object.keys(REASONS)
+
+/** A failed run's reasons, in order, each once. Pure. */
+export function failReasons(
+  codes: readonly string[],
+  lang: 'en' | 'ru'
+): string[] {
+  return [...new Set(codes)].map(code => REASONS[code]?.[lang] ?? code)
 }
