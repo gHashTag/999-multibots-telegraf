@@ -48,7 +48,7 @@ describe('following an agent to the browser', () => {
 
   it("never drags anybody off the Queen's throne", () => {
     /*
-     * The throne (/queen, /hive) shows the board, and the board's browser
+     * The throne (/game; /queen and /hive before it) shows the board, and the board's browser
      * tab carries the live pod inside its own window -- the person there is
      * watching the agent already. Jumping away would replace the better
      * view with the plain one.
@@ -56,6 +56,9 @@ describe('following an agent to the browser', () => {
     for (const path of THRONE_ROUTES) {
       expect(shouldFollow({ ...base, currentPath: path })).toBe(false)
     }
+    // The board's address since 2026-10-01, on the very view that shows
+    // the pod: a list that forgot /game would yank them off it.
+    expect(shouldFollow({ ...base, currentPath: '/game/browser' })).toBe(false)
     /* A first visit elsewhere still follows, as it always did. */
     expect(shouldFollow({ ...base, currentPath: '/feed' })).toBe(true)
   })

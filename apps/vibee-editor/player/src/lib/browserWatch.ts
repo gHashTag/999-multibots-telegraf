@@ -36,12 +36,13 @@ export interface FollowInput {
 export const BROWSER_ROUTE = '/browser'
 
 /*
- * The Queen's throne: /queen and /hive both render the board, and the board's
+ * The Queen's throne: /game renders the board (/game/browser is its browser
+ * view; /queen and /hive are its former addresses and lead there), and the board's
  * browser tab shows the live pod inside its own window (owner, 2026-09-29 --
  * it opens embedded; the full screen is a button there, not a takeover
  * either). A person sitting there is watching the agent already.
  */
-export const THRONE_ROUTES = ['/queen', '/hive'] as const
+export const THRONE_ROUTES = ['/game', '/queen', '/hive'] as const
 
 export function shouldFollow(i: FollowInput): boolean {
   if (i.state !== 'live') return false

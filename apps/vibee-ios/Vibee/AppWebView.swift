@@ -145,18 +145,14 @@ private enum PageScripts {
   /**
    The tab bar is the phone's; the web's own would be a second one. Hiding it
    is not enough: the pages still reserve its height (`--app-tabbar-total`),
-   which left an empty band under the board above the phone's own bar. And
-   once the board is up, the hive's "open in the browser" pill only covers the
-   board's head row -- in the app the page is same-origin and cannot be
-   refused, which is the one case that pill exists for.
+   which left an empty band under the board above the phone's own bar.
    */
   static let hideWebTabBar = """
     (function () {
       var s = document.createElement('style');
       s.textContent = '.tma-tabbar{display:none!important}'
         + ':root{--app-tabbar-total:0px!important}'
-        + '.hive-page{padding-bottom:0!important}'
-        + '.hive-stage:has(.hive-frame--ready) .hive-out--corner{display:none!important}';
+        + '.hive-page{padding-bottom:0!important}';
       (document.head || document.documentElement).appendChild(s);
     })();
     """
@@ -731,7 +727,9 @@ extension WebHost {
 @MainActor
 enum HiveHost {
   static let shared: WebHost = {
-    let host = WebHost(path: "/hive")
+    // The board's address is the list's (it moved /hive -> /game on
+    // 2026-10-01); the old one only redirects, and a redirect is a second load.
+    let host = WebHost(path: Navigation.bundled.first { $0.id == "hive" }?.route ?? "/game")
     // It runs under the tab bar on purpose; an automatic inset there would
     // let the whole board scroll up by the home indicator's height.
     host.webView.scrollView.contentInsetAdjustmentBehavior = .never

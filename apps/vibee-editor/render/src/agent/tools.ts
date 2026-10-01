@@ -34,6 +34,7 @@ import { WEB_TOOLS, webTaintRefusal } from './web-tools'
 import { JOB_TOOLS } from './job-tools'
 import { MAIL_TOOLS } from './mail-tools'
 import { MAIL_PUSH_TOOLS } from './mail-push'
+import { BALL_BOARD_TOOLS } from './ball-board'
 import { TRAFFIC_TOOLS } from './traffic'
 import { AVATAR_TOOLS } from './agent-avatars'
 import { AGENT_CLIENT_TOOLS } from './agent-clients'
@@ -3846,6 +3847,8 @@ TOOLS.push(...MAIL_TOOLS)
  * owner's chat with a drafted reply under it -- sent only by the tap.
  */
 TOOLS.push(...MAIL_PUSH_TOOLS)
+// One board by client: CRM, mail, code work -- whose move (automation/ball-board).
+TOOLS.push(...BALL_BOARD_TOOLS)
 /* Where visitors come from, by channel (epic #2974). Owner only. */
 TOOLS.push(...TRAFFIC_TOOLS)
 TOOLS.push(...AVATAR_TOOLS)
@@ -4024,6 +4027,13 @@ export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
    * opens. A sentence in a client's DM must not be able to start that.
    */
   'botfather_main_app',
+  /*
+   * The ball board's code-work snapshot REPLACES what the board shows for
+   * its repositories (ball-board.t27 SNAPSHOT_REPLACES). It is pushed from
+   * the owner's machine by `tri ball push`; a sentence in somebody's message
+   * must not be able to empty the board or fill it with work that is not.
+   */
+  'ball_work_push',
   /*
    * `autopilot_set` DECIDES WHETHER MESSAGES LEAVE WITHOUT A PRESS.
    *
