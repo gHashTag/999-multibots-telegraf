@@ -217,6 +217,22 @@ bun run typecheck     # Type checking
 bun run build         # Полная сборка (typecheck + tsc + alias)
 ```
 
+## Newer Bot API Features in Proactive Messages
+
+Proactive cards (meeting reminders in `apps/vibee-editor/render/src/agent/meetings.ts`)
+use Bot API 9.5+: the `<tg-time unix="..." format="wDT">` entity, button `style`
+(success / primary / danger) and `copy_text`.
+
+- Our bot talks to its own Bot API server, which can be older than the public
+  changelog. An unknown entity fails the whole send with a parse/entity 400, so
+  every new entity needs a degraded resend (see `sendCard`). Unknown button fields
+  are ignored by old hosts and need no fallback.
+- A callback that changes someone's data is honoured only for its owner: the bot
+  relays `ctx.from.id` as the presser and the render checks ownership. A token in
+  `callback_data` identifies the row, it never authorises the tap.
+- The meeting rules (offsets, callback prefix, sweep cadence) live in the spec of
+  record `src/spec/meeting-reminders.t27`; import the gen module, do not restate numbers.
+
 ## Usage Guidelines
 
 When working with this codebase:
