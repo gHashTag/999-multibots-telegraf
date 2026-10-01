@@ -1371,6 +1371,11 @@ function ownerSideSection(surface?: string): string {
     'Где мяч по всем делам сразу — CRM, почта, открытые PR и баги, по ' + // cyrillic-ok: prompt copy
     'клиентам, чей ход — ball_board; адрес, домен, репо или метку к ' + // cyrillic-ok: prompt copy
     'клиенту — ball_link. ' + // cyrillic-ok: prompt copy
+    /* automation/meeting-reminders.t27: meetings with reminders in Telegram. */
+    'Встреча онлайн или вживую («созвон завтра в 15», «кофе в пятницу на Тверской») — ' + // cyrillic-ok: prompt copy
+    'meeting_create: сам напомнит в Telegram за день, час и 10 минут и спросит, как прошло; ' + // cyrillic-ok: prompt copy
+    'без часового пояса спроси город, не угадывай. Список — meeting_list, перенос — ' + // cyrillic-ok: prompt copy
+    'meeting_update, отмена — meeting_cancel. ' + // cyrillic-ok: prompt copy
     'Аватарки агентов каталога из твоего фото (GPT Image 2.5) — ' + // cyrillic-ok: prompt copy
     'agent_avatars_make; с какими клиентами работал агент — agent_clients. ' + // cyrillic-ok: prompt copy
     'Verilog: lint, симуляция тестбенча, синтез — hdl_run (вывод цитируй). ' + // cyrillic-ok: prompt copy

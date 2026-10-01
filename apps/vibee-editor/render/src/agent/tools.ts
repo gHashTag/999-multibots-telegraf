@@ -35,6 +35,7 @@ import { JOB_TOOLS } from './job-tools'
 import { MAIL_TOOLS } from './mail-tools'
 import { MAIL_PUSH_TOOLS } from './mail-push'
 import { BALL_BOARD_TOOLS } from './ball-board'
+import { MEETING_TOOLS } from './meetings'
 import { TRAFFIC_TOOLS } from './traffic'
 import { AVATAR_TOOLS } from './agent-avatars'
 import { AGENT_CLIENT_TOOLS } from './agent-clients'
@@ -3849,6 +3850,8 @@ TOOLS.push(...MAIL_TOOLS)
 TOOLS.push(...MAIL_PUSH_TOOLS)
 // One board by client: CRM, mail, code work -- whose move (automation/ball-board).
 TOOLS.push(...BALL_BOARD_TOOLS)
+// Meetings made by talking, reminded in Telegram (automation/meeting-reminders).
+TOOLS.push(...MEETING_TOOLS)
 /* Where visitors come from, by channel (epic #2974). Owner only. */
 TOOLS.push(...TRAFFIC_TOOLS)
 TOOLS.push(...AVATAR_TOOLS)
