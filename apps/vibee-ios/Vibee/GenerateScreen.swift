@@ -72,7 +72,7 @@ struct GenerateScreen: View {
    */
   @State private var ниша = "Другое"
   @State private var стиль = "Обучающий"
-  @State private var языкСценария = "Русский"
+  @State private var языкСценария = speaksRussian ? "Русский" : "English"
   /// Сохранённые шаблоны сценария. Читаются один раз при появлении экрана.
   @State private var шаблоны: [ШаблонСценария] = []
   @State private var сохраняемШаблон = false
@@ -231,15 +231,15 @@ struct GenerateScreen: View {
   /// Что писать в поле — своими словами для каждого вида.
   private var подсказкаПоля: String {
     switch вид {
-    case .видео: return "Кот прыгает через лужу в неоне…"
-    case .сценарий: return "Тема ролика: утренний кофе…"
+    case .видео: return say("A cat jumps over a puddle in neon…", "Кот прыгает через лужу в неоне…")
+    case .сценарий: return say("What the reel is about: morning coffee…", "Тема ролика: утренний кофе…")
     // Своя подсказка КАЖДОМУ виду, а не «остальным». В поле для озвучки
     // висело «Красный куб на белом столе» — описание картинки там, где
     // ждут слова для голоса.
-    case .звук: return "Текст, который надо произнести…"
-    case .аватар: return "Возьмём голос и образ из прошлых шагов"
+    case .звук: return say("The text to speak…", "Текст, который надо произнести…")
+    case .аватар: return say("We take the voice and the image from the steps before", "Возьмём голос и образ из прошлых шагов")
     case .редактор: return ""
-    case .картинка: return "Красный куб на белом столе…"
+    case .картинка: return say("A red cube on a white table…", "Красный куб на белом столе…")
     }
   }
 
@@ -544,18 +544,18 @@ struct GenerateScreen: View {
 
     var подпись: String {
       switch self {
-      case .видео: return "Видео"
-      case .редактор: return "Редактор"
+      case .видео: return say("Video", "Видео")
+      case .редактор: return say("Editor", "Редактор")
       // «Фото» и «Голос» — так они названы в вебе (app.t27.ai/generate/*).
       // Разные слова для одного и того же в двух клиентах — это два разных
       // продукта в глазах человека, который пользуется обоими.
-      case .картинка: return "Фото"
-      case .звук: return "Голос"
+      case .картинка: return say("Photo", "Фото")
+      case .звук: return say("Voice", "Голос")
       // Шаг называется тем, что делает: он оживляет фото голосом. «Аватар»
       // в этом продукте уже занят — так зовётся дорожка монтажа и
       // категория ассетов, то есть ТИП МЕДИА, а не шаг.
-      case .аватар: return "Липсинк"
-      case .сценарий: return "Сценарий"
+      case .аватар: return say("Lip-sync", "Липсинк")
+      case .сценарий: return say("Script", "Сценарий")
       }
     }
 
@@ -737,8 +737,11 @@ struct GenerateScreen: View {
             плашка(
               значок: "exclamationmark.shield",
               цвет: Тема.Цвет.предупреждение,
-              текст: "Нечем представиться серверу — он ответит отказом. "
-                + "Зайдите в Профиль и войдите по коду из бота."
+              текст: say(
+                "Nothing to introduce us to the server with — it will refuse. "
+                  + "Open Profile and sign in with the code from the bot.",
+                "Нечем представиться серверу — он ответит отказом. "
+                  + "Зайдите в Профиль и войдите по коду из бота.")
             )
           } else if Identity.accessToken == nil {
             /**
@@ -782,7 +785,7 @@ struct GenerateScreen: View {
         .scrollsToTopOnReselect(unless: открытьРедактор)  // cyrillic-ok: existing state
       }
       .background(Тема.Цвет.фон)
-      .navigationTitle("ИИ")
+      .navigationTitle(say("AI", "ИИ"))
       .navigationBarTitleDisplayMode(.inline)
       // Спрашиваем при входе и ПОСЛЕ каждой генерации: остаток изменился, и
       // показывать прежний — врать ровно на величину траты.
@@ -826,7 +829,7 @@ struct GenerateScreen: View {
       .onChange(of: tabReselects) { открытьРедактор = false }  // cyrillic-ok: existing state
       .navigationDestination(isPresented: $открытьРедактор) {
         EditorScreen()
-          .navigationTitle("Редактор")
+          .navigationTitle(say("Editor", "Редактор"))
           .navigationBarTitleDisplayMode(.inline)
       }
     }
@@ -1060,7 +1063,7 @@ struct GenerateScreen: View {
 
   @ViewBuilder private var форма: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Text("Что сгенерировать")
+      Text(say("What to generate", "Что сгенерировать"))
         .font(Тема.Шрифт.стиль(.subheadline, .medium))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
@@ -1085,7 +1088,7 @@ struct GenerateScreen: View {
       if вид == .видео,
          !(баланс?.поЗамеруФайла(модельДляСервера) ?? false),
          баланс?.полеДоходит("duration", модель: модельДляСервера) ?? true {
-        строкаВыбора("Длительность", ["6s", "10s"], $длительность)
+        строкаВыбора(say("Duration", "Длительность"), ["6s", "10s"], $длительность)
       }
       if вид == .сценарий {
         выборДлительностиСценария
@@ -1118,9 +1121,10 @@ struct GenerateScreen: View {
        * которая ни на что не влияет.
        */
       if вид == .сценарий {
-        чипыВыбора("Ниша", КаталогСценария.ниши, $ниша)
-        чипыВыбора("Стиль", КаталогСценария.стили, $стиль)
-        строкаВыбора("Язык", ["Русский", "English"], $языкСценария)
+        чипыВыбора(say("Niche", "Ниша"), КаталогСценария.ниши, $ниша, label: { КаталогСценария.label($0) })  // cyrillic-ok: pre-existing names
+        чипыВыбора(say("Style", "Стиль"), КаталогСценария.стили, $стиль, label: { КаталогСценария.label($0) })  // cyrillic-ok: pre-existing names
+        строкаВыбора(say("Language", "Язык"), ["Русский", "English"], $языкСценария,  // cyrillic-ok: pre-existing names
+                     label: { $0 == "Русский" ? say("Russian", "Русский") : $0 })
         шаблоныСценария
         советыСценария
       }
@@ -1350,12 +1354,15 @@ struct GenerateScreen: View {
   }
 
   private func строкаВыбора(
-    _ имя: String, _ варианты: [String], _ выбор: Binding<String>
+    _ имя: String, _ варианты: [String], _ выбор: Binding<String>,
+    // The value stays what the server and saved templates expect; only the
+    // label follows the phone's language.
+    label: @escaping (String) -> String = { $0 }
   ) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(имя).font(Тема.Шрифт.стиль(.caption)).foregroundStyle(Тема.Цвет.текстПриглушённый)
       Picker(имя, selection: выбор) {
-        ForEach(варианты, id: \.self) { Text($0).tag($0) }
+        ForEach(варианты, id: \.self) { Text(label($0)).tag($0) }  // cyrillic-ok: pre-existing names
       }
       .pickerStyle(.segmented)
     }
@@ -1448,23 +1455,23 @@ struct GenerateScreen: View {
 
   private var выборДлительностиСценария: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text("Длительность")
+      Text(say("Duration", "Длительность"))
         .font(Тема.Шрифт.стиль(.caption))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
       HStack(spacing: Тема.Отступ.sm) {
         ForEach([15, 30, 60, 90], id: \.self) { сек in
-          чипДлительности("\(сек)с", выбран: !свояДлительность && длительностьСценарияСек == сек) {
+          чипДлительности(say("\(сек)s", "\(сек)с"), выбран: !свояДлительность && длительностьСценарияСек == сек) {
             длительностьСценарияСек = сек
             свояДлительность = false
           }
         }
-        чипДлительности("Своя", выбран: свояДлительность) { свояДлительность = true }
+        чипДлительности(say("Custom", "Своя"), выбран: свояДлительность) { свояДлительность = true }
       }
 
       if свояДлительность {
         TextField(
-          "секунд", text: Binding(
+          say("seconds", "секунд"), text: Binding(
             get: { длительностьСценарияСек == 0 ? "" : String(длительностьСценарияСек) },
             // Только цифры: буквы попадали бы в промпт сервера как есть —
             // «Create a abc seconds script» — и портили бы результат молча.
@@ -1512,18 +1519,19 @@ struct GenerateScreen: View {
   @ViewBuilder private var шаблоныСценария: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
-        Text("Шаблоны")
+        Text(say("Templates", "Шаблоны"))
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
         Spacer()
-        Button("Сохранить") { сохраняемШаблон = true }
+        Button(say("Save", "Сохранить")) { сохраняемШаблон = true }
           .font(Тема.Шрифт.стиль(.caption, .medium))
           .foregroundStyle(Тема.Цвет.акцент)
           .frame(minHeight: Тема.Касание.минимум)
       }
       if шаблоны.isEmpty {
         // Пустота ОБЪЯСНЕНА: пустая полоса читается как поломка.
-        Text("Пока пусто. Выставьте настройки и нажмите «Сохранить» — в следующий раз хватит одного касания.")
+        Text(say("Nothing yet. Set things up and tap “Save” — next time one tap is enough.",
+                  "Пока пусто. Выставьте настройки и нажмите «Сохранить» — в следующий раз хватит одного касания."))
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
           .fixedSize(horizontal: false, vertical: true)
@@ -1645,7 +1653,8 @@ struct GenerateScreen: View {
   }
 
   @ViewBuilder private func чипыВыбора(
-    _ имя: String, _ варианты: [String], _ выбор: Binding<String>
+    _ имя: String, _ варианты: [String], _ выбор: Binding<String>,
+    label: @escaping (String) -> String = { $0 }
   ) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(имя)
@@ -1655,7 +1664,7 @@ struct GenerateScreen: View {
         HStack(spacing: 8) {
           ForEach(варианты, id: \.self) { в in
             Button { выбор.wrappedValue = в } label: {
-              Text(в)
+              Text(label(в))  // cyrillic-ok: pre-existing loop variable
                 .font(Тема.Шрифт.стиль(.footnote, .medium))
                 .padding(.horizontal, 14)
                 .frame(minHeight: Тема.Касание.минимум)

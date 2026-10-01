@@ -1449,6 +1449,20 @@ def blank_calls(src, names):
             if out[k] != '\n': out[k] = ' '
     return ''.join(out)
 
+# Not UI text, each found as a false hit in AgentChatView (iteration 6):
+# o["тип"] is a server JSON key, `case "ход":` matches a server value, and
+# ("from the bot", "из бота") on one line is already a bilingual pair.
+KEY = re.compile(r'\[\s*"(?:[^"\\]|\\.)*"\s*\]')
+CASE = re.compile(r'\bcase\s+"(?:[^"\\]|\\.)*"(?:\s*,\s*"(?:[^"\\]|\\.)*")*\s*:')
+PAIR = re.compile(r'("(?:[^"\\]|\\.)*")(\s*,\s*)("(?:[^"\\]|\\.)*")')
+
+def protocol_out(line):
+    line = KEY.sub(lambda m: ' ' * len(m.group()), line)
+    line = CASE.sub(lambda m: ' ' * len(m.group()), line)
+    return PAIR.sub(lambda m: ' ' * len(m.group())
+                    if not CYR.search(m.group(1)) and CYR.search(m.group(3))
+                    else m.group(), line)
+
 def comments_out(src):
     src = re.sub(r'/\*.*?\*/', lambda m: re.sub(r'[^\n]', ' ', m.group()), src, flags=re.S)
     lines = []
@@ -1465,7 +1479,7 @@ for f in sorted(os.listdir(root)):
         continue
     raw = open(os.path.join(root, f), encoding='utf-8').read()
     marks = raw.split('\n')
-    lines = comments_out(blank_calls(raw, ['say', 'NSLog', 'print']))
+    lines = [protocol_out(l) for l in comments_out(blank_calls(raw, ['say', 'NSLog', 'print']))]
     hits = [(n + 1, marks[n].strip()) for n, l in enumerate(lines)
             if 'ru-only-ok' not in marks[n]
             and any(CYR.search(INTERP.sub('', x)) for x in LIT.findall(l))]
