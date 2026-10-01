@@ -285,4 +285,14 @@ describe('the public counters', () => {
       isPublic({ url: '/api/traffic/start', method: 'POST' } as never)
     ).toBe(false)
   })
+
+  it('the voice list is public to read; hearing and speaking are not', async () => {
+    const { isPublic } = await import('./auth')
+    const get = (url: string) => isPublic({ url, method: 'GET' } as never)
+    const post = (url: string) => isPublic({ url, method: 'POST' } as never)
+    expect(get('/api/voice/status')).toBe(true)
+    expect(post('/api/voice/status')).toBe(false)
+    expect(post('/api/voice/transcribe')).toBe(false)
+    expect(post('/api/voice/speak')).toBe(false)
+  })
 })
