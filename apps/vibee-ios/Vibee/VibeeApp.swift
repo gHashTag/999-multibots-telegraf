@@ -89,6 +89,7 @@ struct RootView: View {
     case "chat": AgentChatView()
     case "ai": GenerateScreen()
     case "hive": HiveScreen()
+    case "tasks": TasksScreen()
     case "profile": ProfileView()
     default: EmptyView()
     }
@@ -137,9 +138,9 @@ struct RootView: View {
        * Now: Vibee/navigation.json ships the same bytes the render service
        * serves at /api/navigation, and `destinations` is replaced by the
        * served list when it answers. The ORDER is the list's order, which is
-       * a product decision recorded there (the hive before the profile,
-       * because the last place in the row is the one a thumb reaches without
-       * looking, and the profile earned it).
+       * a product decision recorded there (the hive first, owner 2026-10-01:
+       * the board is what the app opens on; the profile last, because the
+       * last place in the row is the one a thumb reaches without looking).
        *
        * Icons stay SF Symbols, named per destination in the same file beside
        * the web's Lucide name -- the same glyph does not exist in both sets,
@@ -148,7 +149,11 @@ struct RootView: View {
       ForEach(destinations) { destination in
         screen(for: destination.id)
           .tabItem {
+            // Outline glyphs, as the web draws them (Lucide is line-only).
+            // The bar would otherwise fill the selected one, and a filled
+            // hexagon reads as a green blob, not as the hive.
             Label(destination.title, systemImage: destination.icon.sf)
+              .environment(\.symbolVariants, .none)
           }
       }
     }

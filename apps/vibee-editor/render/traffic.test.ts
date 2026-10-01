@@ -6,6 +6,8 @@ import {
   arrivalOf,
   handleTraffic,
   resetTrafficTableForTests,
+  welcomeFunnel,
+  welcomeHitOf,
 } from './src/agent/traffic'
 
 /**
@@ -15,10 +17,20 @@ import {
 
 const counted: unknown[][] = []
 const started: unknown[][] = []
+const welcomed: unknown[][] = []
 const pool = {
   async query(sql: string, params: unknown[] = []) {
     if (sql.startsWith('INSERT INTO traffic_arrivals')) counted.push(params)
     if (sql.startsWith('INSERT INTO traffic_starts')) started.push(params)
+    if (sql.startsWith('INSERT INTO traffic_welcome')) welcomed.push(params)
+    if (sql.includes('FROM traffic_welcome'))
+      return {
+        rows: [
+          { step: 'shown', item: '', n: 40 },
+          { step: 'packages_seen', item: '', n: 10 },
+          { step: 'package_order', item: 'blogger', n: 2 },
+        ],
+      }
     if (sql.includes('FROM traffic_starts'))
       return {
         rows: [
@@ -51,6 +63,7 @@ const post = (body: unknown, address = '10.0.0.1') =>
 beforeEach(() => {
   counted.length = 0
   started.length = 0
+  welcomed.length = 0
   resetTrafficTableForTests()
 })
 
@@ -166,5 +179,77 @@ describe('a start of our bot from a tagged link', () => {
     expect(
       isPublic({ url: '/api/traffic/start', method: 'POST' } as never)
     ).toBe(false)
+  })
+})
+
+describe('the welcome screen heatmap', () => {
+  const step = (body: unknown, address = '10.0.1.1') =>
+    handleTraffic(
+      { url: '/api/traffic/welcome', method: 'POST' },
+      {
+        getPool: async () => pool,
+        readBody: async () => JSON.stringify(body),
+        address,
+        now: () => Date.UTC(2026, 9, 1, 9, 0, 0),
+      }
+    )
+
+  it('counts a step from the closed list, with a package it names', async () => {
+    expect(
+      (await step({ step: 'package_order', item: 'Blogger' })).status
+    ).toBe(200)
+    expect((await step({ step: 'shown', telegram_id: 144022504 })).status).toBe(
+      200
+    )
+    expect(welcomed).toEqual([
+      ['package_order', 'blogger'],
+      ['shown', ''],
+    ])
+  })
+
+  it('an unknown step is refused, an unknown item is dropped', async () => {
+    expect((await step({ step: 'drop table' })).status).toBe(400)
+    expect(welcomeHitOf({ step: 'skip', item: '<script>' })).toEqual({
+      step: 'skip',
+      item: '',
+    })
+    expect(welcomed).toHaveLength(0)
+  })
+
+  it('shares the per-address limit with arrivals', async () => {
+    for (let i = 0; i < ARRIVALS_PER_MINUTE; i += 1)
+      await step({ step: 'shown' }, '10.0.1.9')
+    expect((await step({ step: 'shown' }, '10.0.1.9')).status).toBe(429)
+  })
+
+  it('the funnel is a share of shows, and zero shows is zero, not NaN', () => {
+    const f = welcomeFunnel([
+      { step: 'shown', item: '', n: 40 },
+      { step: 'packages_seen', item: '', n: 10 },
+      { step: 'package_try', item: 'blogger', n: 3 },
+      { step: 'pinned_order', item: '', n: 1 },
+      { step: 'package_order', item: 'twin', n: 1 },
+    ])
+    expect(f).toMatchObject({
+      shown: 40,
+      packagesSeen: 10,
+      tried: 3,
+      ordered: 2,
+      reachedPackages: 25,
+      orderRate: 5,
+    })
+    expect(welcomeFunnel([]).orderRate).toBe(0)
+  })
+
+  it('the owner reads it next to the channels', async () => {
+    const tool = TRAFFIC_TOOLS.find(t => t.name === 'crm_traffic')!
+    const out = (await tool.handler({ days: 7 }, {
+      telegramId: process.env.OWNER_TELEGRAM_ID || '144022504',
+      pool,
+    } as never)) as {
+      welcome: { funnel: { shown: number; ordered: number }; steps: unknown[] }
+    }
+    expect(out.welcome.funnel).toMatchObject({ shown: 40, ordered: 2 })
+    expect(out.welcome.steps).toHaveLength(3)
   })
 })

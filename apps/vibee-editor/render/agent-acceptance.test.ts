@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   handleAcceptance,
+  isFresh,
   resetAcceptanceTableForTests,
   STREAK_DAYS,
   streakOf,
@@ -257,7 +258,49 @@ describe('the passing streak', () => {
     const r = await handleAcceptance(get, deps(pool, null))
     expect(r.body.streakDays).toBe(7)
     expect(r.body.verdicts).toMatchObject([
-      { agent: 'job', streak: expect.any(Number), earned: false },
+      {
+        agent: 'job',
+        streak: expect.any(Number),
+        earned: false,
+        fresh: expect.any(Boolean),
+      },
     ])
+  })
+
+  // The fake pool stamps verdicts on 2026-09-24 07:0x UTC.
+  describe('whether the reader is told the verdict is current', () => {
+    afterEach(() => vi.useRealTimers())
+    const read = async (now: number) => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(now)
+      const { pool } = fakePool()
+      await handleAcceptance(
+        post,
+        deps(
+          pool,
+          KEEPER,
+          JSON.stringify({ verdicts: [{ agent: 'job', pass: true }] })
+        )
+      )
+      const r = await handleAcceptance(get, deps(pool, null))
+      return (r.body.verdicts as Array<{ fresh: boolean }>)[0].fresh
+    }
+
+    it('the next day: current', async () => {
+      expect(await read(Date.UTC(2026, 8, 25, 7))).toBe(true)
+    })
+
+    it('a week later: not current, though it passed', async () => {
+      expect(await read(Date.UTC(2026, 9, 1, 7))).toBe(false)
+    })
+  })
+
+  // A pass from a fortnight ago must not read as today's on a card.
+  it('a verdict is current for the streak window and not a moment longer', () => {
+    const hour = 3_600_000
+    expect(isFresh(new Date(NOW - 47 * hour), NOW)).toBe(true)
+    expect(isFresh(new Date(NOW - 48 * hour), NOW)).toBe(true)
+    expect(isFresh(new Date(NOW - 49 * hour), NOW)).toBe(false)
+    expect(isFresh('not a date', NOW)).toBe(false)
   })
 })

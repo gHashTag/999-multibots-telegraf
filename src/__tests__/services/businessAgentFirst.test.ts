@@ -101,7 +101,7 @@ describe('the fallback prompt', () => {
     )
     expect(sys.includes('руб')).toBe(false)
     expect(sys).not.toMatch(/Basic|Pro:|Studio/)
-    expect(sys).toContain('Тарифов и подписок НЕТ')
+    expect(sys).toContain('тарифов и подписок НЕТ')
     expect(sys).toContain('токенами за звёзды')
   })
 })

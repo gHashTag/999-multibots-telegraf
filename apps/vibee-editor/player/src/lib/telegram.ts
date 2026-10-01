@@ -251,3 +251,22 @@ export function openInvoice(
     }
   })
 }
+
+/**
+ * Open a t.me link through Telegram's own opener, when there is a Telegram to
+ * ask. Returns false outside one, and the caller's own `<a target="_blank">`
+ * does the job.
+ *
+ * Keyed on isTelegram(), not on the method existing: index.html loads
+ * telegram-web-app.js everywhere, so openTelegramLink is a function in a
+ * plain browser too -- where it replaces the whole app with t.me in the same
+ * tab, and inside the game's TRI frame it posts a message nobody handles, so
+ * the press does nothing at all.
+ */
+export function openTelegramLink(url: string): boolean {
+  if (!isTelegram()) return false
+  const webApp = getWebApp()
+  if (typeof webApp?.openTelegramLink !== 'function') return false
+  webApp.openTelegramLink(url)
+  return true
+}

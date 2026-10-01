@@ -128,6 +128,16 @@ export const STREAK_DAYS = 7
 export const STREAK_FRESH_MS = 48 * 3_600_000
 
 /**
+ * Is this verdict still current? The same window that zeroes a streak:
+ * past it the checks have stopped, and a card must not show an old pass as
+ * if it were today's. An unreadable date is not current. Pure.
+ */
+export function isFresh(at: string | Date, nowMs: number): boolean {
+  const t = new Date(at).getTime()
+  return Number.isFinite(t) && nowMs - t <= STREAK_FRESH_MS
+}
+
+/**
  * Consecutive passing days, ending with the newest day that has a verdict.
  * A day passes only if EVERY verdict that day passed; a day with no verdict
  * breaks the run (an outage is not evidence); a newest verdict older than
@@ -220,7 +230,8 @@ export async function handleAcceptance(
     try {
       const pool = await deps.getPool()
       const latest = await latestVerdicts(pool)
-      const days = await streaks(pool)
+      const nowMs = Date.now()
+      const days = await streaks(pool, nowMs)
       return {
         status: 200,
         body: {
@@ -230,6 +241,7 @@ export async function handleAcceptance(
             ...v,
             streak: days[v.agent] ?? 0,
             earned: (days[v.agent] ?? 0) >= STREAK_DAYS,
+            fresh: isFresh(v.at, nowMs),
           })),
         },
       }

@@ -208,6 +208,22 @@
   color: #626262;
 }
 
+.agents-packages {
+  margin-top: 64px;
+}
+.agents-packages h2 {
+  margin: 12px 0 8px;
+  font-size: clamp(30px, 4.5vw, 46px);
+  font-weight: 520;
+  letter-spacing: -0.035em;
+}
+.agents-packages > p:not(.agents-eyebrow) {
+  max-width: 640px;
+  margin: 0 0 26px;
+  color: #a7a7a7;
+  line-height: 1.6;
+}
+
 .harness-callout,
 .economy-card {
   margin-top: 16px;
@@ -334,8 +350,43 @@
   opacity: 0.85;
 }
 
-.agent-card__checked[data-pass='no'] {
+.agent-card__checked[data-tone='fail'] {
   color: var(--color-danger, #c0392b);
+}
+
+/* The checks stopped: the day is kept, the tick is not (verdictLine). */
+.agent-card__checked[data-tone='stale'] {
+  opacity: 0.6;
+}
+
+/* The verdict's receipt, folded: the calls, or why it failed (CheckedTools). */
+.agent-card__calls {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+}
+.agent-card__calls summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  opacity: 0.85;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.agent-card__calls[data-tone='fail'] summary {
+  color: var(--color-danger, #c0392b);
+}
+.agent-card__calls ul {
+  margin: 0 0 4px;
+  padding-left: 18px;
+}
+.agent-card__calls .checked-tools__head {
+  margin: 6px 0 2px;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+.agent-card__calls .checked-tools__times {
+  opacity: 0.6;
 }
 
 /* Passing daily checks in a row, toward hiring by evidence. */

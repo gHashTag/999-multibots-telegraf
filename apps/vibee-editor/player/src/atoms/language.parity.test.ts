@@ -38,6 +38,8 @@ describe('the two locales agree', () => {
       'login.followBody',
       'login.boardTitle',
       'login.boardBody',
+      'login.chatTitle',
+      'login.chatBody',
     ]
     for (const k of keys) {
       expect(translations.en[k], `en ${k}`).toBeTruthy()
