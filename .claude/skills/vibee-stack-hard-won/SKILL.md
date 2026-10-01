@@ -10896,3 +10896,37 @@ Also learned on the way:
   (`tunnelState`), `./tri iphone` builds, installs and launches it,
   `./tri iphone build` needs no phone. Signing details: memory note
   `ios-device-build-via-asc-key`.
+
+## A REPEAT TAP ON A WEB TAB MUST REACH INTO THE BOARD'S IFRAME (2026-10-02)
+
+A repeat tap on the open iOS tab now does what the web's tab links do
+(`TelegramTabBar.tsx`: every tab is a `Link` to its root, plus
+`haptic.selection()`), and what Instagram, TikTok and Threads do:
+native Feed goes back to the first reel, a web tab away from its root goes back
+to the root, a web tab on its root scrolls to the top. The signal is one
+counter per tab, `tabReselects` in `VibeeApp.swift`; the decision is
+`WebHost.reselect(at:root:)`, covered by `VibeeTests/TabReselectTests.swift`.
+
+The first version scrolled the main document and passed every unit test, and
+on the simulator the Tasks column did not move. The Game and Tasks tabs draw
+the board inside `<iframe src="/queen/...">` (player `Hive.tsx`), so the
+element that scrolls lives in the FRAME's document. It is the same origin, so
+`PageScripts.scrollToTop` walks into `iframe.contentDocument`; no postMessage
+is needed, and a cross-origin frame is skipped because it throws.
+
+> The rule: before scripting a web tab from Swift, find out where the thing
+> you are scripting lives (`grep -rn "<iframe" apps/vibee-editor/player/src`).
+> Only a look at the running simulator proves a scroll; a unit test proves
+> the decision, not the effect.
+
+Also: `simctl install` hung for 11 minutes, and later `simctl launch` for 2. The first diagnosis was two forgotten `simctl spawn ... log stream`
+processes; killing them helped once and then it hung again. The measured cause
+was memory: a booted iPhone simulator is ~140 processes and ~10 GB resident,
+on a 16 GB machine with swap at 5 of 6 GB (load 560-700). `memory_pressure`
+still said "38% free"; `sysctl vm.swapusage` told the truth. `./tri iphone sim`
+now warns when swap has under 1 GB left and about stray log streams, puts a
+deadline on install (reboots the simulator once) and on launch. Shut the
+simulator down when the check is done (`xcrun simctl shutdown <udid>`); the
+pre-push gates need that memory.
+A probe is quicker as a fact from the source than as a log line: the iframe
+was in `Hive.tsx` all along.
