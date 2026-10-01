@@ -1,6 +1,6 @@
 ---
 name: 'voice-mode'
-description: 'The voice mode in the app chat (orb, talk to the agent hands-free): where the code is, how barge-in / pause / resume work, the measured numbers, the open weak spots with status, and how a loop cycle picks up where the last one stopped. Use when touching player/src/lib/voice, components/Voice, render /api/voice/*, the whisper or speaches services, or when someone says the voice does not answer, speaks the wrong language, reads markup aloud, or cannot be interrupted.'
+description: 'The voice mode in the app chat (orb, talk to the agent hands-free): where the code is, how barge-in / pause / resume work, the measured numbers, the open weak spots with status, and how a loop cycle picks up where the last one stopped. Use when touching player/src/lib/voice, components/Voice, render /api/voice/*, the whisper, speaches, gigaam, parakeet or mouth services, or when someone says the voice does not answer, speaks the wrong language, reads markup aloud, or cannot be interrupted.'
 ---
 
 # Voice mode
@@ -25,7 +25,7 @@ the fallback, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 ```bash
 ./tri loop     # tri виток: in-flight work, this branch's PR, last deploys
 ./tri voice    # tri голос: status, warm, speak ru/en, hear them back, times
-./tri ears     # tri уши: gigaam (ru) + parakeet (en) deploys, render routing
+./tri ears     # tri уши: gigaam (ru) + parakeet (en) + mouth deploys, render routing
 ```
 
 `tri voice` needs a person's key in `$AGENT_KEY` (render `AGENT_KEYS`, first
@@ -35,6 +35,10 @@ entry, up to `:`). Without one it exits 2, NOT MEASURED -- not green.
 into `upload + <engine> + road`, where the engine comes from the header's
 `desc` (`gigaam`, `parakeet`, `whisper`, or `gigaam/whisper` when some runs fell back --
 that mix means GigaAM is failing). SLOW (exit 2) when the median is >= 3 s.
+Speaking prints the engine the same way (`via mouth`, `via speaches`) plus
+its own time; `ANOMALY` (exit 1) when the render is configured for the
+mouth but speaches answered -- the mouth is down and every sentence is
+paying for the fallback.
 
 ## Map
 
@@ -47,7 +51,8 @@ player/src/lib/voice/chatVoice.ts      binds a session to one chat thread (send,
 player/src/lib/voice/voiceApi.ts       the four HTTP calls
 player/src/components/Voice/*          orb (five visual modes from the logo), overlay
 render/src/voice/voice.ts              speakable(), pickVoice(), warm(), hear(), speak()
-deployment/gigaam/server.py            Russian ears: POST /hear, GET /health (GigaAM v3, onnx-asr)
+deployment/gigaam/server.py            ears: POST /hear, GET /health (GigaAM v3 ru, Parakeet v2 en)
+deployment/mouth/server.py             mouth: POST /speak, GET /health (Kokoro en, Piper ru, 8 threads)
 UI strings                             player/src/atoms/language.ts, keys voice.*
 ```
 
@@ -78,28 +83,29 @@ Other guarantees, each pinned by a test in `session.test.ts`:
 
 ## Measured numbers (2026-10-02)
 
-| step                          | ru                          | en                          |
-| ----------------------------- | --------------------------- | --------------------------- |
-| warm (already loaded)         | 487 ms                      |                             |
-| speak one sentence            | 1209 ms                     | 2115 ms                     |
-| hear a 4 s phrase, from here  | median 3649 [3335..7910] x5 | median 3371 [2819..5499] x5 |
-| whisper alone, inside its pod | median ~2.3 s [1.8..2.8]    |                             |
-| hear, after #3248, x5         | median 2605 [2134..3453]    | median 2616 [2176..4305]    |
-| -- of which upload            | 232 ms                      | 20 ms                       |
-| -- of which whisper           | 1819 ms                     | 2067 ms                     |
-| -- of which the road          | 554 ms                      | 529 ms                      |
-| hear, after #3252, x7         | median 745 [683..780]       | median 3202 [2835..3482]    |
-| -- of which upload            | 87 ms                       | 18 ms                       |
-| -- of which the ears          | 175 ms (gigaam)             | 2617 ms (whisper)           |
-| -- of which the road          | 483 ms                      | 567 ms                      |
-| hear, cycle 4 (before #8), x5 | median 1118 [763..6074]     | median 4183 [3539..7162]    |
-| -- of which the road          | 849 ms                      | 1189 ms                     |
-| felt after the last word      | 850 + 568 = 1418 ms         | 850 + 3633 = 4483 ms        |
-| hear, cycle 5 (#3261), x7     | median 701 [650..790]       | median 648 [592..785]       |
-| -- of which the ears          | 180 ms (gigaam)             | 187 ms (parakeet)           |
-| -- of which the road          | 434 ms                      | 443 ms                      |
-| felt after the last word      | 850 + 151 = 1001 ms         | 850 + 98 = 948 ms           |
-| speak, cycle 5, x3 / x5       | median 1152 [916..2496]     | median 1949-2300, tail 4.4s |
+| step                          | ru                          | en                                 |
+| ----------------------------- | --------------------------- | ---------------------------------- |
+| warm (already loaded)         | 487 ms                      |                                    |
+| speak one sentence            | 1209 ms                     | 2115 ms                            |
+| hear a 4 s phrase, from here  | median 3649 [3335..7910] x5 | median 3371 [2819..5499] x5        |
+| whisper alone, inside its pod | median ~2.3 s [1.8..2.8]    |                                    |
+| hear, after #3248, x5         | median 2605 [2134..3453]    | median 2616 [2176..4305]           |
+| -- of which upload            | 232 ms                      | 20 ms                              |
+| -- of which whisper           | 1819 ms                     | 2067 ms                            |
+| -- of which the road          | 554 ms                      | 529 ms                             |
+| hear, after #3252, x7         | median 745 [683..780]       | median 3202 [2835..3482]           |
+| -- of which upload            | 87 ms                       | 18 ms                              |
+| -- of which the ears          | 175 ms (gigaam)             | 2617 ms (whisper)                  |
+| -- of which the road          | 483 ms                      | 567 ms                             |
+| hear, cycle 4 (before #8), x5 | median 1118 [763..6074]     | median 4183 [3539..7162]           |
+| -- of which the road          | 849 ms                      | 1189 ms                            |
+| felt after the last word      | 850 + 568 = 1418 ms         | 850 + 3633 = 4483 ms               |
+| hear, cycle 5 (#3261), x7     | median 701 [650..790]       | median 648 [592..785]              |
+| -- of which the ears          | 180 ms (gigaam)             | 187 ms (parakeet)                  |
+| -- of which the road          | 434 ms                      | 443 ms                             |
+| felt after the last word      | 850 + 151 = 1001 ms         | 850 + 98 = 948 ms                  |
+| speak, cycle 5, x3 / x5       | median 1152 [916..2496]     | median 1949-2300, tail 4.4s        |
+| speak, inside the mouth, x3   | 94-154 ms (irina, dmitri)   | 272-318 ms short, ~0.8 s 100 chars |
 
 "Felt" is what `tri voice` prints since cycle 4: the player's pause
 (`END_OF_TURN_MS`) plus the hearing that is NOT hidden inside it by early
@@ -208,7 +214,8 @@ quirk: spoken digits come back joined, "one, two, three, four" -> "1234".
 - `/api/voice/status` says `hearRu` and `hearEn`; `tri ears` and `tri voice`
   print both.
 - Deploy both after a merge that touches `deployment/gigaam`:
-  `./tri ears deploy` (both) from a clean tree.
+  `./tri ears deploy ru` and `./tri ears deploy en` from a clean tree
+  (plain `./tri ears deploy` now also ships the mouth).
 
 ## Early hearing (cycle 4, 2026-10-02)
 
@@ -237,6 +244,45 @@ onnxruntime-web, an 8 MB model and log-mel in JS. Early hearing removes
 the same wait for the common case with no model at all. #8's other half --
 a slow speaker cut off mid-thought by a fixed pause -- is still open.
 
+## Mouth: our own Kokoro/Piper pool (cycle 6, 2026-10-02)
+
+#15 was not Kokoro and not the road. Inside the whisper pod, the same model
+files, three runs each:
+
+| engine                  | threads | short phrase | 100-char sentence |
+| ----------------------- | ------- | ------------ | ----------------- |
+| speaches API, Kokoro    | 48      | 1.2-1.7 s    | 2.9-3.4 s         |
+| Kokoro fp32, standalone | 8       | 320-366 ms   | 673-749 ms        |
+| Kokoro fp32, standalone | 48      | 1.3-1.5 s    | 2.5-2.8 s         |
+| Kokoro int8, standalone | 8 / 48  | 1.5 / 3.4 s  | 3.7 / 6.6 s       |
+| speaches API, Piper ru  | 48      | 0.3-0.77 s   |                   |
+| Piper ru, standalone    | 8       | 107-178 ms   | 131-134 ms        |
+
+An ONNX session on all 48 visible cores spends its time synchronising
+threads, not computing -- the same lesson as the ears' `pids.max`, from the
+other side. speaches has no knob for it, so `deployment/mouth` serves the
+same files (same package versions: kokoro-onnx 0.4.5, piper-tts 1.3.0,
+onnxruntime 1.22.0) on `MOUTH_THREADS=8`, two sentences at a time. Its own
+pod measured English 272-318 ms short and ~0.8 s for 100 characters,
+Russian 94-154 ms -- mp3 encoding included.
+
+- Render: `VOICE_SPEAK_URL` (`http://mouth.railway.internal:8080`) and
+  `VOICE_SPEAK_KEY` (the mouth's `MOUTH_KEY`). Unset -> speaches, as before.
+  `speak()` tries the mouth first; a refusal, an error, empty audio or a
+  timeout (`mouthTimeoutMs`: 3 s + 12 ms a character) falls back to
+  speaches. `Speech.engine` says which one spoke, the route sends it as
+  `Server-Timing: speak;dur=..;desc="mouth"`, `/api/voice/status` as
+  `speakVia`.
+- int8 Kokoro is SLOWER on this CPU at any thread count; keep fp32.
+- Piper is not deterministic (noise_scale): the same Russian phrase comes
+  back a few hundred bytes different. Not a bug.
+- `warm()` still loads the voice into speaches, so the fallback is warm.
+- The mouth is NOT wired to GitHub: `./tri mouth deploy` (= `tri ears deploy
+mouth`) from a clean tree after a merge that touches `deployment/mouth`.
+- `railway add --service mouth -v MOUTH_KEY=...` ECHOES the value. If you
+  ever create a service that way, rotate the key at once with
+  `railway variables --skip-deploys --set` from a shell variable.
+
 ## Competitors (researched 2026-10-02)
 
 - Deepgram Flux: `EagerEndOfTurn` fires a draft transcript before the turn is
@@ -254,27 +300,32 @@ a slow speaker cut off mid-thought by a fixed pause -- is still open.
   clause to TTS, not the first sentence. Ours since cycle 2: the first comma,
   semicolon or colon after 24 chars, followed by a space, when both halves
   stand alone (`firstClause` in `sentences.ts`). Only the first piece.
+- First-sound latency, hosted TTS (cycle 6): ElevenLabs Flash ~75 ms to the
+  first byte, Cartesia Sonic 40-90 ms, Deepgram Aura-2 under 200 ms -- all
+  STREAM audio as it is made. Our mouth answers a whole short phrase in
+  0.1-0.3 s without streaming; streaming would matter only for long first
+  clauses. Open models in the same class: Kokoro, Piper, Kitten TTS.
 
 ## Weak spots, with status
 
-| #   | weak spot                                            | status                         |
-| --- | ---------------------------------------------------- | ------------------------------ |
-| 1   | card markup read aloud                               | FIXED cycle 1                  |
-| 2   | any sound killed the answer (280 ms, no resume)      | FIXED cycle 1 (pause/resume)   |
-| 3   | its own voice through the speaker interrupted it     | FIXED cycle 1 (onset + echo)   |
-| 4   | stuck "speaking" on a suspended AudioContext         | FIXED cycle 1 (watchdog)       |
-| 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)         |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252)  |
-| 7   | energy VAD: a fan or street noise counts as speech   | OPEN -- Silero vad-web         |
-| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)          |
-| 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3          |
-| 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s      |
-| 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)   |
-| 11  | voice picker only for the app language               | OPEN                           |
-| 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up         |
-| 13  | English hearing is still whisper, ~2.6 s             | FIXED cycle 5 (Parakeet v2)    |
-| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s | OPEN -- measure per hop        |
-| 15  | English first sound ~2 s (Kokoro in the whisper pod) | OPEN -- own service / Piper en |
+| #   | weak spot                                            | status                           |
+| --- | ---------------------------------------------------- | -------------------------------- |
+| 1   | card markup read aloud                               | FIXED cycle 1                    |
+| 2   | any sound killed the answer (280 ms, no resume)      | FIXED cycle 1 (pause/resume)     |
+| 3   | its own voice through the speaker interrupted it     | FIXED cycle 1 (onset + echo)     |
+| 4   | stuck "speaking" on a suspended AudioContext         | FIXED cycle 1 (watchdog)         |
+| 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)           |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252)    |
+| 7   | energy VAD: a fan or street noise counts as speech   | OPEN -- Silero vad-web           |
+| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)            |
+| 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3            |
+| 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s        |
+| 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)     |
+| 11  | voice picker only for the app language               | OPEN                             |
+| 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up           |
+| 13  | English hearing is still whisper, ~2.6 s             | FIXED cycle 5 (Parakeet v2)      |
+| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s | OPEN -- measure per hop          |
+| 15  | English first sound ~2 s (Kokoro in the whisper pod) | FIXED cycle 6 (mouth, 8 threads) |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 
@@ -290,8 +341,10 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    is on it -- cycle 1 found #3242's bare `<img>` this way.
 3. Take the top OPEN row above. One row per PR is fine; mutation-test it.
 4. After merge: `./tri loop` until player SUCCESS, then `./tri voice`. If
-   the PR touched `deployment/gigaam`, also `./tri ears deploy` (both
-   services; `./tri ears` then shows each deploy and the render's routing).
+   the PR touched `deployment/gigaam`, also `./tri ears deploy ru` and
+   `./tri ears deploy en`; if it touched `deployment/mouth`,
+   `./tri mouth deploy`. `./tri ears` then shows every deploy and the
+   render's routing for hearing and speaking.
 5. Update the tables here in the same PR.
 
 ## Common issues

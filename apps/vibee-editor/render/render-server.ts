@@ -8907,9 +8907,12 @@ const server = createServer(async (req, res) => {
         } catch {
           return sendJson(res, 400, { error: 'bad json' })
         }
+        const t0 = Date.now()
         const out = await voice.speak(body)
         if (!out.ok) return sendJson(res, out.status, { error: out.error })
         res.writeHead(200, {
+          // Which engine spoke and how long it took; `tri voice` reads it.
+          'Server-Timing': `speak;dur=${Date.now() - t0};desc="${out.engine}"`,
           'Content-Type': out.contentType,
           'Content-Length': out.audio.length,
           'Cache-Control': 'no-store',
