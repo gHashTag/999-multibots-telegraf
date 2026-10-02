@@ -63,6 +63,17 @@ describe('split-reel.t27 against the host', () => {
     expect(SPEC.OWN_VOICE).toBe(true)
   })
 
+  it('a tail shorter than a second joins the shot before it', () => {
+    // A 13.35 s voice (2026-10-02) left an 11-frame split at the very end.
+    expect(segCount(401)).toBe(5)
+    expect(lastLen(401)).toBe(56)
+    expect(segCount(190)).toBe(2)
+    expect(lastLen(190)).toBe(130)
+    expect(segCount(61)).toBe(1)
+    expect(lastLen(61)).toBe(61)
+    expect(splitSegments(401).at(-1)!.type).toBe('fullscreen')
+  })
+
   it('in a split the face fills the lower half, not a circle', () => {
     // The first reel from this spec came out with SplitTalkingHead's default:
     // a 25% circle on black under the b-roll.

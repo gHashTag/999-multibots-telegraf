@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "split-reel" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const COMPOSITION = "SplitTalkingHead" satisfies string;
 export const FACE_SPEC = "owner-studio" satisfies string;
 export const LIPSYNC_MODEL = "kie/kling/ai-avatar-standard" satisfies string;
@@ -17,11 +17,16 @@ export const OPEN_FULL_FRAMES = 60 satisfies number;
 export const SPLIT_FRAMES = 120 satisfies number;
 export const FULL_FRAMES = 45 satisfies number;
 export const MAX_SECONDS = 15 satisfies number;
+export const MIN_SHOT_FRAMES = 30 satisfies number;
 export const SPLIT_PCT = 50 satisfies number;
 export const FACE_FILLS_HALF = true satisfies boolean;
 export const CAPTION_COLOR = "#FFFF00" satisfies string;
 export const WORDS_PER_CAPTION = 1 satisfies number;
 export const TEXT_IN_BROLL = false satisfies boolean;
+// t27c gen-ts: fn raw_count was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn raw_last was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn raw_before_last was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn tail_joins was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn segment_count was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn last_frames was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn fits was not emitted -- this backend lowers declarations, not bodies.
@@ -29,10 +34,11 @@ export const TEXT_IN_BROLL = false satisfies boolean;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "COMPOSITION", "FACE_SPEC", "LIPSYNC_MODEL", "BROLL_MODEL", "OWN_VOICE", "FPS", "OPEN_FULL_FRAMES", "SPLIT_FRAMES", "FULL_FRAMES", "MAX_SECONDS", "SPLIT_PCT", "FACE_FILLS_HALF", "CAPTION_COLOR", "WORDS_PER_CAPTION", "TEXT_IN_BROLL"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "COMPOSITION", "FACE_SPEC", "LIPSYNC_MODEL", "BROLL_MODEL", "OWN_VOICE", "FPS", "OPEN_FULL_FRAMES", "SPLIT_FRAMES", "FULL_FRAMES", "MAX_SECONDS", "MIN_SHOT_FRAMES", "SPLIT_PCT", "FACE_FILLS_HALF", "CAPTION_COLOR", "WORDS_PER_CAPTION", "TEXT_IN_BROLL"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

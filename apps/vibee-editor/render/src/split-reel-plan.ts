@@ -46,6 +46,12 @@ export function splitSegments(
     push('split', SPEC.SPLIT_FRAMES)
     push('fullscreen', SPEC.FULL_FRAMES)
   }
+  // A tail shorter than a second is a flash nobody can read: it joins the shot before it.
+  const last = out[out.length - 1]
+  if (out.length > 1 && last.durationFrames < SPEC.MIN_SHOT_FRAMES) {
+    out.pop()
+    out[out.length - 1].durationFrames += last.durationFrames
+  }
   return out
 }
 
