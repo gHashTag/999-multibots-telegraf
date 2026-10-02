@@ -31,11 +31,10 @@ export function canShowMiniAppButton(chatType?: string): boolean {
 }
 
 /**
- * Мини-апп открывается по стартовому маршруту и сам уводит на /feed.
- * startParam соответствует таблице START_PARAM_ROUTES в
- * apps/vibee-editor/player/src/components/Telegram/TelegramProvider.tsx —
- * значения: feed, search, learn, editor, create, avatar, video, image,
- * audio, profile, hive, chat, club, browser.
+ * The mini app opens on a start route and moves on to /feed by itself.
+ * startParam must be a key of START_PARAM_ROUTES in
+ * apps/vibee-editor/player/src/components/Telegram/TelegramProvider.tsx --
+ * the table is the only list; an unknown value silently lands on the feed.
  */
 export function buildMiniAppUrl(startParam?: string): string {
   if (!startParam) return MINI_APP_URL

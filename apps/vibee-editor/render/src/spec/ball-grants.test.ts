@@ -54,6 +54,14 @@ const MAIL = [
     counterparties: ['friend@home.example'],
     exported_at: hoursAgo(1),
   },
+  {
+    matter: 'Robot notice nobody linked',
+    owes_reply: 'us',
+    stage: 'notice',
+    days_since: 1,
+    counterparties: ['noreply@robots.example'],
+    exported_at: hoursAgo(1),
+  },
 ]
 
 const LINKS = [
@@ -107,6 +115,8 @@ function stubPool(grants: Record<string, string[]> = {}) {
 type Board = {
   total: number
   counts: Record<string, number>
+  automated: number
+  pooled: number
   sources: Record<string, { status: string; cards: number }>
   clients: Array<{
     key: string
@@ -259,6 +269,12 @@ describe('automation/ball-grants -- the spec, against the host', () => {
     expect(b.total).toBe(1)
     expect(b.sources.mail.cards).toBe(1)
     expect(Object.values(b.counts).reduce((a, n) => a + n, 0)).toBe(1)
+    // Not even a count of the matters outside the grant: the robot notice
+    // is automated, but it is not the viewer's to count.
+    expect(b.automated).toBe(0)
+    expect(b.pooled).toBe(0)
+    const own = await board(stubPool(), BALL_OWNER)
+    expect(own.automated).toBeGreaterThan(0)
 
     // The t27.ai game token cannot open the board at all.
     const { GAME_TOKEN_TOOLS } = await import('../agent/routes')

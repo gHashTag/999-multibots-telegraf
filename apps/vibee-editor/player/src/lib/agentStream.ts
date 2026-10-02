@@ -32,6 +32,8 @@ import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { reportClientError } from '@/lib/clientErrorBeacon'
 import { markEmbedSignInNeeded } from '@/lib/embedGuest'
+import { IS_EMBED } from '@/lib/embed'
+import { openLoginAtom } from '@/atoms/user'
 
 /**
  * WHICH CONVERSATIONS ARE ANSWERING RIGHT NOW (owner, 2026-09-26: "so I can
@@ -370,6 +372,20 @@ export async function sendToAgent(
       // In the game's TRI frame a refused credential means "sign in", and the
       // route gate swaps the chat for the sign-in panel (lib/embedGuest.ts).
       if (res.status === 401) markEmbedSignInNeeded()
+      /*
+       * Outside that frame a 401 is a browser with no session -- the person
+       * who pressed "Try it first" on the welcome screen outside Telegram.
+       * They were shown the server's raw JSON and no way in. The one sign-in
+       * card opens instead, and the bubble says the same thing in words.
+       */
+      if (res.status === 401 && !IS_EMBED) {
+        editorStore.set(openLoginAtom, 'chat')
+        patch(agentId, m => ({
+          ...m,
+          text: 'Чтобы агент ответил, войдите через Telegram — переписка бесплатна.',
+        }))
+        return
+      }
       // Код И тело: тело — единственное место, где сервер объясняет причину.
       const body = await res.text().catch(() => '')
       patch(agentId, m => ({

@@ -35,6 +35,7 @@ const HomePage = lazy(() => import('@/pages/Home'))
 const EditorPage = lazy(() => import('@/pages/Editor'))
 const ChatPage = lazy(() => import('@/pages/Chat'))
 const AgentsPage = lazy(() => import('@/pages/Agents'))
+const WelcomePage = lazy(() => import('@/pages/Welcome'))
 const AgentHarnessPage = lazy(() => import('@/pages/AgentHarness'))
 const AgentDashboardPage = lazy(() => import('@/pages/AgentDashboard'))
 const ProfilePage = lazy(() => import('@/pages/Profile'))
@@ -42,6 +43,7 @@ const FeedPage = lazy(() => import('@/pages/Feed'))
 const BlogPage = lazy(() => import('@/pages/Blog'))
 const GeneratePage = lazy(() => import('@/pages/Generate'))
 const HivePage = lazy(() => import('@/pages/Hive'))
+const HiveAccount = lazy(() => import('@/pages/HiveAccount'))
 import { GAME_PATH, gamePathFor } from '@/lib/hive'
 const BrowserPage = lazy(() => import('@/pages/Browser'))
 const StoryPage = lazy(() => import('@/pages/Story'))
@@ -372,6 +374,7 @@ function RouteTable() {
       {/* The Queen's board inside the app: /game, and /game/<view> for each
           of her views (owner, 2026-10-01). One route, so moving between views
           never remounts the frame. nginx sends a top-level /queen/ here. */}
+      <Route path="/game/account" element={<HiveAccount />} />
       <Route path="/game/*" element={<HivePage />} />
       {/* Its former addresses, with the view their hash named. */}
       <Route path="/queen" element={<ToGame />} />
@@ -394,6 +397,7 @@ function RouteTable() {
       {/* One group, read-only: what was said and who said it (#2950). */}
       <Route path="/crm/g/:chatId/chat" element={<CrmGroupPage />} />
       <Route path="/templates" element={<TemplatesPage />} />
+      <Route path="/welcome" element={<WelcomePage />} />
       <Route path="/agents" element={<AgentsPage />} />
       <Route path="/agents/connect" element={<AgentHarnessPage />} />
       <Route path="/agents/:agentId/work" element={<ChatPage />} />

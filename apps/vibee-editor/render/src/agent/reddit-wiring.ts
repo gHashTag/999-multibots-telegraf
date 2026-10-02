@@ -20,6 +20,7 @@
  */
 import type { Queryable } from '../browser/sessions'
 import {
+  ANSWER_WAIT_MS,
   redditTick,
   submitUrl,
   subredditsOf,
@@ -72,7 +73,7 @@ export async function runRedditDesk(pool: Queryable): Promise<string> {
     about: ABOUT,
     subs,
     readJson: url => readAsThePerson(pool, owner, url),
-    ask: what => requestPermission(pool, owner, what),
+    ask: what => requestPermission(pool, owner, what, ANSWER_WAIT_MS),
     answerOf: async id =>
       ((await readApproval(pool, id))?.state ?? 'expired') as Answer,
     draft: text => writeDraft(text),

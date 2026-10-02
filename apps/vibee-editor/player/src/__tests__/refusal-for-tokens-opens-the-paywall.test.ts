@@ -91,7 +91,7 @@ describe('a refusal for want of tokens is told apart from a failure', () => {
     // Position, not presence: a call that drifted out of the failure branch
     // would still satisfy a substring check.
     const setter = panel.indexOf('setShowPaywall(true)', at)
-    const shows = panel.indexOf('setError(result.error', at)
+    const shows = panel.indexOf('setError(refusal(result)', at)
     expect(setter).toBeGreaterThan(-1)
     expect(setter).toBeLessThan(shows)
   })

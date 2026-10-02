@@ -37,7 +37,9 @@ describe('the hive tab is her page, whole', () => {
     // Owner, 2026-10-01: "rename the main page to app.t27.ai/game".
     expect(hive!.route).toBe('/game')
     expect(hive!.match.test('/game')).toBe(true)
-    expect(hive!.match.test('/game/kanban')).toBe(true)
+    expect(hive!.match.test('/game/specs')).toBe(true)
+    // The kanban is the Tasks tab's, and only one tab may be lit at a time.
+    expect(hive!.match.test('/game/kanban')).toBe(false)
     expect(hive!.match.test('/gamer')).toBe(false)
     // Links to the former sub-tabs (`/hive/comb`, `/hive/tree`) may still be
     // out there in chats; they must land on the hive, not on a blank screen.
@@ -46,6 +48,32 @@ describe('the hive tab is her page, whole', () => {
     // The board's own address in the app lights the same tab.
     expect(hive!.match.test('/queen')).toBe(true)
     expect(hive!.match.test('/queenly')).toBe(false)
+  })
+
+  it('the kanban is a tab of its own, and one address lights one tab', () => {
+    // Owner, 2026-10-01: "make a tab with the tasks" -- app.t27.ai/game/kanban.
+    const tasks = PRIMARY_NAV_ITEMS.find(x => x.id === 'tasks')
+    expect(tasks, 'the tasks tab is missing from the bar').toBeTruthy()
+    expect(tasks!.route).toBe('/game/kanban')
+    // The route is the board's own kanban view, not a second kanban.
+    expect(frameHashFor(tasks!.route, '')).toBe('#/queen?tab=kanban')
+    expect(tasks!.match.test('/game/kanban')).toBe(true)
+    expect(tasks!.match.test('/game/kanbanx')).toBe(false)
+    expect(tasks!.match.test('/game')).toBe(false)
+    // The bar lights the first match; two matches would light the wrong one.
+    for (const path of [
+      '/game',
+      '/game/kanban',
+      '/game/specs',
+      '/hive',
+      '/queen',
+    ]) {
+      const lit = PRIMARY_NAV_ITEMS.filter(x => x.match.test(path))
+      expect(
+        lit.map(x => x.id),
+        path
+      ).toHaveLength(1)
+    }
   })
 })
 

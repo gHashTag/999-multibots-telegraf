@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
 import { agentMessagesAtomFor, agentDraftAtomFor } from '@/atoms/agentChat'
 import {
@@ -39,12 +45,21 @@ import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-ma
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { useEarnedAgent } from '@/hooks/useAgentAcceptance'
 import { AgentSkillsPanel } from '@/components/Chat/AgentSkillsPanel'
+import { MyStoryWidget } from '@/components/Story/MyStoryWidget'
 import { AgentTemplates } from '@/components/Chat/AgentTemplates'
 import { AgentAside } from '@/components/Chat/AgentAside'
 import { ClientHelperPicker } from '@/components/Chat/ClientHelperPicker'
 import { ConversationRail } from '@/components/Chat/ConversationRail'
 import { stopAgent, threadKeyOf } from '@/lib/agentStream'
+import {
+  createChatVoiceSession,
+  voiceSeparateAtom,
+} from '@/lib/voice/chatVoice'
+import type { VoiceSession } from '@/lib/voice/session'
+import { VoiceOverlay } from '@/components/Voice/VoiceOverlay'
+import { VoiceDock } from '@/components/Voice/VoiceDock'
 import { isConversationId, newConversationId } from '@/lib/conversations'
+import { useBackTo } from '@/lib/backTo'
 import { AGENT_SUGGESTIONS, agentGate } from './agentSuggestions'
 import './Chat.css'
 
@@ -342,6 +357,28 @@ function ChatThread({
   const [agentAsideOpen, setAgentAsideOpen] = useState(false)
   // The Queen's panel: a column on a wide screen, a sheet otherwise.
   const [queenOpen, setQueenOpen] = useState(false)
+  // "To the client" steps back to the card it came from, or takes the
+  // chat's place in history -- never pushes a card whose Back returns here.
+  const backToClient = useBackTo(client ? `/crm/${client}` : '/crm')
+  // The client's name, as the card beside the conversation reads it. Kept
+  // with its id: a name must not outlive a switch to another client.
+  const [named, setNamed] = useState<{ id: string; name: string } | null>(null)
+  const onClientName = useCallback(
+    (name: string) => {
+      if (client) setNamed({ id: client, name })
+    },
+    [client]
+  )
+  // The card page hands the name over with the link (tick 7), so the row
+  // names the client before the card beside it has read anything. The state
+  // belongs to this entry, whose address holds this client.
+  const handed = (useLocation().state as { name?: unknown } | null)?.name
+  const clientName =
+    named?.id === client
+      ? named.name
+      : typeof handed === 'string' && handed
+        ? handed
+        : null
   /*
    * The balance and the buy flow moved to useTokenTopUp so the PROFILE can use
    * the same one. A second copy is how one of the two quietly stops verifying.
@@ -465,9 +502,21 @@ function ChatThread({
    * шёл посмотреть ленту и возвращался к оборванному ответу, даже когда
    * сервер честно досчитал. Теперь страница только зовёт и читает стор.
    */
+  // Voice mode (below): declared first because the box hands it typed lines.
+  const [voice, setVoice] = useState<VoiceSession | null>(null)
+  const voiceRef = useRef<VoiceSession | null>(null)
+  const [voiceSeparate, setVoiceSeparate] = useAtom(voiceSeparateAtom)
+
   const send = useCallback(
     (text: string) => {
       if ((!text.trim() && attachments.length === 0) || uploading) return
+      // Voice mode on: a typed line is a question in the same conversation,
+      // and its answer is spoken (VoiceDock). A file still goes the usual way.
+      if (voiceRef.current && attachments.length === 0) {
+        voiceRef.current.type(text)
+        setInput('')
+        return
+      }
       // Busy is not a reason to refuse: the line waits in the queue and
       // leaves when the answer in progress has ended (lib/agentStream.ts).
       sendOrQueue(text, attachments, {
@@ -492,6 +541,37 @@ function ChatThread({
       uploading,
     ]
   )
+
+  /*
+   * VOICE MODE. The session is created and started inside the tap itself:
+   * iOS opens the microphone and audio output only in direct response to a
+   * gesture, and a session started from an effect would stay silent there.
+   * It is bound to this conversation, so leaving the conversation ends it.
+   * Stopped explicitly rather than from an effect cleanup on `voice`, which
+   * StrictMode would run at once and cut the session it just opened.
+   *
+   * It is drawn INSIDE the chat (VoiceDock), the conversation in view; the
+   * full screen is a choice the person makes and the app remembers.
+   */
+  const langRef = useRef(lang)
+  langRef.current = lang
+  const openVoice = () => {
+    voiceRef.current?.stop()
+    const session = createChatVoiceSession(
+      messagesAtom,
+      { client, agent: client ? helper : marketplaceAgent, conversation },
+      () => langRef.current
+    )
+    void session.start()
+    voiceRef.current = session
+    setVoice(session)
+  }
+  const closeVoice = useCallback(() => {
+    voiceRef.current?.stop()
+    voiceRef.current = null
+    setVoice(null)
+  }, [])
+  useEffect(() => closeVoice, [threadKey, closeVoice])
 
   /*
    * THE AGENT'S PROPOSALS AS CARDS (lib/agentCards.ts). Only the latest
@@ -647,11 +727,19 @@ function ChatThread({
                 className="chat-client"
                 aria-label={t('crm.client.chat.title', { id: client })}
               >
-                <Link to={`/crm/${client}`} className="chat-client__back">
-                  ← {t('crm.client.chat.back')}
+                <Link
+                  to={`/crm/${client}`}
+                  className="chat-client__back"
+                  aria-label={t('crm.client.chat.back')}
+                  onClick={backToClient}
+                >
+                  ←{' '}
+                  <span className="chat-client__back-text">
+                    {t('crm.client.chat.back')}
+                  </span>
                 </Link>
                 <span className="chat-client__title">
-                  {t('crm.client.chat.title', { id: client })}
+                  {clientName ?? t('crm.client.chat.title', { id: client })}
                 </span>
                 {/* Narrow screens: the card opens as a sheet. Hidden in wide mode,
               where it is always beside the conversation. */}
@@ -937,6 +1025,14 @@ function ChatThread({
                 <AgentSkillsPanel agentId={marketplaceAgent} />
               ) : null}
               {/*
+                HER REELS, HERE (owner, 2026-10-02): the same widget as her
+                /story page, so a person talking to the agent sees it without
+                hunting for the door. Nothing is drawn unless her seller's
+                template is ready for her; open at the start, folded once the
+                conversation is under way.
+              */}
+              <MyStoryWidget onlyReady foldedIn={messages.length > 1} />
+              {/*
                 THE AGENT'S OWN REPEAT BUTTONS (owner, 2026-09-29): the
                 configured reel, the neuro-photo, the client gift -- here the
                 moment the agent is chosen, and in the agent panel for the
@@ -1032,6 +1128,13 @@ function ChatThread({
                 <li className="chat-queue__hint">{t('chat.queue.hint')}</li>
               </ol>
             ) : null}
+            {voice && !voiceSeparate ? (
+              <VoiceDock
+                session={voice}
+                onClose={closeVoice}
+                onExpand={() => setVoiceSeparate(true)}
+              />
+            ) : null}
             <div className="chat-input-container">
               {/*
                * ANY FILE, NOT ONLY MEDIA (2026-09-22). The picker used to accept
@@ -1092,6 +1195,26 @@ function ChatThread({
                   }, 350)
                 }}
               />
+              <button
+                type="button"
+                className="voice-btn"
+                data-testid="chat-voice"
+                aria-label={t('voice.open')}
+                title={t('voice.open')}
+                onClick={openVoice}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"
+                  />
+                </svg>
+              </button>
               {/* While THIS conversation is answering, the send button becomes
               Stop: it cuts this stream only (agentStream.stopAgent). */}
               {busy ? (
@@ -1116,6 +1239,13 @@ function ChatThread({
               )}
             </div>
             <p className="chat-composer-hint">{t('chat.composer.hint')}</p>
+            {voice && voiceSeparate ? (
+              <VoiceOverlay
+                session={voice}
+                onClose={closeVoice}
+                onDock={() => setVoiceSeparate(false)}
+              />
+            ) : null}
           </div>
         </div>
         {/*
@@ -1170,6 +1300,7 @@ function ChatThread({
               askDisabled={busy || uploading}
               open={asideOpen}
               onClose={() => setAsideOpen(false)}
+              onName={onClientName}
             />
             {queenOpen ? (
               <div

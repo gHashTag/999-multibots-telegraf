@@ -301,6 +301,12 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
    */
   appDeepLink?: string
   /**
+   * An agent package order (`?start=agentpkg_<id>`) from somebody who first
+   * had to be registered. The order was already answered in /start; this
+   * only tells CreateUserScene not to start the photo onboarding on top of it.
+   */
+  agentPackageOrdered?: boolean
+  /**
    * How this person said they want to pay, in the mini app's paywall, before
    * they were sent here. It may only NARROW what the bot offers -- see
    * helpers/railsForThisPerson.

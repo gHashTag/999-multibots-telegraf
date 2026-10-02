@@ -88,6 +88,69 @@ describe('a reply carrying a link to nothing', () => {
   })
 })
 
+describe('the self-hosted storage answers a missing object with 400', () => {
+  // supabase/storage-api behind the Railway gateway, measured 2026-10-02:
+  // HEAD and GET both answer 400, the verdict is only in the GET body.
+  const GATEWAY = ASSET_ORIGINS.find(o => o.includes('supabase-gateway'))!
+  const MISSING = `${GATEWAY}/landingpage/avatars/neuro_blogger_bot/levels/5.jpg`
+
+  function storageApi(body: unknown) {
+    return vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === 'HEAD'
+        ? ({ status: 400 } as Response)
+        : ({ status: 400, json: async () => body } as unknown as Response)
+    )
+  }
+
+  it('the gateway is one of our own stores', () => {
+    expect(GATEWAY).toBeDefined()
+    expect(assetUrlsIn(`Вот: ${MISSING}`)).toEqual([MISSING])
+  })
+
+  it('NoSuchKey in the body is a definite no', async () => {
+    vi.stubGlobal(
+      'fetch',
+      storageApi({ statusCode: '404', error: 'not_found', code: 'NoSuchKey' })
+    )
+    await expect(linkIsDead(MISSING)).resolves.toBe(true)
+    const out = await guardAssetLinks(`Держи: ${MISSING}`)
+    expect(out).not.toContain(MISSING)
+  })
+
+  it('NoSuchBucket in the body is a definite no', async () => {
+    vi.stubGlobal(
+      'fetch',
+      storageApi({ statusCode: '404', code: 'NoSuchBucket' })
+    )
+    await expect(linkIsDead(MISSING)).resolves.toBe(true)
+  })
+
+  it('any other 400 is not an answer about the object', async () => {
+    vi.stubGlobal(
+      'fetch',
+      storageApi({ statusCode: '400', code: 'InvalidRequest' })
+    )
+    await expect(linkIsDead(MISSING)).resolves.toBe(false)
+  })
+
+  it('a 400 with a body that is not JSON leaves the link alone', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) =>
+        init?.method === 'HEAD'
+          ? ({ status: 400 } as Response)
+          : ({
+              status: 400,
+              json: async () => {
+                throw new SyntaxError('not json')
+              },
+            } as unknown as Response)
+      )
+    )
+    await expect(linkIsDead(MISSING)).resolves.toBe(false)
+  })
+})
+
 describe('not knowing never costs a working file', () => {
   it('a network failure leaves the link alone', async () => {
     vi.stubGlobal('fetch', store({ [REAL]: 'network' }))

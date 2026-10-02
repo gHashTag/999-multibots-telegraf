@@ -347,6 +347,11 @@ export async function спроситьАгента(
     /** Only a model that calls tools may answer (the unattended sweep). */
     toolsOnly?: boolean
     /**
+     * No media tools for this turn: the Manager Agent is a text model for
+     * the CRM. The render accepts it from anyone, since it only takes away.
+     */
+    textOnly?: boolean
+    /**
      * THE PERSON'S OWN STOP.
      *
      * An abort from here is NOT a timeout: it ends the turn with
@@ -459,6 +464,7 @@ export async function спроситьАгента(
             ? { seller_id: opts.seller }
             : {}),
           ...(opts.toolsOnly ? { tools_only: true } : {}),
+          ...(opts.textOnly ? { text_only: true } : {}),
           ...(opts.personNote ? { person_note: opts.personNote } : {}),
           ...(opts.faceOf && /^\d{5,15}$/.test(opts.faceOf)
             ? { face_of: opts.faceOf }

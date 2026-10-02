@@ -70,13 +70,48 @@ export async function allBotOwners(): Promise<string[]> {
     headers: { apikey: key, Authorization: `Bearer ${key}` },
   })
   if (!res.ok) throw new Error(`avatars replied ${res.status}`)
-  const rows = (await res.json()) as Array<{ telegram_id: string | number | null }>
+  const rows = (await res.json()) as Array<{
+    telegram_id: string | number | null
+  }>
   const out = new Set<string>()
   for (const r of rows) {
     const id = String(r.telegram_id ?? '').trim()
     if (/^\d{5,15}$/.test(id)) out.add(id)
   }
   return [...out]
+}
+
+/**
+ * Every bot owner with the bots they own: `avatars` read whole. For the
+ * KEEPER's client list only (crm-client-workspace-tools.ts) -- the people who
+ * own our bots are the platform's own clients, and nobody else may be told who
+ * owns what. The caller checks the role before it calls this.
+ */
+export async function botsByOwner(): Promise<Map<string, string[]>> {
+  const url = (process.env.SUPABASE_URL || '').replace(/\/+$/, '')
+  const key = process.env.SUPABASE_SERVICE_KEY || ''
+  const out = new Map<string, string[]>()
+  if (!url || !key) return out
+  const res = await fetch(
+    `${url}/rest/v1/avatars?select=telegram_id,bot_name`,
+    {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    }
+  )
+  if (!res.ok) throw new Error(`avatars replied ${res.status}`)
+  const rows = (await res.json()) as Array<{
+    telegram_id: string | number | null
+    bot_name: string | null
+  }>
+  for (const r of rows) {
+    const id = String(r.telegram_id ?? '').trim()
+    const bot = String(r.bot_name ?? '').trim()
+    if (!/^\d{5,15}$/.test(id) || !bot) continue
+    const bots = out.get(id) ?? []
+    if (!bots.includes(bot)) bots.push(bot)
+    out.set(id, bots)
+  }
+  return out
 }
 
 async function visibilityFor(ctx?: ToolContext) {

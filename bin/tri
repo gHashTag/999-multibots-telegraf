@@ -52,11 +52,15 @@ tri — оболочка Trinity S³AI
   tri margin     маржа каждой картинки и видео: себестоимость, токены, выручка по курсу клуба
   tri card       как выглядит карточка владельца на живых данных
   tri ball [show|push [--dry] [owner/repo ...]]  доска «где мяч»: CRM + почта + открытые PR и баги по клиентам (specs/automation/ball-board.t27)
+  tri growth                              следующий шаг к заработку от Королевы, только чтение (specs/automation/queen-growth.t27)
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
   tri agents [--dry] [--no-record] [ids…]  приёмка агентов на владельце; итог уходит на карточки рынка
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
+  tri blog-share [N]  судьба последних статей блога в соцсетях: спрошено, закрыто через сколько минут, что сделала каждая сеть
+  tri no-verify-debt [base]  шлюзы, пропущенные коммитами с --no-verify, по всей ветке (кириллица, секреты, prettier, eslint)
+  tri browser [--json]  состояние браузера: отвечает ли (pod) и что в нём открыто (tabs)
   tri pod        отвечает ли удалённый браузер И С КАКИХ ПОР (код 1 — не отвечает)
   tri tabs [--json]  сколько вкладок открыто в поде и близко ли до потолка PID (ничего не закрывает)
   tri heal [--json]  перезапустить браузер, НО только если он действительно молчит (отказ — нормальный ответ)
@@ -72,6 +76,8 @@ tri — оболочка Trinity S³AI
   tri spec check <файл.md>|new "<заголовок>"  возьмёт ли Королева issue из беклога: та же проверка спека (## Boundary + разделы), что у неё; new печатает готовый делегируемый шаблон
   tri spec-bind <kind/id> [t27]  начать привязку спеки t27: копия+gen-ts, тест с дословными заголовками (падающие заглушки), снять с храповика
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
+  tri loop-guard [start|end] [--tests "<cmd>"]  (tests default: the journal's <!-- loop-tests: --> marker) may this cron tick touch the branch: lock against overlapping ticks, uncommitted files, behind origin, PR merged/closed, main touched the same files, baseline run BEFORE edits, past mutations (.claude/loop-state/<name>-mutants.json) still killed, stale anchor = stop; `end` keeps the lock while anchors are stale or the tree is dirty; exit 1 = stop
+  tri precommit [gate ...]                     run the commit's lefthook gates (all, or the named ones) without committing, in the loop's stripped env; e.g. tri precommit player-types -- the player's tsconfig.json checks nothing, the gate uses tsconfig.app.json
   tri stop [id]  прервать идущие ходы человека (дуэт и a2a — у них нет сокета)
   tri faces [id]  очередь продавца в том порядке, в каком её увидит обход: у кого есть лицо
   tri writers <колонка>  кто ПИШЕТ то, что читает код: может ли писатель не сработать ни разу
@@ -91,6 +97,8 @@ tri — оболочка Trinity S³AI
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri mutants <list.json> -- <команда>          пакет мутаций против одного прогона: таблица убитых и выживших; у мутанта "tests" — его файлы тестов
   tri mutants --check <list.json>...            только якоря: все мутанты, чей `from` не ровно один раз в файле (после рефакторинга), ничего не запуская
+  tri mutants --adopt <proven.json> <guards.json>  keep a killed batch in a loop's guard list: paths re-rooted from where the batch ran, duplicates skipped, anchors checked before writing
+  tri mutants --reanchor <list.json>  follow an indent-only move (code wrapped in one more element): re-anchors `from`/`to` found once with only leading whitespace shifted; a changed token stays stale
   tri mutants --heal                            вернуть файл, в котором убитый прогон (перезапуск контейнера) оставил мутанта; сам зовётся в начале каждого прогона и в tri loop
   tri spec-controls <spec.t27> <controls.json>   отрицательные контроли спеки на копии: пойман/пропущен/не собралась (по таблице t27c)
   tri spec-check <spec.t27> [controls.json] [--seal]  ворота спеки одной строкой: тесты по таблице (BLOCKED ≠ зелёно), пустые тесты на копии в своей папке, контроли, печать; запись в tri gate
@@ -650,6 +658,7 @@ case "${1:-}" in
   pipeline) (cd "$RENDER" && npx tsx scripts/pipeline-check.ts) ;;
   card)   shift; bash "$ROOT/bin/helpers/card.sh" "$ROOT" "$@" ;;
   ball)   shift; bash "$ROOT/bin/helpers/ball.sh" "$ROOT" "$@" ;;
+  growth) shift; bash "$ROOT/bin/helpers/growth.sh" "$ROOT" ;;
   prices)   (cd "$RENDER" && npx tsx scripts/prices.ts) ;;
   # The margin of every image and video the code can sell, from the code's
   # own tables: no network, no tokens. Exit 1 when any sale is below cost.
@@ -2040,6 +2049,15 @@ PYEOF
   books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;
   logins) shift; bash "$ROOT/bin/helpers/logins.sh" "$ROOT" "$@" ;;
   pod) shift; bash "$ROOT/bin/helpers/pod.sh" "$ROOT" "$@" ;;
+  # `tri browser` had no case and fell through to usage. It is the one door
+  # for "how is the browser": answers (watch record, pod.sh) then reachable
+  # tabs (tabs.sh) -- the split #3152 made. Exit code is pod.sh's.
+  browser) shift
+    bash "$ROOT/bin/helpers/pod.sh" "$ROOT" "$@"; rc=$?
+    [ "${1:-}" = "--json" ] || bash "$ROOT/bin/helpers/tabs.sh" "$ROOT"
+    exit $rc ;;
+  blog-share) shift; bash "$ROOT/bin/helpers/blog-share.sh" "$ROOT" "$@" ;;
+  no-verify-debt) shift; bash "$ROOT/bin/helpers/no-verify-debt.sh" "$ROOT" "$@" ;;
   tabs) shift; bash "$ROOT/bin/helpers/tabs.sh" "$ROOT" "$@" ;;
   heal) shift; bash "$ROOT/bin/helpers/heal.sh" "$ROOT" "$@" ;;
   verdicts) shift; bash "$ROOT/bin/helpers/verdicts.sh" "$ROOT" "$@" ;;
@@ -2068,6 +2086,8 @@ PYEOF
   facts)  shift; bash "$ROOT/bin/helpers/facts.sh" "$ROOT" "$@" ;;
   sweep)  shift; bash "$ROOT/bin/helpers/sweep.sh" "$ROOT" "$@" ;;
   inflight) shift; bash "$ROOT/bin/helpers/inflight.sh" "$ROOT" ;;
+  loop-guard) shift; bash "$ROOT/bin/helpers/loop-guard.sh" "$ROOT" "$@" ;;
+  precommit) shift; bash "$ROOT/bin/helpers/precommit.sh" "$ROOT" "$@" ;;
   funnel) shift; bash "$ROOT/bin/helpers/funnel.sh" "$ROOT" "$@" ;;
   headroom) shift; bash "$ROOT/bin/helpers/headroom.sh" "$ROOT" "$@" ;;
   lost)   shift; bash "$ROOT/bin/helpers/lost.sh" "$ROOT" "$@" ;;

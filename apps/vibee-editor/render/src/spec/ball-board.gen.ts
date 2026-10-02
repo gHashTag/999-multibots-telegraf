@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "ball-board" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 7 satisfies number;
 export const TOOL = "ball_board" satisfies string;
 export const PUSH_TOOL = "ball_work_push" satisfies string;
 export const LINK_TOOL = "ball_link" satisfies string;
@@ -14,6 +14,8 @@ export const DOOR = "/mcp" satisfies string;
 export const SOURCE_CRM = "crm" satisfies string;
 export const SOURCE_MAIL = "mail" satisfies string;
 export const SOURCE_WORK = "github" satisfies string;
+export const SOURCE_BROWSER = "browser" satisfies string;
+export const SOURCE_MEETING = "meeting" satisfies string;
 export const CRM_TOOL = "crm_waiting" satisfies string;
 export const MAIL_TABLE = "crm_matter_digest" satisfies string;
 export const WORK_TABLE = "ball_work_digest" satisfies string;
@@ -34,14 +36,69 @@ export const LINK_EMAIL = "email" satisfies string;
 export const LINK_DOMAIN = "domain" satisfies string;
 export const LINK_REPO = "repo" satisfies string;
 export const LINK_LABEL = "label" satisfies string;
+export const LINK_TITLE = "title" satisfies string;
 export const PROJECT_CLIENT = "project" satisfies string;
 export const UNLINKED_MAIL_IS_ITS_OWN_ROW = true satisfies boolean;
+export const SPEC_OF_CRM = "specs/automation/crm-client-workspace.t27" satisfies string;
+export const SPEC_OF_MAIL = "specs/automation/mail-push.t27" satisfies string;
+export const SPEC_OF_BOARD = "specs/automation/ball-board.t27" satisfies string;
+export const SPEC_OF_BROWSER = "specs/automation/browser-sign-in.t27" satisfies string;
+export const SPEC_OF_MEETING = "specs/automation/meeting-reminders.t27" satisfies string;
+export const UNSPECCED_IS_COUNTED = true satisfies boolean;
+export const SHARED_DOMAINS_SEEN = 50 satisfies number;
+export const BROWSER_OWN_ONLY = true satisfies boolean;
+export const BROWSER_OPEN_AT = "/game/browser" satisfies string;
+export const CARD_CARRIES_NO_TOKEN = true satisfies boolean;
+export const TYPED_IS_A_LENGTH = true satisfies boolean;
+export const PROBES_ARE_NOT_WORK = true satisfies boolean;
+export const ASK_TTL_MIN = 10 satisfies number;
+export const STATE_LIVE = "live" satisfies string;
+export const STATE_STARTING = "starting" satisfies string;
+export const MEETING_OWN_ONLY = true satisfies boolean;
+export const MEETING_SOON_H = 24 satisfies number;
+export const MEETING_AHEAD_H = 168 satisfies number;
+export const MEETING_ASK_BACK_H = 72 satisfies number;
+export const MEETING_CARD_NO_TOKEN = true satisfies boolean;
+export const MEETING_OPEN_STATUS = "planned" satisfies string;
+export const OWN_DOMAIN = "t27.ai" satisfies string;
+export const RELAY_DOMAIN = "hh.ru" satisfies string;
+export const RELAY_SEEN = 48 satisfies number;
+export const AUTOMATED_IS_COUNTED = true satisfies boolean;
+export const AUTOMATED_SEEN = 5 satisfies number;
+export const POOLED_IS_COUNTED = true satisfies boolean;
+export const POOLED_SEEN = 2 satisfies number;
+export const CRM_MAIL_OVERLAP_SEEN = 0 satisfies number;
 export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn mail_ball was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn automated_marker was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn relay_domain was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn nobody_to_answer was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn mail_ball_weighed was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn pooled_matter was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn work_ball was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn ball_rank was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn shared_domain was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn may_link was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn title_claims was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn card_spec was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn browser_ball was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn browser_is_card was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn browser_field_shown was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn meeting_ball was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn meeting_field_shown was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn browser_visible was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn fresh was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_read was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -54,7 +111,7 @@ export const RUN_LIVE = false satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TOOL", "PUSH_TOOL", "LINK_TOOL", "DOOR", "SOURCE_CRM", "SOURCE_MAIL", "SOURCE_WORK", "CRM_TOOL", "MAIL_TABLE", "WORK_TABLE", "LINK_TABLE", "BALL_OURS", "BALL_DUE", "BALL_THEIRS", "BALL_NONE", "WAITING_LABEL", "BUG_LABEL", "STALE_H", "SNAPSHOT_REPLACES", "CARDS_MAX", "MAIL_OWNER_ONLY", "WORK_OWNER_ONLY", "REFUSE_BEFORE_READ", "LINK_EMAIL", "LINK_DOMAIN", "LINK_REPO", "LINK_LABEL", "PROJECT_CLIENT", "UNLINKED_MAIL_IS_ITS_OWN_ROW", "RUN_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TOOL", "PUSH_TOOL", "LINK_TOOL", "DOOR", "SOURCE_CRM", "SOURCE_MAIL", "SOURCE_WORK", "SOURCE_BROWSER", "SOURCE_MEETING", "CRM_TOOL", "MAIL_TABLE", "WORK_TABLE", "LINK_TABLE", "BALL_OURS", "BALL_DUE", "BALL_THEIRS", "BALL_NONE", "WAITING_LABEL", "BUG_LABEL", "STALE_H", "SNAPSHOT_REPLACES", "CARDS_MAX", "MAIL_OWNER_ONLY", "WORK_OWNER_ONLY", "REFUSE_BEFORE_READ", "LINK_EMAIL", "LINK_DOMAIN", "LINK_REPO", "LINK_LABEL", "LINK_TITLE", "PROJECT_CLIENT", "UNLINKED_MAIL_IS_ITS_OWN_ROW", "SPEC_OF_CRM", "SPEC_OF_MAIL", "SPEC_OF_BOARD", "SPEC_OF_BROWSER", "SPEC_OF_MEETING", "UNSPECCED_IS_COUNTED", "SHARED_DOMAINS_SEEN", "BROWSER_OWN_ONLY", "BROWSER_OPEN_AT", "CARD_CARRIES_NO_TOKEN", "TYPED_IS_A_LENGTH", "PROBES_ARE_NOT_WORK", "ASK_TTL_MIN", "STATE_LIVE", "STATE_STARTING", "MEETING_OWN_ONLY", "MEETING_SOON_H", "MEETING_AHEAD_H", "MEETING_ASK_BACK_H", "MEETING_CARD_NO_TOKEN", "MEETING_OPEN_STATUS", "OWN_DOMAIN", "RELAY_DOMAIN", "RELAY_SEEN", "AUTOMATED_IS_COUNTED", "AUTOMATED_SEEN", "POOLED_IS_COUNTED", "POOLED_SEEN", "CRM_MAIL_OVERLAP_SEEN", "RUN_LIVE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

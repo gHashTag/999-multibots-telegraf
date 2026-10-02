@@ -7,14 +7,19 @@ import {
 import { Header } from '@/components/Header'
 import { useLanguage, type Language } from '@/hooks/useLanguage'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
-import { checkedDay, useAgentAcceptance } from '@/hooks/useAgentAcceptance'
+import { useAgentAcceptance } from '@/hooks/useAgentAcceptance'
+import { VerdictLine } from '@/components/Agents/VerdictLine'
+import { CheckedTools } from '@/components/Agents/CheckedTools'
 import { useAgentAvatars } from '@/hooks/useAgentAvatars'
 import { AgentFace } from '@/components/Chat/AgentFace'
+import { MyAgentPackage } from '@/components/Agents/MyAgentPackage'
+import { useUserLevel } from '@/hooks/useUserLevel'
+import { PackageCards } from '@/components/Agents/PackageCards'
 import './Agents.css'
 
 const copy = {
   en: {
-    eyebrow: 'T27 AGENT LABOUR MARKET',
+    eyebrow: 'T27 AGENT MARKET',
     title: 'Hire an outcome, not a chat.',
     intro:
       'The first specialist is already working. Every live agent has a visible scope, an isolated thread and evidence. Training agents cannot be hired yet.',
@@ -43,14 +48,15 @@ const copy = {
     reserve: 'quality reserve',
     platform: 'platform',
     honest: 'Token settlement: designed, not active yet',
-    checked: 'Checked on a real account',
-    checkFailed: 'Last check failed',
     streak: 'Daily checks passed in a row: {n} of 7 — hiring opens at 7',
     dashboard: 'Dashboard',
     earned: 'working now — earned by 7 days of checks',
+    packages: 'Order an agent of your own',
+    packagesBody:
+      'Each one lives in its own Telegram bot, set up by the team. The launch price includes the first month.',
   },
   ru: {
-    eyebrow: 'T27 · БИРЖА АГЕНТНОГО ТРУДА',
+    eyebrow: 'T27 · РЫНОК АГЕНТОВ',
     title: 'Нанимайте результат, а не чат.',
     intro:
       'Первый специалист уже работает. У каждого живого агента есть явная зона ответственности, отдельная переписка и доказательства. Агентов на обучении нанять пока нельзя.',
@@ -79,11 +85,12 @@ const copy = {
     reserve: 'резерв качества',
     platform: 'платформа',
     honest: 'Расчёты токенами: спроектированы, ещё не включены',
-    checked: 'Проверен на живом аккаунте',
-    checkFailed: 'Последняя проверка не прошла',
     streak: 'Ежедневных проверок подряд: {n} из 7 — найм откроется на седьмой',
     dashboard: 'Дашборд',
     earned: 'работает — заслужил 7 днями проверок',
+    packages: 'Закажите своего агента',
+    packagesBody:
+      'Каждый живёт в собственном Telegram-боте, бота настраивает команда. В цену запуска входит первый месяц.',
   },
 } as const
 
@@ -104,6 +111,12 @@ export function AgentsPage() {
   /* The measured half of the card: the last acceptance run, per agent. */
   const verdicts = useAgentAcceptance()
   const faces = useAgentAvatars()
+  /*
+   * Someone who already has an agent is shown theirs, not the sale (owner,
+   * 2026-10-02). The admin's own view keeps the sale: it is what they test.
+   */
+  const { level, packages } = useUserLevel()
+  const owner = level && level !== 'admin' ? level : null
   // A keeper may open a trainee (#2957); asked only if there is one.
   const keeper = useIsKeeper(
     MARKETPLACE_AGENTS.some(agent => agent.status !== 'live')
@@ -173,14 +186,18 @@ export function AgentsPage() {
                     acceptance verdict and its day. A failure is shown too --
                     a card that only ever says "checked" is an advert.
                   */
-                  <p
-                    className="agent-card__checked"
-                    data-pass={verdicts[agent.id].pass ? 'yes' : 'no'}
-                  >
-                    {verdicts[agent.id].pass ? '✓' : '✗'}{' '}
-                    {verdicts[agent.id].pass ? text.checked : text.checkFailed}{' '}
-                    · {checkedDay(verdicts[agent.id].at, l)}
-                  </p>
+                  <>
+                    <VerdictLine
+                      className="agent-card__checked"
+                      verdict={verdicts[agent.id]}
+                      lang={l}
+                    />
+                    <CheckedTools
+                      className="agent-card__calls"
+                      verdict={verdicts[agent.id]}
+                      lang={l}
+                    />
+                  </>
                 ) : null}
                 {agent.status !== 'live' &&
                 !earned &&
@@ -245,6 +262,19 @@ export function AgentsPage() {
               </article>
             )
           })}
+        </section>
+
+        <section className="agents-packages" id="packages">
+          {owner ? (
+            <MyAgentPackage level={owner} packages={packages} lang={l} />
+          ) : (
+            <>
+              <p className="agents-eyebrow">T27 · AGENTS</p>
+              <h2>{text.packages}</h2>
+              <p>{text.packagesBody}</p>
+              <PackageCards lang={l} />
+            </>
+          )}
         </section>
 
         <section className="harness-callout">
