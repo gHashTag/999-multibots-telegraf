@@ -149,12 +149,33 @@ agent key) -- the full case list is the header of `bin/helpers/b.sh`
     tri browser time [URL]        # new-tab latency; closes only what it opened
     tri browser call TOOL '{..}'  # any tool, raw
     tri browser cover             # every registry tool has a case? rc 1 names gaps
+    tri browser doctor            # FIRST, every loop tick: all tabs, read-only
 
 Pick the command by the symptom, and keep `cover` at rc 0: a tool added to
 `agent-tools.ts` without a case in `b.sh` is a tool nobody can check by hand.
 `ask` and `ask-input` send a REAL question to the owner's phone -- not for
 smoke tests. A tab opened before a deploy keeps the old bundle and can show a
 bug that is already fixed live; `blank` says `staleTab`, `reload` cures it.
+
+**Start every loop tick with `tri browser doctor`.** One read-only sweep:
+blank pages, tabs on an older build (staleTab), unsent text in X's composer,
+tab count over `TAB_CAP`, and `cover`. Each anomaly comes with the command
+that fixes it; rc 0 clean, 1 anomalies, 2 could not ask. It fixes nothing
+itself. Two rules it keeps, so keep them in any copy of it:
+
+- **While the person watches, only the front tab is read.** Bringing his
+  tabs forward one by one in front of him is driving, not reading. If he
+  opens the window mid-sweep (the `front` answer says so), the tour stops and
+  his front tab is given back. "Не прочитано вкладок: N" is that, not a fault.
+- **staleTab never becomes a bare `reload` on a tab with composer text.** A
+  reload throws the draft away; the fix line says `composer ID` first.
+  staleTab is a subset test -- a module the site serves now that the tab
+  lacks -- so modules a page injects at runtime do not read as stale. URLs
+  that look like sign-out, callback or token links are not re-fetched.
+
+`bun run verify` runs `cover` as the `browser-cover` step.
+`ask WHAT S` refuses S over 120 (the server clipped it silently);
+`ask-input choice WHY "A|B|C"` asks him to press one option.
 
 ## Related Resources
 

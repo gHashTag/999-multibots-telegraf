@@ -55,6 +55,11 @@
 #   tri browser ask-input KIND WHY [X Y]  the person types into a field himself
 #                                 (browser_ask_input; KIND password|email|code|
 #                                 text|action); you learn only "N chars typed"
+#   tri browser ask-input choice WHY "A|B|C"  he presses one of the options
+#   tri browser doctor            every tab, read-only: blank, staleTab, unsent X
+#                                 composer text, tab count over the cap, cover;
+#                                 each anomaly with its fix command. Start every
+#                                 loop tick with it. Watched = front tab only
 #   tri browser call TOOL [JSON]  any tool, raw: the escape hatch
 #   tri browser cover             every browser_* tool in agent-tools.ts has a
 #                                 case here (exit 1 names the ones that do not)
@@ -297,7 +302,7 @@ print(json.dumps(v, ensure_ascii=False) if v else "")')
     .then(r => setTimeout(() => served.then(now => done({ blank: true, before, after: st(), modules: mods,
       importFailed: r.filter(x => x.status === "rejected").map(x => String(x.reason).slice(0, 300)),
       errors: errs,
-      ...(now && now.join() !== mine.join() ? { staleTab: { tab: mine, serverNow: now,
+      ...(now && now.some(p => !mine.includes(p)) ? { staleTab: { tab: mine, serverNow: now,
         note: "this tab runs an older build than the site serves: reload it before reading the error as live" } } : {}) })), 4000));
 })')}" 60 ;;
   close)
@@ -382,14 +387,111 @@ sys.exit(0 if os.environ["W"].lower() in t.lower() else 1)'; then
     # are about to do.
     [ -n "${1:-}" ] || { echo "нужно одно предложение: что именно произойдёт"; exit 2; }
     S="${2:-0}"; int "$S" "секунды"
+    # The server clips a longer wait to 120 s without a word; say it here.
+    [ "$S" -le 120 ] || { echo "ждать можно до 120 с (сервер обрезает молча): $S"; exit 2; }
     call browser_ask_permission "{\"what\":$(js "$1"),\"waitSeconds\":$S}" $(( S + 30 )) ;;
   ask-input)
-    case "${1:-}" in password|email|code|text|action) ;;
-      *) echo "вид поля: password|email|code|text|action (выбор — tri browser call browser_ask_input)"; exit 2 ;; esac
+    case "${1:-}" in password|email|code|text|action|choice) ;;
+      *) echo "вид поля: password|email|code|text|action|choice"; exit 2 ;; esac
     [ -n "${2:-}" ] || { echo "нужно «зачем» — его увидит человек"; exit 2; }
-    XY=""
-    if [ -n "${3:-}" ]; then int "$3" X; int "${4:-}" Y; XY=",\"x\":$3,\"y\":$4"; fi
-    call browser_ask_input "{\"kind\":$(js "$1"),\"why\":$(js "$2")$XY}" 150 ;;
+    EXTRA=""
+    if [ "$1" = choice ]; then
+      # choice is pressed, not typed: options instead of a point.
+      [ -n "${3:-}" ] || { echo "нужны варианты: \"Да|Нет|Позже\" (от двух)"; exit 2; }
+      EXTRA=",\"options\":$(O="$3" python3 -c 'import json,os;print(json.dumps([o.strip() for o in os.environ["O"].split("|") if o.strip()], ensure_ascii=False))')"
+    elif [ -n "${3:-}" ]; then int "$3" X; int "${4:-}" Y; EXTRA=",\"x\":$3,\"y\":$4"; fi
+    call browser_ask_input "{\"kind\":$(js "$1"),\"why\":$(js "$2")$EXTRA}" 150 ;;
+  doctor)
+    # One read-only sweep for the start of every loop tick: each tab's state,
+    # each anomaly with the command that fixes it. Fixes nothing itself.
+    # Born 2026-10-03: a tab loaded before a deploy kept showing a bug that
+    # was already fixed live, and the only way to see it was blank, by hand,
+    # tab by tab. While the person watches, only the front tab is read --
+    # touring his tabs in front of him is driving, not reading.
+    bash "$0" "$ROOT" cover >/dev/null 2>&1; crc=$?
+    st=$(call browser_status '{}' 40) || { echo "статус не пришёл: ${st:0:200}"; exit 2; }
+    CAP=$(grep -oE 'export const TAB_CAP = [0-9]+' "$ROOT/apps/vibee-editor/render/src/browser/tab-sweep.ts" | grep -oE '[0-9]+$')
+    read -r RUN WATCH FRONT IDS <<<"$(OUT="$st" python3 -c '
+import json, os
+d = json.loads(os.environ["OUT"])
+pages = (d.get("pages") or []) if d.get("running") else []
+front = next((p["id"] for p in pages if p.get("actingHere")), "-")
+print(1 if d.get("running") else 0, 1 if d.get("watchedByThePerson") else 0, front, " ".join(p["id"] for p in pages))' 2>/dev/null)"
+    [ -n "${RUN:-}" ] || { echo "статус не разобрать: ${st:0:200}"; exit 2; }
+    found=0
+    flag() { found=$((found + 1)); printf '  ! %s\n      -> %s\n' "$1" "$2"; }
+    [ $crc -eq 0 ] || flag "не у каждого browser_* инструмента есть случай здесь" "tri browser cover"
+    if [ "$RUN" != 1 ]; then
+      echo "браузер не запущен — вкладок нет (под гасится в простое; это не поломка)"
+      [ $found -eq 0 ] && exit 0 || exit 1
+    fi
+    set -- $IDS; total=$#
+    echo "вкладок: $total из ${CAP:-?}   человек смотрит: $([ "$WATCH" = 1 ] && echo да || echo нет)"
+    [ -n "$CAP" ] && [ "$total" -gt "$CAP" ] && flag "вкладок $total при потолке $CAP: под задохнётся (pids.max, 27.09)" "tri tabs"
+    # Per tab: mount state, unsent X composer text, and staleTab = a module the
+    # site serves NOW is missing from the tab (a subset test: modules the page
+    # injects at runtime are extra, not stale). No re-GET of a sign-out,
+    # callback or token URL: the GET itself could act.
+    PROBE='new Promise(done => {
+  const v = { href: location.href, proto: location.protocol, ready: document.readyState,
+    nodes: document.querySelectorAll("*").length,
+    text: (document.body && document.body.innerText || "").trim().length };
+  v.draft = [...document.querySelectorAll("[data-testid^=\"tweetTextarea_\"]")]
+    .filter(b => /^tweetTextarea_\d+$/.test(b.getAttribute("data-testid")))
+    .reduce((n, b) => n + (b.innerText || "").trim().length, 0);
+  const mine = [...document.scripts].filter(s => s.type === "module" && s.src).map(s => new URL(s.src).pathname);
+  if (!/^https?:$/.test(location.protocol) || !mine.length
+      || /log-?out|sign-?out|callback|oauth|confirm|verify|token|code=/i.test(location.href)) return done(v);
+  setTimeout(() => done(v), 8000);
+  fetch(location.href, { cache: "no-store" }).then(r => r.text()).then(html => {
+    const now = [...new DOMParser().parseFromString(html, "text/html").querySelectorAll("script[type=module][src]")]
+      .map(s => new URL(s.getAttribute("src"), location.href).pathname);
+    if (now.some(p => !mine.includes(p))) v.stale = true;
+    done(v);
+  }).catch(() => done(v));
+})'
+    checked=""; moved=0
+    for id in $IDS; do
+      if [ "$WATCH" = 1 ] && [ "$id" != "$FRONT" ]; then continue; fi
+      if [ "$id" != "$FRONT" ]; then
+        f=$(call browser_status "{\"front\":$(js "$id")}" 40) || { flag "$id: не вышла вперёд: ${f:0:120}" "tri browser shot $id; висит — tri heal"; continue; }
+        moved=1
+        # He opened the window mid-sweep: stop touring, give his tab back.
+        if OUT="$f" python3 -c 'import json,os,sys; sys.exit(0 if json.loads(os.environ["OUT"]).get("watchedByThePerson") else 1)' 2>/dev/null; then
+          WATCH=1; echo "  (человек открыл окно — обход остановлен)"; break
+        fi
+      fi
+      out=$(call browser_evaluate "{\"code\":$(js "$PROBE")}" 40); rc=$?
+      checked="$checked $id"
+      if [ $rc -eq 2 ]; then flag "$id: вкладка не ответила за 40 с" "tri browser shot $id; висит — tri heal"; continue; fi
+      if [ $rc -eq 1 ]; then echo "    $id  не прочитана: ${out:0:100} (страж банка/почты/оплаты — так и должно быть)"; continue; fi
+      lines=$(ID="$id" OUT="$out" python3 -c '
+import json, os
+i = os.environ["ID"]
+try: d = json.loads(os.environ["OUT"])
+except Exception: d = {}
+v = d.get("value", d) if isinstance(d, dict) else {}
+v = v if isinstance(v, dict) else {}
+web = v.get("proto") in ("http:", "https:")
+print("    %s  %s  %s узлов, %s знаков" % (i, str(v.get("href", "?"))[:70], v.get("nodes", "?"), v.get("text", "?")))
+draft = v.get("draft") or 0
+if web and v.get("ready") == "complete" and v.get("text") == 0:
+    print("!%s: страница пустая\ttri browser blank %s" % (i, i))
+if v.get("stale"):
+    fix = ("сначала tri browser composer %s -- в композере %d знаков, reload их выбросит" % (i, draft)) if draft else ("tri browser reload %s" % i)
+    print("!%s: вкладка на старой сборке сайта (staleTab)\t%s" % (i, fix))
+if draft:
+    print("!%s: в композере X неотправленный текст, %d знаков\ttri browser composer %s" % (i, draft, i))')
+      while IFS= read -r l; do
+        case "$l" in '!'*) w="${l#!}"; flag "${w%%	*}" "${w#*	}" ;; *) echo "$l" ;; esac
+      done <<<"$lines"
+    done
+    # Give the front back to the tab that had it.
+    [ $moved = 1 ] && [ "$FRONT" != "-" ] && { front "$FRONT" || echo "  (вернуть вперёд $FRONT не вышло: tri browser front $FRONT)"; }
+    unread=$(( total - $(echo $checked | wc -w) ))
+    [ $unread -gt 0 ] && echo "  не прочитано вкладок: $unread$([ "$WATCH" = 1 ] && echo ' (человек смотрит — читал только переднюю)')"
+    [ $found -eq 0 ] && { echo "аномалий нет"; exit 0; }
+    echo "аномалий: $found"; exit 1 ;;
   call)
     [ -n "${1:-}" ] || { echo "нужно имя инструмента"; exit 2; }
     call "$1" "${2:-$NONE}" "${3:-120}" ;;

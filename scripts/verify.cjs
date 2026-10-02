@@ -45,6 +45,10 @@ const STEPS = [
   // a FAIL here, not a skip: the story-palette stand measured nothing for
   // days after #3242 hid its panel, and no run said so (2026-10-02).
   ['phone-shots', 'node', ['bin/helpers/shot.mjs', 'all']],
+  // Every browser_* tool in the agent registry has a `tri browser` case. No
+  // key, no network: it reads two files. On 2026-10-03 four of thirteen tools
+  // had none, and the only way to try them by hand was a raw JSON call.
+  ['browser-cover', 'bash', ['bin/helpers/b.sh', '.', 'cover']],
 ]
 
 // One step is a known flake, not a code signal: test:bun runs its files under a
