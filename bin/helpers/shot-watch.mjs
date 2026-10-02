@@ -37,12 +37,17 @@ const VERDICT =
 const SILENT = /^== shot NOT MEASURED -- (\S+) (\d+) (ru|en)\s*$/
 const ALL_DOWN = /^== shot NOT MEASURED -- all: /
 
+/** @typedef {{ verdict: string, issues: string[] }} Stand */
+
 /**
  * One entry per stand, keyed "name width lang". A stand's problem lines are
  * printed before its verdict line, so they are collected until the verdict
  * that closes them.
+ * @param {string} text
+ * @returns {{ runs: Record<string, Stand>, down: boolean }}
  */
 export function parseShots(text) {
+  /** @type {Record<string, Stand>} */
   const runs = {}
   let issues = []
   let down = false
@@ -68,7 +73,11 @@ export function parseShots(text) {
   return { runs, down }
 }
 
-/** What changed between two `runs` maps; pure, so it is tested alone. */
+/**
+ * What changed between two `runs` maps; pure, so it is tested alone.
+ * @param {Record<string, Stand>} before
+ * @param {Record<string, Stand>} now
+ */
 export function compareShots(before, now) {
   const worse = []
   const better = []
