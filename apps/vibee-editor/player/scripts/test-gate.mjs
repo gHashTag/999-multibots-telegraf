@@ -22,11 +22,14 @@ import { readFileSync } from 'node:fs'
 
 const MIN_TESTS = 1000
 const REPORT = '/tmp/vitest-report.json'
-// Both read the repository ROOT, which the build context (apps/vibee-editor)
+// These read the repository ROOT, which the build context (apps/vibee-editor)
 // cannot contain. The repository's own hooks still run them.
+// src/__tests__/testGateExclude.test.ts fails any test that reaches the root
+// and is missing here -- #3244 added one and the deploy died on ENOENT.
 const EXCLUDE = [
   'src/components/Profile/WelcomeOnboarding.no-later-on-paywall.test.ts',
   'src/components/Telegram/__tests__/startParamContract.test.ts',
+  'src/pages/crmShotRecipe.test.ts',
 ]
 
 const run = spawnSync(

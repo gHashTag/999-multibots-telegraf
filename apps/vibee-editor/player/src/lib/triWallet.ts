@@ -10,8 +10,8 @@ import { apiFetch } from '@/lib/apiFetch'
  * address therefore cannot be typed in by hand -- only a wallet that holds it
  * can bind it.
  *
- * Nothing here moves money: TRI is not deployed, and binding records where it
- * would be sent.
+ * Nothing here moves money: binding records where TRI is sent. The mint
+ * itself is lib/triClaim.ts, and TRI exists on TON testnet only.
  */
 
 export const TRI_WALLET_URL = `${API_BASE}/api/tri/wallet`

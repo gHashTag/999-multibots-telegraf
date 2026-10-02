@@ -29,8 +29,24 @@ import SwiftUI
 /// экране под текстом не идёт нигде: в вебе им покрашена только плашка
 /// баланса токенов, а нативного баланса нет — см. `Тема.Чат.золото`.
 struct AgentChatView: View {
-  @State private var сообщения: [Реплика] = AgentChatView.загрузитьИсторию()
+  @State private var сообщения: [Реплика]
+  /// A card's thread, `<owner>/<repo>#<n>` (spec kanban-card-chat.t27), or
+  /// nil for the person's own chat. A card's chat keeps no local file: the
+  /// server thread is the one all surfaces and A2A agents share.
+  let task: String?
+  /// The card's title for the header; nil for the person's own chat.
+  let taskTitle: String?
+  /// True once the server answered the history with THIS card's thread. Until
+  /// then nothing is sent: a render without task threads ignores `task` and
+  /// would file the message in the person's own chat.
+  @State private var taskThreadReady = false
   @Environment(\.tabReselects) private var tabReselects
+
+  init(task: String? = nil, taskTitle: String? = nil) {
+    self.task = task
+    self.taskTitle = taskTitle
+    _сообщения = State(initialValue: task == nil ? AgentChatView.загрузитьИсторию() : [])
+  }
   @State private var ввод = ""
   @State private var идёт = false
   /// What answering a card said, per turn: a refusal must be readable.
@@ -201,6 +217,44 @@ struct AgentChatView: View {
 
   private struct HistoryResponse: Decodable {
     let messages: [ServerTurn]
+    /// The thread the server read. Older renders do not send it.
+    let thread: String?
+  }
+
+  // MARK: - A card's thread (spec kanban-card-chat.t27)
+
+  /// The card's task reference: `gHashTag/t27` and 5382 -> `gHashTag/t27#5382`.
+  /// A bare repository name belongs to the board's owner, as in `tri card`.
+  static func taskRef(repo: String, number: Int) -> String {
+    let full = repo.contains("/") ? repo : "gHashTag/\(repo)"
+    return "\(full)#\(number)"
+  }
+
+  /// The history query: the card's thread when there is a card.
+  static func historyQuery(task: String?) -> [URLQueryItem] {
+    var items = [URLQueryItem(name: "limit", value: "100")]
+    if let task { items.append(URLQueryItem(name: "task", value: task)) }
+    return items
+  }
+
+  /// A card may be written to only when the server answered with ITS thread.
+  /// The person's own chat is always writable.
+  static func threadAnswered(task: String?, thread: String?) -> Bool {
+    guard let task else { return true }
+    return thread == "task:\(task)"
+  }
+
+  /// The chat request body: the card travels as `task`, the turn is marked
+  /// `ios` either way.
+  static func chatBody(
+    history: [Реплика], question: String, task: String?
+  ) -> [String: Any] {
+    var body: [String: Any] = [
+      "messages": requestMessages(history: history, question: question),
+      "surface": "ios",
+    ]
+    if let task { body["task"] = task }
+    return body
   }
 
   /// How many past turns travel with a question. Matches the bot, which reads
@@ -270,7 +324,7 @@ struct AgentChatView: View {
         resolvingAgainstBaseURL: false
       )
     else { return }
-    компоненты.queryItems = [URLQueryItem(name: "limit", value: "100")]
+    компоненты.queryItems = AgentChatView.historyQuery(task: task)
     guard let url = компоненты.url else { return }
 
     var r = URLRequest(url: url)
@@ -279,6 +333,10 @@ struct AgentChatView: View {
       let (data, ответ) = try await URLSession.shared.data(for: r)
       guard (ответ as? HTTPURLResponse)?.statusCode == 200 else { return }
       let история = try JSONDecoder().decode(HistoryResponse.self, from: data)
+      // A card's chat never shows a thread that is not the card's: an old
+      // render answers `self`, and the person's own chat would appear here.
+      guard AgentChatView.threadAnswered(task: task, thread: история.thread) else { return }  // cyrillic-ok: existing name
+      taskThreadReady = true
       сообщения = AgentChatView.mergeHistory(server: история.messages, local: сообщения)
     } catch {
       // See the note above: silence here is the designed behaviour.
@@ -296,7 +354,7 @@ struct AgentChatView: View {
        * ровно тогда, когда есть что терять.
        */
       .onChange(of: сообщения) { _, новые in
-        AgentChatView.сохранитьИсторию(новые)
+        if task == nil { AgentChatView.сохранитьИсторию(новые) }
       }
       /*
        * Pull the shared conversation when the screen opens.
@@ -353,19 +411,36 @@ struct AgentChatView: View {
    * подзаголовком, который объясняет, чем этот агент отличается от чата
    * вообще. Текст перенесён дословно из Chat.tsx:280-283.
    */
+  /// Sending waits for the card's own thread (see `taskThreadReady`).
+  private var canWrite: Bool { task == nil || taskThreadReady }
+
+  /// The person's chat says what the agent is; a card's says which task it is
+  /// and, until the server answers with the card's thread, why it is read-only.
+  private var subtitle: String {
+    guard let task else {
+      return say("Looks into the app with its own tools and does the work, not just advises",
+                 "Смотрит в приложение своими инструментами и делает, а не советует")
+    }
+    return taskThreadReady
+      ? say("Task \(task) · the same conversation as on the web and with A2A agents",
+            "Задача \(task) · тот же разговор, что в вебе и у агентов A2A")
+      : say("Task \(task) · the server does not know task conversations yet, so writing is off",
+            "Задача \(task) · сервер ещё не знает разговоров по задаче, писать пока нельзя")
+  }
+
   private var шапка: some View {
     VStack(alignment: .leading, spacing: 0) {
       // `h1 { font-size: 16px; font-weight: 600; letter-spacing: .01em }`
       // — Chat.css:48-50.
-      Text(say("Agent", "Агент"))
+      Text(taskTitle ?? task ?? say("Agent", "Агент"))
+        .lineLimit(2)
         .font(Тема.Шрифт.кегль(Тема.Чат.кегльЗаголовка, Тема.Чат.весЗаголовка, относительно: .headline))
         .tracking(Тема.Чат.трекингЗаголовка)
         .foregroundStyle(Тема.Чат.текст)
 
       // `p { margin: 2px 0 0; font-size: 12px; color: --t27-muted }`
       // — Chat.css:53-55.
-      Text(say("Looks into the app with its own tools and does the work, not just advises",
-                "Смотрит в приложение своими инструментами и делает, а не советует"))
+      Text(subtitle)
         .font(Тема.Шрифт.кегль(Тема.Чат.кегльПодзаголовка, относительно: .footnote))
         .foregroundStyle(Тема.Чат.текстПриглушённый)
         .padding(.top, 2)
@@ -383,7 +458,9 @@ struct AgentChatView: View {
        * вернуться переписку не стирает, а другого способа её закончить на
        * экране нет вовсе.
        */
-      if !сообщения.isEmpty {
+      // A card's thread is shared with the web sheet and A2A agents: a local
+      // "new conversation" would only hide it here, so a card has none.
+      if !сообщения.isEmpty && task == nil {
         Button(say("New chat", "Новый разговор")) {
           сообщения = []
           ввод = ""
@@ -543,8 +620,8 @@ struct AgentChatView: View {
       }
       .buttonStyle(.plain)
       // `.send-btn:disabled { opacity: 0.5 }` — Chat.css:252.
-      .opacity(ввод.isEmpty || идёт ? 0.5 : 1)
-      .disabled(ввод.isEmpty || идёт)
+      .opacity(ввод.isEmpty || идёт || !canWrite ? 0.5 : 1)
+      .disabled(ввод.isEmpty || идёт || !canWrite)
     }
     // `.chat-input-area { padding: 12px 14px }` — Chat.css:207.
     .padding(.horizontal, Тема.Чат.отступПанелиПоГоризонтали)
@@ -626,6 +703,9 @@ struct AgentChatView: View {
   }
 
   private func отправить() async {
+    // A card's turn never goes out before the server answered with the
+    // card's thread: an old render would file it in the person's own chat.
+    guard canWrite else { return }
     let вопрос = ввод
     ввод = ""
     идёт = true
@@ -713,11 +793,8 @@ struct AgentChatView: View {
        * server knows the word; without it the turn was stored as "unknown".
        */
       r.httpBody = try JSONSerialization.data(
-        withJSONObject: [
-          "messages": AgentChatView.requestMessages(
-            history: priorTurns, question: вопрос),
-          "surface": "ios",
-        ])
+        withJSONObject: AgentChatView.chatBody(
+          history: priorTurns, question: вопрос, task: task))
 
       let (поток, _) = try await URLSession.shared.bytes(for: r)
       var послеИнструмента = false

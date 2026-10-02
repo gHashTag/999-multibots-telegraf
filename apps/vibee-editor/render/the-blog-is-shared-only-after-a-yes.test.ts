@@ -377,4 +377,13 @@ describe('the headline says what is known', () => {
     ).toContain(published)
     expect(headlineOf({ error: 'x' })).toMatch(/Не получилось/) // cyrillic-ok: test
   })
+
+  it("an API post with Meta's own id is a post (meta-connect.t27 posted)", async () => {
+    const { headlineOf, outcomeOf } = await import('./src/agent/blog-share')
+    const out = {
+      Threads: 'опубликовано через API · https://www.threads.net/@n/post/1', // cyrillic-ok: test
+    }
+    expect(outcomeOf(out)).toBe('posted')
+    expect(headlineOf(out)).toContain('Опубликовано') // cyrillic-ok: test
+  })
 })

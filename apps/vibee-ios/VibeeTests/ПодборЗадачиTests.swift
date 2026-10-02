@@ -85,6 +85,15 @@ final class GenerationRefusalTests: XCTestCase {
     }
   }
 
+  func testClipOverTheCeilingSaysTooLongWithTheLimitAfter() {
+    let detail = "lipsync audio must be 10 seconds or shorter"
+    let en = GenerationRefusal.text(code: "too_long", detail: detail, russian: false)
+    XCTAssertEqual(en.components(separatedBy: "\n").first, GenerationRefusal.codes["too_long"]?.en)
+    XCTAssertTrue(en.contains("10 seconds"), "the limit is kept")
+    let ru = GenerationRefusal.text(code: "too_long", detail: detail, russian: true)
+    XCTAssertEqual(ru.components(separatedBy: "\n").first, GenerationRefusal.codes["too_long"]?.ru)
+  }
+
   func testEverySentenceIsInItsOwnScript() {
     for (code, s) in GenerationRefusal.codes {
       XCTAssertNotNil(s.ru.range(of: "\\p{Cyrillic}", options: .regularExpression), code)

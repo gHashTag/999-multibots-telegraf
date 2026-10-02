@@ -21,6 +21,8 @@
   color: inherit;
   font-size: 12px;
   cursor: pointer;
+  /* A finger, not a cursor: the CRM phone stand counted these at 28px. */
+  min-height: var(--touch-target, 44px);
 }
 
 .level-switch__chip.is-on {
@@ -42,6 +44,7 @@
   color: inherit;
   font-size: 12px;
   max-width: 110px;
+  min-height: var(--touch-target, 44px);
 }
 
 .level-dashboard {

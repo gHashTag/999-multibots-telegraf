@@ -35,6 +35,7 @@
 // The thread keys and the client id's shape are the spec's: gHashTag/t27
 // specs/automation/crm-client-workspace.t27, vendored with its `t27c gen-ts` output.
 import * as WS from '../spec/crm-client-workspace.gen'
+import { announceTurn } from './thread-bus'
 
 /** Минимальная форма пула, чтобы модуль проверялся без настоящей базы. */
 export interface Пул {
@@ -383,6 +384,8 @@ export async function записатьРеплику(
       thread || SELF_THREAD,
     ]
   )
+  // An open sheet on this thread hears it now (thread-live.ts).
+  announceTurn(String(telegramId), thread || SELF_THREAD)
   return true
 }
 
