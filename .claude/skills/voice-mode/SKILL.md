@@ -46,6 +46,7 @@ paying for the fallback.
 player/src/lib/voice/session.ts        the state machine: mic, tick, barge-in, queue, playback
 player/src/lib/voice/vad.ts            the gate: noise floor, steady room, turn clock (pure)
 player/scripts/vad-bench.ts            that gate over WAV files (`tri vad`)
+session.ts armFiller/fillerSound       the wait said out loud; phrases are voice.filler.* (`tri filler`)
 player/src/lib/voice/replyFollower.ts  turns a streaming answer into whole sentences, strips [[card]]
 player/src/lib/voice/sentences.ts      sentence cutting
 player/src/lib/voice/spokenLang.ts     which language a phrase / sentence is in
@@ -335,6 +336,14 @@ mouth`) from a clean tree after a merge that touches `deployment/mouth`.
   STREAM audio as it is made. Our mouth answers a whole short phrase in
   0.1-0.3 s without streaming; streaming would matter only for long first
   clauses. Open models in the same class: Kokoro, Piper, Kitten TTS.
+- Thinking fillers (cycle 9): ElevenLabs Agents' soft timeout says a
+  phrase after a configurable silence (default 3 s, raised to 10 s in their
+  2026-06 changelog; can be LLM-generated) and their design guide warns
+  against fillers that promise a time. Vapi fires `request-response-delayed`
+  after `timingMilliseconds` (2000 typical). LiveKit async tools take a
+  `with_filler` phrase; Pipecat pushes a `TTSSpeakFrame` before a slow tool.
+  Overuse is the known failure (one write-up counts ~16% of turns with a
+  filler as "awkward"), so ours is capped at two per question.
 
 ## The road, split (cycle 7)
 
@@ -415,6 +424,37 @@ loop's.
 `$c:a` as the `:a` (absolute path) modifier. `tri` is bash; in an
 interactive zsh write `${c}`.
 
+## The wait is said out loud (cycle 9)
+
+A tool call left the person in 5-60 s of silence, which on a call reads as
+"it dropped". `armFiller()` in `session.ts` is armed every time `pump()`
+runs dry while the answer is unfinished (phase `thinking`):
+
+- `FILLER_FIRST_MS` 3000: nothing said yet -> a `voice.filler.first` phrase.
+- `FILLER_STILL_MS` 12000: already said a filler OR part of the answer (a
+  gap mid-answer) -> `voice.filler.still`. `FILLER_MAX` 2 per question.
+- `FILLER_PREPARE_MS` 1000: the phrase's audio is asked for this early, so
+  it plays on time. `tri filler` measured English synthesis 620 ms typical
+  with a 1.6 s cold tail; at the first try (1500) that tail was LATE.
+- Variants are `|`-separated in `language.ts` and rotate per KIND (one
+  shared counter made "still" start at its second variant).
+- One guard only: `queue empty && phase === 'thinking'`. The generation,
+  follower and paused guards all overlapped it -- mutation proved each
+  redundant. `silence()` (new question, orb, teardown) clears the timer.
+- `fillerSound()` caches the promise per text for the session; a failed
+  synthesis is dropped from the cache so the next try asks again.
+- `resumeHeld()` drops a filler at the head of the queue: after a barge-in
+  that was noise, the answer resumes, not "Let me see." again.
+
+`tri filler` (`tri пауза`): synthesises every phrase once through
+`/api/voice/speak` and compares it with its lead (moment minus prepare).
+Exit 2 = a phrase is LATE, 1 = a phrase failed.
+
+**Test traps met:** the fake-timer helper reused message ids `u`/`a`, so
+`ReplyFollower` ignored every answer after the first. And `ReplyFollower`
+does not emit a short sentence ("Slow.") while the answer still streams --
+a test of "a sentence is being synthesised" needs a long first sentence.
+
 ## Weak spots, with status
 
 | #   | weak spot                                            | status                                                         |
@@ -428,7 +468,7 @@ interactive zsh write `${c}`.
 | 7   | energy VAD: a fan or street noise counts as speech   | PARTLY cycle 8 (steady noise = room); rising noise -> Silero   |
 | 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)                                          |
 | 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3                                          |
-| 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s                                      |
+| 9   | nothing said while the agent thinks for long         | FIXED cycle 9 (filler at 3 s, "still" at 15 s; `tri filler`)   |
 | 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)                                   |
 | 11  | voice picker only for the app language               | OPEN                                                           |
 | 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up                                         |
@@ -457,6 +497,7 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    render's routing for hearing and speaking.
    A PR that touches `vad.ts` or the session's tick: `./tri vad` (exit 1 =
    speech taken for the room or a fan held as a phrase) before the commit.
+   A PR that touches `voice.filler.*` or the FILLER\_\* numbers: `./tri filler`.
 5. Update the tables here in the same PR.
 6. A push that had to skip hooks (`--no-verify`, ssh dropping after a long
    pre-push) skips the player's lint ratchet too. Cycle 7 put 4 errors on
