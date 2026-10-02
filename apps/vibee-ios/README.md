@@ -69,6 +69,12 @@ fastlane metadata    # the store page texts from fastlane/metadata (tri iphone m
 Nothing here submits for App Store review: `beta` stops at TestFlight, and
 the review submission stays a click in App Store Connect.
 
+What testers read under "What to Test" is the subjects of the recent commits
+to this app (`fastlane/test_notes.rb`), not the monorepo's last commit;
+`CHANGELOG=...` overrides. A build reaches the TestFlight app on a phone only
+through an internal group: after the first upload, App Store Connect ->
+TestFlight -> Internal Testing -> + group, add yourself.
+
 ### State on 2026-10-03
 
 ```

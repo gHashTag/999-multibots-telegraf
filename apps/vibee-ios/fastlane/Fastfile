@@ -30,6 +30,7 @@
 require "json"
 require "shellwords"
 require_relative "store_metadata"
+require_relative "test_notes"
 
 default_platform(:ios)
 
@@ -364,6 +365,9 @@ platform :ios do
     state
     build_only
 
+    changelog = ENV["CHANGELOG"].to_s.strip
+    changelog = TestNotes.collect(IOS_DIR) if changelog.empty?
+    changelog = "Trinity S³AI build #{build_number}" if changelog.empty?
     upload_to_testflight(
       api_key: api_key,
       app_identifier: BUNDLE_ID,
@@ -371,11 +375,16 @@ platform :ios do
       # Processing takes minutes to an hour; `fastlane state` shows it.
       skip_waiting_for_build_processing: true,
       distribute_external: false,
-      # Testers should know what they are testing: the changelog is the last
-      # commit unless CHANGELOG says otherwise.
-      changelog: (ENV["CHANGELOG"] || last_git_commit[:message].to_s)[0, 4000]
+      # Testers should know what they are testing: the subjects of the
+      # recent commits to THIS app (test_notes.rb says why not the last
+      # commit), unless CHANGELOG says otherwise.
+      changelog: changelog
     )
     UI.success("uploaded build #{build_number}; `fastlane state` shows its processing")
+    # Internal testers see a build only through a group. The first upload has
+    # none, and "uploaded" alone left the owner looking at an empty TestFlight
+    # app on the phone.
+    UI.important("first build? App Store Connect -> TestFlight -> Internal Testing -> + group, add yourself; the TestFlight app on the phone shows it once processing ends")
   end
 
   desc "The App Store page texts from fastlane/metadata (nothing is submitted)"

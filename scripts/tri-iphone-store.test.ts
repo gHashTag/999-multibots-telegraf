@@ -259,3 +259,71 @@ describe.skipIf(!hasRuby)('store page texts (store_metadata.rb)', () => {
     }
   })
 })
+
+/**
+ * WHAT A TESTER READS IS ABOUT THE APP.
+ *
+ * The TestFlight notes were the last commit of the monorepo: on 2026-10-03
+ * that was a CRM docs change, with the squash separator and the
+ * Co-authored-by trailer under it. test_notes.rb takes the subjects of the
+ * commits that touched apps/vibee-ios instead.
+ */
+function notes(code: string, ...args: string[]): string {
+  const r = spawnSync(
+    'ruby',
+    ['-r', path.join(IOS_FASTLANE, 'test_notes.rb'), '-e', code, ...args],
+    { encoding: 'utf8', env: { ...process.env, LC_ALL: 'en_US.UTF-8' } }
+  )
+  expect(r.status, r.stderr).toBe(0)
+  return r.stdout
+}
+
+describe.skipIf(!hasRuby)('TestFlight notes (test_notes.rb)', () => {
+  it('subjects, one per line - no merges, no repeats, no blanks', () => {
+    expect(
+      notes(
+        'print TestNotes.from_subjects(ARGV)',
+        'fix(ios): the mic asks once',
+        'Merge pull request #1 from x/y',
+        '',
+        'fix(ios): the mic asks once',
+        'feat(ios): voice picker'
+      )
+    ).toBe('- fix(ios): the mic asks once\n- feat(ios): voice picker')
+  })
+
+  it('stops at twelve lines and under the 4000-character limit', () => {
+    const twenty = Array.from({ length: 20 }, (_, i) => `change ${i}`)
+    expect(
+      notes('print TestNotes.from_subjects(ARGV)', ...twenty).split('\n')
+    ).toHaveLength(12)
+    // Whole lines only: a note cut mid-word reads as a bug.
+    const long = Array.from({ length: 5 }, (_, i) => `${i}`.repeat(1500))
+    const out = notes('print TestNotes.from_subjects(ARGV)', ...long)
+    expect(out.length).toBeLessThanOrEqual(4000)
+    expect(out.split('\n')).toEqual([
+      `- ${'0'.repeat(1500)}`,
+      `- ${'1'.repeat(1500)}`,
+    ])
+  })
+
+  it('no git history is an empty note, not a crash after the archive', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'no-git-'))
+    try {
+      expect(notes('print TestNotes.collect(ARGV[0]).inspect', dir)).toBe('""')
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('beta sends these notes, with a fallback, and names the internal group', () => {
+    const fastfile = fs.readFileSync(
+      path.join(IOS_FASTLANE, 'Fastfile'),
+      'utf8'
+    )
+    expect(fastfile).toContain('require_relative "test_notes"')
+    expect(fastfile).toContain('TestNotes.collect(IOS_DIR)')
+    expect(fastfile).not.toContain('last_git_commit')
+    expect(fastfile).toMatch(/Internal Testing/)
+  })
+})
