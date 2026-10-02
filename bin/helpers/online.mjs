@@ -36,15 +36,18 @@ const RENDER =
 // BatchMode turns a password prompt into a refusal, ConnectTimeout bounds a
 // dead road; both are added to the ssh command already chosen (environment,
 // then core.sshCommand), so a custom key path is kept (#3442 review).
+// Computed once. Without git on PATH spawnSync gives no stdout: that must not
+// throw, or the crash exits 1 and reads as "the network is down" (#3444 review).
 function sshCommand() {
   const base =
     process.env.GIT_SSH_COMMAND ||
     spawnSync('git', ['config', '--get', 'core.sshCommand'], {
       encoding: 'utf8',
-    }).stdout.trim() ||
+    }).stdout?.trim() ||
     'ssh'
   return `${base} -o BatchMode=yes -o ConnectTimeout=10`
 }
+const SSH_COMMAND = sshCommand()
 
 function run(cmd, argv, ms) {
   return new Promise(resolve => {
@@ -54,7 +57,7 @@ function run(cmd, argv, ms) {
       env: {
         ...process.env,
         GIT_TERMINAL_PROMPT: '0',
-        GIT_SSH_COMMAND: sshCommand(),
+        GIT_SSH_COMMAND: SSH_COMMAND,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
