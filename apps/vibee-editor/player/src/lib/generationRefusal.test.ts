@@ -65,6 +65,20 @@ describe('a failed generation, in the reader language', () => {
     expect(en).toContain('16')
   })
 
+  it("the server's English is a developer's line, never the sentence", () => {
+    // An expired session: the auth guard says "unauthorized: <reason>", and
+    // the owner-only 401 says "verified owner required". An English reader
+    // used to get exactly that, and no "sign in again".
+    for (const detail of [
+      'unauthorized: token expired',
+      'verified owner required',
+    ]) {
+      const en = generationRefusalText({ code: 'sign_in', detail }, 'en')
+      expect(en.split('\n')[0]).toBe(GENERATION_REFUSALS.sign_in.en)
+      expect(en).toContain(detail)
+    }
+  })
+
   it('an unknown code or none is an honest "did not work"', () => {
     expect(generationRefusalText({ code: 'newer', detail: '' }, 'en')).toBe(
       "It didn't work — try again"

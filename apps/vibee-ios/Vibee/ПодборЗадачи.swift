@@ -64,8 +64,10 @@ enum ПодборЗадачи {
  `code` (render/generation-refusal.ts), and this turns the code into a
  sentence. The server's words still follow on a second line -- they are the
  diagnosis, and the screen's own comment explains why they matter. When they
- are already in the reader's script and the failure is the caller's to fix
+ are Russian, the reader is Russian and the failure is the caller's to fix
  ("need 20, have 16"), they are the best sentence there is and stand alone.
+ Only Russian: the server's English is a developer's line ("unauthorized:
+ <reason>"), and passed alone it hid "sign in again" from English readers.
 
  Lives next to `ПодборЗадачи` because both read the same job record, and a
  file here costs a project-file edit. The same sentences are in the web's
@@ -88,7 +90,7 @@ enum GenerationRefusal {
   static func text(code: String?, detail: String?, russian: Bool = speaksRussian) -> String {
     let words = String((detail ?? "").trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
     let cyrillic = words.range(of: "\\p{Cyrillic}", options: .regularExpression) != nil
-    if !words.isEmpty, let code, callersToFix.contains(code), cyrillic == russian {
+    if !words.isEmpty, russian, cyrillic, let code, callersToFix.contains(code) {
       return words
     }
     let headline: String
