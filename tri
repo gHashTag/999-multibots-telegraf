@@ -503,6 +503,12 @@ CHECKS THAT EACH COST A CYCLE
         tool call rather than on the user row, and a line that says "not
         asked" every time is furniture.
 
+  tri gen-refusal [BASE]
+        Does every generation route name its refusal? Asks image, video,
+        audio and lipsync WITHOUT credentials (refused at the charge, so
+        nothing is spent) and wants a `code` from
+        render/generation-refusal.ts in each answer. Run after a deploy.
+
   tri pr-billing N
         Is every failing check on PR N the Actions billing stop? rc 0 only if
         all are; an empty annotation (dropped connection) is re-asked, then
@@ -3221,6 +3227,43 @@ cmd_readers() {
     return $rc
   fi
   ( cd "$ROOT" && node "$ROOT/scripts/text-readers.cjs" "$@" )
+}
+
+# The live check for generation refusal codes (render/generation-refusal.ts):
+# every generation route, asked without credentials, must refuse with a
+# `code` the clients translate. Safe by construction -- each route charges
+# before it calls a provider, and an unsigned call is refused at the charge,
+# so nothing is spent. Run it after a render deploy; a route that answers
+# without a code means the stamp is gone or the deploy has not landed.
+cmd_gen_refusal() {
+  local base="${1:-$RENDER}" kind body status code fails=0
+  # The names come from the server's own list, not a copy of it.
+  local known
+  known=" $(sed -n '/^export const GENERATION_REFUSAL_CODES/,/] as const/p' \
+    "$ROOT/apps/vibee-editor/render/generation-refusal.ts" | grep -oE "'[a-z_]+'" | tr -d "'" | tr '\n' ' ')"
+  [ "$known" = " " ] && { bad "no codes read from render/generation-refusal.ts"; return 1; }
+  for kind in image video audio lipsync; do
+    body="$(curl -sS -m 30 -o /tmp/tri-gen-refusal.$$ -w '%{http_code}' \
+      -X POST -H 'Content-Type: application/json' \
+      --data '{"model":"probe","prompt":"probe","text":"probe"}' \
+      "$base/api/generate/$kind" 2>/dev/null)" || body="000"
+    status="$body"
+    code="$(node -e 'try{const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(typeof o.code==="string"?o.code:"")}catch{}' /tmp/tri-gen-refusal.$$ 2>/dev/null)"
+    if [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 300 ]; then
+      bad "$kind: answered $status to an unsigned call -- that is not a refusal"
+      fails=$((fails + 1))
+    elif [ -n "$code" ] && [[ "$known" == *" $code "* ]]; then
+      good "$kind: $status $code"
+    elif [ -n "$code" ]; then
+      warn "$kind: $status $code -- a code the clients do not know"
+      fails=$((fails + 1))
+    else
+      bad "$kind: $status without a code ($(head -c 120 /tmp/tri-gen-refusal.$$ 2>/dev/null))"
+      fails=$((fails + 1))
+    fi
+  done
+  rm -f /tmp/tri-gen-refusal.$$
+  [ "$fails" -eq 0 ]
 }
 
 cmd_pr_billing() {
@@ -6478,6 +6521,7 @@ case "$action" in
   watches|сторожа)   cmd_watches "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
+  gen-refusal)       cmd_gen_refusal "$@" ;;
   pr-billing)        cmd_pr_billing "$@" ;;
   deploys|выкладки)  cmd_deploys "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
