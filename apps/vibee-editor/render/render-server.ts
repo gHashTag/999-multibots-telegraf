@@ -11139,6 +11139,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
+          code: 'sign_in',
           error: 'не удалось определить пользователя',
           detail:
             'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
@@ -11151,7 +11152,12 @@ const server = createServer(async (req, res) => {
       body = JSON.parse(await readBody(req))
     } catch {
       res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'тело запроса не разобрано как JSON' }))
+      res.end(
+        JSON.stringify({
+          code: 'bad_body',
+          error: 'тело запроса не разобрано как JSON',
+        })
+      )
       return
     }
     const url: string = String(body.url ?? '')
@@ -11161,7 +11167,10 @@ const server = createServer(async (req, res) => {
     if (!/^https?:\/\//.test(url)) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
       res.end(
-        JSON.stringify({ error: 'нужна http(s)-ссылка на файл в поле url' })
+        JSON.stringify({
+          code: 'bad_url',
+          error: 'нужна http(s)-ссылка на файл в поле url',
+        })
       )
       return
     }
@@ -11189,7 +11198,9 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       console.error('[POST /api/assets] error:', error)
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'не удалось сохранить файл' }))
+      res.end(
+        JSON.stringify({ code: 'failed', error: 'не удалось сохранить файл' })
+      )
     }
     return
   }
@@ -11360,6 +11371,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
+          code: 'sign_in',
           error: 'не удалось определить пользователя',
           detail:
             'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
@@ -11373,7 +11385,9 @@ const server = createServer(async (req, res) => {
     const rawId = parseInt(query.get('id') || '', 10)
     if (!Number.isInteger(rawId) || rawId <= 0) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'нужен корректный id в ?id=' }))
+      res.end(
+        JSON.stringify({ code: 'bad_id', error: 'нужен корректный id в ?id=' })
+      )
       return
     }
     try {
@@ -11397,6 +11411,7 @@ const server = createServer(async (req, res) => {
         res.writeHead(404, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
+            code: 'not_found',
             error:
               'не найдено: можно удалять только свои фото из профиля аватара',
           })
@@ -11408,7 +11423,9 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       console.error('[DELETE /api/assets] error:', error)
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'не удалось удалить файл' }))
+      res.end(
+        JSON.stringify({ code: 'failed', error: 'не удалось удалить файл' })
+      )
     }
     return
   }
@@ -11425,7 +11442,7 @@ const server = createServer(async (req, res) => {
     const telegram_id = url.pathname.split('/').pop()
     if (!telegram_id) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Invalid telegram_id' }))
+      res.end(JSON.stringify({ code: 'bad_id', error: 'Invalid telegram_id' }))
       return
     }
     // ЛИЧНАЯ ИСТОРИЯ — только своя. Общий гвард пропускает этот префикс
@@ -11437,6 +11454,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
+          code: 'sign_in',
           error: 'история доступна только её владельцу',
           detail:
             'подпись Telegram или ключ агента должны совпадать с telegram_id в пути',
@@ -11488,7 +11506,9 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       console.error('Assets error:', error)
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Failed to fetch assets' }))
+      res.end(
+        JSON.stringify({ code: 'failed', error: 'Failed to fetch assets' })
+      )
     }
     return
   }

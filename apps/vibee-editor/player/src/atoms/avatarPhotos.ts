@@ -3,7 +3,7 @@ import { userAtom } from './user'
 import { RENDER_URL } from '../config'
 import { authHeaders } from '../lib/apiFetch'
 import { getTelegramUser } from '../lib/telegram'
-import { getErrorMessage } from '../features/script/utils/errorMessages'
+import { assetsErrorText, assetsRefusal } from '../lib/assetsText'
 import { languageAtom } from './language'
 
 // ===============================
@@ -55,20 +55,21 @@ export const loadAvatarPhotosAtom = atom(null, async (get, set) => {
 
     const res = await fetch(url.toString(), { headers: avatarHeaders() })
     if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      throw new Error(`HTTP ${res.status} — ${body.slice(0, 160) || 'no body'}`)
+      throw await assetsRefusal(res, get(languageAtom))
     }
     const data = await res.json()
     set(
       avatarPhotosAtom,
-      (Array.isArray(data.assets) ? data.assets : []).map((a: any) => ({
-        id: a.id,
-        url: a.url,
-        createdAt: a.createdAt,
-      }))
+      (Array.isArray(data.assets) ? (data.assets as AvatarPhoto[]) : []).map(
+        a => ({
+          id: a.id,
+          url: a.url,
+          createdAt: a.createdAt,
+        })
+      )
     )
   } catch (e) {
-    set(avatarPhotosErrorAtom, getErrorMessage(e, get(languageAtom)))
+    set(avatarPhotosErrorAtom, assetsErrorText(e, get(languageAtom)))
     set(avatarPhotosAtom, [])
   } finally {
     set(avatarPhotosLoadingAtom, false)
@@ -87,15 +88,12 @@ export const saveAvatarPhotoAtom = atom(
         body: JSON.stringify({ url, type: 'avatar_photo' }),
       })
       if (!res.ok) {
-        const body = await res.text().catch(() => '')
-        throw new Error(
-          `HTTP ${res.status} — ${body.slice(0, 160) || 'no body'}`
-        )
+        throw await assetsRefusal(res, get(languageAtom))
       }
       await set(loadAvatarPhotosAtom)
       return true
     } catch (e) {
-      set(avatarPhotosErrorAtom, getErrorMessage(e, get(languageAtom)))
+      set(avatarPhotosErrorAtom, assetsErrorText(e, get(languageAtom)))
       return false
     }
   }
@@ -113,15 +111,12 @@ export const deleteAvatarPhotoAtom = atom(
         { method: 'DELETE', headers: avatarHeaders() }
       )
       if (!res.ok) {
-        const body = await res.text().catch(() => '')
-        throw new Error(
-          `HTTP ${res.status} — ${body.slice(0, 160) || 'no body'}`
-        )
+        throw await assetsRefusal(res, get(languageAtom))
       }
       await set(loadAvatarPhotosAtom)
       return true
     } catch (e) {
-      set(avatarPhotosErrorAtom, getErrorMessage(e, get(languageAtom)))
+      set(avatarPhotosErrorAtom, assetsErrorText(e, get(languageAtom)))
       return false
     }
   }
