@@ -78,8 +78,14 @@ export function parseRss(xml: string): Article[] {
     const title = tag(item, 'title')
     const link = staticArticleUrl(tag(item, 'link'))
     if (!slug || !title || !/^https:\/\//.test(link)) continue
-    /* "[proven] ..." -- the feed's evidence label is for the site, not the post. */
-    const summary = tag(item, 'description').replace(/^\[[a-z ]+\]\s*/i, '')
+    /*
+     * "[proven] ..." -- the feed's evidence label is for the site, not the
+     * post. Labels are not always one word: "[counts measured through the
+     * GitHub API on 2026-10-02; merged means ...]" runs to 200 characters,
+     * and when only [a-z ] was stripped the X post spent its 280 on the
+     * caveat, cut off mid-sentence, and never reached the article.
+     */
+    const summary = tag(item, 'description').replace(/^\[[^\]]*\]\s*/, '')
     out.push({ slug, title, link, summary })
   }
   return out

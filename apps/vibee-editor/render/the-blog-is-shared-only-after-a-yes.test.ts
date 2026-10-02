@@ -28,6 +28,10 @@ const RSS = `<?xml version="1.0"?><rss><channel>
 <item><title>Older post</title><link>https://t27.ai/#/blog/older</link><guid isPermaLink="false">older</guid><description>x</description></item>
 </channel></rss>`
 
+/* The 2026-10-03 article's real label shape: 200 characters, digits, ';' and an apostrophe. */
+const ITEM_WITH_A_LONG_LABEL = `<item><title>Twelve pull requests</title><link>https://t27.ai/#/blog/twelve</link>
+<guid isPermaLink="false">twelve</guid><description>[counts measured through the GitHub API on 2026-10-02; merged means merged by the openXC7 maintainer, not shipped in a release; bitstream checks are cavearr's bench] Since 1 September we opened 12 pull requests.</description></item>`
+
 type Row = {
   slug: string
   state: string
@@ -113,6 +117,14 @@ describe('the feed', () => {
     expect(a[0].summary).toBe(
       'A merged PR corrected an invalid Yosys invocation.'
     )
+  })
+
+  it('a long evidence label goes too, so the X post opens with the article', () => {
+    const [a] = parseRss(
+      `<rss><channel>${ITEM_WITH_A_LONG_LABEL}</channel></rss>`
+    )
+    expect(a.summary).toBe('Since 1 September we opened 12 pull requests.')
+    expect(xThread(a).first).toContain('Since 1 September')
   })
 
   it('the X post fits, and both share pages are the networks own', () => {
