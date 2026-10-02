@@ -133,6 +133,30 @@ describe('tri iphone store / testflight', () => {
     expect([...known].filter(m => !offered.includes(m))).toEqual([])
   })
 
+  it('state is the read-only lane alone, without the consent', () => {
+    const r = iphone('state')
+    expect(r.rc).toBe(0)
+    expect(r.lanes).toEqual(['state'])
+  })
+
+  it('a missing app record is exit 3 - waiting on the owner, not broken', () => {
+    // The loop polls `tri iphone state` every tick; 3 means "the owner has
+    // not created the record yet", 1 means something here is broken.
+    fs.writeFileSync(
+      path.join(bin, 'fastlane'),
+      `#!/bin/sh\necho "$1" >> '${calls}'\necho "[!] App Store Connect has no app with bundle id ai.t27.trinity."\nexit 1\n`,
+      { mode: 0o755 }
+    )
+    for (const mode of ['state', 'store']) {
+      const r = iphone(mode)
+      expect(r.rc, mode).toBe(3)
+      expect(r.out).toContain('waiting on the owner')
+    }
+    // testflight refuses the same way before anything is built.
+    const t = iphone('testflight', '--yes')
+    expect(t.rc).toBe(3)
+  })
+
   it('stops at the first failing lane and says which', () => {
     fs.writeFileSync(
       path.join(bin, 'fastlane'),
