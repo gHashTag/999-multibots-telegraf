@@ -178,7 +178,10 @@ export function sceneVolume(frame: number, frames: number): number {
 }
 
 /** A clip's last frame, held still and silent. */
-const HeldFrame: React.FC<{ src: string; at: number }> = ({ src, at }) => (
+export const HeldFrame: React.FC<{ src: string; at: number }> = ({
+  src,
+  at,
+}) => (
   // The clip starts AT its last frame and that frame is frozen: Remotion
   // bounds a video's time by its Sequence, so freezing frame N of a clip
   // inside a shorter Sequence showed the wrong one.
@@ -192,7 +195,7 @@ const HeldFrame: React.FC<{ src: string; at: number }> = ({ src, at }) => (
   </Freeze>
 )
 
-const CallToAction: React.FC<{ text: string }> = ({ text }) => {
+export const CallToAction: React.FC<{ text: string }> = ({ text }) => {
   const frame = useCurrentFrame()
   // In at once (0.2 s) and held for the whole pause: the pause is for
   // reading the call, not for watching it arrive.

@@ -211,6 +211,7 @@ export function captionStartMs(
 
 export interface SplitReelInput {
   lipSyncVideo: string
+  /** Where the last word ends; the call starts there (spec v5). */
   seconds: number
   bRolls?: readonly string[]
   captions?: unknown[]
@@ -240,8 +241,22 @@ export function splitReelProps(input: SplitReelInput) {
     // The face is centred in the window it is shown in (spec v3).
     splitFacePosition: faceObjectPosition(face, width, splitH),
     fullscreenFacePosition: faceObjectPosition(face, width, height),
-    ...(input.ctaText ? { ctaText: input.ctaText } : {}),
+    // The call at the end, on the held last frame (spec v5): always.
+    ctaText: input.ctaText || SPEC.OWNER_CTA,
+    pauseSec: SPEC.CTA_PAUSE_SEC,
+    speechSec: input.seconds,
   }
+}
+
+/** Mirror of the spec's reel_frames: the voice, then the pause with the call. */
+export function reelFrames(speechFrames: number): number {
+  return speechFrames + SPEC.CTA_PAUSE_SEC * SPEC.FPS
+}
+
+/** Mirror of the spec's deliverable: measured and clean, or not given. */
+export function deliverable(measured: boolean, defects: number): boolean {
+  if (!measured) return false
+  return defects === 0
 }
 
 export const SPLIT_REEL_COMPOSITION = SPEC.COMPOSITION
