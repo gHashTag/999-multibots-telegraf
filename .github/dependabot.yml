@@ -51,6 +51,46 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
+  # mobile/ is an Expo 52 app pinned to React 18.3.1 and react-native 0.76.x.
+  # #3312 (grouped security updates) bumped react-native 0.76.5 -> 0.87.1 as
+  # the parent of a vulnerable transitive package; 0.87 needs React 19.2 and a
+  # newer Expo SDK, so the app would stop building. react-native is 0.x, so
+  # that jump is semver-MINOR and slips past a majors-only ignore. These
+  # framework packages move only together, by hand, in one Expo SDK upgrade.
+  # open-pull-requests-limit 0 turns off version updates here; security
+  # updates still run and honour this ignore list.
+  - package-ecosystem: "npm"
+    directory: "/mobile"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "deps(mobile)"
+    labels:
+      - "dependencies"
+      - "automated"
+    ignore:
+      - dependency-name: "react-native"
+        update-types:
+          ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-native-web"
+        update-types:
+          ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "expo"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "expo-*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@expo/*"
+        update-types: ["version-update:semver-major"]
+
   # Обновления Docker базовых образов
   - package-ecosystem: "docker"
     directory: "/"
