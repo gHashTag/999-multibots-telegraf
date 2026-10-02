@@ -22,7 +22,7 @@ import UIKit
  * появится вход, менять придётся хранилище, а не каждый вызов API.
  */
 enum Identity {
-  private static let сервис = "ai.t27.vibee.identity"
+  private static let сервис = "ai.t27.trinity.identity"
 
   /// Ключ агента: привязан к telegram_id на стороне сервера.
   static var agentKey: String? {
