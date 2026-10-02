@@ -279,6 +279,10 @@ looked at the result, and pressed "Post all".
 enterForNewline: true })` sends `"\r"`, which is what the Enter key types;
   this was measured in the pod's X composer. It is opt-in because in a chat
   box Enter SENDS.
+- **X "не подтверждено: в профиле не найдено" can mean the text, not the
+  check.** The profile is searched for the TITLE (`needleOf`). On 2026-10-02
+  the first post went out as "The seeg; ..." (#3373), so the title was not
+  there to find. Read the post itself before blaming `confirmOnProfile`.
 - **Reproduce without posting:** `tri browser open https://x.com/compose/post`,
   `tri browser type "…"`, `tri browser composer ID` (each box's text and
   length, the same `tweetTextarea_N` boxes the desk reads, and which of

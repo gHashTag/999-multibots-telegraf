@@ -56,10 +56,11 @@
 #                                 (browser_ask_input; KIND password|email|code|
 #                                 text|action); you learn only "N chars typed"
 #   tri browser ask-input choice WHY "A|B|C"  he presses one of the options
-#   tri browser doctor            every tab, read-only: blank, staleTab, unsent X
-#                                 composer text, tab count over the cap, cover;
-#                                 each anomaly with its fix command. Start every
-#                                 loop tick with it. Watched = front tab only
+#   tri browser doctor            start every loop tick with it: tab list vs the
+#                                 cap, cover, and the FRONT tab read (blank,
+#                                 staleTab, unsent X composer text), each anomaly
+#                                 with its fix command. Probes only: never starts
+#                                 a visit (that messages the owner), never tours
 #   tri browser call TOOL [JSON]  any tool, raw: the escape hatch
 #   tri browser cover             every browser_* tool in agent-tools.ts has a
 #                                 case here (exit 1 names the ones that do not)
@@ -102,14 +103,18 @@ fi
 BASE="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 NONE='{}'  # "${2:-{}}" expands to "{\\}" in bash: keep the empty object here
 
-# call TOOL JSON [MAX_TIME] -> the tool's own answer on stdout (structured JSON
-# or text), exit 1 on a tool error, 2 when nothing came back.
+# call TOOL JSON [MAX_TIME] [probe] -> the tool's own answer on stdout
+# (structured JSON or text), exit 1 on a tool error, 2 when nothing came back.
+# "probe" sets params._meta.probe: the server then never starts a browser
+# visit for the call -- a started visit messages the owner (liveSession).
 call() {
   local body resp
-  body=$(TOOL="$1" ARGS="${2:-$NONE}" python3 -c '
+  body=$(TOOL="$1" ARGS="${2:-$NONE}" PROBE="${4:-}" python3 -c '
 import json, os
-print(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-  "params": {"name": os.environ["TOOL"], "arguments": json.loads(os.environ["ARGS"])}}))')
+params = {"name": os.environ["TOOL"], "arguments": json.loads(os.environ["ARGS"])}
+if os.environ["PROBE"] == "probe":
+    params["_meta"] = {"probe": True}
+print(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": params}))')
   [ -n "$body" ] || { echo "аргументы не JSON: $2" >&2; return 2; }
   resp=$(curl -s --max-time "${3:-90}" "$BASE/mcp" -H "X-Agent-Key: $KEY" \
     -H 'Content-Type: application/json' -d "$body")
@@ -402,21 +407,32 @@ sys.exit(0 if os.environ["W"].lower() in t.lower() else 1)'; then
     elif [ -n "${3:-}" ]; then int "$3" X; int "${4:-}" Y; EXTRA=",\"x\":$3,\"y\":$4"; fi
     call browser_ask_input "{\"kind\":$(js "$1"),\"why\":$(js "$2")$EXTRA}" 150 ;;
   doctor)
-    # One read-only sweep for the start of every loop tick: each tab's state,
-    # each anomaly with the command that fixes it. Fixes nothing itself.
-    # Born 2026-10-03: a tab loaded before a deploy kept showing a bug that
-    # was already fixed live, and the only way to see it was blank, by hand,
-    # tab by tab. While the person watches, only the front tab is read --
-    # touring his tabs in front of him is driving, not reading.
+    # One read-only sweep for the start of every loop tick: each anomaly with
+    # the command that fixes it. Fixes nothing itself. Born 2026-10-03: a tab
+    # loaded before a deploy kept showing a bug already fixed live.
+    #
+    # It reads ONE tab, the front one, and only while a visit is on record.
+    # The first version toured every tab, and review (#3392) caught what that
+    # costs: a page read with no visit on record STARTS one (liveSession), and
+    # a started visit messages the owner -- at 02:36, from a "read-only"
+    # check. With a visit on record the person may be watching, and bringing
+    # his tabs forward one by one in front of him is driving. So every call
+    # here is a probe, and the other tabs are listed, not opened.
     bash "$0" "$ROOT" cover >/dev/null 2>&1; crc=$?
-    st=$(call browser_status '{}' 40) || { echo "статус не пришёл: ${st:0:200}"; exit 2; }
+    st=$(call browser_status '{}' 40 probe) || { echo "статус не пришёл: ${st:0:200}"; exit 2; }
     CAP=$(grep -oE 'export const TAB_CAP = [0-9]+' "$ROOT/apps/vibee-editor/render/src/browser/tab-sweep.ts" | grep -oE '[0-9]+$')
-    read -r RUN WATCH FRONT IDS <<<"$(OUT="$st" python3 -c '
+    # Where the tools act: the remembered choice, else the first real page --
+    # the server's own pickFront (front-page.ts), not a guess.
+    listing=$(OUT="$st" python3 -c '
 import json, os
 d = json.loads(os.environ["OUT"])
 pages = (d.get("pages") or []) if d.get("running") else []
-front = next((p["id"] for p in pages if p.get("actingHere")), "-")
-print(1 if d.get("running") else 0, 1 if d.get("watchedByThePerson") else 0, front, " ".join(p["id"] for p in pages))' 2>/dev/null)"
+real = [p for p in pages if not str(p.get("url", "")).startswith("chrome-extension://")]
+front = next((p["id"] for p in real if p.get("actingHere")), real[0]["id"] if real else "-")
+print(1 if d.get("running") else 0, 1 if d.get("watchedByThePerson") else 0, front, len(pages))
+for p in pages:
+    print("%s %s  %s" % ("*" if p["id"] == front else " ", p["id"], str(p.get("url", ""))[:80]))' 2>/dev/null)
+    read -r RUN WATCH FRONT TOTAL <<<"$(head -1 <<<"$listing")"
     [ -n "${RUN:-}" ] || { echo "статус не разобрать: ${st:0:200}"; exit 2; }
     found=0
     flag() { found=$((found + 1)); printf '  ! %s\n      -> %s\n' "$1" "$2"; }
@@ -425,13 +441,20 @@ print(1 if d.get("running") else 0, 1 if d.get("watchedByThePerson") else 0, fro
       echo "браузер не запущен — вкладок нет (под гасится в простое; это не поломка)"
       [ $found -eq 0 ] && exit 0 || exit 1
     fi
-    set -- $IDS; total=$#
-    echo "вкладок: $total из ${CAP:-?}   человек смотрит: $([ "$WATCH" = 1 ] && echo да || echo нет)"
-    [ -n "$CAP" ] && [ "$total" -gt "$CAP" ] && flag "вкладок $total при потолке $CAP: под задохнётся (pids.max, 27.09)" "tri tabs"
-    # Per tab: mount state, unsent X composer text, and staleTab = a module the
-    # site serves NOW is missing from the tab (a subset test: modules the page
-    # injects at runtime are extra, not stale). No re-GET of a sign-out,
-    # callback or token URL: the GET itself could act.
+    echo "вкладок: $TOTAL из ${CAP:-?}   визит записан: $([ "$WATCH" = 1 ] && echo да || echo нет)"
+    tail -n +2 <<<"$listing" | sed 's/^/  /'
+    [ -n "$CAP" ] && [ "$TOTAL" -gt "$CAP" ] && flag "вкладок $TOTAL при потолке $CAP: под задохнётся (pids.max, 27.09)" "tri tabs"
+    if [ "$WATCH" != 1 ]; then
+      echo "  страницы не читаю: визита нет, а чтение завело бы его и написало владельцу."
+      echo "  одну вкладку по делу: tri browser blank ID (заведёт визит)"
+      [ $found -eq 0 ] && { echo "аномалий нет (по списку)"; exit 0; }
+      echo "аномалий: $found"; exit 1
+    fi
+    # The front tab: mount state, unsent X composer text, and staleTab = a
+    # module the site serves NOW is missing from the tab (a subset test:
+    # modules the page injects at runtime are extra, not stale). The re-GET
+    # carries his cookies, so URLs that look like they act on a GET are not
+    # re-fetched.
     PROBE='new Promise(done => {
   const v = { href: location.href, proto: location.protocol, ready: document.readyState,
     nodes: document.querySelectorAll("*").length,
@@ -441,7 +464,7 @@ print(1 if d.get("running") else 0, 1 if d.get("watchedByThePerson") else 0, fro
     .reduce((n, b) => n + (b.innerText || "").trim().length, 0);
   const mine = [...document.scripts].filter(s => s.type === "module" && s.src).map(s => new URL(s.src).pathname);
   if (!/^https?:$/.test(location.protocol) || !mine.length
-      || /log-?out|sign-?out|callback|oauth|confirm|verify|token|code=/i.test(location.href)) return done(v);
+      || /log-?out|sign-?out|unsub|callback|oauth|confirm|verify|token|code=/i.test(location.href)) return done(v);
   setTimeout(() => done(v), 8000);
   fetch(location.href, { cache: "no-store" }).then(r => r.text()).then(html => {
     const now = [...new DOMParser().parseFromString(html, "text/html").querySelectorAll("script[type=module][src]")]
@@ -450,22 +473,11 @@ print(1 if d.get("running") else 0, 1 if d.get("watchedByThePerson") else 0, fro
     done(v);
   }).catch(() => done(v));
 })'
-    checked=""; moved=0
-    for id in $IDS; do
-      if [ "$WATCH" = 1 ] && [ "$id" != "$FRONT" ]; then continue; fi
-      if [ "$id" != "$FRONT" ]; then
-        f=$(call browser_status "{\"front\":$(js "$id")}" 40) || { flag "$id: не вышла вперёд: ${f:0:120}" "tri browser shot $id; висит — tri heal"; continue; }
-        moved=1
-        # He opened the window mid-sweep: stop touring, give his tab back.
-        if OUT="$f" python3 -c 'import json,os,sys; sys.exit(0 if json.loads(os.environ["OUT"]).get("watchedByThePerson") else 1)' 2>/dev/null; then
-          WATCH=1; echo "  (человек открыл окно — обход остановлен)"; break
-        fi
-      fi
-      out=$(call browser_evaluate "{\"code\":$(js "$PROBE")}" 40); rc=$?
-      checked="$checked $id"
-      if [ $rc -eq 2 ]; then flag "$id: вкладка не ответила за 40 с" "tri browser shot $id; висит — tri heal"; continue; fi
-      if [ $rc -eq 1 ]; then echo "    $id  не прочитана: ${out:0:100} (страж банка/почты/оплаты — так и должно быть)"; continue; fi
-      lines=$(ID="$id" OUT="$out" python3 -c '
+    out=$(call browser_evaluate "{\"code\":$(js "$PROBE")}" 40 probe); rc=$?
+    if [ $rc -eq 2 ]; then flag "$FRONT: передняя вкладка не ответила за 40 с" "tri browser shot $FRONT; висит — tri heal"
+    elif [ $rc -eq 1 ]; then echo "  $FRONT не прочитана: ${out:0:120} (страж банка/почты/оплаты — так и должно быть)"
+    else
+      lines=$(ID="$FRONT" OUT="$out" python3 -c '
 import json, os
 i = os.environ["ID"]
 try: d = json.loads(os.environ["OUT"])
@@ -473,7 +485,7 @@ except Exception: d = {}
 v = d.get("value", d) if isinstance(d, dict) else {}
 v = v if isinstance(v, dict) else {}
 web = v.get("proto") in ("http:", "https:")
-print("    %s  %s  %s узлов, %s знаков" % (i, str(v.get("href", "?"))[:70], v.get("nodes", "?"), v.get("text", "?")))
+print("  передняя %s: %s узлов, %s знаков" % (i, v.get("nodes", "?"), v.get("text", "?")))
 draft = v.get("draft") or 0
 if web and v.get("ready") == "complete" and v.get("text") == 0:
     print("!%s: страница пустая\ttri browser blank %s" % (i, i))
@@ -483,13 +495,10 @@ if v.get("stale"):
 if draft:
     print("!%s: в композере X неотправленный текст, %d знаков\ttri browser composer %s" % (i, draft, i))')
       while IFS= read -r l; do
-        case "$l" in '!'*) w="${l#!}"; flag "${w%%	*}" "${w#*	}" ;; *) echo "$l" ;; esac
+        case "$l" in '') ;; '!'*) w="${l#!}"; flag "${w%%	*}" "${w#*	}" ;; *) echo "$l" ;; esac
       done <<<"$lines"
-    done
-    # Give the front back to the tab that had it.
-    [ $moved = 1 ] && [ "$FRONT" != "-" ] && { front "$FRONT" || echo "  (вернуть вперёд $FRONT не вышло: tri browser front $FRONT)"; }
-    unread=$(( total - $(echo $checked | wc -w) ))
-    [ $unread -gt 0 ] && echo "  не прочитано вкладок: $unread$([ "$WATCH" = 1 ] && echo ' (человек смотрит — читал только переднюю)')"
+    fi
+    [ "$TOTAL" -gt 1 ] && echo "  остальные $((TOTAL - 1)) не читаю: при записанном визите человек может смотреть. По одной: tri browser blank ID"
     [ $found -eq 0 ] && { echo "аномалий нет"; exit 0; }
     echo "аномалий: $found"; exit 1 ;;
   call)

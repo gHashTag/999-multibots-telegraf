@@ -157,21 +157,30 @@ Pick the command by the symptom, and keep `cover` at rc 0: a tool added to
 smoke tests. A tab opened before a deploy keeps the old bundle and can show a
 bug that is already fixed live; `blank` says `staleTab`, `reload` cures it.
 
-**Start every loop tick with `tri browser doctor`.** One read-only sweep:
-blank pages, tabs on an older build (staleTab), unsent text in X's composer,
-tab count over `TAB_CAP`, and `cover`. Each anomaly comes with the command
-that fixes it; rc 0 clean, 1 anomalies, 2 could not ask. It fixes nothing
-itself. Two rules it keeps, so keep them in any copy of it:
+**Start every loop tick with `tri browser doctor`.** It lists the tabs against
+`TAB_CAP`, runs `cover`, and reads the FRONT tab: blank page, staleTab
+(an older build than the site serves), unsent text in X's composer. Each
+anomaly comes with the command that fixes it; rc 0 clean, 1 anomalies, 2
+could not ask. It fixes nothing itself.
 
-- **While the person watches, only the front tab is read.** Bringing his
-  tabs forward one by one in front of him is driving, not reading. If he
-  opens the window mid-sweep (the `front` answer says so), the tour stops and
-  his front tab is given back. "Не прочитано вкладок: N" is that, not a fault.
-- **staleTab never becomes a bare `reload` on a tab with composer text.** A
-  reload throws the draft away; the fix line says `composer ID` first.
-  staleTab is a subset test -- a module the site serves now that the tab
-  lacks -- so modules a page injects at runtime do not read as stale. URLs
-  that look like sign-out, callback or token links are not re-fetched.
+**Every call doctor makes is a probe (`params._meta.probe`), and it never
+tours tabs.** The first version (#3392, caught in review) toured them, and
+cost this: a tool that reads a page with no visit on record STARTS a visit
+(`liveSession` -> `startBrowserAsAgent`), and a started visit messages the
+owner. A "read-only" check messaged him at 02:36. With a visit on record
+the person may be watching, and bringing his tabs forward one by one is
+driving. So other tabs are listed, never opened; read one on purpose with
+`tri browser blank ID`, knowing that it starts a visit.
+
+`watchedByThePerson` means "a visit row is live". It does NOT mean eyes on
+the screen, and the agent's own reads create that row. If it flips to true
+in the middle of your work, ask whether you started the visit yourself.
+
+staleTab is a subset test: a module the site serves now that the tab lacks.
+Modules a page injects at runtime do not read as stale. URLs that look like
+they act on a GET (sign-out, unsubscribe, callback, token) are not
+re-fetched. A staleTab on a tab with composer text says `composer ID` first:
+a reload throws the draft away.
 
 `bun run verify` runs `cover` as the `browser-cover` step.
 `ask WHAT S` refuses S over 120 (the server clipped it silently);
