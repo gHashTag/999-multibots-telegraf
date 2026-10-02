@@ -2011,6 +2011,20 @@ revert erased the uncommitted lane and command they were testing. The
 verdicts (3, 1 and 5 red) stood; the code had to be re-applied from notes.
 `git add` or commit first; then the revert lands on your version.
 
+**Before you retry a failed push or fetch, ask `tri online`.** On 03.10.2026
+github.com stopped resolving mid-tick; three git commands failed in turn and
+each was retried by hand. `tri online` (#3442) says which kind of failure it
+is: exit 1 = the network (wait: `tri online --wait 300`), 3 = GitHub refuses
+the credentials (a retry never helps, look), 4 = unrecognised (read the line).
+Chain it WITHOUT a pipe: `./tri online --wait 300 && git push`. Written as
+`./tri online --wait 120 | tail -1 && git push`, the `&&` reads `tail`'s exit
+code, so the push goes ahead with the network down (done exactly so the same
+tick, caught on reading back).
+
+**Run the system Ruby before you trust a regex in fastlane code.** Ruby 3.2+
+memoises regex backtracking; `/usr/bin/ruby` 2.6 does not. `TeamGroup.scrub`
+took 52 s on 6000 characters of `a@` there and 1 ms on Ruby 4 (#3443).
+
 ### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
 
 The screen now translates a waiting reason by code and falls back to the

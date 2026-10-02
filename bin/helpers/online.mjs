@@ -9,7 +9,7 @@
 //
 // Exit: 0 all up, 1 the network is down, 3 GitHub refuses the credentials,
 // 4 a failure not recognised, 2 bad usage. The meaning is scripts/lib/online.cjs.
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { lookup } from 'node:dns/promises'
 import { createRequire } from 'node:module'
 
@@ -33,6 +33,19 @@ for (let i = 0; i < args.length; i++) {
 const RENDER =
   process.env.TRI_RENDER_URL || 'https://vibee-render-production.up.railway.app'
 
+// BatchMode turns a password prompt into a refusal, ConnectTimeout bounds a
+// dead road; both are added to the ssh command already chosen (environment,
+// then core.sshCommand), so a custom key path is kept (#3442 review).
+function sshCommand() {
+  const base =
+    process.env.GIT_SSH_COMMAND ||
+    spawnSync('git', ['config', '--get', 'core.sshCommand'], {
+      encoding: 'utf8',
+    }).stdout.trim() ||
+    'ssh'
+  return `${base} -o BatchMode=yes -o ConnectTimeout=10`
+}
+
 function run(cmd, argv, ms) {
   return new Promise(resolve => {
     let out = ''
@@ -41,7 +54,7 @@ function run(cmd, argv, ms) {
       env: {
         ...process.env,
         GIT_TERMINAL_PROMPT: '0',
-        GIT_SSH_COMMAND: 'ssh -o BatchMode=yes -o ConnectTimeout=10',
+        GIT_SSH_COMMAND: sshCommand(),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -124,7 +137,14 @@ async function probe(set) {
 let results = await probe({ ...GITHUB, ...OTHERS })
 const started = Date.now()
 const githubUp = r => Object.keys(GITHUB).every(n => r[n].kind === 'up')
-while (wait > 0 && !githubUp(results) && Date.now() - started < wait * 1000) {
+// A refusal does not heal by waiting: stop polling at once (#3442 review).
+const refused = r => Object.keys(GITHUB).some(n => r[n].kind === 'auth')
+while (
+  wait > 0 &&
+  !githubUp(results) &&
+  !refused(results) &&
+  Date.now() - started < wait * 1000
+) {
   if (!json)
     console.log(
       `  …    GitHub not answering (${Object.keys(GITHUB)
