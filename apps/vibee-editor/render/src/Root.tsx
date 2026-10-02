@@ -165,9 +165,18 @@ export const RemotionRoot: React.FC = () => {
             )
           }
 
+          // The voice, then the pause with the call (split-reel.t27 v5). A
+          // lipsync that runs on in silence past its last word is cut at the
+          // word: the call starts where the speech ends, not the file.
+          if (props.speechSec && props.speechSec > 0)
+            durationInFrames = Math.min(
+              durationInFrames,
+              Math.ceil(props.speechSec * fps)
+            )
+          const pauseFrames = Math.round((props.pauseSec ?? 0) * fps)
           return {
-            durationInFrames,
-            props,
+            durationInFrames: durationInFrames + pauseFrames,
+            props: { ...props, lipFrames: durationInFrames },
           }
         }}
       />
