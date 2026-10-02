@@ -17,6 +17,7 @@ let blankLooks = 0
 let profileShows = true
 const opened: string[] = []
 let n = 0
+const typed: string[] = []
 const hrefs = new Map<string, number>()
 
 vi.mock('./src/browser/sessions', () => ({
@@ -39,19 +40,23 @@ vi.mock('./src/browser/cdp', () => ({
       return leaves && k > 1 ? `https://after/${id}` : `https://form/${id}`
     }
     if (expr.includes('AppTabBar_Profile_Link')) return 'https://x.com/owner'
+    /* X's composer holds what was typed (blog-share.ts composerHolds). */
+    if (expr.includes('tweetTextarea_')) return [...typed]
     if (expr === 'document.body ? document.body.innerText : ""')
       return profileShows ? 'Posts\nOpen FPGA Ethernet, at last' : 'Posts'
     if (blankLooks > 0) return (blankLooks--, null)
     return { x: 1, y: 1, label: 'Post' }
   },
   clickAt: async () => undefined,
-  typeText: async () => undefined,
+  typeText: async (_c: string, _id: string, text: string) =>
+    void typed.push(text),
   closePage: async (_c: string, id: string) => void closed.push(id),
 }))
 
 beforeEach(() => {
   closed.length = 0
   opened.length = 0
+  typed.length = 0
   profileShows = true
   hrefs.clear()
   n = 0
