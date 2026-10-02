@@ -1056,7 +1056,7 @@ describe("the spec's tests hold against the host", () => {
     // screen the price comes before the press it prices.
     const PLAYER = join(HERE, '..', '..', '..', 'player', 'src')
     const read = (...p: string[]) => readFileSync(join(PLAYER, ...p), 'utf8')
-    const page = read('pages', 'Story.tsx')
+    const page = read('components', 'Story', 'MyStoryWidget.tsx') // her page and the chat share it
     expect(page.indexOf('data-testid="story-price"')).toBeGreaterThan(0)
     expect(page.indexOf('data-testid="story-price"')).toBeLessThan(
       page.indexOf("t('story.make')")
@@ -1071,7 +1071,7 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(17)
+    expect(SPEC.VERSION).toBe(18)
   })
 
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {
