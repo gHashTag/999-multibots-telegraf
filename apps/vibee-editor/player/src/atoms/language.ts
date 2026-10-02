@@ -871,7 +871,7 @@ const en: Translations = {
   // The TRI payout wallet, own profile only (components/Profile/TriWalletCard.tsx)
   'tri.wallet.title': '💎 TRI wallet',
   'tri.wallet.note':
-    "The TON address your TRI would be paid to, proved by your wallet's own signature. TRI is not deployed yet: binding pays nothing today, it records where TRI would go.",
+    "The TON address your TRI is paid to, proved by your wallet's own signature. TRI exists on TON testnet only; there is no mainnet TRI yet.",
   'tri.wallet.bind': 'Bind a TON wallet',
   'tri.wallet.rebind': 'Bind another TON wallet',
   'tri.wallet.unbind': 'Unbind',
@@ -888,6 +888,37 @@ const en: Translations = {
   'tri.wallet.err.noproof':
     'The wallet connected without signing the proof, so nothing was bound.',
   'tri.wallet.err.generic': 'The wallet could not be bound. Try again.',
+  // Claiming TRI for accepted specs, own profile only (components/Profile/TriClaimCard.tsx)
+  'tri.claim.title': '🪙 TRI for accepted specs',
+  'tri.claim.status':
+    'TON testnet only. V1, signer quorum, NOT trustless: independent attestors check each spec and co-sign the mint; your wallet sends it and pays the gas.',
+  'tri.claim.github.why':
+    'Link the GitHub account your accepted .t27 specs are credited to.',
+  'tri.claim.github.link': 'Link GitHub',
+  'tri.claim.github.enter':
+    'Open the page below, sign in to GitHub and enter this code:',
+  'tri.claim.github.as': 'GitHub: @{login}',
+  'tri.claim.github.unlink': 'Unlink',
+  'tri.claim.needWallet': 'Bind a TON testnet wallet above to withdraw.',
+  'tri.claim.empty': 'No accepted specs are credited to this account yet.',
+  'tri.claim.withdraw': 'Withdraw',
+  'tri.claim.working': 'Waiting for the wallet…',
+  'tri.claim.sent': 'Sent',
+  'tri.claim.sentNote':
+    'Sent from your wallet. The minter credits the TRI within a minute; the TON it did not use comes back.',
+  'tri.claim.err.github': 'Link GitHub first.',
+  'tri.claim.err.wallet': 'Bind a TON testnet wallet first.',
+  'tri.claim.err.notyours':
+    'This spec is credited to a different GitHub account.',
+  'tri.claim.err.minted': 'This spec has already been minted.',
+  'tri.claim.err.notmerged':
+    'The attestors could not find this spec in a merged pull request.',
+  'tri.claim.err.revoked': 'This acceptance was revoked.',
+  'tri.claim.err.denied': 'GitHub access was denied, so nothing was linked.',
+  'tri.claim.err.expired': 'The code expired. Press Link GitHub again.',
+  'tri.claim.err.unavailable':
+    'Not enough attestors answered. Try again in a few minutes.',
+  'tri.claim.err.generic': 'Something went wrong. Try again.',
   // Skills the agent in this chat carries (components/Chat/AgentSkillsPanel.tsx)
   'chat.agentSkills.on': 'Skills connected: {own} · plus {general} general',
   'chat.agentSkills.none':
@@ -3695,7 +3726,7 @@ const ru: Translations = {
   'meta.card.days': 'осталось дней: {n}',
   'tri.wallet.title': '💎 Кошелёк TRI',
   'tri.wallet.note':
-    'TON-адрес, на который будут приходить ваши TRI, подтверждённый подписью самого кошелька. TRI ещё не выпущен: привязка сегодня ничего не платит, она записывает, куда пойдут TRI.',
+    'TON-адрес, на который приходят ваши TRI, подтверждённый подписью самого кошелька. TRI пока есть только в тестовой сети TON; в основной сети его ещё нет.',
   'tri.wallet.bind': 'Привязать TON-кошелёк',
   'tri.wallet.rebind': 'Привязать другой TON-кошелёк',
   'tri.wallet.unbind': 'Отвязать',
@@ -3713,6 +3744,37 @@ const ru: Translations = {
   'tri.wallet.err.noproof':
     'Кошелёк подключился, но не подписал подтверждение, поэтому ничего не привязано.',
   'tri.wallet.err.generic': 'Не удалось привязать кошелёк. Попробуйте ещё раз.',
+  'tri.claim.title': '🪙 TRI за принятые спеки',
+  'tri.claim.status':
+    'Только тестовая сеть TON. V1, кворум подписантов, НЕ trustless: независимые аттесторы проверяют каждую спеку и подписывают выпуск; отправляет его ваш кошелёк и платит газ.',
+  'tri.claim.github.why':
+    'Привяжите GitHub-аккаунт, на который засчитаны ваши принятые .t27-спеки.',
+  'tri.claim.github.link': 'Привязать GitHub',
+  'tri.claim.github.enter':
+    'Откройте страницу ниже, войдите в GitHub и введите этот код:',
+  'tri.claim.github.as': 'GitHub: @{login}',
+  'tri.claim.github.unlink': 'Отвязать',
+  'tri.claim.needWallet':
+    'Чтобы вывести, привяжите выше TON-кошелёк тестовой сети.',
+  'tri.claim.empty': 'На этот аккаунт пока не засчитано ни одной спеки.',
+  'tri.claim.withdraw': 'Вывести',
+  'tri.claim.working': 'Ждём кошелёк…',
+  'tri.claim.sent': 'Отправлено',
+  'tri.claim.sentNote':
+    'Отправлено с вашего кошелька. Минтер начислит TRI в течение минуты; неизрасходованные TON вернутся.',
+  'tri.claim.err.github': 'Сначала привяжите GitHub.',
+  'tri.claim.err.wallet': 'Сначала привяжите TON-кошелёк тестовой сети.',
+  'tri.claim.err.notyours': 'Эта спека засчитана другому GitHub-аккаунту.',
+  'tri.claim.err.minted': 'За эту спеку TRI уже выпущены.',
+  'tri.claim.err.notmerged':
+    'Аттесторы не нашли эту спеку в смёрженном pull request.',
+  'tri.claim.err.revoked': 'Принятие этой спеки отозвано.',
+  'tri.claim.err.denied':
+    'Доступ в GitHub не подтверждён, ничего не привязано.',
+  'tri.claim.err.expired': 'Код устарел. Нажмите «Привязать GitHub» ещё раз.',
+  'tri.claim.err.unavailable':
+    'Ответило недостаточно аттесторов. Попробуйте через несколько минут.',
+  'tri.claim.err.generic': 'Что-то пошло не так. Попробуйте ещё раз.',
   'chat.agentSkills.on': 'Навыки подключены: {own} · и общих: {general}',
   'chat.agentSkills.none':
     'Ваших правил для него пока нет: напишите правило ниже — оно подключится со следующего сообщения (сохранится как «{prefix}: …»).',
