@@ -32,11 +32,15 @@ const row = () => ({
   view_token: 'v',
   admin_token: 'a',
 })
+/* The pod's tenant: set when a test has a pod running with no visit row. */
+let tenant: string | null = null
 const pool = {
   query: async (sql: string) => {
     const s = sql.trim().toUpperCase()
     if (s.startsWith('SELECT') && s.includes('BROWSER_SESSIONS'))
       return { rows: live ? [row()] : [] }
+    if (s.startsWith('SELECT') && s.includes('BROWSER_POD_TENANTS'))
+      return { rows: tenant ? [{ telegram_id: tenant }] : [] }
     return { rows: [] }
   },
 }
@@ -45,6 +49,7 @@ const open = BROWSER_TOOLS.find(t => t.name === 'browser_open')!
 beforeEach(() => {
   started.length = 0
   live = false
+  tenant = null
   resetBrowserSessionsCache()
 })
 
@@ -67,6 +72,30 @@ describe('browser_open with the browser off', () => {
       } as never)
     ).rejects.toThrow('no browser is running')
     expect(started).toEqual([])
+  })
+
+  /*
+   * 2026-10-03: the reaper had deleted the visit row, the pod ran on with
+   * nine tabs, and a probe was told "no browser is running" -- false, and
+   * the wrong remedy (the person was asked to open one).
+   */
+  it('a probe on a running pod with no visit row is told the truth', async () => {
+    const saved = process.env.BROWSER_POD_CDP
+    process.env.BROWSER_POD_CDP = 'pod:9222'
+    tenant = '9000000061'
+    try {
+      await expect(
+        open.handler({ url: 'https://example.com/' }, {
+          telegramId: '9000000061',
+          pool,
+          probe: true,
+        } as never)
+      ).rejects.toThrow('the browser is running, but no visit is on record')
+      expect(started).toEqual([])
+    } finally {
+      if (saved === undefined) delete process.env.BROWSER_POD_CDP
+      else process.env.BROWSER_POD_CDP = saved
+    }
   })
 
   it('a forbidden address is refused before anything is started', async () => {
