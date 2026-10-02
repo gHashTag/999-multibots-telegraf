@@ -1,7 +1,7 @@
 import { logger } from '@/utils/logger'
 
 /*
- * WHO LOOKS AT THE AVATAR: KIE, NOT REPLICATE.
+ * WHO LOOKS AT THE AVATAR: OUR OWN MODEL FIRST, THEN KIE, NOT REPLICATE.
  *
  * This used to be Moondream on Replicate. On 2026-10-01 the Replicate account
  * ran dry, every new user paged the owner with `402 Insufficient credit`, and
@@ -20,7 +20,7 @@ const KIE_VISION_MODEL = 'gpt-5-2'
 const VISION_TIMEOUT_MS = 60_000
 
 /** Ask Kie's vision model one question about one picture; the text reply. */
-async function askVision(imageUrl: string, prompt: string): Promise<string> {
+async function askKieVision(imageUrl: string, prompt: string): Promise<string> {
   const key = process.env.KIE_AI_API_KEY
   if (!key) throw new Error('KIE_AI_API_KEY is not set')
   const r = await fetch(KIE_CHAT_URL, {
@@ -53,6 +53,107 @@ async function askVision(imageUrl: string, prompt: string): Promise<string> {
     )
   }
   return content
+}
+
+/*
+ * OUR OWN EYES FIRST, A PAID PROVIDER ONLY AFTER THEM.
+ *
+ * The project already runs its own vision model on Railway's private network
+ * (the `vision` service: llama.cpp + Qwen3-VL, the one render reads photos
+ * with, render/src/agent/media-vision.ts). The question goes there first, and
+ * Kie (above) is only the fallback -- one paid provider as the only eye is a
+ * single point of failure, which is how the 2026-10-01 Replicate 402 took the
+ * whole welcome gift down.
+ *
+ * Configured as in render: VISION_API_KEY (without it this step is skipped),
+ * VISION_BASE_URL (default the private host), VISION_MODEL. The photo is
+ * fetched here and inlined as a data: URL, because the self-hosted server is
+ * not asked to reach the outside.
+ */
+const OWN_VISION_BASE = 'http://vision.railway.internal:8000/v1'
+const OWN_VISION_MODEL = 'qwen3-vl-2b-instruct'
+/** CPU inference: a photo takes seconds, a cold one up to a minute. */
+const OWN_VISION_TIMEOUT_MS = 60_000
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024
+
+/** The answer of our own vision model, or null when it is not configured. */
+export async function askOwnVision(
+  imageUrl: string,
+  prompt: string
+): Promise<string | null> {
+  const key = process.env.VISION_API_KEY
+  if (!key) return null
+  const base = (process.env.VISION_BASE_URL || OWN_VISION_BASE).replace(
+    /\/+$/,
+    ''
+  )
+  const signal = AbortSignal.timeout(OWN_VISION_TIMEOUT_MS)
+  const photo = await fetch(imageUrl, { signal })
+  if (!photo.ok) throw new Error(`photo answered ${photo.status}`)
+  const bytes = Buffer.from(await photo.arrayBuffer())
+  if (!bytes.length || bytes.length > MAX_PHOTO_BYTES)
+    throw new Error(`photo of ${bytes.length} bytes is outside the range`)
+  const mime = photo.headers.get('content-type') || 'image/jpeg'
+  const r = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model: process.env.VISION_MODEL || OWN_VISION_MODEL,
+      max_tokens: 60,
+      temperature: 0,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mime};base64,${bytes.toString('base64')}`,
+              },
+            },
+          ],
+        },
+      ],
+    }),
+  })
+  if (!r.ok) throw new Error(`own vision answered ${r.status}`)
+  const data = (await r.json()) as {
+    choices?: Array<{ message?: { content?: unknown } }>
+  }
+  const text = data.choices?.[0]?.message?.content
+  if (typeof text !== 'string' || !text.trim())
+    throw new Error('own vision answered nothing')
+  return text
+}
+
+/**
+ * Ask the photo a question: our own model first; Kie when ours is not
+ * configured or failed. When both fail, the error says both reasons.
+ */
+async function askVision(imageUrl: string, prompt: string): Promise<string> {
+  let ownFailure: string | null = null
+  try {
+    const own = await askOwnVision(imageUrl, prompt)
+    if (own !== null) return own
+  } catch (error) {
+    ownFailure = error instanceof Error ? error.message : String(error)
+    logger.warn('[AnalyzeAvatar] Own vision failed, trying Kie', {
+      error: ownFailure,
+    })
+  }
+  try {
+    return await askKieVision(imageUrl, prompt)
+  } catch (error) {
+    const kieFailure = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      ownFailure ? `own vision: ${ownFailure}; kie: ${kieFailure}` : kieFailure
+    )
+  }
 }
 
 /*
@@ -99,7 +200,7 @@ export interface AvatarAnalysisResult {
 }
 
 /**
- * Analyze avatar image with Kie's vision model (see the header above).
+ * Analyze avatar image: our own vision model first, then Kie (see above).
  * Detects if there's a human face and determines gender.
  */
 export async function analyzeAvatar(
