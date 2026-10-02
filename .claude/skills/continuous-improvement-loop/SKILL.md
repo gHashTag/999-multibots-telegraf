@@ -176,8 +176,10 @@ skip» записана в спеке (`meta-connect.t27`, навык `t27-spec-
   (отказ по оплате). Все правки этого этапа влиты БЕЗ единой проверки.
 - iOS to TestFlight (re-measured 2026-10-03, `tri iphone store`): the icon,
   the Apple Distribution certificate and the ASC key are all in place;
-  what is missing is the App ID `ai.t27.trinity` and its App Store Connect
-  record - both the account holder's clicks (the API cannot create an app).
+  the App ID `ai.t27.trinity` is registered (#3410; "Vibee" is the OLD name,
+  never offer it to the owner). What is missing is the App Store Connect
+  record - the account holder's click (the API cannot create an app):
+  Name Trinity S³AI, bundle id `ai.t27.trinity`, SKU `trinity-s3ai`.
   Then `tri iphone testflight --yes`, on his "yes" only.
 - XAI_API_KEY отсутствует, ELEVENLABS_API_KEY хранит идентификатор вместо
   ключа, баланс fal.ai исчерпан: три вида генерации из пяти мертвы.
@@ -1049,9 +1051,13 @@ tri waiting     # что лежит в открытом PR: деньги / ви�
 
 1. `tri landing` — прежде чем писать хоть строку. Отстал больше чем на 30 —
    новое сюда не класть.
-2. Работа витка — отдельная ветка `git worktree add -b <имя> <путь> origin/main`.
-   Три симлинка `node_modules` (корень, render, player) — иначе пуш упрётся в
-   отсутствующие зависимости.
+2. The tick's work goes on its own branch: `./tri worktree <branch>` (from the
+   main checkout). It branches from origin/main, links EVERY node_modules
+   (root, render, player, vibee-atoms) and runs a smoke probe. Never a bare
+   `git worktree add`: on 2026-10-03 such a tree blocked its own push on
+   render tests dying with "Cannot find package 'undici'", which looked
+   exactly like a regression. A tree made some other way: `./tri deps` before
+   the first commit.
 3. PR на main в конце витка. Маленький PR, который можно слить сегодня,
    ценнее большого, который ждёт слова владельца третью неделю.
 4. Длинная ветка не «накапливает ценность» — она её запирает.
@@ -1123,8 +1129,8 @@ tri eyes    # агент видит браузер человека: вклад�
   коде 0 — тоже тревога.
 - **Хук pre-push «ломал» чужие тесты рендера** в новой рабочей копии: без
   ссылок на `apps/vibee-editor/render/node_modules` тесты падают на импорте.
-  Ставить ВСЕ ссылки из памяти `worktree-node-modules-symlinks` сразу после
-  `git worktree add`, до первого коммита.
+  Make trees with `./tri worktree <branch>`, which links all of them; for a
+  tree made otherwise, `./tri deps` before the first commit.
 - **Страж секретов ловит имена**: `RAILWAY_API_TOKEN`, `IMAGE_MAX_TOKENS`.
   Помечать строку `secret-guard-ok: причина`. Prettier может перенести
   строку — помечать ту, где имя стоит ПОСЛЕ форматирования.
