@@ -208,9 +208,11 @@ platform :ios do
     # It submits nothing and changes nothing.
     api_key
 
-    # Two records, two owners' clicks, and an upload needs both. Measured
-    # 2026-10-03: the key sees nine apps (Leela among them) and neither record
-    # for ai.t27.vibee - device builds sign without an explicit App ID.
+    # Two records, and an upload needs both. The App ID was registered through
+    # this key on 2026-10-03 (BundleId.create works with an API key); the app
+    # record cannot be - Apple's API has no call for it. So the advice lists
+    # only what is still missing: a step that is already done, printed as a
+    # step, sent the reader to repeat it.
     bundle = Spaceship::ConnectAPI::BundleId.find(BUNDLE_ID)
     if bundle
       UI.success("app id    #{bundle.identifier} registered (#{bundle.platform})")
@@ -219,14 +221,14 @@ platform :ios do
     end
     app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
     unless app
+      steps = []
+      steps << "the App ID - developer.apple.com -> Identifiers -> + (explicit, #{BUNDLE_ID})" unless bundle
+      steps << "the app record - App Store Connect -> Apps -> + -> New App, platform iOS, " \
+               "bundle id #{BUNDLE_ID} (an API key cannot create one; Apple's API has no such call)"
       UI.user_error!(
         "App Store Connect has no app with bundle id #{BUNDLE_ID}.\n" \
-        "Both are created once, by the account holder, and an upload to a missing " \
-        "record is refused:\n" \
-        "  1. the App ID - developer.apple.com -> Identifiers -> + (explicit, " \
-        "#{BUNDLE_ID})\n" \
-        "  2. the app record - App Store Connect -> Apps -> + -> New App " \
-        "(an API key cannot create one; Apple's API has no such call)"
+        "Created once, by the account holder; an upload to a missing record is refused:\n" +
+        steps.each_with_index.map { |s, i| "  #{i + 1}. #{s}" }.join("\n")
       )
     end
     UI.success("app       #{app.name} (#{app.bundle_id}, id #{app.id})")
