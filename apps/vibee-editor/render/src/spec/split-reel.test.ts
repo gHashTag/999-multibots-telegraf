@@ -2,13 +2,17 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as SPEC from './split-reel.gen'
+import { PAUSE_SEC as STORY_PAUSE_SEC } from './crm-story-reel.gen'
+import { SplitTalkingHeadSchema } from '../compositions/SplitTalkingHead'
 import {
   captionStartMs,
   captionsFromWords,
+  deliverable,
   faceObjectPosition,
   firstSpeechMs,
   framesForSeconds,
   objectPosPct,
+  reelFrames,
   splitReelProps,
   speechFrames,
   splitSegments,
@@ -171,6 +175,43 @@ describe('split-reel.t27 against the host', () => {
       face: { cx: 540, cy: 1700, srcW: 1080, srcH: 1920 },
     })
     expect(low.splitFacePosition).toBe('50% 100%')
+  })
+
+  it('the reel ends on a held frame with the call, inside fifteen seconds', () => {
+    const fits = (total: number) => total <= SPEC.MAX_SECONDS * SPEC.FPS
+    expect(reelFrames(368)).toBe(458)
+    expect(fits(reelFrames(368))).toBe(false)
+    expect(fits(reelFrames(346))).toBe(true)
+    expect(SPEC.CTA_PAUSE_SEC).toBe(3)
+    expect(SPEC.CTA_ALWAYS).toBe(true)
+    expect(fits(reelFrames(SPEC.SPEECH_MAX_SECONDS * SPEC.FPS))).toBe(true)
+    expect(fits(reelFrames(SPEC.SPEECH_MAX_SECONDS * SPEC.FPS + 1))).toBe(false)
+  })
+
+  it('the pause is the one every reel template ends on', () => {
+    // StoryReel's canon (crm-story-reel.t27 PAUSE_SEC): one ending, not two.
+    expect(SPEC.CTA_PAUSE_SEC).toBe(STORY_PAUSE_SEC)
+    const p = splitReelProps({ lipSyncVideo: 'https://x/l.mp4', seconds: 11.5 })
+    expect(p.pauseSec).toBe(SPEC.CTA_PAUSE_SEC)
+    expect(p.ctaText).toBe(SPEC.OWNER_CTA)
+    expect(p.speechSec).toBe(11.5)
+    expect(
+      splitReelProps({ lipSyncVideo: 'x', seconds: 5, ctaText: '@her_bot' })
+        .ctaText
+    ).toBe('@her_bot')
+    // The composition takes what the planner sends, and old props keep no pause.
+    const parsed = SplitTalkingHeadSchema.safeParse({
+      ...p,
+      segments: p.segments.map(x => ({ ...x, caption: '' })),
+    })
+    expect(parsed.success).toBe(true)
+  })
+
+  it('a reel is given to a person only when it was measured and is clean', () => {
+    expect(SPEC.REEL_CHECK_BEFORE_SEND).toBe(true)
+    expect(deliverable(true, 0)).toBe(true)
+    expect(deliverable(true, 1)).toBe(false)
+    expect(deliverable(false, 0)).toBe(false)
   })
 
   it('b-roll goes to the split shots in turn, video or still by its name', () => {

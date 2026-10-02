@@ -30,6 +30,9 @@ import {
 import { z } from 'zod'
 import { Captions, type Caption } from '../components/Captions'
 import { resolveMediaPath } from '../shared/mediaPath'
+// The end of a reel is the same in every template: StoryReel's held frame
+// and call (split-reel.t27 v5, CTA_PAUSE_SEC = crm-story-reel PAUSE_SEC).
+import { CallToAction, HeldFrame } from './StoryReel'
 import {
   CAPTION_DEFAULTS,
   DEFAULT_AVATAR_CONFIG,
@@ -274,6 +277,16 @@ export const SplitTalkingHeadSchema = z.object({
   videoVolume: z.number().default(1), // LipSync video volume (0-1)
   ctaText: z.string().optional(),
   ctaHighlight: z.string().optional(),
+  /**
+   * The pause with the call at the end (split-reel.t27 v5): after the voice
+   * the lipsync's last frame is held, silent, while `ctaText` stands on
+   * screen. 0 keeps the old reels as they were; the planner sends 3.
+   */
+  pauseSec: z.number().min(0).max(4).default(0),
+  /** Where the last word ends, seconds; the call starts there. */
+  speechSec: z.number().min(0).optional(),
+  /** Frames of the lipsync itself; filled by calculateMetadata. */
+  lipFrames: z.number().default(0),
   // TikTok-style Captions
   captions: z.array(z.any()).default([]),
   showCaptions: z.boolean().default(true),
@@ -859,6 +872,10 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   avatarBorderIntensity = 1.0,
   // Image overlays
   imageOverlays = [],
+  // The call at the end
+  ctaText = '',
+  pauseSec = 0,
+  lipFrames = 0,
 }) => {
   const frame = useCurrentFrame()
   const { width, height, fps } = useVideoConfig()
@@ -924,6 +941,24 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   const brollSegments = segments.filter(
     seg => seg.type === 'split' && seg.bRollUrl
   )
+
+  // The pause with the call: past the voice, nothing but the held last
+  // frame and the call -- no b-roll, no captions, no lipsync run past its end.
+  const pauseFrames = Math.round(pauseSec * fps)
+  if (pauseFrames > 0 && lipFrames > 0 && frame >= lipFrames) {
+    return (
+      <AbsoluteFill style={{ backgroundColor: '#000' }}>
+        <Sequence
+          from={lipFrames}
+          durationInFrames={pauseFrames}
+          name="Pause to decide"
+        >
+          <HeldFrame src={resolveMediaPath(lipSyncVideo)} at={lipFrames - 1} />
+          {ctaText ? <CallToAction text={ctaText} /> : null}
+        </Sequence>
+      </AbsoluteFill>
+    )
+  }
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>

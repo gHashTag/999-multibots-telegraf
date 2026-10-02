@@ -23,7 +23,7 @@ module automation::split_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "split-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 4;
+    pub const VERSION : u8 = 5;
 
     // ---- Where it is drawn --------------------------------------------------------------
     pub const COMPOSITION : str = "SplitTalkingHead";
@@ -85,6 +85,22 @@ module automation::split_reel {
     // A caption is late or early only against the sound itself: tri reel-check also
     // asks whether the audio is speech within this long after the caption appears.
     pub const CAPTION_ON_SILENCE_MAX_MS : u32 = 150;
+
+    // v5 (owner, 2026-10-02: "at the end we do a CTA, study the templates"). The split
+    // template declared ctaText and never drew it, so a split reel ended on the last
+    // word. The canon is StoryReel's (crm-story-reel.t27 PAUSE_SEC): after the voice the
+    // last frame is held, silent, while the call to action stands on screen. A host test
+    // holds this pause equal to that one: one pause for every reel template.
+    pub const CTA_PAUSE_SEC : u32 = 3;
+    pub const CTA_ALWAYS : bool = true;  // a reel without a call is not delivered
+    pub const OWNER_CTA : str = "@t27ai_bot";  // the owner's reels name the bot
+    // The voice may run to MAX_SECONDS minus the pause: the whole reel stays inside it.
+    pub const SPEECH_MAX_SECONDS : u32 = 12;
+
+    // A reel is checked before anyone is given it (tri reel-check, in the render as
+    // well): no head cut, no face off its window's centre, no caption on silence. A
+    // reel that was not measured is not passed: "not measured" is not "fine".
+    pub const REEL_CHECK_BEFORE_SEND : bool = true;
 
     // Where a word's caption starts: at the first speech frame inside the word, or
     // where whisper put it when the word has no frame loud enough (a whisper).
@@ -185,6 +201,19 @@ module automation::split_reel {
         return total <= MAX_SECONDS * FPS;
     }
 
+    // Frames of the whole reel: the voice, then the pause with the call.
+    fn reel_frames(speech_frames : u32) -> u32 {
+        return speech_frames + CTA_PAUSE_SEC * FPS;
+    }
+
+    // Given to a person only when measured and clean.
+    fn deliverable(measured : bool, defects : u32) -> bool {
+        if !measured {
+            return false;
+        }
+        return defects == 0;
+    }
+
     test "the reel opens on the face, then split 120 and full 45 by turns" {
         assert(segment_count(450) == 6);
         assert(last_frames(450) == 60);
@@ -217,6 +246,26 @@ module automation::split_reel {
         assert(ONSET_FRAME_MS == 10);
         assert(SPEECH_BELOW_LOUD_DB > 0);
         assert(CAPTION_ON_SILENCE_MAX_MS <= CAPTION_DRIFT_MAX_MS);
+    }
+
+    test "the reel ends on a held frame with the call, inside fifteen seconds" {
+        // reel 1 (2026-10-02): its lipsync runs 368 frames, and 368 + 90 is
+        // past the ceiling. Its last word ends at 11.33 s, so the call starts
+        // where the speech ends (346 frames), not where the file does.
+        assert(reel_frames(368) == 458);
+        assert(!fits(reel_frames(368)));
+        assert(fits(reel_frames(346)));
+        assert(CTA_PAUSE_SEC == 3);
+        assert(CTA_ALWAYS);
+        assert(fits(reel_frames(SPEECH_MAX_SECONDS * FPS)));
+        assert(!fits(reel_frames(SPEECH_MAX_SECONDS * FPS + 1)));
+    }
+
+    test "a reel is given to a person only when it was measured and is clean" {
+        assert(REEL_CHECK_BEFORE_SEND);
+        assert(deliverable(true, 0));
+        assert(!deliverable(true, 1));
+        assert(!deliverable(false, 0));
     }
 
     test "a tail shorter than a second joins the shot before it" {
