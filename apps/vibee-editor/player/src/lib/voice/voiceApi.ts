@@ -28,7 +28,9 @@ export class VoiceHttpError extends Error {
 export const ROAD_IDLE_MS = 15_000
 let roadUsedAt = -Infinity
 
-function useRoad(): void {
+// Not `useRoad`: React's lint reads any use* call outside a component as a
+// hook, and the four call sites below pushed the player-lint ratchet to 413.
+function noteRoadUse(): void {
   roadUsedAt = Date.now()
 }
 
@@ -55,7 +57,7 @@ export async function transcribe(
 ): Promise<string> {
   // The language, when known, saves whisper a detection pass (spokenLang.ts).
   const q = opts.lang ? `?lang=${opts.lang}` : ''
-  useRoad()
+  noteRoadUse()
   const r = await fetch(`${API_BASE}/api/voice/transcribe${q}`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': audio.type || 'audio/webm' }),
@@ -73,7 +75,7 @@ export async function synthesize(
   voice: string | null,
   signal?: AbortSignal
 ): Promise<ArrayBuffer> {
-  useRoad()
+  noteRoadUse()
   const r = await fetch(`${API_BASE}/api/voice/speak`, {
     method: 'POST',
     headers: authHeaders(),
@@ -93,7 +95,7 @@ export async function warmVoice(
   lang: Language,
   voice: string | null
 ): Promise<void> {
-  useRoad()
+  noteRoadUse()
   try {
     await fetch(`${API_BASE}/api/voice/warm`, {
       method: 'POST',
@@ -114,7 +116,7 @@ export interface VoiceStatus {
 
 /** What the server can do. Unreachable means "nothing", not "everything". */
 export async function fetchVoiceStatus(): Promise<VoiceStatus> {
-  useRoad()
+  noteRoadUse()
   try {
     const r = await fetch(`${API_BASE}/api/voice/status`)
     if (!r.ok) throw new Error(String(r.status))
