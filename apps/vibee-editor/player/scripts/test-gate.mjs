@@ -19,6 +19,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { failures } from './test-gate-verdict.mjs'
 
 const MIN_TESTS = 1000
 const REPORT = '/tmp/vitest-report.json'
@@ -61,8 +62,18 @@ try {
   refuse(`vitest wrote no readable report (exit ${run.status})`)
 }
 
-const failed = report.numFailedTests + report.numFailedTestSuites
-if (failed > 0) refuse(`${failed} failed test(s) or file(s)`)
+// Named, not summed: numFailedTestSuites counts every failing describe as well
+// as the file, so the old sum read "3" for one test (test-gate-verdict.mjs).
+const failed = failures(report, process.cwd())
+if (failed.summary) {
+  for (const line of [...failed.tests, ...failed.files]) {
+    console.error(`  - ${line}`)
+  }
+  refuse(failed.summary)
+}
+if (report.numFailedTests + report.numFailedTestSuites > 0) {
+  refuse('vitest counted a failure the report does not name')
+}
 if (report.numTotalTests < MIN_TESTS) {
   refuse(
     `only ${report.numTotalTests} tests ran; expected at least ${MIN_TESTS}`
