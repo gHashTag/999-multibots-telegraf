@@ -164,13 +164,24 @@ export async function assembleQuorum(
       continue
     }
     const x = a.attestation
-    const candidate: Attestation = {
-      worker: Buffer.from(x.worker, 'hex'),
-      workId: Buffer.from(x.workId, 'hex'),
-      chain: x.chain,
-      amountMtri: BigInt(x.amountMtri),
-      globalNonce: BigInt(x.globalNonce),
-      epoch: x.epoch,
+    // A signer is outside the server: an answer that does not parse is that
+    // signer's refusal, not an exception that drops every other signer's yes.
+    let candidate: Attestation
+    let signature: Buffer
+    try {
+      if (typeof a.signature !== 'string') throw new Error('signature')
+      signature = Buffer.from(a.signature, 'hex')
+      candidate = {
+        worker: Buffer.from(x.worker, 'hex'),
+        workId: Buffer.from(x.workId, 'hex'),
+        chain: x.chain,
+        amountMtri: BigInt(x.amountMtri),
+        globalNonce: BigInt(x.globalNonce),
+        epoch: x.epoch,
+      }
+    } catch {
+      refusals.push('signer_answer_malformed')
+      continue
     }
     const fits =
       candidate.worker.equals(want.payee.hash) &&
@@ -188,14 +199,13 @@ export async function assembleQuorum(
       continue
     }
     const key = await minter.keyAt(a.index)
-    if (!key || !ed25519Verify(digest, Buffer.from(a.signature, 'hex'), key)) {
+    if (!key || !ed25519Verify(digest, signature, key)) {
       refusals.push('signature_not_from_minter_key')
       continue
     }
     agreed = digest.toString('hex')
     att = candidate
-    if (sigs.size < minter.threshold)
-      sigs.set(a.index, Buffer.from(a.signature, 'hex'))
+    if (sigs.size < minter.threshold) sigs.set(a.index, signature)
   }
   if (att && sigs.size >= minter.threshold) return { ok: true, att, sigs }
   // Every signer refusing for the same reason is that reason; otherwise say so.
@@ -512,6 +522,11 @@ async function testnetWalletOf(
  * The one GitHub account a person links. Re-linking an account another person
  * had linked moves it: whoever approves on github.com controls it now. Both
  * moves are in the event log.
+ *
+ * A LOGIN IS DISPLACED TOO, NOT ONLY AN ID. Queen credits specs by login, and
+ * GitHub frees a login when its owner renames: a second account can take it.
+ * The row still holding the old account's id under that login would keep
+ * answering payeeOf, so the person who proves the login today displaces it.
  */
 export async function linkGithub(
   pool: Queryable,
@@ -519,15 +534,16 @@ export async function linkGithub(
   github: { login: string; id: number }
 ): Promise<void> {
   const moved = await pool.query(
-    `DELETE FROM tri_github WHERE github_id = $1 AND telegram_id <> $2
-     RETURNING telegram_id, github_login`,
-    [github.id, telegramId]
+    `DELETE FROM tri_github
+      WHERE (github_id = $1 OR lower(github_login) = lower($3)) AND telegram_id <> $2
+     RETURNING telegram_id, github_id, github_login`,
+    [github.id, telegramId, github.login]
   )
   for (const m of moved.rows)
     await pool.query(
       `INSERT INTO tri_github_events (telegram_id, github_id, github_login, action)
        VALUES ($1, $2, $3, 'unlink')`,
-      [String(m.telegram_id), github.id, String(m.github_login)]
+      [String(m.telegram_id), m.github_id, String(m.github_login)]
     )
   await pool.query(
     `INSERT INTO tri_github (telegram_id, github_id, github_login)
@@ -553,7 +569,9 @@ export async function payeeOf(
     `SELECT w.address FROM tri_github g
        JOIN tri_wallets w
          ON w.telegram_id = g.telegram_id AND w.chain = 'ton' AND w.network = $2
-      WHERE lower(g.github_login) = lower($1)`,
+      WHERE lower(g.github_login) = lower($1)
+      ORDER BY g.linked_at DESC
+      LIMIT 1`,
     [github, network]
   )
   return r.rows[0]?.address ?? null

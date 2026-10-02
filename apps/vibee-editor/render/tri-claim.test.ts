@@ -8,6 +8,7 @@ import {
   attestationDigest,
   ed25519Verify,
   handleTriClaim,
+  linkGithub,
   mintBody,
   resetTriClaimEnsureForTests,
   type Attestation,
@@ -177,6 +178,25 @@ describe('assembling a quorum', () => {
       )
     ).toMatchObject({ ok: false, code: 'quorum_not_reached' })
   })
+
+  it('takes an answer that does not parse as that signer refusing, and keeps the others', async () => {
+    const bad = signed(0)
+    if (bad.ok) bad.attestation.amountMtri = 'lots'
+    const noSig = {
+      ...signed(1),
+      signature: undefined,
+    } as unknown as SignerAnswer
+    const q = await assembleQuorum(
+      [bad, noSig, signed(1), signed(2)],
+      want,
+      minterState
+    )
+    expect(q.ok).toBe(true)
+    if (q.ok) expect([...q.sigs.keys()]).toEqual([1, 2])
+    expect(
+      await assembleQuorum([bad, bad, bad], want, minterState)
+    ).toMatchObject({ ok: false, code: 'signer_answer_malformed' })
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -236,9 +256,13 @@ function fakePool() {
             Object.assign(f, { polled_at: p[1], interval_s: p[2] })
         return { rows: [] }
       }
-      if (t.startsWith('DELETE FROM tri_github WHERE github_id')) {
+      if (t.startsWith('DELETE FROM tri_github WHERE (github_id')) {
         const gone = links.filter(
-          l => l.github_id === p[0] && l.telegram_id !== p[1]
+          l =>
+            (l.github_id === p[0] ||
+              String(l.github_login).toLowerCase() ===
+                String(p[2]).toLowerCase()) &&
+            l.telegram_id !== p[1]
         )
         for (const g of gone) links.splice(links.indexOf(g), 1)
         return { rows: gone }
@@ -503,6 +527,18 @@ describe('the TRI claim routes', () => {
     ])
   })
 
+  it('moves a login a renamed account freed, and logs the old account id', async () => {
+    const pool = fakePool()
+    await linkGithub(pool, '8', { login: 'Alice', id: 111 })
+    await linkGithub(pool, '7', { login: 'alice', id: 222 })
+    expect(pool.links.map(l => `${l.telegram_id}:${l.github_id}`)).toEqual([
+      '7:222',
+    ])
+    expect(
+      pool.linkEvents.map(e => `${e.telegram_id}:${e.github_id}:${e.action}`)
+    ).toEqual(['8:111:link', '8:111:unlink', '7:222:link'])
+  })
+
   it('reports a denied or expired approval and forgets the flow', async () => {
     const pool = fakePool()
     const outside = fakeOutside({
@@ -532,7 +568,9 @@ describe('the TRI claim routes', () => {
       '/api/tri/payee?github=gHashTag&network=-3'
     )
     expect(
-      pool.created.some(t => /^CREATE TABLE IF NOT EXISTS tri_wallets\b/.test(t))
+      pool.created.some(t =>
+        /^CREATE TABLE IF NOT EXISTS tri_wallets\b/.test(t)
+      )
     ).toBe(true)
   })
 
