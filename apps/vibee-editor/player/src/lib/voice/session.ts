@@ -7,7 +7,8 @@
  *
  * - The mic stays open the whole time. Voice activity is detected on the
  *   device from the mic's own level against an adaptive noise floor, so no
- *   audio leaves the phone until somebody actually spoke.
+ *   audio leaves the phone until somebody actually spoke (lib/voice/vad.ts;
+ *   a fan or an engine is learned as the room, not heard as a phrase).
  * - Each utterance is transcribed by OUR whisper (render /api/voice/transcribe)
  *   and then sent as an ordinary chat message: the agent keeps every tool it
  *   has, and the transcript in the chat shows the turn like any other.
@@ -58,6 +59,7 @@ import {
   wakeRoad as httpWakeRoad,
   warmVoice as httpWarm,
 } from './voiceApi'
+import { END_OF_TURN_MS, LevelGate, TICK_MS, TurnClock, rms } from './vad'
 
 export type VoicePhase =
   | 'off'
@@ -105,9 +107,6 @@ export interface VoiceDeps {
   wakeRoad?: () => void
 }
 
-const TICK_MS = 40
-const SPEECH_ONSET_MS = 160
-const END_OF_TURN_MS = 850
 /*
  * EAGER HEARING. The 850 ms of silence that ends a turn was, after GigaAM
  * (#3252), the longest wait left: Russian is heard in ~745 ms, so the person
@@ -233,10 +232,8 @@ export class VoiceSession {
   private phrases = 0
 
   // Voice activity state.
-  private floor = 0.01
-  private loudSince = 0
-  private quietSince = 0
-  private spoke = false
+  private gate = new LevelGate()
+  private turn = new TurnClock()
 
   // The answer being spoken.
   private follower: ReplyFollower | null = null
@@ -413,9 +410,7 @@ export class VoiceSession {
       }
     }
     this.chunks = []
-    this.spoke = false
-    this.loudSince = 0
-    this.quietSince = 0
+    this.turn.reset()
     this.recordStartedAt = performance.now()
     this.recorder.ondataavailable = e => {
       if (e.data.size) this.chunks.push(e.data)
@@ -445,46 +440,36 @@ export class VoiceSession {
     if (!a) return 0
     const buf = this.level.subarray(0, a.fftSize)
     a.getFloatTimeDomainData(buf)
-    let sum = 0
-    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
-    return Math.sqrt(sum / buf.length)
+    return rms(buf)
   }
 
   private tick(): void {
     if (!this.micAnalyser || this.snap.muted) return
     const now = performance.now()
-    const level = this.rms()
     const agentTalking = this.snap.phase === 'speaking'
-    // The floor follows quiet slowly and loud never: speech must not raise it.
-    if (!this.spoke && level < this.floor * 2.5) {
-      this.floor = this.floor * 0.97 + level * 0.03
+    const turn = this.turn
+    const judged = this.gate.judge(now, this.rms(), !turn.spoke, agentTalking)
+    if (judged === 'steady') {
+      // The room got loud and stayed flat: whatever it started was no phrase.
+      this.roomChanged()
+      return
     }
-    const threshold = agentTalking
-      ? Math.max(0.05, this.floor * 7)
-      : Math.max(0.014, this.floor * 3.2)
-    const loud = level > threshold
-
-    if (loud) {
-      if (!this.loudSince) this.loudSince = now
-      this.quietSince = 0
-      // More words: the guess made at the start of the pause is short of them.
-      this.dropEager()
-    } else {
-      this.loudSince = 0
-      if (!this.quietSince) this.quietSince = now
-    }
+    const loud = judged === 'loud'
+    turn.mark(now, loud)
+    // More words: the guess made at the start of the pause is short of them.
+    if (loud) this.dropEager()
 
     // Barge-in: the person talks over the agent. Held, not dropped, until
     // the words say whether it was a question or a cough.
     if (
       agentTalking &&
-      this.loudSince &&
-      now - this.loudSince > BARGE_IN_MS &&
-      this.loudSince - this.soundingSince > ONSET_DEAF_MS
+      turn.loudSince &&
+      now - turn.loudSince > BARGE_IN_MS &&
+      turn.loudSince - this.soundingSince > ONSET_DEAF_MS
     ) {
       this.pause()
       this.set({ phase: 'listening', saying: '' })
-      this.spoke = true
+      turn.spoke = true
       this.wakeRoad()
       if (!this.recorder) this.beginRecording()
       return
@@ -496,18 +481,10 @@ export class VoiceSession {
       return
     }
 
-    if (
-      !agentTalking &&
-      !this.spoke &&
-      this.loudSince &&
-      now - this.loudSince > SPEECH_ONSET_MS
-    ) {
-      this.spoke = true
-      this.wakeRoad()
-    }
+    if (!agentTalking && turn.onset(now)) this.wakeRoad()
     const long = now - this.recordStartedAt
-    if (this.spoke) {
-      const quiet = this.quietSince ? now - this.quietSince : 0
+    if (turn.spoke) {
+      const quiet = turn.quiet(now)
       const ended = quiet > END_OF_TURN_MS
       if (ended || long > MAX_UTTERANCE_MS) void this.finishUtterance()
       else if (
@@ -536,6 +513,25 @@ export class VoiceSession {
     return this.phrases % RELEARN_EVERY === RELEARN_EVERY - 1
       ? null
       : this.spokenLang
+  }
+
+  /**
+   * A steady noise -- a fan, an engine -- is the room now (vad.ts). Before
+   * cycle 8 it was a phrase that ran to MAX_UTTERANCE_MS, and a question
+   * asked over it waited up to 30 s. What it started is dropped unheard; an
+   * answer it held goes on.
+   */
+  private roomChanged(): void {
+    if (this.paused) this.resumeHeld()
+    else if (this.turn.spoke && this.recorder) this.beginRecording()
+    else this.turn.reset()
+  }
+
+  /** The held answer goes on from the sentence it was cut in. */
+  private resumeHeld(): void {
+    this.paused = false
+    this.beginRecording()
+    void this.pump()
   }
 
   /** Ask for the words recorded so far, before the turn is known to be over. */
@@ -620,9 +616,7 @@ export class VoiceSession {
       (!text || isNoise(text) || isBackchannel(text) || isEcho(text, cut))
     ) {
       // A false barge-in: the answer goes on from the sentence it was cut in.
-      this.paused = false
-      this.beginRecording()
-      void this.pump()
+      this.resumeHeld()
       return
     }
     if (!text || isNoise(text)) {
