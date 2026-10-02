@@ -54,9 +54,11 @@ fingerprints are ever printed. The secret lives on the `postgrest` service as
 in — zero `.auth` call sites. A 404 there would look like a routing bug; the 501
 says what is actually going on.
 
-## Cutover, when it happens
+## Cutover — done 2026-10-01 17:59 UTC
 
 **A Railway variable change, on `999-multibots-telegraf` and `vibee-render`.**
+Both services now point at this gateway; the key variables are references,
+`${{postgrest.SUPABASE_SERVICE_ROLE_KEY_NEW}}`, so no secret was copied by hand.
 `src/core/infisical/index.ts` would overwrite `process.env` with Infisical's
 values — but only when its login succeeds. Checked 2026-10-01: the bot's
 machine identity gets `401 Invalid credentials`, the catch branch runs
@@ -74,5 +76,29 @@ Both key names must be set, because `getSupabaseKey()` returns
 `SUPABASE_SERVICE_KEY || SUPABASE_SERVICE_ROLE_KEY` and would otherwise keep
 using the old Supabase anon key against the new host.
 
-Rollback is putting the three old values back — free until the new stack has
-accepted writes, at which point those writes exist only on Railway.
+Rollback is putting the three old values back. Since the cutover the bot writes
+only to Railway, so a rollback now strands every write made after 17:59 UTC.
+
+### What was moved before the switch
+
+- Every cloud table now exists on Railway (68 were cloud-only; recreated with
+  their generated columns, enums and the `vector` extension, then copied).
+  Row counts were compared table by table: Railway is behind on none.
+- Rows present on both sides were compared by value, not by hash — jsonb
+  numbers lose trailing zeros in a JSON round trip (`1110.00` -> `1110`), so
+  `md5(row::text)` reports differences that are not there.
+  - `payments_v2`: the cloud is the record of real money and had been
+    backfilled later (`service_type`, descriptions, test rows marked `FAILED`).
+    Cloud values won; the Railway values they replaced are kept in
+    `payments_v2_railway_pre_cutover_20261002`.
+  - `model_trainings`: the cloud won where its `updated_at` was newer.
+  - `photo_url`, `avatar_url`, `zip_url`: Railway won. Those were rewritten on
+    purpose to the Railway bucket or cleared as dead (`dead_storage_urls_backup`).
+- Storage: all 849 cloud objects copied into the `supabase-storage` MinIO bucket
+  through this gateway; bucket `training-private` created, the code used it
+  but the cloud never had it.
+- `users`: 12 stub rows render had created while the two bases were split were
+  moved aside to `users_split_stubs_20261001`, not deleted.
+
+Gateway deploys do not follow `main` automatically: trigger them with
+`serviceInstanceDeployV2` in Railway GraphQL.

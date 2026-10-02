@@ -43,6 +43,7 @@ const FeedPage = lazy(() => import('@/pages/Feed'))
 const BlogPage = lazy(() => import('@/pages/Blog'))
 const GeneratePage = lazy(() => import('@/pages/Generate'))
 const HivePage = lazy(() => import('@/pages/Hive'))
+const HiveAccount = lazy(() => import('@/pages/HiveAccount'))
 import { GAME_PATH, gamePathFor } from '@/lib/hive'
 const BrowserPage = lazy(() => import('@/pages/Browser'))
 const StoryPage = lazy(() => import('@/pages/Story'))
@@ -373,6 +374,7 @@ function RouteTable() {
       {/* The Queen's board inside the app: /game, and /game/<view> for each
           of her views (owner, 2026-10-01). One route, so moving between views
           never remounts the frame. nginx sends a top-level /queen/ here. */}
+      <Route path="/game/account" element={<HiveAccount />} />
       <Route path="/game/*" element={<HivePage />} />
       {/* Its former addresses, with the view their hash named. */}
       <Route path="/queen" element={<ToGame />} />

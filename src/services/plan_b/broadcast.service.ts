@@ -663,6 +663,6 @@ export const broadcastService = {
 // curl -X POST http://localhost:4000/broadcast \
 //   -H "Content-Type: application/json" \
 //   -d '{
-//     "imageUrl": "https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/flux_pro.jpeg",
+//     "imageUrl": "https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/flux_pro.jpeg",
 //     "text": "Добрый день!\n\nМы рады сообщить, что наш бот стал еще лучше! 🎉\n\n✨ Запущена нейро-модель с улучшенными настройками!\nТеперь бот предлагает еще более впечатляющие результаты и выдает меньше брака. Попробуйте переобучить модель и вы точно заметите разницу!\n\n🌟 Что можно сделать сейчас?\n* Начните пользоваться ботом и оцените новую модель.\n* Обучите Цифровое тело на своих фотографиях.\n* Попробуйте функцию нейрофото и создайте уникальные изображения, которые вас удивят!\n\nНе упустите возможность первыми оценить все нововведения. Мы уверены, что вам понравится!\n\nСпасибо, что вы с нами. Ждем вашего feedback!"
 //   }'

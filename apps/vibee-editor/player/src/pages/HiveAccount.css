@@ -1,0 +1,282 @@
+.hive-account {
+  --account-line: var(--vibee-border, #32343a);
+  --account-muted: var(--vibee-text-secondary, #b2b5be);
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 28px 48px;
+  color: var(--vibee-text, #f4f4f6);
+  font-size: 15px;
+  line-height: 1.5;
+  accent-color: var(--vibee-accent, #00ff88);
+  scrollbar-color: var(--account-muted) transparent;
+}
+.hive-account ::selection {
+  background: #22583c;
+  color: #fff;
+}
+.hive-account :is(input, select) {
+  caret-color: var(--vibee-accent, #00ff88);
+}
+.hive-account :is(a, button, input, select):focus-visible,
+.hive-account-entry:focus-visible {
+  outline: 2px solid var(--vibee-accent, #00ff88);
+  outline-offset: 4px;
+}
+.hive-account :is(button, input, select) {
+  font: inherit;
+}
+.hive-account :is(button, input, select),
+.hive-account__back {
+  min-height: 44px;
+  border-radius: 10px;
+}
+.hive-account button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  color: inherit;
+  background: var(--vibee-bg-elevated, #1c1d22);
+  border: 1px solid var(--account-line);
+  cursor: pointer;
+}
+.hive-account button:hover:not(:disabled) {
+  background: var(--vibee-bg-hover, #292b31);
+}
+.hive-account button:disabled,
+.hive-account fieldset:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.hive-account__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--account-muted);
+  text-underline-offset: 4px;
+}
+.hive-account__heading,
+.hive-account__section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.hive-account h1 {
+  font-size: clamp(26px, 4vw, 36px);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  margin: 20px 0 12px;
+  text-wrap: balance;
+}
+.hive-account h2 {
+  font-size: 20px;
+  margin: 0 0 12px;
+  line-height: 1.3;
+}
+.hive-account p {
+  max-width: 72ch;
+  margin: 8px 0 16px;
+}
+.hive-account__heading p,
+.hive-account__muted {
+  color: var(--account-muted);
+}
+.hive-account section {
+  padding: 28px 0;
+  border-top: 1px solid var(--account-line);
+}
+.hive-account__status {
+  min-height: 28px;
+  margin: 12px 0;
+  color: var(--vibee-accent, #00ff88);
+}
+.hive-account__message {
+  padding: 16px;
+  margin: 20px 0;
+  background: #2d2025;
+  border-radius: 12px;
+  color: #ffc2c9;
+}
+.hive-account__message p {
+  margin: 0 0 12px;
+}
+.hive-account__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 44px;
+  margin: 24px 0;
+  font-variant-numeric: tabular-nums;
+}
+.hive-account__totals dt {
+  color: var(--account-muted);
+  font-size: 13px;
+}
+.hive-account__totals dd {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+.hive-account__section-heading h2 {
+  margin: 0;
+}
+.hive-account__list {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 0;
+}
+.hive-account__key {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 1.5fr) minmax(160px, 1fr) minmax(90px, 0.6fr)
+    auto;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 0;
+  border-top: 1px solid var(--account-line);
+}
+.hive-account__key-name,
+.hive-account__health,
+.hive-account__key-work {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.hive-account__key-name {
+  overflow-wrap: anywhere;
+}
+.hive-account__key-name span,
+.hive-account__key-name code,
+.hive-account__health > span:not(:first-child),
+.hive-account__health time,
+.hive-account__key-work span {
+  color: var(--account-muted);
+  font-size: 12px;
+}
+.hive-account__key-name code,
+.hive-account__key-work {
+  font-variant-numeric: tabular-nums;
+}
+.hive-account__probe {
+  font-size: 13px;
+  font-weight: 600;
+}
+.hive-account__probe.is-ok {
+  color: #73e6a7;
+}
+.hive-account__probe:is(.is-invalid, .is-unavailable) {
+  color: #ffc2c9;
+}
+.hive-account__probe.is-rate_limited {
+  color: #edd08c;
+}
+.hive-account__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hive-account__actions button {
+  font-size: 13px;
+}
+.hive-account__empty {
+  padding: 24px 0;
+}
+.hive-account__add h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hive-account fieldset {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 16px;
+  max-width: 720px;
+  padding: 0;
+  margin: 20px 0 0;
+  border: 0;
+}
+.hive-account label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+.hive-account :is(input, select) {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  color: inherit;
+  background: var(--vibee-bg-elevated, #1c1d22);
+  border: 1px solid var(--account-line);
+}
+.hive-account__secret {
+  grid-column: 1 / -1;
+}
+.hive-account button.hive-account__primary {
+  justify-self: start;
+  background: var(--vibee-accent, #00ff88);
+  color: #092417;
+  border: 0;
+}
+.hive-account button.hive-account__primary:hover:not(:disabled) {
+  background: #69ffad;
+}
+.hive-account-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 1120px;
+  min-height: 48px;
+  margin: 12px auto;
+  padding: 10px 20px;
+  color: var(--vibee-text, #f4f4f6);
+  text-decoration: none;
+  background: var(--vibee-bg-elevated, #1c1d22);
+  border-radius: 12px;
+}
+.hive-account-entry span {
+  flex: 1;
+}
+.hive-account-entry:hover {
+  background: var(--vibee-bg-hover, #292b31);
+}
+@media (max-width: 850px) {
+  .hive-account__key {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .hive-account__actions {
+    justify-content: flex-end;
+  }
+}
+@media (max-width: 480px) {
+  .hive-account {
+    padding: 16px 18px 32px;
+  }
+  .hive-account__heading {
+    display: block;
+  }
+  .hive-account__heading > button {
+    margin-bottom: 12px;
+  }
+  .hive-account__section-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .hive-account__key {
+    gap: 16px 12px;
+  }
+  .hive-account__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .hive-account fieldset {
+    grid-template-columns: 1fr;
+  }
+  .hive-account__totals {
+    gap: 20px 30px;
+  }
+}

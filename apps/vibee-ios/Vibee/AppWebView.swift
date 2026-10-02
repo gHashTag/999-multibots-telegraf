@@ -171,6 +171,28 @@ private enum PageScripts {
    the head keeps a margin for the bar. Measured at 402x780: the map was 235px
    tall with the board's rules alone and 583px with the four below.
    */
+  /// The web scrolls in inner containers as well as the window (the board's
+  /// columns, the agent's list), so every scrolled box goes back up.
+  /// Game and Tasks draw the board inside an iframe of this same origin
+  /// (`/queen/`, see the player's Hive.tsx), so the column that scrolls is in
+  /// the frame's document, not the page's. The walk enters every frame it is
+  /// allowed into; a cross-origin frame throws on `contentDocument` access and
+  /// is skipped, which is the most the page may do there.
+  static let scrollToTop = """
+    (() => {
+      const walk = (doc) => {
+        doc.defaultView.scrollTo({ top: 0, behavior: 'smooth' });
+        for (const el of doc.querySelectorAll('*')) {
+          if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior: 'smooth' });
+          if (el.tagName === 'IFRAME') {
+            try { if (el.contentDocument) walk(el.contentDocument); } catch (_) {}
+          }
+        }
+      };
+      walk(document);
+    })();
+    """
+
   static let boardFullscreen = """
     (function () {
       if (location.origin !== '\(WebSessionMint.appOrigin)') return;
@@ -199,8 +221,54 @@ private enum PageScripts {
         // 84px, which left a 1px strip of buttons -- the rail sits above the
         // bar already, so it pads nothing. The map alone may run under it.
         + '.queen27-page.is-shell .queen27-hud-bottom{padding-bottom:0!important}'
-        + '.queen-universe:has(.queen27-page.is-bare){padding-bottom:0!important}';
+        + '.queen-universe:has(.queen27-page.is-bare){padding-bottom:0!important}'
+        // THE MAP IS THE SCREEN (owner, 2026-10-02: "make the interface more
+        // minimal so the map is visible"). Bare mode still kept a 155px head
+        // -- sector, repo chips, ten tools, a sign-in box -- over a phone-
+        // sized map. Now the head floats over the map instead of pushing it
+        // down, and shows only the sector name until the "more" button opens
+        // it. Every tool, "Exit fullscreen" included, is one tap away.
+        + bare + '.queen27-hud-viewport>.queen27-hud-vp-head{position:absolute!important;top:0;left:0;right:52px;z-index:5;min-height:0!important}'
+        + bare + '.queen27-hud-vp-body{height:100%!important;flex:1 1 auto!important}'
+        + ':root:not(.vibee-board-tools) ' + bare + '.queen27-hud-vp-head{background:none!important;border:0!important;padding:10px 12px!important;pointer-events:none}'
+        + ':root:not(.vibee-board-tools) ' + bare + '.queen27-hud-vp-head>:not(.queen27-hud-vp-title){display:none!important}'
+        + ':root:not(.vibee-board-tools) ' + bare + '.queen27-hud-vp-title{opacity:.7}'
+        + '.vibee-board-more{display:none}'
+        + ':root:has(.queen27-page.is-bare) .vibee-board-more{display:flex;position:fixed;top:8px;right:8px;z-index:50;'
+        + 'width:36px;height:36px;border-radius:18px;align-items:center;justify-content:center;padding:0;'
+        + 'background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.18);font:600 18px/1 system-ui;'
+        + '-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}';
       document.documentElement.appendChild(s);
+      // The scene measures itself on resize; the head leaving the flow
+      // changes its size without one, and the map stays fitted to the old box.
+      // Twice: the bare class lands on the board's next render, not at once.
+      var refit = function () {
+        [60, 400].forEach(function (ms) {
+          setTimeout(function () { window.dispatchEvent(new Event('resize')); }, ms);
+        });
+      };
+      var tools = function (on) {
+        document.documentElement.classList.toggle('vibee-board-tools', on);
+        var b = document.querySelector('.vibee-board-more');
+        if (b) b.textContent = on ? '\\u00d7' : '\\u22ef';
+      };
+      document.addEventListener('DOMContentLoaded', function () {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'vibee-board-more';
+        b.setAttribute('aria-label', 'Board tools');
+        b.textContent = '\\u22ef';
+        b.addEventListener('click', function () {
+          tools(!document.documentElement.classList.contains('vibee-board-tools'));
+        });
+        document.body.appendChild(b);
+      });
+      // Leaving fullscreen from the tools closes them, so the next
+      // fullscreen starts calm again.
+      document.addEventListener('fullscreenchange', function () {
+        if (!held) tools(false);
+        refit();
+      });
       Element.prototype.requestFullscreen = function () { held = this; changed(); return Promise.resolve(); };
       Document.prototype.exitFullscreen = function () { held = null; changed(); return Promise.resolve(); };
       var tries = 0;
@@ -346,6 +414,42 @@ final class WebHost: NSObject, ObservableObject {
   func reload() {
     phase = .loading
     webView.load(URLRequest(url: url(path)))
+  }
+
+  /// The network came back (`Connectivity.returns`). Only a page that FAILED
+  /// reloads: one that loaded may hold the person's place, a half-typed card.
+  static func reloadsOnReturn(_ phase: Phase) -> Bool {
+    if case .failed = phase { return true }
+    return false
+  }
+
+  func networkCameBack() {
+    if Self.reloadsOnReturn(phase) { reload() }
+  }
+
+  /// What a repeat tap on this page's tab does (see `tabReselects`).
+  enum Reselect: Equatable { case goToRoot, scrollToTop }
+
+  /// Away from the tab's own page -> back to it, as the web's tab link does;
+  /// already on it -> to the top. The query is ignored: `lang` and the
+  /// board's own filters do not make it another page. A page on another
+  /// site (a link the person followed) is "away", whatever its path.
+  static func reselect(at here: URL?, root: String) -> Reselect {
+    func bare(_ p: String) -> String { p.count > 1 && p.hasSuffix("/") ? String(p.dropLast()) : p }
+    guard let here, let rootPath = URLComponents(string: root)?.path,
+      here.host == URL(string: WebSessionMint.appOrigin)?.host
+    else { return .goToRoot }
+    return bare(here.path) == bare(rootPath) ? .scrollToTop : .goToRoot
+  }
+
+  /// The repeat tap itself. Nothing before the first load: there is no page.
+  func returnToStart() async {
+    guard started else { return }
+    switch Self.reselect(at: webView.url, root: path) {
+    case .goToRoot: reload()
+    case .scrollToTop:
+      _ = try? await webView.evaluateJavaScript(PageScripts.scrollToTop)
+    }
   }
 
   private func install(grant: WebGrant?) async {
@@ -544,6 +648,8 @@ struct WebHostView: UIViewRepresentable {
 struct WebPage<Fallback: View>: View {
   @ObservedObject var host: WebHost
   @Environment(\.tabIsShown) private var tabIsShown
+  @Environment(\.tabReselects) private var tabReselects
+  @ObservedObject private var net = Connectivity.shared
   @ViewBuilder var fallback: () -> Fallback
 
   var body: some View {
@@ -576,6 +682,8 @@ struct WebPage<Fallback: View>: View {
     }
     .background(Palette.background.ignoresSafeArea())
     .task { await host.start() }
+    .onChange(of: tabReselects) { Task { await host.returnToStart() } }
+    .onChange(of: net.returns) { host.networkCameBack() }
     .sheet(isPresented: $host.wantsSignIn) {
       ScrollView {
         VStack(alignment: .leading, spacing: Space.md) {

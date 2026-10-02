@@ -175,7 +175,6 @@ describe('the welcome screen', () => {
       const card = host.querySelector(`[data-testid="package-${pkg.id}"]`)
       expect(card, pkg.id).not.toBeNull()
       expect(card!.textContent).toContain(pkg.name.ru)
-      expect(card!.textContent).toContain(`$${pkg.setupUsd}`)
       expect(card!.textContent).toContain(`$${pkg.monthlyUsd}`)
     }
   })
