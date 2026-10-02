@@ -803,4 +803,61 @@ describe("the spec's tests hold against the host", () => {
       .map(w => w.params)
     expect(efinix[1][5]).toEqual([])
   })
+
+  it('the ledger reads back through the same door, select only', async () => {
+    const mp = await host()
+    const tool = mp.MAIL_PUSH_TOOLS.find(t => t.name === SPEC.LEDGER_TOOL)
+    expect(tool).toBeTruthy()
+    expect(SPEC.LEDGER_TOOL).not.toBe(SPEC.TOOL)
+    expect(SPEC.LEDGER_TOOL).not.toBe(SPEC.DIGEST_DOOR)
+
+    const writes: Array<{ sql: string; params: unknown[] }> = []
+    const pool = {
+      query: async (sql: string, params: unknown[]) => {
+        writes.push({ sql, params })
+        if (/FROM crm_matter_digest/.test(sql))
+          return {
+            rows: [
+              {
+                matter: 'Playerok',
+                stage: 'interview',
+                exported_at: new Date().toISOString(),
+              },
+            ],
+          }
+        return { rows: [] }
+      },
+    }
+    const out = (await tool!.handler({ what: 'digest' }, {
+      telegramId: OWNER,
+      pool,
+    } as never)) as Record<string, unknown>
+    expect(out.count).toBe(1)
+    // ensureStateTable runs first (CREATE TABLE IF NOT EXISTS); the read
+    // itself must still be a SELECT
+    const q = writes.find(w => /FROM crm_matter_digest/.test(w.sql))!
+    expect(q.sql.trimStart()).toMatch(/^SELECT/)
+    expect(q.sql).not.toMatch(/INSERT|UPDATE|DELETE/)
+    expect(q.sql).toContain('LIMIT 100')
+
+    // outcomes with a since window -> parameterised, floor 1h
+    writes.length = 0
+    const outcomes = (await tool!.handler(
+      { what: 'outcomes', since_hours: 48 },
+      { telegramId: OWNER, pool } as never
+    )) as Record<string, unknown>
+    expect(outcomes.count).toBe(0)
+    const oq = writes.find(w => /FROM mail_push_outcomes/.test(w.sql))!
+    expect(oq.sql).toContain(SPEC.OUTCOMES_TABLE)
+    expect(oq.params).toEqual([48])
+    expect(oq.sql).toContain('$1::int')
+
+    // a table nobody knows answers empty, not 500
+    const unknown = (await tool!.handler({ what: 'nope' }, {
+      telegramId: OWNER,
+      pool,
+    } as never)) as Record<string, unknown>
+    expect(unknown.rows).toEqual([])
+    expect(unknown.note).toBe('unknown table')
+  })
 })
