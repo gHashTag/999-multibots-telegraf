@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/split-reel.t27 -- the split talking-head reel: b-roll on top, the person
+// talking below, one yellow word at a time on the seam, hard cuts on a fixed rhythm.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/split-reel-plan.ts (segments and
+//       props for the Remotion composition SplitTalkingHead), src/agent/reel-analyze.ts (the
+//       tool reel_analyze: a reference reel in, this spec's shape out).
+// Generated: `t27c gen-ts` of this file is vendored as
+//       apps/vibee-editor/render/src/spec/split-reel.gen.ts; the host imports the numbers.
+// Measured on a reference reel 2026-10-02 (720x1280, 30 fps, 14.97 s): cuts at 1.9, 5.9, 7.4,
+//       11.4, 12.9, 14.7 s, the same in both halves. That is full 57, split 120, full 45,
+//       split 120, full 45, split 54, full to the end: the rhythm this spec fixes.
+// Order of a reel: STUDIO (owner-studio.t27, the face) -> voice (the person's own clone)
+//       -> lipsync (Kie, primary) -> b-roll stills (Kie) -> Remotion SplitTalkingHead.
+// Claim status: plan + host planner unit-tested; no reel rendered from it yet (2026-10-02:
+//       the owner's voice clone sits on Replicate, which answered 402, no credit).
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::split_reel {
+
+    pub const KIND : str = "automation";
+    pub const ID : str = "split-reel";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // ---- Where it is drawn --------------------------------------------------------------
+    pub const COMPOSITION : str = "SplitTalkingHead";
+    pub const FACE_SPEC : str = "owner-studio";  // the face is a studio frame, never a raw photo
+    pub const LIPSYNC_MODEL : str = "kie/kling/ai-avatar-standard";
+    pub const BROLL_MODEL : str = "gpt-image-2-5-flare-image-to-image";
+    pub const OWN_VOICE : bool = true;  // the person's own clone; a stock voice is not their reel
+
+    // ---- The rhythm, in frames at 30 fps -------------------------------------------------
+    pub const FPS : u32 = 30;
+    pub const OPEN_FULL_FRAMES : u32 = 60;  // the face first, measured 57
+    pub const SPLIT_FRAMES : u32 = 120;  // b-roll on top, measured 120 twice
+    pub const FULL_FRAMES : u32 = 45;  // back to the face, measured 45 twice
+    pub const MAX_SECONDS : u32 = 15;
+    pub const SPLIT_PCT : u32 = 50;  // the seam sits in the middle
+
+    // ---- The words ------------------------------------------------------------------------
+    pub const CAPTION_COLOR : str = "#FFFF00";
+    pub const WORDS_PER_CAPTION : u32 = 1;
+    pub const TEXT_IN_BROLL : bool = false;  // captions carry the words, never the pictures
+
+    // How many segments a reel of this many frames is cut into.
+    fn segment_count(total : u32) -> u32 {
+        if total <= OPEN_FULL_FRAMES {
+            return 1;
+        }
+        let rest : u32 = total - OPEN_FULL_FRAMES;
+        let pairs : u32 = rest / (SPLIT_FRAMES + FULL_FRAMES);
+        let tail : u32 = rest % (SPLIT_FRAMES + FULL_FRAMES);
+        if tail == 0 {
+            return 1 + pairs * 2;
+        }
+        if tail <= SPLIT_FRAMES {
+            return 2 + pairs * 2;
+        }
+        return 3 + pairs * 2;
+    }
+
+    // How long the last segment runs: the cut that the end of the voice decides.
+    fn last_frames(total : u32) -> u32 {
+        if total <= OPEN_FULL_FRAMES {
+            return total;
+        }
+        let tail : u32 = (total - OPEN_FULL_FRAMES) % (SPLIT_FRAMES + FULL_FRAMES);
+        if tail == 0 {
+            return FULL_FRAMES;
+        }
+        if tail <= SPLIT_FRAMES {
+            return tail;
+        }
+        return tail - SPLIT_FRAMES;
+    }
+
+    fn fits(total : u32) -> bool {
+        return total <= MAX_SECONDS * FPS;
+    }
+
+    test "the reel opens on the face, then split 120 and full 45 by turns" {
+        assert(segment_count(450) == 6);
+        assert(last_frames(450) == 60);
+        assert(segment_count(225) == 3);
+        assert(last_frames(225) == 45);
+    }
+
+    test "a voice shorter than the opening is one shot of the face" {
+        assert(segment_count(50) == 1);
+        assert(last_frames(50) == 50);
+    }
+
+    test "fifteen seconds is the ceiling and the words are one at a time in yellow" {
+        assert(fits(450));
+        assert(!fits(451));
+        assert(WORDS_PER_CAPTION == 1);
+        assert(CAPTION_COLOR == "#FFFF00");
+        assert(OWN_VOICE);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY
