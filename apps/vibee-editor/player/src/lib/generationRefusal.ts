@@ -43,6 +43,10 @@ export const GENERATION_REFUSALS: Record<string, { en: string; ru: string }> = {
     en: 'The service is busy — try again in a minute',
     ru: 'Сервис занят — попробуй через минуту', // cyrillic-ok: the russian sentence
   },
+  too_long: {
+    en: 'Too long for this model — trim it and try again',
+    ru: 'Слишком длинно для этой модели — обрежь и попробуй снова', // cyrillic-ok: the russian sentence
+  },
   generation_failed: {
     en: "The generation didn't go through — try again or pick another model",
     ru: 'Генерация не получилась — попробуй ещё раз или другую модель', // cyrillic-ok: the russian sentence
@@ -55,6 +59,7 @@ const CALLERS_TO_FIX = new Set([
   'sign_in',
   'not_enough_tokens',
   'forbidden',
+  'too_long',
 ])
 
 const DETAIL_MAX = 200
