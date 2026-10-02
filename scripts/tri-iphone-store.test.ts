@@ -91,6 +91,19 @@ describe('tri iphone store / testflight', () => {
     expect(r.lanes).toEqual(['metadata+yes'])
   })
 
+  it('testers refuses without --yes: Apple e-mails every person added', () => {
+    const r = iphone('testers')
+    expect(r.rc).toBe(2)
+    expect(r.out).toContain('testers --yes')
+    expect(r.lanes).toEqual([])
+  })
+
+  it('runs testers, and only testers, on --yes - with the consent', () => {
+    const r = iphone('testers', '--yes')
+    expect(r.rc).toBe(0)
+    expect(r.lanes).toEqual(['testers+yes'])
+  })
+
   it('an unknown mode refuses instead of building for the phone', () => {
     // `tri iphone testflight --yes` in a checkout older than the testflight
     // mode used to fall through to the device build and print "OK launched".
@@ -156,6 +169,7 @@ describe('tri iphone store / testflight', () => {
       // testflight refuses the same way, before anything is built.
       [['testflight', '--yes'], ['beta']],
       [['metadata', '--yes'], ['metadata']],
+      [['testers', '--yes'], ['testers']],
     ]
     for (const [args, lanes] of cases) {
       fs.rmSync(calls, { force: true })
@@ -388,6 +402,163 @@ describe.skipIf(!hasRuby)('TestFlight notes (test_notes.rb)', () => {
     expect(fastfile).toContain('TestNotes.collect(IOS_DIR)')
     expect(fastfile).toContain('TestNotes.cap(ENV["CHANGELOG"]')
     expect(fastfile).not.toContain('last_git_commit')
+    // The group is set by the testers lane now; the by-hand path is named
+    // only when that fails after an upload that already happened.
     expect(fastfile).toMatch(/Internal Testing/)
   })
 })
+
+/**
+ * A BUILD NOBODY CAN SEE IS NOT DELIVERED.
+ *
+ * Internal testers see a build only through an internal group, and a first
+ * app has none: "uploaded" used to end with a line sending the owner back to
+ * App Store Connect. team_group.rb decides the group and the people as plain
+ * data; the Fastfile only carries it out. The team behind the key has four
+ * users (2026-10-03: account holder+admin, admin, developer, finance) and
+ * only the account holder is invited - an invitation is an e-mail.
+ */
+function teamPlan(input: object): {
+  create: boolean
+  target: { name: string } | null
+  add: { email: string }[]
+  left: number
+  notes: string[]
+} {
+  const r = spawnSync(
+    'ruby',
+    [
+      '-r',
+      'json',
+      '-r',
+      path.join(IOS_FASTLANE, 'team_group.rb'),
+      '-e',
+      'i = JSON.parse(ARGV[0], symbolize_names: true); puts JSON.generate(TeamGroup.plan(**i))',
+      JSON.stringify(input),
+    ],
+    { encoding: 'utf8', env: { ...process.env, LC_ALL: 'en_US.UTF-8' } }
+  )
+  expect(r.status, r.stderr).toBe(0)
+  return JSON.parse(r.stdout)
+}
+
+const TEAM = [
+  { email: 'fin@x.io', first: 'F', last: 'N', roles: ['FINANCE'] },
+  {
+    email: 'Owner@X.io',
+    first: 'O',
+    last: 'W',
+    roles: ['ACCOUNT_HOLDER', 'ADMIN'],
+  },
+  {
+    email: 'dev@x.io',
+    first: 'D',
+    last: 'V',
+    roles: ['CREATE_APPS', 'DEVELOPER'],
+  },
+  { email: 'adm@x.io', first: 'A', last: 'D', roles: ['ADMIN'] },
+]
+
+describe.skipIf(!hasRuby)(
+  'the internal TestFlight group (team_group.rb)',
+  () => {
+    it('a first app: create the group, invite the account holder alone', () => {
+      const p = teamPlan({ groups: [], users: TEAM, testers: [] })
+      expect(p.create).toBe(true)
+      expect(p.target).toBeNull()
+      expect(p.add.map(u => u.email)).toEqual(['Owner@X.io'])
+      expect(p.left).toBe(3)
+    })
+
+    it('a second run changes nothing: the group exists, the holder is in it', () => {
+      const groups = [
+        {
+          id: 'g1',
+          name: 'Trinity S³AI team',
+          internal: true,
+          all_builds: true,
+        },
+      ]
+      const p = teamPlan({ groups, users: TEAM, testers: ['owner@x.io'] })
+      expect(p.create).toBe(false)
+      expect(p.target?.name).toBe('Trinity S³AI team')
+      expect(p.add).toEqual([])
+    })
+
+    it("the owner's own internal all-builds group is used, not duplicated", () => {
+      const groups = [
+        { id: 'e1', name: 'Friends', internal: false, all_builds: null },
+        { id: 'h1', name: 'Mine', internal: true, all_builds: true },
+      ]
+      const p = teamPlan({ groups, users: TEAM, testers: [] })
+      expect(p.create).toBe(false)
+      expect(p.target?.name).toBe('Mine')
+      expect(p.add.map(u => u.email)).toEqual(['Owner@X.io'])
+    })
+
+    it('a group that does not get new builds is named, left alone, and not the target', () => {
+      const groups = [
+        { id: 'm1', name: 'Manual', internal: true, all_builds: false },
+        {
+          id: 'x1',
+          name: 'Trinity S³AI team',
+          internal: false,
+          all_builds: null,
+        },
+      ]
+      const p = teamPlan({ groups, users: TEAM, testers: [] })
+      expect(p.create).toBe(true)
+      expect(p.notes).toEqual([
+        'internal group "Manual" does not get new builds by itself (left as it is)',
+      ])
+    })
+
+    it('no address, no invitation; one person is invited once', () => {
+      const users = [
+        { email: '', first: 'N', last: 'E', roles: ['ACCOUNT_HOLDER'] },
+        { email: 'a@x.io', first: 'A', last: 'A', roles: ['ACCOUNT_HOLDER'] },
+        { email: 'A@x.io', first: 'A', last: 'A', roles: ['ACCOUNT_HOLDER'] },
+      ]
+      const p = teamPlan({ groups: [], users, testers: [] })
+      expect(p.add.map(u => u.email)).toEqual(['a@x.io'])
+    })
+
+    it('a log shows an address masked', () => {
+      const r = spawnSync(
+        'ruby',
+        [
+          '-r',
+          path.join(IOS_FASTLANE, 'team_group.rb'),
+          '-e',
+          'puts [TeamGroup.mask("owner@x.io"), TeamGroup.mask("nope"), TeamGroup.mask(nil)].join(" ")',
+        ],
+        { encoding: 'utf8' }
+      )
+      expect(r.stdout.trim()).toBe('o***@x.io ? ?')
+    })
+
+    it('beta ends with testers, and a failure there does not fail the upload', () => {
+      const fastfile = fs.readFileSync(
+        path.join(IOS_FASTLANE, 'Fastfile'),
+        'utf8'
+      )
+      expect(fastfile).toContain('require_relative "team_group"')
+      const beta = fastfile.slice(
+        fastfile.indexOf('lane :beta do'),
+        fastfile.indexOf('lane :testers do')
+      )
+      expect(beta).toMatch(/begin\s+testers\s+rescue => e/)
+      const lane = fastfile.slice(fastfile.indexOf('lane :testers do'))
+      expect(lane.indexOf('VIBEE_UPLOAD_YES')).toBeGreaterThan(-1)
+      expect(lane.indexOf('VIBEE_UPLOAD_YES')).toBeLessThan(
+        lane.indexOf('api_key')
+      )
+      expect(lane).toContain(
+        'is_internal_group: true, has_access_to_all_builds: true'
+      )
+      // The masked form, never the address itself, reaches the log.
+      expect(lane).toContain('TeamGroup.mask(u[:email])')
+      expect(lane).not.toMatch(/UI\.\w+\([^)]*#\{u\[:email\]\}/)
+    })
+  }
+)
