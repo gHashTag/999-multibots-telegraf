@@ -714,6 +714,75 @@ class SafariRecorder extends DeliveringRecorder {
   mimeType = 'audio/mp4'
 }
 
+describe('VoiceSession: a fan is the room, not a phrase', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  /** Every tick from `from` to `to`, at `level(t)`. */
+  function hold(
+    v: { level: { value: number }; tick(at: number): void },
+    from: number,
+    to: number,
+    level: (t: number) => number
+  ) {
+    for (let t = from; t <= to; t += 40) {
+      v.level.value = level(t)
+      v.tick(t)
+    }
+  }
+  const fan = () => 0.3
+  /** Syllables over the fan: loud 240 ms, then a dip to the fan. */
+  const voice = (t: number) => (t % 320 < 240 ? 1.5 : 0.3)
+
+  it('a fan switched on is never sent to be heard, however long it runs', async () => {
+    const made: FakeRecorder[] = []
+    class Recorder extends FakeRecorder {
+      constructor() {
+        super()
+        made.push(this)
+      }
+    }
+    const v = await speakingSession(['whirr'], Recorder)
+    hold(v, 1100, 4000, fan)
+    // The recording that held the fan's first seconds is gone, not kept.
+    expect(made.length).toBeGreaterThan(1)
+    expect(made[0].state).toBe('inactive')
+    hold(v, 4040, 1100 + 31_000, fan)
+    await flush()
+    expect(v.d.transcribe).not.toHaveBeenCalled()
+    expect(v.d.send).not.toHaveBeenCalled()
+    expect(v.s.snapshot.phase).toBe('listening')
+  })
+
+  it('a question asked over the fan is heard when it ends, not at 30 s', async () => {
+    const v = await speakingSession(['open my calendar'])
+    hold(v, 1100, 4000, fan)
+    hold(v, 4040, 5500, voice)
+    hold(v, 5540, 5540 + 1000, fan)
+    await flush()
+    expect(v.d.transcribe).toHaveBeenCalledTimes(1)
+    expect(v.d.send).toHaveBeenCalledWith('open my calendar')
+  })
+
+  it('a fan that cut into the answer lets it go on, unheard', async () => {
+    const v = await speakingSession(['what is new'])
+    await v.utterance()
+    await v.reply(ANSWER)
+    hold(v, 2300, 2900, fan)
+    expect(v.s.snapshot.phase).toBe('listening')
+    hold(v, 2940, 5000, fan)
+    await flush()
+    expect(v.s.snapshot.phase).toBe('speaking')
+    expect(v.d.transcribe).toHaveBeenCalledTimes(1)
+    expect(v.spoken).toEqual([
+      'The first long sentence of the answer.',
+      'The first long sentence of the answer.',
+    ])
+  })
+})
+
 describe('VoiceSession: the bytes a phrase costs', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
