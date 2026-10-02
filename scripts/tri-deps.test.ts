@@ -58,7 +58,8 @@ beforeEach(() => {
     fs.mkdirSync(path.dirname(at), { recursive: true })
     fs.writeFileSync(at, '#!/bin/sh\n', { mode: 0o755 })
   }
-  fs.writeFileSync(path.join(main, 'node_modules/pkg.js'), '')
+  fs.mkdirSync(path.join(main, 'node_modules/pkg'))
+  fs.writeFileSync(path.join(main, 'node_modules/pkg/package.json'), '{}')
   git(main, 'worktree', 'add', '-q', '--detach', wt)
 })
 
@@ -102,7 +103,9 @@ describe('tri deps', () => {
     }
     // An install in the tree now empties only its copy.
     fs.rmSync(path.join(wt, 'node_modules'), { recursive: true })
-    expect(fs.existsSync(path.join(main, 'node_modules/pkg.js'))).toBe(true)
+    expect(
+      fs.existsSync(path.join(main, 'node_modules/pkg/package.json'))
+    ).toBe(true)
     expect(r.out).not.toContain('no root npm ci')
   })
 
@@ -158,6 +161,21 @@ describe('tri deps', () => {
       expect(r.out).toContain('tri deps --heal')
     })
   }
+
+  it('names a package this tree declares that the linked install lacks', () => {
+    // The link carries the main checkout's install, made for ITS branch.
+    fs.writeFileSync(
+      path.join(wt, 'package.json'),
+      JSON.stringify({ dependencies: { pkg: '1', redis: '6' } })
+    )
+    const r = deps(wt)
+    expect(r.rc).toBe(1)
+    expect(r.out).toContain(
+      'root declares packages its node_modules lacks: redis'
+    )
+    expect(r.out).not.toMatch(/lacks: .*\bpkg\b/)
+    expect(r.out).toContain('tri deps --own, then install in this tree')
+  })
 
   it('refuses a flag it does not know instead of reading it as a path', () => {
     const r = deps('--hea1', wt)
