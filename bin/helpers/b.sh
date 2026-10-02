@@ -88,7 +88,6 @@ print(json.dumps(s, ensure_ascii=False) if not isinstance(s, str) else s)
 sys.exit(1 if res.get("isError") else 0)'
 }
 
-# Tools act on the front tab; an ID argument makes that tab the front first.
 # js_string VALUE -> a JSON string literal, safe inside an argument object.
 js() { V="$1" python3 -c 'import json,os;print(json.dumps(os.environ["V"]))'; }
 
@@ -158,7 +157,9 @@ case "$CASE" in
       opened=$(OUT="$out" python3 -c 'import json,os
 try: print(json.loads(os.environ["OUT"]).get("id") or "")
 except Exception: print("")')
-      if [ $n -eq 1 ] && { [ -z "$opened" ] || [ "$opened" = "$new" ]; }; then
+      # No id back is trusted only from an open that succeeded: after a
+      # failed or timed-out open the one new tab may be the person's.
+      if [ $n -eq 1 ] && { [ "$opened" = "$new" ] || { [ -z "$opened" ] && [ $rc -eq 0 ]; }; }; then
         call browser_close_tab "{\"id\":$(js "$new")}" >/dev/null && echo "закрыл свою: $new"
       elif [ $n -eq 0 ]; then echo "новой вкладки в списке нет — ничего не закрыл (под мог заменить старую)"
       else echo "новых id: $n ($after), открыт: ${opened:-?} — не угадываю, ничего не закрыл"; fi
