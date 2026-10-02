@@ -6508,7 +6508,10 @@ cmd_board() {
       --jq .status 2>/dev/null) || status=
     case "$status" in
       ahead|identical) warn "#$n ships $sha, already inside the pin -- stale, close it" ;;
-      *) warn "#$n ships $sha, older than trinity main (${status:-unknown}) -- superseded by a newer release PR" ;;
+      # An empty status is a 404 (the SHA is gone from trinity) or a timeout:
+      # nothing was compared, so do not tell a reviewer the PR is superseded.
+      '') warn "#$n ships $sha -- trinity did not answer for it, cannot compare; check by hand" ;;
+      *) warn "#$n ships $sha, older than trinity main ($status) -- superseded by a newer release PR" ;;
     esac
   done <<<"$prs"
   return "$rc"
