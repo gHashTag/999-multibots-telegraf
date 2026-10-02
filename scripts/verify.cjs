@@ -130,6 +130,34 @@ if (uninstalled.length) {
   process.exit(3)
 }
 
+/*
+ * Preflight: DECLARED, BUT NOT INSTALLED.
+ *
+ * A worktree's node_modules is usually a link to the main checkout's, which is
+ * installed for whatever branch THAT checkout is on. On 2026-10-03 it sat on a
+ * branch 2634 commits behind main: four declared packages were absent, and
+ * typecheck failed on TS2307 'redis' in every linked tree -- read as a debt of
+ * main when it was neither main nor the code. This WARNS and runs on: steps
+ * that do not touch the absent packages still say something true. The same
+ * names are repeated next to the failures at the end.
+ */
+const { absentFrom } = require('./deps-absent.cjs')
+const absent = ['.', ...SUBPROJECTS.map(([dir]) => dir)]
+  .map(dir => [dir, absentFrom(path.join(process.cwd(), dir))])
+  .filter(([, names]) => names.length)
+const absentReport = () => {
+  console.error('Declared but not installed (an install fault, not the code):')
+  for (const [dir, names] of absent)
+    console.error(`  ${dir}: ${names.join(' ')}`)
+  console.error(
+    "  A linked node_modules follows the main checkout's branch: `tri deps` names it.\n"
+  )
+}
+if (absent.length) {
+  console.error('')
+  absentReport()
+}
+
 const results = []
 const runStep = (cmd, args) => {
   const r = spawnSync(cmd, args, { stdio: 'pipe', encoding: 'utf8' })
@@ -167,6 +195,7 @@ if (failed.length) {
     console.error(f.out.split('\n').filter(Boolean).slice(-12).join('\n'))
     console.error('')
   }
+  if (absent.length) absentReport()
   process.exit(1)
 }
 
