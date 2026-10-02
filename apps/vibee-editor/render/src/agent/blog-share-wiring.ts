@@ -90,8 +90,9 @@ export async function publishEverywhere(
 
   const { startBrowserAsAgent } = await import('../browser/routes')
   const { readSession } = await import('../browser/sessions')
-  const { newPage, evaluateOn, clickAt, closePage } =
-    await import('../browser/cdp')
+  const { newPage, evaluateOn, clickAt, closePage } = await import(
+    '../browser/cdp'
+  )
   const { findProbe, foundOf } = await import('../browser/find-target')
   let s = await readSession(pool, owner)
   if (!s || s.state !== 'live' || !s.cdpEndpoint) {
@@ -212,8 +213,9 @@ export async function publishEverywhere(
  */
 async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   const { xThread } = await import('./blog-share')
-  const { newPage, evaluateOn, clickAt, typeText, closePage } =
-    await import('../browser/cdp')
+  const { newPage, evaluateOn, clickAt, typeText, closePage } = await import(
+    '../browser/cdp'
+  )
   const { findProbe, foundOf } = await import('../browser/find-target')
   const thread = xThread(a)
   const page = await newPage(cdp, 'https://x.com/compose/post')
