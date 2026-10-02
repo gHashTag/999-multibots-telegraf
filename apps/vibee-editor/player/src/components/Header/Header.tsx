@@ -42,6 +42,7 @@ import {
 } from '@/lib/appSession'
 import { AI_PIPELINE_STAGES } from '@/lib/aiPipeline'
 import { IS_EMBED } from '@/lib/embed'
+import { chatTabHref, readChatTabMemory } from '@/lib/chatTabMemory'
 
 // Page navigation tabs. Editor belongs to the AI creation pipeline.
 const NAV_TABS = [
@@ -69,7 +70,7 @@ const NAV_TABS = [
 const ROUTE_PATTERNS: Record<string, RegExp> = {
   feed: /^\/feed/,
   blog: /^\/blog/,
-  agents: /^\/(agents|chat)/,
+  agents: /^\/(agents|chat|crm\/\d+\/chat(\/|$))/,
   search: /^\/search/,
   ai: /^\/generate/,
   profile:
@@ -212,9 +213,11 @@ export function Header() {
       if (tab.id === 'profile' && myProfile?.username) {
         return `/${myProfile.username}`
       }
+      // The chat left last, the market only once (lib/chatTabMemory.ts).
+      if (tab.id === 'agents') return chatTabHref(location, readChatTabMemory())
       return tab.route
     },
-    [myProfile]
+    [myProfile, location]
   )
 
   // Find active tab index for slide indicator
