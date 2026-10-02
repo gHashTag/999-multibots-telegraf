@@ -30,19 +30,19 @@ struct СтрокаМоделиKie: View {
     Button(action: нажать) {
       HStack(spacing: 12) {
         VStack(alignment: .leading, spacing: 3) {
-          Text(модель.название)
+          Text(модель.label)  // cyrillic-ok: pre-existing name
             .font(Тема.Шрифт.стиль(.subheadline))
             .foregroundStyle(
               модель.живая && пропускает ? Тема.Цвет.текст : Тема.Цвет.текстПриглушённый
             )
 
-          if let причина = модель.почемуНельзя {
+          if let причина = модель.pausedLabel {  // cyrillic-ok: pre-existing name
             Text(причина)
               .font(Тема.Шрифт.стиль(.caption))
               .foregroundStyle(Тема.Цвет.предупреждение)
               .fixedSize(horizontal: false, vertical: true)
           } else {
-            Text("нужно: \(модель.требует)")
+            Text(модель.needsLabel)  // cyrillic-ok: pre-existing name
               .font(Тема.Шрифт.стиль(.caption))
               .foregroundStyle(Тема.Цвет.текстПриглушённый)
           }
@@ -64,16 +64,12 @@ struct СтрокаМоделиKie: View {
          */
         if бесплатно {
           // Замерено: списаний за сценарий на сервере нет ни одного.
-          Text("бесплатно")
+          Text(say("free", "бесплатно"))
             .font(Тема.Шрифт.стиль(.caption))
             .foregroundStyle(Тема.Цвет.текстПриглушённый)
         } else if let ц = ценаТокенов {
           // «1 токенов» — та же ошибка согласования, что была в таймлайне.
-          Text(
-            посекундная
-              ? "\(склонение(ц, "токен", "токена", "токенов"))/с"
-              : склонение(ц, "токен", "токена", "токенов")
-          )
+          Text(KieModelLabels.price(ц, perSecond: посекундная))  // cyrillic-ok: pre-existing names
             .font(Тема.Шрифт.стиль(.caption))
             .foregroundStyle(Тема.Цвет.текстПриглушённый)
             .multilineTextAlignment(.trailing)
@@ -82,7 +78,7 @@ struct СтрокаМоделиKie: View {
         } else if !пропускает {
           // Причина словами: «недоступна» без объяснения читается как
           // поломка, и человек жмёт снова.
-          Text("сервер не подключил")
+          Text(say("server has not connected it", "сервер не подключил"))
             .font(Тема.Шрифт.стиль(.caption2))
             .foregroundStyle(Тема.Цвет.текстПриглушённый)
         } else if модель.живая && модель.ценаUSD == nil {
@@ -90,7 +86,7 @@ struct СтрокаМоделиKie: View {
           // человек заключит, что бесплатно. Условие сузилось до «провайдер
           // цены не назвал»: раньше сюда попадал и случай «баланс ещё не
           // пришёл», и модель с обычной ценой секунду выглядела бесплатной.
-          Text("цену не назвали")
+          Text(say("no price named", "цену не назвали"))
             .font(Тема.Шрифт.стиль(.caption))
             .foregroundStyle(Тема.Цвет.текстПриглушённый.opacity(0.7))
         }

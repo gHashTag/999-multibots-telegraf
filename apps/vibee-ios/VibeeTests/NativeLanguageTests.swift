@@ -46,4 +46,26 @@ final class NativeLanguageTests: XCTestCase {
     }
     XCTAssertEqual(catalog.label("Другое", russian: false), "Other")
   }
+
+  /// The run button's reason is the first thing an English phone reads when
+  /// generation is not possible. Each reason keeps its numbers in both
+  /// languages, and per-second models name the unit, not a total.
+  func testRunButtonReasonsFollowTheLanguage() {
+    XCTAssertEqual(GenerateText.sourceMissing(video: true, uploading: false, russian: false), "A video is needed")
+    XCTAssertEqual(GenerateText.sourceMissing(video: false, uploading: false, russian: false), "A photo is needed")
+    XCTAssertEqual(GenerateText.sourceMissing(video: true, uploading: true, russian: false), "The file is uploading")
+    XCTAssertEqual(
+      GenerateText.shortfall(price: 20, balance: 16, perSecond: false, russian: false),
+      "not enough tokens: 20 needed, you have 16")
+    let perSecond = GenerateText.shortfall(price: 3, balance: 2, perSecond: true, russian: false)
+    XCTAssertTrue(perSecond.contains("per second"), perSecond)
+    for russian in [false, true] {
+      for perSecond in [false, true] {
+        let text = GenerateText.shortfall(price: 20, balance: 16, perSecond: perSecond, russian: russian)
+        XCTAssertTrue(text.contains("20") && text.contains("16"), text)
+        let cyrillic = text.range(of: "\\p{Cyrillic}", options: .regularExpression) != nil
+        XCTAssertEqual(cyrillic, russian, text)
+      }
+    }
+  }
 }

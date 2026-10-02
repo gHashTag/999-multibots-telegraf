@@ -10982,3 +10982,20 @@ Iteration 6: the agent chat and the AI screen follow `say` too. Two traps:
   puts both into the prompt as free text (`render-server.ts`, "in the X
   niche"), so any word works -- and "general niche" reads better. Read the
   consumer before "aligning" two clients.
+
+Iterations 7-8: the AI screen is fully bilingual. Two more traps:
+
+- **Testable reasons use `l(en, ru)`, not a ternary.** A pure function that
+  takes `russian: Bool = speaksRussian` (so a test can read both languages)
+  defines `func l(_ en: String, _ ru: String) -> String { russian ? ru : en }`.
+  The counter blanks `say(` and `l(` calls; it cannot tell a `cond ? "a" : "б"`
+  pair from Russian UI. See `GenerateText`, `KieModelLabels`.
+- **Generated Russian goes through a hand-written label layer.**
+  `KieModels.swift` is written by `render/scripts/gen-kie-swift.ts` (hand
+  edits vanish), and its model names / needs were the most-read Russian on an
+  English phone -- the counter said the screen was done while the live
+  Photo tab was not. `KieModelLabels.swift` translates the generated words
+  (brand stays, kind after " — " translates, as the web shows brands);
+  `KieModelLabelTests` walks the WHOLE catalogue, so a new generated suffix
+  fails a test, not a screenshot. The model `id` is the server value: never
+  translated.
