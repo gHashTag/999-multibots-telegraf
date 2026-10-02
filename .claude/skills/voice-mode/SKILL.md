@@ -458,6 +458,11 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    A PR that touches `vad.ts` or the session's tick: `./tri vad` (exit 1 =
    speech taken for the room or a fan held as a phrase) before the commit.
 5. Update the tables here in the same PR.
+6. A push that had to skip hooks (`--no-verify`, ssh dropping after a long
+   pre-push) skips the player's lint ratchet too. Cycle 7 put 4 errors on
+   main that way -- a plain function named `useRoad` is a React hook to
+   eslint's `rules-of-hooks` -- and cycle 8's honest push was the one
+   refused. `tri loop` now runs the ratchet; never name a non-hook `use*`.
 
 ## Common issues
 

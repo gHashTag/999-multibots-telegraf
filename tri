@@ -429,8 +429,10 @@ CHECKS THAT EACH COST A CYCLE
   tri loop | tri виток
         Where the last loop cycle stopped, before this one starts: dirty tree,
         gates or pushes running IN THIS TREE, this branch's PR, and the newest
-        player/render deploys. Exit 1 = work in flight, continue it; a FAILED
-        deploy on main blocks every later merge of that service.
+        player/render deploys, and the player's lint ratchet (a push that
+        skipped hooks gets past it; ~25 s, TRI_LOOP_FAST=1 skips it). Exit 1 =
+        work in flight, continue it; a FAILED deploy on main blocks every
+        later merge of that service.
 
   tri ears [status|deploy] [ru|en|mouth|all] | tri уши   (tri gigaam = tri ears ru, tri mouth = tri ears mouth)
         The fast ears of voice mode, one image (deployment/gigaam) as two
@@ -5909,6 +5911,21 @@ sys.exit(5 if d["status"] in ("BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED",
       5) warn "$name: still deploying -- wait for SUCCESS before the next item"; busy=1 ;;
     esac
   done
+
+  # The player's lint ratchet runs on pre-push only, and a push that had to
+  # skip hooks (ssh drops after a long pre-push, so --no-verify) skips it.
+  # Cycle 7 put 4 rules-of-hooks errors on main that way (a plain function
+  # named useRoad) and the NEXT push, cycle 8's, was the one refused. ~25 s.
+  if [ -z "${TRI_LOOP_FAST:-}" ]; then
+    if node "$ROOT/scripts/player-lint-ratchet.cjs" >/tmp/tri-loop-lint.$$ 2>&1; then
+      printf '  player lint: within the ratchet\n'
+    else
+      bad 'player lint is over its ratchet -- a push skipped hooks; fix it first:'
+      sed 's/^/        /' /tmp/tri-loop-lint.$$ | head -5
+      busy=1
+    fi
+    rm -f /tmp/tri-loop-lint.$$
+  fi
 
   if [ "$busy" = 0 ]; then good 'nothing in flight: safe to start the next item'; fi
   return "$busy"
