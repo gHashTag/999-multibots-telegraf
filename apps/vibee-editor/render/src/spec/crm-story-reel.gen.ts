@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "crm-story-reel" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 17 satisfies number;
+export const VERSION = 18 satisfies number;
 export const FACE_REQUIRED = true satisfies boolean;
 export const VOICE_REQUIRED = true satisfies boolean;
 export const VOICE_SOURCE = "own-voice-notes-in-owner-dm" satisfies string;
@@ -156,7 +156,7 @@ export const REEL_TOOL_IN_PLAN_READ = true satisfies boolean;
 export const PLAN_ITEM_IS_TOPIC = true satisfies boolean;
 export const REELS_STAY_STORY_AFTER_GIFTS = true satisfies boolean;
 export const START_PARAM = "reel" satisfies string;
-export const PAGE_ROUTE = "story" satisfies string;
+export const PAGE_ROUTE = "chat" satisfies string;
 export const SELLER_SCRIPT_ACCEPTED = true satisfies boolean;
 export const DELIVER_DM = "dm" satisfies string;
 export const DELIVER_NONE = "none" satisfies string;

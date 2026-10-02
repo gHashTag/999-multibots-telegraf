@@ -1,0 +1,80 @@
+[
+  {
+    "name": "a no or silence posts anyway",
+    "file": "src/agent/engage-desk.ts",
+    "from": "if (!postsOnlyOnYes(answer)) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "silence counted as a decline",
+    "file": "src/agent/engage-desk.ts",
+    "from": "const real = declineIsReal(answer)",
+    "to": "const real = true"
+  },
+  {
+    "name": "a press counted as the receipt",
+    "file": "src/agent/engage-desk.ts",
+    "from": "ok = receiptSeen(snippet, seen)",
+    "to": "ok = true"
+  },
+  {
+    "name": "the daily cap ignored",
+    "file": "src/agent/engage-desk.ts",
+    "from": "    askedToday < DAILY_CAP_PER_NETWORK && !seenPost",
+    "to": "    !seenPost"
+  },
+  {
+    "name": "mentions let through",
+    "file": "src/agent/engage-desk.ts",
+    "from": "return /(^|[^\\w])@\\w/.test(text) || /(^|[^\\w/])\\/?u\\/\\w/i.test(text)",
+    "to": "return false"
+  },
+  {
+    "name": "the claim guard skipped",
+    "file": "src/agent/engage-desk.ts",
+    "from": "if (!mayPropose(asked, seen, hasMention(text), verdict.ok)) {",
+    "to": "if (!mayPropose(asked, seen, hasMention(text), true)) {"
+  },
+  {
+    "name": "9:1 ignored",
+    "file": "src/agent/engage-desk.ts",
+    "from": "promoOk(share.promo, share.total)\n",
+    "to": "true\n"
+  },
+  {
+    "name": "a subreddit banning AI is commented in",
+    "file": "src/agent/engage-desk.ts",
+    "from": "return r.read && !r.bansAi",
+    "to": "return r.read"
+  },
+  {
+    "name": "drafted without reading the thread",
+    "file": "src/agent/engage-desk.ts",
+    "from": "return thread !== null",
+    "to": "return true"
+  },
+  {
+    "name": "a link let through on LinkedIn",
+    "file": "src/agent/engage-desk.ts",
+    "from": "  if (!linkOk && hasLink(text))\n",
+    "to": "  if (false)\n"
+  },
+  {
+    "name": "searches not limited to three tabs",
+    "file": "src/agent/engage-desk.ts",
+    "from": "{ length: Math.max(1, Math.min(limit, jobs.length)) }",
+    "to": "{ length: jobs.length }"
+  },
+  {
+    "name": "replies never looked for",
+    "file": "src/agent/engage-desk.ts",
+    "from": "said.push(...(await checkLeads(d)))",
+    "to": "void checkLeads"
+  },
+  {
+    "name": "the search pace not kept",
+    "file": "src/agent/engage-desk.ts",
+    "from": "if (!searchDue(last, d.now()))",
+    "to": "if (false)"
+  }
+]

@@ -34,9 +34,15 @@ knob for it there -- whisper, four Piper voices, Kokoro and Silero already
 hold ~470; loading Parakeet beside them reached 986 and Python could no
 longer start a thread. Here the pool is ours: GIGAAM_THREADS (default 8).
 
-    POST /hear    raw audio bytes (webm/ogg/mp4/wav), Bearer $GIGAAM_KEY
-                  -> {"text": "...", "ms": 87}
-    GET  /health  -> {"ok": true, "model": "gigaam-v3-e2e-ctc"}
+    POST /hear         raw audio bytes (webm/ogg/mp4/wav), Bearer $GIGAAM_KEY
+                       -> {"text": "...", "ms": 87}
+    POST /hear?turn=1  the same, and is the voice finished? (turn.py)
+                       -> {"text": "...", "ms": 95, "done": 0.91, "turnMs": 30}
+    GET  /health       -> {"ok": true, "model": "gigaam-v3-e2e-ctc", "turn": true}
+
+`done` comes from Smart Turn v3.2 when its model loaded (TURN_MODEL, baked
+into the image); without it the ears still hear, and the answer simply has
+no `done` -- the player then judges the end of a turn by the words alone.
 
 The audio is decoded by ffmpeg into 16 kHz mono; nothing is written to the
 log but sizes and times -- never the words.
@@ -52,9 +58,13 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from urllib.parse import parse_qs, urlsplit
+
 import numpy as np
 import onnx_asr
 import onnxruntime as rt
+
+from turn import Turn
 
 MODEL = os.environ.get("GIGAAM_MODEL", "gigaam-v3-e2e-ctc")
 # "int8" for Parakeet: 630 MB instead of 2.4 GB; GigaAM ships one precision.
@@ -76,6 +86,14 @@ so = rt.SessionOptions()
 so.intra_op_num_threads = THREADS
 so.inter_op_num_threads = 1
 model = onnx_asr.load_model(MODEL, quantization=QUANT, sess_options=so)
+
+# Optional: a missing or broken turn model must never cost the person words.
+TURN = None
+if os.environ.get("TURN_MODEL"):
+    try:
+        TURN = Turn(os.environ["TURN_MODEL"], int(os.environ.get("TURN_THREADS", "2")))
+    except Exception as e:  # noqa: BLE001 -- any failure means "no verdict"
+        print(f"turn model not loaded: {type(e).__name__}", flush=True)
 
 
 def decode(audio: bytes) -> np.ndarray:
@@ -103,12 +121,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            return self.reply(200, {"ok": True, "model": MODEL, "quant": QUANT})
+            return self.reply(
+                200, {"ok": True, "model": MODEL, "quant": QUANT, "turn": TURN is not None}
+            )
         self.reply(404, {"error": "not found"})
 
     def do_POST(self) -> None:
-        if self.path != "/hear":
+        url = urlsplit(self.path)
+        if url.path != "/hear":
             return self.reply(404, {"error": "not found"})
+        judge = parse_qs(url.query).get("turn") == ["1"]
         given = self.headers.get("authorization", "")
         if not KEY or not hmac.compare_digest(given.encode(), f"Bearer {KEY}".encode()):
             return self.reply(401, {"error": "unauthorized"})
@@ -128,7 +150,16 @@ class Handler(BaseHTTPRequestHandler):
         with BUSY:
             text = model.recognize(samples, sample_rate=RATE)
         ms = int((time.time() - t0) * 1000)
-        self.reply(200, {"text": str(text or "").strip(), "ms": ms})
+        body = {"text": str(text or "").strip(), "ms": ms}
+        if judge and TURN is not None:
+            t1 = time.time()
+            try:
+                with BUSY:
+                    body["done"] = round(TURN.done(samples), 3)
+                body["turnMs"] = int((time.time() - t1) * 1000)
+            except Exception as e:  # noqa: BLE001 -- the words are already heard
+                print(f"turn failed: {type(e).__name__}", flush=True)
+        self.reply(200, body)
 
     def log_message(self, fmt: str, *args) -> None:
         # The default logs the request line only -- no body, no words.

@@ -126,6 +126,17 @@ touched each one. That commit is usually NOT the one whose deploy failed:
 watchPatterns skip test-only commits, so a broken test surfaces on the next
 source change.
 
+Before merging a PR that touches the player, run the same gate on the tree
+the merge will produce:
+
+```bash
+./tri premerge N  # PR head merged into origin/main, tsc + test-gate; rc 0/1/2
+```
+
+It runs on the Node major nearest the image's (Node 26 has its own global
+Storage and fails a test the image passes). Under heavy swap it takes ~30 min;
+the Railway gate on the merged commit remains the final word.
+
 ### Log Monitoring
 
 ```bash

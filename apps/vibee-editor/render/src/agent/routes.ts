@@ -822,6 +822,21 @@ export function identityWithSource(
   return owner ? { id: owner, source: 'agent-key' } : null
 }
 
+/**
+ * The person's OWN credential only: a mini-app initData signature or the app
+ * session. Not an agent key, not the server key with a named telegram_id, not
+ * an editorial key, not a game token. For routes where whoever can act can
+ * redirect something of the person's -- the TRI payout wallet (src/tri-wallet.ts)
+ * -- and so must not be reachable by a credential handed to somebody else.
+ */
+export function personIdentity(req: IncomingMessage): string | null {
+  if (editorialAccess(req).kind !== 'none') return null
+  const who = identityWithSource(req, verifiedTelegramId(req))
+  return who && (who.source === 'signature' || who.source === 'session')
+    ? who.id
+    : null
+}
+
 export function chatIdentity(
   req: IncomingMessage,
   verified: string | null

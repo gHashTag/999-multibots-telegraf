@@ -51,10 +51,21 @@ export function wakeRoad(now = Date.now()): boolean {
 
 export async function transcribe(
   audio: Blob,
-  opts: { lang?: Language | null; signal?: AbortSignal } = {}
+  opts: {
+    lang?: Language | null
+    signal?: AbortSignal
+    /**
+     * Also ask whether the voice sounds finished (Smart Turn, turnEnd.ts);
+     * called with 0..1 when the ears could judge, not at all otherwise.
+     */
+    onTurn?: (done: number) => void
+  } = {}
 ): Promise<string> {
   // The language, when known, saves whisper a detection pass (spokenLang.ts).
-  const q = opts.lang ? `?lang=${opts.lang}` : ''
+  const params = new URLSearchParams()
+  if (opts.lang) params.set('lang', opts.lang)
+  if (opts.onTurn) params.set('turn', '1')
+  const q = params.toString() ? `?${params}` : ''
   noteRoad()
   const r = await fetch(`${API_BASE}/api/voice/transcribe${q}`, {
     method: 'POST',
@@ -63,7 +74,9 @@ export async function transcribe(
     signal: opts.signal,
   })
   if (!r.ok) throw new VoiceHttpError(r.status, `transcribe ${r.status}`)
-  const body = (await r.json()) as { text?: unknown }
+  const body = (await r.json()) as { text?: unknown; done?: unknown }
+  if (opts.onTurn && typeof body.done === 'number' && body.done >= 0)
+    opts.onTurn(Math.min(1, body.done))
   return typeof body.text === 'string' ? body.text.trim() : ''
 }
 
