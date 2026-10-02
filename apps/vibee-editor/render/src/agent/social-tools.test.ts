@@ -81,11 +81,16 @@ describe('the social desk is in the shared registry', () => {
 })
 
 describe('only the owner', () => {
-  it.each(['social_status', 'social_post'])('%s refuses anyone else', async n => {
-    fakes(['allowed'], connected('x'))
-    await expect(tool(n).handler(ARTICLE, ctx('42'))).rejects.toThrow()
-    await expect(tool(n).handler(ARTICLE, undefined as never)).rejects.toThrow()
-  })
+  it.each(['social_status', 'social_post'])(
+    '%s refuses anyone else',
+    async n => {
+      fakes(['allowed'], connected('x'))
+      await expect(tool(n).handler(ARTICLE, ctx('42'))).rejects.toThrow()
+      await expect(
+        tool(n).handler(ARTICLE, undefined as never)
+      ).rejects.toThrow()
+    }
+  )
 })
 
 describe('draftOf checks the post before anything is shown', () => {
@@ -99,8 +104,9 @@ describe('draftOf checks the post before anything is shown', () => {
   })
 
   it('lowercases and de-duplicates the networks', () => {
-    expect(draftOf({ ...ARTICLE, networks: ['X', 'x', 'LinkedIn'] }).networks)
-      .toEqual(['x', 'linkedin'])
+    expect(
+      draftOf({ ...ARTICLE, networks: ['X', 'x', 'LinkedIn'] }).networks
+    ).toEqual(['x', 'linkedin'])
   })
 
   it.each([

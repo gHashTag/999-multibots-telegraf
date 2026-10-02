@@ -49,7 +49,8 @@ export interface Draft {
 
 function httpsUrl(v: unknown, what: string): string {
   const s = String(v ?? '').trim()
-  if (!/^https:\/\/\S+$/.test(s)) throw new Error(`${what} must be an https URL`)
+  if (!/^https:\/\/\S+$/.test(s))
+    throw new Error(`${what} must be an https URL`)
   return s
 }
 
