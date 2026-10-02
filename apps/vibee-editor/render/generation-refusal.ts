@@ -32,6 +32,11 @@ export const GENERATION_REFUSAL_CODES = [
   'forbidden',
   'unavailable',
   'generation_failed',
+  // A clip or a voice longer than the model takes. A 400 like any bad input,
+  // so the status cannot say it: the two duration ceilings set it themselves.
+  // Under `bad_input` it read "something is missing" over "video must be 10
+  // seconds or shorter" -- nothing was missing.
+  'too_long',
 ] as const
 
 export type GenerationRefusalCode = (typeof GENERATION_REFUSAL_CODES)[number]
@@ -59,7 +64,8 @@ type Ending = {
  *
  * Installed at the top of a route, so `recordInto` (installed later) wraps
  * OUTSIDE it and sees the body before the code is added -- which is why
- * `recordInto` derives the code from the status too, rather than reading it.
+ * `recordInto` takes a code the route wrote itself, and derives one from the
+ * status only when the body has none.
  */
 export function stampRefusalCode(res: Ending): void {
   const original = res.end.bind(res)

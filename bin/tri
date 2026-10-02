@@ -59,6 +59,7 @@ tri — оболочка Trinity S³AI
   tri agents [--dry] [--no-record] [ids…]  приёмка агентов на владельце; итог уходит на карточки рынка
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
   tri blog-share [N]  судьба последних статей блога в соцсетях: спрошено, закрыто через сколько минут, что сделала каждая сеть
+  tri engage [N]  стол комментариев: что предложено под чужими постами, что ответил владелец, квитанции и ответы людей (сигналы лидов)
   tri no-verify-debt [base]  шлюзы, пропущенные коммитами с --no-verify, по всей ветке (кириллица, секреты, prettier, eslint)
   tri browser [--json]  состояние браузера: отвечает ли (pod) и что в нём открыто (tabs)
   tri pod        отвечает ли удалённый браузер И С КАКИХ ПОР (код 1 — не отвечает)
@@ -2057,6 +2058,7 @@ PYEOF
     [ "${1:-}" = "--json" ] || bash "$ROOT/bin/helpers/tabs.sh" "$ROOT"
     exit $rc ;;
   blog-share) shift; bash "$ROOT/bin/helpers/blog-share.sh" "$ROOT" "$@" ;;
+  engage) shift; bash "$ROOT/bin/helpers/engage.sh" "$ROOT" "$@" ;;
   no-verify-debt) shift; bash "$ROOT/bin/helpers/no-verify-debt.sh" "$ROOT" "$@" ;;
   tabs) shift; bash "$ROOT/bin/helpers/tabs.sh" "$ROOT" "$@" ;;
   heal) shift; bash "$ROOT/bin/helpers/heal.sh" "$ROOT" "$@" ;;

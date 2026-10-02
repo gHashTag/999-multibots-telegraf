@@ -413,6 +413,21 @@ describe("the spec's tests hold against the host", () => {
     expect(isAppRoute(SPEC.PAGE_ROUTE)).toBe(true)
   })
 
+  /*
+   * v18: the link under her reel leads to the chat because the chat shows
+   * her reels widget. A chat without the widget would make the link a lie.
+   */
+  it('the link under her reel leads to a screen that shows her reels (v18)', () => {
+    const PLAYER = join(HERE, '..', '..', '..', 'player', 'src')
+    const screen: Record<string, string> = {
+      chat: join(PLAYER, 'pages', 'Chat.tsx'),
+      story: join(PLAYER, 'pages', 'Story.tsx'),
+    }
+    const file = screen[SPEC.PAGE_ROUTE]
+    expect(file, `no screen known for ${SPEC.PAGE_ROUTE}`).toBeTruthy()
+    expect(readFileSync(file, 'utf8')).toContain('<MyStoryWidget')
+  })
+
   it('a still that is still drawing is paid once: a resume waits for it and never orders it again (v3)', () => {
     // still_resume(ready, refused, age_ms), the spec's own vectors.
     const G = SPEC.STILL_GIVE_UP_MS
@@ -1084,7 +1099,7 @@ describe("the spec's tests hold against the host", () => {
     // screen the price comes before the press it prices.
     const PLAYER = join(HERE, '..', '..', '..', 'player', 'src')
     const read = (...p: string[]) => readFileSync(join(PLAYER, ...p), 'utf8')
-    const page = read('pages', 'Story.tsx')
+    const page = read('components', 'Story', 'MyStoryWidget.tsx') // her page and the chat share it
     expect(page.indexOf('data-testid="story-price"')).toBeGreaterThan(0)
     expect(page.indexOf('data-testid="story-price"')).toBeLessThan(
       page.indexOf("t('story.make')")
@@ -1099,7 +1114,7 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(17)
+    expect(SPEC.VERSION).toBe(18)
   })
 
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {

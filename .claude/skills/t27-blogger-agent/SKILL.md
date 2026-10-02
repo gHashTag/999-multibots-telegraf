@@ -86,3 +86,75 @@ Once #3235 is deployed: `tri blog-share reoffer` lists articles the timer closed
   reported "button not found" on X and LinkedIn: the cold browser had not drawn
   the composer at six seconds. The desk now looks every 3 s up to ~30 s (#3281);
   the path test with late-drawing composers fails on the old code.
+
+## Engage desk: comments under other people's posts (2026-10-02)
+
+Cross-posting the blog is the **blog-share** desk above. The engage desk does
+something else. The owner's browser looks for recent posts on his research
+topics and drafts one substantive comment per post. **Every comment needs his
+own yes, every time.** Nothing is posted without that yes.
+
+- **Where the rules live:**
+  - spec: `specs/automation/engage-desk.t27` (vendored in render `src/spec/`);
+  - logic: `src/agent/engage-desk.ts`;
+  - browser and model wiring: `src/agent/engage-desk-wiring.ts`;
+  - tick: `render-server.ts`, every `TICK_MS`. Switched on by
+    `ENGAGE_DESK_ENABLED=1`. The search mark lives in `agent_strategies`
+    (`engage:last-search`).
+- **Read the rows:** `tri engage [N]`.
+- **Networks.** The desk searches x, linkedin, reddit, threads and habr, but
+  only when `browser_logins` shows the network as `signed_in`.
+  - Habr has no known sign-in cookie, so it stays `unknown` and is skipped.
+  - Facebook and Telegram have no reader. They are named in the log and never
+    guessed at.
+  - Searches run in parallel tabs, `PARALLEL_TABS_MAX` at a time.
+- **Per-network rule table** (`NETWORK_RULES` plus the spec):
+
+  | Network  | Rule                                                                                                                                                                                                                                   |
+  | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | X        | The automation rules forbid automated replies. Each reply is written for one post and sent on a person's yes. No link.                                                                                                                 |
+  | LinkedIn | No automated commenting and no engagement pods. No link, no pitch.                                                                                                                                                                     |
+  | Reddit   | **9:1**: at most 10% of posted comments over 30 days carry a link to his work. The subreddit's `about/rules.json` is read **before** drafting: a sub that bans AI or bots is skipped, and a sub that bans self-promotion gets no link. |
+  | Threads  | Short, no link.                                                                                                                                                                                                                        |
+  | Habr     | No advertising in comments, no link.                                                                                                                                                                                                   |
+
+  A draft that breaks its row is dropped, never edited.
+
+- **Context and voice.** The thread's replies are read before drafting. With
+  no thread there is no draft. The owner's voice is `VOICE_SAMPLES` of his own
+  feed paragraphs, cached weekly in `engage:voice`. Both go into the prompt as
+  data.
+- **Hard rules from the spec:**
+  - 3 proposals per network per day;
+  - never twice on one post;
+  - no mentions and no DMs;
+  - the claim guard (no top rank, no multiplier-freedom credited to the format,
+    no FPGA decode advantage);
+  - a question lives 24 h (`ttl_ms` on the approval row);
+  - a decline is real only when decided, and silence is told to the owner;
+  - the receipt is the comment's own words read back on the post page.
+- **Lead signals.** A posted comment is looked at between a day and a week
+  after it went up. Reddit replies come from the thread JSON. A reply is told
+  to the owner, because the conversation is the lead and answering it is his
+  job. Other networks show replies as empty, not zero. Followers and DMs
+  cannot be attributed to one comment, so they are not counted.
+
+### Lead generation inside the terms of service (what the desk is built on)
+
+1. **Give first, no pitch.** Add a measurement, a trade-off or a question to
+   _this_ post. Buyers find people who are useful in public; a pitch in a
+   stranger's thread gets removed and lowers the account's reach.
+2. **Few, specific, human-approved.** Every network forbids automated or bulk
+   engagement: the X automation rules, LinkedIn's ban on automated activity and
+   engagement pods, and Reddit's rules against spam and manipulated
+   engagement. A small daily cap with a person's yes per comment is what keeps
+   this inside the rules.
+3. **Links are earned.** Reddit's 9:1 guideline, and no links on X, LinkedIn,
+   Threads or Habr comments. The profile and the pinned post do the selling.
+   Keep the owner's profile header pointed at t27.ai.
+4. **Read the room.** Check the community's rules and the thread first, and
+   match its tone. Skip communities that ban AI-assisted text.
+5. **Answer the replies.** A reply is the lead. The desk tells the owner, and
+   he answers himself. The desk never writes a DM.
+6. **Measure honestly.** Count replies per comment. Do not attribute followers
+   or DMs to one comment without evidence.
