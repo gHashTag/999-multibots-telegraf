@@ -13,6 +13,16 @@
 const MIN_CHARS = 18
 /** Above this a run without a stop is cut at a comma or a space anyway. */
 const MAX_CHARS = 240
+/**
+ * The FIRST sentence of an answer is cut at its first clause (a comma, a
+ * semicolon or a colon) once the clause is this long. Every voice agent we
+ * compared (LiveKit, Pipecat, Vapi) sends the first clause to synthesis, not
+ * the first sentence: the person hears the agent start while it is still
+ * writing, and a short clause synthesises faster than a long sentence. Only
+ * the first piece: after that the queue is ahead of the voice anyway, and
+ * whole sentences sound better.
+ */
+const FIRST_CLAUSE_MIN = 24
 
 export interface Cut {
   /** Sentences ready to be spoken, in order. */
@@ -31,6 +41,13 @@ export function takeSentences(text: string, from: number, final: boolean): Cut {
   // `held` is where the not-yet-spoken text begins; `scan` is how far we looked.
   let held = Math.min(Math.max(0, from), text.length)
   const end = /[.!?…]+["»)\]]*(?=\s)|\n+/g
+  if (held === 0) {
+    const clause = firstClause(text, end, final)
+    if (clause) {
+      sentences.push(text.slice(0, clause).trim())
+      held = clause
+    }
+  }
   end.lastIndex = held
   let m: RegExpExecArray | null
   while ((m = end.exec(text))) {
@@ -59,4 +76,29 @@ export function takeSentences(text: string, from: number, final: boolean): Cut {
     return { sentences, next: text.length }
   }
   return { sentences, next: held }
+}
+
+/**
+ * Where the answer's first clause ends, or 0 to keep the first sentence
+ * whole. The clause must be complete (its mark followed by a space), at least
+ * FIRST_CLAUSE_MIN long, and before the first sentence's stop. When that stop
+ * is already written, the rest of the sentence must be long enough to stand
+ * alone -- "..., ладно?" spoken by itself sounds broken.
+ */
+function firstClause(text: string, end: RegExp, final: boolean): number {
+  end.lastIndex = 0
+  const stop = end.exec(text)
+  const sentenceEnd = stop
+    ? stop.index + stop[0].length
+    : final
+      ? text.length
+      : -1
+  const mark = /[,;:](?=\s)/g
+  mark.lastIndex = FIRST_CLAUSE_MIN - 1
+  const m = mark.exec(text)
+  if (!m) return 0
+  const at = m.index + 1
+  if (sentenceEnd < 0) return at
+  // A mark past the stop leaves an empty rest, which is "too short" too.
+  return text.slice(at, sentenceEnd).trim().length >= MIN_CHARS ? at : 0
 }

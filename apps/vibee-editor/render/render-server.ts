@@ -93,6 +93,11 @@ import {
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
 import {
+  isAgentPackageSalePath,
+  handleAgentPackageSale,
+  sweepAgentPackageSales,
+} from './src/agent/agent-package-sale'
+import {
   isClonePath,
   handleClone,
   accountsOf,
@@ -160,6 +165,10 @@ const approvalOwner = async (pool: any, id: string) =>
   (await readApproval(pool, id))?.telegramId ?? null
 import { touchSessionById } from './src/browser/sessions'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
+import {
+  isContributorKeyPath,
+  handleContributorKeys,
+} from './src/hive/contributor-keys-route'
 import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
 import {
   isPayOutcomePath,
@@ -2644,6 +2653,19 @@ setInterval(
                 .join(', ')
           )
         }
+        // Agent package launches nobody verified, and every monthly renewal
+        // Telegram charged by itself (agent-package-sale.ts).
+        const packages = await sweepAgentPackageSales(pool, token)
+        if (packages.length) {
+          console.log(
+            `[agent-packages] sweep booked ${packages.length} period(s): ` +
+              packages
+                .map(
+                  b => `${b.telegramId}:${b.packageId}→${b.until.slice(0, 10)}`
+                )
+                .join(', ')
+          )
+        }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
         const { botsOwnedBy, allBotOwners } = await import(
@@ -2935,7 +2957,10 @@ setTimeout(
  * THE BLOG GOES TO LINKEDIN AND X, ONE ARTICLE A DAY, ONLY AFTER A YES
  * (src/agent/blog-share.ts; owner's decision 2026-09-22). The tick is
  * cheap -- a database row, and the feed at most once a day -- so it runs
- * every half hour and an answered question is acted on within that.
+ * every five minutes and an answered question is acted on within that.
+ * Not thirty: the service rarely lives forty-five minutes, so a half-hour
+ * timer restarted by every deploy often never fired at all. The pace (once
+ * a day) lives in blog_shares.asked_at, not here.
  * Off unless BLOG_SHARE_ENABLED=1.
  */
 setInterval(
@@ -2951,7 +2976,7 @@ setInterval(
       }
     })()
   },
-  30 * 60 * 1000
+  5 * 60 * 1000
 )
 
 /*
@@ -8845,12 +8870,20 @@ const server = createServer(async (req, res) => {
       if (route === '/api/voice/transcribe' && req.method === 'POST') {
         if (!voice.withinBudget(who, 'hear'))
           return sendJson(res, 429, { error: 'too many utterances' })
+        /*
+         * Server-Timing splits the wait a person feels into the upload
+         * (`read`) and whisper itself (`hear`); the rest is the road. One
+         * number from outside (4.6 s, cycle 1) was blamed on whisper, which
+         * measured 1.8-2.8 s inside its own pod -- `tri voice` reads these.
+         */
+        const t0 = Date.now()
         let bytes: Buffer
         try {
           bytes = await voice.readBytes(req)
         } catch (e) {
           return sendJson(res, 413, { error: String((e as Error).message) })
         }
+        const t1 = Date.now()
         if (bytes.length < 512) return sendJson(res, 200, { text: '' })
         try {
           // The player names the language it heard last; a known language
@@ -8858,14 +8891,20 @@ const server = createServer(async (req, res) => {
           const lang = new URL(req.url || '', 'http://x').searchParams.get(
             'lang'
           )
-          const text = await voice.hear(
+          const heard = await voice.hear(
             bytes,
             req.headers['content-type'],
             lang
           )
-          if (text === null)
+          // desc names the engine, so `tri voice` can tell GigaAM from a
+          // fallback to whisper without seeing a single word.
+          res.setHeader(
+            'Server-Timing',
+            `read;dur=${t1 - t0}, hear;dur=${Date.now() - t1};desc="${heard?.engine ?? 'none'}"`
+          )
+          if (heard === null)
             return sendJson(res, 503, { error: 'no transcriber configured' })
-          return sendJson(res, 200, { text })
+          return sendJson(res, 200, { text: heard.text })
         } catch (e) {
           console.warn(`[voice] transcribe failed: ${(e as Error).message}`)
           return sendJson(res, 502, { error: 'transcriber failed' })
@@ -8893,9 +8932,12 @@ const server = createServer(async (req, res) => {
         } catch {
           return sendJson(res, 400, { error: 'bad json' })
         }
+        const t0 = Date.now()
         const out = await voice.speak(body)
         if (!out.ok) return sendJson(res, out.status, { error: out.error })
         res.writeHead(200, {
+          // Which engine spoke and how long it took; `tri voice` reads it.
+          'Server-Timing': `speak;dur=${Date.now() - t0};desc="${out.engine}"`,
           'Content-Type': out.contentType,
           'Content-Length': out.audio.length,
           'Cache-Control': 'no-store',
@@ -8962,6 +9004,18 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  // Personal credentials use a full app session or signed Telegram identity.
+  // Game and delegated agent tokens never cross this server-to-server door.
+  if (isContributorKeyPath(req.url?.split('?')[0] || '')) {
+    const out = await handleContributorKeys(req, {})
+    res.writeHead(out.status, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+    })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
   // Another service writing into the hive journal (the seller's sweep).
   // Server key only -- see src/hive/note-route.ts.
   if (isHiveNotePath(req.url?.split('?')[0] || '')) {
@@ -9024,6 +9078,19 @@ const server = createServer(async (req, res) => {
       // get the month's tokens through the ledger (kind 'grant').
       grant: clubGrantSource(),
       creditGrant: async g => creditClubGrant((await getPool()) as any, g),
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
+  // The agent packages' Stars till: the launch, then the monthly
+  // subscription, booked from the same cashier's ledger (agent-package-sale.ts).
+  if (isAgentPackageSalePath(req.url?.split('?')[0] || '')) {
+    const out = await handleAgentPackageSale(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => clubIdentity(r as any),
+      botToken: clubCashierToken(), // secret-guard-ok: a function call, no value in source
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))
@@ -9643,6 +9710,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'sign_in',
               error: 'нужна подпись или ключ агента',
             })
           )
@@ -9663,6 +9731,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'cashier_off',
               error: 'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан',
             })
           )
@@ -9688,8 +9757,17 @@ const server = createServer(async (req, res) => {
             body.tokens != null
               ? Number(body.tokens)
               : PACKS[String(body.pack)]?.tokens
-          if (!запрошено)
-            throw new Error('нужно поле tokens или известный pack')
+          if (!запрошено) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                ok: false,
+                code: 'bad_amount',
+                error: 'нужно поле tokens или известный pack',
+              })
+            )
+            return
+          }
           /*
            * ONE MINT FOR TWO CALLERS. The personal seller (`crm_offer`) issues
            * the same link for a lead; the price, the payload and the pending
@@ -9749,6 +9827,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'failed',
               error: понятнаяПричина(e),
             })
           )
@@ -9768,7 +9847,11 @@ const server = createServer(async (req, res) => {
         if (!who) {
           res.writeHead(401, { 'Content-Type': 'application/json' })
           res.end(
-            JSON.stringify({ ok: false, error: 'нужна подпись или ключ' })
+            JSON.stringify({
+              ok: false,
+              code: 'sign_in',
+              error: 'нужна подпись или ключ',
+            })
           )
           return
         }

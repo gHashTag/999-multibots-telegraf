@@ -109,7 +109,8 @@ export function VoiceOrb({
     const root = rootRef.current
     // The colour of the moment also tints the room around the orb.
     const tintTarget =
-      (root?.closest('.voice-overlay') as HTMLElement | null) ?? root
+      (root?.closest('.voice-overlay, .voice-dock') as HTMLElement | null) ??
+      root
     const aura = auraRef.current
     const ag = aura?.getContext('2d') ?? null
     const canvas = canvasRef.current

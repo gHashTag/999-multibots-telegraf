@@ -35,7 +35,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   } = ctx.from
 
   const finalUsername = username || first_name || telegram_id.toString()
-  const photo_url = getPhotoUrl(ctx, 1)
+  const photo_url = getPhotoUrl(ctx)
 
   // Extract invite code using the helper function
   const inviteCode = extractInviteCodeFromContext(ctx)

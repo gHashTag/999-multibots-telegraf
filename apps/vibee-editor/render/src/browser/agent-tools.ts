@@ -1409,12 +1409,15 @@ async function askForInputInTelegram(
 export async function requestPermission(
   pool: Queryable,
   telegramId: string,
-  what: string
+  what: string,
+  /** A desk that waits a day passes a day; a click keeps the ten minutes. */
+  ttlMs?: number
 ): Promise<string> {
   await ensureApprovals(pool)
   const { id, allowToken, denyToken } = await askFor(pool, {
     telegramId,
     what,
+    ttlMs,
     newId: newApprovalToken,
     newToken: newApprovalToken, // secret-guard-ok: a generator, not a value
   })

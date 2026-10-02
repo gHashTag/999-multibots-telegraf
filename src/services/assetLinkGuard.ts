@@ -23,6 +23,7 @@
  */
 
 import { logger } from '@/utils/logger'
+import { PUBLIC_STORAGE_BASE } from '@/config/publicStorage'
 
 /**
  * Where our own files live. Public addresses, not secrets -- the same shape
@@ -34,6 +35,7 @@ export const ASSET_ORIGINS: string[] = (
   [
     'https://bucket-production-8259.up.railway.app/vibee-assets',
     'https://vibee-render-production.up.railway.app/s3',
+    PUBLIC_STORAGE_BASE,
   ].join(',')
 )
   .split(',')
@@ -69,6 +71,31 @@ export function assetUrlsIn(text: string): string[] {
 }
 
 /**
+ * What supabase/storage-api (behind the Railway gateway) says when there is
+ * no object: HTTP 400 -- on HEAD too -- with the real verdict only in the body,
+ * `{"statusCode":"404","code":"NoSuchKey"}`. Measured 2026-10-02. A 400 alone
+ * is not an answer about the object (a malformed request is a 400 as well), so
+ * only these codes in the body count.
+ */
+const STORE_MISSING_CODES = new Set(['NoSuchKey', 'NoSuchBucket'])
+
+async function bodySaysMissing(
+  url: string,
+  signal: AbortSignal
+): Promise<boolean> {
+  const r = await fetch(url, { method: 'GET', signal })
+  if (r.status !== 400) return false
+  const body = (await r.json().catch(() => null)) as {
+    code?: unknown
+    statusCode?: unknown
+  } | null
+  return (
+    STORE_MISSING_CODES.has(String(body?.code)) &&
+    String(body?.statusCode) === '404'
+  )
+}
+
+/**
  * True only when the store said, definitely, that there is nothing at this
  * address. Every other outcome -- including every network fault -- is false.
  */
@@ -77,6 +104,7 @@ export async function linkIsDead(url: string): Promise<boolean> {
   const timer = setTimeout(() => control.abort(), LINK_CHECK_TIMEOUT_MS)
   try {
     const r = await fetch(url, { method: 'HEAD', signal: control.signal })
+    if (r.status === 400) return await bodySaysMissing(url, control.signal)
     return r.status === 404 || r.status === 403 || r.status === 410
   } catch {
     return false
