@@ -81,6 +81,9 @@ import {
  * row (`isSeller`), keyed by the verified id -- nothing about the client is
  * read here.
  */
+/** Why a thread gate refused: the names a client may translate. */
+export type GateCode = 'bad_request' | 'agent_unavailable' | 'not_seller'
+
 export type ThreadGate =
   | {
       ok: true
@@ -96,7 +99,11 @@ export type ThreadGate =
       /** The kanban card the turn is about, "gHashTag/t27#5382" (withTask). */
       task?: string
     }
-  | { ok: false; status: number; error: string }
+  /*
+   * `code` names the refusal for a client that translates it
+   * (agent-chat-codes.test.ts); `error` stays the developer's words.
+   */
+  | { ok: false; status: number; code: GateCode; error: string }
 
 /**
  * A trainee that earned its place: STREAK_DAYS passing daily checks in a row
@@ -155,12 +162,22 @@ export async function threadFor(
 ): Promise<ThreadGate> {
   const supervisor = rawRole === 'supervisor'
   if (supervisor && (rawClient == null || rawClient === ''))
-    return { ok: false, status: 400, error: 'supervisor needs a client' }
+    return {
+      ok: false,
+      status: 400,
+      code: 'bad_request',
+      error: 'supervisor needs a client',
+    }
   const wantsAgent = rawAgent != null && rawAgent !== ''
   const wantsClient = rawClient != null && rawClient !== ''
   // The Queen supervises a client's conversation; she brings no specialist.
   if (supervisor && wantsAgent)
-    return { ok: false, status: 400, error: 'supervisor takes no agent' }
+    return {
+      ok: false,
+      status: 400,
+      code: 'bad_request',
+      error: 'supervisor takes no agent',
+    }
   if (wantsAgent && !wantsClient) {
     /*
      * OWNER PREVIEW (#2957). A trainee goes live only after one real run,
@@ -171,7 +188,12 @@ export async function threadFor(
      */
     const agent = await availableAgent(rawAgent, owner, getPool)
     if (!agent)
-      return { ok: false, status: 400, error: 'agent is not available' }
+      return {
+        ok: false,
+        status: 400,
+        code: 'agent_unavailable',
+        error: 'agent is not available',
+      }
     return {
       ok: true,
       thread: marketplaceAgentThread(agent.id),
@@ -195,16 +217,16 @@ export async function threadFor(
   if (rawRoom != null && rawRoom !== '') {
     const room = String(rawRoom).trim()
     if (!ROOM_ID_RE.test(room))
-      return { ok: false, status: 400, error: 'bad room' }
+      return { ok: false, status: 400, code: 'bad_request', error: 'bad room' }
     return { ok: true, thread: roomThread(room), client: null, room }
   }
   if (rawClient == null || rawClient === '')
     return { ok: true, thread: SELF_THREAD, client: null }
   const client = String(rawClient).trim()
   if (!CLIENT_ID_RE.test(client))
-    return { ok: false, status: 400, error: 'bad client' }
+    return { ok: false, status: 400, code: 'bad_request', error: 'bad client' }
   if (client === String(owner))
-    return { ok: false, status: 400, error: 'bad client' }
+    return { ok: false, status: 400, code: 'bad_request', error: 'bad client' }
   let seller = false
   try {
     const { isSeller } = await import('./telegram-tools')
@@ -213,7 +235,8 @@ export async function threadFor(
   } catch {
     seller = false
   }
-  if (!seller) return { ok: false, status: 403, error: 'not a seller' }
+  if (!seller)
+    return { ok: false, status: 403, code: 'not_seller', error: 'not a seller' }
   if (supervisor)
     return {
       ok: true,
@@ -231,7 +254,13 @@ export async function threadFor(
    * client at all; the agent gate is the same one its own thread uses.
    */
   const agent = await availableAgent(rawAgent, owner, getPool)
-  if (!agent) return { ok: false, status: 400, error: 'agent is not available' }
+  if (!agent)
+    return {
+      ok: false,
+      status: 400,
+      code: 'agent_unavailable',
+      error: 'agent is not available',
+    }
   return { ok: true, thread: clientThread(client), client, agent: agent.id }
 }
 
@@ -247,11 +276,17 @@ export function withConversation(gate: ThreadGate, raw: unknown): ThreadGate {
   if (!gate.ok || raw == null || raw === '') return gate
   const conversation = String(raw)
   if (!CONVERSATION_RE.test(conversation))
-    return { ok: false, status: 400, error: 'bad conversation' }
+    return {
+      ok: false,
+      status: 400,
+      code: 'bad_request',
+      error: 'bad conversation',
+    }
   if (gate.client || gate.room || gate.supervisor || !splittable(gate.thread))
     return {
       ok: false,
       status: 400,
+      code: 'bad_request',
       error: 'only your own and a specialist thread have several conversations',
     }
   return {
@@ -284,10 +319,12 @@ export async function withTask(
     return {
       ok: false,
       status: 400,
+      code: 'bad_request',
       error: 'a task is its own conversation: no client, room or conversation',
     }
   const task = await resolveTask(raw)
-  if (!task) return { ok: false, status: 400, error: 'bad task' }
+  if (!task)
+    return { ok: false, status: 400, code: 'bad_request', error: 'bad task' }
   return { ...gate, thread: taskThread(task), task: taskLabel(task) }
 }
 
@@ -932,6 +969,7 @@ export async function handleAgentChat(
   if (editorialAccess(req).kind !== 'none') {
     return json(res, 403, {
       error: 'forbidden',
+      code: 'forbidden',
       detail: 'editorial credentials are MCP draft-only',
     })
   }
@@ -939,13 +977,17 @@ export async function handleAgentChat(
   try {
     body = JSON.parse((await readBody(req)) || '{}')
   } catch {
-    return json(res, 400, { error: 'тело запроса не разобрано как JSON' })
+    return json(res, 400, {
+      code: 'bad_request',
+      error: 'тело запроса не разобрано как JSON',
+    })
   }
   const history: ChatMessage[] = Array.isArray(body.messages)
     ? body.messages
     : []
   if (!history.length) {
     return json(res, 400, {
+      code: 'bad_request',
       error: 'нужен непустой массив messages вида [{role:"user",content:"…"}]',
     })
   }
@@ -971,7 +1013,8 @@ export async function handleAgentChat(
     ),
     body.task
   )
-  if (!gate.ok) return json(res, gate.status, { error: gate.error })
+  if (!gate.ok)
+    return json(res, gate.status, { code: gate.code, error: gate.error })
   const thread = gate.thread
   /*
    * A specialist called into a client's conversation leaves one row for its
@@ -1260,7 +1303,11 @@ export async function handleAgentChat(
     }
   } catch (e) {
     res.write(
-      JSON.stringify({ тип: 'ошибка', текст: String(e).slice(0, 500) }) + '\n'
+      JSON.stringify({
+        тип: 'ошибка',
+        code: 'internal',
+        текст: String(e).slice(0, 500),
+      }) + '\n'
     )
   }
 
@@ -1349,7 +1396,12 @@ export async function handleAgentHistoryDelete(
     ),
     taskParam(req)
   )
-  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
+  if (!gate.ok)
+    return json(res, gate.status, {
+      ok: false,
+      code: gate.code,
+      error: gate.error,
+    })
   try {
     const pool = await getPool()
     if (сырой != null) {
@@ -1412,7 +1464,12 @@ export async function handleAgentHistory(
     new URL(req.url || '', 'http://x').searchParams.get('limit') || 0
   )
   const gate = await historyGate(req, telegramId, getPool)
-  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
+  if (!gate.ok)
+    return json(res, gate.status, {
+      ok: false,
+      code: gate.code,
+      error: gate.error,
+    })
   try {
     const pool = await getPool()
     const реплики = await прочитатьРазговор(
@@ -1551,7 +1608,12 @@ export async function handleAgentHistoryAppend(
     ),
     body.task
   )
-  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
+  if (!gate.ok)
+    return json(res, gate.status, {
+      ok: false,
+      code: gate.code,
+      error: gate.error,
+    })
 
   try {
     const pool = await getPool()
@@ -1819,7 +1881,11 @@ export async function handleAgentConversations(
   if (req.method === 'GET') {
     const gate = await threadFor(null, telegramId, getPool, agentParam(req))
     if (!gate.ok)
-      return json(res, gate.status, { ok: false, error: gate.error })
+      return json(res, gate.status, {
+        ok: false,
+        code: gate.code,
+        error: gate.error,
+      })
     try {
       const conversations = await listConversations(
         await getPool(),
@@ -1843,7 +1909,12 @@ export async function handleAgentConversations(
     await threadFor(null, telegramId, getPool, body.agent),
     body.conversation
   )
-  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
+  if (!gate.ok)
+    return json(res, gate.status, {
+      ok: false,
+      code: gate.code,
+      error: gate.error,
+    })
   try {
     await renameConversation(
       await getPool(),
