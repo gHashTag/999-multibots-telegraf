@@ -1,0 +1,38 @@
+[
+  {
+    "name": "refresh a token younger than a day",
+    "file": "src/agent/meta-connect.ts",
+    "from": "daysLeft <= REFRESH_DAYS_LEFT && ageH >= REFRESH_MIN_AGE_H",
+    "to": "daysLeft <= REFRESH_DAYS_LEFT"
+  },
+  {
+    "name": "an OAuth state honoured at exactly ten minutes",
+    "file": "src/agent/meta-connect.ts",
+    "from": "return !used && ageMs < STATE_TTL_MS",
+    "to": "return !used && ageMs <= STATE_TTL_MS"
+  },
+  {
+    "name": "a failed container polled on instead of given up",
+    "file": "src/agent/meta-connect.ts",
+    "from": "    if (givenUp(s)) throw new Error(`container ${s}`)\n",
+    "to": ""
+  },
+  {
+    "name": "one poll more than the spec allows",
+    "file": "src/agent/meta-connect.ts",
+    "from": "for (let i = 0; i < POLLS; i++) {",
+    "to": "for (let i = 0; i <= POLLS; i++) {"
+  },
+  {
+    "name": "the agent may connect a network itself",
+    "file": "src/agent/meta-routes.ts",
+    "from": "if (d.actor(req) !== 'person')",
+    "to": "if (false)"
+  },
+  {
+    "name": "a Threads post one character over",
+    "file": "src/agent/meta-connect.ts",
+    "from": "const room = THREADS_TEXT_MAX - p.link.length - 2",
+    "to": "const room = THREADS_TEXT_MAX - p.link.length + 1"
+  }
+]

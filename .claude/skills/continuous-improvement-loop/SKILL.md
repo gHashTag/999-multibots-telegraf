@@ -157,6 +157,19 @@ cat docs/OWNER-DECISIONS.md
     tri mcp eval <file> a browser script read from a FILE -- the only way its
                         quotes and newlines survive the shell
 
+    tri meta            Threads/Instagram/Facebook по API: заданы ли приложения
+                        Meta, чьи токены, сколько дней осталось (без значений)
+
+### Урок 02.10.2026: «браузер не вошёл» — это повод для дороги API, а не для входа
+
+Стол блога неделями пропускал Instagram, Threads и Facebook: браузер владельца
+там не вошёл. Чинить это входом через агента означало бы каждый раз заново
+упираться в пароль и 2FA. У Meta есть свой Graph API: один вход OAuth руками
+владельца, токен на сервере, а квитанция — id поста. Развилка «api / browser /
+skip» записана в спеке (`meta-connect.t27`, навык `t27-spec-first`,
+«Оркестрация связывается через .t27»). Прежде чем учить браузер новой сети,
+проверьте, нет ли у неё API для публикации.
+
 ### Что упёрлось во владельца
 
 - GitHub Actions НЕ ВЫПОЛНЯЕТСЯ: задания падают за секунды с нулём шагов

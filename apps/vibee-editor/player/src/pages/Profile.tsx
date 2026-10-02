@@ -35,6 +35,7 @@ import { cloneReadyAtom, loadCloneStatusAtom } from '@/atoms/clone'
 import { useTokenTopUp } from '@/hooks/useTokenTopUp'
 import { TokenTopUpCard } from '@/components/Profile/TokenTopUpCard'
 import { CloneNetworksCard } from '@/components/Profile/CloneNetworksCard'
+import { MetaConnectCard } from '@/components/Profile/MetaConnectCard'
 import { loadSoulAtom, soulAtom, soulLoadedAtom } from '@/atoms/soul'
 import '@/components/Profile/Profile.css'
 
@@ -394,6 +395,12 @@ export function ProfilePage() {
             signed in. Nothing drawn until the server answered.
           */}
           <CloneNetworksCard isOwn={isOwn} accounts={cloneReady.accounts} />
+          {/*
+            THE META API CONNECTOR (meta-connect.t27): the owner's own door to
+            Threads, Instagram and a Facebook Page. Draws nothing for anyone
+            the server does not answer as the owner.
+          */}
+          <MetaConnectCard isOwn={isOwn} />
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />
