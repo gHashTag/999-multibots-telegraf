@@ -149,12 +149,42 @@ agent key) -- the full case list is the header of `bin/helpers/b.sh`
     tri browser time [URL]        # new-tab latency; closes only what it opened
     tri browser call TOOL '{..}'  # any tool, raw
     tri browser cover             # every registry tool has a case? rc 1 names gaps
+    tri browser doctor            # FIRST, every loop tick: all tabs, read-only
 
 Pick the command by the symptom, and keep `cover` at rc 0: a tool added to
 `agent-tools.ts` without a case in `b.sh` is a tool nobody can check by hand.
 `ask` and `ask-input` send a REAL question to the owner's phone -- not for
 smoke tests. A tab opened before a deploy keeps the old bundle and can show a
 bug that is already fixed live; `blank` says `staleTab`, `reload` cures it.
+
+**Start every loop tick with `tri browser doctor`.** It lists the tabs against
+`TAB_CAP`, runs `cover`, and reads the FRONT tab: blank page, staleTab
+(an older build than the site serves), unsent text in X's composer. Each
+anomaly comes with the command that fixes it; rc 0 clean, 1 anomalies, 2
+could not ask. It fixes nothing itself.
+
+**Every call doctor makes is a probe (`params._meta.probe`), and it never
+tours tabs.** The first version (#3392, caught in review) toured them, and
+cost this: a tool that reads a page with no visit on record STARTS a visit
+(`liveSession` -> `startBrowserAsAgent`), and a started visit messages the
+owner. A "read-only" check messaged him at 02:36. With a visit on record
+the person may be watching, and bringing his tabs forward one by one is
+driving. So other tabs are listed, never opened; read one on purpose with
+`tri browser blank ID`, knowing that it starts a visit.
+
+`watchedByThePerson` means "a visit row is live". It does NOT mean eyes on
+the screen, and the agent's own reads create that row. If it flips to true
+in the middle of your work, ask whether you started the visit yourself.
+
+staleTab is a subset test: a module the site serves now that the tab lacks.
+Modules a page injects at runtime do not read as stale. URLs that look like
+they act on a GET (sign-out, unsubscribe, callback, token) are not
+re-fetched. A staleTab on a tab with composer text says `composer ID` first:
+a reload throws the draft away.
+
+`bun run verify` runs `cover` as the `browser-cover` step.
+`ask WHAT S` refuses S over 120 (the server clipped it silently);
+`ask-input choice WHY "A|B|C"` asks him to press one option.
 
 ## Related Resources
 
