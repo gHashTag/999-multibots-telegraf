@@ -51,24 +51,28 @@ if (!existsSync(bin)) {
  * installed husky here. It is cleared out loud: silently rewriting somebody's
  * git config is the next mystery, not a fix.
  */
-const hooksPath = (() => {
+/*
+ * Both scopes (2026-10-03): a worktree's own config.worktree can carry the
+ * same setting, and `--local` does not see it. 11 of 63 worktrees committed
+ * with no gate at all that way. `tri hooks` finds them across every tree.
+ */
+for (const scope of ['--local', '--worktree']) {
+  let hooksPath = ''
   try {
-    return execFileSync('git', ['config', '--local', 'core.hooksPath'], {
+    hooksPath = execFileSync('git', ['config', scope, 'core.hooksPath'], {
       cwd: root,
       encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
     }).trim()
   } catch {
-    // A non-zero code here means "not set", which is the normal case.
-    return ''
+    // Not set (or no worktree config in this repo): the normal case.
   }
-})()
-
-if (hooksPath) {
+  if (!hooksPath) continue
   console.log(
-    `[hooks] core.hooksPath points at ${hooksPath}. lefthook skips its sync when` +
-      ' that is set, so no hook actually runs. Clearing it.'
+    `[hooks] core.hooksPath (${scope}) points at ${hooksPath}. lefthook skips` +
+      ' its sync when that is set, so no hook actually runs. Clearing it.'
   )
-  execFileSync('git', ['config', '--unset-all', '--local', 'core.hooksPath'], {
+  execFileSync('git', ['config', '--unset-all', scope, 'core.hooksPath'], {
     stdio: 'inherit',
     cwd: root,
   })
