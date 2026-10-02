@@ -119,8 +119,11 @@ there each time is the expensive road.
    Pages and Instagram use cases.
 2. Register the callback
    `https://vibee-render-production.up.railway.app/api/social/meta/callback`.
-3. Put `THREADS_APP_ID/SECRET` and `META_APP_ID/SECRET` on `vibee-render`.
-   Optionally add `META_PAGE_ID` and `META_TOKEN_KEY`.
+3. Put `THREADS_APP_ID/SECRET` and `META_APP_ID/SECRET` on `vibee-render`,
+   and `META_TOKEN_KEY` -- required: it is the only key that seals tokens at
+   rest (it used to fall back to an app secret, so regenerating that secret
+   locked every held token), and Connect refuses without it. Optionally
+   `META_PAGE_ID`.
 4. Accept the tester invites in Threads and Instagram.
 5. Link the IG professional account to the Page.
 6. Profile → «🔗 Threads, Instagram, Facebook через API» → Подключить.
