@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+import { codeValues } from './failure-code-values'
 
 /*
  * THE SERVER NAMES A MONEY REFUSAL; EVERY CLIENT MUST KNOW THE NAME.
@@ -24,9 +25,8 @@ const server = read('apps', 'vibee-editor', 'render', 'render-server.ts')
 const start = server.indexOf("'/api/tokens/invoice'")
 const end = server.indexOf('зачисление_провалено: true', start) // cyrillic-ok: the API field this slice ends at
 const routes = server.slice(start, end)
-const codes = [
-  ...new Set([...routes.matchAll(/code: '([a-z_]+)'/g)].map(m => m[1])),
-]
+const { found, opaque } = codeValues(routes)
+const codes = [...new Set(found)]
 
 describe('money-route refusal codes', () => {
   it('the slice is the money routes, and they name their refusals', () => {
@@ -35,6 +35,12 @@ describe('money-route refusal codes', () => {
     expect(end, 'the verify failure flag moved').toBeGreaterThan(start)
     expect(routes).toContain("'/api/tokens/verify'")
     expect(codes.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('sets every code as a literal the contract can read', () => {
+    // No reference is trusted here: a `code: reason` would name a code this
+    // test cannot list, so it would pass while a client lacked the sentence.
+    expect(opaque).toEqual([])
   })
 
   it('the web has an English sentence for every code', () => {
