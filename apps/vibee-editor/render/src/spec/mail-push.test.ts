@@ -852,6 +852,16 @@ describe("the spec's tests hold against the host", () => {
     expect(oq.params).toEqual([48])
     expect(oq.sql).toContain('$1::int')
 
+    // a window past an int answers the longest window, not a thrown door
+    writes.length = 0
+    await tool!.handler({ what: 'feedback', since_hours: 1e12 }, {
+      telegramId: OWNER,
+      pool,
+    } as never)
+    expect(
+      writes.find(w => /FROM mail_push_feedback/.test(w.sql))!.params
+    ).toEqual([8760])
+
     // a table nobody knows answers empty, not 500
     const unknown = (await tool!.handler({ what: 'nope' }, {
       telegramId: OWNER,
