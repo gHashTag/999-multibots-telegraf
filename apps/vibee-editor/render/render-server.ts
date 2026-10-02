@@ -160,6 +160,10 @@ const approvalOwner = async (pool: any, id: string) =>
   (await readApproval(pool, id))?.telegramId ?? null
 import { touchSessionById } from './src/browser/sessions'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
+import {
+  isContributorKeyPath,
+  handleContributorKeys,
+} from './src/hive/contributor-keys-route'
 import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
 import {
   isPayOutcomePath,
@@ -8848,22 +8852,58 @@ const server = createServer(async (req, res) => {
       if (route === '/api/voice/transcribe' && req.method === 'POST') {
         if (!voice.withinBudget(who, 'hear'))
           return sendJson(res, 429, { error: 'too many utterances' })
+        /*
+         * Server-Timing splits the wait a person feels into the upload
+         * (`read`) and whisper itself (`hear`); the rest is the road. One
+         * number from outside (4.6 s, cycle 1) was blamed on whisper, which
+         * measured 1.8-2.8 s inside its own pod -- `tri voice` reads these.
+         */
+        const t0 = Date.now()
         let bytes: Buffer
         try {
           bytes = await voice.readBytes(req)
         } catch (e) {
           return sendJson(res, 413, { error: String((e as Error).message) })
         }
+        const t1 = Date.now()
         if (bytes.length < 512) return sendJson(res, 200, { text: '' })
         try {
-          const text = await voice.hear(bytes, req.headers['content-type'])
-          if (text === null)
+          // The player names the language it heard last; a known language
+          // halves whisper's time (voice.ts has the measurement).
+          const lang = new URL(req.url || '', 'http://x').searchParams.get(
+            'lang'
+          )
+          const heard = await voice.hear(
+            bytes,
+            req.headers['content-type'],
+            lang
+          )
+          // desc names the engine, so `tri voice` can tell GigaAM from a
+          // fallback to whisper without seeing a single word.
+          res.setHeader(
+            'Server-Timing',
+            `read;dur=${t1 - t0}, hear;dur=${Date.now() - t1};desc="${heard?.engine ?? 'none'}"`
+          )
+          if (heard === null)
             return sendJson(res, 503, { error: 'no transcriber configured' })
-          return sendJson(res, 200, { text })
+          return sendJson(res, 200, { text: heard.text })
         } catch (e) {
           console.warn(`[voice] transcribe failed: ${(e as Error).message}`)
           return sendJson(res, 502, { error: 'transcriber failed' })
         }
+      }
+      if (route === '/api/voice/warm' && req.method === 'POST') {
+        // The player calls this as the voice overlay opens, so the models are
+        // in memory before the first phrase is finished.
+        if (!voice.withinBudget(who, 'warm'))
+          return sendJson(res, 429, { error: 'too many warm-ups' })
+        let body: Record<string, unknown> = {}
+        try {
+          body = JSON.parse((await readBody(req, 4 * 1024)) || '{}')
+        } catch {
+          return sendJson(res, 400, { error: 'bad json' })
+        }
+        return sendJson(res, 200, await voice.warm(body.lang, body.voice))
       }
       if (route === '/api/voice/speak' && req.method === 'POST') {
         if (!voice.withinBudget(who, 'speak'))
@@ -8874,9 +8914,12 @@ const server = createServer(async (req, res) => {
         } catch {
           return sendJson(res, 400, { error: 'bad json' })
         }
+        const t0 = Date.now()
         const out = await voice.speak(body)
         if (!out.ok) return sendJson(res, out.status, { error: out.error })
         res.writeHead(200, {
+          // Which engine spoke and how long it took; `tri voice` reads it.
+          'Server-Timing': `speak;dur=${Date.now() - t0};desc="${out.engine}"`,
           'Content-Type': out.contentType,
           'Content-Length': out.audio.length,
           'Cache-Control': 'no-store',
@@ -8941,6 +8984,18 @@ const server = createServer(async (req, res) => {
         error: taken.ok ? undefined : taken.why,
       })
     }
+  }
+
+  // Personal credentials use a full app session or signed Telegram identity.
+  // Game and delegated agent tokens never cross this server-to-server door.
+  if (isContributorKeyPath(req.url?.split('?')[0] || '')) {
+    const out = await handleContributorKeys(req, {})
+    res.writeHead(out.status, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+    })
+    res.end(JSON.stringify(out.body))
+    return
   }
 
   // Another service writing into the hive journal (the seller's sweep).
@@ -13125,6 +13180,21 @@ async function main() {
      * disagreement is visible at a glance in the boot log -- instead of a day
      * later, as a channel that quietly received nothing.
      */
+    /*
+     * Voice models are not in memory until asked for (PRELOAD_MODELS only
+     * downloads them), and a cold one costs the first sentence 2-5 s. Load the
+     * transcriber and the default voice of each language now; the whisper
+     * service keeps them for good (STT_MODEL_TTL=-1).
+     */
+    void import('./src/voice/voice').then(async voice => {
+      const [ru, en] = await Promise.all([
+        voice.warm('ru', 'irina'),
+        voice.warm('en', 'af_heart'),
+      ])
+      console.log(
+        `🎙 Voice warm: hear=${ru.hear} ru=${ru.speak} en=${en.speak}`
+      )
+    })
     const chCfg = readChannelConfig()
     console.log(
       `📣 Channel: token=${chCfg.token ? `set (${chCfg.tokenFrom})` : `MISSING (${ENV_NAMES.token.join('|')})`} ` +

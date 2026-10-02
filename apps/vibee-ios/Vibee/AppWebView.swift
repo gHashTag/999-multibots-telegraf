@@ -171,6 +171,28 @@ private enum PageScripts {
    the head keeps a margin for the bar. Measured at 402x780: the map was 235px
    tall with the board's rules alone and 583px with the four below.
    */
+  /// The web scrolls in inner containers as well as the window (the board's
+  /// columns, the agent's list), so every scrolled box goes back up.
+  /// Game and Tasks draw the board inside an iframe of this same origin
+  /// (`/queen/`, see the player's Hive.tsx), so the column that scrolls is in
+  /// the frame's document, not the page's. The walk enters every frame it is
+  /// allowed into; a cross-origin frame throws on `contentDocument` access and
+  /// is skipped, which is the most the page may do there.
+  static let scrollToTop = """
+    (() => {
+      const walk = (doc) => {
+        doc.defaultView.scrollTo({ top: 0, behavior: 'smooth' });
+        for (const el of doc.querySelectorAll('*')) {
+          if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior: 'smooth' });
+          if (el.tagName === 'IFRAME') {
+            try { if (el.contentDocument) walk(el.contentDocument); } catch (_) {}
+          }
+        }
+      };
+      walk(document);
+    })();
+    """
+
   static let boardFullscreen = """
     (function () {
       if (location.origin !== '\(WebSessionMint.appOrigin)') return;
@@ -348,6 +370,42 @@ final class WebHost: NSObject, ObservableObject {
     webView.load(URLRequest(url: url(path)))
   }
 
+  /// The network came back (`Connectivity.returns`). Only a page that FAILED
+  /// reloads: one that loaded may hold the person's place, a half-typed card.
+  static func reloadsOnReturn(_ phase: Phase) -> Bool {
+    if case .failed = phase { return true }
+    return false
+  }
+
+  func networkCameBack() {
+    if Self.reloadsOnReturn(phase) { reload() }
+  }
+
+  /// What a repeat tap on this page's tab does (see `tabReselects`).
+  enum Reselect: Equatable { case goToRoot, scrollToTop }
+
+  /// Away from the tab's own page -> back to it, as the web's tab link does;
+  /// already on it -> to the top. The query is ignored: `lang` and the
+  /// board's own filters do not make it another page. A page on another
+  /// site (a link the person followed) is "away", whatever its path.
+  static func reselect(at here: URL?, root: String) -> Reselect {
+    func bare(_ p: String) -> String { p.count > 1 && p.hasSuffix("/") ? String(p.dropLast()) : p }
+    guard let here, let rootPath = URLComponents(string: root)?.path,
+      here.host == URL(string: WebSessionMint.appOrigin)?.host
+    else { return .goToRoot }
+    return bare(here.path) == bare(rootPath) ? .scrollToTop : .goToRoot
+  }
+
+  /// The repeat tap itself. Nothing before the first load: there is no page.
+  func returnToStart() async {
+    guard started else { return }
+    switch Self.reselect(at: webView.url, root: path) {
+    case .goToRoot: reload()
+    case .scrollToTop:
+      _ = try? await webView.evaluateJavaScript(PageScripts.scrollToTop)
+    }
+  }
+
   private func install(grant: WebGrant?) async {
     let controller = webView.configuration.userContentController
     controller.removeAllUserScripts()
@@ -496,11 +554,44 @@ private final class WeakHandler: NSObject, WKScriptMessageHandler {
 
 // MARK: - SwiftUI
 
-/// The host's web view, placed. The view is the host's, so it survives redraws.
+/**
+ The host's web view, placed. The view is the host's, so it survives redraws.
+
+ IN THE WINDOW ONLY WHILE ITS TAB IS SHOWN. The bar keeps every visited
+ screen alive in a ZStack, and a transparent web view is, to WebKit, a
+ visible one: the board's animation frames and timers kept running on
+ another tab and spent the battery. WebKit counts a page as hidden only when
+ its view has no window -- `isHidden` and opacity do not count -- so the view
+ is lifted out of a container while the tab is back and put back when it
+ comes forward. `TabView` did the same by taking the tab out of the window.
+ */
 struct WebHostView: UIViewRepresentable {
   let host: WebHost
-  func makeUIView(context: Context) -> WKWebView { host.webView }
-  func updateUIView(_ view: WKWebView, context: Context) {}
+  var shown = true
+
+  func makeUIView(context: Context) -> UIView {
+    let box = UIView()
+    box.backgroundColor = .clear
+    return box
+  }
+
+  func updateUIView(_ box: UIView, context: Context) {
+    Self.place(host.webView, in: box, shown: shown)
+  }
+
+  /// Put the page in its box while shown, lift it out while not. A page
+  /// that some OTHER box holds is left where it is when this one hides.
+  static func place(_ web: UIView, in box: UIView, shown: Bool) {
+    if shown {
+      guard web.superview !== box else { return }
+      web.removeFromSuperview()
+      web.frame = box.bounds
+      web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      box.addSubview(web)
+    } else if web.superview === box {
+      web.removeFromSuperview()
+    }
+  }
 }
 
 /**
@@ -510,15 +601,14 @@ struct WebHostView: UIViewRepresentable {
  */
 struct WebPage<Fallback: View>: View {
   @ObservedObject var host: WebHost
-  /// The page runs to the bottom edge, under the tab bar, and keeps
-  /// its own controls clear of it (the hive: its map is the background).
-  var runsUnderTabBar = false
+  @Environment(\.tabIsShown) private var tabIsShown
+  @Environment(\.tabReselects) private var tabReselects
+  @ObservedObject private var net = Connectivity.shared
   @ViewBuilder var fallback: () -> Fallback
 
   var body: some View {
     ZStack {
-      WebHostView(host: host)
-        .ignoresSafeArea(.container, edges: runsUnderTabBar ? .bottom : [])
+      WebHostView(host: host, shown: tabIsShown)
         .opacity(host.phase == .ready ? 1 : 0)
       switch host.phase {
       case .starting, .loading:
@@ -546,6 +636,8 @@ struct WebPage<Fallback: View>: View {
     }
     .background(Palette.background.ignoresSafeArea())
     .task { await host.start() }
+    .onChange(of: tabReselects) { Task { await host.returnToStart() } }
+    .onChange(of: net.returns) { host.networkCameBack() }
     .sheet(isPresented: $host.wantsSignIn) {
       ScrollView {
         VStack(alignment: .leading, spacing: Space.md) {

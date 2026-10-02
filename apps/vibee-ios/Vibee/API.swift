@@ -193,7 +193,7 @@ enum API {
     ])
     let (d, http) = try await сЛичностью(r)
     guard http.statusCode == 200 else {
-      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+      throw ProjectError.разбор(serverAnswered(http.statusCode))
     }
     let тело = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
     /*
@@ -329,7 +329,7 @@ enum API {
     r.httpMethod = "GET"
     let (d, http) = try await сЛичностью(r)
     guard http.statusCode == 200 else {
-      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+      throw ProjectError.разбор(serverAnswered(http.statusCode))
     }
     /*
      * ФОРМА ОТВЕТА ИЗМЕРЕНА, А НЕ УГАДАНА.
@@ -357,7 +357,7 @@ enum API {
     r.httpBody = try JSONSerialization.data(withJSONObject: ["id": id])
     let (_, http) = try await сЛичностью(r)
     guard http.statusCode == 200 else {
-      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+      throw ProjectError.разбор(serverAnswered(http.statusCode))
     }
   }
 
@@ -1154,5 +1154,14 @@ extension API {
     let balance = body["баланс"] as? Int
     guard body["ok"] as? Bool == true else { return TokenVerify(credited: nil, balance: balance) }
     return TokenVerify(credited: body["зачислено_токенов"] as? Int, balance: balance)
+  }
+}
+
+extension API.Template {
+  /// "@name", or nil when the author has no username. The web's FeedCard
+  /// shows no handle then; the app drew a bare "@" under the title.
+  var handle: String? {
+    let name = creatorUsername.trimmingCharacters(in: .whitespaces)
+    return name.isEmpty ? nil : "@" + name
   }
 }
