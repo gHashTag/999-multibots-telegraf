@@ -93,9 +93,9 @@ enum ClientErrorBeacon {
   private static var userAgent: String {
     #if canImport(UIKit)
     let device = UIDevice.current
-    return "Vibee-iOS/\(buildNumber) (\(device.model); iOS \(device.systemVersion))"
+    return "TrinityS3AI-iOS/\(buildNumber) (\(device.model); iOS \(device.systemVersion))"
     #else
-    return "Vibee-iOS/\(buildNumber)"
+    return "TrinityS3AI-iOS/\(buildNumber)"
     #endif
   }
 
