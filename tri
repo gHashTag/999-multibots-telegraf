@@ -417,7 +417,9 @@ CHECKS THAT EACH COST A CYCLE
         synthesised once as the player does, against the lead it has: the
         audio is asked for at FILLER_PREPARE_MS and played at FILLER_FIRST_MS
         (FILLER_STILL_MS). Slower than the lead is LATE (exit 2); a phrase
-        our voice cannot say is broken (exit 1). Also part of tri voice.
+        our voice cannot say is broken (exit 1). Each phrase is split into
+        engine and road time; one that used over half of the player's
+        speakDeadlineMs is a warning (exit 2). Also part of tri voice.
         Needs the same key as tri voice.
 
   tri road | tri дорога
@@ -5724,7 +5726,7 @@ if not (FIRST and PREP and waits):
     mark(2)
 for (lang, kind), texts in sorted(waits.items()):
     lead = (FIRST if kind == 'first' else STILL) - PREP
-    times = []
+    times, parts = [], []
     for text in texts:
         code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
         if code != 200 or len(body) <= 1000:
@@ -5732,11 +5734,30 @@ for (lang, kind), texts in sorted(waits.items()):
             mark(1)
             continue
         times.append(ms)
+        # Where the time went: the engine's own, or the road to it (cycle 10:
+        # a cold first English phrase took 4.4 s -- engine or road?).
+        eng = last_timing.get('speak')
+        parts.append(f"{ms}={last_timing.get('speak.desc', '?')} {eng}+road {ms - eng}" if eng is not None else f'{ms}=?')
     if not times:
         continue
     late = max(times) > lead
     print(f'  wait {lang} {kind}: {len(times)} phrases, synth {min(times)}..{max(times)} ms, '
           f'lead {lead} ms -- {"LATE (not ready at its moment: the session skips it)" if late else "ok"}')
+    print(f'      each: {"; ".join(parts)}')
+    # The player gives each sentence speakDeadlineMs(chars) before the
+    # device's voice reads it instead (cycle 10). Read from the source, so a
+    # new deadline is checked the day it lands.
+    try:
+        session_src = open(os.environ['V_SESSION']).read()
+    except OSError:
+        session_src = ''
+    dl = re.search(r'function speakDeadlineMs[^{]*\{\s*return (\d[\d_]*) \+ (\d+) \* chars', session_src)
+    if dl:
+        base, per = int(dl.group(1).replace('_', '')), int(dl.group(2))
+        tight = [t for t, ms in zip(texts, times) if ms * 2 > base + per * len(t)]
+        if tight:
+            print(f'      deadline: {len(tight)} phrase(s) used over half of the player\'s speak deadline -- the device voice is near')
+            mark(2)
     if late:
         mark(2)
 if os.environ.get('V_FILLER'):

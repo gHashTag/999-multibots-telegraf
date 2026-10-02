@@ -344,6 +344,14 @@ mouth`) from a clean tree after a merge that touches `deployment/mouth`.
   `with_filler` phrase; Pipecat pushes a `TTSSpeakFrame` before a slow tool.
   Overuse is the known failure (one write-up counts ~16% of turns with a
   filler as "awkward"), so ours is capped at two per question.
+- **A stalled TTS (cycle 10).** LiveKit's `tts.FallbackAdapter` gives each
+  attempt `attempt_timeout` (10 s default) before the next provider.
+  Pipecat's `ServiceSwitcher` fails over only on an `ErrorFrame`, so a TTS
+  that silently stalls is invisible to it (issue #5305: 66 s of dead air).
+  Ours had the Pipecat hole in the player; now `speakDeadlineMs`. LiveKit's
+  `BackgroundAudioPlayer` plays a bundled clip (keyboard typing) as its
+  thinking sound -- no synthesis at all; ours are words, so they are made
+  ahead (warmed at session open).
 
 ## The road, split (cycle 7)
 
@@ -455,6 +463,29 @@ runs dry while the answer is unfinished (phase `thinking`):
 `/api/voice/speak` and compares it with its lead (moment minus prepare).
 Exit 2 = a phrase is LATE, 1 = a phrase failed.
 
+## A sentence has a deadline; the first wait is warmed (cycle 10)
+
+The render gives the mouth `3 s + 12 ms/char`, then speaches up to 30 s
+more, so one sentence can take ~34 s (cycle 9's 36.7 s). The player had NO
+limit: `pump()` awaited `queue[0].audio`, and the whole answer waited in
+silence behind it. Now `render()` races the request against
+`speakDeadlineMs(chars)` = `7000 + 12 * chars` and aborts it; null audio
+means the device's voice reads the sentence (`fallbackVoice`). Raced, not
+only aborted: a hung response may never notice the signal (the test's fake
+ignores it on purpose -- the `no-race` mutation dies there). For an
+ordinary sentence the deadline is above the server's legitimate fallback;
+a ~600-char one that fell back to speaches may be read by the device.
+
+`start()` calls `fillerSound(fillerText('first'))` once the mic is open:
+the cold first synthesis of a quiet spell is paid while the person is
+still finding words, not at the first question (where, asked at 1 s and
+due at 3 s, it was skipped). Typed sessions (no mic) do not warm.
+
+`tri filler` now prints each phrase as `total=engine ms+road ms` and warns
+(exit 2) when a phrase used over half of the player's deadline (read from
+`speakDeadlineMs` in the source). Measured 2026-10-02 warm: English
+engine 290-350 ms + road 260-520 ms; Russian engine 100-140 ms.
+
 **Test traps met:** the fake-timer helper reused message ids `u`/`a`, so
 `ReplyFollower` ignored every answer after the first. And `ReplyFollower`
 does not emit a short sentence ("Slow.") while the answer still streams --
@@ -462,24 +493,26 @@ a test of "a sentence is being synthesised" needs a long first sentence.
 
 ## Weak spots, with status
 
-| #   | weak spot                                            | status                                                         |
-| --- | ---------------------------------------------------- | -------------------------------------------------------------- |
-| 1   | card markup read aloud                               | FIXED cycle 1                                                  |
-| 2   | any sound killed the answer (280 ms, no resume)      | FIXED cycle 1 (pause/resume)                                   |
-| 3   | its own voice through the speaker interrupted it     | FIXED cycle 1 (onset + echo)                                   |
-| 4   | stuck "speaking" on a suspended AudioContext         | FIXED cycle 1 (watchdog)                                       |
-| 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)                                         |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252)                                  |
-| 7   | energy VAD: a fan or street noise counts as speech   | PARTLY cycle 8 (steady noise = room); rising noise -> Silero   |
-| 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)                                          |
-| 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3                                          |
-| 9   | nothing said while the agent thinks for long         | FIXED cycle 9 (filler at 3 s, "still" at 15 s; `tri filler`)   |
-| 10  | first sound waits for a whole first sentence         | FIXED cycle 2 (first clause)                                   |
-| 11  | voice picker only for the app language               | OPEN                                                           |
-| 12  | product words misheard by every engine ("рилс")      | OPEN -- hotword fix-up                                         |
-| 13  | English hearing is still whisper, ~2.6 s             | FIXED cycle 5 (Parakeet v2)                                    |
-| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s | PARTLY cycle 7 (wakeRoad, 32k); sin1->sfo 250 ms is the region |
-| 15  | English first sound ~2 s (Kokoro in the whisper pod) | FIXED cycle 6 (mouth, 8 threads)                               |
+| #   | weak spot                                             | status                                                         |
+| --- | ----------------------------------------------------- | -------------------------------------------------------------- |
+| 1   | card markup read aloud                                | FIXED cycle 1                                                  |
+| 2   | any sound killed the answer (280 ms, no resume)       | FIXED cycle 1 (pause/resume)                                   |
+| 3   | its own voice through the speaker interrupted it      | FIXED cycle 1 (onset + echo)                                   |
+| 4   | stuck "speaking" on a suspended AudioContext          | FIXED cycle 1 (watchdog)                                       |
+| 5   | silence after the phrase looked like "not heard"      | FIXED cycle 1 (earcon)                                         |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)        | FIXED cycle 3 (GigaAM, #3252)                                  |
+| 7   | energy VAD: a fan or street noise counts as speech    | PARTLY cycle 8 (steady noise = room); rising noise -> Silero   |
+| 8   | words heard only after the 850 ms pause               | FIXED cycle 4 (#3257)                                          |
+| 8b  | turn end is a fixed pause; slow speakers get cut      | OPEN -- Smart Turn v3                                          |
+| 9   | nothing said while the agent thinks for long          | FIXED cycle 9 (filler at 3 s, "still" at 15 s; `tri filler`)   |
+| 10  | first sound waits for a whole first sentence          | FIXED cycle 2 (first clause)                                   |
+| 11  | voice picker only for the app language                | OPEN                                                           |
+| 12  | product words misheard by every engine ("рилс")       | OPEN -- hotword fix-up                                         |
+| 13  | English hearing is still whisper, ~2.6 s              | FIXED cycle 5 (Parakeet v2)                                    |
+| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s  | PARTLY cycle 7 (wakeRoad, 32k); sin1->sfo 250 ms is the region |
+| 15  | English first sound ~2 s (Kokoro in the whisper pod)  | FIXED cycle 6 (mouth, 8 threads)                               |
+| 16  | a stalled synthesis silences the whole answer         | FIXED cycle 10 (`speakDeadlineMs`, device voice reads it)      |
+| 17  | first wait phrase cold, skipped at the first question | FIXED cycle 10 (warmed at session open)                        |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 
@@ -502,7 +535,8 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    render's routing for hearing and speaking.
    A PR that touches `vad.ts` or the session's tick: `./tri vad` (exit 1 =
    speech taken for the room or a fan held as a phrase) before the commit.
-   A PR that touches `voice.filler.*` or the FILLER\_\* numbers: `./tri filler`.
+   A PR that touches `voice.filler.*`, the FILLER\_\* numbers or
+   `speakDeadlineMs`: `./tri filler`.
 5. Update the tables here in the same PR.
 6. A push that had to skip hooks (`--no-verify`, ssh dropping after a long
    pre-push) skips the player's lint ratchet too. Cycle 7 put 4 errors on
