@@ -18,7 +18,10 @@
  * attempts rather than an empty timer -- and when the server says the credit
  * genuinely failed, this says so plainly instead of promising it will catch up.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useAtomValue } from 'jotai'
+import { languageAtom } from '@/atoms/language'
+import { topUpText, type TopUpEvent } from '@/lib/topUpText'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { reportPayOutcome } from '@/lib/payOutcome'
@@ -35,6 +38,14 @@ export interface TokenTopUp {
 export function useTokenTopUp(): TokenTopUp {
   const [tokens, setTokens] = useState<number | null>(null)
   const [topUpNote, setTopUpNote] = useState<string | null>(null)
+  // A ref, not the value: the verify loop runs for over a minute after the
+  // tap, and a note written then should be in the language shown then.
+  const shown = useAtomValue(languageAtom)
+  const lang = useRef(shown)
+  useEffect(() => {
+    lang.current = shown
+  }, [shown])
+  const say = (e: TopUpEvent) => setTopUpNote(topUpText(e, lang.current))
 
   // The invoice is minted by the server (XTR) and opened by Telegram.WebApp.
   // The cashier's webhook does the verifying: the client is not believed.
@@ -55,14 +66,14 @@ export function useTokenTopUp(): TokenTopUp {
       })
       const d = await res.json()
       if (!d.ok) {
-        setTopUpNote(String(d.error ?? 'не получилось'))
+        say({ kind: 'failedToStart', code: d.code, reason: d.error })
         return
       }
       const wa = (window as any).Telegram?.WebApp
       if (wa?.openInvoice) {
         wa.openInvoice(d.link, async (status: string) => {
           if (status === 'paid') {
-            setTopUpNote('Оплачено! Проверяю зачисление…')
+            say({ kind: 'paidChecking' })
             // Verified against the source of truth (getStarTransactions): the
             // webhook may be asleep, the Stars are not.
             try {
@@ -74,22 +85,20 @@ export function useTokenTopUp(): TokenTopUp {
               const vd = await vres.json()
               if (vd.ok) {
                 setTokens(vd['баланс'])
-                setTopUpNote(
-                  `Зачислено ${vd['зачислено_токенов']} токенов! Баланс: ${vd['баланс']}`
-                )
+                say({
+                  kind: 'credited',
+                  tokens: vd['зачислено_токенов'],
+                  balance: vd['баланс'],
+                })
               } else if (vd['зачисление_провалено']) {
                 // Not "not visible yet" but "not credited": the invoice is
                 // already marked redeemed, so a retry cannot find it again.
                 // Promising it will catch up here is the same lie this
                 // change repairs one layer down.
                 setTokens(vd['баланс'] ?? null)
-                setTopUpNote(
-                  'Оплата прошла, но токены не зачислены. Мы уже знаем — напишите в поддержку, вернём или начислим руками.'
-                )
+                say({ kind: 'creditFailed' })
               } else {
-                setTopUpNote(
-                  'Оплата прошла — проверяю зачисление ещё пару раз…'
-                )
+                say({ kind: 'paidRetrying' })
                 // A Stars transaction reaches the Bot API with a delay, so the
                 // promise is kept with real attempts, not an empty timer.
                 for (let attempt = 0; attempt < 3; attempt++) {
@@ -102,36 +111,36 @@ export function useTokenTopUp(): TokenTopUp {
                     const vd2 = await r2.json()
                     if (vd2?.ok) {
                       setTokens(vd2['баланс'])
-                      setTopUpNote(
-                        `Зачислено ${vd2['зачислено_токенов']} токенов! Баланс: ${vd2['баланс']}`
-                      )
+                      say({
+                        kind: 'credited',
+                        tokens: vd2['зачислено_токенов'],
+                        balance: vd2['баланс'],
+                      })
                       return
                     }
                   } catch {
                     /* the network is playing up: next attempt in 25s */
                   }
                 }
-                setTopUpNote(
-                  'Оплата видна Telegram — зачисление догонит при следующем входе в чат'
-                )
+                say({ kind: 'paidPending' })
                 reportPayOutcome('tokens', 'pending')
               }
             } catch {
-              setTopUpNote('Оплата прошла — зачисление подтвердится чуть позже')
+              say({ kind: 'paidLater' })
             }
           } else if (status === 'failed') {
-            setTopUpNote('Оплата не прошла')
+            say({ kind: 'paymentFailed' })
             reportPayOutcome('tokens', 'failed')
           } else if (status === 'cancelled') {
             reportPayOutcome('tokens', 'cancelled')
           }
         })
       } else {
-        setTopUpNote('Покупка доступна внутри Telegram')
+        say({ kind: 'telegramOnly' })
         reportPayOutcome('tokens', 'unsupported')
       }
     } catch {
-      setTopUpNote('сеть подвела — попробуй ещё')
+      say({ kind: 'network' })
     }
   }
 
@@ -174,7 +183,10 @@ export function useTokenTopUp(): TokenTopUp {
           if (vd?.ok) {
             setTokens(vd['баланс'])
             setTopUpNote(
-              `Зачислено ${vd['зачислено_токенов']} токенов — оплата прошлого визита дошла`
+              topUpText(
+                { kind: 'lastVisitCredited', tokens: vd['зачислено_токенов'] },
+                lang.current
+              )
             )
           }
         } catch {

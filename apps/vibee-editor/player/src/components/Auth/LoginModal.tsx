@@ -58,6 +58,7 @@ const COPY: Record<LoginReason, { title: string; body: string }> = {
   generate: { title: 'login.generateTitle', body: 'login.generateBody' },
   follow: { title: 'login.followTitle', body: 'login.followBody' },
   board: { title: 'login.boardTitle', body: 'login.boardBody' },
+  chat: { title: 'login.chatTitle', body: 'login.chatBody' },
 }
 
 export function LoginModal() {

@@ -11,12 +11,42 @@
  */
 
 .crm {
+  /* The page inset, named: the rows that scroll sideways bleed out by it. */
+  --crm-pad: var(--space-md, 16px);
   display: flex;
   flex-direction: column;
   gap: var(--space-md, 16px);
-  padding: var(--space-md, 16px);
+  padding: var(--crm-pad);
   max-width: 720px;
   margin: 0 auto;
+}
+
+/* ROWS THAT SCROLL SIDEWAYS RUN TO THE SCREEN EDGE, AND START IN LINE.
+   The section strip carries its own 16px inset for pages without one; here
+   it sat on top of the page's, so the tabs began 16px right of everything
+   under them. The funnel row stopped at the page inset instead, and its
+   last chip was simply cut -- nothing said the row scrolls. Both now bleed
+   through the page inset and keep it as their own, and fade out on the
+   right the way the strip does. */
+.crm > .section-strip,
+.crm .crm-funnel__stages {
+  margin-inline: calc(-1 * var(--crm-pad));
+  padding-left: var(--crm-pad);
+  padding-right: 28px;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--crm-pad),
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--crm-pad),
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
 }
 
 .crm__top {
@@ -52,10 +82,11 @@
 }
 
 .crm__panel {
+  --crm-panel-pad: var(--space-md, 16px);
   background: var(--color-bg-elevated, #1a1a1a);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  padding: var(--space-md, 16px);
+  padding: var(--crm-panel-pad);
 }
 
 .crm__panel-title {
@@ -154,6 +185,12 @@
 
 /* Recording a fact, not sending anything -- so these are quiet outline
    buttons, not the green one that means "do the thing". */
+/* The three outcomes: a group inside the row, so they wrap together. */
+.crm__outcomes {
+  display: flex;
+  gap: inherit;
+}
+
 .crm__acts button {
   min-height: 40px;
   padding: 8px 14px;
@@ -237,12 +274,20 @@
 }
 
 /* THE CLIENT LIST FILTER. Three chips, one lit. Counts sit inside the chip
-   so the owner sees how many clients and how many leads without tapping. */
+   so the owner sees how many clients and how many leads without tapping.
+   ONE ROW that scrolls sideways rather than wraps: it lives in the pinned
+   finder, and every wrapped line there is a line taken from the list. */
 .crm__filter {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
-  margin: 0 0 10px;
+  margin: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.crm__filter::-webkit-scrollbar {
+  display: none;
 }
 
 .crm__chip {
@@ -255,6 +300,8 @@
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   cursor: pointer;
+  flex: none;
+  white-space: nowrap;
 }
 
 /*
@@ -375,21 +422,84 @@
 
 /* ── SEARCH AND THE "UNDER WAY" HEADING ───────────────────────────────── */
 
-.crm__search {
+/*
+ * THE FINDER: the search box and the chips, pinned while the list scrolls.
+ * It bleeds to the panel's edges so rows do not show through at the sides.
+ */
+.crm__finder {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin: 0 0 8px;
-  font-size: 12px;
+  gap: 8px;
+  margin: 0 calc(-1 * var(--crm-panel-pad, 16px)) 8px;
+  padding: 8px var(--crm-panel-pad, 16px);
+  background: var(--color-bg-elevated, #1a1a1a);
 }
 
+.crm__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+.crm__glyph {
+  flex: none;
+  color: var(--text-muted, #888);
+}
+
+.crm__search .crm__glyph {
+  position: absolute;
+  left: 12px;
+  pointer-events: none;
+}
+
+/*
+ * 16PX, NOT 12. Below 16px iOS zooms the whole page into a focused field and
+ * leaves it zoomed -- the box inherited 12px from its label.
+ */
 .crm__search input {
-  padding: 8px 10px;
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-target, 44px);
+  padding: 10px 44px 10px 40px;
   border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--t27-surface-2, rgba(255, 255, 255, 0.08));
-  color: inherit;
+  color: var(--text-primary, #fff);
   font: inherit;
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.crm__search input:focus {
+  outline: none;
+  border-color: var(--vibee-green, #00ff88);
+}
+
+/* Our own clear button, at a finger's size; the browser's is a speck. */
+.crm__search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.crm__search-clear {
+  position: absolute;
+  right: 0;
+  width: var(--touch-target, 44px);
+  height: var(--touch-target, 44px);
+  font-size: 16px;
+  color: var(--text-muted, #888);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+/* On the work section: the way into the contacts is the same search box. */
+.crm__find input::placeholder {
+  color: var(--text-muted, #888);
 }
 
 .crm__subtitle {
@@ -411,13 +521,46 @@
   color: var(--t27-text, #fff);
 }
 
-/* The AUTO tick on a row: reachable at any width, unlike the client card. */
+/* The AUTO tick on a row: reachable at any width, unlike the client card.
+   A pill that lights green when on, so the chosen ones read at a glance. */
 .crm__auto {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 9px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--t27-muted, #888);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.crm__auto input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--vibee-green, #00ff88);
+}
+
+/* Only a phone's rows drop the word; elsewhere the pill says it itself. */
+.crm__col-auto {
+  display: none;
+}
+
+.crm__auto--on {
+  color: var(--vibee-green, #00ff88);
+  border-color: rgba(0, 255, 136, 0.45);
+  background: rgba(0, 255, 136, 0.08);
+}
+
+@media (pointer: coarse) {
+  .crm__auto {
+    min-height: var(--touch-target, 44px);
+  }
 }
 
 /* One tap that fills the "chosen" list with the people who are waiting. */
@@ -468,6 +611,370 @@
   .crm__back {
     display: inline-flex;
     align-items: center;
+    min-height: var(--touch-target, 44px);
+  }
+}
+
+/* ── A CONTACT ROW ────────────────────────────────────────────────────────
+ *
+ * Face, then the name on a line of its own, the facts under it, then AUTO and
+ * "...". About 64px where it was 140-160: a phone screen now holds ten people
+ * instead of four.
+ */
+.crm__row.crm__contact {
+  padding: 8px 6px 8px 10px;
+}
+
+.crm__contact-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The whole name-and-facts block is the way into the person's page, so the
+   finger has two lines to land on, not one short name. */
+.crm__contact-main {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-target, 44px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  text-decoration: none;
+}
+
+.crm__contact-name,
+.crm__contact-facts {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm__contact-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vibee-green, #00ff88);
+}
+
+.crm__contact-facts {
+  font-size: 13px;
+  color: var(--text-muted, #888);
+}
+
+/* The typed letters in a result (Crm.tsx, Hit). The name keeps its green;
+   in the grey facts line the found part is the one bright thing. */
+.crm__hit {
+  color: inherit;
+  background: rgba(0, 255, 136, 0.2);
+  border-radius: 3px;
+}
+
+.crm__contact-facts .crm__hit {
+  color: var(--text-primary, #fff);
+}
+
+.crm__contact-facts .crm__badge {
+  padding: 0 6px;
+  font-size: 10px;
+  vertical-align: 1px;
+}
+
+.crm__contact-toggle {
+  flex: none;
+  width: 36px;
+  min-height: 36px;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text-muted, #888);
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.crm__contact-toggle[aria-expanded='true'] {
+  color: var(--text-primary, #fff);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (pointer: coarse) {
+  .crm__contact-toggle {
+    min-height: var(--touch-target, 44px);
+  }
+}
+
+/* Details and removal, under the name rather than beside the face. */
+.crm__contact-extra {
+  margin: 6px 0 2px 48px;
+}
+
+.crm__contact-extra .crm__why {
+  margin: 0 0 8px;
+}
+
+.crm__contact--dropped .crm__contact-main {
+  opacity: 0.5;
+}
+
+/*
+ * A PHONE'S WIDTH IS THE LIST'S WIDTH.
+ *
+ * 16px of page, 16px of panel and 12px of row on each side left a 390px
+ * screen 302px for a row. The page and the panels breathe less on a phone,
+ * and the contacts panel drops its frame altogether: it is the whole section,
+ * there is nothing beside it to be framed against.
+ */
+@media (max-width: 480px) {
+  .crm {
+    --crm-pad: 10px;
+    gap: 12px;
+    padding: 12px var(--crm-pad);
+  }
+
+  /* NAME OVER STAGE. On one line the stage took what the name needed: in
+     Russian "t.me" plus "talking" is 131px, and a double-barrelled name was
+     cut to one word. As in Pipedrive's and HubSpot's phone lists, the stage
+     becomes the name's subtitle and the face spans both lines -- 22 + 17px
+     is the 36px face, so the row does not grow. Only rows with a face: a
+     lead's lone "t.me" fits beside the name. */
+  .crm__who:has(> .crm-avatar) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    /* The row's `gap: 10px` would part the name from its own subtitle. */
+    row-gap: 0;
+  }
+
+  .crm__who:has(> .crm-avatar) > .crm-avatar {
+    grid-row: span 2;
+  }
+
+  .crm__who:has(> .crm-avatar) > .crm__open {
+    line-height: 1.2;
+  }
+
+  .crm__who:has(> .crm-avatar) > .crm__stage {
+    line-height: 1.25;
+  }
+
+  /* Refresh is the rarest tap on the screen; it was the loudest thing on it. */
+  .crm__top h2 {
+    font-size: 22px;
+  }
+
+  .crm__top button {
+    padding: 8px 14px;
+    font-size: 15px;
+    color: var(--vibee-green, #00ff88);
+    background: transparent;
+    border: 1px solid rgba(0, 255, 136, 0.45);
+  }
+
+  .crm__top button:disabled {
+    background: transparent;
+    color: var(--text-muted, #888);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+
+  .crm__panel {
+    --crm-panel-pad: 12px;
+    border-radius: 14px;
+  }
+
+  .crm__contacts > .crm__panel {
+    --crm-panel-pad: 0px;
+    background: transparent;
+    border: 0;
+  }
+
+  .crm__contacts .crm__panel-title {
+    display: none;
+  }
+
+  .crm__contacts .crm__finder {
+    background: var(--color-bg-primary, #000);
+  }
+
+  /* A WAITING ROW'S ACTIONS: ONE LINE WHEN THEY FIT, TWO TIDY ONES WHEN
+     NOT. At 15px with 14px sides, "Prepare / Wrote / Replied / Refused"
+     needed 371px of a 318px row: "Refused" wrapped alone, and every waiting
+     row was 237px tall. Narrower sides and 14px fit English in 309px -- one
+     line. Russian needs about 420px, so the outcome group (Crm.tsx) moves
+     down whole: "Prepare" gets the first line, the three outcomes the
+     second, in even thirds. */
+  .crm__acts:has(> .crm__outcomes) {
+    gap: 6px;
+  }
+
+  .crm__acts > .crm__prepare,
+  .crm__outcomes {
+    flex: 1 1 auto;
+  }
+
+  .crm__acts > .crm__prepare,
+  .crm__outcomes button {
+    padding: 8px;
+    font-size: 14px;
+  }
+
+  .crm__outcomes button {
+    flex: 1 1 0;
+  }
+
+  /* The tick alone on the row; the heading names its column (Crm.tsx,
+     autoColumn). 73px -> 44px, and the name gets the difference. */
+  .crm__auto {
+    justify-content: center;
+    width: var(--touch-target, 44px);
+    padding: 0;
+  }
+
+  .crm__auto input {
+    width: 20px;
+    height: 20px;
+  }
+
+  .crm__auto-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Over the ticks: the row's right padding (6px) + border (1px) + "..."
+     (36px) + the gap (8px) from the list's edge. */
+  .crm__subtitle {
+    display: flex;
+    align-items: baseline;
+  }
+
+  /* THE HEADING STAYS WHILE ITS ROWS SCROLL. The AUTO column is named once,
+     in the heading -- and the heading scrolled away with the first rows, so
+     a long list showed bare round boxes. As in iOS and Telegram contacts,
+     it is pinned under the finder (whose real height Crm.tsx publishes as
+     --crm-finder-h) until its section ends and the next heading takes
+     over. Opaque, or rows show through; under the finder, above the rows. */
+  .crm__contacts .crm__group > .crm__subtitle {
+    position: sticky;
+    top: var(--crm-finder-h, 0px);
+    z-index: 1;
+    margin: 0;
+    padding: 12px 0 2px;
+    background: var(--color-bg-primary, #000);
+  }
+
+  /* ONE SURFACE, NOT A STACK OF CARDS. Each contact was its own framed card
+     with 10px of black between: a 64px row cost 74px, and a phone showed
+     eight people. Telegram's and iOS's contact lists are one grouped
+     surface with a hairline between rows, indented past the face so the
+     faces read as one column. Same rows, same 44px targets: a ninth person
+     fits. */
+  .crm__contacts .crm__group > .crm__list {
+    gap: 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .crm__contacts .crm__group > .crm__list > .crm__contact {
+    position: relative;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .crm__contacts
+    .crm__group
+    > .crm__list
+    > .crm__contact
+    + .crm__contact::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 58px;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .crm__col-auto {
+    display: block;
+    width: var(--touch-target, 44px);
+    margin: 0 51px 0 auto;
+    font-size: 11px;
+    text-align: center;
+  }
+}
+
+/* The narrowest phones (320px): AUTO and "..." give the name what they can
+   spare without dropping below a finger's height. */
+@media (max-width: 359px) {
+  .crm__contact-line {
+    gap: 6px;
+  }
+
+  /* The hairline starts where the name does: 10 + 40 + the narrower gap. */
+  .crm__contacts
+    .crm__group
+    > .crm__list
+    > .crm__contact
+    + .crm__contact::before {
+    left: 56px;
+  }
+
+  .crm__contact-toggle {
+    width: 28px;
+  }
+
+  .crm__col-auto {
+    margin-right: 41px;
+  }
+}
+
+/*
+ * RECENTLY OPENED -- a row of faces under an empty search. It scrolls
+ * sideways rather than wrapping: six people on two lines would push the
+ * list itself below the fold, which is what the row exists to avoid.
+ */
+.crm__recent ul {
+  list-style: none;
+  margin: 0;
+  padding: 2px 0 4px;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.crm__recent ul::-webkit-scrollbar {
+  display: none;
+}
+
+.crm__recent a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 60px;
+  color: inherit;
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.crm__recent a span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The next page of clients and "pick everyone waiting" are tapped with a
+   thumb on a phone: 36px and an unsized button were under the touch token. */
+@media (pointer: coarse) {
+  .crm__more,
+  .crm__pick-all {
     min-height: var(--touch-target, 44px);
   }
 }

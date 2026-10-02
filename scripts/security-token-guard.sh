@@ -40,6 +40,10 @@ case "$MODE" in
   staged)
     DIFF="$(git diff --cached)"
     ;;
+  base)
+    # The whole branch against a ref (tri no-verify-debt): pushed commits too.
+    DIFF="$(git diff "${2:-origin/main}"...HEAD 2>/dev/null || true)"
+    ;;
   range)
     upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
     if [ -n "$upstream" ]; then
