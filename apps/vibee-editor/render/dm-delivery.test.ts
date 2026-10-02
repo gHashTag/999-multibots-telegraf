@@ -952,6 +952,72 @@ describe('the real generator honours chargeLater', () => {
   })
 })
 
+describe('the real generator keeps a stamped picture out of a client chat', () => {
+  /*
+   * Bee review of #3414: on the business surface the agent's words go to the
+   * client, so a stamped URL in image_generate's result was one sentence away
+   * from the client. The tool now refuses there, refunds, and returns no URL.
+   * The generate route is stubbed to answer from the free leg; every later
+   * fetch (download, S3 upload) is recorded so a refusal can be seen to stop
+   * before it.
+   */
+  const pool = {
+    query: async () => ({ rows: [{ balance: 50, n: 0, count: 0, id: 1 }] }),
+  }
+  let urls: string[] = []
+  const prevHouse = process.env.HOUSE_TELEGRAM_IDS
+  beforeEach(() => {
+    process.env.HOUSE_TELEGRAM_IDS = ''
+    urls = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        urls.push(String(url))
+        if (String(url).includes('/api/generate/image')) {
+          return new Response(
+            JSON.stringify({
+              url: 'https://image.pollinations.ai/prompt/x',
+              provider: 'pollinations/flux',
+              tried: [],
+            }),
+            { status: 200 }
+          )
+        }
+        return new Response('nope', { status: 503 })
+      })
+    )
+  })
+  afterEach(() => {
+    process.env.HOUSE_TELEGRAM_IDS = prevHouse
+  })
+
+  it('business surface: refused, no URL, nothing downloaded', async () => {
+    const { TOOLS } = await import('./src/agent/tools')
+    const gen = TOOLS.find(t => t.name === 'image_generate')!
+    const r = (await gen.handler({ prompt: 'кот' }, {
+      telegramId: LEAD,
+      pool,
+      surface: 'business',
+    } as never)) as Record<string, unknown>
+    expect(r['сделано']).toBe(false) // cyrillic-ok: tool answer field
+    expect(r.watermark).toBe('pollinations.ai')
+    expect(JSON.stringify(r)).not.toContain('image.pollinations.ai')
+    expect(urls.filter(u => !u.includes('/api/generate/image'))).toEqual([])
+  })
+
+  it("the owner's own surface still gets the draft", async () => {
+    const { TOOLS } = await import('./src/agent/tools')
+    const gen = TOOLS.find(t => t.name === 'image_generate')!
+    await gen.handler({ prompt: 'кот' }, {
+      telegramId: OWNER,
+      pool,
+      surface: 'bot',
+    } as never)
+    // It went on to pull the bytes: the refusal is the client's chat only.
+    expect(urls).toContain('https://image.pollinations.ai/prompt/x')
+  })
+})
+
 /**
  * THE MEDIA KINDS A DRAFT CAN CARRY.
  *
