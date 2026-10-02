@@ -5,7 +5,8 @@ import { getWebApp } from '@/lib/telegram'
 import { useLanguage } from '@/hooks/useLanguage'
 
 /**
- * THREADS, INSTAGRAM AND A FACEBOOK PAGE BY THEIR OWN API (meta-connect.t27).
+ * THREADS, INSTAGRAM, A FACEBOOK PAGE (meta-connect.t27), LINKEDIN AND X
+ * (social-api.t27) BY THEIR OWN API.
  *
  * The blog desk could not reach these three: the owner's browser is not
  * signed in there. Connected once through Meta's own login, the desk posts by
@@ -17,10 +18,12 @@ import { useLanguage } from '@/hooks/useLanguage'
  * The token never reaches this screen -- only the account name and days left.
  */
 
+type Network = 'threads' | 'facebook' | 'linkedin' | 'x'
+
 export interface MetaStatus {
-  apps: { threads: boolean; facebook: boolean }
+  apps: Partial<Record<Network, boolean>>
   networks: Array<{
-    network: 'threads' | 'facebook'
+    network: Network
     account: string
     instagram: string | null
     daysLeft: number | null
@@ -34,7 +37,15 @@ export interface MetaConnectCardProps {
   status?: MetaStatus
 }
 
-const LOGINS = ['threads', 'facebook'] as const
+const LOGINS: readonly Network[] = ['threads', 'facebook', 'linkedin', 'x']
+const NAMES: Record<Network, string> = {
+  threads: 'Threads',
+  facebook: 'Facebook + Instagram',
+  linkedin: 'LinkedIn',
+  x: 'X',
+}
+/* social-api.t27 LI_WARN_DAYS_LEFT: LinkedIn has no refresh, so warn early. */
+const LI_WARN_DAYS_LEFT = 7
 
 export function MetaConnectCard({
   isOwn,
@@ -62,7 +73,7 @@ export function MetaConnectCard({
 
   if (!isOwn || !status) return null
 
-  const connect = async (network: 'threads' | 'facebook') => {
+  const connect = async (network: Network) => {
     setSaid(null)
     try {
       const r = await fetch(
@@ -89,8 +100,15 @@ export function MetaConnectCard({
       <ul className="profile-networks">
         {LOGINS.map(network => {
           const held = status.networks.find(n => n.network === network)
-          const name =
-            network === 'threads' ? 'Threads' : 'Facebook + Instagram'
+          const name = NAMES[network]
+          const days =
+            network === 'x'
+              ? ` · ${t('meta.card.renews')}`
+              : held?.daysLeft != null
+                ? network === 'linkedin' && held.daysLeft <= LI_WARN_DAYS_LEFT
+                  ? ` · ${t('meta.card.soon', { n: held.daysLeft })}`
+                  : ` · ${t('meta.card.days', { n: held.daysLeft })}`
+                : ''
           return (
             <li
               key={network}
@@ -102,10 +120,7 @@ export function MetaConnectCard({
                 {held?.usable
                   ? [held.account, held.instagram && `@${held.instagram}`]
                       .filter(Boolean)
-                      .join(' · ') +
-                    (held.daysLeft !== null
-                      ? ` · ${t('meta.card.days', { n: held.daysLeft })}`
-                      : '')
+                      .join(' · ') + days
                   : status.apps[network]
                     ? t('meta.card.out')
                     : t('meta.card.noApp')}
