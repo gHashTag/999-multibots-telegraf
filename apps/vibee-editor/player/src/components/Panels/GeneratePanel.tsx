@@ -5,6 +5,7 @@ import {
   загрузитьБаланс,
   ценаНажатия,
   мераЦены,
+  priceUnitLabel,
   тысячиЗнаковКОплате,
   полеДоходит,
   type Баланс,
@@ -227,12 +228,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     // («· 6/с»), но во фразе давала «не хватит: 6 за с» — по-русски это не
     // читается. Мобильное приложение говорит «за секунду звука» с самого
     // начала, и до липсинка эта ветка в вебе просто не встречалась.
-    const словами =
-      мера === 'с'
-        ? 'секунду звука'
-        : мера === '1000 зн.'
-          ? '1000 знаков'
-          : мера
+    const словами = мера ? priceUnitLabel(мера, lang, 'words') : null
+    if (lang !== 'ru') {
+      return словами && количество === 1 // cyrillic-ok: pre-existing names
+        ? `not enough: ${ц} per ${словами}, you have ${баланс.balance}`
+        : `not enough tokens: ${всего} needed, you have ${баланс.balance}`
+    }
     return словами && количество === 1
       ? `не хватит: ${ц} за ${словами}, есть ${баланс.balance}`
       : `не хватит токенов: нужно ${всего}, есть ${баланс.balance}`
@@ -278,7 +279,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     // Знаем количество — называем СУММУ: это и есть то, что спишут.
     if (количество > 1) return ` · ${ц * количество}`
     const мера = мераЦены(баланс, модель, операция)
-    return мера ? ` · ${ц}/${мера}` : ` · ${ц}`
+    return мера ? ` · ${ц}/${priceUnitLabel(мера, lang)}` : ` · ${ц}`
   }
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
