@@ -7,6 +7,7 @@ import '../../pages/Crm.css'
 import '../../pages/CrmClient.css'
 import './StoryReelPanel.css'
 import { useLanguage } from '@/hooks/useLanguage'
+import { crmErrorText } from '@/lib/crmErrorText'
 import { Panel } from '@/components/Crm/Panel'
 import { coveredByNotice } from '@/components/Crm/refusalRules'
 import { StoryFacePicker } from '@/components/Crm/StoryFacePicker'
@@ -123,7 +124,7 @@ export function StoryReelPanel({
    */
   noticeReason?: string | null
 }) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [state, setState] = useState<Reached<StoryReady>>({
     reachable: true,
     data: null,
@@ -384,7 +385,7 @@ export function StoryReelPanel({
                     topic: result.data.topic ?? '',
                   })
                 : `${t('crm.client.story.notStarted')}: ${
-                    result.data?.why ?? result.error ?? ''
+                    result.data?.why ?? crmErrorText(result, lang, t)
                   }`}
             </p>
           ) : null}

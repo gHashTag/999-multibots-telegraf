@@ -13,8 +13,9 @@
 #
 # Prints, from the gates-can-fail job of the ref's head: the tested count, each
 # gate's verdict, the harness's own OK/FAIL line and the floor check. Read-only.
-# Exit 0 the job passed, 1 it failed, 2 could not tell (no answer, no such
-# check, log expired or still running).
+# Exit 0 the job passed AND the harness printed its OK: line; 1 the job failed,
+# or the harness said FAIL inside a passed job; 2 could not tell (no answer, no
+# such check, log expired, still running, cancelled/timed out, or no OK: line).
 set -uo pipefail
 ROOT="$1"; shift
 REPO="${1:-gHashTag/trinity-fpga}"; REF="${2:-main}"
@@ -42,7 +43,11 @@ echo "  $REPO @ ${SHA:0:9} ($REF)  $CHECK: $CONCL"
 echo "    $URL"
 case "$CONCL" in
   success|failure) ;;
-  *) echo "  not finished -- cannot tell yet"; exit 2 ;;
+  queued|in_progress|pending|waiting|requested)
+    echo "  not finished -- cannot tell yet"; exit 2 ;;
+  # cancelled, timed_out, skipped, neutral, stale, action_required,
+  # startup_failure: the run ended, but no harness verdict came out of it.
+  *) echo "  ended '$CONCL' without a verdict -- re-run it, cannot tell"; exit 2 ;;
 esac
 
 LOG=$(lim 60 gh api "repos/$REPO/actions/jobs/$ID/logs" 2>/dev/null </dev/null) \
@@ -55,12 +60,27 @@ OUT=$(printf '%s\n' "$LOG" \
   | sed -E 's/^[0-9]{4}-[0-9-]+T[0-9:.]+Z //; s/\r$//' \
   | grep -v -E $'^\e\\[36;1m' \
   | sed -E $'s/\e\\[[0-9;]*m//g' \
-  | grep -E '^gates tested: |^  check_[a-z_]+: |^(OK|FAIL): |^testable gates: |^##\[error\]' \
+  | grep -E '^gates tested: |^  check_[a-z0-9_]+: |^(OK|FAIL): |^testable gates: |^##\[error\]' \
   | sed 's/^/  /')
 if [ -z "$OUT" ]; then
   echo "  (log not readable or holds no harness verdict -- open the link)"
   exit 2
 fi
 printf '%s\n' "$OUT"
-[ "$CONCL" = success ] && exit 0
+# The job's conclusion alone is not the verdict. Exit 0 needs the harness's own
+# OK: line: a passed job whose log lacks it (a step skipped, the harness never
+# ran) proves nothing. And a harness FAIL: inside a passed job means the job
+# cannot fail on it -- that is the very defect this command exists to see.
+HAS_OK=0; HAS_FAIL=0
+grep -q '^  OK: ' <<< "$OUT" && HAS_OK=1
+grep -q '^  FAIL: ' <<< "$OUT" && HAS_FAIL=1
+if [ "$CONCL" = success ]; then
+  if [ "$HAS_FAIL" = 1 ]; then
+    echo "  the harness said FAIL but the job passed -- its failure does not fail the job"; exit 1
+  fi
+  if [ "$HAS_OK" = 0 ]; then
+    echo "  the job passed but the harness printed no OK: line -- cannot tell"; exit 2
+  fi
+  exit 0
+fi
 exit 1

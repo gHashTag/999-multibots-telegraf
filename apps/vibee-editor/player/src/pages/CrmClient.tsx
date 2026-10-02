@@ -9,7 +9,11 @@ import { useLanguage } from '@/hooks/useLanguage'
 import { Panel } from '@/components/Crm/Panel'
 import { AllRefused } from '@/components/Crm/AllRefused'
 import { StoryReelPanel } from '@/components/Crm/StoryReelPanel'
-import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
+import {
+  coveredByNotice,
+  oneFailureForAll,
+} from '@/components/Crm/refusalRules'
+import { crmErrorText } from '@/lib/crmErrorText'
 import {
   loadClientProfile,
   loadClientPlan,
@@ -74,7 +78,7 @@ function when(iso: string | null): string {
 const mark = (yes: boolean) => (yes ? '✓' : '—')
 
 export default function CrmClientPage() {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const { clientId = '' } = useParams<{ clientId: string }>()
   const location = useLocation()
   const navigate = useNavigate()
@@ -172,7 +176,7 @@ export default function CrmClientPage() {
    * broken server. The panels keep their short wording; the decision keeps
    * the truth.
    */
-  const noticeReason = oneReasonForAll([
+  const noticeFailure = oneFailureForAll([
     profile,
     plan,
     duets,
@@ -180,6 +184,9 @@ export default function CrmClientPage() {
     context,
     media,
   ])
+  const noticeReason = noticeFailure
+    ? String(noticeFailure.error ?? '').trim()
+    : null
   const quiet = (state: Reached<unknown>) =>
     coveredByNotice(
       state.reachable ? state : { reachable: false, error: state.error },
@@ -233,7 +240,9 @@ export default function CrmClientPage() {
         </button>
       </header>
 
-      {noticeReason ? <AllRefused reason={noticeReason} /> : null}
+      {noticeFailure ? (
+        <AllRefused reason={crmErrorText(noticeFailure, lang, t)} />
+      ) : null}
 
       <Panel
         title={t('crm.client.profile.title')}
@@ -401,7 +410,7 @@ export default function CrmClientPage() {
                 : `${t('crm.client.duets.notStarted')}: ${
                     duetResult.data.reason ?? '—'
                   }`
-              : `${t('crm.client.duets.error')}: ${duetResult.error ?? '—'}`}
+              : `${t('crm.client.duets.error')}: ${crmErrorText(duetResult, lang, t) || '—'}`}
           </p>
         ) : null}
         {du &&
