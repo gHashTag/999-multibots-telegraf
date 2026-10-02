@@ -96,6 +96,9 @@ Once #3235 is deployed: `tri blog-share reoffer` lists articles the timer closed
 - **Proof before the fix, in one command:** `tri browser find "<words>" <tabId>`
   runs THIS checkout's probe on the live tab without clicking. Old probe on the
   owner's Reddit submit tab: not found; new probe: `{x:755, y:452}`.
+  When `find` says NOT FOUND for a button you can see, `tri browser layers <id>`
+  counts the page's shadow roots and iframes first (Reddit's submit page: 370
+  shadow roots plus a cross-origin recaptcha frame the probe cannot enter).
 - **Read every network's answer in full:** `tri blog-share detail [slug]`. The
   table cuts `result` at 80 characters, and that day's cause was in the cut.
 - **Still open after #3361:** X sent the thread but `confirmOnProfile` did not
@@ -104,6 +107,11 @@ Once #3235 is deployed: `tri blog-share reoffer` lists articles the timer closed
 - **Our own blog is blank in the agent's browser** (2026-10-03): t27.ai dies on
   Babylon's "WebGL not supported" in the GPU-less pod. `tri browser blank <id>`
   names the crash. Anything the desk reads from t27.ai there reads "".
+  **Fixed by trinity#1255 -- and the tab still showed it.** A tab loaded before
+  the deploy keeps running the old bundle. `blank` now compares the tab's
+  module scripts with what the site serves and reports `staleTab`; then
+  `tri browser reload <id>` and read again (measured: blank false, 550 nodes).
+  An error on a stale tab is history, not a live bug.
 
 ## Threads, Instagram and Facebook go by Meta's API (2026-10-02)
 
@@ -272,8 +280,10 @@ enterForNewline: true })` sends `"\r"`, which is what the Enter key types;
   this was measured in the pod's X composer. It is opt-in because in a chat
   box Enter SENDS.
 - **Reproduce without posting:** `tri browser open https://x.com/compose/post`,
-  `tri browser type "…"`, `tri browser eval '[...document.querySelectorAll("[data-testid^=tweetTextarea_]")].map(e=>e.innerText)' ID`,
-  then `tri browser close ID`. Nothing is pressed, so nothing is published.
+  `tri browser type "…"`, `tri browser composer ID` (each box's text and
+  length, the same `tweetTextarea_N` boxes the desk reads, and which of
+  Post / Post all / plus are on the page), then `tri browser close ID`.
+  Nothing is pressed, so nothing is published.
 - **A missing button closes the draft too** (#3375). If the box, the plus or
   "Post all" is not found, nothing was pressed, so the draft is closed before
   the share-link fallback opens -- two X drafts of one article side by side
