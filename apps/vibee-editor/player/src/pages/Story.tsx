@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import './Crm.css'
 import './CrmClient.css'
+import '../components/Crm/StoryReelPanel.css'
 import { useLanguage } from '@/hooks/useLanguage'
+import { StoryFacePicker } from '@/components/Crm/StoryFacePicker'
 import {
   loadMyStory,
+  saveMyStoryFace,
   startMyStory,
   type Reached,
   type StoryReady,
@@ -97,6 +100,16 @@ export default function StoryPage() {
             </div>
           </dl>
           {s.why ? <p className="crm__why">{s.why}</p> : null}
+          {s.face || s.avatar ? (
+            <StoryFacePicker
+              ready={s}
+              name="me"
+              self
+              disabled={busy}
+              save={saveMyStoryFace}
+              onSaved={setState}
+            />
+          ) : null}
           {s.ready ? (
             <>
               {s.nextTopic ? (
