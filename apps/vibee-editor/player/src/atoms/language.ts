@@ -1424,6 +1424,9 @@ const en: Translations = {
   'voice.type.send': 'Send',
   'voice.stop': 'Stop',
   'voice.options': 'You can choose: {list}.',
+  // Said when the agent is silent for a while; variants split by '|'.
+  'voice.filler.first': 'Let me see.|Hmm, let me think.|Let me look into that.',
+  'voice.filler.still': 'Still working on it.|Still on it.',
   'voice.error.recorder': 'This browser cannot record audio.',
   'voice.error.hear': 'Could not make out the words. Please say it again.',
   'voice.you': 'You',
@@ -4178,6 +4181,9 @@ const ru: Translations = {
   'voice.type.send': 'Отправить',
   'voice.stop': 'Остановить',
   'voice.options': 'Можно выбрать: {list}.',
+  'voice.filler.first':
+    'Сейчас посмотрю.|Так, дайте подумать.|Сейчас разберусь.',
+  'voice.filler.still': 'Ещё работаю над этим.|Всё ещё занимаюсь этим.',
   'voice.error.recorder': 'Этот браузер не умеет записывать звук.',
   'voice.error.hear': 'Не разобрал слова. Повторите, пожалуйста.',
   'voice.you': 'Вы',

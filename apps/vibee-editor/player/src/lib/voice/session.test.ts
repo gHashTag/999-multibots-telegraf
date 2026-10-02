@@ -904,3 +904,185 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
     expect(v.d.send).toHaveBeenCalledWith('open my calendar')
   })
 })
+
+describe('VoiceSession: the wait is said out loud', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  /** A typed session on fake timers; what it said, once per sentence. */
+  async function waiting(extra: Record<string, unknown> = {}) {
+    const v = await typedSession(extra)
+    vi.useFakeTimers()
+    const said: string[] = []
+    v.s.subscribe(() => {
+      const now = v.s.snapshot.saying
+      if (now && now !== said.at(-1)) said.push(now)
+    })
+    let n = 0
+    const answer = async (text: string, streaming = false) => {
+      n++
+      v.c.thread = [
+        ...v.c.thread,
+        { id: `u${n}`, role: 'user', text: 'q' },
+        { id: `a${n}`, role: 'assistant', text },
+      ]
+      v.c.answering = streaming
+      v.c.changed()
+      await vi.advanceTimersByTimeAsync(1)
+    }
+    const synthesized = () =>
+      (v.d.synthesize.mock.calls as unknown as string[][]).map(c => c[0])
+    return { ...v, said, answer, synthesized }
+  }
+
+  it('a slow answer: "Let me see." after 3 s, then the answer', async () => {
+    const w = await waiting()
+    w.s.type('plan my week')
+    await vi.advanceTimersByTimeAsync(900)
+    expect(w.synthesized()).toEqual([])
+    await vi.advanceTimersByTimeAsync(200)
+    // Its audio is asked for ahead, so it plays on time.
+    expect(w.synthesized()).toEqual(['Let me see.'])
+    await vi.advanceTimersByTimeAsync(1800)
+    expect(w.said).toEqual([])
+    await vi.advanceTimersByTimeAsync(200)
+    expect(w.said).toEqual(['Let me see.'])
+    expect(w.s.snapshot.phase).toBe('thinking')
+    await w.answer('Here is your week.')
+    expect(w.said).toEqual(['Let me see.', 'Here is your week.'])
+  })
+
+  it('a fast answer says nothing else and synthesises nothing else', async () => {
+    const w = await waiting()
+    w.s.type('what time is it')
+    await vi.advanceTimersByTimeAsync(900)
+    await w.answer('It is noon.')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(w.said).toEqual(['It is noon.'])
+    expect(w.synthesized()).toEqual(['It is noon.'])
+  })
+
+  it('a long wait: "still working" once more, then quiet', async () => {
+    const w = await waiting()
+    w.s.type('make a reel')
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(w.said).toEqual(['Let me see.'])
+    await vi.advanceTimersByTimeAsync(11_800)
+    expect(w.said).toEqual(['Let me see.'])
+    await vi.advanceTimersByTimeAsync(300)
+    expect(w.said).toEqual(['Let me see.', 'Still working on it.'])
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(w.said).toHaveLength(2)
+  })
+
+  it('a gap in the middle of an answer is "still working", not "let me see"', async () => {
+    const w = await waiting()
+    w.s.type('make a reel')
+    await w.answer('Starting the reel now. It', true)
+    expect(w.said).toEqual(['Starting the reel now.'])
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(w.said).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(9000)
+    expect(w.said).toEqual(['Starting the reel now.', 'Still working on it.'])
+  })
+
+  it('the orb and a new question each cancel the wait', async () => {
+    const w = await waiting()
+    w.s.type('first')
+    await vi.advanceTimersByTimeAsync(2000)
+    w.s.interrupt()
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(w.said).toEqual([])
+    w.s.type('second')
+    await vi.advanceTimersByTimeAsync(2000)
+    w.s.type('third')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(w.said).toEqual([])
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(w.said).toEqual(['Let me see.'])
+  })
+
+  it('said in the language of the person, a new phrase each time', async () => {
+    const w = await waiting({ lang: () => 'ru' as const })
+    w.s.type('спланируй неделю')
+    await vi.advanceTimersByTimeAsync(3100)
+    await w.answer('Готово.')
+    w.s.type('и ещё')
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(w.said).toEqual([
+      'Сейчас посмотрю.',
+      'Готово.',
+      'Так, дайте подумать.',
+    ])
+  })
+
+  it('a sentence still being synthesised is not talked over by the wait', async () => {
+    const w = await waiting({
+      synthesize: vi.fn(
+        (text: string) =>
+          new Promise<ArrayBuffer>((_, fail) =>
+            setTimeout(
+              () => fail(new Error('offline')),
+              text.startsWith('The slow') ? 2000 : 0
+            )
+          )
+      ),
+    })
+    w.s.type('q')
+    await vi.advanceTimersByTimeAsync(2500)
+    await w.answer('The slow first sentence of it. And', true)
+    // At 3 s the sentence is queued, its audio not here: still "thinking".
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(w.s.snapshot.phase).toBe('thinking')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(w.said).toEqual(['The slow first sentence of it.'])
+  })
+
+  it('each phrase is synthesised once a session; a failure is asked again', async () => {
+    let failNext = true
+    const w = await waiting({
+      synthesize: vi.fn(async (): Promise<ArrayBuffer> => {
+        if (failNext) {
+          failNext = false
+          throw new Error('blip')
+        }
+        return new ArrayBuffer(8)
+      }),
+    })
+    ;(w.s as unknown as { ctx: object }).ctx = Object.assign(
+      new FakeAudioContext(),
+      { decodeAudioData: async () => ({ duration: 0.5 }) }
+    )
+    for (let i = 0; i < 7; i++) {
+      w.s.type(`q${i}`)
+      await vi.advanceTimersByTimeAsync(3100)
+      await w.answer(`A${i}.`)
+    }
+    expect(w.said.filter(t => t === 'Let me see.')).toHaveLength(3)
+    expect(w.said.filter(t => /^A\d\.$/.test(t))).toHaveLength(7)
+    // Failed the first time, so asked again; then kept for the third.
+    expect(w.synthesized().filter(t => t === 'Let me see.')).toHaveLength(2)
+    expect(
+      w.synthesized().filter(t => t === 'Hmm, let me think.')
+    ).toHaveLength(1)
+  })
+
+  it('a held answer resumes without saying the wait again', async () => {
+    const w = await waiting()
+    const inner = w.s as unknown as {
+      paused: boolean
+      queue: { text: string; audio: null; filler?: boolean }[]
+      resumeHeld(): void
+    }
+    inner.paused = true
+    inner.queue = [
+      { text: 'Let me see.', audio: null, filler: true },
+      { text: 'The answer.', audio: null },
+    ]
+    inner.resumeHeld()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(w.said).toEqual(['The answer.'])
+  })
+})
