@@ -300,6 +300,12 @@ export const SplitTalkingHeadSchema = z.object({
   splitFaceScale: z.number().default(1),
   splitIsCircle: z.boolean().default(true),
   splitBorderRadius: z.number().default(50),
+  // Where the face sits in the source, as CSS object-position ("50% 34%"). A
+  // split shows the lower half of the frame; without this the cover crop aims at
+  // the middle of a 9:16 lipsync and cuts the top of the head at the seam
+  // (split-reel.t27 v3). Undefined keeps the centre crop.
+  splitFacePosition: z.string().optional(),
+  fullscreenFacePosition: z.string().optional(),
   // Fullscreen mode settings (avatar fills screen)
   fullscreenCircleSize: z.number().default(50),
   fullscreenPositionX: z.number().default(0),
@@ -829,6 +835,8 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   splitFaceScale = 1,
   splitIsCircle = true,
   splitBorderRadius = 50,
+  splitFacePosition,
+  fullscreenFacePosition,
   // Fullscreen mode settings
   fullscreenCircleSize = 50,
   fullscreenPositionX = 0,
@@ -902,6 +910,9 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   const currentRadius = useSplitSettings
     ? splitBorderRadius
     : fullscreenBorderRadius
+  const currentFacePosition = useSplitSettings
+    ? splitFacePosition
+    : fullscreenFacePosition
 
   // For PiP mode
   const isPipMode = layoutDims?.isPip
@@ -1100,6 +1111,9 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
+                    ...(currentFacePosition
+                      ? { objectPosition: currentFacePosition }
+                      : {}),
                     transform: currentIsCircle
                       ? `scale(${currentScale}) translate(${faceOffsetX}%, ${faceOffsetY}%)`
                       : `scale(${(currentSize / 100 + 0.5) * currentScale}) translate(${currentPosX + faceOffsetX}%, ${currentPosY + faceOffsetY}%)`,

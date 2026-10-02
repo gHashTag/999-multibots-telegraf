@@ -430,6 +430,17 @@ CHECKS THAT EACH COST A CYCLE
         The server caps the window at 200 events, so the oldest day in the
         output is partial and its count means nothing on its own.
 
+  tri reel-check REEL.mp4|URL [--body body.json] [--words whisper.json] [--voice voice.mp3] [--sheet out.jpg] [--json]
+        Look at a rendered reel the way the owner does. FACE: in every shot,
+        is the face centred in the window it is shown in (the lower half of a
+        split) and is the top of the head inside it? CAPTIONS: the reel's audio
+        is cross-correlated with the voice file, then every caption is matched
+        to the whisper word of the same text -- whisper of the FINAL voice, not
+        of the notes it was cut from. Shots come from the render body's
+        segments; without one, a seam in the picture marks a split.
+        Thresholds live in split-reel.t27 (FACE_OFF_CENTER_MAX_PCT,
+        HEADROOM_MIN_PCT). Exit 0 clean, 1 defects, 2 not measured.
+
   tri voice [--runs N] | tri голос
         The voice mode end to end: status, warm-up, a fixed phrase spoken in
         Russian and English by OUR engine, and each heard back by OUR whisper
@@ -7670,6 +7681,7 @@ case "$action" in
   # "the id is wrong" for free. Two seconds, and the balance is read before and
   # after so "it cost nothing" is measured rather than claimed.
   kie)                 node "$ROOT/scripts/kie-probe.mjs" "$@" ;;
+  reel-check)          python3 "$ROOT/scripts/reel-check.py" "$@" ;;
   # MEASURE FIRST, THEN DRAW. Building the board without a fresh snapshot is
   # how it came to show only my end-of-cycle prose. --quick skips the merge gate
   # (a full tsc, vitest and an Xcode build); `tri status` runs the slow one.

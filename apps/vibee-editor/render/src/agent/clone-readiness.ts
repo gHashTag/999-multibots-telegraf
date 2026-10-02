@@ -177,6 +177,22 @@ export async function handleClone(
         },
       }
     }
+    /*
+     * AND THE CLONE TABLE. A trained voice (crm_voice_clone, the owner's
+     * R8_5GW2UI4A of 2026-09-29) is a `lead_voices` row, never a `users`
+     * column, so the profile said "no voice" to the owner whose voice was
+     * trained. A missing table is not an answer about this person.
+     */
+    let cloned = false
+    try {
+      const c = await pool.query(
+        `SELECT 1 FROM lead_voices WHERE lead_id = $1 LIMIT 1`,
+        [who]
+      )
+      cloned = c.rows.length > 0
+    } catch {
+      cloned = false
+    }
     return {
       status: 200,
       body: {
@@ -185,7 +201,8 @@ export async function handleClone(
         // `voice_id_elevenlabs`, newer code `voice_id`. Either counts -- a
         // person whose voice exists must not be asked to record it again
         // because it was stored under the name this route did not know.
-        voice: present(row.voice_id_elevenlabs) || present(row.voice_id),
+        voice:
+          present(row.voice_id_elevenlabs) || present(row.voice_id) || cloned,
         photo: present(row.photo_url),
         accounts: await accountsP,
       },
