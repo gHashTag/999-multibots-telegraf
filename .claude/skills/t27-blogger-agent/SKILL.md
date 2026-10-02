@@ -277,6 +277,7 @@ enterForNewline: true })` sends `"\r"`, which is what the Enter key types;
 - **A missing button closes the draft too** (#3375). If the box, the plus or
   "Post all" is not found, nothing was pressed, so the draft is closed before
   the share-link fallback opens -- two X drafts of one article side by side
-  invite a double post. After "Post all" the tab stays: it is the evidence.
+  invite a double post. After "Post all" the tab closes only when the post
+  is seen on the profile; otherwise it stays open as the evidence.
 - **`tri blog-share detail` rc 2 = the database did not answer** (#3377), not
   "no such article". Before, a refused connection read as a missing row.
