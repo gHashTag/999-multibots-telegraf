@@ -419,6 +419,16 @@ describe('the hive page answers its game frame', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
+    it('a sign-in request from the same-origin board frame opens the login modal', async () => {
+      const { frame, load } = renderFrame()
+      load()
+      deliver(SIGN_IN, frame, window.location.origin)
+      await flush()
+      expect(getDefaultStore().get(showLoginModalAtom)).toBe(true)
+      expect(modal()).not.toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
     it('control: the same message from another origin or window opens nothing', async () => {
       const { frame, load } = renderFrame()
       load()
