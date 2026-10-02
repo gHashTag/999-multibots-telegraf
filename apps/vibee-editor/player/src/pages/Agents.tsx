@@ -12,6 +12,8 @@ import { VerdictLine } from '@/components/Agents/VerdictLine'
 import { CheckedTools } from '@/components/Agents/CheckedTools'
 import { useAgentAvatars } from '@/hooks/useAgentAvatars'
 import { AgentFace } from '@/components/Chat/AgentFace'
+import { MyAgentPackage } from '@/components/Agents/MyAgentPackage'
+import { useUserLevel } from '@/hooks/useUserLevel'
 import { PackageCards } from '@/components/Agents/PackageCards'
 import './Agents.css'
 
@@ -109,6 +111,12 @@ export function AgentsPage() {
   /* The measured half of the card: the last acceptance run, per agent. */
   const verdicts = useAgentAcceptance()
   const faces = useAgentAvatars()
+  /*
+   * Someone who already has an agent is shown theirs, not the sale (owner,
+   * 2026-10-02). The admin's own view keeps the sale: it is what they test.
+   */
+  const { level, packages } = useUserLevel()
+  const owner = level && level !== 'admin' ? level : null
   // A keeper may open a trainee (#2957); asked only if there is one.
   const keeper = useIsKeeper(
     MARKETPLACE_AGENTS.some(agent => agent.status !== 'live')
@@ -257,10 +265,16 @@ export function AgentsPage() {
         </section>
 
         <section className="agents-packages" id="packages">
-          <p className="agents-eyebrow">T27 · AGENTS</p>
-          <h2>{text.packages}</h2>
-          <p>{text.packagesBody}</p>
-          <PackageCards lang={l} />
+          {owner ? (
+            <MyAgentPackage level={owner} packages={packages} lang={l} />
+          ) : (
+            <>
+              <p className="agents-eyebrow">T27 · AGENTS</p>
+              <h2>{text.packages}</h2>
+              <p>{text.packagesBody}</p>
+              <PackageCards lang={l} />
+            </>
+          )}
         </section>
 
         <section className="harness-callout">

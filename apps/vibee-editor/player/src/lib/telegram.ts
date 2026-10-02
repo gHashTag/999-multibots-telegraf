@@ -125,6 +125,42 @@ export function isVersionAtLeast(version: string): boolean {
   }
 }
 
+/**
+ * Telegram's per-user CloudStorage (Bot API 6.9+): the one store that follows
+ * a person from the phone to the desktop. Never throws, never hangs: a client
+ * without it, or one that does not answer in 3 s, reads as "nothing stored".
+ */
+export function cloudGet(
+  key: string,
+  timeoutMs = 3000
+): Promise<string | null> {
+  const store = getWebApp()?.CloudStorage
+  if (!store || !isVersionAtLeast('6.9')) return Promise.resolve(null)
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(null), timeoutMs)
+    try {
+      store.getItem(key, (error, value) => {
+        clearTimeout(timer)
+        resolve(error || !value ? null : value)
+      })
+    } catch {
+      clearTimeout(timer)
+      resolve(null)
+    }
+  })
+}
+
+/** Fire-and-forget write to CloudStorage; a failure costs only the sync. */
+export function cloudSet(key: string, value: string): void {
+  const store = getWebApp()?.CloudStorage
+  if (!store || !isVersionAtLeast('6.9')) return
+  try {
+    store.setItem(key, value)
+  } catch {
+    // Too long, bad key, or an old client: the local memory still holds.
+  }
+}
+
 /** The launch user, when Telegram supplied one. Never trust this for auth — */
 /** initData must be verified server-side against the bot token first. */
 export function getTelegramUser(): TelegramWebAppUser | null {

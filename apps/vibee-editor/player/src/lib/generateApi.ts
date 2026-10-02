@@ -9,6 +9,7 @@ import { isTelegram } from './telegram'
 import { isAdmin } from '../config/admin'
 import { toAbsoluteUrl } from './mediaUrl'
 import { authHeaders as sharedAuthHeaders } from './apiFetch'
+import { readRefusal } from './generationRefusal'
 
 // Use Vibee MCP for AI generations (not render server)
 const API_URL = API_BASE
@@ -170,6 +171,8 @@ export interface GenerateResult {
    * and no way to buy more. That is the most engaged person in the product.
    */
   insufficientTokens?: boolean
+  /** The failure's name from the server; `error` is then its detail. */
+  code?: string
   /** Actual media alignment; absent when the provider cannot supply timing. */
   timed_captions?: unknown
 }
@@ -208,13 +211,16 @@ export async function generateImage(
   })
 
   if (!response.ok) {
-    const text = await response.text()
+    // The server's words and its `code`, not the raw body: the panel used
+    // to show the JSON braces and all (lib/generationRefusal.ts).
+    const refusal = readRefusal(await response.text())
     return {
       // 402 is this server's "not enough tokens"; every other status is a
       // failure a top-up would not fix.
       insufficientTokens: response.status === 402,
       success: false,
-      error: text || 'Image generation failed',
+      code: refusal.code,
+      error: refusal.detail,
     }
   }
 
@@ -336,13 +342,16 @@ export async function generateVideo(
   })
 
   if (!response.ok) {
-    const text = await response.text()
+    // The server's words and its `code`, not the raw body: the panel used
+    // to show the JSON braces and all (lib/generationRefusal.ts).
+    const refusal = readRefusal(await response.text())
     return {
       // 402 is this server's "not enough tokens"; every other status is a
       // failure a top-up would not fix.
       insufficientTokens: response.status === 402,
       success: false,
-      error: text || 'Video generation failed',
+      code: refusal.code,
+      error: refusal.detail,
     }
   }
 
@@ -368,13 +377,16 @@ export async function generateAudio(
   })
 
   if (!response.ok) {
-    const text = await response.text()
+    // The server's words and its `code`, not the raw body: the panel used
+    // to show the JSON braces and all (lib/generationRefusal.ts).
+    const refusal = readRefusal(await response.text())
     return {
       // 402 is this server's "not enough tokens"; every other status is a
       // failure a top-up would not fix.
       insufficientTokens: response.status === 402,
       success: false,
-      error: text || 'Audio generation failed',
+      code: refusal.code,
+      error: refusal.detail,
     }
   }
 
@@ -400,13 +412,16 @@ export async function generateLipsync(
   })
 
   if (!response.ok) {
-    const text = await response.text()
+    // The server's words and its `code`, not the raw body: the panel used
+    // to show the JSON braces and all (lib/generationRefusal.ts).
+    const refusal = readRefusal(await response.text())
     return {
       // 402 is this server's "not enough tokens"; every other status is a
       // failure a top-up would not fix.
       insufficientTokens: response.status === 402,
       success: false,
-      error: text || 'Lipsync generation failed',
+      code: refusal.code,
+      error: refusal.detail,
     }
   }
 

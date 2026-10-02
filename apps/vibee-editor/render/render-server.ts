@@ -59,6 +59,7 @@ import {
   getJobDurable,
   listJobsDurable,
 } from './generate-jobs'
+import { stampRefusalCode, refusalCodeFor } from './generation-refusal'
 import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
@@ -140,7 +141,8 @@ function browserBrokerDeps(): BrowserDeps {
   }
 }
 configureAgentStart(browserBrokerDeps)
-import { identityWithSource } from './src/agent/routes'
+import { identityWithSource, personIdentity } from './src/agent/routes'
+import { handleTriWallet } from './src/tri-wallet'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import {
@@ -698,6 +700,7 @@ import {
 import { rewriteAppUrlsForToken } from './src/app-links'
 import { renderFeedEntry } from './src/render-feed-entry'
 import * as MEETINGS from './src/spec/meeting-reminders.gen'
+import { TICK_MS as BLOG_SHARE_TICK_MS } from './src/spec/blog-share.gen'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -2961,23 +2964,21 @@ setTimeout(
  * Not thirty: the service rarely lives forty-five minutes, so a half-hour
  * timer restarted by every deploy often never fired at all. The pace (once
  * a day) lives in blog_shares.asked_at, not here.
- * Off unless BLOG_SHARE_ENABLED=1.
+ * Off unless BLOG_SHARE_ENABLED=1. The interval is the spec's TICK_MS
+ * (specs/automation/blog-share.t27).
  */
-setInterval(
-  () => {
-    void (async () => {
-      try {
-        const { runBlogShare } = await import('./src/agent/blog-share-wiring')
-        const said = await runBlogShare(getPool() as any)
-        if (said !== 'off' && said !== 'asked today already')
-          console.log(`[blog-share] ${said}`)
-      } catch (e) {
-        console.error('[blog-share] failed:', String(e).slice(0, 300))
-      }
-    })()
-  },
-  5 * 60 * 1000
-)
+setInterval(() => {
+  void (async () => {
+    try {
+      const { runBlogShare } = await import('./src/agent/blog-share-wiring')
+      const said = await runBlogShare(getPool() as any)
+      if (said !== 'off' && said !== 'asked today already')
+        console.log(`[blog-share] ${said}`)
+    } catch (e) {
+      console.error('[blog-share] failed:', String(e).slice(0, 300))
+    }
+  })()
+}, BLOG_SHARE_TICK_MS)
 
 /*
  * THE REDDIT DESK: ANSWER THE COMMENTS, POST WHERE IT IS WELCOME
@@ -3744,6 +3745,10 @@ const server = createServer(async (req, res) => {
     res.end(
       JSON.stringify({
         error: auth.statusCode === 403 ? 'forbidden' : 'unauthorized',
+        // The name the clients translate (generation-refusal.ts). This guard
+        // answers before any route, so an expired session -- the most common
+        // failed generation -- never reached the routes' own stamp.
+        code: refusalCodeFor(auth.statusCode ?? 401),
         detail: auth.reason,
         hint: 'send X-Api-Key (server to server) or X-Telegram-Init-Data (Mini App)',
       })
@@ -4315,6 +4320,8 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/image - ordered provider chain, see the handler body
   if (req.url === '/api/generate/image' && req.method === 'POST') {
+    // Every failure below leaves with a `code` the clients translate.
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -4621,6 +4628,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/video - Generate video (MCP Kling/Veo3 → Replicate fallback)
   if (req.url === '/api/generate/video' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -5257,6 +5265,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/audio - Generate TTS using ElevenLabs (direct API call)
   if (req.url === '/api/generate/audio' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -5726,6 +5735,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/lipsync - Generate lipsync video using fal.ai VEED Fabric
   if (req.url === '/api/generate/lipsync' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     let billedTid: string | undefined
     let billedSeconds = 0
@@ -9325,6 +9335,22 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify(ответ.тело))
     return
   }
+
+  /*
+   * /api/tri/wallet[/challenge] -- a person binds the TON address their TRI
+   * would be paid to (src/tri-wallet.ts). Only the person's own credential
+   * counts (personIdentity): an agent key, the server key or a game token can
+   * read a name but must not be able to redirect a payout.
+   */
+  if (
+    await handleTriWallet(req, res, {
+      getPool,
+      personOf: personIdentity,
+      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
+    })
+  )
+    return
 
   /*
    * POST /api/story/next -- the client's own one press for her next story
