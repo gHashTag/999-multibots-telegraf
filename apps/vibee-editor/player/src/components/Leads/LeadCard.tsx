@@ -5,8 +5,9 @@
 
 import { useState, useCallback } from 'react'
 import { Check, X, MessageSquare, BellOff, ExternalLink } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
-import { ru } from 'date-fns/locale'
+// Per-function paths, not the barrels: see the note in pages/Crm.test.tsx.
+import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
+import { ru } from 'date-fns/locale/ru'
 import type { Lead, LeadAction } from '@/atoms/leads'
 import { useLanguage } from '@/hooks/useLanguage'
 import './LeadCard.css'
