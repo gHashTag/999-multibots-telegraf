@@ -353,10 +353,18 @@ if (name === 'all') {
       const child = spawn(
         'node',
         [process.argv[1], each, '--width', w, '--lang', l],
-        { env: { ...process.env, TRI_SHOT_BASE: vite.base } }
+        {
+          env: { ...process.env, TRI_SHOT_BASE: vite.base },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }
       )
       let stdout = ''
       child.stdout.on('data', c => (stdout += c))
+      // Drain stderr even though only stdout carries the verdict: an unread
+      // pipe fills at ~64 KB and the child then blocks forever on a write.
+      child.stderr.resume()
+      // A child that cannot start is "not measured", not a crash of the matrix.
+      child.on('error', () => done({ stdout, status: 2 }))
       child.on('close', status => done({ stdout, status }))
     })
   const results = new Array(runs.length)
