@@ -74,3 +74,59 @@ export function resumeTarget(
   if (screen && !PASSED_THROUGH.has(screen)) return screen
   return chat ?? screen ?? HOME
 }
+
+/** The last conversation and when it was opened, as kept in CloudStorage. */
+export interface ChatMark {
+  path: string
+  at: number
+}
+
+/**
+ * The CloudStorage key. Telegram allows only `A-Za-z0-9_-`, so it cannot be
+ * the localStorage key.
+ */
+export const CLOUD_LAST_CHAT = 'vibee_last_chat'
+
+export function encodeChatMark(mark: ChatMark): string {
+  return JSON.stringify(mark)
+}
+
+/** Whatever CloudStorage held, or null: it is another device's word, unchecked. */
+export function decodeChatMark(
+  raw: string | null | undefined
+): ChatMark | null {
+  if (!raw) return null
+  try {
+    const v = JSON.parse(raw) as Partial<ChatMark>
+    if (typeof v.path !== 'string' || !isConversation(v.path)) return null
+    if (typeof v.at !== 'number' || !Number.isFinite(v.at)) return null
+    return { path: v.path, at: v.at }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * THE CONVERSATION FROM ANOTHER DEVICE, OR NOTHING.
+ *
+ * localStorage lives on one device. A person who answered a client on the
+ * phone and opened the app on the desktop landed on the feed or the sales
+ * page there. CloudStorage answers only after launch, so the launch redirect
+ * cannot wait for it; this decides, once the answer arrives, whether to move.
+ *
+ * It moves only when the person is still where the launch put them, that
+ * place is one they pass through or an older conversation restored from this
+ * device, and the cloud's conversation is newer than this device's. A person who already tapped somewhere is never pulled away.
+ */
+export function cloudResume(input: {
+  landed: string
+  current: string
+  localAt: number
+  cloud: ChatMark | null
+}): string | null {
+  const { landed, current, localAt, cloud } = input
+  if (!cloud || current !== landed) return null
+  if (!PASSED_THROUGH.has(landed) && !isConversation(landed)) return null
+  if (cloud.at <= localAt || cloud.path === landed) return null
+  return cloud.path
+}

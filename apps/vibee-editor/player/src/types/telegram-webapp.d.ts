@@ -65,6 +65,19 @@ interface TelegramWebAppInitData {
   start_param?: string
 }
 
+/** Bot API 6.9+: up to 1024 keys per user per bot, kept by Telegram. */
+interface TelegramCloudStorage {
+  setItem(
+    key: string,
+    value: string,
+    callback?: (error: string | null, stored?: boolean) => void
+  ): void
+  getItem(
+    key: string,
+    callback: (error: string | null, value?: string) => void
+  ): void
+}
+
 interface TelegramWebApp {
   // Bot API 6.0+
   initData: string
@@ -110,6 +123,9 @@ interface TelegramWebApp {
   requestFullscreen?: () => void
   exitFullscreen?: () => void
   isFullscreen?: boolean
+
+  // Bot API 6.9+ — absent on older clients.
+  CloudStorage?: TelegramCloudStorage
 }
 
 interface Window {

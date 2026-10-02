@@ -18,6 +18,7 @@ const KEEP = new Set([
   'vibee-last-route',
   /* The last conversation: where a returning person is taken back to. */
   STORAGE_KEYS.lastChat,
+  STORAGE_KEYS.lastChatAt,
   'vibee-soul',
   /*
    * Not written by the person, but about them: "you have been greeted".
