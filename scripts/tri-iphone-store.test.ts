@@ -115,8 +115,22 @@ describe('tri iphone store / testflight', () => {
     const documented = [
       ...src.matchAll(/^#? *tri iphone \[([\w|-]+)\]/gm),
     ].flatMap(m => m[1].split('|'))
+    // The header's one-line-per-mode table: `#   tri iphone sim   ...`.
+    const perLine = [...src.matchAll(/^#\s+tri iphone ([a-z][\w-]*)/gm)].map(
+      m => m[1]
+    )
+    // The refusal's own `modes:` list is typed by hand; it must not offer a
+    // word the function would refuse, nor leave one out.
+    const offered = (body.match(/modes: ([^"]+)"/)?.[1] ?? '')
+      .replace('(default)', '')
+      .split(/\s+/)
+      .filter(Boolean)
     expect(documented.length).toBeGreaterThan(5)
-    expect(documented.filter(m => !known.has(m))).toEqual([])
+    expect(perLine.length).toBeGreaterThan(5)
+    expect(
+      [...documented, ...perLine, ...offered].filter(m => !known.has(m))
+    ).toEqual([])
+    expect([...known].filter(m => !offered.includes(m))).toEqual([])
   })
 
   it('stops at the first failing lane and says which', () => {
