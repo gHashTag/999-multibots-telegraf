@@ -205,6 +205,10 @@ CHECKS THAT EACH COST A CYCLE
         node_modules through the link, i.e. the MAIN checkout's, and every
         linked tree breaks at once. `tri deps --heal` reinstalls the main
         checkout when that has happened.
+        It also names every package this tree declares that the linked
+        node_modules lacks, and the branch the main checkout is on: a
+        sibling session that switched it to an older branch makes root-types
+        fail on TS2307 for a reason that is neither main nor this code.
 
   tri price <ModeName>
         Print the STATIC base cost of a mode from BASE_COSTS before you treat an
@@ -3345,6 +3349,34 @@ link_deps() {
   return 0
 }
 
+# Packages a package.json in this tree declares that node cannot find from it
+# through a LINKED node_modules: one "dir: name name" line per directory. Only linked directories --
+# a tree's own install is its own business.
+deps_absent() {
+  local wt="$1" rel dir
+  while IFS= read -r rel; do
+    [ -L "$wt/$rel" ] || continue
+    dir="$(dirname "$rel")"
+    [ -f "$wt/$dir/package.json" ] || continue
+    node -e '
+      const fs = require("fs"), path = require("path")
+      const [dir, label] = process.argv.slice(1)
+      const p = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"))
+      const names = Object.keys({ ...p.dependencies, ...p.devDependencies })
+      // Up the tree the way node resolves: a package hoisted to a parent
+      // node_modules is present, not absent.
+      const found = n => {
+        for (let d = dir; ; d = path.dirname(d)) {
+          if (fs.existsSync(path.join(d, "node_modules", n, "package.json"))) return true
+          if (d === path.dirname(d)) return false
+        }
+      }
+      const gone = names.filter(n => !found(n))
+      if (gone.length) console.log(`${label}: ${gone.join(" ")}`)
+    ' "$wt/$dir" "$dir"
+  done < <(cd "$wt" && { echo node_modules; find apps -maxdepth 4 -type l -name node_modules 2>/dev/null; })
+}
+
 cmd_deps() {
   # Worktrees made by `tri worktree` get their node_modules linked; the ones a
   # bee, the Claude app or a plain `git worktree add` makes do not. Then the
@@ -3384,6 +3416,23 @@ cmd_deps() {
       bad "missing $bin -- the gate that calls it will fail on ENOENT, not on code"; rc=1
     fi
   done
+  # A link is the main checkout's node_modules, installed for whatever branch
+  # THAT checkout is on. When a sibling session has switched it to an older
+  # branch, packages this tree declares are simply absent (2026-10-03:
+  # root-types failed on TS2307 'redis' -- the main checkout sat on a branch
+  # from before #2230). Name them and the branch, so it is not read as a debt
+  # of main or a fault of this tree's code.
+  if [ "$wt" != "$main" ]; then
+    local absent on
+    absent="$(deps_absent "$wt")"
+    if [ -n "$absent" ]; then
+      on="$(git -C "$main" branch --show-current 2>/dev/null)"
+      bad "declared in this tree, absent from the linked node_modules:"
+      sed 's/^/       /' <<<"$absent"
+      echo "       the main checkout is on ${on:-a detached HEAD}: its install, not this tree's code -- tsc reads it as TS2307"
+      rc=1
+    fi
+  fi
   [ "$wt" != "$main" ] && [ -L "$wt/node_modules" ] && \
     echo "  note no root npm ci / bun install in this tree: node_modules is the main checkout's, and an install empties it"
   if [ -d "$main/node_modules" ] && [ -z "$(ls -A "$main/node_modules" 2>/dev/null)" ]; then
