@@ -259,7 +259,13 @@ export default function HiveAccount() {
 
   const switchModel = (provider: HiveKey['provider']) => {
     if (busy || !account) return
-    const model = (drafts[provider] ?? '').trim()
+    // The dropdown shows the provider's current model until the person picks
+    // another; applying it as shown must bring the odd keys along too.
+    const shown =
+      drafts[provider] ??
+      account.providers.find(row => row.id === provider)?.model ??
+      ''
+    const model = shown.trim()
     if (!model || !differs(provider, model)) return
     void perform(
       async signal => {

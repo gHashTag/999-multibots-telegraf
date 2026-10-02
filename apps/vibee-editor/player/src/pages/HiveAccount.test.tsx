@@ -336,6 +336,15 @@ describe('personal contribution account', () => {
     expect(row.querySelector('select')!.value).toBe('test-model')
     expect(row.querySelector('button')!.disabled).toBe(false)
     expect(row.textContent).toContain('Применить ко всем (2)')
+    api.mockResolvedValueOnce(makeAccount())
+    await act(async () => row.querySelector('button')!.click())
+    expect(api.mock.calls[1][0]).toBe(
+      'https://render.example.test/api/hive/keys/model'
+    )
+    expect(JSON.parse(api.mock.calls[1][1].body)).toEqual({
+      provider: 'nvidia',
+      model: 'test-model',
+    })
   })
 
   it('names a failed model check and changes nothing', async () => {
