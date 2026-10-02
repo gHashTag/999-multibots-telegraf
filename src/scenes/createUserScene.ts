@@ -35,7 +35,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   } = ctx.from
 
   const finalUsername = username || first_name || telegram_id.toString()
-  const photo_url = getPhotoUrl(ctx, 1)
+  const photo_url = getPhotoUrl(ctx)
 
   // Extract invite code using the helper function
   const inviteCode = extractInviteCodeFromContext(ctx)
@@ -596,6 +596,13 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     ctx.session.clubDeepLink = undefined
     const { showClubCard } = await import('@/navigation/helpers/clubCard')
     await showClubCard(ctx, 'deeplink')
+    return ctx.scene.leave()
+  }
+
+  // Somebody who came to order an agent has been answered already; the photo
+  // onboarding would push that answer out of sight.
+  if (ctx.session.agentPackageOrdered) {
+    ctx.session.agentPackageOrdered = undefined
     return ctx.scene.leave()
   }
 

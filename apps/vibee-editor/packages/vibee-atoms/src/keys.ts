@@ -5,7 +5,16 @@
 // SINGLE SOURCE OF TRUTH for all storage keys
 // ===============================
 
-import type { Track, Asset, CaptionItem, CaptionStyle, AvatarConfig, AvatarModeSettings, Marker, SnapSettings } from './types'
+import type {
+  Track,
+  Asset,
+  CaptionItem,
+  CaptionStyle,
+  AvatarConfig,
+  AvatarModeSettings,
+  Marker,
+  SnapSettings,
+} from './types'
 
 // ===============================
 // Key Version Registry
@@ -124,6 +133,18 @@ export const STORAGE_KEYS = {
   /** Последний открытый экран. Telegram умеет запускать мини-апп только с
    * корня, поэтому без этого каждый возврат начинался с ленты. */
   lastRoute: 'vibee-last-route',
+  /**
+   * The last conversation: the agent's chat or a client's chat in the CRM.
+   * On launch it wins over a screen a person only passed through, such as
+   * the sales page (components/Navigation/RouteMemory.tsx).
+   */
+  lastChat: 'vibee-last-chat',
+  /**
+   * When the last conversation was opened here, in ms. Compared with the copy
+   * kept in Telegram's CloudStorage, so a person who answered a client on the
+   * phone lands in that chat on the desktop too (lib/launchMemory.ts).
+   */
+  lastChatAt: 'vibee-last-chat-at',
   timelineZoom: 'vibee-timeline-zoom',
   snapSettings: 'vibee-snap-settings',
   playbackRate: 'vibee-playback-rate',
@@ -218,7 +239,18 @@ export const STORAGE_KEYS = {
   onboardingComplete: 'vibee-onboarding-complete',
   onboardingStep: 'vibee-onboarding-step',
   tooltipsShown: 'vibee-tooltips-shown',
-  welcomeModalSeen: 'vibee-welcome-seen',
+  /**
+   * The welcome screen (/welcome) was shown once. Set as soon as it is shown;
+   * survives the storage reset (player/src/lib/storageReset.ts), or every
+   * version bump would greet a returning person as a stranger.
+   */
+  welcomeSeen: 'vibee-welcome-seen',
+  /**
+   * The level an admin switched to, to see the app as a manager, a blogger
+   * or a developer (player/src/hooks/useUserLevel.ts). Layout only; swept by
+   * the storage reset like any setting.
+   */
+  viewLevel: 'vibee-view-level',
 
   // ============= NEW: Performance =============
   renderQuality: 'vibee-render-quality',
@@ -346,12 +378,17 @@ export interface StorageValueTypes {
 }
 
 // Type-safe getter for storage key
-export function getStorageKey<K extends StorageKeyName>(key: K): StorageKeyValue {
+export function getStorageKey<K extends StorageKeyName>(
+  key: K
+): StorageKeyValue {
   return STORAGE_KEYS[key]
 }
 
 // Validate all keys are unique (runtime check)
-export function validateStorageKeys(): { valid: boolean; duplicates: string[] } {
+export function validateStorageKeys(): {
+  valid: boolean
+  duplicates: string[]
+} {
   const values = Object.values(STORAGE_KEYS)
   const seen = new Set<string>()
   const duplicates: string[] = []
@@ -381,12 +418,42 @@ export function getKeysByPrefix(prefix: string): StorageKeyValue[] {
 
 // Key categories for organization
 export const KEY_CATEGORIES = {
-  playback: ['playbackSpeed', 'volume', 'isMuted', 'fps', 'zoom', 'loop'] as StorageKeyName[],
-  export: ['exportQuality', 'exportFormat', 'exportIncludeAudio', 'exportSettings'] as StorageKeyName[],
-  avatar: ['avatarConfig', 'splitAvatarSettings', 'fullscreenAvatarSettings', 'avatarAnimation', 'avatarBorderEffect'] as StorageKeyName[],
+  playback: [
+    'playbackSpeed',
+    'volume',
+    'isMuted',
+    'fps',
+    'zoom',
+    'loop',
+  ] as StorageKeyName[],
+  export: [
+    'exportQuality',
+    'exportFormat',
+    'exportIncludeAudio',
+    'exportSettings',
+  ] as StorageKeyName[],
+  avatar: [
+    'avatarConfig',
+    'splitAvatarSettings',
+    'fullscreenAvatarSettings',
+    'avatarAnimation',
+    'avatarBorderEffect',
+  ] as StorageKeyName[],
   captions: ['captions', 'captionStyle', 'showCaptions'] as StorageKeyName[],
-  project: ['project', 'tracks', 'assets', 'drafts', 'currentDraftId'] as StorageKeyName[],
-  ui: ['theme', 'sidebarCollapsed', 'timelineHeight', 'canvasZoom', 'panelSizes'] as StorageKeyName[],
+  project: [
+    'project',
+    'tracks',
+    'assets',
+    'drafts',
+    'currentDraftId',
+  ] as StorageKeyName[],
+  ui: [
+    'theme',
+    'sidebarCollapsed',
+    'timelineHeight',
+    'canvasZoom',
+    'panelSizes',
+  ] as StorageKeyName[],
   user: ['user', 'myProfile', 'language', 'authToken'] as StorageKeyName[],
   sync: ['syncStatus', 'lastSyncTime', 'offlineQueue'] as StorageKeyName[],
 } as const

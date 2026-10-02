@@ -15,8 +15,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { checkBot } = require('./bridge.cjs')
 
-const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token (ZZ, not the AA real-token shape)
-const CLOUD = '900000012:ZZcloudcloudcloudcloudcloudcloudcloud' // secret-guard-ok: fake fixture token (ZZ, not the AA real-token shape)
+const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token
+const CLOUD = '900000012:ZZcloudcloudcloudcloudcloudcloudcloud' // secret-guard-ok: fake fixture token
 
 const saved = { ...process.env }
 afterEach(() => {

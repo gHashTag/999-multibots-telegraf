@@ -52,6 +52,8 @@ let story: unknown = STORY
 let fail = false
 let picks: unknown = { leads: [], count: 0 }
 let lastPick: { lead: unknown; on: unknown } | null = null
+/** Hold this chat's context read until `wait` settles: a slow server. */
+let gate: { chat: string; wait: Promise<void> } | null = null
 
 vi.stubGlobal(
   'fetch',
@@ -60,6 +62,9 @@ vi.stubGlobal(
     const name = String(body?.params?.name ?? '')
     const args = (body?.params?.arguments ?? {}) as Record<string, unknown>
     if (fail) return new Response('nope', { status: 500 })
+    const held =
+      name === 'crm_lead_context' && gate !== null && args.chat === gate.chat
+    if (held) await gate!.wait
     if (name === 'crm_story_reel' && story === REFUSED)
       return new Response(
         JSON.stringify({
@@ -69,8 +74,9 @@ vi.stubGlobal(
         }),
         { status: 200, headers: { 'content-type': 'application/json' } }
       )
-    const data =
-      name === 'crm_lead_context'
+    const data = held
+      ? { ...CONTEXT, name: 'Late A' }
+      : name === 'crm_lead_context'
         ? context
         : name === 'crm_story_reel'
           ? story
@@ -100,6 +106,7 @@ beforeEach(() => {
   fail = false
   picks = { leads: [], count: 0 }
   lastPick = null
+  gate = null
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -173,6 +180,29 @@ describe('the card', () => {
  * a setting that sends messages), and a tick that stays on after the server
  * refused it.
  */
+describe('switching clients', () => {
+  // Each read is drawn as it answers (CRM mobile loop, tick 7); a slow
+  // answer for the client just left must not land on the next one's card.
+  it("a late answer for the last client is not drawn on this one's card", async () => {
+    let open = () => {}
+    gate = {
+      chat: '900000301',
+      wait: new Promise<void>(r => {
+        open = r
+      }),
+    }
+    await show('900000301')
+    context = { ...CONTEXT, name: 'B Client' }
+    await show('900000302')
+    await act(async () => {
+      open()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(text()).toContain('B Client')
+    expect(text()).not.toContain('Late A')
+  })
+})
+
 describe('AUTO for this client', () => {
   it('is not drawn at all until the list is known', async () => {
     fail = true

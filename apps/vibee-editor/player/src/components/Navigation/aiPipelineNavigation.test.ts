@@ -7,6 +7,7 @@ describe('AI pipeline primary navigation', () => {
   it('keeps the editor inside AI and starts from the script', () => {
     expect(PRIMARY_NAV_ITEMS.map(tab => tab.id)).toEqual([
       'hive',
+      'tasks',
       'feed',
       'chat',
       'browser',

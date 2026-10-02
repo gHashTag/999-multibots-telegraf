@@ -171,7 +171,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     description_en: `Recraft 20b SVG is an affordable and fast model for generating vector images. It is designed to efficiently create high-quality SVG graphics from text inputs, making it ideal for both personal and commercial projects.`,
     description_ru: `Recraft 20b SVG — это доступная и быстрая модель для генерации векторных изображений. Она предназначена для эффективного создания высококачественной SVG-графики из текстовых данных, что делает её идеальной для личных и коммерческих проектов.`,
     previewImage:
-      'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/bot/Screenshot%202568-01-08%20at%2015.23.03.png',
+      'https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/bot/Screenshot%202568-01-08%20at%2015.23.03.png',
     costPerImage: calculateFinalImageCostInStars(0.044),
     inputType: ['text', 'dev'],
   },
@@ -193,7 +193,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     description_en: `Recraft V3 SVG is a cutting-edge text-to-image model that generates high-quality SVG images, including logos and icons. It excels in prompt understanding, allowing for accurate visual representations and seamless integration of text and image elements. The model supports brand style customization and offers both raster and vector image generation.`,
     description_ru: `Recraft V3 SVG — это передовая модель преобразования текста в изображение, создающая высококачественные SVG-изображения, включая логотипы и иконки. Она превосходит в понимании промптов, обеспечивая точные визуальные представления и бесшовную интеграцию текстовых и графических элементов. Модель поддерживает настройку стиля бренда и предлагает генерацию как растровых, так и векторных изображений.`,
     previewImage:
-      'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/bot/Screenshot%202568-01-08%20at%2015.24.41.png',
+      'https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/bot/Screenshot%202568-01-08%20at%2015.24.41.png',
     costPerImage: calculateFinalImageCostInStars(0.08),
     inputType: ['text', 'dev'],
   },

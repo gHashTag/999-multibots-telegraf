@@ -19,6 +19,7 @@
  */
 import { useState } from 'react'
 import { isAdmin } from '@/config/admin'
+import { LevelSwitch } from '@/components/Level/LevelSwitch'
 import {
   canStillPay,
   screenVerdict,
@@ -62,6 +63,7 @@ export function AdminScreenBadge(props: {
 
       {open && (
         <div className="admin-badge__body">
+          <LevelSwitch variant="chips" />
           <dl className="admin-badge__facts">
             {v.rows.map(row => (
               <div key={row.label} className="admin-badge__fact">

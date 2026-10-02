@@ -37,19 +37,38 @@
  * session only -- the owner included. A card says what the agent is on and
  * whether it asks the person; it carries no token, endpoint or pod (those
  * columns are never selected) and opens the app's /game/browser view.
+ *
+ * v4: the caller's own meetings are a fifth source. An ended meeting nobody
+ * answered is due, one starting within a day is ours. A card carries the five
+ * MEETING_FIELDS -- never the tap or calendar token, the call link or the place.
+ *
+ * v5: jcrm owes the reply whenever the newest message is inbound, and a
+ * machine's message always is. A matter whose every address is a machine's or
+ * the owner's own domain has nobody to answer: its ball is none, and it is
+ * counted as `automated`, never dropped.
+ *
+ * v6: hh.ru is a relay. An employer's message arrives from its no-reply
+ * address, so an address on `RELAY_DOMAIN` is never a machine's.
+ *
+ * v7: jcrm keys a matter by domain, so a mailbox provider (gmail.com) is one
+ * matter of many people under one stage. Such a matter is counted as `pooled`
+ * and its card says so; the ball stays jcrm's -- there is no per-person stage
+ * here to replace it. No CRM person matched a mail matter when measured, so
+ * the CRM-mail join stays the explicit `ball_link`.
  */
 
 import { ensureApprovals, pendingApprovalFor } from '../browser/approvals'
 import { inputRequestView, pendingInput } from '../browser/input-request'
 import { readJournal } from '../browser/journal'
 import * as SPEC from '../spec/ball-board.gen'
+import { TABLE as MEETINGS_TABLE } from '../spec/meeting-reminders.gen'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { OWNER_TELEGRAM_ID, requireOwner } from './telegram-tools'
 import type { AgentTool, ToolContext } from './tools'
 
 type Pool = ToolContext['pool']
 type Ball = 'ours' | 'due' | 'theirs' | 'none'
-type Source = 'crm' | 'mail' | 'github' | 'browser'
+type Source = 'crm' | 'mail' | 'github' | 'browser' | 'meeting'
 type LinkKind = 'email' | 'domain' | 'repo' | 'label' | 'title'
 
 /* ------------------------------------------------------ the spec's decisions */
@@ -159,6 +178,7 @@ export function cardSpec(source: string, titleSpec: string): string {
   if (source === SPEC.SOURCE_CRM) return SPEC.SPEC_OF_CRM
   if (source === SPEC.SOURCE_MAIL) return SPEC.SPEC_OF_MAIL
   if (source === SPEC.SOURCE_BROWSER) return SPEC.SPEC_OF_BROWSER
+  if (source === SPEC.SOURCE_MEETING) return SPEC.SPEC_OF_MEETING
   return ''
 }
 
@@ -199,6 +219,37 @@ export function browserVisible(rowIsCallers: boolean): boolean {
   return rowIsCallers
 }
 
+/* ------------------------------------------------------- meetings (v4) */
+
+/** The spec's `meeting_ball`: an ended, unanswered meeting is due; a near one is ours. */
+export function meetingBall(
+  ended: boolean,
+  answered: boolean,
+  startsSoon: boolean
+): Ball {
+  if (ended && !answered) return SPEC.BALL_DUE as Ball
+  if (ended) return SPEC.BALL_NONE as Ball
+  if (startsSoon) return SPEC.BALL_OURS as Ball
+  return SPEC.BALL_NONE as Ball
+}
+
+/**
+ * The only meeting columns a card may carry. The tap and calendar tokens are
+ * keys, the call link and the place are the person's own, so the read SELECTs
+ * exactly these -- a column added later is refused by default.
+ */
+export const MEETING_FIELDS = [
+  'title',
+  'starts_at',
+  'ends_at',
+  'mode',
+  'status',
+] as const
+
+export function meetingFieldShown(field: string): boolean {
+  return (MEETING_FIELDS as readonly string[]).includes(field)
+}
+
 /** The page a journal step was on, without its query or fragment. */
 function bareUrl(detail: Record<string, unknown> | null | undefined): string {
   const u = detail?.url
@@ -230,6 +281,60 @@ export function clientKey(client: string): string {
 function addressOf(raw: string): string {
   const angled = /<([^<>]+)>/.exec(raw)
   return (angled ? angled[1] : raw).trim().toLowerCase()
+}
+
+// The spec's `automated_marker` list, in the spec's order.
+const AUTOMATED_MARKERS = [
+  'noreply',
+  'donotreply',
+  'mailerdaemon',
+  'postmaster',
+  'bounce',
+  'dmarc',
+  'notification',
+] as const
+
+export function automatedMarker(marker: string): boolean {
+  return (AUTOMATED_MARKERS as readonly string[]).includes(marker)
+}
+
+/** A machine's address (a marker, separators removed) or the owner's own domain. */
+export function relayDomain(domain: string): boolean {
+  return (
+    domain === SPEC.RELAY_DOMAIN || domain.endsWith(`.${SPEC.RELAY_DOMAIN}`)
+  )
+}
+
+export function machineOrOwn(raw: string): boolean {
+  const a = addressOf(raw)
+  const domain = a.split('@')[1] ?? ''
+  if (domain === SPEC.OWN_DOMAIN || domain.endsWith(`.${SPEC.OWN_DOMAIN}`))
+    return true
+  // A relay's no-reply delivers a person's words (v6): never a machine.
+  if (relayDomain(domain)) return false
+  const flat = a.replace(/[.\-_+]/g, '')
+  return AUTOMATED_MARKERS.some(m => flat.includes(m))
+}
+
+/** The spec's `nobody_to_answer`: a matter with no address is not judged. */
+export function nobodyToAnswer(
+  addresses: number,
+  machineOrOwnN: number
+): boolean {
+  return addresses > 0 && machineOrOwnN === addresses
+}
+
+/** The spec's `pooled_matter`: a shared-domain matter with more than one person. */
+export function pooledMatter(matterIsShared: boolean, people: number): boolean {
+  return matterIsShared && people > 1
+}
+
+/** The spec's `mail_ball_weighed`: nobody to answer is none, else jcrm's call. */
+export function mailBallWeighed(
+  owesReply: string | null | undefined,
+  nobody: boolean
+): Ball {
+  return nobody ? (SPEC.BALL_NONE as Ball) : mailBall(owesReply)
 }
 
 /** The client of a mail matter: an exact address link first, then a domain. */
@@ -414,11 +519,16 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
     async handler(_args, ctx: ToolContext) {
       const owner = callerIsOwner(ctx)
       const entries: Array<{ key: string; name: string; card: Card }> = []
+      // Mail matters only machines or the owner wrote (AUTOMATED_IS_COUNTED).
+      let automated = 0
+      // Matters that are a mailbox provider, not one client (POOLED_IS_COUNTED).
+      let pooled = 0
       const sources: Record<Source, SourceStatus> = {
         crm: { status: 'empty', cards: 0 },
         mail: { status: 'empty', cards: 0 },
         github: { status: 'empty', cards: 0 },
         browser: { status: 'empty', cards: 0 },
+        meeting: { status: 'empty', cards: 0 },
       }
 
       // Links are the owner's; anybody else simply has none to apply.
@@ -485,7 +595,16 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
           } else {
             for (const m of rows) {
               if (!fresh(ageH(m.exported_at))) continue
-              const linked = mailClient(m.counterparties ?? [], links)
+              const cps: string[] = m.counterparties ?? []
+              const nobody = nobodyToAnswer(
+                cps.length,
+                cps.filter(machineOrOwn).length
+              )
+              if (nobody) automated += 1
+              const people = cps.filter(a => !machineOrOwn(a)).length
+              const pool = pooledMatter(sharedDomain(String(m.matter)), people)
+              if (pool) pooled += 1
+              const linked = mailClient(cps, links)
               entries.push({
                 key: linked ? clientKey(linked) : `mail:${m.matter}`,
                 name: linked ?? String(m.matter),
@@ -493,9 +612,15 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
                   source: 'mail',
                   ref: String(m.matter),
                   title: String(m.next_action ?? m.stage ?? m.matter),
-                  ball: mailBall(m.owes_reply),
+                  ball: mailBallWeighed(m.owes_reply, nobody),
                   days: typeof m.days_since === 'number' ? m.days_since : null,
-                  because: m.stage ? String(m.stage) : null,
+                  because: nobody
+                    ? 'only machines or our own address wrote'
+                    : pool
+                      ? `${people} people share ${m.matter}: one stage for all of them`
+                      : m.stage
+                        ? String(m.stage)
+                        : null,
                   link: null,
                   spec: cardSpec(SPEC.SOURCE_MAIL, '') || null,
                 },
@@ -629,6 +754,60 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
           : { status: 'unreachable', cards: 0, why: msg }
       }
 
+      // Meetings: the caller's own (MEETING_OWN_ONLY), open, from
+      // MEETING_ASK_BACK_H behind to MEETING_AHEAD_H ahead. Only MEETING_FIELDS
+      // are selected; a card has no link -- the call link is not the board's.
+      try {
+        const r = await ctx.pool.query(
+          `SELECT id, ${MEETING_FIELDS.join(', ')}
+             FROM ${MEETINGS_TABLE}
+            WHERE telegram_id = $1 AND status = $2
+              AND starts_at < now() + make_interval(hours => $3)
+              AND ends_at > now() - make_interval(hours => $4)
+            ORDER BY starts_at`,
+          [
+            String(ctx.telegramId),
+            SPEC.MEETING_OPEN_STATUS,
+            SPEC.MEETING_AHEAD_H,
+            SPEC.MEETING_ASK_BACK_H,
+          ]
+        )
+        const now = Date.now()
+        for (const m of r.rows ?? []) {
+          const starts = new Date(m.starts_at).getTime()
+          const ended = new Date(m.ends_at).getTime() <= now
+          const ball = meetingBall(
+            ended,
+            String(m.status) !== SPEC.MEETING_OPEN_STATUS,
+            !ended && starts - now <= SPEC.MEETING_SOON_H * 3_600_000
+          )
+          entries.push({
+            key: `name:${SPEC.SOURCE_MEETING}`,
+            name: SPEC.SOURCE_MEETING,
+            card: {
+              source: 'meeting',
+              ref: String(m.id),
+              title: String(m.title),
+              ball,
+              days: ended ? daysSince(m.ends_at) : null,
+              because: ended
+                ? 'ended, not answered'
+                : `${m.mode} ${new Date(m.starts_at).toISOString()}`,
+              link: null,
+              spec: cardSpec(SPEC.SOURCE_MEETING, '') || null,
+            },
+          })
+          sources.meeting.cards += 1
+        }
+        sources.meeting.status = sources.meeting.cards ? 'ok' : 'empty'
+      } catch (e) {
+        // Nobody ever booked a meeting here: no table is no meetings, not an outage.
+        const msg = e instanceof Error ? e.message : String(e)
+        sources.meeting = /does not exist/.test(msg)
+          ? { status: 'empty', cards: 0 }
+          : { status: 'unreachable', cards: 0, why: msg }
+      }
+
       const clients = groupByClient(entries)
       const counts = { ours: 0, due: 0, theirs: 0, none: 0 }
       for (const e of entries) counts[e.card.ball] += 1
@@ -647,6 +826,8 @@ export const BALL_BOARD_TOOLS: AgentTool[] = [
         total: entries.length,
         counts,
         unspecced,
+        automated,
+        pooled,
         sources,
         clients: shown,
         clients_total: clients.length,

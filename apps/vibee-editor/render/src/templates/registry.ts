@@ -52,8 +52,10 @@ export interface TemplateCard {
   rules: string[]
 }
 
+// Self-hosted storage behind the Railway supabase-gateway; the cloud Supabase
+// project was switched off on 2026-10-01 with every object path unchanged.
 const STORAGE =
-  'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch'
+  'https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/relaunch'
 
 export const TEMPLATE_CARDS: TemplateCard[] = [
   {
@@ -74,9 +76,19 @@ export const TEMPLATE_CARDS: TemplateCard[] = [
         hint: 'Смонтированные планы липсинка, все на одном аудио',
       },
       { key: 'captions', label: 'Титры пословно', kind: 'captions' },
-      { key: 'music', label: 'Музыка', kind: 'media', hint: 'Chill Memphis Phonk' },
+      {
+        key: 'music',
+        label: 'Музыка',
+        kind: 'media',
+        hint: 'Chill Memphis Phonk',
+      },
       { key: 'brand.eyebrow', label: 'Надстрочник', kind: 'text' },
-      { key: 'brand.name', label: 'Имя (золотом)', kind: 'text', required: true },
+      {
+        key: 'brand.name',
+        label: 'Имя (золотом)',
+        kind: 'text',
+        required: true,
+      },
       { key: 'brand.cta', label: 'Кнопка-адрес', kind: 'text', required: true },
       { key: 'brand.sub', label: 'Подпись под кнопкой', kind: 'text' },
     ],
@@ -146,7 +158,12 @@ export const TEMPLATE_CARDS: TemplateCard[] = [
       'Научная витрина блога. Матовый чёрный фон с зерном, кремово-серебряная гравюра, золотом — исключительно заголовок поста. Пять актов: шапка, заголовок, таблички с измеренными числами, вывод, колофон.',
     accent: '#C9A24B',
     fields: [
-      { key: 'title', label: 'Заголовок (золотом)', kind: 'text', required: true },
+      {
+        key: 'title',
+        label: 'Заголовок (золотом)',
+        kind: 'text',
+        required: true,
+      },
       { key: 'subtitle', label: 'Подзаголовок', kind: 'text' },
       { key: 'dateline', label: 'Дата и время чтения', kind: 'text' },
       { key: 'plates', label: 'Таблички с числами', kind: 'list' },
@@ -200,8 +217,18 @@ export const TEMPLATE_CARDS: TemplateCard[] = [
         kind: 'text',
         hint: 'Необязательно; пусто — акт пропускается',
       },
-      { key: 'cta', label: 'Хвост', kind: 'text', hint: 'По умолчанию — утверждённый CTA' },
-      { key: 'handle', label: 'Бот', kind: 'text', example: '@leela_chakra_ai_bot' },
+      {
+        key: 'cta',
+        label: 'Хвост',
+        kind: 'text',
+        hint: 'По умолчанию — утверждённый CTA',
+      },
+      {
+        key: 'handle',
+        label: 'Бот',
+        kind: 'text',
+        example: '@leela_chakra_ai_bot',
+      },
       { key: 'url', label: 'Адрес', kind: 'text', example: 't27.ai/leela' },
     ],
     rules: [

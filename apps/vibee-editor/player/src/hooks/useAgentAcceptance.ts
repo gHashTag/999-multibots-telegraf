@@ -23,6 +23,12 @@ export interface AcceptanceVerdict {
   streak?: number
   /** Seven of them: the trainee is hireable by evidence. */
   earned?: boolean
+  /**
+   * Still current (render agent-acceptance.ts isFresh, the streak window).
+   * false: the checks stopped, and an old pass must not look like today's.
+   * Absent from an older server: the line then reads as it always did.
+   */
+  fresh?: boolean
 }
 
 export function useAgentAcceptance(): Record<string, AcceptanceVerdict> | null {
@@ -55,6 +61,58 @@ export function checkedDay(iso: string, lang: 'en' | 'ru'): string {
     month: 'short',
     timeZone: 'UTC',
   })
+}
+
+const LINE = {
+  en: {
+    pass: 'Checked on a real account',
+    fail: 'Last check failed',
+    stale: 'Last check',
+    none: 'none since',
+    running: (n: number) => `${n} days running`,
+  },
+  ru: {
+    pass: 'Проверен на живом аккаунте',
+    fail: 'Последняя проверка не прошла',
+    stale: 'Последняя проверка',
+    none: 'свежих нет',
+    running: (n: number) => `${n} дн. подряд`,
+  },
+} as const
+
+export interface VerdictLine {
+  tone: 'pass' | 'fail' | 'stale'
+  text: string
+}
+
+/**
+ * THE ONE SENTENCE A CARD SAYS ABOUT ITS LAST CHECK, for every card that
+ * shows one (the market and the welcome screen), so they cannot drift.
+ *
+ * Competitor scan, 2026-10-01: directories that re-check their listings
+ * (mcpi.app every 6 h, VerifyMCP daily, MCPVault weekly) print the day of
+ * the last check and drop the badge when checks stop. Ours printed the day
+ * but kept the tick: a pass from a fortnight ago looked as green as
+ * yesterday's. A stale verdict is now said to be stale, pass or fail.
+ * `withStreak` adds the run of passing days where no other line says it.
+ * Pure.
+ */
+export function verdictLine(
+  v: AcceptanceVerdict,
+  lang: 'en' | 'ru',
+  withStreak = false
+): VerdictLine {
+  const t = LINE[lang]
+  const day = checkedDay(v.at, lang)
+  if (v.fresh === false) {
+    return { tone: 'stale', text: `○ ${t.stale} · ${day} · ${t.none}` }
+  }
+  if (!v.pass) return { tone: 'fail', text: `✗ ${t.fail} · ${day}` }
+  const run =
+    withStreak && typeof v.streak === 'number' && v.streak >= 2
+      ? ` · ${t.running(v.streak)}`
+      : ''
+  return { tone: 'pass', text: `✓ ${t.pass} · ${day}${run}` }
 }
 
 /**

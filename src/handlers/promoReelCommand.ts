@@ -1,6 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { renderOnServer } from '@/services/renderServer/client'
+import { PUBLIC_STORAGE_BASE } from '@/config/publicStorage'
 
 /**
  * /promoreel [url-говорящего-аватара] — собрать промо-рилс УДАЛЁННО.
@@ -14,8 +15,7 @@ import { renderOnServer } from '@/services/renderServer/client'
  * (низ) + промо-ролик (верх) в сплите, начало и финал — во весь экран.
  */
 
-const STORAGE_BASE =
-  'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch'
+const STORAGE_BASE = `${PUBLIC_STORAGE_BASE}/images/relaunch`
 
 /** Аватар по умолчанию — сгенерированный 21.08.2026 (LoRA gimba + OmniHuman). */
 const DEFAULT_AVATAR_VIDEO = `${STORAGE_BASE}/avatar-talking.mp4`

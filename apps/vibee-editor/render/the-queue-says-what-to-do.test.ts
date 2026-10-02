@@ -127,6 +127,11 @@ describe('the queue says what to do, not only who is waiting', () => {
     expect(row.urgency).toBe('overdue')
     expect(String(row.next_why)).toContain('4 дн.')
     expect(String(row.intent)).toContain('без приветствия незнакомцу')
+    // The same reasons as codes, for a screen in another language: the
+    // player printed the Russian lines above verbatim in English (tick 12).
+    expect(row.because_code).toBe('they_wrote')
+    expect(row.next_why_code).toBe('waits_days')
+    expect(row.next_why_vars).toEqual({ days: 4 })
   })
 
   it('what is late is read first', async () => {

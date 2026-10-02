@@ -20,8 +20,12 @@ import {
 // values written there silently revert.
 // ===============================
 
-/** Routes with nothing to go "back" to — the BackButton stays hidden. */
-const ROOT_ROUTES = new Set(['/', '/feed'])
+/**
+ * Routes with nothing to go "back" to — the BackButton stays hidden.
+ * /welcome is a first screen too: LaunchRedirect lands on it with `replace`,
+ * so history holds nothing behind it and a Back there was a dead button.
+ */
+const ROOT_ROUTES = new Set(['/', '/feed', '/welcome'])
 
 function setVar(name: string, value: string) {
   document.documentElement.style.setProperty(name, value)
