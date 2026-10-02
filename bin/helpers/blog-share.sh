@@ -15,8 +15,8 @@
 # Every listing ends with the desk's NEXT step (2026-10-03): a night was spent
 # asking "why is the blog not posted" when the answer was the pace -- one
 # question every ASK_EVERY_MS, the next due two hours later, about an article
-# already in the feed. The pace is read from the spec's generated module, not
-# copied here.
+# already in the feed. The pace and the feed are read by the desk's own code
+# (tsx: parseRss and the spec constants), not copied here.
 set -u
 . "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?repo root required}"
@@ -87,14 +87,35 @@ SELECT count(*) FILTER (WHERE state = 'declined' AND done_at - asked_at < interv
   FROM blog_shares"
 # The desk's next step, in the desk's own order (blogShareTick): an open
 # question first, then the pace, then the newest feed article never offered.
-GEN=apps/vibee-editor/render/src/spec/blog-share.gen.ts
-EVERY=$(grep -oE 'ASK_EVERY_MS = [0-9]+' "$GEN" | grep -oE '[0-9]+$')
-WAIT=$(grep -oE 'ANSWER_WAIT_MS = [0-9]+' "$GEN" | grep -oE '[0-9]+$')
-TICK=$(grep -oE 'TICK_MS = [0-9]+' "$GEN" | grep -oE '[0-9]+$')
+# The desk's own code answers, not a copy of it: tsx runs parseRss and reads
+# the spec constants from the render tree. The first copy here was a regex over
+# <guid> and a grep over the generated module -- it counted items the desk
+# skips (no title, no https link) and would have kept a CDATA wrapper the desk
+# strips. Line 1: ASK_EVERY_MS ANSWER_WAIT_MS TICK_MS; then one slug per line.
+RENDER=apps/vibee-editor/render
+TSX=$RENDER/node_modules/.bin/tsx
+[ -x "$TSX" ] || { echo "next: no tsx in $RENDER/node_modules (tri deps) -- not checked"; exit 2; }
+DESK=$(cd "$RENDER" && { curl -s --max-time 20 https://t27.ai/rss.xml || true; } | node_modules/.bin/tsx -e '
+import { parseRss, ASK_EVERY_MS, ANSWER_WAIT_MS } from "./src/agent/blog-share.ts"
+import { TICK_MS } from "./src/spec/blog-share.gen.ts"
+let xml = ""
+process.stdin.on("data", d => (xml += d)).on("end", () => {
+  console.log(ASK_EVERY_MS, ANSWER_WAIT_MS, TICK_MS)
+  for (const a of parseRss(xml)) console.log(a.slug)
+})' 2>"${TMPDIR:-/tmp}/blog-share-desk.$$.err")
+DESK_RC=$?
+DESK_ERR=$(grep -m1 -E '^ *[A-Za-z]*Error:' "${TMPDIR:-/tmp}/blog-share-desk.$$.err" 2>/dev/null)
+rm -f "${TMPDIR:-/tmp}/blog-share-desk.$$.err"
+# A desk that crashed after printing the pace (parseRss threw) prints no slugs:
+# without its exit status that read as "the feed did not answer" and blamed the
+# feed for our own code (bee review #3430).
+[ "$DESK_RC" -eq 0 ] ||
+  { echo "next: the desk's code failed (rc $DESK_RC${DESK_ERR:+: $DESK_ERR}) -- not checked"; exit 2; }
+read -r EVERY WAIT TICK <<<"$(printf '%s\n' "$DESK" | head -1)"
 # A pace that cannot be read is not a pace of zero: zero would print "asks on
 # the next tick" for a desk that may be hours from asking (bee review #3425).
-[ -n "$EVERY" ] && [ -n "$WAIT" ] && [ -n "$TICK" ] ||
-  { echo "next: $GEN has no ASK_EVERY_MS / ANSWER_WAIT_MS / TICK_MS -- not checked"; exit 2; }
+case "$EVERY$WAIT$TICK" in '' | *[!0-9]*) echo "next: the desk's code did not load ($RENDER) -- not checked"; exit 2 ;; esac
+FEED=$(printf '%s\n' "$DESK" | tail -n +2)
 STATE=$(psql "$URL" -X -q -At -F'|' -c "
 SELECT coalesce((SELECT slug || '|' || round(extract(epoch from now() - asked_at))::text
                    FROM blog_shares WHERE state = 'asked' ORDER BY asked_at DESC LIMIT 1), ''),
@@ -104,9 +125,8 @@ SELECT coalesce((SELECT slug || '|' || round(extract(epoch from now() - asked_at
 # wrong one: a failed read is "not checked", not "nothing was offered".
 SEEN=$(psql "$URL" -X -q -At -c "SELECT slug FROM blog_shares") ||
   { echo "next: the database did not answer -- not checked"; exit 2; }
-FEED=$(curl -s --max-time 20 https://t27.ai/rss.xml) || FEED=
 STATE="$STATE" SEEN="$SEEN" FEED="$FEED" EVERY="$EVERY" WAIT="$WAIT" TICK="$TICK" python3 -c '
-import os, re
+import os
 st = os.environ["STATE"].split("|")
 every, wait, tick = (int(os.environ[k]) // 1000 for k in ("EVERY", "WAIT", "TICK"))
 h = lambda s: f"{s / 3600:.1f} h"
@@ -119,7 +139,7 @@ last = st[-1]
 due = 0 if not last else max(every - int(last), 0)
 when = f"in {h(due)} (one question every {h(every)})" if due else f"on the next tick ({tick // 60} min)"
 seen = set(os.environ["SEEN"].split())
-feed = re.findall(r"<guid[^>]*>([^<]+)</guid>", os.environ["FEED"])
+feed = os.environ["FEED"].split()
 if not feed:
     print(f"next: asks {when}; the feed did not answer -- which article is not checked"); raise SystemExit(2)
 new = [g for g in feed if g not in seen]
