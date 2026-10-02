@@ -2,61 +2,15 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "agent-packages-player",
-      "runtimeExecutable": "/Users/playra/.nvm/versions/node/v22.22.0/bin/node",
-      "runtimeArgs": [
-        "/Users/playra/999-agent-packages/apps/vibee-editor/player/node_modules/vite/bin/vite.js",
-        "/Users/playra/999-agent-packages/apps/vibee-editor/player",
-        "--port",
-        "5188",
-        "--strictPort"
-      ],
-      "port": 5188
+      "name": "vibee-prod",
+      "url": "https://app.t27.ai"
     },
     {
-      "name": "crm-mobile-player",
-      "runtimeExecutable": "/Users/playra/.nvm/versions/node/v22.22.0/bin/node",
-      "runtimeArgs": [
-        "/Users/playra/crm-mobile-ux/apps/vibee-editor/player/node_modules/vite/bin/vite.js",
-        "/Users/playra/crm-mobile-ux/apps/vibee-editor/player",
-        "--port",
-        "5199",
-        "--strictPort"
-      ],
-      "port": 5199
-    },
-    {
-      "name": "game-route-player",
-      "runtimeExecutable": "/Users/playra/.nvm/versions/node/v22.22.0/bin/node",
-      "runtimeArgs": [
-        "/tmp/game-proxy.mjs"
-      ],
-      "port": 5201
-    },
-    {
-      "name": "welcome-worktree",
-      "runtimeExecutable": "/Users/playra/999-agent-packages/apps/vibee-editor/player/node_modules/.bin/vite",
-      "runtimeArgs": [
-        "/Users/playra/999-agent-packages/apps/vibee-editor/player",
-        "--config",
-        "/Users/playra/999-agent-packages/apps/vibee-editor/player/vite.config.ts",
-        "--port",
-        "5188",
-        "--strictPort"
-      ],
-      "port": 5188
-    },
-    {
-      "name": "queen-kanban-phone",
-      "runtimeExecutable": "/usr/bin/python3",
-      "runtimeArgs": [
-        "-m",
-        "http.server",
-        "5231",
-        "--directory",
-        "/Users/playra/trinity-kanban-phone/apps/website/dist"
-      ],
-      "port": 5231
+      "name": "vibee-tma",
+      "runtimeExecutable": "/Users/playom/.nvm/versions/node/v20.19.0/bin/node",
+      "runtimeArgs": ["../../../node_modules/vite/bin/vite.js"],
+      "cwd": "apps/vibee-editor/player",
+      "autoPort": true
     }
   ]
 }
