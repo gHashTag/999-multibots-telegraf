@@ -55,7 +55,8 @@ player/src/lib/voice/sentences.ts      sentence cutting
 player/src/lib/voice/spokenLang.ts     which language a phrase / sentence is in
 player/src/lib/voice/chatVoice.ts      binds a session to one chat thread (send, stop, answering)
 player/src/lib/voice/voiceApi.ts       the four HTTP calls
-player/src/components/Voice/*          orb (five visual modes from the logo), overlay
+player/src/components/Voice/*          orb (five visual modes from the logo), VoiceDock (in the chat), overlay
+player/src/pages/Chat.voiceInChat.test.tsx  voice stays inside the chat (dock, typed -> spoken)
 render/src/voice/voice.ts              speakable(), pickVoice(), warm(), hear(), speak()
 deployment/gigaam/server.py            ears: POST /hear, GET /health (GigaAM v3 ru, Parakeet v2 en)
 deployment/mouth/server.py             mouth: POST /speak, GET /health (Kokoro en, Piper ru, 8 threads)
@@ -316,6 +317,11 @@ mouth`) from a clean tree after a merge that touches `deployment/mouth`.
 
 ## Competitors (researched 2026-10-02)
 
+- ChatGPT, 2025-11-25 (cycle 12): voice is no longer a separate screen.
+  It runs inside the chat with a live transcript and an End button, and
+  typing still gets a spoken answer. The old screen is the "Separate mode"
+  setting. TechCrunch and Engadget covered it. Ours follows since cycle 12:
+  `VoiceDock`, with `voiceSeparateAtom` as the setting.
 - Deepgram Flux: `EagerEndOfTurn` fires a draft transcript before the turn is
   sure, `TurnResumed` cancels it, `EndOfTurn` confirms. Our early hearing is
   the same three events inside the player.
@@ -536,6 +542,30 @@ Traps: the session tests' `say` must let promises settle between ticks
 synchronous tick loop never sees the words arrive and holds every turn to 2500. Leave "on", "in", "about", "so", "мне", "это" and "ну" OUT of the
 list: "turn it on", "покажи мне" and a backchannel "ну" are finished.
 
+## Voice lives inside the chat (cycle 12)
+
+The owner asked, 2026-10-02: why is the voice agent not in the context
+of the chat? The session always sent into the open thread
+(`createChatVoiceSession(thread, ...)`). But the full-screen overlay hid
+that thread: the cards, the earlier answers, and what was just said.
+ChatGPT got the same complaint and moved voice into the chat on
+2025-11-25, keeping "Separate mode" as a setting. We did the same:
+
+- `VoiceDock` is a bar above the chat's own input box. It holds a small
+  orb (tap = interrupt, or restart after an error), the phase, what was
+  heard, and buttons for stop, mute, full screen and End. The
+  conversation stays on screen and scrolls as it grows.
+- **Typing while voice is on** goes to `session.type()`, which answers
+  aloud. Before, the box sent past the session, so the answer was
+  silent. `type()` now accepts input in any phase except `off`: it drops
+  the half-recorded phrase and silences the current answer first.
+- Full screen is a choice that is remembered: `voiceSeparateAtom`
+  (`vibee.voice.separate`). The overlay's top bar has a button back to
+  the chat.
+
+Trap: `useReducedMotion` calls `window.matchMedia`, which jsdom lacks. A
+page test that opens voice must stub it.
+
 ## Weak spots, with status
 
 | #   | weak spot                                             | status                                                            |
@@ -558,6 +588,7 @@ list: "turn it on", "покажи мне" and a backchannel "ну" are finished.
 | 15  | English first sound ~2 s (Kokoro in the whisper pod)  | FIXED cycle 6 (mouth, 8 threads)                                  |
 | 16  | a stalled synthesis silences the whole answer         | FIXED cycle 10 (`speakDeadlineMs`, device voice reads it)         |
 | 17  | first wait phrase cold, skipped at the first question | FIXED cycle 10 (warmed at session open)                           |
+| 18  | full-screen voice hid the chat it talks about         | FIXED cycle 12 (VoiceDock; typed -> spoken; overlay is opt-in)    |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 

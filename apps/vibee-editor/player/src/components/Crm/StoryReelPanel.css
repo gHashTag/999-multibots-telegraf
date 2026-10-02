@@ -510,3 +510,14 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* Her reels inside the chat with the agent (MyStoryWidget foldedIn). */
+.chat-story {
+  margin: 8px 0;
+  padding: 0;
+}
+.chat-story > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 8px 0;
+}

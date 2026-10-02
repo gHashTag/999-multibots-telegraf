@@ -16,6 +16,7 @@ import {
   isRestorable,
   resumeTarget,
 } from '@/lib/launchMemory'
+import { rememberChatTab } from '@/lib/chatTabMemory'
 
 /**
  * Приложение открывается там, где человека прервали.
@@ -157,6 +158,12 @@ export function RouteMemory() {
       // не повод ронять навигацию.
     }
   }, [location.pathname, myProfile?.username])
+
+  // What the agents tab returns to (lib/chatTabMemory.ts). Its own effect:
+  // a new `?c=` conversation is a new place to return to.
+  useEffect(() => {
+    if (!IS_EMBED) rememberChatTab(location.pathname, location.search)
+  }, [location.pathname, location.search])
 
   return null
 }
