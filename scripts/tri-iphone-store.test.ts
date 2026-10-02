@@ -141,20 +141,52 @@ describe('tri iphone store / testflight', () => {
 
   it('a missing app record is exit 3 - waiting on the owner, not broken', () => {
     // The loop polls `tri iphone state` every tick; 3 means "the owner has
-    // not created the record yet", 1 means something here is broken.
+    // not created the record yet", 1 means something here is broken. The
+    // stub fails the way the real lanes do: preflight is offline and passes,
+    // and only the lanes that ask App Store Connect (state, and beta and
+    // metadata, which call state first) report the missing record.
     fs.writeFileSync(
       path.join(bin, 'fastlane'),
-      `#!/bin/sh\necho "$1" >> '${calls}'\necho "[!] App Store Connect has no app with bundle id ai.t27.trinity."\nexit 1\n`,
+      `#!/bin/sh\necho "$1" >> '${calls}'\ncase "$1" in preflight) echo "  ✓ offline"; exit 0 ;; esac\necho "[!] App Store Connect has no app with bundle id ai.t27.trinity."\nexit 1\n`,
       { mode: 0o755 }
     )
-    for (const mode of ['state', 'store']) {
-      const r = iphone(mode)
-      expect(r.rc, mode).toBe(3)
-      expect(r.out).toContain('waiting on the owner')
+    const cases: [string[], string[]][] = [
+      [['state'], ['state']],
+      [['store'], ['preflight', 'state']],
+      // testflight refuses the same way, before anything is built.
+      [['testflight', '--yes'], ['beta']],
+      [['metadata', '--yes'], ['metadata']],
+    ]
+    for (const [args, lanes] of cases) {
+      fs.rmSync(calls, { force: true })
+      const r = iphone(...args)
+      expect(r.rc, args[0]).toBe(3)
+      expect(r.out, args[0]).toContain('waiting on the owner')
+      expect(
+        r.lanes.map(l => l.replace('+yes', '')),
+        args[0]
+      ).toEqual(lanes)
     }
-    // testflight refuses the same way before anything is built.
-    const t = iphone('testflight', '--yes')
-    expect(t.rc).toBe(3)
+  })
+
+  it('a record message left in an OLD log does not turn a new failure into 3', () => {
+    // The verdict reads the log of the lane that just ran. If the log were
+    // appended to (>> instead of >), yesterday's "no app" would make today's
+    // broken run look like waiting.
+    fs.writeFileSync(
+      path.join(bin, 'fastlane'),
+      `#!/bin/sh\necho "[!] App Store Connect has no app with bundle id ai.t27.trinity."\nexit 1\n`,
+      { mode: 0o755 }
+    )
+    expect(iphone('state').rc).toBe(3)
+    fs.writeFileSync(
+      path.join(bin, 'fastlane'),
+      `#!/bin/sh\necho "[!] Could not reach App Store Connect"\nexit 1\n`,
+      { mode: 0o755 }
+    )
+    const r = iphone('state')
+    expect(r.rc).toBe(1)
+    expect(r.out).not.toContain('waiting on the owner')
   })
 
   it('stops at the first failing lane and says which', () => {
