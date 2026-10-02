@@ -1,0 +1,56 @@
+[
+  {
+    "name": "referral asked at the third payer is pushed to the fourth",
+    "file": "src/agent/queen-growth.ts",
+    "from": "if (f.paying < SPEC.REFERRAL_MIN_PAYING) return SPEC.ACT_NEXT_OFFER",
+    "to": "if (f.paying <= SPEC.REFERRAL_MIN_PAYING) return SPEC.ACT_NEXT_OFFER"
+  },
+  {
+    "name": "unknown wallet reads as zero",
+    "file": "src/agent/queen-growth.ts",
+    "from": "if (!f.walletKnown) return SPEC.ACT_UNKNOWN",
+    "to": "if (false) return SPEC.ACT_UNKNOWN"
+  },
+  {
+    "name": "new offer before the open invoice",
+    "file": "src/agent/queen-growth.ts",
+    "from": "if (f.openInvoices > 0) return SPEC.ACT_FOLLOW_UP_INVOICE",
+    "to": "if (f.openInvoices > 1) return SPEC.ACT_FOLLOW_UP_INVOICE"
+  },
+  {
+    "name": "quiet payer is not won back",
+    "file": "src/agent/queen-growth.ts",
+    "from": "if (f.payingInWindow === 0) return SPEC.ACT_WIN_BACK",
+    "to": "if (f.payingInWindow < 0) return SPEC.ACT_WIN_BACK"
+  },
+  {
+    "name": "anyone identified may read anyone",
+    "file": "src/agent/queen-growth.ts",
+    "from": "return identified && subjectIsCaller",
+    "to": "return identified || subjectIsCaller"
+  },
+  {
+    "name": "invoice stays open one day longer",
+    "file": "src/agent/queen-growth.ts",
+    "from": "ageDays <= SPEC.INVOICE_OPEN_DAYS",
+    "to": "ageDays <= SPEC.INVOICE_OPEN_DAYS + 1"
+  },
+  {
+    "name": "cancelled invoice is still open",
+    "file": "src/agent/queen-growth.ts",
+    "from": "return !redeemed && !cancelled &&",
+    "to": "return !redeemed &&"
+  },
+  {
+    "name": "failing ledger is not unknown",
+    "file": "src/agent/queen-growth.ts",
+    "from": "revenue.paying_clients !== null && inWindow !== null && audience !== null",
+    "to": "audience !== null"
+  },
+  {
+    "name": "tool reads without an identity",
+    "file": "src/agent/queen-growth.ts",
+    "from": "if (!mayRead(Boolean(me), true))",
+    "to": "if (!mayRead(true, true))"
+  }
+]
