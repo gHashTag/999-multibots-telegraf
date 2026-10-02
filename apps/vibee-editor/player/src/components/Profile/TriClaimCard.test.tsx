@@ -233,7 +233,7 @@ describe('TriClaimCard', () => {
     await act(async () => button(/Withdraw|Вывести/).click()) // cyrillic-ok: the RU copy is checked too
     await flush()
     expect(host.querySelector('[role="alert"]')?.textContent).toMatch(
-      /already been minted|уже выпущены/
-    ) // cyrillic-ok: the RU copy is checked too
+      /already been minted|уже выпущены/ // cyrillic-ok: the ru UI string under test
+    )
   })
 })

@@ -19,6 +19,7 @@ import {
   type ShareDeps,
   questionFor,
   xThread,
+  staticArticleUrl,
 } from './src/agent/blog-share'
 
 const RSS = `<?xml version="1.0"?><rss><channel>
@@ -338,6 +339,23 @@ describe('every network carries its own tag', () => {
     expect(l.searchParams.get('utm_medium')).toBe('social')
     /* The route after # still opens the same article. */
     expect(l.hash).toBe('#/blog/gf-t')
+  })
+
+  it('the feed link becomes the static page a crawler can read', () => {
+    /* After '#' nothing reaches the server: X drew the home page's card. */
+    expect(staticArticleUrl('https://t27.ai/#/blog/gf-t')).toBe(
+      'https://t27.ai/blog/gf-t/'
+    )
+    expect(staticArticleUrl('https://t27.ai/blog/gf-t/')).toBe(
+      'https://t27.ai/blog/gf-t/'
+    )
+    expect(staticArticleUrl('https://t27.ai/#/queen')).toBe(
+      'https://t27.ai/#/queen'
+    )
+    const [first] = parseRss(
+      '<item><title>T</title><link>https://t27.ai/#/blog/fpga-row</link><guid>fpga-row</guid><description>x</description></item>'
+    )
+    expect(first.link).toBe('https://t27.ai/blog/fpga-row/')
   })
 
   it('the owner is asked with the clean link', () => {
