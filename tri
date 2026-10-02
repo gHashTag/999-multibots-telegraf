@@ -195,6 +195,17 @@ CHECKS THAT EACH COST A CYCLE
         on env-gaps. Prints the path on the last line:
           wt="$(tri worktree fix/my-thing | tail -1)"; cd "$wt"
 
+  tri deps [path]
+        For a worktree tri did NOT make (a bee's, the Claude app's, a plain
+        git worktree add): link every node_modules the main checkout has and
+        this tree lacks, then check the binaries the gates call (esbuild,
+        vitest, render tsc). Without them render-types and bundle-boots go
+        red on ENOENT and read like code faults.
+        Never run a root npm ci / bun install in such a tree: npm empties
+        node_modules through the link, i.e. the MAIN checkout's, and every
+        linked tree breaks at once. `tri deps --heal` reinstalls the main
+        checkout when that has happened.
+
   tri price <ModeName>
         Print the STATIC base cost of a mode from BASE_COSTS before you treat an
         "unbilled paid path" as a defect. A mode absent from BASE_COSTS (AiChat)
@@ -3320,6 +3331,81 @@ cmd_lesson() {
   good 'урок дописан в SKILL.md'
 }
 
+# Link every node_modules the main tree has and the worktree lacks: the root
+# and each app's own (render, player, vibee-atoms...). An existing directory or
+# link is left alone. Prints one line per link made; returns the count.
+link_deps() {
+  local src="$1" wt="$2" rel n=0
+  while IFS= read -r rel; do
+    [ -z "$rel" ] && continue
+    [ -e "$wt/$rel" ] || [ -L "$wt/$rel" ] && continue
+    [ -d "$wt/$(dirname "$rel")" ] || continue
+    ln -s "$src/$rel" "$wt/$rel" && echo "$rel" && n=$((n + 1))
+  done < <(cd "$src" && { echo node_modules; find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/'; })
+  return 0
+}
+
+cmd_deps() {
+  # Worktrees made by `tri worktree` get their node_modules linked; the ones a
+  # bee, the Claude app or a plain `git worktree add` makes do not. Then the
+  # gates fail in ways that read as code faults (2026-10-02, PR #3346):
+  # render-types "tsc not found" summarised as a 240 s red, and bundle-boots
+  # "spawnSync node_modules/.bin/esbuild ENOENT". This links what is missing
+  # from the main checkout and names the binaries the gates call.
+  #
+  # The opposite trap (2026-10-02 23:14): an agent ran a root `npm ci` in a
+  # worktree whose node_modules was such a link. npm empties node_modules
+  # THROUGH the link before replacing it, so the main checkout -- and every
+  # tree linked to it -- lost all its packages at once. When the main root is
+  # empty this says so, and `--heal` reinstalls it there (never here).
+  local heal=0
+  [ "${1:-}" = "--heal" ] && { heal=1; shift; }
+  local wt main made
+  wt="$(git -C "${1:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" \
+    || { bad "not inside a git tree: ${1:-$PWD}"; return 1; }
+  main="$(dirname "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)")"
+  if [ "$wt" = "$main" ]; then
+    good "$wt is the main checkout -- nothing to link"
+  else
+    made="$(link_deps "$main" "$wt")"
+    if [ -n "$made" ]; then
+      good "linked from $main:"; sed 's/^/       /' <<<"$made"
+    else
+      good "every node_modules the main tree has is already here"
+    fi
+  fi
+  local bin rc=0
+  for bin in node_modules/.bin/esbuild node_modules/.bin/vitest \
+      apps/vibee-editor/render/node_modules/.bin/tsc \
+      apps/vibee-editor/player/node_modules/.bin/vitest; do
+    if [ -x "$wt/$bin" ]; then
+      echo "  ok   $bin"
+    else
+      bad "missing $bin -- the gate that calls it will fail on ENOENT, not on code"; rc=1
+    fi
+  done
+  [ "$wt" != "$main" ] && [ -L "$wt/node_modules" ] && \
+    echo "  note no root npm ci / bun install in this tree: node_modules is the main checkout's, and an install empties it"
+  if [ -d "$main/node_modules" ] && [ -z "$(ls -A "$main/node_modules" 2>/dev/null)" ]; then
+    bad "the main checkout's node_modules is EMPTY -- a root install through a linked tree does this (npm empties the link's target first)"
+    if [ "$heal" = 1 ]; then
+      local lock_was
+      lock_was="$(git -C "$main" status --porcelain -- bun.lock)"
+      echo "  ...  bun install in $main"
+      if (cd "$main" && bun install --no-summary >/dev/null 2>&1); then
+        # bun.lock drifts on install; put it back unless it was already edited.
+        [ -z "$lock_was" ] && git -C "$main" checkout -q -- bun.lock 2>/dev/null
+        good "main checkout reinstalled -- run tri deps again"
+      else
+        bad "bun install failed in $main"
+      fi
+    else
+      echo "       restore: tri deps --heal   (runs bun install in $main, never in a worktree)"
+    fi
+  fi
+  return $rc
+}
+
 cmd_worktree() {
   # Why a worktree at all: the loop shares the main tree with sibling sessions,
   # and a plain `git checkout -b` there lets another session take the branch out
@@ -3348,13 +3434,7 @@ cmd_worktree() {
   # ERR_MODULE_NOT_FOUND (jotai) -- an env-gap that reads exactly like a
   # regression but is one the worktree invented. Symlink the root and every app
   # node_modules from the main tree so the gate measures the code, not the gap.
-  ln -s "$ROOT/node_modules" "$wt/node_modules"
-  local rel
-  while IFS= read -r rel; do
-    [ -z "$rel" ] && continue
-    mkdir -p "$wt/$(dirname "$rel")"
-    ln -s "$ROOT/$rel" "$wt/$rel"
-  done < <(cd "$ROOT" && find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/')
+  link_deps "$ROOT" "$wt" >/dev/null
   # Smoke the tree before handing it over.
   #
   # Some worktrees deterministically break vite-node module resolution: a bare
@@ -7415,6 +7495,7 @@ case "$action" in
   deployed|выложен)    cmd_deployed ;;
   diverged|разошлись)  cmd_diverged ;;
   worktree|дерево)    cmd_worktree "$@" ;;
+  deps)               cmd_deps "$@" ;;
   price|цена)         cmd_price "$@" ;;
   money-base|база)     cmd_money_base "$@" ;;
   batch-refunds|возвраты) cmd_batch_refunds ;;

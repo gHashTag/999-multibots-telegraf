@@ -11072,3 +11072,24 @@ in Russian and provider dumps in English on any phone. Now:
 
 A new failure kind: add it to `GENERATION_REFUSAL_CODES`, and the contract
 test tells you which client still cannot say it.
+
+## A linked node_modules cuts both ways: missing in foreign trees, emptied by an install through the link
+
+**2026-10-02, PRs #3346, #3355, #3356.**
+
+1. **Missing.** Only `tri worktree` linked node_modules. A bee's tree, the Claude app's, or a plain
+   `git worktree add` had none, and the gates failed like code faults:
+   - render-types: "tsc not found", summarised by lefthook as a red line at 240 s;
+   - bundle-boots: `spawnSync node_modules/.bin/esbuild ENOENT`.
+     **Fix:** run `tri deps` first in any tree tri did not make. It links what is missing and names each
+     missing gate binary.
+2. **Emptied.** An agent ran a root `npm ci` in a tree whose node_modules was such a link. npm
+   empties node_modules THROUGH the link before it replaces it (`~/.npm/_logs`:
+   `warn reify Removing non-directory …/node_modules`). The main checkout lost every package at once,
+   and so did every linked tree.
+   - Find the culprit: grep `verbose (title|cwd)` in `~/.npm/_logs/*` at the dir's mtime.
+   - Restore in the MAIN checkout: `tri deps --heal`, which runs bun install there (22 s, lock untouched).
+   - Never install at the root of a linked tree. If a tree needs its own packages, it should first
+     replace the link with a real directory, then run a per-app `npm ci`.
+3. **A vitest from the symlink is not the gate's vitest.** Symlinked player node_modules resolved
+   vitest 1.6.1, while the lock pins 5.0.2. A local player result can differ from the Docker gate.

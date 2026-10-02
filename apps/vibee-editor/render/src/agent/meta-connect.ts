@@ -156,16 +156,24 @@ export function authorizeUrl(
  * Sealing: a token at rest is ciphertext, and a message never carries one.
  * ------------------------------------------------------------------------- */
 
+/**
+ * The sealing key is META_TOKEN_KEY and nothing else. It used to fall back to
+ * whichever app secret was set, so regenerating that secret on a portal (X's
+ * "Regenerate" is one click) or setting META_TOKEN_KEY later silently turned
+ * every token at rest into ciphertext nobody could open.
+ */
 function keyOf(env: Env): Buffer {
-  const raw =
-    env.META_TOKEN_KEY ||
-    env.META_APP_SECRET ||
-    env.THREADS_APP_SECRET ||
-    env.LINKEDIN_CLIENT_SECRET ||
-    env.X_CLIENT_SECRET ||
-    ''
+  const raw = env.META_TOKEN_KEY || ''
   if (!raw) throw new Error('no key to seal a token with')
   return createHash('sha256').update(`meta-connect:${raw}`).digest()
+}
+
+/** Said before the owner is sent to a network, not after it says yes. */
+export const NO_SEAL_KEY =
+  'не задан META_TOKEN_KEY: токен сети нечем запечатать' // cyrillic-ok: told to the owner
+
+export function canSeal(env: Env = process.env): boolean {
+  return Boolean(env.META_TOKEN_KEY)
 }
 
 export function seal(token: string, env: Env = process.env): string {
@@ -381,6 +389,7 @@ export async function startConnect(
           ? 'не заданы THREADS_APP_ID и THREADS_APP_SECRET' // cyrillic-ok: told to the owner
           : 'не заданы META_APP_ID и META_APP_SECRET', // cyrillic-ok: told to the owner
     }
+  if (!canSeal(env)) return { ok: false, error: NO_SEAL_KEY }
   const nonce = await mintState(q, owner, network)
   return { ok: true, url: authorizeUrl(network, app.id, nonce, env) }
 }
