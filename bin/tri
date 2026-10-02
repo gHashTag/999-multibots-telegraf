@@ -66,6 +66,7 @@ tri — оболочка Trinity S³AI
   tri meta [card SLUG]  Threads/Instagram/Facebook/LinkedIn/X через API: заданы ли приложения, чьи токены, дни; в конце — готова ли каждая сеть и чей ход (без значений)
   tri engage [N]  стол комментариев: что предложено под чужими постами, что ответил владелец, квитанции и ответы людей (сигналы лидов)
   tri runner [deploy]  облачный check-runner: здоров ли и не старше ли кода в main (код 1 — устарел; deploy — выкатить из origin/main)
+  tri online [--wait N] [--json]  can the Mac reach GitHub (dns, git ssh, API), App Store Connect, render; when not -- network (1, wait) or refusal (3, look); --wait N polls GitHub before a retried push
   tri no-verify-debt [base]  шлюзы, пропущенные коммитами с --no-verify, по всей ветке (кириллица, секреты, prettier, eslint)
   tri browser [--json]  состояние браузера: отвечает ли (pod), что в нём открыто (tabs), куда вошёл (logins)
   tri browser <случай>  каждый инструмент агента руками, той же дверью (tri browser help):
@@ -2086,6 +2087,7 @@ PYEOF
   starved) shift; node "$ROOT/bin/helpers/starved.mjs" "$@" ;;
   engage) shift; bash "$ROOT/bin/helpers/engage.sh" "$ROOT" "$@" ;;
   runner) shift; bash "$ROOT/bin/helpers/runner.sh" "$ROOT" "$@" ;;
+  online) shift; (cd "$ROOT" && node "$ROOT/bin/helpers/online.mjs" "$@") ;;
   no-verify-debt) shift; bash "$ROOT/bin/helpers/no-verify-debt.sh" "$ROOT" "$@" ;;
   tabs) shift; bash "$ROOT/bin/helpers/tabs.sh" "$ROOT" "$@" ;;
   heal) shift; bash "$ROOT/bin/helpers/heal.sh" "$ROOT" "$@" ;;
