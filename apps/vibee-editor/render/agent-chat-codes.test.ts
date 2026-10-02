@@ -40,7 +40,9 @@ const handler = routes.slice(rStart, rEnd)
 
 const chat = read('apps', 'vibee-editor', 'render', 'src', 'agent', 'chat.ts')
 const events = [
-  ...chat.matchAll(/\{ тип: '(?:готово|ошибка)';[^}]*code\?: ([^}]+)\}/g), // cyrillic-ok: the event names
+  // Prettier lays a long member over several lines, so no `;` and no one-line
+  // shape is assumed: `{`, the kind, then anything up to `code?:`.
+  ...chat.matchAll(/\{\s*тип: '(?:готово|ошибка)'[;\s][^}]*code\?: ([^}]+)\}/g), // cyrillic-ok: the event names
 ].flatMap(m => quoted(m[1]))
 const yielded = literals(chat)
 
