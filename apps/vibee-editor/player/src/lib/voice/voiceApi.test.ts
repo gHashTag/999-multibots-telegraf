@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { voicePickers } from './voiceApi'
 
 /*
  * The road's clock is module state, so every test gets a fresh module: one
@@ -96,5 +97,31 @@ describe('transcribe: the ears may also judge the end of the turn', () => {
     answering({ text: 'hi', done: 'yes' })
     await transcribe(new Blob(['x']), { onTurn })
     expect(onTurn).not.toHaveBeenCalled()
+  })
+})
+
+describe('voicePickers', () => {
+  const voices = {
+    ru: ['irina', 'dmitri'],
+    en: ['af_heart', 'am_michael'],
+  }
+
+  it('offers a voice for every language the agent speaks, not only the app one', () => {
+    // An English app still speaks Russian sentences in a Russian voice.
+    expect(voicePickers('en', voices).map(p => p.lang)).toEqual(['en', 'ru'])
+  })
+
+  it('puts the app language first', () => {
+    expect(voicePickers('ru', voices).map(p => p.lang)).toEqual(['ru', 'en'])
+  })
+
+  it('skips a language with nothing to choose between', () => {
+    expect(
+      voicePickers('ru', { ru: ['irina'], en: ['af_heart', 'bf_emma'] })
+    ).toEqual([{ lang: 'en', voices: ['af_heart', 'bf_emma'] }])
+  })
+
+  it('offers nothing when the server is unreachable', () => {
+    expect(voicePickers('ru', {})).toEqual([])
   })
 })
