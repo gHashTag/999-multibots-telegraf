@@ -975,7 +975,14 @@ try {
   }
   code = bad ? 1 : 0
 } catch (e) {
-  lines.push(`could not measure: ${e instanceof Error ? e.message : e}`)
+  const msg = e instanceof Error ? e.message : String(e)
+  lines.push(`could not measure: ${msg}`)
+  // The one cause this message has had: a state's locator caught an element
+  // the page swapped out mid-step (crm search at 320px, #3359).
+  if (/not attached to the DOM/.test(msg))
+    lines.push(
+      "       hint    the element was replaced while the state ran -- aim at the final state's own selector and waitFor() it first"
+    )
   code = 2
 } finally {
   await browser?.close().catch(() => {})
