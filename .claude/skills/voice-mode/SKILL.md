@@ -28,6 +28,7 @@ the fallback, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 ./tri ears     # tri уши: gigaam (ru) + parakeet (en) + mouth deploys, render routing
 ./tri turn     # tri ход: does a phrase end the turn (850 ms) or hang (2500 ms); --live
 ./tri turn --audio done-*.wav cut-*.wav   # the ears' voice verdict on REAL recordings
+./tri words    # tri слова: product words heard as said (reels, lipsync...); exit 1 = XX
 ```
 
 `tri voice` needs a person's key in `$AGENT_KEY` (render `AGENT_KEYS`, first
@@ -59,6 +60,7 @@ player/src/lib/voice/voiceApi.ts       the four HTTP calls
 player/src/components/Voice/*          orb (five visual modes from the logo), VoiceDock (in the chat), overlay
 player/src/pages/Chat.voiceInChat.test.tsx  voice stays inside the chat (dock, typed -> spoken)
 render/src/voice/voice.ts              speakable(), pickVoice(), warm(), hear(), speak()
+render/src/voice/hotwords.ts           fixWords(): misheard product words put right after ANY engine (`tri words`)
 deployment/gigaam/server.py            ears: POST /hear[?turn=1], GET /health (GigaAM v3 ru, Parakeet v2 en, "turn")
 deployment/gigaam/turn.py              Smart Turn v3.2: numpy Whisper log-mel + onnx, Turn.done(samples)
 deployment/gigaam/test_turn.py         that log-mel against transformers (run where transformers is)
@@ -602,6 +604,53 @@ download's size against the HF API (`?blobs=true`) before pinning. And
 `test_turn.py` proves the features, not the judgement: worst diff 2.2e-06
 against transformers says nothing about Russian.
 
+## Product words put right after hearing (cycle 14)
+
+Measured through the live road (`tri words`: our mouth speaks, our ears
+hear) on 2026-10-02, GigaAM v3, Russian. Each said word came back wrong in
+at least one run, and a SECOND run of the same phrases gave NEW variants --
+the engine is not deterministic across calls, so one probe is not a list:
+
+| said        | heard (two runs)                   |
+| ----------- | ---------------------------------- |
+| reels       | rilz, ril'sa, rels, vilz           |
+| lipsync     | Lipsing, Lepsing, Lifsing, lipsing |
+| neurophoto  | nerofoto, neirofato                |
+| hive (tab)  | uli (every run)                    |
+| lead magnet | lit-magnit, lidmagnit              |
+| Vibee       | Vaib + LATIN e, Vai + LATIN "be"   |
+
+English (Parakeet) heard every product word right, so `en` has no rows.
+
+`render/src/voice/hotwords.ts` puts them right inside `hear()`, whichever
+engine heard (GigaAM or the whisper fallback), so the chat, the agent and
+the turn judge all see the meant word. A row is a heard STEM with the noun
+endings kept (`rilzami` -> `rilsami`), matched as a whole word only. A
+Latin look-alike letter inside a Russian word is mended to Cyrillic, but
+AFTER the rows run: "vaibe" wholly in Cyrillic is a real word ("in the
+vibe"), and only its two-alphabet spelling is the brand.
+
+Competitors do this INSIDE the decoder, not after it. Deepgram Nova-3
+"keyterm prompting": ~100 terms, hard cap 500 tokens, 20-50 recommended,
+built into the model (no added latency), multilingual since 2026
+([Deepgram](https://deepgram.com/learn/deepgram-expands-nova-3-with-10-new-languages-and-multilingual-keyterm-prompting),
+[SDK issue #503](https://github.com/deepgram/deepgram-python-sdk/issues/503)).
+NVIDIA NeMo has GPU-PB phrase boosting for CTC, RNN-T and TDT -- Parakeet
+included since NeMo 2.5 -- applied at decoding without retraining, best
+with beam search
+([NeMo word boosting](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/asr_customization/word_boosting.html),
+[TurboBias](https://arxiv.org/pdf/2508.07014)). Our pods run both models
+through `onnx-asr` 0.12 with greedy decoding and no biasing hook, so the
+fix-up table is the free lever today. Moving to NeMo GPU-PB means a NeMo
+runtime and beam search in the pod: worth it only if the table grows past a
+page. (A first draft of this paragraph said "Parakeet has no biasing hook"
+from memory; the search said otherwise.)
+
+Self-critique: synthesized speech, one voice. The rows are what the engine
+returned for OUR mouth -- a person's "reels" may break differently. Grow
+the table from `tri words` and real transcripts, never from guesses: a row
+that fires on a real word is worse than the mishearing.
+
 ## Weak spots, with status
 
 | #   | weak spot                                             | status                                                                                                                                               |
@@ -618,7 +667,7 @@ against transformers says nothing about Russian.
 | 9   | nothing said while the agent thinks for long          | FIXED cycle 9 (filler at 3 s, "still" at 15 s; `tri filler`)                                                                                         |
 | 10  | first sound waits for a whole first sentence          | FIXED cycle 2 (first clause)                                                                                                                         |
 | 11  | voice picker only for the app language                | OPEN                                                                                                                                                 |
-| 12  | product words misheard by every engine ("рилс")       | OPEN -- hotword fix-up                                                                                                                               |
+| 12  | product words misheard by every engine ("рилс")       | FIXED cycle 14 (`hotwords.ts` after hearing; `tri words`) -- table from synthesized speech only                                                      |
 | 13  | English hearing is still whisper, ~2.6 s              | FIXED cycle 5 (Parakeet v2)                                                                                                                          |
 | 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s  | PARTLY cycle 7 (wakeRoad, 32k); sin1->sfo 250 ms is the region                                                                                       |
 | 15  | English first sound ~2 s (Kokoro in the whisper pod)  | FIXED cycle 6 (mouth, 8 threads)                                                                                                                     |
@@ -652,6 +701,8 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    `speakDeadlineMs`: `./tri filler`. A PR that touches `turnEnd.ts`,
    `turnOver` or the eager guess: `./tri turn` (battery, exit 1 on a wrong
    verdict) and `./tri turn --live` (what the real ears keep of a hang).
+   A PR that touches `hotwords.ts`: `./tri words` after the render deploy
+   (exit 1 = a word still misheard, or a row firing on a real word).
 5. Update the tables here in the same PR.
 6. A push that had to skip hooks (`--no-verify`, ssh dropping after a long
    pre-push) skips the player's lint ratchet too. Cycle 7 put 4 errors on
