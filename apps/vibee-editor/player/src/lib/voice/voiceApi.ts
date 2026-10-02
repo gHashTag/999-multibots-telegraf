@@ -142,6 +142,25 @@ export async function fetchVoiceStatus(): Promise<VoiceStatus> {
   }
 }
 
+/**
+ * One voice picker per language the agent can speak, the app's language
+ * first. Every sentence is spoken in the language it is written in (session.ts),
+ * so an English app answering in Russian speaks with a Russian voice -- a
+ * picker for the app language alone left that voice unchoosable. A language
+ * with one voice has nothing to pick and gets no picker.
+ */
+export function voicePickers(
+  appLang: Language,
+  voices: VoiceStatus['voices']
+): { lang: Language; voices: string[] }[] {
+  const langs = (Object.keys(voices) as Language[]).sort((a, b) =>
+    a === appLang ? -1 : b === appLang ? 1 : a.localeCompare(b)
+  )
+  return langs
+    .map(lang => ({ lang, voices: voices[lang] ?? [] }))
+    .filter(p => p.voices.length > 1)
+}
+
 /** "af_heart" -> "Heart", "irina" -> "Irina". */
 export function voiceLabel(id: string): string {
   const name = id.replace(/^[a-z]{2}_/, '')
