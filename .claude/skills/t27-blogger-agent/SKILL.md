@@ -86,3 +86,45 @@ Once #3235 is deployed: `tri blog-share reoffer` lists articles the timer closed
   reported "button not found" on X and LinkedIn: the cold browser had not drawn
   the composer at six seconds. The desk now looks every 3 s up to ~30 s (#3281);
   the path test with late-drawing composers fails on the old code.
+
+## Threads, Instagram and Facebook go by Meta's API (2026-10-02)
+
+**Measured:** the owner's own browser was signed out of Instagram, Threads and
+Facebook (`browser_logins`), so the desk skipped all three on every article.
+A browser that is not signed in cannot post, and asking the agent to sign in
+there each time is the expensive road.
+
+**Fix:** a connector to Meta's own Graph API, written in t27 first:
+`specs/automation/meta-connect.t27` (t27#5523), bound in
+`render/src/spec/meta-connect.*`.
+
+- `publishEverywhere` asks `postByApi` first. A network holding a token goes
+  by the API, and the browser loop skips it. X, LinkedIn and Reddit still go by
+  the browser.
+- Two logins cover three networks:
+  - The Threads login gets a 60-day token, refreshed by `th_refresh_token`
+    once it is a day old and 15 or fewer days remain.
+  - The Facebook Login gets a Page token that never ends. That token also
+    publishes to the Instagram professional account linked to the Page.
+- Instagram needs a public JPEG, and the blog's feed has none. The answer is
+  `GET /api/social/card/<slug>.jpg`: a 1080x1350 dark card with the triangle
+  point-down and the title. The title is looked up in the feed by slug and
+  never taken from the address.
+- The receipt is `опубликовано через API · <permalink>`, built from the
+  published id (`posted()`). `headlineOf` counts it as a success.
+
+**The owner does this once.** We never create the apps or sign in for him.
+
+1. Create the Meta apps: a Threads use case, plus Facebook Login with the
+   Pages and Instagram use cases.
+2. Register the callback
+   `https://vibee-render-production.up.railway.app/api/social/meta/callback`.
+3. Put `THREADS_APP_ID/SECRET` and `META_APP_ID/SECRET` on `vibee-render`.
+   Optionally add `META_PAGE_ID` and `META_TOKEN_KEY`.
+4. Accept the tester invites in Threads and Instagram.
+5. Link the IG professional account to the Page.
+6. Profile → «🔗 Threads, Instagram, Facebook через API» → Подключить.
+
+**First look:** `tri meta` lists which apps are set, which tokens are held,
+the account and the days left. It never prints values. `tri meta card <slug>`
+fetches the card.

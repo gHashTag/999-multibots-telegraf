@@ -859,6 +859,15 @@ const en: Translations = {
   'clone.networks.ask':
     'To connect the rest, tell the agent: "connect my networks". You type passwords yourself.',
   'clone.networks.open': 'Open the browser',
+  // The Meta API connector, owner only (components/Profile/MetaConnectCard.tsx)
+  'meta.card.title': '🔗 Threads, Instagram, Facebook by API',
+  'meta.card.note':
+    "Connect once through Meta's own login, and the blog desk posts there by the API, with the post's id as a receipt. The token stays on the server.",
+  'meta.card.connect': 'Connect',
+  'meta.card.again': 'Reconnect',
+  'meta.card.out': 'not connected',
+  'meta.card.noApp': 'the Meta app is not set on the server yet',
+  'meta.card.days': '{n} days left',
   // Skills the agent in this chat carries (components/Chat/AgentSkillsPanel.tsx)
   'chat.agentSkills.on': 'Skills connected: {own} · plus {general} general',
   'chat.agentSkills.none':
@@ -3656,6 +3665,14 @@ const ru: Translations = {
   'clone.networks.ask':
     'Чтобы подключить остальные, скажите агенту: «подключи мои сети». Пароли вводите вы сами.',
   'clone.networks.open': 'Открыть браузер',
+  'meta.card.title': '🔗 Threads, Instagram, Facebook через API',
+  'meta.card.note':
+    'Подключите один раз через вход Meta — и блог будет публиковаться там через API, с номером поста как квитанцией. Токен остаётся на сервере.',
+  'meta.card.connect': 'Подключить',
+  'meta.card.again': 'Переподключить',
+  'meta.card.out': 'не подключено',
+  'meta.card.noApp': 'приложение Meta на сервере ещё не задано',
+  'meta.card.days': 'осталось дней: {n}',
   'chat.agentSkills.on': 'Навыки подключены: {own} · и общих: {general}',
   'chat.agentSkills.none':
     'Ваших правил для него пока нет: напишите правило ниже — оно подключится со следующего сообщения (сохранится как «{prefix}: …»).',
