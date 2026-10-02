@@ -30,8 +30,13 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
+// Every host is overridable so the test can run with the network down: a
+// test that asks the real DNS fails in the very outage tri online diagnoses.
 const RENDER =
   process.env.TRI_RENDER_URL || 'https://vibee-render-production.up.railway.app'
+const DNS_HOST = process.env.TRI_DNS_HOST || 'github.com'
+const ASC_URL =
+  process.env.TRI_ASC_URL || 'https://api.appstoreconnect.apple.com/v1/apps'
 
 // BatchMode turns a password prompt into a refusal, ConnectTimeout bounds a
 // dead road; both are added to the ssh command already chosen (environment,
@@ -112,15 +117,14 @@ async function httpProbe(url, wantOk) {
 }
 
 const GITHUB = {
-  'github-dns': () => dnsProbe('github.com'),
+  'github-dns': () => dnsProbe(DNS_HOST),
   'git-ssh': () =>
     run('git', ['ls-remote', '--exit-code', 'origin', 'HEAD'], 25000),
   'github-api': () =>
     run('gh', ['api', 'rate_limit', '-q', '.rate.remaining'], 20000),
 }
 const OTHERS = {
-  'app-store-connect': () =>
-    httpProbe('https://api.appstoreconnect.apple.com/v1/apps', false),
+  'app-store-connect': () => httpProbe(ASC_URL, false),
   render: () => httpProbe(`${RENDER}/health`, true),
 }
 

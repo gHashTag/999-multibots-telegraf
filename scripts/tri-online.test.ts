@@ -168,14 +168,24 @@ describe('the command', () => {
       {
         encoding: 'utf8',
         timeout: 60000,
-        env: { PATH: '/nonexistent', TRI_RENDER_URL: 'http://127.0.0.1:9' },
+        // Offline on purpose: localhost resolves from /etc/hosts and port 2
+        // refuses (port 9 is on fetch's blocked list, which reads unknown).
+        env: {
+          PATH: '/nonexistent',
+          TRI_DNS_HOST: 'localhost',
+          TRI_ASC_URL: 'http://127.0.0.1:2/',
+          TRI_RENDER_URL: 'http://127.0.0.1:2',
+        },
       }
     )
     expect(r.stderr).not.toMatch(/TypeError/)
     const out = JSON.parse(r.stdout)
+    expect(out.results['github-dns'].kind).toBe('up')
     expect(out.results['git-ssh'].kind).toBe('unknown')
+    expect(out.results['github-api'].kind).toBe('unknown')
+    expect(out.results['app-store-connect'].kind).toBe('connect')
     expect(r.status).toBe(out.code)
-    expect(r.status).not.toBe(1)
+    expect(r.status).toBe(4)
   })
   it('a bad argument is usage, exit 2, before any probe', () => {
     const r = spawnSync(
