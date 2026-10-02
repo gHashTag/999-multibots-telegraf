@@ -88,8 +88,8 @@ export type CrmBlock =
  * EACH LEVEL'S DASHBOARD: which blocks of the CRM screen it draws. The
  * screen keeps one order of its own; a level only leaves blocks out.
  *
- * - The manager answers people: who waits, who is hot, the client list and
- *   the autopilot that writes for them.
+ * - The manager answers people: who waits, who is hot, the client list, the
+ *   lead tabs and the autopilot that writes for them.
  * - The blogger grows an audience: who came, from where, and who waits.
  * - The developer builds the agent and sells it: the funnel, the autopilot,
  *   the clients and the money they bring.
@@ -109,7 +109,15 @@ export const CRM_DASHBOARD: Record<UserLevel, readonly CrmBlock[]> = {
     'map',
     'leadSections',
   ],
-  manager: ['waiting', 'leads', 'autopilot', 'clients', 'winback', 'funnel'],
+  manager: [
+    'waiting',
+    'leads',
+    'autopilot',
+    'clients',
+    'winback',
+    'funnel',
+    'leadSections',
+  ],
   blogger: ['audience', 'traffic', 'waiting', 'clients', 'leadSections'],
   developer: [
     'funnel',
