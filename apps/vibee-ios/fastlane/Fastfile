@@ -304,8 +304,13 @@ platform :ios do
         clean: true,
         # The number is a BUILD SETTING, not a file edit (see build_number);
         # Info.plist reads $(CURRENT_PROJECT_VERSION).
+        # The auth flags go ONCE, here: gym appends `xcargs` to the export
+        # command as well (package_command_generator_xcode7.rb, after
+        # export_xcargs), so passing them as export_xcargs too gave the
+        # export each flag twice and xcodebuild refused with "option
+        # '-authenticationKeyPath' may only be provided once" - after a full
+        # archive. Found on the first real run, 2026-10-03.
         xcargs: "CURRENT_PROJECT_VERSION=#{number} #{auth}".strip,
-        export_xcargs: auth,
         export_options: {
           # With symbols on, the export looks for an Apple ID to send them
           # with, finds none in a non-interactive shell and dies with "Could
@@ -328,6 +333,15 @@ platform :ios do
 
   desc "Build and upload to TestFlight (internal testers; nothing goes to review)"
   lane :beta do
+    # The upload publishes under the owner's account, so a bare `fastlane
+    # beta` typed by habit refuses: the consent is VIBEE_UPLOAD_YES=1, which
+    # `tri iphone testflight --yes` sets and nothing else does. Leela kept the
+    # upload commented out for the same reason ("a flag can be set by
+    # accident, a comment cannot"); a refusal that names the door is the same
+    # guard without editing the file before every release.
+    unless ENV["VIBEE_UPLOAD_YES"] == "1"
+      UI.user_error!("uploading publishes a build under the owner's account: run `tri iphone testflight --yes` (or VIBEE_UPLOAD_YES=1 fastlane beta)")
+    end
     # `state` first: it refuses a missing app record and a build number that
     # is not above the latest - both of which Apple reports only after the
     # upload, i.e. after the whole build.
