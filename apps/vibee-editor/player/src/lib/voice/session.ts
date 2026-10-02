@@ -805,13 +805,22 @@ export class VoiceSession {
     const text = list[this.fillerTurn[kind] % list.length]
     this.fillerTimer = setTimeout(() => {
       if (!waiting()) return
-      this.fillerSound(text)
+      let ready: { buffer: AudioBuffer | null } | null = null
+      void this.fillerSound(text).then(buffer => (ready = { buffer }))
       this.fillerTimer = setTimeout(() => {
         this.fillerTimer = null
         if (!waiting()) return
         this.fillers++
+        // Still being synthesised at its moment (`tri filler` once saw 37 s):
+        // queued, it would hold the answer behind it. Skip it; the slot is
+        // spent, so the next one is "still".
+        if (!ready) return this.armFiller()
         this.fillerTurn[kind]++
-        this.queue.push({ text, audio: this.fillerSound(text), filler: true })
+        this.queue.push({
+          text,
+          audio: Promise.resolve(ready.buffer),
+          filler: true,
+        })
         void this.pump()
       }, wait - FILLER_PREPARE_MS)
     }, FILLER_PREPARE_MS)
