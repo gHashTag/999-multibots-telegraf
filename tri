@@ -195,7 +195,7 @@ CHECKS THAT EACH COST A CYCLE
         on env-gaps. Prints the path on the last line:
           wt="$(tri worktree fix/my-thing | tail -1)"; cd "$wt"
 
-  tri deps [path]
+  tri deps [--heal] [--own] [path]
         For a worktree tri did NOT make (a bee's, the Claude app's, a plain
         git worktree add): link every node_modules the main checkout has and
         this tree lacks, then check the binaries the gates call (esbuild,
@@ -204,11 +204,21 @@ CHECKS THAT EACH COST A CYCLE
         Never run a root npm ci / bun install in such a tree: npm empties
         node_modules through the link, i.e. the MAIN checkout's, and every
         linked tree breaks at once. `tri deps --heal` reinstalls the main
-        checkout when that has happened.
-        It also names every package this tree declares that the linked
-        node_modules lacks, and the branch the main checkout is on: a
-        sibling session that switched it to an older branch makes root-types
-        fail on TS2307 for a reason that is neither main nor this code.
+        checkout when that has happened (it is named EMPTY, DOTFILES-ONLY,
+        DANGLING or ABSENT, and the command exits 1).
+        `tri deps --own` makes every linked node_modules -- root AND per-app,
+        render/player are links too -- this tree's own copy (copy-on-write
+        clone where the disk can: ~70 s and ~100 MB for all four on APFS),
+        after which an install here is safe.
+        It also names every package a tree's package.json declares that its
+        node_modules lacks (root, render, player): a link carries the main
+        checkout's install, made for THAT checkout's branch, so a tree on a
+        newer origin/main can miss `redis` or `@tonconnect/ui` and fail tsc on
+        "Cannot find module" that reads as a code fault. Before anything is
+        missing it notes a linked install whose package.json declares other
+        packages or versions than this tree's (the same fault a day early),
+        and --heal refuses when the main checkout's package.json is not
+        origin/main's: that install would restore an old branch's packages.
 
   tri price <ModeName>
         Print the STATIC base cost of a mode from BASE_COSTS before you treat an
@@ -3349,19 +3359,17 @@ link_deps() {
   return 0
 }
 
-# Packages a package.json in this tree declares that node cannot find from it
-# through a LINKED node_modules: one "dir: name name" line per directory. Only
-# linked directories -- a tree's own install is its own business. The rule
-# itself lives in scripts/deps-absent.cjs (verify calls it too). With
-# --drift: where the linked package.json differs from this tree's, which is
-# the same fault before anything goes missing.
-deps_absent() {
-  local wt="$1" mode="${2:-}" rel dir
-  while IFS= read -r rel; do
-    [ -L "$wt/$rel" ] || continue
-    dir="$(dirname "$rel")"
-    node "$ROOT/scripts/deps-absent.cjs" $mode "$wt/$dir" "$dir"
-  done < <(cd "$wt" && { echo node_modules; find apps -maxdepth 4 -type l -name node_modules 2>/dev/null; })
+# What a node_modules path holds, in one word, so the "emptied" trap is named
+# in every shape it takes: npm's emptying can leave only dotfiles behind
+# (.package-lock.json, .bin), a removed target leaves a dangling link, and a
+# half-finished install leaves nothing at all.
+nm_state() {
+  local d="$1"
+  if [ -L "$d" ] && [ ! -e "$d" ]; then echo dangling; return; fi
+  if [ ! -e "$d" ]; then echo absent; return; fi
+  if [ -z "$(ls -A "$d" 2>/dev/null)" ]; then echo empty; return; fi
+  if [ -z "$(ls "$d" 2>/dev/null)" ]; then echo dotfiles-only; return; fi
+  echo ok
 }
 
 cmd_deps() {
@@ -3377,14 +3385,27 @@ cmd_deps() {
   # THROUGH the link before replacing it, so the main checkout -- and every
   # tree linked to it -- lost all its packages at once. When the main root is
   # empty this says so, and `--heal` reinstalls it there (never here).
-  local heal=0
-  [ "${1:-}" = "--heal" ] && { heal=1; shift; }
+  #
+  # `--own` is the way out for a tree that really must install: it turns each
+  # link (root AND per-app -- render/player links are just as shared) into the
+  # tree's own copy, cloned copy-on-write where the disk can, so an install
+  # there empties only the copy.
+  local heal=0 own=0 arg path=""
+  for arg in "$@"; do
+    case "$arg" in
+      --heal) heal=1 ;;
+      --own) own=1 ;;
+      -*) bad "unknown flag: $arg (tri deps [--heal] [--own] [path])"; return 1 ;;
+      *) path="$arg" ;;
+    esac
+  done
   local wt main made
-  wt="$(git -C "${1:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" \
-    || { bad "not inside a git tree: ${1:-$PWD}"; return 1; }
+  wt="$(git -C "${path:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" \
+    || { bad "not inside a git tree: ${path:-$PWD}"; return 1; }
   main="$(dirname "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)")"
   if [ "$wt" = "$main" ]; then
     good "$wt is the main checkout -- nothing to link"
+    [ "$own" = 1 ] && echo "  note --own does nothing here: the main checkout's node_modules are its own"
   else
     made="$(link_deps "$main" "$wt")"
     if [ -n "$made" ]; then
@@ -3392,6 +3413,7 @@ cmd_deps() {
     else
       good "every node_modules the main tree has is already here"
     fi
+    [ "$own" = 1 ] && { own_deps "$main" "$wt" || return 1; }
   fi
   local bin rc=0
   for bin in node_modules/.bin/esbuild node_modules/.bin/vitest \
@@ -3403,52 +3425,63 @@ cmd_deps() {
       bad "missing $bin -- the gate that calls it will fail on ENOENT, not on code"; rc=1
     fi
   done
-  # A link is the main checkout's node_modules, installed for whatever branch
-  # THAT checkout is on. When it is an old branch, packages this tree declares
-  # are simply absent (2026-10-03: root-types failed on TS2307 'redis'. The
-  # main checkout had sat since 2026-09-29 on a branch merged 09-23, 2634
-  # commits behind, and the --heal of 2026-10-02 23:20 installed THAT branch's
-  # package.json). Name them and the branch, so it is not read as a debt of
-  # main or a fault of this tree's code.
+  # A link carries the MAIN checkout's install, and that follows the main
+  # checkout's branch, not this tree's (2026-10-03: the main checkout had sat
+  # since 2026-09-29 on a branch merged 09-23, 2634 commits behind; the --heal
+  # of 2026-10-02 23:20 installed THAT package.json, and every tree on
+  # origin/main failed root typecheck on "Cannot find module 'redis'" -- read
+  # as a code fault). The rule lives in scripts/deps-absent.cjs, which verify
+  # calls too: it resolves upwards the way node does, so a package hoisted to
+  # the root is present, not absent.
   local on behind
   on="$(git -C "$main" branch --show-current 2>/dev/null)"
   behind="$(git -C "$main" rev-list --count HEAD..origin/main 2>/dev/null)"
   [ "$behind" = 0 ] && behind=
-  if [ "$wt" != "$main" ]; then
-    local absent
-    absent="$(deps_absent "$wt")"
-    if [ -n "$absent" ]; then
-      bad "declared in this tree, absent from the linked node_modules:"
-      sed 's/^/       /' <<<"$absent"
-      echo "       the main checkout is on ${on:-a detached HEAD}${behind:+, $behind commits behind origin/main}: its install, not this tree's code -- tsc reads it as TS2307"
+  local rel label missing drift
+  while IFS= read -r rel; do
+    [ -f "$wt/$rel/package.json" ] && [ -d "$wt/$rel/node_modules" ] || continue
+    label="$([ "$rel" = . ] && echo root || echo "$rel")"
+    missing="$(node "$ROOT/scripts/deps-absent.cjs" "$wt/$rel" "$label" 2>/dev/null)"
+    missing="${missing#"$label: "}"
+    if [ -n "$missing" ]; then
       rc=1
+      bad "$label declares packages its node_modules lacks: $missing"
+      if [ -L "$wt/$rel/node_modules" ]; then
+        echo "       the link carries $main's install, made for ITS branch (${on:-a detached HEAD}${behind:+, $behind commits behind origin/main}); fix: tri deps --own, then install in this tree"
+      else
+        echo "       install here, in $wt/$rel"
+      fi
     fi
-    local drift
-    drift="$(deps_absent "$wt" --drift)"
-    if [ -n "$drift" ]; then
-      echo "  note the linked install declares other packages than this tree (nothing may be missing yet):"
-      sed 's/^/       /' <<<"$drift"
-      [ -z "$absent" ] && echo "       the main checkout is on ${on:-a detached HEAD}${behind:+, $behind commits behind origin/main}"
-    fi
-  fi
+    # The early warning: the linked install declares other packages than this
+    # tree, while nothing may be missing yet and every gate is still green.
+    drift="$(node "$ROOT/scripts/deps-absent.cjs" --drift "$wt/$rel" "$label" 2>/dev/null)"
+    [ -n "$drift" ] && echo "  note the linked install is another branch's -- $drift"
+  done < <(cd "$wt" && { echo .; find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/' | sed 's|/node_modules$||'; })
   [ "$wt" != "$main" ] && [ -L "$wt/node_modules" ] && \
-    echo "  note no root npm ci / bun install in this tree: node_modules is the main checkout's, and an install empties it"
-  if [ -d "$main/node_modules" ] && [ -z "$(ls -A "$main/node_modules" 2>/dev/null)" ]; then
-    bad "the main checkout's node_modules is EMPTY -- a root install through a linked tree does this (npm empties the link's target first)"
+    echo "  note no root npm ci / bun install in this tree: node_modules is the main checkout's, and an install empties it (tri deps --own first)"
+  local state
+  state="$(nm_state "$main/node_modules")"
+  if [ "$state" != ok ]; then
+    rc=1
+    bad "the main checkout's node_modules is $(tr "[:lower:]" "[:upper:]" <<<"$state") -- a root install through a linked tree does this (npm empties the link's target first)"
     # bun installs the package.json in front of it. If the main checkout's is
     # not origin/main's, a heal restores an old branch's packages and every
     # linked tree goes red on TS2307 instead of ENOENT (2026-10-02 23:20).
     if [ "$heal" = 1 ] && ! git -C "$main" diff --quiet origin/main -- package.json 2>/dev/null; then
       bad "not healing: the main checkout's package.json is not origin/main's (on ${on:-a detached HEAD}${behind:+, $behind commits behind}) -- an install would restore that branch's packages"
       echo "       whoever holds the main checkout brings it to main first; it is not this tree's to switch"
-      rc=1
     elif [ "$heal" = 1 ]; then
-      local lock_was
-      lock_was="$(git -C "$main" status --porcelain -- bun.lock)"
+      # bun.lock drifts on install. Put it back only when nobody was editing
+      # the dependencies: a dirty bun.lock or package.json is someone's work.
+      local dirty
+      dirty="$(git -C "$main" status --porcelain -- bun.lock package.json)"
       echo "  ...  bun install in $main"
       if (cd "$main" && bun install --no-summary >/dev/null 2>&1); then
-        # bun.lock drifts on install; put it back unless it was already edited.
-        [ -z "$lock_was" ] && git -C "$main" checkout -q -- bun.lock 2>/dev/null
+        if [ -z "$dirty" ]; then
+          git -C "$main" checkout -q -- bun.lock 2>/dev/null
+        else
+          echo "  note bun.lock left as the install wrote it: bun.lock/package.json were already edited"
+        fi
         good "main checkout reinstalled -- run tri deps again"
       else
         bad "bun install failed in $main"
@@ -3458,6 +3491,42 @@ cmd_deps() {
     fi
   fi
   return $rc
+}
+
+# Replace every node_modules LINK in the worktree with a real copy of what it
+# points at. Only links into the main checkout are touched; a real directory
+# is already the tree's own. `cp -c` clones on APFS (near-free), `--reflink`
+# does the same on Linux filesystems that can, else it is a plain copy.
+own_deps() {
+  local main="$1" wt="$2" rel target link n=0
+  while IFS= read -r rel; do
+    [ -z "$rel" ] && continue
+    target="$(readlink "$wt/$rel")"
+    case "$target" in
+      "$main"/*) ;;
+      *) echo "  skip $rel -> $target (not the main checkout's)"; continue ;;
+    esac
+    [ -d "$target" ] || { bad "$rel links to a missing $target -- nothing to copy"; return 1; }
+    # A target that is itself a link would be copied AS a link (cp -R does not
+    # follow it), and the tree would still share an install. Copy what it means.
+    link="$target"
+    target="$(cd -P "$target" && pwd)" || return 1
+    rm -- "$wt/$rel" || return 1
+    # A copy that dies half-way leaves a half tree, and the next cp would nest
+    # into it (cp -R SRC EXISTING_DIR copies INTO the dir). Clear between tries.
+    if cp -Rc "$target" "$wt/$rel" 2>/dev/null \
+        || { rm -rf -- "${wt:?}/${rel:?}"; cp -R --reflink=auto "$target" "$wt/$rel" 2>/dev/null; } \
+        || { rm -rf -- "${wt:?}/${rel:?}"; cp -R "$target" "$wt/$rel"; }; then
+      echo "  own  $rel"; n=$((n + 1))
+    else
+      bad "copy of $rel failed -- relink with: ln -s $link $wt/$rel"; return 1
+    fi
+  done < <(cd "$wt" && { [ -L node_modules ] && echo node_modules; find apps -type l -name node_modules 2>/dev/null | grep -v '/node_modules/'; })
+  if [ "$n" = 0 ]; then
+    good "no linked node_modules here -- the tree's are already its own"
+  else
+    good "$n node_modules now belong to this tree -- an install here empties only them"
+  fi
 }
 
 cmd_worktree() {

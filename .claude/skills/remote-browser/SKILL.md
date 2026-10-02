@@ -132,6 +132,17 @@ WKWebView, он режет сторонние куки.
     npx tsx scripts/browser-profile-check.ts  # профиль переживает перезапуск
     npx tsx scripts/browser-live-serve.ts     # поднять и посмотреть глазами
 
+Live, against the owner's real pod, through the agent's own door (`/mcp` +
+agent key) -- the full case list is the header of `bin/helpers/b.sh`
+(`tri browser help`); not copied here:
+
+    tri browser                   # health: pod answers since when + tabs vs cap
+    tri browser status            # tabs with ids; * = where the tools act
+    tri browser find "words" ID   # where a click WOULD land -- no click
+    tri browser blank ID          # why a page is empty: the error that killed it
+    tri browser time [URL]        # new-tab latency; closes only what it opened
+    tri browser call TOOL '{..}'  # any tool, raw
+
 ## Related Resources
 
 - `docs/architecture/remote-browser-per-user.md` — решения и причины
@@ -400,3 +411,29 @@ web composer (file input via CDP), a separate piece of work.
 - **27.09.2026.** A pod cannot be stopped on this platform, so the reaper deleting the session row leaves a browser running with somebody's logins and nothing naming it. The tenant is now recorded in browser_pod_tenants at both moments the knowledge exists: when a session goes live (routes.ts open), and one statement before the row is dropped (reaper.ts). loginsOfPerson falls back to that record, so 'which of my networks are connected' is answered by the browser rather than by a row that is meant to die.
 
 - **27.09.2026.** A restart is proven by Chromium's boot GUID, not by the pod answering afterwards. It is the path of webSocketDebuggerUrl in /json/version; boot.ts reads it before and after and logs restarted | same-browser | unknown. Same GUID plus a silent browser means the driver's restart never happened and only supervisorctl restart chromium inside the pod will cure it -- waiting longer cannot. A page socket is never an identity: pages come and go without a restart.
+
+## Three blind spots found in one night (2026-10-02/03)
+
+Each looked like "the site is broken" and was ours. Diagnose with the case
+named, before touching code.
+
+1. **Shadow DOM** (#3361). The click probe read `document` only; Reddit and
+   LinkedIn draw buttons inside open shadow roots. Symptom: "nothing visible
+   says X" with X on screen. Check: `tri browser find "X" <id>` -- it runs the
+   probe from your checkout, so a probe fix is proven on the live page BEFORE
+   deploy. Closed shadow roots and cross-origin iframes are still not walked.
+2. **No clock on the pod's HTTP API** (#3361). `/json/list`, `/json/new`,
+   activate and close had no timeout; a LinkedIn share open hung the agent
+   > 170 s. Now `LIST_TIMEOUT_MS` (= CALL_TIMEOUT_MS) and
+   > `NEW_PAGE_TIMEOUT_MS` = 60 s. A new tab measured 38-43 s on the starved
+   > pod: `tri browser time` -- above 60 s the clock cuts it, and that is the
+   > pod's problem to fix, not the clock's to raise.
+3. **No GPU = no WebGL.** t27.ai rendered blank in the pod: React died on
+   Babylon's "WebGL not supported" (fix in gHashTag/trinity). `browser_read`
+   returns "" and `browser_screenshot` says "not painted" -- indistinguishable
+   from "still loading" until `tri browser blank <id>` re-imports the page's
+   module scripts with an error listener and names the crash.
+
+Acting live: every case drives the person's real browser (`front` brings a tab
+forward on his screen). When `tri browser status` says the person is watching,
+read, don't drive. Never `type` a password; close only tabs you opened.
