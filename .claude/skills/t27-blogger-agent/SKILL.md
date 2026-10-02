@@ -279,11 +279,17 @@ looked at the result, and pressed "Post all".
 enterForNewline: true })` sends `"\r"`, which is what the Enter key types;
   this was measured in the pod's X composer. It is opt-in because in a chat
   box Enter SENDS.
+- **X "не подтверждено: в профиле не найдено" can mean the text, not the
+  check.** The profile is searched for the TITLE (`needleOf`). On 2026-10-02
+  the first post went out as "The seeg; ..." (#3373), so the title was not
+  there to find. Read the post itself before blaming `confirmOnProfile`.
 - **Reproduce without posting:** `tri browser open https://x.com/compose/post`,
   `tri browser type "…"`, `tri browser composer ID` (each box's text and
   length, the same `tweetTextarea_N` boxes the desk reads, and which of
   Post / Post all / plus are on the page), then `tri browser close ID`.
-  Nothing is pressed, so nothing is published.
+  Nothing is pressed, so nothing is published. Before any of this, `tri
+  browser doctor` lists every tab with unsent composer text: a draft left by
+  an earlier run is found there, not by a second post.
 - **A missing button closes the draft too** (#3375). If the box, the plus or
   "Post all" is not found, nothing was pressed, so the draft is closed before
   the share-link fallback opens -- two X drafts of one article side by side

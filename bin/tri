@@ -67,7 +67,8 @@ tri — оболочка Trinity S³AI
   tri browser [--json]  состояние браузера: отвечает ли (pod), что в нём открыто (tabs), куда вошёл (logins)
   tri browser <случай>  каждый инструмент агента руками, той же дверью (tri browser help):
                  status front focus open time wait read shot desk find layers click xy type
-                 composer eval blank reload close logins sign-in ask ask-input call cover
+                 composer eval blank reload close logins sign-in ask ask-input call cover doctor
+  tri browser doctor  в начале КАЖДОГО тика: все вкладки только чтением — пустая, старая сборка, неотправленный текст X, потолок вкладок, cover; у каждой аномалии готовая команда (код 1)
   tri browser find СЛОВА [ID]  куда лёг бы клик по словам — БЕЗ клика, пробой этой рабочей копии
   tri browser blank [ID]  почему страница пустая: ловит ошибку, уронившую её (t27.ai: WebGL); staleTab = старая сборка, reload ID
   tri browser layers [ID]  кнопка видна, но «не найдена»: тени и фреймы страницы (Reddit: 370 теней)
