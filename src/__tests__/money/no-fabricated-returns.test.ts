@@ -116,8 +116,6 @@ const STUB_PROVIDERS: Record<string, string> = {
     'вторая заглушка HeyGen (тот же класс, другое имя файла)',
   'src/services/kieAI.ts': 'заглушка KIE: stub.kieai.com вместо вызова',
   'src/core/kling.ts': 'заглушка Kling: example.com вместо вызова',
-  'src/services/plan_b/avatar.service.ts':
-    'адрес аватара по умолчанию — заглушка на example.com',
   'src/inngest_app/e2e-test-all-functions.ts': 'сценарий e2e, адреса нарочно',
   'src/inngest_app/send-event.ts': 'ручная отправка события, адреса нарочно',
   'src/api_server/routes/kie-ai-webhook.routes.ts':

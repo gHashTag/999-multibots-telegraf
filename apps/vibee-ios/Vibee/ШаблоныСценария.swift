@@ -21,13 +21,18 @@ struct ШаблонСценария: Codable, Identifiable, Equatable {
   let язык: String
 
   /// Что видно в строке под именем: те же значения, только коротко.
-  var сводка: String { "\(ниша) · \(стиль) · \(секунды)с" }
+  /// The stored values stay Russian (they are the server keys); only the
+  /// line on screen follows the phone's language.
+  var сводка: String {
+    "\(КаталогСценария.label(ниша)) · \(КаталогСценария.label(стиль)) · \(секунды)"
+      + say("s", "с")
+  }
 }
 
 enum ХранилищеШаблонов {
   /// Ключ в UserDefaults. Меняешь — старые шаблоны исчезают у всех, поэтому
   /// он назван один раз и здесь.
-  static let ключ = "vibee.шаблоныСценария"
+  static let ключ = "vibee.шаблоныСценария"  // ru-only-ok: storage key, renaming loses saved templates
 
   /**
    * Добавить шаблон. Возвращает НОВЫЙ список, а не меняет старый на месте:
@@ -90,10 +95,15 @@ enum ХранилищеШаблонов {
  * витрины, советующие разное, хуже одной, не советующей ничего.
  */
 enum СоветыСценария {
-  static let все = [
-    "Зацепка в первые 1–3 секунды",
-    "3 ключевых пункта и призыв в конце",
-    "60–120 слов на 30 секунд",
-    "Смена кадра каждые 3–5 секунд",
+  /// English is the web's own English, word for word (Script.tsx).
+  static let пары: [(en: String, ru: String)] = [
+    ("Hook in first 1-3 sec", "Зацепка в первые 1–3 секунды"),
+    ("3 key points + CTA", "3 ключевых пункта и призыв в конце"),
+    ("60-120 words for 30 sec", "60–120 слов на 30 секунд"),
+    ("Cut every 3-5 sec", "Смена кадра каждые 3–5 секунд"),
   ]
+
+  static func все(russian: Bool = speaksRussian) -> [String] {
+    пары.map { russian ? $0.ru : $0.en }
+  }
 }

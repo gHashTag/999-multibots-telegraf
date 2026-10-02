@@ -81,6 +81,9 @@ import {
  * row (`isSeller`), keyed by the verified id -- nothing about the client is
  * read here.
  */
+/** Why a thread gate refused: the names a client may translate. */
+export type GateCode = 'bad_request' | 'agent_unavailable' | 'not_seller'
+
 export type ThreadGate =
   | {
       ok: true
@@ -93,8 +96,14 @@ export type ThreadGate =
       room?: string
       /** One of several conversations under the base thread (withConversation). */
       conversation?: string
+      /** The kanban card the turn is about, "gHashTag/t27#5382" (withTask). */
+      task?: string
     }
-  | { ok: false; status: number; error: string }
+  /*
+   * `code` names the refusal for a client that translates it
+   * (agent-chat-codes.test.ts); `error` stays the developer's words.
+   */
+  | { ok: false; status: number; code: GateCode; error: string }
 
 /**
  * A trainee that earned its place: STREAK_DAYS passing daily checks in a row
@@ -153,12 +162,22 @@ export async function threadFor(
 ): Promise<ThreadGate> {
   const supervisor = rawRole === 'supervisor'
   if (supervisor && (rawClient == null || rawClient === ''))
-    return { ok: false, status: 400, error: 'supervisor needs a client' }
+    return {
+      ok: false,
+      status: 400,
+      code: 'bad_request',
+      error: 'supervisor needs a client',
+    }
   const wantsAgent = rawAgent != null && rawAgent !== ''
   const wantsClient = rawClient != null && rawClient !== ''
   // The Queen supervises a client's conversation; she brings no specialist.
   if (supervisor && wantsAgent)
-    return { ok: false, status: 400, error: 'supervisor takes no agent' }
+    return {
+      ok: false,
+      status: 400,
+      code: 'bad_request',
+      error: 'supervisor takes no agent',
+    }
   if (wantsAgent && !wantsClient) {
     /*
      * OWNER PREVIEW (#2957). A trainee goes live only after one real run,
@@ -169,7 +188,12 @@ export async function threadFor(
      */
     const agent = await availableAgent(rawAgent, owner, getPool)
     if (!agent)
-      return { ok: false, status: 400, error: 'agent is not available' }
+      return {
+        ok: false,
+        status: 400,
+        code: 'agent_unavailable',
+        error: 'agent is not available',
+      }
     return {
       ok: true,
       thread: marketplaceAgentThread(agent.id),
@@ -193,16 +217,16 @@ export async function threadFor(
   if (rawRoom != null && rawRoom !== '') {
     const room = String(rawRoom).trim()
     if (!ROOM_ID_RE.test(room))
-      return { ok: false, status: 400, error: 'bad room' }
+      return { ok: false, status: 400, code: 'bad_request', error: 'bad room' }
     return { ok: true, thread: roomThread(room), client: null, room }
   }
   if (rawClient == null || rawClient === '')
     return { ok: true, thread: SELF_THREAD, client: null }
   const client = String(rawClient).trim()
   if (!CLIENT_ID_RE.test(client))
-    return { ok: false, status: 400, error: 'bad client' }
+    return { ok: false, status: 400, code: 'bad_request', error: 'bad client' }
   if (client === String(owner))
-    return { ok: false, status: 400, error: 'bad client' }
+    return { ok: false, status: 400, code: 'bad_request', error: 'bad client' }
   let seller = false
   try {
     const { isSeller } = await import('./telegram-tools')
@@ -211,7 +235,8 @@ export async function threadFor(
   } catch {
     seller = false
   }
-  if (!seller) return { ok: false, status: 403, error: 'not a seller' }
+  if (!seller)
+    return { ok: false, status: 403, code: 'not_seller', error: 'not a seller' }
   if (supervisor)
     return {
       ok: true,
@@ -229,7 +254,13 @@ export async function threadFor(
    * client at all; the agent gate is the same one its own thread uses.
    */
   const agent = await availableAgent(rawAgent, owner, getPool)
-  if (!agent) return { ok: false, status: 400, error: 'agent is not available' }
+  if (!agent)
+    return {
+      ok: false,
+      status: 400,
+      code: 'agent_unavailable',
+      error: 'agent is not available',
+    }
   return { ok: true, thread: clientThread(client), client, agent: agent.id }
 }
 
@@ -245,11 +276,17 @@ export function withConversation(gate: ThreadGate, raw: unknown): ThreadGate {
   if (!gate.ok || raw == null || raw === '') return gate
   const conversation = String(raw)
   if (!CONVERSATION_RE.test(conversation))
-    return { ok: false, status: 400, error: 'bad conversation' }
+    return {
+      ok: false,
+      status: 400,
+      code: 'bad_request',
+      error: 'bad conversation',
+    }
   if (gate.client || gate.room || gate.supervisor || !splittable(gate.thread))
     return {
       ok: false,
       status: 400,
+      code: 'bad_request',
       error: 'only your own and a specialist thread have several conversations',
     }
   return {
@@ -257,6 +294,42 @@ export function withConversation(gate: ThreadGate, raw: unknown): ThreadGate {
     thread: conversationThread(gate.thread, conversation),
     conversation,
   }
+}
+
+/**
+ * A KANBAN CARD'S CONVERSATION (task-thread.ts; spec kanban-card-chat.t27).
+ *
+ * Applied after threadFor and withConversation, so it narrows and never
+ * widens: the caller's own thread becomes the task's, a specialist may come
+ * along (WITH_AGENT), and a client, a room, the Queen's seat or a ?c= under it
+ * is refused rather than silently dropped. Absent, the gate is untouched.
+ */
+export async function withTask(
+  gate: ThreadGate,
+  raw: unknown
+): Promise<ThreadGate> {
+  if (!gate.ok || raw == null || raw === '') return gate
+  const { resolveTask, taskThread, taskLabel, combines } = await import(
+    './task-thread'
+  )
+  if (
+    gate.supervisor ||
+    !combines(!!gate.client, !!gate.room, !!gate.conversation)
+  )
+    return {
+      ok: false,
+      status: 400,
+      code: 'bad_request',
+      error: 'a task is its own conversation: no client, room or conversation',
+    }
+  const task = await resolveTask(raw)
+  if (!task)
+    return { ok: false, status: 400, code: 'bad_request', error: 'bad task' }
+  return { ...gate, thread: taskThread(task), task: taskLabel(task) }
+}
+
+function taskParam(req: IncomingMessage): string | null {
+  return new URL(req.url || '', 'http://x').searchParams.get('task')
 }
 
 function conversationParam(req: IncomingMessage): string | null {
@@ -896,6 +969,7 @@ export async function handleAgentChat(
   if (editorialAccess(req).kind !== 'none') {
     return json(res, 403, {
       error: 'forbidden',
+      code: 'forbidden',
       detail: 'editorial credentials are MCP draft-only',
     })
   }
@@ -903,13 +977,17 @@ export async function handleAgentChat(
   try {
     body = JSON.parse((await readBody(req)) || '{}')
   } catch {
-    return json(res, 400, { error: 'тело запроса не разобрано как JSON' })
+    return json(res, 400, {
+      code: 'bad_request',
+      error: 'тело запроса не разобрано как JSON',
+    })
   }
   const history: ChatMessage[] = Array.isArray(body.messages)
     ? body.messages
     : []
   if (!history.length) {
     return json(res, 400, {
+      code: 'bad_request',
       error: 'нужен непустой массив messages вида [{role:"user",content:"…"}]',
     })
   }
@@ -921,18 +999,22 @@ export async function handleAgentChat(
    * `room` is how a turn in a GROUP keeps its memory in the room instead of
    * in the asker's private history (conversation.ts roomThread, issue #2644).
    */
-  const gate = withConversation(
-    await threadFor(
-      body.client,
-      telegramId,
-      getPool,
-      body.agent,
-      body.room,
-      body.role
+  const gate = await withTask(
+    withConversation(
+      await threadFor(
+        body.client,
+        telegramId,
+        getPool,
+        body.agent,
+        body.room,
+        body.role
+      ),
+      body.conversation
     ),
-    body.conversation
+    body.task
   )
-  if (!gate.ok) return json(res, gate.status, { error: gate.error })
+  if (!gate.ok)
+    return json(res, gate.status, { code: gate.code, error: gate.error })
   const thread = gate.thread
   /*
    * A specialist called into a client's conversation leaves one row for its
@@ -991,6 +1073,7 @@ export async function handleAgentChat(
     'ios',
     'business',
     'queen',
+    'kanban',
   ]) // cyrillic-ok: pre-existing name
   const поверхность = ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ.has(String(body.surface))
     ? String(body.surface)
@@ -1068,76 +1151,90 @@ export async function handleAgentChat(
     const события: Array<{ тип?: string; текст?: string }> = []
     // The work report covers the journal steps from here on (browser/report.ts).
     const turnStartedAt = Date.now()
-    for await (const ev of runAgent(
-      history,
-      {
-        telegramId,
-        pool,
-        turn,
-        surface: поверхность, // cyrillic-ok: pre-existing local
-        // Per-bot privileged path counters (src/auth/initdata-bot-counts.ts).
-        initDataBot: initDataBotOf(req, telegramId) ?? undefined,
-        // The caller's own words: the one draft a stopped client may still get.
-        ownerSaid: ownerWordsOf(history, поверхность, ephemeral), // cyrillic-ok: pre-existing local
-      },
-      // The surface was already parsed and allow-listed above; the agent needs
-      // it so that button markers are proposed in the bot and nowhere else.
-      // tools_only: the caller (the seller's sweep) needs a model that calls
-      // tools, not one that talks about them. Anything but `true` is false.
-      // client: the thread is about this person; the agent reads their
-      // profile and the owner's history with them before the first word.
-      // person_note: what Telegram openly says about the person writing -- see
-      // the block in chat.ts. A string or nothing; never an object, because
-      // this service does not decide how the bot phrases it.
-      {
-        surface: поверхность, // cyrillic-ok: local defined earlier in this file
-        signal: gone.signal,
-        toolsOnly: body.tools_only === true,
-        // The Manager Agent: words only. It can only remove tools, so it is
-        // taken from any caller (client-facing.ts TEXT_ONLY_TOOLS).
-        textOnly: body.text_only === true,
-        /*
-         * WHOSE CHAT A BUSINESS TURN IS -- AND ONLY FROM THE BOT.
-         *
-         * The seller is the account the Telegram business connection belongs
-         * to; the bot reads it from the connection object and sends it here.
-         * It decides which correspondence, which client packages and whose
-         * debts the agent reads, so it is accepted ONLY behind the server key:
-         * from a Mini App session it would be a way to ask for somebody
-         * else's CRM by writing their id in a request body.
-         *
-         * Absent means absent. It must never fall back to the platform owner
-         * -- that fallback is exactly the defect this fixes (owner,
-         * 2026-09-23: the agent in his wife's profile answered as him).
-         */
-        seller:
-          hasServerKey(req) &&
-          typeof body.seller_id === 'string' &&
-          /^\d{5,15}$/.test(body.seller_id)
-            ? body.seller_id
+    const { announcingWork } = await import('./thread-bus')
+    // A card's open sheet sees the agent at work (spec v6, S19): names only.
+    for await (const ev of announcingWork(
+      runAgent(
+        history,
+        {
+          telegramId,
+          pool,
+          turn,
+          surface: поверхность, // cyrillic-ok: pre-existing local
+          // Per-bot privileged path counters (src/auth/initdata-bot-counts.ts).
+          initDataBot: initDataBotOf(req, telegramId) ?? undefined,
+          // The caller's own words: the one draft a stopped client may still get.
+          ownerSaid: ownerWordsOf(history, поверхность, ephemeral), // cyrillic-ok: pre-existing local
+        },
+        // The surface was already parsed and allow-listed above; the agent needs
+        // it so that button markers are proposed in the bot and nowhere else.
+        // tools_only: the caller (the seller's sweep) needs a model that calls
+        // tools, not one that talks about them. Anything but `true` is false.
+        // client: the thread is about this person; the agent reads their
+        // profile and the owner's history with them before the first word.
+        // person_note: what Telegram openly says about the person writing -- see
+        // the block in chat.ts. A string or nothing; never an object, because
+        // this service does not decide how the bot phrases it.
+        {
+          surface: поверхность, // cyrillic-ok: local defined earlier in this file
+          signal: gone.signal,
+          toolsOnly: body.tools_only === true,
+          // The Manager Agent: words only. It can only remove tools, so it is
+          // taken from any caller (client-facing.ts TEXT_ONLY_TOOLS).
+          textOnly: body.text_only === true,
+          /*
+           * WHOSE CHAT A BUSINESS TURN IS -- AND ONLY FROM THE BOT.
+           *
+           * The seller is the account the Telegram business connection belongs
+           * to; the bot reads it from the connection object and sends it here.
+           * It decides which correspondence, which client packages and whose
+           * debts the agent reads, so it is accepted ONLY behind the server key:
+           * from a Mini App session it would be a way to ask for somebody
+           * else's CRM by writing their id in a request body.
+           *
+           * Absent means absent. It must never fall back to the platform owner
+           * -- that fallback is exactly the defect this fixes (owner,
+           * 2026-09-23: the agent in his wife's profile answered as him).
+           */
+          seller:
+            hasServerKey(req) &&
+            typeof body.seller_id === 'string' &&
+            /^\d{5,15}$/.test(body.seller_id)
+              ? body.seller_id
+              : undefined,
+          client: gate.client ?? undefined,
+          marketplaceAgent: gate.agent,
+          supervisor: gate.supervisor === true,
+          // What the agent has been doing with this client, for the Queen.
+          agentLog:
+            gate.supervisor && gate.client
+              ? await agentLogFor(pool, telegramId, gate.client)
+              : undefined,
+          // What worked for this owner before (crm-move-stats.ts), for the Queen.
+          movesLine: gate.supervisor
+            ? await import('./crm-move-stats')
+                .then(m =>
+                  m.moveStatsFor(pool, telegramId).then(m.moveStatsLine)
+                )
+                .catch(() => '')
             : undefined,
-        client: gate.client ?? undefined,
-        marketplaceAgent: gate.agent,
-        supervisor: gate.supervisor === true,
-        // What the agent has been doing with this client, for the Queen.
-        agentLog:
-          gate.supervisor && gate.client
-            ? await agentLogFor(pool, telegramId, gate.client)
+          // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
+          // not the caller) in chat.ts clientTurnContext. Not a thread.
+          faceOf: typeof body.face_of === 'string' ? body.face_of : undefined,
+          personNote:
+            typeof body.person_note === 'string' && body.person_note.trim()
+              ? body.person_note.slice(0, 600)
+              : undefined,
+          // The card the person opened on the game's kanban (withTask).
+          taskNote: gate.task
+            ? await import('./task-thread').then(async m =>
+                m.taskNote(m.parseTask(gate.task)!)
+              )
             : undefined,
-        // What worked for this owner before (crm-move-stats.ts), for the Queen.
-        movesLine: gate.supervisor
-          ? await import('./crm-move-stats')
-              .then(m => m.moveStatsFor(pool, telegramId).then(m.moveStatsLine))
-              .catch(() => '')
-          : undefined,
-        // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
-        // not the caller) in chat.ts clientTurnContext. Not a thread.
-        faceOf: typeof body.face_of === 'string' ? body.face_of : undefined,
-        personNote:
-          typeof body.person_note === 'string' && body.person_note.trim()
-            ? body.person_note.slice(0, 600)
-            : undefined,
-      }
+        }
+      ),
+      String(telegramId),
+      thread
     )) {
       события.push(ev as { тип?: string; текст?: string })
       res.write(JSON.stringify(ev) + '\n')
@@ -1206,7 +1303,11 @@ export async function handleAgentChat(
     }
   } catch (e) {
     res.write(
-      JSON.stringify({ тип: 'ошибка', текст: String(e).slice(0, 500) }) + '\n'
+      JSON.stringify({
+        тип: 'ошибка',
+        code: 'internal',
+        текст: String(e).slice(0, 500),
+      }) + '\n'
     )
   }
 
@@ -1281,18 +1382,26 @@ export async function handleAgentHistoryDelete(
   const сырой = параметры.get('id')
   // Gate first: a client thread is cleared only by a seller, and only that
   // thread -- the self thread is never touched through `?client=`.
-  const gate = withConversation(
-    await threadFor(
-      clientParam(req),
-      telegramId,
-      getPool,
-      agentParam(req),
-      undefined,
-      roleParam(req)
+  const gate = await withTask(
+    withConversation(
+      await threadFor(
+        clientParam(req),
+        telegramId,
+        getPool,
+        agentParam(req),
+        undefined,
+        roleParam(req)
+      ),
+      conversationParam(req)
     ),
-    conversationParam(req)
+    taskParam(req)
   )
-  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
+  if (!gate.ok)
+    return json(res, gate.status, {
+      ok: false,
+      code: gate.code,
+      error: gate.error,
+    })
   try {
     const pool = await getPool()
     if (сырой != null) {
@@ -1318,6 +1427,33 @@ export async function handleAgentHistoryDelete(
   }
 }
 
+/**
+ * Which thread a history read is about: the client, specialist, conversation
+ * and task parts of the query, resolved one way for every reader -- the
+ * history and its live stream (thread-live.ts) must never disagree on whose
+ * rows they show.
+ */
+export async function historyGate(
+  req: IncomingMessage,
+  telegramId: string,
+  getPool: () => any
+) {
+  return withTask(
+    withConversation(
+      await threadFor(
+        clientParam(req),
+        telegramId,
+        getPool,
+        agentParam(req),
+        undefined,
+        roleParam(req)
+      ),
+      conversationParam(req)
+    ),
+    taskParam(req)
+  )
+}
+
 export async function handleAgentHistory(
   req: IncomingMessage,
   res: ServerResponse,
@@ -1327,18 +1463,13 @@ export async function handleAgentHistory(
   const предел = Number(
     new URL(req.url || '', 'http://x').searchParams.get('limit') || 0
   )
-  const gate = withConversation(
-    await threadFor(
-      clientParam(req),
-      telegramId,
-      getPool,
-      agentParam(req),
-      undefined,
-      roleParam(req)
-    ),
-    conversationParam(req)
-  )
-  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
+  const gate = await historyGate(req, telegramId, getPool)
+  if (!gate.ok)
+    return json(res, gate.status, {
+      ok: false,
+      code: gate.code,
+      error: gate.error,
+    })
   try {
     const pool = await getPool()
     const реплики = await прочитатьРазговор(
@@ -1348,7 +1479,19 @@ export async function handleAgentHistory(
       предел > 0 ? предел : РЕПЛИК_ПО_УМОЛЧАНИЮ, // cyrillic-ok: pre-existing identifiers
       gate.thread
     )
-    return json(res, 200, { ok: true, messages: реплики, thread: gate.thread }) // cyrillic-ok: pre-existing identifier
+    // A card's thread also says what the board calls the card, so the sheet
+    // can title itself before the frame tells it anything (task-thread.ts).
+    const card = gate.task
+      ? await import('./task-thread').then(m =>
+          m.taskCard(m.parseTask(gate.task)!)
+        )
+      : undefined
+    return json(res, 200, {
+      ok: true,
+      messages: реплики, // cyrillic-ok: pre-existing identifier
+      thread: gate.thread,
+      ...(card ? { card } : {}),
+    })
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }
@@ -1445,23 +1588,32 @@ export async function handleAgentHistoryAppend(
     'ios',
     'business',
     'queen',
+    'kanban',
   ])
   const surface = KNOWN_SURFACES.has(String(body.surface))
     ? String(body.surface)
     : 'unknown'
 
-  const gate = withConversation(
-    await threadFor(
-      body.client,
-      telegramId,
-      getPool,
-      body.agent,
-      undefined,
-      body.role
+  const gate = await withTask(
+    withConversation(
+      await threadFor(
+        body.client,
+        telegramId,
+        getPool,
+        body.agent,
+        undefined,
+        body.role
+      ),
+      body.conversation
     ),
-    body.conversation
+    body.task
   )
-  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
+  if (!gate.ok)
+    return json(res, gate.status, {
+      ok: false,
+      code: gate.code,
+      error: gate.error,
+    })
 
   try {
     const pool = await getPool()
@@ -1729,7 +1881,11 @@ export async function handleAgentConversations(
   if (req.method === 'GET') {
     const gate = await threadFor(null, telegramId, getPool, agentParam(req))
     if (!gate.ok)
-      return json(res, gate.status, { ok: false, error: gate.error })
+      return json(res, gate.status, {
+        ok: false,
+        code: gate.code,
+        error: gate.error,
+      })
     try {
       const conversations = await listConversations(
         await getPool(),
@@ -1753,7 +1909,12 @@ export async function handleAgentConversations(
     await threadFor(null, telegramId, getPool, body.agent),
     body.conversation
   )
-  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
+  if (!gate.ok)
+    return json(res, gate.status, {
+      ok: false,
+      code: gate.code,
+      error: gate.error,
+    })
   try {
     await renameConversation(
       await getPool(),

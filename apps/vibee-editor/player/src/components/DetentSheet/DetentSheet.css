@@ -54,6 +54,11 @@
   background: #00ff88;
 }
 
+.detent-sheet--compact .detent-sheet__handle {
+  box-sizing: border-box;
+  height: 44px;
+}
+
 .detent-sheet__peek {
   min-height: 44px;
   display: flex;

@@ -29,13 +29,33 @@ import SwiftUI
 /// экране под текстом не идёт нигде: в вебе им покрашена только плашка
 /// баланса токенов, а нативного баланса нет — см. `Тема.Чат.золото`.
 struct AgentChatView: View {
-  @State private var сообщения: [Реплика] = AgentChatView.загрузитьИсторию()
+  @State private var сообщения: [Реплика]
+  /// A card's thread, `<owner>/<repo>#<n>` (spec kanban-card-chat.t27), or
+  /// nil for the person's own chat. A card's chat keeps no local file: the
+  /// server thread is the one all surfaces and A2A agents share.
+  let task: String?
+  /// The card's title for the header; nil for the person's own chat.
+  let taskTitle: String?
+  /// True once the server answered the history with THIS card's thread. Until
+  /// then nothing is sent: a render without task threads ignores `task` and
+  /// would file the message in the person's own chat.
+  @State private var taskThreadReady = false
   @Environment(\.tabReselects) private var tabReselects
+
+  init(task: String? = nil, taskTitle: String? = nil) {
+    self.task = task
+    self.taskTitle = taskTitle
+    _сообщения = State(initialValue: task == nil ? AgentChatView.загрузитьИсторию() : [])
+  }
   @State private var ввод = ""
   @State private var идёт = false
   /// What answering a card said, per turn: a refusal must be readable.
   @State private var proposalNotes: [UUID: String] = [:]
   @State private var answering: Set<UUID> = []
+  /// Voice in the chat (VoiceInput.swift): the mic beside the field.
+  @StateObject private var voice = VoiceInput()
+  /// A hidden tab stays alive here; the mic must know when it is not seen.
+  @Environment(\.tabIsShown) private var tabIsShown
 
   struct Реплика: Identifiable, Codable, Equatable {
     /// `var`, а не `let`: `let id = UUID()` при декодировании даёт новый
@@ -199,6 +219,44 @@ struct AgentChatView: View {
 
   private struct HistoryResponse: Decodable {
     let messages: [ServerTurn]
+    /// The thread the server read. Older renders do not send it.
+    let thread: String?
+  }
+
+  // MARK: - A card's thread (spec kanban-card-chat.t27)
+
+  /// The card's task reference: `gHashTag/t27` and 5382 -> `gHashTag/t27#5382`.
+  /// A bare repository name belongs to the board's owner, as in `tri card`.
+  static func taskRef(repo: String, number: Int) -> String {
+    let full = repo.contains("/") ? repo : "gHashTag/\(repo)"
+    return "\(full)#\(number)"
+  }
+
+  /// The history query: the card's thread when there is a card.
+  static func historyQuery(task: String?) -> [URLQueryItem] {
+    var items = [URLQueryItem(name: "limit", value: "100")]
+    if let task { items.append(URLQueryItem(name: "task", value: task)) }
+    return items
+  }
+
+  /// A card may be written to only when the server answered with ITS thread.
+  /// The person's own chat is always writable.
+  static func threadAnswered(task: String?, thread: String?) -> Bool {
+    guard let task else { return true }
+    return thread == "task:\(task)"
+  }
+
+  /// The chat request body: the card travels as `task`, the turn is marked
+  /// `ios` either way.
+  static func chatBody(
+    history: [Реплика], question: String, task: String?
+  ) -> [String: Any] {
+    var body: [String: Any] = [
+      "messages": requestMessages(history: history, question: question),
+      "surface": "ios",
+    ]
+    if let task { body["task"] = task }
+    return body
   }
 
   /// How many past turns travel with a question. Matches the bot, which reads
@@ -268,7 +326,7 @@ struct AgentChatView: View {
         resolvingAgainstBaseURL: false
       )
     else { return }
-    компоненты.queryItems = [URLQueryItem(name: "limit", value: "100")]
+    компоненты.queryItems = AgentChatView.historyQuery(task: task)
     guard let url = компоненты.url else { return }
 
     var r = URLRequest(url: url)
@@ -277,6 +335,10 @@ struct AgentChatView: View {
       let (data, ответ) = try await URLSession.shared.data(for: r)
       guard (ответ as? HTTPURLResponse)?.statusCode == 200 else { return }
       let история = try JSONDecoder().decode(HistoryResponse.self, from: data)
+      // A card's chat never shows a thread that is not the card's: an old
+      // render answers `self`, and the person's own chat would appear here.
+      guard AgentChatView.threadAnswered(task: task, thread: история.thread) else { return }  // cyrillic-ok: existing name
+      taskThreadReady = true
       сообщения = AgentChatView.mergeHistory(server: история.messages, local: сообщения)
     } catch {
       // See the note above: silence here is the designed behaviour.
@@ -294,7 +356,7 @@ struct AgentChatView: View {
        * ровно тогда, когда есть что терять.
        */
       .onChange(of: сообщения) { _, новые in
-        AgentChatView.сохранитьИсторию(новые)
+        if task == nil { AgentChatView.сохранитьИсторию(новые) }
       }
       /*
        * Pull the shared conversation when the screen opens.
@@ -305,6 +367,16 @@ struct AgentChatView: View {
        * would land on a screen that is already gone.
        */
       .taskWhileShown { await loadSharedHistory() }
+      // Voice: a recording at its time limit is sent as a second press
+      // would send it; leaving the chat stops the mic and the reading.
+      .onChange(of: voice.timeUp) { _, up in
+        // A manual Stop may have finished first: pressing again then would
+        // start a recording nobody asked for.
+        if up { Task { if voice.phase == .listening { await pressMic() } } }
+      }
+      .onChange(of: tabIsShown) { _, shown in voice.setShown(shown) }
+      .onAppear { voice.setShown(tabIsShown) }
+      .onDisappear { voice.setShown(false) }
   }
 
   private var основное: some View {
@@ -351,19 +423,36 @@ struct AgentChatView: View {
    * подзаголовком, который объясняет, чем этот агент отличается от чата
    * вообще. Текст перенесён дословно из Chat.tsx:280-283.
    */
+  /// Sending waits for the card's own thread (see `taskThreadReady`).
+  private var canWrite: Bool { task == nil || taskThreadReady }
+
+  /// The person's chat says what the agent is; a card's says which task it is
+  /// and, until the server answers with the card's thread, why it is read-only.
+  private var subtitle: String {
+    guard let task else {
+      return say("Looks into the app with its own tools and does the work, not just advises",
+                 "Смотрит в приложение своими инструментами и делает, а не советует")
+    }
+    return taskThreadReady
+      ? say("Task \(task) · the same conversation as on the web and with A2A agents",
+            "Задача \(task) · тот же разговор, что в вебе и у агентов A2A")
+      : say("Task \(task) · the server does not know task conversations yet, so writing is off",
+            "Задача \(task) · сервер ещё не знает разговоров по задаче, писать пока нельзя")
+  }
+
   private var шапка: some View {
     VStack(alignment: .leading, spacing: 0) {
       // `h1 { font-size: 16px; font-weight: 600; letter-spacing: .01em }`
       // — Chat.css:48-50.
-      Text(say("Agent", "Агент"))
+      Text(taskTitle ?? task ?? say("Agent", "Агент"))
+        .lineLimit(2)
         .font(Тема.Шрифт.кегль(Тема.Чат.кегльЗаголовка, Тема.Чат.весЗаголовка, относительно: .headline))
         .tracking(Тема.Чат.трекингЗаголовка)
         .foregroundStyle(Тема.Чат.текст)
 
       // `p { margin: 2px 0 0; font-size: 12px; color: --t27-muted }`
       // — Chat.css:53-55.
-      Text(say("Looks into the app with its own tools and does the work, not just advises",
-                "Смотрит в приложение своими инструментами и делает, а не советует"))
+      Text(subtitle)
         .font(Тема.Шрифт.кегль(Тема.Чат.кегльПодзаголовка, относительно: .footnote))
         .foregroundStyle(Тема.Чат.текстПриглушённый)
         .padding(.top, 2)
@@ -381,7 +470,9 @@ struct AgentChatView: View {
        * вернуться переписку не стирает, а другого способа её закончить на
        * экране нет вовсе.
        */
-      if !сообщения.isEmpty {
+      // A card's thread is shared with the web sheet and A2A agents: a local
+      // "new conversation" would only hide it here, so a card has none.
+      if !сообщения.isEmpty && task == nil {
         Button(say("New chat", "Новый разговор")) {
           сообщения = []
           ввод = ""
@@ -514,6 +605,8 @@ struct AgentChatView: View {
             .strokeBorder(Тема.Чат.граница, lineWidth: Тема.Чат.толщинаГраницы)
         )
 
+      micButton
+
       /**
        * Кнопка СЛОВОМ и сплошным зелёным, а не иконкой-стрелкой.
        *
@@ -539,8 +632,8 @@ struct AgentChatView: View {
       }
       .buttonStyle(.plain)
       // `.send-btn:disabled { opacity: 0.5 }` — Chat.css:252.
-      .opacity(ввод.isEmpty || идёт ? 0.5 : 1)
-      .disabled(ввод.isEmpty || идёт)
+      .opacity(ввод.isEmpty || идёт || !canWrite ? 0.5 : 1)
+      .disabled(ввод.isEmpty || идёт || !canWrite)
     }
     // `.chat-input-area { padding: 12px 14px }` — Chat.css:207.
     .padding(.horizontal, Тема.Чат.отступПанелиПоГоризонтали)
@@ -551,7 +644,90 @@ struct AgentChatView: View {
     }
   }
 
+  /**
+   * The mic: press to speak, press again to send what was heard.
+   *
+   * The heard words travel as an ordinary message through the same send as
+   * typing, so the agent, its tools and the shared history see no
+   * difference; only the answer to a SPOKEN question is read aloud. Anything
+   * already typed stays in front of the spoken words rather than being lost.
+   */
+  private var micButton: some View {
+    Button {
+      Task { await pressMic() }
+    } label: {
+      Group {
+        switch voice.phase {
+        case .idle:
+          Image(systemName: "mic.fill").foregroundStyle(Тема.Чат.акцент)  // cyrillic-ok: existing state
+        case .listening:
+          Image(systemName: "stop.fill").foregroundStyle(.red)
+        case .hearing:
+          ProgressView()
+        }
+      }
+      .font(.system(size: 18, weight: .semibold))
+      .frame(width: Тема.Чат.высотаПоля, height: Тема.Чат.высотаПоля)  // cyrillic-ok: existing state
+      .overlay(
+        RoundedRectangle(cornerRadius: Тема.Чат.радиусПоля)  // cyrillic-ok: existing state
+          .strokeBorder(
+            voice.phase == .listening ? Color.red : Тема.Чат.граница,  // cyrillic-ok: existing state
+            lineWidth: Тема.Чат.толщинаГраницы)  // cyrillic-ok: existing state
+      )
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(
+      voice.phase == .listening
+        ? say("Stop and send", "Остановить и отправить")
+        : say("Speak", "Сказать голосом"))
+    // While the agent answers, a new question would interleave two turns,
+    // and before a card's thread is ready nothing may be sent at all (Send
+    // is off then too); a recording already running may always be stopped.
+    .disabled(voice.phase == .hearing || (micResting && voice.phase == .idle))
+    .opacity(micResting && voice.phase == .idle ? 0.5 : 1)
+  }
+
+  /// The same two reasons the Send button rests for.
+  private var micResting: Bool { идёт || !canWrite }  // cyrillic-ok: existing state
+
+  private func pressMic() async {
+    switch voice.phase {
+    case .idle:
+      if let problem = await voice.start() { notice(problem) }
+    case .listening:
+      switch await voice.finish() {
+      case .words(let heard):
+        let typed = ввод.trimmingCharacters(in: .whitespacesAndNewlines)  // cyrillic-ok: existing state
+        ввод = typed.isEmpty ? heard : typed + " " + heard  // cyrillic-ok: existing state
+        // Read the answer only if the question really went out: a send
+        // that declined would leave the old answer last, and reading it
+        // again would answer a question nobody heard sent.
+        let before = сообщения.count  // cyrillic-ok: existing state
+        await отправить()  // cyrillic-ok: existing state
+        if сообщения.count > before, let answer = сообщения.last, !answer.свой {  // cyrillic-ok: existing state
+          await voice.speak(answer.текст)  // cyrillic-ok: existing state
+        }
+      case .nothing:
+        notice(say("I did not catch any words. Press the mic and try again.",
+                   "Не расслышал ни слова. Нажмите микрофон и скажите ещё раз."))
+      case .problem(let problem):
+        notice(problem)
+      }
+    case .hearing:
+      break
+    }
+  }
+
+  /// A word from the app itself, in the agent's place in the chat.
+  private func notice(_ text: String) {
+    сообщения.append(.init(свой: false, текст: text))  // cyrillic-ok: existing state
+  }
+
   private func отправить() async {
+    // A card's turn never goes out before the server answered with the
+    // card's thread: an old render would file it in the person's own chat.
+    guard canWrite else { return }
     let вопрос = ввод
     ввод = ""
     идёт = true
@@ -639,13 +815,26 @@ struct AgentChatView: View {
        * server knows the word; without it the turn was stored as "unknown".
        */
       r.httpBody = try JSONSerialization.data(
-        withJSONObject: [
-          "messages": AgentChatView.requestMessages(
-            history: priorTurns, question: вопрос),
-          "surface": "ios",
-        ])
+        withJSONObject: AgentChatView.chatBody(
+          history: priorTurns, question: вопрос, task: task))
 
-      let (поток, _) = try await URLSession.shared.bytes(for: r)
+      let (поток, response) = try await URLSession.shared.bytes(for: r)
+      /*
+       * A REFUSAL IS NOT A STREAM. A 4xx answers with one JSON object and no
+       * `тип`, so reading it as events found nothing and the bubble said "the  // cyrillic-ok: the wire key
+       * agent did not put an answer together" -- about a request the server
+       * had refused, with the reason sitting unread in the body.
+       */
+      if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+        var raw = Data()
+        for try await byte in поток {
+          raw.append(byte)
+          if raw.count > 8192 { break }
+        }
+        let body = (try? JSONSerialization.jsonObject(with: raw)) as? [String: Any] ?? [:]
+        сообщения[i].текст = AgentChatView.refusal(status: http.statusCode, body: body)
+        return
+      }
       var послеИнструмента = false
       /**
        * FOUR OF THE FIVE DOCUMENTED EVENT TYPES ABOVE THE CLASS
@@ -698,9 +887,8 @@ struct AgentChatView: View {
           // Same styling as the web: a "⚠️ ..." paragraph of its own,
           // appended after any text that already arrived, not in place of it.
           hasError = true
-          if let errorText = o["текст"] as? String, !errorText.isEmpty {
-            сообщения[i].текст += (сообщения[i].текст.isEmpty ? "" : "\n\n") + "⚠️ \(errorText)"
-          }
+          let errorText = AgentChatView.streamFailure(o)
+          сообщения[i].текст += (сообщения[i].текст.isEmpty ? "" : "\n\n") + "⚠️ \(errorText)"
         case "proposal":
           /*
            * A MESSAGE PREPARED FOR SOMEBODY ELSE, waiting for the press. The
@@ -718,6 +906,8 @@ struct AgentChatView: View {
           // the bot and web.
           if let truncation = o["обрыв"] as? String, !truncation.isEmpty {
             truncationReason = truncation
+          } else if o["code"] as? String == "step_limit" {
+            truncationReason = "\(o["витков"] as? Int ?? 0)"  // cyrillic-ok: the wire key
           }
         default: break
         }
@@ -734,10 +924,9 @@ struct AgentChatView: View {
         сообщения[i].текст = truncationReason.isEmpty
           ? say("The agent did not put an answer together. Ask again, or more precisely.",
                 "Агент не сформулировал ответ. Повтори вопрос или уточни его.")
-          : say("Ran out of steps: \(truncationReason). Try a smaller task.",
-                "Не уложился в шаги: \(truncationReason). Попробуй задачу поменьше.")
+          : AgentChatView.stepLimitSentence(truncationReason)
       } else if !truncationReason.isEmpty {
-        сообщения[i].текст += "\n\n⚠️ \(truncationReason)"
+        сообщения[i].текст += "\n\n⚠️ \(AgentChatView.stepLimitSentence(truncationReason))"
       }
     } catch {
       /**
@@ -870,6 +1059,106 @@ struct ОкноПодтверждения: View {
       RoundedRectangle(cornerRadius: 14)
         .stroke(Тема.Цвет.предупреждение.opacity(0.5), lineWidth: 1)
     )
+  }
+}
+
+// MARK: - Failures, in the reader's language
+
+/*
+ * `/api/agent/chat` names its failures with a `code` (since 2026-10-02): on
+ * the HTTP refusal, on an `ошибка` event, on a `готово` that hit the step  // cyrillic-ok: the event names
+ * limit. Its words are for a developer -- some Russian, the thread gate's
+ * English -- so the app says the code's sentence instead. The rule is the
+ * web's (player lib/agentChatText.ts): a Russian reader keeps the server's
+ * Russian words, the most precise there are; an unknown code gives the
+ * server's words when they are readable, and a plain "could not answer"
+ * when not. Every code is checked against the server by
+ * render/agent-chat-codes.test.ts.
+ */
+extension AgentChatView {
+  nonisolated static func failureSentence(
+    code: String?, words: String?, fallbackEN: String, fallbackRU: String,
+    russian: Bool = speaksRussian
+  ) -> String {
+    func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
+    let sentences: [String: String] = [
+      "sign_in": l(
+        "The server does not know who is asking — open Profile and sign in again with the code from @t27ai_bot.",
+        "Сервер не знает, кто спрашивает, — зайдите в Профиль и войдите заново по коду из @t27ai_bot."),
+      "forbidden": l(
+        "This key cannot talk to the agent.",
+        "С этим ключом нельзя говорить с агентом."),
+      "bad_request": l(
+        "The server did not understand the request — update the app.",
+        "Сервер не понял запрос — обновите приложение."),
+      "agent_unavailable": l(
+        "This agent is not available right now.",
+        "Этот агент сейчас недоступен."),
+      "not_seller": l(
+        "Only a seller can talk to the agent about a client.",
+        "Говорить с агентом о клиенте может только продавец."),
+      "no_answer": l(
+        "None of the models answered. Try again in a minute.",
+        "Ни одна модель не ответила. Повторите через минуту."),
+      "model_failed": l(
+        "The model failed to answer. Try again in a minute.",
+        "Модель не смогла ответить. Повторите через минуту."),
+      "internal": l(
+        "Something broke on the server. Try again in a minute.",
+        "На сервере что-то сломалось. Повторите через минуту."),
+      "step_limit": l(
+        "Ran out of steps — try a smaller task.",
+        "Не уложился в шаги — попробуй задачу поменьше."),
+    ]
+    let text = (words ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let cyrillic = text.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
+    if russian, cyrillic { return text }
+    if let code, let known = sentences[code] { return known }
+    if !text.isEmpty, russian || !cyrillic { return text }
+    return l(fallbackEN, fallbackRU)
+  }
+
+  /// A refused request (any non-2xx before the stream opens), from its body.
+  nonisolated static func refusal(
+    status: Int, body: [String: Any], russian: Bool = speaksRussian
+  ) -> String {
+    failureSentence(
+      code: body["code"] as? String,
+      words: body["error"] as? String ?? body["detail"] as? String,
+      fallbackEN: "The agent could not answer (the server answered \(status)).",
+      fallbackRU: "Агент не ответил (сервер ответил \(status)).",
+      russian: russian)
+  }
+
+  /// The step limit. The server's `обрыв` names the limit in Russian; an  // cyrillic-ok: the field name
+  /// English reader gets the count out of it, not the words.
+  nonisolated static func stepLimitSentence(
+    _ reason: String, russian: Bool = speaksRussian
+  ) -> String {
+    func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
+    let cyrillic = reason.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
+    if russian, cyrillic {
+      return "Не уложился в шаги: \(reason). Попробуй задачу поменьше." // ru-only-ok: a Russian reader keeps the server's words
+    }
+    let digits = reason.split(whereSeparator: { !$0.isNumber }).first.map(String.init)
+    if !russian, let digits, let n = Int(digits), n > 0 {
+      return "Stopped after \(n) tool steps — try a smaller task."
+    }
+    return l(
+      "Ran out of steps — try a smaller task.",
+      "Не уложился в шаги — попробуй задачу поменьше.")
+  }
+
+  /// An `ошибка` event in the middle of the stream.  // cyrillic-ok: the event name
+  nonisolated static func streamFailure(
+    _ event: [String: Any], russian: Bool = speaksRussian
+  ) -> String {
+    failureSentence(
+      code: event["code"] as? String,
+      words: event["текст"] as? String,
+      fallbackEN: "The agent could not answer. Try again in a minute.",
+      fallbackRU: "Агент не смог ответить. Повторите через минуту.",
+      russian: russian)
   }
 }
 

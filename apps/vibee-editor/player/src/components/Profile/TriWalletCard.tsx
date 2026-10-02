@@ -9,45 +9,25 @@ import {
   proofBody,
   triWalletErrorKey,
   unbindTriWallet,
-  TON_MANIFEST_PATH,
   type BoundTriWallet,
   type ProvedWallet,
 } from '@/lib/triWallet'
+import { tonConnect } from '@/lib/tonConnect'
 
 /**
  * THE TRI WALLET, ON THE OWN PROFILE (render src/tri-wallet.ts).
  *
- * A person binds the TON address their TRI would be paid to. The card says
- * what is true today: TRI is not deployed, so binding pays nothing -- it only
- * records, with the wallet's own signature, where TRI would go.
+ * A person binds the TON address their TRI is paid to. The card says what is
+ * true today: TRI exists on TON testnet only (TriClaimCard.tsx mints there);
+ * there is no mainnet TRI.
  *
- * TON CONNECT IS LOADED ON THE PRESS, NOT WITH THE PAGE. The library is
- * several megabytes unpacked and almost nobody opening a profile is binding
- * a wallet; a dynamic import keeps it in its own chunk.
+ * TON CONNECT IS LOADED ON THE PRESS, NOT WITH THE PAGE (lib/tonConnect.ts).
  *
  * ONE PROOF, THEN LET GO. After the server accepts (or refuses) the proof the
- * TON Connect session is disconnected: the app never sends transactions, so a
- * live session would only be a standing permission nothing uses.
+ * TON Connect session is disconnected: a live session would only be a
+ * standing permission nothing uses. The claim card connects again, on its
+ * own press, to send a mint (TriClaimCard.tsx).
  */
-
-let shared: Promise<TonConnectUI> | null = null
-
-function tonConnect(lang: string): Promise<TonConnectUI> {
-  if (!shared) {
-    shared = import('@tonconnect/ui').then(
-      ({ TonConnectUI }) =>
-        new TonConnectUI({
-          manifestUrl: `${window.location.origin}${TON_MANIFEST_PATH}`,
-          language: lang === 'ru' ? 'ru' : 'en',
-          restoreConnection: false,
-        })
-    )
-    shared.catch(() => {
-      shared = null
-    })
-  }
-  return shared
-}
 
 export interface TriWalletCardProps {
   isOwn: boolean

@@ -70,6 +70,7 @@ import {
   DIGEST_TABLE,
   HISTORY_CHARS,
   HISTORY_MESSAGES,
+  LEDGER_TOOL,
   OUTCOMES_TABLE,
   PREVIEW_CHARS,
   PULSE_STALE_MIN,
@@ -254,7 +255,7 @@ export function threadKey(subject: string | null): string {
   }
 }
 
-function digestAgeH(d: MatterDigest): number {
+export function digestAgeH(d: MatterDigest): number {
   const ms = Date.now() - new Date(d.exported_at).getTime()
   return Number.isFinite(ms) ? Math.max(0, ms / 3_600_000) : Infinity
 }
@@ -1046,6 +1047,11 @@ export const MAIL_PUSH_TOOLS: AgentTool[] = [
       }
       const ageS = (Date.now() - new Date(row.updated_at).getTime()) / 1000
       const ageMin = Math.round(ageS / 60)
+      const dl = await loadDigest(ctx!.pool)
+      // ages.length > 0 ? max : null -- max of an empty array is -Infinity,
+      // which would read as fresh through Math.round.
+      const ages = dl.map(digestAgeH)
+      const digest_age_h = ages.length ? Math.round(Math.max(...ages)) : null
       return {
         baselined: true,
         updated_at: row.updated_at,
@@ -1053,6 +1059,10 @@ export const MAIL_PUSH_TOOLS: AgentTool[] = [
         fresh: pulseFresh(ageMin),
         seen: (row.seen as string[]).length,
         sent_seen: ((row.sent as string[] | null) ?? []).length,
+        digest_matters: dl.length,
+        digest_age_h,
+        digest_fresh:
+          dl.length > 0 ? digestFresh(digest_age_h ?? Infinity) : null,
       }
     },
   },
@@ -1160,6 +1170,76 @@ export const MAIL_PUSH_TOOLS: AgentTool[] = [
         refused,
         stamped_by: 'receiver clock',
       }
+    },
+  },
+  {
+    // v2.2 (#5174): the ledger was write-only from outside -- jcrm could
+    // export the digest but never read back what the sweep recorded from
+    // the owner's taps (outcomes, feedback pairs). The half-circle made
+    // the dashboard lie ("we owe a reply") right after the owner replied.
+    // One more door in the same wall: SELECT-only, owner-gated, capped.
+    name: LEDGER_TOOL,
+    description:
+      'Чтение таблиц пуша: дайджест по материям, исходы отправок, пары ' + // cyrillic-ok: tool description for the model
+      'черновик-и-факт. Обратно в CRM после export -- замкнуть круг. ' + // cyrillic-ok: tool description for the model
+      'Только чтение, ничего не меняет.', // cyrillic-ok: tool description for the model
+    parameters: {
+      type: 'object',
+      properties: {
+        what: {
+          type: 'string',
+          enum: ['digest', 'outcomes', 'feedback'],
+        },
+        since_hours: { type: 'integer' },
+      },
+      required: ['what'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx?: ToolContext) {
+      requireOwner(ctx!)
+      await ensureStateTable(ctx!.pool)
+      const what = (args as { what: string }).what
+      // A finite window of 1 h .. one year: Infinity or 2^31 would make
+      // $1::int throw instead of answering.
+      const asked = (args as { since_hours?: unknown }).since_hours
+      const since =
+        typeof asked === 'number' && Number.isFinite(asked)
+          ? Math.min(8760, Math.max(1, Math.floor(asked)))
+          : null
+      const cap = 100
+      if (what === 'digest') {
+        const r = await ctx!.pool.query(
+          `SELECT matter, stage, owes_reply, days_since, next_action,
+                  counterparties, channels, exported_at
+           FROM ${DIGEST_TABLE}
+           ORDER BY exported_at DESC
+           LIMIT ${cap}`
+        )
+        return { what, rows: r.rows ?? [], count: (r.rows ?? []).length }
+      }
+      if (what === 'outcomes') {
+        const r = await ctx!.pool.query(
+          `SELECT message_id, thread, state, sent, at
+           FROM ${OUTCOMES_TABLE}
+           ${since ? "WHERE at >= now() - ($1::int * interval '1 hour')" : ''}
+           ORDER BY at DESC
+           LIMIT ${cap}`,
+          since ? [since] : []
+        )
+        return { what, rows: r.rows ?? [], count: (r.rows ?? []).length }
+      }
+      if (what === 'feedback') {
+        const r = await ctx!.pool.query(
+          `SELECT letter_subject, letter_to, at
+           FROM ${FEEDBACK_TABLE}
+           ${since ? "WHERE at >= now() - ($1::int * interval '1 hour')" : ''}
+           ORDER BY at DESC
+           LIMIT ${cap}`,
+          since ? [since] : []
+        )
+        return { what, rows: r.rows ?? [], count: (r.rows ?? []).length }
+      }
+      return { what, rows: [], count: 0, note: 'unknown table' }
     },
   },
 ]

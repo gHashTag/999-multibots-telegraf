@@ -18,7 +18,7 @@ final class ЧекTests: XCTestCase {
 
   func testНазываетИСписаниеИОстаток() {
     XCTAssertEqual(
-      чекСтрокой(списано: 8, осталось: 12),
+      чекСтрокой(списано: 8, осталось: 12, russian: true),
       "Списано 8 токенов · осталось 12")
   }
 
@@ -26,19 +26,19 @@ final class ЧекTests: XCTestCase {
     // Самый частый случай: картинка стоит 1 токен. «Списано 1 токенов» —
     // ровно та ошибка, которую в этом приложении чинили уже дважды.
     XCTAssertEqual(
-      чекСтрокой(списано: 1, осталось: 19),
+      чекСтрокой(списано: 1, осталось: 19, russian: true),
       "Списано 1 токен · осталось 19")
   }
 
   func testДваЧетыреБерутВторуюФорму() {
     XCTAssertEqual(
-      чекСтрокой(списано: 2, осталось: 0),
+      чекСтрокой(списано: 2, осталось: 0, russian: true),
       "Списано 2 токена · осталось 0")
   }
 
   func testОдиннадцатьНеСчитаетсяЕдиницей() {
     XCTAssertEqual(
-      чекСтрокой(списано: 11, осталось: 3),
+      чекСтрокой(списано: 11, осталось: 3, russian: true),
       "Списано 11 токенов · осталось 3")
   }
 
@@ -46,13 +46,20 @@ final class ЧекTests: XCTestCase {
     // Владельцу списывают ноль, и остатка в ответе нет. Показать здесь
     // последний известный баланс значило бы назвать число, относящееся к
     // моменту ДО генерации.
-    XCTAssertEqual(чекСтрокой(списано: 0, осталось: nil), "Списано 0 токенов")
-    XCTAssertFalse(чекСтрокой(списано: 6, осталось: nil).contains("осталось"))
+    XCTAssertEqual(чекСтрокой(списано: 0, осталось: nil, russian: true), "Списано 0 токенов")
+    XCTAssertFalse(чекСтрокой(списано: 6, осталось: nil, russian: true).contains("осталось"))
   }
 
   func testНулевойОстатокНеМолчание() {
     // Ноль — это факт, а не «неизвестно». Спутать их значит скрыть от
     // человека, что токены кончились именно сейчас.
-    XCTAssertTrue(чекСтрокой(списано: 6, осталось: 0).contains("осталось 0"))
+    XCTAssertTrue(чекСтрокой(списано: 6, осталось: 0, russian: true).contains("осталось 0"))
+  }
+
+  /// An English phone read "Списано 8 токенов" under every result.
+  func testEnglishReceipt() {
+    XCTAssertEqual(чекСтрокой(списано: 8, осталось: 12, russian: false), "Charged 8 tokens · 12 left")  // cyrillic-ok: pre-existing name
+    XCTAssertEqual(чекСтрокой(списано: 1, осталось: 0, russian: false), "Charged 1 token · 0 left")  // cyrillic-ok: pre-existing name
+    XCTAssertEqual(чекСтрокой(списано: 0, осталось: nil, russian: false), "Charged 0 tokens")  // cyrillic-ok: pre-existing name
   }
 }

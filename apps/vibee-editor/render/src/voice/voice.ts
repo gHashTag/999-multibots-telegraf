@@ -38,6 +38,7 @@
  */
 import type { IncomingMessage } from 'node:http'
 import { whisperBytes, whisperConfig } from '../agent/media-library'
+import { fixWords } from './hotwords'
 
 export type VoiceLang = 'ru' | 'en'
 
@@ -275,6 +276,9 @@ async function hearFast(
  * sentence out of silence. Without a language the phrase goes to whisper,
  * which detects it -- that is how the player re-learns a person's language.
  *
+ * Product words the engines mishear ("reels" heard as "rilz") are put
+ * right on the way out, whichever engine heard them (`fixWords`).
+ *
  * `turn` also asks the fast ears whether the voice sounds finished; the
  * answer comes back as `done`. Whisper cannot say, so a fallback has none,
  * and the player then judges by the words alone.
@@ -290,7 +294,8 @@ export async function hear(
   const ears = earsConfig(spoken)
   if (ears) {
     const fast = await hearFast(ears, bytes, turn)
-    if (fast !== null) return { ...fast, engine: ears.engine }
+    if (fast !== null)
+      return { ...fast, text: fixWords(fast.text, spoken), engine: ears.engine }
   }
   const w = whisperConfig()
   if (!w) return null
@@ -299,7 +304,7 @@ export async function hear(
     .trim()
   const name = `utterance.${EXT[type] || 'webm'}`
   const words = await whisperBytes(w, bytes, type, name, timeoutMs, spoken)
-  return { text: (words || '').trim(), engine: 'whisper' }
+  return { text: fixWords((words || '').trim(), spoken), engine: 'whisper' }
 }
 
 /**

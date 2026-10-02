@@ -125,20 +125,67 @@ function ratchet(o) {
    * "error TS" does NOT match it. That once reported 0 errors where there were
    * 1230.
    */
-  const res = spawnSync(
-    TSC,
-    ['--noEmit', '-p', o.project, '--pretty', 'false'],
-    { cwd: dir, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
-  )
-  if (res.error) fail(`не удалось запустить tsc: ${res.error.message}`)
+  const runTsc = () => {
+    const res = spawnSync(
+      TSC,
+      ['--noEmit', '-p', o.project, '--pretty', 'false'],
+      { cwd: dir, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
+    )
+    if (res.error) fail(`не удалось запустить tsc: ${res.error.message}`)
+    const out = `${res.stdout || ''}${res.stderr || ''}`
+    const all = out.split('\n').filter(l => / error TS\d+: /.test(l))
+    return { res, out, all }
+  }
+  let { res, out, all } = runTsc()
 
-  const out = `${res.stdout || ''}${res.stderr || ''}`
-  const all = out.split('\n').filter(l => / error TS\d+: /.test(l))
+  /*
+   * TRAP 4. A STARVED MACHINE IS NOT A BROKEN RUN (2026-10-02, PR #3320).
+   * At load 380 on 8 cores with swap nearly gone, tsc was killed with no
+   * output at all; TRAP 3 (below) called it broken and the only way
+   * through was skipping every gate. Findings are never retried -- an
+   * `error TS` line is an answer whatever the load. A silent death on a
+   * starved machine waits for headroom (TSC_HEADROOM_WAIT seconds, 600 by
+   * default) and runs ONCE more; if the machine is still starved, the gate
+   * fails with exit 75 and says "starved", not "broken" (scripts/lib/starvation.cjs).
+   */
+  const st = require('./starvation.cjs')
+  if (!all.length && res.status !== 0) {
+    const first = st.verdict(
+      { status: res.status, signal: res.signal, findings: 0 },
+      st.machine()
+    )
+    if (first === 'starved') {
+      const waitS = Number(process.env.TSC_HEADROOM_WAIT || 600)
+      console.warn(
+        `\n⏳ tsc умер молча (код ${res.status}, сигнал ${res.signal || '-'}): ` +
+          `${st.describe(st.machine())}.\n` +
+          `   Это голод машины, а не ошибка кода. Жду запаса до ${waitS} с и повторяю один раз.`
+      )
+      const m = st.waitForHeadroom(waitS * 1000)
+      ;({ res, out, all } = runTsc())
+      if (
+        !all.length &&
+        res.status !== 0 &&
+        st.verdict({ status: res.status, findings: 0 }, st.machine()) ===
+          'starved'
+      ) {
+        console.error(
+          `\n🥀 ГОЛОД МАШИНЫ, а не ошибка типов: ${st.describe(m)}.\n` +
+            '   tsc дважды умер без единой строки «error TS».\n' +
+            '   Что делать: `tri starved` (кто ест машину, сироты гейтов),\n' +
+            '   потом закоммитить ещё раз. Не --no-verify вслепую.\n'
+        )
+        process.exit(75)
+      }
+    }
+  }
 
   /*
    * TRAP 3. Zero matches is indistinguishable from "the check did not run":
    * empty output gives the same number. So the EXIT CODE is read too -- tsc
-   * exits zero only when there really are no errors.
+   * exits zero only when there really are no errors. Reached on a fed
+   * machine at once, and after TRAP 4's retry when the machine recovered
+   * but tsc still died silently: either way it is a broken run, not a pass.
    */
   if (!all.length && res.status !== 0)
     fail(

@@ -58,7 +58,10 @@ tri — оболочка Trinity S³AI
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
   tri agents [--dry] [--no-record] [ids…]  приёмка агентов на владельце; итог уходит на карточки рынка
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
+  tri red [owner/repo] [ref]  what is red on main: failing checks of the head, each with its log tail (0 green, 1 red, 2 cannot tell)
   tri blog-share [N]  судьба последних статей блога в соцсетях: спрошено, закрыто через сколько минут, что сделала каждая сеть
+  tri starved [--reap]  голодает ли Mac (нагрузка на ядро, своп), кто ест, сироты гейтов; код 1 — голод: гейт без находок = не код
+  tri meta [card SLUG]  Threads/Instagram/Facebook/LinkedIn/X через API: заданы ли приложения, чьи токены, дни; в конце — готова ли каждая сеть и чей ход (без значений)
   tri engage [N]  стол комментариев: что предложено под чужими постами, что ответил владелец, квитанции и ответы людей (сигналы лидов)
   tri no-verify-debt [base]  шлюзы, пропущенные коммитами с --no-verify, по всей ветке (кириллица, секреты, prettier, eslint)
   tri browser [--json]  состояние браузера: отвечает ли (pod) и что в нём открыто (tabs)
@@ -112,6 +115,7 @@ tri — оболочка Trinity S³AI
   tri tail [N] -- <команда>                     последние N строк И код САМОЙ команды (не tail); одна строка в кавычках — bash с pipefail; весь вывод — .git/tri-tail.log
   tri main-drift [база] [--no-fetch]            main сдвинулся, пока шли ворота: задел ли он рендер/плеер/пакеты/lock-файлы (код 1 — прогнать ворота снова после слияния)
   tri shot [story-palette|my-story|crm-client|all] [--width 390] [--lang ru|en]  экран на ТЕЛЕФОНЕ, а не в jsdom: Chromium с пальцем, ответы — функциями хоста; снимки + замер (цель — --touch-target страницы, сдвиг вбок, обрезка, наложения); код 1 — красно, 2 — не измерено
+  tri shot watch [--state FILE] [--from FILE]  all + сравнение с прошлым прогоном (~/.cache/tri/shot-watch.json): печатает только что стало хуже/лучше; код 1 — хуже, 2 — ничего не измерено (состояние не трогает)
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
   tri self       сама оболочка: достижима ли каждая команда и на месте ли хелпер
@@ -889,6 +893,7 @@ case "${1:-}" in
   bench) shift; bash "$ROOT/bin/helpers/bench.sh" "$ROOT" "$@" ;;
   lesson) shift; bash "$ROOT/bin/helpers/lesson.sh" "$ROOT" "$@" ;;
   deployed) shift; bash "$ROOT/bin/helpers/deployed.sh" "$ROOT" "$@" ;;
+  red)    shift; bash "$ROOT/bin/helpers/red.sh" "$ROOT" "$@" ;;
   journal) shift; bash "$ROOT/bin/helpers/journal.sh" "$ROOT" "$@" ;;
   flaky)  shift; bash "$ROOT/bin/helpers/flaky.sh" "$ROOT" "$@" ;;
   main-guard) shift; bash "$ROOT/bin/helpers/main-guard.sh" "$ROOT" "$@" ;;
@@ -2039,7 +2044,7 @@ PYEOF
   tail) shift; node "$ROOT/bin/helpers/tail.mjs" "$@" ;;
   spec-check) shift; node "$ROOT/bin/helpers/spec-check.mjs" "$@" ;;
   main-drift) shift; node "$ROOT/bin/helpers/main-drift.mjs" "$@" ;;
-  shot) shift; node "$ROOT/bin/helpers/shot.mjs" "$@" ;;
+  shot) shift; if [ "${1:-}" = watch ]; then shift; node "$ROOT/bin/helpers/shot-watch.mjs" "$@"; else node "$ROOT/bin/helpers/shot.mjs" "$@"; fi ;;
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
@@ -2058,6 +2063,8 @@ PYEOF
     [ "${1:-}" = "--json" ] || bash "$ROOT/bin/helpers/tabs.sh" "$ROOT"
     exit $rc ;;
   blog-share) shift; bash "$ROOT/bin/helpers/blog-share.sh" "$ROOT" "$@" ;;
+  meta) shift; bash "$ROOT/bin/helpers/meta.sh" "$ROOT" "$@" ;;
+  starved) shift; node "$ROOT/bin/helpers/starved.mjs" "$@" ;;
   engage) shift; bash "$ROOT/bin/helpers/engage.sh" "$ROOT" "$@" ;;
   no-verify-debt) shift; bash "$ROOT/bin/helpers/no-verify-debt.sh" "$ROOT" "$@" ;;
   tabs) shift; bash "$ROOT/bin/helpers/tabs.sh" "$ROOT" "$@" ;;

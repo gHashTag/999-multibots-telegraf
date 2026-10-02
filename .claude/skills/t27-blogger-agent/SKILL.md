@@ -87,6 +87,79 @@ Once #3235 is deployed: `tri blog-share reoffer` lists articles the timer closed
   the composer at six seconds. The desk now looks every 3 s up to ~30 s (#3281);
   the path test with late-drawing composers fails on the old code.
 
+## Threads, Instagram and Facebook go by Meta's API (2026-10-02)
+
+**Measured:** the owner's own browser was signed out of Instagram, Threads and
+Facebook (`browser_logins`), so the desk skipped all three on every article.
+A browser that is not signed in cannot post, and asking the agent to sign in
+there each time is the expensive road.
+
+**Fix:** a connector to Meta's own Graph API, written in t27 first:
+`specs/automation/meta-connect.t27` (t27#5523), bound in
+`render/src/spec/meta-connect.*`.
+
+- `publishEverywhere` asks `postByApi` first. A network holding a token goes
+  by the API, and the browser loop skips it. Reddit still goes by the browser;
+  LinkedIn and X have their own API road (next section).
+- Two logins cover three networks:
+  - The Threads login gets a 60-day token, refreshed by `th_refresh_token`
+    once it is a day old and 15 or fewer days remain.
+  - The Facebook Login gets a Page token that never ends. That token also
+    publishes to the Instagram professional account linked to the Page.
+- Instagram needs a public JPEG, and the blog's feed has none. The answer is
+  `GET /api/social/card/<slug>.jpg`: a 1080x1350 dark card with the triangle
+  point-down and the title. The title is looked up in the feed by slug and
+  never taken from the address.
+- The receipt is `опубликовано через API · <permalink>`, built from the
+  published id (`posted()`). `headlineOf` counts it as a success.
+
+**The owner does this once.** We never create the apps or sign in for him.
+
+1. Create the Meta apps: a Threads use case, plus Facebook Login with the
+   Pages and Instagram use cases.
+2. Register the callback
+   `https://vibee-render-production.up.railway.app/api/social/meta/callback`.
+3. Put `THREADS_APP_ID/SECRET` and `META_APP_ID/SECRET` on `vibee-render`.
+   Optionally add `META_PAGE_ID` and `META_TOKEN_KEY`.
+4. Accept the tester invites in Threads and Instagram.
+5. Link the IG professional account to the Page.
+6. Profile → «🔗 Threads, Instagram, Facebook через API» → Подключить.
+
+**First look:** `tri meta` lists which apps are set, which tokens are held,
+the account and the days left. It never prints values. `tri meta card <slug>`
+fetches the card.
+
+## LinkedIn and X go by their own APIs too (2026-10-02, #3338)
+
+Spec `specs/automation/social-api.t27` (t27#5584), bound in
+`render/src/spec/social-api.*`. Code is in `render/src/agent/social-api.ts`. It
+REUSES meta-connect's token table, sealing, single-use state, `scrub`,
+`VIA_API` and `writeToken`; do not copy them.
+
+- **LinkedIn** posts through the Posts API. `POST /rest/posts`, scope
+  `w_member_social`.
+  - Send the `LinkedIn-Version: YYYYMM` header. It defaults to last month;
+    override it with `LINKEDIN_API_VERSION`.
+  - The receipt is the `x-restli-id` header. A 201 with no id is NOT a post.
+  - The token lasts 60 days and cannot be refreshed. The card warns at 7 days
+    or fewer, and the owner reconnects.
+- **X** posts through API v2 with OAuth 2.0 PKCE (S256) and `offline.access`.
+  - The verifier rides in `social_oauth_states.verifier` and is used once.
+  - Every refresh issues a NEW refresh token, sealed in `meta.refresh_sealed`.
+    Keeping the old one loses the connection.
+  - The token is refreshed in its last 5 minutes.
+  - Weight: 280 per post, a link 23, an emoji 2.
+- The desk runs `postByApi` (Meta) and `postBySocialApi` (LinkedIn/X) in
+  parallel. The X browser thread is skipped once X has an API receipt.
+- All networks share ONE redirect URI: `/api/social/meta/callback`. The state
+  row says which network it is.
+- The owner sets `LINKEDIN_CLIENT_ID/SECRET` and `X_CLIENT_ID/SECRET` on
+  `vibee-render` and registers that URI in each app.
+
+**Whose turn:** the "-- ready? --" block at the end of `tri meta` prints one
+line per network: waits for the owner (app), waits for Connect, or READY.
+RUN_LIVE stays false in both specs until a post returns its id in production.
+
 ## Engage desk: comments under other people's posts (2026-10-02)
 
 Cross-posting the blog is the **blog-share** desk above. The engage desk does

@@ -157,6 +157,19 @@ cat docs/OWNER-DECISIONS.md
     tri mcp eval <file> a browser script read from a FILE -- the only way its
                         quotes and newlines survive the shell
 
+    tri meta            Threads/Instagram/Facebook по API: заданы ли приложения
+                        Meta, чьи токены, сколько дней осталось (без значений)
+
+### Урок 02.10.2026: «браузер не вошёл» — это повод для дороги API, а не для входа
+
+Стол блога неделями пропускал Instagram, Threads и Facebook: браузер владельца
+там не вошёл. Чинить это входом через агента означало бы каждый раз заново
+упираться в пароль и 2FA. У Meta есть свой Graph API: один вход OAuth руками
+владельца, токен на сервере, а квитанция — id поста. Развилка «api / browser /
+skip» записана в спеке (`meta-connect.t27`, навык `t27-spec-first`,
+«Оркестрация связывается через .t27»). Прежде чем учить браузер новой сети,
+проверьте, нет ли у неё API для публикации.
+
 ### Что упёрлось во владельца
 
 - GitHub Actions НЕ ВЫПОЛНЯЕТСЯ: задания падают за секунды с нулём шагов
@@ -2030,6 +2043,13 @@ main had changed `render-server.ts` under the branch.
 - Ticks that commit with `--no-verify` close with `tri no-verify-debt`:
   cyrillic, secrets, prettier from the ROOT, eslint, over the whole branch.
   Its first run found a file formatted by render's prettier, not the root's.
+- A gate that died with NO findings on a starved Mac is about the machine, not
+  the code. `tri starved` says which (load per core >= 4 or swap free < 2 GB,
+  exit 1), shows who eats it, and `--reap` kills only orphaned checkers
+  (ppid 1, > 30 min; 2026-10-02 found five vitest workers of a dead run,
+  3.5 h old). The tsc ratchet now waits for headroom and retries once, then
+  exits 75 "starved" instead of "broken" (`scripts/lib/starvation.cjs`).
+  Findings are never retried.
 
 `tri iphone ru-diff [ref]` (iteration 7) does exactly that: runs the counter
 of `ref` (default origin/main) and the current one per file and prints every
@@ -2166,3 +2186,32 @@ A phone in an iframe has no Fullscreen API, so "full screen by default" in the
 Telegram mini-app and the iOS Game tab is a board state (`pageBare`), not a
 browser call. Then a single "more" button inside the board serves every
 platform, and the native overlay buttons go away.
+
+### A reviewer bee, briefed and checked (iOS loop, iteration 14, 2026-10-02)
+
+- **Give the bee the worktree's `tri`.** The main checkout
+  (`/Users/playra/999-multibots-telegraf`) sits on an old branch. The #3319
+  bee grepped that copy, decided `tri pr-billing` did not exist, and counted
+  the billing failures by hand.
+- **A bee's note is a claim, not a defect.** On #3319 the bee wrote that
+  `recordInto` records `too_long` as `bad_input`. It had read a stale comment;
+  the code reads the body first. The fix was the comment plus a test pinning
+  that path (#3325), not a change in behaviour. Read the code before acting
+  on any bee note.
+- **After every merge, run `tri deploys`.** The loop's own PRs shipped. Ten
+  minutes later, someone else's #3244 was refused by the player's Docker test
+  gate (a test read `bin/` at the repository root, which the image does not
+  contain), and from then on no player commit reached production, including
+  the next board release. `test gate: REFUSED` means the image's test stage
+  failed, not the app. Read it with `railway logs <deploy-id> -b -n 3000`.
+  The fix was #3329 (EXCLUDE entry plus the `testGateExclude` guard).
+- **Never put `timeout` on `git commit`.** On a starved Mac the hooks take
+  over 25 minutes. A timeout kills git and leaves `tsc` orphaned in the
+  worktree with ppid 1. If a hook has already printed `exit status 1` and the
+  cause is known, kill its WHOLE tree by PID (lefthook, its npm/node/tsc
+  children); otherwise let it finish.
+- **4 player-types errors in `TriWalletCard.tsx` are the worktree, not main.**
+  The worktree's `node_modules` is a symlink to a checkout that never
+  installed `@tonconnect/ui` (#3218). This is proved when the same 4 errors
+  appear and no others. Commit with `--no-verify`, check that
+  `tri no-verify-debt` = 0, and say so in the PR.
