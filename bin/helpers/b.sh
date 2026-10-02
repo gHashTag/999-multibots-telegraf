@@ -77,17 +77,19 @@
 #                                 Never clicks. Exit 1 = a button the desk
 #                                 would miss tonight
 #   tri browser call TOOL [JSON]  any tool, raw: the escape hatch
-#
-# The cases that only look (status, read, shot, desk, find, wait, layers,
-# composer) send every call as a probe: an unmarked read is a journal step,
-# and two minutes later the owner gets an "agent work over the connection"
-# report for a check nobody asked him about (2026-10-03, `tri logins`). A probe
-# never starts a browser: with no visit on record the server says so, and
-# the remedy is a case that works (open, share-check), which he is told about.
-# share-check is NOT a probe: it opens tabs in the browser he watches, and
-# work he can see is work he is told about -- there is no invisible mode.
 #   tri browser cover             every browser_* tool in agent-tools.ts has a
 #                                 case here (exit 1 names the ones that do not)
+#
+# The cases that only look (status, read, shot, desk, wait, layers, composer)
+# send every call as a probe: an unmarked read is a journal step, and two
+# minutes later the owner gets an "agent work over the connection" report for
+# a check nobody asked him about (2026-10-03, `tri logins`). A probe never
+# starts a browser: with no visit on record the server says so, and the
+# remedy is a case that works (open, share-check), which he is told about.
+# share-check is NOT a probe: it opens tabs in the browser he watches, and
+# work he can see is work he is told about -- there is no invisible mode.
+# Neither is find: findProbe scrolls the target into view, so his page moves
+# under his eyes, and that is work he is told about too (review on #3434).
 #
 # Exit 0 done, 1 the tool answered with an error, 2 could not ask at all.
 set -uo pipefail
@@ -129,7 +131,8 @@ BASE="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 NONE='{}'  # "${2:-{}}" expands to "{\\}" in bash: keep the empty object here
 # A case that only looks marks every call it makes, `front` included.
 LOOK_ONLY=""
-case "$CASE" in status|tabs|read|shot|desk|find|wait|layers|composer) LOOK_ONLY=probe ;; esac
+# Not find: its probe scrolls the page (see the header).
+case "$CASE" in status|tabs|read|shot|desk|wait|layers|composer) LOOK_ONLY=probe ;; esac
 
 # call TOOL JSON [MAX_TIME] [probe] -> the tool's own answer on stdout
 # (structured JSON or text), exit 1 on a tool error, 2 when nothing came back.
@@ -584,6 +587,9 @@ process.stdin.on("data", d => (xml += d)).on("end", () => {
       id=$(OUT="$out" python3 -c 'import json,os
 try: print(json.loads(os.environ["OUT"]).get("id") or "")
 except Exception: print("")')
+      # No id: the front tab is not known to be ours, so nothing is looked at
+      # (findProbe scrolls) and nothing is closed.
+      [ -n "$id" ] || { echo "  ✗ $net: открылась без id — не смотрю и не закрываю: ${out:0:160}"; miss=1; continue; }
       sleep $(( settle / 1000 ))
       hit=""; look=0
       while [ -z "$hit" ] && [ $look -lt "$looks" ]; do
