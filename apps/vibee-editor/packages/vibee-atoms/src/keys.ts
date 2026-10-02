@@ -139,6 +139,12 @@ export const STORAGE_KEYS = {
    * the sales page (components/Navigation/RouteMemory.tsx).
    */
   lastChat: 'vibee-last-chat',
+  /**
+   * When the last conversation was opened here, in ms. Compared with the copy
+   * kept in Telegram's CloudStorage, so a person who answered a client on the
+   * phone lands in that chat on the desktop too (lib/launchMemory.ts).
+   */
+  lastChatAt: 'vibee-last-chat-at',
   timelineZoom: 'vibee-timeline-zoom',
   snapSettings: 'vibee-snap-settings',
   playbackRate: 'vibee-playback-rate',

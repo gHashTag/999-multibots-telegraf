@@ -10,7 +10,15 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { Provider } from 'jotai'
 import { AGENT_PACKAGES, STORAGE_KEYS } from '@vibee/atoms'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 const admin = vi.hoisted(() => ({ yes: true }))
 vi.mock('@/config/admin', () => ({ isAdmin: () => admin.yes }))
@@ -47,6 +55,13 @@ async function draw(node: React.ReactNode) {
     )
   })
 }
+
+// Warm the transform of what harness() re-imports after resetModules, so no
+// single test pays the cold compile inside its 5 s budget.
+beforeAll(async () => {
+  await import('../LevelSwitch')
+  await import('../LevelDashboard')
+}, 60_000)
 
 beforeEach(() => {
   admin.yes = true
@@ -130,8 +145,14 @@ describe('the level switch', () => {
 })
 
 describe('a person who has an agent', () => {
+  // A cold import of the agents page can outlast the 5 s test budget under a
+  // loaded pre-push run; pay it once, outside the test, with its own budget.
+  let MyAgentPackage: typeof import('../../Agents/MyAgentPackage').MyAgentPackage
+  beforeAll(async () => {
+    ;({ MyAgentPackage } = await import('../../Agents/MyAgentPackage'))
+  }, 60_000)
+
   it('is shown their agent and the way back to the chat, the sale folded away', async () => {
-    const { MyAgentPackage } = await import('../../Agents/MyAgentPackage')
     await draw(
       <MyAgentPackage
         level="blogger"
