@@ -46,4 +46,50 @@ final class NativeLanguageTests: XCTestCase {
     }
     XCTAssertEqual(catalog.label("Другое", russian: false), "Other")
   }
+
+  /// The run button's reason is the first thing an English phone reads when
+  /// generation is not possible. Each reason keeps its numbers in both
+  /// languages, and per-second models name the unit, not a total.
+  func testRunButtonReasonsFollowTheLanguage() {
+    XCTAssertEqual(GenerateText.sourceMissing(video: true, uploading: false, russian: false), "A video is needed")
+    XCTAssertEqual(GenerateText.sourceMissing(video: false, uploading: false, russian: false), "A photo is needed")
+    XCTAssertEqual(GenerateText.sourceMissing(video: true, uploading: true, russian: false), "The file is uploading")
+    XCTAssertEqual(
+      GenerateText.shortfall(price: 20, balance: 16, perSecond: false, russian: false),
+      "not enough tokens: 20 needed, you have 16")
+    let perSecond = GenerateText.shortfall(price: 3, balance: 2, perSecond: true, russian: false)
+    XCTAssertTrue(perSecond.contains("per second"), perSecond)
+    for russian in [false, true] {
+      for perSecond in [false, true] {
+        let text = GenerateText.shortfall(price: 20, balance: 16, perSecond: perSecond, russian: russian)
+        XCTAssertTrue(text.contains("20") && text.contains("16"), text)
+        let cyrillic = text.range(of: "\\p{Cyrillic}", options: .regularExpression) != nil
+        XCTAssertEqual(cyrillic, russian, text)
+      }
+    }
+  }
+
+  /// Errors reach every screen that talks to the server, so an English phone
+  /// must not get a Russian sentence around an English system reason.
+  func testServerErrorsFollowTheLanguage() {
+    let offline = NSError(domain: "net", code: -1009)
+    let action: [API.ActionError] = [.нуженВход, .отказ(500), .странныйОтвет, .сеть(offline)]  // cyrillic-ok: pre-existing case names
+    let project: [API.ProjectError] = [.нетВхода, .отказ(502, ""), .сеть(offline), .разбор("x")]  // cyrillic-ok: pre-existing case names
+    let texts = action.map { ($0.text(russian: false), $0.text(russian: true)) }
+      + project.map { ($0.text(russian: false), $0.text(russian: true)) }
+    for (en, ru) in texts {
+      XCTAssertNil(en.range(of: "\\p{Cyrillic}", options: .regularExpression), en)
+      XCTAssertNotNil(ru.range(of: "\\p{Cyrillic}", options: .regularExpression), ru)
+    }
+    XCTAssertTrue(API.ActionError.отказ(500).text(russian: false).contains("500"))  // cyrillic-ok: pre-existing case names
+    // A server's own message is passed through as is, in either language.
+    XCTAssertEqual(API.ProjectError.отказ(400, "bad prompt").text(russian: false), "bad prompt")  // cyrillic-ok: pre-existing case names
+  }
+
+  func testFramesLabelAgrees() {
+    XCTAssertEqual(framesLabel(1, russian: false), "1 frame")
+    XCTAssertEqual(framesLabel(120, russian: false), "120 frames")
+    XCTAssertEqual(framesLabel(2, russian: true), "2 кадра")
+    XCTAssertEqual(framesLabel(25, russian: true), "25 кадров")
+  }
 }
