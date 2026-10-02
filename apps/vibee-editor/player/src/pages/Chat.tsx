@@ -51,9 +51,13 @@ import { AgentAside } from '@/components/Chat/AgentAside'
 import { ClientHelperPicker } from '@/components/Chat/ClientHelperPicker'
 import { ConversationRail } from '@/components/Chat/ConversationRail'
 import { stopAgent, threadKeyOf } from '@/lib/agentStream'
-import { createChatVoiceSession } from '@/lib/voice/chatVoice'
+import {
+  createChatVoiceSession,
+  voiceSeparateAtom,
+} from '@/lib/voice/chatVoice'
 import type { VoiceSession } from '@/lib/voice/session'
 import { VoiceOverlay } from '@/components/Voice/VoiceOverlay'
+import { VoiceDock } from '@/components/Voice/VoiceDock'
 import { isConversationId, newConversationId } from '@/lib/conversations'
 import { useBackTo } from '@/lib/backTo'
 import { AGENT_SUGGESTIONS, agentGate } from './agentSuggestions'
@@ -498,9 +502,21 @@ function ChatThread({
    * шёл посмотреть ленту и возвращался к оборванному ответу, даже когда
    * сервер честно досчитал. Теперь страница только зовёт и читает стор.
    */
+  // Voice mode (below): declared first because the box hands it typed lines.
+  const [voice, setVoice] = useState<VoiceSession | null>(null)
+  const voiceRef = useRef<VoiceSession | null>(null)
+  const [voiceSeparate, setVoiceSeparate] = useAtom(voiceSeparateAtom)
+
   const send = useCallback(
     (text: string) => {
       if ((!text.trim() && attachments.length === 0) || uploading) return
+      // Voice mode on: a typed line is a question in the same conversation,
+      // and its answer is spoken (VoiceDock). A file still goes the usual way.
+      if (voiceRef.current && attachments.length === 0) {
+        voiceRef.current.type(text)
+        setInput('')
+        return
+      }
       // Busy is not a reason to refuse: the line waits in the queue and
       // leaves when the answer in progress has ended (lib/agentStream.ts).
       sendOrQueue(text, attachments, {
@@ -533,9 +549,10 @@ function ChatThread({
    * It is bound to this conversation, so leaving the conversation ends it.
    * Stopped explicitly rather than from an effect cleanup on `voice`, which
    * StrictMode would run at once and cut the session it just opened.
+   *
+   * It is drawn INSIDE the chat (VoiceDock), the conversation in view; the
+   * full screen is a choice the person makes and the app remembers.
    */
-  const [voice, setVoice] = useState<VoiceSession | null>(null)
-  const voiceRef = useRef<VoiceSession | null>(null)
   const langRef = useRef(lang)
   langRef.current = lang
   const openVoice = () => {
@@ -1111,6 +1128,13 @@ function ChatThread({
                 <li className="chat-queue__hint">{t('chat.queue.hint')}</li>
               </ol>
             ) : null}
+            {voice && !voiceSeparate ? (
+              <VoiceDock
+                session={voice}
+                onClose={closeVoice}
+                onExpand={() => setVoiceSeparate(true)}
+              />
+            ) : null}
             <div className="chat-input-container">
               {/*
                * ANY FILE, NOT ONLY MEDIA (2026-09-22). The picker used to accept
@@ -1215,8 +1239,12 @@ function ChatThread({
               )}
             </div>
             <p className="chat-composer-hint">{t('chat.composer.hint')}</p>
-            {voice ? (
-              <VoiceOverlay session={voice} onClose={closeVoice} />
+            {voice && voiceSeparate ? (
+              <VoiceOverlay
+                session={voice}
+                onClose={closeVoice}
+                onDock={() => setVoiceSeparate(false)}
+              />
             ) : null}
           </div>
         </div>

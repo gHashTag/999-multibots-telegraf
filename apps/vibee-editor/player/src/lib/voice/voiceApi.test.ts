@@ -57,3 +57,45 @@ describe('wakeRoad: reopen a quiet connection as the person starts talking', () 
     await new Promise(r => setTimeout(r, 0))
   })
 })
+
+describe('transcribe: the ears may also judge the end of the turn', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function answering(body: unknown) {
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify(body))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  it('asks for the verdict only when it has somewhere to put it', async () => {
+    const { transcribe } = await api()
+    const fetchMock = answering({ text: 'hi' })
+    await transcribe(new Blob(['x']), { lang: 'ru' })
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\?lang=ru$/)
+    await transcribe(new Blob(['x']), { lang: 'ru', onTurn: () => {} })
+    expect(String(fetchMock.mock.calls[1][0])).toMatch(/\?lang=ru&turn=1$/)
+  })
+
+  it("hands over the voice's verdict with the words", async () => {
+    const { transcribe } = await api()
+    answering({ text: ' open my week ', done: 0.21 })
+    const onTurn = vi.fn()
+    expect(await transcribe(new Blob(['x']), { onTurn })).toBe('open my week')
+    expect(onTurn).toHaveBeenCalledWith(0.21)
+  })
+
+  it('ears that could not judge say nothing, rather than "finished"', async () => {
+    const { transcribe } = await api()
+    const onTurn = vi.fn()
+    answering({ text: 'hi' })
+    await transcribe(new Blob(['x']), { onTurn })
+    answering({ text: 'hi', done: 'yes' })
+    await transcribe(new Blob(['x']), { onTurn })
+    expect(onTurn).not.toHaveBeenCalled()
+  })
+})

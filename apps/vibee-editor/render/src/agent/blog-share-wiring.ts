@@ -6,11 +6,27 @@ import type { Queryable } from '../browser/sessions'
 import {
   ANSWER_WAIT_MS,
   blogShareTick,
+  LEFT_THE_FORM,
+  needleOf,
+  NO_PROFILE_CHECK,
+  NOT_SEEN_ON_PROFILE,
+  PROFILE_LOOK_EVERY_MS,
+  PROFILE_LOOKS,
+  PROFILE_SETTLE_MS,
+  profileUrlFor,
   RSS_URL,
+  SEEN_ON_PROFILE,
+  seenOn,
   shareUrls,
   type Article,
   type Answer,
 } from './blog-share'
+import {
+  AFTER_CLICK_SETTLE_MS,
+  FIRST_SETTLE_MS,
+  LOOK_EVERY_MS,
+  LOOKS,
+} from '../spec/blog-share.gen'
 
 const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -87,7 +103,7 @@ export async function publishEverywhere(
    */
   const { loginsOfPerson } = await import('../browser/logins')
   const { isNotConnected } = await import('./rounds')
-  const { receiptOf, LEFT_THE_FORM } = await import('./blog-share')
+  const { receiptOf } = await import('./blog-share')
   const logins = await loginsOfPerson(pool, owner).catch(() => null)
   for (const [net, url, labels] of [
     ['X', urls.x, ['post', 'опубликовать']], // cyrillic-ok: X's Russian label
@@ -105,7 +121,7 @@ export async function publishEverywhere(
     }
     try {
       const page = await newPage(cdp, url)
-      await settle(6_000)
+      await settle(FIRST_SETTLE_MS)
       let pressed: string | null = null
       /*
        * One look at six seconds missed the button on a cold browser: the
@@ -114,8 +130,8 @@ export async function publishEverywhere(
        * every three seconds, up to half a minute.
        */
       let found: ReturnType<typeof foundOf> = null
-      for (let look = 0; look < 8 && !found; look++) {
-        if (look > 0) await settle(3_000)
+      for (let look = 0; look < LOOKS && !found; look++) {
+        if (look > 0) await settle(LOOK_EVERY_MS)
         for (const label of labels) {
           found = foundOf(
             await evaluateOn(cdp, page.id, findProbe(label)).catch(() => null)
@@ -128,18 +144,20 @@ export async function publishEverywhere(
           await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
         )
         await clickAt(cdp, page.id, found.x, found.y)
-        await settle(5_000)
+        await settle(AFTER_CLICK_SETTLE_MS)
         const after = String(
           await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
         )
         const receipt = receiptOf(before, after)
-        pressed = `${found.label}» · ${receipt}`
+        const check = await confirmIfLeft(cdp, net, a, receipt)
+        pressed = `${found.label}» · ${receipt} · ${check}`
         /*
          * Every run used to leave its tabs in the person's browser, day
-         * after day. A confirmed post closes its tab; an unconfirmed one
-         * stays open -- it is the only evidence of what went wrong.
+         * after day. A post seen on the profile closes its tab; an
+         * unconfirmed one stays open -- it is the only evidence of what
+         * went wrong.
          */
-        if (receipt === LEFT_THE_FORM)
+        if (check === SEEN_ON_PROFILE)
           await closePage(cdp, page.id).catch(() => undefined)
       }
       if (net === 'X') void noteShape(pool, a.slug, 'single')
@@ -206,9 +224,73 @@ async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   const after = String(
     await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
   )
-  const { receiptOf, LEFT_THE_FORM } = await import('./blog-share')
+  const { receiptOf } = await import('./blog-share')
   const receipt = receiptOf(before, after)
-  if (receipt === LEFT_THE_FORM)
+  const check = await confirmIfLeft(cdp, 'X', a, receipt)
+  if (check === SEEN_ON_PROFILE)
     await closePage(cdp, page.id).catch(() => undefined)
-  return `тред опубликован («${pressed}»): текст, ссылка вторым постом · ${receipt}` // cyrillic-ok: told to the owner
+  return `тред отправлен («${pressed}»): текст, ссылка вторым постом · ${receipt} · ${check}` // cyrillic-ok: told to the owner
 }
+
+/**
+ * Only a page that left the form is worth a look at the profile; anything
+ * else is already unconfirmed by its receipt.
+ */
+async function confirmIfLeft(
+  cdp: string,
+  net: string,
+  a: Article,
+  receipt: string
+): Promise<string> {
+  if (receipt !== LEFT_THE_FORM) return NOT_SEEN_ON_PROFILE
+  return await confirmOnProfile(cdp, net, needleOf(a))
+}
+
+/**
+ * A RECEIPT IS NOT A POST (spec v2). The page can leave the form for an
+ * error page or a sign-in wall. So the owner's own profile is opened in the
+ * same browser and the post's opening words are looked for, a few times,
+ * because a fresh post reaches the feed late. Reads only: nothing is
+ * clicked or typed here. Never throws: a failure is "not seen".
+ */
+export async function confirmOnProfile(
+  cdp: string,
+  net: string,
+  needle: string
+): Promise<string> {
+  const start = profileUrlFor(net)
+  if (!start) return NO_PROFILE_CHECK
+  const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
+  let page: { id: string } | null = null
+  try {
+    page = await newPage(cdp, start)
+    await settle(PROFILE_SETTLE_MS)
+    if (net === 'X') {
+      /* x.com/home links to the person's own profile; that page is read. */
+      const own = String(
+        (await evaluateOn(cdp, page.id, X_PROFILE_LINK).catch(() => '')) || ''
+      )
+      if (!/^https:\/\/(x|twitter)\.com\/[A-Za-z0-9_]+$/.test(own))
+        return NOT_SEEN_ON_PROFILE
+      await closePage(cdp, page.id).catch(() => undefined)
+      page = await newPage(cdp, own)
+      await settle(PROFILE_SETTLE_MS)
+    }
+    for (let look = 0; look < PROFILE_LOOKS; look++) {
+      if (look > 0) await settle(PROFILE_LOOK_EVERY_MS)
+      const text = String(
+        (await evaluateOn(cdp, page.id, PAGE_TEXT).catch(() => '')) || ''
+      )
+      if (seenOn(text, needle)) return SEEN_ON_PROFILE
+    }
+    return NOT_SEEN_ON_PROFILE
+  } catch {
+    return NOT_SEEN_ON_PROFILE
+  } finally {
+    if (page) await closePage(cdp, page.id).catch(() => undefined)
+  }
+}
+
+const PAGE_TEXT = 'document.body ? document.body.innerText : ""'
+const X_PROFILE_LINK =
+  '(document.querySelector(\'a[data-testid="AppTabBar_Profile_Link"]\') || {}).href || ""'

@@ -319,10 +319,12 @@
   font-size: 12px;
 }
 
+/* The topic is the only thing telling one reel from the next: it wraps rather
+   than ending in "...". At 320px a single line cut it to 145 of 175px
+   (tri shot, 2026-10-02). */
 .story-reel__job-topic {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .story-reel__job-state {
@@ -448,10 +450,13 @@
   cursor: pointer;
 }
 
+/* The whole line is the toggle's target: a thumb meets the label, not the
+   18px box (tri shot measured 344x24 at 390px, 2026-10-02). */
 .story-reel__dm {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: var(--touch-target, 44px);
   font-size: 13px;
   color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
@@ -478,9 +483,11 @@
   line-height: 1.3;
 }
 
+/* Topic ideas and the photo button are pressed with a thumb: 32px was under
+   the finger's size on every phone (tri shot, 2026-10-02). */
 .story-reel__quick button {
   height: auto;
-  min-height: 32px;
+  min-height: var(--touch-target, 44px);
 }
 
 .story-reel__photo {
@@ -495,7 +502,7 @@
 .story-reel__photo-btn {
   display: inline-flex;
   align-items: center;
-  min-height: 32px;
+  min-height: var(--touch-target, 44px);
   padding: 0 12px;
   border-radius: 16px;
   border: 1px solid #333;
