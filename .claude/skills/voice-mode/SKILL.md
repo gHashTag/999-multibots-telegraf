@@ -587,6 +587,11 @@ that is no verdict either way -- the switch flips only after
 `./tri turn --audio done-*.wav cut-*.wav` on the owner's recorded voice
 (the summary line: finished held / unfinished caught). Inference ~70 ms CPU.
 
+Live after deploy (#3315, `tri turn --live`, our mouth -> our ears): English
+agreed with the words 3 of 3 (cut "invoices and" 0.01, "Open my calendar."
+0.99); Russian finished 0.99, but cut "...na etoy nedele i" 0.77 and "Khochu
+zapisat'sya na" 0.52 -- the voice called both finished. Russian stays words-only.
+
 Competitors, LiveKit EOT-bench (false cut-off at a 300 ms budget): LiveKit
 v1 9.9 %, Deepgram Flux 12.9 %, v1-mini 27.8 %, Smart Turn v3.2 35.2 %,
 AssemblyAI 49.4 %. The field is moving to fused audio+text judges.
