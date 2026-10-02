@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { ArrowLeft, KeyRound, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Cpu, KeyRound, RefreshCw } from 'lucide-react'
 import { openLoginAtom, userAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import {
@@ -9,10 +9,16 @@ import {
   changeHiveKey,
   hiveKeyError,
   loadHiveKeys,
+  loadHiveModels,
+  setHiveModel,
   type HiveKey,
   type HiveKeyAccount,
 } from '@/lib/hiveKeys'
 import './HiveAccount.css'
+
+/** The Queen runs at most four checks at once; a fifth would only be refused. */
+const PROBE_LANES = 4
+type Notice = { key: string; vars?: Record<string, string | number> }
 
 export default function HiveAccount() {
   const { lang, t } = useLanguage()
@@ -22,7 +28,15 @@ export default function HiveAccount() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const [pending, setPending] = useState('hiveAccount.working')
+  const [drafts, setDrafts] = useState<
+    Partial<Record<HiveKey['provider'], string>>
+  >({})
+  const [catalogs, setCatalogs] = useState<
+    Partial<Record<HiveKey['provider'], string[]>>
+  >({})
+  const catalogRequests = useRef(new Set<HiveKey['provider']>())
   const [progress, setProgress] = useState<{
     done: number
     total: number
@@ -56,6 +70,9 @@ export default function HiveAccount() {
     setBusy(false)
     setNotice(null)
     setProgress(null)
+    setDrafts({})
+    setCatalogs({})
+    catalogRequests.current.clear()
     form.current?.reset()
     void refresh()
     return () => {
@@ -78,20 +95,22 @@ export default function HiveAccount() {
   }
 
   const perform = async (
-    operation: (signal: AbortSignal) => Promise<void>,
-    success: string
+    operation: (signal: AbortSignal) => Promise<Notice | void>,
+    success: string,
+    working = 'hiveAccount.working'
   ) => {
     if (busy) return
     const epoch = generation.current
     const controller = new AbortController()
     request.current = controller
     setBusy(true)
+    setPending(working)
     setError(null)
     setNotice(null)
     try {
-      await operation(controller.signal)
+      const outcome = await operation(controller.signal)
       if (!controller.signal.aborted && epoch === generation.current)
-        setNotice(success)
+        setNotice(outcome || { key: success })
     } catch (failure) {
       if (!controller.signal.aborted && epoch === generation.current) {
         const code = hiveKeyError(failure)
@@ -151,14 +170,79 @@ export default function HiveAccount() {
     if (!account) return
     const keys = [...account.keys]
     void perform(async signal => {
+      let next = 0
+      let done = 0
+      let skipped = 0
       setProgress({ done: 0, total: keys.length })
-      for (const [index, key] of keys.entries()) {
-        const result = await changeHiveKey(key.id, 'probe', signal)
-        if (signal.aborted) return
-        replaceKey(result.key)
-        setProgress({ done: index + 1, total: keys.length })
+      // A key that cannot be checked right now (its one check a minute is
+      // spent, the provider is busy) does not stop the others.
+      const lane = async () => {
+        while (next < keys.length && !signal.aborted) {
+          const key = keys[next++]
+          try {
+            const result = await changeHiveKey(key.id, 'probe', signal)
+            if (signal.aborted) return
+            replaceKey(result.key)
+          } catch (failure) {
+            const code = hiveKeyError(failure)
+            if (
+              signal.aborted ||
+              code === 'hiveAccount.error.signin' ||
+              code === 'hiveAccount.error.attribution'
+            )
+              throw failure
+            skipped += 1
+          }
+          done += 1
+          setProgress({ done, total: keys.length })
+        }
       }
+      await Promise.all(
+        Array.from({ length: Math.min(PROBE_LANES, keys.length) }, lane)
+      )
+      if (skipped)
+        return {
+          key: 'hiveAccount.checkedSome',
+          vars: { done: done - skipped, total: keys.length, skipped },
+        }
     }, 'hiveAccount.checkedAll')
+  }
+
+  const loadCatalog = (provider: HiveKey['provider']) => {
+    if (catalogRequests.current.has(provider)) return
+    catalogRequests.current.add(provider)
+    const epoch = generation.current
+    // Suggestions only: a failed catalog leaves the field free to type in.
+    loadHiveModels(provider, new AbortController().signal)
+      .then(catalog => {
+        if (epoch === generation.current && Array.isArray(catalog?.models))
+          setCatalogs(current => ({ ...current, [provider]: catalog.models }))
+      })
+      .catch(() => catalogRequests.current.delete(provider))
+  }
+
+  const switchModel = (provider: HiveKey['provider']) => {
+    if (busy || !account) return
+    const model = (drafts[provider] ?? '').trim()
+    const current = account.providers.find(row => row.id === provider)
+    if (!model || model === current?.model) return
+    void perform(
+      async signal => {
+        const result = await setHiveModel({ provider, model }, signal)
+        if (signal.aborted) return
+        setAccount(result)
+        setDrafts(drafted => ({ ...drafted, [provider]: undefined }))
+        return {
+          key: 'hiveAccount.modelSaved',
+          vars: {
+            model,
+            n: result.keys.filter(key => key.provider === provider).length,
+          },
+        }
+      },
+      'hiveAccount.updated',
+      'hiveAccount.modelChecking'
+    )
   }
 
   const date = (value: string | null) => {
@@ -217,9 +301,9 @@ export default function HiveAccount() {
               total: progress.total,
             })
           : busy
-            ? t('hiveAccount.working')
+            ? t(pending)
             : notice
-              ? t(notice)
+              ? t(notice.key, notice.vars)
               : null}
       </div>
 
@@ -270,6 +354,103 @@ export default function HiveAccount() {
               })}
             </p>
           </section>
+
+          {account.providers.some(provider =>
+            account.keys.some(key => key.provider === provider.id)
+          ) && (
+            <section
+              className="hive-account__models"
+              aria-labelledby="hive-models"
+            >
+              <h2 id="hive-models">
+                <Cpu size={21} aria-hidden="true" />
+                {t('hiveAccount.models')}
+              </h2>
+              <p className="hive-account__muted">
+                {t('hiveAccount.modelsNote')}
+              </p>
+              <ul className="hive-account__model-list">
+                {account.providers
+                  .filter(provider =>
+                    account.keys.some(key => key.provider === provider.id)
+                  )
+                  .map(provider => {
+                    const count = account.keys.filter(
+                      key => key.provider === provider.id
+                    ).length
+                    const draft = drafts[provider.id] ?? provider.model
+                    const changed =
+                      draft.trim() !== '' && draft.trim() !== provider.model
+                    return (
+                      <li
+                        key={provider.id}
+                        className="hive-account__model"
+                        data-provider={provider.id}
+                      >
+                        <div className="hive-account__model-name">
+                          <strong>{provider.label}</strong>
+                          <span>
+                            {t('hiveAccount.modelCurrent', {
+                              model: provider.model,
+                              n: count,
+                            })}
+                          </span>
+                          {provider.defaultModel &&
+                            provider.defaultModel !== provider.model && (
+                              <span>
+                                {t('hiveAccount.modelDefault', {
+                                  model: provider.defaultModel,
+                                })}
+                              </span>
+                            )}
+                        </div>
+                        <label>
+                          {t('hiveAccount.modelLabel')}
+                          <input
+                            name={`model-${provider.id}`}
+                            type="text"
+                            list={`hive-models-${provider.id}`}
+                            value={draft}
+                            maxLength={128}
+                            spellCheck={false}
+                            autoCapitalize="none"
+                            autoComplete="off"
+                            disabled={busy}
+                            onFocus={() => loadCatalog(provider.id)}
+                            onChange={event => {
+                              const value = event.currentTarget.value
+                              setDrafts(drafted => ({
+                                ...drafted,
+                                [provider.id]: value,
+                              }))
+                            }}
+                            onKeyDown={event => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault()
+                                switchModel(provider.id)
+                              }
+                            }}
+                          />
+                          <datalist id={`hive-models-${provider.id}`}>
+                            {(catalogs[provider.id] ?? []).map(model => (
+                              <option key={model} value={model} />
+                            ))}
+                          </datalist>
+                        </label>
+                        <button
+                          type="button"
+                          className="hive-account__primary"
+                          disabled={busy || !changed}
+                          onClick={() => switchModel(provider.id)}
+                        >
+                          {t('hiveAccount.modelApply', { n: count })}
+                        </button>
+                      </li>
+                    )
+                  })}
+              </ul>
+            </section>
+          )}
 
           <section className="hive-account__keys" aria-labelledby="hive-keys">
             <div className="hive-account__section-heading">

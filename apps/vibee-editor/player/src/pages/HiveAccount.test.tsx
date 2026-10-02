@@ -253,6 +253,105 @@ describe('personal contribution account', () => {
     expect(button('Войти')).toBeTruthy()
   })
 
+  it('switches every key of a provider to one model through the server check', async () => {
+    const switched = makeAccount()
+    switched.keys = [{ ...makeKey(4), model: 'z-ai/glm-5.3' }, makeKey(-7)]
+    switched.providers[0] = {
+      ...switched.providers[0],
+      model: 'z-ai/glm-5.3',
+      defaultModel: 'test-model',
+    }
+    api
+      .mockResolvedValueOnce(makeAccount())
+      .mockResolvedValueOnce({
+        provider: 'nvidia',
+        model: 'test-model',
+        models: ['test-model', 'z-ai/glm-5.3'],
+      })
+      .mockResolvedValueOnce(switched)
+    await mount()
+    const row = container.querySelector('[data-provider="nvidia"]')!
+    const input = row.querySelector('input')!
+    const apply = row.querySelector('button')!
+    expect(apply.disabled).toBe(true)
+    await act(async () => input.focus())
+    expect(api.mock.calls[1][0]).toBe(
+      'https://render.example.test/api/hive/keys/models/nvidia'
+    )
+    expect(
+      [...row.querySelectorAll('datalist option')].map(
+        option => (option as HTMLOptionElement).value
+      )
+    ).toEqual(['test-model', 'z-ai/glm-5.3'])
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value'
+      )!.set!
+      setter.call(input, ' z-ai/glm-5.3 ')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(apply.disabled).toBe(false)
+    await act(async () => apply.click())
+    expect(api.mock.calls[2][0]).toBe(
+      'https://render.example.test/api/hive/keys/model'
+    )
+    expect(JSON.parse(api.mock.calls[2][1].body)).toEqual({
+      provider: 'nvidia',
+      model: 'z-ai/glm-5.3',
+    })
+    expect(container.querySelector('[data-key-id="4"]')?.textContent).toContain(
+      'z-ai/glm-5.3'
+    )
+    expect(container.textContent).toContain(
+      'Теперь z-ai/glm-5.3 работает на всех ключах этого провайдера (1)'
+    )
+    expect(
+      container.querySelector('[data-provider="nvidia"]')?.textContent
+    ).toContain('По умолчанию: test-model')
+  })
+
+  it('names a failed model check and changes nothing', async () => {
+    api
+      .mockResolvedValueOnce(makeAccount())
+      .mockRejectedValueOnce({ status: 422, code: 'model_without_tools' })
+    await mount()
+    const row = container.querySelector('[data-provider="zai"]')!
+    const input = row.querySelector('input')!
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value'
+      )!.set!
+      setter.call(input, 'glm-5.3')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      )
+    )
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'не вызвала инструмент'
+    )
+    expect(
+      container.querySelector('[data-key-id="-7"]')?.textContent
+    ).toContain('test-model')
+  })
+
+  it('keeps checking the other keys when one cannot be checked now', async () => {
+    api
+      .mockResolvedValueOnce(makeAccount())
+      .mockRejectedValueOnce({ status: 429 })
+      .mockResolvedValueOnce({ key: makeKey(-7, 'ok') })
+    await mount()
+    await act(async () => button('Проверить все ключи').click())
+    expect(
+      container.querySelector('[data-key-id="-7"]')?.textContent
+    ).toContain('Модель ответила')
+    expect(container.textContent).toContain('Проверено 1 из 2. 1 сейчас')
+  })
+
   it('offers the profile entry only on the own profile without requiring club state', async () => {
     await act(async () =>
       root.render(

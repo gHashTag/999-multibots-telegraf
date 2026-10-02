@@ -6,12 +6,14 @@
 export const KIND = "automation" satisfies string;
 export const ID = "hive-contributor-keys" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
-export const PROXY_TIMEOUT_MS = 45000 satisfies number;
+export const VERSION = 2 satisfies number;
+export const PROXY_TIMEOUT_MS = 200000 satisfies number;
 export const BODY_MAX_BYTES = 8192 satisfies number;
 export const MAX_SECRET_CHARS = 4096 satisfies number;
 export const MAX_LABEL_CHARS = 80 satisfies number;
 export const MAX_SUBJECT_DIGITS = 20 satisfies number;
+export const MAX_MODEL_CHARS = 128 satisfies number;
+export const QUEEN_MODEL_CHECK_MS = 180000 satisfies number;
 // t27c gen-ts: fn may_manage was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn subject_fits was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn body_fits was not emitted -- this backend lowers declarations, not bodies.
@@ -19,6 +21,11 @@ export const MAX_SUBJECT_DIGITS = 20 satisfies number;
 // t27c gen-ts: fn label_fits was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn body_allowed was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn route_allowed was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn model_fits was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn model_body_allowed was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -30,7 +37,7 @@ export const MAX_SUBJECT_DIGITS = 20 satisfies number;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "PROXY_TIMEOUT_MS", "BODY_MAX_BYTES", "MAX_SECRET_CHARS", "MAX_LABEL_CHARS", "MAX_SUBJECT_DIGITS"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "PROXY_TIMEOUT_MS", "BODY_MAX_BYTES", "MAX_SECRET_CHARS", "MAX_LABEL_CHARS", "MAX_SUBJECT_DIGITS", "MAX_MODEL_CHARS", "QUEEN_MODEL_CHECK_MS"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

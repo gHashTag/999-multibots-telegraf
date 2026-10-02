@@ -183,10 +183,39 @@
 .hive-account__empty {
   padding: 24px 0;
 }
-.hive-account__add h2 {
+.hive-account__add h2,
+.hive-account__models h2 {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+.hive-account__model-list {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 16px 0 0;
+  list-style: none;
+}
+.hive-account__model {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  align-items: end;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--account-line);
+  border-radius: 12px;
+}
+.hive-account__model-name {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  align-self: center;
+}
+.hive-account__model-name span {
+  color: var(--account-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 .hive-account fieldset {
   display: grid;
@@ -246,6 +275,13 @@
 @media (max-width: 850px) {
   .hive-account__key {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .hive-account__model {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+  .hive-account__model button.hive-account__primary {
+    justify-self: start;
   }
   .hive-account__actions {
     justify-content: flex-end;

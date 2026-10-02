@@ -25,6 +25,23 @@ GitHub login. Request fields, route grammar, body size and timeouts are bounded.
 Only explicit metadata fields return to the player; upstream error bodies and
 extra debug fields are discarded. Both services return `Cache-Control: no-store`.
 
+## One model for all keys of a provider
+
+`POST /api/hive/keys/model` `{provider, model}` asks the Queen to switch every
+key the person holds of that provider to one model, and returns the account.
+`GET /api/hive/keys/models/{nvidia,zai}` returns the provider catalog for the
+picker (loaded when the model field gets focus, never on page load). The proxy
+forwards only `provider` and a catalog-shaped `model` (spec v2,
+`MAX_MODEL_CHARS`). A failed check comes back as one of three closed codes,
+`model_unavailable`, `model_without_tools` or `model_check_failed`. Any other
+upstream body is replaced by `model_check_failed`.
+
+The Queen checks the model through one of the person's keys before it writes
+anything: a tool call is required, and up to two keys are tried at 90 s each.
+`PROXY_TIMEOUT_MS` is therefore 200 s (it was 45 s). "Check all keys" now runs
+four checks at once, the Queen's own in-flight limit. A key that cannot be
+checked right now no longer stops the rest of the run.
+
 ## Deployment configuration
 
 Deploy the companion BrowserOS contributor API before enabling the app UI.

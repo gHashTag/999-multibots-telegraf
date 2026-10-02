@@ -7,19 +7,23 @@
 // A full person session supplies the Telegram subject. Request bodies never choose an
 // owner, upstream URL or GitHub attribution. The Queen owns key storage and XP scoring.
 // v1 (2026-10-01): bounded credentials, trusted identity, exact action routes.
+// v2 (2026-10-02): one model for all keys of a provider; the proxy waits out the
+// Queen's two-key model check (2 x 90 s) instead of cutting it at 45 s.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::hive_contributor_keys {
     pub const KIND : str = "automation";
     pub const ID : str = "hive-contributor-keys";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
-    pub const PROXY_TIMEOUT_MS : u32 = 45000;
+    pub const PROXY_TIMEOUT_MS : u32 = 200000;
     pub const BODY_MAX_BYTES : u32 = 8192;
     pub const MAX_SECRET_CHARS : u32 = 4096;
     pub const MAX_LABEL_CHARS : u32 = 80;
     pub const MAX_SUBJECT_DIGITS : u32 = 20;
+    pub const MAX_MODEL_CHARS : u32 = 128;
+    pub const QUEEN_MODEL_CHECK_MS : u32 = 180000;
 
     fn may_manage(allowed: bool, person: bool, signed_subject: bool) -> bool {
         return allowed && person && signed_subject;
@@ -47,6 +51,14 @@ module automation::hive_contributor_keys {
 
     fn route_allowed(exact_prefix: bool, safe_integer: bool, exact_action: bool) -> bool {
         return exact_prefix && safe_integer && exact_action;
+    }
+
+    fn model_fits(chars: u32, catalog_chars: bool) -> bool {
+        return chars > 0 && chars <= MAX_MODEL_CHARS && catalog_chars;
+    }
+
+    fn model_body_allowed(plain_object: bool, known_provider: bool, only_provider_and_model: bool) -> bool {
+        return plain_object && known_provider && only_provider_and_model;
     }
 
     test "only an allowed person session with a verified subject can manage keys" {
@@ -99,8 +111,27 @@ module automation::hive_contributor_keys {
         assert(!route_allowed(true, true, false));
     }
 
+    test "a model name is a bounded nonempty catalog identifier" {
+        assert(model_fits(1, true));
+        assert(model_fits(128, true));
+        assert(!model_fits(0, true));
+        assert(!model_fits(129, true));
+        assert(!model_fits(12, false));
+    }
+
+    test "only a provider and a model cross the model boundary" {
+        assert(model_body_allowed(true, true, true));
+        assert(!model_body_allowed(false, true, true));
+        assert(!model_body_allowed(true, false, true));
+        assert(!model_body_allowed(true, true, false));
+    }
+
+    test "the proxy outlasts the Queen's slowest model check" {
+        assert(PROXY_TIMEOUT_MS > QUEEN_MODEL_CHECK_MS);
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 
