@@ -15,3 +15,20 @@ export const PUBLIC_STORAGE_BASE =
 
 export const publicStorageUrl = (bucket: string, path: string): string =>
   `${PUBLIC_STORAGE_BASE}/${bucket}/${path}`
+
+/**
+ * The picture a bot with no avatar of its own gets.
+ *
+ * There used to be a `step` argument substituted into `levels/${step}.jpg`.
+ * Checked in storage on 2026-10-02: every bot's `levels/` holds `1.jpg` and
+ * nothing else, `levels/2..22.jpg` never existed on the cloud host either, and
+ * the only caller ever asked for step 1. The argument could only turn a
+ * working address into a dead one, so it is gone.
+ *
+ * Lives here rather than in getPhotoUrl so writers of `avatars` rows can use
+ * it without importing the bot registry.
+ */
+export const DEFAULT_BOT_PHOTO_URL = publicStorageUrl(
+  'landingpage',
+  'avatars/neuro_blogger_bot/levels/1.jpg'
+)
