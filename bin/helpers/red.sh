@@ -72,20 +72,33 @@ while IFS=$'\t' read -r concl id name url; do
   TAIL=$(printf '%s\n' "$LOG" \
     | sed -E 's/^[0-9]{4}-[0-9-]+T[0-9:.]+Z //; s/\r$//' \
     | awk '
-        # Keep only the step that raised the first ##[error] -- from its
-        # "##[group]Run" header to the next step. Lines of earlier steps
-        # (checkout advice, python setup paths) are not why it failed. With
-        # no ##[error] at all, what is left is the last step, the usual culprit.
+        # Keep only the LAST step that raised an ##[error] -- from its
+        # "##[group]Run" header to the next step. Not the first: a
+        # continue-on-error step (trinity-fpga Build & Test, "Build VIBEE
+        # subproject (non-blocking)") raises one too, and the job goes on.
+        # After the step that really fails, the rest are skipped, so its error
+        # is the last one. Lines of other steps (checkout advice, python setup
+        # paths) are not why it failed. With no ##[error] at all, what is left
+        # is the last step, the usual culprit.
+        function keep_if_err() {
+          if (!err) return
+          for (i = 1; i <= n; i++) kept[i] = buf[i]
+          k = n; err = 0
+        }
         /^Post job cleanup/ { exit }
         # The step header -- its echoed script, shell and env -- sits between
         # "##[group]Run" and the next endgroup; what the step printed comes
         # after. Only that group is a header: a group the step opens itself
         # (::group:: around test output) can hold the very line that says why.
-        /^##\[group\]Run / { if (err) exit; n = 0; hdr = 1 }
+        /^##\[group\]Run / { keep_if_err(); n = 0; hdr = 1 }
         /^##\[endgroup\]/ { if (hdr) { hdr = 0; next } }
         !hdr { buf[++n] = $0 }
         /^##\[error\]/ { err = 1 }
-        END { for (i = 1; i <= n; i++) print buf[i] }' \
+        END {
+          keep_if_err()
+          if (k) for (i = 1; i <= k; i++) print kept[i]
+          else for (i = 1; i <= n; i++) print buf[i]
+        }' \
     | grep -v -E $'^\e\\[36;1m|^##\\[(group|endgroup)\\]|^\\[command\\]|^shell: |^env:|^  [A-Z_]+: ' \
     | sed -E $'s/\e\\[[0-9;]*m//g' \
     | grep -v -E '^\s*$' \
