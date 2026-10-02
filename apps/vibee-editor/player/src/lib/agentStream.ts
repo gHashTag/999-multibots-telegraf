@@ -33,6 +33,8 @@ import { authHeaders } from '@/lib/apiFetch'
 import { reportClientError } from '@/lib/clientErrorBeacon'
 import { markEmbedSignInNeeded } from '@/lib/embedGuest'
 import { IS_EMBED } from '@/lib/embed'
+import { languageAtom } from '@/atoms/language'
+import { agentChatText, type AgentChatEvent } from '@/lib/agentChatText'
 import { openLoginAtom } from '@/atoms/user'
 
 /**
@@ -52,6 +54,10 @@ export const agentBusyAtom = atom(get => get(agentBusyThreadsAtom).length > 0)
 
 /** One stream per conversation, and the handle that stops it. */
 const inFlight = new Map<string, AbortController>()
+
+/** A sentence about the turn, in the reader's language at the moment it is said. */
+const say = (e: AgentChatEvent): string =>
+  agentChatText(e, editorStore.get(languageAtom))
 
 function publishBusy(): void {
   editorStore.set(agentBusyThreadsAtom, [...inFlight.keys()])
@@ -389,15 +395,29 @@ export async function sendToAgent(
         editorStore.set(openLoginAtom, 'chat')
         patch(agentId, m => ({
           ...m,
-          text: 'Чтобы агент ответил, войдите через Telegram — переписка бесплатна.',
+          text: say({ kind: 'refused', status: 401, code: 'sign_in' }),
         }))
         return
       }
-      // Код И тело: тело — единственное место, где сервер объясняет причину.
-      const body = await res.text().catch(() => '')
+      // The body is the only place the server says why: its `code` picks the
+      // sentence (agentChatText.ts), its words are the fallback.
+      const raw = await res.text().catch(() => '')
+      let body: Record<string, unknown> = {}
+      try {
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed === 'object') body = parsed
+      } catch {
+        // Not JSON: an HTML 502 page from the edge, a proxy's plain text.
+        // Neither is a reason a person can act on; the status sentence is.
+      }
       patch(agentId, m => ({
         ...m,
-        text: `Не получилось: ${res.status}. ${body.slice(0, 200)}`,
+        text: say({
+          kind: 'refused',
+          status: res.status,
+          code: body.code,
+          error: body.error ?? body.detail,
+        }),
       }))
       return
     }
@@ -480,9 +500,14 @@ export async function sendToAgent(
           }))
         } else if (kind === 'ошибка') {
           былаОшибка = true
+          const failure = say({
+            kind: 'failed',
+            code: ev['code'],
+            text: ev['текст'],
+          })
           patch(agentId, m => ({
             ...m,
-            text: m.text + `\n\n⚠️ ${String(ev['текст'] || '')}`,
+            text: m.text + `\n\n⚠️ ${failure}`,
           }))
         } else if (kind === 'proposal') {
           // A message prepared for somebody else, waiting for the press:
@@ -493,7 +518,13 @@ export async function sendToAgent(
           // Сервер шлёт «готово» всегда; при достижении предела витков в нём
           // есть «обрыв» с причиной. Раньше этой ветки не было — и причина
           // обрыва молча терялась, а человек видел, будто агент просто замолк.
-          if (ev['обрыв']) текстОбрыва = String(ev['обрыв'])
+          if (ev['обрыв'] || ev['code'] === 'step_limit')
+            текстОбрыва = say({
+              kind: 'stepLimit',
+              code: ev['code'],
+              steps: ev['витков'],
+              text: ev['обрыв'],
+            })
         }
       }
     }
@@ -502,9 +533,7 @@ export async function sendToAgent(
     // ответом и не сообщил об ошибке — это не «успех с пустым пузырём», а
     // молчание. Объясняем его явно, а не оставляем пустоту.
     if (!былТекст && !былаОшибка) {
-      const сообщение = текстОбрыва
-        ? `Не уложился в шаги: ${текстОбрыва}. Попробуй задачу поменьше.`
-        : 'Агент не сформулировал ответ. Повтори вопрос или уточни его.'
+      const сообщение = текстОбрыва || say({ kind: 'silent' })
       patch(agentId, m => ({ ...m, text: m.text || сообщение }))
     } else if (текстОбрыва) {
       // Текст был, но ответ оборван на пределе — дописываем причину, чтобы
@@ -522,7 +551,7 @@ export async function sendToAgent(
         if (networkDrop && !receivedText && n < MAX_ATTEMPTS) {
           patch(agentId, m => ({
             ...m,
-            text: 'Соединение прервалось (сеть или обновление сервера), повторяю…',
+            text: say({ kind: 'retrying' }),
           }))
           await new Promise(r => setTimeout(r, 2500))
           continue
@@ -536,7 +565,9 @@ export async function sendToAgent(
       // had arrived stays, marked as cut short.
       patch(agentId, m => ({
         ...m,
-        text: m.text ? `${m.text}\n\n⏹ Остановлено.` : '⏹ Остановлено.', // cyrillic-ok: shown to the person
+        text: m.text
+          ? `${m.text}\n\n${say({ kind: 'stopped' })}`
+          : say({ kind: 'stopped' }),
         stopped: true,
       }))
       return
@@ -546,7 +577,7 @@ export async function sendToAgent(
       ...m,
       text:
         (receivedText && m.text ? `${m.text}\n\n` : '') +
-        `Не удалось связаться с сервером: ${detail}. Нажмите «Повтори» через минуту.`,
+        say({ kind: 'unreachable', detail }),
     }))
     reportClientError({
       kind: 'agent_stream_failed',

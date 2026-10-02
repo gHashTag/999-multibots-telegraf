@@ -22,7 +22,7 @@ import './TrafficPanel.css'
  */
 const DAY_CHOICES = [7, 30] as const
 
-export function sourceName(id: string): string {
+function sourceName(id: string): string {
   if (NETWORK_NAMES[id]) return NETWORK_NAMES[id]
   if (id === 'telegram') return 'Telegram'
   if (id === 'email') return 'Email'
@@ -34,10 +34,7 @@ export function sourceName(id: string): string {
  * calls a goal rate. null without visits -- a start straight from a bot
  * link has no visit to be a share of. Pure.
  */
-export function startsPer100(s: {
-  arrivals: number
-  starts: number
-}): number | null {
+function startsPer100(s: { arrivals: number; starts: number }): number | null {
   return s.arrivals > 0 ? Math.round((s.starts * 100) / s.arrivals) : null
 }
 

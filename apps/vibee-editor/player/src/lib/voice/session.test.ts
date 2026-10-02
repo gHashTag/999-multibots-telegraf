@@ -499,10 +499,12 @@ async function speakingSession(
     synthesize: vi.fn(async (): Promise<ArrayBuffer> => {
       throw new Error('offline')
     }),
+    // The signature is a type argument, not unused parameters: tests read
+    // `mock.calls[n][1]` and swap in implementations that take the options.
     transcribe: vi.fn<
       (
-        b?: unknown,
-        o?: { signal?: AbortSignal; onTurn?: (d: number) => void }
+        blob?: unknown,
+        opts?: { signal?: AbortSignal; onTurn?: (d: number) => void }
       ) => Promise<string>
     >(async () => heard.shift() ?? ''),
     messages: () => c.thread,
