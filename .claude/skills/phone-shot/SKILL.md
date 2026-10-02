@@ -23,7 +23,12 @@ description: 'Measure a screen of the app on a PHONE, not in jsdom: `tri shot <h
 ./bin/tri shot crm-client                 # вся карточка клиента /crm/:id
 ./bin/tri shot crm                        # the /crm list itself: work, contacts, search
 ./bin/tri shot all                        # все стенды × 390 ru, 390 en, 320 ru — для ворот
+TRI_SHOT_JOBS=1 ./bin/tri shot all        # по одному (по умолчанию 3 сразу, один Vite на всех)
 ```
+
+`all` поднимает ОДИН dev-сервер и раздаёт его прогонам (`TRI_SHOT_BASE`):
+отдельный Vite на каждый из 12 прогонов был основной ценой — 250 с против
+120 с при нагрузке ~60–90 (2026-10-02), вердикты побайтно те же.
 
 Стенды: `story-palette` — панель рилс-истории в карточке клиента (продавец),
 `my-story` — её страница `/story` (жмёт сама клиентка), `crm-client` — вся

@@ -279,30 +279,110 @@ const HARNESSES = {
  * in a shell loop; a loop is where one line gets forgotten. Each run records
  * itself in tri gate as usual. Exit: 1 if any is red, else 2 if any could
  * not measure, else 0.
+ *
+ * One dev server serves every run (TRI_SHOT_BASE): a Vite start per run was
+ * most of the cost -- twelve starts took over ten minutes on a loaded
+ * machine, which is how a gate gets switched off. Runs go TRI_SHOT_JOBS at a
+ * time (default 3); each still has its own browser and its own verdict, and
+ * the report keeps the matrix order whatever finishes first.
  */
+const freePort = () =>
+  new Promise((ok, fail) => {
+    const s = createServer()
+    s.unref()
+    s.on('error', fail)
+    s.listen(0, '127.0.0.1', () => {
+      const { port } = s.address()
+      s.close(() => ok(port))
+    })
+  })
+
+/** The player's dev server, answered at `probe` before it is handed out. */
+const startVite = async probe => {
+  const port = await freePort()
+  const server = spawn(
+    join(PLAYER, 'node_modules/.bin/vite'),
+    ['--host', '127.0.0.1', '--port', String(port), '--strictPort'],
+    { cwd: PLAYER, stdio: ['ignore', 'pipe', 'pipe'], detached: true }
+  )
+  let log = ''
+  server.stdout.on('data', c => (log += c))
+  server.stderr.on('data', c => (log += c))
+  const base = `http://127.0.0.1:${port}`
+  const until = Date.now() + 120_000
+  for (;;) {
+    const ok = await fetch(base + probe)
+      .then(r => r.ok)
+      .catch(() => false)
+    if (ok) return { server, base }
+    if (Date.now() > until || server.exitCode !== null) {
+      stopVite(server)
+      throw new Error(`dev server did not answer ${probe}\n${log.slice(-1500)}`)
+    }
+    await new Promise(r => setTimeout(r, 500))
+  }
+}
+
+const stopVite = server => {
+  if (!server?.pid) return
+  try {
+    process.kill(-server.pid, 'SIGTERM')
+  } catch {
+    /* already gone */
+  }
+}
+
 if (name === 'all') {
   const MATRIX = [
     ['390', 'ru'],
     ['390', 'en'],
     ['320', 'ru'],
   ]
-  let worst = 0
-  for (const each of Object.keys(HARNESSES))
-    for (const [w, l] of MATRIX) {
-      const r = spawnSync(
+  const runs = Object.keys(HARNESSES).flatMap(each =>
+    MATRIX.map(([w, l]) => [each, w, l])
+  )
+  let vite
+  try {
+    vite = await startVite(`/harness/${runs[0][0]}.html`)
+  } catch (e) {
+    console.log(`== shot NOT MEASURED -- all: ${e.message}`)
+    process.exit(2)
+  }
+  const one = ([each, w, l]) =>
+    new Promise(done => {
+      const child = spawn(
         'node',
         [process.argv[1], each, '--width', w, '--lang', l],
-        { encoding: 'utf8' }
+        { env: { ...process.env, TRI_SHOT_BASE: vite.base } }
       )
-      const verdict = (r.stdout || '')
-        .split('\n')
-        .filter(x => /^== shot|^\s+(small|cut|overlap|order|error) /.test(x))
-      for (const x of verdict) console.log(x)
-      if (!verdict.length)
-        console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
-      const c = r.status ?? 2
-      worst = c === 1 || worst === 1 ? 1 : Math.max(worst, c)
-    }
+      let stdout = ''
+      child.stdout.on('data', c => (stdout += c))
+      child.on('close', status => done({ stdout, status }))
+    })
+  const results = new Array(runs.length)
+  let next = 0
+  const lanes = Math.max(1, Number(process.env.TRI_SHOT_JOBS) || 3)
+  await Promise.all(
+    Array.from({ length: Math.min(lanes, runs.length) }, async () => {
+      while (next < runs.length) {
+        const i = next++
+        results[i] = await one(runs[i])
+      }
+    })
+  )
+  stopVite(vite.server)
+  let worst = 0
+  runs.forEach(([each, w, l], i) => {
+    const r = results[i]
+    const verdict = r.stdout
+      .split('\n')
+      .filter(x => /^== shot|^\s+(small|cut|overlap|order|error) /.test(x))
+    for (const x of verdict) console.log(x)
+    if (!verdict.length)
+      console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
+    const c = r.status ?? 2
+    worst = c === 1 || worst === 1 ? 1 : Math.max(worst, c)
+  })
   process.exit(worst)
 }
 
@@ -318,17 +398,6 @@ if (
   )
   process.exit(2)
 }
-
-const freePort = () =>
-  new Promise((ok, fail) => {
-    const s = createServer()
-    s.unref()
-    s.on('error', fail)
-    s.listen(0, '127.0.0.1', () => {
-      const { port } = s.address()
-      s.close(() => ok(port))
-    })
-  })
 
 const answer = (tool, args) => {
   const r = spawnSync(
@@ -446,26 +515,11 @@ const lines = []
 try {
   const require = createRequire(join(PLAYER, 'package.json'))
   const { chromium } = require('playwright')
-  const port = await freePort()
-  server = spawn(
-    join(PLAYER, 'node_modules/.bin/vite'),
-    ['--host', '127.0.0.1', '--port', String(port), '--strictPort'],
-    { cwd: PLAYER, stdio: ['ignore', 'pipe', 'pipe'], detached: true }
-  )
-  let log = ''
-  server.stdout.on('data', c => (log += c))
-  server.stderr.on('data', c => (log += c))
-  const url = `http://127.0.0.1:${port}/harness/${name}.html`
-  const until = Date.now() + 120_000
-  for (;;) {
-    const ok = await fetch(url)
-      .then(r => r.ok)
-      .catch(() => false)
-    if (ok) break
-    if (Date.now() > until || server.exitCode !== null)
-      throw new Error(`dev server did not answer ${url}\n${log.slice(-1500)}`)
-    await new Promise(r => setTimeout(r, 500))
-  }
+  // `tri shot all` hands every run its one server; alone, a run starts its own.
+  const probe = `/harness/${name}.html`
+  let base = process.env.TRI_SHOT_BASE
+  if (!base) ({ server, base } = await startVite(probe))
+  const url = base + probe
 
   /* The container's Chromium, whatever revision this playwright expects. */
   // On a Mac with no playwright download, any installed Chromium-family
@@ -584,13 +638,7 @@ try {
   code = 2
 } finally {
   await browser?.close().catch(() => {})
-  if (server?.pid) {
-    try {
-      process.kill(-server.pid, 'SIGTERM')
-    } catch {
-      /* already gone */
-    }
-  }
+  stopVite(server)
 }
 
 for (const l of lines) console.log(l)
