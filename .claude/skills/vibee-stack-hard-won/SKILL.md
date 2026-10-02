@@ -11020,3 +11020,30 @@ Iteration 10: the web top-up, where money is reported.
   reader. iOS (iteration 9) passes a server message through untouched. The
   real fix is server-side (send a code, not a sentence); until then, a new
   server reason is Russian on an English iPhone.
+
+Iteration 11: the money routes name their refusals.
+
+- **Code, not sentence.** `/api/tokens/invoice` and `/verify` send
+  `{ ok:false, code, error }` (`sign_in`, `cashier_off`, `bad_amount`,
+  `failed`) -- the Stripe shape: a stable machine code plus a human message.
+  Clients translate the code (web `SERVER_CODES`, iOS
+  `TokenPurchaseError.codes`); a Russian reader keeps the server's words; an
+  unknown code gives an honest generic line, never a translated guess.
+- **The list lives on the server only.** `render/money-route-codes.test.ts`
+  extracts `code: '...'` from the route source and fails until both clients
+  can say every code. Add a code -> add it to both maps, nothing else.
+- **`ok:false` has two meanings on verify.** Plain = "not visible yet",
+  retry. With the credit-failed flag set = paid, not credited: stop retrying,
+  say "write to support" (web `creditFailed`, iOS
+  `TokenPurchase.creditFailedText`).
+
+### The map is the screen (iteration 11b)
+
+"Fullscreen" that keeps a 155px tool header over a phone-sized map is not
+fullscreen to the person holding the phone. In the app the board's head floats
+over the map and shows only the sector name; one round "more" button opens
+every tool. Measure the result as a number (map height / frame height:
+780/780), not as "is-bare is set". When testing a tap in the browser pane with
+an emulated viewport, log the event's clientX first: the pane's click
+coordinates did not follow the scaled screenshot, and a "button does nothing"
+was a tap that landed 230px to the left.
