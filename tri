@@ -5646,7 +5646,7 @@ for (lang, kind), texts in sorted(waits.items()):
         continue
     late = max(times) > lead
     print(f'  wait {lang} {kind}: {len(times)} phrases, synth {min(times)}..{max(times)} ms, '
-          f'lead {lead} ms -- {"LATE (the phrase plays after its moment)" if late else "ok"}')
+          f'lead {lead} ms -- {"LATE (not ready at its moment: the session skips it)" if late else "ok"}')
     if late:
         mark(2)
 if os.environ.get('V_FILLER'):

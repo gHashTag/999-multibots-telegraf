@@ -436,6 +436,11 @@ runs dry while the answer is unfinished (phase `thinking`):
 - `FILLER_PREPARE_MS` 1000: the phrase's audio is asked for this early, so
   it plays on time. `tri filler` measured English synthesis 620 ms typical
   with a 1.6 s cold tail; at the first try (1500) that tail was LATE.
+- A phrase whose audio has not settled by its moment is SKIPPED, and the
+  slot counts (the next is "still"). Queued, it would sit at the head and
+  the pump would await it with the answer behind -- after the merge
+  `tri filler` saw one English synthesis take 36.7 s (not reproduced in
+  four more runs).
 - Variants are `|`-separated in `language.ts` and rotate per KIND (one
   shared counter made "still" start at its second variant).
 - One guard only: `queue empty && phase === 'thinking'`. The generation,
