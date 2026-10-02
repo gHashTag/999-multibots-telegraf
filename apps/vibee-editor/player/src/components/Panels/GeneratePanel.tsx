@@ -82,6 +82,7 @@ import {
   buildBrollPromptQueue,
   nextBrollPromptIndex,
 } from '@/lib/brollPromptQueue'
+import { generationRefusalText } from '@/lib/generationRefusal'
 import './GeneratePanel.css'
 
 // Re-export GenerateTab type for use in Editor.tsx
@@ -154,6 +155,9 @@ interface GeneratePanelProps {
 
 export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const { t, lang } = useLanguage()
+  // A failed generation in the reader's language, the server's detail after.
+  const refusal = (r: { code?: string; error?: string }) =>
+    generationRefusalText({ code: r.code, detail: r.error ?? '' }, lang)
   const [internalTab, setInternalTab] = useState<GenerateTab>('image')
   /*
    * ЦЕНА ДО НАЖАТИЯ. Мини-приложение не спрашивало баланс ни разу: человек
@@ -715,7 +719,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         // the offer existed only BEFORE the free renders ran out and never
         // after somebody had actually started paying.
         if (result.insufficientTokens) setShowPaywall(true)
-        setError(result.error || t('generate.error'))
+        setError(refusal(result))
       }
     } catch (err) {
       console.error('[GeneratePanel] Image error:', err)
@@ -790,7 +794,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
           setVideoPrompt('')
         }
       } else {
-        setError(result.error || t('generate.error'))
+        setError(refusal(result))
       }
     } catch (err) {
       console.error('[GeneratePanel] Video error:', err)
@@ -848,7 +852,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         await logRender()
         setAudioText('')
       } else {
-        setError(result.error || t('generate.error'))
+        setError(refusal(result))
       }
     } catch (err) {
       console.error('[GeneratePanel] Audio error:', err)
@@ -904,7 +908,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         setLipsyncAudioUrl('')
         setLipsyncImageUrl('')
       } else {
-        setError(result.error || t('generate.error'))
+        setError(refusal(result))
       }
     } catch (err) {
       console.error('[GeneratePanel] Lipsync error:', err)

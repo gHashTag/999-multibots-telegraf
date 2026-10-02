@@ -352,6 +352,50 @@ describe('hear', () => {
       expect(doors).toEqual(['gigaam'])
     })
 
+    it('asks the ears whether the voice sounds finished only when told to', async () => {
+      const urls: string[] = []
+      vi.stubGlobal('fetch', async (url: string) => {
+        urls.push(url)
+        return json({ text: ' и ещё ', done: 0.12 })
+      })
+      expect(await hear(audio, 'audio/webm', 'ru', undefined, true)).toEqual({
+        text: 'и ещё',
+        engine: 'gigaam',
+        done: 0.12,
+      })
+      // Not asked: no question in the URL, and a stray `done` is not passed on.
+      expect(await hear(audio, 'audio/webm', 'ru')).toEqual({
+        text: 'и ещё',
+        engine: 'gigaam',
+      })
+      expect(urls).toEqual([
+        'http://gigaam.railway.internal:8080/hear?turn=1',
+        'http://gigaam.railway.internal:8080/hear',
+      ])
+    })
+
+    it.each([
+      ['an older image', {}],
+      ['not a number', { done: 'yes' }],
+      ['out of range', { done: 1.7 }],
+      ['negative', { done: -0.2 }],
+    ])(
+      'hears the words without a verdict when the ears give %s',
+      async (_w, extra) => {
+        ears(() => json({ text: 'привет', ...extra }))
+        expect(await hear(audio, 'audio/webm', 'ru', undefined, true)).toEqual({
+          text: 'привет',
+          engine: 'gigaam',
+        })
+      }
+    )
+
+    it('a whisper fallback carries no verdict about the voice', async () => {
+      ears(() => json({ error: 'down' }, 503))
+      const heard = await hear(audio, 'audio/webm', 'ru', undefined, true)
+      expect(heard).toEqual({ text: 'от whisper', engine: 'whisper' })
+    })
+
     it.each([
       ['refused', () => json({ error: 'too long' }, 413)],
       // A failing door's empty text is not silence.
