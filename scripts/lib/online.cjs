@@ -78,12 +78,11 @@ function verdict(results) {
       next: 'the network to GitHub is down: wait (`tri online --wait 300`) and retry; the code is not at fault',
     }
   }
-  // Only GitHub probes that answered may be called "reachable" (#3442 review).
+  // Here no GitHub probe is auth, dns or connect. If every failure is a network
+  // one, none of them is GitHub's, so "reachable" is true; an unrecognised
+  // GitHub probe falls through to 4 instead (#3442 review).
   const down = names.filter(n => results[n] !== 'up')
-  if (
-    github.every(k => k === 'up') &&
-    down.every(n => results[n] === 'dns' || results[n] === 'connect')
-  ) {
+  if (down.every(n => results[n] === 'dns' || results[n] === 'connect')) {
     return {
       code: 1,
       next: `GitHub is reachable; ${down.join(', ')} is not (network): wait or check its host`,
