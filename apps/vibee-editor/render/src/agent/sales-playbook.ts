@@ -98,9 +98,32 @@ export interface NextStep {
   urgency: Urgency
   /** Why this move, in one line a person can check against the facts. */
   why: string
+  /**
+   * `why` as a code and its numbers, for a screen to put in its own
+   * language. `why` stays for the agent, which reads Russian; the player
+   * shows `crm.why.<whyCode>` and falls back to `why` for a code it lacks.
+   */
+  whyCode: NextWhy
+  whyVars?: Record<string, string | number>
   /** What the message is FOR. Not a script to paste: an intent. */
   intent?: string
 }
+
+export type NextWhy =
+  | 'refused'
+  | 'promise_late'
+  | 'promise_today'
+  | 'waits_days'
+  | 'they_spoke_last'
+  | 'later_until'
+  | 'later_due'
+  | 'paid_serve'
+  | 'paid_quiet'
+  | 'no_talk_yet'
+  | 'warm_offer'
+  | 'silence_after_us'
+  | 'we_wrote_days'
+  | 'just_answered'
 
 /** A promise with no date is due the moment it is made. */
 function promiseIsOverdue(owed: Promise_, now: Date): boolean {
@@ -125,6 +148,7 @@ export function nextStep(input: SalesInput): NextStep {
       move: 'leave_alone',
       urgency: 'hold',
       why: 'человек отказался — пишем только если напишет сам',
+      whyCode: 'refused',
     }
   }
 
@@ -137,6 +161,8 @@ export function nextStep(input: SalesInput): NextStep {
       why: late
         ? `обещано и срок прошёл: ${owed.what}`
         : `обещано, срок сегодня: ${owed.what}`,
+      whyCode: late ? 'promise_late' : 'promise_today',
+      whyVars: { what: owed.what },
       intent: 'сделать обещанное и сказать числом, что сделано',
     }
   }
@@ -151,6 +177,8 @@ export function nextStep(input: SalesInput): NextStep {
         hours >= 24
           ? `ждёт ответа ${Math.floor(hours / 24)} дн.`
           : 'написал последним, ответа нет',
+      whyCode: hours >= 24 ? 'waits_days' : 'they_spoke_last',
+      whyVars: { days: Math.floor(hours / 24) },
       intent: 'ответить по существу вопроса, без приветствия незнакомцу',
     }
   }
@@ -163,12 +191,15 @@ export function nextStep(input: SalesInput): NextStep {
         move: 'wait_until',
         urgency: 'hold',
         why: `просил вернуться позже: ${String(input.laterUntil).slice(0, 10)}`,
+        whyCode: 'later_until',
+        whyVars: { date: String(input.laterUntil).slice(0, 10) },
       }
     }
     return {
       move: 'follow_up',
       urgency: 'today',
       why: 'срок «позже» наступил',
+      whyCode: 'later_due',
       intent:
         'вернуться ровно к тому, о чём договорились, без нового предложения',
     }
@@ -180,6 +211,7 @@ export function nextStep(input: SalesInput): NextStep {
       move: 'serve',
       urgency: 'this_week',
       why: 'оплатил — есть что доставить, нечего продавать',
+      whyCode: 'paid_serve',
       intent: 'спросить, что дальше по делу, и сделать это',
     }
   }
@@ -190,6 +222,7 @@ export function nextStep(input: SalesInput): NextStep {
       move: 'winback_ask',
       urgency: 'this_week',
       why: 'платил раньше и замолчал',
+      whyCode: 'paid_quiet',
       intent: 'спросить, что изменилось; не предлагать, пока не ответит',
     }
   }
@@ -200,6 +233,7 @@ export function nextStep(input: SalesInput): NextStep {
       move: 'first_touch',
       urgency: 'this_week',
       why: 'разговора ещё не было',
+      whyCode: 'no_talk_yet',
       intent: 'одно короткое сообщение о том, чем можем быть полезны',
     }
   }
@@ -212,6 +246,7 @@ export function nextStep(input: SalesInput): NextStep {
       move: 'offer',
       urgency: 'today',
       why: 'разговор тёплый, человек видел результат, предложения не было',
+      whyCode: 'warm_offer',
       intent: 'назвать цену и следующий шаг одним сообщением',
     }
   }
@@ -220,6 +255,8 @@ export function nextStep(input: SalesInput): NextStep {
       move: 'winback_ask',
       urgency: 'this_week',
       why: `молчание ${Math.floor(days)} дн. после нашего сообщения`,
+      whyCode: 'silence_after_us',
+      whyVars: { days: Math.floor(days) },
       intent: 'один вопрос: нужно ли ещё. Дальше не писать',
     }
   }
@@ -228,6 +265,8 @@ export function nextStep(input: SalesInput): NextStep {
       move: 'follow_up',
       urgency: days >= 5 ? 'today' : 'this_week',
       why: `мы написали ${Math.floor(days)} дн. назад, ответа нет`,
+      whyCode: 'we_wrote_days',
+      whyVars: { days: Math.floor(days) },
       intent: 'напомнить о себе одним предложением, без второго питча',
     }
   }
@@ -235,6 +274,7 @@ export function nextStep(input: SalesInput): NextStep {
     move: 'wait_until',
     urgency: 'hold',
     why: 'мы ответили только что — очередь за человеком',
+    whyCode: 'just_answered',
   }
 }
 

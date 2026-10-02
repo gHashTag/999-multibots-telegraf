@@ -51,13 +51,32 @@ server {
         proxy_buffering off;
     }
 
-    # Deliberately NOT implemented, and said out loud rather than 404ing into
-    # confusion: Storage and Auth are not part of PostgREST. Storage objects
-    # live in MinIO; this app never signs anyone in (zero .auth call sites).
+    # Storage: supabase/storage-api (service `supabase-storage`), objects in
+    # MinIO bucket `supabase-storage`, metadata in the `storage` schema of the
+    # same Postgres PostgREST reads. storage-api serves /object, /bucket at the
+    # ROOT, so the prefix is stripped exactly like /rest/v1/ above, and every
+    # existing .storage.from(...).upload/getPublicUrl/createSignedUrl call site
+    # keeps working with only SUPABASE_URL changed.
     location /storage/v1/ {
-        add_header Content-Type application/json always;
-        return 501 '{"error":"storage is not served here; objects live in MinIO"}';
+        proxy_pass http://${STORAGE_HOST}:${STORAGE_PORT}/;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass_request_headers on;
+
+        # Videos and training archives go through here; the 32m REST limit
+        # would refuse them. Stream both ways instead of spooling to disk.
+        client_max_body_size 512m;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
     }
+
+    # Deliberately NOT implemented, and said out loud rather than 404ing into
+    # confusion: this app never signs anyone in (zero .auth call sites).
     location /auth/v1/ {
         add_header Content-Type application/json always;
         return 501 '{"error":"auth is not served here; this deployment has no GoTrue"}';
@@ -65,6 +84,6 @@ server {
 
     location / {
         add_header Content-Type application/json always;
-        return 404 '{"error":"only /rest/v1/ is proxied by this gateway"}';
+        return 404 '{"error":"only /rest/v1/ and /storage/v1/ are proxied by this gateway"}';
     }
 }

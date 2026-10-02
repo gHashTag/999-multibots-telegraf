@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bandAt, easeHue, mixHue } from './orbMath'
+import { PALETTE, bandAt, easeHue, mixHue } from './orbMath'
 
 describe('easeHue', () => {
   it('goes the short way round the wheel', () => {
@@ -38,5 +38,25 @@ describe('bandAt', () => {
   it('takes any angle, including negative and past a full turn', () => {
     expect(bandAt(bands, Math.PI * 2)).toBeCloseTo(1)
     expect(bandAt(bands, -Math.PI)).toBeCloseTo(0)
+  })
+})
+
+describe('PALETTE', () => {
+  // Red is the hues within 25 degrees of 0, either way round.
+  const isRed = (h: number) => Math.min(h % 360, 360 - (h % 360)) < 25
+
+  it('no phase glows red, not even at one end of its gradient', () => {
+    for (const [phase, [h, h2]] of Object.entries(PALETTE)) {
+      expect({ phase, red: isRed(h) || isRed(h2) }).toEqual({
+        phase,
+        red: false,
+      })
+    }
+  })
+
+  it('a stopped session glows the app green (#00ff88 is hue 152)', () => {
+    const [h, h2] = PALETTE.error
+    expect(Math.abs(h - 152)).toBeLessThan(20)
+    expect(Math.abs(h2 - 152)).toBeLessThan(20)
   })
 })

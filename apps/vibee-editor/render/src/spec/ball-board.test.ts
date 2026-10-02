@@ -19,6 +19,8 @@ import {
   mailBallWeighed,
   nobodyToAnswer,
   relayDomain,
+  pooledMatter,
+  sharedDomain,
   mayLink,
   mayRead,
   meetingBall,
@@ -108,6 +110,7 @@ type Board = {
   total: number
   unspecced: number
   automated: number
+  pooled: number
   counts: Record<string, number>
   sources: Record<string, { status: string; cards: number; age_h?: number }>
   clients: Array<{
@@ -858,9 +861,59 @@ describe('automation/ball-board -- the spec, against the host', () => {
     expect(b.automated).toBe(1)
   })
 
+  it("a mailbox provider's matter is not one client", async () => {
+    expect(pooledMatter(true, 2)).toBe(true)
+    expect(pooledMatter(true, 4)).toBe(true)
+    expect(pooledMatter(true, 1)).toBe(false)
+    expect(pooledMatter(false, 4)).toBe(false)
+    expect(sharedDomain('gmail.com')).toBe(true)
+    expect(sharedDomain('groups.io')).toBe(true)
+    expect(sharedDomain('google.com')).toBe(false)
+    expect(SPEC.POOLED_IS_COUNTED).toBe(true)
+    expect(SPEC.POOLED_SEEN).toBe(2)
+    expect(SPEC.CRM_MAIL_OVERLAP_SEEN).toBe(0)
+
+    stubCrm([])
+    const mail = (matter: string, stage: string, counterparties: string[]) => ({
+      matter,
+      owes_reply: 'none',
+      stage,
+      counterparties,
+      exported_at: hoursAgo(1),
+    })
+    const b = await board(
+      stubPool({
+        mail: [
+          // Two people under one terminal stage: a mailbox, not a client.
+          mail('gmail.com', 'rejected', ['ann@gmail.com', 'bob@gmail.com']),
+          // One person on a shared domain is still one person.
+          mail('mail.ru', 'contacted', ['eve@mail.ru']),
+          // A machine does not make a crowd.
+          mail('groups.io', 'contacted', [
+            'noreply@groups.io',
+            'kim@groups.io',
+          ]),
+          // A company's own domain is one client, however many write.
+          mail('google.com', 'contacted', ['a@google.com', 'b@google.com']),
+        ],
+      })
+    )
+    const card = (ref: string) =>
+      b.clients.flatMap(c => c.cards).find(c => c.ref === ref)
+    expect(b.pooled).toBe(1)
+    expect(card('gmail.com')?.because).toBe(
+      '2 people share gmail.com: one stage for all of them'
+    )
+    // The ball stays jcrm's: there is no per-person stage to put in its place.
+    expect(card('gmail.com')?.ball).toBe(SPEC.BALL_NONE)
+    expect(card('mail.ru')?.because).toBe('contacted')
+    expect(card('groups.io')?.because).toBe('contacted')
+    expect(card('google.com')?.because).toBe('contacted')
+  })
+
   it('the board is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(6)
+    expect(SPEC.VERSION).toBe(7)
     expect(BALL_BOARD_TOOLS.map(t => t.name)).toEqual([
       SPEC.TOOL,
       SPEC.PUSH_TOOL,

@@ -189,6 +189,19 @@ export function resetBlogSharesForTests(): void {
   ready = false
 }
 
+/**
+ * Did ANY network actually take the post? A run where every network was
+ * "not connected" or "button not found" returned no error and was written
+ * down as posted -- the owner was told "✅" about an article no one could
+ * see. Only a press or a finished thread counts.
+ */
+export function publishedSomewhere(result: Record<string, string>): boolean {
+  if ('error' in result) return false
+  return Object.values(result).some(
+    v => /^нажато|^тред опубликован/.test(String(v)) // cyrillic-ok: the words publishEverywhere writes
+  )
+}
+
 export type Answer = 'pending' | 'allowed' | 'denied' | 'expired'
 
 export interface ShareDeps {
@@ -229,6 +242,16 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
         `UPDATE blog_shares SET state = 'declined', done_at = now() WHERE slug = $1`,
         [row.slug]
       )
+      /*
+       * SAID, NOT SWALLOWED (2026-10-02): eight articles closed silently in a
+       * row, and nobody could tell a "no" from a question that died unseen.
+       */
+      if (answer === 'expired')
+        await d
+          .tell(
+            `⏳ Вопрос про «${row.slug}» остался без ответа — статья не опубликована.` // cyrillic-ok: shown to the owner
+          )
+          .catch(() => {})
       return `${row.slug}: ${answer}, not posted`
     }
     const article = (
@@ -237,14 +260,14 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
     const result = await d
       .publish(article)
       .catch(e => ({ error: String(e).slice(0, 200) }))
-    const ok = !('error' in result)
+    const ok = publishedSomewhere(result)
     await d.pool.query(
       `UPDATE blog_shares SET state = $2, done_at = now(), detail = detail || $3::jsonb WHERE slug = $1`,
       [row.slug, ok ? 'posted' : 'failed', JSON.stringify({ result })]
     )
     await d
       .tell(
-        (ok ? '✅ Опубликовано: ' : '⚠️ Не получилось опубликовать: ') + // cyrillic-ok: shown to the owner
+        headlineOf(result) +
           `«${article.title}»\n` +
           Object.entries(result)
             .map(([k, v]) => `${k}: ${v}`)
@@ -273,4 +296,30 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
     [next.slug, id, JSON.stringify(next)]
   )
   return `asked about ${next.slug}`
+}
+
+/**
+ * A PRESS IS NOT A POST. "Pressed" only says a button was clicked; a share
+ * page that is still on screen afterwards usually means the network refused
+ * (a captcha, an empty field, a sign-in wall). The page leaving its share
+ * address is the cheapest receipt the browser can give without reading a feed.
+ */
+export const LEFT_THE_FORM = 'страница ушла с формы' // cyrillic-ok: told to the owner
+
+export function receiptOf(before: string, after: string): string {
+  if (!before || !after) return 'не подтверждено: адрес не прочитан' // cyrillic-ok: told to the owner
+  return before === after
+    ? 'не подтверждено: страница не сменилась' // cyrillic-ok: told to the owner
+    : LEFT_THE_FORM
+}
+
+/**
+ * The headline says what is KNOWN. "Published" over a list where every
+ * network reads "not confirmed" was the old message: a press shown as a post.
+ */
+export function headlineOf(result: Record<string, string>): string {
+  if (!publishedSomewhere(result)) return '⚠️ Не получилось опубликовать: ' // cyrillic-ok: shown to the owner
+  return Object.values(result).some(v => String(v).includes(LEFT_THE_FORM))
+    ? '✅ Опубликовано: ' // cyrillic-ok: shown to the owner
+    : '❔ Нажато, но не подтверждено — проверьте вкладки в «Браузере»: ' // cyrillic-ok: shown to the owner
 }

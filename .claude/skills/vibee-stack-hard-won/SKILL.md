@@ -10861,3 +10861,189 @@ handlers in this codebase already carry more of these than a skim suggests.
 
 **Commands.** `tri turn-log <id>` — grep live Railway logs for both ends of a
 turn logged under `[agent:turn]` (added this same session).
+
+## REPLACING `TabView` WITH YOUR OWN BAR DROPS TWO CONTRACTS SILENTLY (2026-10-02)
+
+PR #3226 swapped the iOS `TabView` for a custom six-tab bar over a `ZStack`
+(to get rid of the system "More" tab). It built, every screen looked right,
+and it shipped two regressions nobody could see in a screenshot:
+
+- **Refresh on return was gone.** Under `TabView` a tab's `.task`/`.onAppear`
+  re-run on every visit and are cancelled on leave. In a `ZStack` every screen
+  stays alive, so they run ONCE: the profile stopped re-reading the balance,
+  the AI tab its templates, the chat the shared history. Fix: one modifier,
+  `taskWhileShown` in `apps/vibee-ios/Vibee/VibeeApp.swift`, keyed on the
+  `tabIsShown` environment value; use it instead of `.task` for anything that
+  should refresh when the tab is shown again.
+- **Hidden web tabs kept running as visible.** WebKit treats a page as hidden
+  only when the `WKWebView` has NO WINDOW; `isHidden`, opacity and being
+  covered do not count. So timers, video and rAF in five hidden pages kept
+  burning the battery. Fix: `WebHostView.place` (`AppWebView.swift`) lifts the
+  web view out of its box while the tab is not shown; covered by
+  `VibeeTests/HiddenTabTests.swift`.
+
+> The rule: when you replace a framework container, list what the container
+> did implicitly (lifecycle, visibility, accessibility -- `TabView` also told
+> VoiceOver "tab bar") and re-provide each one, or say in the PR it is dropped.
+
+Also learned on the way:
+
+- `Vibee.xcodeproj/project.pbxproj` is gitignored and GENERATED from
+  `apps/vibee-ios/project.yml`. A new `.swift` file needs only
+  `xcodegen generate`, never a pbxproj edit.
+- The phone has two ids: devicectl wants the CoreDevice identifier, xcodebuild
+  the hardware udid. `./tri iphone check` says whether the phone is reachable
+  (`tunnelState`), `./tri iphone` builds, installs and launches it,
+  `./tri iphone build` needs no phone. Signing details: memory note
+  `ios-device-build-via-asc-key`.
+
+## A REPEAT TAP ON A WEB TAB MUST REACH INTO THE BOARD'S IFRAME (2026-10-02)
+
+A repeat tap on the open iOS tab now does what the web's tab links do
+(`TelegramTabBar.tsx`: every tab is a `Link` to its root, plus
+`haptic.selection()`), and what Instagram, TikTok and Threads do:
+native Feed goes back to the first reel, a web tab away from its root goes back
+to the root, a web tab on its root scrolls to the top. The signal is one
+counter per tab, `tabReselects` in `VibeeApp.swift`; the decision is
+`WebHost.reselect(at:root:)`, covered by `VibeeTests/TabReselectTests.swift`.
+
+The first version scrolled the main document and passed every unit test, and
+on the simulator the Tasks column did not move. The Game and Tasks tabs draw
+the board inside `<iframe src="/queen/...">` (player `Hive.tsx`), so the
+element that scrolls lives in the FRAME's document. It is the same origin, so
+`PageScripts.scrollToTop` walks into `iframe.contentDocument`; no postMessage
+is needed, and a cross-origin frame is skipped because it throws.
+
+> The rule: before scripting a web tab from Swift, find out where the thing
+> you are scripting lives (`grep -rn "<iframe" apps/vibee-editor/player/src`).
+> Only a look at the running simulator proves a scroll; a unit test proves
+> the decision, not the effect.
+
+Also: `simctl install` hung for 11 minutes, and later `simctl launch` for 2. The first diagnosis was two forgotten `simctl spawn ... log stream`
+processes; killing them helped once and then it hung again. The measured cause
+was memory: a booted iPhone simulator is ~140 processes and ~10 GB resident,
+on a 16 GB machine with swap at 5 of 6 GB (load 560-700). `memory_pressure`
+still said "38% free"; `sysctl vm.swapusage` told the truth. `./tri iphone sim`
+now warns when swap has under 1 GB left and about stray log streams, puts a
+deadline on install (reboots the simulator once) and on launch. Shut the
+simulator down when the check is done (`xcrun simctl shutdown <udid>`); the
+pre-push gates need that memory.
+A probe is quicker as a fact from the source than as a log line: the iframe
+was in `Hive.tsx` all along.
+
+The native tabs got the same tap later (iteration 3): Profile and AI scroll to
+the top through `.scrollsToTopOnReselect()` (`VibeeApp.swift`, a
+`ScrollViewReader` on the first view inside the `ScrollView`, because
+`ScrollPosition(edge:)` is iOS 18 and the app targets 17). AI with the editor
+pushed pops back to the root first, as UIKit's pop-to-root does. The agent
+chat goes to the LATEST reply, not the top: in a conversation that is "home".
+Checked live on the simulator: Profile and AI. NOT checked live: the editor
+pop and the chat (both need a signed-in account -- say so, do not imply it).
+`xcodebuild test` shuts its simulator down when it ends; `./tri iphone sim`
+now boots one, and `./tri iphone off` gives the ~10 GB back.
+
+Offline (iteration 4): `Connectivity.swift` watches the path with
+`NWPathMonitor`; while it is gone a line above the tab bar says the app will
+reload by itself, and on return ONLY a screen that failed reloads (Feed with an
+error, a web tab in `.failed`) -- a screen that loaded is left alone, so
+nothing jumps under the finger. A cold start counts as no return (`online`
+starts true). The return itself was NOT checked live: the simulator shares the
+Mac's network and toggling the Mac's network is off-limits, so the decision is
+pinned by `ConnectivityTests` instead. Say so in the report.
+
+Language (iteration 5): native screens follow the phone through `say(en, ru)`
+(HiveScreen.swift) -- the ONE language rule, same as the web's. Not a String
+Catalog: iOS picks a catalog language from the whole preferred list, so a
+`[de, ru]` phone would get Russian from the catalog and English from `say`.
+`./tri iphone ru [File]` counts what is still Russian-only (407 on main ->
+326 after Feed, sign-in, Telegram connect, Profile, shell). Data that IS
+Russian -- a server JSON key or status, a UI-test id -- carries `ru-only-ok`.
+A hand-made `speaksRussian ? ru : en` is a second copy of `say`; replace it.
+While translating, the sign-in field's VoiceOver label still said "six
+digits" -- the server's code is eight; the label now names no length.
+UI text takes the real dash: an English `say` string written with the ASCII
+`--` of code comments shows two hyphens on screen next to the Russian "—"
+(seen live, iteration 5; the offline line of iteration 4 had it too).
+
+Iteration 6: the agent chat and the AI screen follow `say` too. Two traps:
+
+- **A confirm button must name the action.** The chat's confirm sheet said
+  "Send" under "Mark as read?" and "Forward?" -- one title switch, one
+  hard-coded button. `ОкноПодтверждения.labels(for:russian:)` returns title, <!-- cyrillic-ok: Swift type name -->
+  confirm and cancel together, and a test asserts no non-send action borrows
+  the send label in either language.
+- **A chip's label is not its value.** Niche/style chips send the Russian
+  name to the server; English shows the web's `labelEn`
+  (`packages/vibee-atoms/src/defaults.ts`) through `КаталогСценария.label`, <!-- cyrillic-ok: Swift type name -->
+  never by changing the value. A default argument does not survive a function
+  reference: pass `{ Catalog.label($0) }`, not `Catalog.label`.
+- **Key mismatch, checked and kept:** iOS sends niche `general` and style
+  `conversational` where the web sends `other` / `casual`. The render server
+  puts both into the prompt as free text (`render-server.ts`, "in the X
+  niche"), so any word works -- and "general niche" reads better. Read the
+  consumer before "aligning" two clients.
+
+Iterations 7-8: the AI screen is fully bilingual. Two more traps:
+
+- **Testable reasons use `l(en, ru)`, not a ternary.** A pure function that
+  takes `russian: Bool = speaksRussian` (so a test can read both languages)
+  defines `func l(_ en: String, _ ru: String) -> String { russian ? ru : en }`.
+  The counter blanks `say(` and `l(` calls; it cannot tell a `cond ? "a" : "б"`
+  pair from Russian UI. See `GenerateText`, `KieModelLabels`.
+- **Generated Russian goes through a hand-written label layer.**
+  `KieModels.swift` is written by `render/scripts/gen-kie-swift.ts` (hand
+  edits vanish), and its model names / needs were the most-read Russian on an
+  English phone -- the counter said the screen was done while the live
+  Photo tab was not. `KieModelLabels.swift` translates the generated words
+  (brand stays, kind after " — " translates, as the web shows brands);
+  `KieModelLabelTests` walks the WHOLE catalogue, so a new generated suffix
+  fails a test, not a screenshot. The model `id` is the server value: never
+  translated.
+
+Iteration 9: server errors and the clip properties panel.
+
+- **Error enums get `text(russian:)`, `errorDescription` calls it.**
+  `API.ActionError` and `API.ProjectError` reach every screen that talks to
+  the server; `NativeLanguageTests.testServerErrorsFollowTheLanguage` checks
+  every case in both languages. A server's own message (`.отказ(code, text)`) <!-- cyrillic-ok: names the case -->
+  is passed through untouched -- it is not ours to translate.
+- **Price unit keys stay keys.** See continuous-improvement-loop, lesson of
+  iteration 9: translate the unit where it is drawn, not where it is decided.
+
+Iteration 10: the web top-up, where money is reported.
+
+- **Money sentences are a pure function.** `player/src/lib/topUpText.ts`
+  maps a `TopUpEvent` to text per language; the hook only picks the event.
+- **Server reasons, two different answers so far.** The web translates a
+  known `/api/tokens/invoice` reason by its exact wording and replaces an
+  unknown Russian one with "Couldn't start the payment" for an English
+  reader. iOS (iteration 9) passes a server message through untouched. The
+  real fix is server-side (send a code, not a sentence); until then, a new
+  server reason is Russian on an English iPhone.
+
+Iteration 11: the money routes name their refusals.
+
+- **Code, not sentence.** `/api/tokens/invoice` and `/verify` send
+  `{ ok:false, code, error }` (`sign_in`, `cashier_off`, `bad_amount`,
+  `failed`) -- the Stripe shape: a stable machine code plus a human message.
+  Clients translate the code (web `SERVER_CODES`, iOS
+  `TokenPurchaseError.codes`); a Russian reader keeps the server's words; an
+  unknown code gives an honest generic line, never a translated guess.
+- **The list lives on the server only.** `render/money-route-codes.test.ts`
+  extracts `code: '...'` from the route source and fails until both clients
+  can say every code. Add a code -> add it to both maps, nothing else.
+- **`ok:false` has two meanings on verify.** Plain = "not visible yet",
+  retry. With the credit-failed flag set = paid, not credited: stop retrying,
+  say "write to support" (web `creditFailed`, iOS
+  `TokenPurchase.creditFailedText`).
+
+### The map is the screen (iteration 11b)
+
+"Fullscreen" that keeps a 155px tool header over a phone-sized map is not
+fullscreen to the person holding the phone. In the app the board's head floats
+over the map and shows only the sector name; one round "more" button opens
+every tool. Measure the result as a number (map height / frame height:
+780/780), not as "is-bare is set". When testing a tap in the browser pane with
+an emulated viewport, log the event's clientX first: the pane's click
+coordinates did not follow the scaled screenshot, and a "button does nothing"
+was a tap that landed 230px to the left.
