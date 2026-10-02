@@ -234,14 +234,31 @@ async function postThreadOnX(cdp: string, a: Article): Promise<string> {
     throw new Error(`no ${labels[0]}`)
   }
 
-  await press(['what is happening', 'что происходит', 'post text'])
-  await typeText(cdp, page.id, thread.first)
-  await settle(1_000)
+  /*
+   * What was typed is read back before anything is posted: a box that does
+   * not hold it throws, the caller falls back to the share link whose text
+   * comes in the URL, and the mangled draft is closed unposted.
+   */
+  const { composerHolds } = await import('./blog-share')
+  const typedInto = async (box: number, text: string): Promise<void> => {
+    await typeText(cdp, page.id, text, { enterForNewline: true })
+    await settle(1_000)
+    const seen = await evaluateOn(cdp, page.id, xComposerText(box)).catch(
+      () => null
+    )
+    if (composerHolds(seen, text)) return
+    await closePage(cdp, page.id).catch(() => undefined)
+    throw new Error(
+      `post ${box + 1} came out different from what was typed -- nothing posted`
+    )
+  }
+
+  await press(['what is happening', 'что происходит', 'post text']) // cyrillic-ok: X's Russian label
+  await typedInto(0, thread.first)
   /* The plus adds another post to the same thread. */
-  await press(['add post', 'добавить пост', 'add another post'])
+  await press(['add post', 'добавить пост', 'add another post']) // cyrillic-ok: X's Russian label
   await settle(1_000)
-  await typeText(cdp, page.id, thread.second)
-  await settle(1_000)
+  await typedInto(1, thread.second)
   const before = String(
     await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
   )
@@ -260,6 +277,11 @@ async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   if (check === SEEN_ON_PROFILE)
     await closePage(cdp, page.id).catch(() => undefined)
   return `тред отправлен («${pressed}»): текст, ссылка вторым постом · ${receipt} · ${check}` // cyrillic-ok: told to the owner
+}
+
+/** Runs in the page: the text of every X composer box number `box`. */
+export function xComposerText(box: number): string {
+  return `[...document.querySelectorAll('[data-testid="tweetTextarea_${box}"]')].map(e => e.innerText)`
 }
 
 /** The post the API connectors are given: the card lives at our own address. */

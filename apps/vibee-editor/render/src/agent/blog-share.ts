@@ -410,6 +410,21 @@ export function normalizeForMatch(s: string): string {
     .trim()
 }
 
+/**
+ * DOES THE COMPOSER HOLD WHAT WAS TYPED? (2026-10-03) X's composer dropped
+ * about 115 characters from the middle of a typed thread, and the desk
+ * pressed "Post all" on the mangled text: "The seeg; a stand-alone unit..."
+ * went out under the owner's name. So the boxes are read back before the
+ * press. Any box on the page may be the one (the home timeline keeps its own
+ * composer under the dialog); punctuation and spacing are not compared, the
+ * words are. Pure.
+ */
+export function composerHolds(boxes: unknown, typed: string): boolean {
+  const want = normalizeForMatch(typed)
+  if (!want || !Array.isArray(boxes)) return false
+  return boxes.some(b => normalizeForMatch(String(b ?? '')) === want)
+}
+
 /** The words looked for on the profile. Pure. */
 export function needleOf(a: Article): string {
   return normalizeForMatch(a.title).slice(0, SPEC.MATCH_CHARS).trim()
