@@ -16,6 +16,7 @@ import { openInBrowser } from '@/lib/voice/openInBrowser'
 import {
   fetchVoiceStatus,
   voiceLabel,
+  voicePickers,
   type VoiceStatus,
 } from '@/lib/voice/voiceApi'
 import {
@@ -55,8 +56,7 @@ export function VoiceOverlay({ session, onClose, onDock }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const voices = status?.voices[lang] ?? []
-  const chosen = names[lang] ?? voices[0] ?? ''
+  const pickers = voicePickers(lang, status?.voices ?? {})
   const micFailed = snap.phase === 'error' && isMicError(snap.error)
 
   const restart = () => void session.start()
@@ -224,21 +224,24 @@ export function VoiceOverlay({ session, onClose, onDock }: Props) {
             </button>
           ))}
         </div>
-        {voices.length > 1 ? (
-          <label className="voice-overlay__voice">
-            <span>{t('voice.voice')}</span>
+        {pickers.map(p => (
+          <label key={p.lang} className="voice-overlay__voice">
+            <span>
+              {t('voice.voice')}
+              {pickers.length > 1 ? ` \u00b7 ${p.lang.toUpperCase()}` : ''}
+            </span>
             <select
-              value={chosen}
-              onChange={e => setNames({ ...names, [lang]: e.target.value })}
+              value={names[p.lang] ?? p.voices[0]}
+              onChange={e => setNames({ ...names, [p.lang]: e.target.value })}
             >
-              {voices.map(v => (
+              {p.voices.map(v => (
                 <option key={v} value={v}>
                   {voiceLabel(v)}
                 </option>
               ))}
             </select>
           </label>
-        ) : null}
+        ))}
       </div>
     </div>
   )

@@ -54,6 +54,12 @@ struct AgentChatView: View {
   @State private var answering: Set<UUID> = []
   /// Voice in the chat (VoiceInput.swift): the mic beside the field.
   @StateObject private var voice = VoiceInput()
+  /// Hands-free (a long press on the mic): every answer is followed by
+  /// listening again, until a tap, silence or leaving the chat ends it.
+  @State private var conversing = false
+  /// Counts conversations, so a turn knows whether the one it was asked in
+  /// is still the one running (`VoiceInput.afterAnswer`).
+  @State private var conversation = 0
   /// A hidden tab stays alive here; the mic must know when it is not seen.
   @Environment(\.tabIsShown) private var tabIsShown
 
@@ -369,12 +375,15 @@ struct AgentChatView: View {
       .taskWhileShown { await loadSharedHistory() }
       // Voice: a recording at its time limit is sent as a second press
       // would send it; leaving the chat stops the mic and the reading.
-      .onChange(of: voice.timeUp) { _, up in
+      .onChange(of: voice.wantsFinish) { _, up in
         // A manual Stop may have finished first: pressing again then would
         // start a recording nobody asked for.
         if up { Task { if voice.phase == .listening { await pressMic() } } }
       }
-      .onChange(of: tabIsShown) { _, shown in voice.setShown(shown) }
+      .onChange(of: tabIsShown) { _, shown in
+        if !shown { conversing = false }
+        voice.setShown(shown)
+      }
       .onAppear { voice.setShown(tabIsShown) }
       .onDisappear { voice.setShown(false) }
   }
@@ -653,51 +662,91 @@ struct AgentChatView: View {
    * already typed stays in front of the spoken words rather than being lost.
    */
   private var micButton: some View {
-    Button {
-      Task { await pressMic() }
-    } label: {
-      Group {
-        switch voice.phase {
-        case .idle:
-          Image(systemName: "mic.fill").foregroundStyle(Тема.Чат.акцент)  // cyrillic-ok: existing state
-        case .listening:
-          Image(systemName: "stop.fill").foregroundStyle(.red)
-        case .hearing:
-          ProgressView()
-        }
+    Group {
+      switch voice.phase {
+      case .idle:
+        Image(systemName: conversing ? "waveform" : "mic.fill")
+          .foregroundStyle(Тема.Чат.акцент)  // cyrillic-ok: existing state
+      case .listening:
+        Image(systemName: conversing ? "waveform" : "stop.fill").foregroundStyle(.red)
+      case .hearing:
+        ProgressView()
       }
-      .font(.system(size: 18, weight: .semibold))
-      .frame(width: Тема.Чат.высотаПоля, height: Тема.Чат.высотаПоля)  // cyrillic-ok: existing state
-      .overlay(
-        RoundedRectangle(cornerRadius: Тема.Чат.радиусПоля)  // cyrillic-ok: existing state
-          .strokeBorder(
-            voice.phase == .listening ? Color.red : Тема.Чат.граница,  // cyrillic-ok: existing state
-            lineWidth: Тема.Чат.толщинаГраницы)  // cyrillic-ok: existing state
-      )
-      .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
+    .font(.system(size: 18, weight: .semibold))
+    .frame(width: Тема.Чат.высотаПоля, height: Тема.Чат.высотаПоля)  // cyrillic-ok: existing state
+    .overlay(
+      RoundedRectangle(cornerRadius: Тема.Чат.радиусПоля)  // cyrillic-ok: existing state
+        .strokeBorder(
+          voice.phase == .listening || conversing ? Color.red : Тема.Чат.граница,  // cyrillic-ok: existing state
+          lineWidth: Тема.Чат.толщинаГраницы)  // cyrillic-ok: existing state
+    )
+    .contentShape(Rectangle())
+    // Not a Button: a Button's tap fires on the release of a long press too,
+    // and one gesture would then both start and stop the conversation.
+    .onTapGesture { Task { await tapMic() } }
+    .onLongPressGesture(minimumDuration: 0.5) { Task { await startConversation() } }
+    .sensoryFeedback(.start, trigger: conversing) { _, on in on }
+    .accessibilityElement()
+    .accessibilityAddTraits(.isButton)
     .accessibilityLabel(
-      voice.phase == .listening
-        ? say("Stop and send", "Остановить и отправить")
-        : say("Speak", "Сказать голосом"))
+      conversing
+        ? say("End the conversation", "Закончить разговор")
+        : voice.phase == .listening
+          ? say("Stop and send", "Остановить и отправить")
+          : say("Speak", "Сказать голосом"))
+    .accessibilityHint(
+      conversing ? "" : say("Hold to talk hands-free.", "Удерживайте, чтобы говорить без рук."))
+    .accessibilityAction { Task { await tapMic() } }
+    .accessibilityAction(named: say("Talk hands-free", "Говорить без рук")) {
+      Task { await startConversation() }
+    }
     // While the agent answers, a new question would interleave two turns,
     // and before a card's thread is ready nothing may be sent at all (Send
-    // is off then too); a recording already running may always be stopped.
-    .disabled(voice.phase == .hearing || (micResting && voice.phase == .idle))
-    .opacity(micResting && voice.phase == .idle ? 0.5 : 1)
+    // is off then too); a recording already running may always be stopped,
+    // and a conversation may always be ended.
+    .allowsHitTesting(micTakes)
+    .opacity(micResting && voice.phase == .idle && !conversing ? 0.5 : 1)
+  }
+
+  /// Whether a touch on the mic does anything right now.
+  private var micTakes: Bool {
+    VoiceInput.micTakes(phase: voice.phase, resting: micResting, conversing: conversing)
   }
 
   /// The same two reasons the Send button rests for.
   private var micResting: Bool { идёт || !canWrite }  // cyrillic-ok: existing state
 
+  /// A tap ends a conversation; otherwise it is the ordinary press.
+  private func tapMic() async {
+    // VoiceOver's actions pass `allowsHitTesting` by; the rule still holds.
+    guard micTakes else { return }
+    guard conversing else { return await pressMic() }
+    conversing = false
+    switch voice.phase {
+    case .listening: await pressMic()  // what was said so far still goes out
+    default: voice.hush()
+    }
+  }
+
+  private func startConversation() async {
+    guard !conversing, voice.phase == .idle, !micResting else { return }
+    conversation += 1
+    conversing = true
+    await pressMic()
+  }
+
   private func pressMic() async {
     switch voice.phase {
     case .idle:
-      if let problem = await voice.start() { notice(problem) }
+      if let problem = await voice.start() {
+        conversing = false
+        notice(problem)
+      }
     case .listening:
       switch await voice.finish() {
       case .words(let heard):
+        let turnOf = conversation
         let typed = ввод.trimmingCharacters(in: .whitespacesAndNewlines)  // cyrillic-ok: existing state
         ввод = typed.isEmpty ? heard : typed + " " + heard  // cyrillic-ok: existing state
         // Read the answer only if the question really went out: a send
@@ -705,13 +754,27 @@ struct AgentChatView: View {
         // again would answer a question nobody heard sent.
         let before = сообщения.count  // cyrillic-ok: existing state
         await отправить()  // cyrillic-ok: existing state
-        if сообщения.count > before, let answer = сообщения.last, !answer.свой {  // cyrillic-ok: existing state
+        let sent = сообщения.count > before  // cyrillic-ok: existing state
+        if sent, let answer = сообщения.last, !answer.свой {  // cyrillic-ok: existing state
           await voice.speak(answer.текст)  // cyrillic-ok: existing state
         }
+        switch VoiceInput.afterAnswer(conversing: conversing, shown: tabIsShown, sent: sent,
+                                      phase: voice.phase, turnOf: turnOf, current: conversation) {
+        case .listen: await pressMic()
+        case .end: conversing = false
+        case .leave: break
+        }
       case .nothing:
-        notice(say("I did not catch any words. Press the mic and try again.",
-                   "Не расслышал ни слова. Нажмите микрофон и скажите ещё раз."))
+        if conversing {
+          conversing = false
+          notice(say("Nobody spoke, so the conversation ended. Hold the mic to start again.",
+                     "Тишина, разговор закончен. Удерживайте микрофон, чтобы начать снова."))
+        } else {
+          notice(say("I did not catch any words. Press the mic and try again.",
+                     "Не расслышал ни слова. Нажмите микрофон и скажите ещё раз."))
+        }
       case .problem(let problem):
+        conversing = false
         notice(problem)
       }
     case .hearing:

@@ -14,11 +14,13 @@ import Foundation
  * agent keeps every tool and the transcript keeps the turn -- and the answer
  * is read aloud by the same mouth (`POST /api/voice/speak`).
  *
- * What it deliberately does NOT do yet: hands-free turn taking. The web's
- * session listens continuously and decides by itself when a phrase ended;
- * here the person's second press ends it. A press cannot be wrong about
- * when a person finished, a silence detector can, and the phone had nothing
- * at all before this.
+ * Since cycle 19 it also knows by itself when a phrase ended -- the web's
+ * level rule (`TurnJudge`) on the recorder's meter -- so a second press is
+ * no longer needed, only still allowed; and the view can run a hands-free
+ * conversation on top of it (listen, send, read the answer, listen again).
+ * What it still does NOT do is hear the person over its own answer: the
+ * speaker comes back into the mic, and telling the two apart needs echo
+ * cancellation this recorder does not have. A tap interrupts instead.
  */
 @MainActor
 final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
@@ -40,6 +42,18 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
   /// cycle 16 nothing did, and the button sat on "listening" over a closed
   /// file, with the sound still borrowed from the feed.
   @Published private(set) var timeUp = false
+
+  /// The person finished (quiet after speech), or nobody spoke at all. The
+  /// view answers it as it answers `timeUp`.
+  @Published private(set) var turnEnded = false
+
+  /// Either reason to finish without a press.
+  var wantsFinish: Bool { timeUp || turnEnded }
+
+  /// The judge said nobody spoke: `finish()` then sends nothing to the
+  /// ears. Whisper makes a phrase out of silence, and a conversation would
+  /// answer it, and listen again, in an empty room.
+  private var heardNobody = false
 
   /// Whether the chat is on screen. A hidden tab stays alive in this app,
   /// so `onDisappear` alone does not say the person left.
@@ -97,6 +111,8 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
   }
 
   private var recorder: AVAudioRecorder?
+  private var meter: Timer?
+  private var judge = TurnJudge(at: 0)
   private var player: AVAudioPlayer?
   private let file = FileManager.default.temporaryDirectory
     .appendingPathComponent("vibee-voice-turn.wav")
@@ -122,13 +138,16 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
       try session.setActive(true)
       let r = try AVAudioRecorder(url: file, settings: Self.recordSettings)
       r.delegate = self
+      r.isMeteringEnabled = true
       timeUp = false
+      turnEnded = false
       guard r.record(forDuration: Self.maxSeconds) else {
         restoreSession()
         return say("The microphone did not start.", "Микрофон не включился.")
       }
       recorder = r
       phase = .listening
+      startMeter(r)
       return nil
     } catch {
       restoreSession()
@@ -143,7 +162,8 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
     // Forget the recorder BEFORE stopping it: its delegate then sees a
     // stop that is ours, not one at the time limit.
     recorder = nil
-    timeUp = false
+    let silent = heardNobody
+    stopMeter()
     r.stop()
     restoreSession()
     phase = .hearing
@@ -151,7 +171,8 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
       phase = .idle
       try? FileManager.default.removeItem(at: file)
     }
-    guard let audio = try? Data(contentsOf: file), audio.count > 512 else { return .nothing }
+    guard let audio = try? Data(contentsOf: file),
+          Self.uploads(heardNobody: silent, bytes: audio.count) else { return .nothing }
     var req = URLRequest(url: Self.transcribeURL())
     req.httpMethod = "POST"
     req.setValue("audio/wav", forHTTPHeaderField: "Content-Type")
@@ -188,7 +209,51 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
           let p = try? AVAudioPlayer(data: reply.0)
     else { return }
     player = p
-    p.play()
+    guard p.play() else { return }
+    // Return when the reading is over, so a conversation listens again
+    // only after the agent stopped talking. A press, a new question or
+    // leaving the chat lets go of the player, which ends the wait as well.
+    while player === p, p.isPlaying {
+      try? await Task.sleep(nanoseconds: 100_000_000)
+    }
+  }
+
+  /// Stop reading the answer, for a tap that interrupts it.
+  func hush() {
+    player?.stop()
+    player = nil
+  }
+
+  /// Whether an answer is being read right now.
+  var isSpeaking: Bool { player?.isPlaying ?? false }
+
+  /// Read the recorder's level every tick and let the judge decide.
+  private func startMeter(_ r: AVAudioRecorder) {
+    judge = TurnJudge(at: 0)
+    let began = Date()
+    meter?.invalidate()
+    meter = Timer.scheduledTimer(withTimeInterval: TurnJudge.tick, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self, self.recorder === r, self.phase == .listening else { return }
+        r.updateMeters()
+        let level = TurnJudge.level(dB: r.averagePower(forChannel: 0))
+        let verdict = self.judge.feed(at: Date().timeIntervalSince(began), level: level)
+        if verdict != .going {
+          self.stopMeter()
+          self.heardNobody = verdict == .nobodySpoke
+          self.turnEnded = true
+        }
+      }
+    }
+  }
+
+  /// The recording is over: no meter, and no finish left to ask for.
+  private func stopMeter() {
+    meter?.invalidate()
+    meter = nil
+    timeUp = false
+    turnEnded = false
+    heardNobody = false
   }
 
   /**
@@ -208,7 +273,7 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
     player = nil
     guard phase == .listening, let r = recorder else { return }
     recorder = nil
-    timeUp = false
+    stopMeter()
     r.stop()
     restoreSession()
     phase = .idle
@@ -225,6 +290,51 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
   func recorderStopped(_ id: ObjectIdentifier) {
     if Self.isTimeUp(listening: phase == .listening, stopped: id,
                      current: recorder.map(ObjectIdentifier.init)) { timeUp = true }
+  }
+
+  /// Whether a finished recording goes to the ears: not when the judge
+  /// heard nobody, and not a file too short to hold a word.
+  nonisolated static func uploads(heardNobody: Bool, bytes: Int) -> Bool {
+    !heardNobody && bytes > 512
+  }
+
+  /// What a turn does once its answer was read.
+  enum AfterAnswer: Equatable {
+    /// Listen for the next question.
+    case listen
+    /// The conversation is over (or there was none).
+    case end
+    /// A newer conversation owns the mic now: a long press while this
+    /// answer played. Ending "the" conversation here would end that one.
+    case leave
+  }
+
+  /// `turnOf` is the conversation the turn was asked in, `current` the
+  /// one running now.
+  nonisolated static func afterAnswer(conversing: Bool, shown: Bool, sent: Bool, phase: Phase,
+                                      turnOf: Int, current: Int) -> AfterAnswer {
+    guard turnOf == current else { return .leave }
+    return listensAgain(conversing: conversing, shown: shown, sent: sent, phase: phase)
+      ? .listen : .end
+  }
+
+  /// After an answer was read, a conversation listens again -- only if the
+  /// question really went out (a declined send would loop on nothing), the
+  /// chat is still on screen, and nothing else took the mic meanwhile.
+  nonisolated static func listensAgain(conversing: Bool, shown: Bool, sent: Bool,
+                                       phase: Phase) -> Bool {
+    conversing && shown && sent && phase == .idle
+  }
+
+  /// Whether a touch on the mic does anything: hearing never; a recording
+  /// or a conversation can always be stopped; a new question waits while
+  /// the agent answers or the thread is not ready.
+  nonisolated static func micTakes(phase: Phase, resting: Bool, conversing: Bool) -> Bool {
+    switch phase {
+    case .hearing: return false
+    case .listening: return true
+    case .idle: return conversing || !resting
+    }
   }
 
   /// The rule on its own, so a test can reach the listening case without a
