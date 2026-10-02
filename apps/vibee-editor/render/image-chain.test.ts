@@ -48,6 +48,7 @@ import {
   imageLegCost,
   legFitsPrice,
   vendorOfLeg,
+  watermarkOf,
   type ImageLeg,
   type ImageVendor,
 } from './src/image-chain'
@@ -841,5 +842,26 @@ describe('the route charges one price and runs only the legs it covers', () => {
     expect(route).toMatch(/ceilingUsd:\s*imageChainCeilingUsd\(\)/)
     // ...and charges that very op, so the ceiling and the charge agree.
     expect(route).toMatch(/chargeMiniAppUser\(req, 'image_generate'/)
+  })
+})
+
+describe('a stamped picture is named, never handed over as clean', () => {
+  it('only the keyless pollinations leg carries a mark', () => {
+    expect(watermarkOf(POLLINATIONS_IMAGE_LEG)).toBe('pollinations.ai')
+    for (const leg of [REPLICATE_IMAGE_LEG, KIE_IMAGE_LEG, falLeg('x'), null])
+      expect(watermarkOf(leg)).toBeNull()
+  })
+
+  it('image_generate answers with the mark on success', () => {
+    const TOOLS_SRC = fs.readFileSync(
+      path.join(__dirname, 'src/agent/tools.ts'),
+      'utf8'
+    )
+    const start = TOOLS_SRC.indexOf("name: 'image_generate'")
+    const end = TOOLS_SRC.indexOf("name: 'audio_generate'", start)
+    const body = TOOLS_SRC.slice(start, end)
+    expect(body).toMatch(/const watermark = watermarkOf\(servedBy\)/)
+    const success = body.slice(body.indexOf('сделано: true')) // cyrillic-ok: the tool's own field
+    expect(success).toMatch(/\n\s*watermark,/)
   })
 })
