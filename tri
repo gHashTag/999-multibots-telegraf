@@ -3443,7 +3443,7 @@ cmd_deps() {
     else
       echo "       install here, in $wt/$rel"
     fi
-  done < <(cd "$wt" && { echo .; find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/' | xargs -n1 dirname 2>/dev/null; })
+  done < <(cd "$wt" && { echo .; find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/' | sed 's|/node_modules$||'; })
   [ "$wt" != "$main" ] && [ -L "$wt/node_modules" ] && \
     echo "  note no root npm ci / bun install in this tree: node_modules is the main checkout's, and an install empties it (tri deps --own first)"
   local state
@@ -3488,10 +3488,15 @@ own_deps() {
       *) echo "  skip $rel -> $target (not the main checkout's)"; continue ;;
     esac
     [ -d "$target" ] || { bad "$rel links to a missing $target -- nothing to copy"; return 1; }
+    # A target that is itself a link would be copied AS a link (cp -R does not
+    # follow it), and the tree would still share an install. Copy what it means.
+    target="$(cd -P "$target" && pwd)" || return 1
     rm -- "$wt/$rel" || return 1
+    # A copy that dies half-way leaves a half tree, and the next cp would nest
+    # into it (cp -R SRC EXISTING_DIR copies INTO the dir). Clear between tries.
     if cp -Rc "$target" "$wt/$rel" 2>/dev/null \
-        || cp -R --reflink=auto "$target" "$wt/$rel" 2>/dev/null \
-        || cp -R "$target" "$wt/$rel"; then
+        || { rm -rf -- "${wt:?}/${rel:?}"; cp -R --reflink=auto "$target" "$wt/$rel" 2>/dev/null; } \
+        || { rm -rf -- "${wt:?}/${rel:?}"; cp -R "$target" "$wt/$rel"; }; then
       echo "  own  $rel"; n=$((n + 1))
     else
       bad "copy of $rel failed -- relink with: ln -s $target $wt/$rel"; return 1

@@ -120,6 +120,25 @@ describe('tri deps', () => {
     )
   })
 
+  it('--own copies what a linked-to-link means, not the second link', () => {
+    // The main checkout's install may itself be a link into a store; `cp -R`
+    // copies such a link AS a link, and the tree would still share it.
+    const store = path.join(dir, 'store')
+    fs.renameSync(path.join(main, 'node_modules'), store)
+    fs.symlinkSync(store, path.join(main, 'node_modules'))
+    fs.symlinkSync(
+      path.join(main, 'node_modules'),
+      path.join(wt, 'node_modules')
+    )
+    const r = deps('--own', wt)
+    expect(r.rc, r.out).toBe(0)
+    const own = path.join(wt, 'node_modules')
+    expect(fs.lstatSync(own).isSymbolicLink()).toBe(false)
+    expect(fs.existsSync(path.join(own, 'pkg/package.json'))).toBe(true)
+    fs.rmSync(own, { recursive: true })
+    expect(fs.existsSync(path.join(store, 'pkg/package.json'))).toBe(true)
+  })
+
   const emptied: Array<[string, () => void]> = [
     [
       'EMPTY',
