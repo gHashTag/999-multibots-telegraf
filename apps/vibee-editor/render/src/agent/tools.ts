@@ -1136,6 +1136,11 @@ import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { REEL_ANALYZE_TOOLS } from './reel-analyze'
+import {
+  LIVE_VOICE_SAMPLE,
+  makeVoiceCloneSpeakTool,
+  voiceCloneEnv,
+} from './voice-clone-speak'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { CRM_GROUP_TOOLS } from './crm-group-tools'
 import { AUTOPILOT_TOOLS } from './autopilot-tools'
@@ -1155,6 +1160,7 @@ import {
   withClient,
   COMPACT_HIDDEN,
   OWNER_TELEGRAM_ID,
+  isOwnerOrKeeper,
 } from './telegram-tools'
 import { countInitDataBot } from '../auth/initdata-bot-counts'
 import { PROJECT_TOOLS } from './project-tools'
@@ -3650,6 +3656,19 @@ TOOLS.push(...CRM_TOUCH_TOOLS)
 TOOLS.push(...DEFECT_TOOLS)
 // Take a reference reel apart into the split-reel spec's shape (reel-analyze.ts).
 TOOLS.push(...REEL_ANALYZE_TOOLS)
+// Text in a cloned voice, by our own CPU service; free (voice-clone-speak.ts).
+// Not in COMPACT_TOOLS: the compact schema budget is spent on the browser.
+TOOLS.push(
+  makeVoiceCloneSpeakTool({
+    env: voiceCloneEnv,
+    sample: LIVE_VOICE_SAMPLE,
+    put: (bytes, mime, name) => publishImageBytes(bytes, mime, name),
+    // A lambda, not the function itself: tests that mock telegram-tools
+    // without this export must still be able to load the registry.
+    mayUseOwnerVoice: who => isOwnerOrKeeper(who),
+    fetch: (input, init) => fetch(input, init),
+  })
+)
 TOOLS.push(...CRM_OFFER_TOOLS)
 // The club invoice for the person in this chat, beside the token invoice:
 // the same route decision the bot's club card reaches (club-invoice-tool.ts).
