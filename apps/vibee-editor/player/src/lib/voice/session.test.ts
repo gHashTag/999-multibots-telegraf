@@ -862,6 +862,10 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
   /*
    * Loud from `from` to `to`, then quiet up to `until`, one tick each 40 ms.
    * Each tick is its own task in a browser: settled promises run between.
+   * So the ticks are yielded by a task here too, not by one microtask: how
+   * many hops a settled transcript takes to reach the session is the mock
+   * library's business (vitest 1's spy chained two more than vitest 5's),
+   * and a browser drains them all before the next tick anyway.
    */
   async function say(
     v: { level: { value: number }; tick(at: number): void },
@@ -872,7 +876,7 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
     for (let t = from; t <= until; t += 40) {
       v.level.value = t <= to ? 0.5 : 0
       v.tick(t)
-      await Promise.resolve()
+      await new Promise(r => setTimeout(r, 0))
     }
   }
 
