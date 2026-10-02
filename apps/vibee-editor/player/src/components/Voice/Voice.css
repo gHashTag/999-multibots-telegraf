@@ -96,6 +96,7 @@
 
 .voice-overlay__top {
   display: flex;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
   width: 100%;
@@ -103,6 +104,8 @@
 }
 
 .voice-overlay__title {
+  flex: 1 1 auto;
+  text-align: center;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -239,6 +242,8 @@
   width: 100%;
   max-width: 600px;
   min-height: 112px;
+  /* The orb gives way, never the words or the field under them. */
+  flex-shrink: 0;
   text-align: center;
 }
 
@@ -319,6 +324,48 @@
   gap: 8px;
 }
 
+/* Typing instead of talking: the orb steps back to leave room for the field. */
+.voice-overlay--keyboard .voice-orb {
+  --orb: min(70vw, 36vh, 420px);
+}
+
+.voice-overlay__type {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.voice-overlay__type-row {
+  display: flex;
+  gap: 8px;
+}
+
+.voice-overlay__type input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-target-sm, 36px);
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  /* 16px keeps iOS from zooming the page when the field takes focus. */
+  font-size: 16px;
+}
+
+.voice-overlay__type input:focus {
+  outline: none;
+  border-color: #00ff88;
+}
+
+.voice-overlay .voice-overlay__action:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
+}
+
 .voice-overlay .voice-overlay__action {
   min-height: var(--touch-target-sm, 36px);
   padding: 0 16px;
@@ -335,6 +382,18 @@
   background: #00ff88;
   color: #04120b;
   box-shadow: 0 0 22px rgba(0, 255, 136, 0.35);
+}
+
+.voice-overlay .voice-overlay__stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.voice-overlay__stop svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
 }
 
 .voice-overlay__line {
@@ -512,5 +571,157 @@
   .voice-overlay,
   .voice-overlay__dot {
     animation: none;
+  }
+}
+
+/* ---- voice inside the chat (VoiceDock) ----
+ *
+ * A bar above the chat's own box: the conversation stays in view. The orb is
+ * the same component at 52px; its aura spills past the bar on purpose, the
+ * colour of the moment around a small mark.
+ */
+
+.voice-dock {
+  --voice-h: 188;
+  --voice-h2: 226;
+  --voice-s: 95%;
+  --orb: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid hsl(var(--voice-h) var(--voice-s) 60% / 0.35);
+  border-radius: 16px;
+  background:
+    radial-gradient(
+      120% 160% at 0% 50%,
+      hsl(var(--voice-h) var(--voice-s) 50% / 0.18),
+      transparent 60%
+    ),
+    rgba(8, 8, 12, 0.92);
+  color: #f5f5f7;
+  animation: voice-dock-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes voice-dock-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.voice-dock button {
+  height: auto;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.voice-dock__orb {
+  flex: 0 0 var(--orb);
+  width: var(--orb);
+  height: var(--orb);
+}
+
+.voice-dock .voice-orb {
+  position: relative;
+  display: block;
+  width: var(--orb);
+  height: var(--orb);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.voice-dock__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.voice-dock__phase {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--voice-h) 90% 78%);
+}
+
+.voice-dock__line,
+.voice-dock__error {
+  margin: 2px 0 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+}
+
+.voice-dock__error {
+  white-space: normal;
+  color: #fecaca;
+  opacity: 1;
+}
+
+.voice-dock__buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.voice-dock .voice-dock__btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--touch-target, 44px);
+  height: var(--touch-target, 44px);
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+.voice-dock .voice-dock__btn.is-on {
+  color: #bbf7d0;
+  background: rgba(0, 255, 136, 0.16);
+  border-color: rgba(0, 255, 136, 0.5);
+}
+
+.voice-dock .voice-dock__btn--end {
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.voice-dock .voice-dock__btn--wide {
+  font-size: 13px;
+}
+
+.voice-dock__btn svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* A narrow phone: the heard line goes; the phase, the orb and the buttons stay. */
+@media (max-width: 380px) {
+  .voice-dock {
+    gap: 8px;
+  }
+  .voice-dock__line {
+    display: none;
   }
 }

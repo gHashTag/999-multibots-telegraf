@@ -259,6 +259,7 @@ export default function HivePage() {
       // The board asked for a sign-in, so the modal says so rather than
       // offering video renders to somebody looking at their clients.
       onSignIn: () => openLogin('board'),
+      ownOrigin: window.location.origin,
     })
   }, [openLogin])
 

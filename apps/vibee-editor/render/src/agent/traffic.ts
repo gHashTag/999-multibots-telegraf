@@ -323,7 +323,7 @@ export function welcomeFunnel(counts: readonly WelcomeCount[]): {
   const shown = sum('shown')
   const packagesSeen = sum('packages_seen')
   const tried = sum('agent_talk', 'gift', 'package_try', 'pinned_gift')
-  const ordered = sum('package_order', 'pinned_order')
+  const ordered = sum('package_order', 'package_buy', 'pinned_order')
   const share = (n: number) => (shown ? Math.round((n / shown) * 1000) / 10 : 0)
   return {
     shown,

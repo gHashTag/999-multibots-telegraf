@@ -9,9 +9,10 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useAtom } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
-import { getWebApp, isTelegram } from '@/lib/telegram'
+import { isTelegram } from '@/lib/telegram'
 import type { VoiceSession } from '@/lib/voice/session'
 import { isMicError, micErrorText } from '@/lib/voice/micError'
+import { openInBrowser } from '@/lib/voice/openInBrowser'
 import {
   fetchVoiceStatus,
   voiceLabel,
@@ -29,20 +30,11 @@ import './Voice.css'
 interface Props {
   session: VoiceSession
   onClose: () => void
+  /** Back to voice inside the chat (VoiceDock), when the chat offers it. */
+  onDock?: () => void
 }
 
-/**
- * A WebView that will not hand over the microphone is a dead end inside
- * Telegram; the same page in the phone's browser asks for it normally.
- */
-function openInBrowser(): void {
-  const url = `${window.location.origin}${window.location.pathname}`
-  const wa = getWebApp()
-  if (wa && typeof wa.openLink === 'function') wa.openLink(url)
-  else window.open(url, '_blank', 'noopener')
-}
-
-export function VoiceOverlay({ session, onClose }: Props) {
+export function VoiceOverlay({ session, onClose, onDock }: Props) {
   const { t, lang } = useLanguage()
   const snap = useSyncExternalStore(session.subscribe, () => session.snapshot)
   const [mode, setMode] = useAtom(voiceModeAtom)
@@ -75,7 +67,7 @@ export function VoiceOverlay({ session, onClose }: Props) {
 
   return (
     <div
-      className={`voice-overlay voice-overlay--${snap.phase}`}
+      className={`voice-overlay voice-overlay--${snap.phase}${snap.keyboard ? ' voice-overlay--keyboard' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label={t('voice.title')}
@@ -95,6 +87,20 @@ export function VoiceOverlay({ session, onClose }: Props) {
           </svg>
         </button>
         <span className="voice-overlay__title">{t('voice.title')}</span>
+        {onDock ? (
+          <button
+            type="button"
+            className="voice-overlay__icon"
+            onClick={onDock}
+            aria-label={t('voice.toChat')}
+            title={t('voice.toChat')}
+            data-testid="voice-dock-back"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+            </svg>
+          </button>
+        ) : null}
         <button
           type="button"
           className={`voice-overlay__icon${snap.muted ? ' is-on' : ''}`}
@@ -129,6 +135,21 @@ export function VoiceOverlay({ session, onClose }: Props) {
           <span className="voice-overlay__dot" aria-hidden="true" />
           {snap.muted ? t('voice.muted') : t(`voice.phase.${snap.phase}`)}
         </p>
+        {snap.phase === 'thinking' || snap.phase === 'speaking' ? (
+          // Spelled out: the orb tap does the same, but nobody guesses that
+          // while the agent is stuck thinking.
+          <button
+            type="button"
+            className="voice-overlay__action voice-overlay__stop"
+            onClick={() => session.interrupt()}
+            data-testid="voice-stop"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="7" y="7" width="10" height="10" rx="2" />
+            </svg>
+            {t('voice.stop')}
+          </button>
+        ) : null}
         {snap.error && snap.phase !== 'error' ? (
           // A passing miss ("say it again"): a hint, not an alarm.
           <p className="voice-overlay__hint">{t(snap.error)}</p>
@@ -162,6 +183,9 @@ export function VoiceOverlay({ session, onClose }: Props) {
               </div>
             ) : null}
           </div>
+        ) : null}
+        {snap.keyboard ? (
+          <TypeInstead onSend={text => session.type(text)} />
         ) : null}
         {snap.heard ? (
           <p className="voice-overlay__line">
@@ -217,6 +241,47 @@ export function VoiceOverlay({ session, onClose }: Props) {
         ) : null}
       </div>
     </div>
+  )
+}
+
+/** No microphone: the question is typed, and the answer still comes aloud. */
+function TypeInstead({ onSend }: { onSend: (text: string) => void }) {
+  const { t } = useLanguage()
+  const [text, setText] = useState('')
+  return (
+    <form
+      className="voice-overlay__type"
+      onSubmit={e => {
+        e.preventDefault()
+        if (!text.trim()) return
+        onSend(text)
+        setText('')
+      }}
+    >
+      <label className="voice-overlay__note" htmlFor="voice-type-input">
+        {t('voice.type.label')}
+      </label>
+      <div className="voice-overlay__type-row">
+        <input
+          id="voice-type-input"
+          type="text"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder={t('voice.type.placeholder')}
+          enterKeyHint="send"
+          autoComplete="off"
+          data-testid="voice-type-input"
+        />
+        <button
+          type="submit"
+          className="voice-overlay__action voice-overlay__action--primary"
+          disabled={!text.trim()}
+          data-testid="voice-type-send"
+        >
+          {t('voice.type.send')}
+        </button>
+      </div>
+    </form>
   )
 }
 

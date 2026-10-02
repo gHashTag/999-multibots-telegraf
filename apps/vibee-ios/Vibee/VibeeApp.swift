@@ -36,6 +36,9 @@ struct RootView: View {
   /// The bar steps aside for the keyboard, as the system one did; otherwise
   /// it would ride up and sit between a text field and the keys.
   @State private var keyboardUp = false
+  /// Taps on a tab's button while that tab was already open, per tab.
+  @State private var reselects: [String: Int] = [:]
+  @ObservedObject private var net = Connectivity.shared
 
   /// The open tab: the picked one while the list still has it.
   private var current: String? {
@@ -101,6 +104,7 @@ struct RootView: View {
         if opened.contains(destination.id) || destination.id == current {
           screen(for: destination.id)
             .environment(\.tabIsShown, destination.id == current)
+            .environment(\.tabReselects, reselects[destination.id, default: 0])
             .opacity(destination.id == current ? 1 : 0)
             .allowsHitTesting(destination.id == current)
             .accessibilityHidden(destination.id != current)
@@ -109,7 +113,13 @@ struct RootView: View {
     }
     .safeAreaInset(edge: .bottom, spacing: 0) {
       if !keyboardUp {
-        BottomTabBar(destinations: destinations, selected: current) { picked = $0 }
+        VStack(spacing: 0) {
+          if !net.online { OfflineBanner().transition(.move(edge: .bottom).combined(with: .opacity)) }
+          BottomTabBar(destinations: destinations, selected: current) { id in
+            if id == current { reselects[id, default: 0] += 1 } else { picked = id }
+          }
+        }
+        .animation(.easeInOut(duration: 0.2), value: net.online)
       }
     }
     .onChange(of: current, initial: true) { _, id in
@@ -151,18 +161,118 @@ extension EnvironmentValues {
   }
 }
 
+/*
+ * TAPPING THE OPEN TAB AGAIN MEANS "TAKE ME BACK TO THE START".
+ *
+ * On the web every tab is a link to its own root, so tapping the open one
+ * leaves a deep page (/game/kanban/123 -> /game/kanban). Instagram, TikTok
+ * and Threads do the same and scroll to the top once already at the root.
+ * The own bar dropped it: a repeat tap did nothing.
+ *
+ * This counts such taps per tab; a screen watches the count with `onChange`
+ * and decides what "the start" is for it. A counter rather than a flag, so
+ * two taps in a row are two changes.
+ */
+private struct TabReselectsKey: EnvironmentKey {
+  static let defaultValue = 0
+}
+
+extension EnvironmentValues {
+  var tabReselects: Int {
+    get { self[TabReselectsKey.self] }
+    set { self[TabReselectsKey.self] = newValue }
+  }
+}
+
+/// Scroll-to-top on a repeat tap, for a native screen. Put it on the FIRST
+/// view inside the `ScrollView`: the reader then scrolls the enclosing one.
+/// `ScrollPosition(edge:)` would be shorter but is iOS 18; the app targets 17.
+/// `unless` skips the scroll while the screen shows something pushed over its
+/// root -- the tap closes that first, as UIKit's pop-to-root does.
+struct ScrollsToTopOnReselect: ViewModifier {
+  static let anchor = "tab-top"
+  var unless = false
+  @Environment(\.tabReselects) private var tabReselects
+
+  func body(content: Content) -> some View {
+    ScrollViewReader { proxy in
+      content
+        .id(Self.anchor)
+        .onChange(of: tabReselects) {
+          guard !unless else { return }
+          withAnimation { proxy.scrollTo(Self.anchor, anchor: .top) }
+        }
+    }
+  }
+}
+
+extension View {
+  func scrollsToTopOnReselect(unless: Bool = false) -> some View {
+    modifier(ScrollsToTopOnReselect(unless: unless))
+  }
+}
+
+/*
+ * WHAT `TabView` DID FOR FREE, AND THE OWN BAR HAS TO DO BY HAND.
+ *
+ * Under `TabView` a tab's `.task` and `.onAppear` ran again on every return
+ * and were cancelled on leaving. Screens leaned on that without saying so:
+ * the profile re-read the balance after a generation in the AI tab, the AI
+ * tab re-read its saved templates, the chat pulled the history shared with
+ * the web. The own bar keeps screens alive in a ZStack, so a plain `.task`
+ * now runs ONCE per launch -- and each of those went quietly stale.
+ *
+ * `taskWhileShown` restores the old contract in one place: it runs when the
+ * tab comes forward and is cancelled when it goes back. Outside the bar
+ * (`tabIsShown` defaults to true) it is an ordinary `.task`.
+ */
+private struct ShownKey<ID: Equatable>: Equatable {
+  let id: ID
+  let shown: Bool
+}
+
+private struct TaskWhileShown<ID: Equatable>: ViewModifier {
+  @Environment(\.tabIsShown) private var shown
+  let id: ID
+  let action: () async -> Void
+
+  func body(content: Content) -> some View {
+    content.task(id: ShownKey(id: id, shown: shown)) {
+      if shown { await action() }
+    }
+  }
+}
+
+extension View {
+  /// `.task(id:)` that also re-runs each time the tab comes forward.
+  func taskWhileShown<ID: Equatable>(id: ID, _ action: @escaping () async -> Void) -> some View {
+    modifier(TaskWhileShown(id: id, action: action))
+  }
+
+  /// `.task` that re-runs each time the tab comes forward.
+  func taskWhileShown(_ action: @escaping () async -> Void) -> some View {
+    modifier(TaskWhileShown(id: 0, action: action))
+  }
+}
+
 /// The row of tabs under every screen, measured from the web's
 /// TelegramTabBar (`Тема.ТабБар`): opaque, full width, one row for all.
 struct BottomTabBar: View {
   let destinations: [Destination]
   let selected: String?
   let pick: (String) -> Void
+  /// Every tap, a repeat one included: the web bar calls
+  /// `haptic.selection()` on each click, so the app gives the same tick.
+  @State private var taps = 0
 
   var body: some View {
     HStack(spacing: 0) {
       ForEach(destinations) { destination in
         let on = destination.id == selected
-        Button { pick(destination.id) } label: {
+        Button {
+          taps += 1
+          pick(destination.id)
+        } label: {
           VStack(spacing: Тема.ТабБар.просветИконкаПодпись) { // cyrillic-ok
             // Outline glyphs, as the web draws them (Lucide is line-only).
             Image(systemName: destination.icon.sf)
@@ -186,6 +296,12 @@ struct BottomTabBar: View {
     .overlay(alignment: .top) {
       Тема.ТабБар.граница.frame(height: Тема.ТабБар.толщинаГраницы) // cyrillic-ok
     }
+    // `TabView`'s bar told VoiceOver "tab bar" itself. SwiftUI has no such
+    // trait (only UIKit's `.tabBar`), so the row is at least a named group:
+    // "Tabs", then six buttons, rather than six buttons out of nowhere.
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel(say("Tabs", "Вкладки"))
+    .sensoryFeedback(.selection, trigger: taps)
   }
 }
 
@@ -215,11 +331,11 @@ enum ИсточникТаймлайна: Equatable {
 
   var подпись: String {
     switch self {
-    case .загрузка: return "Загружаю проект…"
-    case .проект(let имя): return имя.isEmpty ? "Без названия" : имя
-    case .демоБезВхода: return "Демо — войдите, чтобы открыть свой проект"
-    case .демоНетПроектов: return "Демо — проектов пока нет, сохраните первый"
-    case .демоОтказ(let почему): return "Демо — проект не загрузился: \(почему)"
+    case .загрузка: return say("Loading the project…", "Загружаю проект…")
+    case .проект(let имя): return имя.isEmpty ? say("Untitled", "Без названия") : имя
+    case .демоБезВхода: return say("Demo — sign in to open your project", "Демо — войдите, чтобы открыть свой проект")
+    case .демоНетПроектов: return say("Demo — no projects yet, save your first", "Демо — проектов пока нет, сохраните первый")
+    case .демоОтказ(let почему): return say("Demo — the project did not load: \(почему)", "Демо — проект не загрузился: \(почему)")
     }
   }
 }
@@ -340,7 +456,7 @@ struct EditorScreen: View {
       if let собранная = слои.готоваяКомпозиция {
         composition = собранная
         слои.готоваяКомпозиция = nil
-        источник = .проект(имя: "Сборка из «ИИ»")
+        источник = .проект(имя: say("Built in AI", "Сборка из «ИИ»"))
         return
       }
       await загрузить()
@@ -380,7 +496,7 @@ struct EditorScreen: View {
       try await рендер.export(to: адрес)
       готовыйФайл = ФайлНаОтдачу(url: адрес)
     } catch {
-      сообщение = "Экспорт не удался: \(error.localizedDescription)"
+      сообщение = say("Export failed: \(error.localizedDescription)", "Экспорт не удался: \(error.localizedDescription)")
     }
   }
 
@@ -404,7 +520,7 @@ struct EditorScreen: View {
             if сохраняется {
               ProgressView().controlSize(.mini)
             } else {
-              Text(идПроекта == nil ? "Создать" : "Сохранить").font(Тема.Шрифт.стиль(.caption, .bold))
+              Text(идПроекта == nil ? say("Create", "Создать") : say("Save", "Сохранить")).font(Тема.Шрифт.стиль(.caption, .bold))
             }
           }
           // Высота ЯВНО и ВНУТРИ label. `.controlSize(.small)` давал около
@@ -432,7 +548,7 @@ struct EditorScreen: View {
             if экспортируется {
               ProgressView().controlSize(.mini)
             } else {
-              Label("Экспорт", systemImage: "square.and.arrow.down")
+              Label(say("Export", "Экспорт"), systemImage: "square.and.arrow.down")
                 .font(Тема.Шрифт.стиль(.caption, .bold))
             }
           }
@@ -495,14 +611,14 @@ struct EditorScreen: View {
     if case .проект(let текущее) = источник, !текущее.isEmpty {
       имя = текущее
     } else {
-      имя = "Мой проект"
+      имя = say("My project", "Мой проект")
     }
 
     do {
       let итог = try await API.saveProject(id: id, name: имя, composition: composition)
       идПроекта = итог.id
       источник = .проект(имя: итог.name)
-      сообщение = "Сохранено"
+      сообщение = say("Saved", "Сохранено")
     } catch {
       // Отказ НЕ прячем за общим словом: текст приходит из тела ответа
       // сервера, и в нём сказано, что именно не так.
@@ -525,16 +641,16 @@ extension Composition {
     Composition(
       fps: 30, width: 1080, height: 1920,
       tracks: [
-        Track(id: "t1", type: "video", name: "Видео", items: [
-          Clip(id: "c1", trackId: "t1", name: "Видео с губами",
+        Track(id: "t1", type: "video", name: say("Video", "Видео"), items: [
+          Clip(id: "c1", trackId: "t1", name: say("Lip-sync video", "Видео с губами"),
                startFrame: 0, durationInFrames: 150),
         ]),
-        Track(id: "t2", type: "image", name: "Фон", items: [
-          Clip(id: "c2", trackId: "t2", name: "Фон 1",
+        Track(id: "t2", type: "image", name: say("Background", "Фон"), items: [
+          Clip(id: "c2", trackId: "t2", name: say("Background 1", "Фон 1"),
                startFrame: 45, durationInFrames: 105),
         ]),
-        Track(id: "t3", type: "audio", name: "Звук", items: [
-          Clip(id: "c3", trackId: "t3", name: "Озвучка",
+        Track(id: "t3", type: "audio", name: say("Sound", "Звук"), items: [
+          Clip(id: "c3", trackId: "t3", name: say("Voice-over", "Озвучка"),
                startFrame: 0, durationInFrames: 150),
         ]),
       ])

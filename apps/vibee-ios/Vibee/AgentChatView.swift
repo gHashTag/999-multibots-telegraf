@@ -40,6 +40,7 @@ struct AgentChatView: View {
   /// then nothing is sent: a render without task threads ignores `task` and
   /// would file the message in the person's own chat.
   @State private var taskThreadReady = false
+  @Environment(\.tabReselects) private var tabReselects
 
   init(task: String? = nil, taskTitle: String? = nil) {
     self.task = task
@@ -361,7 +362,7 @@ struct AgentChatView: View {
        * `onAppear` would need a `Task` that nobody cancels, and the answer
        * would land on a screen that is already gone.
        */
-      .task { await loadSharedHistory() }
+      .taskWhileShown { await loadSharedHistory() }
   }
 
   private var основное: some View {
@@ -383,6 +384,11 @@ struct AgentChatView: View {
         }
         .onChange(of: сообщения.count) {
           withAnimation { proxy.scrollTo(сообщения.last?.id, anchor: .bottom) }
+        }
+        // A repeat tap on the tab goes to the LATEST reply, not the top: in a
+        // conversation (Telegram, iMessage) "home" is the newest message.
+        .onChange(of: tabReselects) {
+          withAnimation { proxy.scrollTo(сообщения.last?.id, anchor: .bottom) }  // cyrillic-ok: existing state
         }
       }
 
@@ -410,18 +416,21 @@ struct AgentChatView: View {
   /// and, until the server answers with the card's thread, why it is read-only.
   private var subtitle: String {
     guard let task else {
-      return "Смотрит в приложение своими инструментами и делает, а не советует"
+      return say("Looks into the app with its own tools and does the work, not just advises",
+                 "Смотрит в приложение своими инструментами и делает, а не советует")
     }
     return taskThreadReady
-      ? "Задача \(task) · тот же разговор, что в вебе и у агентов A2A"
-      : "Задача \(task) · сервер ещё не знает разговоров по задаче, писать пока нельзя"
+      ? say("Task \(task) · the same conversation as on the web and with A2A agents",
+            "Задача \(task) · тот же разговор, что в вебе и у агентов A2A")
+      : say("Task \(task) · the server does not know task conversations yet, so writing is off",
+            "Задача \(task) · сервер ещё не знает разговоров по задаче, писать пока нельзя")
   }
 
   private var шапка: some View {
     VStack(alignment: .leading, spacing: 0) {
       // `h1 { font-size: 16px; font-weight: 600; letter-spacing: .01em }`
       // — Chat.css:48-50.
-      Text(taskTitle ?? task ?? "Агент")
+      Text(taskTitle ?? task ?? say("Agent", "Агент"))
         .lineLimit(2)
         .font(Тема.Шрифт.кегль(Тема.Чат.кегльЗаголовка, Тема.Чат.весЗаголовка, относительно: .headline))
         .tracking(Тема.Чат.трекингЗаголовка)
@@ -450,7 +459,7 @@ struct AgentChatView: View {
       // A card's thread is shared with the web sheet and A2A agents: a local
       // "new conversation" would only hide it here, so a card has none.
       if !сообщения.isEmpty && task == nil {
-        Button("Новый разговор") {
+        Button(say("New chat", "Новый разговор")) {
           сообщения = []
           ввод = ""
         }
@@ -563,7 +572,8 @@ struct AgentChatView: View {
 
   private var панельВвода: some View {
     HStack(spacing: Тема.Отступ.sm) {
-      TextField("Спроси агента…", text: $ввод, axis: .vertical)
+      // The web's `chat.messagePlaceholder`, word for word.
+      TextField(say("Message the agent…", "Сообщение агенту…"), text: $ввод, axis: .vertical)  // cyrillic-ok: pre-existing state
         .textFieldStyle(.plain)
         .font(Тема.Шрифт.кегль(Тема.Чат.кегльПоля, относительно: .callout))
         // `padding: 11px 13px`, `min-height: 44px` — Chat.css:219, :224.
@@ -595,7 +605,7 @@ struct AgentChatView: View {
       Button {
         Task { await отправить() }
       } label: {
-        Text(идёт ? "Идёт…" : "Отправить")
+        Text(идёт ? say("Working…", "Идёт…") : say("Send", "Отправить"))
           .font(Тема.Шрифт.кегль(Тема.Чат.кегльПоля, .semibold, относительно: .callout))
           .foregroundStyle(Тема.Чат.наАкценте)
           .frame(minWidth: Тема.Чат.минШиринаОтправки, minHeight: Тема.Чат.высотаПоля)
@@ -668,11 +678,15 @@ struct AgentChatView: View {
        * answer in the app while the bot and mini app showed something else,
        * with no explanation anywhere.
        */
-      сообщения[i].текст =
+      сообщения[i].текст = say(
+        "I cannot introduce myself to the server — it does not know who is "
+          + "asking, so it refuses.\n\nOpen Profile and sign in with the code "
+          + "from @t27ai_bot (the /app command → “🔑 Sign in to the app”). "
+          + "After that the chat history arrives from the bot and the mini app by itself.",
         "Не могу представиться серверу — он не знает, кто спрашивает, и "
-        + "отвечает отказом.\n\nЗайдите в Профиль и войдите по коду из бота "
-        + "@t27ai_bot (команда /app → «🔑 Войти в приложение»). "
-        + "После входа история чата подтянется из бота и мини-аппа сама."
+          + "отвечает отказом.\n\nЗайдите в Профиль и войдите по коду из бота "
+          + "@t27ai_bot (команда /app → «🔑 Войти в приложение»). "
+          + "После входа история чата подтянется из бота и мини-аппа сама.")
       return
     }
 
@@ -795,8 +809,10 @@ struct AgentChatView: View {
        */
       if !hasText, !hasError {
         сообщения[i].текст = truncationReason.isEmpty
-          ? "Агент не сформулировал ответ. Повтори вопрос или уточни его."
-          : "Не уложился в шаги: \(truncationReason). Попробуй задачу поменьше."
+          ? say("The agent did not put an answer together. Ask again, or more precisely.",
+                "Агент не сформулировал ответ. Повтори вопрос или уточни его.")
+          : say("Ran out of steps: \(truncationReason). Try a smaller task.",
+                "Не уложился в шаги: \(truncationReason). Попробуй задачу поменьше.")
       } else if !truncationReason.isEmpty {
         сообщения[i].текст += "\n\n⚠️ \(truncationReason)"
       }
@@ -816,7 +832,8 @@ struct AgentChatView: View {
       let partial = сообщения[i].текст
       сообщения[i].текст =
         (partial.isEmpty ? "" : partial + "\n\n")
-        + "Не дошло до сервера: \(error.localizedDescription)"
+        + say("Did not reach the server: \(error.localizedDescription)",
+              "Не дошло до сервера: \(error.localizedDescription)")
       ClientErrorBeacon.report(
         kind: "agent_stream_failed",
         message: error.localizedDescription,
@@ -850,23 +867,47 @@ struct ОкноПодтверждения: View {
   let предложение: AgentChatView.Предложение
   let ответить: (Bool) -> Void
 
-  private var заголовок: String {
-    switch предложение.действие {
-    case "send": return "Отправить сообщение?"
-    case "forward": return "Переслать?"
-    case "read": return "Пометить прочитанным?"
-    default: return "Подтвердить действие?"
+  /**
+   * The title AND both buttons follow the action.
+   *
+   * The confirm button used to say "Отправить" for every action, so marking
+   * a chat as read meant pressing "Send" -- the one word that makes a
+   * careful person stop. Each verb now names what will actually happen.
+   */
+  struct Labels: Equatable {
+    let title: String
+    let confirm: String
+    let cancel: String
+  }
+
+  static func labels(for action: String, russian: Bool = speaksRussian) -> Labels {
+    func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
+    switch action {
+    case "send":
+      return Labels(title: l("Send the message?", "Отправить сообщение?"),
+                    confirm: l("Send", "Отправить"), cancel: l("Don't send", "Не отправлять"))
+    case "forward":
+      return Labels(title: l("Forward it?", "Переслать?"),
+                    confirm: l("Forward", "Переслать"), cancel: l("Don't forward", "Не пересылать"))
+    case "read":
+      return Labels(title: l("Mark as read?", "Пометить прочитанным?"),
+                    confirm: l("Mark as read", "Пометить"), cancel: l("Not now", "Не сейчас"))
+    default:
+      return Labels(title: l("Confirm the action?", "Подтвердить действие?"),
+                    confirm: l("Confirm", "Подтвердить"), cancel: l("Cancel", "Отмена"))
     }
   }
 
+  private var labels: Labels { Self.labels(for: предложение.действие) }  // cyrillic-ok: pre-existing field names
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text(заголовок)
+      Text(labels.title)
         .font(.headline)
         .foregroundStyle(Тема.Цвет.текст)
 
       HStack(spacing: 6) {
-        Text("Кому").foregroundStyle(Тема.Цвет.текстПриглушённый)
+        Text(say("To", "Кому")).foregroundStyle(Тема.Цвет.текстПриглушённый)
         Text(предложение.куда)
           .foregroundStyle(Тема.Цвет.акцент)
           .textSelection(.enabled)
@@ -890,11 +931,11 @@ struct ОкноПодтверждения: View {
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
       HStack(spacing: 10) {
-        Button("Не отправлять") { ответить(false) }
+        Button(labels.cancel) { ответить(false) }  // cyrillic-ok: pre-existing callback
           .buttonStyle(.bordered)
           .frame(minHeight: 44)
 
-        Button("Отправить") { ответить(true) }
+        Button(labels.confirm) { ответить(true) }  // cyrillic-ok: pre-existing callback
           .buttonStyle(.borderedProminent)
           .frame(minHeight: 44)
       }

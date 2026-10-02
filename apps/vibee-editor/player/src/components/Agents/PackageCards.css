@@ -128,11 +128,40 @@
   text-decoration: none;
   cursor: pointer;
 }
-.package-card--popular .package-card__order {
+.package-card__buy {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 13px 16px;
+  border: 1px solid #00ff88;
+  border-radius: 0;
+  background: transparent;
+  color: #00ff88;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.package-card--popular .package-card__buy {
   background: #00ff88;
   color: #000;
-  font-weight: 650;
 }
+.package-card__buy:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.package-card__buy-note,
+.package-card__pay-note {
+  margin: -2px 0 0;
+  color: #8f8f8f;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+.package-card__pay-note {
+  color: #d0d0d0;
+}
+.package-card__order,
 .package-card__try {
   border-color: rgba(255, 255, 255, 0.16);
   color: #d0d0d0;

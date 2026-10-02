@@ -11,6 +11,7 @@ import {
   agentBusyThreadsAtom,
   agentQueueAtom,
   sendOrQueue,
+  stopAgent,
   threadKeyOf,
   type SendOptions,
 } from '@/lib/agentStream'
@@ -30,6 +31,15 @@ export const voiceModeAtom = atomWithStorage<VoiceMode>(
   'vibee.voice.mode',
   'pulse'
 )
+/**
+ * Voice mode on its own full screen instead of inside the chat. Off by
+ * default: the chat stays in view, with what was said and the cards, as
+ * ChatGPT made it on 2025-11-25 (keeping "Separate mode" as a setting).
+ */
+export const voiceSeparateAtom = atomWithStorage<boolean>(
+  'vibee.voice.separate',
+  false
+)
 /** The voice picked per language; null is the server's default. */
 export const voiceNameAtom = atomWithStorage<Partial<Record<Language, string>>>(
   'vibee.voice.name',
@@ -44,10 +54,11 @@ export function createChatVoiceSession(
   const key = threadKeyOf(options)
   return new VoiceSession({
     lang,
-    voice: () => editorStore.get(voiceNameAtom)[lang()] ?? null,
+    voice: l => editorStore.get(voiceNameAtom)[l] ?? null,
     send: text => {
       sendOrQueue(text, [], options)
     },
+    stop: () => stopAgent(key),
     messages: () => editorStore.get(thread),
     answering: () =>
       editorStore.get(agentBusyThreadsAtom).includes(key) ||

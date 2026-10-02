@@ -35,7 +35,7 @@ final class TokenPurchase: ObservableObject {  // secret-guard-ok: a store produ
           "Telegram не открылся. Чтобы платить звёздами, он нужен на телефоне.")
       }
     } catch {
-      note = say("No invoice: \(error.localizedDescription)", "Счёт не выставлен: \(error.localizedDescription)")
+      note = say("No invoice: \(error.localizedDescription)", "Счёт не выставлен: \(error.localizedDescription)")  // localizedDescription follows the phone: TokenPurchaseError.text()
     }
   }
 
@@ -52,10 +52,23 @@ final class TokenPurchase: ObservableObject {  // secret-guard-ok: a store produ
         note = say("Credited \(credited) tokens.", "Зачислено токенов: \(credited).")
         return
       }
+      // Retrying inside the same minute cannot fix a credit that just failed.
+      if found.creditFailed {
+        note = Self.creditFailedText()
+        return
+      }
     }
     note = say(
       "No payment seen yet. If you paid, it will be credited shortly.",
       "Оплата пока не видна. Если вы заплатили, токены придут чуть позже.")
+  }
+
+  /// The web's sentence for the same event (player/src/lib/topUpText.ts,
+  /// `creditFailed`): the money went, the tokens did not, and what to do.
+  nonisolated static func creditFailedText(russian: Bool = speaksRussian) -> String {
+    russian
+      ? "Оплата прошла, но токены не зачислены. Мы уже знаем — напишите в поддержку, вернём или начислим руками."  // ru-only-ok: the russian branch
+      : "The payment went through, but the tokens were not added. We already know — write to support and we'll refund or add them by hand."
   }
 }
 

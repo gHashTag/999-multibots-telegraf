@@ -18,6 +18,72 @@ export interface Translations {
 // ===============================
 
 const en: Translations = {
+  'hiveAccount.title': 'My keys and contribution',
+  'hiveAccount.short': 'Keys & XP',
+  'hiveAccount.back': 'Back to the game',
+  'hiveAccount.lead':
+    'Manage the API keys you lend to the Queen and see the work credited to you.',
+  'hiveAccount.refresh': 'Refresh',
+  'hiveAccount.loading': 'Loading your contribution…',
+  'hiveAccount.signin': 'Sign in',
+  'hiveAccount.retry': 'Try again',
+  'hiveAccount.working': 'Saving…',
+  'hiveAccount.progress': 'Checking keys: {done} of {total}',
+  'hiveAccount.saved': 'Key saved. Check it before using it.',
+  'hiveAccount.checked': 'Check finished. The result is shown beside the key.',
+  'hiveAccount.checkedAll':
+    'All checks finished. Review the result beside each key.',
+  'hiveAccount.updated': 'Key updated.',
+  'hiveAccount.attribution': 'Contribution owner',
+  'hiveAccount.attributionNote':
+    'Ownership is confirmed by the server. Keys and XP are shown only for your account.',
+  'hiveAccount.unlinked': 'GitHub is not linked to this account yet.',
+  'hiveAccount.xp': 'XP earned',
+  'hiveAccount.accepted': 'Accepted tasks',
+  'hiveAccount.specs': '.t27 specs',
+  'hiveAccount.hours': 'Bee hours',
+  'hiveAccount.scoring':
+    '{accepted} XP per accepted task, {spec} additional XP per .t27 spec, and {hour} XP per bee hour. These are game points, not a payment balance.',
+  'hiveAccount.keys': 'Your keys · {n}',
+  'hiveAccount.probeAll': 'Check all keys',
+  'hiveAccount.probe': 'Check API',
+  'hiveAccount.probeNote':
+    'A check makes a small model request and uses provider quota. A successful check proves this model answered at the stated time.',
+  'hiveAccount.empty':
+    'No keys are linked to your account yet. Add a key below to start contributing.',
+  'hiveAccount.never': 'Not checked yet',
+  'hiveAccount.fingerprintUnavailable': 'Fingerprint unavailable',
+  'hiveAccount.enabled': 'Enabled for the swarm',
+  'hiveAccount.disabled': 'Disabled for the swarm',
+  'hiveAccount.keyWork': 'Accepted tasks: {n}',
+  'hiveAccount.enable': 'Enable',
+  'hiveAccount.disable': 'Disable',
+  'hiveAccount.add': 'Add a key',
+  'hiveAccount.secretNote':
+    'The key goes to the server and is never shown again. Only its fingerprint is listed here. Use a key with a spending limit.',
+  'hiveAccount.provider': 'Provider',
+  'hiveAccount.label': 'Name (optional)',
+  'hiveAccount.secret': 'API key',
+  'hiveAccount.save': 'Save key',
+  'hiveAccount.health.ok': 'Model answered',
+  'hiveAccount.health.invalid': 'Key rejected',
+  'hiveAccount.health.rate_limited': 'Quota or rate limit',
+  'hiveAccount.health.unavailable': 'Provider unavailable',
+  'hiveAccount.health.not_checked': 'Not checked',
+  'hiveAccount.error.signin':
+    'Sign in to manage your own keys and contribution.',
+  'hiveAccount.error.attribution':
+    'This account is not linked to a contribution owner. Ask the operator to verify your account and GitHub identity.',
+  'hiveAccount.error.duplicate':
+    'This key is already registered. Refresh the list or use another key.',
+  'hiveAccount.error.rate': 'Too many checks. Wait a moment and try again.',
+  'hiveAccount.error.setup':
+    'Key management is not connected on the server yet. The operator must configure the Queen connection and your verified owner mapping.',
+  'hiveAccount.error.input':
+    'The key could not be saved. Check the provider, key and name, then enter the key again.',
+  'hiveAccount.error.network':
+    'The service did not answer. Try again; after saving a key, refresh the list before adding it again.',
+
   // ── Remote browser ────────────────────────────────────────────────────────
   'nav.browser': 'Browser',
   'browser.title': 'My browser',
@@ -555,6 +621,31 @@ const en: Translations = {
   'crm.client.story.vip': 'VIP',
   'crm.client.story.topic': 'Topic: any. Empty = next plan card or a fresh one',
   'crm.client.story.start': 'Make a reel',
+  'crm.client.story.framesShort': '{n} frames + call',
+  'crm.client.story.frames': 'Frames',
+  'crm.client.story.frames.less': 'One frame fewer',
+  'crm.client.story.frames.more': 'One frame more',
+  'crm.client.story.frames.hint':
+    '{n} × her face in a new setting, then the call',
+  'crm.client.story.board.cta': 'Call to action',
+  'crm.client.story.more': 'Settings: call, look, end card',
+  'crm.client.story.cta': 'Call on the last frame',
+  'crm.client.story.style': 'Look of the frames (light, tone)',
+  'crm.client.story.quick': 'Quick topics',
+  'crm.client.story.toDm': 'Send the finished reel to their DM',
+  'crm.client.story.photo.avatar': 'Photo: their avatar',
+  'crm.client.story.photo.own': 'Photo: your own',
+  'crm.client.story.photo.avatarSelf': 'Photo: your avatar',
+  'crm.client.story.photo.replace': '📷 Replace photo',
+  'crm.client.story.photo.reset': '↺ Back to avatar',
+  'crm.client.story.photo.uploading': 'Uploading…',
+  'crm.client.story.photo.failed': 'The photo did not upload, try another',
+  'crm.client.story.tips':
+    'The agent writes it by the rules of a good reel: a hook in the first 2 s, one idea from problem to result, her face close up, one call at the end.',
+  'crm.client.story.quick.1': 'A day in my work',
+  'crm.client.story.quick.2': 'How I help clients',
+  'crm.client.story.quick.3': 'Before and after',
+  'crm.client.story.quick.4': 'Why people choose me',
   'crm.client.story.price': 'About {n} tokens a reel, from your balance',
   'crm.client.story.starting': 'Starting…',
   'crm.client.story.started':
@@ -592,6 +683,7 @@ const en: Translations = {
   'crm.client.story.checkFirst':
     'Check the palette first: only a checked card can be kept',
   'story.title': 'My reels',
+  'story.toChat': 'Ask the agent',
   'story.lead':
     'Three scenes with your face in a new setting each, in your own voice, about 15 seconds, with your call to action at the end. The finished reel comes to your bot in 5–10 minutes.',
   'story.face': 'your face',
@@ -1306,6 +1398,9 @@ const en: Translations = {
   'voice.open': 'Talk to the agent by voice',
   'voice.title': 'Voice mode',
   'voice.close': 'Close voice mode',
+  'voice.end': 'End',
+  'voice.expand': 'Full screen',
+  'voice.toChat': 'Back to the chat',
   'voice.mute': 'Mute the microphone',
   'voice.unmute': 'Unmute the microphone',
   'voice.muted': 'Microphone is off',
@@ -1314,7 +1409,7 @@ const en: Translations = {
   'voice.phase.listening': 'Listening',
   'voice.phase.hearing': 'Hearing you',
   'voice.phase.thinking': 'Thinking',
-  'voice.phase.speaking': 'Speaking. Talk over it to interrupt',
+  'voice.phase.speaking': 'Speaking. Talk over it or tap Stop',
   'voice.phase.error': 'Voice mode stopped',
   'voice.error.mic':
     'No access to the microphone. Allow it in the browser and tap the logo.',
@@ -1329,6 +1424,14 @@ const en: Translations = {
     'Telegram may not pass the microphone to the app. Allow Telegram to use the microphone in the phone settings, or open voice mode in the browser.',
   'voice.openBrowser': 'Open in browser',
   'voice.retry': 'Try again',
+  'voice.type.label': 'Type instead — the agent answers aloud',
+  'voice.type.placeholder': 'Ask the agent…',
+  'voice.type.send': 'Send',
+  'voice.stop': 'Stop',
+  'voice.options': 'You can choose: {list}.',
+  // Said when the agent is silent for a while; variants split by '|'.
+  'voice.filler.first': 'Let me see.|Hmm, let me think.|Let me look into that.',
+  'voice.filler.still': 'Still working on it.|Still on it.',
   'voice.error.recorder': 'This browser cannot record audio.',
   'voice.error.hear': 'Could not make out the words. Please say it again.',
   'voice.you': 'You',
@@ -2780,6 +2883,73 @@ types:
 }
 
 const ru: Translations = {
+  'hiveAccount.title': 'Мои ключи и вклад',
+  'hiveAccount.short': 'Ключи и XP',
+  'hiveAccount.back': 'Вернуться в игру',
+  'hiveAccount.lead':
+    'Управляйте API-ключами, переданными Королеве, и смотрите, какая работа засчитана вам.',
+  'hiveAccount.refresh': 'Обновить',
+  'hiveAccount.loading': 'Загружаем ваш вклад…',
+  'hiveAccount.signin': 'Войти',
+  'hiveAccount.retry': 'Повторить',
+  'hiveAccount.working': 'Сохраняем…',
+  'hiveAccount.progress': 'Проверяем ключи: {done} из {total}',
+  'hiveAccount.saved': 'Ключ сохранён. Проверьте его перед использованием.',
+  'hiveAccount.checked': 'Проверка завершена. Результат указан рядом с ключом.',
+  'hiveAccount.checkedAll':
+    'Все проверки завершены. Посмотрите результат каждого ключа.',
+  'hiveAccount.updated': 'Ключ обновлён.',
+  'hiveAccount.attribution': 'Кому засчитывается вклад',
+  'hiveAccount.attributionNote':
+    'Владение подтверждает сервер. Здесь видны только ключи и XP вашего аккаунта.',
+  'hiveAccount.unlinked': 'GitHub ещё не привязан к этому аккаунту.',
+  'hiveAccount.xp': 'Заработано XP',
+  'hiveAccount.accepted': 'Принято задач',
+  'hiveAccount.specs': 'Спецификации .t27',
+  'hiveAccount.hours': 'Часы работы пчёл',
+  'hiveAccount.scoring':
+    '{accepted} XP за принятую задачу, ещё {spec} XP за спецификацию .t27 и {hour} XP за час работы пчёл. Это игровые очки, а не платёжный баланс.',
+  'hiveAccount.keys': 'Ваши ключи · {n}',
+  'hiveAccount.probeAll': 'Проверить все ключи',
+  'hiveAccount.probe': 'Проверить API',
+  'hiveAccount.probeNote':
+    'Проверка делает короткий запрос к модели и расходует квоту провайдера. Успех означает, что эта модель ответила в указанное время.',
+  'hiveAccount.empty':
+    'К вашему аккаунту пока не привязаны ключи. Добавьте ключ ниже, чтобы участвовать в работе роя.',
+  'hiveAccount.never': 'Проверки ещё не было',
+  'hiveAccount.fingerprintUnavailable': 'Отпечаток недоступен',
+  'hiveAccount.enabled': 'Включён для роя',
+  'hiveAccount.disabled': 'Отключён от роя',
+  'hiveAccount.keyWork': 'Принято задач: {n}',
+  'hiveAccount.enable': 'Включить',
+  'hiveAccount.disable': 'Отключить',
+  'hiveAccount.add': 'Добавить ключ',
+  'hiveAccount.secretNote':
+    'Ключ отправляется на сервер и больше не показывается. В списке остаётся только его отпечаток. Используйте ключ с лимитом расходов.',
+  'hiveAccount.provider': 'Провайдер',
+  'hiveAccount.label': 'Название (необязательно)',
+  'hiveAccount.secret': 'API-ключ',
+  'hiveAccount.save': 'Сохранить ключ',
+  'hiveAccount.health.ok': 'Модель ответила',
+  'hiveAccount.health.invalid': 'Ключ отклонён',
+  'hiveAccount.health.rate_limited': 'Лимит запросов или квоты',
+  'hiveAccount.health.unavailable': 'Провайдер недоступен',
+  'hiveAccount.health.not_checked': 'Не проверен',
+  'hiveAccount.error.signin':
+    'Войдите, чтобы управлять своими ключами и видеть свой вклад.',
+  'hiveAccount.error.attribution':
+    'Аккаунт пока не связан с владельцем вклада. Попросите оператора подтвердить привязку вашего аккаунта и GitHub.',
+  'hiveAccount.error.duplicate':
+    'Этот ключ уже зарегистрирован. Обновите список или используйте другой ключ.',
+  'hiveAccount.error.rate':
+    'Слишком много проверок. Немного подождите и повторите.',
+  'hiveAccount.error.setup':
+    'Управление ключами ещё не подключено на сервере. Оператору нужно настроить связь с Королевой и подтверждённую привязку владельца.',
+  'hiveAccount.error.input':
+    'Ключ не удалось сохранить. Проверьте провайдера, ключ и название, затем введите ключ заново.',
+  'hiveAccount.error.network':
+    'Сервис не ответил. Повторите запрос; после сохранения ключа сначала обновите список, прежде чем добавлять его ещё раз.',
+
   // ── Remote browser ────────────────────────────────────────────────────────
   'nav.browser': 'Браузер',
   'browser.title': 'Мой браузер',
@@ -3309,6 +3479,30 @@ const ru: Translations = {
   'crm.client.story.topic':
     'Тема — любая. Пусто = следующий пункт плана или новая',
   'crm.client.story.start': 'Сделать рилс',
+  'crm.client.story.framesShort': 'кадров: {n} + призыв',
+  'crm.client.story.frames': 'Кадры',
+  'crm.client.story.frames.less': 'На кадр меньше',
+  'crm.client.story.frames.more': 'На кадр больше',
+  'crm.client.story.frames.hint': '{n} × лицо в новой обстановке, затем призыв',
+  'crm.client.story.board.cta': 'Призыв к действию',
+  'crm.client.story.more': 'Настройки: призыв, стиль, концовка',
+  'crm.client.story.cta': 'Призыв на последнем кадре',
+  'crm.client.story.style': 'Стиль кадров (свет, тон)',
+  'crm.client.story.quick': 'Быстрые темы',
+  'crm.client.story.toDm': 'Готовый рилс — сразу клиенту в личку',
+  'crm.client.story.photo.avatar': 'Фото: аватарка клиента',
+  'crm.client.story.photo.own': 'Фото: своё',
+  'crm.client.story.photo.avatarSelf': 'Фото: ваша аватарка',
+  'crm.client.story.photo.replace': '📷 Заменить фото',
+  'crm.client.story.photo.reset': '↺ Вернуть аватарку',
+  'crm.client.story.photo.uploading': 'Загружаю…',
+  'crm.client.story.photo.failed': 'Фото не загрузилось, попробуйте другое',
+  'crm.client.story.tips':
+    'Агент пишет по правилам сильного рилса: крючок в первые 2 с, одна мысль от проблемы к результату, лицо крупно, один призыв в конце.',
+  'crm.client.story.quick.1': 'Мой день в работе',
+  'crm.client.story.quick.2': 'Как я помогаю клиентам',
+  'crm.client.story.quick.3': 'До и после',
+  'crm.client.story.quick.4': 'Почему выбирают меня',
   'crm.client.story.price': 'Около {n} токенов за рилс — с вашего баланса',
   'crm.client.story.starting': 'Запускаю…',
   'crm.client.story.started':
@@ -3345,6 +3539,7 @@ const ru: Translations = {
   'crm.client.story.checkFirst':
     'Сначала проверьте: запомнить можно только проверенную палитру',
   'story.title': 'Мои рилсы',
+  'story.toChat': 'Спросить агента',
   'story.lead':
     'Три сцены с вашим лицом — каждая в новой обстановке, вашим голосом, около 15 секунд, в конце — ваш призыв. Готовый рилс придёт в бот через 5–10 минут.',
   'story.face': 'ваше лицо',
@@ -4014,6 +4209,9 @@ const ru: Translations = {
   'voice.open': 'Говорить с агентом голосом',
   'voice.title': 'Голосовой режим',
   'voice.close': 'Закрыть голосовой режим',
+  'voice.end': 'Завершить',
+  'voice.expand': 'На весь экран',
+  'voice.toChat': 'Вернуться в чат',
   'voice.mute': 'Выключить микрофон',
   'voice.unmute': 'Включить микрофон',
   'voice.muted': 'Микрофон выключен',
@@ -4022,7 +4220,7 @@ const ru: Translations = {
   'voice.phase.listening': 'Слушаю',
   'voice.phase.hearing': 'Слышу вас',
   'voice.phase.thinking': 'Думаю',
-  'voice.phase.speaking': 'Говорю. Перебейте голосом, чтобы остановить',
+  'voice.phase.speaking': 'Говорю. Перебейте голосом или нажмите «Остановить»',
   'voice.phase.error': 'Голосовой режим остановлен',
   'voice.error.mic':
     'Нет доступа к микрофону. Разрешите его в браузере и нажмите на логотип.',
@@ -4038,6 +4236,14 @@ const ru: Translations = {
     'Telegram может не передавать микрофон приложению. Разрешите Telegram доступ к микрофону в настройках телефона или откройте голосовой режим в браузере.',
   'voice.openBrowser': 'Открыть в браузере',
   'voice.retry': 'Попробовать снова',
+  'voice.type.label': 'Напишите — агент ответит голосом',
+  'voice.type.placeholder': 'Спросите агента…',
+  'voice.type.send': 'Отправить',
+  'voice.stop': 'Остановить',
+  'voice.options': 'Можно выбрать: {list}.',
+  'voice.filler.first':
+    'Сейчас посмотрю.|Так, дайте подумать.|Сейчас разберусь.',
+  'voice.filler.still': 'Ещё работаю над этим.|Всё ещё занимаюсь этим.',
   'voice.error.recorder': 'Этот браузер не умеет записывать звук.',
   'voice.error.hear': 'Не разобрал слова. Повторите, пожалуйста.',
   'voice.you': 'Вы',
