@@ -429,6 +429,15 @@ CHECKS THAT EACH COST A CYCLE
         (exit 2). On 2026-10-02: edge sin1, render in sfo, ~250-290 ms warm.
         No key needed.
 
+  tri turn | tri ход [--live] [phrase ...]
+        Whether the words of a pause end the turn (player/src/lib/voice/
+        turnEnd.ts): a phrase stopping on "and", "to", "uh", "и", "на" or a
+        comma gets HANGING_TURN_MS of silence, anything else END_OF_TURN_MS.
+        No phrases: its own battery, exit 1 on a wrong verdict. --live says
+        six phrases with our mouth, hears them with our ears, judges what
+        came back and prints when the words land in the pause (the "heard"
+        earcon now waits for them).
+
   tri vad | tri шум [--legacy] [file.wav ...]
         The mic's voice-activity gate (player/src/lib/voice/vad.ts) run tick
         by tick over recordings, as the session runs it. With no files it
@@ -493,6 +502,18 @@ CHECKS THAT EACH COST A CYCLE
         The SOUL is not in this output on purpose: it lives behind an agent
         tool call rather than on the user row, and a line that says "not
         asked" every time is furniture.
+
+  tri pr-billing N
+        Is every failing check on PR N the Actions billing stop? rc 0 only if
+        all are; an empty annotation (dropped connection) is re-asked, then
+        counted UNKNOWN -- never billing.
+
+  tri deploys [--logs] | tri выкладки
+        Is the player on app.t27.ai what main says it is? The serving
+        commit, every later main commit that touches the image with its
+        deploy status, and for a FAILED build: the failing tests, tsc
+        errors, the REFUSED line, and who last touched each failing test.
+        rc 0 live, 1 failed or behind, 2 unknown, 5 building.
 
   tri readers [--gate | --run FILE...] | tri читатели
         Tests that read source as TEXT, and the paths they still believe in.
@@ -3168,19 +3189,84 @@ cmd_readers() {
     # By the quoted file NAME, not `--for`: `--for` also lists every scanner
     # that walks a whole directory (106 tests for one hook) -- too many to run
     # before a push. A guard on one file names it, as creditedIsNotOk does.
+    # Untracked files count too: the guard being added in this very change is
+    # usually the one that names the file.
     local tests="" f
     for f in "$@"; do
-      tests="$tests $(cd "$ROOT" && git ls-files '*.test.ts' '*.test.tsx' \
+      tests="$tests $(cd "$ROOT" && { git ls-files '*.test.ts' '*.test.tsx'
+        git ls-files --others --exclude-standard '*.test.ts' '*.test.tsx'; } \
         | xargs /usr/bin/grep -l -F "'$(basename "$f")'" 2>/dev/null)"
     done
     tests=$(echo $tests | tr ' ' '\n' | sort -u)
     if [ -z "$tests" ]; then echo "  --   no test names these files"; return 0; fi
     echo "$tests" | sed 's/^/  reads it: /'
-    # shellcheck disable=SC2086
-    ( cd "$ROOT" && timeout 600 npx vitest run $tests )
-    return
+    # Each test runs under the vitest config of ITS OWN package. The root
+    # config excludes player/, and a file it excludes, passed by name, is
+    # dropped SILENTLY: "75 passed" for 76 named, 2026-10-02.
+    local groups t d mine rc=0
+    groups=$(echo "$tests" | while read -r t; do
+      d=$(dirname "$t")
+      while [ "$d" != "." ] && ! ls "$ROOT/$d"/vitest.config.* >/dev/null 2>&1; do
+        d=$(dirname "$d")
+      done
+      echo "$d $t"
+    done)
+    for d in $(echo "$groups" | cut -d' ' -f1 | sort -u); do
+      mine=$(echo "$groups" | awk -v d="$d" '$1 == d { print $2 }')
+      [ "$d" = "." ] || mine=$(echo "$mine" | sed "s#^$d/##")
+      echo "  --   $(echo "$mine" | wc -l | tr -d ' ') under $d/vitest.config"
+      # shellcheck disable=SC2086
+      ( cd "$ROOT/$d" && timeout 600 npx vitest run $mine ) || rc=1
+    done
+    return $rc
   fi
   ( cd "$ROOT" && node "$ROOT/scripts/text-readers.cjs" "$@" )
+}
+
+cmd_pr_billing() {
+  # Is every failing check on a PR the Actions billing stop, and nothing else?
+  #   tri pr-billing N    rc 0 only if EVERY failing check run says so
+  #
+  # GitHub Actions has not run a job here since 2026-06-02 (billing), so every
+  # PR shows ~17 red checks and the merge rule is "each one must be billing".
+  # That was checked by hand in a shell loop every time, and on 2026-10-02 a
+  # dropped connection returned an EMPTY annotation list: the loop printed
+  # "NOT BILLING" for a job that had never started. An empty answer is
+  # re-asked (3 tries) and, if still empty, counted as UNKNOWN -- never as
+  # billing, never as a real failure.
+  # TRI_GH: tri puts /opt/homebrew/bin first on PATH, so a stub gh on PATH
+  # is silently bypassed -- the negative control needs a named seam.
+  local gh="${TRI_GH:-gh}"
+  local pr="${1:-}" repo="${TRI_GH_REPO:-gHashTag/999-multibots-telegraf}"
+  [ -n "$pr" ] || { echo "usage: tri pr-billing PR_NUMBER" >&2; return 2; }
+  local sha ids id name msg try billing=0 other=0 unknown=0
+  sha=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid --jq .headRefOid) \
+    || { bad "PR $pr not found in $repo"; return 2; }
+  ids=$("$gh" api "repos/$repo/commits/$sha/check-runs?per_page=100" \
+    --jq '.check_runs[]|select(.conclusion=="failure")|"\(.id)\t\(.name)"') \
+    || { bad "could not list check runs for $sha"; return 2; }
+  if [ -z "$ids" ]; then good "PR $pr: no failing checks"; return 0; fi
+  while IFS=$'\t' read -r id name; do
+    msg=""
+    for try in 1 2 3; do
+      msg=$("$gh" api "repos/$repo/check-runs/$id/annotations" --jq '.[].message' 2>/dev/null) && [ -n "$msg" ] && break
+      sleep 2
+    done
+    if printf '%s' "$msg" | /usr/bin/grep -q "recent account payments have failed"; then
+      billing=$((billing + 1))
+    elif [ -z "$msg" ]; then
+      unknown=$((unknown + 1)); skip "$name ($id): no annotation after 3 tries"
+    else
+      other=$((other + 1)); bad "$name ($id): $(printf '%s' "$msg" | head -1)"
+    fi
+  done <<< "$ids"
+  echo "  --   PR $pr @ ${sha:0:9}: $billing billing, $other other, $unknown unknown"
+  if [ $other -eq 0 ] && [ $unknown -eq 0 ]; then
+    good "every failing check is the billing stop -- merge is allowed"
+    return 0
+  fi
+  bad "not every failure is billing -- read the ones above before merging"
+  return 1
 }
 
 cmd_pay() {
@@ -5892,6 +5978,87 @@ PY
 }
 
 # ─────────────────────────────────────────────────────────────────────────
+# tri turn: the words of a pause decide when the turn is over (cycle 11).
+#
+# A phrase that stops on "and", "to", "uh", "и", "на" or a trailing comma
+# is mid-thought: the session gives it HANGING_TURN_MS of silence instead of
+# END_OF_TURN_MS (player/src/lib/voice/turnEnd.ts). The battery checks the
+# verdicts; --live speaks phrases with our own mouth, hears them with our
+# own ears, and judges what the ears returned -- the engines decide whether
+# "and" survives ("this week and" came back "this weekend." on 2026-10-02).
+# ─────────────────────────────────────────────────────────────────────────
+cmd_turn() {
+  local bench="$ROOT/apps/vibee-editor/player/scripts/turn-bench.ts" live='' a phrases=() key heard
+  for a in "$@"; do
+    case "$a" in
+      --live) live=1 ;;
+      -*) bad "tri turn [--live] [phrase ...], not '$a'"; return 2 ;;
+      *) phrases+=("$a") ;;
+    esac
+  done
+  command -v bun >/dev/null || { bad 'bun is needed to run the judge'; return 2; }
+  if [ -z "$live" ]; then
+    bun "$bench" ${phrases[@]+"${phrases[@]}"}
+    return $?
+  fi
+  key=$(_mcp_key 2>/dev/null) || key=''
+  [ -n "$key" ] || { bad 'no agent key: --live needs the render (AGENT_KEY or the vault)'; return 2; }
+  heard=$(V_KEY="$key" V_BASE="$RENDER" \
+    V_SESSION="$ROOT/apps/vibee-editor/player/src/lib/voice/session.ts" \
+    V_VAD="$ROOT/apps/vibee-editor/player/src/lib/voice/vad.ts" python3 - <<'PY'
+import json, os, re, time, urllib.request
+base, key = os.environ['V_BASE'], os.environ['V_KEY']
+def const(path, name):
+    m = re.search(r'const ' + name + r' = ([0-9_]+)', open(os.environ[path]).read())
+    return int(m.group(1).replace('_', '')) if m else 0
+EAGER, END = const('V_SESSION', 'EAGER_HEAR_MS'), const('V_VAD', 'END_OF_TURN_MS')
+# ONE kept connection, as a browser keeps one: a fresh DNS + TLS per call
+# added 0.3-1 s to every "words at" this printed on its first run.
+from urllib.parse import urlsplit
+import http.client
+u = urlsplit(base)
+conn = (http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection)(u.hostname, u.port, timeout=60)
+def call(path, body, ctype):
+    data = body if isinstance(body, bytes) else json.dumps(body).encode()
+    t = time.monotonic()
+    conn.request('POST', path, body=data, headers={'Content-Type': ctype, 'X-Agent-Key': key})
+    resp = conn.getresponse()
+    b = resp.read()
+    if resp.status != 200:
+        raise RuntimeError(f'HTTP {resp.status} {path}')
+    return b, int((time.monotonic() - t) * 1000), resp.getheader('Server-Timing')
+# [lang, text, still going]
+PROBES = (('ru', 'Покажи мне встречи на этой неделе и', True),  # cyrillic-ok: spoken probe
+          ('ru', 'Хочу записаться на', True),  # cyrillic-ok: spoken probe
+          ('ru', 'Сделай рилс про мою кофейню.', False),  # cyrillic-ok: spoken probe
+          ('en', 'Show me my unpaid invoices and', True),
+          ('en', 'I want to book a table for', True),
+          ('en', 'Open my calendar.', False))
+for lang, text, want in PROBES:
+    try:
+        audio, _, _ = call('/api/voice/speak', {'text': text, 'lang': lang}, 'application/json')
+        b, ms, timing = call(f'/api/voice/transcribe?lang={lang}', audio, 'audio/mpeg')
+        words = json.loads(b).get('text', '')
+    except Exception as e:
+        print(f'  {lang}: FAILED {e}', file=os.sys.stderr)
+        continue
+    # The guess is asked for EAGER ms into the pause; before cycle 11 the
+    # "heard" earcon played at END ms, now it waits for these words.
+    late = max(0, EAGER + ms - END)
+    engine = re.search(r'hear;dur=([0-9.]+);desc="?([^",]+)', timing or '')
+    via = f', {engine.group(2)} {int(float(engine.group(1)))} ms' if engine else ''
+    print(f'  {lang} said {json.dumps(text, ensure_ascii=False)} -> words at {EAGER + ms} ms of silence (earcon +{late} ms{via})', file=os.sys.stderr)
+    print('--want-hang' if want else '--want-over')
+    print(words)
+PY
+  ) || return 2
+  local list=()
+  while IFS= read -r a; do list+=("$a"); done <<< "$heard"
+  [ ${#list[@]} -gt 0 ] && [ -n "${list[0]}" ] || { bad 'nothing heard'; return 1; }
+  bun "$bench" "${list[@]}"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
 # tri vad: the mic's voice-activity gate over real recordings (cycle 8).
 #
 # A fan that STARTS loud was "speech" for 30 s before cycle 8 -- a question
@@ -6042,6 +6209,146 @@ _ears_svc() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────
+# tri deploys: is the player on app.t27.ai the code main says it is?
+#
+# 999's GitHub Actions are dead (billing), so the player's tests run in ONE
+# place: the vibee-editor Docker build (tsc + scripts/test-gate.mjs). One
+# failing test there refuses EVERY later deploy, and nothing tells anyone --
+# #3199, #3234 and #3238 all merged "green" and none of them went live.
+# Worse, a test-only commit is SKIPPED by the service's watchPatterns, so the
+# commit that broke a test is never the one whose deploy fails: blame lands
+# on the next innocent source change.
+#
+# This answers it from Railway and git, in one screen:
+#   - the commit actually serving (newest SUCCESS deploy);
+#   - every commit on origin/main since then that touches what the image is
+#     built from (the watchPatterns of apps/vibee-editor/railway.toml), with
+#     its deploy status;
+#   - for the newest FAILED deploy: the failing test files and the vitest
+#     "x" lines, the tsc errors, the gate's REFUSED line, and the commit that
+#     last touched each failing test file.
+#
+#   tri deploys          rc 0 live, 1 failed or behind, 2 unknown, 5 building
+#   tri deploys --logs   also print the raw tail of the failed build log
+# ─────────────────────────────────────────────────────────────────────────
+cmd_deploys() {
+  local p=564d9ebd-7aa8-44fe-93ec-e0b03c87158d e=e4d200ad-b8a9-4edf-9b25-190a32613b32
+  local s=7aad4834-8ac0-4d6b-a031-44ec694ad8de raw=0 a
+  for a in "$@"; do
+    case "$a" in
+      --logs) raw=1 ;;
+      *) bad "tri deploys [--logs], not '$a'"; return 2 ;;
+    esac
+  done
+  local list
+  list=$(timeout 40 railway deployment list -p "$p" -e "$e" -s "$s" --limit 60 --json 2>/dev/null)
+  if [ -z "$list" ] || ! printf '%s' "$list" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
+    skip 'player: railway did not answer -- deploy state unknown'
+    return 2
+  fi
+  timeout 60 git -C "$ROOT" fetch -q origin main 2>/dev/null \
+    || warn 'git fetch origin main failed -- comparing with a possibly stale origin/main'
+
+  # The newest SUCCESS is what serves; REMOVED ones are older replaced images.
+  local live
+  live=$(printf '%s' "$list" | python3 -c '
+import json, sys
+for d in json.load(sys.stdin):
+    if d["status"] == "SUCCESS":
+        print((d.get("meta") or {}).get("commitHash") or ""); break')
+  if [ -z "$live" ] || ! git -C "$ROOT" cat-file -e "$live^{commit}" 2>/dev/null; then
+    skip "player: no SUCCESS deploy with a known commit among the last 60 (${live:-none})"
+    return 2
+  fi
+  good "player serves $(git -C "$ROOT" log -1 --format='%h %s' "$live" | cut -c1-90)"
+  if ! git -C "$ROOT" merge-base --is-ancestor "$live" origin/main; then
+    warn "the serving commit is not on origin/main (a manual 'railway up'?)"
+  fi
+
+  # Same set as watchPatterns in apps/vibee-editor/railway.toml: what the
+  # image is built from. Test files are excluded there, so here too.
+  local behind
+  behind=$(git -C "$ROOT" log --format='%H %s' "$live..origin/main" -- \
+    apps/vibee-editor/player apps/vibee-editor/packages apps/vibee-editor/nginx \
+    apps/vibee-editor/Dockerfile apps/vibee-editor/docker-entrypoint.sh \
+    apps/vibee-editor/railway.toml \
+    ':(glob,exclude)apps/vibee-editor/player/**/*.test.ts' \
+    ':(glob,exclude)apps/vibee-editor/player/**/*.test.tsx')
+  local verdict failed_id
+  verdict=$(printf '%s' "$list" | BEHIND="$behind" python3 -c '
+import json, os, sys
+deps = json.load(sys.stdin)
+by = {}
+for d in deps:  # newest first: keep the newest deploy of each commit
+    h = (d.get("meta") or {}).get("commitHash") or ""
+    by.setdefault(h, d)
+rows = [l.split(" ", 1) for l in os.environ["BEHIND"].splitlines() if l.strip()]
+building = ("BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING")
+state, failed = "live", ""
+for h, subject in rows:
+    d = by.get(h)
+    st = d["status"] if d else "NO DEPLOY"
+    print("ROW %-9s %s %s" % (st, h[:9], subject[:70]))
+    if st in ("FAILED", "CRASHED") and not failed:
+        failed = d["id"]
+    if st in building and state == "live":
+        state = "building"
+if rows and state == "live":
+    state = "behind"
+if failed:
+    state = "failed"
+print("STATE %s %s %d" % (state, failed or "-", len(rows)))')
+  printf '%s\n' "$verdict" | sed -n 's/^ROW /    /p'
+  local state n
+  read -r _ state failed_id n <<<"$(printf '%s\n' "$verdict" | grep '^STATE ')"
+  case "$state" in
+    live) good 'player: nothing on main since the serving commit touches the image'; return 0 ;;
+    building) warn "player: $n commit(s) not live yet, a deploy is on its way -- check again"; return 5 ;;
+    behind) bad "player: $n commit(s) on main touch the image but are not live (no FAILED deploy found among the last 60)"; return 1 ;;
+  esac
+
+  bad "player: $n commit(s) on main are NOT live -- the deploy $failed_id FAILED"
+  local log
+  log=$(timeout 90 railway logs "$failed_id" -b -n 3000 2>/dev/null)
+  if [ -z "$log" ]; then
+    skip 'the build log did not come back -- read it: railway logs '"$failed_id"' -b'
+    return 1
+  fi
+  printf '%s\n' "$log" | python3 -c '
+import re, sys
+text = re.sub(r"\x1b\[[0-9;]*m", "", sys.stdin.read())
+seen, files = set(), []
+for line in text.splitlines():
+    s = line.strip()
+    m = re.match(r"(?:❯|FAIL)\s+(\S+\.test\.tsx?)\b.*?(\d+ failed|\))", s)
+    if m and "failed" in s and m.group(1) not in files:
+        files.append(m.group(1))
+    keep = (
+        s.startswith("×")
+        or "error TS" in s
+        or s.startswith("test gate:")
+        or (m and "failed" in s)
+    )
+    if keep and s not in seen:
+        seen.add(s)
+        print("    " + s[:160])
+for f in files:
+    print("FILE " + f)' > /tmp/tri-deploys-why.$$
+  grep -v '^FILE ' /tmp/tri-deploys-why.$$
+  local f last
+  while read -r _ f; do
+    last=$(git -C "$ROOT" log -1 --format='%h %s' origin/main -- "apps/vibee-editor/player/$f" | cut -c1-80)
+    [ -n "$last" ] && printf '    last touched %s by %s\n' "$f" "$last"
+  done < <(grep '^FILE ' /tmp/tri-deploys-why.$$)
+  if ! grep -q . /tmp/tri-deploys-why.$$; then
+    warn 'no failing test or tsc line found in the build log -- the failure is elsewhere (use --logs)'
+  fi
+  rm -f /tmp/tri-deploys-why.$$
+  [ "$raw" = 1 ] && printf '%s\n' "$log" | tail -40
+  return 1
+}
+
+# ─────────────────────────────────────────────────────────────────────────
 # tri loop: where the last cycle stopped, before this one starts.
 #
 # A cron loop fires every 15 minutes whether the previous cycle finished or
@@ -6114,7 +6421,7 @@ if d["status"] in ("FAILED", "CRASHED"):
 sys.exit(5 if d["status"] in ("BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING") else 0)
 ' "$name"
     case "${PIPESTATUS[1]}" in
-      4) bad "$name: the last deploy failed -- fix it before merging more"; busy=1 ;;
+      4) bad "$name: the last deploy failed -- fix it before merging more (for the player, tri deploys says why)"; busy=1 ;;
       5) warn "$name: still deploying -- wait for SUCCESS before the next item"; busy=1 ;;
     esac
   done
@@ -6171,6 +6478,8 @@ case "$action" in
   watches|сторожа)   cmd_watches "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
+  pr-billing)        cmd_pr_billing "$@" ;;
+  deploys|выкладки)  cmd_deploys "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
   clone|клон)        cmd_clone "$@" ;;
   deploy-config|конфиг-деплоя) cmd_deploy_config "$@" ;;
@@ -6180,7 +6489,7 @@ case "$action" in
   ton-verify)         cmd_ton_verify "$@" ;;
   fn-liveness|живость-функций) cmd_fn_liveness "$@" ;;
   timeouts|таймауты)  cmd_timeouts "$@" ;;
-  inflight|блокировка) cmd_inflight "@" ;;
+  inflight|блокировка) cmd_inflight "$@" ;;
   leaks|утечки)        cmd_leaks "$@" ;;
   replay|повтор)       cmd_replay "$@" ;;
   mint|минт)           cmd_mint "$@" ;;
@@ -6226,6 +6535,7 @@ case "$action" in
   voice|голос)         cmd_voice "$@" ;;
   road|дорога)         V_ROAD_ONLY=1 cmd_voice "$@" ;;
   vad|шум)             cmd_vad "$@" ;;
+  turn|ход)            cmd_turn "$@" ;;  # cyrillic-ok: alias, like its neighbours
   filler|пауза)        V_FILLER=1 cmd_voice --runs 1 ;;   # cyrillic-ok: alias, like its neighbours   # cyrillic-ok: alias, like its neighbours
   ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
   mouth|рот)           cmd_ears "$@" mouth ;;  # cyrillic-ok: the voice's mouth, cycle 6

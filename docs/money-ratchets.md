@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 150. Без заголовка: 0.
+Ратчетов: 151. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -30,6 +30,7 @@
 | `aiReelsDeliveryWebhookThrows.test.ts`                 | generateAIReelsFunction delivery handoff surfaces a non-2xx (no silent charged-not-delivered) |
 | `aiReelsRenderDisplayMatchesCharge.test.ts`            | AI Reels Render cost display matches the Step 6 charge                                        |
 | `aiReelsWizardRefundChecked.test.ts`                   | ai-reels-wizard critical-error refund checks its result (refundAndTell)                       |
+| `anAgentPackageChargeIsBookedByTheRender.test.ts`      | an agent package charge                                                                       |
 | `anEmptyWalletDoesNotWakeTheOwner.test.ts`             | the standalone upscaler (services/imageUpscaler.ts)                                           |
 | `balanceRefusalIsToldApartFromAnOutage.test.ts`        | a balance refusal is told apart from an outage                                                |
 | `batchRefundReconciliation.test.ts`                    | aiPhotoshop batch refunds reconcile the exact charge                                          |

@@ -635,6 +635,7 @@ const en: Translations = {
   'crm.client.story.toDm': 'Send the finished reel to their DM',
   'crm.client.story.photo.avatar': 'Photo: their avatar',
   'crm.client.story.photo.own': 'Photo: your own',
+  'crm.client.story.photo.avatarSelf': 'Photo: your avatar',
   'crm.client.story.photo.replace': '📷 Replace photo',
   'crm.client.story.photo.reset': '↺ Back to avatar',
   'crm.client.story.photo.uploading': 'Uploading…',
@@ -682,6 +683,7 @@ const en: Translations = {
   'crm.client.story.checkFirst':
     'Check the palette first: only a checked card can be kept',
   'story.title': 'My reels',
+  'story.toChat': 'Ask the agent',
   'story.lead':
     'Three scenes with your face in a new setting each, in your own voice, about 15 seconds, with your call to action at the end. The finished reel comes to your bot in 5–10 minutes.',
   'story.face': 'your face',
@@ -1396,6 +1398,9 @@ const en: Translations = {
   'voice.open': 'Talk to the agent by voice',
   'voice.title': 'Voice mode',
   'voice.close': 'Close voice mode',
+  'voice.end': 'End',
+  'voice.expand': 'Full screen',
+  'voice.toChat': 'Back to the chat',
   'voice.mute': 'Mute the microphone',
   'voice.unmute': 'Unmute the microphone',
   'voice.muted': 'Microphone is off',
@@ -3437,6 +3442,7 @@ const ru: Translations = {
   'crm.client.story.toDm': 'Готовый рилс — сразу клиенту в личку',
   'crm.client.story.photo.avatar': 'Фото: аватарка клиента',
   'crm.client.story.photo.own': 'Фото: своё',
+  'crm.client.story.photo.avatarSelf': 'Фото: ваша аватарка',
   'crm.client.story.photo.replace': '📷 Заменить фото',
   'crm.client.story.photo.reset': '↺ Вернуть аватарку',
   'crm.client.story.photo.uploading': 'Загружаю…',
@@ -3483,6 +3489,7 @@ const ru: Translations = {
   'crm.client.story.checkFirst':
     'Сначала проверьте: запомнить можно только проверенную палитру',
   'story.title': 'Мои рилсы',
+  'story.toChat': 'Спросить агента',
   'story.lead':
     'Три сцены с вашим лицом — каждая в новой обстановке, вашим голосом, около 15 секунд, в конце — ваш призыв. Готовый рилс придёт в бот через 5–10 минут.',
   'story.face': 'ваше лицо',
@@ -4152,6 +4159,9 @@ const ru: Translations = {
   'voice.open': 'Говорить с агентом голосом',
   'voice.title': 'Голосовой режим',
   'voice.close': 'Закрыть голосовой режим',
+  'voice.end': 'Завершить',
+  'voice.expand': 'На весь экран',
+  'voice.toChat': 'Вернуться в чат',
   'voice.mute': 'Выключить микрофон',
   'voice.unmute': 'Включить микрофон',
   'voice.muted': 'Микрофон выключен',

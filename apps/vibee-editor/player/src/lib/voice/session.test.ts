@@ -152,7 +152,7 @@ describe('VoiceSession: no microphone, the person types', () => {
     })
   })
 
-  it('with a working microphone there is nothing to type into', () => {
+  it('a session that is off takes no typed question', () => {
     const d = deps()
     const s = new VoiceSession(d)
     s.type('hello')
@@ -347,7 +347,12 @@ describe('VoiceSession: the spoken language', () => {
     vi.unstubAllGlobals()
   })
 
-  async function session(ui: 'ru' | 'en', browser: string[], heard: string) {
+  async function session(
+    ui: 'ru' | 'en',
+    browser: string[],
+    heard: string,
+    extra: Partial<ReturnType<typeof deps>> = {}
+  ) {
     const track = { stop: () => {}, enabled: true }
     vi.stubGlobal('AudioContext', ListeningAudioContext)
     vi.stubGlobal('MediaRecorder', FakeRecorder)
@@ -364,6 +369,7 @@ describe('VoiceSession: the spoken language', () => {
     const d = deps()
     const s = new VoiceSession({
       ...d,
+      ...extra,
       lang: () => ui,
       transcribe: async (_a: Blob, o?: { lang?: string | null }) => {
         hints.push(o?.lang)
@@ -375,6 +381,25 @@ describe('VoiceSession: the spoken language', () => {
       (s as unknown as { finishUtterance(): Promise<void> }).finishUtterance()
     return { s, d, hints, phrase }
   }
+
+  it('typed into the chat while the microphone listens, and answered aloud', async () => {
+    // The agent takes its time, so the turn stays the agent's.
+    const { s, d } = await session('en', ['en-US'], 'unused', {
+      answering: () => true,
+    })
+    const recorder = () => (s as unknown as { recorder: unknown }).recorder
+    expect(s.snapshot.phase).toBe('listening')
+    expect(recorder()).not.toBeNull()
+    s.type('  show my week ')
+    expect(d.send).toHaveBeenCalledWith('show my week')
+    expect(s.snapshot).toMatchObject({
+      phase: 'thinking',
+      heard: 'show my week',
+    })
+    // The half-recorded phrase is not a second question.
+    expect(recorder()).toBeNull()
+    s.stop()
+  })
 
   it('named from the first phrase when the app and the browser agree', async () => {
     const { s, hints, phrase } = await session('ru', ['ru-RU'], 'Привет')
@@ -825,8 +850,11 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
     vi.restoreAllMocks()
   })
 
-  /** Loud from `from` to `to`, then quiet up to `until`, one tick each 40 ms. */
-  function say(
+  /*
+   * Loud from `from` to `to`, then quiet up to `until`, one tick each 40 ms.
+   * Each tick is its own task in a browser: settled promises run between.
+   */
+  async function say(
     v: { level: { value: number }; tick(at: number): void },
     from: number,
     to: number,
@@ -835,16 +863,17 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
     for (let t = from; t <= until; t += 40) {
       v.level.value = t <= to ? 0.5 : 0
       v.tick(t)
+      await Promise.resolve()
     }
   }
 
   it('asks for the words early and sends them when the turn ends, heard once', async () => {
     const v = await speakingSession(['open my calendar'], DeliveringRecorder)
-    say(v, 1100, 1600, 1600 + 400)
+    await say(v, 1100, 1600, 1600 + 400)
     // The pause is not over yet, and the words are already being heard.
     expect(v.d.transcribe).toHaveBeenCalledTimes(1)
     expect(v.d.send).not.toHaveBeenCalled()
-    say(v, 2040, 0, 2040 + 600)
+    await say(v, 2040, 0, 2040 + 600)
     await flush()
     expect(v.d.transcribe).toHaveBeenCalledTimes(1)
     expect(v.d.send).toHaveBeenCalledWith('open my calendar')
@@ -855,12 +884,12 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
       ['open my', 'open my calendar'],
       DeliveringRecorder
     )
-    say(v, 1100, 1600, 1600 + 400)
+    await say(v, 1100, 1600, 1600 + 400)
     const first = v.d.transcribe.mock.calls[0] as unknown as [
       Blob,
       { signal?: AbortSignal },
     ]
-    say(v, 2040, 2400, 2400 + 1000)
+    await say(v, 2040, 2400, 2400 + 1000)
     await flush()
     expect(first[1].signal?.aborted).toBe(true)
     expect(v.d.send).toHaveBeenCalledTimes(1)
@@ -872,7 +901,7 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
     v.d.transcribe.mockImplementationOnce(async () => {
       throw new Error('503')
     })
-    say(v, 1100, 1600, 1600 + 1000)
+    await say(v, 1100, 1600, 1600 + 1000)
     await flush()
     expect(v.d.transcribe).toHaveBeenCalledTimes(2)
     expect(v.d.send).toHaveBeenCalledWith('open my calendar')
@@ -881,14 +910,14 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
 
   it('the road is woken as the person starts talking, once a phrase', async () => {
     const v = await speakingSession(['open my calendar'], DeliveringRecorder)
-    say(v, 1100, 1200)
+    await say(v, 1100, 1200)
     // Not yet: 100 ms of sound may be a click, not a person.
     expect(v.d.wakeRoad).not.toHaveBeenCalled()
-    say(v, 1240, 1600)
+    await say(v, 1240, 1600)
     // Woken while they still talk -- before the words are asked for.
     expect(v.d.wakeRoad).toHaveBeenCalledTimes(1)
     expect(v.d.transcribe).not.toHaveBeenCalled()
-    say(v, 1640, 0, 1640 + 1000)
+    await say(v, 1640, 0, 1640 + 1000)
     await flush()
     expect(v.d.send).toHaveBeenCalledWith('open my calendar')
     expect(v.d.wakeRoad).toHaveBeenCalledTimes(1)
@@ -896,12 +925,74 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
 
   it("Safari's mp4 cannot be cut short, so it is heard only at the end", async () => {
     const v = await speakingSession(['open my calendar'], SafariRecorder)
-    say(v, 1100, 1600, 1600 + 600)
+    await say(v, 1100, 1600, 1600 + 600)
     expect(v.d.transcribe).not.toHaveBeenCalled()
-    say(v, 2240, 0, 2240 + 400)
+    await say(v, 2240, 0, 2240 + 400)
     await flush()
     expect(v.d.transcribe).toHaveBeenCalledTimes(1)
     expect(v.d.send).toHaveBeenCalledWith('open my calendar')
+  })
+  it('a phrase that stops on "and" is waited for, and its rest joins it', async () => {
+    const v = await speakingSession(
+      ['show me my week and', 'show me my week and the invoices'],
+      DeliveringRecorder
+    )
+    await say(v, 1100, 1600, 1600 + 1600)
+    await flush()
+    // 1.6 s of silence ended any turn before; this one is mid-thought.
+    expect(v.d.send).not.toHaveBeenCalled()
+    await say(v, 3240, 3600, 3600 + 1000)
+    await flush()
+    expect(v.d.send).toHaveBeenCalledTimes(1)
+    expect(v.d.send).toHaveBeenCalledWith('show me my week and the invoices')
+  })
+
+  it('a phrase that stops mid-thought is taken as said after 2.5 s', async () => {
+    // cyrillic-ok-next-line
+    const v = await speakingSession(['Покажи мне неделю и'], DeliveringRecorder)
+    await say(v, 1100, 1600, 1600 + 2400)
+    await flush()
+    expect(v.d.send).not.toHaveBeenCalled()
+    await say(v, 4040, 0, 4040 + 160)
+    await flush()
+    // cyrillic-ok-next-line
+    expect(v.d.send).toHaveBeenCalledWith('Покажи мне неделю и')
+    expect(v.d.transcribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('words still on their way hold the turn, and more words join it', async () => {
+    const v = await speakingSession(
+      ['open my calendar for friday'],
+      DeliveringRecorder
+    )
+    v.d.transcribe.mockImplementationOnce(
+      (_blob?: unknown, o?: { signal?: AbortSignal }) =>
+        new Promise<string>((_, no) =>
+          o?.signal?.addEventListener('abort', () => no(new Error('aborted')))
+        )
+    )
+    await say(v, 1100, 1600, 1600 + 1200)
+    await flush()
+    // Past 850 ms, and still the person's turn: the words are not here yet.
+    expect(v.s.snapshot.phase).toBe('listening')
+    await say(v, 2840, 3200, 3200 + 1000)
+    await flush()
+    expect(v.d.send).toHaveBeenCalledTimes(1)
+    expect(v.d.send).toHaveBeenCalledWith('open my calendar for friday')
+  })
+
+  it('a finished phrase whose words come late ends the turn as they come', async () => {
+    const v = await speakingSession([], DeliveringRecorder)
+    let give: (w: string) => void = () => {}
+    v.d.transcribe.mockImplementationOnce(
+      () => new Promise<string>(r => (give = r))
+    )
+    await say(v, 1100, 1600, 1600 + 1200)
+    give('open my calendar')
+    await say(v, 2840, 0, 2840 + 40)
+    await flush()
+    expect(v.d.send).toHaveBeenCalledWith('open my calendar')
+    expect(v.d.transcribe).toHaveBeenCalledTimes(1)
   })
 })
 

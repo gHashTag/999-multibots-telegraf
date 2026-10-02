@@ -11,7 +11,7 @@
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 
-export type PaySurface = 'club' | 'tokens' | 'feed'
+export type PaySurface = 'club' | 'tokens' | 'feed' | 'agents'
 export type PayOutcome = 'cancelled' | 'failed' | 'pending' | 'unsupported'
 
 export function reportPayOutcome(

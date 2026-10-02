@@ -2084,3 +2084,48 @@ a file, `tri readers --run` that file**; before adding a tri command,
 `grep -n "^cmd_<name>" tri`. The guard was rewritten to check the events'
 order in the hook and the "not credited" sentence in BOTH languages where it
 now lives -- it was not loosened.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 11): a tool that reports "passed" for fewer than it was given
+
+`tri readers --run` (iteration 10) passed every named test to the ROOT vitest
+config. That config excludes `player/`; a file it excludes, passed by name, is
+dropped without a word -- the run said "75 passed" for 76 named, and a player
+guard on `render-server.ts` never ran. It also listed tracked files only, so
+the guard being added in the same change was invisible to it. Found only by
+counting: named vs ran. Now each test runs under its nearest package config,
+untracked tests count, and the tool prints the count per config. Rule: **a
+runner that takes a list must show how many it ran of how many it was given**
+-- "N passed" alone hides the ones that were never collected.
+
+The money anomaly of the same iteration: iOS read the server's
+"credit failed" flag as "not visible yet" and promised the tokens "shortly".
+Fixed at the parse (`TokenVerify(body:)`, testable) and with the web's own
+sentence. Every client of a money route must branch on the same flags; when
+the web learns a flag, grep the other clients for the same route.
+
+### A merge rule checked by hand is checked by luck (iteration 11b)
+
+"Every failing check must be the billing stop" was a shell loop retyped on
+every PR. On 2026-10-02 a dropped connection returned an empty annotation
+list and the loop called a never-started job "NOT BILLING". It is now
+`tri pr-billing N`: empty answers are re-asked, then counted UNKNOWN (never
+billing, never a real failure); rc 0 only when all are billing. Its negative
+control first passed for the wrong reason -- `tri` puts /opt/homebrew/bin
+first on PATH, so a stub `gh` on PATH was never called. A stub needs a named
+seam (`TRI_GH`), and a control is only a control if its output shows the
+stub was the one that answered.
+
+### The loop merges and deploys its own green PRs (owner, 2026-10-02)
+
+Owner's standing order: do not ask, do it -- merge and deploy. Five ticks of
+the blog loop ended "waiting for your merge" while the owner slept, and the
+loop produced nothing between answers.
+
+- A PR the loop opened, with its tests green and `tri no-verify-debt` = 0, is
+  merged in the same tick (`gh pr merge --squash`), then the deploy is
+  verified: `railway deployment list --service <svc> --environment production`
+  shows SUCCESS for a build started after the merge, and `/health` is 200.
+  Report it after, not before.
+- Still the person's, always: force push; deleting data (payments_v2,
+  browser profiles); secrets; passwords (typed only by the person); posting to
+  the person's social networks without their "yes" in the approval.

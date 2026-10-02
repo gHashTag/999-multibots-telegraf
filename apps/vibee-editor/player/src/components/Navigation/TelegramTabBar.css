@@ -57,7 +57,7 @@
   color: var(--vibee-text, #f4f4f6);
   font-size: 10px;
   text-decoration: none;
-  border-right: 1px solid var(--vibee-border, #32343a);
+  border-left: 1px solid var(--vibee-border, #32343a);
 }
 .tma-tabbar__account[aria-current='page'] {
   color: var(--vibee-accent, #00ff88);

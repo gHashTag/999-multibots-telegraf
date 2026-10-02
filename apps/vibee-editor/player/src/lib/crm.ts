@@ -882,6 +882,13 @@ export const loadMyStory = async () =>
     toStoryReady
   )
 
+/** Her own photo for her reels instead of her avatar; '' puts it back. */
+export const saveMyStoryFace = async (url: string) =>
+  map(
+    await callTool<Record<string, unknown>>('my_story_reel', { face_url: url }),
+    toStoryReady
+  )
+
 export const startMyStory = async (topic: string) =>
   map(
     await callTool<Record<string, unknown>>('my_story_reel', {

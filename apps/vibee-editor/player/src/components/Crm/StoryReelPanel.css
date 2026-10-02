@@ -517,3 +517,29 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* Her reels inside the chat with the agent (MyStoryWidget foldedIn). */
+.chat-story {
+  margin: 8px 0;
+  padding: 0;
+}
+.chat-story > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 12px;
+  line-height: 20px;
+}
+
+/* "Ask the agent": from her reels page to the chat where the agent lives. */
+.story-to-chat {
+  display: block;
+  margin: 12px 0;
+  min-height: 44px;
+  line-height: 44px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+}

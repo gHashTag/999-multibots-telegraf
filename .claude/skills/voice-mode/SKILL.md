@@ -26,6 +26,7 @@ the fallback, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 ./tri loop     # tri виток: in-flight work, this branch's PR, last deploys
 ./tri voice    # tri голос: status, warm, speak ru/en, hear them back, times
 ./tri ears     # tri уши: gigaam (ru) + parakeet (en) + mouth deploys, render routing
+./tri turn     # tri ход: does a phrase end the turn (850 ms) or hang (2500 ms); --live
 ```
 
 `tri voice` needs a person's key in `$AGENT_KEY` (render `AGENT_KEYS`, first
@@ -46,13 +47,16 @@ paying for the fallback.
 player/src/lib/voice/session.ts        the state machine: mic, tick, barge-in, queue, playback
 player/src/lib/voice/vad.ts            the gate: noise floor, steady room, turn clock (pure)
 player/scripts/vad-bench.ts            that gate over WAV files (`tri vad`)
+player/src/lib/voice/turnEnd.ts        hangs(): the pause's words say the turn goes on (pure)
+player/scripts/turn-bench.ts           hangs() over a battery or phrases (`tri turn`)
 session.ts armFiller/fillerSound       the wait said out loud; phrases are voice.filler.* (`tri filler`)
 player/src/lib/voice/replyFollower.ts  turns a streaming answer into whole sentences, strips [[card]]
 player/src/lib/voice/sentences.ts      sentence cutting
 player/src/lib/voice/spokenLang.ts     which language a phrase / sentence is in
 player/src/lib/voice/chatVoice.ts      binds a session to one chat thread (send, stop, answering)
 player/src/lib/voice/voiceApi.ts       the four HTTP calls
-player/src/components/Voice/*          orb (five visual modes from the logo), overlay
+player/src/components/Voice/*          orb (five visual modes from the logo), VoiceDock (in the chat), overlay
+player/src/pages/Chat.voiceInChat.test.tsx  voice stays inside the chat (dock, typed -> spoken)
 render/src/voice/voice.ts              speakable(), pickVoice(), warm(), hear(), speak()
 deployment/gigaam/server.py            ears: POST /hear, GET /health (GigaAM v3 ru, Parakeet v2 en)
 deployment/mouth/server.py             mouth: POST /speak, GET /health (Kokoro en, Piper ru, 8 threads)
@@ -313,6 +317,11 @@ mouth`) from a clean tree after a merge that touches `deployment/mouth`.
 
 ## Competitors (researched 2026-10-02)
 
+- ChatGPT, 2025-11-25 (cycle 12): voice is no longer a separate screen.
+  It runs inside the chat with a live transcript and an End button, and
+  typing still gets a spoken answer. The old screen is the "Separate mode"
+  setting. TechCrunch and Engadget covered it. Ours follows since cycle 12:
+  `VoiceDock`, with `voiceSeparateAtom` as the setting.
 - Deepgram Flux: `EagerEndOfTurn` fires a draft transcript before the turn is
   sure, `TurnResumed` cancels it, `EndOfTurn` confirms. Our early hearing is
   the same three events inside the player.
@@ -344,6 +353,15 @@ mouth`) from a clean tree after a merge that touches `deployment/mouth`.
   `with_filler` phrase; Pipecat pushes a `TTSSpeakFrame` before a slow tool.
   Overuse is the known failure (one write-up counts ~16% of turns with a
   filler as "awkward"), so ours is capped at two per question.
+- **End of turn (cycle 11).** LiveKit's turn detector (on by default)
+  moves the wait between `min_delay` 0.3 s and `max_delay` 2.5 s by its
+  confidence (0.5/3.0 without it; older `max_endpointing_delay` was 6 s).
+  Pipecat's Smart Turn v3 judges the AUDIO (Whisper-tiny encoder, 8M
+  params, 8 MB int8 ONNX, 23 languages, ~12-65 ms on CPU) after a 0.2 s
+  VAD stop and falls back after `stop_secs` 3 s. A reported trap of
+  theirs: a short fallback (1 s) made every "incomplete" verdict end at
+  1 s anyway. Ours uses the words we already have, with no download; the
+  audio model is the next step for what the words lose ("weekend.").
 - **A stalled TTS (cycle 10).** LiveKit's `tts.FallbackAdapter` gives each
   attempt `attempt_timeout` (10 s default) before the next provider.
   Pipecat's `ServiceSwitcher` fails over only on an `ErrorFrame`, so a TTS
@@ -491,28 +509,86 @@ engine 290-350 ms + road 260-520 ms; Russian engine 100-140 ms.
 does not emit a short sentence ("Slow.") while the answer still streams --
 a test of "a sentence is being synthesised" needs a long first sentence.
 
+## The words say when a turn is over (cycle 11)
+
+Silence alone cannot tell "Show me my week." from "Show me my week and..."
+plus a breath; at a fixed 850 ms the second was cut in half, and the rest
+came as a new question over the answer. The words of the pause are usually
+known by then (early hearing asks at 300 ms), so `turnEnd.ts` `hangs()`
+judges them: a phrase that stops on a conjunction, a preposition, a
+hesitation (`and`, `to`, `uh`, `и`, `на`, `э-э`) or a trailing comma or
+ellipsis gets `HANGING_TURN_MS` (2500, LiveKit's max_delay with its turn
+detector) of silence. Anything else ends at 850 exactly as before. Words
+still on their way also hold the turn (up to 2500): the end of the turn
+waited for those same words anyway, and now a person who goes on in that
+time is ONE phrase, not two.
+
+Measured with `./tri turn --live` (2026-10-02, one kept connection):
+
+- The engines keep the hang in Russian: GigaAM returned "…на этой неделе и"
+  and "Хочу записаться на" without a full stop.
+- Parakeet merges "week and" into "weekend." (three runs out of three).
+  Such a phrase ends at 850 as before. The words cannot save it; only an
+  audio model can (Smart Turn v3, row 8b).
+- The words land at 720-1094 ms of silence, the engines taking 106-219 ms
+  of that. So the "heard" earcon, which used to play at 850 ms, now comes
+  0-244 ms later. The answer leaves at the same moment as before.
+- A first run with a fresh connection per call printed 1.2-3.4 s. The road
+  paid for DNS and TLS every time; the browser does not. Measure with
+  one connection, as `tri voice` does.
+
+Traps: the session tests' `say` must let promises settle between ticks
+(`await Promise.resolve()`), since a browser tick is its own task. A
+synchronous tick loop never sees the words arrive and holds every turn to 2500. Leave "on", "in", "about", "so", "мне", "это" and "ну" OUT of the
+list: "turn it on", "покажи мне" and a backchannel "ну" are finished.
+
+## Voice lives inside the chat (cycle 12)
+
+The owner asked, 2026-10-02: why is the voice agent not in the context
+of the chat? The session always sent into the open thread
+(`createChatVoiceSession(thread, ...)`). But the full-screen overlay hid
+that thread: the cards, the earlier answers, and what was just said.
+ChatGPT got the same complaint and moved voice into the chat on
+2025-11-25, keeping "Separate mode" as a setting. We did the same:
+
+- `VoiceDock` is a bar above the chat's own input box. It holds a small
+  orb (tap = interrupt, or restart after an error), the phase, what was
+  heard, and buttons for stop, mute, full screen and End. The
+  conversation stays on screen and scrolls as it grows.
+- **Typing while voice is on** goes to `session.type()`, which answers
+  aloud. Before, the box sent past the session, so the answer was
+  silent. `type()` now accepts input in any phase except `off`: it drops
+  the half-recorded phrase and silences the current answer first.
+- Full screen is a choice that is remembered: `voiceSeparateAtom`
+  (`vibee.voice.separate`). The overlay's top bar has a button back to
+  the chat.
+
+Trap: `useReducedMotion` calls `window.matchMedia`, which jsdom lacks. A
+page test that opens voice must stub it.
+
 ## Weak spots, with status
 
-| #   | weak spot                                             | status                                                         |
-| --- | ----------------------------------------------------- | -------------------------------------------------------------- |
-| 1   | card markup read aloud                                | FIXED cycle 1                                                  |
-| 2   | any sound killed the answer (280 ms, no resume)       | FIXED cycle 1 (pause/resume)                                   |
-| 3   | its own voice through the speaker interrupted it      | FIXED cycle 1 (onset + echo)                                   |
-| 4   | stuck "speaking" on a suspended AudioContext          | FIXED cycle 1 (watchdog)                                       |
-| 5   | silence after the phrase looked like "not heard"      | FIXED cycle 1 (earcon)                                         |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)        | FIXED cycle 3 (GigaAM, #3252)                                  |
-| 7   | energy VAD: a fan or street noise counts as speech    | PARTLY cycle 8 (steady noise = room); rising noise -> Silero   |
-| 8   | words heard only after the 850 ms pause               | FIXED cycle 4 (#3257)                                          |
-| 8b  | turn end is a fixed pause; slow speakers get cut      | OPEN -- Smart Turn v3                                          |
-| 9   | nothing said while the agent thinks for long          | FIXED cycle 9 (filler at 3 s, "still" at 15 s; `tri filler`)   |
-| 10  | first sound waits for a whole first sentence          | FIXED cycle 2 (first clause)                                   |
-| 11  | voice picker only for the app language                | OPEN                                                           |
-| 12  | product words misheard by every engine ("рилс")       | OPEN -- hotword fix-up                                         |
-| 13  | English hearing is still whisper, ~2.6 s              | FIXED cycle 5 (Parakeet v2)                                    |
-| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s  | PARTLY cycle 7 (wakeRoad, 32k); sin1->sfo 250 ms is the region |
-| 15  | English first sound ~2 s (Kokoro in the whisper pod)  | FIXED cycle 6 (mouth, 8 threads)                               |
-| 16  | a stalled synthesis silences the whole answer         | FIXED cycle 10 (`speakDeadlineMs`, device voice reads it)      |
-| 17  | first wait phrase cold, skipped at the first question | FIXED cycle 10 (warmed at session open)                        |
+| #   | weak spot                                             | status                                                            |
+| --- | ----------------------------------------------------- | ----------------------------------------------------------------- |
+| 1   | card markup read aloud                                | FIXED cycle 1                                                     |
+| 2   | any sound killed the answer (280 ms, no resume)       | FIXED cycle 1 (pause/resume)                                      |
+| 3   | its own voice through the speaker interrupted it      | FIXED cycle 1 (onset + echo)                                      |
+| 4   | stuck "speaking" on a suspended AudioContext          | FIXED cycle 1 (watchdog)                                          |
+| 5   | silence after the phrase looked like "not heard"      | FIXED cycle 1 (earcon)                                            |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)        | FIXED cycle 3 (GigaAM, #3252)                                     |
+| 7   | energy VAD: a fan or street noise counts as speech    | PARTLY cycle 8 (steady noise = room); rising noise -> Silero      |
+| 8   | words heard only after the 850 ms pause               | FIXED cycle 4 (#3257)                                             |
+| 8b  | turn end is a fixed pause; slow speakers get cut      | PARTLY cycle 11 (words: `hangs`, `tri turn`); audio -> Smart Turn |
+| 9   | nothing said while the agent thinks for long          | FIXED cycle 9 (filler at 3 s, "still" at 15 s; `tri filler`)      |
+| 10  | first sound waits for a whole first sentence          | FIXED cycle 2 (first clause)                                      |
+| 11  | voice picker only for the app language                | OPEN                                                              |
+| 12  | product words misheard by every engine ("рилс")       | OPEN -- hotword fix-up                                            |
+| 13  | English hearing is still whisper, ~2.6 s              | FIXED cycle 5 (Parakeet v2)                                       |
+| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s  | PARTLY cycle 7 (wakeRoad, 32k); sin1->sfo 250 ms is the region    |
+| 15  | English first sound ~2 s (Kokoro in the whisper pod)  | FIXED cycle 6 (mouth, 8 threads)                                  |
+| 16  | a stalled synthesis silences the whole answer         | FIXED cycle 10 (`speakDeadlineMs`, device voice reads it)         |
+| 17  | first wait phrase cold, skipped at the first question | FIXED cycle 10 (warmed at session open)                           |
+| 18  | full-screen voice hid the chat it talks about         | FIXED cycle 12 (VoiceDock; typed -> spoken; overlay is opt-in)    |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 
@@ -536,7 +612,9 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    A PR that touches `vad.ts` or the session's tick: `./tri vad` (exit 1 =
    speech taken for the room or a fan held as a phrase) before the commit.
    A PR that touches `voice.filler.*`, the FILLER\_\* numbers or
-   `speakDeadlineMs`: `./tri filler`.
+   `speakDeadlineMs`: `./tri filler`. A PR that touches `turnEnd.ts`,
+   `turnOver` or the eager guess: `./tri turn` (battery, exit 1 on a wrong
+   verdict) and `./tri turn --live` (what the real ears keep of a hang).
 5. Update the tables here in the same PR.
 6. A push that had to skip hooks (`--no-verify`, ssh dropping after a long
    pre-push) skips the player's lint ratchet too. Cycle 7 put 4 errors on

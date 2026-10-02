@@ -66,7 +66,7 @@ export function useTokenTopUp(): TokenTopUp {
       })
       const d = await res.json()
       if (!d.ok) {
-        say({ kind: 'failedToStart', reason: d.error })
+        say({ kind: 'failedToStart', code: d.code, reason: d.error })
         return
       }
       const wa = (window as any).Telegram?.WebApp

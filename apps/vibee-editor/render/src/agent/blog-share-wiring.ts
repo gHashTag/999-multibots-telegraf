@@ -11,6 +11,12 @@ import {
   type Article,
   type Answer,
 } from './blog-share'
+import {
+  AFTER_CLICK_SETTLE_MS,
+  FIRST_SETTLE_MS,
+  LOOK_EVERY_MS,
+  LOOKS,
+} from '../spec/blog-share.gen'
 
 const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -90,7 +96,7 @@ export async function publishEverywhere(
   const { receiptOf, LEFT_THE_FORM } = await import('./blog-share')
   const logins = await loginsOfPerson(pool, owner).catch(() => null)
   for (const [net, url, labels] of [
-    ['X', urls.x, ['post']],
+    ['X', urls.x, ['post', 'опубликовать']], // cyrillic-ok: X's Russian label
     ['LinkedIn', urls.linkedin, ['post', 'опубликовать']], // cyrillic-ok: LinkedIn's Russian label
     /* Reddit's submit page says "Post"; in Russian, "Опубликовать". */
     ['Reddit', urls.reddit, ['post', 'опубликовать']], // cyrillic-ok: Reddit's Russian label
@@ -105,32 +111,42 @@ export async function publishEverywhere(
     }
     try {
       const page = await newPage(cdp, url)
-      await settle(6_000)
+      await settle(FIRST_SETTLE_MS)
       let pressed: string | null = null
-      for (const label of labels) {
-        const found = foundOf(
-          await evaluateOn(cdp, page.id, findProbe(label)).catch(() => null)
-        )
-        if (found) {
-          const before = String(
-            await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+      /*
+       * One look at six seconds missed the button on a cold browser: the
+       * composer had not drawn yet, and the only allowed article of the month
+       * was reported "button not found" on X and LinkedIn alike. Look again
+       * every three seconds, up to half a minute.
+       */
+      let found: ReturnType<typeof foundOf> = null
+      for (let look = 0; look < LOOKS && !found; look++) {
+        if (look > 0) await settle(LOOK_EVERY_MS)
+        for (const label of labels) {
+          found = foundOf(
+            await evaluateOn(cdp, page.id, findProbe(label)).catch(() => null)
           )
-          await clickAt(cdp, page.id, found.x, found.y)
-          await settle(5_000)
-          const after = String(
-            await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
-          )
-          const receipt = receiptOf(before, after)
-          pressed = `${found.label}» · ${receipt}`
-          /*
-           * Every run used to leave its tabs in the person's browser, day
-           * after day. A confirmed post closes its tab; an unconfirmed one
-           * stays open -- it is the only evidence of what went wrong.
-           */
-          if (receipt === LEFT_THE_FORM)
-            await closePage(cdp, page.id).catch(() => undefined)
-          break
+          if (found) break
         }
+      }
+      if (found) {
+        const before = String(
+          await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+        )
+        await clickAt(cdp, page.id, found.x, found.y)
+        await settle(AFTER_CLICK_SETTLE_MS)
+        const after = String(
+          await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+        )
+        const receipt = receiptOf(before, after)
+        pressed = `${found.label}» · ${receipt}`
+        /*
+         * Every run used to leave its tabs in the person's browser, day
+         * after day. A confirmed post closes its tab; an unconfirmed one
+         * stays open -- it is the only evidence of what went wrong.
+         */
+        if (receipt === LEFT_THE_FORM)
+          await closePage(cdp, page.id).catch(() => undefined)
       }
       if (net === 'X') void noteShape(pool, a.slug, 'single')
       out[net] = pressed

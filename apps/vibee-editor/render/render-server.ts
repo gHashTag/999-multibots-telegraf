@@ -93,6 +93,11 @@ import {
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
 import {
+  isAgentPackageSalePath,
+  handleAgentPackageSale,
+  sweepAgentPackageSales,
+} from './src/agent/agent-package-sale'
+import {
   isClonePath,
   handleClone,
   accountsOf,
@@ -693,6 +698,7 @@ import {
 import { rewriteAppUrlsForToken } from './src/app-links'
 import { renderFeedEntry } from './src/render-feed-entry'
 import * as MEETINGS from './src/spec/meeting-reminders.gen'
+import { TICK_MS as BLOG_SHARE_TICK_MS } from './src/spec/blog-share.gen'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -2648,6 +2654,19 @@ setInterval(
                 .join(', ')
           )
         }
+        // Agent package launches nobody verified, and every monthly renewal
+        // Telegram charged by itself (agent-package-sale.ts).
+        const packages = await sweepAgentPackageSales(pool, token)
+        if (packages.length) {
+          console.log(
+            `[agent-packages] sweep booked ${packages.length} period(s): ` +
+              packages
+                .map(
+                  b => `${b.telegramId}:${b.packageId}→${b.until.slice(0, 10)}`
+                )
+                .join(', ')
+          )
+        }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
         const { botsOwnedBy, allBotOwners } = await import(
@@ -2943,23 +2962,21 @@ setTimeout(
  * Not thirty: the service rarely lives forty-five minutes, so a half-hour
  * timer restarted by every deploy often never fired at all. The pace (once
  * a day) lives in blog_shares.asked_at, not here.
- * Off unless BLOG_SHARE_ENABLED=1.
+ * Off unless BLOG_SHARE_ENABLED=1. The interval is the spec's TICK_MS
+ * (specs/automation/blog-share.t27).
  */
-setInterval(
-  () => {
-    void (async () => {
-      try {
-        const { runBlogShare } = await import('./src/agent/blog-share-wiring')
-        const said = await runBlogShare(getPool() as any)
-        if (said !== 'off' && said !== 'asked today already')
-          console.log(`[blog-share] ${said}`)
-      } catch (e) {
-        console.error('[blog-share] failed:', String(e).slice(0, 300))
-      }
-    })()
-  },
-  5 * 60 * 1000
-)
+setInterval(() => {
+  void (async () => {
+    try {
+      const { runBlogShare } = await import('./src/agent/blog-share-wiring')
+      const said = await runBlogShare(getPool() as any)
+      if (said !== 'off' && said !== 'asked today already')
+        console.log(`[blog-share] ${said}`)
+    } catch (e) {
+      console.error('[blog-share] failed:', String(e).slice(0, 300))
+    }
+  })()
+}, BLOG_SHARE_TICK_MS)
 
 /*
  * THE REDDIT DESK: ANSWER THE COMMENTS, POST WHERE IT IS WELCOME
@@ -9066,6 +9083,19 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // The agent packages' Stars till: the launch, then the monthly
+  // subscription, booked from the same cashier's ledger (agent-package-sale.ts).
+  if (isAgentPackageSalePath(req.url?.split('?')[0] || '')) {
+    const out = await handleAgentPackageSale(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => clubIdentity(r as any),
+      botToken: clubCashierToken(), // secret-guard-ok: a function call, no value in source
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
   /*
    * Which pieces of the person's digital clone are already in place. The
    * welcome road needs this the way it needs club status: a step that cannot
@@ -9679,6 +9709,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'sign_in',
               error: 'нужна подпись или ключ агента',
             })
           )
@@ -9699,6 +9730,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'cashier_off',
               error: 'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан',
             })
           )
@@ -9724,8 +9756,17 @@ const server = createServer(async (req, res) => {
             body.tokens != null
               ? Number(body.tokens)
               : PACKS[String(body.pack)]?.tokens
-          if (!запрошено)
-            throw new Error('нужно поле tokens или известный pack')
+          if (!запрошено) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                ok: false,
+                code: 'bad_amount',
+                error: 'нужно поле tokens или известный pack',
+              })
+            )
+            return
+          }
           /*
            * ONE MINT FOR TWO CALLERS. The personal seller (`crm_offer`) issues
            * the same link for a lead; the price, the payload and the pending
@@ -9785,6 +9826,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'failed',
               error: понятнаяПричина(e),
             })
           )
@@ -9804,7 +9846,11 @@ const server = createServer(async (req, res) => {
         if (!who) {
           res.writeHead(401, { 'Content-Type': 'application/json' })
           res.end(
-            JSON.stringify({ ok: false, error: 'нужна подпись или ключ' })
+            JSON.stringify({
+              ok: false,
+              code: 'sign_in',
+              error: 'нужна подпись или ключ',
+            })
           )
           return
         }

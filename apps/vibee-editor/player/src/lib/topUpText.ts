@@ -10,16 +10,18 @@
  * The sentences live here as a pure function so both languages are tested;
  * the hook only picks which one to show.
  *
- * SERVER REASONS. `/api/tokens/invoice` answers its errors in Russian. The
- * known ones are translated by their exact wording; an unknown one is shown
- * as-is to a Russian reader and replaced by a plain "could not start" for an
- * English one -- a translated guess about money is worse than an honest
- * "it did not work".
+ * SERVER REASONS. `/api/tokens/invoice` words its errors in Russian and,
+ * since 2026-10-02, also names them with a `code`. An English reader gets the
+ * sentence for the code; a Russian one keeps the server's own words, which
+ * are the most precise. No code, or one this file does not know (an older or
+ * newer server), gives a plain "could not start" -- a translated guess about
+ * money is worse than an honest "it did not work". The codes are checked
+ * against the server by `money-route-codes.test.ts` in render.
  */
 import type { Language } from '@/atoms/language'
 
 export type TopUpEvent =
-  | { kind: 'failedToStart'; reason?: unknown }
+  | { kind: 'failedToStart'; code?: unknown; reason?: unknown }
   | { kind: 'paidChecking' }
   | { kind: 'credited'; tokens: unknown; balance: unknown }
   | { kind: 'creditFailed' }
@@ -31,15 +33,19 @@ export type TopUpEvent =
   | { kind: 'network' }
   | { kind: 'lastVisitCredited'; tokens: unknown }
 
-/** Server reasons we know by wording, keyed by the server's exact text. */
-const SERVER_REASONS: Record<string, string> = {
-  'нужна подпись или ключ агента': 'Open the app from Telegram to pay', // cyrillic-ok: the server's exact text
+/** What each server `code` means, for a reader who is not Russian. */
+export const SERVER_CODES: Record<string, string> = {
+  sign_in: 'Open the app from Telegram to pay',
+  cashier_off: 'Payments are switched off right now — try again later',
+  bad_amount: 'That amount cannot be bought — pick a pack',
+  failed: "Couldn't start the payment — try again",
 }
 
-function serverReason(reason: unknown, lang: Language): string {
+function serverReason(code: unknown, reason: unknown, lang: Language): string {
   const text = reason == null ? '' : String(reason)
   if (lang === 'ru') return text || 'не получилось' // cyrillic-ok: the russian branch
-  if (SERVER_REASONS[text]) return SERVER_REASONS[text]
+  const known = typeof code === 'string' ? SERVER_CODES[code] : undefined
+  if (known) return known
   if (text && !/\p{Script=Cyrillic}/u.test(text)) return text
   return "Couldn't start the payment"
 }
@@ -48,7 +54,7 @@ export function topUpText(e: TopUpEvent, lang: Language): string {
   const ru = lang === 'ru'
   switch (e.kind) {
     case 'failedToStart':
-      return serverReason(e.reason, lang)
+      return serverReason(e.code, e.reason, lang)
     case 'paidChecking':
       return ru
         ? 'Оплачено! Проверяю зачисление…'
