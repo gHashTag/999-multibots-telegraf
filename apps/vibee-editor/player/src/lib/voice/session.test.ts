@@ -1095,6 +1095,35 @@ describe('VoiceSession: the wait is said out loud', () => {
     ])
   })
 
+  it('a sentence the server never answers is read by the device in time', async () => {
+    let signal: AbortSignal | undefined
+    const w = await waiting({
+      // Hangs and ignores the abort, like a stalled response would.
+      synthesize: vi.fn(
+        (_t: string, _l: string, _v: unknown, s?: AbortSignal) => {
+          signal = s
+          return new Promise<ArrayBuffer>(() => {})
+        }
+      ),
+    })
+    w.s.type('plan my week')
+    await w.answer('Here is your week.')
+    expect(w.said).toEqual([])
+    // 7 s + 12 ms a character (`speakDeadlineMs`), from the request.
+    await vi.advanceTimersByTimeAsync(7000 + 12 * 18 - 10)
+    expect(w.said).toEqual([])
+    await vi.advanceTimersByTimeAsync(20)
+    expect(w.said).toEqual(['Here is your week.'])
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it('the first wait phrase is asked for as the session opens', async () => {
+    const v = await speakingSession([])
+    // Before any question: the cold first synthesis is paid here.
+    const calls = v.d.synthesize.mock.calls as unknown as unknown[][]
+    expect(calls.map(c => c.slice(0, 2))).toEqual([['Let me see.', 'en']])
+  })
+
   it('a held answer resumes without saying the wait again', async () => {
     const w = await waiting()
     const inner = w.s as unknown as {
