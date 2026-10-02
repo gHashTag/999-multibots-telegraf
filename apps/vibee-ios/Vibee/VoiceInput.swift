@@ -21,7 +21,7 @@ import Foundation
  * at all before this.
  */
 @MainActor
-final class VoiceInput: ObservableObject {
+final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
   enum Phase: Equatable { case idle, listening, hearing }
 
   /// What came back from one utterance.
@@ -34,6 +34,16 @@ final class VoiceInput: ObservableObject {
   }
 
   @Published private(set) var phase: Phase = .idle
+
+  /// The recorder stopped itself at `maxSeconds`. The view answers it the
+  /// way it answers a second press: hear what was said and send it. Before
+  /// cycle 16 nothing did, and the button sat on "listening" over a closed
+  /// file, with the sound still borrowed from the feed.
+  @Published private(set) var timeUp = false
+
+  /// Whether the chat is on screen. A hidden tab stays alive in this app,
+  /// so `onDisappear` alone does not say the person left.
+  private var shown = true
 
   /// One utterance at most; the recorder stops itself here. 60 s of 16 kHz
   /// mono WAV is ~1.9 MB, well under the render's 8 MB cap per utterance.
@@ -107,6 +117,8 @@ final class VoiceInput: ObservableObject {
       try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
       try session.setActive(true)
       let r = try AVAudioRecorder(url: file, settings: Self.recordSettings)
+      r.delegate = self
+      timeUp = false
       guard r.record(forDuration: Self.maxSeconds) else {
         restoreSession()
         return say("The microphone did not start.", "Микрофон не включился.")
@@ -124,8 +136,11 @@ final class VoiceInput: ObservableObject {
   /// Stop listening and hear what was said.
   func finish() async -> Heard {
     guard phase == .listening, let r = recorder else { return .nothing }
-    r.stop()
+    // Forget the recorder BEFORE stopping it: its delegate then sees a
+    // stop that is ours, not one at the time limit.
     recorder = nil
+    timeUp = false
+    r.stop()
     restoreSession()
     phase = .hearing
     defer {
@@ -153,7 +168,7 @@ final class VoiceInput: ObservableObject {
   /// and a spoken error about the voice would be a second interruption.
   func speak(_ text: String) async {
     let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !words.isEmpty, phase == .idle else { return }
+    guard !words.isEmpty, phase == .idle, shown else { return }
     var req = URLRequest(url: API.base.appendingPathComponent("api/voice/speak"))
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -163,12 +178,49 @@ final class VoiceInput: ObservableObject {
     req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": words, "lang": Self.lang])
     guard let reply = try? await URLSession.shared.data(for: req),
           (reply.1 as? HTTPURLResponse)?.statusCode == 200,
-          // The person may have pressed the mic while the answer was being made.
-          phase == .idle,
+          // The person may have pressed the mic, or left the chat, while
+          // the answer was being made.
+          phase == .idle, shown,
           let p = try? AVAudioPlayer(data: reply.0)
     else { return }
     player = p
     p.play()
+  }
+
+  /**
+   * The chat came forward or went away.
+   *
+   * Going away stops everything that would otherwise outlive the screen: a
+   * recording nobody will press to finish (the sound would stay borrowed
+   * from the feed, whose videos would then follow the rules of a call) and
+   * an answer still being read. What was recorded is dropped, not sent: the
+   * person did not say "send", they left. An upload already under way
+   * finishes by itself.
+   */
+  func setShown(_ on: Bool) {
+    shown = on
+    guard !on else { return }
+    player?.stop()
+    player = nil
+    guard phase == .listening, let r = recorder else { return }
+    recorder = nil
+    timeUp = false
+    r.stop()
+    restoreSession()
+    phase = .idle
+    try? FileManager.default.removeItem(at: file)
+  }
+
+  nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
+    let id = ObjectIdentifier(recorder)
+    Task { @MainActor in self.recorderStopped(id) }
+  }
+
+  /// Only the CURRENT recording reaching its limit is a time-up; a stop we
+  /// made ourselves has already let go of the recorder.
+  func recorderStopped(_ id: ObjectIdentifier) {
+    guard phase == .listening, let r = recorder, ObjectIdentifier(r) == id else { return }
+    timeUp = true
   }
 
   /**
