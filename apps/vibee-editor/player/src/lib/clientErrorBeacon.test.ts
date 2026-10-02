@@ -40,10 +40,15 @@ describe('client errors reach the owner', () => {
     )
     expect(stream).toContain("kind: 'agent_stream_failed'")
     expect(stream).not.toContain('Сеть недоступна:')
-    const retry = stream.indexOf('повторяю…')
+    // The retry notice is worded in lib/agentChatText.ts since #3344; the
+    // stream only names the kind, so look for the kind, then for the words.
+    const retry = stream.indexOf("say({ kind: 'retrying' })")
     const report = stream.indexOf("kind: 'agent_stream_failed'")
     expect(retry).toBeGreaterThan(-1)
     expect(report).toBeGreaterThan(retry)
+    const words = read('lib/agentChatText.ts')
+    expect(words).toContain('повторяю…') // cyrillic-ok: the russian retry notice
+    expect(words).toContain('retrying…')
   })
 
   it('a failed upload and uncaught errors report too', () => {
