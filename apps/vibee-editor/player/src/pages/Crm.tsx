@@ -14,7 +14,11 @@ import { LevelSwitch } from '@/components/Level/LevelSwitch'
 import { LevelDashboard } from '@/components/Level/LevelDashboard'
 import { Panel } from '@/components/Crm/Panel'
 import { AllRefused } from '@/components/Crm/AllRefused'
-import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
+import {
+  coveredByNotice,
+  oneFailureForAll,
+} from '@/components/Crm/refusalRules'
+import { crmErrorText } from '@/lib/crmErrorText'
 import { AutoPanel } from '@/components/Crm/AutoPanel'
 import { TrafficPanel } from '@/components/Crm/TrafficPanel'
 import { RevenuePanel } from '@/components/Crm/RevenuePanel'
@@ -477,10 +481,13 @@ export default function CrmPage() {
    * the step; the panels it covers stay quiet. A single broken panel among
    * working ones still speaks in its own place.
    */
-  const noticeReason = oneReasonForAll([overview, waiting, leads, clients])
+  const noticeFailure = oneFailureForAll([overview, waiting, leads, clients])
+  const noticeReason = noticeFailure
+    ? String(noticeFailure.error ?? '').trim()
+    : null
   const panel = (
     title: string,
-    state: { reachable: boolean; error?: string },
+    state: { reachable: boolean; error?: string; code?: string },
     body: React.ReactNode
   ) => (
     <Panel
@@ -1032,7 +1039,9 @@ export default function CrmPage() {
 
       <LevelSwitch variant="chips" />
 
-      {noticeReason ? <AllRefused reason={noticeReason} /> : null}
+      {noticeFailure ? (
+        <AllRefused reason={crmErrorText(noticeFailure, lang, t)} />
+      ) : null}
 
       {/* One row, and only when there is more than one thing in it. */}
       {sections.length > 1 ? (

@@ -322,6 +322,7 @@ describe('real MCP dispatcher, catalog and alternate entry points', () => {
       expect(out.body.error).toEqual({
         code: -32003,
         message: 'Tool forbidden by editorial scope',
+        data: { code: 'editorial_scope' },
       })
       expect(pool).not.toHaveBeenCalled()
       expect(handler).not.toHaveBeenCalled()

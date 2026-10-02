@@ -290,6 +290,31 @@ const en: Translations = {
   'crm.refresh': 'Refresh',
   'crm.refreshing': 'Refreshing…',
   'crm.unreachable': 'Could not load',
+  // Why a CRM tool call failed before any tool spoke (lib/crmErrorText.ts).
+  'crm.error.http': 'the server answered {status}',
+  'crm.error.refused': 'the server refused',
+  'crm.error.empty': 'empty answer',
+  'crm.error.network': 'no connection to the server',
+  'crm.error.badReply': 'the answer could not be read',
+  // The server named its refusal (error.data.code; render crm-tool-codes.test.ts).
+  'crm.error.code.tool_failed':
+    'the server hit an error — try again in a minute',
+  'crm.error.code.no_identity':
+    'the server does not know who you are — open the app from Telegram',
+  'crm.error.code.no_bots':
+    'the CRM shows the audience of your bots, and no bot is registered to you',
+  'crm.error.code.no_seller_session':
+    'connect your Telegram account in the app — the CRM works from your own account',
+  'crm.error.code.not_your_lead':
+    'no such person: you have not written to each other',
+  'crm.error.code.unknown_tool':
+    'the server does not have this yet — try again after the update',
+  'crm.error.code.bad_tool_name':
+    'the request was damaged on the way — try again',
+  'crm.error.code.unknown_method': 'the server did not understand the request',
+  'crm.error.code.editorial_scope': 'this key may not open the CRM',
+  'crm.error.code.game_token_scope':
+    'the game sign-in does not open the CRM — open the app from Telegram',
   'sendCard.previewBroken':
     '⚠️ The preview did not open — check the attachment before sending:',
   'sendCard.previewOpen': 'open the file',
@@ -3218,6 +3243,27 @@ const ru: Translations = {
   'crm.refresh': 'Обновить',
   'crm.refreshing': 'Обновляю…',
   'crm.unreachable': 'Не удалось загрузить',
+  'crm.error.http': 'сервер ответил {status}',
+  'crm.error.refused': 'отказ',
+  'crm.error.empty': 'пустой ответ',
+  'crm.error.network': 'нет связи с сервером',
+  'crm.error.badReply': 'ответ не разобран',
+  'crm.error.code.tool_failed': 'на сервере ошибка — попробуйте через минуту',
+  'crm.error.code.no_identity':
+    'сервер не знает, кто вы — откройте приложение из Telegram',
+  'crm.error.code.no_bots':
+    'CRM показывает аудиторию ваших ботов, а за вами не записано ни одного бота',
+  'crm.error.code.no_seller_session':
+    'подключите свой Telegram в приложении — CRM работает от вашего аккаунта',
+  'crm.error.code.not_your_lead': 'такого человека нет: вы не переписывались',
+  'crm.error.code.unknown_tool':
+    'на сервере этого ещё нет — попробуйте после обновления',
+  'crm.error.code.bad_tool_name':
+    'запрос испортился по дороге — попробуйте ещё раз',
+  'crm.error.code.unknown_method': 'сервер не понял запрос',
+  'crm.error.code.editorial_scope': 'этим ключом CRM не открыть',
+  'crm.error.code.game_token_scope':
+    'вход из игры не открывает CRM — откройте приложение из Telegram',
   'sendCard.previewBroken':
     '⚠️ Превью не открылось — проверьте вложение перед отправкой:', // cyrillic-ok
   'sendCard.previewOpen': 'открыть файл', // cyrillic-ok

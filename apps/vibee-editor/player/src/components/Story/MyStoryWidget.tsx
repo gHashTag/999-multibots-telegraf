@@ -3,6 +3,7 @@ import '@/pages/Crm.css'
 import '@/pages/CrmClient.css'
 import '@/components/Crm/StoryReelPanel.css'
 import { useLanguage } from '@/hooks/useLanguage'
+import { crmErrorText } from '@/lib/crmErrorText'
 import { StoryFacePicker } from '@/components/Crm/StoryFacePicker'
 import {
   loadMyStory,
@@ -45,7 +46,7 @@ export function MyStoryWidget({
   /** Draw nothing until the server says her template is ready. */
   onlyReady?: boolean
 }) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [state, setState] = useState<Reached<StoryReady>>({
     reachable: true,
     data: null,
@@ -87,6 +88,7 @@ export function MyStoryWidget({
   }
 
   const s = state.data
+  const why = crmErrorText(state, lang, t)
 
   if (onlyReady && !s?.ready) return null
 
@@ -95,7 +97,7 @@ export function MyStoryWidget({
       {!state.reachable ? (
         <p className="crm__unreachable">
           {t('story.unreachable')}
-          {state.error ? `: ${state.error}` : ''}
+          {why ? `: ${why}` : ''}
         </p>
       ) : null}
 
@@ -164,7 +166,7 @@ export function MyStoryWidget({
               {result.data?.started
                 ? t('story.started', { topic: result.data.topic ?? '' })
                 : `${t('story.notStarted')}: ${
-                    result.data?.why ?? result.error ?? ''
+                    result.data?.why ?? crmErrorText(result, lang, t)
                   }`}
             </p>
           ) : null}
