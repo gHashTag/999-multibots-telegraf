@@ -11,6 +11,12 @@
 #   tri blog-share reoffer          # list articles the 10-minute timer closed (dry run)
 #   tri blog-share reoffer --apply  # forget them; the desk asks again, one a day
 #   tri blog-share detail [slug]    # what EACH network answered, in full (last article by default)
+#
+# Every listing ends with the desk's NEXT step (2026-10-03): a night was spent
+# asking "why is the blog not posted" when the answer was the pace -- one
+# question every ASK_EVERY_MS, the next due two hours later, about an article
+# already in the feed. The pace is read from the spec's generated module, not
+# copied here.
 set -u
 ROOT="${1:?repo root required}"
 shift
@@ -78,3 +84,45 @@ SELECT count(*) FILTER (WHERE state = 'declined' AND done_at - asked_at < interv
        count(*) FILTER (WHERE state = 'posted') AS posted,
        count(*) FILTER (WHERE state = 'failed') AS failed
   FROM blog_shares"
+# The desk's next step, in the desk's own order (blogShareTick): an open
+# question first, then the pace, then the newest feed article never offered.
+GEN=apps/vibee-editor/render/src/spec/blog-share.gen.ts
+EVERY=$(grep -oE 'ASK_EVERY_MS = [0-9]+' "$GEN" | grep -oE '[0-9]+$')
+WAIT=$(grep -oE 'ANSWER_WAIT_MS = [0-9]+' "$GEN" | grep -oE '[0-9]+$')
+TICK=$(grep -oE 'TICK_MS = [0-9]+' "$GEN" | grep -oE '[0-9]+$')
+# A pace that cannot be read is not a pace of zero: zero would print "asks on
+# the next tick" for a desk that may be hours from asking (bee review #3425).
+[ -n "$EVERY" ] && [ -n "$WAIT" ] && [ -n "$TICK" ] ||
+  { echo "next: $GEN has no ASK_EVERY_MS / ANSWER_WAIT_MS / TICK_MS -- not checked"; exit 2; }
+STATE=$(psql "$URL" -X -q -At -F'|' -c "
+SELECT coalesce((SELECT slug || '|' || round(extract(epoch from now() - asked_at))::text
+                   FROM blog_shares WHERE state = 'asked' ORDER BY asked_at DESC LIMIT 1), ''),
+       coalesce(round(extract(epoch from now() - max(asked_at)))::text, '')
+  FROM blog_shares") || { echo "next: the database did not answer -- not checked"; exit 2; }
+# An empty list would make every feed article look never offered and name the
+# wrong one: a failed read is "not checked", not "nothing was offered".
+SEEN=$(psql "$URL" -X -q -At -c "SELECT slug FROM blog_shares") ||
+  { echo "next: the database did not answer -- not checked"; exit 2; }
+FEED=$(curl -s --max-time 20 https://t27.ai/rss.xml) || FEED=
+STATE="$STATE" SEEN="$SEEN" FEED="$FEED" EVERY="$EVERY" WAIT="$WAIT" TICK="$TICK" python3 -c '
+import os, re
+st = os.environ["STATE"].split("|")
+every, wait, tick = (int(os.environ[k]) // 1000 for k in ("EVERY", "WAIT", "TICK"))
+h = lambda s: f"{s / 3600:.1f} h"
+if st[0] and len(st) >= 3 and st[1]:
+    age = int(st[1])
+    print(f"next: waiting for the owner on {st[0]} -- asked {h(age)} ago, closes in {h(max(wait - age, 0))}")
+    raise SystemExit(0)
+# The pace before the feed, as blogShareTick reads them.
+last = st[-1]
+due = 0 if not last else max(every - int(last), 0)
+when = f"in {h(due)} (one question every {h(every)})" if due else f"on the next tick ({tick // 60} min)"
+seen = set(os.environ["SEEN"].split())
+feed = re.findall(r"<guid[^>]*>([^<]+)</guid>", os.environ["FEED"])
+if not feed:
+    print(f"next: asks {when}; the feed did not answer -- which article is not checked"); raise SystemExit(2)
+new = [g for g in feed if g not in seen]
+if not new:
+    print("next: every feed article was offered already -- nothing to ask")
+else:
+    print(f"next: asks about {new[0]} {when}; {len(new)} article(s) never offered")'
