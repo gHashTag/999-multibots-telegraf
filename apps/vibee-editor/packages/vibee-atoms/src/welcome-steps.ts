@@ -26,6 +26,8 @@ export const WELCOME_STEPS = [
   'gift',
   /** A package card's order button (item = package id). */
   'package_order',
+  /** A package card's Stars button: the invoice was asked for (item = package id). */
+  'package_buy',
   /** A package card's try button (item = package id). */
   'package_try',
   /** The pinned bar, while above the packages: the gift. */

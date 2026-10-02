@@ -75,6 +75,6 @@ describe('the wallet agrees with the specs it prices', () => {
 
   it('every media package month is whole reels, never zero', () => {
     for (const pkg of AGENT_PACKAGES.filter(p => p.media))
-      expect(reelsIn(monthTokens(pkg.monthlyUsd))).toBeGreaterThan(0)
+      expect(reelsIn(monthTokens(pkg.allowanceUsd))).toBeGreaterThan(0)
   })
 })

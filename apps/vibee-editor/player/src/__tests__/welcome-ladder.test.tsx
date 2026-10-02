@@ -77,7 +77,7 @@ afterEach(() => {
 describe('the promise', () => {
   it('names what the featured month buys, in reels', () => {
     show()
-    const reels = reelsIn(monthTokens(featured.monthlyUsd))
+    const reels = reelsIn(monthTokens(featured.allowanceUsd))
     expect(text('.welcome-outcome')).toBe(
       `${featured.name.en}: ≈${reels} reels with your face, every month.`
     )
@@ -136,10 +136,10 @@ describe('the wallet', () => {
       const line = text(
         `[data-testid="package-${pkg.id}"] .package-card__tokens`
       )
-      const month = monthTokens(pkg.monthlyUsd).toLocaleString('en-US')
+      const month = monthTokens(pkg.allowanceUsd).toLocaleString('en-US')
       expect(line).toBe(
         pkg.media
-          ? `${month} tokens a month ≈ ${reelsIn(monthTokens(pkg.monthlyUsd))} reels`
+          ? `${month} tokens a month ≈ ${reelsIn(monthTokens(pkg.allowanceUsd))} reels`
           : `${month} tokens a month for client replies · text only`
       )
     }
