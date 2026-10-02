@@ -2038,3 +2038,29 @@ and a Russian shortfall sentence in English mode. A reference can be wrong;
 `tri iphone ru-web [file]` ranks web files by Russian literals outside a
 language branch (rough: split en/ru pairs still count) so you read the
 reference before copying it.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 10): the message the slow hook reads, check it first
+
+Twice a commit message named a Cyrillic type and the commit-msg hook refused
+it -- after the 2-minute pre-commit had already passed. The check existed
+(`no-cyrillic-guard.cjs msg`), it just ran last. `tri cyrillic msg FILE` runs
+that same script first; then `git commit -F FILE`. A rule written in a loop
+state file did not stop the second slip; a command does.
+
+Also: the web top-up (`useTokenTopUp`) told an English reader about their
+payment in Russian. The sentences now live in a pure `lib/topUpText.ts`, tested
+in both languages (`topUpText.test.ts` asserts no Cyrillic in English for
+EVERY event). Language is read through a ref, because the verify loop writes
+its note more than a minute after the tap.
+
+Second lesson of the same iteration, and the sharper one: moving the sentences
+out of `useTokenTopUp.ts` broke `creditedIsNotOk.test.ts`, a money guard that
+reads the hook AS TEXT -- the exact breakage `tri readers` was written for on
+2026-09-18, for the exact same file. The tool existed; I did not run it, and
+then started writing a second `tri readers` before the dispatcher showed me
+the first. Now `tri readers --run FILE...` runs the guards that name the file,
+in seconds. Rule: **before pushing a change that moves code or wording out of
+a file, `tri readers --run` that file**; before adding a tri command,
+`grep -n "^cmd_<name>" tri`. The guard was rewritten to check the events'
+order in the hook and the "not credited" sentence in BOTH languages where it
+now lives -- it was not loosened.
