@@ -16,8 +16,9 @@
 # from the steps' own conclusions, not guessed from the last ##[error] in the
 # log: a continue-on-error step prints ##[error] too and concludes success.
 #
-# Read-only. Exit 0 nothing failed, 1 something failed (named, with its log
-# tail), 2 could not tell (no answer from GitHub, unknown ref).
+# Read-only. Exit 0 every check finished and nothing failed, 1 something
+# failed (named, with its log tail), 2 could not tell (no answer from GitHub,
+# unknown ref), 3 nothing failed YET -- checks still running, not green.
 set -uo pipefail
 ROOT="$1"; shift
 REPO="${1:-}"; REF="${2:-main}"
@@ -51,8 +52,14 @@ printf '%s\n' "$RUNS" | cut -f1 | sort | uniq -c | sort -rn | sed 's/^/  /'
 BAD=$(printf '%s\n' "$RUNS" | awk -F'\t' '$1 ~ /^(failure|timed_out|cancelled|action_required|startup_failure)$/')
 if [ -z "$BAD" ]; then
   pend=$(printf '%s\n' "$RUNS" | awk -F'\t' '$1 ~ /^(queued|in_progress|pending|waiting|requested)$/' | wc -l | tr -d ' ')
-  [ "$pend" -gt 0 ] && echo "  nothing failed; $pend still running -- not yet green"
-  [ "$pend" -eq 0 ] && echo "  nothing failed"
+  # Still running is not green. Exit 0 here once let a loop read "21 queued"
+  # as a green main (trinity-fpga c7632348, 2026-10-03); gh pr checks gives
+  # pending its own code (8) for the same reason.
+  if [ "$pend" -gt 0 ]; then
+    echo "  nothing failed yet; $pend still running -- not yet green"
+    exit 3
+  fi
+  echo "  nothing failed"
   exit 0
 fi
 
