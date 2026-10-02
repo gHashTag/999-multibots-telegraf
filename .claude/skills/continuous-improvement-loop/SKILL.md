@@ -2011,3 +2011,22 @@ every line that disappears outside the file you worked on. Run the OLD tool
 from inside the same worktree (a copy at `./tri-old-tmp`, deleted after) --
 run from `/tmp` it resolved another app path and printed an empty diff that
 looked like "no change".
+
+### A second loop needs its own name (blog loop, 2026-10-02)
+
+`tri loop-guard` defaults to `TRI_LOOP=crm`: a different night loop that does
+not set it reads the CRM loop's branch, PR and tests. Seven ticks of the blog
+loop ran with no guard at all, and the one that finally ran it learned that
+main had changed `render-server.ts` under the branch.
+
+- First tick of any loop: write `.claude/loop-state/<name>-loop.md` with
+  `loop-branch`, `loop-pr`, `loop-tests` (FULL test file names -- the guard
+  matches names, not vitest filters) and run every tick as
+  `TRI_LOOP=<name> tri loop-guard start|end`.
+- A file the person had edited before the loop began stops every tick as
+  "the last tick died mid-edit". Name it once:
+  `<!-- loop-not-mine: .claude/launch.json -->`. Honoured by `start` and
+  `end`; `end` still sees untracked files.
+- Ticks that commit with `--no-verify` close with `tri no-verify-debt`:
+  cyrillic, secrets, prettier from the ROOT, eslint, over the whole branch.
+  Its first run found a file formatted by render's prettier, not the root's.
