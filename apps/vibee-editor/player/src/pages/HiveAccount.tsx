@@ -20,6 +20,33 @@ import './HiveAccount.css'
 const PROBE_LANES = 4
 type Notice = { key: string; vars?: Record<string, string | number> }
 
+/** `nvidia #25` -> 25; a key with its own name has no number. */
+function keyNumber(key: HiveKey): number {
+  const match = /^([a-z]+) #([1-9][0-9]*)$/.exec(key.label.trim())
+  return match && match[1] === key.provider ? Number(match[2]) : Infinity
+}
+
+/**
+ * Provider by provider in the account's order, and by number inside one:
+ * nvidia #24 is followed by nvidia #25 wherever the server keeps that key.
+ * Keys with their own names follow their provider's numbered keys.
+ */
+export function orderedKeys(account: HiveKeyAccount): HiveKey[] {
+  const rank = (key: HiveKey) => {
+    const index = account.providers.findIndex(row => row.id === key.provider)
+    return index < 0 ? account.providers.length : index
+  }
+  return account.keys
+    .map((key, position) => ({ key, position }))
+    .sort(
+      (a, b) =>
+        rank(a.key) - rank(b.key) ||
+        keyNumber(a.key) - keyNumber(b.key) ||
+        a.position - b.position
+    )
+    .map(entry => entry.key)
+}
+
 export default function HiveAccount() {
   const { lang, t } = useLanguage()
   const user = useAtomValue(userAtom)
@@ -168,7 +195,7 @@ export default function HiveAccount() {
 
   const probeAll = () => {
     if (!account) return
-    const keys = [...account.keys]
+    const keys = orderedKeys(account)
     void perform(async signal => {
       let next = 0
       let done = 0
@@ -508,7 +535,7 @@ export default function HiveAccount() {
               <p className="hive-account__empty">{t('hiveAccount.empty')}</p>
             ) : (
               <ul className="hive-account__list">
-                {account.keys.map(key => (
+                {orderedKeys(account).map(key => (
                   <li
                     key={key.id}
                     className="hive-account__key"

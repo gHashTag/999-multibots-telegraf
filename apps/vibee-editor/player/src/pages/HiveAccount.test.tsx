@@ -347,6 +347,43 @@ describe('personal contribution account', () => {
     })
   })
 
+  it('lists keys by provider and number, wherever the server keeps them', async () => {
+    const account = makeAccount()
+    const named = (
+      id: number,
+      label: string,
+      provider: HiveKey['provider']
+    ) => ({
+      ...makeKey(id),
+      label,
+      provider,
+    })
+    account.keys = [
+      named(-2, 'nvidia #25', 'nvidia'),
+      named(-3, 'Laptop', 'nvidia'),
+      named(10001, 'zai #2', 'zai'),
+      named(0, 'nvidia #1', 'nvidia'),
+      named(10000, 'zai #1', 'zai'),
+      named(23, 'nvidia #24', 'nvidia'),
+      named(-4, 'nvidia #26', 'nvidia'),
+    ]
+    api.mockResolvedValueOnce(account)
+    await mount()
+    expect(
+      [...container.querySelectorAll('.hive-account__key-name strong')].map(
+        node => node.textContent
+      )
+    ).toEqual([
+      'nvidia #1',
+      'nvidia #24',
+      'nvidia #25',
+      'nvidia #26',
+      'Laptop',
+      'zai #1',
+      'zai #2',
+    ])
+  })
+
   it('names a failed model check and changes nothing', async () => {
     api
       .mockResolvedValueOnce(makeAccount())
