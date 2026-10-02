@@ -97,6 +97,7 @@ const SQL_WORDS = new Set([
   'inner',
   'outer',
   'interval',
+  'make_interval',
   'to_char',
   'date_trunc',
   'string_agg',
