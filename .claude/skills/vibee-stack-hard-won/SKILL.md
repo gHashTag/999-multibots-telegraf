@@ -11089,7 +11089,13 @@ test tells you which client still cannot say it.
    and so did every linked tree.
    - Find the culprit: grep `verbose (title|cwd)` in `~/.npm/_logs/*` at the dir's mtime.
    - Restore in the MAIN checkout: `tri deps --heal`, which runs bun install there (22 s, lock untouched).
-   - Never install at the root of a linked tree. If a tree needs its own packages, it should first
-     replace the link with a real directory, then run a per-app `npm ci`.
+   - Never install at the root of a linked tree. If a tree needs its own packages, run
+     `tri deps --own` first: it replaces EVERY link (root and per-app; render/player are links
+     too) with an APFS clone of the target (~70 s, ~100 MB for all four). After that an install
+     empties only the copy. The workspace links inside (`@vibee/atoms -> ../../../packages/…`) are
+     relative, so the copy resolves the tree's own atoms.
+   - The emptied state has four shapes, and `tri deps` names each one and exits 1. EMPTY,
+     DOTFILES-ONLY (npm leaves `.package-lock.json`/`.bin` behind, so an `ls` check without `-A`
+     calls it empty, but `[ -z "$(ls -A)" ]` does not), DANGLING and ABSENT.
 3. **A vitest from the symlink is not the gate's vitest.** Symlinked player node_modules resolved
    vitest 1.6.1, while the lock pins 5.0.2. A local player result can differ from the Docker gate.
