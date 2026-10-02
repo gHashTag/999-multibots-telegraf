@@ -135,7 +135,11 @@ export async function publishEverywhere(
   const logins = await loginsOfPerson(pool, owner).catch(() => null)
   for (const [net, url, labels] of [
     ['X', urls.x, ['post', 'опубликовать']], // cyrillic-ok: X's Russian label
-    ['LinkedIn', urls.linkedin, ['post', 'опубликовать']], // cyrillic-ok: LinkedIn's Russian label
+    /*
+     * LinkedIn's composer says "Post"; its Russian label is "Place", not
+     * "Publish" (seen 2026-10-03 -- the old label missed it every time).
+     */
+    ['LinkedIn', urls.linkedin, ['post', 'разместить', 'опубликовать']], // cyrillic-ok: LinkedIn's Russian labels
     /* Reddit's submit page says "Post"; in Russian, "Опубликовать". */
     ['Reddit', urls.reddit, ['post', 'опубликовать']], // cyrillic-ok: Reddit's Russian label
     /* Threads' composer says "Post"; in Russian, "Опубликовать". */
