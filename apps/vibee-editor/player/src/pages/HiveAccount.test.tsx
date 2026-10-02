@@ -311,6 +311,17 @@ describe('personal contribution account', () => {
     ).toContain('По умолчанию: test-model')
   })
 
+  it('offers the switch when only some keys of a provider run another model', async () => {
+    const mixed = makeAccount()
+    mixed.keys = [makeKey(4), { ...makeKey(5), model: 'older-model' }]
+    api.mockResolvedValueOnce(mixed)
+    await mount()
+    const row = container.querySelector('[data-provider="nvidia"]')!
+    expect(row.querySelector('input')!.value).toBe('test-model')
+    expect(row.querySelector('button')!.disabled).toBe(false)
+    expect(row.textContent).toContain('Применить ко всем (2)')
+  })
+
   it('names a failed model check and changes nothing', async () => {
     api
       .mockResolvedValueOnce(makeAccount())
