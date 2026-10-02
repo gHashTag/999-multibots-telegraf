@@ -214,7 +214,8 @@ last touches the browser:
 3. APPLY (`tidy apply QID`): only on `allowed`, only by his own telegram id,
    refused while he holds the wheel, once (one atomic UPDATE claims the row,
    AFTER the pod answered, so a dead pod does not spend the yes). A tab whose
-   URL changed since the question is skipped and named.
+   URL changed since the question is skipped and named, and the last open
+   page always stays (he may have closed the others himself before his yes).
 
 Do not `tidy ask` at night without a reason: it is a real card on his phone.
 
