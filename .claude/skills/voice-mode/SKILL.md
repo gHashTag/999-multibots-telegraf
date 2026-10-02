@@ -750,30 +750,81 @@ and shipped without doing it; a test that cannot reach the line it guards
 is not a test of it. When the simulator cannot run, extract the rule into
 a pure function and mutate that.
 
+## Hands-free on the phone, a voice per language (cycle 19)
+
+Three things, one PR:
+
+- **The phone hears the end of a turn.** `TurnJudge.swift` is the web's
+  rule (`vad.ts`: noise floor, 160 ms onset, 850 ms end, a loud flat 2 s is
+  the room, 8 s of nobody gives up) as a pure struct. `VoiceInput` reads
+  the recorder's meter every 50 ms (`isMeteringEnabled`,
+  `averagePower` -> `TurnJudge.level(dB:)`) and raises `turnEnded`;
+  `AgentChatView` sends on `wantsFinish` (time up OR turn ended). No second
+  press per question any more.
+- **A conversation.** Long-press the mic (or the accessibility action
+  "Talk hands-free"): ask, hear the answer, the mic listens again
+  (`VoiceInput.listensAgain`). A tap ends it -- while listening it sends
+  what was said, while speaking it hushes. Silence (`nobodySpoke`) ends it
+  out loud. **No barge-in by voice**: the iPhone has no echo cancellation
+  on this path, so the agent would hear itself and interrupt itself; a tap
+  interrupts instead (row 19b).
+- **A voice picker per spoken language** (row 11). The session speaks each
+  sentence in ITS language, so an English app reads Russian sentences with
+  a Russian voice nobody could choose. `voicePickers(appLang, voices)`
+  gives one select per language that has a choice, the app's first.
+
+`./tri vad --ios` compiles the real `TurnJudge.swift` with a reader and
+runs it over the same battery as `tri vad` (or your files, e.g. the
+owner's `~/.cache/tri/turn-voice/ru/*.wav` from `tri turn --record`, which
+get 1.5 s of quiet appended -- Enter stops them on the last word). Exit 1 =
+speech that never ended as a turn, or a fan that was anything but "nobody
+spoke". Battery: speech ends 5.4 / 5.9 s, speech over a fan 8.3 / 8.8 s,
+each fan "nobody spoke" at 8.05 s.
+
+Self-critique:
+
+- **The port had a bug the first test did not see.** The floor learned
+  whenever the level was quiet (`loudSince == nil`, i.e. between WORDS);
+  the web learns only before speech (`!turn.spoke`, between PHRASES). A
+  mutant survived, which is how it showed. Pinned by "hushed gaps do not
+  teach the floor".
+- **A test that never spoke.** The first syllables were 150 ms, under the
+  160 ms onset: "speech" never started and the test proved nothing. Now
+  250 ms.
+- **`tri vad --ios` passed a broken rule.** With the room never learned,
+  two fans read "going" -- the mic held open to 60 s -- and the check only
+  asked "not ended". It now demands "nobody spoke". Found by running the
+  mutant, not by reading the code.
+- **Measured on battery audio, not a phone.** `averagePower` is RMS in
+  dBFS, close to what `tri vad --ios` computes, not identical; the iPhone
+  mic's AGC is not in the battery. Thresholds are the web's, unvalidated on
+  a device.
+
 ## Weak spots, with status
 
-| #   | weak spot                                             | status                                                                                                                                                                |
-| --- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | card markup read aloud                                | FIXED cycle 1                                                                                                                                                         |
-| 2   | any sound killed the answer (280 ms, no resume)       | FIXED cycle 1 (pause/resume)                                                                                                                                          |
-| 3   | its own voice through the speaker interrupted it      | FIXED cycle 1 (onset + echo)                                                                                                                                          |
-| 4   | stuck "speaking" on a suspended AudioContext          | FIXED cycle 1 (watchdog)                                                                                                                                              |
-| 5   | silence after the phrase looked like "not heard"      | FIXED cycle 1 (earcon)                                                                                                                                                |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)        | FIXED cycle 3 (GigaAM, #3252)                                                                                                                                         |
-| 7   | energy VAD: a fan or street noise counts as speech    | PARTLY cycle 8 (steady noise = room); rising noise -> Silero                                                                                                          |
-| 8   | words heard only after the 850 ms pause               | FIXED cycle 4 (#3257)                                                                                                                                                 |
-| 8b  | turn end is a fixed pause; slow speakers get cut      | PARTLY cycle 11 (words); cycle 13 voice judge in SHADOW (`voiceHolds` off) until `tri turn --audio` on real voices                                                    |
-| 9   | nothing said while the agent thinks for long          | FIXED cycle 9 (filler at 3 s, "still" at 15 s; `tri filler`)                                                                                                          |
-| 10  | first sound waits for a whole first sentence          | FIXED cycle 2 (first clause)                                                                                                                                          |
-| 11  | voice picker only for the app language                | OPEN                                                                                                                                                                  |
-| 12  | product words misheard by every engine ("рилс")       | FIXED cycle 14 (`hotwords.ts` after hearing; `tri words`) -- table from synthesized speech only                                                                       |
-| 13  | English hearing is still whisper, ~2.6 s              | FIXED cycle 5 (Parakeet v2)                                                                                                                                           |
-| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s  | PARTLY cycle 7 (wakeRoad, 32k); sin1->sfo 250 ms is the region                                                                                                        |
-| 15  | English first sound ~2 s (Kokoro in the whisper pod)  | FIXED cycle 6 (mouth, 8 threads)                                                                                                                                      |
-| 16  | a stalled synthesis silences the whole answer         | FIXED cycle 10 (`speakDeadlineMs`, device voice reads it)                                                                                                             |
-| 17  | first wait phrase cold, skipped at the first question | FIXED cycle 10 (warmed at session open)                                                                                                                               |
-| 18  | full-screen voice hid the chat it talks about         | FIXED cycle 12 (VoiceDock; typed -> spoken; overlay is opt-in)                                                                                                        |
-| 19  | the iOS app has no voice at all                       | FIXED cycle 15 (`VoiceInput.swift`: press-to-talk in `AgentChatView`, answer read aloud); cycle 16 guards (time up, hidden tab, rests with Send) -- no hands-free yet |
+| #   | weak spot                                             | status                                                                                                                                                                                                                          |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | card markup read aloud                                | FIXED cycle 1                                                                                                                                                                                                                   |
+| 2   | any sound killed the answer (280 ms, no resume)       | FIXED cycle 1 (pause/resume)                                                                                                                                                                                                    |
+| 3   | its own voice through the speaker interrupted it      | FIXED cycle 1 (onset + echo)                                                                                                                                                                                                    |
+| 4   | stuck "speaking" on a suspended AudioContext          | FIXED cycle 1 (watchdog)                                                                                                                                                                                                        |
+| 5   | silence after the phrase looked like "not heard"      | FIXED cycle 1 (earcon)                                                                                                                                                                                                          |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)        | FIXED cycle 3 (GigaAM, #3252)                                                                                                                                                                                                   |
+| 7   | energy VAD: a fan or street noise counts as speech    | PARTLY cycle 8 (steady noise = room); rising noise -> Silero                                                                                                                                                                    |
+| 8   | words heard only after the 850 ms pause               | FIXED cycle 4 (#3257)                                                                                                                                                                                                           |
+| 8b  | turn end is a fixed pause; slow speakers get cut      | PARTLY cycle 11 (words); cycle 13 voice judge in SHADOW (`voiceHolds` off) until `tri turn --audio` on real voices                                                                                                              |
+| 9   | nothing said while the agent thinks for long          | FIXED cycle 9 (filler at 3 s, "still" at 15 s; `tri filler`)                                                                                                                                                                    |
+| 10  | first sound waits for a whole first sentence          | FIXED cycle 2 (first clause)                                                                                                                                                                                                    |
+| 11  | voice picker only for the app language                | FIXED cycle 19 (`voicePickers`: one select per spoken language, app first)                                                                                                                                                      |
+| 12  | product words misheard by every engine ("рилс")       | FIXED cycle 14 (`hotwords.ts` after hearing; `tri words`) -- table from synthesized speech only                                                                                                                                 |
+| 13  | English hearing is still whisper, ~2.6 s              | FIXED cycle 5 (Parakeet v2)                                                                                                                                                                                                     |
+| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s  | PARTLY cycle 7 (wakeRoad, 32k); sin1->sfo 250 ms is the region                                                                                                                                                                  |
+| 15  | English first sound ~2 s (Kokoro in the whisper pod)  | FIXED cycle 6 (mouth, 8 threads)                                                                                                                                                                                                |
+| 16  | a stalled synthesis silences the whole answer         | FIXED cycle 10 (`speakDeadlineMs`, device voice reads it)                                                                                                                                                                       |
+| 17  | first wait phrase cold, skipped at the first question | FIXED cycle 10 (warmed at session open)                                                                                                                                                                                         |
+| 18  | full-screen voice hid the chat it talks about         | FIXED cycle 12 (VoiceDock; typed -> spoken; overlay is opt-in)                                                                                                                                                                  |
+| 19  | the iOS app has no voice at all                       | FIXED cycle 15 (`VoiceInput.swift`: press-to-talk in `AgentChatView`, answer read aloud); cycle 16 guards (time up, hidden tab, rests with Send) -- cycle 19 hands-free (`TurnJudge`, long-press conversation; `tri vad --ios`) |
+| 19b | iPhone: no barge-in by voice while it speaks          | OPEN -- no echo cancellation on this path (`.playAndRecord` + `.voiceChat` would be the start); a tap interrupts                                                                                                                |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 
@@ -796,6 +847,8 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    render's routing for hearing and speaking.
    A PR that touches `vad.ts` or the session's tick: `./tri vad` (exit 1 =
    speech taken for the room or a fan held as a phrase) before the commit.
+   A PR that touches `TurnJudge.swift`: `./tri vad --ios`, and
+   `./tri iphone typecheck` for any Swift change (no simulator needed).
    A PR that touches `voice.filler.*`, the FILLER\_\* numbers or
    `speakDeadlineMs`: `./tri filler`. A PR that touches `turnEnd.ts`,
    `turnOver` or the eager guess: `./tri turn` (battery, exit 1 on a wrong

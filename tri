@@ -478,7 +478,7 @@ CHECKS THAT EACH COST A CYCLE
         "two alphabets" = a Latin letter inside a Russian word. Exit 1 on
         any XX. Needs the agent key.
 
-  tri vad | tri шум [--legacy] [file.wav ...]
+  tri vad | tri шум [--legacy | --ios] [file.wav ...]
         The mic's voice-activity gate (player/src/lib/voice/vad.ts) run tick
         by tick over recordings, as the session runs it. With no files it
         makes its own battery (say + ffmpeg anoisesrc, 48 kHz mono): ru/en
@@ -487,7 +487,12 @@ CHECKS THAT EACH COST A CYCLE
         STEADY_SPREAD). Exit 1 = speech taken for the room, a question over
         a fan not heard as a turn, or a fan held as a phrase. --legacy runs
         the gate before cycle 8 (a fan was "speech" for 30 s), unjudged.
-        Your own files are judged only if named speech-*, over-fan-*, fan-*.
+        --ios runs the PHONE's turn judge (vibee-ios TurnJudge.swift, the
+        same rule in Swift) over the same battery or your files, e.g.
+        ~/.cache/tri/turn-voice/ru/*.wav: exit 1 = speech that never ended
+        as a turn, or a fan taken for speech (anything but "nobody spoke").
+        Your own files are judged only if named speech-*, over-fan-*, fan-*,
+        done-*, cut-* (the last two get 1.5 s of quiet: Enter stops them).
         No key, no network.
 
   tri loop | tri виток
@@ -6959,6 +6964,73 @@ _turn_record() {
   [ ${#files[@]} -gt 0 ] || { warn 'no recordings yet'; return 1; }
   printf '\n'
   _turn_audio "$lang" "$pause" "${files[@]}"
+  local rc=$?
+  # The same recordings judge the phone's rule too (cycle 19).
+  printf '  %s\n' "the phone's turn rule on the same voice: tri vad --ios $dir/*.wav"
+  return $rc
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri vad --ios: the PHONE's turn judge (apps/vibee-ios/Vibee/TurnJudge.swift,
+# cycle 19) over the same audio. Unit tests feed it made-up levels; this
+# compiles the real file with a small reader and feeds it 50 ms RMS frames of
+# 16 kHz mono -- what the recorder's meter reads every tick on the phone
+# (averagePower is RMS in dBFS; close, not identical). Judged by file name:
+# speech and speech over a fan end as a turn, a fan alone never does, the
+# owner's done-*/cut-* recordings (tri turn --record) end as a turn.
+# ─────────────────────────────────────────────────────────────────────────
+_vad_ios() {
+  local src="$ROOT/apps/vibee-ios/Vibee/TurnJudge.swift" cache bin f out v at dur rc=0 pad
+  command -v swiftc >/dev/null || { bad 'swiftc is needed (Xcode command line tools)'; return 2; }
+  command -v ffmpeg >/dev/null || { bad 'ffmpeg is needed to read the audio'; return 2; }
+  [ -f "$src" ] || { bad "no $src"; return 2; }
+  cache="$HOME/.cache/tri/ios-judge"; mkdir -p "$cache" || return 2
+  # One build per version of the rule.
+  bin="$cache/judge-$(shasum "$src" | cut -c1-12)"
+  if [ ! -x "$bin" ]; then
+    { cat "$src"; cat <<'SWIFT'
+import Foundation
+let data = FileHandle.standardInput.readDataToEndOfFile()
+let samples = data.withUnsafeBytes { Array($0.bindMemory(to: Int16.self)) }
+let frame = Int(16_000 * TurnJudge.tick)
+var judge = TurnJudge(at: 0)
+var verdict = TurnJudge.Verdict.going
+var at = 0.0
+var i = 0
+while i + frame <= samples.count {
+  var sum = 0.0
+  for s in samples[i..<(i + frame)] { let x = Double(s) / 32768; sum += x * x }
+  at = Double(i + frame) / 16_000
+  verdict = judge.feed(at: at, level: (sum / Double(frame)).squareRoot())
+  if verdict != .going { break }
+  i += frame
+}
+print(verdict, String(format: "%.2f", at), String(format: "%.2f", Double(samples.count) / 16_000))
+SWIFT
+    } > "$cache/main.swift"
+    swiftc -O "$cache/main.swift" -o "$bin" 2>"$cache/build.log" \
+      || { bad "the judge did not compile: $cache/build.log"; return 2; }
+  fi
+  printf '  %-22s %-12s %8s %8s\n' file verdict 'at, s' 'len, s'
+  for f in "$@"; do
+    # A recording stopped by Enter may end on the last word; on the phone
+    # the room goes quiet after it, so the owner's files get that quiet.
+    pad=()
+    case "$(basename "$f")" in done-*|cut-*) pad=(-af apad=pad_dur=1.5) ;; esac
+    out=$(ffmpeg -nostdin -v error -i "$f" ${pad[@]+"${pad[@]}"} -f s16le -ac 1 -ar 16000 - | "$bin") \
+      || { bad "$(basename "$f"): could not read"; rc=1; continue; }
+    read -r v at dur <<<"$out"
+    printf '  %-22s %-12s %8s %8s\n' "$(basename "$f")" "$v" "$at" "$dur"
+    case "$(basename "$f")" in
+      # Not just "not ended": a fan held as a phrase keeps the mic open to
+      # the 60 s limit (a mutant that never learns the room showed "going").
+      fan-*) [ "$v" = nobodySpoke ] || { bad "$(basename "$f"): a fan was taken for speech ($v)"; rc=1; } ;;
+      speech-*|over-fan-*|done-*|cut-*)
+        [ "$v" = ended ] || { bad "$(basename "$f"): speech never ended as a turn ($v)"; rc=1; } ;;
+    esac
+  done
+  [ $rc -eq 0 ] && good 'the phone hears the end of speech and ignores the fans'
+  return $rc
 }
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -6971,15 +7043,16 @@ _turn_record() {
 # suppression is not applied: read it as the gate's worst case.
 # ─────────────────────────────────────────────────────────────────────────
 cmd_vad() {
-  local legacy='' a files=() dir bench="$ROOT/apps/vibee-editor/player/scripts/vad-bench.ts"
+  local legacy='' ios='' a files=() dir bench="$ROOT/apps/vibee-editor/player/scripts/vad-bench.ts"
   for a in "$@"; do
     case "$a" in
       --legacy) legacy=--legacy ;;
-      -*) bad "tri vad [--legacy] [file.wav ...], not '$a'"; return 2 ;;
+      --ios) ios=1 ;;
+      -*) bad "tri vad [--legacy | --ios] [file.wav ...], not '$a'"; return 2 ;;
       *) files+=("$a") ;;
     esac
   done
-  command -v bun >/dev/null || { bad 'bun is needed to run the gate'; return 2; }
+  [ -n "$ios" ] || command -v bun >/dev/null || { bad 'bun is needed to run the gate'; return 2; }
   if [ ${#files[@]} -eq 0 ]; then
     command -v ffmpeg >/dev/null && command -v say >/dev/null \
       || { bad 'no files given, and the battery needs ffmpeg and say (macOS)'; return 2; }
@@ -7001,6 +7074,12 @@ cmd_vad() {
     ffmpeg -f lavfi -i 'anoisesrc=c=pink:a=0.3:d=10' "${W[@]}" "$dir/fan-pink.wav" || return 2
     ffmpeg -f lavfi -i 'anoisesrc=c=white:a=0.08:d=10' "${W[@]}" "$dir/fan-white.wav" || return 2
     files=("$dir"/speech-*.wav "$dir"/over-fan-*.wav "$dir"/fan-*.wav)
+  fi
+  if [ -n "$ios" ]; then
+    local irc=0
+    _vad_ios "${files[@]}" || irc=$?
+    [ -n "${dir:-}" ] && rm -rf "$dir"
+    return $irc
   fi
   local out rc=0
   out=$(bun "$bench" $legacy "${files[@]}") || { bad 'the bench failed'; return 2; }
