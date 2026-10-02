@@ -55,6 +55,7 @@ The lanes are the ones the Leela app shipped with (`gHashTag/leela`,
 
 ```bash
 tri iphone store             # preflight + state: what stands between HEAD and TestFlight
+tri iphone state             # the read-only state alone; exit 3 = no app record yet
 tri iphone testflight --yes  # build and upload (the owner's call, never a loop's)
 
 cd apps/vibee-ios
