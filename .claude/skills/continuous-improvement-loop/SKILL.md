@@ -2114,3 +2114,18 @@ control first passed for the wrong reason -- `tri` puts /opt/homebrew/bin
 first on PATH, so a stub `gh` on PATH was never called. A stub needs a named
 seam (`TRI_GH`), and a control is only a control if its output shows the
 stub was the one that answered.
+
+### The loop merges and deploys its own green PRs (owner, 2026-10-02)
+
+Owner's standing order: do not ask, do it -- merge and deploy. Five ticks of
+the blog loop ended "waiting for your merge" while the owner slept, and the
+loop produced nothing between answers.
+
+- A PR the loop opened, with its tests green and `tri no-verify-debt` = 0, is
+  merged in the same tick (`gh pr merge --squash`), then the deploy is
+  verified: `railway deployment list --service <svc> --environment production`
+  shows SUCCESS for a build started after the merge, and `/health` is 200.
+  Report it after, not before.
+- Still the person's, always: force push; deleting data (payments_v2,
+  browser profiles); secrets; passwords (typed only by the person); posting to
+  the person's social networks without their "yes" in the approval.
