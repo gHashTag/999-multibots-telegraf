@@ -57,6 +57,9 @@ struct AgentChatView: View {
   /// Hands-free (a long press on the mic): every answer is followed by
   /// listening again, until a tap, silence or leaving the chat ends it.
   @State private var conversing = false
+  /// Counts conversations, so a turn knows whether the one it was asked in
+  /// is still the one running (`VoiceInput.afterAnswer`).
+  @State private var conversation = 0
   /// A hidden tab stays alive here; the mic must know when it is not seen.
   @Environment(\.tabIsShown) private var tabIsShown
 
@@ -716,6 +719,8 @@ struct AgentChatView: View {
 
   /// A tap ends a conversation; otherwise it is the ordinary press.
   private func tapMic() async {
+    // VoiceOver's actions pass `allowsHitTesting` by; the rule still holds.
+    guard micTakes else { return }
     guard conversing else { return await pressMic() }
     conversing = false
     switch voice.phase {
@@ -726,6 +731,7 @@ struct AgentChatView: View {
 
   private func startConversation() async {
     guard !conversing, voice.phase == .idle, !micResting else { return }
+    conversation += 1
     conversing = true
     await pressMic()
   }
@@ -740,6 +746,7 @@ struct AgentChatView: View {
     case .listening:
       switch await voice.finish() {
       case .words(let heard):
+        let turnOf = conversation
         let typed = ввод.trimmingCharacters(in: .whitespacesAndNewlines)  // cyrillic-ok: existing state
         ввод = typed.isEmpty ? heard : typed + " " + heard  // cyrillic-ok: existing state
         // Read the answer only if the question really went out: a send
@@ -751,11 +758,11 @@ struct AgentChatView: View {
         if sent, let answer = сообщения.last, !answer.свой {  // cyrillic-ok: existing state
           await voice.speak(answer.текст)  // cyrillic-ok: existing state
         }
-        if VoiceInput.listensAgain(conversing: conversing, shown: tabIsShown,
-                                   sent: sent, phase: voice.phase) {
-          await pressMic()
-        } else {
-          conversing = false
+        switch VoiceInput.afterAnswer(conversing: conversing, shown: tabIsShown, sent: sent,
+                                      phase: voice.phase, turnOf: turnOf, current: conversation) {
+        case .listen: await pressMic()
+        case .end: conversing = false
+        case .leave: break
         }
       case .nothing:
         if conversing {
