@@ -65,6 +65,11 @@ tri — оболочка Trinity S³AI
   tri engage [N]  стол комментариев: что предложено под чужими постами, что ответил владелец, квитанции и ответы людей (сигналы лидов)
   tri no-verify-debt [base]  шлюзы, пропущенные коммитами с --no-verify, по всей ветке (кириллица, секреты, prettier, eslint)
   tri browser [--json]  состояние браузера: отвечает ли (pod) и что в нём открыто (tabs)
+  tri browser <случай>  каждый инструмент агента руками, той же дверью (tri browser help):
+                 status front open time read shot desk find click xy type eval blank close sign-in call
+  tri browser find СЛОВА [ID]  куда лёг бы клик по словам — БЕЗ клика, пробой этой рабочей копии
+  tri browser blank [ID]  почему страница пустая: ловит ошибку, уронившую её (t27.ai: WebGL)
+  tri blog-share detail [slug]  что ответила КАЖДАЯ сеть, целиком
   tri pod        отвечает ли удалённый браузер И С КАКИХ ПОР (код 1 — не отвечает)
   tri tabs [--json]  сколько вкладок открыто в поде и близко ли до потолка PID (ничего не закрывает)
   tri heal [--json]  перезапустить браузер, НО только если он действительно молчит (отказ — нормальный ответ)
@@ -2058,7 +2063,13 @@ PYEOF
   # `tri browser` had no case and fell through to usage. It is the one door
   # for "how is the browser": answers (watch record, pod.sh) then reachable
   # tabs (tabs.sh) -- the split #3152 made. Exit code is pod.sh's.
-  browser) shift
+  # `tri browser <case>`: every agent browser tool by hand, same door as the
+  # agent (bin/helpers/b.sh). No case, or --json: the health view below.
+  browser|b) shift
+    case "${1:-}" in
+      ""|--json) ;;
+      *) bash "$ROOT/bin/helpers/b.sh" "$ROOT" "$@"; exit $? ;;
+    esac
     bash "$ROOT/bin/helpers/pod.sh" "$ROOT" "$@"; rc=$?
     [ "${1:-}" = "--json" ] || bash "$ROOT/bin/helpers/tabs.sh" "$ROOT"
     exit $rc ;;
