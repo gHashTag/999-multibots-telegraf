@@ -4,16 +4,21 @@ import { logger } from '@/utils/logger'
 import { getBotNameByToken } from '@/core/bot/index'
 import { publicStorageUrl } from '@/config/publicStorage'
 
-const defaultLevelUrl = (step: number): string =>
-  publicStorageUrl(
-    'landingpage',
-    `avatars/neuro_blogger_bot/levels/${step}.jpg`
-  )
+/**
+ * The picture a bot with no avatar of its own gets.
+ *
+ * There used to be a `step` argument substituted into `levels/${step}.jpg`.
+ * Checked in storage on 2026-10-02: every bot's `levels/` holds `1.jpg` and
+ * nothing else, `levels/2..22.jpg` never existed on the cloud host either, and
+ * the only caller ever asked for step 1. The argument could only turn a
+ * working address into a dead one, so it is gone.
+ */
+export const DEFAULT_BOT_PHOTO_URL = publicStorageUrl(
+  'landingpage',
+  'avatars/neuro_blogger_bot/levels/1.jpg'
+)
 
-export async function getPhotoUrl(
-  ctx: MyContext,
-  step: number
-): Promise<string> {
+export async function getPhotoUrl(ctx: MyContext): Promise<string> {
   const botToken = ctx.telegram.token
 
   // Динамически определяем имя бота по токену
@@ -50,16 +55,11 @@ export async function getPhotoUrl(
           bot_name,
         })
       }
-      return defaultLevelUrl(step)
+      return DEFAULT_BOT_PHOTO_URL
     }
 
     if (data && data.avatar_url) {
-      // URL со схемой levels/N.jpg — подставляем нужный шаг.
-      if (data.avatar_url.includes('levels')) {
-        return data.avatar_url.replace(/levels\/\d+\.jpg/, `levels/${step}.jpg`)
-      }
-
-      // Иначе отдаём сохранённый URL как есть.
+      // The stored URL is returned exactly as stored.
       //
       // Раньше здесь было `${avatar_url.split('.jpg')[0]}/levels/${step}.jpg`,
       // то есть из ИМЕНИ ФАЙЛА выдумывался каталог. Проверено HEAD-запросами по
@@ -81,5 +81,5 @@ export async function getPhotoUrl(
   }
 
   // Возвращаем значение по умолчанию в случае ошибки
-  return defaultLevelUrl(step)
+  return DEFAULT_BOT_PHOTO_URL
 }
