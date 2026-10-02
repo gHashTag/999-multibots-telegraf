@@ -31,6 +31,10 @@ import { pathToFileURL } from 'node:url'
 
 const RANK = { green: 0, RED: 1, 'NOT MEASURED': 2 }
 const ISSUE = /^\s+(small|cut|overlap|order|error)\s+(.*)$/
+// The sideways scroll has no line of its own: it is only a field of the
+// per-state summary. Without this a stand RED for nothing but a shift had no
+// issues, so a shift that grew read as "same".
+const WIDER = /^(?:RED|ok)\s+(\S+): .*\bwider (\d+)px\b/
 const VERDICT =
   /^== shot (green|RED|NOT MEASURED) -- (\S+) at (\d+)px \((ru|en)\)/
 // `all` prints this shape when a child printed no verdict at all.
@@ -55,6 +59,11 @@ export function parseShots(text) {
     const issue = ISSUE.exec(line)
     if (issue) {
       issues.push(`${issue[1]} ${issue[2].trim()}`)
+      continue
+    }
+    const wide = WIDER.exec(line)
+    if (wide) {
+      if (Number(wide[2]) > 0) issues.push(`wider ${wide[1]}`)
       continue
     }
     if (ALL_DOWN.test(line)) {
@@ -104,8 +113,7 @@ export function compareShots(before, now) {
     else same++
   }
   for (const key of Object.keys(before).sort())
-    if (!now[key])
-      worse.push(`${key}: vanished (was ${before[key].verdict})`)
+    if (!now[key]) worse.push(`${key}: vanished (was ${before[key].verdict})`)
   return { worse, better, same }
 }
 
