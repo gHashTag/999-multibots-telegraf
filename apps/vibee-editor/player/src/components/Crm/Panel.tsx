@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
+import { crmErrorText } from '@/lib/crmErrorText'
 
 /**
  * A PANEL THAT COULD NOT LOAD SAYS SO.
@@ -12,6 +13,8 @@ import { useLanguage } from '@/hooks/useLanguage'
 export interface PanelState {
   reachable: boolean
   error?: string
+  /** Why it failed, by name; worded by `crmErrorText`. */
+  code?: string
 }
 
 export function Panel({
@@ -32,7 +35,8 @@ export function Panel({
    */
   quiet?: boolean
 }) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
+  const why = crmErrorText(state, lang, t)
   return (
     <section className="crm__panel">
       <h3 className="crm__panel-title">{title}</h3>
@@ -41,7 +45,7 @@ export function Panel({
       ) : quiet ? null : (
         <p className="crm__unreachable">
           {t('crm.unreachable')}
-          {state.error ? `: ${state.error}` : ''}
+          {why ? `: ${why}` : ''}
         </p>
       )}
     </section>

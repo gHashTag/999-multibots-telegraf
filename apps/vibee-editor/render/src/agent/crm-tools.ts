@@ -33,6 +33,7 @@
  */
 
 import { visibilityOf, botFilter } from '../hive/roles'
+import { ToolRefusal } from './tool-refusal'
 import { touchedSince } from './crm-touches'
 import type { AgentTool, ToolContext } from './tools'
 
@@ -86,7 +87,8 @@ export async function областьВидимости(
   // cyrillic-ok: pre-existing name
   const who = ctx ? String(ctx.telegramId ?? '') : ''
   if (!who) {
-    throw new Error(
+    throw new ToolRefusal(
+      'no_identity',
       'CRM показывает данные других людей и требует подтверждённой личности'
     )
   }
@@ -102,7 +104,8 @@ export async function областьВидимости(
   const v = await visibilityOf(who, { botsOwnedBy: myBots })
   const filter = botFilter(v)
   if (filter !== null && filter.length === 0) {
-    throw new Error(
+    throw new ToolRefusal(
+      'no_bots',
       'CRM показывает аудиторию ВАШИХ ботов, а за вами ботов не числится. ' +
         'Если бот ваш — он должен быть записан на вас в avatars.'
     )
