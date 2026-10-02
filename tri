@@ -6386,7 +6386,8 @@ _ears_svc() {
 # already inside the pin, current when it is trinity main.
 # A release PR is merged by a reviewer agent, not by the session that
 # authored the trinity change (owner, 2026-10-02; skill
-# continuous-improvement-loop, "The author does not merge").
+# continuous-improvement-loop, "The loop ships its green PRs -- through a
+# reviewer, not by its own hand").
 #
 #   tri board    rc 0 the board is trinity main, 1 behind, 2 unknown
 # ─────────────────────────────────────────────────────────────────────────
@@ -6401,7 +6402,9 @@ cmd_board() {
     skip 'no 40-hex ARG QUEEN_REF in origin/main:apps/vibee-editor/Dockerfile'
     return 2
   fi
-  head=$(timeout 30 gh api repos/gHashTag/trinity/commits/main --jq .sha 2>/dev/null)
+  # gh api prints the error body to stdout on a failed call, so an answer is
+  # only kept when gh exited 0 -- a 404 page is not a SHA.
+  head=$(timeout 30 gh api repos/gHashTag/trinity/commits/main --jq .sha 2>/dev/null) || head=
   if [ -z "$head" ]; then
     skip "pinned ${pin:0:7}; trinity main did not answer -- cannot compare"
     return 2
@@ -6414,7 +6417,7 @@ cmd_board() {
   else
     local ahead
     ahead=$(timeout 30 gh api "repos/gHashTag/trinity/compare/$pin...$head" \
-      --jq '.ahead_by' 2>/dev/null)
+      --jq '.ahead_by' 2>/dev/null) || ahead=
     warn "the board is ${ahead:-?} commit(s) behind trinity main:"
     timeout 30 gh api "repos/gHashTag/trinity/compare/$pin...$head" \
       --jq '.commits[] | "      " + .sha[0:7] + " " + (.commit.message | split("\n")[0])' \
@@ -6438,12 +6441,18 @@ cmd_board() {
     if [ -z "$sha" ]; then
       warn "#$n $title -- no SHA in the title"; continue
     fi
+    # The pin first: when the pin is already trinity main, a PR for that same
+    # SHA is stale, not "to merge".
+    if [ "${pin#"$sha"}" != "$pin" ]; then
+      warn "#$n ships $sha, already the pin -- stale, close it"
+      continue
+    fi
     if [ "${head#"$sha"}" != "$head" ]; then
       good "#$n ships trinity main ($sha) -- for a reviewer agent to review and merge"
       continue
     fi
     status=$(timeout 30 gh api "repos/gHashTag/trinity/compare/$sha...$pin" \
-      --jq .status 2>/dev/null)
+      --jq .status 2>/dev/null) || status=
     case "$status" in
       ahead|identical) warn "#$n ships $sha, already inside the pin -- stale, close it" ;;
       *) warn "#$n ships $sha, older than trinity main (${status:-unknown}) -- superseded by a newer release PR" ;;
@@ -6452,6 +6461,7 @@ cmd_board() {
   return "$rc"
 }
 
+# ─────────────────────────────────────────────────────────────────────────
 # tri deploys: is the player on app.t27.ai the code main says it is?
 #
 # 999's GitHub Actions are dead (billing), so the player's tests run in ONE
@@ -6725,7 +6735,7 @@ case "$action" in
   pr-billing)        cmd_pr_billing "$@" ;;
   premerge)          cmd_premerge "$@" ;;
   deploys|выкладки)  cmd_deploys "$@" ;;
-  board)            cmd_board "$@" ;;
+  board)             cmd_board "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
   clone|клон)        cmd_clone "$@" ;;
   deploy-config|конфиг-деплоя) cmd_deploy_config "$@" ;;
