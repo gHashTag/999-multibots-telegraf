@@ -49,6 +49,34 @@ describe('parseShots', () => {
     })
   })
 
+  it('counts a sideways shift as a problem of the state that has it', () => {
+    // The exact per-state summary shot.mjs prints; a shift has no line of its
+    // own, so a stand red for nothing but a shift used to carry no issues.
+    const line = (id: string, wider: number) =>
+      `${wider ? 'RED  ' : 'ok   '}${id}: 9 controls, target 44px, ` +
+      `wider ${wider}px, small 0, cut 0, overlap 0, order 0 · /tmp/x.png`
+    const one = parseShots(
+      [
+        line('open', 12),
+        line('typed', 0),
+        '== shot RED -- card-chat at 320px (ru)',
+      ].join('\n')
+    ).runs['card-chat 320 ru']
+    expect(one).toEqual({ verdict: 'RED', issues: ['wider open'] })
+
+    const two = parseShots(
+      [
+        line('open', 12),
+        line('typed', 30),
+        '== shot RED -- card-chat at 320px (ru)',
+      ].join('\n')
+    ).runs['card-chat 320 ru']
+    // The shift spreading to a second state is worse, not "same".
+    expect(compareShots({ s: one }, { s: two }).worse).toEqual([
+      's: RED (1) -> RED (2) · wider typed',
+    ])
+  })
+
   it('notices when the whole run could not start', () => {
     const { runs, down } = parseShots(
       '== shot NOT MEASURED -- all: dev server did not answer'
@@ -69,12 +97,12 @@ describe('compareShots', () => {
   })
 
   it('calls more problems on a red stand worse, fewer better', () => {
-    expect(compareShots({ a: red('x') }, { a: red('x', 'y') }).worse).toEqual(
-      ['a: RED (1) -> RED (2) · y']
-    )
-    expect(compareShots({ a: red('x', 'y') }, { a: red('x') }).better).toEqual(
-      ['a: RED (2) -> RED (1)']
-    )
+    expect(compareShots({ a: red('x') }, { a: red('x', 'y') }).worse).toEqual([
+      'a: RED (1) -> RED (2) · y',
+    ])
+    expect(compareShots({ a: red('x', 'y') }, { a: red('x') }).better).toEqual([
+      'a: RED (2) -> RED (1)',
+    ])
   })
 
   it('counts NOT MEASURED as worse than red: a silent stand hides everything', () => {
@@ -125,8 +153,12 @@ describe('tri shot watch (CLI, --from)', () => {
 
       const worse = run(dir, ONE_RED)
       expect(worse.status).toBe(1)
-      expect(worse.stdout).toContain('worse   story-palette 390 en: green -> RED (2)')
-      expect(worse.stdout).toContain('worse   kanban-card 320 ru: green -> NOT MEASURED')
+      expect(worse.stdout).toContain(
+        'worse   story-palette 390 en: green -> RED (2)'
+      )
+      expect(worse.stdout).toContain(
+        'worse   kanban-card 320 ru: green -> NOT MEASURED'
+      )
 
       const back = run(dir, GREEN_ALL)
       expect(back.status).toBe(0)
