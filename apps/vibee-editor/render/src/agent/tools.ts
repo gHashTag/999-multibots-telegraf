@@ -2322,13 +2322,20 @@ export const TOOLS: AgentTool[] = [
            RETURNING id, created_at::text`,
           [ctx.telegramId, ours.url, String(args.text).slice(0, 500)]
         )
-        return withTokens(ctx, 'audio_generate', {
-          сделано: true, // cyrillic-ok: the tools’ answer fields
-          url: ours.url,
-          id: r.rows[0]?.id,
-          seconds: ours.seconds,
-          голос: 'клон владельца (наш сервис voice-clone)',
-        })
+        // Spent 0: the charge went back above, so the answer must not
+        // carry a receipt for the table price (withTokens' default).
+        return withTokens(
+          ctx,
+          'audio_generate',
+          {
+            сделано: true, // cyrillic-ok: the tools’ answer fields
+            url: ours.url,
+            id: r.rows[0]?.id,
+            seconds: ours.seconds,
+            голос: 'клон владельца (наш сервис voice-clone)',
+          },
+          0
+        )
       }
       if (!voiceId && !cloneVoice) {
         await refundTokens(

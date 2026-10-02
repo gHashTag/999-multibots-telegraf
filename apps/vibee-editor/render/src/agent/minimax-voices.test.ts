@@ -236,6 +236,8 @@ describe("the owner's MiniMax clone", () => {
     expect(branch.match(/refundTokens\(/g)?.length).toBe(2)
     // Exactly what was taken, both times (refundTokens' `exact`).
     expect(branch.match(/charge\['потрачено'\]\s*\)/g)?.length).toBe(2) // cyrillic-ok: existing field
+    // And the answer names no spend: the receipt is for 0, not the table price.
+    expect(branch).toMatch(/withTokens\([\s\S]*?\},\s*0\s*\)/)
     expect(tools).toMatch(/TOOLS\.find\(t => t\.name === 'voice_clone_speak'\)/)
     // story_reel voices its scenes at once; the CPU service takes one line
     // at a time, so the lines queue instead of meeting 429.
