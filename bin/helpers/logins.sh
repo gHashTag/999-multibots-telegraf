@@ -18,7 +18,7 @@ cd "$ROOT" || exit 1
 
 KEY="${AGENT_KEY:-}"
 if [ -z "$KEY" ]; then
-  KEY=$( (railway variables --service vibee-render --kv 2>/dev/null) \
+  KEY=$( (railway variables --service vibee-render --environment production --kv 2>/dev/null) \
          | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 fi
 [ -n "$KEY" ] || { echo "no agent key: export AGENT_KEY or run 'railway login'"; exit 2; }
