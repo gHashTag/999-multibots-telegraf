@@ -68,6 +68,7 @@ import {
 } from './cdp'
 import { overBudget } from './tab-budget'
 import { NOT_PAINTED_NOTE, PAINT_PROBE, waitForPaint } from './paint-wait'
+import { shapeOfTabs } from './tab-shape'
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
 import { LOGINS_NOTE, NETWORKS, loginsOfPerson } from './logins'
 import {
@@ -456,10 +457,8 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        what: {
-          type: 'string',
-          description: 'что именно произойдёт, одним предложением', // cyrillic-ok
-        },
+        /* "One sentence" is said once, in the description (compact kit). */
+        what: { type: 'string' },
         waitSeconds: {
           type: 'number',
           description:
@@ -645,11 +644,11 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
   {
     name: 'browser_status',
     description:
-      'Запущен ли браузер и его вкладки (id). front=id — вывести вкладку вперёд ' + // cyrillic-ok: tool description
-      '(окно входа Google открывается отдельной вкладкой).', // cyrillic-ok
+      'Браузер и вкладки (id). front=id — вперёд (вход Google — своя вкладка); ' + // cyrillic-ok: tool description
+      'shape — счётчики всех вкладок, ничего не трогая.', // cyrillic-ok
     parameters: {
       type: 'object',
-      properties: { front: { type: 'string' } },
+      properties: { front: { type: 'string' }, shape: { type: 'boolean' } },
       additionalProperties: false,
     },
     async handler(args, ctx) {
@@ -673,12 +672,29 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         rememberFront(ctx.telegramId, front)
       }
       const targets = await listTargets(found.cdp).catch(() => [])
+      const pages = targets.filter(t => t.type === 'page')
+      /*
+       * Every tab read where it lies (tab-shape.ts): counts only, nothing
+       * fronted, and no visit started -- this door is podToLookAt.
+       */
+      const shapes =
+        (args as { shape?: unknown }).shape === true
+          ? new Map(
+              (
+                await shapeOfTabs(
+                  found.cdp,
+                  pages.map(t => ({ id: t.id, url: t.url ?? '' })),
+                  { evaluate: evaluateOn }
+                )
+              ).map(s => [s.id, s] as const)
+            )
+          : null
       return {
         running: true,
         /* No endpoints, no tokens: an agent needs neither to use the tools. */
-        pages: targets
-          .filter(t => t.type === 'page')
-          .map(t => ({
+        pages: pages.map(t => {
+          const shape = shapes?.get(t.id)
+          return {
             id: t.id,
             title: t.title,
             url: t.url,
@@ -686,7 +702,20 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
             ...(t.id === chosenFront(ctx.telegramId)
               ? { actingHere: true as const }
               : {}),
-          })),
+            ...(shape
+              ? {
+                  shape: {
+                    unread: shape.unread,
+                    nodes: shape.nodes,
+                    text: shape.text,
+                    draft: shape.draft,
+                    stale: shape.stale,
+                    anomalies: shape.anomalies,
+                  },
+                }
+              : {}),
+          }
+        }),
         watchedByThePerson: found.visitOnRecord,
         /*
          * The browser outlived the visit. Said out loud, because it changes
