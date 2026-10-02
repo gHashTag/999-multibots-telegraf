@@ -375,6 +375,11 @@ const PUBLIC_EXACT = new Set([
  * a verdict (POST) stays behind the guard and then a keeper check.
  */
 const PUBLIC_GET_EXACT = new Set([
+  /*
+   * Meta's OAuth redirect (src/agent/meta-routes.ts). The browser arriving
+   * here carries no key; the single-use, ten-minute state is the proof.
+   */
+  '/api/social/meta/callback',
   '/api/agents/acceptance',
   // The catalogue agents' faces (agent-avatars.ts): shown on every rail.
   '/api/agents/avatars',
@@ -436,6 +441,8 @@ const PUBLIC_PREFIXES = [
 const НЕ_ПУБЛИЧНЫЕ = ['/api/feed/pending']
 
 const PUBLIC_GET_PREFIXES = [
+  // The blog card Instagram fetches by URL (src/agent/meta-card.ts).
+  '/api/social/card/',
   '/api/feed',
   // Пакеты токенов публичны (цены — витрина); покупка /api/tokens/invoice
   // проверяет личность сама, вебхук — секретом в пути.

@@ -142,6 +142,7 @@ function browserBrokerDeps(): BrowserDeps {
 }
 configureAgentStart(browserBrokerDeps)
 import { identityWithSource, personIdentity } from './src/agent/routes'
+import { isMetaPath } from './src/agent/meta-routes'
 import { handleTriWallet } from './src/tri-wallet'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
@@ -9303,6 +9304,44 @@ const server = createServer(async (req, res) => {
         `<body style="font:16px/1.5 system-ui;padding:32px;background:#111;color:#eee">` +
         `<p>${said}</p></body>`
     )
+    return
+  }
+
+  if (isMetaPath(req.url?.split('?')[0] || '')) {
+    const { handleMeta } = await import('./src/agent/meta-routes')
+    const { OWNER_TELEGRAM_ID } = await import('./src/agent/telegram-tools')
+    const out = await handleMeta(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      actor: r =>
+        identityWithSource(r as any, verifiedTelegramId(r as any))?.source ===
+        'agent-key'
+          ? 'agent'
+          : 'person',
+      owner: String(process.env.BLOG_SHARE_OWNER || OWNER_TELEGRAM_ID || ''),
+      fetch: (url, init) =>
+        fetch(url, { ...init, signal: AbortSignal.timeout(20_000) }) as any,
+      now: Date.now,
+      titleOf: async slug => {
+        const { blogTitleOf } = await import('./src/agent/blog-share-wiring')
+        return await blogTitleOf(slug)
+      },
+      drawCard: async title =>
+        (await import('./src/agent/meta-card')).drawCard(title),
+    })
+    if ('jpeg' in out) {
+      res.writeHead(out.status, {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=3600',
+      })
+      res.end(out.jpeg)
+    } else if ('html' in out) {
+      res.writeHead(out.status, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end(out.html)
+    } else {
+      res.writeHead(out.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(out.json))
+    }
     return
   }
 
