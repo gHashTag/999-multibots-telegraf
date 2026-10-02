@@ -727,6 +727,29 @@ insertions without a conflict. The bee caught it, not me. After merging
 main into a stacked branch, `git diff origin/main -- tri | grep '^+'` must
 show only this branch's lines.
 
+## The phone mic's edges (cycle 17)
+
+The bee on #3336 merged it and left three edges, all closed here:
+
+- **No recording nobody asked for.** The time-up handler pressed the mic
+  without looking: if a manual Stop finished first, the press started a
+  new take. It now presses only while still `.listening`.
+- **No recording in a hidden tab.** `start()` awaits the permission
+  prompt; a person who left meanwhile got a recording in a tab nobody
+  sees, holding the audio session for 60 s. It now checks `shown` (and
+  that the phase is still idle) after the prompt.
+- **A test that kills the mutation.** Cycle 16's test passed with the
+  identity check deleted: an idle `VoiceInput` returns before the check
+  is reached. The rule is now `VoiceInput.isTimeUp(listening:stopped:current:)`,
+  and the test reaches the listening case. Both mutants (`listening`
+  alone, identity alone) were run with `swift` against the same
+  assertions and KILLED.
+
+Self-critique: cycle 16 claimed "mutation-check the guard" in its plan
+and shipped without doing it; a test that cannot reach the line it guards
+is not a test of it. When the simulator cannot run, extract the rule into
+a pure function and mutate that.
+
 ## Weak spots, with status
 
 | #   | weak spot                                             | status                                                                                                                                                                |
