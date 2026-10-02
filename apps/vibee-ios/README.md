@@ -77,20 +77,26 @@ the review submission stays a click in App Store Connect.
 ✓ the scheme has archive destinations (iOS platform installed)
 ✓ Apple Distribution certificate in the keychain
 ✓ App Store Connect key R3JF4GL93F (file)
-app id    ai.t27.vibee is NOT registered in Certificates, Identifiers & Profiles
+✓ app id    ai.t27.vibee is registered (Vibee, UNIVERSAL)
+✓ fastlane build_only -> signed build/ipa/Vibee.ipa (1.1 MB)
 [!] App Store Connect has no app with bundle id ai.t27.vibee.
 ```
 
-The key works (it lists nine apps of the team, Leela among them). What is
-missing is the account holder's, done once:
+The App ID was registered through the API key the same night
+(`Spaceship::ConnectAPI::BundleId.create`). One thing is left, and only the
+account holder can do it, once:
 
-1. **The App ID** - developer.apple.com -> Identifiers -> +, explicit,
-   `ai.t27.vibee`.
-2. **The app record** - App Store Connect -> Apps -> + -> New App, same
-   bundle id. Apple's API cannot create one, so no lane does.
+- **The app record** - App Store Connect -> Apps -> + -> New App, platform
+  iOS, bundle id `ai.t27.vibee`. Apple's API cannot create one, and
+  `fastlane produce` needs an Apple ID password, so no lane does.
 
 After that `tri iphone store` should end in `next build N is above the
 latest M`, and `tri iphone testflight --yes` uploads.
+
+The icon is the t27 mark, white on black, rendered from
+`apps/vibee-editor/player/public/t27-logo.svg` without its text label
+(`rsvg-convert` at 1024, then `magick -alpha remove -alpha off`: App Store
+icons may not carry an alpha channel).
 
 ### The key
 
@@ -123,6 +129,13 @@ upload; new cryptography means revisiting it in the same commit.
 - **The key authenticates provisioning on archive and export**
   (`-allowProvisioningUpdates -authenticationKey*`). Xcode here has no Apple
   ID; Leela's first export died on "No Accounts" without it.
+- **The auth flags go in `xcargs` only.** gym appends `xcargs` to the
+  `-exportArchive` command too, after `export_xcargs`; passing them in both
+  made xcodebuild refuse ("option '-authenticationKeyPath' may only be
+  provided once", exit 64) - after a full archive.
+- **`beta` refuses without `VIBEE_UPLOAD_YES=1`.** An upload publishes under
+  the owner's account; `tri iphone testflight --yes` is the one door that
+  sets it.
 - **macOS rsync during the build.** `-exportArchive` runs
   `/usr/bin/rsync -8aPhhE`; Homebrew's rsync rejects `-E` and the export
   fails as "exportArchive Copy failed" naming neither (Leela, found in
