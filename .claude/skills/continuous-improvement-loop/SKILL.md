@@ -642,6 +642,29 @@ in JSON at position 8192`. Причина — не в тестах: `money-map.m
 шла через другую — ровно тот же узор, что «выход показывается там, где не
 работает» и «сторож стоит не на том пути».
 
+2026-10-02: the third door, `./tri iphone` (device build), got the same
+<2 GB refusal before `xcodebuild`, and builds into ONE fixed derived-data dir
+so repeated runs reuse it instead of stacking. Any new build door must carry
+the guard too -- grep `2048` in `tri` and `run.sh` to see them all.
+The fourth door, `./tri iphone sim`, carries it as well, and watches the
+resource the disk guard does not: memory. A booted simulator holds ~10 GB of a
+16 GB machine; with swap at 5 of 6 GB `simctl install` hung 11 min and
+`launch` 2 (2026-10-02). I first blamed my own leftover `log stream`s, killed
+them, and it hung again -- a cause named before it was measured. The command
+warns on swap < 1 GB and on stray streams, and has deadlines; the loop must
+still shut the simulator down when the check is done. `./tri iphone off` closes that door again: shut the simulator before the
+pre-push gates, they need the same memory.
+`./tri iphone test [Class]` runs the unit tests under a 25-min deadline.
+Two traps it now refuses: its first version had a derived-data dir of its own,
+so every run was a cold build and missed the deadline under load (on the
+shared `tri-iphone-dd-sim` cache: 1.5 min); and a misspelt class ran 0 tests
+while `xcodebuild` reported success -- 0 executed with a filter is now a
+failure. Its timeout message prints the end of the log, not a guessed cause.
+`./tri iphone ru` is the counter a migration loop needs: a plain grep for
+Cyrillic literals both double-counted (a `say(` call spread over lines looked
+Russian-only) and miscounted (`"\(variable)"` with a Cyrillic name). Track the
+number in the loop state; it should only go down.
+
 И третий: **я объяснил остановку неверно**. В отчёте назвал причиной `/tmp/dd`
 и свои сборки. Проверил на следующий день: `run.sh` пишет в `build2`, там было
 94 МБ, а том занят на 197 ГБ чужими данными. Диагноз по памяти вместо замера —
@@ -1977,3 +2000,14 @@ Two more from the same tick:
   mutants were killed by hand (8/8) but not adopted: the marker runs the
   player only, so the next `start` would call them survivors. Adopt only
   what the marker can kill.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 6): a counter that drops faster than the work is lying
+
+`tri iphone ru` fell 326 -> 279 for one screen, but only 11 of those lines
+were real translations; 36 were protocol (JSON keys, `case "x":` labels,
+en/ru literal pairs) that the counter had been calling "Russian UI". When a
+counter learns a new filter, **diff its old and new line lists** and read
+every line that disappears outside the file you worked on. Run the OLD tool
+from inside the same worktree (a copy at `./tri-old-tmp`, deleted after) --
+run from `/tmp` it resolved another app path and printed an empty diff that
+looked like "no change".
