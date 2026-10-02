@@ -492,7 +492,7 @@ CHECKS THAT EACH COST A CYCLE
         tool call rather than on the user row, and a line that says "not
         asked" every time is furniture.
 
-  tri readers [--gate] | tri читатели
+  tri readers [--gate | --run FILE...] | tri читатели
         Tests that read source as TEXT, and the paths they still believe in.
 
         `vitest related` follows the IMPORT graph, and reading a file with fs
@@ -504,6 +504,11 @@ CHECKS THAT EACH COST A CYCLE
         -- and went red when the top-up flow moved into a shared hook. The
         behaviour had not changed; only the file had. It surfaced two days
         later, dragged into a run by an unrelated import.
+
+        `--run FILE...` runs, right now, the tests that name FILE in quotes
+        -- the guards on that one file, not the directory scanners. The same
+        money guard broke the same way a second time on 2026-10-02, found
+        only five minutes into pre-push. Run it before pushing a move.
 
         `--gate` reds when a path no longer exists. A path that exists is not a
         promise: only running the test says whether the string it looks for is
@@ -3151,6 +3156,28 @@ cmd_readers() {
   # does not notice: a money guard sat broken for two days that way.
   #   tri readers            the inventory, and any path that no longer exists
   #   tri readers --gate     exit 1 when a target is missing
+  #   tri readers --run FILE...  run the tests that read FILE as text, NOW,
+  #                          not five minutes into pre-push. 2026-10-02 the
+  #                          same money guard broke the same way a second time
+  #                          (top-up sentences moved out of useTokenTopUp.ts).
+  if [ "${1:-}" = "--run" ]; then
+    shift
+    [ $# -gt 0 ] || { echo "usage: tri readers --run FILE..." >&2; return 2; }
+    # By the quoted file NAME, not `--for`: `--for` also lists every scanner
+    # that walks a whole directory (106 tests for one hook) -- too many to run
+    # before a push. A guard on one file names it, as creditedIsNotOk does.
+    local tests="" f
+    for f in "$@"; do
+      tests="$tests $(cd "$ROOT" && git ls-files '*.test.ts' '*.test.tsx' \
+        | xargs /usr/bin/grep -l -F "'$(basename "$f")'" 2>/dev/null)"
+    done
+    tests=$(echo $tests | tr ' ' '\n' | sort -u)
+    if [ -z "$tests" ]; then echo "  --   no test names these files"; return 0; fi
+    echo "$tests" | sed 's/^/  reads it: /'
+    # shellcheck disable=SC2086
+    ( cd "$ROOT" && timeout 600 npx vitest run $tests )
+    return
+  fi
   ( cd "$ROOT" && node "$ROOT/scripts/text-readers.cjs" "$@" )
 }
 
