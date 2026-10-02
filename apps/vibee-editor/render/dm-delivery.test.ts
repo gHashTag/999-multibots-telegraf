@@ -223,6 +223,42 @@ describe('a refused gift leaves a line, because nothing else does', () => {
     expect(journalled(pool).length, 'a success was filed as a refusal').toBe(0)
   })
 
+  it('a stamped picture is a draft for the owner, never a card for the client', async () => {
+    // Measured 2026-10-03: every image_generate that day came from the free
+    // leg, stamped "pollinations.ai".
+    stubSupabase([leadRow])
+    const { tool, q } = await deliverer({
+      gen: async () => ({ url: PIC, watermark: 'pollinations.ai' }),
+    })
+    const pool = poolWith([{ balance: 50 }])
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот', ...PAID }, // cyrillic-ok
+      ctxWith(pool)
+    )
+    expect(r.delivered).toBe(false)
+    expect(r.proposal, 'a stamped picture became a card').toBeFalsy()
+    expect(r.draft_url).toBe(PIC)
+    expect(r.watermark).toBe('pollinations.ai')
+    expect(q.pendingCount(), 'a card was queued').toBe(0)
+    const rows = journalled(pool)
+    expect(rows.length, 'the stamp left no trace').toBe(1)
+    expect(String(rows[0][4])).toContain('watermark')
+  })
+
+  it('a clean picture still becomes a card', async () => {
+    stubSupabase([leadRow])
+    const { tool } = await deliverer({
+      gen: async () => ({ url: PIC, watermark: null }),
+    })
+    const pool = poolWith([{ balance: 50 }])
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот', ...PAID }, // cyrillic-ok
+      ctxWith(pool)
+    )
+    expect(r.draft_url).toBeUndefined()
+    expect(r.proposal).toBe(true)
+  })
+
   it('a journal that is down does not stop the seller', async () => {
     stubSupabase([leadRow])
     const { tool } = await deliverer()
