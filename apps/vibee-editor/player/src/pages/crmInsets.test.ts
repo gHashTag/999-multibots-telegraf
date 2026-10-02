@@ -172,12 +172,9 @@ describe("/crm at a phone's width", () => {
   it("AUTO's hidden word uses the recipe tri shot knows is hidden on purpose", () => {
     // The word is for screen readers (CrmCockpit.test pins it); tri shot
     // counted it as "cut 33>1" in every row until it learnt the recipe.
+    // That tri shot knows it is pinned in crmShotRecipe.test.ts: shot.mjs is
+    // outside the player image, and this file runs in the deploy gate.
     const phone = mediaBlock('(max-width: 480px)')
     expect(merged('.crm__auto-word', phone)['clip-path']).toBe('inset(50%)')
-    const shot = fs.readFileSync(
-      path.join(__dirname, '../../../../../bin/helpers/shot.mjs'),
-      'utf8'
-    )
-    expect(shot).toContain("s.clipPath === 'inset(50%)'")
   })
 })
