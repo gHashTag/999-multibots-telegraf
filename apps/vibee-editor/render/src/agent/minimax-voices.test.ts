@@ -209,6 +209,40 @@ describe("the owner's MiniMax clone", () => {
     // The model's own voice_id never carries a clone to the route.
     expect(tools).toMatch(/clone_voice: cloneVoice/)
   })
+
+  /*
+   * "Why doesn't the reel the bot sends me use my voice?" (owner,
+   * 2026-10-03). The MiniMax clone lives on Replicate, which is off, so the
+   * route refused every owner line. With Replicate off, the owner's line goes
+   * to our own voice-clone service instead -- BEFORE the route is asked.
+   */
+  it("with Replicate off, the owner's line goes to our voice-clone service before the route", () => {
+    const tools = fs.readFileSync(path.join(__dirname, 'tools.ts'), 'utf8')
+    const ours = tools.search(
+      /if \(cloneVoice === OWNER_MINIMAX_CLONE && !replicateLive\(\)\) \{\s*const ours = await ownerVoiceViaOurClone\(/
+    )
+    const route = tools.indexOf('`${base}/api/generate/audio`')
+    expect(ours).toBeGreaterThan(-1)
+    expect(route).toBeGreaterThan(ours)
+    // It speaks the brand as one word, like the route does.
+    expect(tools.slice(ours, ours + 300)).toMatch(
+      /ownerVoiceViaOurClone\(\s*spokenBrand\(String\(args\.text\)\)/
+    )
+    // Our service is free: whatever the line, the charge goes back.
+    const branch = tools.slice(
+      ours,
+      tools.indexOf('if (!voiceId && !cloneVoice)', ours)
+    )
+    expect(branch.match(/refundTokens\(/g)?.length).toBe(2)
+    // Exactly what was taken, both times (refundTokens' `exact`).
+    expect(branch.match(/charge\['потрачено'\]\s*\)/g)?.length).toBe(2) // cyrillic-ok: existing field
+    expect(tools).toMatch(/TOOLS\.find\(t => t\.name === 'voice_clone_speak'\)/)
+    // story_reel voices its scenes at once; the CPU service takes one line
+    // at a time, so the lines queue instead of meeting 429.
+    expect(tools).toMatch(/const turn = ourCloneQueue\.then\(/)
+    expect(tools).toMatch(/ourCloneQueue = turn\.catch\(/)
+    expect(tools).toMatch(/if \(!out\?\.busy\) break/)
+  })
 })
 
 /*
