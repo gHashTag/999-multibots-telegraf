@@ -2043,6 +2043,13 @@ main had changed `render-server.ts` under the branch.
 - Ticks that commit with `--no-verify` close with `tri no-verify-debt`:
   cyrillic, secrets, prettier from the ROOT, eslint, over the whole branch.
   Its first run found a file formatted by render's prettier, not the root's.
+- A gate that died with NO findings on a starved Mac is about the machine, not
+  the code. `tri starved` says which (load per core >= 4 or swap free < 2 GB,
+  exit 1), shows who eats it, and `--reap` kills only orphaned checkers
+  (ppid 1, > 30 min; 2026-10-02 found five vitest workers of a dead run,
+  3.5 h old). The tsc ratchet now waits for headroom and retries once, then
+  exits 75 "starved" instead of "broken" (`scripts/lib/starvation.cjs`).
+  Findings are never retried.
 
 `tri iphone ru-diff [ref]` (iteration 7) does exactly that: runs the counter
 of `ref` (default origin/main) and the current one per file and prints every
