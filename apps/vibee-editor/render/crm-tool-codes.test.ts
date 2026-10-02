@@ -10,7 +10,8 @@ import { codeValues, quotedCodes } from './failure-code-values'
  * Russian JSON-RPC `error.message` -- written for a model -- and an English
  * screen printed it after "Could not load:". Since 2026-10-03 every `/mcp`
  * error also carries `error.data.code`, and player/src/lib/crmErrorText.ts
- * turns the code into an English sentence.
+ * turns the code into the dictionary sentence `crm.error.code.<code>`, which
+ * must exist in BOTH the en and ru blocks of player/src/atoms/language.ts.
  *
  * Two sources of codes, both read out of the server -- no list is copied here:
  *   - the handler's own refusals (unknown tool, scope, method), literal codes
@@ -55,25 +56,25 @@ const fallback = quotedCodes(
 const gates = ['crm-tools.ts', 'crm-reach.ts', 'telegram-tools.ts'].map(f =>
   render('src', 'agent', f)
 )
-const web = fs.readFileSync(
-  path.join(
-    root,
-    'apps',
-    'vibee-editor',
-    'player',
-    'src',
-    'lib',
-    'crmErrorText.ts'
-  ),
-  'utf8'
-)
+const player = (...p: string[]) =>
+  fs.readFileSync(
+    path.join(root, 'apps', 'vibee-editor', 'player', 'src', ...p),
+    'utf8'
+  )
+/** The screen looks a server code up as `crm.error.code.<code>`. */
+const web = player('lib', 'crmErrorText.ts')
+const dictionary = player('atoms', 'language.ts')
+/** Each language's block, from its declaration to the next top-level `}`. */
+const block = (lang: string) =>
+  between(dictionary, `const ${lang}: Translations = {`, '\n}\n')
+const dictionaries = { en: block('en'), ru: block('ru') }
 
 const handlerCodes = () => [
   ...codeValues(handler + "{ code: 'unknown_method' }").found,
 ]
 const allCodes = () => [...new Set([...handlerCodes(), ...union, ...fallback])]
 const unworded = (text: string) =>
-  allCodes().filter(code => !new RegExp(`\\b${code}:`).test(text))
+  allCodes().filter(code => !text.includes(`'crm.error.code.${code}':`))
 
 describe('/mcp refusal codes', () => {
   it('the slice is the handler, and every err( is named', () => {
@@ -107,14 +108,23 @@ describe('/mcp refusal codes', () => {
       ).toBe(true)
   })
 
-  it('the CRM screen has an English sentence for every code', () => {
-    expect(allCodes().length).toBeGreaterThanOrEqual(10)
-    expect(unworded(web)).toEqual([])
+  it('the CRM screen has a sentence for every code, in en AND ru', () => {
+    // Positive controls: the screen reads this key, and both blocks are found.
+    expect(web).toContain('`crm.error.code.${code}`')
+    for (const [lang, src] of Object.entries(dictionaries)) {
+      expect(src, `${lang} block moved`).toContain("'crm.unreachable':")
+      expect(allCodes().length).toBeGreaterThanOrEqual(10)
+      expect(unworded(src), lang).toEqual([])
+    }
+    // The blocks are distinct: one slice read twice would hide a missing ru.
+    expect(dictionaries.en).not.toBe(dictionaries.ru)
   })
 
   it('negative control: a dropped sentence turns this red', () => {
-    const mutated = web.replace(/\bno_bots:/, 'gone_away:')
-    expect(mutated, 'the mutation did not land').not.toBe(web)
-    expect(unworded(mutated)).toEqual(['no_bots'])
+    for (const [lang, src] of Object.entries(dictionaries)) {
+      const mutated = src.replace("'crm.error.code.no_bots':", "'gone_away':")
+      expect(mutated, `${lang}: the mutation did not land`).not.toBe(src)
+      expect(unworded(mutated), lang).toEqual(['no_bots'])
+    }
   })
 })

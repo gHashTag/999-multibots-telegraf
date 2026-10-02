@@ -7,37 +7,20 @@
  * because tool text is written for a model. On an English screen that was
  * Russian after "Could not load:".
  *
- * Since 2026-10-03 every failure carries a `code`:
+ * Since 2026-10-03 every failure carries a `code`, and every sentence lives in
+ * the dictionary (atoms/language.ts), in both languages:
  *   - `callTool`'s own: `http_<status>`, `empty`, `network`, `bad_reply` --
- *     worded by the dictionary (atoms/language.ts) in both languages;
- *   - the server's, from `error.data.code` -- a Russian reader keeps the
- *     server's words, which are the most precise; an English one gets the
- *     sentence below. An unknown code (an older or newer server), or `refused`
- *     (a refusal that named nothing), shows the server's text only when it is
- *     not Russian, and otherwise a plain "the server refused".
- * The server's codes are checked against this file by
+ *     the `crm.error.*` keys;
+ *   - the server's, from `error.data.code` -- `crm.error.code.<code>`, the
+ *     same pattern as `reasonLine` and `crm.why.<code>` in lib/crm.ts. A code
+ *     this screen does not know yet (a newer server), or `refused` (a refusal
+ *     that named nothing), shows the server's own text: always for a Russian
+ *     reader, and for anyone else only when it is not Russian -- otherwise a
+ *     plain "the server refused".
+ * Every code the server can send is checked against both dictionaries by
  * `crm-tool-codes.test.ts` in render.
  */
 import type { Language } from '@/atoms/language'
-
-/** What each server `error.data.code` means, for a reader who is not Russian. */
-export const CRM_TOOL_CODES: Record<string, string> = {
-  tool_failed: 'the server hit an error — try again in a minute',
-  no_identity:
-    'the server does not know who you are — open the app from Telegram',
-  no_bots:
-    'the CRM shows the audience of your bots, and no bot is registered to you',
-  no_seller_session:
-    'connect your Telegram account in the app — the CRM works from your own account',
-  not_your_lead: 'no such person: you have not written to each other',
-  unknown_tool:
-    'the server does not have this yet — try again after the update',
-  bad_tool_name: 'the request was damaged on the way — try again',
-  unknown_method: 'the server did not understand the request',
-  editorial_scope: 'this key may not open the CRM',
-  game_token_scope:
-    'the game sign-in does not open the CRM — open the app from Telegram',
-}
 
 /** What `lib/crm.ts` `Reached` carries about a failure. */
 export interface CrmFailure {
@@ -64,11 +47,9 @@ export function crmErrorText(
   if (code === 'network') return t('crm.error.network')
   if (code === 'bad_reply') return t('crm.error.badReply')
   // The server spoke: its code, or `refused` when it named nothing.
-  if (lang === 'ru') return text || t('crm.error.refused')
-  const known = Object.prototype.hasOwnProperty.call(CRM_TOOL_CODES, code)
-    ? CRM_TOOL_CODES[code]
-    : undefined
-  if (known) return known
-  if (text && !CYRILLIC.test(text)) return text
+  const key = `crm.error.code.${code}`
+  const line = t(key)
+  if (line !== key) return line
+  if (text && (lang === 'ru' || !CYRILLIC.test(text))) return text
   return t('crm.error.refused')
 }
