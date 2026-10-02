@@ -214,7 +214,11 @@ CHECKS THAT EACH COST A CYCLE
         node_modules lacks (root, render, player): a link carries the main
         checkout's install, made for THAT checkout's branch, so a tree on a
         newer origin/main can miss `redis` or `@tonconnect/ui` and fail tsc on
-        "Cannot find module" that reads as a code fault.
+        "Cannot find module" that reads as a code fault. Before anything is
+        missing it notes a linked install whose package.json declares other
+        packages or versions than this tree's (the same fault a day early),
+        and --heal refuses when the main checkout's package.json is not
+        origin/main's: that install would restore an old branch's packages.
 
   tri price <ModeName>
         Print the STATIC base cost of a mode from BASE_COSTS before you treat an
@@ -3422,27 +3426,36 @@ cmd_deps() {
     fi
   done
   # A link carries the MAIN checkout's install, and that follows the main
-  # checkout's branch, not this tree's (2026-10-03: main sat on an old branch,
-  # its install had no `redis`, and every tree on origin/main failed root
-  # typecheck on "Cannot find module 'redis'" -- read as a code fault).
-  local rel missing
+  # checkout's branch, not this tree's (2026-10-03: the main checkout had sat
+  # since 2026-09-29 on a branch merged 09-23, 2634 commits behind; the --heal
+  # of 2026-10-02 23:20 installed THAT package.json, and every tree on
+  # origin/main failed root typecheck on "Cannot find module 'redis'" -- read
+  # as a code fault). The rule lives in scripts/deps-absent.cjs, which verify
+  # calls too: it resolves upwards the way node does, so a package hoisted to
+  # the root is present, not absent.
+  local on behind
+  on="$(git -C "$main" branch --show-current 2>/dev/null)"
+  behind="$(git -C "$main" rev-list --count HEAD..origin/main 2>/dev/null)"
+  [ "$behind" = 0 ] && behind=
+  local rel label missing drift
   while IFS= read -r rel; do
     [ -f "$wt/$rel/package.json" ] && [ -d "$wt/$rel/node_modules" ] || continue
-    missing="$(node -e '
-      const fs = require("fs"), p = require("path"), d = process.argv[1]
-      const pkg = JSON.parse(fs.readFileSync(p.join(d, "package.json"), "utf8"))
-      const names = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })
-      const gone = names.filter(n => !fs.existsSync(p.join(d, "node_modules", n, "package.json")))
-      process.stdout.write(gone.join(" "))
-    ' "$wt/$rel" 2>/dev/null)"
-    [ -z "$missing" ] && continue
-    rc=1
-    bad "$([ "$rel" = . ] && echo root || echo "$rel") declares packages its node_modules lacks: $missing"
-    if [ -L "$wt/$rel/node_modules" ]; then
-      echo "       the link carries $main's install, made for ITS branch; fix: tri deps --own, then install in this tree"
-    else
-      echo "       install here, in $wt/$rel"
+    label="$([ "$rel" = . ] && echo root || echo "$rel")"
+    missing="$(node "$ROOT/scripts/deps-absent.cjs" "$wt/$rel" "$label" 2>/dev/null)"
+    missing="${missing#"$label: "}"
+    if [ -n "$missing" ]; then
+      rc=1
+      bad "$label declares packages its node_modules lacks: $missing"
+      if [ -L "$wt/$rel/node_modules" ]; then
+        echo "       the link carries $main's install, made for ITS branch (${on:-a detached HEAD}${behind:+, $behind commits behind origin/main}); fix: tri deps --own, then install in this tree"
+      else
+        echo "       install here, in $wt/$rel"
+      fi
     fi
+    # The early warning: the linked install declares other packages than this
+    # tree, while nothing may be missing yet and every gate is still green.
+    drift="$(node "$ROOT/scripts/deps-absent.cjs" --drift "$wt/$rel" "$label" 2>/dev/null)"
+    [ -n "$drift" ] && echo "  note the linked install is another branch's -- $drift"
   done < <(cd "$wt" && { echo .; find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/' | sed 's|/node_modules$||'; })
   [ "$wt" != "$main" ] && [ -L "$wt/node_modules" ] && \
     echo "  note no root npm ci / bun install in this tree: node_modules is the main checkout's, and an install empties it (tri deps --own first)"
@@ -3451,7 +3464,13 @@ cmd_deps() {
   if [ "$state" != ok ]; then
     rc=1
     bad "the main checkout's node_modules is $(tr "[:lower:]" "[:upper:]" <<<"$state") -- a root install through a linked tree does this (npm empties the link's target first)"
-    if [ "$heal" = 1 ]; then
+    # bun installs the package.json in front of it. If the main checkout's is
+    # not origin/main's, a heal restores an old branch's packages and every
+    # linked tree goes red on TS2307 instead of ENOENT (2026-10-02 23:20).
+    if [ "$heal" = 1 ] && ! git -C "$main" diff --quiet origin/main -- package.json 2>/dev/null; then
+      bad "not healing: the main checkout's package.json is not origin/main's (on ${on:-a detached HEAD}${behind:+, $behind commits behind}) -- an install would restore that branch's packages"
+      echo "       whoever holds the main checkout brings it to main first; it is not this tree's to switch"
+    elif [ "$heal" = 1 ]; then
       # bun.lock drifts on install. Put it back only when nobody was editing
       # the dependencies: a dirty bun.lock or package.json is someone's work.
       local dirty
