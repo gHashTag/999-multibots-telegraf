@@ -944,14 +944,14 @@ async function spendTokens(
 
 /** Our voice-clone service's queue: one line at a time, as it speaks. */
 let ourCloneQueue: Promise<unknown> = Promise.resolve()
-const OUR_CLONE_BUSY_RETRIES = 4
-const OUR_CLONE_BUSY_WAIT_MS = 20_000
 
 /**
  * The owner's line spoken by our own voice-clone service (voice-clone-speak.ts),
  * found in the registry at call time: the tool is pushed after TOOLS is
- * declared. Its own owner gate still applies -- the owner's sample is lent to
- * the owner and keepers only. The language is read off the line itself.
+ * declared. Cloning is locked to the owner and keepers, and checked here
+ * BEFORE the line joins the queue; the tool's own gates still apply on top
+ * (the owner's sample is spoken for the owner alone, so a keeper is refused
+ * there). The language is read off the line itself.
  */
 async function ownerVoiceViaOurClone(
   text: string,
@@ -960,28 +960,27 @@ async function ownerVoiceViaOurClone(
   | { done: true; url: string; seconds: number | null }
   | { done: false; reason: string }
 > {
+  if (!isOwnerOrKeeper(String(ctx?.telegramId ?? '')))
+    return { done: false, reason: VOICE_CLONE_LOCKED_REASON }
   const tool = TOOLS.find(t => t.name === 'voice_clone_speak')
   if (!tool)
     return { done: false, reason: 'voice_clone_speak is not registered' }
   const lang = /[\u0400-\u04FF]/.test(text) ? 'ru' : 'en'
   /*
    * ONE AT A TIME. The service synthesises one line at a time on CPU and
-   * answers 429 to the next; story_reel voices every scene at once
+   * answers 503 at once to the next; story_reel voices every scene at once
    * (Promise.all), so all but one scene used to fail. The lines queue here,
-   * and a line that still meets "busy" (another caller) waits and tries again.
+   * and a line that still meets "busy" (another caller) backs off -- the
+   * longer of its own step and the service's Retry-After -- until one
+   * overall deadline (speakWithBusyRetry, OUR_CLONE_BUSY_RETRY).
    */
-  const turn = ourCloneQueue.then(async () => {
-    let out: any
-    for (let attempt = 0; attempt < OUR_CLONE_BUSY_RETRIES; attempt++) {
-      if (attempt) await new Promise(r => setTimeout(r, OUR_CLONE_BUSY_WAIT_MS))
-      out = await tool.handler({ text, lang }, ctx).catch((e: unknown) => ({
-        done: false,
-        reason: String(e).slice(0, 160),
-      }))
-      if (!out?.busy) break
-    }
-    return out
-  })
+  const turn = ourCloneQueue.then(() =>
+    speakWithBusyRetry(() => tool.handler({ text, lang }, ctx), {
+      ...OUR_CLONE_BUSY_RETRY,
+      sleep: ms => new Promise(r => setTimeout(r, ms)),
+      now: () => Date.now(),
+    })
+  )
   ourCloneQueue = turn.catch(() => undefined)
   const out: any = await turn
   if (out?.done && out.url)
@@ -1185,7 +1184,10 @@ import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { REEL_ANALYZE_TOOLS } from './reel-analyze'
 import {
   LIVE_VOICE_SAMPLE,
+  OUR_CLONE_BUSY_RETRY,
+  VOICE_CLONE_LOCKED_REASON,
   makeVoiceCloneSpeakTool,
+  speakWithBusyRetry,
   voiceCloneEnv,
 } from './voice-clone-speak'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
@@ -1208,6 +1210,7 @@ import {
   COMPACT_HIDDEN,
   OWNER_TELEGRAM_ID,
   isOwnerOrKeeper,
+  isPlatformOwner,
 } from './telegram-tools'
 import { countInitDataBot } from '../auth/initdata-bot-counts'
 import { PROJECT_TOOLS } from './project-tools'
@@ -3766,7 +3769,8 @@ TOOLS.push(
     put: (bytes, mime, name) => publishImageBytes(bytes, mime, name),
     // A lambda, not the function itself: tests that mock telegram-tools
     // without this export must still be able to load the registry.
-    mayUseOwnerVoice: who => isOwnerOrKeeper(who),
+    mayClone: who => isOwnerOrKeeper(who),
+    isOwner: who => isPlatformOwner(who),
     fetch: (input, init) => fetch(input, init),
   })
 )

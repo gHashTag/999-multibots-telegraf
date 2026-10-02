@@ -84,15 +84,21 @@ const OWNER_TELEGRAM_ID = (
   process.env.OWNER_TELEGRAM_ID || PLATFORM_OWNER_FALLBACK
 ).trim()
 
+/** The platform owner alone (not a keeper). */
+export function isPlatformOwner(who: string | null | undefined): boolean {
+  const id = String(who ?? '').trim()
+  return !!id && id === OWNER_TELEGRAM_ID
+}
+
 /**
  * The platform owner, or a keeper (HIVE_KEEPERS). One home for the check:
- * cash months (club-cash.ts) and the owner's own voice (voice-clone-speak.ts)
- * both ask exactly this.
+ * cash months (club-cash.ts) and voice cloning (voice-clone-speak.ts, and the
+ * owner's reel lines in tools.ts) both ask exactly this.
  */
 export function isOwnerOrKeeper(who: string | null | undefined): boolean {
   const id = String(who ?? '').trim()
   if (!id) return false
-  return id === OWNER_TELEGRAM_ID || keepers().includes(id)
+  return isPlatformOwner(id) || keepers().includes(id)
 }
 
 /**
