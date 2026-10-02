@@ -1,0 +1,137 @@
+/**
+ * tri online: network down (wait) vs refused (look), told apart from the
+ * probes' own words (scripts/lib/online.cjs, bin/helpers/online.mjs).
+ * No test here touches the network: the texts are the ones seen live.
+ */
+import { describe, expect, it } from 'vitest'
+import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+const ROOT = path.resolve(HERE, '..')
+const { classify, reason, verdict } = createRequire(import.meta.url)(
+  './lib/online.cjs'
+)
+
+// git over ssh while github.com did not resolve, 2026-10-03, word for word.
+const SSH_DNS = [
+  'ssh: Could not resolve hostname github.com: nodename nor servname provided, or not known',
+  'fatal: Could not read from remote repository.',
+  '',
+  'Please make sure you have the correct access rights',
+  'and the repository exists.',
+].join('\n')
+const HTTPS_DNS =
+  "fatal: unable to access 'https://github.com/gHashTag/999-multibots-telegraf.git/': Could not resolve host: github.com"
+const SSH_AUTH = [
+  'git@github.com: Permission denied (publickey).',
+  'fatal: Could not read from remote repository.',
+  '',
+  'Please make sure you have the correct access rights',
+  'and the repository exists.',
+].join('\n')
+const SSH_NO_REPO =
+  'ERROR: Repository not found.\nfatal: Could not read from remote repository.'
+
+describe('classify', () => {
+  it('a zero exit is up whatever it printed', () => {
+    expect(classify(0, 'Permission denied')).toBe('up')
+  })
+  it('the outage of 2026-10-03 is dns, over ssh and over https', () => {
+    expect(classify(128, SSH_DNS)).toBe('dns')
+    expect(classify(128, HTTPS_DNS)).toBe('dns')
+    expect(classify(1, 'ENOTFOUND getaddrinfo ENOTFOUND nohost.invalid')).toBe(
+      'dns'
+    )
+  })
+  it('a refused key is auth, though the text also says "Could not read"', () => {
+    expect(classify(128, SSH_AUTH)).toBe('auth')
+    expect(classify(128, SSH_NO_REPO)).toBe('auth')
+    expect(classify(1, 'gh: Bad credentials (HTTP 401)')).toBe('auth')
+  })
+  it('a timeout or a refused connection is connect', () => {
+    expect(classify(124, ' timed out')).toBe('connect')
+    expect(classify(1, 'connect ECONNREFUSED 1.2.3.4:443')).toBe('connect')
+  })
+  it('anything else is unknown, never quietly up', () => {
+    expect(classify(1, 'http 502')).toBe('unknown')
+    expect(classify(1, '')).toBe('unknown')
+  })
+})
+
+describe('reason', () => {
+  it('shows the cause, not git\'s closing "the repository exists."', () => {
+    expect(reason(SSH_DNS)).toMatch(
+      /^ssh: Could not resolve hostname github\.com/
+    )
+    expect(reason(SSH_AUTH)).toBe(
+      'git@github.com: Permission denied (publickey).'
+    )
+  })
+  it('falls back to the first line, cut to 140 characters', () => {
+    expect(reason('http 502\nmore')).toBe('http 502')
+    expect(reason('x'.repeat(300))).toHaveLength(140)
+    expect(reason(undefined)).toBe('')
+  })
+})
+
+describe('verdict', () => {
+  const up = {
+    'github-dns': 'up',
+    'git-ssh': 'up',
+    'github-api': 'up',
+    'app-store-connect': 'up',
+    render: 'up',
+  }
+  it('all up is 0', () => {
+    expect(verdict(up).code).toBe(0)
+  })
+  it('GitHub unreachable is 1: wait, the code is not at fault', () => {
+    const v = verdict({ ...up, 'github-dns': 'dns', 'git-ssh': 'dns' })
+    expect(v.code).toBe(1)
+    expect(v.next).toContain('--wait')
+  })
+  it('a refusal outranks an outage: 3, a retry never helps', () => {
+    expect(
+      verdict({ ...up, 'git-ssh': 'auth', 'github-api': 'connect' }).code
+    ).toBe(3)
+  })
+  it('GitHub fine, a neighbour down is 1 and says so', () => {
+    const v = verdict({ ...up, render: 'dns' })
+    expect(v.code).toBe(1)
+    expect(v.next).toMatch(/GitHub is reachable/)
+  })
+  it('an unrecognised failure is 4, not 0', () => {
+    expect(verdict({ ...up, render: 'unknown' }).code).toBe(4)
+  })
+})
+
+describe('the command', () => {
+  it('bin/tri dispatches online and lists it in usage', () => {
+    const tri = fs.readFileSync(path.join(ROOT, 'bin/tri'), 'utf8')
+    expect(tri).toMatch(/^\s+online\) shift; .*bin\/helpers\/online\.mjs/m)
+    expect(tri).toMatch(/^\s+tri online \[--wait N\]/m)
+  })
+  it('shows reason(), not the last line', () => {
+    const src = fs.readFileSync(
+      path.join(ROOT, 'bin/helpers/online.mjs'),
+      'utf8'
+    )
+    expect(src).toContain('reason(raw[i].text)')
+  })
+  it('a bad argument is usage, exit 2, before any probe', () => {
+    const r = spawnSync(
+      'node',
+      [path.join(ROOT, 'bin/helpers/online.mjs'), '--wait', 'soon'],
+      {
+        encoding: 'utf8',
+        timeout: 10000,
+      }
+    )
+    expect(r.status).toBe(2)
+    expect(r.stderr).toContain('usage: tri online')
+  })
+})
