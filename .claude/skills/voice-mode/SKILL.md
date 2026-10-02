@@ -1,6 +1,6 @@
 ---
 name: 'voice-mode'
-description: 'The voice mode in the app chat (orb, talk to the agent hands-free): where the code is, how barge-in / pause / resume work, the measured numbers, the open weak spots with status, and how a loop cycle picks up where the last one stopped. Use when touching player/src/lib/voice, components/Voice, render /api/voice/*, the whisper, speaches, gigaam, parakeet or mouth services, or when someone says the voice does not answer, speaks the wrong language, reads markup aloud, or cannot be interrupted.'
+description: 'The voice mode in the app chat (orb, talk to the agent hands-free): where the code is, how barge-in / pause / resume work, the measured numbers, the open weak spots with status, and how a loop cycle picks up where the last one stopped. Use when touching player/src/lib/voice, components/Voice, render /api/voice/*, the whisper, speaches, gigaam, parakeet or mouth services, or when someone says the voice does not answer, speaks the wrong language, reads markup aloud, cannot be interrupted, or hears a fan or noise as speech.'
 ---
 
 # Voice mode
@@ -43,7 +43,9 @@ paying for the fallback.
 ## Map
 
 ```
-player/src/lib/voice/session.ts        the state machine: mic, VAD, barge-in, queue, playback
+player/src/lib/voice/session.ts        the state machine: mic, tick, barge-in, queue, playback
+player/src/lib/voice/vad.ts            the gate: noise floor, steady room, turn clock (pure)
+player/scripts/vad-bench.ts            that gate over WAV files (`tri vad`)
 player/src/lib/voice/replyFollower.ts  turns a streaming answer into whole sentences, strips [[card]]
 player/src/lib/voice/sentences.ts      sentence cutting
 player/src/lib/voice/spokenLang.ts     which language a phrase / sentence is in
@@ -319,7 +321,10 @@ mouth`) from a clean tree after a merge that touches `deployment/mouth`.
 - Hume EVI: ~800 ms before speech interrupts. Vapi: `numWords` before stop,
   plus an ignore list of acknowledgements. ElevenLabs: a soft-timeout filler
   phrase after ~3 s of thinking.
-- Silero VAD in the browser: `@ricky0123/vad-web` (MIT/ISC, ~2 MB model).
+- Silero VAD in the browser: `@ricky0123/vad-web` (MIT/ISC); ~4.8 MB gzip
+  with its onnxruntime (cycle 8). LiveKit and Pipecat run Silero on the
+  SERVER, on the audio stream; OpenAI Realtime offers `server_vad` and
+  `semantic_vad`. We record in the browser, so ours must judge there.
   Pipecat Smart Turn v3: 8 MB ONNX end-of-turn model, CPU, knows Russian.
 - Latency trick everyone uses (LiveKit, Pipecat, Vapi): send the first
   clause to TTS, not the first sentence. Ours since cycle 2: the first comma,
@@ -330,8 +335,6 @@ mouth`) from a clean tree after a merge that touches `deployment/mouth`.
   STREAM audio as it is made. Our mouth answers a whole short phrase in
   0.1-0.3 s without streaming; streaming would matter only for long first
   clauses. Open models in the same class: Kokoro, Piper, Kitten TTS.
-
-## Weak spots, with status
 
 ## The road, split (cycle 7)
 
@@ -368,6 +371,52 @@ Mac on 2026-10-02:
   no difference; it was the network that minute. Measure an anomaly against
   the browser's own protocol before acting on it.
 
+## Steady noise is the room (cycle 8)
+
+The gate (`player/src/lib/voice/vad.ts`, pure, shared by the session, the
+tests and `tri vad`) learned its noise floor from quiet only. A fan, an
+engine or a hum that STARTS above the floor was loud for good: the session
+recorded it as one phrase until `MAX_UTTERANCE_MS` (30 s), and a question
+asked over it waited all that time.
+
+The rule: loud AND flat for `STEADY_MS` (2 s) is the room. Flat means the
+loudest tick over the quietest in the window is under `STEADY_SPREAD` (2.5).
+The gate then takes the window's mean as the new floor and says `steady`;
+the session drops what the noise started (`roomChanged`), or, if the noise
+had cut into an answer, resumes it (`resumeHeld`).
+
+`tri vad` (scripts/vad-bench.ts) runs the gate tick by tick over audio. Its
+own battery: `say` (Milena, Samantha) + ffmpeg `anoisesrc` at 48 kHz.
+
+| file                         | gate before cycle 8          | gate now                                 |
+| ---------------------------- | ---------------------------- | ---------------------------------------- |
+| ru / en phrase, quiet room   | turn end (4.68 / 4.12 s)     | the same; flattest 2 s spread 92 / 16    |
+| brown, pink, white fan alone | "talking" to the end of file | room learned at 2.04 s; spread 1.05-1.73 |
+| ru / en question over a fan  | "talking" to the end of file | room at 2.04 s, then 4.56 / 4.04 s heard |
+| ru over a fan ~7 dB below it | onset at 0.24 s, never ended | room at 2.04 s; phrase 4.08 of 5.56 s    |
+
+Measured spreads: speech 8.9-93x alone, 4.9-7.6x over a fan; noise
+1.05-2.09x. The margin under speech-over-fan is about 2x -- the thinnest
+number in this table.
+
+**Limits, said plainly.** TTS is not a person (a person breathes, pauses and
+swings more, which helps). The browser's own `noiseSuppression` is NOT in
+the bench, so it is the worst case. A fan within ~7 dB of the voice still
+eats the quiet tail of a phrase (4.08 s of 5.56 s heard). A RISING noise (a
+car passing) is not flat and is still "speech" -- a model VAD is the answer
+to that.
+
+Silero, the competitors' choice: `@ricky0123/vad-web` needs onnxruntime-web
+(11.2 MB wasm, 2.9 MB gzip) plus the model (2.3 MB, 1.9 MB gzip) -- about
+4.8 MB gzip on first use, loaded lazily. An owner decision on weight, not a
+loop's.
+
+**zsh trap met while measuring:** `"anoisesrc=c=$c:a=0.2"` in zsh expands
+`$c:a` as the `:a` (absolute path) modifier. `tri` is bash; in an
+interactive zsh write `${c}`.
+
+## Weak spots, with status
+
 | #   | weak spot                                            | status                                                         |
 | --- | ---------------------------------------------------- | -------------------------------------------------------------- |
 | 1   | card markup read aloud                               | FIXED cycle 1                                                  |
@@ -376,7 +425,7 @@ Mac on 2026-10-02:
 | 4   | stuck "speaking" on a suspended AudioContext         | FIXED cycle 1 (watchdog)                                       |
 | 5   | silence after the phrase looked like "not heard"     | FIXED cycle 1 (earcon)                                         |
 | 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)       | FIXED cycle 3 (GigaAM, #3252)                                  |
-| 7   | energy VAD: a fan or street noise counts as speech   | OPEN -- Silero vad-web                                         |
+| 7   | energy VAD: a fan or street noise counts as speech   | PARTLY cycle 8 (steady noise = room); rising noise -> Silero   |
 | 8   | words heard only after the 850 ms pause              | FIXED cycle 4 (#3257)                                          |
 | 8b  | turn end is a fixed pause; slow speakers get cut     | OPEN -- Smart Turn v3                                          |
 | 9   | nothing said while the agent thinks for long         | OPEN -- filler after ~3 s                                      |
@@ -406,6 +455,8 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    `./tri ears deploy en`; if it touched `deployment/mouth`,
    `./tri mouth deploy`. `./tri ears` then shows every deploy and the
    render's routing for hearing and speaking.
+   A PR that touches `vad.ts` or the session's tick: `./tri vad` (exit 1 =
+   speech taken for the room or a fan held as a phrase) before the commit.
 5. Update the tables here in the same PR.
 
 ## Common issues

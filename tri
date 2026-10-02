@@ -414,6 +414,18 @@ CHECKS THAT EACH COST A CYCLE
         (exit 2). On 2026-10-02: edge sin1, render in sfo, ~250-290 ms warm.
         No key needed.
 
+  tri vad | tri шум [--legacy] [file.wav ...]
+        The mic's voice-activity gate (player/src/lib/voice/vad.ts) run tick
+        by tick over recordings, as the session runs it. With no files it
+        makes its own battery (say + ffmpeg anoisesrc, 48 kHz mono): ru/en
+        speech, fans, speech over a fan -- and prints onsets, turn ends,
+        "steady room learned" and the flattest 2 s of each (spread vs
+        STEADY_SPREAD). Exit 1 = speech taken for the room, a question over
+        a fan not heard as a turn, or a fan held as a phrase. --legacy runs
+        the gate before cycle 8 (a fan was "speech" for 30 s), unjudged.
+        Your own files are judged only if named speech-*, over-fan-*, fan-*.
+        No key, no network.
+
   tri loop | tri виток
         Where the last loop cycle stopped, before this one starts: dirty tree,
         gates or pushes running IN THIS TREE, this branch's PR, and the newest
@@ -5671,6 +5683,76 @@ PY
 }
 
 # ─────────────────────────────────────────────────────────────────────────
+# tri vad: the mic's voice-activity gate over real recordings (cycle 8).
+#
+# A fan that STARTS loud was "speech" for 30 s before cycle 8 -- a question
+# asked over it waited for the utterance cap. Unit tests feed the gate
+# synthetic levels; this feeds it audio, so the STEADY_SPREAD margin is a
+# measured number. TTS is not a person and the browser's own noise
+# suppression is not applied: read it as the gate's worst case.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_vad() {
+  local legacy='' a files=() dir bench="$ROOT/apps/vibee-editor/player/scripts/vad-bench.ts"
+  for a in "$@"; do
+    case "$a" in
+      --legacy) legacy=--legacy ;;
+      -*) bad "tri vad [--legacy] [file.wav ...], not '$a'"; return 2 ;;
+      *) files+=("$a") ;;
+    esac
+  done
+  command -v bun >/dev/null || { bad 'bun is needed to run the gate'; return 2; }
+  if [ ${#files[@]} -eq 0 ]; then
+    command -v ffmpeg >/dev/null && command -v say >/dev/null \
+      || { bad 'no files given, and the battery needs ffmpeg and say (macOS)'; return 2; }
+    dir=$(mktemp -d "${TMPDIR:-/tmp}/tri-vad.XXXXXX")
+    local W=(-hide_banner -loglevel error -y -ar 48000 -ac 1 -c:a pcm_s16le)
+    say -v Milena -o "$dir/ru.aiff" 'Открой мой календарь и покажи, какие встречи у меня завтра утром.' \
+      && say -v Samantha -o "$dir/en.aiff" 'Open my calendar and show me what meetings I have tomorrow morning.' \
+      || { bad 'say could not speak (voices Milena and Samantha)'; return 2; }
+    # Each speech file: 1 s of room, the phrase, 2 s of room. The fans sit
+    # at -22..-28 dB RMS, above the quiet threshold (-30 dB), so the old gate
+    # held each as a phrase; under speech the fan is ~8 dB below the voice.
+    for a in ru en; do
+      ffmpeg -f lavfi -i 'anoisesrc=c=brown:a=0.002:d=1' -i "$dir/$a.aiff" -f lavfi -i 'anoisesrc=c=brown:a=0.002:d=2' \
+        -filter_complex '[1]aresample=48000[s];[0][s][2]concat=n=3:v=0:a=1' "${W[@]}" "$dir/speech-$a.wav" || return 2
+      ffmpeg -i "$dir/speech-$a.wav" -f lavfi -i 'anoisesrc=c=brown:a=0.2:d=12' \
+        -filter_complex '[0]adelay=3000[s];[1][s]amix=inputs=2:duration=first:normalize=0' "${W[@]}" "$dir/over-fan-$a.wav" || return 2
+    done
+    ffmpeg -f lavfi -i 'anoisesrc=c=brown:a=0.25:d=10' "${W[@]}" "$dir/fan-brown.wav" || return 2
+    ffmpeg -f lavfi -i 'anoisesrc=c=pink:a=0.3:d=10' "${W[@]}" "$dir/fan-pink.wav" || return 2
+    ffmpeg -f lavfi -i 'anoisesrc=c=white:a=0.08:d=10' "${W[@]}" "$dir/fan-white.wav" || return 2
+    files=("$dir"/speech-*.wav "$dir"/over-fan-*.wav "$dir"/fan-*.wav)
+  fi
+  local out rc=0
+  out=$(bun "$bench" $legacy "${files[@]}") || { bad 'the bench failed'; return 2; }
+  printf '%s\n' "$out"
+  [ -n "${dir:-}" ] && rm -rf "$dir"
+  [ -n "$legacy" ] && { warn 'the gate before cycle 8, for comparison only -- not judged'; return 0; }
+  # Judged by events, per file name: speech is never the room and ends as a
+  # turn; over a fan, the room is learned first and the phrase still ends as
+  # a turn; a fan alone is learned and never held as a phrase.
+  local verdict
+  verdict=$(printf '%s\n' "$out" | awk '
+    function judge() {
+      if (f == "") return
+      if (f ~ /^speech-/ && (steady || !ended)) print f ": speech taken for the room, or never ended"
+      if (f ~ /^over-fan-/ && !(steady && endedAfter)) print f ": the question over the fan was not heard as a turn"
+      if (f ~ /^fan-/ && (!steady || held)) print f ": the fan was not learned as the room"
+    }
+    /^[^ ]/ { judge(); f = $1; steady = ended = endedAfter = held = 0; next }
+    /steady room learned/ { steady = 1 }
+    /turn end/ { ended = 1; if (steady) endedAfter = 1 }
+    /still "talking"|CAP:/ { held = 1 }
+    END { judge() }')
+  if [ -n "$verdict" ]; then
+    while IFS= read -r a; do bad "$a"; done <<<"$verdict"
+    rc=1
+  fi
+  [ "$rc" = 0 ] && good 'the gate tells speech from a steady room'
+  return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
 # tri gigaam: the Russian ears of voice mode (deployment/gigaam).
 #
 # GigaAM is not wired to GitHub: it changes rarely and its image carries a
@@ -5919,6 +6001,7 @@ case "$action" in
   browser|браузер)     cmd_browser ;;
   voice|голос)         cmd_voice "$@" ;;
   road|дорога)         V_ROAD_ONLY=1 cmd_voice "$@" ;;
+  vad|шум)             cmd_vad "$@" ;;   # cyrillic-ok: alias, like its neighbours
   ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
   mouth|рот)           cmd_ears "$@" mouth ;;  # cyrillic-ok: the voice's mouth, cycle 6
   gigaam|гигаам)       cmd_ears "$@" ru ;;  # cyrillic-ok: the name it had in voice-loop-3
