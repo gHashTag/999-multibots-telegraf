@@ -14,9 +14,28 @@
  * before -- a phrase this does not recognise is never held.
  *
  * LiveKit's turn detector does the same with a model: min_delay 0.3 s when
- * it is sure, max_delay 2.5 s when it is not. Pipecat's Smart Turn v3 judges
- * the audio itself (8 MB ONNX) and falls back after 3 s. Words are what we
- * already have, at no download.
+ * it is sure, max_delay 2.5 s when it is not.
+ *
+ * THE VOICE JUDGES TOO (cycle 13). Words miss what the voice carries: a
+ * phrase that ends on a noun ("Show me my week") but on a rising, held
+ * vowel is not over, and no word list can tell. The ears judge the same
+ * bytes with Smart Turn v3.2 (deployment/gigaam/turn.py): `done` is the
+ * probability the voice has finished. Below SOUND_DONE the turn is held
+ * exactly as a trailing "and" holds it.
+ *
+ * The voice may only HOLD a turn, never end one early. On LiveKit's
+ * end-of-turn benchmark (2026) Smart Turn v3.2 cuts 35 % of mid-turn
+ * pauses at a 300 ms budget -- as a sole judge it would end turns too
+ * soon. As a second opinion that can only wait longer, its cost is
+ * HANGING_TURN_MS on every finished phrase it calls unfinished.
+ *
+ * NOT YET TRUSTED, so it is off (VoiceDeps.voiceHolds). Its benchmark says
+ * 2 % of finished Russian is called unfinished; on our synthesized phrases,
+ * 300 ms into the pause, it was two of three (Russian "how much is the
+ * club?" scored 0.06) and it caught two of seven unfinished ones.
+ * Synthesized speech is not
+ * what it was trained on, so that is no verdict either -- `tri turn
+ * --audio` on real recorded voices decides whether it is switched on.
  */
 
 /** Silence a phrase that stops mid-thought is given before it counts as said. */
@@ -34,6 +53,21 @@ const RU =
 const EN =
   'and or but because if when where which the a an to of at for with from into my your our their uh um er erm'
 const HANGING = new Set(`${RU} ${EN}`.split(' '))
+
+/**
+ * Below this the voice is taken as not finished: Smart Turn's own cut
+ * (Pipecat's inference.py, `probability > 0.5` is "complete").
+ */
+export const SOUND_DONE = 0.5
+
+/**
+ * The phrase is still going: its words hang, or its voice does. An empty
+ * phrase is never held -- nothing was said, the voice judged a breath.
+ */
+export function stillGoing(words: string, done?: number | null): boolean {
+  if (hangs(words)) return true
+  return Boolean(words.trim()) && typeof done === 'number' && done < SOUND_DONE
+}
 
 /** The phrase stops mid-thought: more words are on their way. */
 export function hangs(text: string): boolean {

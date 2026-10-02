@@ -24,12 +24,10 @@
 /* ROWS THAT SCROLL SIDEWAYS RUN TO THE SCREEN EDGE, AND START IN LINE.
    The section strip carries its own 16px inset for pages without one; here
    it sat on top of the page's, so the tabs began 16px right of everything
-   under them. The funnel row stopped at the page inset instead, and its
-   last chip was simply cut -- nothing said the row scrolls. Both now bleed
-   through the page inset and keep it as their own, and fade out on the
-   right the way the strip does. */
-.crm > .section-strip,
-.crm .crm-funnel__stages {
+   under them. It now bleeds through the page inset and keeps it as its own,
+   and fades out on the right. (The funnel row used to do the same; it wraps
+   now -- FunnelStrip.css -- so there is nothing past the edge to fade.) */
+.crm > .section-strip {
   margin-inline: calc(-1 * var(--crm-pad));
   padding-left: var(--crm-pad);
   padding-right: 28px;
@@ -262,13 +260,26 @@
 }
 
 /* The name is a way IN -- to the client's own page -- so it is the primary
-   colour; the t.me link beside it is a small secondary control. */
+   colour, and a finger's height: as bare text it was a 20px strip. */
 .crm__open {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target, 44px);
   color: var(--vibee-green, #00ff88);
   text-decoration: none;
 }
 
-.crm__stage a {
+/* The t.me link is secondary in colour, not in size: its own 44px square
+   after the stage, not a 28x16 word inside it. */
+.crm__who .crm__tme {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target, 44px);
+  min-height: var(--touch-target, 44px);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-muted, #888);
   text-decoration: underline;
 }
@@ -438,11 +449,25 @@
   background: var(--color-bg-elevated, #1a1a1a);
 }
 
+/*
+ * THE BOX IS THE LABEL, NOT THE INPUT. The glyph and the clear button used to
+ * sit absolutely on top of a full-width input, so the input's box ran under
+ * the "x" -- two controls on one spot (tri shot crm, 2026-10-02). Now the
+ * label draws the box and the three sit side by side in it.
+ */
 .crm__search {
-  position: relative;
   display: flex;
   align-items: center;
   margin: 0;
+  min-height: var(--touch-target, 44px);
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  background: var(--t27-surface-2, rgba(255, 255, 255, 0.08));
+}
+
+.crm__search:focus-within {
+  border-color: var(--vibee-green, #00ff88);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
 }
 
 .crm__glyph {
@@ -451,8 +476,7 @@
 }
 
 .crm__search .crm__glyph {
-  position: absolute;
-  left: 12px;
+  margin-left: 12px;
   pointer-events: none;
 }
 
@@ -463,11 +487,11 @@
 .crm__search input {
   flex: 1;
   min-width: 0;
-  min-height: var(--touch-target, 44px);
-  padding: 10px 44px 10px 40px;
-  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+  min-height: 42px;
+  padding: 10px 12px 10px 8px;
+  border: 0;
   border-radius: 12px;
-  background: var(--t27-surface-2, rgba(255, 255, 255, 0.08));
+  background: transparent;
   color: var(--text-primary, #fff);
   font: inherit;
   font-size: 16px;
@@ -475,9 +499,12 @@
   appearance: none;
 }
 
+/* The focus ring belongs to the box (the label), not to the bare field
+   inside it: design-system.css rings every focused input, and here that
+   drew a second box inside the first. */
 .crm__search input:focus {
   outline: none;
-  border-color: var(--vibee-green, #00ff88);
+  box-shadow: none;
 }
 
 /* Our own clear button, at a finger's size; the browser's is a speck. */
@@ -486,8 +513,7 @@
 }
 
 .crm__search-clear {
-  position: absolute;
-  right: 0;
+  flex: none;
   width: var(--touch-target, 44px);
   height: var(--touch-target, 44px);
   font-size: 16px;
@@ -569,13 +595,12 @@
 }
 
 /* The face is first in the row; the name takes the room between it and the
-   stage, and a long name is cut rather than pushing the stage off. */
+   stage. A long name wraps rather than being cut: "Anna-Maria Vetrova-Sok..."
+   is not a name the owner can act on. */
 .crm__who .crm__open {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 /* The next page of clients (#2947). */
@@ -644,11 +669,11 @@
   text-decoration: none;
 }
 
+/* Wrapped, never cut: a phone row grows a line for a long name instead of
+   hiding its end behind an ellipsis. */
 .crm__contact-name,
 .crm__contact-facts {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .crm__contact-name {
@@ -682,7 +707,7 @@
 
 .crm__contact-toggle {
   flex: none;
-  width: 36px;
+  width: var(--touch-target, 44px);
   min-height: 36px;
   font-size: 20px;
   line-height: 1;
@@ -735,12 +760,12 @@
   /* NAME OVER STAGE. On one line the stage took what the name needed: in
      Russian "t.me" plus "talking" is 131px, and a double-barrelled name was
      cut to one word. As in Pipedrive's and HubSpot's phone lists, the stage
-     becomes the name's subtitle and the face spans both lines -- 22 + 17px
-     is the 36px face, so the row does not grow. Only rows with a face: a
+     becomes the name's subtitle and the face spans both lines. The name is a
+     44px target (tri shot crm, 2026-10-02), so the row is about 61px, not 36. Only rows with a face: a
      lead's lone "t.me" fits beside the name. */
   .crm__who:has(> .crm-avatar) {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     /* The row's `gap: 10px` would part the name from its own subtitle. */
     row-gap: 0;
   }
@@ -750,10 +775,20 @@
   }
 
   .crm__who:has(> .crm-avatar) > .crm__open {
+    grid-column: 2;
+    /* The name keeps its 44px for the finger and sits on the bottom of it,
+       right over its stage line. */
+    align-items: flex-end;
     line-height: 1.2;
   }
 
+  .crm__who:has(> .crm-avatar) > .crm__tme {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
   .crm__who:has(> .crm-avatar) > .crm__stage {
+    grid-column: 2;
     line-height: 1.25;
   }
 
@@ -902,7 +937,7 @@
   .crm__col-auto {
     display: block;
     width: var(--touch-target, 44px);
-    margin: 0 51px 0 auto;
+    margin: 0 59px 0 auto;
     font-size: 11px;
     text-align: center;
   }
@@ -924,12 +959,22 @@
     left: 56px;
   }
 
-  .crm__contact-toggle {
-    width: 28px;
+  .crm__col-auto {
+    margin-right: 57px;
   }
 
-  .crm__col-auto {
-    margin-right: 41px;
+  /* The filter chips were 327px in a 300px row at 320 (tri shot crm,
+     2026-10-02): the last chip sat past the edge. Tighter chips fit them on
+     one line; if real counts still do not fit, the row wraps rather than
+     hiding a chip -- one line of list is cheaper than a filter not seen. */
+  .crm__filter {
+    flex-wrap: wrap;
+    gap: 4px;
+    overflow-x: visible;
+  }
+
+  .crm__chip {
+    padding-inline: 9px;
   }
 }
 

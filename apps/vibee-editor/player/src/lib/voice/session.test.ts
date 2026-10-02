@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Message } from '@/atoms/agentChat'
-import { VoiceSession, isNoise } from './session'
+import { VoiceSession, isNoise, type VoiceDeps } from './session'
 
 function deps() {
   return {
@@ -152,7 +152,7 @@ describe('VoiceSession: no microphone, the person types', () => {
     })
   })
 
-  it('with a working microphone there is nothing to type into', () => {
+  it('a session that is off takes no typed question', () => {
     const d = deps()
     const s = new VoiceSession(d)
     s.type('hello')
@@ -347,7 +347,12 @@ describe('VoiceSession: the spoken language', () => {
     vi.unstubAllGlobals()
   })
 
-  async function session(ui: 'ru' | 'en', browser: string[], heard: string) {
+  async function session(
+    ui: 'ru' | 'en',
+    browser: string[],
+    heard: string,
+    extra: Partial<ReturnType<typeof deps>> = {}
+  ) {
     const track = { stop: () => {}, enabled: true }
     vi.stubGlobal('AudioContext', ListeningAudioContext)
     vi.stubGlobal('MediaRecorder', FakeRecorder)
@@ -364,6 +369,7 @@ describe('VoiceSession: the spoken language', () => {
     const d = deps()
     const s = new VoiceSession({
       ...d,
+      ...extra,
       lang: () => ui,
       transcribe: async (_a: Blob, o?: { lang?: string | null }) => {
         hints.push(o?.lang)
@@ -375,6 +381,25 @@ describe('VoiceSession: the spoken language', () => {
       (s as unknown as { finishUtterance(): Promise<void> }).finishUtterance()
     return { s, d, hints, phrase }
   }
+
+  it('typed into the chat while the microphone listens, and answered aloud', async () => {
+    // The agent takes its time, so the turn stays the agent's.
+    const { s, d } = await session('en', ['en-US'], 'unused', {
+      answering: () => true,
+    })
+    const recorder = () => (s as unknown as { recorder: unknown }).recorder
+    expect(s.snapshot.phase).toBe('listening')
+    expect(recorder()).not.toBeNull()
+    s.type('  show my week ')
+    expect(d.send).toHaveBeenCalledWith('show my week')
+    expect(s.snapshot).toMatchObject({
+      phase: 'thinking',
+      heard: 'show my week',
+    })
+    // The half-recorded phrase is not a second question.
+    expect(recorder()).toBeNull()
+    s.stop()
+  })
 
   it('named from the first phrase when the app and the browser agree', async () => {
     const { s, hints, phrase } = await session('ru', ['ru-RU'], 'Привет')
@@ -414,7 +439,8 @@ describe('isNoise', () => {
  */
 async function speakingSession(
   heard: string[],
-  Recorder: typeof FakeRecorder = FakeRecorder
+  Recorder: typeof FakeRecorder = FakeRecorder,
+  extra: Pick<VoiceDeps, 'voiceHolds'> = {}
 ) {
   const level = { value: 0 }
   class LoudContext extends ListeningAudioContext {
@@ -473,13 +499,19 @@ async function speakingSession(
     synthesize: vi.fn(async (): Promise<ArrayBuffer> => {
       throw new Error('offline')
     }),
-    transcribe: vi.fn(async () => heard.shift() ?? ''),
+    transcribe: vi.fn(
+      async (
+        _b?: unknown,
+        _o?: { signal?: AbortSignal; onTurn?: (d: number) => void }
+      ) => heard.shift() ?? ''
+    ),
     messages: () => c.thread,
     answering: () => c.answering,
     subscribe: (cb: () => void) => {
       c.changed = cb
       return () => {}
     },
+    ...extra,
   }
   const s = new VoiceSession(d)
   await s.start()
@@ -954,6 +986,58 @@ describe('VoiceSession: hearing the words while the pause is judged', () => {
     await flush()
     expect(v.d.send).toHaveBeenCalledTimes(1)
     expect(v.d.send).toHaveBeenCalledWith('open my calendar for friday')
+  })
+
+  it('finished words in a voice that is still going are waited for', async () => {
+    const v = await speakingSession(
+      ['show me my week with the invoices'],
+      DeliveringRecorder,
+      { voiceHolds: true }
+    )
+    // The ears hear a held, rising voice: 0.08 that it finished.
+    v.d.transcribe.mockImplementationOnce(
+      async (_b?: unknown, o?: { onTurn?: (d: number) => void }) => {
+        o?.onTurn?.(0.08)
+        return 'show me my week'
+      }
+    )
+    await say(v, 1100, 1600, 1600 + 1600)
+    await flush()
+    expect(v.d.send).not.toHaveBeenCalled()
+    await say(v, 3240, 3600, 3600 + 1000)
+    await flush()
+    expect(v.d.send).toHaveBeenCalledTimes(1)
+    expect(v.d.send).toHaveBeenCalledWith('show me my week with the invoices')
+  })
+
+  it('until the voice is trusted it is not asked, and holds nothing', async () => {
+    const v = await speakingSession([], DeliveringRecorder)
+    v.d.transcribe.mockImplementationOnce(
+      async (_b?: unknown, o?: { onTurn?: (d: number) => void }) => {
+        expect(o?.onTurn).toBeUndefined()
+        o?.onTurn?.(0.08)
+        return 'show me my week'
+      }
+    )
+    await say(v, 1100, 1600, 1600 + 1000)
+    await flush()
+    expect(v.d.transcribe).toHaveBeenCalledTimes(1)
+    expect(v.d.send).toHaveBeenCalledWith('show me my week')
+  })
+
+  it('a voice that sounds finished ends the turn at the usual pause', async () => {
+    const v = await speakingSession([], DeliveringRecorder, {
+      voiceHolds: true,
+    })
+    v.d.transcribe.mockImplementationOnce(
+      async (_b?: unknown, o?: { onTurn?: (d: number) => void }) => {
+        o?.onTurn?.(0.94)
+        return 'show me my week'
+      }
+    )
+    await say(v, 1100, 1600, 1600 + 1000)
+    await flush()
+    expect(v.d.send).toHaveBeenCalledWith('show me my week')
   })
 
   it('a finished phrase whose words come late ends the turn as they come', async () => {

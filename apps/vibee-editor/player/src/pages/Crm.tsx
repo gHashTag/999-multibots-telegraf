@@ -8,6 +8,10 @@ import {
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
+import { useUserLevel } from '@/hooks/useUserLevel'
+import { crmShows, type CrmBlock } from '@vibee/atoms'
+import { LevelSwitch } from '@/components/Level/LevelSwitch'
+import { LevelDashboard } from '@/components/Level/LevelDashboard'
 import { Panel } from '@/components/Crm/Panel'
 import { AllRefused } from '@/components/Crm/AllRefused'
 import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
@@ -195,7 +199,14 @@ const SearchGlyph = () => (
 )
 
 export default function CrmPage() {
-  const { t } = useLanguage()
+  const { lang, t } = useLanguage()
+  /*
+   * EACH LEVEL ITS OWN DASHBOARD (owner, 2026-10-02). The level only leaves
+   * blocks out (CRM_DASHBOARD in packages/vibee-atoms/src/user-level.ts);
+   * no level is the whole screen, as it was.
+   */
+  const { level, switched } = useUserLevel()
+  const shows = (block: CrmBlock) => crmShows(level, block)
   const navigate = useNavigate()
   /*
    * LEADS ARE CLIENT WORK, SO THEY ARE SECTIONS HERE.
@@ -224,7 +235,14 @@ export default function CrmPage() {
    * them, the screen falls back to its own work rather than to an empty room.
    */
   const [asked, pick] = useSectionTab([...OWN_SECTIONS, ...LEADS_SECTIONS])
-  const tab = leadsLive || OWN_SECTIONS.includes(asked) ? asked : 'work'
+  const reachable =
+    asked === 'work' ||
+    (asked === 'map'
+      ? shows('map')
+      : asked === 'contacts'
+        ? shows('clients')
+        : leadsLive && shows('leadSections'))
+  const tab = reachable ? asked : 'work'
   const [overview, setOverview] = useState<Reached<Overview>>(empty)
   const [waiting, setWaiting] = useState<Reached<WaitingList>>(empty)
   const [leads, setLeads] = useState<Reached<HotLeads>>(empty)
@@ -486,19 +504,24 @@ export default function CrmPage() {
           url={faces.get(r.telegramId)}
           size={36}
         />
-        {/* The name opens the client's own page; the t.me link stays as a
-            small secondary control so the primary tap lands inside the app. */}
+        {/* The name opens the client's own page; the t.me link is a
+            secondary control so the primary tap lands inside the app. It is
+            its own finger-sized target after the stage: inside the stage
+            text it was a 28x16 speck (tri shot crm, 2026-10-02). */}
         <Link to={`/crm/${r.telegramId}`} className="crm__open">
           {r.name || r.telegramId}
         </Link>
-        <span className="crm__stage">
-          {r.link ? (
-            <a href={r.link} target="_blank" rel="noreferrer">
-              t.me
-            </a>
-          ) : null}{' '}
-          {t(`crm.stage.${r.stage}`)}
-        </span>
+        <span className="crm__stage">{t(`crm.stage.${r.stage}`)}</span>
+        {r.link ? (
+          <a
+            className="crm__tme"
+            href={r.link}
+            target="_blank"
+            rel="noreferrer"
+          >
+            t.me
+          </a>
+        ) : null}
       </div>
       <p className="crm__why">
         {t(`crm.wait.${r.waiting}`)} · {t('crm.wait.days', { n: r.days })} ·{' '}
@@ -547,13 +570,15 @@ export default function CrmPage() {
    * ONE PERSON IN THE CLIENTS LIST -- the same row under both headings, so
    * "under way" and "the rest" cannot drift into two different rows.
    *
-   * ONE LINE OF NAME, ONE LINE OF FACTS, ABOUT 64PX. The row was 140-160px on
+   * A NAME LINE AND A FACTS LINE, ABOUT 64PX. The row was 140-160px on
    * a phone: the name shared its line with the handle, the badge and the
    * stage, and every row carried a full-size "Remove from CRM" button. Now
    * the name has its line to itself, the facts sit under it, and the AUTO
    * tick stays on the row -- it is the one setting that must be reachable
    * from a phone (see CrmCockpit.test) -- while the details and the remove
-   * button wait behind "...".
+   * button wait behind "...". A name or facts line too long for a phone
+   * wraps to a second line rather than being cut with an ellipsis: a cut
+   * name is a different person's name (tri shot crm, 2026-10-02).
    *
    * The remove button is the only destructive control on this screen, so it
    * asks first and, once done, the row keeps the way back rather than
@@ -985,11 +1010,13 @@ export default function CrmPage() {
 
   const sections = [
     { id: 'work', label: t('crm.section.work') },
-    { id: 'contacts', label: t('crm.section.contacts') },
+    ...(shows('clients')
+      ? [{ id: 'contacts', label: t('crm.section.contacts') }]
+      : []),
     // Owner, 2026-09-25: everybody as round avatars by sphere, the owner in
     // the centre, links between people as a graph (components/Crm/CrmMap).
-    { id: 'map', label: t('crm.section.map') },
-    ...(leadsLive
+    ...(shows('map') ? [{ id: 'map', label: t('crm.section.map') }] : []),
+    ...(leadsLive && shows('leadSections')
       ? LEADS_SECTIONS.map(id => ({ id, label: t(`crm.section.${id}`) }))
       : []),
   ]
@@ -1002,6 +1029,8 @@ export default function CrmPage() {
           {busy ? t('crm.refreshing') : t('crm.refresh')}
         </button>
       </header>
+
+      <LevelSwitch variant="chips" />
 
       {noticeReason ? <AllRefused reason={noticeReason} /> : null}
 
@@ -1027,6 +1056,12 @@ export default function CrmPage() {
 
       {tab !== 'work' ? null : (
         <>
+          <LevelDashboard
+            level={level}
+            switched={switched}
+            lang={lang === 'ru' ? 'ru' : 'en'}
+          />
+
           {/*
             The way to a person, first on the screen people land on. It looks
             like the search it opens, because that is what it is.
@@ -1061,91 +1096,100 @@ export default function CrmPage() {
           </label>
 
           {/* How many stand at each stage; nothing at all when unknown. */}
-          <FunnelStrip state={funnel} />
+          {shows('funnel') ? <FunnelStrip state={funnel} /> : null}
 
           {/* The one control that changes what happens without the owner. */}
-          <AutoPanel />
+          {shows('autopilot') ? <AutoPanel /> : null}
 
-          {panel(
-            t('crm.waiting.title'),
-            waiting,
-            w && w.total === 0 ? (
-              <p className="crm__empty">{t('crm.waiting.none')}</p>
-            ) : (
-              <>
-                {w && (
+          {shows('waiting') &&
+            panel(
+              t('crm.waiting.title'),
+              waiting,
+              w && w.total === 0 ? (
+                <p className="crm__empty">{t('crm.waiting.none')}</p>
+              ) : (
+                <>
+                  {w && (
+                    <p className="crm__counts">
+                      {t('crm.waiting.counts', {
+                        ours: w.ours,
+                        due: w.due,
+                        theirs: w.theirs,
+                      })}
+                    </p>
+                  )}
+                  {w && picked !== null && w.ours > 0 ? (
+                    <button
+                      type="button"
+                      className="crm__pick-all"
+                      onClick={() => void pickEveryoneWaiting()}
+                    >
+                      {t('crm.waiting.pickAll', { n: w.ours })}
+                    </button>
+                  ) : null}
+                  <ul className="crm__list">{(w?.waiting ?? []).map(row)}</ul>
+                </>
+              )
+            )}
+
+          {shows('leads') &&
+            panel(
+              t('crm.leads.title'),
+              leads,
+              l && (
+                <>
                   <p className="crm__counts">
-                    {t('crm.waiting.counts', {
-                      ours: w.ours,
-                      due: w.due,
-                      theirs: w.theirs,
-                    })}
+                    {t('crm.leads.counts', { found: l.found })}
+                    {l.setAsideTouched > 0
+                      ? ` · ${t('crm.leads.setAside', { n: l.setAsideTouched })}`
+                      : ''}
                   </p>
-                )}
-                {w && picked !== null && w.ours > 0 ? (
-                  <button
-                    type="button"
-                    className="crm__pick-all"
-                    onClick={() => void pickEveryoneWaiting()}
-                  >
-                    {t('crm.waiting.pickAll', { n: w.ours })}
-                  </button>
-                ) : null}
-                <ul className="crm__list">{(w?.waiting ?? []).map(row)}</ul>
-              </>
-            )
-          )}
-
-          {panel(
-            t('crm.leads.title'),
-            leads,
-            l && (
-              <>
-                <p className="crm__counts">
-                  {t('crm.leads.counts', { found: l.found })}
-                  {l.setAsideTouched > 0
-                    ? ` · ${t('crm.leads.setAside', { n: l.setAsideTouched })}`
-                    : ''}
-                </p>
-                <ul className="crm__list">
-                  {l.leads.map(p => (
-                    <li key={p.telegramId} className="crm__row">
-                      <div className="crm__who">
-                        <Link to={`/crm/${p.telegramId}`} className="crm__open">
-                          {p.name || p.telegramId}
-                        </Link>
-                        {p.link ? (
-                          <span className="crm__stage">
-                            <a href={p.link} target="_blank" rel="noreferrer">
+                  <ul className="crm__list">
+                    {l.leads.map(p => (
+                      <li key={p.telegramId} className="crm__row">
+                        <div className="crm__who">
+                          <Link
+                            to={`/crm/${p.telegramId}`}
+                            className="crm__open"
+                          >
+                            {p.name || p.telegramId}
+                          </Link>
+                          {/* The same finger-sized t.me as a waiting row's. */}
+                          {p.link ? (
+                            <a
+                              className="crm__tme"
+                              href={p.link}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
                               t.me
                             </a>
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="crm__why">
-                        {p.bot ?? '—'} ·{' '}
-                        {t('crm.leads.quiet', { days: p.quietDays ?? '?' })}
-                      </p>
-                      <div className="crm__acts">
-                        <button
-                          type="button"
-                          onClick={() => void touch(p.telegramId, 'written')}
-                        >
-                          {t('crm.act.written')}
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )
-          )}
+                          ) : null}
+                        </div>
+                        <p className="crm__why">
+                          {p.bot ?? '—'} ·{' '}
+                          {t('crm.leads.quiet', { days: p.quietDays ?? '?' })}
+                        </p>
+                        <div className="crm__acts">
+                          <button
+                            type="button"
+                            onClick={() => void touch(p.telegramId, 'written')}
+                          >
+                            {t('crm.act.written')}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )
+            )}
 
           {/*
             Former buyers gone quiet. A tool that refuses this viewer hides
             the panel; a server that could not be reached says so.
           */}
-          {winback.refused
+          {winback.refused || !shows('winback')
             ? null
             : panel(
                 t('crm.winback.title'),
@@ -1156,38 +1200,43 @@ export default function CrmPage() {
               )}
 
           {/* What the owner's clients have brought, from the live wallet. */}
-          <RevenuePanel noticeReason={noticeReason} />
+          {shows('revenue') ? (
+            <RevenuePanel noticeReason={noticeReason} />
+          ) : null}
 
-          {panel(
-            t('crm.audience.title'),
-            overview,
-            o && (
-              <dl className="crm__stats">
-                <div>
-                  <dt>{t('crm.audience.total')}</dt>
-                  <dd>{o.people ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>{t('crm.audience.paying')}</dt>
-                  <dd>
-                    {o.paying ?? '—'}{' '}
-                    <span className="crm__muted">{o.payingShare ?? ''}</span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>{t('crm.audience.came7')}</dt>
-                  <dd>{o.came7 ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>{t('crm.audience.came30')}</dt>
-                  <dd>{o.came30 ?? '—'}</dd>
-                </div>
-              </dl>
-            )
-          )}
+          {shows('audience') &&
+            panel(
+              t('crm.audience.title'),
+              overview,
+              o && (
+                <dl className="crm__stats">
+                  <div>
+                    <dt>{t('crm.audience.total')}</dt>
+                    <dd>{o.people ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('crm.audience.paying')}</dt>
+                    <dd>
+                      {o.paying ?? '—'}{' '}
+                      <span className="crm__muted">{o.payingShare ?? ''}</span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{t('crm.audience.came7')}</dt>
+                    <dd>{o.came7 ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('crm.audience.came30')}</dt>
+                    <dd>{o.came30 ?? '—'}</dd>
+                  </div>
+                </dl>
+              )
+            )}
 
           {/* Where people come from (#2974): the owner's only. */}
-          <TrafficPanel noticeReason={noticeReason} />
+          {shows('traffic') ? (
+            <TrafficPanel noticeReason={noticeReason} />
+          ) : null}
 
           <p className="crm__note">{t('crm.note')}</p>
         </>

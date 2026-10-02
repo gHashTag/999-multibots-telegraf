@@ -687,8 +687,8 @@ describe('a waiting row on a phone', () => {
     const head = rule(rules, '.crm__who:has(> .crm-avatar)')
     expect(head).toMatch(/display:\s*grid/)
     // `1fr` alone is minmax(auto, 1fr): an unbreakable name would widen
-    // the column past the row instead of being cut.
-    expect(head).toMatch(/grid-template-columns:\s*auto minmax\(0, 1fr\)/)
+    // the column past the row instead of wrapping. The third column is t.me.
+    expect(head).toMatch(/grid-template-columns:\s*auto minmax\(0, 1fr\) auto/)
     // The row's own `gap: 10px` would part the name from its subtitle.
     expect(head).toMatch(/row-gap:\s*0/)
     expect(rule(rules, '.crm__who:has(> .crm-avatar) > .crm-avatar')).toMatch(
@@ -697,18 +697,53 @@ describe('a waiting row on a phone', () => {
   })
 
   it('keeps the face first in the head, the stage after the name', async () => {
-    serve()
-    await draw()
-    const heads = [...host.querySelectorAll('.crm__who')].filter(w =>
-      w.querySelector(':scope > .crm-avatar')
-    )
-    expect(heads.length).toBeGreaterThan(0)
-    for (const w of heads)
-      expect([...w.children].map(c => c.className.split(' ')[0])).toEqual([
+    // One waiting row with a t.me link, one without.
+    const first = (answers.crm_waiting as { waiting: { link: unknown }[] })
+      .waiting[0]
+    first.link = 'https://t.me/ivan'
+    try {
+      serve()
+      await draw()
+      const heads = [...host.querySelectorAll('.crm__who')].filter(w =>
+        w.querySelector(':scope > .crm-avatar')
+      )
+      expect(heads.length).toBeGreaterThan(1)
+      const order = heads.map(w =>
+        [...w.children].map(c => c.className.split(' ')[0])
+      )
+      expect(order).toContainEqual([
         'crm-avatar',
         'crm__open',
         'crm__stage',
+        'crm__tme',
       ])
+      expect(order).toContainEqual(['crm-avatar', 'crm__open', 'crm__stage'])
+    } finally {
+      first.link = null
+    }
+  })
+
+  it('makes t.me its own control, not a word inside the stage', async () => {
+    // Inside the stage text it measured 28x16 (tri shot crm, 2026-10-02).
+    const first = (answers.crm_waiting as { waiting: { link: unknown }[] })
+      .waiting[0]
+    first.link = 'https://t.me/ivan'
+    try {
+      serve()
+      await draw()
+      const tme = host.querySelector<HTMLAnchorElement>(
+        '.crm__who > a.crm__tme'
+      )!
+      expect(tme.getAttribute('href')).toBe('https://t.me/ivan')
+      expect(tme.target).toBe('_blank')
+      // Nor in a hot lead's row, where it was the same speck.
+      expect(
+        host.querySelector('.crm__who > a.crm__tme[href="https://t.me/p"]')
+      ).not.toBeNull()
+      expect(host.querySelector('.crm__stage a')).toBeNull()
+    } finally {
+      first.link = null
+    }
   })
 })
 
@@ -774,8 +809,9 @@ describe('a search shows why each row is there', () => {
   })
 
   it('puts the fact the letters were found in first, before the stage', async () => {
-    // The facts line ends in an ellipsis on a phone: a hit behind the
-    // stage and a long package name was past it.
+    // The facts line used to end in an ellipsis on a phone, and a hit
+    // behind the stage was past it. It wraps now, but the found fact still
+    // comes first: it is why the row is on the list.
     serve()
     await draw(`${CONTACTS}&q=clientonly`)
     const facts = rowOf('ClientOnlyName').querySelector('.crm__contact-facts')!

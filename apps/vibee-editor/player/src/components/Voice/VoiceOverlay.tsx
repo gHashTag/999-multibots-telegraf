@@ -9,9 +9,10 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useAtom } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
-import { getWebApp, isTelegram } from '@/lib/telegram'
+import { isTelegram } from '@/lib/telegram'
 import type { VoiceSession } from '@/lib/voice/session'
 import { isMicError, micErrorText } from '@/lib/voice/micError'
+import { openInBrowser } from '@/lib/voice/openInBrowser'
 import {
   fetchVoiceStatus,
   voiceLabel,
@@ -29,20 +30,11 @@ import './Voice.css'
 interface Props {
   session: VoiceSession
   onClose: () => void
+  /** Back to voice inside the chat (VoiceDock), when the chat offers it. */
+  onDock?: () => void
 }
 
-/**
- * A WebView that will not hand over the microphone is a dead end inside
- * Telegram; the same page in the phone's browser asks for it normally.
- */
-function openInBrowser(): void {
-  const url = `${window.location.origin}${window.location.pathname}`
-  const wa = getWebApp()
-  if (wa && typeof wa.openLink === 'function') wa.openLink(url)
-  else window.open(url, '_blank', 'noopener')
-}
-
-export function VoiceOverlay({ session, onClose }: Props) {
+export function VoiceOverlay({ session, onClose, onDock }: Props) {
   const { t, lang } = useLanguage()
   const snap = useSyncExternalStore(session.subscribe, () => session.snapshot)
   const [mode, setMode] = useAtom(voiceModeAtom)
@@ -95,6 +87,20 @@ export function VoiceOverlay({ session, onClose }: Props) {
           </svg>
         </button>
         <span className="voice-overlay__title">{t('voice.title')}</span>
+        {onDock ? (
+          <button
+            type="button"
+            className="voice-overlay__icon"
+            onClick={onDock}
+            aria-label={t('voice.toChat')}
+            title={t('voice.toChat')}
+            data-testid="voice-dock-back"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+            </svg>
+          </button>
+        ) : null}
         <button
           type="button"
           className={`voice-overlay__icon${snap.muted ? ' is-on' : ''}`}

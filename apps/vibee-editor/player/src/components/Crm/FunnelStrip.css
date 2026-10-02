@@ -1,20 +1,24 @@
-/* THE FUNNEL STRIP: stage chips in one scrollable row, count under name. */
+/* THE FUNNEL STRIP: stage chips, count under name.
+
+   THEY WRAP, THEY DO NOT SCROLL. One sideways row was 478px of a 390px phone
+   (tri shot crm, 2026-10-02): the fifth stage sat past the edge behind a
+   fade, and a number the owner has to swipe to find is a number not read.
+   Five chips on two lines cost one line; each line is filled edge to edge. */
 .crm-funnel {
   margin: 0 0 16px;
 }
 
 .crm-funnel__stages {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin: 0;
-  padding: 0 0 4px;
+  padding: 0;
   list-style: none;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 
 .crm-funnel__chip {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -59,7 +59,7 @@ import {
   wakeRoad as httpWakeRoad,
   warmVoice as httpWarm,
 } from './voiceApi'
-import { HANGING_TURN_MS, hangs } from './turnEnd'
+import { HANGING_TURN_MS, stillGoing } from './turnEnd'
 import { END_OF_TURN_MS, LevelGate, TICK_MS, TurnClock, rms } from './vad'
 
 export type VoicePhase =
@@ -106,6 +106,13 @@ export interface VoiceDeps {
   warm?: typeof httpWarm
   /** Reopen a quiet connection to the server while the person talks. */
   wakeRoad?: () => void
+  /**
+   * Let the voice itself hold a turn (Smart Turn, turnEnd.ts). OFF until it
+   * is proven on real voices: on synthesized Russian (cycle 13) it held two
+   * of three finished questions and caught two of seven unfinished ones.
+   * Off, the ears are not even asked -- their verdict costs ~70 ms of CPU.
+   */
+  voiceHolds?: boolean
 }
 
 /*
@@ -183,6 +190,8 @@ interface EagerHearing {
   abort: AbortController
   /** The words once they come: undefined on the way, null if they failed. */
   words?: string | null
+  /** How sure the voice is that it finished, 0..1, when the ears judged it. */
+  done?: number
 }
 
 /*
@@ -366,14 +375,18 @@ export class VoiceSession {
   }
 
   /**
-   * A typed question, for when there is no microphone. It goes to the chat
-   * like a spoken one and the answer is spoken the same way. Called from the
-   * form's submit, which is the gesture iOS wants before it plays sound.
+   * A typed question: with no microphone, or typed into the chat's own box
+   * while voice mode is on (it lives inside the chat now, as ChatGPT's does
+   * since 2025-11-25). It goes to the chat like a spoken one and the answer
+   * is spoken the same way. Called from the form's submit, which is the
+   * gesture iOS wants before it plays sound.
    */
   type(text: string): void {
     const words = text.trim()
-    if (!words || !this.snap.keyboard) return
-    // A new question replaces whatever was still being said.
+    if (!words || this.snap.phase === 'off') return
+    // A new question replaces whatever was still being said, and a phrase
+    // half-recorded meanwhile is not a second question.
+    this.dropRecording()
     this.silence()
     try {
       this.openContext()
@@ -566,7 +579,7 @@ export class VoiceSession {
     if (quiet <= END_OF_TURN_MS) return false
     const words = this.eager?.words
     if (this.eager && words === undefined) return false
-    return !(words && hangs(words))
+    return !(words && stillGoing(words, this.eager?.done))
   }
 
   /** The language to name to the transcriber for the next phrase. */
@@ -606,11 +619,19 @@ export class VoiceSession {
     const blob = new Blob(this.chunks, { type: r.mimeType || 'audio/webm' })
     const hint = this.nextHint()
     const abort = new AbortController()
+    const eager: EagerHearing = { hint, abort, text: Promise.resolve('') }
+    // The ears may judge the same bytes for the end of the turn (turnEnd.ts).
+    const onTurn = this.deps.voiceHolds
+      ? (done: number) => {
+          eager.done = done
+        }
+      : undefined
     const text = (this.deps.transcribe || httpTranscribe)(blob, {
       lang: hint,
       signal: abort.signal,
+      onTurn,
     })
-    const eager: EagerHearing = { hint, text, abort }
+    eager.text = text
     // Thrown away unheard is not an error anybody should see.
     text.then(
       w => {
