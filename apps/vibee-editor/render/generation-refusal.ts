@@ -32,6 +32,11 @@ export const GENERATION_REFUSAL_CODES = [
   'forbidden',
   'unavailable',
   'generation_failed',
+  // A clip or a voice longer than the model takes. A 400 like any bad input,
+  // so the status cannot say it: the two duration ceilings set it themselves.
+  // Under `bad_input` it read "something is missing" over "video must be 10
+  // seconds or shorter" -- nothing was missing.
+  'too_long',
 ] as const
 
 export type GenerationRefusalCode = (typeof GENERATION_REFUSAL_CODES)[number]

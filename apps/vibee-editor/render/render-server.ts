@@ -4783,6 +4783,7 @@ const server = createServer(async (req, res) => {
               JSON.stringify({
                 success: false,
                 error: `video must be ${MAX_UPSCALE_SECONDS} seconds or shorter`,
+                code: 'too_long',
               })
             )
             return
@@ -5805,6 +5806,7 @@ const server = createServer(async (req, res) => {
             JSON.stringify({
               success: false,
               error: `lipsync audio must be ${ceilingSeconds} seconds or shorter`,
+              code: 'too_long',
             })
           )
           return

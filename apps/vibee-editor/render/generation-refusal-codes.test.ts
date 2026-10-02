@@ -40,6 +40,15 @@ describe('generation refusal codes', () => {
     )
   })
 
+  it('a duration ceiling says too_long, not "something is missing"', () => {
+    // A 400 is bad_input by status; only the ceiling knows it is length.
+    const server = read('apps', 'vibee-editor', 'render', 'render-server.ts')
+    const ceilings = [...server.matchAll(/seconds or shorter`,/g)]
+    expect(ceilings.length).toBeGreaterThanOrEqual(2)
+    for (const m of ceilings)
+      expect(server.slice(m.index, m.index! + 80)).toContain("code: 'too_long'")
+  })
+
   it('the web has a sentence for every code', () => {
     const web = read(
       'apps',
