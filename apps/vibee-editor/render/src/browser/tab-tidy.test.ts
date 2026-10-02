@@ -120,6 +120,27 @@ describe('applying a yes', () => {
     ])
   })
 
+  it('never empties the browser, even if he closed the rest himself', () => {
+    const asked = [
+      {
+        id: 'b',
+        url: 'https://www.reddit.com/r/x/submit/',
+        why: 'unfinished form' as const,
+      },
+      {
+        id: 'c',
+        url: 'https://raw.githubusercontent.com/c',
+        why: 'raw file' as const,
+      },
+    ]
+    const { close, skipped } = planClose(asked, [
+      { id: 'b', url: 'https://www.reddit.com/r/x/submit/' },
+      { id: 'c', url: 'https://raw.githubusercontent.com/c' },
+    ])
+    expect(close.map(t => t.id)).toEqual(['c'])
+    expect(skipped).toEqual([{ id: 'b', why: 'last tab stays' }])
+  })
+
   it('a yes is spent once, and only by its own person', async () => {
     resetTidyCache()
     const rows = new Map<

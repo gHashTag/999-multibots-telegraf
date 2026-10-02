@@ -1122,7 +1122,9 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         const session = await readSession(q, ctx.telegramId)
         if (personHasTheWheel(session, Date.now())) throw new Error(WHEEL_TAKEN)
         /* Listed BEFORE the claim: a pod that does not answer must not spend the yes. */
-        const now = await listTargets(found.cdp)
+        const now = (await listTargets(found.cdp)).filter(
+          t => t.type === 'page'
+        )
         const asked = await claimTidyAsk(q, a.apply, ctx.telegramId)
         if (!asked) return { applied: false, note: 'already applied' }
         const { close, skipped } = planClose(asked, now)

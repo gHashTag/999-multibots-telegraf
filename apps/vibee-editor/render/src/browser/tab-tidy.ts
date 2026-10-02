@@ -137,7 +137,9 @@ export function tidyQuestion(tabs: TidyTab[]): string {
 /**
  * What to close now: the stored tabs that still show the stored URL. A tab
  * whose URL changed was put to another use after the question -- the yes was
- * not about that page. Pure.
+ * not about that page. `now` is every open page, so the never-all rule holds
+ * here too: if the person closed the other tabs himself between the card and
+ * his yes, the list would otherwise empty the browser (review of #3406). Pure.
  */
 export function planClose(
   asked: TidyTab[],
@@ -154,6 +156,10 @@ export function planClose(
         why: 'moved to another page since the question',
       })
     else close.push(t)
+  }
+  if (close.length > 0 && close.length >= live.size) {
+    const kept = close.shift() as TidyTab
+    skipped.push({ id: kept.id, why: 'last tab stays' })
   }
   return { close, skipped }
 }
