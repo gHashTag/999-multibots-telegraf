@@ -1069,6 +1069,32 @@ describe('VoiceSession: the wait is said out loud', () => {
     ).toHaveLength(1)
   })
 
+  it('a phrase not synthesised by its moment is skipped, never holds the answer', async () => {
+    const w = await waiting({
+      synthesize: vi.fn(
+        (text: string) =>
+          new Promise<ArrayBuffer>((_, fail) =>
+            setTimeout(
+              () => fail(new Error('offline')),
+              text === 'Let me see.' ? 37_000 : 0
+            )
+          )
+      ),
+    })
+    w.s.type('make a reel')
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(w.said).toEqual([])
+    // The slot was spent: the wait goes on to "still", on time.
+    await vi.advanceTimersByTimeAsync(12_000)
+    expect(w.said).toEqual(['Still working on it.'])
+    // And nothing late is queued in front of the answer.
+    await w.answer('Here is the reel you asked for. And', true)
+    expect(w.said).toEqual([
+      'Still working on it.',
+      'Here is the reel you asked for.',
+    ])
+  })
+
   it('a held answer resumes without saying the wait again', async () => {
     const w = await waiting()
     const inner = w.s as unknown as {
