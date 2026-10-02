@@ -64,10 +64,9 @@ describe('transcribe: the ears may also judge the end of the turn', () => {
   })
 
   function answering(body: unknown) {
-    const fetchMock = vi.fn(
-      async (_url: RequestInfo | URL, _init?: RequestInit) =>
-        new Response(JSON.stringify(body))
-    )
+    const fetchMock = vi.fn<
+      (url: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >(async () => new Response(JSON.stringify(body)))
     vi.stubGlobal('fetch', fetchMock)
     return fetchMock
   }
