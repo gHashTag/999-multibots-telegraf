@@ -240,10 +240,19 @@ describe("the owner's MiniMax clone", () => {
     expect(branch).toMatch(/withTokens\([\s\S]*?\},\s*0\s*\)/)
     expect(tools).toMatch(/TOOLS\.find\(t => t\.name === 'voice_clone_speak'\)/)
     // story_reel voices its scenes at once; the CPU service takes one line
-    // at a time, so the lines queue instead of meeting 429.
+    // at a time, so the lines queue instead of meeting 503; a line that
+    // still meets "busy" backs off until one overall deadline.
     expect(tools).toMatch(/const turn = ourCloneQueue\.then\(/)
     expect(tools).toMatch(/ourCloneQueue = turn\.catch\(/)
-    expect(tools).toMatch(/if \(!out\?\.busy\) break/)
+    expect(tools).toMatch(/speakWithBusyRetry\([\s\S]*?OUR_CLONE_BUSY_RETRY/)
+    // Locked to the owner and keepers BEFORE the line joins the queue.
+    const helper = tools.slice(
+      tools.indexOf('async function ownerVoiceViaOurClone('),
+      tools.indexOf('const turn = ourCloneQueue.then(')
+    )
+    expect(helper).toMatch(
+      /if \(!isOwnerOrKeeper\(String\(ctx\?\.telegramId \?\? ''\)\)\)\s*return \{ done: false, reason: VOICE_CLONE_LOCKED_REASON \}/
+    )
   })
 })
 

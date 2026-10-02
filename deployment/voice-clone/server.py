@@ -14,6 +14,9 @@ no training run, no provider bill, the sample never leaves our pod.
     GET  /health  -> {"ok": true, "model": ..., "revision": ..., "threads": ...,
                       "busy": ..., "key_set": ...}
 
+While a synthesis runs, /speak answers at once 503 {"error": "busy",
+"retry_after": 15} with Retry-After: 15 -- it never queues a second request.
+
 A malformed body is a 400 with {"error": ...}, never a 500. An empty
 VOICE_CLONE_KEY refuses every /speak; /health stays open for Railway.
 
@@ -85,7 +88,12 @@ MAX_REF_BYTES = 8 * 1024 * 1024
 REF_MAX_SEC = 15
 GAP_SEC = 0.18
 # One synthesis at a time: the model holds the active voice as state.
+# Taken WITHOUT waiting (do_POST): a second /speak is answered 503 at once
+# instead of queueing behind the first, where it could outlive the client's
+# timeout. /health reports the same lock as "busy".
 BUSY = threading.Lock()
+# What a busy answer asks the caller to wait, in seconds (Retry-After).
+BUSY_RETRY_AFTER_SEC = 15
 
 
 
@@ -173,33 +181,34 @@ def parse(body) -> dict:
 
 
 def speak(req: dict) -> tuple:
+    """One synthesis. The caller holds BUSY (do_POST takes it without
+    waiting); threading.Lock is not re-entrant, so speak never takes it."""
     global active_ref
     text, lang, raw = req["text"], req["lang"], req["raw"]
     exaggeration = req["exaggeration"]
     cfg_weight, temperature = req["cfg_weight"], req["temperature"]
     ref_hash = hashlib.sha256(raw).hexdigest() + f":{exaggeration}"
-    with BUSY:
-        if ref_hash != active_ref:
-            # The name is reserved before ffmpeg runs and removed whatever
-            # ffmpeg or the model does: a failing sample never leaks a file.
-            fd, path = tempfile.mkstemp(suffix=".wav")
-            os.close(fd)
-            try:
-                sample_to_wav(raw, path)
-                model.prepare_conditionals(path, exaggeration=exaggeration)
-            finally:
-                os.unlink(path)
-            active_ref = ref_hash
-        gap = np.zeros(int(model.sr * GAP_SEC), dtype=np.float32)
-        pieces = []
-        for s in sentences(text):
-            wav = model.generate(
-                s, language_id=lang, exaggeration=exaggeration,
-                cfg_weight=cfg_weight, temperature=temperature,
-            )
-            if pieces:
-                pieces.append(gap)
-            pieces.append(wav.squeeze(0).numpy().astype(np.float32))
+    if ref_hash != active_ref:
+        # The name is reserved before ffmpeg runs and removed whatever
+        # ffmpeg or the model does: a failing sample never leaks a file.
+        fd, path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        try:
+            sample_to_wav(raw, path)
+            model.prepare_conditionals(path, exaggeration=exaggeration)
+        finally:
+            os.unlink(path)
+        active_ref = ref_hash
+    gap = np.zeros(int(model.sr * GAP_SEC), dtype=np.float32)
+    pieces = []
+    for s in sentences(text):
+        wav = model.generate(
+            s, language_id=lang, exaggeration=exaggeration,
+            cfg_weight=cfg_weight, temperature=temperature,
+        )
+        if pieces:
+            pieces.append(gap)
+        pieces.append(wav.squeeze(0).numpy().astype(np.float32))
     audio = np.concatenate(pieces)
     pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype("<i2").tobytes()
     buf = io.BytesIO()
@@ -259,9 +268,27 @@ class Door(BaseHTTPRequestHandler):
             # JSONDecodeError, UnicodeDecodeError and a bad Content-Length
             # all land here; the name of the error is enough for the caller.
             return self.fail(400, f"malformed request ({type(e).__name__})")
+        # BUSY AT ONCE, NOT IN A QUEUE. The body is read and checked first
+        # (so the caller is not cut off mid-upload), then the lock is tried
+        # without waiting: while a synthesis runs, the answer is 503 with
+        # Retry-After right now, and the caller backs off on its own clock.
+        if not BUSY.acquire(blocking=False):
+            return self.reply(
+                503,
+                json.dumps({
+                    "error": "busy", "retry_after": BUSY_RETRY_AFTER_SEC,
+                }).encode(),
+                "application/json",
+                {"Retry-After": str(BUSY_RETRY_AFTER_SEC)},
+            )
         try:
             started = time.time()
-            wav, seconds = speak(req)
+            try:
+                wav, seconds = speak(req)
+            finally:
+                # Released before the reply is written: a slow reader must
+                # not keep the model locked.
+                BUSY.release()
             took = time.time() - started
             print(f"voice-clone: {seconds:.1f}s of audio in {took:.1f}s", flush=True)
             self.reply(200, wav, "audio/wav", {
