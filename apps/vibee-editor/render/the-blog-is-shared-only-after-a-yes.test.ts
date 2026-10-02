@@ -128,6 +128,9 @@ describe('the feed', () => {
     expect(clip('one two three four five six', 20)).toBe('one two three four…')
     expect(clip('x'.repeat(30), 10)).toBe('x'.repeat(9) + '…')
     expect(clip('short', 10)).toBe('short')
+    /* A stop that is the last character that fits still ends a sentence. */
+    expect(clip('aaaa bbbb. cccc dddd', 10)).toBe('aaaa bbbb.')
+    expect(clip('abc', -1)).toBe('')
     const first = xThread({
       slug: 's',
       title: 'T',

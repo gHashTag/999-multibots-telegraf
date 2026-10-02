@@ -157,9 +157,12 @@ export function xThread(a: Article): { first: string; second: string } {
  */
 export function clip(text: string, max: number): string {
   if (text.length <= max) return text
+  if (max < 1) return ''
   const cut = text.slice(0, max)
+  /* One character more, so a sentence whose stop is the last that fits counts. */
+  const ends = text.slice(0, max + 1)
   const sentence = Math.max(
-    ...['. ', '! ', '? '].map(end => cut.lastIndexOf(end))
+    ...['. ', '! ', '? '].map(end => ends.lastIndexOf(end))
   )
   if (sentence + 1 >= max / 2) return cut.slice(0, sentence + 1)
   const word = cut.slice(0, max - 1).lastIndexOf(' ')

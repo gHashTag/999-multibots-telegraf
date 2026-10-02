@@ -26,6 +26,7 @@ import {
   randomBytes,
 } from 'crypto'
 import type { Queryable } from '../browser/sessions'
+import { clip } from './blog-share'
 import {
   CARD_H,
   CARD_W,
@@ -582,9 +583,7 @@ export interface Post {
 /** The Threads post: title, then the whole link, within the spec's limit. Pure. */
 export function threadsPost(p: Post): string {
   const room = THREADS_TEXT_MAX - p.link.length - 2
-  const head =
-    p.title.length <= room ? p.title : p.title.slice(0, room - 1) + '…'
-  return `${head}\n\n${p.link}`
+  return `${clip(p.title, room)}\n\n${p.link}`
 }
 
 /** The Instagram caption: links there are not clickable, so it says where. Pure. */
@@ -592,7 +591,7 @@ export function igCaption(p: Post): string {
   const tail = '\n\nСсылка на статью — в профиле. t27.ai' // cyrillic-ok: the caption the reader sees
   const room = IG_CAPTION_MAX - tail.length
   const body = `${p.title}\n\n${p.summary}`.trim()
-  return (body.length <= room ? body : body.slice(0, room - 1) + '…') + tail
+  return clip(body, room) + tail
 }
 
 /** Waits for a container until it is finished, failed, or the spec's patience ends. */
