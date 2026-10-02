@@ -18,6 +18,7 @@ export const ONE_FACE = true satisfies boolean;
 export const TEXT_IN_IMAGE = false satisfies boolean;
 export const IDENTITY = "Keep this exact man: same face, same bald head, same beard and moustache, same blue-grey eyes, same expression, same red leopard-print shirt and black fingerless glove, same handheld microphone held below the mouth so the lips stay fully visible. Do not beautify, do not change age, do not change face shape. Photorealistic, real skin texture, shot on a full-frame camera, 50mm, shallow depth of field. Vertical 9:16, he sits centred, face in the upper third, no text, no logos, no watermark." satisfies string;
 export const STUDIO_COUNT = 3 satisfies number;
+export const DEFAULT_STUDIO = "lab" satisfies string;
 export const STUDIO_1_ID = "noir" satisfies string;
 export const STUDIO_1 = "Move him into a dark noir podcast studio: matte black acoustic walls, one warm golden key light from the left carving his face, soft rim light on the head, a single small downward-pointing gold triangle glowing on the wall behind him, a black leather chair, thin haze in the air. Mood: late-night interview, cinematic, high contrast." satisfies string;
 export const STUDIO_2_ID = "lab" satisfies string;
@@ -30,7 +31,7 @@ export const STUDIO_3 = "Move him into a premium broadcast podcast studio: walnu
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "PROVIDER", "MODEL", "MODEL_FALLBACK", "RESOLUTION", "ASPECT_RATIO", "CREDITS_PER_FRAME", "CROP_LETTERBOX", "ONE_FACE", "TEXT_IN_IMAGE", "IDENTITY", "STUDIO_COUNT", "STUDIO_1_ID", "STUDIO_1", "STUDIO_2_ID", "STUDIO_2", "STUDIO_3_ID", "STUDIO_3"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "PROVIDER", "MODEL", "MODEL_FALLBACK", "RESOLUTION", "ASPECT_RATIO", "CREDITS_PER_FRAME", "CROP_LETTERBOX", "ONE_FACE", "TEXT_IN_IMAGE", "IDENTITY", "STUDIO_COUNT", "DEFAULT_STUDIO", "STUDIO_1_ID", "STUDIO_1", "STUDIO_2_ID", "STUDIO_2", "STUDIO_3_ID", "STUDIO_3"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

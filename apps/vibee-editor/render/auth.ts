@@ -401,6 +401,13 @@ const PUBLIC_PREFIXES = [
   '/hls/',
   '/public/',
   '/s3/',
+  /*
+   * Remotion's own Chrome fetches /render-temp/ with no key: preDownloadS3Asset
+   * turns every /s3/ video in a render's props into an H.264 copy there. Behind
+   * the guard each such render failed with 401 (measured 2026-10-02, the first
+   * split reel). The files are copies of /s3/ objects, which are public already.
+   */
+  '/render-temp/',
   '/proxy/image',
   // /api/assets* пропускается общим гвардом НАМЕРЕННО: каждый хендлер
   // проверяет личность сам. POST/DELETE — через подпись или ключ агента;

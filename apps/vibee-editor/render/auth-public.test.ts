@@ -300,3 +300,19 @@ describe('the public counters', () => {
     expect(post('/api/voice/speak')).toBe(false)
   })
 })
+
+/**
+ * REMOTION FETCHES ITS OWN H.264 COPIES WITH NO KEY.
+ *
+ * preDownloadS3Asset (render-server.ts) turns a /s3/ video into a copy under
+ * /render-temp/ and hands Remotion an http URL to it. With the prefix behind
+ * the guard the render failed with 401 (2026-10-02, the first split reel).
+ */
+describe('the render temp copies', () => {
+  it('are readable by the renderer with no credential', async () => {
+    const { isPublic } = await import('./auth')
+    expect(
+      isPublic({ url: '/render-temp/1-a-h264.mp4', method: 'GET' } as never)
+    ).toBe(true)
+  })
+})
