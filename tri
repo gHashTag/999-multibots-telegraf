@@ -195,6 +195,11 @@ CHECKS THAT EACH COST A CYCLE
         on env-gaps. Prints the path on the last line:
           wt="$(tri worktree fix/my-thing | tail -1)"; cd "$wt"
 
+  tri hooks [--heal]
+        Worktrees whose own core.hooksPath (e.g. <main>/.husky) makes git skip
+        every lefthook gate silently -- the commit passes with nothing run.
+        --heal unsets it per tree. Exit 1 while any tree still skips.
+
   tri deps [--heal] [--own] [path]
         For a worktree tri did NOT make (a bee's, the Claude app's, a plain
         git worktree add): link every node_modules the main checkout has and
@@ -3468,6 +3473,51 @@ heal_install() {
     good "reinstalled $rel in the main checkout"
   else
     bad "$name install failed in $dir"
+    return 1
+  fi
+}
+
+cmd_hooks() {
+  # A WORKTREE THAT SKIPS EVERY GATE (2026-10-03). A worktree's own
+  # config.worktree carried core.hooksPath=<main>/.husky, a directory with no
+  # pre-commit left in it. git ran nothing, printed nothing, and the commit
+  # went through without prettier, eslint, tsc or the Cyrillic guard -- 11 of
+  # 63 worktrees, `tri premerge` trees among them. install-hooks.cjs cleared
+  # only the --local setting, so `npm install` never saw this one.
+  # Any hooksPath that is not the shared lefthook hooks directory is flagged;
+  # --heal unsets it (the per-tree setting, never the shared hooks).
+  local heal=0 arg
+  for arg in "$@"; do
+    case "$arg" in
+      --heal) heal=1 ;;
+      *) bad "unknown flag: $arg (tri hooks [--heal])"; return 1 ;;
+    esac
+  done
+  local common hooks f p name n=0
+  common=$(git rev-parse --path-format=absolute --git-common-dir) || return 1
+  hooks="$common/hooks"
+  if ! grep -q lefthook "$hooks/pre-commit" 2>/dev/null; then
+    bad "no lefthook pre-commit in $hooks: node scripts/install-hooks.cjs"
+    return 1
+  fi
+  for f in "$common/config" "$common"/worktrees/*/config.worktree; do
+    [ -f "$f" ] || continue
+    p=$(git config --file "$f" --get core.hooksPath 2>/dev/null) || continue
+    [ -n "$p" ] && [ "$p" != "$hooks" ] || continue
+    n=$((n + 1))
+    name=$(basename "$(dirname "$f")")
+    [ "$f" = "$common/config" ] && name="main checkout"
+    if [ $heal = 1 ]; then
+      git config --file "$f" --unset-all core.hooksPath &&
+        good "$name: hooksPath $p cleared, lefthook runs again"
+    else
+      bad "$name: core.hooksPath=$p -- commits there skip every gate"
+    fi
+  done
+  if [ $n = 0 ]; then
+    good "every worktree runs the lefthook gates ($hooks)"
+  elif [ $heal = 0 ]; then
+    warn "$n tree(s) skip the gates: tri hooks --heal"
     return 1
   fi
 }
@@ -7784,6 +7834,7 @@ case "$action" in
   diverged|разошлись)  cmd_diverged ;;
   worktree|дерево)    cmd_worktree "$@" ;;
   deps)               cmd_deps "$@" ;;
+  hooks|хуки)         cmd_hooks "$@" ;;
   price|цена)         cmd_price "$@" ;;
   money-base|база)     cmd_money_base "$@" ;;
   batch-refunds|возвраты) cmd_batch_refunds ;;
