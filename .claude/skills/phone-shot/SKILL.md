@@ -52,7 +52,11 @@ small 0, cut 0, overlap 0, order 0 · <png>`. Код 0 — чисто, 1 — к�
   читается СО СТРАНИЦЫ (`--touch-target` в index.css, 44 px), а не зашита в
   инструмент.
 - **wider** — страница едет вбок.
-- **cut** — текст обрезан своим же блоком.
+- **cut** — text clipped by its own box. Every ellipsis and every sideways
+  scroller counts. A visually hidden (sr-only) word does NOT: it is hidden on
+  purpose (`clip-path: inset(50%)`, `clip: rect(0…)`, or a 1px absolute box).
+  Teach the checker only a false positive like that one; a real cut is fixed
+  in the page.
 - **overlap** — две цели наложились.
 - **order** — пары `before` стенда: первое стоит ВЫШЕ второго на экране.
   Цена над кнопкой (спека v16): «до нажатия» — это место, а не слово.
@@ -331,6 +335,19 @@ Promise.all([...])` followed by `setA(a); setB(b)` reads in parallel but
   to Vite**, and a path outside the player is refused ("Denied ID ...?url").
   Read the server source with `resolve(dirname(fileURLToPath(
 import.meta.url)), ...)` and `readFileSync`.
+- **Green by the counters is not yet green to the eye.** CRM, 2026-10-02:
+  after the search box moved its border from the input to the label,
+  design-system.css still ringed the focused input (`box-shadow`), which
+  drew a second box inside the first. No counter catches that. Read the PNGs
+  after every fix.
+- **Wrap, don't cut, on a phone.** `overflow-wrap: anywhere` instead of
+  `nowrap` + `ellipsis` for names and facts; wrap a chip row (funnel,
+  filters at 320) instead of scrolling it past the edge. The cost is a
+  taller row, so say so in the PR.
+- **A link inside a line of text is never 44px.** Give it its own element
+  (`a.crm__tme`, a 44×44 sibling) and a grid column on a phone. Look for the
+  same speck in the screen's other lists, even if the stand's fixture leaves
+  them empty (CRM hot leads).
 
 ## Related Resources
 
