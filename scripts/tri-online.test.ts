@@ -160,6 +160,23 @@ describe('the command', () => {
     )
     expect(src).toContain('reason(raw[i].text)')
   })
+  it('without git on PATH it is not a crash read as "network down"', () => {
+    // Only node itself is reachable; every probe that spawns fails with 127.
+    const r = spawnSync(
+      process.execPath,
+      [path.join(ROOT, 'bin/helpers/online.mjs'), '--json'],
+      {
+        encoding: 'utf8',
+        timeout: 60000,
+        env: { PATH: '/nonexistent', TRI_RENDER_URL: 'http://127.0.0.1:9' },
+      }
+    )
+    expect(r.stderr).not.toMatch(/TypeError/)
+    const out = JSON.parse(r.stdout)
+    expect(out.results['git-ssh'].kind).toBe('unknown')
+    expect(r.status).toBe(out.code)
+    expect(r.status).not.toBe(1)
+  })
   it('a bad argument is usage, exit 2, before any probe', () => {
     const r = spawnSync(
       'node',
