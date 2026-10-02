@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
+import { crmErrorText } from '@/lib/crmErrorText'
 import type { Reached, StoryReady } from '@/lib/crm'
 import { uploadToS3 } from '@/lib/s3Upload'
 
@@ -25,14 +26,14 @@ export function StoryFacePicker({
   save: (url: string) => Promise<Reached<StoryReady>>
   onSaved: (r: Reached<StoryReady>) => void
 }) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [busy, setBusy] = useState(false)
   const [why, setWhy] = useState('')
 
   const keep = async (url: string) => {
     const r = await save(url)
     if (r.data && !r.data.why) onSaved(r)
-    else setWhy(r.data?.why ?? r.error ?? '')
+    else setWhy(r.data?.why ?? crmErrorText(r, lang, t))
   }
   const onPhoto = async (file: File | undefined) => {
     if (!file) return

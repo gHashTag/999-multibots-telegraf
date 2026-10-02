@@ -35,6 +35,7 @@ import { keepers } from '../hive/roles'
 import { hangUp } from './hang-up'
 import { defangMarkers } from './media-parts'
 import type { AgentTool, ToolContext } from './tools'
+import { ToolRefusal } from './tool-refusal'
 import { remember } from './tg-proposals'
 import { assistantMayReach, type Reach } from './assistant-opt-out'
 import { resolvingPeer, EXECUTABLE_ACTIONS } from './tg-proposals'
@@ -149,7 +150,8 @@ export async function isSeller(ctx?: ToolContext): Promise<boolean> {
 export async function requireSeller(ctx?: ToolContext): Promise<void> {
   requireIdentity(ctx)
   if (await isSeller(ctx)) return
-  throw new Error(
+  throw new ToolRefusal(
+    'no_seller_session',
     'CRM работает с вашим собственным Telegram-аккаунтом, а он не подключён. ' +
       'Подключите аккаунт в приложении — после этого лиды, сводка и подарки ' +
       'заработают от вашего имени.'
@@ -176,7 +178,8 @@ export async function requireSeller(ctx?: ToolContext): Promise<void> {
  */
 function requireIdentity(ctx?: ToolContext): void {
   if (ctx && String(ctx.telegramId ?? '').trim()) return
-  throw new Error(
+  throw new ToolRefusal(
+    'no_identity',
     'Не знаю, кто спрашивает: инструменты Telegram работают только от имени ' +
       'подтверждённого пользователя.'
   )

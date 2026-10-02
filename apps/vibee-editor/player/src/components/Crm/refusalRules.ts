@@ -18,6 +18,8 @@
 export interface Refusal {
   reachable: boolean
   error?: string
+  /** Why, by name (lib/crm.ts `Reached.code`): the notice words it. */
+  code?: string
 }
 
 /**
@@ -34,6 +36,19 @@ export function oneReasonForAll(states: readonly Refusal[]): string | null {
   if (reasons.size !== 1) return null
   const only = [...reasons][0]!
   return only || null
+}
+
+/**
+ * The failure behind `oneReasonForAll`, code and all, so the notice can word
+ * it in the reader's language (lib/crmErrorText.ts). Its `error` IS the one
+ * reason, which is what the panels compare against.
+ */
+export function oneFailureForAll<S extends Refusal>(
+  states: readonly S[]
+): S | null {
+  const reason = oneReasonForAll(states)
+  if (reason === null) return null
+  return states.find(s => String(s.error ?? '').trim() === reason) ?? null
 }
 
 /** Does this reason mean the session was refused rather than the server broke? */
