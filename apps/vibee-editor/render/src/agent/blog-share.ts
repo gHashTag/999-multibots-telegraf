@@ -153,6 +153,26 @@ export function threadsText(a: Article): string {
   return `${head}\n\n${link}`
 }
 
+/**
+ * The words of each share page's publish button, in the order they are
+ * looked for. One home: the publishing loop (blog-share-wiring.ts) presses
+ * by them, and `tri browser share-check` looks for them without pressing --
+ * a second copy of the list would let the check pass on words the loop no
+ * longer uses.
+ */
+export const SHARE_LABELS = {
+  X: ['post', 'опубликовать'], // cyrillic-ok: X's Russian label
+  /*
+   * LinkedIn's composer says "Post"; its Russian label is "Place", not
+   * "Publish" (seen 2026-10-03 -- the old label missed it every time).
+   */
+  LinkedIn: ['post', 'разместить', 'опубликовать'], // cyrillic-ok: LinkedIn's Russian labels
+  /* Reddit's submit page says "Post"; in Russian, "Опубликовать". */
+  Reddit: ['post', 'опубликовать'], // cyrillic-ok: Reddit's Russian label
+  /* Threads' composer says "Post"; in Russian, "Опубликовать". */
+  Threads: ['post', 'опубликовать'], // cyrillic-ok: Threads' Russian label
+} as const
+
 /** Each network's own share page, already filled in. Pure. */
 export function shareUrls(a: Article): {
   x: string

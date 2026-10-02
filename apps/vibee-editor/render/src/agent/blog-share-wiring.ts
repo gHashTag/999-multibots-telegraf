@@ -18,6 +18,7 @@ import {
   RSS_URL,
   SEEN_ON_PROFILE,
   seenOn,
+  SHARE_LABELS,
   shareUrls,
   type Article,
   type Answer,
@@ -134,16 +135,10 @@ export async function publishEverywhere(
   const { receiptOf } = await import('./blog-share')
   const logins = await loginsOfPerson(pool, owner).catch(() => null)
   for (const [net, url, labels] of [
-    ['X', urls.x, ['post', 'опубликовать']], // cyrillic-ok: X's Russian label
-    /*
-     * LinkedIn's composer says "Post"; its Russian label is "Place", not
-     * "Publish" (seen 2026-10-03 -- the old label missed it every time).
-     */
-    ['LinkedIn', urls.linkedin, ['post', 'разместить', 'опубликовать']], // cyrillic-ok: LinkedIn's Russian labels
-    /* Reddit's submit page says "Post"; in Russian, "Опубликовать". */
-    ['Reddit', urls.reddit, ['post', 'опубликовать']], // cyrillic-ok: Reddit's Russian label
-    /* Threads' composer says "Post"; in Russian, "Опубликовать". */
-    ['Threads', urls.threads, ['post', 'опубликовать']], // cyrillic-ok: Threads' Russian label
+    ['X', urls.x, SHARE_LABELS.X],
+    ['LinkedIn', urls.linkedin, SHARE_LABELS.LinkedIn],
+    ['Reddit', urls.reddit, SHARE_LABELS.Reddit],
+    ['Threads', urls.threads, SHARE_LABELS.Threads],
   ] as const) {
     if (net === 'X' && !String(out.X || '').startsWith('тред не получился'))
       continue
