@@ -69,9 +69,27 @@
 #                                 REAL question. Closes nothing by itself
 #   tri browser tidy apply QID    after his "allow": close exactly the tabs the
 #                                 card named that still show the same URL; once
+#   tri browser share-check [SLUG]  the blog desk's publish look, without its
+#                                 press: opens each signed-in network's share
+#                                 page for the article (newest if no SLUG), looks
+#                                 for the button by the desk's OWN words
+#                                 (SHARE_LABELS), closes the tab it opened.
+#                                 Never clicks. Exit 1 = a button the desk
+#                                 would miss tonight
 #   tri browser call TOOL [JSON]  any tool, raw: the escape hatch
 #   tri browser cover             every browser_* tool in agent-tools.ts has a
 #                                 case here (exit 1 names the ones that do not)
+#
+# The cases that only look (status, read, shot, desk, wait, layers, composer)
+# send every call as a probe: an unmarked read is a journal step, and two
+# minutes later the owner gets an "agent work over the connection" report for
+# a check nobody asked him about (2026-10-03, `tri logins`). A probe never
+# starts a browser: with no visit on record the server says so, and the
+# remedy is a case that works (open, share-check), which he is told about.
+# share-check is NOT a probe: it opens tabs in the browser he watches, and
+# work he can see is work he is told about -- there is no invisible mode.
+# Neither is find: findProbe scrolls the target into view, so his page moves
+# under his eyes, and that is work he is told about too (review on #3434).
 #
 # Exit 0 done, 1 the tool answered with an error, 2 could not ask at all.
 set -uo pipefail
@@ -111,6 +129,10 @@ fi
 [ -n "$KEY" ] || { echo "нет ключа агента: export AGENT_KEY или railway login"; exit 2; }
 BASE="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 NONE='{}'  # "${2:-{}}" expands to "{\\}" in bash: keep the empty object here
+# A case that only looks marks every call it makes, `front` included.
+LOOK_ONLY=""
+# Not find: its probe scrolls the page (see the header).
+case "$CASE" in status|tabs|read|shot|desk|wait|layers|composer) LOOK_ONLY=probe ;; esac
 
 # call TOOL JSON [MAX_TIME] [probe] -> the tool's own answer on stdout
 # (structured JSON or text), exit 1 on a tool error, 2 when nothing came back.
@@ -118,7 +140,7 @@ NONE='{}'  # "${2:-{}}" expands to "{\\}" in bash: keep the empty object here
 # visit for the call -- a started visit messages the owner (liveSession).
 call() {
   local body resp
-  body=$(TOOL="$1" ARGS="${2:-$NONE}" PROBE="${4:-}" python3 -c '
+  body=$(TOOL="$1" ARGS="${2:-$NONE}" PROBE="${4:-$LOOK_ONLY}" python3 -c '
 import json, os
 params = {"name": os.environ["TOOL"], "arguments": json.loads(os.environ["ARGS"])}
 if os.environ["PROBE"] == "probe":
@@ -518,6 +540,92 @@ if d.get("asked"):
     print("после «Разрешить»: tri browser tidy apply", d["question"])
 else:
     print("спросить владельца одной карточкой: tri browser tidy ask [ещё ID...]")' ;;
+  share-check)
+    # Everything the desk does on a share page up to the press, by the desk's
+    # own code: shareUrls, SHARE_LABELS, findProbe, isNotConnected and the
+    # spec's look timing. Reddit and LinkedIn had never been looked at live
+    # after #3361 and #3371; the first real test was the owner's "allow".
+    # The opens and looks are journaled work (he gets the report); only the
+    # cookie-name read is a probe.
+    RENDER="$ROOT/apps/vibee-editor/render"
+    [ -x "$RENDER/node_modules/.bin/tsx" ] || { echo "нет tsx в $RENDER/node_modules (tri deps)"; exit 2; }
+    lg=$(call browser_logins '{}' 45 probe) || { echo "входы не прочитаны: $lg"; exit 2; }
+    PLAN=$(cd "$RENDER" && { curl -s --max-time 20 https://t27.ai/rss.xml || true; } \
+      | SLUG="${1:-}" LOGINS="$lg" node_modules/.bin/tsx -e '
+import { parseRss, shareUrls, SHARE_LABELS } from "./src/agent/blog-share.ts"
+import { isNotConnected } from "./src/agent/rounds.ts"
+import { findProbe } from "./src/browser/find-target.ts"
+import { FIRST_SETTLE_MS, LOOK_EVERY_MS, LOOKS } from "./src/spec/blog-share.gen.ts"
+let xml = ""
+process.stdin.on("data", d => (xml += d)).on("end", () => {
+  const list = parseRss(xml)
+  const slug = process.env.SLUG
+  const a = slug ? list.find(x => x.slug === slug) : list[0]
+  if (!a) { console.error(slug ? `no article ${slug} in the feed` : "the feed holds no article"); process.exit(3) }
+  const logins = (() => { try { return JSON.parse(process.env.LOGINS!).networks ?? null } catch { return null } })()
+  const urls = shareUrls(a) as Record<string, string>
+  console.log(["plan", a.slug, FIRST_SETTLE_MS, LOOK_EVERY_MS, LOOKS].join("\t"))
+  for (const [net, labels] of Object.entries(SHARE_LABELS)) {
+    const url = urls[net.toLowerCase()]
+    if (isNotConnected(url, logins)) { console.log(["skip", net, url].join("\t")); continue }
+    for (const l of labels) console.log(["look", net, url, l, Buffer.from(findProbe(l)).toString("base64")].join("\t"))
+  }
+})'); prc=$?
+    [ $prc -eq 0 ] || { echo "план не собран кодом стола (rc $prc)"; exit 2; }
+    IFS=$'\t' read -r _ slug settle every looks <<<"$(printf '%s\n' "$PLAN" | head -1)"
+    echo "статья: $slug   (смотрю ${looks}×${every} мс, как стол; не нажимаю)"
+    miss=0; asked=0
+    for net in $(printf '%s\n' "$PLAN" | awk -F'\t' '$1!="plan"{print $2}' | awk '!s[$0]++'); do
+      if printf '%s\n' "$PLAN" | grep -q "^skip	$net	"; then
+        echo "  · $net: не вошёл — стол её пропустит, ничего не открыто"; continue
+      fi
+      url=$(printf '%s\n' "$PLAN" | awk -F'\t' -v n="$net" '$1=="look" && $2==n{print $3; exit}')
+      before=$(ids) || exit 2
+      out=$(call browser_open "{\"url\":$(js "$url")}" 120); orc=$?
+      [ $orc -eq 0 ] || { echo "  ✗ $net: не открылась: ${out:0:160}"; miss=1; continue; }
+      asked=1
+      id=$(OUT="$out" python3 -c 'import json,os
+try: print(json.loads(os.environ["OUT"]).get("id") or "")
+except Exception: print("")')
+      # No id: the front tab is not known to be ours, so nothing is looked at
+      # (findProbe scrolls) and nothing is closed.
+      [ -n "$id" ] || { echo "  ✗ $net: открылась без id — не смотрю и не закрываю: ${out:0:160}"; miss=1; continue; }
+      sleep $(( settle / 1000 ))
+      hit=""; look=0
+      while [ -z "$hit" ] && [ $look -lt "$looks" ]; do
+        [ $look -gt 0 ] && sleep $(( every / 1000 ))
+        look=$((look + 1))
+        while IFS=$'\t' read -r _ _ _ label b64; do
+          code=$(printf '%s' "$b64" | base64 --decode)
+          res=$(front "$id" && call browser_evaluate "{\"code\":$(js "$code")}" 60) || continue
+          hit=$(RES="$res" L="$label" python3 -c '
+import json, os
+try:
+    d = json.loads(os.environ["RES"])
+except Exception:
+    d = None
+v = d.get("value", d) if isinstance(d, dict) else d
+print(json.dumps({"label": os.environ["L"], "at": v}, ensure_ascii=False) if v else "")')
+          [ -n "$hit" ] && break
+        done < <(printf '%s\n' "$PLAN" | awk -F'\t' -v n="$net" '$1=="look" && $2==n')
+      done
+      where=$(call browser_evaluate '{"code":"location.href"}' 30 | python3 -c 'import json,sys
+r=sys.stdin.read()
+try:
+    d=json.loads(r); print(d.get("value", d) if isinstance(d, dict) else d)
+except Exception: print(r[:120])')
+      if [ -n "$hit" ]; then echo "  ✓ $net: нажал бы $hit (взгляд $look)"
+      else echo "  ✗ $net: кнопки нет за $looks взглядов — стол сегодня промахнётся. Страница: ${where:0:120}"; miss=1; fi
+      # Close only the tab this case opened: one new id, the one open named.
+      if after=$(ids); then
+        new=""; n=0
+        for t in $after; do case " $before " in *" $t "*) ;; *) new="$t"; n=$((n + 1)) ;; esac; done
+        if [ $n -eq 1 ] && [ "$new" = "$id" ]; then call browser_close_tab "{\"id\":$(js "$id")}" >/dev/null || echo "    не закрыл $id"
+        else echo "    новых вкладок: $n, открыта: ${id:-?} — не угадываю, ничего не закрыл"; fi
+      fi
+    done
+    [ $asked -eq 1 ] || { echo "ни одна сеть не проверена"; exit 2; }
+    exit $miss ;;
   call)
     [ -n "${1:-}" ] || { echo "нужно имя инструмента"; exit 2; }
     call "$1" "${2:-$NONE}" "${3:-120}" ;;

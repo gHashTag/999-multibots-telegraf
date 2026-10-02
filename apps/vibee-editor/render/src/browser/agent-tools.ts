@@ -280,17 +280,37 @@ export async function openAndChoose(
   return page
 }
 
+/**
+ * THE REFUSAL WHEN THERE IS NO VISIT, TRUE FOR A PROBE TOO.
+ *
+ * A probe never starts a browser (liveSession). But the reaper deletes the
+ * visit row after ten quiet minutes while the pod goes on running, so "no
+ * browser is running" was false for a probe: on 2026-10-03 browser_status
+ * listed nine tabs one second before browser_evaluate, sent as a probe, said
+ * there was no browser at all. The probe is told what is true and which door
+ * starts a visit.
+ */
+async function noBrowserError(ctx: ToolContext): Promise<Error> {
+  if (ctx.probe === true && (await podToLookAt(ctx))?.visitOnRecord === false)
+    return new Error(
+      'the browser is running, but no visit is on record, and a probe starts ' +
+        'none. Call without _meta.probe to start one (the person is told in ' +
+        'Telegram), or list its tabs with browser_status.'
+    )
+  return new Error(
+    'no browser is running for this person. They open one in the mini app, ' +
+      'on the Browser tab — it is theirs, signed in as them, and they watch ' +
+      'you work in it.'
+  )
+}
+
 /** What every tool here needs, and the one refusal they all share. */
 async function podOf(
   ctx: ToolContext
 ): Promise<{ cdp: string; targetId: string }> {
   const session = await liveSession(ctx)
   if (!session || session.state !== 'live' || !session.cdpEndpoint) {
-    throw new Error(
-      'no browser is running for this person. They open one in the mini app, ' +
-        'on the Browser tab — it is theirs, signed in as them, and they watch ' +
-        'you work in it.'
-    )
+    throw await noBrowserError(ctx)
   }
   /* The tab the agent chose with browser_status front, while it is open. */
   const targets = await listTargetsForFront(session.cdpEndpoint).catch(() => [])
@@ -862,7 +882,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       }
       const session = await liveSession(ctx)
       if (!session?.cdpEndpoint || session.state !== 'live') {
-        throw new Error('no browser is running for this person')
+        throw await noBrowserError(ctx)
       }
       const page = await openAndChoose(
         ctx.telegramId,

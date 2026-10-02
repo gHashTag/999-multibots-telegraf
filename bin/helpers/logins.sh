@@ -25,9 +25,12 @@ fi
 [ -n "$KEY" ] || { echo "no agent key: export AGENT_KEY or run 'railway login'"; exit 2; }
 BASE="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 
+# A probe (_meta.probe): reading cookie names is a check, not the agent's
+# work. Unmarked, it was a journal step, and two minutes later the owner got
+# an "agent work over the connection" report for it (2026-10-03).
 RESP=$(curl -s --max-time 45 "$BASE/mcp" -H "X-Agent-Key: $KEY" \
   -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"browser_logins","arguments":{}}}')
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"browser_logins","arguments":{},"_meta":{"probe":true}}}')
 
 # An empty answer is not "signed in nowhere": say so and stop.
 [ -n "$RESP" ] || { echo "the service did not answer -- no verdict"; exit 2; }
