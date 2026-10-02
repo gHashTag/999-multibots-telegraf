@@ -45,8 +45,12 @@ echo "-- ready? --"
 for row in "threads THREADS_APP_ID THREADS_APP_SECRET" "facebook META_APP_ID META_APP_SECRET" \
   "linkedin LINKEDIN_CLIENT_ID LINKEDIN_CLIENT_SECRET" "x X_CLIENT_ID X_CLIENT_SECRET"; do
   set -- $row
-  if ! isset "$2" || ! isset "$3"; then
+  if ! isset "$2"; then
     echo "  $1: waits for the owner -- create the app, set $2 and $3 on vibee-render"
+  elif ! isset "$3"; then
+    echo "  $1: app created ($2 set) -- waits for the owner to copy $3 onto vibee-render"
+  elif ! isset META_TOKEN_KEY; then
+    echo "  $1: app set -- waits for META_TOKEN_KEY on vibee-render (Connect refuses without it)"
   elif ! printf '%s\n' "$HELD" | grep -qx "$1"; then
     echo "  $1: app set -- waits for the owner to press Connect (Profile -> networks)"
   else
