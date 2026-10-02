@@ -9676,6 +9676,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'sign_in',
               error: 'нужна подпись или ключ агента',
             })
           )
@@ -9696,6 +9697,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'cashier_off',
               error: 'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан',
             })
           )
@@ -9721,8 +9723,17 @@ const server = createServer(async (req, res) => {
             body.tokens != null
               ? Number(body.tokens)
               : PACKS[String(body.pack)]?.tokens
-          if (!запрошено)
-            throw new Error('нужно поле tokens или известный pack')
+          if (!запрошено) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                ok: false,
+                code: 'bad_amount',
+                error: 'нужно поле tokens или известный pack',
+              })
+            )
+            return
+          }
           /*
            * ONE MINT FOR TWO CALLERS. The personal seller (`crm_offer`) issues
            * the same link for a lead; the price, the payload and the pending
@@ -9782,6 +9793,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'failed',
               error: понятнаяПричина(e),
             })
           )
@@ -9801,7 +9813,11 @@ const server = createServer(async (req, res) => {
         if (!who) {
           res.writeHead(401, { 'Content-Type': 'application/json' })
           res.end(
-            JSON.stringify({ ok: false, error: 'нужна подпись или ключ' })
+            JSON.stringify({
+              ok: false,
+              code: 'sign_in',
+              error: 'нужна подпись или ключ',
+            })
           )
           return
         }

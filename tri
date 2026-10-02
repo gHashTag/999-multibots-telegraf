@@ -3168,17 +3168,36 @@ cmd_readers() {
     # By the quoted file NAME, not `--for`: `--for` also lists every scanner
     # that walks a whole directory (106 tests for one hook) -- too many to run
     # before a push. A guard on one file names it, as creditedIsNotOk does.
+    # Untracked files count too: the guard being added in this very change is
+    # usually the one that names the file.
     local tests="" f
     for f in "$@"; do
-      tests="$tests $(cd "$ROOT" && git ls-files '*.test.ts' '*.test.tsx' \
+      tests="$tests $(cd "$ROOT" && { git ls-files '*.test.ts' '*.test.tsx'
+        git ls-files --others --exclude-standard '*.test.ts' '*.test.tsx'; } \
         | xargs /usr/bin/grep -l -F "'$(basename "$f")'" 2>/dev/null)"
     done
     tests=$(echo $tests | tr ' ' '\n' | sort -u)
     if [ -z "$tests" ]; then echo "  --   no test names these files"; return 0; fi
     echo "$tests" | sed 's/^/  reads it: /'
-    # shellcheck disable=SC2086
-    ( cd "$ROOT" && timeout 600 npx vitest run $tests )
-    return
+    # Each test runs under the vitest config of ITS OWN package. The root
+    # config excludes player/, and a file it excludes, passed by name, is
+    # dropped SILENTLY: "75 passed" for 76 named, 2026-10-02.
+    local groups t d mine rc=0
+    groups=$(echo "$tests" | while read -r t; do
+      d=$(dirname "$t")
+      while [ "$d" != "." ] && ! ls "$ROOT/$d"/vitest.config.* >/dev/null 2>&1; do
+        d=$(dirname "$d")
+      done
+      echo "$d $t"
+    done)
+    for d in $(echo "$groups" | cut -d' ' -f1 | sort -u); do
+      mine=$(echo "$groups" | awk -v d="$d" '$1 == d { print $2 }')
+      [ "$d" = "." ] || mine=$(echo "$mine" | sed "s#^$d/##")
+      echo "  --   $(echo "$mine" | wc -l | tr -d ' ') under $d/vitest.config"
+      # shellcheck disable=SC2086
+      ( cd "$ROOT/$d" && timeout 600 npx vitest run $mine ) || rc=1
+    done
+    return $rc
   fi
   ( cd "$ROOT" && node "$ROOT/scripts/text-readers.cjs" "$@" )
 }
