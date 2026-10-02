@@ -89,7 +89,7 @@ export function ownedLine(
 export const AGENT_BOT_USAGE =
   'Как оплатить бота клиента после оплаты владельцем:\n' +
   '/agentbot @username <дней> — продлить на столько дней\n' +
-  '/agentbot @username <дней> text — пакет «Агент-менеджер», только текст\n' +
+  '/agentbot @username <дней> text — пакет «Менеджер агент», только текст\n' +
   '/agentbot @username <дней> media — пакет с медиа (рилсы, лицо, голос)'
 
 /** The team's /agentbot words, or null when they do not parse. */

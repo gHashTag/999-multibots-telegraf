@@ -1,10 +1,64 @@
-import { replicate } from '@/core/replicate'
 import { logger } from '@/utils/logger'
+
+/*
+ * WHO LOOKS AT THE AVATAR: KIE, NOT REPLICATE.
+ *
+ * This used to be Moondream on Replicate. On 2026-10-01 the Replicate account
+ * ran dry, every new user paged the owner with `402 Insufficient credit`, and
+ * nobody got a welcome portrait. Media generation already runs on Kie, and
+ * Kie's OpenAI-compatible chat endpoint takes an `image_url` part.
+ *
+ * `gpt-5-2` was checked live on 2026-10-01 with this exact prompt: a woman's
+ * portrait came back `FACE:yes GENDER:female` and a man's `FACE:yes
+ * GENDER:male`, at 0.02 credits each. `gemini-3-pro` gave the same verdict
+ * but cost 0.12, took about 45 s, and once came back empty. `gemini-2.5-flash`
+ * is refused on this key ("The channel is not supported").
+ */
+const KIE_CHAT_URL = 'https://api.kie.ai/v1/chat/completions'
+const KIE_VISION_MODEL = 'gpt-5-2'
+/** Signup waits on this answer, so it must not hang there. */
+const VISION_TIMEOUT_MS = 60_000
+
+/** Ask Kie's vision model one question about one picture; the text reply. */
+async function askVision(imageUrl: string, prompt: string): Promise<string> {
+  const key = process.env.KIE_AI_API_KEY
+  if (!key) throw new Error('KIE_AI_API_KEY is not set')
+  const r = await fetch(KIE_CHAT_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: KIE_VISION_MODEL,
+      stream: false,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: imageUrl } },
+          ],
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(VISION_TIMEOUT_MS),
+  })
+  const body: any = await r.json().catch(() => null)
+  // Kie reports some failures as HTTP 200 with `{ code, msg }` in the body.
+  const content = body?.choices?.[0]?.message?.content
+  if (!r.ok || typeof content !== 'string') {
+    throw new Error(
+      `Kie vision answered ${r.status}: ${String(body?.msg ?? 'no content').slice(0, 160)}`
+    )
+  }
+  return content
+}
 
 /*
  * READING A VISION MODEL'S ANSWER WITHOUT MATCHING THE MIDDLE OF A WORD.
  *
- * The prompt below asks Moondream for `FACE:yes/no GENDER:male/female/unclear`,
+ * The prompt below asks the vision model for `FACE:yes/no GENDER:male/female/unclear`,
  * and the reply was read with bare `String.includes`. Two of those substrings
  * live inside ordinary English words, so the reader answered questions the
  * model had not been asked:
@@ -45,12 +99,8 @@ export interface AvatarAnalysisResult {
 }
 
 /**
- * Analyze avatar image using Replicate vision model
- * Detects if there's a human face and determines gender
- *
- * Uses Moondream2 - fast and efficient vision model
- * Model: vikhyatk/moondream2
- * Cost: ~$0.0001 per image (very cheap)
+ * Analyze avatar image with Kie's vision model (see the header above).
+ * Detects if there's a human face and determines gender.
  */
 export async function analyzeAvatar(
   imageUrl: string
@@ -72,18 +122,10 @@ export async function analyzeAvatar(
       imageUrl: imageUrl.substring(0, 50) + '...',
     })
 
-    // Use Moondream2 - fast vision model for image analysis
-    // Model: lucataco/moondream2 (updated from vikhyatk/moondream2)
     // Prompt designed to get structured response about face and gender
-    const output = await replicate.run(
-      'lucataco/moondream2:72ccb656353c348c1385df54b237eeb7bfa874bf11486cf0b9473e691b662d31' as any,
-      {
-        input: {
-          image: imageUrl,
-          prompt:
-            'Analyze this image. Answer these questions:\n1. Is there a human face clearly visible in this image? (yes/no)\n2. If yes, what is the apparent gender of the person? (male/female/unclear)\nAnswer in format: FACE:yes/no GENDER:male/female/unclear',
-        },
-      }
+    const output = await askVision(
+      imageUrl,
+      'Analyze this image. Answer these questions:\n1. Is there a human face clearly visible in this image? (yes/no)\n2. If yes, what is the apparent gender of the person? (male/female/unclear)\nAnswer in format: FACE:yes/no GENDER:male/female/unclear'
     )
 
     logger.info('[AnalyzeAvatar] Raw response', { output })
@@ -157,14 +199,9 @@ export async function analyzeAvatar(
  */
 export async function quickFaceCheck(imageUrl: string): Promise<boolean> {
   try {
-    const output = await replicate.run(
-      'lucataco/moondream2:72ccb656353c348c1385df54b237eeb7bfa874bf11486cf0b9473e691b662d31' as any,
-      {
-        input: {
-          image: imageUrl,
-          prompt: 'Is there a human face in this image? Answer only yes or no.',
-        },
-      }
+    const output = await askVision(
+      imageUrl,
+      'Is there a human face in this image? Answer only yes or no.'
     )
 
     const response = String(output).toLowerCase()

@@ -221,8 +221,54 @@ private enum PageScripts {
         // 84px, which left a 1px strip of buttons -- the rail sits above the
         // bar already, so it pads nothing. The map alone may run under it.
         + '.queen27-page.is-shell .queen27-hud-bottom{padding-bottom:0!important}'
-        + '.queen-universe:has(.queen27-page.is-bare){padding-bottom:0!important}';
+        + '.queen-universe:has(.queen27-page.is-bare){padding-bottom:0!important}'
+        // THE MAP IS THE SCREEN (owner, 2026-10-02: "make the interface more
+        // minimal so the map is visible"). Bare mode still kept a 155px head
+        // -- sector, repo chips, ten tools, a sign-in box -- over a phone-
+        // sized map. Now the head floats over the map instead of pushing it
+        // down, and shows only the sector name until the "more" button opens
+        // it. Every tool, "Exit fullscreen" included, is one tap away.
+        + bare + '.queen27-hud-viewport>.queen27-hud-vp-head{position:absolute!important;top:0;left:0;right:52px;z-index:5;min-height:0!important}'
+        + bare + '.queen27-hud-vp-body{height:100%!important;flex:1 1 auto!important}'
+        + ':root:not(.vibee-board-tools) ' + bare + '.queen27-hud-vp-head{background:none!important;border:0!important;padding:10px 12px!important;pointer-events:none}'
+        + ':root:not(.vibee-board-tools) ' + bare + '.queen27-hud-vp-head>:not(.queen27-hud-vp-title){display:none!important}'
+        + ':root:not(.vibee-board-tools) ' + bare + '.queen27-hud-vp-title{opacity:.7}'
+        + '.vibee-board-more{display:none}'
+        + ':root:has(.queen27-page.is-bare) .vibee-board-more{display:flex;position:fixed;top:8px;right:8px;z-index:50;'
+        + 'width:36px;height:36px;border-radius:18px;align-items:center;justify-content:center;padding:0;'
+        + 'background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.18);font:600 18px/1 system-ui;'
+        + '-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}';
       document.documentElement.appendChild(s);
+      // The scene measures itself on resize; the head leaving the flow
+      // changes its size without one, and the map stays fitted to the old box.
+      // Twice: the bare class lands on the board's next render, not at once.
+      var refit = function () {
+        [60, 400].forEach(function (ms) {
+          setTimeout(function () { window.dispatchEvent(new Event('resize')); }, ms);
+        });
+      };
+      var tools = function (on) {
+        document.documentElement.classList.toggle('vibee-board-tools', on);
+        var b = document.querySelector('.vibee-board-more');
+        if (b) b.textContent = on ? '\\u00d7' : '\\u22ef';
+      };
+      document.addEventListener('DOMContentLoaded', function () {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'vibee-board-more';
+        b.setAttribute('aria-label', 'Board tools');
+        b.textContent = '\\u22ef';
+        b.addEventListener('click', function () {
+          tools(!document.documentElement.classList.contains('vibee-board-tools'));
+        });
+        document.body.appendChild(b);
+      });
+      // Leaving fullscreen from the tools closes them, so the next
+      // fullscreen starts calm again.
+      document.addEventListener('fullscreenchange', function () {
+        if (!held) tools(false);
+        refit();
+      });
       Element.prototype.requestFullscreen = function () { held = this; changed(); return Promise.resolve(); };
       Document.prototype.exitFullscreen = function () { held = null; changed(); return Promise.resolve(); };
       var tries = 0;

@@ -170,18 +170,6 @@ export function TelegramTabBar() {
       className={`tma-tabbar${location.pathname.startsWith('/game') ? ' tma-tabbar--game' : ''}`}
       aria-label="Primary"
     >
-      {location.pathname.startsWith('/game') && (
-        <Link
-          to="/game/account"
-          className="tma-tabbar__account"
-          aria-current={
-            location.pathname === '/game/account' ? 'page' : undefined
-          }
-        >
-          <KeyRound size={20} aria-hidden="true" />
-          <span>{t('hiveAccount.short')}</span>
-        </Link>
-      )}
       <div
         ref={scrollRef}
         className={`tma-tabbar__scroll${edges.start ? ' has-start' : ''}${edges.end ? ' has-end' : ''}`}
@@ -212,6 +200,23 @@ export function TelegramTabBar() {
           )
         })}
       </div>
+      {/*
+        Keys & XP comes LAST (owner, 2026-10-02): it is the game's account
+        page, not a destination, and leading the bar it pushed the shared
+        tabs right and took the thumb's first reach.
+      */}
+      {location.pathname.startsWith('/game') && (
+        <Link
+          to="/game/account"
+          className="tma-tabbar__account"
+          aria-current={
+            location.pathname === '/game/account' ? 'page' : undefined
+          }
+        >
+          <KeyRound size={20} aria-hidden="true" />
+          <span>{t('hiveAccount.short')}</span>
+        </Link>
+      )}
     </nav>
   )
 }

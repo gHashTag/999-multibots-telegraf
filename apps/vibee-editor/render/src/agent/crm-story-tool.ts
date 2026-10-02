@@ -127,7 +127,7 @@ export function makeCrmStoryTool(o: {
         },
         scene_count: {
           type: 'number',
-          description: 'сколько сцен (кадров) написать: 1–4, по умолчанию 3',
+          description: 'сколько сцен (кадров) написать: 1–6, по умолчанию 3',
         },
         style: { type: 'string', description: 'свой свет и тон кадров' },
         cta: { type: 'string', description: 'свой призыв в паузе' },
@@ -408,6 +408,11 @@ export function makeMyStoryTool(o: {
           type: 'string',
           description: 'тема своими словами; пусто — следующая из плана',
         },
+        face_url: {
+          type: 'string',
+          description:
+            'своё фото для рилсов вместо аватарки (https); пустая строка — снова аватарка',
+        },
       },
       additionalProperties: false,
     },
@@ -418,7 +423,18 @@ export function makeMyStoryTool(o: {
       if (String((ctx as { faceOf?: string }).faceOf ?? '').trim())
         return { ready: false, why: USE_THE_CRM_TOOL }
       const deps = o.deps(ctx)
-      const s = await storySettingsOf(ctx.pool, me)
+      let s = await storySettingsOf(ctx.pool, me)
+      // Her own photo over her avatar, kept with the seller whose template it is.
+      if (s && typeof args.face_url === 'string') {
+        const k = await keepStoryFace(
+          ctx.pool as never,
+          s.owner,
+          me,
+          args.face_url
+        )
+        if (k.why) return { ready: false, started: false, why: k.why }
+        s = await storySettingsOf(ctx.pool, me, s.owner)
+      }
       const missing = missingFor(s)
       if (args.start === true) {
         if (!s || missing) return { started: false, why: missing }
@@ -448,6 +464,8 @@ export function makeMyStoryTool(o: {
           ? {
               name: s.name || undefined,
               face: s.faceUrl || undefined,
+              face_custom: s.faceCustom,
+              avatar: s.avatarUrl || undefined,
               voice: s.hasVoice,
               cta: s.cta,
             }
