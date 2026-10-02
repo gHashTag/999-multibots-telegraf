@@ -11049,3 +11049,26 @@ every tool. Measure the result as a number (map height / frame height:
 an emulated viewport, log the event's clientX first: the pane's click
 coordinates did not follow the scaled screenshot, and a "button does nothing"
 was a tap that landed 230px to the left.
+
+### A failed generation is a `code` plus the server's words (iteration 12)
+
+The web put the whole response body into `error` -- the panel showed
+`{"success":false,"error":...}` with braces -- and iOS showed billing reasons
+in Russian and provider dumps in English on any phone. Now:
+
+- server: `stampRefusalCode(res)` at the top of each generation route adds
+  `code` from the status (401 sign_in, 402 not_enough_tokens, 403 forbidden,
+  other 4xx bad_input, 503 unavailable, 5xx generation_failed); the auth guard
+  in front of the routes names its own refusal; `recordInto` stores the code
+  on the job (column `code`), so a recovered job says the same thing;
+- clients (`player/src/lib/generationRefusal.ts`, iOS `GenerationRefusal` in
+  `ПодборЗадачи.swift`): the sentence for the code in the reader's language, <!-- cyrillic-ok: a file name -->
+  then the server's words on a second line, cut to 200 chars; a 4xx detail
+  already in the reader's script stands alone ("need 20, have 16");
+- contract: `render/generation-refusal-codes.test.ts` imports the server's
+  list and fails until both clients can say every code;
+- live: `tri gen-refusal` (unsigned calls, refused at the charge, nothing
+  spent).
+
+A new failure kind: add it to `GENERATION_REFUSAL_CODES`, and the contract
+test tells you which client still cannot say it.
