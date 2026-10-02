@@ -104,6 +104,7 @@ import { tmpdir } from 'node:os'
 import { join as joinPath } from 'node:path'
 import { withShelfFile } from './media-extract'
 import { OWNER_MINIMAX_CLONE, spokenBrand } from './minimax-voices'
+import { CLONE_NEEDS_REPLICATE, replicateLive } from '../replicate-off'
 import { Agent as UndiciAgent } from 'undici'
 import {
   LIPSYNC_DEFAULT_MODEL,
@@ -3762,6 +3763,7 @@ TOOLS.push(
           '',
       }),
     price: TOKEN_PRICES.voice_clone,
+    unavailable: () => (replicateLive() ? null : CLONE_NEEDS_REPLICATE),
   })
 )
 /*
