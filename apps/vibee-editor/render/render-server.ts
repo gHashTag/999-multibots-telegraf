@@ -59,6 +59,7 @@ import {
   getJobDurable,
   listJobsDurable,
 } from './generate-jobs'
+import { stampRefusalCode, refusalCodeFor } from './generation-refusal'
 import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
@@ -3744,6 +3745,10 @@ const server = createServer(async (req, res) => {
     res.end(
       JSON.stringify({
         error: auth.statusCode === 403 ? 'forbidden' : 'unauthorized',
+        // The name the clients translate (generation-refusal.ts). This guard
+        // answers before any route, so an expired session -- the most common
+        // failed generation -- never reached the routes' own stamp.
+        code: refusalCodeFor(auth.statusCode ?? 401),
         detail: auth.reason,
         hint: 'send X-Api-Key (server to server) or X-Telegram-Init-Data (Mini App)',
       })
@@ -4315,6 +4320,8 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/image - ordered provider chain, see the handler body
   if (req.url === '/api/generate/image' && req.method === 'POST') {
+    // Every failure below leaves with a `code` the clients translate.
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -4621,6 +4628,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/video - Generate video (MCP Kling/Veo3 → Replicate fallback)
   if (req.url === '/api/generate/video' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -5257,6 +5265,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/audio - Generate TTS using ElevenLabs (direct API call)
   if (req.url === '/api/generate/audio' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -5726,6 +5735,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/lipsync - Generate lipsync video using fal.ai VEED Fabric
   if (req.url === '/api/generate/lipsync' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     let billedTid: string | undefined
     let billedSeconds = 0
