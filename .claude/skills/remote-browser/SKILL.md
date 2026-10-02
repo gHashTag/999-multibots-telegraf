@@ -140,8 +140,21 @@ agent key) -- the full case list is the header of `bin/helpers/b.sh`
     tri browser status            # tabs with ids; * = where the tools act
     tri browser find "words" ID   # where a click WOULD land -- no click
     tri browser blank ID          # why a page is empty: the error that killed it
+                                  #   staleTab = tab runs an older build -> reload
+    tri browser reload ID         # reload one tab (after a deploy, before judging)
+    tri browser layers ID         # find says NOT FOUND: shadow roots + iframes
+    tri browser composer ID       # what is in X's boxes now; no presses
+    tri browser wait "words" [S]  # poll until the words appear; rc 1 = never did
+    tri browser logins            # which networks are signed in (names only)
     tri browser time [URL]        # new-tab latency; closes only what it opened
     tri browser call TOOL '{..}'  # any tool, raw
+    tri browser cover             # every registry tool has a case? rc 1 names gaps
+
+Pick the command by the symptom, and keep `cover` at rc 0: a tool added to
+`agent-tools.ts` without a case in `b.sh` is a tool nobody can check by hand.
+`ask` and `ask-input` send a REAL question to the owner's phone -- not for
+smoke tests. A tab opened before a deploy keeps the old bundle and can show a
+bug that is already fixed live; `blank` says `staleTab`, `reload` cures it.
 
 ## Related Resources
 

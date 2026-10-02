@@ -66,9 +66,12 @@ tri — оболочка Trinity S³AI
   tri no-verify-debt [base]  шлюзы, пропущенные коммитами с --no-verify, по всей ветке (кириллица, секреты, prettier, eslint)
   tri browser [--json]  состояние браузера: отвечает ли (pod), что в нём открыто (tabs), куда вошёл (logins)
   tri browser <случай>  каждый инструмент агента руками, той же дверью (tri browser help):
-                 status front open time read shot desk find click xy type eval blank close sign-in call
+                 status front focus open time wait read shot desk find layers click xy type
+                 composer eval blank reload close logins sign-in ask ask-input call cover
   tri browser find СЛОВА [ID]  куда лёг бы клик по словам — БЕЗ клика, пробой этой рабочей копии
-  tri browser blank [ID]  почему страница пустая: ловит ошибку, уронившую её (t27.ai: WebGL)
+  tri browser blank [ID]  почему страница пустая: ловит ошибку, уронившую её (t27.ai: WebGL); staleTab = старая сборка, reload ID
+  tri browser layers [ID]  кнопка видна, но «не найдена»: тени и фреймы страницы (Reddit: 370 теней)
+  tri browser composer [ID]  что СЕЙЧАС лежит в полях X, по полю, и какие кнопки есть (без нажатий)
   tri blog-share detail [slug]  что ответила КАЖДАЯ сеть, целиком
   tri pod        отвечает ли удалённый браузер И С КАКИХ ПОР (код 1 — не отвечает)
   tri tabs [--json]  сколько вкладок открыто в поде и близко ли до потолка PID (ничего не закрывает)
