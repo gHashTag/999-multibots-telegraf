@@ -26,7 +26,7 @@ vi.mock('@/core/bot/index', () => ({
   getBotNameByToken: () => ({ bot_name: 'neuro_blogger_bot' }),
 }))
 
-import { getPhotoUrl } from '@/handlers/getPhotoUrl'
+import { getPhotoUrl, DEFAULT_BOT_PHOTO_URL } from '@/handlers/getPhotoUrl'
 import type { MyContext } from '@/interfaces'
 
 const ctx = { telegram: { token: 'tok' } } as unknown as MyContext
@@ -40,11 +40,13 @@ const withAvatar = (avatar_url: string | null) =>
 describe('getPhotoUrl', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('URL со схемой levels — подставляет шаг', async () => {
-    withAvatar(
+  it('a stored levels URL is returned as stored, no step is invented', async () => {
+    // levels/2..22.jpg never existed on any host; substituting a step was the
+    // one way this function produced a dead address.
+    const url =
       'https://x.supabase.co/storage/v1/object/public/landingpage/avatars/b/levels/1.jpg'
-    )
-    expect(await getPhotoUrl(ctx, 3)).toContain('levels/3.jpg')
+    withAvatar(url)
+    expect(await getPhotoUrl(ctx)).toBe(url)
   })
 
   it('обычный .jpg отдаётся как есть, а не превращается в каталог', async () => {
@@ -52,7 +54,7 @@ describe('getPhotoUrl', () => {
       'https://x.supabase.co/storage/v1/object/public/landingpage/avatars/b/flux_pro_1.jpg'
     withAvatar(url)
 
-    const got = await getPhotoUrl(ctx, 1)
+    const got = await getPhotoUrl(ctx)
     expect(got).toBe(url)
     expect(got).not.toContain('/levels/')
   })
@@ -63,7 +65,7 @@ describe('getPhotoUrl', () => {
     const url = 'https://via.placeholder.com/150/4A90E2/FFFFFF?text=AI'
     withAvatar(url)
 
-    const got = await getPhotoUrl(ctx, 1)
+    const got = await getPhotoUrl(ctx)
     expect(got).toBe(url)
     expect(got).not.toContain('/levels/')
   })
@@ -71,18 +73,22 @@ describe('getPhotoUrl', () => {
   it('.png тоже не ломается', async () => {
     const url = 'https://example.com/lee_solarbot_avatar.png'
     withAvatar(url)
-    expect(await getPhotoUrl(ctx, 2)).toBe(url)
+    expect(await getPhotoUrl(ctx)).toBe(url)
   })
 
   it('без аватара — дефолт, а не падение', async () => {
     withAvatar(null)
-    const got = await getPhotoUrl(ctx, 1)
-    expect(got).toMatch(/^https:\/\//)
+    expect(await getPhotoUrl(ctx)).toBe(DEFAULT_BOT_PHOTO_URL)
   })
 
   it('ошибка запроса — дефолт, а не исключение', async () => {
     single.mockResolvedValue({ data: null, error: { message: 'boom' } })
-    const got = await getPhotoUrl(ctx, 1)
-    expect(got).toMatch(/^https:\/\//)
+    expect(await getPhotoUrl(ctx)).toBe(DEFAULT_BOT_PHOTO_URL)
+  })
+
+  it('the default is the one level picture that exists, on our storage', () => {
+    expect(DEFAULT_BOT_PHOTO_URL).toBe(
+      'https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/levels/1.jpg'
+    )
   })
 })

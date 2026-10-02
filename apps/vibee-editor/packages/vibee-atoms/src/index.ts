@@ -12,6 +12,35 @@ export {
   type LocalizedText,
 } from './agent-marketplace'
 
+export {
+  AGENT_PACKAGES,
+  agentPackageById,
+  agentPackageStars,
+  agentPackageCharge,
+  agentPackagePayload,
+  STARS_SUBSCRIPTION_MAX,
+  parseAgentPackagePayload,
+  starsForUsd,
+  STAR_PRICE_USD,
+  type AgentPackage,
+  type AgentPackageId,
+  type AgentPackageCharge,
+} from './agent-packages'
+
+// Who is looking: admin, manager, blogger, developer -- and what their CRM draws.
+export {
+  USER_LEVELS,
+  USER_LEVEL_LABEL,
+  CRM_DASHBOARD,
+  LEVEL_SHORTCUTS,
+  levelOfPackage,
+  levelOfPackages,
+  crmShows,
+  type UserLevel,
+  type CrmBlock,
+  type LevelShortcut,
+} from './user-level'
+
 // Queen-delegatable spec gate (mirror of the BrowserOS engine's QueenSpecQuality)
 // -- read by the app's coding composer and the render `tri spec` CLI from ONE copy.
 export {

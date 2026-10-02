@@ -29,6 +29,7 @@ interface Row {
   allow_token: string
   deny_token: string
   created_ms: number
+  ttl_ms: number | null
 }
 
 function fakePool(seed: Row[] = []) {
@@ -39,7 +40,7 @@ function fakePool(seed: Row[] = []) {
       const s = sql.trim().toUpperCase()
       if (s.startsWith('CREATE TABLE')) return { rows: [] }
       if (s.startsWith('INSERT')) {
-        const [id, who, what, allow, deny] = params as string[]
+        const [id, who, what, allow, deny, ttl] = params as string[]
         rows.push({
           id,
           telegram_id: who,
@@ -48,6 +49,7 @@ function fakePool(seed: Row[] = []) {
           allow_token: allow,
           deny_token: deny,
           created_ms: Date.now(),
+          ttl_ms: ttl == null ? null : Number(ttl),
         })
         return { rows: [] }
       }
@@ -146,6 +148,25 @@ describe('silence', () => {
     const state = (await readApproval(pool, id))?.state as ApprovalState
     expect(state).toBe('expired')
     expect(state).not.toBe('allowed')
+  })
+
+  it('A QUESTION THAT WAITS A DAY IS STILL OPEN AFTER TEN MINUTES', async () => {
+    /*
+     * 2026-10-02: the blog desk waits 24 h for its yes, but every question
+     * died at the browser's 10 min -- eight articles "declined" unseen.
+     */
+    const pool = fakePool()
+    const { id } = await askFor(pool, {
+      telegramId: 'tg-900000001',
+      what: 'post the article',
+      newId: () => 'long1',
+      newToken: () => `tok${++n}`,
+      ttlMs: 24 * 60 * 60 * 1000,
+    })
+    pool.rows[0].created_ms = Date.now() - APPROVAL_TTL_MS - 60_000
+    expect((await readApproval(pool, id))?.state).toBe('pending')
+    pool.rows[0].created_ms = Date.now() - 24 * 60 * 60 * 1000 - 1000
+    expect((await readApproval(pool, id))?.state).toBe('expired')
   })
 
   it('does not expire a question that was just asked', async () => {

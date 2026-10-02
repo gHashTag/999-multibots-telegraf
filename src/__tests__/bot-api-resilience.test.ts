@@ -33,8 +33,8 @@ import {
  *   - a script on a laptop, missing BOT_API_LOCAL_BOTS, calling the cloud for
  *     a moved bot and logging it back in there.
  */
-const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved'
-const ALERTS = '900000022:ZZalertsalertsalertsalertsalertsalert'
+const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token
+const ALERTS = '900000022:ZZalertsalertsalertsalertsalertsalert' // secret-guard-ok: fake fixture token
 const OURS = 'http://telegram-bot-api.railway.internal:8081'
 const FILES = 'http://telegram-bot-api.railway.internal:8082'
 const LISTED_ENV = {

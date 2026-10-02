@@ -564,11 +564,13 @@ const SALES_PROMPT = [
   '- Музыка (AI Cover, Music Generation)',
   '',
   'Оплата:',
-  '- Тарифов и подписок НЕТ. Оплата — токенами за звёзды Telegram, счёт приходит',
+  '- У этих услуг тарифов и подписок НЕТ. Оплата — токенами за звёзды Telegram, счёт приходит',
   '  прямо в этот чат. НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ — клиент должен захотеть сам.',
   '  Не называй сумм по памяти: только если человек САМ хочет оплатить или',
   '  спрашивает цену — скажи, что счёт придёт следующим сообщением, и предложи',
   '  открыть бота (кнопка ниже).',
+  '- Про другой продукт владельца (игра, приложение, бот по ссылке) цен не называй',
+  '  и пакеты токенов к нему не прикладывай: скажи, что уточнишь у владельца.',
   '',
   'Правила:',
   '- Будь дружелюбным и кратким (2-4 предложения).',
@@ -850,7 +852,13 @@ export async function answerClient(
    * out through this holder rather than by moving the strip later and letting
    * `[[…|look:1]]` into the transcript.
    */
-  offered?: { looks: LookOption[] }
+  offered?: { looks: LookOption[] },
+  /**
+   * `textOnly`: the seller bought the Manager Agent, a text model for the
+   * CRM -- the render hands this turn no media tool (a managed bot of that
+   * package, core/bot/managedBots/runner.ts).
+   */
+  opts: { textOnly?: boolean } = {}
 ): Promise<string> {
   let attempts = 0
   let lastFault: ProviderFault = 'standing'
@@ -863,6 +871,7 @@ export async function answerClient(
         // cyrillic-ok: pre-existing identifier
         surface: 'business',
         ...(seller ? { seller } : {}),
+        ...(opts.textOnly ? { textOnly: true } : {}),
       })
       // Markers are the bot chat's syntax; a client must never see bracket soup.
       const raw = (answer.текст ?? '').trim() // cyrillic-ok: pre-existing field

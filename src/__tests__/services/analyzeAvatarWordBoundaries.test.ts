@@ -1,7 +1,7 @@
 /**
  * 'yes' IS INSIDE 'eyes', AND 'person' IS INSIDE 'no person'.
  *
- * analyzeAvatar asks Moondream for `FACE:yes/no GENDER:male/female/unclear`
+ * analyzeAvatar asks the vision model for `FACE:yes/no GENDER:male/female/unclear`
  * and used to read the reply with bare `String.includes`. A vision model given
  * a photograph of a cat answers something like
  *
@@ -13,14 +13,24 @@
  * that hands the new-user welcome portrait a photo with no face in it, and
  * writes a gender guessed from it into the database.
  *
- * These tests DRIVE the service with the replicate client replaced, so what is
- * pinned is the answer, not the shape of the source.
+ * These tests DRIVE the service with Kie's chat endpoint replaced (fetch), so
+ * what is pinned is the answer, not the shape of the source.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const { run } = vi.hoisted(() => ({ run: vi.fn() }))
-
-vi.mock('@/core/replicate', () => ({ replicate: { run } }))
+/**
+ * The model's reply, as the vision call sees it. `mockResolvedValue(text)`
+ * answers a Kie chat completion carrying `text`; `mockRejectedValue(e)` is a
+ * transport failure.
+ */
+const run = vi.fn()
+const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => {
+  const text = await run()
+  return new Response(
+    JSON.stringify({ choices: [{ message: { content: text } }] }),
+    { status: 200 }
+  )
+})
 
 import { logger } from '@/utils/logger'
 import { analyzeAvatar, quickFaceCheck } from '@/services/analyzeAvatar'
@@ -31,6 +41,12 @@ let error: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   run.mockReset()
+  fetchMock.mockClear()
+  vi.stubGlobal('fetch', fetchMock)
+  vi.stubEnv('KIE_AI_API_KEY', 'test-kie-key')
+  // Our own vision model is asked first when this is set; these tests pin
+  // the Kie path, so a key exported in the shell must not leak in.
+  vi.stubEnv('VISION_API_KEY', '')
   // The real logger object -- the same instance the Telegram transport is
   // attached to, so "which method" is a real question here.
   error = vi.spyOn(logger, 'error').mockImplementation(() => logger as any)
@@ -40,6 +56,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
 })
 
 describe('analyzeAvatar believes the answer it asked for', () => {
@@ -77,13 +95,23 @@ describe('analyzeAvatar believes the answer it asked for', () => {
     expect(result.gender).toBe('male')
   })
 
-  it('handles the array replicate sometimes returns', async () => {
-    run.mockResolvedValue(['FACE:yes ', 'GENDER:female'])
+  it('asks Kie, not Replicate, with the picture attached', async () => {
+    run.mockResolvedValue('FACE:yes GENDER:female')
 
-    const result = await analyzeAvatar(URL)
+    await analyzeAvatar(URL)
 
-    expect(result.hasFace).toBe(true)
-    expect(result.gender).toBe('female')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.kie.ai/v1/chat/completions')
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      'Bearer test-kie-key'
+    )
+    const body = JSON.parse(String(init.body))
+    expect(body.model).toBe('gpt-5-2')
+    expect(body.messages[0].content[1]).toEqual({
+      type: 'image_url',
+      image_url: { url: URL },
+    })
   })
 })
 
@@ -132,12 +160,12 @@ describe('quickFaceCheck', () => {
 
 describe('a broken vision model is still ours', () => {
   it('pages the owner when the analysis itself fails', async () => {
-    run.mockRejectedValue(new Error('REPLICATE_API_TOKEN not found'))
+    vi.stubEnv('KIE_AI_API_KEY', '')
 
     const result = await analyzeAvatar(URL)
 
     expect(result.hasFace).toBe(false)
-    expect(result.error).toContain('REPLICATE_API_TOKEN')
+    expect(result.error).toContain('KIE_AI_API_KEY')
     expect(
       error.mock.calls.map(c => String(c[0])),
       'a credential we failed to load is an incident, not a customer'
@@ -145,11 +173,44 @@ describe('a broken vision model is still ours', () => {
   })
 })
 
+describe('Kie refusals are failures, not empty verdicts', () => {
+  it('reports a 200 that carries an error code instead of an answer', async () => {
+    fetchMock.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({ code: 422, msg: 'The channel is not supported' }),
+          { status: 200 }
+        )
+    )
+
+    const result = await analyzeAvatar(URL)
+
+    expect(result.hasFace).toBe(false)
+    expect(result.error).toContain('The channel is not supported')
+  })
+
+  it('reports an HTTP error with its message', async () => {
+    fetchMock.mockImplementationOnce(
+      async () =>
+        new Response(JSON.stringify({ msg: 'Insufficient credits' }), {
+          status: 402,
+        })
+    )
+
+    const result = await analyzeAvatar(URL)
+
+    expect(result.error).toContain('402')
+    expect(result.error).toContain('Insufficient credits')
+  })
+})
+
 /*
  * Log 2026-10-01: Replicate answered 402 "Insufficient credit" and every new
- * user paged the owner. The project's own vision model is asked first.
+ * user paged the owner. The project's own vision model is asked first; Kie is
+ * the fallback, so no single paid provider is the only eye again.
  */
-describe('our own eyes first, Replicate only after them', () => {
+describe('our own eyes first, Kie only after them', () => {
+  const KIE = 'https://api.kie.ai/v1/chat/completions'
   const photo = () =>
     new Response(new Uint8Array([0xff, 0xd8, 0xff]), {
       headers: { 'content-type': 'image/jpeg' },
@@ -159,14 +220,10 @@ describe('our own eyes first, Replicate only after them', () => {
 
   beforeEach(() => {
     vi.stubEnv('VISION_API_KEY', 'test-vision-key')
-    vi.stubEnv('VISION_BASE_URL', 'http://vision.test/v1')
-  })
-  afterEach(() => {
-    vi.unstubAllEnvs()
-    vi.unstubAllGlobals()
+    vi.stubEnv('VISION_BASE_URL', 'http://vision.test/v1/')
   })
 
-  it('asks our vision model and never pays Replicate when it answers', async () => {
+  it('asks our vision model and never pays Kie when it answers', async () => {
     const calls: string[] = []
     vi.stubGlobal(
       'fetch',
@@ -179,6 +236,7 @@ describe('our own eyes first, Replicate only after them', () => {
           )
           return answer('FACE:yes GENDER:female')
         }
+        if (String(url) === KIE) throw new Error('Kie must not be asked')
         return photo()
       })
     )
@@ -187,49 +245,54 @@ describe('our own eyes first, Replicate only after them', () => {
 
     expect(result.hasFace).toBe(true)
     expect(result.gender).toBe('female')
-    expect(run).not.toHaveBeenCalled()
     expect(calls).toEqual([URL, 'http://vision.test/v1/chat/completions'])
   })
 
-  it('falls back to Replicate when our model is down', async () => {
+  it('falls back to Kie when our model is down', async () => {
+    const calls: string[] = []
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string) =>
-        String(url).startsWith('http://vision.test')
-          ? new Response('down', { status: 503 })
-          : photo()
-      )
+      vi.fn(async (url: string) => {
+        calls.push(String(url))
+        if (String(url).startsWith('http://vision.test'))
+          return new Response('down', { status: 503 })
+        if (String(url) === KIE) return answer('FACE:yes GENDER:male')
+        return photo()
+      })
     )
-    run.mockResolvedValue('FACE:yes GENDER:male')
 
     const result = await analyzeAvatar(URL)
 
     expect(result.gender).toBe('male')
-    expect(run).toHaveBeenCalledOnce()
+    expect(calls).toContain(KIE)
   })
 
   it('names both failures when both are down', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string) =>
-        String(url).startsWith('http://vision.test')
-          ? new Response('down', { status: 503 })
-          : photo()
-      )
+      vi.fn(async (url: string) => {
+        if (String(url).startsWith('http://vision.test'))
+          return new Response('down', { status: 503 })
+        if (String(url) === KIE)
+          return new Response(JSON.stringify({ msg: 'Insufficient credits' }), {
+            status: 402,
+          })
+        return photo()
+      })
     )
-    run.mockRejectedValue(new Error('402 Payment Required'))
 
     const result = await analyzeAvatar(URL)
 
     expect(result.hasFace).toBe(false)
     expect(result.error).toContain('own vision answered 503')
-    expect(result.error).toContain('402 Payment Required')
+    expect(result.error).toContain('Insufficient credits')
   })
 
-  it('without a key keeps the old path: Replicate alone', async () => {
+  it('without a key keeps the old path: Kie alone', async () => {
     vi.stubEnv('VISION_API_KEY', '')
     run.mockResolvedValue('Yes')
     expect(await quickFaceCheck(URL)).toBe(true)
-    expect(run).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe(KIE)
   })
 })

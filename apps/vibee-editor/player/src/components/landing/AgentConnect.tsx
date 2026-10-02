@@ -95,7 +95,7 @@ export function AgentConnect() {
               {'Выпустить личный ключ'}
             </Link>
             <Link to="/agents" className="agent-connect__try">
-              {'Биржа агентов'}
+              {'Рынок агентов'}
             </Link>
           </div>
         </div>

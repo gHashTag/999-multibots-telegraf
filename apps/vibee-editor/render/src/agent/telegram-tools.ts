@@ -318,9 +318,12 @@ const EXECUTABLE = EXECUTABLE_ACTIONS
  * same /api/tg/proposal/confirm and /cancel the bot's buttons use. Until this
  * line it was drawn and never fed: the draft was refused here, so the owner
  * working a client in the app (a portrait for Farisha) had no card to press.
- * iOS still has no screen for it and stays out.
+ *
+ * `ios` since 2026-10-01: the native chat reads the same `proposal` event and
+ * draws the card with Send / Cancel (Vibee/AgentChatView.swift), answering
+ * through the same two routes with the app's Bearer session.
  */
-const CAN_CONFIRM = new Set(['bot', 'miniapp'])
+const CAN_CONFIRM = new Set(['bot', 'miniapp', 'ios'])
 
 /** Whether a draft made on this surface can be confirmed there. */
 export function canConfirmOn(surface: unknown): boolean {

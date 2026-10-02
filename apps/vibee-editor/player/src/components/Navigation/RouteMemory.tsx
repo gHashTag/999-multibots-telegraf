@@ -1,10 +1,22 @@
-import { useEffect } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { STORAGE_KEYS } from '@vibee/atoms'
 import { myProfileAtom } from '@/atoms'
-import { launchStartParam } from '@/lib/telegram'
+import { cloudGet, cloudSet, launchStartParam } from '@/lib/telegram'
 import { IS_EMBED } from '@/lib/embed'
+import { isWelcomed } from '@/lib/welcomeMemory'
+import {
+  CLOUD_LAST_CHAT,
+  HOME,
+  cloudResume,
+  decodeChatMark,
+  encodeChatMark,
+  isConversation,
+  isRestorable,
+  resumeTarget,
+} from '@/lib/launchMemory'
+import { rememberChatTab } from '@/lib/chatTabMemory'
 
 /**
  * Приложение открывается там, где человека прервали.
@@ -20,49 +32,33 @@ import { IS_EMBED } from '@/lib/embed'
  */
 
 /**
- * Куда можно возвращать.
- *
- * Список ЯВНЫЙ, а не «всё кроме служебного», из-за маршрута `/:username`: он
- * ловит любую одиночную строку, поэтому мусор в хранилище отрендерился бы
- * страницей профиля. Профиль возвращается по каноническому `/profile` —
- * см. запись ниже.
+ * THE FIRST SCREEN OF A FIRST LAUNCH: who we are and what is sold
+ * (pages/Welcome.tsx). Shown once; the page sets the flag as it opens
+ * (lib/welcomeMemory.ts).
  */
-const RESTORABLE = [
-  /^\/feed(\/|$)/,
-  /^\/chat(\/|$)/,
-  /^\/agents(\/|$)/,
-  /^\/editor(\/|$)/,
-  /^\/generate(\/|$)/,
-  /^\/templates(\/|$)/,
-  /^\/search(\/|$)/,
-  /^\/blog(\/|$)/,
-  /^\/learn(\/|$)/,
-  /^\/profile(\/|$)/,
-]
-
-function isRestorable(path: string): boolean {
-  return RESTORABLE.some(re => re.test(path))
-}
-
-/** Куда уходит корень, когда памяти нет. */
-const HOME = '/feed'
+export const WELCOME = '/welcome'
 
 /**
  * Снято ДО монтирования React — по той же причине, что и LAUNCH_PATH в
  * TelegramProvider: к моменту эффектов путь уже переписан редиректом, а
  * записыватель ниже успел бы положить в хранилище «/feed» поверх запомненного.
  */
-const REMEMBERED = readRemembered()
+const REMEMBERED = readRemembered(STORAGE_KEYS.lastRoute)
+const LAST_CHAT = readRemembered(STORAGE_KEYS.lastChat)
+/** When this device last wrote a conversation, read before anything rewrites it. */
+const LAST_CHAT_AT = Number(readRemembered(STORAGE_KEYS.lastChatAt)) || 0
+/** Where a greeted person is sent from "/" (LaunchRedirect). */
+const RESUMED = resumeTarget(REMEMBERED, LAST_CHAT)
 
 /**
  * A third-party frame (the game's TRI tab) may have no storage at all: a
  * browser that blocks third-party storage throws from the `localStorage`
  * getter itself, and a throw here, at module load, kills the whole bundle.
  */
-function readRemembered(): string | null {
+function readRemembered(key: string): string | null {
   if (typeof window === 'undefined') return null
   try {
-    return window.localStorage.getItem(STORAGE_KEYS.lastRoute)
+    return window.localStorage.getItem(key)
   } catch {
     return null
   }
@@ -84,18 +80,51 @@ export function LaunchRedirect() {
   const startParam = launchStartParam()
   // Inside the game's TRI frame the game chose the screen; the remembered one
   // belongs to the real app.
+  // A person who has never been greeted sees who we are first -- unless a
+  // link asked for a screen, or the game's frame chose one.
   const target =
-    !IS_EMBED && !startParam && REMEMBERED && isRestorable(REMEMBERED)
-      ? REMEMBERED
-      : HOME
+    IS_EMBED || startParam ? HOME : !isWelcomed() ? WELCOME : RESUMED
 
   return <Navigate to={target} replace />
 }
 
-/** Запоминает текущий экран. Ничего не рендерит. */
+/**
+ * Запоминает текущий экран. Ничего не рендерит.
+ *
+ * Also carries the last conversation across devices: localStorage lives in one
+ * Telegram client, so a chat left on the phone was unknown to the desktop. The
+ * conversation is mirrored to Telegram's CloudStorage with a timestamp, and
+ * once the launch lands, a newer mark from another device moves the person on
+ * -- only from a page they passed through, and only if they have not moved.
+ */
 export function RouteMemory() {
   const location = useLocation()
+  const navigate = useNavigate()
   const myProfile = useAtomValue(myProfileAtom)
+  // The first screen after "/" is the restored one: landing on it again is not
+  // a new conversation, and stamping it would outdate the other device's mark.
+  const landing = useRef(true)
+  const asked = useRef(false)
+  const here = useRef(location.pathname)
+
+  useEffect(() => {
+    here.current = location.pathname
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (asked.current || location.pathname !== RESUMED) return
+    asked.current = true
+    if (IS_EMBED || launchStartParam() || !isWelcomed()) return
+    void cloudGet(CLOUD_LAST_CHAT).then(raw => {
+      const to = cloudResume({
+        landed: RESUMED,
+        current: here.current,
+        localAt: LAST_CHAT_AT,
+        cloud: decodeChatMark(raw),
+      })
+      if (to) navigate(to, { replace: true })
+    })
+  }, [location.pathname, navigate])
 
   useEffect(() => {
     // Screens opened inside the game's TRI frame are not where the person
@@ -110,14 +139,31 @@ export function RouteMemory() {
     // прямому пути сломается, если username сменится.
     const toStore = username && path === `/${username}` ? '/profile' : path
 
+    const restored = landing.current && toStore === RESUMED
+    if (path !== '/') landing.current = false
+
     if (!isRestorable(toStore)) return
     try {
       window.localStorage.setItem(STORAGE_KEYS.lastRoute, toStore)
+      if (isConversation(toStore)) {
+        window.localStorage.setItem(STORAGE_KEYS.lastChat, toStore)
+        if (!restored) {
+          const at = Date.now()
+          window.localStorage.setItem(STORAGE_KEYS.lastChatAt, String(at))
+          cloudSet(CLOUD_LAST_CHAT, encodeChatMark({ path: toStore, at }))
+        }
+      }
     } catch {
       // Приватный режим или переполненная квота. Потеря памяти о вкладке —
       // не повод ронять навигацию.
     }
   }, [location.pathname, myProfile?.username])
+
+  // What the agents tab returns to (lib/chatTabMemory.ts). Its own effect:
+  // a new `?c=` conversation is a new place to return to.
+  useEffect(() => {
+    if (!IS_EMBED) rememberChatTab(location.pathname, location.search)
+  }, [location.pathname, location.search])
 
   return null
 }

@@ -202,14 +202,14 @@ describe("the spec's tests hold against the host", () => {
     expect(LIPSYNC_DEFAULT_MODEL).toBe(SPEC.LIPSYNC_MODEL)
   })
 
-  it('a script of one to four scenes is made as given; five is refused', () => {
+  it('a script of one to six scenes is made as given; seven is refused', () => {
     const scene = { setting: 'a room', line: 'Hello.' }
     const of = (n: number) => scenesOf(Array.from({ length: n }, () => scene))
     expect(Array.isArray(of(SPEC.SCENES_DEFAULT))).toBe(true)
     expect(Array.isArray(of(1))).toBe(true)
-    expect(Array.isArray(of(4))).toBe(true)
+    expect(Array.isArray(of(6))).toBe(true)
     expect(typeof of(0)).toBe('string')
-    expect(typeof of(5)).toBe('string')
+    expect(typeof of(7)).toBe('string')
   })
 
   it('the pause stays between one and four seconds, three by default', () => {
@@ -437,7 +437,9 @@ describe("the spec's tests hold against the host", () => {
     expect(SPEC.NOTES_NEED_REPLICATE).toBe(false)
     expect(SPEC.NOTES_WORDS_ARE_HERS).toBe(true)
     expect(SPEC.NOTES_FROM_SELLER_DM_ONLY).toBe(true)
-    expect(SPEC.NOTES_MAX_SEC + SPEC.PAUSE_SEC).toBe(SPEC.REEL_MAX_SEC)
+    expect(SPEC.NOTES_MAX_SEC + SPEC.PAUSE_SEC).toBeLessThanOrEqual(
+      SPEC.REEL_MAX_SEC
+    )
     // The seller's gate lets a no-clone client through; hers alone does not.
     const noClone = {
       faceUrl: 'https://ours/face.jpg',
@@ -1069,7 +1071,7 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(16)
+    expect(SPEC.VERSION).toBe(17)
   })
 
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {

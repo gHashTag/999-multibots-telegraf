@@ -62,6 +62,8 @@ export type TrackedEvent =
   | 'club_paid'
   /** An invoice was minted and no charge followed it (see markAbandonedClubInvoices). */
   | 'club_invoice_abandoned'
+  /** Telegram charged an agent package (the launch or a monthly renewal). */
+  | 'agent_package_paid'
 
 interface Ctx {
   from?: { id?: number | string }

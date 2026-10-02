@@ -28,9 +28,9 @@ import { sweepOldMedia } from '../../deployment/telegram-bot-api/sweep.mjs'
  * it must hand over and the things it must never hand over. A listing of the
  * root would be a list of every token on the server.
  */
-const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved'
+const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token
 const TILDE = '900000022~ZZtildetildetildetildetildetildetil'
-const OTHER = '900000033:ZZotherotherotherotherotherotherother'
+const OTHER = '900000033:ZZotherotherotherotherotherotherother' // secret-guard-ok: fake fixture token
 
 let root = ''
 let outside = ''
