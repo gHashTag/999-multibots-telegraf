@@ -486,9 +486,9 @@ const CARD = () => {
       'удаление записей ленты',
     ],
     производство: [
-      'image_generate: картинка по описанию (Replicate flux-schnell) — файл сразу в S3',
-      'audio_generate: озвучка текста (ElevenLabs; только при валидном ключе аккаунта)',
-      'video_generate: видеофрагмент по описанию (Replicate seedance-1-lite) — mp4 в S3',
+      'image_generate: картинка по описанию (Kie; Replicate выключен — нет баланса) — файл сразу в S3', // cyrillic-ok: the manifest's own words
+      'audio_generate: озвучка текста (Kie ElevenLabs; клон голоса недоступен — Replicate выключен)', // cyrillic-ok: the manifest's own words
+      'video_generate: пока не работает — модели Kie в нём ещё не подключены; видео собирается из картинок через reel_render', // cyrillic-ok: the manifest's own words
       'reel_render: сборка рилса в mp4 (Remotion), ждёт окончания',
     ],
     совет:

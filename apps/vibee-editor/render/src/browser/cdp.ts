@@ -112,6 +112,17 @@ export function forgetResolved(): void {
 /** Long enough for a page, short enough that a hung pod is not a hung agent. */
 const CALL_TIMEOUT_MS = 20_000
 
+/*
+ * THE TAB LIST AND THE NEW TAB HAD NO CLOCK AT ALL (2026-10-02). Measured on
+ * the live pod: an empty tab took ~40 s to open, and opening LinkedIn's share
+ * page never answered -- the agent's call hung until the MCP request itself
+ * gave up after 170 s, and a blog run in the same state would hang with it.
+ * A new tab is given longer than a list: on a starved pod it is slow, not
+ * dead, and an abandoned open still leaves the tab behind.
+ */
+export const LIST_TIMEOUT_MS = CALL_TIMEOUT_MS
+export const NEW_PAGE_TIMEOUT_MS = 60_000
+
 export const httpBase = (endpoint: string) =>
   endpoint.startsWith('http') ? endpoint : `http://${endpoint}`
 
@@ -141,7 +152,9 @@ const reachable = (t: CdpTarget, endpoint: string): CdpTarget => ({
 
 export async function listTargets(given: string): Promise<CdpTarget[]> {
   const endpoint = await ipEndpoint(given)
-  const res = await fetch(`${httpBase(endpoint)}/json/list`)
+  const res = await fetch(`${httpBase(endpoint)}/json/list`, {
+    signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
+  })
   if (!res.ok) throw new Error(`CDP list failed: HTTP ${res.status}`)
   const targets = (await res.json()) as CdpTarget[]
   return targets.map(t => reachable(t, endpoint))
@@ -168,7 +181,7 @@ export async function newPage(given: string, url: string): Promise<CdpTarget> {
   /* PUT, not GET: Chrome refuses the old GET form since 111. */
   const res = await fetch(
     `${httpBase(endpoint)}/json/new?${encodeURIComponent(url)}`,
-    { method: 'PUT' }
+    { method: 'PUT', signal: AbortSignal.timeout(NEW_PAGE_TIMEOUT_MS) }
   )
   if (!res.ok) throw new Error(`CDP new page failed: HTTP ${res.status}`)
   return reachable((await res.json()) as CdpTarget, endpoint)
@@ -178,14 +191,17 @@ export async function newPage(given: string, url: string): Promise<CdpTarget> {
 export async function activatePage(given: string, id: string): Promise<void> {
   const endpoint = await ipEndpoint(given)
   const res = await fetch(
-    `${httpBase(endpoint)}/json/activate/${encodeURIComponent(id)}`
+    `${httpBase(endpoint)}/json/activate/${encodeURIComponent(id)}`,
+    { signal: AbortSignal.timeout(LIST_TIMEOUT_MS) }
   )
   if (!res.ok) throw new Error(`CDP activate failed: HTTP ${res.status}`)
 }
 
 export async function closePage(given: string, id: string): Promise<void> {
   const endpoint = await ipEndpoint(given)
-  await fetch(`${httpBase(endpoint)}/json/close/${id}`)
+  await fetch(`${httpBase(endpoint)}/json/close/${id}`, {
+    signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
+  })
 }
 
 /**

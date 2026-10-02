@@ -25,3 +25,25 @@ describe('tri shot and the AUTO word', () => {
     expect(shot).toContain("s.clipPath === 'inset(50%)'")
   })
 })
+
+describe('tri shot and the CRM search', () => {
+  /*
+   * /crm has two search fields. The work section's `.crm__find` hands its
+   * focus to the contacts section and unmounts; a recipe aiming at any
+   * `input[type=search]` caught it mid-switch and the search state was NOT
+   * MEASURED at 320px, three times in three (#3359). The recipe types into
+   * the contacts box, and the contacts box must still be called that.
+   */
+  const read = (rel: string) =>
+    fs.readFileSync(path.join(__dirname, rel), 'utf8')
+
+  it('types into the contacts box, not the field that leaves', () => {
+    const shot = read('../../../../../bin/helpers/shot.mjs')
+    expect(shot).toContain('.crm__finder input[type=search]')
+    expect(shot).not.toContain("p.locator('.crm input[type=search]')")
+  })
+
+  it('finds the contacts box under the name the recipe uses', () => {
+    expect(read('./Crm.tsx')).toContain('className="crm__finder"')
+  })
+})

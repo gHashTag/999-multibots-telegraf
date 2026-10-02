@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+import { codeValues, quotedCodes as quoted } from './failure-code-values'
 
 /*
  * THE AGENT CHAT NAMES ITS FAILURES; BOTH CLIENTS MUST KNOW EVERY NAME.
@@ -16,9 +17,9 @@ import path from 'path'
  */
 const root = path.join(__dirname, '..', '..', '..')
 const read = (...p: string[]) => fs.readFileSync(path.join(root, ...p), 'utf8')
-const literals = (src: string) =>
-  [...src.matchAll(/code: '([a-z_]+)'/g)].map(m => m[1])
-const quoted = (src: string) => [...src.matchAll(/'([a-z_]+)'/g)].map(m => m[1])
+const literals = (src: string) => codeValues(src).found
+/** The only non-literal code the chat route may set: GateCode, read below. */
+const TRUSTED = ['gate.code']
 
 const server = read('apps', 'vibee-editor', 'render', 'render-server.ts')
 const sStart = server.indexOf("=== '/api/agent/chat' && req.method === 'POST'")
@@ -85,6 +86,16 @@ describe('agent chat failure codes', () => {
         'internal',
       ])
     )
+  })
+
+  it('sets no code the contract cannot read', () => {
+    for (const [name, src] of [
+      ['door', door],
+      ['handleAgentChat', handler],
+      ['chat.ts', chat],
+    ] as const)
+      for (const o of codeValues(src).opaque)
+        expect(TRUSTED, `${name} sets code from ${o}`).toContain(o)
   })
 
   it('every code the turn yields is declared on its event', () => {

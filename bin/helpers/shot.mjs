@@ -239,8 +239,16 @@ const HARNESSES = {
           const tab = p.locator('.section-strip__item', {
             hasText: /Контакты|Contacts/, // cyrillic-ok: the RU label
           })
+          // Two search fields live on this page: the work section's
+          // `.crm__find` hands its focus to the contacts section and then
+          // unmounts (the router switches in a transition). Aiming at any
+          // `input[type=search]` caught that one mid-switch -- "not attached
+          // to the DOM" at 320px, three times in three. The contacts box is
+          // `.crm__finder`; wait for it, then type.
           if (await tab.count()) await tab.first().click()
-          const box = p.locator('.crm input[type=search]')
+          else await p.locator('.crm__find input').click()
+          const box = p.locator('.crm__finder input[type=search]')
+          await box.waitFor()
           await box.scrollIntoViewIfNeeded()
           await box.fill('ан')
           await p.waitForTimeout(400)
@@ -967,7 +975,14 @@ try {
   }
   code = bad ? 1 : 0
 } catch (e) {
-  lines.push(`could not measure: ${e instanceof Error ? e.message : e}`)
+  const msg = e instanceof Error ? e.message : String(e)
+  lines.push(`could not measure: ${msg}`)
+  // The one cause this message has had: a state's locator caught an element
+  // the page swapped out mid-step (crm search at 320px, #3359).
+  if (/not attached to the DOM/.test(msg))
+    lines.push(
+      "       hint    the element was replaced while the state ran -- aim at the final state's own selector and waitFor() it first"
+    )
   code = 2
 } finally {
   await browser?.close().catch(() => {})

@@ -11072,3 +11072,39 @@ in Russian and provider dumps in English on any phone. Now:
 
 A new failure kind: add it to `GENERATION_REFUSAL_CODES`, and the contract
 test tells you which client still cannot say it.
+
+## A linked node_modules cuts both ways: missing in foreign trees, emptied by an install through the link
+
+**2026-10-02, PRs #3346, #3355, #3356.**
+
+1. **Missing.** Only `tri worktree` linked node_modules. A bee's tree, the Claude app's, or a plain
+   `git worktree add` had none, and the gates failed like code faults:
+   - render-types: "tsc not found", summarised by lefthook as a red line at 240 s;
+   - bundle-boots: `spawnSync node_modules/.bin/esbuild ENOENT`.
+     **Fix:** run `tri deps` first in any tree tri did not make. It links what is missing and names each
+     missing gate binary.
+2. **Emptied.** An agent ran a root `npm ci` in a tree whose node_modules was such a link. npm
+   empties node_modules THROUGH the link before it replaces it (`~/.npm/_logs`:
+   `warn reify Removing non-directory …/node_modules`). The main checkout lost every package at once,
+   and so did every linked tree.
+   - Find the culprit: grep `verbose (title|cwd)` in `~/.npm/_logs/*` at the dir's mtime.
+   - Restore in the MAIN checkout: `tri deps --heal`, which runs bun install there (22 s, lock untouched).
+   - Never install at the root of a linked tree. If a tree needs its own packages, run
+     `tri deps --own` first: it replaces EVERY link (root and per-app; render/player are links
+     too) with an APFS clone of the target (~70 s, ~100 MB for all four). After that an install
+     empties only the copy. The workspace links inside (`@vibee/atoms -> ../../../packages/…`) are
+     relative, so the copy resolves the tree's own atoms.
+   - The emptied state has four shapes, and `tri deps` names each one and exits 1. EMPTY,
+     DOTFILES-ONLY (npm leaves `.package-lock.json`/`.bin` behind, so an `ls` check without `-A`
+     calls it empty, but `[ -z "$(ls -A)" ]` does not), DANGLING and ABSENT.
+3. **A link carries the main checkout's install, and that follows the main checkout's branch.**
+   2026-10-03: the main checkout sat on an old feature branch. A `--heal` there installed that
+   branch's package.json, which had no `redis`, `jotai`, `@ton/*` or `@tonconnect/ui`. Every tree on
+   origin/main then failed root typecheck on `Cannot find module 'redis'`, and the player failed on
+   TriWalletCard. Earlier loops filed that player failure as "environment".
+   `tri deps` now lists the declared-but-absent packages per tree (exit 1). Fix it with
+   `tri deps --own`, then `bun install` (and per-app `npm ci`) in that tree, then
+   `git checkout -- bun.lock`, because main's lock lags its package.json and `--frozen-lockfile`
+   refuses.
+4. **A vitest from the symlink is not the gate's vitest.** Symlinked player node_modules resolved
+   vitest 1.6.1, while the lock pins 5.0.2. A local player result can differ from the Docker gate.

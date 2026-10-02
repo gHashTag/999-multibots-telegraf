@@ -141,3 +141,50 @@ describe('the window is fitted to the screen', () => {
     expect(w.calls).toEqual([])
   })
 })
+
+describe('a hung pod is not a hung agent', () => {
+  /*
+   * 2026-10-02, live: opening LinkedIn's share page never answered and the
+   * call hung until the MCP request gave up at 170 s. Every plain-HTTP call
+   * to the pod now carries a clock.
+   */
+  it('every call to the pod carries a timeout signal', async () => {
+    const { listTargets, newPage, closePage, activatePage } = await import(
+      './src/browser/cdp'
+    )
+    const seen: string[] = []
+    const real = globalThis.fetch
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      seen.push(
+        `${String(url).split('/json/')[1]?.split(/[/?]/)[0]}:${init?.signal ? 'clock' : 'none'}`
+      )
+      return new Response(
+        String(url).includes('/json/list')
+          ? '[]'
+          : JSON.stringify({ id: 'p', url: 'about:blank', type: 'page' })
+      )
+    }) as typeof fetch
+    try {
+      await listTargets('127.0.0.1:9223')
+      await newPage('127.0.0.1:9223', 'about:blank')
+      await activatePage('127.0.0.1:9223', 'p')
+      await closePage('127.0.0.1:9223', 'p')
+    } finally {
+      globalThis.fetch = real
+    }
+    expect(seen).toEqual([
+      'list:clock',
+      'new:clock',
+      'activate:clock',
+      'close:clock',
+    ])
+  })
+
+  it('a new tab is given longer than a list, but not forever', async () => {
+    const { LIST_TIMEOUT_MS, NEW_PAGE_TIMEOUT_MS } = await import(
+      './src/browser/cdp'
+    )
+    expect(NEW_PAGE_TIMEOUT_MS).toBeGreaterThan(LIST_TIMEOUT_MS)
+    expect(NEW_PAGE_TIMEOUT_MS).toBeLessThanOrEqual(90_000)
+  })
+})
