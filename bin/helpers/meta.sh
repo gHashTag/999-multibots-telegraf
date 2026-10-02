@@ -8,11 +8,39 @@
 #
 #   tri meta          # apps set on vibee-render? tokens held, account, days left
 #   tri meta card S   # fetch the Instagram card of article slug S to /tmp
+#   tri meta put K    # the OWNER copies secret K in the portal, then runs this:
+#                     # clipboard -> vibee-render by stdin, clipboard wiped
 set -u
 ROOT="${1:?repo root required}"
 shift
 cd "$ROOT" || exit 1
 RENDER=https://vibee-render-production.up.railway.app
+if [ "${1:-}" = put ]; then
+  # The value goes clipboard -> pipe -> Railway: never an argument (ps sees
+  # those), never a file, never shell history, never printed. Only its length.
+  k="${2:-}"
+  case "$k" in
+    META_APP_SECRET | THREADS_APP_SECRET | LINKEDIN_CLIENT_SECRET | X_CLIENT_SECRET | META_PAGE_ID) ;;
+    *)
+      echo "usage: tri meta put META_APP_SECRET|THREADS_APP_SECRET|LINKEDIN_CLIENT_SECRET|X_CLIENT_SECRET|META_PAGE_ID"
+      exit 2
+      ;;
+  esac
+  n=$(pbpaste | tr -d ' \t\r\n' | wc -c | tr -d ' ')
+  if [ "$n" -lt 8 ]; then
+    echo "clipboard holds $n chars -- copy $k in the portal first"
+    exit 1
+  fi
+  if pbpaste | tr -d ' \t\r\n' | railway variable set "$k" --stdin --skip-deploys \
+    --service vibee-render --environment production >/dev/null 2>&1; then
+    printf '' | pbcopy
+    echo "$k: set ($n chars), clipboard wiped; deploy once all are in: tri meta"
+  else
+    echo "$k: railway refused -- nothing set (railway login?)"
+    exit 1
+  fi
+  exit 0
+fi
 if [ "${1:-}" = card ]; then
   out="/tmp/meta-card-${2:?slug}.jpg"
   code=$(curl -s -o "$out" -w '%{http_code}' "$RENDER/api/social/card/$2.jpg")
