@@ -64,7 +64,7 @@ tri — оболочка Trinity S³AI
   tri meta [card SLUG]  Threads/Instagram/Facebook/LinkedIn/X через API: заданы ли приложения, чьи токены, дни; в конце — готова ли каждая сеть и чей ход (без значений)
   tri engage [N]  стол комментариев: что предложено под чужими постами, что ответил владелец, квитанции и ответы людей (сигналы лидов)
   tri no-verify-debt [base]  шлюзы, пропущенные коммитами с --no-verify, по всей ветке (кириллица, секреты, prettier, eslint)
-  tri browser [--json]  состояние браузера: отвечает ли (pod) и что в нём открыто (tabs)
+  tri browser [--json]  состояние браузера: отвечает ли (pod), что в нём открыто (tabs), куда вошёл (logins)
   tri browser <случай>  каждый инструмент агента руками, той же дверью (tri browser help):
                  status front open time read shot desk find click xy type eval blank close sign-in call
   tri browser find СЛОВА [ID]  куда лёг бы клик по словам — БЕЗ клика, пробой этой рабочей копии
@@ -2072,6 +2072,9 @@ PYEOF
     esac
     bash "$ROOT/bin/helpers/pod.sh" "$ROOT" "$@"; rc=$?
     [ "${1:-}" = "--json" ] || bash "$ROOT/bin/helpers/tabs.sh" "$ROOT"
+    # Which networks it is signed into (#2962): the blog desk opens only
+    # those, so "not posted to Threads" is answered here, not in the logs.
+    [ "${1:-}" = "--json" ] || bash "$ROOT/bin/helpers/logins.sh" "$ROOT"
     exit $rc ;;
   blog-share) shift; bash "$ROOT/bin/helpers/blog-share.sh" "$ROOT" "$@" ;;
   meta) shift; bash "$ROOT/bin/helpers/meta.sh" "$ROOT" "$@" ;;
