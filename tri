@@ -508,6 +508,13 @@ CHECKS THAT EACH COST A CYCLE
         all are; an empty annotation (dropped connection) is re-asked, then
         counted UNKNOWN -- never billing.
 
+  tri premerge N [--keep]
+        Would PR N pass the player's deploy gate once it lands on today's
+        main? Merges the PR head into origin/main in a throwaway worktree and
+        runs exactly what the Docker test stage runs: tsc --noEmit and
+        scripts/test-gate.mjs. rc 0 pass, 1 refused or conflict, 2 usage.
+        --keep leaves the worktree for a look.
+
   tri deploys [--logs] | tri выкладки
         Is the player on app.t27.ai what main says it is? The serving
         commit, every later main commit that touches the image with its
@@ -3267,6 +3274,114 @@ cmd_pr_billing() {
   fi
   bad "not every failure is billing -- read the ones above before merging"
   return 1
+}
+
+cmd_premerge() {
+  # Would PR N pass the player's deploy gate once it lands on today's main?
+  #   tri premerge N           rc 0 pass, 1 refused/conflict, 2 usage/setup
+  #   tri premerge N --keep    leave the throwaway worktree behind
+  #
+  # Actions are dead (billing), so the only test gate is the Docker `test`
+  # stage, and it runs AFTER the merge, on main. A PR that is green on its own
+  # branch can still break it: 2026-10-02, two PRs each passed alone and the
+  # deploy of their sum failed. This runs the gate on (origin/main + PR head)
+  # BEFORE the merge, so the red lands on the PR, not on app.t27.ai.
+  #
+  # node_modules are not installed (no downloads): each entry is symlinked
+  # from a checkout that has them, except @vibee/*, which must resolve to THIS
+  # worktree's packages -- a symlink into another tree tests the wrong atoms.
+  local gh="${TRI_GH:-gh}" repo="${TRI_GH_REPO:-gHashTag/999-multibots-telegraf}"
+  local pr="" keep=0 a
+  for a in "$@"; do
+    case "$a" in
+      --keep) keep=1 ;;
+      *) pr="$a" ;;
+    esac
+  done
+  [[ "$pr" =~ ^[0-9]+$ ]] || { echo "usage: tri premerge PR_NUMBER [--keep]" >&2; return 2; }
+
+  local src="${TRI_PLAYER_NM:-}" cand
+  if [ -z "$src" ]; then
+    for cand in "$ROOT" $(git -C "$ROOT" worktree list --porcelain | awk '/^worktree /{print $2}'); do
+      if [ -d "$cand/apps/vibee-editor/player/node_modules" ] && [ ! -L "$cand/apps/vibee-editor/player/node_modules" ]; then
+        src="$cand/apps/vibee-editor"; break
+      fi
+    done
+  fi
+  [ -n "$src" ] || { bad "no checkout with a real player/node_modules (set TRI_PLAYER_NM=<dir with player/ and packages/>)"; return 2; }
+
+  local head
+  head=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid --jq .headRefOid) \
+    || { bad "PR $pr not found in $repo"; return 2; }
+  git -C "$ROOT" fetch -q origin main "pull/$pr/head" \
+    || { bad "git fetch of main and pull/$pr/head failed"; return 2; }
+  local main_sha
+  main_sha=$(git -C "$ROOT" rev-parse origin/main)
+
+  local dir
+  dir=$(mktemp -d "/tmp/tri-premerge-$pr.XXXX") || return 2
+  rmdir "$dir"
+  git -C "$ROOT" worktree add -q --detach "$dir" "$main_sha" || { bad "worktree add failed"; return 2; }
+  local rc=0
+  (
+    cd "$dir" || exit 2
+    git -c user.name=tri -c user.email=tri@localhost merge -q --no-edit "$head" >/dev/null 2>&1 || {
+      bad "PR $pr (${head:0:9}) does not merge cleanly into main ${main_sha:0:9}:"
+      git diff --name-only --diff-filter=U | sed 's/^/        /'
+      exit 1
+    }
+    if git diff --name-only "$main_sha" HEAD -- 'apps/vibee-editor/player/package*.json' 'apps/vibee-editor/packages/*/package*.json' | grep -q .; then
+      warn "PR $pr changes a package.json -- node_modules here are the local ones, a pass is not proof"
+    fi
+    local ed="$dir/apps/vibee-editor" e
+    mkdir -p "$ed/player/node_modules/@vibee"
+    for e in "$src/player/node_modules/"* "$src/player/node_modules/".bin "$src/player/node_modules/".vite; do
+      [ -e "$e" ] || continue
+      [ "$(basename "$e")" = "@vibee" ] && continue
+      ln -s "$e" "$ed/player/node_modules/$(basename "$e")"
+    done
+    for e in "$ed"/packages/*/; do
+      e="${e%/}"
+      ln -s "../../../packages/$(basename "$e")" "$ed/player/node_modules/@vibee/$(basename "$e")"
+      [ -d "$src/packages/$(basename "$e")/node_modules" ] && ln -s "$src/packages/$(basename "$e")/node_modules" "$e/node_modules"
+    done
+    # @vibee/atoms is the name the player imports; the directory is vibee-atoms.
+    [ -e "$ed/packages/vibee-atoms" ] && ln -sfn ../../../packages/vibee-atoms "$ed/player/node_modules/@vibee/atoms"
+
+    # The gate runs on the image's Node, not on whatever is first on PATH.
+    # 2026-10-02, first run: Node 26 (tri puts Homebrew first) has its own
+    # global Storage, a spy on Storage.prototype missed jsdom's, and a test
+    # that passes in the image failed here. Nearest installed major wins.
+    local want bin best="" bestd=99 m d
+    want=$(sed -n 's/^FROM node:\([0-9][0-9]*\).* AS build$/\1/p' "$ed/Dockerfile" | head -1)
+    for bin in /opt/homebrew/opt/node@*/bin "$HOME"/.nvm/versions/node/v*/bin; do
+      [ -x "$bin/node" ] || continue
+      m=$("$bin/node" -p 'process.versions.node.split(".")[0]' 2>/dev/null) || continue
+      d=$(( m > ${want:-0} ? m - ${want:-0} : ${want:-0} - m ))
+      [ $d -lt $bestd ] && { best="$bin"; bestd=$d; }
+    done
+    [ -n "$best" ] && PATH="$best:$PATH"
+    [ "$(node -p 'process.versions.node.split(".")[0]')" = "$want" ] \
+      || warn "the image builds on Node ${want:-?}, this runs on $(node -v) -- the nearest installed"
+
+    echo "  --   PR $pr ${head:0:9} on main ${main_sha:0:9}, $(node -v): tsc --noEmit, then test-gate (several minutes)"
+    cd "$ed/player" || exit 2
+    npx tsc --noEmit -p . > "$dir/.premerge-tsc.log" 2>&1 || {
+      bad "tsc refused:"; grep 'error TS' "$dir/.premerge-tsc.log" | head -20 | sed 's/^/        /'; exit 1
+    }
+    node scripts/test-gate.mjs > "$dir/.premerge-gate.log" 2>&1 || {
+      bad "test gate refused:"
+      sed 's/\x1b\[[0-9;]*m//g' "$dir/.premerge-gate.log" | grep -E '^ *(❯|×|FAIL)|test gate:' | head -30 | sed 's/^/        /'
+      exit 1
+    }
+    good "PR $pr passes the deploy gate on main ${main_sha:0:9}: $(sed 's/\x1b\[[0-9;]*m//g' "$dir/.premerge-gate.log" | grep -E '^ *Tests ' | tail -1 | sed 's/^ *//')"
+  ) || rc=$?
+  if [ $keep -eq 1 ]; then
+    echo "  --   kept: $dir (logs: .premerge-tsc.log, .premerge-gate.log)"
+  else
+    git -C "$ROOT" worktree remove --force "$dir" 2>/dev/null || { rm -rf "$dir"; git -C "$ROOT" worktree prune; }
+  fi
+  return $rc
 }
 
 cmd_pay() {
@@ -6479,6 +6594,7 @@ case "$action" in
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   pr-billing)        cmd_pr_billing "$@" ;;
+  premerge)          cmd_premerge "$@" ;;
   deploys|выкладки)  cmd_deploys "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
   clone|клон)        cmd_clone "$@" ;;
