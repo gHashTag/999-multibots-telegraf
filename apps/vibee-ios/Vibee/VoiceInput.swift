@@ -50,6 +50,11 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
   /// Either reason to finish without a press.
   var wantsFinish: Bool { timeUp || turnEnded }
 
+  /// The judge said nobody spoke: `finish()` then sends nothing to the
+  /// ears. Whisper makes a phrase out of silence, and a conversation would
+  /// answer it, and listen again, in an empty room.
+  private var heardNobody = false
+
   /// Whether the chat is on screen. A hidden tab stays alive in this app,
   /// so `onDisappear` alone does not say the person left.
   private var shown = true
@@ -157,6 +162,7 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
     // Forget the recorder BEFORE stopping it: its delegate then sees a
     // stop that is ours, not one at the time limit.
     recorder = nil
+    let silent = heardNobody
     stopMeter()
     r.stop()
     restoreSession()
@@ -165,7 +171,8 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
       phase = .idle
       try? FileManager.default.removeItem(at: file)
     }
-    guard let audio = try? Data(contentsOf: file), audio.count > 512 else { return .nothing }
+    guard let audio = try? Data(contentsOf: file),
+          Self.uploads(heardNobody: silent, bytes: audio.count) else { return .nothing }
     var req = URLRequest(url: Self.transcribeURL())
     req.httpMethod = "POST"
     req.setValue("audio/wav", forHTTPHeaderField: "Content-Type")
@@ -230,8 +237,10 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
         guard let self, self.recorder === r, self.phase == .listening else { return }
         r.updateMeters()
         let level = TurnJudge.level(dB: r.averagePower(forChannel: 0))
-        if self.judge.feed(at: Date().timeIntervalSince(began), level: level) != .going {
+        let verdict = self.judge.feed(at: Date().timeIntervalSince(began), level: level)
+        if verdict != .going {
           self.stopMeter()
+          self.heardNobody = verdict == .nobodySpoke
           self.turnEnded = true
         }
       }
@@ -244,6 +253,7 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
     meter = nil
     timeUp = false
     turnEnded = false
+    heardNobody = false
   }
 
   /**
@@ -280,6 +290,32 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
   func recorderStopped(_ id: ObjectIdentifier) {
     if Self.isTimeUp(listening: phase == .listening, stopped: id,
                      current: recorder.map(ObjectIdentifier.init)) { timeUp = true }
+  }
+
+  /// Whether a finished recording goes to the ears: not when the judge
+  /// heard nobody, and not a file too short to hold a word.
+  nonisolated static func uploads(heardNobody: Bool, bytes: Int) -> Bool {
+    !heardNobody && bytes > 512
+  }
+
+  /// What a turn does once its answer was read.
+  enum AfterAnswer: Equatable {
+    /// Listen for the next question.
+    case listen
+    /// The conversation is over (or there was none).
+    case end
+    /// A newer conversation owns the mic now: a long press while this
+    /// answer played. Ending "the" conversation here would end that one.
+    case leave
+  }
+
+  /// `turnOf` is the conversation the turn was asked in, `current` the
+  /// one running now.
+  nonisolated static func afterAnswer(conversing: Bool, shown: Bool, sent: Bool, phase: Phase,
+                                      turnOf: Int, current: Int) -> AfterAnswer {
+    guard turnOf == current else { return .leave }
+    return listensAgain(conversing: conversing, shown: shown, sent: sent, phase: phase)
+      ? .listen : .end
   }
 
   /// After an answer was read, a conversation listens again -- only if the

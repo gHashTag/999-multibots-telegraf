@@ -89,6 +89,28 @@ final class VoiceInputTests: XCTestCase {
     XCTAssertFalse(VoiceInput.listensAgain(conversing: true, shown: true, sent: true, phase: .listening))
   }
 
+  /// The bee's case on #3360: a long press while a single turn's answer
+  /// plays starts conversation 1; the old turn (conversation 0) resumes
+  /// with the mic listening and must leave it alone, not end it.
+  func testAnOldTurnLeavesANewConversationAlone() {
+    XCTAssertEqual(VoiceInput.afterAnswer(conversing: true, shown: true, sent: true,
+                                          phase: .listening, turnOf: 0, current: 1), .leave)
+    XCTAssertEqual(VoiceInput.afterAnswer(conversing: true, shown: true, sent: true,
+                                          phase: .idle, turnOf: 1, current: 1), .listen)
+    XCTAssertEqual(VoiceInput.afterAnswer(conversing: true, shown: false, sent: true,
+                                          phase: .idle, turnOf: 1, current: 1), .end)
+    XCTAssertEqual(VoiceInput.afterAnswer(conversing: false, shown: true, sent: true,
+                                          phase: .idle, turnOf: 0, current: 0), .end)
+  }
+
+  /// Nobody spoke: the silence never reaches the ears (whisper would make
+  /// a phrase of it, and a conversation would answer the empty room).
+  func testSilenceIsNotSentToTheEars() {
+    XCTAssertFalse(VoiceInput.uploads(heardNobody: true, bytes: 256_000))
+    XCTAssertTrue(VoiceInput.uploads(heardNobody: false, bytes: 256_000))
+    XCTAssertFalse(VoiceInput.uploads(heardNobody: false, bytes: 512))
+  }
+
   /// A conversation can always be ended, even while the agent answers.
   func testTheMicTakesATouchWhenItShould() {
     XCTAssertFalse(VoiceInput.micTakes(phase: .hearing, resting: false, conversing: true))

@@ -795,6 +795,18 @@ Self-critique:
   two fans read "going" -- the mic held open to 60 s -- and the check only
   asked "not ended". It now demands "nobody spoke". Found by running the
   mutant, not by reading the code.
+- **The reviewer bee found what my tests could not reach** (#3360):
+  a long press while a single turn's answer played started a
+  conversation that the OLD turn then ended (it saw "not conversing,
+  mic busy" and cleared the flag) -- now every conversation has a
+  number and a turn from an older one leaves (`VoiceInput.afterAnswer`,
+  `.leave`). And `nobodySpoke` still uploaded 8 s of silence: whisper
+  makes a phrase of it, and hands-free would answer an empty room in a
+  loop -- now `uploads(heardNobody:bytes:)` sends nothing. Plus a
+  VoiceOver action that slipped past `allowsHitTesting`. Both rules
+  mutation-tested (extracted with swiftc, two mutants KILLED). Lesson: a
+  loop that awaits (speak) can be re-entered by a gesture; give each run
+  an identity before letting it clear shared state.
 - **Measured on battery audio, not a phone.** `averagePower` is RMS in
   dBFS, close to what `tri vad --ios` computes, not identical; the iPhone
   mic's AGC is not in the battery. Thresholds are the web's, unvalidated on
