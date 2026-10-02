@@ -450,7 +450,7 @@ CHECKS THAT EACH COST A CYCLE
         (exit 2). On 2026-10-02: edge sin1, render in sfo, ~250-290 ms warm.
         No key needed.
 
-  tri turn | tri ход [--live] [phrase ...]
+  tri turn | tri ход [--live | --record | --audio file ...] [phrase ...]
         Whether the words of a pause end the turn (player/src/lib/voice/
         turnEnd.ts): a phrase stopping on "and", "to", "uh", "и", "на" or a
         comma gets HANGING_TURN_MS of silence, anything else END_OF_TURN_MS.
@@ -458,6 +458,10 @@ CHECKS THAT EACH COST A CYCLE
         six phrases with our mouth, hears them with our ears, judges what
         came back and prints when the words land in the pause (the "heard"
         earcon now waits for them).
+        --audio judges recordings by the VOICE (Smart Turn in the ears);
+        --record asks you to say ten phrases into the mic (five finished,
+        five cut off), saves them under ~/.cache/tri/turn-voice/<lang> and
+        runs --audio on them. Interactive; macOS asks for the mic first.
 
   tri words | tri слова [--lang=ru|en] [phrase ...]
         Are product words (reels, lipsync, neurophoto, Vibee...) heard as
@@ -6181,17 +6185,19 @@ PY
 # "and" survives ("this week and" came back "this weekend." on 2026-10-02).
 # ─────────────────────────────────────────────────────────────────────────
 cmd_turn() {
-  local bench="$ROOT/apps/vibee-editor/player/scripts/turn-bench.ts" live='' audio='' lang=ru pause=300 a phrases=() key heard
+  local bench="$ROOT/apps/vibee-editor/player/scripts/turn-bench.ts" live='' audio='' record='' lang=ru pause=300 a phrases=() key heard
   for a in "$@"; do
     case "$a" in
       --live) live=1 ;;
       --audio) audio=1 ;;
+      --record) record=1 ;;
       --lang=*) lang="${a#--lang=}" ;;
       --pause=*) pause="${a#--pause=}" ;;
-      -*) bad "tri turn [--live | --audio [--lang=ru] [--pause=300] file ...] [phrase ...], not '$a'"; return 2 ;;
+      -*) bad "tri turn [--live | --record | --audio [--lang=ru] [--pause=300] file ...] [phrase ...], not '$a'"; return 2 ;;
       *) phrases+=("$a") ;;
     esac
   done
+  [ -n "$record" ] && { _turn_record "$lang" "$pause"; return $?; }
   [ -n "$audio" ] && { _turn_audio "$lang" "$pause" ${phrases[@]+"${phrases[@]}"}; return $?; }
   command -v bun >/dev/null || { bad 'bun is needed to run the judge'; return 2; }
   if [ -z "$live" ]; then
@@ -6363,6 +6369,75 @@ if finished or unfinished:
     print(f'finished turns held 2.5 s: {held}/{finished}   unfinished caught: {caught}/{unfinished}')
     print('switch on (VoiceDeps.voiceHolds) only when held is near 0 and caught is real')
 PY
+}
+
+# tri turn --record: the kit for the recordings --audio needs (cycle 15).
+#
+# Smart Turn stays in shadow until a PERSON's voice says it holds finished
+# turns rarely and catches unfinished ones (synthesized speech is not a
+# person). This walks the owner through ten phrases -- five said to the end,
+# five broken off mid-thought -- records each from the Mac's microphone and
+# judges them with --audio. Recordings live in ~/.cache/tri/turn-voice/<lang>
+# and are kept: a second run records only what is missing, and re-judges all.
+# Delete a file to record it again. macOS asks once for microphone access.
+_turn_record() {
+  local lang="$1" pause="$2" dir n=0 kind phrase file pid ans
+  command -v ffmpeg >/dev/null || { bad 'ffmpeg is needed to record'; return 2; }
+  [ -t 0 ] || { bad 'tri turn --record is interactive: run it in a terminal'; return 2; }
+  dir="$HOME/.cache/tri/turn-voice/$lang"
+  mkdir -p "$dir" || return 2
+  local -a items
+  if [ "$lang" = ru ]; then
+    items=(  # cyrillic-ok: phrases the owner reads aloud
+      'done|Покажи мои рилсы за эту неделю.'  # cyrillic-ok
+      'done|Сколько у меня токенов?'  # cyrillic-ok
+      'done|Открой календарь на завтра.'  # cyrillic-ok
+      'done|Сделай липсинк из последнего видео.'  # cyrillic-ok
+      'done|Спасибо, это всё.'  # cyrillic-ok
+      'cut|Покажи мне рилсы и'  # cyrillic-ok
+      'cut|Я хочу сделать видео про'  # cyrillic-ok
+      'cut|Открой календарь, а потом'  # cyrillic-ok
+      'cut|Сколько стоит, ну, это'  # cyrillic-ok
+      'cut|Напиши клиенту, что'  # cyrillic-ok
+    )
+  else
+    items=(
+      'done|Show me my reels from this week.'
+      'done|How many tokens do I have?'
+      'done|Open my calendar for tomorrow.'
+      'done|Make a lipsync from the last video.'
+      'done|Thanks, that is all.'
+      'cut|Show me my reels and'
+      'cut|I want to make a video about'
+      'cut|Open the calendar, and then'
+      'cut|How much does it, um, the'
+      'cut|Tell the client that'
+    )
+  fi
+  printf "  recordings: %s\n" "$dir"
+  printf '  %s\n' 'say each phrase as you would to the agent. "cut" phrases: stop where the text stops, as if thinking, then press Enter'
+  # Seen 2026-10-02: from a process macOS has not yet asked about, ffmpeg
+  # sits on the microphone without a word (not even `timeout` ended it).
+  printf '  %s\n' 'the first recording may wait for the macOS "allow microphone" prompt -- answer it, then speak'
+  for phrase in "${items[@]}"; do
+    kind="${phrase%%|*}"; phrase="${phrase#*|}"; n=$((n + 1))
+    file="$dir/$kind-$(printf %02d "$n").wav"
+    [ -s "$file" ] && { printf '  %s  already recorded\n' "$(basename "$file")"; continue; }
+    printf '\n  [%s %d/%d]  %s\n' "$kind" "$n" "${#items[@]}" "$phrase"
+    printf '  Enter to start, then Enter to stop (s = skip, q = quit) '
+    read -r ans; [ "$ans" = q ] && break; [ "$ans" = s ] && continue
+    # Default input device; 16 kHz mono is what the ears take anyway.
+    ffmpeg -nostdin -v error -y -f avfoundation -i ':default' -ac 1 -ar 16000 "$file" &
+    pid=$!
+    printf '  recording... '
+    read -r ans
+    kill -INT "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+    [ -s "$file" ] || { bad "nothing recorded (microphone access for this terminal?)"; rm -f "$file"; return 2; }
+  done
+  local files=("$dir"/done-*.wav "$dir"/cut-*.wav)
+  [ -e "${files[0]}" ] || { warn 'no recordings yet'; return 1; }
+  printf '\n'
+  _turn_audio "$lang" "$pause" "$dir"/*.wav
 }
 
 # ─────────────────────────────────────────────────────────────────────────
