@@ -46,7 +46,11 @@ import { CODE_TOOLS } from './code-run'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import { clubOfferLine } from './club-membership'
-import { FAL_IMAGE_MODELS, imageChainShortNote } from '../image-chain'
+import {
+  FAL_IMAGE_MODELS,
+  imageChainShortNote,
+  watermarkOf,
+} from '../image-chain'
 import { imageModelRefusal, videoModelRefusal } from './flat-price-model'
 import {
   LEELA_CTA_EN,
@@ -2069,6 +2073,7 @@ export const TOOLS: AgentTool[] = [
        */
       const servedBy: string | null =
         typeof genData?.provider === 'string' ? genData.provider : null
+      const watermark = watermarkOf(servedBy)
       const refusals: { provider: string; error: string }[] = Array.isArray(
         genData?.tried
       )
@@ -2169,9 +2174,14 @@ export const TOOLS: AgentTool[] = [
         // talking heads spend from at 18 credits a second; a caller that
         // cannot tell that from a free-ish Replicate hit cannot budget.
         provider: servedBy,
+        // The free leg prints its name on the picture whatever we ask
+        // (image-chain.ts, watermarkOf). Said here, so the agent does not put
+        // a stamped picture on a brand page or into a public post.
+        watermark,
         tried: refusals,
-        подсказка:
-          'ссылка готова: отдай её в reel_render как слой или в feed_publish',
+        подсказка: watermark
+          ? `на картинке знак ${watermark}: годится как черновик, но не для бренда и не для поста — чистую даёт image_edit (Kie)`
+          : 'ссылка готова: отдай её в reel_render как слой или в feed_publish',
       })
     },
   },
