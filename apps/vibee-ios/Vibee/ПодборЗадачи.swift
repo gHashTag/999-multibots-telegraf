@@ -81,11 +81,12 @@ enum GenerationRefusal {
     "not_enough_tokens": ("Not enough tokens — top up to continue", "Не хватает токенов — пополни баланс"),  // ru-only-ok: the russian sentence
     "forbidden": ("This model isn't available to your account", "Эта модель недоступна для твоего аккаунта"),  // ru-only-ok: the russian sentence
     "unavailable": ("The service is busy — try again in a minute", "Сервис занят — попробуй через минуту"),  // ru-only-ok: the russian sentence
+    "too_long": ("Too long for this model — trim it and try again", "Слишком длинно для этой модели — обрежь и попробуй снова"),  // ru-only-ok: the russian sentence
     "generation_failed": ("The generation didn't go through — try again or pick another model", "Генерация не получилась — попробуй ещё раз или другую модель"),  // ru-only-ok: the russian sentence
   ]
 
   /// Failures the caller can fix; their detail may stand alone.
-  static let callersToFix: Set<String> = ["bad_input", "sign_in", "not_enough_tokens", "forbidden"]
+  static let callersToFix: Set<String> = ["bad_input", "sign_in", "not_enough_tokens", "forbidden", "too_long"]
 
   static func text(code: String?, detail: String?, russian: Bool = speaksRussian) -> String {
     let words = String((detail ?? "").trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))

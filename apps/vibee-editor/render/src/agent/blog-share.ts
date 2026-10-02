@@ -171,7 +171,7 @@ export function shareUrls(a: Article): {
 /** The question the owner is asked, in their words. Pure. */
 export function questionFor(a: Article): string {
   return (
-    `Опубликовать статью блога в LinkedIn, X, Threads и r/${SUBREDDIT}: ` + // cyrillic-ok: shown to the owner
+    `Опубликовать статью блога в LinkedIn, X, Threads, Instagram, Facebook и r/${SUBREDDIT}: ` + // cyrillic-ok: shown to the owner
     `«${a.title}» (${a.link})`
   )
 }
@@ -203,7 +203,12 @@ export function resetBlogSharesForTests(): void {
  */
 export function publishedSomewhere(result: Record<string, string>): boolean {
   if ('error' in result) return false
-  return Object.values(result).some(v => String(v).includes(SEEN_ON_PROFILE))
+  return Object.values(result).some(
+    v =>
+      String(v).includes(SEEN_ON_PROFILE) ||
+      /* An API post came back with its own id: a receipt (meta-connect.ts). */
+      String(v).startsWith('опубликовано через API') // cyrillic-ok: meta-connect.ts VIA_API
+  )
 }
 
 /* Pressed, or a thread sent: the words publishEverywhere writes for a press. */

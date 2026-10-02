@@ -52,7 +52,11 @@ small 0, cut 0, overlap 0, order 0 · <png>`. Код 0 — чисто, 1 — к�
   читается СО СТРАНИЦЫ (`--touch-target` в index.css, 44 px), а не зашита в
   инструмент.
 - **wider** — страница едет вбок.
-- **cut** — текст обрезан своим же блоком.
+- **cut** — text clipped by its own box. Every ellipsis and every sideways
+  scroller counts. A visually hidden (sr-only) word does NOT: it is hidden on
+  purpose (`clip-path: inset(50%)`, `clip: rect(0…)`, or a 1px absolute box).
+  Teach the checker only a false positive like that one; a real cut is fixed
+  in the page.
 - **overlap** — две цели наложились.
 - **order** — пары `before` стенда: первое стоит ВЫШЕ второго на экране.
   Цена над кнопкой (спека v16): «до нажатия» — это место, а не слово.
@@ -82,6 +86,14 @@ small 0, cut 0, overlap 0, order 0 · <png>`. Код 0 — чисто, 1 — к�
    страницы (`CrmClient.test.tsx` держит их против разборщиков), но
    НАСТОЯЩЕЙ длины: раскладка ломается на длинном имени, а не на «Leela».
    Люди в фикстурах — выдуманные.
+   **Экран, который ходит в двери сам (`fetch`), а не через инструменты** —
+   поля `page` (чужая html-страница, если стендов два на один экран),
+   `query` (адрес: `?card=5382&repo=gHashTag/t27`) и `routes` — пары
+   `[glob, request => ({contentType, body})]`. Под `routes` любая
+   НЕназванная `**/api/**` отвечает 404 `tri shot: no such door`: стенд не
+   уходит в прод. Образец — `card-chat` / `card-chat-empty`: история задачи
+   и поток NDJSON чата (`тип`/`текст` — слова сервера, строки под
+   `cyrillic-ok`).
 5. Прогон ДО правки (число «до»), правка, прогон ПОСЛЕ, и обратная
    проверка: старые стили → обязан покраснеть.
 6. Сторож в vitest того, что установил замер (образец —
@@ -105,6 +117,29 @@ small 0, cut 0, overlap 0, order 0 · <png>`. Код 0 — чисто, 1 — к�
   (виток 14 — иначе ложная тревога на каждом флажке).
 - **Английский уже русского**: «watch» 42 px в ширину при 44 в высоту —
   короткому слову нужна `min-width`.
+- **Стенд без `JotaiProvider` «не отправляет».** `agentStream.ts` пишет
+  в `editorStore` из `@/atoms/Provider`; без обёртки нажатие «↑» уходит в
+  чужой store, и состояние `sent` ждёт до таймаута. Видно только с
+  `TRI_SHOT_DEBUG=1` (консоль и запросы страницы в stderr).
+- **Наложение меряется по видимому.** Цель, ушедшая под край
+  прокручиваемого предка, обрезается его рамкой (`onScreen`): иначе третий
+  стартер под краем листа «накрывал» поле ввода, которого на экране не
+  касался. Размер цели — по полной коробке, как раньше.
+- **На маке нет playwright-Chromium.** `TRI_SHOT_CHROME=<путь>` или сам
+  найдёт Google Chrome / Chromium / BrowserOS в `/Applications`.
+  `playwright install` не запускать.
+- **Матрица в zsh.** `for a in "390 ru" "320 ru"; do tri shot x $a` —
+  `$a` в zsh НЕ делится на слова: три прогона 390 ru. Писать
+  `set -- ${=a}; tri shot x "$@"`.
+- **`tri shot x 320 ru` до 01.10.2026 снимал 390.** Позиционные ширина и
+  язык выбрасывались молча, и «320 зелёный» был прогоном 390. Теперь они
+  читаются, а лишнее слово — ошибка использования (код 2). Сверять ширину
+  по имени снимка `<стенд>-<состояние>-<ширина>-<язык>.png`.
+- **Заглушка чужого API обязана слать CORS, как оригинал.** Без
+  `access-control-expose-headers` браузер прячет заголовок
+  (`x-ratelimit-reset` у GitHub), и экран честно говорит меньше, чем мог бы.
+- **Снимки в worktree** — `<git-dir>/tri-shot/` (`git rev-parse
+--git-dir`, путь абсолютный: `resolve`, не `join`).
 - **WebKit (iOS Telegram) здесь не снять** — в контейнере только Chromium.
   Что WebKit игнорирует (`min-height: fit-content` у flex-кнопки) — см.
   `modelCardsFitTheirText.test.ts`.
@@ -300,6 +335,19 @@ Promise.all([...])` followed by `setA(a); setB(b)` reads in parallel but
   to Vite**, and a path outside the player is refused ("Denied ID ...?url").
   Read the server source with `resolve(dirname(fileURLToPath(
 import.meta.url)), ...)` and `readFileSync`.
+- **Green by the counters is not yet green to the eye.** CRM, 2026-10-02:
+  after the search box moved its border from the input to the label,
+  design-system.css still ringed the focused input (`box-shadow`), which
+  drew a second box inside the first. No counter catches that. Read the PNGs
+  after every fix.
+- **Wrap, don't cut, on a phone.** `overflow-wrap: anywhere` instead of
+  `nowrap` + `ellipsis` for names and facts; wrap a chip row (funnel,
+  filters at 320) instead of scrolling it past the edge. The cost is a
+  taller row, so say so in the PR.
+- **A link inside a line of text is never 44px.** Give it its own element
+  (`a.crm__tme`, a 44×44 sibling) and a grid column on a phone. Look for the
+  same speck in the screen's other lists, even if the stand's fixture leaves
+  them empty (CRM hot leads).
 
 ## Related Resources
 
