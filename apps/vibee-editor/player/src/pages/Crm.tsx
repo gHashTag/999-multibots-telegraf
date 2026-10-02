@@ -18,6 +18,7 @@ import { coveredByNotice, oneReasonForAll } from '@/components/Crm/refusalRules'
 import { AutoPanel } from '@/components/Crm/AutoPanel'
 import { TrafficPanel } from '@/components/Crm/TrafficPanel'
 import { RevenuePanel } from '@/components/Crm/RevenuePanel'
+import { SocialPanel } from '@/components/Crm/SocialPanel'
 import { Avatar } from '@/components/Crm/Avatar'
 import { FunnelStrip } from '@/components/Crm/FunnelStrip'
 import { WinbackPanel } from '@/components/Crm/WinbackPanel'
@@ -1203,6 +1204,10 @@ export default function CrmPage() {
           {shows('revenue') ? (
             <RevenuePanel noticeReason={noticeReason} />
           ) : null}
+
+          {/* The owner's networks: where his agent can post, for every
+              level; the tool answers the owner only, anyone else sees nothing. */}
+          <SocialPanel noticeReason={noticeReason} />
 
           {shows('audience') &&
             panel(
