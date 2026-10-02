@@ -144,6 +144,7 @@ configureAgentStart(browserBrokerDeps)
 import { identityWithSource, personIdentity } from './src/agent/routes'
 import { isMetaPath } from './src/agent/meta-routes'
 import { handleTriWallet } from './src/tri-wallet'
+import { handleTriClaim, liveOutside, type Outside } from './src/tri-claim'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import {
@@ -162,6 +163,27 @@ import {
   readApproval,
 } from './src/browser/approvals'
 import { markAllowed, ensureBrowserSessions } from './src/browser/sessions'
+
+/** The claim side's outside world, from env; null (503 on claims) until it is all set. */
+let triOutside: Outside | null | undefined
+function triClaimOutside(): Outside | null {
+  if (triOutside !== undefined) return triOutside
+  const signerUrls = (process.env.TRI_SIGNER_URLS ?? '')
+    .split(',')
+    .map(u => u.trim())
+    .filter(Boolean)
+  const { QUEEN_URL, TRI_MINTER } = process.env
+  triOutside =
+    QUEEN_URL && TRI_MINTER && signerUrls.length
+      ? liveOutside({
+          queenUrl: QUEEN_URL,
+          signerUrls,
+          minter: TRI_MINTER,
+          toncenterKey: process.env.TONCENTER_API_KEY,
+        })
+      : null
+  return triOutside
+}
 
 /** Who asked, so the yes lands on their session and nobody else's. */
 const approvalOwner = async (pool: any, id: string) =>
@@ -9411,6 +9433,22 @@ const server = createServer(async (req, res) => {
       personOf: personIdentity,
       readBody: (r, maxBytes) => readBody(r as any, maxBytes),
       proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
+    })
+  )
+    return
+
+  /*
+   * /api/tri/github*, /api/tri/payee, /api/tri/claim[s] -- a person links the
+   * GitHub account Queen credits, and claims an accepted spec as a mint their
+   * own wallet sends (src/tri-claim.ts). Testnet only; without QUEEN_URL,
+   * TRI_SIGNER_URLS and TRI_MINTER the claim side answers 503.
+   */
+  if (
+    await handleTriClaim(req, res, {
+      getPool,
+      personOf: personIdentity,
+      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      outside: triClaimOutside(),
     })
   )
     return
