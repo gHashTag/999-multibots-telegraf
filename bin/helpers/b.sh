@@ -61,6 +61,14 @@
 #                                 (blank, staleTab on our sites, unsent X
 #                                 composer text), each anomaly with its fix.
 #                                 Nothing fronted, no visit started, never tours
+#   tri browser tidy              tabs that look abandoned (unfinished form,
+#                                 stuck sign-in, raw file, blank, duplicate):
+#                                 a list, read through the door that starts nothing
+#   tri browser tidy ask [ID...]  ONE card on the owner's phone with that list
+#                                 (+ IDs named by hand), answerable for a day: a
+#                                 REAL question. Closes nothing by itself
+#   tri browser tidy apply QID    after his "allow": close exactly the tabs the
+#                                 card named that still show the same URL; once
 #   tri browser call TOOL [JSON]  any tool, raw: the escape hatch
 #   tri browser cover             every browser_* tool in agent-tools.ts has a
 #                                 case here (exit 1 names the ones that do not)
@@ -465,11 +473,50 @@ for p in pages:
     while IFS= read -r l; do
       case "$l" in '') ;; '!'*) w="${l#!}"; flag "${w%%	*}" "${w#*	}" ;; *) echo " $l" ;; esac
     done <<<"$(tail -n +2 <<<"$report")"
+    # Litter tabs (tab-tidy.ts): a count and the command that asks. An older
+    # render without browser_tidy says nothing here rather than "none".
+    if td=$(call browser_tidy '{}' 40 probe 2>/dev/null); then
+      n=$(OUT="$td" python3 -c 'import json,os;print(len(json.loads(os.environ["OUT"]).get("tabs") or []))' 2>/dev/null)
+      [ "${n:-0}" -gt 0 ] && flag "лишних вкладок: $n (брошенная форма, застрявший вход, сырой файл…)" "tri browser tidy, затем tidy ask — закроет только по его «да»"
+    fi
     # A render deployed before tab-shape.ts ignores `shape`: say so rather
     # than reporting a clean sweep that never happened.
     [ "$SHAPED" = 1 ] || [ "$TOTAL" -eq 0 ] || echo "  страницы не прочитаны: рендер ещё без shape (не задеплоен?) — по одной: tri browser blank ID (заведёт визит)"
     [ $found -eq 0 ] && { [ "$SHAPED" = 1 ] && echo "аномалий нет" || echo "аномалий нет (по списку)"; exit 0; }
     echo "аномалий: $found"; exit 1 ;;
+  tidy)
+    # render/src/browser/tab-tidy.ts: list, ask, apply. Only apply closes, and
+    # only after the person's yes to that exact list.
+    sub="${1:-list}"
+    case "$sub" in
+      list) out=$(call browser_tidy '{}' 40 probe) || { rc=$?; echo "$out"; exit $rc; } ;;
+      ask)
+        shift
+        IDS=$(python3 -c 'import json,sys;print(json.dumps(sys.argv[1:]))' "$@")
+        out=$(call browser_tidy "{\"ask\":true,\"ids\":$IDS}" 60 probe) || { rc=$?; echo "$out"; exit $rc; } ;;
+      apply)
+        [ -n "${2:-}" ] || { echo "нужен id вопроса: его печатает tri browser tidy ask"; exit 2; }
+        out=$(call browser_tidy "{\"apply\":$(js "$2")}" 60 probe) || { rc=$?; echo "$out"; exit $rc; } ;;
+      *) echo "tri browser tidy [ask [ID...] | apply QID]"; exit 2 ;;
+    esac
+    OUT="$out" python3 -c '
+import json, os
+d = json.loads(os.environ["OUT"])
+if d.get("running") is False: print("браузер не запущен"); raise SystemExit
+if "applied" in d:
+    if not d["applied"]: print("не закрыто:", d.get("decision") or d.get("note")); raise SystemExit
+    print("закрыто:", len(d.get("closed") or []))
+    for i in d.get("closed") or []: print("  x", i)
+    for s in d.get("skipped") or []: print("  оставлена %s: %s" % (s["id"], s["why"]))
+    raise SystemExit
+tabs = d.get("tabs") or []
+if not tabs: print("лишних вкладок нет"); raise SystemExit
+for t in tabs: print("  %s  %-16s %s" % (t["id"], t["why"], t["url"][:72]))
+if d.get("asked"):
+    print("карточка ушла владельцу; вопрос:", d["question"])
+    print("после «Разрешить»: tri browser tidy apply", d["question"])
+else:
+    print("спросить владельца одной карточкой: tri browser tidy ask [ещё ID...]")' ;;
   call)
     [ -n "${1:-}" ] || { echo "нужно имя инструмента"; exit 2; }
     call "$1" "${2:-$NONE}" "${3:-120}" ;;
