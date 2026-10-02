@@ -2011,3 +2011,17 @@ every line that disappears outside the file you worked on. Run the OLD tool
 from inside the same worktree (a copy at `./tri-old-tmp`, deleted after) --
 run from `/tmp` it resolved another app path and printed an empty diff that
 looked like "no change".
+`tri iphone ru-diff [ref]` (iteration 7) does exactly that: runs the counter
+of `ref` (default origin/main) and the current one per file and prints every
+line newly hidden or newly counted.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 8): a counter of zero is not a screen in English
+
+Iteration 7 brought GenerateScreen to 0 and the live Photo tab still showed
+a Russian model list: the words came from a GENERATED data file the counter
+listed separately and the plan had deferred as "model data". A source counter
+measures source files, not what the screen draws. **After any "this screen
+is done", open it live in the target language before closing the item.** For
+generated data, put the guard where the data is (a test over the whole
+catalogue), and let the counter skip that file by name on stderr -- never a
+silent skip.
