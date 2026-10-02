@@ -63,8 +63,14 @@ const positional = argv.filter(
   (a, i) => !a.startsWith('--') && !flags.has(argv[i - 1])
 )
 const name = positional[0] ?? 'story-palette'
-const width = Number(opt('width', '390'))
-const lang = opt('lang', 'ru')
+// `tri shot card-chat 320 ru` reads as width and language. These were once
+// dropped without a word, and a "320px green" was in fact a 390px run.
+const rest = positional.slice(1)
+const posWidth = rest.find(a => /^\d+$/.test(a))
+const posLang = rest.find(a => a === 'ru' || a === 'en')
+const unread = rest.filter(a => a !== posWidth && a !== posLang)
+const width = Number(opt('width', posWidth ?? '390'))
+const lang = opt('lang', posLang ?? 'ru')
 const gitDir = spawnSync('git', ['rev-parse', '--git-dir'], {
   cwd: ROOT,
   encoding: 'utf8',
@@ -290,6 +296,235 @@ const HARNESSES = {
       },
     ],
   },
+  /*
+   * THE KANBAN CARD'S AGENT SHEET (/game/kanban?card=<n>): a thumb taps a
+   * card and the conversation rises at HALF over the board. No MCP tool --
+   * the sheet reads render's task thread and writes to the agent's chat
+   * door, so both are answered in the host's shapes (task-thread.ts, the
+   * chat's NDJSON events). The title is the board's longest kind: a real
+   * epic title, cut by the server at TITLE_MAX, never by the phone.
+   */
+  'card-chat': {
+    query: '?card=5382&repo=gHashTag/t27',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({
+          json: {
+            thread: 'task:gHashTag/t27#5382',
+            card: {
+              title:
+                'EPIC: tap any kanban card and its agent conversation opens -- history, composer, A2A sync, mobile-first detent sheet, spec-first interface between agents and the person',
+              column: 'running',
+            },
+            messages: [
+              {
+                role: 'user',
+                content: 'Что с этой задачей? Где мы остановились?',
+                surface: 'kanban',
+              },
+              {
+                role: 'assistant',
+                content:
+                  'PR #3208 открыт: лист с историей и полем ввода готов, тесты зелёные. Осталось поднять QUEEN_REF, чтобы доска слала open-card.',
+                surface: 'kanban',
+              },
+              {
+                role: 'assistant',
+                // Two proposals: the cards under the last answer (spec v2).
+                content:
+                  'Проверил через tri card 5382: нить общая.\n[[card: Поднять QUEEN_REF | попрошу владельца в эпике]]\n[[card: Тест доски | добавлю тест на open-card]]',
+                surface: 'agent',
+              },
+            ],
+          },
+        }),
+      ],
+      [
+        '**/api/agent/chat',
+        () => ({
+          contentType: 'application/x-ndjson',
+          body:
+            // The stream's keys are the server's own words (agentStream.ts).
+            JSON.stringify({ тип: 'ход', id: 'shot-1' }) + // cyrillic-ok
+            '\n' +
+            JSON.stringify({
+              тип: 'текст', // cyrillic-ok
+              текст: 'Продолжаю: открою PR, когда скажешь.', // cyrillic-ok
+            }) +
+            '\n',
+        }),
+      ],
+      // The task's work (spec v2): two linked PRs, one green, one running.
+      [
+        'https://api.github.com/repos/*/*/issues/*/timeline**',
+        () => ({
+          json: [
+            ['gHashTag/999-multibots-telegraf', 3208],
+            ['gHashTag/t27', 5389],
+          ].map(([repo, number]) => ({
+            event: 'cross-referenced',
+            created_at: '2026-10-01T10:00:00Z',
+            source: {
+              issue: {
+                number,
+                title: `PR ${number}`,
+                state: 'open',
+                repository: { full_name: repo },
+                pull_request: {
+                  html_url: `https://github.com/${repo}/pull/${number}`,
+                  merged_at: null,
+                },
+              },
+            },
+          })),
+        }),
+      ],
+      // Spec v3 (CHECKS_ONE_READ): checks by the PR's head ref, no pulls/<n>.
+      [
+        'https://api.github.com/repos/*/*/commits/refs/pull/*/head/check-runs**',
+        req => ({
+          json: {
+            check_runs: req.url().includes('/refs/pull/3208/')
+              ? [{ status: 'completed', conclusion: 'success' }]
+              : [{ status: 'in_progress', conclusion: null }],
+          },
+        }),
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    // The conversation is read above the place to write into it.
+    before: [['.card-chat__log', '.card-chat__composer']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.card-chat__msg').first().waitFor()
+          await p.locator('.agent-cards').waitFor()
+          await p.locator('.card-chat__checks--pass').waitFor()
+        },
+      },
+      {
+        // The composer focused: the sheet goes FULL, the thumb types.
+        id: 'full',
+        ready: async p => {
+          await p.locator('.card-chat__input').focus()
+          await p.locator('.detent-sheet--full').waitFor()
+          await p.locator('.card-chat__input').fill('Продолжай, открой PR')
+        },
+      },
+      {
+        id: 'sent',
+        ready: async p => {
+          await p.locator('.card-chat__send').click()
+          await p
+            .locator('.card-chat__msg--assistant', { hasText: 'Продолжаю' })
+            .waitFor()
+        },
+      },
+    ],
+  },
+
+  /*
+   * A CARD NOBODY HAS TALKED ABOUT YET: no title from the board, no turns --
+   * the three starters are the first thing the thumb meets.
+   */
+  'card-chat-empty': {
+    page: 'card-chat',
+    query: '?card=5383&repo=gHashTag/t27',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({ json: { thread: 'task:gHashTag/t27#5383', messages: [] } }),
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.card-chat__starter').first().waitFor()
+          // GitHub over its limit: said as not measured, never as "no PR".
+          await p
+            .locator('.card-chat__work-note--unmeasured[data-retry-at]')
+            .waitFor()
+        },
+      },
+    ],
+  },
+  /*
+   * THE MOVE ROW A KEEPER SEES (spec v5, S16): a backlog card, the Queen's
+   * door on. `&door=1` is the stand's preview of the version that flips
+   * MOVE_DOOR_EXISTS -- the app itself keeps the row dark until then. One
+   * tap arms, the second asks; the Queen's own reason is what is shown.
+   */
+  'card-chat-move': {
+    page: 'card-chat',
+    query: '?card=5384&repo=gHashTag/t27&door=1',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({
+          json: {
+            thread: 'task:gHashTag/t27#5384',
+            card: {
+              title: 'Port the drift check to the iOS hive tab',
+              column: 'backlog',
+            },
+            messages: [
+              {
+                role: 'assistant',
+                content: 'Задача в бэклоге, никто её не взял.',
+                surface: 'kanban',
+              },
+            ],
+          },
+        }),
+      ],
+      [
+        '**/api/card-move',
+        req =>
+          req.method() === 'POST'
+            ? {
+                json: {
+                  moved: true,
+                  column: 'dropped',
+                  reason: 'Moved to dropped by a keeper: not doing this one.',
+                },
+              }
+            : { json: { offered: true, keeper: true, door: true } },
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.card-chat__move-btn').waitFor()
+        },
+      },
+      {
+        id: 'armed',
+        ready: async p => {
+          await p.locator('.card-chat__move-btn').click()
+          await p.locator('.card-chat__move-btn--armed').waitFor()
+        },
+      },
+      {
+        id: 'moved',
+        ready: async p => {
+          await p.locator('.card-chat__move-btn--armed').click()
+          await p.locator('.card-chat__move-said').waitFor()
+        },
+      },
+    ],
+  },
 }
 
 /*
@@ -416,6 +651,8 @@ if (name === 'all') {
 const h = HARNESSES[name]
 if (
   !h ||
+  unread.length > 0 ||
+  argv.includes('--help') ||
   !Number.isInteger(width) ||
   width < 240 ||
   !['ru', 'en'].includes(lang)
@@ -509,8 +746,33 @@ function measure({ root, scope, within: area, before = [] }) {
       )
     })
     .map(el => `${name(el)} ${el.scrollWidth}>${el.clientWidth}`)
+  /*
+   * What of a control is on screen: its box cut by every clipping ancestor
+   * (a scrolled log). A starter half-scrolled under the log's edge does not
+   * lie under the composer -- the screen shows the log's edge between them
+   * (measured 01.10.2026, card-chat-empty). Size is still the whole box: a
+   * thumb meets it whole once scrolled to.
+   */
+  const onScreen = el => {
+    const r = el.getBoundingClientRect()
+    let { left, top, right, bottom } = r
+    for (
+      let p = el.parentElement;
+      p && p !== document.body;
+      p = p.parentElement
+    ) {
+      const s = getComputedStyle(p)
+      if (s.overflowX === 'visible' && s.overflowY === 'visible') continue
+      const c = p.getBoundingClientRect()
+      left = Math.max(left, c.left)
+      top = Math.max(top, c.top)
+      right = Math.min(right, c.right)
+      bottom = Math.min(bottom, c.bottom)
+    }
+    return { left, top, right, bottom }
+  }
   const overlap = []
-  const rects = controls.map(el => ({ el, r: el.getBoundingClientRect() }))
+  const rects = controls.map(el => ({ el, r: onScreen(el) }))
   for (let i = 0; i < rects.length; i++)
     for (let j = i + 1; j < rects.length; j++) {
       const a = rects[i].r
@@ -554,10 +816,10 @@ try {
   const require = createRequire(join(PLAYER, 'package.json'))
   const { chromium } = require('playwright')
   // `tri shot all` hands every run its one server; alone, a run starts its own.
-  const probe = `/harness/${name}.html`
+  const probe = `/harness/${h.page ?? name}.html`
   let base = process.env.TRI_SHOT_BASE
   if (!base) ({ server, base } = await startVite(probe))
-  const url = base + probe
+  const url = base + probe + (h.query ?? '')
 
   /* The container's Chromium, whatever revision this playwright expects. */
   // On a Mac with no playwright download, any installed Chromium-family
@@ -582,6 +844,12 @@ try {
   const page = await context.newPage()
   const errors = []
   page.on('pageerror', e => errors.push(String(e)))
+  // TRI_SHOT_DEBUG=1: the page's console and every request it makes, for a
+  // state that waits forever (a harness without the app's store did).
+  if (process.env.TRI_SHOT_DEBUG) {
+    page.on('console', m => console.error('console', m.type(), m.text()))
+    page.on('request', r => console.error('request', r.method(), r.url()))
+  }
   await page.route('**/mcp', async route => {
     const body = JSON.parse(route.request().postData() || '{}')
     const tool = body?.params?.name
@@ -614,6 +882,33 @@ try {
       },
     })
   })
+  /*
+   * A harness whose page talks to render's own doors (not /mcp) answers
+   * them here, in the host's shapes. Every other render door is refused, so
+   * a shot never reaches production; playwright tries the last route first.
+   */
+  if (h.routes) {
+    await page.route('**/api/**', route =>
+      route.fulfill({ status: 404, json: { error: 'tri shot: no such door' } })
+    )
+    // GitHub's public API answers as over its limit unless a harness says
+    // otherwise: a shot never spends the machine's sixty reads an hour.
+    await page.route('https://api.github.com/**', route =>
+      route.fulfill({
+        status: 403,
+        // As GitHub does: without the expose list the browser hides the
+        // reset, and the sheet could not say when it will read again.
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-expose-headers': 'X-RateLimit-Reset',
+          'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 1800),
+        },
+        json: { message: 'tri shot: API rate limit exceeded' },
+      })
+    )
+    for (const [glob, reply] of h.routes)
+      await page.route(glob, route => route.fulfill(reply(route.request())))
+  }
   await page.goto(url, { waitUntil: 'domcontentloaded' })
   // A root behind a closed door (a <details>) is opened first, as a thumb would.
   await h.open?.(page)

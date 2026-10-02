@@ -142,6 +142,9 @@ function browserBrokerDeps(): BrowserDeps {
 }
 configureAgentStart(browserBrokerDeps)
 import { identityWithSource, personIdentity } from './src/agent/routes'
+import { handleCardStatus } from './src/agent/card-status'
+import { handleCardMove } from './src/agent/card-move'
+import { handleThreadLive } from './src/agent/thread-live'
 import { isMetaPath } from './src/agent/meta-routes'
 import { handleTriWallet } from './src/tri-wallet'
 import { handleTriClaim, liveOutside, type Outside } from './src/tri-claim'
@@ -9557,6 +9560,38 @@ const server = createServer(async (req, res) => {
    * поздно один пустит туда, куда второй не пускает.
    */
   /*
+   * GET /api/card-status -- a kanban card's pull requests and checks, read
+   * once by the server for everyone (spec kanban-card-chat.t27 v4). A person
+   * only; without GITHUB_READ_TOKEN it answers 503 and the client reads.
+   */
+  if (req.url?.split('?')[0] === '/api/card-status' && req.method === 'GET') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleCardStatus(req, res)
+    return
+  }
+
+  /*
+   * /api/card-move -- a keeper moves ONE card through the Queen's door
+   * (spec kanban-card-chat.t27 v5, S16). GET says whether the sheet offers
+   * the button; POST asks her with the token this server holds.
+   */
+  if (req.url?.split('?')[0] === '/api/card-move') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleCardMove(req, res, String(who))
+    return
+  }
+
+  /*
    * /api/agent/conversations -- several conversations with the agent or a
    * specialist: the list (GET) and a name for one (POST). Identity the same
    * way as the history beside it.
@@ -9569,6 +9604,25 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleAgentConversations(req, res, String(who), getPool)
+    return
+  }
+
+  /*
+   * GET /api/agent/history/live?task=... -- a card's thread as a stream
+   * (spec kanban-card-chat.t27 v5, S17): the same person and the same gate
+   * as the history, only the rows after ?after=.
+   */
+  if (
+    req.url?.split('?')[0] === '/api/agent/history/live' &&
+    req.method === 'GET'
+  ) {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleThreadLive(req, res, String(who), getPool)
     return
   }
 
