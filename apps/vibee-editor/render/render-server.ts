@@ -8898,13 +8898,15 @@ const server = createServer(async (req, res) => {
         try {
           // The player names the language it heard last; a known language
           // halves whisper's time (voice.ts has the measurement).
-          const lang = new URL(req.url || '', 'http://x').searchParams.get(
-            'lang'
-          )
+          const asked = new URL(req.url || '', 'http://x').searchParams
+          // turn=1: the player's eager hearing also wants to know whether
+          // the voice sounds finished (Smart Turn, in the same ears).
           const heard = await voice.hear(
             bytes,
             req.headers['content-type'],
-            lang
+            asked.get('lang'),
+            undefined,
+            asked.get('turn') === '1'
           )
           // desc names the engine, so `tri voice` can tell GigaAM from a
           // fallback to whisper without seeing a single word.
@@ -8914,7 +8916,10 @@ const server = createServer(async (req, res) => {
           )
           if (heard === null)
             return sendJson(res, 503, { error: 'no transcriber configured' })
-          return sendJson(res, 200, { text: heard.text })
+          return sendJson(res, 200, {
+            text: heard.text,
+            ...(heard.done === undefined ? {} : { done: heard.done }),
+          })
         } catch (e) {
           console.warn(`[voice] transcribe failed: ${(e as Error).message}`)
           return sendJson(res, 502, { error: 'transcriber failed' })
