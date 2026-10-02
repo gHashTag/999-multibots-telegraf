@@ -13,9 +13,11 @@
 #
 # Prints, from the gates-can-fail job of the ref's head: the tested count, each
 # gate's verdict, the harness's own OK/FAIL line and the floor check. Read-only.
-# Exit 0 the job passed AND the harness printed its OK: line; 1 the job failed,
-# or the harness said FAIL inside a passed job; 2 could not tell (no answer, no
-# such check, log expired, still running, cancelled/timed out, or no OK: line).
+# Exit 0 the job passed AND the harness printed its OK: line; 1 the job failed
+# (even when its log has expired), or the harness said FAIL inside a passed
+# job; 2 could not tell (no answer, no such check, a passed job whose log is
+# gone or holds no OK: line, cancelled/timed out); 3 still running -- the same
+# code tri red gives for "not finished, not green".
 set -uo pipefail
 ROOT="$1"; shift
 REPO="${1:-gHashTag/trinity-fpga}"; REF="${2:-main}"
@@ -47,7 +49,7 @@ echo "    $URL"
 case "$CONCL" in
   success|failure) ;;
   queued|in_progress|pending|waiting|requested)
-    echo "  not finished -- cannot tell yet"; exit 2 ;;
+    echo "  not finished -- cannot tell yet"; exit 3 ;;
   # cancelled, timed_out, skipped, neutral, stale, action_required,
   # startup_failure: the run ended, but no harness verdict came out of it.
   *) echo "  ended '$CONCL' without a verdict -- re-run it, cannot tell"; exit 2 ;;
