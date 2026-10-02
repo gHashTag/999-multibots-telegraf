@@ -342,7 +342,7 @@ CHECKS THAT EACH COST A CYCLE
         Section 3 needs xcodegen (brew install xcodegen). Without it the iOS
         build is reported as not measured, never as passing.
 
-  tri cyrillic [staged | --unused]
+  tri cyrillic [staged | --unused | msg FILE]
         WHY the Cyrillic gate blocks a line, not just which line. Prints, per
         refusal: which Cyrillic word this commit does not also remove (so the
         reflow exemption cannot apply), and the way out for that SHAPE --
@@ -355,6 +355,10 @@ CHECKS THAT EACH COST A CYCLE
         Reads the same records the gate decides on, so the explanation cannot
         drift from the verdict. Exit code matches the gate: 0 clean, 1 blocked,
         2 the diff could not be read.
+
+        `msg FILE` checks a commit message with the commit-msg hook's own
+        script BEFORE committing. The hook runs after the slow pre-commit, so a
+        Cyrillic type name in the message cost the whole run twice.
 
         `--unused` is `eslint --report-unused-disable-directives` for this
         marker: every  cyrillic-ok  that no longer guards anything. First run,
@@ -3084,6 +3088,17 @@ cmd_cyrillic() {
   # guessing that on 2026-09-17.
   #   tri cyrillic          the branch range (same window the gate uses)
   #   tri cyrillic staged   what is in the index right now, before committing
+  #   tri cyrillic msg FILE the commit message, by the commit-msg hook's own
+  #                         script -- that hook runs AFTER the slow pre-commit,
+  #                         so a Cyrillic type name in the message cost the
+  #                         whole pre-commit twice (2026-10-02). Check first,
+  #                         then `git commit -F FILE`.
+  if [ "${1:-}" = "msg" ]; then
+    [ -f "${2:-}" ] || { echo "usage: tri cyrillic msg FILE" >&2; return 2; }
+    ( cd "$ROOT" && node "$ROOT/scripts/no-cyrillic-guard.cjs" msg "$2" ) \
+      && echo "  OK   commit message has no Cyrillic: $2"
+    return
+  fi
   ( cd "$ROOT" && node "$ROOT/scripts/cyrillic-why.cjs" "$@" )
 }
 
