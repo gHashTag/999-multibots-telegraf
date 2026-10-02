@@ -693,6 +693,7 @@ import {
 import { rewriteAppUrlsForToken } from './src/app-links'
 import { renderFeedEntry } from './src/render-feed-entry'
 import * as MEETINGS from './src/spec/meeting-reminders.gen'
+import { TICK_MS as BLOG_SHARE_TICK_MS } from './src/spec/blog-share.gen'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -2943,23 +2944,21 @@ setTimeout(
  * Not thirty: the service rarely lives forty-five minutes, so a half-hour
  * timer restarted by every deploy often never fired at all. The pace (once
  * a day) lives in blog_shares.asked_at, not here.
- * Off unless BLOG_SHARE_ENABLED=1.
+ * Off unless BLOG_SHARE_ENABLED=1. The interval is the spec's TICK_MS
+ * (specs/automation/blog-share.t27).
  */
-setInterval(
-  () => {
-    void (async () => {
-      try {
-        const { runBlogShare } = await import('./src/agent/blog-share-wiring')
-        const said = await runBlogShare(getPool() as any)
-        if (said !== 'off' && said !== 'asked today already')
-          console.log(`[blog-share] ${said}`)
-      } catch (e) {
-        console.error('[blog-share] failed:', String(e).slice(0, 300))
-      }
-    })()
-  },
-  5 * 60 * 1000
-)
+setInterval(() => {
+  void (async () => {
+    try {
+      const { runBlogShare } = await import('./src/agent/blog-share-wiring')
+      const said = await runBlogShare(getPool() as any)
+      if (said !== 'off' && said !== 'asked today already')
+        console.log(`[blog-share] ${said}`)
+    } catch (e) {
+      console.error('[blog-share] failed:', String(e).slice(0, 300))
+    }
+  })()
+}, BLOG_SHARE_TICK_MS)
 
 /*
  * THE REDDIT DESK: ANSWER THE COMMENTS, POST WHERE IT IS WELCOME
