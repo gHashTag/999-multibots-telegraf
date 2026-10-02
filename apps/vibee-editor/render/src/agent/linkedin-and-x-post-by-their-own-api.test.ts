@@ -211,7 +211,7 @@ describe('connecting', () => {
         ? {
             json: { access_token: 'A1', refresh_token: 'R1', expires_in: 7200 },
           }
-        : { json: { data: { id: '42', username: 'owner' } } }
+        : { json: { data: { id: '42', username: 'username' } } }
     )
     const who = await finishApiConnect(
       q as never,
@@ -223,7 +223,7 @@ describe('connecting', () => {
       0,
       env
     )
-    expect(who).toBe('X @owner')
+    expect(who).toBe('X @username')
     const form = calls[0].init?.body as URLSearchParams
     expect(form.get('code_verifier')).toBe('v'.repeat(64))
     expect(calls[0].init?.headers?.Authorization).toMatch(/^Basic /)
@@ -257,7 +257,7 @@ describe('the X refresh', () => {
     }))
     const t = held({
       expiresAt: new Date(299_000),
-      meta: { username: 'owner', refresh_sealed: seal('R1', env) },
+      meta: { username: 'username', refresh_sealed: seal('R1', env) },
     })
     const next = await refreshXIfDue(q as never, f, '7', t, 0, env)
     expect((calls[0].init?.body as URLSearchParams).get('refresh_token')).toBe(
@@ -305,8 +305,8 @@ describe('publishing', () => {
       json: { data: { id: '77' } },
     }))
     expect(
-      await publishX(held({ meta: { username: 'owner' } }), post, d(f))
-    ).toBe('https://x.com/owner/status/77')
+      await publishX(held({ meta: { username: 'username' } }), post, d(f))
+    ).toBe('https://x.com/username/status/77')
     expect(calls[0].url).toBe('https://api.x.com/2/tweets')
     expect(calls[0].init?.method).toBe('POST')
   })
@@ -336,7 +336,7 @@ describe('the desk', () => {
         accountId: '42',
         token: 'X',
         expiresAt: new Date(Date.now() + 3_600_000),
-        meta: { username: 'owner', refresh_sealed: seal('R', env) },
+        meta: { username: 'username', refresh_sealed: seal('R', env) },
       },
       env
     )
@@ -353,7 +353,7 @@ describe('the desk', () => {
     expect(out.LinkedIn).toBe(
       `${VIA_API} · https://www.linkedin.com/feed/update/urn:li:share:1/`
     )
-    expect(out.X).toBe(`${VIA_API} · https://x.com/owner/status/5`)
+    expect(out.X).toBe(`${VIA_API} · https://x.com/username/status/5`)
   })
 
   it("Meta's poster leaves LinkedIn and X rows alone", async () => {
