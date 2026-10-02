@@ -166,7 +166,7 @@ describe('my reels', () => {
   it('starts HER reel on the typed topic and says so', async () => {
     serve(a => (a.start ? { started: true, topic: String(a.topic) } : READY))
     await draw()
-    const input = host.querySelector('input')!
+    const input = host.querySelector('input[type="text"]')!
     await act(async () => {
       const set = Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,
