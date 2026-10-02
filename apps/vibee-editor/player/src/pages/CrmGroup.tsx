@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
+import { crmErrorText } from '@/lib/crmErrorText'
 import { Panel } from '@/components/Crm/Panel'
 import { AllRefused } from '@/components/Crm/AllRefused'
 import {
@@ -22,7 +23,7 @@ import {
  * presses it (#2951) -- the same door as every other message.
  */
 export default function CrmGroupPage() {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const { chatId } = useParams<{ chatId?: string }>()
   const chat = chatId && GROUP_CHAT_ID.test(chatId) ? chatId : null
   const [ctx, setCtx] = useState<Reached<GroupContext> | null>(null)
@@ -68,7 +69,7 @@ export default function CrmGroupPage() {
        * them and neither repeats it.
        */}
       {ctx && !ctx.reachable && String(ctx.error ?? '').trim() ? (
-        <AllRefused reason={String(ctx.error).trim()} />
+        <AllRefused reason={crmErrorText(ctx, lang, t)} />
       ) : null}
       {ctx === null ? (
         <p className="crm__muted">{t('crm.refreshing')}</p>
