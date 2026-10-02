@@ -2114,3 +2114,15 @@ control first passed for the wrong reason -- `tri` puts /opt/homebrew/bin
 first on PATH, so a stub `gh` on PATH was never called. A stub needs a named
 seam (`TRI_GH`), and a control is only a control if its output shows the
 stub was the one that answered.
+
+### Probe production BEFORE the deploy, not only after (iteration 12)
+
+Generation failures now carry a `code` (render/generation-refusal.ts),
+stamped on the four routes' answers by one `res.end` wrapper. Unit tests were
+green. Running the live probe (`tri gen-refusal`) against production BEFORE
+deploying -- to get a red baseline -- showed every unsigned call refused by
+the shared auth guard, which answers before any route runs: the stamp would
+never have seen the most common failure of all (an expired session). Rule:
+**run the live check before the deploy too**; the red baseline proves the
+probe can fail, and what it says may not be the red you expected. A wrapper
+installed inside a route covers that route, not the guards in front of it.

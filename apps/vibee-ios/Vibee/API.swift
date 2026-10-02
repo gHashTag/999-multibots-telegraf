@@ -636,6 +636,8 @@ enum API {
     let startedAt: Double
     let url: String?
     let error: String?
+    /// The failure's name (render/generation-refusal.ts); `error` is its detail.
+    let code: String?
   }
 
   static func задачи() async throws -> [Задача] {
