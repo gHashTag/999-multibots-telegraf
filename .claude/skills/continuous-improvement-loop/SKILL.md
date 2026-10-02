@@ -2004,6 +2004,13 @@ restore writes back the pre-mutation snapshot. `tri mutants` now keeps such
 an edit as `<file>.edited-during-mutants`, but that is a rescue, not a way
 to work.
 
+**Commit the feature before you mutate it by hand.** `git checkout <file>`
+restores the INDEX, not "the line I changed": on 03.10.2026 (PR #3436) two
+hand mutations of the Fastfile and `tri` were reverted that way, and the
+revert erased the uncommitted lane and command they were testing. The
+verdicts (3, 1 and 5 red) stood; the code had to be re-applied from notes.
+`git add` or commit first; then the revert lands on your version.
+
 ### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
 
 The screen now translates a waiting reason by code and falls back to the
