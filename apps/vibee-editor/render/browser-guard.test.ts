@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import {
   isSensitive,
   mayAct,
@@ -161,7 +161,16 @@ vi.mock('./src/browser/cdp', () => ({
   },
   evaluateOn: async () => {
     cdpCalls.push('evaluateOn')
-    return { title: 'x', url: PAGE.url, text: 'x' }
+    // Also answers the screenshot's paint probe (paint-wait.ts) as a page
+    // that has loaded and shows something; otherwise the shot polls eight
+    // times and the call log measures the wait, not the guard.
+    return {
+      title: 'x',
+      url: PAGE.url,
+      text: 'x',
+      readyState: 'complete',
+      visible: true,
+    }
   },
   clickAt: async () => {
     cdpCalls.push('clickAt')
@@ -215,6 +224,13 @@ const argsFor: Record<string, Record<string, unknown>> = {
 }
 
 describe('the tools that act are the ones that are gated', () => {
+  // agent-tools drags in the whole agent module graph. Its cold transform is
+  // paid once here, under its own budget, so no single test below spends the
+  // 5 s default on it when the machine is loaded.
+  beforeAll(async () => {
+    await import('./src/browser/agent-tools')
+  }, 180_000)
+
   beforeEach(() => {
     cdpCalls.length = 0
   })
@@ -249,7 +265,8 @@ describe('the tools that act are the ones that are gated', () => {
         tool!.handler(argsFor[name], ctxWith(null))
       ).resolves.toBeTruthy()
     }
-    expect(cdpCalls).toEqual(['evaluateOn', 'screenshot'])
+    // browser_read, then the screenshot's one paint probe and the shot itself.
+    expect(cdpCalls).toEqual(['evaluateOn', 'evaluateOn', 'screenshot'])
   })
 
   it('acts once the person has said yes, and the click LANDS', async () => {
