@@ -195,6 +195,13 @@ CHECKS THAT EACH COST A CYCLE
         on env-gaps. Prints the path on the last line:
           wt="$(tri worktree fix/my-thing | tail -1)"; cd "$wt"
 
+  tri deps [path]
+        For a worktree tri did NOT make (a bee's, the Claude app's, a plain
+        git worktree add): link every node_modules the main checkout has and
+        this tree lacks, then check the binaries the gates call (esbuild,
+        vitest, render tsc). Without them render-types and bundle-boots go
+        red on ENOENT and read like code faults.
+
   tri price <ModeName>
         Print the STATIC base cost of a mode from BASE_COSTS before you treat an
         "unbilled paid path" as a defect. A mode absent from BASE_COSTS (AiChat)
@@ -3309,6 +3316,54 @@ cmd_lesson() {
   good 'урок дописан в SKILL.md'
 }
 
+# Link every node_modules the main tree has and the worktree lacks: the root
+# and each app's own (render, player, vibee-atoms...). An existing directory or
+# link is left alone. Prints one line per link made; returns the count.
+link_deps() {
+  local src="$1" wt="$2" rel n=0
+  while IFS= read -r rel; do
+    [ -z "$rel" ] && continue
+    [ -e "$wt/$rel" ] || [ -L "$wt/$rel" ] && continue
+    [ -d "$wt/$(dirname "$rel")" ] || continue
+    ln -s "$src/$rel" "$wt/$rel" && echo "$rel" && n=$((n + 1))
+  done < <(cd "$src" && { echo node_modules; find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/'; })
+  return 0
+}
+
+cmd_deps() {
+  # Worktrees made by `tri worktree` get their node_modules linked; the ones a
+  # bee, the Claude app or a plain `git worktree add` makes do not. Then the
+  # gates fail in ways that read as code faults (2026-10-02, PR #3346):
+  # render-types "tsc not found" summarised as a 240 s red, and bundle-boots
+  # "spawnSync node_modules/.bin/esbuild ENOENT". This links what is missing
+  # from the main checkout and names the binaries the gates call.
+  local wt main made
+  wt="$(git -C "${1:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" \
+    || { bad "not inside a git tree: ${1:-$PWD}"; return 1; }
+  main="$(dirname "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)")"
+  if [ "$wt" = "$main" ]; then
+    good "$wt is the main checkout -- nothing to link"
+  else
+    made="$(link_deps "$main" "$wt")"
+    if [ -n "$made" ]; then
+      good "linked from $main:"; sed 's/^/       /' <<<"$made"
+    else
+      good "every node_modules the main tree has is already here"
+    fi
+  fi
+  local bin rc=0
+  for bin in node_modules/.bin/esbuild node_modules/.bin/vitest \
+      apps/vibee-editor/render/node_modules/.bin/tsc \
+      apps/vibee-editor/player/node_modules/.bin/vitest; do
+    if [ -x "$wt/$bin" ]; then
+      echo "  ok   $bin"
+    else
+      bad "missing $bin -- the gate that calls it will fail on ENOENT, not on code"; rc=1
+    fi
+  done
+  return $rc
+}
+
 cmd_worktree() {
   # Why a worktree at all: the loop shares the main tree with sibling sessions,
   # and a plain `git checkout -b` there lets another session take the branch out
@@ -3337,13 +3392,7 @@ cmd_worktree() {
   # ERR_MODULE_NOT_FOUND (jotai) -- an env-gap that reads exactly like a
   # regression but is one the worktree invented. Symlink the root and every app
   # node_modules from the main tree so the gate measures the code, not the gap.
-  ln -s "$ROOT/node_modules" "$wt/node_modules"
-  local rel
-  while IFS= read -r rel; do
-    [ -z "$rel" ] && continue
-    mkdir -p "$wt/$(dirname "$rel")"
-    ln -s "$ROOT/$rel" "$wt/$rel"
-  done < <(cd "$ROOT" && find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/')
+  link_deps "$ROOT" "$wt" >/dev/null
   # Smoke the tree before handing it over.
   #
   # Some worktrees deterministically break vite-node module resolution: a bare
@@ -7404,6 +7453,7 @@ case "$action" in
   deployed|выложен)    cmd_deployed ;;
   diverged|разошлись)  cmd_diverged ;;
   worktree|дерево)    cmd_worktree "$@" ;;
+  deps)               cmd_deps "$@" ;;
   price|цена)         cmd_price "$@" ;;
   money-base|база)     cmd_money_base "$@" ;;
   batch-refunds|возвраты) cmd_batch_refunds ;;
