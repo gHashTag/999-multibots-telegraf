@@ -88,7 +88,7 @@
       { "label": "% длины ролика с медальоном", "value": "52" },
       { "label": "платных вызовов", "value": "0" }
     ],
-    "avatarVideo": "https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch/noir-close.jpg"
+    "avatarVideo": "https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/relaunch/noir-close.jpg"
   },
   {
     "title": "Медальон заглушён, голос идёт другой дорожкой",
@@ -109,7 +109,7 @@
       { "label": "портретов готово", "value": "4" },
       { "label": "код ответа", "value": "200" }
     ],
-    "avatarVideo": "https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch/noir-tux2.jpg"
+    "avatarVideo": "https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/relaunch/noir-tux2.jpg"
   },
   {
     "title": "2.16 просмотра на рилс — это наша база",
@@ -120,7 +120,7 @@
       { "label": "просмотра на рилс", "value": "2.16" },
       { "label": "лайков", "value": "0" }
     ],
-    "avatarVideo": "https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch/noir-desk.jpg"
+    "avatarVideo": "https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/relaunch/noir-desk.jpg"
   },
   {
     "title": "Просмотр считается без всякой личности",
@@ -141,7 +141,7 @@
       { "label": "подписчиков", "value": "19" },
       { "label": "рилсов в ленте", "value": "38" }
     ],
-    "avatarVideo": "https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch/noir-wide.jpg"
+    "avatarVideo": "https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/relaunch/noir-wide.jpg"
   },
   {
     "title": "Четыре поста с лицом против тридцати четырёх гравюр",
@@ -152,7 +152,7 @@
       { "label": "постов с лицом", "value": "4" },
       { "label": "во сколько раз больше", "value": "1.46" }
     ],
-    "avatarVideo": "https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch/noir-close.jpg"
+    "avatarVideo": "https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/relaunch/noir-close.jpg"
   },
   {
     "title": "Липсинк закрыт кодом 403",
@@ -163,7 +163,7 @@
       { "label": "код ответа", "value": "403" },
       { "label": "оставшихся источников", "value": "1" }
     ],
-    "avatarVideo": "https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch/noir-tux2.jpg"
+    "avatarVideo": "https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/relaunch/noir-tux2.jpg"
   },
   {
     "title": "Ключ голоса начинается не с тех символов",
@@ -264,6 +264,6 @@
       { "label": "лайков", "value": "0" },
       { "label": "звёзд", "value": "0" }
     ],
-    "avatarVideo": "https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch/noir-desk.jpg"
+    "avatarVideo": "https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/relaunch/noir-desk.jpg"
   }
 ]

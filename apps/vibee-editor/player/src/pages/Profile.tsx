@@ -17,6 +17,7 @@ import {
   BotsCard,
   CrmCard,
   StoryCard,
+  TriWalletCard,
 } from '@/components/Profile'
 import { HiveAccountLink } from '@/components/Profile/HiveAccountLink'
 import { SoulCard } from '@/components/Profile/SoulCard'
@@ -401,6 +402,11 @@ export function ProfilePage() {
             the server does not answer as the owner.
           */}
           <MetaConnectCard isOwn={isOwn} />
+          {/*
+            THE TRI PAYOUT WALLET (render src/tri-wallet.ts): where TRI would
+            be paid, proved by the wallet's signature. Own profile only.
+          */}
+          <TriWalletCard isOwn={isOwn} />
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />

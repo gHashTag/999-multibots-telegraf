@@ -13,11 +13,14 @@
 //       - the only allowed article of the month reported "button not found" on X and
 //         LinkedIn: one look at six seconds on a cold browser. The desk looks again
 //         every three seconds, eight looks in all.
-//       - a press is not a post: only the page leaving its share address is a receipt,
-//         and only a press or a finished thread counts as published somewhere.
+//       - a press is not a post: only the page leaving its share address is a receipt.
+//       - a receipt is not a post either: a page can leave the form for an error page.
+//         After the receipt the owner's own profile is opened in the same browser and
+//         the post's opening words are looked for; only a post seen there counts as
+//         published. Pressed and not seen is "unconfirmed", never "posted".
 // UI words (the owner reads Russian) stay in the host; the spec holds the rules.
 // Claim status: the desk is live behind BLOG_SHARE_ENABLED=1 on the render service;
-//       a confirmed post (a receipt that the page left the form) is not yet measured.
+//       a post confirmed on the owner's profile is not yet measured.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::blog_share {
@@ -25,7 +28,7 @@ module automation::blog_share {
     pub const KIND : str = "automation";
     pub const ID : str = "blog-share";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- The pace -------------------------------------------------------------------
     pub const TICK_MS : u32 = 300000;  // render-server.ts: every five minutes; a
@@ -44,6 +47,13 @@ module automation::blog_share {
     pub const LOOK_EVERY_MS : u16 = 3000;  // a cold browser draws the composer late
     pub const LOOKS : u8 = 8;  // first look included: about half a minute in all
     pub const AFTER_CLICK_SETTLE_MS : u16 = 5000;  // then the address is read again
+
+    // ---- The confirmation on the owner's own profile -------------------------------
+    pub const PROFILE_SETTLE_MS : u16 = 5000;  // the profile draws before the first look
+    pub const PROFILE_LOOK_EVERY_MS : u16 = 4000;  // a fresh post reaches the feed late
+    pub const PROFILE_LOOKS : u8 = 4;  // first look included: under twenty seconds
+    pub const MATCH_CHARS : u8 = 60;  // the post's opening words, normalized, are the
+                                      // needle; every post starts with the title
 
     // ---- Not claimed ----------------------------------------------------------------
     pub const RUN_LIVE : bool = false;  // flips when a post is confirmed by its receipt
@@ -75,10 +85,26 @@ module automation::blog_share {
         return before != "" && after != "" && before != after;
     }
 
-    // Published somewhere: no run-wide error, and at least one network that was
-    // pressed or whose thread was finished.
-    fn published_somewhere(has_error: bool, pressed: u8) -> bool {
-        return !has_error && pressed > 0;
+    // A network counts as published only when the page left the form AND the post
+    // was then seen on the owner's own profile.
+    fn counted(left: bool, seen: bool) -> bool {
+        return left && seen;
+    }
+
+    // Pressed, but not seen on the profile: unconfirmed, which is not published.
+    fn unconfirmed(pressed: bool, seen: bool) -> bool {
+        return pressed && !seen;
+    }
+
+    // Published somewhere: no run-wide error, and at least one network whose post
+    // was seen on the owner's profile.
+    fn published_somewhere(has_error: bool, seen: u8) -> bool {
+        return !has_error && seen > 0;
+    }
+
+    // The last moment the profile is looked at, from its opening.
+    fn last_profile_look_ms() -> u32 {
+        return PROFILE_SETTLE_MS + (PROFILE_LOOKS - 1) * PROFILE_LOOK_EVERY_MS;
     }
 
     // The last moment the publish button is looked for, from the page's opening.
@@ -126,7 +152,25 @@ module automation::blog_share {
         assert(!left_the_form("https://x.com/intent/post", ""));
     }
 
-    test "published somewhere means a press or a thread, and no error" {
+    test "a post counts only when the profile shows it" {
+        assert(counted(true, true));
+        assert(!counted(true, false));
+        assert(!counted(false, true));
+        assert(unconfirmed(true, false));
+        assert(!unconfirmed(true, true));
+        assert(!unconfirmed(false, false));
+    }
+
+    test "the profile is looked at under twenty seconds" {
+        assert(PROFILE_SETTLE_MS == 5000);
+        assert(PROFILE_LOOK_EVERY_MS == 4000);
+        assert(PROFILE_LOOKS == 4);
+        assert(last_profile_look_ms() == 17000);
+        assert(last_profile_look_ms() < 20000);
+        assert(MATCH_CHARS == 60);
+    }
+
+    test "published somewhere means a post seen on the profile, and no error" {
         assert(published_somewhere(false, 1));
         assert(published_somewhere(false, 4));
         assert(!published_somewhere(false, 0));
@@ -144,7 +188,7 @@ module automation::blog_share {
 
     test "the desk is live, a confirmed post is not yet" {
         assert(!RUN_LIVE);
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 
