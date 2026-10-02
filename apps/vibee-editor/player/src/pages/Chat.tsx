@@ -45,6 +45,7 @@ import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-ma
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { useEarnedAgent } from '@/hooks/useAgentAcceptance'
 import { AgentSkillsPanel } from '@/components/Chat/AgentSkillsPanel'
+import { MyStoryWidget } from '@/components/Story/MyStoryWidget'
 import { AgentTemplates } from '@/components/Chat/AgentTemplates'
 import { AgentAside } from '@/components/Chat/AgentAside'
 import { ClientHelperPicker } from '@/components/Chat/ClientHelperPicker'
@@ -1023,6 +1024,14 @@ function ChatThread({
                 */
                 <AgentSkillsPanel agentId={marketplaceAgent} />
               ) : null}
+              {/*
+                HER REELS, HERE (owner, 2026-10-02): the same widget as her
+                /story page, so a person talking to the agent sees it without
+                hunting for the door. Nothing is drawn unless her seller's
+                template is ready for her; open at the start, folded once the
+                conversation is under way.
+              */}
+              <MyStoryWidget onlyReady foldedIn={messages.length > 1} />
               {/*
                 THE AGENT'S OWN REPEAT BUTTONS (owner, 2026-09-29): the
                 configured reel, the neuro-photo, the client gift -- here the
