@@ -5196,6 +5196,8 @@ postgrest and Postgres-NFrq are all online, yet SUPABASE_URL on BOTH services
 still points at the cloud project yuukfqcsdhkyxegfwlcb.supabase.co. The
 migration is prepared and not finished, so half the contour is paid for and
 carries no load.
+(Resolved 2026-10-01: both services now point at supabase-gateway, and the
+cloud project is a frozen read-only archive.)
 
 trios-agent-server is alive and serves /mcp. Its /health answers 200 and its
 /mcp answers 403, i.e. it wants a key. Meanwhile render-server calls the MCP
