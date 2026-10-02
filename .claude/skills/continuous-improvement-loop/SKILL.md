@@ -2126,3 +2126,18 @@ never have seen the most common failure of all (an expired session). Rule:
 **run the live check before the deploy too**; the red baseline proves the
 probe can fail, and what it says may not be the red you expected. A wrapper
 installed inside a route covers that route, not the guards in front of it.
+
+### The loop merges and deploys its own green PRs (owner, 2026-10-02)
+
+Owner's standing order: do not ask, do it -- merge and deploy. Five ticks of
+the blog loop ended "waiting for your merge" while the owner slept, and the
+loop produced nothing between answers.
+
+- A PR the loop opened, with its tests green and `tri no-verify-debt` = 0, is
+  merged in the same tick (`gh pr merge --squash`), then the deploy is
+  verified: `railway deployment list --service <svc> --environment production`
+  shows SUCCESS for a build started after the merge, and `/health` is 200.
+  Report it after, not before.
+- Still the person's, always: force push; deleting data (payments_v2,
+  browser profiles); secrets; passwords (typed only by the person); posting to
+  the person's social networks without their "yes" in the approval.
