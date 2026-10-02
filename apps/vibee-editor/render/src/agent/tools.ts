@@ -104,6 +104,7 @@ import { tmpdir } from 'node:os'
 import { join as joinPath } from 'node:path'
 import { withShelfFile } from './media-extract'
 import { OWNER_MINIMAX_CLONE, spokenBrand } from './minimax-voices'
+import { CLONE_NEEDS_REPLICATE, replicateLive } from '../replicate-off'
 import { Agent as UndiciAgent } from 'undici'
 import {
   LIPSYNC_DEFAULT_MODEL,
@@ -1134,6 +1135,7 @@ import { DEFECT_TOOLS } from './client-defects'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
+import { REEL_ANALYZE_TOOLS } from './reel-analyze'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { CRM_GROUP_TOOLS } from './crm-group-tools'
 import { AUTOPILOT_TOOLS } from './autopilot-tools'
@@ -3646,6 +3648,8 @@ TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...CRM_TOUCH_TOOLS)
 // A client's fault in the DM, filed and closed (client-defects.ts).
 TOOLS.push(...DEFECT_TOOLS)
+// Take a reference reel apart into the split-reel spec's shape (reel-analyze.ts).
+TOOLS.push(...REEL_ANALYZE_TOOLS)
 TOOLS.push(...CRM_OFFER_TOOLS)
 // The club invoice for the person in this chat, beside the token invoice:
 // the same route decision the bot's club card reaches (club-invoice-tool.ts).
@@ -3759,6 +3763,7 @@ TOOLS.push(
           '',
       }),
     price: TOKEN_PRICES.voice_clone,
+    unavailable: () => (replicateLive() ? null : CLONE_NEEDS_REPLICATE),
   })
 )
 /*

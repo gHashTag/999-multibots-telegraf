@@ -22,14 +22,24 @@ import {
 
 const OWNER = '144022504'
 
-/** A pool that answers one row, and records what it was asked. */
-const poolWith = (row: Record<string, unknown> | null) => {
+/**
+ * A pool that answers one users row and the trained clones (`lead_voices`
+ * ids), and records what it was asked.
+ */
+const poolWith = (
+  row: Record<string, unknown> | null,
+  clones: string[] = []
+) => {
   const asked: Array<{ sql: string; params?: unknown[] }> = []
   return {
     asked,
     pool: {
       query: async (sql: string, params?: unknown[]) => {
         asked.push({ sql, params })
+        if (/FROM lead_voices/.test(sql))
+          return {
+            rows: clones.includes(String(params?.[0])) ? [{ x: 1 }] : [],
+          }
         return { rows: row ? [row] : [] }
       },
     },
@@ -38,9 +48,10 @@ const poolWith = (row: Record<string, unknown> | null) => {
 
 const deps = (
   row: Record<string, unknown> | null,
-  who: string | null = OWNER
+  who: string | null = OWNER,
+  clones: string[] = []
 ): CloneDeps & { asked: Array<{ sql: string; params?: unknown[] }> } => {
-  const { pool, asked } = poolWith(row)
+  const { pool, asked } = poolWith(row, clones)
   return { getPool: async () => pool, identity: () => who, asked }
 }
 
@@ -97,8 +108,36 @@ describe('which pieces of the clone exist', () => {
   it('asks about the person who asked, and nobody else', async () => {
     const d = deps({ voice_id_elevenlabs: 'v1' })
     await handleClone(get(), d)
-    expect(d.asked).toHaveLength(1)
-    expect(d.asked[0].params).toEqual([OWNER])
+    expect(d.asked.length).toBeGreaterThan(0)
+    for (const q of d.asked) expect(q.params).toEqual([OWNER])
+  })
+
+  /*
+   * A TRAINED VOICE IS A VOICE. The owner's clone (R8_5GW2UI4A, 2026-09-29) is
+   * a `lead_voices` row and his `users` voice columns are empty, so the
+   * profile said "no voice" to the one person whose voice had been trained.
+   */
+  it('counts a trained clone in lead_voices as the voice', async () => {
+    const empty = { voice_id: '', voice_id_elevenlabs: '' }
+    const r = await handleClone(get(), deps(empty, OWNER, [OWNER]))
+    expect(r.body).toMatchObject({ voice: true })
+    const other = await handleClone(get(), deps(empty, OWNER, ['42']))
+    expect(other.body).toMatchObject({ voice: false })
+  })
+
+  it('a missing clone table is not an unknown answer', async () => {
+    const r = await handleClone(get(), {
+      getPool: async () => ({
+        query: async (sql: string) => {
+          if (/FROM lead_voices/.test(sql))
+            throw new Error('relation "lead_voices" does not exist')
+          return { rows: [{ voice_id: 'abc' }] }
+        },
+      }),
+      identity: () => OWNER,
+    })
+    expect(r.status).toBe(200)
+    expect(r.body).toMatchObject({ voice: true })
   })
 })
 

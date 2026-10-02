@@ -1,0 +1,251 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/split-reel.t27 -- the split talking-head reel: b-roll on top, the person
+// talking below, one yellow word at a time on the seam, hard cuts on a fixed rhythm.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/split-reel-plan.ts (segments and
+//       props for the Remotion composition SplitTalkingHead), src/agent/reel-analyze.ts (the
+//       tool reel_analyze: a reference reel in, this spec's shape out).
+// Generated: `t27c gen-ts` of this file is vendored as
+//       apps/vibee-editor/render/src/spec/split-reel.gen.ts; the host imports the numbers.
+// Measured on a reference reel 2026-10-02 (720x1280, 30 fps, 14.97 s): cuts at 1.9, 5.9, 7.4,
+//       11.4, 12.9, 14.7 s, the same in both halves. That is full 57, split 120, full 45,
+//       split 120, full 45, split 54, full to the end: the rhythm this spec fixes.
+// Order of a reel: STUDIO (owner-studio.t27, the face) -> voice (the person's own: their
+//       voice notes cut on pauses; Kie has no speech cloning, Replicate is off)
+//       -> lipsync (Kie, primary) -> b-roll stills (Kie) -> Remotion SplitTalkingHead.
+// Claim status: two reels rendered from it on 2026-10-02, both on Kie, both with the owner's
+//       real voice notes cut on their pauses. His trained clone (MiniMax, made on Replicate)
+//       cannot speak: Replicate has no balance and is off (owner, 2026-10-02), and Kie has
+//       no speech cloning (every clone model name answers 422).
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::split_reel {
+
+    pub const KIND : str = "automation";
+    pub const ID : str = "split-reel";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 4;
+
+    // ---- Where it is drawn --------------------------------------------------------------
+    pub const COMPOSITION : str = "SplitTalkingHead";
+    pub const FACE_SPEC : str = "owner-studio";  // the face is a studio frame, never a raw photo
+    pub const LIPSYNC_MODEL : str = "kie/kling/ai-avatar-standard";
+    pub const BROLL_MODEL : str = "gpt-image-2-5-flare-image-to-image";
+    pub const OWN_VOICE : bool = true;  // the person's own voice; a stock voice is not their reel
+
+    // ---- The rhythm, in frames at 30 fps -------------------------------------------------
+    pub const FPS : u32 = 30;
+    pub const OPEN_FULL_FRAMES : u32 = 60;  // the face first, measured 57
+    pub const SPLIT_FRAMES : u32 = 120;  // b-roll on top, measured 120 twice
+    pub const FULL_FRAMES : u32 = 45;  // back to the face, measured 45 twice
+    pub const MAX_SECONDS : u32 = 15;
+    // No shot shorter than a second. The voice decides where the reel ends, and a
+    // 13.35 s voice left an 11-frame split at the end: a flash of b-roll nobody can
+    // read. A tail that short joins the shot before it.
+    pub const MIN_SHOT_FRAMES : u32 = 30;
+    pub const SPLIT_PCT : u32 = 50;  // the seam sits in the middle
+    // The talking head FILLS the lower half of a split, as in the reference. The
+    // composition's own default is a 25% circle on black: the first reel rendered
+    // from this spec (2026-10-02) came out that way and nobody could see the face.
+    pub const FACE_FILLS_HALF : bool = true;
+
+    // ---- The face in its window -----------------------------------------------------------
+    // The face is CENTRED in the window it is shown in, and the head is never cut.
+    // Reel 2 (2026-10-02): the lower half of a split showed the MIDDLE of a 9:16
+    // lipsync, so the top of the head sat on the seam and the face sat low. The
+    // composition is told where to aim (object-position), computed from where the
+    // face is in the source: measured, or the studio's own place when unmeasured.
+    pub const FACE_CENTER_X_PCT : u32 = 50;  // the face's centre, across the window
+    pub const FACE_CENTER_Y_PCT : u32 = 50;  // and down it: the middle, as the owner asked
+    // Where an owner-studio frame puts the face when nothing was measured: studio-lab
+    // on the Kie lipsync (2026-10-02, 8 frames, Haar): centre at 48% across and 28%
+    // down, the face box 21% of the height. Under a 50% split that face starts 50 px
+    // below the seam -- the forehead and hair were above it.
+    pub const STUDIO_FACE_X_PCT : u32 = 48;
+    pub const STUDIO_FACE_Y_PCT : u32 = 28;
+    // What the analyser (tri reel-check) calls a defect.
+    pub const HEADROOM_MIN_PCT : u32 = 3;  // space above the skull, % of the window height
+    pub const FACE_OFF_CENTER_MAX_PCT : u32 = 10;  // centre drift, % of the window side
+
+    // ---- The words ------------------------------------------------------------------------
+    pub const CAPTION_COLOR : str = "#FFFF00";
+    pub const WORDS_PER_CAPTION : u32 = 1;
+    pub const TEXT_IN_BROLL : bool = false;  // captions carry the words, never the pictures
+    // Each caption is a word of the FINAL voice -- the file the reel plays -- with that
+    // word's own time. Reel 2 (2026-10-02) carried captions over from the uncut voice
+    // notes: 5 of 28 were 200-800 ms off and 8 showed words that are not in the cut.
+    pub const CAPTIONS_FROM_FINAL_VOICE : bool = true;
+    pub const CAPTION_DRIFT_MAX_MS : u32 = 150;  // tri reel-check calls more a defect
+    // A word starts where the SOUND starts. Whisper stretches the start of a word that
+    // follows a pause back into the pause: on reel 2 v3 the word "i" was given 5720 ms, is
+    // heard at 6320, so its caption sat on silence for 0.6 s. The planner moves each
+    // start to the first speech frame inside the word; speech is a 10 ms frame within
+    // SPEECH_BELOW_LOUD_DB of the loud level (the 95th percentile of the voice).
+    pub const ONSET_FRAME_MS : u32 = 10;
+    pub const SPEECH_BELOW_LOUD_DB : u32 = 30;
+    // A caption is late or early only against the sound itself: tri reel-check also
+    // asks whether the audio is speech within this long after the caption appears.
+    pub const CAPTION_ON_SILENCE_MAX_MS : u32 = 150;
+
+    // Where a word's caption starts: at the first speech frame inside the word, or
+    // where whisper put it when the word has no frame loud enough (a whisper).
+    fn caption_start_ms(whisper_ms : u32, first_speech_ms : u32, end_ms : u32) -> u32 {
+        if first_speech_ms < whisper_ms {
+            return whisper_ms;
+        }
+        if first_speech_ms >= end_ms {
+            return whisper_ms;
+        }
+        return first_speech_ms;
+    }
+
+    // The cut before the short-tail rule: the rhythm run until the voice ends.
+    fn raw_count(total : u32) -> u32 {
+        if total <= OPEN_FULL_FRAMES {
+            return 1;
+        }
+        let rest : u32 = total - OPEN_FULL_FRAMES;
+        let pairs : u32 = rest / (SPLIT_FRAMES + FULL_FRAMES);
+        let tail : u32 = rest % (SPLIT_FRAMES + FULL_FRAMES);
+        if tail == 0 {
+            return 1 + pairs * 2;
+        }
+        if tail <= SPLIT_FRAMES {
+            return 2 + pairs * 2;
+        }
+        return 3 + pairs * 2;
+    }
+
+    fn raw_last(total : u32) -> u32 {
+        if total <= OPEN_FULL_FRAMES {
+            return total;
+        }
+        let tail : u32 = (total - OPEN_FULL_FRAMES) % (SPLIT_FRAMES + FULL_FRAMES);
+        if tail == 0 {
+            return FULL_FRAMES;
+        }
+        if tail <= SPLIT_FRAMES {
+            return tail;
+        }
+        return tail - SPLIT_FRAMES;
+    }
+
+    // How long the shot before the raw last one runs.
+    fn raw_before_last(total : u32) -> u32 {
+        let rest : u32 = total - OPEN_FULL_FRAMES;
+        let tail : u32 = rest % (SPLIT_FRAMES + FULL_FRAMES);
+        if tail > SPLIT_FRAMES {
+            return SPLIT_FRAMES;
+        }
+        if rest < SPLIT_FRAMES + FULL_FRAMES {
+            return OPEN_FULL_FRAMES;
+        }
+        return FULL_FRAMES;
+    }
+
+    fn tail_joins(total : u32) -> bool {
+        if raw_count(total) == 1 {
+            return false;
+        }
+        return raw_last(total) < MIN_SHOT_FRAMES;
+    }
+
+    // How many segments a reel of this many frames is cut into.
+    fn segment_count(total : u32) -> u32 {
+        if tail_joins(total) {
+            return raw_count(total) - 1;
+        }
+        return raw_count(total);
+    }
+
+    // How long the last segment runs: the cut that the end of the voice decides.
+    fn last_frames(total : u32) -> u32 {
+        if tail_joins(total) {
+            return raw_before_last(total) + raw_last(total);
+        }
+        return raw_last(total);
+    }
+
+    // object-position (percent) along one axis that puts a face at `face` px of a
+    // source scaled to `rendered` px at `target` percent of a `window` px window.
+    fn object_pos_pct(face : u32, rendered : u32, window : u32, target : u32) -> u32 {
+        if rendered <= window {
+            return 50;
+        }
+        if face * 100 <= window * target {
+            return 0;
+        }
+        let pct : u32 = (face * 100 - window * target) / (rendered - window);
+        if pct > 100 {
+            return 100;
+        }
+        return pct;
+    }
+
+    fn fits(total : u32) -> bool {
+        return total <= MAX_SECONDS * FPS;
+    }
+
+    test "the reel opens on the face, then split 120 and full 45 by turns" {
+        assert(segment_count(450) == 6);
+        assert(last_frames(450) == 60);
+        assert(segment_count(225) == 3);
+        assert(last_frames(225) == 45);
+    }
+
+    test "a voice shorter than the opening is one shot of the face" {
+        assert(segment_count(50) == 1);
+        assert(last_frames(50) == 50);
+    }
+
+    test "fifteen seconds is the ceiling and the words are one at a time in yellow" {
+        assert(fits(450));
+        assert(!fits(451));
+        assert(WORDS_PER_CAPTION == 1);
+        assert(CAPTION_COLOR == "#FFFF00");
+        assert(OWN_VOICE);
+        assert(CAPTIONS_FROM_FINAL_VOICE);
+        assert(CAPTION_DRIFT_MAX_MS <= 150);
+    }
+
+    test "a caption starts where the sound starts, not in the pause before it" {
+        // reel 2 v3: whisper 5720, speech from 6300, the word ends 6380.
+        assert(caption_start_ms(5720, 6300, 6380) == 6300);
+        // Already on the sound: unchanged.
+        assert(caption_start_ms(1340, 1340, 1440) == 1340);
+        // No loud frame inside the word: whisper's own start stands.
+        assert(caption_start_ms(1000, 1500, 1400) == 1000);
+        assert(ONSET_FRAME_MS == 10);
+        assert(SPEECH_BELOW_LOUD_DB > 0);
+        assert(CAPTION_ON_SILENCE_MAX_MS <= CAPTION_DRIFT_MAX_MS);
+    }
+
+    test "a tail shorter than a second joins the shot before it" {
+        assert(segment_count(401) == 5);
+        assert(last_frames(401) == 56);
+        assert(segment_count(190) == 2);
+        assert(last_frames(190) == 130);
+        assert(segment_count(61) == 1);
+        assert(last_frames(61) == 61);
+    }
+
+    test "in a split the face fills the lower half, not a circle" {
+        assert(FACE_FILLS_HALF);
+        assert(SPLIT_PCT == 50);
+    }
+
+    test "the face is aimed at the middle of its window, never cut at the seam" {
+        // A 9:16 lipsync under a 1080x960 half: rendered 1920 tall, face at 760.
+        assert(object_pos_pct(760, 1920, 960, FACE_CENTER_Y_PCT) == 29);
+        // studio-lab: centre at 28% of 1920 = 537 px -> aim 5%, not the 50% default.
+        assert(object_pos_pct(537, 1920, 960, FACE_CENTER_Y_PCT) == 5);
+        assert(object_pos_pct(300, 1920, 960, FACE_CENTER_Y_PCT) == 0);
+        assert(object_pos_pct(1900, 1920, 960, FACE_CENTER_Y_PCT) == 100);
+        // Full screen of a 9:16 source: nothing to move.
+        assert(object_pos_pct(760, 1920, 1920, FACE_CENTER_Y_PCT) == 50);
+        assert(object_pos_pct(518, 1080, 1080, FACE_CENTER_X_PCT) == 50);
+        assert(FACE_CENTER_X_PCT == 50);
+        assert(HEADROOM_MIN_PCT > 0);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY
