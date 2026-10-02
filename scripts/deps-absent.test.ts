@@ -12,7 +12,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { absentFrom } = require('./deps-absent.cjs')
+const { absentFrom, installDrift, driftLine } = require('./deps-absent.cjs')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deps-absent-'))
 const pkg = (dir: string, deps: Record<string, string>) => {
@@ -49,5 +49,49 @@ describe('deps-absent', () => {
 
   it('has nothing to say about a directory without a package.json', () => {
     expect(absentFrom(path.join(root, 'nowhere'))).toEqual([])
+  })
+})
+
+describe('installDrift', () => {
+  const other = path.join(root, 'other')
+  const tree = path.join(root, 'tree')
+  pkg(other, { kept: '1', bumped: '1', dropped: '1' })
+  fs.mkdirSync(path.join(other, 'node_modules'))
+  pkg(tree, { kept: '1', bumped: '2', added: '1' })
+  fs.symlinkSync(
+    path.join(other, 'node_modules'),
+    path.join(tree, 'node_modules')
+  )
+
+  it('names what a linked install declares differently, before anything is absent', () => {
+    const d = installDrift(tree)
+    expect(d.from).toBe(fs.realpathSync(other))
+    expect(d.changed).toEqual([
+      'bumped 1 -> 2',
+      'added - -> 1',
+      'dropped 1 -> -',
+    ])
+  })
+
+  it('is silent for a tree with its own install', () => {
+    expect(installDrift(root)).toBeNull()
+  })
+
+  it('is silent when the linked package.json agrees', () => {
+    const twin = path.join(root, 'twin')
+    pkg(twin, { kept: '1', bumped: '1', dropped: '1' })
+    fs.symlinkSync(
+      path.join(other, 'node_modules'),
+      path.join(twin, 'node_modules')
+    )
+    expect(installDrift(twin)).toBeNull()
+  })
+
+  it('keeps a report line short', () => {
+    const line = driftLine({
+      from: '/m',
+      changed: ['a', 'b', 'c', 'd', 'e', 'f'],
+    })
+    expect(line).toBe('installed from /m: a, b, c, d (+2 more)')
   })
 })
