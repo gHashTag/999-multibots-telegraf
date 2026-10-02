@@ -32,12 +32,17 @@ module TestNotes
     notes.join("\n")
   end
 
+  # Any text cut to LIMIT characters (not bytes: Cyrillic counts once).
+  def self.cap(text)
+    text.to_s[0, LIMIT]
+  end
+
   # The notes for the app in ios_dir; "" when there is no git history (an
   # exported tree, a check-runner without .git) - the caller supplies a
   # fallback instead of dying after a full archive.
   def self.collect(ios_dir)
     out = IO.popen(
-      ["git", "-C", ios_dir, "log", "-n", (COUNT * 3).to_s, "--format=%s", "--", "."],
+      ["git", "-C", ios_dir, "log", "--no-merges", "-n", (COUNT * 3).to_s, "--format=%s", "--", "."],
       err: File::NULL, &:read
     )
     return "" unless $?.success?

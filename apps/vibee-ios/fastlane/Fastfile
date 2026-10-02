@@ -365,7 +365,9 @@ platform :ios do
     state
     build_only
 
-    changelog = ENV["CHANGELOG"].to_s.strip
+    # A hand-written CHANGELOG is held to the same limit: App Store Connect
+    # would refuse an overrun only after the archive and the upload.
+    changelog = TestNotes.cap(ENV["CHANGELOG"].to_s.strip)
     changelog = TestNotes.collect(IOS_DIR) if changelog.empty?
     changelog = "Trinity S³AI build #{build_number}" if changelog.empty?
     upload_to_testflight(
