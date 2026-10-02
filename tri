@@ -1982,6 +1982,18 @@ cmd_iphone() {
   [ "$mode" = "store" ] && { iphone_store "$ios" store; return; }
   [ "$mode" = "testflight" ] && { iphone_store "$ios" testflight "${2:-}"; return; }
   [ "$mode" = "metadata" ] && { iphone_store "$ios" metadata "${2:-}"; return; }
+  # An unknown word must not fall through to the device build. It did: the
+  # owner typed `tri iphone testflight --yes` in a checkout older than the
+  # testflight mode, and got a phone install where he expected an upload --
+  # "OK launched" on screen, nothing sent to Apple, nothing said.
+  case "$mode" in
+    all|check|build) ;;
+    *)
+      bad "tri iphone: unknown mode '$mode'"
+      echo "       modes: check build sim off test typecheck ru ru-diff ru-web store testflight metadata"
+      echo "       a mode you expected missing? this checkout may be behind: $(git -C "$ROOT" log -1 --format='%h %cs' 2>/dev/null) (git fetch; compare with origin/main)"
+      return 2 ;;
+  esac
 
   if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
     bad "devicectl did not answer (Xcode command line tools?)"; return 2
