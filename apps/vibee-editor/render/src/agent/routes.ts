@@ -1723,8 +1723,9 @@ export async function handleAgentConversations(
   telegramId: string,
   getPool: () => any
 ) {
-  const { listConversations, renameConversation } =
-    await import('./conversation')
+  const { listConversations, renameConversation } = await import(
+    './conversation'
+  )
   if (req.method === 'GET') {
     const gate = await threadFor(null, telegramId, getPool, agentParam(req))
     if (!gate.ok)
