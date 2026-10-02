@@ -16,7 +16,7 @@
 const PATTERNS = [
   [
     'auth',
-    /permission denied|publickey|authentication failed|could not read username|bad credentials|http 401|requires authentication|repository not found/i,
+    /permission denied|publickey|authentication failed|could not read username|bad credentials|http 401|requires authentication|repository not found|gh auth login/i,
   ],
   [
     'dns',
@@ -51,6 +51,9 @@ function reason(text) {
   return (lines[0] || '').slice(0, 140)
 }
 
+// The probes a loop pushes through; any of them refusing or down decides.
+const GITHUB = ['github-dns', 'git-ssh', 'github-api']
+
 // What the next step is, given the probes by name. GitHub is what a loop
 // pushes to, so its probes decide the code; the others are reported.
 //   0  everything answered
@@ -58,13 +61,11 @@ function reason(text) {
 //   3  reachable but refused (auth) -- a retry never helps, a person must look
 //   4  something else failed in a way not recognised -- read the line
 function verdict(results) {
-  const kinds = Object.values(results)
-  if (kinds.every(k => k === 'up')) {
+  const names = Object.keys(results)
+  if (names.every(n => results[n] === 'up')) {
     return { code: 0, next: 'all reachable' }
   }
-  const github = ['github-dns', 'git-ssh', 'github-api']
-    .map(n => results[n])
-    .filter(Boolean)
+  const github = GITHUB.filter(n => n in results).map(n => results[n])
   if (github.includes('auth')) {
     return {
       code: 3,
@@ -77,16 +78,20 @@ function verdict(results) {
       next: 'the network to GitHub is down: wait (`tri online --wait 300`) and retry; the code is not at fault',
     }
   }
-  if (kinds.some(k => k === 'dns' || k === 'connect')) {
+  // Here no GitHub probe is auth, dns or connect. If every failure is a network
+  // one, none of them is GitHub's, so "reachable" is true; an unrecognised
+  // GitHub probe falls through to 4 instead (#3442 review).
+  const down = names.filter(n => results[n] !== 'up')
+  if (down.every(n => results[n] === 'dns' || results[n] === 'connect')) {
     return {
       code: 1,
-      next: 'GitHub is reachable; a service beside it is not (see the lines above)',
+      next: `GitHub is reachable; ${down.join(', ')} is not (network): wait or check its host`,
     }
   }
   return {
     code: 4,
-    next: 'a probe failed in a way not recognised: read its line',
+    next: `${down.join(', ')} failed in a way not recognised (an http error is the service, not the road): read its line`,
   }
 }
 
-module.exports = { classify, reason, verdict }
+module.exports = { GITHUB, classify, reason, verdict }
