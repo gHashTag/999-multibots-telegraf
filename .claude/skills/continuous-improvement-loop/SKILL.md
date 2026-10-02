@@ -2010,6 +2010,10 @@ hand mutations of the Fastfile and `tri` were reverted that way, and the
 revert erased the uncommitted lane and command they were testing. The
 verdicts (3, 1 and 5 red) stood; the code had to be re-applied from notes.
 `git add` or commit first; then the revert lands on your version.
+Then run the suite ON THE COMMIT before reading any mutation: pre-commit
+prettier rewraps code, and a test that greps the source can turn red in the
+commit itself. On 03.10 a five-line `while (` broke such a test, and two
+"red" mutations meant nothing (#3444). Grep source with whitespace collapsed.
 
 **Before you retry a failed push or fetch, ask `tri online`.** On 03.10.2026
 github.com stopped resolving mid-tick; three git commands failed in turn and
