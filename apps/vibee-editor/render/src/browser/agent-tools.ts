@@ -69,6 +69,14 @@ import {
 import { overBudget } from './tab-budget'
 import { NOT_PAINTED_NOTE, PAINT_PROBE, waitForPaint } from './paint-wait'
 import { shapeOfTabs } from './tab-shape'
+import {
+  claimTidyAsk,
+  planClose,
+  rememberTidyAsk,
+  tidyCandidates,
+  tidyQuestion,
+  TIDY_TTL_MS,
+} from './tab-tidy'
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
 import { LOGINS_NOTE, NETWORKS, loginsOfPerson } from './logins'
 import {
@@ -1079,6 +1087,81 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       await closePage(session.cdpEndpoint, String(args.id))
       forgetFront(ctx.telegramId, String(args.id))
       return { closed: String(args.id) }
+    },
+  },
+  {
+    /*
+     * LIST, ASK, APPLY (tab-tidy.ts). Listing and asking start no visit;
+     * closing happens only after the person's yes, and only to the tabs the
+     * question named. Not in the compact kit (COMPACT_HIDDEN).
+     */
+    name: 'browser_tidy',
+    description:
+      'Лишние вкладки: без аргументов — список; ask — карточка человеку (ждёт сутки); ' + // cyrillic-ok: tool description
+      'apply=id вопроса — закрыть после «Разрешить».', // cyrillic-ok
+    parameters: {
+      type: 'object',
+      properties: {
+        ask: { type: 'boolean' },
+        ids: { type: 'array', items: { type: 'string' } },
+        apply: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const a = args as { ask?: unknown; ids?: unknown; apply?: unknown }
+      const q = ctx.pool as unknown as Queryable
+      const found = await podToLookAt(ctx)
+      if (!found) return { running: false }
+      if (typeof a.apply === 'string' && a.apply) {
+        const answer = await readApproval(q, a.apply)
+        if (!answer || answer.telegramId !== ctx.telegramId)
+          throw new Error('no such question: take the id from browser_tidy ask')
+        if (answer.state !== 'allowed')
+          return { applied: false, decision: answer.state }
+        const session = await readSession(q, ctx.telegramId)
+        if (personHasTheWheel(session, Date.now())) throw new Error(WHEEL_TAKEN)
+        /* Listed BEFORE the claim: a pod that does not answer must not spend the yes. */
+        const now = (await listTargets(found.cdp)).filter(
+          t => t.type === 'page'
+        )
+        const asked = await claimTidyAsk(q, a.apply, ctx.telegramId)
+        if (!asked) return { applied: false, note: 'already applied' }
+        const { close, skipped } = planClose(asked, now)
+        const closed: string[] = []
+        for (const t of close) {
+          try {
+            await closePage(found.cdp, t.id)
+            forgetFront(ctx.telegramId, t.id)
+            closed.push(t.id)
+          } catch (e) {
+            skipped.push({
+              id: t.id,
+              why: `close failed: ${String(e).slice(0, 80)}`,
+            })
+          }
+        }
+        return { applied: true, closed, skipped }
+      }
+      const pages = (await listTargets(found.cdp))
+        .filter(t => t.type === 'page')
+        .map(t => ({ id: t.id, url: t.url ?? '' }))
+      const named = Array.isArray(a.ids) ? a.ids.map(String) : []
+      const tabs = tidyCandidates(pages, named)
+      if (a.ask !== true || !tabs.length) return { tabs, asked: false }
+      const id = await requestPermission(
+        q,
+        ctx.telegramId,
+        tidyQuestion(tabs),
+        TIDY_TTL_MS
+      )
+      await rememberTidyAsk(q, id, ctx.telegramId, tabs)
+      return {
+        tabs,
+        asked: true,
+        question: id,
+        note: 'nothing closes until the person allows it; then call apply with this id',
+      }
     },
   },
   {

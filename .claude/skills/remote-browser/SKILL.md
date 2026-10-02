@@ -150,6 +150,9 @@ agent key) -- the full case list is the header of `bin/helpers/b.sh`
     tri browser call TOOL '{..}'  # any tool, raw
     tri browser cover             # every registry tool has a case? rc 1 names gaps
     tri browser doctor            # FIRST, every loop tick: every tab read, nothing driven
+    tri browser tidy              # abandoned tabs and why; list only, no visit
+    tri browser tidy ask [ID...]  # ONE real card: "close these N?" (a day to answer)
+    tri browser tidy apply QID    # after his "allow": close exactly those, once
 
 Pick the command by the symptom, and keep `cover` at rc 0: a tool added to
 `agent-tools.ts` without a case in `b.sh` is a tool nobody can check by hand.
@@ -191,6 +194,30 @@ on our own sites (`t27.ai` and subdomains), re-fetched with
 else's page with his cookies can spend a one-time context (Instagram's
 two-step URL carries one). A staleTab on a tab with composer text says
 `composer ID` first: a reload throws the draft away.
+
+**Litter tabs are his call: `browser_tidy`** (`render/src/browser/tab-tidy.ts`,
+2026-10-03). The first all-tab sweep found ten tabs on his pod, four of them
+dead weight: a Reddit submit form, an Instagram sign-in stuck at two-step,
+two raw GitHub files. `tab-sweep.ts` closes duplicates above `TAB_CAP` on its
+own; a half-filled form is NOT litter until he says so. Three steps, only the
+last touches the browser:
+
+1. LIST (`tri browser tidy`): unfinished form (`/submit`, `/compose`,
+   `shareActive`), stuck sign-in (`/login`, `two_step_verification`,
+   `/checkpoint`...), raw file (raw.githubusercontent, api.github), empty
+   tab beside real ones, duplicate URL, or an id named by hand. Never every
+   tab: when all qualify, the first stays. Doctor counts them.
+2. ASK (`tidy ask`): one approval card listing host/path and reason, TTL 24 h
+   so a night loop can ask and he answers in the morning. The exact id+URL
+   pairs are stored with the question (`browser_tidy_asks`), so his yes is a
+   yes to THOSE tabs, not to whatever the next listing holds.
+3. APPLY (`tidy apply QID`): only on `allowed`, only by his own telegram id,
+   refused while he holds the wheel, once (one atomic UPDATE claims the row,
+   AFTER the pod answered, so a dead pod does not spend the yes). A tab whose
+   URL changed since the question is skipped and named, and the last open
+   page always stays (he may have closed the others himself before his yes).
+
+Do not `tidy ask` at night without a reason: it is a real card on his phone.
 
 `bun run verify` runs `cover` as the `browser-cover` step.
 `ask WHAT S` refuses S over 120 (the server clipped it silently);
