@@ -51,6 +51,7 @@ vi.mock('../browser/cdp', () => ({
 }))
 
 beforeEach(() => {
+  typed.length = 0
   hrefs.clear()
   waits.length = 0
   n = 0
