@@ -5,10 +5,12 @@
 #   fastlane certs       make sure an Apple Distribution certificate exists
 #   fastlane build_only  a signed App Store .ipa in build/ipa, nothing sent
 #   fastlane beta        build and upload to TestFlight (internal testers)
+#   fastlane testers     the internal group new builds reach, holder in it
 #   fastlane metadata    the App Store page texts from fastlane/metadata
 #
 # `tri iphone store` runs preflight + state; `tri iphone testflight --yes`
-# runs beta. The upload publishes a build under the owner's account, so it is
+# runs beta (which ends with testers); `tri iphone testers --yes` runs testers
+# alone. The upload publishes a build under the owner's account, so it is
 # never run by a loop or an agent without the owner's "yes".
 #
 # The release engineering is the one the Leela app shipped with (gHashTag/
@@ -31,6 +33,7 @@ require "json"
 require "shellwords"
 require_relative "store_metadata"
 require_relative "test_notes"
+require_relative "team_group"
 
 default_platform(:ios)
 
@@ -385,8 +388,61 @@ platform :ios do
     UI.success("uploaded build #{build_number}; `fastlane state` shows its processing")
     # Internal testers see a build only through a group. The first upload has
     # none, and "uploaded" alone left the owner looking at an empty TestFlight
-    # app on the phone.
-    UI.important("first build? App Store Connect -> TestFlight -> Internal Testing -> + group, add yourself; the TestFlight app on the phone shows it once processing ends")
+    # app on the phone. The build is already in App Store Connect here, so a
+    # failure to set the group is reported, not turned into a failed upload
+    # that a retry would build and send a second time.
+    begin
+      testers
+    rescue => e
+      UI.important("the build is uploaded, but the internal group was not set: #{e.message}")
+      UI.important("by hand: App Store Connect -> TestFlight -> Internal Testing -> + group, add yourself; " \
+                   "or `tri iphone testers --yes` again")
+    end
+  end
+
+  desc "The internal TestFlight group new builds reach, with the account holder in it"
+  lane :testers do
+    # Adding a person sends them Apple's invitation e-mail, so this takes the
+    # same consent as the upload it completes.
+    unless ENV["VIBEE_UPLOAD_YES"] == "1"
+      UI.user_error!("adding testers e-mails them from the owner's account: run `tri iphone testers --yes` (or VIBEE_UPLOAD_YES=1 fastlane testers)")
+    end
+    api_key
+    app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    UI.user_error!("App Store Connect has no app with bundle id #{BUNDLE_ID}: `tri iphone state` says what is missing") unless app
+
+    groups = app.get_beta_groups.map do |g|
+      { id: g.id, name: g.name, internal: g.is_internal_group, all_builds: g.has_access_to_all_builds }
+    end
+    users = Spaceship::ConnectAPI::User.all.map do |u|
+      { email: u.email || u.username, first: u.first_name, last: u.last_name, roles: u.roles }
+    end
+    target = TeamGroup.target(groups)
+    testers = target ? app.get_beta_testers(filter: { betaGroups: target[:id] }).map(&:email) : []
+    plan = TeamGroup.plan(groups: groups, users: users, testers: testers)
+    plan[:notes].each { |n| UI.important(n) }
+
+    group_id = plan[:target] && plan[:target][:id]
+    if plan[:create]
+      made = app.create_beta_group(group_name: TeamGroup::NAME, is_internal_group: true, has_access_to_all_builds: true)
+      group_id = made.id
+      UI.success("group     #{TeamGroup::NAME} created (internal, every new build)")
+    else
+      UI.success("group     #{plan[:target][:name]} (internal, every new build)")
+    end
+
+    plan[:add].each do |u|
+      Spaceship::ConnectAPI.post_beta_tester_assignment(
+        beta_group_ids: [group_id],
+        attributes: { email: u[:email], firstName: u[:first].to_s, lastName: u[:last].to_s }
+      )
+      UI.success("tester    #{TeamGroup.mask(u[:email])} added (#{Array(u[:roles]).join(', ')})")
+    end
+    UI.success("testers   nobody to add: the account holder is in the group") if plan[:add].empty?
+    if plan[:left] > 0
+      UI.message("testers   #{plan[:left]} other team member(s) not added - App Store Connect -> TestFlight -> the group -> +, if the owner wants them")
+    end
+    UI.success("testers ready; the TestFlight app on the phone shows a build once processing ends")
   end
 
   desc "The App Store page texts from fastlane/metadata (nothing is submitted)"

@@ -372,12 +372,14 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
-  tri iphone [check|build|sim|off|test|ru|store|state|testflight|metadata]
+  tri iphone [check|build|sim|off|test|ru|store|state|testflight|testers|metadata]
         The Trinity S³AI app on the REAL phone: build, install, launch -- one command.
         `store` asks fastlane what stands between HEAD and TestFlight (offline
         preflight + read-only App Store Connect state; `state` is the read-only
         half alone, exit 3 while the app record is missing); `testflight --yes`
-        builds and uploads -- the owner's call, never a loop's. `metadata
+        builds and uploads -- the owner's call, never a loop's -- and ends by
+        putting the account holder in an internal group that gets every new
+        build (`testers --yes` alone repeats that step). `metadata
         --yes` sends the store page texts from apps/vibee-ios/fastlane/metadata
         (checked by `store` offline first); review submission stays a click.
         `sim` does the same on the simulator, with a deadline on install.
@@ -1615,6 +1617,9 @@ print(n)' 2>/dev/null)
 #   tri iphone testflight --yes  fastlane beta: build and upload to TestFlight.
 #                       Publishes under the owner's account -- only on their
 #                       "yes", so the flag is required, not a default.
+#   tri iphone testers --yes  fastlane testers: the internal TestFlight group
+#                       every new build reaches, the account holder in it
+#                       (Apple e-mails the invitation; beta runs it too).
 #   tri iphone metadata --yes  fastlane metadata: the store page texts from
 #                       apps/vibee-ios/fastlane/metadata; nothing submitted.
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
@@ -1960,6 +1965,9 @@ iphone_store() {
   elif [ "$mode" = "testflight" ]; then
     [ "$yes" = "--yes" ] || { bad "uploading publishes a build under the owner's account: tri iphone testflight --yes"; return 2; }
     lanes=(beta) upload=1
+  elif [ "$mode" = "testers" ]; then
+    [ "$yes" = "--yes" ] || { bad "adding testers e-mails them from the owner's account: tri iphone testers --yes"; return 2; }
+    lanes=(testers) upload=1
   elif [ "$mode" = "metadata" ]; then
     [ "$yes" = "--yes" ] || { bad "the store page is published under the owner's account: tri iphone metadata --yes"; return 2; }
     lanes=(metadata) upload=1
@@ -1971,7 +1979,7 @@ iphone_store() {
         FASTLANE_HIDE_TIMESTAMP=1 FASTLANE_DISABLE_COLORS=1 \
         VIBEE_UPLOAD_YES="$upload" "$fl" "$lane" ) >"$log" 2>&1 || rc=$?
     # The lanes' own verdict lines, not fastlane's banner tables.
-    grep -E '^ *(✓|✗)|^(app|app id|testflight|store) |^next build|^\[!\]|^  [12]\. |^Ready|^built|^uploaded|^store page' "$log" | sed 's/^/       /'
+    grep -E '^ *(✓|✗)|^(app|app id|testflight|store|group|tester|testers) |^next build|^\[!\]|^  [12]\. |^Ready|^built|^uploaded|^store page' "$log" | sed 's/^/       /'
     if [ "$rc" != 0 ]; then
       # The one blocker no command here can lift gets its own code, so a loop
       # tells "still waiting on the owner" (3) from "broken" (1) without
@@ -2006,6 +2014,7 @@ cmd_iphone() {
   [ "$mode" = "store" ] && { iphone_store "$ios" store; return; }
   [ "$mode" = "state" ] && { iphone_store "$ios" state; return; }
   [ "$mode" = "testflight" ] && { iphone_store "$ios" testflight "${2:-}"; return; }
+  [ "$mode" = "testers" ] && { iphone_store "$ios" testers "${2:-}"; return; }
   [ "$mode" = "metadata" ] && { iphone_store "$ios" metadata "${2:-}"; return; }
   # An unknown word must not fall through to the device build. It did: the
   # owner typed `tri iphone testflight --yes` in a checkout older than the
@@ -2016,7 +2025,7 @@ cmd_iphone() {
     all|install|check|build) ;;
     *)
       bad "tri iphone: unknown mode '$mode'"
-      echo "       modes: all (default) install check build sim off test typecheck ru ru-diff ru-web store state testflight metadata"
+      echo "       modes: all (default) install check build sim off test typecheck ru ru-diff ru-web store state testflight testers metadata"
       echo "       a mode you expected missing? this checkout may be behind: $(git -C "$ROOT" log -1 --format='%h %cs' 2>/dev/null) (git fetch; compare with origin/main)"
       return 2 ;;
   esac

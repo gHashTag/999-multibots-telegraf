@@ -57,6 +57,7 @@ The lanes are the ones the Leela app shipped with (`gHashTag/leela`,
 tri iphone store             # preflight + state: what stands between HEAD and TestFlight
 tri iphone state             # the read-only state alone; exit 3 = no app record yet
 tri iphone testflight --yes  # build and upload (the owner's call, never a loop's)
+tri iphone testers --yes     # the internal group + the account holder (beta runs it too)
 
 cd apps/vibee-ios
 fastlane preflight   # every blocker at once, offline, in seconds; fails if any
@@ -64,6 +65,7 @@ fastlane state       # what App Store Connect holds (read-only)
 fastlane certs       # fetch, or create, an Apple Distribution certificate
 fastlane build_only  # signed App Store .ipa in build/ipa, nothing sent
 fastlane beta        # state + build_only + upload_to_testflight (internal testers)
+fastlane testers     # internal group for every build, account holder in it
 fastlane metadata    # the store page texts from fastlane/metadata (tri iphone metadata --yes)
 ```
 
@@ -73,8 +75,12 @@ the review submission stays a click in App Store Connect.
 What testers read under "What to Test" is the subjects of the recent commits
 to this app (`fastlane/test_notes.rb`), not the monorepo's last commit;
 `CHANGELOG=...` overrides. A build reaches the TestFlight app on a phone only
-through an internal group: after the first upload, App Store Connect ->
-TestFlight -> Internal Testing -> + group, add yourself.
+through an internal group, so `beta` ends with the `testers` lane
+(`fastlane/team_group.rb`): an internal group "Trinity S³AI team" that gets
+every new build, created once, with the account holder in it. Apple e-mails
+the invitation. The other team members are counted, not invited - that is the
+owner's call. A group the owner already made (internal, all builds) is used
+instead of a second one. `tri iphone testers --yes` repeats the step alone.
 
 ### State on 2026-10-03
 
