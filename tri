@@ -1869,6 +1869,12 @@ PY
   fi
   local core udid tunnel pairing
   read -r core udid tunnel pairing <<<"$row"
+  # An idle tunnel closes within seconds, so "disconnected" on a paired
+  # phone usually means asleep, not gone: one request to the device opens
+  # it again (measured 2026-10-02 on t27_dev over Wi-Fi).
+  if [ "$mode" != "build" ] && [ "$tunnel" = "disconnected" ] && [ "$pairing" = "paired" ]; then
+    timeout 60 xcrun devicectl device info details --device "$core" >/dev/null 2>&1 && tunnel=connected
+  fi
   if [ "$mode" = "build" ]; then
     : # compiling for the phone does not need the phone
   elif [ "$tunnel" != "connected" ]; then
