@@ -683,6 +683,7 @@ const en: Translations = {
   'crm.client.story.checkFirst':
     'Check the palette first: only a checked card can be kept',
   'story.title': 'My reels',
+  'story.toChat': 'Ask the agent',
   'story.lead':
     'Three scenes with your face in a new setting each, in your own voice, about 15 seconds, with your call to action at the end. The finished reel comes to your bot in 5–10 minutes.',
   'story.face': 'your face',
@@ -3488,6 +3489,7 @@ const ru: Translations = {
   'crm.client.story.checkFirst':
     'Сначала проверьте: запомнить можно только проверенную палитру',
   'story.title': 'Мои рилсы',
+  'story.toChat': 'Спросить агента',
   'story.lead':
     'Три сцены с вашим лицом — каждая в новой обстановке, вашим голосом, около 15 секунд, в конце — ваш призыв. Готовый рилс придёт в бот через 5–10 минут.',
   'story.face': 'ваше лицо',
