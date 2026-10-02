@@ -162,16 +162,22 @@ describe('a finger is 44px wherever it is attached', () => {
      * indexOf(target) and PASSED the mutation that moves the block back above
      * -- because the selector then appears first INSIDE the media query, so
      * "the target comes later" was true of the wrong rule. Ask the property
-     * that actually decides instead: of all the blocks for this selector, the
-     * LAST one is what the browser applies, and that is the one that must
-     * carry the target.
+     * that actually decides instead: of all the blocks for this selector that
+     * set min-height, the LAST one is what the browser applies, and that is
+     * the one that must carry the target. A later block that only narrows the
+     * padding (the 320px chips) decides nothing about the height, so it is
+     * not the one asked.
      */
     for (const [css, sel] of [
       [crm, '.crm__chip'],
       [chat, '.chat-reset'],
     ] as const) {
-      const blocks = ruleFor(css, sel)
-      expect(blocks.length, `${sel} must have rules`).toBeGreaterThan(1)
+      expect(
+        ruleFor(css, sel).length,
+        `${sel} must have rules`
+      ).toBeGreaterThan(1)
+      const blocks = ruleFor(css, sel).filter(b => /\bmin-height\s*:/.test(b))
+      expect(blocks.length, `${sel} must set a height`).toBeGreaterThan(0)
       expect(
         blocks[blocks.length - 1]!.includes(TARGET),
         `the LAST rule for ${sel} decides, and it must be the one with the target`
