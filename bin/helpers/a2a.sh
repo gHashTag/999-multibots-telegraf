@@ -19,6 +19,7 @@
 # agent proposed, and the browser steps this turn took (tri journal).
 # Exit 0 answered, 1 the agent errored or said nothing, 2 could not ask.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="$1"; shift
 TASK=""; SURFACE="miniapp"; FRESH=0
 while [ $# -gt 0 ]; do
@@ -31,7 +32,7 @@ done
 [ -z "$TASK" ] && { echo 'usage: tri a2a "<task>" [--surface miniapp|bot|agent] [--fresh]'; exit 2; }
 B="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 MAIN=$(git -C "$ROOT" worktree list --porcelain | awk 'NR==1{print $2}')
-AK=$( (cd "${MAIN:-$ROOT}" && railway variables --service vibee-render --kv 2>/dev/null) \
+AK=$(rvars vibee-render \
       | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 [ -z "$AK" ] && { echo "a2a: no agent key (railway login?) -- could not ask"; exit 2; }
 HIST='{"messages":[]}'

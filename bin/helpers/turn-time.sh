@@ -15,11 +15,12 @@
 # не привязаны. Такие строки помечены и в статистику не идут: подогнать их под
 # ближайший тик значило бы придумать длительность.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?нужен корень репозитория}"
 LIMIT="${2:-200}"
 cd "$ROOT" || exit 1
 
-KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+KEY=$(rvars vibee-render \
        | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
 [ -n "$KEY" ] || { echo "🛑 не прочитал ключ рендера — вывода НЕ делаю."; exit 2; }
 

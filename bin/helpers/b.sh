@@ -75,6 +75,7 @@
 #
 # Exit 0 done, 1 the tool answered with an error, 2 could not ask at all.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?repo root required}"
 shift
 CASE="${1:-status}"
@@ -104,7 +105,7 @@ MAIN=$(git -C "$ROOT" worktree list --porcelain | awk 'NR==1{print $2}')
 KEY="${AGENT_KEY:-}"
 if [ -z "$KEY" ]; then
   # Explicit service: never relink (railway-link-flapping).
-  KEY=$( (cd "${MAIN:-$ROOT}" && railway variables --service vibee-render --environment production --kv 2>/dev/null) \
+  KEY=$( (cd "${MAIN:-$ROOT}" && rvars vibee-render) \
          | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 fi
 [ -n "$KEY" ] || { echo "нет ключа агента: export AGENT_KEY или railway login"; exit 2; }

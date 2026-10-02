@@ -12,6 +12,7 @@
 # video (no test opens them), about 22 MB. Files are given relative to the suite's own package.
 # Exit 0 every suite passed, 1 one failed, 2 could not reach the runner.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="$1"; shift
 SUITES=(); FILES=()
 while [ $# -gt 0 ]; do
@@ -22,7 +23,7 @@ while [ $# -gt 0 ]; do
 done
 [ ${#SUITES[@]} -eq 0 ] && SUITES=(render)
 MAIN=$(git -C "$ROOT" worktree list --porcelain | awk 'NR==1{print $2}')
-VARS=$( (cd "${MAIN:-$ROOT}" && railway variables --service check-runner --kv 2>/dev/null) )
+VARS=$(rvars check-runner )
 KEY=$(printf '%s\n' "$VARS" | grep -E '^CHECK_RUNNER_KEY=' | cut -d= -f2-)
 URL="${CHECK_RUNNER_URL:-https://$(printf '%s\n' "$VARS" | grep -E '^RAILWAY_PUBLIC_DOMAIN=' | cut -d= -f2-)}"
 [ -z "$KEY" ] || [ "$URL" = "https://" ] && { echo "remote-check: no runner key or address (railway login?)"; exit 2; }

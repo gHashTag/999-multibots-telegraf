@@ -11,6 +11,7 @@
 #   tri meta put K    # the OWNER copies secret K in the portal, then runs this:
 #                     # clipboard -> vibee-render by stdin, clipboard wiped
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?repo root required}"
 shift
 cd "$ROOT" || exit 1
@@ -62,7 +63,7 @@ if [ "${1:-}" = card ]; then
   exit 0
 fi
 # Explicit service and environment: never relink (railway-link-flapping).
-VARS=$(railway variables --service vibee-render --environment production --kv 2>/dev/null)
+VARS=$(rvars vibee-render)
 [ -n "$VARS" ] || { echo "railway variables unreadable -- apps not checked"; }
 isset() { printf '%s\n' "$VARS" | grep -qE "^$1=.+"; }
 for k in THREADS_APP_ID THREADS_APP_SECRET META_APP_ID META_APP_SECRET META_PAGE_ID META_TOKEN_KEY \
@@ -74,7 +75,7 @@ done
 if isset META_LOGIN_CONFIG_ID; then echo "  META_LOGIN_CONFIG_ID: set (Facebook dialog sends config_id)"
 else echo "  META_LOGIN_CONFIG_ID: - (Facebook dialog sends scope)"; fi
 echo "  redirect URI to register in every app: $RENDER/api/social/meta/callback"
-URL=$(railway variables --service postgres-nfrq --kv 2>/dev/null | grep -E '^DATABASE_PUBLIC_URL=' | cut -d= -f2-)
+URL=$(rvars postgres-nfrq | grep -E '^DATABASE_PUBLIC_URL=' | cut -d= -f2-)
 [ -n "$URL" ] || { echo "no DATABASE_PUBLIC_URL -- tokens not checked"; exit 2; }
 psql "$URL" -X -q -c "
 SELECT network, account_id,

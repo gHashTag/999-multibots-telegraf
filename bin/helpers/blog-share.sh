@@ -18,11 +18,12 @@
 # already in the feed. The pace is read from the spec's generated module, not
 # copied here.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?repo root required}"
 shift
 cd "$ROOT" || exit 1
 # The database service by name, passed explicitly: never relink (railway-link-flapping).
-URL=$(railway variables --service postgres-nfrq --kv 2>/dev/null | grep -E '^DATABASE_PUBLIC_URL=' | cut -d= -f2-)
+URL=$(rvars postgres-nfrq | grep -E '^DATABASE_PUBLIC_URL=' | cut -d= -f2-)
 [ -n "$URL" ] || { echo "no DATABASE_PUBLIC_URL -- not checked"; exit 2; }
 # Closed by the timer, not by a person: the desk marked it declined while its
 # approval row was never decided (still pending) -- nobody pressed "no". Also a

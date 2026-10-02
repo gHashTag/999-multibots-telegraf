@@ -14,6 +14,7 @@
 #
 # Ничего не отправляет и не меняет: только чтение логов Railway.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?нужен корень репозитория}"
 MODE="${2:-hive}"
 LINES="${3:-800}"
@@ -39,7 +40,7 @@ fi
 #
 # Журнал НЕ пишет held и busy: это не обходы, а отложенные. За ними — в лог.
 if [ "$MODE" = "hive" ]; then
-  AK=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) |
+  AK=$(rvars vibee-render |
         grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
   if [ -z "$AK" ]; then
     echo "🛑 нет ключа агента — журнал не прочитан. Это НЕ значит, что обходов не было."
@@ -142,12 +143,11 @@ trap 'rm -f "$OUT"' EXIT
 # Без флагов `railway logs` СТРИМИТ, и `head -n N` отдаёт лишь то, что успело
 # прийти: 497 строк, сколько ни проси. `--lines`/`--since` — документированный
 # способ взять историю, и он даёт вдвое больше.
-(railway service 999-multibots-telegraf >/dev/null 2>&1;
- railway logs --since "${SINCE:-24h}" --lines "$LINES" 2>&1 | head -n "$LINES") > "$OUT"
+rlogs 999-multibots-telegraf --since "${SINCE:-24h}" --lines "$LINES" 2>&1 | head -n "$LINES" > "$OUT"
 N=$(grep -c . < "$OUT" || true)
 if [ "${N:-0}" -lt 5 ]; then
   echo "🛑 Логи не прочитаны (строк: ${N:-0}). Это НЕ значит, что обходов не было."
-  echo "   Проверьте: railway whoami; railway service 999-multibots-telegraf"
+  echo "   Проверьте: railway whoami (ids in bin/helpers/rail.sh)"
   exit 2
 fi
 echo "── прочитано строк лога: $N ──"

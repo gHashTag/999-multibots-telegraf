@@ -18,6 +18,7 @@ set -u
 # edited file after the group (measured on a copy, same day).
 {
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/bin/helpers/rail.sh"  # rvars: Railway by explicit ids
 RENDER="$ROOT/apps/vibee-editor/render"
 LOOP="$ROOT/.claude/loop-opus"
 # Память автономного цикла по CRM. Отдельно от $LOOP: там скрипты смены,
@@ -76,6 +77,7 @@ tri — оболочка Trinity S³AI
   tri browser layers [ID]  кнопка видна, но «не найдена»: тени и фреймы страницы (Reddit: 370 теней)
   tri browser composer [ID]  что СЕЙЧАС лежит в полях X, по полю, и какие кнопки есть (без нажатий)
   tri blog-share detail [slug]  что ответила КАЖДАЯ сеть, целиком
+  tri rail            вызовы Railway без явного проекта (rc 1) -- ids живут в bin/helpers/rail.sh
   tri pod        отвечает ли удалённый браузер И С КАКИХ ПОР (код 1 — не отвечает)
   tri tabs [--json]  сколько вкладок открыто в поде и близко ли до потолка PID (ничего не закрывает)
   tri heal [--json]  перезапустить браузер, НО только если он действительно молчит (отказ — нормальный ответ)
@@ -682,7 +684,7 @@ case "${1:-}" in
   feed)
     # В ЛЕНТЕ НЕТ ССЫЛОК НА ПОСТЫ — ни в вебе, ни в приложении. Сослаться на
     # конкретный ролик из интерфейса нечем, поэтому id достаём отсюда.
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     if [ -z "$KEY" ]; then echo "нет RENDER_API_KEY в окружении сервиса"; exit 1; fi
     curl -s -m 30 "https://vibee-render-production.up.railway.app/api/feed?limit=100" \
@@ -799,13 +801,11 @@ case "${1:-}" in
     # позапрошлую выручку как сегодняшнюю.
     #
     # Код возврата 1, если CRM читает НЕ самую свежую копию.
-    railway service postgres-nfrq >/dev/null 2>&1 || {
-      echo "нет доступа к сервису базы"; exit 2; }
-    DB=$(railway variables --kv 2>/dev/null | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
-    railway service vibee-render >/dev/null 2>&1 || {
-      echo "нет доступа к vibee-render"; exit 2; }
-    SU=$(railway variables --kv 2>/dev/null | grep '^SUPABASE_URL=' | head -1 | cut -d= -f2-)
-    SK=$(railway variables --kv 2>/dev/null | grep '^SUPABASE_SERVICE_KEY=' | head -1 | cut -d= -f2-)
+    DB=$(rvars postgres-nfrq | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
+    RV=$(rvars vibee-render)
+    SU=$(printf '%s\n' "$RV" | grep '^SUPABASE_URL=' | head -1 | cut -d= -f2-)
+    SK=$(printf '%s\n' "$RV" | grep '^SUPABASE_SERVICE_KEY=' | head -1 | cut -d= -f2-)
+    unset RV
     if [ -z "$DB" ] || [ -z "$SU" ] || [ -z "$SK" ]; then
       echo "не прочитались доступы -- проверка НЕ выполнена"; exit 2; fi
     (cd "$RENDER" && DB="$DB" SU="$SU" SK="$SK" node "$ROOT/bin/helpers/crm-source.mjs")
@@ -818,9 +818,7 @@ case "${1:-}" in
     # объявление и прод расходятся молча и живут так годами. Вылезает это в
     # день пересоздания базы -- на новом окружении, на стенде, при
     # восстановлении, -- то есть в худший день из возможных.
-    railway service postgres-nfrq >/dev/null 2>&1 || {
-      echo "нет доступа к сервису базы"; exit 1; }
-    URL=$(railway variables --kv 2>/dev/null | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
+    URL=$(rvars postgres-nfrq | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
     if [ -z "$URL" ]; then echo "нет DATABASE_PUBLIC_URL -- проверка НЕ выполнена"; exit 1; fi
     echo "— вход (session-store.ts) —"
     (cd "$RENDER" && DB="$URL" node "$ROOT/bin/helpers/schema-drift.mjs" session-store.ts)
@@ -1018,8 +1016,7 @@ case "${1:-}" in
     # и команда доложила, что смотрителя нет, хотя на vibee-render он задан.
     # Я поверил своему же инструменту и полез чинить то, что не сломано.
     # Вывод, который называет место, обязан это место и прочитать.
-    railway service vibee-render >/dev/null 2>&1
-    V=$(railway variables --kv 2>/dev/null | grep '^HIVE_KEEPERS=' | cut -d= -f2-)
+    V=$(rvars vibee-render | grep '^HIVE_KEEPERS=' | cut -d= -f2-)
     if [ -z "$V" ]; then
       echo "  HIVE_KEEPERS НЕ ЗАДАН на vibee-render -- смотрителя нет,"
       echo "  отчёты выключены, супер-админ видит только свои события."
@@ -1113,7 +1110,7 @@ case "${1:-}" in
     if [ -z "$KEEP" ]; then
       echo "нужен id поста, который остаётся: tri feed-hide <id>"; exit 1
     fi
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     if [ -z "$KEY" ]; then echo "нет RENDER_API_KEY в окружении сервиса"; exit 1; fi
     BASE="https://vibee-render-production.up.railway.app"
@@ -1189,7 +1186,7 @@ sys.stderr.write(str(len(ts)))
     bash "$ROOT/bin/helpers/orphans.sh" "$ROOT" "${2:-200}" ;;
   crm-waiting)
     # Who is waiting for an answer, from production, as the owner. Read-only.
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
     # The answer travels in an env var, not on stdin: `python3 -` takes its
@@ -1243,7 +1240,7 @@ PYEOF
     # shared by every session in this checkout (see `commands` below).
     shift
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
-    railway run --service 999-multibots-telegraf -- \
+    railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/bridge.cjs" "$@"
     ;;
 
@@ -1255,7 +1252,7 @@ PYEOF
     # days after the package was installed.
     shift
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
-    railway run --service 999-multibots-telegraf -- \
+    railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/client-pack.cjs" "$@"
     ;;
 
@@ -1274,7 +1271,7 @@ PYEOF
     if [ "${1:-}" = "--dry" ]; then
       node "$ROOT/scripts/agents-acceptance.cjs" --dry; exit $?
     fi
-    railway run --service vibee-render -- \
+    railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service vibee-render -- \
       node "$ROOT/scripts/agents-acceptance.cjs" "$@"
     ;;
 
@@ -1293,7 +1290,7 @@ PYEOF
     # the link out from under a session deploying the browser pod.
     shift
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
-    railway run --service 999-multibots-telegraf -- \
+    railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/commands-answered.cjs" "$@"
     ;;
 
@@ -1327,7 +1324,7 @@ PYEOF
     # about the next turn, by design: one press must not silence the seller.
     shift
     ID="${1:-144022504}"
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway link в корне копии"; exit 69; }
     OUT=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
@@ -1354,7 +1351,7 @@ PYEOF
     # screen (crm_client_avatars), not a verdict about those people.
     shift
     ID="${1:-144022504}"
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway link в корне копии"; exit 69; }
     curl -s "https://vibee-render-production.up.railway.app/mcp" \
@@ -1889,7 +1886,7 @@ RECIPE
       tg_dialogs|tg_unanswered|tg_contacts) ;;
       *) echo "only reading tools here: tg_dialogs, tg_unanswered, tg_contacts"; exit 64 ;;
     esac
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
     ANSWER=$(curl -s "https://vibee-render-production.up.railway.app/mcp?telegram_id=$ID" \
@@ -1916,7 +1913,7 @@ PYEOF
     # crm-ingest [dialogs] [depth]: the owner's DMs into the CRM memory.
     # crm-leads [n]: who to write to next, scored, from that memory. Both
     # read-only on Telegram; both as the owner, on production.
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
     if [ "${1:-}" = "crm-ingest" ]; then
@@ -2084,6 +2081,7 @@ PYEOF
     [ "${1:-}" = "--json" ] || bash "$ROOT/bin/helpers/logins.sh" "$ROOT"
     exit $rc ;;
   blog-share) shift; bash "$ROOT/bin/helpers/blog-share.sh" "$ROOT" "$@" ;;
+  rail) shift; bash "$ROOT/bin/helpers/rail-check.sh" "$ROOT" "$@" ;;
   meta) shift; bash "$ROOT/bin/helpers/meta.sh" "$ROOT" "$@" ;;
   starved) shift; node "$ROOT/bin/helpers/starved.mjs" "$@" ;;
   engage) shift; bash "$ROOT/bin/helpers/engage.sh" "$ROOT" "$@" ;;

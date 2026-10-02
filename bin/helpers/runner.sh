@@ -15,8 +15,9 @@ shift
 cd "$ROOT" || exit 2
 # Explicit IDs on every call: a bare `railway` follows whatever is linked
 # (railway-link-flapping).
-P=564d9ebd-7aa8-44fe-93ec-e0b03c87158d
-E=e4d200ad-b8a9-4edf-9b25-190a32613b32
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"
+P=$RAIL_PROJECT
+E=$RAIL_ENV
 S=1c27f8e4-ecc8-48fe-a6cd-556e5b50365a
 URL=https://check-runner-production.up.railway.app
 
