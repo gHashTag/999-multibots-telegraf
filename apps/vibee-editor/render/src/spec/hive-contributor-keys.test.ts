@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   contributorKeyPath,
   isContributorIdentity,
+  isModelName,
   safeContributionBody,
+  safeModelBody,
 } from '../hive/contributor-keys-route'
 import * as SPEC from './hive-contributor-keys.gen'
 
@@ -172,7 +174,83 @@ describe('hive contributor key spec binds to the render boundary', () => {
     }
   })
 
+  it('a model name is a bounded nonempty catalog identifier', () => {
+    for (const model of [
+      'm',
+      'z-ai/glm-5.3',
+      'glm-4.5-flash',
+      'M'.repeat(SPEC.MAX_MODEL_CHARS),
+    ]) {
+      expect(isModelName(model)).toBe(true)
+      expect(
+        safeModelBody(JSON.stringify({ provider: 'nvidia', model }))
+      ).toEqual({ provider: 'nvidia', model })
+    }
+    for (const model of [
+      '',
+      'M'.repeat(SPEC.MAX_MODEL_CHARS + 1),
+      ' glm',
+      'glm ',
+      'glm 5',
+      '../glm',
+      'glm\n',
+      '\u00e9',
+      5,
+      null,
+    ]) {
+      expect(isModelName(model)).toBe(false)
+      expect(
+        safeModelBody(JSON.stringify({ provider: 'nvidia', model }))
+      ).toBeNull()
+    }
+  })
+
+  it('only a provider and a model cross the model boundary', () => {
+    for (const provider of ['nvidia', 'zai']) {
+      const value = { provider, model: 'glm-5.3' }
+      expect(safeModelBody(JSON.stringify(value))).toEqual(value)
+    }
+    for (const raw of [
+      'null',
+      '[]',
+      '"glm-5.3"',
+      '{',
+      JSON.stringify({ provider: 'openai', model: 'glm-5.3' }),
+      JSON.stringify({ model: 'glm-5.3' }),
+      JSON.stringify({ provider: 'nvidia', model: 'glm' }).padEnd(
+        SPEC.BODY_MAX_BYTES + 1
+      ),
+    ]) {
+      expect(safeModelBody(raw)).toBeNull()
+    }
+    for (const field of ['owner', 'subject', 'apiKey', 'url', 'keys']) {
+      const value = { provider: 'nvidia', model: 'glm-5.3', [field]: 'x' }
+      expect(safeModelBody(JSON.stringify(value))).toBeNull()
+    }
+    expect(contributorKeyPath('/api/hive/keys/model')).toBe(
+      '/queen/contributor-keys/model'
+    )
+    for (const provider of ['nvidia', 'zai']) {
+      expect(contributorKeyPath(`/api/hive/keys/models/${provider}`)).toBe(
+        `/queen/contributor-keys/models/${provider}`
+      )
+    }
+    for (const path of [
+      '/api/hive/keys/models/openai',
+      '/api/hive/keys/models/',
+      '/api/hive/keys/models/nvidia/extra',
+      '/api/hive/keys/models/../keys',
+      '/api/hive/keys/model/nvidia',
+    ]) {
+      expect(contributorKeyPath(path)).toBeNull()
+    }
+  })
+
+  it("the proxy outlasts the Queen's slowest model check", () => {
+    expect(SPEC.PROXY_TIMEOUT_MS).toBeGreaterThan(SPEC.QUEEN_MODEL_CHECK_MS)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })
