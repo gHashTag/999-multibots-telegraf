@@ -139,6 +139,19 @@ const BARGE_IN_MS = 500
 const ONSET_DEAF_MS = 150
 const SYNTH_AHEAD = 2
 /*
+ * How long a sentence's audio may take before the device's own voice reads
+ * it. The render gives the mouth 3 s + 12 ms a character, then asks speaches
+ * with up to 30 s more: one phrase took 36.7 s (`tri filler`, cycle 9), and
+ * every sentence queued after it waited in silence -- the player had no
+ * limit at all. For a sentence of ordinary length the deadline sits above
+ * the server's legitimate fallback (the mouth's budget, 1-3 s of speaches,
+ * the road); a very long one that fell back to speaches may be read by the
+ * device instead, which beats a silence of half a minute.
+ */
+export function speakDeadlineMs(chars: number): number {
+  return 7000 + 12 * chars
+}
+/*
  * A sentence whose audio never reports its end -- iOS suspends the audio
  * context on a call or a lock and `ended` never fires -- would keep the
  * session "speaking" forever. Past its own length plus this, it is over.
@@ -342,6 +355,11 @@ export class VoiceSession {
     this.unsub = this.deps.subscribe(() => this.threadChanged())
     this.timer = window.setInterval(() => this.tick(), TICK_MS)
     this.listen()
+    // The first wait phrase is made now, while the person is still finding
+    // words. The first synthesis after a quiet spell was the slow one (4.4 s
+    // English, once 36.7 s): asked for at the first question, it missed its
+    // moment and was skipped -- the very wait it was for went unsaid.
+    void this.fillerSound(this.fillerText('first'))
   }
 
   /**
@@ -740,16 +758,31 @@ export class VoiceSession {
 
   private async render(text: string): Promise<AudioBuffer | null> {
     if (!this.ctx) return null
+    const ac = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    // Raced, not only aborted: a hung response may never notice the signal.
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        ac.abort()
+        reject(new Error('speak deadline'))
+      }, speakDeadlineMs(text.length))
+    })
     try {
       const lang = this.sentenceLang(text)
-      const bytes = await (this.deps.synthesize || httpSynthesize)(
-        text,
-        lang,
-        this.deps.voice(lang)
-      )
+      const bytes = await Promise.race([
+        (this.deps.synthesize || httpSynthesize)(
+          text,
+          lang,
+          this.deps.voice(lang),
+          ac.signal
+        ),
+        late,
+      ])
       return await this.ctx.decodeAudioData(bytes)
     } catch {
       return null
+    } finally {
+      clearTimeout(timer)
     }
   }
 
@@ -799,10 +832,8 @@ export class VoiceSession {
     const still = this.fillers > 0 || this.answerSpoke
     const wait = still ? FILLER_STILL_MS : FILLER_FIRST_MS
     const waiting = () => !this.queue.length && this.snap.phase === 'thinking'
-    const lang = this.spokenLang || this.deps.lang()
     const kind = still ? 'still' : 'first'
-    const list = translations[lang][`voice.filler.${kind}`].split('|')
-    const text = list[this.fillerTurn[kind] % list.length]
+    const text = this.fillerText(kind)
     this.fillerTimer = setTimeout(() => {
       if (!waiting()) return
       let ready: { buffer: AudioBuffer | null } | null = null
@@ -824,6 +855,13 @@ export class VoiceSession {
         void this.pump()
       }, wait - FILLER_PREPARE_MS)
     }, FILLER_PREPARE_MS)
+  }
+
+  /** The next wait phrase of this kind, in the language being spoken. */
+  private fillerText(kind: 'first' | 'still'): string {
+    const lang = this.spokenLang || this.deps.lang()
+    const list = translations[lang][`voice.filler.${kind}`].split('|')
+    return list[this.fillerTurn[kind] % list.length]
   }
 
   /** The phrase's audio, synthesised once; a failure is not kept. */
