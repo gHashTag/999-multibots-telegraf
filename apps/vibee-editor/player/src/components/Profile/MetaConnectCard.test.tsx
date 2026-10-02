@@ -80,6 +80,55 @@ describe('the Meta API card', () => {
     expect(rows[1].querySelector('button')?.textContent).toBe('meta.card.again')
   })
 
+  it('X renews itself, LinkedIn warns a week before it ends (social-api.t27)', async () => {
+    const rows = await draw(true, {
+      apps: { threads: true, facebook: true, linkedin: true, x: true },
+      networks: [
+        {
+          network: 'linkedin',
+          account: 'Dmitrii',
+          instagram: null,
+          daysLeft: 5,
+          usable: true,
+        },
+        {
+          network: 'x',
+          account: 'neuro',
+          instagram: null,
+          daysLeft: 0,
+          usable: true,
+        },
+      ],
+    })
+    expect(rows).toHaveLength(4)
+    expect(rows[2].dataset.state).toBe('in')
+    expect(rows[2].textContent).toContain('meta.card.soon:5')
+    expect(rows[3].dataset.state).toBe('in')
+    expect(rows[3].textContent).toContain('meta.card.renews')
+  })
+
+  it('a LinkedIn token with more than a week left gives no warning', async () => {
+    const rows = await draw(true, {
+      apps: { linkedin: true },
+      networks: [
+        {
+          network: 'linkedin',
+          account: 'Dmitrii',
+          instagram: null,
+          daysLeft: 8,
+          usable: true,
+        },
+      ],
+    })
+    expect(rows[2].textContent).not.toContain('meta.card.soon')
+  })
+
+  it('offers no LinkedIn or X button without their apps', async () => {
+    const rows = await draw(true, { apps: {}, networks: [] })
+    expect(rows[2].querySelector('button')).toBeNull()
+    expect(rows[3].querySelector('button')).toBeNull()
+  })
+
   it("draws nothing on somebody else's profile", async () => {
     await draw(false, { apps: { threads: true, facebook: true }, networks: [] })
     expect(host.innerHTML).toBe('')

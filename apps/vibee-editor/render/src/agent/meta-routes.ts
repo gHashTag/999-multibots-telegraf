@@ -1,7 +1,7 @@
 /**
  * The doors of the Meta connector (meta-connect.ts):
  *
- *   GET /api/social/meta/start?network=threads|facebook  owner, by their own hand
+ *   GET /api/social/meta/start?network=threads|facebook|linkedin|x  owner, by their own hand
  *   GET /api/social/meta/callback                        Meta's redirect; the state is the proof
  *   GET /api/social/meta/status                          owner; never a token
  *   GET /api/social/card/<slug>.jpg                      public; Meta fetches the card here
@@ -18,6 +18,7 @@ import {
   type Fetch,
   type Network,
 } from './meta-connect'
+import { finishApiConnect, startApiConnect } from './social-api'
 
 export function isMetaPath(path: string): boolean {
   return (
@@ -84,14 +85,25 @@ export async function handleMeta(
         ), // cyrillic-ok: shown to the owner
       }
     try {
-      const who = await finishConnect(
-        pool,
-        d.fetch,
-        st.owner,
-        st.network,
-        code,
-        d.now()
-      )
+      const who =
+        st.network === 'linkedin' || st.network === 'x'
+          ? await finishApiConnect(
+              pool,
+              d.fetch,
+              st.owner,
+              st.network,
+              code,
+              st.verifier,
+              d.now()
+            )
+          : await finishConnect(
+              pool,
+              d.fetch,
+              st.owner,
+              st.network,
+              code,
+              d.now()
+            )
       return {
         status: 200,
         html: page(`Подключено: ${who}. Окно можно закрыть.`),
@@ -109,7 +121,12 @@ export async function handleMeta(
   if (path === '/api/social/meta/status') {
     const held = await readTokens(pool, who)
     /* Whether each Meta app is configured: a yes or no, never the id or secret. */
-    const apps = { threads: !!appOf('threads'), facebook: !!appOf('facebook') }
+    const apps = {
+      threads: !!appOf('threads'),
+      facebook: !!appOf('facebook'),
+      linkedin: !!appOf('linkedin'),
+      x: !!appOf('x'),
+    }
     return {
       status: 200,
       json: { ok: true, apps, networks: statusView(held, d.now()) },
@@ -123,10 +140,14 @@ export async function handleMeta(
       json: { ok: false, error: 'подключает только сам владелец' },
     } // cyrillic-ok: user-facing error
   const network = u.searchParams.get('network')
+  if (network === 'linkedin' || network === 'x') {
+    const out = await startApiConnect(pool, who, network)
+    return { status: out.ok ? 200 : 503, json: out }
+  }
   if (network !== 'threads' && network !== 'facebook')
     return {
       status: 400,
-      json: { ok: false, error: 'network: threads | facebook' },
+      json: { ok: false, error: 'network: threads | facebook | linkedin | x' },
     }
   const out = await startConnect(pool, who, network as Network)
   return { status: out.ok ? 200 : 503, json: out }

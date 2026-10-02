@@ -1,0 +1,38 @@
+[
+  {
+    "name": "an X token refreshed only once it is already dead",
+    "file": "src/agent/social-api.ts",
+    "from": "return secondsLeft < X_REFRESH_BEFORE_S",
+    "to": "return secondsLeft < 0"
+  },
+  {
+    "name": "a link weighed by its real length on X",
+    "file": "src/agent/social-api.ts",
+    "from": "return plain + links * X_URL_WEIGHT",
+    "to": "return plain + links"
+  },
+  {
+    "name": "the old X refresh token kept after a refresh",
+    "file": "src/agent/social-api.ts",
+    "from": "meta: { username, refresh_sealed: seal(String(tok.refresh_token), env) },\n  }\n}",
+    "to": "meta: t.meta,\n  }\n}"
+  },
+  {
+    "name": "LinkedIn commentary sent without escaping",
+    "file": "src/agent/social-api.ts",
+    "from": "return littleText(cut)",
+    "to": "return cut"
+  },
+  {
+    "name": "Meta's poster posts a LinkedIn row as Facebook",
+    "file": "src/agent/meta-connect.ts",
+    "from": "if (!META_NETWORKS.includes(t.network)) continue",
+    "to": "if (false) continue"
+  },
+  {
+    "name": "an X connect accepted without its PKCE verifier",
+    "file": "src/agent/social-api.ts",
+    "from": "if (!verifier || !verifierOk(verifier.length))",
+    "to": "if (false)"
+  }
+]
