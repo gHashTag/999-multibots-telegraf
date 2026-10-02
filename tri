@@ -5981,14 +5981,18 @@ PY
 # "and" survives ("this week and" came back "this weekend." on 2026-10-02).
 # ─────────────────────────────────────────────────────────────────────────
 cmd_turn() {
-  local bench="$ROOT/apps/vibee-editor/player/scripts/turn-bench.ts" live='' a phrases=() key heard
+  local bench="$ROOT/apps/vibee-editor/player/scripts/turn-bench.ts" live='' audio='' lang=ru pause=300 a phrases=() key heard
   for a in "$@"; do
     case "$a" in
       --live) live=1 ;;
-      -*) bad "tri turn [--live] [phrase ...], not '$a'"; return 2 ;;
+      --audio) audio=1 ;;
+      --lang=*) lang="${a#--lang=}" ;;
+      --pause=*) pause="${a#--pause=}" ;;
+      -*) bad "tri turn [--live | --audio [--lang=ru] [--pause=300] file ...] [phrase ...], not '$a'"; return 2 ;;
       *) phrases+=("$a") ;;
     esac
   done
+  [ -n "$audio" ] && { _turn_audio "$lang" "$pause" ${phrases[@]+"${phrases[@]}"}; return $?; }
   command -v bun >/dev/null || { bad 'bun is needed to run the judge'; return 2; }
   if [ -z "$live" ]; then
     bun "$bench" ${phrases[@]+"${phrases[@]}"}
@@ -6030,8 +6034,9 @@ PROBES = (('ru', 'Покажи мне встречи на этой неделе 
 for lang, text, want in PROBES:
     try:
         audio, _, _ = call('/api/voice/speak', {'text': text, 'lang': lang}, 'application/json')
-        b, ms, timing = call(f'/api/voice/transcribe?lang={lang}', audio, 'audio/mpeg')
+        b, ms, timing = call(f'/api/voice/transcribe?lang={lang}&turn=1', audio, 'audio/mpeg')
         words = json.loads(b).get('text', '')
+        done = json.loads(b).get('done')
     except Exception as e:
         print(f'  {lang}: FAILED {e}', file=os.sys.stderr)
         continue
@@ -6040,7 +6045,10 @@ for lang, text, want in PROBES:
     late = max(0, EAGER + ms - END)
     engine = re.search(r'hear;dur=([0-9.]+);desc="?([^",]+)', timing or '')
     via = f', {engine.group(2)} {int(float(engine.group(1)))} ms' if engine else ''
-    print(f'  {lang} said {json.dumps(text, ensure_ascii=False)} -> words at {EAGER + ms} ms of silence (earcon +{late} ms{via})', file=os.sys.stderr)
+    # The voice's own verdict (Smart Turn in the ears); synthesized speech,
+    # so it is a smoke test of the road, not a measure of the model.
+    voice = 'no verdict' if done is None else f"voice {done:.2f} {'agrees' if (done < 0.5) == want else 'DISAGREES'}"
+    print(f'  {lang} said {json.dumps(text, ensure_ascii=False)} -> words at {EAGER + ms} ms of silence (earcon +{late} ms{via}; {voice})', file=os.sys.stderr)
     print('--want-hang' if want else '--want-over')
     print(words)
 PY
@@ -6049,6 +6057,51 @@ PY
   while IFS= read -r a; do list+=("$a"); done <<< "$heard"
   [ ${#list[@]} -gt 0 ] && [ -n "${list[0]}" ] || { bad 'nothing heard'; return 1; }
   bun "$bench" "${list[@]}"
+}
+
+# tri turn --audio: does the VOICE sound finished? (cycle 13, Smart Turn v3.2
+# in the ears, deployment/gigaam/turn.py). Real recordings, through the live
+# road: each file is cut to its last sound, given --pause ms of silence (the
+# player asks 300 ms into a pause) and sent as the eager hearing sends it.
+# Name files done-*.wav / cut-*.wav (finished / stopped mid-thought) and the
+# summary counts what decides switching it on (VoiceDeps.voiceHolds): the
+# finished turns it would HOLD 2.5 s, and the unfinished ones it catches.
+_turn_audio() {
+  local lang="$1" pause="$2" key; shift 2
+  [ $# -gt 0 ] || { bad 'tri turn --audio file ...'; return 2; }
+  command -v ffmpeg >/dev/null || { bad 'ffmpeg is needed to cut the recordings'; return 2; }
+  key=$(_mcp_key 2>/dev/null) || key=''
+  [ -n "$key" ] || { bad 'no agent key: --audio needs the render (AGENT_KEY or the vault)'; return 2; }
+  V_KEY="$key" V_BASE="$RENDER" V_LANG="$lang" V_PAUSE="$pause" python3 - "$@" <<'PY'
+import json, os, re, subprocess, sys, urllib.request
+base, key, lang, pause = os.environ['V_BASE'], os.environ['V_KEY'], os.environ['V_LANG'], int(os.environ['V_PAUSE'])
+held = caught = finished = unfinished = 0
+for path in sys.argv[1:]:
+    name = os.path.basename(path)
+    # Trim the file's own trailing quiet (-50 dB), then add exactly ours.
+    wav = subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-i', path, '-af',
+        f'areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,apad=pad_dur={pause / 1000}',
+        '-ac', '1', '-ar', '16000', '-f', 'wav', '-'], capture_output=True).stdout
+    if not wav:
+        print(f'  {name}: cannot decode'); continue
+    req = urllib.request.Request(f'{base}/api/voice/transcribe?lang={lang}&turn=1', data=wav,
+        headers={'Content-Type': 'audio/wav', 'X-Agent-Key': key})
+    try:
+        r = urllib.request.urlopen(req, timeout=60)
+        body, timing = json.loads(r.read()), r.headers.get('Server-Timing') or ''
+    except Exception as e:
+        print(f'  {name}: FAILED {e}'); continue
+    done = body.get('done')
+    engine = re.search(r'desc="?([^",]+)', timing)
+    verdict = 'no verdict (ears without the turn model?)' if done is None else f"done {done:.2f} -> {'HOLDS' if done < 0.5 else 'ends'}"
+    print(f"  {name:22s} {engine.group(1) if engine else '?':9s} {verdict}  {json.dumps(body.get('text', ''), ensure_ascii=False)}")
+    if done is None: continue
+    if name.startswith('done'): finished += 1; held += done < 0.5
+    if name.startswith('cut'): unfinished += 1; caught += done < 0.5
+if finished or unfinished:
+    print(f'finished turns held 2.5 s: {held}/{finished}   unfinished caught: {caught}/{unfinished}')
+    print('switch on (VoiceDeps.voiceHolds) only when held is near 0 and caught is real')
+PY
 }
 
 # ─────────────────────────────────────────────────────────────────────────
