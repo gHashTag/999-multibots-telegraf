@@ -102,7 +102,15 @@ let xml = ""
 process.stdin.on("data", d => (xml += d)).on("end", () => {
   console.log(ASK_EVERY_MS, ANSWER_WAIT_MS, TICK_MS)
   for (const a of parseRss(xml)) console.log(a.slug)
-})' 2>/dev/null)
+})' 2>"${TMPDIR:-/tmp}/blog-share-desk.$$.err")
+DESK_RC=$?
+DESK_ERR=$(grep -m1 -E '^ *[A-Za-z]*Error:' "${TMPDIR:-/tmp}/blog-share-desk.$$.err" 2>/dev/null)
+rm -f "${TMPDIR:-/tmp}/blog-share-desk.$$.err"
+# A desk that crashed after printing the pace (parseRss threw) prints no slugs:
+# without its exit status that read as "the feed did not answer" and blamed the
+# feed for our own code (bee review #3430).
+[ "$DESK_RC" -eq 0 ] ||
+  { echo "next: the desk's code failed (rc $DESK_RC${DESK_ERR:+: $DESK_ERR}) -- not checked"; exit 2; }
 read -r EVERY WAIT TICK <<<"$(printf '%s\n' "$DESK" | head -1)"
 # A pace that cannot be read is not a pace of zero: zero would print "asks on
 # the next tick" for a desk that may be hours from asking (bee review #3425).
