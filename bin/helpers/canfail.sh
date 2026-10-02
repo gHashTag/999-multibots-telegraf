@@ -31,10 +31,13 @@ fi
 SHA=$(lim 30 gh api "repos/$REPO/commits/$REF" --jq .sha 2>/dev/null) || SHA=
 [ -n "$SHA" ] || { echo "canfail: $REPO@$REF did not answer"; exit 2; }
 
-# The newest run of the check on this commit (a re-run adds another).
+# The newest run of the check on this commit (a re-run adds another). Ordered
+# by id, not started_at: a queued re-run has no started_at, its row then began
+# with a tab that `read` collapses (the id landed in CONCL), and it sorted
+# first, so an older finished run answered for a re-run still in the queue.
 ROW=$(lim 60 gh api --paginate "repos/$REPO/commits/$SHA/check-runs?per_page=100" \
-  --jq ".check_runs[] | select(.name == \"$CHECK\") | [.started_at, (.conclusion // .status), .id, .html_url] | @tsv" \
-  2>/dev/null | sort | tail -1) \
+  --jq ".check_runs[] | select(.name == \"$CHECK\") | [.id, (.conclusion // .status), .id, .html_url] | @tsv" \
+  2>/dev/null | sort -n | tail -1) \
   || { echo "canfail: check runs of $REPO@${SHA:0:9} did not answer"; exit 2; }
 [ -n "$ROW" ] || { echo "canfail: $REPO@${SHA:0:9} has no '$CHECK' check"; exit 2; }
 IFS=$'\t' read -r _ CONCL ID URL <<< "$ROW"
@@ -64,6 +67,8 @@ OUT=$(printf '%s\n' "$LOG" \
   | sed 's/^/  /')
 if [ -z "$OUT" ]; then
   echo "  (log not readable or holds no harness verdict -- open the link)"
+  # A failed job is a verdict on its own; only a passed one needs the log.
+  [ "$CONCL" = failure ] && exit 1
   exit 2
 fi
 printf '%s\n' "$OUT"
