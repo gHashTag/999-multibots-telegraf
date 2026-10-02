@@ -33,6 +33,7 @@ import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
 import { JOB_TOOLS } from './job-tools'
 import { MAIL_TOOLS } from './mail-tools'
+import { SOCIAL_TOOLS } from './social-tools'
 import { MAIL_PUSH_TOOLS } from './mail-push'
 import { BALL_BOARD_TOOLS } from './ball-board'
 import { MEETING_TOOLS } from './meetings'
@@ -3983,6 +3984,7 @@ TOOLS.push(...WEB_TOOLS)
  */
 TOOLS.push(...JOB_TOOLS)
 TOOLS.push(...MAIL_TOOLS)
+TOOLS.push(...SOCIAL_TOOLS)
 /*
  * The push half of the mail desk (spec: specs/automation/mail-push.t27): the
  * cron calls it as the owner every five minutes, so new mail reaches the

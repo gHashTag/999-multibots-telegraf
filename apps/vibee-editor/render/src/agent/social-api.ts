@@ -24,6 +24,7 @@ import {
   writeToken,
   type Fetch,
   type HeldToken,
+  type Network,
   type Post,
   type PublishDeps,
   seal,
@@ -459,7 +460,7 @@ export async function postBySocialApi(
   q: Queryable,
   owner: string,
   p: Post,
-  d: PublishDeps & { now?: () => number }
+  d: PublishDeps & { now?: () => number; only?: readonly Network[] }
 ): Promise<Record<string, string>> {
   const env = d.env || process.env
   const now = d.now || Date.now
@@ -473,6 +474,7 @@ export async function postBySocialApi(
   const say = (r: string) => `${VIA_API} · ${r}`
   const fail = (e: unknown) => `ошибка API: ${scrub(String(e))}` // cyrillic-ok: told to the owner
   for (let t of held) {
+    if (d.only && !d.only.includes(t.network)) continue
     if (t.network === 'linkedin') {
       if (!liUsable(daysLeftOf(t, now()))) {
         out.LinkedIn = 'токен истёк — подключите LinkedIn заново' // cyrillic-ok: told to the owner
