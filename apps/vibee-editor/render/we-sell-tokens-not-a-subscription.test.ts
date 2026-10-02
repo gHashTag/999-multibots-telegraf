@@ -56,7 +56,12 @@ const INVENTED: ReadonlyArray<readonly [string, RegExp]> = [
   ['Trinity Club', /trinity club/i],
   ['club tariffs', /тарифы клуба/i], // cyrillic-ok: needle
   ['a NEURO* tier', /\bNEURO(VIDEO|PHOTO|TESTER|BLOGGER|BASE)\b/i],
-  ['a BASIC / PRO / STUDIO tariff', /\b(BASIC|PRO|STUDIO|Basic)\b/],
+  // `'Basic ' + base64` is the HTTP auth scheme (social-api.ts, X token
+  // exchange), not a tariff: a quoted `Basic ` glued to more by `+` passes.
+  [
+    'a BASIC / PRO / STUDIO tariff',
+    /\b(BASIC|PRO|STUDIO)\b|\bBasic\b(?!\s['"`]\s*\+)/,
+  ],
   ['a price per month', /\/\s?мес/i], // cyrillic-ok: needle
 ]
 
@@ -127,6 +132,20 @@ describe('the needles are real', () => {
       ...invented(tiers),
     ])
     expect([...seen].sort()).toEqual(INVENTED.map(([n]) => n).sort())
+  })
+
+  it('the HTTP Basic auth scheme is not a tariff', () => {
+    // social-api.ts builds the X token-exchange header this way.
+    expect(
+      invented(
+        "return 'Basic ' + Buffer.from(`${id}:${secret}`).toString('base64')"
+      )
+    ).toEqual([])
+    expect(invented('headers: { Authorization: "Basic " + token }')).toEqual([])
+    // ...and a tariff named in prose still trips it.
+    expect(invented('the Basic plan')).toEqual([
+      'a BASIC / PRO / STUDIO tariff',
+    ])
   })
 
   it('each denial needle catches a denial that shipped, and not the truth', () => {

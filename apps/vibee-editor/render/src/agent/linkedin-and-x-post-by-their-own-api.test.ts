@@ -140,9 +140,43 @@ describe('the post itself', () => {
     expect(littleText('a (b) #c @d')).toBe('a \\(b\\) \\#c \\@d')
     expect(linkedInCommentary(post)).toContain('\\(v2\\) \\#t27')
   })
+
+  it('CJK weighs two on X and Cyrillic one, as twitter-text counts them', () => {
+    expect(xPlainWeight('Пример')).toBe(6)
+    expect(xPlainWeight('中文')).toBe(4)
+    const head = xPost({ ...post, title: '字'.repeat(200) }).split('\n\n')[0]
+    expect(xPlainWeight(head)).toBeLessThanOrEqual(xTitleRoom())
+  })
+
+  it('LinkedIn is cut after escaping, and never inside an escape', () => {
+    const text = linkedInCommentary({ ...post, title: '#'.repeat(4000) })
+    expect([...text].length).toBeLessThanOrEqual(3000)
+    const head = text.slice(0, -1)
+    expect(head).toMatch(/^(\\#)+$/)
+  })
 })
 
 describe('connecting', () => {
+  it('nobody is sent to a network while there is no key to seal its token', async () => {
+    const { startApiConnect } = await import('./social-api')
+    const { startConnect, seal } = await import('./meta-connect')
+    const bare = { ...env, META_TOKEN_KEY: undefined }
+    const q = memoryPool()
+    for (const out of [
+      await startApiConnect(q as never, '7', 'x', bare),
+      await startConnect(q as never, '7', 'threads', {
+        ...bare,
+        THREADS_APP_ID: 't',
+        THREADS_APP_SECRET: 's',
+      }),
+    ])
+      expect(out).toMatchObject({
+        ok: false,
+        error: expect.stringMatching(/META_TOKEN_KEY/),
+      })
+    expect(() => seal('t', { X_CLIENT_SECRET: 'x-secret' })).toThrow()
+  })
+
   it('X asks with a PKCE challenge, LinkedIn with its member scope', () => {
     const p = pkce()
     expect(verifierOk(p.verifier.length)).toBe(true)
@@ -254,6 +288,8 @@ describe('publishing', () => {
     expect(body.author).toBe('urn:li:person:abc')
     expect(body.content.article.source).toBe(post.link)
     expect(calls[0].init?.headers?.['LinkedIn-Version']).toMatch(/^\d{6}$/)
+    expect(calls[0].url).toBe('https://api.linkedin.com/rest/posts')
+    expect(calls[0].init?.headers?.['X-Restli-Protocol-Version']).toBe('2.0.0')
   })
 
   it('a LinkedIn 201 without an id is not a post', async () => {
@@ -264,13 +300,15 @@ describe('publishing', () => {
   })
 
   it("X's receipt is the post's own address", async () => {
-    const { f } = fakeFetch(() => ({
+    const { f, calls } = fakeFetch(() => ({
       status: 201,
       json: { data: { id: '77' } },
     }))
     expect(
       await publishX(held({ meta: { username: 'owner' } }), post, d(f))
     ).toBe('https://x.com/owner/status/77')
+    expect(calls[0].url).toBe('https://api.x.com/2/tweets')
+    expect(calls[0].init?.method).toBe('POST')
   })
 })
 
