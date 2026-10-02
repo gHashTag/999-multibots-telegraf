@@ -394,7 +394,7 @@ platform :ios do
     begin
       testers
     rescue => e
-      UI.important("the build is uploaded, but the internal group was not set: #{e.message}")
+      UI.important("the build is uploaded, but the internal group was not set: #{TeamGroup.scrub(e.message)}")
       UI.important("by hand: App Store Connect -> TestFlight -> Internal Testing -> + group, add yourself; " \
                    "or `tri iphone testers --yes` again")
     end

@@ -48,4 +48,10 @@ module TeamGroup
     return "?" if local.to_s.empty? || domain.to_s.empty?
     "#{local[0]}***@#{domain}"
   end
+
+  # Apple's error text is not ours to trust: an error about a tester may
+  # repeat the address. Every address in it is masked before the log sees it.
+  def self.scrub(text)
+    text.to_s.gsub(/[^\s<>"'(),;:]+@[^\s<>"'(),;:]+\.[A-Za-z]{2,}/) { |m| mask(m) }
+  end
 end
