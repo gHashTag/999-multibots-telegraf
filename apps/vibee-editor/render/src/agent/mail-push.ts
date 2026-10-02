@@ -1199,12 +1199,12 @@ export const MAIL_PUSH_TOOLS: AgentTool[] = [
       requireOwner(ctx!)
       await ensureStateTable(ctx!.pool)
       const what = (args as { what: string }).what
+      // A finite window of 1 h .. one year: Infinity or 2^31 would make
+      // $1::int throw instead of answering.
+      const asked = (args as { since_hours?: unknown }).since_hours
       const since =
-        typeof (args as { since_hours?: unknown }).since_hours === 'number'
-          ? Math.max(
-              1,
-              Math.floor((args as { since_hours: number }).since_hours)
-            )
+        typeof asked === 'number' && Number.isFinite(asked)
+          ? Math.min(8760, Math.max(1, Math.floor(asked)))
           : null
       const cap = 100
       if (what === 'digest') {
