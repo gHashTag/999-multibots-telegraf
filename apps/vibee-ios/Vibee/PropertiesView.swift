@@ -194,6 +194,13 @@ struct PropertiesView: View {
   }
 }
 
+/// "3 tracks" / "3 дорожки", for the timeline header.  // cyrillic-ok: quotes the label
+func trackCountLabel(_ n: Int, russian: Bool = speaksRussian) -> String {
+  russian
+    ? склонение(n, "дорожка", "дорожки", "дорожек")  // ru-only-ok: the Russian branch -- cyrillic-ok
+    : "\(n) track\(n == 1 ? "" : "s")"
+}
+
 /// "120 frames" / "120 кадров". The old label said "кадр" for every count.  // cyrillic-ok: quotes the old label
 func framesLabel(_ n: Int, russian: Bool = speaksRussian) -> String {
   russian

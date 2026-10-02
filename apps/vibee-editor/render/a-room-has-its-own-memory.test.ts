@@ -80,6 +80,7 @@ describe('a room has its own memory', () => {
     expect(bothAtOnce).toEqual({
       ok: false,
       status: 403,
+      code: 'not_seller',
       error: 'not a seller',
     })
   })

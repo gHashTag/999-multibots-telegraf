@@ -7,6 +7,10 @@ import {
   type Detent,
 } from '@/lib/sheetDetents'
 
+/** The handle's height: padding, grabber and the peek line; or 44 alone. */
+const HANDLE_PX = 72
+const HANDLE_COMPACT_PX = 44
+
 /**
  * THE iOS BOTTOM SHEET, IN THE HOUSE STYLE.
  *
@@ -29,6 +33,7 @@ export function DetentSheet({
   label,
   peekPx,
   className,
+  compactHandle = false,
 }: {
   detent: Detent
   onDetent: (d: Detent) => void
@@ -39,6 +44,12 @@ export function DetentSheet({
   /** Height of the closed sheet; the default is lib/sheetDetents PEEK_PX. */
   peekPx?: number
   className?: string
+  /**
+   * Above PEEK the handle is the grabber alone and the peek line is not
+   * drawn: for a body that already says what the peek says (CardChat's
+   * number and title), so the 28px go to the content instead.
+   */
+  compactHandle?: boolean
 }) {
   const [screen, setScreen] = useState(() => window.innerHeight)
   useEffect(() => {
@@ -57,6 +68,7 @@ export function DetentSheet({
   } | null>(null)
 
   const visible = drag ?? heights[detent]
+  const compact = compactHandle && detent !== 'peek' && drag === null
 
   const onDown = (e: React.PointerEvent) => {
     ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -99,7 +111,7 @@ export function DetentSheet({
 
   return (
     <section
-      className={`detent-sheet detent-sheet--${detent}${drag !== null ? ' detent-sheet--dragging' : ''}${className ? ` ${className}` : ''}`}
+      className={`detent-sheet detent-sheet--${detent}${drag !== null ? ' detent-sheet--dragging' : ''}${compact ? ' detent-sheet--compact' : ''}${className ? ` ${className}` : ''}`}
       style={{
         height: `${heights.full}px`,
         transform: `translateY(${heights.full - visible}px)`,
@@ -126,11 +138,13 @@ export function DetentSheet({
         }}
       >
         <span className="detent-sheet__grabber" />
-        <div className="detent-sheet__peek">{peek}</div>
+        {!compact && <div className="detent-sheet__peek">{peek}</div>}
       </div>
       <div
         className="detent-sheet__body"
-        style={{ maxHeight: `${Math.max(0, visible - 72)}px` }}
+        style={{
+          maxHeight: `${Math.max(0, visible - (compact ? HANDLE_COMPACT_PX : HANDLE_PX))}px`,
+        }}
       >
         {children}
       </div>

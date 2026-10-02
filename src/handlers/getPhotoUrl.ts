@@ -2,21 +2,9 @@ import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getBotNameByToken } from '@/core/bot/index'
-import { publicStorageUrl } from '@/config/publicStorage'
+import { DEFAULT_BOT_PHOTO_URL } from '@/config/publicStorage'
 
-/**
- * The picture a bot with no avatar of its own gets.
- *
- * There used to be a `step` argument substituted into `levels/${step}.jpg`.
- * Checked in storage on 2026-10-02: every bot's `levels/` holds `1.jpg` and
- * nothing else, `levels/2..22.jpg` never existed on the cloud host either, and
- * the only caller ever asked for step 1. The argument could only turn a
- * working address into a dead one, so it is gone.
- */
-export const DEFAULT_BOT_PHOTO_URL = publicStorageUrl(
-  'landingpage',
-  'avatars/neuro_blogger_bot/levels/1.jpg'
-)
+export { DEFAULT_BOT_PHOTO_URL }
 
 export async function getPhotoUrl(ctx: MyContext): Promise<string> {
   const botToken = ctx.telegram.token

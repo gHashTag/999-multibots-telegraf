@@ -266,8 +266,17 @@ export type AgentEvent =
    */
   | { тип: 'ждём'; имя: string; мс: number } // cyrillic-ok: event envelope
   | { тип: 'результат'; имя: string; значение: unknown; мс: number }
-  | { тип: 'готово'; витков: number; обрыв?: string }
-  | { тип: 'ошибка'; текст: string }
+  /*
+   * `code` names a failure for a client that translates it (step_limit,
+   * no_answer, model_failed; `internal` comes from routes.ts). The words stay
+   * for the developer. Checked by agent-chat-codes.test.ts.
+   */
+  | { тип: 'готово'; витков: number; обрыв?: string; code?: 'step_limit' }
+  | {
+      тип: 'ошибка'
+      текст: string
+      code?: 'no_answer' | 'model_failed' | 'internal'
+    }
 
 /**
  * The money-and-plan rule, lifted OUT of the SYSTEM template on purpose.
@@ -414,6 +423,22 @@ export const CARD_MARKERS =
   'сообщение «✅ Одобряю: заголовок» или «✖ Не надо: заголовок» — одобренное ' + // cyrillic-ok: prompt copy
   'делай сразу, не переспрашивая. Заголовок до 80 символов, без ] и |. ' + // cyrillic-ok: prompt copy
   'Одна карточка — одно действие. Не ставь карточку ради украшения.' // cyrillic-ok: prompt copy
+
+/**
+ * THE CARD CHAT ON THE KANBAN (spec kanban-card-chat.t27 v2).
+ *
+ * The person writes from a card's sheet, so the agent proposes with the same
+ * cards (CARDS_ON_KANBAN) and acts only on the tap (ACTIONS_ON_TAP_ONLY).
+ * Two promises it must not make, because no door honours them: moving the
+ * card (the column is the Queen's verdict, computed from her registry --
+ * MOVE_OFFERED false) and opening a pull request (this server holds no
+ * GitHub token -- AGENT_OPENS_PR false).
+ */
+export const KANBAN_LIMITS =
+  '\n\nКАРТОЧКА ДОСКИ. Человек пишет тебе из карточки задачи. Колонку ' + // cyrillic-ok: prompt copy
+  'карточки ставит Королева по своему реестру — не обещай её перенести. ' + // cyrillic-ok: prompt copy
+  'Открыть PR или смержить ты не можешь: доступа к GitHub у тебя нет — ' + // cyrillic-ok: prompt copy
+  'предложи карточкой то, что сделаешь сам, или скажи прямо, кто может.' // cyrillic-ok: prompt copy
 
 /**
  * THE CREATOR IN THE APP.
@@ -1589,13 +1614,15 @@ export function systemPrompt(
       ? BUTTON_MARKERS
       : surface === 'miniapp'
         ? CARD_MARKERS
-        : /*
-           * The client's DM gets its own kind: url-only buttons there, so the
-           * options are deep links rather than callbacks (LOOK_MARKERS).
-           */
-          surface === 'business'
-          ? LOOK_MARKERS
-          : ''
+        : surface === 'kanban'
+          ? CARD_MARKERS + KANBAN_LIMITS
+          : /*
+             * The client's DM gets its own kind: url-only buttons there, so the
+             * options are deep links rather than callbacks (LOOK_MARKERS).
+             */
+            surface === 'business'
+            ? LOOK_MARKERS
+            : ''
   /*
    * Not for the unattended sweep: it must call tools, not explain itself to
    * nobody. Everything else -- the bot, the business DM, the mini app -- is a
@@ -2314,6 +2341,12 @@ async function* runAgentTurn(
      */
     personNote?: string
     /**
+     * The kanban card this conversation is about (task-thread.ts taskNote).
+     * Built by the server from the board, already fenced there: an issue
+     * title is a stranger's words. Absent for every other thread.
+     */
+    taskNote?: string
+    /**
      * Whose chat a business turn is: the account the Telegram business
      * connection belongs to. Accepted only behind the server key (routes.ts),
      * because it decides whose correspondence, client packages and debts the
@@ -2533,6 +2566,7 @@ async function* runAgentTurn(
     personContext +
     products +
     defects +
+    (opts?.taskNote ?? '') +
     (opts?.supervisor ? supervisorBlock(opts.agentLog, opts.movesLine) : '')
 
   /*
@@ -2920,12 +2954,20 @@ async function* runAgentTurn(
         : why
       if (emptyFrom.length) logEmpty('failed', lastProvider ?? 'none')
       logTurnEnd('error', text)
-      yield { тип: 'ошибка', текст: text.slice(0, 500) }
+      yield {
+        тип: 'ошибка',
+        code: emptyFrom.length ? 'no_answer' : 'model_failed',
+        текст: text.slice(0, 500),
+      }
       return
     }
     if (!assistant) {
       logTurnEnd('error', 'model did not return a message')
-      yield { тип: 'ошибка', текст: 'модель не вернула сообщение' }
+      yield {
+        тип: 'ошибка',
+        code: 'model_failed',
+        текст: 'модель не вернула сообщение',
+      }
       return
     }
 
@@ -3028,5 +3070,6 @@ async function* runAgentTurn(
     тип: 'готово',
     витков: MAX_STEPS,
     обрыв: `достигнут предел ${MAX_STEPS} витков вызова инструментов`,
+    code: 'step_limit',
   }
 }

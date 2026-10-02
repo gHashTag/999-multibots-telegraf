@@ -3,58 +3,120 @@
 // Live feed of ALL Telegram events
 // ===============================
 
-import { useEffect, useRef } from 'react';
-import { useAtomValue, useSetAtom } from 'jotai';
-import { formatDistanceToNow } from 'date-fns';
-import { ru } from 'date-fns/locale';
-import { Wifi, WifiOff, MessageSquare, Zap, User, AlertCircle, Check, X, Trash2 } from 'lucide-react';
+import { useEffect, useRef } from 'react'
+import { useAtomValue, useSetAtom } from 'jotai'
+// Per-function paths, not the barrels: see the note in pages/Crm.test.tsx.
+import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
+import { ru } from 'date-fns/locale/ru'
+import {
+  Wifi,
+  WifiOff,
+  MessageSquare,
+  Zap,
+  User,
+  AlertCircle,
+  Check,
+  X,
+  Trash2,
+} from 'lucide-react'
 import {
   eventsAtom,
   clearEventsAtom,
   addEventAtom,
   leadsWsConnectedAtom,
-} from '@/atoms/leads';
-import type { TelegramEvent, TelegramEventType } from '@/atoms/leads';
-import { useLanguage } from '@/hooks/useLanguage';
-import { BRAND_COLORS, STATUS_COLORS } from '@vibee/atoms';
-import './EventStream.css';
+} from '@/atoms/leads'
+import type { TelegramEvent, TelegramEventType } from '@/atoms/leads'
+import { useLanguage } from '@/hooks/useLanguage'
+import { BRAND_COLORS, STATUS_COLORS } from '@vibee/atoms'
+import './EventStream.css'
 
 // Event type icons and colors
-const eventConfig: Record<TelegramEventType, { icon: React.ReactNode; color: string; label: string; labelRu: string }> = {
-  new_lead: { icon: <Zap size={14} />, color: BRAND_COLORS.amber, label: 'New Lead', labelRu: 'Новый лид' },
-  message: { icon: <MessageSquare size={14} />, color: BRAND_COLORS.amber, label: 'Message', labelRu: 'Сообщение' },
-  trigger_match: { icon: <Zap size={14} />, color: STATUS_COLORS.success, label: 'Trigger Match', labelRu: 'Триггер' },
-  session_status: { icon: <User size={14} />, color: '#8b5cf6', label: 'Session', labelRu: 'Сессия' },
-  ws_connected: { icon: <Wifi size={14} />, color: STATUS_COLORS.success, label: 'Connected', labelRu: 'Подключено' },
-  ws_disconnected: { icon: <WifiOff size={14} />, color: STATUS_COLORS.error, label: 'Disconnected', labelRu: 'Отключено' },
-  action_sent: { icon: <Check size={14} />, color: STATUS_COLORS.info, label: 'Action', labelRu: 'Действие' },
-  error: { icon: <AlertCircle size={14} />, color: STATUS_COLORS.error, label: 'Error', labelRu: 'Ошибка' },
-};
-
-interface EventStreamProps {
-  maxHeight?: number;
-  showHeader?: boolean;
+const eventConfig: Record<
+  TelegramEventType,
+  { icon: React.ReactNode; color: string; label: string; labelRu: string }
+> = {
+  new_lead: {
+    icon: <Zap size={14} />,
+    color: BRAND_COLORS.amber,
+    label: 'New Lead',
+    labelRu: 'Новый лид',
+  },
+  message: {
+    icon: <MessageSquare size={14} />,
+    color: BRAND_COLORS.amber,
+    label: 'Message',
+    labelRu: 'Сообщение',
+  },
+  trigger_match: {
+    icon: <Zap size={14} />,
+    color: STATUS_COLORS.success,
+    label: 'Trigger Match',
+    labelRu: 'Триггер',
+  },
+  session_status: {
+    icon: <User size={14} />,
+    color: '#8b5cf6',
+    label: 'Session',
+    labelRu: 'Сессия',
+  },
+  ws_connected: {
+    icon: <Wifi size={14} />,
+    color: STATUS_COLORS.success,
+    label: 'Connected',
+    labelRu: 'Подключено',
+  },
+  ws_disconnected: {
+    icon: <WifiOff size={14} />,
+    color: STATUS_COLORS.error,
+    label: 'Disconnected',
+    labelRu: 'Отключено',
+  },
+  action_sent: {
+    icon: <Check size={14} />,
+    color: STATUS_COLORS.info,
+    label: 'Action',
+    labelRu: 'Действие',
+  },
+  error: {
+    icon: <AlertCircle size={14} />,
+    color: STATUS_COLORS.error,
+    label: 'Error',
+    labelRu: 'Ошибка',
+  },
 }
 
-export function EventStream({ maxHeight = 400, showHeader = true }: EventStreamProps) {
-  const { lang } = useLanguage();
-  const events = useAtomValue(eventsAtom);
-  const clearEvents = useSetAtom(clearEventsAtom);
-  const addEvent = useSetAtom(addEventAtom);
-  const isConnected = useAtomValue(leadsWsConnectedAtom);
-  const listRef = useRef<HTMLDivElement>(null);
+interface EventStreamProps {
+  maxHeight?: number
+  showHeader?: boolean
+}
+
+export function EventStream({
+  maxHeight = 400,
+  showHeader = true,
+}: EventStreamProps) {
+  const { lang } = useLanguage()
+  const events = useAtomValue(eventsAtom)
+  const clearEvents = useSetAtom(clearEventsAtom)
+  const addEvent = useSetAtom(addEventAtom)
+  const isConnected = useAtomValue(leadsWsConnectedAtom)
+  const listRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to top when new events arrive
   useEffect(() => {
     if (listRef.current && events.length > 0) {
-      listRef.current.scrollTop = 0;
+      listRef.current.scrollTop = 0
     }
-  }, [events.length]);
+  }, [events.length])
 
   // Add demo event button (for testing)
   const addDemoEvent = () => {
-    const demoTypes: TelegramEventType[] = ['new_lead', 'message', 'trigger_match', 'session_status'];
-    const randomType = demoTypes[Math.floor(Math.random() * demoTypes.length)];
+    const demoTypes: TelegramEventType[] = [
+      'new_lead',
+      'message',
+      'trigger_match',
+      'session_status',
+    ]
+    const randomType = demoTypes[Math.floor(Math.random() * demoTypes.length)]
 
     const demoData: Record<string, any> = {
       new_lead: {
@@ -77,67 +139,73 @@ export function EventStream({ maxHeight = 400, showHeader = true }: EventStreamP
         sessionId: 'sess_demo',
         isOnline: true,
       },
-    };
+    }
 
     addEvent({
       type: randomType,
       data: demoData[randomType],
-    });
-  };
+    })
+  }
 
   const formatTime = (timestamp: string) => {
     try {
       return formatDistanceToNow(new Date(timestamp), {
         addSuffix: true,
         locale: lang === 'ru' ? ru : undefined,
-      });
+      })
     } catch {
-      return timestamp;
+      return timestamp
     }
-  };
+  }
 
   const getEventDescription = (event: TelegramEvent): string => {
-    const { type, data } = event;
-    const d = data as Record<string, string | number | boolean | undefined>;
+    const { type, data } = event
+    const d = data as Record<string, string | number | boolean | undefined>
 
     switch (type) {
       case 'new_lead': {
-        const msg = String(d.message || '');
-        return `${d.fromUser}: "${msg.slice(0, 50)}${msg.length > 50 ? '...' : ''}"`;
+        const msg = String(d.message || '')
+        return `${d.fromUser}: "${msg.slice(0, 50)}${msg.length > 50 ? '...' : ''}"`
       }
       case 'message':
-        return `${d.fromUser} in ${d.chatTitle}`;
+        return `${d.fromUser} in ${d.chatTitle}`
       case 'trigger_match':
-        return `"${d.trigger}" in ${d.chatTitle}`;
+        return `"${d.trigger}" in ${d.chatTitle}`
       case 'session_status':
-        return `${d.sessionId}: ${d.isOnline ? 'online' : 'offline'}`;
+        return `${d.sessionId}: ${d.isOnline ? 'online' : 'offline'}`
       case 'ws_connected':
-        return String(d.clientId || 'Connected to server');
+        return String(d.clientId || 'Connected to server')
       case 'ws_disconnected':
-        return 'Connection lost';
+        return 'Connection lost'
       case 'action_sent':
-        return `${d.action} for lead ${d.leadId}`;
+        return `${d.action} for lead ${d.leadId}`
       case 'error':
-        return String(d.error || 'Unknown error');
+        return String(d.error || 'Unknown error')
       default:
-        return JSON.stringify(data).slice(0, 50);
+        return JSON.stringify(data).slice(0, 50)
     }
-  };
+  }
 
   return (
     <div className="event-stream">
       {showHeader && (
         <div className="event-stream-header">
           <div className="event-stream-title">
-            <span className={`event-stream-status ${isConnected ? 'connected' : 'disconnected'}`} />
-            <span>{lang === 'ru' ? 'События Telegram' : 'Telegram Events'}</span>
+            <span
+              className={`event-stream-status ${isConnected ? 'connected' : 'disconnected'}`}
+            />
+            <span>
+              {lang === 'ru' ? 'События Telegram' : 'Telegram Events'}
+            </span>
             <span className="event-stream-count">{events.length}</span>
           </div>
           <div className="event-stream-actions">
             <button
               className="event-stream-demo-btn"
               onClick={addDemoEvent}
-              title={lang === 'ru' ? 'Добавить тестовое событие' : 'Add demo event'}
+              title={
+                lang === 'ru' ? 'Добавить тестовое событие' : 'Add demo event'
+              }
             >
               + Demo
             </button>
@@ -162,28 +230,35 @@ export function EventStream({ maxHeight = 400, showHeader = true }: EventStreamP
         {events.length === 0 ? (
           <div className="event-stream-empty">
             <Zap size={32} />
-            <span>{lang === 'ru' ? 'Ожидание событий...' : 'Waiting for events...'}</span>
+            <span>
+              {lang === 'ru' ? 'Ожидание событий...' : 'Waiting for events...'}
+            </span>
             <span className="event-stream-empty-hint">
               {lang === 'ru'
                 ? 'События появятся здесь когда кто-то напишет триггер-слово в Telegram'
-                : 'Events will appear here when someone writes a trigger word in Telegram'
-              }
+                : 'Events will appear here when someone writes a trigger word in Telegram'}
             </span>
-            <button className="event-stream-demo-btn-large" onClick={addDemoEvent}>
+            <button
+              className="event-stream-demo-btn-large"
+              onClick={addDemoEvent}
+            >
               {lang === 'ru' ? 'Добавить тестовое событие' : 'Add Demo Event'}
             </button>
           </div>
         ) : (
-          events.map((event) => {
-            const config = eventConfig[event.type];
-            const eventData = event.data as Record<string, unknown>;
+          events.map(event => {
+            const config = eventConfig[event.type]
+            const eventData = event.data as Record<string, unknown>
             return (
               <div
                 key={event.id}
                 className={`event-stream-item event-stream-item--${event.type}`}
                 style={{ '--event-color': config.color } as React.CSSProperties}
               >
-                <div className="event-stream-item-icon" style={{ color: config.color }}>
+                <div
+                  className="event-stream-item-icon"
+                  style={{ color: config.color }}
+                >
                   {config.icon}
                 </div>
                 <div className="event-stream-item-content">
@@ -210,10 +285,10 @@ export function EventStream({ maxHeight = 400, showHeader = true }: EventStreamP
                   {formatTime(event.timestamp)}
                 </div>
               </div>
-            );
+            )
           })
         )}
       </div>
     </div>
-  );
+  )
 }
