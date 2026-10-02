@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   parseRss,
   xText,
+  clip,
   shareUrls,
   linkFor,
   threadsText,
@@ -119,6 +120,22 @@ describe('the feed', () => {
     expect(a[0].summary).toBe(
       'A merged PR corrected an invalid Yosys invocation.'
     )
+  })
+
+  it('a cut post ends on a whole sentence, or a whole word, never mid-word', () => {
+    const s = 'Five are merged and seven are open. Most follow one thread here.'
+    expect(clip(s, 50)).toBe('Five are merged and seven are open.')
+    expect(clip('one two three four five six', 20)).toBe('one two three four…')
+    expect(clip('x'.repeat(30), 10)).toBe('x'.repeat(9) + '…')
+    expect(clip('short', 10)).toBe('short')
+    const first = xThread({
+      slug: 's',
+      title: 'T',
+      link: 'https://t27.ai/blog/s',
+      summary: 'One sentence that fits. ' + 'word '.repeat(80),
+    }).first
+    expect(first.endsWith('word…') || first.endsWith('.')).toBe(true)
+    expect(first.length).toBeLessThanOrEqual(X_LIMIT)
   })
 
   it('a long evidence label goes too, so the X post opens with the article', () => {
