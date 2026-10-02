@@ -2084,3 +2084,21 @@ a file, `tri readers --run` that file**; before adding a tri command,
 `grep -n "^cmd_<name>" tri`. The guard was rewritten to check the events'
 order in the hook and the "not credited" sentence in BOTH languages where it
 now lives -- it was not loosened.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 11): a tool that reports "passed" for fewer than it was given
+
+`tri readers --run` (iteration 10) passed every named test to the ROOT vitest
+config. That config excludes `player/`; a file it excludes, passed by name, is
+dropped without a word -- the run said "75 passed" for 76 named, and a player
+guard on `render-server.ts` never ran. It also listed tracked files only, so
+the guard being added in the same change was invisible to it. Found only by
+counting: named vs ran. Now each test runs under its nearest package config,
+untracked tests count, and the tool prints the count per config. Rule: **a
+runner that takes a list must show how many it ran of how many it was given**
+-- "N passed" alone hides the ones that were never collected.
+
+The money anomaly of the same iteration: iOS read the server's
+"credit failed" flag as "not visible yet" and promised the tokens "shortly".
+Fixed at the parse (`TokenVerify(body:)`, testable) and with the web's own
+sentence. Every client of a money route must branch on the same flags; when
+the web learns a flag, grep the other clients for the same route.
