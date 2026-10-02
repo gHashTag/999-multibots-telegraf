@@ -73,3 +73,16 @@ what each network did. Uniform `min_to_close` = a timer, not a person.
 Once #3235 is deployed: `tri blog-share reoffer` lists articles the timer closed (declined 20–40 min after asking); `--apply` forgets them and the desk re-asks one a day. Never apply before the deploy — the re-asked question would die at ten minutes again.
 
 **Receipts (2026-10-02).** Every press now says whether the page left the share form (`receiptOf`, `LEFT_THE_FORM`); a confirmed tab is closed, an unconfirmed one stays open as evidence. `blog-share-wiring.ts` is stubbed in tests — a missing import there passes vitest and dies in prod; run `npx tsc --noEmit -p .` in render after touching it.
+
+### Two more lessons (2026-10-02, after #3235)
+
+- **A "declined" is real only if the approval row was decided.** All twelve
+  closed rows had `browser_approvals.state = 'pending'` -- nobody pressed no.
+  `tri blog-share reoffer` selects by that join (#3279), not by a time window
+  (rows closed at 53 and 94 minutes slipped past the 20-40 minute window).
+  Stale `pending` approvals past their TTL are cosmetic noise; mark them
+  `expired`.
+- **One look for the publish button is not a look.** The only allowed article
+  reported "button not found" on X and LinkedIn: the cold browser had not drawn
+  the composer at six seconds. The desk now looks every 3 s up to ~30 s (#3281);
+  the path test with late-drawing composers fails on the old code.

@@ -1,5 +1,6 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
 import {
   afterEach,
   beforeAll,
@@ -75,7 +76,11 @@ afterEach(() => {
 async function draw() {
   const { default: StoryPage } = await import('./Story')
   await act(async () => {
-    root.render(<StoryPage />)
+    root.render(
+      <MemoryRouter>
+        <StoryPage />
+      </MemoryRouter>
+    )
   })
   await act(async () => {
     await new Promise(r => setTimeout(r, 0))
@@ -203,5 +208,51 @@ describe('my reels', () => {
     await draw()
     expect(host.textContent).toContain('story.unreachable')
     expect(host.textContent).not.toContain('story.none')
+  })
+})
+
+/*
+ * The chat with the agent shows the same widget (owner, 2026-10-02) -- but
+ * only to someone whose template is ready, and folded once the talk began.
+ */
+describe('her reels inside the chat', () => {
+  it('the page leads to the chat with the agent', async () => {
+    serve(() => READY)
+    await draw()
+    expect(
+      host.querySelector('[data-testid="story-to-chat"]')?.getAttribute('href')
+    ).toBe('/chat')
+  })
+
+  async function drawWidget(foldedIn: boolean) {
+    const { MyStoryWidget } = await import('@/components/Story/MyStoryWidget')
+    await act(async () => {
+      root.render(<MyStoryWidget onlyReady foldedIn={foldedIn} />)
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+  }
+
+  it('a ready template shows the widget, open before the talk', async () => {
+    serve(() => READY)
+    await drawWidget(false)
+    const box = host.querySelector('[data-testid="chat-story"]')
+    expect(box).not.toBeNull()
+    expect(box!.hasAttribute('open')).toBe(true)
+    expect(String(host.textContent)).toContain('story.price:270')
+  })
+
+  it('folds once the conversation has started', async () => {
+    serve(() => READY)
+    await drawWidget(true)
+    const box = host.querySelector('[data-testid="chat-story"]')
+    expect(box!.hasAttribute('open')).toBe(false)
+  })
+
+  it('no template ready -- the chat draws nothing at all', async () => {
+    serve(() => ({ ...READY, ready: false }))
+    await drawWidget(false)
+    expect(host.innerHTML).toBe('')
   })
 })

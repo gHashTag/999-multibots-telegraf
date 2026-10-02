@@ -19,12 +19,16 @@
  */
 import { tagged, type Channel } from './utm'
 import type { Queryable } from '../browser/sessions'
+import * as SPEC from '../spec/blog-share.gen'
 
 export const RSS_URL = process.env.BLOG_RSS_URL || 'https://t27.ai/rss.xml'
-/* One question a day at most; the tick itself runs more often. */
-export const ASK_EVERY_MS = 20 * 60 * 60 * 1000
-/* A question nobody answered is let go after this, and the next day asks anew. */
-export const ANSWER_WAIT_MS = 24 * 60 * 60 * 1000
+/*
+ * The pace and the wait live in the spec of record:
+ * gHashTag/t27 specs/automation/blog-share.t27 (vendored in ../spec).
+ * One question a day at most; the tick itself runs more often.
+ * A question nobody answered is let go after ANSWER_WAIT_MS.
+ */
+export const { ASK_EVERY_MS, ANSWER_WAIT_MS } = SPEC
 /* X counts every link as 23 characters. */
 export const X_LIMIT = 280
 const X_LINK = 23
@@ -204,6 +208,30 @@ export function publishedSomewhere(result: Record<string, string>): boolean {
 
 export type Answer = 'pending' | 'allowed' | 'denied' | 'expired'
 
+/** The spec's `still_waiting`: pending and younger than the approval's lifetime. */
+export function stillWaiting(answer: Answer, ageMs: number): boolean {
+  return answer === 'pending' && ageMs < ANSWER_WAIT_MS
+}
+
+/** The spec's `may_ask`: never asked, or the last question is a pace old. */
+export function mayAsk(lastAskedMs: number, nowMs: number): boolean {
+  return !lastAskedMs || nowMs - lastAskedMs >= ASK_EVERY_MS
+}
+
+/** The spec's `posts`: only a yes posts. */
+export function posts(answer: Answer): boolean {
+  return answer === 'allowed'
+}
+
+/**
+ * The spec's `decline_is_real`: only a person's "no". Twelve rows were once
+ * closed as declined while their approval was still pending (tri blog-share
+ * reoffer, #3279); an expiry is silence and is told as such.
+ */
+export function declineIsReal(answer: Answer): boolean {
+  return answer === 'denied'
+}
+
 export interface ShareDeps {
   pool: Queryable
   owner: string
@@ -235,9 +263,9 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
       asked_ms: number
     }
     const answer = await d.answerOf(row.approval_id)
-    if (answer === 'pending' && d.now() - Number(row.asked_ms) < ANSWER_WAIT_MS)
+    if (stillWaiting(answer, d.now() - Number(row.asked_ms)))
       return `waiting for the owner on ${row.slug}`
-    if (answer !== 'allowed') {
+    if (!posts(answer)) {
       await d.pool.query(
         `UPDATE blog_shares SET state = 'declined', done_at = now() WHERE slug = $1`,
         [row.slug]
@@ -246,7 +274,7 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
        * SAID, NOT SWALLOWED (2026-10-02): eight articles closed silently in a
        * row, and nobody could tell a "no" from a question that died unseen.
        */
-      if (answer === 'expired')
+      if (!declineIsReal(answer))
         await d
           .tell(
             `⏳ Вопрос про «${row.slug}» остался без ответа — статья не опубликована.` // cyrillic-ok: shown to the owner
@@ -281,7 +309,7 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
     `SELECT extract(epoch from max(asked_at)) * 1000 AS at FROM blog_shares`
   )
   const lastAt = Number((last[0] as { at?: unknown } | undefined)?.at) || 0
-  if (lastAt && d.now() - lastAt < ASK_EVERY_MS) return 'asked today already'
+  if (!mayAsk(lastAt, d.now())) return 'asked today already'
 
   const articles = parseRss(await d.fetchRss())
   if (!articles.length) return 'the feed is empty'
