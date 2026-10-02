@@ -13,7 +13,7 @@ INSERT INTO avatars (
 ) VALUES (
     '7669741878',
     'HaimGroupMedia_bot',
-    'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/HaimGroupMedia_bot/coco-age.jpeg',
+    'https://bucket-production-8259.up.railway.app/vibee-assets/landingpage/avatars/HaimGroupMedia_bot/coco-age.jpeg',
     'ai_stars',
     NOW(),
     NOW()
