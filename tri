@@ -366,8 +366,11 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
-  tri iphone [check|build|sim|off|test|ru]
+  tri iphone [check|build|sim|off|test|ru|store|testflight]
         The Vibee app on the REAL phone: build, install, launch -- one command.
+        `store` asks fastlane what stands between HEAD and TestFlight (offline
+        preflight + read-only App Store Connect state); `testflight --yes`
+        builds and uploads -- the owner's call, never a loop's.
         `sim` does the same on the simulator, with a deadline on install.
         Asks devicectl first, so a locked or unplugged phone is named as such
         instead of xcodebuild's "Unable to find a destination". `check` only
@@ -1596,6 +1599,11 @@ print(n)' 2>/dev/null)
 #   tri iphone ru-diff [ref]  lines a counter change hides vs ref (origin/main)
 #   tri iphone ru-web [file]  ROUGH count of Russian-only literals in the web
 #                       player (the parity reference is not clean either)
+#   tri iphone store    fastlane preflight + state: every blocker offline,
+#                       then what App Store Connect holds (read-only)
+#   tri iphone testflight --yes  fastlane beta: build and upload to TestFlight.
+#                       Publishes under the owner's account -- only on his
+#                       "yes", so the flag is required, not a default.
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
 # The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
 # next build need it back. One word instead of remembering the udid.
@@ -1921,6 +1929,33 @@ iphone_sim() {
   good "launched the fresh build on simulator $sim"
 }
 
+# The App Store road through apps/vibee-ios/fastlane (the lanes Leela shipped
+# with). fastlane prints a US-ASCII locale warning and then dies on the first
+# Cyrillic byte it reads, so the locale is set here, not left to the shell.
+iphone_store() {
+  local ios="$1" mode="$2" yes="${3:-}"
+  # TRI_FASTLANE: tri puts Homebrew first on PATH, so a stub earlier on PATH
+  # never wins; the tests (and a pinned install) name the binary instead.
+  local fl="${TRI_FASTLANE:-fastlane}"
+  command -v "$fl" >/dev/null || { bad "fastlane is not installed (brew install fastlane)"; return 2; }
+  local log="${TMPDIR:-/tmp}/tri-iphone-$mode.log"
+  local lanes=(preflight state)
+  if [ "$mode" = "testflight" ]; then
+    [ "$yes" = "--yes" ] || { bad "uploading publishes a build under the owner's account: tri iphone testflight --yes"; return 2; }
+    lanes=(beta)
+  fi
+  local lane rc=0
+  for lane in "${lanes[@]}"; do
+    echo "  …    fastlane $lane (log: $log)"
+    ( cd "$ios" && LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 FASTLANE_SKIP_UPDATE_CHECK=1 \
+        FASTLANE_HIDE_TIMESTAMP=1 FASTLANE_DISABLE_COLORS=1 "$fl" "$lane" ) >"$log" 2>&1 || rc=$?
+    # The lanes' own verdict lines, not fastlane's banner tables.
+    grep -E '^ *(✓|✗)|^(app|app id|testflight|store) |^next build|^\[!\]|^  [12]\. |^Ready|^built|^uploaded' "$log" | sed 's/^/       /'
+    [ "$rc" = 0 ] || { bad "fastlane $lane failed (exit $rc): tail $log"; return 1; }
+  done
+  good "fastlane ${lanes[*]}: done"
+}
+
 cmd_iphone() {
   local mode="${1:-all}" name="${VIBEE_DEVICE:-t27_dev}"
   local json="${TMPDIR:-/tmp}/tri-iphone-devices.json"
@@ -1936,6 +1971,8 @@ cmd_iphone() {
   [ "$mode" = "ru" ] && { iphone_ru "$ios" "${2:-}"; return; }
   [ "$mode" = "ru-diff" ] && { iphone_ru_diff "$ios" "${2:-}"; return; }
   [ "$mode" = "ru-web" ] && { iphone_ru_web "${2:-}"; return; }
+  [ "$mode" = "store" ] && { iphone_store "$ios" store; return; }
+  [ "$mode" = "testflight" ] && { iphone_store "$ios" testflight "${2:-}"; return; }
 
   if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
     bad "devicectl did not answer (Xcode command line tools?)"; return 2
