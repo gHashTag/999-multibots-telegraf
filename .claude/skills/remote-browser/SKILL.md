@@ -149,7 +149,7 @@ agent key) -- the full case list is the header of `bin/helpers/b.sh`
     tri browser time [URL]        # new-tab latency; closes only what it opened
     tri browser call TOOL '{..}'  # any tool, raw
     tri browser cover             # every registry tool has a case? rc 1 names gaps
-    tri browser doctor            # FIRST, every loop tick: all tabs, read-only
+    tri browser doctor            # FIRST, every loop tick: every tab read, nothing driven
 
 Pick the command by the symptom, and keep `cover` at rc 0: a tool added to
 `agent-tools.ts` without a case in `b.sh` is a tool nobody can check by hand.
@@ -158,29 +158,39 @@ smoke tests. A tab opened before a deploy keeps the old bundle and can show a
 bug that is already fixed live; `blank` says `staleTab`, `reload` cures it.
 
 **Start every loop tick with `tri browser doctor`.** It lists the tabs against
-`TAB_CAP`, runs `cover`, and reads the FRONT tab: blank page, staleTab
-(an older build than the site serves), unsent text in X's composer. Each
-anomaly comes with the command that fixes it; rc 0 clean, 1 anomalies, 2
+`TAB_CAP`, runs `cover`, and reads EVERY tab on the server: blank page,
+staleTab (an older build than the site serves), unsent text in X's composer.
+Each anomaly comes with the command that fixes it; rc 0 clean, 1 anomalies, 2
 could not ask. It fixes nothing itself.
 
-**Every call doctor makes is a probe (`params._meta.probe`), and it never
-tours tabs.** The first version (#3392, caught in review) toured them, and
-cost this: a tool that reads a page with no visit on record STARTS a visit
-(`liveSession` -> `startBrowserAsAgent`), and a started visit messages the
-owner. A "read-only" check messaged him at 02:36. With a visit on record
-the person may be watching, and bringing his tabs forward one by one is
-driving. So other tabs are listed, never opened; read one on purpose with
-`tri browser blank ID`, knowing that it starts a visit.
+**How it reads without driving: `browser_status {shape: true}`**
+(`render/src/browser/tab-shape.ts`). CDP evaluates in a BACKGROUND target
+too (`evaluateOn`), so no tab is fronted, and the status door (`podToLookAt`)
+never starts a visit. Only counts come back -- nodes, characters, composer
+characters -- never page text. Not read, and said so per tab: sensitive
+places (`guard.ts`: running code there needs a fresh yes), the browser's own
+pages, and a page that throws or hangs (12 s each, in parallel), which is
+named as such rather than blamed on the guard. A render older than
+tab-shape.ts refuses `shape`; doctor then lists without reading and says so.
+
+**History, so nobody reaches for the front again.** The first doctor (#3392)
+toured tabs through the front, and a page-reading tool with no visit on
+record STARTS a visit (`liveSession` -> `startBrowserAsAgent`), which
+messages the owner: a "read-only" check wrote to him at 02:36. Every agent
+tool that reads goes through that door -- `blank`, `read`, `composer` --
+so reading one tab by hand still starts a visit; doctor does not need to.
 
 `watchedByThePerson` means "a visit row is live". It does NOT mean eyes on
 the screen, and the agent's own reads create that row. If it flips to true
 in the middle of your work, ask whether you started the visit yourself.
 
-staleTab is a subset test: a module the site serves now that the tab lacks.
-Modules a page injects at runtime do not read as stale. URLs that look like
-they act on a GET (sign-out, unsubscribe, callback, token) are not
-re-fetched. A staleTab on a tab with composer text says `composer ID` first:
-a reload throws the draft away.
+staleTab is a subset test (a module the site serves now that the tab
+lacks; runtime-injected modules do not count), and the sweep checks it only
+on our own sites (`t27.ai` and subdomains), re-fetched with
+`credentials: omit`: our pages are public, while a second GET of someone
+else's page with his cookies can spend a one-time context (Instagram's
+two-step URL carries one). A staleTab on a tab with composer text says
+`composer ID` first: a reload throws the draft away.
 
 `bun run verify` runs `cover` as the `browser-cover` step.
 `ask WHAT S` refuses S over 120 (the server clipped it silently);
