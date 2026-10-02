@@ -32,10 +32,19 @@ function git(cwd: string, ...args: string[]) {
   execFileSync('git', args, { cwd, stdio: 'ignore' })
 }
 
+const head = (cwd: string) =>
+  execFileSync('git', ['rev-parse', 'HEAD'], { cwd }).toString().trim()
+
+let fakeBin = ''
+
 function deps(...args: string[]) {
+  // tri puts homebrew first on PATH, so the stand-ins go in by name.
+  const fake = fakeBin
+    ? { TRI_BUN: `${fakeBin}/bun`, TRI_NPM: `${fakeBin}/npm` }
+    : {}
   const r = spawnSync('bash', [TRI, 'deps', ...args], {
     encoding: 'utf8',
-    env: { ...process.env, NO_COLOR: '1' },
+    env: { ...process.env, NO_COLOR: '1', ...fake },
   })
   return { rc: r.status, out: `${r.stdout}${r.stderr}` }
 }
@@ -64,6 +73,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  fakeBin = ''
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
@@ -200,5 +210,101 @@ describe('tri deps', () => {
     const r = deps('--hea1', wt)
     expect(r.rc).toBe(1)
     expect(r.out).toContain('unknown flag: --hea1')
+  })
+
+  describe('--heal', () => {
+    const player = 'apps/vibee-editor/player'
+    let log: string
+
+    // bun and npm stand-ins: record where and how they ran, install the
+    // missing `qr`, and dirty the lock the way a real install does.
+    function fakeTools() {
+      fakeBin = path.join(dir, 'bin')
+      log = path.join(dir, 'installs.log')
+      fs.mkdirSync(fakeBin)
+      for (const tool of ['bun', 'npm']) {
+        fs.writeFileSync(
+          path.join(fakeBin, tool),
+          `#!/bin/sh
+echo "${tool} $* @ $(pwd -P)" >> "${log}"
+mkdir -p node_modules/qr && echo '{}' > node_modules/qr/package.json
+for l in package-lock.json bun.lock; do [ -f "$l" ] && echo drift >> "$l"; done
+exit 0
+`,
+          { mode: 0o755 }
+        )
+      }
+    }
+
+    // The main checkout's player declares `qr` and its install lacks it; the
+    // worktree is on the same commit, so the link is incomplete, not stale.
+    function declareQr(originMain: 'with-qr' | 'before-qr') {
+      const before = head(main)
+      fs.writeFileSync(
+        path.join(main, player, 'package.json'),
+        JSON.stringify({ dependencies: { qr: '1' } })
+      )
+      fs.writeFileSync(path.join(main, player, 'package-lock.json'), '{}\n')
+      git(main, 'add', '.')
+      git(
+        main,
+        '-c',
+        'user.name=t',
+        '-c',
+        'user.email=t@t',
+        'commit',
+        '-qm',
+        'qr'
+      )
+      git(wt, 'checkout', '-q', '--detach', head(main))
+      const ref = originMain === 'with-qr' ? 'HEAD' : before
+      git(main, 'update-ref', 'refs/remotes/origin/main', ref)
+      fakeTools()
+    }
+
+    it('names an incomplete main install and points at --heal, not --own', () => {
+      declareQr('with-qr')
+      const r = deps(wt)
+      expect(r.rc).toBe(1)
+      expect(r.out).toContain(
+        `${player} declares packages its node_modules lacks: qr`
+      )
+      expect(r.out).toContain('fix: tri deps --heal')
+      expect(fs.existsSync(log)).toBe(false)
+    })
+
+    it('installs the app in the MAIN checkout with npm install and restores its lock', () => {
+      declareQr('with-qr')
+      const r = deps('--heal', wt)
+      expect(r.out).toContain(`reinstalled ${player} in the main checkout`)
+      const ran = fs.readFileSync(log, 'utf8').trim().split('\n')
+      expect(ran).toEqual([
+        `npm install --no-audit --no-fund @ ${path.join(main, player)}`,
+      ])
+      expect(
+        fs.readFileSync(path.join(main, player, 'package-lock.json'), 'utf8')
+      ).toBe('{}\n')
+      expect(deps(wt).rc).toBe(0)
+    })
+
+    it('refuses when the main checkout package.json is not origin/main', () => {
+      declareQr('before-qr')
+      const r = deps('--heal', wt)
+      expect(r.rc).toBe(1)
+      expect(r.out).toContain(`not healing ${player}`)
+      expect(fs.existsSync(log)).toBe(false)
+    })
+
+    it('reinstalls an emptied root with bun, once', () => {
+      git(main, 'update-ref', 'refs/remotes/origin/main', 'HEAD')
+      fakeTools()
+      fs.rmSync(path.join(main, 'node_modules'), { recursive: true })
+      fs.mkdirSync(path.join(main, 'node_modules'))
+      const r = deps('--heal', wt)
+      expect(r.out).toContain('reinstalled . in the main checkout')
+      expect(fs.readFileSync(log, 'utf8').trim().split('\n')).toEqual([
+        `bun install --no-summary @ ${main}`,
+      ])
+    })
   })
 })
