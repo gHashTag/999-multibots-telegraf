@@ -60,6 +60,11 @@ describe('classify', () => {
     expect(classify(1, 'http 502')).toBe('unknown')
     expect(classify(1, '')).toBe('unknown')
   })
+  it('a text with a refusal and an outage is auth: something answered', () => {
+    const both = `${SSH_DNS}\n${SSH_AUTH}`
+    expect(classify(128, both)).toBe('auth')
+    expect(reason(both)).toBe('git@github.com: Permission denied (publickey).')
+  })
 })
 
 describe('reason', () => {

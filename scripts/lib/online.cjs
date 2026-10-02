@@ -9,8 +9,10 @@
 // wait" as against "the key is refused, a retry will never help". The answer
 // is plain data here, so it is tested without a network.
 
-// What a failed probe's output means. The order matters: an auth refusal
-// prints the host it reached, so it is matched before anything generic.
+// What a failed probe's output means. The order decides a text that matches
+// two kinds (a retried command printing both attempts): a refusal means a
+// server answered, so the network worked, and auth wins over dns and connect.
+// None of the texts seen live mixes them; the test pins the order anyway.
 const PATTERNS = [
   [
     'auth',
