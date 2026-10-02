@@ -195,12 +195,26 @@ CHECKS THAT EACH COST A CYCLE
         on env-gaps. Prints the path on the last line:
           wt="$(tri worktree fix/my-thing | tail -1)"; cd "$wt"
 
-  tri deps [path]
+  tri deps [--heal] [--own] [path]
         For a worktree tri did NOT make (a bee's, the Claude app's, a plain
         git worktree add): link every node_modules the main checkout has and
         this tree lacks, then check the binaries the gates call (esbuild,
         vitest, render tsc). Without them render-types and bundle-boots go
         red on ENOENT and read like code faults.
+        Never run a root npm ci / bun install in such a tree: npm empties
+        node_modules through the link, i.e. the MAIN checkout's, and every
+        linked tree breaks at once. `tri deps --heal` reinstalls the main
+        checkout when that has happened (it is named EMPTY, DOTFILES-ONLY,
+        DANGLING or ABSENT, and the command exits 1).
+        `tri deps --own` makes every linked node_modules -- root AND per-app,
+        render/player are links too -- this tree's own copy (copy-on-write
+        clone where the disk can: ~70 s and ~100 MB for all four on APFS),
+        after which an install here is safe.
+        It also names every package a tree's package.json declares that its
+        node_modules lacks (root, render, player): a link carries the main
+        checkout's install, made for THAT checkout's branch, so a tree on a
+        newer origin/main can miss `redis` or `@tonconnect/ui` and fail tsc on
+        "Cannot find module" that reads as a code fault.
 
   tri price <ModeName>
         Print the STATIC base cost of a mode from BASE_COSTS before you treat an
@@ -425,6 +439,17 @@ CHECKS THAT EACH COST A CYCLE
         Read-only. The service key is read into a variable and never printed.
         The server caps the window at 200 events, so the oldest day in the
         output is partial and its count means nothing on its own.
+
+  tri reel-check REEL.mp4|URL [--body body.json] [--words whisper.json] [--voice voice.mp3] [--sheet out.jpg] [--json]
+        Look at a rendered reel the way the owner does. FACE: in every shot,
+        is the face centred in the window it is shown in (the lower half of a
+        split) and is the top of the head inside it? CAPTIONS: the reel's audio
+        is cross-correlated with the voice file, then every caption is matched
+        to the whisper word of the same text -- whisper of the FINAL voice, not
+        of the notes it was cut from. Shots come from the render body's
+        segments; without one, a seam in the picture marks a split.
+        Thresholds live in split-reel.t27 (FACE_OFF_CENTER_MAX_PCT,
+        HEADROOM_MIN_PCT). Exit 0 clean, 1 defects, 2 not measured.
 
   tri voice [--runs N] | tri голос
         The voice mode end to end: status, warm-up, a fixed phrase spoken in
@@ -3335,6 +3360,19 @@ link_deps() {
   return 0
 }
 
+# What a node_modules path holds, in one word, so the "emptied" trap is named
+# in every shape it takes: npm's emptying can leave only dotfiles behind
+# (.package-lock.json, .bin), a removed target leaves a dangling link, and a
+# half-finished install leaves nothing at all.
+nm_state() {
+  local d="$1"
+  if [ -L "$d" ] && [ ! -e "$d" ]; then echo dangling; return; fi
+  if [ ! -e "$d" ]; then echo absent; return; fi
+  if [ -z "$(ls -A "$d" 2>/dev/null)" ]; then echo empty; return; fi
+  if [ -z "$(ls "$d" 2>/dev/null)" ]; then echo dotfiles-only; return; fi
+  echo ok
+}
+
 cmd_deps() {
   # Worktrees made by `tri worktree` get their node_modules linked; the ones a
   # bee, the Claude app or a plain `git worktree add` makes do not. Then the
@@ -3342,12 +3380,33 @@ cmd_deps() {
   # render-types "tsc not found" summarised as a 240 s red, and bundle-boots
   # "spawnSync node_modules/.bin/esbuild ENOENT". This links what is missing
   # from the main checkout and names the binaries the gates call.
+  #
+  # The opposite trap (2026-10-02 23:14): an agent ran a root `npm ci` in a
+  # worktree whose node_modules was such a link. npm empties node_modules
+  # THROUGH the link before replacing it, so the main checkout -- and every
+  # tree linked to it -- lost all its packages at once. When the main root is
+  # empty this says so, and `--heal` reinstalls it there (never here).
+  #
+  # `--own` is the way out for a tree that really must install: it turns each
+  # link (root AND per-app -- render/player links are just as shared) into the
+  # tree's own copy, cloned copy-on-write where the disk can, so an install
+  # there empties only the copy.
+  local heal=0 own=0 arg path=""
+  for arg in "$@"; do
+    case "$arg" in
+      --heal) heal=1 ;;
+      --own) own=1 ;;
+      -*) bad "unknown flag: $arg (tri deps [--heal] [--own] [path])"; return 1 ;;
+      *) path="$arg" ;;
+    esac
+  done
   local wt main made
-  wt="$(git -C "${1:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" \
-    || { bad "not inside a git tree: ${1:-$PWD}"; return 1; }
+  wt="$(git -C "${path:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" \
+    || { bad "not inside a git tree: ${path:-$PWD}"; return 1; }
   main="$(dirname "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)")"
   if [ "$wt" = "$main" ]; then
     good "$wt is the main checkout -- nothing to link"
+    [ "$own" = 1 ] && echo "  note --own does nothing here: the main checkout's node_modules are its own"
   else
     made="$(link_deps "$main" "$wt")"
     if [ -n "$made" ]; then
@@ -3355,6 +3414,7 @@ cmd_deps() {
     else
       good "every node_modules the main tree has is already here"
     fi
+    [ "$own" = 1 ] && { own_deps "$main" "$wt" || return 1; }
   fi
   local bin rc=0
   for bin in node_modules/.bin/esbuild node_modules/.bin/vitest \
@@ -3366,7 +3426,93 @@ cmd_deps() {
       bad "missing $bin -- the gate that calls it will fail on ENOENT, not on code"; rc=1
     fi
   done
+  # A link carries the MAIN checkout's install, and that follows the main
+  # checkout's branch, not this tree's (2026-10-03: main sat on an old branch,
+  # its install had no `redis`, and every tree on origin/main failed root
+  # typecheck on "Cannot find module 'redis'" -- read as a code fault).
+  local rel missing
+  while IFS= read -r rel; do
+    [ -f "$wt/$rel/package.json" ] && [ -d "$wt/$rel/node_modules" ] || continue
+    missing="$(node -e '
+      const fs = require("fs"), p = require("path"), d = process.argv[1]
+      const pkg = JSON.parse(fs.readFileSync(p.join(d, "package.json"), "utf8"))
+      const names = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })
+      const gone = names.filter(n => !fs.existsSync(p.join(d, "node_modules", n, "package.json")))
+      process.stdout.write(gone.join(" "))
+    ' "$wt/$rel" 2>/dev/null)"
+    [ -z "$missing" ] && continue
+    rc=1
+    bad "$([ "$rel" = . ] && echo root || echo "$rel") declares packages its node_modules lacks: $missing"
+    if [ -L "$wt/$rel/node_modules" ]; then
+      echo "       the link carries $main's install, made for ITS branch; fix: tri deps --own, then install in this tree"
+    else
+      echo "       install here, in $wt/$rel"
+    fi
+  done < <(cd "$wt" && { echo .; find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/' | sed 's|/node_modules$||'; })
+  [ "$wt" != "$main" ] && [ -L "$wt/node_modules" ] && \
+    echo "  note no root npm ci / bun install in this tree: node_modules is the main checkout's, and an install empties it (tri deps --own first)"
+  local state
+  state="$(nm_state "$main/node_modules")"
+  if [ "$state" != ok ]; then
+    rc=1
+    bad "the main checkout's node_modules is $(tr "[:lower:]" "[:upper:]" <<<"$state") -- a root install through a linked tree does this (npm empties the link's target first)"
+    if [ "$heal" = 1 ]; then
+      # bun.lock drifts on install. Put it back only when nobody was editing
+      # the dependencies: a dirty bun.lock or package.json is someone's work.
+      local dirty
+      dirty="$(git -C "$main" status --porcelain -- bun.lock package.json)"
+      echo "  ...  bun install in $main"
+      if (cd "$main" && bun install --no-summary >/dev/null 2>&1); then
+        if [ -z "$dirty" ]; then
+          git -C "$main" checkout -q -- bun.lock 2>/dev/null
+        else
+          echo "  note bun.lock left as the install wrote it: bun.lock/package.json were already edited"
+        fi
+        good "main checkout reinstalled -- run tri deps again"
+      else
+        bad "bun install failed in $main"
+      fi
+    else
+      echo "       restore: tri deps --heal   (runs bun install in $main, never in a worktree)"
+    fi
+  fi
   return $rc
+}
+
+# Replace every node_modules LINK in the worktree with a real copy of what it
+# points at. Only links into the main checkout are touched; a real directory
+# is already the tree's own. `cp -c` clones on APFS (near-free), `--reflink`
+# does the same on Linux filesystems that can, else it is a plain copy.
+own_deps() {
+  local main="$1" wt="$2" rel target link n=0
+  while IFS= read -r rel; do
+    [ -z "$rel" ] && continue
+    target="$(readlink "$wt/$rel")"
+    case "$target" in
+      "$main"/*) ;;
+      *) echo "  skip $rel -> $target (not the main checkout's)"; continue ;;
+    esac
+    [ -d "$target" ] || { bad "$rel links to a missing $target -- nothing to copy"; return 1; }
+    # A target that is itself a link would be copied AS a link (cp -R does not
+    # follow it), and the tree would still share an install. Copy what it means.
+    link="$target"
+    target="$(cd -P "$target" && pwd)" || return 1
+    rm -- "$wt/$rel" || return 1
+    # A copy that dies half-way leaves a half tree, and the next cp would nest
+    # into it (cp -R SRC EXISTING_DIR copies INTO the dir). Clear between tries.
+    if cp -Rc "$target" "$wt/$rel" 2>/dev/null \
+        || { rm -rf -- "${wt:?}/${rel:?}"; cp -R --reflink=auto "$target" "$wt/$rel" 2>/dev/null; } \
+        || { rm -rf -- "${wt:?}/${rel:?}"; cp -R "$target" "$wt/$rel"; }; then
+      echo "  own  $rel"; n=$((n + 1))
+    else
+      bad "copy of $rel failed -- relink with: ln -s $link $wt/$rel"; return 1
+    fi
+  done < <(cd "$wt" && { [ -L node_modules ] && echo node_modules; find apps -type l -name node_modules 2>/dev/null | grep -v '/node_modules/'; })
+  if [ "$n" = 0 ]; then
+    good "no linked node_modules here -- the tree's are already its own"
+  else
+    good "$n node_modules now belong to this tree -- an install here empties only them"
+  fi
 }
 
 cmd_worktree() {
@@ -7718,6 +7864,7 @@ case "$action" in
   # "the id is wrong" for free. Two seconds, and the balance is read before and
   # after so "it cost nothing" is measured rather than claimed.
   kie)                 node "$ROOT/scripts/kie-probe.mjs" "$@" ;;
+  reel-check)          python3 "$ROOT/scripts/reel-check.py" "$@" ;;
   # MEASURE FIRST, THEN DRAW. Building the board without a fresh snapshot is
   # how it came to show only my end-of-cycle prose. --quick skips the merge gate
   # (a full tsc, vitest and an Xcode build); `tri status` runs the slow one.

@@ -3,6 +3,11 @@
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import { запомнитьНомер } from './src/agent/known-phone'
 import { soul } from './src/agent/chat'
+import {
+  assertReplicateLive,
+  CLONE_NEEDS_REPLICATE,
+  replicateLive,
+} from './src/replicate-off'
 import { удалитьСвоёФото } from './src/assets/delete-own-photo'
 import { serviceOwnerFromKey } from './src/auth/service-owner'
 import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from './src/agent/kie-web-provider'
@@ -290,6 +295,28 @@ function assertFetchable(
     }
   }
   return u
+}
+
+/** The body Kie's ElevenLabs TTS takes, for the first leg and the last. */
+function kieSpeechInput(
+  text: string,
+  voice_name: unknown,
+  speed: unknown
+): Record<string, unknown> {
+  return {
+    text,
+    // Only a name ElevenLabs knows ("Rachel"): the app's list is MiniMax names
+    // now, and a foreign string costs a refusal on the leg tried first.
+    voice: имяДляElevenLabs(voice_name) ?? 'Rachel',
+    stability: 0.5,
+    similarity_boost: 0.75,
+    style: 0,
+    speed: Number.isFinite(Number(speed)) ? Number(speed) : 1,
+    timestamps: false,
+    previous_text: '',
+    next_text: '',
+    language_code: '',
+  }
 }
 
 async function runExplicitKieJob(
@@ -4129,6 +4156,7 @@ const server = createServer(async (req, res) => {
     prompt: string,
     aspectRatio: string
   ): Promise<string> {
+    assertReplicateLive() // src/replicate-off.ts: no balance, Kie only
     const REPLICATE_TOKEN =
       process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
     if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
@@ -4203,6 +4231,7 @@ const server = createServer(async (req, res) => {
       trustedClone?: boolean
     } = {} // cyrillic-ok: existing parameter
   ): Promise<string> {
+    assertReplicateLive() // src/replicate-off.ts: no balance, Kie only
     const REPLICATE_TOKEN =
       process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
     if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
@@ -4591,6 +4620,7 @@ const server = createServer(async (req, res) => {
     durationSec: ReplicateVideoLength,
     aspectRatio: string
   ): Promise<string> {
+    assertReplicateLive() // src/replicate-off.ts: no balance, Kie only
     const REPLICATE_TOKEN =
       process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
     if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
@@ -5437,7 +5467,12 @@ const server = createServer(async (req, res) => {
         receipt = billed.receipt
         billedSpendId = billed.spendId
 
-        if (typeof model === 'string' && model.startsWith('kie/')) {
+        // A clone is not a Kie voice: Kie would answer it in Rachel's.
+        if (
+          !cloneVoice &&
+          typeof model === 'string' &&
+          model.startsWith('kie/')
+        ) {
           /**
            * ОТКАЗ KIE НЕ ЗАВЕРШАЕТ ЗАПРОС — переходим на запасной путь ниже.
            *
@@ -5460,27 +5495,10 @@ const server = createServer(async (req, res) => {
            */
           try {
             const kieModel = reviewedKieModel('audio', model)!
-            const result = await runExplicitKieJob(kieModel, {
-              text,
-              /*
-               * ИМЯ — ТОЛЬКО ТО, ЧТО ЭТОТ ПРОВАЙДЕР УЗНАЕТ.
-               *
-               * Здесь стояло «взять `voice_name` как есть», и это было верно,
-               * пока список голосов был от ElevenLabs. Теперь он от MiniMax:
-               * приходит «Максим — уверенный», а нога ждёт «Rachel». Чужая
-               * строка даёт отказ на ПЕРВОЙ ноге — то есть удлиняет путь до
-               * звука ради имени, которого здесь не поймут.
-               */
-              voice: имяДляElevenLabs(voice_name) ?? 'Rachel',
-              stability: 0.5,
-              similarity_boost: 0.75,
-              style: 0,
-              speed: Number.isFinite(Number(speed)) ? Number(speed) : 1,
-              timestamps: false,
-              previous_text: '',
-              next_text: '',
-              language_code: '',
-            })
+            const result = await runExplicitKieJob(
+              kieModel,
+              kieSpeechInput(text, voice_name, speed)
+            )
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(
               JSON.stringify({
@@ -5573,25 +5591,49 @@ const server = createServer(async (req, res) => {
             timedSpeech.normalized_alignment ?? timedSpeech.alignment!
           )
         } catch (elevenErr) {
-          console.warn(
-            `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Replicate TTS`
-          )
-          const audioUrl = await generateAudioViaReplicate(text, {
-            // `voice_id` — то, что прислал клиент; чужой идентификатор
-            // `входМиниМакс` отбросит сам, а не отправит провайдеру.
-            voice: voice_id,
-            clone: cloneVoice,
-            speed,
-            // A MiniMax clone is honoured only when the service itself asks
-            // (the agent's audio_generate), never from a person.
-            trustedClone: authenticate(req).via === 'api-key',
-          })
-          const dl = await fetch(audioUrl)
-          if (!dl.ok) {
-            throw new Error(`Replicate audio download failed: ${dl.status}`)
+          if (!replicateLive()) {
+            /*
+             * REPLICATE IS OFF (src/replicate-off.ts): the last leg is Kie's
+             * ElevenLabs, the funded purse. A clone cannot be spoken there --
+             * Kie has no speech cloning -- so it is refused, and the catch
+             * below refunds what was charged, rather than read in a stranger's
+             * voice under the person's name.
+             */
+            if (cloneVoice) throw new Error(CLONE_NEEDS_REPLICATE)
+            console.warn(
+              `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Kie TTS`
+            )
+            const kieTts = 'elevenlabs/text-to-speech-multilingual-v2'
+            const spoken = await runExplicitKieJob(
+              kieTts,
+              kieSpeechInput(text, voice_name, speed)
+            )
+            const got = await fetch(spoken.url)
+            if (!got.ok)
+              throw new Error(`Kie audio download failed: ${got.status}`)
+            audioBuffer = Buffer.from(await got.arrayBuffer())
+            audioProvider = `kie/${kieTts}`
+          } else {
+            console.warn(
+              `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Replicate TTS`
+            )
+            const audioUrl = await generateAudioViaReplicate(text, {
+              // `voice_id` — то, что прислал клиент; чужой идентификатор
+              // `входМиниМакс` отбросит сам, а не отправит провайдеру.
+              voice: voice_id,
+              clone: cloneVoice,
+              speed,
+              // A MiniMax clone is honoured only when the service itself asks
+              // (the agent's audio_generate), never from a person.
+              trustedClone: authenticate(req).via === 'api-key',
+            })
+            const dl = await fetch(audioUrl)
+            if (!dl.ok) {
+              throw new Error(`Replicate audio download failed: ${dl.status}`)
+            }
+            audioBuffer = Buffer.from(await dl.arrayBuffer())
+            audioProvider = 'replicate/minimax-speech-02-turbo'
           }
-          audioBuffer = Buffer.from(await dl.arrayBuffer())
-          audioProvider = 'replicate/minimax-speech-02-turbo'
         }
         console.log(
           `✅ [Generate] Audio received: ${audioBuffer.length} bytes (${audioProvider})`
