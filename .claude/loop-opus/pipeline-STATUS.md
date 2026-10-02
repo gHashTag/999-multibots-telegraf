@@ -144,7 +144,7 @@ no Telegram initData» — дословно тот случай, ради кот
 когда симулятор перезагружался, и не встала. Проверка одной командой:
 
 ```bash
-ls -la "$(xcrun simctl get_app_container UDID ai.t27.vibee)/Vibee"
+ls -la "$(xcrun simctl get_app_container UDID ai.t27.trinity)/Vibee"
 ```
 
 Сверять время установленного двоичного файла со временем сборки — дешевле,

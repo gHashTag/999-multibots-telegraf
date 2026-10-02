@@ -12,7 +12,7 @@
 	-->
 	<key>keychain-access-groups</key>
 	<array>
-		<string>ai.t27.vibee</string>
+		<string>ai.t27.trinity</string>
 	</array>
 </dict>
 </plist>

@@ -27,7 +27,7 @@ xcodebuild -project Vibee.xcodeproj -target Vibee \
   SYMROOT=$PWD/build2 build
 
 xcrun simctl install booted build2/Debug-iphonesimulator/Vibee.app
-xcrun simctl launch booted ai.t27.vibee
+xcrun simctl launch booted ai.t27.trinity
 ```
 
 ## Одна полоса вкладок, а не две
@@ -78,9 +78,9 @@ the review submission stays a click in App Store Connect.
 ✓ the scheme has archive destinations (iOS platform installed)
 ✓ Apple Distribution certificate in the keychain
 ✓ App Store Connect key R3JF4GL93F (file)
-✓ app id    ai.t27.vibee is registered (Vibee, UNIVERSAL)
+✓ app id    ai.t27.trinity is registered (Trinity S3AI, UNIVERSAL)
 ✓ fastlane build_only -> signed build/ipa/Vibee.ipa (1.1 MB)
-[!] App Store Connect has no app with bundle id ai.t27.vibee.
+[!] App Store Connect has no app with bundle id ai.t27.trinity.
 ```
 
 The App ID was registered through the API key the same night
@@ -88,8 +88,14 @@ The App ID was registered through the API key the same night
 account holder can do it, once:
 
 - **The app record** - App Store Connect -> Apps -> + -> New App, platform
-  iOS, bundle id `ai.t27.vibee`. Apple's API cannot create one, and
+  iOS, name **Trinity S³AI**, bundle id `ai.t27.trinity`, SKU
+  `trinity-s3ai`. Apple's API cannot create one, and
   `fastlane produce` needs an Apple ID password, so no lane does.
+
+"Vibee" is the app's OLD name. It survives only inside the project (the
+directory, the scheme, `VIBEE_*` variables). The bundle id moved to
+`ai.t27.trinity` before any record existed, and nothing a person sees may say
+Vibee (`scripts/ios-app-name.test.ts`).
 
 After that `tri iphone store` should end in `next build N is above the
 latest M`, and `tri iphone testflight --yes` uploads.

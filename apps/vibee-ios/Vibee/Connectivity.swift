@@ -27,7 +27,7 @@ final class Connectivity: ObservableObject {
       let now = path.status == .satisfied
       Task { @MainActor in self?.update(online: now) }
     }
-    monitor.start(queue: DispatchQueue(label: "ai.t27.vibee.connectivity"))
+    monitor.start(queue: DispatchQueue(label: "ai.t27.trinity.connectivity"))
   }
 
   func update(online now: Bool) {
