@@ -503,6 +503,11 @@ CHECKS THAT EACH COST A CYCLE
         tool call rather than on the user row, and a line that says "not
         asked" every time is furniture.
 
+  tri pr-billing N
+        Is every failing check on PR N the Actions billing stop? rc 0 only if
+        all are; an empty annotation (dropped connection) is re-asked, then
+        counted UNKNOWN -- never billing.
+
   tri readers [--gate | --run FILE...] | tri читатели
         Tests that read source as TEXT, and the paths they still believe in.
 
@@ -3209,6 +3214,52 @@ cmd_readers() {
     return $rc
   fi
   ( cd "$ROOT" && node "$ROOT/scripts/text-readers.cjs" "$@" )
+}
+
+cmd_pr_billing() {
+  # Is every failing check on a PR the Actions billing stop, and nothing else?
+  #   tri pr-billing N    rc 0 only if EVERY failing check run says so
+  #
+  # GitHub Actions has not run a job here since 2026-06-02 (billing), so every
+  # PR shows ~17 red checks and the merge rule is "each one must be billing".
+  # That was checked by hand in a shell loop every time, and on 2026-10-02 a
+  # dropped connection returned an EMPTY annotation list: the loop printed
+  # "NOT BILLING" for a job that had never started. An empty answer is
+  # re-asked (3 tries) and, if still empty, counted as UNKNOWN -- never as
+  # billing, never as a real failure.
+  # TRI_GH: tri puts /opt/homebrew/bin first on PATH, so a stub gh on PATH
+  # is silently bypassed -- the negative control needs a named seam.
+  local gh="${TRI_GH:-gh}"
+  local pr="${1:-}" repo="${TRI_GH_REPO:-gHashTag/999-multibots-telegraf}"
+  [ -n "$pr" ] || { echo "usage: tri pr-billing PR_NUMBER" >&2; return 2; }
+  local sha ids id name msg try billing=0 other=0 unknown=0
+  sha=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid --jq .headRefOid) \
+    || { bad "PR $pr not found in $repo"; return 2; }
+  ids=$("$gh" api "repos/$repo/commits/$sha/check-runs?per_page=100" \
+    --jq '.check_runs[]|select(.conclusion=="failure")|"\(.id)\t\(.name)"') \
+    || { bad "could not list check runs for $sha"; return 2; }
+  if [ -z "$ids" ]; then good "PR $pr: no failing checks"; return 0; fi
+  while IFS=$'\t' read -r id name; do
+    msg=""
+    for try in 1 2 3; do
+      msg=$("$gh" api "repos/$repo/check-runs/$id/annotations" --jq '.[].message' 2>/dev/null) && [ -n "$msg" ] && break
+      sleep 2
+    done
+    if printf '%s' "$msg" | /usr/bin/grep -q "recent account payments have failed"; then
+      billing=$((billing + 1))
+    elif [ -z "$msg" ]; then
+      unknown=$((unknown + 1)); skip "$name ($id): no annotation after 3 tries"
+    else
+      other=$((other + 1)); bad "$name ($id): $(printf '%s' "$msg" | head -1)"
+    fi
+  done <<< "$ids"
+  echo "  --   PR $pr @ ${sha:0:9}: $billing billing, $other other, $unknown unknown"
+  if [ $other -eq 0 ] && [ $unknown -eq 0 ]; then
+    good "every failing check is the billing stop -- merge is allowed"
+    return 0
+  fi
+  bad "not every failure is billing -- read the ones above before merging"
+  return 1
 }
 
 cmd_pay() {
@@ -6280,6 +6331,7 @@ case "$action" in
   watches|сторожа)   cmd_watches "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
+  pr-billing)        cmd_pr_billing "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
   clone|клон)        cmd_clone "$@" ;;
   deploy-config|конфиг-деплоя) cmd_deploy_config "$@" ;;
@@ -6289,7 +6341,7 @@ case "$action" in
   ton-verify)         cmd_ton_verify "$@" ;;
   fn-liveness|живость-функций) cmd_fn_liveness "$@" ;;
   timeouts|таймауты)  cmd_timeouts "$@" ;;
-  inflight|блокировка) cmd_inflight "@" ;;
+  inflight|блокировка) cmd_inflight "$@" ;;
   leaks|утечки)        cmd_leaks "$@" ;;
   replay|повтор)       cmd_replay "$@" ;;
   mint|минт)           cmd_mint "$@" ;;
