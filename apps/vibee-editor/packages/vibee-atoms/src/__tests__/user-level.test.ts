@@ -65,4 +65,21 @@ describe('user levels', () => {
     expect(crmShows('blogger', 'funnel')).toBe(false)
     expect(crmShows('developer', 'revenue')).toBe(true)
   })
+  it('never offers a shortcut to a CRM tab the level does not draw', () => {
+    // Crm.tsx sends a tab the level hides back to "work" without a word, so
+    // such a shortcut is a button that does nothing.
+    const needs: Record<string, 'map' | 'leadSections'> = {
+      map: 'map',
+      leads: 'leadSections',
+      events: 'leadSections',
+    }
+    for (const level of USER_LEVELS) {
+      for (const { to } of LEVEL_SHORTCUTS[level]) {
+        const tab = new URL(to, 'https://t27.ai').searchParams.get('tab')
+        if (!tab || tab === 'work') continue
+        expect(needs[tab], `${level} ${to}`).toBeDefined()
+        expect(crmShows(level, needs[tab]), `${level} ${to}`).toBe(true)
+      }
+    }
+  })
 })
