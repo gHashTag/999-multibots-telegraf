@@ -24,6 +24,7 @@ description: 'Measure a screen of the app on a PHONE, not in jsdom: `tri shot <h
 ./bin/tri shot crm                        # the /crm list itself: work, contacts, search
 ./bin/tri shot all                        # все стенды × 390 ru, 390 en, 320 ru — для ворот
 TRI_SHOT_JOBS=1 ./bin/tri shot all        # по одному (по умолчанию 3 сразу, один Vite на всех)
+./bin/tri shot watch                      # all + compare with the last run; exit 1 only if worse
 ```
 
 `all` поднимает ОДИН dev-сервер и раздаёт его прогонам (`TRI_SHOT_BASE`):
@@ -45,6 +46,25 @@ small 0, cut 0, overlap 0, order 0 · <png>`. Код 0 — чисто, 1 — к�
 ИЗМЕРЕНО (это не «зелено»). Снимки — `.git/tri-shot/<name>-<state>-<width>-<lang>.png`.
 Вердикт уходит в `tri gate` — отдельной записью на ширину И язык
 (`shot my-story 390 ru`): до витка 13 английский прогон затирал русский.
+
+### On a clock: `tri shot watch`
+
+`all` answers "is every stand green NOW"; nobody runs it between PRs, so a
+stand that main turned red through somebody else's change stays red until
+the next person happens to look. `tri shot watch` runs `all`, keeps one
+verdict per stand (name x width x language) in `~/.cache/tri/shot-watch.json`
+and prints only the change:
+
+- `worse` -- green -> RED, anything -> NOT MEASURED, more problems on a red
+  stand, a new stand that is not green, a stand that vanished from `all`;
+- `better` -- the reverse; everything else is one count line.
+
+Exit 0 nothing got worse, 1 something did, 2 nothing was measured -- and then
+the state file is NOT rewritten, so "the dev server did not start" never
+becomes the baseline the next run compares to. It sends nothing anywhere: a
+scheduler reads the exit code. `--from FILE` parses saved `all` output (that
+is how `scripts/shot-watch.test.ts` drives it without a browser);
+`--state FILE` keeps a second history, e.g. one per branch.
 
 ## Что меряется
 
