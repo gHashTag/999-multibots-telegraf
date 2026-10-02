@@ -407,7 +407,8 @@ export async function sendToAgent(
         const parsed = JSON.parse(raw)
         if (parsed && typeof parsed === 'object') body = parsed
       } catch {
-        body = { error: raw.slice(0, 200) }
+        // Not JSON: an HTML 502 page from the edge, a proxy's plain text.
+        // Neither is a reason a person can act on; the status sentence is.
       }
       patch(agentId, m => ({
         ...m,
