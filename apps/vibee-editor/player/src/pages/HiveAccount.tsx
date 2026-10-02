@@ -208,18 +208,48 @@ export default function HiveAccount() {
     }, 'hiveAccount.checkedAll')
   }
 
-  const loadCatalog = (provider: HiveKey['provider']) => {
-    if (catalogRequests.current.has(provider)) return
-    catalogRequests.current.add(provider)
+  // Each provider the person has keys of gets its catalog once per account:
+  // the dropdown lists what the provider serves, not a guess.
+  const keyedProviders = account
+    ? account.providers
+        .filter(provider =>
+          account.keys.some(key => key.provider === provider.id)
+        )
+        .map(provider => provider.id)
+        .join(',')
+    : ''
+  useEffect(() => {
+    if (!keyedProviders) return
     const epoch = generation.current
-    // Suggestions only: a failed catalog leaves the field free to type in.
-    loadHiveModels(provider, new AbortController().signal)
-      .then(catalog => {
-        if (epoch === generation.current && Array.isArray(catalog?.models))
-          setCatalogs(current => ({ ...current, [provider]: catalog.models }))
-      })
-      .catch(() => catalogRequests.current.delete(provider))
-  }
+    const controller = new AbortController()
+    for (const provider of keyedProviders.split(',') as HiveKey['provider'][]) {
+      if (catalogRequests.current.has(provider)) continue
+      catalogRequests.current.add(provider)
+      loadHiveModels(provider, controller.signal)
+        .then(catalog => {
+          if (epoch === generation.current && Array.isArray(catalog?.models))
+            setCatalogs(current => ({ ...current, [provider]: catalog.models }))
+        })
+        .catch(() => {
+          // The dropdown keeps the current and default models; retry later.
+          catalogRequests.current.delete(provider)
+          if (epoch === generation.current)
+            setCatalogs(current => ({ ...current, [provider]: [] }))
+        })
+    }
+    return () => controller.abort()
+  }, [keyedProviders])
+
+  /** The current and default model first, then the provider's catalog. */
+  const modelChoices = (provider: HiveKeyAccount['providers'][number]) => [
+    ...new Set(
+      [
+        provider.model,
+        provider.defaultModel ?? '',
+        ...(catalogs[provider.id] ?? []),
+      ].filter(Boolean)
+    ),
+  ]
 
   /** Whether applying `model` would change at least one key of the provider. */
   const differs = (provider: HiveKey['provider'], model: string) =>
@@ -314,52 +344,6 @@ export default function HiveAccount() {
 
       {account && !loading && (
         <>
-          <section
-            className="hive-account__attribution"
-            aria-labelledby="hive-attribution"
-          >
-            <h2 id="hive-attribution">{t('hiveAccount.attribution')}</h2>
-            <p>
-              {account.attribution.github ? (
-                <strong>@{account.attribution.github}</strong>
-              ) : (
-                t('hiveAccount.unlinked')
-              )}
-            </p>
-            <p className="hive-account__muted">
-              {t('hiveAccount.attributionNote')}
-            </p>
-            <dl className="hive-account__totals">
-              <div>
-                <dt>{t('hiveAccount.xp')}</dt>
-                <dd>{account.contribution.xp.toLocaleString(lang)}</dd>
-              </div>
-              <div>
-                <dt>{t('hiveAccount.accepted')}</dt>
-                <dd>{account.contribution.accepted}</dd>
-              </div>
-              <div>
-                <dt>{t('hiveAccount.specs')}</dt>
-                <dd>{account.contribution.specs}</dd>
-              </div>
-              <div>
-                <dt>{t('hiveAccount.hours')}</dt>
-                <dd>
-                  {account.contribution.hours.toLocaleString(lang, {
-                    maximumFractionDigits: 1,
-                  })}
-                </dd>
-              </div>
-            </dl>
-            <p className="hive-account__muted">
-              {t('hiveAccount.scoring', {
-                accepted: account.scoring.acceptedXp,
-                spec: account.scoring.specXp,
-                hour: account.scoring.hourXp,
-              })}
-            </p>
-          </section>
-
           {account.providers.some(provider =>
             account.keys.some(key => key.provider === provider.id)
           ) && (
@@ -411,17 +395,10 @@ export default function HiveAccount() {
                         </div>
                         <label>
                           {t('hiveAccount.modelLabel')}
-                          <input
+                          <select
                             name={`model-${provider.id}`}
-                            type="text"
-                            list={`hive-models-${provider.id}`}
                             value={draft}
-                            maxLength={128}
-                            spellCheck={false}
-                            autoCapitalize="none"
-                            autoComplete="off"
                             disabled={busy}
-                            onFocus={() => loadCatalog(provider.id)}
                             onChange={event => {
                               const value = event.currentTarget.value
                               setDrafts(drafted => ({
@@ -429,18 +406,22 @@ export default function HiveAccount() {
                                 [provider.id]: value,
                               }))
                             }}
-                            onKeyDown={event => {
-                              if (event.key === 'Enter') {
-                                event.preventDefault()
-                                switchModel(provider.id)
-                              }
-                            }}
-                          />
-                          <datalist id={`hive-models-${provider.id}`}>
-                            {(catalogs[provider.id] ?? []).map(model => (
-                              <option key={model} value={model} />
+                          >
+                            {modelChoices(provider).map(model => (
+                              <option key={model} value={model}>
+                                {model}
+                              </option>
                             ))}
-                          </datalist>
+                          </select>
+                          {catalogs[provider.id] === undefined ? (
+                            <span className="hive-account__muted">
+                              {t('hiveAccount.modelsLoading')}
+                            </span>
+                          ) : catalogs[provider.id]!.length === 0 ? (
+                            <span className="hive-account__muted">
+                              {t('hiveAccount.modelsUnavailable')}
+                            </span>
+                          ) : null}
                         </label>
                         <button
                           type="button"
@@ -456,6 +437,52 @@ export default function HiveAccount() {
               </ul>
             </section>
           )}
+
+          <section
+            className="hive-account__attribution"
+            aria-labelledby="hive-attribution"
+          >
+            <h2 id="hive-attribution">{t('hiveAccount.attribution')}</h2>
+            <p>
+              {account.attribution.github ? (
+                <strong>@{account.attribution.github}</strong>
+              ) : (
+                t('hiveAccount.unlinked')
+              )}
+            </p>
+            <p className="hive-account__muted">
+              {t('hiveAccount.attributionNote')}
+            </p>
+            <dl className="hive-account__totals">
+              <div>
+                <dt>{t('hiveAccount.xp')}</dt>
+                <dd>{account.contribution.xp.toLocaleString(lang)}</dd>
+              </div>
+              <div>
+                <dt>{t('hiveAccount.accepted')}</dt>
+                <dd>{account.contribution.accepted}</dd>
+              </div>
+              <div>
+                <dt>{t('hiveAccount.specs')}</dt>
+                <dd>{account.contribution.specs}</dd>
+              </div>
+              <div>
+                <dt>{t('hiveAccount.hours')}</dt>
+                <dd>
+                  {account.contribution.hours.toLocaleString(lang, {
+                    maximumFractionDigits: 1,
+                  })}
+                </dd>
+              </div>
+            </dl>
+            <p className="hive-account__muted">
+              {t('hiveAccount.scoring', {
+                accepted: account.scoring.acceptedXp,
+                spec: account.scoring.specXp,
+                hour: account.scoring.hourXp,
+              })}
+            </p>
+          </section>
 
           <section className="hive-account__keys" aria-labelledby="hive-keys">
             <div className="hive-account__section-heading">
