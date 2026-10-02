@@ -90,6 +90,7 @@ import {
   PORTRAIT_FRAMING_SUFFIX,
 } from './client-face'
 import { makeClientFaceTool } from './client-face-tool'
+import { isClientFacing } from './client-facing'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
@@ -2102,6 +2103,31 @@ export const TOOLS: AgentTool[] = [
           // through the tool to the feed row, so a grep for `provider` finds
           // the whole path instead of three translations of it.
           provider: servedBy,
+          tried: refusals,
+        }
+      }
+      /*
+       * A STAMPED PICTURE NEVER REACHES A CLIENT'S CHAT (bee review of #3414).
+       *
+       * On the business surface every word the agent writes goes to the
+       * client in the owner's name, so a URL in this result is a URL the
+       * client sees -- and the free leg prints "pollinations.ai" on whatever
+       * it draws. The hint below used to be the only thing in the way, and a
+       * hint is a request. Here the client is refunded and the model gets no
+       * URL to pass on: nothing stamped is saved in the client's files.
+       */
+      if (watermark && isClientFacing(ctx.surface)) {
+        await refundTokens(
+          ctx,
+          'image_generate',
+          'картинка со знаком бесплатного провайдера',
+          charge['потрачено']
+        )
+        return {
+          сделано: false, // cyrillic-ok: the tools’ answer fields
+          причина: `сейчас картинку рисует только бесплатный провайдер, и на ней знак ${watermark} — клиенту такое не отдаём; деньги возвращены. Скажи клиенту, что картинку пришлёт владелец, или сделай её по его фото через image_edit`, // cyrillic-ok: the tools’ answer fields
+          provider: servedBy,
+          watermark,
           tried: refusals,
         }
       }
