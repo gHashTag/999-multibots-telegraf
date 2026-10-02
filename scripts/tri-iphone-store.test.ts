@@ -307,6 +307,13 @@ describe.skipIf(!hasRuby)('TestFlight notes (test_notes.rb)', () => {
     ])
   })
 
+  it('a hand-written CHANGELOG is cut to the limit in characters', () => {
+    expect(
+      notes('print TestNotes.cap(ARGV[0]).length', '\u0416'.repeat(4100))
+    ).toBe('4000')
+    expect(notes('print TestNotes.cap(nil).inspect')).toBe('""')
+  })
+
   it('no git history is an empty note, not a crash after the archive', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'no-git-'))
     try {
@@ -323,6 +330,7 @@ describe.skipIf(!hasRuby)('TestFlight notes (test_notes.rb)', () => {
     )
     expect(fastfile).toContain('require_relative "test_notes"')
     expect(fastfile).toContain('TestNotes.collect(IOS_DIR)')
+    expect(fastfile).toContain('TestNotes.cap(ENV["CHANGELOG"]')
     expect(fastfile).not.toContain('last_git_commit')
     expect(fastfile).toMatch(/Internal Testing/)
   })
