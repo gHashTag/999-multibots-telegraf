@@ -79,6 +79,19 @@ describe('a failed generation, in the reader language', () => {
     }
   })
 
+  it('a clip over the ceiling says too long, the limit after', () => {
+    const r = {
+      code: 'too_long',
+      detail: 'lipsync audio must be 10 seconds or shorter',
+    }
+    const en = generationRefusalText(r, 'en')
+    expect(en.split('\n')[0]).toBe(GENERATION_REFUSALS.too_long.en)
+    expect(en).toContain('10 seconds')
+    expect(generationRefusalText(r, 'ru').split('\n')[0]).toBe(
+      GENERATION_REFUSALS.too_long.ru
+    )
+  })
+
   it('an unknown code or none is an honest "did not work"', () => {
     expect(generationRefusalText({ code: 'newer', detail: '' }, 'en')).toBe(
       "It didn't work — try again"
