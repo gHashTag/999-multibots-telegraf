@@ -176,8 +176,10 @@ skip» записана в спеке (`meta-connect.t27`, навык `t27-spec-
   (отказ по оплате). Все правки этого этапа влиты БЕЗ единой проверки.
 - iOS to TestFlight (re-measured 2026-10-03, `tri iphone store`): the icon,
   the Apple Distribution certificate and the ASC key are all in place;
-  what is missing is the App ID `ai.t27.trinity` and its App Store Connect
-  record - both the account holder's clicks (the API cannot create an app).
+  the App ID `ai.t27.trinity` is registered (#3410; "Vibee" is the OLD name,
+  never offer it to the owner). What is missing is the App Store Connect
+  record - the account holder's click (the API cannot create an app):
+  Name Trinity S³AI, bundle id `ai.t27.trinity`, SKU `trinity-s3ai`.
   Then `tri iphone testflight --yes`, on his "yes" only.
 - XAI_API_KEY отсутствует, ELEVENLABS_API_KEY хранит идентификатор вместо
   ключа, баланс fal.ai исчерпан: три вида генерации из пяти мертвы.

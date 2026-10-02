@@ -57,14 +57,15 @@ describe('iOS app name and bundle id', () => {
   })
 
   it('the keychain group matches the bundle id', () => {
-    for (const f of [
-      'Vibee/Vibee.entitlements',
-      'Vibee/Vibee-Simulator.entitlements',
-    ]) {
-      // The simulator file has no $(AppIdentifierPrefix): ad-hoc signing cannot
-      // resolve it and drops the whole dictionary.
-      expect(read(f)).toContain('ai.t27.trinity</string>')
-    }
+    // The device needs the team prefix; the simulator file must NOT have it:
+    // ad-hoc signing cannot resolve $(AppIdentifierPrefix) and drops the whole
+    // dictionary, and Keychain answers -34018.
+    expect(read('Vibee/Vibee.entitlements')).toContain(
+      '<string>$(AppIdentifierPrefix)ai.t27.trinity</string>'
+    )
+    const sim = read('Vibee/Vibee-Simulator.entitlements')
+    expect(sim).toContain('<string>ai.t27.trinity</string>')
+    expect(sim).not.toContain('$(AppIdentifierPrefix)ai.t27')
   })
 
   it('the home-screen name is Trinity S³AI', () => {
