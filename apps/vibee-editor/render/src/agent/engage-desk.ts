@@ -29,7 +29,7 @@
  * Switched on by ENGAGE_DESK_ENABLED=1 on the render service.
  */
 import type { Queryable } from '../browser/sessions'
-import type { Article } from './blog-share'
+import { summaryWithEvidence, type Article } from './blog-share'
 import { draftIsSafe } from './reddit'
 import * as SPEC from '../spec/engage-desk.gen'
 
@@ -441,7 +441,7 @@ export function draftPrompt(
       : '',
     '',
     article
-      ? `His related article: "${article.title}" -- ${article.summary.slice(0, 400)}${linkOk ? ` (${article.link})` : ''}`
+      ? `His related article: "${article.title}" -- ${summaryWithEvidence({ ...article, summary: article.summary.slice(0, 400) })}${linkOk ? ` (${article.link})` : ''}`
       : '',
     '',
     `The network's rules: ${NETWORK_RULES[network].rules}`,

@@ -20,13 +20,19 @@ import {
   questionFor,
   xThread,
   staticArticleUrl,
+  summaryWithEvidence,
 } from './src/agent/blog-share'
+import { postFor } from './src/agent/reddit'
 
 const RSS = `<?xml version="1.0"?><rss><channel>
 <item><title>The FPGA row was corrected &amp; checked</title><link>https://t27.ai/#/blog/fpga-row</link>
 <guid isPermaLink="false">fpga-row</guid><description>[proven] A merged PR corrected an invalid Yosys invocation.</description></item>
 <item><title>Older post</title><link>https://t27.ai/#/blog/older</link><guid isPermaLink="false">older</guid><description>x</description></item>
 </channel></rss>`
+
+/* The 2026-10-03 article's real label shape: 200 characters, digits, ';' and an apostrophe. */
+const ITEM_WITH_A_LONG_LABEL = `<item><title>Twelve pull requests</title><link>https://t27.ai/#/blog/twelve</link>
+<guid isPermaLink="false">twelve</guid><description>[counts measured through the GitHub API on 2026-10-02; merged means merged by the openXC7 maintainer, not shipped in a release; bitstream checks are cavearr's bench] Since 1 September we opened 12 pull requests.</description></item>`
 
 type Row = {
   slug: string
@@ -113,6 +119,37 @@ describe('the feed', () => {
     expect(a[0].summary).toBe(
       'A merged PR corrected an invalid Yosys invocation.'
     )
+  })
+
+  it('a long evidence label goes too, so the X post opens with the article', () => {
+    const [a] = parseRss(
+      `<rss><channel>${ITEM_WITH_A_LONG_LABEL}</channel></rss>`
+    )
+    expect(a.summary).toBe('Since 1 September we opened 12 pull requests.')
+    expect(xThread(a).first).toContain('Since 1 September')
+  })
+
+  it('the label is kept apart, and goes back wherever there is room for it', () => {
+    const [a] = parseRss(
+      `<rss><channel>${ITEM_WITH_A_LONG_LABEL}</channel></rss>`
+    )
+    const caveat =
+      "counts measured through the GitHub API on 2026-10-02; merged means merged by the openXC7 maintainer, not shipped in a release; bitstream checks are cavearr's bench"
+    expect(a.evidence).toBe(caveat)
+    /* As the site prints it: LinkedIn, Facebook, Instagram, the drafter. */
+    expect(summaryWithEvidence(a)).toBe(
+      `[${caveat}] Since 1 September we opened 12 pull requests.`
+    )
+    /* A Reddit text post has room: the caveat goes with the claim. */
+    const p = postFor(
+      { name: 't27ai', why: 'his own', promo: 'own', everyHours: 24 },
+      a
+    )
+    expect(p.body.startsWith(`[${caveat}] Since 1 September`)).toBe(true)
+    /* An article without a label has nothing put in front of it. */
+    const [, older] = parseRss(RSS)
+    expect(older.evidence).toBeUndefined()
+    expect(summaryWithEvidence(older)).toBe('x')
   })
 
   it('the X post fits, and both share pages are the networks own', () => {
