@@ -149,6 +149,27 @@ export function xThread(a: Article): { first: string; second: string } {
   }
 }
 
+/**
+ * Text cut to at most `max` characters where a reader expects a cut: after
+ * the last whole sentence if one ends in the second half, else at the last
+ * word with "…", else hard with "…". The first article queued after #3435
+ * ended its X post on "Most follow one thre…". Pure.
+ */
+export function clip(text: string, max: number): string {
+  if (text.length <= max) return text
+  if (max < 1) return ''
+  const cut = text.slice(0, max)
+  /* One character more, so a sentence whose stop is the last that fits counts. */
+  const ends = text.slice(0, max + 1)
+  const sentence = Math.max(
+    ...['. ', '! ', '? '].map(end => ends.lastIndexOf(end))
+  )
+  if (sentence + 1 >= max / 2) return cut.slice(0, sentence + 1)
+  const word = cut.slice(0, max - 1).lastIndexOf(' ')
+  if (word >= max / 2) return cut.slice(0, word).trimEnd() + '…'
+  return cut.slice(0, max - 1).trimEnd() + '…'
+}
+
 /** The text of the X post: the title and as much summary as fits. Pure. */
 export function xText(a: Article, limit = X_LIMIT - X_LINK): string {
   const room = limit - 1
@@ -156,11 +177,7 @@ export function xText(a: Article, limit = X_LIMIT - X_LINK): string {
   if (head.length >= room) return head.slice(0, room - 1) + '…'
   const left = room - head.length - 2
   if (left < 40 || !a.summary) return head
-  const body =
-    a.summary.length <= left
-      ? a.summary
-      : a.summary.slice(0, left - 1).trimEnd() + '…'
-  return `${head}\n\n${body}`
+  return `${head}\n\n${clip(a.summary, left)}`
 }
 
 /**
