@@ -27,6 +27,9 @@ cd "$(dirname "$0")"
 # else the first one available; VIBEE_SIM still picks one by name.
 SIM="${VIBEE_SIM:-$(xcrun simctl list devices booted | sed -nE 's/^ +(iPhone[^(]*[^ (]) \(.*\(Booted\).*/\1/p' | head -1)}"
 [ -n "$SIM" ] || SIM="$(xcrun simctl list devices available | sed -nE 's/^ +(iPhone[^(]*[^ (]) \(.*/\1/p' | head -1)"
+# An empty name would make the lookup below match any device line (an iPad,
+# a watch) and run there quietly; say so instead.
+[ -n "$SIM" ] || { echo "no iPhone simulator -- create one in Xcode, or set VIBEE_SIM"; exit 1; }
 BUNDLE="ai.t27.vibee"
 SDK="$(xcodebuild -showsdks 2>/dev/null | grep -o 'iphonesimulator[0-9.]*' | head -1)"
 [ -n "$SDK" ] || { echo "❌ не нашёл симуляторный SDK"; exit 1; }
