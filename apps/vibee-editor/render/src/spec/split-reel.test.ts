@@ -3,9 +3,16 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as SPEC from './split-reel.gen'
 import {
+  captionStartMs,
+  captionsFromWords,
+  faceObjectPosition,
+  firstSpeechMs,
   framesForSeconds,
+  objectPosPct,
   splitReelProps,
+  speechFrames,
   splitSegments,
+  STUDIO_FACE,
 } from '../split-reel-plan'
 import {
   parseSceneCuts,
@@ -61,6 +68,52 @@ describe('split-reel.t27 against the host', () => {
     expect(p.captionColor).toBe('#FFFF00')
     expect(SPEC.WORDS_PER_CAPTION).toBe(1)
     expect(SPEC.OWN_VOICE).toBe(true)
+    expect(SPEC.CAPTIONS_FROM_FINAL_VOICE).toBe(true)
+    expect(SPEC.CAPTION_DRIFT_MAX_MS).toBeLessThanOrEqual(150)
+  })
+
+  it("each caption is a word of the final voice, at that word's time", () => {
+    const caps = captionsFromWords(
+      [
+        { word: ' Доброе', start: 0, end: 0.44 },
+        { word: ' ', start: 0.44, end: 0.45 },
+        { word: ' утро!', start: 0.44, end: 0.96 },
+      ],
+      68
+    )
+    expect(caps).toEqual([
+      { text: 'Доброе', startMs: 68, endMs: 508, confidence: 1 },
+      { text: 'утро!', startMs: 508, endMs: 1028, confidence: 1 },
+    ])
+  })
+
+  it('a caption starts where the sound starts, not in the pause before it', () => {
+    expect(captionStartMs(5720, 6300, 6380)).toBe(6300)
+    expect(captionStartMs(1340, 1340, 1440)).toBe(1340)
+    expect(captionStartMs(1000, 1500, 1400)).toBe(1000)
+    expect(SPEC.ONSET_FRAME_MS).toBe(10)
+    expect(SPEC.CAPTION_ON_SILENCE_MAX_MS).toBeLessThanOrEqual(
+      SPEC.CAPTION_DRIFT_MAX_MS
+    )
+    // 8 kHz voice: 0.5 s loud, 0.5 s silence, 0.5 s loud.
+    const rate = 8000
+    const pcm = new Int16Array(rate * 1.5)
+    for (let i = 0; i < pcm.length; i++)
+      if (i < rate / 2 || i >= rate) pcm[i] = i % 2 ? 8000 : -8000
+    const speech = speechFrames(pcm, rate)
+    expect(speech.length).toBe(150)
+    expect(firstSpeechMs(speech, 600, 1200)).toBe(1000)
+    expect(firstSpeechMs(speech, 600, 900)).toBe(900)
+    // Whisper gave the second word the pause; the caption waits for the sound.
+    const caps = captionsFromWords(
+      [
+        { word: 'Доброе', start: 0, end: 0.5 },
+        { word: 'и', start: 0.6, end: 1.2 },
+      ],
+      0,
+      speech
+    )
+    expect(caps.map(c => c.startMs)).toEqual([0, 1000])
   })
 
   it('a tail shorter than a second joins the shot before it', () => {
@@ -81,6 +134,42 @@ describe('split-reel.t27 against the host', () => {
     expect(SPEC.FACE_FILLS_HALF).toBe(true)
     expect(p.splitIsCircle).toBe(false)
     expect(p.splitCircleSize).toBe(50)
+  })
+
+  it('the face is aimed at the middle of its window, never cut at the seam', () => {
+    // Reel 2 (2026-10-02): the split showed the middle of the 9:16 lipsync and
+    // the top of the head sat on the seam.
+    expect(objectPosPct(760, 1920, 960, SPEC.FACE_CENTER_Y_PCT)).toBe(29)
+    expect(objectPosPct(537, 1920, 960, SPEC.FACE_CENTER_Y_PCT)).toBe(5)
+    expect(objectPosPct(300, 1920, 960, SPEC.FACE_CENTER_Y_PCT)).toBe(0)
+    expect(objectPosPct(1900, 1920, 960, SPEC.FACE_CENTER_Y_PCT)).toBe(100)
+    expect(objectPosPct(760, 1920, 1920, SPEC.FACE_CENTER_Y_PCT)).toBe(50)
+    expect(objectPosPct(518, 1080, 1080, SPEC.FACE_CENTER_X_PCT)).toBe(50)
+    expect(SPEC.FACE_CENTER_X_PCT).toBe(50)
+    expect(SPEC.HEADROOM_MIN_PCT).toBeGreaterThan(0)
+  })
+
+  it('the planner tells the composition where the face is, per window', () => {
+    const p = splitReelProps({ lipSyncVideo: 'https://x/l.mp4', seconds: 15 })
+    // Unmeasured: the studio's own place, aimed up from the default 50%.
+    expect(p.splitFacePosition).toBe('50% 6%')
+    expect(p.fullscreenFacePosition).toBe('50% 50%')
+    // A 720x1280 lipsync is the same frame at a different size.
+    const small = {
+      ...STUDIO_FACE,
+      cx: 345.6,
+      cy: 358.4,
+      srcW: 720,
+      srcH: 1280,
+    }
+    expect(faceObjectPosition(small, 1080, 960)).toBe('50% 6%')
+    // A measured face low in the frame is aimed lower, never past the edge.
+    const low = splitReelProps({
+      lipSyncVideo: 'https://x/l.mp4',
+      seconds: 15,
+      face: { cx: 540, cy: 1700, srcW: 1080, srcH: 1920 },
+    })
+    expect(low.splitFacePosition).toBe('50% 100%')
   })
 
   it('b-roll goes to the split shots in turn, video or still by its name', () => {
