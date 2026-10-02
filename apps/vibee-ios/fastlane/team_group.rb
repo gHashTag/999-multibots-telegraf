@@ -51,7 +51,10 @@ module TeamGroup
 
   # Apple's error text is not ours to trust: an error about a tester may
   # repeat the address. Every address in it is masked before the log sees it.
+  # Neither side may contain "@": with it, "a@b@c.io" kept "b@c.io" whole, and
+  # a run of "a@" backtracked cubically on the system Ruby 2.6 (52 s for 6000
+  # characters, 2026-10-03).
   def self.scrub(text)
-    text.to_s.gsub(/[^\s<>"'(),;:]+@[^\s<>"'(),;:]+\.[A-Za-z]{2,}/) { |m| mask(m) }
+    text.to_s.gsub(/[^\s<>"'(),;:@]+@[^\s<>"'(),;:@]+\.[A-Za-z]{2,}/) { |m| mask(m) }
   end
 end
