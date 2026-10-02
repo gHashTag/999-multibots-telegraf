@@ -28,7 +28,7 @@ export class VoiceHttpError extends Error {
 export const ROAD_IDLE_MS = 15_000
 let roadUsedAt = -Infinity
 
-function useRoad(): void {
+function noteRoad(): void {
   roadUsedAt = Date.now()
 }
 
@@ -55,7 +55,7 @@ export async function transcribe(
 ): Promise<string> {
   // The language, when known, saves whisper a detection pass (spokenLang.ts).
   const q = opts.lang ? `?lang=${opts.lang}` : ''
-  useRoad()
+  noteRoad()
   const r = await fetch(`${API_BASE}/api/voice/transcribe${q}`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': audio.type || 'audio/webm' }),
@@ -73,7 +73,7 @@ export async function synthesize(
   voice: string | null,
   signal?: AbortSignal
 ): Promise<ArrayBuffer> {
-  useRoad()
+  noteRoad()
   const r = await fetch(`${API_BASE}/api/voice/speak`, {
     method: 'POST',
     headers: authHeaders(),
@@ -93,7 +93,7 @@ export async function warmVoice(
   lang: Language,
   voice: string | null
 ): Promise<void> {
-  useRoad()
+  noteRoad()
   try {
     await fetch(`${API_BASE}/api/voice/warm`, {
       method: 'POST',
@@ -114,7 +114,7 @@ export interface VoiceStatus {
 
 /** What the server can do. Unreachable means "nothing", not "everything". */
 export async function fetchVoiceStatus(): Promise<VoiceStatus> {
-  useRoad()
+  noteRoad()
   try {
     const r = await fetch(`${API_BASE}/api/voice/status`)
     if (!r.ok) throw new Error(String(r.status))
