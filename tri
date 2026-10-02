@@ -471,14 +471,6 @@ CHECKS THAT EACH COST A CYCLE
         "two alphabets" = a Latin letter inside a Russian word. Exit 1 on
         any XX. Needs the agent key.
 
-  tri words | tri слова [--lang=ru|en] [phrase ...]
-        Are product words (reels, lipsync, neurophoto, Vibee...) heard as
-        said? Our mouth speaks, our ears hear through the live road, with
-        the render's fix-ups (render/src/voice/hotwords.ts) applied. XX = a
-        new mishearing for that table, or a fix-up firing on a real word;
-        "two alphabets" = a Latin letter inside a Russian word. Exit 1 on
-        any XX. Needs the agent key.
-
   tri vad | tri шум [--legacy] [file.wav ...]
         The mic's voice-activity gate (player/src/lib/voice/vad.ts) run tick
         by tick over recordings, as the session runs it. With no files it
@@ -6859,10 +6851,14 @@ _turn_record() {
     kill -INT "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
     [ -s "$file" ] || { bad "nothing recorded (microphone access for this terminal?)"; rm -f "$file"; return 2; }
   done
-  local files=("$dir"/done-*.wav "$dir"/cut-*.wav)
-  [ -e "${files[0]}" ] || { warn 'no recordings yet'; return 1; }
+  # An unmatched glob stays literal, so keep only the files that exist:
+  # with no done-* yet, files[0] was the pattern and cut-* recordings
+  # were reported as none at all.
+  local files=() f
+  for f in "$dir"/done-*.wav "$dir"/cut-*.wav; do [ -e "$f" ] && files+=("$f"); done
+  [ ${#files[@]} -gt 0 ] || { warn 'no recordings yet'; return 1; }
   printf '\n'
-  _turn_audio "$lang" "$pause" "$dir"/*.wav
+  _turn_audio "$lang" "$pause" "${files[@]}"
 }
 
 # ─────────────────────────────────────────────────────────────────────────

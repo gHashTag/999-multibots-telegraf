@@ -47,4 +47,24 @@ final class VoiceInputTests: XCTestCase {
     let bytes = VoiceInput.maxSeconds * 16_000 * 2
     XCTAssertLessThan(bytes, 8 * 1024 * 1024)
   }
+
+  /// Leaving the chat while idle changes nothing: no phase jump, no send.
+  @MainActor
+  func testLeavingWhileIdleStaysIdle() {
+    let v = VoiceInput()
+    v.setShown(false)
+    XCTAssertEqual(v.phase, .idle)
+    XCTAssertFalse(v.timeUp)
+  }
+
+  /// The 60-second cap fires the recorder's own delegate; a stop from any
+  /// other recorder (an earlier take finishing late) must not send.
+  @MainActor
+  func testOnlyTheCurrentRecorderCanCallTimeUp() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("foreign.wav")
+    let foreign = try AVAudioRecorder(url: url, settings: VoiceInput.recordSettings)
+    let v = VoiceInput()
+    v.recorderStopped(ObjectIdentifier(foreign))
+    XCTAssertFalse(v.timeUp)
+  }
 }
