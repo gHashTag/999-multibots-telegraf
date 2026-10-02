@@ -4,6 +4,7 @@
  */
 import type { Queryable } from '../browser/sessions'
 import {
+  ANSWER_WAIT_MS,
   blogShareTick,
   RSS_URL,
   shareUrls,
@@ -30,7 +31,7 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
       if (!r.ok) throw new Error(`feed answered ${r.status}`)
       return await r.text()
     },
-    ask: what => requestPermission(pool, owner, what),
+    ask: what => requestPermission(pool, owner, what, ANSWER_WAIT_MS),
     answerOf: async id =>
       ((await readApproval(pool, id))?.state ?? 'expired') as Answer,
     publish: a => publishEverywhere(pool, owner, a),
@@ -43,14 +44,16 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
  * label. Never throws for one network: the other still gets its turn, and
  * the owner is told what each did.
  */
-async function publishEverywhere(
+export async function publishEverywhere(
   pool: Queryable,
   owner: string,
   a: Article
 ): Promise<Record<string, string>> {
   const { startBrowserAsAgent } = await import('../browser/routes')
   const { readSession } = await import('../browser/sessions')
-  const { newPage, evaluateOn, clickAt } = await import('../browser/cdp')
+  const { newPage, evaluateOn, clickAt, closePage } = await import(
+    '../browser/cdp'
+  )
   const { findProbe, foundOf } = await import('../browser/find-target')
   let s = await readSession(pool, owner)
   if (!s || s.state !== 'live' || !s.cdpEndpoint) {
@@ -84,6 +87,7 @@ async function publishEverywhere(
    */
   const { loginsOfPerson } = await import('../browser/logins')
   const { isNotConnected } = await import('./rounds')
+  const { receiptOf, LEFT_THE_FORM } = await import('./blog-share')
   const logins = await loginsOfPerson(pool, owner).catch(() => null)
   for (const [net, url, labels] of [
     ['X', urls.x, ['post']],
@@ -108,14 +112,29 @@ async function publishEverywhere(
           await evaluateOn(cdp, page.id, findProbe(label)).catch(() => null)
         )
         if (found) {
+          const before = String(
+            await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+          )
           await clickAt(cdp, page.id, found.x, found.y)
-          pressed = found.label
+          await settle(5_000)
+          const after = String(
+            await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+          )
+          const receipt = receiptOf(before, after)
+          pressed = `${found.label}» · ${receipt}`
+          /*
+           * Every run used to leave its tabs in the person's browser, day
+           * after day. A confirmed post closes its tab; an unconfirmed one
+           * stays open -- it is the only evidence of what went wrong.
+           */
+          if (receipt === LEFT_THE_FORM)
+            await closePage(cdp, page.id).catch(() => undefined)
           break
         }
       }
       if (net === 'X') void noteShape(pool, a.slug, 'single')
       out[net] = pressed
-        ? `нажато «${pressed}»` // cyrillic-ok: told to the owner
+        ? `нажато «${pressed}` // cyrillic-ok: told to the owner
         : 'кнопка публикации не найдена — окно оставлено открытым' // cyrillic-ok: told to the owner
     } catch (e) {
       out[net] = `ошибка: ${String(e).slice(0, 120)}` // cyrillic-ok: told to the owner
@@ -136,7 +155,7 @@ async function publishEverywhere(
  */
 async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   const { xThread } = await import('./blog-share')
-  const { newPage, evaluateOn, clickAt, typeText } = await import(
+  const { newPage, evaluateOn, clickAt, typeText, closePage } = await import(
     '../browser/cdp'
   )
   const { findProbe, foundOf } = await import('../browser/find-target')
@@ -165,10 +184,21 @@ async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   await settle(1_000)
   await typeText(cdp, page.id, thread.second)
   await settle(1_000)
+  const before = String(
+    await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+  )
   const pressed = await press([
     'post all',
     'опубликовать все',
     'опубликовать всё',
   ])
-  return `тред опубликован («${pressed}»): текст, ссылка вторым постом` // cyrillic-ok: told to the owner
+  await settle(5_000)
+  const after = String(
+    await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+  )
+  const { receiptOf, LEFT_THE_FORM } = await import('./blog-share')
+  const receipt = receiptOf(before, after)
+  if (receipt === LEFT_THE_FORM)
+    await closePage(cdp, page.id).catch(() => undefined)
+  return `тред опубликован («${pressed}»): текст, ссылка вторым постом · ${receipt}` // cyrillic-ok: told to the owner
 }
