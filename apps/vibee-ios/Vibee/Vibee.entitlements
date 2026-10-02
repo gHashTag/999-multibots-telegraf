@@ -10,7 +10,7 @@
 	-->
 	<key>keychain-access-groups</key>
 	<array>
-		<string>$(AppIdentifierPrefix)ai.t27.vibee</string>
+		<string>$(AppIdentifierPrefix)ai.t27.trinity</string>
 	</array>
 </dict>
 </plist>

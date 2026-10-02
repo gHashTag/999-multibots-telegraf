@@ -1988,8 +1988,8 @@ PYEOF
     if [ "$built" = "1" ] && [ -d "$APP" ]; then
       xcrun simctl install "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" "$APP" \
         >/dev/null 2>&1 && echo "установлено на симулятор"
-      xcrun simctl terminate "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" ai.t27.vibee >/dev/null 2>&1
-      xcrun simctl launch "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" ai.t27.vibee >/dev/null 2>&1
+      xcrun simctl terminate "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" ai.t27.trinity >/dev/null 2>&1
+      xcrun simctl launch "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" ai.t27.trinity >/dev/null 2>&1
     fi
     rm -rf /tmp/dd
     [ "$built" = "1" ] || echo "СБОРКА НЕ ПРОШЛА — на симулятор ничего не ставил"
