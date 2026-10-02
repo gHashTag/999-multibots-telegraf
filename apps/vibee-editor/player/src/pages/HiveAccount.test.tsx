@@ -6,7 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HiveKey, HiveKeyAccount } from '@/lib/hiveKeys'
 
 const api = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/apiFetch', () => ({ apiFetch: api }))
+// Provider catalogs load on their own once the account is shown; they answer
+// here so the account calls keep their order in `api`.
+const catalogApi = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/apiFetch', () => ({
+  apiFetch: (url: string, init?: RequestInit) =>
+    url.includes('/api/hive/keys/models/')
+      ? catalogApi(url, init)
+      : api(url, init),
+}))
 vi.mock('@/config', () => ({ API_BASE: 'https://render.example.test' }))
 vi.mock('@/atoms', async () => {
   const { atom } = await import('jotai')
@@ -73,6 +81,12 @@ let root: Root
 
 beforeEach(() => {
   api.mockReset()
+  catalogApi.mockReset()
+  catalogApi.mockImplementation(async (url: string) => ({
+    provider: url.endsWith('/zai') ? 'zai' : 'nvidia',
+    model: 'test-model',
+    models: ['test-model', 'z-ai/glm-5.3'],
+  }))
   getDefaultStore().set(userAtom, { id: 41 } as never)
   container = document.createElement('div')
   document.body.append(container)
@@ -253,7 +267,7 @@ describe('personal contribution account', () => {
     expect(button('Войти')).toBeTruthy()
   })
 
-  it('switches every key of a provider to one model through the server check', async () => {
+  it('offers the provider catalog in a dropdown at the top and switches every key through the server check', async () => {
     const switched = makeAccount()
     switched.keys = [{ ...makeKey(4), model: 'z-ai/glm-5.3' }, makeKey(-7)]
     switched.providers[0] = {
@@ -261,42 +275,33 @@ describe('personal contribution account', () => {
       model: 'z-ai/glm-5.3',
       defaultModel: 'test-model',
     }
-    api
-      .mockResolvedValueOnce(makeAccount())
-      .mockResolvedValueOnce({
-        provider: 'nvidia',
-        model: 'test-model',
-        models: ['test-model', 'z-ai/glm-5.3'],
-      })
-      .mockResolvedValueOnce(switched)
+    api.mockResolvedValueOnce(makeAccount()).mockResolvedValueOnce(switched)
     await mount()
+    expect(catalogApi.mock.calls.map(call => call[0])).toEqual([
+      'https://render.example.test/api/hive/keys/models/nvidia',
+      'https://render.example.test/api/hive/keys/models/zai',
+    ])
+    const sections = [...container.querySelectorAll('main > section')]
+    expect(sections[0].className).toBe('hive-account__models')
     const row = container.querySelector('[data-provider="nvidia"]')!
-    const input = row.querySelector('input')!
+    const select = row.querySelector('select')!
     const apply = row.querySelector('button')!
+    expect([...select.options].map(option => option.value)).toEqual([
+      'test-model',
+      'z-ai/glm-5.3',
+    ])
+    expect(select.value).toBe('test-model')
     expect(apply.disabled).toBe(true)
-    await act(async () => input.focus())
-    expect(api.mock.calls[1][0]).toBe(
-      'https://render.example.test/api/hive/keys/models/nvidia'
-    )
-    expect(
-      [...row.querySelectorAll('datalist option')].map(
-        option => (option as HTMLOptionElement).value
-      )
-    ).toEqual(['test-model', 'z-ai/glm-5.3'])
     await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        'value'
-      )!.set!
-      setter.call(input, ' z-ai/glm-5.3 ')
-      input.dispatchEvent(new Event('input', { bubbles: true }))
+      select.value = 'z-ai/glm-5.3'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
     })
     expect(apply.disabled).toBe(false)
     await act(async () => apply.click())
-    expect(api.mock.calls[2][0]).toBe(
+    expect(api.mock.calls[1][0]).toBe(
       'https://render.example.test/api/hive/keys/model'
     )
-    expect(JSON.parse(api.mock.calls[2][1].body)).toEqual({
+    expect(JSON.parse(api.mock.calls[1][1].body)).toEqual({
       provider: 'nvidia',
       model: 'z-ai/glm-5.3',
     })
@@ -311,13 +316,24 @@ describe('personal contribution account', () => {
     ).toContain('По умолчанию: test-model')
   })
 
+  it('keeps the current model selectable when the catalog does not load', async () => {
+    catalogApi.mockRejectedValue({ status: 502 })
+    api.mockResolvedValueOnce(makeAccount())
+    await mount()
+    const row = container.querySelector('[data-provider="zai"]')!
+    expect(
+      [...row.querySelectorAll('option')].map(option => option.value)
+    ).toEqual(['test-model'])
+    expect(row.textContent).toContain('Список моделей провайдера не загрузился')
+  })
+
   it('offers the switch when only some keys of a provider run another model', async () => {
     const mixed = makeAccount()
     mixed.keys = [makeKey(4), { ...makeKey(5), model: 'older-model' }]
     api.mockResolvedValueOnce(mixed)
     await mount()
     const row = container.querySelector('[data-provider="nvidia"]')!
-    expect(row.querySelector('input')!.value).toBe('test-model')
+    expect(row.querySelector('select')!.value).toBe('test-model')
     expect(row.querySelector('button')!.disabled).toBe(false)
     expect(row.textContent).toContain('Применить ко всем (2)')
   })
@@ -328,20 +344,12 @@ describe('personal contribution account', () => {
       .mockRejectedValueOnce({ status: 422, code: 'model_without_tools' })
     await mount()
     const row = container.querySelector('[data-provider="zai"]')!
-    const input = row.querySelector('input')!
+    const select = row.querySelector('select')!
     await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        'value'
-      )!.set!
-      setter.call(input, 'glm-5.3')
-      input.dispatchEvent(new Event('input', { bubbles: true }))
+      select.value = 'z-ai/glm-5.3'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
     })
-    await act(async () =>
-      input.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
-      )
-    )
+    await act(async () => row.querySelector('button')!.click())
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'не вызвала инструмент'
     )
