@@ -484,12 +484,13 @@ describe('the Dockerfile builds the board from its own repository, pinned', () =
  * Queen's board into the app", "why does the address say queen twice").
  *
  * /queen is the APP (its Hive tab frames /queen/), and a person who opens the
- * board page itself is sent there. Pinned because both halves fail silently:
+ * board page itself is sent to the app's /game (owner, 2026-10-01: "rename
+ * the main page to /game"); the app sends /queen on to /game as well. Pinned because both halves fail silently:
  * without `location = /queen` the path fell into `location /`, whose `$uri/`
  * served the BOARD's index.html at a path where its relative assets break; and
  * a redirect that also caught the frame would loop the tab forever.
  */
-describe('/queen is the app, and a top-level /queen/ is sent to it', () => {
+describe('/queen is the app, and a top-level /queen/ is sent to /game', () => {
   const conf = fs.readFileSync(TEMPLATE, 'utf8')
 
   function appQueen(c: string): string[] {
@@ -502,9 +503,9 @@ describe('/queen is the app, and a top-level /queen/ is sent to it', () => {
       out.push('/queen is cacheable')
     const board = block(c, '^~ /queen/') ?? ''
     const redirect = board.match(
-      /if \(\$http_sec_fetch_dest = "document"\) \{\s*return 302 \/queen;\s*\}/
+      /if \(\$http_sec_fetch_dest = "document"\) \{\s*return 302 \/game;\s*\}/
     )
-    if (!redirect) out.push('no top-level redirect from /queen/ to /queen')
+    if (!redirect) out.push('no top-level redirect from /queen/ to /game')
     return out
   }
 
@@ -515,12 +516,19 @@ describe('/queen is the app, and a top-level /queen/ is sent to it', () => {
   it('negative control: a redirect that ignores the fetch destination is caught', () => {
     // It would redirect the Hive's own frame too: the tab would load itself.
     const bad = conf.replace(
-      /if \(\$http_sec_fetch_dest = "document"\) \{\s*return 302 \/queen;\s*\}/,
-      'return 302 /queen;'
+      /if \(\$http_sec_fetch_dest = "document"\) \{\s*return 302 \/game;\s*\}/,
+      'return 302 /game;'
     )
     expect(appQueen(bad)).toContain(
-      'no top-level redirect from /queen/ to /queen'
+      'no top-level redirect from /queen/ to /game'
     )
+  })
+
+  it('/game is served by the SPA fallback: nothing in public/ is named game', () => {
+    // The trap /queen fell into: `location /` tries `$uri/` first, so a
+    // directory called game would be served instead of the app.
+    const pub = path.join(path.dirname(TEMPLATE), '../player/public')
+    expect(fs.existsSync(path.join(pub, 'game'))).toBe(false)
   })
 
   it('negative control: /queen serving the board directory is caught', () => {

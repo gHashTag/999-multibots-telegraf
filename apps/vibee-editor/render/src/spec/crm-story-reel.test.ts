@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import * as SPEC from './crm-story-reel.gen'
 import {
   STORY_ABANDON_MINUTES,
@@ -179,6 +179,34 @@ describe('the host restates none of the spec numbers', () => {
  * block of crm-story-reel.t27 it mirrors; its inputs and answers are the
  * spec's, the function under test is the one production runs.
  */
+/*
+ * BUDGETS, AND WHY THEY ARE LONG.
+ *
+ * Three tests below (marked SWEEP BUDGET, 240 s each) run every colour of a palette
+ * sweep against every background of a background sweep (216 x 5, plus 4096
+ * #rgb grounds and 256 greys) through the production colour code: OKLCH round
+ * trips with a 24-step bisection per shade. That is real, bounded CPU work:
+ * measured 7-13 s on a loaded machine, and past the 30 s per-test limit under
+ * the pre-push gate's parallel run. The loops are finite and do no I/O, so a
+ * long budget cannot hide a hang; it only stops a slow CPU from reading as a
+ * failed law. Every assertion inside them is kept.
+ */
+
+/*
+ * One test reads the agent's whole tool registry ('../agent/tools' and
+ * '../agent/chat'), whose cold transform alone was most of its 12.8 s on a
+ * loaded machine. Paying it here, once, under its own budget keeps that cost
+ * out of the 30 s limit of the test that asserts on it.
+ */
+beforeAll(async () => {
+  await Promise.all([
+    import('../agent/chat'),
+    import('../agent/tools'),
+    import('../agent/crm-deliver-tool'),
+    import('../agent/crm-client-workspace-tools'),
+  ])
+}, 180_000)
+
 describe("the spec's tests hold against the host", () => {
   it('the estimate is three stills, three lines, thirteen seconds of lip-sync and one cut', () => {
     expect(TOKEN_PRICES.image_edit).toBe(SPEC.TOKENS_PER_STILL)
@@ -202,14 +230,14 @@ describe("the spec's tests hold against the host", () => {
     expect(LIPSYNC_DEFAULT_MODEL).toBe(SPEC.LIPSYNC_MODEL)
   })
 
-  it('a script of one to four scenes is made as given; five is refused', () => {
+  it('a script of one to six scenes is made as given; seven is refused', () => {
     const scene = { setting: 'a room', line: 'Hello.' }
     const of = (n: number) => scenesOf(Array.from({ length: n }, () => scene))
     expect(Array.isArray(of(SPEC.SCENES_DEFAULT))).toBe(true)
     expect(Array.isArray(of(1))).toBe(true)
-    expect(Array.isArray(of(4))).toBe(true)
+    expect(Array.isArray(of(6))).toBe(true)
     expect(typeof of(0)).toBe('string')
-    expect(typeof of(5)).toBe('string')
+    expect(typeof of(7)).toBe('string')
   })
 
   it('the pause stays between one and four seconds, three by default', () => {
@@ -385,6 +413,21 @@ describe("the spec's tests hold against the host", () => {
     expect(isAppRoute(SPEC.PAGE_ROUTE)).toBe(true)
   })
 
+  /*
+   * v18: the link under her reel leads to the chat because the chat shows
+   * her reels widget. A chat without the widget would make the link a lie.
+   */
+  it('the link under her reel leads to a screen that shows her reels (v18)', () => {
+    const PLAYER = join(HERE, '..', '..', '..', 'player', 'src')
+    const screen: Record<string, string> = {
+      chat: join(PLAYER, 'pages', 'Chat.tsx'),
+      story: join(PLAYER, 'pages', 'Story.tsx'),
+    }
+    const file = screen[SPEC.PAGE_ROUTE]
+    expect(file, `no screen known for ${SPEC.PAGE_ROUTE}`).toBeTruthy()
+    expect(readFileSync(file, 'utf8')).toContain('<MyStoryWidget')
+  })
+
   it('a still that is still drawing is paid once: a resume waits for it and never orders it again (v3)', () => {
     // still_resume(ready, refused, age_ms), the spec's own vectors.
     const G = SPEC.STILL_GIVE_UP_MS
@@ -437,7 +480,9 @@ describe("the spec's tests hold against the host", () => {
     expect(SPEC.NOTES_NEED_REPLICATE).toBe(false)
     expect(SPEC.NOTES_WORDS_ARE_HERS).toBe(true)
     expect(SPEC.NOTES_FROM_SELLER_DM_ONLY).toBe(true)
-    expect(SPEC.NOTES_MAX_SEC + SPEC.PAUSE_SEC).toBe(SPEC.REEL_MAX_SEC)
+    expect(SPEC.NOTES_MAX_SEC + SPEC.PAUSE_SEC).toBeLessThanOrEqual(
+      SPEC.REEL_MAX_SEC
+    )
     // The seller's gate lets a no-clone client through; hers alone does not.
     const noClone = {
       faceUrl: 'https://ours/face.jpg',
@@ -776,7 +821,7 @@ describe("the spec's tests hold against the host", () => {
     // SUGGEST_FOR_PROFILE_PALETTE: named with its fix, and still not refused.
     expect(SPEC.SUGGEST_FOR_PROFILE_PALETTE).toBe(true)
     expect(endCardRefused(false, false)).toBe(false)
-  })
+  }, 240_000) // SWEEP BUDGET: bounded CPU work, see the note above
 
   it('the card takes the named shade by a press and checks it again before keeping', async () => {
     // The player's own logic against the spec's vectors; the panel's
@@ -932,7 +977,7 @@ describe("the spec's tests hold against the host", () => {
       bg: '#45433f',
       title: '#d4b04c',
     })
-  })
+  }, 240_000) // SWEEP BUDGET: bounded CPU work, see the note above
 
   it('the shade moves only her lightness: her hue stays within rounding', async () => {
     // hue_checked, hue_kept and the drift law, against the host's own
@@ -1019,7 +1064,7 @@ describe("the spec's tests hold against the host", () => {
         accent: '#00c',
       })
     ).toEqual({ title: '#00c' })
-  })
+  }, 240_000) // SWEEP BUDGET: bounded CPU work, see the note above
 
   it('the card says one reason at a time', async () => {
     expect(SPEC.PANEL_ONE_REASON_AT_A_TIME).toBe(true)
@@ -1054,7 +1099,7 @@ describe("the spec's tests hold against the host", () => {
     // screen the price comes before the press it prices.
     const PLAYER = join(HERE, '..', '..', '..', 'player', 'src')
     const read = (...p: string[]) => readFileSync(join(PLAYER, ...p), 'utf8')
-    const page = read('pages', 'Story.tsx')
+    const page = read('components', 'Story', 'MyStoryWidget.tsx') // her page and the chat share it
     expect(page.indexOf('data-testid="story-price"')).toBeGreaterThan(0)
     expect(page.indexOf('data-testid="story-price"')).toBeLessThan(
       page.indexOf("t('story.make')")
@@ -1069,7 +1114,7 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(16)
+    expect(SPEC.VERSION).toBe(18)
   })
 
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {

@@ -57,16 +57,21 @@ enum API {
     case странныйОтвет
     case сеть(Error)
 
-    var errorDescription: String? {
+    var errorDescription: String? { text() }
+
+    func text(russian: Bool = speaksRussian) -> String {
+      func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
       switch self {
       case .нуженВход:
-        return "Нужен вход: Профиль → код из бота @t27ai_bot (команда /app)"
+        return l(
+          "Sign-in needed: Profile → code from @t27ai_bot (command /app)",
+          "Нужен вход: Профиль → код из бота @t27ai_bot (команда /app)")
       case .отказ(let код):
-        return "Сервер отказал: HTTP \(код)"
+        return l("The server refused: HTTP \(код)", "Сервер отказал: HTTP \(код)")
       case .странныйОтвет:
-        return "Сервер ответил не тем, чего ждали"
+        return l("The server answered with something unexpected", "Сервер ответил не тем, чего ждали")
       case .сеть(let e):
-        return "Не дошло до сервера: \(e.localizedDescription)"
+        return l("Couldn't reach the server: \(e.localizedDescription)", "Не дошло до сервера: \(e.localizedDescription)")
       }
     }
   }
@@ -130,8 +135,11 @@ enum API {
     var errorDescription: String? {
       switch self {
       case .имениНет:
-        return "Профиль ещё не создан: у аккаунта нет @имени. "
-          + "Задайте его в Telegram («Настройки» → «Имя пользователя») и вернитесь."
+        return say(
+          "No profile yet: the account has no @username. "
+            + "Set one in Telegram (Settings → Username) and come back.",
+          "Профиль ещё не создан: у аккаунта нет @имени. "
+            + "Задайте его в Telegram («Настройки» → «Имя пользователя») и вернитесь.")
       }
     }
   }
@@ -193,7 +201,7 @@ enum API {
     ])
     let (d, http) = try await сЛичностью(r)
     guard http.statusCode == 200 else {
-      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+      throw ProjectError.разбор(serverAnswered(http.statusCode))
     }
     let тело = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
     /*
@@ -308,7 +316,7 @@ enum API {
         let строка = try c.decode(String.self, forKey: .id)
         guard let число = Int(строка) else {
           throw DecodingError.dataCorruptedError(
-            forKey: .id, in: c, debugDescription: "id не число: \(строка)")
+            forKey: .id, in: c, debugDescription: "id is not a number: \(строка)")
         }
         id = число
       }
@@ -329,7 +337,7 @@ enum API {
     r.httpMethod = "GET"
     let (d, http) = try await сЛичностью(r)
     guard http.statusCode == 200 else {
-      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+      throw ProjectError.разбор(serverAnswered(http.statusCode))
     }
     /*
      * ФОРМА ОТВЕТА ИЗМЕРЕНА, А НЕ УГАДАНА.
@@ -357,7 +365,7 @@ enum API {
     r.httpBody = try JSONSerialization.data(withJSONObject: ["id": id])
     let (_, http) = try await сЛичностью(r)
     guard http.statusCode == 200 else {
-      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+      throw ProjectError.разбор(serverAnswered(http.statusCode))
     }
   }
 
@@ -431,13 +439,13 @@ enum API {
       let текст = String(data: d, encoding: .utf8) ?? ""
       throw NSError(
         domain: "upload", code: (о as? HTTPURLResponse)?.statusCode ?? -1,
-        userInfo: [NSLocalizedDescriptionKey: текст.isEmpty ? "загрузка не удалась" : текст]
+        userInfo: [NSLocalizedDescriptionKey: текст.isEmpty ? say("upload failed", "загрузка не удалась") : текст]
       )
     }
     struct Ответ: Decodable { let url: String? }
     guard let ссылка = try? JSONDecoder().decode(Ответ.self, from: d).url, !ссылка.isEmpty
     else { throw NSError(domain: "upload", code: -2,
-      userInfo: [NSLocalizedDescriptionKey: "сервер не назвал ссылку"]) }
+      userInfo: [NSLocalizedDescriptionKey: say("the server named no link", "сервер не назвал ссылку")]) }
     return ссылка.hasPrefix("http")
       ? ссылка
       : base.appendingPathComponent(ссылка).absoluteString
@@ -628,6 +636,8 @@ enum API {
     let startedAt: Double
     let url: String?
     let error: String?
+    /// The failure's name (render/generation-refusal.ts); `error` is its detail.
+    let code: String?
   }
 
   static func задачи() async throws -> [Задача] {
@@ -894,16 +904,19 @@ extension API {
     case сеть(Error)
     case разбор(String)
 
-    var errorDescription: String? {
+    var errorDescription: String? { text() }
+
+    func text(russian: Bool = speaksRussian) -> String {
+      func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
       switch self {
       case .нетВхода:
-        return "Вы не вошли"
+        return l("You are not signed in", "Вы не вошли")
       case .отказ(let код, let текст):
-        return текст.isEmpty ? "Сервер отказал: HTTP \(код)" : текст
+        return текст.isEmpty ? l("The server refused: HTTP \(код)", "Сервер отказал: HTTP \(код)") : текст
       case .сеть(let e):
-        return "Не дошло до сервера: \(e.localizedDescription)"
+        return l("Couldn't reach the server: \(e.localizedDescription)", "Не дошло до сервера: \(e.localizedDescription)")
       case .разбор(let что):
-        return "Ответ сервера не разобран: \(что)"
+        return l("Couldn't read the server's answer: \(что)", "Ответ сервера не разобран: \(что)")
       }
     }
   }
@@ -939,7 +952,7 @@ extension API {
       do {
         let (d, resp) = try await URLSession.shared.data(for: r)
         guard let http = resp as? HTTPURLResponse else {
-          throw ProjectError.разбор("ответ не HTTP")
+          throw ProjectError.разбор(say("not an HTTP answer", "ответ не HTTP"))
         }
         return (d, http)
       } catch let e as ProjectError {
@@ -1101,5 +1114,114 @@ extension API {
           ответ.включено
     else { return [] }
     return ответ.пакеты
+  }
+
+  /**
+   Why no invoice. `/api/tokens/invoice` words its refusals in Russian and
+   names each with a `code` (render-server.ts). An English phone gets the
+   sentence for the code; a Russian one keeps the server's own words. No code,
+   or one this build does not know (a newer server), gives a plain "could not
+   start" -- a translated guess about money is worse than "it did not work".
+   The codes are checked against the server by money-route-codes.test.ts.
+   */
+  enum TokenPurchaseError: LocalizedError {
+    case refused(code: String?, text: String)
+
+    static let codes: [String: String] = [
+      "sign_in": "Open the app from Telegram to pay",
+      "cashier_off": "Payments are switched off right now — try again later",
+      "bad_amount": "That amount cannot be bought — pick a pack",
+      "failed": "Couldn't start the payment — try again",
+    ]
+
+    func text(russian: Bool = speaksRussian) -> String {
+      guard case .refused(let code, let text) = self else { return "" }
+      if russian { return text.isEmpty ? "не получилось" : text }  // ru-only-ok: the russian branch
+      if let code, let known = Self.codes[code] { return known }
+      if !text.isEmpty, text.range(of: "\\p{Cyrillic}", options: .regularExpression) == nil {
+        return text
+      }
+      return "Couldn't start the payment"
+    }
+
+    var errorDescription: String? { text() }
+  }
+
+  /**
+   An invoice for a pack, as a t.me link. The web opens it with
+   `Telegram.WebApp.openInvoice` and outside Telegram says "available inside
+   Telegram"; the app has a better door than that -- the Telegram app itself,
+   which opens the same link and takes the Stars. The server mints it for the
+   app session the same way (chatIdentity accepts a Bearer session), and the
+   cashier's webhook does the crediting: nothing the client says is believed.
+   */
+  static func tokenInvoice(pack: String) async throws -> URL {
+    var r = URLRequest(url: base.appendingPathComponent("api/tokens/invoice"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    r.httpBody = try JSONSerialization.data(withJSONObject: ["pack": pack])
+    let (data, _) = try await URLSession.shared.data(for: r)
+    let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+    guard body["ok"] as? Bool == true, let link = body["link"] as? String,
+      let url = URL(string: link)
+    else {
+      throw TokenPurchaseError.refused(
+        code: body["code"] as? String, text: (body["error"] as? String) ?? "")
+    }
+    return url
+  }
+
+  /// What `/api/tokens/verify` found: the balance after crediting, or nothing
+  /// yet. The Stars reach the Bot API with a delay, so "nothing yet" is normal.
+  ///
+  /// `creditFailed` is the other `ok:false`: the money arrived and the credit
+  /// did not. The app used to read it as "nothing yet" and promise the tokens
+  /// "shortly" -- to someone whose credit had just failed. The server sends a
+  /// flag for exactly this, so a client can tell the two apart.
+  struct TokenVerify {
+    let credited: Int?
+    let balance: Int?
+    var creditFailed = false
+
+    init(credited: Int?, balance: Int?, creditFailed: Bool = false) {
+      self.credited = credited
+      self.balance = balance
+      self.creditFailed = creditFailed
+    }
+
+    /// The server's answer, read. Fails closed: `ok` must be literally true
+    /// for a credit to be believed.
+    init(body: [String: Any]) {
+      let balance = body["баланс"] as? Int
+      guard body["ok"] as? Bool == true else {
+        self.init(
+          credited: nil, balance: balance,
+          creditFailed: body["зачисление_провалено"] as? Bool == true)
+        return
+      }
+      self.init(credited: body["зачислено_токенов"] as? Int, balance: balance)
+    }
+  }
+
+  static func verifyTokens() async -> TokenVerify {
+    var r = URLRequest(url: base.appendingPathComponent("api/tokens/verify"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    r.httpBody = Data("{}".utf8)
+    guard let (data, _) = try? await URLSession.shared.data(for: r),
+      let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    else { return TokenVerify(credited: nil, balance: nil) }
+    return TokenVerify(body: body)
+  }
+}
+
+extension API.Template {
+  /// "@name", or nil when the author has no username. The web's FeedCard
+  /// shows no handle then; the app drew a bare "@" under the title.
+  var handle: String? {
+    let name = creatorUsername.trimmingCharacters(in: .whitespaces)
+    return name.isEmpty ? nil : "@" + name
   }
 }

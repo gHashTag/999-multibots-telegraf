@@ -22,8 +22,8 @@ const require_ = createRequire(__filename)
 const move = require_('../../scripts/bot-api-move.cjs')
 const allowed = require_('../../deployment/telegram-bot-api/allowed-bots.cjs')
 
-const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved'
-const OTHER = '900000002:ZZotherotherotherotherotherotherother'
+const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token
+const OTHER = '900000002:ZZotherotherotherotherotherotherother' // secret-guard-ok: fake fixture token
 const ME = { id: 900000011, username: 'Moved_test_bot', is_bot: true }
 
 type Reply = {
@@ -347,7 +347,7 @@ describe('--forget', () => {
 })
 
 describe('--cloud-logout (the move without a shell)', () => {
-  const CASHIER = '900000003:ZZcashiercashiercashiercashiercashie'
+  const CASHIER = '900000003:ZZcashiercashiercashiercashiercashie' // secret-guard-ok: fake fixture token
   const happy = {
     'cloud getMe': { ok: true, result: ME },
     'cloud logOut': { ok: true, result: true },
@@ -460,7 +460,7 @@ describe('--cloud-logout (the move without a shell)', () => {
   })
 
   it('two different tokens for one id is a refusal, not a guess -- and neither is shown', async () => {
-    const stale = '900000011:ZZmovedOLDmovedOLDmovedOLDmovedOLDmo'
+    const stale = '900000011:ZZmovedOLDmovedOLDmovedOLDmovedOLDmo' // secret-guard-ok: fake fixture token
     const { p, calls } = runCloud(ARGV, happy, {
       ...service,
       BOT_TOKEN_9: stale,

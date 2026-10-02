@@ -20,6 +20,7 @@
  */
 import type { Queryable } from '../browser/sessions'
 import {
+  ANSWER_WAIT_MS,
   redditTick,
   submitUrl,
   subredditsOf,
@@ -72,7 +73,7 @@ export async function runRedditDesk(pool: Queryable): Promise<string> {
     about: ABOUT,
     subs,
     readJson: url => readAsThePerson(pool, owner, url),
-    ask: what => requestPermission(pool, owner, what),
+    ask: what => requestPermission(pool, owner, what, ANSWER_WAIT_MS),
     answerOf: async id =>
       ((await readApproval(pool, id))?.state ?? 'expired') as Answer,
     draft: text => writeDraft(text),
@@ -129,7 +130,10 @@ export async function runRedditIfDue(
 }
 
 /** The browser's endpoint, started if it is off. */
-async function endpointOf(pool: Queryable, owner: string): Promise<string> {
+export async function endpointOf(
+  pool: Queryable,
+  owner: string
+): Promise<string> {
   const { readSession } = await import('../browser/sessions')
   const { startBrowserAsAgent } = await import('../browser/routes')
   let s = await readSession(pool, owner)
@@ -147,7 +151,7 @@ async function endpointOf(pool: Queryable, owner: string): Promise<string> {
  * closed afterwards: reading the inbox must not leave the person's browser
  * fuller than it was.
  */
-async function readAsThePerson(
+export async function readAsThePerson(
   pool: Queryable,
   owner: string,
   url: string
@@ -268,7 +272,7 @@ export function choosePage(
  * reported instead when it never does -- a wrong origin is exactly the failure
  * this helper exists to name.
  */
-async function waitForOrigin(
+export async function waitForOrigin(
   cdp: string,
   pageId: string,
   want: string,
@@ -306,7 +310,7 @@ async function waitForOrigin(
  * model answers -- reddit.ts then hands the comment to the owner instead of
  * offering them something to approve.
  */
-async function writeDraft(prompt: string): Promise<string | null> {
+export async function writeDraft(prompt: string): Promise<string | null> {
   const { reserveEnv } = await import('./provider')
   const reserve = reserveEnv()
   if (!reserve?.key) return null
@@ -337,7 +341,7 @@ async function writeDraft(prompt: string): Promise<string | null> {
 }
 
 /** Press the first button whose label matches, or throw saying so. */
-async function pressOne(
+export async function pressOne(
   cdp: string,
   pageId: string,
   labels: string[]

@@ -65,18 +65,20 @@ struct ConnectTelegramView: View {
 
   @ViewBuilder private var подключено: some View {
     VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
-      Text("Telegram подключён")
+      Text(say("Telegram connected", "Telegram подключён"))
         .font(Тема.Шрифт.стиль(.subheadline, .semibold))
         .foregroundStyle(Тема.Профиль.текст)
-      Text(
+      Text(say(
+        "The agent sees your chats and contacts and can search your messages. "
+          + "It sends nothing in your name without your confirmation.",
         "Агент видит ваши диалоги, контакты и может искать по переписке. "
           + "Он ничего не отправляет от вашего имени без вашего подтверждения."
-      )
+      ))
       .font(Тема.Шрифт.стиль(.footnote))
       .foregroundStyle(Тема.Профиль.текстВторичный)
       .fixedSize(horizontal: false, vertical: true)
 
-      Button("Отключить") {
+      Button(say("Disconnect", "Отключить")) {
         Task { await шагнуть { try await отключить() } }
       }
       .disabled(занято)
@@ -87,7 +89,7 @@ struct ConnectTelegramView: View {
 
   @ViewBuilder private var форма: some View {
     VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
-      Text("Подключить Telegram")
+      Text(say("Connect Telegram", "Подключить Telegram"))
         .font(Тема.Шрифт.стиль(.subheadline, .semibold))
         .foregroundStyle(Тема.Профиль.текст)
 
@@ -112,7 +114,7 @@ struct ConnectTelegramView: View {
         if номерИзTelegram {
           // Говорим, ОТКУДА номер: подставленный молча выглядит как чужой,
           // и человек начинает его перепроверять вместо того, чтобы нажать.
-          Text("Номер из Telegram — можно исправить")
+          Text(say("Number from Telegram — you can edit it", "Номер из Telegram — можно исправить"))
             .font(Тема.Шрифт.стиль(.caption))
             .foregroundStyle(Тема.Профиль.текстПриглушённый)
         } else {
@@ -128,13 +130,13 @@ struct ConnectTelegramView: View {
            * Поэтому — ссылка в бота, где это нажатие возможно. Один раз.
            */
           Link(destination: URL(string: "https://t.me/t27ai_bot?start=phone")!) {
-            Text("Не набирать руками: поделиться номером в боте")
+            Text(say("Skip typing: share your number in the bot", "Не набирать руками: поделиться номером в боте"))
               .font(Тема.Шрифт.стиль(.footnote, .medium))
               .foregroundStyle(Тема.Профиль.акцент)
           }
           .frame(minHeight: 44, alignment: .leading)
         }
-        кнопка(занято ? "Отправляю код…" : "Получить код", готово: !телефон.isEmpty) {
+        кнопка(занято ? say("Sending the code…", "Отправляю код…") : say("Get code", "Получить код"), готово: !телефон.isEmpty) {
           let о = try await Connect.начать(телефон: телефон)
           handle = о.handle
           телефон = о.phone
@@ -143,21 +145,21 @@ struct ConnectTelegramView: View {
       case .код:
         // Телефон показан ещё раз: опечатку надо заметить сейчас, а не после
         // десяти минут ожидания сообщения.
-        Text("Код отправлен в Telegram на \(телефон). Не пересылайте его никому.")
+        Text(say("The code went to Telegram at \(телефон). Do not forward it to anyone.", "Код отправлен в Telegram на \(телефон). Не пересылайте его никому."))
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Профиль.текстПриглушённый)
           .fixedSize(horizontal: false, vertical: true)
         поле("12345", $код, клавиатура: .numberPad)
-        кнопка(занято ? "Проверяю…" : "Подтвердить", готово: !код.isEmpty) {
+        кнопка(занято ? say("Checking…", "Проверяю…") : say("Confirm", "Подтвердить"), готово: !код.isEmpty) {
           шаг = try await Connect.код(handle: handle, код: код) ? .пароль : .подключено
         }
       case .пароль:
-        Text("У вас включена двухфакторная защита. Пароль не сохраняется.")
+        Text(say("Two-step verification is on. The password is not stored.", "У вас включена двухфакторная защита. Пароль не сохраняется."))
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Профиль.текстПриглушённый)
           .fixedSize(horizontal: false, vertical: true)
         полеПароля
-        кнопка(занято ? "Проверяю…" : "Войти", готово: !пароль.isEmpty) {
+        кнопка(занято ? say("Checking…", "Проверяю…") : say("Sign in", "Войти"), готово: !пароль.isEmpty) {
           try await Connect.пароль(handle: handle, пароль: пароль)
           пароль = ""
           шаг = .подключено
@@ -169,11 +171,16 @@ struct ConnectTelegramView: View {
   }
 
   private static let факты = [
-    "Агент сможет читать ваши диалоги, контакты и историю сообщений.",
-    "Писать кому-либо он будет только после вашего подтверждения.",
-    "Код и пароль не сохраняются — они уходят в Telegram.",
-    "Номер сохраняется, чтобы не вводить его снова; при отключении удаляется.",
-    "Отключить можно здесь же, в одно нажатие.",
+    say("The agent will be able to read your chats, contacts and message history.",
+        "Агент сможет читать ваши диалоги, контакты и историю сообщений."),
+    say("It writes to anyone only after you confirm.",
+        "Писать кому-либо он будет только после вашего подтверждения."),
+    say("The code and password are not stored — they go to Telegram.",
+        "Код и пароль не сохраняются — они уходят в Telegram."),
+    say("The number is kept so you need not type it again; disconnecting deletes it.",
+        "Номер сохраняется, чтобы не вводить его снова; при отключении удаляется."),
+    say("You can disconnect right here, in one tap.",
+        "Отключить можно здесь же, в одно нажатие."),
   ]
 
   @ViewBuilder private func поле(
@@ -200,7 +207,7 @@ struct ConnectTelegramView: View {
   }
 
   @ViewBuilder private var полеПароля: some View {
-    SecureField("Пароль", text: $пароль)
+    SecureField(say("Password", "Пароль"), text: $пароль)
       .font(Тема.Шрифт.стиль(.body))
       .foregroundStyle(Тема.Профиль.текст)
       .padding(Тема.Отступ.sm)

@@ -37,7 +37,14 @@ export type Queryable = {
 type Client = Queryable & { release: () => void }
 type MaybePool = Queryable & { connect?: () => Promise<Client> }
 
-export type MoveKind = 'purchase' | 'grant' | 'spend' | 'refund' | 'adjustment'
+export type MoveKind =
+  | 'purchase'
+  | 'grant'
+  | 'spend'
+  | 'refund'
+  | 'adjustment'
+  /** Unspent tokens of one batch, burned a month after they landed (token-burn.ts). */
+  | 'expire'
 
 export interface Move {
   telegramId: string
@@ -95,7 +102,7 @@ export async function ensureTokenLedger(q: Queryable): Promise<void> {
        telegram_id text NOT NULL,
        delta int NOT NULL CHECK (delta <> 0),
        balance_after int NOT NULL,
-       kind text NOT NULL CHECK (kind IN ('purchase','grant','spend','refund','adjustment')),
+       kind text NOT NULL CHECK (kind IN ('purchase','grant','spend','refund','adjustment','expire')),
        reason text NOT NULL,
        ref text,
        meta jsonb NOT NULL DEFAULT '{}'::jsonb,

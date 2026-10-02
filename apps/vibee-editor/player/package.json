@@ -41,6 +41,7 @@
     "@tamagui/config": "^1.142.0",
     "@tamagui/core": "^1.142.0",
     "@tanstack/react-virtual": "^3.13.13",
+    "@tonconnect/ui": "^3.0.2",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vibee/atoms": "file:../packages/vibee-atoms",
     "autoprefixer": "^10.4.23",

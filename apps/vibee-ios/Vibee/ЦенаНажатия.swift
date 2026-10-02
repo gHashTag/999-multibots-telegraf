@@ -61,11 +61,30 @@ struct ЦенаНажатия: Equatable {
   }
 
   /// Подпись на кнопке. «· 360» когда сумма известна, «· 36/с» когда нет.
-  var подпись: String? {
+  var подпись: String? { label() }
+
+  /// The button label in the phone's language: "· 36/s", "· 24/1k chars".
+  func label(russian: Bool = speaksRussian) -> String? {
     if let всего { return "· \(всего)" }
-    if let заСекунду, let мераПодпись { return "· \(заСекунду)/\(мераПодпись)" }
+    if let заСекунду, let мераПодпись {
+      return "· \(заСекунду)/\(Self.unitLabel(мераПодпись, russian: russian))"
+    }
     if let заСекунду { return "· \(заСекунду)" }
     return nil
+  }
+
+  /**
+   The unit after the slash. `мера` is a key, not a label: the screen switches
+   on "с" and "1000 зн." (`Balance.мера`, mirrored from the web's `мераЦены`),  // cyrillic-ok: quotes the keys
+   so the key stays and only what the person reads is translated.
+   */
+  static func unitLabel(_ мера: String, russian: Bool = speaksRussian) -> String {  // cyrillic-ok: pre-existing key name
+    if russian { return мера }  // cyrillic-ok: pre-existing key name
+    switch мера {  // cyrillic-ok: pre-existing key name
+    case "с": return "s"  // ru-only-ok: protocol key
+    case "1000 зн.": return "1k chars"  // ru-only-ok: protocol key
+    default: return мера  // cyrillic-ok: pre-existing key name
+    }
   }
 }
 

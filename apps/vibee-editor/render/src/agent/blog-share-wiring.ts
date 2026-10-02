@@ -4,12 +4,29 @@
  */
 import type { Queryable } from '../browser/sessions'
 import {
+  ANSWER_WAIT_MS,
   blogShareTick,
+  LEFT_THE_FORM,
+  needleOf,
+  NO_PROFILE_CHECK,
+  NOT_SEEN_ON_PROFILE,
+  PROFILE_LOOK_EVERY_MS,
+  PROFILE_LOOKS,
+  PROFILE_SETTLE_MS,
+  profileUrlFor,
   RSS_URL,
+  SEEN_ON_PROFILE,
+  seenOn,
   shareUrls,
   type Article,
   type Answer,
 } from './blog-share'
+import {
+  AFTER_CLICK_SETTLE_MS,
+  FIRST_SETTLE_MS,
+  LOOK_EVERY_MS,
+  LOOKS,
+} from '../spec/blog-share.gen'
 
 const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -30,7 +47,7 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
       if (!r.ok) throw new Error(`feed answered ${r.status}`)
       return await r.text()
     },
-    ask: what => requestPermission(pool, owner, what),
+    ask: what => requestPermission(pool, owner, what, ANSWER_WAIT_MS),
     answerOf: async id =>
       ((await readApproval(pool, id))?.state ?? 'expired') as Answer,
     publish: a => publishEverywhere(pool, owner, a),
@@ -43,14 +60,16 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
  * label. Never throws for one network: the other still gets its turn, and
  * the owner is told what each did.
  */
-async function publishEverywhere(
+export async function publishEverywhere(
   pool: Queryable,
   owner: string,
   a: Article
 ): Promise<Record<string, string>> {
   const { startBrowserAsAgent } = await import('../browser/routes')
   const { readSession } = await import('../browser/sessions')
-  const { newPage, evaluateOn, clickAt } = await import('../browser/cdp')
+  const { newPage, evaluateOn, clickAt, closePage } = await import(
+    '../browser/cdp'
+  )
   const { findProbe, foundOf } = await import('../browser/find-target')
   let s = await readSession(pool, owner)
   if (!s || s.state !== 'live' || !s.cdpEndpoint) {
@@ -84,9 +103,10 @@ async function publishEverywhere(
    */
   const { loginsOfPerson } = await import('../browser/logins')
   const { isNotConnected } = await import('./rounds')
+  const { receiptOf } = await import('./blog-share')
   const logins = await loginsOfPerson(pool, owner).catch(() => null)
   for (const [net, url, labels] of [
-    ['X', urls.x, ['post']],
+    ['X', urls.x, ['post', 'опубликовать']], // cyrillic-ok: X's Russian label
     ['LinkedIn', urls.linkedin, ['post', 'опубликовать']], // cyrillic-ok: LinkedIn's Russian label
     /* Reddit's submit page says "Post"; in Russian, "Опубликовать". */
     ['Reddit', urls.reddit, ['post', 'опубликовать']], // cyrillic-ok: Reddit's Russian label
@@ -101,21 +121,48 @@ async function publishEverywhere(
     }
     try {
       const page = await newPage(cdp, url)
-      await settle(6_000)
+      await settle(FIRST_SETTLE_MS)
       let pressed: string | null = null
-      for (const label of labels) {
-        const found = foundOf(
-          await evaluateOn(cdp, page.id, findProbe(label)).catch(() => null)
-        )
-        if (found) {
-          await clickAt(cdp, page.id, found.x, found.y)
-          pressed = found.label
-          break
+      /*
+       * One look at six seconds missed the button on a cold browser: the
+       * composer had not drawn yet, and the only allowed article of the month
+       * was reported "button not found" on X and LinkedIn alike. Look again
+       * every three seconds, up to half a minute.
+       */
+      let found: ReturnType<typeof foundOf> = null
+      for (let look = 0; look < LOOKS && !found; look++) {
+        if (look > 0) await settle(LOOK_EVERY_MS)
+        for (const label of labels) {
+          found = foundOf(
+            await evaluateOn(cdp, page.id, findProbe(label)).catch(() => null)
+          )
+          if (found) break
         }
+      }
+      if (found) {
+        const before = String(
+          await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+        )
+        await clickAt(cdp, page.id, found.x, found.y)
+        await settle(AFTER_CLICK_SETTLE_MS)
+        const after = String(
+          await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+        )
+        const receipt = receiptOf(before, after)
+        const check = await confirmIfLeft(cdp, net, a, receipt)
+        pressed = `${found.label}» · ${receipt} · ${check}`
+        /*
+         * Every run used to leave its tabs in the person's browser, day
+         * after day. A post seen on the profile closes its tab; an
+         * unconfirmed one stays open -- it is the only evidence of what
+         * went wrong.
+         */
+        if (check === SEEN_ON_PROFILE)
+          await closePage(cdp, page.id).catch(() => undefined)
       }
       if (net === 'X') void noteShape(pool, a.slug, 'single')
       out[net] = pressed
-        ? `нажато «${pressed}»` // cyrillic-ok: told to the owner
+        ? `нажато «${pressed}` // cyrillic-ok: told to the owner
         : 'кнопка публикации не найдена — окно оставлено открытым' // cyrillic-ok: told to the owner
     } catch (e) {
       out[net] = `ошибка: ${String(e).slice(0, 120)}` // cyrillic-ok: told to the owner
@@ -136,7 +183,7 @@ async function publishEverywhere(
  */
 async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   const { xThread } = await import('./blog-share')
-  const { newPage, evaluateOn, clickAt, typeText } = await import(
+  const { newPage, evaluateOn, clickAt, typeText, closePage } = await import(
     '../browser/cdp'
   )
   const { findProbe, foundOf } = await import('../browser/find-target')
@@ -165,10 +212,85 @@ async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   await settle(1_000)
   await typeText(cdp, page.id, thread.second)
   await settle(1_000)
+  const before = String(
+    await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+  )
   const pressed = await press([
     'post all',
     'опубликовать все',
     'опубликовать всё',
   ])
-  return `тред опубликован («${pressed}»): текст, ссылка вторым постом` // cyrillic-ok: told to the owner
+  await settle(5_000)
+  const after = String(
+    await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
+  )
+  const { receiptOf } = await import('./blog-share')
+  const receipt = receiptOf(before, after)
+  const check = await confirmIfLeft(cdp, 'X', a, receipt)
+  if (check === SEEN_ON_PROFILE)
+    await closePage(cdp, page.id).catch(() => undefined)
+  return `тред отправлен («${pressed}»): текст, ссылка вторым постом · ${receipt} · ${check}` // cyrillic-ok: told to the owner
 }
+
+/**
+ * Only a page that left the form is worth a look at the profile; anything
+ * else is already unconfirmed by its receipt.
+ */
+async function confirmIfLeft(
+  cdp: string,
+  net: string,
+  a: Article,
+  receipt: string
+): Promise<string> {
+  if (receipt !== LEFT_THE_FORM) return NOT_SEEN_ON_PROFILE
+  return await confirmOnProfile(cdp, net, needleOf(a))
+}
+
+/**
+ * A RECEIPT IS NOT A POST (spec v2). The page can leave the form for an
+ * error page or a sign-in wall. So the owner's own profile is opened in the
+ * same browser and the post's opening words are looked for, a few times,
+ * because a fresh post reaches the feed late. Reads only: nothing is
+ * clicked or typed here. Never throws: a failure is "not seen".
+ */
+export async function confirmOnProfile(
+  cdp: string,
+  net: string,
+  needle: string
+): Promise<string> {
+  const start = profileUrlFor(net)
+  if (!start) return NO_PROFILE_CHECK
+  const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
+  let page: { id: string } | null = null
+  try {
+    page = await newPage(cdp, start)
+    await settle(PROFILE_SETTLE_MS)
+    if (net === 'X') {
+      /* x.com/home links to the person's own profile; that page is read. */
+      const own = String(
+        (await evaluateOn(cdp, page.id, X_PROFILE_LINK).catch(() => '')) || ''
+      )
+      if (!/^https:\/\/(x|twitter)\.com\/[A-Za-z0-9_]+$/.test(own))
+        return NOT_SEEN_ON_PROFILE
+      await closePage(cdp, page.id).catch(() => undefined)
+      page = await newPage(cdp, own)
+      await settle(PROFILE_SETTLE_MS)
+    }
+    for (let look = 0; look < PROFILE_LOOKS; look++) {
+      if (look > 0) await settle(PROFILE_LOOK_EVERY_MS)
+      const text = String(
+        (await evaluateOn(cdp, page.id, PAGE_TEXT).catch(() => '')) || ''
+      )
+      if (seenOn(text, needle)) return SEEN_ON_PROFILE
+    }
+    return NOT_SEEN_ON_PROFILE
+  } catch {
+    return NOT_SEEN_ON_PROFILE
+  } finally {
+    if (page) await closePage(cdp, page.id).catch(() => undefined)
+  }
+}
+
+const PAGE_TEXT = 'document.body ? document.body.innerText : ""'
+const X_PROFILE_LINK =
+  '(document.querySelector(\'a[data-testid="AppTabBar_Profile_Link"]\') || {}).href || ""'

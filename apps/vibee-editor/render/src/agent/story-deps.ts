@@ -12,7 +12,8 @@ import { askBuyerModel } from './crm-duet-tool'
 import { allProviders, diagnose } from './provider'
 import { botNameOf, tokenForBot } from './bot-farm'
 import { telegramApiFor } from '../telegram-api'
-import { appLinkFor } from '../app-links'
+import { appLinkFor, isLinkableRoute } from '../app-links'
+import { PAGE_ROUTE } from '../spec/crm-story-reel.gen'
 import { issueFor, pendingFor } from './tg-proposals'
 import { clientGroupFor } from './crm-client-group'
 import { offerGroupCard, type CardPort } from './story-card'
@@ -160,7 +161,10 @@ export function makeStoryDeps(
       const g = await clientGroupFor(pool as never, seller, lead)
       return g && g.chat_id === chat ? g.title : null
     },
-    pageOf: bot => appLinkFor(bot, 'story'),
+    // The spec names where the link under her reel leads (v18: the chat with
+    // the agent, where her reels widget stands above the talk).
+    pageOf: bot =>
+      isLinkableRoute(PAGE_ROUTE) ? appLinkFor(bot, PAGE_ROUTE) : '',
     // Her own voice notes, read with the SELLER's session from the seller's
     // chat with her (spec v4: NOTES_FROM_SELLER_DM_ONLY).
     voiceNotes: (seller, lead, parts) =>
