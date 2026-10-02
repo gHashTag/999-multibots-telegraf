@@ -151,7 +151,13 @@ async function transmit(id: string, ctx: ToolContext) {
       note: 'no tap yet; call again with the same approval id',
     }
   }
-  // Allowed or not, a card is used once.
+  // Allowed or not, a card is used once. Two calls with one id can both sit
+  // in the wait above (a retried MCP call, a new chat turn); only the one that
+  // still finds THIS entry may take it. Check and delete with no await between
+  // them, so the second caller sees the card gone and never sends twice.
+  if (PENDING.get(id) !== p) {
+    return { sent: false, refused: 'this card was already used' }
+  }
   PENDING.delete(id)
   if (state !== 'allowed') {
     return { sent: false, refused: `the owner did not allow it (${state})` }
