@@ -90,7 +90,9 @@ export function lastPollMs(): number {
  * Configuration: which apps, which callback.
  * ------------------------------------------------------------------------- */
 
-export type Network = 'threads' | 'facebook'
+/* LinkedIn and X share the table, the sealing and the state (social-api.ts). */
+export type Network = 'threads' | 'facebook' | 'linkedin' | 'x'
+export const META_NETWORKS: readonly Network[] = ['threads', 'facebook']
 type Env = Record<string, string | undefined>
 
 export function graphVersion(env: Env = process.env): string {
@@ -109,9 +111,15 @@ export function appOf(
   network: Network,
   env: Env = process.env
 ): { id: string; secret: string } | null {
-  const id = network === 'threads' ? env.THREADS_APP_ID : env.META_APP_ID
-  const secret =
-    network === 'threads' ? env.THREADS_APP_SECRET : env.META_APP_SECRET
+  const names: Record<Network, [string, string]> = {
+    threads: ['THREADS_APP_ID', 'THREADS_APP_SECRET'],
+    facebook: ['META_APP_ID', 'META_APP_SECRET'],
+    linkedin: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET'],
+    x: ['X_CLIENT_ID', 'X_CLIENT_SECRET'],
+  }
+  const [idName, secretName] = names[network]
+  const id = env[idName]
+  const secret = env[secretName]
   return id && secret ? { id, secret } : null
 }
 
@@ -150,7 +158,12 @@ export function authorizeUrl(
 
 function keyOf(env: Env): Buffer {
   const raw =
-    env.META_TOKEN_KEY || env.META_APP_SECRET || env.THREADS_APP_SECRET || ''
+    env.META_TOKEN_KEY ||
+    env.META_APP_SECRET ||
+    env.THREADS_APP_SECRET ||
+    env.LINKEDIN_CLIENT_SECRET ||
+    env.X_CLIENT_SECRET ||
+    ''
   if (!raw) throw new Error('no key to seal a token with')
   return createHash('sha256').update(`meta-connect:${raw}`).digest()
 }
@@ -171,10 +184,16 @@ export function unseal(sealed: string, env: Env = process.env): string {
 
 /** Anything that may hold a token, made safe to show or to log. Pure. */
 export function scrub(text: string): string {
-  return text
-    .replace(/access_token=[^&\s"']+/gi, 'access_token=…')
-    .replace(/\b(EAA|THQ|TH)[A-Za-z0-9_-]{20,}/g, '…')
-    .slice(0, 300)
+  return (
+    text
+      .replace(/access_token=[^&\s"']+/gi, 'access_token=…')
+      .replace(/(refresh_token|code_verifier)=[^&\s"']+/gi, '$1=…')
+      .replace(/Bearer\s+\S+/gi, 'Bearer …')
+      .replace(/\b(EAA|THQ|TH)[A-Za-z0-9_-]{20,}/g, '…')
+      /* LinkedIn and X tokens carry no prefix: any long opaque run goes. */
+      .replace(/[A-Za-z0-9_\-.~+/=]{48,}/g, '…')
+      .slice(0, 300)
+  )
 }
 
 /* ---------------------------------------------------------------------------
@@ -201,6 +220,10 @@ export async function ensureSocialTables(q: Queryable): Promise<void> {
     created_at timestamptz NOT NULL DEFAULT now(),
     used boolean NOT NULL DEFAULT false
   )`)
+  /* The PKCE verifier of an X connect (social-api.t27); null for the others. */
+  await q.query(
+    `ALTER TABLE social_oauth_states ADD COLUMN IF NOT EXISTS verifier text`
+  )
   tablesReady = true
 }
 export function resetSocialTablesForTests(): void {
@@ -245,7 +268,7 @@ export async function readTokens(
   return out
 }
 
-async function writeToken(
+export async function writeToken(
   q: Queryable,
   owner: string,
   t: Omit<HeldToken, 'refreshedAt'>,
@@ -291,7 +314,10 @@ export function statusView(
       account: t.meta.username || t.meta.page_name || t.accountId,
       instagram: t.meta.ig_username || null,
       daysLeft: Number.isFinite(days) ? days : null,
-      usable: usable(t.expiresAt !== null, Number.isFinite(days) ? days : 1),
+      /* An X token lives two hours; a held refresh token keeps it usable. */
+      usable:
+        !!t.meta.refresh_sealed ||
+        usable(t.expiresAt !== null, Number.isFinite(days) ? days : 1),
     }
   })
 }
@@ -302,8 +328,17 @@ export function statusView(
 
 export type Fetch = (
   url: string,
-  init?: { method?: string; body?: URLSearchParams }
-) => Promise<{ ok: boolean; status: number; json: () => Promise<any> }>
+  init?: {
+    method?: string
+    body?: URLSearchParams | string
+    headers?: Record<string, string>
+  }
+) => Promise<{
+  ok: boolean
+  status: number
+  json: () => Promise<any>
+  headers?: { get: (name: string) => string | null }
+}>
 
 async function call(
   f: Fetch,
@@ -346,13 +381,24 @@ export async function startConnect(
           ? 'не заданы THREADS_APP_ID и THREADS_APP_SECRET' // cyrillic-ok: told to the owner
           : 'не заданы META_APP_ID и META_APP_SECRET', // cyrillic-ok: told to the owner
     }
+  const nonce = await mintState(q, owner, network)
+  return { ok: true, url: authorizeUrl(network, app.id, nonce, env) }
+}
+
+/** A single-use state for one connect; X also keeps its PKCE verifier here. */
+export async function mintState(
+  q: Queryable,
+  owner: string,
+  network: Network,
+  verifier: string | null = null
+): Promise<string> {
   await ensureSocialTables(q)
   const nonce = randomBytes(24).toString('base64url')
   await q.query(
-    `INSERT INTO social_oauth_states (nonce, owner, network) VALUES ($1, $2, $3)`,
-    [nonce, owner, network]
+    `INSERT INTO social_oauth_states (nonce, owner, network, verifier) VALUES ($1, $2, $3, $4)`,
+    [nonce, owner, network, verifier]
   )
-  return { ok: true, url: authorizeUrl(network, app.id, nonce, env) }
+  return nonce
 }
 
 /** Takes the state once: the owner and network it was minted for, or null. */
@@ -360,20 +406,28 @@ export async function takeState(
   q: Queryable,
   nonce: string,
   nowMs: number
-): Promise<{ owner: string; network: Network } | null> {
+): Promise<{
+  owner: string
+  network: Network
+  verifier: string | null
+} | null> {
   if (!nonce) return null
   await ensureSocialTables(q)
   const { rows } = await q.query(
     `UPDATE social_oauth_states SET used = true
       WHERE nonce = $1 AND used = false
-      RETURNING owner, network, created_at`,
+      RETURNING owner, network, created_at, verifier`,
     [nonce]
   )
   const r = rows[0]
   if (!r) return null
   const age = nowMs - new Date(String(r.created_at)).getTime()
   if (!stateOk(age, false)) return null
-  return { owner: String(r.owner), network: String(r.network) as Network }
+  return {
+    owner: String(r.owner),
+    network: String(r.network) as Network,
+    verifier: r.verifier ? String(r.verifier) : null,
+  }
 }
 
 export async function finishConnect(
@@ -690,6 +744,8 @@ export async function postByApi(
   }
   const say = (r: string) => `${VIA_API} · ${r}`
   for (let t of held) {
+    /* LinkedIn and X rows live in the same table; social-api.ts posts them. */
+    if (!META_NETWORKS.includes(t.network)) continue
     const days = daysLeftOf(t, now())
     const label = t.network === 'threads' ? 'Threads' : 'Facebook'
     if (!usable(t.expiresAt !== null, Number.isFinite(days) ? days : 1)) {

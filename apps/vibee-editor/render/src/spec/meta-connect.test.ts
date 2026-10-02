@@ -221,6 +221,8 @@ describe('meta-connect.t27 against the host', () => {
     expect(await takeState(q as never, 'n', 1_000_000 + 599_999)).toEqual({
       owner: '1',
       network: 'threads',
+      /* Only an X connect keeps a PKCE verifier (social-api.t27). */
+      verifier: null,
     })
     expect(await takeState(q as never, 'n', 1_000_000 + 600_000)).toBeNull()
     expect(await takeState(q as never, '', 0)).toBeNull()

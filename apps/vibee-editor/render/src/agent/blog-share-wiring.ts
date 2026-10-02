@@ -71,18 +71,27 @@ export async function publishEverywhere(
    * connected by OAuth is posted with its API and comes back with the post's
    * id; only the networks without a token are left to the browser below.
    */
-  const { postByApi } = await import('./meta-connect')
-  const viaApi = await postByApi(pool, owner, cardPost(a), {
-    fetch: (url, init) =>
-      fetch(url, { ...init, signal: AbortSignal.timeout(20_000) }) as never,
+  const { postByApi, VIA_API } = await import('./meta-connect')
+  const { postBySocialApi } = await import('./social-api')
+  const apiDeps = {
+    fetch: ((url: string, init?: object) =>
+      fetch(url, { ...init, signal: AbortSignal.timeout(20_000) })) as never,
     sleep: settle,
-  }).catch(() => ({}) as Record<string, string>)
+  }
+  /* LinkedIn and X by their own APIs too (social-api.t27), same rule. */
+  const [meta, social] = await Promise.all(
+    [postByApi, postBySocialApi].map(post =>
+      post(pool, owner, cardPost(a), apiDeps).catch(
+        () => ({}) as Record<string, string>
+      )
+    )
+  )
+  const viaApi: Record<string, string> = { ...meta, ...social }
 
   const { startBrowserAsAgent } = await import('../browser/routes')
   const { readSession } = await import('../browser/sessions')
-  const { newPage, evaluateOn, clickAt, closePage } = await import(
-    '../browser/cdp'
-  )
+  const { newPage, evaluateOn, clickAt, closePage } =
+    await import('../browser/cdp')
   const { findProbe, foundOf } = await import('../browser/find-target')
   let s = await readSession(pool, owner)
   if (!s || s.state !== 'live' || !s.cdpEndpoint) {
@@ -103,13 +112,15 @@ export async function publishEverywhere(
    * owner is told which of the two happened.
    */
   const { noteShape } = await import('./reach-log')
-  try {
-    out.X = await postThreadOnX(cdp, a)
-    /* Which shape it took, written down while it is certain (reach-log.ts). */
-    void noteShape(pool, a.slug, 'thread')
-  } catch (e) {
-    out.X = `тред не получился: ${String(e).slice(0, 100)}` // cyrillic-ok: told to the owner
-  }
+  /* Posted by X's API already: no thread in the browser on top of it. */
+  if (!String(viaApi.X || '').startsWith(VIA_API))
+    try {
+      out.X = await postThreadOnX(cdp, a)
+      /* Which shape it took, written down while it is certain (reach-log.ts). */
+      void noteShape(pool, a.slug, 'thread')
+    } catch (e) {
+      out.X = `тред не получился: ${String(e).slice(0, 100)}` // cyrillic-ok: told to the owner
+    }
 
   /*
    * A NETWORK THE BROWSER IS NOT SIGNED INTO IS NOT OPENED (#2965's rule,
@@ -201,9 +212,8 @@ export async function publishEverywhere(
  */
 async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   const { xThread } = await import('./blog-share')
-  const { newPage, evaluateOn, clickAt, typeText, closePage } = await import(
-    '../browser/cdp'
-  )
+  const { newPage, evaluateOn, clickAt, typeText, closePage } =
+    await import('../browser/cdp')
   const { findProbe, foundOf } = await import('../browser/find-target')
   const thread = xThread(a)
   const page = await newPage(cdp, 'https://x.com/compose/post')
