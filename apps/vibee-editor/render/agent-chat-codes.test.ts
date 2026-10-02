@@ -16,9 +16,29 @@ import path from 'path'
  */
 const root = path.join(__dirname, '..', '..', '..')
 const read = (...p: string[]) => fs.readFileSync(path.join(root, ...p), 'utf8')
-const literals = (src: string) =>
-  [...src.matchAll(/code: '([a-z_]+)'/g)].map(m => m[1])
 const quoted = (src: string) => [...src.matchAll(/'([a-z_]+)'/g)].map(m => m[1])
+/**
+ * Every value a `code:` property can take in a slice. A bare `code: 'x'` was
+ * all this used to read, so `code: empty ? 'no_answer' : 'model_failed'`, a
+ * `code: reason` or a shorthand `{ code }` set a code it never saw. Now the
+ * whole value is read: its literals count, and a value with none is OPAQUE --
+ * named, so a test can say which references it trusts.
+ */
+const codeValues = (src: string) => {
+  const found: string[] = []
+  const opaque: string[] = []
+  for (const m of src.matchAll(/\bcode: ([^,\n}]+)/g)) {
+    const expr = m[1].trim()
+    const lits = quoted(expr)
+    if (lits.length) found.push(...lits)
+    else if (!/^-?\d+$/.test(expr)) opaque.push(expr)
+  }
+  for (const m of src.matchAll(/[{,]\s*code\s*(?=[,}])/g)) opaque.push(m[0])
+  return { found, opaque }
+}
+const literals = (src: string) => codeValues(src).found
+/** The only non-literal code the chat route may set: GateCode, read below. */
+const TRUSTED = ['gate.code']
 
 const server = read('apps', 'vibee-editor', 'render', 'render-server.ts')
 const sStart = server.indexOf("=== '/api/agent/chat' && req.method === 'POST'")
@@ -85,6 +105,30 @@ describe('agent chat failure codes', () => {
         'internal',
       ])
     )
+  })
+
+  it('reads a code set through a ternary, and names one set through a variable', () => {
+    const probe = codeValues(
+      "a({ code: empty ? 'no_answer' : 'model_failed' })\n" +
+        'b({ code: reason, x })\n' +
+        'c({ x, code })\n' +
+        'd({ code: 404 })'
+    )
+    expect(probe.found).toEqual(['no_answer', 'model_failed'])
+    expect(probe.opaque.map(o => o.replace(/[\s{,]/g, ''))).toEqual([
+      'reason',
+      'code',
+    ])
+  })
+
+  it('sets no code the contract cannot read', () => {
+    for (const [name, src] of [
+      ['door', door],
+      ['handleAgentChat', handler],
+      ['chat.ts', chat],
+    ] as const)
+      for (const o of codeValues(src).opaque)
+        expect(TRUSTED, `${name} sets code from ${o}`).toContain(o)
   })
 
   it('every code the turn yields is declared on its event', () => {

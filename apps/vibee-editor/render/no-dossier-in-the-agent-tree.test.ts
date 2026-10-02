@@ -102,8 +102,6 @@ const NOT_A_PERSON_HANDLE: Record<string, string> = {
   botfather:
     "Telegram's own bot for managing bots, which botfather-main-app.ts drives",
   example_bot: 'a placeholder bot name in the botfather_main_app argument hint',
-  owner:
-    'the invented X account a mocked users/me returns (linkedin-and-x-post-by-their-own-api.test.ts)',
 }
 
 /** JSDoc and TSDoc tags: annotations, never an account. */
