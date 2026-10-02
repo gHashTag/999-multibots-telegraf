@@ -88,9 +88,15 @@ function verdict(results) {
       next: `GitHub is reachable; ${down.join(', ')} is not (network): wait or check its host`,
     }
   }
+  // Name the unrecognised failures apart from the network ones: a refused
+  // connection is not "an http error" (#3447 review).
+  const odd = down.filter(n => results[n] !== 'dns' && results[n] !== 'connect')
+  const road = down.filter(n => !odd.includes(n))
   return {
     code: 4,
-    next: `${down.join(', ')} failed in a way not recognised (an http error is the service, not the road): read its line`,
+    next:
+      `${odd.join(', ')} failed in a way not recognised (an http error is the service, not the road): read its line` +
+      (road.length ? `; ${road.join(', ')} down (network)` : ''),
   }
 }
 
