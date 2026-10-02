@@ -53,7 +53,11 @@ fi
 VALUE="$(printf '%s' "$VALUE" | tr -d '\r' | sed -e 's/[[:space:]]*$//' -e 's/^[[:space:]]*//')"
 [ -n "$VALUE" ] || { echo "empty value: nothing was set"; exit 2; }
 
-if ! railway variables --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service "$SERVICE" --set "$NAME=$VALUE" >/dev/null 2>&1; then
+# The value goes through stdin: an argument (`--set NAME=VALUE`) is readable
+# by every process on the machine via `ps` for as long as the CLI runs.
+# printf is a builtin, so no process ever carries it in its argv.
+if ! printf '%s' "$VALUE" | railway variable set "$NAME" --stdin \
+  --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service "$SERVICE" >/dev/null 2>&1; then
   unset VALUE
   echo "Railway refused (run 'railway login', then again)"
   exit 1
