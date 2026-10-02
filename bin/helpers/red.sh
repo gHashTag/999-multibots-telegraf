@@ -51,7 +51,10 @@ printf '%s\n' "$RUNS" | cut -f1 | sort | uniq -c | sort -rn | sed 's/^/  /'
 
 BAD=$(printf '%s\n' "$RUNS" | awk -F'\t' '$1 ~ /^(failure|timed_out|cancelled|action_required|startup_failure)$/')
 if [ -z "$BAD" ]; then
-  pend=$(printf '%s\n' "$RUNS" | awk -F'\t' '$1 ~ /^(queued|in_progress|pending|waiting|requested)$/' | wc -l | tr -d ' ')
+  # Whatever is not a known FINISHED conclusion counts as still running: a
+  # status GitHub adds tomorrow must read as "not green", never as green
+  # (review of #3412). The failing conclusions were taken above.
+  pend=$(printf '%s\n' "$RUNS" | awk -F'\t' '$1 !~ /^(success|neutral|skipped|stale)$/' | wc -l | tr -d ' ')
   # Still running is not green. Exit 0 here once let a loop read "21 queued"
   # as a green main (trinity-fpga c7632348, 2026-10-03); gh pr checks gives
   # pending its own code (8) for the same reason.
