@@ -38,6 +38,13 @@ const STEPS = [
   ['test:player', 'bun', ['run', 'test:player']],
   ['test:vitest', 'bun', ['run', 'test:vitest']],
   ['test-gate', 'node', ['scripts/test-gate.cjs']],
+  // Every phone stand in a real Chromium at 390 ru/en and 320 ru (tri shot
+  // all). jsdom has no layout: a list 478px wide in a 390px screen, a 20px
+  // link and a palette nobody could open all passed every step above. Exit 2
+  // ("not measured" -- no browser, a stand that never reached its state) is
+  // a FAIL here, not a skip: the story-palette stand measured nothing for
+  // days after #3242 hid its panel, and no run said so (2026-10-02).
+  ['phone-shots', 'node', ['bin/helpers/shot.mjs', 'all']],
 ]
 
 // One step is a known flake, not a code signal: test:bun runs its files under a
@@ -55,7 +62,11 @@ const STEPS = [
 // non-zero — observed once mid-session, then passing in 0.4s with 0 critical on
 // the immediate re-run. Same treatment: retry once. A real critical advisory is
 // persistent and still fails the re-run, so nothing is masked.
-const FLAKY_RETRY = new Set(['test:bun', 'audit'])
+//
+// `phone-shots` starts a Vite server and a browser per stand; on a loaded
+// machine (load ~675 on 8 cores, measured) a page can miss its 30s goto and
+// read as "not measured". Retry once: a real red is the same pixels twice.
+const FLAKY_RETRY = new Set(['test:bun', 'audit', 'phone-shots'])
 
 // Preflight: a node_modules that has become a symlink to itself makes every
 // step below fail to spawn (exit -1 in 0.0s) — thirteen false failures for one

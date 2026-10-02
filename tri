@@ -514,12 +514,25 @@ CHECKS THAT EACH COST A CYCLE
         all are; an empty annotation (dropped connection) is re-asked, then
         counted UNKNOWN -- never billing.
 
+  tri premerge N [--keep]
+        Would PR N pass the player's deploy gate once it lands on today's
+        main? Merges the PR head into origin/main in a throwaway worktree and
+        runs exactly what the Docker test stage runs: tsc --noEmit and
+        scripts/test-gate.mjs. rc 0 pass, 1 refused or conflict, 2 usage.
+        --keep leaves the worktree for a look.
+
   tri deploys [--logs] | tri выкладки
         Is the player on app.t27.ai what main says it is? The serving
         commit, every later main commit that touches the image with its
         deploy status, and for a FAILED build: the failing tests, tsc
         errors, the REFUSED line, and who last touched each failing test.
         rc 0 live, 1 failed or behind, 2 unknown, 5 building.
+
+  tri board
+        Is the board on app.t27.ai trinity's main? The pinned QUEEN_REF,
+        trinity main's HEAD, the commits between, and every open
+        release(board) PR marked current or stale. rc 0 shipped, 1 behind,
+        2 unknown. A reviewer agent merges the release PR, not its author.
 
   tri readers [--gate | --run FILE...] | tri читатели
         Tests that read source as TEXT, and the paths they still believe in.
@@ -3729,6 +3742,114 @@ cmd_pr_billing() {
   return 1
 }
 
+cmd_premerge() {
+  # Would PR N pass the player's deploy gate once it lands on today's main?
+  #   tri premerge N           rc 0 pass, 1 refused/conflict, 2 usage/setup
+  #   tri premerge N --keep    leave the throwaway worktree behind
+  #
+  # Actions are dead (billing), so the only test gate is the Docker `test`
+  # stage, and it runs AFTER the merge, on main. A PR that is green on its own
+  # branch can still break it: 2026-10-02, two PRs each passed alone and the
+  # deploy of their sum failed. This runs the gate on (origin/main + PR head)
+  # BEFORE the merge, so the red lands on the PR, not on app.t27.ai.
+  #
+  # node_modules are not installed (no downloads): each entry is symlinked
+  # from a checkout that has them, except @vibee/*, which must resolve to THIS
+  # worktree's packages -- a symlink into another tree tests the wrong atoms.
+  local gh="${TRI_GH:-gh}" repo="${TRI_GH_REPO:-gHashTag/999-multibots-telegraf}"
+  local pr="" keep=0 a
+  for a in "$@"; do
+    case "$a" in
+      --keep) keep=1 ;;
+      *) pr="$a" ;;
+    esac
+  done
+  [[ "$pr" =~ ^[0-9]+$ ]] || { echo "usage: tri premerge PR_NUMBER [--keep]" >&2; return 2; }
+
+  local src="${TRI_PLAYER_NM:-}" cand
+  if [ -z "$src" ]; then
+    for cand in "$ROOT" $(git -C "$ROOT" worktree list --porcelain | awk '/^worktree /{print $2}'); do
+      if [ -d "$cand/apps/vibee-editor/player/node_modules" ] && [ ! -L "$cand/apps/vibee-editor/player/node_modules" ]; then
+        src="$cand/apps/vibee-editor"; break
+      fi
+    done
+  fi
+  [ -n "$src" ] || { bad "no checkout with a real player/node_modules (set TRI_PLAYER_NM=<dir with player/ and packages/>)"; return 2; }
+
+  local head
+  head=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid --jq .headRefOid) \
+    || { bad "PR $pr not found in $repo"; return 2; }
+  git -C "$ROOT" fetch -q origin main "pull/$pr/head" \
+    || { bad "git fetch of main and pull/$pr/head failed"; return 2; }
+  local main_sha
+  main_sha=$(git -C "$ROOT" rev-parse origin/main)
+
+  local dir
+  dir=$(mktemp -d "/tmp/tri-premerge-$pr.XXXX") || return 2
+  rmdir "$dir"
+  git -C "$ROOT" worktree add -q --detach "$dir" "$main_sha" || { bad "worktree add failed"; return 2; }
+  local rc=0
+  (
+    cd "$dir" || exit 2
+    git -c user.name=tri -c user.email=tri@localhost merge -q --no-edit "$head" >/dev/null 2>&1 || {
+      bad "PR $pr (${head:0:9}) does not merge cleanly into main ${main_sha:0:9}:"
+      git diff --name-only --diff-filter=U | sed 's/^/        /'
+      exit 1
+    }
+    if git diff --name-only "$main_sha" HEAD -- 'apps/vibee-editor/player/package*.json' 'apps/vibee-editor/packages/*/package*.json' | grep -q .; then
+      warn "PR $pr changes a package.json -- node_modules here are the local ones, a pass is not proof"
+    fi
+    local ed="$dir/apps/vibee-editor" e
+    mkdir -p "$ed/player/node_modules/@vibee"
+    for e in "$src/player/node_modules/"* "$src/player/node_modules/".bin "$src/player/node_modules/".vite; do
+      [ -e "$e" ] || continue
+      [ "$(basename "$e")" = "@vibee" ] && continue
+      ln -s "$e" "$ed/player/node_modules/$(basename "$e")"
+    done
+    for e in "$ed"/packages/*/; do
+      e="${e%/}"
+      ln -s "../../../packages/$(basename "$e")" "$ed/player/node_modules/@vibee/$(basename "$e")"
+      [ -d "$src/packages/$(basename "$e")/node_modules" ] && ln -s "$src/packages/$(basename "$e")/node_modules" "$e/node_modules"
+    done
+    # @vibee/atoms is the name the player imports; the directory is vibee-atoms.
+    [ -e "$ed/packages/vibee-atoms" ] && ln -sfn ../../../packages/vibee-atoms "$ed/player/node_modules/@vibee/atoms"
+
+    # The gate runs on the image's Node, not on whatever is first on PATH.
+    # 2026-10-02, first run: Node 26 (tri puts Homebrew first) has its own
+    # global Storage, a spy on Storage.prototype missed jsdom's, and a test
+    # that passes in the image failed here. Nearest installed major wins.
+    local want bin best="" bestd=99 m d
+    want=$(sed -n 's/^FROM node:\([0-9][0-9]*\).* AS build$/\1/p' "$ed/Dockerfile" | head -1)
+    for bin in /opt/homebrew/opt/node@*/bin "$HOME"/.nvm/versions/node/v*/bin; do
+      [ -x "$bin/node" ] || continue
+      m=$("$bin/node" -p 'process.versions.node.split(".")[0]' 2>/dev/null) || continue
+      d=$(( m > ${want:-0} ? m - ${want:-0} : ${want:-0} - m ))
+      [ $d -lt $bestd ] && { best="$bin"; bestd=$d; }
+    done
+    [ -n "$best" ] && PATH="$best:$PATH"
+    [ "$(node -p 'process.versions.node.split(".")[0]')" = "$want" ] \
+      || warn "the image builds on Node ${want:-?}, this runs on $(node -v) -- the nearest installed"
+
+    echo "  --   PR $pr ${head:0:9} on main ${main_sha:0:9}, $(node -v): tsc --noEmit, then test-gate (several minutes)"
+    cd "$ed/player" || exit 2
+    npx tsc --noEmit -p . > "$dir/.premerge-tsc.log" 2>&1 || {
+      bad "tsc refused:"; grep 'error TS' "$dir/.premerge-tsc.log" | head -20 | sed 's/^/        /'; exit 1
+    }
+    node scripts/test-gate.mjs > "$dir/.premerge-gate.log" 2>&1 || {
+      bad "test gate refused:"
+      sed 's/\x1b\[[0-9;]*m//g' "$dir/.premerge-gate.log" | grep -E '^ *(❯|×|FAIL)|test gate:' | head -30 | sed 's/^/        /'
+      exit 1
+    }
+    good "PR $pr passes the deploy gate on main ${main_sha:0:9}: $(sed 's/\x1b\[[0-9;]*m//g' "$dir/.premerge-gate.log" | grep -E '^ *Tests ' | tail -1 | sed 's/^ *//')"
+  ) || rc=$?
+  if [ $keep -eq 1 ]; then
+    echo "  --   kept: $dir (logs: .premerge-tsc.log, .premerge-gate.log)"
+  else
+    git -C "$ROOT" worktree remove --force "$dir" 2>/dev/null || { rm -rf "$dir"; git -C "$ROOT" worktree prune; }
+  fi
+  return $rc
+}
+
 cmd_pay() {
   # Can a client pay RIGHT NOW. Answering this by hand cost an hour on
   # 2026-09-17: which routes exist, which keys sit on which service, what the
@@ -6448,14 +6569,18 @@ PY
 # "and" survives ("this week and" came back "this weekend." on 2026-10-02).
 # ─────────────────────────────────────────────────────────────────────────
 cmd_turn() {
-  local bench="$ROOT/apps/vibee-editor/player/scripts/turn-bench.ts" live='' a phrases=() key heard
+  local bench="$ROOT/apps/vibee-editor/player/scripts/turn-bench.ts" live='' audio='' lang=ru pause=300 a phrases=() key heard
   for a in "$@"; do
     case "$a" in
       --live) live=1 ;;
-      -*) bad "tri turn [--live] [phrase ...], not '$a'"; return 2 ;;
+      --audio) audio=1 ;;
+      --lang=*) lang="${a#--lang=}" ;;
+      --pause=*) pause="${a#--pause=}" ;;
+      -*) bad "tri turn [--live | --audio [--lang=ru] [--pause=300] file ...] [phrase ...], not '$a'"; return 2 ;;
       *) phrases+=("$a") ;;
     esac
   done
+  [ -n "$audio" ] && { _turn_audio "$lang" "$pause" ${phrases[@]+"${phrases[@]}"}; return $?; }
   command -v bun >/dev/null || { bad 'bun is needed to run the judge'; return 2; }
   if [ -z "$live" ]; then
     bun "$bench" ${phrases[@]+"${phrases[@]}"}
@@ -6497,8 +6622,9 @@ PROBES = (('ru', 'Покажи мне встречи на этой неделе 
 for lang, text, want in PROBES:
     try:
         audio, _, _ = call('/api/voice/speak', {'text': text, 'lang': lang}, 'application/json')
-        b, ms, timing = call(f'/api/voice/transcribe?lang={lang}', audio, 'audio/mpeg')
+        b, ms, timing = call(f'/api/voice/transcribe?lang={lang}&turn=1', audio, 'audio/mpeg')
         words = json.loads(b).get('text', '')
+        done = json.loads(b).get('done')
     except Exception as e:
         print(f'  {lang}: FAILED {e}', file=os.sys.stderr)
         continue
@@ -6507,7 +6633,10 @@ for lang, text, want in PROBES:
     late = max(0, EAGER + ms - END)
     engine = re.search(r'hear;dur=([0-9.]+);desc="?([^",]+)', timing or '')
     via = f', {engine.group(2)} {int(float(engine.group(1)))} ms' if engine else ''
-    print(f'  {lang} said {json.dumps(text, ensure_ascii=False)} -> words at {EAGER + ms} ms of silence (earcon +{late} ms{via})', file=os.sys.stderr)
+    # The voice's own verdict (Smart Turn in the ears); synthesized speech,
+    # so it is a smoke test of the road, not a measure of the model.
+    voice = 'no verdict' if done is None else f"voice {done:.2f} {'agrees' if (done < 0.5) == want else 'DISAGREES'}"
+    print(f'  {lang} said {json.dumps(text, ensure_ascii=False)} -> words at {EAGER + ms} ms of silence (earcon +{late} ms{via}; {voice})', file=os.sys.stderr)
     print('--want-hang' if want else '--want-over')
     print(words)
 PY
@@ -6516,6 +6645,51 @@ PY
   while IFS= read -r a; do list+=("$a"); done <<< "$heard"
   [ ${#list[@]} -gt 0 ] && [ -n "${list[0]}" ] || { bad 'nothing heard'; return 1; }
   bun "$bench" "${list[@]}"
+}
+
+# tri turn --audio: does the VOICE sound finished? (cycle 13, Smart Turn v3.2
+# in the ears, deployment/gigaam/turn.py). Real recordings, through the live
+# road: each file is cut to its last sound, given --pause ms of silence (the
+# player asks 300 ms into a pause) and sent as the eager hearing sends it.
+# Name files done-*.wav / cut-*.wav (finished / stopped mid-thought) and the
+# summary counts what decides switching it on (VoiceDeps.voiceHolds): the
+# finished turns it would HOLD 2.5 s, and the unfinished ones it catches.
+_turn_audio() {
+  local lang="$1" pause="$2" key; shift 2
+  [ $# -gt 0 ] || { bad 'tri turn --audio file ...'; return 2; }
+  command -v ffmpeg >/dev/null || { bad 'ffmpeg is needed to cut the recordings'; return 2; }
+  key=$(_mcp_key 2>/dev/null) || key=''
+  [ -n "$key" ] || { bad 'no agent key: --audio needs the render (AGENT_KEY or the vault)'; return 2; }
+  V_KEY="$key" V_BASE="$RENDER" V_LANG="$lang" V_PAUSE="$pause" python3 - "$@" <<'PY'
+import json, os, re, subprocess, sys, urllib.request
+base, key, lang, pause = os.environ['V_BASE'], os.environ['V_KEY'], os.environ['V_LANG'], int(os.environ['V_PAUSE'])
+held = caught = finished = unfinished = 0
+for path in sys.argv[1:]:
+    name = os.path.basename(path)
+    # Trim the file's own trailing quiet (-50 dB), then add exactly ours.
+    wav = subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-i', path, '-af',
+        f'areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,apad=pad_dur={pause / 1000}',
+        '-ac', '1', '-ar', '16000', '-f', 'wav', '-'], capture_output=True).stdout
+    if not wav:
+        print(f'  {name}: cannot decode'); continue
+    req = urllib.request.Request(f'{base}/api/voice/transcribe?lang={lang}&turn=1', data=wav,
+        headers={'Content-Type': 'audio/wav', 'X-Agent-Key': key})
+    try:
+        r = urllib.request.urlopen(req, timeout=60)
+        body, timing = json.loads(r.read()), r.headers.get('Server-Timing') or ''
+    except Exception as e:
+        print(f'  {name}: FAILED {e}'); continue
+    done = body.get('done')
+    engine = re.search(r'desc="?([^",]+)', timing)
+    verdict = 'no verdict (ears without the turn model?)' if done is None else f"done {done:.2f} -> {'HOLDS' if done < 0.5 else 'ends'}"
+    print(f"  {name:22s} {engine.group(1) if engine else '?':9s} {verdict}  {json.dumps(body.get('text', ''), ensure_ascii=False)}")
+    if done is None: continue
+    if name.startswith('done'): finished += 1; held += done < 0.5
+    if name.startswith('cut'): unfinished += 1; caught += done < 0.5
+if finished or unfinished:
+    print(f'finished turns held 2.5 s: {held}/{finished}   unfinished caught: {caught}/{unfinished}')
+    print('switch on (VoiceDeps.voiceHolds) only when held is near 0 and caught is real')
+PY
 }
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -6666,6 +6840,98 @@ _ears_svc() {
     en) svc=$EARS_SVC_EN name=parakeet ;;
     mouth) svc=$MOUTH_SVC name=mouth ;;
   esac
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri board: is the board on app.t27.ai the board trinity's main says it is?
+#
+# The player builds the board from gHashTag/trinity at a pinned QUEEN_REF
+# (apps/vibee-editor/Dockerfile, stage `queen`). A merge in trinity ships
+# nothing until that line moves; trinity's board-release.yml opens a
+# release(board) PR here for each push to its main, and the older ones go
+# stale. Before this the state took four commands and a mental diff.
+#
+# One screen: the pinned SHA on origin/main, trinity main's HEAD, the commits
+# between them, and every open release(board) PR -- stale when its SHA is
+# already inside the pin, current when it is trinity main.
+# A release PR is merged by a reviewer agent, not by the session that
+# authored the trinity change (owner, 2026-10-02; skill
+# continuous-improvement-loop, "The loop ships its green PRs -- through a
+# reviewer, not by its own hand").
+#
+#   tri board    rc 0 the board is trinity main, 1 behind, 2 unknown
+# ─────────────────────────────────────────────────────────────────────────
+cmd_board() {
+  if [ $# -gt 0 ]; then bad "tri board takes no arguments, not '$1'"; return 2; fi
+  timeout 60 git -C "$ROOT" fetch -q origin main 2>/dev/null \
+    || warn 'git fetch origin main failed -- reading a possibly stale origin/main'
+  local pin head
+  pin=$(git -C "$ROOT" show origin/main:apps/vibee-editor/Dockerfile 2>/dev/null \
+    | sed -n 's/^ARG QUEEN_REF=\([0-9a-f]\{40\}\)$/\1/p' | head -1)
+  if [ -z "$pin" ]; then
+    skip 'no 40-hex ARG QUEEN_REF in origin/main:apps/vibee-editor/Dockerfile'
+    return 2
+  fi
+  # gh api prints the error body to stdout on a failed call, so an answer is
+  # only kept when gh exited 0 -- a 404 page is not a SHA.
+  head=$(timeout 30 gh api repos/gHashTag/trinity/commits/main --jq .sha 2>/dev/null) || head=
+  if [ -z "$head" ]; then
+    skip "pinned ${pin:0:7}; trinity main did not answer -- cannot compare"
+    return 2
+  fi
+  good "pinned  ${pin:0:7}  (origin/main QUEEN_REF)"
+  good "trinity ${head:0:7}  (gHashTag/trinity main)"
+  local rc=0
+  if [ "$pin" = "$head" ]; then
+    good 'the pin is trinity main -- nothing to ship'
+  else
+    local ahead
+    ahead=$(timeout 30 gh api "repos/gHashTag/trinity/compare/$pin...$head" \
+      --jq '.ahead_by' 2>/dev/null) || ahead=
+    warn "the board is ${ahead:-?} commit(s) behind trinity main:"
+    timeout 30 gh api "repos/gHashTag/trinity/compare/$pin...$head" \
+      --jq '.commits[] | "      " + .sha[0:7] + " " + (.commit.message | split("\n")[0])' \
+      2>/dev/null | tail -20
+    rc=1
+  fi
+  local prs
+  # By branch, not by title search: GitHub search drops the parentheses in
+  # "release(board)" and matched nothing while #3304 was open.
+  prs=$(timeout 30 gh pr list --repo gHashTag/999-multibots-telegraf --state open \
+    --limit 200 --json number,title,headRefName \
+    --jq '.[] | select(.headRefName | startswith("release/board-")) | "\(.number) \(.title)"' \
+    2>/dev/null)
+  if [ -z "$prs" ]; then
+    [ "$rc" = 1 ] && warn 'no open release(board) PR -- trinity board-release.yml did not open one'
+    return "$rc"
+  fi
+  local n title sha status
+  while read -r n title; do
+    sha=$(printf '%s' "$title" | sed -n 's/.*ship trinity \([0-9a-f]\{7,40\}\).*/\1/p')
+    if [ -z "$sha" ]; then
+      warn "#$n $title -- no SHA in the title"; continue
+    fi
+    # The pin first: when the pin is already trinity main, a PR for that same
+    # SHA is stale, not "to merge".
+    if [ "${pin#"$sha"}" != "$pin" ]; then
+      warn "#$n ships $sha, already the pin -- stale, close it"
+      continue
+    fi
+    if [ "${head#"$sha"}" != "$head" ]; then
+      good "#$n ships trinity main ($sha) -- for a reviewer agent to review and merge"
+      continue
+    fi
+    status=$(timeout 30 gh api "repos/gHashTag/trinity/compare/$sha...$pin" \
+      --jq .status 2>/dev/null) || status=
+    case "$status" in
+      ahead|identical) warn "#$n ships $sha, already inside the pin -- stale, close it" ;;
+      # An empty status is a 404 (the SHA is gone from trinity) or a timeout:
+      # nothing was compared, so do not tell a reviewer the PR is superseded.
+      '') warn "#$n ships $sha -- trinity did not answer for it, cannot compare; check by hand" ;;
+      *) warn "#$n ships $sha, older than trinity main ($status) -- superseded by a newer release PR" ;;
+    esac
+  done <<<"$prs"
+  return "$rc"
 }
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -6940,7 +7206,9 @@ case "$action" in
   readers|читатели)  cmd_readers "$@" ;;
   gen-refusal)       cmd_gen_refusal "$@" ;;
   pr-billing)        cmd_pr_billing "$@" ;;
+  premerge)          cmd_premerge "$@" ;;
   deploys|выкладки)  cmd_deploys "$@" ;;
+  board)             cmd_board "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
   clone|клон)        cmd_clone "$@" ;;
   deploy-config|конфиг-деплоя) cmd_deploy_config "$@" ;;

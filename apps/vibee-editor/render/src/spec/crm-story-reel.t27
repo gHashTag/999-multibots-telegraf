@@ -121,6 +121,10 @@
 // REEL_MAX_SEC is 24 -- six lines of up to 3.5 s and the pause; the default stays three. Her own
 // voice notes stay capped at NOTES_MAX_SEC: a longer reel cuts the same twelve seconds into more,
 // shorter pieces, each still at least NOTES_PART_MIN_MS, so nothing new is put in her mouth.
+// v18 (2026-10-02, owner: "users in the chat with the agent should see this widget"): the
+// link under a finished reel leads to the chat with the agent, not to a page of its own. The
+// chat now shows the same reels widget above the talk when her template is ready, so the next
+// reel and the agent who makes it stand on one screen. PAGE_ROUTE is "chat".
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -131,7 +135,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 17;
+    pub const VERSION : u8 = 18;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -345,7 +349,7 @@ module automation::crm_story_reel {
 
     // ---- Who asks, who pays -------------------------------------------------------------
     pub const START_PARAM : str = "reel";  // t.me/<bot>?start=reel, the client's own press
-    pub const PAGE_ROUTE : str = "story";  // t.me/<bot>?start=app_story, "my reels"
+    pub const PAGE_ROUTE : str = "chat";  // t.me/<bot>?start=app_chat, her reels above the talk (v18)
     pub const SELLER_SCRIPT_ACCEPTED : bool = true;  // scenes/style/cta made exactly as given
 
     // ---- Where the finished reel goes ---------------------------------------------------
@@ -952,7 +956,7 @@ module automation::crm_story_reel {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 17);
+        assert(VERSION == 18);
     }
 
     test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {

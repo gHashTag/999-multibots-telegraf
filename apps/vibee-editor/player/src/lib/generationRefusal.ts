@@ -10,10 +10,14 @@
  * (render/generation-refusal.ts). The reader gets the sentence for the code
  * first; the server's own words follow as a second line, because they are the
  * diagnosis ("the ElevenLabs key is an identifier, not a key") and a person
- * reporting a problem needs them. When those words are already in the
- * reader's script and the failure is the caller's to fix (a 4xx), they are
- * the most precise sentence there is ("need 20, have 16"), so they stand
- * alone. The codes are checked against the server by
+ * reporting a problem needs them. When those words are Russian, the reader
+ * is Russian and the failure is the caller's to fix (a 4xx), they are the
+ * most precise sentence there is ("need 20, have 16"), so they stand alone.
+ * Only Russian: the server writes its sentences for people in Russian, and
+ * its English is a developer's line ("unauthorized: <reason>", "verified
+ * owner required") -- passed alone, it hid "sign in again" from every
+ * English reader with an expired session. The codes are checked against the
+ * server by
  * `generation-refusal-codes.test.ts` in render.
  */
 import type { Language } from '@/atoms/language'
@@ -39,6 +43,10 @@ export const GENERATION_REFUSALS: Record<string, { en: string; ru: string }> = {
     en: 'The service is busy — try again in a minute',
     ru: 'Сервис занят — попробуй через минуту', // cyrillic-ok: the russian sentence
   },
+  too_long: {
+    en: 'Too long for this model — trim it and try again',
+    ru: 'Слишком длинно для этой модели — обрежь и попробуй снова', // cyrillic-ok: the russian sentence
+  },
   generation_failed: {
     en: "The generation didn't go through — try again or pick another model",
     ru: 'Генерация не получилась — попробуй ещё раз или другую модель', // cyrillic-ok: the russian sentence
@@ -51,6 +59,7 @@ const CALLERS_TO_FIX = new Set([
   'sign_in',
   'not_enough_tokens',
   'forbidden',
+  'too_long',
 ])
 
 const DETAIL_MAX = 200
@@ -92,9 +101,10 @@ export function generationRefusalText(r: Refusal, lang: Language): string {
   const known = r.code ? GENERATION_REFUSALS[r.code] : undefined
   if (
     detail &&
+    ru &&
     r.code &&
     CALLERS_TO_FIX.has(r.code) &&
-    cyrillic.test(detail) === ru
+    cyrillic.test(detail)
   )
     return detail
   const headline = known

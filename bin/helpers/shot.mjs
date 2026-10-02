@@ -101,6 +101,19 @@ const JOBS = [
   },
 ]
 
+/*
+ * The palette lives under the story panel's closed "More" since #3242 (the
+ * dark panel). A stand that waited for it to be visible measured nothing --
+ * every run "NOT MEASURED", never red (found 2026-10-02). Open it the way a
+ * thumb does: one press on its summary, once.
+ */
+const openMore = async p => {
+  const more = p.locator('.story-reel__more')
+  await more.waitFor({ state: 'attached' })
+  if (!(await more.evaluate(d => d.open)))
+    await more.locator(':scope > summary').click()
+}
+
 const HARNESSES = {
   'story-palette': {
     tool: 'crm_story_reel',
@@ -114,6 +127,7 @@ const HARNESSES = {
       },
       jobs: JOBS,
     },
+    open: openMore,
     root: '[data-testid=story-palette]',
     scope: '.crm-client',
     // The whole story panel around the palette: its start row and reels too.
@@ -182,6 +196,8 @@ const HARNESSES = {
         id: 'load',
         ready: async p => {
           await p.locator('.crm-client__chat').waitFor()
+          // Measured open: the closed panel is a strict subset of it.
+          await openMore(p)
           await p.locator('[data-testid=story-palette]').waitFor()
           await p.locator('section:has(select) .crm-client__duet-go').waitFor()
         },
@@ -258,6 +274,25 @@ const HARNESSES = {
           await p.locator('.story .crm-client__duet-go').click()
           await p.locator('.story [role=status]').waitFor()
         },
+      },
+    ],
+  },
+  /*
+   * Her reels inside the chat with the agent (owner, 2026-10-02): the same
+   * widget, open before the talk and folded after. The summary is the
+   * press that unfolds it, so it is held to the page's touch target.
+   */
+  'chat-story': {
+    tool: 'my_story_reel',
+    fixture: { next_topic: 'Как выбрать вазу под свой интерьер', jobs: JOBS },
+    root: '.chat-story-stand',
+    scope: '.chat-story-stand',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p =>
+          p.locator('.chat-story .crm-client__duet-go').first().waitFor(),
       },
     ],
   },
@@ -498,30 +533,118 @@ const HARNESSES = {
  * in a shell loop; a loop is where one line gets forgotten. Each run records
  * itself in tri gate as usual. Exit: 1 if any is red, else 2 if any could
  * not measure, else 0.
+ *
+ * One dev server serves every run (TRI_SHOT_BASE): a Vite start per run was
+ * most of the cost -- twelve starts took over ten minutes on a loaded
+ * machine, which is how a gate gets switched off. Runs go TRI_SHOT_JOBS at a
+ * time (default 3); each still has its own browser and its own verdict, and
+ * the report keeps the matrix order whatever finishes first.
  */
+const freePort = () =>
+  new Promise((ok, fail) => {
+    const s = createServer()
+    s.unref()
+    s.on('error', fail)
+    s.listen(0, '127.0.0.1', () => {
+      const { port } = s.address()
+      s.close(() => ok(port))
+    })
+  })
+
+/** The player's dev server, answered at `probe` before it is handed out. */
+const startVite = async probe => {
+  const port = await freePort()
+  const server = spawn(
+    join(PLAYER, 'node_modules/.bin/vite'),
+    ['--host', '127.0.0.1', '--port', String(port), '--strictPort'],
+    { cwd: PLAYER, stdio: ['ignore', 'pipe', 'pipe'], detached: true }
+  )
+  let log = ''
+  server.stdout.on('data', c => (log += c))
+  server.stderr.on('data', c => (log += c))
+  const base = `http://127.0.0.1:${port}`
+  const until = Date.now() + 120_000
+  for (;;) {
+    const ok = await fetch(base + probe)
+      .then(r => r.ok)
+      .catch(() => false)
+    if (ok) return { server, base }
+    if (Date.now() > until || server.exitCode !== null) {
+      stopVite(server)
+      throw new Error(`dev server did not answer ${probe}\n${log.slice(-1500)}`)
+    }
+    await new Promise(r => setTimeout(r, 500))
+  }
+}
+
+const stopVite = server => {
+  if (!server?.pid) return
+  try {
+    process.kill(-server.pid, 'SIGTERM')
+  } catch {
+    /* already gone */
+  }
+}
+
 if (name === 'all') {
   const MATRIX = [
     ['390', 'ru'],
     ['390', 'en'],
     ['320', 'ru'],
   ]
-  let worst = 0
-  for (const each of Object.keys(HARNESSES))
-    for (const [w, l] of MATRIX) {
-      const r = spawnSync(
+  const runs = Object.keys(HARNESSES).flatMap(each =>
+    MATRIX.map(([w, l]) => [each, w, l])
+  )
+  let vite
+  try {
+    vite = await startVite(`/harness/${runs[0][0]}.html`)
+  } catch (e) {
+    console.log(`== shot NOT MEASURED -- all: ${e.message}`)
+    process.exit(2)
+  }
+  const one = ([each, w, l]) =>
+    new Promise(done => {
+      const child = spawn(
         'node',
         [process.argv[1], each, '--width', w, '--lang', l],
-        { encoding: 'utf8' }
+        {
+          env: { ...process.env, TRI_SHOT_BASE: vite.base },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }
       )
-      const verdict = (r.stdout || '')
-        .split('\n')
-        .filter(x => /^== shot|^\s+(small|cut|overlap|order|error) /.test(x))
-      for (const x of verdict) console.log(x)
-      if (!verdict.length)
-        console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
-      const c = r.status ?? 2
-      worst = c === 1 || worst === 1 ? 1 : Math.max(worst, c)
-    }
+      let stdout = ''
+      child.stdout.on('data', c => (stdout += c))
+      // Drain stderr even though only stdout carries the verdict: an unread
+      // pipe fills at ~64 KB and the child then blocks forever on a write.
+      child.stderr.resume()
+      // A child that cannot start is "not measured", not a crash of the matrix.
+      child.on('error', () => done({ stdout, status: 2 }))
+      child.on('close', status => done({ stdout, status }))
+    })
+  const results = new Array(runs.length)
+  let next = 0
+  const lanes = Math.max(1, Number(process.env.TRI_SHOT_JOBS) || 3)
+  await Promise.all(
+    Array.from({ length: Math.min(lanes, runs.length) }, async () => {
+      while (next < runs.length) {
+        const i = next++
+        results[i] = await one(runs[i])
+      }
+    })
+  )
+  stopVite(vite.server)
+  let worst = 0
+  runs.forEach(([each, w, l], i) => {
+    const r = results[i]
+    const verdict = r.stdout
+      .split('\n')
+      .filter(x => /^== shot|^\s+(small|cut|overlap|order|error) /.test(x))
+    for (const x of verdict) console.log(x)
+    if (!verdict.length)
+      console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
+    const c = r.status ?? 2
+    worst = c === 1 || worst === 1 ? 1 : Math.max(worst, c)
+  })
   process.exit(worst)
 }
 
@@ -539,17 +662,6 @@ if (
   )
   process.exit(2)
 }
-
-const freePort = () =>
-  new Promise((ok, fail) => {
-    const s = createServer()
-    s.unref()
-    s.on('error', fail)
-    s.listen(0, '127.0.0.1', () => {
-      const { port } = s.address()
-      s.close(() => ok(port))
-    })
-  })
 
 const answer = (tool, args) => {
   const r = spawnSync(
@@ -692,26 +804,11 @@ const lines = []
 try {
   const require = createRequire(join(PLAYER, 'package.json'))
   const { chromium } = require('playwright')
-  const port = await freePort()
-  server = spawn(
-    join(PLAYER, 'node_modules/.bin/vite'),
-    ['--host', '127.0.0.1', '--port', String(port), '--strictPort'],
-    { cwd: PLAYER, stdio: ['ignore', 'pipe', 'pipe'], detached: true }
-  )
-  let log = ''
-  server.stdout.on('data', c => (log += c))
-  server.stderr.on('data', c => (log += c))
-  const url = `http://127.0.0.1:${port}/harness/${h.page ?? name}.html${h.query ?? ''}`
-  const until = Date.now() + 120_000
-  for (;;) {
-    const ok = await fetch(url)
-      .then(r => r.ok)
-      .catch(() => false)
-    if (ok) break
-    if (Date.now() > until || server.exitCode !== null)
-      throw new Error(`dev server did not answer ${url}\n${log.slice(-1500)}`)
-    await new Promise(r => setTimeout(r, 500))
-  }
+  // `tri shot all` hands every run its one server; alone, a run starts its own.
+  const probe = `/harness/${h.page ?? name}.html`
+  let base = process.env.TRI_SHOT_BASE
+  if (!base) ({ server, base } = await startVite(probe))
+  const url = base + probe + (h.query ?? '')
 
   /* The container's Chromium, whatever revision this playwright expects. */
   // On a Mac with no playwright download, any installed Chromium-family
@@ -802,6 +899,8 @@ try {
       await page.route(glob, route => route.fulfill(reply(route.request())))
   }
   await page.goto(url, { waitUntil: 'domcontentloaded' })
+  // A root behind a closed door (a <details>) is opened first, as a thumb would.
+  await h.open?.(page)
   await page.locator(h.root).waitFor({ timeout: 60_000 })
 
   mkdirSync(out, { recursive: true })
@@ -861,13 +960,7 @@ try {
   code = 2
 } finally {
   await browser?.close().catch(() => {})
-  if (server?.pid) {
-    try {
-      process.kill(-server.pid, 'SIGTERM')
-    } catch {
-      /* already gone */
-    }
-  }
+  stopVite(server)
 }
 
 for (const l of lines) console.log(l)

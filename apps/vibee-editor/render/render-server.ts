@@ -141,10 +141,11 @@ function browserBrokerDeps(): BrowserDeps {
   }
 }
 configureAgentStart(browserBrokerDeps)
-import { identityWithSource } from './src/agent/routes'
+import { identityWithSource, personIdentity } from './src/agent/routes'
 import { handleCardStatus } from './src/agent/card-status'
 import { handleCardMove } from './src/agent/card-move'
 import { handleThreadLive } from './src/agent/thread-live'
+import { handleTriWallet } from './src/tri-wallet'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import {
@@ -703,6 +704,7 @@ import { rewriteAppUrlsForToken } from './src/app-links'
 import { renderFeedEntry } from './src/render-feed-entry'
 import * as MEETINGS from './src/spec/meeting-reminders.gen'
 import { TICK_MS as BLOG_SHARE_TICK_MS } from './src/spec/blog-share.gen'
+import { TICK_MS as ENGAGE_TICK_MS } from './src/spec/engage-desk.gen'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -2983,6 +2985,27 @@ setInterval(() => {
 }, BLOG_SHARE_TICK_MS)
 
 /*
+ * THE ENGAGE DESK: FIND POSTS ON THE OWNER'S TOPICS, DRAFT A COMMENT, ASK
+ * (src/agent/engage-desk.ts; owner's request 2026-10-02). Every comment waits
+ * for the owner's yes, per item. The search pace (every six hours) lives in
+ * agent_strategies, not in this interval; the tick only settles answered
+ * questions and checks whether a search is due. Off unless
+ * ENGAGE_DESK_ENABLED=1. The interval is the spec's TICK_MS
+ * (specs/automation/engage-desk.t27).
+ */
+setInterval(() => {
+  void (async () => {
+    try {
+      const { runEngageDesk } = await import('./src/agent/engage-desk-wiring')
+      const said = await runEngageDesk(getPool() as any)
+      if (said !== 'off' && said !== 'not due') console.log(`[engage] ${said}`)
+    } catch (e) {
+      console.error('[engage] failed:', String(e).slice(0, 300))
+    }
+  })()
+}, ENGAGE_TICK_MS)
+
+/*
  * THE REDDIT DESK: ANSWER THE COMMENTS, POST WHERE IT IS WELCOME
  * (src/agent/reddit.ts; owner's request 2026-09-27). Every answer and every
  * post waits for the owner's tap, so this tick only reads an inbox and asks a
@@ -4763,6 +4786,7 @@ const server = createServer(async (req, res) => {
               JSON.stringify({
                 success: false,
                 error: `video must be ${MAX_UPSCALE_SECONDS} seconds or shorter`,
+                code: 'too_long',
               })
             )
             return
@@ -5785,6 +5809,7 @@ const server = createServer(async (req, res) => {
             JSON.stringify({
               success: false,
               error: `lipsync audio must be ${ceilingSeconds} seconds or shorter`,
+              code: 'too_long',
             })
           )
           return
@@ -8900,13 +8925,15 @@ const server = createServer(async (req, res) => {
         try {
           // The player names the language it heard last; a known language
           // halves whisper's time (voice.ts has the measurement).
-          const lang = new URL(req.url || '', 'http://x').searchParams.get(
-            'lang'
-          )
+          const asked = new URL(req.url || '', 'http://x').searchParams
+          // turn=1: the player's eager hearing also wants to know whether
+          // the voice sounds finished (Smart Turn, in the same ears).
           const heard = await voice.hear(
             bytes,
             req.headers['content-type'],
-            lang
+            asked.get('lang'),
+            undefined,
+            asked.get('turn') === '1'
           )
           // desc names the engine, so `tri voice` can tell GigaAM from a
           // fallback to whisper without seeing a single word.
@@ -8916,7 +8943,10 @@ const server = createServer(async (req, res) => {
           )
           if (heard === null)
             return sendJson(res, 503, { error: 'no transcriber configured' })
-          return sendJson(res, 200, { text: heard.text })
+          return sendJson(res, 200, {
+            text: heard.text,
+            ...(heard.done === undefined ? {} : { done: heard.done }),
+          })
         } catch (e) {
           console.warn(`[voice] transcribe failed: ${(e as Error).message}`)
           return sendJson(res, 502, { error: 'transcriber failed' })
@@ -9332,6 +9362,22 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify(ответ.тело))
     return
   }
+
+  /*
+   * /api/tri/wallet[/challenge] -- a person binds the TON address their TRI
+   * would be paid to (src/tri-wallet.ts). Only the person's own credential
+   * counts (personIdentity): an agent key, the server key or a game token can
+   * read a name but must not be able to redirect a payout.
+   */
+  if (
+    await handleTriWallet(req, res, {
+      getPool,
+      personOf: personIdentity,
+      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
+    })
+  )
+    return
 
   /*
    * POST /api/story/next -- the client's own one press for her next story

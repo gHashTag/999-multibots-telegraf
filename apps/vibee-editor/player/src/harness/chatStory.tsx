@@ -16,7 +16,9 @@ const root = document.getElementById('root')
 if (root)
   createRoot(root).render(
     <StrictMode>
-      <MyStoryWidget onlyReady foldedIn={false} />
-      <MyStoryWidget onlyReady foldedIn />
+      <div className="chat-story-stand">
+        <MyStoryWidget onlyReady foldedIn={false} />
+        <MyStoryWidget onlyReady foldedIn />
+      </div>
     </StrictMode>
   )
