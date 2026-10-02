@@ -222,6 +222,20 @@ describe('prepare, then the tap, then exactly one post', () => {
     expect(seen.published).toHaveLength(1)
   })
 
+  it('two calls waiting on one card post once, not twice', async () => {
+    // The tool's own note says "call again with the same approval id", so a
+    // retried call can overlap one still waiting for the tap.
+    const seen = fakes(['pending', 'allowed'], connected('x'))
+    const { approval }: any = await post.handler(ARTICLE, ctx())
+    const [a, b]: any[] = await Promise.all([
+      post.handler({ approval }, ctx()),
+      post.handler({ approval }, ctx()),
+    ])
+    expect([a.posted, b.posted].sort()).toEqual([false, true])
+    expect([a, b].find(r => !r.posted).refused).toMatch(/already used/)
+    expect(seen.published).toHaveLength(1)
+  })
+
   it('a denied card posts nothing and is spent', async () => {
     const seen = fakes(['denied'], connected('x'))
     const { approval }: any = await post.handler(ARTICLE, ctx())
