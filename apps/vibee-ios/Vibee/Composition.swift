@@ -151,9 +151,13 @@ enum CompositionBuildError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .нетДорожек:
-      return "В композиции нет ни одного клипа с источником"
+      return say(
+        "The composition has no clip with a source",
+        "В композиции нет ни одного клипа с источником")
     case .нетТреков(let url):
-      return "У источника нет ни видео-, ни аудиодорожки: \(url)"
+      return say(
+        "The source has neither a video nor an audio track: ",
+        "У источника нет ни видео-, ни аудиодорожки: ") + url
     }
   }
 }

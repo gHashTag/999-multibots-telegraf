@@ -208,7 +208,9 @@ extension Identity {
     var errorDescription: String? {
       switch self {
       case .отказ(let текст): return текст
-      case .сеть(let e): return "Не дошло до сервера: \(e.localizedDescription)"
+      case .сеть(let e):
+        return say("Did not reach the server: ", "Не дошло до сервера: ")
+          + e.localizedDescription
       }
     }
   }
@@ -238,11 +240,66 @@ extension Identity {
   static let минимумЦифрКода = 4
   static let максимумЦифрКода = 12
 
+  /**
+   * Why the server refused a sign-in code, in the phone's language.
+   *
+   * The server words every refusal in Russian, and the app used to show the
+   * `detail` as it came -- Russian on an English phone, at the one moment a
+   * person cannot go around the screen. Since 2026-10-02 each refusal on
+   * `/api/auth/pair/claim` carries a `code`, and this reads the code.
+   *
+   * A Russian reader keeps the server's own `detail` when there is one: the
+   * server owns that wording. An unknown code gets a sentence that still
+   * says what to do, never the raw Russian. The list of codes is checked
+   * against the server by render/pairing-refusal-codes.test.ts.
+   */
+  static func pairingRefusal(
+    status: Int, body: [String: Any], russian: Bool = speaksRussian
+  ) -> String {
+    func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
+    let wait = (body["ждать_секунд"] as? Int).map { "\($0)" } ?? ""
+    let digits = (body["digits"] as? Int).map { "\($0)" } ?? ""
+    let sentences: [String: String] = [
+      "unknown": l(
+        "Code not found — check the digits and request a new one",
+        "код не найден — проверьте цифры и запросите новый"),
+      "expired": l(
+        "The code is used up or expired — request a new one",
+        "код уже использован или истёк — запросите новый"),
+      "exhausted": l(
+        "Too many attempts — request a new code",
+        "слишком много попыток — запросите новый код"),
+      "too_often": wait.isEmpty
+        ? l(
+          "Too many tries — wait a little and try again",
+          "слишком часто — подождите и попробуйте снова")
+        : l(
+          "Too many tries — wait \(wait) s and try again",
+          "слишком часто — подождите \(wait) с и попробуйте снова"),
+      "bad_length": digits.isEmpty
+        ? l("The code has the wrong number of digits", "в коде не то число цифр")
+        : l("The code must be \(digits) digits", "код должен быть из \(digits) цифр"),
+      "bad_body": l(
+        "The app sent a request the server could not read — update the app",
+        "сервер не разобрал запрос приложения — обновите приложение"),
+    ]
+    // A server from before the codes still answers 429 with a wait.
+    let code =
+      body["code"] as? String ?? body["reason"] as? String
+      ?? (status == 429 ? "too_often" : "")
+    if russian, let own = body["detail"] as? String, !own.isEmpty { return own }
+    return sentences[code]
+      ?? l(
+        "The code was not accepted (the server answered \(status))",
+        "Код не принят (сервер ответил \(status))")
+  }
+
   /// Обменять код входа на сессию. Код гаснет на сервере в тот же миг.
   static func claimPairing(code: String) async throws {
     let цифры = code.filter(\.isNumber)
     guard цифры.count >= минимумЦифрКода, цифры.count <= максимумЦифрКода else {
-      throw ВходError.отказ("Введите код из Telegram целиком")
+      throw ВходError.отказ(
+        say("Enter the whole code from Telegram", "Введите код из Telegram целиком"))
     }
 
     let имяУстройства = await MainActor.run { UIDevice.current.name }
@@ -291,7 +348,7 @@ extension Identity {
        * именно затем, чтобы человек, опоздавший на десять секунд, запросил
        * новый код, а не перенабирал верный по третьему разу.
        */
-      throw ВходError.отказ(тело["detail"] as? String ?? "Код не принят")
+      throw ВходError.отказ(pairingRefusal(status: код, body: тело))
     }
 
     // Порядок важен: refresh пишем ПЕРВЫМ. Если приложение умрёт между двумя
@@ -315,10 +372,14 @@ extension Identity {
      * этими утверждениями и живут защита класса и доступность элемента.
      */
     guard accessToken != nil, refreshToken != nil else {
+      let keychain = "(Keychain: \(статусAccess), \(статусRefresh))"
       throw ВходError.отказ(
-        "Вход принят, но сохранить сессию не удалось "
-          + "(Keychain: \(статусAccess), \(статусRefresh)). "
-          + "Код уже использован — запросите новый."
+        say(
+          "Sign-in accepted, but the session could not be saved \(keychain). "
+            + "The code is used up — request a new one.",
+          "Вход принят, но сохранить сессию не удалось \(keychain). "
+            + "Код уже использован — запросите новый."
+        )
       )
     }
 

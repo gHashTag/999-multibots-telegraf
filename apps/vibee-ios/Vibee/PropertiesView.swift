@@ -195,6 +195,12 @@ struct PropertiesView: View {
 }
 
 /// "120 frames" / "120 кадров". The old label said "кадр" for every count.  // cyrillic-ok: quotes the old label
+func trackCountLabel(_ n: Int, russian: Bool = speaksRussian) -> String {
+  russian
+    ? склонение(n, "дорожка", "дорожки", "дорожек")  // ru-only-ok: the Russian branch -- cyrillic-ok
+    : "\(n) track\(n == 1 ? "" : "s")"
+}
+
 func framesLabel(_ n: Int, russian: Bool = speaksRussian) -> String {
   russian
     ? склонение(n, "кадр", "кадра", "кадров")  // cyrillic-ok: pre-existing helper; ru-only-ok: the russian branch

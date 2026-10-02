@@ -445,7 +445,7 @@ private struct KanbanPanel: View {
                 .contentShape(Rectangle())
               }
               .buttonStyle(.plain)
-              .accessibilityHint(speaksRussian ? "Открыть чат по задаче" : "Open the task's chat")
+              .accessibilityHint(say("Open the task's chat", "Открыть чат по задаче"))
             }
             if column.count > 6 {
               Note(
