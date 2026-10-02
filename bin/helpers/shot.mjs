@@ -69,7 +69,8 @@ const gitDir = spawnSync('git', ['rev-parse', '--git-dir'], {
   cwd: ROOT,
   encoding: 'utf8',
 }).stdout.trim()
-const out = resolve(opt('out', join(ROOT, gitDir || '.git', 'tri-shot')))
+// --git-dir is absolute in a worktree; resolve keeps it, join glued it on.
+const out = resolve(opt('out', resolve(ROOT, gitDir || '.git', 'tri-shot')))
 
 /*
  * Every harness is a story: the answers its panel gets and the presses that
@@ -94,6 +95,19 @@ const JOBS = [
   },
 ]
 
+/*
+ * The palette lives under the story panel's closed "More" since #3242 (the
+ * dark panel). A stand that waited for it to be visible measured nothing --
+ * every run "NOT MEASURED", never red (found 2026-10-02). Open it the way a
+ * thumb does: one press on its summary, once.
+ */
+const openMore = async p => {
+  const more = p.locator('.story-reel__more')
+  await more.waitFor({ state: 'attached' })
+  if (!(await more.evaluate(d => d.open)))
+    await more.locator(':scope > summary').click()
+}
+
 const HARNESSES = {
   'story-palette': {
     tool: 'crm_story_reel',
@@ -107,6 +121,7 @@ const HARNESSES = {
       },
       jobs: JOBS,
     },
+    open: openMore,
     root: '[data-testid=story-palette]',
     scope: '.crm-client',
     // The whole story panel around the palette: its start row and reels too.
@@ -175,6 +190,8 @@ const HARNESSES = {
         id: 'load',
         ready: async p => {
           await p.locator('.crm-client__chat').waitFor()
+          // Measured open: the closed panel is a strict subset of it.
+          await openMore(p)
           await p.locator('[data-testid=story-palette]').waitFor()
           await p.locator('section:has(select) .crm-client__duet-go').waitFor()
         },
@@ -451,9 +468,17 @@ try {
   }
 
   /* The container's Chromium, whatever revision this playwright expects. */
-  const exe = ['/opt/pw-browsers/chromium', chromium.executablePath()].find(p =>
-    existsSync(p)
-  )
+  // On a Mac with no playwright download, any installed Chromium-family
+  // browser opens the page the same way (a fresh temp profile, never the
+  // person's own); TRI_SHOT_CHROME names one explicitly.
+  const exe = [
+    process.env.TRI_SHOT_CHROME,
+    '/opt/pw-browsers/chromium',
+    chromium.executablePath(),
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/Applications/BrowserOS.app/Contents/MacOS/BrowserOS',
+  ].find(p => p && existsSync(p))
   browser = await chromium.launch({ executablePath: exe })
   const context = await browser.newContext({
     viewport: { width, height: 844 },
@@ -498,6 +523,8 @@ try {
     })
   })
   await page.goto(url, { waitUntil: 'domcontentloaded' })
+  // A root behind a closed door (a <details>) is opened first, as a thumb would.
+  await h.open?.(page)
   await page.locator(h.root).waitFor({ timeout: 60_000 })
 
   mkdirSync(out, { recursive: true })

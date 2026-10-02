@@ -817,7 +817,9 @@ npm run build         # Build TypeScript
 /optimize autofix     # Auto-fix safe issues
 
 # Release readiness — ОДНА команда вместо CI
-bun run verify        # все 14 проверок по КОДАМ ВОЗВРАТА, ~100 с
+bun run verify        # все 15 проверок по КОДАМ ВОЗВРАТА, ~100 с + ~3 мин
+                      # снимков телефона (tri shot all: каждый стенд в
+                      # Chromium на 390 ru/en и 320 ru; «не измерено» = FAIL)
                       # Нужен, пока GitHub Actions не запускается (биллинг):
                       # последний успешный прогон — 2026-06-02.
 

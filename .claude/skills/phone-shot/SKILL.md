@@ -284,6 +284,17 @@ Promise.all([...])` followed by `setA(a); setB(b)` reads in parallel but
   to Vite**, and a path outside the player is refused ("Denied ID ...?url").
   Read the server source with `resolve(dirname(fileURLToPath(
 import.meta.url)), ...)` and `readFileSync`.
+- **A stand that keeps saying NOT MEASURED is rot, not luck.** #3242 put the
+  palette inside a closed `<details>` ("More"); the stand waited for a root
+  that was never visible and printed "not measured" (exit 2) for days while
+  the panel under it had 32px topic buttons and a 24px DM toggle. Two fixes:
+  a harness may carry `open: async page => ...` — run before the root wait,
+  it opens the door the way a thumb does (`openMore` presses the summary
+  once); and `bun run verify` runs `tri shot all` as step `phone-shots`,
+  where exit 2 is a FAIL, never a skip (retried once for load).
+- **An ellipsis on the only name of a thing is a cut.** The reel history row
+  ended its topic in "..." at 320px; the topic is what tells one reel from the
+  next, so it wraps (`overflow-wrap: anywhere; min-width: 0`).
 
 ## Related Resources
 
