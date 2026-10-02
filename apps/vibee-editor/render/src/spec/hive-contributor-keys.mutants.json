@@ -46,5 +46,29 @@
     "file": "src/hive/contributor-keys-route.ts",
     "from": "!Number.isSafeInteger(Number(match[1]))",
     "to": "!Number.isInteger(Number(match[1]))"
+  },
+  {
+    "name": "maximum model name is rejected",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "value.length <= SPEC.MAX_MODEL_CHARS &&",
+    "to": "value.length < SPEC.MAX_MODEL_CHARS &&"
+  },
+  {
+    "name": "client owner field crosses the model boundary",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "field !== 'provider' && field !== 'model'",
+    "to": "field !== 'provider' && field !== 'model' && field !== 'owner'"
+  },
+  {
+    "name": "any provider catalog is proxied",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "keys\\/models\\/(nvidia|zai)$/",
+    "to": "keys\\/models\\/([a-z]+)$/"
+  },
+  {
+    "name": "model switch body loses its byte bound",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "if (bytes > SPEC.BODY_MAX_BYTES) return null",
+    "to": "if (bytes > SPEC.BODY_MAX_BYTES * 2) return null"
   }
 ]

@@ -51,6 +51,10 @@ export function isContributorKeyPath(path: string): boolean {
 /** Build the upstream path from a closed grammar, never from an arbitrary URL. */
 export function contributorKeyPath(path: string): string | null {
   if (path === '/api/hive/keys') return '/queen/contributor-keys'
+  if (path === '/api/hive/keys/model') return '/queen/contributor-keys/model'
+  const catalog = /^\/api\/hive\/keys\/models\/(nvidia|zai)$/.exec(path)
+  if (catalog && catalog[0] === path)
+    return `/queen/contributor-keys/models/${catalog[1]}`
   const match =
     /^\/api\/hive\/keys\/(-?(?:0|[1-9][0-9]*))\/(probe|enable|disable)$/.exec(
       path
@@ -100,6 +104,37 @@ export function safeContributionBody(raw: string): Json | null {
         ? {}
         : { label: (value.label as string).trim() }),
     }
+  } catch {
+    return null
+  }
+}
+
+/** Provider catalog ids such as `z-ai/glm-5.3` and `glm-4.5-flash`. */
+export function isModelName(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= SPEC.MAX_MODEL_CHARS &&
+    /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(value)
+  )
+}
+
+/** A model switch names a provider and a model; nothing chooses an owner. */
+export function safeModelBody(raw: string): Json | null {
+  const bytes = Buffer.byteLength(raw)
+  if (bytes > SPEC.BODY_MAX_BYTES) return null
+  try {
+    const value: unknown = JSON.parse(raw)
+    if (
+      !record(value) ||
+      Object.keys(value).some(
+        field => field !== 'provider' && field !== 'model'
+      )
+    )
+      return null
+    if (value.provider !== 'nvidia' && value.provider !== 'zai') return null
+    if (!isModelName(value.model)) return null
+    return { provider: value.provider, model: value.model }
   } catch {
     return null
   }
@@ -232,7 +267,14 @@ export function safeContributorResponse(
       typeof p.model !== 'string'
     )
       return null
-    providers.push({ id: p.id, label: p.label, model: p.model })
+    if (p.defaultModel !== undefined && typeof p.defaultModel !== 'string')
+      return null
+    providers.push({
+      id: p.id,
+      label: p.label,
+      model: p.model,
+      ...(p.defaultModel === undefined ? {} : { defaultModel: p.defaultModel }),
+    })
   }
   const github = value.attribution.github
   if (
@@ -255,6 +297,30 @@ export function safeContributorResponse(
   }
 }
 
+/** The provider catalog: the owner's current model and well-formed ids only. */
+export function safeModelCatalog(value: unknown): Json | null {
+  if (
+    !record(value) ||
+    (value.provider !== 'nvidia' && value.provider !== 'zai') ||
+    !isModelName(value.model) ||
+    !Array.isArray(value.models) ||
+    value.models.length > 1000
+  )
+    return null
+  return {
+    provider: value.provider,
+    model: value.model,
+    models: value.models.filter(isModelName),
+  }
+}
+
+/** Closed model-check outcomes the Queen names; any other body stays unread. */
+const MODEL_ERRORS = new Set([
+  'model_unavailable',
+  'model_without_tools',
+  'model_check_failed',
+])
+
 export async function handleContributorKeys(
   req: IncomingMessage,
   deps: ContributorKeyDeps
@@ -270,7 +336,13 @@ export async function handleContributorKeys(
   const upstreamPath = contributorKeyPath(path)
   if (!upstreamPath) return fail(404, 'not_found')
   const base = path === '/api/hive/keys'
-  if (req.method !== 'POST' && !(base && req.method === 'GET'))
+  const choosing = path === '/api/hive/keys/model'
+  const catalog = upstreamPath.startsWith('/queen/contributor-keys/models/')
+  if (
+    catalog
+      ? req.method !== 'GET'
+      : req.method !== 'POST' && !(base && req.method === 'GET')
+  )
     return fail(405, 'method_not_allowed')
   const proxyToken =
     deps.proxyToken ?? process.env.QUEEN_CONTRIBUTOR_PROXY_TOKEN
@@ -312,6 +384,10 @@ export async function handleContributorKeys(
       const parsed = safeContributionBody(raw)
       if (!parsed) return fail(400, 'invalid_body')
       body = JSON.stringify(parsed)
+    } else if (choosing) {
+      const parsed = safeModelBody(raw)
+      if (!parsed) return fail(400, 'invalid_body')
+      body = JSON.stringify(parsed)
     } else {
       // A mutation of an existing key has no client-selected identity or secret.
       try {
@@ -346,6 +422,20 @@ export async function handleContributorKeys(
       }
     )
     if (!response.ok) {
+      if (choosing && (response.status === 422 || response.status === 504)) {
+        // The Queen's own closed code says which check failed; only a known
+        // code is passed on, never the body itself.
+        const code = await response
+          .json()
+          .then(value => (record(value) ? value.error : undefined))
+          .catch(() => undefined)
+        return fail(
+          response.status,
+          typeof code === 'string' && MODEL_ERRORS.has(code)
+            ? code
+            : 'model_check_failed'
+        )
+      }
       // Provider and database error bodies can contain secrets. Do not echo them.
       const errors: Record<number, string> = {
         400: 'invalid_body',
@@ -360,7 +450,10 @@ export async function handleContributorKeys(
         error || 'upstream_unavailable'
       )
     }
-    const safe = safeContributorResponse(await response.json(), subject)
+    const json: unknown = await response.json()
+    const safe = catalog
+      ? safeModelCatalog(json)
+      : safeContributorResponse(json, subject)
     return safe
       ? { status: response.status, body: safe }
       : fail(502, 'invalid_upstream_response')
