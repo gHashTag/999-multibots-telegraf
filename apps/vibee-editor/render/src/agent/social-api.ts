@@ -13,7 +13,9 @@
 import { createHash, randomBytes } from 'node:crypto'
 import {
   appOf,
+  canSeal,
   daysLeftOf,
+  NO_SEAL_KEY,
   mintState,
   readTokens,
   redirectUri,
@@ -74,10 +76,27 @@ export function verifierOk(len: number): boolean {
  * Text of a post.
  * ------------------------------------------------------------------------- */
 
-/** X counts emoji (astral code points) as 2, everything else here as 1. */
+/**
+ * X's weight of one character (twitter-text v3): 1 for U+0000-U+10FF (Latin,
+ * Cyrillic, Greek, Arabic, Hebrew...) and a few punctuation runs, 2 for the
+ * rest -- CJK, Hangul, emoji. Counting CJK as 1 let a Chinese title through
+ * at twice X's limit, and X refused the post.
+ */
+export function xCharWeight(cp: number): number {
+  const light =
+    cp <= 0x10ff ||
+    (cp >= 0x2000 && cp <= 0x200d) ||
+    (cp >= 0x2010 && cp <= 0x201f) ||
+    (cp >= 0x2032 && cp <= 0x2037)
+  return light ? 1 : 2
+}
+
+/** U+2026 is outside the light runs: the ellipsis itself weighs 2 on X. */
+const ELLIPSIS_WEIGHT = xCharWeight(0x2026)
+
 export function xPlainWeight(text: string): number {
   let n = 0
-  for (const ch of text) n += ch.codePointAt(0)! > 0xffff ? 2 : 1
+  for (const ch of text) n += xCharWeight(ch.codePointAt(0)!)
   return n
 }
 
@@ -89,8 +108,8 @@ export function xPost(p: Post): string {
     const out: string[] = []
     let n = 0
     for (const ch of head) {
-      const w = ch.codePointAt(0)! > 0xffff ? 2 : 1
-      if (n + w > room - 1) break
+      const w = xCharWeight(ch.codePointAt(0)!)
+      if (n + w > room - ELLIPSIS_WEIGHT) break
       out.push(ch)
       n += w
     }
@@ -107,12 +126,23 @@ export function littleText(s: string): string {
   return s.replace(/[|{}@\[\]()<>#\\*_~]/g, c => `\\${c}`)
 }
 
-/** The LinkedIn commentary: title and summary, within its limit. Pure. */
+/**
+ * The LinkedIn commentary: title and summary, within its limit. Pure.
+ * Escaped first, then cut -- cutting first let every escape add a character
+ * past the limit -- and never between a backslash and the character it guards.
+ */
 export function linkedInCommentary(p: Post): string {
-  const body = `${p.title}\n\n${p.summary}`.trim()
-  const cut =
-    body.length <= LI_TEXT_MAX ? body : body.slice(0, LI_TEXT_MAX - 1) + '…'
-  return littleText(cut)
+  const body = littleText(`${p.title}\n\n${p.summary}`.trim())
+  if ([...body].length <= LI_TEXT_MAX) return body
+  const out: string[] = []
+  let n = 0
+  for (const piece of body.match(/\\.|[\s\S]/gu) ?? []) {
+    const w = [...piece].length
+    if (n + w > LI_TEXT_MAX - 1) break
+    out.push(piece)
+    n += w
+  }
+  return out.join('') + '…'
 }
 
 /* ---------------------------------------------------------------------------
@@ -176,6 +206,7 @@ export async function startApiConnect(
           ? 'не заданы LINKEDIN_CLIENT_ID и LINKEDIN_CLIENT_SECRET' // cyrillic-ok: told to the owner
           : 'не заданы X_CLIENT_ID и X_CLIENT_SECRET', // cyrillic-ok: told to the owner
     }
+  if (!canSeal(env)) return { ok: false, error: NO_SEAL_KEY }
   const p = network === 'x' ? pkce() : null
   const nonce = await mintState(q, owner, network, p?.verifier ?? null)
   return {
