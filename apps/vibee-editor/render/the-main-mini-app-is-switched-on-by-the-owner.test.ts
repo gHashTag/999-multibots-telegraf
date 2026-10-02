@@ -10,7 +10,15 @@
  *
  * Every id and token below is invented (9000000xx), and so is every bot.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from 'vitest'
 
 const OWNER = '900000001'
 const STRANGER = '900000042'
@@ -323,7 +331,64 @@ beforeEach(async () => {
 afterEach(() => {
   clearEnv()
   vi.unstubAllGlobals()
+  clockHeld = false
+  vi.useRealTimers()
 })
+
+/*
+ * WARM THE TOOL REGISTRY ONCE.
+ *
+ * Three tests read './src/agent/tools' (the whole agent tool registry) and one
+ * drives the real adapter over 'telegram'. Their cold transform measured
+ * 1.4-6.8 s on a loaded machine, paid by whichever test came first. Paying it
+ * here, under its own budget, keeps that cost out of every test's limit; the
+ * per-test vi.resetModules re-evaluates the modules but reuses the transform.
+ */
+beforeAll(async () => {
+  await Promise.all([import('./src/agent/tools'), import('telegram')])
+}, 180_000)
+
+/*
+ * THE DRIVER RUNS ON A VIRTUAL CLOCK.
+ *
+ * Every step of the driver has a 150 ms budget (stepTimeoutMs) and polls
+ * every 2 ms, and the hang tests assert the run stops within 2 s. On real
+ * timers that is a wall-clock race: under the pre-push gate's parallel load
+ * a happy-path step can simply be descheduled for longer than 150 ms and
+ * read as BotFather never answering. Every dependency of the driver is
+ * injected (fetchImpl, openChat, the fake BotFather, the pool), so nothing in
+ * its path needs real time: setTimeout and Date are faked for the run, and
+ * `settle` moves the fake clock one millisecond at a time, flushing all real
+ * pending work (setImmediate stays real) before each tick. The step budgets
+ * and the 2 s bound are then exact, whatever the machine is doing.
+ */
+let clockHeld = false
+
+function useVirtualClock() {
+  if (!vi.isFakeTimers())
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+}
+
+/** Far beyond any run here (8 steps x 150 ms); a stuck run is not spun forever. */
+const SETTLE_LIMIT_MS = 60_000
+
+function settle<T>(p: Promise<T>): Promise<T> {
+  let done = false
+  p.then(
+    () => (done = true),
+    () => (done = true)
+  )
+  const tick = async () => {
+    for (let ms = 0; !done && ms < SETTLE_LIMIT_MS; ) {
+      await new Promise(r => setImmediate(r))
+      if (done || !vi.isFakeTimers()) return
+      if (clockHeld) continue
+      await vi.advanceTimersByTimeAsync(1)
+      ms += 1
+    }
+  }
+  return tick().then(() => p)
+}
 
 function run(
   fb: FakeBotFather | null,
@@ -333,27 +398,30 @@ function run(
   const opened: string[] = []
   /** The telegram id of every context a chat was opened for, in order. */
   const actors: string[] = []
+  useVirtualClock()
   return {
     opened,
     actors,
-    result: mod.configureMainMiniApp(args, ctx, {
-      fetchImpl: api.fetchImpl,
-      openChat: async (c, fn) => {
-        opened.push('chat')
-        actors.push(String((c as { telegramId?: unknown })?.telegramId ?? ''))
-        if (!fb) throw new Error('no chat in this test')
-        try {
-          return await fn(fb)
-        } finally {
-          // withClient hangs the client up here; a run that never returns
-          // would leave a live MTProto client behind.
-          opened.push('closed')
-        }
-      },
-      stepTimeoutMs: 150,
-      pollMs: 2,
-      log: l => lines.push(l),
-    }),
+    result: settle(
+      mod.configureMainMiniApp(args, ctx, {
+        fetchImpl: api.fetchImpl,
+        openChat: async (c, fn) => {
+          opened.push('chat')
+          actors.push(String((c as { telegramId?: unknown })?.telegramId ?? ''))
+          if (!fb) throw new Error('no chat in this test')
+          try {
+            return await fn(fb)
+          } finally {
+            // withClient hangs the client up here; a run that never returns
+            // would leave a live MTProto client behind.
+            opened.push('closed')
+          }
+        },
+        stepTimeoutMs: 150,
+        pollMs: 2,
+        log: l => lines.push(l),
+      })
+    ),
   }
 }
 
@@ -819,10 +887,13 @@ describe('who, which bot, which address', () => {
 
   it('the driver, called directly with a bad url, sends nothing at all', async () => {
     const fb = botFather({ onUrl: flip })
-    const d = await mod.driveBotFather(
-      fb,
-      { username: BOT, url: 'https://app.t27.ai/\nhttps://evil.example' },
-      { stepTimeoutMs: 150, pollMs: 2, log: () => {} }
+    useVirtualClock()
+    const d = await settle(
+      mod.driveBotFather(
+        fb,
+        { username: BOT, url: 'https://app.t27.ai/\nhttps://evil.example' },
+        { stepTimeoutMs: 150, pollMs: 2, log: () => {} }
+      )
     )
     expect(d.outcome).toBe('stopped')
     expect(d.stoppedAt).toBe('send_url')
@@ -832,10 +903,13 @@ describe('who, which bot, which address', () => {
 
   it('the driver, called directly, sends the normalised form it checked', async () => {
     const fb = botFather({ onUrl: flip })
-    const d = await mod.driveBotFather(
-      fb,
-      { username: BOT, url: 'https://APP.t27.ai:443/app' },
-      { stepTimeoutMs: 150, pollMs: 2, log: () => {} }
+    useVirtualClock()
+    const d = await settle(
+      mod.driveBotFather(
+        fb,
+        { username: BOT, url: 'https://APP.t27.ai:443/app' },
+        { stepTimeoutMs: 150, pollMs: 2, log: () => {} }
+      )
     )
     expect(d.outcome).toBe('confirmed')
     expect(fb.sent).toEqual(['/mybots', 'https://app.t27.ai/app'])
@@ -871,10 +945,17 @@ describe('who, which bot, which address', () => {
   })
 
   it('one run at a time: a second call during a run is refused', async () => {
+    // The clock is held, so the first run cannot finish (or even time out)
+    // while the second is asked: it is known to hold the lock once its chat is
+    // open, a signal rather than a guess at how long 5 ms is.
+    clockHeld = true
     const first = run(botFather({ askLater: 60, onUrl: flip }))
-    await new Promise(r => setTimeout(r, 5))
+    for (let i = 0; i < 10_000 && !first.opened.includes('chat'); i++)
+      await new Promise(r => setImmediate(r))
+    expect(first.opened).toEqual(['chat'])
     const second = run(botFather())
     await expect(second.result).rejects.toThrow('уже настраивается')
+    clockHeld = false
     expect((await first.result).status).toBe('enabled')
   })
 })
@@ -882,11 +963,19 @@ describe('who, which bot, which address', () => {
 describe('a BotFather call that never returns', () => {
   const never = () => new Promise<never>(() => {})
 
-  /** The run stops in bounded time, closes the chat, and frees the lock. */
+  /**
+   * The run stops in bounded time, closes the chat, and frees the lock.
+   * The bound is virtual time (see "THE DRIVER RUNS ON A VIRTUAL CLOCK"), so
+   * these tests no longer carry their own short wall-clock limit: a run that
+   * truly never stops is caught by the 2 s virtual bound or, at worst, by the
+   * suite's default test timeout.
+   */
   async function stopsAndReleases(fb: FakeBotFather) {
+    useVirtualClock()
     const t0 = Date.now()
     const { result, opened } = run(fb)
     const r = await result
+    // Virtual milliseconds: the bound is exact, not a race with the machine.
     expect(Date.now() - t0).toBeLessThan(2000)
     expect(r.status).toBe('stopped')
     expect(opened).toEqual(['chat', 'closed'])
@@ -902,7 +991,7 @@ describe('a BotFather call that never returns', () => {
     const r = await stopsAndReleases(fb)
     expect(r.stopped_at).toBe('pick_bot')
     expect(r.url_sent).toBe(false)
-  }, 5000)
+  })
 
   it('the very first read hangs: stops at open, nothing is sent', async () => {
     const fb = botFather()
@@ -910,14 +999,14 @@ describe('a BotFather call that never returns', () => {
     const r = await stopsAndReleases(fb)
     expect(r.stopped_at).toBe('open')
     expect(fb.sent).toEqual([])
-  }, 5000)
+  })
 
   it('sending /mybots hangs: stops at open', async () => {
     const fb = botFather()
     fb.send = never
     const r = await stopsAndReleases(fb)
     expect(r.stopped_at).toBe('open')
-  }, 5000)
+  })
 
   it('a press hangs and the screen never changes: stops at that step', async () => {
     const fb = botFather()
@@ -925,7 +1014,7 @@ describe('a BotFather call that never returns', () => {
     const r = await stopsAndReleases(fb)
     expect(r.stopped_at).toBe('pick_bot')
     expect(r.reason).toContain('in time')
-  }, 5000)
+  })
 
   it('sending the URL hangs: stops at send_url and says it may have gone', async () => {
     const fb = botFather()
@@ -935,7 +1024,7 @@ describe('a BotFather call that never returns', () => {
     const r = await stopsAndReleases(fb)
     expect(r.stopped_at).toBe('send_url')
     expect(r.url_sent).toBe(true)
-  }, 5000)
+  })
 
   it('a completed run releases the lock: the next run goes ahead', async () => {
     // Enabled, unverified, stopped: each one frees the lock for the next.
