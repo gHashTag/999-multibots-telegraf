@@ -17,10 +17,15 @@ cd "$ROOT" || exit 1
 # The database service by name, passed explicitly: never relink (railway-link-flapping).
 URL=$(railway variables --service postgres-nfrq --kv 2>/dev/null | grep -E '^DATABASE_PUBLIC_URL=' | cut -d= -f2-)
 [ -n "$URL" ] || { echo "no DATABASE_PUBLIC_URL -- not checked"; exit 2; }
-# Closed by the timer, not by a person: declined within the hour, before the
-# per-question lifetime shipped (#3235). Deleting the row makes the article
-# unseen, and the desk's own daily pace re-asks it -- no burst.
-TIMER="state = 'declined' AND done_at - asked_at BETWEEN interval '20 minutes' AND interval '40 minutes'"
+# Closed by the timer, not by a person: the desk marked it declined while its
+# approval row was never decided (still pending) -- nobody pressed "no". Also a
+# "posted" row whose every network reported a failure (before #3235 any click
+# counted). Deleting the row makes the article unseen; the desk's own daily
+# pace re-asks it -- no burst.
+TIMER="slug IN (SELECT b.slug FROM blog_shares b LEFT JOIN browser_approvals a ON a.id = b.approval_id
+  WHERE (b.state = 'declined' AND (a.id IS NULL OR a.decided_at IS NULL))
+     OR (b.state = 'posted' AND b.detail->>'result' IS NOT NULL
+         AND b.detail->>'result' !~ '(опубликован|ушла с формы)'))" # cyrillic-ok: matches the desk's own result strings
 if [ "${1:-}" = reoffer ]; then
   psql "$URL" -X -q -c "SELECT slug, to_char(asked_at,'MM-DD') AS asked FROM blog_shares WHERE $TIMER ORDER BY asked_at"
   if [ "${2:-}" = --apply ]; then
