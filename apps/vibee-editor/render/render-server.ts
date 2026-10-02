@@ -141,7 +141,8 @@ function browserBrokerDeps(): BrowserDeps {
   }
 }
 configureAgentStart(browserBrokerDeps)
-import { identityWithSource } from './src/agent/routes'
+import { identityWithSource, personIdentity } from './src/agent/routes'
+import { handleTriWallet } from './src/tri-wallet'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import {
@@ -9329,6 +9330,22 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify(ответ.тело))
     return
   }
+
+  /*
+   * /api/tri/wallet[/challenge] -- a person binds the TON address their TRI
+   * would be paid to (src/tri-wallet.ts). Only the person's own credential
+   * counts (personIdentity): an agent key, the server key or a game token can
+   * read a name but must not be able to redirect a payout.
+   */
+  if (
+    await handleTriWallet(req, res, {
+      getPool,
+      personOf: personIdentity,
+      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
+    })
+  )
+    return
 
   /*
    * POST /api/story/next -- the client's own one press for her next story
