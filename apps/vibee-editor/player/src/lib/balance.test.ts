@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { ценаНажатия, мераЦены, тысячиЗнаковКОплате, type Баланс } from './balance'
+import {
+  ценаНажатия,
+  мераЦены,
+  priceUnitLabel,
+  тысячиЗнаковКОплате,
+  type Баланс,
+} from './balance'
 import fs from 'fs'
 import path from 'path'
 
@@ -118,7 +124,9 @@ describe('цены можно увидеть без сессии — но тол
      * у проверяющего нет, значит цену на кнопке нельзя было увидеть ГЛАЗАМИ
      * ни разу — и долг проверки не гасился никогда.
      */
-    expect(ИСХОДНИК).toContain("new URLSearchParams(location.search).get('баланс')")
+    expect(ИСХОДНИК).toContain(
+      "new URLSearchParams(location.search).get('баланс')"
+    )
     expect(ИСХОДНИК).toContain('const свой = подставнойБаланс()')
   })
 
@@ -127,5 +135,18 @@ describe('цены можно увидеть без сессии — но тол
     // собранных файлах вовсе. Убери проверку — и остаток можно будет
     // подставить ссылкой у любого посетителя.
     expect(ИСХОДНИК).toMatch(/if \(!import\.meta\.env\.DEV\) return null/)
+  })
+})
+
+describe('priceUnitLabel', () => {
+  // The key from мераЦены stays Russian (callers switch on it); an English  // cyrillic-ok: names the function
+  // reader saw "· 6/с" and "not enough: 6 per с" before.  // cyrillic-ok: quotes the old label
+  it('translates the label, not the key', () => {
+    expect(priceUnitLabel('с', 'en')).toBe('s') // cyrillic-ok: protocol key
+    expect(priceUnitLabel('1000 зн.', 'en')).toBe('1k chars') // cyrillic-ok: protocol key
+    expect(priceUnitLabel('с', 'en', 'words')).toBe('second of audio') // cyrillic-ok: protocol key
+    expect(priceUnitLabel('с', 'ru')).toBe('с') // cyrillic-ok: protocol key
+    expect(priceUnitLabel('1000 зн.', 'ru', 'words')).toBe('1000 знаков') // cyrillic-ok: protocol key
+    expect(priceUnitLabel('unknown', 'en')).toBe('unknown')
   })
 })
