@@ -5,8 +5,12 @@
 
 const { createClient } = require('@supabase/supabase-js')
 
-const SUPABASE_URL =
-  process.env.SUPABASE_URL || 'https://yuukfqcsdhkyxegfwlcb.supabase.co'
+const SUPABASE_URL = process.env.SUPABASE_URL
+if (!SUPABASE_URL) {
+  // No default host on purpose: the old one was the frozen cloud project.
+  console.error('SUPABASE_URL is not set; take it from: railway variables --kv')
+  process.exit(1)
+}
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 if (!SUPABASE_SERVICE_KEY) {
   console.error(

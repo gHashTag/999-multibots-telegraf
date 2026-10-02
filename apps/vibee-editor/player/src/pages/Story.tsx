@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useLanguage } from '@/hooks/useLanguage'
 import { MyStoryWidget } from '@/components/Story/MyStoryWidget'
 
@@ -14,6 +15,10 @@ export default function StoryPage() {
       </header>
       <p className="crm__counts">{t('story.lead')}</p>
       <MyStoryWidget />
+      {/* The same reels live in the chat, next to the agent who makes them. */}
+      <Link className="story-to-chat" to="/chat" data-testid="story-to-chat">
+        💬 {t('story.toChat')}
+      </Link>
     </div>
   )
 }

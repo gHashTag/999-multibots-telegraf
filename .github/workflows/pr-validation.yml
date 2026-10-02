@@ -17,15 +17,26 @@ jobs:
     if: github.event.pull_request.draft == false
     
     steps:
+      # claude/ is what the Claude Code desktop app names its worktree
+      # branches, and release/ carries the release(board) PRs. Both are merged
+      # every day: of the last 200 merged PRs 92 came from claude/ and 5 from
+      # release/, so without them this step was red on most PRs that landed.
       - name: 🏷️ Validate Branch Naming
         uses: deepakputhraya/action-branch-name@master
         with:
-          regex: '^(feat|fix|docs|chore|test|refactor|hotfix)\/[a-z0-9-]+$'
-          allowed_prefixes: 'feat,fix,docs,chore,test,refactor,hotfix'
+          regex: '^(feat|fix|docs|chore|test|refactor|hotfix|claude|release)\/[a-z0-9-]+$'
+          allowed_prefixes: 'feat,fix,docs,chore,test,refactor,hotfix,claude,release'
           ignore: main,develop,staging,production
           min_length: 5
           max_length: 50
 
+      # The type is checked; the scope and the subject length are not.
+      # The scope list held nine names (admin, auth, bot, ...) while this repo
+      # scopes by module -- crm, loop, browser, app, tri, agent, player, ...
+      # -- and 183 of the last 200 merged titles used a scope outside it. The
+      # subject was capped at 50 characters while the median merged subject
+      # is 59; 154 of 200 were over. Both rules failed PRs that were fine.
+      # `release` is the type of the release(board) PRs.
       - name: 📝 Check PR Title Format
         uses: amannn/action-semantic-pull-request@v5
         env:
@@ -43,22 +54,8 @@ jobs:
             ci
             build
             revert
-          scopes: |
-            admin
-            auth
-            bot
-            core
-            ui
-            api
-            db
-            config
-            deps
+            release
           requireScope: false
-          subjectPattern: ^.{1,50}$
-          subjectPatternError: |
-            The subject "{subject}" found in the pull request title "{title}"
-            doesn't match the configured pattern. Please ensure that the subject
-            doesn't start with an uppercase character.
 
       - name: 🔍 Check PR Description
         uses: actions/github-script@v7
@@ -71,27 +68,13 @@ jobs:
               core.setFailed('❌ PR description is too short. Please provide a meaningful description.');
               return;
             }
-            
-            // Check for required sections
-            const requiredSections = [
-              '## 📝 Description',
-              '## 🎯 Type of Change'
-            ];
-            
-            const missingSections = requiredSections.filter(section => !body.includes(section));
-            
-            if (missingSections.length > 0) {
-              core.setFailed(`❌ Missing required sections: ${missingSections.join(', ')}`);
-              return;
-            }
-            
-            // Check if checkboxes are marked
-            const hasMarkedCheckbox = /- \[x\]/.test(body);
-            if (!hasMarkedCheckbox) {
-              core.setFailed('❌ Please mark at least one checkbox in the Type of Change section.');
-              return;
-            }
-            
+
+            // The template headings ('## 📝 Description', '## 🎯 Type of
+            // Change') and a ticked checkbox are no longer required: PRs here
+            // are opened with `gh pr create --body`, which never sees the
+            // template, and 156 of the last 200 merged PRs lacked them. A body
+            // that says what changed is the requirement; the template is a
+            // suggestion.
             core.info('✅ PR description validation passed!');
 
       - name: 🤖 AI Assistant Rule Check  

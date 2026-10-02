@@ -13,6 +13,7 @@ import { useState } from 'react'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { reportPayOutcome } from '@/lib/payOutcome'
+import { forgetPackageStatus } from '@/hooks/useUserLevel'
 
 type Lang = 'ru' | 'en'
 
@@ -121,6 +122,8 @@ export function useAgentPackagePurchase(
               try {
                 const until = await verify(id)
                 if (until) {
+                  // The next screen asks for the person's level afresh.
+                  forgetPackageStatus()
                   say(
                     id,
                     text.booked(

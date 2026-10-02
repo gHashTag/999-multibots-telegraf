@@ -67,6 +67,7 @@ import {
   pageUrl,
 } from './cdp'
 import { overBudget } from './tab-budget'
+import { NOT_PAINTED_NOTE, PAINT_PROBE, waitForPaint } from './paint-wait'
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
 import { LOGINS_NOTE, NETWORKS, loginsOfPerson } from './logins'
 import {
@@ -900,11 +901,16 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         }
       }
       const { cdp, targetId } = await podOf(ctx)
+      /* A dark SPA shot before it rendered reads as "black screen" (paint-wait.ts). */
+      const paint = await waitForPaint(() =>
+        evaluateOn(cdp, targetId, PAINT_PROBE)
+      )
       const base64 = await screenshot(cdp, targetId)
       return {
         format: 'jpeg',
         base64,
         tabs: await tabsOf(cdp, targetId),
+        ...(paint.painted ? {} : { painted: false, note: NOT_PAINTED_NOTE }),
         ...(await describeShot(base64)),
       }
     },

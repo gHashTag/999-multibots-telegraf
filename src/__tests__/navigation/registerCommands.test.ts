@@ -6,7 +6,7 @@
  * зависимости от Telegraf Stage и множества сцен.
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { beforeAll, describe, it, expect, vi } from 'vitest'
 
 // Mock logger first
 vi.mock('@/utils/logger', () => ({
@@ -49,20 +49,26 @@ vi.mock('apify-client', () => ({
  * it is silent.
  */
 describe('registerCommands module', () => {
-  describe('exports', () => {
-    it('экспортирует функцию registerCommands', async () => {
-      // Динамический импорт чтобы моки применились
-      const module = await import('@/navigation/registerCommands')
+  let module: typeof import('@/navigation/registerCommands')
 
+  // The module under test pulls in the whole bot graph (every scene, every
+  // service). Its cold transform measured ~18s on a quiet machine and went past
+  // the 30s per-test limit under the pre-push gate's parallel load, so the
+  // import lives here, once, with its own budget instead of inside each test.
+  // It is still a dynamic import, after the vi.mock calls above.
+  beforeAll(async () => {
+    module = await import('@/navigation/registerCommands')
+  }, 180_000)
+
+  describe('exports', () => {
+    it('экспортирует функцию registerCommands', () => {
       expect(module.registerCommands).toBeDefined()
       expect(typeof module.registerCommands).toBe('function')
     })
   })
 
   describe('registerCommands function signature', () => {
-    it('принимает объект с bot', async () => {
-      const module = await import('@/navigation/registerCommands')
-
+    it('принимает объект с bot', () => {
       // Проверяем, что функция существует и принимает параметры
       expect(module.registerCommands.length).toBe(1)
     })
