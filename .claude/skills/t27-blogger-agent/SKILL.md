@@ -288,7 +288,7 @@ enterForNewline: true })` sends `"\r"`, which is what the Enter key types;
   length, the same `tweetTextarea_N` boxes the desk reads, and which of
   Post / Post all / plus are on the page), then `tri browser close ID`.
   Nothing is pressed, so nothing is published. Before any of this, `tri
-  browser doctor` lists every tab with unsent composer text: a draft left by
+browser doctor` lists every tab with unsent composer text: a draft left by
   an earlier run is found there, not by a second post.
 - **A missing button closes the draft too** (#3375). If the box, the plus or
   "Post all" is not found, nothing was pressed, so the draft is closed before
@@ -308,3 +308,21 @@ The blog desk posts on its own timer. The owner can also ask his agent in chat (
 - The CRM screen has a _Social networks_ panel (SocialPanel.tsx) that reads `social_status`. It is a refusal, and draws nothing, for anyone else.
 - **A player panel calling a new tool ships in the tool's own PR.** The pre-push `contracts` gate (`scripts/cross-service-vocabularies.cjs`) refuses a player that calls a tool main does not have, and it is right: the server would refuse silently.
 - **The kanban** (app.t27.ai/game/kanban) is gHashTag/t27's open issues. A non-code task is an issue WITHOUT `## Boundary`, so no bee takes it. Social: epic t27#5629, tasks #5625–#5628.
+
+## Pictures for posts and brand art: never the free leg's stamp (2026-10-03)
+
+Measured live: `image_generate` skips fal ($0.15 against the $0.005 the
+charge covers), Replicate is off, so **Pollinations draws every picture** --
+768x768 with a "pollinations.ai" mark, `nologo=true` notwithstanding.
+
+- The answer now carries `watermark` (#3409). A stamped picture is a draft:
+  not a post, not a client card (`crm_deliver` returns it as `draft_url`,
+  #3414).
+- Brand art (the FB page avatar and 1640x624 cover for "Trinity S³AI") comes
+  from `image_edit` (Kie nano-banana-edit, 8 tokens) on a **raster** source --
+  it refuses SVG. The canonical mark is `https://t27.ai/apple-touch-icon.png`
+  (green subdivided ▽, dark centre). Prompt "do NOT redesign, pixel-faithful",
+  or the model redraws it as concentric outlines. 16:9 comes back 1344x768
+  with letterbox bars: crop, then check the bars are gone.
+- Drafts go to the owner first (Bot API album: `--form-string media=<json>`),
+  and are uploaded or posted only after his «да».

@@ -64,3 +64,11 @@ The default face for the owner's reels is **studio-lab**:
 ▽ lamp). Before re-using ANY older lipsync clip, look at one frame of it next
 to studio-lab: reel 1 (2026-10-03) was re-rendered from an old noir lipsync
 and sent to him that way.
+
+## The free leg is not a way around Kie (2026-10-03)
+
+`image_generate` falls through to Pollinations ($0, keyless) when fal is above
+the price and Replicate is off -- which was every call on 2026-10-03. Its
+pictures carry a "pollinations.ai" stamp (`watermark` in the answer, #3409):
+fine for a draft, never for a client, a post or brand art. Anything that
+leaves the house is drawn on Kie (`image_edit` from a raster source).
