@@ -343,6 +343,13 @@ describe('hear', () => {
       expect(keys).toEqual(['Bearer gk'])
     })
 
+    it('puts misheard product words right before anyone reads them', async () => {
+      ears(() => json({ text: 'Сделай рилз и Lipsing.' }))
+      expect((await hear(audio, 'audio/webm', 'ru'))?.text).toBe(
+        'Сделай рилс и липсинк.'
+      )
+    })
+
     it('trusts an empty GigaAM answer instead of asking whisper', async () => {
       const { doors } = ears(() => json({ text: '' }))
       expect(await hear(audio, 'audio/webm', 'ru')).toEqual({
