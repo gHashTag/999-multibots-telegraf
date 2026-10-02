@@ -45,8 +45,9 @@ export interface PrimaryNavigationItem {
 export const TAB_ROUTE_PATTERNS: Record<PrimaryTabId, RegExp> = {
   feed: /^\/feed/,
   // The product tab is the labour market (#2896). The old /chat address
-  // remains a working deep link and lights the same tab.
-  chat: /^\/(agents|chat)/,
+  // remains a working deep link and lights the same tab, and so does the
+  // thread about a client: the tab returns to it (lib/chatTabMemory.ts).
+  chat: /^\/(agents|chat|crm\/\d+\/chat(\/|$))/,
   browser: /^\/browser/,
   ai: /^\/generate/,
   // /game is the board's address since 2026-10-01; /hive and /queen lead to it.

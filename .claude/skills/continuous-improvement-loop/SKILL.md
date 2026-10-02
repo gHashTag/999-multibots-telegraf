@@ -2102,3 +2102,15 @@ The money anomaly of the same iteration: iOS read the server's
 Fixed at the parse (`TokenVerify(body:)`, testable) and with the web's own
 sentence. Every client of a money route must branch on the same flags; when
 the web learns a flag, grep the other clients for the same route.
+
+### A merge rule checked by hand is checked by luck (iteration 11b)
+
+"Every failing check must be the billing stop" was a shell loop retyped on
+every PR. On 2026-10-02 a dropped connection returned an empty annotation
+list and the loop called a never-started job "NOT BILLING". It is now
+`tri pr-billing N`: empty answers are re-asked, then counted UNKNOWN (never
+billing, never a real failure); rc 0 only when all are billing. Its negative
+control first passed for the wrong reason -- `tri` puts /opt/homebrew/bin
+first on PATH, so a stub `gh` on PATH was never called. A stub needs a named
+seam (`TRI_GH`), and a control is only a control if its output shows the
+stub was the one that answered.
