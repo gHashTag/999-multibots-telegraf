@@ -31,6 +31,20 @@ if [ "${1:-}" = put ]; then
     echo "clipboard holds $n chars -- copy $k in the portal first"
     exit 1
   fi
+  # THE SHAPE, BEFORE IT IS STORED (2026-10-03): the first real run stored
+  # 1912 chars of page text as META_APP_SECRET -- a secret is one word.
+  # Meta and Threads app secrets are 32 hex; a page id is digits; the
+  # others are one token of at most 128 printable chars.
+  case "$k" in
+    META_APP_SECRET | THREADS_APP_SECRET) shape='^[0-9a-f]{32}$' want='32 hex chars' ;;
+    META_PAGE_ID) shape='^[0-9]{6,20}$' want='digits only' ;;
+    *) shape='^[!-~]{8,128}$' want='one word of 8-128 chars' ;;
+  esac
+  if ! pbpaste | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' |
+    awk 'NF' | { read -r line && ! read -r _ && printf '%s' "$line"; } | grep -qE "$shape"; then
+    echo "$k: refused -- the clipboard ($n chars) is not $want; copy the value itself, not the page"
+    exit 1
+  fi
   if pbpaste | tr -d ' \t\r\n' | railway variable set "$k" --stdin --skip-deploys \
     --service vibee-render --environment production >/dev/null 2>&1; then
     printf '' | pbcopy
