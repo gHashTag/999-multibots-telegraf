@@ -1,6 +1,13 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import {
+  Link,
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  type InitialEntry,
+} from 'react-router-dom'
 import {
   afterEach,
   beforeAll,
@@ -146,7 +153,12 @@ const answers: Record<string, unknown> = {
 let calls: Array<{ name: string; args: Record<string, unknown> }> = []
 
 function serve(
-  opts: { fail?: string[]; refuse?: Record<string, string> } = {}
+  opts: {
+    fail?: string[]
+    refuse?: Record<string, string>
+    /** Tools that never answer: a slow server, stretched to forever. */
+    hang?: string[]
+  } = {}
 ) {
   vi.stubGlobal(
     'fetch',
@@ -154,6 +166,7 @@ function serve(
       const body = JSON.parse(String(init?.body ?? '{}'))
       const name = body?.params?.name
       calls.push({ name, args: body?.params?.arguments ?? {} })
+      if (opts.hang?.includes(name)) return new Promise(() => {})
       if (opts.refuse && name in opts.refuse) {
         // The tool itself threw -- a JSON-RPC error with the server's words,
         // which is how an owner-only tool answers a non-owner.
@@ -300,6 +313,22 @@ describe('every panel is about THIS client', () => {
   })
 })
 
+describe('opening a contact', () => {
+  // The contacts list offers the people opened last (CRM mobile loop, tick 2).
+  it('remembers this person first among the recently opened', async () => {
+    window.localStorage.setItem('vibee.crm.recent', '["111"]')
+    try {
+      serve()
+      await draw()
+      expect(
+        JSON.parse(window.localStorage.getItem('vibee.crm.recent')!)
+      ).toEqual([CLIENT, '111'])
+    } finally {
+      window.localStorage.clear()
+    }
+  })
+})
+
 describe('a panel that could not load says so', () => {
   it('an unreachable plan says unavailable and shows no zero progress', async () => {
     serve({ fail: ['crm_client_plan', 'crm_duet_runs'] })
@@ -341,7 +370,228 @@ describe('the way into the conversation', () => {
     expect(chat.textContent).toBe('crm.client.chatButton')
     expect(chat.getAttribute('href')).toBe(`/crm/${CLIENT}/chat`)
     const crumb = host.querySelector<HTMLAnchorElement>('a.crm-client__crumb')!
-    expect(crumb.getAttribute('href')).toBe('/crm')
+    expect(crumb.getAttribute('href')).toBe('/crm?tab=contacts')
+  })
+
+  /*
+   * BACK IS BACK (CRM mobile loop, tick 4). The crumb went to /crm -- the
+   * work section -- so the list the owner came from, with its search and
+   * chip, was gone. Inside the app it steps back in history now; opened
+   * from a link, it goes to the contacts.
+   */
+  describe('the back crumb', () => {
+    function ListProbe() {
+      const at = useLocation()
+      return <p className="probe-list">{at.search}</p>
+    }
+
+    async function drawWithHistory(entries: InitialEntry[]) {
+      const { default: CrmClientPage } = await import('./CrmClient')
+      await act(async () => {
+        root.render(
+          <MemoryRouter
+            initialEntries={entries}
+            initialIndex={entries.length - 1}
+          >
+            <Routes>
+              <Route path="/crm" element={<ListProbe />} />
+              <Route path="/crm/:clientId" element={<CrmClientPage />} />
+            </Routes>
+          </MemoryRouter>
+        )
+      })
+      await act(async () => {
+        await new Promise(r => setTimeout(r, 0))
+      })
+      await act(async () => {
+        host.querySelector<HTMLAnchorElement>('a.crm-client__crumb')!.click()
+      })
+    }
+
+    it('returns to the list exactly as it was left', async () => {
+      serve()
+      await drawWithHistory([
+        '/crm?tab=contacts&who=leads&q=ana',
+        `/crm/${CLIENT}`,
+      ])
+      expect(host.querySelector('.probe-list')?.textContent).toBe(
+        '?tab=contacts&who=leads&q=ana'
+      )
+    })
+
+    it('opened by a tap on a scrolled list, the card starts at its top', async () => {
+      serve()
+      const { default: CrmClientPage } = await import('./CrmClient')
+      function Row() {
+        return <Link to={`/crm/${CLIENT}`}>row</Link>
+      }
+      await act(async () => {
+        root.render(
+          <MemoryRouter initialEntries={['/crm']}>
+            <Routes>
+              <Route path="/crm" element={<Row />} />
+              <Route path="/crm/:clientId" element={<CrmClientPage />} />
+            </Routes>
+          </MemoryRouter>
+        )
+      })
+      try {
+        document.documentElement.scrollTop = 498
+        await act(async () => {
+          host.querySelector<HTMLAnchorElement>('a')!.click()
+        })
+        expect(host.querySelector('a.crm-client__crumb')).not.toBeNull()
+        expect(document.documentElement.scrollTop).toBe(0)
+      } finally {
+        document.documentElement.scrollTop = 0
+      }
+    })
+
+    it('opened from a link, it goes to the contacts', async () => {
+      serve()
+      await drawWithHistory([`/crm/${CLIENT}`])
+      expect(host.querySelector('.probe-list')?.textContent).toBe(
+        '?tab=contacts'
+      )
+    })
+
+    /*
+     * A chat opened from a link replaces itself with the card on "to the
+     * client" (tick 6, useBackTo). That card is not the app's first entry by
+     * key, but nothing is behind it: the crumb must still go to the contacts,
+     * not step back out of the app.
+     */
+    it('put in place of a first-entry chat, it still goes to the contacts', async () => {
+      serve()
+      await drawWithHistory([
+        '/elsewhere',
+        { pathname: `/crm/${CLIENT}`, state: { firstEntry: true } },
+      ])
+      expect(host.querySelector('.probe-list')?.textContent).toBe(
+        '?tab=contacts'
+      )
+    })
+  })
+
+  /*
+   * UNDER THE THUMB (CRM mobile loop, tick 3). At the top of the page the
+   * button was 1500px above "Last messages" at 390px -- the panel read right
+   * before answering. It is now after every panel and sticky at the bottom;
+   * jsdom has no layout, so the order is held here and the stickiness in
+   * crmClientThumb.test.ts. Measured live: 12px off the bottom at every
+   * scroll position, settling in place at the end.
+   */
+  /*
+   * The chat learns it was opened from THIS card, so its "to the client"
+   * steps back instead of pushing a second card (tick 6: the Back loop).
+   */
+  it('the primary button tells the chat which card it came from', async () => {
+    serve()
+    const { default: CrmClientPage } = await import('./CrmClient')
+    function ChatProbe() {
+      const at = useLocation()
+      return <p className="probe-chat">{JSON.stringify(at.state)}</p>
+    }
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={[`/crm/${CLIENT}`]}>
+          <Routes>
+            <Route path="/crm/:clientId" element={<CrmClientPage />} />
+            <Route path="/crm/:clientId/chat" element={<ChatProbe />} />
+          </Routes>
+        </MemoryRouter>
+      )
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+    await act(async () => {
+      host.querySelector<HTMLAnchorElement>('a.crm-client__chat')!.click()
+    })
+    expect(host.querySelector('.probe-chat')?.textContent).toBe(
+      JSON.stringify({ backTo: `/crm/${CLIENT}`, name: 'Geya' })
+    )
+  })
+
+  /*
+   * ONE SLOW READ HELD THE WHOLE CARD (tick 7). The six reads ran in
+   * parallel, but the page waited for all of them before drawing any --
+   * the name, the messages, everything waited for the slowest tool.
+   */
+  it('a read that is still out holds only its own panel', async () => {
+    serve({ hang: ['crm_lead_media'] })
+    await draw()
+    const text = host.textContent ?? ''
+    expect(text).toContain('crm.client.title:Geya')
+    expect(text).toContain('WeSaidThat')
+    expect(text).not.toContain('MediaOnlyName.jpg')
+  })
+
+  it("a late answer for the last client is not drawn on this one's card", async () => {
+    const OTHER = '900000777'
+    let late: (v: unknown) => void = () => {}
+    const reply = (content: unknown) => ({
+      ok: true,
+      json: async () => ({
+        jsonrpc: '2.0',
+        id: 1,
+        result: { structuredContent: content },
+      }),
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init: RequestInit) => {
+        const body = JSON.parse(String(init?.body ?? '{}'))
+        if (body?.params?.name !== 'crm_lead_context') return reply({})
+        if (body.params.arguments?.chat === CLIENT)
+          return new Promise(r => {
+            late = r
+          })
+        return reply({ name: 'Other P.', dialog: [] })
+      })
+    )
+    const { default: CrmClientPage } = await import('./CrmClient')
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={[`/crm/${CLIENT}`]}>
+          <Link className="probe-other" to={`/crm/${OTHER}`}>
+            other
+          </Link>
+          <Routes>
+            <Route path="/crm/:clientId" element={<CrmClientPage />} />
+          </Routes>
+        </MemoryRouter>
+      )
+    })
+    await act(async () => {
+      host.querySelector<HTMLAnchorElement>('a.probe-other')!.click()
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+    await act(async () => {
+      late(reply(answers.crm_lead_context))
+      await new Promise(r => setTimeout(r, 0))
+    })
+    const text = host.textContent ?? ''
+    expect(text).toContain('crm.client.title:Other P.')
+    expect(text).not.toContain('Geya')
+    expect(text).not.toContain('WeSaidThat')
+  })
+
+  it('the primary button comes after every panel', async () => {
+    serve()
+    await draw()
+    const chat = host.querySelector('a.crm-client__chat')!
+    const panels = [
+      ...host.querySelectorAll('.crm-client section, .crm-client h3'),
+    ]
+    expect(panels.length).toBeGreaterThan(0)
+    for (const p of panels) {
+      expect(
+        p.compareDocumentPosition(chat) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    }
   })
 
   it('reads nothing that sends: only crm_* readers are called', async () => {

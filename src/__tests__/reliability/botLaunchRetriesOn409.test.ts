@@ -15,6 +15,12 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 const INDEX = path.resolve(__dirname, '../../index.ts')
+// The helper has its own home since the managed agent bots launch through it
+// too; the call site under test is still the farm's, in index.ts.
+const HELPER = path.resolve(
+  __dirname,
+  '../../core/bot/launchWithConflictRetry.ts'
+)
 
 function analyze(src: string): {
   launchesViaRetry: boolean
@@ -42,10 +48,12 @@ function analyze(src: string): {
 
 describe('bots are launched with a bounded retry on 409 Conflict', () => {
   const src = fs.readFileSync(INDEX, 'utf8')
+  const helperSrc = fs.readFileSync(HELPER, 'utf8')
   const a = analyze(src)
 
   it('floor: the helper exists and the call site goes through it', () => {
-    expect(src).toContain('async function launchWithConflictRetry(')
+    expect(helperSrc).toContain('async function launchWithConflictRetry(')
+    expect(src).toContain("from '@/core/bot/launchWithConflictRetry'")
     expect(a.launchesViaRetry).toBe(true)
   })
 
@@ -54,7 +62,7 @@ describe('bots are launched with a bounded retry on 409 Conflict', () => {
   })
 
   it('the helper retries only on 409 and gives up on anything else', () => {
-    expect(a.retriesOnlyOn409).toBe(true)
+    expect(analyze(helperSrc).retriesOnlyOn409).toBe(true)
   })
 
   it('self-check: the old shape is detected as a bare chain', () => {

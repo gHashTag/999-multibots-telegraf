@@ -13,8 +13,8 @@
  * through the real `createBusinessMiddleware`, with Telegraf's own way of
  * handling one batch (every update of it at once):
  *
- *   - the middleware ACCEPTS: each call resolves in well under 100 ms while
- *     the agent is still thinking;
+ *   - the middleware ACCEPTS: each call resolves with the clock standing still
+ *     (no timer, no agent answer awaited) while the agent is still thinking;
  *   - three messages in one batch are ONE agent call with all three texts, in
  *     order, and all three reach the memory mirror;
  *   - never two agent calls in flight for one chat: a message that arrives
@@ -22,7 +22,15 @@
  *   - the key carries the connection: two sellers with the same client do not
  *     hold each other up.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from 'vitest'
 
 interface Ask {
   chatId: string
@@ -38,10 +46,13 @@ vi.mock('@/services/trinityAgent', () => ({
     new Promise(resolve => {
       inFlight += 1
       maxInFlight = Math.max(maxInFlight, inFlight)
+      let answered = false
       asks.push({
         chatId,
         text,
         answer: t => {
+          if (answered) return
+          answered = true
           inFlight -= 1
           resolve({ текст: t }) // cyrillic-ok: pre-existing field
         },
@@ -90,11 +101,49 @@ const dm = (connId: string, text: string, chatId = CLIENT) => ({
   business_connection_id: connId,
 })
 
+/*
+ * THE CLOCK IS VIRTUAL.
+ *
+ * The lanes hold a burst for a 1500 ms quiet window before the agent is asked.
+ * On real timers this file used to (a) assert that each middleware call took
+ * under 100 ms of wall time, (b) sleep 2 s of real time to prove the next turn
+ * does not start early, and (c) leave a failed test's burst queued in its lane
+ * with a live 1500 ms timer, which then fired into the NEXT test and added a
+ * second ask there. Under the pre-push gate's parallel load all three broke:
+ * "expected 293 to be less than 100", then "expected length 1 but got 2".
+ *
+ * Now setTimeout and Date are faked right after the fresh import, every wait
+ * is an explicit advance of the fake clock, and afterEach answers whatever the
+ * test left open and drains the lanes of THAT module instance.
+ */
+let current: (typeof import('@/services/agentLanes'))['agentLanes'] | null =
+  null
+
 async function service() {
   vi.resetModules()
   const svc = await import('@/services/businessBotService')
   const { agentLanes } = await import('@/services/agentLanes')
+  current = agentLanes
+  vi.useFakeTimers({
+    toFake: [
+      'setTimeout',
+      'clearTimeout',
+      'setInterval',
+      'clearInterval',
+      'Date',
+    ],
+  })
   return { svc, agentLanes }
+}
+
+/** Drain the lanes, letting up to `ms` of virtual time pass for it. */
+async function drain(
+  lanes: (typeof import('@/services/agentLanes'))['agentLanes'],
+  ms = 5000
+) {
+  const done = lanes.drain(ms)
+  await vi.advanceTimersByTimeAsync(ms)
+  return done
 }
 
 /** A bot that records what it sends, with the business middleware captured. */
@@ -133,6 +182,23 @@ function fakeBot(svc: typeof import('@/services/businessBotService')) {
   return { bot, batch, toClient, sendMessage }
 }
 
+// The business service drags in a large module graph. Importing it once here
+// pays its cold transform under an explicit budget (the per-test vi.resetModules
+// re-evaluates but reuses the transform), so no single test carries that cost
+// against the 30s per-test limit when the machine is loaded.
+beforeAll(async () => {
+  await import('@/services/businessBotService')
+}, 180_000)
+
+afterEach(async () => {
+  // Whatever a test left open (it failed half-way) is closed in the module
+  // instance it belongs to, so it cannot fire into the next test.
+  for (const a of asks) a.answer('cleanup')
+  if (current) await drain(current)
+  current = null
+  vi.useRealTimers()
+})
+
 beforeEach(() => {
   asks.length = 0
   mirrored.length = 0
@@ -152,16 +218,22 @@ describe('a burst in one batch is one turn', () => {
       dm('conn-a', 'сколько стоит?'),
     ]
     const took = await batch(...burst)
-    // Accepted, not answered: nothing waits for the agent.
-    for (const ms of took) expect(ms).toBeLessThan(100)
+    // Accepted, not answered: nothing waits for the agent. The fake clock does
+    // not move unless the test moves it, so a middleware that awaited the quiet
+    // window or the agent would never resolve here; zero virtual ms elapsed.
+    expect(took).toEqual([0, 0, 0])
     expect(asks).toHaveLength(0)
 
+    // Just short of the quiet window: still nobody asked.
+    await vi.advanceTimersByTimeAsync(1499)
+    expect(asks).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(1)
     await vi.waitFor(() => expect(asks).toHaveLength(1), { timeout: 5000 })
     expect(asks[0].chatId).toBe(String(CLIENT))
     expect(asks[0].text).toBe('Здравствуйте\nхочу рилс\nсколько стоит?')
 
     asks[0].answer('Рилс — 2 токена. Сделать?')
-    expect((await agentLanes.drain(5000)).unfinished).toEqual([])
+    expect((await drain(agentLanes)).unfinished).toEqual([])
 
     expect(toClient()).toHaveLength(1)
     expect(toClient()[0][1]).toBe('Рилс — 2 токена. Сделать?')
@@ -184,23 +256,23 @@ describe('a burst in one batch is one turn', () => {
     await vi.waitFor(() => expect(asks).toHaveLength(1), { timeout: 5000 })
 
     const took = await batch(dm('conn-a', 'second'), dm('conn-a', 'third'))
-    for (const ms of took) expect(ms).toBeLessThan(100)
+    expect(took).toEqual([0, 0])
     // Well past the quiet window: the second turn must still not start.
-    await new Promise(r => setTimeout(r, 2000))
+    await vi.advanceTimersByTimeAsync(2000)
     expect(asks).toHaveLength(1)
 
     asks[0].answer('answer one')
     await vi.waitFor(() => expect(asks).toHaveLength(2), { timeout: 5000 })
     expect(asks[1].text).toBe('second\nthird')
     asks[1].answer('answer two')
-    expect((await agentLanes.drain(5000)).unfinished).toEqual([])
+    expect((await drain(agentLanes)).unfinished).toEqual([])
 
     expect(maxInFlight).toBe(1)
     expect(toClient().map((c: any[]) => c[1])).toEqual([
       'answer one',
       'answer two',
     ])
-  }, 15_000)
+  })
 
   it('the key carries the connection: two sellers with one client are answered side by side', async () => {
     const { svc, agentLanes } = await service()
@@ -213,7 +285,7 @@ describe('a burst in one batch is one turn', () => {
     await vi.waitFor(() => expect(asks).toHaveLength(2), { timeout: 5000 })
     expect(asks.map(a => a.text).sort()).toEqual(['to seller A', 'to seller B'])
     for (const a of asks) a.answer(`re: ${a.text}`)
-    expect((await agentLanes.drain(5000)).unfinished).toEqual([])
+    expect((await drain(agentLanes)).unfinished).toEqual([])
     expect(toClient()).toHaveLength(2)
   })
 })

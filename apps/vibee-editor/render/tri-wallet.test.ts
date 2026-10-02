@@ -493,8 +493,9 @@ describe('personIdentity -- who may bind a payout address', () => {
   })
 
   it('refuses the server key naming a telegram_id', async () => {
-    const { resolveIdentity, personIdentity } =
-      await import('./src/agent/routes')
+    const { resolveIdentity, personIdentity } = await import(
+      './src/agent/routes'
+    )
     process.env.RENDER_API_KEY = 'server-key-for-this-test' // secret-guard-ok: test fixture, not a credential
     const r = req(`${TRI_WALLET_PATH}?telegram_id=144022504`, {
       'x-api-key': 'server-key-for-this-test',

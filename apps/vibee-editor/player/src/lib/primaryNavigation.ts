@@ -29,6 +29,7 @@ export type PrimaryTabId =
   | 'browser'
   | 'ai'
   | 'hive'
+  | 'tasks'
   | 'profile'
 
 export interface PrimaryNavigationItem {
@@ -44,12 +45,16 @@ export interface PrimaryNavigationItem {
 export const TAB_ROUTE_PATTERNS: Record<PrimaryTabId, RegExp> = {
   feed: /^\/feed/,
   // The product tab is the labour market (#2896). The old /chat address
-  // remains a working deep link and lights the same tab.
-  chat: /^\/(agents|chat)/,
+  // remains a working deep link and lights the same tab, and so does the
+  // thread about a client: the tab returns to it (lib/chatTabMemory.ts).
+  chat: /^\/(agents|chat|crm\/\d+\/chat(\/|$))/,
   browser: /^\/browser/,
   ai: /^\/generate/,
   // /game is the board's address since 2026-10-01; /hive and /queen lead to it.
-  hive: /^\/(game|hive|queen)(\/|$)/,
+  // Its kanban view is a tab of its own (owner, 2026-10-01: "make a tab with
+  // the tasks"), so /game/kanban lights Tasks and not the board.
+  hive: /^\/(game|hive|queen)(?!\/kanban(?:[/?#]|$))(\/|$)/,
+  tasks: /^\/game\/kanban(\/|$)/,
   profile: /^\/profile/,
 }
 

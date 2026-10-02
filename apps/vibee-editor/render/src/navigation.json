@@ -7,8 +7,16 @@
       "route": "/game",
       "platforms": ["web", "ios"],
       "labelKey": "nav.hive",
-      "label": { "en": "Hive", "ru": "Улей" },
+      "label": { "en": "Game", "ru": "Игра" },
       "icon": { "lucide": "Hexagon", "sf": "hexagon" }
+    },
+    {
+      "id": "tasks",
+      "route": "/game/kanban",
+      "platforms": ["web", "ios"],
+      "labelKey": "nav.tasks",
+      "label": { "en": "Tasks", "ru": "Задачи" },
+      "icon": { "lucide": "ListTodo", "sf": "checklist" }
     },
     {
       "id": "feed",
@@ -16,7 +24,7 @@
       "platforms": ["web", "ios"],
       "labelKey": "nav.feed",
       "label": { "en": "Feed", "ru": "Лента" },
-      "icon": { "lucide": "Home", "sf": "house" }
+      "icon": { "lucide": "Film", "sf": "film" }
     },
     {
       "id": "chat",

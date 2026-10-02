@@ -25,6 +25,7 @@
  */
 
 import crypto from 'node:crypto'
+import { refusalCodeFor } from './generation-refusal'
 
 export type JobState = 'running' | 'done' | 'failed'
 
@@ -39,6 +40,11 @@ export interface GenerateJob {
   url?: string
   provider?: string
   error?: string
+  /**
+   * The failure's name (`generation-refusal.ts`), so the app can say it in
+   * the reader's language. `error` stays as the detail.
+   */
+  code?: string
   /** Echoed back so a recovered job is recognisable without a second lookup. */
   prompt?: string
 }
@@ -82,6 +88,11 @@ async function ensureSchema(): Promise<boolean> {
         error text,
         prompt text
       )`)
+    // Added after the table already existed in production; CREATE above does
+    // not touch an existing table, so the column arrives separately.
+    await pool.query(
+      `ALTER TABLE generate_jobs ADD COLUMN IF NOT EXISTS code text`
+    )
     await pool.query(
       `CREATE INDEX IF NOT EXISTS generate_jobs_owner
          ON generate_jobs (owner_id, started_at DESC)`
@@ -110,14 +121,15 @@ function persist(job: GenerateJob): void {
     try {
       await pool.query(
         `INSERT INTO generate_jobs
-           (id, kind, owner_id, state, started_at, finished_at, url, provider, error, prompt)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           (id, kind, owner_id, state, started_at, finished_at, url, provider, error, prompt, code)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
          ON CONFLICT (id) DO UPDATE SET
            state = EXCLUDED.state,
            finished_at = EXCLUDED.finished_at,
            url = EXCLUDED.url,
            provider = EXCLUDED.provider,
-           error = EXCLUDED.error`,
+           error = EXCLUDED.error,
+           code = EXCLUDED.code`,
         [
           job.id,
           job.kind,
@@ -129,6 +141,7 @@ function persist(job: GenerateJob): void {
           job.provider ?? null,
           job.error ?? null,
           job.prompt ?? null,
+          job.code ?? null,
         ]
       )
     } catch {
@@ -149,6 +162,7 @@ function fromRow(r: any): GenerateJob {
     provider: r.provider ?? undefined,
     error: r.error ?? undefined,
     prompt: r.prompt ?? undefined,
+    code: r.code ?? undefined,
   }
 }
 
@@ -201,10 +215,11 @@ export function finishJob(id: string, url: string, provider?: string): void {
   persist(job)
 }
 
-export function failJob(id: string, error: string): void {
+export function failJob(id: string, error: string, code?: string): void {
   const job = jobs.get(id)
   if (!job) return
   job.state = 'failed'
+  job.code = code
   // Truncated: provider errors can carry whole HTML pages, and this is read
   // by a person on a phone screen.
   job.error = error.slice(0, 400)
@@ -253,6 +268,7 @@ export function _resetJobs(): void {
 export function recordInto(
   job: GenerateJob,
   res: {
+    statusCode?: number
     end: (chunk?: any, ...rest: any[]) => any
   }
 ): void {
@@ -265,7 +281,15 @@ export function recordInto(
         if (parsed?.success && parsed?.url) {
           finishJob(job.id, String(parsed.url), parsed.provider)
         } else if (parsed?.error) {
-          failJob(job.id, String(parsed.error))
+          // The code from the body if a route named it, else from the status
+          // -- `stampRefusalCode` runs INSIDE this wrapper, after it.
+          failJob(
+            job.id,
+            String(parsed.error),
+            typeof parsed.code === 'string'
+              ? parsed.code
+              : refusalCodeFor(res.statusCode ?? 500)
+          )
         }
       }
     } catch {

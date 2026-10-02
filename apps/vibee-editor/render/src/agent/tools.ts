@@ -238,6 +238,13 @@ export interface ToolContext {
    * is how a draft proves they are his rather than the model's.
    */
   ownerSaid?: string
+  /**
+   * The seller whose business DM this turn answers in: the server-keyed
+   * seller_id (routes.ts), copied here by clientTurnContext on the business
+   * surface only. Never from a model argument. Read by report_defect, which
+   * files the client's fault under this owner.
+   */
+  dmSeller?: string
 }
 
 export interface AgentTool {
@@ -554,6 +561,7 @@ export {
   COST_PER_TOKEN_USD,
   OPERATION_COST_USD,
 } from './billing-shared'
+import { START_TOKENS } from '../../../packages/vibee-atoms/src/token-wallet'
 import {
   TOKEN_PRICES,
   COST_PER_TOKEN_USD,
@@ -564,7 +572,8 @@ import {
   replicateClipTokens,
 } from './billing-shared'
 
-const TOKEN_START = 20
+// The start gift: specs/automation/token-wallet.t27 START_TOKENS.
+const TOKEN_START = START_TOKENS
 
 /**
  * Wallets that belong to the HOUSE, not to a customer: the autopilot and any
@@ -1120,6 +1129,7 @@ import { CRM_CLIENT_GROUP_TOOLS } from './crm-client-group'
 import { CRM_CLIENT_TIMELINE_TOOLS } from './crm-client-timeline'
 import { CRM_REVENUE_TOOLS } from './crm-revenue-tool'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
+import { DEFECT_TOOLS } from './client-defects'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
@@ -1131,6 +1141,7 @@ import { CRM_DROP_TOOLS } from './crm-drop-tool'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
+import { QUEEN_GROWTH_TOOLS } from './queen-growth'
 import { HIVE_BOARD_TOOLS } from './hive-board-tool'
 import { CLUB_CASH_TOOLS } from './club-cash'
 import { BOTFATHER_TOOLS } from './botfather-main-app'
@@ -3632,6 +3643,8 @@ TOOLS.push(...TELEGRAM_TOOLS)
  */
 TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...CRM_TOUCH_TOOLS)
+// A client's fault in the DM, filed and closed (client-defects.ts).
+TOOLS.push(...DEFECT_TOOLS)
 TOOLS.push(...CRM_OFFER_TOOLS)
 // The club invoice for the person in this chat, beside the token invoice:
 // the same route decision the bot's club card reaches (club-invoice-tool.ts).
@@ -3799,6 +3812,8 @@ TOOLS.push(...PROJECT_TOOLS)
  * owner sees their bots, everyone else sees only themselves.
  */
 TOOLS.push(...HIVE_TOOLS)
+// The Queen's next best action to earn, per person (spec automation/queen-growth).
+TOOLS.push(...QUEEN_GROWTH_TOOLS)
 /*
  * The board with the two lanes (hive-board-tool.ts): the Queen's public tasks,
  * which are the same for everybody signed in, beside the caller's own clients,

@@ -21,53 +21,6 @@ struct VibeeApp: App {
 }
 
 struct RootView: View {
-  /**
-   * Полоса вкладок настраивается ОДИН раз при создании экрана.
-   *
-   * `UITabBarAppearance`, а не модификаторы SwiftUI: `.tint()` красит только
-   * активную вкладку, а веб задаёт ЧЕТЫРЕ вещи — цвет активной, цвет
-   * неактивной, фон полосы и кегль подписи. Три из них через SwiftUI не
-   * выражаются вовсе, поэтому берём слой ниже.
-   *
-   * `scrollEdgeAppearance` заполняется ТЕМ ЖЕ объектом, что и
-   * `standardAppearance`. Без этого полоса меняет фон, когда содержимое
-   * дорастает до её края: iOS переключает облик, и панель уезжает с #1a1a1a
-   * на системный полупрозрачный. Один объект на оба поля — один облик всегда.
-   */
-  init() {
-    let облик = UITabBarAppearance()
-    облик.configureWithOpaqueBackground()
-    // Фон полосы: TelegramTabBar.css:22 → index.css:109 → :90 = #1a1a1a.
-    облик.backgroundColor = UIColor(Тема.ТабБар.фон)
-    // Граница сверху того же цвета, что фон — как в вебе (index.css:110).
-    // Невидима там, невидима и здесь: задача — совпасть, а не улучшить.
-    облик.shadowColor = UIColor(Тема.ТабБар.граница)
-
-    // Кегль подписи 10 — TelegramTabBar.css:77. Гарнитура — общая, из
-    // `Тема.Шрифт`; у самой полосы эффект нулевой (все пять подписей
-    // кириллицей, а в Outfit её нет), но источник шрифта в приложении
-    // остаётся один — почему так, расписано у `Тема.Шрифт.uiKit`.
-    let шрифтПодписи = Тема.Шрифт.uiKit(Тема.ТабБар.кегльПодписи)
-
-    /// Тип указан явно: без него Swift выводит словарь как
-    /// `[NSAttributedString.Key: UIFont]` и отказывается принять цвет.
-    func подпись(_ цвет: Color) -> [NSAttributedString.Key: Any] {
-      [.font: шрифтПодписи, .foregroundColor: UIColor(цвет)]
-    }
-
-    for вид in [облик.stackedLayoutAppearance,
-                облик.inlineLayoutAppearance,
-                облик.compactInlineLayoutAppearance] {
-      вид.normal.iconColor = UIColor(Тема.ТабБар.неактивная)
-      вид.normal.titleTextAttributes = подпись(Тема.ТабБар.неактивная)
-      вид.selected.iconColor = UIColor(Тема.ТабБар.активная)
-      вид.selected.titleTextAttributes = подпись(Тема.ТабБар.активная)
-    }
-
-    UITabBar.appearance().standardAppearance = облик
-    UITabBar.appearance().scrollEdgeAppearance = облик
-  }
-
   /*
    * The bundled list draws the bar immediately; the served one replaces it
    * when it arrives. A server that is down, slow or older than this build
@@ -75,6 +28,23 @@ struct RootView: View {
    * this app can be in.
    */
   @State private var destinations: [Destination] = Navigation.bundled
+  /// The tab a person picked; the list's first until they pick one.
+  @State private var picked: String?
+  /// Tabs opened at least once. A screen is built on its first visit, as the
+  /// system bar did, and then kept, so coming back finds it where it was left.
+  @State private var opened: Set<String> = []
+  /// The bar steps aside for the keyboard, as the system one did; otherwise
+  /// it would ride up and sit between a text field and the keys.
+  @State private var keyboardUp = false
+  /// Taps on a tab's button while that tab was already open, per tab.
+  @State private var reselects: [String: Int] = [:]
+  @ObservedObject private var net = Connectivity.shared
+
+  /// The open tab: the picked one while the list still has it.
+  private var current: String? {
+    if let picked, destinations.contains(where: { $0.id == picked }) { return picked }
+    return destinations.first?.id
+  }
 
   /**
    * WHICH VIEW A DESTINATION OPENS. The list can only name screens this build
@@ -89,25 +59,13 @@ struct RootView: View {
     case "chat": AgentChatView()
     case "ai": GenerateScreen()
     case "hive": HiveScreen()
+    case "tasks": TasksScreen()
     case "profile": ProfileView()
     default: EmptyView()
     }
   }
 
   var body: some View {
-    /**
-     * ПЯТЬ вкладок — ровно те же, что в вебе, и в том же порядке.
-     *
-     * Было четыре, и это создавало вторую проблему поверх двух полос:
-     * набор не совпадал. Веб-полоса несёт «ИИ» — единую вкладку генерации,
-     * под которой живут картинки, видео, звук и аватар. Пропустить её
-     * значит отрезать в нативной оболочке половину продукта.
-     *
-     * Иконки взяты системные (SF Symbols) и намеренно совпадают по смыслу с
-     * вебовскими: дом, искры, плюс, палочка, человек. Один стиль — это не
-     * «похоже нарисовано», а один источник: система рисует их сама, поэтому
-     * они сходятся по весу, оптическому размеру и поведению при Dynamic Type.
-     */
     /*
      * THE WHOLE BAR IS LOCALISED, NOT JUST THE NEW TAB.
      *
@@ -123,41 +81,56 @@ struct RootView: View {
      * over Russian screens, which is visibly "partly translated" rather than
      * visibly broken.
      */
-    TabView {
-      /*
-       * THE BAR IS BUILT FROM THE SHARED LIST, NOT WRITTEN OUT HERE.
-       *
-       * Owner, 2026-09-23: the structure must be the same in the web and in
-       * this app, and it must come from the backend. It was five `.tabItem`
-       * literals here and six entries in the web's own file, with the comment
-       * that used to stand at this spot claiming they were the same list --
-       * the web had gained `browser` three days earlier and nothing could
-       * tell Swift, because nothing connected the two.
-       *
-       * Now: Vibee/navigation.json ships the same bytes the render service
-       * serves at /api/navigation, and `destinations` is replaced by the
-       * served list when it answers. The ORDER is the list's order, which is
-       * a product decision recorded there (the hive first, owner 2026-10-01:
-       * the board is what the app opens on; the profile last, because the
-       * last place in the row is the one a thumb reaches without looking).
-       *
-       * Icons stay SF Symbols, named per destination in the same file beside
-       * the web's Lucide name -- the same glyph does not exist in both sets,
-       * and pretending otherwise puts a blank square on a phone.
-       */
+    /*
+     * SIX TABS, ALL OF THEM IN THE BAR -- THE BAR IS OURS, NOT `TabView`'s.
+     *
+     * Owner, 2026-10-01: a Tasks tab beside the Game, "synced everywhere".
+     * That made six destinations, and on an iPhone `TabView` shows five: the
+     * sixth slot becomes the system "More", and AI and Profile went behind
+     * it. The web shows all of them in one row, so this app draws the same
+     * row -- the web's measurements are already in `Тема.ТабБар` (56 pt,
+     * 20 pt glyphs, 10 pt labels).
+     *
+     * What the system bar did for free is kept by hand: a screen is built on
+     * its first visit and then kept alive (hidden, not destroyed), and a
+     * hidden screen is told so through `\.tabIsShown` -- the feed pauses on
+     * it, because a kept screen gets no `onDisappear`.
+     *
+     * The list is still the shared one (see `destinations`): this only
+     * draws it.
+     */
+    ZStack {
       ForEach(destinations) { destination in
-        screen(for: destination.id)
-          .tabItem {
-            // Outline glyphs, as the web draws them (Lucide is line-only).
-            // The bar would otherwise fill the selected one, and a filled
-            // hexagon reads as a green blob, not as the hive.
-            Label(destination.title, systemImage: destination.icon.sf)
-              .environment(\.symbolVariants, .none)
-          }
+        if opened.contains(destination.id) || destination.id == current {
+          screen(for: destination.id)
+            .environment(\.tabIsShown, destination.id == current)
+            .environment(\.tabReselects, reselects[destination.id, default: 0])
+            .opacity(destination.id == current ? 1 : 0)
+            .allowsHitTesting(destination.id == current)
+            .accessibilityHidden(destination.id != current)
+        }
       }
     }
-    // #00ff88 — TelegramTabBar.css:66 через Тема.ТабБар.активная.
-    // Системный `.green` (≈#34C759) не совпадал с вебом ни одним каналом.
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      if !keyboardUp {
+        VStack(spacing: 0) {
+          if !net.online { OfflineBanner().transition(.move(edge: .bottom).combined(with: .opacity)) }
+          BottomTabBar(destinations: destinations, selected: current) { id in
+            if id == current { reselects[id, default: 0] += 1 } else { picked = id }
+          }
+        }
+        .animation(.easeInOut(duration: 0.2), value: net.online)
+      }
+    }
+    .onChange(of: current, initial: true) { _, id in
+      if let id { opened.insert(id) }
+    }
+    .onReceive(
+      NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
+    ) { _ in keyboardUp = true }
+    .onReceive(
+      NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
+    ) { _ in keyboardUp = false }
     .tint(Тема.ТабБар.активная)
     .preferredColorScheme(.dark)
     /**
@@ -172,6 +145,163 @@ struct RootView: View {
     .task {
       if let served = await Navigation.fetch() { destinations = served }
     }
+  }
+}
+
+/// Whether the tab holding this screen is the open one. Kept screens stay
+/// alive while hidden and get no `onDisappear`, so this is how they learn it.
+private struct TabIsShownKey: EnvironmentKey {
+  static let defaultValue = true
+}
+
+extension EnvironmentValues {
+  var tabIsShown: Bool {
+    get { self[TabIsShownKey.self] }
+    set { self[TabIsShownKey.self] = newValue }
+  }
+}
+
+/*
+ * TAPPING THE OPEN TAB AGAIN MEANS "TAKE ME BACK TO THE START".
+ *
+ * On the web every tab is a link to its own root, so tapping the open one
+ * leaves a deep page (/game/kanban/123 -> /game/kanban). Instagram, TikTok
+ * and Threads do the same and scroll to the top once already at the root.
+ * The own bar dropped it: a repeat tap did nothing.
+ *
+ * This counts such taps per tab; a screen watches the count with `onChange`
+ * and decides what "the start" is for it. A counter rather than a flag, so
+ * two taps in a row are two changes.
+ */
+private struct TabReselectsKey: EnvironmentKey {
+  static let defaultValue = 0
+}
+
+extension EnvironmentValues {
+  var tabReselects: Int {
+    get { self[TabReselectsKey.self] }
+    set { self[TabReselectsKey.self] = newValue }
+  }
+}
+
+/// Scroll-to-top on a repeat tap, for a native screen. Put it on the FIRST
+/// view inside the `ScrollView`: the reader then scrolls the enclosing one.
+/// `ScrollPosition(edge:)` would be shorter but is iOS 18; the app targets 17.
+/// `unless` skips the scroll while the screen shows something pushed over its
+/// root -- the tap closes that first, as UIKit's pop-to-root does.
+struct ScrollsToTopOnReselect: ViewModifier {
+  static let anchor = "tab-top"
+  var unless = false
+  @Environment(\.tabReselects) private var tabReselects
+
+  func body(content: Content) -> some View {
+    ScrollViewReader { proxy in
+      content
+        .id(Self.anchor)
+        .onChange(of: tabReselects) {
+          guard !unless else { return }
+          withAnimation { proxy.scrollTo(Self.anchor, anchor: .top) }
+        }
+    }
+  }
+}
+
+extension View {
+  func scrollsToTopOnReselect(unless: Bool = false) -> some View {
+    modifier(ScrollsToTopOnReselect(unless: unless))
+  }
+}
+
+/*
+ * WHAT `TabView` DID FOR FREE, AND THE OWN BAR HAS TO DO BY HAND.
+ *
+ * Under `TabView` a tab's `.task` and `.onAppear` ran again on every return
+ * and were cancelled on leaving. Screens leaned on that without saying so:
+ * the profile re-read the balance after a generation in the AI tab, the AI
+ * tab re-read its saved templates, the chat pulled the history shared with
+ * the web. The own bar keeps screens alive in a ZStack, so a plain `.task`
+ * now runs ONCE per launch -- and each of those went quietly stale.
+ *
+ * `taskWhileShown` restores the old contract in one place: it runs when the
+ * tab comes forward and is cancelled when it goes back. Outside the bar
+ * (`tabIsShown` defaults to true) it is an ordinary `.task`.
+ */
+private struct ShownKey<ID: Equatable>: Equatable {
+  let id: ID
+  let shown: Bool
+}
+
+private struct TaskWhileShown<ID: Equatable>: ViewModifier {
+  @Environment(\.tabIsShown) private var shown
+  let id: ID
+  let action: () async -> Void
+
+  func body(content: Content) -> some View {
+    content.task(id: ShownKey(id: id, shown: shown)) {
+      if shown { await action() }
+    }
+  }
+}
+
+extension View {
+  /// `.task(id:)` that also re-runs each time the tab comes forward.
+  func taskWhileShown<ID: Equatable>(id: ID, _ action: @escaping () async -> Void) -> some View {
+    modifier(TaskWhileShown(id: id, action: action))
+  }
+
+  /// `.task` that re-runs each time the tab comes forward.
+  func taskWhileShown(_ action: @escaping () async -> Void) -> some View {
+    modifier(TaskWhileShown(id: 0, action: action))
+  }
+}
+
+/// The row of tabs under every screen, measured from the web's
+/// TelegramTabBar (`Тема.ТабБар`): opaque, full width, one row for all.
+struct BottomTabBar: View {
+  let destinations: [Destination]
+  let selected: String?
+  let pick: (String) -> Void
+  /// Every tap, a repeat one included: the web bar calls
+  /// `haptic.selection()` on each click, so the app gives the same tick.
+  @State private var taps = 0
+
+  var body: some View {
+    HStack(spacing: 0) {
+      ForEach(destinations) { destination in
+        let on = destination.id == selected
+        Button {
+          taps += 1
+          pick(destination.id)
+        } label: {
+          VStack(spacing: Тема.ТабБар.просветИконкаПодпись) { // cyrillic-ok
+            // Outline glyphs, as the web draws them (Lucide is line-only).
+            Image(systemName: destination.icon.sf)
+              .font(Тема.Шрифт.значок(Тема.ТабБар.иконка)) // cyrillic-ok
+              .symbolVariant(.none)
+              .frame(height: Тема.ТабБар.иконка + 4) // cyrillic-ok
+            Text(destination.title)
+              .font(Тема.Шрифт.кегль(Тема.ТабБар.кегльПодписи, относительно: .caption2)) // cyrillic-ok
+              .lineLimit(1)
+              .minimumScaleFactor(0.8)
+          }
+          .foregroundStyle(on ? Тема.ТабБар.активная : Тема.ТабБар.неактивная)
+          .frame(maxWidth: .infinity, minHeight: Тема.ТабБар.высота) // cyrillic-ok
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+      }
+    }
+    .background { Тема.ТабБар.фон.ignoresSafeArea(edges: .bottom) }
+    .overlay(alignment: .top) {
+      Тема.ТабБар.граница.frame(height: Тема.ТабБар.толщинаГраницы) // cyrillic-ok
+    }
+    // `TabView`'s bar told VoiceOver "tab bar" itself. SwiftUI has no such
+    // trait (only UIKit's `.tabBar`), so the row is at least a named group:
+    // "Tabs", then six buttons, rather than six buttons out of nowhere.
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel(say("Tabs", "Вкладки"))
+    .sensoryFeedback(.selection, trigger: taps)
   }
 }
 
@@ -201,11 +331,11 @@ enum ИсточникТаймлайна: Equatable {
 
   var подпись: String {
     switch self {
-    case .загрузка: return "Загружаю проект…"
-    case .проект(let имя): return имя.isEmpty ? "Без названия" : имя
-    case .демоБезВхода: return "Демо — войдите, чтобы открыть свой проект"
-    case .демоНетПроектов: return "Демо — проектов пока нет, сохраните первый"
-    case .демоОтказ(let почему): return "Демо — проект не загрузился: \(почему)"
+    case .загрузка: return say("Loading the project…", "Загружаю проект…")
+    case .проект(let имя): return имя.isEmpty ? say("Untitled", "Без названия") : имя
+    case .демоБезВхода: return say("Demo — sign in to open your project", "Демо — войдите, чтобы открыть свой проект")
+    case .демоНетПроектов: return say("Demo — no projects yet, save your first", "Демо — проектов пока нет, сохраните первый")
+    case .демоОтказ(let почему): return say("Demo — the project did not load: \(почему)", "Демо — проект не загрузился: \(почему)")
     }
   }
 }
@@ -326,7 +456,7 @@ struct EditorScreen: View {
       if let собранная = слои.готоваяКомпозиция {
         composition = собранная
         слои.готоваяКомпозиция = nil
-        источник = .проект(имя: "Сборка из «ИИ»")
+        источник = .проект(имя: say("Built in AI", "Сборка из «ИИ»"))
         return
       }
       await загрузить()
@@ -366,7 +496,7 @@ struct EditorScreen: View {
       try await рендер.export(to: адрес)
       готовыйФайл = ФайлНаОтдачу(url: адрес)
     } catch {
-      сообщение = "Экспорт не удался: \(error.localizedDescription)"
+      сообщение = say("Export failed: \(error.localizedDescription)", "Экспорт не удался: \(error.localizedDescription)")
     }
   }
 
@@ -390,7 +520,7 @@ struct EditorScreen: View {
             if сохраняется {
               ProgressView().controlSize(.mini)
             } else {
-              Text(идПроекта == nil ? "Создать" : "Сохранить").font(Тема.Шрифт.стиль(.caption, .bold))
+              Text(идПроекта == nil ? say("Create", "Создать") : say("Save", "Сохранить")).font(Тема.Шрифт.стиль(.caption, .bold))
             }
           }
           // Высота ЯВНО и ВНУТРИ label. `.controlSize(.small)` давал около
@@ -418,7 +548,7 @@ struct EditorScreen: View {
             if экспортируется {
               ProgressView().controlSize(.mini)
             } else {
-              Label("Экспорт", systemImage: "square.and.arrow.down")
+              Label(say("Export", "Экспорт"), systemImage: "square.and.arrow.down")
                 .font(Тема.Шрифт.стиль(.caption, .bold))
             }
           }
@@ -481,14 +611,14 @@ struct EditorScreen: View {
     if case .проект(let текущее) = источник, !текущее.isEmpty {
       имя = текущее
     } else {
-      имя = "Мой проект"
+      имя = say("My project", "Мой проект")
     }
 
     do {
       let итог = try await API.saveProject(id: id, name: имя, composition: composition)
       идПроекта = итог.id
       источник = .проект(имя: итог.name)
-      сообщение = "Сохранено"
+      сообщение = say("Saved", "Сохранено")
     } catch {
       // Отказ НЕ прячем за общим словом: текст приходит из тела ответа
       // сервера, и в нём сказано, что именно не так.
@@ -511,16 +641,16 @@ extension Composition {
     Composition(
       fps: 30, width: 1080, height: 1920,
       tracks: [
-        Track(id: "t1", type: "video", name: "Видео", items: [
-          Clip(id: "c1", trackId: "t1", name: "Видео с губами",
+        Track(id: "t1", type: "video", name: say("Video", "Видео"), items: [
+          Clip(id: "c1", trackId: "t1", name: say("Lip-sync video", "Видео с губами"),
                startFrame: 0, durationInFrames: 150),
         ]),
-        Track(id: "t2", type: "image", name: "Фон", items: [
-          Clip(id: "c2", trackId: "t2", name: "Фон 1",
+        Track(id: "t2", type: "image", name: say("Background", "Фон"), items: [
+          Clip(id: "c2", trackId: "t2", name: say("Background 1", "Фон 1"),
                startFrame: 45, durationInFrames: 105),
         ]),
-        Track(id: "t3", type: "audio", name: "Звук", items: [
-          Clip(id: "c3", trackId: "t3", name: "Озвучка",
+        Track(id: "t3", type: "audio", name: say("Sound", "Звук"), items: [
+          Clip(id: "c3", trackId: "t3", name: say("Voice-over", "Озвучка"),
                startFrame: 0, durationInFrames: 150),
         ]),
       ])

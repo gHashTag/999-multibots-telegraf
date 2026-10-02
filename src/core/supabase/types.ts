@@ -10,7 +10,8 @@ export interface CoreModelTraining {
   telegram_id?: number // Telegram ID, если используется как основной идентификатор
   model_name: string
   trigger_word: string
-  zip_url: string
+  /** Null when the training zip is gone (see sql/migrations/20261002_*). */
+  zip_url: string | null
   steps: number
   status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled'
   gender?: string

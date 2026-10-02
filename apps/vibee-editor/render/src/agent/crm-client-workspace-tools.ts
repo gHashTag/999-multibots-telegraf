@@ -22,9 +22,18 @@ import { ensurePlanTables, ensureProfileTable } from './crm-client-setup-tool'
 import { stageOf, type Stage } from './crm-stages'
 import { visibleScope, whoPaid } from './crm-tools'
 import { touchesByLead, type TouchKind } from './crm-touches'
+import { botsByOwner } from './hive-tools'
 import * as REEL from '../spec/crm-story-reel.gen'
 
 const ID_RE = /^\d{5,15}$/
+
+/** Where the keeper's list learns who owns which bot. Test seam. */
+let ownersSource: () => Promise<Map<string, string[]>> = botsByOwner
+export function setBotOwnersSource(
+  fn: (() => Promise<Map<string, string[]>>) | null
+): void {
+  ownersSource = fn ?? botsByOwner
+}
 
 export interface PlanGoalRow {
   id: number
@@ -97,6 +106,22 @@ export interface ClientRow {
   last_seen: string | null
   duets: number
   /**
+   * The bots this person OWNS on our platform. Owner, 2026-10-01: "the client
+   * table has no information and no tasks -- sync the account and the work
+   * with the clients who own our bots". A bot owner is the platform's own
+   * client; before this they reached the keeper's list only if they happened
+   * to have written to the keeper. Filled for the keeper's list alone:
+   * nobody else may be told who owns what. Empty for everybody else.
+   */
+  bots: string[]
+  /**
+   * The work on this person: their content plan (done of total) and the
+   * faults still open -- reported by them in the caller's DM, and, on a bot
+   * owner's row in the keeper's list, reported by THEIR clients
+   * (client-defects.ts), which the platform is the one to fix.
+   */
+  tasks: { total: number; done: number; faults_open: number }
+  /**
    * The picture the app draws the person with. Owner, 2026-09-23: show people
    * as circles with their avatar and their name under it. Null when we have
    * never stored one -- the app then draws initials rather than a grey hole,
@@ -163,6 +188,10 @@ export function mergeClients(input: {
   avatars?: Map<string, string>
   touches: Map<string, Array<{ kind: TouchKind; at: string }>>
   paid?: Set<string>
+  /** Bot owner -> their bots. The keeper's list only; see ClientRow.bots. */
+  owners?: Map<string, string[]>
+  plans?: Map<string, { total: number; done: number }>
+  faults?: Map<string, number>
   now?: number
 }): ClientRow[] {
   const now = input.now ?? Date.now()
@@ -179,8 +208,19 @@ export function mergeClients(input: {
     paid: input.paid?.has(id) ?? false,
     last_seen: null,
     duets: input.duets.get(id) ?? 0,
+    bots: [],
+    tasks: {
+      total: input.plans?.get(id)?.total ?? 0,
+      done: input.plans?.get(id)?.done ?? 0,
+      faults_open: input.faults?.get(id) ?? 0,
+    },
     avatar_url: input.avatars?.get(id) ?? null,
   })
+  for (const [id, bots] of input.owners ?? []) {
+    const r = rows.get(id) ?? blank(id)
+    r.bots = [...bots]
+    rows.set(id, r)
+  }
   for (const p of input.people) {
     const id = String(p.lead_id)
     const r = rows.get(id) ?? blank(id)
@@ -206,10 +246,13 @@ export function mergeClients(input: {
     // if the last touch says 'refused'.
     r.stage = stageOf({ paid: r.paid, touches, quietDays }).stage
   }
+  // Bot owners first: in the keeper's list they are the platform's clients,
+  // and a quiet one must not sink under a hundred people who wrote yesterday.
   return [...rows.values()].sort(
     (a, b) =>
+      Number(b.bots.length > 0) - Number(a.bots.length > 0) ||
       (b.last_seen ? Date.parse(b.last_seen) : 0) -
-      (a.last_seen ? Date.parse(a.last_seen) : 0)
+        (a.last_seen ? Date.parse(a.last_seen) : 0)
   )
 }
 
@@ -364,12 +407,84 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
                 [limit, owner]
               )
             ).filter(p => !query || profileMatches(p, query))
+      /*
+       * THE PEOPLE WHO OWN OUR BOTS, IN THE KEEPER'S LIST ONLY.
+       *
+       * Asked of the one authority (`visibleScope`: null means keeper) before
+       * the owners are read, and a failed check is "not a keeper" -- the list
+       * of who owns which bot is exactly what nobody else may learn. A dead
+       * Supabase costs these rows, not the answer. First page only, like the
+       * profiles.
+       */
+      const keeper =
+        (await visibleScope(ctx).catch(() => [] as string[])) === null
+      const owners = new Map<string, string[]>()
+      if (keeper && !(paged && offset > 0)) {
+        for (const [id, bots] of await ownersSource().catch(
+          () => new Map<string, string[]>()
+        )) {
+          if (
+            query &&
+            id !== query.id &&
+            !bots.some(b => b.toLowerCase().includes(query.text))
+          )
+            continue
+          owners.set(id, bots)
+        }
+      }
       const ids = [
         ...new Set([
           ...people.map(p => String(p.lead_id)),
           ...profiles.map(p => String(p.telegram_id)),
+          ...owners.keys(),
         ]),
       ]
+      /*
+       * THE WORK ON EACH PERSON. A content plan belongs to the person, not to
+       * a seller, so its counts go only where `crm_client_plan` would open it
+       * (crm-reach.ownsLead): the keeper's whole list, or the caller's own
+       * people. Faults are read by owner_id = caller, plus -- keeper only --
+       * those filed under a bot owner by that owner's clients.
+       */
+      const planIds = keeper ? ids : people.map(p => String(p.lead_id))
+      const plans = new Map<string, { total: number; done: number }>()
+      for (const r of await tryQuery<{
+        telegram_id: string
+        total: number
+        done: number
+      }>(
+        ctx!,
+        `SELECT telegram_id, count(*)::int AS total,
+                count(*) FILTER (WHERE status = 'done')::int AS done
+           FROM content_plan_items WHERE telegram_id = ANY($1)
+          GROUP BY telegram_id`,
+        [planIds]
+      ))
+        plans.set(String(r.telegram_id), {
+          total: Number(r.total),
+          done: Number(r.done),
+        })
+      const faults = new Map<string, number>()
+      const addFaults = (id: string, n: number) =>
+        faults.set(id, (faults.get(id) ?? 0) + n)
+      for (const r of await tryQuery<{ lead_id: string; n: number }>(
+        ctx!,
+        `SELECT lead_id, count(*)::int AS n FROM client_defects
+          WHERE owner_id = $1 AND status = 'open' AND lead_id = ANY($2)
+          GROUP BY lead_id`,
+        [owner, ids]
+      ))
+        addFaults(String(r.lead_id), Number(r.n))
+      if (owners.size) {
+        for (const r of await tryQuery<{ owner_id: string; n: number }>(
+          ctx!,
+          `SELECT owner_id, count(*)::int AS n FROM client_defects
+            WHERE status = 'open' AND owner_id = ANY($1)
+            GROUP BY owner_id`,
+          [[...owners.keys()]]
+        ))
+          addFaults(String(r.owner_id), Number(r.n))
+      }
       const souls = new Set(
         (
           await tryQuery<{ telegram_id: string }>(
@@ -438,6 +553,9 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
         touches,
         avatars,
         paid: money.paid,
+        owners,
+        plans,
+        faults,
       })
       if (!paged) {
         return { clients: clients.slice(0, limit), paid_known: money.known }

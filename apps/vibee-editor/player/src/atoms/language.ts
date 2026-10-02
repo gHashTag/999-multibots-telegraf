@@ -18,6 +18,72 @@ export interface Translations {
 // ===============================
 
 const en: Translations = {
+  'hiveAccount.title': 'My keys and contribution',
+  'hiveAccount.short': 'Keys & XP',
+  'hiveAccount.back': 'Back to the game',
+  'hiveAccount.lead':
+    'Manage the API keys you lend to the Queen and see the work credited to you.',
+  'hiveAccount.refresh': 'Refresh',
+  'hiveAccount.loading': 'Loading your contribution…',
+  'hiveAccount.signin': 'Sign in',
+  'hiveAccount.retry': 'Try again',
+  'hiveAccount.working': 'Saving…',
+  'hiveAccount.progress': 'Checking keys: {done} of {total}',
+  'hiveAccount.saved': 'Key saved. Check it before using it.',
+  'hiveAccount.checked': 'Check finished. The result is shown beside the key.',
+  'hiveAccount.checkedAll':
+    'All checks finished. Review the result beside each key.',
+  'hiveAccount.updated': 'Key updated.',
+  'hiveAccount.attribution': 'Contribution owner',
+  'hiveAccount.attributionNote':
+    'Ownership is confirmed by the server. Keys and XP are shown only for your account.',
+  'hiveAccount.unlinked': 'GitHub is not linked to this account yet.',
+  'hiveAccount.xp': 'XP earned',
+  'hiveAccount.accepted': 'Accepted tasks',
+  'hiveAccount.specs': '.t27 specs',
+  'hiveAccount.hours': 'Bee hours',
+  'hiveAccount.scoring':
+    '{accepted} XP per accepted task, {spec} additional XP per .t27 spec, and {hour} XP per bee hour. These are game points, not a payment balance.',
+  'hiveAccount.keys': 'Your keys · {n}',
+  'hiveAccount.probeAll': 'Check all keys',
+  'hiveAccount.probe': 'Check API',
+  'hiveAccount.probeNote':
+    'A check makes a small model request and uses provider quota. A successful check proves this model answered at the stated time.',
+  'hiveAccount.empty':
+    'No keys are linked to your account yet. Add a key below to start contributing.',
+  'hiveAccount.never': 'Not checked yet',
+  'hiveAccount.fingerprintUnavailable': 'Fingerprint unavailable',
+  'hiveAccount.enabled': 'Enabled for the swarm',
+  'hiveAccount.disabled': 'Disabled for the swarm',
+  'hiveAccount.keyWork': 'Accepted tasks: {n}',
+  'hiveAccount.enable': 'Enable',
+  'hiveAccount.disable': 'Disable',
+  'hiveAccount.add': 'Add a key',
+  'hiveAccount.secretNote':
+    'The key goes to the server and is never shown again. Only its fingerprint is listed here. Use a key with a spending limit.',
+  'hiveAccount.provider': 'Provider',
+  'hiveAccount.label': 'Name (optional)',
+  'hiveAccount.secret': 'API key',
+  'hiveAccount.save': 'Save key',
+  'hiveAccount.health.ok': 'Model answered',
+  'hiveAccount.health.invalid': 'Key rejected',
+  'hiveAccount.health.rate_limited': 'Quota or rate limit',
+  'hiveAccount.health.unavailable': 'Provider unavailable',
+  'hiveAccount.health.not_checked': 'Not checked',
+  'hiveAccount.error.signin':
+    'Sign in to manage your own keys and contribution.',
+  'hiveAccount.error.attribution':
+    'This account is not linked to a contribution owner. Ask the operator to verify your account and GitHub identity.',
+  'hiveAccount.error.duplicate':
+    'This key is already registered. Refresh the list or use another key.',
+  'hiveAccount.error.rate': 'Too many checks. Wait a moment and try again.',
+  'hiveAccount.error.setup':
+    'Key management is not connected on the server yet. The operator must configure the Queen connection and your verified owner mapping.',
+  'hiveAccount.error.input':
+    'The key could not be saved. Check the provider, key and name, then enter the key again.',
+  'hiveAccount.error.network':
+    'The service did not answer. Try again; after saving a key, refresh the list before adding it again.',
+
   // ── Remote browser ────────────────────────────────────────────────────────
   'nav.browser': 'Browser',
   'browser.title': 'My browser',
@@ -147,6 +213,8 @@ const en: Translations = {
   'crm.sections': 'CRM sections',
   'crm.section.work': 'Work',
   'crm.section.map': 'Map',
+  'crm.section.contacts': 'Contacts',
+  'crm.contacts.find': 'Find a contact',
   'crm.summary.paid': 'Paid',
   'crm.summary.paid.yes': 'yes',
   'crm.summary.paid.no': 'not yet',
@@ -274,6 +342,29 @@ const en: Translations = {
     'Draft a warm return message to {name}, a former buyer who has been quiet for {days} days. Lead with what is new since their last purchase, not a reminder of us. Make it a send card — I will press Send myself.',
   'crm.wait.theirs': 'awaiting reply',
   'crm.wait.due': 'time to return',
+  // A bare number on the waiting line said nothing about its unit.
+  'crm.wait.days': '{n} d',
+  // Why somebody is in "waiting" and why that next step (render
+  // crm-stages.ts WaitWhy, sales-playbook.ts NextWhy). The server's Russian
+  // words stay the fallback for a code missing here -- see reasonLine.
+  'crm.why.we_wrote_last': 'we wrote last, no answer',
+  'crm.why.they_wrote': 'they wrote, nobody answered',
+  'crm.why.they_replied': 'they replied, we are silent',
+  'crm.why.later_due': 'asked for later — later is here',
+  'crm.why.we_wrote': 'we wrote, no answer',
+  'crm.why.refused': 'said no — write only if they write first',
+  'crm.why.promise_late': 'promised, and the date has passed: {what}',
+  'crm.why.promise_today': 'promised, due today: {what}',
+  'crm.why.waits_days': 'waiting for an answer for {days} d',
+  'crm.why.they_spoke_last': 'they spoke last, no answer yet',
+  'crm.why.later_until': 'asked to come back later: {date}',
+  'crm.why.paid_serve': 'paid — there is something to deliver, nothing to sell',
+  'crm.why.paid_quiet': 'paid before and went quiet',
+  'crm.why.no_talk_yet': 'no conversation yet',
+  'crm.why.warm_offer': 'a warm talk, they saw a result, no offer yet',
+  'crm.why.silence_after_us': 'silent {days} d after our message',
+  'crm.why.we_wrote_days': 'we wrote {days} d ago, no answer',
+  'crm.why.just_answered': 'we just answered — their turn',
   // ── CRM: client list and per-client workspace ────────────────────────────
   'crm.clients.title': 'Clients',
   'crm.clients.none': 'No clients with a profile or a conversation yet.',
@@ -298,6 +389,9 @@ const en: Translations = {
   'crm.clients.profile': 'profile',
   'crm.clients.soul': 'SOUL',
   'crm.clients.duets': 'duets: {n}',
+  'crm.clients.tasks': 'plan: {done}/{n}',
+  'crm.clients.faults': 'open faults: {n}',
+  'crm.clients.bots': 'owns bots:',
   'crm.clients.paid': 'paid',
   'crm.clients.paidUnknown': 'payments unavailable — stage from touches only',
   'crm.clients.filter.all': 'all',
@@ -493,7 +587,7 @@ const en: Translations = {
   'crm.auto.chosen.some': '{n} picked',
   'crm.auto.hint':
     'Prepared cards go out by themselves; each send is reported with a stop button.',
-  'crm.filter.search': 'Search by name or id',
+  'crm.filter.search': 'Name, @username or id',
   'crm.filter.segment': 'Segment',
   'crm.vip.title': 'Under way',
   'crm.vip.note': 'Paid, or with a package, or touched this week',
@@ -506,6 +600,12 @@ const en: Translations = {
   'crm.row.dropped': 'Removed from the CRM',
   'crm.row.restore': 'Bring back',
   'crm.row.open': 'Open',
+  'crm.row.more': 'Details and removal',
+  'crm.filter.clear': 'Clear the search',
+  'crm.clients.searching': 'Searching all contacts…',
+  'crm.clients.notFound': 'Nobody found for “{q}”',
+  'crm.clients.rest': 'Everyone else',
+  'crm.clients.recent': 'Recent',
   'crm.client.empty': 'nothing yet',
   'crm.client.profile.title': 'Profile / SOUL / skills',
   'crm.client.profile.profile': 'profile',
@@ -521,6 +621,31 @@ const en: Translations = {
   'crm.client.story.vip': 'VIP',
   'crm.client.story.topic': 'Topic: any. Empty = next plan card or a fresh one',
   'crm.client.story.start': 'Make a reel',
+  'crm.client.story.framesShort': '{n} frames + call',
+  'crm.client.story.frames': 'Frames',
+  'crm.client.story.frames.less': 'One frame fewer',
+  'crm.client.story.frames.more': 'One frame more',
+  'crm.client.story.frames.hint':
+    '{n} × her face in a new setting, then the call',
+  'crm.client.story.board.cta': 'Call to action',
+  'crm.client.story.more': 'Settings: call, look, end card',
+  'crm.client.story.cta': 'Call on the last frame',
+  'crm.client.story.style': 'Look of the frames (light, tone)',
+  'crm.client.story.quick': 'Quick topics',
+  'crm.client.story.toDm': 'Send the finished reel to their DM',
+  'crm.client.story.photo.avatar': 'Photo: their avatar',
+  'crm.client.story.photo.own': 'Photo: your own',
+  'crm.client.story.photo.avatarSelf': 'Photo: your avatar',
+  'crm.client.story.photo.replace': '📷 Replace photo',
+  'crm.client.story.photo.reset': '↺ Back to avatar',
+  'crm.client.story.photo.uploading': 'Uploading…',
+  'crm.client.story.photo.failed': 'The photo did not upload, try another',
+  'crm.client.story.tips':
+    'The agent writes it by the rules of a good reel: a hook in the first 2 s, one idea from problem to result, her face close up, one call at the end.',
+  'crm.client.story.quick.1': 'A day in my work',
+  'crm.client.story.quick.2': 'How I help clients',
+  'crm.client.story.quick.3': 'Before and after',
+  'crm.client.story.quick.4': 'Why people choose me',
   'crm.client.story.price': 'About {n} tokens a reel, from your balance',
   'crm.client.story.starting': 'Starting…',
   'crm.client.story.started':
@@ -558,6 +683,7 @@ const en: Translations = {
   'crm.client.story.checkFirst':
     'Check the palette first: only a checked card can be kept',
   'story.title': 'My reels',
+  'story.toChat': 'Ask the agent',
   'story.lead':
     'Three scenes with your face in a new setting each, in your own voice, about 15 seconds, with your call to action at the end. The finished reel comes to your bot in 5–10 minutes.',
   'story.face': 'your face',
@@ -971,7 +1097,8 @@ const en: Translations = {
   'pricing.tokens.feature2': 'One balance for everything, no seats',
   'pricing.tokens.feature3':
     'The price of each action is shown before you press',
-  'pricing.tokens.feature4': 'Tokens do not expire and are not billed monthly',
+  'pricing.tokens.feature4':
+    'Unspent tokens burn 30 days after they arrive; we remind you 7, 3 and 1 day before',
   'pricing.tokens.note':
     'First tokens on sign-up, no card. An invoice for any amount is written by the agent in the bot.',
 
@@ -1108,6 +1235,11 @@ const en: Translations = {
   'login.boardTitle': 'Sign in to your board',
   'login.boardBody':
     'Sign in with Telegram and the board opens under your name: your clients and your tasks.',
+  // The agent chat's door: /api/agent/chat answers 401 to a browser with no
+  // session, and the chat itself is free (render/src/agent/pricing.ts).
+  'login.chatTitle': 'Sign in to talk to the agent',
+  'login.chatBody':
+    'The agent answers people it knows. Sign in with Telegram — chatting is free.',
   'login.tgSignedTitle': 'You are already signed in',
   'login.tgSignedBody':
     'Telegram already identified you — no separate login exists inside the Mini App.',
@@ -1313,6 +1445,58 @@ const en: Translations = {
   'chat.messagePlaceholder': 'Message the agent…',
   'chat.attachAny': 'Attach a file: photo, video, voice, PDF, document',
   'chat.send': 'Send',
+  // -- Voice mode -------------------------------------------------------------
+  'voice.open': 'Talk to the agent by voice',
+  'voice.title': 'Voice mode',
+  'voice.close': 'Close voice mode',
+  'voice.end': 'End',
+  'voice.expand': 'Full screen',
+  'voice.toChat': 'Back to the chat',
+  'voice.mute': 'Mute the microphone',
+  'voice.unmute': 'Unmute the microphone',
+  'voice.muted': 'Microphone is off',
+  'voice.phase.off': 'Off',
+  'voice.phase.starting': 'Starting...',
+  'voice.phase.listening': 'Listening',
+  'voice.phase.hearing': 'Hearing you',
+  'voice.phase.thinking': 'Thinking',
+  'voice.phase.speaking': 'Speaking. Talk over it or tap Stop',
+  'voice.phase.error': 'Voice mode stopped',
+  'voice.error.mic':
+    'No access to the microphone. Allow it in the browser and tap the logo.',
+  'voice.error.mic.denied':
+    'The microphone is blocked for this site. Tap the lock icon next to the address, allow the microphone, then tap the logo.',
+  'voice.error.mic.none': 'No microphone found. Connect one and tap the logo.',
+  'voice.error.mic.busy':
+    'The microphone is busy in another app (a call, a recorder). Close it and tap the logo.',
+  'voice.error.mic.unsupported':
+    'This window cannot use the microphone. Open voice mode in your browser.',
+  'voice.mic.inTelegram':
+    'Telegram may not pass the microphone to the app. Allow Telegram to use the microphone in the phone settings, or open voice mode in the browser.',
+  'voice.openBrowser': 'Open in browser',
+  'voice.retry': 'Try again',
+  'voice.type.label': 'Type instead — the agent answers aloud',
+  'voice.type.placeholder': 'Ask the agent…',
+  'voice.type.send': 'Send',
+  'voice.stop': 'Stop',
+  'voice.options': 'You can choose: {list}.',
+  // Said when the agent is silent for a while; variants split by '|'.
+  'voice.filler.first': 'Let me see.|Hmm, let me think.|Let me look into that.',
+  'voice.filler.still': 'Still working on it.|Still on it.',
+  'voice.error.recorder': 'This browser cannot record audio.',
+  'voice.error.hear': 'Could not make out the words. Please say it again.',
+  'voice.you': 'You',
+  'voice.agent': 'Agent',
+  'voice.mode': 'Visual',
+  'voice.mode.pulse': 'Pulse',
+  'voice.mode.spectrum': 'Spectrum',
+  'voice.mode.orbit': 'Orbit',
+  'voice.mode.hologram': 'Hologram',
+  'voice.mode.shatter': 'Shatter',
+  'voice.voice': 'Voice',
+  'voice.deviceVoice':
+    'Our voice server is unreachable, so your device is reading the answer.',
+  'voice.orb': 'Tap to interrupt the agent',
   'chat.welcome':
     "Hi! I'm your Trinity S³AI AI assistant. I can help you create and edit video templates. What would you like to build today?",
   'chat.cleared': 'Chat cleared. How can I help?',
@@ -1967,7 +2151,8 @@ const en: Translations = {
   'nav.learn': 'Learn',
   'nav.agent': 'Agent',
   'nav.agents': 'Agents',
-  'nav.hive': 'Hive',
+  'nav.hive': 'Game',
+  'nav.tasks': 'Tasks',
   'hive.loading': 'Opening the hive on t27.ai…',
   'hive.frameTitle': 'The hive — t27.ai/#/queen',
   'hive.openOutside': 'Open in the browser: t27.ai/#/queen ↗',
@@ -2699,6 +2884,73 @@ types:
 }
 
 const ru: Translations = {
+  'hiveAccount.title': 'Мои ключи и вклад',
+  'hiveAccount.short': 'Ключи и XP',
+  'hiveAccount.back': 'Вернуться в игру',
+  'hiveAccount.lead':
+    'Управляйте API-ключами, переданными Королеве, и смотрите, какая работа засчитана вам.',
+  'hiveAccount.refresh': 'Обновить',
+  'hiveAccount.loading': 'Загружаем ваш вклад…',
+  'hiveAccount.signin': 'Войти',
+  'hiveAccount.retry': 'Повторить',
+  'hiveAccount.working': 'Сохраняем…',
+  'hiveAccount.progress': 'Проверяем ключи: {done} из {total}',
+  'hiveAccount.saved': 'Ключ сохранён. Проверьте его перед использованием.',
+  'hiveAccount.checked': 'Проверка завершена. Результат указан рядом с ключом.',
+  'hiveAccount.checkedAll':
+    'Все проверки завершены. Посмотрите результат каждого ключа.',
+  'hiveAccount.updated': 'Ключ обновлён.',
+  'hiveAccount.attribution': 'Кому засчитывается вклад',
+  'hiveAccount.attributionNote':
+    'Владение подтверждает сервер. Здесь видны только ключи и XP вашего аккаунта.',
+  'hiveAccount.unlinked': 'GitHub ещё не привязан к этому аккаунту.',
+  'hiveAccount.xp': 'Заработано XP',
+  'hiveAccount.accepted': 'Принято задач',
+  'hiveAccount.specs': 'Спецификации .t27',
+  'hiveAccount.hours': 'Часы работы пчёл',
+  'hiveAccount.scoring':
+    '{accepted} XP за принятую задачу, ещё {spec} XP за спецификацию .t27 и {hour} XP за час работы пчёл. Это игровые очки, а не платёжный баланс.',
+  'hiveAccount.keys': 'Ваши ключи · {n}',
+  'hiveAccount.probeAll': 'Проверить все ключи',
+  'hiveAccount.probe': 'Проверить API',
+  'hiveAccount.probeNote':
+    'Проверка делает короткий запрос к модели и расходует квоту провайдера. Успех означает, что эта модель ответила в указанное время.',
+  'hiveAccount.empty':
+    'К вашему аккаунту пока не привязаны ключи. Добавьте ключ ниже, чтобы участвовать в работе роя.',
+  'hiveAccount.never': 'Проверки ещё не было',
+  'hiveAccount.fingerprintUnavailable': 'Отпечаток недоступен',
+  'hiveAccount.enabled': 'Включён для роя',
+  'hiveAccount.disabled': 'Отключён от роя',
+  'hiveAccount.keyWork': 'Принято задач: {n}',
+  'hiveAccount.enable': 'Включить',
+  'hiveAccount.disable': 'Отключить',
+  'hiveAccount.add': 'Добавить ключ',
+  'hiveAccount.secretNote':
+    'Ключ отправляется на сервер и больше не показывается. В списке остаётся только его отпечаток. Используйте ключ с лимитом расходов.',
+  'hiveAccount.provider': 'Провайдер',
+  'hiveAccount.label': 'Название (необязательно)',
+  'hiveAccount.secret': 'API-ключ',
+  'hiveAccount.save': 'Сохранить ключ',
+  'hiveAccount.health.ok': 'Модель ответила',
+  'hiveAccount.health.invalid': 'Ключ отклонён',
+  'hiveAccount.health.rate_limited': 'Лимит запросов или квоты',
+  'hiveAccount.health.unavailable': 'Провайдер недоступен',
+  'hiveAccount.health.not_checked': 'Не проверен',
+  'hiveAccount.error.signin':
+    'Войдите, чтобы управлять своими ключами и видеть свой вклад.',
+  'hiveAccount.error.attribution':
+    'Аккаунт пока не связан с владельцем вклада. Попросите оператора подтвердить привязку вашего аккаунта и GitHub.',
+  'hiveAccount.error.duplicate':
+    'Этот ключ уже зарегистрирован. Обновите список или используйте другой ключ.',
+  'hiveAccount.error.rate':
+    'Слишком много проверок. Немного подождите и повторите.',
+  'hiveAccount.error.setup':
+    'Управление ключами ещё не подключено на сервере. Оператору нужно настроить связь с Королевой и подтверждённую привязку владельца.',
+  'hiveAccount.error.input':
+    'Ключ не удалось сохранить. Проверьте провайдера, ключ и название, затем введите ключ заново.',
+  'hiveAccount.error.network':
+    'Сервис не ответил. Повторите запрос; после сохранения ключа сначала обновите список, прежде чем добавлять его ещё раз.',
+
   // ── Remote browser ────────────────────────────────────────────────────────
   'nav.browser': 'Браузер',
   'browser.title': 'Мой браузер',
@@ -2828,6 +3080,8 @@ const ru: Translations = {
   'crm.sections': 'Разделы CRM',
   'crm.section.work': 'Работа',
   'crm.section.map': 'Карта',
+  'crm.section.contacts': 'Контакты',
+  'crm.contacts.find': 'Найти контакт',
   'crm.summary.paid': 'Платил',
   'crm.summary.paid.yes': 'да',
   'crm.summary.paid.no': 'пока нет',
@@ -2955,6 +3209,26 @@ const ru: Translations = {
     'Подготовь тёплое сообщение-возвращение для {name}: раньше покупал(а), молчит {days} дней. Начни с того, что нового появилось с последней покупки, а не с напоминания о нас. Сделай карточкой на отправку — «Отправить» нажму сам.',
   'crm.wait.theirs': 'ждём ответа',
   'crm.wait.due': 'пора вернуться',
+  'crm.wait.days': '{n} дн.',
+  'crm.why.we_wrote_last': 'мы написали последними, ответа нет',
+  'crm.why.they_wrote': 'написал, а ответа не было',
+  'crm.why.they_replied': 'ответил, а мы молчим',
+  'crm.why.later_due': 'просил позже — позже настало',
+  'crm.why.we_wrote': 'написали, ответа нет',
+  'crm.why.refused': 'человек отказался — пишем только если напишет сам',
+  'crm.why.promise_late': 'обещано и срок прошёл: {what}',
+  'crm.why.promise_today': 'обещано, срок сегодня: {what}',
+  'crm.why.waits_days': 'ждёт ответа {days} дн.',
+  'crm.why.they_spoke_last': 'написал последним, ответа нет',
+  'crm.why.later_until': 'просил вернуться позже: {date}',
+  'crm.why.paid_serve': 'оплатил — есть что доставить, нечего продавать',
+  'crm.why.paid_quiet': 'платил раньше и замолчал',
+  'crm.why.no_talk_yet': 'разговора ещё не было',
+  'crm.why.warm_offer':
+    'разговор тёплый, человек видел результат, предложения не было',
+  'crm.why.silence_after_us': 'молчание {days} дн. после нашего сообщения',
+  'crm.why.we_wrote_days': 'мы написали {days} дн. назад, ответа нет',
+  'crm.why.just_answered': 'мы ответили только что — очередь за человеком',
   // ── CRM: client list and per-client workspace ────────────────────────────
   'crm.clients.title': 'Клиенты',
   'crm.clients.none': 'Пока нет клиентов с профилем или перепиской.',
@@ -2978,6 +3252,9 @@ const ru: Translations = {
   'crm.clients.profile': 'профиль',
   'crm.clients.soul': 'SOUL',
   'crm.clients.duets': 'дуэтов: {n}',
+  'crm.clients.tasks': 'план: {done}/{n}',
+  'crm.clients.faults': 'открытых ошибок: {n}',
+  'crm.clients.bots': 'владеет ботами:',
   'crm.clients.paid': 'оплатил',
   'crm.clients.paidUnknown': 'платежи недоступны — стадия только по касаниям',
   'crm.clients.filter.all': 'все',
@@ -3169,7 +3446,7 @@ const ru: Translations = {
   'crm.auto.chosen.some': 'выбрано {n}',
   'crm.auto.hint':
     'Подготовленные карточки уходят сами; о каждой отправке приходит отчёт с кнопкой «Выключить».',
-  'crm.filter.search': 'Поиск по имени или id',
+  'crm.filter.search': 'Имя, @username или id',
   'crm.filter.segment': 'Сегмент',
   'crm.vip.title': 'В работе',
   'crm.vip.note': 'Оплатившие, с пакетом или с касанием на этой неделе',
@@ -3181,6 +3458,12 @@ const ru: Translations = {
   'crm.row.dropped': 'Убран из CRM',
   'crm.row.restore': 'Вернуть',
   'crm.row.open': 'Открыть',
+  'crm.row.more': 'Подробнее и удаление',
+  'crm.filter.clear': 'Очистить поиск',
+  'crm.clients.searching': 'Ищу по всем контактам…',
+  'crm.clients.notFound': 'По запросу «{q}» никого нет',
+  'crm.clients.rest': 'Остальные',
+  'crm.clients.recent': 'Недавние',
   'crm.client.empty': 'пока пусто',
   'crm.client.profile.title': 'Профиль / SOUL / скилы',
   'crm.client.profile.profile': 'профиль',
@@ -3197,6 +3480,30 @@ const ru: Translations = {
   'crm.client.story.topic':
     'Тема — любая. Пусто = следующий пункт плана или новая',
   'crm.client.story.start': 'Сделать рилс',
+  'crm.client.story.framesShort': 'кадров: {n} + призыв',
+  'crm.client.story.frames': 'Кадры',
+  'crm.client.story.frames.less': 'На кадр меньше',
+  'crm.client.story.frames.more': 'На кадр больше',
+  'crm.client.story.frames.hint': '{n} × лицо в новой обстановке, затем призыв',
+  'crm.client.story.board.cta': 'Призыв к действию',
+  'crm.client.story.more': 'Настройки: призыв, стиль, концовка',
+  'crm.client.story.cta': 'Призыв на последнем кадре',
+  'crm.client.story.style': 'Стиль кадров (свет, тон)',
+  'crm.client.story.quick': 'Быстрые темы',
+  'crm.client.story.toDm': 'Готовый рилс — сразу клиенту в личку',
+  'crm.client.story.photo.avatar': 'Фото: аватарка клиента',
+  'crm.client.story.photo.own': 'Фото: своё',
+  'crm.client.story.photo.avatarSelf': 'Фото: ваша аватарка',
+  'crm.client.story.photo.replace': '📷 Заменить фото',
+  'crm.client.story.photo.reset': '↺ Вернуть аватарку',
+  'crm.client.story.photo.uploading': 'Загружаю…',
+  'crm.client.story.photo.failed': 'Фото не загрузилось, попробуйте другое',
+  'crm.client.story.tips':
+    'Агент пишет по правилам сильного рилса: крючок в первые 2 с, одна мысль от проблемы к результату, лицо крупно, один призыв в конце.',
+  'crm.client.story.quick.1': 'Мой день в работе',
+  'crm.client.story.quick.2': 'Как я помогаю клиентам',
+  'crm.client.story.quick.3': 'До и после',
+  'crm.client.story.quick.4': 'Почему выбирают меня',
   'crm.client.story.price': 'Около {n} токенов за рилс — с вашего баланса',
   'crm.client.story.starting': 'Запускаю…',
   'crm.client.story.started':
@@ -3233,6 +3540,7 @@ const ru: Translations = {
   'crm.client.story.checkFirst':
     'Сначала проверьте: запомнить можно только проверенную палитру',
   'story.title': 'Мои рилсы',
+  'story.toChat': 'Спросить агента',
   'story.lead':
     'Три сцены с вашим лицом — каждая в новой обстановке, вашим голосом, около 15 секунд, в конце — ваш призыв. Готовый рилс придёт в бот через 5–10 минут.',
   'story.face': 'ваше лицо',
@@ -3627,7 +3935,8 @@ const ru: Translations = {
   'pricing.tokens.feature1': 'Картинки, озвучка, видео, сборка рилса',
   'pricing.tokens.feature2': 'Один баланс на всё, без мест и участников',
   'pricing.tokens.feature3': 'Цена каждого действия видна до нажатия',
-  'pricing.tokens.feature4': 'Токены не сгорают и не списываются ежемесячно',
+  'pricing.tokens.feature4':
+    'Неистраченные токены сгорают через 30 дней; напомним за 7, 3 и 1 день',
   'pricing.tokens.note':
     'Первые токены — при входе, без карты. Счёт на любое количество выпишет агент в боте.',
 
@@ -3741,6 +4050,9 @@ const ru: Translations = {
   'login.boardTitle': 'Вход на вашу доску',
   'login.boardBody':
     'Войдите через Telegram — доска откроется под вашим именем: ваши клиенты и ваши задачи.',
+  'login.chatTitle': 'Войдите, чтобы поговорить с агентом',
+  'login.chatBody':
+    'Агент отвечает тем, кого знает. Войдите через Telegram — переписка бесплатна.',
   'login.tgSignedTitle': 'Вы уже вошли',
   'login.tgSignedBody':
     'Telegram уже определил вас — отдельного входа внутри мини-аппа не существует.',
@@ -3945,6 +4257,59 @@ const ru: Translations = {
   'chat.messagePlaceholder': 'Сообщение агенту…',
   'chat.attachAny': 'Прикрепить файл: фото, видео, голос, PDF, документ',
   'chat.send': 'Отправить',
+  // -- Voice mode -------------------------------------------------------------
+  'voice.open': 'Говорить с агентом голосом',
+  'voice.title': 'Голосовой режим',
+  'voice.close': 'Закрыть голосовой режим',
+  'voice.end': 'Завершить',
+  'voice.expand': 'На весь экран',
+  'voice.toChat': 'Вернуться в чат',
+  'voice.mute': 'Выключить микрофон',
+  'voice.unmute': 'Включить микрофон',
+  'voice.muted': 'Микрофон выключен',
+  'voice.phase.off': 'Выключено',
+  'voice.phase.starting': 'Запускаю...',
+  'voice.phase.listening': 'Слушаю',
+  'voice.phase.hearing': 'Слышу вас',
+  'voice.phase.thinking': 'Думаю',
+  'voice.phase.speaking': 'Говорю. Перебейте голосом или нажмите «Остановить»',
+  'voice.phase.error': 'Голосовой режим остановлен',
+  'voice.error.mic':
+    'Нет доступа к микрофону. Разрешите его в браузере и нажмите на логотип.',
+  'voice.error.mic.denied':
+    'Микрофон запрещён для этого сайта. Нажмите на замок рядом с адресом, разрешите микрофон и нажмите на логотип.',
+  'voice.error.mic.none':
+    'Микрофон не найден. Подключите его и нажмите на логотип.',
+  'voice.error.mic.busy':
+    'Микрофон занят другим приложением (звонок, диктофон). Закройте его и нажмите на логотип.',
+  'voice.error.mic.unsupported':
+    'В этом окне микрофон недоступен. Откройте голосовой режим в браузере.',
+  'voice.mic.inTelegram':
+    'Telegram может не передавать микрофон приложению. Разрешите Telegram доступ к микрофону в настройках телефона или откройте голосовой режим в браузере.',
+  'voice.openBrowser': 'Открыть в браузере',
+  'voice.retry': 'Попробовать снова',
+  'voice.type.label': 'Напишите — агент ответит голосом',
+  'voice.type.placeholder': 'Спросите агента…',
+  'voice.type.send': 'Отправить',
+  'voice.stop': 'Остановить',
+  'voice.options': 'Можно выбрать: {list}.',
+  'voice.filler.first':
+    'Сейчас посмотрю.|Так, дайте подумать.|Сейчас разберусь.',
+  'voice.filler.still': 'Ещё работаю над этим.|Всё ещё занимаюсь этим.',
+  'voice.error.recorder': 'Этот браузер не умеет записывать звук.',
+  'voice.error.hear': 'Не разобрал слова. Повторите, пожалуйста.',
+  'voice.you': 'Вы',
+  'voice.agent': 'Агент',
+  'voice.mode': 'Визуал',
+  'voice.mode.pulse': 'Пульс',
+  'voice.mode.spectrum': 'Спектр',
+  'voice.mode.orbit': 'Орбита',
+  'voice.mode.hologram': 'Голограмма',
+  'voice.mode.shatter': 'Осколки',
+  'voice.voice': 'Голос',
+  'voice.deviceVoice':
+    'Наш голосовой сервер недоступен, ответ читает голос устройства.',
+  'voice.orb': 'Нажмите, чтобы перебить агента',
   'chat.welcome':
     'Привет! Я Trinity S³AI AI ассистент. Могу помочь создать и отредактировать видео шаблоны. Что хотите сделать?',
   'chat.cleared': 'Чат очищен. Чем могу помочь?',
@@ -4601,7 +4966,8 @@ const ru: Translations = {
   'nav.learn': 'Обучение',
   'nav.agent': 'Агент',
   'nav.agents': 'Агенты',
-  'nav.hive': 'Улей',
+  'nav.hive': 'Игра', // cyrillic-ok
+  'nav.tasks': 'Задачи', // cyrillic-ok
   'hive.loading': 'Открываем улей на t27.ai…',
   'hive.frameTitle': 'Улей — t27.ai/#/queen',
   'hive.openOutside': 'Открыть в браузере: t27.ai/#/queen ↗',
