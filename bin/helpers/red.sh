@@ -18,7 +18,8 @@
 #
 # Read-only. Exit 0 every check finished and nothing failed, 1 something
 # failed (named, with its log tail), 2 could not tell (no answer from GitHub,
-# unknown ref), 3 nothing failed YET -- checks still running, not green.
+# unknown ref, a check left stale), 3 nothing failed YET -- checks still
+# running, not green.
 set -uo pipefail
 ROOT="$1"; shift
 REPO="${1:-}"; REF="${2:-main}"
@@ -54,7 +55,15 @@ if [ -z "$BAD" ]; then
   # Whatever is not a known FINISHED conclusion counts as still running: a
   # status GitHub adds tomorrow must read as "not green", never as green
   # (review of #3412). The failing conclusions were taken above.
-  pend=$(printf '%s\n' "$RUNS" | awk -F'\t' '$1 !~ /^(success|neutral|skipped|stale)$/' | wc -l | tr -d ' ')
+  # stale is not a verdict either: GitHub marks a run stale when it was left
+  # incomplete for 14 days, so it never finished. Waiting will not turn it,
+  # so it is "cannot tell" (2), as in tri canfail -- not green, not running.
+  stale=$(printf '%s\n' "$RUNS" | awk -F'\t' '$1 == "stale"' | wc -l | tr -d ' ')
+  if [ "$stale" -gt 0 ]; then
+    echo "  nothing failed, but $stale left incomplete (stale) -- cannot tell, not green"
+    exit 2
+  fi
+  pend=$(printf '%s\n' "$RUNS" | awk -F'\t' '$1 !~ /^(success|neutral|skipped)$/' | wc -l | tr -d ' ')
   # Still running is not green. Exit 0 here once let a loop read "21 queued"
   # as a green main (trinity-fpga c7632348, 2026-10-03); gh pr checks gives
   # pending its own code (8) for the same reason.
