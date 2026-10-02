@@ -236,12 +236,39 @@ afterEach(() => {
  * alone on an idle machine, 5 sequential, 21 in a parallel full run.
  *
  * A suite whose result depends on what else is running is not a gate. The
- * cost is real and stays; it is paid here, once, in a hook with a budget of
- * its own, and every test then gets the cached module.
+ * cost is paid here, once, in a hook with a budget of its own, and every test
+ * then gets the cached module.
+ *
+ * WHERE THE SECONDS WENT (measured 02.10.2026, load average ~150). Timing
+ * each import of the page in turn put 10.5 s of a ~13 s cold import in
+ * LeadsSections, and inside it in EventStream and LeadCard: they imported
+ * `date-fns` and `date-fns/locale` as BARRELS. Vite tree-shakes those in the
+ * bundle, but vitest does not -- it loads every function (~2.2 s) and every
+ * one of ~100 locales (~2.0 s) to use one function and one locale. With
+ * per-function paths the import of './Crm' fell from 6.3-7.0 s to 1.8-3.7 s
+ * on the same machine, and the guard below keeps the barrels out.
+ *
+ * The budget stays 60 s: an order of magnitude over the worst measured cold
+ * import, so only a machine that is swapping hits it. If it does, the hook
+ * error fails the file (exit code 1, "1 failed") -- the 56 tests listed as
+ * skipped under it are skipped BECAUSE the file failed, not instead of it.
  */
 beforeAll(async () => {
   await import('./Crm')
 }, 60_000)
+
+it('nothing in the player imports the date-fns barrels (they cost the page seconds)', async () => {
+  const { readdirSync, readFileSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const SRC = join(__dirname, '..')
+  // The bare package or its bare locale folder, exactly -- a per-function
+  // path such as date-fns/locale/ru is the fix, not the fault.
+  const barrel = new RegExp(`from\\s+['"]date-fns(/locale)?['"]`)
+  const offenders = (readdirSync(SRC, { recursive: true }) as string[])
+    .filter(f => /\.(ts|tsx)$/.test(f))
+    .filter(f => barrel.test(readFileSync(join(SRC, f), 'utf8')))
+  expect(offenders).toEqual([])
+})
 
 /** The contacts live in their own section since the phone redesign. */
 const CONTACTS = '/crm?tab=contacts'

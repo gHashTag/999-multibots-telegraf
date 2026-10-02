@@ -30,11 +30,28 @@ const path = require('path')
 // Построчный текст, а не JSON: файл лежит в репозитории и обновляется часто,
 // поэтому важнее читаемый diff, чем структура. Одна строка — один зелёный тест.
 const BASELINE = path.join(__dirname, '..', '.test-baseline.txt')
-const TMP = '/tmp/test-gate-report.json'
+/*
+ * ONE REPORT FILE PER RUN, NEVER A SHARED ONE.
+ *
+ * This used to be a fixed /tmp/test-gate-report.json. Two sessions gating at
+ * once wrote over each other's report, and a run whose vitest died before
+ * writing read whatever file was already there -- somebody else's tree,
+ * judged as ours. reportPath() is unique per process and per call, and
+ * runVitest() deletes it before the run and after reading it.
+ */
+let reportSeq = 0
+function reportPath(pid = process.pid, seq = ++reportSeq) {
+  return path.join(
+    require('os').tmpdir(),
+    `test-gate-report-${pid}-${seq}.json`
+  )
+}
 const SAVE = process.argv.includes('--save')
 const REPO = path.join(__dirname, '..')
 
 function runVitest(targets = []) {
+  const TMP = reportPath()
+  fs.rmSync(TMP, { force: true })
   const args = [
     'vitest',
     'run',
@@ -54,7 +71,9 @@ function runVitest(targets = []) {
   }
   if (!fs.existsSync(TMP))
     throw new Error('vitest не записал отчёт — прогон не состоялся')
-  return JSON.parse(fs.readFileSync(TMP, 'utf8'))
+  const report = JSON.parse(fs.readFileSync(TMP, 'utf8'))
+  fs.rmSync(TMP, { force: true })
+  return report
 }
 
 /** Множество имён ПРОЙДЕННЫХ тестов, вида "относительный/путь :: имя теста". */
@@ -560,6 +579,7 @@ function main() {
 // test with its own copy of these would be a twin, and the whole point here is
 // that two questions must not share one answer.
 module.exports = {
+  reportPath,
   passingSet,
   ranSet,
   fileOf,

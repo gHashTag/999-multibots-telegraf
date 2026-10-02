@@ -9542,6 +9542,7 @@ const server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           error: 'не удалось определить пользователя',
+          code: 'sign_in',
           detail:
             'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
         })
