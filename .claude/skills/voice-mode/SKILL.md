@@ -587,6 +587,11 @@ that is no verdict either way -- the switch flips only after
 `./tri turn --audio done-*.wav cut-*.wav` on the owner's recorded voice
 (the summary line: finished held / unfinished caught). Inference ~70 ms CPU.
 
+Live after deploy (#3315, `tri turn --live`, our mouth -> our ears): English
+agreed with the words 3 of 3 (cut "invoices and" 0.01, "Open my calendar."
+0.99); Russian finished 0.99, but cut "...na etoy nedele i" 0.77 and "Khochu
+zapisat'sya na" 0.52 -- the voice called both finished. Russian stays words-only.
+
 Competitors, LiveKit EOT-bench (false cut-off at a 300 ms budget): LiveKit
 v1 9.9 %, Deepgram Flux 12.9 %, v1-mini 27.8 %, Smart Turn v3.2 35.2 %,
 AssemblyAI 49.4 %. The field is moving to fused audio+text judges.
@@ -655,6 +660,17 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
    refused. `tri loop` now runs the ratchet; never name a non-hook `use*`.
 
 ## Common issues
+
+- **Type errors that vitest never shows.** Cycle 13 put 10 into the player's
+  ratchet: spreading `extra: Partial<VoiceDeps>` over the test deps widened
+  `d.transcribe` to a union, and `vi.fn(async () => ...)` has no parameters,
+  so `mock.calls[0][0]` has no type. Give test mocks their real parameters
+  and pick only the fields a helper overrides (`Pick<VoiceDeps, 'voiceHolds'>`).
+  Check one file fast with a temporary tsconfig that extends
+  `tsconfig.app.json` and includes only the test (delete it after).
+- **"a cough held it" fails under heavy load** (load average 200+): a
+  real-timer filler ("Let me see.") lands in `spoken`. It passed 57/57
+  twice right after; a red run on a starved machine is not a verdict.
 
 - **Tests stub `speechSynthesis`, not audio.** `synthesize` throws in the
   test session, so the device voice path is what gets exercised; the test
