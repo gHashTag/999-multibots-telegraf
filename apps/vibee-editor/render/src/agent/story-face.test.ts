@@ -29,22 +29,22 @@ function pool() {
 describe('the face of the reel', () => {
   it('is her avatar until a photo is kept, then the photo, then the avatar again', async () => {
     const db = pool()
-    let s = await storySettingsOf(db as never, '900000077', '144022504')
+    let s = await storySettingsOf(db as never, '900000077', '900000078')
     expect(s?.faceUrl).toBe(AVATAR)
     expect(s?.faceCustom).toBe(false)
 
     expect(
-      await keepStoryFace(db as never, '144022504', '900000077', OWN)
+      await keepStoryFace(db as never, '900000078', '900000077', OWN)
     ).toEqual({ kept: true })
-    s = await storySettingsOf(db as never, '900000077', '144022504')
+    s = await storySettingsOf(db as never, '900000077', '900000078')
     expect(s?.faceUrl).toBe(OWN)
     expect(s?.faceCustom).toBe(true)
     expect(s?.avatarUrl).toBe(AVATAR)
 
     expect(
-      await keepStoryFace(db as never, '144022504', '900000077', '')
+      await keepStoryFace(db as never, '900000078', '900000077', '')
     ).toEqual({ kept: false })
-    s = await storySettingsOf(db as never, '900000077', '144022504')
+    s = await storySettingsOf(db as never, '900000077', '900000078')
     expect(s?.faceUrl).toBe(AVATAR)
     expect(s?.faceCustom).toBe(false)
   })
