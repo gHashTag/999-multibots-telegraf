@@ -2670,8 +2670,9 @@ setInterval(
         }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
-        const { botsOwnedBy, allBotOwners } =
-          await import('./src/agent/hive-tools')
+        const { botsOwnedBy, allBotOwners } = await import(
+          './src/agent/hive-tools'
+        )
         const granted = await sweepClubGrants(
           pool,
           { botsOwnedBy, allOwners: allBotOwners },
@@ -2716,8 +2717,9 @@ setInterval(
   () => {
     void (async () => {
       try {
-        const { transcribeBacklogOnce } =
-          await import('./src/agent/transcribe-backlog')
+        const { transcribeBacklogOnce } = await import(
+          './src/agent/transcribe-backlog'
+        )
         const r = await transcribeBacklogOnce(getPool())
         /*
          * THE FIRST TICK SPEAKS EVEN WHEN THERE IS NOTHING.
@@ -2928,8 +2930,9 @@ const ACCEPTANCE_TICK_MS = 30 * 60 * 1000
 const acceptanceTick = () => {
   void (async () => {
     try {
-      const { runDailyAcceptanceIfDue } =
-        await import('./src/agent/daily-acceptance-wiring')
+      const { runDailyAcceptanceIfDue } = await import(
+        './src/agent/daily-acceptance-wiring'
+      )
       const said = await runDailyAcceptanceIfDue(getPool() as any)
       if (said !== 'off' && said !== 'not due' && said !== 'already running')
         console.log(`[acceptance] ${said}`)
@@ -3335,7 +3338,12 @@ function startRenderAsync(
 
       // Video render
       const codec = (req.codec || 'h264') as
-        'h264' | 'h265' | 'vp8' | 'vp9' | 'prores' | 'gif'
+        | 'h264'
+        | 'h265'
+        | 'vp8'
+        | 'vp9'
+        | 'prores'
+        | 'gif'
       const ext = codec === 'gif' ? 'gif' : 'mp4'
       const outputPath = path.join(OUTPUT_DIR, `${renderId}.${ext}`)
 
@@ -8780,8 +8788,9 @@ const server = createServer(async (req, res) => {
       if (who !== TELEGRAM_OWNER_ID)
         return sendJson(res, 403, { error: 'только владелец' })
       const { allProviders } = await import('./src/agent/provider')
-      const { chooseProvider, isProviderId } =
-        await import('./src/agent/provider-choice')
+      const { chooseProvider, isProviderId } = await import(
+        './src/agent/provider-choice'
+      )
       if (req.method === 'POST') {
         let asked: unknown = null
         try {
@@ -8944,8 +8953,9 @@ const server = createServer(async (req, res) => {
       // Counts only: which bot's initData confirms (src/auth/initdata-bot-counts.ts).
       const bot = initDataBotOf(req, who)
       if (bot) countInitDataBot(bot, 'proposal_confirm')
-      const { claimAcrossDeploy, execute, idFromBody } =
-        await import('./src/agent/tg-proposals')
+      const { claimAcrossDeploy, execute, idFromBody } = await import(
+        './src/agent/tg-proposals'
+      )
       // idFromBody, not a cast: readBody hands back the raw string, and the
       // cast that pretended otherwise made every confirm press fail silently.
       const asked = idFromBody(await readBody(req))
@@ -8975,8 +8985,9 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/cancel' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { claimAcrossDeploy, idFromBody } =
-        await import('./src/agent/tg-proposals')
+      const { claimAcrossDeploy, idFromBody } = await import(
+        './src/agent/tg-proposals'
+      )
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
       const asked = idFromBody(await readBody(req))
@@ -9874,8 +9885,9 @@ const server = createServer(async (req, res) => {
           )
           // Once per process, not per open of the mini-app: the ALTER takes
           // an exclusive lock even when it has nothing to add.
-          const { ensureInvoiceColumns } =
-            await import('./src/agent/token-invoice')
+          const { ensureInvoiceColumns } = await import(
+            './src/agent/token-invoice'
+          )
           await ensureInvoiceColumns(pool)
           /*
            * EVERY unredeemed row, cancelled ones included. This is the only
