@@ -11,6 +11,12 @@ import {
   type Article,
   type Answer,
 } from './blog-share'
+import {
+  AFTER_CLICK_SETTLE_MS,
+  FIRST_SETTLE_MS,
+  LOOK_EVERY_MS,
+  LOOKS,
+} from '../spec/blog-share.gen'
 
 const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -105,7 +111,7 @@ export async function publishEverywhere(
     }
     try {
       const page = await newPage(cdp, url)
-      await settle(6_000)
+      await settle(FIRST_SETTLE_MS)
       let pressed: string | null = null
       /*
        * One look at six seconds missed the button on a cold browser: the
@@ -114,8 +120,8 @@ export async function publishEverywhere(
        * every three seconds, up to half a minute.
        */
       let found: ReturnType<typeof foundOf> = null
-      for (let look = 0; look < 8 && !found; look++) {
-        if (look > 0) await settle(3_000)
+      for (let look = 0; look < LOOKS && !found; look++) {
+        if (look > 0) await settle(LOOK_EVERY_MS)
         for (const label of labels) {
           found = foundOf(
             await evaluateOn(cdp, page.id, findProbe(label)).catch(() => null)
@@ -128,7 +134,7 @@ export async function publishEverywhere(
           await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
         )
         await clickAt(cdp, page.id, found.x, found.y)
-        await settle(5_000)
+        await settle(AFTER_CLICK_SETTLE_MS)
         const after = String(
           await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
         )
