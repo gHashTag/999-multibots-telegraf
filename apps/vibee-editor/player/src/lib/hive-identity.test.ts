@@ -207,7 +207,7 @@ describe('answerIdentityRequests: sign-in from the game frame', () => {
   const SIGN_IN = { v: 1, type: 't27-app', kind: 'sign-in' }
   const flush = () => new Promise(resolve => setTimeout(resolve, 0))
 
-  function setup(withHandler = true) {
+  function setup(withHandler = true, ownOrigin?: string) {
     let onMessage: ((event: MessageEvent) => void) | null = null
     const frameWindow = { postMessage: vi.fn() } as unknown as Window
     let frame: Window | null = frameWindow
@@ -225,6 +225,7 @@ describe('answerIdentityRequests: sign-in from the game frame', () => {
       apiBase: API,
       fetchImpl: fetch,
       ...(withHandler ? { onSignIn } : {}),
+      ...(ownOrigin ? { ownOrigin } : {}),
     })
     return {
       frameWindow,
@@ -257,6 +258,37 @@ describe('answerIdentityRequests: sign-in from the game frame', () => {
     s.send(SIGN_IN, 'https://t27.ai', s.frameWindow)
     await flush()
     expect(s.onSignIn).not.toHaveBeenCalled()
+  })
+
+  // The board is framed from this page's own /queen/ since 2026-09-26, so on
+  // app.t27.ai its sign-in arrives from https://app.t27.ai. Dropping it left
+  // the board's "Sign in" button dead (measured live 2026-10-02).
+  it('from the same-origin board frame: asks the page to sign in, mints nothing', async () => {
+    const s = setup(true, 'https://app.t27.ai')
+    s.send(SIGN_IN, 'https://app.t27.ai', s.frameWindow)
+    await flush()
+    expect(s.onSignIn).toHaveBeenCalledTimes(1)
+    expect(s.fetch).not.toHaveBeenCalled()
+    expect(s.frameWindow.postMessage).not.toHaveBeenCalled()
+  })
+
+  it('same origin still needs the Queen frame: another window, null, or a left frame is ignored', async () => {
+    const s = setup(true, 'https://app.t27.ai')
+    s.send(SIGN_IN, 'https://evil.example', s.frameWindow)
+    s.send(SIGN_IN, 'https://app.t27.ai', { postMessage: vi.fn() })
+    s.send(SIGN_IN, 'https://app.t27.ai', null)
+    s.leave()
+    s.send(SIGN_IN, 'https://app.t27.ai', s.frameWindow)
+    await flush()
+    expect(s.onSignIn).not.toHaveBeenCalled()
+  })
+
+  it('same origin widens sign-in only: an identity request from it mints nothing', async () => {
+    const s = setup(true, 'https://app.t27.ai')
+    s.send(REQUEST, 'https://app.t27.ai', s.frameWindow)
+    await flush()
+    expect(s.fetch).not.toHaveBeenCalled()
+    expect(s.frameWindow.postMessage).not.toHaveBeenCalled()
   })
 
   it('without a handler the message is ignored', async () => {

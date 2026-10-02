@@ -203,6 +203,15 @@ export function isSignInRequest(data: unknown): boolean {
  * dropped if `frame()` no longer returns that window (the page replaced the
  * frame, or it has left the Queen). A sign-in request passing the same checks
  * calls `onSignIn`. Returns the unsubscribe.
+ *
+ * THE SIGN-IN REQUEST ALSO COMES FROM THIS PAGE'S OWN ORIGIN. Since the tab
+ * frames the board built into this server at /queen/ (queenPage above), the
+ * frame's origin is `ownOrigin`, not https://t27.ai. Checking only
+ * GAME_ORIGIN dropped every request: the board's "Sign in" button did nothing
+ * at all on app.t27.ai/game (measured 2026-10-02). Only the sign-in request is
+ * widened -- it opens a modal on this page and carries nothing. A same-origin
+ * board reads the session itself and never needs a game token, so minting
+ * stays https://t27.ai only.
  */
 export function answerIdentityRequests(options: {
   win: Pick<Window, 'addEventListener' | 'removeEventListener'>
@@ -211,16 +220,24 @@ export function answerIdentityRequests(options: {
   apiBase: string
   fetchImpl?: typeof fetch
   onSignIn?: () => void
+  /** This page's origin; the board framed from /queen/ shares it. */
+  ownOrigin?: string
 }): () => void {
-  const { win, frame, credential, apiBase, fetchImpl, onSignIn } = options
+  const { win, frame, credential, apiBase, fetchImpl, onSignIn, ownOrigin } =
+    options
   const onMessage = (event: MessageEvent) => {
     const target = frame()
     if (!target || event.source !== target) return
-    if (event.origin !== GAME_ORIGIN) return
     if (isSignInRequest(event.data)) {
-      onSignIn?.()
+      if (
+        event.origin === GAME_ORIGIN ||
+        (!!ownOrigin && event.origin === ownOrigin)
+      ) {
+        onSignIn?.()
+      }
       return
     }
+    if (event.origin !== GAME_ORIGIN) return
     const nonce = identityRequestNonce(event.data)
     if (nonce === null) return
     void mintForGame(nonce, credential(), apiBase, fetchImpl).then(reply => {

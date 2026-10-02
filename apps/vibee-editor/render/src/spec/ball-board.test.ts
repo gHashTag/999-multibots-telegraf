@@ -4,6 +4,7 @@ import {
   BALL_BOARD_TOOLS,
   BALL_OWNER,
   BROWSER_FIELDS,
+  MEETING_FIELDS,
   ballRank,
   browserBall,
   browserFieldShown,
@@ -12,9 +13,18 @@ import {
   cardSpec,
   fresh,
   groupByClient,
+  automatedMarker,
+  machineOrOwn,
   mailBall,
+  mailBallWeighed,
+  nobodyToAnswer,
+  relayDomain,
+  pooledMatter,
+  sharedDomain,
   mayLink,
   mayRead,
+  meetingBall,
+  meetingFieldShown,
   specInTitle,
   titleClaims,
   titleHead,
@@ -22,6 +32,7 @@ import {
   workClient,
 } from '../agent/ball-board'
 import { CRM_TOUCH_TOOLS } from '../agent/crm-touch-tools'
+import { TABLE as MEETINGS_TABLE } from './meeting-reminders.gen'
 import {
   askForInput,
   resetInputRequestsForTests,
@@ -54,6 +65,7 @@ interface Tables {
   browser?: Array<Record<string, unknown>>
   approvals?: Array<Record<string, unknown>>
   journal?: Array<Record<string, unknown>>
+  meetings?: Array<Record<string, unknown>>
 }
 
 /** A pool that answers by table name and records every statement. */
@@ -78,6 +90,8 @@ function stubPool(t: Tables) {
         return { rows: t.approvals ?? [] }
       if (/^\s*SELECT/.test(q) && q.includes('FROM browser_journal'))
         return { rows: t.journal ?? [] }
+      if (/^\s*SELECT/.test(q) && q.includes(`FROM ${MEETINGS_TABLE}`))
+        return { rows: t.meetings ?? [] }
       return { rows: [] }
     },
   }
@@ -95,6 +109,8 @@ function stubCrm(waiting: Array<Record<string, unknown>>) {
 type Board = {
   total: number
   unspecced: number
+  automated: number
+  pooled: number
   counts: Record<string, number>
   sources: Record<string, { status: string; cards: number; age_h?: number }>
   clients: Array<{
@@ -633,9 +649,271 @@ describe('automation/ball-board -- the spec, against the host', () => {
     expect(b2.sources.browser).toMatchObject({ status: 'empty', cards: 0 })
   })
 
+  it('a meeting that ended unanswered is due, one within a day is ours', async () => {
+    expect(meetingBall(true, false, false)).toBe(SPEC.BALL_DUE)
+    expect(meetingBall(true, true, false)).toBe(SPEC.BALL_NONE)
+    expect(meetingBall(false, false, true)).toBe(SPEC.BALL_OURS)
+    expect(meetingBall(false, false, false)).toBe(SPEC.BALL_NONE)
+    expect(SPEC.MEETING_SOON_H).toBe(24)
+    expect(SPEC.MEETING_AHEAD_H).toBe(168)
+    expect(SPEC.MEETING_ASK_BACK_H).toBe(72)
+    expect(cardSpec(SPEC.SOURCE_MEETING, '')).toBe(SPEC.SPEC_OF_MEETING)
+
+    const me = '900000556'
+    stubCrm([])
+    const at = (h: number) => new Date(Date.now() + h * 3_600_000)
+    const pool = stubPool({
+      meetings: [
+        {
+          id: 1,
+          title: 'standup',
+          starts_at: at(-3),
+          ends_at: at(-2),
+          mode: 'online',
+          status: 'planned',
+        },
+        {
+          id: 2,
+          title: 'demo',
+          starts_at: at(5),
+          ends_at: at(6),
+          mode: 'online',
+          status: 'planned',
+        },
+        {
+          id: 3,
+          title: 'dinner',
+          starts_at: at(72),
+          ends_at: at(74),
+          mode: 'offline',
+          status: 'planned',
+        },
+      ],
+    })
+    const b = await board(pool, me)
+    const sel = pool.sql.findIndex(q => q.includes(`FROM ${MEETINGS_TABLE}`))
+    // The window and the open status are the spec's, passed, not restated.
+    expect(pool.params[sel]).toEqual([
+      me,
+      SPEC.MEETING_OPEN_STATUS,
+      SPEC.MEETING_AHEAD_H,
+      SPEC.MEETING_ASK_BACK_H,
+    ])
+    expect(b.sources.meeting).toMatchObject({ status: 'ok', cards: 3 })
+    const cards = b.clients.flatMap(c => c.cards)
+    const ball = (ref: string) => cards.find(c => c.ref === ref)?.ball
+    expect(ball('1')).toBe(SPEC.BALL_DUE)
+    expect(ball('2')).toBe(SPEC.BALL_OURS)
+    expect(ball('3')).toBe(SPEC.BALL_NONE)
+    expect(cards.every(c => c.source === SPEC.SOURCE_MEETING)).toBe(true)
+  })
+
+  it("a meeting card is the caller's own and carries no token, link or place", async () => {
+    expect(SPEC.MEETING_OWN_ONLY).toBe(true)
+    expect(SPEC.MEETING_CARD_NO_TOKEN).toBe(true)
+    for (const f of ['title', 'starts_at', 'ends_at', 'mode', 'status'])
+      expect(meetingFieldShown(f)).toBe(true)
+    for (const f of ['tap_token', 'ics_token', 'url', 'place', 'notes'])
+      expect(meetingFieldShown(f)).toBe(false)
+
+    const me = '900000557'
+    stubCrm([])
+    const pool = stubPool({
+      meetings: [
+        {
+          id: 7,
+          title: 'call',
+          starts_at: new Date(Date.now() + 3_600_000),
+          ends_at: new Date(Date.now() + 7_200_000),
+          mode: 'online',
+          status: 'planned',
+          tap_token: 'SECRET',
+          url: 'https://meet.example/SECRET',
+          place: 'SECRET street',
+        },
+      ],
+    })
+    const b = await board(pool, me)
+    const sel = pool.sql.findIndex(q => q.includes(`FROM ${MEETINGS_TABLE}`))
+    expect(pool.params[sel]?.[0]).toBe(me)
+    expect(pool.sql[sel]).toMatch(/WHERE telegram_id = \$1/)
+    expect(pool.sql[sel]).not.toMatch(/\*|token|\burl\b|\bplace\b|notes/)
+    for (const f of MEETING_FIELDS) expect(pool.sql[sel]).toContain(f)
+    const card = b.clients[0].cards[0]
+    expect(card.link).toBeNull()
+    expect(card.spec).toBe(SPEC.SPEC_OF_MEETING)
+    expect(JSON.stringify(b)).not.toContain('SECRET')
+
+    // Nobody ever booked a meeting: no table is an empty source, not an outage.
+    const none = {
+      sql: [] as string[],
+      params: [] as unknown[][],
+      async query(q: string, p: unknown[] = []) {
+        if (q.includes(`FROM ${MEETINGS_TABLE}`))
+          throw new Error(`relation "${MEETINGS_TABLE}" does not exist`)
+        return stubPool({}).query(q, p)
+      },
+    }
+    const b2 = await board(none as never, me)
+    expect(b2.sources.meeting).toMatchObject({ status: 'empty', cards: 0 })
+  })
+
+  it("a matter only machines or the owner wrote is nobody's move", async () => {
+    for (const m of ['noreply', 'dmarc', 'notification'])
+      expect(automatedMarker(m)).toBe(true)
+    for (const m of ['help', 'jobs']) expect(automatedMarker(m)).toBe(false)
+    expect(nobodyToAnswer(2, 2)).toBe(true)
+    expect(nobodyToAnswer(2, 1)).toBe(false)
+    expect(nobodyToAnswer(0, 0)).toBe(false)
+    expect(mailBallWeighed('us', true)).toBe(SPEC.BALL_NONE)
+    expect(mailBallWeighed('us', false)).toBe(SPEC.BALL_OURS)
+    expect(mailBallWeighed('them', false)).toBe(SPEC.BALL_THEIRS)
+    expect(SPEC.OWN_DOMAIN).toBe('t27.ai')
+    expect(SPEC.AUTOMATED_IS_COUNTED).toBe(true)
+    expect(SPEC.AUTOMATED_SEEN).toBe(5)
+
+    // The addresses the live board showed as "a reply owed", 2026-10-01.
+    for (const a of [
+      'reports@fastmaildmarc.com',
+      'dmarcreport@microsoft.com',
+      'openscienceframework-noreply@osf.io',
+      'identity@notification.elsevier.com',
+      'No-Reply <no-reply@example.org>',
+      'dmitrii.f@t27.ai',
+    ])
+      expect(machineOrOwn(a)).toBe(true)
+    // People stay people, however official the mailbox sounds.
+    for (const a of [
+      'help@arxiv.org',
+      'em@editorialmanager.com',
+      'jobs@m-labs.hk',
+      'fchollet@google.com',
+    ])
+      expect(machineOrOwn(a)).toBe(false)
+
+    stubCrm([])
+    const mail = (matter: string, counterparties: string[]) => ({
+      matter,
+      owes_reply: 'us',
+      stage: 'contacted',
+      counterparties,
+      exported_at: hoursAgo(1),
+    })
+    const b = await board(
+      stubPool({
+        mail: [
+          mail('fastmaildmarc.com', ['reports@fastmaildmarc.com']),
+          mail('t27.ai', ['dmitrii.f@t27.ai', 'admin@t27.ai']),
+          mail('arxiv.org', ['e-prints@arxiv.org', 'help@arxiv.org']),
+          mail('nobody listed', []),
+        ],
+      })
+    )
+    const ball = (ref: string) =>
+      b.clients.flatMap(c => c.cards).find(c => c.ref === ref)?.ball
+    expect(ball('fastmaildmarc.com')).toBe(SPEC.BALL_NONE)
+    expect(ball('t27.ai')).toBe(SPEC.BALL_NONE)
+    // One human address keeps jcrm's decision.
+    expect(ball('arxiv.org')).toBe(SPEC.BALL_OURS)
+    expect(ball('nobody listed')).toBe(SPEC.BALL_OURS)
+    // Counted, never dropped.
+    expect(b.automated).toBe(2)
+    expect(b.sources.mail.cards).toBe(4)
+  })
+
+  it("a relay's no-reply speaks for a person", async () => {
+    expect(relayDomain('hh.ru')).toBe(true)
+    expect(relayDomain('spb.hh.ru')).toBe(true)
+    expect(relayDomain('osf.io')).toBe(false)
+    expect(relayDomain('fastmaildmarc.com')).toBe(false)
+    expect(SPEC.RELAY_DOMAIN).toBe('hh.ru')
+    expect(SPEC.RELAY_SEEN).toBe(48)
+
+    // "A message from the employer" arrives from hh.ru's no-reply.
+    expect(machineOrOwn('noreply@hh.ru')).toBe(false)
+    expect(machineOrOwn('openscienceframework-noreply@osf.io')).toBe(true)
+
+    stubCrm([])
+    const b = await board(
+      stubPool({
+        mail: [
+          {
+            matter: 'Bell Integrator',
+            owes_reply: 'us',
+            stage: 'contacted',
+            counterparties: ['noreply@hh.ru'],
+            exported_at: hoursAgo(1),
+          },
+          {
+            matter: 'osf.io',
+            owes_reply: 'us',
+            stage: 'contacted',
+            counterparties: ['openscienceframework-noreply@osf.io'],
+            exported_at: hoursAgo(1),
+          },
+        ],
+      })
+    )
+    const ball = (ref: string) =>
+      b.clients.flatMap(c => c.cards).find(c => c.ref === ref)?.ball
+    expect(ball('Bell Integrator')).toBe(SPEC.BALL_OURS)
+    expect(ball('osf.io')).toBe(SPEC.BALL_NONE)
+    expect(b.automated).toBe(1)
+  })
+
+  it("a mailbox provider's matter is not one client", async () => {
+    expect(pooledMatter(true, 2)).toBe(true)
+    expect(pooledMatter(true, 4)).toBe(true)
+    expect(pooledMatter(true, 1)).toBe(false)
+    expect(pooledMatter(false, 4)).toBe(false)
+    expect(sharedDomain('gmail.com')).toBe(true)
+    expect(sharedDomain('groups.io')).toBe(true)
+    expect(sharedDomain('google.com')).toBe(false)
+    expect(SPEC.POOLED_IS_COUNTED).toBe(true)
+    expect(SPEC.POOLED_SEEN).toBe(2)
+    expect(SPEC.CRM_MAIL_OVERLAP_SEEN).toBe(0)
+
+    stubCrm([])
+    const mail = (matter: string, stage: string, counterparties: string[]) => ({
+      matter,
+      owes_reply: 'none',
+      stage,
+      counterparties,
+      exported_at: hoursAgo(1),
+    })
+    const b = await board(
+      stubPool({
+        mail: [
+          // Two people under one terminal stage: a mailbox, not a client.
+          mail('gmail.com', 'rejected', ['ann@gmail.com', 'bob@gmail.com']),
+          // One person on a shared domain is still one person.
+          mail('mail.ru', 'contacted', ['eve@mail.ru']),
+          // A machine does not make a crowd.
+          mail('groups.io', 'contacted', [
+            'noreply@groups.io',
+            'kim@groups.io',
+          ]),
+          // A company's own domain is one client, however many write.
+          mail('google.com', 'contacted', ['a@google.com', 'b@google.com']),
+        ],
+      })
+    )
+    const card = (ref: string) =>
+      b.clients.flatMap(c => c.cards).find(c => c.ref === ref)
+    expect(b.pooled).toBe(1)
+    expect(card('gmail.com')?.because).toBe(
+      '2 people share gmail.com: one stage for all of them'
+    )
+    // The ball stays jcrm's: there is no per-person stage to put in its place.
+    expect(card('gmail.com')?.ball).toBe(SPEC.BALL_NONE)
+    expect(card('mail.ru')?.because).toBe('contacted')
+    expect(card('groups.io')?.because).toBe('contacted')
+    expect(card('google.com')?.because).toBe('contacted')
+  })
+
   it('the board is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(3)
+    expect(SPEC.VERSION).toBe(7)
     expect(BALL_BOARD_TOOLS.map(t => t.name)).toEqual([
       SPEC.TOOL,
       SPEC.PUSH_TOOL,

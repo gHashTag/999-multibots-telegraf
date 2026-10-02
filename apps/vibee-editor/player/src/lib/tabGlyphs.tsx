@@ -1,5 +1,13 @@
 import type { ReactNode } from 'react'
-import { Globe, Hexagon, Home, Sparkles, User, Users } from 'lucide-react'
+import {
+  Film,
+  Globe,
+  Hexagon,
+  ListTodo,
+  Sparkles,
+  User,
+  Users,
+} from 'lucide-react'
 
 /**
  * The glyphs the shared list may name. The list (render/src/navigation.json)
@@ -9,10 +17,11 @@ import { Globe, Hexagon, Home, Sparkles, User, Users } from 'lucide-react'
  * (Globe and Bot in the list, Home and Users on the screen).
  */
 export const TAB_GLYPHS: Record<string, ReactNode> = {
-  Home: <Home size={20} />,
+  Film: <Film size={20} />,
   Users: <Users size={20} />,
   Globe: <Globe size={20} />,
   Sparkles: <Sparkles size={20} />,
   Hexagon: <Hexagon size={20} />,
+  ListTodo: <ListTodo size={20} />,
   User: <User size={20} />,
 }

@@ -81,11 +81,17 @@ export interface ClubCallOptions {
   key?: string
 }
 
-async function callClub(
-  path: '/api/club/status' | '/api/club/invoice' | '/api/club/verify',
+/**
+ * One call to the render's cashier for one person, with the server key.
+ * Shared by every Stars product the render sells (the club, agent packages):
+ * one client, one timeout, one way of telling "unavailable" from "no".
+ */
+export async function callCashier(
+  path: string,
   method: 'GET' | 'POST',
   telegramId: string,
-  opts: ClubCallOptions
+  opts: ClubCallOptions,
+  query: Record<string, string> = {}
 ): Promise<Record<string, any>> {
   const id = String(telegramId ?? '').trim()
   if (!/^\d{5,15}$/.test(id)) {
@@ -102,7 +108,7 @@ async function callClub(
   const timer = setTimeout(() => ac.abort(), TIMEOUT_MS)
   try {
     const res = await doFetch(
-      `${RENDER}${path}?telegram_id=${encodeURIComponent(id)}`,
+      `${RENDER}${path}?${new URLSearchParams({ ...query, telegram_id: id })}`,
       {
         method,
         headers: { 'X-Api-Key': key, 'Content-Type': 'application/json' },
@@ -164,7 +170,9 @@ export async function fetchClubStatus(
   telegramId: string,
   opts: ClubCallOptions = {}
 ): Promise<ClubStatus> {
-  return readStatus(await callClub('/api/club/status', 'GET', telegramId, opts))
+  return readStatus(
+    await callCashier('/api/club/status', 'GET', telegramId, opts)
+  )
 }
 
 /**
@@ -175,7 +183,7 @@ export async function requestClubInvoice(
   telegramId: string,
   opts: ClubCallOptions = {}
 ): Promise<ClubInvoice> {
-  const b = await callClub('/api/club/invoice', 'POST', telegramId, opts)
+  const b = await callCashier('/api/club/invoice', 'POST', telegramId, opts)
   if (b.already_active) {
     return {
       kind: 'member',
@@ -219,7 +227,7 @@ export async function confirmClubPayment(
   telegramId: string,
   opts: ClubCallOptions = {}
 ): Promise<ClubBooking> {
-  const b = await callClub('/api/club/verify', 'POST', telegramId, opts)
+  const b = await callCashier('/api/club/verify', 'POST', telegramId, opts)
   const credited = Number(b['зачислено_токенов']) // cyrillic-ok: the render's field name
   return {
     active: b.active === true,

@@ -11,6 +11,12 @@ import { MODEL as LEAD_MAGNET_MODEL } from '../spec/crm-lead-magnet.gen'
 // Which models the route sells as VIDEO. A module without imports, like the two above.
 import { ВИДИМЫЕ_ИМЕНА } from './kie-display-names' // cyrillic-ok: existing export name
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
+// The rate, the markup and the start gift: specs/automation/token-wallet.t27.
+import {
+  MARKUP,
+  START_TOKENS,
+  TOKEN_USD,
+} from '../../../packages/vibee-atoms/src/token-wallet'
 
 /**
  * THE REPLICATE LEG OF /api/generate/video, AND WHAT ONE SECOND OF IT COSTS.
@@ -79,7 +85,7 @@ export function replicateClipModel(seconds: ReplicateVideoLength): string {
  * он уже оплачен на слое инструментов.
  */
 
-export const COST_PER_TOKEN_USD = 0.005
+export const COST_PER_TOKEN_USD = TOKEN_USD
 /** Себестоимость операций, $ (оценки Replicate/рынка — см. PRICING.md). */
 export const OPERATION_COST_USD: Record<string, number> = {
   image_generate: 0.003,
@@ -157,7 +163,7 @@ export const OPERATION_COST_USD: Record<string, number> = {
  * таблице готовых чисел, не пересчитывается при смене прайса провайдера и
  * тихо превращается в убыток.
  */
-export const НАЦЕНКА = 2.0
+export const НАЦЕНКА = MARKUP // cyrillic-ok: existing markup constant
 
 /**
  * COSTS THE KIE PRICE LIST DOES NOT NAME, EACH WITH WHO NAMED IT AND WHEN.
@@ -862,7 +868,7 @@ type Pool = {
 
 async function ensureRow(pool: Pool, tid: string): Promise<void> {
   // The welcome grant is a movement too: recorded once, as 'grant'.
-  await grantWelcomeIfNew(pool, tid, 20)
+  await grantWelcomeIfNew(pool, tid, START_TOKENS)
 }
 
 /**

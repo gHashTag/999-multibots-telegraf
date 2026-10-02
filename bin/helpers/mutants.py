@@ -102,6 +102,125 @@ def stale(path: str) -> list:
     return out
 
 
+def reanchor(path: str) -> int:
+    """tri mutants --reanchor <list.json>: follow an INDENT-ONLY move.
+
+    Wrapping code in one more element re-indents it, and every mutation
+    anchored inside goes stale although not one token changed. CRM loop
+    ticks 6 and 10 (01.10.2026) re-anchored such lists by hand. This fixes
+    exactly that case: the `from` found once with only its leading
+    whitespace different, shifted by one amount on every line. `to` gets
+    the same shift. Anything else is left stale and named -- a changed
+    token needs a human to say what the mutation should now be.
+    """
+    import re
+
+    with io.open(path, encoding='utf-8') as fh:
+        muts = json.load(fh)
+    fixed, left = 0, []
+    for i, m in enumerate(muts):
+        label = m.get('name') or m['from'].strip().splitlines()[0][:60]
+        try:
+            s = io.open(m['file'], encoding='utf-8').read()
+        except OSError:
+            left.append(f'#{i + 1} {m["file"]}: no such file ({label})')
+            continue
+        if s.count(m['from']) == 1:
+            continue
+        old = m['from'].split('\n')
+        pat = ''.join(
+            ('\n' if k else '')
+            + ('[ \t]*' if (k or line[:1] in ' \t') else '')
+            + re.escape(line.lstrip(' \t'))
+            for k, line in enumerate(old)
+        )
+        found = list(re.finditer(pat, s))
+        if len(found) != 1:
+            left.append(f'#{i + 1} {m["file"]}: {len(found)} indent-blind matches ({label})')
+            continue
+        new = found[0].group(0).split('\n')
+        width = lambda x: len(x) - len(x.lstrip(' \t'))
+        shifts = {width(n) - width(o) for o, n in zip(old, new) if o.strip()}
+        if len(shifts) != 1:
+            left.append(f'#{i + 1} {m["file"]}: lines moved by different amounts ({label})')
+            continue
+        d = shifts.pop()
+
+        def move(line: str, first: bool) -> str:
+            if first and line[:1] not in ' \t':
+                return line
+            if not line.strip():
+                return line
+            return ' ' * max(0, width(line) + d) + line.lstrip(' \t')
+
+        m['from'] = found[0].group(0)
+        m['to'] = '\n'.join(move(x, k == 0) for k, x in enumerate(m['to'].split('\n')))
+        fixed += 1
+        print(f'reanchored  #{i + 1} {m["file"]}: indent {d:+d} ({label})')
+    if fixed:
+        with io.open(path, 'w', encoding='utf-8') as fh:
+            fh.write(json.dumps(muts, ensure_ascii=False, indent=2) + '\n')
+    for line in left:
+        print(f'STILL STALE  {line}')
+    print(f'{path}: {fixed} reanchored, {len(left)} left stale')
+    return 1 if left else 0
+
+
+def adopt(args: list) -> int:
+    """tri mutants --adopt <proven.json> <guards.json>: keep a batch for good.
+
+    A cron loop keeps every proven mutation in a guard list that
+    `tri loop-guard start` re-runs (paths from the repo root). The batch was
+    run from the package, so its paths are relative to there. CRM loop ticks
+    7 and 8 (01.10.2026) moved them across by hand: a python one-off that
+    prefixed the paths, and once rewrote the whole list with a different
+    indent -- a 390-line diff for six entries. This re-roots the paths, skips
+    what the list already holds, keeps its two-space JSON and checks every
+    anchor of the result before writing it.
+    """
+    if len(args) != 2:
+        print('tri mutants --adopt <proven.json> <guards.json>  (run where the batch ran)')
+        return 2
+    src, dst = args
+    root = subprocess.run(
+        ['git', 'rev-parse', '--show-toplevel'], capture_output=True, text=True
+    ).stdout.strip()
+    here = os.path.relpath(os.getcwd(), root) if root else '.'
+    with io.open(src, encoding='utf-8') as fh:
+        new = json.load(fh)
+    with io.open(dst, encoding='utf-8') as fh:
+        old = json.load(fh)
+    seen = {(m['file'], m['from'], m['to']) for m in old}
+    added = 0
+    for m in new:
+        m = dict(m)
+        if here != '.':
+            m['file'] = os.path.normpath(os.path.join(here, m['file']))
+        if (m['file'], m['from'], m['to']) in seen:
+            continue
+        seen.add((m['file'], m['from'], m['to']))
+        old.append(m)
+        added += 1
+    tmp = dst + '.adopt'
+    with io.open(tmp, 'w', encoding='utf-8') as fh:
+        fh.write(json.dumps(old, ensure_ascii=False, indent=2) + '\n')
+    # The guard list's paths are from the repo root: check from there.
+    cwd = os.getcwd()
+    tmp_abs = os.path.abspath(tmp)
+    os.chdir(root or '.')
+    problems = stale(tmp_abs)
+    os.chdir(cwd)
+    if problems:
+        os.remove(tmp)
+        print(f'NOT adopted -- the result would hold {len(problems)} stale anchor(s):')
+        for line in problems:
+            print(f'  {line}')
+        return 1
+    os.replace(tmp, dst)
+    print(f'{dst}: +{added} ({len(new) - added} already there), {len(old)} in all, anchors ok')
+    return 0
+
+
 def main() -> int:
     args = sys.argv[1:]
     if args[:1] == ['--heal']:
@@ -109,6 +228,15 @@ def main() -> int:
     # A batch never starts on top of a mutant a killed batch left behind.
     if heal() != 0:
         return 2
+    if args[:1] == ['--adopt']:
+        return adopt(args[1:])
+    if args[:1] == ['--reanchor']:
+        # Paths in the list are relative to where it is run (the repo root
+        # for a loop's guard list).
+        if len(args) != 2:
+            print('tri mutants --reanchor <list.json>  (run where its paths start)')
+            return 2
+        return reanchor(args[1])
     if args[:1] == ['--check']:
         # tri mutants --check <list.json>... : anchors only, nothing runs.
         if len(args) < 2:
@@ -198,6 +326,19 @@ def main() -> int:
                 != 0
             )
         finally:
+            # Someone edited the file while it held the mutant (CRM loop tick
+            # 7, 01.10.2026: a batch ran in the background while the next
+            # item was about to be written). Writing `original` back would
+            # erase that edit without a word -- keep it beside the file.
+            try:
+                now = io.open(f, encoding='utf-8').read()
+            except OSError:
+                now = mutated
+            if now != mutated:
+                kept = f + '.edited-during-mutants'
+                io.open(kept, 'w', encoding='utf-8').write(now)
+                print(f'WARNING  {f} changed during mutation #{i + 1}: the edit '
+                      f'(mutant included) is kept in {kept}')
             io.open(f, 'w', encoding='utf-8').write(original)
             if os.path.exists(jp):
                 os.remove(jp)

@@ -1,0 +1,50 @@
+[
+  {
+    "name": "denied app session is accepted",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "!allowed || (via !== 'session' && via !== 'telegram')",
+    "to": "via !== 'session' && via !== 'telegram'"
+  },
+  {
+    "name": "game token may manage keys",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "via !== 'session' && via !== 'telegram'",
+    "to": "via !== 'session' && via !== 'telegram' && via !== 'game'"
+  },
+  {
+    "name": "maximum subject is rejected",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "telegramId.length > SPEC.MAX_SUBJECT_DIGITS",
+    "to": "telegramId.length >= SPEC.MAX_SUBJECT_DIGITS"
+  },
+  {
+    "name": "UTF8 byte bound becomes a code unit bound",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "if (Buffer.byteLength(raw) > SPEC.BODY_MAX_BYTES) return null",
+    "to": "if (raw.length > SPEC.BODY_MAX_BYTES) return null"
+  },
+  {
+    "name": "maximum secret is rejected",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "value.apiKey.length > SPEC.MAX_SECRET_CHARS",
+    "to": "value.apiKey.length >= SPEC.MAX_SECRET_CHARS"
+  },
+  {
+    "name": "maximum label is rejected",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "value.label.length > SPEC.MAX_LABEL_CHARS ||\n        /[\\r\\n\\x00]/.test(value.label)",
+    "to": "value.label.length >= SPEC.MAX_LABEL_CHARS ||\n        /[\\r\\n\\x00]/.test(value.label)"
+  },
+  {
+    "name": "client owner field is accepted",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "['provider', 'apiKey', 'label'].includes(k)",
+    "to": "['provider', 'apiKey', 'label', 'owner'].includes(k)"
+  },
+  {
+    "name": "unsafe integer key ID is accepted",
+    "file": "src/hive/contributor-keys-route.ts",
+    "from": "!Number.isSafeInteger(Number(match[1]))",
+    "to": "!Number.isInteger(Number(match[1]))"
+  }
+]
