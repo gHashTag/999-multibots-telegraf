@@ -927,6 +927,8 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
    * big-context agent connecting the clone, not for a DM with a client.
    */
   'browser_logins',
+  /* Closing litter tabs on the owner's yes (tab-tidy.ts): housekeeping, not a DM. */
+  'browser_tidy',
   /* Traffic by channel (#2974): the owner's dashboard question, not a DM's. */
   'crm_traffic',
   'agent_avatars_make',
