@@ -11,7 +11,8 @@
  *   neurophoto  nerofoto, neirofato
  *   hive (tab)  uli                          (both times)
  *   lead magnet lit-magnit, lidmagnit (no hyphen)
- *   Vibee       Vaibe with a Latin b and e
+ *   Vibee       Vaibe with a Latin b and e; after the deploy, V-y-be
+ *               (a Latin V where the Cyrillic "a" was)
  *
  * The words are written in Cyrillic in the table below; this comment spells
  * them in Latin only because comments here are English.
@@ -65,7 +66,11 @@ const FIXES: Record<VoiceLang, readonly Fix[]> = {
     // Vibee, heard half in Latin ("Vaib" in Cyrillic plus a Latin "be" or
     // "e"). A wholly Cyrillic "vaibe" is a real word ("in the vibe") and is
     // left alone, which is why these run BEFORE the look-alikes are mended.
-    { heard: ['вайbe', 'вайбe', 'вайbе'], said: 'Вайби', endings: [''] },
+    {
+      heard: ['вайbe', 'вайбe', 'вайbе', 'вvйbe'],
+      said: 'Вайби',
+      endings: [''],
+    },
   ],
   en: [],
 }

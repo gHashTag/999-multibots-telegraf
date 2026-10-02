@@ -52,6 +52,8 @@ struct AgentChatView: View {
   /// What answering a card said, per turn: a refusal must be readable.
   @State private var proposalNotes: [UUID: String] = [:]
   @State private var answering: Set<UUID> = []
+  /// Voice in the chat (VoiceInput.swift): the mic beside the field.
+  @StateObject private var voice = VoiceInput()
 
   struct Реплика: Identifiable, Codable, Equatable {
     /// `var`, а не `let`: `let id = UUID()` при декодировании даёт новый
@@ -591,6 +593,8 @@ struct AgentChatView: View {
             .strokeBorder(Тема.Чат.граница, lineWidth: Тема.Чат.толщинаГраницы)
         )
 
+      micButton
+
       /**
        * Кнопка СЛОВОМ и сплошным зелёным, а не иконкой-стрелкой.
        *
@@ -626,6 +630,76 @@ struct AgentChatView: View {
       // `border-top: 1px solid var(--t27-border)` — Chat.css:206.
       Тема.Чат.граница.frame(height: Тема.Чат.толщинаГраницы)
     }
+  }
+
+  /**
+   * The mic: press to speak, press again to send what was heard.
+   *
+   * The heard words travel as an ordinary message through the same send as
+   * typing, so the agent, its tools and the shared history see no
+   * difference; only the answer to a SPOKEN question is read aloud. Anything
+   * already typed stays in front of the spoken words rather than being lost.
+   */
+  private var micButton: some View {
+    Button {
+      Task { await pressMic() }
+    } label: {
+      Group {
+        switch voice.phase {
+        case .idle:
+          Image(systemName: "mic.fill").foregroundStyle(Тема.Чат.акцент)  // cyrillic-ok: existing state
+        case .listening:
+          Image(systemName: "stop.fill").foregroundStyle(.red)
+        case .hearing:
+          ProgressView()
+        }
+      }
+      .font(.system(size: 18, weight: .semibold))
+      .frame(width: Тема.Чат.высотаПоля, height: Тема.Чат.высотаПоля)  // cyrillic-ok: existing state
+      .overlay(
+        RoundedRectangle(cornerRadius: Тема.Чат.радиусПоля)  // cyrillic-ok: existing state
+          .strokeBorder(
+            voice.phase == .listening ? Color.red : Тема.Чат.граница,  // cyrillic-ok: existing state
+            lineWidth: Тема.Чат.толщинаГраницы)  // cyrillic-ok: existing state
+      )
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(
+      voice.phase == .listening
+        ? say("Stop and send", "Остановить и отправить")
+        : say("Speak", "Сказать голосом"))
+    // While the agent answers, a new question would interleave two turns;
+    // a recording already running may always be stopped.
+    .disabled(voice.phase == .hearing || (идёт && voice.phase == .idle))  // cyrillic-ok: existing state
+    .opacity(идёт && voice.phase == .idle ? 0.5 : 1)  // cyrillic-ok: existing state
+  }
+
+  private func pressMic() async {
+    switch voice.phase {
+    case .idle:
+      if let problem = await voice.start() { notice(problem) }
+    case .listening:
+      switch await voice.finish() {
+      case .words(let heard):
+        let typed = ввод.trimmingCharacters(in: .whitespacesAndNewlines)  // cyrillic-ok: existing state
+        ввод = typed.isEmpty ? heard : typed + " " + heard  // cyrillic-ok: existing state
+        await отправить()  // cyrillic-ok: existing state
+        if let answer = сообщения.last, !answer.свой { await voice.speak(answer.текст) }  // cyrillic-ok: existing state
+      case .nothing:
+        notice(say("I did not catch any words. Press the mic and try again.",
+                   "Не расслышал ни слова. Нажмите микрофон и скажите ещё раз."))
+      case .problem(let problem):
+        notice(problem)
+      }
+    case .hearing:
+      break
+    }
+  }
+
+  /// A word from the app itself, in the agent's place in the chat.
+  private func notice(_ text: String) {
+    сообщения.append(.init(свой: false, текст: text))  // cyrillic-ok: existing state
   }
 
   private func отправить() async {
