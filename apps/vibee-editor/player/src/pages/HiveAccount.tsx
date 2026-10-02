@@ -221,11 +221,16 @@ export default function HiveAccount() {
       .catch(() => catalogRequests.current.delete(provider))
   }
 
+  /** Whether applying `model` would change at least one key of the provider. */
+  const differs = (provider: HiveKey['provider'], model: string) =>
+    !!account?.keys.some(
+      key => key.provider === provider && key.model !== model
+    )
+
   const switchModel = (provider: HiveKey['provider']) => {
     if (busy || !account) return
     const model = (drafts[provider] ?? '').trim()
-    const current = account.providers.find(row => row.id === provider)
-    if (!model || model === current?.model) return
+    if (!model || !differs(provider, model)) return
     void perform(
       async signal => {
         const result = await setHiveModel({ provider, model }, signal)
@@ -380,7 +385,7 @@ export default function HiveAccount() {
                     ).length
                     const draft = drafts[provider.id] ?? provider.model
                     const changed =
-                      draft.trim() !== '' && draft.trim() !== provider.model
+                      draft.trim() !== '' && differs(provider.id, draft.trim())
                     return (
                       <li
                         key={provider.id}
