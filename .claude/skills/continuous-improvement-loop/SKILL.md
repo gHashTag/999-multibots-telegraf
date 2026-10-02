@@ -180,7 +180,11 @@ skip» записана в спеке (`meta-connect.t27`, навык `t27-spec-
   never offer it to the owner). What is missing is the App Store Connect
   record - the account holder's click (the API cannot create an app):
   Name Trinity S³AI, bundle id `ai.t27.trinity`, SKU `trinity-s3ai`.
-  Then `tri iphone testflight --yes`, on his "yes" only.
+  Each tick asks `./tri iphone state` (read-only, seconds): exit 3 = the
+  record is still missing, keep waiting; 0 = it exists, then
+  `./tri iphone testflight --yes` (the owner's "yes" for the FIRST upload
+  was given on 2026-10-03) and once `./tri iphone metadata --yes`. Do not
+  poll from a scratch Fastfile in /tmp: a reboot erases it between ticks.
 - XAI_API_KEY отсутствует, ELEVENLABS_API_KEY хранит идентификатор вместо
   ключа, баланс fal.ai исчерпан: три вида генерации из пяти мертвы.
 - Диск был заполнен на 100%. Держат: Docker 13 ГБ (демон не запущен,
