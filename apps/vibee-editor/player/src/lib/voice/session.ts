@@ -366,14 +366,18 @@ export class VoiceSession {
   }
 
   /**
-   * A typed question, for when there is no microphone. It goes to the chat
-   * like a spoken one and the answer is spoken the same way. Called from the
-   * form's submit, which is the gesture iOS wants before it plays sound.
+   * A typed question: with no microphone, or typed into the chat's own box
+   * while voice mode is on (it lives inside the chat now, as ChatGPT's does
+   * since 2025-11-25). It goes to the chat like a spoken one and the answer
+   * is spoken the same way. Called from the form's submit, which is the
+   * gesture iOS wants before it plays sound.
    */
   type(text: string): void {
     const words = text.trim()
-    if (!words || !this.snap.keyboard) return
-    // A new question replaces whatever was still being said.
+    if (!words || this.snap.phase === 'off') return
+    // A new question replaces whatever was still being said, and a phrase
+    // half-recorded meanwhile is not a second question.
+    this.dropRecording()
     this.silence()
     try {
       this.openContext()
