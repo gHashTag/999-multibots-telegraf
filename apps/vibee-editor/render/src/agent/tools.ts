@@ -942,6 +942,53 @@ async function spendTokens(
   return { ok: true, потрачено: price, осталось: r.balance }
 }
 
+/** Our voice-clone service's queue: one line at a time, as it speaks. */
+let ourCloneQueue: Promise<unknown> = Promise.resolve()
+const OUR_CLONE_BUSY_RETRIES = 4
+const OUR_CLONE_BUSY_WAIT_MS = 20_000
+
+/**
+ * The owner's line spoken by our own voice-clone service (voice-clone-speak.ts),
+ * found in the registry at call time: the tool is pushed after TOOLS is
+ * declared. Its own owner gate still applies -- the owner's sample is lent to
+ * the owner and keepers only. The language is read off the line itself.
+ */
+async function ownerVoiceViaOurClone(
+  text: string,
+  ctx: ToolContext
+): Promise<
+  | { done: true; url: string; seconds: number | null }
+  | { done: false; reason: string }
+> {
+  const tool = TOOLS.find(t => t.name === 'voice_clone_speak')
+  if (!tool)
+    return { done: false, reason: 'voice_clone_speak is not registered' }
+  const lang = /[\u0400-\u04FF]/.test(text) ? 'ru' : 'en'
+  /*
+   * ONE AT A TIME. The service synthesises one line at a time on CPU and
+   * answers 429 to the next; story_reel voices every scene at once
+   * (Promise.all), so all but one scene used to fail. The lines queue here,
+   * and a line that still meets "busy" (another caller) waits and tries again.
+   */
+  const turn = ourCloneQueue.then(async () => {
+    let out: any
+    for (let attempt = 0; attempt < OUR_CLONE_BUSY_RETRIES; attempt++) {
+      if (attempt) await new Promise(r => setTimeout(r, OUR_CLONE_BUSY_WAIT_MS))
+      out = await tool.handler({ text, lang }, ctx).catch((e: unknown) => ({
+        done: false,
+        reason: String(e).slice(0, 160),
+      }))
+      if (!out?.busy) break
+    }
+    return out
+  })
+  ourCloneQueue = turn.catch(() => undefined)
+  const out: any = await turn
+  if (out?.done && out.url)
+    return { done: true, url: String(out.url), seconds: out.seconds ?? null }
+  return { done: false, reason: String(out?.reason || 'no audio') }
+}
+
 /**
  * ВОЗВРАТ токенов, если работа не сделана.
  *
@@ -2235,6 +2282,60 @@ export const TOOLS: AgentTool[] = [
       ) {
         cloneVoice = OWNER_MINIMAX_CLONE
         голосВладельца = true // cyrillic-ok: existing local
+      }
+      /*
+       * THE OWNER'S REEL SPEAKS IN THE OWNER'S VOICE (owner, 2026-10-03:
+       * "why doesn't the reel the bot sends me use my voice?"). The clone
+       * above lives on MiniMax-on-Replicate, and Replicate is switched off
+       * (replicate-off.ts), so every reel line failed or fell to a library
+       * voice. Our own voice-clone service speaks the same text from the
+       * owner's live sample, free -- so the charge goes back.
+       */
+      if (cloneVoice === OWNER_MINIMAX_CLONE && !replicateLive()) {
+        const ours = await ownerVoiceViaOurClone(
+          spokenBrand(String(args.text)),
+          ctx
+        )
+        if (!ours.done) {
+          await refundTokens(
+            ctx,
+            'audio_generate',
+            'провайдер не выполнил работу',
+            charge['потрачено']
+          )
+          noteVoiceFailed(ours.reason)
+          return {
+            сделано: false, // cyrillic-ok: the tools’ answer fields
+            причина: `голос владельца (наш сервис voice-clone): ${ours.reason}`,
+          }
+        }
+        noteVoiceWorked()
+        await refundTokens(
+          ctx,
+          'audio_generate',
+          'голос владельца озвучен нашим сервисом бесплатно',
+          charge['потрачено']
+        )
+        const r = await ctx.pool.query(
+          `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
+           VALUES ('voiceover', '', $1, '', $2, $3, 'agent')
+           RETURNING id, created_at::text`,
+          [ctx.telegramId, ours.url, String(args.text).slice(0, 500)]
+        )
+        // Spent 0: the charge went back above, so the answer must not
+        // carry a receipt for the table price (withTokens' default).
+        return withTokens(
+          ctx,
+          'audio_generate',
+          {
+            сделано: true, // cyrillic-ok: the tools’ answer fields
+            url: ours.url,
+            id: r.rows[0]?.id,
+            seconds: ours.seconds,
+            голос: 'клон владельца (наш сервис voice-clone)',
+          },
+          0
+        )
       }
       if (!voiceId && !cloneVoice) {
         await refundTokens(
