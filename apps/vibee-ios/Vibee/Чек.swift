@@ -18,8 +18,14 @@ import Foundation
  *   сюда последнее известное значение баланса нельзя: оно относится к моменту
  *   ДО генерации и назовёт остаток, которого уже нет.
  */
-func чекСтрокой(списано: Int, осталось: Int?) -> String {
-  let сумма = склонение(списано, "токен", "токена", "токенов")
-  guard let осталось else { return "Списано \(сумма)" }
-  return "Списано \(сумма) · осталось \(осталось)"
+func чекСтрокой(списано: Int, осталось: Int?, russian: Bool = speaksRussian) -> String {
+  if !russian {
+    let n = списано
+    let charged = "Charged \(n) token\(n == 1 ? "" : "s")"
+    guard let осталось else { return charged }
+    return "\(charged) · \(осталось) left"
+  }
+  let сумма = склонение(списано, "токен", "токена", "токенов")  // ru-only-ok: the Russian branch
+  guard let осталось else { return "Списано \(сумма)" }  // ru-only-ok: the Russian branch
+  return "Списано \(сумма) · осталось \(осталось)"  // ru-only-ok: the Russian branch
 }

@@ -1605,7 +1605,7 @@ struct GenerateScreen: View {
       Text(say("Tips", "Советы"))
         .font(Тема.Шрифт.стиль(.caption))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
-      ForEach(СоветыСценария.все, id: \.self) { совет in
+      ForEach(СоветыСценария.все(), id: \.self) { совет in
         HStack(alignment: .top, spacing: 8) {
           Text("•").foregroundStyle(Тема.Цвет.акцент)
           Text(совет)

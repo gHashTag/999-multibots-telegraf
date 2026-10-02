@@ -164,15 +164,19 @@ enum LayerBuildError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .пустаяКомпозиция:
-      return "В композиции нет кадров или fps равен нулю"
+      return say(
+        "The composition has no frames, or its fps is zero",
+        "В композиции нет кадров или fps равен нулю")
     case .изображениеНеЧитается(let s):
-      return "Не удалось прочитать изображение: \(s)"
+      return say("Could not read the image: ", "Не удалось прочитать изображение: ") + s
     case .неизвестныйЦвет(let s):
-      return "Не разобран цвет CSS: \(s)"
+      return say("Could not parse the CSS color: ", "Не разобран цвет CSS: ") + s
     case .градиентНеРазобран(let s):
-      return "Не разобран градиент CSS: \(s)"
+      return say("Could not parse the CSS gradient: ", "Не разобран градиент CSS: ") + s
     case .видеоНеСлой(let s):
-      return "Видеоклип \(s) не может быть слоем — он идёт дорожкой композиции"
+      return say(
+        "Video clip \(s) cannot be a layer: it plays as a composition track",
+        "Видеоклип \(s) не может быть слоем — он идёт дорожкой композиции")
     }
   }
 }
@@ -347,7 +351,7 @@ struct LayerBuilder {
     }
     обёртка.add(
       Self.видимость(clip: clip, всегоКадров: всегоКадров, fps: fps),
-      forKey: "видимость")
+      forKey: "видимость")  // ru-only-ok: animation key
 
     let лист = try await листовойСлой(clip: clip, стиль: стиль, вид: вид, размер: размер)
     лист.contentsScale = 1
@@ -661,7 +665,7 @@ extension LayerBuilder {
       let результат = фильтр.outputImage,
       let готово = ciКонтекст.createCGImage(результат, from: исходная.extent)
     else {
-      throw LayerBuildError.изображениеНеЧитается("размытие не удалось")
+      throw LayerBuildError.изображениеНеЧитается(say("blur failed", "размытие не удалось"))
     }
     return готово
   }

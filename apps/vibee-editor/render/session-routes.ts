@@ -1155,6 +1155,7 @@ export async function handleAuthRoute(
     if (!пуск.можно) {
       res.setHeader('Retry-After', String(пуск.ждатьСекунд))
       json(res, 429, {
+        code: 'too_often',
         error: 'слишком часто — подождите и попробуйте снова',
         ждать_секунд: пуск.ждатьСекунд,
       })
@@ -1165,7 +1166,10 @@ export async function handleAuthRoute(
     try {
       body = JSON.parse((await readBody(req)) || '{}')
     } catch {
-      json(res, 400, { error: 'тело запроса не разобрано как JSON' })
+      json(res, 400, {
+        code: 'bad_body',
+        error: 'тело запроса не разобрано как JSON',
+      })
       return true
     }
 
@@ -1179,6 +1183,8 @@ export async function handleAuthRoute(
      */
     if (!new RegExp(`^\\d{${PAIRING.DIGITS}}$`).test(code)) {
       json(res, 400, {
+        code: 'bad_length',
+        digits: PAIRING.DIGITS,
         error: `код должен быть из ${PAIRING.DIGITS} цифр`,
       })
       return true
@@ -1226,8 +1232,11 @@ export async function handleAuthRoute(
         what: outcome.reason,
         severity: outcome.reason === 'exhausted' ? 'alarm' : 'attention',
       })
+      // `code` repeats `reason` so every refusal on this door names itself
+      // in one field; `reason` stays for the clients already reading it.
       json(res, 401, {
         error: 'pairing_failed',
+        code: outcome.reason,
         reason: outcome.reason,
         detail,
       })

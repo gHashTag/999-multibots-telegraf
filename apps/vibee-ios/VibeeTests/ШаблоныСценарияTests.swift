@@ -88,7 +88,7 @@ final class ШаблоныСценарияTests: XCTestCase {
 
   func testСоветыТеЖеЧетыреЧтоВВебе() {
     // Две витрины, советующие разное, хуже одной, не советующей ничего.
-    XCTAssertEqual(СоветыСценария.все.count, 4)
-    XCTAssertTrue(СоветыСценария.все.allSatisfy { !$0.isEmpty })
+    XCTAssertEqual(СоветыСценария.все().count, 4)
+    XCTAssertTrue(СоветыСценария.все().allSatisfy { !$0.isEmpty })
   }
 }
