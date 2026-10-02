@@ -2179,3 +2179,32 @@ A phone in an iframe has no Fullscreen API, so "full screen by default" in the
 Telegram mini-app and the iOS Game tab is a board state (`pageBare`), not a
 browser call. Then a single "more" button inside the board serves every
 platform, and the native overlay buttons go away.
+
+### A reviewer bee, briefed and checked (iOS loop, iteration 14, 2026-10-02)
+
+- **Give the bee the worktree's `tri`.** The main checkout
+  (`/Users/playra/999-multibots-telegraf`) sits on an old branch. The #3319
+  bee grepped that copy, decided `tri pr-billing` did not exist, and counted
+  the billing failures by hand.
+- **A bee's note is a claim, not a defect.** On #3319 the bee wrote that
+  `recordInto` records `too_long` as `bad_input`. It had read a stale comment;
+  the code reads the body first. The fix was the comment plus a test pinning
+  that path (#3325), not a change in behaviour. Read the code before acting
+  on any bee note.
+- **After every merge, run `tri deploys`.** The loop's own PRs shipped. Ten
+  minutes later, someone else's #3244 was refused by the player's Docker test
+  gate (a test read `bin/` at the repository root, which the image does not
+  contain), and from then on no player commit reached production, including
+  the next board release. `test gate: REFUSED` means the image's test stage
+  failed, not the app. Read it with `railway logs <deploy-id> -b -n 3000`.
+  The fix was #3329 (EXCLUDE entry plus the `testGateExclude` guard).
+- **Never put `timeout` on `git commit`.** On a starved Mac the hooks take
+  over 25 minutes. A timeout kills git and leaves `tsc` orphaned in the
+  worktree with ppid 1. If a hook has already printed `exit status 1` and the
+  cause is known, kill its WHOLE tree by PID (lefthook, its npm/node/tsc
+  children); otherwise let it finish.
+- **4 player-types errors in `TriWalletCard.tsx` are the worktree, not main.**
+  The worktree's `node_modules` is a symlink to a checkout that never
+  installed `@tonconnect/ui` (#3218). This is proved when the same 4 errors
+  appear and no others. Commit with `--no-verify`, check that
+  `tri no-verify-debt` = 0, and say so in the PR.
