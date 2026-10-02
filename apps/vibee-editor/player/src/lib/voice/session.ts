@@ -7,7 +7,8 @@
  *
  * - The mic stays open the whole time. Voice activity is detected on the
  *   device from the mic's own level against an adaptive noise floor, so no
- *   audio leaves the phone until somebody actually spoke.
+ *   audio leaves the phone until somebody actually spoke (lib/voice/vad.ts;
+ *   a fan or an engine is learned as the room, not heard as a phrase).
  * - Each utterance is transcribed by OUR whisper (render /api/voice/transcribe)
  *   and then sent as an ordinary chat message: the agent keeps every tool it
  *   has, and the transcript in the chat shows the turn like any other.
@@ -58,6 +59,7 @@ import {
   wakeRoad as httpWakeRoad,
   warmVoice as httpWarm,
 } from './voiceApi'
+import { END_OF_TURN_MS, LevelGate, TICK_MS, TurnClock, rms } from './vad'
 
 export type VoicePhase =
   | 'off'
@@ -105,9 +107,6 @@ export interface VoiceDeps {
   wakeRoad?: () => void
 }
 
-const TICK_MS = 40
-const SPEECH_ONSET_MS = 160
-const END_OF_TURN_MS = 850
 /*
  * EAGER HEARING. The 850 ms of silence that ends a turn was, after GigaAM
  * (#3252), the longest wait left: Russian is heard in ~745 ms, so the person
@@ -145,6 +144,23 @@ const SYNTH_AHEAD = 2
  * session "speaking" forever. Past its own length plus this, it is over.
  */
 const PLAYBACK_GRACE_MS = 1500
+/*
+ * THE WAIT IS SAID OUT LOUD. A question that takes the agent a tool call to
+ * answer left the person in silence for 5-60 s, and on a call silence reads
+ * as "it dropped". After FILLER_FIRST_MS of thinking with nothing said, a
+ * short phrase ("Let me see."); after FILLER_STILL_MS more of it -- or of a
+ * gap in the middle of an answer -- "Still working on it." At most
+ * FILLER_MAX per question, never a promise of time ("one second"). ElevenLabs
+ * (soft timeout, 2.5-4 s), Vapi (request-response-delayed, 2 s) and LiveKit
+ * (`with_filler`) do the same. The phrase's audio is asked for at
+ * FILLER_PREPARE_MS, so an answer faster than that costs nothing, and kept:
+ * the same few phrases are synthesised once a session.
+ */
+const FILLER_FIRST_MS = 3000
+const FILLER_STILL_MS = 12_000
+/* `tri filler`, 2026-10-02: English synthesis 620 ms typical, 1.6 s tail. */
+const FILLER_PREPARE_MS = 1000
+const FILLER_MAX = 2
 
 /** Words asked for while the pause was still being judged. */
 interface EagerHearing {
@@ -164,6 +180,8 @@ function canHearEarly(mime: string): boolean {
 interface Spoken {
   text: string
   audio: Promise<AudioBuffer | null> | null
+  /** Said while waiting: dropped, not repeated, when a held answer resumes. */
+  filler?: boolean
 }
 
 /*
@@ -233,10 +251,8 @@ export class VoiceSession {
   private phrases = 0
 
   // Voice activity state.
-  private floor = 0.01
-  private loudSince = 0
-  private quietSince = 0
-  private spoke = false
+  private gate = new LevelGate()
+  private turn = new TurnClock()
 
   // The answer being spoken.
   private follower: ReplyFollower | null = null
@@ -250,6 +266,13 @@ export class VoiceSession {
   private soundingSince = 0
   private threadCheck = false
   private generation = 0
+  /** The wait being said out loud (THE WAIT IS SAID OUT LOUD). */
+  private fillerTimer: ReturnType<typeof setTimeout> | null = null
+  private fillers = 0
+  /** Which variant each kind of phrase says next: a new one each time. */
+  private fillerTurn = { first: 0, still: 0 }
+  private answerSpoke = false
+  private fillerAudio = new Map<string, Promise<AudioBuffer | null>>()
   private readonly level = new Float32Array(2048)
 
   constructor(private readonly deps: VoiceDeps) {}
@@ -413,9 +436,7 @@ export class VoiceSession {
       }
     }
     this.chunks = []
-    this.spoke = false
-    this.loudSince = 0
-    this.quietSince = 0
+    this.turn.reset()
     this.recordStartedAt = performance.now()
     this.recorder.ondataavailable = e => {
       if (e.data.size) this.chunks.push(e.data)
@@ -445,46 +466,36 @@ export class VoiceSession {
     if (!a) return 0
     const buf = this.level.subarray(0, a.fftSize)
     a.getFloatTimeDomainData(buf)
-    let sum = 0
-    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
-    return Math.sqrt(sum / buf.length)
+    return rms(buf)
   }
 
   private tick(): void {
     if (!this.micAnalyser || this.snap.muted) return
     const now = performance.now()
-    const level = this.rms()
     const agentTalking = this.snap.phase === 'speaking'
-    // The floor follows quiet slowly and loud never: speech must not raise it.
-    if (!this.spoke && level < this.floor * 2.5) {
-      this.floor = this.floor * 0.97 + level * 0.03
+    const turn = this.turn
+    const judged = this.gate.judge(now, this.rms(), !turn.spoke, agentTalking)
+    if (judged === 'steady') {
+      // The room got loud and stayed flat: whatever it started was no phrase.
+      this.roomChanged()
+      return
     }
-    const threshold = agentTalking
-      ? Math.max(0.05, this.floor * 7)
-      : Math.max(0.014, this.floor * 3.2)
-    const loud = level > threshold
-
-    if (loud) {
-      if (!this.loudSince) this.loudSince = now
-      this.quietSince = 0
-      // More words: the guess made at the start of the pause is short of them.
-      this.dropEager()
-    } else {
-      this.loudSince = 0
-      if (!this.quietSince) this.quietSince = now
-    }
+    const loud = judged === 'loud'
+    turn.mark(now, loud)
+    // More words: the guess made at the start of the pause is short of them.
+    if (loud) this.dropEager()
 
     // Barge-in: the person talks over the agent. Held, not dropped, until
     // the words say whether it was a question or a cough.
     if (
       agentTalking &&
-      this.loudSince &&
-      now - this.loudSince > BARGE_IN_MS &&
-      this.loudSince - this.soundingSince > ONSET_DEAF_MS
+      turn.loudSince &&
+      now - turn.loudSince > BARGE_IN_MS &&
+      turn.loudSince - this.soundingSince > ONSET_DEAF_MS
     ) {
       this.pause()
       this.set({ phase: 'listening', saying: '' })
-      this.spoke = true
+      turn.spoke = true
       this.wakeRoad()
       if (!this.recorder) this.beginRecording()
       return
@@ -496,18 +507,10 @@ export class VoiceSession {
       return
     }
 
-    if (
-      !agentTalking &&
-      !this.spoke &&
-      this.loudSince &&
-      now - this.loudSince > SPEECH_ONSET_MS
-    ) {
-      this.spoke = true
-      this.wakeRoad()
-    }
+    if (!agentTalking && turn.onset(now)) this.wakeRoad()
     const long = now - this.recordStartedAt
-    if (this.spoke) {
-      const quiet = this.quietSince ? now - this.quietSince : 0
+    if (turn.spoke) {
+      const quiet = turn.quiet(now)
       const ended = quiet > END_OF_TURN_MS
       if (ended || long > MAX_UTTERANCE_MS) void this.finishUtterance()
       else if (
@@ -536,6 +539,27 @@ export class VoiceSession {
     return this.phrases % RELEARN_EVERY === RELEARN_EVERY - 1
       ? null
       : this.spokenLang
+  }
+
+  /**
+   * A steady noise -- a fan, an engine -- is the room now (vad.ts). Before
+   * cycle 8 it was a phrase that ran to MAX_UTTERANCE_MS, and a question
+   * asked over it waited up to 30 s. What it started is dropped unheard; an
+   * answer it held goes on.
+   */
+  private roomChanged(): void {
+    if (this.paused) this.resumeHeld()
+    else if (this.turn.spoke && this.recorder) this.beginRecording()
+    else this.turn.reset()
+  }
+
+  /** The held answer goes on from the sentence it was cut in. */
+  private resumeHeld(): void {
+    this.paused = false
+    // "Let me see." cut by a cough is not said twice.
+    if (this.queue[0]?.filler) this.queue.shift()
+    this.beginRecording()
+    void this.pump()
   }
 
   /** Ask for the words recorded so far, before the turn is known to be over. */
@@ -620,9 +644,7 @@ export class VoiceSession {
       (!text || isNoise(text) || isBackchannel(text) || isEcho(text, cut))
     ) {
       // A false barge-in: the answer goes on from the sentence it was cut in.
-      this.paused = false
-      this.beginRecording()
-      void this.pump()
+      this.resumeHeld()
       return
     }
     if (!text || isNoise(text)) {
@@ -645,6 +667,8 @@ export class VoiceSession {
     }
     this.set({ heard: text, saying: '', error: null })
     this.follower = new ReplyFollower(this.deps.messages())
+    this.fillers = 0
+    this.answerSpoke = false
     this.deps.send(text)
     this.set({ phase: 'thinking' })
     this.onThread()
@@ -692,6 +716,7 @@ export class VoiceSession {
     const wasFinished = f.finished
     const sentences = f.update(this.deps.messages(), this.deps.answering())
     for (const text of sentences) this.queue.push({ text, audio: null })
+    if (sentences.length) this.answerSpoke = true
     if (!wasFinished && f.finished && f.cards.length) {
       this.queue.push({ text: this.optionsSentence(f.cards), audio: null })
     }
@@ -752,11 +777,71 @@ export class VoiceSession {
         this.idle()
       } else if (this.follower) {
         this.set({ phase: 'thinking', saying: '' })
+        this.armFiller()
       }
     } finally {
       // silence() already freed the pump for the next generation.
       if (gen === this.generation) this.pumping = false
     }
+  }
+
+  /*
+   * Wait in silence for a while, then say so. Armed by the pump each time it
+   * runs dry mid-answer (the first time is right after the question). When
+   * it fires the session must still be thinking -- an answer that ended, a
+   * barge-in or the orb all left that phase -- with nothing queued: a
+   * sentence still being synthesised is queued while the phase says
+   * "thinking".
+   */
+  private armFiller(): void {
+    this.clearFiller()
+    if (this.fillers >= FILLER_MAX) return
+    const still = this.fillers > 0 || this.answerSpoke
+    const wait = still ? FILLER_STILL_MS : FILLER_FIRST_MS
+    const waiting = () => !this.queue.length && this.snap.phase === 'thinking'
+    const lang = this.spokenLang || this.deps.lang()
+    const kind = still ? 'still' : 'first'
+    const list = translations[lang][`voice.filler.${kind}`].split('|')
+    const text = list[this.fillerTurn[kind] % list.length]
+    this.fillerTimer = setTimeout(() => {
+      if (!waiting()) return
+      let ready: { buffer: AudioBuffer | null } | null = null
+      void this.fillerSound(text).then(buffer => (ready = { buffer }))
+      this.fillerTimer = setTimeout(() => {
+        this.fillerTimer = null
+        if (!waiting()) return
+        this.fillers++
+        // Still being synthesised at its moment (`tri filler` once saw 37 s):
+        // queued, it would hold the answer behind it. Skip it; the slot is
+        // spent, so the next one is "still".
+        if (!ready) return this.armFiller()
+        this.fillerTurn[kind]++
+        this.queue.push({
+          text,
+          audio: Promise.resolve(ready.buffer),
+          filler: true,
+        })
+        void this.pump()
+      }, wait - FILLER_PREPARE_MS)
+    }, FILLER_PREPARE_MS)
+  }
+
+  /** The phrase's audio, synthesised once; a failure is not kept. */
+  private fillerSound(text: string): Promise<AudioBuffer | null> {
+    let audio = this.fillerAudio.get(text)
+    if (!audio) {
+      audio = this.render(text).then(buffer => {
+        if (!buffer) this.fillerAudio.delete(text)
+        return buffer
+      })
+      this.fillerAudio.set(text, audio)
+    }
+    return audio
+  }
+
+  private clearFiller(): void {
+    if (this.fillerTimer !== null) clearTimeout(this.fillerTimer)
+    this.fillerTimer = null
   }
 
   private openContext(): void {
@@ -879,6 +964,7 @@ export class VoiceSession {
     this.queue = []
     this.follower = null
     this.pumping = false
+    this.clearFiller()
     this.stopSound()
   }
 
@@ -904,6 +990,7 @@ export class VoiceSession {
     this.stream = null
     void this.ctx?.close().catch(() => undefined)
     this.ctx = null
+    this.fillerAudio.clear()
     this.micAnalyser = null
     this.outAnalyser = null
     this.outGain = null

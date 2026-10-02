@@ -2030,3 +2030,31 @@ main had changed `render-server.ts` under the branch.
 - Ticks that commit with `--no-verify` close with `tri no-verify-debt`:
   cyrillic, secrets, prettier from the ROOT, eslint, over the whole branch.
   Its first run found a file formatted by render's prettier, not the root's.
+
+`tri iphone ru-diff [ref]` (iteration 7) does exactly that: runs the counter
+of `ref` (default origin/main) and the current one per file and prints every
+line newly hidden or newly counted.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 8): a counter of zero is not a screen in English
+
+Iteration 7 brought GenerateScreen to 0 and the live Photo tab still showed
+a Russian model list: the words came from a GENERATED data file the counter
+listed separately and the plan had deferred as "model data". A source counter
+measures source files, not what the screen draws. **After any "this screen
+is done", open it live in the target language before closing the item.** For
+generated data, put the guard where the data is (a test over the whole
+catalogue), and let the counter skip that file by name on stderr -- never a
+silent skip.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 9): a Russian KEY becomes a Russian label, and the reference had it too
+
+The price unit on the run button came from `Balance.мера`, which returns the <!-- cyrillic-ok: names the function -->
+keys "с" / "1000 зн." that the screen also switches on. No literal on the <!-- cyrillic-ok: quotes the keys -->
+screen was Russian, so the counter could not see "· 6/с" on an English phone. <!-- cyrillic-ok: quotes the bug -->
+Rule: **keep the key, translate at the point of display** (`ЦенаНажатия.unitLabel`, <!-- cyrillic-ok: names the type -->
+web `priceUnitLabel`), and test both that the label changes and that the key
+does not. The web -- the wording reference for parity -- printed the same unit
+and a Russian shortfall sentence in English mode. A reference can be wrong;
+`tri iphone ru-web [file]` ranks web files by Russian literals outside a
+language branch (rough: split en/ru pairs still count) so you read the
+reference before copying it.

@@ -57,16 +57,21 @@ enum API {
     case странныйОтвет
     case сеть(Error)
 
-    var errorDescription: String? {
+    var errorDescription: String? { text() }
+
+    func text(russian: Bool = speaksRussian) -> String {
+      func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
       switch self {
       case .нуженВход:
-        return "Нужен вход: Профиль → код из бота @t27ai_bot (команда /app)"
+        return l(
+          "Sign-in needed: Profile → code from @t27ai_bot (command /app)",
+          "Нужен вход: Профиль → код из бота @t27ai_bot (команда /app)")
       case .отказ(let код):
-        return "Сервер отказал: HTTP \(код)"
+        return l("The server refused: HTTP \(код)", "Сервер отказал: HTTP \(код)")
       case .странныйОтвет:
-        return "Сервер ответил не тем, чего ждали"
+        return l("The server answered with something unexpected", "Сервер ответил не тем, чего ждали")
       case .сеть(let e):
-        return "Не дошло до сервера: \(e.localizedDescription)"
+        return l("Couldn't reach the server: \(e.localizedDescription)", "Не дошло до сервера: \(e.localizedDescription)")
       }
     }
   }
@@ -130,8 +135,11 @@ enum API {
     var errorDescription: String? {
       switch self {
       case .имениНет:
-        return "Профиль ещё не создан: у аккаунта нет @имени. "
-          + "Задайте его в Telegram («Настройки» → «Имя пользователя») и вернитесь."
+        return say(
+          "No profile yet: the account has no @username. "
+            + "Set one in Telegram (Settings → Username) and come back.",
+          "Профиль ещё не создан: у аккаунта нет @имени. "
+            + "Задайте его в Telegram («Настройки» → «Имя пользователя») и вернитесь.")
       }
     }
   }
@@ -308,7 +316,7 @@ enum API {
         let строка = try c.decode(String.self, forKey: .id)
         guard let число = Int(строка) else {
           throw DecodingError.dataCorruptedError(
-            forKey: .id, in: c, debugDescription: "id не число: \(строка)")
+            forKey: .id, in: c, debugDescription: "id is not a number: \(строка)")
         }
         id = число
       }
@@ -431,13 +439,13 @@ enum API {
       let текст = String(data: d, encoding: .utf8) ?? ""
       throw NSError(
         domain: "upload", code: (о as? HTTPURLResponse)?.statusCode ?? -1,
-        userInfo: [NSLocalizedDescriptionKey: текст.isEmpty ? "загрузка не удалась" : текст]
+        userInfo: [NSLocalizedDescriptionKey: текст.isEmpty ? say("upload failed", "загрузка не удалась") : текст]
       )
     }
     struct Ответ: Decodable { let url: String? }
     guard let ссылка = try? JSONDecoder().decode(Ответ.self, from: d).url, !ссылка.isEmpty
     else { throw NSError(domain: "upload", code: -2,
-      userInfo: [NSLocalizedDescriptionKey: "сервер не назвал ссылку"]) }
+      userInfo: [NSLocalizedDescriptionKey: say("the server named no link", "сервер не назвал ссылку")]) }
     return ссылка.hasPrefix("http")
       ? ссылка
       : base.appendingPathComponent(ссылка).absoluteString
@@ -894,16 +902,19 @@ extension API {
     case сеть(Error)
     case разбор(String)
 
-    var errorDescription: String? {
+    var errorDescription: String? { text() }
+
+    func text(russian: Bool = speaksRussian) -> String {
+      func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
       switch self {
       case .нетВхода:
-        return "Вы не вошли"
+        return l("You are not signed in", "Вы не вошли")
       case .отказ(let код, let текст):
-        return текст.isEmpty ? "Сервер отказал: HTTP \(код)" : текст
+        return текст.isEmpty ? l("The server refused: HTTP \(код)", "Сервер отказал: HTTP \(код)") : текст
       case .сеть(let e):
-        return "Не дошло до сервера: \(e.localizedDescription)"
+        return l("Couldn't reach the server: \(e.localizedDescription)", "Не дошло до сервера: \(e.localizedDescription)")
       case .разбор(let что):
-        return "Ответ сервера не разобран: \(что)"
+        return l("Couldn't read the server's answer: \(что)", "Ответ сервера не разобран: \(что)")
       }
     }
   }
@@ -939,7 +950,7 @@ extension API {
       do {
         let (d, resp) = try await URLSession.shared.data(for: r)
         guard let http = resp as? HTTPURLResponse else {
-          throw ProjectError.разбор("ответ не HTTP")
+          throw ProjectError.разбор(say("not an HTTP answer", "ответ не HTTP"))
         }
         return (d, http)
       } catch let e as ProjectError {
