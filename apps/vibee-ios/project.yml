@@ -86,36 +86,15 @@ targets:
     platform: iOS
     sources:
       - Vibee
-      # ИКОНКА ЛЕЖИТ РЯДОМ, НО В СБОРКУ НЕ ВХОДИТ. Строку ниже включает
-      # тот, кто собирает для App Store, — и вот почему она не включена
-      # по умолчанию.
-      #
-      # На этой машине Xcode 26.6 несёт SDK iOS 26.5 (23F81a), а из
-      # симуляторных рантаймов установлен только 18.4 (22E238). При таком
-      # разрыве `actool` отказывается собирать ЛЮБУЮ иконку приложения:
-      #
-      #   error: No simulator runtime version from ["22E238"] available
-      #          to use with iphonesimulator SDK version 23F81a
-      #
-      # Проверено на двух разных исходных PNG и на двух раскладках
-      # Contents.json (одноразмерной и полной устаревшей) — ошибка не в
-      # картинке. Пустой набор иконок при тех же флагах собирается без
-      # ошибки, то есть спотыкается именно отрисовка вариантов иконки.
-      # Ни один флаг actool её не обходит: --target-device iphone,
-      # --minimum-deployment-target 26.0, --standalone-icon-behavior none
-      # дают тот же отказ.
-      #
-      # Включённая строка ломает не только архив, но и ежедневный
-      # `./run.sh`: сборка под симулятор падает там же. Поэтому иконка
-      # ждёт здесь, а не в сборке.
-      #
-      # ЧТО СДЕЛАТЬ, ЧТОБЫ ВКЛЮЧИТЬ (один раз, на машине выкладки):
-      #   xcodebuild -downloadPlatform iOS     # рантайм под SDK 26.5
-      # затем раскомментировать строку ниже. `fastlane preflight` проверит
-      # и то и другое и не назовёт сборку готовой, пока иконки нет в
-      # собранном .app.
-      #
-      # - AppIcon.xcassets
+      # The app icon. It was kept out of the target while this machine had
+      # Xcode 26.6 (SDK iOS 26.5) and only the 18.4 simulator runtime: actool
+      # then refused ANY app icon ("No simulator runtime version from
+      # ["22E238"] available to use with iphonesimulator SDK version 23F81a"),
+      # for the archive and for ./run.sh alike. With the 26.5 runtime
+      # installed actool compiles it for iphoneos and iphonesimulator
+      # (measured 2026-10-03). If it fails again on another machine:
+      # `xcodebuild -downloadPlatform iOS`. `fastlane preflight` checks it.
+      - AppIcon.xcassets
     info:
       path: Vibee/Info.plist
       properties:

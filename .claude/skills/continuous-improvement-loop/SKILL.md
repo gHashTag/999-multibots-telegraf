@@ -174,11 +174,11 @@ skip» записана в спеке (`meta-connect.t27`, навык `t27-spec-
 
 - GitHub Actions НЕ ВЫПОЛНЯЕТСЯ: задания падают за секунды с нулём шагов
   (отказ по оплате). Все правки этого этапа влиты БЕЗ единой проверки.
-- Иконка приложения: каталога ассетов нет вовсе. Без неё TestFlight
-  отклонит загрузку.
-- Дистрибуционного сертификата нет: в связке только Apple Development.
-- Ключ App Store Connect (ASC_KEY_ID и др.) не задан — `fastlane beta`
-  встаёт на первом шаге.
+- iOS to TestFlight (re-measured 2026-10-03, `tri iphone store`): the icon,
+  the Apple Distribution certificate and the ASC key are all in place;
+  what is missing is the App ID `ai.t27.vibee` and its App Store Connect
+  record - both the account holder's clicks (the API cannot create an app).
+  Then `tri iphone testflight --yes`, on his "yes" only.
 - XAI_API_KEY отсутствует, ELEVENLABS_API_KEY хранит идентификатор вместо
   ключа, баланс fal.ai исчерпан: три вида генерации из пяти мертвы.
 - Диск был заполнен на 100%. Держат: Docker 13 ГБ (демон не запущен,
