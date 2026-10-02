@@ -54,6 +54,8 @@ When a reel needs his voice:
   are a source for a clone, not the finished voice;
 - do NOT route to another provider.
 
+That service now exists: the owner's generated voice comes from our own `voice-clone` Railway service (`deployment/voice-clone`) through the agent tool `voice_clone_speak` (`render/src/agent/voice-clone-speak.ts`) — rules live there, not here.
+
 ## The owner's face
 
 The default face for the owner's reels is **studio-lab**:

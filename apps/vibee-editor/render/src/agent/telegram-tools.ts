@@ -31,6 +31,7 @@
 
 import crypto from 'node:crypto'
 import { PLATFORM_OWNER_FALLBACK } from '../platform-owner'
+import { keepers } from '../hive/roles'
 import { hangUp } from './hang-up'
 import { defangMarkers } from './media-parts'
 import type { AgentTool, ToolContext } from './tools'
@@ -82,6 +83,17 @@ import {
 const OWNER_TELEGRAM_ID = (
   process.env.OWNER_TELEGRAM_ID || PLATFORM_OWNER_FALLBACK
 ).trim()
+
+/**
+ * The platform owner, or a keeper (HIVE_KEEPERS). One home for the check:
+ * cash months (club-cash.ts) and the owner's own voice (voice-clone-speak.ts)
+ * both ask exactly this.
+ */
+export function isOwnerOrKeeper(who: string | null | undefined): boolean {
+  const id = String(who ?? '').trim()
+  if (!id) return false
+  return id === OWNER_TELEGRAM_ID || keepers().includes(id)
+}
 
 /**
  * Throwing, not returning a value: a refusal must not be mistakable for data.
