@@ -433,6 +433,12 @@ named, before touching code.
    returns "" and `browser_screenshot` says "not painted" -- indistinguishable
    from "still loading" until `tri browser blank <id>` re-imports the page's
    module scripts with an error listener and names the crash.
+   **Fixed 2026-10-03** (gHashTag/trinity#1255, merge e88f863): the landing
+   probes WebGL first and skips the scene without it; a scene that still
+   throws is caught by `SceneBoundary`. Measured live in the pod on a new
+   tab: `blank: false`, 549 nodes, 20486 chars of text. CI guards it as
+   `check:home-no-webgl`. Any other page that "is blank only in the pod" --
+   suspect the GPU first.
 
 Acting live: every case drives the person's real browser (`front` brings a tab
 forward on his screen). When `tri browser status` says the person is watching,
