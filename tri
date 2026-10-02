@@ -1413,6 +1413,7 @@ print(n)' 2>/dev/null)
 #   tri iphone test [Class]  unit tests with a 25-min deadline and a one-line
 #                       verdict (Class = one test class, e.g. ConnectivityTests)
 #   tri iphone ru [File]  native strings still Russian-only (count / lines)
+#   tri iphone ru-diff [ref]  lines a counter change hides vs ref (origin/main)
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
 # The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
 # next build need it back. One word instead of remembering the udid.
@@ -1430,7 +1431,9 @@ iphone_sim_off() {
 # an English phone a mixed app. This counts what is left, so a loop can watch
 # the number go down instead of re-grepping -- a plain grep both missed and
 # double-counted: it saw say( calls that span lines as Russian-only.
-# Not counted: say(...) spans, comments, NSLog/print, and lines marked
+# Not counted: say(...) and l(...) spans, comments, NSLog/print,
+# accessibilityIdentifier, `== "x"` comparisons, generated files (named on
+# stderr with the test that guards them), and lines marked
 # ru-only-ok (data that IS Russian: a server status key, a demo project).
 #   tri iphone ru          count per file and the total
 #   tri iphone ru File     the lines in one file
@@ -1469,10 +1472,14 @@ def blank_calls(src, names):
 KEY = re.compile(r'\[\s*"(?:[^"\\]|\\.)*"\s*\]')
 CASE = re.compile(r'\bcase\s+"(?:[^"\\]|\\.)*"(?:\s*,\s*"(?:[^"\\]|\\.)*")*\s*:')
 PAIR = re.compile(r'("(?:[^"\\]|\\.)*")(\s*,\s*)("(?:[^"\\]|\\.)*")')
+# GenerateScreen (iteration 7): `kind == "видео"` compares a server value --
+# only that literal goes, the UI text on the same line still counts.
+CMP = re.compile(r'[=!]=\s*"(?:[^"\\]|\\.)*"')
 
 def protocol_out(line):
     line = KEY.sub(lambda m: ' ' * len(m.group()), line)
     line = CASE.sub(lambda m: ' ' * len(m.group()), line)
+    line = CMP.sub(lambda m: ' ' * len(m.group()), line)
     return PAIR.sub(lambda m: ' ' * len(m.group())
                     if not CYR.search(m.group(1)) and CYR.search(m.group(3))
                     else m.group(), line)
@@ -1487,13 +1494,23 @@ def comments_out(src):
         lines.append(line if k < 0 else line[:k])
     return lines
 
+# Iteration 8: KieModels.swift is written by gen-kie-swift.ts and cannot carry
+# hand marks. The screen shows it through KieModelLabels, and a test fails on
+# any catalogue entry whose English label keeps Cyrillic -- that test, not
+# this counter, is the guard for generated words. `l(en, ru)` is the local
+# pair helper of testable pure functions; a call spread over lines is a pair.
+GENERATED = {'KieModels.swift': 'KieModelLabelTests'}
+
 total, per = 0, []
 for f in sorted(os.listdir(root)):
     if not f.endswith('.swift') or (only and f != only and f != only + '.swift'):
         continue
     raw = open(os.path.join(root, f), encoding='utf-8').read()
     marks = raw.split('\n')
-    lines = [protocol_out(l) for l in comments_out(blank_calls(raw, ['say', 'NSLog', 'print']))]
+    if f in GENERATED:
+        print(f'  skipped {f}: generated, its words are checked by {GENERATED[f]}', file=sys.stderr)
+        continue
+    lines = [protocol_out(l) for l in comments_out(blank_calls(raw, ['say', 'l', 'NSLog', 'print', 'accessibilityIdentifier']))]
     hits = [(n + 1, marks[n].strip()) for n, l in enumerate(lines)
             if 'ru-only-ok' not in marks[n]
             and any(CYR.search(INTERP.sub('', x)) for x in LIT.findall(l))]
@@ -1506,6 +1523,27 @@ for n, f, hits in sorted(per, reverse=True):
         print(f'  {n:4d}  {f}')
 print(f'  total {total} Russian-only line(s)')
 PY
+}
+
+# What a change to the counter itself hides or adds, on the SAME Swift files.
+# Iterations 6 and 7 did this by hand: a filter that drops 36 lines must have
+# every dropped line read. The old copy has to sit in $ROOT -- `tri` finds the
+# app next to itself, and run from /tmp it counted another tree and printed an
+# empty diff that looked like "no change".
+iphone_ru_diff() {
+  local ios="$1" ref="${2:-origin/main}" old="$ROOT/.tri-ru-diff-old" f b
+  git -C "$ROOT" show "$ref:tri" > "$old" 2>/dev/null || { bad "no tri at $ref"; rm -f "$old"; return 2; }
+  local hidden=0 shown=0 a z
+  a=$(mktemp) z=$(mktemp)
+  for f in "$ios"/Vibee/*.swift; do
+    b=$(basename "$f")
+    bash "$old" iphone ru "$b" 2>/dev/null | grep -v ' total ' > "$a"
+    iphone_ru "$ios" "$b" 2>/dev/null | grep -v ' total ' > "$z"
+    while IFS= read -r l; do echo "  - hidden  ${l#  }"; hidden=$((hidden + 1)); done < <(comm -23 <(sort "$a") <(sort "$z"))
+    while IFS= read -r l; do echo "  + counted ${l#  }"; shown=$((shown + 1)); done < <(comm -13 <(sort "$a") <(sort "$z"))
+  done
+  rm -f "$old" "$a" "$z"
+  good "counter vs $ref: $hidden line(s) newly hidden, $shown newly counted -- read every hidden one"
 }
 
 # The unit tests, with the deadline and the summary every loop iteration
@@ -1627,6 +1665,7 @@ cmd_iphone() {
   [ "$mode" = "off" ] && { iphone_sim_off; return; }
   [ "$mode" = "test" ] && { iphone_test "$ios" "${2:-}"; return; }
   [ "$mode" = "ru" ] && { iphone_ru "$ios" "${2:-}"; return; }
+  [ "$mode" = "ru-diff" ] && { iphone_ru_diff "$ios" "${2:-}"; return; }
 
   if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
     bad "devicectl did not answer (Xcode command line tools?)"; return 2
