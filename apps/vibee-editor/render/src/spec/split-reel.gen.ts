@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "split-reel" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 5 satisfies number;
+export const VERSION = 6 satisfies number;
 export const COMPOSITION = "SplitTalkingHead" satisfies string;
 export const FACE_SPEC = "owner-studio" satisfies string;
 export const LIPSYNC_MODEL = "kie/kling/ai-avatar-standard" satisfies string;
@@ -26,6 +26,7 @@ export const STUDIO_FACE_X_PCT = 48 satisfies number;
 export const STUDIO_FACE_Y_PCT = 28 satisfies number;
 export const HEADROOM_MIN_PCT = 3 satisfies number;
 export const FACE_OFF_CENTER_MAX_PCT = 10 satisfies number;
+export const HEADROOM_AIM_PCT = 6 satisfies number;
 export const CAPTION_COLOR = "#FFFF00" satisfies string;
 export const WORDS_PER_CAPTION = 1 satisfies number;
 export const TEXT_IN_BROLL = false satisfies boolean;
@@ -47,6 +48,7 @@ export const REEL_CHECK_BEFORE_SEND = true satisfies boolean;
 // t27c gen-ts: fn segment_count was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn last_frames was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn object_pos_pct was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn face_target_y_pct was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn fits was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn reel_frames was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn deliverable was not emitted -- this backend lowers declarations, not bodies.
@@ -59,10 +61,11 @@ export const REEL_CHECK_BEFORE_SEND = true satisfies boolean;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "COMPOSITION", "FACE_SPEC", "LIPSYNC_MODEL", "BROLL_MODEL", "OWN_VOICE", "FPS", "OPEN_FULL_FRAMES", "SPLIT_FRAMES", "FULL_FRAMES", "MAX_SECONDS", "MIN_SHOT_FRAMES", "SPLIT_PCT", "FACE_FILLS_HALF", "FACE_CENTER_X_PCT", "FACE_CENTER_Y_PCT", "STUDIO_FACE_X_PCT", "STUDIO_FACE_Y_PCT", "HEADROOM_MIN_PCT", "FACE_OFF_CENTER_MAX_PCT", "CAPTION_COLOR", "WORDS_PER_CAPTION", "TEXT_IN_BROLL", "CAPTIONS_FROM_FINAL_VOICE", "CAPTION_DRIFT_MAX_MS", "ONSET_FRAME_MS", "SPEECH_BELOW_LOUD_DB", "CAPTION_ON_SILENCE_MAX_MS", "CTA_PAUSE_SEC", "CTA_ALWAYS", "OWNER_CTA", "SPEECH_MAX_SECONDS", "REEL_CHECK_BEFORE_SEND"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "COMPOSITION", "FACE_SPEC", "LIPSYNC_MODEL", "BROLL_MODEL", "OWN_VOICE", "FPS", "OPEN_FULL_FRAMES", "SPLIT_FRAMES", "FULL_FRAMES", "MAX_SECONDS", "MIN_SHOT_FRAMES", "SPLIT_PCT", "FACE_FILLS_HALF", "FACE_CENTER_X_PCT", "FACE_CENTER_Y_PCT", "STUDIO_FACE_X_PCT", "STUDIO_FACE_Y_PCT", "HEADROOM_MIN_PCT", "FACE_OFF_CENTER_MAX_PCT", "HEADROOM_AIM_PCT", "CAPTION_COLOR", "WORDS_PER_CAPTION", "TEXT_IN_BROLL", "CAPTIONS_FROM_FINAL_VOICE", "CAPTION_DRIFT_MAX_MS", "ONSET_FRAME_MS", "SPEECH_BELOW_LOUD_DB", "CAPTION_ON_SILENCE_MAX_MS", "CTA_PAUSE_SEC", "CTA_ALWAYS", "OWNER_CTA", "SPEECH_MAX_SECONDS", "REEL_CHECK_BEFORE_SEND"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

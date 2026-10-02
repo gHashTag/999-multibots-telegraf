@@ -9,6 +9,7 @@ import {
   captionsFromWords,
   deliverable,
   faceObjectPosition,
+  faceTargetYPct,
   firstSpeechMs,
   framesForSeconds,
   objectPosPct,
@@ -152,6 +153,21 @@ describe('split-reel.t27 against the host', () => {
     expect(objectPosPct(518, 1080, 1080, SPEC.FACE_CENTER_X_PCT)).toBe(50)
     expect(SPEC.FACE_CENTER_X_PCT).toBe(50)
     expect(SPEC.HEADROOM_MIN_PCT).toBeGreaterThan(0)
+  })
+
+  it('a face too big for the middle is aimed lower, never past the drift', () => {
+    expect(faceTargetYPct(30)).toBe(50)
+    expect(faceTargetYPct(49)).toBe(55)
+    expect(faceTargetYPct(49) - 49).toBe(SPEC.HEADROOM_AIM_PCT)
+    expect(faceTargetYPct(58)).toBe(60)
+    expect(SPEC.HEADROOM_AIM_PCT).toBeGreaterThan(SPEC.HEADROOM_MIN_PCT)
+    // Reel 1 (2026-10-02): a 720x1280 Kie lipsync, the face box 313 px tall.
+    // Centred, the split showed 0% above the skull; aimed at 55% it keeps 6%.
+    const reel1 = { cx: 375, cy: 521, srcW: 720, srcH: 1280 }
+    expect(faceObjectPosition(reel1, 1080, 960)).toBe('50% 31%')
+    expect(faceObjectPosition({ ...reel1, h: 313 }, 1080, 960)).toBe('50% 26%')
+    // Full screen of a 9:16 source cannot be re-aimed, measured or not.
+    expect(faceObjectPosition({ ...reel1, h: 313 }, 1080, 1920)).toBe('50% 50%')
   })
 
   it('the planner tells the composition where the face is, per window', () => {
