@@ -19,6 +19,7 @@ import * as SPEC from './blog-share.gen'
 let buttonDrawn = true
 let profileShows = true
 let n = 0
+const typed: string[] = []
 const hrefs = new Map<string, number>()
 const waits: number[] = []
 
@@ -37,16 +38,20 @@ vi.mock('../browser/cdp', () => ({
       return k > 1 ? `https://after/${id}` : `https://form/${id}`
     }
     if (expr.includes('AppTabBar_Profile_Link')) return 'https://x.com/owner'
+    /* X's composer holds what was typed (blog-share.ts composerHolds). */
+    if (expr.includes('tweetTextarea_')) return [...typed]
     if (expr === 'document.body ? document.body.innerText : ""')
       return profileShows ? 'Feed\nOpen FPGA Ethernet, at last' : 'Feed'
     return buttonDrawn ? { x: 1, y: 1, label: 'Post' } : null
   },
   clickAt: async () => undefined,
-  typeText: async () => undefined,
+  typeText: async (_c: string, _id: string, text: string) =>
+    void typed.push(text),
   closePage: async () => undefined,
 }))
 
 beforeEach(() => {
+  typed.length = 0
   hrefs.clear()
   waits.length = 0
   n = 0

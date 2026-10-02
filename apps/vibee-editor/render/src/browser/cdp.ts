@@ -411,15 +411,26 @@ export async function clickAt(
   })
 }
 
-/** Types into whatever has focus, character by character, as a person would. */
+/**
+ * Types into whatever has focus, character by character, as a person would.
+ *
+ * A LINE BREAK IS A KEY ONLY WHERE ENTER IS SAFE (2026-10-03). A "\n" char
+ * event is dropped by X's composer, so the blog desk's thread came out as
+ * one line, title glued to the summary. "\r" is what the Enter key types,
+ * and X's composer breaks the line on it (measured in the pod). It stays
+ * opt-in: in a chat box Enter SENDS, and an approved comment must not leave
+ * half-typed.
+ */
 export async function typeText(
   endpoint: string,
   targetId: string,
-  text: string
+  text: string,
+  opts: { enterForNewline?: boolean } = {}
 ): Promise<void> {
   await onPage(endpoint, targetId, async call => {
     for (const ch of text) {
-      await call('Input.dispatchKeyEvent', { type: 'char', text: ch })
+      const key = ch === '\n' && opts.enterForNewline ? '\r' : ch
+      await call('Input.dispatchKeyEvent', { type: 'char', text: key })
     }
   })
 }
