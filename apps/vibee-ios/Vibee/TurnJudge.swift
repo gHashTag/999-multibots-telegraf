@@ -41,6 +41,9 @@ struct TurnJudge {
   /// is still speech, and must reach the ears (reviewer bee on #3360).
   private(set) var everSpoke = false
   private var spokeAt: TimeInterval?
+  /// `everSpoke` as it was before the latest `spoke`: what a learned hum
+  /// gives back, so a hum that steps up cannot erase words said before it.
+  private var spokeBefore = false
   private var window: [(at: TimeInterval, level: Double)] = []
   private var loudSince: TimeInterval?
   private var quietSince: TimeInterval?
@@ -65,6 +68,7 @@ struct TurnJudge {
     }
     if !spoke, let l = loudSince, now - l > Self.onset {
       spoke = true
+      spokeBefore = everSpoke
       everSpoke = true
       spokeAt = now
     }
@@ -91,9 +95,10 @@ struct TurnJudge {
     if levels.max()! > levels.min()! * Self.steadySpread { return true }
     // Loud and flat for two seconds: the room. Learn it, forget what it began.
     floor = levels.reduce(0, +) / Double(levels.count)
-    // If the hum itself is what counted as speaking, nobody spoke; words
-    // that came before the hum (outside its two flat seconds) still count.
-    if let s = spokeAt, s >= first.at - Self.onset { everSpoke = false }
+    // If the hum itself is what counted as speaking, undo only that: words
+    // that came before it (outside its two flat seconds) still count, even
+    // when the hum steps up and is learned a second time.
+    if let s = spokeAt, s >= first.at - Self.onset { everSpoke = spokeBefore }
     window = []
     spoke = false
     return false

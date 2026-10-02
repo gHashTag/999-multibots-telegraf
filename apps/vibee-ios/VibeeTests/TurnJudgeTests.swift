@@ -70,6 +70,29 @@ final class TurnJudgeTests: XCTestCase {
     XCTAssertEqual(v, .ended)
   }
 
+  /// The same, and then the kettle nears the boil: the louder hum counts
+  /// as speaking again and is learned again, which must give back the
+  /// words said before it, not erase them (reviewer bee, second pass).
+  func testAHumThatStepsUpKeepsTheWords() {
+    let (v, _) = run { t in
+      if t < 1 { return self.room }
+      if t < 3 { return Int((t - 1) / 0.15) % 2 == 0 ? 0.9 : 0.2 }
+      if t < 6 { return 0.1 + 0.005 * sin(t * 7) }
+      return 0.4 + 0.02 * sin(t * 7)
+    }
+    XCTAssertEqual(v, .ended)
+  }
+
+  /// A fan that steps up with nobody talking is still nobody talking.
+  func testAFanThatStepsUpIsStillTheRoom() {
+    let (v, _) = run { t in
+      if t < 1 { return self.room }
+      if t < 4 { return 0.1 + 0.005 * sin(t * 7) }
+      return 0.4 + 0.02 * sin(t * 7)
+    }
+    XCTAssertEqual(v, .nobodySpoke)
+  }
+
   /// The floor learns only between phrases, as the web's does: hushed gaps
   /// between words must not raise it, or soft last words count as silence.
   /// (The first port learned between words; this is what caught it.)

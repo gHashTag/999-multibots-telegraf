@@ -819,6 +819,14 @@ Self-critique:
   three seconds of them are a "fan" by the rule -- fake speech must swing
   like speech (0.9/0.2). Lesson: a flag that a later rule resets is not
   evidence of the past; keep a separate sticky one.
+- **Third pass, same family**: my "sticky" flag was cleared to `false`
+  when a hum was learned, so a hum that STEPPED UP (kettle nearing the
+  boil, a second appliance) counted as speaking, was learned again, and
+  erased the words before it. Now a learned hum restores `spokeBefore`
+  (the value before the latest `spoke`), it does not reset
+  (`testAHumThatStepsUpKeepsTheWords`, `testAFanThatStepsUpIsStillTheRoom`;
+  mutants "reset to false" and "spokeBefore always true" KILLED). Lesson:
+  undo restores the previous value; it never assumes what it was.
 - **Measured on battery audio, not a phone.** `averagePower` is RMS in
   dBFS, close to what `tri vad --ios` computes, not identical; the iPhone
   mic's AGC is not in the battery. Thresholds are the web's, unvalidated on
