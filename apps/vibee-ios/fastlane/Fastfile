@@ -5,6 +5,7 @@
 #   fastlane certs       make sure an Apple Distribution certificate exists
 #   fastlane build_only  a signed App Store .ipa in build/ipa, nothing sent
 #   fastlane beta        build and upload to TestFlight (internal testers)
+#   fastlane metadata    the App Store page texts from fastlane/metadata
 #
 # `tri iphone store` runs preflight + state; `tri iphone testflight --yes`
 # runs beta. The upload publishes a build under the owner's account, so it is
@@ -28,6 +29,7 @@
 
 require "json"
 require "shellwords"
+require_relative "store_metadata"
 
 default_platform(:ios)
 
@@ -43,6 +45,8 @@ BUNDLE_ID = ENV["VIBEE_BUNDLE_ID"] || "ai.t27.vibee"
 # destination check used to report "no iOS platform installed" on a machine
 # that had it (measured 2026-10-03: -showdestinations listed Any iOS Device).
 IOS_DIR = File.expand_path("..", __dir__)
+
+METADATA_DIR = File.join(__dir__, "metadata")
 
 KEY_DIR  = File.expand_path("~/.appstoreconnect/private_keys")
 KEY_JSON = File.expand_path("~/.appstoreconnect/fastlane-key.json")
@@ -182,6 +186,15 @@ platform :ios do
                "(#{params[:key_filepath] ? 'file' : 'ASC_KEY_P8'})"
     else
       blockers << "App Store Connect key: #{why}"
+    end
+
+    # The store page is checked here too, so a text over its limit is named
+    # with the other blockers instead of by App Store Connect at upload.
+    page = StoreMetadata.problems(METADATA_DIR)
+    if page.empty?
+      notes << "store page texts within limits (#{StoreMetadata::LOCALES.join(', ')})"
+    else
+      page.each { |p| blockers << "store page: #{p}" }
     end
 
     notes << "build number will be #{build_number} (commit count)"
@@ -362,5 +375,38 @@ platform :ios do
       changelog: (ENV["CHANGELOG"] || last_git_commit[:message].to_s)[0, 4000]
     )
     UI.success("uploaded build #{build_number}; `fastlane state` shows its processing")
+  end
+
+  desc "The App Store page texts from fastlane/metadata (nothing is submitted)"
+  lane :metadata do
+    # Changing the store page is publishing under the owner's account, so it
+    # takes the same consent as an upload: `tri iphone metadata --yes`.
+    unless ENV["VIBEE_UPLOAD_YES"] == "1"
+      UI.user_error!("the store page is published under the owner's account: run `tri iphone metadata --yes` (or VIBEE_UPLOAD_YES=1 fastlane metadata)")
+    end
+    page = StoreMetadata.problems(METADATA_DIR)
+    UI.user_error!("store page:\n  " + page.join("\n  ")) unless page.empty?
+    # The app record has to exist first; `state` says so in plain words
+    # instead of deliver's "Could not find app".
+    state
+
+    deliver(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      metadata_path: METADATA_DIR,
+      skip_binary_upload: true,
+      # Screenshots are not in the repository yet; deliver leaves the ones in
+      # App Store Connect alone when this is set.
+      skip_screenshots: true,
+      # The name is chosen when the record is created (no name.txt here), and
+      # what's-new cannot be set on a first version - so neither is sent.
+      submit_for_review: false,
+      automatic_release: false,
+      # No HTML preview to confirm: a loop has nobody to press "y", and the
+      # texts were reviewed as files in the pull request that changed them.
+      force: true,
+      run_precheck_before_submit: false
+    )
+    UI.success("store page updated from #{METADATA_DIR}; review submission stays a click in App Store Connect")
   end
 end

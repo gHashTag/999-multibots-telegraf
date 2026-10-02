@@ -366,11 +366,13 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
-  tri iphone [check|build|sim|off|test|ru|store|testflight]
+  tri iphone [check|build|sim|off|test|ru|store|testflight|metadata]
         The Vibee app on the REAL phone: build, install, launch -- one command.
         `store` asks fastlane what stands between HEAD and TestFlight (offline
         preflight + read-only App Store Connect state); `testflight --yes`
-        builds and uploads -- the owner's call, never a loop's.
+        builds and uploads -- the owner's call, never a loop's. `metadata
+        --yes` sends the store page texts from apps/vibee-ios/fastlane/metadata
+        (checked by `store` offline first); review submission stays a click.
         `sim` does the same on the simulator, with a deadline on install.
         Asks devicectl first, so a locked or unplugged phone is named as such
         instead of xcodebuild's "Unable to find a destination". `check` only
@@ -1604,6 +1606,8 @@ print(n)' 2>/dev/null)
 #   tri iphone testflight --yes  fastlane beta: build and upload to TestFlight.
 #                       Publishes under the owner's account -- only on his
 #                       "yes", so the flag is required, not a default.
+#   tri iphone metadata --yes  fastlane metadata: the store page texts from
+#                       apps/vibee-ios/fastlane/metadata; nothing submitted.
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
 # The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
 # next build need it back. One word instead of remembering the udid.
@@ -1943,6 +1947,9 @@ iphone_store() {
   if [ "$mode" = "testflight" ]; then
     [ "$yes" = "--yes" ] || { bad "uploading publishes a build under the owner's account: tri iphone testflight --yes"; return 2; }
     lanes=(beta) upload=1
+  elif [ "$mode" = "metadata" ]; then
+    [ "$yes" = "--yes" ] || { bad "the store page is published under the owner's account: tri iphone metadata --yes"; return 2; }
+    lanes=(metadata) upload=1
   fi
   local lane rc=0
   for lane in "${lanes[@]}"; do
@@ -1951,7 +1958,7 @@ iphone_store() {
         FASTLANE_HIDE_TIMESTAMP=1 FASTLANE_DISABLE_COLORS=1 \
         VIBEE_UPLOAD_YES="$upload" "$fl" "$lane" ) >"$log" 2>&1 || rc=$?
     # The lanes' own verdict lines, not fastlane's banner tables.
-    grep -E '^ *(✓|✗)|^(app|app id|testflight|store) |^next build|^\[!\]|^  [12]\. |^Ready|^built|^uploaded' "$log" | sed 's/^/       /'
+    grep -E '^ *(✓|✗)|^(app|app id|testflight|store) |^next build|^\[!\]|^  [12]\. |^Ready|^built|^uploaded|^store page' "$log" | sed 's/^/       /'
     [ "$rc" = 0 ] || { bad "fastlane $lane failed (exit $rc): tail $log"; return 1; }
   done
   good "fastlane ${lanes[*]}: done"
@@ -1974,6 +1981,7 @@ cmd_iphone() {
   [ "$mode" = "ru-web" ] && { iphone_ru_web "${2:-}"; return; }
   [ "$mode" = "store" ] && { iphone_store "$ios" store; return; }
   [ "$mode" = "testflight" ] && { iphone_store "$ios" testflight "${2:-}"; return; }
+  [ "$mode" = "metadata" ] && { iphone_store "$ios" metadata "${2:-}"; return; }
 
   if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
     bad "devicectl did not answer (Xcode command line tools?)"; return 2
