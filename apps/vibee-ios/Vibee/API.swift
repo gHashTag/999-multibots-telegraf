@@ -568,9 +568,9 @@ enum API {
     /// Чем меряется цена этой модели: «с», «1000 зн.» или ничем (за вызов).
     func мера(_ операция: String, модель: String?) -> String? {
       if let м = модель, perThousandCharsModels?.contains(м) == true {
-        return "1000 зн."
+        return "1000 зн."  // ru-only-ok: protocol key, translated for display -- cyrillic-ok
       }
-      return посекундная(операция, модель: модель) ? "с" : nil
+      return посекундная(операция, модель: модель) ? "с" : nil  // ru-only-ok: protocol key
     }
 
     /**
