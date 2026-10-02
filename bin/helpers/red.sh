@@ -12,6 +12,10 @@
 #   tri red [owner/repo] [ref]      default: this repo, main
 #   RED_LINES=N                     log lines kept per failure (default 12)
 #
+# Each failure names the step that stopped the job ("failed step:"), taken
+# from the steps' own conclusions, not guessed from the last ##[error] in the
+# log: a continue-on-error step prints ##[error] too and concludes success.
+#
 # Read-only. Exit 0 nothing failed, 1 something failed (named, with its log
 # tail), 2 could not tell (no answer from GitHub, unknown ref).
 set -uo pipefail
@@ -52,25 +56,10 @@ if [ -z "$BAD" ]; then
   exit 0
 fi
 
-while IFS=$'\t' read -r concl id name url; do
-  echo
-  echo "  ✗ $name  ($concl)"
-  echo "    $url"
-  # The log echoes the step's script (ESC[36;1m lines), the runner's group
-  # markers, every earlier step's setup and, after the verdict, a page of git
-  # cleanup. None of it is why.
-  # Same rule as for the SHA: on failure gh prints the error body (an expired
-  # log is an Azure BlobNotFound XML page) on stdout, so filter only a log
-  # that gh actually returned.
-  # One retry: under load the first fetch of a fresh log sometimes times out.
-  LOG=$(lim 60 gh api "repos/$REPO/actions/jobs/$id/logs" 2>/dev/null </dev/null) \
-    || LOG=$(lim 60 gh api "repos/$REPO/actions/jobs/$id/logs" 2>/dev/null </dev/null) \
-    || LOG=
-  # Judge by what came out, not by the pipeline's status: awk exits at the
-  # failing step, and on a log larger than a pipe buffer the sed feeding it
-  # then dies of SIGPIPE -- pipefail would call a readable log unreadable.
-  TAIL=$(printf '%s\n' "$LOG" \
-    | sed -E 's/^[0-9]{4}-[0-9-]+T[0-9:.]+Z //; s/\r$//' \
+# The step that failed, from a job log: drop timestamps, keep the LAST step that
+# raised ##[error], strip its echoed header and colour, keep the tail.
+step_tail() {
+  sed -E 's/^[0-9]{4}-[0-9-]+T[0-9:.]+Z //; s/\r$//' \
     | awk '
         # Keep only the LAST step that raised an ##[error] -- from its
         # "##[group]Run" header to the next step. Not the first: a
@@ -102,7 +91,62 @@ while IFS=$'\t' read -r concl id name url; do
     | grep -v -E $'^\e\\[36;1m|^##\\[(group|endgroup)\\]|^\\[command\\]|^shell: |^env:|^  [A-Z_]+: ' \
     | sed -E $'s/\e\\[[0-9;]*m//g' \
     | grep -v -E '^\s*$' \
-    | tail -n "$KEEP" | sed 's/^/    /')
+    | tail -n "$KEEP" | sed 's/^/    /'
+}
+
+while IFS=$'\t' read -r concl id name url; do
+  echo
+  echo "  ✗ $name  ($concl)"
+  echo "    $url"
+  # The log echoes the step's script (ESC[36;1m lines), the runner's group
+  # markers, every earlier step's setup and, after the verdict, a page of git
+  # cleanup. None of it is why.
+  # gh run view --log-failed asks the jobs API which steps CONCLUDED failure
+  # and cuts the job log to them. A continue-on-error step concludes success
+  # there, so it never shows; an if: always() step that fails after the real
+  # one does show -- hence the FIRST failed step is the cause, and the others
+  # are only named. (The run's log archive no longer holds a file per step;
+  # gh 2.83 splits the job log itself.) An older gh, or a check that is not an
+  # Actions job, answers nothing: then the whole job log and the last-error
+  # heuristic below.
+  FAILED=$(lim 90 gh run view -R "$REPO" --job "$id" --log-failed 2>/dev/null </dev/null) || FAILED=
+  FIRST=$(printf '%s\n' "$FAILED" | awk -F'\t' 'NF >= 3 { print $2; exit }')
+  TAIL=
+  if [ "$FIRST" = "UNKNOWN STEP" ]; then
+    # gh could not cut the log by step (seen live: a job whose log gh cannot
+    # line up with its step list) and hands back the WHOLE log under this
+    # label. The label is gh's, not the job's: name the step from the jobs API
+    # and let the last-error heuristic read the whole log.
+    NAMES=$(lim 60 gh api "repos/$REPO/actions/jobs/$id" \
+      --jq '[.steps[] | select(.conclusion == "failure") | .name] | join("\t")' 2>/dev/null </dev/null) || NAMES=
+    [ -n "$NAMES" ] && echo "    failed step: ${NAMES%%$'\t'*}"
+    case "$NAMES" in *$'\t'*) REST=${NAMES#*$'\t'}; echo "    then also failed: ${REST//$'\t'/, }" ;; esac
+    TAIL=$(printf '%s\n' "$FAILED" | awk -F'\t' 'NF >= 3' \
+      | cut -f3- | sed $'s/^\xef\xbb\xbf//' | step_tail)
+  elif [ -n "$FIRST" ]; then
+    echo "    failed step: $FIRST"
+    # The name goes to awk through the environment, not -v: -v expands
+    # backslash escapes, and a step with no name: is "Run " plus its script
+    # (`\;`, `\b`), which then never matches itself (review of #3408).
+    OTHERS=$(printf '%s\n' "$FAILED" | F="$FIRST" awk -F'\t' \
+      'NF >= 3 && $2 != ENVIRON["F"] && !seen[$2]++ { o = o (o == "" ? "" : ", ") $2 } END { print o }')
+    [ -n "$OTHERS" ] && echo "    then also failed: $OTHERS"
+    TAIL=$(printf '%s\n' "$FAILED" | F="$FIRST" awk -F'\t' 'NF >= 3 && $2 == ENVIRON["F"]' \
+      | cut -f3- | sed $'s/^\xef\xbb\xbf//' | step_tail)
+  fi
+  if [ -z "$TAIL" ]; then
+    # Same rule as for the SHA: on failure gh prints the error body (an expired
+    # log is an Azure BlobNotFound XML page) on stdout, so filter only a log
+    # that gh actually returned. One retry: under load the first fetch of a
+    # fresh log sometimes times out.
+    LOG=$(lim 60 gh api "repos/$REPO/actions/jobs/$id/logs" 2>/dev/null </dev/null) \
+      || LOG=$(lim 60 gh api "repos/$REPO/actions/jobs/$id/logs" 2>/dev/null </dev/null) \
+      || LOG=
+    # Judge by what came out, not by the pipeline's status: awk exits at the
+    # failing step, and on a log larger than a pipe buffer the sed feeding it
+    # then dies of SIGPIPE -- pipefail would call a readable log unreadable.
+    TAIL=$(printf '%s\n' "$LOG" | step_tail)
+  fi
   if [ -n "$TAIL" ]; then printf '%s\n' "$TAIL"
   else echo "    (log not readable -- open the link)"; fi
 done <<< "$BAD"

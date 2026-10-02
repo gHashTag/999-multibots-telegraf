@@ -372,7 +372,7 @@ CHECKS THAT EACH COST A CYCLE
         the decoration and records parity with it.
 
   tri iphone [check|build|sim|off|test|ru|store|testflight|metadata]
-        The Vibee app on the REAL phone: build, install, launch -- one command.
+        The Trinity S³AI app on the REAL phone: build, install, launch -- one command.
         `store` asks fastlane what stands between HEAD and TestFlight (offline
         preflight + read-only App Store Connect state); `testflight --yes`
         builds and uploads -- the owner's call, never a loop's. `metadata
@@ -1572,7 +1572,7 @@ print(n)' 2>/dev/null)
 # паритет. Поэтому перед переносом спрашиваем не «есть ли в вебе кнопка», а
 # «делает ли она что-нибудь».
 # ─────────────────────────────────────────────────────────────────────────
-# tri iphone [check|build|install] — the Vibee app on the REAL phone, one command.
+# tri iphone [check|build|install] — the Trinity S³AI app on the REAL phone, one command.
 #
 # Every step had its own way to fail without saying why:
 #   * a locked or unplugged phone makes xcodebuild print "Unable to find a
@@ -1927,7 +1927,7 @@ iphone_sim() {
   fi
   good "installed"
   local rc
-  "$deadline" 120 xcrun simctl launch --terminate-running-process "$sim" ai.t27.vibee >>"$log" 2>&1
+  "$deadline" 120 xcrun simctl launch --terminate-running-process "$sim" ai.t27.trinity >>"$log" 2>&1
   rc=$?
   if [ "$rc" = 124 ]; then
     bad "launch did not answer in 120 s -- the simulator is starved (swap? tri iphone sim warns), not the app"
@@ -2068,7 +2068,7 @@ PY
   xcrun devicectl device install app --device "$core" "$app" >"$log" 2>&1 \
     || { bad "install failed:"; tail -5 "$log" | sed 's/^/       /'; return 1; }
   good "installed"
-  xcrun devicectl device process launch --device "$core" --terminate-existing ai.t27.vibee >"$log" 2>&1 \
+  xcrun devicectl device process launch --device "$core" --terminate-existing ai.t27.trinity >"$log" 2>&1 \
     || { bad "launch failed (phone locked?):"; tail -5 "$log" | sed 's/^/       /'; return 1; }
   good "launched the fresh build on $name"
 }

@@ -183,7 +183,7 @@ targets:
         # in Vibee/ru.lproj/InfoPlist.strings, shown on a Russian phone.
         NSMicrophoneUsageDescription: >-
           Speak to the agent in the chat instead of typing: the recording
-          goes to Vibee's speech recognition, comes back as the text of your
+          goes to Trinity S³AI's speech recognition, comes back as the text of your
           message, and is not stored. Recording runs only while the mic
           button is lit.
         # NSPhotoLibraryUsageDescription: >-
@@ -231,7 +231,7 @@ targets:
         # В ТОМ ЖЕ коммите, что и её появление.
         ITSAppUsesNonExemptEncryption: false
     settings:
-      PRODUCT_BUNDLE_IDENTIFIER: ai.t27.vibee
+      PRODUCT_BUNDLE_IDENTIFIER: ai.t27.trinity
       GENERATE_INFOPLIST_FILE: NO
       TARGETED_DEVICE_FAMILY: 1
       # Версия для людей и номер сборки для Apple — РАЗНЫЕ вещи. Первую

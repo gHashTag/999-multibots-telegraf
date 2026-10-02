@@ -31,6 +31,12 @@
  * &model=flux&seed=N -> 200 image/jpeg, ~5 s, aspect honoured (asked
  * 768x1344, got 580x1015 -- the ratio is what the service guarantees, not
  * the absolute pixels).
+ *
+ * `nologo=true` IS ASKED AND NOT GRANTED. Re-measured 2026-10-03: a keyless
+ * 1024x1024 call came back 768x768 with "pollinations.ai" in the corner; the
+ * flag only works for an account. The parameter stays (it costs nothing and
+ * would start working with a key), but the picture is a stamped draft, and
+ * the tool says so in `watermark` (image-chain.ts, watermarkOf).
  */
 
 /** Where the free leg draws. Keyless: there is no token to read. */
