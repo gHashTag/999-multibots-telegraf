@@ -111,6 +111,21 @@ railway logs              # логи сервиса
 - в логах нет критических ошибок старта
 - бот отвечает на `/start` в Telegram
 
+### The player (app.t27.ai): a merge is not a deploy
+
+The player's tests run only inside the vibee-editor Docker build, because
+Actions are dead. One failing test refuses every later deploy, and nothing
+announces it. After any merge that touches `apps/vibee-editor`:
+
+```bash
+./tri deploys     # rc 0 live, 1 failed or behind, 2 unknown, 5 building
+```
+
+On a FAILED build, it names the failing tests and the commit that last
+touched each one. That commit is usually NOT the one whose deploy failed:
+watchPatterns skip test-only commits, so a broken test surfaces on the next
+source change.
+
 ### Log Monitoring
 
 ```bash
