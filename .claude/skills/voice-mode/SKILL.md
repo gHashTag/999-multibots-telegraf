@@ -28,6 +28,7 @@ the fallback, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 ./tri ears     # tri уши: gigaam (ru) + parakeet (en) + mouth deploys, render routing
 ./tri turn     # tri ход: does a phrase end the turn (850 ms) or hang (2500 ms); --live
 ./tri turn --audio done-*.wav cut-*.wav   # the ears' voice verdict on REAL recordings
+./tri turn --record   # record those phrases yourself (mic), then the same verdict
 ./tri words    # tri слова: product words heard as said (reels, lipsync...); exit 1 = XX
 ```
 
@@ -66,6 +67,8 @@ deployment/gigaam/turn.py              Smart Turn v3.2: numpy Whisper log-mel + 
 deployment/gigaam/test_turn.py         that log-mel against transformers (run where transformers is)
 deployment/mouth/server.py             mouth: POST /speak, GET /health (Kokoro en, Piper ru, 8 threads)
 UI strings                             player/src/atoms/language.ts, keys voice.*
+apps/vibee-ios/Vibee/VoiceInput.swift  iOS: press-to-talk -> /api/voice/transcribe, answer -> /api/voice/speak
+apps/vibee-ios/Vibee/AgentChatView.swift  the mic button in the native chat (iOS strings via say(en, ru))
 ```
 
 ## How talking over the agent works (cycle 1, 2026-10-02)
@@ -589,6 +592,15 @@ that is no verdict either way -- the switch flips only after
 `./tri turn --audio done-*.wav cut-*.wav` on the owner's recorded voice
 (the summary line: finished held / unfinished caught). Inference ~70 ms CPU.
 
+`./tri turn --record [--lang en]` (cycle 15) is the kit for that: ten
+phrases (five finished, five cut mid-thought), Enter starts and stops each
+one, files land in `~/.cache/tri/turn-voice/<lang>/done-NN.wav` /
+`cut-NN.wav`, already-recorded ones are skipped, and the same `--audio`
+verdict runs at the end. It needs a terminal (exit 2 without a tty) and
+ffmpeg. The FIRST recording can sit silent: macOS asks for microphone
+access for the terminal app, and `ffmpeg -f avfoundation` waits for that
+prompt without a word -- a probe from a non-interactive shell just hangs.
+
 Live after deploy (#3315, `tri turn --live`, our mouth -> our ears): English
 agreed with the words 3 of 3 (cut "invoices and" 0.01, "Open my calendar."
 0.99); Russian finished 0.99, but cut "...na etoy nedele i" 0.77 and "Khochu
@@ -651,30 +663,65 @@ returned for OUR mouth -- a person's "reels" may break differently. Grow
 the table from `tri words` and real transcripts, never from guesses: a row
 that fires on a real word is worse than the mishearing.
 
+## The phone hears and speaks too (cycle 15)
+
+The iOS agent chat is native SwiftUI (`AgentChatView.swift`), not the web
+chat, so thirteen cycles of web voice never reached it. Cycle 15 gave it
+the smallest honest version: a mic button between the text field and
+Send. Press -> `AVAudioRecorder` writes 16 kHz mono 16-bit WAV (what the
+ears resample to anyway; 60 s cap ~1.9 MB, under the render's 8 MB);
+press again -> `POST /api/voice/transcribe?lang=ru|en` (the phone's
+language, so the fast ears are used, never whisper's detection) -> the
+words are sent as an ordinary message -> the agent's answer goes to
+`POST /api/voice/speak` and plays. Same ears, same mouth, same budgets
+(401 says "sign in under Profile", 429 says "wait a minute").
+
+Two iOS traps it had to respect:
+
+- **Sound belongs to the feed.** `FeedView` sets `.playback` /
+  `.moviePlayback`. Recording needs `.playAndRecord`; the category is
+  borrowed for one utterance and put back (`restoreSession`), or the
+  feed's videos would follow call routing.
+- **`Info.plist` is generated.** The permission text lives in
+  `project.yml` (`NSMicrophoneUsageDescription`), the Russian one in
+  `Vibee/ru.lproj/InfoPlist.strings`; run `xcodegen generate` and commit
+  the regenerated plist. A recording without the key crashes the app.
+
+Competitors: ChatGPT's iOS app has both a dictation mic (speech into the
+text box, the person reviews it) and a separate hands-free voice mode;
+Telegram transcribes voice notes after the fact. Ours sends at once and
+reads the answer aloud -- closer to a walkie-talkie than to dictation.
+
+Self-critique: press-to-talk, not hands-free -- the second press ends the
+turn, which cannot be wrong but is not a conversation. No barge-in by
+voice: a new press stops the answer. `VoiceInputTests` pin the URL, the
+reading of the answer, the failure texts and the format; nothing tests the
+recording itself, which needs a microphone and a person.
+
 ## Weak spots, with status
 
-| #   | weak spot                                             | status                                                                                                                                               |
-| --- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | card markup read aloud                                | FIXED cycle 1                                                                                                                                        |
-| 2   | any sound killed the answer (280 ms, no resume)       | FIXED cycle 1 (pause/resume)                                                                                                                         |
-| 3   | its own voice through the speaker interrupted it      | FIXED cycle 1 (onset + echo)                                                                                                                         |
-| 4   | stuck "speaking" on a suspended AudioContext          | FIXED cycle 1 (watchdog)                                                                                                                             |
-| 5   | silence after the phrase looked like "not heard"      | FIXED cycle 1 (earcon)                                                                                                                               |
-| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)        | FIXED cycle 3 (GigaAM, #3252)                                                                                                                        |
-| 7   | energy VAD: a fan or street noise counts as speech    | PARTLY cycle 8 (steady noise = room); rising noise -> Silero                                                                                         |
-| 8   | words heard only after the 850 ms pause               | FIXED cycle 4 (#3257)                                                                                                                                |
-| 8b  | turn end is a fixed pause; slow speakers get cut      | PARTLY cycle 11 (words); cycle 13 voice judge in SHADOW (`voiceHolds` off) until `tri turn --audio` on real voices                                   |
-| 9   | nothing said while the agent thinks for long          | FIXED cycle 9 (filler at 3 s, "still" at 15 s; `tri filler`)                                                                                         |
-| 10  | first sound waits for a whole first sentence          | FIXED cycle 2 (first clause)                                                                                                                         |
-| 11  | voice picker only for the app language                | OPEN                                                                                                                                                 |
-| 12  | product words misheard by every engine ("рилс")       | FIXED cycle 14 (`hotwords.ts` after hearing; `tri words`) -- table from synthesized speech only                                                      |
-| 13  | English hearing is still whisper, ~2.6 s              | FIXED cycle 5 (Parakeet v2)                                                                                                                          |
-| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s  | PARTLY cycle 7 (wakeRoad, 32k); sin1->sfo 250 ms is the region                                                                                       |
-| 15  | English first sound ~2 s (Kokoro in the whisper pod)  | FIXED cycle 6 (mouth, 8 threads)                                                                                                                     |
-| 16  | a stalled synthesis silences the whole answer         | FIXED cycle 10 (`speakDeadlineMs`, device voice reads it)                                                                                            |
-| 17  | first wait phrase cold, skipped at the first question | FIXED cycle 10 (warmed at session open)                                                                                                              |
-| 18  | full-screen voice hid the chat it talks about         | FIXED cycle 12 (VoiceDock; typed -> spoken; overlay is opt-in)                                                                                       |
-| 19  | the iOS app has no voice at all                       | OPEN -- its agent chat is native SwiftUI (`AgentChatView.swift`), not the web chat; `NSMicrophoneUsageDescription` is commented out in `project.yml` |
+| #   | weak spot                                             | status                                                                                                                    |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | card markup read aloud                                | FIXED cycle 1                                                                                                             |
+| 2   | any sound killed the answer (280 ms, no resume)       | FIXED cycle 1 (pause/resume)                                                                                              |
+| 3   | its own voice through the speaker interrupted it      | FIXED cycle 1 (onset + echo)                                                                                              |
+| 4   | stuck "speaking" on a suspended AudioContext          | FIXED cycle 1 (watchdog)                                                                                                  |
+| 5   | silence after the phrase looked like "not heard"      | FIXED cycle 1 (earcon)                                                                                                    |
+| 6   | Russian hearing ~3.6 s median (whisper ~2.3 s)        | FIXED cycle 3 (GigaAM, #3252)                                                                                             |
+| 7   | energy VAD: a fan or street noise counts as speech    | PARTLY cycle 8 (steady noise = room); rising noise -> Silero                                                              |
+| 8   | words heard only after the 850 ms pause               | FIXED cycle 4 (#3257)                                                                                                     |
+| 8b  | turn end is a fixed pause; slow speakers get cut      | PARTLY cycle 11 (words); cycle 13 voice judge in SHADOW (`voiceHolds` off) until `tri turn --audio` on real voices        |
+| 9   | nothing said while the agent thinks for long          | FIXED cycle 9 (filler at 3 s, "still" at 15 s; `tri filler`)                                                              |
+| 10  | first sound waits for a whole first sentence          | FIXED cycle 2 (first clause)                                                                                              |
+| 11  | voice picker only for the app language                | OPEN                                                                                                                      |
+| 12  | product words misheard by every engine ("рилс")       | FIXED cycle 14 (`hotwords.ts` after hearing; `tri words`) -- table from synthesized speech only                           |
+| 13  | English hearing is still whisper, ~2.6 s              | FIXED cycle 5 (Parakeet v2)                                                                                               |
+| 14  | the road (browser-render-ears) 0.5-0.85 s, tails 6 s  | PARTLY cycle 7 (wakeRoad, 32k); sin1->sfo 250 ms is the region                                                            |
+| 15  | English first sound ~2 s (Kokoro in the whisper pod)  | FIXED cycle 6 (mouth, 8 threads)                                                                                          |
+| 16  | a stalled synthesis silences the whole answer         | FIXED cycle 10 (`speakDeadlineMs`, device voice reads it)                                                                 |
+| 17  | first wait phrase cold, skipped at the first question | FIXED cycle 10 (warmed at session open)                                                                                   |
+| 18  | full-screen voice hid the chat it talks about         | FIXED cycle 12 (VoiceDock; typed -> spoken; overlay is opt-in)                                                            |
+| 19  | the iOS app has no voice at all                       | FIXED cycle 15 (`VoiceInput.swift`: press-to-talk in `AgentChatView`, answer read aloud) -- no hands-free turn taking yet |
 
 Move a row to FIXED only with the PR number and a test that kills the mutation.
 

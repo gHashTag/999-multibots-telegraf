@@ -1,0 +1,186 @@
+import AVFoundation
+import Foundation
+
+/**
+ * VOICE IN THE CHAT: say the question, hear the answer (voice-mode weak
+ * spot 19).
+ *
+ * The web and the mini app had voice mode for thirteen cycles; the phone had
+ * none -- not even the microphone permission, which sat commented out in
+ * project.yml. This is the smallest honest version of it: press the mic,
+ * speak, press again. The words go through the SAME ears the web uses
+ * (`POST /api/voice/transcribe`, GigaAM for Russian, Parakeet for English,
+ * whisper behind both), arrive in the chat as an ordinary message -- so the
+ * agent keeps every tool and the transcript keeps the turn -- and the answer
+ * is read aloud by the same mouth (`POST /api/voice/speak`).
+ *
+ * What it deliberately does NOT do yet: hands-free turn taking. The web's
+ * session listens continuously and decides by itself when a phrase ended;
+ * here the person's second press ends it. A press cannot be wrong about
+ * when a person finished, a silence detector can, and the phone had nothing
+ * at all before this.
+ */
+@MainActor
+final class VoiceInput: ObservableObject {
+  enum Phase: Equatable { case idle, listening, hearing }
+
+  /// What came back from one utterance.
+  enum Heard: Equatable {
+    case words(String)
+    /// Audio arrived, the ears found no words in it.
+    case nothing
+    /// A sentence for the person, in the phone's language.
+    case problem(String)
+  }
+
+  @Published private(set) var phase: Phase = .idle
+
+  /// One utterance at most; the recorder stops itself here. 60 s of 16 kHz
+  /// mono WAV is ~1.9 MB, well under the render's 8 MB cap per utterance.
+  nonisolated static let maxSeconds: TimeInterval = 60
+
+  /// 16 kHz mono 16-bit PCM: what the ears resample everything to anyway,
+  /// so nothing is lost and the server decodes it without guessing.
+  static let recordSettings: [String: Any] = [
+    AVFormatIDKey: Int(kAudioFormatLinearPCM),
+    AVSampleRateKey: 16_000,
+    AVNumberOfChannelsKey: 1,
+    AVLinearPCMBitDepthKey: 16,
+    AVLinearPCMIsFloatKey: false,
+    AVLinearPCMIsBigEndianKey: false,
+  ]
+
+  /// The language the ears are told. A named language takes the fast ears
+  /// (GigaAM / Parakeet); without one the render falls back to whisper's
+  /// detection, which is several times slower.
+  nonisolated static var lang: String { speaksRussian ? "ru" : "en" }
+
+  nonisolated static func transcribeURL(base: URL = API.base, lang: String = VoiceInput.lang) -> URL {
+    var c = URLComponents(
+      url: base.appendingPathComponent("api/voice/transcribe"), resolvingAgainstBaseURL: false)!
+    c.queryItems = [URLQueryItem(name: "lang", value: lang)]
+    return c.url!
+  }
+
+  /// The render answers `{"text": "..."}`; blank words are no words.
+  nonisolated static func heard(from data: Data) -> Heard {
+    guard let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      return .problem(say("The ears answered something unreadable.", "Сервер распознавания ответил непонятно."))
+    }
+    let text = (o["text"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    return text.isEmpty ? .nothing : .words(text)
+  }
+
+  /// A failed status in words: who has to act, not just a number.
+  nonisolated static func problem(status: Int) -> String {
+    switch status {
+    case 401:
+      return say("The server does not know who is speaking. Sign in under Profile first.",
+                 "Сервер не знает, кто говорит. Сначала войдите в Профиле.")
+    case 429:
+      return say("Too many voice messages in a row. Wait a minute.",
+                 "Слишком много голосовых подряд. Подождите минуту.")
+    default:
+      return say("Could not hear you: \(serverAnswered(status)).",
+                 "Не расслышал: \(serverAnswered(status)).")
+    }
+  }
+
+  private var recorder: AVAudioRecorder?
+  private var player: AVAudioPlayer?
+  private let file = FileManager.default.temporaryDirectory
+    .appendingPathComponent("vibee-voice-turn.wav")
+
+  /// Start listening. Returns a sentence for the person when it cannot.
+  func start() async -> String? {
+    guard phase == .idle else { return nil }
+    // A new question silences the previous answer, as interrupting does on
+    // the web.
+    player?.stop()
+    player = nil
+    guard await AVAudioApplication.requestRecordPermission() else {
+      return say("Microphone access is off. Turn it on in Settings → Vibee → Microphone.",
+                 "Доступ к микрофону выключен. Включите: Настройки → Vibee → Микрофон.")
+    }
+    do {
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
+      try session.setActive(true)
+      let r = try AVAudioRecorder(url: file, settings: Self.recordSettings)
+      guard r.record(forDuration: Self.maxSeconds) else {
+        restoreSession()
+        return say("The microphone did not start.", "Микрофон не включился.")
+      }
+      recorder = r
+      phase = .listening
+      return nil
+    } catch {
+      restoreSession()
+      return say("The microphone did not start: \(error.localizedDescription)",
+                 "Микрофон не включился: \(error.localizedDescription)")
+    }
+  }
+
+  /// Stop listening and hear what was said.
+  func finish() async -> Heard {
+    guard phase == .listening, let r = recorder else { return .nothing }
+    r.stop()
+    recorder = nil
+    restoreSession()
+    phase = .hearing
+    defer {
+      phase = .idle
+      try? FileManager.default.removeItem(at: file)
+    }
+    guard let audio = try? Data(contentsOf: file), audio.count > 512 else { return .nothing }
+    var req = URLRequest(url: Self.transcribeURL())
+    req.httpMethod = "POST"
+    req.setValue("audio/wav", forHTTPHeaderField: "Content-Type")
+    for (k, v) in Identity.headers() { req.setValue(v, forHTTPHeaderField: k) }
+    req.timeoutInterval = 60
+    do {
+      let (data, response) = try await URLSession.shared.upload(for: req, from: audio)
+      let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+      guard status == 200 else { return .problem(Self.problem(status: status)) }
+      return Self.heard(from: data)
+    } catch {
+      return .problem(say("Did not reach the server: \(error.localizedDescription)",
+                          "Не дошло до сервера: \(error.localizedDescription)"))
+    }
+  }
+
+  /// Read an answer aloud. Silent on failure: the text is on screen anyway,
+  /// and a spoken error about the voice would be a second interruption.
+  func speak(_ text: String) async {
+    let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !words.isEmpty, phase == .idle else { return }
+    var req = URLRequest(url: API.base.appendingPathComponent("api/voice/speak"))
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    for (k, v) in Identity.headers() { req.setValue(v, forHTTPHeaderField: k) }
+    // The render cleans the text for speech (links, markdown, emoji) and
+    // cuts it at 600 characters, so the whole answer can go as it is.
+    req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": words, "lang": Self.lang])
+    guard let reply = try? await URLSession.shared.data(for: req),
+          (reply.1 as? HTTPURLResponse)?.statusCode == 200,
+          // The person may have pressed the mic while the answer was being made.
+          phase == .idle,
+          let p = try? AVAudioPlayer(data: reply.0)
+    else { return }
+    player = p
+    p.play()
+  }
+
+  /**
+   * Put the sound back the way the feed set it.
+   *
+   * Sound in this app belongs to the feed (FeedView's sound set-up, which
+   * explains why there must be one owner): `.playback` / `.moviePlayback`.
+   * Recording needs `.playAndRecord`, and leaving it there would route the
+   * feed's videos through the earpiece rules of a call. So the category is
+   * borrowed for one utterance and returned.
+   */
+  private func restoreSession() {
+    try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+  }
+}

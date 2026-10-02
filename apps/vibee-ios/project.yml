@@ -177,13 +177,12 @@ targets:
         # ---------------------------------------------------------------
         # ОПИСАНИЯ РАЗРЕШЕНИЙ. Намеренно закомментированы, а не удалены.
         #
-        # Сегодня приложение НЕ обращается ни к камере, ни к микрофону, ни
-        # к медиатеке: во всём Vibee/ нет ни AVCaptureDevice, ни
-        # PhotosPicker/PHPhotoLibrary, ни AVAudioRecorder. Единственный
-        # вызов из мира медиа — AVAudioSession.setCategory(.playback)
-        # (FeedView.swift), а воспроизведение разрешений не требует.
-        # Исходники для генерации приложение отправляет ССЫЛКАМИ, файлы с
-        # устройства не читаются.
+        # Updated 2026-10-02: the MICROPHONE is now used -- AVAudioRecorder
+        # in VoiceInput.swift, borrowing `.playAndRecord` for one utterance
+        # and handing the session back to the feed's `.playback`. The camera
+        # and the photo library are still NOT used: no AVCaptureDevice, no
+        # PhotosPicker/PHPhotoLibrary. Generation sources still travel as
+        # LINKS; no file on the device is read.
         #
         # Ключ разрешения в бандле, которым приложение не пользуется, — не
         # безобидная заготовка: App Review спрашивает, где именно оно
@@ -196,10 +195,18 @@ targets:
         #   генерацию: липсинк накладывает речь на снятое лицо, перенос
         #   стиля перерисовывает снятый кадр. Снимок уходит на сервер
         #   генерации и нигде не публикуется, пока вы сами не поделитесь.
-        # NSMicrophoneUsageDescription: >-
-        #   Запись вашего голоса как исходника для липсинка: по этой
-        #   дорожке на сервере двигаются губы аватара. Без записи
-        #   останется только синтезированный голос из списка.
+        #
+        # The MICROPHONE is the first of these to be used (2026-10-02): the
+        # mic button in the agent chat (Vibee/VoiceInput.swift). The text
+        # names that use and only that use; the lipsync recording drafted
+        # here before is not built, and App Review checks the text against
+        # what the app does. English here (the default language); Russian
+        # in Vibee/ru.lproj/InfoPlist.strings, shown on a Russian phone.
+        NSMicrophoneUsageDescription: >-
+          Speak to the agent in the chat instead of typing: the recording
+          goes to Vibee's speech recognition, comes back as the text of your
+          message, and is not stored. Recording runs only while the mic
+          button is lit.
         # NSPhotoLibraryUsageDescription: >-
         #   Выбор уже снятого фото или ролика как исходника генерации,
         #   чтобы не переснимать. Читается ровно один файл — тот, что вы
