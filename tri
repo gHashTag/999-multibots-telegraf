@@ -1544,6 +1544,9 @@ print(n)' 2>/dev/null)
 #   tri iphone off      shut every running simulator down (gives ~10 GB back)
 #   tri iphone test [Class]  unit tests with a 25-min deadline and a one-line
 #                       verdict (Class = one test class, e.g. ConnectivityTests)
+#   tri iphone typecheck  type-check the app AND the tests with swiftc, no
+#                       simulator (~80 s). Proves it compiles, not that the
+#                       tests pass -- when swap rules out `tri iphone test`.
 #   tri iphone ru [File]  native strings still Russian-only (count / lines)
 #   tri iphone ru-diff [ref]  lines a counter change hides vs ref (origin/main)
 #   tri iphone ru-web [file]  ROUGH count of Russian-only literals in the web
@@ -1609,11 +1612,19 @@ PAIR = re.compile(r'("(?:[^"\\]|\\.)*")(\s*,\s*)("(?:[^"\\]|\\.)*")')
 # GenerateScreen (iteration 7): `kind == "видео"` compares a server value --
 # only that literal goes, the UI text on the same line still counts.
 CMP = re.compile(r'[=!]=\s*"(?:[^"\\]|\\.)*"')
+# Iteration 15: КаталогСценария keys its English labels by the Russian value
+# (`"Бизнес": "Business",`) -- the key is data, the value is the UI text.
+# Line start only: a ternary's `? "a" : "b"` never starts a line with a literal.
+DICTKEY = re.compile(r'^(\s*)("(?:[^"\\]|\\.)*")(\s*:)(?!:)')
+# Iteration 15: Animation.swift's 22 hits were precondition messages -- they
+# reach a developer's crash log, never a screen.
+DEV_ONLY = ['precondition', 'preconditionFailure', 'assert', 'assertionFailure', 'fatalError']
 
 def protocol_out(line):
     line = KEY.sub(lambda m: ' ' * len(m.group()), line)
     line = CASE.sub(lambda m: ' ' * len(m.group()), line)
     line = CMP.sub(lambda m: ' ' * len(m.group()), line)
+    line = DICTKEY.sub(lambda m: m.group(1) + ' ' * len(m.group(2)) + m.group(3), line)
     return PAIR.sub(lambda m: ' ' * len(m.group())
                     if not CYR.search(m.group(1)) and CYR.search(m.group(3))
                     else m.group(), line)
@@ -1644,7 +1655,7 @@ for f in sorted(os.listdir(root)):
     if f in GENERATED:
         print(f'  skipped {f}: generated, its words are checked by {GENERATED[f]}', file=sys.stderr)
         continue
-    lines = [protocol_out(l) for l in comments_out(blank_calls(raw, ['say', 'l', 'NSLog', 'print', 'accessibilityIdentifier']))]
+    lines = [protocol_out(l) for l in comments_out(blank_calls(raw, ['say', 'l', 'NSLog', 'print', 'accessibilityIdentifier'] + DEV_ONLY))]
     hits = [(n + 1, marks[n].strip()) for n, l in enumerate(lines)
             if 'ru-only-ok' not in marks[n]
             and any(CYR.search(INTERP.sub('', x)) for x in LIT.findall(l))]
@@ -1767,6 +1778,39 @@ iphone_test() {
   return "$rc"
 }
 
+# Iteration 15: swap at 9 of 11 GB kept the simulator (and so `iphone test`)
+# out for hours, and Swift edits waited unverified. swiftc can type-check the
+# app and the tests against the simulator SDK with no device at all: emit the
+# app as a testable module, then check the tests against it. XCTest lives
+# outside the SDK proper, hence the platform -I/-F paths.
+iphone_typecheck() {
+  local ios="$1" target="arm64-apple-ios17.0-simulator" t plat rc log
+  t=$(mktemp -d) log="$t/log"
+  plat="$(xcrun --sdk iphonesimulator --show-sdk-platform-path)/Developer" || { bad "no iphonesimulator SDK"; return 2; }
+  echo "  …    app: emit module + type-check ($target)"
+  ( cd "$ios" && xcrun --sdk iphonesimulator swiftc -emit-module -enable-testing \
+      -module-name Vibee -target "$target" -emit-module-path "$t/Vibee.swiftmodule" \
+      Vibee/*.swift ) >"$log" 2>&1
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    bad "the app does not type-check"
+    grep -E ": error:" "$log" | sort -u | head -15 | sed 's/^/       /'
+    rm -rf "$t"; return "$rc"
+  fi
+  good "app type-checks ($(grep -c ': warning:' "$log") warning(s))"
+  echo "  …    tests: type-check against the app module"
+  ( cd "$ios" && xcrun --sdk iphonesimulator swiftc -typecheck -target "$target" \
+      -I "$t" -I "$plat/usr/lib" -F "$plat/Library/Frameworks" VibeeTests/*.swift ) >"$log" 2>&1
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    bad "the tests do not type-check"
+    grep -E ": error:" "$log" | sort -u | head -15 | sed 's/^/       /'
+  else
+    good "tests type-check -- compiled, NOT run: \`tri iphone test\` still owes the verdict"
+  fi
+  rm -rf "$t"; return "$rc"
+}
+
 iphone_sim() {
   local ios="$1" sim="${VIBEE_SIM:-}"
   local dd="${TMPDIR:-/tmp}/tri-iphone-dd-sim" log="${TMPDIR:-/tmp}/tri-iphone-sim.log"
@@ -1843,6 +1887,7 @@ cmd_iphone() {
   [ "$mode" = "sim" ] && { iphone_sim "$ios"; return; }
   [ "$mode" = "off" ] && { iphone_sim_off; return; }
   [ "$mode" = "test" ] && { iphone_test "$ios" "${2:-}"; return; }
+  [ "$mode" = "typecheck" ] && { iphone_typecheck "$ios"; return; }
   [ "$mode" = "ru" ] && { iphone_ru "$ios" "${2:-}"; return; }
   [ "$mode" = "ru-diff" ] && { iphone_ru_diff "$ios" "${2:-}"; return; }
   [ "$mode" = "ru-web" ] && { iphone_ru_web "${2:-}"; return; }

@@ -92,4 +92,54 @@ final class NativeLanguageTests: XCTestCase {
     XCTAssertEqual(framesLabel(2, russian: true), "2 кадра")
     XCTAssertEqual(framesLabel(25, russian: true), "25 кадров")
   }
+
+  /// A refused sign-in code showed the server's Russian `detail` on an
+  /// English phone. The refusal is read by its code now.
+  func testPairingRefusalIsReadByCode() {
+    let expired: [String: Any] = [
+      "error": "pairing_failed", "code": "expired", "reason": "expired",
+      "detail": "код уже использован или истёк — запросите новый",
+    ]
+    XCTAssertEqual(
+      Identity.pairingRefusal(status: 401, body: expired, russian: false),
+      "The code is used up or expired — request a new one")
+    // A Russian reader keeps the server's own words.
+    XCTAssertEqual(
+      Identity.pairingRefusal(status: 401, body: expired, russian: true),
+      "код уже использован или истёк — запросите новый")
+
+    // An older server: `reason` without `code`.
+    XCTAssertEqual(
+      Identity.pairingRefusal(status: 401, body: ["reason": "exhausted"], russian: false),
+      "Too many attempts — request a new code")
+
+    let tooOften: [String: Any] = ["code": "too_often", "ждать_секунд": 30]  // cyrillic-ok: server field name
+    XCTAssertEqual(
+      Identity.pairingRefusal(status: 429, body: tooOften, russian: false),
+      "Too many tries — wait 30 s and try again")
+    // No code at all, but 429 still means "wait".
+    XCTAssertEqual(
+      Identity.pairingRefusal(status: 429, body: [:], russian: false),
+      "Too many tries — wait a little and try again")
+
+    XCTAssertEqual(
+      Identity.pairingRefusal(
+        status: 400, body: ["code": "bad_length", "digits": 8], russian: false),
+      "The code must be 8 digits")
+
+    // Unknown code: still English, still says what happened, never raw Russian.
+    let odd = Identity.pairingRefusal(
+      status: 418, body: ["code": "new_thing", "error": "что-то новое"], russian: false)
+    XCTAssertEqual(odd, "The code was not accepted (the server answered 418)")
+  }
+
+  func testTrackNamesAndScriptTipsFollowTheLanguage() {
+    XCTAssertEqual(Слои.имяДорожки("video", russian: false), "Video")  // cyrillic-ok: pre-existing names
+    XCTAssertEqual(Слои.имяДорожки("audio", russian: true), "Звук")  // cyrillic-ok: pre-existing names
+    XCTAssertEqual(Слои.имяДорожки("anything", russian: false), "Text")  // cyrillic-ok: pre-existing names
+    let tips = СоветыСценария.все(russian: false)  // cyrillic-ok: pre-existing name
+    XCTAssertEqual(tips.first, "Hook in first 1-3 sec")
+    XCTAssertFalse(tips.joined().contains { ("а"..."я").contains(String($0).lowercased()) })
+    XCTAssertEqual(СоветыСценария.все(russian: true).count, tips.count)  // cyrillic-ok: pre-existing name
+  }
 }
