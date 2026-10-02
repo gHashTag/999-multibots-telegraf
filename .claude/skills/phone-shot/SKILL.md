@@ -285,10 +285,6 @@ Promise.all([...])` followed by `setA(a); setB(b)` reads in parallel but
   and keep the words as the fallback for a code the screen does not know
   yet. A test reads the code list from the server's own source, so a new
   code without a line in both dictionaries fails at once.
-- **`new URL(`...${x}`, import.meta.url)` in a player test is an asset glob
-  to Vite**, and a path outside the player is refused ("Denied ID ...?url").
-  Read the server source with `resolve(dirname(fileURLToPath(
-import.meta.url)), ...)` and `readFileSync`.
 - **A stand that keeps saying NOT MEASURED is rot, not luck.** #3242 put the
   palette inside a closed `<details>` ("More"); the stand waited for a root
   that was never visible and printed "not measured" (exit 2) for days while
@@ -300,6 +296,10 @@ import.meta.url)), ...)` and `readFileSync`.
 - **An ellipsis on the only name of a thing is a cut.** The reel history row
   ended its topic in "..." at 320px; the topic is what tells one reel from the
   next, so it wraps (`overflow-wrap: anywhere; min-width: 0`).
+- **`new URL(`...${x}`, import.meta.url)` in a player test is an asset glob
+  to Vite**, and a path outside the player is refused ("Denied ID ...?url").
+  Read the server source with `resolve(dirname(fileURLToPath(
+import.meta.url)), ...)` and `readFileSync`.
 
 ## Related Resources
 
