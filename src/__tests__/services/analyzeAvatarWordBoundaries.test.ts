@@ -44,6 +44,9 @@ beforeEach(() => {
   fetchMock.mockClear()
   vi.stubGlobal('fetch', fetchMock)
   vi.stubEnv('KIE_AI_API_KEY', 'test-kie-key')
+  // Our own vision model is asked first when this is set; these tests pin
+  // the Kie path, so a key exported in the shell must not leak in.
+  vi.stubEnv('VISION_API_KEY', '')
   // The real logger object -- the same instance the Telegram transport is
   // attached to, so "which method" is a real question here.
   error = vi.spyOn(logger, 'error').mockImplementation(() => logger as any)
@@ -198,5 +201,98 @@ describe('Kie refusals are failures, not empty verdicts', () => {
 
     expect(result.error).toContain('402')
     expect(result.error).toContain('Insufficient credits')
+  })
+})
+
+/*
+ * Log 2026-10-01: Replicate answered 402 "Insufficient credit" and every new
+ * user paged the owner. The project's own vision model is asked first; Kie is
+ * the fallback, so no single paid provider is the only eye again.
+ */
+describe('our own eyes first, Kie only after them', () => {
+  const KIE = 'https://api.kie.ai/v1/chat/completions'
+  const photo = () =>
+    new Response(new Uint8Array([0xff, 0xd8, 0xff]), {
+      headers: { 'content-type': 'image/jpeg' },
+    })
+  const answer = (text: string) =>
+    new Response(JSON.stringify({ choices: [{ message: { content: text } }] }))
+
+  beforeEach(() => {
+    vi.stubEnv('VISION_API_KEY', 'test-vision-key')
+    vi.stubEnv('VISION_BASE_URL', 'http://vision.test/v1/')
+  })
+
+  it('asks our vision model and never pays Kie when it answers', async () => {
+    const calls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push(String(url))
+        if (String(url).startsWith('http://vision.test')) {
+          const body = JSON.parse(String(init?.body))
+          expect(body.messages[0].content[1].image_url.url).toMatch(
+            /^data:image\/jpeg;base64,/
+          )
+          return answer('FACE:yes GENDER:female')
+        }
+        if (String(url) === KIE) throw new Error('Kie must not be asked')
+        return photo()
+      })
+    )
+
+    const result = await analyzeAvatar(URL)
+
+    expect(result.hasFace).toBe(true)
+    expect(result.gender).toBe('female')
+    expect(calls).toEqual([URL, 'http://vision.test/v1/chat/completions'])
+  })
+
+  it('falls back to Kie when our model is down', async () => {
+    const calls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        calls.push(String(url))
+        if (String(url).startsWith('http://vision.test'))
+          return new Response('down', { status: 503 })
+        if (String(url) === KIE) return answer('FACE:yes GENDER:male')
+        return photo()
+      })
+    )
+
+    const result = await analyzeAvatar(URL)
+
+    expect(result.gender).toBe('male')
+    expect(calls).toContain(KIE)
+  })
+
+  it('names both failures when both are down', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (String(url).startsWith('http://vision.test'))
+          return new Response('down', { status: 503 })
+        if (String(url) === KIE)
+          return new Response(JSON.stringify({ msg: 'Insufficient credits' }), {
+            status: 402,
+          })
+        return photo()
+      })
+    )
+
+    const result = await analyzeAvatar(URL)
+
+    expect(result.hasFace).toBe(false)
+    expect(result.error).toContain('own vision answered 503')
+    expect(result.error).toContain('Insufficient credits')
+  })
+
+  it('without a key keeps the old path: Kie alone', async () => {
+    vi.stubEnv('VISION_API_KEY', '')
+    run.mockResolvedValue('Yes')
+    expect(await quickFaceCheck(URL)).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe(KIE)
   })
 })

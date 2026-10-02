@@ -185,6 +185,12 @@ export type Ears = 'gigaam' | 'parakeet' | 'whisper'
 export interface Heard {
   text: string
   engine: Ears
+  /**
+   * The probability, judged from the sound alone, that the person has
+   * finished their turn (Smart Turn v3, deployment/gigaam/turn.py). Only
+   * fast ears asked with `turn` answer it; whisper never does.
+   */
+  done?: number
 }
 
 /*
@@ -217,11 +223,20 @@ export function earsConfig(lang: VoiceLang | undefined): FastEars | null {
 /** Fast ears answer in well under a second; past this, whisper is the better bet. */
 export const EARS_TIMEOUT_MS = 4_000
 
-async function hearFast(ears: FastEars, bytes: Buffer): Promise<string | null> {
+/** A probability in [0, 1], or nothing: the ears may be an older image. */
+function probability(v: unknown): number | undefined {
+  return typeof v === 'number' && v >= 0 && v <= 1 ? v : undefined
+}
+
+async function hearFast(
+  ears: FastEars,
+  bytes: Buffer,
+  turn = false
+): Promise<{ text: string; done?: number } | null> {
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), EARS_TIMEOUT_MS)
   try {
-    const r = await fetch(`${ears.url}/hear`, {
+    const r = await fetch(`${ears.url}/hear${turn ? '?turn=1' : ''}`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${ears.key}`,
@@ -236,8 +251,10 @@ async function hearFast(ears: FastEars, bytes: Buffer): Promise<string | null> {
       )
       return null
     }
-    const body = (await r.json()) as { text?: unknown }
-    return typeof body.text === 'string' ? body.text.trim() : null
+    const body = (await r.json()) as { text?: unknown; done?: unknown }
+    if (typeof body.text !== 'string') return null
+    const done = turn ? probability(body.done) : undefined
+    return { text: body.text.trim(), ...(done === undefined ? {} : { done }) }
   } catch (e) {
     const why = ac.signal.aborted ? 'timed out' : (e as Error).message
     console.warn(`[voice] ${ears.engine} ${why}, falling back to whisper`)
@@ -257,18 +274,23 @@ async function hearFast(ears: FastEars, bytes: Buffer): Promise<string | null> {
  * it means nothing was said, and whisper, asked the same, tends to invent a
  * sentence out of silence. Without a language the phrase goes to whisper,
  * which detects it -- that is how the player re-learns a person's language.
+ *
+ * `turn` also asks the fast ears whether the voice sounds finished; the
+ * answer comes back as `done`. Whisper cannot say, so a fallback has none,
+ * and the player then judges by the words alone.
  */
 export async function hear(
   bytes: Buffer,
   contentType: string | undefined,
   lang?: unknown,
-  timeoutMs = 45_000
+  timeoutMs = 45_000,
+  turn = false
 ): Promise<Heard | null> {
   const spoken = spokenLanguage(lang)
   const ears = earsConfig(spoken)
   if (ears) {
-    const text = await hearFast(ears, bytes)
-    if (text !== null) return { text, engine: ears.engine }
+    const fast = await hearFast(ears, bytes, turn)
+    if (fast !== null) return { ...fast, engine: ears.engine }
   }
   const w = whisperConfig()
   if (!w) return null

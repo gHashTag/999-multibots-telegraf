@@ -119,11 +119,11 @@ Here, we don''t just learn to create visuals. We learn to try on new possibiliti
 
 ### 3. Выполнение SQL-Запросов
 
-- **Инструмент:** Используйте инструмент `mcp_supabase_execute_sql` с указанием `project_id` (например, `yuukfqcsdhkyxegfwlcb`).
+- **Tool:** `psql "$DATABASE_PUBLIC_URL"` against the live Railway Postgres (`railway variables --kv --service Postgres-NFrq`). The cloud Supabase project and its MCP are a frozen archive since 2026-10-01.
 - **Проверка перед выполнением:** Убедитесь, что запросы синтаксически корректны. Для больших текстов рекомендуется сначала протестировать запрос на небольшом фрагменте.
 - **Пример команды для выполнения:**
   ```
-  mcp_supabase_execute_sql(project_id='yuukfqcsdhkyxegfwlcb', query='INSERT INTO avatars ...')
+  psql "$DATABASE_PUBLIC_URL" -c "INSERT INTO avatars ..."
   ```
 
 ### 4. Проверка Успешности Выполнения

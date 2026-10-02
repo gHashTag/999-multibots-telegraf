@@ -2127,7 +2127,7 @@ struct GenerateScreen: View {
         среди: задачи.map {
           ПодборЗадачи.Задача(
             kind: $0.kind, startedAt: $0.startedAt, state: $0.state,
-            url: $0.url, error: $0.error)
+            url: $0.url, error: $0.error, code: $0.code)
         },
         вид: видСервера,
         началоЗапроса: начатоВ)
@@ -2141,7 +2141,7 @@ struct GenerateScreen: View {
         return Ответ(ссылка: u)
       }
       if з.state == "failed" {
-        return Ответ(отказ: з.error ?? say("The provider refused", "Провайдер отказал"))  // cyrillic-ok: pre-existing names
+        return Ответ(отказ: GenerationRefusal.text(code: з.code, detail: з.error))  // cyrillic-ok: pre-existing names
       }
     }
     return nil
@@ -2202,7 +2202,10 @@ struct GenerateScreen: View {
        */
       if let e = o["error"] as? String {
         let деталь = o["detail"] as? String
-        return Ответ(отказ: деталь.map { "\(e): \($0)" } ?? e)
+        // The words stay, after a sentence in the reader's language: the
+        // server's `code` names the failure (GenerationRefusal).
+        return Ответ(отказ: GenerationRefusal.text(  // cyrillic-ok: pre-existing names
+          code: o["code"] as? String, detail: деталь.map { "\(e): \($0)" } ?? e))  // cyrillic-ok: pre-existing names
       }
       guard (200...299).contains(код) else {
         /**

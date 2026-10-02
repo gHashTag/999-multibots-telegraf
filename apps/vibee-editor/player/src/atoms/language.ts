@@ -868,6 +868,26 @@ const en: Translations = {
   'meta.card.out': 'not connected',
   'meta.card.noApp': 'the Meta app is not set on the server yet',
   'meta.card.days': '{n} days left',
+  // The TRI payout wallet, own profile only (components/Profile/TriWalletCard.tsx)
+  'tri.wallet.title': '💎 TRI wallet',
+  'tri.wallet.note':
+    "The TON address your TRI would be paid to, proved by your wallet's own signature. TRI is not deployed yet: binding pays nothing today, it records where TRI would go.",
+  'tri.wallet.bind': 'Bind a TON wallet',
+  'tri.wallet.rebind': 'Bind another TON wallet',
+  'tri.wallet.unbind': 'Unbind',
+  'tri.wallet.testnet': 'TON testnet',
+  'tri.wallet.err.elsewhere':
+    'This wallet is already bound to another account. Unbind it there first.',
+  'tri.wallet.err.expired': 'The request expired. Press bind again.',
+  'tri.wallet.err.domain':
+    'The wallet signed for a different site. Open app.t27.ai and try again.',
+  'tri.wallet.err.workchain':
+    'Only ordinary (workchain 0) wallets can be bound.',
+  'tri.wallet.err.signin': 'Sign in with Telegram to bind a wallet.',
+  'tri.wallet.err.busy': 'Too many open requests. Wait a few minutes.',
+  'tri.wallet.err.noproof':
+    'The wallet connected without signing the proof, so nothing was bound.',
+  'tri.wallet.err.generic': 'The wallet could not be bound. Try again.',
   // Skills the agent in this chat carries (components/Chat/AgentSkillsPanel.tsx)
   'chat.agentSkills.on': 'Skills connected: {own} · plus {general} general',
   'chat.agentSkills.none':
@@ -3673,6 +3693,26 @@ const ru: Translations = {
   'meta.card.out': 'не подключено',
   'meta.card.noApp': 'приложение Meta на сервере ещё не задано',
   'meta.card.days': 'осталось дней: {n}',
+  'tri.wallet.title': '💎 Кошелёк TRI',
+  'tri.wallet.note':
+    'TON-адрес, на который будут приходить ваши TRI, подтверждённый подписью самого кошелька. TRI ещё не выпущен: привязка сегодня ничего не платит, она записывает, куда пойдут TRI.',
+  'tri.wallet.bind': 'Привязать TON-кошелёк',
+  'tri.wallet.rebind': 'Привязать другой TON-кошелёк',
+  'tri.wallet.unbind': 'Отвязать',
+  'tri.wallet.testnet': 'TON testnet',
+  'tri.wallet.err.elsewhere':
+    'Этот кошелёк уже привязан к другому аккаунту. Сначала отвяжите его там.',
+  'tri.wallet.err.expired': 'Запрос устарел. Нажмите «привязать» ещё раз.',
+  'tri.wallet.err.domain':
+    'Кошелёк подписал запрос для другого сайта. Откройте app.t27.ai и попробуйте снова.',
+  'tri.wallet.err.workchain':
+    'Привязать можно только обычный кошелёк (workchain 0).',
+  'tri.wallet.err.signin': 'Войдите через Telegram, чтобы привязать кошелёк.',
+  'tri.wallet.err.busy':
+    'Слишком много открытых запросов. Подождите несколько минут.',
+  'tri.wallet.err.noproof':
+    'Кошелёк подключился, но не подписал подтверждение, поэтому ничего не привязано.',
+  'tri.wallet.err.generic': 'Не удалось привязать кошелёк. Попробуйте ещё раз.',
   'chat.agentSkills.on': 'Навыки подключены: {own} · и общих: {general}',
   'chat.agentSkills.none':
     'Ваших правил для него пока нет: напишите правило ниже — оно подключится со следующего сообщения (сохранится как «{prefix}: …»).',

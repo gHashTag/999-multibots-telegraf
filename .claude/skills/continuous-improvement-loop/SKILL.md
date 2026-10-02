@@ -2128,17 +2128,54 @@ first on PATH, so a stub `gh` on PATH was never called. A stub needs a named
 seam (`TRI_GH`), and a control is only a control if its output shows the
 stub was the one that answered.
 
-### The loop merges and deploys its own green PRs (owner, 2026-10-02)
+### Probe production BEFORE the deploy, not only after (iteration 12)
+
+Generation failures now carry a `code` (render/generation-refusal.ts),
+stamped on the four routes' answers by one `res.end` wrapper. Unit tests were
+green. Running the live probe (`tri gen-refusal`) against production BEFORE
+deploying -- to get a red baseline -- showed every unsigned call refused by
+the shared auth guard, which answers before any route runs: the stamp would
+never have seen the most common failure of all (an expired session). Rule:
+**run the live check before the deploy too**; the red baseline proves the
+probe can fail, and what it says may not be the red you expected. A wrapper
+installed inside a route covers that route, not the guards in front of it.
+
+### The loop ships its green PRs -- through a reviewer, not by its own hand (owner, 2026-10-02)
 
 Owner's standing order: do not ask, do it -- merge and deploy. Five ticks of
 the blog loop ended "waiting for your merge" while the owner slept, and the
 loop produced nothing between answers.
 
 - A PR the loop opened, with its tests green and `tri no-verify-debt` = 0, is
-  merged in the same tick (`gh pr merge --squash`), then the deploy is
-  verified: `railway deployment list --service <svc> --environment production`
-  shows SUCCESS for a build started after the merge, and `/health` is 200.
-  Report it after, not before.
+  handed in the same tick to a reviewer agent spawned for it. The reviewer
+  reviews, verifies (`tri pr-billing N` -- Actions in 999 are dead) and runs
+  `gh pr merge --squash` itself. The author never merges and never arms
+  auto-merge (owner, later the same day: "the queen does not merge, the queen
+  only manages"). After the reviewer's merge the loop verifies the deploy:
+  `railway deployment list --service <svc> --environment production` shows
+  SUCCESS for a build started after the merge, and `/health` is 200 -- for
+  the board, `tri board` returns 0. Report it after, not before.
+- The first half of this order ("merge your own green PR") stood alone here
+  for a few hours, and a loop that read only this section merged #3300 and
+  trinity#1239 itself after the owner had already taken that right away. A
+  rule amended in chat is amended here in the same tick, or the next loop
+  reads the old one.
 - Still the person's, always: force push; deleting data (payments_v2,
   browser profiles); secrets; passwords (typed only by the person); posting to
   the person's social networks without their "yes" in the approval.
+
+### A board release, end to end (2026-10-02)
+
+A trinity merge ships nothing until 999's `ARG QUEEN_REF` moves.
+`tri board` shows the pin, trinity main, the commits between them, and each
+open `release/board-*` PR as current or stale (rc 0 shipped, 1 behind). Look
+the PRs up by branch name: GitHub search drops the parentheses in
+`release(board)` and matched nothing while #3304 was open. trinity PRs need
+the `<!-- t27-work-report -->` JSON block; "T27 work report" is the one
+required check, and `python3 scripts/pr_blog_report.py validate` runs it
+locally before the push.
+
+A phone in an iframe has no Fullscreen API, so "full screen by default" in the
+Telegram mini-app and the iOS Game tab is a board state (`pageBare`), not a
+browser call. Then a single "more" button inside the board serves every
+platform, and the native overlay buttons go away.

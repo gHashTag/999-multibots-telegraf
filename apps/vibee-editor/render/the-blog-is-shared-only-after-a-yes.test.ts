@@ -42,8 +42,8 @@ function world(answer: Answer = 'pending') {
   const posted: string[] = []
   const told: string[] = []
   let published: Record<string, string> = {
-    X: 'тред опубликован («Post all»)', // cyrillic-ok: the words publishEverywhere writes
-    LinkedIn: 'нажато «Post»', // cyrillic-ok: the words publishEverywhere writes
+    X: 'тред отправлен («Post all») · страница ушла с формы · найдено в профиле', // cyrillic-ok: the words publishEverywhere writes
+    LinkedIn: 'нажато «Post» · страница ушла с формы · найдено в профиле', // cyrillic-ok: the words publishEverywhere writes
   }
   const pool = {
     async query(sql: string, p: unknown[] = []) {
@@ -181,6 +181,20 @@ describe('only after a yes', () => {
     })
     expect(await blogShareTick(w.d)).toBe('fpga-row: failed')
     expect(w.told[0]).toMatch(/^⚠️/)
+  })
+
+  it('a press nobody saw on the profile is UNCONFIRMED, not posted', async () => {
+    const w = world('pending')
+    await blogShareTick(w.d)
+    w.setAnswer('allowed')
+    w.setPublished({
+      X: 'тред отправлен («Post all») · страница ушла с формы · не подтверждено: в профиле не найдено', // cyrillic-ok: the words publishEverywhere writes
+      LinkedIn:
+        'нажато «Post» · страница ушла с формы · не подтверждено: в профиле не найдено', // cyrillic-ok: the words publishEverywhere writes
+    })
+    expect(await blogShareTick(w.d)).toBe('fpga-row: unconfirmed')
+    expect(w.told[0]).toMatch(/^❔/)
+    expect(w.told[0]).not.toMatch(/Опубликовано/) // cyrillic-ok: test
   })
 
   it('one question a day; the next day the next article', async () => {
@@ -346,15 +360,30 @@ describe('a press is not a post', () => {
 
 describe('the headline says what is known', () => {
   it('pressed everywhere, confirmed nowhere, is NOT "published"', async () => {
-    const { headlineOf, LEFT_THE_FORM } = await import('./src/agent/blog-share')
+    const { headlineOf, LEFT_THE_FORM, SEEN_ON_PROFILE } = await import(
+      './src/agent/blog-share'
+    )
     const unconfirmed = {
       X: 'нажато «Post» · не подтверждено: страница не сменилась',
     } // cyrillic-ok: test
     expect(headlineOf(unconfirmed)).not.toMatch(/Опубликовано/) // cyrillic-ok: test
     const published = 'Опубликовано' // cyrillic-ok: test
-    expect(headlineOf({ X: `нажато «Post» · ${LEFT_THE_FORM}` })).toContain(
-      published
-    ) // cyrillic-ok: test
+    /* A receipt alone is not a post (spec v2): the profile must show it. */
+    expect(
+      headlineOf({ X: `нажато «Post» · ${LEFT_THE_FORM}` }) // cyrillic-ok: test
+    ).not.toContain(published)
+    expect(
+      headlineOf({ X: `нажато «Post» · ${LEFT_THE_FORM} · ${SEEN_ON_PROFILE}` }) // cyrillic-ok: test
+    ).toContain(published)
     expect(headlineOf({ error: 'x' })).toMatch(/Не получилось/) // cyrillic-ok: test
+  })
+
+  it("an API post with Meta's own id is a post (meta-connect.t27 posted)", async () => {
+    const { headlineOf, outcomeOf } = await import('./src/agent/blog-share')
+    const out = {
+      Threads: 'опубликовано через API · https://www.threads.net/@n/post/1', // cyrillic-ok: test
+    }
+    expect(outcomeOf(out)).toBe('posted')
+    expect(headlineOf(out)).toContain('Опубликовано') // cyrillic-ok: test
   })
 })

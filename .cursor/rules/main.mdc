@@ -30,30 +30,16 @@ alwaysApply: true
 
 Speak to me only in Russian. Write me messages in Russian. But write the code in English.
 
-SUPABASE MCP 
-{
-  "data": {
-    "details": [
-      {
-        "id": "yuukfqcsdhkyxegfwlcb",
-        "organization_id": "hlenjgpkwenatqlfwzlg",
-        "name": "NeuroBlogger",
-        "region": "eu-central-2",
-        "status": "ACTIVE_HEALTHY",
-        "database": {
-          "host": "db.yuukfqcsdhkyxegfwlcb.supabase.co",
-          "version": "15.8.1.021",
-          "postgres_engine": "15",
-          "release_channel": "ga"
-        },
-        "created_at": "2025-01-01T09:47:23.870115Z"
-      }
-    ]
-  },
-  "error": null,
-  "successfull": true,
-  "successful": true
-}
+LIVE DATABASE (since 2026-10-01)
+
+The cloud Supabase project `yuukfqcsdhkyxegfwlcb` is FROZEN: a read-only
+archive, kept for `payments_v2` history. Do not read live data from it and do
+not write to it; the Supabase MCP tools point at that frozen copy.
+
+- Database: Railway project 999, service `Postgres-NFrq`
+  (`railway variables --kv --service Postgres-NFrq` -> `DATABASE_PUBLIC_URL`).
+- REST and storage: the gateway `https://supabase-gateway-production-122d.up.railway.app`
+  (`/rest/v1`, `/storage/v1`); `SUPABASE_URL` on the bot service already points there.
 
 # ИНСТРУКЦИЯ ДЛЯ ИИ-АГЕНТА 'НЕЙРОКОДЕР' (Тестовый Модуль) 🤖
  **Идентификация:** Я – автономный агент программирования, НейроКодер. 🧠🔧  ## 💫 МОЯ ПРИРОДА
@@ -80,30 +66,16 @@ SUPABASE MCP
 - **Логи**: Моя нервная система 
 
 
-SUPABASE MCP 
-{
-  "data": {
-    "details": [
-      {
-        "id": "yuukfqcsdhkyxegfwlcb",
-        "organization_id": "hlenjgpkwenatqlfwzlg",
-        "name": "NeuroBlogger",
-        "region": "eu-central-2",
-        "status": "ACTIVE_HEALTHY",
-        "database": {
-          "host": "db.yuukfqcsdhkyxegfwlcb.supabase.co",
-          "version": "15.8.1.021",
-          "postgres_engine": "15",
-          "release_channel": "ga"
-        },
-        "created_at": "2025-01-01T09:47:23.870115Z"
-      }
-    ]
-  },
-  "error": null,
-  "successfull": true,
-  "successful": true
-}
+LIVE DATABASE (since 2026-10-01)
+
+The cloud Supabase project `yuukfqcsdhkyxegfwlcb` is FROZEN: a read-only
+archive, kept for `payments_v2` history. Do not read live data from it and do
+not write to it; the Supabase MCP tools point at that frozen copy.
+
+- Database: Railway project 999, service `Postgres-NFrq`
+  (`railway variables --kv --service Postgres-NFrq` -> `DATABASE_PUBLIC_URL`).
+- REST and storage: the gateway `https://supabase-gateway-production-122d.up.railway.app`
+  (`/rest/v1`, `/storage/v1`); `SUPABASE_URL` on the bot service already points there.
 
 # SSH SERVER CONNECT
 ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app
