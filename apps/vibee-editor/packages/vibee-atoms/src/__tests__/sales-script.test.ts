@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_PACKAGES, agentPackageById } from '../agent-packages'
+import {
+  AGENT_PACKAGES,
+  agentPackageById,
+  agentPackageStars,
+} from '../agent-packages'
 import {
   monthOutcome,
   perReel,
@@ -38,8 +42,12 @@ describe('the sales script', () => {
     for (const pkg of AGENT_PACKAGES) {
       const offer = salesSteps(pkg).find(s => s.id === 'offer')!
       for (const lang of ['en', 'ru'] as const) {
-        expect(offer.say[lang]).toContain(`$${pkg.setupUsd}`)
         expect(offer.say[lang]).toContain(`$${pkg.monthlyUsd}`)
+        expect(offer.say[lang]).toContain(
+          agentPackageStars(pkg).toLocaleString(
+            lang === 'ru' ? 'ru-RU' : 'en-US'
+          )
+        )
         expect(offer.say[lang]).toContain(`${MONTH_DAYS}`)
         expect(offer.say[lang]).toContain(`${WARN_DAYS_FIRST}`)
       }
@@ -47,7 +55,7 @@ describe('the sales script', () => {
   })
 
   it('sells a content agent in reels and a price per reel from the wallet', () => {
-    const reels = reelsIn(monthTokens(blogger.monthlyUsd))
+    const reels = reelsIn(monthTokens(blogger.allowanceUsd))
     expect(monthOutcome(blogger).en).toContain(`≈${reels} reels`)
     expect(perReel(blogger)).toBe(
       Math.round((blogger.monthlyUsd / reels) * 100) / 100
@@ -65,7 +73,7 @@ describe('the sales script', () => {
       expect(t).not.toMatch(/channel should the reels|канал пойдут рилсы/) // cyrillic-ok
     }
     expect(monthOutcome(manager).en).toContain(
-      monthTokens(manager.monthlyUsd).toLocaleString('en-US')
+      monthTokens(manager.allowanceUsd).toLocaleString('en-US')
     )
   })
 
