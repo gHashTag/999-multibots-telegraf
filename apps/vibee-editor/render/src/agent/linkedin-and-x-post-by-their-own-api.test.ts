@@ -381,6 +381,37 @@ describe('the desk', () => {
     expect(calls).toHaveLength(0)
   })
 
+  it('`only` posts to the named networks and leaves the rest untouched', async () => {
+    const q = memoryPool()
+    const { writeToken } = await import('./meta-connect')
+    for (const network of ['linkedin', 'x'] as const) {
+      await writeToken(
+        q as never,
+        '7',
+        {
+          network,
+          accountId: '42',
+          token: 'T',
+          expiresAt: new Date(Date.now() + 30 * 86_400_000),
+          meta: { username: 'username' },
+        },
+        env
+      )
+    }
+    const { f, calls } = fakeFetch(() => ({
+      status: 201,
+      json: { data: { id: '5' } },
+    }))
+    const out = await postBySocialApi(q as never, '7', post, {
+      fetch: f,
+      sleep: async () => undefined,
+      env,
+      only: ['x'],
+    })
+    expect(Object.keys(out)).toEqual(['X'])
+    expect(calls.every(c => !c.url.includes('linkedin'))).toBe(true)
+  })
+
   it('an expired LinkedIn token says reconnect and posts nothing', async () => {
     const q = memoryPool()
     const { writeToken } = await import('./meta-connect')

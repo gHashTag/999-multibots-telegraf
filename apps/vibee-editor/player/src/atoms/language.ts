@@ -1026,6 +1026,15 @@ const en: Translations = {
   'crm.revenue.top': 'Top clients',
   'crm.revenue.stars': '{n} ⭐',
   'crm.revenue.none': 'No purchases from your clients yet.',
+  'crm.social.title': 'Social networks',
+  'crm.social.connected': 'connected',
+  'crm.social.expired': 'token expired: reconnect',
+  'crm.social.noApp': 'app keys missing on the server',
+  'crm.social.off': 'not connected',
+  'crm.social.days': '{n} days left',
+  'crm.social.connect': 'Connect networks',
+  'crm.social.hint':
+    'Your agent posts only to connected networks, and only after you tap Allow.',
   'chat.agentSkills.add.placeholder':
     'A rule for it, e.g. "answer briefly, with numbers"',
   'chat.agentSkills.add.button': 'Add rule',
@@ -3946,6 +3955,15 @@ const ru: Translations = {
   'crm.revenue.top': 'Лучшие клиенты',
   'crm.revenue.stars': '{n} ⭐',
   'crm.revenue.none': 'Покупок от ваших клиентов пока нет.',
+  'crm.social.title': 'Соцсети',
+  'crm.social.connected': 'подключено',
+  'crm.social.expired': 'токен истёк: переподключите',
+  'crm.social.noApp': 'на сервере нет ключей приложения',
+  'crm.social.off': 'не подключено',
+  'crm.social.days': 'осталось {n} дн.',
+  'crm.social.connect': 'Подключить соцсети',
+  'crm.social.hint':
+    'Агент публикует только в подключённые сети и только после вашего «Разрешить».',
   'chat.agentSkills.add.placeholder':
     'Правило для него, например «отвечай коротко, с цифрами»',
   'chat.agentSkills.add.button': 'Добавить',

@@ -297,3 +297,14 @@ enterForNewline: true })` sends `"\r"`, which is what the Enter key types;
   is seen on the profile; otherwise it stays open as the evidence.
 - **`tri blog-share detail` rc 2 = the database did not answer** (#3377), not
   "no such article". Before, a refused connection read as a missing row.
+
+## The owner's agent posts by hand too, and the CRM shows the networks (2026-10-03, #3396)
+
+The blog desk posts on its own timer. The owner can also ask his agent in chat (or any /mcp client) to post something now:
+
+- `social_status`: for each of Threads, Facebook (+Instagram), LinkedIn and X, connected, expired, app keys missing, or never connected. Each one carries a `todo` line and the connect link.
+- `social_post`: the first call shows ONE permission card with each chosen network's own text. Only connected networks are offered; if none is connected, the owner is not asked at all. The second call (with `approval`) posts after Allow, only to the networks stored on the card (`only` in `postByApi` / `postBySocialApi`). A card is used once and must be answered by the owner himself.
+- Both tools are owner-only (`requireOwner`) and are not in the client allowlist.
+- The CRM screen has a _Social networks_ panel (SocialPanel.tsx) that reads `social_status`. It is a refusal, and draws nothing, for anyone else.
+- **A player panel calling a new tool ships in the tool's own PR.** The pre-push `contracts` gate (`scripts/cross-service-vocabularies.cjs`) refuses a player that calls a tool main does not have, and it is right: the server would refuse silently.
+- **The kanban** (app.t27.ai/game/kanban) is gHashTag/t27's open issues. A non-code task is an issue WITHOUT `## Boundary`, so no bee takes it. Social: epic t27#5629, tasks #5625–#5628.

@@ -752,7 +752,7 @@ export async function postByApi(
   q: Queryable,
   owner: string,
   p: Post,
-  d: PublishDeps & { now?: () => number }
+  d: PublishDeps & { now?: () => number; only?: readonly Network[] }
 ): Promise<Record<string, string>> {
   const env = d.env || process.env
   const now = d.now || Date.now
@@ -767,6 +767,8 @@ export async function postByApi(
   for (let t of held) {
     /* LinkedIn and X rows live in the same table; social-api.ts posts them. */
     if (!META_NETWORKS.includes(t.network)) continue
+    /* The agent's social_post names its networks; the blog desk posts to all. */
+    if (d.only && !d.only.includes(t.network)) continue
     const days = daysLeftOf(t, now())
     const label = t.network === 'threads' ? 'Threads' : 'Facebook'
     if (!usable(t.expiresAt !== null, Number.isFinite(days) ? days : 1)) {
@@ -787,7 +789,8 @@ export async function postByApi(
     out.Facebook = await publishFacebook(t, p, d)
       .then(say)
       .catch(e => `ошибка API: ${scrub(String(e))}`) // cyrillic-ok: told to the owner
-    if (t.meta.ig_id)
+    /* Instagram takes a picture or nothing: a post without a card skips it. */
+    if (t.meta.ig_id && p.cardUrl)
       out.Instagram = await publishInstagram(t, p, d)
         .then(say)
         .catch(e => `ошибка API: ${scrub(String(e))}`) // cyrillic-ok: told to the owner
