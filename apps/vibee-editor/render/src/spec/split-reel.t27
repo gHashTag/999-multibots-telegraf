@@ -23,7 +23,7 @@ module automation::split_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "split-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 5;
+    pub const VERSION : u8 = 6;
 
     // ---- Where it is drawn --------------------------------------------------------------
     pub const COMPOSITION : str = "SplitTalkingHead";
@@ -65,6 +65,13 @@ module automation::split_reel {
     // What the analyser (tri reel-check) calls a defect.
     pub const HEADROOM_MIN_PCT : u32 = 3;  // space above the skull, % of the window height
     pub const FACE_OFF_CENTER_MAX_PCT : u32 = 10;  // centre drift, % of the window side
+    // v6 (reel 1, 2026-10-02): a big face centred in a split loses its skull to the
+    // seam -- the Haar box was 49% of the 960 px half, so the middle left 0% above it.
+    // Such a face is aimed lower, by no more than the drift allowed, until the skull
+    // (one box above the centre: half a box to the brow, half again to the crown)
+    // has HEADROOM_AIM_PCT above it. Twice the minimum, so a wobble between frames
+    // does not cut it.
+    pub const HEADROOM_AIM_PCT : u32 = 6;
 
     // ---- The words ------------------------------------------------------------------------
     pub const CAPTION_COLOR : str = "#FFFF00";
@@ -197,6 +204,19 @@ module automation::split_reel {
         return pct;
     }
 
+    // Where down its window a face is aimed: the middle, or lower when its box
+    // (`box_pct` of the window height) would leave the skull less than the aim.
+    fn face_target_y_pct(box_pct : u32) -> u32 {
+        let need : u32 = box_pct + HEADROOM_AIM_PCT;
+        if need <= FACE_CENTER_Y_PCT {
+            return FACE_CENTER_Y_PCT;
+        }
+        if need > FACE_CENTER_Y_PCT + FACE_OFF_CENTER_MAX_PCT {
+            return FACE_CENTER_Y_PCT + FACE_OFF_CENTER_MAX_PCT;
+        }
+        return need;
+    }
+
     fn fits(total : u32) -> bool {
         return total <= MAX_SECONDS * FPS;
     }
@@ -294,6 +314,18 @@ module automation::split_reel {
         assert(object_pos_pct(518, 1080, 1080, FACE_CENTER_X_PCT) == 50);
         assert(FACE_CENTER_X_PCT == 50);
         assert(HEADROOM_MIN_PCT > 0);
+    }
+
+    test "a face too big for the middle is aimed lower, never past the drift" {
+        // A face a third of the window: the middle leaves room above it.
+        assert(face_target_y_pct(30) == 50);
+        // Reel 1: the box is 49% of the half, the middle cut the skull; 55% leaves 6%.
+        assert(face_target_y_pct(49) == 55);
+        assert(face_target_y_pct(49) - 49 == HEADROOM_AIM_PCT);
+        // Bigger still: lower stops at the drift a check allows.
+        assert(face_target_y_pct(58) == 60);
+        assert(face_target_y_pct(58) - FACE_CENTER_Y_PCT == FACE_OFF_CENTER_MAX_PCT);
+        assert(HEADROOM_AIM_PCT > HEADROOM_MIN_PCT);
     }
 }
 

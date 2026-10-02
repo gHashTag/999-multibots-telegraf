@@ -67,6 +67,8 @@ export interface FaceInSource {
   cy: number
   srcW: number
   srcH: number
+  /** Height of the face box (Haar, brow to chin), when it was measured. */
+  h?: number
 }
 
 /**
@@ -95,9 +97,18 @@ export function objectPosPct(
   )
 }
 
+/** split-reel.t27 `face_target_y_pct`: the middle, or lower for a big face. */
+export function faceTargetYPct(boxPct: number): number {
+  const need = boxPct + SPEC.HEADROOM_AIM_PCT
+  if (need <= SPEC.FACE_CENTER_Y_PCT) return SPEC.FACE_CENTER_Y_PCT
+  const lowest = SPEC.FACE_CENTER_Y_PCT + SPEC.FACE_OFF_CENTER_MAX_PCT
+  return need > lowest ? lowest : need
+}
+
 /**
  * CSS object-position for an `object-fit: cover` video in a boxW x boxH window
- * that puts the face at SPEC.FACE_CENTER_*_PCT of the window.
+ * that puts the face at SPEC.FACE_CENTER_*_PCT of the window, or lower when the
+ * measured face box would leave its skull at the window's top edge (spec v6).
  */
 export function faceObjectPosition(
   face: FaceInSource,
@@ -111,12 +122,12 @@ export function faceObjectPosition(
     boxW,
     SPEC.FACE_CENTER_X_PCT
   )
-  const y = objectPosPct(
-    Math.round(face.cy * scale),
-    Math.round(face.srcH * scale),
-    boxH,
-    SPEC.FACE_CENTER_Y_PCT
-  )
+  const rendered = Math.round(face.srcH * scale)
+  const target =
+    face.h && rendered > boxH
+      ? faceTargetYPct(Math.ceil((face.h * scale * 100) / boxH))
+      : SPEC.FACE_CENTER_Y_PCT
+  const y = objectPosPct(Math.round(face.cy * scale), rendered, boxH, target)
   return `${x}% ${y}%`
 }
 
