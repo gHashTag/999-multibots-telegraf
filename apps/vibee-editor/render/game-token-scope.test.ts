@@ -304,6 +304,8 @@ describe('every other Bearer reader refuses a game token', () => {
     // identity of every chatIdentity/resolveIdentity route in render-server.ts.
     expect(routes.chatIdentity(bare, null)).toBeNull()
     expect(await routes.resolveIdentity(bare, () => emptyPool())).toBeNull()
+    // personIdentity: the TRI wallet routes (src/tri-wallet.ts).
+    expect(routes.personIdentity(bare)).toBeNull()
 
     // project-routes.ts.
     const { projectOwner } = await import('./project-routes')

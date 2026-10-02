@@ -26,4 +26,13 @@ describe('verify.cjs retries known-flaky steps before failing', () => {
     expect(contents).toContain("'test:bun'")
     expect(contents).toContain("'audit'")
   })
+
+  // A browser per stand on a loaded machine can miss its goto and read as
+  // "not measured"; a real red is the same pixels twice.
+  it('runs the phone shots and retries them once', () => {
+    expect(src).toMatch(
+      /\['phone-shots', 'node', \['bin\/helpers\/shot\.mjs', 'all'\]\]/
+    )
+    expect(match![1]).toContain("'phone-shots'")
+  })
 })

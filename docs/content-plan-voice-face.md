@@ -187,7 +187,7 @@ supabase `relaunch/`), а не производство. Реальных пос
 **Четыре портрета владельца уже лежат в публичном storage и отвечают
 HTTP 200**: `noir-close.jpg` (193 569 байт), `noir-tux2.jpg`,
 `noir-desk.jpg`, `noir-wide.jpg` по адресу
-`https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch/`.
+`https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/relaunch/`.
 Значит **лицо в ленте можно включить сегодня, одной строкой в props, без
 единого платного вызова и без участия владельца**.
 
@@ -602,7 +602,7 @@ b-roll от 2026-08-30) имеет **0 просмотров**. Это отпра
 ## 8. Первый шаг, который ничего не стоит
 
 Ф1 не требует ни съёмки, ни кода, ни денег: одна строка
-`avatarVideo: "https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch/noir-close.jpg"`
+`avatarVideo: "https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/relaunch/noir-close.jpg"`
 в props автопилота — и в 52 % длины каждого рилса появляется лицо. Портрет
 проверен живым запросом (HTTP 200, 193 569 байт), медальон принимает
 изображения (`TrinityBlogReel.tsx:604-624`), платных вызовов ноль.
