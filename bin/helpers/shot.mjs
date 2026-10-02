@@ -254,6 +254,25 @@ const HARNESSES = {
       },
     ],
   },
+  /*
+   * Her reels inside the chat with the agent (owner, 2026-10-02): the same
+   * widget, open before the talk and folded after. The summary is the
+   * press that unfolds it, so it is held to the page's touch target.
+   */
+  'chat-story': {
+    tool: 'my_story_reel',
+    fixture: { next_topic: 'Как выбрать вазу под свой интерьер', jobs: JOBS },
+    root: '.chat-story-stand',
+    scope: '.chat-story-stand',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p =>
+          p.locator('.chat-story .crm-client__duet-go').first().waitFor(),
+      },
+    ],
+  },
 }
 
 /*
