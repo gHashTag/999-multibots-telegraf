@@ -146,6 +146,9 @@ agent key) -- the full case list is the header of `bin/helpers/b.sh`
     tri browser composer ID       # what is in X's boxes now; no presses
     tri browser wait "words" [S]  # poll until the words appear; rc 1 = never did
     tri browser logins            # which networks are signed in (names only)
+    tri browser share-check [SLUG] # the desk's publish look on every signed-in
+                                  #   network: opens, finds the button, NEVER
+                                  #   presses, closes only its own tab (#3434)
     tri browser time [URL]        # new-tab latency; closes only what it opened
     tri browser call TOOL '{..}'  # any tool, raw
     tri browser cover             # every registry tool has a case? rc 1 names gaps
@@ -370,6 +373,16 @@ reconnect.
 calls the person's browser tools sets MCP `params._meta.probe: true`; /mcp
 passes it as `ctx.probe`, the journal keeps probes apart (last 20) and
 `GET /api/browser/journal` hides them unless `probes=1`.
+
+**A look is a probe; anything he can see happen is not** (#3434, 03.10).
+`bin/helpers/b.sh` sends status|tabs|read|shot|desk|wait|layers|composer and
+`tri logins` with the probe by default (doctor and tidy mark their reads by
+hand). An unmarked `tri logins` was journaled as agent work, and two minutes
+later the owner got an "agent work over the connection" report. `find` scrolls
+the page and `share-check` opens tabs, so both stay journaled and reported
+(only share-check's cookie-name read is a probe): there is no invisible mode. A
+probe that finds the pod running with no visit row (the reaper took it) is told
+exactly that (`noBrowserError` in agent-tools.ts), not "no browser is running".
 
 ## Человек видит работу агента у себя в чате (22.09.2026, #2809, #2813)
 
