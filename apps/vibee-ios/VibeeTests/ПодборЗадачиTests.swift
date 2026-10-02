@@ -77,6 +77,14 @@ final class GenerationRefusalTests: XCTestCase {
     XCTAssertEqual(en.components(separatedBy: "\n").first, GenerationRefusal.codes["not_enough_tokens"]?.en)
   }
 
+  func testServersEnglishIsADevelopersLineNeverTheSentence() {
+    for detail in ["unauthorized: token expired", "verified owner required"] {
+      let en = GenerationRefusal.text(code: "sign_in", detail: detail, russian: false)
+      XCTAssertEqual(en.components(separatedBy: "\n").first, GenerationRefusal.codes["sign_in"]?.en)
+      XCTAssertTrue(en.contains(detail), "the diagnosis is kept")
+    }
+  }
+
   func testEverySentenceIsInItsOwnScript() {
     for (code, s) in GenerationRefusal.codes {
       XCTAssertNotNil(s.ru.range(of: "\\p{Cyrillic}", options: .regularExpression), code)
