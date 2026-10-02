@@ -134,7 +134,7 @@ RUN npx tsc --noEmit -p . \
 FROM node:20-alpine AS queen
 WORKDIR /queen
 ARG QUEEN_REPO=https://github.com/gHashTag/trinity.git
-ARG QUEEN_REF=42e97a5493de4711f0db89080a9d8b235509c2ab
+ARG QUEEN_REF=e88f8636ccd3dfecc2bba5d0f7cf1fea257a3ebc
 RUN apk add --no-cache git
 
 # fetch-by-SHA rather than `clone --branch`: a tag or branch name can be moved

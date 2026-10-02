@@ -133,7 +133,14 @@ export const FACEBOOK_SCOPES = [
   'business_management',
 ].join(',')
 
-/** Where the owner is sent to say yes to the app. Pure. */
+/**
+ * Where the owner is sent to say yes to the app. Pure.
+ *
+ * A business app with "Facebook Login for Business" asks for permissions
+ * through a saved configuration, not a scope list: when
+ * META_LOGIN_CONFIG_ID is set, Facebook gets `config_id` and no `scope`.
+ * Threads has no such thing and always sends its scopes.
+ */
 export function authorizeUrl(
   network: Network,
   appId: string,
@@ -145,8 +152,13 @@ export function authorizeUrl(
     redirect_uri: redirectUri(env),
     response_type: 'code',
     state,
-    scope: network === 'threads' ? THREADS_SCOPES : FACEBOOK_SCOPES,
   })
+  const configId = env.META_LOGIN_CONFIG_ID?.trim()
+  if (network === 'threads') q.set('scope', THREADS_SCOPES)
+  else if (configId) {
+    q.set('config_id', configId)
+    q.set('override_default_response_type', 'true')
+  } else q.set('scope', FACEBOOK_SCOPES)
   return network === 'threads'
     ? `https://threads.net/oauth/authorize?${q}`
     : `https://www.facebook.com/${graphVersion(env)}/dialog/oauth?${q}`
