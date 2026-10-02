@@ -40,7 +40,8 @@ beforeEach(() => {
   calls = path.join(bin, 'calls')
   fs.writeFileSync(
     path.join(bin, 'fastlane'),
-    `#!/bin/sh\necho "$1" >> '${calls}'\necho "  ✓ stub $1"\n`,
+    // A lane that got the upload consent is recorded as `lane+yes`.
+    `#!/bin/sh\nl="$1"; [ "$VIBEE_UPLOAD_YES" = 1 ] && l="$1+yes"\necho "$l" >> '${calls}'\necho "  ✓ stub $1"\n`,
     { mode: 0o755 }
   )
 })
@@ -55,10 +56,10 @@ describe('tri iphone store / testflight', () => {
     expect(r.lanes).toEqual([])
   })
 
-  it('runs beta, and only beta, on --yes', () => {
+  it('runs beta, and only beta, on --yes - and hands it the consent', () => {
     const r = iphone('testflight', '--yes')
     expect(r.rc).toBe(0)
-    expect(r.lanes).toEqual(['beta'])
+    expect(r.lanes).toEqual(['beta+yes'])
   })
 
   it('store is preflight then state - never an upload lane', () => {
@@ -66,6 +67,15 @@ describe('tri iphone store / testflight', () => {
     expect(r.rc).toBe(0)
     expect(r.lanes).toEqual(['preflight', 'state'])
     expect(r.out).toContain('✓ stub state')
+  })
+
+  it('a consent left in the caller env never reaches the read-only lanes', () => {
+    process.env.VIBEE_UPLOAD_YES = '1'
+    try {
+      expect(iphone('store').lanes).toEqual(['preflight', 'state'])
+    } finally {
+      delete process.env.VIBEE_UPLOAD_YES
+    }
   })
 
   it('stops at the first failing lane and says which', () => {
