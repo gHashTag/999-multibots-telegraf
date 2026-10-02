@@ -17,6 +17,7 @@ import * as SPEC from './blog-share.gen'
  */
 
 let buttonDrawn = true
+let profileShows = true
 let n = 0
 const hrefs = new Map<string, number>()
 const waits: number[] = []
@@ -35,6 +36,9 @@ vi.mock('../browser/cdp', () => ({
       hrefs.set(id, k)
       return k > 1 ? `https://after/${id}` : `https://form/${id}`
     }
+    if (expr.includes('AppTabBar_Profile_Link')) return 'https://x.com/owner'
+    if (expr === 'document.body ? document.body.innerText : ""')
+      return profileShows ? 'Feed\nOpen FPGA Ethernet, at last' : 'Feed'
     return buttonDrawn ? { x: 1, y: 1, label: 'Post' } : null
   },
   clickAt: async () => undefined,
@@ -55,7 +59,7 @@ beforeEach(() => {
 
 const article = {
   slug: 's',
-  title: 'T',
+  title: 'Open FPGA Ethernet, at last',
   link: 'https://t27.ai/blog/s',
   summary: 'x',
 } as never
@@ -180,12 +184,66 @@ describe('spec automation/blog-share against the host', () => {
     expect(left('https://x.com/intent/post', '')).toBe(false)
   })
 
-  it('published somewhere means a press or a thread, and no error', async () => {
-    const { publishedSomewhere } = await import('../agent/blog-share')
-    /* The host's words for "pressed" and "thread finished". */
-    const PRESSED = 'нажато «Post»' // cyrillic-ok: the words publishEverywhere writes
-    const THREAD = 'тред опубликован («Post all»)' // cyrillic-ok: the words publishEverywhere writes
+  it('a post counts only when the profile shows it', async () => {
+    const { counted, unconfirmed, publishEverywhere } = await (async () => ({
+      ...(await import('../agent/blog-share')),
+      ...(await import('../agent/blog-share-wiring')),
+    }))()
+    expect(counted(true, true)).toBe(true)
+    expect(counted(true, false)).toBe(false)
+    expect(counted(false, true)).toBe(false)
+    expect(unconfirmed(true, false)).toBe(true)
+    expect(unconfirmed(true, true)).toBe(false)
+    expect(unconfirmed(false, false)).toBe(false)
+    /* The wiring: the same pressed pages, with and without the post on the profile. */
+    const { outcomeOf } = await import('../agent/blog-share')
+    const pool = { query: async () => ({ rows: [] }) } as never
+    buttonDrawn = true
+    profileShows = true
+    expect(outcomeOf(await publishEverywhere(pool, '1', article))).toBe(
+      'posted'
+    )
+    profileShows = false
+    expect(outcomeOf(await publishEverywhere(pool, '1', article))).toBe(
+      'unconfirmed'
+    )
+    profileShows = true
+  })
+
+  it('the profile is looked at under twenty seconds', async () => {
+    const { confirmOnProfile } = await import('../agent/blog-share-wiring')
+    expect(SPEC.PROFILE_SETTLE_MS).toBe(5000)
+    expect(SPEC.PROFILE_LOOK_EVERY_MS).toBe(4000)
+    expect(SPEC.PROFILE_LOOKS).toBe(4)
+    expect(SPEC.MATCH_CHARS).toBe(60)
+    /* A profile that never shows the post: the settle, then PROFILE_LOOKS - 1 looks. */
+    profileShows = false
+    waits.length = 0
+    await confirmOnProfile('cdp', 'LinkedIn', 'open fpga ethernet at last')
+    expect(waits).toEqual([
+      SPEC.PROFILE_SETTLE_MS,
+      ...Array(SPEC.PROFILE_LOOKS - 1).fill(SPEC.PROFILE_LOOK_EVERY_MS),
+    ])
+    const total = waits.reduce((s, w) => s + w, 0)
+    expect(total).toBe(17_000)
+    expect(total < 20_000).toBe(true)
+    profileShows = true
+    /* The needle: the title's first MATCH_CHARS characters, normalized. */
+    const { needleOf } = await import('../agent/blog-share')
+    const long = { ...(article as object), title: 'A, b! '.repeat(40) } as never
+    expect(needleOf(long).length <= SPEC.MATCH_CHARS).toBe(true)
+    expect(needleOf(article)).toBe('open fpga ethernet at last')
+  })
+
+  it('published somewhere means a post seen on the profile, and no error', async () => {
+    const { publishedSomewhere, SEEN_ON_PROFILE, NOT_SEEN_ON_PROFILE } =
+      await import('../agent/blog-share')
+    /* The host's words for "pressed and seen" and "thread sent and seen". */
+    const PRESSED = `нажато «Post» · страница ушла с формы · ${SEEN_ON_PROFILE}` // cyrillic-ok: the words publishEverywhere writes
+    const THREAD = `тред отправлен («Post all») · ${SEEN_ON_PROFILE}` // cyrillic-ok: the words publishEverywhere writes
     const MISSING = 'кнопка публикации не найдена' // cyrillic-ok: the words publishEverywhere writes
+    const UNSEEN = `нажато «Post» · страница ушла с формы · ${NOT_SEEN_ON_PROFILE}` // cyrillic-ok: the words publishEverywhere writes
+    expect(publishedSomewhere({ X: UNSEEN, LinkedIn: UNSEEN })).toBe(false)
     expect(publishedSomewhere({ X: PRESSED })).toBe(true)
     expect(
       publishedSomewhere({
@@ -213,16 +271,18 @@ describe('spec automation/blog-share against the host', () => {
       ...Array(SPEC.LOOKS - 1).fill(SPEC.LOOK_EVERY_MS),
     ])
     expect(missing.reduce((s, w) => s + w, 0)).toBe(27_000)
-    /* A drawn button: pressed at the first look, then the after-click settle. */
+    /* A drawn button: pressed at the first look, the after-click settle,
+     * then the profile's settle (the post is there at the first look). */
     buttonDrawn = true
     expect(await waitsOfOnePage()).toEqual([
       SPEC.FIRST_SETTLE_MS,
       SPEC.AFTER_CLICK_SETTLE_MS,
+      SPEC.PROFILE_SETTLE_MS,
     ])
   })
 
   it('the desk is live, a confirmed post is not yet', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })

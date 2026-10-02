@@ -197,13 +197,31 @@ export function resetBlogSharesForTests(): void {
  * Did ANY network actually take the post? A run where every network was
  * "not connected" or "button not found" returned no error and was written
  * down as posted -- the owner was told "✅" about an article no one could
- * see. Only a press or a finished thread counts.
+ * see. Then a press with a receipt was counted, and a receipt only says the
+ * page moved. Now only a post SEEN on the owner's own profile counts (the
+ * spec's `published_somewhere`, v2).
  */
 export function publishedSomewhere(result: Record<string, string>): boolean {
   if ('error' in result) return false
-  return Object.values(result).some(
-    v => /^нажато|^тред опубликован/.test(String(v)) // cyrillic-ok: the words publishEverywhere writes
-  )
+  return Object.values(result).some(v => String(v).includes(SEEN_ON_PROFILE))
+}
+
+/* Pressed, or a thread sent: the words publishEverywhere writes for a press. */
+const PRESSED = /^нажато|^тред отправлен/ // cyrillic-ok: the words publishEverywhere writes
+
+/**
+ * What a run ended as. "unconfirmed" is a press nobody saw on the profile:
+ * it is not published, and it is not a silent failure either -- the tabs are
+ * left open for the owner to look at. The spec's `unconfirmed`.
+ */
+export function outcomeOf(
+  result: Record<string, string>
+): 'posted' | 'unconfirmed' | 'failed' {
+  if (publishedSomewhere(result)) return 'posted'
+  if ('error' in result) return 'failed'
+  return Object.values(result).some(v => PRESSED.test(String(v)))
+    ? 'unconfirmed'
+    : 'failed'
 }
 
 export type Answer = 'pending' | 'allowed' | 'denied' | 'expired'
@@ -288,10 +306,10 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
     const result = await d
       .publish(article)
       .catch(e => ({ error: String(e).slice(0, 200) }))
-    const ok = publishedSomewhere(result)
+    const outcome = outcomeOf(result)
     await d.pool.query(
       `UPDATE blog_shares SET state = $2, done_at = now(), detail = detail || $3::jsonb WHERE slug = $1`,
-      [row.slug, ok ? 'posted' : 'failed', JSON.stringify({ result })]
+      [row.slug, outcome, JSON.stringify({ result })]
     )
     await d
       .tell(
@@ -302,7 +320,7 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
             .join('\n')
       )
       .catch(() => {})
-    return `${row.slug}: ${ok ? 'posted' : 'failed'}`
+    return `${row.slug}: ${outcome}`
   }
 
   const { rows: last } = await d.pool.query(
@@ -344,10 +362,67 @@ export function receiptOf(before: string, after: string): string {
 /**
  * The headline says what is KNOWN. "Published" over a list where every
  * network reads "not confirmed" was the old message: a press shown as a post.
+ * And a page that left the form is still not a post until the profile shows it.
  */
 export function headlineOf(result: Record<string, string>): string {
-  if (!publishedSomewhere(result)) return '⚠️ Не получилось опубликовать: ' // cyrillic-ok: shown to the owner
-  return Object.values(result).some(v => String(v).includes(LEFT_THE_FORM))
-    ? '✅ Опубликовано: ' // cyrillic-ok: shown to the owner
-    : '❔ Нажато, но не подтверждено — проверьте вкладки в «Браузере»: ' // cyrillic-ok: shown to the owner
+  const outcome = outcomeOf(result)
+  if (outcome === 'posted') return '✅ Опубликовано: ' // cyrillic-ok: shown to the owner
+  if (outcome === 'unconfirmed')
+    return '❔ Нажато, но в профиле пост не найден — не считается опубликованным, проверьте вкладки в «Браузере»: ' // cyrillic-ok: shown to the owner
+  return '⚠️ Не получилось опубликовать: ' // cyrillic-ok: shown to the owner
+}
+
+/*
+ * THE CONFIRMATION ON THE OWNER'S OWN PROFILE (spec v2). After the receipt
+ * the same browser opens the owner's profile on the network and looks for
+ * the post's opening words. Every post the desk makes starts with the
+ * article's title, so the needle is the title's first MATCH_CHARS characters,
+ * normalized the same way as the page text.
+ */
+export const { PROFILE_SETTLE_MS, PROFILE_LOOK_EVERY_MS, PROFILE_LOOKS } = SPEC
+export const SEEN_ON_PROFILE = 'найдено в профиле' // cyrillic-ok: told to the owner
+export const NOT_SEEN_ON_PROFILE = 'не подтверждено: в профиле не найдено' // cyrillic-ok: told to the owner
+export const NO_PROFILE_CHECK = 'не подтверждено: профиль не проверяется' // cyrillic-ok: told to the owner
+
+/** Lower case, letters and digits only, single spaces. Pure. */
+export function normalizeForMatch(s: string): string {
+  return s
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+/** The words looked for on the profile. Pure. */
+export function needleOf(a: Article): string {
+  return normalizeForMatch(a.title).slice(0, SPEC.MATCH_CHARS).trim()
+}
+
+/** Is the post on this page? An empty needle is never "seen". Pure. */
+export function seenOn(pageText: string, needle: string): boolean {
+  return needle.length > 0 && normalizeForMatch(pageText).includes(needle)
+}
+
+/** The spec's `counted`: the page left the form AND the profile shows it. */
+export function counted(left: boolean, seen: boolean): boolean {
+  return left && seen
+}
+
+/** The spec's `unconfirmed`: pressed and not seen. */
+export function unconfirmed(pressed: boolean, seen: boolean): boolean {
+  return pressed && !seen
+}
+
+/**
+ * The owner's own page on each network that can be checked. X has no
+ * address for "me": its home page carries a link to the profile, read in
+ * the browser (confirmOnProfile in blog-share-wiring.ts). Threads is not
+ * checked, and so it is never counted. Pure.
+ */
+export function profileUrlFor(net: string): string | null {
+  if (net === 'X') return 'https://x.com/home'
+  if (net === 'LinkedIn')
+    return 'https://www.linkedin.com/in/me/recent-activity/all/'
+  if (net === 'Reddit') return 'https://www.reddit.com/user/me/submitted/'
+  return null
 }
