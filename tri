@@ -219,6 +219,10 @@ CHECKS THAT EACH COST A CYCLE
         packages or versions than this tree's (the same fault a day early),
         and --heal refuses when the main checkout's package.json is not
         origin/main's: that install would restore an old branch's packages.
+        --heal also installs, in the MAIN checkout, an app whose install
+        there lacks what its package.json declares (bun at the root, npm
+        install where a package-lock.json lives; the lock is put back when
+        nobody was editing it).
 
   tri price <ModeName>
         Print the STATIC base cost of a mode from BASE_COSTS before you treat an
@@ -3372,6 +3376,51 @@ nm_state() {
   echo ok
 }
 
+# Two paths name the same directory once links are followed.
+same_dir() {
+  [ -d "$1" ] && [ -d "$2" ] && [ "$(cd "$1" && pwd -P)" = "$(cd "$2" && pwd -P)" ]
+}
+
+# Install one directory of the MAIN checkout, the only place an install is
+# safe (a worktree's node_modules is a link into it). Refuses a package.json
+# that is not origin/main's: bun/npm install the package.json in front of
+# them, and an old branch's restores that branch's packages, so every linked
+# tree goes red on TS2307 instead of ENOENT (2026-10-02 23:20). The app trees
+# keep a package-lock.json and their Dockerfiles run npm ci; here it is
+# `npm install`, because ci empties node_modules first and every linked tree
+# would lose its packages for the length of the install. TRI_BUN / TRI_NPM
+# swap the installers in tests (tri puts homebrew first on PATH).
+heal_install() {
+  local main="$1" rel="$2" where="$3" dir lock tool name
+  dir="$main/$rel"
+  if ! git -C "$main" diff --quiet origin/main -- "$rel/package.json" 2>/dev/null; then
+    bad "not healing $rel: the main checkout's package.json is not origin/main's (on $where) -- an install would restore that branch's packages"
+    echo "       whoever holds the main checkout brings it to main first; it is not this tree's to switch"
+    return 1
+  fi
+  if [ "$rel" != . ] && [ -f "$dir/package-lock.json" ]; then
+    lock=package-lock.json; name=npm; tool="${TRI_NPM:-npm} install --no-audit --no-fund"
+  else
+    lock=bun.lock; name=bun; tool="${TRI_BUN:-bun} install --no-summary"
+  fi
+  # The lock drifts on install. Put it back only when nobody was editing the
+  # dependencies: a dirty lock or package.json is someone's work.
+  local dirty
+  dirty="$(git -C "$main" status --porcelain -- "$rel/$lock" "$rel/package.json")"
+  echo "  ...  $name install in $dir"
+  if (cd "$dir" && $tool >/dev/null 2>&1); then
+    if [ -z "$dirty" ]; then
+      git -C "$main" checkout -q -- "$rel/$lock" 2>/dev/null
+    else
+      echo "  note $rel/$lock left as the install wrote it: it or package.json was already edited"
+    fi
+    good "reinstalled $rel in the main checkout"
+  else
+    bad "$name install failed in $dir"
+    return 1
+  fi
+}
+
 cmd_deps() {
   # Worktrees made by `tri worktree` get their node_modules linked; the ones a
   # bee, the Claude app or a plain `git worktree add` makes do not. Then the
@@ -3437,16 +3486,25 @@ cmd_deps() {
   on="$(git -C "$main" branch --show-current 2>/dev/null)"
   behind="$(git -C "$main" rev-list --count HEAD..origin/main 2>/dev/null)"
   [ "$behind" = 0 ] && behind=
-  local rel label missing drift
+  local rel label missing drift heal_dirs=()
   while IFS= read -r rel; do
     [ -f "$wt/$rel/package.json" ] && [ -d "$wt/$rel/node_modules" ] || continue
     label="$([ "$rel" = . ] && echo root || echo "$rel")"
     missing="$(node "$ROOT/scripts/deps-absent.cjs" "$wt/$rel" "$label" 2>/dev/null)"
     missing="${missing#"$label: "}"
+    drift="$(node "$ROOT/scripts/deps-absent.cjs" --drift "$wt/$rel" "$label" 2>/dev/null)"
     if [ -n "$missing" ]; then
       rc=1
       bad "$label declares packages its node_modules lacks: $missing"
-      if [ -L "$wt/$rel/node_modules" ]; then
+      if same_dir "$wt/$rel/node_modules" "$main/$rel/node_modules" \
+          && cmp -s "$wt/$rel/package.json" "$main/$rel/package.json"; then
+        # The main checkout's own install, for the package.json this tree
+        # declares too: it is incomplete, not another branch's. Installing
+        # THERE fixes it for every linked tree (2026-10-03: --heal only knew
+        # the emptied root, and redis/jotai/@tonconnect/ui went in by hand).
+        heal_dirs+=("$rel")
+        [ "$heal" = 1 ] || echo "       the main checkout's install is incomplete; fix: tri deps --heal (installs in $main/$rel, never here)"
+      elif [ -L "$wt/$rel/node_modules" ]; then
         echo "       the link carries $main's install, made for ITS branch (${on:-a detached HEAD}${behind:+, $behind commits behind origin/main}); fix: tri deps --own, then install in this tree"
       else
         echo "       install here, in $wt/$rel"
@@ -3454,7 +3512,6 @@ cmd_deps() {
     fi
     # The early warning: the linked install declares other packages than this
     # tree, while nothing may be missing yet and every gate is still green.
-    drift="$(node "$ROOT/scripts/deps-absent.cjs" --drift "$wt/$rel" "$label" 2>/dev/null)"
     [ -n "$drift" ] && echo "  note the linked install is another branch's -- $drift"
   done < <(cd "$wt" && { echo .; find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/' | sed 's|/node_modules$||'; })
   [ "$wt" != "$main" ] && [ -L "$wt/node_modules" ] && \
@@ -3464,31 +3521,14 @@ cmd_deps() {
   if [ "$state" != ok ]; then
     rc=1
     bad "the main checkout's node_modules is $(tr "[:lower:]" "[:upper:]" <<<"$state") -- a root install through a linked tree does this (npm empties the link's target first)"
-    # bun installs the package.json in front of it. If the main checkout's is
-    # not origin/main's, a heal restores an old branch's packages and every
-    # linked tree goes red on TS2307 instead of ENOENT (2026-10-02 23:20).
-    if [ "$heal" = 1 ] && ! git -C "$main" diff --quiet origin/main -- package.json 2>/dev/null; then
-      bad "not healing: the main checkout's package.json is not origin/main's (on ${on:-a detached HEAD}${behind:+, $behind commits behind}) -- an install would restore that branch's packages"
-      echo "       whoever holds the main checkout brings it to main first; it is not this tree's to switch"
-    elif [ "$heal" = 1 ]; then
-      # bun.lock drifts on install. Put it back only when nobody was editing
-      # the dependencies: a dirty bun.lock or package.json is someone's work.
-      local dirty
-      dirty="$(git -C "$main" status --porcelain -- bun.lock package.json)"
-      echo "  ...  bun install in $main"
-      if (cd "$main" && bun install --no-summary >/dev/null 2>&1); then
-        if [ -z "$dirty" ]; then
-          git -C "$main" checkout -q -- bun.lock 2>/dev/null
-        else
-          echo "  note bun.lock left as the install wrote it: bun.lock/package.json were already edited"
-        fi
-        good "main checkout reinstalled -- run tri deps again"
-      else
-        bad "bun install failed in $main"
-      fi
-    else
-      echo "       restore: tri deps --heal   (runs bun install in $main, never in a worktree)"
-    fi
+    [[ " ${heal_dirs[*]-} " == *" . "* ]] || heal_dirs=(. ${heal_dirs[@]+"${heal_dirs[@]}"})
+    [ "$heal" = 1 ] || echo "       restore: tri deps --heal   (runs bun install in $main, never in a worktree)"
+  fi
+  if [ "$heal" = 1 ]; then
+    for rel in ${heal_dirs[@]+"${heal_dirs[@]}"}; do
+      heal_install "$main" "$rel" "${on:-a detached HEAD}${behind:+, $behind commits behind}"
+    done
+    [ "${#heal_dirs[@]}" -gt 0 ] && echo "       run tri deps again to see what the install left"
   fi
   return $rc
 }
