@@ -9,7 +9,6 @@
  * but the bundle id and every text a person can read must not say Vibee.
  */
 import { describe, it, expect } from 'vitest'
-import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -19,27 +18,34 @@ const IOS = path.join(ROOT, 'apps', 'vibee-ios')
 const read = (rel: string) => fs.readFileSync(path.join(IOS, rel), 'utf8')
 
 describe('iOS app name and bundle id', () => {
-  it('no tracked file uses the old bundle id', () => {
-    // `git grep` exits 1 when nothing matches; that is the passing case.
-    let hits = ''
-    try {
-      hits = execFileSync(
-        'git',
-        [
-          'grep',
-          '-n',
-          'ai\\.t27\\.vibee',
-          '--',
-          '.',
-          ':!scripts/ios-app-name.test.ts',
-        ],
-        { cwd: ROOT, encoding: 'utf8' }
-      )
-    } catch (e) {
-      const err = e as { status?: number }
-      if (err.status !== 1) throw e
+  it('the app, its fastlane and tri do not use the old bundle id', () => {
+    // A walk, not `git grep`: the check-runner receives the tree without .git.
+    // Generated and build output (Vibee.xcodeproj, build*, DerivedData) is
+    // skipped - it is ignored by git and rewritten by xcodegen and xcodebuild.
+    const skip = /^(node_modules|build\w*|DerivedData|\w+\.xcodeproj|\.\w+)$/
+    const files: string[] = [
+      path.join(ROOT, 'tri'),
+      path.join(ROOT, 'bin', 'tri'),
+    ]
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (skip.test(e.name)) continue
+        const p = path.join(dir, e.name)
+        if (e.isDirectory()) walk(p)
+        else if (
+          /\.(swift|plist|strings|entitlements|yml|rb|sh|md|txt)$|^(Appfile|Fastfile)$/.test(
+            e.name
+          )
+        )
+          files.push(p)
+      }
     }
-    expect(hits).toBe('')
+    walk(IOS)
+    expect(files.length).toBeGreaterThan(20)
+    const hits = files.filter(f =>
+      /ai\.t27\.vibee/.test(fs.readFileSync(f, 'utf8'))
+    )
+    expect(hits.map(f => path.relative(ROOT, f))).toEqual([])
   })
 
   it('the app target and fastlane use ai.t27.trinity', () => {
