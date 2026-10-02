@@ -3350,30 +3350,15 @@ link_deps() {
 }
 
 # Packages a package.json in this tree declares that node cannot find from it
-# through a LINKED node_modules: one "dir: name name" line per directory. Only linked directories --
-# a tree's own install is its own business.
+# through a LINKED node_modules: one "dir: name name" line per directory. Only
+# linked directories -- a tree's own install is its own business. The rule
+# itself lives in scripts/deps-absent.cjs (verify calls it too).
 deps_absent() {
   local wt="$1" rel dir
   while IFS= read -r rel; do
     [ -L "$wt/$rel" ] || continue
     dir="$(dirname "$rel")"
-    [ -f "$wt/$dir/package.json" ] || continue
-    node -e '
-      const fs = require("fs"), path = require("path")
-      const [dir, label] = process.argv.slice(1)
-      const p = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"))
-      const names = Object.keys({ ...p.dependencies, ...p.devDependencies })
-      // Up the tree the way node resolves: a package hoisted to a parent
-      // node_modules is present, not absent.
-      const found = n => {
-        for (let d = dir; ; d = path.dirname(d)) {
-          if (fs.existsSync(path.join(d, "node_modules", n, "package.json"))) return true
-          if (d === path.dirname(d)) return false
-        }
-      }
-      const gone = names.filter(n => !found(n))
-      if (gone.length) console.log(`${label}: ${gone.join(" ")}`)
-    ' "$wt/$dir" "$dir"
+    node "$ROOT/scripts/deps-absent.cjs" "$wt/$dir" "$dir"
   done < <(cd "$wt" && { echo node_modules; find apps -maxdepth 4 -type l -name node_modules 2>/dev/null; })
 }
 
@@ -3417,19 +3402,23 @@ cmd_deps() {
     fi
   done
   # A link is the main checkout's node_modules, installed for whatever branch
-  # THAT checkout is on. When a sibling session has switched it to an older
-  # branch, packages this tree declares are simply absent (2026-10-03:
-  # root-types failed on TS2307 'redis' -- the main checkout sat on a branch
-  # from before #2230). Name them and the branch, so it is not read as a debt
-  # of main or a fault of this tree's code.
+  # THAT checkout is on. When it is an old branch, packages this tree declares
+  # are simply absent (2026-10-03: root-types failed on TS2307 'redis'. The
+  # main checkout had sat since 2026-09-29 on a branch merged 09-23, 2634
+  # commits behind, and the --heal of 2026-10-02 23:20 installed THAT branch's
+  # package.json). Name them and the branch, so it is not read as a debt of
+  # main or a fault of this tree's code.
+  local on behind
+  on="$(git -C "$main" branch --show-current 2>/dev/null)"
+  behind="$(git -C "$main" rev-list --count HEAD..origin/main 2>/dev/null)"
+  [ "$behind" = 0 ] && behind=
   if [ "$wt" != "$main" ]; then
-    local absent on
+    local absent
     absent="$(deps_absent "$wt")"
     if [ -n "$absent" ]; then
-      on="$(git -C "$main" branch --show-current 2>/dev/null)"
       bad "declared in this tree, absent from the linked node_modules:"
       sed 's/^/       /' <<<"$absent"
-      echo "       the main checkout is on ${on:-a detached HEAD}: its install, not this tree's code -- tsc reads it as TS2307"
+      echo "       the main checkout is on ${on:-a detached HEAD}${behind:+, $behind commits behind origin/main}: its install, not this tree's code -- tsc reads it as TS2307"
       rc=1
     fi
   fi
@@ -3437,7 +3426,14 @@ cmd_deps() {
     echo "  note no root npm ci / bun install in this tree: node_modules is the main checkout's, and an install empties it"
   if [ -d "$main/node_modules" ] && [ -z "$(ls -A "$main/node_modules" 2>/dev/null)" ]; then
     bad "the main checkout's node_modules is EMPTY -- a root install through a linked tree does this (npm empties the link's target first)"
-    if [ "$heal" = 1 ]; then
+    # bun installs the package.json in front of it. If the main checkout's is
+    # not origin/main's, a heal restores an old branch's packages and every
+    # linked tree goes red on TS2307 instead of ENOENT (2026-10-02 23:20).
+    if [ "$heal" = 1 ] && ! git -C "$main" diff --quiet origin/main -- package.json 2>/dev/null; then
+      bad "not healing: the main checkout's package.json is not origin/main's (on ${on:-a detached HEAD}${behind:+, $behind commits behind}) -- an install would restore that branch's packages"
+      echo "       whoever holds the main checkout brings it to main first; it is not this tree's to switch"
+      rc=1
+    elif [ "$heal" = 1 ]; then
       local lock_was
       lock_was="$(git -C "$main" status --porcelain -- bun.lock)"
       echo "  ...  bun install in $main"
