@@ -537,6 +537,22 @@ describe.skipIf(!hasRuby)(
       expect(r.stdout.trim()).toBe('o***@x.io ? ?')
     })
 
+    it("Apple's error text reaches the log with every address masked", () => {
+      const r = spawnSync(
+        'ruby',
+        [
+          '-r',
+          path.join(IOS_FASTLANE, 'team_group.rb'),
+          '-e',
+          'puts TeamGroup.scrub(%q(tester "Owner@X.io" exists; also (b.c@d.co.uk), no@tld))',
+        ],
+        { encoding: 'utf8' }
+      )
+      expect(r.stdout.trim()).toBe(
+        'tester "O***@X.io" exists; also (b***@d.co.uk), no@tld'
+      )
+    })
+
     it('beta ends with testers, and a failure there does not fail the upload', () => {
       const fastfile = fs.readFileSync(
         path.join(IOS_FASTLANE, 'Fastfile'),
@@ -548,6 +564,8 @@ describe.skipIf(!hasRuby)(
         fastfile.indexOf('lane :testers do')
       )
       expect(beta).toMatch(/begin\s+testers\s+rescue => e/)
+      expect(beta).toContain('TeamGroup.scrub(e.message)')
+      expect(beta).not.toMatch(/#\{e\.message\}/)
       const lane = fastfile.slice(fastfile.indexOf('lane :testers do'))
       expect(lane.indexOf('VIBEE_UPLOAD_YES')).toBeGreaterThan(-1)
       expect(lane.indexOf('VIBEE_UPLOAD_YES')).toBeLessThan(
