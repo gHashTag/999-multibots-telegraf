@@ -10,7 +10,7 @@
  * `String(e)` still starts with "Error:" because `name` is not overridden.
  *
  * The set is closed on purpose: `crm-tool-codes.test.ts` reads this union and
- * fails until player/src/lib/crmErrorText.ts has a sentence for each member.
+ * fails until the player dictionary has `crm.error.code.<member>` in en and ru.
  * Anything else a tool throws arrives as `tool_failed`.
  */
 export type ToolRefusalCode =

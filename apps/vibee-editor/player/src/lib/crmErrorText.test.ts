@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { translations, type Language } from '@/atoms/language'
-import { CRM_TOOL_CODES, crmErrorText } from './crmErrorText'
+import { crmErrorText } from './crmErrorText'
 
 /** The dictionary's own lookup, as translateAtom does it. */
 const tFor =
@@ -42,16 +42,30 @@ describe('crmErrorText: what the CRM screen says when a tool call failed', () =>
     expect(say('ru', 'HTTP 401', 'http_401')).toMatch(/\b401\b/)
   })
 
-  it('a named server refusal: English gets the sentence, Russian the server', () => {
-    expect(say('en', SERVER_RU, 'no_bots')).toBe(CRM_TOOL_CODES.no_bots)
+  it('a named server refusal is a dictionary sentence in both languages', () => {
+    expect(say('en', SERVER_RU, 'no_bots')).toBe(
+      translations.en['crm.error.code.no_bots']
+    )
     expect(say('en', SERVER_RU, 'no_bots')).not.toMatch(CYRILLIC)
-    expect(say('ru', SERVER_RU, 'no_bots')).toBe(SERVER_RU)
+    // Russian gets the clean sentence too, not the tool's "Error: ..." text.
+    expect(say('ru', SERVER_RU, 'no_bots')).toBe(
+      translations.ru['crm.error.code.no_bots']
+    )
+    expect(say('ru', SERVER_RU, 'no_bots')).not.toBe(SERVER_RU)
   })
 
-  it('no English sentence is Russian or empty', () => {
-    for (const [code, line] of Object.entries(CRM_TOOL_CODES)) {
-      expect(line, code).not.toBe('')
-      expect(line, code).not.toMatch(CYRILLIC)
+  it('every code sentence exists in both languages, each in its own', () => {
+    const codes = (lang: Language) =>
+      Object.keys(translations[lang])
+        .filter(k => k.startsWith('crm.error.code.'))
+        .sort()
+    // Negative control: an empty set would satisfy the loop below.
+    expect(codes('en').length).toBeGreaterThanOrEqual(10)
+    expect(codes('ru')).toEqual(codes('en'))
+    for (const key of codes('en')) {
+      expect(translations.en[key], key).not.toBe('')
+      expect(translations.en[key], key).not.toMatch(CYRILLIC)
+      expect(translations.ru[key], key).toMatch(CYRILLIC)
     }
   })
 
