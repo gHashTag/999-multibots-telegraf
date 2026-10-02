@@ -21,6 +21,8 @@ import { promisify } from 'node:util'
 import type { AgentTool } from './tools'
 import { askVision, visionConfig } from './media-vision'
 import { whisperBytes, whisperConfig } from './media-library'
+import { resolveFinalUrl } from './web-guard'
+import { downloadBoundedMediaToFile } from '../lib/remoteMediaDuration'
 import * as SPEC from '../spec/split-reel.gen'
 import { splitSegments } from '../split-reel-plan'
 
@@ -145,15 +147,29 @@ async function probe(
   return { durationS: Number(j?.format?.duration) || 0, fps }
 }
 
+/** A reference reel is seconds of phone video; anything bigger is not one. */
+const REEL_MAX_BYTES = 100 * 1024 * 1024
+
 export async function analyzeReel(
   url: string
 ): Promise<Record<string, unknown>> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'reel-analyze-'))
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(60_000) })
-    if (!res.ok) return { ok: false, why: `download ${res.status}` }
+    // The url is the model's choice: the one guarded door, every redirect hop
+    // checked, the address pinned, the body capped. A refusal says only that
+    // it was refused -- a status code would tell a caller which internal
+    // address is alive.
+    const target = await resolveFinalUrl(url)
+    if (!target.ok) return { ok: false, why: target.reason }
     const file = path.join(dir, 'reel.mp4')
-    await fs.writeFile(file, Buffer.from(await res.arrayBuffer()))
+    try {
+      await downloadBoundedMediaToFile(target.url, file, {
+        maxBytes: REEL_MAX_BYTES,
+        timeoutMs: 60_000,
+      })
+    } catch {
+      return { ok: false, why: 'could not download the video' }
+    }
     const { durationS, fps } = await probe(file)
     if (!durationS) return { ok: false, why: 'not a video' }
 
