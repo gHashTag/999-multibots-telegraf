@@ -15,6 +15,7 @@
 #   2. кодом пользуются? -- посчитать строки в базе.
 # Первое без второго -- работа в стол.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 
 BASE="${VIBEE_APP:-https://app.t27.ai}"
 TMP="$(mktemp -d)"
@@ -70,10 +71,7 @@ else
 fi
 
 echo "— пользуются ли (счёт по базе) —"
-if ! railway service postgres-nfrq >/dev/null 2>&1; then
-  echo "  нет доступа к базе -- проверка НЕ выполнена"; exit 0
-fi
-URL=$(railway variables --kv 2>/dev/null | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
+URL=$(rvars postgres-nfrq | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
 if [ -z "$URL" ]; then echo "  нет DATABASE_PUBLIC_URL -- проверка НЕ выполнена"; exit 0; fi
 cat > "$TMP/c.mjs" <<'JS'
 import pg from 'pg'

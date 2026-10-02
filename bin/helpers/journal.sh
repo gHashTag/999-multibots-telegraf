@@ -9,11 +9,12 @@
 #   tri journal [n]      last n steps (default 20)
 # Exit 0 read, 2 could not read.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="$1"; shift
 N="${1:-20}"
 B="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 MAIN=$(git -C "$ROOT" worktree list --porcelain | awk 'NR==1{print $2}')
-AK=$( (cd "${MAIN:-$ROOT}" && railway variables --service vibee-render --kv 2>/dev/null) \
+AK=$(rvars vibee-render \
       | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 [ -z "$AK" ] && { echo "journal: no agent key (railway login?) -- could not read"; exit 2; }
 # probes=1: this view shows the checks too, marked, since their timings matter here.

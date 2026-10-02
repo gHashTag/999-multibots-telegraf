@@ -20,13 +20,14 @@
 # Exit 0 браузер здоров или вылечен, 2 не смог спросить, 3 перезапустил и всё
 # равно молчит (Chromium надо поднимать внутри пода).
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="$1"; shift
 JSON="${1:-}"
 B="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 MAIN=$(git -C "$ROOT" worktree list --porcelain | awk 'NR==1{print $2}')
 AK="${AGENT_KEY:-}"
 if [ -z "$AK" ]; then
-  AK=$( (cd "${MAIN:-$ROOT}" && railway variables --service vibee-render --kv 2>/dev/null) \
+  AK=$(rvars vibee-render \
         | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 fi
 [ -n "$AK" ] || { echo "heal: нет ключа агента (railway login?) -- не спросил"; exit 2; }
