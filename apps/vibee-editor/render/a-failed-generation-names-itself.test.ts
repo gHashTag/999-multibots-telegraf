@@ -105,4 +105,23 @@ describe('a failed generation names itself', () => {
     expect(after.code).toBe('generation_failed')
     expect(after.error).toBe('Video generation timeout')
   })
+
+  it('a job keeps the name its route gave, not the one its status implies', () => {
+    // A 400 alone would read as bad_input; the route said too_long, and the
+    // app that recovers the job must hear the same as the one that waited.
+    const res = fakeRes()
+    stampRefusalCode(res)
+    const job = startJob('video', '4242', 'a long clip')
+    recordInto(job, res)
+    res.writeHead(400)
+    res.end(
+      JSON.stringify({
+        success: false,
+        error: 'video must be 30 seconds or shorter',
+        code: 'too_long',
+      })
+    )
+    expect(JSON.parse(res.sent!).code).toBe('too_long')
+    expect(getJob(job.id)!.code).toBe('too_long')
+  })
 })
