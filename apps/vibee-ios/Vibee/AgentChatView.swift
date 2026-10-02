@@ -54,6 +54,8 @@ struct AgentChatView: View {
   @State private var answering: Set<UUID> = []
   /// Voice in the chat (VoiceInput.swift): the mic beside the field.
   @StateObject private var voice = VoiceInput()
+  /// A hidden tab stays alive here; the mic must know when it is not seen.
+  @Environment(\.tabIsShown) private var tabIsShown
 
   struct Реплика: Identifiable, Codable, Equatable {
     /// `var`, а не `let`: `let id = UUID()` при декодировании даёт новый
@@ -365,6 +367,14 @@ struct AgentChatView: View {
        * would land on a screen that is already gone.
        */
       .taskWhileShown { await loadSharedHistory() }
+      // Voice: a recording at its time limit is sent as a second press
+      // would send it; leaving the chat stops the mic and the reading.
+      .onChange(of: voice.timeUp) { _, up in
+        if up { Task { await pressMic() } }
+      }
+      .onChange(of: tabIsShown) { _, shown in voice.setShown(shown) }
+      .onAppear { voice.setShown(tabIsShown) }
+      .onDisappear { voice.setShown(false) }
   }
 
   private var основное: some View {
@@ -669,11 +679,15 @@ struct AgentChatView: View {
       voice.phase == .listening
         ? say("Stop and send", "Остановить и отправить")
         : say("Speak", "Сказать голосом"))
-    // While the agent answers, a new question would interleave two turns;
-    // a recording already running may always be stopped.
-    .disabled(voice.phase == .hearing || (идёт && voice.phase == .idle))  // cyrillic-ok: existing state
-    .opacity(идёт && voice.phase == .idle ? 0.5 : 1)  // cyrillic-ok: existing state
+    // While the agent answers, a new question would interleave two turns,
+    // and before a card's thread is ready nothing may be sent at all (Send
+    // is off then too); a recording already running may always be stopped.
+    .disabled(voice.phase == .hearing || (micResting && voice.phase == .idle))
+    .opacity(micResting && voice.phase == .idle ? 0.5 : 1)
   }
+
+  /// The same two reasons the Send button rests for.
+  private var micResting: Bool { идёт || !canWrite }  // cyrillic-ok: existing state
 
   private func pressMic() async {
     switch voice.phase {
@@ -684,8 +698,14 @@ struct AgentChatView: View {
       case .words(let heard):
         let typed = ввод.trimmingCharacters(in: .whitespacesAndNewlines)  // cyrillic-ok: existing state
         ввод = typed.isEmpty ? heard : typed + " " + heard  // cyrillic-ok: existing state
+        // Read the answer only if the question really went out: a send
+        // that declined would leave the old answer last, and reading it
+        // again would answer a question nobody heard sent.
+        let before = сообщения.count  // cyrillic-ok: existing state
         await отправить()  // cyrillic-ok: existing state
-        if let answer = сообщения.last, !answer.свой { await voice.speak(answer.текст) }  // cyrillic-ok: existing state
+        if сообщения.count > before, let answer = сообщения.last, !answer.свой {  // cyrillic-ok: existing state
+          await voice.speak(answer.текст)  // cyrillic-ok: existing state
+        }
       case .nothing:
         notice(say("I did not catch any words. Press the mic and try again.",
                    "Не расслышал ни слова. Нажмите микрофон и скажите ещё раз."))
