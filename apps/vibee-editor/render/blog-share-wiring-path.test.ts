@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const closed: string[] = []
 let leaves = true
+let blankLooks = 0
 let n = 0
 const hrefs = new Map<string, number>()
 
@@ -29,6 +30,7 @@ vi.mock('./src/browser/cdp', () => ({
       hrefs.set(id, k)
       return leaves && k > 1 ? `https://after/${id}` : `https://form/${id}`
     }
+    if (blankLooks > 0) return (blankLooks--, null)
     return { x: 1, y: 1, label: 'Post' }
   },
   clickAt: async () => undefined,
@@ -40,6 +42,7 @@ beforeEach(() => {
   closed.length = 0
   hrefs.clear()
   n = 0
+  blankLooks = 0
   vi.stubGlobal('setTimeout', (f: () => void) => (f(), 0))
 })
 
@@ -72,5 +75,16 @@ describe('the real publish path', () => {
     )
     expect(Object.values(out).every(v => /не подтверждено/.test(v))).toBe(true) // cyrillic-ok: receipt words
     expect(closed).toEqual([])
+  })
+  it('a composer that draws late is waited for, not reported missing', async () => {
+    leaves = true
+    blankLooks = 10
+    const { publishEverywhere } = await import('./src/agent/blog-share-wiring')
+    const out = await publishEverywhere(
+      { query: async () => ({ rows: [] }) } as never,
+      '1',
+      article
+    )
+    expect(Object.values(out).some(v => /не найдена/.test(v))).toBe(false) // cyrillic-ok: receipt words
   })
 })
