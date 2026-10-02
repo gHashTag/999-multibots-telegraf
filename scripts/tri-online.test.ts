@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
-const { classify, reason, verdict } = createRequire(import.meta.url)(
+const { GITHUB, classify, reason, verdict } = createRequire(import.meta.url)(
   './lib/online.cjs'
 )
 
@@ -51,6 +51,9 @@ describe('classify', () => {
     expect(classify(128, SSH_AUTH)).toBe('auth')
     expect(classify(128, SSH_NO_REPO)).toBe('auth')
     expect(classify(1, 'gh: Bad credentials (HTTP 401)')).toBe('auth')
+    expect(
+      classify(4, 'To get started with GitHub CLI, please run:  gh auth login')
+    ).toBe('auth')
   })
   it('a timeout or a refused connection is connect', () => {
     expect(classify(124, ' timed out')).toBe('connect')
@@ -104,10 +107,16 @@ describe('verdict', () => {
       verdict({ ...up, 'git-ssh': 'auth', 'github-api': 'connect' }).code
     ).toBe(3)
   })
-  it('GitHub fine, a neighbour down is 1 and says so', () => {
+  it('GitHub fine, a neighbour down is 1 and names it', () => {
     const v = verdict({ ...up, render: 'dns' })
     expect(v.code).toBe(1)
-    expect(v.next).toMatch(/GitHub is reachable/)
+    expect(v.next).toMatch(/^GitHub is reachable; render is not/)
+  })
+  it('a GitHub probe unrecognised is never called "reachable"', () => {
+    const v = verdict({ ...up, 'github-api': 'unknown', render: 'dns' })
+    expect(v.code).toBe(4)
+    expect(v.next).not.toMatch(/reachable/)
+    expect(v.next).toMatch(/github-api, render/)
   })
   it('an unrecognised failure is 4, not 0', () => {
     expect(verdict({ ...up, render: 'unknown' }).code).toBe(4)
@@ -119,6 +128,30 @@ describe('the command', () => {
     const tri = fs.readFileSync(path.join(ROOT, 'bin/tri'), 'utf8')
     expect(tri).toMatch(/^\s+online\) shift; .*bin\/helpers\/online\.mjs/m)
     expect(tri).toMatch(/^\s+tri online \[--wait N\]/m)
+  })
+  it('probes exactly the GitHub names the verdict reads', () => {
+    const src = fs.readFileSync(
+      path.join(ROOT, 'bin/helpers/online.mjs'),
+      'utf8'
+    )
+    const block = src.slice(
+      src.indexOf('const GITHUB = {'),
+      src.indexOf('const OTHERS')
+    )
+    expect([...block.matchAll(/'([a-z-]+)': \(\)/g)].map(m => m[1])).toEqual(
+      GITHUB
+    )
+  })
+  it('--wait gives up at once on a refusal, and keeps a custom ssh command', () => {
+    // Whitespace collapsed: prettier wraps this condition however it likes.
+    const src = fs
+      .readFileSync(path.join(ROOT, 'bin/helpers/online.mjs'), 'utf8')
+      .replace(/\s+/g, ' ')
+    expect(src).toMatch(
+      /while \( ?wait > 0 && !githubUp\(results\) && !refused\(results\) &&/
+    )
+    expect(src).toContain('process.env.GIT_SSH_COMMAND ||')
+    expect(src).toContain("'core.sshCommand'")
   })
   it('shows reason(), not the last line', () => {
     const src = fs.readFileSync(
