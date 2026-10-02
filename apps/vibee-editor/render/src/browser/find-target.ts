@@ -28,6 +28,22 @@ export function findProbe(text: string): string {
   return `(() => {
   const want = ${want};
   if (!want) return null;
+  /*
+   * EVERY OPEN SHADOW ROOT, NOT ONLY THE DOCUMENT (2026-10-02). Reddit's
+   * submit page draws "Post" inside <r-post-form-submit-button>'s shadow
+   * root, and LinkedIn's share dialog lives in one too; document.
+   * querySelectorAll never looks there, so the blog desk reported "button
+   * not found" with the button on screen, and browser_click by words could
+   * not press it either. The roots are collected once per look -- the
+   * document first, so a page without shadow DOM is read exactly as before.
+   */
+  const roots = [document];
+  for (let i = 0; i < roots.length && roots.length < 500; i++)
+    for (const el of roots[i].querySelectorAll('*'))
+      if (el.shadowRoot) roots.push(el.shadowRoot);
+  const all = selector => roots.flatMap(r => [...r.querySelectorAll(selector)]);
+  let labels = null;
+  const labelsFor = () => labels || (labels = all('label[for]'));
   const vis = el => {
     const r = el.getBoundingClientRect();
     const s = getComputedStyle(el);
@@ -48,7 +64,7 @@ export function findProbe(text: string): string {
       isField(el) ? '' : el.innerText || el.textContent || ''
     ];
     if (el.id) {
-      for (const l of document.querySelectorAll('label[for]'))
+      for (const l of labelsFor())
         if (l.getAttribute('for') === el.id) own.push(l.innerText || l.textContent || '');
     }
     return own.map(t => (t || '').trim().toLowerCase().replace(/\\s+/g, ' ')).filter(Boolean);
@@ -57,12 +73,12 @@ export function findProbe(text: string): string {
     if (tagOf(el) !== 'LABEL') return el;
     const id = el.getAttribute('for');
     if (!id) return el;
-    for (const f of document.querySelectorAll('input, textarea, [contenteditable="true"]'))
+    for (const f of all('input, textarea, [contenteditable="true"]'))
       if (f.id === id) return f;
     return el;
   };
   const pickExact = selector => {
-    for (const el of document.querySelectorAll(selector)) {
+    for (const el of all(selector)) {
       if (!vis(el) || el.type === 'hidden') continue;
       for (const name of nameOf(el))
         if (name === want) {
@@ -75,7 +91,7 @@ export function findProbe(text: string): string {
   };
   const pick = selector => {
     let best = null, bestScore = -1, bestLabel = '';
-    for (const el of document.querySelectorAll(selector)) {
+    for (const el of all(selector)) {
       if (!vis(el)) continue;
       const t = [el.innerText || el.textContent || el.value || '', el.getAttribute('aria-label') || '', el.getAttribute('title') || '']
         .join(' ').trim().toLowerCase().replace(/\\s+/g, ' ');
@@ -105,7 +121,7 @@ export function findProbe(text: string): string {
   const button = pick('button, [role="button"], input[type="submit"], input[type="button"]');
   if (button) return Object.assign(centre(button.el), { how: 'text', label: button.label.slice(0, 80) });
   if (want.includes('google')) {
-    for (const f of document.querySelectorAll('iframe[src*="accounts.google.com/gsi"]')) {
+    for (const f of all('iframe[src*="accounts.google.com/gsi"]')) {
       if (vis(f)) return Object.assign(centre(f), { how: 'google-frame', label: 'Sign in with Google' });
     }
   }
@@ -118,13 +134,13 @@ export function findProbe(text: string): string {
   const fieldName = el => {
     const own = [el.getAttribute('placeholder') || '', el.getAttribute('aria-label') || ''];
     if (el.id) {
-      for (const l of document.querySelectorAll('label[for]'))
+      for (const l of labelsFor())
         if (l.getAttribute('for') === el.id) own.push(l.innerText || l.textContent || '');
     }
     return own.join(' ').trim().toLowerCase().replace(/\\s+/g, ' ');
   };
   let field = null, fieldScore = -1, fieldLabel = '';
-  for (const el of document.querySelectorAll('input, textarea, [contenteditable="true"]')) {
+  for (const el of all('input, textarea, [contenteditable="true"]')) {
     if (!vis(el) || el.type === 'hidden') continue;
     const t = fieldName(el);
     if (!t.includes(want)) continue;
