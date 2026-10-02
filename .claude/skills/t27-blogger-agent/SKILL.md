@@ -234,3 +234,25 @@ own yes, every time.** Nothing is posted without that yes.
    he answers himself. The desk never writes a DM.
 6. **Measure honestly.** Count replies per comment. Do not attribute followers
    or DMs to one comment without evidence.
+
+## X said "not on the profile" because the post on X was mangled (2026-10-03)
+
+The thread was actually published. The first post had lost about 115
+characters from the middle: "The seeg; a stand-alone unit…" instead of "The
+seed moved Fmax 1.22x…". So the profile check was **right** not to find the
+title words. The desk typed character by character into X's composer, never
+looked at the result, and pressed "Post all".
+
+- **Read back before pressing.** `postThreadOnX` reads every
+  `[data-testid="tweetTextarea_N"]` (the home timeline keeps its own composer
+  under the dialog) and compares the words with `composerHolds`. On a
+  mismatch the draft is closed unposted and the desk falls back to
+  `x.com/intent/post`, whose text travels in the URL and is not typed.
+- **A line break is Enter, only where Enter is safe.** X drops a `"\n"` char
+  event, so the title was glued to the summary. `typeText(…, {
+enterForNewline: true })` sends `"\r"`, which is what the Enter key types;
+  this was measured in the pod's X composer. It is opt-in because in a chat
+  box Enter SENDS.
+- **Reproduce without posting:** `tri browser open https://x.com/compose/post`,
+  `tri browser type "…"`, `tri browser eval '[...document.querySelectorAll("[data-testid^=tweetTextarea_]")].map(e=>e.innerText)' ID`,
+  then `tri browser close ID`. Nothing is pressed, so nothing is published.
