@@ -390,6 +390,64 @@ export function toRevenue(r: Record<string, unknown>): Revenue {
 export const loadRevenue = async () =>
   map(await callTool<Record<string, unknown>>('crm_revenue', {}), toRevenue)
 
+/**
+ * THE OWNER'S NETWORKS (tool `social_status`, render social-tools.ts): which
+ * of Threads, Facebook, LinkedIn and X his agent can post to, and where to
+ * connect the rest. The tool is the owner's only; anyone else is refused.
+ */
+export const SOCIAL_NETWORKS = ['threads', 'facebook', 'linkedin', 'x'] as const
+export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number]
+/** connected: posts go out; expired: reconnect; noApp: our side is missing
+ * the app keys; off: never connected. */
+export type SocialState = 'connected' | 'expired' | 'noApp' | 'off'
+
+export interface SocialRow {
+  network: SocialNetwork
+  state: SocialState
+  account: string | null
+  instagram: string | null
+  daysLeft: number | null
+}
+
+export interface Social {
+  rows: SocialRow[]
+  connect: string | null
+}
+
+const textOf = (v: unknown): string | null =>
+  typeof v === 'string' && v ? v : null
+
+export function toSocial(r: Record<string, unknown>): Social {
+  const apps = (r['apps'] ?? {}) as Record<string, unknown>
+  const held = Array.isArray(r['networks'])
+    ? (r['networks'] as Array<Record<string, unknown>>)
+    : []
+  const connect = textOf(r['connect'])
+  return {
+    connect: connect && connect.startsWith('https://') ? connect : null,
+    rows: SOCIAL_NETWORKS.map(network => {
+      const t = held.find(x => x['network'] === network)
+      const state: SocialState = t
+        ? t['usable'] === true
+          ? 'connected'
+          : 'expired'
+        : apps[network] === false
+          ? 'noApp'
+          : 'off'
+      return {
+        network,
+        state,
+        account: t ? textOf(t['account']) : null,
+        instagram: t ? textOf(t['instagram']) : null,
+        daysLeft: t ? num(t['daysLeft']) : null,
+      }
+    }),
+  }
+}
+
+export const loadSocial = async () =>
+  map(await callTool<Record<string, unknown>>('social_status', {}), toSocial)
+
 export const loadWaiting = async () =>
   map(await callTool<Record<string, unknown>>('crm_waiting'), toWaiting)
 export const loadHotLeads = async () =>

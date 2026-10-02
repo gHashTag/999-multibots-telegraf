@@ -1406,6 +1406,9 @@ function ownerSideSection(surface?: string): string {
     '(project_get, project_save, projects_list). План по Лиле (leela_plan). ' +
     'Почта владельца (Zoho): список, поиск, чтение писем (mail_*); письмо ' +
     'уходит только после нажатия владельца на карточке mail_send. ' +
+    /* social-tools.ts: the owner's networks by their own APIs, one tap. */
+    'Его соцсети (Threads, Facebook, LinkedIn, X): что подключено — ' + // cyrillic-ok: prompt copy
+    'social_status; пост — social_post, уходит только по нажатию. ' + // cyrillic-ok: prompt copy
     /* #2962, #2964: the clone's networks, read without opening a page. */
     'Где его браузер уже вошёл — browser_logins (страницу не открывает). ' + // cyrillic-ok: prompt copy
     '«Подключи мои сети» — browser_logins, затем каждую signed_out по ' + // cyrillic-ok: prompt copy
