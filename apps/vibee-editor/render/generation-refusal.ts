@@ -64,7 +64,8 @@ type Ending = {
  *
  * Installed at the top of a route, so `recordInto` (installed later) wraps
  * OUTSIDE it and sees the body before the code is added -- which is why
- * `recordInto` derives the code from the status too, rather than reading it.
+ * `recordInto` takes a code the route wrote itself, and derives one from the
+ * status only when the body has none.
  */
 export function stampRefusalCode(res: Ending): void {
   const original = res.end.bind(res)

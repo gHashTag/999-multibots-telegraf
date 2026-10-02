@@ -6,6 +6,7 @@ import type { Queryable } from '../browser/sessions'
 import {
   ANSWER_WAIT_MS,
   blogShareTick,
+  parseRss,
   LEFT_THE_FORM,
   needleOf,
   NO_PROFILE_CHECK,
@@ -28,7 +29,7 @@ import {
   LOOKS,
 } from '../spec/blog-share.gen'
 
-const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
+const settle = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
 export async function runBlogShare(pool: Queryable): Promise<string> {
   if (process.env.BLOG_SHARE_ENABLED !== '1') return 'off'
@@ -65,6 +66,18 @@ export async function publishEverywhere(
   owner: string,
   a: Article
 ): Promise<Record<string, string>> {
+  /*
+   * META'S OWN API FIRST (meta-connect.t27 route()): a network the owner
+   * connected by OAuth is posted with its API and comes back with the post's
+   * id; only the networks without a token are left to the browser below.
+   */
+  const { postByApi } = await import('./meta-connect')
+  const viaApi = await postByApi(pool, owner, cardPost(a), {
+    fetch: (url, init) =>
+      fetch(url, { ...init, signal: AbortSignal.timeout(20_000) }) as never,
+    sleep: settle,
+  }).catch(() => ({}) as Record<string, string>)
+
   const { startBrowserAsAgent } = await import('../browser/routes')
   const { readSession } = await import('../browser/sessions')
   const { newPage, evaluateOn, clickAt, closePage } = await import(
@@ -76,10 +89,13 @@ export async function publishEverywhere(
     await startBrowserAsAgent(owner)
     s = await readSession(pool, owner)
   }
-  if (!s?.cdpEndpoint) return { error: 'the browser did not start' }
+  if (!s?.cdpEndpoint)
+    return Object.keys(viaApi).length
+      ? { ...viaApi, browser: 'браузер не запустился' } // cyrillic-ok: told to the owner
+      : { error: 'the browser did not start' }
   const cdp = s.cdpEndpoint
   const urls = shareUrls(a)
-  const out: Record<string, string> = {}
+  const out: Record<string, string> = { ...viaApi }
   /*
    * X FIRST, AS A THREAD (blog-share.ts xThread). The link is not in the
    * first post: it goes below, in the same thread. If the composer does not
@@ -115,6 +131,8 @@ export async function publishEverywhere(
   ] as const) {
     if (net === 'X' && !String(out.X || '').startsWith('тред не получился'))
       continue
+    /* Already answered by its API -- the browser does not post it twice. */
+    if (net !== 'X' && net in viaApi) continue
     if (isNotConnected(url, logins)) {
       out[net] = 'не подключена — вход не найден, ничего не нажато' // cyrillic-ok: told to the owner
       continue
@@ -232,6 +250,33 @@ async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   return `тред отправлен («${pressed}»): текст, ссылка вторым постом · ${receipt} · ${check}` // cyrillic-ok: told to the owner
 }
 
+/** The post the API connectors are given: the card lives at our own address. */
+function cardPost(a: Article) {
+  const base = (
+    process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app'
+  ).replace(/\/+$/, '')
+  return {
+    title: a.title,
+    link: a.link,
+    summary: a.summary,
+    cardUrl: `${base}/api/social/card/${a.slug}.jpg`,
+  }
+}
+
+/*
+ * The title of an article by its slug, from the blog's own feed -- the card's
+ * public address names a slug, never words, so it cannot print anybody else's.
+ * Read once per ten minutes at most.
+ */
+let feedCache: { at: number; articles: Article[] } | null = null
+export async function blogTitleOf(slug: string): Promise<string | null> {
+  if (!feedCache || Date.now() - feedCache.at > 600_000) {
+    const r = await fetch(RSS_URL, { signal: AbortSignal.timeout(20_000) })
+    if (!r.ok) return null
+    feedCache = { at: Date.now(), articles: parseRss(await r.text()) }
+  }
+  return feedCache.articles.find(x => x.slug === slug)?.title ?? null
+}
 /**
  * Only a page that left the form is worth a look at the profile; anything
  * else is already unconfirmed by its receipt.

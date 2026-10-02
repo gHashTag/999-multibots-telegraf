@@ -44,6 +44,27 @@ _nvm20="$HOME/.nvm/versions/node/v20.19.0/bin"
 [ -d "$_nvm20" ] && export PATH="$_nvm20:$PATH"
 export PATH="/opt/homebrew/bin:$PATH"
 
+# The NEWEST railway CLI first. On 2026-10-02 /usr/local/bin held an old,
+# logged-out 4.5.4 ahead of nvm's 5.63: every railway call answered
+# "Unauthorized", and the deploy checks here printed "railway did not answer"
+# -- a state unknown that was really a stale binary. Asking each one its
+# version took 23 s on a loaded Mac, so the pick is cached until that binary
+# disappears (rm the cache file to re-pick after an upgrade).
+_tri_railway_pick() {
+  local cache="${XDG_CACHE_HOME:-$HOME/.cache}/tri/railway-bin" b best=''
+  if [ -s "$cache" ]; then
+    best=$(cat "$cache")
+    [ -x "$best" ] && { printf '%s' "$best"; return 0; }
+  fi
+  best=$(type -ap railway | awk '!seen[$0]++' | while IFS= read -r b; do
+    printf '%s\t%s\n' "$("$b" --version 2>/dev/null | awk '{print $2}')" "$b"
+  done | sort -V -r | head -1 | cut -f2)
+  [ -n "$best" ] || return 1
+  mkdir -p "$(dirname "$cache")" && printf '%s' "$best" > "$cache"
+  printf '%s' "$best"
+}
+_rw=$(_tri_railway_pick 2>/dev/null) && export PATH="$(dirname "$_rw"):$PATH"
+
 RENDER="${TRI_RENDER_URL:-https://vibee-render-production.up.railway.app}"
 
 paint() { printf '\033[%sm%s\033[0m\n' "$1" "$2"; }
@@ -437,6 +458,14 @@ CHECKS THAT EACH COST A CYCLE
         six phrases with our mouth, hears them with our ears, judges what
         came back and prints when the words land in the pause (the "heard"
         earcon now waits for them).
+
+  tri words | tri слова [--lang=ru|en] [phrase ...]
+        Are product words (reels, lipsync, neurophoto, Vibee...) heard as
+        said? Our mouth speaks, our ears hear through the live road, with
+        the render's fix-ups (render/src/voice/hotwords.ts) applied. XX = a
+        new mishearing for that table, or a fix-up firing on a real word;
+        "two alphabets" = a Latin letter inside a Russian word. Exit 1 on
+        any XX. Needs the agent key.
 
   tri vad | tri шум [--legacy] [file.wav ...]
         The mic's voice-activity gate (player/src/lib/voice/vad.ts) run tick
@@ -6647,6 +6676,67 @@ PY
   bun "$bench" "${list[@]}"
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# tri words: are product words heard as said? (cycle 14, weak spot 12)
+#
+# Our mouth speaks each phrase, our ears hear it through the live road --
+# the same /api/voice/transcribe the player calls, so the render's fix-ups
+# (render/src/voice/hotwords.ts) are already applied to what comes back.
+# A row that differs is either a new mishearing to add to that table or a
+# fix-up that fired where it should not. Synthesized speech is not a
+# person: a clean run says the road is right, not that every voice is.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_words() {
+  local lang=ru a phrases=() key
+  for a in "$@"; do
+    case "$a" in
+      --lang=*) lang="${a#--lang=}" ;;
+      -*) bad "tri words [--lang=ru|en] [phrase ...], not '$a'"; return 2 ;;
+      *) phrases+=("$a") ;;
+    esac
+  done
+  key=$(_mcp_key 2>/dev/null) || key=''
+  [ -n "$key" ] || { bad 'no agent key: tri words needs the render (AGENT_KEY or the vault)'; return 2; }
+  V_KEY="$key" V_BASE="$RENDER" V_LANG="$lang" python3 - ${phrases[@]+"${phrases[@]}"} <<'PY2'
+import json, os, re, sys, http.client
+from urllib.parse import urlsplit
+base, key, lang = os.environ['V_BASE'], os.environ['V_KEY'], os.environ['V_LANG']
+u = urlsplit(base)
+conn = (http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection)(u.hostname, u.port, timeout=60)
+def call(path, body, ctype):
+    data = body if isinstance(body, bytes) else json.dumps(body).encode()
+    conn.request('POST', path, body=data, headers={'Content-Type': ctype, 'X-Agent-Key': key})
+    r = conn.getresponse(); b = r.read()
+    if r.status != 200: raise RuntimeError(f'HTTP {r.status} {path}')
+    return b
+# Each one came back wrong at least once on 2026-10-02 before the fix-ups.
+DEFAULT = {
+    'ru': ['Сделай рилс про мою кофейню.', 'Сделай три рилса на неделю.',  # cyrillic-ok: spoken probe
+           'Пришли рилс в телеграм.', 'Запусти липсинк с моим голосом.',  # cyrillic-ok: spoken probe
+           'Сколько стоит липсинк?', 'Сделай нейрофото.', 'Открой улей.',  # cyrillic-ok: spoken probe
+           'Сделай лид-магнит.', 'Открой Вайби.'],  # cyrillic-ok: spoken probe
+    'en': ['Make a reel about my coffee shop.', 'Run a lipsync with my voice.', 'Open my CRM.'],
+}
+phrases = sys.argv[1:] or DEFAULT.get(lang, [])
+# A brand the ears write in its own alphabet is heard right, not misheard.
+SAME = {'telegram': 'телеграм', 'crm': 'црм'}  # cyrillic-ok: brand spellings
+norm = lambda t: ' '.join(SAME.get(w, w) for w in re.sub(r'[^\w-]+', ' ', t.lower().replace('ё', 'е')).split())  # cyrillic-ok: yo
+same = 0
+for text in phrases:
+    try:
+        audio = call('/api/voice/speak', {'text': text, 'lang': lang}, 'application/json')
+        heard = json.loads(call(f'/api/voice/transcribe?lang={lang}', audio, 'audio/mpeg')).get('text', '')
+    except Exception as e:
+        print(f'  ?  {text}  FAILED {e}'); continue
+    mixed = [w for w in heard.split() if re.search('[а-яё]', w, re.I) and re.search('[a-z]', w, re.I)]  # cyrillic-ok: script check
+    ok = norm(heard) == norm(text) and not mixed
+    same += ok
+    print(f"  {'OK' if ok else 'XX'} {text}  ->  {heard}" + (f'  (two alphabets: {mixed})' if mixed else ''))
+print(f'heard as said: {same}/{len(phrases)}')
+sys.exit(0 if same == len(phrases) else 1)
+PY2
+}
+
 # tri turn --audio: does the VOICE sound finished? (cycle 13, Smart Turn v3.2
 # in the ears, deployment/gigaam/turn.py). Real recordings, through the live
 # road: each file is cut to its last sound, given --pause ms of silence (the
@@ -7265,6 +7355,7 @@ case "$action" in
   road|дорога)         V_ROAD_ONLY=1 cmd_voice "$@" ;;
   vad|шум)             cmd_vad "$@" ;;
   turn|ход)            cmd_turn "$@" ;;  # cyrillic-ok: alias, like its neighbours
+  words|слова)         cmd_words "$@" ;;  # cyrillic-ok: alias, like its neighbours
   filler|пауза)        V_FILLER=1 cmd_voice --runs 1 ;;   # cyrillic-ok: alias, like its neighbours   # cyrillic-ok: alias, like its neighbours
   ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
   mouth|рот)           cmd_ears "$@" mouth ;;  # cyrillic-ok: the voice's mouth, cycle 6

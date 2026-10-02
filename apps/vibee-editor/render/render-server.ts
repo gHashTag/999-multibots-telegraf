@@ -145,7 +145,9 @@ import { identityWithSource, personIdentity } from './src/agent/routes'
 import { handleCardStatus } from './src/agent/card-status'
 import { handleCardMove } from './src/agent/card-move'
 import { handleThreadLive } from './src/agent/thread-live'
+import { isMetaPath } from './src/agent/meta-routes'
 import { handleTriWallet } from './src/tri-wallet'
+import { handleTriClaim, liveOutside, type Outside } from './src/tri-claim'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import {
@@ -164,6 +166,27 @@ import {
   readApproval,
 } from './src/browser/approvals'
 import { markAllowed, ensureBrowserSessions } from './src/browser/sessions'
+
+/** The claim side's outside world, from env; null (503 on claims) until it is all set. */
+let triOutside: Outside | null | undefined
+function triClaimOutside(): Outside | null {
+  if (triOutside !== undefined) return triOutside
+  const signerUrls = (process.env.TRI_SIGNER_URLS ?? '')
+    .split(',')
+    .map(u => u.trim())
+    .filter(Boolean)
+  const { QUEEN_URL, TRI_MINTER } = process.env
+  triOutside =
+    QUEEN_URL && TRI_MINTER && signerUrls.length
+      ? liveOutside({
+          queenUrl: QUEEN_URL,
+          signerUrls,
+          minter: TRI_MINTER,
+          toncenterKey: process.env.TONCENTER_API_KEY,
+        })
+      : null
+  return triOutside
+}
 
 /** Who asked, so the yes lands on their session and nobody else's. */
 const approvalOwner = async (pool: any, id: string) =>
@@ -9309,6 +9332,44 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  if (isMetaPath(req.url?.split('?')[0] || '')) {
+    const { handleMeta } = await import('./src/agent/meta-routes')
+    const { OWNER_TELEGRAM_ID } = await import('./src/agent/telegram-tools')
+    const out = await handleMeta(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      actor: r =>
+        identityWithSource(r as any, verifiedTelegramId(r as any))?.source ===
+        'agent-key'
+          ? 'agent'
+          : 'person',
+      owner: String(process.env.BLOG_SHARE_OWNER || OWNER_TELEGRAM_ID || ''),
+      fetch: (url, init) =>
+        fetch(url, { ...init, signal: AbortSignal.timeout(20_000) }) as any,
+      now: Date.now,
+      titleOf: async slug => {
+        const { blogTitleOf } = await import('./src/agent/blog-share-wiring')
+        return await blogTitleOf(slug)
+      },
+      drawCard: async title =>
+        (await import('./src/agent/meta-card')).drawCard(title),
+    })
+    if ('jpeg' in out) {
+      res.writeHead(out.status, {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=3600',
+      })
+      res.end(out.jpeg)
+    } else if ('html' in out) {
+      res.writeHead(out.status, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end(out.html)
+    } else {
+      res.writeHead(out.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(out.json))
+    }
+    return
+  }
+
   if (isBrowserPath(req.url?.split('?')[0] || '')) {
     const out = await handleBrowser(req, browserBrokerDeps())
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
@@ -9375,6 +9436,22 @@ const server = createServer(async (req, res) => {
       personOf: personIdentity,
       readBody: (r, maxBytes) => readBody(r as any, maxBytes),
       proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
+    })
+  )
+    return
+
+  /*
+   * /api/tri/github*, /api/tri/payee, /api/tri/claim[s] -- a person links the
+   * GitHub account Queen credits, and claims an accepted spec as a mint their
+   * own wallet sends (src/tri-claim.ts). Testnet only; without QUEEN_URL,
+   * TRI_SIGNER_URLS and TRI_MINTER the claim side answers 503.
+   */
+  if (
+    await handleTriClaim(req, res, {
+      getPool,
+      personOf: personIdentity,
+      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      outside: triClaimOutside(),
     })
   )
     return
