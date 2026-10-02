@@ -10,21 +10,25 @@ alwaysApply: false
 - [check_translations.sql](mdc:scripts/check_translations.sql) - Check translation status
 - [check_and_fix_translations.sql](mdc:scripts/check_and_fix_translations.sql) - Automated translation fixes
 
-## Usage with Supabase
+## Usage
+
+The live database is Railway Postgres (`Postgres-NFrq`); take
+`DATABASE_PUBLIC_URL` from `railway variables --kv --service Postgres-NFrq`.
+The cloud Supabase project is a frozen archive since 2026-10-01.
 
 ### Check Translations
 ```bash
-psql -h db.yuukfqcsdhkyxegfwlcb.supabase.co -U postgres -f scripts/check_translations.sql
+psql "$DATABASE_PUBLIC_URL" -f scripts/check_translations.sql
 ```
 
 ### Add New Translations
 ```bash
-psql -h db.yuukfqcsdhkyxegfwlcb.supabase.co -U postgres -f scripts/add_translations.sql
+psql "$DATABASE_PUBLIC_URL" -f scripts/add_translations.sql
 ```
 
 ### Fix Translation Issues
 ```bash
-psql -h db.yuukfqcsdhkyxegfwlcb.supabase.co -U postgres -f scripts/check_and_fix_translations.sql
+psql "$DATABASE_PUBLIC_URL" -f scripts/check_and_fix_translations.sql
 ```
 
 ## Important Notes

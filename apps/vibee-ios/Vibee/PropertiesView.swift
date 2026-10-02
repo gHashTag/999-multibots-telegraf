@@ -54,7 +54,7 @@ struct PropertiesView: View {
       Image(systemName: "hand.tap")
         .font(Тема.Шрифт.значок(.title2))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
-      Text("Выберите клип на таймлайне")
+      Text(say("Select a clip on the timeline", "Выберите клип на таймлайне"))
         .font(Тема.Шрифт.стиль(.footnote))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
     }
@@ -64,28 +64,28 @@ struct PropertiesView: View {
   private func содержимое(_ clip: Binding<Clip>) -> some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
-        Text(clip.wrappedValue.name ?? "Клип")
+        Text(clip.wrappedValue.name ?? say("Clip", "Клип"))
           .font(Тема.Шрифт.стиль(.headline, .semibold))
           .foregroundStyle(Тема.Цвет.текст)
 
-        группа("Положение") {
+        группа(say("Position", "Положение")) {
           крутилка("X", value: clip.x, шаг: 1, диапазон: -4000...4000, единица: "px")
           крутилка("Y", value: clip.y, шаг: 1, диапазон: -4000...4000, единица: "px")
         }
 
-        группа("Размер") {
-          крутилка("Ширина", value: clip.width, шаг: 1, диапазон: 1...8000, единица: "px")
-          крутилка("Высота", value: clip.height, шаг: 1, диапазон: 1...8000, единица: "px")
+        группа(say("Size", "Размер")) {
+          крутилка(say("Width", "Ширина"), value: clip.width, шаг: 1, диапазон: 1...8000, единица: "px")
+          крутилка(say("Height", "Высота"), value: clip.height, шаг: 1, диапазон: 1...8000, единица: "px")
         }
 
-        группа("Вид") {
-          крутилка("Поворот", value: clip.rotation, шаг: 0.5, диапазон: -360...360, единица: "°")
-          ползунок("Прозрачность", value: clip.opacity)
+        группа(say("Look", "Вид")) {
+          крутилка(say("Rotation", "Поворот"), value: clip.rotation, шаг: 0.5, диапазон: -360...360, единица: "°")
+          ползунок(say("Opacity", "Прозрачность"), value: clip.opacity)
         }
 
-        группа("Время") {
-          целое("Начало", value: clip.startFrame, диапазон: 0...100_000)
-          целое("Длительность", value: clip.durationInFrames, диапазон: 1...100_000)
+        группа(say("Timing", "Время")) {
+          целое(say("Start", "Начало"), value: clip.startFrame, диапазон: 0...100_000)
+          целое(say("Duration", "Длительность"), value: clip.durationInFrames, диапазон: 1...100_000)
         }
       }
       .padding(Тема.Отступ.md)
@@ -184,7 +184,7 @@ struct PropertiesView: View {
       }
       .labelsHidden()
       .overlay(alignment: .leading) {
-        Text("\(value.wrappedValue) кадр")
+        Text(framesLabel(value.wrappedValue))
           .font(Тема.Шрифт.моно(.footnote))
           .monospacedDigit()
           .foregroundStyle(Тема.Цвет.текст)
@@ -192,4 +192,11 @@ struct PropertiesView: View {
       }
     }
   }
+}
+
+/// "120 frames" / "120 кадров". The old label said "кадр" for every count.  // cyrillic-ok: quotes the old label
+func framesLabel(_ n: Int, russian: Bool = speaksRussian) -> String {
+  russian
+    ? склонение(n, "кадр", "кадра", "кадров")  // cyrillic-ok: pre-existing helper; ru-only-ok: the russian branch
+    : (n == 1 ? "1 frame" : "\(n) frames")
 }

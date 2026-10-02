@@ -40,6 +40,8 @@ struct FeedView: View {
    * системы. Пока прокрутки не было, он `nil` — тогда текущим считаем первый.
    */
   @State private var текущий: String?
+  @Environment(\.tabReselects) private var tabReselects
+  @ObservedObject private var net = Connectivity.shared
 
   /// Короткое сообщение поверх ленты: единственный способ ответить на
   /// действие, которое не удалось. Пустой экран вместо ответа — та самая
@@ -57,14 +59,14 @@ struct FeedView: View {
         // ровно та ошибка, которую весь вчерашний день чинил в вебе.
         VStack(spacing: 10) {
           Image(systemName: "wifi.exclamationmark").font(Тема.Шрифт.значок(.largeTitle))
-          Text("Лента не загрузилась").font(Тема.Шрифт.стиль(.headline, .semibold))
+          Text(say("The feed did not load", "Лента не загрузилась")).font(Тема.Шрифт.стиль(.headline, .semibold))
           Text(ошибка).font(Тема.Шрифт.стиль(.footnote)).foregroundStyle(Тема.Цвет.текстПриглушённый)
             .multilineTextAlignment(.center)
           Button { Task { await загрузить() } } label: {
             // Высота ВНУТРИ label. Снаружи `.frame` растягивает только
             // контейнер, а заливку рисует стиль по своему содержимому —
             // замерено 34.3 pt при формальных 44.
-            Text("Ещё раз")
+            Text(say("Try again", "Ещё раз"))
               .frame(minHeight: Тема.Кнопка.высота)
               .padding(.horizontal, Тема.Кнопка.отступПоГоризонтали)
           }
@@ -74,7 +76,7 @@ struct FeedView: View {
         }
         .padding(Тема.Отступ.xl)
       } else if items.isEmpty {
-        Text("В ленте пока пусто").foregroundStyle(Тема.Цвет.текстПриглушённый)
+        Text(say("Nothing in the feed yet", "В ленте пока пусто")).foregroundStyle(Тема.Цвет.текстПриглушённый)
       } else {
         /// Вертикальный пейджинг БЕЗ хака с поворотом.
         ///
@@ -147,11 +149,27 @@ struct FeedView: View {
       настроитьЗвук()
       await загрузить()
     }
+    // A repeat tap on the open Feed tab goes back to the first reel, as the
+    // web's tab link and the Reels/TikTok tab do (see `tabReselects`).
+    .onChange(of: tabReselects) {
+      withAnimation { текущий = items.first?.id } // cyrillic-ok: existing state
+    }
+    // The network came back: a feed that failed loads again by itself (see
+    // `Connectivity`). A loaded feed stays where the person is.
+    .onChange(of: net.returns) {
+      if ошибка != nil { Task { await загрузить() } }  // cyrillic-ok: existing state
+    }
   }
 
-  /// Текущий по версии системы; до первой прокрутки — первый в списке.
+  /// The feed's tab is the open one. The bar keeps this screen alive while
+  /// another tab is open, and a kept screen gets no `onDisappear`.
+  @Environment(\.tabIsShown) private var tabIsShown
+
+  /// Текущий по версии системы; до первой прокрутки — первый в списке. // cyrillic-ok
+  /// Only while the feed is on screen: a hidden tab plays nothing.
   private func активен(_ t: API.Template) -> Bool {
-    текущий == nil ? t.id == items.first?.id : текущий == t.id
+    guard tabIsShown else { return false }
+    return текущий == nil ? t.id == items.first?.id : текущий == t.id
   }
 
   /**
@@ -285,8 +303,10 @@ struct ReelView: View {
     VStack(alignment: .leading, spacing: 6) {
       Text(template.name)
         .font(Тема.Шрифт.стиль(.title3, .semibold))
-      Text("@\(template.creatorUsername)")
-        .font(Тема.Шрифт.стиль(.subheadline)).foregroundStyle(Тема.Цвет.акцент)
+      if let handle = template.handle {
+        Text(handle)
+          .font(Тема.Шрифт.стиль(.subheadline)).foregroundStyle(Тема.Цвет.акцент) // cyrillic-ok
+      }
       Text(template.description)
         .font(Тема.Шрифт.стиль(.footnote)).foregroundStyle(Тема.Цвет.текстПриглушённый)
         .lineLimit(2)
@@ -334,7 +354,7 @@ struct ReelView: View {
         активна: лайкнут,
         // #e30b5c — FeedPanel.css:495 (`.like-btn.liked`).
         цветАктивной: Тема.Цвет.лайк,
-        доступность: лайкнут ? "Убрать лайк" : "Нравится"
+        доступность: лайкнут ? say("Unlike", "Убрать лайк") : say("Like", "Нравится")
       ) {
         Task { await переключитьЛайк() }
       }
@@ -357,13 +377,13 @@ struct ReelView: View {
         ShareLink(
           item: url,
           subject: Text(template.name),
-          message: Text("«\(template.name)» — @\(template.creatorUsername)")
+          message: Text(["«\(template.name)»", template.handle].compactMap { $0 }.joined(separator: " — "))
         ) {
           СодержимоеКнопки(значок: "square.and.arrow.up", подпись: nil,
                            активна: false, цветАктивной: Тема.Цвет.текст)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Поделиться роликом")
+        .accessibilityLabel(say("Share the video", "Поделиться роликом"))
       }
 
       КнопкаДействия(
@@ -371,7 +391,7 @@ struct ReelView: View {
         подпись: nil,
         активна: false,
         цветАктивной: Тема.Цвет.текст,
-        доступность: звукВыключен ? "Включить звук" : "Выключить звук"
+        доступность: звукВыключен ? say("Sound on", "Включить звук") : say("Sound off", "Выключить звук")
       ) {
         звукВыключен.toggle()
       }

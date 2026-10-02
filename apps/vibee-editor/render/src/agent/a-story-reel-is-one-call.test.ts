@@ -177,7 +177,7 @@ describe('story_reel', () => {
   })
 
   it('refuses bad scenes before spending anything', async () => {
-    expect(scenesOf([])).toMatch(/от 1 до 4/) // cyrillic-ok: the answer under test
+    expect(scenesOf([])).toMatch(/от 1 до 6/) // cyrillic-ok: the answer under test
     expect(scenesOf([{ setting: 'x' }])).toMatch(/line/)
     expect(scenesOf(SCENES)).toHaveLength(3)
     const { lookup, calls } = fakeTools()

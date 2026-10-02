@@ -159,3 +159,50 @@ describe('what to do next with one person', () => {
     expect(queue.sort(byUrgency).map(q => q.id)).toEqual(['a', 'b', 'c'])
   })
 })
+
+describe('the next step says why as a code a screen can translate', () => {
+  /*
+   * `why` is Russian for the agent. The player printed it verbatim in an
+   * English screen (loop tick 12), so every branch also returns `whyCode`,
+   * and a number or a date inside the sentence travels in `whyVars`.
+   */
+  const cases: Array<[string, Partial<SalesInput>, Record<string, unknown>?]> =
+    [
+      ['refused', { stage: 'refused' }],
+      [
+        'promise_late',
+        { owed: { what: 'баланс', dueAt: '2026-09-20T00:00:00Z' } },
+        { what: 'баланс' },
+      ],
+      [
+        'promise_today',
+        { owed: { what: 'баланс', dueAt: '2026-09-24T00:00:00Z' } },
+        { what: 'баланс' },
+      ],
+      ['waits_days', { lastFrom: 'them', hoursSinceLast: 72 }, { days: 3 }],
+      ['they_spoke_last', { lastFrom: 'them', hoursSinceLast: 3 }],
+      [
+        'later_until',
+        { stage: 'later', laterUntil: '2026-10-05T00:00:00Z' },
+        { date: '2026-10-05' },
+      ],
+      ['later_due', { stage: 'later', laterUntil: '2026-09-01T00:00:00Z' }],
+      ['paid_serve', { stage: 'client' }],
+      ['paid_quiet', { stage: 'winback' }],
+      ['no_talk_yet', { stage: 'new', lastFrom: null, hoursSinceLast: null }],
+      ['warm_offer', { sawValue: true, hoursSinceLast: 5 }],
+      ['silence_after_us', { hoursSinceLast: 24 * 15 }, { days: 15 }],
+      ['we_wrote_days', { hoursSinceLast: 24 * 3 }, { days: 3 }],
+      ['just_answered', { hoursSinceLast: 1 }],
+    ]
+
+  it.each(cases)('%s', (code, over, vars) => {
+    const step = nextStep(input(over))
+    expect(step.whyCode).toBe(code)
+    if (vars) {
+      expect(step.whyVars).toMatchObject(vars)
+      // The words and the code say the same number.
+      for (const v of Object.values(vars)) expect(step.why).toContain(String(v))
+    }
+  })
+})

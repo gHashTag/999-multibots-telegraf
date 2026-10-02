@@ -39,6 +39,12 @@ func say(_ en: String, _ ru: String) -> String {
   speaksRussian ? ru : en
 }
 
+/// The fallback when a request fails without a reason of its own. It was
+/// typed four times (API x3, Connect) and only in Russian.
+func serverAnswered(_ status: Int) -> String {
+  say("the server answered \(status)", "сервер ответил \(status)")
+}
+
 enum HiveTab: String, CaseIterable, Identifiable {
   case comb, specs, kanban, mission, factory, tree
   var id: String { rawValue }
@@ -413,8 +419,7 @@ private struct KanbanPanel: View {
             }
             if column.count > 6 {
               Note(
-                text: speaksRussian
-                  ? "и ещё \(column.count - 6)" : "and \(column.count - 6) more")
+                text: say("and \(column.count - 6) more", "и ещё \(column.count - 6)"))
             }
           }
         }
@@ -603,8 +608,42 @@ private struct SpecsPanel: View {
 
 // MARK: - The screen
 
+/**
+ The Hive tab is the web's own board, the same page app.t27.ai/hive shows --
+ owner, 2026-10-01: "make the comb map the original one". The board is a 3-D
+ scene that changes weekly; a Swift redraw of it was always a second, older
+ board. The native panels below stay as what the tab shows when the page
+ cannot load, so a dead network still leaves something to read.
+ */
 struct HiveScreen: View {
-  @State private var tab: HiveTab = .comb
+  @ObservedObject private var host = HiveHost.shared
+
+  var body: some View {
+    // Owner, 2026-10-01: "remove the empty field under the tab". The band
+    // was the gap under the system's floating bar; the bar is now the web's
+    // opaque row (RootView), so the board ends at its top edge -- running
+    // under it would hide the board's own bottom controls.
+    WebPage(host: host) {
+      NativeHiveBoard()
+    }
+  }
+}
+
+/// The Tasks tab: the web board's kanban, app.t27.ai/game/kanban, with all of
+/// its controls -- and the native kanban panel when the page cannot load.
+struct TasksScreen: View {
+  @ObservedObject private var host = HiveHost.tasks
+
+  var body: some View {
+    WebPage(host: host) {
+      NativeHiveBoard(tab: .kanban)
+    }
+  }
+}
+
+/// The board drawn natively from the same API: the fallback for the web one.
+struct NativeHiveBoard: View {
+  @State var tab: HiveTab = .comb
 
   var body: some View {
     VStack(spacing: 0) {
@@ -662,18 +701,6 @@ struct HiveScreen: View {
           .frame(minHeight: Touch.minimum)
         }
         .padding(Space.md)
-      }
-      /*
-       * Keep the last row clear of the floating tab bar.
-       *
-       * Seen on the simulator before this existed: on Comb, Kanban and Mission
-       * the final card ran under the bar and its text was unreadable -- and on
-       * Specs, whose content is short, everything looked fine. That is the
-       * trap: the defect only appears once there is enough to scroll, which is
-       * exactly when somebody is reading.
-       */
-      .safeAreaInset(edge: .bottom) {
-        Color.clear.frame(height: Space.aboveTabBar)
       }
     }
     .background(Palette.background.ignoresSafeArea())

@@ -17,7 +17,9 @@ import {
   BotsCard,
   CrmCard,
   StoryCard,
+  TriWalletCard,
 } from '@/components/Profile'
+import { HiveAccountLink } from '@/components/Profile/HiveAccountLink'
 import { SoulCard } from '@/components/Profile/SoulCard'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
 import { WelcomeOnboarding } from '@/components/Profile/WelcomeOnboarding'
@@ -178,6 +180,7 @@ export function ProfilePage() {
     return (
       <>
         <Header />
+        <HiveAccountLink isOwn={isOwn} />
         <div className="profile-page">
           <div className="profile-page__container">
             {/* Skeleton Cover */}
@@ -249,6 +252,7 @@ export function ProfilePage() {
     return (
       <>
         <Header />
+        <HiveAccountLink isOwn={isOwn} />
         <div className="profile-page">
           <div className="profile-page__container">
             <div className="profile-page__error profile-page__club">
@@ -269,6 +273,7 @@ export function ProfilePage() {
     return (
       <>
         <Header />
+        <HiveAccountLink isOwn={isOwn} />
         <div className="profile-page">
           <div className="profile-page__container">
             <div className="profile-page__error">
@@ -289,6 +294,7 @@ export function ProfilePage() {
     return (
       <>
         <Header />
+        <HiveAccountLink isOwn={isOwn} />
         <div className="profile-page">
           <div className="profile-page__container">
             {badge}
@@ -311,6 +317,7 @@ export function ProfilePage() {
   return (
     <>
       <Header />
+      <HiveAccountLink isOwn={isOwn} />
       <div className="profile-page">
         <div className="profile-page__container">
           {badge}
@@ -388,6 +395,11 @@ export function ProfilePage() {
             signed in. Nothing drawn until the server answered.
           */}
           <CloneNetworksCard isOwn={isOwn} accounts={cloneReady.accounts} />
+          {/*
+            THE TRI PAYOUT WALLET (render src/tri-wallet.ts): where TRI would
+            be paid, proved by the wallet's signature. Own profile only.
+          */}
+          <TriWalletCard isOwn={isOwn} />
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />

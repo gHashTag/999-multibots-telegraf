@@ -29,6 +29,7 @@ import {
 import { countInitDataBot } from './src/auth/initdata-bot-counts'
 import type { IncomingMessage } from 'node:http'
 import { editorialAccess, type AgentScope } from './editorial-key-scope'
+import { ICS_PATH as MEETING_ICS_PATH } from './src/spec/meeting-reminders.gen'
 
 // Env читается ЛЕНИВО, а не на импорте. На импорте это делало модуль
 // непроверяемым (ESM поднимает import выше любого присваивания process.env в
@@ -334,6 +335,11 @@ const PUBLIC_EXACT = new Set([
   '/api/club/invoice',
   '/api/club/status',
   '/api/club/verify',
+  // The agent packages' Stars till (agent-package-sale.ts), same principle:
+  // the person by their own proof, or the bot with the server key.
+  '/api/agents/packages/invoice',
+  '/api/agents/packages/status',
+  '/api/agents/packages/verify',
   // Which pieces of a person's digital clone exist (clone-readiness.ts). Same
   // principle: the handler refuses without an identity rather than answering a
   // default, because "no voice" read as a fact would ask somebody to redo work
@@ -352,6 +358,11 @@ const PUBLIC_EXACT = new Set([
    * counted. The handler keeps no person and limits each address per minute.
    */
   '/api/traffic/arrival',
+  /*
+   * A step on the welcome screen (the screen's heatmap), sent the same way
+   * and bounded the same way: a closed list of steps, no person.
+   */
+  '/api/traffic/welcome',
 ])
 
 /*
@@ -367,6 +378,22 @@ const PUBLIC_GET_EXACT = new Set([
   '/api/agents/acceptance',
   // The catalogue agents' faces (agent-avatars.ts): shown on every rail.
   '/api/agents/avatars',
+  /*
+   * A meeting's calendar file (src/agent/meetings.ts). A phone calendar fetches
+   * it with no Telegram and no key, so behind the guard the link in every
+   * reminder card answered 401 (measured on the first deploy, 2026-10-01).
+   * The handler reveals nothing without the meeting's own ics token and
+   * answers a wrong token exactly like a missing one.
+   */
+  MEETING_ICS_PATH,
+  /*
+   * Which voices voice mode can speak with: model names, nobody's data. The
+   * player reads it with a bare fetch, so behind the guard it answered 401 on
+   * the first deploy (2026-10-01) and the voice picker never appeared.
+   * Hearing, speaking and warming (/api/voice/transcribe, /speak, /warm)
+   * stay signed.
+   */
+  '/api/voice/status',
 ])
 
 const PUBLIC_PREFIXES = [

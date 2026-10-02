@@ -31,7 +31,7 @@
  * start are refused by the answer script.
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdirSync, existsSync } from 'node:fs'
+import { mkdirSync, existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
@@ -40,6 +40,9 @@ const HERE = import.meta.dirname
 const ROOT = resolve(HERE, '../..')
 const PLAYER = join(ROOT, 'apps/vibee-editor/player')
 const RENDER = join(ROOT, 'apps/vibee-editor/render')
+const CRM_CLIENT_FIXTURES = JSON.parse(
+  readFileSync(join(PLAYER, 'src/harness/crmClientFixtures.json'), 'utf8')
+)
 
 // tri gate: the tree as this check found it; record compares it at the end.
 process.env.TRI_GATE_START = spawnSync(
@@ -66,7 +69,8 @@ const gitDir = spawnSync('git', ['rev-parse', '--git-dir'], {
   cwd: ROOT,
   encoding: 'utf8',
 }).stdout.trim()
-const out = resolve(opt('out', join(ROOT, gitDir || '.git', 'tri-shot')))
+// --git-dir is absolute in a worktree; resolve keeps it, join glued it on.
+const out = resolve(opt('out', resolve(ROOT, gitDir || '.git', 'tri-shot')))
 
 /*
  * Every harness is a story: the answers its panel gets and the presses that
@@ -91,6 +95,19 @@ const JOBS = [
   },
 ]
 
+/*
+ * The palette lives under the story panel's closed "More" since #3242 (the
+ * dark panel). A stand that waited for it to be visible measured nothing --
+ * every run "NOT MEASURED", never red (found 2026-10-02). Open it the way a
+ * thumb does: one press on its summary, once.
+ */
+const openMore = async p => {
+  const more = p.locator('.story-reel__more')
+  await more.waitFor({ state: 'attached' })
+  if (!(await more.evaluate(d => d.open)))
+    await more.locator(':scope > summary').click()
+}
+
 const HARNESSES = {
   'story-palette': {
     tool: 'crm_story_reel',
@@ -104,6 +121,7 @@ const HARNESSES = {
       },
       jobs: JOBS,
     },
+    open: openMore,
     root: '[data-testid=story-palette]',
     scope: '.crm-client',
     // The whole story panel around the palette: its start row and reels too.
@@ -161,129 +179,9 @@ const HARNESSES = {
       },
       jobs: JOBS,
     },
-    fixtures: {
-      crm_client_profile: {
-        telegram_id: '900000011',
-        client: 'Анна Ветрова — флористика и декор интерьеров',
-        has_profile: true,
-        has_soul: true,
-        skills: ['рилсы', 'голос', { name: 'контент-план' }],
-        profile: { client: 'Анна Ветрова' },
-        updated_at: '2026-09-26T10:00:00Z',
-      },
-      crm_client_plan: {
-        telegram_id: '900000011',
-        goals: [
-          {
-            id: 1,
-            title: 'Прогреть подписчиков перед весенней коллекцией',
-            intent: 'три рилса в неделю, каждый — одна ваза в новом интерьере',
-            items: {
-              total: 8,
-              done: 3,
-              by_status: { idea: 3, draft: 2, done: 3 },
-            },
-          },
-          {
-            id: 2,
-            title: 'Запустить запись на мастер-классы',
-            intent: 'сторис с отзывами и ссылкой на запись',
-            items: {
-              total: 4,
-              done: 1,
-              by_status: { idea: 2, draft: 1, done: 1 },
-            },
-          },
-        ],
-        items: [],
-        total: 12,
-        done: 4,
-      },
-      crm_duet_runs: {
-        runs: [
-          {
-            id: 'duet-1',
-            buyer: '900000011',
-            state: 'done',
-            dry_run: false,
-            turns: 4,
-            started_at: '2026-09-26T09:00:00Z',
-            finished_at: '2026-09-26T09:05:00Z',
-            paid_calls: 1,
-            media_sent: 2,
-            profile_used: true,
-            coverage: { reel_render: { calls: 3, ok: 2, fail: 1 } },
-            violations: ['отправил ссылку до того, как она спросила'],
-            voice_flags: ['слишком официально', 'слишком длинно'],
-            lines: 8,
-          },
-        ],
-      },
-      crm_history: {
-        telegram_id: '900000011',
-        total: 3,
-        stage: 'talking',
-        because: 'replied',
-        waiting: 'ours',
-        touches: [
-          {
-            kind: 'written',
-            at: '2026-09-24T08:00:00Z',
-            note: null,
-            bot_name: 'b',
-          },
-          {
-            kind: 'replied',
-            at: '2026-09-25T08:00:00Z',
-            note: 'спросила цену букета на свадьбу и можно ли доставку в субботу',
-            bot_name: 'b',
-          },
-          {
-            kind: 'written',
-            at: '2026-09-26T08:00:00Z',
-            note: 'прислали прайс',
-            bot_name: 'b',
-          },
-        ],
-      },
-      crm_lead_context: {
-        name: 'Анна Ветрова',
-        username: 'anna_vetrova_flowers_demo',
-        waiting_for_reply: 1,
-        dialog: [
-          {
-            at: '2026-09-25T08:00:00Z',
-            who: 'person',
-            text: 'Здравствуйте! Сколько стоит свадебный букет из пионов и можно ли доставку в субботу к десяти утра на другой конец города?',
-          },
-          {
-            at: '2026-09-25T08:05:00Z',
-            who: 'owner',
-            text: 'Добрый день, Анна! Пришлю прайс и варианты.',
-          },
-        ],
-      },
-      crm_lead_media: {
-        items: [
-          {
-            id: 'm1',
-            kind: 'photo',
-            name: 'svadebnyj-buket-piony-variant-2-finalnyj.jpg',
-            at: '2026-09-25T08:10:00Z',
-            who: 'person',
-            url: 'https://example.invalid/m1.jpg',
-          },
-          {
-            id: 'm2',
-            kind: 'voice',
-            name: 'golosovoe.ogg',
-            at: '2026-09-25T08:12:00Z',
-            who: 'person',
-            url: 'https://example.invalid/m2.ogg',
-          },
-        ],
-      },
-    },
+    // One source with the harness page, which answers them itself when
+    // nothing intercepts (the preview browser, no chrome-headless-shell).
+    fixtures: CRM_CLIENT_FIXTURES,
     root: '.crm-client',
     scope: '.crm-client',
     within: 'root',
@@ -292,6 +190,8 @@ const HARNESSES = {
         id: 'load',
         ready: async p => {
           await p.locator('.crm-client__chat').waitFor()
+          // Measured open: the closed panel is a strict subset of it.
+          await openMore(p)
           await p.locator('[data-testid=story-palette]').waitFor()
           await p.locator('section:has(select) .crm-client__duet-go').waitFor()
         },
@@ -304,6 +204,40 @@ const HARNESSES = {
           await p.locator('section:has(select) input[type=checkbox]').uncheck()
           await p.locator('section:has(select) .crm-client__duet-go').click()
           await p.locator('.crm-client__duet-confirm').waitFor()
+        },
+      },
+    ],
+  },
+
+  /*
+   * THE CRM LIST (/crm): the owner's contact book, opened on a phone to find
+   * one person. The harness answers its own tool calls in the page
+   * (src/harness/crmFixtures.ts) so the same fixtures serve `tri shot` and a
+   * preview pane with no Chromium of its own; `tool` is never reached.
+   */
+  crm: {
+    tool: 'crm_clients',
+    root: '.crm',
+    scope: '.crm',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => p.locator('.crm__row').first().waitFor(),
+      },
+      {
+        // The owner's complaint, 2026-10-01: finding one contact on a phone.
+        // Open the contacts section where there is one, then type.
+        id: 'search',
+        ready: async p => {
+          const tab = p.locator('.section-strip__item', {
+            hasText: /Контакты|Contacts/, // cyrillic-ok: the RU label
+          })
+          if (await tab.count()) await tab.first().click()
+          const box = p.locator('.crm input[type=search]')
+          await box.scrollIntoViewIfNeeded()
+          await box.fill('ан')
+          await p.waitForTimeout(400)
         },
       },
     ],
@@ -337,6 +271,25 @@ const HARNESSES = {
       },
     ],
   },
+  /*
+   * Her reels inside the chat with the agent (owner, 2026-10-02): the same
+   * widget, open before the talk and folded after. The summary is the
+   * press that unfolds it, so it is held to the page's touch target.
+   */
+  'chat-story': {
+    tool: 'my_story_reel',
+    fixture: { next_topic: 'Как выбрать вазу под свой интерьер', jobs: JOBS },
+    root: '.chat-story-stand',
+    scope: '.chat-story-stand',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p =>
+          p.locator('.chat-story .crm-client__duet-go').first().waitFor(),
+      },
+    ],
+  },
 }
 
 /*
@@ -345,30 +298,118 @@ const HARNESSES = {
  * in a shell loop; a loop is where one line gets forgotten. Each run records
  * itself in tri gate as usual. Exit: 1 if any is red, else 2 if any could
  * not measure, else 0.
+ *
+ * One dev server serves every run (TRI_SHOT_BASE): a Vite start per run was
+ * most of the cost -- twelve starts took over ten minutes on a loaded
+ * machine, which is how a gate gets switched off. Runs go TRI_SHOT_JOBS at a
+ * time (default 3); each still has its own browser and its own verdict, and
+ * the report keeps the matrix order whatever finishes first.
  */
+const freePort = () =>
+  new Promise((ok, fail) => {
+    const s = createServer()
+    s.unref()
+    s.on('error', fail)
+    s.listen(0, '127.0.0.1', () => {
+      const { port } = s.address()
+      s.close(() => ok(port))
+    })
+  })
+
+/** The player's dev server, answered at `probe` before it is handed out. */
+const startVite = async probe => {
+  const port = await freePort()
+  const server = spawn(
+    join(PLAYER, 'node_modules/.bin/vite'),
+    ['--host', '127.0.0.1', '--port', String(port), '--strictPort'],
+    { cwd: PLAYER, stdio: ['ignore', 'pipe', 'pipe'], detached: true }
+  )
+  let log = ''
+  server.stdout.on('data', c => (log += c))
+  server.stderr.on('data', c => (log += c))
+  const base = `http://127.0.0.1:${port}`
+  const until = Date.now() + 120_000
+  for (;;) {
+    const ok = await fetch(base + probe)
+      .then(r => r.ok)
+      .catch(() => false)
+    if (ok) return { server, base }
+    if (Date.now() > until || server.exitCode !== null) {
+      stopVite(server)
+      throw new Error(`dev server did not answer ${probe}\n${log.slice(-1500)}`)
+    }
+    await new Promise(r => setTimeout(r, 500))
+  }
+}
+
+const stopVite = server => {
+  if (!server?.pid) return
+  try {
+    process.kill(-server.pid, 'SIGTERM')
+  } catch {
+    /* already gone */
+  }
+}
+
 if (name === 'all') {
   const MATRIX = [
     ['390', 'ru'],
     ['390', 'en'],
     ['320', 'ru'],
   ]
-  let worst = 0
-  for (const each of Object.keys(HARNESSES))
-    for (const [w, l] of MATRIX) {
-      const r = spawnSync(
+  const runs = Object.keys(HARNESSES).flatMap(each =>
+    MATRIX.map(([w, l]) => [each, w, l])
+  )
+  let vite
+  try {
+    vite = await startVite(`/harness/${runs[0][0]}.html`)
+  } catch (e) {
+    console.log(`== shot NOT MEASURED -- all: ${e.message}`)
+    process.exit(2)
+  }
+  const one = ([each, w, l]) =>
+    new Promise(done => {
+      const child = spawn(
         'node',
         [process.argv[1], each, '--width', w, '--lang', l],
-        { encoding: 'utf8' }
+        {
+          env: { ...process.env, TRI_SHOT_BASE: vite.base },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }
       )
-      const verdict = (r.stdout || '')
-        .split('\n')
-        .filter(x => /^== shot|^\s+(small|cut|overlap|order|error) /.test(x))
-      for (const x of verdict) console.log(x)
-      if (!verdict.length)
-        console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
-      const c = r.status ?? 2
-      worst = c === 1 || worst === 1 ? 1 : Math.max(worst, c)
-    }
+      let stdout = ''
+      child.stdout.on('data', c => (stdout += c))
+      // Drain stderr even though only stdout carries the verdict: an unread
+      // pipe fills at ~64 KB and the child then blocks forever on a write.
+      child.stderr.resume()
+      // A child that cannot start is "not measured", not a crash of the matrix.
+      child.on('error', () => done({ stdout, status: 2 }))
+      child.on('close', status => done({ stdout, status }))
+    })
+  const results = new Array(runs.length)
+  let next = 0
+  const lanes = Math.max(1, Number(process.env.TRI_SHOT_JOBS) || 3)
+  await Promise.all(
+    Array.from({ length: Math.min(lanes, runs.length) }, async () => {
+      while (next < runs.length) {
+        const i = next++
+        results[i] = await one(runs[i])
+      }
+    })
+  )
+  stopVite(vite.server)
+  let worst = 0
+  runs.forEach(([each, w, l], i) => {
+    const r = results[i]
+    const verdict = r.stdout
+      .split('\n')
+      .filter(x => /^== shot|^\s+(small|cut|overlap|order|error) /.test(x))
+    for (const x of verdict) console.log(x)
+    if (!verdict.length)
+      console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
+    const c = r.status ?? 2
+    worst = c === 1 || worst === 1 ? 1 : Math.max(worst, c)
+  })
   process.exit(worst)
 }
 
@@ -384,17 +425,6 @@ if (
   )
   process.exit(2)
 }
-
-const freePort = () =>
-  new Promise((ok, fail) => {
-    const s = createServer()
-    s.unref()
-    s.on('error', fail)
-    s.listen(0, '127.0.0.1', () => {
-      const { port } = s.address()
-      s.close(() => ok(port))
-    })
-  })
 
 const answer = (tool, args) => {
   const r = spawnSync(
@@ -512,31 +542,24 @@ const lines = []
 try {
   const require = createRequire(join(PLAYER, 'package.json'))
   const { chromium } = require('playwright')
-  const port = await freePort()
-  server = spawn(
-    join(PLAYER, 'node_modules/.bin/vite'),
-    ['--host', '127.0.0.1', '--port', String(port), '--strictPort'],
-    { cwd: PLAYER, stdio: ['ignore', 'pipe', 'pipe'], detached: true }
-  )
-  let log = ''
-  server.stdout.on('data', c => (log += c))
-  server.stderr.on('data', c => (log += c))
-  const url = `http://127.0.0.1:${port}/harness/${name}.html`
-  const until = Date.now() + 120_000
-  for (;;) {
-    const ok = await fetch(url)
-      .then(r => r.ok)
-      .catch(() => false)
-    if (ok) break
-    if (Date.now() > until || server.exitCode !== null)
-      throw new Error(`dev server did not answer ${url}\n${log.slice(-1500)}`)
-    await new Promise(r => setTimeout(r, 500))
-  }
+  // `tri shot all` hands every run its one server; alone, a run starts its own.
+  const probe = `/harness/${name}.html`
+  let base = process.env.TRI_SHOT_BASE
+  if (!base) ({ server, base } = await startVite(probe))
+  const url = base + probe
 
   /* The container's Chromium, whatever revision this playwright expects. */
-  const exe = ['/opt/pw-browsers/chromium', chromium.executablePath()].find(p =>
-    existsSync(p)
-  )
+  // On a Mac with no playwright download, any installed Chromium-family
+  // browser opens the page the same way (a fresh temp profile, never the
+  // person's own); TRI_SHOT_CHROME names one explicitly.
+  const exe = [
+    process.env.TRI_SHOT_CHROME,
+    '/opt/pw-browsers/chromium',
+    chromium.executablePath(),
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/Applications/BrowserOS.app/Contents/MacOS/BrowserOS',
+  ].find(p => p && existsSync(p))
   browser = await chromium.launch({ executablePath: exe })
   const context = await browser.newContext({
     viewport: { width, height: 844 },
@@ -581,6 +604,8 @@ try {
     })
   })
   await page.goto(url, { waitUntil: 'domcontentloaded' })
+  // A root behind a closed door (a <details>) is opened first, as a thumb would.
+  await h.open?.(page)
   await page.locator(h.root).waitFor({ timeout: 60_000 })
 
   mkdirSync(out, { recursive: true })
@@ -640,13 +665,7 @@ try {
   code = 2
 } finally {
   await browser?.close().catch(() => {})
-  if (server?.pid) {
-    try {
-      process.kill(-server.pid, 'SIGTERM')
-    } catch {
-      /* already gone */
-    }
-  }
+  stopVite(server)
 }
 
 for (const l of lines) console.log(l)

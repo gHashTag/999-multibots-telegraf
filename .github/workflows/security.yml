@@ -65,7 +65,10 @@ jobs:
 
           # Поиск Telegram Bot токенов
           if grep -r -E "[0-9]{8,10}:[a-zA-Z0-9_-]{35}" --include="*.ts" --include="*.js" . | grep -v node_modules | grep -v 'secret-guard-ok'; then
-            echo "::error::Telegram Bot Token pattern detected!"
+            # A fake token in a test fixture is not a leak, but the scan cannot
+            # tell: mark the line itself (see the note above) rather than
+            # widening the pattern, so a real token in the same file still fails.
+            echo "::error::Telegram Bot Token pattern detected! A deliberate fake (test fixture) needs '// secret-guard-ok: <reason>' on the same line."
             exit 1
           fi
 

@@ -240,6 +240,12 @@ import {
 import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
 import { checkAll } from '@/services/capabilityPreflight'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
+import {
+  agentPackageIntent,
+  agentPackageOrderReply,
+  notifyTeamOfPackageOrder,
+  placePackageOrder,
+} from '@/services/agentPackageOrder'
 
 /**
  * ✅ ЕДИНАЯ ФУНКЦИЯ РЕГИСТРАЦИИ ВСЕХ КОМАНД И ОБРАБОТЧИКОВ
@@ -2574,6 +2580,33 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     await ctx.reply(said).catch(() => undefined)
   })
 
+  /*
+   * A MEETING CARD, ANSWERED (spec: t27 specs/automation/meeting-reminders).
+   *
+   * The render sent the card; the press goes back to it as the PRESSER, and
+   * the render honours it only from the meeting's owner. The card keeps its
+   * join / directions / calendar rows and shows the outcome as a disabled
+   * button; when the render cannot be reached the buttons are stripped and
+   * the person is told so.
+   */
+  bot.action(
+    /^mtg:(ok|later|cancel|done|missed):([A-Za-z0-9_-]{16,})$/,
+    async ctx => {
+      await ctx.answerCbQuery().catch(() => undefined)
+      const [, action, token] = ctx.match as RegExpMatchArray
+      const { answerMeeting } = await import('@/services/meetingAnswer')
+      const r = await answerMeeting(String(ctx.from?.id ?? ''), action, token)
+      if (r.markup) {
+        await ctx
+          .editMessageReplyMarkup(r.markup as any)
+          .catch(() => stripButtons(ctx))
+      } else {
+        await stripButtons(ctx)
+      }
+      await ctx.reply(r.said).catch(() => undefined)
+    }
+  )
+
   bot.action(/^tgp:no:([^:]+):(.+)$/, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
     await stripButtons(ctx)
@@ -2931,6 +2964,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       let pickedLook: { n: number } | null = null
       /** The client's own press for her next story reel (?start=reel). */
       let wantsReel = false
+      /** The agent package ordered from the mini app (?start=agentpkg_<id>). */
+      let orderedPackage: string | null = null
       let inlineService: ServiceCard | undefined
       let wantsApp: AppRoute | null = null
       if (ctx.message && 'text' in ctx.message) {
@@ -3041,6 +3076,13 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             // makes it in the background and sends it back to this chat.
             wantsReel = true
             logger.info('Story reel deep-link', { telegramId })
+          } else if (agentPackageIntent(startParam)) {
+            // A package card's "Order" press: a request for the team.
+            orderedPackage = agentPackageIntent(startParam)
+            logger.info('Agent package deep-link', {
+              telegramId,
+              package: orderedPackage,
+            })
           } else if (topupIntent(startParam)) {
             // The mini app's rouble and crypto buttons: the cashier is here.
             wantsTopUp = topupIntent(startParam)
@@ -3072,10 +3114,36 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
       console.log('🔴 [DEBUG /start] userExists:', userDetails.isExist)
 
+      /*
+       * THE ORDER IS TAKEN BEFORE ANYTHING ELSE. A new person is about to be
+       * sent through CreateUserScene, and a local variable does not survive
+       * that trip -- so the team hears of the order and the person is told
+       * it arrived now, whoever they turn out to be.
+       */
+      if (orderedPackage && ctx.from) {
+        const orderer = ctx.from
+        const pkg = orderedPackage
+        const outcome = await placePackageOrder(orderer.id, pkg, () =>
+          notifyTeamOfPackageOrder(
+            ctx.telegram,
+            pkg,
+            orderer,
+            ctx.botInfo?.username
+          )
+        )
+        await ctx.reply(
+          agentPackageOrderReply(isRussianFromState(ctx), outcome)
+        )
+      }
+
       if (!userDetails.isExist) {
+        if (orderedPackage) ctx.session.agentPackageOrdered = true
         console.log('🔴 [DEBUG /start] Entering CreateUserScene...')
         await ctx.scene.enter(ModeEnum.CreateUserScene)
         console.log('🔴 [DEBUG /start] CreateUserScene entered')
+      } else if (orderedPackage) {
+        // Answered above; a greeting on top would bury the confirmation.
+        orderedPackage = null
       } else if (wantsApp) {
         ctx.session.appDeepLink = undefined
         await sendAppDoor(ctx as any, wantsApp, isRussianFromState(ctx))

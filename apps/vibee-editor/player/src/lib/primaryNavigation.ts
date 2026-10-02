@@ -29,12 +29,15 @@ export type PrimaryTabId =
   | 'browser'
   | 'ai'
   | 'hive'
+  | 'tasks'
   | 'profile'
 
 export interface PrimaryNavigationItem {
   id: PrimaryTabId
   route: string
   labelKey: string
+  /** The Lucide glyph, named in the shared list beside the iOS SF Symbol. */
+  icon: string
   match: RegExp
 }
 
@@ -42,11 +45,16 @@ export interface PrimaryNavigationItem {
 export const TAB_ROUTE_PATTERNS: Record<PrimaryTabId, RegExp> = {
   feed: /^\/feed/,
   // The product tab is the labour market (#2896). The old /chat address
-  // remains a working deep link and lights the same tab.
-  chat: /^\/(agents|chat)/,
+  // remains a working deep link and lights the same tab, and so does the
+  // thread about a client: the tab returns to it (lib/chatTabMemory.ts).
+  chat: /^\/(agents|chat|crm\/\d+\/chat(\/|$))/,
   browser: /^\/browser/,
   ai: /^\/generate/,
-  hive: /^\/(hive|queen)(\/|$)/,
+  // /game is the board's address since 2026-10-01; /hive and /queen lead to it.
+  // Its kanban view is a tab of its own (owner, 2026-10-01: "make a tab with
+  // the tasks"), so /game/kanban lights Tasks and not the board.
+  hive: /^\/(game|hive|queen)(?!\/kanban(?:[/?#]|$))(\/|$)/,
+  tasks: /^\/game\/kanban(\/|$)/,
   profile: /^\/profile/,
 }
 
@@ -57,6 +65,7 @@ export const PRIMARY_NAV_ITEMS: readonly PrimaryNavigationItem[] =
       id: d.id as PrimaryTabId,
       route: d.route,
       labelKey: d.labelKey,
+      icon: d.icon.lucide,
       match: TAB_ROUTE_PATTERNS[d.id as PrimaryTabId],
     }))
 

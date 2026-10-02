@@ -59,6 +59,7 @@ import {
   getJobDurable,
   listJobsDurable,
 } from './generate-jobs'
+import { stampRefusalCode, refusalCodeFor } from './generation-refusal'
 import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
@@ -92,6 +93,11 @@ import {
   clubCashierToken,
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
+import {
+  isAgentPackageSalePath,
+  handleAgentPackageSale,
+  sweepAgentPackageSales,
+} from './src/agent/agent-package-sale'
 import {
   isClonePath,
   handleClone,
@@ -135,7 +141,8 @@ function browserBrokerDeps(): BrowserDeps {
   }
 }
 configureAgentStart(browserBrokerDeps)
-import { identityWithSource } from './src/agent/routes'
+import { identityWithSource, personIdentity } from './src/agent/routes'
+import { handleTriWallet } from './src/tri-wallet'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import {
@@ -160,6 +167,10 @@ const approvalOwner = async (pool: any, id: string) =>
   (await readApproval(pool, id))?.telegramId ?? null
 import { touchSessionById } from './src/browser/sessions'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
+import {
+  isContributorKeyPath,
+  handleContributorKeys,
+} from './src/hive/contributor-keys-route'
 import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
 import {
   isPayOutcomePath,
@@ -216,6 +227,7 @@ import {
   imageChainCeilingUsd,
   falEndpointFor,
 } from './src/image-chain'
+import { generateImageViaPollinations } from './src/pollinations-image'
 import fs from 'node:fs'
 import { randomUUID, createHmac, createHash } from 'node:crypto'
 import { execSync, execFileSync, spawn } from 'node:child_process'
@@ -687,6 +699,9 @@ import {
 } from './src/telegram-api'
 import { rewriteAppUrlsForToken } from './src/app-links'
 import { renderFeedEntry } from './src/render-feed-entry'
+import * as MEETINGS from './src/spec/meeting-reminders.gen'
+import { TICK_MS as BLOG_SHARE_TICK_MS } from './src/spec/blog-share.gen'
+import { TICK_MS as ENGAGE_TICK_MS } from './src/spec/engage-desk.gen'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -2642,6 +2657,19 @@ setInterval(
                 .join(', ')
           )
         }
+        // Agent package launches nobody verified, and every monthly renewal
+        // Telegram charged by itself (agent-package-sale.ts).
+        const packages = await sweepAgentPackageSales(pool, token)
+        if (packages.length) {
+          console.log(
+            `[agent-packages] sweep booked ${packages.length} period(s): ` +
+              packages
+                .map(
+                  b => `${b.telegramId}:${b.packageId}→${b.until.slice(0, 10)}`
+                )
+                .join(', ')
+          )
+        }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
         const { botsOwnedBy, allBotOwners } = await import(
@@ -2869,6 +2897,29 @@ setTimeout(
 )
 
 /*
+ * MEETING REMINDERS (src/agent/meetings.ts, spec automation/meeting-reminders).
+ * The pace lives in agent_meeting_reminders.fire_at; this tick only asks the
+ * database what is due, so a redeploy loses no reminder and repeats none.
+ * MEETINGS_REMINDERS=0 turns the sending off; the rows wait for it.
+ */
+const meetingsTick = () => {
+  if (process.env.MEETINGS_REMINDERS === '0') return
+  void (async () => {
+    try {
+      const { sweepMeetings } = await import('./src/agent/meetings')
+      const r = await sweepMeetings((await getPool()) as any)
+      if (r.claimed) console.log(`[meetings] ${JSON.stringify(r)}`)
+    } catch (e) {
+      console.error('[meetings] failed:', String(e).slice(0, 300))
+    }
+  })()
+}
+setTimeout(() => {
+  meetingsTick()
+  setInterval(meetingsTick, MEETINGS.TICK_S * 1000)
+}, MEETINGS.FIRST_TICK_S * 1000)
+
+/*
  * EVERY MARKETPLACE AGENT, CHECKED EVERY DAY (src/agent/daily-acceptance.ts;
  * owner, 2026-09-24). The tick only asks the verdict table whether a day has
  * passed since the last run, so a redeploy neither skips a day nor runs
@@ -2910,24 +2961,46 @@ setTimeout(
  * THE BLOG GOES TO LINKEDIN AND X, ONE ARTICLE A DAY, ONLY AFTER A YES
  * (src/agent/blog-share.ts; owner's decision 2026-09-22). The tick is
  * cheap -- a database row, and the feed at most once a day -- so it runs
- * every half hour and an answered question is acted on within that.
- * Off unless BLOG_SHARE_ENABLED=1.
+ * every five minutes and an answered question is acted on within that.
+ * Not thirty: the service rarely lives forty-five minutes, so a half-hour
+ * timer restarted by every deploy often never fired at all. The pace (once
+ * a day) lives in blog_shares.asked_at, not here.
+ * Off unless BLOG_SHARE_ENABLED=1. The interval is the spec's TICK_MS
+ * (specs/automation/blog-share.t27).
  */
-setInterval(
-  () => {
-    void (async () => {
-      try {
-        const { runBlogShare } = await import('./src/agent/blog-share-wiring')
-        const said = await runBlogShare(getPool() as any)
-        if (said !== 'off' && said !== 'asked today already')
-          console.log(`[blog-share] ${said}`)
-      } catch (e) {
-        console.error('[blog-share] failed:', String(e).slice(0, 300))
-      }
-    })()
-  },
-  30 * 60 * 1000
-)
+setInterval(() => {
+  void (async () => {
+    try {
+      const { runBlogShare } = await import('./src/agent/blog-share-wiring')
+      const said = await runBlogShare(getPool() as any)
+      if (said !== 'off' && said !== 'asked today already')
+        console.log(`[blog-share] ${said}`)
+    } catch (e) {
+      console.error('[blog-share] failed:', String(e).slice(0, 300))
+    }
+  })()
+}, BLOG_SHARE_TICK_MS)
+
+/*
+ * THE ENGAGE DESK: FIND POSTS ON THE OWNER'S TOPICS, DRAFT A COMMENT, ASK
+ * (src/agent/engage-desk.ts; owner's request 2026-10-02). Every comment waits
+ * for the owner's yes, per item. The search pace (every six hours) lives in
+ * agent_strategies, not in this interval; the tick only settles answered
+ * questions and checks whether a search is due. Off unless
+ * ENGAGE_DESK_ENABLED=1. The interval is the spec's TICK_MS
+ * (specs/automation/engage-desk.t27).
+ */
+setInterval(() => {
+  void (async () => {
+    try {
+      const { runEngageDesk } = await import('./src/agent/engage-desk-wiring')
+      const said = await runEngageDesk(getPool() as any)
+      if (said !== 'off' && said !== 'not due') console.log(`[engage] ${said}`)
+    } catch (e) {
+      console.error('[engage] failed:', String(e).slice(0, 300))
+    }
+  })()
+}, ENGAGE_TICK_MS)
 
 /*
  * THE REDDIT DESK: ANSWER THE COMMENTS, POST WHERE IT IS WELCOME
@@ -2954,6 +3027,34 @@ setInterval(
     })()
   },
   5 * 60 * 1000
+)
+
+/*
+ * UNSPENT TOKENS BURN A MONTH AFTER THEY LAND (src/token-burn.ts; the wallet
+ * spec's rule, promised on the welcome screen). Every pass is idempotent -- a
+ * burn is written once per batch, a warning once per threshold -- so the pace
+ * needs no row of its own: ten minutes means a burn lands within ten minutes
+ * of its date. TOKEN_BURN_OFF=1 stops it without a deploy.
+ */
+setInterval(
+  () => {
+    void (async () => {
+      if (process.env.TOKEN_BURN_OFF === '1') return
+      try {
+        const { sweepTokenBurns } = await import('./src/token-burn')
+        const said = await sweepTokenBurns(getPool() as any, {
+          send: (id, text) => sendToTelegram(id, text),
+        })
+        if (said.burned > 0 || said.warned > 0)
+          console.log(
+            `[token-burn] burned ${said.burned} tokens, warned ${said.warned} people`
+          )
+      } catch (e) {
+        console.error('[token-burn] failed:', String(e).slice(0, 300))
+      }
+    })()
+  },
+  10 * 60 * 1000
 )
 
 /*
@@ -3666,6 +3767,10 @@ const server = createServer(async (req, res) => {
     res.end(
       JSON.stringify({
         error: auth.statusCode === 403 ? 'forbidden' : 'unauthorized',
+        // The name the clients translate (generation-refusal.ts). This guard
+        // answers before any route, so an expired session -- the most common
+        // failed generation -- never reached the routes' own stamp.
+        code: refusalCodeFor(auth.statusCode ?? 401),
         detail: auth.reason,
         hint: 'send X-Api-Key (server to server) or X-Telegram-Init-Data (Mini App)',
       })
@@ -4237,6 +4342,8 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/image - ordered provider chain, see the handler body
   if (req.url === '/api/generate/image' && req.method === 'POST') {
+    // Every failure below leaves with a `code` the clients translate.
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -4361,7 +4468,10 @@ const server = createServer(async (req, res) => {
          * Replicate flux-schnell at about $0.003, then Kie google/nano-banana
          * at 4 credits ($0.02) -- the only purse known to be funded, and the
          * same purse the talking heads spend from at 18 credits a second, which
-         * is why the funded one is last and not first.
+         * is why the funded one is last and not first. Between Replicate and
+         * Kie sits pollinations/flux at $0 (2026-09-29): the rescue leg that
+         * drew nothing while both paid purses had money, and everything the
+         * day both refused -- ordering and prices live in src/image-chain.ts.
          *
          * The ordering and the record-keeping live in src/image-chain.ts, and
          * they live there so that image-chain.test.ts can drive them with fake
@@ -4385,6 +4495,8 @@ const server = createServer(async (req, res) => {
           imageChainLegs(modelEndpoint, {
             fal: () => generateImageViaFal(prompt, aspectRatio, modelEndpoint),
             replicate: () => generateImageViaReplicate(prompt, aspectRatio),
+            pollinations: () =>
+              generateImageViaPollinations(prompt, aspectRatio),
             kie: () => generateImageViaKie(prompt, aspectRatio),
           }),
           {
@@ -4538,6 +4650,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/video - Generate video (MCP Kling/Veo3 → Replicate fallback)
   if (req.url === '/api/generate/video' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -4670,6 +4783,7 @@ const server = createServer(async (req, res) => {
               JSON.stringify({
                 success: false,
                 error: `video must be ${MAX_UPSCALE_SECONDS} seconds or shorter`,
+                code: 'too_long',
               })
             )
             return
@@ -5174,6 +5288,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/audio - Generate TTS using ElevenLabs (direct API call)
   if (req.url === '/api/generate/audio' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -5643,6 +5758,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/lipsync - Generate lipsync video using fal.ai VEED Fabric
   if (req.url === '/api/generate/lipsync' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     let billedTid: string | undefined
     let billedSeconds = 0
@@ -5690,6 +5806,7 @@ const server = createServer(async (req, res) => {
             JSON.stringify({
               success: false,
               error: `lipsync audio must be ${ceilingSeconds} seconds or shorter`,
+              code: 'too_long',
             })
           )
           return
@@ -8771,6 +8888,104 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true })
     }
 
+    /*
+     * VOICE MODE: hear one utterance, speak one sentence. Both go to our own
+     * speaches service on Railway (src/voice/voice.ts says why and how fast).
+     * The words a person said are sent as an ordinary chat message by the
+     * player, so the agent keeps every tool and the transcript keeps the turn.
+     */
+    if (route.startsWith('/api/voice/')) {
+      const voice = await import('./src/voice/voice')
+      if (route === '/api/voice/status' && req.method === 'GET') {
+        return sendJson(res, 200, voice.voiceStatus())
+      }
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      if (route === '/api/voice/transcribe' && req.method === 'POST') {
+        if (!voice.withinBudget(who, 'hear'))
+          return sendJson(res, 429, { error: 'too many utterances' })
+        /*
+         * Server-Timing splits the wait a person feels into the upload
+         * (`read`) and whisper itself (`hear`); the rest is the road. One
+         * number from outside (4.6 s, cycle 1) was blamed on whisper, which
+         * measured 1.8-2.8 s inside its own pod -- `tri voice` reads these.
+         */
+        const t0 = Date.now()
+        let bytes: Buffer
+        try {
+          bytes = await voice.readBytes(req)
+        } catch (e) {
+          return sendJson(res, 413, { error: String((e as Error).message) })
+        }
+        const t1 = Date.now()
+        if (bytes.length < 512) return sendJson(res, 200, { text: '' })
+        try {
+          // The player names the language it heard last; a known language
+          // halves whisper's time (voice.ts has the measurement).
+          const asked = new URL(req.url || '', 'http://x').searchParams
+          // turn=1: the player's eager hearing also wants to know whether
+          // the voice sounds finished (Smart Turn, in the same ears).
+          const heard = await voice.hear(
+            bytes,
+            req.headers['content-type'],
+            asked.get('lang'),
+            undefined,
+            asked.get('turn') === '1'
+          )
+          // desc names the engine, so `tri voice` can tell GigaAM from a
+          // fallback to whisper without seeing a single word.
+          res.setHeader(
+            'Server-Timing',
+            `read;dur=${t1 - t0}, hear;dur=${Date.now() - t1};desc="${heard?.engine ?? 'none'}"`
+          )
+          if (heard === null)
+            return sendJson(res, 503, { error: 'no transcriber configured' })
+          return sendJson(res, 200, {
+            text: heard.text,
+            ...(heard.done === undefined ? {} : { done: heard.done }),
+          })
+        } catch (e) {
+          console.warn(`[voice] transcribe failed: ${(e as Error).message}`)
+          return sendJson(res, 502, { error: 'transcriber failed' })
+        }
+      }
+      if (route === '/api/voice/warm' && req.method === 'POST') {
+        // The player calls this as the voice overlay opens, so the models are
+        // in memory before the first phrase is finished.
+        if (!voice.withinBudget(who, 'warm'))
+          return sendJson(res, 429, { error: 'too many warm-ups' })
+        let body: Record<string, unknown> = {}
+        try {
+          body = JSON.parse((await readBody(req, 4 * 1024)) || '{}')
+        } catch {
+          return sendJson(res, 400, { error: 'bad json' })
+        }
+        return sendJson(res, 200, await voice.warm(body.lang, body.voice))
+      }
+      if (route === '/api/voice/speak' && req.method === 'POST') {
+        if (!voice.withinBudget(who, 'speak'))
+          return sendJson(res, 429, { error: 'too many sentences' })
+        let body: Record<string, unknown>
+        try {
+          body = JSON.parse(await readBody(req, 64 * 1024))
+        } catch {
+          return sendJson(res, 400, { error: 'bad json' })
+        }
+        const t0 = Date.now()
+        const out = await voice.speak(body)
+        if (!out.ok) return sendJson(res, out.status, { error: out.error })
+        res.writeHead(200, {
+          // Which engine spoke and how long it took; `tri voice` reads it.
+          'Server-Timing': `speak;dur=${Date.now() - t0};desc="${out.engine}"`,
+          'Content-Type': out.contentType,
+          'Content-Length': out.audio.length,
+          'Cache-Control': 'no-store',
+        })
+        return res.end(out.audio)
+      }
+      return sendJson(res, 404, { error: 'unknown voice route' })
+    }
+
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
@@ -8826,6 +9041,18 @@ const server = createServer(async (req, res) => {
         error: taken.ok ? undefined : taken.why,
       })
     }
+  }
+
+  // Personal credentials use a full app session or signed Telegram identity.
+  // Game and delegated agent tokens never cross this server-to-server door.
+  if (isContributorKeyPath(req.url?.split('?')[0] || '')) {
+    const out = await handleContributorKeys(req, {})
+    res.writeHead(out.status, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+    })
+    res.end(JSON.stringify(out.body))
+    return
   }
 
   // Another service writing into the hive journal (the seller's sweep).
@@ -8890,6 +9117,19 @@ const server = createServer(async (req, res) => {
       // get the month's tokens through the ledger (kind 'grant').
       grant: clubGrantSource(),
       creditGrant: async g => creditClubGrant((await getPool()) as any, g),
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
+  // The agent packages' Stars till: the launch, then the monthly
+  // subscription, booked from the same cashier's ledger (agent-package-sale.ts).
+  if (isAgentPackageSalePath(req.url?.split('?')[0] || '')) {
+    const out = await handleAgentPackageSale(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => clubIdentity(r as any),
+      botToken: clubCashierToken(), // secret-guard-ok: a function call, no value in source
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))
@@ -8978,6 +9218,33 @@ const server = createServer(async (req, res) => {
    * is the whole credential, it was never given to the agent, and it is spent
    * once (see src/browser/approvals.ts).
    */
+  /*
+   * A meeting's calendar file, for the "add to calendar" button on its card.
+   * BEFORE authenticate(): a phone's calendar app fetches it with no session.
+   * The meeting's own ics_token is the whole key; it is never the tap token.
+   */
+  if (
+    (req.url?.split('?')[0] || '') === MEETINGS.ICS_PATH &&
+    req.method === 'GET'
+  ) {
+    const token = new URL(req.url || '', 'http://x').searchParams.get('t') || ''
+    const { icsByToken } = await import('./src/agent/meetings')
+    const ics = await icsByToken((await getPool()) as any, token).catch(
+      () => null
+    )
+    if (!ics) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+      res.end('not found')
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="meeting.ics"',
+      'Cache-Control': 'private, no-store',
+    })
+    res.end(ics)
+    return
+  }
   if ((req.url?.split('?')[0] || '') === '/api/browser/approve') {
     const url = new URL(req.url || '', 'http://x')
     const id = url.searchParams.get('id') || ''
@@ -9092,6 +9359,22 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify(ответ.тело))
     return
   }
+
+  /*
+   * /api/tri/wallet[/challenge] -- a person binds the TON address their TRI
+   * would be paid to (src/tri-wallet.ts). Only the person's own credential
+   * counts (personIdentity): an agent key, the server key or a game token can
+   * read a name but must not be able to redirect a payout.
+   */
+  if (
+    await handleTriWallet(req, res, {
+      getPool,
+      personOf: personIdentity,
+      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
+    })
+  )
+    return
 
   /*
    * POST /api/story/next -- the client's own one press for her next story
@@ -9482,6 +9765,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'sign_in',
               error: 'нужна подпись или ключ агента',
             })
           )
@@ -9502,6 +9786,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'cashier_off',
               error: 'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан',
             })
           )
@@ -9527,8 +9812,17 @@ const server = createServer(async (req, res) => {
             body.tokens != null
               ? Number(body.tokens)
               : PACKS[String(body.pack)]?.tokens
-          if (!запрошено)
-            throw new Error('нужно поле tokens или известный pack')
+          if (!запрошено) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                ok: false,
+                code: 'bad_amount',
+                error: 'нужно поле tokens или известный pack',
+              })
+            )
+            return
+          }
           /*
            * ONE MINT FOR TWO CALLERS. The personal seller (`crm_offer`) issues
            * the same link for a lead; the price, the payload and the pending
@@ -9588,6 +9882,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'failed',
               error: понятнаяПричина(e),
             })
           )
@@ -9607,7 +9902,11 @@ const server = createServer(async (req, res) => {
         if (!who) {
           res.writeHead(401, { 'Content-Type': 'application/json' })
           res.end(
-            JSON.stringify({ ok: false, error: 'нужна подпись или ключ' })
+            JSON.stringify({
+              ok: false,
+              code: 'sign_in',
+              error: 'нужна подпись или ключ',
+            })
           )
           return
         }
@@ -12983,6 +13282,21 @@ async function main() {
      * disagreement is visible at a glance in the boot log -- instead of a day
      * later, as a channel that quietly received nothing.
      */
+    /*
+     * Voice models are not in memory until asked for (PRELOAD_MODELS only
+     * downloads them), and a cold one costs the first sentence 2-5 s. Load the
+     * transcriber and the default voice of each language now; the whisper
+     * service keeps them for good (STT_MODEL_TTL=-1).
+     */
+    void import('./src/voice/voice').then(async voice => {
+      const [ru, en] = await Promise.all([
+        voice.warm('ru', 'irina'),
+        voice.warm('en', 'af_heart'),
+      ])
+      console.log(
+        `🎙 Voice warm: hear=${ru.hear} ru=${ru.speak} en=${en.speak}`
+      )
+    })
     const chCfg = readChannelConfig()
     console.log(
       `📣 Channel: token=${chCfg.token ? `set (${chCfg.tokenFrom})` : `MISSING (${ENV_NAMES.token.join('|')})`} ` +
