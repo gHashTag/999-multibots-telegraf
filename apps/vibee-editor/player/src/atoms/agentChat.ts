@@ -165,6 +165,30 @@ export function queenMessagesAtomFor(clientId: string): MessagesAtom {
   }
   return found
 }
+/**
+ * A KANBAN CARD'S CONVERSATION (render task-thread.ts, spec
+ * kanban-card-chat.t27): `task:gHashTag/t27#5382` on the server, the same
+ * suffix on the storage key here. One card, one conversation -- it does not
+ * split, and a specialist called into it answers in it.
+ */
+const taskThreads = new Map<string, MessagesAtom>()
+
+export const taskThreadStorageKey = (task: string): string =>
+  `${STORAGE_KEYS.agentChat}:task:${task}`
+
+export function taskMessagesAtomFor(task: string): MessagesAtom {
+  let found = taskThreads.get(task)
+  if (!found) {
+    found = trimmed(
+      atomWithStorage<Message[]>(taskThreadStorageKey(task), [], undefined, {
+        getOnInit: true,
+      })
+    )
+    taskThreads.set(task, found)
+  }
+  return found
+}
+
 const marketplaceAgentThreads = new Map<string, MessagesAtom>()
 
 export const marketplaceAgentThreadStorageKey = (agentId: string): string =>

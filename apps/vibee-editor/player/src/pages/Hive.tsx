@@ -1,4 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -17,6 +23,16 @@ import { API_BASE } from '@/config'
 import { getAppAccessToken } from '@/lib/appSession'
 import { getInitData } from '@/lib/telegram'
 import { sessionTrustedIn, type FramedWindow } from '@/lib/framedSession'
+import {
+  cardFromHref,
+  cardFromMessage,
+  cardFromSearch,
+  keepCard,
+  searchWithCard,
+  withoutCard,
+  type OpenCard,
+} from '@/lib/cardChat'
+import { CardChat } from '@/components/Queen/CardChat'
 import './Hive.css'
 
 /**
@@ -81,6 +97,15 @@ import './Hive.css'
  * short timer and writes the matching /game/<tab> into the app's address
  * (lib/hive.ts gamePathFor). Back, a link, or the tab bar moving the app's
  * address moves the frame the other way (frameHashFor).
+ *
+ * A CARD OPENS ITS CONVERSATION (owner, 2026-10-01: "tap any card and a chat
+ * with the agent opens, with its history, so any task can be carried on";
+ * spec kanban-card-chat.t27). The sheet lives HERE, over the frame, because
+ * the agent, the person's session and the task thread are this app's. A card
+ * asks to open three ways (lib/cardChat.ts): the board's `open-card` message,
+ * a tap on the card's GitHub anchor inside the frame, or ?card= in the
+ * address. ?card= belongs to the app: the frame never sees it (withoutCard),
+ * and the board rewriting its own view keeps it (keepCard).
  */
 /** How long a loaded frame may stay empty before the way out comes back. */
 export const BOARD_GRACE_MS = 8000
@@ -101,7 +126,11 @@ export default function HivePage() {
   const [asked] = useState(() =>
     /^#\/queen/.test(location.hash)
       ? boardHash(location.hash)
-      : frameHashFor(location.pathname, location.search)
+      : frameHashFor(location.pathname, withoutCard(location.search))
+  )
+  // The card whose conversation is open over the board, from the address.
+  const [card, setCard] = useState<OpenCard | null>(() =>
+    cardFromSearch(location.search)
   )
   // The address as the router holds it, for the timer below to compare with.
   const here = useRef('')
@@ -112,6 +141,84 @@ export default function HivePage() {
   const outside = queenPublicPage(lang)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const openLogin = useSetAtom(openLoginAtom)
+
+  // One door for every way a card opens or closes: the sheet and the address
+  // move together, and the address is replaced, so Back leaves the game
+  // rather than stepping through every card looked at.
+  const openCard = useCallback(
+    (next: OpenCard | null) => {
+      setCard(next)
+      const path = here.current.split('?')[0].split('#')[0]
+      const search = here.current.includes('?')
+        ? `?${here.current.split('?')[1].split('#')[0]}`
+        : ''
+      const to = `${path}${searchWithCard(search, next)}`
+      if (to !== here.current) navigate(to, { replace: true })
+    },
+    [navigate]
+  )
+
+  // The address -> the sheet: a shared link, Back, a bookmark. Adjusted while
+  // rendering, not in an effect, so the sheet never paints one frame behind
+  // the address (react.dev, "adjusting some state when a prop changes").
+  const [seenSearch, setSeenSearch] = useState(location.search)
+  if (seenSearch !== location.search) {
+    setSeenSearch(location.search)
+    const fromAddress = cardFromSearch(location.search)
+    setCard(open =>
+      fromAddress?.number === open?.number &&
+      (fromAddress?.repo || open?.repo) === open?.repo
+        ? open
+        : fromAddress
+    )
+  }
+
+  // The board asks: {v:1, type:'t27-app', kind:'open-card', repo, number}.
+  // Only from the frame this page holds, on this origin (SAME_ORIGIN_ONLY).
+  useEffect(() => {
+    if (IS_EMBED) return
+    const on = (event: MessageEvent) => {
+      const same =
+        event.origin === window.location.origin &&
+        !!frameRef.current &&
+        event.source === frameRef.current.contentWindow
+      const asked = cardFromMessage(event.data, same)
+      if (asked) openCard(asked)
+    }
+    window.addEventListener('message', on)
+    return () => window.removeEventListener('message', on)
+  }, [openCard])
+
+  // Until the board posts `open-card`, its cards are anchors to their GitHub
+  // issues. The frame is this origin's, so a tap on one is caught before the
+  // browser follows it and opens the conversation instead; a modified click
+  // (new tab, new window) still goes to GitHub, and so does the sheet's own
+  // small GitHub link.
+  const catchCardTaps = useCallback(() => {
+    let doc: Document | null | undefined
+    try {
+      doc = frameRef.current?.contentDocument
+    } catch {
+      return
+    }
+    // A frame that is not a page we can listen on (cross-origin, a stub)
+    // simply keeps its links; the board's own message still opens cards.
+    if (typeof doc?.addEventListener !== 'function') return
+    doc.addEventListener(
+      'click',
+      (e: MouseEvent) => {
+        if (e.defaultPrevented || e.button !== 0) return
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+        const a = (e.target as Element | null)?.closest?.('a[href]')
+        const asked = a ? cardFromHref((a as HTMLAnchorElement).href) : null
+        if (!asked) return
+        e.preventDefault()
+        e.stopPropagation()
+        openCard(asked)
+      },
+      true
+    )
+  }, [openCard])
 
   // The framed game asks who the visitor is. The answer is a 300 s game token
   // minted from this app's credential, never the credential itself, and only
@@ -177,7 +284,8 @@ export default function HivePage() {
       setStuck(!drawn && Date.now() - loadedAt.current > BOARD_GRACE_MS)
       if (hash === seen) return
       seen = hash
-      const to = gamePathFor(hash)
+      const path = gamePathFor(hash)
+      const to = path && keepCard(path, here.current)
       if (to && to !== here.current) navigate(to, { replace: true })
     }, WATCH_MS)
     return () => window.clearInterval(id)
@@ -188,7 +296,7 @@ export default function HivePage() {
   useEffect(() => {
     const win = frameRef.current?.contentWindow
     if (IS_EMBED || !win || loadedAt.current === null) return
-    const want = frameHashFor(location.pathname, location.search)
+    const want = frameHashFor(location.pathname, withoutCard(location.search))
     try {
       if (gamePathFor(win.location.hash) === gamePathFor(want)) return
       win.location.replace(`${win.location.href.split('#')[0]}${want}`)
@@ -248,8 +356,17 @@ export default function HivePage() {
             loads.current += 1
             loadedAt.current = Date.now()
             setLoaded(true)
+            catchCardTaps()
           }}
         />
+        {card && (
+          <CardChat
+            key={card.number}
+            card={card}
+            onClose={() => openCard(null)}
+            onResolved={setCard}
+          />
+        )}
       </div>
     </div>
   )
