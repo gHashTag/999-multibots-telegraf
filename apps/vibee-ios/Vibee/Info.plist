@@ -25,7 +25,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Speak to the agent in the chat instead of typing: the recording goes to Vibee's speech recognition, comes back as the text of your message, and is not stored. Recording runs only while the mic button is lit.</string>
+	<string>Speak to the agent in the chat instead of typing: the recording goes to Trinity S³AI's speech recognition, comes back as the text of your message, and is not stored. Recording runs only while the mic button is lit.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Outfit-Regular.ttf</string>

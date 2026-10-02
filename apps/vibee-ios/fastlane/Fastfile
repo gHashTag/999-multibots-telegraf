@@ -1,4 +1,4 @@
-# Getting Vibee to TestFlight and the App Store, repeatably.
+# Getting Trinity S³AI (project Vibee) to TestFlight and the App Store, repeatably.
 #
 #   fastlane preflight   every blocker at once, in seconds, offline
 #   fastlane state       what App Store Connect holds right now (read-only)
@@ -37,7 +37,7 @@ default_platform(:ios)
 # git, so a clean machine has to generate it before gym can find it.
 XCODEPROJ = "Vibee.xcodeproj"
 SCHEME    = "Vibee"
-BUNDLE_ID = ENV["VIBEE_BUNDLE_ID"] || "ai.t27.vibee"
+BUNDLE_ID = ENV["VIBEE_BUNDLE_ID"] || "ai.t27.trinity"
 
 # Lanes run with the working directory set to fastlane/, while `sh` runs from
 # the project root. Every backtick below therefore goes through IOS_DIR: a
@@ -237,7 +237,8 @@ platform :ios do
       steps = []
       steps << "the App ID - developer.apple.com -> Identifiers -> + (explicit, #{BUNDLE_ID})" unless bundle
       steps << "the app record - App Store Connect -> Apps -> + -> New App, platform iOS, " \
-               "bundle id #{BUNDLE_ID} (an API key cannot create one; Apple's API has no such call)"
+               "name Trinity S³AI, bundle id #{BUNDLE_ID}, SKU trinity-s3ai " \
+               "(an API key cannot create one; Apple's API has no such call)"
       UI.user_error!(
         "App Store Connect has no app with bundle id #{BUNDLE_ID}.\n" \
         "Created once, by the account holder; an upload to a missing record is refused:\n" +

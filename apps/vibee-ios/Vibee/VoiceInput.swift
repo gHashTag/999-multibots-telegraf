@@ -125,8 +125,8 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
     player?.stop()
     player = nil
     guard await AVAudioApplication.requestRecordPermission() else {
-      return say("Microphone access is off. Turn it on in Settings → Vibee → Microphone.",
-                 "Доступ к микрофону выключен. Включите: Настройки → Vibee → Микрофон.")
+      return say("Microphone access is off. Turn it on in Settings → Trinity S³AI → Microphone.",
+                 "Доступ к микрофону выключен. Включите: Настройки → Trinity S³AI → Микрофон.")
     }
     // The permission prompt can take a while: if the person left the chat
     // (or another start won the race) meanwhile, do not record in a tab

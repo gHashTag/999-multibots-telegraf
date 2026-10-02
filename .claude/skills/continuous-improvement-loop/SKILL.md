@@ -176,7 +176,7 @@ skip» записана в спеке (`meta-connect.t27`, навык `t27-spec-
   (отказ по оплате). Все правки этого этапа влиты БЕЗ единой проверки.
 - iOS to TestFlight (re-measured 2026-10-03, `tri iphone store`): the icon,
   the Apple Distribution certificate and the ASC key are all in place;
-  what is missing is the App ID `ai.t27.vibee` and its App Store Connect
+  what is missing is the App ID `ai.t27.trinity` and its App Store Connect
   record - both the account holder's clicks (the API cannot create an app).
   Then `tri iphone testflight --yes`, on his "yes" only.
 - XAI_API_KEY отсутствует, ELEVENLABS_API_KEY хранит идентификатор вместо
