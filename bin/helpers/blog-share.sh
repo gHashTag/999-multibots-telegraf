@@ -33,8 +33,11 @@ TIMER="slug IN (SELECT b.slug FROM blog_shares b LEFT JOIN browser_approvals a O
 if [ "${1:-}" = detail ]; then
   WHERE="ORDER BY asked_at DESC LIMIT 1"
   [ -n "${2:-}" ] && WHERE="WHERE slug = '$(printf %s "$2" | tr -cd 'a-z0-9-')'"
-  psql "$URL" -X -q -At -c "SELECT slug, state, to_char(asked_at,'MM-DD HH24:MI'), to_char(done_at,'MM-DD HH24:MI'), detail::text FROM blog_shares $WHERE" \
-  | python3 -c '
+  # The query's own exit code first: piped straight into python, a database
+  # that did not answer printed "no such article" -- a wrong answer, not none.
+  ROWS=$(psql "$URL" -X -q -At -c "SELECT slug, state, to_char(asked_at,'MM-DD HH24:MI'), to_char(done_at,'MM-DD HH24:MI'), detail::text FROM blog_shares $WHERE") \
+    || { echo "the database did not answer -- not checked"; exit 2; }
+  printf '%s\n' "$ROWS" | python3 -c '
 import json, sys
 rows = [l for l in sys.stdin.read().splitlines() if l.strip()]
 if not rows:
