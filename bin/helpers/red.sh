@@ -77,11 +77,12 @@ while IFS=$'\t' read -r concl id name url; do
         # (checkout advice, python setup paths) are not why it failed. With
         # no ##[error] at all, what is left is the last step, the usual culprit.
         /^Post job cleanup/ { exit }
-        /^##\[group\]Run / { if (err) exit; n = 0 }
         # The step header -- its echoed script, shell and env -- sits between
-        # group and endgroup; what the step printed comes after.
-        /^##\[group\]/ { hdr = 1 }
-        /^##\[endgroup\]/ { hdr = 0; next }
+        # "##[group]Run" and the next endgroup; what the step printed comes
+        # after. Only that group is a header: a group the step opens itself
+        # (::group:: around test output) can hold the very line that says why.
+        /^##\[group\]Run / { if (err) exit; n = 0; hdr = 1 }
+        /^##\[endgroup\]/ { if (hdr) { hdr = 0; next } }
         !hdr { buf[++n] = $0 }
         /^##\[error\]/ { err = 1 }
         END { for (i = 1; i <= n; i++) print buf[i] }' \
