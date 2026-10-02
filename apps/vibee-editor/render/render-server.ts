@@ -699,6 +699,7 @@ import { rewriteAppUrlsForToken } from './src/app-links'
 import { renderFeedEntry } from './src/render-feed-entry'
 import * as MEETINGS from './src/spec/meeting-reminders.gen'
 import { TICK_MS as BLOG_SHARE_TICK_MS } from './src/spec/blog-share.gen'
+import { TICK_MS as ENGAGE_TICK_MS } from './src/spec/engage-desk.gen'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -2977,6 +2978,27 @@ setInterval(() => {
     }
   })()
 }, BLOG_SHARE_TICK_MS)
+
+/*
+ * THE ENGAGE DESK: FIND POSTS ON THE OWNER'S TOPICS, DRAFT A COMMENT, ASK
+ * (src/agent/engage-desk.ts; owner's request 2026-10-02). Every comment waits
+ * for the owner's yes, per item. The search pace (every six hours) lives in
+ * agent_strategies, not in this interval; the tick only settles answered
+ * questions and checks whether a search is due. Off unless
+ * ENGAGE_DESK_ENABLED=1. The interval is the spec's TICK_MS
+ * (specs/automation/engage-desk.t27).
+ */
+setInterval(() => {
+  void (async () => {
+    try {
+      const { runEngageDesk } = await import('./src/agent/engage-desk-wiring')
+      const said = await runEngageDesk(getPool() as any)
+      if (said !== 'off' && said !== 'not due') console.log(`[engage] ${said}`)
+    } catch (e) {
+      console.error('[engage] failed:', String(e).slice(0, 300))
+    }
+  })()
+}, ENGAGE_TICK_MS)
 
 /*
  * THE REDDIT DESK: ANSWER THE COMMENTS, POST WHERE IT IS WELCOME
