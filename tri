@@ -201,6 +201,10 @@ CHECKS THAT EACH COST A CYCLE
         this tree lacks, then check the binaries the gates call (esbuild,
         vitest, render tsc). Without them render-types and bundle-boots go
         red on ENOENT and read like code faults.
+        Never run a root npm ci / bun install in such a tree: npm empties
+        node_modules through the link, i.e. the MAIN checkout's, and every
+        linked tree breaks at once. `tri deps --heal` reinstalls the main
+        checkout when that has happened.
 
   tri price <ModeName>
         Print the STATIC base cost of a mode from BASE_COSTS before you treat an
@@ -3337,6 +3341,14 @@ cmd_deps() {
   # render-types "tsc not found" summarised as a 240 s red, and bundle-boots
   # "spawnSync node_modules/.bin/esbuild ENOENT". This links what is missing
   # from the main checkout and names the binaries the gates call.
+  #
+  # The opposite trap (2026-10-02 23:14): an agent ran a root `npm ci` in a
+  # worktree whose node_modules was such a link. npm empties node_modules
+  # THROUGH the link before replacing it, so the main checkout -- and every
+  # tree linked to it -- lost all its packages at once. When the main root is
+  # empty this says so, and `--heal` reinstalls it there (never here).
+  local heal=0
+  [ "${1:-}" = "--heal" ] && { heal=1; shift; }
   local wt main made
   wt="$(git -C "${1:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" \
     || { bad "not inside a git tree: ${1:-$PWD}"; return 1; }
@@ -3361,6 +3373,25 @@ cmd_deps() {
       bad "missing $bin -- the gate that calls it will fail on ENOENT, not on code"; rc=1
     fi
   done
+  [ "$wt" != "$main" ] && [ -L "$wt/node_modules" ] && \
+    echo "  note no root npm ci / bun install in this tree: node_modules is the main checkout's, and an install empties it"
+  if [ -d "$main/node_modules" ] && [ -z "$(ls -A "$main/node_modules" 2>/dev/null)" ]; then
+    bad "the main checkout's node_modules is EMPTY -- a root install through a linked tree does this (npm empties the link's target first)"
+    if [ "$heal" = 1 ]; then
+      local lock_was
+      lock_was="$(git -C "$main" status --porcelain -- bun.lock)"
+      echo "  ...  bun install in $main"
+      if (cd "$main" && bun install --no-summary >/dev/null 2>&1); then
+        # bun.lock drifts on install; put it back unless it was already edited.
+        [ -z "$lock_was" ] && git -C "$main" checkout -q -- bun.lock 2>/dev/null
+        good "main checkout reinstalled -- run tri deps again"
+      else
+        bad "bun install failed in $main"
+      fi
+    else
+      echo "       restore: tri deps --heal   (runs bun install in $main, never in a worktree)"
+    fi
+  fi
   return $rc
 }
 
