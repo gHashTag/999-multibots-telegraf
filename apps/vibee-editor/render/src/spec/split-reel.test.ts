@@ -63,6 +63,15 @@ describe('split-reel.t27 against the host', () => {
     expect(SPEC.OWN_VOICE).toBe(true)
   })
 
+  it('in a split the face fills the lower half, not a circle', () => {
+    // The first reel from this spec came out with SplitTalkingHead's default:
+    // a 25% circle on black under the b-roll.
+    const p = splitReelProps({ lipSyncVideo: 'https://x/l.mp4', seconds: 15 })
+    expect(SPEC.FACE_FILLS_HALF).toBe(true)
+    expect(p.splitIsCircle).toBe(false)
+    expect(p.splitCircleSize).toBe(50)
+  })
+
   it('b-roll goes to the split shots in turn, video or still by its name', () => {
     const s = splitSegments(450, ['https://x/a.mp4', 'https://x/b.jpg'])
     const splits = s.filter(x => x.type === 'split')

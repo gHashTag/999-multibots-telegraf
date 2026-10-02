@@ -71,6 +71,9 @@ export function splitReelProps(input: SplitReelInput) {
     captions: input.captions ?? [],
     captionColor: SPEC.CAPTION_COLOR,
     splitRatio: SPEC.SPLIT_PCT / 100,
+    // SplitTalkingHead defaults a split to a 25% circle; size 50 is scale 1.
+    splitIsCircle: !SPEC.FACE_FILLS_HALF,
+    splitCircleSize: SPEC.SPLIT_PCT,
     ...(input.ctaText ? { ctaText: input.ctaText } : {}),
   }
 }

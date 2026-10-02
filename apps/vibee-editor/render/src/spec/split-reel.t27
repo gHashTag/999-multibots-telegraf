@@ -36,6 +36,10 @@ module automation::split_reel {
     pub const FULL_FRAMES : u32 = 45;  // back to the face, measured 45 twice
     pub const MAX_SECONDS : u32 = 15;
     pub const SPLIT_PCT : u32 = 50;  // the seam sits in the middle
+    // The talking head FILLS the lower half of a split, as in the reference. The
+    // composition's own default is a 25% circle on black: the first reel rendered
+    // from this spec (2026-10-02) came out that way and nobody could see the face.
+    pub const FACE_FILLS_HALF : bool = true;
 
     // ---- The words ------------------------------------------------------------------------
     pub const CAPTION_COLOR : str = "#FFFF00";
@@ -96,6 +100,11 @@ module automation::split_reel {
         assert(WORDS_PER_CAPTION == 1);
         assert(CAPTION_COLOR == "#FFFF00");
         assert(OWN_VOICE);
+    }
+
+    test "in a split the face fills the lower half, not a circle" {
+        assert(FACE_FILLS_HALF);
+        assert(SPLIT_PCT == 50);
     }
 }
 

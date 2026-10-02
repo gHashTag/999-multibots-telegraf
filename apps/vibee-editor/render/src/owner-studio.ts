@@ -14,8 +14,11 @@ export const STUDIOS = [
   { id: SPEC.STUDIO_3_ID, scene: SPEC.STUDIO_3 },
 ] as const
 
+/** The studio a reel starts from when nobody picked one. */
+export const DEFAULT_STUDIO: string = SPEC.DEFAULT_STUDIO
+
 /** The prompt for one studio, identity first; '' for a studio we do not have. */
-export function studioPrompt(id: string): string {
+export function studioPrompt(id: string = DEFAULT_STUDIO): string {
   const s = STUDIOS.find(x => x.id === id)
   return s ? `${SPEC.IDENTITY} ${s.scene}` : ''
 }

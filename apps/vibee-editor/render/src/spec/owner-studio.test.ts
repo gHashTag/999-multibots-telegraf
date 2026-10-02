@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import * as SPEC from './owner-studio.gen'
-import { STUDIOS, studioPrompt, studioTask } from '../owner-studio'
+import {
+  DEFAULT_STUDIO,
+  STUDIOS,
+  studioPrompt,
+  studioTask,
+} from '../owner-studio'
 
 /**
  * gHashTag/t27 specs/automation/owner-studio.t27, vendored beside its
@@ -13,6 +18,9 @@ describe('owner-studio.t27 against the host', () => {
     expect(SPEC.CROP_LETTERBOX).toBe(true)
     expect(SPEC.TEXT_IN_IMAGE).toBe(false)
     expect(SPEC.ONE_FACE).toBe(true)
+    // The lab is the default face (owner, 2026-10-02).
+    expect(DEFAULT_STUDIO).toBe(SPEC.STUDIO_2_ID)
+    expect(studioPrompt()).toBe(studioPrompt('lab'))
   })
 
   it("the identity and any studio together fit the model's prompt", () => {

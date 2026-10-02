@@ -42,6 +42,8 @@ module automation::owner_studio {
 
     // ---- The studios: ready-made, picked by number ---------------------------------------
     pub const STUDIO_COUNT : u8 = 3;
+    // The studio a talking reel starts from when nobody picks one (owner, 2026-10-02).
+    pub const DEFAULT_STUDIO : str = "lab";
 
     pub const STUDIO_1_ID : str = "noir";
     pub const STUDIO_1 : str = "Move him into a dark noir podcast studio: matte black acoustic walls, one warm golden key light from the left carving his face, soft rim light on the head, a single small downward-pointing gold triangle glowing on the wall behind him, a black leather chair, thin haze in the air. Mood: late-night interview, cinematic, high contrast.";
@@ -61,6 +63,7 @@ module automation::owner_studio {
         assert(CROP_LETTERBOX);
         assert(!TEXT_IN_IMAGE);
         assert(ONE_FACE);
+        assert(DEFAULT_STUDIO == STUDIO_2_ID);
     }
 
     test "the identity and any studio together fit the model's prompt" {
