@@ -7463,7 +7463,7 @@ EARS_SVC_EN=6d9197c7-d467-42bc-8e92-27bc231302a6   # parakeet
 # It speaks rather than hears, but it ships and is checked the same way.
 MOUTH_SVC=2455209b-6611-4814-bb55-7d3b5d994656
 cmd_ears() {
-  local p=564d9ebd-7aa8-44fe-93ec-e0b03c87158d e=e4d200ad-b8a9-4edf-9b25-190a32613b32
+  local p="$RAIL_PROJECT" e="$RAIL_ENV"
   local action=status langs='ru en mouth' a
   for a in "$@"; do
     case "$a" in
@@ -7640,7 +7640,7 @@ cmd_board() {
 #   tri deploys --logs   also print the raw tail of the failed build log
 # ─────────────────────────────────────────────────────────────────────────
 cmd_deploys() {
-  local p=564d9ebd-7aa8-44fe-93ec-e0b03c87158d e=e4d200ad-b8a9-4edf-9b25-190a32613b32
+  local p="$RAIL_PROJECT" e="$RAIL_ENV"
   local s=7aad4834-8ac0-4d6b-a031-44ec694ad8de raw=0 a
   for a in "$@"; do
     case "$a" in
@@ -7807,8 +7807,8 @@ cmd_loop() {
   local svc name
   for svc in 7aad4834-8ac0-4d6b-a031-44ec694ad8de:player 6339df9c-15b8-4f51-ba26-4af0b55c596a:render; do
     name=${svc#*:}
-    timeout 30 railway deployment list -p 564d9ebd-7aa8-44fe-93ec-e0b03c87158d \
-      -e e4d200ad-b8a9-4edf-9b25-190a32613b32 -s "${svc%%:*}" --limit 1 --json 2>/dev/null \
+    timeout 30 railway deployment list -p "$RAIL_PROJECT" \
+      -e "$RAIL_ENV" -s "${svc%%:*}" --limit 1 --json 2>/dev/null \
       | python3 -c '
 import json, sys
 name = sys.argv[1]

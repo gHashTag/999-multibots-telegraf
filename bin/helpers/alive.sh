@@ -89,7 +89,7 @@ if [ -z "$CAP_H" ]; then
   exit 2
 fi
 
-RESP="$RESP" CAP_H="$CAP_H" python3 - <<'PY'
+RESP="$RESP" CAP_H="$CAP_H" RAIL_PROJECT="$RAIL_PROJECT" RAIL_ENV="$RAIL_ENV" python3 - <<'PY'
 import json, os, sys, datetime, collections
 
 try:
@@ -130,7 +130,8 @@ if gap_h > cap:
     print('  🛑 ТИШЕ, ЧЕМ ПОЗВОЛЯЕТ УДЕРЖАНИЕ. Обход, которого не было, и обход,')
     print('     прошедший тихо, в журнале НЕРАЗЛИЧИМЫ -- поэтому смотреть надо')
     print('     не сюда, а туда, где видно сам тик:')
-    print('        railway logs --project 564d9ebd-7aa8-44fe-93ec-e0b03c87158d --service 999-multibots-telegraf | grep -i "crm-proactive\\|INNGEST"')
+    print('        railway logs --project %s --environment %s --service 999-multibots-telegraf | grep -i "crm-proactive\\|INNGEST"'
+          % (os.environ['RAIL_PROJECT'], os.environ['RAIL_ENV']))
     sys.exit(1)
 if gap_h > 2:
     print('  ⚠️  дольше двух часов -- законно при непрожатой карточке (удержание),')

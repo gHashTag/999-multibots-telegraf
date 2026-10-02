@@ -47,7 +47,7 @@ if [ "${1:-}" = put ]; then
     exit 1
   fi
   if pbpaste | tr -d ' \t\r\n' | railway variable set "$k" --stdin --skip-deploys \
-    --service vibee-render --environment production >/dev/null 2>&1; then
+    --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service vibee-render >/dev/null 2>&1; then
     printf '' | pbcopy
     echo "$k: set ($n chars), clipboard wiped; deploy once all are in: tri meta"
   else

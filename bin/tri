@@ -1326,7 +1326,7 @@ PYEOF
     ID="${1:-144022504}"
     KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
-    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway link в корне копии"; exit 69; }
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway login (ids: bin/helpers/rail.sh)"; exit 69; }
     OUT=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
       "https://vibee-render-production.up.railway.app/api/agent/stop?telegram_id=$ID" \
       -H "X-Api-Key: $KEY")
@@ -1353,7 +1353,7 @@ PYEOF
     ID="${1:-144022504}"
     KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
-    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway link в корне копии"; exit 69; }
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway login (ids: bin/helpers/rail.sh)"; exit 69; }
     curl -s "https://vibee-render-production.up.railway.app/mcp" \
       -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' \
       -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"crm_leads\",\"arguments\":{\"limit\":15},\"telegram_id\":\"$ID\"}}" \
