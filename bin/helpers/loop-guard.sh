@@ -76,6 +76,16 @@ esac
 # marker in the same commit" lived only in the journal: on 01.10.2026 three
 # such files had slipped past it (crmInsets, crmClientThumb,
 # embed-guest-panel) before tick 18 counted. Now it is checked.
+# Files the person had already edited before the loop began are theirs, not
+# a dead tick's (blog loop, 02.10.2026: .claude/launch.json stopped every
+# tick). They are named in the state file, one marker each:
+#   <!-- loop-not-mine: .claude/launch.json -->
+NOT_MINE=$(sed -n 's/.*<!-- loop-not-mine: *\(.*[^ ]\) *-->.*/\1/p' "$STATE" 2>/dev/null)
+dirty_list() {
+  git -C "$ROOT" status --porcelain "${@:---untracked-files=no}" | while IFS= read -r l; do
+    printf '%s\n' "$NOT_MINE" | grep -qxF "${l:3}" || printf '%s\n' "$l"
+  done
+}
 unlisted_tests() {
   [ -n "$TESTS" ] || return 0
   local dir base
@@ -181,7 +191,7 @@ PY
     echo "$UNL" | sed 's/^/          /'
     BAD=1
   fi
-  DIRTY=$(git -C "$ROOT" status --porcelain | head -5)
+  DIRTY=$(dirty_list --untracked-files=normal | head -5)
   if [ -n "$DIRTY" ]; then
     echo "  STOP  uncommitted files -- the next tick would stop on them:"
     echo "$DIRTY" | sed 's/^/          /'
@@ -225,10 +235,11 @@ fi
 # tick stops on, or worse commits, a file it never edited.
 HEALED=$(cd "$ROOT" && python3 "$ROOT/bin/helpers/mutants.py" --heal 2>&1) || stop "mutant journal: $HEALED"
 [ -n "$HEALED" ] && [ "$STOP" = 0 ] && warn "$HEALED"
-DIRTY=$(git -C "$ROOT" status --porcelain --untracked-files=no | wc -l | tr -d ' ')
+DIRTY=$(dirty_list | grep -c . | tr -d ' ')
+[ -n "$NOT_MINE" ] && note "not this loop's: $(printf '%s ' $NOT_MINE)"
 if [ "$DIRTY" != 0 ]; then
   stop "$DIRTY tracked file(s) uncommitted -- the last tick died mid-edit:"
-  git -C "$ROOT" status --porcelain --untracked-files=no | head -8 | sed 's/^/          /'
+  dirty_list | head -8 | sed 's/^/          /'
 else
   note "tree clean on $BR"
 fi
