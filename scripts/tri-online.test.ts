@@ -143,12 +143,12 @@ describe('the command', () => {
     )
   })
   it('--wait gives up at once on a refusal, and keeps a custom ssh command', () => {
-    const src = fs.readFileSync(
-      path.join(ROOT, 'bin/helpers/online.mjs'),
-      'utf8'
-    )
+    // Whitespace collapsed: prettier wraps this condition however it likes.
+    const src = fs
+      .readFileSync(path.join(ROOT, 'bin/helpers/online.mjs'), 'utf8')
+      .replace(/\s+/g, ' ')
     expect(src).toMatch(
-      /while \(wait > 0 && !githubUp\(results\) && !refused\(results\)/
+      /while \( ?wait > 0 && !githubUp\(results\) && !refused\(results\) &&/
     )
     expect(src).toContain('process.env.GIT_SSH_COMMAND ||')
     expect(src).toContain("'core.sshCommand'")
