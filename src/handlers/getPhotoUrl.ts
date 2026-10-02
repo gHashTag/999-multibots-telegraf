@@ -2,6 +2,13 @@ import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getBotNameByToken } from '@/core/bot/index'
+import { publicStorageUrl } from '@/config/publicStorage'
+
+const defaultLevelUrl = (step: number): string =>
+  publicStorageUrl(
+    'landingpage',
+    `avatars/neuro_blogger_bot/levels/${step}.jpg`
+  )
 
 export async function getPhotoUrl(
   ctx: MyContext,
@@ -43,7 +50,7 @@ export async function getPhotoUrl(
           bot_name,
         })
       }
-      return `https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/levels/${step}.jpg`
+      return defaultLevelUrl(step)
     }
 
     if (data && data.avatar_url) {
@@ -74,5 +81,5 @@ export async function getPhotoUrl(
   }
 
   // Возвращаем значение по умолчанию в случае ошибки
-  return `https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/levels/${step}.jpg`
+  return defaultLevelUrl(step)
 }
