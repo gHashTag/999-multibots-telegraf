@@ -87,6 +87,24 @@ Once #3235 is deployed: `tri blog-share reoffer` lists articles the timer closed
   the composer at six seconds. The desk now looks every 3 s up to ~30 s (#3281);
   the path test with late-drawing composers fails on the old code.
 
+### The button was on screen and the probe could not see it (2026-10-02, #3361)
+
+- **Reddit and LinkedIn put their publish button in a shadow root**
+  (`<r-post-form-submit-button>`, LinkedIn's `#interop-outlet`). `findProbe`
+  read only `document`, so "button not found" was the probe being blind, not
+  the page being slow. It now walks open shadow roots, document first.
+- **Proof before the fix, in one command:** `tri browser find "<words>" <tabId>`
+  runs THIS checkout's probe on the live tab without clicking. Old probe on the
+  owner's Reddit submit tab: not found; new probe: `{x:755, y:452}`.
+- **Read every network's answer in full:** `tri blog-share detail [slug]`. The
+  table cuts `result` at 80 characters, and that day's cause was in the cut.
+- **Still open after #3361:** X sent the thread but `confirmOnProfile` did not
+  find it (X may have refused it, or the profile check misses it); Threads is
+  not signed in (the owner signs in himself, never the agent).
+- **Our own blog is blank in the agent's browser** (2026-10-03): t27.ai dies on
+  Babylon's "WebGL not supported" in the GPU-less pod. `tri browser blank <id>`
+  names the crash. Anything the desk reads from t27.ai there reads "".
+
 ## Threads, Instagram and Facebook go by Meta's API (2026-10-02)
 
 **Measured:** the owner's own browser was signed out of Instagram, Threads and

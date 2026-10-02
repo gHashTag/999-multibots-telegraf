@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+import { codeValues, quotedCodes } from './failure-code-values'
 
 /*
  * THE SIGN-IN DOOR NAMES ITS REFUSALS; THE APP MUST KNOW EVERY NAME.
@@ -22,14 +23,14 @@ const routes = read('apps', 'vibee-editor', 'render', 'session-routes.ts')
 const start = routes.indexOf("path === '/api/auth/pair/claim'")
 const end = routes.indexOf('mintSession(', start)
 const claim = routes.slice(start, end)
-const literalCodes = [...claim.matchAll(/code: '([a-z_]+)'/g)].map(m => m[1])
+const { found: literalCodes, opaque } = codeValues(claim)
+/** The only non-literal code: the store's reason union, read below. */
+const TRUSTED = ['outcome.reason']
 
 // The 401 says `code: outcome.reason`, so its names live in the store's type.
 const store = read('apps', 'vibee-editor', 'render', 'session-store.ts')
 const union = store.match(/ok: false; reason: ((?:'[a-z_]+'\s*\|?\s*)+)\}/)
-const reasons = union
-  ? [...union[1].matchAll(/'([a-z_]+)'/g)].map(m => m[1])
-  : []
+const reasons = union ? quotedCodes(union[1]) : []
 
 const codes = [...new Set([...literalCodes, ...reasons])]
 const ios = read('apps', 'vibee-ios', 'Vibee', 'Identity.swift')
@@ -44,6 +45,11 @@ describe('pairing refusal codes', () => {
       expect.arrayContaining(['too_often', 'bad_body', 'bad_length'])
     )
     expect(reasons).toEqual(['unknown', 'expired', 'exhausted'])
+  })
+
+  it('sets no code the contract cannot read', () => {
+    for (const o of opaque)
+      expect(TRUSTED, `claim sets code from ${o}`).toContain(o)
   })
 
   it('the app has a sentence for every code', () => {
