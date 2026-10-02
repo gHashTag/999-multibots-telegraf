@@ -407,6 +407,15 @@ CHECKS THAT EACH COST A CYCLE
         Every call goes over ONE kept-alive connection, as in the browser;
         the handshake and the warm round trip are printed on their own line.
 
+  tri filler | tri пауза
+        The phrases said while the agent thinks ("Let me see.", "Still
+        working on it.", voice.filler.* in the player's dictionary), each
+        synthesised once as the player does, against the lead it has: the
+        audio is asked for at FILLER_PREPARE_MS and played at FILLER_FIRST_MS
+        (FILLER_STILL_MS). Slower than the lead is LATE (exit 2); a phrase
+        our voice cannot say is broken (exit 1). Also part of tri voice.
+        Needs the same key as tri voice.
+
   tri road | tri дорога
         Just that road line: which Railway edge answered, what a new
         connection costs (DNS + TCP/TLS), and the warm round trip every call
@@ -5464,6 +5473,7 @@ cmd_voice() {
   [[ "$runs" =~ ^[1-9][0-9]?$ ]] || { bad "--runs takes 1..99, not '$runs'"; return 2; }
   key=$(_mcp_key 2>/dev/null) || key=''
   V_KEY="$key" V_BASE="$RENDER" V_RUNS="$runs" V_ROAD_ONLY="${V_ROAD_ONLY:-}" \
+    V_FILLER="${V_FILLER:-}" V_LANGUAGE="$ROOT/apps/vibee-editor/player/src/atoms/language.ts" \
     V_SESSION="$ROOT/apps/vibee-editor/player/src/lib/voice/session.ts" python3 -u - <<'PY'
 import json, os, re, statistics, sys, time, urllib.error, urllib.request
 
@@ -5603,6 +5613,45 @@ print(f'  warm ru: HTTP {code} {body[:80].decode(errors="replace")} in {ms} ms')
 if code != 200:
     mark(1)
 
+# THE WAIT SAID OUT LOUD (cycle 9). The player asks for a wait phrase's
+# audio FILLER_PREPARE_MS into the thinking and plays it at FILLER_FIRST_MS
+# (FILLER_STILL_MS for "still working"): the synthesis has to fit in between,
+# or "Let me see." arrives late -- or after the answer it was covering for.
+# The phrases are read from the player's dictionary, so a new variant is
+# measured the day it lands. Each is synthesised once, as the player does.
+FIRST, STILL, PREP = (player_ms(n) for n in ('FILLER_FIRST_MS', 'FILLER_STILL_MS', 'FILLER_PREPARE_MS'))
+try:
+    lang_src = open(os.environ['V_LANGUAGE'], encoding='utf-8').read()
+except OSError:
+    lang_src = ''
+ru_at = lang_src.find('const ru: Translations')
+waits = {}
+for m in re.finditer(r"'voice\.filler\.(first|still)':\s*'([^']*)'", lang_src):
+    lang = 'ru' if ru_at >= 0 and m.start() > ru_at else 'en'
+    waits.setdefault((lang, m.group(1)), []).extend(m.group(2).split('|'))
+if not (FIRST and PREP and waits):
+    print('  wait phrases: not found in the player (FILLER_* or voice.filler.*) -- NOT MEASURED')
+    mark(2)
+for (lang, kind), texts in sorted(waits.items()):
+    lead = (FIRST if kind == 'first' else STILL) - PREP
+    times = []
+    for text in texts:
+        code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
+        if code != 200 or len(body) <= 1000:
+            print(f'  wait {lang} "{text}": HTTP {code} -- the player falls back to the device voice')
+            mark(1)
+            continue
+        times.append(ms)
+    if not times:
+        continue
+    late = max(times) > lead
+    print(f'  wait {lang} {kind}: {len(times)} phrases, synth {min(times)}..{max(times)} ms, '
+          f'lead {lead} ms -- {"LATE (the phrase plays after its moment)" if late else "ok"}')
+    if late:
+        mark(2)
+if os.environ.get('V_FILLER'):
+    sys.exit(worst)
+
 # The same two phrases every run, so the timings compare across days.
 phrases = {'ru': 'Проверка голоса: раз, два, три, четыре.',  # cyrillic-ok: the phrase IS the probe
            'en': 'Voice check: one, two, three, four.'}
@@ -5706,6 +5755,14 @@ for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: th
 sys.exit(worst)
 PY
   local rc=$?
+  if [ -n "${V_FILLER:-}" ]; then
+    case "$rc" in
+      0) good 'every wait phrase is synthesised before its moment' ;;
+      2) warn 'a wait phrase is late, or not measured -- see above' ;;
+      *) bad 'a wait phrase cannot be synthesised -- see above' ;;
+    esac
+    return "$rc"
+  fi
   if [ -n "${V_ROAD_ONLY:-}" ]; then
     case "$rc" in
       0) good 'the road answers, warm round trip under 0.4 s' ;;
@@ -6057,7 +6114,8 @@ case "$action" in
   browser|браузер)     cmd_browser ;;
   voice|голос)         cmd_voice "$@" ;;
   road|дорога)         V_ROAD_ONLY=1 cmd_voice "$@" ;;
-  vad|шум)             cmd_vad "$@" ;;   # cyrillic-ok: alias, like its neighbours
+  vad|шум)             cmd_vad "$@" ;;
+  filler|пауза)        V_FILLER=1 cmd_voice --runs 1 ;;   # cyrillic-ok: alias, like its neighbours   # cyrillic-ok: alias, like its neighbours
   ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
   mouth|рот)           cmd_ears "$@" mouth ;;  # cyrillic-ok: the voice's mouth, cycle 6
   gigaam|гигаам)       cmd_ears "$@" ru ;;  # cyrillic-ok: the name it had in voice-loop-3
