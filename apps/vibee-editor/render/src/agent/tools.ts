@@ -1141,6 +1141,7 @@ import { CRM_DROP_TOOLS } from './crm-drop-tool'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
+import { QUEEN_GROWTH_TOOLS } from './queen-growth'
 import { HIVE_BOARD_TOOLS } from './hive-board-tool'
 import { CLUB_CASH_TOOLS } from './club-cash'
 import { BOTFATHER_TOOLS } from './botfather-main-app'
@@ -3811,6 +3812,8 @@ TOOLS.push(...PROJECT_TOOLS)
  * owner sees their bots, everyone else sees only themselves.
  */
 TOOLS.push(...HIVE_TOOLS)
+// The Queen's next best action to earn, per person (spec automation/queen-growth).
+TOOLS.push(...QUEEN_GROWTH_TOOLS)
 /*
  * The board with the two lanes (hive-board-tool.ts): the Queen's public tasks,
  * which are the same for everybody signed in, beside the caller's own clients,
