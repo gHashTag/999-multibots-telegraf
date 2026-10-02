@@ -1,0 +1,19 @@
+Trinity S³AI turns an idea into a vertical video, and keeps the agents that help you make it one tap away.
+
+FEED
+Full-screen vertical videos made with Trinity, with native paging. Like the ones worth keeping.
+
+AGENTS
+Chat with AI agents. Answers stream as they are written, and you can dictate instead of typing.
+
+AI
+Start with the script: describe the video, set its length, niche, style and language, and get a script to shoot or generate. Then turn the idea into a video clip or an image in the same tab.
+
+EDITOR
+Open a project in the editor: layers, a timeline and a preview of the composition.
+
+GAME AND TASKS
+The hive game and the task board of the Trinity community, the same as in our Telegram mini app.
+
+PROFILE
+Your account, your tokens and your work. Sign in with Telegram: it is the same account you use in our Telegram bot and mini app.

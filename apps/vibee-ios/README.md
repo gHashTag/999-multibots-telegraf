@@ -63,6 +63,7 @@ fastlane state       # what App Store Connect holds (read-only)
 fastlane certs       # fetch, or create, an Apple Distribution certificate
 fastlane build_only  # signed App Store .ipa in build/ipa, nothing sent
 fastlane beta        # state + build_only + upload_to_testflight (internal testers)
+fastlane metadata    # the store page texts from fastlane/metadata (tri iphone metadata --yes)
 ```
 
 Nothing here submits for App Store review: `beta` stops at TestFlight, and
@@ -97,6 +98,27 @@ The icon is the t27 mark, white on black, rendered from
 `apps/vibee-editor/player/public/t27-logo.svg` without its text label
 (`rsvg-convert` at 1024, then `magick -alpha remove -alpha off`: App Store
 icons may not carry an alpha channel).
+
+### The store page
+
+The texts App Store Connect shows live in `fastlane/metadata/<locale>/*.txt`,
+deliver's own layout, for `en-US` and `ru`: subtitle, description, keywords,
+promotional text, support and privacy URLs. They describe what the screens do
+today (read from `Vibee/*.swift`, not from the web), and a change to them is
+reviewed as a diff like any other.
+
+- `preflight` checks them offline (`fastlane/store_metadata.rb`): every
+  overrun, empty required field, non-https URL and space after a keyword
+  comma at once. App Store Connect reports these one field at a time, after
+  the request.
+- `tri iphone metadata --yes` sends them (`deliver`, no binary, no
+  screenshots, `submit_for_review: false`). Same consent as an upload: the
+  page is published under the owner's account.
+- **No `name.txt`**: the name is chosen when the record is created, and a
+  file here would overwrite it on every send. **No `release_notes.txt`** yet:
+  a first version has no "What's New".
+- Screenshots are not in the repository yet; `skip_screenshots` leaves the
+  ones in App Store Connect alone.
 
 ### The key
 
@@ -188,3 +210,7 @@ simulator build carries `Assets.car` and `CFBundleIcons`.
 раскомментируются в том же коммите, где появится пикер или запись. Ключ
 разрешения, которым приложение не пользуется, — не безобидная заготовка:
 App Review спрашивает, где именно оно применяется.
+
+The microphone is the exception, and it is declared: `VoiceInput.swift`
+(dictation in the agent chat) asks `AVAudioApplication.requestRecordPermission`,
+and `NSMicrophoneUsageDescription` is set in `project.yml`.

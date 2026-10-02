@@ -78,6 +78,19 @@ describe('tri iphone store / testflight', () => {
     }
   })
 
+  it('metadata refuses without --yes and runs no lane at all', () => {
+    const r = iphone('metadata')
+    expect(r.rc).toBe(2)
+    expect(r.out).toContain('metadata --yes')
+    expect(r.lanes).toEqual([])
+  })
+
+  it('runs metadata, and only metadata, on --yes - with the consent', () => {
+    const r = iphone('metadata', '--yes')
+    expect(r.rc).toBe(0)
+    expect(r.lanes).toEqual(['metadata+yes'])
+  })
+
   it('stops at the first failing lane and says which', () => {
     fs.writeFileSync(
       path.join(bin, 'fastlane'),
@@ -88,5 +101,119 @@ describe('tri iphone store / testflight', () => {
     expect(r.rc).toBe(1)
     expect(r.lanes).toEqual(['preflight'])
     expect(r.out).toContain('fastlane preflight failed')
+  })
+})
+
+/**
+ * THE STORE PAGE LIMITS ARE TESTED WHERE THEY ARE DEFINED.
+ *
+ * `preflight` and the `metadata` lane both ask apps/vibee-ios/fastlane/
+ * store_metadata.rb; it is plain Ruby, so it runs here without fastlane and
+ * without Apple. App Store Connect would report each overrun one field at a
+ * time, after the request.
+ */
+const IOS_FASTLANE = path.join(__dirname, '..', 'apps', 'vibee-ios', 'fastlane')
+const hasRuby = spawnSync('ruby', ['-v']).status === 0
+
+function pageProblems(dir: string): string[] {
+  const r = spawnSync(
+    'ruby',
+    [
+      '-r',
+      path.join(IOS_FASTLANE, 'store_metadata.rb'),
+      '-e',
+      'puts StoreMetadata.problems(ARGV[0])',
+      dir,
+    ],
+    { encoding: 'utf8', env: { ...process.env, LC_ALL: 'en_US.UTF-8' } }
+  )
+  expect(r.status, r.stderr).toBe(0)
+  return r.stdout.split('\n').filter(Boolean)
+}
+
+describe.skipIf(!hasRuby)('store page texts (store_metadata.rb)', () => {
+  it('the texts in the repository are within every limit', () => {
+    expect(pageProblems(path.join(IOS_FASTLANE, 'metadata'))).toEqual([])
+  })
+
+  it('names every problem at once: limit, missing field, url, keyword spaces', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'store-page-'))
+    try {
+      for (const locale of ['en-US', 'ru']) {
+        const d = path.join(dir, locale)
+        fs.mkdirSync(d)
+        fs.writeFileSync(path.join(d, 'description.txt'), 'An app.\n')
+        fs.writeFileSync(path.join(d, 'keywords.txt'), 'video,reels\n')
+        fs.writeFileSync(path.join(d, 'support_url.txt'), 'https://t27.ai\n')
+        fs.writeFileSync(
+          path.join(d, 'privacy_url.txt'),
+          'https://app.t27.ai/privacy-policy\n'
+        )
+      }
+      expect(pageProblems(dir)).toEqual([])
+
+      const en = path.join(dir, 'en-US')
+      // 31 characters: one over. Counted as characters, so Cyrillic is not
+      // charged double the way a byte count would.
+      fs.writeFileSync(path.join(en, 'subtitle.txt'), 'x'.repeat(31))
+      fs.writeFileSync(
+        path.join(dir, 'ru', 'subtitle.txt'),
+        '\u0416'.repeat(30)
+      )
+      fs.writeFileSync(path.join(en, 'keywords.txt'), 'video, reels')
+      fs.writeFileSync(path.join(en, 'support_url.txt'), 'http://t27.ai')
+      fs.rmSync(path.join(en, 'privacy_url.txt'))
+
+      expect(pageProblems(dir)).toEqual([
+        'en-US/privacy_url.txt is missing or empty',
+        'en-US/subtitle.txt is 31 characters; the limit is 30',
+        'en-US/support_url.txt is not an https URL: http://t27.ai',
+        'en-US/keywords.txt has spaces after commas; they count against the limit',
+      ])
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('a keyword made only of subtitle words is named: it buys nothing', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'store-page-'))
+    try {
+      for (const locale of ['en-US', 'ru']) {
+        const d = path.join(dir, locale)
+        fs.mkdirSync(d)
+        fs.writeFileSync(path.join(d, 'description.txt'), 'An app.')
+        fs.writeFileSync(path.join(d, 'support_url.txt'), 'https://t27.ai')
+        fs.writeFileSync(path.join(d, 'privacy_url.txt'), 'https://t27.ai/p')
+        fs.writeFileSync(
+          path.join(d, 'subtitle.txt'),
+          'AI video, agents and reels'
+        )
+        fs.writeFileSync(
+          path.join(d, 'keywords.txt'),
+          'AI video,video editor,reels'
+        )
+      }
+      // "video editor" stays: "editor" is not in the subtitle.
+      expect(pageProblems(dir)).toEqual([
+        'en-US/keywords.txt repeats the subtitle: AI video',
+        'en-US/keywords.txt repeats the subtitle: reels',
+        'ru/keywords.txt repeats the subtitle: AI video',
+        'ru/keywords.txt repeats the subtitle: reels',
+      ])
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('a locale with no folder is a problem, not a silent skip', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'store-page-'))
+    try {
+      expect(pageProblems(dir)).toEqual([
+        `en-US: no metadata folder ${path.join(dir, 'en-US')}`,
+        `ru: no metadata folder ${path.join(dir, 'ru')}`,
+      ])
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
