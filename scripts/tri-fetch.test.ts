@@ -34,7 +34,7 @@ describe('tfetch', () => {
     expect(r.stdout).toBe('')
     expect(r.stderr).toMatch(/git fetch origin main failed/)
     expect(r.stderr).toMatch(/last good fetch \(unknown\)/)
-    expect(r.stderr).toMatch(/`tri online` says why/)
+    expect(r.stderr).toMatch(/`tri online` says whether it is the network/)
     fs.rmSync(dir, { recursive: true, force: true })
   })
   it('a good fetch is silent and 0', () => {
@@ -92,7 +92,46 @@ describe('tfetch', () => {
     fs.rmSync(up, { recursive: true, force: true })
     const r = tfetch('origin main', down)
     expect(r.status).not.toBe(0)
-    expect(r.stderr).toMatch(/\(origin\/main last moved \d+ min ago\)/)
+    expect(r.stderr).toMatch(
+      /\(origin\/main last changed \d+ min ago or later\)/
+    )
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  it('digits in the branch name do not leak into the age', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tfetch-'))
+    const up = path.join(dir, 'up')
+    const down = path.join(dir, 'down')
+    spawnSync('git', ['init', '-q', '-b', 'fix/abc-123', up])
+    spawnSync(
+      'git',
+      [
+        '-c',
+        'user.name=t',
+        '-c',
+        'user.email=t@t',
+        'commit',
+        '-q',
+        '--allow-empty',
+        '-m',
+        'x',
+      ],
+      { cwd: up }
+    )
+    spawnSync('git', ['init', '-q', down])
+    spawnSync('git', ['remote', 'add', 'origin', up], { cwd: down })
+    spawnSync(
+      'git',
+      ['fetch', '-q', 'origin', 'fix/abc-123:refs/remotes/origin/fix/abc-123'],
+      { cwd: down }
+    )
+    fs.rmSync(up, { recursive: true, force: true })
+    const r = tfetch('origin fix/abc-123', down)
+    const m = r.stderr.match(
+      /origin\/fix\/abc-123 last changed (-?\d+) min ago/
+    )
+    expect(m).not.toBeNull()
+    expect(Number(m![1])).toBeGreaterThanOrEqual(0)
+    expect(Number(m![1])).toBeLessThan(5)
     fs.rmSync(dir, { recursive: true, force: true })
   })
   it('no helper fetches around it', () => {

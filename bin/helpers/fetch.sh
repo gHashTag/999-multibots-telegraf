@@ -14,10 +14,15 @@ tfetch() {
   [ "$rc" -eq 0 ] && return 0
   # Not FETCH_HEAD's mtime: a FAILED fetch rewrites that file too, and it then
   # reads "0 min ago" (seen while writing this). The remote ref's reflog moves
-  # only when a fetch brought something.
+  # only when a fetch brought something, so the age is an upper bound.
+  # Only the number inside @{...}: a branch name has digits of its own, and
+  # keeping every digit read "fix/abc-123" as -20499999999 min (#3448 review).
   ref="refs/remotes/${1:-origin}/${2:-main}"
-  at=$(git log -g -1 --date=unix --format=%gd "$ref" 2>/dev/null | tr -dc 0-9)
-  [ -n "$at" ] && age="${ref#refs/remotes/} last moved $((($(date +%s) - at) / 60)) min ago"
-  echo "  ⚠  git fetch $* failed (${err%%$'\n'*}): what follows reads origin as of the last good fetch ($age); \`tri online\` says why" >&2
+  at=$(git log -g -1 --date=unix --format=%gd "$ref" 2>/dev/null)
+  at=${at##*@\{}
+  at=${at%\}}
+  case $at in '' | *[!0-9]*) at= ;; esac
+  [ -n "$at" ] && age="${ref#refs/remotes/} last changed $((($(date +%s) - at) / 60)) min ago or later"
+  echo "  ⚠  git fetch $* failed (${err%%$'\n'*}): what follows reads origin as of the last good fetch ($age); \`tri online\` says whether it is the network" >&2
   return "$rc"
 }
