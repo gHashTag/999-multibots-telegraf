@@ -38,6 +38,14 @@ export interface Article {
   title: string
   link: string
   summary: string
+  /*
+   * The feed's evidence label without its brackets ("measured", "model
+   * results measured on GPUs; board throughput derived, not measured"), or
+   * absent. Kept apart from the summary so the X post can lead with the
+   * article, and carried by every channel with room for it: the label is
+   * the line that names what is not proven.
+   */
+  evidence?: string
 }
 
 const tag = (xml: string, name: string): string => {
@@ -79,16 +87,35 @@ export function parseRss(xml: string): Article[] {
     const link = staticArticleUrl(tag(item, 'link'))
     if (!slug || !title || !/^https:\/\//.test(link)) continue
     /*
-     * "[proven] ..." -- the feed's evidence label is for the site, not the
-     * post. Labels are not always one word: "[counts measured through the
-     * GitHub API on 2026-10-02; merged means ...]" runs to 200 characters,
-     * and when only [a-z ] was stripped the X post spent its 280 on the
-     * caveat, cut off mid-sentence, and never reached the article.
+     * "[proven] ..." -- the feed's evidence label, split off the summary.
+     * Labels are not always one word: "[counts measured through the GitHub
+     * API on 2026-10-02; merged means ...]" runs to 200 characters, and when
+     * it was left in the summary the X post spent its 280 on the caveat, cut
+     * off mid-sentence, and never reached the article. It is not thrown
+     * away: summaryWithEvidence puts it back where there is room.
      */
-    const summary = tag(item, 'description').replace(/^\[[^\]]*\]\s*/, '')
-    out.push({ slug, title, link, summary })
+    const description = tag(item, 'description')
+    const label = /^\[([^\]]*)\]\s*/.exec(description)
+    const summary = label ? description.slice(label[0].length) : description
+    const evidence = label?.[1].trim()
+    out.push(
+      evidence
+        ? { slug, title, link, summary, evidence }
+        : { slug, title, link, summary }
+    )
   }
   return out
+}
+
+/**
+ * The summary as the site prints it, label first. For every channel with
+ * room -- LinkedIn, Facebook, Instagram, Reddit, the reply drafter's notes:
+ * a caveat such as "board throughput derived, not measured" is what keeps
+ * the sentence after it honest, so it is dropped only where it cannot fit
+ * (the X post, whose reply is the article itself). Pure.
+ */
+export function summaryWithEvidence(a: Article): string {
+  return a.evidence ? `[${a.evidence}] ${a.summary}` : a.summary
 }
 
 /**

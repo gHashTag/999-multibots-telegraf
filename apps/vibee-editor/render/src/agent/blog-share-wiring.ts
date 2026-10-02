@@ -19,6 +19,7 @@ import {
   SEEN_ON_PROFILE,
   seenOn,
   shareUrls,
+  summaryWithEvidence,
   type Article,
   type Answer,
 } from './blog-share'
@@ -302,7 +303,8 @@ function cardPost(a: Article) {
   return {
     title: a.title,
     link: a.link,
-    summary: a.summary,
+    /* LinkedIn, Facebook and Instagram have room for the evidence label. */
+    summary: summaryWithEvidence(a),
     cardUrl: `${base}/api/social/card/${a.slug}.jpg`,
   }
 }

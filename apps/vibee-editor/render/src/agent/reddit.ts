@@ -43,7 +43,12 @@
  * Switched on by REDDIT_DESK_ENABLED=1.
  */
 import { OWN_HOSTS } from './utm'
-import { linkFor, parseRss, type Article } from './blog-share'
+import {
+  linkFor,
+  parseRss,
+  summaryWithEvidence,
+  type Article,
+} from './blog-share'
 import type { Queryable } from '../browser/sessions'
 
 /** How a community feels about a project talking about itself. */
@@ -408,7 +413,8 @@ export function postFor(sub: Subreddit, a: Article): PlannedPost {
       ? a.title
       : `${a.title.slice(0, TITLE_MAX - 1)}…`
   const body = [
-    a.summary.trim(),
+    /* A text post has room: the evidence label goes with the claim. */
+    summaryWithEvidence(a).trim(),
     '',
     linkFor(a, 'reddit'),
     '',
