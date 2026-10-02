@@ -818,7 +818,23 @@ struct AgentChatView: View {
         withJSONObject: AgentChatView.chatBody(
           history: priorTurns, question: вопрос, task: task))
 
-      let (поток, _) = try await URLSession.shared.bytes(for: r)
+      let (поток, response) = try await URLSession.shared.bytes(for: r)
+      /*
+       * A REFUSAL IS NOT A STREAM. A 4xx answers with one JSON object and no
+       * `тип`, so reading it as events found nothing and the bubble said "the  // cyrillic-ok: the wire key
+       * agent did not put an answer together" -- about a request the server
+       * had refused, with the reason sitting unread in the body.
+       */
+      if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+        var raw = Data()
+        for try await byte in поток {
+          raw.append(byte)
+          if raw.count > 8192 { break }
+        }
+        let body = (try? JSONSerialization.jsonObject(with: raw)) as? [String: Any] ?? [:]
+        сообщения[i].текст = AgentChatView.refusal(status: http.statusCode, body: body)
+        return
+      }
       var послеИнструмента = false
       /**
        * FOUR OF THE FIVE DOCUMENTED EVENT TYPES ABOVE THE CLASS
@@ -871,9 +887,8 @@ struct AgentChatView: View {
           // Same styling as the web: a "⚠️ ..." paragraph of its own,
           // appended after any text that already arrived, not in place of it.
           hasError = true
-          if let errorText = o["текст"] as? String, !errorText.isEmpty {
-            сообщения[i].текст += (сообщения[i].текст.isEmpty ? "" : "\n\n") + "⚠️ \(errorText)"
-          }
+          let errorText = AgentChatView.streamFailure(o)
+          сообщения[i].текст += (сообщения[i].текст.isEmpty ? "" : "\n\n") + "⚠️ \(errorText)"
         case "proposal":
           /*
            * A MESSAGE PREPARED FOR SOMEBODY ELSE, waiting for the press. The
@@ -891,6 +906,8 @@ struct AgentChatView: View {
           // the bot and web.
           if let truncation = o["обрыв"] as? String, !truncation.isEmpty {
             truncationReason = truncation
+          } else if o["code"] as? String == "step_limit" {
+            truncationReason = "\(o["витков"] as? Int ?? 0)"  // cyrillic-ok: the wire key
           }
         default: break
         }
@@ -907,10 +924,9 @@ struct AgentChatView: View {
         сообщения[i].текст = truncationReason.isEmpty
           ? say("The agent did not put an answer together. Ask again, or more precisely.",
                 "Агент не сформулировал ответ. Повтори вопрос или уточни его.")
-          : say("Ran out of steps: \(truncationReason). Try a smaller task.",
-                "Не уложился в шаги: \(truncationReason). Попробуй задачу поменьше.")
+          : AgentChatView.stepLimitSentence(truncationReason)
       } else if !truncationReason.isEmpty {
-        сообщения[i].текст += "\n\n⚠️ \(truncationReason)"
+        сообщения[i].текст += "\n\n⚠️ \(AgentChatView.stepLimitSentence(truncationReason))"
       }
     } catch {
       /**
@@ -1043,6 +1059,106 @@ struct ОкноПодтверждения: View {
       RoundedRectangle(cornerRadius: 14)
         .stroke(Тема.Цвет.предупреждение.opacity(0.5), lineWidth: 1)
     )
+  }
+}
+
+// MARK: - Failures, in the reader's language
+
+/*
+ * `/api/agent/chat` names its failures with a `code` (since 2026-10-02): on
+ * the HTTP refusal, on an `ошибка` event, on a `готово` that hit the step  // cyrillic-ok: the event names
+ * limit. Its words are for a developer -- some Russian, the thread gate's
+ * English -- so the app says the code's sentence instead. The rule is the
+ * web's (player lib/agentChatText.ts): a Russian reader keeps the server's
+ * Russian words, the most precise there are; an unknown code gives the
+ * server's words when they are readable, and a plain "could not answer"
+ * when not. Every code is checked against the server by
+ * render/agent-chat-codes.test.ts.
+ */
+extension AgentChatView {
+  nonisolated static func failureSentence(
+    code: String?, words: String?, fallbackEN: String, fallbackRU: String,
+    russian: Bool = speaksRussian
+  ) -> String {
+    func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
+    let sentences: [String: String] = [
+      "sign_in": l(
+        "The server does not know who is asking — open Profile and sign in again with the code from @t27ai_bot.",
+        "Сервер не знает, кто спрашивает, — зайдите в Профиль и войдите заново по коду из @t27ai_bot."),
+      "forbidden": l(
+        "This key cannot talk to the agent.",
+        "С этим ключом нельзя говорить с агентом."),
+      "bad_request": l(
+        "The server did not understand the request — update the app.",
+        "Сервер не понял запрос — обновите приложение."),
+      "agent_unavailable": l(
+        "This agent is not available right now.",
+        "Этот агент сейчас недоступен."),
+      "not_seller": l(
+        "Only a seller can talk to the agent about a client.",
+        "Говорить с агентом о клиенте может только продавец."),
+      "no_answer": l(
+        "None of the models answered. Try again in a minute.",
+        "Ни одна модель не ответила. Повторите через минуту."),
+      "model_failed": l(
+        "The model failed to answer. Try again in a minute.",
+        "Модель не смогла ответить. Повторите через минуту."),
+      "internal": l(
+        "Something broke on the server. Try again in a minute.",
+        "На сервере что-то сломалось. Повторите через минуту."),
+      "step_limit": l(
+        "Ran out of steps — try a smaller task.",
+        "Не уложился в шаги — попробуй задачу поменьше."),
+    ]
+    let text = (words ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let cyrillic = text.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
+    if russian, cyrillic { return text }
+    if let code, let known = sentences[code] { return known }
+    if !text.isEmpty, russian || !cyrillic { return text }
+    return l(fallbackEN, fallbackRU)
+  }
+
+  /// A refused request (any non-2xx before the stream opens), from its body.
+  nonisolated static func refusal(
+    status: Int, body: [String: Any], russian: Bool = speaksRussian
+  ) -> String {
+    failureSentence(
+      code: body["code"] as? String,
+      words: body["error"] as? String ?? body["detail"] as? String,
+      fallbackEN: "The agent could not answer (the server answered \(status)).",
+      fallbackRU: "Агент не ответил (сервер ответил \(status)).",
+      russian: russian)
+  }
+
+  /// The step limit. The server's `обрыв` names the limit in Russian; an  // cyrillic-ok: the field name
+  /// English reader gets the count out of it, not the words.
+  nonisolated static func stepLimitSentence(
+    _ reason: String, russian: Bool = speaksRussian
+  ) -> String {
+    func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
+    let cyrillic = reason.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
+    if russian, cyrillic {
+      return "Не уложился в шаги: \(reason). Попробуй задачу поменьше." // ru-only-ok: a Russian reader keeps the server's words
+    }
+    let digits = reason.split(whereSeparator: { !$0.isNumber }).first.map(String.init)
+    if !russian, let digits, let n = Int(digits), n > 0 {
+      return "Stopped after \(n) tool steps — try a smaller task."
+    }
+    return l(
+      "Ran out of steps — try a smaller task.",
+      "Не уложился в шаги — попробуй задачу поменьше.")
+  }
+
+  /// An `ошибка` event in the middle of the stream.  // cyrillic-ok: the event name
+  nonisolated static func streamFailure(
+    _ event: [String: Any], russian: Bool = speaksRussian
+  ) -> String {
+    failureSentence(
+      code: event["code"] as? String,
+      words: event["текст"] as? String,
+      fallbackEN: "The agent could not answer. Try again in a minute.",
+      fallbackRU: "Агент не смог ответить. Повторите через минуту.",
+      russian: russian)
   }
 }
 

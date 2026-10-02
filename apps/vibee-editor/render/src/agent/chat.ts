@@ -266,8 +266,17 @@ export type AgentEvent =
    */
   | { тип: 'ждём'; имя: string; мс: number } // cyrillic-ok: event envelope
   | { тип: 'результат'; имя: string; значение: unknown; мс: number }
-  | { тип: 'готово'; витков: number; обрыв?: string }
-  | { тип: 'ошибка'; текст: string }
+  /*
+   * `code` names a failure for a client that translates it (step_limit,
+   * no_answer, model_failed; `internal` comes from routes.ts). The words stay
+   * for the developer. Checked by agent-chat-codes.test.ts.
+   */
+  | { тип: 'готово'; витков: number; обрыв?: string; code?: 'step_limit' }
+  | {
+      тип: 'ошибка'
+      текст: string
+      code?: 'no_answer' | 'model_failed' | 'internal'
+    }
 
 /**
  * The money-and-plan rule, lifted OUT of the SYSTEM template on purpose.
@@ -2945,12 +2954,20 @@ async function* runAgentTurn(
         : why
       if (emptyFrom.length) logEmpty('failed', lastProvider ?? 'none')
       logTurnEnd('error', text)
-      yield { тип: 'ошибка', текст: text.slice(0, 500) }
+      yield {
+        тип: 'ошибка',
+        code: emptyFrom.length ? 'no_answer' : 'model_failed',
+        текст: text.slice(0, 500),
+      }
       return
     }
     if (!assistant) {
       logTurnEnd('error', 'model did not return a message')
-      yield { тип: 'ошибка', текст: 'модель не вернула сообщение' }
+      yield {
+        тип: 'ошибка',
+        code: 'model_failed',
+        текст: 'модель не вернула сообщение',
+      }
       return
     }
 
@@ -3053,5 +3070,6 @@ async function* runAgentTurn(
     тип: 'готово',
     витков: MAX_STEPS,
     обрыв: `достигнут предел ${MAX_STEPS} витков вызова инструментов`,
+    code: 'step_limit',
   }
 }

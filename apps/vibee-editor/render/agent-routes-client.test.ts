@@ -149,16 +149,19 @@ describe('threadFor', () => {
     expect(await threadFor('abc', SELLER, getPool)).toEqual({
       ok: false,
       status: 400,
+      code: 'bad_request',
       error: 'bad client',
     })
     expect(await threadFor(SELLER, SELLER, getPool)).toEqual({
       ok: false,
       status: 400,
+      code: 'bad_request',
       error: 'bad client',
     })
     expect(await threadFor(CLIENT, STRANGER, getPool)).toEqual({
       ok: false,
       status: 403,
+      code: 'not_seller',
       error: 'not a seller',
     })
     expect(await threadFor(CLIENT, SELLER, getPool)).toEqual({
@@ -246,7 +249,7 @@ describe('the four routes with a client', () => {
       getPool
     )
     expect(bad.out.code).toBe(400)
-    expect(bad.out.body).toEqual({ error: 'bad client' })
+    expect(bad.out.body).toEqual({ code: 'bad_request', error: 'bad client' })
     const stranger = res()
     await handleAgentChat(
       req('/api/agent/chat', 'POST', {
@@ -258,7 +261,10 @@ describe('the four routes with a client', () => {
       getPool
     )
     expect(stranger.out.code).toBe(403)
-    expect(stranger.out.body).toEqual({ error: 'not a seller' })
+    expect(stranger.out.body).toEqual({
+      code: 'not_seller',
+      error: 'not a seller',
+    })
     const self = res()
     await handleAgentChat(
       req('/api/agent/chat', 'POST', {
