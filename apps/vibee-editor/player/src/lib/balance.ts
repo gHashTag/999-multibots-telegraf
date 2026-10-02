@@ -146,6 +146,33 @@ export function мераЦены(
 }
 
 /**
+ * The unit as a person reads it. `мераЦены` returns a KEY ('с', '1000 зн.')  // cyrillic-ok: quotes the keys
+ * that callers switch on, so the key stays and only the label is translated.
+ * The iOS app does the same in `ЦенаНажатия.unitLabel`.  // cyrillic-ok: names the Swift type
+ *
+ * `short` is the button ("· 6/s"), `words` is the sentence ("6 per second of
+ * audio") -- "6 за с" did not read in Russian, "6 per s" does not in English.  // cyrillic-ok: quotes the old phrase
+ */
+export function priceUnitLabel(
+  unit: string,
+  lang: 'ru' | 'en',
+  form: 'short' | 'words' = 'short'
+): string {
+  const ru = lang === 'ru'
+  if (unit === 'с') {
+    // cyrillic-ok: protocol key
+    if (form === 'short') return ru ? 'с' : 's' // cyrillic-ok: the Russian label
+    return ru ? 'секунду звука' : 'second of audio' // cyrillic-ok: the Russian label
+  }
+  if (unit === '1000 зн.') {
+    // cyrillic-ok: protocol key
+    if (form === 'short') return ru ? '1000 зн.' : '1k chars' // cyrillic-ok: the Russian label
+    return ru ? '1000 знаков' : '1000 characters' // cyrillic-ok: the Russian label
+  }
+  return unit
+}
+
+/**
  * Сколько НАЧАТЫХ ТЫСЯЧ знаков оплатят. Зеркало серверной `тысячиЗнаковКОплате`
  * (render/src/agent/billing-shared.ts): та же формула и тот же потолок.
  *

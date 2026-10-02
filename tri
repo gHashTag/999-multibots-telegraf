@@ -1414,6 +1414,8 @@ print(n)' 2>/dev/null)
 #                       verdict (Class = one test class, e.g. ConnectivityTests)
 #   tri iphone ru [File]  native strings still Russian-only (count / lines)
 #   tri iphone ru-diff [ref]  lines a counter change hides vs ref (origin/main)
+#   tri iphone ru-web [file]  ROUGH count of Russian-only literals in the web
+#                       player (the parity reference is not clean either)
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
 # The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
 # next build need it back. One word instead of remembering the udid.
@@ -1530,6 +1532,51 @@ PY
 # every dropped line read. The old copy has to sit in $ROOT -- `tri` finds the
 # app next to itself, and run from /tmp it counted another tree and printed an
 # empty diff that looked like "no change".
+# The web is the wording reference, and iteration 9 found it printing "· 6/с"
+# and a Russian shortfall sentence in English mode. Before copying web wording,
+# look here. ROUGH on purpose: en/ru pairs split over lines still count, so it
+# ranks files to read, it is not a score to drive to zero.
+iphone_ru_web() {
+  local only="${1:-}"
+  python3 - "$ROOT/apps/vibee-editor/player/src" "$only" <<'PY'
+import os, re, sys
+root, only = sys.argv[1], sys.argv[2]
+CYR = re.compile('[Ѐ-ӿ]')
+LIT = re.compile(r"'(?:[^'\\\n]|\\.)*'|\"(?:[^\"\\\n]|\\.)*\"|`(?:[^`\\]|\\.)*?`")
+# a line that already chooses by language, logs, or is marked by the guard
+SKIP = re.compile(r"lang\s*===?\s*'(?:ru|en)'|isRu|\bru\s*[?:]|Ru\s*:|\bt\(|"
+                  r"console\.|logger\.|cyrillic-ok|ru-only-ok")
+SKIP_FILES = ('language.ts',)
+KEY = re.compile(r"\[\s*'[^'\n]*'\s*\]")
+counts, lines = {}, []
+for d, _, fs in os.walk(root):
+    if 'node_modules' in d or '__tests__' in d or '/harness' in d or '/i18n' in d:
+        continue
+    for f in fs:
+        if not f.endswith(('.ts', '.tsx')) or '.test.' in f or f in SKIP_FILES:
+            continue
+        if only and f != only:
+            continue
+        p = os.path.join(d, f)
+        for n, line in enumerate(open(p, encoding='utf-8'), 1):
+            code = line.split('//')[0] if '://' not in line else line
+            if code.lstrip().startswith(('*', '/*')) or SKIP.search(code):
+                continue
+            # vd['баланс'] is a server JSON key, not text (same filter as `ru`)  # cyrillic-ok: quotes a key
+            code = KEY.sub('', code)
+            if any(CYR.search(m) for m in LIT.findall(code)):
+                rel = os.path.relpath(p, root)
+                counts[rel] = counts.get(rel, 0) + 1
+                lines.append(f"  {rel}:{n}  {line.strip()[:110]}")
+if only:
+    print('\n'.join(lines))
+else:
+    for rel, c in sorted(counts.items(), key=lambda kv: -kv[1])[:25]:
+        print(f"  {c:4d}  {rel}")
+print(f"  total {sum(counts.values())} line(s) with a Russian literal outside a language branch (rough)")
+PY
+}
+
 iphone_ru_diff() {
   local ios="$1" ref="${2:-origin/main}" old="$ROOT/.tri-ru-diff-old" f b
   git -C "$ROOT" show "$ref:tri" > "$old" 2>/dev/null || { bad "no tri at $ref"; rm -f "$old"; return 2; }
@@ -1666,6 +1713,7 @@ cmd_iphone() {
   [ "$mode" = "test" ] && { iphone_test "$ios" "${2:-}"; return; }
   [ "$mode" = "ru" ] && { iphone_ru "$ios" "${2:-}"; return; }
   [ "$mode" = "ru-diff" ] && { iphone_ru_diff "$ios" "${2:-}"; return; }
+  [ "$mode" = "ru-web" ] && { iphone_ru_web "${2:-}"; return; }
 
   if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
     bad "devicectl did not answer (Xcode command line tools?)"; return 2

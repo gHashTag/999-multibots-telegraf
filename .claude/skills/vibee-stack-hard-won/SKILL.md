@@ -10999,3 +10999,13 @@ Iterations 7-8: the AI screen is fully bilingual. Two more traps:
   `KieModelLabelTests` walks the WHOLE catalogue, so a new generated suffix
   fails a test, not a screenshot. The model `id` is the server value: never
   translated.
+
+Iteration 9: server errors and the clip properties panel.
+
+- **Error enums get `text(russian:)`, `errorDescription` calls it.**
+  `API.ActionError` and `API.ProjectError` reach every screen that talks to
+  the server; `NativeLanguageTests.testServerErrorsFollowTheLanguage` checks
+  every case in both languages. A server's own message (`.отказ(code, text)`) <!-- cyrillic-ok: names the case -->
+  is passed through untouched -- it is not ours to translate.
+- **Price unit keys stay keys.** See continuous-improvement-loop, lesson of
+  iteration 9: translate the unit where it is drawn, not where it is decided.

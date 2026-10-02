@@ -15,7 +15,7 @@ final class ЦенаНажатияTests: XCTestCase {
     // Липсинк: длительность задаёт озвучка, человек её не выбирает.
     let ц = ЦенаНажатия.посчитать(единица: 6, мера: "с", множитель: nil)
     XCTAssertNil(ц.всего)
-    XCTAssertEqual(ц.подпись, "· 6/с")
+    XCTAssertEqual(ц.label(russian: true), "· 6/с")
   }
 
   func testПлоскаяЦенаНеУмножаетсяНиНаЧто() {
@@ -31,7 +31,7 @@ final class ЦенаНажатияTests: XCTestCase {
   func testНольСекундНеДелаетРаботуБесплатной() {
     let ц = ЦенаНажатия.посчитать(единица: 36, мера: "с", множитель: 0)
     XCTAssertNil(ц.всего)
-    XCTAssertEqual(ц.подпись, "· 36/с")
+    XCTAssertEqual(ц.label(russian: true), "· 36/с")
   }
 
   func testЗнакиСчитаютсяТысячамиВВЕРХ() {
@@ -45,7 +45,17 @@ final class ЦенаНажатияTests: XCTestCase {
   func testПустойТекстНеОбещаетСуммуНоНазываетМеру() {
     let ц = ЦенаНажатия.посчитать(единица: 24, мера: "1000 зн.", множитель: nil)
     XCTAssertNil(ц.всего)
-    XCTAssertEqual(ц.подпись, "· 24/1000 зн.")
+    XCTAssertEqual(ц.label(russian: true), "· 24/1000 зн.")
+  }
+
+  func testUnitFollowsTheLanguageButTheKeyStays() {
+    // The screen switches on the key, so only the label is translated.
+    let perSecond = ЦенаНажатия.посчитать(единица: 6, мера: "с", множитель: nil)
+    XCTAssertEqual(perSecond.label(russian: false), "· 6/s")
+    XCTAssertEqual(perSecond.мераПодпись, "с")
+    let perChars = ЦенаНажатия.посчитать(единица: 24, мера: "1000 зн.", множитель: nil)
+    XCTAssertEqual(perChars.label(russian: false), "· 24/1k chars")
+    XCTAssertEqual(ЦенаНажатия.unitLabel("unknown", russian: false), "unknown")
   }
 
   func testРазборДлительности() {
