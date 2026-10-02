@@ -36,6 +36,7 @@ import { MAIL_TOOLS } from './mail-tools'
 import { MAIL_PUSH_TOOLS } from './mail-push'
 import { BALL_BOARD_TOOLS } from './ball-board'
 import { MEETING_TOOLS } from './meetings'
+import { BALL_GRANT_TOOLS } from './ball-grants'
 import { TRAFFIC_TOOLS } from './traffic'
 import { AVATAR_TOOLS } from './agent-avatars'
 import { AGENT_CLIENT_TOOLS } from './agent-clients'
@@ -3867,6 +3868,8 @@ TOOLS.push(...MAIL_PUSH_TOOLS)
 TOOLS.push(...BALL_BOARD_TOOLS)
 // Meetings made by talking, reminded in Telegram (automation/meeting-reminders).
 TOOLS.push(...MEETING_TOOLS)
+// Who else may see its mail cards, by the owner's grant (automation/ball-grants).
+TOOLS.push(...BALL_GRANT_TOOLS)
 /* Where visitors come from, by channel (epic #2974). Owner only. */
 TOOLS.push(...TRAFFIC_TOOLS)
 TOOLS.push(...AVATAR_TOOLS)
