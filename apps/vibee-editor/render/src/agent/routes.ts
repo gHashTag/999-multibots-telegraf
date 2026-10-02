@@ -27,6 +27,7 @@ import {
 } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { keepers } from '../hive/roles'
 import { assertArgs } from './tool-args'
+import { toolFailureCode } from './tool-refusal'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
 import {
@@ -753,8 +754,14 @@ export async function handleMcp(
   )
     return invalidRequest()
   const ok = (result: unknown) => json(res, 200, { jsonrpc: '2.0', id, result })
-  const err = (code: number, message: string) =>
-    json(res, 200, { jsonrpc: '2.0', id, error: { code, message } })
+  /*
+   * `data.code` names the refusal for a screen that is not Russian: the
+   * message is written for a model and stays as it was, the number stays the
+   * JSON-RPC one. The CRM screen (player/src/lib/crmErrorText.ts) turns the
+   * name into a sentence; crm-tool-codes.test.ts holds the two together.
+   */
+  const err = (code: number, message: string, data: { code: string }) =>
+    json(res, 200, { jsonrpc: '2.0', id, error: { code, message, data } })
   const scoped = identity.scope === 'leela-editorial'
   const visibleTools = () =>
     toMcpTools().filter(t => !scoped || EDITORIAL_TOOLS.has(t.name))
@@ -789,7 +796,8 @@ export async function handleMcp(
     if (game && !GAME_TOKEN_TOOLS.includes(String(rpc.params?.name))) {
       return err(
         -32001,
-        `A game token may call only: ${GAME_TOKEN_TOOLS.join(', ')}.`
+        `A game token may call only: ${GAME_TOKEN_TOOLS.join(', ')}.`,
+        { code: 'game_token_scope' }
       )
     }
     const toolName = rpc.params?.name
@@ -797,10 +805,14 @@ export async function handleMcp(
       scoped &&
       (typeof toolName !== 'string' || !EDITORIAL_TOOLS.has(toolName))
     ) {
-      return err(-32003, 'Tool forbidden by editorial scope')
+      return err(-32003, 'Tool forbidden by editorial scope', {
+        code: 'editorial_scope',
+      })
     }
     if (typeof toolName !== 'string')
-      return err(-32602, 'Tool name must be a string')
+      return err(-32602, 'Tool name must be a string', {
+        code: 'bad_tool_name',
+      })
     const tool = toolName ? TOOLS_BY_NAME.get(toolName) : null
     if (!tool) {
       // Подсказываем ИМЕНА, а не просто отказываем: агент исправится за виток.
@@ -808,7 +820,8 @@ export async function handleMcp(
         -32602,
         `Инструмента «${toolName}» нет. Доступны: ${visibleTools()
           .map(t => t.name)
-          .join(', ')}.`
+          .join(', ')}.`,
+        { code: 'unknown_tool' }
       )
     }
     try {
@@ -836,14 +849,16 @@ export async function handleMcp(
     } catch (e) {
       return err(
         -32603,
-        `Инструмент «${toolName}» упал: ${String(e).slice(0, 400)}`
+        `Инструмент «${toolName}» упал: ${String(e).slice(0, 400)}`,
+        { code: toolFailureCode(e) }
       )
     }
   }
 
   return err(
     -32601,
-    `Метода «${rpc.method}» нет. Поддерживаются: initialize, tools/list, tools/call.`
+    `Метода «${rpc.method}» нет. Поддерживаются: initialize, tools/list, tools/call.`,
+    { code: 'unknown_method' }
   )
 }
 

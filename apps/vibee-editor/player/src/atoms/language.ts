@@ -290,6 +290,12 @@ const en: Translations = {
   'crm.refresh': 'Refresh',
   'crm.refreshing': 'Refreshing…',
   'crm.unreachable': 'Could not load',
+  // Why a CRM tool call failed before any tool spoke (lib/crmErrorText.ts).
+  'crm.error.http': 'the server answered {status}',
+  'crm.error.refused': 'the server refused',
+  'crm.error.empty': 'empty answer',
+  'crm.error.network': 'no connection to the server',
+  'crm.error.badReply': 'the answer could not be read',
   'sendCard.previewBroken':
     '⚠️ The preview did not open — check the attachment before sending:',
   'sendCard.previewOpen': 'open the file',
@@ -3218,6 +3224,11 @@ const ru: Translations = {
   'crm.refresh': 'Обновить',
   'crm.refreshing': 'Обновляю…',
   'crm.unreachable': 'Не удалось загрузить',
+  'crm.error.http': 'сервер ответил {status}',
+  'crm.error.refused': 'отказ',
+  'crm.error.empty': 'пустой ответ',
+  'crm.error.network': 'нет связи с сервером',
+  'crm.error.badReply': 'ответ не разобран',
   'sendCard.previewBroken':
     '⚠️ Превью не открылось — проверьте вложение перед отправкой:', // cyrillic-ok
   'sendCard.previewOpen': 'открыть файл', // cyrillic-ok

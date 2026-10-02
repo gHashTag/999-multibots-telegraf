@@ -27,7 +27,19 @@ import { markEmbedSignInNeeded } from '@/lib/embedGuest'
 export interface Reached<T> {
   reachable: boolean
   data: T | null
+  /**
+   * What failed, as it came: the server's refusal text (Russian -- it is
+   * written for a model), `HTTP <status>`, or the browser's own message. For
+   * comparing failures, not for showing: the screen words it with
+   * `crmErrorText` (lib/crmErrorText.ts) from `code`.
+   */
   error?: string
+  /**
+   * Why it failed, by name: `http_<status>`, `empty`, `network`, `bad_reply`
+   * from `callTool` itself, or the server's `error.data.code` (`refused` when
+   * the server named nothing). Set exactly when `error` is.
+   */
+  code?: string
   /**
    * The tool itself said no (a JSON-RPC error: "only the owner may..."), as
    * opposed to a server that could not be reached. A panel that is not for
@@ -44,8 +56,16 @@ async function callTool<T>(
   name: string,
   args: Record<string, unknown> = {}
 ): Promise<Reached<T>> {
+  const failed = (code: string, error: string): Reached<T> => ({
+    reachable: false,
+    data: null,
+    error,
+    code,
+  })
+  const said = (e: unknown) => (e instanceof Error ? e.message : String(e))
+  let r: Response
   try {
-    const r = await fetch(`${API_BASE}/mcp`, {
+    r = await fetch(`${API_BASE}/mcp`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({
@@ -55,22 +75,26 @@ async function callTool<T>(
         params: { name, arguments: args },
       }),
     })
-    if (!r.ok) {
-      // In the game's TRI frame a refused credential means "sign in", and the
-      // route gate swaps the CRM for the sign-in panel (lib/embedGuest.ts).
-      if (r.status === 401) markEmbedSignInNeeded()
-      return {
-        reachable: false,
-        data: null,
-        error: `сервер ответил ${r.status}`,
-      }
-    }
+  } catch (e) {
+    return failed('network', said(e))
+  }
+  if (!r.ok) {
+    // In the game's TRI frame a refused credential means "sign in", and the
+    // route gate swaps the CRM for the sign-in panel (lib/embedGuest.ts).
+    if (r.status === 401) markEmbedSignInNeeded()
+    // `HTTP 401` keeps the status in the text: refusalRules.isSignInReason
+    // reads it there.
+    return failed(`http_${r.status}`, `HTTP ${r.status}`)
+  }
+  try {
     const body = await r.json()
     if (body?.error) {
+      const code = body.error.data?.code
       return {
-        reachable: false,
-        data: null,
-        error: String(body.error.message ?? 'отказ'),
+        ...failed(
+          typeof code === 'string' && code ? code : 'refused',
+          String(body.error.message ?? 'refused')
+        ),
         refused: true,
       }
     }
@@ -85,13 +109,9 @@ async function callTool<T>(
     if (typeof text === 'string') {
       return { reachable: true, data: JSON.parse(text) as T }
     }
-    return { reachable: false, data: null, error: 'пустой ответ' }
+    return failed('empty', 'empty answer')
   } catch (e) {
-    return {
-      reachable: false,
-      data: null,
-      error: e instanceof Error ? e.message : String(e),
-    }
+    return failed('bad_reply', said(e))
   }
 }
 
@@ -196,8 +216,14 @@ function toLeads(r: RawLeads): HotLeads {
 
 const map = <A, B>(r: Reached<A>, f: (a: A) => B): Reached<B> =>
   r.data === null
-    ? { reachable: r.reachable, data: null, error: r.error, refused: r.refused }
-    : { reachable: r.reachable, data: f(r.data), error: r.error }
+    ? {
+        reachable: r.reachable,
+        data: null,
+        error: r.error,
+        code: r.code,
+        refused: r.refused,
+      }
+    : { reachable: r.reachable, data: f(r.data), error: r.error, code: r.code }
 
 export const loadOverview = async () =>
   map(await callTool<RawOverview>('crm_overview'), toOverview)
