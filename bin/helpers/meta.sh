@@ -69,6 +69,10 @@ for k in THREADS_APP_ID THREADS_APP_SECRET META_APP_ID META_APP_SECRET META_PAGE
   LINKEDIN_CLIENT_ID LINKEDIN_CLIENT_SECRET X_CLIENT_ID X_CLIENT_SECRET; do
   if isset "$k"; then echo "  $k: set"; else echo "  $k: -"; fi
 done
+# Facebook Login for Business asks through a saved configuration; without
+# one the dialog falls back to the scope list (authorizeUrl, meta-connect.ts).
+if isset META_LOGIN_CONFIG_ID; then echo "  META_LOGIN_CONFIG_ID: set (Facebook dialog sends config_id)"
+else echo "  META_LOGIN_CONFIG_ID: - (Facebook dialog sends scope)"; fi
 echo "  redirect URI to register in every app: $RENDER/api/social/meta/callback"
 URL=$(railway variables --service postgres-nfrq --kv 2>/dev/null | grep -E '^DATABASE_PUBLIC_URL=' | cut -d= -f2-)
 [ -n "$URL" ] || { echo "no DATABASE_PUBLIC_URL -- tokens not checked"; exit 2; }
