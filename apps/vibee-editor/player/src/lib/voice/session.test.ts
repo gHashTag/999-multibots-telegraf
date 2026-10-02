@@ -152,7 +152,7 @@ describe('VoiceSession: no microphone, the person types', () => {
     })
   })
 
-  it('with a working microphone there is nothing to type into', () => {
+  it('a session that is off takes no typed question', () => {
     const d = deps()
     const s = new VoiceSession(d)
     s.type('hello')
@@ -347,7 +347,12 @@ describe('VoiceSession: the spoken language', () => {
     vi.unstubAllGlobals()
   })
 
-  async function session(ui: 'ru' | 'en', browser: string[], heard: string) {
+  async function session(
+    ui: 'ru' | 'en',
+    browser: string[],
+    heard: string,
+    extra: Partial<ReturnType<typeof deps>> = {}
+  ) {
     const track = { stop: () => {}, enabled: true }
     vi.stubGlobal('AudioContext', ListeningAudioContext)
     vi.stubGlobal('MediaRecorder', FakeRecorder)
@@ -364,6 +369,7 @@ describe('VoiceSession: the spoken language', () => {
     const d = deps()
     const s = new VoiceSession({
       ...d,
+      ...extra,
       lang: () => ui,
       transcribe: async (_a: Blob, o?: { lang?: string | null }) => {
         hints.push(o?.lang)
@@ -375,6 +381,25 @@ describe('VoiceSession: the spoken language', () => {
       (s as unknown as { finishUtterance(): Promise<void> }).finishUtterance()
     return { s, d, hints, phrase }
   }
+
+  it('typed into the chat while the microphone listens, and answered aloud', async () => {
+    // The agent takes its time, so the turn stays the agent's.
+    const { s, d } = await session('en', ['en-US'], 'unused', {
+      answering: () => true,
+    })
+    const recorder = () => (s as unknown as { recorder: unknown }).recorder
+    expect(s.snapshot.phase).toBe('listening')
+    expect(recorder()).not.toBeNull()
+    s.type('  show my week ')
+    expect(d.send).toHaveBeenCalledWith('show my week')
+    expect(s.snapshot).toMatchObject({
+      phase: 'thinking',
+      heard: 'show my week',
+    })
+    // The half-recorded phrase is not a second question.
+    expect(recorder()).toBeNull()
+    s.stop()
+  })
 
   it('named from the first phrase when the app and the browser agree', async () => {
     const { s, hints, phrase } = await session('ru', ['ru-RU'], 'Привет')
