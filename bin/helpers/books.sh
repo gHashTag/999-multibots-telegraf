@@ -33,10 +33,11 @@
 # управление. Инструмент, отвечающий на первый и молчащий про второй,
 # отправляет писать код, который уже написан.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?нужен корень репозитория}"
 cd "$ROOT" || exit 1
 
-KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+KEY=$(rvars vibee-render \
        | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d: -f1 )
 [ -n "$KEY" ] || { echo "нет ключа агента (railway variables)"; exit 2; }
 BASE="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"

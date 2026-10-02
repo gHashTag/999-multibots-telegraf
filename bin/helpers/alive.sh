@@ -35,14 +35,14 @@
 # поднимается не на «тихо», а на «тише, чем позволяет самая длинная законная
 # пауза».
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?нужен корень репозитория}"
 cd "$ROOT" || exit 1
 
 # ЛОГ БОТА — ПЕРВЫЙ ИСТОЧНИК. Он знает про `held`, чего журнал не знает.
 # Пусто — не ответ: лог живёт с последнего деплоя и после свежего деплоя
 # короткий. Тогда молча переходим к журналу, сказав об этом вслух.
-LOG=$( (railway service 999-multibots-telegraf >/dev/null 2>&1; \
-        railway logs 2>/dev/null) | grep -F '[crm-proactive] sweep' | tail -40 )
+LOG=$(rlogs 999-multibots-telegraf 2>/dev/null | grep -F '[crm-proactive] sweep' | tail -40 )
 if [ -n "$LOG" ]; then
   LAST=$(printf '%s\n' "$LOG" | tail -1)
   WHEN=$(printf '%s' "$LAST" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}:[0-9]{2}' | head -1)
@@ -60,7 +60,7 @@ else
   echo
 fi
 
-AK=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+AK=$(rvars vibee-render \
       | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d: -f1 )
 [ -n "$AK" ] || { echo "нет ключа агента"; exit 2; }
 BASE="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
@@ -89,7 +89,7 @@ if [ -z "$CAP_H" ]; then
   exit 2
 fi
 
-RESP="$RESP" CAP_H="$CAP_H" python3 - <<'PY'
+RESP="$RESP" CAP_H="$CAP_H" RAIL_PROJECT="$RAIL_PROJECT" RAIL_ENV="$RAIL_ENV" python3 - <<'PY'
 import json, os, sys, datetime, collections
 
 try:
@@ -130,7 +130,8 @@ if gap_h > cap:
     print('  🛑 ТИШЕ, ЧЕМ ПОЗВОЛЯЕТ УДЕРЖАНИЕ. Обход, которого не было, и обход,')
     print('     прошедший тихо, в журнале НЕРАЗЛИЧИМЫ -- поэтому смотреть надо')
     print('     не сюда, а туда, где видно сам тик:')
-    print('        railway logs | grep -i "crm-proactive\\|INNGEST"')
+    print('        railway logs --project %s --environment %s --service 999-multibots-telegraf | grep -i "crm-proactive\\|INNGEST"'
+          % (os.environ['RAIL_PROJECT'], os.environ['RAIL_ENV']))
     sys.exit(1)
 if gap_h > 2:
     print('  ⚠️  дольше двух часов -- законно при непрожатой карточке (удержание),')

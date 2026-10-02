@@ -17,10 +17,11 @@
 #
 # Эта команда — тот самый экран, пока его нет в интерфейсе. Только чтение.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?нужен корень репозитория}"
 cd "$ROOT" || exit 1
 
-AK=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) |
+AK=$(rvars vibee-render |
       grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 if [ -z "$AK" ]; then
   echo "🛑 нет ключа агента — воронка не прочитана. Это НЕ пустая воронка."

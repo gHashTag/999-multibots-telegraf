@@ -4,10 +4,11 @@
 #
 # Read-only: open PRs (with GitHub's own mergeable verdict), worktrees, free
 # disk, and the last deployment of the bot and the render. Railway is asked
-# with --service, never `railway service X`: the directory link is shared by
-# every session in this checkout.
+# with explicit ids (bin/helpers/rail.sh), never `railway service X`: the
+# directory link is shared by every session in this checkout.
 ROOT="${1:-$(cd "$(dirname "$0")/../.." && pwd)}"
 cd "$ROOT" || exit 2
+. "$ROOT/bin/helpers/rail.sh"  # Railway by explicit ids
 
 echo "── open PRs (newest first) ──"
 gh pr list --state open --limit 30 \
@@ -30,5 +31,5 @@ fi
 echo
 echo "── last deployments ──"
 for s in 999-multibots-telegraf vibee-render; do
-  printf '  %-24s %s\n' "$s" "$(railway deployment list --service "$s" 2>/dev/null | sed -n 2p | sed 's/^ *//')"
+  printf '  %-24s %s\n' "$s" "$(railway deployment list --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service "$s" 2>/dev/null | sed -n 2p | sed 's/^ *//')"
 done

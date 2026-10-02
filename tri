@@ -27,6 +27,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$ROOT/bin/helpers/rail.sh"  # Railway by explicit ids (tri rail)
 TOOLS="$ROOT/.claude/loop-opus"
 
 # node 20 из nvm: системный 18 ломает Vite и половину прогонов.
@@ -4060,7 +4061,7 @@ cmd_turn_log() {
     bad "railway CLI not found -- install it or grep your own log sink for: \"turn\":\"$id\""
     return 1
   fi
-  ( cd "$ROOT" && railway logs -n "$lines" 2>&1 | grep -F "\"turn\":\"$id\"" )
+  ( rlogs vibee-render -n "$lines" 2>&1 | grep -F "\"turn\":\"$id\"" )
 }
 
 cmd_clone() {
@@ -6618,10 +6619,10 @@ cmd_player_deploy () {
   # checkout, and this ran from a worktree. A command that hides its own
   # diagnosis makes the next person re-discover it.
   local out
-  if ! out="$(railway redeploy --service vibee-editor --from-source -y 2>&1)"; then
+  if ! out="$(railway redeploy --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service vibee-editor --from-source -y 2>&1)"; then
     bad "railway redeploy failed:"
     printf '%s\n' "$out" | tail -5
-    warn "the Railway link is per-directory; run this from the main checkout, not a worktree"
+    warn "ids come from bin/helpers/rail.sh, not the directory link -- check 'railway whoami'"
     return 1
   fi
   printf '  redeploy requested, waiting for the served bundle to change\n'
@@ -7462,7 +7463,7 @@ EARS_SVC_EN=6d9197c7-d467-42bc-8e92-27bc231302a6   # parakeet
 # It speaks rather than hears, but it ships and is checked the same way.
 MOUTH_SVC=2455209b-6611-4814-bb55-7d3b5d994656
 cmd_ears() {
-  local p=564d9ebd-7aa8-44fe-93ec-e0b03c87158d e=e4d200ad-b8a9-4edf-9b25-190a32613b32
+  local p="$RAIL_PROJECT" e="$RAIL_ENV"
   local action=status langs='ru en mouth' a
   for a in "$@"; do
     case "$a" in
@@ -7639,7 +7640,7 @@ cmd_board() {
 #   tri deploys --logs   also print the raw tail of the failed build log
 # ─────────────────────────────────────────────────────────────────────────
 cmd_deploys() {
-  local p=564d9ebd-7aa8-44fe-93ec-e0b03c87158d e=e4d200ad-b8a9-4edf-9b25-190a32613b32
+  local p="$RAIL_PROJECT" e="$RAIL_ENV"
   local s=7aad4834-8ac0-4d6b-a031-44ec694ad8de raw=0 a
   for a in "$@"; do
     case "$a" in
@@ -7716,7 +7717,7 @@ print("STATE %s %s %d" % (state, failed or "-", len(rows)))')
 
   bad "player: $n commit(s) on main are NOT live -- the deploy $failed_id FAILED"
   local log
-  log=$(timeout 90 railway logs "$failed_id" -b -n 3000 2>/dev/null)
+  log=$(timeout 90 railway logs --project "$RAIL_PROJECT" --environment "$RAIL_ENV" "$failed_id" -b -n 3000 2>/dev/null)
   if [ -z "$log" ]; then
     skip 'the build log did not come back -- read it: railway logs '"$failed_id"' -b'
     return 1
@@ -7806,8 +7807,8 @@ cmd_loop() {
   local svc name
   for svc in 7aad4834-8ac0-4d6b-a031-44ec694ad8de:player 6339df9c-15b8-4f51-ba26-4af0b55c596a:render; do
     name=${svc#*:}
-    timeout 30 railway deployment list -p 564d9ebd-7aa8-44fe-93ec-e0b03c87158d \
-      -e e4d200ad-b8a9-4edf-9b25-190a32613b32 -s "${svc%%:*}" --limit 1 --json 2>/dev/null \
+    timeout 30 railway deployment list -p "$RAIL_PROJECT" \
+      -e "$RAIL_ENV" -s "${svc%%:*}" --limit 1 --json 2>/dev/null \
       | python3 -c '
 import json, sys
 name = sys.argv[1]
@@ -7927,16 +7928,16 @@ case "$action" in
   # a person sends TON with the invoice id in the comment and presses "check
   # payment". Nothing else ever looks, so coins can sit on the chain against a
   # PENDING row for ever. Read-only; credits nobody.
-  ton-pending|тон-зависшие) railway run -s 999-multibots-telegraf node "$ROOT/scripts/ton-pending-reconcile.cjs" "$@" ;;
-  reconcile|сверка)   railway run -s 999-multibots-telegraf node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
+  ton-pending|тон-зависшие) railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/ton-pending-reconcile.cjs" "$@" ;;
+  reconcile|сверка)   railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
   lapsed|ушедшие)      node "$ROOT/scripts/lapsed-payers.cjs" "$@" ;;
   ledger|учёт)         node "$ROOT/scripts/ledger-integrity.cjs" "$@" ;;
   first-visit|первый-визит) node "$ROOT/scripts/first-visit.cjs" "$@" ;;
   dashboard|витрина)   node "$ROOT/scripts/dashboard-audit.cjs" "$@" ;;
-  funnel|воронка)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "$@" ;;
-  stuck|платежи)      railway run -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "$@" ;;
-  events|события)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "$@" ;;
-  keys|ключи-провайдеров) railway run -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "$@" ;;   # the short alias belongs to idempotency-keys above
+  funnel|воронка)     railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "$@" ;;
+  stuck|платежи)      railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "$@" ;;
+  events|события)     railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "$@" ;;
+  keys|ключи-провайдеров) railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "$@" ;;   # the short alias belongs to idempotency-keys above
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
