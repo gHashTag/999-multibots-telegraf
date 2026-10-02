@@ -83,6 +83,25 @@ const en: Translations = {
     'The key could not be saved. Check the provider, key and name, then enter the key again.',
   'hiveAccount.error.network':
     'The service did not answer. Try again; after saving a key, refresh the list before adding it again.',
+  'hiveAccount.checkedSome':
+    'Checked {done} of {total} keys. {skipped} could not be checked right now (one check per key per minute, or the provider is busy); try them again in a minute.',
+  'hiveAccount.models': 'Model for all keys',
+  'hiveAccount.modelsNote':
+    "Pick one model for every key of a provider. Before switching, the Queen asks the model to call a tool through one of your keys: a model that cannot call tools cannot do a bee's work. Bees already running finish on their old model.",
+  'hiveAccount.modelCurrent': 'Now: {model} · keys: {n}',
+  'hiveAccount.modelDefault': 'Default: {model}',
+  'hiveAccount.modelLabel': 'Model',
+  'hiveAccount.modelApply': 'Apply to all {n} keys',
+  'hiveAccount.modelChecking':
+    'Checking the model through one of your keys. A slow model can take up to three minutes.',
+  'hiveAccount.modelSaved':
+    '{model} now runs on all {n} keys of this provider. New bees start on it.',
+  'hiveAccount.error.modelUnavailable':
+    'The provider does not serve this model. Pick one from the list.',
+  'hiveAccount.error.modelTools':
+    "The model answered but did not call a tool, so it cannot do a bee's work. Nothing was changed.",
+  'hiveAccount.error.modelCheck':
+    'The model could not be checked: your keys were busy or out of quota. Nothing was changed; try again in a minute.',
 
   // ── Remote browser ────────────────────────────────────────────────────────
   'nav.browser': 'Browser',
@@ -3045,6 +3064,25 @@ const ru: Translations = {
     'Ключ не удалось сохранить. Проверьте провайдера, ключ и название, затем введите ключ заново.',
   'hiveAccount.error.network':
     'Сервис не ответил. Повторите запрос; после сохранения ключа сначала обновите список, прежде чем добавлять его ещё раз.',
+  'hiveAccount.checkedSome':
+    'Проверено {done} из {total}. {skipped} сейчас проверить не удалось (одна проверка ключа в минуту или провайдер занят) — повторите через минуту.',
+  'hiveAccount.models': 'Модель для всех ключей',
+  'hiveAccount.modelsNote':
+    'Одна модель для всех ключей провайдера. Перед сменой Королева просит модель вызвать инструмент через один из ваших ключей: модель, которая не вызывает инструменты, не сделает работу пчелы. Уже работающие пчёлы доработают на прежней модели.',
+  'hiveAccount.modelCurrent': 'Сейчас: {model} · ключей: {n}',
+  'hiveAccount.modelDefault': 'По умолчанию: {model}',
+  'hiveAccount.modelLabel': 'Модель',
+  'hiveAccount.modelApply': 'Применить ко всем ({n})',
+  'hiveAccount.modelChecking':
+    'Проверяем модель через один из ваших ключей. Медленная модель может отвечать до трёх минут.',
+  'hiveAccount.modelSaved':
+    'Теперь {model} работает на всех ключах этого провайдера ({n}). Новые пчёлы стартуют на ней.',
+  'hiveAccount.error.modelUnavailable':
+    'Провайдер не обслуживает эту модель. Выберите модель из списка.',
+  'hiveAccount.error.modelTools':
+    'Модель ответила, но не вызвала инструмент, поэтому работу пчелы она не сделает. Ничего не изменено.',
+  'hiveAccount.error.modelCheck':
+    'Модель не удалось проверить: ключи заняты или исчерпали квоту. Ничего не изменено; повторите через минуту.',
 
   // ── Remote browser ────────────────────────────────────────────────────────
   'nav.browser': 'Браузер',
