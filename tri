@@ -342,7 +342,7 @@ CHECKS THAT EACH COST A CYCLE
         Section 3 needs xcodegen (brew install xcodegen). Without it the iOS
         build is reported as not measured, never as passing.
 
-  tri cyrillic [staged | --unused]
+  tri cyrillic [staged | --unused | msg FILE]
         WHY the Cyrillic gate blocks a line, not just which line. Prints, per
         refusal: which Cyrillic word this commit does not also remove (so the
         reflow exemption cannot apply), and the way out for that SHAPE --
@@ -355,6 +355,10 @@ CHECKS THAT EACH COST A CYCLE
         Reads the same records the gate decides on, so the explanation cannot
         drift from the verdict. Exit code matches the gate: 0 clean, 1 blocked,
         2 the diff could not be read.
+
+        `msg FILE` checks a commit message with the commit-msg hook's own
+        script BEFORE committing. The hook runs after the slow pre-commit, so a
+        Cyrillic type name in the message cost the whole run twice.
 
         `--unused` is `eslint --report-unused-disable-directives` for this
         marker: every  cyrillic-ok  that no longer guards anything. First run,
@@ -413,7 +417,9 @@ CHECKS THAT EACH COST A CYCLE
         synthesised once as the player does, against the lead it has: the
         audio is asked for at FILLER_PREPARE_MS and played at FILLER_FIRST_MS
         (FILLER_STILL_MS). Slower than the lead is LATE (exit 2); a phrase
-        our voice cannot say is broken (exit 1). Also part of tri voice.
+        our voice cannot say is broken (exit 1). Each phrase is split into
+        engine and road time; one that used over half of the player's
+        speakDeadlineMs is a warning (exit 2). Also part of tri voice.
         Needs the same key as tri voice.
 
   tri road | tri дорога
@@ -488,7 +494,7 @@ CHECKS THAT EACH COST A CYCLE
         tool call rather than on the user row, and a line that says "not
         asked" every time is furniture.
 
-  tri readers [--gate] | tri читатели
+  tri readers [--gate | --run FILE...] | tri читатели
         Tests that read source as TEXT, and the paths they still believe in.
 
         `vitest related` follows the IMPORT graph, and reading a file with fs
@@ -500,6 +506,11 @@ CHECKS THAT EACH COST A CYCLE
         -- and went red when the top-up flow moved into a shared hook. The
         behaviour had not changed; only the file had. It surfaced two days
         later, dragged into a run by an unrelated import.
+
+        `--run FILE...` runs, right now, the tests that name FILE in quotes
+        -- the guards on that one file, not the directory scanners. The same
+        money guard broke the same way a second time on 2026-10-02, found
+        only five minutes into pre-push. Run it before pushing a move.
 
         `--gate` reds when a path no longer exists. A path that exists is not a
         promise: only running the test says whether the string it looks for is
@@ -3084,6 +3095,17 @@ cmd_cyrillic() {
   # guessing that on 2026-09-17.
   #   tri cyrillic          the branch range (same window the gate uses)
   #   tri cyrillic staged   what is in the index right now, before committing
+  #   tri cyrillic msg FILE the commit message, by the commit-msg hook's own
+  #                         script -- that hook runs AFTER the slow pre-commit,
+  #                         so a Cyrillic type name in the message cost the
+  #                         whole pre-commit twice (2026-10-02). Check first,
+  #                         then `git commit -F FILE`.
+  if [ "${1:-}" = "msg" ]; then
+    [ -f "${2:-}" ] || { echo "usage: tri cyrillic msg FILE" >&2; return 2; }
+    ( cd "$ROOT" && node "$ROOT/scripts/no-cyrillic-guard.cjs" msg "$2" ) \
+      && echo "  OK   commit message has no Cyrillic: $2"
+    return
+  fi
   ( cd "$ROOT" && node "$ROOT/scripts/cyrillic-why.cjs" "$@" )
 }
 
@@ -3136,6 +3158,28 @@ cmd_readers() {
   # does not notice: a money guard sat broken for two days that way.
   #   tri readers            the inventory, and any path that no longer exists
   #   tri readers --gate     exit 1 when a target is missing
+  #   tri readers --run FILE...  run the tests that read FILE as text, NOW,
+  #                          not five minutes into pre-push. 2026-10-02 the
+  #                          same money guard broke the same way a second time
+  #                          (top-up sentences moved out of useTokenTopUp.ts).
+  if [ "${1:-}" = "--run" ]; then
+    shift
+    [ $# -gt 0 ] || { echo "usage: tri readers --run FILE..." >&2; return 2; }
+    # By the quoted file NAME, not `--for`: `--for` also lists every scanner
+    # that walks a whole directory (106 tests for one hook) -- too many to run
+    # before a push. A guard on one file names it, as creditedIsNotOk does.
+    local tests="" f
+    for f in "$@"; do
+      tests="$tests $(cd "$ROOT" && git ls-files '*.test.ts' '*.test.tsx' \
+        | xargs /usr/bin/grep -l -F "'$(basename "$f")'" 2>/dev/null)"
+    done
+    tests=$(echo $tests | tr ' ' '\n' | sort -u)
+    if [ -z "$tests" ]; then echo "  --   no test names these files"; return 0; fi
+    echo "$tests" | sed 's/^/  reads it: /'
+    # shellcheck disable=SC2086
+    ( cd "$ROOT" && timeout 600 npx vitest run $tests )
+    return
+  fi
   ( cd "$ROOT" && node "$ROOT/scripts/text-readers.cjs" "$@" )
 }
 
@@ -5682,7 +5726,7 @@ if not (FIRST and PREP and waits):
     mark(2)
 for (lang, kind), texts in sorted(waits.items()):
     lead = (FIRST if kind == 'first' else STILL) - PREP
-    times = []
+    times, parts = [], []
     for text in texts:
         code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
         if code != 200 or len(body) <= 1000:
@@ -5690,11 +5734,30 @@ for (lang, kind), texts in sorted(waits.items()):
             mark(1)
             continue
         times.append(ms)
+        # Where the time went: the engine's own, or the road to it (cycle 10:
+        # a cold first English phrase took 4.4 s -- engine or road?).
+        eng = last_timing.get('speak')
+        parts.append(f"{ms}={last_timing.get('speak.desc', '?')} {eng}+road {ms - eng}" if eng is not None else f'{ms}=?')
     if not times:
         continue
     late = max(times) > lead
     print(f'  wait {lang} {kind}: {len(times)} phrases, synth {min(times)}..{max(times)} ms, '
           f'lead {lead} ms -- {"LATE (not ready at its moment: the session skips it)" if late else "ok"}')
+    print(f'      each: {"; ".join(parts)}')
+    # The player gives each sentence speakDeadlineMs(chars) before the
+    # device's voice reads it instead (cycle 10). Read from the source, so a
+    # new deadline is checked the day it lands.
+    try:
+        session_src = open(os.environ['V_SESSION']).read()
+    except OSError:
+        session_src = ''
+    dl = re.search(r'function speakDeadlineMs[^{]*\{\s*return (\d[\d_]*) \+ (\d+) \* chars', session_src)
+    if dl:
+        base, per = int(dl.group(1).replace('_', '')), int(dl.group(2))
+        tight = [t for t, ms in zip(texts, times) if ms * 2 > base + per * len(t)]
+        if tight:
+            print(f'      deadline: {len(tight)} phrase(s) used over half of the player\'s speak deadline -- the device voice is near')
+            mark(2)
     if late:
         mark(2)
 if os.environ.get('V_FILLER'):

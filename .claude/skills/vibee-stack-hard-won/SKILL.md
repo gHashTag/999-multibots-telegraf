@@ -11009,3 +11009,14 @@ Iteration 9: server errors and the clip properties panel.
   is passed through untouched -- it is not ours to translate.
 - **Price unit keys stay keys.** See continuous-improvement-loop, lesson of
   iteration 9: translate the unit where it is drawn, not where it is decided.
+
+Iteration 10: the web top-up, where money is reported.
+
+- **Money sentences are a pure function.** `player/src/lib/topUpText.ts`
+  maps a `TopUpEvent` to text per language; the hook only picks the event.
+- **Server reasons, two different answers so far.** The web translates a
+  known `/api/tokens/invoice` reason by its exact wording and replaces an
+  unknown Russian one with "Couldn't start the payment" for an English
+  reader. iOS (iteration 9) passes a server message through untouched. The
+  real fix is server-side (send a code, not a sentence); until then, a new
+  server reason is Russian on an English iPhone.
