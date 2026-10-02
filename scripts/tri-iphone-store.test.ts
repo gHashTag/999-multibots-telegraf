@@ -102,6 +102,23 @@ describe('tri iphone store / testflight', () => {
     expect(r.lanes).toEqual([])
   })
 
+  it('every mode the header and the help name is dispatched or accepted', () => {
+    // The refusal above must not swallow a documented word: the header said
+    // `install` long before there was a branch for it (default path).
+    const src = fs.readFileSync(TRI, 'utf8')
+    const fn = src.slice(src.indexOf('cmd_iphone() {'))
+    const body = fn.slice(0, fn.indexOf('\n}\n'))
+    const known = new Set<string>([
+      ...[...body.matchAll(/\[ "\$mode" = "([\w-]+)" \]/g)].map(m => m[1]),
+      ...(body.match(/^\s*([\w|-]+)\) ;;$/m)?.[1].split('|') ?? []),
+    ])
+    const documented = [
+      ...src.matchAll(/^#? *tri iphone \[([\w|-]+)\]/gm),
+    ].flatMap(m => m[1].split('|'))
+    expect(documented.length).toBeGreaterThan(5)
+    expect(documented.filter(m => !known.has(m))).toEqual([])
+  })
+
   it('stops at the first failing lane and says which', () => {
     fs.writeFileSync(
       path.join(bin, 'fastlane'),
