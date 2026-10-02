@@ -656,6 +656,17 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
 
 ## Common issues
 
+- **Type errors that vitest never shows.** Cycle 13 put 10 into the player's
+  ratchet: spreading `extra: Partial<VoiceDeps>` over the test deps widened
+  `d.transcribe` to a union, and `vi.fn(async () => ...)` has no parameters,
+  so `mock.calls[0][0]` has no type. Give test mocks their real parameters
+  and pick only the fields a helper overrides (`Pick<VoiceDeps, 'voiceHolds'>`).
+  Check one file fast with a temporary tsconfig that extends
+  `tsconfig.app.json` and includes only the test (delete it after).
+- **"a cough held it" fails under heavy load** (load average 200+): a
+  real-timer filler ("Let me see.") lands in `spoken`. It passed 57/57
+  twice right after; a red run on a starved machine is not a verdict.
+
 - **Tests stub `speechSynthesis`, not audio.** `synthesize` throws in the
   test session, so the device voice path is what gets exercised; the test
   controls when a sentence "ends". Keep that pattern for new tests.
