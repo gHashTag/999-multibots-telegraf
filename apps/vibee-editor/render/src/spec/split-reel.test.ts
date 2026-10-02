@@ -15,6 +15,7 @@ import {
   STUDIO_FACE,
 } from '../split-reel-plan'
 import {
+  analyzeReel,
   parseSceneCuts,
   parseShotVerdict,
   rhythmAgainstSpec,
@@ -187,6 +188,21 @@ describe('reel_analyze reads the reference reel back into the spec', () => {
   const stderr = [1.9, 1.93, 5.9, 7.4, 11.4, 12.9, 14.7]
     .map(t => `[Parsed_showinfo_1] n:0 pts:1 pts_time:${t} duration:1`)
     .join('\n')
+
+  it('a url the model chose goes through the guarded door, or nowhere', async () => {
+    // Decided before any socket opens: an internal name, the cloud metadata
+    // address, a port an internal service answers on. The answer names no
+    // status, so it says nothing about which internal address is alive.
+    for (const url of [
+      'http://vibee-render.railway.internal/reel.mp4',
+      'http://169.254.169.254/latest/meta-data/',
+      'http://example.com:5432/reel.mp4',
+    ]) {
+      const r = await analyzeReel(url)
+      expect(r.ok).toBe(false)
+      expect(String(r.why)).not.toMatch(/download|HTTP/)
+    }
+  })
 
   it('one cut per change, a flicker after it is the same cut', () => {
     expect(parseSceneCuts(stderr)).toEqual([1.9, 5.9, 7.4, 11.4, 12.9, 14.7])
