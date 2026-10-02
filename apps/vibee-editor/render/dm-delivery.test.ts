@@ -961,14 +961,19 @@ describe('the real generator keeps a stamped picture out of a client chat', () =
    * fetch (download, S3 upload) is recorded so a refusal can be seen to stop
    * before it.
    */
+  let params: unknown[] = []
   const pool = {
-    query: async () => ({ rows: [{ balance: 50, n: 0, count: 0, id: 1 }] }),
+    query: async (_sql: string, p: unknown[] = []) => {
+      params.push(...p)
+      return { rows: [{ balance: 50, n: 0, count: 0, id: 1 }] }
+    },
   }
   let urls: string[] = []
   const prevHouse = process.env.HOUSE_TELEGRAM_IDS
   beforeEach(() => {
     process.env.HOUSE_TELEGRAM_IDS = ''
     urls = []
+    params = []
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
@@ -1003,6 +1008,13 @@ describe('the real generator keeps a stamped picture out of a client chat', () =
     expect(r.watermark).toBe('pollinations.ai')
     expect(JSON.stringify(r)).not.toContain('image.pollinations.ai')
     expect(urls.filter(u => !u.includes('/api/generate/image'))).toEqual([])
+    // The client paid on the way in; the refusal gives it back.
+    expect(
+      params.some(v => /^refund: image_generate/.test(String(v))),
+      'the client was charged and not refunded'
+    ).toBe(true)
+    // Bee review of #3421: nobody tells the owner, so nothing may promise him.
+    expect(String(r['причина'])).not.toMatch(/пришл[её]т владелец/) // cyrillic-ok: tool answer text
   })
 
   it("the owner's own surface still gets the draft", async () => {
