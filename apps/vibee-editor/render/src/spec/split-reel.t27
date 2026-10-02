@@ -11,8 +11,9 @@
 //       split 120, full 45, split 54, full to the end: the rhythm this spec fixes.
 // Order of a reel: STUDIO (owner-studio.t27, the face) -> voice (the person's own clone)
 //       -> lipsync (Kie, primary) -> b-roll stills (Kie) -> Remotion SplitTalkingHead.
-// Claim status: plan + host planner unit-tested; no reel rendered from it yet (2026-10-02:
-//       the owner's voice clone sits on Replicate, which answered 402, no credit).
+// Claim status: two reels rendered from it on 2026-10-02, both on Kie, both with the owner's
+//       real voice notes cut on their pauses: the trained clone lives on Replicate, which is
+//       not paid for, and Kie has no voice cloning.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::split_reel {
@@ -20,7 +21,7 @@ module automation::split_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "split-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- Where it is drawn --------------------------------------------------------------
     pub const COMPOSITION : str = "SplitTalkingHead";
@@ -35,6 +36,10 @@ module automation::split_reel {
     pub const SPLIT_FRAMES : u32 = 120;  // b-roll on top, measured 120 twice
     pub const FULL_FRAMES : u32 = 45;  // back to the face, measured 45 twice
     pub const MAX_SECONDS : u32 = 15;
+    // No shot shorter than a second. The voice decides where the reel ends, and a
+    // 13.35 s voice left an 11-frame split at the end: a flash of b-roll nobody can
+    // read. A tail that short joins the shot before it.
+    pub const MIN_SHOT_FRAMES : u32 = 30;
     pub const SPLIT_PCT : u32 = 50;  // the seam sits in the middle
     // The talking head FILLS the lower half of a split, as in the reference. The
     // composition's own default is a 25% circle on black: the first reel rendered
@@ -46,8 +51,8 @@ module automation::split_reel {
     pub const WORDS_PER_CAPTION : u32 = 1;
     pub const TEXT_IN_BROLL : bool = false;  // captions carry the words, never the pictures
 
-    // How many segments a reel of this many frames is cut into.
-    fn segment_count(total : u32) -> u32 {
+    // The cut before the short-tail rule: the rhythm run until the voice ends.
+    fn raw_count(total : u32) -> u32 {
         if total <= OPEN_FULL_FRAMES {
             return 1;
         }
@@ -63,8 +68,7 @@ module automation::split_reel {
         return 3 + pairs * 2;
     }
 
-    // How long the last segment runs: the cut that the end of the voice decides.
-    fn last_frames(total : u32) -> u32 {
+    fn raw_last(total : u32) -> u32 {
         if total <= OPEN_FULL_FRAMES {
             return total;
         }
@@ -76,6 +80,42 @@ module automation::split_reel {
             return tail;
         }
         return tail - SPLIT_FRAMES;
+    }
+
+    // How long the shot before the raw last one runs.
+    fn raw_before_last(total : u32) -> u32 {
+        let rest : u32 = total - OPEN_FULL_FRAMES;
+        let tail : u32 = rest % (SPLIT_FRAMES + FULL_FRAMES);
+        if tail > SPLIT_FRAMES {
+            return SPLIT_FRAMES;
+        }
+        if rest < SPLIT_FRAMES + FULL_FRAMES {
+            return OPEN_FULL_FRAMES;
+        }
+        return FULL_FRAMES;
+    }
+
+    fn tail_joins(total : u32) -> bool {
+        if raw_count(total) == 1 {
+            return false;
+        }
+        return raw_last(total) < MIN_SHOT_FRAMES;
+    }
+
+    // How many segments a reel of this many frames is cut into.
+    fn segment_count(total : u32) -> u32 {
+        if tail_joins(total) {
+            return raw_count(total) - 1;
+        }
+        return raw_count(total);
+    }
+
+    // How long the last segment runs: the cut that the end of the voice decides.
+    fn last_frames(total : u32) -> u32 {
+        if tail_joins(total) {
+            return raw_before_last(total) + raw_last(total);
+        }
+        return raw_last(total);
     }
 
     fn fits(total : u32) -> bool {
@@ -100,6 +140,15 @@ module automation::split_reel {
         assert(WORDS_PER_CAPTION == 1);
         assert(CAPTION_COLOR == "#FFFF00");
         assert(OWN_VOICE);
+    }
+
+    test "a tail shorter than a second joins the shot before it" {
+        assert(segment_count(401) == 5);
+        assert(last_frames(401) == 56);
+        assert(segment_count(190) == 2);
+        assert(last_frames(190) == 130);
+        assert(segment_count(61) == 1);
+        assert(last_frames(61) == 61);
     }
 
     test "in a split the face fills the lower half, not a circle" {
