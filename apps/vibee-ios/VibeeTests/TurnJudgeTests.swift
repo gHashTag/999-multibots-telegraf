@@ -58,6 +58,18 @@ final class TurnJudgeTests: XCTestCase {
     XCTAssertEqual(t, 6.9, accuracy: 0.1)
   }
 
+  /// Words, then a kettle that never stops: the hum is learned as the room,
+  /// which clears `spoke`, but the words were said and must be sent, so the
+  /// verdict is the end of a turn, never "nobody spoke" (reviewer bee, #3360).
+  func testSpeechThenAHumIsStillATurn() {
+    let (v, _) = run { t in
+      if t < 1 { return self.room }
+      if t < 4 { return Int((t - 1) / 0.15) % 2 == 0 ? 0.9 : 0.2 }
+      return 0.1 + 0.005 * sin(t * 7)
+    }
+    XCTAssertEqual(v, .ended)
+  }
+
   /// The floor learns only between phrases, as the web's does: hushed gaps
   /// between words must not raise it, or soft last words count as silence.
   /// (The first port learned between words; this is what caught it.)

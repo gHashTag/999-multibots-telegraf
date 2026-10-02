@@ -15,7 +15,8 @@ import Foundation
  *   a voice (speech swings several times over within a second): it becomes
  *   the new floor, and whatever it started is dropped.
  * - Nobody spoke for `nobodySpoke`: the mic gives up instead of listening
- *   to the room until the 60 s limit.
+ *   to the room until the 60 s limit. If someone DID speak and a hum then
+ *   took over, that is the end of their turn, not silence.
  *
  * Pure, no clock and no audio of its own, so a test (and a `swift` script,
  * without a simulator) drives it with made-up levels.
@@ -35,6 +36,11 @@ struct TurnJudge {
   /// What the room sounds like when nobody talks (amplitude, 0..1).
   private(set) var floor = 0.01
   private(set) var spoke = false
+  /// Someone spoke at some point in this recording. Unlike `spoke`, a fan
+  /// learned as the room never clears it: speech followed by a steady hum
+  /// is still speech, and must reach the ears (reviewer bee on #3360).
+  private(set) var everSpoke = false
+  private var spokeAt: TimeInterval?
   private var window: [(at: TimeInterval, level: Double)] = []
   private var loudSince: TimeInterval?
   private var quietSince: TimeInterval?
@@ -57,9 +63,14 @@ struct TurnJudge {
       loudSince = nil
       if quietSince == nil { quietSince = now }
     }
-    if !spoke, let l = loudSince, now - l > Self.onset { spoke = true }
+    if !spoke, let l = loudSince, now - l > Self.onset {
+      spoke = true
+      everSpoke = true
+      spokeAt = now
+    }
     if spoke, let q = quietSince, now - q > Self.endOfTurn { return .ended }
-    if !spoke, now - started > Self.nobodySpoke { return .nobodySpoke }
+    // A hum swallowed the end of a turn that was spoken: the turn is over.
+    if !spoke, now - started > Self.nobodySpoke { return everSpoke ? .ended : .nobodySpoke }
     return .going
   }
 
@@ -80,6 +91,9 @@ struct TurnJudge {
     if levels.max()! > levels.min()! * Self.steadySpread { return true }
     // Loud and flat for two seconds: the room. Learn it, forget what it began.
     floor = levels.reduce(0, +) / Double(levels.count)
+    // If the hum itself is what counted as speaking, nobody spoke; words
+    // that came before the hum (outside its two flat seconds) still count.
+    if let s = spokeAt, s >= first.at - Self.onset { everSpoke = false }
     window = []
     spoke = false
     return false
