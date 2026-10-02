@@ -3479,7 +3479,7 @@ cmd_deps() {
 # is already the tree's own. `cp -c` clones on APFS (near-free), `--reflink`
 # does the same on Linux filesystems that can, else it is a plain copy.
 own_deps() {
-  local main="$1" wt="$2" rel target n=0
+  local main="$1" wt="$2" rel target link n=0
   while IFS= read -r rel; do
     [ -z "$rel" ] && continue
     target="$(readlink "$wt/$rel")"
@@ -3490,6 +3490,7 @@ own_deps() {
     [ -d "$target" ] || { bad "$rel links to a missing $target -- nothing to copy"; return 1; }
     # A target that is itself a link would be copied AS a link (cp -R does not
     # follow it), and the tree would still share an install. Copy what it means.
+    link="$target"
     target="$(cd -P "$target" && pwd)" || return 1
     rm -- "$wt/$rel" || return 1
     # A copy that dies half-way leaves a half tree, and the next cp would nest
@@ -3499,7 +3500,7 @@ own_deps() {
         || { rm -rf -- "${wt:?}/${rel:?}"; cp -R "$target" "$wt/$rel"; }; then
       echo "  own  $rel"; n=$((n + 1))
     else
-      bad "copy of $rel failed -- relink with: ln -s $target $wt/$rel"; return 1
+      bad "copy of $rel failed -- relink with: ln -s $link $wt/$rel"; return 1
     fi
   done < <(cd "$wt" && { [ -L node_modules ] && echo node_modules; find apps -type l -name node_modules 2>/dev/null | grep -v '/node_modules/'; })
   if [ "$n" = 0 ]; then

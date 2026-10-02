@@ -10,13 +10,17 @@
  *   - a fallback, `code: reason ?? 'internal'`, where the literal was counted
  *     and the variable was not;
  *   - a value Prettier moved to the next line, `code:\n  reason`.
- * Now the literals of the value are FOUND, and every name the value can
- * evaluate to is OPAQUE, so a contract can say which references it trusts.
+ * Now the code literals of the value are FOUND, and every name -- or literal
+ * that is not a plain 'lower_snake' code -- the value can evaluate to is
+ * OPAQUE, so a contract can say which references it trusts.
  * A ternary's condition is not a value, so only its branches are read.
  *
  * Test-only: imported by the contracts, never by the server.
  */
 const QUOTED = /'([a-z_]+)'/g
+/** Any string literal, so one that is not a code can be named, not dropped. */
+const LITERAL = /'[^'\n]*'|"[^"\n]*"|`[^`\n]*`/g
+const CODE = /^'[a-z_]+'$/
 const NOT_A_VALUE = new Set([
   'null',
   'undefined',
@@ -38,9 +42,14 @@ export function codeValues(src: string) {
     // Prettier spaces a ternary's `?`; `??` and `?.` never match ' ? '.
     const q = expr.indexOf(' ? ')
     const value = q >= 0 ? expr.slice(q + 3) : expr
-    found.push(...quotedCodes(value))
+    // A literal the clients' maps cannot key -- 'bad-amount', "sign_in",
+    // a template -- is OPAQUE, not skipped: skipping it passed the contract
+    // while no client had a sentence for the code.
+    for (const lit of value.match(LITERAL) ?? [])
+      if (CODE.test(lit)) found.push(lit.slice(1, -1))
+      else opaque.push(lit)
     const names = value
-      .replace(/'[^']*'|"[^"]*"/g, ' ')
+      .replace(LITERAL, ' ')
       .match(/[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*/g)
     for (const name of names ?? [])
       if (!NOT_A_VALUE.has(name)) opaque.push(name)

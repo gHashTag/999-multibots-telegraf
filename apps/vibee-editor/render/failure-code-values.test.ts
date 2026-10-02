@@ -50,4 +50,21 @@ describe('codeValues', () => {
       opaque: [],
     })
   })
+
+  it('names a literal no client map can key, instead of dropping it', () => {
+    // Review of #3369: these read as "no codes, all known" and passed.
+    expect(codeValues("a({ code: 'bad-amount' })").opaque).toEqual([
+      "'bad-amount'",
+    ])
+    expect(codeValues('a({ code: "sign_in" })').opaque).toEqual(['"sign_in"'])
+    expect(codeValues("a({ code: 'Sign_in' })").opaque).toEqual(["'Sign_in'"])
+    // A template is cut at its `}`, so only its parts are named -- loudly.
+    const t = codeValues('a({ code: `x_${n}` })')
+    expect(t.found).toEqual([])
+    expect(t.opaque.length).toBeGreaterThan(0)
+    expect(codeValues("a({ code: ok ? 'x' : 'step-limit' })")).toEqual({
+      found: ['x'],
+      opaque: ["'step-limit'"],
+    })
+  })
 })
