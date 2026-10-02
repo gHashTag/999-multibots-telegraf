@@ -57,18 +57,39 @@ while IFS=$'\t' read -r concl id name url; do
   echo "  ✗ $name  ($concl)"
   echo "    $url"
   # The log echoes the step's script (ESC[36;1m lines), the runner's group
-  # markers and, after the verdict, a page of git cleanup. None of it is why.
+  # markers, every earlier step's setup and, after the verdict, a page of git
+  # cleanup. None of it is why.
   # Same rule as for the SHA: on failure gh prints the error body (an expired
   # log is an Azure BlobNotFound XML page) on stdout, so filter only a log
   # that gh actually returned.
-  LOG=$(lim 60 gh api "repos/$REPO/actions/jobs/$id/logs" 2>/dev/null </dev/null) || LOG=
-  printf '%s\n' "$LOG" \
+  # One retry: under load the first fetch of a fresh log sometimes times out.
+  LOG=$(lim 60 gh api "repos/$REPO/actions/jobs/$id/logs" 2>/dev/null </dev/null) \
+    || LOG=$(lim 60 gh api "repos/$REPO/actions/jobs/$id/logs" 2>/dev/null </dev/null) \
+    || LOG=
+  # Judge by what came out, not by the pipeline's status: awk exits at the
+  # failing step, and on a log larger than a pipe buffer the sed feeding it
+  # then dies of SIGPIPE -- pipefail would call a readable log unreadable.
+  TAIL=$(printf '%s\n' "$LOG" \
     | sed -E 's/^[0-9]{4}-[0-9-]+T[0-9:.]+Z //; s/\r$//' \
-    | awk '/^Post job cleanup/ {exit} {print}' \
+    | awk '
+        # Keep only the step that raised the first ##[error] -- from its
+        # "##[group]Run" header to the next step. Lines of earlier steps
+        # (checkout advice, python setup paths) are not why it failed. With
+        # no ##[error] at all, what is left is the last step, the usual culprit.
+        /^Post job cleanup/ { exit }
+        /^##\[group\]Run / { if (err) exit; n = 0 }
+        # The step header -- its echoed script, shell and env -- sits between
+        # group and endgroup; what the step printed comes after.
+        /^##\[group\]/ { hdr = 1 }
+        /^##\[endgroup\]/ { hdr = 0; next }
+        !hdr { buf[++n] = $0 }
+        /^##\[error\]/ { err = 1 }
+        END { for (i = 1; i <= n; i++) print buf[i] }' \
     | grep -v -E $'^\e\\[36;1m|^##\\[(group|endgroup)\\]|^\\[command\\]|^shell: |^env:|^  [A-Z_]+: ' \
     | sed -E $'s/\e\\[[0-9;]*m//g' \
     | grep -v -E '^\s*$' \
-    | tail -n "$KEEP" | sed 's/^/    /' \
-    || echo "    (log not readable -- open the link)"
+    | tail -n "$KEEP" | sed 's/^/    /')
+  if [ -n "$TAIL" ]; then printf '%s\n' "$TAIL"
+  else echo "    (log not readable -- open the link)"; fi
 done <<< "$BAD"
 exit 1
