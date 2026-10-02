@@ -63,8 +63,19 @@ final class VoiceInputTests: XCTestCase {
   func testOnlyTheCurrentRecorderCanCallTimeUp() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("foreign.wav")
     let foreign = try AVAudioRecorder(url: url, settings: VoiceInput.recordSettings)
+    let mine = try AVAudioRecorder(url: url, settings: VoiceInput.recordSettings)
     let v = VoiceInput()
     v.recorderStopped(ObjectIdentifier(foreign))
     XCTAssertFalse(v.timeUp)
+    // The rule itself, in the listening case an idle VoiceInput cannot reach:
+    // without the identity check a late stop would send.
+    XCTAssertTrue(VoiceInput.isTimeUp(listening: true, stopped: ObjectIdentifier(mine),
+                                      current: ObjectIdentifier(mine)))
+    XCTAssertFalse(VoiceInput.isTimeUp(listening: true, stopped: ObjectIdentifier(foreign),
+                                       current: ObjectIdentifier(mine)))
+    XCTAssertFalse(VoiceInput.isTimeUp(listening: true, stopped: ObjectIdentifier(foreign),
+                                       current: nil))
+    XCTAssertFalse(VoiceInput.isTimeUp(listening: false, stopped: ObjectIdentifier(mine),
+                                       current: ObjectIdentifier(mine)))
   }
 }

@@ -112,6 +112,10 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
       return say("Microphone access is off. Turn it on in Settings → Vibee → Microphone.",
                  "Доступ к микрофону выключен. Включите: Настройки → Vibee → Микрофон.")
     }
+    // The permission prompt can take a while: if the person left the chat
+    // (or another start won the race) meanwhile, do not record in a tab
+    // nobody is looking at.
+    guard shown, phase == .idle else { return nil }
     do {
       let session = AVAudioSession.sharedInstance()
       try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
@@ -219,8 +223,15 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
   /// Only the CURRENT recording reaching its limit is a time-up; a stop we
   /// made ourselves has already let go of the recorder.
   func recorderStopped(_ id: ObjectIdentifier) {
-    guard phase == .listening, let r = recorder, ObjectIdentifier(r) == id else { return }
-    timeUp = true
+    if Self.isTimeUp(listening: phase == .listening, stopped: id,
+                     current: recorder.map(ObjectIdentifier.init)) { timeUp = true }
+  }
+
+  /// The rule on its own, so a test can reach the listening case without a
+  /// microphone.
+  nonisolated static func isTimeUp(listening: Bool, stopped: ObjectIdentifier,
+                                   current: ObjectIdentifier?) -> Bool {
+    listening && current == stopped
   }
 
   /**

@@ -370,7 +370,9 @@ struct AgentChatView: View {
       // Voice: a recording at its time limit is sent as a second press
       // would send it; leaving the chat stops the mic and the reading.
       .onChange(of: voice.timeUp) { _, up in
-        if up { Task { await pressMic() } }
+        // A manual Stop may have finished first: pressing again then would
+        // start a recording nobody asked for.
+        if up { Task { if voice.phase == .listening { await pressMic() } } }
       }
       .onChange(of: tabIsShown) { _, shown in voice.setShown(shown) }
       .onAppear { voice.setShown(tabIsShown) }
