@@ -65,3 +65,58 @@ describe('tri starved orphans', () => {
     )
   })
 })
+
+/*
+ * The ratchet itself, on a fake tsc: the reviewer of #3334 showed the first
+ * version let a silent non-zero exit on a FED machine pass as clean.
+ */
+describe('tsc-ratchet on a fake tsc', () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, chmodSync } = createRequire(
+    import.meta.url
+  )('node:fs')
+  const { spawnSync } = createRequire(import.meta.url)('node:child_process')
+  const path = createRequire(import.meta.url)('node:path')
+  const os = createRequire(import.meta.url)('node:os')
+  const lib = path.join(path.dirname(new URL(import.meta.url).pathname), 'lib')
+
+  function run(tscBody: string, machine: object, wait = '0') {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'ratchet-'))
+    mkdirSync(path.join(dir, 'node_modules', '.bin'), { recursive: true })
+    const tsc = path.join(dir, 'node_modules', '.bin', 'tsc')
+    writeFileSync(tsc, `#!/bin/sh\n${tscBody}\n`)
+    chmodSync(tsc, 0o755)
+    const script =
+      `require(${JSON.stringify(path.join(lib, 'tsc-ratchet.cjs'))}).ratchet(` +
+      `{label:'t',dir:${JSON.stringify(path.relative(path.join(lib, '..', '..'), dir))},` +
+      `project:'tsconfig.json',baseline:0,scope:['__none__'],self:'t'})`
+    return spawnSync(process.execPath, ['-e', script], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        STARVATION_MACHINE: JSON.stringify(machine),
+        TSC_HEADROOM_WAIT: wait,
+      },
+    })
+  }
+
+  it('a silent non-zero exit on a fed machine fails as a broken run', () => {
+    const r = run('echo "error TS5058: no path"; exit 1', fed)
+    expect(r.status).toBe(1)
+    expect(r.stderr).toMatch(/сломанный запуск/) // cyrillic-ok: the gate's own words
+  })
+
+  it('a silent death on a starved machine exits 75, not 1 and not 0', () => {
+    const r = run('exit 1', loaded)
+    expect(r.status).toBe(75)
+  })
+
+  it('a clean tsc on a fed machine passes', () => {
+    expect(run('exit 0', fed).status).toBe(0)
+  })
+
+  it('a real error TS line is a finding, starved or not', () => {
+    const r = run('echo "a.ts(1,1): error TS2322: no"; exit 2', loaded)
+    expect(r.status).toBe(1)
+    expect(r.stderr).toMatch(/БОЛЬШЕ/) // cyrillic-ok: the gate's own words
+  })
+})

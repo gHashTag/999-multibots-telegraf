@@ -54,6 +54,9 @@ function swapFreeMb() {
 
 /** The machine right now: what a starvation verdict is made of. */
 function machine() {
+  /* A test pins the reading; a real gate never sets this. */
+  if (process.env.STARVATION_MACHINE)
+    return JSON.parse(process.env.STARVATION_MACHINE)
   return {
     load1: os.loadavg()[0],
     cores: os.cpus().length || 1,
