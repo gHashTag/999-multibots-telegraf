@@ -807,6 +807,18 @@ Self-critique:
   mutation-tested (extracted with swiftc, two mutants KILLED). Lesson: a
   loop that awaits (speak) can be re-entered by a gesture; give each run
   an identity before letting it clear shared state.
+- **And my fix for the silence lost real words** (second bee pass,
+  #3360): `nobodySpoke` meant "`spoke` is false at 8 s", and learning a
+  steady hum as the room clears `spoke`. Words for 3 s, then a kettle:
+  verdict `nobodySpoke`, the words never reached the ears. Now
+  `TurnJudge.everSpoke` is sticky -- cleared only when the hum ITSELF was
+  what counted as speaking (`spokeAt` inside its two flat seconds) -- and
+  a spoken turn swallowed by a hum ends as `.ended`
+  (`testSpeechThenAHumIsStillATurn`; both mutants KILLED). Trap in the
+  test data: 0.9/0.4 syllables swing 2.25x, under `steadySpread` 2.5, so
+  three seconds of them are a "fan" by the rule -- fake speech must swing
+  like speech (0.9/0.2). Lesson: a flag that a later rule resets is not
+  evidence of the past; keep a separate sticky one.
 - **Measured on battery audio, not a phone.** `averagePower` is RMS in
   dBFS, close to what `tri vad --ios` computes, not identical; the iPhone
   mic's AGC is not in the battery. Thresholds are the web's, unvalidated on
