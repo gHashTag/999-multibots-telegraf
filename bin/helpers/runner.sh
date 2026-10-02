@@ -22,12 +22,21 @@ URL=https://check-runner-production.up.railway.app
 
 if [ "${1:-}" = "deploy" ]; then
   git fetch -q origin || { echo "cannot fetch origin -- not deployed"; exit 2; }
-  if ! git diff --quiet origin/main -- deployment/check-runner/; then
-    echo "deployment/check-runner here differs from origin/main -- refusing to upload a tree main does not have"
+  # `railway up` uploads the directory as it lies on disk, so an untracked
+  # file counts as much as a changed one (bee review of #3415).
+  if ! git diff --quiet origin/main -- deployment/check-runner/ ||
+    [ -n "$(git status --porcelain --untracked-files=all -- deployment/check-runner/)" ]; then
+    echo "deployment/check-runner here differs from origin/main (changed or untracked files) -- refusing to upload a tree main does not have"
     exit 1
   fi
-  railway up deployment/check-runner --path-as-root --detach \
-    --project "$P" --environment "$E" --service "$S" 2>&1 | grep -v -i 'config as code\|migrate\|keep working'
+  out=$(railway up deployment/check-runner --path-as-root --detach \
+    --project "$P" --environment "$E" --service "$S" 2>&1)
+  rc=$?
+  echo "$out" | grep -v -i 'config as code\|migrate\|keep working'
+  if [ $rc -ne 0 ]; then
+    echo "upload FAILED (railway exit $rc) -- nothing was deployed"
+    exit 1
+  fi
   echo "uploaded; check again in ~2 min: tri runner"
   exit 0
 fi
