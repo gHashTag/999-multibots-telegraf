@@ -306,7 +306,9 @@ describe('a session the server refuses shows the same panel', () => {
   // five it refused every deploy after that merge.
   // Six on the work section since the phone redesign (2026-10-01): the
   // clients list moved to its own "contacts" section, one tap away.
-  const CRM_PANELS = 6
+  // Seven since #3396 (2026-10-02) put "Social networks" on the work
+  // section. Left at six, the image build refused every player deploy.
+  const CRM_PANELS = 7
   const panelsOnScreen = () => host.querySelectorAll('.crm__panel').length
   const notices = () => host.querySelectorAll('.crm__all-refused').length
 
