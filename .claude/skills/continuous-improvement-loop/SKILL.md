@@ -2025,3 +2025,16 @@ is done", open it live in the target language before closing the item.** For
 generated data, put the guard where the data is (a test over the whole
 catalogue), and let the counter skip that file by name on stderr -- never a
 silent skip.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 9): a Russian KEY becomes a Russian label, and the reference had it too
+
+The price unit on the run button came from `Balance.мера`, which returns the <!-- cyrillic-ok: names the function -->
+keys "с" / "1000 зн." that the screen also switches on. No literal on the <!-- cyrillic-ok: quotes the keys -->
+screen was Russian, so the counter could not see "· 6/с" on an English phone. <!-- cyrillic-ok: quotes the bug -->
+Rule: **keep the key, translate at the point of display** (`ЦенаНажатия.unitLabel`, <!-- cyrillic-ok: names the type -->
+web `priceUnitLabel`), and test both that the label changes and that the key
+does not. The web -- the wording reference for parity -- printed the same unit
+and a Russian shortfall sentence in English mode. A reference can be wrong;
+`tri iphone ru-web [file]` ranks web files by Russian literals outside a
+language branch (rough: split en/ru pairs still count) so you read the
+reference before copying it.
