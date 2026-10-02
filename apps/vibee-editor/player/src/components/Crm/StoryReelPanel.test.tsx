@@ -27,6 +27,9 @@ vi.mock('@/hooks/useLanguage', () => ({
       vars ? `${key}:${Object.values(vars).join(',')}` : key,
   }),
 }))
+vi.mock('@/lib/s3Upload', () => ({
+  uploadToS3: vi.fn(async () => 'https://cdn.example/own.jpg'),
+}))
 ;(
   globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
@@ -602,5 +605,52 @@ describe('her palette on the story panel', () => {
       save_end_card: true,
     })
     expect(calls.some(c => c.start)).toBe(false)
+  })
+})
+
+describe('the face of the reel', () => {
+  it('is the avatar by default, a chosen photo over it, and the avatar back', async () => {
+    let own = ''
+    serve(a => {
+      if (typeof a.face_url === 'string') own = a.face_url
+      if (a.ideas) return { lead: CLIENT, ideas: [] }
+      return {
+        ...READY,
+        face: own || READY.face,
+        face_custom: own !== '',
+        avatar: READY.face,
+      }
+    })
+    await draw()
+    const picker = () =>
+      host.querySelector('[data-testid="story-face-picker"]') as HTMLElement
+    expect(picker().textContent).toContain('crm.client.story.photo.avatar')
+    expect(picker().querySelector('button')).toBeNull()
+
+    const input = picker().querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement
+    const file = new File(['x'], 'me.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(input, 'files', { value: [file] })
+    await act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(calls).toContainEqual({
+      lead: CLIENT,
+      face_url: 'https://cdn.example/own.jpg',
+    })
+    expect(picker().textContent).toContain('crm.client.story.photo.own')
+    const tile = host.querySelector(
+      '.story-reel__frame img'
+    ) as HTMLImageElement
+    expect(tile.src).toBe('https://cdn.example/own.jpg')
+
+    await act(async () => {
+      ;(picker().querySelector('button') as HTMLButtonElement).click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(calls).toContainEqual({ lead: CLIENT, face_url: '' })
+    expect(picker().textContent).toContain('crm.client.story.photo.avatar')
   })
 })

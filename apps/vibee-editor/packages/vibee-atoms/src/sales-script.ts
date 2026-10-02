@@ -1,5 +1,5 @@
 import type { LocalizedText } from './agent-marketplace'
-import type { AgentPackage } from './agent-packages'
+import { agentPackageStars, type AgentPackage } from './agent-packages'
 import {
   MONTH_DAYS,
   monthTokens,
@@ -60,6 +60,10 @@ export interface SalesFollowUp {
 /** Dollars, the way the cards print them: "$35". */
 const usd = (n: number) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`
 
+/** A month's Stars with thousands grouped, per language. */
+const stars = (pkg: AgentPackage, lang: 'en' | 'ru') =>
+  agentPackageStars(pkg).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')
+
 /** A month's tokens with thousands grouped, per language. */
 const tokens = (n: number, lang: 'en' | 'ru') =>
   n.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')
@@ -70,7 +74,7 @@ const tokens = (n: number, lang: 'en' | 'ru') =>
  * that only writes (the Manager Agent has no reels and no images).
  */
 export function monthOutcome(pkg: AgentPackage): LocalizedText {
-  const t = monthTokens(pkg.monthlyUsd)
+  const t = monthTokens(pkg.allowanceUsd)
   if (pkg.media === false)
     return {
       en: `${tokens(t, 'en')} tokens a month for replies to your clients`,
@@ -83,16 +87,16 @@ export function monthOutcome(pkg: AgentPackage): LocalizedText {
   }
 }
 
-/** The monthly fee over the reels it buys, to the cent. */
+/** The monthly price over the reels its allowance buys, to the cent. */
 export function perReel(pkg: AgentPackage): number {
-  const reels = reelsIn(monthTokens(pkg.monthlyUsd))
+  const reels = reelsIn(monthTokens(pkg.allowanceUsd))
   return reels > 0 ? Math.round((pkg.monthlyUsd / reels) * 100) / 100 : 0
 }
 
 /** The steps for one package, in the order they are taken. */
 export function salesSteps(pkg: AgentPackage): SalesStep[] {
   const outcome = monthOutcome(pkg)
-  const month = monthTokens(pkg.monthlyUsd)
+  const month = monthTokens(pkg.allowanceUsd)
   return [
     {
       id: 'hello',
@@ -128,8 +132,8 @@ export function salesSteps(pkg: AgentPackage): SalesStep[] {
       id: 'value',
       aim: 'Name the outcome and its unit price before the total.',
       say: {
-        en: `Then ${pkg.name.en} is your fit: ${outcome.en}. The whole monthly fee goes into tokens — ${tokens(month, 'en')} a month, nothing kept back.`,
-        ru: `Тогда вам подходит «${pkg.name.ru}»: ${outcome.ru}. Вся абонентка уходит в токены — ${tokens(month, 'ru')} в месяц, без удержаний.`,
+        en: `Then ${pkg.name.en} is your fit: ${outcome.en}. The month includes ${tokens(month, 'en')} tokens for the agent's work.`,
+        ru: `Тогда вам подходит «${pkg.name.ru}»: ${outcome.ru}. В месяц входит ${tokens(month, 'ru')} токенов на работу агента.`,
       },
     },
     {
@@ -142,10 +146,10 @@ export function salesSteps(pkg: AgentPackage): SalesStep[] {
     },
     {
       id: 'offer',
-      aim: 'The price, said once and whole: setup, what it includes, the month after.',
+      aim: 'The price, said once and whole: what a month costs and how it renews.',
       say: {
-        en: `Launch is ${usd(pkg.setupUsd)} and the first month is inside it. From the second month it is ${usd(pkg.monthlyUsd)}. The month's allowance resets every ${MONTH_DAYS} days, and the agent reminds you ${WARN_DAYS_FIRST} days before, so nothing is lost unnoticed.`,
-        ru: `Запуск — ${usd(pkg.setupUsd)}, первый месяц уже внутри. Со второго месяца — ${usd(pkg.monthlyUsd)}. Лимит месяца обновляется каждые ${MONTH_DAYS} дней, а за ${WARN_DAYS_FIRST} дней до этого агент напомнит — ничего не пропадёт незаметно.`,
+        en: `${pkg.name.en} is ${usd(pkg.monthlyUsd)} a month (${stars(pkg, 'en')} Stars), paid every month, setup included. The month's allowance resets every ${MONTH_DAYS} days, and the agent reminds you ${WARN_DAYS_FIRST} days before, so nothing is lost unnoticed.`,
+        ru: `«${pkg.name.ru}» — ${usd(pkg.monthlyUsd)} в месяц (${stars(pkg, 'ru')} ⭐), оплата каждый месяц, настройка включена. Лимит месяца обновляется каждые ${MONTH_DAYS} дней, а за ${WARN_DAYS_FIRST} дней до этого агент напомнит — ничего не пропадёт незаметно.`,
       },
     },
     {

@@ -53,6 +53,7 @@ const STEPS = [
   'club_invoice_created',
   'club_paid',
   'club_invoice_abandoned',
+  'agent_package_paid',
 ]
 
 ;(async () => {

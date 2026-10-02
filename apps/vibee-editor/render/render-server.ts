@@ -93,6 +93,11 @@ import {
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
 import {
+  isAgentPackageSalePath,
+  handleAgentPackageSale,
+  sweepAgentPackageSales,
+} from './src/agent/agent-package-sale'
+import {
   isClonePath,
   handleClone,
   accountsOf,
@@ -2645,6 +2650,19 @@ setInterval(
             `[club] sweep booked ${booked.length} period(s): ` +
               booked
                 .map(b => `${b.telegramId}→${b.until.slice(0, 10)}`)
+                .join(', ')
+          )
+        }
+        // Agent package launches nobody verified, and every monthly renewal
+        // Telegram charged by itself (agent-package-sale.ts).
+        const packages = await sweepAgentPackageSales(pool, token)
+        if (packages.length) {
+          console.log(
+            `[agent-packages] sweep booked ${packages.length} period(s): ` +
+              packages
+                .map(
+                  b => `${b.telegramId}:${b.packageId}→${b.until.slice(0, 10)}`
+                )
                 .join(', ')
           )
         }
@@ -9060,6 +9078,19 @@ const server = createServer(async (req, res) => {
       // get the month's tokens through the ledger (kind 'grant').
       grant: clubGrantSource(),
       creditGrant: async g => creditClubGrant((await getPool()) as any, g),
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
+  // The agent packages' Stars till: the launch, then the monthly
+  // subscription, booked from the same cashier's ledger (agent-package-sale.ts).
+  if (isAgentPackageSalePath(req.url?.split('?')[0] || '')) {
+    const out = await handleAgentPackageSale(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => clubIdentity(r as any),
+      botToken: clubCashierToken(), // secret-guard-ok: a function call, no value in source
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))
