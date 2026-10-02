@@ -43,6 +43,8 @@ shift
 CASE="${1:-status}"
 [ $# -gt 0 ] && shift
 
+case "$CASE" in -h|--help|help) sed -n '2,/^set -uo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+
 MAIN=$(git -C "$ROOT" worktree list --porcelain | awk 'NR==1{print $2}')
 KEY="${AGENT_KEY:-}"
 if [ -z "$KEY" ]; then
@@ -87,10 +89,29 @@ sys.exit(1 if res.get("isError") else 0)'
 }
 
 # Tools act on the front tab; an ID argument makes that tab the front first.
-front() { [ -n "${1:-}" ] && { call browser_status "{\"front\":\"$1\"}" >/dev/null || return $?; }; return 0; }
-
 # js_string VALUE -> a JSON string literal, safe inside an argument object.
 js() { V="$1" python3 -c 'import json,os;print(json.dumps(os.environ["V"]))'; }
+
+# Tools act on the front tab; an ID argument makes that tab the front first.
+front() { [ -n "${1:-}" ] && { call browser_status "{\"front\":$(js "$1")}" >/dev/null || return $?; }; return 0; }
+
+# int VALUE NAME -> exit 2 unless VALUE is a whole number (it goes into JSON bare).
+int() { case "$1" in ''|*[!0-9]*) echo "$2 должно быть целым числом: $1"; exit 2 ;; esac; }
+
+# ids -> the tab ids of one browser_status listing, or exit 2 when the
+# listing did not come back: "no list" must never read as "no tabs".
+ids() {
+  local out
+  out=$(call browser_status '{}') || { echo "список вкладок не пришёл: $out" >&2; return 2; }
+  OUT="$out" python3 -c '
+import json, os, sys
+try:
+    d = json.loads(os.environ["OUT"])
+    pages = d["pages"] if d.get("running") else []
+    print(" ".join(p["id"] for p in pages))
+except Exception:
+    sys.exit(2)' || { echo "список вкладок не разобрать: ${out:0:200}" >&2; return 2; }
+}
 
 pretty_status() {
   python3 -c '
@@ -116,29 +137,38 @@ case "$CASE" in
   status|tabs) call browser_status '{}' | pretty_status ;;
   front)
     [ -n "${1:-}" ] || { echo "нужен id вкладки: tri browser status"; exit 2; }
-    call browser_status "{\"front\":\"$1\"}" | pretty_status ;;
+    call browser_status "{\"front\":$(js "$1")}" | pretty_status ;;
   open)
     [ -n "${1:-}" ] || { echo "нужен адрес"; exit 2; }
     t0=$(date +%s); call browser_open "{\"url\":$(js "$1")}" 120; rc=$?
     echo "за $(( $(date +%s) - t0 )) с"; exit $rc ;;
   time)
-    # Measures, then closes ONLY the tab this command opened: the new id is
-    # the one that was not in the list before.
+    # Measures, then closes ONLY the tab this command opened. Both listings
+    # must come back, and exactly one id may be new: anything else closes
+    # nothing -- the person's tab is never a guess (review on #3365).
     URL="${1:-https://example.com/}"
-    before=$(call browser_status '{}' | python3 -c 'import json,sys;print(" ".join(p["id"] for p in json.load(sys.stdin).get("pages",[])))' 2>/dev/null)
+    before=$(ids) || exit 2
     t0=$(date +%s); out=$(call browser_open "{\"url\":$(js "$URL")}" 120); rc=$?
     took=$(( $(date +%s) - t0 ))
-    after=$(call browser_status '{}' | python3 -c 'import json,sys;print(" ".join(p["id"] for p in json.load(sys.stdin).get("pages",[])))' 2>/dev/null)
-    new=""; for id in $after; do case " $before " in *" $id "*) ;; *) new="$id" ;; esac; done
     echo "новая вкладка: ${took} с (код $rc)  $URL"
     [ $rc -eq 0 ] || echo "$out"
-    if [ -n "$new" ]; then call browser_close_tab "{\"id\":\"$new\"}" >/dev/null && echo "закрыл свою: $new"
-    else echo "новой вкладки в списке нет — закрывать нечего (под мог заменить старую)"; fi
+    if after=$(ids); then
+      new=""; n=0
+      for id in $after; do case " $before " in *" $id "*) ;; *) new="$id"; n=$((n + 1)) ;; esac; done
+      opened=$(OUT="$out" python3 -c 'import json,os
+try: print(json.loads(os.environ["OUT"]).get("id") or "")
+except Exception: print("")')
+      if [ $n -eq 1 ] && { [ -z "$opened" ] || [ "$opened" = "$new" ]; }; then
+        call browser_close_tab "{\"id\":$(js "$new")}" >/dev/null && echo "закрыл свою: $new"
+      elif [ $n -eq 0 ]; then echo "новой вкладки в списке нет — ничего не закрыл (под мог заменить старую)"
+      else echo "новых id: $n ($after), открыт: ${opened:-?} — не угадываю, ничего не закрыл"; fi
+    else echo "второй список не пришёл — ничего не закрыл; открытая: tri browser status"; fi
     [ $took -le 60 ] || echo "медленнее 60 с: NEW_PAGE_TIMEOUT_MS в cdp.ts оборвёт такую вкладку"
     exit $rc ;;
   read)
+    N="${2:-2000}"; int "$N" "длина"
     front "${1:-}" || exit $?
-    call browser_read "{\"maxChars\":${2:-2000}}" | python3 -c '
+    call browser_read "{\"maxChars\":$N}" | python3 -c '
 import json, sys
 raw = sys.stdin.read()
 try:
@@ -191,6 +221,7 @@ print(json.dumps(v, ensure_ascii=False) if v else "")')
     call browser_click "{\"text\":$(js "$1")}" ;;
   xy)
     [ -n "${2:-}" ] || { echo "нужны X и Y"; exit 2; }
+    int "$1" X; int "$2" Y
     front "${3:-}" || exit $?
     call browser_click "{\"x\":$1,\"y\":$2}" ;;
   type)
@@ -223,13 +254,12 @@ print(json.dumps(v, ensure_ascii=False) if v else "")')
 })')}" 60 ;;
   close)
     [ -n "${1:-}" ] || { echo "нужен id вкладки"; exit 2; }
-    call browser_close_tab "{\"id\":\"$1\"}" ;;
+    call browser_close_tab "{\"id\":$(js "$1")}" ;;
   sign-in)
     [ -n "${1:-}" ] || { echo "нужна сеть: x, linkedin, reddit, threads…"; exit 2; }
     call browser_sign_in "{\"network\":$(js "$1")}" 120 ;;
   call)
     [ -n "${1:-}" ] || { echo "нужно имя инструмента"; exit 2; }
     call "$1" "${2:-$NONE}" "${3:-120}" ;;
-  -h|--help|help) sed -n '2,/^set -uo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//' ;;
   *) echo "неизвестный случай: $CASE  (tri browser help)"; exit 2 ;;
 esac
