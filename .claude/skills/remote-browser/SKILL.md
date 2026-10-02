@@ -376,12 +376,13 @@ passes it as `ctx.probe`, the journal keeps probes apart (last 20) and
 
 **A look is a probe; anything he can see happen is not** (#3434, 03.10).
 `bin/helpers/b.sh` sends status|tabs|read|shot|desk|wait|layers|composer and
-`tri logins` with the probe by default. An unmarked `tri logins` was journaled
-as agent work, and 120 s later the owner got an "agent work over MCP" report.
-`find` scrolls the page and `share-check` opens tabs, so both stay journaled and
-reported: there is no invisible mode. A probe that finds the pod running with
-no visit row (the reaper took it) is told exactly that (`noBrowserError` in
-agent-tools.ts), not "no browser is running".
+`tri logins` with the probe by default (doctor and tidy mark their reads by
+hand). An unmarked `tri logins` was journaled as agent work, and two minutes
+later the owner got an "agent work over the connection" report. `find` scrolls
+the page and `share-check` opens tabs, so both stay journaled and reported
+(only share-check's cookie-name read is a probe): there is no invisible mode. A
+probe that finds the pod running with no visit row (the reaper took it) is told
+exactly that (`noBrowserError` in agent-tools.ts), not "no browser is running".
 
 ## Человек видит работу агента у себя в чате (22.09.2026, #2809, #2813)
 
