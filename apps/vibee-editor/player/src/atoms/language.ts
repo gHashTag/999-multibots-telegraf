@@ -91,6 +91,9 @@ const en: Translations = {
   'hiveAccount.modelCurrent': 'Now: {model} · keys: {n}',
   'hiveAccount.modelDefault': 'Default: {model}',
   'hiveAccount.modelLabel': 'Model',
+  'hiveAccount.modelsLoading': 'Loading the provider’s models…',
+  'hiveAccount.modelsUnavailable':
+    'The provider’s model list did not load; the current and default models are offered. Refresh to try again.',
   'hiveAccount.modelApply': 'Apply to all {n} keys',
   'hiveAccount.modelChecking':
     'Checking the model through one of your keys. A slow model can take up to three minutes.',
@@ -3072,6 +3075,9 @@ const ru: Translations = {
   'hiveAccount.modelCurrent': 'Сейчас: {model} · ключей: {n}',
   'hiveAccount.modelDefault': 'По умолчанию: {model}',
   'hiveAccount.modelLabel': 'Модель',
+  'hiveAccount.modelsLoading': 'Загружаем модели провайдера…',
+  'hiveAccount.modelsUnavailable':
+    'Список моделей провайдера не загрузился; доступны текущая модель и модель по умолчанию. Обновите страницу, чтобы повторить.',
   'hiveAccount.modelApply': 'Применить ко всем ({n})',
   'hiveAccount.modelChecking':
     'Проверяем модель через один из ваших ключей. Медленная модель может отвечать до трёх минут.',
