@@ -27,6 +27,9 @@ vi.mock('@/hooks/useLanguage', () => ({
       vars ? `${key}:${Object.values(vars).join(',')}` : key,
   }),
 }))
+vi.mock('@/lib/s3Upload', () => ({
+  uploadToS3: vi.fn(async () => 'https://cdn.example/own.jpg'),
+}))
 ;(
   globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
@@ -113,10 +116,10 @@ describe('the story-reel panel', () => {
     serve(() => READY)
     await draw()
     expect(calls[0]).toEqual({ lead: CLIENT })
-    const marks = [...host.querySelectorAll('.crm-client__story-marks dd')].map(
-      d => d.getAttribute('data-mark')
+    const marks = [...host.querySelectorAll('.story-reel__chips li')].map(d =>
+      d.getAttribute('data-mark')
     )
-    expect(marks).toEqual(['yes', 'yes', 'yes'])
+    expect(marks).toEqual(['yes', 'yes', 'vip'])
     expect(host.textContent).toContain('https://t.me/example_bot?start=reel')
     expect(host.textContent).toContain('Одна ваза — три комнаты')
     expect(host.querySelector('a')?.getAttribute('href')).toBe(
@@ -133,12 +136,64 @@ describe('the story-reel panel', () => {
     await draw()
     const price = host.querySelector('[data-testid="story-reel-price"]')
     expect(price?.textContent).toBe('crm.client.story.price:218')
-    const press = host.querySelector('.crm-client__duet-go')!
+    const press = host.querySelector('.story-reel__go')!
     expect(
       Boolean(
         price!.compareDocumentPosition(press) & Node.DOCUMENT_POSITION_FOLLOWING
       )
     ).toBe(true)
+  })
+
+  /*
+   * Owner 2026-10-02: the count of frames is the seller's to set -- three by
+   * default, the server's range, the price of the chosen count above the
+   * press, and the count sent with the start.
+   */
+  it('sets the number of frames, prices it and sends it', async () => {
+    serve(a =>
+      a.start
+        ? { started: true, topic: '' }
+        : {
+            ...READY,
+            price_tokens: 270,
+            scenes: {
+              default: 3,
+              min: 1,
+              max: 4,
+              price_tokens: { 1: 100, 2: 185, 3: 270, 4: 355 },
+            },
+          }
+    )
+    await draw()
+    const count = () =>
+      host.querySelector('[data-testid="story-reel-count"]')?.textContent
+    const tiles = () => host.querySelectorAll('.story-reel__frame').length
+    expect(count()).toBe('3')
+    expect(tiles()).toBe(4) // three frames and the call
+    const [less, more] = [
+      ...host.querySelectorAll('.story-reel__stepper button'),
+    ] as HTMLButtonElement[]
+    await act(async () => more.click())
+    expect(count()).toBe('4')
+    expect(more.disabled).toBe(true)
+    expect(tiles()).toBe(5)
+    expect(
+      host.querySelector('[data-testid="story-reel-price"]')?.textContent
+    ).toBe('crm.client.story.price:355')
+    await act(async () => {
+      less.click()
+      less.click()
+    })
+    await act(async () => {
+      ;(host.querySelector('.story-reel__go') as HTMLButtonElement).click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(calls).toContainEqual({
+      lead: CLIENT,
+      start: true,
+      scene_count: 2,
+      to: 'dm',
+    })
   })
 
   it('"watch" is a finger-sized link (tri shot: it was 17 px)', async () => {
@@ -163,7 +218,7 @@ describe('the story-reel panel', () => {
     await draw()
     expect(host.textContent).toContain('для рилса не хватает: голос')
     // No START button: the palette can still be looked at and kept.
-    expect(host.querySelector('.crm-client__duet-start')).toBeNull()
+    expect(host.querySelector('.story-reel__go')).toBeNull()
   })
 
   it('starts a reel for THIS client on the typed topic, and says so', async () => {
@@ -172,28 +227,25 @@ describe('the story-reel panel', () => {
     )
     await draw()
     const input = host.querySelector(
-      '.crm-client__duet-start input'
-    ) as HTMLInputElement
+      '.story-reel__topic'
+    ) as HTMLTextAreaElement
     await act(async () => {
       const set = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
+        HTMLTextAreaElement.prototype,
         'value'
       )!.set!
       set.call(input, 'Букет недели')
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
     await act(async () => {
-      ;(
-        host.querySelector(
-          '.crm-client__duet-start button'
-        ) as HTMLButtonElement
-      ).click()
+      ;(host.querySelector('.story-reel__go') as HTMLButtonElement).click()
       await new Promise(r => setTimeout(r, 0))
     })
     expect(calls).toContainEqual({
       lead: CLIENT,
       start: true,
       topic: 'Букет недели',
+      to: 'dm',
     })
     expect(host.textContent).toContain('crm.client.story.started:Букет недели')
   })
@@ -553,5 +605,52 @@ describe('her palette on the story panel', () => {
       save_end_card: true,
     })
     expect(calls.some(c => c.start)).toBe(false)
+  })
+})
+
+describe('the face of the reel', () => {
+  it('is the avatar by default, a chosen photo over it, and the avatar back', async () => {
+    let own = ''
+    serve(a => {
+      if (typeof a.face_url === 'string') own = a.face_url
+      if (a.ideas) return { lead: CLIENT, ideas: [] }
+      return {
+        ...READY,
+        face: own || READY.face,
+        face_custom: own !== '',
+        avatar: READY.face,
+      }
+    })
+    await draw()
+    const picker = () =>
+      host.querySelector('[data-testid="story-face-picker"]') as HTMLElement
+    expect(picker().textContent).toContain('crm.client.story.photo.avatar')
+    expect(picker().querySelector('button')).toBeNull()
+
+    const input = picker().querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement
+    const file = new File(['x'], 'me.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(input, 'files', { value: [file] })
+    await act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(calls).toContainEqual({
+      lead: CLIENT,
+      face_url: 'https://cdn.example/own.jpg',
+    })
+    expect(picker().textContent).toContain('crm.client.story.photo.own')
+    const tile = host.querySelector(
+      '.story-reel__frame img'
+    ) as HTMLImageElement
+    expect(tile.src).toBe('https://cdn.example/own.jpg')
+
+    await act(async () => {
+      ;(picker().querySelector('button') as HTMLButtonElement).click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(calls).toContainEqual({ lead: CLIENT, face_url: '' })
+    expect(picker().textContent).toContain('crm.client.story.photo.avatar')
   })
 })

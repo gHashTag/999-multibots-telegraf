@@ -316,6 +316,14 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
+  tri iphone [check|build|sim|off|test|ru]
+        The Vibee app on the REAL phone: build, install, launch -- one command.
+        `sim` does the same on the simulator, with a deadline on install.
+        Asks devicectl first, so a locked or unplugged phone is named as such
+        instead of xcodebuild's "Unable to find a destination". `check` only
+        answers whether the phone is reachable (exit 0); `build` compiles for
+        the phone without it. VIBEE_DEVICE picks another paired phone.
+
   tri gate
         Run what CI should have run: types, tests, the iOS build, Cyrillic.
         Not an equal substitute -- one machine, one Node, one Xcode -- but
@@ -334,7 +342,7 @@ CHECKS THAT EACH COST A CYCLE
         Section 3 needs xcodegen (brew install xcodegen). Without it the iOS
         build is reported as not measured, never as passing.
 
-  tri cyrillic [staged | --unused]
+  tri cyrillic [staged | --unused | msg FILE]
         WHY the Cyrillic gate blocks a line, not just which line. Prints, per
         refusal: which Cyrillic word this commit does not also remove (so the
         reflow exemption cannot apply), and the way out for that SHAPE --
@@ -347,6 +355,10 @@ CHECKS THAT EACH COST A CYCLE
         Reads the same records the gate decides on, so the explanation cannot
         drift from the verdict. Exit code matches the gate: 0 clean, 1 blocked,
         2 the diff could not be read.
+
+        `msg FILE` checks a commit message with the commit-msg hook's own
+        script BEFORE committing. The hook runs after the slow pre-commit, so a
+        Cyrillic type name in the message cost the whole run twice.
 
         `--unused` is `eslint --report-unused-disable-directives` for this
         marker: every  cyrillic-ok  that no longer guards anything. First run,
@@ -386,6 +398,77 @@ CHECKS THAT EACH COST A CYCLE
         The server caps the window at 200 events, so the oldest day in the
         output is partial and its count means nothing on its own.
 
+  tri voice [--runs N] | tri голос
+        The voice mode end to end: status, warm-up, a fixed phrase spoken in
+        Russian and English by OUR engine, and each heard back by OUR whisper
+        N times (default 3). The MEDIAN is the verdict -- one sample lied by
+        2.5 s -- and the render's Server-Timing splits it into upload, whisper
+        and the road; the hearing leg is named by the engine that did it
+        (gigaam/parakeet, whisper, or both when they fell back on some runs).
+        Over 3 s to speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
+        (the render's AGENT_KEYS, first entry, up to ':'); without it only the
+        public status is read and the exit code says NOT MEASURED (2).
+        Every call goes over ONE kept-alive connection, as in the browser;
+        the handshake and the warm round trip are printed on their own line.
+
+  tri filler | tri пауза
+        The phrases said while the agent thinks ("Let me see.", "Still
+        working on it.", voice.filler.* in the player's dictionary), each
+        synthesised once as the player does, against the lead it has: the
+        audio is asked for at FILLER_PREPARE_MS and played at FILLER_FIRST_MS
+        (FILLER_STILL_MS). Slower than the lead is LATE (exit 2); a phrase
+        our voice cannot say is broken (exit 1). Each phrase is split into
+        engine and road time; one that used over half of the player's
+        speakDeadlineMs is a warning (exit 2). Also part of tri voice.
+        Needs the same key as tri voice.
+
+  tri road | tri дорога
+        Just that road line: which Railway edge answered, what a new
+        connection costs (DNS + TCP/TLS), and the warm round trip every call
+        still pays (median of 5 empty status calls). Over 0.4 s warm is SLOW
+        (exit 2). On 2026-10-02: edge sin1, render in sfo, ~250-290 ms warm.
+        No key needed.
+
+  tri turn | tri ход [--live] [phrase ...]
+        Whether the words of a pause end the turn (player/src/lib/voice/
+        turnEnd.ts): a phrase stopping on "and", "to", "uh", "и", "на" or a
+        comma gets HANGING_TURN_MS of silence, anything else END_OF_TURN_MS.
+        No phrases: its own battery, exit 1 on a wrong verdict. --live says
+        six phrases with our mouth, hears them with our ears, judges what
+        came back and prints when the words land in the pause (the "heard"
+        earcon now waits for them).
+
+  tri vad | tri шум [--legacy] [file.wav ...]
+        The mic's voice-activity gate (player/src/lib/voice/vad.ts) run tick
+        by tick over recordings, as the session runs it. With no files it
+        makes its own battery (say + ffmpeg anoisesrc, 48 kHz mono): ru/en
+        speech, fans, speech over a fan -- and prints onsets, turn ends,
+        "steady room learned" and the flattest 2 s of each (spread vs
+        STEADY_SPREAD). Exit 1 = speech taken for the room, a question over
+        a fan not heard as a turn, or a fan held as a phrase. --legacy runs
+        the gate before cycle 8 (a fan was "speech" for 30 s), unjudged.
+        Your own files are judged only if named speech-*, over-fan-*, fan-*.
+        No key, no network.
+
+  tri loop | tri виток
+        Where the last loop cycle stopped, before this one starts: dirty tree,
+        gates or pushes running IN THIS TREE, this branch's PR, and the newest
+        player/render deploys, and the player's lint ratchet (a push that
+        skipped hooks gets past it; ~25 s, TRI_LOOP_FAST=1 skips it). Exit 1 =
+        work in flight, continue it; a FAILED deploy on main blocks every
+        later merge of that service.
+
+  tri ears [status|deploy] [ru|en|mouth|all] | tri уши   (tri gigaam = tri ears ru, tri mouth = tri ears mouth)
+        The fast ears of voice mode, one image (deployment/gigaam) as two
+        services: gigaam hears Russian (GigaAM v3, ~0.15 s a phrase), parakeet
+        hears English (Parakeet TDT v2 int8, ~0.3 s), where whisper takes 2-3 s.
+        Without arguments: each one's newest deploy and which ears the render
+        routes each language to. `deploy` uploads deployment/gigaam from a
+        CLEAN tree -- neither service is wired to GitHub, so a merge alone
+        does not ship them. `mouth` is the voice's own Kokoro + Piper pool
+        (deployment/mouth, ~0.3 s an English phrase where speaches took
+        1.2-1.7 s); it ships the same way.
+
   tri pay [--invoice] | tri оплата
         Can a client pay RIGHT NOW, rail by rail.
 
@@ -420,7 +503,7 @@ CHECKS THAT EACH COST A CYCLE
         tool call rather than on the user row, and a line that says "not
         asked" every time is furniture.
 
-  tri readers [--gate] | tri читатели
+  tri readers [--gate | --run FILE...] | tri читатели
         Tests that read source as TEXT, and the paths they still believe in.
 
         `vitest related` follows the IMPORT graph, and reading a file with fs
@@ -432,6 +515,11 @@ CHECKS THAT EACH COST A CYCLE
         -- and went red when the top-up flow moved into a shared hook. The
         behaviour had not changed; only the file had. It surfaced two days
         later, dragged into a run by an unrelated import.
+
+        `--run FILE...` runs, right now, the tests that name FILE in quotes
+        -- the guards on that one file, not the directory scanners. The same
+        money guard broke the same way a second time on 2026-10-02, found
+        only five minutes into pre-push. Run it before pushing a move.
 
         `--gate` reds when a path no longer exists. A path that exists is not a
         promise: only running the test says whether the string it looks for is
@@ -1326,6 +1414,402 @@ print(n)' 2>/dev/null)
 # паритет. Поэтому перед переносом спрашиваем не «есть ли в вебе кнопка», а
 # «делает ли она что-нибудь».
 # ─────────────────────────────────────────────────────────────────────────
+# tri iphone [check|build|install] — the Vibee app on the REAL phone, one command.
+#
+# Every step had its own way to fail without saying why:
+#   * a locked or unplugged phone makes xcodebuild print "Unable to find a
+#     destination matching the provided destination specifier" -- nothing
+#     about the phone. devicectl knows (`tunnelState`), so ask it FIRST;
+#   * the phone has TWO ids: xcodebuild wants the hardware udid
+#     (00008110-...), devicectl wants the CoreDevice identifier (BF368496-...).
+#     Passing one where the other belongs fails as "device not found";
+#   * Xcode on this machine has no Apple ID: signing goes through the App
+#     Store Connect API key, and without -authenticationKey* the build stops
+#     at provisioning (memory: ios-device-build-via-asc-key);
+#   * `launch` without --terminate-existing raises the OLD process, and the
+#     screen shows yesterday's build.
+#
+#   tri iphone          build, install, launch
+#   tri iphone check    is the phone reachable right now (exit 0 = yes)
+#   tri iphone build    compile for the phone only (no install)
+#   tri iphone sim      build, install, launch on the SIMULATOR (VIBEE_SIM=udid,
+#                       default: the booted one, else boots the first iPhone
+#                       simulator). `simctl install` once hung for
+#                       11 min and `launch` for 2: the simulator (~10 GB) had
+#                       pushed swap to 5 of 6 GB. Both now have deadlines; an
+#                       install that misses it gets one simulator reboot.
+#   tri iphone off      shut every running simulator down (gives ~10 GB back)
+#   tri iphone test [Class]  unit tests with a 25-min deadline and a one-line
+#                       verdict (Class = one test class, e.g. ConnectivityTests)
+#   tri iphone ru [File]  native strings still Russian-only (count / lines)
+#   tri iphone ru-diff [ref]  lines a counter change hides vs ref (origin/main)
+#   tri iphone ru-web [file]  ROUGH count of Russian-only literals in the web
+#                       player (the parity reference is not clean either)
+#   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
+# The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
+# next build need it back. One word instead of remembering the udid.
+iphone_sim_off() {
+  local booted
+  booted=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p')
+  [ -n "$booted" ] || { good "no simulator is running"; return 0; }
+  local u
+  for u in $booted; do xcrun simctl shutdown "$u" && good "shut down $u"; done
+  echo "  …    swap now: $(sysctl -n vm.swapusage | sed -E 's/.*(used = [^ ]+ +free = [^ ]+).*/\1/')"
+}
+
+# Native strings that only exist in Russian. The tab bar follows the phone's
+# language through say(en, ru); a screen that still hard-codes Russian shows
+# an English phone a mixed app. This counts what is left, so a loop can watch
+# the number go down instead of re-grepping -- a plain grep both missed and
+# double-counted: it saw say( calls that span lines as Russian-only.
+# Not counted: say(...) and l(...) spans, comments, NSLog/print,
+# accessibilityIdentifier, `== "x"` comparisons, generated files (named on
+# stderr with the test that guards them), and lines marked
+# ru-only-ok (data that IS Russian: a server status key, a demo project).
+#   tri iphone ru          count per file and the total
+#   tri iphone ru File     the lines in one file
+iphone_ru() {
+  local ios="$1" only="${2:-}"
+  python3 - "$ios/Vibee" "$only" <<'PY'
+import os, re, sys
+root, only = sys.argv[1], sys.argv[2]
+CYR = re.compile('[Ѐ-ӿ]')
+LIT = re.compile(r'"(?:[^"\\]|\\.)*"')
+# "\(лайков)" is a variable inside an interpolation, not Russian text
+INTERP = re.compile(r'\\\([^)]*\)')
+
+def blank_calls(src, names):
+    # Replace name( ... ) with spaces, matching parens outside strings, so
+    # line numbers survive and a call spread over lines counts as one.
+    out = list(src)
+    for m in re.finditer(r'\b(?:' + '|'.join(names) + r')\(', src):
+        i, depth, instr = m.end(), 1, False
+        while i < len(src) and depth:
+            c = src[i]
+            if instr:
+                if c == '\\': i += 1
+                elif c == '"': instr = False
+            elif c == '"': instr = True
+            elif c == '(': depth += 1
+            elif c == ')': depth -= 1
+            i += 1
+        for k in range(m.start(), i):
+            if out[k] != '\n': out[k] = ' '
+    return ''.join(out)
+
+# Not UI text, each found as a false hit in AgentChatView (iteration 6):
+# o["тип"] is a server JSON key, `case "ход":` matches a server value, and
+# ("from the bot", "из бота") on one line is already a bilingual pair.
+KEY = re.compile(r'\[\s*"(?:[^"\\]|\\.)*"\s*\]')
+CASE = re.compile(r'\bcase\s+"(?:[^"\\]|\\.)*"(?:\s*,\s*"(?:[^"\\]|\\.)*")*\s*:')
+PAIR = re.compile(r'("(?:[^"\\]|\\.)*")(\s*,\s*)("(?:[^"\\]|\\.)*")')
+# GenerateScreen (iteration 7): `kind == "видео"` compares a server value --
+# only that literal goes, the UI text on the same line still counts.
+CMP = re.compile(r'[=!]=\s*"(?:[^"\\]|\\.)*"')
+
+def protocol_out(line):
+    line = KEY.sub(lambda m: ' ' * len(m.group()), line)
+    line = CASE.sub(lambda m: ' ' * len(m.group()), line)
+    line = CMP.sub(lambda m: ' ' * len(m.group()), line)
+    return PAIR.sub(lambda m: ' ' * len(m.group())
+                    if not CYR.search(m.group(1)) and CYR.search(m.group(3))
+                    else m.group(), line)
+
+def comments_out(src):
+    src = re.sub(r'/\*.*?\*/', lambda m: re.sub(r'[^\n]', ' ', m.group()), src, flags=re.S)
+    lines = []
+    for line in src.split('\n'):
+        # a // outside a string literal starts a comment
+        bare = LIT.sub(lambda m: 'x' * len(m.group()), line)
+        k = bare.find('//')
+        lines.append(line if k < 0 else line[:k])
+    return lines
+
+# Iteration 8: KieModels.swift is written by gen-kie-swift.ts and cannot carry
+# hand marks. The screen shows it through KieModelLabels, and a test fails on
+# any catalogue entry whose English label keeps Cyrillic -- that test, not
+# this counter, is the guard for generated words. `l(en, ru)` is the local
+# pair helper of testable pure functions; a call spread over lines is a pair.
+GENERATED = {'KieModels.swift': 'KieModelLabelTests'}
+
+total, per = 0, []
+for f in sorted(os.listdir(root)):
+    if not f.endswith('.swift') or (only and f != only and f != only + '.swift'):
+        continue
+    raw = open(os.path.join(root, f), encoding='utf-8').read()
+    marks = raw.split('\n')
+    if f in GENERATED:
+        print(f'  skipped {f}: generated, its words are checked by {GENERATED[f]}', file=sys.stderr)
+        continue
+    lines = [protocol_out(l) for l in comments_out(blank_calls(raw, ['say', 'l', 'NSLog', 'print', 'accessibilityIdentifier']))]
+    hits = [(n + 1, marks[n].strip()) for n, l in enumerate(lines)
+            if 'ru-only-ok' not in marks[n]
+            and any(CYR.search(INTERP.sub('', x)) for x in LIT.findall(l))]
+    if hits:
+        total += len(hits); per.append((len(hits), f, hits))
+for n, f, hits in sorted(per, reverse=True):
+    if only:
+        for ln, text in hits: print(f'  {f}:{ln}  {text[:120]}')
+    else:
+        print(f'  {n:4d}  {f}')
+print(f'  total {total} Russian-only line(s)')
+PY
+}
+
+# What a change to the counter itself hides or adds, on the SAME Swift files.
+# Iterations 6 and 7 did this by hand: a filter that drops 36 lines must have
+# every dropped line read. The old copy has to sit in $ROOT -- `tri` finds the
+# app next to itself, and run from /tmp it counted another tree and printed an
+# empty diff that looked like "no change".
+# The web is the wording reference, and iteration 9 found it printing "· 6/с"
+# and a Russian shortfall sentence in English mode. Before copying web wording,
+# look here. ROUGH on purpose: en/ru pairs split over lines still count, so it
+# ranks files to read, it is not a score to drive to zero.
+iphone_ru_web() {
+  local only="${1:-}"
+  python3 - "$ROOT/apps/vibee-editor/player/src" "$only" <<'PY'
+import os, re, sys
+root, only = sys.argv[1], sys.argv[2]
+CYR = re.compile('[Ѐ-ӿ]')
+LIT = re.compile(r"'(?:[^'\\\n]|\\.)*'|\"(?:[^\"\\\n]|\\.)*\"|`(?:[^`\\]|\\.)*?`")
+# a line that already chooses by language, logs, or is marked by the guard
+SKIP = re.compile(r"lang\s*===?\s*'(?:ru|en)'|isRu|\bru\s*[?:]|Ru\s*:|\bt\(|"
+                  r"console\.|logger\.|cyrillic-ok|ru-only-ok")
+SKIP_FILES = ('language.ts',)
+KEY = re.compile(r"\[\s*'[^'\n]*'\s*\]")
+counts, lines = {}, []
+for d, _, fs in os.walk(root):
+    if 'node_modules' in d or '__tests__' in d or '/harness' in d or '/i18n' in d:
+        continue
+    for f in fs:
+        if not f.endswith(('.ts', '.tsx')) or '.test.' in f or f in SKIP_FILES:
+            continue
+        if only and f != only:
+            continue
+        p = os.path.join(d, f)
+        for n, line in enumerate(open(p, encoding='utf-8'), 1):
+            code = line.split('//')[0] if '://' not in line else line
+            if code.lstrip().startswith(('*', '/*')) or SKIP.search(code):
+                continue
+            # vd['баланс'] is a server JSON key, not text (same filter as `ru`)  # cyrillic-ok: quotes a key
+            code = KEY.sub('', code)
+            if any(CYR.search(m) for m in LIT.findall(code)):
+                rel = os.path.relpath(p, root)
+                counts[rel] = counts.get(rel, 0) + 1
+                lines.append(f"  {rel}:{n}  {line.strip()[:110]}")
+if only:
+    print('\n'.join(lines))
+else:
+    for rel, c in sorted(counts.items(), key=lambda kv: -kv[1])[:25]:
+        print(f"  {c:4d}  {rel}")
+print(f"  total {sum(counts.values())} line(s) with a Russian literal outside a language branch (rough)")
+PY
+}
+
+iphone_ru_diff() {
+  local ios="$1" ref="${2:-origin/main}" old="$ROOT/.tri-ru-diff-old" f b
+  git -C "$ROOT" show "$ref:tri" > "$old" 2>/dev/null || { bad "no tri at $ref"; rm -f "$old"; return 2; }
+  local hidden=0 shown=0 a z
+  a=$(mktemp) z=$(mktemp)
+  for f in "$ios"/Vibee/*.swift; do
+    b=$(basename "$f")
+    bash "$old" iphone ru "$b" 2>/dev/null | grep -v ' total ' > "$a"
+    iphone_ru "$ios" "$b" 2>/dev/null | grep -v ' total ' > "$z"
+    while IFS= read -r l; do echo "  - hidden  ${l#  }"; hidden=$((hidden + 1)); done < <(comm -23 <(sort "$a") <(sort "$z"))
+    while IFS= read -r l; do echo "  + counted ${l#  }"; shown=$((shown + 1)); done < <(comm -13 <(sort "$a") <(sort "$z"))
+  done
+  rm -f "$old" "$a" "$z"
+  good "counter vs $ref: $hidden line(s) newly hidden, $shown newly counted -- read every hidden one"
+}
+
+# The unit tests, with the deadline and the summary every loop iteration
+# typed by hand: under load they take 10+ minutes, and the verdict is one line
+# in a 3000-line log. `tri iphone test FeedHandleTests` runs one class.
+iphone_test() {
+  local ios="$1" only="${2:-}" sim="${VIBEE_SIM:-}"
+  # Same build cache as `tri iphone sim`: a cache of its own made the first
+  # run a cold build, which missed the deadline under load.
+  local dd="${TMPDIR:-/tmp}/tri-iphone-dd-sim" log="${TMPDIR:-/tmp}/tri-iphone-test-${2:-all}.log"
+  local deadline
+  deadline=$(command -v timeout || command -v gtimeout) \
+    || { bad "no timeout(1) -- brew install coreutils"; return 2; }
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p' | head -1)
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices available | sed -nE 's/^ +iPhone.*\(([0-9A-F-]{36})\) \(Shutdown\).*/\1/p' | head -1)
+  [ -n "$sim" ] || { bad "no iPhone simulator at all -- create one in Xcode, or set VIBEE_SIM=udid"; return 1; }
+  local free_mb
+  free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
+  [ "${free_mb:-0}" -lt 2048 ] && { bad "only ${free_mb} MB free, need 2048 -- see tri disk, or rm -rf $dd"; return 1; }
+  local target="VibeeTests${only:+/$only}"
+  echo "  …    $target on $sim, deadline 25 min (log: $log)"
+  ( cd "$ios" && xcodegen generate --quiet && "$deadline" 1500 xcodebuild test -scheme Vibee \
+      -destination "id=$sim" -derivedDataPath "$dd" -only-testing:"$target" ) >"$log" 2>&1
+  local rc=$?
+  local verdict
+  verdict=$(grep -E "Executed [0-9]+ tests?" "$log" | tail -1 | sed -E 's/^[[:space:]]+//')
+  # A misspelt class runs nothing and xcodebuild still says success.
+  if [ "$rc" -eq 0 ] && grep -qE "Executed 0 tests" <<<"$verdict"; then
+    bad "ran 0 tests -- is there a class named '$only' in VibeeTests?"; return 1
+  fi
+  if [ "$rc" -eq 0 ]; then
+    good "${verdict:-tests passed}"
+  elif [ "$rc" -eq 124 ]; then
+    # Say where it stopped, not why: the first such message named a cause
+    # (a starved machine) nobody had measured. Swap is a lead, not a verdict.
+    bad "no verdict in 25 min; swap: $(sysctl -n vm.swapusage | sed -E 's/.*(free = [^ ]+).*/\1/'); the log ends with:"
+    tail -4 "$log" | cut -c1-140 | sed 's/^/       /'
+  else
+    bad "${verdict:-did not build}"
+    grep -E "error: |: error:|failed \(" "$log" | sort -u | head -10 | sed 's/^/       /'
+  fi
+  return "$rc"
+}
+
+iphone_sim() {
+  local ios="$1" sim="${VIBEE_SIM:-}"
+  local dd="${TMPDIR:-/tmp}/tri-iphone-dd-sim" log="${TMPDIR:-/tmp}/tri-iphone-sim.log"
+  local deadline
+  deadline=$(command -v timeout || command -v gtimeout) \
+    || { bad "no timeout(1) -- brew install coreutils"; return 2; }
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p' | head -1)
+  # `xcodebuild test` shuts its simulator down when it finishes, so "nothing
+  # booted" is the normal state right after the tests -- boot one instead of
+  # failing. Same deadline idea as install: a starved machine boots for minutes.
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices available | sed -nE 's/^ +iPhone.*\(([0-9A-F-]{36})\) \(Shutdown\).*/\1/p' | head -1)
+  [ -n "$sim" ] || { bad "no iPhone simulator at all -- create one in Xcode, or set VIBEE_SIM=udid"; return 1; }
+  if ! xcrun simctl list devices booted | grep -q "$sim"; then
+    echo "  …    booting simulator $sim"
+    xcrun simctl boot "$sim" 2>/dev/null
+    "$deadline" 300 xcrun simctl bootstatus "$sim" -b >/dev/null 2>&1 \
+      || { bad "simulator $sim did not finish booting in 300 s"; return 1; }
+  fi
+  local free_mb
+  free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
+  if [ "${free_mb:-0}" -lt 2048 ]; then
+    bad "only ${free_mb} MB free, need 2048 -- see tri disk, or rm -rf $dd"; return 1
+  fi
+  # A booted iPhone simulator is ~140 processes and ~10 GB resident; on this
+  # 16 GB machine that pushed swap to 5 of 6 GB and install/launch hung with
+  # no error (2026-10-02). `memory_pressure` still said 38% free, so ask swap.
+  local swap_free
+  swap_free=$(sysctl -n vm.swapusage | sed -E 's/.*free = ([0-9]+)\..*/\1/')
+  [ "${swap_free:-9999}" -lt 1024 ] && warn "swap has ${swap_free} MB left -- the simulator will crawl; close what you can"
+  # Only the simctl process itself: wrappers (xcrun, a tool's launcher) carry
+  # the same command line and would count one stream twice. The simulator
+  # panel keeps a narrow orientation stream of its own; that one is cheap.
+  local stray
+  stray=$(pgrep -fl "bin/simctl spawn $sim log (stream|show)" | grep -v "interface orientation")
+  [ -n "$stray" ] && warn "log stream/show on $sim (each loads the simulator; kill yours):" \
+    && sed -E 's/.*(log (stream|show))/       \1/' <<<"$stray" | cut -c1-120
+  echo "  …    building for simulator $sim (log: $log)"
+  if ! ( cd "$ios" && xcodegen generate --quiet && xcodebuild -scheme Vibee \
+      -destination "id=$sim" -derivedDataPath "$dd" build -quiet ) >"$log" 2>&1; then
+    bad "build failed:"; grep -E "error:" "$log" | head -8 | sed 's/^/       /'
+    return 1
+  fi
+  good "built"
+  local app="$dd/Build/Products/Debug-iphonesimulator/Vibee.app"
+  if ! "$deadline" 240 xcrun simctl install "$sim" "$app" >>"$log" 2>&1; then
+    warn "install did not finish in 240 s -- rebooting the simulator once"
+    "$deadline" 90 xcrun simctl shutdown "$sim" >>"$log" 2>&1
+    "$deadline" 120 xcrun simctl boot "$sim" >>"$log" 2>&1
+    "$deadline" 120 xcrun simctl bootstatus "$sim" -b >>"$log" 2>&1
+    "$deadline" 240 xcrun simctl install "$sim" "$app" >>"$log" 2>&1 \
+      || { bad "install failed after a reboot too: tail $log"; return 1; }
+  fi
+  good "installed"
+  local rc
+  "$deadline" 120 xcrun simctl launch --terminate-running-process "$sim" ai.t27.vibee >>"$log" 2>&1
+  rc=$?
+  if [ "$rc" = 124 ]; then
+    bad "launch did not answer in 120 s -- the simulator is starved (swap? tri iphone sim warns), not the app"
+    return 1
+  elif [ "$rc" != 0 ]; then
+    bad "launch failed: tail $log"; return 1
+  fi
+  good "launched the fresh build on simulator $sim"
+}
+
+cmd_iphone() {
+  local mode="${1:-all}" name="${VIBEE_DEVICE:-t27_dev}"
+  local json="${TMPDIR:-/tmp}/tri-iphone-devices.json"
+  local dd="${TMPDIR:-/tmp}/tri-iphone-dd"
+  local ios="$ROOT/apps/vibee-ios"
+  local key="$HOME/.appstoreconnect/private_keys/AuthKey_R3JF4GL93F.p8"
+  local keyjson="$HOME/.appstoreconnect/fastlane-key.json"
+
+  [ "$mode" = "sim" ] && { iphone_sim "$ios"; return; }
+  [ "$mode" = "off" ] && { iphone_sim_off; return; }
+  [ "$mode" = "test" ] && { iphone_test "$ios" "${2:-}"; return; }
+  [ "$mode" = "ru" ] && { iphone_ru "$ios" "${2:-}"; return; }
+  [ "$mode" = "ru-diff" ] && { iphone_ru_diff "$ios" "${2:-}"; return; }
+  [ "$mode" = "ru-web" ] && { iphone_ru_web "${2:-}"; return; }
+
+  if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
+    bad "devicectl did not answer (Xcode command line tools?)"; return 2
+  fi
+  local row
+  row=$(python3 - "$json" "$name" <<'PY'
+import json, sys
+devs = json.load(open(sys.argv[1]))["result"]["devices"]
+for d in devs:
+    if d["deviceProperties"].get("name") == sys.argv[2]:
+        c = d.get("connectionProperties", {})
+        print(d["identifier"], d["hardwareProperties"].get("udid", ""),
+              c.get("tunnelState", "?"), c.get("pairingState", "?"))
+        break
+PY
+)
+  if [ -z "$row" ]; then
+    bad "no paired device named '$name' -- set VIBEE_DEVICE, known:"
+    python3 -c "import json,sys;[print('       '+d['deviceProperties'].get('name','?')) for d in json.load(open(sys.argv[1]))['result']['devices']]" "$json"
+    return 2
+  fi
+  local core udid tunnel pairing
+  read -r core udid tunnel pairing <<<"$row"
+  if [ "$mode" = "build" ]; then
+    : # compiling for the phone does not need the phone
+  elif [ "$tunnel" != "connected" ]; then
+    bad "$name is $tunnel (paired: $pairing) -- unlock it and keep it on the cable or the same Wi-Fi"
+    return 1
+  else
+    good "$name reachable (udid $udid, core $core)"
+  fi
+  [ "$mode" = "check" ] && return 0
+
+  # The iOS build is the largest single eater of disk here (run.sh paid for
+  # this: a full disk left the loop unable even to write). Refuse up front;
+  # the derived-data dir is ONE fixed path, so builds reuse it, not stack.
+  local free_mb
+  free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
+  if [ "${free_mb:-0}" -lt 2048 ]; then
+    bad "only ${free_mb} MB free, need 2048 -- see tri disk, or rm -rf $dd"; return 1
+  fi
+  [ -f "$key" ] && [ -f "$keyjson" ] || { bad "App Store Connect key missing: $key / $keyjson"; return 2; }
+  local issuer
+  issuer=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['issuer_id'])" "$keyjson") || return 2
+  local dest="id=$udid"
+  [ "$mode" = "build" ] && dest="generic/platform=iOS"
+  local log="${TMPDIR:-/tmp}/tri-iphone-build.log"
+  echo "  …    building for $dest (log: $log)"
+  if ! ( cd "$ios" && xcodegen generate --quiet && xcodebuild -scheme Vibee -destination "$dest" \
+      -derivedDataPath "$dd" -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
+      -authenticationKeyPath "$key" -authenticationKeyID R3JF4GL93F \
+      -authenticationKeyIssuerID "$issuer" build -quiet ) >"$log" 2>&1; then
+    bad "build failed:"; grep -E "error:" "$log" | head -8 | sed 's/^/       /'
+    return 1
+  fi
+  good "built"
+  [ "$mode" = "build" ] && return 0
+
+  local app="$dd/Build/Products/Debug-iphoneos/Vibee.app"
+  xcrun devicectl device install app --device "$core" "$app" >"$log" 2>&1 \
+    || { bad "install failed:"; tail -5 "$log" | sed 's/^/       /'; return 1; }
+  good "installed"
+  xcrun devicectl device process launch --device "$core" --terminate-existing ai.t27.vibee >"$log" 2>&1 \
+    || { bad "launch failed (phone locked?):"; tail -5 "$log" | sed 's/^/       /'; return 1; }
+  good "launched the fresh build on $name"
+}
+
 cmd_real() {
   local name="${1:?нужно имя функции, например like или comment}"
   local web="$ROOT/apps/vibee-editor/player/src"
@@ -1678,8 +2162,15 @@ _mcp_key() {
   local f="${TRI_AGENT_KEY_FILE:-/tmp/.ak.tmp}"
   if [ -s "$f" ]; then tr -d '\r\n' < "$f"; return 0; fi
   local v
-  v=$(infisical secrets get AGENT_KEY --plain 2>/dev/null | tr -d '\r\n')
-  [ -n "$v" ] && { printf '%s' "$v"; return 0; }
+  # Bounded and with no terminal: logged out, the CLI falls into an
+  # interactive `infisical login` and waits for ever. On 2026-10-02 that hung
+  # `tri voice` for five minutes with no output, and every command that needs
+  # a key (browser, heal, saw, journal) hangs the same way.
+  v=$(timeout 15 infisical secrets get AGENT_KEY --plain </dev/null 2>/dev/null | tr -d '\r\n')
+  # A key is one token of plain characters. The CLI also prints notices to
+  # stdout (an update banner with an arrow in it), and that text was handed
+  # on as the key and broke the very first header that carried it.
+  [[ "$v" =~ ^[A-Za-z0-9._:-]{16,}$ ]] && { printf '%s' "$v"; return 0; }
   return 1
 }
 
@@ -2613,6 +3104,17 @@ cmd_cyrillic() {
   # guessing that on 2026-09-17.
   #   tri cyrillic          the branch range (same window the gate uses)
   #   tri cyrillic staged   what is in the index right now, before committing
+  #   tri cyrillic msg FILE the commit message, by the commit-msg hook's own
+  #                         script -- that hook runs AFTER the slow pre-commit,
+  #                         so a Cyrillic type name in the message cost the
+  #                         whole pre-commit twice (2026-10-02). Check first,
+  #                         then `git commit -F FILE`.
+  if [ "${1:-}" = "msg" ]; then
+    [ -f "${2:-}" ] || { echo "usage: tri cyrillic msg FILE" >&2; return 2; }
+    ( cd "$ROOT" && node "$ROOT/scripts/no-cyrillic-guard.cjs" msg "$2" ) \
+      && echo "  OK   commit message has no Cyrillic: $2"
+    return
+  fi
   ( cd "$ROOT" && node "$ROOT/scripts/cyrillic-why.cjs" "$@" )
 }
 
@@ -2665,6 +3167,47 @@ cmd_readers() {
   # does not notice: a money guard sat broken for two days that way.
   #   tri readers            the inventory, and any path that no longer exists
   #   tri readers --gate     exit 1 when a target is missing
+  #   tri readers --run FILE...  run the tests that read FILE as text, NOW,
+  #                          not five minutes into pre-push. 2026-10-02 the
+  #                          same money guard broke the same way a second time
+  #                          (top-up sentences moved out of useTokenTopUp.ts).
+  if [ "${1:-}" = "--run" ]; then
+    shift
+    [ $# -gt 0 ] || { echo "usage: tri readers --run FILE..." >&2; return 2; }
+    # By the quoted file NAME, not `--for`: `--for` also lists every scanner
+    # that walks a whole directory (106 tests for one hook) -- too many to run
+    # before a push. A guard on one file names it, as creditedIsNotOk does.
+    # Untracked files count too: the guard being added in this very change is
+    # usually the one that names the file.
+    local tests="" f
+    for f in "$@"; do
+      tests="$tests $(cd "$ROOT" && { git ls-files '*.test.ts' '*.test.tsx'
+        git ls-files --others --exclude-standard '*.test.ts' '*.test.tsx'; } \
+        | xargs /usr/bin/grep -l -F "'$(basename "$f")'" 2>/dev/null)"
+    done
+    tests=$(echo $tests | tr ' ' '\n' | sort -u)
+    if [ -z "$tests" ]; then echo "  --   no test names these files"; return 0; fi
+    echo "$tests" | sed 's/^/  reads it: /'
+    # Each test runs under the vitest config of ITS OWN package. The root
+    # config excludes player/, and a file it excludes, passed by name, is
+    # dropped SILENTLY: "75 passed" for 76 named, 2026-10-02.
+    local groups t d mine rc=0
+    groups=$(echo "$tests" | while read -r t; do
+      d=$(dirname "$t")
+      while [ "$d" != "." ] && ! ls "$ROOT/$d"/vitest.config.* >/dev/null 2>&1; do
+        d=$(dirname "$d")
+      done
+      echo "$d $t"
+    done)
+    for d in $(echo "$groups" | cut -d' ' -f1 | sort -u); do
+      mine=$(echo "$groups" | awk -v d="$d" '$1 == d { print $2 }')
+      [ "$d" = "." ] || mine=$(echo "$mine" | sed "s#^$d/##")
+      echo "  --   $(echo "$mine" | wc -l | tr -d ' ') under $d/vitest.config"
+      # shellcheck disable=SC2086
+      ( cd "$ROOT/$d" && timeout 600 npx vitest run $mine ) || rc=1
+    done
+    return $rc
+  fi
   ( cd "$ROOT" && node "$ROOT/scripts/text-readers.cjs" "$@" )
 }
 
@@ -5034,6 +5577,676 @@ cmd_secrets() {
   node "$ROOT/scripts/scan-secrets-on-disk.cjs" "${roots[@]}"
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# tri voice: the voice mode end to end, measured instead of believed.
+#
+# "The voice works" was said four times in one night (2026-10-01) and each
+# time something else was wrong: the models were cold (10 s to the first
+# word), the Russian sentence went to an English voice, the answer read card
+# markup aloud. Each of those is a number this command prints. The round trip
+# (our own TTS -> our own whisper) is the one check that needs no microphone
+# and still proves both ears and mouth are the ones a person gets.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_voice() {
+  local key runs=3
+  case "${1:-}" in --runs) runs="${2:-3}" ;; --runs=*) runs="${1#--runs=}" ;; esac
+  [[ "$runs" =~ ^[1-9][0-9]?$ ]] || { bad "--runs takes 1..99, not '$runs'"; return 2; }
+  key=$(_mcp_key 2>/dev/null) || key=''
+  V_KEY="$key" V_BASE="$RENDER" V_RUNS="$runs" V_ROAD_ONLY="${V_ROAD_ONLY:-}" \
+    V_FILLER="${V_FILLER:-}" V_LANGUAGE="$ROOT/apps/vibee-editor/player/src/atoms/language.ts" \
+    V_SESSION="$ROOT/apps/vibee-editor/player/src/lib/voice/session.ts" python3 -u - <<'PY'
+import json, os, re, statistics, sys, time, urllib.error, urllib.request
+
+base, key = os.environ['V_BASE'], os.environ['V_KEY']
+RUNS = int(os.environ['V_RUNS'])
+
+# The person's wait is not the round trip alone: first the player judges the
+# pause (END_OF_TURN_MS), and since voice-loop-4 it asks for the words after
+# EAGER_HEAR_MS of it, so that much of the hearing hides inside the pause.
+# Read from the player itself -- a copy here would drift from it.
+def player_ms(name):
+    try:
+        src = open(os.environ['V_SESSION']).read()
+    except OSError:
+        return None
+    m = re.search(r'const ' + name + r' = ([0-9_]+)', src)
+    return int(m.group(1).replace('_', '')) if m else None
+END_MS, EAGER_MS = player_ms('END_OF_TURN_MS'), player_ms('EAGER_HEAR_MS')
+
+last_timing = {}
+def server_timing(h):
+    # 'read;dur=12, hear;dur=2100;desc="gigaam"'
+    #   -> {'read': 12, 'hear': 2100, 'hear.desc': 'gigaam'}
+    # Parameters are split on ';' -- reading "dur=" to the end of the entry
+    # dropped every timing the moment the render added a desc.
+    out = {}
+    for part in (h or '').split(','):
+        name, *params = [p.strip() for p in part.split(';')]
+        for p in params:
+            k, _, v = p.partition('=')
+            if k == 'dur':
+                try:
+                    out[name] = int(float(v))
+                except ValueError:
+                    pass
+            elif k == 'desc':
+                out[name + '.desc'] = v.strip('"')
+    return out
+
+# ONE connection for every call, the way a browser keeps one. urllib opened
+# a new one per request, so every "road" it reported carried a fresh DNS +
+# TCP + TLS (150-400 ms) that a person in the app pays once, not per phrase
+# (cycle 7). The handshake is now measured on its own, below.
+from urllib.parse import urlsplit
+import http.client, socket
+u = urlsplit(base)
+conn = None
+def connect():
+    global conn
+    if conn:
+        conn.close()
+    Conn = http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection
+    conn = Conn(u.hostname, u.port, timeout=240)
+    t = time.monotonic()
+    try:
+        socket.getaddrinfo(u.hostname, u.port or 443)
+        dns = int((time.monotonic() - t) * 1000)
+        conn.connect()
+    except Exception:
+        return None, None
+    return dns, int((time.monotonic() - t) * 1000) - dns
+
+last_timing, last_headers = {}, {}
+def call(path, body=None, ctype='application/json', timeout=90, retry=True):
+    data = body if isinstance(body, (bytes, type(None))) else json.dumps(body).encode()
+    headers = {}
+    if data is not None:
+        headers['Content-Type'] = ctype
+    if key:
+        headers['X-Agent-Key'] = key
+    global last_timing, last_headers
+    last_timing, last_headers = {}, {}
+    if conn is None:
+        connect()
+    conn.timeout = timeout
+    if conn.sock:
+        conn.sock.settimeout(timeout)
+    t = time.monotonic()
+    try:
+        conn.request('POST' if data is not None else 'GET', u.path.rstrip('/') + path, body=data, headers=headers)
+        r = conn.getresponse()
+        out = r.read()
+    except (http.client.RemoteDisconnected, BrokenPipeError, ConnectionResetError, http.client.CannotSendRequest) as e:
+        # The edge closed an idle connection: open a new one and say nothing
+        # -- that is what a browser does too.
+        if retry:
+            connect()
+            return call(path, body, ctype, timeout, False)
+        return 0, str(e).encode(), int((time.monotonic() - t) * 1000)
+    except Exception as e:
+        connect()
+        return 0, str(e).encode(), int((time.monotonic() - t) * 1000)
+    last_timing = server_timing(r.getheader('Server-Timing'))
+    last_headers = {k.lower(): v for k, v in r.getheaders()}
+    return r.status, out, int((time.monotonic() - t) * 1000)
+
+worst = 0
+def mark(level):
+    global worst
+    worst = max(worst, level)
+
+# THE ROAD, split (cycle 7): the handshake a new connection pays, then the
+# round trip a warm one still pays -- the edge reaching the render and back.
+# On 2026-10-02 the edge was sin1 (Singapore) and the render ran in sfo:
+# ~250 ms warm, on every call, even for this empty status.
+dns, tls = connect()
+code, body, ms = call('/api/voice/status')
+if code != 200:
+    why = body[:120].decode(errors='replace') if code == 0 else f'HTTP {code}'
+    print(f'  status: {why} -- the voice routes did not answer')
+    sys.exit(3)
+st = json.loads(body)
+pings = [ms] + [call('/api/voice/status')[2] for _ in range(4)]
+ping = int(statistics.median(pings))
+edge = last_headers.get('x-railway-edge', '?')
+if dns is not None:
+    print(f'  road: edge {edge}, new connection {dns + tls} ms (dns {dns} + tcp/tls {tls}), '
+          f'warm round trip {ping} ms [{min(pings)}..{max(pings)}] -- every call pays the warm one')
+if ping >= 400:
+    print('  road: SLOW -- the warm round trip alone is 0.4 s; is the render far from this edge? (tri road)')
+    mark(2)
+if os.environ.get('V_ROAD_ONLY'):
+    sys.exit(worst)
+print(f"  status: hear={st.get('hear')} (ru via {st.get('hearRu', 'whisper')}, en via {st.get('hearEn', 'whisper')}) speak={st.get('speak')} (via {st.get('speakVia', 'speaches')}) "
+      f"voices ru={len(st.get('voices', {}).get('ru', []))} en={len(st.get('voices', {}).get('en', []))}")
+if not (st.get('hear') and st.get('speak')):
+    mark(1)
+if not key:
+    print('  no agent key: only the public status was read (NOT MEASURED past it)')
+    sys.exit(2)
+
+code, body, ms = call('/api/voice/warm', {'lang': 'ru'})
+if code == 401:
+    print('  warm: 401 -- this key is not a person; voice routes need one')
+    sys.exit(2)
+print(f'  warm ru: HTTP {code} {body[:80].decode(errors="replace")} in {ms} ms')
+if code != 200:
+    mark(1)
+
+# THE WAIT SAID OUT LOUD (cycle 9). The player asks for a wait phrase's
+# audio FILLER_PREPARE_MS into the thinking and plays it at FILLER_FIRST_MS
+# (FILLER_STILL_MS for "still working"): the synthesis has to fit in between,
+# or "Let me see." arrives late -- or after the answer it was covering for.
+# The phrases are read from the player's dictionary, so a new variant is
+# measured the day it lands. Each is synthesised once, as the player does.
+FIRST, STILL, PREP = (player_ms(n) for n in ('FILLER_FIRST_MS', 'FILLER_STILL_MS', 'FILLER_PREPARE_MS'))
+try:
+    lang_src = open(os.environ['V_LANGUAGE'], encoding='utf-8').read()
+except OSError:
+    lang_src = ''
+ru_at = lang_src.find('const ru: Translations')
+waits = {}
+for m in re.finditer(r"'voice\.filler\.(first|still)':\s*'([^']*)'", lang_src):
+    lang = 'ru' if ru_at >= 0 and m.start() > ru_at else 'en'
+    waits.setdefault((lang, m.group(1)), []).extend(m.group(2).split('|'))
+if not (FIRST and PREP and waits):
+    print('  wait phrases: not found in the player (FILLER_* or voice.filler.*) -- NOT MEASURED')
+    mark(2)
+for (lang, kind), texts in sorted(waits.items()):
+    lead = (FIRST if kind == 'first' else STILL) - PREP
+    times, parts = [], []
+    for text in texts:
+        code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
+        if code != 200 or len(body) <= 1000:
+            print(f'  wait {lang} "{text}": HTTP {code} -- the player falls back to the device voice')
+            mark(1)
+            continue
+        times.append(ms)
+        # Where the time went: the engine's own, or the road to it (cycle 10:
+        # a cold first English phrase took 4.4 s -- engine or road?).
+        eng = last_timing.get('speak')
+        parts.append(f"{ms}={last_timing.get('speak.desc', '?')} {eng}+road {ms - eng}" if eng is not None else f'{ms}=?')
+    if not times:
+        continue
+    late = max(times) > lead
+    print(f'  wait {lang} {kind}: {len(times)} phrases, synth {min(times)}..{max(times)} ms, '
+          f'lead {lead} ms -- {"LATE (not ready at its moment: the session skips it)" if late else "ok"}')
+    print(f'      each: {"; ".join(parts)}')
+    # The player gives each sentence speakDeadlineMs(chars) before the
+    # device's voice reads it instead (cycle 10). Read from the source, so a
+    # new deadline is checked the day it lands.
+    try:
+        session_src = open(os.environ['V_SESSION']).read()
+    except OSError:
+        session_src = ''
+    dl = re.search(r'function speakDeadlineMs[^{]*\{\s*return (\d[\d_]*) \+ (\d+) \* chars', session_src)
+    if dl:
+        base, per = int(dl.group(1).replace('_', '')), int(dl.group(2))
+        tight = [t for t, ms in zip(texts, times) if ms * 2 > base + per * len(t)]
+        if tight:
+            print(f'      deadline: {len(tight)} phrase(s) used over half of the player\'s speak deadline -- the device voice is near')
+            mark(2)
+    if late:
+        mark(2)
+if os.environ.get('V_FILLER'):
+    sys.exit(worst)
+
+# The same two phrases every run, so the timings compare across days.
+phrases = {'ru': 'Проверка голоса: раз, два, три, четыре.',  # cyrillic-ok: the phrase IS the probe
+           'en': 'Voice check: one, two, three, four.'}
+audio = {}
+# Speaking gets a median too: in cycle 5 one 4.6 s sample called English
+# TTS "SLOW" when five more measured 2.0-2.5 s with a single 4.4 s tail.
+SPEAK_RUNS = min(RUNS, 3)
+for lang, text in phrases.items():
+    times, engines, engine_ms = [], set(), []
+    for _ in range(SPEAK_RUNS):
+        code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
+        if code != 200 or len(body) <= 1000:
+            break
+        audio.setdefault(lang, []).append(body)
+        times.append(ms)
+        engines.add(last_timing.get('speak.desc', '?'))
+        if 'speak' in last_timing:
+            engine_ms.append(last_timing['speak'])
+    if len(times) == SPEAK_RUNS:
+        med = int(statistics.median(times))
+        verdict = 'ok' if med < 3000 else 'SLOW (the first word waits for this)'
+        inside = f', engine {int(statistics.median(engine_ms))} ms' if engine_ms else ''
+        print(f'  speak {lang}: {len(body)} bytes via {"/".join(sorted(engines))}, '
+              f'median {med} ms{inside} of {len(times)} [{min(times)}..{max(times)}] -- {verdict}')
+        if med >= 3000:
+            mark(2)
+        # The mouth is configured but speaches answered: it is down or
+        # refusing, and every sentence is paying for the fallback (cycle 6).
+        if st.get('speakVia') == 'mouth' and engines != {'mouth'}:
+            print(f'  speak {lang}: ANOMALY -- the mouth is configured but {"/".join(sorted(engines))} spoke (tri ears mouth)')
+            mark(1)
+    else:
+        audio.pop(lang, None)
+        print(f'  speak {lang}: HTTP {code} {body[:100].decode(errors="replace")}')
+        mark(1)
+
+# ONE sample lies. Cycle 1 reported "ru 4.6 s" from a single run; the same
+# phrase then measured 2.3 s and 5.8 s back to back. So: RUNS samples, the
+# median is the verdict, and the server's own Server-Timing splits the wait
+# into upload (read), whisper (hear) and the road (everything else).
+#
+# The same goes for the VOICE: Piper and Kokoro add noise on purpose, so no
+# two clips of one phrase are alike, and cycle 6 called the round trip
+# WRONG because one clip in ~13 swallowed a syllable ("Пверка"). So every  # cyrillic-ok: what was heard
+# clip spoken above is heard in turn: all misheard is broken, some is noted.
+for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: the expected word
+    if lang not in audio:
+        continue
+    clips = audio[lang]
+    times, hears, reads, engines, heard, missed = [], [], [], set(), '', []
+    for i in range(RUNS):
+        code, body, ms = call(f'/api/voice/transcribe?lang={lang}', clips[i % len(clips)], 'audio/mpeg')
+        text = json.loads(body).get('text', '') if code == 200 else body[:100].decode(errors='replace')
+        if not (code == 200 and probe in text.lower()):
+            missed.append(text)
+            if code != 200:
+                break
+            continue
+        heard = text
+        times.append(ms)
+        if 'hear' in last_timing:
+            hears.append(last_timing['hear'])
+            reads.append(last_timing.get('read', 0))
+            engines.add(last_timing.get('hear.desc', 'whisper'))
+    if not times:
+        print(f'  round trip {lang}: "{(missed or [""])[-1][:60]}" -- WRONG')
+        mark(1)
+        continue
+    if missed:
+        # A third or more of the clips misheard is the voice or the ears
+        # going bad, not one unlucky sample.
+        many = len(missed) * 3 >= len(missed) + len(times)
+        print(f'  round trip {lang}: {len(missed)} of {len(missed) + len(times)} clips misheard, '
+              f'e.g. "{missed[0][:50]}" -- {"CHECK the voice and the ears" if many else "one noisy sample, not a fault"}')
+        if many:
+            mark(2)
+    med = int(statistics.median(times))
+    # A four-second phrase heard in three seconds or more is the wait a
+    # person sits through after every question.
+    slow = med >= 3000
+    split = ''
+    if hears:
+        h, r = int(statistics.median(hears)), int(statistics.median(reads))
+        # Which ears heard it: "gigaam"/"parakeet", "whisper", or both when
+        # the fast ears fell back on some runs -- that mix is itself the finding.
+        ears = '/'.join(sorted(engines)) or 'whisper'
+        road = max(0, med - h - r)
+        split = f' = upload {r} + {ears} {h} + road {road} (warm round trip {ping})'
+    else:
+        split = ' (no Server-Timing: render older than voice-loop-2)'
+    print(f'  round trip {lang}: "{heard[:40]}" median {med} ms of {len(times)} '
+          f'[{min(times)}..{max(times)}]{split} -- '
+          f'{"SLOW (the person waits this after speaking)" if slow else "ok"}')
+    mark(2 if slow else 0)
+    if END_MS:
+        hidden = min(med, END_MS - EAGER_MS) if EAGER_MS else 0
+        print(f'    felt after the last word: pause {END_MS} + words {med - hidden}'
+              f' = {END_MS + med - hidden} ms'
+              + (f' (early hearing hides {hidden}; not on Safari mp4)' if hidden else ''))
+
+sys.exit(worst)
+PY
+  local rc=$?
+  if [ -n "${V_FILLER:-}" ]; then
+    case "$rc" in
+      0) good 'every wait phrase is synthesised before its moment' ;;
+      2) warn 'a wait phrase is late, or not measured -- see above' ;;
+      *) bad 'a wait phrase cannot be synthesised -- see above' ;;
+    esac
+    return "$rc"
+  fi
+  if [ -n "${V_ROAD_ONLY:-}" ]; then
+    case "$rc" in
+      0) good 'the road answers, warm round trip under 0.4 s' ;;
+      2) warn 'the road is slow -- see above' ;;
+      *) bad 'the render did not answer' ;;
+    esac
+    return "$rc"
+  fi
+  case "$rc" in
+    0) good 'the voice hears and speaks both languages' ;;
+    1) bad 'part of the voice is broken -- the lines above say which' ;;
+    2) warn 'not fully measured, or slow -- see above' ;;
+    *) bad 'the render did not answer' ;;
+  esac
+  return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri turn: the words of a pause decide when the turn is over (cycle 11).
+#
+# A phrase that stops on "and", "to", "uh", "и", "на" or a trailing comma
+# is mid-thought: the session gives it HANGING_TURN_MS of silence instead of
+# END_OF_TURN_MS (player/src/lib/voice/turnEnd.ts). The battery checks the
+# verdicts; --live speaks phrases with our own mouth, hears them with our
+# own ears, and judges what the ears returned -- the engines decide whether
+# "and" survives ("this week and" came back "this weekend." on 2026-10-02).
+# ─────────────────────────────────────────────────────────────────────────
+cmd_turn() {
+  local bench="$ROOT/apps/vibee-editor/player/scripts/turn-bench.ts" live='' a phrases=() key heard
+  for a in "$@"; do
+    case "$a" in
+      --live) live=1 ;;
+      -*) bad "tri turn [--live] [phrase ...], not '$a'"; return 2 ;;
+      *) phrases+=("$a") ;;
+    esac
+  done
+  command -v bun >/dev/null || { bad 'bun is needed to run the judge'; return 2; }
+  if [ -z "$live" ]; then
+    bun "$bench" ${phrases[@]+"${phrases[@]}"}
+    return $?
+  fi
+  key=$(_mcp_key 2>/dev/null) || key=''
+  [ -n "$key" ] || { bad 'no agent key: --live needs the render (AGENT_KEY or the vault)'; return 2; }
+  heard=$(V_KEY="$key" V_BASE="$RENDER" \
+    V_SESSION="$ROOT/apps/vibee-editor/player/src/lib/voice/session.ts" \
+    V_VAD="$ROOT/apps/vibee-editor/player/src/lib/voice/vad.ts" python3 - <<'PY'
+import json, os, re, time, urllib.request
+base, key = os.environ['V_BASE'], os.environ['V_KEY']
+def const(path, name):
+    m = re.search(r'const ' + name + r' = ([0-9_]+)', open(os.environ[path]).read())
+    return int(m.group(1).replace('_', '')) if m else 0
+EAGER, END = const('V_SESSION', 'EAGER_HEAR_MS'), const('V_VAD', 'END_OF_TURN_MS')
+# ONE kept connection, as a browser keeps one: a fresh DNS + TLS per call
+# added 0.3-1 s to every "words at" this printed on its first run.
+from urllib.parse import urlsplit
+import http.client
+u = urlsplit(base)
+conn = (http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection)(u.hostname, u.port, timeout=60)
+def call(path, body, ctype):
+    data = body if isinstance(body, bytes) else json.dumps(body).encode()
+    t = time.monotonic()
+    conn.request('POST', path, body=data, headers={'Content-Type': ctype, 'X-Agent-Key': key})
+    resp = conn.getresponse()
+    b = resp.read()
+    if resp.status != 200:
+        raise RuntimeError(f'HTTP {resp.status} {path}')
+    return b, int((time.monotonic() - t) * 1000), resp.getheader('Server-Timing')
+# [lang, text, still going]
+PROBES = (('ru', 'Покажи мне встречи на этой неделе и', True),  # cyrillic-ok: spoken probe
+          ('ru', 'Хочу записаться на', True),  # cyrillic-ok: spoken probe
+          ('ru', 'Сделай рилс про мою кофейню.', False),  # cyrillic-ok: spoken probe
+          ('en', 'Show me my unpaid invoices and', True),
+          ('en', 'I want to book a table for', True),
+          ('en', 'Open my calendar.', False))
+for lang, text, want in PROBES:
+    try:
+        audio, _, _ = call('/api/voice/speak', {'text': text, 'lang': lang}, 'application/json')
+        b, ms, timing = call(f'/api/voice/transcribe?lang={lang}', audio, 'audio/mpeg')
+        words = json.loads(b).get('text', '')
+    except Exception as e:
+        print(f'  {lang}: FAILED {e}', file=os.sys.stderr)
+        continue
+    # The guess is asked for EAGER ms into the pause; before cycle 11 the
+    # "heard" earcon played at END ms, now it waits for these words.
+    late = max(0, EAGER + ms - END)
+    engine = re.search(r'hear;dur=([0-9.]+);desc="?([^",]+)', timing or '')
+    via = f', {engine.group(2)} {int(float(engine.group(1)))} ms' if engine else ''
+    print(f'  {lang} said {json.dumps(text, ensure_ascii=False)} -> words at {EAGER + ms} ms of silence (earcon +{late} ms{via})', file=os.sys.stderr)
+    print('--want-hang' if want else '--want-over')
+    print(words)
+PY
+  ) || return 2
+  local list=()
+  while IFS= read -r a; do list+=("$a"); done <<< "$heard"
+  [ ${#list[@]} -gt 0 ] && [ -n "${list[0]}" ] || { bad 'nothing heard'; return 1; }
+  bun "$bench" "${list[@]}"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri vad: the mic's voice-activity gate over real recordings (cycle 8).
+#
+# A fan that STARTS loud was "speech" for 30 s before cycle 8 -- a question
+# asked over it waited for the utterance cap. Unit tests feed the gate
+# synthetic levels; this feeds it audio, so the STEADY_SPREAD margin is a
+# measured number. TTS is not a person and the browser's own noise
+# suppression is not applied: read it as the gate's worst case.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_vad() {
+  local legacy='' a files=() dir bench="$ROOT/apps/vibee-editor/player/scripts/vad-bench.ts"
+  for a in "$@"; do
+    case "$a" in
+      --legacy) legacy=--legacy ;;
+      -*) bad "tri vad [--legacy] [file.wav ...], not '$a'"; return 2 ;;
+      *) files+=("$a") ;;
+    esac
+  done
+  command -v bun >/dev/null || { bad 'bun is needed to run the gate'; return 2; }
+  if [ ${#files[@]} -eq 0 ]; then
+    command -v ffmpeg >/dev/null && command -v say >/dev/null \
+      || { bad 'no files given, and the battery needs ffmpeg and say (macOS)'; return 2; }
+    dir=$(mktemp -d "${TMPDIR:-/tmp}/tri-vad.XXXXXX")
+    local W=(-hide_banner -loglevel error -y -ar 48000 -ac 1 -c:a pcm_s16le)
+    say -v Milena -o "$dir/ru.aiff" 'Открой мой календарь и покажи, какие встречи у меня завтра утром.' \
+      && say -v Samantha -o "$dir/en.aiff" 'Open my calendar and show me what meetings I have tomorrow morning.' \
+      || { bad 'say could not speak (voices Milena and Samantha)'; return 2; }
+    # Each speech file: 1 s of room, the phrase, 2 s of room. The fans sit
+    # at -22..-28 dB RMS, above the quiet threshold (-30 dB), so the old gate
+    # held each as a phrase; under speech the fan is ~8 dB below the voice.
+    for a in ru en; do
+      ffmpeg -f lavfi -i 'anoisesrc=c=brown:a=0.002:d=1' -i "$dir/$a.aiff" -f lavfi -i 'anoisesrc=c=brown:a=0.002:d=2' \
+        -filter_complex '[1]aresample=48000[s];[0][s][2]concat=n=3:v=0:a=1' "${W[@]}" "$dir/speech-$a.wav" || return 2
+      ffmpeg -i "$dir/speech-$a.wav" -f lavfi -i 'anoisesrc=c=brown:a=0.2:d=12' \
+        -filter_complex '[0]adelay=3000[s];[1][s]amix=inputs=2:duration=first:normalize=0' "${W[@]}" "$dir/over-fan-$a.wav" || return 2
+    done
+    ffmpeg -f lavfi -i 'anoisesrc=c=brown:a=0.25:d=10' "${W[@]}" "$dir/fan-brown.wav" || return 2
+    ffmpeg -f lavfi -i 'anoisesrc=c=pink:a=0.3:d=10' "${W[@]}" "$dir/fan-pink.wav" || return 2
+    ffmpeg -f lavfi -i 'anoisesrc=c=white:a=0.08:d=10' "${W[@]}" "$dir/fan-white.wav" || return 2
+    files=("$dir"/speech-*.wav "$dir"/over-fan-*.wav "$dir"/fan-*.wav)
+  fi
+  local out rc=0
+  out=$(bun "$bench" $legacy "${files[@]}") || { bad 'the bench failed'; return 2; }
+  printf '%s\n' "$out"
+  [ -n "${dir:-}" ] && rm -rf "$dir"
+  [ -n "$legacy" ] && { warn 'the gate before cycle 8, for comparison only -- not judged'; return 0; }
+  # Judged by events, per file name: speech is never the room and ends as a
+  # turn; over a fan, the room is learned first and the phrase still ends as
+  # a turn; a fan alone is learned and never held as a phrase.
+  local verdict
+  verdict=$(printf '%s\n' "$out" | awk '
+    function judge() {
+      if (f == "") return
+      if (f ~ /^speech-/ && (steady || !ended)) print f ": speech taken for the room, or never ended"
+      if (f ~ /^over-fan-/ && !(steady && endedAfter)) print f ": the question over the fan was not heard as a turn"
+      if (f ~ /^fan-/ && (!steady || held)) print f ": the fan was not learned as the room"
+    }
+    /^[^ ]/ { judge(); f = $1; steady = ended = endedAfter = held = 0; next }
+    /steady room learned/ { steady = 1 }
+    /turn end/ { ended = 1; if (steady) endedAfter = 1 }
+    /still "talking"|CAP:/ { held = 1 }
+    END { judge() }')
+  if [ -n "$verdict" ]; then
+    while IFS= read -r a; do bad "$a"; done <<<"$verdict"
+    rc=1
+  fi
+  [ "$rc" = 0 ] && good 'the gate tells speech from a steady room'
+  return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri gigaam: the Russian ears of voice mode (deployment/gigaam).
+#
+# GigaAM is not wired to GitHub: it changes rarely and its image carries a
+# ~1 GB model, so it ships by `railway up` from a CLEAN tree -- a dirty one
+# would put code on the network that no PR has seen. Everything else about it
+# is in deployment/gigaam/server.py and the voice-mode skill.
+#
+#   tri gigaam            newest deploy + whether the render routes ru to it
+#   tri gigaam deploy     upload deployment/gigaam and build it
+# ─────────────────────────────────────────────────────────────────────────
+# One image, two services: deployment/gigaam built with GigaAM v3 for Russian
+# and with Parakeet TDT v2 (int8) for English. Neither is wired to GitHub.
+EARS_SVC_RU=1532ed17-3739-4ece-986a-2732288fdde0   # gigaam
+EARS_SVC_EN=6d9197c7-d467-42bc-8e92-27bc231302a6   # parakeet
+# The mouth (deployment/mouth): Kokoro + Piper on an 8-thread pool, cycle 6.
+# It speaks rather than hears, but it ships and is checked the same way.
+MOUTH_SVC=2455209b-6611-4814-bb55-7d3b5d994656
+cmd_ears() {
+  local p=564d9ebd-7aa8-44fe-93ec-e0b03c87158d e=e4d200ad-b8a9-4edf-9b25-190a32613b32
+  local action=status langs='ru en mouth' a
+  for a in "$@"; do
+    case "$a" in
+      status|deploy) action=$a ;;
+      ru|en|mouth) langs=$a ;;
+      all) langs='ru en mouth' ;;
+      *) bad "tri ears [status|deploy] [ru|en|mouth|all], not '$a'"; return 2 ;;
+    esac
+  done
+  local lang svc name rc=0
+  if [ "$action" = deploy ]; then
+    if [ -n "$(git -C "$ROOT" status --porcelain -- deployment/gigaam deployment/mouth)" ]; then
+      bad 'deployment/gigaam or deployment/mouth has uncommitted changes: commit them first'
+      return 2
+    fi
+    local sha dir
+    sha=$(git -C "$ROOT" rev-parse --short HEAD)
+    for lang in $langs; do
+      _ears_svc "$lang"
+      dir=gigaam; [ "$lang" = mouth ] && dir=mouth
+      railway up "$ROOT/deployment/$dir" --path-as-root -p "$p" -e "$e" \
+        -s "$svc" --detach --json --message "$name from $sha" 2>/dev/null || rc=1
+    done
+    return "$rc"
+  fi
+  for lang in $langs; do
+    _ears_svc "$lang"
+    timeout 30 railway deployment list -p "$p" -e "$e" -s "$svc" \
+      --limit 1 --json 2>/dev/null | python3 -c '
+import json, sys
+name = sys.argv[1]
+try:
+    d = json.load(sys.stdin)[0]
+except Exception:
+    print("  %s: deploy state unknown (railway did not answer)" % name); sys.exit(2)
+print("  %s: %s %s" % (name, d["status"], (d.get("meta") or {}).get("deploymentMessage") or ""))
+sys.exit(0 if d["status"] == "SUCCESS" else 1)' "$name" || rc=1
+  done
+  curl -s -m 15 "$RENDER/api/voice/status" | python3 -c '
+import json, sys
+try:
+    st = json.load(sys.stdin)
+    via = "ru via %s, en via %s; speaks via %s" % (
+        st.get("hearRu") or "whisper (render older than voice-loop-3)",
+        st.get("hearEn") or "whisper (render older than voice-loop-5)",
+        st.get("speakVia") or "speaches (render older than voice-loop-6)")
+except Exception:
+    via = "unknown (render did not answer)"
+print("  render hears " + via)'
+  return "$rc"
+}
+# Sets svc and name for one of: ru, en, mouth.
+_ears_svc() {
+  case "$1" in
+    ru) svc=$EARS_SVC_RU name=gigaam ;;
+    en) svc=$EARS_SVC_EN name=parakeet ;;
+    mouth) svc=$MOUTH_SVC name=mouth ;;
+  esac
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri loop: where the last cycle stopped, before this one starts.
+#
+# A cron loop fires every 15 minutes whether the previous cycle finished or
+# not. The way a new cycle breaks the old one is not a bad edit, it is a
+# blind start: a second branch over a dirty tree, a second push while a hook
+# run still holds the first, a merge while the deploy of the last one is red.
+# This prints all of it in one screen, and the exit code says whether it is
+# safe to begin something new (0) or there is work in flight to continue (1).
+# ─────────────────────────────────────────────────────────────────────────
+cmd_loop() {
+  local busy=0 branch dirty ahead
+  branch=$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)
+  git -C "$ROOT" fetch origin main --quiet 2>/dev/null
+  dirty=$(git -C "$ROOT" status --porcelain | grep -v '\.claude/launch\.json$' | wc -l | tr -d ' ')
+  ahead=$(git -C "$ROOT" rev-list --count origin/main..HEAD 2>/dev/null || echo '?')
+  printf '  branch %s: %s uncommitted, %s commits not in main\n' "$branch" "$dirty" "$ahead"
+  [ "$dirty" != 0 ] && { warn 'uncommitted work: finish and commit it before anything new'; busy=1; }
+
+  # Only processes working IN THIS TREE. Every session on this machine pushes
+  # and runs gates; the first version of this check counted another session's
+  # `git push` as ours and would have parked this loop behind it for ever.
+  local pid running=''
+  for pid in $(pgrep -f 'lefthook run|test-gate\.mjs|vitest run|git push' 2>/dev/null); do
+    case "$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" in
+      "$ROOT"|"$ROOT"/*) running+="$(ps -o pid=,command= -p "$pid" | cut -c1-130)"$'\n' ;;
+    esac
+  done
+  if [ -n "$running" ]; then
+    warn 'a gate or push is still running in this tree -- wait, do not start a second:'
+    printf '%s' "$running" | sed 's/^/        /'
+    busy=1
+  fi
+
+  if command -v gh >/dev/null; then
+    local mine
+    mine=$(gh pr list --head "$branch" --state all --json number,state,title \
+      --jq '.[0] | select(.) | "#\(.number) \(.state) -- \(.title)"' 2>/dev/null)
+    printf '  this branch PR: %s\n' "${mine:-none yet}"
+    # An OPEN PR here is work in flight: merge it (or close it) before a new
+    # cycle branches -- cycle 7 found this path saying "nothing in flight".
+    case "$mine" in
+      *' OPEN -- '*) warn 'this branch PR is still OPEN -- merge or close it first'; busy=1 ;;
+    esac
+  fi
+
+  # Each service's newest deploy. A FAILED one on main blocks every later
+  # merge of that service: fix it first, or nothing you merge goes live.
+  local svc name
+  for svc in 7aad4834-8ac0-4d6b-a031-44ec694ad8de:player 6339df9c-15b8-4f51-ba26-4af0b55c596a:render; do
+    name=${svc#*:}
+    timeout 30 railway deployment list -p 564d9ebd-7aa8-44fe-93ec-e0b03c87158d \
+      -e e4d200ad-b8a9-4edf-9b25-190a32613b32 -s "${svc%%:*}" --limit 1 --json 2>/dev/null \
+      | python3 -c '
+import json, sys
+name = sys.argv[1]
+try:
+    d = json.load(sys.stdin)[0]
+except Exception:
+    print("  " + name + ": deploy state unknown (railway did not answer)")
+    sys.exit(2)
+m = d.get("meta") or {}
+msg = (m.get("commitMessage") or "").splitlines()[0][:60]
+print("  %s: %s %s %s" % (name, d["status"], (m.get("commitHash") or "")[:9], msg))
+# 4, not 1: a crash of this very script also exits 1, and must not read as
+# "the deploy failed" -- the first run of this check said exactly that.
+# 5: still on its way. Cycle 4 read "nothing in flight" with the player
+# BUILDING -- a merge whose deploy is unverified IS work in flight.
+if d["status"] in ("FAILED", "CRASHED"):
+    sys.exit(4)
+sys.exit(5 if d["status"] in ("BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING") else 0)
+' "$name"
+    case "${PIPESTATUS[1]}" in
+      4) bad "$name: the last deploy failed -- fix it before merging more"; busy=1 ;;
+      5) warn "$name: still deploying -- wait for SUCCESS before the next item"; busy=1 ;;
+    esac
+  done
+
+  # The player's lint ratchet runs on pre-push only, and a push that had to
+  # skip hooks (ssh drops after a long pre-push, so --no-verify) skips it.
+  # Cycle 7 put 4 rules-of-hooks errors on main that way (a plain function
+  # named useRoad) and the NEXT push, cycle 8's, was the one refused. ~25 s.
+  if [ -z "${TRI_LOOP_FAST:-}" ]; then
+    if node "$ROOT/scripts/player-lint-ratchet.cjs" >/tmp/tri-loop-lint.$$ 2>&1; then
+      printf '  player lint: within the ratchet\n'
+    else
+      bad 'player lint is over its ratchet -- a push skipped hooks; fix it first:'
+      sed 's/^/        /' /tmp/tri-loop-lint.$$ | head -5
+      busy=1
+    fi
+    rm -f /tmp/tri-loop-lint.$$
+  fi
+
+  if [ "$busy" = 0 ]; then good 'nothing in flight: safe to start the next item'; fi
+  return "$busy"
+}
+
 case "$action" in
   # English is the primary name; the Russian one stays as an alias because loop
   # scripts, skills and the journal already call it. Renaming without the alias
@@ -5116,8 +6329,18 @@ case "$action" in
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
   real|живая)          cmd_real "$@" ;;
+  iphone|айфон)        cmd_iphone "$@" ;;   # cyrillic-ok: alias, like its neighbours
   mcp)                 cmd_mcp "$@" ;;
   browser|браузер)     cmd_browser ;;
+  voice|голос)         cmd_voice "$@" ;;
+  road|дорога)         V_ROAD_ONLY=1 cmd_voice "$@" ;;
+  vad|шум)             cmd_vad "$@" ;;
+  turn|ход)            cmd_turn "$@" ;;  # cyrillic-ok: alias, like its neighbours
+  filler|пауза)        V_FILLER=1 cmd_voice --runs 1 ;;   # cyrillic-ok: alias, like its neighbours   # cyrillic-ok: alias, like its neighbours
+  ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
+  mouth|рот)           cmd_ears "$@" mouth ;;  # cyrillic-ok: the voice's mouth, cycle 6
+  gigaam|гигаам)       cmd_ears "$@" ru ;;  # cyrillic-ok: the name it had in voice-loop-3
+  loop|виток)          cmd_loop ;;
   heal|исцели)         cmd_heal ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;

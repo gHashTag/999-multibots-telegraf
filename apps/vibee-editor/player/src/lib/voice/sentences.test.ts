@@ -53,4 +53,63 @@ describe('takeSentences', () => {
     const cut = takeSentences('Цена 3.5 тысячи за месяц работы', 0, false)
     expect(cut.sentences).toEqual([])
   })
+
+  describe('the first clause of an answer', () => {
+    it('is handed out before its sentence is finished', () => {
+      const cut = takeSentences(
+        'Сейчас посмотрю твой календарь на завтра, и если там',
+        0,
+        false
+      )
+      expect(cut.sentences).toEqual([
+        'Сейчас посмотрю твой календарь на завтра,',
+      ])
+    })
+
+    it('is not cut while it is shorter than a breath', () => {
+      const cut = takeSentences('Хорошо, давайте посмотрим вме', 0, false)
+      expect(cut.sentences).toEqual([])
+      expect(cut.next).toBe(0)
+    })
+
+    it('waits for the mark to be followed by a space', () => {
+      // "1,5" is a number, and a comma at the very end may be one too.
+      const cut = takeSentences('Сейчас посмотрю твой календарь,', 0, false)
+      expect(cut.sentences).toEqual([])
+    })
+
+    it('keeps a finished sentence whole when its rest is too short', () => {
+      const cut = takeSentences(
+        'Сейчас посмотрю твой календарь, ладно? Потом',
+        0,
+        false
+      )
+      expect(cut.sentences).toEqual(['Сейчас посмотрю твой календарь, ладно?'])
+    })
+
+    it('splits a finished first sentence when both halves stand alone', () => {
+      const cut = takeSentences(
+        'Сейчас посмотрю твой календарь на завтра, а потом напишу тебе итог. Дальше',
+        0,
+        false
+      )
+      expect(cut.sentences).toEqual([
+        'Сейчас посмотрю твой календарь на завтра,',
+        'а потом напишу тебе итог.',
+      ])
+    })
+
+    it('happens once: later sentences stay whole', () => {
+      const text =
+        'Сейчас посмотрю твой календарь на завтра, подожди немного, пожалуйста. Вижу три встречи на завтра, одна в десять утра. '
+      const first = takeSentences(text, 0, false)
+      expect(first.sentences).toEqual([
+        'Сейчас посмотрю твой календарь на завтра,',
+        'подожди немного, пожалуйста.',
+        'Вижу три встречи на завтра, одна в десять утра.',
+      ])
+      const again = takeSentences(text, first.next, true)
+      expect(again.sentences).toEqual([])
+    })
+  })
 })

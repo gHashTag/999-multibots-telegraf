@@ -242,10 +242,10 @@ beforeAll(async () => {
   CrmPage = (await import('./Crm')).default
 }, 60_000)
 
-async function screen() {
+async function screen(at = '/crm') {
   await act(async () => {
     root.render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[at]}>
         <CrmPage />
       </MemoryRouter>
     )
@@ -270,7 +270,7 @@ const byText = (needle: string) =>
 
 describe('under way', () => {
   it('shows the people somebody has already invested in, and only them', async () => {
-    await screen()
+    await screen('/crm?tab=contacts')
     const lists = rowsUnder('crm.vip.title')
     // The first list under the heading is "under way": paid and packaged.
     const under = lists[lists.length - 2]?.textContent ?? ''
@@ -280,14 +280,14 @@ describe('under way', () => {
   })
 
   it('counts them in the heading, so the number matches the rows', async () => {
-    await screen()
+    await screen('/crm?tab=contacts')
     expect(text()).toContain('crm.vip.title 2')
   })
 })
 
 describe('the search', () => {
   it('narrows the rows AND the chip counts together', async () => {
-    await screen()
+    await screen('/crm?tab=contacts')
     const input = host.querySelector('input[type="search"]')!
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(
@@ -390,7 +390,7 @@ describe('the week before', () => {
  */
 describe('AUTO on a client row', () => {
   it('sends the person and the intent, and remembers the answer', async () => {
-    await screen()
+    await screen('/crm?tab=contacts')
     const boxes = [...host.querySelectorAll('.crm__auto input')]
     expect(boxes.length).toBeGreaterThan(0)
     const first = boxes[0] as HTMLInputElement
@@ -407,13 +407,64 @@ describe('AUTO on a client row', () => {
 
   it('draws a tick as ON for somebody already chosen', async () => {
     picks = ['900000201']
-    await screen()
+    await screen('/crm?tab=contacts')
     const row = [...host.querySelectorAll('.crm__row--client')].find(r =>
       (r.textContent ?? '').includes('Paid Person')
     )!
     expect(
       (row.querySelector('.crm__auto input') as HTMLInputElement).checked
     ).toBe(true)
+  })
+})
+
+/*
+ * "AUTO" ONCE, OVER THE COLUMN. On a phone the word left each row's tick to
+ * give the name 29px back, and the headings name the column instead. The
+ * stylesheet decides who shows what; these pin what the stylesheet needs.
+ */
+describe('the AUTO column on a phone', () => {
+  const headings = () => [...host.querySelectorAll('h4.crm__subtitle')]
+
+  it('every list heading names the column, hidden from a screen reader', async () => {
+    await screen('/crm?tab=contacts')
+    expect(headings().length).toBeGreaterThan(1)
+    for (const h of headings()) {
+      const col = h.querySelector('.crm__col-auto')
+      expect(col, h.textContent ?? '').not.toBeNull()
+      expect(col!.getAttribute('aria-hidden')).toBe('true')
+    }
+  })
+
+  it('each tick keeps its word, for the reader that cannot see the heading', async () => {
+    await screen('/crm?tab=contacts')
+    const ticks = [...host.querySelectorAll('.crm__auto')]
+    expect(ticks.length).toBeGreaterThan(0)
+    for (const tick of ticks)
+      expect(tick.querySelector('.crm__auto-word')?.textContent).toBe(
+        'crm.row.auto'
+      )
+  })
+
+  it('hides the word from the eye only -- never display:none', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const css = readFileSync(join(__dirname, 'Crm.css'), 'utf8')
+    // display:none (or visibility:hidden) takes the word from a screen
+    // reader too, and the tick is left as an unnamed checkbox.
+    const blocks = [...css.matchAll(/\.crm__auto-word\s*{([^}]*)}/g)]
+    expect(blocks.length, '.crm__auto-word is not styled').toBeGreaterThan(0)
+    for (const [, body] of blocks) {
+      expect(body).not.toMatch(/display:\s*none|visibility:\s*hidden/)
+      expect(body).toMatch(/clip-path:\s*inset\(50%\)/)
+    }
+  })
+
+  it('labels no column while the ticks are not read', async () => {
+    failPicks = true
+    await screen('/crm?tab=contacts')
+    expect(headings().length).toBeGreaterThan(1)
+    expect(host.querySelector('.crm__col-auto')).toBeNull()
+    failPicks = false
   })
 })
 

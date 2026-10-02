@@ -31,7 +31,7 @@
  * start are refused by the answer script.
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdirSync, existsSync } from 'node:fs'
+import { mkdirSync, existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
@@ -40,6 +40,9 @@ const HERE = import.meta.dirname
 const ROOT = resolve(HERE, '../..')
 const PLAYER = join(ROOT, 'apps/vibee-editor/player')
 const RENDER = join(ROOT, 'apps/vibee-editor/render')
+const CRM_CLIENT_FIXTURES = JSON.parse(
+  readFileSync(join(PLAYER, 'src/harness/crmClientFixtures.json'), 'utf8')
+)
 
 // tri gate: the tree as this check found it; record compares it at the end.
 process.env.TRI_GATE_START = spawnSync(
@@ -161,129 +164,9 @@ const HARNESSES = {
       },
       jobs: JOBS,
     },
-    fixtures: {
-      crm_client_profile: {
-        telegram_id: '900000011',
-        client: 'Анна Ветрова — флористика и декор интерьеров',
-        has_profile: true,
-        has_soul: true,
-        skills: ['рилсы', 'голос', { name: 'контент-план' }],
-        profile: { client: 'Анна Ветрова' },
-        updated_at: '2026-09-26T10:00:00Z',
-      },
-      crm_client_plan: {
-        telegram_id: '900000011',
-        goals: [
-          {
-            id: 1,
-            title: 'Прогреть подписчиков перед весенней коллекцией',
-            intent: 'три рилса в неделю, каждый — одна ваза в новом интерьере',
-            items: {
-              total: 8,
-              done: 3,
-              by_status: { idea: 3, draft: 2, done: 3 },
-            },
-          },
-          {
-            id: 2,
-            title: 'Запустить запись на мастер-классы',
-            intent: 'сторис с отзывами и ссылкой на запись',
-            items: {
-              total: 4,
-              done: 1,
-              by_status: { idea: 2, draft: 1, done: 1 },
-            },
-          },
-        ],
-        items: [],
-        total: 12,
-        done: 4,
-      },
-      crm_duet_runs: {
-        runs: [
-          {
-            id: 'duet-1',
-            buyer: '900000011',
-            state: 'done',
-            dry_run: false,
-            turns: 4,
-            started_at: '2026-09-26T09:00:00Z',
-            finished_at: '2026-09-26T09:05:00Z',
-            paid_calls: 1,
-            media_sent: 2,
-            profile_used: true,
-            coverage: { reel_render: { calls: 3, ok: 2, fail: 1 } },
-            violations: ['отправил ссылку до того, как она спросила'],
-            voice_flags: ['слишком официально', 'слишком длинно'],
-            lines: 8,
-          },
-        ],
-      },
-      crm_history: {
-        telegram_id: '900000011',
-        total: 3,
-        stage: 'talking',
-        because: 'replied',
-        waiting: 'ours',
-        touches: [
-          {
-            kind: 'written',
-            at: '2026-09-24T08:00:00Z',
-            note: null,
-            bot_name: 'b',
-          },
-          {
-            kind: 'replied',
-            at: '2026-09-25T08:00:00Z',
-            note: 'спросила цену букета на свадьбу и можно ли доставку в субботу',
-            bot_name: 'b',
-          },
-          {
-            kind: 'written',
-            at: '2026-09-26T08:00:00Z',
-            note: 'прислали прайс',
-            bot_name: 'b',
-          },
-        ],
-      },
-      crm_lead_context: {
-        name: 'Анна Ветрова',
-        username: 'anna_vetrova_flowers_demo',
-        waiting_for_reply: 1,
-        dialog: [
-          {
-            at: '2026-09-25T08:00:00Z',
-            who: 'person',
-            text: 'Здравствуйте! Сколько стоит свадебный букет из пионов и можно ли доставку в субботу к десяти утра на другой конец города?',
-          },
-          {
-            at: '2026-09-25T08:05:00Z',
-            who: 'owner',
-            text: 'Добрый день, Анна! Пришлю прайс и варианты.',
-          },
-        ],
-      },
-      crm_lead_media: {
-        items: [
-          {
-            id: 'm1',
-            kind: 'photo',
-            name: 'svadebnyj-buket-piony-variant-2-finalnyj.jpg',
-            at: '2026-09-25T08:10:00Z',
-            who: 'person',
-            url: 'https://example.invalid/m1.jpg',
-          },
-          {
-            id: 'm2',
-            kind: 'voice',
-            name: 'golosovoe.ogg',
-            at: '2026-09-25T08:12:00Z',
-            who: 'person',
-            url: 'https://example.invalid/m2.ogg',
-          },
-        ],
-      },
-    },
+    // One source with the harness page, which answers them itself when
+    // nothing intercepts (the preview browser, no chrome-headless-shell).
+    fixtures: CRM_CLIENT_FIXTURES,
     root: '.crm-client',
     scope: '.crm-client',
     within: 'root',
@@ -304,6 +187,40 @@ const HARNESSES = {
           await p.locator('section:has(select) input[type=checkbox]').uncheck()
           await p.locator('section:has(select) .crm-client__duet-go').click()
           await p.locator('.crm-client__duet-confirm').waitFor()
+        },
+      },
+    ],
+  },
+
+  /*
+   * THE CRM LIST (/crm): the owner's contact book, opened on a phone to find
+   * one person. The harness answers its own tool calls in the page
+   * (src/harness/crmFixtures.ts) so the same fixtures serve `tri shot` and a
+   * preview pane with no Chromium of its own; `tool` is never reached.
+   */
+  crm: {
+    tool: 'crm_clients',
+    root: '.crm',
+    scope: '.crm',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => p.locator('.crm__row').first().waitFor(),
+      },
+      {
+        // The owner's complaint, 2026-10-01: finding one contact on a phone.
+        // Open the contacts section where there is one, then type.
+        id: 'search',
+        ready: async p => {
+          const tab = p.locator('.section-strip__item', {
+            hasText: /Контакты|Contacts/, // cyrillic-ok: the RU label
+          })
+          if (await tab.count()) await tab.first().click()
+          const box = p.locator('.crm input[type=search]')
+          await box.scrollIntoViewIfNeeded()
+          await box.fill('ан')
+          await p.waitForTimeout(400)
         },
       },
     ],

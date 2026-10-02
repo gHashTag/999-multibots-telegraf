@@ -390,7 +390,8 @@ const PUBLIC_GET_EXACT = new Set([
    * Which voices voice mode can speak with: model names, nobody's data. The
    * player reads it with a bare fetch, so behind the guard it answered 401 on
    * the first deploy (2026-10-01) and the voice picker never appeared.
-   * Hearing and speaking (/api/voice/transcribe, /speak) stay signed.
+   * Hearing, speaking and warming (/api/voice/transcribe, /speak, /warm)
+   * stay signed.
    */
   '/api/voice/status',
 ])

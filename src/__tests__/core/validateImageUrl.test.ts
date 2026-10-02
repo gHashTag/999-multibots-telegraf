@@ -6,7 +6,8 @@
  * nothing" or "we would have rejected a URL that works". The second kind is
  * the dangerous one -- a check that is too strict silently breaks real
  * generations -- so the accepting tests carry the shapes we actually send:
- * Supabase public URLs and Telegram file URLs.
+ * storage public URLs (the Railway gateway since 2026-10-01) and Telegram
+ * file URLs.
  */
 
 import { describe, it, expect } from 'vitest'
@@ -15,7 +16,7 @@ import { validateImageUrl } from '@/core/lipsync/validateImageUrl'
 describe('validateImageUrl', () => {
   describe('accepts what we really send', () => {
     const REAL_SHAPES = [
-      'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/user/1.jpg',
+      'https://supabase-gateway-production-122d.up.railway.app/storage/v1/object/public/images/user/1.jpg',
       'https://api.telegram.org/file/bot123:ABC/photos/file_0.jpg',
       'http://example.com/image.png',
       'https://example.com/image.jpg?width=512&token=abc',

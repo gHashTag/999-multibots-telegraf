@@ -642,6 +642,29 @@ in JSON at position 8192`. Причина — не в тестах: `money-map.m
 шла через другую — ровно тот же узор, что «выход показывается там, где не
 работает» и «сторож стоит не на том пути».
 
+2026-10-02: the third door, `./tri iphone` (device build), got the same
+<2 GB refusal before `xcodebuild`, and builds into ONE fixed derived-data dir
+so repeated runs reuse it instead of stacking. Any new build door must carry
+the guard too -- grep `2048` in `tri` and `run.sh` to see them all.
+The fourth door, `./tri iphone sim`, carries it as well, and watches the
+resource the disk guard does not: memory. A booted simulator holds ~10 GB of a
+16 GB machine; with swap at 5 of 6 GB `simctl install` hung 11 min and
+`launch` 2 (2026-10-02). I first blamed my own leftover `log stream`s, killed
+them, and it hung again -- a cause named before it was measured. The command
+warns on swap < 1 GB and on stray streams, and has deadlines; the loop must
+still shut the simulator down when the check is done. `./tri iphone off` closes that door again: shut the simulator before the
+pre-push gates, they need the same memory.
+`./tri iphone test [Class]` runs the unit tests under a 25-min deadline.
+Two traps it now refuses: its first version had a derived-data dir of its own,
+so every run was a cold build and missed the deadline under load (on the
+shared `tri-iphone-dd-sim` cache: 1.5 min); and a misspelt class ran 0 tests
+while `xcodebuild` reported success -- 0 executed with a filter is now a
+failure. Its timeout message prints the end of the log, not a guessed cause.
+`./tri iphone ru` is the counter a migration loop needs: a plain grep for
+Cyrillic literals both double-counted (a `say(` call spread over lines looked
+Russian-only) and miscounted (`"\(variable)"` with a Cyrillic name). Track the
+number in the loop state; it should only go down.
+
 И третий: **я объяснил остановку неверно**. В отчёте назвал причиной `/tmp/dd`
 и свои сборки. Проверил на следующий день: `run.sh` пишет в `build2`, там было
 94 МБ, а том занят на 197 ГБ чужими данными. Диагноз по памяти вместо замера —
@@ -1913,3 +1936,169 @@ then root `test:vitest` clean-tree measurement; player screen (UI-only);
 sign-in completion (owner's keyboard); 7 orphaned dirty render files in
 /tmp/brhard; unused-var cleanup in `src/browser/*.ts` + `agent/*.ts`;
 `browser_status` running-claim (description budget).
+
+### Lesson of 01.10.2026: a guard that skips itself is not a guard (CRM mobile loop, tick 7)
+
+A cron loop keeps every mutation a past tick proved in
+`.claude/loop-state/<name>-mutants.json`, and `tri loop-guard start`
+re-runs them all. Tick 6 rewrote one line that an entry was anchored to.
+`tri mutants` refuses a list with any stale anchor, so tick 7 started with
+**all 27 guards unchecked**, and loop-guard printed a `warn` and GO.
+**Unchecked is not green.**
+
+- `start`: a stale anchor now stops the tick.
+- `end`: the lock is kept while the anchors do not match the code or the
+  tree is dirty. The tick that moved the code knows the new line; the next
+  tick would have to guess.
+
+The new `end` check caught two more stale anchors in the same tick's own
+change, before its commit. Run `tri mutants --check <list>` after every edit
+to guarded code. The details live in the header of
+`bin/helpers/loop-guard.sh`; they are not copied here.
+
+A proven batch goes into the guard list with `tri mutants --adopt
+<batch.json> <guards.json>`, run where the batch ran. The hand-made copy
+it replaces once rewrote the whole list's indent.
+
+**Wrapping code re-indents its guards.** Tick 10 wrapped a heading and its
+list in a `<section>`: not a token changed, but a past mutation anchored
+inside went stale, and `--adopt` refused the new batch (as it should).
+`tri mutants --reanchor <guards.json>`, run from the repo root, follows an
+indent-only move: the `from` found once with every line shifted by the same
+amount, and `to` shifted with it. A changed token stays stale and is named;
+someone decides what that mutation should now be.
+
+**A guard is adopted with the files that killed it; the next start runs it
+with the marker.** Tick 11 adopted three guards that only
+`crmMatches.test.ts` killed. The `<!-- loop-tests: -->` marker did not name
+that file, so the next start would have reported "a past mutation SURVIVES",
+a false regression blamed on the wrong tick. `tri loop-guard end` now runs
+the guards added since `start` under the marker and stops on a survivor
+(ten guards took 95 s). Add the killing test file to the marker.
+
+**Never edit a file while a mutation batch runs in the background.** The
+restore writes back the pre-mutation snapshot. `tri mutants` now keeps such
+an edit as `<file>.edited-during-mutants`, but that is a rescue, not a way
+to work.
+
+### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
+
+The screen now translates a waiting reason by code and falls back to the
+server's words when `t` returns the bare key (the real `t`'s sign for a
+missing line). The page test mocks `t` to echo the key. So for every code
+without numbers the mock said "missing", the screen showed the words, and a
+mutant that dropped the translation on that path SURVIVED. The mock now
+treats `crm.why.*` as found (`key:`), and the mutant dies. **When code
+branches on what a mock returns, check the mock can return both answers.**
+
+Two more from the same tick:
+
+- **A shared fixture mutated by one test leaks into the next.** It passed
+  for weeks only because of file order. Keep a `structuredClone` of the
+  fixture and restore it in `afterEach`, not in each test.
+- **Server mutants need the server's tests in the marker.** Eight render
+  mutants were killed by hand (8/8) but not adopted: the marker runs the
+  player only, so the next `start` would call them survivors. Adopt only
+  what the marker can kill.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 6): a counter that drops faster than the work is lying
+
+`tri iphone ru` fell 326 -> 279 for one screen, but only 11 of those lines
+were real translations; 36 were protocol (JSON keys, `case "x":` labels,
+en/ru literal pairs) that the counter had been calling "Russian UI". When a
+counter learns a new filter, **diff its old and new line lists** and read
+every line that disappears outside the file you worked on. Run the OLD tool
+from inside the same worktree (a copy at `./tri-old-tmp`, deleted after) --
+run from `/tmp` it resolved another app path and printed an empty diff that
+looked like "no change".
+
+### A second loop needs its own name (blog loop, 2026-10-02)
+
+`tri loop-guard` defaults to `TRI_LOOP=crm`: a different night loop that does
+not set it reads the CRM loop's branch, PR and tests. Seven ticks of the blog
+loop ran with no guard at all, and the one that finally ran it learned that
+main had changed `render-server.ts` under the branch.
+
+- First tick of any loop: write `.claude/loop-state/<name>-loop.md` with
+  `loop-branch`, `loop-pr`, `loop-tests` (FULL test file names -- the guard
+  matches names, not vitest filters) and run every tick as
+  `TRI_LOOP=<name> tri loop-guard start|end`.
+- A file the person had edited before the loop began stops every tick as
+  "the last tick died mid-edit". Name it once:
+  `<!-- loop-not-mine: .claude/launch.json -->`. Honoured by `start` and
+  `end`; `end` still sees untracked files.
+- Ticks that commit with `--no-verify` close with `tri no-verify-debt`:
+  cyrillic, secrets, prettier from the ROOT, eslint, over the whole branch.
+  Its first run found a file formatted by render's prettier, not the root's.
+
+`tri iphone ru-diff [ref]` (iteration 7) does exactly that: runs the counter
+of `ref` (default origin/main) and the current one per file and prints every
+line newly hidden or newly counted.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 8): a counter of zero is not a screen in English
+
+Iteration 7 brought GenerateScreen to 0 and the live Photo tab still showed
+a Russian model list: the words came from a GENERATED data file the counter
+listed separately and the plan had deferred as "model data". A source counter
+measures source files, not what the screen draws. **After any "this screen
+is done", open it live in the target language before closing the item.** For
+generated data, put the guard where the data is (a test over the whole
+catalogue), and let the counter skip that file by name on stderr -- never a
+silent skip.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 9): a Russian KEY becomes a Russian label, and the reference had it too
+
+The price unit on the run button came from `Balance.мера`, which returns the <!-- cyrillic-ok: names the function -->
+keys "с" / "1000 зн." that the screen also switches on. No literal on the <!-- cyrillic-ok: quotes the keys -->
+screen was Russian, so the counter could not see "· 6/с" on an English phone. <!-- cyrillic-ok: quotes the bug -->
+Rule: **keep the key, translate at the point of display** (`ЦенаНажатия.unitLabel`, <!-- cyrillic-ok: names the type -->
+web `priceUnitLabel`), and test both that the label changes and that the key
+does not. The web -- the wording reference for parity -- printed the same unit
+and a Russian shortfall sentence in English mode. A reference can be wrong;
+`tri iphone ru-web [file]` ranks web files by Russian literals outside a
+language branch (rough: split en/ru pairs still count) so you read the
+reference before copying it.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 10): the message the slow hook reads, check it first
+
+Twice a commit message named a Cyrillic type and the commit-msg hook refused
+it -- after the 2-minute pre-commit had already passed. The check existed
+(`no-cyrillic-guard.cjs msg`), it just ran last. `tri cyrillic msg FILE` runs
+that same script first; then `git commit -F FILE`. A rule written in a loop
+state file did not stop the second slip; a command does.
+
+Also: the web top-up (`useTokenTopUp`) told an English reader about their
+payment in Russian. The sentences now live in a pure `lib/topUpText.ts`, tested
+in both languages (`topUpText.test.ts` asserts no Cyrillic in English for
+EVERY event). Language is read through a ref, because the verify loop writes
+its note more than a minute after the tap.
+
+Second lesson of the same iteration, and the sharper one: moving the sentences
+out of `useTokenTopUp.ts` broke `creditedIsNotOk.test.ts`, a money guard that
+reads the hook AS TEXT -- the exact breakage `tri readers` was written for on
+2026-09-18, for the exact same file. The tool existed; I did not run it, and
+then started writing a second `tri readers` before the dispatcher showed me
+the first. Now `tri readers --run FILE...` runs the guards that name the file,
+in seconds. Rule: **before pushing a change that moves code or wording out of
+a file, `tri readers --run` that file**; before adding a tri command,
+`grep -n "^cmd_<name>" tri`. The guard was rewritten to check the events'
+order in the hook and the "not credited" sentence in BOTH languages where it
+now lives -- it was not loosened.
+
+### Lesson of 02.10.2026 (iOS loop, iteration 11): a tool that reports "passed" for fewer than it was given
+
+`tri readers --run` (iteration 10) passed every named test to the ROOT vitest
+config. That config excludes `player/`; a file it excludes, passed by name, is
+dropped without a word -- the run said "75 passed" for 76 named, and a player
+guard on `render-server.ts` never ran. It also listed tracked files only, so
+the guard being added in the same change was invisible to it. Found only by
+counting: named vs ran. Now each test runs under its nearest package config,
+untracked tests count, and the tool prints the count per config. Rule: **a
+runner that takes a list must show how many it ran of how many it was given**
+-- "N passed" alone hides the ones that were never collected.
+
+The money anomaly of the same iteration: iOS read the server's
+"credit failed" flag as "not visible yet" and promised the tokens "shortly".
+Fixed at the parse (`TokenVerify(body:)`, testable) and with the web's own
+sentence. Every client of a money route must branch on the same flags; when
+the web learns a flag, grep the other clients for the same route.

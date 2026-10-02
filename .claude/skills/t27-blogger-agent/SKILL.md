@@ -49,3 +49,27 @@ Deliver a verified campaign, not a list of ideas.
 числа вернём независимо от результата. Гипотеза его — результат тоже его.
 
 - **24.09.2026.** Читатель, давший совет про ссылку во втором посте, сам пишет, что публикует мало и это может быть совпадением, и обещает поделиться находками. Значит, наша проверка охвата нужна не только нам: до чисел не называть правилом.
+
+## Why the blog was not reaching the networks (2026-10-02)
+
+**Measured:** `blog_shares` held 11 articles: 1 posted, 10 `declined` — each
+closed exactly 30 minutes after the question. The owner never said no.
+
+**Cause:** the desk asks through `requestPermission` (browser approvals), whose
+lifetime was a single global `APPROVAL_TTL_MS` = 10 min. The desk believes it
+waits `ANSWER_WAIT_MS` = 24 h, but `readApproval` already answered `expired`
+at minute 10, and the next tick closed the row as declined — silently. The
+Reddit desk had the identical defect.
+
+**Fix:** `browser_approvals.ttl_ms` — each question carries its own lifetime
+(null = 10 min for clicks); blog and Reddit desks pass 24 h. An expired
+question is now told to the owner; a run where no network took the post is
+`failed`, not `posted`. Tick every 5 min (the pace lives in the table): a
+30-min timer rarely survives the render's deploy cadence.
+
+**First look next time:** `tri blog-share` — states, minutes-to-close, and
+what each network did. Uniform `min_to_close` = a timer, not a person.
+
+Once #3235 is deployed: `tri blog-share reoffer` lists articles the timer closed (declined 20–40 min after asking); `--apply` forgets them and the desk re-asks one a day. Never apply before the deploy — the re-asked question would die at ten minutes again.
+
+**Receipts (2026-10-02).** Every press now says whether the page left the share form (`receiptOf`, `LEFT_THE_FORM`); a confirmed tab is closed, an unconfirmed one stays open as evidence. `blog-share-wiring.ts` is stubbed in tests — a missing import there passes vitest and dies in prod; run `npx tsc --noEmit -p .` in render after touching it.
