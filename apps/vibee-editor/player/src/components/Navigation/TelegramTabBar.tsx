@@ -9,6 +9,7 @@ import { haptic } from '@/lib/telegram'
 import { PRIMARY_NAV_ITEMS, type PrimaryTabId } from '@/lib/primaryNavigation'
 import { TAB_GLYPHS } from '@/lib/tabGlyphs'
 import { IS_EMBED } from '@/lib/embed'
+import { chatTabHref, readChatTabMemory } from '@/lib/chatTabMemory'
 import './TelegramTabBar.css'
 
 // ===============================
@@ -188,10 +189,14 @@ export function TelegramTabBar() {
         {TABS.map(tab => {
           // ProfileRedirect resolves /profile to /:username, but linking
           // straight there avoids a redirect hop when the profile is loaded.
+          // The agents tab returns to the chat left last; the market only
+          // until it has been seen once (lib/chatTabMemory.ts).
           const to =
             tab.id === 'profile' && myProfile?.username
               ? `/${myProfile.username}`
-              : tab.route
+              : tab.id === 'chat'
+                ? chatTabHref(location, readChatTabMemory())
+                : tab.route
 
           return (
             <Link

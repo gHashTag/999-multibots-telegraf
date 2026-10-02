@@ -31,6 +31,15 @@ export const voiceModeAtom = atomWithStorage<VoiceMode>(
   'vibee.voice.mode',
   'pulse'
 )
+/**
+ * Voice mode on its own full screen instead of inside the chat. Off by
+ * default: the chat stays in view, with what was said and the cards, as
+ * ChatGPT made it on 2025-11-25 (keeping "Separate mode" as a setting).
+ */
+export const voiceSeparateAtom = atomWithStorage<boolean>(
+  'vibee.voice.separate',
+  false
+)
 /** The voice picked per language; null is the server's default. */
 export const voiceNameAtom = atomWithStorage<Partial<Record<Language, string>>>(
   'vibee.voice.name',
