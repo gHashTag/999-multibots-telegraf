@@ -70,6 +70,15 @@ question is now told to the owner; a run where no network took the post is
 **First look next time:** `tri blog-share` — states, minutes-to-close, and
 what each network did. Uniform `min_to_close` = a timer, not a person.
 
+**Read the last line before diagnosing (#3425, 2026-10-03).** `tri blog-share`
+ends with `next:` -- the desk's own next step: an open question and when it
+closes, or the article it asks about and in how many hours. A whole loop tick
+went into "why is nothing posted" when the answer was the pace: one question
+every `ASK_EVERY_MS` (20 h), and the next one was 1.8 h away. "Nothing posted
+today" with a `next: asks about ... in N h` line is the design, not a fault.
+After `reoffer --apply` the backlog is the whole feed (75 articles on 10-03),
+offered newest first, one a day.
+
 Once #3235 is deployed: `tri blog-share reoffer` lists articles the timer closed (declined 20–40 min after asking); `--apply` forgets them and the desk re-asks one a day. Never apply before the deploy — the re-asked question would die at ten minutes again.
 
 **Receipts (2026-10-02).** Every press now says whether the page left the share form (`receiptOf`, `LEFT_THE_FORM`); a confirmed tab is closed, an unconfirmed one stays open as evidence. `blog-share-wiring.ts` is stubbed in tests — a missing import there passes vitest and dies in prod; run `npx tsc --noEmit -p .` in render after touching it.

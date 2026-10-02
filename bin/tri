@@ -60,7 +60,7 @@ tri — оболочка Trinity S³AI
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
   tri red [owner/repo] [ref]  what is red on main: failing checks of the head, each with its log tail (0 green, 1 red, 2 cannot tell, 3 still running)
   tri canfail [owner/repo] [ref]  can a repo's gates still fail? its gates-can-fail verdicts, tested count, floor (default gHashTag/trinity-fpga; 0 pass, 1 fail, 2 cannot tell, 3 still running)
-  tri blog-share [N]  судьба последних статей блога в соцсетях: спрошено, закрыто через сколько минут, что сделала каждая сеть
+  tri blog-share [N]  судьба последних статей блога в соцсетях: спрошено, закрыто через сколько минут, что сделала каждая сеть; в конце -- следующий шаг стола (о какой статье и когда спросит)
   tri starved [--reap]  голодает ли Mac (нагрузка на ядро, своп), кто ест, сироты гейтов; код 1 — голод: гейт без находок = не код
   tri meta [card SLUG]  Threads/Instagram/Facebook/LinkedIn/X через API: заданы ли приложения, чьи токены, дни; в конце — готова ли каждая сеть и чей ход (без значений)
   tri engage [N]  стол комментариев: что предложено под чужими постами, что ответил владелец, квитанции и ответы людей (сигналы лидов)
