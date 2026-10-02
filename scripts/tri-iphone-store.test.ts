@@ -553,6 +553,25 @@ describe.skipIf(!hasRuby)(
       )
     })
 
+    it('no address survives a doubled "@", and a run of "a@" stays fast', () => {
+      // The system Ruby 2.6 has no regex memoisation: an "@" inside the classes
+      // took 52 s on 6000 characters there (2026-10-03). Use it when present.
+      const ruby = fs.existsSync('/usr/bin/ruby') ? '/usr/bin/ruby' : 'ruby'
+      const started = Date.now()
+      const r = spawnSync(
+        ruby,
+        [
+          '-r',
+          path.join(IOS_FASTLANE, 'team_group.rb'),
+          '-e',
+          'puts TeamGroup.scrub(%q(x a@b@c.io y)); TeamGroup.scrub("a@" * 3000)',
+        ],
+        { encoding: 'utf8', timeout: 20000 }
+      )
+      expect(r.stdout.trim()).toBe('x a@b***@c.io y')
+      expect(Date.now() - started).toBeLessThan(5000)
+    })
+
     it('beta ends with testers, and a failure there does not fail the upload', () => {
       const fastfile = fs.readFileSync(
         path.join(IOS_FASTLANE, 'Fastfile'),
