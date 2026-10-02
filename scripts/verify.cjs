@@ -141,19 +141,35 @@ if (uninstalled.length) {
  * that do not touch the absent packages still say something true. The same
  * names are repeated next to the failures at the end.
  */
-const { absentFrom } = require('./deps-absent.cjs')
-const absent = ['.', ...SUBPROJECTS.map(([dir]) => dir)]
-  .map(dir => [dir, absentFrom(path.join(process.cwd(), dir))])
-  .filter(([, names]) => names.length)
+const { absentFrom, installDrift, driftLine } = require('./deps-absent.cjs')
+const TREES = ['.', ...SUBPROJECTS.map(([dir]) => dir)]
+const absent = TREES.map(dir => [
+  dir,
+  absentFrom(path.join(process.cwd(), dir)),
+]).filter(([, names]) => names.length)
+// The same fault a day earlier: the linked install declares other packages
+// or versions than this tree, while nothing is absent and every gate is green.
+const drift = TREES.map(dir => [
+  dir,
+  installDrift(path.join(process.cwd(), dir)),
+]).filter(([, d]) => d)
 const absentReport = () => {
-  console.error('Declared but not installed (an install fault, not the code):')
-  for (const [dir, names] of absent)
-    console.error(`  ${dir}: ${names.join(' ')}`)
+  if (absent.length) {
+    console.error(
+      'Declared but not installed (an install fault, not the code):'
+    )
+    for (const [dir, names] of absent)
+      console.error(`  ${dir}: ${names.join(' ')}`)
+  }
+  if (drift.length) {
+    console.error("Linked install is another checkout's package.json:")
+    for (const [dir, d] of drift) console.error(`  ${dir}: ${driftLine(d)}`)
+  }
   console.error(
     "  A linked node_modules follows the main checkout's branch: `tri deps` names it.\n"
   )
 }
-if (absent.length) {
+if (absent.length || drift.length) {
   console.error('')
   absentReport()
 }
@@ -195,7 +211,7 @@ if (failed.length) {
     console.error(f.out.split('\n').filter(Boolean).slice(-12).join('\n'))
     console.error('')
   }
-  if (absent.length) absentReport()
+  if (absent.length || drift.length) absentReport()
   process.exit(1)
 }
 
