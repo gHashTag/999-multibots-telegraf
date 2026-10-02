@@ -120,14 +120,18 @@ while IFS=$'\t' read -r concl id name url; do
     NAMES=$(lim 60 gh api "repos/$REPO/actions/jobs/$id" \
       --jq '[.steps[] | select(.conclusion == "failure") | .name] | join("\t")' 2>/dev/null </dev/null) || NAMES=
     [ -n "$NAMES" ] && echo "    failed step: ${NAMES%%$'\t'*}"
-    case "$NAMES" in *$'\t'*) echo "    then also failed: ${NAMES#*$'\t'}" | sed $'s/\t/, /g' ;; esac
+    case "$NAMES" in *$'\t'*) REST=${NAMES#*$'\t'}; echo "    then also failed: ${REST//$'\t'/, }" ;; esac
     TAIL=$(printf '%s\n' "$FAILED" | awk -F'\t' 'NF >= 3' \
       | cut -f3- | sed $'s/^\xef\xbb\xbf//' | step_tail)
   elif [ -n "$FIRST" ]; then
     echo "    failed step: $FIRST"
-    OTHERS=$(printf '%s\n' "$FAILED" | awk -F'\t' -v f="$FIRST" 'NF >= 3 && $2 != f && !seen[$2]++ { print $2 }' | paste -sd, - | sed 's/,/, /g')
+    # The name goes to awk through the environment, not -v: -v expands
+    # backslash escapes, and a step with no name: is "Run " plus its script
+    # (`\;`, `\b`), which then never matches itself (review of #3408).
+    OTHERS=$(printf '%s\n' "$FAILED" | F="$FIRST" awk -F'\t' \
+      'NF >= 3 && $2 != ENVIRON["F"] && !seen[$2]++ { o = o (o == "" ? "" : ", ") $2 } END { print o }')
     [ -n "$OTHERS" ] && echo "    then also failed: $OTHERS"
-    TAIL=$(printf '%s\n' "$FAILED" | awk -F'\t' -v f="$FIRST" 'NF >= 3 && $2 == f' \
+    TAIL=$(printf '%s\n' "$FAILED" | F="$FIRST" awk -F'\t' 'NF >= 3 && $2 == ENVIRON["F"]' \
       | cut -f3- | sed $'s/^\xef\xbb\xbf//' | step_tail)
   fi
   if [ -z "$TAIL" ]; then
