@@ -429,6 +429,15 @@ CHECKS THAT EACH COST A CYCLE
         (exit 2). On 2026-10-02: edge sin1, render in sfo, ~250-290 ms warm.
         No key needed.
 
+  tri turn | tri ход [--live] [phrase ...]
+        Whether the words of a pause end the turn (player/src/lib/voice/
+        turnEnd.ts): a phrase stopping on "and", "to", "uh", "и", "на" or a
+        comma gets HANGING_TURN_MS of silence, anything else END_OF_TURN_MS.
+        No phrases: its own battery, exit 1 on a wrong verdict. --live says
+        six phrases with our mouth, hears them with our ears, judges what
+        came back and prints when the words land in the pause (the "heard"
+        earcon now waits for them).
+
   tri vad | tri шум [--legacy] [file.wav ...]
         The mic's voice-activity gate (player/src/lib/voice/vad.ts) run tick
         by tick over recordings, as the session runs it. With no files it
@@ -5911,6 +5920,87 @@ PY
 }
 
 # ─────────────────────────────────────────────────────────────────────────
+# tri turn: the words of a pause decide when the turn is over (cycle 11).
+#
+# A phrase that stops on "and", "to", "uh", "и", "на" or a trailing comma
+# is mid-thought: the session gives it HANGING_TURN_MS of silence instead of
+# END_OF_TURN_MS (player/src/lib/voice/turnEnd.ts). The battery checks the
+# verdicts; --live speaks phrases with our own mouth, hears them with our
+# own ears, and judges what the ears returned -- the engines decide whether
+# "and" survives ("this week and" came back "this weekend." on 2026-10-02).
+# ─────────────────────────────────────────────────────────────────────────
+cmd_turn() {
+  local bench="$ROOT/apps/vibee-editor/player/scripts/turn-bench.ts" live='' a phrases=() key heard
+  for a in "$@"; do
+    case "$a" in
+      --live) live=1 ;;
+      -*) bad "tri turn [--live] [phrase ...], not '$a'"; return 2 ;;
+      *) phrases+=("$a") ;;
+    esac
+  done
+  command -v bun >/dev/null || { bad 'bun is needed to run the judge'; return 2; }
+  if [ -z "$live" ]; then
+    bun "$bench" ${phrases[@]+"${phrases[@]}"}
+    return $?
+  fi
+  key=$(_mcp_key 2>/dev/null) || key=''
+  [ -n "$key" ] || { bad 'no agent key: --live needs the render (AGENT_KEY or the vault)'; return 2; }
+  heard=$(V_KEY="$key" V_BASE="$RENDER" \
+    V_SESSION="$ROOT/apps/vibee-editor/player/src/lib/voice/session.ts" \
+    V_VAD="$ROOT/apps/vibee-editor/player/src/lib/voice/vad.ts" python3 - <<'PY'
+import json, os, re, time, urllib.request
+base, key = os.environ['V_BASE'], os.environ['V_KEY']
+def const(path, name):
+    m = re.search(r'const ' + name + r' = ([0-9_]+)', open(os.environ[path]).read())
+    return int(m.group(1).replace('_', '')) if m else 0
+EAGER, END = const('V_SESSION', 'EAGER_HEAR_MS'), const('V_VAD', 'END_OF_TURN_MS')
+# ONE kept connection, as a browser keeps one: a fresh DNS + TLS per call
+# added 0.3-1 s to every "words at" this printed on its first run.
+from urllib.parse import urlsplit
+import http.client
+u = urlsplit(base)
+conn = (http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection)(u.hostname, u.port, timeout=60)
+def call(path, body, ctype):
+    data = body if isinstance(body, bytes) else json.dumps(body).encode()
+    t = time.monotonic()
+    conn.request('POST', path, body=data, headers={'Content-Type': ctype, 'X-Agent-Key': key})
+    resp = conn.getresponse()
+    b = resp.read()
+    if resp.status != 200:
+        raise RuntimeError(f'HTTP {resp.status} {path}')
+    return b, int((time.monotonic() - t) * 1000), resp.getheader('Server-Timing')
+# [lang, text, still going]
+PROBES = (('ru', 'Покажи мне встречи на этой неделе и', True),  # cyrillic-ok: spoken probe
+          ('ru', 'Хочу записаться на', True),  # cyrillic-ok: spoken probe
+          ('ru', 'Сделай рилс про мою кофейню.', False),  # cyrillic-ok: spoken probe
+          ('en', 'Show me my unpaid invoices and', True),
+          ('en', 'I want to book a table for', True),
+          ('en', 'Open my calendar.', False))
+for lang, text, want in PROBES:
+    try:
+        audio, _, _ = call('/api/voice/speak', {'text': text, 'lang': lang}, 'application/json')
+        b, ms, timing = call(f'/api/voice/transcribe?lang={lang}', audio, 'audio/mpeg')
+        words = json.loads(b).get('text', '')
+    except Exception as e:
+        print(f'  {lang}: FAILED {e}', file=os.sys.stderr)
+        continue
+    # The guess is asked for EAGER ms into the pause; before cycle 11 the
+    # "heard" earcon played at END ms, now it waits for these words.
+    late = max(0, EAGER + ms - END)
+    engine = re.search(r'hear;dur=([0-9.]+);desc="?([^",]+)', timing or '')
+    via = f', {engine.group(2)} {int(float(engine.group(1)))} ms' if engine else ''
+    print(f'  {lang} said {json.dumps(text, ensure_ascii=False)} -> words at {EAGER + ms} ms of silence (earcon +{late} ms{via})', file=os.sys.stderr)
+    print('--want-hang' if want else '--want-over')
+    print(words)
+PY
+  ) || return 2
+  local list=()
+  while IFS= read -r a; do list+=("$a"); done <<< "$heard"
+  [ ${#list[@]} -gt 0 ] && [ -n "${list[0]}" ] || { bad 'nothing heard'; return 1; }
+  bun "$bench" "${list[@]}"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
 # tri vad: the mic's voice-activity gate over real recordings (cycle 8).
 #
 # A fan that STARTS loud was "speech" for 30 s before cycle 8 -- a question
@@ -6245,6 +6335,7 @@ case "$action" in
   voice|голос)         cmd_voice "$@" ;;
   road|дорога)         V_ROAD_ONLY=1 cmd_voice "$@" ;;
   vad|шум)             cmd_vad "$@" ;;
+  turn|ход)            cmd_turn "$@" ;;  # cyrillic-ok: alias, like its neighbours
   filler|пауза)        V_FILLER=1 cmd_voice --runs 1 ;;   # cyrillic-ok: alias, like its neighbours   # cyrillic-ok: alias, like its neighbours
   ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
   mouth|рот)           cmd_ears "$@" mouth ;;  # cyrillic-ok: the voice's mouth, cycle 6

@@ -59,6 +59,7 @@ import {
   wakeRoad as httpWakeRoad,
   warmVoice as httpWarm,
 } from './voiceApi'
+import { HANGING_TURN_MS, hangs } from './turnEnd'
 import { END_OF_TURN_MS, LevelGate, TICK_MS, TurnClock, rms } from './vad'
 
 export type VoicePhase =
@@ -180,6 +181,8 @@ interface EagerHearing {
   hint: Language | null
   text: Promise<string>
   abort: AbortController
+  /** The words once they come: undefined on the way, null if they failed. */
+  words?: string | null
 }
 
 /*
@@ -529,8 +532,8 @@ export class VoiceSession {
     const long = now - this.recordStartedAt
     if (turn.spoke) {
       const quiet = turn.quiet(now)
-      const ended = quiet > END_OF_TURN_MS
-      if (ended || long > MAX_UTTERANCE_MS) void this.finishUtterance()
+      if (this.turnOver(quiet) || long > MAX_UTTERANCE_MS)
+        void this.finishUtterance()
       else if (
         quiet > EAGER_HEAR_MS &&
         !this.eager &&
@@ -549,6 +552,21 @@ export class VoiceSession {
       // Keep the recording short while nobody talks.
       this.beginRecording()
     }
+  }
+
+  /*
+   * The pause is long enough to end the turn -- unless its words, asked for
+   * early, say otherwise (turnEnd.ts). Words still on their way are waited
+   * for: the end of the turn would wait for those same words anyway, and
+   * the person may yet go on. A guess that failed, or a browser that cannot
+   * guess (Safari's mp4), ends the turn at END_OF_TURN_MS as before.
+   */
+  private turnOver(quiet: number): boolean {
+    if (quiet > HANGING_TURN_MS) return true
+    if (quiet <= END_OF_TURN_MS) return false
+    const words = this.eager?.words
+    if (this.eager && words === undefined) return false
+    return !(words && hangs(words))
   }
 
   /** The language to name to the transcriber for the next phrase. */
@@ -592,9 +610,17 @@ export class VoiceSession {
       lang: hint,
       signal: abort.signal,
     })
+    const eager: EagerHearing = { hint, text, abort }
     // Thrown away unheard is not an error anybody should see.
-    text.catch(() => {})
-    this.eager = { hint, text, abort }
+    text.then(
+      w => {
+        eager.words = w
+      },
+      () => {
+        eager.words = null
+      }
+    )
+    this.eager = eager
   }
 
   private dropEager(): void {
