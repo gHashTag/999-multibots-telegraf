@@ -78,4 +78,29 @@ final class VoiceInputTests: XCTestCase {
     XCTAssertFalse(VoiceInput.isTimeUp(listening: false, stopped: ObjectIdentifier(mine),
                                        current: ObjectIdentifier(mine)))
   }
+
+  /// Hands-free goes round only while it should: a declined send, a hidden
+  /// chat or a mic already taken ends it instead of looping on nothing.
+  func testAConversationListensAgainOnlyAfterARealTurn() {
+    XCTAssertTrue(VoiceInput.listensAgain(conversing: true, shown: true, sent: true, phase: .idle))
+    XCTAssertFalse(VoiceInput.listensAgain(conversing: false, shown: true, sent: true, phase: .idle))
+    XCTAssertFalse(VoiceInput.listensAgain(conversing: true, shown: false, sent: true, phase: .idle))
+    XCTAssertFalse(VoiceInput.listensAgain(conversing: true, shown: true, sent: false, phase: .idle))
+    XCTAssertFalse(VoiceInput.listensAgain(conversing: true, shown: true, sent: true, phase: .listening))
+  }
+
+  /// A conversation can always be ended, even while the agent answers.
+  func testTheMicTakesATouchWhenItShould() {
+    XCTAssertFalse(VoiceInput.micTakes(phase: .hearing, resting: false, conversing: true))
+    XCTAssertTrue(VoiceInput.micTakes(phase: .listening, resting: true, conversing: false))
+    XCTAssertTrue(VoiceInput.micTakes(phase: .idle, resting: true, conversing: true))
+    XCTAssertFalse(VoiceInput.micTakes(phase: .idle, resting: true, conversing: false))
+    XCTAssertTrue(VoiceInput.micTakes(phase: .idle, resting: false, conversing: false))
+  }
+
+  /// Nothing recorded, nothing to finish: a fresh VoiceInput asks for no send.
+  @MainActor
+  func testAnIdleMicWantsNoFinish() {
+    XCTAssertFalse(VoiceInput().wantsFinish)
+  }
 }
