@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 let mangle = false
+let noPostAll = false
 const typed: { text: string; enter: boolean }[] = []
 const clicks: string[] = []
 const closed: string[] = []
@@ -29,7 +30,7 @@ vi.mock('../browser/cdp', () => ({
     opened.push(url)
     return { id: `p${++n}`, url }
   },
-  evaluateOn: async (_c: string, _id: string, expr: string) => {
+  evaluateOn: async (_c: string, id: string, expr: string) => {
     if (expr === 'location.href') return `https://x.com/${n}/${clicks.length}`
     if (expr.includes('AppTabBar_Profile_Link')) return 'https://x.com/owner'
     if (expr.includes('tweetTextarea_'))
@@ -37,6 +38,8 @@ vi.mock('../browser/cdp', () => ({
         mangle ? t.text.slice(0, 8) + t.text.slice(40) : t.text
       )
     if (expr.startsWith('document.body')) return 'Feed\nOne regional clock'
+    /* After the second post is typed, the only look on p1 is for Post all. */
+    if (noPostAll && id === 'p1' && typed.length === 2) return null
     return { x: 1, y: 1, label: 'Post' }
   },
   clickAt: async (_c: string, id: string) => void clicks.push(id),
@@ -96,6 +99,23 @@ describe('X thread: the composer is read back before posting', () => {
     expect(clicks.filter(id => id === 'p1')).toHaveLength(1)
     /* The fallback: X's share link, its text in the URL, opened next. */
     expect(opened[0]).toBe('https://x.com/compose/post')
+    expect(opened.some(u => u.startsWith('https://x.com/intent/'))).toBe(true)
+    expect(out.X).not.toMatch(/^тред отправлен/) // cyrillic-ok: the words the desk writes
+  })
+
+  it('no "Post all" button: the full draft is closed, not left beside the fallback', async () => {
+    noPostAll = true
+    const { publishEverywhere } = await import('./blog-share-wiring')
+    const out = await publishEverywhere(
+      { query: async () => ({ rows: [] }) } as never,
+      '1',
+      article
+    )
+    noPostAll = false
+    /* Both posts typed, nothing pressed after the plus, the draft closed. */
+    expect(typed).toHaveLength(2)
+    expect(clicks.filter(id => id === 'p1')).toHaveLength(2)
+    expect(closed).toContain('p1')
     expect(opened.some(u => u.startsWith('https://x.com/intent/'))).toBe(true)
     expect(out.X).not.toMatch(/^тред отправлен/) // cyrillic-ok: the words the desk writes
   })

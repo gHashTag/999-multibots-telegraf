@@ -231,6 +231,12 @@ async function postThreadOnX(cdp: string, a: Article): Promise<string> {
         return found.label
       }
     }
+    /*
+     * Nothing was pressed, so nothing went out: the draft is closed rather
+     * than left open beside the share link the caller opens next -- two X
+     * drafts side by side invite the person to post the article twice.
+     */
+    await closePage(cdp, page.id).catch(() => undefined)
     throw new Error(`no ${labels[0]}`)
   }
 
