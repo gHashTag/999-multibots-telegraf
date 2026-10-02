@@ -54,7 +54,6 @@
  * must not be able to talk the owner's agent into a free month.
  */
 import { record } from '../hive/journal'
-import { keepers } from '../hive/roles'
 import { creditStarsPayment } from '../stars-credit'
 import { ensureTokenLedger } from '../token-ledger'
 import { parseDay } from './club-guests'
@@ -66,7 +65,7 @@ import {
   grantDay,
   type Credit,
 } from './club-membership'
-import { OWNER_TELEGRAM_ID } from './telegram-tools'
+import { isOwnerOrKeeper } from './telegram-tools'
 import type { AgentTool } from './tools'
 
 type Queryable = { query: (sql: string, params?: unknown[]) => Promise<any> }
@@ -93,9 +92,7 @@ export function cashTxId(telegramId: string, start: Date): string {
 
 /** The platform owner, or a keeper -- nobody else records money taken by hand. */
 export function mayRecordCash(who: string): boolean {
-  const id = String(who ?? '').trim()
-  if (!id) return false
-  return id === OWNER_TELEGRAM_ID || keepers().includes(id)
+  return isOwnerOrKeeper(who)
 }
 
 export interface CashMonthInput {
