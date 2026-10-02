@@ -141,7 +141,7 @@ function ratchet(o) {
   /*
    * TRAP 4. A STARVED MACHINE IS NOT A BROKEN RUN (2026-10-02, PR #3320).
    * At load 380 on 8 cores with swap nearly gone, tsc was killed with no
-   * output at all; TRAP 3 below then called it broken and the only way
+   * output at all; TRAP 3 (below) called it broken and the only way
    * through was skipping every gate. Findings are never retried -- an
    * `error TS` line is an answer whatever the load. A silent death on a
    * starved machine waits for headroom (TSC_HEADROOM_WAIT seconds, 600 by
@@ -179,6 +179,25 @@ function ratchet(o) {
       }
     }
   }
+
+  /*
+   * TRAP 3. Zero matches is indistinguishable from "the check did not run":
+   * empty output gives the same number. So the EXIT CODE is read too -- tsc
+   * exits zero only when there really are no errors. Reached on a fed
+   * machine at once, and after TRAP 4's retry when the machine recovered
+   * but tsc still died silently: either way it is a broken run, not a pass.
+   */
+  if (!all.length && res.status !== 0)
+    fail(
+      `tsc завершился с кодом ${res.status}, но ни одной строки вида ` +
+        '«error TSxxxx» в выводе нет.\n' +
+        '   Это не чистый прогон, а сломанный запуск. Первые строки вывода:\n' +
+        out
+          .split('\n')
+          .slice(0, 5)
+          .map(l => `   | ${l}`)
+          .join('\n')
+    )
 
   const lines = o.mine ? all.filter(l => o.mine(l.split('(')[0])) : all
   const count = lines.length
