@@ -910,7 +910,35 @@ export function makeCrmDeliverTools(
               gift
                 ? (ctx as ToolContext)
                 : { ...(ctx as ToolContext), chargeLater: true }
-            )) as { url?: string; причина?: string; reason?: string } // cyrillic-ok: public API field
+            )) as {
+              url?: string
+              причина?: string // cyrillic-ok: public API field
+              reason?: string
+              watermark?: string | null
+            }
+            /*
+             * A STAMPED PICTURE IS A DRAFT, NOT A DELIVERY (2026-10-03). With
+             * fal below cost and Replicate off, the free leg drew every
+             * image_generate that day, and it stamps "pollinations.ai" on the
+             * frame whatever `nologo` asks (image-chain.ts watermarkOf). This
+             * door hands the picture to a client -- maybe a paying one -- so a
+             * stamp stops here: the owner gets the URL as a draft (a gift was
+             * already paid for), the client gets nothing and is charged nothing.
+             */
+            if (made?.url && made.watermark) {
+              await noteGift(ctx, made.watermark, 'watermark')
+              return {
+                delivered: false,
+                // cyrillic-ok: public API field
+                причина:
+                  `картинку нарисовал бесплатный провайдер со знаком ${made.watermark} — ` +
+                  'клиенту такое не отдаём; черновик только для тебя. Чистая — image_edit (Kie) от исходного фото',
+                draft_url: made.url,
+                watermark: made.watermark,
+                price,
+                source: 'без людей, по описанию',
+              }
+            }
             if (!made?.url) {
               noteImagesFailed(made?.причина ?? made?.reason) // cyrillic-ok: field name
               await noteGift(ctx, made?.причина ?? made?.reason, 'generate') // cyrillic-ok: public API field
