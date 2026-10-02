@@ -119,6 +119,19 @@ export const KIE_IMAGE_LEG = `kie/${T2I_MODEL}`
 export const falLeg = (endpoint: string): string => `fal/${endpoint}`
 
 /**
+ * WHAT A LEG STAMPS ON ITS PICTURE. The keyless pollinations leg asks for
+ * `nologo=true`, and the service ignores it for a call with no account:
+ * measured 2026-10-03, a 1024x1024 request came back 768x768 with
+ * "pollinations.ai" printed in the bottom-right corner. Such a picture is a
+ * fine draft and a wrong brand avatar or public post, and only the caller
+ * knows which one it is making -- so the chain names the mark instead of
+ * handing it over as a clean picture.
+ */
+export function watermarkOf(provider: string | null): string | null {
+  return provider === POLLINATIONS_IMAGE_LEG ? 'pollinations.ai' : null
+}
+
+/**
  * THE COST OF ONE IMAGE, PER LEG. Keyed by the leg name the route builds.
  *
  * Every number has a source that can be read again:
