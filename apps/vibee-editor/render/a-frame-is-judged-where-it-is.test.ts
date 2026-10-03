@@ -332,6 +332,25 @@ describe('where a tab landed', () => {
     })
   })
 
+  it('still on the address asked, written without its slash: four looks, not two', async () => {
+    /* bit.ly is slow; Chromium reports the asked "https://s.example" as
+       "https://s.example/". Two looks of it are not a landing. */
+    const r = await landing(
+      reads(
+        'https://s.example/',
+        'https://s.example/',
+        'https://s.example/',
+        'https://b.example/',
+        'https://b.example/'
+      ),
+      now,
+      6,
+      0,
+      'https://s.example'
+    )
+    expect(r.landed).toBe('https://b.example/')
+  })
+
   it('a chain that passed THROUGH a site still went there', async () => {
     const r = await landing(
       reads(
@@ -720,6 +739,21 @@ describe('the tools judge the frame, not only the tab', () => {
     WORLD.focusIn = []
     await (await tool('browser_type')).handler({ text: 'name' }, ctx)
     expect(cdpCalls).toContain('typeText')
+  })
+
+  it('typing: a BLOCKED frame is asked where focus is, though it needs no yes', async () => {
+    /* x.com is not a guarded place: only the list's "block" makes it risky. */
+    table = [{ site: 'x.com', rule: 'block' }]
+    WORLD.frames = [frame({ url: 'https://platform.x.com/embed' })]
+    WORLD.iframes = [
+      { id: 'f1', url: 'https://platform.x.com/embed', parentId: 'page-1' },
+    ]
+    WORLD.focusIn = ['f1']
+    await expect(
+      (await tool('browser_type')).handler({ text: 'hi' }, ctx)
+    ).rejects.toThrow(/embedded in this page as a frame/)
+    expect(cdpCalls).toContain('hasFocus f1')
+    expect(cdpCalls).not.toContain('typeText')
   })
 
   it('typing beside harmless frames asks none of them', async () => {

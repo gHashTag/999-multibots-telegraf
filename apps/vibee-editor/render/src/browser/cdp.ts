@@ -422,44 +422,58 @@ export async function frameAtPoint(
   x: number,
   y: number
 ): Promise<{ frameId: string; url: string | null }> {
-  return await onPage(endpoint, targetId, async call => {
-    const m = await call('Page.getLayoutMetrics')
-    const vv = (m.cssVisualViewport ?? m.cssLayoutViewport) as
-      | { pageX?: unknown; pageY?: unknown }
-      | undefined
-    const sx = Number(vv?.pageX)
-    const sy = Number(vv?.pageY)
-    if (!Number.isFinite(sx) || !Number.isFinite(sy))
-      throw new Error('no scroll offset: cannot place the point')
-    let hit: Record<string, unknown>
-    try {
-      hit = await call('DOM.getNodeForLocation', {
-        x: Math.floor(x + sx),
-        y: Math.floor(y + sy),
-        includeUserAgentShadowDOM: true,
-      })
-    } catch (e) {
-      /* Empty canvas: the press lands on the top page itself. */
-      if (/no node found/i.test(String((e as Error).message)))
-        return { frameId: targetId, url: null }
-      throw e
-    }
-    const described = await call('DOM.describeNode', {
-      backendNodeId: hit.backendNodeId,
+  return await onPage(endpoint, targetId, call =>
+    frameAtPointWith(call, targetId, x, y)
+  )
+}
+
+/**
+ * The same, over calls already attached to the page: what a test drives.
+ * The point is ROUNDED into document px, not floored: with a fractional
+ * scroll offset, flooring put the check up to a pixel beside the press.
+ */
+export async function frameAtPointWith(
+  call: Call,
+  targetId: string,
+  x: number,
+  y: number
+): Promise<{ frameId: string; url: string | null }> {
+  const m = await call('Page.getLayoutMetrics')
+  const vv = (m.cssVisualViewport ?? m.cssLayoutViewport) as
+    | { pageX?: unknown; pageY?: unknown }
+    | undefined
+  const sx = Number(vv?.pageX)
+  const sy = Number(vv?.pageY)
+  if (!Number.isFinite(sx) || !Number.isFinite(sy))
+    throw new Error('no scroll offset: cannot place the point')
+  let hit: Record<string, unknown>
+  try {
+    hit = await call('DOM.getNodeForLocation', {
+      x: Math.round(x + sx),
+      y: Math.round(y + sy),
+      includeUserAgentShadowDOM: true,
     })
-    const node = described.node as
-      | { nodeName?: string; frameId?: string }
-      | undefined
-    const owned =
-      node && FRAME_OWNER.test(node.nodeName ?? '') && node.frameId
-        ? node.frameId
-        : null
-    const frameId = owned ?? String(hit.frameId || '')
-    if (!frameId) throw new Error('the hit-test named no frame')
-    if (frameId === targetId) return { frameId, url: null }
-    const tree = await call('Page.getFrameTree').catch(() => null)
-    return { frameId, url: urlInTree(tree?.frameTree, frameId) }
+  } catch (e) {
+    /* Empty canvas: the press lands on the top page itself. */
+    if (/no node found/i.test(String((e as Error).message)))
+      return { frameId: targetId, url: null }
+    throw e
+  }
+  const described = await call('DOM.describeNode', {
+    backendNodeId: hit.backendNodeId,
   })
+  const node = described.node as
+    | { nodeName?: string; frameId?: string }
+    | undefined
+  const owned =
+    node && FRAME_OWNER.test(node.nodeName ?? '') && node.frameId
+      ? node.frameId
+      : null
+  const frameId = owned ?? String(hit.frameId || '')
+  if (!frameId) throw new Error('the hit-test named no frame')
+  if (frameId === targetId) return { frameId, url: null }
+  const tree = await call('Page.getFrameTree').catch(() => null)
+  return { frameId, url: urlInTree(tree?.frameTree, frameId) }
 }
 
 interface FrameTreeNode {
