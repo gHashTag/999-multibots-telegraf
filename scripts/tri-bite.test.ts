@@ -196,7 +196,7 @@ describe('tri bite -- review of #3462', () => {
     const before = fs.readFileSync(path.join(dir, 'impl.sh'), 'utf8')
     bite(dir, 'v1', 'link.sh', '--', 'bash', 't.sh')
     const r = bite(dir, 'v1', 'up/impl.sh', '--', 'bash', 't.sh')
-    expect(r.stdout).toMatch(/symlink that leaves the copy/)
+    expect(r.stdout).toMatch(/goes through the symlink up/)
     expect(r.status).toBe(2)
     expect(fs.readFileSync(path.join(dir, 'impl.sh'), 'utf8')).toBe(before)
     expect(git(dir, 'status', '--porcelain')).toBe('')
@@ -320,5 +320,72 @@ describe('tri bite -- review of #3462', () => {
     const r = bite(dir, 'v1', 'm', '--', 'true')
     expect(r.stdout).toMatch(/is a tree at v1/)
     expect(r.status).toBe(2)
+  })
+})
+
+describe('tri bite -- review 2 of #3462', () => {
+  it('a path through a directory link is refused, not a false BITES', () => {
+    // lib -> src, and the code is the same at v1 and now: the honest answer is
+    // "does not bite", the old one was "removed (absent at v1)" and BITES.
+    const dir = repo()
+    git(dir, 'mv', 'lib', 'src')
+    fs.symlinkSync('src', path.join(dir, 'lib'))
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'link')
+    git(dir, 'tag', '-f', 'v1')
+    const r = bite(
+      dir,
+      'v1',
+      'lib/add.sh',
+      '--',
+      'bash',
+      '-c',
+      'cd src && bash test.sh'
+    )
+    expect(r.stdout).toMatch(/goes through the symlink lib/)
+    expect(r.stdout).not.toMatch(/BITES/)
+    expect(r.status).toBe(2)
+  })
+
+  it('another letter case is cannot tell on any disk, never BITES', () => {
+    // On a case-blind disk lib/Add.sh opens lib/add.sh, and the swap removed
+    // the real module from the copy.
+    const dir = repo()
+    git(dir, 'tag', '-f', 'v1')
+    const r = bite(
+      dir,
+      'v1',
+      'lib/Add.sh',
+      '--',
+      'bash',
+      '-c',
+      'cd lib && bash test.sh'
+    )
+    expect(r.stdout).not.toMatch(/BITES/)
+    expect(r.status).toBe(2)
+    if (fs.existsSync(path.join(dir, 'lib/ADD.sh'))) {
+      expect(r.stdout).toMatch(/exactly that name/)
+    }
+  })
+
+  it('a link to a directory of the checkout gets no new directory', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-'))
+    dirs.push(dir)
+    git(dir, 'init', '-q', '-b', 'main')
+    fs.mkdirSync(path.join(dir, 'lib/new'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'lib/new/x.sh'), 'x\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'v1')
+    git(dir, 'tag', 'v1')
+    git(dir, 'rm', '-rq', 'lib')
+    fs.mkdirSync(path.join(dir, 'real'))
+    fs.writeFileSync(path.join(dir, 'real/keep'), 'k\n')
+    fs.symlinkSync(path.join(dir, 'real'), path.join(dir, 'lib'))
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'v2')
+    const r = bite(dir, 'v1', 'lib/new/x.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(fs.existsSync(path.join(dir, 'real/new'))).toBe(false)
+    expect(git(dir, 'status', '--porcelain')).toBe('')
   })
 })
