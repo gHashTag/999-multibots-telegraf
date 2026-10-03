@@ -83,6 +83,21 @@ describe('tri disk-floor', () => {
     expect(arm).not.toMatch(/git worktree remove/)
   })
 
+  it('free-disk.sh removes no worktree itself; it points at the judge', () => {
+    // Without --force, `git worktree remove` still deletes ignored files
+    // (.env, nested clones) -- and it took trees of running sessions.
+    const src = readFileSync(
+      path.join(__dirname, '..', '.claude', 'loop-opus', 'free-disk.sh'),
+      'utf8'
+    )
+    const code = src
+      .split('\n')
+      .filter(l => !l.trim().startsWith('#'))
+      .join('\n')
+    expect(code).not.toMatch(/worktree\s+remove/)
+    expect(code).toMatch(/tri worktrees --apply/)
+  })
+
   it('an unreadable volume is rc 2, never a silent "fine"', () => {
     const r = floor({ TRI_DISK_FREE_KIB: 'n/a' })
     expect(r.rc).toBe(2)
