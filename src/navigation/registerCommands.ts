@@ -278,13 +278,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      * that nobody answered. Why this hole exists at all is written down in
      * `middleware/noSilence.ts`.
      */
-    /*
-     * A TAB ANSWERS IN ITS TAB. Private-chat topics (Bot API 9.3+): every
-     * direct send aimed at this chat inherits the topic of the update, so the
-     * agent lane's answer lands in the tab the person wrote in
-     * (topics/threads.ts). First, so every later handler sees the view.
-     */
-    bot.use(topicThreadMiddleware)
     bot.use(replyWitness)
     /*
      * THE NETS ARE REGISTERED EARLY AND DECIDE LATE.
@@ -305,6 +298,13 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      */
     bot.use(silenceNet)
     bot.use(deadPressNet)
+    /*
+     * A TAB ANSWERS IN ITS TAB. Private-chat topics (Bot API 9.3+): every
+     * direct send aimed at this chat inherits the topic of the update, so the
+     * agent lane's answer lands in the tab the person wrote in
+     * (topics/threads.ts). Right after the nets, so every handler sees the view.
+     */
+    bot.use(topicThreadMiddleware)
 
     // 1. Логгер для ВСЕХ входящих обновлений (самый первый middleware)
     bot.use((ctx, next) => {
