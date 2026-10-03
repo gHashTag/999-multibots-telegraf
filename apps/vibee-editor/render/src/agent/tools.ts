@@ -93,6 +93,7 @@ import { makeClientFaceTool } from './client-face-tool'
 import { isClientFacing } from './client-facing'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
+import { makeSplitReelTool } from './split-reel-tool'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
 import {
@@ -3870,6 +3871,12 @@ TOOLS.push(
     refund: (t, ctx, why) => refundLateImage(ctx, t, why),
   })
 )
+/*
+ * THE SPLIT REEL AS ONE CALL (split_reel, split-reel.t27): voice, b-roll
+ * stills, lip-sync, captions from the final voice and the SplitTalkingHead
+ * template -- borrowed through the registry the same way as story_reel.
+ */
+TOOLS.push(makeSplitReelTool(n => TOOLS.find(t => t.name === n)))
 /*
  * THE CRM'S STORY TEMPLATE (crm_story_reel): the same reel for any client
  * with a face and a voice, on any topic, made in the background and handed
