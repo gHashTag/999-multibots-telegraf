@@ -100,7 +100,10 @@ export function MetaConnectCard({
 
   useEffect(() => {
     if (given || !isOwn) return
-    void refresh()
+    // The first read starts from a microtask, not synchronously in the effect
+    // (react-hooks/set-state-in-effect): #3523 put the call here and lifted
+    // the player lint one error over its ratchet.
+    void Promise.resolve().then(refresh)
     /* Back from the sign-in window: Telegram's browser or another tab. */
     const back = () => {
       if (document.visibilityState === 'visible') void refresh()

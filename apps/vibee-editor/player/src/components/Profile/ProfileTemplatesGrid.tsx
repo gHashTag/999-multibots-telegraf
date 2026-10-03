@@ -103,15 +103,35 @@ export function ProfileTemplatesGrid({
   }
   const deleteTemplate = useSetAtom(deleteTemplateAtom)
 
+  /*
+   * One AbortController per username (2026-10-03). The reset effect below
+   * makes a fresh one for every profile and aborts it when the username
+   * changes or the grid unmounts. Every request, page 0 and the pages after
+   * it, carries the controller current when it started.
+   *
+   * Without it, a slow answer for the previous username landed on the new
+   * profile: its templates, counts, page and hasMore replaced the new ones,
+   * and its `finally` cleared `loading` while the new first page was still
+   * in flight, so the new profile flashed "no templates". Pages of the SAME
+   * username share one controller, so Load More and the automatic reading
+   * never cancel each other.
+   */
+  const requestsRef = useRef<AbortController | null>(null)
+
   const loadTemplates = useCallback(
     async (pageNum = 0) => {
+      const { signal } = (requestsRef.current ??= new AbortController())
+      const stale = () => signal.aborted
       setLoading(true)
       try {
         const response = await fetch(
-          `${API_BASE}/api/users/${encodeURIComponent(username)}/templates?page=${pageNum}&limit=20`
+          `${API_BASE}/api/users/${encodeURIComponent(username)}/templates?page=${pageNum}&limit=20`,
+          { signal }
         )
+        if (stale()) return
         if (response.ok) {
           const data = await response.json()
+          if (stale()) return
           // Итоги по шаблонам считает сервер по ВСЕМ записям: страница
           // урезана `limit`, и посчитать по ней целое нельзя в принципе.
           if (data.compositionCounts) setВсегоВГруппе(data.compositionCounts)
@@ -141,10 +161,11 @@ export function ProfileTemplatesGrid({
           setFailedPage(pageNum)
         }
       } catch (error) {
+        if (stale()) return
         console.error('Failed to load templates:', error)
         setFailedPage(pageNum)
       } finally {
-        setLoading(false)
+        if (!stale()) setLoading(false)
       }
     },
     [username]
@@ -157,12 +178,15 @@ export function ProfileTemplatesGrid({
    * a list that had loaded.
    */
   useEffect(() => {
+    const requests = new AbortController()
+    requestsRef.current = requests
     setTemplates([])
     setPage(0)
     setHasMore(true)
     setFailedPage(null)
     setВсегоВГруппе({}) // cyrillic-ok: the existing state name
     void loadTemplates()
+    return () => requests.abort()
   }, [loadTemplates])
 
   /**
