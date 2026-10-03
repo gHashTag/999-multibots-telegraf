@@ -26,6 +26,13 @@ import { logger } from '@/utils/logger'
  *   - once per room per process. A deploy restarts the count, which is fine:
  *     a client still unanswered after a deploy is still worth saying.
  *
+ * The room is CLAIMED in the same synchronous step that checks it, before the
+ * first await. One photo reaches this twice (the photo handler and the agent
+ * fallback), and albums and polling batches run concurrently; a mark set only
+ * after the member lookups let every one of them through. A claim is released
+ * when the attempt fails -- the member count errors or no notice is delivered
+ * -- so a later message can try again.
+ *
  * The notice names the room, the person, the first words, and the exact line
  * that opens the room, so acting on it takes one paste.
  */
@@ -68,6 +75,7 @@ export async function tellOwnersTheRoomIsSilent(
   ctx: MyContext,
   adminIds: number[]
 ): Promise<void> {
+  let claimed = ''
   try {
     const chat = ctx.chat as
       | { id?: number; type?: string; title?: string }
@@ -85,11 +93,12 @@ export async function tellOwnersTheRoomIsSilent(
       | undefined
     if (!message) return
 
+    // Claim before the first await: a concurrent call now sees the room taken.
+    told.add(chatId)
+    claimed = chatId
+
     const count = await ctx.telegram.getChatMembersCount(chat.id as number)
-    if (count > SILENT_ROOM_MAX_MEMBERS) {
-      told.add(chatId)
-      return
-    }
+    if (count > SILENT_ROOM_MAX_MEMBERS) return
 
     const present: number[] = []
     for (const id of adminIds) {
@@ -98,7 +107,6 @@ export async function tellOwnersTheRoomIsSilent(
         .catch(() => undefined)
       if (m && PRESENT.has(m.status)) present.push(id)
     }
-    told.add(chatId)
     if (!present.length) return
 
     const who =
@@ -110,19 +118,30 @@ export async function tellOwnersTheRoomIsSilent(
       who,
       said: String(message.text ?? message.caption ?? ''),
     })
+    let delivered = 0
     for (const id of present) {
-      await ctx.telegram.sendMessage(id, text).catch(e =>
-        logger.warn('[silent-room] the notice did not reach an admin', {
-          chatId,
-          error: e instanceof Error ? e.message : String(e),
-        })
+      await ctx.telegram.sendMessage(id, text).then(
+        () => {
+          delivered++
+        },
+        e =>
+          logger.warn('[silent-room] the notice did not reach an admin', {
+            chatId,
+            error: e instanceof Error ? e.message : String(e),
+          })
       )
+    }
+    if (!delivered) {
+      // Nobody heard it: give the room back so a later message retries.
+      told.delete(chatId)
+      return
     }
     logger.info('[silent-room] told the owner a client is unanswered', {
       chatId,
-      admins: present.length,
+      admins: delivered,
     })
   } catch (e) {
+    if (claimed) told.delete(claimed)
     logger.warn('[silent-room] could not check the room', {
       error: e instanceof Error ? e.message : String(e),
     })
