@@ -1370,11 +1370,18 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         .map(t => ({ id: t.id, url: t.url ?? '' }))
       const named = Array.isArray(a.ids) ? a.ids.map(String) : []
       const tabs = tidyCandidates(pages, named)
+      /*
+       * The agent sees a blocked tab by host only (site-rules.ts veilTab);
+       * the question stores and the card shows the real address, because
+       * apply compares it and the card is the person's own phone.
+       */
+      const rules = await siteRulesOf(q, ctx.telegramId)
+      const shown = tabs.map(t => veilTab(t, rules))
       /* A card already on his phone is the answer to "ask" too: one at a time. */
       const open = await openTidyAsk(q, ctx.telegramId)
       if (open)
         return {
-          tabs,
+          tabs: shown,
           asked: false,
           open,
           note:
@@ -1382,7 +1389,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
               ? 'he already allowed it: call apply with this id'
               : 'a question is already waiting for him; no second card',
         }
-      if (a.ask !== true || !tabs.length) return { tabs, asked: false }
+      if (a.ask !== true || !tabs.length) return { tabs: shown, asked: false }
       const id = await requestPermission(
         q,
         ctx.telegramId,
@@ -1391,7 +1398,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       )
       await rememberTidyAsk(q, id, ctx.telegramId, tabs)
       return {
-        tabs,
+        tabs: shown,
         asked: true,
         question: id,
         note: 'nothing closes until the person allows it; then call apply with this id',
