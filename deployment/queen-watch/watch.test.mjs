@@ -9,7 +9,15 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { judge } from '../../apps/vibee-editor/packages/vibee-atoms/src/spec-quality.ts'
-import { config, hash8, issueSpec, kindOf, probe, run } from './watch.mjs'
+import {
+  config,
+  hash8,
+  issueSpec,
+  kindOf,
+  probe,
+  run,
+  tellOwner,
+} from './watch.mjs'
 
 /* Deliberately fake values, long enough to be scrubbed. */
 const BOT_KEY = 'fake-bot-key-0001'
@@ -52,6 +60,8 @@ function world({
   queen = 201,
   issues = [],
   restartOk = true,
+  said = null,
+  logs = [],
 } = {}) {
   const calls = []
   const out = []
@@ -60,15 +70,22 @@ function world({
     const u = String(url)
     const body = init.body ? JSON.parse(init.body) : null
     const headers = init.headers || {}
-    calls.push({ url: u, method: init.method || 'GET', body, headers })
+    calls.push({
+      url: u,
+      method: init.method || 'GET',
+      body,
+      raw: init.body || '',
+      headers,
+    })
     if (u.includes('/api/browser/approve')) {
       if (render === 'down')
         throw Object.assign(new Error(`fetch failed ${u}`), {
           name: 'TypeError',
         })
       if (!headers['x-api-key']) return res(401, { error: 'unauthorized' })
-      if (typeof render === 'number') return res(render, {})
-      return res(200, { said: 'This question has expired.' })
+      if (typeof render === 'number')
+        return res(render, said === null ? {} : { said })
+      return res(200, { said: said ?? 'This question has expired.' })
     }
     if (u.includes('/mcp')) {
       if (render === 'down')
@@ -84,7 +101,9 @@ function world({
         return res(200, { data: { deploymentRestart: restartOk } })
       }
       if (body.query.includes('deploymentLogs')) {
-        return res(200, { data: { deploymentLogs: [] } })
+        return res(200, {
+          data: { deploymentLogs: logs.map(message => ({ message })) },
+        })
       }
       return res(200, {
         data: {
@@ -273,6 +292,82 @@ describe('secrets', () => {
     expect(w.stdout()).toContain('[redacted]')
   })
 
+  /*
+   * The render's words and the bot's log lines are quoted outward. A secret
+   * inside either must not reach the owner's DM, the Queen or GitHub.
+   */
+  const outbound = w =>
+    ['/queen/report', 'api.telegram.org', 'api.github.com'].map(host => ({
+      host,
+      posts: w.sent(host),
+    }))
+  /* Every secret of cfgWith() (its renderKey is BOT_KEY, quoted via the log). */
+  const leak = `leaked ${TG} ${RAIL} ${QUEEN} ${GH}`
+  const logLine = `[browser-approval] relay failed {"key":"${BOT_KEY}"}`
+
+  it('never appear in the Telegram, Queen or issue payload (red, new issue)', async () => {
+    const w = world({ render: 403, said: leak, logs: [logLine] })
+    expect(await run(cfgWith(), w.deps)).toBe(1)
+    const sent = outbound(w)
+    for (const { host, posts } of sent) {
+      expect(posts.length, host).toBeGreaterThan(0)
+      for (const p of posts) {
+        for (const s of SECRETS) expect(p.raw, host).not.toContain(s)
+        expect(p.raw, host).toContain('[redacted]')
+      }
+    }
+    /* The bot log line really was quoted: the issue carries the warn line. */
+    const issue = w.sent('api.github.com')[0]
+    expect(issue.body.body).toContain('[browser-approval]')
+  })
+
+  it('never appear in an issue comment', async () => {
+    const w = world({
+      render: 403,
+      said: leak,
+      logs: [logLine],
+      issues: [{ number: 41, html_url: 'https://github.com/x/y/issues/41' }],
+    })
+    await run(cfgWith(), w.deps)
+    const [c] = w.sent('api.github.com')
+    expect(c.url).toMatch(/\/comments$/)
+    expect(c.body.body).toContain('[browser-approval]')
+    for (const s of SECRETS) expect(c.raw).not.toContain(s)
+  })
+
+  it('never appear in the first-run green report', async () => {
+    const w = world({ said: leak, logs: [logLine] })
+    expect(await run(cfgWith(), w.deps)).toBe(0)
+    const q = w.sent('/queen/report')
+    expect(q).toHaveLength(1)
+    expect(q[0].body.body).toContain('[redacted]')
+    for (const { posts } of outbound(w))
+      for (const p of posts)
+        for (const s of SECRETS) expect(p.raw).not.toContain(s)
+  })
+
+  it('a secret with a quote or backslash is scrubbed in its JSON form too', async () => {
+    const odd = 'fake"gh\\tok-0007'
+    const cfg = cfgWith({ ghToken: odd })
+    const w = world({ render: 403, said: `x ${odd} y` })
+    await run(cfg, w.deps)
+    const escaped = JSON.stringify(odd).slice(1, -1)
+    for (const { host, posts } of outbound(w))
+      for (const p of posts) {
+        expect(p.raw, host).not.toContain(odd)
+        expect(p.raw, host).not.toContain(escaped)
+      }
+  })
+
+  it('a long message is scrubbed before it is cut, so no prefix survives', async () => {
+    const cfg = cfgWith()
+    const w = world()
+    await tellOwner(cfg, w.deps, 'x'.repeat(3995) + TG)
+    const [m] = w.sent('api.telegram.org')
+    expect(m.body.text).toHaveLength(4000)
+    expect(m.raw).not.toContain('fake-tg')
+  })
+
   it('without RAILWAY_API_TOKEN the log is not measured, never ok', async () => {
     const r = await probe(cfgWith({ railwayToken: '' }), world().deps)
     expect(r.rc).toBe(2)
@@ -329,6 +424,21 @@ describe('github', () => {
     expect(verdict.isSpec).toBe(true)
     expect(verdict.delegatable).toBe(true)
   })
+})
+
+it('no writable volume: the render is not restarted, and that is reported', async () => {
+  /* A file where the state directory should be: mkdir fails (ENOTDIR). */
+  const file = join(mkdtempSync(join(tmpdir(), 'queen-watch-')), 'not-a-dir')
+  writeFileSync(file, '')
+  const cfg = cfgWith({ stateDir: join(file, 'state') })
+  for (let hour = 0; hour < 3; hour++) {
+    const w = world({ render: 'down' })
+    expect(await run(cfg, w.deps)).toBe(1)
+    expect(w.restarts()).toBe(0)
+    expect(w.stdout()).toContain('state not persisted -- heal skipped')
+    expect(w.sent('/queen/report')[0].body.body).toContain('not persisted')
+    expect(w.sent('api.telegram.org')).toHaveLength(1)
+  }
 })
 
 it('a corrupt state file is a first run, not a crash', async () => {

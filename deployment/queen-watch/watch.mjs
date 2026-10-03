@@ -21,7 +21,12 @@
  * Secrets: every value arrives as a Railway REFERENCE variable and is never
  * printed. Keys are compared by sha256 and only the first 8 hex characters of
  * a hash are ever shown; every output line is scrubbed of every secret value
- * besides, so a future message that quotes a response cannot leak one.
+ * besides, so a future message that quotes a response cannot leak one. That
+ * holds for the network as well as stdout: every request goes through
+ * `call()`, which scrubs the request BODY of every secret (raw and as it
+ * reads inside a JSON string) -- the Telegram message, the Queen report, the
+ * GitHub issue and comment alike. Headers and the URL are left alone: that is
+ * where a token is meant to go.
  *
  * Variables, all Railway references -- no value is ever copied:
  *   BOT_RENDER_API_KEY   ${{999-multibots-telegraf.RENDER_API_KEY}}
@@ -90,7 +95,13 @@ export function secretsOf(cfg) {
 
 export function redact(text, secrets) {
   let out = String(text)
-  for (const s of secrets) out = out.split(s).join('[redacted]')
+  for (const s of secrets) {
+    out = out.split(s).join('[redacted]')
+    /* The same value as it reads inside a JSON string: a body is scrubbed
+     * after JSON.stringify, where a quote or a backslash is escaped. */
+    const inJson = JSON.stringify(s).slice(1, -1)
+    if (inJson !== s) out = out.split(inJson).join('[redacted]')
+  }
   return out
 }
 
@@ -100,13 +111,19 @@ const same = (a, b) =>
   createHash('sha256').update(a).digest('hex') ===
   createHash('sha256').update(b).digest('hex')
 
-/** One HTTP call; a road that does not answer is status 0 (curl's 000). */
-async function call(deps, url, init = {}, timeoutMs = 15000) {
+/**
+ * One HTTP call; a road that does not answer is status 0 (curl's 000).
+ *
+ * THE choke point for the network: there is no other path to `deps.fetch`, and
+ * the body is scrubbed here, so a sender added later cannot forget to. A
+ * sender that truncates its text still redacts BEFORE slicing (a cut through
+ * the middle of a secret leaves a prefix nothing here can recognise).
+ */
+async function call(cfg, deps, url, init = {}, timeoutMs = 15000) {
+  const out = { ...init, signal: AbortSignal.timeout(timeoutMs) }
+  if (out.body !== undefined) out.body = redact(out.body, secretsOf(cfg))
   try {
-    const res = await deps.fetch(url, {
-      ...init,
-      signal: AbortSignal.timeout(timeoutMs),
-    })
+    const res = await deps.fetch(url, out)
     return { status: res.status, text: await res.text() }
   } catch (e) {
     /* Only the error's NAME: a message may carry the URL, and the Telegram
@@ -137,6 +154,7 @@ export async function railway(cfg, deps, query, variables) {
     { 'project-access-token': cfg.railwayToken },
   ]) {
     const r = await call(
+      cfg,
       deps,
       cfg.railwayApi,
       {
@@ -240,7 +258,7 @@ export async function probe(cfg, deps) {
   const approveUrl = `${cfg.base}/api/browser/approve?t=${junk}`
 
   // 2. guard: no key -> 401
-  let r = await call(deps, approveUrl, {
+  let r = await call(cfg, deps, approveUrl, {
     headers: { accept: 'application/json' },
   })
   if (r.status === 401) add('ok', 'guard', 'guard: no key -> 401')
@@ -252,7 +270,7 @@ export async function probe(cfg, deps) {
     )
 
   // 3. approve with the bot's key and a junk token
-  r = await call(deps, approveUrl, {
+  r = await call(cfg, deps, approveUrl, {
     headers: { accept: 'application/json', 'x-api-key': cfg.botKey },
   })
   let said = ((json(r.text) || {}).said || '').trim()
@@ -273,6 +291,7 @@ export async function probe(cfg, deps) {
 
   // 4. meeting_answer over /mcp with a junk token
   r = await call(
+    cfg,
     deps,
     `${cfg.base}/mcp?telegram_id=${OWNER_CHAT}`,
     {
@@ -454,6 +473,10 @@ const NOTE = {
     ru: 'Пытался перезапустить vibee-render — Railway отказал в перезапуске.', // cyrillic-ok
     en: 'Tried to restart vibee-render; Railway refused the restart.',
   },
+  unsaved: {
+    ru: 'Render не отвечает, но перезапускать не стал: состояние сторожа не сохраняется (нет тома), и без него перезапуск шёл бы каждый час.', // cyrillic-ok
+    en: 'The render does not answer, but it was not restarted: the watch state is not persisted (no writable volume), and without it a restart would repeat every hour.',
+  },
   tooSoon: {
     ru: 'Перезапуск render уже был меньше 6 ч назад — второй раз сам не делаю.', // cyrillic-ok
     en: 'The render was already restarted less than 6 h ago; not doing it twice unattended.',
@@ -464,7 +487,8 @@ const NOTE = {
 
 export async function reportToQueen(cfg, deps, { headline, body, needsYou }) {
   if (!cfg.queenToken) return 'no TRIOS_API_TOKEN -- not sent'
-  const r = await call(deps, `${cfg.queenUrl}/queen/report`, {
+  const clean = t => redact(String(t || ''), secretsOf(cfg))
+  const r = await call(cfg, deps, `${cfg.queenUrl}/queen/report`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -475,8 +499,8 @@ export async function reportToQueen(cfg, deps, { headline, body, needsYou }) {
      * shows 200 characters, so ours stays at 120. */
     body: JSON.stringify({
       source: 'queen-watch',
-      headline: headline.slice(0, 120),
-      body: String(body || '').slice(0, 8000),
+      headline: clean(headline).slice(0, 120),
+      body: clean(body).slice(0, 8000),
       needs_you: needsYou === true,
     }),
   })
@@ -496,11 +520,19 @@ export async function tellOwner(cfg, deps, text) {
   if (!cfg.tgToken) return 'no OWNER_BOT_TOKEN -- not sent'
   /* Plain text, no parse_mode (relays-watch.sh): a Markdown message with
    * RENDER_API_KEY in it is rejected by Telegram. */
-  const r = await call(deps, `${TELEGRAM_API}/bot${cfg.tgToken}/sendMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: cfg.ownerChat, text: text.slice(0, 4000) }),
-  })
+  const r = await call(
+    cfg,
+    deps,
+    `${TELEGRAM_API}/bot${cfg.tgToken}/sendMessage`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: cfg.ownerChat,
+        text: redact(text, secretsOf(cfg)).slice(0, 4000),
+      }),
+    }
+  )
   return r.status === 200 && (json(r.text) || {}).ok
     ? 'sent to the owner'
     : `refused (HTTP ${r.status})`
@@ -551,7 +583,7 @@ export function issueSpec({ result, note, when }) {
 }
 
 async function gh(cfg, deps, path, init = {}) {
-  const r = await call(deps, `${GITHUB_API}${path}`, {
+  const r = await call(cfg, deps, `${GITHUB_API}${path}`, {
     ...init,
     headers: {
       accept: 'application/vnd.github+json',
@@ -632,13 +664,16 @@ export async function run(cfg, deps) {
   const st = await loadState(cfg.stateDir)
   const now = deps.now()
   const when = new Date(now * 1000).toISOString().replace(/\.\d+Z$/, 'Z')
+  /* true when the state reached the volume. */
   const persist = async () => {
     try {
       await saveState(cfg.stateDir, st)
+      return true
     } catch (e) {
       log(
         `queen-watch: could not save state in ${cfg.stateDir} (${e && e.code}) -- the next run is a first run`
       )
+      return false
     }
   }
   log(
@@ -697,8 +732,13 @@ export async function run(cfg, deps) {
     if (result.rc !== 0 && kindOf(result) === 'down') {
       if (now - (st.healed_at || 0) >= cfg.healEveryS) {
         st.healed_at = now
-        await persist()
-        if (await deps.restartRender(cfg)) {
+        /* FAIL SAFE: the once-per-HEAL_EVERY_S bound lives only in the state
+         * file. If it cannot be saved, the next run forgets this restart, and
+         * a lasting outage would become an hourly restart -- so no restart. */
+        if (!(await persist())) {
+          log('queen-watch: state not persisted -- heal skipped')
+          note = NOTE.unsaved
+        } else if (await deps.restartRender(cfg)) {
           log(
             `queen-watch: restarted vibee-render, probing again in ${cfg.healWaitS}s`
           )
