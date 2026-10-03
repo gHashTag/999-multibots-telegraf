@@ -33,7 +33,7 @@ export async function runScenarioNow(
   const live = async () => {
     let s = await readSession(pool, who)
     if (!s || s.state !== 'live' || !s.cdpEndpoint) {
-      await startBrowserAsAgent(who)
+      await startBrowserAsAgent(who, 'scenarios')
       s = await readSession(pool, who)
     }
     if (!s?.cdpEndpoint) throw new Error('the browser did not start')

@@ -65,7 +65,7 @@ import {
 } from './profiles'
 import { fitDesktop, isVisibleBox, wantedScreen } from './screen'
 import { handMouseToPerson } from './mouse'
-import { readJournal } from './journal'
+import { readJournal, recordStep } from './journal'
 import type { PodDriver } from './pod-driver'
 import { announceBrowserStarted, type Actor, type Announcer } from './announce'
 import {
@@ -1057,14 +1057,38 @@ export async function restartBrowserAsAgent(who: string): Promise<boolean> {
   return answers
 }
 
-export async function startBrowserAsAgent(who: string): Promise<boolean> {
+/*
+ * A DESK THAT STARTS THE BROWSER SAYS SO IN THE JOURNAL.
+ *
+ * The agent's tools journal every call, so a visit they open is explained by
+ * the step that follows it. The desks (Reddit, engage, blog-share, rounds,
+ * scenarios) drive the page over CDP and journal nothing, so a visit one of
+ * them opened was a row with no step behind it: measured 2026-10-03, the
+ * Reddit desk's hourly tick at 00:11:11 opened the owner's visit at 00:11:12,
+ * and `tri browser doctor` showed "visit on record" while the newest journal
+ * step was 22:47 the day before. Nobody could say who had opened it. `by`
+ * names the desk; the tools leave it out and keep journaling their own steps.
+ */
+export async function startBrowserAsAgent(
+  who: string,
+  by?: string
+): Promise<boolean> {
   const deps = agentStartDeps?.()
   if (!deps?.driver) return false
   const pool = await deps.getPool()
   await ensureBrowserSessions(pool)
   await ensureBrowserProfiles(pool)
+  const t0 = Date.now()
   const out = await open(pool, deps, deps.driver, who, 'agent')
-  return out.status < 300
+  const ok = out.status < 300
+  if (by)
+    await recordStep(pool, who, {
+      tool: 'browser_start',
+      ok,
+      ms: Date.now() - t0,
+      detail: ok ? { by } : { by, error: `status ${out.status}` },
+    })
+  return ok
 }
 
 async function open(
