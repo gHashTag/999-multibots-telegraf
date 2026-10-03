@@ -622,4 +622,49 @@ describe('ProfileTemplatesGrid owner actions', () => {
       host.querySelector('[data-testid="templates-failed"]')
     ).not.toBeNull()
   })
+
+  it('a late answer for the previous username never lands on the new profile', async () => {
+    const answer = (compositionId: string, id: number, count: number) => ({
+      ok: true,
+      json: async () => ({
+        templates: [{ ...template, id, compositionId }],
+        compositionCounts: { [compositionId]: count },
+      }),
+    })
+    const firstPage0 = deferred<unknown>()
+    const fetchMock = vi.fn((url: string) =>
+      url.includes('/users/first/')
+        ? firstPage0.promise
+        : Promise.resolve(answer('SecondOnly', 5001, 3))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="first" isOwn />)
+    })
+    await act(async () => Promise.resolve())
+    expect(
+      host.querySelector('[data-testid="templates-placeholder"]')
+    ).not.toBeNull()
+
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="second" isOwn />)
+    })
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    const second = () => host.querySelector('[data-group="SecondOnly"]')
+    expect(second()).not.toBeNull()
+
+    await act(async () => firstPage0.resolve(answer('FirstOnly', 5000, 7)))
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(host.querySelector('[data-group="FirstOnly"]')).toBeNull()
+    expect(second()).not.toBeNull()
+    expect(
+      second()?.querySelector('.profile-templates__group-count')?.textContent
+    ).toContain('3')
+    expect(host.querySelector('[data-testid="templates-failed"]')).toBeNull()
+    expect(host.textContent).not.toContain('profile.no_templates')
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url.includes('/users/second/'))
+    ).toHaveLength(1)
+  })
 })
