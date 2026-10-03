@@ -395,7 +395,9 @@ the owner's visit at 00:11:12 and nothing said who. Diagnose by matching
 `browser_sessions.created_at` to the `*:last-tick` / `*:last-run` keys in
 `agent_strategies`. Now `startBrowserAsAgent(who, by)` journals a
 `browser_start` step naming the desk; a new desk that touches the browser must
-pass `by`.
+pass `by`. A restart is journaled the same way (#3456):
+`restartBrowserAsAgent(who, by)` writes `browser_restart` with `by` 'rounds'
+or 'heal', and neither step counts as turn work (`isTurnWork` in report.ts).
 
 ## Человек видит работу агента у себя в чате (22.09.2026, #2809, #2813)
 
