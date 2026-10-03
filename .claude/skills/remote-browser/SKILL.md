@@ -221,6 +221,10 @@ last touches the browser:
    page always stays (he may have closed the others himself before his yes).
 
 Do not `tidy ask` at night without a reason: it is a real card on his phone.
+Ask once (#3449): while a tidy question is still pending (24 h) or allowed
+but not applied, `browser_tidy` makes no new card and returns `open` instead;
+`tri browser doctor` then says "already with the owner (QID)" or points to
+`tidy apply QID`. Only an expired or denied question lets a new card through.
 
 `bun run verify` runs `cover` as the `browser-cover` step.
 `ask WHAT S` refuses S over 120 (the server clipped it silently);
@@ -383,6 +387,15 @@ the page and `share-check` opens tabs, so both stay journaled and reported
 (only share-check's cookie-name read is a probe): there is no invisible mode. A
 probe that finds the pod running with no visit row (the reaper took it) is told
 exactly that (`noBrowserError` in agent-tools.ts), not "no browser is running".
+
+**A visit with no journal step behind it was opened by a desk** (#3450,
+03.10). The desks (reddit, engage, blog-share, rounds, scenarios) drive the
+page over raw CDP, not the journaled tools; the Reddit tick at 00:11:11 opened
+the owner's visit at 00:11:12 and nothing said who. Diagnose by matching
+`browser_sessions.created_at` to the `*:last-tick` / `*:last-run` keys in
+`agent_strategies`. Now `startBrowserAsAgent(who, by)` journals a
+`browser_start` step naming the desk; a new desk that touches the browser must
+pass `by`.
 
 ## Человек видит работу агента у себя в чате (22.09.2026, #2809, #2813)
 
