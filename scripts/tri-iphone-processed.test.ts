@@ -30,6 +30,10 @@ function processed(lane: string, ...args: string[]) {
       NO_COLOR: '1',
       TRI_FASTLANE: path.join(bin, 'fastlane'),
       TRI_NOTIFY: path.join(bin, 'notify'),
+      TRI_CURL: path.join(bin, 'curl'),
+      TRI_TG_TOKEN: '123:test-token',
+      TRI_TG_CHAT: '42',
+      TRI_PROCESSED_SENT: path.join(bin, 'sent'),
       TMPDIR: bin,
     },
   })
@@ -43,6 +47,8 @@ function processed(lane: string, ...args: string[]) {
     call: read('call'),
     notified: read('notified'),
     notifyArgs: read('notify-args'),
+    curlArgs: read('curl-args'),
+    curlConfig: read('curl-config'),
   }
 }
 
@@ -62,9 +68,72 @@ beforeEach(() => {
     `#!/bin/sh\nprintf '%s\\n' "$@" > '${bin}/notify-args'\nfor a; do last="$a"; done\necho "$last" > '${bin}/notified'\n`,
     { mode: 0o755 }
   )
+  fs.writeFileSync(
+    path.join(bin, 'curl'),
+    // Keeps argv and the config it reads on stdin apart, so a test can see
+    // the token travels only on stdin; answers like the Bot API (or like a
+    // refusal when told to).
+    `#!/bin/sh\nprintf '%s\\n' "$@" >> '${bin}/curl-args'\ncat >> '${bin}/curl-config'\nif [ -f '${bin}/curl-fails' ]; then echo '{"ok":false,"description":"Forbidden"}'; else echo '{"ok":true}'; fi\n`,
+    { mode: 0o755 }
+  )
 })
 
 afterEach(() => fs.rmSync(bin, { recursive: true, force: true }))
+
+describe('tri iphone processed --telegram', () => {
+  const READY = 'processed  ready  build 7 (1.0) VALID\n'
+
+  it('a final answer reaches the owner once, the token only on stdin', () => {
+    const r = processed(READY, '--telegram')
+    expect(r.rc).toBe(0)
+    expect(r.curlConfig).toBe(
+      'url = "https://api.telegram.org/bot123:test-token/sendMessage"'
+    )
+    expect(r.curlArgs).not.toContain('test-token')
+    expect(r.curlArgs).toContain('chat_id=42')
+    expect(r.curlArgs).toContain('build 7 (1.0) VALID')
+    expect(r.out).toMatch(/the owner has the answer/)
+    const again = processed(READY, '--telegram')
+    expect(again.rc).toBe(0)
+    expect(again.curlArgs.split('chat_id=42').length - 1).toBe(1)
+    expect(again.out).toMatch(/already reached the owner/)
+  })
+
+  it('a new answer after a sent one goes out too', () => {
+    processed(READY, '--telegram')
+    const r = processed(
+      'processed  failed  build 8 (1.0) INVALID\n',
+      '--telegram'
+    )
+    expect(r.rc).toBe(1)
+    expect(r.curlArgs).toContain('build 8 (1.0) INVALID')
+  })
+
+  it('still processing and nothing uploaded send nothing', () => {
+    for (const lane of [
+      'processed  processing  build 8 (1.0) PROCESSING\n',
+      'processed  none  no build uploaded yet\n',
+    ]) {
+      const r = processed(lane, '--telegram')
+      expect(r.rc, lane).toBe(4)
+      expect(r.curlArgs, lane).toBe('')
+    }
+  })
+
+  it('without --telegram nothing is sent', () => {
+    expect(processed(READY, '--wait', '1').curlArgs).toBe('')
+  })
+
+  it('a refused send warns, keeps the exit code, and is retried next time', () => {
+    fs.writeFileSync(path.join(bin, 'curl-fails'), '')
+    const r = processed(READY, '--telegram')
+    expect(r.rc).toBe(0)
+    expect(r.out).toMatch(/not sent .*Forbidden/)
+    fs.rmSync(path.join(bin, 'curl-fails'))
+    const again = processed(READY, '--telegram')
+    expect(again.out).toMatch(/the owner has the answer/)
+  })
+})
 
 describe('tri iphone processed (exit codes)', () => {
   it('ready is 0, names the build, asks no consent', () => {

@@ -1639,8 +1639,10 @@ print(n)' 2>/dev/null)
 #                       (Apple e-mails the invitation; beta runs it too).
 #   tri iphone metadata --yes  fastlane metadata: the store page texts from
 #                       apps/vibee-ios/fastlane/metadata; nothing submitted.
-#   tri iphone processed [--wait MIN] [--build N]  has Apple finished with the
-#                       upload: 0 ready, 1 refused/expired, 4 not yet (read-only)
+#   tri iphone processed [--wait MIN] [--build N] [--telegram]  has Apple
+#                       finished with the upload: 0 ready, 1 refused/expired,
+#                       4 not yet (read-only). --telegram: a final answer also
+#                       reaches the owner from @t27ai_bot, once per answer.
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
 # The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
 # next build need it back. One word instead of remembering the udid.
@@ -2027,18 +2029,19 @@ iphone_store() {
 # notification (TRI_NOTIFY replaces osascript; the tests record it).
 iphone_processed() {
   local ios="$1"; shift
-  local wait=0 build=""
+  local wait=0 build="" telegram=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --wait) wait="${2:-}"; shift 2 || { bad "--wait needs minutes"; return 2; } ;;
       --build) build="${2:-}"; shift 2 || { bad "--build needs a build number"; return 2; } ;;
-      *) bad "usage: tri iphone processed [--wait MIN] [--build N]"; return 2 ;;
+      --telegram) telegram=1; shift ;;
+      *) bad "usage: tri iphone processed [--wait MIN] [--build N] [--telegram]"; return 2 ;;
     esac
   done
   case "$wait" in '' | *[!0-9]*) bad "--wait takes whole minutes, not '$wait'"; return 2 ;; esac
   case "$build" in *[!0-9]*) bad "--build takes a build number, not '$build'"; return 2 ;; esac
   PROCESSED_WAIT_MIN="$wait" PROCESSED_BUILD="$build" TRI_PROCESSED_NOTIFY="$([ "$wait" -gt 0 ] && echo 1)" \
-    iphone_store "$ios" processed
+    TRI_PROCESSED_TELEGRAM="$telegram" iphone_store "$ios" processed
 }
 
 iphone_processed_verdict() {
@@ -2067,7 +2070,55 @@ iphone_processed_verdict() {
         -e 'display notification (item 1 of argv) with title "Trinity S³AI TestFlight"' \
         -e 'end run' "$v: $what" >/dev/null 2>&1
   fi
+  [ "${TRI_PROCESSED_TELEGRAM:-}" = 1 ] && processed_telegram "$v" "$what"
   return "$rc"
+}
+
+# processed --telegram: the owner who went to sleep learns the answer on the
+# phone, not from a banner on a Mac nobody watches. Only FINAL answers go out
+# (ready, refused, expired, a state tri does not know); "still processing" is
+# the loop's business. Each answer goes out once: the last one sent is kept,
+# so a loop calling this every tick does not repeat "ready" every 30 minutes
+# (the desk announce spam, #3467). The token reaches curl on stdin, never in
+# argv, where ps would show it. A failed send warns and leaves the exit code
+# alone: Apple's answer is the result, the message is a courtesy.
+processed_telegram() {
+  local v="$1" what="$2" head
+  case "$v" in
+    ready) head="Trinity S³AI в TestFlight: сборка готова, ставь из приложения TestFlight" ;;  # cyrillic-ok
+    failed) head="Trinity S³AI: Apple отклонил сборку, причина в App Store Connect -> TestFlight" ;;  # cyrillic-ok
+    expired) head="Trinity S³AI: сборка в TestFlight истекла, нужна новая" ;;  # cyrillic-ok
+    unknown) head="Trinity S³AI: Apple сообщает состояние, которого tri не знает" ;;  # cyrillic-ok
+    *) return 0 ;;
+  esac
+  local sent="${TRI_PROCESSED_SENT:-$HOME/.cache/tri/processed-telegram}"
+  if [ "$(cat "$sent" 2>/dev/null)" = "$v: $what" ]; then
+    good "telegram: this answer already reached the owner"
+    return 0
+  fi
+  local tok="${TRI_TG_TOKEN:-}" chat="${TRI_TG_CHAT:-}" vars=""
+  if [ -z "$tok" ] || [ -z "$chat" ]; then
+    vars=$(rvars vibee-render)
+    [ -n "$tok" ] || tok=$(printf '%s\n' "$vars" | sed -n 's/^BOT_TOKEN_12=//p')
+    # The owner is the first of ADMIN_IDS on the render service.
+    [ -n "$chat" ] || chat=$(printf '%s\n' "$vars" | sed -n 's/^ADMIN_IDS=//p' | cut -d, -f1 | tr -d ' ')
+    vars=""
+  fi
+  case "$tok" in *:*) ;; *) warn "telegram: no bot token (BOT_TOKEN_12 on vibee-render), nothing sent"; return 0 ;; esac
+  case "$chat" in '' | *[!0-9]*) warn "telegram: no owner id (ADMIN_IDS on vibee-render), nothing sent"; return 0 ;; esac
+  local reply
+  reply=$(printf 'url = "https://api.telegram.org/bot%s/sendMessage"\n' "$tok" |
+    "${TRI_CURL:-curl}" -sS --max-time 20 -K - \
+      --data-urlencode "chat_id=$chat" --data-urlencode "text=$head
+$what" 2>&1)
+  tok=""
+  case "$reply" in
+    *'"ok":true'*)
+      mkdir -p "$(dirname "$sent")" && printf '%s' "$v: $what" >"$sent"
+      good "telegram: the owner has the answer" ;;
+    *) warn "telegram: not sent ($(printf '%s' "$reply" | head -c 160))" ;;
+  esac
+  return 0
 }
 
 cmd_iphone() {

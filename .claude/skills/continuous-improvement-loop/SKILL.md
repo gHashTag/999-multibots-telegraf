@@ -2092,6 +2092,16 @@ too; Apple's text goes to osascript as an argument, never into the script.
 Ask of every "wait for X": what does the world look like in the first minute,
 before X even exists?
 
+**A banner on a Mac nobody watches is not a notice** (03.10.2026). The owner
+uploads and goes to sleep; `processed --wait` only spoke to the Mac. Now
+`tri iphone processed --telegram` sends a FINAL answer (ready, refused,
+expired, unknown) from @t27ai_bot, once per answer: the last one sent is
+kept in `~/.cache/tri/processed-telegram`, so the loop may call it every tick
+without repeating "ready" (the hourly announce spam, #3467); a refused send
+is not recorded and goes again next time. The token goes to curl on stdin
+(`-K -`), never in argv. Loop tick after an upload:
+`./tri iphone processed --telegram`.
+
 ### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
 
 The screen now translates a waiting reason by code and falls back to the
