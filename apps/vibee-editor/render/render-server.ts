@@ -163,6 +163,14 @@ import {
 } from './src/browser/live-pipe'
 import { telegramName } from './src/browser/telegram-name'
 import { FRAMES_PATH, frameSize, serveFrames } from './src/browser/frames'
+import {
+  openWatch,
+  parseWatchPath,
+  watchViewerOf,
+  watchNonce,
+  watchPageHeaders,
+  watchPageHtml,
+} from './src/browser/watch-link'
 import { sweepIdleSessions, IDLE_LIMIT_MS } from './src/browser/reaper'
 import { sweepEveryPod, TAB_CAP } from './src/browser/tab-sweep'
 import {
@@ -3718,6 +3726,28 @@ const server = createServer(async (req, res) => {
   }
 
   const auth = authenticate(req)
+
+  /*
+   * A LINK TO WATCH THE BROWSER, NO WHEEL (src/browser/watch-link.ts). Public
+   * on purpose: the token in the path is the whole permission, and the page
+   * holds no data -- it reads nothing until its socket is let in, and the
+   * socket decides from the token's row. No database read here, so a flood
+   * of guessed addresses costs a template, not a query.
+   */
+  {
+    const watchAt = parseWatchPath((req.url || '').split('?')[0])
+    if (watchAt && !watchAt.frames) {
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        res.writeHead(405, { Allow: 'GET' })
+        res.end()
+        return
+      }
+      const nonce = watchNonce()
+      res.writeHead(200, watchPageHeaders(nonce))
+      res.end(req.method === 'HEAD' ? undefined : watchPageHtml(nonce))
+      return
+    }
+  }
 
   /*
    * The person's own browser, streamed. This sits BEFORE authenticate()
@@ -13284,6 +13314,31 @@ async function main() {
     // doors is a socket (src/auth/refresh-cookie.ts).
     if (isAuthHost(req)) return refuseUpgrade(socket, 404)
     const path = (req.url || '').split('?')[0]
+    /*
+     * A WATCHER'S SOCKET (watch-link.ts): pictures one way, and it reads
+     * nothing back -- there is no input path behind it to reach.
+     */
+    const watchAt = parseWatchPath(path)
+    if (watchAt?.frames) {
+      const q = new URLSearchParams((req.url || '').split('?')[1] || '')
+      framesWss.handleUpgrade(req, socket, head, ws => {
+        ws.on('message', () => ws.close(1008))
+        void (async () => {
+          try {
+            await openWatch(
+              (await getPool()) as any,
+              watchAt.token,
+              watchViewerOf(ws),
+              frameSize(q.get('w'), q.get('h'))
+            )
+          } catch {
+            ws.close(1011)
+          }
+        })()
+      })
+      return
+    }
+    if (watchAt) return refuseUpgrade(socket, 404)
     if (!isLivePath(path)) {
       wss.handleUpgrade(req, socket, head, ws =>
         wss.emit('connection', ws, req)

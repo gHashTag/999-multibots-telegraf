@@ -1229,8 +1229,142 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(19)
+    expect(SPEC.VERSION).toBe(20)
   })
+
+  it('the hook reel is a template of four studio shots with the call to the house bot', async () => {
+    // reel_max_ms(scenes); the template list is the panel's gallery
+    // (TEMPLATES_FROM_SERVER) -- crm_story_reel answering with it and
+    // pressing it runs in a-story-reel-stays-in-the-studio.test.ts.
+    const { templatesForPanel, templateOf, reelMaxMs } = await import(
+      '../agent/story-reel-templates'
+    )
+    expect(SPEC.TEMPLATE_ARG).toBe('template')
+    expect(SPEC.LANGUAGE_ARG).toBe('language')
+    expect(SPEC.TEMPLATES_FROM_SERVER && SPEC.TEMPLATE_LINES_EDITABLE).toBe(
+      true
+    )
+    const all = templatesForPanel()
+    expect(all.map(t => t.language).sort()).toEqual(['en', 'ru'])
+    for (const t of all) {
+      expect(t.id).toBe(SPEC.TEMPLATE_HOOK_STUDIO)
+      expect(t.scenes).toBe(SPEC.TEMPLATE_SCENES)
+      expect(t.lines).toHaveLength(SPEC.TEMPLATE_SCENES)
+      expect(t.button).toBe(SPEC.TEMPLATE_BUTTON)
+      expect(t.max_seconds * 1000).toBeGreaterThanOrEqual(
+        reelMaxMs(SPEC.TEMPLATE_SCENES)
+      )
+    }
+    expect(SPEC.TEMPLATE_SCENES).toBeGreaterThan(SPEC.SCENES_DEFAULT)
+    expect(SPEC.TEMPLATE_SCENES).toBeLessThanOrEqual(SPEC.SCENES_MAX)
+    expect(reelMaxMs(SPEC.TEMPLATE_SCENES)).toBeLessThanOrEqual(
+      SPEC.REEL_MAX_SEC * 1000
+    )
+    expect(reelMaxMs(SPEC.SCENES_DEFAULT)).toBeLessThanOrEqual(
+      SPEC.STORY_DEFAULT_MAX_SEC * 1000
+    )
+    expect(reelMaxMs(SPEC.TEMPLATE_SCENES)).toBeGreaterThan(
+      SPEC.STORY_DEFAULT_MAX_SEC * 1000
+    )
+    const en = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!
+    expect(en.call).toBe(SPEC.TEMPLATE_CALL_EN)
+    expect(en.lines).toEqual([
+      SPEC.TEMPLATE_LINE_EN_1,
+      SPEC.TEMPLATE_LINE_EN_2,
+      SPEC.TEMPLATE_LINE_EN_3,
+      SPEC.TEMPLATE_LINE_EN_4,
+    ])
+    // Every template line is a hook-safe line the press accepts as written.
+    for (const t of all) expect(typeof scenesOf(t.lines.map(line => ({ line })))).toBe('object')
+  })
+
+  it('a template line fits the editor, and an empty or long one is refused before the press', async () => {
+    // line_fits_chars(chars)
+    const { lineFitsChars, templateLines, templateOf } = await import(
+      '../agent/story-reel-templates'
+    )
+    expect(lineFitsChars(1)).toBe(true)
+    expect(lineFitsChars(SPEC.LINE_MAX_CHARS)).toBe(true)
+    expect(lineFitsChars(0)).toBe(false)
+    expect(lineFitsChars(SPEC.LINE_MAX_CHARS + 1)).toBe(false)
+    expect((SPEC.LINE_MAX_CHARS * 1000) / SPEC.LINE_MAX_MS).toBeGreaterThanOrEqual(13)
+    const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!
+    for (const line of t.lines) expect(lineFitsChars(line.length)).toBe(true)
+    const mine = 'x'.repeat(SPEC.LINE_MAX_CHARS)
+    expect(templateLines(t, [undefined, { line: mine }])).toEqual([
+      t.lines[0],
+      mine,
+      t.lines[2],
+      t.lines[3],
+    ])
+    expect(typeof templateLines(t, [{ line: mine + 'x' }])).toBe('string')
+    expect(typeof templateLines(t, [{ line: '  ' }])).toBe('string')
+  })
+
+  it('a line with a Cyrillic letter is Russian, any other is English', async () => {
+    // language_of(has_cyrillic)
+    const { languageOf, templateOf } = await import(
+      '../agent/story-reel-templates'
+    )
+    expect(SPEC.LANGUAGES).toBe(2)
+    expect(SPEC.LANG_RU).not.toBe(SPEC.LANG_EN)
+    expect(languageOf('Это Тринити.')).toBe('ru') // cyrillic-ok: a spoken line
+    expect(languageOf('This is Trinity.')).toBe('en')
+    expect(languageOf('ёж')).toBe('ru') // cyrillic-ok: the edge of the block
+    for (const lang of ['ru', 'en'])
+      for (const line of templateOf(SPEC.TEMPLATE_HOOK_STUDIO, lang)!.lines)
+        expect(languageOf(line)).toBe(lang)
+  })
+
+  it('captions are yellow, word by word, heard from each clip, and the line is shown as written', async () => {
+    // caption_uses_line(line_words, heard_words); the tool hearing each clip
+    // and rendering without captions when deaf runs in
+    // a-story-reel-stays-in-the-studio.test.ts.
+    const { captionUsesLine, sceneCaptions } = await import(
+      '../agent/story-reel-tool'
+    )
+    expect(SPEC.CAPTIONS_ON && SPEC.CAPTIONS_PER_SCENE).toBe(true)
+    expect(SPEC.CAPTIONS_MISSING_KEEPS_REEL).toBe(true)
+    expect(SPEC.CAPTION_COLOR).toBe('#FFFF00')
+    expect(SPEC.CAPTION_MAX_WORDS).toBe(1)
+    expect(SPEC.CAPTION_TOP_PERCENT).toBeGreaterThan(50)
+    expect(SPEC.CAPTION_TOP_PERCENT).toBeLessThan(85)
+    expect(captionUsesLine(6, 6)).toBe(true)
+    expect(captionUsesLine(6, 7)).toBe(false)
+    expect(captionUsesLine(7, 6)).toBe(false)
+    expect(captionUsesLine(0, 0)).toBe(false)
+    const heard = [
+      { word: 'this', start: 0.1, end: 0.3 },
+      { word: 'is', start: 0.3, end: 0.45 },
+      { word: 'trinidy', start: 0.5, end: 0.9 },
+    ]
+    const as = sceneCaptions('This is Trinity.', heard)
+    expect(as.map(c => c.text)).toEqual(['This', 'is', 'Trinity.'])
+    expect(as[2].startMs).toBe(500)
+    // A word whisper split or merged: its own words, never misaligned ones.
+    const off = sceneCaptions('This is Trinity now.', heard)
+    expect(off.map(c => c.text.toLowerCase())).toEqual(['this', 'is', 'trinidy'])
+  })
+
+  it('the pause shows the call as the widget draws it, when there is a call', async () => {
+    // cta_card_shown(call_chars, has_end_card)
+    const { ctaCardShown, ctaPulse } = await import(
+      '../compositions/StoryReel'
+    )
+    expect(SPEC.CTA_CARD_LIKE_WIDGET).toBe(true)
+    expect(SPEC.CTA_PULSE_MS).toBe(2400)
+    expect(ctaCardShown('Напиши Тринити', false)).toBe(true) // cyrillic-ok: a call
+    expect(ctaCardShown('', true)).toBe(true)
+    expect(ctaCardShown('Write to Trinity', true)).toBe(true)
+    expect(ctaCardShown('', false)).toBe(false)
+    // The widget's pulse: dim and small at the start, full at half a period.
+    const fps = 30
+    const half = Math.round((SPEC.CTA_PULSE_MS / 2000) * fps)
+    expect(ctaPulse(0, fps)).toEqual({ opacity: 0.75, scale: 0.97 })
+    const top = ctaPulse(half, fps)
+    expect(top.opacity).toBeCloseTo(1, 5)
+    expect(top.scale).toBeCloseTo(1.03, 5)
+  }, 120_000) // the composition pulls Remotion in: a cold import is slow
 
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {
     // reel_route(owner_named_old): the brief, the Queen and the plan hint

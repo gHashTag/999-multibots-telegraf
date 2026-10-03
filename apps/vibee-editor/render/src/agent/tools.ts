@@ -93,6 +93,7 @@ import { makeClientFaceTool } from './client-face-tool'
 import { isClientFacing } from './client-facing'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
+import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
@@ -3878,9 +3879,18 @@ TOOLS.push(
     },
     // Every new still is looked at by our own vision before a voice is paid
     // for it (crm-story-reel v19).
-    { hasFace: url => stillShowsAFace(url) }
+    { hasFace: url => stillShowsAFace(url) },
+    undefined,
+    // Each clip heard by itself, for its yellow captions (crm-story-reel v20).
+    SERVER_SENSES.hear
   )
 )
+/*
+ * THE SPLIT REEL AS ONE CALL (split_reel, split-reel.t27): voice, b-roll
+ * stills, lip-sync, captions from the final voice and the SplitTalkingHead
+ * template -- borrowed through the registry the same way as story_reel.
+ */
+TOOLS.push(makeSplitReelTool(n => TOOLS.find(t => t.name === n)))
 /*
  * THE CRM'S STORY TEMPLATE (crm_story_reel): the same reel for any client
  * with a face and a voice, on any topic, made in the background and handed

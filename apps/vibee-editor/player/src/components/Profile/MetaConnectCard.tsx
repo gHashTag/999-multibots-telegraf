@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { API_BASE } from '../../config'
 import { authHeaders } from '@/lib/apiFetch'
 import { getWebApp } from '@/lib/telegram'
@@ -46,6 +46,20 @@ const NAMES: Record<Network, string> = {
 }
 /* social-api.t27 LI_WARN_DAYS_LEFT: LinkedIn has no refresh, so warn early. */
 const LI_WARN_DAYS_LEFT = 7
+/*
+ * AFTER "CONNECT" THE CARD ASKS AGAIN BY ITSELF (2026-10-03).
+ *
+ * The owner connected a network and the card still said "not connected": it
+ * asked the server once, when the profile opened, and the sign-in happens in
+ * another window. Now it asks again when the app comes back into view, and
+ * every few seconds for two minutes after a Connect press, until that row
+ * changes.
+ */
+export const WAIT_EVERY_MS = 3000
+export const WAIT_FOR_MS = 120_000
+
+const rowOf = (s: MetaStatus | null, network: Network) =>
+  JSON.stringify(s?.networks.find(n => n.network === network) ?? null)
 
 export function MetaConnectCard({
   isOwn,
@@ -54,22 +68,65 @@ export function MetaConnectCard({
   const { t } = useLanguage()
   const [status, setStatus] = useState<MetaStatus | null>(given ?? null)
   const [said, setSaid] = useState<string | null>(null)
+  /* The network a Connect press is waiting on, and its row at the press. */
+  const [waiting, setWaiting] = useState<{
+    network: Network
+    before: string
+  } | null>(null)
+  const alive = useRef(true)
+
+  const refresh = useCallback(async (): Promise<MetaStatus | null> => {
+    try {
+      const r = await fetch(`${API_BASE}/api/social/meta/status`, {
+        headers: authHeaders(),
+      })
+      const d = r.ok ? await r.json() : null
+      if (!d?.ok) return null
+      /* The old answer stays on screen until a new one arrives: no blink. */
+      if (alive.current) setStatus(d as MetaStatus)
+      return d as MetaStatus
+    } catch {
+      /* Not the owner, or the server unreachable: the card stays as it is. */
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (given || !isOwn) return
-    let alive = true
-    fetch(`${API_BASE}/api/social/meta/status`, { headers: authHeaders() })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        if (alive && d?.ok) setStatus(d as MetaStatus)
-      })
-      .catch(() => {
-        /* Not the owner, or the server unreachable: the card stays away. */
-      })
-    return () => {
-      alive = false
+    void refresh()
+    /* Back from the sign-in window: Telegram's browser or another tab. */
+    const back = () => {
+      if (document.visibilityState === 'visible') void refresh()
     }
-  }, [isOwn, given])
+    document.addEventListener('visibilitychange', back)
+    window.addEventListener('focus', back)
+    return () => {
+      document.removeEventListener('visibilitychange', back)
+      window.removeEventListener('focus', back)
+    }
+  }, [isOwn, given, refresh])
+
+  useEffect(() => {
+    if (!waiting || given) return
+    const until = Date.now() + WAIT_FOR_MS
+    const tick = setInterval(() => {
+      if (Date.now() >= until) {
+        setWaiting(null)
+        return
+      }
+      void refresh().then(s => {
+        if (s && rowOf(s, waiting.network) !== waiting.before) setWaiting(null)
+      })
+    }, WAIT_EVERY_MS)
+    return () => clearInterval(tick)
+  }, [waiting, given, refresh])
 
   if (!isOwn || !status) return null
 
@@ -88,6 +145,7 @@ export function MetaConnectCard({
       const wa = getWebApp()
       if (wa && typeof wa.openLink === 'function') wa.openLink(d.url)
       else window.open(d.url, '_blank', 'noopener')
+      setWaiting({ network, before: rowOf(status, network) })
     } catch (e) {
       setSaid(String(e))
     }
@@ -138,6 +196,12 @@ export function MetaConnectCard({
           )
         })}
       </ul>
+      {waiting &&
+      !status.networks.find(n => n.network === waiting.network)?.usable ? (
+        <p className="profile-topup__note" data-testid="meta-waiting">
+          {t('meta.card.waiting', { name: NAMES[waiting.network] })}
+        </p>
+      ) : null}
       {said ? <p className="profile-topup__note">{said}</p> : null}
     </section>
   )

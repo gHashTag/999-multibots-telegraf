@@ -114,6 +114,7 @@ export const BROWSER_PATHS = [
   '/api/browser/heal',
   '/api/browser/logins',
   '/api/browser/sites',
+  '/api/browser/watch-links',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -685,6 +686,58 @@ export async function handleBrowser(
     const r = await setSiteRule(pool, who, want.site, want.rule, by)
     if (!r.ok) return { status: r.status, body: { ok: false, error: r.error } }
     return { status: 200, body: r }
+  }
+
+  /*
+   * LINKS TO WATCH THE BROWSER WITHOUT THE WHEEL (watch-link.ts). Every
+   * method is the person's door: an agent that could mint a link could
+   * publish its owner's screen, which is the invisible mode turned outward.
+   * The token is in the answer to POST only, once; the list shows ids.
+   */
+  if (path === '/api/browser/watch-links') {
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: { ok: false, error: "a watch link is the person's to make" },
+      }
+    }
+    const wl = await import('./watch-link')
+    if (method === 'GET') {
+      return {
+        status: 200,
+        body: { ok: true, links: await wl.listWatchLinks(pool, who) },
+      }
+    }
+    if (method === 'DELETE') {
+      const id = new URLSearchParams((req.url || '').split('?')[1] || '').get(
+        'id'
+      )
+      const revoked = await wl.revokeWatchLink(pool, who, id)
+      return { status: revoked ? 200 : 404, body: { ok: revoked, revoked } }
+    }
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET, POST or DELETE' } }
+    }
+    if (!deps.readBody) {
+      return { status: 501, body: { ok: false, error: 'not wired' } }
+    }
+    let want: { hours?: unknown; label?: unknown }
+    try {
+      want = JSON.parse((await deps.readBody(req, 2048)) || '{}') ?? {}
+    } catch {
+      return { status: 400, body: { ok: false, error: 'the body is not JSON' } }
+    }
+    const r = await wl.createWatchLink(pool, who, want)
+    if (!r.ok) return { status: r.status, body: { ok: false, error: r.error } }
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        id: r.id,
+        url: wl.watchUrl(r.token, deps.env ?? process.env),
+        expiresAt: r.expiresAt,
+      },
+    }
   }
 
   /*

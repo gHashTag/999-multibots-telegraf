@@ -120,7 +120,7 @@ describe('pr_branch', () => {
   it('a branch missing on origin fails at the fetch', () => {
     const r = prBranch('51', 'docs/gone OPEN false')
     expect(r.rc).toBe(1)
-    expect(r.err).toMatch(/could not fetch docs\/gone from origin/)
+    expect(r.err).toMatch(/fetching docs\/gone failed/)
   })
 
   it('a non-number is 2 and never asks gh', () => {

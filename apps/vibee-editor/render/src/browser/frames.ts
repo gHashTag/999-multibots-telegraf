@@ -92,7 +92,10 @@ async function connectWs(endpoint: string): Promise<CdpSocket> {
   }
 }
 
-const SCREENCAST_IO: ScreencastIo = { front: frontPage, connect: connectWs }
+export const SCREENCAST_IO: ScreencastIo = {
+  front: frontPage,
+  connect: connectWs,
+}
 
 export interface FrameSize {
   width: number
@@ -110,6 +113,25 @@ export function frameSize(w: unknown, h: unknown): FrameSize {
   return { width: clamp(w, 800), height: clamp(h, 1200) }
 }
 
+export interface ScreencastOpts {
+  /**
+   * Where the page is, IN FRAME ORDER (watch-link.ts). Called first with the
+   * address read ON THIS SOCKET after navigation events are switched on
+   * (Page.getFrameTree), and only then is the cast started; afterwards on
+   * every main-frame navigation. Chromium reports a commit on this same
+   * socket before it sends any frame painted by the new document, so a gate
+   * that flips here holds the first picture of a bank, not the third.
+   *
+   * The address in Chromium's target list is NOT used: it was read before
+   * Page.enable, and a navigation that commits in between sends no event,
+   * so the gate would sit on a stale public address while the bank paints
+   * (the bee on #3510). An unreadable tree reports '' -- which holds.
+   */
+  onUrl?: (url: string) => void
+  /** The page this screencast shows, once it is chosen. */
+  onPage?: (id: string) => void
+}
+
 /**
  * Start Chromium's own screencast of the front page. Every frame is handed
  * to `onFrame` and acknowledged -- Chromium sends the next one only after
@@ -119,29 +141,54 @@ export async function startScreencast(
   endpoint: string,
   size: FrameSize,
   onFrame: (jpeg: Buffer) => void,
-  io: ScreencastIo = SCREENCAST_IO
+  io: ScreencastIo = SCREENCAST_IO,
+  opts: ScreencastOpts = {}
 ): Promise<() => void> {
   const page = await io.front(endpoint)
+  opts.onPage?.(page.id)
   const sock = await io.connect(endpoint)
   let nextId = 1
   let session = ''
   let stopped = false
-  const send = (method: string, params: Record<string, unknown>) =>
+  /** The id of the Page.getFrameTree call whose answer starts the cast. */
+  let treeId = 0
+  const send = (method: string, params: Record<string, unknown>) => {
+    const id = nextId++
     sock.send(
       JSON.stringify({
-        id: nextId++,
+        id,
         method,
         params,
         ...(session ? { sessionId: session } : {}),
       })
     )
+    return id
+  }
+  const cast = () =>
+    send('Page.startScreencast', {
+      format: 'jpeg',
+      quality: FRAMES_QUALITY,
+      maxWidth: size.width,
+      maxHeight: size.height,
+      everyNthFrame: 1,
+    })
 
   sock.onMessage(text => {
     let msg: {
       id?: number
-      result?: { sessionId?: string }
+      error?: unknown
+      result?: {
+        sessionId?: string
+        frameTree?: { frame?: { url?: string; urlFragment?: string } }
+      }
       method?: string
-      params?: { data?: string; sessionId?: number }
+      params?: {
+        data?: string
+        sessionId?: number
+        url?: string
+        frameId?: string
+        frame?: { url?: string; parentId?: string; urlFragment?: string }
+      }
     }
     try {
       msg = JSON.parse(text)
@@ -150,13 +197,36 @@ export async function startScreencast(
     }
     if (msg.id === 1 && msg.result?.sessionId) {
       session = msg.result.sessionId
-      send('Page.startScreencast', {
-        format: 'jpeg',
-        quality: FRAMES_QUALITY,
-        maxWidth: size.width,
-        maxHeight: size.height,
-        everyNthFrame: 1,
-      })
+      if (!opts.onUrl) {
+        cast()
+        return
+      }
+      /* Navigations are events only after Page.enable; the address is read
+         after it, on this socket, and the cast waits for that answer. */
+      send('Page.enable', {})
+      treeId = send('Page.getFrameTree', {})
+      return
+    }
+    if (treeId && msg.id === treeId) {
+      treeId = 0
+      const f = msg.result?.frameTree?.frame
+      opts.onUrl?.(
+        f && typeof f.url === 'string'
+          ? f.url + String(f.urlFragment ?? '')
+          : ''
+      )
+      if (!stopped) cast()
+      return
+    }
+    if (opts.onUrl && msg.method === 'Page.frameNavigated') {
+      const f = msg.params?.frame
+      if (f && !f.parentId)
+        opts.onUrl(String(f.url ?? '') + String(f.urlFragment ?? ''))
+      return
+    }
+    if (opts.onUrl && msg.method === 'Page.navigatedWithinDocument') {
+      /* Only the main frame's: its id is the target's own id. */
+      if (msg.params?.frameId === page.id) opts.onUrl(String(msg.params.url))
       return
     }
     if (msg.method === 'Page.screencastFrame' && msg.params) {
