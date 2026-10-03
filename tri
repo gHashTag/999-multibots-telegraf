@@ -8065,7 +8065,10 @@ case "$action" in
   real|живая)          cmd_real "$@" ;;
   iphone|айфон)        cmd_iphone "$@" ;;   # cyrillic-ok: alias, like its neighbours
   mcp)                 cmd_mcp "$@" ;;
-  browser|браузер)     cmd_browser ;;
+  # A case word (doctor, tidy, share-check...) lives in bin/tri; this one is
+  # only the health line. It used to swallow the word and answer rc 0, so
+  # `./tri browser doctor` read nothing and looked green (2026-10-03).
+  browser|браузер)     if [ $# -gt 0 ]; then exec "$ROOT/bin/tri" browser "$@"; else cmd_browser; fi ;;
   voice|голос)         cmd_voice "$@" ;;
   road|дорога)         V_ROAD_ONLY=1 cmd_voice "$@" ;;
   vad|шум)             cmd_vad "$@" ;;

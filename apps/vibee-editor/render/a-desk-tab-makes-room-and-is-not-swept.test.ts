@@ -133,3 +133,59 @@ describe('no desk goes around the door', () => {
     expect(raw).toEqual([])
   })
 })
+
+describe('browser_open spares a desk tab too (the note on #3469)', () => {
+  it('at the ceiling, the agent opens without closing the composer a desk holds', async () => {
+    const { openAndChoose } = await import('./src/browser/agent-tools')
+    const full = [
+      ...tonight(),
+      tab('t11', 'https://www.threads.net/'),
+      tab('t12', 'https://news.ycombinator.com/'),
+    ]
+    const p = pod(full)
+    /* The desk opened the composer last: the newest tab, the first to go. */
+    const composer = await newDeskPage('cdp', 'https://x.com/compose/post', p)
+    const before = [...p.closed]
+    await openAndChoose('144022504', 'cdp', 'https://example.org/', p.open, p)
+    expect(p.closed.slice(before.length)).not.toContain(composer.id)
+    expect(p.tabs.map(t => t.id)).toContain(composer.id)
+  })
+})
+
+describe('the log names what was closed, host only', () => {
+  it('a path is never printed: it can carry a one-time token', async () => {
+    const { namesOfClosed, whereItWas } = await import(
+      './src/browser/tab-sweep'
+    )
+    expect(
+      whereItWas(
+        'https://www.instagram.com/accounts/login/two_step_verification?encrypted=SECRET'
+      )
+    ).toBe('www.instagram.com')
+    expect(whereItWas('about:blank')).toBe('about:blank')
+    expect(whereItWas('chrome://newtab/')).toBe('chrome://newtab')
+    expect(whereItWas('not a url')).toBe('(unreadable address)')
+    const line = namesOfClosed([
+      {
+        id: 'a',
+        url: 'https://x.com/compose/post?text=draft',
+        why: 'duplicate',
+      },
+      { id: 'b', url: 'chrome://newtab/', why: 'over cap' },
+    ])
+    expect(line).toBe('x.com (duplicate), chrome://newtab (over cap)')
+    expect(line).not.toMatch(/draft|compose/)
+  })
+
+  it("the clock's summary carries the names", async () => {
+    const { sweepEveryPod } = await import('./src/browser/tab-sweep')
+    const p = pod([
+      tab('a', 'https://x.com/home'),
+      tab('b', 'https://x.com/explore'),
+    ])
+    const pool = { query: async () => ({ rows: [] }) }
+    const [one] = await sweepEveryPod(pool as never, p, TAB_CAP, 'pod-b:9222')
+    expect(one.closed).toBe(1)
+    expect(one.gone).toBe('x.com (duplicate)')
+  })
+})
