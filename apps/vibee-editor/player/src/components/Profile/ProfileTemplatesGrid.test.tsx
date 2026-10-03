@@ -667,4 +667,46 @@ describe('ProfileTemplatesGrid owner actions', () => {
       fetchMock.mock.calls.filter(([url]) => url.includes('/users/second/'))
     ).toHaveLength(1)
   })
+
+  it("the previous username's settled request does not end loading for the new one", async () => {
+    const firstPage0 = deferred<unknown>()
+    const secondPage0 = deferred<unknown>()
+    const fetchMock = vi.fn((url: string) =>
+      url.includes('/users/first/') ? firstPage0.promise : secondPage0.promise
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="first" isOwn />)
+    })
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="second" isOwn />)
+    })
+    await act(async () => Promise.resolve())
+    const placeholder = () =>
+      host.querySelector('[data-testid="templates-placeholder"]')
+    expect(placeholder()).not.toBeNull()
+
+    // The stale request settles while the current one is still in flight.
+    await act(async () =>
+      firstPage0.resolve({
+        ok: true,
+        json: async () => ({ templates: [{ ...template, id: 6000 }] }),
+      })
+    )
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(placeholder()).not.toBeNull()
+    expect(host.querySelector('[data-testid="templates-failed"]')).toBeNull()
+    expect(host.textContent).not.toContain('profile.no_templates')
+
+    await act(async () =>
+      secondPage0.resolve({
+        ok: true,
+        json: async () => ({ templates: [{ ...template, id: 6001 }] }),
+      })
+    )
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(placeholder()).toBeNull()
+    expect(host.querySelector('.profile-templates')).not.toBeNull()
+  })
 })
