@@ -596,4 +596,30 @@ describe('ProfileTemplatesGrid owner actions', () => {
     expect(host.querySelector('[data-testid="templates-failed"]')).toBeNull()
     expect(host.querySelector('.profile-templates')).not.toBeNull()
   })
+
+  it("another username does not keep the previous profile's templates", async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes('/users/first/')
+        ? {
+            ok: true,
+            json: async () => ({ templates: [{ ...template, id: 4000 }] }),
+          }
+        : { ok: false, json: async () => ({}) }
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="first" isOwn />)
+    })
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(host.querySelector('.profile-templates')).not.toBeNull()
+
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="second" isOwn />)
+    })
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(host.querySelector('.profile-templates')).toBeNull()
+    expect(
+      host.querySelector('[data-testid="templates-failed"]')
+    ).not.toBeNull()
+  })
 })

@@ -150,7 +150,18 @@ export function ProfileTemplatesGrid({
     [username]
   )
 
+  /*
+   * Another profile starts from nothing. The list, the page, the counts and
+   * a failed page all belonged to the previous username; kept, they showed
+   * its templates under the new name, and a failed first page there read as
+   * a list that had loaded.
+   */
   useEffect(() => {
+    setTemplates([])
+    setPage(0)
+    setHasMore(true)
+    setFailedPage(null)
+    setВсегоВГруппе({}) // cyrillic-ok: the existing state name
     void loadTemplates()
   }, [loadTemplates])
 
@@ -733,7 +744,7 @@ export function ProfileTemplatesGrid({
       {hasMore && !autoPaging && (
         <button
           className="profile-templates__load-more"
-          onClick={() => loadTemplates(failedPage ?? page + 1)}
+          onClick={() => loadTemplates(page + 1)}
           disabled={loading}
         >
           {loading ? t('common.loading') : t('profile.load_more')}
