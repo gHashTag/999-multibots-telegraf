@@ -610,9 +610,11 @@ CHECKS THAT EACH COST A CYCLE
   tri pr-billing N
         Is every failing check on PR N the Actions billing stop? rc 0 only if
         all are; an empty annotation (dropped connection) is re-asked, then
-        counted UNKNOWN -- never billing. Refuses (rc 1) while a comment
-        starting "Reviewer bee: not merged" is newer than the head commit;
-        an older one is printed, to be checked against the push.
+        counted UNKNOWN -- never billing. Refuses (rc 1) while a bee's
+        refusal (a comment or review whose first line starts "Reviewer bee"
+        or "Bee review" and says "not merg..." or "changes requested", or a
+        CHANGES_REQUESTED review) is newer than the head commit; an older
+        one is printed, to be checked against the push.
 
   tri premerge N [--keep]
         Would PR N pass the player's deploy gate once it lands on today's
@@ -4269,12 +4271,26 @@ cmd_pr_billing() {
   # refusal newer than the head commit blocks (rc 1), and an older one is
   # printed with its first line: a push is not an answer until someone reads
   # the notes against it.
+  # What a refusal looks like was read off 200 PRs, not decided: 17 refusals,
+  # and the first version of this check (exact "Reviewer bee: not merged" in a
+  # comment) saw 4. Bees write "not merging (yet)", "changes requested",
+  # "Bee review:", "Reviewer bee Z:", and three of the 17 sit in a review
+  # body, not a comment. A review in state CHANGES_REQUESTED refuses whatever
+  # it says (bees share the author's account, so GitHub has never let one be
+  # filed here -- but a second account would). The head's date is looked up by
+  # its oid; if the head is not in the list, every refusal counts as new.
   local refusals kind stamp note
-  refusals=$("$gh" pr view "$pr" --repo "$repo" --json commits,comments --jq \
-    '(.commits[-1].committedDate) as $d | .comments[]
-     | select(.body | test("^[*_ ]*reviewer bee:?[*_ ]*not merged"; "i"))
-     | (if .createdAt > $d then "NEW" else "OLD" end) + "\t" + .createdAt
-       + " " + .author.login + "\t" + (.body | split("\n")[0] | .[0:120])') \
+  refusals=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid,commits,comments,reviews --jq \
+    '.headRefOid as $h
+     | ([.commits[] | select(.oid == $h) | .committedDate][0] // "") as $d
+     | (.comments[] | {at: .createdAt, who: .author.login, b: .body, st: ""}),
+       (.reviews[] | {at: (.submittedAt // ""), who: .author.login, b: .body, st: .state})
+     | (.b | split("\n")[0]) as $f
+     | select(.st == "CHANGES_REQUESTED"
+         or (($f | test("^[*_ ]*(reviewer bee|bee review)"; "i"))
+             and ($f | test("not merg|changes requested"; "i"))))
+     | (if $d == "" or .at > $d then "NEW" else "OLD" end) + "\t" + .at
+       + " " + .who + "\t" + ($f | .[0:120])') \
     || { bad "could not read the comments on PR $pr -- a refusal there would be missed"; return 2; }
   local blocked=0
   while IFS=$'\t' read -r kind stamp note; do

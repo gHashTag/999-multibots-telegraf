@@ -27,19 +27,38 @@ let bin: string
 
 interface Fixture {
   comments?: { createdAt: string; body: string; login?: string }[]
+  reviews?: { submittedAt: string; body: string; state?: string }[]
   headDate?: string
+  /** Where the head sits in the commit list; 'missing' leaves it out. */
+  headAt?: 'last' | 'first' | 'missing'
   failing?: { id: number; name: string; annotation: string }[]
   /** Makes the comments call fail like a dropped connection. */
   commentsDown?: boolean
 }
 
 function billing(fx: Fixture) {
+  const head = {
+    oid: HEAD,
+    committedDate: fx.headDate ?? '2026-10-03T01:00:00Z',
+  }
+  // A commit dated far in the future: if tri dated the head by position
+  // instead of by oid, every refusal would look old.
+  const other = { oid: 'fff000', committedDate: '2026-12-31T00:00:00Z' }
+  const at = fx.headAt ?? 'last'
   const pr = {
     headRefOid: HEAD,
-    commits: [
-      { committedDate: '2026-10-03T00:00:00Z' },
-      { committedDate: fx.headDate ?? '2026-10-03T01:00:00Z' },
-    ],
+    commits:
+      at === 'last'
+        ? [{ oid: 'eee000', committedDate: '2026-10-03T00:00:00Z' }, head]
+        : at === 'first'
+          ? [head, other]
+          : [other],
+    reviews: (fx.reviews ?? []).map(r => ({
+      submittedAt: r.submittedAt,
+      body: r.body,
+      state: r.state ?? 'COMMENTED',
+      author: { login: 'gHashTag' },
+    })),
     comments: (fx.comments ?? []).map(c => ({
       createdAt: c.createdAt,
       body: c.body,
@@ -79,7 +98,7 @@ beforeEach(() => {
 q="" all="$*"
 while [ $# -gt 0 ]; do [ "$1" = --jq ] && { q="$2"; shift; }; shift; done
 case "$all" in
-  *commits,comments*) [ -e '${bin}/comments-down' ] && exit 1; f='${bin}/pr.json' ;;
+  *commits,comments,reviews*) [ -e '${bin}/comments-down' ] && exit 1; f='${bin}/pr.json' ;;
   *headRefOid*) f='${bin}/pr.json' ;;
   *check-runs/*/annotations*) id=\${all#*check-runs/}; f="${bin}/ann-\${id%%/*}.json" ;;
   *check-runs*) f='${bin}/runs.json' ;;
@@ -150,6 +169,94 @@ describe.skipIf(!hasJq)('tri pr-billing: a refusal of this head', () => {
       ],
     })
     expect(r.rc).toBe(0)
+  })
+
+  // Every first line below was written by a bee that refused, on a real PR.
+  it.each([
+    ['3415', 'Reviewer bee: **not merging.** The check path holds.'],
+    ['3395', 'Reviewer bee: **not merging yet.** One project rule is broken.'],
+    ['3448', '**Bee review: changes requested, blocking. Not merged.**'],
+    ['3334', '**Reviewer bee: changes requested. Not merged.**'],
+    ['3327', 'Reviewer bee Z: **not merged -- one blocking finding (SSRF).**'],
+  ])('PR %s wording is a refusal', (_n, body) => {
+    const r = billing({
+      comments: [{ createdAt: '2026-10-03T01:10:00Z', body }],
+    })
+    expect(r.rc).toBe(1)
+  })
+
+  it.each([
+    'Bee review (not the author) -- sound, merging.',
+    'Bee review (non-blocking notes; merged):',
+  ])('an approval is not a refusal: %s', body => {
+    const r = billing({
+      comments: [{ createdAt: '2026-10-03T01:10:00Z', body }],
+    })
+    expect(r.rc).toBe(0)
+  })
+
+  it('"not merged" below the first line is a note, not a refusal', () => {
+    const r = billing({
+      comments: [
+        {
+          createdAt: '2026-10-03T01:10:00Z',
+          body: 'Reviewer bee: sound, merging.\n\nPR 3448 is not merged yet.',
+        },
+      ],
+    })
+    expect(r.rc).toBe(0)
+  })
+
+  it('a refusal in a review body counts (PR 3406, 3396, 3360)', () => {
+    const r = billing({
+      reviews: [
+        {
+          submittedAt: '2026-10-03T01:10:00Z',
+          body: 'bee review: changes requested. Not merging.',
+        },
+      ],
+    })
+    expect(r.rc).toBe(1)
+    expect(r.out).toContain('a reviewer refused this head')
+  })
+
+  it('a CHANGES_REQUESTED review refuses whatever its text', () => {
+    const r = billing({
+      reviews: [
+        {
+          submittedAt: '2026-10-03T01:10:00Z',
+          body: 'See the inline notes.',
+          state: 'CHANGES_REQUESTED',
+        },
+      ],
+    })
+    expect(r.rc).toBe(1)
+  })
+
+  it('the head is dated by its oid, not by its place in the list', () => {
+    const r = billing({
+      headAt: 'first',
+      comments: [
+        {
+          createdAt: '2026-10-03T01:10:00Z',
+          body: 'Reviewer bee: not merged. One defect.',
+        },
+      ],
+    })
+    expect(r.rc).toBe(1)
+  })
+
+  it('a head missing from the commit list makes every refusal new', () => {
+    const r = billing({
+      headAt: 'missing',
+      comments: [
+        {
+          createdAt: '2026-10-03T01:10:00Z',
+          body: 'Reviewer bee: not merged. One defect.',
+        },
+      ],
+    })
+    expect(r.rc).toBe(1)
   })
 
   it('unreadable comments are rc 2, never a pass', () => {
