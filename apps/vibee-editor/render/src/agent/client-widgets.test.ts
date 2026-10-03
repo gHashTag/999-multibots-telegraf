@@ -52,12 +52,18 @@ function sse(deltas: Array<Record<string, unknown>>): Response {
   )
 }
 
-/** One provider (glm) answering "ok"; every request body is kept. */
+/**
+ * One provider (glm) answering "ok"; every completion request body is kept.
+ * Other calls the loop makes on the way (under the repo-root config more of
+ * them run) get an empty answer and are not mistaken for the model's.
+ */
 function provider() {
   const asked: any[] = []
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (_url: string, init?: RequestInit) => {
+    vi.fn(async (url: unknown, init?: RequestInit) => {
+      if (!String(url).endsWith('/chat/completions'))
+        return new Response('{}', { status: 200 })
       asked.push(JSON.parse(String(init?.body ?? '{}')))
       return sse([{ content: 'ok' }])
     })
