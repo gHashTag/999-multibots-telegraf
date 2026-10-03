@@ -63,6 +63,17 @@ import { bindClientGroup, clientGroupFor } from './crm-client-group'
 export const NOT_THIS_CLIENT =
   'в разговоре за клиента рилс делается только ему самому' // cyrillic-ok: tool result copy
 
+/**
+ * TEMPORARY, until crm-story-reel v22 (owner, 2026-10-03: "why does it put
+ * my call on the client's reel instead of his own?"). The hook template is
+ * the house's own ad: its call and its button lead to the house bot. It
+ * stays on the seller's own reel; a client's reel is made by topic, with
+ * the client's own call.
+ */
+export const HOUSE_TEMPLATE_STAYS_HOME =
+  `шаблон — реклама самой Тринити: его призыв и кнопка ${REEL.TEMPLATE_BUTTON} ведут к нам, а не к клиенту. ` + // cyrillic-ok: tool result copy
+  'Он только для твоего собственного рилса; клиенту сделай рилс по теме (topic) без шаблона — с его призывом' // cyrillic-ok: tool result copy
+
 /** An id, or an @name the seller's CRM knows. */
 async function leadOf(ctx: ToolContext, raw: unknown): Promise<string | null> {
   const v = String(raw ?? '')
@@ -142,7 +153,7 @@ export function makeCrmStoryTool(o: {
         cta: { type: 'string', description: 'свой призыв в паузе' },
         [REEL.TEMPLATE_ARG]: {
           type: 'string',
-          description: `готовый шаблон: ${REEL.TEMPLATE_HOOK_STUDIO} (хук, кадры студии, призыв к ${REEL.TEMPLATE_BUTTON})`,
+          description: `только для СВОЕГО рилса продавца (lead = ты), клиенту — нет: ${REEL.TEMPLATE_HOOK_STUDIO} (хук, студия, призыв к ${REEL.TEMPLATE_BUTTON})`,
         },
         [REEL.LANGUAGE_ARG]: {
           type: 'string',
@@ -180,6 +191,13 @@ export function makeCrmStoryTool(o: {
       if (forClient && forClient !== lead)
         return { ready: false, why: NOT_THIS_CLIENT }
       const seller = String(ctx.telegramId)
+      // The house template is the seller's own (temporary, until v22): a
+      // client's call naming it is refused here, before any face, voice,
+      // render, charge or row.
+      const ownReel = lead === seller
+      const templateId = String(args[REEL.TEMPLATE_ARG] ?? '').trim()
+      if (templateId && !ownReel)
+        return { ready: false, started: false, why: HOUSE_TEMPLATE_STAYS_HOME }
 
       let s = await storySettingsOf(ctx.pool, lead, seller)
       if (s && !s.faceUrl) {
@@ -353,8 +371,9 @@ export function makeCrmStoryTool(o: {
                   : {}),
                 ...(fixBg ? { [REEL.SUGGEST_BG_ARG]: fixBg } : {}),
                 client_pays_own_press: s.payer === 'client',
-                // The gallery the panel draws (spec v20, TEMPLATES_FROM_SERVER).
-                templates: templatesForPanel(),
+                // The gallery the panel draws (spec v20, TEMPLATES_FROM_SERVER);
+                // the house template only on the seller's own reel (until v22).
+                ...(ownReel ? { templates: templatesForPanel() } : {}),
               }
             : {}),
           one_tap_link: nextLink(bot) || undefined,
@@ -371,7 +390,6 @@ export function makeCrmStoryTool(o: {
        * wrote his own, shot in the studio; its call and its house-bot button
        * unless he gave his.
        */
-      const templateId = String(args[REEL.TEMPLATE_ARG] ?? '').trim()
       const template = templateId
         ? templateOf(templateId, String(args[REEL.LANGUAGE_ARG] ?? ''))
         : undefined
