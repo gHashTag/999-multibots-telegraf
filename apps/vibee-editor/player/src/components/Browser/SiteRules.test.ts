@@ -136,16 +136,4 @@ describe('what the person sees', () => {
   })
 })
 
-describe('the Enter key', () => {
-  it('the Enter that confirms an input-method word adds no rule', () => {
-    /*
-     * Found 2026-10-03 against TypeSheet.tsx, which already guards it: a
-     * person typing a site through pinyin or kana confirms the word with
-     * Enter, and that Enter would have saved a half-typed site.
-     */
-    const key = src.slice(src.indexOf('onKeyDown'), src.indexOf('<button'))
-    expect(key).toMatch(/isComposing/)
-    expect(key).toMatch(/keyCode === 229/)
-    expect(key).toMatch(/!composing/)
-  })
-})
+/* The Enter key is pressed, not read: SiteRules.keys.test.tsx (#3490's bee). */
