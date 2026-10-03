@@ -57,12 +57,12 @@ async function typeSite(text: string) {
   return input
 }
 
-async function enter(
+async function press(
   input: HTMLInputElement,
-  how: { isComposing?: boolean; keyCode?: number } = {}
+  how: { isComposing?: boolean; keyCode?: number; key?: string } = {}
 ) {
   const e = new KeyboardEvent('keydown', {
-    key: 'Enter',
+    key: how.key ?? 'Enter',
     bubbles: true,
     isComposing: how.isComposing ?? false,
   })
@@ -75,22 +75,33 @@ async function enter(
 
 describe('the Enter key in the site field', () => {
   it('a plain Enter saves the site as "ask"', async () => {
-    await enter(await typeSite('clinic.example'))
+    await press(await typeSite('clinic.example'))
     expect(putSiteRule).toHaveBeenCalledWith('clinic.example', 'ask')
   })
 
   it('the Enter that ends an input-method word saves nothing (isComposing)', async () => {
-    await enter(await typeSite('clinic.exa'), { isComposing: true })
+    await press(await typeSite('clinic.exa'), { isComposing: true })
     expect(putSiteRule).not.toHaveBeenCalled()
   })
 
   it("nor does Safari's, which only says keyCode 229", async () => {
-    await enter(await typeSite('clinic.exa'), { keyCode: 229 })
+    await press(await typeSite('clinic.exa'), { keyCode: 229 })
+    expect(putSiteRule).not.toHaveBeenCalled()
+  })
+
+  /*
+   * The bee on #3492: with `e.key === 'Enter'` removed every test above
+   * stayed green, and then each letter typed into a filled field saved it.
+   */
+  it('any other key in a filled field saves nothing', async () => {
+    const input = await typeSite('clinic.example')
+    for (const key of ['a', 'Tab', ' ', 'Backspace'])
+      await press(input, { key })
     expect(putSiteRule).not.toHaveBeenCalled()
   })
 
   it('an empty field saves nothing', async () => {
-    await enter(await typeSite('   '))
+    await press(await typeSite('   '))
     expect(putSiteRule).not.toHaveBeenCalled()
   })
 })
