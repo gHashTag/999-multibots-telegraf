@@ -52,6 +52,20 @@ import {
 } from './sessions'
 import { agentMayOpen, mayAct } from './guard'
 import {
+  FRAMES_PROBE,
+  addressesOfAct,
+  blockedEmbed,
+  embeddedUrls,
+  focused,
+  frameTargetsOf,
+  framesOf,
+  framesOfTarget,
+  isWeb,
+  landing,
+  under,
+  type SeenFrame,
+} from './embedded'
+import {
   UNREADABLE_LIST,
   blockedError,
   ruleFor,
@@ -71,11 +85,13 @@ import {
   activatePage,
   listTargets,
   evaluateOn,
+  frameAtPoint,
   clickAt,
   typeText,
   screenshot,
   pageUrl,
 } from './cdp'
+import type { CdpTarget } from './cdp'
 import { overBudget } from './tab-budget'
 import { NOT_PAINTED_NOTE, PAINT_PROBE, waitForPaint } from './paint-wait'
 import { shapeOfTabs } from './tab-shape'
@@ -138,12 +154,163 @@ async function mustBeAllowedToAct(
     alsoSensitive: url !== null && ruleFor(url, rules) === 'ask',
   })
   if (verdict.allowed) return
-  throw new Error(
-    `acting on ${verdict.where} needs the person's permission first. ` +
+  throw needsPermission(verdict.where)
+}
+
+function needsPermission(where: string, inFrame = false): Error {
+  return new Error(
+    `acting on ${where}${inFrame ? ' (a frame embedded in this page)' : ''} ` +
+      "needs the person's permission first. " +
       'Call browser_ask_permission with one sentence saying exactly what ' +
       'you are about to do, wait for "allowed", then try again. Reading ' +
       '(browser_read, browser_screenshot) works without it.'
   )
+}
+
+/**
+ * The frames of a page, both ways (embedded.ts). `probed` is false when the
+ * page did not answer the probe: then only Chromium's own list is known.
+ */
+async function framesNow(
+  cdp: string,
+  targetId: string,
+  targets?: CdpTarget[]
+): Promise<{ frames: SeenFrame[]; oopif: string[]; probed: boolean }> {
+  const listed = targets ?? (await listTargets(cdp).catch(() => []))
+  const oopif = framesOfTarget(listed, targetId)
+  const raw = await evaluateOn(cdp, targetId, FRAMES_PROBE).then(
+    r => ({ r }),
+    () => null
+  )
+  return { frames: raw ? framesOf(raw.r) : [], oopif, probed: raw !== null }
+}
+
+/**
+ * WHERE A PRESS AT x,y REACHES. Chromium's own hit-test first (cdp.ts
+ * frameAtPoint): the top page reaches nothing extra; a frame reaches its
+ * current address, and a cross-origin frame also every frame inside it (the
+ * hit-test stops at its door). A frame whose address nobody can name, or a
+ * hit-test that failed, falls back to the probe -- closed: every frame
+ * Chromium lists that the probe cannot account for is in reach.
+ */
+async function reachOfPress(
+  cdp: string,
+  targetId: string,
+  x: number,
+  y: number,
+  targets: CdpTarget[]
+): Promise<string[]> {
+  const hit = await frameAtPoint(cdp, targetId, x, y).catch(() => null)
+  if (hit?.frameId === targetId) return []
+  if (hit) {
+    const listed = targets.find(t => t.id === hit.frameId)
+    const own = listed?.url ?? hit.url
+    if (own) {
+      const inner = listed ? framesOfTarget(targets, hit.frameId) : []
+      return [...new Set([own, ...inner])].filter(isWeb)
+    }
+  }
+  const { frames, oopif, probed } = await framesNow(cdp, targetId, targets)
+  return probed
+    ? addressesOfAct(frames, oopif, under(x, y))
+    : oopif.filter(isWeb)
+}
+
+/** Does focus sit in this frame? Asked in the frame's OWN world; unknown = yes. */
+async function focusIsIn(cdp: string, frameTargetId: string): Promise<boolean> {
+  return await evaluateOn(cdp, frameTargetId, 'document.hasFocus()').then(
+    v => v !== false,
+    () => true
+  )
+}
+
+/**
+ * AN ACT INSIDE A FRAME IS JUDGED WHERE THE FRAME IS (embedded.ts): the
+ * Stripe frame on a shop is stripe.com, and the shop's address said nothing
+ * about it. Called after mustBeAllowedToAct, which judged the tab. `at` is
+ * the point of a press, or 'focus' for typing.
+ *
+ * Typing has no hit-test, so its reach is the probe's focused frame plus
+ * every frame the probe cannot account for, and then every cross-origin
+ * frame that would need a yes (or is blocked) is asked in its own world
+ * whether focus is in it: the embedding page can hide focus from its own
+ * script (a closed shadow root retargets activeElement to the host), not
+ * from the frame. Only risky frames are asked, so a page of harmless ad
+ * frames costs no extra calls.
+ */
+async function mustBeAllowedInFrame(
+  ctx: ToolContext,
+  cdp: string,
+  targetId: string,
+  at: { x: number; y: number } | 'focus'
+): Promise<void> {
+  const targets = await listTargets(cdp).catch(() => [] as CdpTarget[])
+  const kids = frameTargetsOf(targets, targetId).filter(t => isWeb(t.url))
+  let reach: string[]
+  if (at === 'focus') {
+    const { frames, oopif, probed } = await framesNow(cdp, targetId, targets)
+    reach = probed
+      ? addressesOfAct(frames, oopif, focused)
+      : oopif.filter(isWeb)
+  } else {
+    reach = await reachOfPress(cdp, targetId, at.x, at.y, targets)
+  }
+  if (!reach.length && (at !== 'focus' || !kids.length)) return
+  const pool = ctx.pool as unknown as Queryable
+  const rules = await siteRulesOf(pool, ctx.telegramId)
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  const session = await readSession(pool, ctx.telegramId)
+  const verdictOf = (url: string) =>
+    mayAct({
+      url,
+      allowedAtMs: session?.allowedAtMs ?? null,
+      nowMs: Date.now(),
+      alsoSensitive: ruleFor(url, rules) === 'ask',
+    })
+  if (at === 'focus') {
+    for (const k of kids) {
+      if (reach.includes(k.url)) continue
+      const risky =
+        ruleFor(k.url, rules) === 'block' || !verdictOf(k.url).allowed
+      if (risky && (await focusIsIn(cdp, k.id))) reach.push(k.url)
+    }
+  }
+  const blocked = blockedEmbed(reach, rules)
+  if (blocked) throw embeddedBlocked(blocked)
+  for (const url of reach) {
+    const verdict = verdictOf(url)
+    if (!verdict.allowed) throw needsPermission(verdict.where, true)
+  }
+}
+
+function embeddedBlocked(url: string): Error {
+  const e = blockedError(url)
+  e.message +=
+    ' It is embedded in this page as a frame, so the page is not shot and ' +
+    'nothing is pressed or typed into that frame; browser_read reads the ' +
+    "page's own text."
+  return e
+}
+
+/**
+ * NOT EVEN A LOOK, FRAMES INCLUDED. A page shot shows what its frames show,
+ * so a page embedding a blocked site is not shot. Only when the list blocks
+ * something: with no block there is nothing to find, and no extra call.
+ */
+async function mustNotEmbedBlocked(
+  ctx: ToolContext,
+  cdp: string,
+  targetId: string
+): Promise<void> {
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  if (!rules.some(r => r.rule === 'block')) return
+  const { frames, oopif } = await framesNow(cdp, targetId)
+  const blocked = blockedEmbed(embeddedUrls(frames, oopif), rules)
+  if (blocked) throw embeddedBlocked(blocked)
 }
 
 /*
@@ -191,6 +358,53 @@ async function mustNotBeBlocked(
   mustNotBeOn(url, rules)
 }
 
+/** The pause between two looks at a new tab's address; tests shorten it. */
+let landingStepMs = 400
+export function setLandingStepForTests(ms: number): void {
+  landingStepMs = ms
+}
+
+/**
+ * WHERE browser_open REALLY WENT (embedded.ts landing). The address given
+ * was judged before the open; a 302 or a link shortener can land on a
+ * blocked site, and the tool used to answer with that site's address. Only
+ * when the list blocks something: otherwise there is nothing to find and no
+ * reason to wait. A blocked landing closes the tab this call opened.
+ */
+async function mustNotHaveLandedBlocked(
+  ctx: ToolContext,
+  cdp: string,
+  pageId: string,
+  asked: string
+): Promise<string | null> {
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) {
+    /* Unjudged is not kept: the tab this call opened goes (bee on #3507). */
+    await closePage(cdp, pageId).catch(() => {})
+    forgetFront(ctx.telegramId, pageId)
+    throw new Error(UNREADABLE_LIST)
+  }
+  if (!rules.some(r => r.rule === 'block')) return null
+  const { landed, seen } = await landing(
+    () => urlOfTab(cdp, pageId),
+    undefined,
+    6,
+    landingStepMs,
+    asked
+  )
+  const blocked = seen.find(u => ruleFor(u, rules) === 'block')
+  if (!blocked) return landed
+  await closePage(cdp, pageId).catch(() => {})
+  forgetFront(ctx.telegramId, pageId)
+  const e = blockedError(blocked)
+  e.message +=
+    ' The address you opened went there (a redirect), so the tab was closed.'
+  throw e
+}
+
 /*
  * The whole screen shows whichever tab is in front, and the person may front
  * any of them between our check and the shot. So a desktop shot is refused
@@ -209,8 +423,11 @@ async function mustShowNoBlockedTab(
   if (!rules.some(r => r.rule === 'block')) return
   const targets = cdp ? await listTargets(cdp).catch(() => null) : null
   if (!targets) throw new Error(UNKNOWN_TAB)
+  /* A frame is shown as much as its page is (embedded.ts). */
   const blocked = targets.find(
-    t => t.type === 'page' && ruleFor(t.url, rules) === 'block'
+    t =>
+      (t.type === 'page' || t.type === 'iframe') &&
+      ruleFor(t.url, rules) === 'block'
   )
   if (blocked) {
     const e = blockedError(blocked.url)
@@ -1086,7 +1303,13 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         session.cdpEndpoint,
         String(args.url)
       )
-      return { opened: page.url || String(args.url), id: page.id }
+      const landed = await mustNotHaveLandedBlocked(
+        ctx,
+        session.cdpEndpoint,
+        page.id,
+        String(args.url)
+      )
+      return { opened: landed || page.url || String(args.url), id: page.id }
     },
   },
   {
@@ -1160,6 +1383,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       }
       const { cdp, targetId } = await podOf(ctx)
       await mustNotBeBlocked(ctx, await urlOfTab(cdp, targetId))
+      await mustNotEmbedBlocked(ctx, cdp, targetId)
       /* A dark SPA shot before it rendered reads as "black screen" (paint-wait.ts). */
       const paint = await waitForPaint(() =>
         evaluateOn(cdp, targetId, PAINT_PROBE)
@@ -1224,6 +1448,10 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
               '. Take browser_screenshot and click by x,y, or ask the person (browser_ask_input kind=action).'
           )
         }
+        await mustBeAllowedInFrame(ctx, cdp, targetId, {
+          x: found.x,
+          y: found.y,
+        })
         await clickAt(cdp, targetId, found.x, found.y)
         /* The press that worked is the lesson; never blocks the answer. */
         void rememberPress(pool, {
@@ -1242,6 +1470,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       if (typeof a.x !== 'number' || typeof a.y !== 'number') {
         throw new Error('give text (the button label) or x and y')
       }
+      await mustBeAllowedInFrame(ctx, cdp, targetId, { x: a.x, y: a.y })
       await clickAt(cdp, targetId, a.x, a.y)
       return { clicked: { x: a.x, y: a.y } }
     },
@@ -1261,6 +1490,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     async handler(args, ctx) {
       const { cdp, targetId } = await podOf(ctx)
       await mustBeAllowedToAct(ctx, cdp, targetId)
+      await mustBeAllowedInFrame(ctx, cdp, targetId, 'focus')
       await typeText(cdp, targetId, String(args.text))
       return { typed: String(args.text).length }
     },
