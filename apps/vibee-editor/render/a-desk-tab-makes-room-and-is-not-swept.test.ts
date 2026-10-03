@@ -186,9 +186,10 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
    * the pin is the rule:
    *
    *  - a road is a call of openWindow, goTo, frontPage or listTargets, by
-   *    any spelling: `goTo(`, `goTo?.(`, `goTo.call(`, `x.goTo(`;
-   *  - a check is `await deskMayGo(` -- not `void`, not `.catch()`: a check
-   *    whose refusal is dropped is no check;
+   *    any spelling: `goTo(`, `goTo?.(`, `goTo.call(`, `x.goTo(`, `x['goTo'](`;
+   *  - a check is `await deskMayGo(` -- not `void`, not `.catch()`, not
+   *    inside a `try` whose catch neither throws nor returns: a check whose
+   *    refusal is dropped is no check;
    *  - each road needs its OWN check within six code lines before it (the
    *    search stops at the previous road), and only a READ may have it up to
    *    two code lines after: a window opened or navigated before its check
@@ -220,13 +221,57 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
     const roads: { line: number; at: number; road: string }[] = []
     const renamed: string[] = []
 
+    /* `x.goTo` and `x['goTo']` name the same road (the bee's P1b). */
+    const memberName = (e: ts.Expression): string | null =>
+      ts.isPropertyAccessExpression(e)
+        ? e.name.text
+        : ts.isElementAccessExpression(e) &&
+            ts.isStringLiteralLike(e.argumentExpression)
+          ? e.argumentExpression.text
+          : null
     const calleeName = (c: ts.CallExpression): string => {
       let e = c.expression
-      if (ts.isPropertyAccessExpression(e) && CALLED.has(e.name.text))
+      const m = memberName(e)
+      if (
+        m !== null &&
+        CALLED.has(m) &&
+        (ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e))
+      )
         e = e.expression
       if (ts.isIdentifier(e)) return e.text
-      if (ts.isPropertyAccessExpression(e)) return e.name.text
-      return ''
+      return memberName(e) ?? ''
+    }
+
+    /* Does a catch block stop the road: a throw or a return, not in a nested function? */
+    const stops = (b: ts.Node): boolean => {
+      let found = false
+      const walk = (x: ts.Node): void => {
+        if (found || ts.isFunctionLike(x)) return
+        if (ts.isThrowStatement(x) || ts.isReturnStatement(x)) found = true
+        else ts.forEachChild(x, walk)
+      }
+      ts.forEachChild(b, walk)
+      return found
+    }
+    /*
+     * `try { await deskMayGo(..) } catch {}` drops the refusal like `.catch()`
+     * (the bee's P5, third pass on #3493). The walk stops at the enclosing
+     * function: the round's `look:` check sits inside an outer `try`.
+     */
+    const swallowed = (call: ts.Node): boolean => {
+      for (
+        let c: ts.Node = call, p = call.parent;
+        p && !ts.isFunctionLike(p);
+        c = p, p = p.parent
+      )
+        if (
+          ts.isTryStatement(p) &&
+          p.tryBlock === c &&
+          p.catchClause &&
+          !stops(p.catchClause.block)
+        )
+          return true
+      return false
     }
 
     /* Where the name of a road may stand without renaming it. */
@@ -260,7 +305,11 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
       if (ts.isCallExpression(n)) {
         const f = calleeName(n)
         const at = n.getStart(sf)
-        if (f === 'deskMayGo' && ts.isAwaitExpression(n.parent))
+        if (
+          f === 'deskMayGo' &&
+          ts.isAwaitExpression(n.parent) &&
+          !swallowed(n)
+        )
           checks.push({ line: lineOf(n), at })
         if (ROADS.has(f)) roads.push({ line: lineOf(n), at, road: f })
       }
@@ -391,6 +440,58 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
     expect(t('await goTo.call(null, c, id, u)')).toEqual(['t:1'])
     expect(t('await goTo?.(c, id, u)')).toEqual(['t:1'])
     expect(t('await cdp.goTo(c, id, u)')).toEqual(['t:1'])
+    expect(t("await cdp['goTo'](c, id, u)")).toEqual(['t:1'])
+    /* P5 (third pass): a try whose catch swallows the refusal is no check. */
+    expect(
+      t(
+        'try {',
+        '  await deskMayGo(w, u)',
+        '} catch {}',
+        'await goTo(c, id, u)'
+      )
+    ).toEqual(['t:4'])
+    expect(
+      t(
+        'try {',
+        '  await deskMayGo(w, u)',
+        '} catch (e) {',
+        '  log(e)',
+        '}',
+        'await goTo(c, id, u)'
+      )
+    ).toEqual(['t:6'])
+    /* Controls: a catch that rethrows or returns still stops the road. */
+    expect(
+      t(
+        'try {',
+        '  await deskMayGo(w, u)',
+        '} catch (e) {',
+        '  throw e',
+        '}',
+        'await goTo(c, id, u)'
+      )
+    ).toEqual([])
+    expect(
+      t(
+        'try {',
+        '  await deskMayGo(w, u)',
+        '} catch {',
+        '  return',
+        '}',
+        'await goTo(c, id, u)'
+      )
+    ).toEqual([])
+    /* An outer try around the whole function body does not swallow it. */
+    expect(
+      t(
+        'try {',
+        '  run({ look: async u => {',
+        '    await deskMayGo(w, u)',
+        '    await goTo(c, id, u)',
+        '  } })',
+        '} catch {}'
+      )
+    ).toEqual([])
     /* Controls: a real check still vouches, across a multi-line call. */
     expect(t('await deskMayGo(w, u)', 'await goTo(c, id, u)')).toEqual([])
     expect(
