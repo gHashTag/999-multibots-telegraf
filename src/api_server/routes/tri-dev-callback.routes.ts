@@ -8,13 +8,16 @@ import {
   resultText,
   triDevBot,
   updateJob,
+  type TriDevJobKind,
   type TriDevStatus,
 } from '@/core/bot/managedBots/triDev'
 
 /**
  * POST /api/tri-dev/callback -- THE TRI DEV RUNNER REPORTS ON A JOB.
  *
- * Body: {jobId, chatId, botId, status, prUrl?, castUrl?, summary?}.
+ * Body: {jobId, chatId, botId, status, kind?, prUrl?, castUrl?, summary?,
+ * measurement?}. kind is 'task' (default) or 'bench'; a bench run reports
+ * its result in measurement.
  *
  * Public mount, self-authenticated: the runner sends the shared secret
  * TRI_DEV_CALLBACK_SECRET in the `X-Tri-Dev-Secret` header (or as
@@ -59,9 +62,11 @@ export interface TriDevReport {
   chatId: number
   botId: number
   status: TriDevStatus
+  kind?: TriDevJobKind
   prUrl?: string
   castUrl?: string
   summary?: string
+  measurement?: string
 }
 
 /** The report, or the reason it is refused. */
@@ -90,15 +95,32 @@ export function readReport(body: unknown): TriDevReport | { error: string } {
     typeof b.summary !== 'string'
   )
     return { error: 'summary' }
+  if (
+    b.kind !== undefined &&
+    b.kind !== null &&
+    b.kind !== 'task' &&
+    b.kind !== 'bench'
+  )
+    return { error: 'kind' }
+  if (
+    b.measurement !== undefined &&
+    b.measurement !== null &&
+    typeof b.measurement !== 'string'
+  )
+    return { error: 'measurement' }
   return {
     jobId: b.jobId,
     chatId,
     botId,
     status: b.status as TriDevStatus,
+    ...(b.kind === 'task' || b.kind === 'bench' ? { kind: b.kind } : {}),
     ...(typeof b.prUrl === 'string' ? { prUrl: b.prUrl } : {}),
     ...(typeof b.castUrl === 'string' ? { castUrl: b.castUrl } : {}),
     ...(typeof b.summary === 'string' && b.summary.trim()
       ? { summary: b.summary.trim().slice(0, 1000) }
+      : {}),
+    ...(typeof b.measurement === 'string' && b.measurement.trim()
+      ? { measurement: b.measurement.trim().slice(0, 1000) }
       : {}),
   }
 }
@@ -131,9 +153,13 @@ router.post('/tri-dev/callback', async (req: any, res: any) => {
     ...(report.prUrl ? { prUrl: report.prUrl } : {}),
     ...(report.castUrl ? { castUrl: report.castUrl } : {}),
     ...(report.summary ? { summary: report.summary } : {}),
+    ...(report.measurement ? { measurement: report.measurement } : {}),
   })
   try {
-    await bot.send(report.chatId, resultText(report, job?.language))
+    await bot.send(
+      report.chatId,
+      resultText({ ...report, kind: report.kind ?? job?.kind }, job?.language)
+    )
   } catch (error) {
     logger.error('[tri-dev] owner not reached', {
       bot: report.botId,

@@ -4,7 +4,7 @@ import {
   clearTriDevBots,
   clearTriDevJobs,
   dispatchConfig,
-  dispatchTriDevTask,
+  dispatchTriDevJob,
   isValidCastUrl,
   isValidPrUrl,
   parseTaskCommand,
@@ -100,7 +100,7 @@ describe('with no runner connected', () => {
     vi.spyOn(logger, 'warn').mockImplementation(() => logger)
     const fetch = vi.fn()
     expect(
-      await dispatchTriDevTask(
+      await dispatchTriDevJob(
         { botId: BOT, ownerId: OWNER, chatId: OWNER, task: 'x' },
         {
           config: dispatchConfig({
