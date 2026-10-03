@@ -3,8 +3,9 @@
  *
  * The window at /live/<id> posts `{ source: 't27-browser', state }` to its
  * parent when neko loses the connection (`reconnecting`), gives up
- * (`stuck`) or comes back (`connected`) -- render/src/browser/skin.ts,
- * WINDOW_EVENT and CONNECT_SCRIPT. Until it did, this tab showed a frozen
+ * (`stuck`), comes back (`connected`), or keeps its socket while no new frame
+ * arrives (`frozen`) -- render/src/browser/skin.ts, WINDOW_EVENT,
+ * CONNECT_SCRIPT and FREEZE_SCRIPT. Until it did, this tab showed a frozen
  * frame while neko retried, and after the session had been closed.
  *
  * Accepted only from our own origin AND our own frame: a message is data a
@@ -12,8 +13,13 @@
  */
 export const WINDOW_EVENT = 't27-browser'
 
-export type FrameState = 'reconnecting' | 'stuck' | 'connected'
-const STATES: readonly FrameState[] = ['reconnecting', 'stuck', 'connected']
+export type FrameState = 'reconnecting' | 'stuck' | 'connected' | 'frozen'
+const STATES: readonly FrameState[] = [
+  'reconnecting',
+  'stuck',
+  'connected',
+  'frozen',
+]
 
 export interface MessageLike {
   origin: string
@@ -33,9 +39,12 @@ export function frameStateOf(
   return STATES.includes(d.state as FrameState) ? (d.state as FrameState) : null
 }
 
-/** A window that lost its connection may be a session that ended: ask. */
+/**
+ * A window that lost its connection, or whose picture stopped, may be a
+ * session that ended or a pod that went down: ask.
+ */
 export const shouldReread = (state: FrameState | null): boolean =>
-  state === 'reconnecting' || state === 'stuck'
+  state === 'reconnecting' || state === 'stuck' || state === 'frozen'
 
 /**
  * A tap report from inside the window (render skin.ts TOUCH_REPORT_SCRIPT):

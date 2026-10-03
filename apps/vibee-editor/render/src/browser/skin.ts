@@ -1317,11 +1317,17 @@ export const LOST_WORDS = {
     lost: 'Связь прервалась, переподключаю…', // cyrillic-ok: read by a person
     stuck: 'Браузер не отвечает', // cyrillic-ok: read by a person
     again: 'Подключить снова', // cyrillic-ok: read by a person
+    frozen: 'Картинка остановилась', // cyrillic-ok: read by a person
+    frozenNet: 'Пропала сеть на вашей стороне.', // cyrillic-ok: read by a person
+    frozenPod: 'Браузер на сервере перестал присылать кадры.', // cyrillic-ok: read by a person
   },
   en: {
     lost: 'Connection lost, reconnecting…',
     stuck: 'The browser is not answering',
     again: 'Connect again',
+    frozen: 'The picture has stopped',
+    frozenNet: 'Your side has lost the network.',
+    frozenPod: 'The browser on the server stopped sending frames.',
   },
 }
 
@@ -1455,6 +1461,138 @@ export const CONNECT_SCRIPT = `
   .replace('__TRIES__', String(RECONNECT_TRIES))
   .replace('__PAUSE__', String(RECONNECT_PAUSE_MS))
   .replace('__SETTLE__', String(RECONNECT_SETTLE_MS))
+
+/**
+ * How long a connected video may go without a new frame before the window
+ * says the picture has stopped. neko captures the screen at a fixed rate
+ * (ximagesrc use-damage=false, 30/s in its default pipeline), so a still page
+ * still sends frames: ten seconds of nothing is a stall, not a quiet page.
+ */
+export const FROZEN_AFTER_MS = 10_000
+/** How often the window looks at the frame count. */
+export const FROZEN_CHECK_MS = 1_000
+
+/**
+ * A PICTURE THAT STOPPED MUST SAY SO.
+ *
+ * CONNECT_SCRIPT speaks when neko's socket drops: neko shows its form and the
+ * script turns it into a card. The other failure had no words at all -- the
+ * socket stays up, the video element stays "playing", and no new frame comes.
+ * The person saw the last picture and took it for a browser that ignores
+ * them. Browserbase and Steel both put "stream stopped" on the live view;
+ * this is ours, and it names the side that stopped when the window can tell.
+ *
+ * What it counts is FRAMES PRESENTED (requestVideoFrameCallback), or frames
+ * decoded (getVideoPlaybackQuality) where that is all there is. Never
+ * currentTime: on a live stream it runs on with no frames at all. A window
+ * with neither says nothing -- no measure, no alarm.
+ *
+ * It stays quiet while there is nothing to judge: a hidden tab (no frames are
+ * painted there by design), a paused or not-yet-playing video, neko's own
+ * card on screen, our loader still up or holding the picture in watch mode.
+ * Coming back from any of those starts the count again. It is a strip, not a
+ * cover: a false alarm costs a line of text, never the picture.
+ */
+export const FREEZE_SCRIPT = `
+(function () {
+  var m = location.pathname.match(/^\\/live\\/([^/]+)/);
+  if (!m) return;
+  var home = '/live/' + m[1] + '/' + __QUERY__;
+  var all = __WORDS__;
+  var words = /^ru\\b/i.test(navigator.language || '') ? all.ru : all.en;
+  var video = null;
+  var painted = 0;
+  var last = -1;
+  var movedAt = 0;
+  var played = false;
+  var strip = null;
+  function tell(state) {
+    try {
+      if (window.parent && window.parent !== window)
+        window.parent.postMessage({ source: __EVENT__, state: state, session: m[1] }, location.origin);
+    } catch (e) {}
+  }
+  function follow(v) {
+    video = v;
+    painted = 0;
+    last = -1;
+    played = false;
+    if (typeof v.requestVideoFrameCallback !== 'function') return;
+    var each = function () {
+      if (video !== v) return;
+      painted++;
+      v.requestVideoFrameCallback(each);
+    };
+    v.requestVideoFrameCallback(each);
+  }
+  function count(v) {
+    if (typeof v.requestVideoFrameCallback === 'function') return painted;
+    try {
+      var q = v.getVideoPlaybackQuality && v.getVideoPlaybackQuality();
+      if (q && typeof q.totalVideoFrames === 'number') return q.totalVideoFrames;
+    } catch (e) {}
+    return null;
+  }
+  function quiet() {
+    if (document.visibilityState && document.visibilityState !== 'visible') return true;
+    if (document.querySelector('.connect')) return true;
+    var boot = document.getElementById('t27-boot');
+    if (boot && boot.getAttribute('data-done') !== '1') return true;
+    return !video || video.paused || video.readyState < 2;
+  }
+  function show() {
+    if (strip) return;
+    strip = document.createElement('div');
+    strip.id = 't27-frozen';
+    strip.setAttribute('role', 'status');
+    strip.style.cssText =
+      'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:2147483000;' +
+      'display:flex;gap:12px;align-items:center;max-width:92vw;padding:10px 14px;' +
+      'border-radius:12px;background:rgba(12,12,16,.88);color:#fff;font:14px/1.35 sans-serif;';
+    var said = document.createElement('span');
+    var why = navigator.onLine === false ? words.frozenNet : words.frozenPod;
+    said.textContent = words.frozen + '. ' + why;
+    var again = document.createElement('button');
+    again.type = 'button';
+    again.textContent = words.again;
+    again.style.cssText =
+      'flex:none;padding:6px 12px;border:0;border-radius:8px;background:#fff;color:#111;font:inherit;';
+    again.addEventListener('click', function () { location.replace(home); });
+    strip.appendChild(said);
+    strip.appendChild(again);
+    document.body.appendChild(strip);
+    tell('frozen');
+  }
+  function hide() {
+    if (!strip) return;
+    if (strip.parentNode) strip.parentNode.removeChild(strip);
+    strip = null;
+    tell('connected');
+  }
+  function check() {
+    var now = Date.now();
+    var v = document.querySelector('video');
+    if (v && v !== video) follow(v);
+    if (quiet()) { movedAt = now; last = -1; hide(); return; }
+    var n = count(video);
+    if (n === null) return;
+    if (n !== last) {
+      if (last !== -1) played = true;
+      last = n;
+      movedAt = now;
+      hide();
+      return;
+    }
+    if (played && now - movedAt >= __AFTER__) show();
+  }
+  setInterval(check, __EVERY__);
+})();
+`
+  .replace(/__EVENT__/g, () => JSON.stringify(WINDOW_EVENT))
+  .replace('__QUERY__', () => JSON.stringify(LOGIN_QUERY))
+  .replace('__WORDS__', () => JSON.stringify(LOST_WORDS))
+  .replace('__AFTER__', String(FROZEN_AFTER_MS))
+  .replace('__EVERY__', String(FROZEN_CHECK_MS))
 
 /** What the tab says it is, in the person's own app rather than a stranger's. */
 export const PAGE_TITLE = `Браузер · ${BRAND_NAME}` // cyrillic-ok: read by a person
@@ -1638,7 +1776,8 @@ export function injectSkin(html: string): string {
     `<style data-t27-skin>${BRAND_CSS}</style>` +
     `<script data-t27-fit>${FIT_SCRIPT}</script>` +
     `<script data-t27-face>${FACE_SCRIPT}</script>` +
-    `<script data-t27-connect>${CONNECT_SCRIPT}</script>`
+    `<script data-t27-connect>${CONNECT_SCRIPT}</script>` +
+    `<script data-t27-freeze>${FREEZE_SCRIPT}</script>`
   const styled = html
     .replace('</head>', `${head}\n</head>`)
     /*
