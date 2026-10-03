@@ -555,3 +555,25 @@ named, before touching code.
 Acting live: every case drives the person's real browser (`front` brings a tab
 forward on his screen). When `tri browser status` says the person is watching,
 read, don't drive. Never `type` a password; close only tabs you opened.
+
+## Read against competitors (2026-10-03)
+
+Sources and the full table: Browserbase, Steel, Anchor, Hyperbrowser,
+BrowserOS, ChatGPT agent/Atlas, Comet, Opera Neon, Browser Use, Skyvern,
+Cloudflare Browser Run; Buffer, Typefully, Postiz for posting. What they do
+that we did not, and where each stands:
+
+| Gap                                                                               | Who does it               | Status                                                                                                              |
+| --------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| No frames while the PERSON drives                                                 | ChatGPT agent             | **done** #3464: `tickMayFilm` stops the film ticker under the person's wheel lease                                  |
+| A live view that says "stream stopped" + why, not a frozen picture                | Browserbase, Skyvern      | open                                                                                                                |
+| A login that is checked by USE, not by cookie name; a one-tap "sign in again"     | Anchor                    | open: `browser_logins` reads cookie NAMES -- a cookie can outlive the session                                       |
+| The person's own per-site list: blocked / read-only for the agent                 | Comet                     | open: `guard.ts` has one list for everyone (`DEFAULT_SENSITIVE` + env `BROWSER_SENSITIVE_DOMAINS`), none per person |
+| One typed handoff (login/captcha/approval) answering resolved/cancelled/timed_out | BrowserOS, Cloudflare     | partly: `browser_ask_input`, `browser_ask_permission`                                                               |
+| A watch-only share link                                                           | Hyperbrowser, Browserbase | open                                                                                                                |
+| Per-channel split, never X's 280 for LinkedIn                                     | Postiz trap               | held: `xThread` vs `postFor` (#3453, #3457)                                                                         |
+
+**Read journal times with their date.** `tri journal` printed `HH:MM:SS`
+only: at 01:05 UTC a step from 22:47 the day before read as fresh. Both
+readers now share `bin/helpers/journal_line.py` (#3463) -- date kept, UTC
+said, and the first line is how long ago the newest real step was.
