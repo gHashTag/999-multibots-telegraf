@@ -12,9 +12,22 @@ RAIL_ENV=e4d200ad-b8a9-4edf-9b25-190a32613b32       # production
 
 # rvars SERVICE -> the service's variables as KEY=VALUE lines. Never printed by
 # a caller: each one greps the line it needs.
+#
+# An empty answer is retried (3 tries, RVARS_PAUSE s apart, 3 by default): the
+# DNS proxy on this Mac blinks, and on 2026-10-03 `tri blog-share` said "no
+# DATABASE_PUBLIC_URL" while the variable was there and Railway simply did not
+# answer. When every try is empty, stderr says so, so a caller's "variable
+# missing" can be read as "Railway silent" instead. rc 1 then.
 rvars() {
-  railway variables --kv --project "$RAIL_PROJECT" --environment "$RAIL_ENV" \
-    --service "${1:?service required}" 2>/dev/null
+  local svc="${1:?service required}" out try
+  for try in 1 2 3; do
+    out=$(railway variables --kv --project "$RAIL_PROJECT" \
+      --environment "$RAIL_ENV" --service "$svc" 2>/dev/null)
+    [ -n "$out" ] && { printf '%s\n' "$out"; return 0; }
+    [ "$try" -lt 3 ] && sleep "${RVARS_PAUSE:-3}"
+  done
+  echo "rvars: railway did not answer for $svc (3 tries) -- a network blink, not a missing variable" >&2
+  return 1
 }
 
 # rlogs SERVICE [railway logs args...] -> that service's logs, no relink.
