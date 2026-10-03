@@ -264,14 +264,14 @@ describe('split_reel -- the split reel as one server call', () => {
   it("a client's reel speaks with the client's clone", async () => {
     const { lookup, calls } = fakeTools()
     const out: any = await makeSplitReelTool(lookup, senses()).handler(
-      { ...ARGS, for_lead: '123', cta: '@flowers_bot' },
+      { ...ARGS, for_lead: '123', cta: '@example_bot' },
       ctx
     )
     expect(out.done).toBe(true)
     expect(calls[0].args.for_lead).toBe('123')
     expect(out.voice).toBe('клон клиента') // cyrillic-ok: audio_generate's own answer
     const render = calls.find(c => c.name === 'reel_render')!
-    expect(render.args.props.ctaText).toBe('@flowers_bot')
+    expect(render.args.props.ctaText).toBe('@example_bot')
   })
 
   it('refuses for free what it can refuse for free', async () => {
