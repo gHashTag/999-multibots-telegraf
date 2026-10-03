@@ -47,6 +47,9 @@ const БАЗА = 'https://vibee-render-production.up.railway.app'
  * means dead, and TURN_CEILING_MS is only the backstop for a stream that
  * chatters forever without finishing.
  */
+/** Mirrors render conversation.ts CONVERSATION_RE. */
+export const CONVERSATION_ID_RE = /^[a-z0-9]{4,24}$/
+
 export const SILENCE_MS = 90_000
 export const TURN_CEILING_MS = 420_000
 
@@ -180,13 +183,18 @@ export async function fetchHistory(
 }
 
 async function readConversation(
-  telegramId: string
+  telegramId: string,
+  conversation?: string
 ): Promise<Array<{ role: string; content: string; surface?: string }>> {
   try {
+    const c =
+      conversation && CONVERSATION_ID_RE.test(conversation)
+        ? `&conversation=${conversation}`
+        : ''
     // Bounded: a hung history read used to hold the sweep's `running` flag
     // forever (CRM audit 2026-09-12, P1 #3).
     const о = await fetch(
-      `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}`,
+      `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}${c}`,
       {
         headers: { 'X-Api-Key': apiKey() },
         signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
@@ -385,13 +393,20 @@ export async function спроситьАгента(
      * the owner's.
      */
     faceOf?: string
+    /**
+     * ONE OF THE PERSON'S CONVERSATIONS (render conversation.ts
+     * CONVERSATION_RE): a topic tab of the private chat keeps its own memory
+     * (navigation/topics/threads.ts agentConversationFor). Absent -> the base
+     * conversation, as before.
+     */
+    conversation?: string
   } = {}
 ): Promise<ОтветАгента> {
   if (!apiKey()) {
     throw new Error('RENDER_API_KEY не задан в сервисе бота — агент недоступен')
   }
 
-  const past = await readConversation(telegramId)
+  const past = await readConversation(telegramId, opts.conversation)
   const messages = [
     ...past.map(turn => ({
       role: turn.role,
@@ -483,6 +498,11 @@ export async function спроситьАгента(
            */
           ...(opts.room && /^-\d{5,20}$/.test(opts.room)
             ? { room: opts.room }
+            : {}),
+          ...(opts.conversation &&
+          !opts.room &&
+          CONVERSATION_ID_RE.test(opts.conversation)
+            ? { conversation: opts.conversation }
             : {}),
         }),
         signal: прерыватель.signal,

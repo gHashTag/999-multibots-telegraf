@@ -240,6 +240,12 @@ import {
 // Импорт глобального middleware навигации
 import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
 import { checkAll } from '@/services/capabilityPreflight'
+import { topicThreadMiddleware, agentConversationFor } from './topics/threads'
+import {
+  ensureTabsQuietly,
+  nameTopicQuietly,
+  registerTabsCommand,
+} from './topics/wire'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
 import {
   agentPackageIntent,
@@ -272,6 +278,13 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      * that nobody answered. Why this hole exists at all is written down in
      * `middleware/noSilence.ts`.
      */
+    /*
+     * A TAB ANSWERS IN ITS TAB. Private-chat topics (Bot API 9.3+): every
+     * direct send aimed at this chat inherits the topic of the update, so the
+     * agent lane's answer lands in the tab the person wrote in
+     * (topics/threads.ts). First, so every later handler sees the view.
+     */
+    bot.use(topicThreadMiddleware)
     bot.use(replyWitness)
     /*
      * THE NETS ARE REGISTERED EARLY AND DECIDE LATE.
@@ -1451,9 +1464,13 @@ If not, continue on your own and click the "I myself" button`
             ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup'
               ? String(ctx.chat.id)
               : ''
+          const conversation = inRoom
+            ? undefined
+            : agentConversationFor(ctx.state?.topicThreadId)
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
+            ...(conversation ? { conversation } : {}),
           })
           /*
            * The request reached the server, so the server already stored the
@@ -1940,7 +1957,17 @@ If not, continue on your own and click the "I myself" button`
        * of them; every later part's job gets `null` and stops. A message that
        * is not part of an album passes straight through as the only part.
        */
-      const chatLane = String(ctx.chat?.id ?? ctx.from?.id ?? '')
+      /*
+       * One lane per TAB: a long reel turn in one topic must not hold the
+       * question asked in another. Without a topic the key is unchanged.
+       */
+      const topicId = ctx.state?.topicThreadId as number | undefined
+      const chatLane =
+        String(ctx.chat?.id ?? ctx.from?.id ?? '') +
+        (topicId !== undefined ? `:t${topicId}` : '')
+      if (topicId !== undefined && ctx.chat?.type === 'private') {
+        void nameTopicQuietly(ctx, topicId)
+      }
       const albumParts = albums.collect(chatLane, ctx.message)
 
       /*
@@ -3279,6 +3306,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
           }
         })()
       }
+      // The fixed tabs, once per person, when the bot has topics on.
+      void ensureTabsQuietly(ctx)
     } catch (error) {
       console.log(
         '🔴 [DEBUG /start] ERROR:',
@@ -3297,6 +3326,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       )
     }
   })
+
+  registerTabsCommand(bot)
 
   // Команда /help
   bot.command('help', async ctx => {
