@@ -161,6 +161,57 @@ describe('no desk goes around the door', () => {
   })
 })
 
+describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
+  /*
+   * The bee's mutations dropped the check from scenarios' where() and the
+   * filter from the round, and every suite stayed green. Read as text: a
+   * desk that opens, navigates, borrows or fronts a tab over raw CDP does so
+   * right after the check, so the next edit cannot drop it unseen.
+   */
+  const dir = join(__dirname, 'src/agent')
+  const files = readdirSync(dir).filter(
+    f => f.endsWith('.ts') && !f.endsWith('.test.ts')
+  )
+  const ROAD = /\b(openWindow|goTo|frontPage|listTargets)\s*\(/
+
+  it('each road call has a deskMayGo just before (or right after) it', () => {
+    const bare: string[] = []
+    for (const f of files) {
+      const lines = readFileSync(join(dir, f), 'utf8').split('\n')
+      lines.forEach((line, i) => {
+        if (!ROAD.test(line) || /^\s*(\*|\/\/|import\b)/.test(line)) return
+        if (/^\s*(const|let)\s*\{/.test(line)) return
+        const near = lines.slice(Math.max(0, i - 16), i + 3).join('\n')
+        if (!/\bdeskMayGo\s*\(/.test(near)) bare.push(`${f}:${i + 1}`)
+      })
+    }
+    expect(bare).toEqual([])
+  })
+
+  it('the round re-checks where each look landed', () => {
+    const src = readFileSync(join(dir, 'rounds-wiring.ts'), 'utf8')
+    expect(src).toMatch(/deskMayGo\(who, await pageUrl\(where, target\)\)/)
+    expect(src).toMatch(/walkableSites\(strategy\.sites, rules\)/)
+  })
+
+  it('the round walks no blocked site, and keeps the rest in order', async () => {
+    const { walkableSites } = await import('./src/agent/rounds-wiring')
+    const at = '2026-10-03T00:00:00Z'
+    const sites = [
+      { name: 'X', url: 'https://x.com/home' },
+      { name: 'Reddit', url: 'https://www.reddit.com/message/inbox' },
+      { name: 'LinkedIn', url: 'https://www.linkedin.com/feed/' },
+    ]
+    expect(
+      walkableSites(sites, [
+        { site: 'reddit.com/message', rule: 'block', by: 'person', at },
+        { site: 'x.com', rule: 'ask', by: 'person', at },
+      ]).map(s => s.name)
+    ).toEqual(['X', 'LinkedIn'])
+    expect(walkableSites(sites, [])).toEqual(sites)
+  })
+})
+
 describe('browser_open spares a desk tab too (the note on #3469)', () => {
   it('at the ceiling, the agent opens without closing the composer a desk holds', async () => {
     const { openAndChoose } = await import('./src/browser/agent-tools')
