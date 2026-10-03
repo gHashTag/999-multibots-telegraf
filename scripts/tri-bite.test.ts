@@ -837,3 +837,92 @@ describe('tri bite -- review 1 of #3485', () => {
     expect(r.status).toBe(0)
   })
 })
+
+describe('tri bite -- review 1 of #3489', () => {
+  // An untracked, unignored package is part of the tree as bite reads it.
+  function untrackedPackage(): string {
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), '/node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'packages/node_modules/x'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'packages/node_modules/x/add.sh'), 'v2\n')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync(
+      '../packages/node_modules/x',
+      path.join(dir, 'node_modules/x')
+    )
+    return dir
+  }
+
+  it('an untracked, unignored directory named node_modules is code too', () => {
+    const dir = untrackedPackage()
+    const r = bite(
+      dir,
+      'v1',
+      'packages/node_modules/x/add.sh',
+      '--',
+      'grep',
+      '-q',
+      'v2',
+      'node_modules/x/add.sh'
+    )
+    expect(r.stdout).toMatch(/workspace link/)
+    expect(r.status).toBe(2)
+  })
+
+  it('a -c setting reaches the scan: what it ignores is a package', () => {
+    // GIT_CONFIG_* holds in any checkout (safe.directory, excludesFile), so
+    // the scan keeps it while it drops GIT_DIR and the other local ones.
+    const dir = untrackedPackage()
+    const ex = path.join(dir, '..', path.basename(dir) + '.exclude')
+    fs.writeFileSync(ex, 'packages/\n')
+    const r = spawnSync(
+      'bash',
+      [BITE, 'v1', 'packages/node_modules/x/add.sh', '--', 'true'],
+      {
+        cwd: dir,
+        encoding: 'utf8',
+        timeout: 30000,
+        env: {
+          ...process.env,
+          GIT_CONFIG_COUNT: '1',
+          GIT_CONFIG_KEY_0: 'core.excludesFile',
+          GIT_CONFIG_VALUE_0: ex,
+        },
+      }
+    )
+    fs.rmSync(ex, { force: true })
+    expect(r.stdout).not.toMatch(/workspace link/)
+  })
+
+  it('a file whose name starts with a colon is a name, not pathspec magic', () => {
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'packages/node_modules/x'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'packages/node_modules/x/:add.sh'), 'v1\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), '/node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'x')
+    git(dir, 'tag', 'v3')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync(
+      '../packages/node_modules/x/:add.sh',
+      path.join(dir, 'node_modules/:add.sh')
+    )
+    const r = bite(dir, 'v3', 'packages/node_modules/x/:add.sh', '--', 'true')
+    expect(r.stdout).toMatch(/workspace link/)
+    expect(r.status).toBe(2)
+  })
+
+  it('a link into .git/ is not the checkout root', () => {
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../.git/hooks', path.join(dir, 'node_modules/h'))
+    const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.stdout).not.toMatch(/workspace link/)
+    expect(r.status).toBe(1)
+  })
+})
