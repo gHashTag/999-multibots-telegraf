@@ -196,8 +196,8 @@
   },
   {
     "name": "VERSION lags the header again",
-    "from": "pub const VERSION : u8 = 16;",
-    "to": "pub const VERSION : u8 = 15;"
+    "from": "pub const VERSION : u8 = 21;",
+    "to": "pub const VERSION : u8 = 20;"
   },
   {
     "name": "two reasons on the card allowed",
@@ -213,5 +213,30 @@
     "name": "the seller presses a paid button blind",
     "from": "pub const SELLER_SEES_PRICE : bool = true;",
     "to": "pub const SELLER_SEES_PRICE : bool = false;"
+  },
+  {
+    "name": "the writer's place is drawn again (v21)",
+    "from": "return has_setting && (!from_writer || WRITER_WRITES_SETTINGS);",
+    "to": "return has_setting;"
+  },
+  {
+    "name": "a caller's place is dropped with the writer's",
+    "from": "return has_setting && (!from_writer || WRITER_WRITES_SETTINGS);",
+    "to": "return has_setting && WRITER_WRITES_SETTINGS;"
+  },
+  {
+    "name": "the writer writes places again",
+    "from": "pub const WRITER_WRITES_SETTINGS : bool = false;",
+    "to": "pub const WRITER_WRITES_SETTINGS : bool = true;"
+  },
+  {
+    "name": "a new place every scene again",
+    "from": "pub const NEW_SETTING_EACH_SCENE : bool = false;",
+    "to": "pub const NEW_SETTING_EACH_SCENE : bool = true;"
+  },
+  {
+    "name": "the writer's place is trusted to the prompt",
+    "from": "pub const WRITER_SETTING_DROPPED : bool = true;",
+    "to": "pub const WRITER_SETTING_DROPPED : bool = false;"
   }
 ]
