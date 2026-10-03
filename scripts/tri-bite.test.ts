@@ -740,3 +740,79 @@ describe('tri bite -- review 2 of #3479', () => {
     expect(r.status).toBe(1)
   })
 })
+
+describe('tri bite -- review 1 of #3485', () => {
+  it('a tracked directory named node_modules is code, not a package', () => {
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'packages/node_modules/x'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'packages/node_modules/x/add.sh'), 'v1\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), '/node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'x')
+    git(dir, 'tag', 'v3')
+    fs.writeFileSync(path.join(dir, 'packages/node_modules/x/add.sh'), 'v2\n')
+    git(dir, 'commit', '-qam', 'x 2')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync(
+      '../packages/node_modules/x',
+      path.join(dir, 'node_modules/x')
+    )
+    const r = bite(
+      dir,
+      'v3',
+      'packages/node_modules/x/add.sh',
+      '--',
+      'grep',
+      '-q',
+      'v2',
+      'node_modules/x/add.sh'
+    )
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+  })
+
+  it('a link spelled in another letter case still lands in the checkout', () => {
+    const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-'))
+    dirs.push(outer)
+    fs.mkdirSync(path.join(outer, 'Outer'))
+    // Only a case-insensitive disk resolves the other spelling.
+    if (!fs.existsSync(path.join(outer, 'outer'))) return
+    const dir = path.join(outer, 'Outer/node_modules/A')
+    fs.mkdirSync(path.join(dir, 'packages/pkg'), { recursive: true })
+    git(dir, 'init', '-q', '-b', 'main')
+    fs.writeFileSync(path.join(dir, 'packages/pkg/add.sh'), 'v1\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'pkg')
+    git(dir, 'tag', 'v1')
+    fs.writeFileSync(path.join(dir, 'packages/pkg/add.sh'), 'v2\n')
+    git(dir, 'commit', '-qam', 'pkg 2')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync(
+      path.join(outer, 'outer/node_modules/A/packages/pkg'),
+      path.join(dir, 'node_modules/pkg')
+    )
+    const r = bite(dir, 'v1', 'packages/pkg/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+  })
+
+  it('a GIT_DIR exported by a hook does not turn every link into the checkout', () => {
+    // A pnpm-style link into node_modules/.pnpm is an installed package; with
+    // GIT_DIR leaking into the scan it read as this checkout's root.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules/.pnpm/dep'), { recursive: true })
+    fs.symlinkSync('.pnpm/dep', path.join(dir, 'node_modules/dep'))
+    const r = spawnSync('bash', [BITE, 'v1', 'lib/add.sh', '--', 'true'], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 30000,
+      env: { ...process.env, GIT_DIR: path.join(dir, '.git') },
+    })
+    expect(r.stdout).not.toMatch(/workspace link/)
+    expect(r.status).toBe(1)
+  })
+})
