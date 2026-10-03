@@ -1,0 +1,242 @@
+/*
+ * The bee's log (spec kanban-card-chat.t27 v7). A terminal on a phone: one
+ * line per step, the CLI picked out, the outcome indented under its call.
+ * Long commands wrap rather than scroll sideways -- a thumb cannot.
+ */
+.bee-log {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bee-log--quiet {
+  justify-content: center;
+}
+.bee-log__note {
+  margin: auto 0;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.65);
+}
+.bee-log--quiet .bee-log__note {
+  margin: 0;
+}
+
+.bee-log__head {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.bee-log__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.bee-log__state--running {
+  color: #86efac;
+}
+.bee-log__state--finished {
+  color: rgba(255, 255, 255, 0.8);
+}
+.bee-log__pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: bee-log-pulse 1.2s ease-in-out infinite;
+}
+@keyframes bee-log-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bee-log__pulse {
+    animation: none;
+  }
+}
+.bee-log__meta {
+  /* Its own line: a wrapped meta otherwise starts with a lone separator. */
+  flex: 1 0 100%;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.55);
+  overflow-wrap: anywhere;
+}
+.bee-log__stale {
+  font-size: 12px;
+  color: #fbbf24;
+}
+
+.bee-log__rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 10px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.bee-log__row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 6px;
+  padding: 3px 0;
+}
+.bee-log__row + .bee-log__row--tool {
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 7px;
+}
+.bee-log__icon {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+.bee-log__row--tool .bee-log__icon {
+  color: #fbbf24;
+  font-weight: 700;
+}
+.bee-log__cmd,
+.bee-log__out {
+  min-width: 0;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: rgba(255, 255, 255, 0.92);
+}
+.bee-log__tool {
+  color: rgba(255, 255, 255, 0.5);
+}
+.bee-log__cli {
+  color: #fbbf24;
+  font-weight: 700;
+}
+.bee-log__at {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+.bee-log__row--result {
+  padding-left: 12px;
+}
+.bee-log__row--ok .bee-log__icon {
+  color: #4ade80;
+}
+.bee-log__row--ok .bee-log__out {
+  color: rgba(255, 255, 255, 0.6);
+}
+.bee-log__row--failed .bee-log__icon,
+.bee-log__row--failed .bee-log__out {
+  color: #f87171;
+}
+.bee-log__more {
+  color: rgba(255, 255, 255, 0.35);
+}
+.bee-log__row--thought .bee-log__words {
+  grid-column: 2 / 4;
+  font-family: inherit;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.55);
+  overflow-wrap: anywhere;
+}
+.bee-log__row--usage .bee-log__out {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+}
+.bee-log__row--error .bee-log__icon,
+.bee-log__row--error .bee-log__out {
+  color: #fca5a5;
+}
+
+.bee-log__jump {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* The two faces of a card: its chat and its bee. */
+.card-chat__tabs {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.card-chat__tab {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: rgba(255, 255, 255, 0.65);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+.card-chat__tab[aria-selected='true'] {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+.card-chat__tab-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: bee-log-pulse 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-chat__tab-live {
+    animation: none;
+  }
+}
+.card-chat__tab-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.card-chat__bee-peek {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #86efac;
+}
+.card-chat__face {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}

@@ -44,7 +44,7 @@
  * break can forge a whole message.
  */
 
-const BASE =
+export const QUEEN_BASE =
   process.env.QUEEN_BASE_URL ||
   'https://trios-agent-server-production.up.railway.app'
 
@@ -61,7 +61,7 @@ async function ask<T>(path: string): Promise<T> {
   const stop = new AbortController()
   const timer = setTimeout(() => stop.abort(), TIMEOUT_MS)
   try {
-    const res = await fetch(`${BASE}${path}`, { signal: stop.signal })
+    const res = await fetch(`${QUEEN_BASE}${path}`, { signal: stop.signal })
     if (!res.ok) throw new Error(`the Queen answered ${res.status}`)
     return (await res.json()) as T
   } finally {
@@ -343,7 +343,7 @@ export async function queenMove(
   const stop = new AbortController()
   const timer = setTimeout(() => stop.abort(), TIMEOUT_MS)
   try {
-    const res = await fetchImpl(`${BASE}/queen/move`, {
+    const res = await fetchImpl(`${QUEEN_BASE}/queen/move`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

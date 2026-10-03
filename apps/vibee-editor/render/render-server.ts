@@ -148,6 +148,7 @@ function browserBrokerDeps(): BrowserDeps {
 configureAgentStart(browserBrokerDeps)
 import { identityWithSource, personIdentity } from './src/agent/routes'
 import { handleCardStatus } from './src/agent/card-status'
+import { handleCardWork } from './src/agent/card-work'
 import { handleCardMove } from './src/agent/card-move'
 import { handleThreadLive } from './src/agent/thread-live'
 import { isMetaPath } from './src/agent/meta-routes'
@@ -9615,6 +9616,22 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleCardStatus(req, res)
+    return
+  }
+
+  /*
+   * GET /api/card-work -- the Queen's bee at work on a card, live: its tool
+   * calls, its commands, their outcome (spec kanban-card-chat.t27 v7, S20).
+   * A person only; without TRIOS_API_TOKEN it answers 503.
+   */
+  if (req.url?.split('?')[0] === '/api/card-work' && req.method === 'GET') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleCardWork(req, res, String(who))
     return
   }
 

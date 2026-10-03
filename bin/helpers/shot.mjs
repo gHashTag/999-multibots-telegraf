@@ -465,6 +465,120 @@ const HARNESSES = {
     ],
   },
   /*
+   * THE BEE AT WORK ON A CARD (spec v7, S20): a running card opens on its
+   * bee -- each call a line, the CLI picked out, the outcome under it, the
+   * newest line in view. Rows are the shapes render's /api/card-work sends
+   * (agent/card-work.ts), masked and cut there, so the phone draws them as
+   * they come: long commands must wrap at 320 px, never scroll sideways.
+   */
+  'card-chat-bee': {
+    page: 'card-chat',
+    query: '?card=5673&repo=gHashTag/t27',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({
+          json: {
+            thread: 'task:gHashTag/t27#5673',
+            card: {
+              title: 'demos/hello_world.t27: say hello in every backend',
+              column: 'running',
+            },
+            messages: [],
+          },
+        }),
+      ],
+      [
+        '**/api/card-work**',
+        () => {
+          const at = s => `2026-10-03T10:${s}Z`
+          const rows = [
+            ['tool', 'bash', 'tri card 5673', '04:01'],
+            [
+              'result',
+              true,
+              'card #5673 running, branch queen/5673',
+              '04:02',
+              3,
+            ],
+            [
+              'thought',
+              null,
+              'The spec has no test block for the Zig backend; add one first.',
+              '04:05',
+            ],
+            ['tool', 'read', 'demos/hello_world.t27', '04:06'],
+            ['result', true, 'module hello_world', '04:06', 41],
+            ['tool', 'edit', 'demos/hello_world.t27', '04:09'],
+            ['result', true, 'edited 1 block', '04:09'],
+            [
+              'tool',
+              'bash',
+              't27c test-report demos/hello_world.t27 --backend zig --backend rust --backend ts',
+              '04:10',
+            ],
+            [
+              'result',
+              false,
+              'FAILED  zig: expected "hello" got "hello\\n"',
+              '04:14',
+              12,
+            ],
+            ['tool', 'bash', 'git diff --stat … | tail -3', '04:15'],
+            ['result', true, '1 file changed, 6 insertions(+)', '04:15'],
+            ['tool', 'bash', 'gh pr view 5701 --json state,checks', '04:16'],
+            ['result', true, '{"state":"OPEN"}', '04:16'],
+          ].map(([kind, x, text, t, lines], i) => ({
+            seq: i + 1,
+            at: at(t),
+            kind,
+            text,
+            ...(kind === 'tool' ? { tool: x } : {}),
+            ...(kind === 'result' ? { ok: x, lines: lines ?? 1 } : {}),
+          }))
+          return {
+            json: {
+              configured: true,
+              measured: true,
+              prose: true,
+              bee: {
+                conversation: '7d1c2e8a-4b5f-4c3d-9e2a-1f0b6c7d8e9f',
+                branch: 'queen/5673',
+                model: 'glm-5.3',
+                dispatchedAt: at('04:00'),
+                finishedAt: null,
+                outcome: null,
+                running: true,
+              },
+              rows,
+              next: rows.length,
+            },
+          }
+        },
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.bee-log[data-state="running"]').waitFor()
+          await p.locator('.bee-log__row--failed').waitFor()
+        },
+      },
+      {
+        // The thumb turns to the chat: one tap, the bee keeps its dot.
+        id: 'chat',
+        ready: async p => {
+          await p.locator('#card-chat-tab-chat').click()
+          await p.locator('.card-chat__starter').first().waitFor()
+        },
+      },
+    ],
+  },
+  /*
    * THE MOVE ROW A KEEPER SEES (spec v5, S16): a backlog card, the Queen's
    * door on. `&door=1` is the stand's preview of the version that flips
    * MOVE_DOOR_EXISTS -- the app itself keeps the row dark until then. One
