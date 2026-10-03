@@ -186,8 +186,15 @@ real_top = os.path.realpath(top)
 
 
 # A hook exports GIT_DIR and friends; left in, they would make every
-# directory look like this checkout (review 1 of #3485).
-GIT_ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+# directory look like this checkout (review 1 of #3485). git's own list of
+# repository-local variables, the ones it clears itself on entering another
+# repository -- minus GIT_CONFIG*: `-c` settings such as safe.directory hold
+# in any checkout, and without them a root scan over another user's repo
+# would fail every call (review 1 of #3489).
+LOCAL = set(subprocess.run(["git", "rev-parse", "--local-env-vars"],
+                           capture_output=True, text=True).stdout.split())
+GIT_ENV = {k: v for k, v in os.environ.items()
+           if k not in LOCAL or k.startswith("GIT_CONFIG")}
 
 
 def git_in(d, *args):
@@ -203,20 +210,27 @@ def checkout_rel(t):
     case on disk, so the relpath went up through `..` and out of the checkout
     (review 1 of #3485)."""
     d = t if os.path.isdir(t) else os.path.dirname(t)
-    r = git_in(d, "rev-parse", "--show-prefix")
-    if r.returncode != 0:
+    r = git_in(d, "rev-parse", "--is-inside-work-tree", "--show-prefix")
+    lines = r.stdout.split("\n")
+    # Inside .git/ or a bare repo the prefix is empty with rc 0: not the
+    # checkout's root, and not a checkout at all (review 1 of #3489).
+    if r.returncode != 0 or lines[0] != "true":
         return None
-    rel = r.stdout.rstrip("\n").rstrip("/")
+    rel = lines[1].rstrip("/") if len(lines) > 1 else ""
     if d != t:
         rel = os.path.join(rel, os.path.basename(t))
     return os.path.normpath(rel) if rel else "."
 
 
 def tracked(t):
-    """Does git track t, or anything under it? Then it is code, whatever the
-    directory is called (`packages/node_modules/x` kept in git)."""
+    """Is t, or anything under it, part of the tree -- tracked, or untracked
+    and not ignored, as present_now() reads it? Then it is code, whatever the
+    directory is called (`packages/node_modules/x` kept in git, or not yet
+    added). :(literal): a file named `:add.sh` is a name, not pathspec magic
+    (review 1 of #3489)."""
     d, what = (t, ".") if os.path.isdir(t) else (os.path.dirname(t), os.path.basename(t))
-    return bool(git_in(d, "ls-files", "-z", "--", what).stdout)
+    return bool(git_in(d, "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                       "--", ":(literal)" + what).stdout)
 
 
 back = []
@@ -238,6 +252,11 @@ for nm in nms:
         # still code, its workspace links are not installed packages (review
         # 2 of #3479). Outside any checkout the whole path is all there is.
         if "node_modules" in (t if tr is None else tr).split(os.sep) and not tracked(t):
+            continue
+        # Under this checkout's directory but in no work tree: git's own
+        # storage (.git/hooks), which the copies leave out, so no run can load
+        # the real file through it.
+        if tr is None and t.startswith(real_top + os.sep):
             continue
         shown = os.path.relpath(t, real_top) if t.startswith(real_top + os.sep) else t
         name = f"{os.path.relpath(p, top)} -> {shown}"
