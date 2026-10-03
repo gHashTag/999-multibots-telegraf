@@ -36,6 +36,14 @@ export function ProfileTemplatesGrid({
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
+  /*
+   * A page that failed stops the automatic reading (2026-10-03). The page
+   * number only moves on success, so the effect below asked for the same
+   * failed page again the moment loading ended -- a request loop for as
+   * long as the server kept erroring. After a failure the Load More button
+   * is the retry, pressed by a person.
+   */
+  const [pageFailed, setPageFailed] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [pendingDelete, setPendingDelete] = useState<FeedTemplate | null>(null)
@@ -124,9 +132,13 @@ export function ProfileTemplatesGrid({
           }
           setHasMore((data.templates || []).length === 20)
           setPage(pageNum)
+          setPageFailed(false)
+        } else {
+          setPageFailed(true)
         }
       } catch (error) {
         console.error('Failed to load templates:', error)
+        setPageFailed(true)
       } finally {
         setLoading(false)
       }
@@ -153,7 +165,7 @@ export function ProfileTemplatesGrid({
    * вдруг начнёт отдавать полную страницу всегда. Он назван, а не подразуме-
    * вается: молчаливое усечение читается как «здесь всё».
    */
-  const autoPaging = hasMore && page < AUTO_PAGES - 1
+  const autoPaging = hasMore && page < AUTO_PAGES - 1 && !pageFailed
   useEffect(() => {
     if (loading || !autoPaging) return
     void loadTemplates(page + 1)
