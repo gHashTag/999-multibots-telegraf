@@ -568,12 +568,25 @@ that we did not, and where each stands:
 | Gap                                                                               | Who does it               | Status                                                                                                              |
 | --------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | No frames while the PERSON drives                                                 | ChatGPT agent             | **done** #3464: `tickMayFilm` stops the film ticker under the person's wheel lease                                  |
-| A live view that says "stream stopped" + why, not a frozen picture                | Browserbase, Skyvern      | open                                                                                                                |
+| A live view that says "stream stopped" + why, not a frozen picture                | Browserbase, Skyvern      | **done** #3475: `FREEZE_SCRIPT` -- 10 s without a frame on a connected video says so, names the side                |
 | A login that is checked by USE, not by cookie name; a one-tap "sign in again"     | Anchor                    | open: `browser_logins` reads cookie NAMES -- a cookie can outlive the session                                       |
 | The person's own per-site list: blocked / read-only for the agent                 | Comet                     | open: `guard.ts` has one list for everyone (`DEFAULT_SENSITIVE` + env `BROWSER_SENSITIVE_DOMAINS`), none per person |
 | One typed handoff (login/captcha/approval) answering resolved/cancelled/timed_out | BrowserOS, Cloudflare     | partly: `browser_ask_input`, `browser_ask_permission`                                                               |
 | A watch-only share link                                                           | Hyperbrowser, Browserbase | open                                                                                                                |
 | Per-channel split, never X's 280 for LinkedIn                                     | Postiz trap               | held: `xThread` vs `postFor` (#3453, #3457)                                                                         |
+
+**A picture that stopped says so (#3475).** `CONNECT_SCRIPT` spoke only when
+neko showed its connect form. A socket that stays up with no new frame had no
+words, and the last picture read as a browser ignoring the person.
+`FREEZE_SCRIPT` (`skin.ts`) counts frames presented (`requestVideoFrameCallback`)
+or decoded (`getVideoPlaybackQuality`), never `currentTime`, which runs on with
+no frames. neko captures at a fixed rate (`ximagesrc use-damage=false`,
+30/s), so `FROZEN_AFTER_MS` (10 s) without a frame is a stall, not a still
+page. It shows a strip, not a cover: the words, whose side
+(`navigator.onLine`), and the reconnect button. It posts `frozen` once, and
+the app re-reads the session as for `stuck`. It is quiet on a hidden tab, a
+paused or never-played video, neko's card, and the loader or watch mode. Not
+yet seen live: the first real stall after the deploy is the measurement.
 
 **Read journal times with their date.** `tri journal` printed `HH:MM:SS`
 only: at 01:05 UTC a step from 22:47 the day before read as fresh. Both
