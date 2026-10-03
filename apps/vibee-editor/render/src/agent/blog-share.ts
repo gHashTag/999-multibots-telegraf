@@ -112,7 +112,8 @@ export function parseRss(xml: string): Article[] {
  * room -- LinkedIn, Facebook, Instagram, Reddit, the reply drafter's notes:
  * a caveat such as "board throughput derived, not measured" is what keeps
  * the sentence after it honest, so it is dropped only where it cannot fit
- * (the X post, whose reply is the article itself). Pure.
+ * (the X post's first box; the caveat rides in the link post, xSecondPost).
+ * Pure.
  */
 export function summaryWithEvidence(a: Article): string {
   return a.evidence ? `[${a.evidence}] ${a.summary}` : a.summary
@@ -145,8 +146,25 @@ export function xThread(a: Article): { first: string; second: string } {
   return {
     /* No link, so the whole 280 is the text. */
     first: xText(a, X_LIMIT),
-    second: linkFor(a, 'x'),
+    second: xSecondPost(a),
   }
+}
+
+/**
+ * The second post of the X thread: the evidence label, then the link.
+ *
+ * The first post has no room for the caveat -- it was dropped there on
+ * purpose (#3435), and the X post was the one channel where a reader saw the
+ * claim without the "derived, not measured" that keeps it honest. The link
+ * post has 280 - 23 to spare, so the caveat rides there, cut at a word if it
+ * has to be, its brackets kept. No label, no change: the link alone. Pure.
+ */
+export function xSecondPost(a: Article): string {
+  const link = linkFor(a, 'x')
+  if (!a.evidence) return link
+  const room = X_LIMIT - X_LINK - 2 - 2 - 1
+  const said = clip(a.evidence, room)
+  return said ? `[${said}]\n\n${link}` : link
 }
 
 /**
