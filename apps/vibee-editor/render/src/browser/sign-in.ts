@@ -32,7 +32,9 @@
  *   2. A COOKIE IS THE PROOF, not a page that looks friendly. "Signed in" is
  *      `logins.ts` seeing the network's own login cookie -- read on the browser
  *      socket, names only -- and nothing else counts, because a site can show
- *      a name and a photo to a session it has already revoked.
+ *      a name and a photo to a session it has already revoked. The one thing
+ *      that overrules the cookie is the site itself sending a gated page to
+ *      its sign-in form (login-use.ts): that login is `refused`, not held.
  *
  * WHAT IS DELIBERATELY NOT HERE. No selectors and no button labels: those age
  * badly, and the two mechanisms above already cover them -- the page is read

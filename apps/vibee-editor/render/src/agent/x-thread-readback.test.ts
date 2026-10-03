@@ -23,7 +23,12 @@ vi.mock('../browser/sessions', () => ({
   readSession: async () => ({ state: 'live', cdpEndpoint: 'cdp' }),
 }))
 vi.mock('../browser/routes', () => ({ startBrowserAsAgent: async () => true }))
-vi.mock('../browser/logins', () => ({ loginsOfPerson: async () => null }))
+/* The real reducers (login-use.ts judges with them), no pod. */
+vi.mock('../browser/logins', async importOriginal => ({
+  ...(await importOriginal<typeof import('../browser/logins')>()),
+  loginsOfPerson: async () => null,
+  readMarks: async () => [],
+}))
 vi.mock('../agent/reach-log', () => ({ noteShape: async () => undefined }))
 vi.mock('../browser/cdp', () => ({
   newPage: async (_c: string, url: string) => {
