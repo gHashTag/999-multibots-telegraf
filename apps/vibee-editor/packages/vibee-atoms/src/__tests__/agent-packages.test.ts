@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   AGENT_PACKAGES,
+  AGENT_PACKAGE_USD,
+  AGENT_SUBSCRIPTION,
   STAR_PRICE_USD,
   STARS_SUBSCRIPTION_MAX,
   agentPackageById,
@@ -10,32 +12,59 @@ import {
   agentPackageOrderUrl,
   agentPackagePayload,
   agentPackageStars,
+  agentPackageUsd,
   parseAgentPackagePayload,
   starsForUsd,
+  usdForStars,
   tryableAgentOf,
 } from '../agent-packages'
 import { MARKETPLACE_ECONOMY, marketplaceAgentById } from '../agent-marketplace'
 
 describe('agent packages', () => {
-  it('sells the three agents at the owner monthly prices', () => {
-    expect(AGENT_PACKAGES.map(pkg => [pkg.id, pkg.monthlyUsd])).toEqual([
-      ['manager', 100],
-      ['blogger', 160],
-      ['twin', 200],
+  it('sells every package at the one subscription price', () => {
+    expect(AGENT_PACKAGES.map(pkg => pkg.id)).toEqual([
+      'manager',
+      'blogger',
+      'twin',
+      'tridev',
     ])
+    expect(AGENT_SUBSCRIPTION).toEqual({
+      stars: 10_000,
+      periodSeconds: 2_592_000,
+    })
+    // The dollars are derived from the Stars, never typed: 10000 x 0.016.
+    expect(AGENT_PACKAGE_USD).toBe(160)
     for (const pkg of AGENT_PACKAGES) {
-      expect(pkg.allowanceUsd, pkg.id).toBeGreaterThan(0)
-      expect(pkg.allowanceUsd, pkg.id).toBeLessThan(pkg.monthlyUsd)
+      expect(agentPackageStars(pkg), pkg.id).toBe(AGENT_SUBSCRIPTION.stars)
+      expect(agentPackageUsd(pkg), pkg.id).toBe(AGENT_PACKAGE_USD)
+      // No package carries a price field of its own.
+      expect(Object.keys(pkg).filter(k => /usd|stars|price/i.test(k))).toEqual([
+        'allowanceUsd',
+      ])
     }
   })
 
-  it('names every package in one pattern: <Role> Agent / <Роль> агент', () => {
+  it('keeps every allowance below the one derived price', () => {
+    for (const pkg of AGENT_PACKAGES) {
+      expect(pkg.allowanceUsd, pkg.id).toBeGreaterThan(0)
+      expect(pkg.allowanceUsd, pkg.id).toBeLessThan(agentPackageUsd(pkg))
+      expect(pkg.allowanceUsd, pkg.id).toBeLessThan(AGENT_PACKAGE_USD)
+    }
+  })
+
+  it('names every package in one pattern: <Role> Agent / <Роль> агент, TRI DEV aside', () => {
     expect(AGENT_PACKAGES.map(pkg => pkg.name.en)).toEqual([
       'Manager Agent',
       'Blogger Agent',
       'Developer Agent',
+      'TRI DEV',
     ])
     for (const pkg of AGENT_PACKAGES) {
+      // TRI DEV is a product name, the same in both languages.
+      if (pkg.id === 'tridev') {
+        expect(pkg.name).toEqual({ en: 'TRI DEV', ru: 'TRI DEV' })
+        continue
+      }
       expect(pkg.name.en).toMatch(/^[A-Z][a-z]+ Agent$/)
       expect(pkg.name.ru).toMatch(/^[А-ЯЁ][а-яё]+ агент$/) // cyrillic-ok
     }
@@ -83,12 +112,16 @@ describe('agent packages', () => {
       expect(start).toMatch(/^[A-Za-z0-9_-]{1,64}$/)
       expect(start).toBe(`agentpkg_${pkg.id}`)
     }
+    expect(agentPackageOrderUrl(agentPackageById('tridev')!)).toBe(
+      'https://t.me/t27ai_bot?start=agentpkg_tridev'
+    )
   })
   it('the Manager Agent is text only; the media packages make reels', () => {
     expect(AGENT_PACKAGES.map(pkg => [pkg.id, pkg.media])).toEqual([
       ['manager', false],
       ['blogger', true],
       ['twin', true],
+      ['tridev', false],
     ])
   })
 
@@ -97,40 +130,29 @@ describe('agent packages', () => {
     expect(agentPackageById('blogger')?.bot).toBe('neuro_blogger_bot')
     // The Developer Agent lives in a bot of the buyer's own.
     expect(agentPackageById('twin')?.bot).toBeUndefined()
+    expect(agentPackageById('tridev')?.bot).toBeUndefined()
     for (const pkg of AGENT_PACKAGES)
       if (pkg.bot) expect(pkg.bot).toMatch(/^[A-Za-z][A-Za-z0-9_]{3,30}bot$/i)
   })
 
-  it('charges Stars computed from the dollar prices at one rate', () => {
-    expect(AGENT_PACKAGES.map(pkg => [pkg.id, agentPackageStars(pkg)])).toEqual(
-      [
-        ['manager', 6250],
-        ['blogger', 10000],
-        ['twin', 12500],
-      ]
-    )
+  it('converts between Stars and dollars at one rate', () => {
     // Rounded up, never below the dollar price; float noise is not a Star.
     expect(starsForUsd(100)).toBe(6250)
     expect(starsForUsd(0.01)).toBe(1)
+    expect(usdForStars(10_000)).toBe(160)
+    expect(starsForUsd(usdForStars(AGENT_SUBSCRIPTION.stars))).toBe(
+      AGENT_SUBSCRIPTION.stars
+    )
   })
 
-  it('renews by subscription under the Telegram cap, by a monthly one-off invoice above it', () => {
+  it('renews every package by one Telegram Stars subscription at the cap', () => {
     // render/src/agent/token-packs.ts: 10 000 per subscription period,
     // 100 000 per one-off invoice (measured against the Bot API).
     expect(STARS_SUBSCRIPTION_MAX).toBe(10_000)
-    expect(
-      AGENT_PACKAGES.map(pkg => [pkg.id, agentPackageCharge(pkg)])
-    ).toEqual([
-      ['manager', 'month'],
-      ['blogger', 'month'],
-      ['twin', 'once'],
-    ])
-    for (const pkg of AGENT_PACKAGES) {
-      const stars = agentPackageStars(pkg)
-      if (agentPackageCharge(pkg) === 'month')
-        expect(stars, pkg.id).toBeLessThanOrEqual(STARS_SUBSCRIPTION_MAX)
-      expect(stars, pkg.id).toBeLessThanOrEqual(100_000)
-    }
+    expect(AGENT_SUBSCRIPTION.stars).toBeLessThanOrEqual(STARS_SUBSCRIPTION_MAX)
+    expect(AGENT_SUBSCRIPTION.periodSeconds).toBe(30 * 24 * 60 * 60)
+    for (const pkg of AGENT_PACKAGES)
+      expect(agentPackageCharge(pkg), pkg.id).toBe('month')
   })
 
   it('uses the same Star rate the bot prices with', () => {

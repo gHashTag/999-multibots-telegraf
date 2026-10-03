@@ -16,9 +16,10 @@ import { agentPackageById } from '@vibee/atoms'
 import { isPublic } from './auth'
 
 /**
- * AN AGENT PACKAGE IS PAID IN STARS EVERY MONTH: A TELEGRAM SUBSCRIPTION
- * UNDER THE 10000-STAR CAP, A ONE-OFF MONTHLY INVOICE ABOVE IT -- AND NO
- * CHARGE IS EVER BOOKED TWICE OR LOST.
+ * AN AGENT PACKAGE IS PAID IN STARS EVERY MONTH: EVERY PACKAGE IS ONE
+ * TELEGRAM SUBSCRIPTION OF 10000 STARS PER 30 DAYS (AGENT_SUBSCRIPTION) --
+ * AND NO CHARGE IS EVER BOOKED TWICE OR LOST. A one-off month ('once') is no
+ * longer sold, but a charge minted before the switch still books.
  */
 
 const PERSON = '144022504'
@@ -104,7 +105,12 @@ function tx(
 const T0 = Date.UTC(2026, 9, 1) / 1000
 const blogger = agentPackageById('blogger')!
 const developer = agentPackageById('twin')!
-const BLOGGER = 10000
+const tridev = agentPackageById('tridev')!
+// The one package price, every package (AGENT_SUBSCRIPTION.stars).
+const MONTH = 10000
+const BLOGGER = MONTH
+// What a one-off Developer Agent month cost before the one price; such a
+// charge may still be in flight and must still book.
 const DEVELOPER = 12500
 const sub = (who = PERSON) => `agentpkg:blogger:month:${who}`
 const once = (who = PERSON) => `agentpkg:twin:once:${who}`
@@ -123,7 +129,7 @@ describe('the agent package till', () => {
     }
   })
 
-  it('mints a month under the cap as a 30-day subscription, above it as a one-off invoice', async () => {
+  it('mints every package as the one 30-day subscription at 10000 Stars', async () => {
     const sent: any[] = []
     const fetchImpl = (async (_url: string, init: any) => {
       sent.push(JSON.parse(init.body))
@@ -136,22 +142,31 @@ describe('the agent package till', () => {
       botToken: 'x',
       fetchImpl,
     })
-    const one = await mintAgentPackageInvoice({
+    const dev = await mintAgentPackageInvoice({
       pkg: developer,
-      charge: 'once',
+      charge: 'month',
       forTelegramId: PERSON,
       botToken: 'x',
       fetchImpl,
     })
-    expect(month.stars).toBe(BLOGGER)
-    expect(one.stars).toBe(DEVELOPER)
-    expect(sent[0].currency).toBe('XTR')
-    expect(sent[0].prices[0].amount).toBe(BLOGGER)
-    expect(sent[0].subscription_period).toBe(PACKAGE_PERIOD_S)
+    const tri = await mintAgentPackageInvoice({
+      pkg: tridev,
+      charge: 'month',
+      forTelegramId: PERSON,
+      botToken: 'x',
+      fetchImpl,
+    })
+    expect([month.stars, dev.stars, tri.stars]).toEqual([MONTH, MONTH, MONTH])
+    expect(sent).toHaveLength(3)
+    for (const b of sent) {
+      expect(b.currency).toBe('XTR')
+      expect(b.prices[0].amount).toBe(MONTH)
+      expect(b.subscription_period).toBe(PACKAGE_PERIOD_S)
+    }
+    expect(PACKAGE_PERIOD_S).toBe(2_592_000)
     expect(sent[0].payload).toBe(sub())
-    expect(sent[1].prices[0].amount).toBe(DEVELOPER)
-    expect(sent[1].subscription_period).toBeUndefined()
-    expect(sent[1].payload).toBe(once())
+    expect(sent[1].payload).toBe(`agentpkg:twin:month:${PERSON}`)
+    expect(sent[2].payload).toBe(`agentpkg:tridev:month:${PERSON}`)
     for (const b of sent) {
       expect(b.title.length).toBeLessThanOrEqual(32)
       expect(b.description.length).toBeLessThanOrEqual(255)
@@ -253,9 +268,10 @@ describe('the agent package till', () => {
       p.active,
     ])
     expect(pk).toEqual([
-      ['manager', 6250, true, false],
-      ['blogger', 10000, true, false],
-      ['twin', 12500, false, false],
+      ['manager', MONTH, true, false],
+      ['blogger', MONTH, true, false],
+      ['twin', MONTH, true, false],
+      ['tridev', MONTH, true, false],
     ])
     for (const url of [
       '/api/agents/packages/invoice?package=blogger',
@@ -303,9 +319,19 @@ describe('the agent package till', () => {
     })
     expect((await invoice('twin')).body).toMatchObject({
       ok: true,
-      charge: 'once',
-      stars: DEVELOPER,
+      charge: 'month',
+      stars: MONTH,
     })
+    expect((await invoice('tridev')).body).toMatchObject({
+      ok: true,
+      charge: 'month',
+      stars: MONTH,
+    })
+    expect(bodies.map(b => b.subscription_period)).toEqual([
+      PACKAGE_PERIOD_S,
+      PACKAGE_PERIOD_S,
+      PACKAGE_PERIOD_S,
+    ])
     const standing = await agentPackageStanding(pool, PERSON, deps.now())
     expect(standing.find(s => s.id === 'blogger')).toMatchObject({
       active: true,

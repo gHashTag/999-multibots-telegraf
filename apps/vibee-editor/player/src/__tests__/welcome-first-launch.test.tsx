@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AGENT_PACKAGES,
   agentPackageOrderUrl,
+  agentPackageUsd,
 } from '../../../packages/vibee-atoms/src/agent-packages'
 import { survivesStorageReset } from '@/lib/storageReset'
 
@@ -175,7 +176,7 @@ describe('the welcome screen', () => {
       const card = host.querySelector(`[data-testid="package-${pkg.id}"]`)
       expect(card, pkg.id).not.toBeNull()
       expect(card!.textContent).toContain(pkg.name.ru)
-      expect(card!.textContent).toContain(`$${pkg.monthlyUsd}`)
+      expect(card!.textContent).toContain(`$${agentPackageUsd(pkg)}`)
     }
   })
 

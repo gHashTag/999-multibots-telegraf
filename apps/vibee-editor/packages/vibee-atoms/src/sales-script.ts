@@ -1,5 +1,9 @@
 import type { LocalizedText } from './agent-marketplace'
-import { agentPackageStars, type AgentPackage } from './agent-packages'
+import {
+  agentPackageStars,
+  agentPackageUsd,
+  type AgentPackage,
+} from './agent-packages'
 import {
   MONTH_DAYS,
   monthTokens,
@@ -10,7 +14,7 @@ import {
 } from './token-wallet'
 
 /**
- * THE SALES SCRIPT -- how a conversation sells one of the three agents.
+ * THE SALES SCRIPT -- how a conversation sells one of the agents.
  *
  * Owner, 2026-10-01: "develop a script that will sell our agents". It runs
  * after a press on "Order" in the mini app (`?start=agentpkg_<id>`), in the
@@ -75,6 +79,11 @@ const tokens = (n: number, lang: 'en' | 'ru') =>
  */
 export function monthOutcome(pkg: AgentPackage): LocalizedText {
   const t = monthTokens(pkg.allowanceUsd)
+  if (pkg.id === 'tridev')
+    return {
+      en: `${tokens(t, 'en')} tokens a month for tasks from your GitHub issues`,
+      ru: `${tokens(t, 'ru')} токенов в месяц на задачи из ваших GitHub issues`,
+    }
   if (pkg.media === false)
     return {
       en: `${tokens(t, 'en')} tokens a month for replies to your clients`,
@@ -90,7 +99,7 @@ export function monthOutcome(pkg: AgentPackage): LocalizedText {
 /** The monthly price over the reels its allowance buys, to the cent. */
 export function perReel(pkg: AgentPackage): number {
   const reels = reelsIn(monthTokens(pkg.allowanceUsd))
-  return reels > 0 ? Math.round((pkg.monthlyUsd / reels) * 100) / 100 : 0
+  return reels > 0 ? Math.round((agentPackageUsd(pkg) / reels) * 100) / 100 : 0
 }
 
 /** The steps for one package, in the order they are taken. */
@@ -118,15 +127,20 @@ export function salesSteps(pkg: AgentPackage): SalesStep[] {
       id: 'discover',
       aim: 'Two concrete questions; the answers go into the CRM card and the setup.',
       say:
-        pkg.media === false
+        pkg.id === 'tridev'
           ? {
-              en: 'Where do clients write to you now, and roughly how many messages a day? Which question do you answer most often?',
-              ru: 'Где вам сейчас пишут клиенты и сколько примерно сообщений в день? На какой вопрос вы отвечаете чаще всего?',
+              en: 'Which GitHub repository should the agent work in, and which issue should it take first?',
+              ru: 'В каком GitHub-репозитории работать агенту и какую задачу взять первой?',
             }
-          : {
-              en: 'Which channel should the reels go to, and how often do you want to post? Do you have a short video of yourself talking (a minute is enough)?',
-              ru: 'В какой канал пойдут рилсы и как часто вы хотите выходить? Есть короткое видео, где вы говорите (хватит минуты)?',
-            },
+          : pkg.media === false
+            ? {
+                en: 'Where do clients write to you now, and roughly how many messages a day? Which question do you answer most often?',
+                ru: 'Где вам сейчас пишут клиенты и сколько примерно сообщений в день? На какой вопрос вы отвечаете чаще всего?',
+              }
+            : {
+                en: 'Which channel should the reels go to, and how often do you want to post? Do you have a short video of yourself talking (a minute is enough)?',
+                ru: 'В какой канал пойдут рилсы и как часто вы хотите выходить? Есть короткое видео, где вы говорите (хватит минуты)?',
+              },
     },
     {
       id: 'value',
@@ -148,8 +162,8 @@ export function salesSteps(pkg: AgentPackage): SalesStep[] {
       id: 'offer',
       aim: 'The price, said once and whole: what a month costs and how it renews.',
       say: {
-        en: `${pkg.name.en} is ${usd(pkg.monthlyUsd)} a month (${stars(pkg, 'en')} Stars), paid every month, setup included. The month's allowance resets every ${MONTH_DAYS} days, and the agent reminds you ${WARN_DAYS_FIRST} days before, so nothing is lost unnoticed.`,
-        ru: `«${pkg.name.ru}» — ${usd(pkg.monthlyUsd)} в месяц (${stars(pkg, 'ru')} ⭐), оплата каждый месяц, настройка включена. Лимит месяца обновляется каждые ${MONTH_DAYS} дней, а за ${WARN_DAYS_FIRST} дней до этого агент напомнит — ничего не пропадёт незаметно.`,
+        en: `${pkg.name.en} is ${usd(agentPackageUsd(pkg))} a month (${stars(pkg, 'en')} Stars), paid every month, setup included. The month's allowance resets every ${MONTH_DAYS} days, and the agent reminds you ${WARN_DAYS_FIRST} days before, so nothing is lost unnoticed.`,
+        ru: `«${pkg.name.ru}» — ${usd(agentPackageUsd(pkg))} в месяц (${stars(pkg, 'ru')} ⭐), оплата каждый месяц, настройка включена. Лимит месяца обновляется каждые ${MONTH_DAYS} дней, а за ${WARN_DAYS_FIRST} дней до этого агент напомнит — ничего не пропадёт незаметно.`,
       },
     },
     {

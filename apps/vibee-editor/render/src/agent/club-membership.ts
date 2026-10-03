@@ -904,14 +904,49 @@ export interface StarTx {
   }
 }
 
-/** Is this transaction one charge of OUR club subscription by `who`? */
+/**
+ * The payload mintClubInvoice puts on a club invoice: `club:<stars>:<id>`.
+ * Telegram returns it on the first charge and on every renewal.
+ */
+const CLUB_PAYLOAD_RE = /^club:\d{1,7}:\d{1,15}$/
+
+export function isClubPayload(payload: unknown): boolean {
+  return CLUB_PAYLOAD_RE.test(String(payload ?? ''))
+}
+
+/**
+ * Is this transaction one charge of OUR club subscription by `who`?
+ *
+ * The PAYLOAD decides, not the price. Every agent package is a subscription
+ * of the same 10000 Stars per 30 days on the same cashier bot
+ * (agent-package-sale.ts, payload `agentpkg:<id>:<month|once>:<id>`), so a
+ * matcher on amount and period alone would book every package charge as a
+ * club month as well and credit club tokens for it.
+ */
 export function isClubCharge(t: StarTx, who?: string): boolean {
   if (!t?.source?.user?.id) return false
+  if (!isClubPayload(t.source.invoice_payload)) return false
   if (Number(t.amount) !== CLUB_STARS) return false
   if (Number(t.source.subscription_period) !== CLUB_PERIOD_S) return false
   if (who !== undefined && String(t.source.user.id) !== String(who))
     return false
   return true
+}
+
+/** Unclaimed charges already logged, so the hourly sweep says it once. */
+const warnedUnclaimed = new Set<string>()
+
+/**
+ * A charge shaped like the club (its amount and period) whose payload is
+ * neither the club's nor an agent package's: nobody books it, so it is
+ * logged for a person to look at instead of vanishing.
+ */
+export function isUnclaimedSubscriptionCharge(t: StarTx): boolean {
+  if (!t?.source?.user?.id) return false
+  if (Number(t.amount) !== CLUB_STARS) return false
+  if (Number(t.source.subscription_period) !== CLUB_PERIOD_S) return false
+  const payload = String(t.source.invoice_payload ?? '')
+  return !isClubPayload(payload) && !payload.startsWith('agentpkg:')
 }
 
 export type Credit = (input: {
@@ -952,6 +987,16 @@ export async function bookClubPeriods(
 ): Promise<BookedPeriod[]> {
   await ensureClubTables(pool)
   const out: BookedPeriod[] = []
+  for (const t of txs)
+    if (
+      isUnclaimedSubscriptionCharge(t) &&
+      !warnedUnclaimed.has(String(t.id))
+    ) {
+      warnedUnclaimed.add(String(t.id))
+      console.warn(
+        `[club] subscription charge with an unknown payload, not booked: tx=${String(t.id)}`
+      )
+    }
   const charges = txs.filter(t => isClubCharge(t, who))
   for (const t of charges) {
     const seen = await pool.query(
