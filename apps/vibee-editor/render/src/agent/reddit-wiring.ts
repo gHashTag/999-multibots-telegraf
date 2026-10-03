@@ -19,6 +19,7 @@
  * Switched on by REDDIT_DESK_ENABLED=1.
  */
 import type { Queryable } from '../browser/sessions'
+import type { DeskWho } from '../browser/desk-page'
 import {
   ANSWER_WAIT_MS,
   redditTick,
@@ -353,18 +354,20 @@ export async function writeDraft(prompt: string): Promise<string | null> {
 
 /** Press the first button whose label matches, or throw saying so. */
 export async function pressOne(
+  who: DeskWho,
   cdp: string,
   pageId: string,
   labels: string[]
 ): Promise<string> {
-  const { evaluateOn, clickAt } = await import('../browser/cdp')
+  const { evaluateOn } = await import('../browser/cdp')
+  const { deskClick } = await import('../browser/desk-page')
   const { findProbe, foundOf } = await import('../browser/find-target')
   for (const label of labels) {
     const found = foundOf(
       await evaluateOn(cdp, pageId, findProbe(label)).catch(() => null)
     )
     if (found) {
-      await clickAt(cdp, pageId, found.x, found.y)
+      await deskClick(who, cdp, pageId, found.x, found.y)
       return found.label
     }
   }
@@ -383,21 +386,22 @@ async function replyOnReddit(
   m: Mention,
   text: string
 ): Promise<string> {
-  const { newDeskPage } = await import('../browser/desk-page')
-  const { typeText, activatePage } = await import('../browser/cdp')
+  const { newDeskPage, deskType } = await import('../browser/desk-page')
+  const { activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
-  const page = await newDeskPage(cdp, m.link, { pool, telegramId: owner })
+  const who: DeskWho = { pool, telegramId: owner }
+  const page = await newDeskPage(cdp, m.link, who)
   /* Front, so the tab is awake -- and so the person sees what is typed. */
   await activatePage(cdp, page.id).catch(() => {})
   /* The same trap as the inbox: press nothing until the page is really here. */
   await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
   await settle(3_000)
   /* Reddit's own words on the comment's own reply control. */
-  await pressOne(cdp, page.id, ['reply', 'ответить'])
+  await pressOne(who, cdp, page.id, ['reply', 'ответить'])
   await settle(1_500)
-  await typeText(cdp, page.id, text)
+  await deskType(who, cdp, page.id, text)
   await settle(1_000)
-  const pressed = await pressOne(cdp, page.id, [
+  const pressed = await pressOne(who, cdp, page.id, [
     'comment',
     'reply',
     'ответить',
@@ -415,11 +419,12 @@ async function submitOnReddit(
   const { newDeskPage } = await import('../browser/desk-page')
   const { activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
-  const page = await newDeskPage(cdp, submitUrl(p), { pool, telegramId: owner })
+  const who: DeskWho = { pool, telegramId: owner }
+  const page = await newDeskPage(cdp, submitUrl(p), who)
   /* Front, so the tab is awake -- and so the person sees what is posted. */
   await activatePage(cdp, page.id).catch(() => {})
   await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
   await settle(3_000)
-  const pressed = await pressOne(cdp, page.id, ['post', 'опубликовать'])
+  const pressed = await pressOne(who, cdp, page.id, ['post', 'опубликовать'])
   return `опубликовано («${pressed}») в r/${p.subreddit}` // cyrillic-ok: told to the owner
 }
