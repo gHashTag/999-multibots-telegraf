@@ -153,6 +153,8 @@ describe('one yes, and how long it lasts', () => {
 const cdpCalls: string[] = []
 
 vi.mock('./src/browser/cdp', () => ({
+  /* Chromium's hit-test: every press lands on the top page itself. */
+  frameAtPoint: async () => ({ frameId: 'page-1', url: null }),
   frontPage: async () => ({ id: 'page-1', url: PAGE.url }),
   listTargets: async () => [{ id: 'page-1', url: PAGE.url, type: 'page' }],
   newPage: async () => ({ id: 'page-1', url: PAGE.url }),

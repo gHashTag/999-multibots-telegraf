@@ -125,6 +125,26 @@
 // link under a finished reel leads to the chat with the agent, not to a page of its own. The
 // chat now shows the same reels widget above the talk when her template is ready, so the next
 // reel and the agent who makes it stand on one screen. PAGE_ROUTE is "chat".
+// v19 (2026-10-03, owner's reel of that morning): a still with no person, a reel of 18 s, and
+// delivery from a bot he does not talk to. Scene one came back an empty street: the prompt
+// named the setting first and the person second, and nothing looked at the picture. The
+// person now leads the still's prompt, and our own vision answers "is a face visible?" of
+// every new still: no face, one redraw; still none, the run stops before a voice or a lip-sync
+// is paid for it. Vision down is "unchecked", said aloud, never a refusal. Each line is heard
+// before its lip-sync: a voice longer than LINE_MAX_MS names the line to shorten and skips
+// that scene's lip-sync, so three lines, two breaths and the pause stay within the 15 s story.
+// The owner, the same day: a talking-head reel opens on the talking head in a wide shot, not on
+// a picture, and its first line is a hook, not "good morning in the rain". Scene one's still is
+// now the source photo itself, never redrawn and never given a setting; a first line that
+// opens with a greeting is refused before anything is drawn or paid for.
+// And then: "we do everything without leaving the studio, working with shots" -- his reel had
+// put him on a street in the rain. A scene with no setting is now a SHOT of the source photo:
+// wide, medium or close, cut from the same picture, so the studio and the look stay exactly his.
+// Nothing is drawn for it, nothing is paid for it, no face check is needed. A setting is still
+// drawn when a caller asks for one (a client's gift reel), never by default.
+// The finished reel reaches the person through their own bot -- the house through @t27ai_bot
+// -- before the service's main bot. And the house no longer asks ElevenLabs for a voice: a
+// voice of its own there used to win over the owner's clone.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -135,7 +155,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 18;
+    pub const VERSION : u8 = 19;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -373,6 +393,35 @@ module automation::crm_story_reel {
     pub const LIVE_RUN_STATUS : str = "delivered-2026-09-26";
     pub const VOICE_LEG_STATUS : str = "clone-402-falls-to-notes-on-kie-2026-09-27";
     pub const CAP_LEG_STATUS : str = "lipsync-met-daily-cap-attempts-burned-2026-09-27";
+
+    // ---- What the owner's reel of 2026-10-03 showed (v19) ------------------------------------
+    pub const STILL_IDENTITY_FIRST : bool = true;  // the person leads the still's prompt, the setting follows
+    pub const STILL_FACE_CHECKED : bool = true;  // our own vision: "is a face visible?" of every new still
+    pub const STILL_FACE_REDRAWS : u16 = 1;  // then the run stops, before a voice is paid for it
+    pub const FACE_UNKNOWN_KEEPS : bool = true;  // vision down: keep it, say "unchecked"
+    pub const FACE_KEEP : u8 = 0;
+    pub const FACE_REDRAW : u8 = 1;
+    pub const FACE_STOP : u8 = 2;
+    pub const LINE_MAX_MS : u32 = 3500;  // one line as heard, the top of "2-4 s" that still fits 15 s
+    pub const LINE_MEASURED_BEFORE_LIPSYNC : bool = true;  // a long line skips its lip-sync, named
+    pub const STORY_DEFAULT_MAX_SEC : u16 = 15;  // the default reel: three lines, two breaths, the pause
+    pub const DELIVER_VIA_HOME_BOT : bool = true;  // the person's own bot before the main one
+    pub const HOUSE_DELIVERY_BOT : str = "t27ai_bot";  // where the owner talks to Trinity
+    pub const HOUSE_SKIPS_ELEVENLABS : bool = true;  // the owner's clone, never a voice found there
+    pub const OPEN_ON_SOURCE : bool = true;  // scene one is the talking head itself, wide: the source photo
+    pub const OPEN_SCENE : u16 = 0;  // the scene that shows the source photo as it is
+    pub const FIRST_LINE_HOOK : bool = true;  // a greeting first is refused before anything is paid
+    pub const STUDIO_SHOTS : bool = true;  // no setting = a shot of the source, the studio never left
+    pub const SHOT_WIDE : u8 = 0;
+    pub const SHOT_MEDIUM : u8 = 1;
+    pub const SHOT_CLOSE : u8 = 2;
+    pub const SHOT_MEDIUM_PERMILLE : u16 = 650;  // of the source's side: head, shoulders, the mic
+    pub const SHOT_CLOSE_PERMILLE : u16 = 420;  // the face and the mic
+    pub const FACE_X_PERMILLE : u16 = 500;  // where a portrait's face sits in the source
+    pub const FACE_Y_PERMILLE : u16 = 290;  // measured on studio-lab: 270-290
+    pub const FACE_IN_SHOT_PERMILLE : u16 = 360;  // the face a third down the cut shot
+    pub const SHOT_WIDTH : u16 = 720;  // what a cut shot is scaled to for the lip-sync
+    pub const SHOT_HEIGHT : u16 = 1280;
 
     struct Job {
         has_face: bool,
@@ -628,6 +677,50 @@ module automation::crm_story_reel {
     }
 
     // Whether the reel leaves for a client chat: the owner's press, and nothing else.
+    // What a new still's face check leads to: kept, drawn once more, or the run stops.
+    fn still_face_action(has_face: bool, redraws: u16) -> u8 {
+        if has_face {
+            return FACE_KEEP;
+        }
+        if redraws < STILL_FACE_REDRAWS {
+            return FACE_REDRAW;
+        }
+        return FACE_STOP;
+    }
+
+    // Whether a scene shows the source photo as it is, with no still drawn for it.
+    fn scene_is_source(scene: u16) -> bool {
+        return OPEN_ON_SOURCE && scene == OPEN_SCENE;
+    }
+
+    // Which shot a scene is: wide first, then close and medium by turns -- a cut always
+    // changes the size, so a jump between two scenes never looks like a glitch.
+    fn shot_of_scene(scene: u16) -> u8 {
+        if scene == OPEN_SCENE {
+            return SHOT_WIDE;
+        }
+        if scene % 2 == 1 {
+            return SHOT_CLOSE;
+        }
+        return SHOT_MEDIUM;
+    }
+
+    // How much of the source's side a shot keeps.
+    fn shot_permille(shot: u8) -> u16 {
+        if shot == SHOT_CLOSE {
+            return SHOT_CLOSE_PERMILLE;
+        }
+        if shot == SHOT_MEDIUM {
+            return SHOT_MEDIUM_PERMILLE;
+        }
+        return 1000;
+    }
+
+    // Whether a line, as heard, may go on to its lip-sync.
+    fn line_fits(ms: u32) -> bool {
+        return ms <= LINE_MAX_MS;
+    }
+
     fn leaves_for_client(owner_pressed: bool) -> bool {
         return owner_pressed && !SENT_WITHOUT_PRESS;
     }
@@ -955,8 +1048,55 @@ module automation::crm_story_reel {
         assert(price_estimate_notes(3, NOTES_MAX_SEC) < PRICE_ESTIMATE_TOKENS);
     }
 
+    test "a still without a face is drawn once more, then the run stops" {
+        assert(STILL_IDENTITY_FIRST);
+        assert(STILL_FACE_CHECKED);
+        assert(FACE_UNKNOWN_KEEPS);
+        assert(still_face_action(true, 0) == FACE_KEEP);
+        assert(still_face_action(true, STILL_FACE_REDRAWS) == FACE_KEEP);
+        assert(still_face_action(false, 0) == FACE_REDRAW);
+        assert(still_face_action(false, STILL_FACE_REDRAWS) == FACE_STOP);
+    }
+
+    test "a line is heard before its lip-sync, and the default reel stays within 15 s" {
+        assert(LINE_MEASURED_BEFORE_LIPSYNC);
+        assert(line_fits(LINE_MAX_MS));
+        assert(!line_fits(LINE_MAX_MS + 1));
+        assert(!line_fits(4900));  // a line of the 18.3 s reel of 2026-10-03
+        assert(SCENES_DEFAULT * LINE_MAX_MS + (SCENES_DEFAULT - 1) * BREATH_MS + PAUSE_SEC * 1000 <= STORY_DEFAULT_MAX_SEC * 1000);
+        assert(STORY_DEFAULT_MAX_SEC <= REEL_MAX_SEC);
+    }
+
+    test "the finished reel reaches the house through its own bot, and the house speaks its clone" {
+        assert(DELIVER_VIA_HOME_BOT);
+        assert(HOUSE_DELIVERY_BOT == "t27ai_bot");
+        assert(HOUSE_SKIPS_ELEVENLABS);
+    }
+
+    test "a talking-head reel opens on the talking head, wide, with a hook" {
+        assert(OPEN_ON_SOURCE);
+        assert(FIRST_LINE_HOOK);
+        assert(scene_is_source(OPEN_SCENE));
+        assert(scene_is_source(0));
+        assert(!scene_is_source(1));
+        assert(!scene_is_source(SCENES_DEFAULT - 1));
+    }
+
+    test "the studio is never left: scenes with no setting are shots of the source" {
+        assert(STUDIO_SHOTS);
+        assert(shot_of_scene(0) == SHOT_WIDE);
+        assert(shot_of_scene(1) == SHOT_CLOSE);
+        assert(shot_of_scene(2) == SHOT_MEDIUM);
+        assert(shot_of_scene(3) == SHOT_CLOSE);
+        assert(shot_permille(SHOT_WIDE) == 1000);
+        assert(shot_permille(SHOT_CLOSE) < shot_permille(SHOT_MEDIUM));
+        assert(shot_permille(SHOT_MEDIUM) < shot_permille(SHOT_WIDE));
+        assert(SHOT_WIDTH * 16 == SHOT_HEIGHT * 9);
+        assert(FACE_IN_SHOT_PERMILLE < 500);
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 18);
+        assert(VERSION == 19);
     }
 
     test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {
