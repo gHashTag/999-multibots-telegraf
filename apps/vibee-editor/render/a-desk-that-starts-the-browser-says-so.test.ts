@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { configureAgentStart, startBrowserAsAgent } from './src/browser/routes'
 import { resetBrowserSessionsCache } from './src/browser/sessions'
 import { resetJournalCacheForTests } from './src/browser/journal'
-import { stepInWords } from './src/browser/report'
+import { reportBrowserWork, stepInWords } from './src/browser/report'
 
 const WHO = '9000000071'
 let journal: unknown[][] = []
@@ -92,5 +92,47 @@ describe('who started the browser is written down', () => {
     })
     expect(stepInWords(row('reddit'))).toContain('Reddit')
     expect(stepInWords(row('something-new'))).toContain('агент') // cyrillic-ok
+  })
+})
+
+describe("a desk start inside a chat turn is not the turn's report", () => {
+  const since = Date.parse('2026-10-03T00:11:00Z')
+  const step = (tool: string, at: string) => ({
+    at,
+    tool,
+    ok: true,
+    ms: 900,
+    detail: tool === 'browser_start' ? { by: 'reddit' } : {},
+  })
+  const run = async (steps: ReturnType<typeof step>[]) => {
+    const sent: string[] = []
+    const out = await reportBrowserWork(
+      {
+        readSteps: async () => steps,
+        sendText: async text => void sent.push(text),
+        sendVideo: async () => undefined,
+        film: async () => ({ mp4: null, frames: 0 }),
+        settle: async () => undefined,
+      },
+      { since, task: 'hi', answer: 'hello' }
+    )
+    return { out, sent }
+  }
+
+  it('a turn that never touched the browser stays silent', async () => {
+    const { out, sent } = await run([
+      step('browser_start', '2026-10-03T00:11:12Z'),
+    ])
+    expect(out).toBe('silent')
+    expect(sent).toEqual([])
+  })
+
+  it('a turn that did work is reported without the desk start', async () => {
+    const { out, sent } = await run([
+      step('browser_status', '2026-10-03T00:11:20Z'),
+      step('browser_start', '2026-10-03T00:11:12Z'),
+    ])
+    expect(out).toBe('sent')
+    expect(sent[0]).not.toContain('Reddit')
   })
 })

@@ -242,6 +242,23 @@ export interface ReportDeps {
   settle?: () => Promise<void>
 }
 
+/*
+ * A DESK'S START IS NOT THE TURN'S WORK.
+ *
+ * `browser_start` is written by a desk (Reddit, engage, blog-share, rounds,
+ * scenarios) that opened the browser on its own clock, never by a tool the
+ * turn called. The report windows the journal by time only, so a desk tick
+ * landing inside a chat turn that never touched the browser would have sent
+ * the person a lab report and film about work nobody asked for (review of
+ * #3450). The step stays in the journal and the panel; the report skips it.
+ */
+const NOT_TURN_WORK = new Set(['browser_start'])
+
+/** Whether a journal step belongs to the turn being reported. Pure. */
+export function isTurnWork(row: JournalRow): boolean {
+  return !NOT_TURN_WORK.has(row.tool)
+}
+
 /**
  * After a turn: report when the turn touched the browser, stay silent when it
  * did not. Never throws -- a report is owed to the person, but its failure
@@ -254,7 +271,7 @@ export async function reportBrowserWork(
   try {
     await (deps.settle ?? (() => new Promise(r => setTimeout(r, 3000))))()
     const steps = (await deps.readSteps())
-      .filter(s => Date.parse(s.at) >= turn.since)
+      .filter(s => Date.parse(s.at) >= turn.since && isTurnWork(s))
       .reverse()
     if (steps.length === 0) return 'silent'
     const { mp4, frames } = await deps.film()
