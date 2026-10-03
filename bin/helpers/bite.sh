@@ -126,6 +126,20 @@ if [ "${_BITE_NO_ATTR_SOURCE:-}" = 1 ] || ! git -C "$TOP" --attr-source="$REV" v
     echo "bite: .gitattributes changed since $REV and this git has no --attr-source -- cannot write the old files as a checkout would"
     exit 2
   fi
+  # git diff does not see an untracked .gitattributes, and cat-file --filters
+  # reads it all the same (review 1 of #3479). Only those over a named file.
+  for r in "${REL[@]}"; do
+    d=$(dirname "$r")
+    while :; do
+      a="$d/.gitattributes"; [ "$d" = . ] && a=.gitattributes
+      if [ -e "$TOP/$a" ] && ! git -C "$TOP" ls-files --error-unmatch -- "$a" >/dev/null 2>&1; then
+        echo "bite: $a is not tracked and this git has no --attr-source -- cannot write the old files as a checkout would"
+        exit 2
+      fi
+      [ "$d" = . ] && break
+      d=$(dirname "$d")
+    done
+  done
 fi
 
 # Every node_modules the tree installs: the root's and each tracked package's.
@@ -156,12 +170,30 @@ PY
 # lies under such a link, refused now. BACK: any link back into the tree; a
 # file it reaches may import a named one by a relative path, so a green on
 # <rev> is "cannot tell", not "does not bite".
+#
+# "The tree" is not only this checkout. In a worktree node_modules itself is a
+# link to the main checkout's, and its workspace links land in THAT checkout's
+# packages: same files, never swapped (review 1 of #3479). So a link counts by
+# where it really ends: under a directory named node_modules it is an
+# installed package; anywhere else it is some checkout's own code. A named
+# file is compared by its path within the checkout the link lands in.
 ws=$(python3 - "$TOP" "${#NMS[@]}" ${NMS[@]+"${NMS[@]}"} "${REL[@]}" <<'PY'
-import os, sys
+import os, subprocess, sys
 top, n = sys.argv[1], int(sys.argv[2])
 nms, rels = sys.argv[3:3 + n], sys.argv[3 + n:]
 real_top = os.path.realpath(top)
-real_nms = [os.path.realpath(os.path.join(top, nm)) for nm in nms]
+
+
+def checkout_rel(t):
+    """t's path within the git checkout it lies in, or None."""
+    d = t if os.path.isdir(t) else os.path.dirname(t)
+    out = subprocess.run(["git", "-C", d, "rev-parse", "--show-toplevel"],
+                         capture_output=True, text=True).stdout.strip()
+    if not out:
+        return None
+    return os.path.relpath(t, os.path.realpath(out))
+
+
 back = []
 for nm in nms:
     base = os.path.join(top, nm)
@@ -176,19 +208,23 @@ for nm in nms:
         if not os.path.islink(p):
             continue
         t = os.path.realpath(p)
-        if not t.startswith(real_top + os.sep) or any(t == m or t.startswith(m + os.sep) for m in real_nms):
+        if "node_modules" in t.split(os.sep):
             continue
-        name = f"{os.path.relpath(p, top)} -> {os.path.relpath(t, real_top)}"
+        shown = os.path.relpath(t, real_top) if t.startswith(real_top + os.sep) else t
+        name = f"{os.path.relpath(p, top)} -> {shown}"
+        tr = checkout_rel(t)
         for r in rels:
+            r = os.path.normpath(r)
             f = os.path.join(real_top, r)
-            if f == t or f.startswith(t + os.sep):
+            if f == t or f.startswith(t + os.sep) or (
+                    tr is not None and (tr in (".", r) or r.startswith(tr + os.sep))):
                 print(f"HIT {r} ({name})")
                 sys.exit(0)
         back.append(name)
 if back:
     print("BACK " + ", ".join(back[:3]) + (f" and {len(back) - 3} more" if len(back) > 3 else ""))
 PY
-)
+) || { echo "bite: could not read the node_modules links -- cannot tell"; exit 2; }
 case "$ws" in
   HIT\ *) echo "bite: ${ws#HIT } -- a workspace link would load the real file, not the old one"; exit 2 ;;
 esac

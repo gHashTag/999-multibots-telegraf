@@ -623,3 +623,62 @@ describe('tri bite -- review 5 of #3462', () => {
     expect(r.status).toBe(1)
   })
 })
+
+describe('tri bite -- review 1 of #3479', () => {
+  it('a worktree whose node_modules links to the main checkout is cannot tell', () => {
+    // Every worktree here links node_modules to the main checkout's, and the
+    // workspace links there land in THAT checkout's packages: the named file
+    // is never swapped, and the answer was a false DOES NOT BITE.
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'packages/pkg'), { recursive: true })
+    fs.mkdirSync(path.join(dir, 'app'))
+    fs.writeFileSync(path.join(dir, 'app/package.json'), '{}\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'app')
+    fs.mkdirSync(path.join(dir, 'app/node_modules'))
+    fs.symlinkSync('../../lib', path.join(dir, 'app/node_modules/lib'))
+    const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-wt-'))
+    dirs.push(wt)
+    fs.rmSync(wt, { recursive: true })
+    git(dir, 'worktree', 'add', '-q', '--detach', wt)
+    fs.symlinkSync(
+      path.join(dir, 'app/node_modules'),
+      path.join(wt, 'app/node_modules')
+    )
+    const r = bite(wt, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+    expect(r.stdout).not.toMatch(/DOES NOT BITE/)
+  })
+
+  it('a git without --attr-source refuses an untracked .gitattributes', () => {
+    // git diff does not see it; cat-file --filters reads it all the same.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, 'lib/.gitattributes'), 'add.sh eol=crlf\n')
+    const r = spawnSync('bash', [BITE, 'HEAD', 'lib/add.sh', '--', 'true'], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 30000,
+      env: { ...process.env, _BITE_NO_ATTR_SOURCE: '1' },
+    })
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/lib\/\.gitattributes is not tracked/)
+  })
+
+  it('a node_modules it cannot read is cannot tell, not a verdict', () => {
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules/@scope'), { recursive: true })
+    fs.chmodSync(path.join(dir, 'node_modules/@scope'), 0)
+    try {
+      const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+      expect(r.status).toBe(2)
+      expect(r.stdout).toMatch(/could not read the node_modules links/)
+    } finally {
+      fs.chmodSync(path.join(dir, 'node_modules/@scope'), 0o755)
+    }
+  })
+})
