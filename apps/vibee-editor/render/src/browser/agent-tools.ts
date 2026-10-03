@@ -57,6 +57,7 @@ import {
   ruleFor,
   setSiteRule,
   siteRulesOf,
+  type SiteRuleRow,
 } from './site-rules'
 import { desktopShot } from './screen'
 import { recordStep, stepOf } from './journal'
@@ -111,26 +112,29 @@ async function mustBeAllowedToAct(
   cdp: string,
   targetId: string
 ): Promise<void> {
-  const targets = await listTargets(cdp).catch(() => [])
-  const page = targets.find(t => t.id === targetId)
+  const url = await urlOfTab(cdp, targetId)
   const session = await readSession(
     ctx.pool as unknown as Queryable,
     ctx.telegramId
   )
-  const url = page?.url ?? ''
-  /* The person's own list (site-rules.ts): block is final, ask is a bank. */
+  /*
+   * The person's own list (site-rules.ts): block is final, ask is a bank.
+   * An unreadable list refuses every act, a yes included: browser_evaluate
+   * reads the page as well as acting on it, and we do not know where they
+   * said never.
+   */
   const rules = await siteRulesOf(
     ctx.pool as unknown as Queryable,
     ctx.telegramId
   )
-  const own = rules === null ? 'ask' : ruleFor(url, rules)
-  if (own === 'block') throw blockedError(url)
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  mustNotBeOn(url, rules)
   const verdict = mayAct({
     /* No page found means we cannot see where we are, and guard.ts refuses. */
-    url,
+    url: url ?? '',
     allowedAtMs: session?.allowedAtMs ?? null,
     nowMs: Date.now(),
-    alsoSensitive: own === 'ask',
+    alsoSensitive: url !== null && ruleFor(url, rules) === 'ask',
   })
   if (verdict.allowed) return
   throw new Error(
@@ -141,11 +145,32 @@ async function mustBeAllowedToAct(
   )
 }
 
-/* The tab's address, '' when unlisted; the same read mustBeAllowedToAct makes. */
-async function urlOfTab(cdp: string, targetId: string): Promise<string> {
-  const targets = await listTargets(cdp).catch(() => [])
-  return targets.find(t => t.id === targetId)?.url ?? ''
+/*
+ * The tab's address; null when the tab list could not be read or the tab is
+ * not in it. Never '' for "unknown": ruleFor('') is null, and an unknown
+ * place read as "no rule" let a read through on a blocked tab.
+ */
+async function urlOfTab(cdp: string, targetId: string): Promise<string | null> {
+  const targets = await listTargets(cdp).catch(() => null)
+  return targets?.find(t => t.id === targetId)?.url ?? null
 }
+
+/*
+ * A place we cannot name is blocked as soon as the list blocks anything: we
+ * cannot tell it is not the site they said never to.
+ */
+function mustNotBeOn(url: string | null, rules: SiteRuleRow[]): void {
+  if (url === null) {
+    if (rules.some(r => r.rule === 'block')) throw new Error(UNKNOWN_TAB)
+    return
+  }
+  if (ruleFor(url, rules) === 'block') throw blockedError(url)
+}
+
+const UNKNOWN_TAB =
+  "could not tell which site this tab is on, and the person's list blocks " +
+  'some sites, so it is not read or touched. Try again shortly, or ' +
+  'browser_status to see the tabs.'
 
 /**
  * NOT EVEN A LOOK WHERE THE PERSON SAID NEVER (site-rules.ts). Opening,
@@ -153,13 +178,46 @@ async function urlOfTab(cdp: string, targetId: string): Promise<string> {
  * refuses a blocked site too. An unreadable list refuses: we do not know
  * where they said no.
  */
-async function mustNotBeBlocked(ctx: ToolContext, url: string): Promise<void> {
+async function mustNotBeBlocked(
+  ctx: ToolContext,
+  url: string | null
+): Promise<void> {
   const rules = await siteRulesOf(
     ctx.pool as unknown as Queryable,
     ctx.telegramId
   )
   if (rules === null) throw new Error(UNREADABLE_LIST)
-  if (ruleFor(url, rules) === 'block') throw blockedError(url)
+  mustNotBeOn(url, rules)
+}
+
+/*
+ * The whole screen shows whichever tab is in front, and the person may front
+ * any of them between our check and the shot. So a desktop shot is refused
+ * while ANY open tab is on a blocked site, or while the tabs cannot be read
+ * and the list blocks something. A page shot of another tab still works.
+ */
+async function mustShowNoBlockedTab(
+  ctx: ToolContext,
+  cdp: string | null | undefined
+): Promise<void> {
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  if (!rules.some(r => r.rule === 'block')) return
+  const targets = cdp ? await listTargets(cdp).catch(() => null) : null
+  if (!targets) throw new Error(UNKNOWN_TAB)
+  const blocked = targets.find(
+    t => t.type === 'page' && ruleFor(t.url, rules) === 'block'
+  )
+  if (blocked) {
+    const e = blockedError(blocked.url)
+    e.message +=
+      ' The whole screen can show any open tab, so it is not shot while ' +
+      'that one is open; browser_screenshot without desktop shoots one page.'
+    throw e
+  }
 }
 
 /*
@@ -1071,6 +1129,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         if (!session || session.state !== 'live' || !session.endpoint) {
           await podOf(ctx) /* throws the same sentence as every other tool */
         }
+        await mustShowNoBlockedTab(ctx, session!.cdpEndpoint)
         const base64 = await desktopShot(
           session!.endpoint!,
           session!.adminToken

@@ -32,11 +32,16 @@
  * ── WHEN THE LIST CANNOT BE READ ──────────────────────────────────────────
  *
  * `siteRulesOf` answers null, and every caller treats null as "we do not know
- * where they said no": opening and reading are refused, and acting anywhere
- * needs a fresh yes. This is guard.ts's own rule (an unreadable address is
- * sensitive) applied to the list, and it costs nothing in practice: the list
- * lives in the same Postgres as the session row, and without that row no
- * tool works anyway.
+ * where they said no": opening, reading, shooting and acting are all refused,
+ * a fresh yes included (browser_evaluate reads as well as acts). This is
+ * guard.ts's own rule (an unreadable address is sensitive) applied to the
+ * list, and it costs nothing in practice: the list lives in the same Postgres
+ * as the session row, and without that row no tool works anyway.
+ *
+ * The same holds for a tab whose ADDRESS cannot be read while the list blocks
+ * anything: an unknown place may be the blocked one (agent-tools.ts
+ * mustNotBeOn). A desktop shot shows whichever tab is in front, so it is
+ * refused while any open tab is blocked.
  */
 import type { Queryable } from './sessions'
 
@@ -257,5 +262,6 @@ export function blockedError(url: string): Error {
 }
 
 export const UNREADABLE_LIST =
-  "the person's site list could not be read, so no page can be opened or " +
-  'read until it can (we do not know where they said no). Try again shortly.'
+  "the person's site list could not be read, so no page can be opened, read " +
+  'or acted on until it can (we do not know where they said no). Try again ' +
+  'shortly.'

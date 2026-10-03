@@ -244,11 +244,19 @@ describe('the list only tightens from the agent side', () => {
  */
 const cdpCalls: string[] = []
 const PAGE = { url: 'https://ru.wikipedia.org/wiki/x' }
+/* listTargets throws (the pod's tab list did not answer). */
+const TABS = { fail: false, others: [] as { id: string; url: string }[] }
 
 vi.mock('./src/browser/cdp', async importOriginal => ({
   ...(await importOriginal<typeof import('./src/browser/cdp')>()),
   frontPage: async () => ({ id: 'page-1', url: PAGE.url }),
-  listTargets: async () => [{ id: 'page-1', url: PAGE.url, type: 'page' }],
+  listTargets: async () => {
+    if (TABS.fail) throw new Error('cdp did not answer')
+    return [
+      { id: 'page-1', url: PAGE.url, type: 'page' },
+      ...TABS.others.map(t => ({ ...t, type: 'page' })),
+    ]
+  },
   newPage: async (_c: string, url: string) => {
     cdpCalls.push(`newPage ${url}`)
     return { id: 'page-2', url }
@@ -273,6 +281,19 @@ vi.mock('./src/browser/cdp', async importOriginal => ({
   },
 }))
 
+vi.mock('./src/browser/screen', async importOriginal => ({
+  ...(await importOriginal<typeof import('./src/browser/screen')>()),
+  desktopShot: async () => {
+    cdpCalls.push('desktopShot')
+    return 'AAAA'
+  },
+}))
+
+vi.mock('./src/agent/media-vision', async importOriginal => ({
+  ...(await importOriginal<typeof import('./src/agent/media-vision')>()),
+  visionConfig: () => null,
+}))
+
 const ctx = { telegramId: '900000001', requestId: 'r1', pool } as never
 
 describe('the tools honour the list', () => {
@@ -282,6 +303,9 @@ describe('the tools honour the list', () => {
 
   beforeEach(() => {
     cdpCalls.length = 0
+    TABS.fail = false
+    TABS.others = []
+    SESSION.allowed_ms = null
   })
 
   const tool = async (name: string) => {
@@ -335,22 +359,76 @@ describe('the tools honour the list', () => {
     expect(cdpCalls).not.toContain('clickAt')
   })
 
-  it('an unreadable list opens and reads nothing, and acting needs a yes', async () => {
+  it('an unreadable list opens, reads and acts on nothing, not even after a yes', async () => {
     broken = true
     PAGE.url = 'https://ru.wikipedia.org/wiki/x'
+    /* A fresh yes: browser_evaluate reads too, so the yes is not enough. */
+    SESSION.allowed_ms = Date.now() as never
     await expect(
       (await tool('browser_open')).handler(
         { url: 'https://ru.wikipedia.org/' },
         ctx
       )
     ).rejects.toThrow(/could not be read/)
-    await expect((await tool('browser_read')).handler({}, ctx)).rejects.toThrow(
-      /could not be read/
-    )
-    await expect(
-      (await tool('browser_click')).handler({ x: 1, y: 1 }, ctx)
-    ).rejects.toThrow(/permission/)
+    for (const [name, args] of [
+      ['browser_read', {}],
+      ['browser_screenshot', {}],
+      ['browser_screenshot', { desktop: true }],
+      ['browser_click', { x: 1, y: 1 }],
+      ['browser_evaluate', { expression: 'document.body.innerText' }],
+    ] as const)
+      await expect((await tool(name)).handler(args, ctx), name).rejects.toThrow(
+        /could not be read/
+      )
     expect(cdpCalls).toEqual([])
+  })
+
+  it('a tab whose address cannot be read is blocked while the list blocks anything', async () => {
+    table.push({
+      telegram_id: '900000001',
+      site: 'bank.com',
+      rule: 'block',
+      by_whom: 'person',
+    })
+    PAGE.url = 'https://bank.com/cards'
+    TABS.fail = true
+    SESSION.allowed_ms = Date.now() as never
+    for (const [name, args] of [
+      ['browser_read', {}],
+      ['browser_screenshot', {}],
+      ['browser_screenshot', { desktop: true }],
+      ['browser_evaluate', { expression: '1' }],
+      ['browser_click', { x: 1, y: 1 }],
+    ] as const)
+      await expect((await tool(name)).handler(args, ctx), name).rejects.toThrow(
+        /could not tell which site/
+      )
+    expect(cdpCalls).toEqual([])
+  })
+
+  it('a desktop shot is refused while ANY open tab is blocked, a page shot of another is not', async () => {
+    table.push({
+      telegram_id: '900000001',
+      site: 'bank.com',
+      rule: 'block',
+      by_whom: 'person',
+    })
+    PAGE.url = 'https://ru.wikipedia.org/wiki/x'
+    TABS.others = [{ id: 'page-9', url: 'https://online.bank.com/cards' }]
+    const shot = await tool('browser_screenshot')
+    await expect(shot.handler({ desktop: true }, ctx)).rejects.toThrow(
+      /blocked list.*whole screen/s
+    )
+    expect(cdpCalls).not.toContain('desktopShot')
+    await expect(shot.handler({}, ctx)).resolves.toMatchObject({
+      base64: 'AAAA',
+    })
+    /* Once the blocked tab is gone, the whole screen is shot again. */
+    TABS.others = []
+    await expect(shot.handler({ desktop: true }, ctx)).resolves.toMatchObject({
+      base64: 'AAAA',
+    })
+    expect(cdpCalls).toContain('desktopShot')
   })
 
   it('an unlisted ordinary site works as before', async () => {
