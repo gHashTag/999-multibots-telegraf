@@ -169,23 +169,88 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
    * right after the check, so the next edit cannot drop it unseen.
    */
   const dir = join(__dirname, 'src/agent')
-  const files = readdirSync(dir).filter(
+  /* Every file under src/agent, sub-folders too (the bee on #3491). */
+  const files = (readdirSync(dir, { recursive: true }) as string[]).filter(
     f => f.endsWith('.ts') && !f.endsWith('.test.ts')
   )
   const ROAD = /\b(openWindow|goTo|frontPage|listTargets)\s*\(/
 
-  it('each road call has a deskMayGo just before (or right after) it', () => {
+  /*
+   * Comments are blanked first (line numbers kept): a check written in a
+   * comment is no check, and the bee on #3491 slipped one past. Each road
+   * needs its OWN check -- the search stops at the previous road, so open's
+   * check cannot vouch for the goTo below it.
+   */
+  const code = (text: string) =>
+    text
+      .replace(/\/\*[\s\S]*?\*\//g, c => c.replace(/[^\n]/g, ' '))
+      .replace(/(^|\s)\/\/.*$/gm, '$1')
+  const CHECK = /\bdeskMayGo\s*\(/
+
+  function bareRoads(name: string, text: string): string[] {
+    const lines = code(text).split('\n')
     const bare: string[] = []
-    for (const f of files) {
-      const lines = readFileSync(join(dir, f), 'utf8').split('\n')
-      lines.forEach((line, i) => {
-        if (!ROAD.test(line) || /^\s*(\*|\/\/|import\b)/.test(line)) return
-        if (/^\s*(const|let)\s*\{/.test(line)) return
-        const near = lines.slice(Math.max(0, i - 16), i + 3).join('\n')
-        if (!/\bdeskMayGo\s*\(/.test(near)) bare.push(`${f}:${i + 1}`)
-      })
-    }
+    lines.forEach((line, i) => {
+      if (!ROAD.test(line) || /^\s*import\b/.test(line)) return
+      if (CHECK.test(line)) return
+      /* Six lines of CODE back, two forward: blank and comment lines are free. */
+      for (let j = i - 1, left = 6; j >= 0 && left > 0; j--) {
+        if (!lines[j].trim()) continue
+        if (CHECK.test(lines[j])) return
+        if (ROAD.test(lines[j])) break
+        left--
+      }
+      for (let j = i + 1, left = 2; j < lines.length && left > 0; j++) {
+        if (!lines[j].trim()) continue
+        if (CHECK.test(lines[j])) return
+        if (ROAD.test(lines[j])) break
+        left--
+      }
+      bare.push(`${name}:${i + 1}`)
+    })
+    return bare
+  }
+
+  it('each road call has its own deskMayGo just before (or right after) it', () => {
+    const bare = files.flatMap(f =>
+      bareRoads(f, readFileSync(join(dir, f), 'utf8'))
+    )
     expect(bare).toEqual([])
+  })
+
+  it('the pin itself: a comment, a shared check or a destructured call does not pass', () => {
+    const t = (...l: string[]) => bareRoads('t', l.join('\n'))
+    expect(t('// deskMayGo(who, url)', 'await goTo(c, id, url)')).toEqual([
+      't:2',
+    ])
+    expect(t('/* deskMayGo(who, url) */', 'await goTo(c, id, url)')).toEqual([
+      't:2',
+    ])
+    expect(
+      t(
+        'await deskMayGo(who, a)',
+        'await openWindow(c, a)',
+        'x()',
+        'await goTo(c, id, b)'
+      )
+    ).toEqual(['t:4'])
+    expect(
+      t(
+        'await deskMayGo(who, a)',
+        ...Array.from({ length: 7 }, (_, k) => `step${k}()`),
+        'await goTo(c, id, a)'
+      )
+    ).toEqual(['t:9'])
+    expect(t('const { id: front } = await frontPage(cdp)')).toEqual(['t:1'])
+    expect(
+      t('const { frontPage, goTo } = await import("../browser/cdp")')
+    ).toEqual([])
+    expect(
+      t('await deskMayGo(who, u) // https://x.com/', 'await goTo(c, id, u)')
+    ).toEqual([])
+    expect(
+      t('const t = (await frontPage(cdp)).id', 'await deskMayGo(w, u)')
+    ).toEqual([])
   })
 
   it('the round re-checks where each look landed', () => {
