@@ -93,7 +93,7 @@ import { makeClientFaceTool } from './client-face-tool'
 import { isClientFacing } from './client-facing'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
-import { makeSplitReelTool } from './split-reel-tool'
+import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
@@ -3879,7 +3879,10 @@ TOOLS.push(
     },
     // Every new still is looked at by our own vision before a voice is paid
     // for it (crm-story-reel v19).
-    { hasFace: url => stillShowsAFace(url) }
+    { hasFace: url => stillShowsAFace(url) },
+    undefined,
+    // Each clip heard by itself, for its yellow captions (crm-story-reel v20).
+    SERVER_SENSES.hear
   )
 )
 /*
