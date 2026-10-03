@@ -261,6 +261,34 @@ export function blockedError(url: string): Error {
   )
 }
 
+/**
+ * A TAB NAMED, NOT LOOKED AT. browser_status and a shot's tab list name every
+ * open tab, and a title is page text ("Inbox (3) - Re: test results"); a path
+ * can carry a message id. On a blocked site only the host stays, so the agent
+ * knows the tab is there and why it may not touch it. An unreadable list
+ * veils every web tab: we do not know which one they said never to.
+ */
+export function veilTab<T extends { title: string; url: string }>(
+  tab: T,
+  rules: SiteRuleRow[] | null
+): T | (T & { veiled: 'blocked' | 'list unreadable' }) {
+  let origin: string
+  try {
+    const u = new URL(tab.url)
+    if (!/^https?:$/.test(u.protocol)) return tab
+    origin = u.origin
+  } catch {
+    return tab
+  }
+  if (rules !== null && ruleFor(tab.url, rules) !== 'block') return tab
+  return {
+    ...tab,
+    title: '',
+    url: `${origin}/`,
+    veiled: rules === null ? 'list unreadable' : 'blocked',
+  }
+}
+
 export const UNREADABLE_LIST =
   "the person's site list could not be read, so no page can be opened, read " +
   'or acted on until it can (we do not know where they said no). Try again ' +

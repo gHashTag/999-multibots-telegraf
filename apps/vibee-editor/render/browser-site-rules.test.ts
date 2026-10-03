@@ -7,6 +7,7 @@ import {
   setSiteRule,
   siteOf,
   siteRulesOf,
+  veilTab,
   type SiteRuleRow,
 } from './src/browser/site-rules'
 import { mayAct } from './src/browser/guard'
@@ -81,6 +82,32 @@ describe('which rule covers an address', () => {
   it("the browser's own pages and unreadable addresses are not the list's", () => {
     expect(ruleFor('chrome://settings', rules)).toBeNull()
     expect(ruleFor('not a url', rules)).toBeNull()
+  })
+})
+
+describe('a tab is named, not looked at', () => {
+  const tab = { title: 'Inbox (3)', url: 'https://mail.bank.com/inbox/77' }
+
+  it('a blocked tab keeps its host only', () => {
+    expect(veilTab(tab, [row('bank.com', 'block')])).toEqual({
+      title: '',
+      url: 'https://mail.bank.com/',
+      veiled: 'blocked',
+    })
+  })
+
+  it('an ask or unlisted tab is shown as it is', () => {
+    expect(veilTab(tab, [row('bank.com', 'ask')])).toBe(tab)
+    expect(veilTab(tab, [])).toBe(tab)
+  })
+
+  it("an unreadable list veils every web tab, not the browser's own pages", () => {
+    expect(veilTab(tab, null)).toMatchObject({
+      title: '',
+      veiled: 'list unreadable',
+    })
+    const blank = { title: 'New Tab', url: 'chrome://newtab/' }
+    expect(veilTab(blank, null)).toBe(blank)
   })
 })
 
@@ -245,7 +272,10 @@ describe('the list only tightens from the agent side', () => {
 const cdpCalls: string[] = []
 const PAGE = { url: 'https://ru.wikipedia.org/wiki/x' }
 /* listTargets throws (the pod's tab list did not answer). */
-const TABS = { fail: false, others: [] as { id: string; url: string }[] }
+const TABS = {
+  fail: false,
+  others: [] as { id: string; url: string; title?: string }[],
+}
 
 vi.mock('./src/browser/cdp', async importOriginal => ({
   ...(await importOriginal<typeof import('./src/browser/cdp')>()),
@@ -253,8 +283,8 @@ vi.mock('./src/browser/cdp', async importOriginal => ({
   listTargets: async () => {
     if (TABS.fail) throw new Error('cdp did not answer')
     return [
-      { id: 'page-1', url: PAGE.url, type: 'page' },
-      ...TABS.others.map(t => ({ ...t, type: 'page' })),
+      { id: 'page-1', url: PAGE.url, title: 'front', type: 'page' },
+      ...TABS.others.map(t => ({ title: 'other', ...t, type: 'page' })),
     ]
   },
   newPage: async (_c: string, url: string) => {
@@ -420,8 +450,16 @@ describe('the tools honour the list', () => {
       /blocked list.*whole screen/s
     )
     expect(cdpCalls).not.toContain('desktopShot')
-    await expect(shot.handler({}, ctx)).resolves.toMatchObject({
-      base64: 'AAAA',
+    const pageShot = (await shot.handler({}, ctx)) as {
+      base64: string
+      tabs: unknown[]
+    }
+    expect(pageShot.base64).toBe('AAAA')
+    /* The blocked tab is named by host only: no title, no path. */
+    expect(pageShot.tabs).toContainEqual({
+      title: '',
+      url: 'https://online.bank.com/',
+      veiled: 'blocked',
     })
     /* Once the blocked tab is gone, the whole screen is shot again. */
     TABS.others = []
@@ -429,6 +467,54 @@ describe('the tools honour the list', () => {
       base64: 'AAAA',
     })
     expect(cdpCalls).toContain('desktopShot')
+  })
+
+  it('browser_ask_input asks nothing about a blocked tab: no scroll, no focus read', async () => {
+    table.push({
+      telegram_id: '900000001',
+      site: 'bank.com',
+      rule: 'block',
+      by_whom: 'person',
+    })
+    PAGE.url = 'https://bank.com/login'
+    await expect(
+      (await tool('browser_ask_input')).handler(
+        { kind: 'password', why: 'sign in', x: 1, y: 1 },
+        { ...(ctx as object), probe: true } as never
+      )
+    ).rejects.toThrow(/blocked list/)
+    expect(cdpCalls).toEqual([])
+  })
+
+  it('browser_status names a blocked tab by host only, and keeps the rest', async () => {
+    table.push({
+      telegram_id: '900000001',
+      site: 'bank.com',
+      rule: 'block',
+      by_whom: 'person',
+    })
+    PAGE.url = 'https://ru.wikipedia.org/wiki/x'
+    TABS.others = [
+      {
+        id: 'page-9',
+        url: 'https://online.bank.com/statements/2026-09?acct=42',
+        title: 'Statement - account 42',
+      },
+    ]
+    const status = (await (await tool('browser_status')).handler({}, ctx)) as {
+      pages: Array<{ id: string; title: string; url: string; veiled?: string }>
+    }
+    const bank = status.pages.find(p => p.id === 'page-9')
+    expect(bank).toMatchObject({
+      title: '',
+      url: 'https://online.bank.com/',
+      veiled: 'blocked',
+    })
+    expect(JSON.stringify(status)).not.toMatch(/acct|Statement|statements/)
+    expect(status.pages.find(p => p.id === 'page-1')).toMatchObject({
+      title: 'front',
+      url: 'https://ru.wikipedia.org/wiki/x',
+    })
   })
 
   it('an unlisted ordinary site works as before', async () => {

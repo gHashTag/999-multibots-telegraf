@@ -57,6 +57,7 @@ import {
   ruleFor,
   setSiteRule,
   siteRulesOf,
+  veilTab,
   type SiteRuleRow,
 } from './site-rules'
 import { desktopShot } from './screen'
@@ -545,16 +546,23 @@ export async function describeShot(
   return { seen: got }
 }
 
+/* Every open tab by title and address; blocked ones by host only (veilTab). */
 async function tabsOf(
+  ctx: ToolContext,
   cdp: string,
   frontId?: string
-): Promise<Array<{ title: string; url: string; front?: true }>> {
+): Promise<
+  Array<{ title: string; url: string; front?: true; veiled?: string }>
+> {
   const targets = await listTargets(cdp).catch(() => [])
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
   return targets
     .filter(t => t.type === 'page')
     .map(t => ({
-      title: t.title,
-      url: t.url,
+      ...veilTab({ title: t.title, url: t.url }, rules),
       ...(t.id === frontId ? { front: true as const } : {}),
     }))
 }
@@ -690,6 +698,12 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       /* password, email, code, text are typed; choice and action are pressed. */
       const typing = kind !== 'choice' && kind !== 'action'
       const { cdp, targetId } = await podOf(ctx)
+      /*
+       * Asking scrolls the page and reads which field has focus, and the
+       * question names the site to the person: nothing of that on a site
+       * they said never to.
+       */
+      await mustNotBeBlocked(ctx, await urlOfTab(cdp, targetId))
       const session = await readSession(
         ctx.pool as unknown as Queryable,
         ctx.telegramId
@@ -812,6 +826,10 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       }
       const targets = await listTargets(found.cdp).catch(() => [])
       const pages = targets.filter(t => t.type === 'page')
+      const rules = await siteRulesOf(
+        ctx.pool as unknown as Queryable,
+        ctx.telegramId
+      )
       /*
        * Every tab read where it lies (tab-shape.ts): counts only, nothing
        * fronted, and no visit started -- this door is podToLookAt.
@@ -825,10 +843,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
                   pages.map(t => ({ id: t.id, url: t.url ?? '' })),
                   { evaluate: evaluateOn },
                   undefined,
-                  await siteRulesOf(
-                    ctx.pool as unknown as Queryable,
-                    ctx.telegramId
-                  )
+                  rules
                 )
               ).map(s => [s.id, s] as const)
             )
@@ -840,8 +855,8 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
           const shape = shapes?.get(t.id)
           return {
             id: t.id,
-            title: t.title,
-            url: t.url,
+            /* A blocked tab is named by host only (site-rules.ts veilTab). */
+            ...veilTab({ title: t.title, url: t.url }, rules),
             /* Where the tools act now (front-page.ts). */
             ...(t.id === chosenFront(ctx.telegramId)
               ? { actingHere: true as const }
@@ -1137,7 +1152,9 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         return {
           format: 'jpeg',
           base64,
-          tabs: session!.cdpEndpoint ? await tabsOf(session!.cdpEndpoint) : [],
+          tabs: session!.cdpEndpoint
+            ? await tabsOf(ctx, session!.cdpEndpoint)
+            : [],
           ...(await describeShot(base64)),
         }
       }
@@ -1151,7 +1168,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       return {
         format: 'jpeg',
         base64,
-        tabs: await tabsOf(cdp, targetId),
+        tabs: await tabsOf(ctx, cdp, targetId),
         ...(paint.painted ? {} : { painted: false, note: NOT_PAINTED_NOTE }),
         ...(await describeShot(base64)),
       }
