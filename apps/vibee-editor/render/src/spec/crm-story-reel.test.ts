@@ -1276,7 +1276,221 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(21)
+    expect(SPEC.VERSION).toBe(22)
+  })
+
+  it("a client's reel carries her call: the seller's for her, then her own, never the house's", async () => {
+    // call_from(seller_ok, template_given, own_reel),
+    // profile_call_from(story_ok, approved_ok); the press and the runner
+    // taking it run in a-story-reel-for-any-client.test.ts.
+    const { callFrom, profileCallFrom, reelCall, ownCallOf } = await import(
+      '../agent/story-reel-templates'
+    )
+    expect(SPEC.HOUSE_CALL_ON_CLIENT_REEL).toBe(false)
+    expect(callFrom(true, true, false)).toBe(SPEC.CALL_FROM_SELLER)
+    expect(callFrom(true, true, true)).toBe(SPEC.CALL_FROM_SELLER)
+    expect(callFrom(false, true, false)).toBe(SPEC.CALL_FROM_PROFILE)
+    expect(callFrom(false, true, true)).toBe(SPEC.CALL_FROM_TEMPLATE)
+    expect(callFrom(false, false, true)).toBe(SPEC.CALL_FROM_PROFILE)
+    expect(callFrom(false, false, false)).toBe(SPEC.CALL_FROM_PROFILE)
+    expect(profileCallFrom(true, true)).toBe(SPEC.CALL_FROM_STORY)
+    expect(profileCallFrom(true, false)).toBe(SPEC.CALL_FROM_STORY)
+    expect(profileCallFrom(false, true)).toBe(SPEC.CALL_FROM_APPROVED)
+    expect(profileCallFrom(false, false)).toBe(SPEC.CALL_FROM_DEFAULT)
+    // The host's call, in words: a template pressed for her ends with hers.
+    const hers = 'Book a fitting'
+    expect(
+      reelCall({
+        templateCall: SPEC.TEMPLATE_CALL_EN,
+        ownReel: false,
+        ownCall: hers,
+      }).call
+    ).toBe(hers)
+    expect(
+      reelCall({
+        templateCall: SPEC.TEMPLATE_CALL_EN,
+        ownReel: true,
+        ownCall: hers,
+      }).call
+    ).toBe(SPEC.TEMPLATE_CALL_EN)
+    expect(
+      reelCall({
+        given: 'Come by on Friday',
+        templateCall: SPEC.TEMPLATE_CALL_EN,
+        ownReel: false,
+        ownCall: hers,
+      }).call
+    ).toBe('Come by on Friday')
+    // Her profile: the story call, then the approved one, then the default.
+    expect(ownCallOf('Story call', 'Approved call', false, 'Default')).toBe(
+      'Story call'
+    )
+    expect(ownCallOf('', 'Approved call', false, 'Default')).toBe(
+      'Approved call'
+    )
+    expect(ownCallOf('', '', false, 'Default')).toBe('Default')
+  })
+
+  it("a call or a button naming the house on a client's reel is replaced by hers, and the answer says so", async () => {
+    // word_taken(chars, names_house, own_reel),
+    // house_word_replaced(chars, names_house, own_reel)
+    const {
+      HOUSE_MARKS,
+      namesHouse,
+      wordTaken,
+      houseWordReplaced,
+      callFrom,
+      takenWord,
+      reelCall,
+      cardForReel,
+      houseReplacedNote,
+      ownCallOf,
+    } = await import('../agent/story-reel-templates')
+    expect(HOUSE_MARKS).toHaveLength(SPEC.HOUSE_MARKS)
+    expect(SPEC.BOT_SPOKEN_AS).toBe('Trinity')
+    expect(SPEC.HOUSE_DELIVERY_BOT).toBe('t27ai_bot')
+    expect(SPEC.TEMPLATE_BUTTON).toBe('@t27ai_bot')
+    expect(SPEC.HOUSE_WORD_REPLACED_SAID).toBe(true)
+    expect(wordTaken(12, false, false)).toBe(true)
+    expect(wordTaken(12, true, false)).toBe(false)
+    expect(wordTaken(12, true, true)).toBe(true)
+    expect(wordTaken(0, false, false)).toBe(false)
+    expect(wordTaken(0, false, true)).toBe(false)
+    expect(houseWordReplaced(12, true, false)).toBe(true)
+    expect(houseWordReplaced(12, true, true)).toBe(false)
+    expect(houseWordReplaced(12, false, false)).toBe(false)
+    expect(houseWordReplaced(0, true, false)).toBe(false)
+    expect(callFrom(wordTaken(16, true, false), false, false)).toBe(
+      SPEC.CALL_FROM_PROFILE
+    )
+    expect(callFrom(wordTaken(16, true, true), false, true)).toBe(
+      SPEC.CALL_FROM_SELLER
+    )
+    // Every mark is caught, in any case, in either script.
+    for (const mark of HOUSE_MARKS) {
+      expect(namesHouse(`Say hi to ${mark.toUpperCase()} today`)).toBe(true)
+    }
+    expect(namesHouse('Напиши Тринити')).toBe(true) // cyrillic-ok: a house call
+    expect(namesHouse('Book a fitting')).toBe(false)
+    // The host replaces it and says so in one line naming her call.
+    expect(takenWord(SPEC.TEMPLATE_BUTTON, false)).toEqual({
+      word: '',
+      replaced: true,
+    })
+    expect(takenWord(SPEC.TEMPLATE_BUTTON, true)).toEqual({
+      word: SPEC.TEMPLATE_BUTTON,
+      replaced: false,
+    })
+    const call = reelCall({
+      given: SPEC.TEMPLATE_CALL_EN,
+      ownReel: false,
+      ownCall: 'Book a fitting',
+    })
+    expect(call.call).toBe('Book a fitting')
+    expect(call.replaced).toBe(SPEC.TEMPLATE_CALL_EN)
+    const said = houseReplacedNote([call.replaced], call.call)
+    expect(said).toContain(`«${SPEC.TEMPLATE_CALL_EN}»`)
+    expect(said).toContain('«Book a fitting»')
+    expect(said.split('\n')).toHaveLength(1)
+    expect(houseReplacedNote(['', ''], call.call)).toBe('')
+    expect(
+      cardForReel({ bg: '#10182a', button: SPEC.TEMPLATE_BUTTON }, false)
+    ).toEqual({ bg: '#10182a' })
+    expect(cardForReel({ button: SPEC.TEMPLATE_BUTTON }, false)).toBeNull()
+    // Her profile's own house call is not hers on her reel.
+    expect(ownCallOf(SPEC.TEMPLATE_CALL_EN, '', false, 'Default')).toBe(
+      'Default'
+    )
+  })
+
+  it("a client's end-card button: the seller's, her kept card, her profile, or none -- never the house bot", async () => {
+    // button_from(seller_ok, template_given, own_reel, kept_ok, profile_ok)
+    const { buttonFrom } = await import('../agent/story-reel-templates')
+    expect(SPEC.HOUSE_BUTTON_ON_CLIENT_REEL).toBe(false)
+    for (const other of [
+      SPEC.FIELD_FROM_SELLER,
+      SPEC.FIELD_FROM_KEPT,
+      SPEC.FIELD_FROM_PROFILE,
+      SPEC.FIELD_FROM_DEFAULT,
+    ])
+      expect(SPEC.FIELD_FROM_TEMPLATE).not.toBe(other)
+    expect(buttonFrom(true, true, false, true, true)).toBe(
+      SPEC.FIELD_FROM_SELLER
+    )
+    expect(buttonFrom(false, true, false, true, true)).toBe(
+      SPEC.FIELD_FROM_KEPT
+    )
+    expect(buttonFrom(false, true, false, false, true)).toBe(
+      SPEC.FIELD_FROM_PROFILE
+    )
+    expect(buttonFrom(false, true, false, false, false)).toBe(
+      SPEC.FIELD_FROM_DEFAULT
+    )
+    expect(buttonFrom(false, true, true, true, true)).toBe(
+      SPEC.FIELD_FROM_TEMPLATE
+    )
+    expect(buttonFrom(false, false, true, true, true)).toBe(
+      SPEC.FIELD_FROM_KEPT
+    )
+    expect(buttonFrom(true, true, true, false, false)).toBe(
+      SPEC.FIELD_FROM_SELLER
+    )
+  })
+
+  it("the template's last line on a client's reel ends with her call, within the editor's limit", async () => {
+    // last_line_way(lead_chars, call_chars, same_language)
+    const { lastLineWay, lastLineFor, templateOf, templatesForPanel } =
+      await import('../agent/story-reel-templates')
+    expect(SPEC.TEMPLATE_LEAD_EN_4).toBe('Want the same?')
+    expect(SPEC.TEMPLATE_LINES_KEPT).toBe(SPEC.TEMPLATE_SCENES - 1)
+    const M = SPEC.LINE_MAX_CHARS
+    expect(lastLineWay(14, 16, true)).toBe(SPEC.LAST_LINE_LEAD_AND_CALL)
+    expect(lastLineWay(14, M - 15, true)).toBe(SPEC.LAST_LINE_LEAD_AND_CALL)
+    expect(lastLineWay(14, M - 14, true)).toBe(SPEC.LAST_LINE_CALL)
+    expect(lastLineWay(14, M, true)).toBe(SPEC.LAST_LINE_CALL)
+    expect(lastLineWay(14, M + 1, true)).toBe(SPEC.LAST_LINE_LEAD)
+    expect(lastLineWay(14, 16, false)).toBe(SPEC.LAST_LINE_LEAD)
+    expect(lastLineWay(14, 0, true)).toBe(SPEC.LAST_LINE_LEAD)
+    // The host's line, in words.
+    const en = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!
+    expect(en.lead).toBe(SPEC.TEMPLATE_LEAD_EN_4)
+    expect(SPEC.TEMPLATE_LINE_EN_4.startsWith(en.lead)).toBe(true)
+    expect(lastLineFor(en, 'Book a fitting')).toBe(
+      'Want the same? Book a fitting.'
+    )
+    expect(lastLineFor(en, 'x'.repeat(M - 14))).toBe('x'.repeat(M - 15) + 'x.')
+    expect(lastLineFor(en, 'Напишите мне')).toBe(en.lead) // cyrillic-ok: a call in the other language
+    for (const t of templatesForPanel({ call: 'Book a fitting' })) {
+      expect(t.button).toBe('')
+      expect(t.lines.slice(0, SPEC.TEMPLATE_LINES_KEPT)).toEqual(
+        templateOf(t.id, t.language)!.lines.slice(0, SPEC.TEMPLATE_LINES_KEPT)
+      )
+      const last = t.lines[SPEC.TEMPLATE_LINES_KEPT]
+      expect(last.length).toBeLessThanOrEqual(M)
+      expect(last).not.toMatch(/Trinity|Тринити/) // cyrillic-ok: the house name
+    }
+  })
+
+  it("story_reel for a client takes the same call and card, and speaks her voice, never the owner's", async () => {
+    // voice_of(lead_named, client_turn, names_this_client); the tool
+    // speaking, calling and ending with hers runs in
+    // a-story-reel-for-any-client.test.ts.
+    const { voiceOf, callFrom, buttonFrom } = await import(
+      '../agent/story-reel-templates'
+    )
+    expect(SPEC.CLIENT_TURN_SPEAKS_CLIENT).toBe(true)
+    expect(voiceOf(true, false, false)).toBe(SPEC.SPEAKS_LEAD)
+    expect(voiceOf(false, true, false)).toBe(SPEC.SPEAKS_LEAD)
+    expect(voiceOf(true, true, true)).toBe(SPEC.SPEAKS_LEAD)
+    expect(voiceOf(true, true, false)).toBe(SPEC.SPEAKS_REFUSED)
+    expect(voiceOf(false, false, false)).toBe(SPEC.SPEAKS_CALLER)
+    expect(callFrom(false, false, false)).toBe(SPEC.CALL_FROM_PROFILE)
+    expect(buttonFrom(false, false, false, true, false)).toBe(
+      SPEC.FIELD_FROM_KEPT
+    )
+    expect(buttonFrom(false, false, false, false, true)).toBe(
+      SPEC.FIELD_FROM_PROFILE
+    )
   })
 
   it('the hook reel is a template of four studio shots with the call to the house bot', async () => {

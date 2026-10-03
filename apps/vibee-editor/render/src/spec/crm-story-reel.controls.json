@@ -196,8 +196,8 @@
   },
   {
     "name": "VERSION lags the header again",
-    "from": "pub const VERSION : u8 = 21;",
-    "to": "pub const VERSION : u8 = 20;"
+    "from": "pub const VERSION : u8 = 22;",
+    "to": "pub const VERSION : u8 = 21;"
   },
   {
     "name": "two reasons on the card allowed",
@@ -238,5 +238,115 @@
     "name": "the writer's place is trusted to the prompt",
     "from": "pub const WRITER_SETTING_DROPPED : bool = true;",
     "to": "pub const WRITER_SETTING_DROPPED : bool = false;"
+  },
+  {
+    "name": "the template's call reaches a client's reel",
+    "from": "pub const HOUSE_CALL_ON_CLIENT_REEL : bool = false;",
+    "to": "pub const HOUSE_CALL_ON_CLIENT_REEL : bool = true;"
+  },
+  {
+    "name": "the template's button reaches a client's reel",
+    "from": "pub const HOUSE_BUTTON_ON_CLIENT_REEL : bool = false;",
+    "to": "pub const HOUSE_BUTTON_ON_CLIENT_REEL : bool = true;"
+  },
+  {
+    "name": "a replaced house call goes unsaid",
+    "from": "pub const HOUSE_WORD_REPLACED_SAID : bool = true;",
+    "to": "pub const HOUSE_WORD_REPLACED_SAID : bool = false;"
+  },
+  {
+    "name": "a house mark is taken on a client's reel",
+    "from": "return chars > 0 && (own_reel || !names_house);",
+    "to": "return chars > 0;"
+  },
+  {
+    "name": "an empty call is taken",
+    "from": "return chars > 0 && (own_reel || !names_house);",
+    "to": "return own_reel || !names_house;"
+  },
+  {
+    "name": "a house word on the house's own reel is said replaced",
+    "from": "return HOUSE_WORD_REPLACED_SAID && chars > 0 && names_house && !own_reel;",
+    "to": "return HOUSE_WORD_REPLACED_SAID && chars > 0 && names_house;"
+  },
+  {
+    "name": "the seller's call loses to the template",
+    "from": "if seller_ok {\n            return CALL_FROM_SELLER;",
+    "to": "if seller_ok && !template_given {\n            return CALL_FROM_SELLER;"
+  },
+  {
+    "name": "the template's call ignores whose reel it is",
+    "from": "(own_reel || HOUSE_CALL_ON_CLIENT_REEL)",
+    "to": "(true)"
+  },
+  {
+    "name": "the template's button ignores whose reel it is",
+    "from": "(own_reel || HOUSE_BUTTON_ON_CLIENT_REEL)",
+    "to": "(true)"
+  },
+  {
+    "name": "her approved call goes before her story call",
+    "from": "if story_ok {",
+    "to": "if story_ok && !approved_ok {"
+  },
+  {
+    "name": "her approved call is skipped for the default",
+    "from": "if approved_ok {",
+    "to": "if false {"
+  },
+  {
+    "name": "her kept button is skipped",
+    "from": "if kept_ok {",
+    "to": "if false {"
+  },
+  {
+    "name": "her profile button is skipped",
+    "from": "if profile_ok {",
+    "to": "if false {"
+  },
+  {
+    "name": "the last line runs past the editor",
+    "from": "if lead_chars + 1 + call_chars <= LINE_MAX_CHARS {",
+    "to": "if lead_chars + 1 + call_chars <= LINE_MAX_CHARS + 1 {"
+  },
+  {
+    "name": "her call alone runs past the editor",
+    "from": "if call_chars <= LINE_MAX_CHARS {",
+    "to": "if call_chars <= LINE_MAX_CHARS + 1 {"
+  },
+  {
+    "name": "a call in another language joins the last line",
+    "from": "if call_chars == 0 || !same_language {",
+    "to": "if call_chars == 0 {"
+  },
+  {
+    "name": "a client turn speaks another client",
+    "from": "if client_turn && lead_named && !names_this_client {",
+    "to": "if false {"
+  },
+  {
+    "name": "a client turn with no lead speaks the caller",
+    "from": "pub const CLIENT_TURN_SPEAKS_CLIENT : bool = true;",
+    "to": "pub const CLIENT_TURN_SPEAKS_CLIENT : bool = false;"
+  },
+  {
+    "name": "the house marks forget one",
+    "from": "pub const HOUSE_MARKS : u8 = 3;",
+    "to": "pub const HOUSE_MARKS : u8 = 2;"
+  },
+  {
+    "name": "the template's button counts as the seller's",
+    "from": "pub const FIELD_FROM_TEMPLATE : u8 = 4;",
+    "to": "pub const FIELD_FROM_TEMPLATE : u8 = 2;"
+  },
+  {
+    "name": "the last line's lead-in drifts",
+    "from": "pub const TEMPLATE_LEAD_EN_4 : str = \"Want the same?\";",
+    "to": "pub const TEMPLATE_LEAD_EN_4 : str = \"Want it?\";"
+  },
+  {
+    "name": "a story line before the call is dropped",
+    "from": "pub const TEMPLATE_LINES_KEPT : u16 = 3;",
+    "to": "pub const TEMPLATE_LINES_KEPT : u16 = 2;"
   }
 ]

@@ -178,7 +178,96 @@ describe('story_reel', () => {
     for (const c of calls.filter(c => c.name === 'audio_generate'))
       expect(c.args.for_lead).toBe('900000077')
   })
+})
 
+/*
+ * A CLIENT'S REEL NEVER CARRIES THE HOUSE (crm-story-reel v22): in a turn
+ * for a client the reel speaks her voice without being told, ends with her
+ * call and her card; the house's call and button stay on its own reel.
+ */
+describe('story_reel for a client: her voice, her call, her card (v22)', () => {
+  const LEAD = '900000077'
+  const HER = {
+    visual: { bg: '#0b0d0f', gold_title: '#ffd700' },
+    approved_cta: {
+      text: 'Book a fitting',
+      button: 'Book',
+      bot: '@example_bot',
+    },
+  }
+  const herPool = {
+    query: async (sql: string) =>
+      /SELECT profile FROM crm_client_profiles/.test(sql)
+        ? { rows: [{ profile: HER }] }
+        : { rows: [] },
+  }
+  const forHer = {
+    telegramId: '900000001',
+    faceOf: LEAD,
+    pool: herPool,
+  } as never
+
+  it('in a turn for a client, story_reel speaks her voice without being told', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup).handler(ARGS, forHer)
+    expect(r.done).toBe(true)
+    const voices = calls.filter(c => c.name === 'audio_generate')
+    expect(voices.length).toBeGreaterThan(0)
+    for (const c of voices) expect(c.args.for_lead).toBe(LEAD)
+  })
+
+  it('in a turn for a client, a for_lead naming somebody else is refused before anything is spent', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup).handler(
+      { ...ARGS, for_lead: '900000002' },
+      forHer
+    )
+    expect(r.done).toBe(false)
+    expect(r.reason).toMatch('for_lead')
+    expect(r.reason).toMatch(LEAD)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('a reel for her takes her call and her card, never the house call or button', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup).handler(
+      {
+        ...ARGS,
+        for_lead: LEAD,
+        cta: SPEC.TEMPLATE_CALL_EN,
+        end_card: { bg: '#10182a', button: SPEC.TEMPLATE_BUTTON },
+      },
+      { telegramId: '900000001', pool: herPool } as never
+    )
+    expect(r.done).toBe(true)
+    const props = calls.find(c => c.name === 'reel_render')!.args.props
+    expect(props.cta).toBe('Book a fitting')
+    expect(props.endCard).toMatchObject({
+      bg: '#10182a',
+      title: '#ffd700',
+      button: 'Book · @example_bot',
+    })
+  })
+
+  it("the house's own reel keeps the house call, and speaks the caller", async () => {
+    const { lookup, calls } = fakeTools()
+    await makeStoryReelTool(lookup).handler(
+      {
+        ...ARGS,
+        cta: SPEC.TEMPLATE_CALL_EN,
+        end_card: { button: SPEC.TEMPLATE_BUTTON },
+      },
+      ctx
+    )
+    const props = calls.find(c => c.name === 'reel_render')!.args.props
+    expect(props.cta).toBe(SPEC.TEMPLATE_CALL_EN)
+    expect(props.endCard.button).toBe(SPEC.TEMPLATE_BUTTON)
+    for (const c of calls.filter(c => c.name === 'audio_generate'))
+      expect(c.args.for_lead).toBeUndefined()
+  })
+})
+
+describe('story_reel, what it refuses and where it lives', () => {
   it('refuses bad scenes before spending anything', async () => {
     expect(scenesOf([])).toMatch(/от 1 до 6/) // cyrillic-ok: the answer under test
     expect(scenesOf([{ setting: 'x' }])).toMatch(/line/)
