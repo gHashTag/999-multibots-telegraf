@@ -698,6 +698,17 @@ describe('ProfileTemplatesGrid owner actions', () => {
     expect(placeholder()).not.toBeNull()
     expect(host.querySelector('[data-testid="templates-failed"]')).toBeNull()
     expect(host.textContent).not.toContain('profile.no_templates')
+    /*
+     * A cleared `loading` is also visible as the automatic reading starting
+     * page 1 of the new profile before its page 0 has answered (which would
+     * flip `loading` straight back on and hide the early clear from the
+     * placeholder checks above).
+     */
+    const secondUrls = fetchMock.mock.calls
+      .map(([url]) => url)
+      .filter(url => url.includes('/users/second/'))
+    expect(secondUrls).toHaveLength(1)
+    expect(secondUrls[0]).toContain('page=0')
 
     await act(async () =>
       secondPage0.resolve({
