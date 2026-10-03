@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useSetAtom } from 'jotai'
 // Its own classes: the panel used to live only on the CRM client page, which
 // imported these for it. It now mounts in the chat aside too, where neither
 // page css is loaded -- so it carries them itself (vibee-stack-hard-won: a
@@ -12,6 +13,7 @@ import { Panel } from '@/components/Crm/Panel'
 import { coveredByNotice } from '@/components/Crm/refusalRules'
 import { StoryFacePicker } from '@/components/Crm/StoryFacePicker'
 import { StoryPalette } from '@/components/Crm/StoryPalette'
+import { clientWidgetsAtom } from '@/atoms/clientWidgets'
 import {
   loadStoryIdeas,
   loadStoryReel,
@@ -174,6 +176,64 @@ export function StoryReelPanel({
   // default reel's -- never a figure computed here.
   const price =
     s?.scenes?.priceTokens[n] ?? (n === range.default ? s?.priceTokens : null)
+
+  /*
+   * THE AGENT SEES WHAT THIS PANEL IS SET TO (owner, 2026-10-03: it sent an
+   * old render while the panel stood open on a new topic). Mirrored into the
+   * client's entry of clientWidgetsAtom while the panel is mounted, cleared
+   * when it goes; the chat reads it when a line is sent. Empty style and call
+   * are the template's, so the template's are what the agent is told.
+   */
+  const setWidgets = useSetAtom(clientWidgetsAtom)
+  const faceNow = s
+    ? s.faceCustom && s.face
+      ? s.face
+      : s.face
+        ? 'source photo'
+        : null
+    : null
+  const ctaNow = cta || s?.cta || ''
+  const styleNow = style || s?.style || ''
+  const shown = Boolean(s) && !state.refused
+  useEffect(() => {
+    if (!clientId) return
+    setWidgets(all => ({
+      ...all,
+      [clientId]: {
+        ...all[clientId],
+        content: shown
+          ? {
+              topic,
+              scenes: n,
+              style: styleNow,
+              cta: ctaNow,
+              toDm,
+              face: faceNow,
+              ideas,
+            }
+          : null,
+      },
+    }))
+  }, [
+    clientId,
+    shown,
+    topic,
+    n,
+    styleNow,
+    ctaNow,
+    toDm,
+    faceNow,
+    ideas,
+    setWidgets,
+  ])
+  useEffect(() => {
+    if (!clientId) return
+    return () =>
+      setWidgets(all => ({
+        ...all,
+        [clientId]: { ...all[clientId], content: null },
+      }))
+  }, [clientId, setWidgets])
 
   // From the previous count, not this render's: two quick taps are two steps.
   const step = (d: number) =>
