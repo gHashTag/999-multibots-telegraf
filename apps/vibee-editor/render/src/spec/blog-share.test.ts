@@ -229,7 +229,10 @@ describe('spec automation/blog-share against the host', () => {
     /* A profile that never shows the post: the settle, then PROFILE_LOOKS - 1 looks. */
     profileShows = false
     waits.length = 0
-    await confirmOnProfile('cdp', 'LinkedIn', 'open fpga ethernet at last')
+    await confirmOnProfile('cdp', 'LinkedIn', 'open fpga ethernet at last', {
+      pool: { query: async () => ({ rows: [] }) } as never,
+      telegramId: '1',
+    })
     expect(waits).toEqual([
       SPEC.PROFILE_SETTLE_MS,
       ...Array(SPEC.PROFILE_LOOKS - 1).fill(SPEC.PROFILE_LOOK_EVERY_MS),

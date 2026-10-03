@@ -51,7 +51,7 @@ export async function runScenarioNow(
   return await runScenario(scenario, {
     open: async url => {
       const cdp = await live()
-      target = (await newDeskPage(cdp, url)).id
+      target = (await newDeskPage(cdp, url, { pool, telegramId: who })).id
     },
     press: async words => {
       const { cdp, id } = await where()

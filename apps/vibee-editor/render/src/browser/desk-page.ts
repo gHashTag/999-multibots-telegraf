@@ -24,7 +24,17 @@
  * process too, so a deploy loses nothing a restart has not already lost.
  */
 import type { CdpTarget } from './cdp'
+import type { Queryable } from './sessions'
 import type { SweepPage } from './tab-sweep'
+
+/**
+ * Whose browser this desk drives. Required, so no desk can open a tab
+ * without saying whose list it answers to (site-rules.ts).
+ */
+export interface DeskWho {
+  pool: Queryable
+  telegramId: string
+}
 
 /** Longer than any desk run (a share run measured 3-6 minutes). */
 export const DESK_HOLD_MS = 15 * 60_000
@@ -72,13 +82,27 @@ async function realIo(): Promise<DeskPageIo> {
  * tab. A pod that cannot be listed still gets the open -- the health check
  * reports that trouble, and a desk refused by the tidy-up would only fail
  * later with a worse message.
+ *
+ * THE PERSON'S SITE LIST HOLDS HERE TOO. The desks drive raw CDP, so the
+ * agent tools' refusals (agent-tools.ts mustNotBeBlocked) never saw them: a
+ * person who blocked x.com still got the blog desk's composer opened there.
+ * A blocked address, or a list that cannot be read, refuses the open before
+ * any tab is made or closed for room. `ask` is not checked here: this door
+ * does not know whether the desk will act or only read.
  */
 export async function newDeskPage(
   cdp: string,
   url: string,
+  who: DeskWho,
   io?: DeskPageIo,
   now: number = Date.now()
 ): Promise<CdpTarget> {
+  const { siteRulesOf, ruleFor, blockedError, UNREADABLE_LIST } = await import(
+    './site-rules'
+  )
+  const rules = await siteRulesOf(who.pool, who.telegramId)
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  if (ruleFor(url, rules) === 'block') throw blockedError(url)
   const use = io ?? (await realIo())
   try {
     const { roomForOne, namesOfClosed, whereItWas } = await import(
