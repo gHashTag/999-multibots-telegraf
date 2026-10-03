@@ -62,8 +62,8 @@
   {
     "name": "the tool does not pass the card",
     "file": "src/agent/crm-story-tool.ts",
-    "from": "        ...(args.end_card !== undefined ? { endCard: args.end_card } : {}),",
-    "to": "",
+    "from": "? { endCard: args.end_card }",
+    "to": "? {}",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
