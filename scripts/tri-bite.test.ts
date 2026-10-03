@@ -695,3 +695,48 @@ describe('tri bite -- review 1 of #3479', () => {
     }
   )
 })
+
+describe('tri bite -- review 2 of #3479', () => {
+  it('a repo kept under a node_modules directory still sees its workspace links', () => {
+    // The skip read node_modules anywhere in the absolute path, so every
+    // link of a checkout at /x/node_modules/A looked installed: a false 1.
+    const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-'))
+    dirs.push(outer)
+    const dir = path.join(outer, 'node_modules/A')
+    fs.mkdirSync(path.join(dir, 'packages/pkg'), { recursive: true })
+    git(dir, 'init', '-q', '-b', 'main')
+    fs.writeFileSync(path.join(dir, 'packages/pkg/add.sh'), 'v1\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'pkg')
+    git(dir, 'tag', 'v1')
+    fs.writeFileSync(path.join(dir, 'packages/pkg/add.sh'), 'v2\n')
+    git(dir, 'commit', '-qam', 'pkg 2')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../packages/pkg', path.join(dir, 'node_modules/pkg'))
+    const r = bite(dir, 'v1', 'packages/pkg/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+  })
+
+  it('a link into a store outside any checkout is still an installed package', () => {
+    // No checkout to be relative to: the whole path decides, as before, so a
+    // package in a global store is not taken for code and the green on the
+    // old revision stays "does not bite".
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    const store = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-'))
+    dirs.push(store)
+    fs.mkdirSync(path.join(store, 'node_modules/dep'), { recursive: true })
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync(
+      path.join(store, 'node_modules/dep'),
+      path.join(dir, 'node_modules/dep')
+    )
+    const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.stdout).not.toMatch(/node_modules\/dep/)
+    expect(r.status).toBe(1)
+  })
+})
