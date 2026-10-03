@@ -18,3 +18,17 @@ export function isHouse(telegramId: string | number | null | undefined) {
   const id = String(telegramId ?? '').trim()
   return !!id && HOUSE_TELEGRAM_IDS.includes(id)
 }
+
+/**
+ * Whether audio_generate looks a voice up in ElevenLabs (crm-story-reel v19,
+ * HOUSE_SKIPS_ELEVENLABS): only when no voice and no clone was chosen, and
+ * never for the house -- a voice of its own there raised the owner-voice
+ * flag and so skipped the owner's clone.
+ */
+export function asksElevenLabs(
+  house: boolean,
+  voiceId: string,
+  cloneVoice: string
+): boolean {
+  return !voiceId && !cloneVoice && !house
+}

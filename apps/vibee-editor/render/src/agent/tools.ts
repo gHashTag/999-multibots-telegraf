@@ -94,7 +94,7 @@ import { isClientFacing } from './client-facing'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { stillShowsAFace } from './still-face'
-import { HOUSE_TELEGRAM_IDS, isHouse } from '../house-ids'
+import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
 import {
@@ -2300,7 +2300,7 @@ export const TOOLS: AgentTool[] = [
        * owner-voice flag and so skipped the owner's clone below -- his reel
        * spoke a voice found in an ElevenLabs account.
        */
-      if (!voiceId && !cloneVoice && !isHouse(ctx.telegramId)) {
+      if (asksElevenLabs(isHouse(ctx.telegramId), voiceId, cloneVoice)) {
         const v = await selfFetch(`${base}/api/voices`)
         const vData: any = await v.json().catch(() => null)
         const list: any[] = Array.isArray(vData?.voices) ? vData.voices : []
