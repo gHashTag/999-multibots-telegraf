@@ -115,7 +115,46 @@ describe('who restarted the browser is written down too', () => {
     const steps = journal.filter(r => r[1] === 'browser_restart')
     expect(steps).toHaveLength(1)
     expect(steps[0][2]).toBe(false)
-    expect(JSON.parse(String(steps[0][4]))).toMatchObject({ by: 'heal' })
+    expect(JSON.parse(String(steps[0][4]))).toMatchObject({
+      by: 'heal',
+      error: expect.stringMatching(/^did not come back \(status \d+\)$/),
+    })
+  })
+
+  it('a pod the driver will not restart says so, not "did not come back"', async () => {
+    configureAgentStart(
+      () =>
+        ({
+          getPool: async () => pool,
+          driver: { ...driver(), restart: async () => false },
+          newToken: () => 'tok',
+          env: {},
+        }) as never
+    )
+    expect(await restartBrowserAsAgent(WHO, 'rounds')).toBe(false)
+    const steps = journal.filter(r => r[1] === 'browser_restart')
+    expect(steps).toHaveLength(1)
+    expect(JSON.parse(String(steps[0][4]))).toEqual({
+      by: 'rounds',
+      error: 'the driver cannot restart this pod',
+    })
+  })
+
+  it('a journal that cannot be reached does not change the answer', async () => {
+    let calls = 0
+    configureAgentStart(
+      () =>
+        ({
+          getPool: async () => {
+            if (++calls > 1) throw new Error('pool gone')
+            return pool
+          },
+          driver: driver(),
+          newToken: () => 'tok',
+          env: {},
+        }) as never
+    )
+    await expect(restartBrowserAsAgent(WHO, 'heal')).resolves.toBe(true)
   })
 
   it('without a name nothing is written', async () => {

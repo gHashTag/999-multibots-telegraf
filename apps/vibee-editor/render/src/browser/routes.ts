@@ -998,21 +998,32 @@ export async function restartBrowserAsAgent(
    * rule as `startBrowserAsAgent`.
    */
   const t0 = Date.now()
-  const ok = await restartInside(who, deps)
+  const { ok, why } = await restartInside(who, deps)
   if (by) {
-    const pool = await deps.getPool()
-    await recordStep(pool, who, {
-      tool: 'browser_restart',
-      ok,
-      ms: Date.now() - t0,
-      detail: ok ? { by } : { by, error: 'did not come back answering' },
-    })
+    /* The journal never stands between the restart and its answer. */
+    const pool = await deps.getPool().catch(() => null)
+    if (pool)
+      await recordStep(pool, who, {
+        tool: 'browser_restart',
+        ok,
+        ms: Date.now() - t0,
+        detail: ok ? { by } : { by, error: why },
+      })
   }
   return ok
 }
 
-async function restartInside(who: string, deps: BrowserDeps): Promise<boolean> {
-  if (!deps.driver) return false
+/*
+ * Each way a restart can fail says which one it was, because the remedies
+ * differ: a pod the driver cannot restart needs a person at Railway, one that
+ * did not come back needs another start, and one that came back silent with
+ * the same boot identity was never restarted at all (boot.ts).
+ */
+async function restartInside(
+  who: string,
+  deps: BrowserDeps
+): Promise<{ ok: boolean; why: string }> {
+  if (!deps.driver) return { ok: false, why: 'no driver' }
   const driver = deps.driver
   const pool = await deps.getPool()
   await ensureBrowserSessions(pool)
@@ -1043,7 +1054,7 @@ async function restartInside(who: string, deps: BrowserDeps): Promise<boolean> {
         who,
         'the driver cannot restart this pod'
       )
-      return false
+      return { ok: false, why: 'the driver cannot restart this pod' }
     }
     /* The pod it pointed at is going down: the row must not outlive it. */
     await dropSession(pool, who)
@@ -1054,13 +1065,13 @@ async function restartInside(who: string, deps: BrowserDeps): Promise<boolean> {
   const out = await open(pool, deps, driver, who, 'agent')
   if (out.status >= 300) {
     console.log('[browser:restart]', who, out.status, 'did not come back')
-    return false
+    return { ok: false, why: `did not come back (status ${out.status})` }
   }
   const back = await readSession(pool, who)
   if (!back?.cdpEndpoint) {
     /* No CDP means no agent can drive it; the person still has the wheel. */
     console.log('[browser:restart]', who, out.status, 'no cdp')
-    return true
+    return { ok: true, why: '' }
   }
   const { waitForBrowser, cdpHealthIo } = await import('./health')
   const answers = await waitForBrowser(back.cdpEndpoint, await cdpHealthIo())
@@ -1080,6 +1091,8 @@ async function restartInside(who: string, deps: BrowserDeps): Promise<boolean> {
     verdict
   )
   return answers
+    ? { ok: true, why: '' }
+    : { ok: false, why: `came back but does not answer (${verdict})` }
 }
 
 /*
