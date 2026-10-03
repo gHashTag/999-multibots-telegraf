@@ -756,7 +756,44 @@
     "file": "src/agent/story-template.ts",
     "from": "const sellerPress = !byClient || String(who.seller ?? '').trim() === lead",
     "to": "const sellerPress = !byClient",
-    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+    "tests": [
+      "src/agent/a-story-reel-for-any-client.test.ts",
+      "src/agent/a-template-stays-home.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the seller's own template press drops the house button before the row",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "? String(template?.button ?? '')",
+    "to": "? ''",
+    "tests": ["src/agent/a-template-stays-home.test.ts"]
+  },
+  {
+    "name": "v22: her profile chain skips her approved call",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "const a = takenWord(approved, ownReel).word",
+    "to": "const a = ''",
+    "tests": [
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: her profile chain skips her story call",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "const s = takenWord(story, ownReel).word",
+    "to": "const s = ''",
+    "tests": [
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: her approved call as a plain string is not read",
+    "file": "src/agent/story-template.ts",
+    "from": "typeof profile?.approved_cta === 'string'",
+    "to": "false",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
   },
   {
     "name": "v22: the runner keeps an old job's house button on her reel",
@@ -812,6 +849,27 @@
     "file": "src/agent/story-reel-tool.ts",
     "from": "const lead = voice === SPEC.SPEAKS_LEAD ? named || faceOf : ''",
     "to": "const lead = named",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: story_reel for_lead ignores her kept card",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "cardForReel(her?.keptCard, false),",
+    "to": "null,",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: story_reel for_lead does not say what it replaced",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "...(houseReplaced ? { house_replaced: houseReplaced } : {}),",
+    "to": "...({}),",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: story_reel for_lead drops a house button unsaid",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "[call.replaced, takenWord(button, false).replaced ? button : ''],",
+    "to": "[call.replaced],",
     "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
   }
 ]
