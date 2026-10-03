@@ -387,6 +387,36 @@ describe('the link goes in the reply, not in the post', () => {
     expect(xThread(article).second).toBe(linkFor(article, 'x'))
   })
 
+  it('the caveat the first post has no room for rides above the link', () => {
+    const caveat = {
+      ...article,
+      evidence: 'board throughput derived, not measured',
+    }
+    const second = xThread(caveat).second
+    expect(second).toBe(
+      `[board throughput derived, not measured]\n\n${linkFor(caveat, 'x')}`
+    )
+    expect(xThread(caveat).first).not.toContain('derived')
+  })
+
+  it('a long caveat is cut at a word, keeps its brackets and the whole link', () => {
+    for (const n of [50, 200, 255, 256, 300, 900]) {
+      const words = Array.from({ length: n }, (_, i) => 'w'.repeat((i % 7) + 1))
+      const long = { ...article, evidence: words.join(' ') }
+      const link = linkFor(long, 'x')
+      const second = xThread(long).second
+      expect(second.endsWith(`]\n\n${link}`)).toBe(true)
+      expect(second.startsWith('[')).toBe(true)
+      /* X counts the link as 23, whatever its length. */
+      expect(second.length - link.length + 23).toBeLessThanOrEqual(X_LIMIT)
+      const said = second.slice(1, second.indexOf(']\n\n'))
+      const kept = said.replace(/…$/, '')
+      expect(long.evidence.startsWith(kept)).toBe(true)
+      if (kept.length < long.evidence.length)
+        expect(long.evidence[kept.length]).toBe(' ')
+    }
+  })
+
   it('without the link, the words get the room the link used to take', () => {
     const long = {
       ...article,
