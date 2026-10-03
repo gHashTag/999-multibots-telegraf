@@ -1208,6 +1208,7 @@ import { QUEEN_GROWTH_TOOLS } from './queen-growth'
 import { HIVE_BOARD_TOOLS } from './hive-board-tool'
 import { CLUB_CASH_TOOLS } from './club-cash'
 import { BOTFATHER_TOOLS } from './botfather-main-app'
+import { BOT_CREATE_TOOLS } from './managed-bot-create'
 import { visibilityOf, keepers } from '../hive/roles'
 import { record } from '../hive/journal'
 import {
@@ -4020,6 +4021,8 @@ TOOLS.push(...CLUB_CASH_TOOLS)
  * only -- it speaks to BotFather as the owner, see DIRECT_CALL_ONLY below.
  */
 TOOLS.push(...BOTFATHER_TOOLS)
+/* A new bot through Bot API 9.6 Managed Bots (managed-bot-create.ts). */
+TOOLS.push(...BOT_CREATE_TOOLS)
 /*
  * The Inngest function catalogue (both apps, read live), runs and invocation.
  * Keeper-only, like hive_queen: function names carry paths and internal state.
