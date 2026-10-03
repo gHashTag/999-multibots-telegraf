@@ -45,14 +45,21 @@ import { fileURLToPath } from 'node:url'
  * runner keys that cache on a hash of packages/vibee-atoms. So the test asks
  * what the trap was about, the CONTENT: a foreign barrel from another branch
  * differs and still fails here, an identical copy does not.
+ *
+ * "Identical" as npm copies it: --install-links installs a PACKED copy, and
+ * npm never packs .gitignore or package-lock.json (`npm pack --dry-run` on
+ * this package lists every tracked file but those two). Neither is the
+ * barrel, so neither is hashed.
  */
+const NEVER_PACKED = new Set(['.gitignore', 'package-lock.json'])
+
 function contentHash(dir: string): string {
   const h = createHash('sha256')
   const walk = (d: string) => {
     for (const e of readdirSync(d, { withFileTypes: true }).sort((a, b) =>
       a.name.localeCompare(b.name)
     )) {
-      if (e.name === 'node_modules') continue
+      if (e.name === 'node_modules' || NEVER_PACKED.has(e.name)) continue
       const p = join(d, e.name)
       if (e.isDirectory()) walk(p)
       else if (e.isFile()) h.update(p.slice(dir.length)).update(readFileSync(p))
@@ -90,7 +97,7 @@ describe('@vibee/atoms resolves inside the tree under test', () => {
     expect(contentHash(resolvedAtoms)).toBe(contentHash(ownAtoms))
   })
 
-  it('an identical copy passes and a copy one byte off does not', () => {
+  it('a packed copy passes and a copy one byte off does not', () => {
     const renderRoot = dirname(fileURLToPath(import.meta.url))
     const own = realpathSync(resolve(renderRoot, '../packages/vibee-atoms'))
     const copy = mkdtempSync(join(tmpdir(), 'atoms-copy-'))
@@ -99,6 +106,8 @@ describe('@vibee/atoms resolves inside the tree under test', () => {
         recursive: true,
         filter: src => !src.includes('node_modules'),
       })
+      /* What npm leaves out of the copy it installs. */
+      for (const f of NEVER_PACKED) rmSync(join(copy, f), { force: true })
       expect(contentHash(copy)).toBe(contentHash(own))
       const entry = join(copy, 'src', 'index.ts')
       writeFileSync(entry, readFileSync(entry, 'utf8') + ' ')

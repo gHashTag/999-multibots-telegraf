@@ -15,10 +15,12 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const SCRIPT = resolve(__dirname, '../../../bin/helpers/relays-watch.sh')
+/* node picks the Bot API host; under nvm it sits on no system PATH. */
+const NODE_DIR = dirname(process.execPath)
 
 const OK =
   'relays: bot -> render\n  ok    key parity\nrelays: every road answers'
@@ -190,7 +192,11 @@ function install(home: string, bin: string) {
   let rc = 0
   try {
     execFileSync('bash', [SCRIPT, 'install'], {
-      env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home, LAUNCHCTL: 'true' },
+      env: {
+        PATH: `${bin}:${NODE_DIR}:/usr/bin:/bin`,
+        HOME: home,
+        LAUNCHCTL: 'true',
+      },
       stdio: 'pipe',
     })
   } catch (e) {
@@ -205,7 +211,10 @@ describe('tri relays-watch install', () => {
     const { home, bin } = cli(true)
     const r = install(home, bin)
     expect(r.rc).toBe(0)
-    expect(r.plist).toContain(`<string>${bin}:/opt/homebrew/bin:`)
+    expect(r.plist).toContain(`<string>${bin}:${NODE_DIR}:/opt/homebrew/bin:`)
+    /* The installed copy picks the host with its own copy of the rule. */
+    const lib = join(home, '.local/lib/t27-relays-watch')
+    expect(existsSync(join(lib, 'telegram-api.cjs'))).toBe(true)
   })
 
   it('refuses a watch whose railway is not logged in', () => {
@@ -213,5 +222,65 @@ describe('tri relays-watch install', () => {
     const r = install(home, bin)
     expect(r.rc).toBe(1)
     expect(r.plist).toBe('')
+  })
+})
+
+/*
+ * The report goes out from @t27ai_bot, which may live on our own Bot API
+ * server: one call to the cloud logs it back in there. So the host is the one
+ * scripts/lib/telegram-api.cjs picks for the token from vibee-render's
+ * routing variables, and a host that cannot be told means nothing is sent.
+ * `railway` and `curl` are stubs first on PATH, HOME is a scratch directory:
+ * no real token or CLI is in reach.
+ */
+const BOT_ID = '900000033'
+const FAKE_TOKEN = `${BOT_ID}:fixture-not-a-token`
+
+function sender(kv: string) {
+  const dir = world([{ out: KEY, rc: 1 }])
+  const bin = join(dir, 'stub-bin')
+  mkdirSync(bin)
+  mkdirSync(join(dir, '.fcc'))
+  writeFileSync(join(dir, '.fcc/.env'), `TELEGRAM_BOT_TOKEN=${FAKE_TOKEN}\n`)
+  writeFileSync(join(dir, 'kv'), kv)
+  writeFileSync(join(bin, 'railway'), `#!/bin/sh\ncat ${dir}/kv\n`)
+  writeFileSync(
+    join(bin, 'curl'),
+    `#!/bin/sh\nfor a in "$@"; do case "$a" in http*) echo "$a" >> ${dir}/urls;; esac; done\necho '{"ok":true}'\n`
+  )
+  chmodSync(join(bin, 'railway'), 0o755)
+  chmodSync(join(bin, 'curl'), 0o755)
+  const r = run(dir, {
+    PATH: `${bin}:${NODE_DIR}:/usr/bin:/bin`,
+    SEND_CMD: '',
+    RVARS_PAUSE: '0',
+  })
+  const urls = existsSync(join(dir, 'urls'))
+    ? readFileSync(join(dir, 'urls'), 'utf8').split('\n').filter(Boolean)
+    : []
+  return { ...r, urls }
+}
+
+describe('tri relays-watch report host', () => {
+  it('a bot on our own Bot API server is told on that server', () => {
+    const r = sender(
+      `TELEGRAM_API_ROOT=http://bot-api.test:8081\nTELEGRAM_API_FILES_ROOT=http://bot-api.test:8082\nBOT_API_LOCAL_BOTS=${BOT_ID}\n`
+    )
+    expect(r.urls).toEqual([
+      `http://bot-api.test:8081/bot${FAKE_TOKEN}/sendMessage`,
+    ])
+  })
+
+  it('a bot not moved is told on the cloud', () => {
+    const r = sender(
+      'TELEGRAM_API_ROOT=http://bot-api.test:8081\nTELEGRAM_API_FILES_ROOT=http://bot-api.test:8082\nBOT_API_LOCAL_BOTS=900000099\n'
+    )
+    expect(r.urls).toHaveLength(1)
+    expect(r.urls[0]).toMatch(/^https:\/\/api\.telegram\.org\/bot/) // telegram-api-root-ok
+  })
+
+  it('variables that cannot be read mean nothing is sent, not the cloud', () => {
+    const r = sender('')
+    expect(r.urls).toEqual([])
   })
 })
