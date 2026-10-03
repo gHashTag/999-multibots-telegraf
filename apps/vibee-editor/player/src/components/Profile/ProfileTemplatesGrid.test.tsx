@@ -52,7 +52,7 @@ vi.mock('@/hooks/useLanguage', () => ({
 
 vi.mock('../../config', () => ({ API_BASE: 'https://api.example.test' }))
 
-import { ProfileTemplatesGrid } from './ProfileTemplatesGrid'
+import { AUTO_PAGES, ProfileTemplatesGrid } from './ProfileTemplatesGrid'
 
 const template = {
   id: 39,
@@ -478,5 +478,58 @@ describe('ProfileTemplatesGrid owner actions', () => {
 
     expect(testState.deleteTemplate).toHaveBeenCalledWith(39)
     expect(host.textContent).not.toContain('Киноплёнка')
+  })
+
+  /*
+   * "The templates screen shakes and blinks" (owner, 2026-10-03): the
+   * placeholder was three phone screens of 9:16 tiles that gave way to
+   * one-line group heads, and the Load More button flipped once a page while
+   * the pages read themselves.
+   */
+  it('holds the place with group heads, not tall tiles, while the first page loads', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {}))
+    )
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="t27_dev" isOwn />)
+    })
+    const held = host.querySelector('[data-testid="templates-placeholder"]')
+    expect(
+      held?.querySelectorAll('.profile-templates__group-head')
+    ).toHaveLength(3)
+    expect(host.innerHTML).not.toContain('9/16')
+  })
+
+  it('shows no Load More while the pages read themselves, and shows it past the fuse', async () => {
+    const page1 = deferred<unknown>()
+    const pageOf = (url: string) => Number(/page=(\d+)/.exec(url)?.[1] ?? 0)
+    const full = (n: number) => ({
+      ok: true,
+      json: async () => ({
+        templates: Array.from({ length: 20 }, (_, i) => ({
+          ...template,
+          id: 1000 + n * 20 + i,
+        })),
+      }),
+    })
+    const fetchMock = vi.fn((url: string) =>
+      pageOf(url) === 1 ? page1.promise : Promise.resolve(full(pageOf(url)))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="t27_dev" isOwn />)
+    })
+    await act(async () => Promise.resolve())
+    expect(host.querySelector('.profile-templates__group-head')).not.toBeNull()
+    expect(host.querySelector('.profile-templates__load-more')).toBeNull()
+
+    await act(async () => page1.resolve(full(1)))
+    for (let i = 0; i < AUTO_PAGES * 2; i++)
+      await act(async () => Promise.resolve())
+    expect(fetchMock).toHaveBeenCalledTimes(AUTO_PAGES)
+    expect(
+      host.querySelector('.profile-templates__load-more')?.textContent
+    ).toBe('profile.load_more')
   })
 })
