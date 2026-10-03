@@ -41,6 +41,7 @@ import type { LateOutcome } from './late-picture'
 // The numbers are the spec's: gHashTag/t27 specs/automation/crm-story-reel.t27,
 // vendored with its `t27c gen-ts` output (see story-template.ts).
 import * as SPEC from '../spec/crm-story-reel.gen'
+import { cutShot, shotOfScene } from './studio-shots'
 
 /** Scenes a story holds: the owner's form is three. */
 export const STORY_SCENES_MIN = SPEC.SCENES_MIN
@@ -132,23 +133,66 @@ export interface StoryLate {
 
 export const KEEP_THE_PERSON =
   'Keep the person EXACTLY as in the source photo -- the same face, features, hair, age and outfit; ' +
+  'the person is the subject of the frame, face clearly visible; ' +
   'change ONLY the setting around them, and never keep the plain background of the source photo.'
+
+/** Our own eyes on a new still: true a face, false none, null unchecked. */
+export interface StoryEyes {
+  hasFace: (url: string, ctx: ToolContext) => Promise<boolean | null>
+}
+
+/** What a new still's face check leads to (spec still_face_action). */
+export function stillFaceAction(hasFace: boolean, redraws: number): number {
+  if (hasFace) return SPEC.FACE_KEEP
+  if (redraws < SPEC.STILL_FACE_REDRAWS) return SPEC.FACE_REDRAW
+  return SPEC.FACE_STOP
+}
+
+/** Whether a line, as heard, may go on to its lip-sync (spec line_fits). */
+export function lineFits(ms: number): boolean {
+  return ms <= SPEC.LINE_MAX_MS
+}
+
+const LINE_MAX_SEC_TEXT = String(SPEC.LINE_MAX_MS / 1000).replace('.', ',')
 
 export interface StoryScene {
   setting: string
   line: string
 }
 
-/** The prompt of one scene's still: the setting, the one style, the person kept. */
+/**
+ * The prompt of one scene's still: the person first, then the setting and the
+ * one style (spec v19, STILL_IDENTITY_FIRST: setting-first gave an empty street).
+ */
 export function stillPrompt(setting: string, style: string): string {
   return [
-    `Setting: ${setting.trim()}.`,
     KEEP_THE_PERSON,
+    `Setting: ${setting.trim()}.`,
     style.trim(),
     'Vertical 9:16, no text, no letters, no logos.',
   ]
     .filter(Boolean)
     .join(' ')
+}
+
+/**
+ * Whether a scene shows the source photo as it is (spec v19, OPEN_ON_SOURCE):
+ * a talking-head reel opens on the talking head, wide, not on a picture.
+ */
+export function sceneIsSource(scene: number): boolean {
+  return SPEC.OPEN_ON_SOURCE && scene === SPEC.OPEN_SCENE
+}
+
+/**
+ * A first line that opens with a greeting or the weather (spec v19,
+ * FIRST_LINE_HOOK): the owner's reel of 2026-10-03 opened "good morning in
+ * the rain", and the first second of a reel is the hook or nothing.
+ */
+const GREETING_OPENER =
+  /^(доброе\s+утро|добрый\s+(день|вечер)|доброй\s+ночи|привет|всем\s+привет|здравствуй|здорово|хай|салют|good\s+(morning|afternoon|evening)|hello|hi|hey)(?!\p{L})/iu // cyrillic-ok
+
+export function opensWithGreeting(line: string): boolean {
+  return GREETING_OPENER.test(line.trim().replace(/^[^\p{L}]+/u, ''))
 }
 
 /** The scenes as given, checked: 1..4, each with a setting and a line. */
@@ -160,10 +204,17 @@ export function scenesOf(raw: unknown): StoryScene[] | string {
   for (const [i, s] of raw.entries()) {
     const setting = String((s as StoryScene)?.setting ?? '').trim()
     const line = String((s as StoryScene)?.line ?? '').trim()
-    if (!setting || !line)
+    // No setting is a shot of the source (spec v19, STUDIO_SHOTS): the
+    // studio is never left unless a caller names a place.
+    if (!line || (!setting && !sceneIsSource(i) && !SPEC.STUDIO_SHOTS))
       return `scenes.${i}: нужны и setting (обстановка), и line (реплика)`
     out.push({ setting, line })
   }
+  if (SPEC.FIRST_LINE_HOOK && opensWithGreeting(out[0].line))
+    return (
+      'scenes.0: первая реплика — хук (утверждение, вопрос, цифра), ' +
+      'а не приветствие: рилс решается в первую секунду'
+    )
   return out
 }
 
@@ -826,7 +877,9 @@ function outcome(v: any): {
 
 export function makeStoryReelTool(
   lookup: (name: string) => Tool,
-  late?: StoryLate
+  late?: StoryLate,
+  eyes?: StoryEyes,
+  cut: (sourceUrl: string, shot: number) => Promise<string> = cutShot
 ): AgentTool {
   const now = late?.now ?? Date.now
   const sleep =
@@ -834,10 +887,14 @@ export function makeStoryReelTool(
   return {
     name: 'story_reel',
     description:
-      'РИЛС-ИСТОРИЯ ОДНИМ ВЫЗОВОМ (шаблон StoryReel): одно фото с лицом → 1–4 сцены в ОДНОМ стиле и НОВОЙ ' +
-      'обстановке каждая → реплика на сцену голосом (for_lead — голос клиента из crm_voice_clone; без него — ' +
+      `РИЛС-ИСТОРИЯ ОДНИМ ВЫЗОВОМ (шаблон StoryReel): одно фото с лицом → ${STORY_SCENES_MIN}–${STORY_SCENES_MAX} сцен. ` +
+      'Сцена 1 — САМО фото, общий план говорящей головы, её реплика — ХУК, не приветствие. ' +
+      'По умолчанию из студии не выходим: сцена без setting — план того же фото (крупный, средний), ничего не рисуется; ' +
+      'setting — только если человек сам назвал место (новый кадр в ОДНОМ стиле) → реплика на сцену голосом (for_lead — голос клиента из crm_voice_clone; без него — ' +
       'клон владельца) → липсинк → сборка: склейки, вдох между репликами и в конце ПАУЗА с призывом cta. ' +
-      'Реплики по 2–4 с, весь ролик с паузой до 15 с. Если вернулись stills/clips без видео — повтори с ними: ' +
+      `Реплика звучит до ${LINE_MAX_SEC_TEXT} с (длиннее — липсинк не делается, реплика названа: сократи), ` +
+      `ролик из ${SPEC.SCENES_DEFAULT} сцен с паузой — до ${SPEC.STORY_DEFAULT_MAX_SEC} с. Кадр без лица перерисовывается один раз. ` +
+      'Если вернулись stills/clips без видео — повтори с ними: ' +
       'готовое не делается и не оплачивается второй раз.',
     parameters: {
       type: 'object',
@@ -854,17 +911,18 @@ export function makeStoryReelTool(
             properties: {
               setting: {
                 type: 'string',
-                description: 'новая обстановка сцены',
+                description:
+                  'НЕ задавать по умолчанию (тогда план того же фото в студии); только место, названное человеком',
               },
               line: {
                 type: 'string',
-                description:
-                  'реплика 2–4 с, названия словами (бот — «Тринити»)',
+                description: `реплика до ${LINE_MAX_SEC_TEXT} с (6–8 слов), названия словами (бот — «Тринити»)`,
               },
             },
-            required: ['setting', 'line'],
+            required: ['line'],
           },
-          description: 'сцены по порядку; последняя реплика — призыв',
+          description:
+            'сцены по порядку; первая реплика — хук, последняя — призыв',
         },
         style: {
           type: 'string',
@@ -908,6 +966,29 @@ export function makeStoryReelTool(
       const endCard = endCardOf(args.end_card)
       const stills = carried(args.stills, n)
       const clips = carried(args.clips, n)
+      // The opening scene is the talking head itself, wide (spec v19,
+      // OPEN_ON_SOURCE): the source photo as it is, nothing drawn or checked.
+      for (let i = 0; i < n; i++)
+        if (sceneIsSource(i) && !stills[i]) stills[i] = source
+      // A scene with no setting is a shot of the same photo (STUDIO_SHOTS):
+      // cut, not drawn -- the studio and the look stay exactly the source's.
+      const uncut: string[] = []
+      await Promise.all(
+        scenes.map(async (s, i) => {
+          if (stills[i] || clips[i] || s.setting) return
+          stills[i] = await cut(source, shotOfScene(i)).catch(e => {
+            uncut.push(`${i + 1}: ${String(e).slice(0, 160)}`)
+            return ''
+          })
+        })
+      )
+      if (uncut.length)
+        return {
+          done: false,
+          reason: `план из фото не вырезан: ${uncut.join('; ')}`,
+          ...(stills.some(Boolean) ? { stills } : {}),
+        }
+      const given = [...stills]
       // Only the job's row names a task (spec: STILL_TASK_FROM_MODEL false).
       const tasks = stillTasksOf(ctx.storyStillTasks ?? [], n)
       const progress = () =>
@@ -970,8 +1051,57 @@ export function makeStoryReelTool(
           reason: 'инструменты рилса недоступны на этом сервере',
         }
 
-      // 1. The stills that are missing, all at once, from the one source.
       const drawing: string[] = []
+      // One still, drawn from the one source; true when it came back.
+      const draw = async (i: number, s: StoryScene): Promise<boolean> => {
+        const drawCtx: ToolContext = {
+          ...ctx,
+          imageWaitMs: STORY_STILL_WAIT_MS,
+          // The id is kept the moment the provider accepts it: a redeploy
+          // during the wait no longer takes the only copy with it.
+          onImageTask: (task, paid) => {
+            tasks[i] = {
+              task,
+              at: now(),
+              charged: paid?.charged ?? 0,
+              op: paid?.op ?? 'image_edit',
+            }
+            return progress()
+          },
+        }
+        const r = outcome(
+          await edit
+            .handler(
+              {
+                image_url: source,
+                prompt: stillPrompt(s.setting, style),
+                aspect_ratio: SPEC.ASPECT_RATIO,
+              },
+              drawCtx
+            )
+            .catch(e => ({ done: false, reason: String(e) }))
+        )
+        if (r.ok && r.url) {
+          stills[i] = r.url
+          tasks[i] = null
+        } else if (r.pending && r.taskId) {
+          const had = tasks[i]
+          tasks[i] = {
+            task: r.taskId,
+            at: had?.task === r.taskId ? had.at : now(),
+            charged: r.charged || had?.charged || 0,
+            op: had?.op ?? 'image_edit',
+          }
+          drawing.push(`${i + 1}: ещё рисуется (оплачен, придёт сам)`)
+        } else {
+          // Refused on the spot: image_edit gave its charge back itself.
+          tasks[i] = null
+          drawing.push(`${i + 1}: ${r.why}`)
+        }
+        return !!stills[i]
+      }
+
+      // 1. The stills that are missing, all at once, from the one source.
       await Promise.all(
         scenes.map(async (s, i) => {
           if (stills[i] || clips[i]) {
@@ -996,53 +1126,47 @@ export function makeStoryReelTool(
             await late?.refund(known, ctx, v.why).catch(() => undefined)
             tasks[i] = null
           }
-          const drawCtx: ToolContext = {
-            ...ctx,
-            imageWaitMs: STORY_STILL_WAIT_MS,
-            // The id is kept the moment the provider accepts it: a redeploy
-            // during the wait no longer takes the only copy with it.
-            onImageTask: (task, paid) => {
-              tasks[i] = {
-                task,
-                at: now(),
-                charged: paid?.charged ?? 0,
-                op: paid?.op ?? 'image_edit',
-              }
-              return progress()
-            },
-          }
-          const r = outcome(
-            await edit
-              .handler(
-                {
-                  image_url: source,
-                  prompt: stillPrompt(s.setting, style),
-                  aspect_ratio: SPEC.ASPECT_RATIO,
-                },
-                drawCtx
-              )
-              .catch(e => ({ done: false, reason: String(e) }))
-          )
-          if (r.ok && r.url) {
-            stills[i] = r.url
-            tasks[i] = null
-          } else if (r.pending && r.taskId) {
-            const had = tasks[i]
-            tasks[i] = {
-              task: r.taskId,
-              at: had?.task === r.taskId ? had.at : now(),
-              charged: r.charged || had?.charged || 0,
-              op: had?.op ?? 'image_edit',
-            }
-            drawing.push(`${i + 1}: ещё рисуется (оплачен, придёт сам)`)
-          } else {
-            // Refused on the spot: image_edit gave its charge back itself.
-            tasks[i] = null
-            drawing.push(`${i + 1}: ${r.why}`)
-          }
+          await draw(i, s)
         })
       )
       await progress()
+
+      // 1b. Every new still is looked at (spec v19, STILL_FACE_CHECKED): no
+      // face, one redraw; still none, stop before a voice is paid for it.
+      const faceless: number[] = []
+      const unchecked: number[] = []
+      if (eyes) {
+        await Promise.all(
+          scenes.map(async (s, i) => {
+            for (let redraws = 0; stills[i] && stills[i] !== given[i]; ) {
+              const seen = await eyes.hasFace(stills[i], ctx).catch(() => null)
+              if (seen === null) {
+                unchecked.push(i + 1)
+                return
+              }
+              const act = stillFaceAction(seen, redraws)
+              if (act === SPEC.FACE_KEEP) return
+              stills[i] = ''
+              if (act === SPEC.FACE_STOP) {
+                faceless.push(i + 1)
+                return
+              }
+              redraws += 1
+              if (!(await draw(i, s))) return
+            }
+          })
+        )
+        await progress()
+      }
+      if (faceless.length) {
+        return {
+          done: false,
+          reason:
+            `в кадре ${faceless.sort((a, b) => a - b).join(', ')} нет лица и после перерисовки — ` +
+            'поменяй обстановку (setting) этой сцены и повтори; остальные кадры сохранены, голос и липсинк не оплачивались',
+          ...sofar(),
+        }
+      }
       if (stills.some((u, i) => !u && !clips[i])) {
         return {
           done: false,
@@ -1082,6 +1206,16 @@ export function makeStoryReelTool(
               )
           if (!v.ok || !v.url) {
             failed.push(`голос ${i + 1}: ${v.why}`)
+            return
+          }
+          // Heard before its lip-sync (spec v19, LINE_MEASURED_BEFORE_LIPSYNC):
+          // a long line would push the reel past its 15 s.
+          const ms = Math.round(v.seconds * 1000)
+          if (!recorded[i] && ms > 0 && !lineFits(ms)) {
+            failed.push(
+              `реплика ${i + 1} звучит ${String(v.seconds).replace('.', ',')} с, длиннее ${LINE_MAX_SEC_TEXT} с: ` +
+                'сократи её — липсинк этой сцены не делался'
+            )
             return
           }
           voiceKind ||= v.voice
@@ -1129,6 +1263,11 @@ export function makeStoryReelTool(
         stills,
         clips,
         ...(voiceKind ? { voice: voiceKind } : {}),
+        ...(unchecked.length
+          ? {
+              faces_unchecked: `кадры ${unchecked.sort((a, b) => a - b).join(', ')}: лицо не проверено (зрение не ответило)`,
+            }
+          : {}),
         ...(spoken
           ? {
               seconds:

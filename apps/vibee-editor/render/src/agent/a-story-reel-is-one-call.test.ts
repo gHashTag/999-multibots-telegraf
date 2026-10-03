@@ -102,12 +102,15 @@ describe('story_reel', () => {
       count('audio_generate'),
       count('lipsync_generate'),
       count('reel_render'),
-    ]).toEqual([3, 3, 3, 1])
+    ]).toEqual([2, 3, 3, 1])
     const render = calls.find(c => c.name === 'reel_render')!.args
     expect(render.compositionId).toBe('StoryReel')
     expect(render.props.pauseSec).toBe(STORY_PAUSE_SEC)
     expect(render.props.cta).toBe('в директ') // cyrillic-ok: a call to action
     expect(render.props.scenes).toHaveLength(3)
+    // Scene 1 is the photo itself, wide (spec v19, OPEN_ON_SOURCE).
+    const lips = calls.filter(c => c.name === 'lipsync_generate')
+    expect(lips.map(c => c.args.image_url)).toContain('https://ours/face.jpg')
     // Every still is drawn from the one source photo, never from a previous still.
     for (const c of calls.filter(c => c.name === 'image_edit'))
       expect(c.args.image_url).toBe('https://ours/face.jpg')
@@ -341,7 +344,8 @@ describe('a still that is still drawing is paid once', () => {
     let onRowDuringWait: any = null
     const { lookup } = fakeTools({
       image_edit: async (_a, i, c) => {
-        if (i !== 1) return { done: true, url: `https://ours/still-${i}.png` }
+        // Call 0 draws scene 2: scene 1 is the source photo (v19).
+        if (i !== 0) return { done: true, url: `https://ours/still-${i}.png` }
         // Accepted, charged 8 ...
         await c.onImageTask('task-b', { charged: 8, op: 'image_edit' })
         // ... and a redeploy here would end the call: the row already has it.
@@ -447,7 +451,8 @@ describe('a still that is still drawing is paid once', () => {
     expect(r.done).toBe(true)
     expect(looked).toEqual([])
     expect(refunded).toEqual([])
-    expect(count(calls, 'image_edit')).toBe(3)
+    // Scene 1 is the source photo: two stills drawn (v19).
+    expect(count(calls, 'image_edit')).toBe(2)
   })
 
   it('without a way to ask, a known task is still never ordered again', async () => {
