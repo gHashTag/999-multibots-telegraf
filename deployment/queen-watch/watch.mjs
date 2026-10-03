@@ -37,16 +37,28 @@
  *   TRIOS_API_TOKEN      ${{trios-agent-server.TRIOS_API_TOKEN}}
  *   OWNER_BOT_TOKEN      ${{vibee-render.BOT_TOKEN_12}}       (@t27ai_bot)
  *   GITHUB_TOKEN         ${{trios-agent-server.TRIOS_GITHUB_API_TOKEN}}
+ *   TELEGRAM_API_ROOT    ${{vibee-render.TELEGRAM_API_ROOT}}
+ *   TELEGRAM_API_FILES_ROOT ${{vibee-render.TELEGRAM_API_FILES_ROOT}}
+ *   BOT_API_LOCAL_BOTS   ${{vibee-render.BOT_API_LOCAL_BOTS}}
  *   RAILWAY_ENVIRONMENT_ID is given to every Railway service.
  */
 import { createHash, randomBytes } from 'node:crypto'
+import { createRequire } from 'node:module'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const OWNER_CHAT = '144022504'
 export const RAILWAY_API = 'https://backboard.railway.com/graphql/v2'
-const TELEGRAM_API = 'https://api.telegram.org'
+/*
+ * Where the owner's bot answers. A bot moved to our own Bot API server must
+ * never be called on the cloud again (the call logs it back in there and
+ * splits its updates), so the host is the shared helper's answer, never a
+ * literal. telegram-api.cjs is a BYTE COPY of scripts/lib/telegram-api.cjs:
+ * the image is built from this directory alone, and
+ * src/__tests__/telegram-api-parity.test.ts fails the moment the two differ.
+ */
+const { telegramApiFor } = createRequire(import.meta.url)('./telegram-api.cjs')
 const GITHUB_API = 'https://api.github.com'
 const LABEL = 'queen-watch'
 
@@ -68,6 +80,12 @@ export function config(env = process.env) {
       env.QUEEN_URL || 'https://trios-agent-server-production.up.railway.app',
     queenToken: env.TRIOS_API_TOKEN || '',
     tgToken: env.OWNER_BOT_TOKEN || '',
+    /* The render's Bot API routing, by reference: the same answer it gets. */
+    botApiEnv: {
+      TELEGRAM_API_ROOT: env.TELEGRAM_API_ROOT || '',
+      TELEGRAM_API_FILES_ROOT: env.TELEGRAM_API_FILES_ROOT || '',
+      BOT_API_LOCAL_BOTS: env.BOT_API_LOCAL_BOTS || '',
+    },
     ownerChat: env.OWNER_CHAT || OWNER_CHAT,
     ghToken: env.GITHUB_TOKEN || '',
     ghRepo: env.GITHUB_REPO || 'gHashTag/999-multibots-telegraf',
@@ -520,19 +538,21 @@ export async function tellOwner(cfg, deps, text) {
   if (!cfg.tgToken) return 'no OWNER_BOT_TOKEN -- not sent'
   /* Plain text, no parse_mode (relays-watch.sh): a Markdown message with
    * RENDER_API_KEY in it is rejected by Telegram. */
-  const r = await call(
-    cfg,
-    deps,
-    `${TELEGRAM_API}/bot${cfg.tgToken}/sendMessage`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: cfg.ownerChat,
-        text: redact(text, secretsOf(cfg)).slice(0, 4000),
-      }),
-    }
-  )
+  let api
+  try {
+    api = telegramApiFor(cfg.tgToken, cfg.botApiEnv || {})
+  } catch (e) {
+    /* Fails closed: an unreadable routing is not a licence for the cloud. */
+    return `bot api routing unreadable -- not sent: ${redact(e.message, secretsOf(cfg))}`
+  }
+  const r = await call(cfg, deps, `${api}/sendMessage`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: cfg.ownerChat,
+      text: redact(text, secretsOf(cfg)).slice(0, 4000),
+    }),
+  })
   return r.status === 200 && (json(r.text) || {}).ok
     ? 'sent to the owner'
     : `refused (HTTP ${r.status})`
