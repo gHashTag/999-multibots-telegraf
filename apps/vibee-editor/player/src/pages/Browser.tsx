@@ -35,6 +35,7 @@ import {
 import { listenForTouchInside } from '@/lib/frameTouch'
 import { Desks } from '@/components/Browser/Desks'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
+import { SiteRules } from '@/components/Browser/SiteRules'
 import { TypeSheet } from '@/components/Browser/TypeSheet'
 import { DetentSheet } from '@/components/DetentSheet/DetentSheet'
 import { PEEK_PX, ISLAND_PX, type Detent } from '@/lib/sheetDetents'
@@ -105,6 +106,7 @@ export default function BrowserPage() {
   const [error, setError] = useState<string | null>(null)
   const [confirmForget, setConfirmForget] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [showSites, setShowSites] = useState(false)
   const [showType, setShowType] = useState(false)
   const [journalOpen, setJournalOpen] = useState(false)
   const [walking, setWalking] = useState(false)
@@ -544,6 +546,16 @@ export default function BrowserPage() {
           {t('browser.import.open')}
         </button>
 
+        {/* Where the agent asks first or never goes; see SiteRules. */}
+        <button
+          type="button"
+          className="remote-browser__secondary"
+          aria-expanded={showSites}
+          onClick={() => setShowSites(v => !v)}
+        >
+          {t('browser.sites.open')}
+        </button>
+
         <button
           type="button"
           className="remote-browser__secondary"
@@ -575,6 +587,7 @@ export default function BrowserPage() {
       {/* One cabinet per line of work (components/Browser/Desks.tsx). */}
       {embedded ? <Desks /> : null}
       {showImport ? <ImportLogins /> : null}
+      {showSites ? <SiteRules /> : null}
       <p className="remote-browser__muted">{t('browser.closeKeeps')}</p>
     </>
   )
