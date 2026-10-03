@@ -532,4 +532,37 @@ describe('ProfileTemplatesGrid owner actions', () => {
       host.querySelector('.profile-templates__load-more')?.textContent
     ).toBe('profile.load_more')
   })
+
+  it('a failed page stops the automatic reading instead of asking for it again and again', async () => {
+    let page1Fails = true
+    const fetchMock = vi.fn(async (url: string) => {
+      const n = Number(/page=(\d+)/.exec(url)?.[1] ?? 0)
+      if (n === 1 && page1Fails) return { ok: false, json: async () => ({}) }
+      return {
+        ok: true,
+        json: async () => ({
+          templates: Array.from({ length: n === 0 ? 20 : 3 }, (_, i) => ({
+            ...template,
+            id: 2000 + n * 20 + i,
+          })),
+        }),
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="t27_dev" isOwn />)
+    })
+    for (let i = 0; i < 20; i++) await act(async () => Promise.resolve())
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    const retry = host.querySelector<HTMLButtonElement>(
+      '.profile-templates__load-more'
+    )
+    expect(retry?.textContent).toBe('profile.load_more')
+    page1Fails = false
+    await act(async () => retry?.click())
+    for (let i = 0; i < 5; i++) await act(async () => Promise.resolve())
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(host.querySelector('.profile-templates__load-more')).toBeNull()
+  })
 })
