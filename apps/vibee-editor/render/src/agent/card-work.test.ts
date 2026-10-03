@@ -18,8 +18,10 @@ import {
   toolShown,
 } from './card-work'
 
-const A = '11111111-2222-4333-8444-555555555555'
-const B = '99999999-2222-4333-8444-555555555555'
+const A = 'aaaaaaaa-2222-4333-8444-555555555555'
+const B = 'bbbbbbbb-2222-4333-8444-555555555555'
+/** The card's query, encoded by the same call a client makes. */
+const TASK_Q = new URLSearchParams({ task: 'gHashTag/t27#5673' }).toString()
 const WT = '/workspace/t27/.worktrees/queen-5673'
 const KEY = 'sk-proj-AbC123dEf456GhI789jKl012MnO345' // secret-guard-ok: fake key, the masking fixture
 
@@ -218,7 +220,7 @@ describe('handleCardWork', () => {
 
   it('no token: 503, the Queen never asked; a bad task: 400', async () => {
     const f = queen({})
-    const off = await door('/api/card-work?task=gHashTag/t27%235673', {
+    const off = await door(`/api/card-work?${TASK_Q}`, {
       env: {},
       fetchImpl: f as never,
     })
@@ -229,7 +231,7 @@ describe('handleCardWork', () => {
 
   it('asks with the token, from the server, and never answers it', async () => {
     const f = queen({ entries: page5673(), dispatch: dispatch() })
-    const r = await door('/api/card-work?task=gHashTag/t27%235673', {
+    const r = await door(`/api/card-work?${TASK_Q}`, {
       env,
       fetchImpl: f as never,
     })
@@ -254,7 +256,7 @@ describe('handleCardWork', () => {
   it('a keeper reads the words; a later poll asks only for what is new', async () => {
     const f = queen({ entries: page5673(), dispatch: dispatch() })
     const k = await door(
-      '/api/card-work?task=gHashTag/t27%235673',
+      `/api/card-work?${TASK_Q}`,
       { env, fetchImpl: f as never },
       '7'
     )
@@ -264,10 +266,10 @@ describe('handleCardWork', () => {
       entries: [entry(4, 'tool', 'filesystem_bash  tri test lock')],
       dispatch: dispatch(),
     })
-    const r = await door(
-      `/api/card-work?task=gHashTag/t27%235673&conversation=${A}&since=3`,
-      { env, fetchImpl: g as never }
-    )
+    const r = await door(`/api/card-work?${TASK_Q}&conversation=${A}&since=3`, {
+      env,
+      fetchImpl: g as never,
+    })
     expect(String(g.mock.calls[0][0])).toBe(
       `https://queen.test/queen/feed/data?issue=5673&conversation=${A}&since=3`
     )
@@ -292,7 +294,7 @@ describe('handleCardWork', () => {
         )
     )
     const r = await door(
-      `/api/card-work?task=gHashTag/t27%235673&conversation=${A}&since=40`,
+      `/api/card-work?${TASK_Q}&conversation=${A}&since=40`,
       { env, fetchImpl: f as never }
     )
     expect(f).toHaveBeenCalledTimes(2)
@@ -325,13 +327,13 @@ describe('handleCardWork', () => {
     let t = 1000
     const opts = { env, fetchImpl: f as never, now: () => t }
     await Promise.all([
-      door('/api/card-work?task=gHashTag/t27%235673', opts),
-      door('/api/card-work?task=gHashTag/t27%235673', opts, '8'),
+      door(`/api/card-work?${TASK_Q}`, opts),
+      door(`/api/card-work?${TASK_Q}`, opts, '8'),
     ])
-    await door('/api/card-work?task=gHashTag/t27%235673', opts)
+    await door(`/api/card-work?${TASK_Q}`, opts)
     expect(f).toHaveBeenCalledTimes(1)
     t += SPEC.BEE_CACHE_S * 1000
-    await door('/api/card-work?task=gHashTag/t27%235673', opts)
+    await door(`/api/card-work?${TASK_Q}`, opts)
     expect(f).toHaveBeenCalledTimes(2)
   })
 })
