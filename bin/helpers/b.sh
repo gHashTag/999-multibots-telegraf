@@ -42,6 +42,11 @@
 #   tri browser logins            which networks it is signed into, by cookie
 #                                 NAME only (tri logins; values never leave the pod)
 #   tri browser sign-in NETWORK   start the agent's sign-in flow for a network
+#   tri browser sites             the person's own site list: ask = acting there
+#                                 needs a fresh yes, block = never opened, read or
+#                                 touched. Reads the table, not the browser
+#   tri browser sites ask|block SITE  tighten it (the agent's door can only
+#                                 tighten; loosening is the person's, in the app)
 #   tri browser wait WORDS [S] [ID]  until the page text holds WORDS (S s, 60):
 #                                 "loaded" measured, not guessed. Reads only
 #   tri browser layers [ID]       why a visible button is "not found": shadow
@@ -361,6 +366,11 @@ print(json.dumps(v, ensure_ascii=False) if v else "")')
   logins)
     # One home for the table: logins.sh (also `tri logins`), not a copy here.
     bash "$(dirname "$0")/logins.sh" "$ROOT" "$@" ;;
+  sites)
+    if [ -z "${1:-}" ]; then call browser_sites '{"action":"list"}' 30 probe; exit $?; fi
+    case "$1" in ask|block) ;; *) echo "правило: ask или block"; exit 2 ;; esac
+    [ -n "${2:-}" ] || { echo "нужен сайт: bank.com или yandex.ru/mail"; exit 2; }
+    call browser_sites "{\"action\":\"add\",\"rule\":$(js "$1"),\"site\":$(js "$2")}" 30 ;;
   sign-in)
     [ -n "${1:-}" ] || { echo "нужна сеть: x, linkedin, reddit, threads…"; exit 2; }
     call browser_sign_in "{\"network\":$(js "$1")}" 120 ;;

@@ -113,6 +113,7 @@ export const BROWSER_PATHS = [
   '/api/browser/watch',
   '/api/browser/heal',
   '/api/browser/logins',
+  '/api/browser/sites',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -634,6 +635,56 @@ export async function handleBrowser(
       return { status: 200, body: { ok: true, running: false } }
     }
     return { status: 200, body: { ok: true, running: true, networks } }
+  }
+
+  /*
+   * THE PERSON'S OWN SITE LIST (site-rules.ts). Anyone signed in as this
+   * person reads it; the agent key may only tighten it (a new site, or ask
+   * -> block); removing a rule or loosening block -> ask is the person's door.
+   */
+  if (path === '/api/browser/sites') {
+    const { siteRulesOf, setSiteRule, removeSiteRule } = await import(
+      './site-rules'
+    )
+    const by = deps.actor(req) === 'person' ? 'person' : 'agent'
+    if (method === 'GET') {
+      const sites = await siteRulesOf(pool, who)
+      if (sites === null) {
+        return {
+          status: 503,
+          body: { ok: false, error: 'the site list could not be read' },
+        }
+      }
+      return { status: 200, body: { ok: true, sites } }
+    }
+    if (method === 'DELETE') {
+      if (by !== 'person') {
+        return {
+          status: 403,
+          body: { ok: false, error: "removing a site is the person's to do" },
+        }
+      }
+      const site = new URLSearchParams((req.url || '').split('?')[1] || '').get(
+        'site'
+      )
+      const removed = await removeSiteRule(pool, who, site)
+      return { status: 200, body: { ok: true, removed } }
+    }
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET, POST or DELETE' } }
+    }
+    if (!deps.readBody) {
+      return { status: 501, body: { ok: false, error: 'not wired' } }
+    }
+    let want: { site?: unknown; rule?: unknown }
+    try {
+      want = JSON.parse((await deps.readBody(req, 4096)) || '{}') ?? {}
+    } catch {
+      return { status: 400, body: { ok: false, error: 'the body is not JSON' } }
+    }
+    const r = await setSiteRule(pool, who, want.site, want.rule, by)
+    if (!r.ok) return { status: r.status, body: { ok: false, error: r.error } }
+    return { status: 200, body: r }
   }
 
   /*

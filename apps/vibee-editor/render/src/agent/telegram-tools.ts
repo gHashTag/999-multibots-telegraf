@@ -932,6 +932,11 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
   'browser_logins',
   /* Closing litter tabs on the owner's yes (tab-tidy.ts): housekeeping, not a DM. */
   'browser_tidy',
+  /*
+   * The person's site list (site-rules.ts): asked for rarely, and enforced by
+   * the guard whether or not a small model can see the tool.
+   */
+  'browser_sites',
   /* Traffic by channel (#2974): the owner's dashboard question, not a DM's. */
   'crm_traffic',
   'agent_avatars_make',
