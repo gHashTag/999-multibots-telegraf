@@ -102,6 +102,20 @@ export function suiteCommands(suite, files) {
   }
 }
 
+/*
+ * The archive carries the tree but no .git, and 2026-10-03 that reddened 15
+ * guard tests at once: every whole-tree guard reads its population with
+ * `git ls-files` (scripts/lib/repo-sources.cjs), and a directory that is not
+ * a repository answers "fatal: not a git repository". So the unpacked tree
+ * becomes one, committed as it arrived: `git ls-files` then lists exactly
+ * the files that were sent and nothing is untracked. .check-files is the
+ * gate's own list, not code, so it is excluded rather than committed.
+ */
+export const SNAPSHOT =
+  'git init -q && echo .check-files >> .git/info/exclude && git add -A && ' +
+  'git -c user.name=check-runner -c user.email=check-runner@localhost ' +
+  '-c commit.gpgsign=false commit -q --no-verify -m snapshot'
+
 function quote(s) {
   return `'${String(s).replace(/'/g, `'\\''`)}'`
 }
@@ -112,6 +126,13 @@ function keyOk(given) {
   const b = Buffer.from(KEY)
   return a.length === b.length && timingSafeEqual(a, b)
 }
+
+/* A GIT_DIR inherited by the server must not aim the snapshot elsewhere. */
+const NO_GIT_ENV = Object.fromEntries(
+  Object.keys(process.env)
+    .filter(k => k.startsWith('GIT_'))
+    .map(k => [k, undefined])
+)
 
 function run(cmd, cwd, out, env = {}) {
   return new Promise(resolve => {
@@ -267,6 +288,8 @@ async function handleRun(req, res, url) {
   const mine = queue.then(async () => {
     const result = {}
     try {
+      if ((await run(SNAPSHOT, job, res, NO_GIT_ENV)) !== 0)
+        res.write(':: could not make the tree a repository\n')
       for (const p of PROJECTS) await modulesFor(job, p, res)
       for (const s of suites) {
         let code = 0
