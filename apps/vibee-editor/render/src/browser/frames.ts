@@ -115,11 +115,17 @@ export function frameSize(w: unknown, h: unknown): FrameSize {
 
 export interface ScreencastOpts {
   /**
-   * Where the page is, IN FRAME ORDER (watch-link.ts). Called once with the
-   * address the page had when it was chosen, then on every main-frame
-   * navigation. Chromium reports a commit on this same socket before it
-   * sends any frame painted by the new document, so a gate that flips here
-   * holds the first picture of a bank, not the third.
+   * Where the page is, IN FRAME ORDER (watch-link.ts). Called first with the
+   * address read ON THIS SOCKET after navigation events are switched on
+   * (Page.getFrameTree), and only then is the cast started; afterwards on
+   * every main-frame navigation. Chromium reports a commit on this same
+   * socket before it sends any frame painted by the new document, so a gate
+   * that flips here holds the first picture of a bank, not the third.
+   *
+   * The address in Chromium's target list is NOT used: it was read before
+   * Page.enable, and a navigation that commits in between sends no event,
+   * so the gate would sit on a stale public address while the bank paints
+   * (the bee on #3510). An unreadable tree reports '' -- which holds.
    */
   onUrl?: (url: string) => void
   /** The page this screencast shows, once it is chosen. */
@@ -140,25 +146,41 @@ export async function startScreencast(
 ): Promise<() => void> {
   const page = await io.front(endpoint)
   opts.onPage?.(page.id)
-  opts.onUrl?.((page as { url?: string }).url ?? '')
   const sock = await io.connect(endpoint)
   let nextId = 1
   let session = ''
   let stopped = false
-  const send = (method: string, params: Record<string, unknown>) =>
+  /** The id of the Page.getFrameTree call whose answer starts the cast. */
+  let treeId = 0
+  const send = (method: string, params: Record<string, unknown>) => {
+    const id = nextId++
     sock.send(
       JSON.stringify({
-        id: nextId++,
+        id,
         method,
         params,
         ...(session ? { sessionId: session } : {}),
       })
     )
+    return id
+  }
+  const cast = () =>
+    send('Page.startScreencast', {
+      format: 'jpeg',
+      quality: FRAMES_QUALITY,
+      maxWidth: size.width,
+      maxHeight: size.height,
+      everyNthFrame: 1,
+    })
 
   sock.onMessage(text => {
     let msg: {
       id?: number
-      result?: { sessionId?: string }
+      error?: unknown
+      result?: {
+        sessionId?: string
+        frameTree?: { frame?: { url?: string; urlFragment?: string } }
+      }
       method?: string
       params?: {
         data?: string
@@ -175,15 +197,25 @@ export async function startScreencast(
     }
     if (msg.id === 1 && msg.result?.sessionId) {
       session = msg.result.sessionId
-      /* Navigations are events only after Page.enable, and before the cast. */
-      if (opts.onUrl) send('Page.enable', {})
-      send('Page.startScreencast', {
-        format: 'jpeg',
-        quality: FRAMES_QUALITY,
-        maxWidth: size.width,
-        maxHeight: size.height,
-        everyNthFrame: 1,
-      })
+      if (!opts.onUrl) {
+        cast()
+        return
+      }
+      /* Navigations are events only after Page.enable; the address is read
+         after it, on this socket, and the cast waits for that answer. */
+      send('Page.enable', {})
+      treeId = send('Page.getFrameTree', {})
+      return
+    }
+    if (treeId && msg.id === treeId) {
+      treeId = 0
+      const f = msg.result?.frameTree?.frame
+      opts.onUrl?.(
+        f && typeof f.url === 'string'
+          ? f.url + String(f.urlFragment ?? '')
+          : ''
+      )
+      if (!stopped) cast()
       return
     }
     if (opts.onUrl && msg.method === 'Page.frameNavigated') {
