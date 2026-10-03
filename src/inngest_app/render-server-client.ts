@@ -2,9 +2,8 @@
  * Render Server Client
  * Клиент для взаимодействия с render-server на Railway
  *
- * Server: https://vibee-render-production.up.railway.app
- * Inngest: https://vibee-render-production.up.railway.app/api/inngest
- * Functions: render, render-avatar-video, render-riddle
+ * Events go through inngestProvider (RENDER instance); there is no direct
+ * HTTP path to the render server from this module.
  *
  * Использует inngestProvider для управления RENDER инстансом
  */
@@ -12,39 +11,9 @@
 import { logger } from '@/utils/logger'
 import { RenderRiddleEventDataSchema } from '@/inngest_app/functions/render/schemas'
 import { inngestProvider } from './inngest-provider'
-import { createHmac } from 'crypto'
 import { buildCallbackToken } from '@/utils/callbackToken'
 
 logger.info('📦 [RENDER CLIENT] Module loaded, inngestProvider imported')
-
-// render-v3-production.up.railway.app НЕ СУЩЕСТВУЕТ. Край Railway отвечает
-// {"status":"error","code":404,"message":"Application not found"} на каждый
-// путь, включая /health и /api/inngest — проверено запросами.
-//
-// То есть AI Reels и все задачи рендера уходили в никуда. Это не недавняя
-// поломка: адресата не было. Отсюда и то, что рендер ни разу не доходил до
-// чата — работа отправлялась хосту, которого никогда не было.
-//
-// vibee-render-production рядом отвечает {"status":"ok","bundleReady":true}.
-// Переопределяется через VIBEE_RENDER_URL, чтобы следующий переезд не требовал
-// правки кода.
-const RENDER_SERVER_URL =
-  process.env.VIBEE_RENDER_URL ||
-  'https://vibee-render-production.up.railway.app'
-
-/**
- * Создает подпись для Inngest запроса
- */
-function createInngestSignature(
-  body: string,
-  signingKey: string,
-  timestamp: number
-): string {
-  const data = `${timestamp}.${body}`
-  const hmac = createHmac('sha256', signingKey)
-  hmac.update(data)
-  return hmac.digest('hex')
-}
 
 /**
  * Render Server API Payload (Updated 2025-10-27)
@@ -127,74 +96,6 @@ export async function sendRenderAvatarVideoEvent(
  */
 export async function checkRenderServerAvailability(): Promise<boolean> {
   return await inngestProvider.checkAvailability('RENDER')
-}
-
-/**
- * Отправляет событие НАПРЯМУЮ на render-server (Railway)
- * Обходит Inngest Cloud и идет прямо на Railway
- */
-export async function sendDirectToRenderServer(
-  payload: RenderRiddlePayload
-): Promise<{ eventId: string }> {
-  logger.info('🎬 [RENDER SERVER DIRECT] Sending direct request to Railway', {
-    jobId: payload.job_id,
-    hasHeygenSettings: payload.avatar_gen_service === 'heygen',
-    hasHedraSettings: payload.avatar_gen_service === 'hedra',
-    url: RENDER_SERVER_URL,
-  })
-
-  try {
-    const timestamp = Date.now()
-    const eventData = {
-      name: 'render-riddle',
-      data: payload,
-      ts: timestamp,
-    }
-    const body = JSON.stringify(eventData)
-
-    // Создаем подпись для аутентификации
-    const signingKey = process.env.RENDER_INNGEST_SIGNING_KEY
-    if (!signingKey) {
-      throw new Error('RENDER_INNGEST_SIGNING_KEY not configured')
-    }
-
-    const signature = createInngestSignature(body, signingKey, timestamp)
-
-    const response = await fetch(`${RENDER_SERVER_URL}/api/inngest`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-inngest-signature': `t=${timestamp},s=${signature}`,
-        'x-inngest-sdk': 'js:2.0.0',
-      },
-      body: body,
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(
-        `Render-server responded with ${response.status}: ${errorText}`
-      )
-    }
-
-    const result = await response.json()
-    const eventId = `direct-${Date.now()}`
-
-    logger.info('✅ [RENDER SERVER DIRECT] Event sent successfully', {
-      jobId: payload.job_id,
-      eventId,
-      status: response.status,
-    })
-
-    return { eventId }
-  } catch (error) {
-    logger.error('❌ [RENDER SERVER DIRECT] Error sending direct request', {
-      error: error instanceof Error ? error.message : String(error),
-      jobId: payload.job_id,
-      url: RENDER_SERVER_URL,
-    })
-    throw error
-  }
 }
 
 /**
