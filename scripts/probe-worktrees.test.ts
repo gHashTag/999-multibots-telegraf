@@ -12,7 +12,8 @@
  * a nested worktree.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFileSync, spawn, spawnSync } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -25,6 +26,8 @@ const hasTools =
 let tmp: string
 let repo: string
 let out: string
+let dry: string
+let sleeper: ChildProcess | undefined
 const git = (cwd: string, ...args: string[]) =>
   execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' }).trim()
 
@@ -59,7 +62,7 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     fs.copyFileSync(PROBE, path.join(repo, 'scripts', 'probe-worktrees.cjs'))
     fs.writeFileSync(
       path.join(repo, '.gitignore'),
-      '.env\nnode_modules\n.claude/worktrees/\n'
+      '.env\n*.log\nnode_modules\ntemp/\n.claude/worktrees/\n'
     )
     git(repo, 'add', '.')
     git(repo, 'commit', '-q', '-m', 'init')
@@ -69,7 +72,13 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     // merged: HEAD is the merged PR's head; node_modules may go
     const merged = tree('merged', '-q', '-b', 'feat/merged', '@', 'origin/main')
     const mergedOid = commit(merged, 'a.txt')
-    fs.mkdirSync(path.join(merged, 'node_modules'))
+    // node_modules as a LINK into a shared folder, as in a real worktree
+    fs.mkdirSync(path.join(tmp, 'shared_nm'))
+    fs.writeFileSync(path.join(tmp, 'shared_nm', 'keep.js'), '1')
+    fs.symlinkSync(
+      path.join(tmp, 'shared_nm'),
+      path.join(merged, 'node_modules')
+    )
     // dirty: merged PR, but an unsaved file
     const dirty = tree('dirty', '-q', '-b', 'feat/dirty', '@', 'origin/main')
     const dirtyOid = commit(dirty, 'b.txt')
@@ -81,7 +90,24 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     const envfile = tree('envfile', '-q', '--detach', '@', 'origin/main')
     fs.writeFileSync(path.join(envfile, '.env'), 'LOCAL=1\n')
     // detached: already in main, nothing else -- the bee's review copy
-    tree('detached', '-q', '--detach', '@', 'origin/main')
+    const detached = tree('detached', '-q', '--detach', '@', 'origin/main')
+    fs.mkdirSync(path.join(detached, 'temp')) // empty ignored folder: harmless
+    // logsenv: a folder whose files are all ignored, one of them a .env --
+    // plain `status --ignored` shows only `logs/`, and logs is rebuildable
+    const logsenv = tree('logsenv', '-q', '--detach', '@', 'origin/main')
+    fs.mkdirSync(path.join(logsenv, 'logs'))
+    fs.writeFileSync(path.join(logsenv, 'logs', 'run.log'), 'x')
+    fs.writeFileSync(path.join(logsenv, 'logs', '.env'), 'LOCAL=1\n')
+    // spaced: a .env under a folder name with a space (porcelain quotes it)
+    const spaced = tree('spaced', '-q', '--detach', '@', 'origin/main')
+    fs.mkdirSync(path.join(spaced, 'my logs'))
+    fs.writeFileSync(path.join(spaced, 'my logs', '.env'), 'LOCAL=1\n')
+    // unmerged: detached with a commit nobody merged
+    const unmerged = tree('unmerged', '-q', '--detach', '@', 'origin/main')
+    commit(unmerged, 'u.txt')
+    // busy: finished, but a process has its working directory inside
+    const busy = tree('busy', '-q', '--detach', '@', 'origin/main')
+    sleeper = spawn('sleep', ['120'], { cwd: busy, stdio: 'ignore' })
     // parent with a nested tree inside
     const parent = tree('parent', '-q', '--detach', '@', 'origin/main')
     fs.mkdirSync(path.join(parent, '.claude', 'worktrees'), { recursive: true })
@@ -108,20 +134,26 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     fs.writeFileSync(gh, `#!/bin/sh\ncat '${path.join(tmp, 'prs.json')}'\n`)
     fs.chmodSync(gh, 0o755)
 
-    const run = spawnSync(
-      'node',
-      [path.join(repo, 'scripts', 'probe-worktrees.cjs'), '--apply'],
-      {
-        cwd: repo,
-        encoding: 'utf8',
-        env: { ...process.env, TRI_GH: gh, TRI_WT_RECENT_MIN: '0' },
-      }
-    )
-    out = run.stdout + run.stderr
-    expect(run.status, out).toBe(0)
+    const probe = (args: string[], env: Record<string, string>) => {
+      const r = spawnSync(
+        'node',
+        [path.join(repo, 'scripts', 'probe-worktrees.cjs'), ...args],
+        {
+          cwd: repo,
+          encoding: 'utf8',
+          env: { ...process.env, TRI_GH: gh, ...env },
+        }
+      )
+      expect(r.status, r.stdout + r.stderr).toBe(0)
+      return r.stdout + r.stderr
+    }
+    // default window: every tree was touched seconds ago, nothing may go
+    dry = probe(['--apply'], { TRI_WT_RECENT_MIN: '' })
+    out = probe(['--apply'], { TRI_WT_RECENT_MIN: '0' })
   })
 
   afterAll(() => {
+    sleeper?.kill()
     if (tmp) fs.rmSync(tmp, { recursive: true, force: true })
   })
 
@@ -156,6 +188,35 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
 
   it('keeps a locked tree', () => {
     expect(exists('locked'), out).toBe(true)
+  })
+
+  it('keeps every tree touched within the hour', () => {
+    expect(dry).toMatch(/трогали \d+ мин назад/) // cyrillic-ok
+    expect(dry).toMatch(/убрано деревьев: 0/) // cyrillic-ok
+  })
+
+  it('does not follow a symlinked node_modules out of the tree', () => {
+    expect(fs.existsSync(path.join(tmp, 'shared_nm', 'keep.js'))).toBe(true)
+  })
+
+  it('treats an empty ignored folder as harmless', () => {
+    expect(exists('detached'), out).toBe(false)
+  })
+
+  it('keeps a .env inside a rebuildable folder', () => {
+    expect(exists('logsenv/logs/.env'), out).toBe(true)
+  })
+
+  it('keeps a .env under a folder name with a space', () => {
+    expect(exists('spaced/my logs/.env'), out).toBe(true)
+  })
+
+  it('keeps a detached tree with a commit not in main', () => {
+    expect(exists('unmerged/u.txt'), out).toBe(true)
+  })
+
+  it('keeps a tree with a live process inside', () => {
+    expect(exists('busy'), out).toBe(true)
   })
 
   it('leaves every branch in place', () => {

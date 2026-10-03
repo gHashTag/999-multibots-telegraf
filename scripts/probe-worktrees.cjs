@@ -32,10 +32,18 @@
  *   - not touched in the last hour (a session between two commands);
  *   - no other worktree nested inside (removing the parent deletes the child);
  *   - every IGNORED file is one we can regenerate (node_modules, caches,
- *     dist, logs). An ignored `.env` is someone's local file, not ours.
+ *     dist, logs), and none of those folders hides a secret-looking file
+ *     (.env*, *.pem, *.key, *.p8, *.p12). An ignored `.env` is someone's
+ *     local file, not ours -- including `logs/.env`: plain `--ignored`
+ *     collapses a folder whose files are all ignored into one `logs/` line,
+ *     and the bee reviewing #3474 removed a `logs/.env` that way. Ignored
+ *     files are listed with `--ignored=matching`, and empty ignored folders
+ *     are harmless.
  * On 03.10 the old proposal list carried `git worktree remove --force` for a
  * tree holding an ignored .env AND a nested worktree; --force deletes both
- * silently. Branches and commits always stay: removal frees the directory.
+ * silently. Removal runs WITHOUT --force, so git's own clean check covers the
+ * gap after our re-check. Branches stay. A finished detached tree's commits
+ * are already upstream (as the same commit or the same patch).
  */
 
 const fs = require('fs')
@@ -44,7 +52,7 @@ const { execFileSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
 const GH = process.env.TRI_GH || 'gh'
-const RECENT_MIN = Number(process.env.TRI_WT_RECENT_MIN ?? 60)
+const RECENT_MIN = Number(process.env.TRI_WT_RECENT_MIN || 60)
 
 const git = (args, cwd = ROOT) =>
   execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' })
@@ -58,7 +66,10 @@ const ok = (args, cwd = ROOT) => {
   }
 }
 
-/** Ignored entries we can rebuild: matched on the last path component. */
+/** Files nobody can rebuild, wherever they sit. */
+const SECRET = [/^\.env/, /\.(pem|key|p8|p12)$/]
+
+/** Ignored entries we can rebuild, matched per path component. */
 const REGENERABLE = [
   /^node_modules$/,
   /^\.vite-cache$/,
@@ -74,9 +85,70 @@ const REGENERABLE = [
   /\.log$/,
 ]
 
+/**
+ * Rebuildable by name: the entry itself or any folder above it matches
+ * (`--ignored=matching` lists files deep inside build output). A secret-
+ * looking name is never rebuildable, wherever it sits -- except inside
+ * node_modules, which npm rewrites whole.
+ */
 const regenerable = entry => {
-  const base = entry.replace(/\/+$/, '').split('/').pop()
-  return REGENERABLE.some(re => re.test(base))
+  const parts = entry.replace(/\/+$/, '').split('/')
+  if (parts.includes('node_modules')) return true
+  if (SECRET.some(re => re.test(parts[parts.length - 1]))) return false
+  return parts.some(c => REGENERABLE.some(re => re.test(c)))
+}
+
+/**
+ * First secret-looking file under an ignored folder we would call
+ * regenerable, or null. Symlinks are not followed (a worktree's node_modules
+ * is often a link into the main checkout); the walk is bounded, and a folder
+ * too big to walk counts as holding one.
+ */
+function hiddenSecret(dir, budget = { left: 20000 }) {
+  let entries
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return null
+  }
+  for (const e of entries) {
+    if (--budget.left < 0) return dir + ' (too big to check)'
+    const p = path.join(dir, e.name)
+    if (e.isSymbolicLink()) continue
+    if (e.isDirectory()) {
+      if (e.name === 'node_modules') continue
+      const hit = hiddenSecret(p, budget)
+      if (hit) return hit
+    } else if (SECRET.some(re => re.test(e.name))) return p
+  }
+  return null
+}
+
+/** Why an ignored entry must stay, or null when it can go with the tree. */
+function ignoredRisk(treeDir, entry) {
+  const full = path.join(treeDir, entry)
+  let st
+  try {
+    st = fs.lstatSync(full)
+  } catch {
+    return null
+  }
+  if (st.isDirectory() && !st.isSymbolicLink()) {
+    let empty = false
+    try {
+      empty = fs.readdirSync(full).length === 0
+    } catch {
+      /* unreadable: judged by name below */
+    }
+    if (empty) return null
+  }
+  if (!regenerable(entry)) return entry
+  if (entry.split('/').includes('node_modules')) return null
+  if (st.isDirectory() && !st.isSymbolicLink()) {
+    const hit = hiddenSecret(full)
+    if (hit) return path.relative(treeDir, hit)
+  }
+  return null
 }
 
 /** Merged PRs from GitHub: head commit -> PR number, and branch -> numbers. */
@@ -122,8 +194,9 @@ function processDirs() {
       .filter(l => l.startsWith('n/'))
       .map(l => l.slice(1))
   } catch (e) {
-    // lsof exits 1 when some processes are unreadable but still prints the rest
-    if (e.stdout)
+    // lsof exits 1 when some processes are unreadable but still prints the
+    // rest; anything else (a killed lsof, an overflowed buffer) is partial
+    if (e.status === 1 && e.stdout)
       return String(e.stdout)
         .split('\n')
         .filter(l => l.startsWith('n/'))
@@ -173,18 +246,33 @@ function minutesSinceTouched(dir) {
   }
 }
 
-/** Facts about every worktree except the main checkout. */
-function gather(procs) {
+/** Facts about every worktree except the main checkout (or just `only`). */
+function gather(procs, only = null) {
   const all = listTrees()
   const mainDir = all.length ? all[0].dir : ROOT
   return all
-    .filter(w => w.dir !== mainDir)
+    .filter(w => w.dir !== mainDir && (!only || w.dir === only))
     .map(w => {
       let dirty = -1
       let ignored = []
       try {
-        const st = git(['status', '--porcelain', '--ignored'], w.dir)
-          .split('\n')
+        // --no-optional-locks: never take index.lock in someone's live tree;
+        // -unormal: a showUntrackedFiles=no config must not hide work;
+        // --ignored=matching: list `logs/.env`, not just `logs/`;
+        // -z: raw paths (porcelain quotes a name with a space, and a quoted
+        // name would not be found on disk and would pass as harmless)
+        const st = git(
+          [
+            '--no-optional-locks',
+            'status',
+            '--porcelain',
+            '-z',
+            '--ignored=matching',
+            '-unormal',
+          ],
+          w.dir
+        )
+          .split('\0')
           .filter(Boolean)
         dirty = st.filter(l => !l.startsWith('!! ')).length
         ignored = st.filter(l => l.startsWith('!! ')).map(l => l.slice(3))
@@ -208,7 +296,7 @@ function gather(procs) {
         dirty,
         ahead,
         nested,
-        unsafeIgnored: ignored.filter(e => !regenerable(e)),
+        unsafeIgnored: ignored.map(e => ignoredRisk(w.dir, e)).filter(Boolean),
         busy: procs ? procs.filter(p => inside(p, w.dir)).length : null,
         touchedMin: minutesSinceTouched(w.dir),
         containedIn: oid => ok(['merge-base', '--is-ancestor', w.head, oid]),
@@ -362,7 +450,14 @@ function selfCheck() {
   ])
     if (!blockers({ ...fin, ...over }, 60).length)
       throw new Error('selfCheck: blocker ignored: ' + JSON.stringify(over))
-  if (regenerable('.env') || !regenerable('apps/x/node_modules/'))
+  if (
+    regenerable('.env') ||
+    regenerable('logs/.env') ||
+    regenerable('src') ||
+    !regenerable('apps/x/node_modules/') ||
+    !regenerable('apps/x/node_modules/y/src') ||
+    !regenerable('dist/assets/a.js')
+  )
     throw new Error('selfCheck: regenerable list')
   return true
 }
@@ -447,9 +542,7 @@ function main() {
   let mb = 0
   for (const r of free) {
     // the world moved since the census: ask again, right before
-    const again = classify(gather(processDirs()), merged).find(
-      x => x.dir === r.dir
-    )
+    const [again] = classify(gather(processDirs(), r.dir), merged)
     const still = again ? blockers(again) : ['исчезло из списка']
     if (still.length) {
       console.log(`  оставлено ${r.dir}: ${still.join('; ')}`)
@@ -457,7 +550,7 @@ function main() {
     }
     const size = sizeMb(r.dir)
     try {
-      git(['worktree', 'remove', '--force', r.dir])
+      git(['worktree', 'remove', r.dir])
       removed++
       mb += size
       console.log(`  убрано ${r.dir}  (${size} МБ; ${again.why})`)
@@ -466,7 +559,7 @@ function main() {
     }
   }
   console.log(
-    `\nубрано деревьев: ${removed}, освобождено ~${mb} МБ. Ветки и коммиты на месте.`
+    `\nубрано деревьев: ${removed}, освобождено ~${mb} МБ. Ветки на месте.`
   )
 }
 
