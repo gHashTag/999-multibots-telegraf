@@ -4301,7 +4301,9 @@ cmd_pr_billing() {
   local blocked=0
   while IFS=$'\t' read -r kind stamp note; do
     case "$kind" in
-      NEW) bad "a reviewer refused this head ($stamp): fix the notes and push, then review again"; blocked=1 ;;
+      NEW) bad "a reviewer refused this head ($stamp): $note"
+           skip "fix the notes and push, then review again (a line that only quotes these words is not a refusal -- edit it)"
+           blocked=1 ;;
       OLD) skip "refused before the last push ($stamp), check each note against it: $note" ;;
     esac
   done <<< "$refusals"

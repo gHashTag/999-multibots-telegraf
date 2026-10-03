@@ -2309,7 +2309,10 @@ it on #3468: `## Reviewer bee:` headings and "Reviewed by bee ... I am not
 merging this". So the rule is about words, not where they sit: the first line
 of a comment or a review names a bee and says "not merg" or "changes
 requested". That is all 20, and none of the ~35 approvals. A CHANGES_REQUESTED
-review counts whatever it says. Before writing a matcher for something people type, pull
+review counts whatever it says. An author answering a refusal must not quote those words in the first line of
+the reply: on #3468 it was the one wrong catch in 200 PRs, and it blocked the
+merge until a bee read it. `tri pr-billing` prints the line it blocks on, so
+such a catch is visible at once. Before writing a matcher for something people type, pull
 every real example (`gh pr list --state all --json comments,reviews`) and count
 how many the matcher sees. GitHub's own answer, "dismiss stale reviews on
 push", needs branch protection, which this free private repo does not get, so

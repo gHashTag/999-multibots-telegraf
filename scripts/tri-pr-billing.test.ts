@@ -126,6 +126,11 @@ describe.skipIf(!hasJq)('tri pr-billing: a refusal of this head', () => {
     expect(r.rc).toBe(1)
     expect(r.out).toContain('a reviewer refused this head')
     expect(r.out).toContain('2026-10-03T01:10:00Z bee-one')
+    // The line itself, so an author note that only quotes the trigger words
+    // (the one wrong catch in 200 PRs, on #3468) is told apart at a glance.
+    expect(r.out).toContain(
+      'Reviewer bee: not merged. Two sentences are wrong.'
+    )
   })
 
   it('a bold refusal counts too', () => {
