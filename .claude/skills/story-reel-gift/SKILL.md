@@ -5,6 +5,8 @@ description: 'Лид-магнит №2 для КАЖДОГО клиента: р�
 
 # Рилс-подарок клиенту (лид-магнит №2)
 
+> **Reels are made ONLY through the server pipeline** (`/mcp` -> `story_reel` / `reel_render`, Kie and Remotion on the server; never by hand on the Mac). Owner rule 2026-10-03, the door and the steps: skill **`cloud-agent-does-the-work`**. Not repeated here.
+
 > **Провайдер — только Kie, лицо владельца — studio-lab, голос владельца — сгенерированный, не его заметки.** Правило, модели и чего у Kie нет (клонирования речи) — в навыке **`kie-only`**. Здесь не повторяется.
 
 Решение владельца 26.09.2026: «надо делать для каждого клиента из его данных,
