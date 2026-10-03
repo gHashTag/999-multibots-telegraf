@@ -130,7 +130,7 @@ export async function runRoundNow(
       },
       tell: text =>
         sendToTelegram(owner, desk ? `[${desk.name}] ${text}` : text),
-      restart: () => restartBrowserAsAgent(owner),
+      restart: () => restartBrowserAsAgent(owner, 'rounds'),
       now: () => new Date(),
       sites: strategy.sites,
     })
