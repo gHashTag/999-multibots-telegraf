@@ -265,18 +265,6 @@ export function houseNameAllowed(
 }
 
 /**
- * Mirror of the spec's voice_refunds (v7): only the owner's voice could speak
- * and the reel may not have it -- refused, and the charge goes back.
- */
-export function voiceRefunds(
-  ownerVoiceNeeded: boolean,
-  house: boolean
-): boolean {
-  if (!ownerVoiceNeeded) return false
-  return !ownerVoiceAllowed(house)
-}
-
-/**
  * Did the agent put the house's name into these words? Not when the person's
  * own words this turn (ToolContext.ownerSaid, set only by code: what she typed
  * in the bot chat, never a sweep's brief) name it too -- then it is hers.

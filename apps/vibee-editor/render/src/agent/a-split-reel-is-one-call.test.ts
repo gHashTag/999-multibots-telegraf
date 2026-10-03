@@ -474,7 +474,7 @@ describe('split_reel -- the split reel as one server call', () => {
     expect(readTimedWords('')).toEqual([])
   })
 
-  it('audio_generate refuses the owner voice to a sweep and gives the charge back', async () => {
+  it('audio_generate refuses the owner voice to a sweep before the charge', async () => {
     const { TOOLS_BY_NAME } = await import('./tools')
     const fetched = vi.spyOn(globalThis, 'fetch')
     const said = vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -490,12 +490,11 @@ describe('split_reel -- the split reel as one server call', () => {
       expect(out.сделано).toBe(false) // cyrillic-ok: audio_generate's own answer key
       expect(out.причина).toMatch(/for_lead/) // cyrillic-ok: audio_generate's own answer key
       expect(fetched).not.toHaveBeenCalled()
-      // The refund ran. The house is never charged, so for the house its
-      // refund declines in words -- the only trace that it was attempted.
+      // Refused before spendTokens (split-reel v7, REFUSED_BEFORE_SPEND):
+      // for the house the charge always leaves its own line naming the tool,
+      // so no line naming it means no charge ran -- and no refund either.
       const lines = said.mock.calls.map(c => String(c[0]))
-      expect(
-        lines.some(l => /возвращает себе: «audio_generate»/.test(l)) // cyrillic-ok: refundTokens' own log line
-      ).toBe(true)
+      expect(lines.some(l => /«audio_generate»/.test(l))).toBe(false)
     } finally {
       said.mockRestore()
       fetched.mockRestore()
