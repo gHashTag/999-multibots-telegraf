@@ -877,23 +877,22 @@ describe('tri bite -- review 1 of #3489', () => {
     const dir = untrackedPackage()
     const ex = path.join(dir, '..', path.basename(dir) + '.exclude')
     fs.writeFileSync(ex, 'packages/\n')
-    const r = spawnSync(
-      'bash',
-      [BITE, 'v1', 'packages/node_modules/x/add.sh', '--', 'true'],
-      {
-        cwd: dir,
-        encoding: 'utf8',
-        timeout: 30000,
-        env: {
-          ...process.env,
-          GIT_CONFIG_COUNT: '1',
-          GIT_CONFIG_KEY_0: 'core.excludesFile',
-          GIT_CONFIG_VALUE_0: ex,
-        },
-      }
-    )
+    const r = spawnSync('bash', [BITE, 'v1', 'lib/add.sh', '--', 'true'], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 30000,
+      env: {
+        ...process.env,
+        GIT_CONFIG_COUNT: '1',
+        GIT_CONFIG_KEY_0: 'core.excludesFile',
+        GIT_CONFIG_VALUE_0: ex,
+      },
+    })
     fs.rmSync(ex, { force: true })
-    expect(r.stdout).not.toMatch(/workspace link/)
+    // Ignored by the -c setting, the link is an installed package: no
+    // "links back into the tree", so green on both is a plain rc 1.
+    expect(r.stdout).toMatch(/DOES NOT BITE/)
+    expect(r.status).toBe(1)
   })
 
   it('a file whose name starts with a colon is a name, not pathspec magic', () => {
