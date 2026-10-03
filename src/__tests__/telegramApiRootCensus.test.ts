@@ -35,6 +35,9 @@ const HELPERS = [
   'src/services/telegramApi.ts',
   'apps/vibee-editor/render/src/telegram-api.ts',
   'scripts/lib/telegram-api.cjs',
+  // A byte copy of the line above, for an image built from its own directory;
+  // telegram-api-parity.test.ts holds it to identical bytes.
+  'deployment/queen-watch/telegram-api.cjs',
 ]
 
 const CODE = /\.(ts|tsx|js|jsx|mjs|cjs|sh|py|swift)$/

@@ -448,3 +448,50 @@ it('a corrupt state file is a first run, not a crash', async () => {
   expect(await run(cfg, w.deps)).toBe(0)
   expect(w.sent('/queen/report')).toHaveLength(1)
 })
+
+describe('the owner bot reaches its own Bot API host', () => {
+  const OURS = 'http://telegram-bot-api.railway.internal:8081'
+  const FILES = 'http://telegram-bot-api.railway.internal:8082/'
+  const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved' // secret-guard-ok: fake fixture token
+
+  it('a bot moved to our server is never called on the cloud', async () => {
+    const cfg = cfgWith({
+      tgToken: MOVED,
+      botApiEnv: {
+        TELEGRAM_API_ROOT: OURS,
+        TELEGRAM_API_FILES_ROOT: FILES,
+        BOT_API_LOCAL_BOTS: '900000011',
+      },
+    })
+    const w = world()
+    await tellOwner(cfg, w.deps, 'hello')
+    expect(w.sent('api.telegram.org')).toHaveLength(0)
+    expect(w.sent(OURS)).toHaveLength(1)
+  })
+
+  it('a bot that stayed on the cloud still goes there', async () => {
+    const cfg = cfgWith({
+      tgToken: MOVED,
+      botApiEnv: {
+        TELEGRAM_API_ROOT: OURS,
+        TELEGRAM_API_FILES_ROOT: FILES,
+        BOT_API_LOCAL_BOTS: '900000044',
+      },
+    })
+    const w = world()
+    expect(await tellOwner(cfg, w.deps, 'hello')).toBe('sent to the owner')
+    expect(w.sent('api.telegram.org')).toHaveLength(1)
+  })
+
+  it('unreadable routing sends nothing rather than guessing the cloud', async () => {
+    const cfg = cfgWith({
+      tgToken: MOVED,
+      botApiEnv: { TELEGRAM_API_ROOT: 'not a url', BOT_API_LOCAL_BOTS: '1' },
+    })
+    const w = world()
+    const said = await tellOwner(cfg, w.deps, 'hello')
+    expect(said).toContain('not sent')
+    expect(said).not.toContain('ZZmoved')
+    expect(w.calls).toHaveLength(0)
+  })
+})
