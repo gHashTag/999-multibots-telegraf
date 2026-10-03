@@ -72,6 +72,10 @@ export const AGENT_CHAT_CODES: Record<string, Pair> = {
     en: 'Ran out of steps — try a smaller task.',
     ru: 'Не уложился в шаги — попробуй задачу поменьше.', // cyrillic-ok: the russian branch
   },
+  lane_limit: {
+    en: 'Your browser already has as many chats working in it as it can hold. Continue in one of them, or wait until one goes quiet.',
+    ru: 'В вашем браузере уже работает столько чатов, сколько он вмещает. Продолжите в одном из них или подождите, пока какой-то затихнет.', // cyrillic-ok: the russian branch
+  },
 }
 
 const CYRILLIC = /\p{Script=Cyrillic}/u
