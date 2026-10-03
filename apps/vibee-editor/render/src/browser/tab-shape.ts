@@ -25,6 +25,7 @@
  * gives the same HTML, and a stale bundle after a deploy -- the bug this
  * check was born for -- only matters to us on our own sites.
  */
+import { ruleFor, type SiteRule, type SiteRuleRow } from './site-rules'
 import { isSensitive } from './guard'
 
 /** Hosts whose bundle staleness we check: ours, public, cookie-free. */
@@ -38,8 +39,15 @@ export function isOwnSite(url: string): boolean {
   }
 }
 
-/** Why a page is not read, or null when it may be. Pure. */
-export function skipReason(url: string): string | null {
+/**
+ * Why a page is not read, or null when it may be. Pure. `own` is the person's
+ * rule for this page (site-rules.ts): block is not even looked at, ask is a
+ * bank.
+ */
+export function skipReason(
+  url: string,
+  own: SiteRule | null = null
+): string | null {
   let protocol = ''
   try {
     protocol = new URL(url).protocol
@@ -47,7 +55,9 @@ export function skipReason(url: string): string | null {
     return 'unreadable address'
   }
   if (!/^https?:$/.test(protocol)) return 'not a web page'
-  if (isSensitive(url)) return 'sensitive place: reading code needs a fresh yes'
+  if (own === 'block') return "blocked on the person's site list"
+  if (own === 'ask' || isSensitive(url))
+    return 'sensitive place: reading code needs a fresh yes'
   return null
 }
 
@@ -138,11 +148,16 @@ export async function shapeOfTabs(
   cdp: string,
   pages: { id: string; url: string }[],
   io: ShapeIo,
-  timeoutMs: number = SHAPE_TIMEOUT_MS
+  timeoutMs: number = SHAPE_TIMEOUT_MS,
+  /* The person's site list; null = unreadable, so no page is read. */
+  rules: SiteRuleRow[] | null = []
 ): Promise<TabShape[]> {
   return await Promise.all(
     pages.map(async page => {
-      const skip = skipReason(page.url)
+      const skip =
+        rules === null
+          ? "the person's site list could not be read"
+          : skipReason(page.url, ruleFor(page.url, rules))
       if (skip)
         return { id: page.id, url: page.url, unread: skip, anomalies: [] }
       let timer: ReturnType<typeof setTimeout> | undefined

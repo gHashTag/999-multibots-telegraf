@@ -565,15 +565,31 @@ BrowserOS, ChatGPT agent/Atlas, Comet, Opera Neon, Browser Use, Skyvern,
 Cloudflare Browser Run; Buffer, Typefully, Postiz for posting. What they do
 that we did not, and where each stands:
 
-| Gap                                                                               | Who does it               | Status                                                                                                              |
-| --------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| No frames while the PERSON drives                                                 | ChatGPT agent             | **done** #3464: `tickMayFilm` stops the film ticker under the person's wheel lease                                  |
-| A live view that says "stream stopped" + why, not a frozen picture                | Browserbase, Skyvern      | **done** #3475: `FREEZE_SCRIPT` -- 10 s without a frame on a connected video says so, names the side                |
-| A login that is checked by USE, not by cookie name; a one-tap "sign in again"     | Anchor                    | **done** #3477: a gated page sent to the sign-in wall = `refused`; `signInAgain` names the door                     |
-| The person's own per-site list: blocked / read-only for the agent                 | Comet                     | open: `guard.ts` has one list for everyone (`DEFAULT_SENSITIVE` + env `BROWSER_SENSITIVE_DOMAINS`), none per person |
-| One typed handoff (login/captcha/approval) answering resolved/cancelled/timed_out | BrowserOS, Cloudflare     | partly: `browser_ask_input`, `browser_ask_permission`                                                               |
-| A watch-only share link                                                           | Hyperbrowser, Browserbase | open                                                                                                                |
-| Per-channel split, never X's 280 for LinkedIn                                     | Postiz trap               | held: `xThread` vs `postFor` (#3453, #3457)                                                                         |
+| Gap                                                                               | Who does it               | Status                                                                                                                                    |
+| --------------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| No frames while the PERSON drives                                                 | ChatGPT agent             | **done** #3464: `tickMayFilm` stops the film ticker under the person's wheel lease                                                        |
+| A live view that says "stream stopped" + why, not a frozen picture                | Browserbase, Skyvern      | **done** #3475: `FREEZE_SCRIPT` -- 10 s without a frame on a connected video says so, names the side                                      |
+| A login that is checked by USE, not by cookie name; a one-tap "sign in again"     | Anchor                    | **done** #3477: a gated page sent to the sign-in wall = `refused`; `signInAgain` names the door                                           |
+| The person's own per-site list: blocked / read-only for the agent                 | Comet                     | **done** (this PR): `site-rules.ts` -- `ask` = a bank for this person, `block` = never opened, read, shot or touched; agent only tightens |
+| One typed handoff (login/captcha/approval) answering resolved/cancelled/timed_out | BrowserOS, Cloudflare     | partly: `browser_ask_input`, `browser_ask_permission`                                                                                     |
+| A watch-only share link                                                           | Hyperbrowser, Browserbase | open                                                                                                                                      |
+| Per-channel split, never X's 280 for LinkedIn                                     | Postiz trap               | held: `xThread` vs `postFor` (#3453, #3457)                                                                                               |
+
+**The person's own site list (`site-rules.ts`).** `guard.ts` has one list
+for everyone; the person knows places nobody else can name (their clinic,
+the shop with the saved card). Two rules per person, in
+`browser_site_rules`: `ask` makes acting there need a fresh yes exactly as
+on a bank (`mayAct` gets `alsoSensitive`), `block` refuses open, read, page
+screenshot and every act, even with a yes -- the refusal fires before any
+CDP call, and the test asserts the browser saw nothing. Matching is host
+suffix + path prefix, NEVER substring (`includes` would make "x.com" match
+netflix.com). The agent's door (`browser_sites`, `tri browser sites`) only
+tightens: a page that talked an agent into "unblock this" would turn the
+person's brake into the agent's, so DELETE and block->ask are the person's
+(`/api/browser/sites` without an agent key). An unreadable list is null,
+never []: open and read are refused, acting anywhere needs a yes, and
+`browser_status {shape}` reads no tab. Not in the compact kit
+(`COMPACT_HIDDEN`): it is the person's setting, not a turn of conversation.
 
 **A picture that stopped says so (#3475).** `CONNECT_SCRIPT` spoke only when
 neko showed its connect form. A socket that stays up with no new frame had no
