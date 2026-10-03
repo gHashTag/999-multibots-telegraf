@@ -28,6 +28,7 @@ let repo: string
 let out: string
 let dry: string
 let sleeper: ChildProcess | undefined
+let locked: string | undefined
 const git = (cwd: string, ...args: string[]) =>
   execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' }).trim()
 
@@ -62,7 +63,7 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     fs.copyFileSync(PROBE, path.join(repo, 'scripts', 'probe-worktrees.cjs'))
     fs.writeFileSync(
       path.join(repo, '.gitignore'),
-      '.env\n*.log\nnode_modules\ntemp/\n.claude/worktrees/\n'
+      '.env\n*.log\nnode_modules\ntemp/\nbuild/\nlogs/\n.claude/worktrees/\n'
     )
     git(repo, 'add', '.')
     git(repo, 'commit', '-q', '-m', 'init')
@@ -102,6 +103,27 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     const spaced = tree('spaced', '-q', '--detach', '@', 'origin/main')
     fs.mkdirSync(path.join(spaced, 'my logs'))
     fs.writeFileSync(path.join(spaced, 'my logs', '.env'), 'LOCAL=1\n')
+    // nested: a clone inside build/ holding a commit never pushed anywhere
+    const nested = tree('nested', '-q', '--detach', '@', 'origin/main')
+    const sub = path.join(nested, 'build', 'sub')
+    fs.mkdirSync(sub, { recursive: true })
+    git(sub, 'init', '-q')
+    git(sub, 'config', 'user.email', 't@t')
+    git(sub, 'config', 'user.name', 't')
+    commit(sub, 'only-here.txt')
+    // creds: secret names from this repo's .gitignore, in rebuildable folders
+    const creds = tree('creds', '-q', '--detach', '@', 'origin/main')
+    fs.mkdirSync(path.join(creds, 'logs'))
+    fs.writeFileSync(path.join(creds, 'logs', 'credentials.json'), '{}')
+    const secrets = tree('secrets', '-q', '--detach', '@', 'origin/main')
+    fs.mkdirSync(path.join(secrets, 'build', 'secrets'), { recursive: true })
+    fs.writeFileSync(path.join(secrets, 'build', 'secrets', 'token.txt'), 'x')
+    // unreadable: a folder the walk cannot look into
+    const unreadable = tree('unreadable', '-q', '--detach', '@', 'origin/main')
+    locked = path.join(unreadable, 'build', 'closed')
+    fs.mkdirSync(locked, { recursive: true })
+    fs.writeFileSync(path.join(locked, 'x.txt'), 'x')
+    fs.chmodSync(locked, 0o000)
     // unmerged: detached with a commit nobody merged
     const unmerged = tree('unmerged', '-q', '--detach', '@', 'origin/main')
     commit(unmerged, 'u.txt')
@@ -154,6 +176,7 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
 
   afterAll(() => {
     sleeper?.kill()
+    if (locked && fs.existsSync(locked)) fs.chmodSync(locked, 0o755)
     if (tmp) fs.rmSync(tmp, { recursive: true, force: true })
   })
 
@@ -209,6 +232,20 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
 
   it('keeps a .env under a folder name with a space', () => {
     expect(exists('spaced/my logs/.env'), out).toBe(true)
+  })
+
+  it('keeps a nested repository, whose commits may exist nowhere else', () => {
+    expect(exists('nested/build/sub/only-here.txt'), out).toBe(true)
+  })
+
+  it('keeps secret names from the repo .gitignore inside rebuildable folders', () => {
+    expect(exists('creds/logs/credentials.json'), out).toBe(true)
+    expect(exists('secrets/build/secrets/token.txt'), out).toBe(true)
+  })
+
+  it('keeps a tree with a folder it cannot read, and says so', () => {
+    expect(exists('unreadable'), out).toBe(true)
+    expect(out).toContain('(unreadable)')
   })
 
   it('keeps a detached tree with a commit not in main', () => {

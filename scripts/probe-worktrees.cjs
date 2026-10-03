@@ -66,8 +66,25 @@ const ok = (args, cwd = ROOT) => {
   }
 }
 
-/** Files nobody can rebuild, wherever they sit. */
-const SECRET = [/^\.env/, /\.(pem|key|p8|p12)$/]
+/**
+ * Names nobody can rebuild, wherever they sit: the secret names this repo's
+ * own .gitignore lists, plus `.git` -- a nested repository may hold commits
+ * that were never pushed, and `git worktree remove` deletes it whole.
+ * Exact names on purpose: a loose "contains secret" would block every tree
+ * on compiled files like dist/utils/webhookSecret.js.
+ */
+const SECRET = [
+  /^\.git$/,
+  /^\.env/,
+  /\.(pem|key|p8|p12|pfx)$/,
+  /^(credentials|tokens|auth|service-account|api_keys)\.json$/,
+  /^secrets(\.(json|ya?ml))?$/,
+  /^\.secrets/,
+  /^\.gitsecrets$/,
+  /_(secrets|credentials)_/,
+  /^id_(rsa|dsa|ed25519|ecdsa)/,
+]
+const secretName = name => SECRET.some(re => re.test(name))
 
 /** Ignored entries we can rebuild, matched per path component. */
 const REGENERABLE = [
@@ -88,19 +105,20 @@ const REGENERABLE = [
 /**
  * Rebuildable by name: the entry itself or any folder above it matches
  * (`--ignored=matching` lists files deep inside build output). A secret-
- * looking name is never rebuildable, wherever it sits -- except inside
- * node_modules, which npm rewrites whole.
+ * looking name -- the entry or any folder above it -- is never rebuildable,
+ * except inside node_modules, which npm rewrites whole.
  */
 const regenerable = entry => {
   const parts = entry.replace(/\/+$/, '').split('/')
   if (parts.includes('node_modules')) return true
-  if (SECRET.some(re => re.test(parts[parts.length - 1]))) return false
+  if (parts.some(secretName)) return false
   return parts.some(c => REGENERABLE.some(re => re.test(c)))
 }
 
 /**
  * First secret-looking file under an ignored folder we would call
- * regenerable, or null. Symlinks are not followed (a worktree's node_modules
+ * regenerable (a secret name or a nested `.git`), or null. A folder it
+ * cannot read counts as holding one. Symlinks are not followed (a worktree's node_modules
  * is often a link into the main checkout); the walk is bounded, and a folder
  * too big to walk counts as holding one.
  */
@@ -109,17 +127,18 @@ function hiddenSecret(dir, budget = { left: 20000 }) {
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true })
   } catch {
-    return null
+    return dir + ' (unreadable)'
   }
   for (const e of entries) {
     if (--budget.left < 0) return dir + ' (too big to check)'
     const p = path.join(dir, e.name)
     if (e.isSymbolicLink()) continue
+    if (secretName(e.name)) return p
     if (e.isDirectory()) {
       if (e.name === 'node_modules') continue
       const hit = hiddenSecret(p, budget)
       if (hit) return hit
-    } else if (SECRET.some(re => re.test(e.name))) return p
+    }
   }
   return null
 }
@@ -454,6 +473,10 @@ function selfCheck() {
     regenerable('.env') ||
     regenerable('logs/.env') ||
     regenerable('src') ||
+    regenerable('src/logs/tokens.json') ||
+    regenerable('build/secrets/token.txt') ||
+    regenerable('build/sub/.git') ||
+    !regenerable('dist/utils/webhookSecret.js') ||
     !regenerable('apps/x/node_modules/') ||
     !regenerable('apps/x/node_modules/y/src') ||
     !regenerable('dist/assets/a.js')
