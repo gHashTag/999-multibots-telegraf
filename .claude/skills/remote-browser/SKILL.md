@@ -602,7 +602,11 @@ gated page let through deletes it. Nobody clears it by hand. The desk closes a
 walled page without a press and tells him to sign in himself;
 `tri browser logins` prints `REF ... since` and the door to sign in again.
 Opening the sign-in door on purpose is not a refusal (`wallOf` answers null
-when the asked URL is itself a wall).
+when the asked URL is itself a wall). A login held only in session cookies
+stamps 0 before and after a new sign-in, so nothing could void its refusal and
+the desks, which skip a refused network, would never look again: such a
+refusal is written but never believed (`withUse`); the network stays
+`signed_in` and only the walled page that one time is closed.
 
 **Read journal times with their date.** `tri journal` printed `HH:MM:SS`
 only: at 01:05 UTC a step from 22:47 the day before read as fresh. Both
