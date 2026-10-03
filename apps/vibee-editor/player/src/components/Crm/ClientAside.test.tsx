@@ -117,12 +117,16 @@ afterEach(() => {
   host.remove()
 })
 
-async function show(client = '900000301', onAsk?: (text: string) => void) {
+async function show(
+  client = '900000301',
+  onAsk?: (text: string) => void,
+  agent: string | null = null
+) {
   const { ClientAside } = await import('./ClientAside')
   await act(async () => {
     root.render(
       <MemoryRouter>
-        <ClientAside client={client} onAsk={onAsk} />
+        <ClientAside client={client} onAsk={onAsk} agent={agent} />
       </MemoryRouter>
     )
   })
@@ -250,6 +254,9 @@ describe('the cockpit', () => {
       ;(el as HTMLElement).click()
     })
   }
+  // The SOUL is one widget of the menu now; the moves open first.
+  const openSoul = () =>
+    click(host.querySelector('.chat-aside__menu [data-widget="soul"]'))
 
   it('shows the SOUL excerpt and marks a draft', async () => {
     profile = {
@@ -260,6 +267,7 @@ describe('the cockpit', () => {
       soul_excerpt: 'Loves short videos about her studio',
     }
     await show()
+    await openSoul()
     expect(text()).toContain('Loves short videos about her studio')
     expect(text()).toContain('crm.aside.soul.draft')
   })
@@ -267,6 +275,7 @@ describe('the cockpit', () => {
   it('says SOUL is withheld instead of "none" when it is not ours', async () => {
     profile = { has_profile: false, has_soul: false, private_withheld: true }
     await show()
+    await openSoul()
     expect(text()).toContain('crm.aside.soul.withheld')
     expect(text()).not.toContain('crm.aside.soul.none')
   })
@@ -308,14 +317,14 @@ describe('the cockpit', () => {
 })
 
 /**
- * THE TWO GIFTS, ALWAYS ON THE CARD.
+ * THE TWO GIFTS: THE BLOGGER'S WIDGET.
  *
- * Owner, 2026-09-29: "why are there no gift buttons?" The portrait had lived
- * only as a strategy move -- one of three slots a hot client's card fills
- * with other things -- and the reel panel only on the client page, one
- * navigation away from the conversation. Pinned: both gifts are on the card
- * beside the chat, and a press still only asks the agent here -- it is never
- * a message to the client.
+ * Owner, 2026-09-29: "why are there no gift buttons?" -- so the portrait and
+ * the reel panel came onto the card beside the chat. Owner, 2026-10-03: "the
+ * content dashboard must appear only when the Blogger agent is chosen" -- so
+ * they are now the Blogger's widget, open the moment he is chosen. Pinned:
+ * both gifts are there under the Blogger, and a press still only asks the
+ * agent here -- it is never a message to the client.
  */
 describe('the two gifts', () => {
   const click = async (el: Element | null | undefined) => {
@@ -324,10 +333,12 @@ describe('the two gifts', () => {
     })
   }
   const giftRow = () => host.querySelector('[data-testid="gift-portrait"]')
+  const blogger = (onAsk?: (text: string) => void) =>
+    show('900000301', onAsk, 'blogger')
 
   it('a portrait not yet given is a give button that asks the agent here', async () => {
     const asked: string[] = []
-    await show('900000301', t => asked.push(t))
+    await blogger(t => asked.push(t))
     expect(text()).toContain('crm.aside.gifts')
     const btn = giftRow()?.querySelector('button')
     expect(btn?.textContent).toContain('crm.aside.gift.portrait.give')
@@ -337,7 +348,7 @@ describe('the two gifts', () => {
 
   it('a portrait being drawn is a state, not a button', async () => {
     context = { ...(context as object), portrait: { drawing: true } }
-    await show('900000301', () => undefined)
+    await blogger(() => undefined)
     expect(giftRow()?.textContent).toContain('crm.aside.portrait.drawing')
     expect(giftRow()?.querySelector('button')).toBeNull()
   })
@@ -345,7 +356,7 @@ describe('the two gifts', () => {
   it('a ready portrait offers to send, which still only asks the agent', async () => {
     const asked: string[] = []
     context = { ...(context as object), portrait: { ready: true } }
-    await show('900000301', t => asked.push(t))
+    await blogger(t => asked.push(t))
     const btn = giftRow()?.querySelector('button')
     expect(btn?.textContent).toContain('crm.aside.gift.portrait.send')
     await click(btn)
@@ -357,13 +368,13 @@ describe('the two gifts', () => {
     // once per client, so a re-render with a new portrait state would show
     // the stale answer forever.
     context = { ...(context as object), portrait: { given: true } }
-    await show('900000301', () => undefined)
+    await blogger(() => undefined)
     expect(giftRow()?.textContent).toContain('crm.aside.portrait.given')
     expect(giftRow()?.querySelector('button')).toBeNull()
   })
 
   it('the story-reel panel is on the card too, not a page away', async () => {
-    await show()
+    await blogger()
     expect(text()).toContain('crm.client.story.title')
     expect(text()).toContain('crm.client.story.price:60')
   })
@@ -372,7 +383,124 @@ describe('the two gifts', () => {
     // The panel goes null on refusal (its own test pins that); here the card
     // must not break or show a ghost section when it does.
     story = REFUSED
-    await show()
+    await blogger()
     expect(text()).toContain('crm.aside.gifts')
+  })
+})
+
+/**
+ * ONE MENU ON THE LEFT, AND EVERY SPECIALIST BRINGS ONLY ITS OWN WIDGETS.
+ *
+ * Owner, 2026-10-03: "the content dashboard must appear only when the
+ * Blogger agent is chosen! and so on by analogy! and the widgets must be
+ * organised in one place on the left, in a menu". Spec of record:
+ * crm-client-workspace.t27 v5. Pinned: the client's widgets are always
+ * there, a specialist's only while it is chosen, one is open at a time, a
+ * switch swaps them -- and what is open and set is what the agent is told
+ * (clientWidgetsAtom, read by the chat when it sends).
+ */
+describe('the widget menu', () => {
+  const click = async (el: Element | null | undefined) => {
+    await act(async () => {
+      ;(el as HTMLElement).click()
+    })
+  }
+  const entries = () =>
+    [...host.querySelectorAll('.chat-aside__menu [role="tab"]')].map(b =>
+      b.getAttribute('data-widget')
+    )
+  const opened = () =>
+    host.querySelector('.chat-aside__menu [aria-selected="true"]')
+  const gifts = () => host.querySelector('[data-testid="chat-aside-gifts"]')
+  const reported = async () => {
+    const { getDefaultStore } = await import('jotai')
+    const { clientWidgetsAtom } = await import('@/atoms/clientWidgets')
+    return getDefaultStore().get(clientWidgetsAtom)['900000301']
+  }
+
+  it('under the Assistant: the six client widgets, no content, no templates', async () => {
+    await show('900000301', () => undefined)
+    expect(entries()).toEqual([
+      'moves',
+      'group',
+      'soul',
+      'package',
+      'plan',
+      'history',
+    ])
+    expect(gifts()).toBeNull()
+    expect(text()).not.toContain('crm.client.story.title')
+    expect(host.querySelector('[data-testid="agent-templates"]')).toBeNull()
+    expect(opened()?.getAttribute('data-widget')).toBe('moves')
+  })
+
+  it('one menu holds them all: one tablist, one open entry, no second row of tabs', async () => {
+    await show('900000301', () => undefined, 'blogger')
+    expect(host.querySelectorAll('[role="tablist"]')).toHaveLength(1)
+    expect(host.querySelector('.chat-aside__tabs')).toBeNull()
+    expect(
+      host.querySelectorAll('.chat-aside__menu [aria-selected="true"]')
+    ).toHaveLength(1)
+    expect(entries()).toEqual([
+      'moves',
+      'group',
+      'soul',
+      'package',
+      'plan',
+      'history',
+      'content',
+      'templates',
+    ])
+  })
+
+  it('choosing the Blogger opens his content widget and tells the agent what it is set to', async () => {
+    await show('900000301', () => undefined, 'blogger')
+    expect(opened()?.getAttribute('data-widget')).toBe('content')
+    expect(gifts()?.hasAttribute('hidden')).toBe(false)
+    expect(text()).toContain('crm.client.story.title')
+    const seen = await reported()
+    expect(seen?.open).toBe('content')
+    expect(seen?.content).toMatchObject({ topic: '', scenes: 3, toDm: true })
+  })
+
+  it('another specialist brings its templates, not the gifts, and a press asks the agent here', async () => {
+    const { AGENT_TEMPLATES } = await import('@/pages/agentSuggestions')
+    const asked: string[] = []
+    await show('900000301', t => asked.push(t), 'job')
+    expect(gifts()).toBeNull()
+    expect(opened()?.getAttribute('data-widget')).toBe('templates')
+    const first = host.querySelector(
+      '[data-testid="agent-templates"] button'
+    ) as HTMLButtonElement
+    await click(first)
+    expect(asked).toEqual([AGENT_TEMPLATES.job[0].prompt])
+  })
+
+  it('a switch swaps the widgets: Blogger to Job drops the content, Job to none falls to a client widget', async () => {
+    await show('900000301', () => undefined, 'blogger')
+    expect(gifts()).not.toBeNull()
+    await show('900000301', () => undefined, 'job')
+    expect(gifts()).toBeNull()
+    expect(entries()).not.toContain('content')
+    expect(opened()?.getAttribute('data-widget')).toBe('templates')
+    // The reel panel left with the Blogger; its state is not reported on.
+    expect((await reported())?.content ?? null).toBeNull()
+    await show('900000301', () => undefined, null)
+    expect(entries()).not.toContain('templates')
+    expect(opened()?.getAttribute('data-widget')).toBe('moves')
+    expect((await reported())?.open).toBe('moves')
+  })
+
+  it('a client widget opened under a specialist stays open when the Assistant is chosen again', async () => {
+    await show('900000301', () => undefined, 'blogger')
+    const soul = [...host.querySelectorAll('[role="tab"]')].find(
+      b => b.getAttribute('data-widget') === 'soul'
+    )
+    await click(soul)
+    expect(opened()?.getAttribute('data-widget')).toBe('soul')
+    // The content stays mounted, hidden: a typed topic survives the look.
+    expect(gifts()?.hasAttribute('hidden')).toBe(true)
+    await show('900000301', () => undefined, null)
+    expect(opened()?.getAttribute('data-widget')).toBe('soul')
   })
 })
