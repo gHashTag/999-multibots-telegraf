@@ -183,3 +183,58 @@ describe('browser_tidy ask', () => {
     expect(after.tabs.length).toBeGreaterThan(0)
   })
 })
+
+describe('browser_tidy and the person site list', () => {
+  /*
+   * Found by the bee on #3483: status and shots named a blocked tab by host
+   * only, but tidy still returned its full address -- a path can carry an
+   * account number. The agent's copy is veiled; the stored question keeps
+   * the real one, because apply compares it to the tab's address now.
+   */
+  it('names a blocked tab by host only, and stores the real address for apply', async () => {
+    stubFetch()
+    const stored: string[] = []
+    const pool = {
+      async query(sql: string, params: unknown[] = []) {
+        if (sql.includes('FROM browser_sessions'))
+          return {
+            rows: [
+              {
+                telegram_id: '144',
+                session_id: 's',
+                cdp_endpoint: 'http://127.0.0.1:9222',
+                state: 'live',
+                view_token: 'v',
+                admin_token: 'a',
+              },
+            ],
+          }
+        if (sql.includes('FROM browser_site_rules'))
+          return {
+            rows: [
+              {
+                site: 'reddit.com',
+                rule: 'block',
+                by_whom: 'person',
+                at: '2026-10-03T00:00:00Z',
+              },
+            ],
+          }
+        if (sql.includes('INSERT INTO browser_tidy_asks'))
+          stored.push(String(params[2]))
+        return { rows: [] }
+      },
+    }
+    const out = (await tidy.handler({ ask: true }, {
+      telegramId: '144',
+      pool,
+    } as never)) as { tabs: { id: string; url: string; veiled?: string }[] }
+    const c = out.tabs.find(t => t.id === 'C')!
+    expect(c.url).toBe('https://www.reddit.com/')
+    expect(c.veiled).toBe('blocked')
+    expect(JSON.stringify(out)).not.toContain('submit')
+    expect(out.tabs.find(t => t.id === 'B')?.veiled).toBeUndefined()
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toContain('/r/t27ai/submit/?title=x')
+  })
+})
