@@ -11,10 +11,15 @@ cd "$ROOT" || exit 2
 . "$ROOT/bin/helpers/rail.sh"  # Railway by explicit ids
 
 echo "── open PRs (newest first) ──"
-gh pr list --state open --limit 30 \
+# An empty answer and a failed one must not print alike: "nothing open" and
+# "could not ask" are different news for a cycle deciding what to start.
+PRS=$(gh pr list --state open --limit 30 \
   --json number,title,mergeable,updatedAt,headRefName \
-  -q '.[] | "  #\(.number)  \(.mergeable | .[0:9])  \(.updatedAt[0:16])  \(.title[0:70])"' 2>/dev/null \
-  || echo "  (gh unavailable)"
+  -q '.[] | "  #\(.number)  \(.mergeable | .[0:9])  \(.updatedAt[0:16])  \(.title[0:70])"' 2>/dev/null)
+if [ $? -ne 0 ]; then echo "  (gh did not answer -- open PRs unknown)"
+elif [ -z "$PRS" ]; then echo "  (none open)"
+else echo "$PRS"
+fi
 
 echo
 echo "── worktrees ──"
@@ -31,5 +36,12 @@ fi
 echo
 echo "── last deployments ──"
 for s in 999-multibots-telegraf vibee-render; do
-  printf '  %-24s %s\n' "$s" "$(railway deployment list --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service "$s" 2>/dev/null | sed -n 2p | sed 's/^ *//')"
+  # A failed railway call used to print a blank, which reads as "nothing
+  # deployed"; it is "could not ask".
+  if OUT=$(railway deployment list --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service "$s" 2>/dev/null); then
+    LAST=$(printf '%s\n' "$OUT" | sed -n 2p | sed 's/^ *//')
+    printf '  %-24s %s\n' "$s" "${LAST:-(no deployment listed)}"
+  else
+    printf '  %-24s %s\n' "$s" "(railway did not answer -- unknown)"
+  fi
 done
