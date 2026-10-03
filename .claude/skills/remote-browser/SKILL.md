@@ -601,10 +601,19 @@ blocked. (3) A blocked tab still leaked through the tools that LIST tabs:
 path (a statement title, an account number in the path). `veilTab`
 (#3483) names it by origin only, title empty, `veiled: 'blocked'` (or
 `'list unreadable'`); `browser_ask_input` is refused on a blocked tab before
-any CDP call. Still open: `browser_tidy` lists the full URL of a blocked tab
-(veil the response, keep the real URL for apply's comparison), cross-origin
-iframes of a blocked site inside an allowed page, and the desks
-(engage, blog-share, rounds) that open pages without reading the list.
+any CDP call. `browser_tidy` veils every answer and stores the real URL for
+apply's comparison (#3487); `browser_focus_tab` answers with the veiled URL
+too. **Rule: grep every tool that RETURNS a tab's url or title** -- each of
+these leaks was a return nobody had listed.
+
+**The desks answer to the list too.** Desks (blog-share, reddit, engage,
+scenarios) drive raw CDP and never pass the agent tools' guards, so
+`newDeskPage(cdp, url, who)` reads the person's list itself: a blocked site
+throws `blockedError` and an unreadable list throws `UNREADABLE_LIST` BEFORE
+any tab is made or closed for room. `ask` is not checked there: that door
+does not know whether the desk will act. Still open: `ask` for desks that
+act, cross-origin iframes of a blocked site inside an allowed page, and a
+redirect after open landing on a blocked site.
 
 **The person's door in the app (#3482, #3484).** Browser tab -> "My sites"
 (`components/Browser/SiteRules.tsx`): add as ask or never, flip a row,
