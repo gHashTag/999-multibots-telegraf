@@ -44,8 +44,11 @@ for s in steps:
     elif "chars" in det: key = f"{det['chars']} chars"
     elif "x" in det: key = f"x={det['x']} y={det['y']}"
     elif "pages" in det: key = f"pages={det['pages']}"
-    # browser_start from a desk (#3450): which desk opened the visit.
-    elif det.get("by"): key = f"started by the {det['by']} desk"
+    # browser_start from a desk (#3450), browser_restart from rounds or heal:
+    # which desk opened the visit, or took the browser down and back up.
+    elif det.get("by"):
+        verb = "restarted" if s.get("tool") == "browser_restart" else "started"
+        key = f"{verb} by the {det['by']} desk"
     else: key = ""
     mark = ("ok " if s.get("ok") else "ERR") + (" probe" if det.get("probe") else "      ")
     at = s["at"][5:19].replace("T", " ")
