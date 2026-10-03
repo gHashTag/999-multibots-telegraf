@@ -393,5 +393,30 @@
     "name": "the brand is not a house mark",
     "from": "pub const HOUSE_BRAND : str = \"T27\";",
     "to": "pub const HOUSE_BRAND : str = \"\";"
+  },
+  {
+    "name": "message-level own-words",
+    "from": "        return said_names_house && NAMING_THE_BOT_LENDS;",
+    "to": "        return said_names_house;"
+  },
+  {
+    "name": "any mention of the bot lends the name",
+    "from": "pub const NAMING_THE_BOT_LENDS : bool = false;",
+    "to": "pub const NAMING_THE_BOT_LENDS : bool = true;"
+  },
+  {
+    "name": "her words reach no further than the house name",
+    "from": "pub const OWN_WORDS_REACH : u8 = 2;",
+    "to": "pub const OWN_WORDS_REACH : u8 = 0;"
+  },
+  {
+    "name": "her own line is read as an edit",
+    "from": "            return LINE_FROM_PERSON;",
+    "to": "            return LINE_FROM_EDIT;"
+  },
+  {
+    "name": "only the whole line counts as hers",
+    "from": "        if line_in_said || phrase_in_said {",
+    "to": "        if line_in_said {"
   }
 ]

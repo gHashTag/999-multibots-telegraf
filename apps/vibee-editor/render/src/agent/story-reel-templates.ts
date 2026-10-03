@@ -20,7 +20,14 @@
 import * as SPEC from '../spec/crm-story-reel.gen'
 import { houseNameByAgent, namesHouse } from '../house-names'
 
-export { HOUSE_MARKS, houseNameByAgent, namesHouse } from '../house-names'
+export {
+  HOUSE_MARKS,
+  houseNameByAgent,
+  namesHouse,
+  ownWords,
+  ownWordsFacts,
+  typedByHer,
+} from '../house-names'
 
 export type TemplateLanguage = 'ru' | 'en'
 
@@ -249,6 +256,15 @@ export function lineWay(
   return SPEC.LINE_REFUSED
 }
 
+/**
+ * Spec `line_from`: a written or edited line is the person's when it is her
+ * own words (own_words, judged for that line), else an edit.
+ */
+export function lineFrom(own: boolean): number {
+  if (own) return SPEC.LINE_FROM_PERSON
+  return SPEC.LINE_FROM_EDIT
+}
+
 /** Spec `line_names_house`: a client's reel says the house only through a kept line. */
 export function lineNamesHouse(way: number, house: boolean): boolean {
   if (way === SPEC.LINE_CLIENT_VERSION) return SPEC.CLIENT_VERSION_NAMES_HOUSE
@@ -277,7 +293,8 @@ export function houseLineWhy(i: number, line: string): string {
 /**
  * Every line of a reel someone wrote or edited, read for the house
  * (line_way with from LINE_FROM_EDIT, or LINE_FROM_PERSON when the person
- * typed the house's name herself this turn). '' when they all stand, else
+ * typed that line, or its house-name words, herself this turn -- her message
+ * naming the bot lends no line anything). '' when they all stand, else
  * why the first refused one is refused -- said before anything is spent.
  */
 export function houseLineRefused(
@@ -288,9 +305,7 @@ export function houseLineRefused(
   for (const [i, scene] of (scenes ?? []).entries()) {
     const line = clean(lineOf(scene))
     const house = namesHouse(line)
-    const from = houseNameByAgent(line, personSaid)
-      ? SPEC.LINE_FROM_EDIT
-      : SPEC.LINE_FROM_PERSON
+    const from = lineFrom(!houseNameByAgent(line, personSaid))
     if (lineWay(house, ownReel, from) === SPEC.LINE_REFUSED)
       return houseLineWhy(i, line)
   }
@@ -426,7 +441,8 @@ export function templateForClient(
  * The lines a press speaks on a client's reel (spec line_way), every one of
  * them read: the template's own line becomes its client version; a line the
  * seller or the agent wrote stands unless it names the house, and one that
- * does is refused -- unless the person typed it herself this turn. A refusal
+ * does is refused -- unless the person typed that line herself this turn
+ * (own_words, line by line: naming the bot lends nothing). A refusal
  * comes before the press, so nothing is spent (REFUSED_BEFORE_SPEND).
  */
 export function clientLines(
@@ -442,9 +458,7 @@ export function clientLines(
     const from =
       line === clean(template.lines[i])
         ? SPEC.LINE_FROM_TEMPLATE
-        : houseNameByAgent(line, personSaid)
-          ? SPEC.LINE_FROM_EDIT
-          : SPEC.LINE_FROM_PERSON
+        : lineFrom(!houseNameByAgent(line, personSaid))
     const way = lineWay(house, false, from)
     if (way === SPEC.LINE_REFUSED)
       return { lines: [], refused: houseLineWhy(i, line) }
