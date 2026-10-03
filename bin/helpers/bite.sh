@@ -112,13 +112,46 @@ for r in "${REL[@]}"; do
     || { echo "bite: $r is neither in the tree now nor at $REV"; exit 2; }
 done
 
+# The copies link the tree's node_modules. A workspace link in it
+# (node_modules/pkg -> ../packages/pkg) then still resolves into the REAL tree,
+# so a file under such a package is never swapped in the run that loads it --
+# a false "does not bite" (review 4 of #3462).
+if [ -d "$TOP/node_modules" ]; then
+  linked=$(python3 - "$TOP" "${REL[@]}" <<'PY'
+import os, sys
+top, rels = sys.argv[1], sys.argv[2:]
+nm = os.path.join(top, "node_modules")
+real_top, real_nm = os.path.realpath(top), os.path.realpath(nm)
+links = []
+for e in os.listdir(nm):
+    p = os.path.join(nm, e)
+    if e.startswith("@") and os.path.isdir(p) and not os.path.islink(p):
+        links += [os.path.join(p, x) for x in os.listdir(p)]
+    else:
+        links.append(p)
+for p in links:
+    if not os.path.islink(p):
+        continue
+    t = os.path.realpath(p)
+    if not t.startswith(real_top + os.sep) or t.startswith(real_nm + os.sep):
+        continue
+    for r in rels:
+        f = os.path.join(real_top, r)
+        if f.startswith(t + os.sep):
+            print(f"{r} (node_modules/{os.path.relpath(p, nm)} -> {os.path.relpath(t, real_top)})")
+            sys.exit(0)
+PY
+)
+  if [ -n "$linked" ]; then echo "bite: $linked -- a workspace link would load the real file, not the old one"; exit 2; fi
+fi
+
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/tri-bite.XXXXXX")
 # INT and TERM must END the run, not only clean up: a trap that only deleted
 # the copies let the script go on and print BITES (review of #3462). bash runs
 # the trap after the foreground command returns, so the verdict line is never
 # reached.
 trap 'rm -rf "$WORK"' EXIT
-trap 'echo "  interrupted -- cannot tell"; exit 2' INT TERM HUP
+trap 'echo "  interrupted -- cannot tell"; exit 2' INT TERM HUP QUIT
 
 # A copy of the tree as it is on disk: tracked and untracked-not-ignored files
 # that exist (a file deleted in the working tree is still listed by ls-files).
@@ -147,7 +180,7 @@ run() {
 }
 
 # A test killed by a hang-up, Ctrl-C or TERM did not judge anything.
-interrupted() { case "$1" in 129|130|143) return 0 ;; esac; return 1; }
+interrupted() { case "$1" in 129|130|131|143) return 0 ;; esac; return 1; }
 
 dirty=$(git -C "$TOP" status --porcelain --untracked-files=normal 2>/dev/null | head -1)
 echo "  now ($(git -C "$TOP" rev-parse --short HEAD)${dirty:+ + uncommitted})"
@@ -194,7 +227,10 @@ for r in "${REL[@]}"; do
         || { echo "bite: cannot restore the link $r at $REV"; exit 2; }
       echo "  $r <- $REV (symlink)" ;;
     100644|100755)
-      git -C "$TOP" cat-file blob "$REV:$r" >"$dest" \
+      # As a checkout writes it: LFS, `filter=` and `eol=` applied. The raw
+      # blob of an LFS file is a pointer, and the run said BITES even against
+      # HEAD itself (review 4 of #3462).
+      git -C "$TOP" cat-file --filters "$REV:$r" >"$dest" \
         || { echo "bite: cannot read $r at $REV"; exit 2; }
       [ "$mode" = 100755 ] && chmod +x "$dest"
       echo "  $r <- $REV" ;;

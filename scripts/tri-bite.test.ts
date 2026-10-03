@@ -434,3 +434,50 @@ describe('tri bite -- review 3 of #3462', () => {
     expect(fs.existsSync(path.join(dir, 'node_modules/pkg/old.sh'))).toBe(false)
   })
 })
+
+describe('tri bite -- review 4 of #3462', () => {
+  it('the old file is written as a checkout writes it (filters applied)', () => {
+    // Stored with PLUS for +, smudged back on checkout: the raw blob does not
+    // run, and the run said BITES against HEAD itself.
+    const dir = repo()
+    git(dir, 'config', 'filter.plus.smudge', 'sed s/PLUS/+/g')
+    git(dir, 'config', 'filter.plus.clean', 'sed s/+/PLUS/g')
+    fs.writeFileSync(
+      path.join(dir, '.gitattributes'),
+      'lib/add.sh filter=plus\n'
+    )
+    git(dir, 'add', '--renormalize', '.')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'filtered')
+    expect(git(dir, 'cat-file', 'blob', 'HEAD:lib/add.sh')).toMatch(/PLUS/)
+    const r = bite(
+      path.join(dir, 'lib'),
+      'HEAD',
+      'add.sh',
+      '--',
+      'bash',
+      'test.sh'
+    )
+    expect(r.stdout).not.toMatch(/BITES/)
+    expect(r.status).toBe(1)
+  })
+
+  it('a file under a workspace link of node_modules is cannot tell', () => {
+    // node_modules/pkg -> ../packages/pkg resolves into the real tree from
+    // the copy too, so the old file would never be loaded.
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'packages/pkg'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'packages/pkg/add.sh'), 'v1\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'pkg')
+    git(dir, 'tag', 'v3')
+    fs.writeFileSync(path.join(dir, 'packages/pkg/add.sh'), 'v2\n')
+    git(dir, 'commit', '-qam', 'pkg 2')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../packages/pkg', path.join(dir, 'node_modules/pkg'))
+    const r = bite(dir, 'v3', 'packages/pkg/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+  })
+})
