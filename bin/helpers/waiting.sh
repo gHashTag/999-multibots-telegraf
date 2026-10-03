@@ -11,11 +11,12 @@
 # Решение принимают по «что из этого трогает деньги и что видит клиент».
 # Команда отвечает именно на это.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/fetch.sh"  # tfetch: a failed fetch says so
 ROOT="${1:?нужен корень репозитория}"
 cd "$ROOT" || exit 1
 
 BASE="${2:-origin/main}"
-git fetch origin main -q 2>/dev/null || true
+tfetch origin main || true
 
 N=$(git rev-list --count "$BASE"..HEAD 2>/dev/null || echo 0)
 if [ "$N" = "0" ]; then

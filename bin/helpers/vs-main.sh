@@ -13,6 +13,7 @@
 # убирает за собой; рабочее дерево не трогается вовсе — ни индекс, ни
 # незакоммиченное, ни stash.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/fetch.sh"  # tfetch: a failed fetch says so
 ROOT="${1:?нужен корень репозитория}"
 shift
 if [ $# -eq 0 ]; then
@@ -24,7 +25,7 @@ if [ $# -eq 0 ]; then
 fi
 cd "$ROOT" || exit 1
 
-git fetch -q origin main 2>/dev/null
+tfetch origin main
 WT="$(mktemp -d)/main"
 cleanup() {
   git worktree remove --force "$WT" >/dev/null 2>&1
