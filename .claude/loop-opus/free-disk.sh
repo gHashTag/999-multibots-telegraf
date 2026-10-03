@@ -178,33 +178,13 @@ if [ -d "$SCRATCH_ROOT" ]; then
            *) echo alive; break ;;
          esac
        done | grep -q alive; then continue; fi
-    # Рабочая копия внутри -- сначала сказать об этом git.
-    # `git worktree list` from wherever this runs: the script is invoked from
-    # the repository, and naming a variable that does not exist here would
-    # check nothing at all -- quietly, which is the failure this guard is for.
-    # РАБОЧАЯ КОПИЯ ВНУТРИ: снять её штатно, если терять нечего.
-    #
-    # Пропускать такой черновик -- то, что делала первая версия, -- значит
-    # оставлять нетронутыми самые крупные: замерено 25.09.2026, мёртвая
-    # сессия держала 2.3 ГБ при 486 МБ свободных, и уборка прошла мимо.
-    #
-    # «Терять нечего» проверяется ДВАЖДЫ, и обе проверки обязательны: в копии
-    # нет несохранённых правок И её коммит есть на удалённом сервере. Копия с
-    # неопубликованной работой не трогается никогда: диск дешевле чужого дня.
+    # A WORKTREE INSIDE IS NOT OURS TO JUDGE. `git worktree remove --force`
+    # here deleted ignored files too (.env, nested clones) on a looser rule
+    # than `tri worktrees --apply`, which asks the tree's own .gitignore and
+    # keeps unsaved work (#3474/#3497). Worktrees are judged in one place.
     if git worktree list 2>/dev/null | grep -q "$id"; then
-      wt=$(git worktree list --porcelain | grep "^worktree .*$id" | head -1 |
-           awk '{print $2}')
-      dirty=$(git -C "$wt" status --short 2>/dev/null | head -1)
-      head_sha=$(git -C "$wt" rev-parse HEAD 2>/dev/null)
-      published=$(git branch -r --contains "$head_sha" 2>/dev/null | head -1)
-      if [ -n "$dirty" ] || [ -z "$published" ]; then
-        echo "  черновик $id: несохранённое или неопубликованное -- не трогаю"
-        continue
-      fi
-      git worktree remove --force "$wt" >/dev/null 2>&1 || {
-        echo "  черновик $id: git не отдал копию -- не трогаю"
-        continue
-      }
+      echo "  черновик $id: внутри рабочая копия -- судит tri worktrees --apply"
+      continue
     fi
     size=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
     [ "${size:-0}" -lt 10240 ] && continue
@@ -251,28 +231,11 @@ if [ "$free_after" -lt 2097152 ]; then
     printf "  %5d МБ  %s\n" "$((csz / 1024))" "$c"
   done
   echo
-  echo "Рабочие копии (каждая -- полный репозиторий):"
-  git worktree list --porcelain 2>/dev/null | grep '^worktree ' |
-    awk '{print $2}' | while read -r w; do
-      [ "$w" = "$(git rev-parse --show-toplevel 2>/dev/null)" ] && continue
-      sz=$(du -sk "$w" 2>/dev/null | awk '{print $1}')
-      [ -z "$sz" ] && continue
-      # AND WHETHER IT IS SAFE TO RELEASE -- the two questions, answered here
-      # so a person deciding at a glance does not have to run them by hand.
-      # A NAMED worktree is never removed by this script: it is somebody's
-      # working directory, not a dead session's scratch. Saying "safe" is the
-      # whole contribution; the deletion stays a person's.
-      dirty=$(git -C "$w" status --short 2>/dev/null | head -1)
-      head=$(git -C "$w" rev-parse HEAD 2>/dev/null)
-      pub=$(git branch -r --contains "$head" 2>/dev/null | head -1)
-      if [ -n "$dirty" ]; then
-        verdict="НЕ трогать: есть несохранённые правки"
-      elif [ -z "$pub" ]; then
-        verdict="НЕ трогать: коммита нет на сервере"
-      else
-        verdict="можно снять: чисто и опубликовано (git worktree remove)"
-      fi
-      printf "  %5d МБ  %s\n              %s\n" "$((sz / 1024))" "$w" "$verdict"
-    done
+  # WORKTREES ARE JUDGED IN ONE PLACE. This block used to print its own
+  # verdict, "clean and published -> git worktree remove": the branch-name
+  # rule #3474 replaced. `git worktree remove` without --force still deletes
+  # ignored files, an .env among them, and "published" said nothing about
+  # them. A second judge drifts from the first (#3497); this one points.
+  echo "Рабочие копии: судит tri worktrees, снимает только доказанно безопасные tri worktrees --apply"
   exit 1
 fi
