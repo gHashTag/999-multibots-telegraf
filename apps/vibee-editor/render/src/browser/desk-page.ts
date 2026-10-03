@@ -36,6 +36,10 @@ export interface DeskWho {
   telegramId: string
 }
 
+/** What a desk hears when the tab shows Chromium's error page. */
+export const DID_NOT_LOAD =
+  "the page did not load: the tab shows Chromium's error page, not the site"
+
 /**
  * THE ONE CHECK EVERY DESK ROAD PASSES: may this desk be at `url` for this
  * person? Throws `blockedError` for a blocked site and `UNREADABLE_LIST` when
@@ -45,8 +49,16 @@ export interface DeskWho {
  * mustNotBeOn, same rule). Used by newDeskPage, by the desks that navigate a
  * window of their own (rounds), read through a tab already open (reddit) or
  * act on the tab in front (scenarios) -- found by the bee on #3488.
+ *
+ * Chromium's own error page (`chrome-error://`, "This site can't be
+ * reached") is refused ALWAYS, list or no list: it is not a place, it is
+ * the page that did not load. Read as one, a round reported a dead site as
+ * seen and sent the error text to the person as its news; with a block on
+ * the list the same look failed instead (the bee on #3488 saw only that
+ * half).
  */
 export async function deskMayGo(who: DeskWho, url: string): Promise<void> {
+  if (/^chrome-error:/i.test(url.trim())) throw new Error(DID_NOT_LOAD)
   const { siteRulesOf, ruleFor, blockedError, UNREADABLE_LIST } = await import(
     './site-rules'
   )
