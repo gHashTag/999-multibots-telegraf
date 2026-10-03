@@ -21,6 +21,7 @@
  *     and named. Applied once: the claim is one atomic UPDATE.
  */
 import type { Queryable } from './sessions'
+import { APPROVAL_TTL_MS } from './approvals'
 
 export type TidyWhy =
   | 'unfinished form'
@@ -260,10 +261,15 @@ export async function openTidyAsk(
     [telegramId]
   )
   for (const r of rows) {
+    /*
+     * A null ttl_ms means the approvals module's ten minutes, not a day: the
+     * Allow button refuses such a question after ten minutes, so it must not
+     * hold back a fresh card for the rest of the day (review of #3449).
+     */
     const state = tidyAskOpen(
       String(r.state),
       Number(r.age_ms),
-      Number(r.ttl_ms) || TIDY_TTL_MS
+      Number(r.ttl_ms) || APPROVAL_TTL_MS
     )
     if (state) return { question: String(r.approval_id), state }
   }

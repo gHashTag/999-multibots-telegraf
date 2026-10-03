@@ -102,4 +102,84 @@ describe('browser_tidy ask', () => {
     await tidy.handler({ ask: true }, ctx as never).catch(() => undefined)
     expect(writes.some(w => w.includes('browser_approvals'))).toBe(true)
   })
+
+  it('an allowed one whose tabs are all gone is cleared by apply, then asking works again', async () => {
+    stubFetch()
+    let applied = false
+    const stored = JSON.stringify([
+      { id: 'GONE1', url: 'https://x.com/compose', why: 'abandoned-form' },
+      { id: 'GONE2', url: 'https://x.com/login', why: 'stuck-sign-in' },
+    ])
+    const pool = {
+      async query(sql: string) {
+        if (sql.includes('FROM browser_sessions'))
+          return {
+            rows: [
+              {
+                telegram_id: '144',
+                session_id: 's',
+                cdp_endpoint: 'http://127.0.0.1:9222',
+                state: 'live',
+                view_token: 'v',
+                admin_token: 'a',
+              },
+            ],
+          }
+        if (sql.includes('JOIN browser_approvals'))
+          return {
+            rows: applied
+              ? []
+              : [
+                  {
+                    approval_id: 'q-yes',
+                    state: 'allowed',
+                    ttl_ms: 86_400_000,
+                    age_ms: 9e9,
+                  },
+                ],
+          }
+        if (sql.includes('FROM browser_approvals WHERE id'))
+          return {
+            rows: [
+              {
+                id: 'q-yes',
+                telegram_id: '144',
+                what: 'w',
+                state: 'allowed',
+                created_ms: 0,
+                ttl_ms: 86_400_000,
+              },
+            ],
+          }
+        if (sql.includes('UPDATE browser_tidy_asks')) {
+          if (applied) return { rows: [] }
+          applied = true
+          return { rows: [{ tabs: stored }] }
+        }
+        return { rows: [] }
+      },
+    }
+    const ctx = { telegramId: '144', pool }
+    const before = (await tidy.handler({}, ctx as never)) as {
+      open?: { state: string }
+    }
+    expect(before.open?.state).toBe('allowed')
+    const done = (await tidy.handler({ apply: 'q-yes' }, ctx as never)) as {
+      applied: boolean
+      closed: string[]
+      skipped: { id: string; why: string }[]
+    }
+    expect(done.applied).toBe(true)
+    expect(done.closed).toEqual([])
+    expect(done.skipped.map(s => s.why)).toEqual([
+      'already closed',
+      'already closed',
+    ])
+    const after = (await tidy.handler({}, ctx as never)) as {
+      open?: unknown
+      tabs: unknown[]
+    }
+    expect(after.open).toBeUndefined()
+    expect(after.tabs.length).toBeGreaterThan(0)
+  })
 })

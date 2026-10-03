@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { APPROVAL_TTL_MS } from './approvals'
 import {
   claimTidyAsk,
   openTidyAsk,
@@ -184,6 +185,7 @@ describe('one card at a time', () => {
     expect(tidyAskOpen('pending', TIDY_TTL_MS)).toBeNull()
     expect(tidyAskOpen('pending', -1)).toBeNull()
     expect(tidyAskOpen('denied', 1)).toBeNull()
+    expect(tidyAskOpen('pending', 11 * 60_000, APPROVAL_TTL_MS)).toBeNull()
     expect(tidyAskOpen('expired', 1)).toBeNull()
   })
 
@@ -221,6 +223,28 @@ describe('one card at a time', () => {
       async query(sql: string) {
         if (sql.includes('CREATE TABLE')) return { rows: [] }
         return { rows: [{ approval_id: 'q1', state: 'denied', age_ms: 1 }] }
+      },
+    } as unknown as Queryable
+    expect(await openTidyAsk(q, '144')).toBeNull()
+  })
+})
+
+describe('a question with no lifetime of its own', () => {
+  it('lives the approvals ten minutes, so it cannot block a fresh card all day', async () => {
+    resetTidyCache()
+    const q = {
+      async query(sql: string) {
+        if (sql.includes('CREATE TABLE')) return { rows: [] }
+        return {
+          rows: [
+            {
+              approval_id: 'q1',
+              state: 'pending',
+              ttl_ms: null,
+              age_ms: String(11 * 60_000),
+            },
+          ],
+        }
       },
     } as unknown as Queryable
     expect(await openTidyAsk(q, '144')).toBeNull()
