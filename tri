@@ -610,7 +610,9 @@ CHECKS THAT EACH COST A CYCLE
   tri pr-billing N
         Is every failing check on PR N the Actions billing stop? rc 0 only if
         all are; an empty annotation (dropped connection) is re-asked, then
-        counted UNKNOWN -- never billing.
+        counted UNKNOWN -- never billing. Refuses (rc 1) while a comment
+        starting "Reviewer bee: not merged" is newer than the head commit;
+        an older one is printed, to be checked against the push.
 
   tri premerge N [--keep]
         Would PR N pass the player's deploy gate once it lands on today's
@@ -3825,7 +3827,8 @@ cmd_worktree() {
       echo "   Это свойство ПУТИ, а не содержимого: тот же коммит рядом собирается."
       echo "   Дерево удалено. Повторите с другим именем ветки, путь изменится."
       git -C "$ROOT" worktree remove --force "$wt" >/dev/null 2>&1
-      git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
+      # --pr checked out a branch that is the PR's, not ours to delete.
+      [ -n "$pr" ] || git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
       return 1
     fi
   fi
@@ -4260,6 +4263,27 @@ cmd_pr_billing() {
   local sha ids id name msg try billing=0 other=0 unknown=0
   sha=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid --jq .headRefOid) \
     || { bad "PR $pr not found in $repo"; return 2; }
+  # A reviewer's refusal of THIS head outranks a clean billing count. On
+  # 2026-10-03 PR 3451 was merged 23 s after a push and 70 s after a bee had
+  # posted "not merged" -- and the push did not touch a single note. So a
+  # refusal newer than the head commit blocks (rc 1), and an older one is
+  # printed with its first line: a push is not an answer until someone reads
+  # the notes against it.
+  local refusals kind stamp note
+  refusals=$("$gh" pr view "$pr" --repo "$repo" --json commits,comments --jq \
+    '(.commits[-1].committedDate) as $d | .comments[]
+     | select(.body | test("^[*_ ]*reviewer bee:?[*_ ]*not merged"; "i"))
+     | (if .createdAt > $d then "NEW" else "OLD" end) + "\t" + .createdAt
+       + " " + .author.login + "\t" + (.body | split("\n")[0] | .[0:120])') \
+    || { bad "could not read the comments on PR $pr -- a refusal there would be missed"; return 2; }
+  local blocked=0
+  while IFS=$'\t' read -r kind stamp note; do
+    case "$kind" in
+      NEW) bad "a reviewer refused this head ($stamp): fix the notes and push, then review again"; blocked=1 ;;
+      OLD) skip "refused before the last push ($stamp), check each note against it: $note" ;;
+    esac
+  done <<< "$refusals"
+  [ $blocked -eq 0 ] || return 1
   ids=$("$gh" api "repos/$repo/commits/$sha/check-runs?per_page=100" \
     --jq '.check_runs[]|select(.conclusion=="failure")|"\(.id)\t\(.name)"') \
     || { bad "could not list check runs for $sha"; return 2; }
