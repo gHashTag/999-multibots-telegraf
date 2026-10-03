@@ -57,6 +57,10 @@ describe('tri disk-floor', () => {
     // Bash arithmetic reads "08" as bad octal and wraps past 2^63; each of
     // these once ended rc 0 on a check that had failed.
     expect(floor({ TRI_DISK_FREE_KIB: '0999' }).rc).toBe(1)
+    // Valid octal too, and the verdicts differ: 16 GiB decimal, ~3.75 octal.
+    const lead = floor({ TRI_DISK_FREE_KIB: '0016777216' })
+    expect(lead.rc).toBe(0)
+    expect(lead.out).toMatch(/16 GiB free/)
     expect(floor({ TRI_DISK_FREE_KIB: '0', TRI_DISK_FLOOR_GIB: '08' }).rc).toBe(
       1
     )
