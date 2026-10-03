@@ -1359,6 +1359,20 @@ const tickers = new Map<
   { last: number; timer: ReturnType<typeof setInterval> }
 >()
 
+/*
+ * A tick that was in flight when its ticker idled out can resolve after a
+ * new step has started a NEW ticker for the same person; deleting by id
+ * alone would orphan that one (its timer running, unreachable). Only the
+ * ticker that is stopping leaves the map.
+ */
+function stopTicker(
+  id: string,
+  state: { timer: ReturnType<typeof setInterval> }
+): void {
+  clearInterval(state.timer)
+  if (tickers.get(id) === state) tickers.delete(id)
+}
+
 function keepTicking(ctx: ToolContext): void {
   const id = ctx.telegramId
   const now = Date.now()
@@ -1374,8 +1388,7 @@ function keepTicking(ctx: ToolContext): void {
   let busy = false
   state.timer = setInterval(() => {
     if (Date.now() - state.last > TICK_IDLE_MS) {
-      clearInterval(state.timer)
-      tickers.delete(id)
+      stopTicker(id, state)
       return
     }
     if (busy) return
@@ -1384,10 +1397,7 @@ function keepTicking(ctx: ToolContext): void {
       try {
         const session = await readSession(ctx.pool as unknown as Queryable, id)
         const may = tickMayFilm(session, Date.now())
-        if (may === 'stop') {
-          clearInterval(state.timer)
-          tickers.delete(id)
-        }
+        if (may === 'stop') stopTicker(id, state)
         if (may !== 'film' || !session?.endpoint) return
         const jpeg = await desktopShot(session.endpoint, session.adminToken)
         addFrame(id, { at: Date.now(), tool: 'tick', jpeg })
