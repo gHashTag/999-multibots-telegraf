@@ -36,6 +36,7 @@ import { IS_EMBED } from '@/lib/embed'
 import { languageAtom } from '@/atoms/language'
 import { agentChatText, type AgentChatEvent } from '@/lib/agentChatText'
 import { openLoginAtom } from '@/atoms/user'
+import type { WidgetContext } from '@/lib/clientWidgets'
 
 /**
  * WHICH CONVERSATIONS ARE ANSWERING RIGHT NOW (owner, 2026-09-26: "so I can
@@ -158,6 +159,12 @@ export interface SendOptions {
   conversation?: string | null
   /** A kanban card, "gHashTag/t27#5382": its own conversation (never a client). */
   task?: string | null
+  /**
+   * What the owner sees on the client's card when the line is sent
+   * (lib/clientWidgets.ts `widgetContext`). Sent only with a client: the
+   * server reads it in a client's thread and nowhere else.
+   */
+  widgets?: WidgetContext
 }
 
 /**
@@ -376,6 +383,9 @@ export async function sendToAgent(
         // Only when talking about a client: the key is absent otherwise, so
         // the self thread's request body is byte-for-byte what it was.
         ...(client ? { client } : {}),
+        // The widgets on the client's card, so the agent acts on what the
+        // owner is looking at (owner, 2026-10-03) -- never outside a client.
+        ...(client && options.widgets ? { widgets: options.widgets } : {}),
         ...(marketplaceAgent ? { agent: marketplaceAgent } : {}),
         ...(conversation ? { conversation } : {}),
         ...(task ? { task } : {}),
