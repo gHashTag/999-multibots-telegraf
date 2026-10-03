@@ -16,26 +16,74 @@
  * answer completely. Ancestry is the right question for merge commits and the
  * wrong one here.
  *
- * NOTHING IS DELETED BY THIS FILE. It classifies; removal is the caller's
- * explicit act, and a tree holding uncommitted work is never proposed for it --
- * someone else's unsaved work is not mine to discard, even when it looks
- * superseded. Both trees left behind by the first sweep held an OLD copy of a
- * command that main already carries in a better form, and they were still kept.
+ * AND THE ANSWER MUST BE BY COMMIT, NOT BY NAME. Until 03.10.2026 a tree was
+ * "finished" when its branch NAME matched a merged PR. A branch that got new
+ * commits after its PR merged kept the name and lost the work's only marker;
+ * a detached tree had no name at all and was "in progress" forever (13 of 65
+ * on 03.10, mostly bees' review copies). Now a tree is finished when its HEAD
+ * IS a merged PR's head commit, or is contained in one, or is already in
+ * origin/main. Same rule `tri` uses for branch cleanup (tip == headRefOid).
+ *
+ * WHAT --apply REMOVES, AND WHAT IT NEVER TOUCHES. Without flags nothing is
+ * deleted. With --apply only trees that are finished AND:
+ *   - clean (no uncommitted or untracked file) -- re-checked right before;
+ *   - not locked (`git worktree lock` is the owner saying "keep");
+ *   - no process has its working directory inside (a live session);
+ *   - not touched in the last hour (a session between two commands);
+ *   - no other worktree nested inside (removing the parent deletes the child);
+ *   - every IGNORED file is one we can regenerate (node_modules, caches,
+ *     dist, logs). An ignored `.env` is someone's local file, not ours.
+ * On 03.10 the old proposal list carried `git worktree remove --force` for a
+ * tree holding an ignored .env AND a nested worktree; --force deletes both
+ * silently. Branches and commits always stay: removal frees the directory.
  */
 
+const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
+const GH = process.env.TRI_GH || 'gh'
+const RECENT_MIN = Number(process.env.TRI_WT_RECENT_MIN ?? 60)
 
 const git = (args, cwd = ROOT) =>
   execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' })
 
-/** Branch names whose pull request is merged, straight from GitHub. */
-function mergedBranches() {
+const ok = (args, cwd = ROOT) => {
+  try {
+    git(args, cwd)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Ignored entries we can rebuild: matched on the last path component. */
+const REGENERABLE = [
+  /^node_modules$/,
+  /^\.vite-cache$/,
+  /^\.vite$/,
+  /^dist$/,
+  /^build$/,
+  /^logs$/,
+  /^coverage$/,
+  /^__pycache__$/,
+  /^\.turbo$/,
+  /^\.DS_Store$/,
+  /\.xcodeproj$/,
+  /\.log$/,
+]
+
+const regenerable = entry => {
+  const base = entry.replace(/\/+$/, '').split('/').pop()
+  return REGENERABLE.some(re => re.test(base))
+}
+
+/** Merged PRs from GitHub: head commit -> PR number, and branch -> numbers. */
+function mergedPrs() {
   try {
     const out = execFileSync(
-      'gh',
+      GH,
       [
         'pr',
         'list',
@@ -44,86 +92,242 @@ function mergedBranches() {
         '--limit',
         '300',
         '--json',
-        'headRefName',
-        '-q',
-        '.[].headRefName',
+        'number,headRefName,headRefOid',
       ],
       { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' }
     )
-    return new Set(
-      out
-        .split('\n')
-        .map(s => s.trim())
-        .filter(Boolean)
-    )
+    const byOid = new Map()
+    const byName = new Map()
+    for (const pr of JSON.parse(out)) {
+      byOid.set(pr.headRefOid, pr.number)
+      if (!byName.has(pr.headRefName)) byName.set(pr.headRefName, [])
+      byName.get(pr.headRefName).push({ n: pr.number, oid: pr.headRefOid })
+    }
+    return { byOid, byName }
   } catch {
     return null
   }
 }
 
-/** Every worktree except the main checkout: path, branch, dirty, ahead. */
-function worktrees() {
+/** Working directories of every running process; null when lsof fails. */
+function processDirs() {
+  try {
+    const out = execFileSync('lsof', ['-d', 'cwd', '-Fn'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      maxBuffer: 64 * 1024 * 1024,
+    })
+    return out
+      .split('\n')
+      .filter(l => l.startsWith('n/'))
+      .map(l => l.slice(1))
+  } catch (e) {
+    // lsof exits 1 when some processes are unreadable but still prints the rest
+    if (e.stdout)
+      return String(e.stdout)
+        .split('\n')
+        .filter(l => l.startsWith('n/'))
+        .map(l => l.slice(1))
+    return null
+  }
+}
+
+const inside = (child, parent) =>
+  child === parent ||
+  child.startsWith(parent.endsWith('/') ? parent : parent + '/')
+
+function listTrees() {
   const out = []
   let cur = null
   for (const line of git(['worktree', 'list', '--porcelain']).split('\n')) {
-    if (line.startsWith('worktree ')) cur = { dir: line.slice(9), branch: null }
+    if (line.startsWith('worktree '))
+      cur = { dir: line.slice(9), branch: null, head: null, locked: false }
+    else if (!cur) continue
+    else if (line.startsWith('HEAD ')) cur.head = line.slice(5)
     else if (line.startsWith('branch '))
       cur.branch = line.slice(7).replace('refs/heads/', '')
-    else if (line.startsWith('detached')) cur.branch = null
-    else if (line === '' && cur) {
+    else if (line === 'locked' || line.startsWith('locked ')) cur.locked = true
+    else if (line === '') {
       out.push(cur)
       cur = null
     }
   }
   if (cur) out.push(cur)
-  const mainDir = out.length ? out[0].dir : ROOT
   return out
+}
+
+function minutesSinceTouched(dir) {
+  try {
+    const gd = git(['rev-parse', '--absolute-git-dir'], dir).trim()
+    let newest = 0
+    for (const f of ['index', 'HEAD', 'logs/HEAD']) {
+      try {
+        newest = Math.max(newest, fs.statSync(path.join(gd, f)).mtimeMs)
+      } catch {
+        /* a fresh tree may lack logs */
+      }
+    }
+    return newest ? (Date.now() - newest) / 60000 : Infinity
+  } catch {
+    return Infinity
+  }
+}
+
+/** Facts about every worktree except the main checkout. */
+function gather(procs) {
+  const all = listTrees()
+  const mainDir = all.length ? all[0].dir : ROOT
+  return all
     .filter(w => w.dir !== mainDir)
     .map(w => {
       let dirty = -1
-      let ahead = -1
+      let ignored = []
       try {
-        dirty = git(['status', '--porcelain'], w.dir)
+        const st = git(['status', '--porcelain', '--ignored'], w.dir)
           .split('\n')
-          .filter(Boolean).length
+          .filter(Boolean)
+        dirty = st.filter(l => !l.startsWith('!! ')).length
+        ignored = st.filter(l => l.startsWith('!! ')).map(l => l.slice(3))
       } catch {
-        /* the directory may be gone; prune will report it */
+        /* the directory may be gone; `git worktree prune` reports it */
       }
-      try {
-        if (w.branch)
+      let ahead = -1
+      if (w.head)
+        try {
           ahead = Number(
-            git(['rev-list', '--count', `origin/main..${w.branch}`]).trim()
+            git(['rev-list', '--count', `origin/main..${w.head}`]).trim()
           )
-      } catch {
-        /* branch may not exist on the remote */
+        } catch {
+          /* commit unknown here */
+        }
+      const nested = all
+        .filter(o => o.dir !== w.dir && inside(o.dir, w.dir))
+        .map(o => o.dir)
+      return {
+        ...w,
+        dirty,
+        ahead,
+        nested,
+        unsafeIgnored: ignored.filter(e => !regenerable(e)),
+        busy: procs ? procs.filter(p => inside(p, w.dir)).length : null,
+        touchedMin: minutesSinceTouched(w.dir),
+        containedIn: oid => ok(['merge-base', '--is-ancestor', w.head, oid]),
+        // every commit beyond main already landed as the same patch (a
+        // rebased copy: the PR head moved on, this tree kept the old SHA)
+        patchesUpstream: () => {
+          try {
+            const lines = git(['cherry', 'origin/main', w.head])
+              .split('\n')
+              .filter(Boolean)
+            return lines.length > 0 && lines.every(l => l.startsWith('- '))
+          } catch {
+            return false
+          }
+        },
       }
-      return { ...w, dirty, ahead }
     })
 }
 
 /**
- * finished  merged PR (or nothing beyond main) AND nothing uncommitted
- * holds     uncommitted work -- never proposed for removal
- * active    no merged PR and commits beyond main -- someone's work in progress
+ * finished  HEAD is a merged PR's head, inside one, already in origin/main,
+ *           or every commit beyond main is already there as the same patch
+ *           -- and nothing uncommitted
+ * holds     uncommitted work, or locked -- never proposed for removal
+ * active    anything else: commits nobody merged yet
  */
 function classify(trees, merged) {
-  const rows = trees.map(w => {
-    if (w.dirty > 0) return { ...w, state: 'holds' }
-    const isMerged = w.branch && merged && merged.has(w.branch)
-    if (isMerged || w.ahead === 0) return { ...w, state: 'finished' }
-    return { ...w, state: 'active' }
+  return trees.map(w => {
+    if (w.dirty > 0)
+      return { ...w, state: 'holds', why: `несохранённых файлов: ${w.dirty}` }
+    if (w.dirty < 0)
+      return { ...w, state: 'active', why: 'не прочитать (каталога нет?)' }
+    if (w.locked)
+      return { ...w, state: 'holds', why: 'заперто (git worktree lock)' }
+    if (w.head && merged.byOid.has(w.head))
+      return {
+        ...w,
+        state: 'finished',
+        why: `= голова влитого PR #${merged.byOid.get(w.head)}`,
+      }
+    if (w.ahead === 0)
+      return { ...w, state: 'finished', why: 'уже в origin/main' }
+    const sameName = (w.branch && merged.byName.get(w.branch)) || []
+    for (const pr of sameName)
+      if (w.containedIn && w.containedIn(pr.oid))
+        return { ...w, state: 'finished', why: `внутри влитого PR #${pr.n}` }
+    if (w.patchesUpstream && w.patchesUpstream())
+      return {
+        ...w,
+        state: 'finished',
+        why: 'те же правки уже в origin/main (git cherry)',
+      }
+    if (sameName.length)
+      return {
+        ...w,
+        state: 'active',
+        why: `голова не та, что влита в PR #${sameName[0].n} -- имя то же, коммиты другие`,
+      }
+    return {
+      ...w,
+      state: 'active',
+      why: w.ahead > 0 ? `${w.ahead} коммит(ов) не в main` : '',
+    }
   })
-  return rows
+}
+
+/** Why a finished tree must still stay; empty when --apply may remove it. */
+function blockers(r, recentMin = RECENT_MIN) {
+  const b = []
+  if (r.state !== 'finished') return ['не завершено']
+  if (r.busy === null) b.push('не знаю, кто внутри (lsof не ответил)')
+  else if (r.busy > 0) b.push(`внутри работает процесс (${r.busy})`)
+  if (r.touchedMin < recentMin)
+    b.push(`трогали ${Math.round(r.touchedMin)} мин назад`)
+  if (r.nested.length) b.push(`внутри другое дерево: ${r.nested[0]}`)
+  if (r.unsafeIgnored.length)
+    b.push(
+      `игнорируемое, которое не пересобрать: ${r.unsafeIgnored.slice(0, 3).join(', ')}`
+    )
+  return b
 }
 
 function selfCheck() {
-  const merged = new Set(['loop/done'])
+  const merged = {
+    byOid: new Map([['aaa', 1]]),
+    byName: new Map([
+      ['loop/done', [{ n: 1, oid: 'aaa' }]],
+      ['loop/older', [{ n: 2, oid: 'ccc' }]],
+    ]),
+  }
+  const t = (dir, over) => ({
+    dir,
+    branch: null,
+    head: 'zzz',
+    dirty: 0,
+    ahead: 1,
+    locked: false,
+    nested: [],
+    unsafeIgnored: [],
+    busy: 0,
+    touchedMin: 999,
+    containedIn: () => false,
+    ...over,
+  })
   const rows = classify(
     [
-      { dir: '/a', branch: 'loop/done', dirty: 0, ahead: 1 },
-      { dir: '/b', branch: 'loop/wip', dirty: 0, ahead: 1 },
-      { dir: '/c', branch: 'loop/done', dirty: 2, ahead: 1 },
-      { dir: '/d', branch: 'loop/empty', dirty: 0, ahead: 0 },
+      t('/a', { branch: 'loop/done', head: 'aaa' }),
+      t('/b', { branch: 'loop/wip' }),
+      t('/c', { branch: 'loop/done', head: 'aaa', dirty: 2 }),
+      t('/d', { branch: 'loop/empty', ahead: 0 }),
+      t('/e', { branch: 'loop/done', head: 'bbb' }),
+      t('/f', { head: 'aaa' }),
+      t('/g', {
+        branch: 'loop/older',
+        head: 'old',
+        containedIn: oid => oid === 'ccc',
+      }),
+      t('/h', { head: 'aaa', locked: true }),
+      t('/i', { branch: 'loop/wip2', patchesUpstream: () => true }),
     ],
     merged
   )
@@ -133,24 +337,62 @@ function selfCheck() {
     '/b': 'active',
     '/c': 'holds',
     '/d': 'finished',
+    '/e': 'active',
+    '/f': 'finished',
+    '/g': 'finished',
+    '/h': 'holds',
+    '/i': 'finished',
   }
   for (const [dir, expected] of Object.entries(want))
     if (state(dir) !== expected)
       throw new Error(
         `selfCheck: ${dir} classified ${state(dir)}, expected ${expected}`
       )
-  // The one that matters: a MERGED branch with uncommitted work is "holds",
-  // never "finished". Deleting a tree because its PR landed is how unsaved
-  // work disappears.
-  if (state('/c') !== 'holds') throw new Error('selfCheck: dirty beats merged')
+  // The ones that matter: a MERGED branch with uncommitted work is "holds";
+  // a merged NAME with a new tip is work, not a leftover.
+  const fin = rows.find(r => r.dir === '/a')
+  if (blockers(fin, 60).length)
+    throw new Error('selfCheck: a clean finished tree is blocked')
+  for (const over of [
+    { busy: 1 },
+    { busy: null },
+    { touchedMin: 5 },
+    { nested: ['/a/x'] },
+    { unsafeIgnored: ['.env'] },
+  ])
+    if (!blockers({ ...fin, ...over }, 60).length)
+      throw new Error('selfCheck: blocker ignored: ' + JSON.stringify(over))
+  if (regenerable('.env') || !regenerable('apps/x/node_modules/'))
+    throw new Error('selfCheck: regenerable list')
   return true
 }
 
-function main() {
-  selfCheck()
-  console.log('самопроверка: несохранённое перевешивает влитый PR')
+function firstLine(e) {
+  return String(e.stderr || e.message)
+    .trim()
+    .split('\n')[0]
+}
 
-  const merged = mergedBranches()
+function sizeMb(dir) {
+  try {
+    const out = execFileSync('du', ['-sk', dir], {
+      encoding: 'utf8',
+      stdio: 'pipe',
+    })
+    return Math.round(Number(out.split('\t')[0]) / 1024)
+  } catch {
+    return 0
+  }
+}
+
+function main() {
+  const apply = process.argv.includes('--apply')
+  selfCheck()
+  console.log(
+    'самопроверка: несохранённое перевешивает влитый PR; имя -- не коммит'
+  )
+
+  const merged = mergedPrs()
   if (!merged) {
     console.error(
       '\nне удалось спросить GitHub о влитых PR. Здесь НЕЛЬЗЯ подставить\n' +
@@ -160,7 +402,7 @@ function main() {
     process.exit(2)
   }
 
-  const rows = classify(worktrees(), merged)
+  const rows = classify(gather(processDirs()), merged)
   const by = s => rows.filter(r => r.state === s)
   console.log(
     `\nдеревьев (кроме главного): ${rows.length}` +
@@ -173,20 +415,60 @@ function main() {
     holds: 'ДЕРЖИТ    ',
     active: 'в работе  ',
   }
-  for (const r of rows) {
-    const unsaved = r.dirty > 0 ? '  несохранённых файлов: ' + r.dirty : ''
-    console.log('  ' + LABEL[r.state] + (r.branch || '(detached)') + unsaved)
+  for (const r of rows)
+    console.log(
+      '  ' +
+        LABEL[r.state] +
+        (r.branch || '(detached ' + String(r.head).slice(0, 9) + ')') +
+        (r.why ? '  -- ' + r.why : '')
+    )
+
+  // deepest first: a nested tree goes before the tree that contains it
+  const fin = by('finished').sort((a, b) => b.dir.length - a.dir.length)
+  const free = fin.filter(r => !blockers(r).length)
+  const kept = fin.filter(r => blockers(r).length)
+  if (kept.length) {
+    console.log('\nзавершены, но остаются:')
+    for (const r of kept)
+      console.log(`  ${r.dir}\n      ${blockers(r).join('; ')}`)
+  }
+  if (!apply) {
+    if (free.length) {
+      console.log(`\nможно убрать (${free.length}): tri worktrees --apply`)
+      for (const r of free) console.log(`  ${r.dir}`)
+    }
+    console.log(
+      '\nдержащие несохранённое не предлагаются НИКОГДА, даже с влитым PR.'
+    )
+    return
   }
 
-  if (by('finished').length) {
-    console.log('\nубрать завершённые (ветки и коммиты останутся):')
-    for (const r of by('finished'))
-      console.log(`  git worktree remove --force '${r.dir}'`)
+  let removed = 0
+  let mb = 0
+  for (const r of free) {
+    // the world moved since the census: ask again, right before
+    const again = classify(gather(processDirs()), merged).find(
+      x => x.dir === r.dir
+    )
+    const still = again ? blockers(again) : ['исчезло из списка']
+    if (still.length) {
+      console.log(`  оставлено ${r.dir}: ${still.join('; ')}`)
+      continue
+    }
+    const size = sizeMb(r.dir)
+    try {
+      git(['worktree', 'remove', '--force', r.dir])
+      removed++
+      mb += size
+      console.log(`  убрано ${r.dir}  (${size} МБ; ${again.why})`)
+    } catch (e) {
+      console.log(`  НЕ убрано ${r.dir}: ${firstLine(e)}`)
+    }
   }
   console.log(
-    '\nдержащие несохранённое не предлагаются НИКОГДА, даже с влитым PR.'
+    `\nубрано деревьев: ${removed}, освобождено ~${mb} МБ. Ветки и коммиты на месте.`
   )
 }
 
 if (require.main === module) main()
-module.exports = { classify, selfCheck }
+module.exports = { classify, blockers, regenerable, selfCheck }
