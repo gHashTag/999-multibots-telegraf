@@ -21,6 +21,7 @@
  *     and named. Applied once: the claim is one atomic UPDATE.
  */
 import type { Queryable } from './sessions'
+import { APPROVAL_TTL_MS } from './approvals'
 
 export type TidyWhy =
   | 'unfinished form'
@@ -223,4 +224,54 @@ export async function claimTidyAsk(
   if (raw === undefined) return null
   const tabs = typeof raw === 'string' ? JSON.parse(raw) : raw
   return Array.isArray(tabs) ? (tabs as TidyTab[]) : []
+}
+
+/**
+ * ONE CARD AT A TIME.
+ *
+ * Found 2026-10-03: `tri browser doctor` flags litter tabs on every loop tick
+ * and points at `tidy ask`, and `ask` never looked for a question already on
+ * the owner's phone -- each tick would have added another card for the same
+ * five tabs. A question is still open while it waits (fresh and pending) or
+ * once he allowed it and nobody has applied it yet. Pure.
+ */
+export function tidyAskOpen(
+  state: string,
+  ageMs: number,
+  ttlMs: number = TIDY_TTL_MS
+): 'pending' | 'allowed' | null {
+  if (state === 'allowed') return 'allowed'
+  if (state === 'pending' && ageMs >= 0 && ageMs < ttlMs) return 'pending'
+  return null
+}
+
+/** The newest question about tabs that is still open, if any. */
+export async function openTidyAsk(
+  q: Queryable,
+  telegramId: string
+): Promise<{ question: string; state: 'pending' | 'allowed' } | null> {
+  await ensureTidy(q)
+  const { rows } = await q.query(
+    `SELECT t.approval_id, a.state, a.ttl_ms,
+            extract(epoch from now() - a.created_at) * 1000 AS age_ms
+       FROM browser_tidy_asks t
+       JOIN browser_approvals a ON a.id = t.approval_id
+      WHERE t.telegram_id = $1 AND t.applied_at IS NULL
+      ORDER BY t.created_at DESC LIMIT 5`,
+    [telegramId]
+  )
+  for (const r of rows) {
+    /*
+     * A null ttl_ms means the approvals module's ten minutes, not a day: the
+     * Allow button refuses such a question after ten minutes, so it must not
+     * hold back a fresh card for the rest of the day (review of #3449).
+     */
+    const state = tidyAskOpen(
+      String(r.state),
+      Number(r.age_ms),
+      Number(r.ttl_ms) || APPROVAL_TTL_MS
+    )
+    if (state) return { question: String(r.approval_id), state }
+  }
+  return null
 }
