@@ -509,13 +509,14 @@ describe('tri bite -- review 5 of #3462', () => {
   it('a package with its own node_modules is linked into the copies', () => {
     // sub/node_modules holds what the test of sub/ loads; without it the
     // first copy was red, and every run of such a package said cannot tell.
+    // `|| exit 3`: a missing sourced file does not stop bash by itself.
     const dir = repo()
     fs.mkdirSync(path.join(dir, 'sub'))
     fs.writeFileSync(path.join(dir, 'sub/package.json'), '{}\n')
     fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
     fs.writeFileSync(
       path.join(dir, 'sub/test.sh'),
-      '. ../lib/add.sh; . node_modules/dep/ok.sh; [ "$(add 2 3)" = 5 ] || exit 1\n'
+      '. ../lib/add.sh; . node_modules/dep/ok.sh || exit 3; [ "$(add 2 3)" = 5 ] || exit 1\n'
     )
     git(dir, 'add', '-A')
     git(dir, 'commit', '-q', '-m', 'sub')
@@ -562,5 +563,24 @@ describe('tri bite -- review 5 of #3462', () => {
       /links back into the tree \(node_modules\/pkg -> packages\/pkg\)/
     )
     expect(r.stdout).not.toMatch(/DOES NOT BITE/)
+  })
+  it('a link from one node_modules into another is not a link into the tree', () => {
+    // pnpm-style: sub/node_modules/dep -> ../../node_modules/dep. Installed
+    // code, not the tree's own; a green on <rev> stays "does not bite".
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'sub'))
+    fs.writeFileSync(path.join(dir, 'sub/package.json'), '{}\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'sub')
+    fs.mkdirSync(path.join(dir, 'node_modules/dep'), { recursive: true })
+    fs.mkdirSync(path.join(dir, 'sub/node_modules'))
+    fs.symlinkSync(
+      '../../node_modules/dep',
+      path.join(dir, 'sub/node_modules/dep')
+    )
+    const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.stdout).toMatch(/DOES NOT BITE/)
+    expect(r.status).toBe(1)
   })
 })
