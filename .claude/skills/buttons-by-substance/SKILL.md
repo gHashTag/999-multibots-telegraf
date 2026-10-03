@@ -94,6 +94,13 @@ grep -n "surface === 'bot' ? BUTTON_MARKERS" apps/vibee-editor/render/src/agent/
   a dropped send is "not sure", never retried). Live proof: `tri relays` (key parity by hash,
   guard 401, approve and meeting with junk tokens, failures across every deploy in the window —
   `railway logs` without an id reads only the current deploy).
+- **The probe runs itself every hour: `tri relays-watch`** (`bin/helpers/relays-watch.sh`,
+  launchd `ai.t27.relays-watch`). Render down (000/5xx): it waits out a deploy swap, then
+  redeploys `vibee-render` at most once per 6 h and reports what broke, what it did and the
+  result. Key or 401 problems are reported with the next step, never touched. `tri relays-watch
+status` shows the state. Install from a shell where `railway whoami` works: launchd's PATH
+  once found an old railway 4.5.4 that was "Unauthorized", so every run said "not measured".
+  `install` now pins the logged-in CLI and refuses an install that could not measure.
 
 ## Railway watch
 
