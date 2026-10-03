@@ -15,6 +15,10 @@ import os from 'node:os'
 import path from 'node:path'
 
 const TRI = path.join(__dirname, '..', 'tri')
+// The stub applies tri's --jq with real jq; the cloud check-runner image has
+// none, and there every call would fail as "PR not found" -- a red that says
+// nothing about tri.
+const hasJq = spawnSync('jq', ['--version']).status === 0
 const HEAD = 'abc1234567890'
 const BILLING =
   'The job was not started because recent account payments have failed.'
@@ -89,7 +93,7 @@ exec jq -r "$q" "$f"
 
 afterEach(() => fs.rmSync(bin, { recursive: true, force: true }))
 
-describe('tri pr-billing: a refusal of this head', () => {
+describe.skipIf(!hasJq)('tri pr-billing: a refusal of this head', () => {
   it('refuses when a bee said "not merged" after the head commit', () => {
     const r = billing({
       comments: [
@@ -155,7 +159,7 @@ describe('tri pr-billing: a refusal of this head', () => {
   })
 })
 
-describe('tri pr-billing: the red checks', () => {
+describe.skipIf(!hasJq)('tri pr-billing: the red checks', () => {
   it('every failure is the billing stop: rc 0', () => {
     const r = billing({
       failing: [
