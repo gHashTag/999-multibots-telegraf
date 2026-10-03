@@ -284,3 +284,49 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     expect(branches).toContain('feat/merged')
   })
 })
+
+// --apply keeps exactly the names the tree's .gitignore lists, so a key
+// type missing from the repository .gitignore is a key --apply deletes
+// (the reviewer bee on #3497: id_ed25519, id_ecdsa, .envrc, a file
+// called secrets). This pins the repository list, not a copy of it.
+describe.skipIf(!hasTools)(
+  'the repository .gitignore, read as the keep list',
+  () => {
+    const listed = (names: string[]) => {
+      const r = spawnSync('git', ['check-ignore', '--no-index', '--stdin'], {
+        cwd: path.join(__dirname, '..'),
+        input: names.join('\n') + '\n',
+        encoding: 'utf8',
+      })
+      return new Set(r.stdout.split('\n').filter(Boolean))
+    }
+
+    it('lists every private key, env file and secret store by name', () => {
+      const precious = [
+        'id_ed25519',
+        'id_ecdsa',
+        'id_rsa',
+        'id_dsa',
+        '.envrc',
+        'secrets',
+        '.env',
+        '.env.production',
+        'credentials.json',
+        'release.keystore',
+        'passwords.txt',
+        'state.sqlite',
+        'backup.gpg',
+        'AuthKey_X.p8',
+        'known_hosts',
+      ]
+      const got = listed(precious)
+      expect(precious.filter(n => !got.has(n))).toEqual([])
+    })
+
+    it('does not list ordinary build output', () => {
+      expect([...listed(['a.js', 'webhookSecret.js', 'index.html'])]).toEqual(
+        []
+      )
+    })
+  }
+)
