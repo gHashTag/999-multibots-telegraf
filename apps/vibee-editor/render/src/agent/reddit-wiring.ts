@@ -157,8 +157,14 @@ export async function readAsThePerson(
   owner: string,
   url: string
 ): Promise<unknown> {
-  const { newDeskPage } = await import('../browser/desk-page')
+  const { newDeskPage, deskMayGo } = await import('../browser/desk-page')
   const { listTargets, closePage } = await import('../browser/cdp')
+  /*
+   * The list first, before the open tab is borrowed (#3488, found by the
+   * bee): the read below reaches through a tab already on Reddit, and only
+   * the fallback went through newDeskPage's check.
+   */
+  await deskMayGo({ pool, telegramId: owner }, url)
   const cdp = await endpointOf(pool, owner)
   /*
    * TWO PLACES TO READ IN, AND NEITHER IS TRUSTWORTHY ALONE.
@@ -183,7 +189,10 @@ export async function readAsThePerson(
       first = e instanceof Error ? e.message : String(e)
     }
   }
-  const page = await newDeskPage(cdp, 'https://www.reddit.com/')
+  const page = await newDeskPage(cdp, 'https://www.reddit.com/', {
+    pool,
+    telegramId: owner,
+  })
   try {
     return await readIn(cdp, page.id, url)
   } catch (e) {
@@ -377,7 +386,7 @@ async function replyOnReddit(
   const { newDeskPage } = await import('../browser/desk-page')
   const { typeText, activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
-  const page = await newDeskPage(cdp, m.link)
+  const page = await newDeskPage(cdp, m.link, { pool, telegramId: owner })
   /* Front, so the tab is awake -- and so the person sees what is typed. */
   await activatePage(cdp, page.id).catch(() => {})
   /* The same trap as the inbox: press nothing until the page is really here. */
@@ -406,7 +415,7 @@ async function submitOnReddit(
   const { newDeskPage } = await import('../browser/desk-page')
   const { activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
-  const page = await newDeskPage(cdp, submitUrl(p))
+  const page = await newDeskPage(cdp, submitUrl(p), { pool, telegramId: owner })
   /* Front, so the tab is awake -- and so the person sees what is posted. */
   await activatePage(cdp, page.id).catch(() => {})
   await waitForOrigin(cdp, page.id, 'https://www.reddit.com')

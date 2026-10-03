@@ -24,7 +24,47 @@
  * process too, so a deploy loses nothing a restart has not already lost.
  */
 import type { CdpTarget } from './cdp'
+import type { Queryable } from './sessions'
 import type { SweepPage } from './tab-sweep'
+
+/**
+ * Whose browser this desk drives. Required, so no desk can open a tab
+ * without saying whose list it answers to (site-rules.ts).
+ */
+export interface DeskWho {
+  pool: Queryable
+  telegramId: string
+}
+
+/**
+ * THE ONE CHECK EVERY DESK ROAD PASSES: may this desk be at `url` for this
+ * person? Throws `blockedError` for a blocked site and `UNREADABLE_LIST` when
+ * the list cannot be read. An address that cannot be parsed ('' from a tab
+ * that is gone, a page still loading) is refused while the list blocks
+ * anything: the unknown place may be the blocked one (agent-tools.ts
+ * mustNotBeOn, same rule). Used by newDeskPage, by the desks that navigate a
+ * window of their own (rounds), read through a tab already open (reddit) or
+ * act on the tab in front (scenarios) -- found by the bee on #3488.
+ */
+export async function deskMayGo(who: DeskWho, url: string): Promise<void> {
+  const { siteRulesOf, ruleFor, blockedError, UNREADABLE_LIST } = await import(
+    './site-rules'
+  )
+  const rules = await siteRulesOf(who.pool, who.telegramId)
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  if (ruleFor(url, rules) === 'block') throw blockedError(url)
+  let known = false
+  try {
+    known = /^(https?|about|chrome):$/.test(new URL(url).protocol)
+  } catch {
+    /* Not an address at all: unknown. */
+  }
+  if (!known && rules.some(r => r.rule === 'block'))
+    throw new Error(
+      'the desk cannot tell which site this tab is on, and the person has ' +
+        'blocked sites: refused (the unknown place may be a blocked one)'
+    )
+}
 
 /** Longer than any desk run (a share run measured 3-6 minutes). */
 export const DESK_HOLD_MS = 15 * 60_000
@@ -72,13 +112,22 @@ async function realIo(): Promise<DeskPageIo> {
  * tab. A pod that cannot be listed still gets the open -- the health check
  * reports that trouble, and a desk refused by the tidy-up would only fail
  * later with a worse message.
+ *
+ * THE PERSON'S SITE LIST HOLDS HERE TOO. The desks drive raw CDP, so the
+ * agent tools' refusals (agent-tools.ts mustNotBeBlocked) never saw them: a
+ * person who blocked x.com still got the blog desk's composer opened there.
+ * A blocked address, or a list that cannot be read, refuses the open before
+ * any tab is made or closed for room. `ask` is not checked here: this door
+ * does not know whether the desk will act or only read.
  */
 export async function newDeskPage(
   cdp: string,
   url: string,
+  who: DeskWho,
   io?: DeskPageIo,
   now: number = Date.now()
 ): Promise<CdpTarget> {
+  await deskMayGo(who, url)
   const use = io ?? (await realIo())
   try {
     const { roomForOne, namesOfClosed, whereItWas } = await import(

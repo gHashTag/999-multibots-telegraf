@@ -249,7 +249,7 @@ async function pageText(
   const { newDeskPage } = await import('../browser/desk-page')
   const { evaluateOn, closePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner, 'engage')
-  const page = await newDeskPage(cdp, url)
+  const page = await newDeskPage(cdp, url, { pool, telegramId: owner })
   try {
     await settle(8_000)
     const t = await evaluateOn(
@@ -273,7 +273,10 @@ async function searchPage(
   const { newDeskPage } = await import('../browser/desk-page')
   const { evaluateOn, closePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner, 'engage')
-  const page = await newDeskPage(cdp, searchUrl(network, query))
+  const page = await newDeskPage(cdp, searchUrl(network, query), {
+    pool,
+    telegramId: owner,
+  })
   try {
     await settle(8_000)
     const raw = await evaluateOn(cdp, page.id, PROBE[network]).catch(() => null)
@@ -341,7 +344,7 @@ async function commentOn(
   const { newDeskPage } = await import('../browser/desk-page')
   const { typeText, activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner, 'engage')
-  const page = await newDeskPage(cdp, url)
+  const page = await newDeskPage(cdp, url, { pool, telegramId: owner })
   await activatePage(cdp, page.id).catch(() => {})
   await settle(8_000)
   const s = STEPS[network]
@@ -369,7 +372,7 @@ async function readBack(
   const { newDeskPage } = await import('../browser/desk-page')
   const { evaluateOn, closePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner, 'engage')
-  const page = await newDeskPage(cdp, url)
+  const page = await newDeskPage(cdp, url, { pool, telegramId: owner })
   try {
     await settle(8_000)
     const found = await evaluateOn(

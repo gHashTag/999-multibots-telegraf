@@ -237,4 +237,87 @@ describe('browser_tidy and the person site list', () => {
     expect(stored).toHaveLength(1)
     expect(stored[0]).toContain('/r/t27ai/submit/?title=x')
   })
+
+  /*
+   * The bee's mutations on #3487 dropped the veil from these two returns and
+   * nothing failed: the plain listing (the call made most often) and the
+   * "a card is already waiting" answer. Both are held here now.
+   */
+  function blockedReddit(open: boolean) {
+    return {
+      telegramId: '144',
+      pool: {
+        async query(sql: string) {
+          if (sql.includes('FROM browser_sessions'))
+            return {
+              rows: [
+                {
+                  telegram_id: '144',
+                  session_id: 's',
+                  cdp_endpoint: 'http://127.0.0.1:9222',
+                  state: 'live',
+                  view_token: 'v',
+                  admin_token: 'a',
+                },
+              ],
+            }
+          if (sql.includes('FROM browser_site_rules'))
+            return {
+              rows: [
+                {
+                  site: 'reddit.com',
+                  rule: 'block',
+                  by_whom: 'person',
+                  at: '2026-10-03T00:00:00Z',
+                },
+              ],
+            }
+          if (open && sql.includes('JOIN browser_approvals'))
+            return {
+              rows: [
+                {
+                  approval_id: 'q-open',
+                  ttl_ms: null,
+                  state: 'pending',
+                  age_ms: 60_000,
+                },
+              ],
+            }
+          return { rows: [] }
+        },
+      },
+    }
+  }
+
+  it('the plain listing veils it too', async () => {
+    stubFetch()
+    const out = await tidy.handler({}, blockedReddit(false) as never)
+    expect(JSON.stringify(out)).toContain('https://www.reddit.com/')
+    expect(JSON.stringify(out)).not.toContain('submit')
+  })
+
+  it('so does the answer that a card is already waiting', async () => {
+    stubFetch()
+    const out = (await tidy.handler(
+      { ask: true },
+      blockedReddit(true) as never
+    )) as { open?: unknown }
+    expect(out.open).toBeTruthy()
+    expect(JSON.stringify(out)).toContain('https://www.reddit.com/')
+    expect(JSON.stringify(out)).not.toContain('submit')
+  })
+
+  it('browser_focus_tab hands back the host, not the path', async () => {
+    /*
+     * Found by the bee on #3487: the id comes from browser_status, which
+     * veils the tab, and focus_tab answered with the full address.
+     */
+    const calls = stubFetch()
+    const focus = BROWSER_TOOLS.find(t => t.name === 'browser_focus_tab')!
+    const out = await focus.handler({ id: 'C' }, blockedReddit(false) as never)
+    expect(out).toEqual({ focused: 'C', url: 'https://www.reddit.com/' })
+    expect(calls.some(u => u.includes('/json/activate/C'))).toBe(true)
+    const b = await focus.handler({ id: 'A' }, blockedReddit(false) as never)
+    expect(b).toEqual({ focused: 'A', url: 'https://t27.ai/' })
+  })
 })
