@@ -82,7 +82,8 @@ export async function handleAgentPackagePayment(
         const extended = await (deps.extend ?? extendManagedBot)(
           bots[0].botUsername,
           PACKAGE_PERIOD_DAYS * verdict.booked.length,
-          packageMakesMedia(sale.packageId)
+          packageMakesMedia(sale.packageId),
+          sale.packageId
         )
         if (extended) {
           botNote = `agent bot @${extended.botUsername} paid until ${extended.paidUntil.toISOString().slice(0, 10)}`

@@ -104,19 +104,31 @@ export const BOT_USERNAME_RE = /^[A-Za-z][A-Za-z0-9_]{1,28}bot$/i
  * confirming, and Telegram, not us, decides whether it is free -- so this only
  * has to be valid and recognisably theirs.
  */
-export function suggestBotUsername(owner: {
-  id: number
-  username?: string
-}): string {
+export function suggestBotUsername(
+  owner: {
+    id: number
+    username?: string
+  },
+  /** The package asked for in /mybot; TRI DEV gets a name that says so. */
+  packageId?: string
+): string {
   const base = (owner.username ?? '')
     .replace(/[^A-Za-z0-9_]/g, '')
     .replace(/^[^A-Za-z]+/, '')
     .replace(/_?bot$/i, '')
   const stem = base.length >= 2 ? base : `t27_${owner.id}`
-  // "_agent_bot" is 10 characters; the whole name stays within 32.
-  const name = `${stem.slice(0, 22)}_agent_bot`
+  // The suffix and the stem together stay within Telegram's 32.
+  const suffix = packageId === 'tridev' ? TRI_DEV_BOT_SUFFIX : '_agent_bot'
+  const name = `${stem.slice(0, 32 - suffix.length)}${suffix}`
   return BOT_USERNAME_RE.test(name) ? name : `t27_${owner.id}_bot`.slice(0, 32)
 }
+
+/**
+ * The ending of a TRI DEV bot's suggested username. A bot whose username ends
+ * so is taken for a TRI DEV bot when the creation arrives with no /mybot
+ * intent remembered (a restart in between).
+ */
+export const TRI_DEV_BOT_SUFFIX = '_tri_dev_bot'
 
 /** The display name to suggest: the owner's name plus what the bot is. */
 export function suggestBotName(ownerName: string, isRu: boolean): string {

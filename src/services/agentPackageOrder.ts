@@ -2,7 +2,7 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 
 /**
- * AN ORDER FOR ONE OF THE THREE AGENTS, FROM ONE PRESS IN THE MINI APP.
+ * AN ORDER FOR ONE OF THE AGENTS, FROM ONE PRESS IN THE MINI APP.
  *
  * The mini app's package cards (player/src/components/Agents/PackageCards.tsx)
  * open this bot with `?start=agentpkg_<id>`. There is no checkout yet: the
@@ -22,7 +22,12 @@ export const AGENT_PACKAGE_PAYLOAD = /^agentpkg_([a-z]{2,20})$/i
  * the catalogue's AgentPackageId and fails on the first difference. Without
  * it, `agentpkg_anything` reached every admin as an order for nothing.
  */
-export const AGENT_PACKAGE_IDS = ['manager', 'blogger', 'twin'] as const
+export const AGENT_PACKAGE_IDS = [
+  'manager',
+  'blogger',
+  'twin',
+  'tridev',
+] as const
 
 /** The package id a /start payload orders, or null when it orders none. */
 export function agentPackageIntent(payload: string | undefined): string | null {
@@ -52,8 +57,8 @@ export function agentPackageOrderReply(
       : 'The team already has this request ✅\n\nNo need to send it again — they will write to you here, in this chat.'
   }
   return isRu
-    ? 'Заявка на агента принята ✅\n\nКоманда напишет вам здесь, в этом чате: уточнит задачи, настроит отдельного бота для вашего агента и пришлёт счёт. Первый месяц входит в цену запуска.'
-    : 'Your agent request is in ✅\n\nThe team will write to you here, in this chat: to agree the tasks, set up a separate bot for your agent and send the invoice. The first month is included in the launch price.'
+    ? 'Заявка на агента принята ✅\n\nКоманда напишет вам здесь, в этом чате: уточнит задачи, настроит отдельного бота для вашего агента и пришлёт счёт. Агент работает по подписке звёздами Telegram, она продлевается раз в месяц.'
+    : 'Your agent request is in ✅\n\nThe team will write to you here, in this chat: to agree the tasks, set up a separate bot for your agent and send the invoice. The agent runs on a monthly Telegram Stars subscription.'
 }
 
 /**
