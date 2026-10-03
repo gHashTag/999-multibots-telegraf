@@ -41,6 +41,18 @@ module TeamGroup
     { create: target.nil?, target: target, add: add, left: users.size - chosen.size, notes: notes }
   end
 
+  # POST /v1/betaGroups for our internal group. Spaceship's create_beta_group
+  # always sends publicLinkEnabled, publicLinkLimit and publicLinkLimitEnabled,
+  # and App Store Connect now refuses any of them on an internal group ("Public
+  # link limit cannot be applied to internal group", first upload of Trinity
+  # S³AI, 2026-10-03). A public link is a TestFlight-for-strangers feature; an
+  # internal group never has one, so the body names none of it.
+  def self.create_body(app_id)
+    { data: { type: "betaGroups",
+              attributes: { name: NAME, isInternalGroup: true, hasAccessToAllBuilds: true },
+              relationships: { app: { data: { type: "apps", id: app_id.to_s } } } } }
+  end
+
   # Logs are read by loops and pasted into chats: an address is shown as its
   # first letter and its domain, enough to recognise, not to harvest.
   def self.mask(email)

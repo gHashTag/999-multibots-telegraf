@@ -1,7 +1,12 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MetaConnectCard, type MetaStatus } from './MetaConnectCard'
+import {
+  MetaConnectCard,
+  WAIT_EVERY_MS,
+  WAIT_FOR_MS,
+  type MetaStatus,
+} from './MetaConnectCard'
 
 /**
  * THE META API CARD (meta-connect.t27).
@@ -132,5 +137,114 @@ describe('the Meta API card', () => {
   it("draws nothing on somebody else's profile", async () => {
     await draw(false, { apps: { threads: true, facebook: true }, networks: [] })
     expect(host.innerHTML).toBe('')
+  })
+})
+
+/*
+ * "I connected and the card did not change" (owner, 2026-10-03): the card
+ * asked once, on open, and the sign-in happens in another window.
+ */
+describe('the Meta API card after Connect', () => {
+  let host: HTMLDivElement
+  let root: Root
+  let answers: MetaStatus[]
+  let statusCalls: number
+
+  const out: MetaStatus = { apps: { facebook: true }, networks: [] }
+  const inFb: MetaStatus = {
+    apps: { facebook: true },
+    networks: [
+      {
+        network: 'facebook',
+        account: 'Trinity',
+        instagram: null,
+        daysLeft: 60,
+        usable: true,
+      },
+    ],
+  }
+
+  beforeEach(() => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    vi.useFakeTimers()
+    statusCalls = 0
+    answers = [out]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (String(url).includes('/meta/start'))
+          return {
+            ok: true,
+            json: async () => ({ ok: true, url: 'https://x' }),
+          }
+        const a = answers[Math.min(statusCalls, answers.length - 1)]
+        statusCalls++
+        return { ok: true, json: async () => ({ ok: true, ...a }) }
+      })
+    )
+    vi.spyOn(window, 'open').mockImplementation(() => null)
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+  })
+
+  afterEach(async () => {
+    await act(async () => root.unmount())
+    host.remove()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  const fbRow = () => host.querySelectorAll('li')[1] as HTMLLIElement
+  const flush = () => act(async () => {})
+
+  it('asks again when the app comes back into view', async () => {
+    await act(async () => root.render(<MetaConnectCard isOwn />))
+    await flush()
+    expect(fbRow().dataset.state).toBe('out')
+    answers = [inFb]
+    statusCalls = 0
+    await act(async () => window.dispatchEvent(new Event('focus')))
+    await flush()
+    expect(fbRow().dataset.state).toBe('in')
+  })
+
+  it('after Connect it polls until the row turns connected, then stops', async () => {
+    await act(async () => root.render(<MetaConnectCard isOwn />))
+    await flush()
+    await act(async () => fbRow().querySelector('button')!.click())
+    await flush()
+    expect(window.open).toHaveBeenCalledOnce()
+    expect(host.querySelector('[data-testid="meta-waiting"]')).not.toBeNull()
+
+    answers = [out, out, inFb]
+    statusCalls = 0
+    for (let i = 0; i < 3; i++) {
+      await act(async () => vi.advanceTimersByTime(WAIT_EVERY_MS))
+      await flush()
+    }
+    expect(fbRow().dataset.state).toBe('in')
+    expect(host.querySelector('[data-testid="meta-waiting"]')).toBeNull()
+
+    const asked = statusCalls
+    await act(async () => vi.advanceTimersByTime(WAIT_EVERY_MS * 5))
+    await flush()
+    expect(statusCalls).toBe(asked)
+  })
+
+  it('gives up after two minutes if the sign-in never finished', async () => {
+    await act(async () => root.render(<MetaConnectCard isOwn />))
+    await flush()
+    await act(async () => fbRow().querySelector('button')!.click())
+    await flush()
+    await act(async () => vi.advanceTimersByTime(WAIT_FOR_MS + WAIT_EVERY_MS))
+    await flush()
+    expect(host.querySelector('[data-testid="meta-waiting"]')).toBeNull()
+    const asked = statusCalls
+    await act(async () => vi.advanceTimersByTime(WAIT_EVERY_MS * 5))
+    await flush()
+    expect(statusCalls).toBe(asked)
+    expect(fbRow().dataset.state).toBe('out')
   })
 })
