@@ -1184,6 +1184,10 @@ sys.stderr.write(str(len(ts)))
     bash "$ROOT/bin/helpers/turn-time.sh" "$ROOT" "${2:-200}" ;;
   deadlines)
     bash "$ROOT/bin/helpers/deadlines.sh" "$ROOT" "${2:-}" ;;
+  relays)
+    # Does a bot button tap still reach the render? Key parity, guard, live
+    # approve + meeting probes with junk tokens, relay failures in the log.
+    bash "$ROOT/bin/helpers/relays.sh" "${2:-24}" ;;
   orphans)
     bash "$ROOT/bin/helpers/orphans.sh" "$ROOT" "${2:-200}" ;;
   crm-waiting)
