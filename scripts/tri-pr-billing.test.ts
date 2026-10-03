@@ -178,6 +178,10 @@ describe.skipIf(!hasJq)('tri pr-billing: a refusal of this head', () => {
     ['3448', '**Bee review: changes requested, blocking. Not merged.**'],
     ['3334', '**Reviewer bee: changes requested. Not merged.**'],
     ['3327', 'Reviewer bee Z: **not merged -- one blocking finding (SSRF).**'],
+    // A list of openers missed these three (the bee on #3468 found them).
+    ['3462', '## Reviewer bee: not merging -- four wrong-verdict blockers'],
+    ['3327', '## Bee review: changes requested, not merged'],
+    ['3366', 'Reviewed by bee (not the author). **I am not merging this.**'],
   ])('PR %s wording is a refusal', (_n, body) => {
     const r = billing({
       comments: [{ createdAt: '2026-10-03T01:10:00Z', body }],
@@ -188,6 +192,9 @@ describe.skipIf(!hasJq)('tri pr-billing: a refusal of this head', () => {
   it.each([
     'Bee review (not the author) -- sound, merging.',
     'Bee review (non-blocking notes; merged):',
+    'Independent reviewer bee: approve and merge. I wrote none of these.',
+    '## Post-merge review (reviewer bee)',
+    'For the reviewer bee: the red checks here are GitHub Actions billing.',
   ])('an approval is not a refusal: %s', body => {
     const r = billing({
       comments: [{ createdAt: '2026-10-03T01:10:00Z', body }],

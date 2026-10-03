@@ -2303,12 +2303,13 @@ printed with its first line: a push unblocks the merge, but the merging bee
 checks every note against the push before merging.
 
 The first version of that check matched the one wording it was written for and
-saw 4 of the 17 refusals on the last 200 PRs. Bees also wrote "not merging
-yet", "changes requested", "Bee review:" and "Reviewer bee Z:", and three
-refusals were review bodies rather than comments. Now the first line of a
-comment or a review counts when it starts "Reviewer bee" or "Bee review" and
-says "not merg" or "changes requested", and a CHANGES_REQUESTED review counts
-whatever it says. Before writing a matcher for something people type, pull
+saw 2 of the 20 refusals on the last 200 PRs. A widened list of openers
+("Reviewer bee", "Bee review") still missed three, and the reviewer bee caught
+it on #3468: `## Reviewer bee:` headings and "Reviewed by bee ... I am not
+merging this". So the rule is about words, not where they sit: the first line
+of a comment or a review names a bee and says "not merg" or "changes
+requested". That is all 20, and none of the ~35 approvals. A CHANGES_REQUESTED
+review counts whatever it says. Before writing a matcher for something people type, pull
 every real example (`gh pr list --state all --json comments,reviews`) and count
 how many the matcher sees. GitHub's own answer, "dismiss stale reviews on
 push", needs branch protection, which this free private repo does not get, so
