@@ -815,4 +815,25 @@ describe('tri bite -- review 1 of #3485', () => {
     expect(r.stdout).not.toMatch(/workspace link/)
     expect(r.status).toBe(1)
   })
+
+  it('a link to a file next to the named one is no hit on the named one', () => {
+    // The link's place within the checkout is the file, not its directory:
+    // node_modules/test.sh -> ../lib/test.sh says nothing about lib/add.sh.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../lib/test.sh', path.join(dir, 'node_modules/test.sh'))
+    const r = bite(
+      path.join(dir, 'lib'),
+      'v1',
+      'add.sh',
+      '--',
+      'bash',
+      'test.sh'
+    )
+    expect(r.stdout).toMatch(/BITES: red on v1/)
+    expect(r.status).toBe(0)
+  })
 })
