@@ -245,7 +245,7 @@ export function shareUrls(a: Article): {
      * nothing posted in six months -- and a blog that writes itself is
      * exactly what it lacks (measured 2026-09-23 on r/t27ai).
      */
-    reddit: `https://www.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/submit?title=${encodeURIComponent(a.title.slice(0, 280))}&url=${encodeURIComponent(linkFor(a, 'reddit'))}&type=LINK`,
+    reddit: `https://www.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/submit?title=${encodeURIComponent(clip(a.title, 280))}&url=${encodeURIComponent(linkFor(a, 'reddit'))}&type=LINK`,
   }
 }
 

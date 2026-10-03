@@ -341,6 +341,25 @@ describe('Threads gets the article too (owner, 24.09: all three next steps)', ()
       wholeWord(xText(long))
     }
   })
+
+  /* The same mid-word cut lived in both Reddit titles. */
+  it('a long title is cut at a whole word on Reddit too', () => {
+    const words = Array.from({ length: 300 }, (_, i) => 'w'.repeat(1 + (i % 9)))
+    const title = words.join(' ')
+    const long = { ...article, title }
+    const fromUrl = new URL(shareUrls(long).reddit).searchParams.get('title')!
+    const fromDesk = postFor(
+      { name: 't27ai', why: 'his own', promo: 'own', everyHours: 24 },
+      long
+    ).title
+    for (const head of [fromUrl, fromDesk]) {
+      expect(head.length).toBeLessThanOrEqual(300)
+      expect(head.endsWith('…')).toBe(true)
+      const kept = head.slice(0, -1)
+      expect(title.startsWith(kept)).toBe(true)
+      expect(title[kept.length]).toBe(' ')
+    }
+  })
 })
 
 describe('the link goes in the reply, not in the post', () => {
