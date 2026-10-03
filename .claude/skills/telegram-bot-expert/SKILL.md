@@ -233,6 +233,25 @@ use Bot API 9.5+: the `<tg-time unix="..." format="wDT">` entity, button `style`
 - The meeting rules (offsets, callback prefix, sweep cadence) live in the spec of
   record `src/spec/meeting-reminders.t27`; import the gen module, do not restate numbers.
 
+## Groups: Who the Bot Answers
+
+In a group, `isAddressedToUs` (`src/navigation/helpers/groupAddressing.ts`) keeps
+the bot silent unless the message is a reply to it, an @mention or a command. A
+room listed in `GROUP_CONCIERGE_CHATS` (variable on service `999-multibots-telegraf`,
+`groupConcierge.ts`) is answered in full. This is the owner's rule: the shared
+client room stays quiet by design.
+
+- **Resolve the id with `getChat` before adding it.** Telegram Desktop shows a
+  peer id with no sign. A basic group is `-<id>`, a supergroup `-100<id>`, and a
+  guessed prefix opens nothing and fails silently. On 2026-10-03 a VIP client's
+  brief went unanswered for four days this way.
+- Messages sent before the room was opened are **not** redelivered. Someone has
+  to answer the backlog: draft it to the owner, and post into the client's room
+  only after the owner's "да".
+- A silent room with at most 3 members reports itself to the admins present in
+  it, once per room per process (`silentRoomNotice.ts`). The notice carries the
+  exact id to paste. Silence that tells nobody is a bug.
+
 ## Usage Guidelines
 
 When working with this codebase:
