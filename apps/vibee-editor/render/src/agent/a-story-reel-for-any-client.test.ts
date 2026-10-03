@@ -2575,11 +2575,51 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     ])
   })
 
-  it('a pressed template speaks its lines in the studio, the seller edit included, with its call and button', async () => {
+  /** Her own English call, so the template's last line can carry it. */
+  const herCall = (base: ReturnType<typeof fakeBase>, cta = 'Book a fitting') =>
+    base.db.profiles.push({
+      owner_id: SELLER,
+      telegram_id: LENA,
+      updated: 2,
+      profile: { story_reel: { cta } },
+    })
+  /** The seller as his own lead: his face and his clone, in his own CRM. */
+  const qualifySelf = (base: ReturnType<typeof fakeBase>) => {
+    base.db.people.push({
+      owner_id: SELLER,
+      lead_id: SELLER,
+      first_name: 'Seller',
+      avatar_url: FACE,
+    })
+    base.db.voices.push({
+      owner_id: SELLER,
+      lead_id: SELLER,
+      username: 'example_seller',
+      voice_id: 'seller-voice-1',
+      seconds: 30,
+      created: 2,
+    })
+  }
+  const seen = (base: ReturnType<typeof fakeBase>) => {
+    const args: any[] = []
+    const tool = makeCrmStoryTool({
+      deps: () =>
+        depsOn(base, async a => {
+          args.push(a)
+          return reel
+        }).deps,
+      lookup: () => undefined,
+    })
+    return { tool, args }
+  }
+
+  it("a pressed template speaks its lines in the studio, the seller edit included; a client's ends with her call and no house button (v22)", async () => {
     const base = fakeBase()
     qualify(base)
-    const mine = 'Trinity answers my clients at night.'
-    const out: any = await press(base).handler(
+    herCall(base)
+    const mine = 'Lena answers her clients at night.'
+    const { tool, args } = seen(base)
+    const out: any = await tool.handler(
       {
         lead: LENA,
         start: true,
@@ -2590,6 +2630,7 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
       as(base)
     )
     expect(out.started).toBe(true)
+    expect(out.house_replaced).toBeUndefined()
     await drain()
     const job = base.db.jobs[0]
     const scenes = JSON.parse(String(job.scenes))
@@ -2597,11 +2638,154 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
       SPEC.TEMPLATE_LINE_EN_1,
       mine,
       SPEC.TEMPLATE_LINE_EN_3,
-      SPEC.TEMPLATE_LINE_EN_4,
+      `${SPEC.TEMPLATE_LEAD_EN_4} Book a fitting.`,
     ])
     expect(scenes.every((s: any) => s.setting === '')).toBe(true)
+    // No call of the house's in the job: hers is read from her profile.
+    expect(job.cta).not.toBe(SPEC.TEMPLATE_CALL_EN)
+    expect(job.end_card).toBeNull()
+    // And what the reel engine renders is hers, end to end.
+    expect(args).toHaveLength(1)
+    expect(args[0].cta).toBe('Book a fitting')
+    expect(args[0].end_card?.button ?? '').not.toMatch(SPEC.TEMPLATE_BUTTON)
+    // The ending -- last line, call, card -- names no house mark. (Lines 1-3
+    // are the template's own story and stay as written: TEMPLATE_LINES_KEPT.)
+    expect(
+      JSON.stringify([args[0].scenes.at(-1), args[0].cta, args[0].end_card])
+    ).not.toMatch(/Trinity|t27ai_bot/)
+  })
+
+  it("a template on the seller's OWN reel keeps the house call and the house button, end to end (v22)", async () => {
+    const base = fakeBase()
+    qualifySelf(base)
+    const { tool, args } = seen(base)
+    const out: any = await tool.handler(
+      {
+        lead: SELLER,
+        start: true,
+        template: SPEC.TEMPLATE_HOOK_STUDIO,
+        language: 'en',
+      },
+      as(base)
+    )
+    expect(out.started).toBe(true)
+    await drain()
+    const job = base.db.jobs[0]
     expect(job.cta).toBe(SPEC.TEMPLATE_CALL_EN)
     expect(JSON.parse(String(job.end_card)).button).toBe(SPEC.TEMPLATE_BUTTON)
+    expect(JSON.parse(String(job.scenes)).at(-1).line).toBe(
+      SPEC.TEMPLATE_LINE_EN_4
+    )
+    // The runner treats the seller as his own lead and still keeps his card.
+    expect(args).toHaveLength(1)
+    expect(args[0].cta).toBe(SPEC.TEMPLATE_CALL_EN)
+    expect(args[0].end_card?.button).toBe(SPEC.TEMPLATE_BUTTON)
+  })
+
+  it("the seller's call or button naming the house is replaced by hers on her reel, and the answer says so", async () => {
+    const base = fakeBase()
+    qualify(base)
+    herCall(base)
+    const { tool, args } = seen(base)
+    const out: any = await tool.handler(
+      {
+        lead: LENA,
+        start: true,
+        template: SPEC.TEMPLATE_HOOK_STUDIO,
+        language: 'en',
+        cta: SPEC.TEMPLATE_CALL_EN,
+        end_card: { bg: '#10182a', button: SPEC.TEMPLATE_BUTTON },
+      },
+      as(base)
+    )
+    expect(out.started).toBe(true)
+    expect(out.house_replaced).toMatch(SPEC.TEMPLATE_CALL_EN)
+    expect(out.house_replaced).toMatch(SPEC.TEMPLATE_BUTTON)
+    expect(out.house_replaced).toMatch('Book a fitting')
+    await drain()
+    const job = base.db.jobs[0]
+    expect(job.cta).not.toBe(SPEC.TEMPLATE_CALL_EN)
+    // Her colour stays; only the house's button is gone.
+    expect(JSON.parse(String(job.end_card))).toEqual({ bg: '#10182a' })
+    expect(args[0].cta).toBe('Book a fitting')
+    expect(args[0].end_card).toEqual({ bg: '#10182a' })
+  })
+
+  it("the seller's own last line stays on her reel unless it names the house", async () => {
+    const lastOf = async (line: string) => {
+      const base = fakeBase()
+      qualify(base)
+      herCall(base)
+      const out: any = await press(base).handler(
+        {
+          lead: LENA,
+          start: true,
+          template: SPEC.TEMPLATE_HOOK_STUDIO,
+          language: 'en',
+          scenes: [
+            { line: SPEC.TEMPLATE_LINE_EN_1 },
+            { line: SPEC.TEMPLATE_LINE_EN_2 },
+            { line: SPEC.TEMPLATE_LINE_EN_3 },
+            { line },
+          ],
+        },
+        as(base)
+      )
+      await drain()
+      return {
+        out,
+        last: JSON.parse(String(base.db.jobs[0].scenes)).at(-1).line,
+      }
+    }
+    const kept = await lastOf('Come to my studio on Sunday.')
+    expect(kept.last).toBe('Come to my studio on Sunday.')
+    expect(kept.out.house_replaced).toBeUndefined()
+    const house = await lastOf('Ask Trinity for one too.')
+    expect(house.last).toBe(`${SPEC.TEMPLATE_LEAD_EN_4} Book a fitting.`)
+    expect(house.out.house_replaced).toMatch('Ask Trinity for one too.')
+  })
+
+  it("the panel's gallery for her ends with her call and carries no house button", async () => {
+    const base = fakeBase()
+    qualify(base)
+    herCall(base)
+    const out: any = await press(base).handler({ lead: LENA }, as(base))
+    const en = out.templates.find((t: any) => t.language === 'en')
+    expect(en.button).toBe('')
+    expect(en.call).toBe('Book a fitting')
+    expect(en.lines.at(-1)).toBe(`${SPEC.TEMPLATE_LEAD_EN_4} Book a fitting.`)
+  })
+
+  it('a job row carrying the house call and button is stripped at the run on her reel', async () => {
+    const base = fakeBase()
+    qualify(base)
+    herCall(base)
+    const args: any[] = []
+    const { deps } = depsOn(base, async a => {
+      args.push(a)
+      return reel
+    })
+    const r = await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+      cta: SPEC.TEMPLATE_CALL_EN,
+      endCard: { bg: '#10182a', button: SPEC.TEMPLATE_BUTTON },
+    })
+    expect(r.started).toBe(true)
+    await drain()
+    expect(args).toHaveLength(1)
+    expect(args[0].cta).toBe('Book a fitting')
+    expect(args[0].end_card).toEqual({ bg: '#10182a' })
+  })
+
+  it('her profile call naming the house is not hers: her reel ends with the default call', async () => {
+    const base = fakeBase()
+    qualify(base)
+    herCall(base, SPEC.TEMPLATE_CALL_EN)
+    const s = await storySettingsOf(base.pool, LENA, SELLER)
+    expect(s?.cta).toBe(STORY_DEFAULT_CTA)
   })
 
   it('a template line past the editor is refused, and nothing starts', async () => {

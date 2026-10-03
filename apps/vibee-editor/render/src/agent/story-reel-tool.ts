@@ -43,7 +43,12 @@ import type { LateOutcome } from './late-picture'
 import * as SPEC from '../spec/crm-story-reel.gen'
 import { cutShot, shotOfScene } from './studio-shots'
 import type { HeardVoice } from './split-reel-tool'
-import { languageOf } from './story-reel-templates'
+import {
+  cardForReel,
+  languageOf,
+  reelCall,
+  voiceOf,
+} from './story-reel-templates'
 import { captionsFromWords, type SpokenWord } from '../split-reel-plan'
 
 /** Scenes a story holds: the owner's form is three. */
@@ -887,7 +892,10 @@ export type StoryHear = (
 ) => Promise<HeardVoice | string>
 
 /** Whether a scene's captions show its line as written (`caption_uses_line`). */
-export function captionUsesLine(lineWords: number, heardWords: number): boolean {
+export function captionUsesLine(
+  lineWords: number,
+  heardWords: number
+): boolean {
   return (
     SPEC.CAPTION_TEXT_FROM_LINE && heardWords > 0 && lineWords === heardWords
   )
@@ -933,8 +941,8 @@ export function makeStoryReelTool(
       `РИЛС-ИСТОРИЯ ОДНИМ ВЫЗОВОМ (шаблон StoryReel): одно фото с лицом → ${STORY_SCENES_MIN}–${STORY_SCENES_MAX} сцен. ` +
       'Сцена 1 — САМО фото, общий план говорящей головы, её реплика — ХУК, не приветствие. ' +
       'По умолчанию из студии не выходим: сцена без setting — план того же фото (крупный, средний), ничего не рисуется; ' +
-      'setting — только если человек сам назвал место (новый кадр в ОДНОМ стиле) → реплика на сцену голосом (for_lead — голос клиента из crm_voice_clone; без него — ' +
-      'клон владельца) → липсинк → сборка: склейки, вдох между репликами и в конце ПАУЗА с призывом cta. ' +
+      'setting — только если человек сам назвал место (новый кадр в ОДНОМ стиле) → реплика на сцену голосом (for_lead — голос клиента из crm_voice_clone; в разговоре за клиента — всегда его голос, его призыв и его кнопка; ' +
+      'клон владельца — только на своём рилсе) → липсинк → сборка: склейки, вдох между репликами и в конце ПАУЗА с призывом cta. ' +
       `Реплика звучит до ${LINE_MAX_SEC_TEXT} с (длиннее — липсинк не делается, реплика названа: сократи), ` +
       `ролик из ${SPEC.SCENES_DEFAULT} сцен с паузой — до ${SPEC.STORY_DEFAULT_MAX_SEC} с. Кадр без лица перерисовывается один раз. ` +
       'Если вернулись stills/clips без видео — повтори с ними: ' +
@@ -975,7 +983,11 @@ export function makeStoryReelTool(
           type: 'string',
           description: 'id клиента: говорить ЕГО голосом (crm_voice_clone)',
         },
-        cta: { type: 'string', description: 'надпись в паузе в конце' },
+        cta: {
+          type: 'string',
+          description:
+            'надпись в паузе в конце; у рилса клиента пусто — его призыв из профиля',
+        },
         [SPEC.END_CARD_ARG]: END_CARD_PARAM,
         pause_sec: {
           type: 'number',
@@ -1006,7 +1018,45 @@ export function makeStoryReelTool(
       const style = String(args.style ?? '')
       const n = scenes.length
       const pause = pauseOf(args.pause_sec)
-      const endCard = endCardOf(args.end_card)
+      /*
+       * WHOSE REEL THIS IS (spec v22, voice_of). In a turn for a client
+       * (ctx.faceOf) the reel speaks HER voice: for_lead defaults to her and
+       * another id is refused -- before v22 a reel without for_lead spoke the
+       * owner's clone. A reel for a client takes her call and her card, never
+       * the house's (call_from, button_from); the runner (surface 'story')
+       * has already read them from her profile.
+       */
+      const me = String(ctx.telegramId ?? '').trim()
+      const faceOf = String(ctx.faceOf ?? '').trim()
+      const clientTurn = !!faceOf && faceOf !== me
+      const named = String(args.for_lead ?? '').trim()
+      const voice = voiceOf(!!named, clientTurn, named === faceOf)
+      if (voice === SPEC.SPEAKS_REFUSED)
+        return {
+          done: false,
+          reason: `for_lead: в разговоре за клиента рилс говорит только его голосом — for_lead ${faceOf} или пусто`, // cyrillic-ok: tool result copy
+        }
+      const lead = voice === SPEC.SPEAKS_LEAD ? named || faceOf : ''
+      let cta = String(args.cta ?? '')
+      let endCard = endCardOf(args.end_card)
+      if (lead && lead !== me && ctx.surface !== 'story') {
+        const { storySettingsOf, STORY_DEFAULT_CTA } = await import(
+          './story-template'
+        )
+        const her = ctx.pool
+          ? await storySettingsOf(ctx.pool as never, lead, me).catch(() => null)
+          : null
+        cta = reelCall({
+          given: args.cta,
+          ownReel: false,
+          ownCall: her?.cta || STORY_DEFAULT_CTA,
+        }).call
+        endCard = mergeEndCard(
+          cardForReel(endCard, false),
+          cardForReel(her?.keptCard, false),
+          cardForReel(her?.endCard, false)
+        )
+      }
       const stills = carried(args.stills, n)
       const clips = carried(args.clips, n)
       // The opening scene is the talking head itself, wide (spec v19,
@@ -1239,9 +1289,7 @@ export function makeStoryReelTool(
                   .handler(
                     {
                       text: s.line,
-                      ...(args.for_lead
-                        ? { for_lead: String(args.for_lead) }
-                        : {}),
+                      ...(lead ? { for_lead: lead } : {}),
                     },
                     ctx
                   )
@@ -1314,7 +1362,7 @@ export function makeStoryReelTool(
                 })),
                 pauseSec: pause,
                 breathSec: STORY_BREATH_SEC,
-                cta: String(args.cta ?? ''),
+                cta,
                 ...(endCard ? { endCard } : {}),
               },
             },
