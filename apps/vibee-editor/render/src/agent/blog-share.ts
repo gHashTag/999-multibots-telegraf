@@ -174,7 +174,7 @@ export function clip(text: string, max: number): string {
 export function xText(a: Article, limit = X_LIMIT - X_LINK): string {
   const room = limit - 1
   const head = a.title
-  if (head.length >= room) return head.slice(0, room - 1) + '…'
+  if (head.length >= room) return clip(head, room - 1)
   const left = room - head.length - 2
   if (left < 40 || !a.summary) return head
   return `${head}\n\n${clip(a.summary, left)}`
@@ -198,8 +198,7 @@ export const THREADS_LIMIT = 500
 export function threadsText(a: Article): string {
   const link = linkFor(a, 'threads')
   const room = THREADS_LIMIT - link.length - 2
-  const head =
-    a.title.length <= room ? a.title : a.title.slice(0, room - 1) + '…'
+  const head = clip(a.title, room)
   return `${head}\n\n${link}`
 }
 

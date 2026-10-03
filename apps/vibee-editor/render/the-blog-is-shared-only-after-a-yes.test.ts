@@ -320,6 +320,17 @@ describe('Threads gets the article too (owner, 24.09: all three next steps)', ()
     expect(t.length).toBeLessThanOrEqual(THREADS_LIMIT)
     expect(t.endsWith(linkFor(article, 'threads'))).toBe(true)
   })
+
+  /* #3446 clipped the summary; the title kept cutting mid-word. */
+  it('a long title is cut at a whole word on X and on Threads', () => {
+    const long = { ...article, title: 'regional clock '.repeat(60).trim() }
+    const head = threadsText(long).split('\n\n')[0]
+    expect(head.endsWith('clock…') || head.endsWith('regional…')).toBe(true)
+    expect(threadsText(long).length).toBeLessThanOrEqual(THREADS_LIMIT)
+    const x = xText(long)
+    expect(x.endsWith('clock…') || x.endsWith('regional…')).toBe(true)
+    expect(x.length).toBeLessThanOrEqual(X_LIMIT - 23)
+  })
 })
 
 describe('the link goes in the reply, not in the post', () => {
