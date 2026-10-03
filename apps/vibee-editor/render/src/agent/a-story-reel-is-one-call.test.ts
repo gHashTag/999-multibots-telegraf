@@ -254,6 +254,32 @@ describe('story_reel for a client: her voice, her call, her card (v22)', () => {
     expect(r.house_replaced).toContain('Book a fitting')
   })
 
+  it('a line the agent wrote naming the house on her reel is refused before anything is spent; one she typed this turn stands (v22)', async () => {
+    const house = [
+      SCENES[0],
+      SCENES[1],
+      { setting: 'a living room at dusk', line: 'Ask Trinity for one too.' },
+    ]
+    const refused = fakeTools()
+    const r: any = await makeStoryReelTool(refused.lookup).handler(
+      { ...ARGS, scenes: house, for_lead: LEAD },
+      { telegramId: '900000001', pool: herPool } as never
+    )
+    expect(r.done).toBe(false)
+    expect(r.reason).toContain('Ask Trinity for one too.')
+    expect(refused.calls).toHaveLength(0)
+    const typed = fakeTools()
+    const ok: any = await makeStoryReelTool(typed.lookup).handler(
+      { ...ARGS, scenes: house, for_lead: LEAD },
+      {
+        telegramId: '900000001',
+        pool: herPool,
+        ownerSaid: 'End it with: Ask Trinity for one too.',
+      } as never
+    )
+    expect(ok.done).toBe(true)
+  })
+
   it("the house's own reel keeps the house call, and speaks the caller", async () => {
     const { lookup, calls } = fakeTools()
     const r: any = await makeStoryReelTool(lookup).handler(

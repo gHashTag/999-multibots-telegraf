@@ -1442,7 +1442,6 @@ describe("the spec's tests hold against the host", () => {
     const { lastLineWay, lastLineFor, templateOf, templatesForPanel } =
       await import('../agent/story-reel-templates')
     expect(SPEC.TEMPLATE_LEAD_EN_4).toBe('Want the same?')
-    expect(SPEC.TEMPLATE_LINES_KEPT).toBe(SPEC.TEMPLATE_SCENES - 1)
     const M = SPEC.LINE_MAX_CHARS
     expect(lastLineWay(14, 16, true)).toBe(SPEC.LAST_LINE_LEAD_AND_CALL)
     expect(lastLineWay(14, M - 15, true)).toBe(SPEC.LAST_LINE_LEAD_AND_CALL)
@@ -1462,12 +1461,11 @@ describe("the spec's tests hold against the host", () => {
     expect(lastLineFor(en, 'Напишите мне')).toBe(en.lead) // cyrillic-ok: a call in the other language
     for (const t of templatesForPanel({ call: 'Book a fitting' })) {
       expect(t.button).toBe('')
-      expect(t.lines.slice(0, SPEC.TEMPLATE_LINES_KEPT)).toEqual(
-        templateOf(t.id, t.language)!.lines.slice(0, SPEC.TEMPLATE_LINES_KEPT)
-      )
-      const last = t.lines[SPEC.TEMPLATE_LINES_KEPT]
-      expect(last.length).toBeLessThanOrEqual(M)
-      expect(last).not.toMatch(/Trinity|Тринити/) // cyrillic-ok: the house name
+      expect(t.lines).toHaveLength(templateOf(t.id, t.language)!.lines.length)
+      for (const line of t.lines) {
+        expect(line.length).toBeLessThanOrEqual(M)
+        expect(line).not.toMatch(/Trinity|Тринити|t27ai_bot|\bT27\b/i) // cyrillic-ok: the house name
+      }
     }
   })
 
@@ -1491,6 +1489,146 @@ describe("the spec's tests hold against the host", () => {
     expect(buttonFrom(false, false, false, false, true)).toBe(
       SPEC.FIELD_FROM_PROFILE
     )
+  })
+
+  it("every template line on a client's reel is its client version, the first as much as the last", async () => {
+    // line_way(names_house, own_reel, LINE_FROM_TEMPLATE), line_names_house
+    const {
+      lineWay,
+      lineNamesHouse,
+      clientLines,
+      clientVersion,
+      templateOf,
+      templatesForPanel,
+      namesHouse,
+    } = await import('../agent/story-reel-templates')
+    expect(SPEC.CLIENT_VERSION_NAMES_HOUSE).toBe(false)
+    expect(SPEC.CLIENT_LIST_HOUSE_FREE).toBe(true)
+    for (const house of [true, false]) {
+      expect(lineWay(house, false, SPEC.LINE_FROM_TEMPLATE)).toBe(
+        SPEC.LINE_CLIENT_VERSION
+      )
+      expect(
+        lineNamesHouse(lineWay(house, false, SPEC.LINE_FROM_TEMPLATE), house)
+      ).toBe(false)
+      expect(lineWay(house, true, SPEC.LINE_FROM_TEMPLATE)).toBe(SPEC.LINE_KEPT)
+    }
+    // The host, in words: each template has a house-free client version of
+    // EVERY line, in both languages, and a press speaks it line by line.
+    for (const language of ['ru', 'en'] as const) {
+      const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, language)!
+      expect(t.language).toBe(language)
+      expect(t.client).toHaveLength(t.lines.length)
+      expect(t.lines.some(line => namesHouse(line))).toBe(true)
+      for (const line of t.client) expect(namesHouse(line)).toBe(false)
+      const out = clientLines(t, t.lines, '')
+      expect(out.refused).toBe('')
+      expect(out.lines).toEqual(t.lines.map((_, i) => clientVersion(t, i, '')))
+      for (const line of out.lines) expect(namesHouse(line)).toBe(false)
+    }
+    // CLIENT_LIST_HOUSE_FREE: her panel lists only the client versions; the
+    // house's own panel keeps the house's lines.
+    for (const t of templatesForPanel({ call: '' }))
+      for (const line of t.lines) expect(namesHouse(line)).toBe(false)
+    expect(
+      templatesForPanel().some(t => t.lines.some(line => namesHouse(line)))
+    ).toBe(true)
+  })
+
+  it("a written or edited line naming the house on a client's reel is refused before anything is spent", async () => {
+    // line_way(names_house, own_reel, LINE_FROM_EDIT), charged(refused)
+    const {
+      lineWay,
+      lineNamesHouse,
+      charged,
+      clientLines,
+      houseLineRefused,
+      templateOf,
+    } = await import('../agent/story-reel-templates')
+    expect(SPEC.HOUSE_LINE_ON_CLIENT_REEL).toBe(false)
+    expect(SPEC.REFUSED_BEFORE_SPEND).toBe(true)
+    expect(lineWay(true, false, SPEC.LINE_FROM_EDIT)).toBe(SPEC.LINE_REFUSED)
+    expect(lineWay(false, false, SPEC.LINE_FROM_EDIT)).toBe(SPEC.LINE_KEPT)
+    expect(lineWay(true, true, SPEC.LINE_FROM_EDIT)).toBe(SPEC.LINE_KEPT)
+    expect(lineWay(false, true, SPEC.LINE_FROM_EDIT)).toBe(SPEC.LINE_KEPT)
+    expect(
+      lineNamesHouse(lineWay(true, false, SPEC.LINE_FROM_EDIT), true)
+    ).toBe(false)
+    expect(
+      lineNamesHouse(lineWay(false, false, SPEC.LINE_FROM_EDIT), false)
+    ).toBe(false)
+    expect(
+      charged(lineWay(true, false, SPEC.LINE_FROM_EDIT) === SPEC.LINE_REFUSED)
+    ).toBe(false)
+    expect(
+      charged(lineWay(false, false, SPEC.LINE_FROM_EDIT) === SPEC.LINE_REFUSED)
+    ).toBe(true)
+    // The host: any line, the first as much as the last, by any of the marks.
+    const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!
+    for (const mark of ['Trinity', 'Тринити', 't27ai_bot', '@t27ai_bot', 'T27']) // cyrillic-ok: a house mark
+      for (const at of t.lines.keys()) {
+        const lines = [...t.client]
+        lines[at] = `Say hi to ${mark} today.`
+        const out = clientLines(t, lines, '')
+        expect(out.lines).toEqual([])
+        expect(out.refused).toContain(`${at + 1}`)
+        expect(
+          houseLineRefused(
+            lines.map(line => ({ line })),
+            false
+          )
+        ).toContain(`${at + 1}`)
+        // The house's own reel says its own name.
+        expect(houseLineRefused(lines, true)).toBe('')
+      }
+    expect(houseLineRefused(t.client, false)).toBe('')
+    expect(houseLineRefused(null, false)).toBe('')
+  })
+
+  it("only the person's own words typed this turn may name the house on a client's reel", async () => {
+    // line_way(names_house, own_reel, LINE_FROM_PERSON)
+    const { lineWay, lineNamesHouse, houseLineRefused, houseNameByAgent } =
+      await import('../agent/story-reel-templates')
+    expect(lineWay(true, false, SPEC.LINE_FROM_PERSON)).toBe(SPEC.LINE_KEPT)
+    expect(lineWay(false, false, SPEC.LINE_FROM_PERSON)).toBe(SPEC.LINE_KEPT)
+    expect(lineWay(true, true, SPEC.LINE_FROM_PERSON)).toBe(SPEC.LINE_KEPT)
+    expect(
+      lineNamesHouse(lineWay(true, false, SPEC.LINE_FROM_PERSON), true)
+    ).toBe(true)
+    expect(
+      lineNamesHouse(lineWay(false, false, SPEC.LINE_FROM_PERSON), false)
+    ).toBe(false)
+    expect(lineWay(true, false, SPEC.LINE_FROM_EDIT)).not.toBe(
+      lineWay(true, false, SPEC.LINE_FROM_PERSON)
+    )
+    // The host: what she typed this turn names the house -> it is hers.
+    const lines = ['My studio opens at nine.', 'I found my AI at T27.']
+    expect(houseNameByAgent(lines[1], 'Say: I found my AI at T27.')).toBe(false)
+    expect(houseLineRefused(lines, false, 'Say: I found my AI at T27.')).toBe(
+      ''
+    )
+    // Words of hers that name no house lend the agent no house name.
+    expect(houseNameByAgent(lines[1], 'Make it about my studio.')).toBe(true)
+    expect(
+      houseLineRefused(lines, false, 'Make it about my studio.')
+    ).toContain('2')
+    expect(houseLineRefused(lines, false)).toContain('2')
+  })
+
+  it('a refusal comes before the charge, so a refused press costs nothing', async () => {
+    // charged(refused); the press refused with no row and no spend runs in
+    // a-template-stays-home.test.ts.
+    const { charged } = await import('../agent/story-reel-templates')
+    expect(charged(true)).toBe(false)
+    expect(charged(false)).toBe(true)
+    const ways = [SPEC.LINE_KEPT, SPEC.LINE_CLIENT_VERSION, SPEC.LINE_REFUSED]
+    expect(new Set(ways).size).toBe(3)
+    const from = [
+      SPEC.LINE_FROM_TEMPLATE,
+      SPEC.LINE_FROM_EDIT,
+      SPEC.LINE_FROM_PERSON,
+    ]
+    expect(new Set(from).size).toBe(3)
   })
 
   it('the hook reel is a template of four studio shots with the call to the house bot', async () => {

@@ -331,8 +331,8 @@
   },
   {
     "name": "the house marks forget one",
-    "from": "pub const HOUSE_MARKS : u8 = 3;",
-    "to": "pub const HOUSE_MARKS : u8 = 2;"
+    "from": "pub const HOUSE_MARKS : u8 = 5;",
+    "to": "pub const HOUSE_MARKS : u8 = 4;"
   },
   {
     "name": "the template's button counts as the seller's",
@@ -345,8 +345,53 @@
     "to": "pub const TEMPLATE_LEAD_EN_4 : str = \"Want it?\";"
   },
   {
-    "name": "a story line before the call is dropped",
-    "from": "pub const TEMPLATE_LINES_KEPT : u16 = 3;",
-    "to": "pub const TEMPLATE_LINES_KEPT : u16 = 2;"
+    "name": "template line naming the house kept on a client reel",
+    "from": "            return LINE_CLIENT_VERSION;",
+    "to": "            return LINE_KEPT;"
+  },
+  {
+    "name": "an edited line naming the house allowed on a client reel",
+    "from": "pub const HOUSE_LINE_ON_CLIENT_REEL : bool = false;",
+    "to": "pub const HOUSE_LINE_ON_CLIENT_REEL : bool = true;"
+  },
+  {
+    "name": "the person's own typed words refused like an edit",
+    "from": "        if !names_house || from == LINE_FROM_PERSON {",
+    "to": "        if !names_house {"
+  },
+  {
+    "name": "a template's client version names the house",
+    "from": "pub const CLIENT_VERSION_NAMES_HOUSE : bool = false;",
+    "to": "pub const CLIENT_VERSION_NAMES_HOUSE : bool = true;"
+  },
+  {
+    "name": "the client's list shows the house version",
+    "from": "pub const CLIENT_LIST_HOUSE_FREE : bool = true;",
+    "to": "pub const CLIENT_LIST_HOUSE_FREE : bool = false;"
+  },
+  {
+    "name": "a refused press is charged",
+    "from": "pub const REFUSED_BEFORE_SPEND : bool = true;",
+    "to": "pub const REFUSED_BEFORE_SPEND : bool = false;"
+  },
+  {
+    "name": "charged ignores the refusal",
+    "from": "        return !REFUSED_BEFORE_SPEND;",
+    "to": "        return REFUSED_BEFORE_SPEND;"
+  },
+  {
+    "name": "the own reel's lines are checked like a client's",
+    "from": "        if own_reel {",
+    "to": "        if false {"
+  },
+  {
+    "name": "a kept house line is not counted as said",
+    "from": "        return way == LINE_KEPT && names_house;",
+    "to": "        return false;"
+  },
+  {
+    "name": "the brand is not a house mark",
+    "from": "pub const HOUSE_BRAND : str = \"T27\";",
+    "to": "pub const HOUSE_BRAND : str = \"\";"
   }
 ]
