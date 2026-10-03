@@ -145,6 +145,19 @@
 // The finished reel reaches the person through their own bot -- the house through @t27ai_bot
 // -- before the service's main bot. And the house no longer asks ElevenLabs for a voice: a
 // voice of its own there used to win over the owner's clone.
+// v20 (2026-10-03, owner on that reel: "save the template as .t27 with all its parameters; a
+// call like the one in the reel widget; where are the yellow subtitles; let others in the CRM
+// use this template", then "an English version right away, for different clients", then "a
+// widget in the CRM with templates, for making one comfortably"). The hook reel is now the
+// template TEMPLATE_HOOK_STUDIO: the source photo, four shots of the studio, a hook first, the
+// person's own voice, captions, the pause and the call. Its lines exist in two languages; a
+// seller picks the template and the language in the CRM, may edit every line before the press,
+// and the server lists the templates -- the panel draws what it is told. Every story reel now
+// carries yellow captions, word by word, heard from each clip's own soundtrack: no offsets to
+// add, and a line whose words whisper counted alike is shown as written. Captions that cannot
+// be heard leave the reel without them, said aloud, never unmade. The pause shows the call the
+// way the widget draws it: the call in the title colour, pulsing, over a round button in the
+// accent colour -- when there is anything to call.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -155,7 +168,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 19;
+    pub const VERSION : u8 = 20;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -418,6 +431,37 @@ module automation::crm_story_reel {
     pub const SHOT_MEDIUM_PERMILLE : u16 = 650;  // of the source's side: head, shoulders, the mic
     pub const SHOT_CLOSE_PERMILLE : u16 = 420;  // the face and the mic
     pub const FACE_X_PERMILLE : u16 = 500;  // where a portrait's face sits in the source
+
+    // ---- The hook reel, a template anyone can take (v20) --------------------------------------
+    pub const TEMPLATE_ARG : str = "template";  // crm_story_reel: which template the press makes
+    pub const LANGUAGE_ARG : str = "language";  // and in which language its lines are spoken
+    pub const TEMPLATE_HOOK_STUDIO : str = "hook-studio";
+    pub const TEMPLATES_FROM_SERVER : bool = true;  // the panel draws the server's list, no copy of its own
+    pub const TEMPLATE_LINES_EDITABLE : bool = true;  // every line may be changed before the press
+    pub const TEMPLATE_SCENES : u16 = 4;  // wide on the hook, then close, medium, close
+    pub const TEMPLATE_BUTTON : str = "@t27ai_bot";  // where the reel sends whoever wants the same
+    pub const TEMPLATE_CALL_EN : str = "Write to Trinity";
+    pub const TEMPLATE_LINE_EN_1 : str = "This isn't me talking. This is Trinity.";
+    pub const TEMPLATE_LINE_EN_2 : str = "She learned my voice from my reels.";
+    pub const TEMPLATE_LINE_EN_3 : str = "Every reel now sounds like me.";
+    pub const TEMPLATE_LINE_EN_4 : str = "Want the same? Message Trinity.";
+    pub const LANG_RU : u8 = 0;  // the host keeps the Russian lines; this file stays ASCII
+    pub const LANG_EN : u8 = 1;
+    pub const LANGUAGES : u8 = 2;
+    pub const LINE_MAX_CHARS : u16 = 48;  // what a line may hold in the editor, near LINE_MAX_MS spoken
+
+    // ---- Yellow captions, word by word (v20) --------------------------------------------------
+    pub const CAPTIONS_ON : bool = true;  // every story reel, not only the template
+    pub const CAPTIONS_PER_SCENE : bool = true;  // each clip heard by itself: times start at its own zero
+    pub const CAPTION_TEXT_FROM_LINE : bool = true;  // words counted alike: the line as written
+    pub const CAPTIONS_MISSING_KEEPS_REEL : bool = true;  // nothing heard: the reel without them, said
+    pub const CAPTION_COLOR : str = "#FFFF00";
+    pub const CAPTION_MAX_WORDS : u16 = 1;
+    pub const CAPTION_TOP_PERCENT : u16 = 70;  // under the face of every shot, above the bottom bar
+
+    // ---- The call, as the widget draws it (v20) -----------------------------------------------
+    pub const CTA_CARD_LIKE_WIDGET : bool = true;  // the call in the title colour over a round button
+    pub const CTA_PULSE_MS : u16 = 2400;  // the widget's story-reel-pulse
     pub const FACE_Y_PERMILLE : u16 = 290;  // measured on studio-lab: 270-290
     pub const FACE_IN_SHOT_PERMILLE : u16 = 360;  // the face a third down the cut shot
     pub const SHOT_WIDTH : u16 = 720;  // what a cut shot is scaled to for the lip-sync
@@ -719,6 +763,34 @@ module automation::crm_story_reel {
     // Whether a line, as heard, may go on to its lip-sync.
     fn line_fits(ms: u32) -> bool {
         return ms <= LINE_MAX_MS;
+    }
+
+    // Whether a line typed in the editor may be sent: something, and no more than it holds.
+    fn line_fits_chars(chars: u16) -> bool {
+        return chars > 0 && chars <= LINE_MAX_CHARS;
+    }
+
+    // The longest a reel of n scenes may run, in ms: its lines, the breaths, the pause.
+    fn reel_max_ms(scenes: u16) -> u32 {
+        return scenes * LINE_MAX_MS + (scenes - 1) * BREATH_MS + PAUSE_SEC * 1000;
+    }
+
+    // The language a line is spoken in: any Cyrillic letter makes it Russian.
+    fn language_of(has_cyrillic: bool) -> u8 {
+        if has_cyrillic {
+            return LANG_RU;
+        }
+        return LANG_EN;
+    }
+
+    // Whether the captions of a scene show its line as written, or the words as heard.
+    fn caption_uses_line(line_words: u16, heard_words: u16) -> bool {
+        return CAPTION_TEXT_FROM_LINE && heard_words > 0 && line_words == heard_words;
+    }
+
+    // Whether the pause shows the widget's call card: when there is a call or a card to show.
+    fn cta_card_shown(call_chars: u16, has_end_card: bool) -> bool {
+        return CTA_CARD_LIKE_WIDGET && (has_end_card || call_chars > 0);
     }
 
     fn leaves_for_client(owner_pressed: bool) -> bool {
@@ -1096,7 +1168,63 @@ module automation::crm_story_reel {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 19);
+        assert(VERSION == 20);
+    }
+
+    test "the hook reel is a template of four studio shots with the call to the house bot" {
+        assert(TEMPLATE_ARG == "template");
+        assert(LANGUAGE_ARG == "language");
+        assert(TEMPLATE_HOOK_STUDIO == "hook-studio");
+        assert(TEMPLATES_FROM_SERVER);
+        assert(TEMPLATE_LINES_EDITABLE);
+        assert(TEMPLATE_SCENES >= SCENES_MIN);
+        assert(TEMPLATE_SCENES <= SCENES_MAX);
+        assert(TEMPLATE_SCENES > SCENES_DEFAULT);
+        assert(reel_max_ms(TEMPLATE_SCENES) <= REEL_MAX_SEC * 1000);
+        assert(reel_max_ms(SCENES_DEFAULT) <= STORY_DEFAULT_MAX_SEC * 1000);
+        assert(reel_max_ms(TEMPLATE_SCENES) > STORY_DEFAULT_MAX_SEC * 1000);
+        assert(TEMPLATE_BUTTON == "@t27ai_bot");
+        assert(TEMPLATE_CALL_EN == "Write to Trinity");
+        assert(TEMPLATE_LINE_EN_1 == "This isn't me talking. This is Trinity.");
+        assert(TEMPLATE_LINE_EN_4 == "Want the same? Message Trinity.");
+        assert(shot_of_scene(TEMPLATE_SCENES - 1) == SHOT_CLOSE);
+    }
+
+    test "a template line fits the editor, and an empty or long one is refused before the press" {
+        assert(line_fits_chars(1));
+        assert(line_fits_chars(LINE_MAX_CHARS));
+        assert(!line_fits_chars(0));
+        assert(!line_fits_chars(LINE_MAX_CHARS + 1));
+        assert(LINE_MAX_CHARS * 1000 / LINE_MAX_MS >= 13);
+    }
+
+    test "a line with a Cyrillic letter is Russian, any other is English" {
+        assert(LANGUAGES == 2);
+        assert(LANG_RU != LANG_EN);
+        assert(language_of(true) == LANG_RU);
+        assert(language_of(false) == LANG_EN);
+    }
+
+    test "captions are yellow, word by word, heard from each clip, and the line is shown as written" {
+        assert(CAPTIONS_ON);
+        assert(CAPTIONS_PER_SCENE);
+        assert(CAPTIONS_MISSING_KEEPS_REEL);
+        assert(CAPTION_COLOR == "#FFFF00");
+        assert(CAPTION_MAX_WORDS == 1);
+        assert(CAPTION_TOP_PERCENT > 50);
+        assert(CAPTION_TOP_PERCENT < 85);
+        assert(caption_uses_line(6, 6));
+        assert(!caption_uses_line(6, 7));
+        assert(!caption_uses_line(7, 6));
+        assert(!caption_uses_line(0, 0));
+    }
+
+    test "the pause shows the call as the widget draws it, when there is a call" {
+        assert(CTA_PULSE_MS == 2400);
+        assert(cta_card_shown(14, false));
+        assert(cta_card_shown(0, true));
+        assert(cta_card_shown(14, true));
+        assert(!cta_card_shown(0, false));
     }
 
     test "every reel for a client is a story reel; the silent plan reel only when the owner names it" {

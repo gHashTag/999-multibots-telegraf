@@ -42,6 +42,9 @@ import type { LateOutcome } from './late-picture'
 // vendored with its `t27c gen-ts` output (see story-template.ts).
 import * as SPEC from '../spec/crm-story-reel.gen'
 import { cutShot, shotOfScene } from './studio-shots'
+import type { HeardVoice } from './split-reel-tool'
+import { languageOf } from './story-reel-templates'
+import { captionsFromWords, type SpokenWord } from '../split-reel-plan'
 
 /** Scenes a story holds: the owner's form is three. */
 export const STORY_SCENES_MIN = SPEC.SCENES_MIN
@@ -875,11 +878,51 @@ function outcome(v: any): {
   }
 }
 
+/* ── yellow captions, word by word (spec v20) ───────────────────────────── */
+
+/** Our own ears: a clip on the shelf -> its words with times (whisper). */
+export type StoryHear = (
+  url: string,
+  language?: string
+) => Promise<HeardVoice | string>
+
+/** Whether a scene's captions show its line as written (`caption_uses_line`). */
+export function captionUsesLine(lineWords: number, heardWords: number): boolean {
+  return (
+    SPEC.CAPTION_TEXT_FROM_LINE && heardWords > 0 && lineWords === heardWords
+  )
+}
+
+export interface SceneCaption {
+  text: string
+  startMs: number
+  endMs: number
+  confidence: number
+}
+
+/**
+ * One scene's captions from its OWN clip's words, timed from the clip's zero
+ * (CAPTIONS_PER_SCENE). Whisper's times, the line's spelling when whisper
+ * counted the same words -- "Тринити", not whatever it heard.
+ */
+export function sceneCaptions(
+  line: string,
+  words: readonly SpokenWord[],
+  speech?: HeardVoice['speech']
+): SceneCaption[] {
+  const heard = captionsFromWords(words, 0, speech)
+  const written = line.split(/\s+/).filter(Boolean)
+  return captionUsesLine(written.length, heard.length)
+    ? heard.map((c, i) => ({ ...c, text: written[i] }))
+    : heard
+}
+
 export function makeStoryReelTool(
   lookup: (name: string) => Tool,
   late?: StoryLate,
   eyes?: StoryEyes,
-  cut: (sourceUrl: string, shot: number) => Promise<string> = cutShot
+  cut: (sourceUrl: string, shot: number) => Promise<string> = cutShot,
+  hear?: StoryHear
 ): AgentTool {
   const now = late?.now ?? Date.now
   const sleep =
@@ -1235,14 +1278,40 @@ export function makeStoryReelTool(
         return { done: false, reason: failed.join('; '), ...sofar() }
       }
 
-      // 4. The template: cuts, breaths, and the pause with the call to action.
+      // 4. Captions (spec v20): every clip heard by itself. Nothing heard is
+      // no reason to throw the lip-syncs away -- the reel goes out without
+      // them and the answer says so (CAPTIONS_MISSING_KEEPS_REEL).
+      const language = languageOf(scenes.map(s => s.line).join(' '))
+      const deaf: string[] = []
+      const captions: SceneCaption[][] = await Promise.all(
+        clips.map(async (clip, i) => {
+          if (!SPEC.CAPTIONS_ON) return []
+          if (!hear) {
+            deaf.push(`${i + 1}: слух не подключён`)
+            return []
+          }
+          const got = await hear(clip, language).catch(e => String(e))
+          if (typeof got === 'string' || !got.words.length) {
+            deaf.push(
+              `${i + 1}: ${typeof got === 'string' ? got.slice(0, 120) : 'слов не услышано'}`
+            )
+            return []
+          }
+          return sceneCaptions(scenes[i].line, got.words, got.speech)
+        })
+      )
+
+      // 5. The template: cuts, breaths, and the pause with the call to action.
       const r = outcome(
         await render
           .handler(
             {
               compositionId: 'StoryReel',
               props: {
-                scenes: clips.map(video => ({ video })),
+                scenes: clips.map((video, i) => ({
+                  video,
+                  captions: captions[i],
+                })),
                 pauseSec: pause,
                 breathSec: STORY_BREATH_SEC,
                 cta: String(args.cta ?? ''),
@@ -1263,6 +1332,9 @@ export function makeStoryReelTool(
         stills,
         clips,
         ...(voiceKind ? { voice: voiceKind } : {}),
+        ...(deaf.length
+          ? { captions_missing: `без титров: ${deaf.join('; ')}` }
+          : { captions: `${n} из ${n} сцен` }),
         ...(unchecked.length
           ? {
               faces_unchecked: `кадры ${unchecked.sort((a, b) => a - b).join(', ')}: лицо не проверено (зрение не ответило)`,

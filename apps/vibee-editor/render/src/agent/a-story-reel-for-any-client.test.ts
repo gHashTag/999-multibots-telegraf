@@ -42,6 +42,7 @@ import {
 import type { AgentTool, ToolContext } from './tools'
 import { readableShade } from './story-reel-tool'
 import { END_CARD_DEFAULT_TITLE } from '../spec/crm-story-reel.gen'
+import * as SPEC from '../spec/crm-story-reel.gen'
 
 const SELLER = '900000001'
 const OTHER = '900000002'
@@ -2545,5 +2546,76 @@ describe('the shade that reads, named on a refusal (spec v12)', () => {
     })
     const r: any = await tool(base).handler({ lead: LENA }, ctxOf(base))
     expect(r.end_card_fix).toEqual({ title: readableShade('#ffe', '#ffffff') })
+  })
+})
+
+describe('the CRM presses a template for any client (crm-story-reel v20)', () => {
+  const reel = { done: true, url: 'https://bucket.example/reel.mp4' }
+  const press = (base: ReturnType<typeof fakeBase>) =>
+    makeCrmStoryTool({
+      deps: () => depsOn(base, async () => reel).deps,
+      lookup: () => undefined,
+    })
+  const as = (base: ReturnType<typeof fakeBase>) =>
+    ({ telegramId: SELLER, pool: base.pool }) as unknown as ToolContext
+
+  it('the ready answer carries the gallery the panel draws', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const out: any = await press(base).handler({ lead: LENA }, as(base))
+    expect(out.ready).toBe(true)
+    expect(
+      out.templates.map((t: any) => `${t.id}/${t.language}/${t.scenes}`)
+    ).toEqual([
+      `${SPEC.TEMPLATE_HOOK_STUDIO}/ru/${SPEC.TEMPLATE_SCENES}`,
+      `${SPEC.TEMPLATE_HOOK_STUDIO}/en/${SPEC.TEMPLATE_SCENES}`,
+    ])
+  })
+
+  it('a pressed template speaks its lines in the studio, the seller edit included, with its call and button', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const mine = 'Trinity answers my clients at night.'
+    const out: any = await press(base).handler(
+      {
+        lead: LENA,
+        start: true,
+        template: SPEC.TEMPLATE_HOOK_STUDIO,
+        language: 'en',
+        scenes: [{ line: SPEC.TEMPLATE_LINE_EN_1 }, { line: mine }],
+      },
+      as(base)
+    )
+    expect(out.started).toBe(true)
+    await drain()
+    const job = base.db.jobs[0]
+    const scenes = JSON.parse(String(job.scenes))
+    expect(scenes.map((s: any) => s.line)).toEqual([
+      SPEC.TEMPLATE_LINE_EN_1,
+      mine,
+      SPEC.TEMPLATE_LINE_EN_3,
+      SPEC.TEMPLATE_LINE_EN_4,
+    ])
+    expect(scenes.every((s: any) => s.setting === '')).toBe(true)
+    expect(job.cta).toBe(SPEC.TEMPLATE_CALL_EN)
+    expect(JSON.parse(String(job.end_card)).button).toBe(SPEC.TEMPLATE_BUTTON)
+  })
+
+  it('a template line past the editor is refused, and nothing starts', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const out: any = await press(base).handler(
+      {
+        lead: LENA,
+        start: true,
+        template: SPEC.TEMPLATE_HOOK_STUDIO,
+        language: 'en',
+        scenes: [{ line: 'x'.repeat(SPEC.LINE_MAX_CHARS + 1) }],
+      },
+      as(base)
+    )
+    expect(out.started).toBe(false)
+    expect(out.why).toMatch(`${SPEC.LINE_MAX_CHARS}`)
+    expect(base.db.jobs).toHaveLength(0)
   })
 })
