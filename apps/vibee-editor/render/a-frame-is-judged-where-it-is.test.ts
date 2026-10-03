@@ -254,8 +254,11 @@ const WORLD = {
   iframes: [] as { id: string; url: string; parentId: string }[],
   /* What page-2 (a newly opened tab) reports, one address per look. */
   opened: [] as string[],
+  /* Where the label search finds a button (find-target.ts), if anywhere. */
+  found: null as { x: number; y: number } | null,
 }
 let looks = 0
+let opening = false
 
 vi.mock('./src/browser/cdp', async importOriginal => ({
   ...(await importOriginal<typeof import('./src/browser/cdp')>()),
@@ -265,7 +268,8 @@ vi.mock('./src/browser/cdp', async importOriginal => ({
       { id: 'page-1', url: PAGE.url, title: 'front', type: 'page' },
       ...WORLD.iframes.map(f => ({ ...f, title: '', type: 'iframe' })),
     ]
-    if (WORLD.opened.length) {
+    /* page-2 exists from its open on; every look after that is the next hop. */
+    if (opening && WORLD.opened.length) {
       const url = WORLD.opened[Math.min(looks++, WORLD.opened.length - 1)]
       out.push({ id: 'page-2', url, title: 'new', type: 'page' })
     }
@@ -273,6 +277,7 @@ vi.mock('./src/browser/cdp', async importOriginal => ({
   },
   newPage: async (_c: string, url: string) => {
     cdpCalls.push(`newPage ${url}`)
+    opening = true
     return { id: 'page-2', url }
   },
   activatePage: async () => undefined,
@@ -290,6 +295,7 @@ vi.mock('./src/browser/cdp', async importOriginal => ({
       text: 'x',
       readyState: 'complete',
       visible: true,
+      ...(WORLD.found ?? {}),
     }
   },
   clickAt: async () => void cdpCalls.push('clickAt'),
@@ -338,7 +344,9 @@ describe('the tools judge the frame, not only the tab', () => {
     WORLD.frames = []
     WORLD.iframes = []
     WORLD.opened = []
+    WORLD.found = null
     looks = 0
+    opening = false
   })
 
   const tool = async (name: string) => {
@@ -360,6 +368,18 @@ describe('the tools judge the frame, not only the tab', () => {
     WORLD.frames = [STRIPE]
     SESSION.allowed_ms = Date.now()
     await (await tool('browser_click')).handler({ x: 250, y: 320 }, ctx)
+    expect(cdpCalls).toContain('clickAt')
+  })
+
+  it('a click BY ITS LABEL that lands in the Stripe frame needs a yes too', async () => {
+    WORLD.frames = [STRIPE]
+    WORLD.found = { x: 250, y: 320 }
+    await expect(
+      (await tool('browser_click')).handler({ text: 'Pay' }, ctx)
+    ).rejects.toThrow(/stripe\.com.*frame embedded/s)
+    expect(cdpCalls).not.toContain('clickAt')
+    WORLD.found = { x: 10, y: 10 }
+    await (await tool('browser_click')).handler({ text: 'Pay' }, ctx)
     expect(cdpCalls).toContain('clickAt')
   })
 
@@ -450,6 +470,25 @@ describe('the tools judge the frame, not only the tab', () => {
         (e: Error) => e
       )
     expect(err?.message).toMatch(/blocked list.*redirect/s)
+    expect(cdpCalls).toContain('closePage page-2')
+  })
+
+  it('a chain that passed THROUGH a blocked site is refused, though it landed elsewhere', async () => {
+    table = [{ site: 'x.com', rule: 'block' }]
+    WORLD.opened = [
+      /* The first look is the open's own tab count, then the landing's. */
+      'https://short.example/abc',
+      'https://short.example/abc',
+      'https://x.com/i/redirect',
+      'https://b.example/',
+      'https://b.example/',
+    ]
+    await expect(
+      (await tool('browser_open')).handler(
+        { url: 'https://short.example/abc' },
+        ctx
+      )
+    ).rejects.toThrow(/blocked list.*redirect/s)
     expect(cdpCalls).toContain('closePage page-2')
   })
 
