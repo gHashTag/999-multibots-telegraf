@@ -95,6 +95,15 @@ grep -n "surface === 'bot' ? BUTTON_MARKERS" apps/vibee-editor/render/src/agent/
   guard 401, approve and meeting with junk tokens, failures across every deploy in the window —
   `railway logs` without an id reads only the current deploy).
 
+## Railway watch
+
+The same probe runs every hour on Railway as the cron service `queen-watch`, so a
+starved Mac no longer means a silent watch. It reports only on change -- to the Queen
+(`/queen/report`), to the owner's DM and, on red, to one open GitHub issue labelled
+`queen-watch`. What it probes, what it heals and what it never heals is written in one
+place: the header of `deployment/queen-watch/watch.mjs`. The steward that acts on it:
+`.claude/agents/queen-steward.md`.
+
 ## Related Resources
 
 - `src/navigation/helpers/actionButtons.ts`, `src/navigation/registerCommands.ts` (ответ агента, запасной путь, `act:*`)
