@@ -251,9 +251,38 @@ export function ownerVoiceAllowed(house: boolean): boolean {
   return house || SPEC.OWNER_VOICE_ON_CLIENT_REEL
 }
 
-/** Mirror of the spec's house_name_allowed (v7). */
-export function houseNameAllowed(house: boolean): boolean {
-  return house || SPEC.HOUSE_NAME_ON_CLIENT_REEL
+/**
+ * Mirror of the spec's house_name_allowed (v7): a house name stands on the
+ * house's own reel, and elsewhere only in words the person put there herself.
+ */
+export function houseNameAllowed(
+  house: boolean,
+  agentSupplied: boolean
+): boolean {
+  if (house) return true
+  if (!agentSupplied) return true
+  return SPEC.AGENT_HOUSE_NAME_ON_CLIENT_REEL
+}
+
+/**
+ * Mirror of the spec's voice_refunds (v7): only the owner's voice could speak
+ * and the reel may not have it -- refused, and the charge goes back.
+ */
+export function voiceRefunds(
+  ownerVoiceNeeded: boolean,
+  house: boolean
+): boolean {
+  if (!ownerVoiceNeeded) return false
+  return !ownerVoiceAllowed(house)
+}
+
+/**
+ * Did the agent put the house's name into these words? Not when the person's
+ * own words this turn (ToolContext.ownerSaid, set only by code: what she typed
+ * in the bot chat, never a sweep's brief) name it too -- then it is hers.
+ */
+export function houseNameByAgent(text: string, personSaid?: string): boolean {
+  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))
 }
 
 /**
@@ -289,7 +318,8 @@ export function houseOwnTurn(turn: ReelTurn, lead: string): boolean {
 
 /*
  * The house by name: its bot's handle (OWNER_CTA) and its brand as written or
- * spoken. A client's reel names none of them (HOUSE_NAME_ON_CLIENT_REEL).
+ * spoken. A reel the house did not order carries none of them unless the
+ * person wrote it herself (AGENT_HOUSE_NAME_ON_CLIENT_REEL).
  */
 const HOUSE_NAMES = new RegExp(
   [

@@ -1,0 +1,82 @@
+[
+  {
+    "name": "a seller who is not the house orders the house's own reel",
+    "from": "if !house_caller {",
+    "to": "if false {"
+  },
+  {
+    "name": "a client on the turn still makes the house's own reel",
+    "from": "        if client_turn {\n            return false;",
+    "to": "        if false {\n            return false;"
+  },
+  {
+    "name": "a named lead still makes the house's own reel",
+    "from": "        if for_lead {\n            return false;",
+    "to": "        if false {\n            return false;"
+  },
+  {
+    "name": "an unattended sweep makes the house's own reel",
+    "from": "return !seller_sweep;",
+    "to": "return true;"
+  },
+  {
+    "name": "the client's profile call is skipped",
+    "from": "return CTA_CLIENT;",
+    "to": "return CTA_NEUTRAL;"
+  },
+  {
+    "name": "a client's reel falls back to the owner bot",
+    "from": "return CTA_NEUTRAL;",
+    "to": "return CTA_OWNER;"
+  },
+  {
+    "name": "a given call naming the house stands on a client's reel",
+    "from": "if !given_names_house {",
+    "to": "if true {"
+  },
+  {
+    "name": "the house's own reel loses its bot",
+    "from": "        if house_own {\n            return CTA_OWNER;",
+    "to": "        if house_own {\n            return CTA_NEUTRAL;"
+  },
+  {
+    "name": "the owner's voice speaks a client's reel",
+    "from": "pub const OWNER_VOICE_ON_CLIENT_REEL : bool = false;",
+    "to": "pub const OWNER_VOICE_ON_CLIENT_REEL : bool = true;"
+  },
+  {
+    "name": "a house name the agent put in stands on a client's reel",
+    "from": "pub const AGENT_HOUSE_NAME_ON_CLIENT_REEL : bool = false;",
+    "to": "pub const AGENT_HOUSE_NAME_ON_CLIENT_REEL : bool = true;"
+  },
+  {
+    "name": "agent_supplied ignored: her own words are refused too",
+    "from": "if !agent_supplied {",
+    "to": "if false {"
+  },
+  {
+    "name": "the house's own reel may not name the house",
+    "from": "        if house_own {\n            return true;\n        }\n        if !agent_supplied {",
+    "to": "        if !agent_supplied {"
+  },
+  {
+    "name": "refund dropped: a refused owner voice keeps its charge",
+    "from": "return !owner_voice_allowed(house_own);",
+    "to": "return false;"
+  },
+  {
+    "name": "every voice is refunded, not only the refused owner voice",
+    "from": "if !owner_voice_needed {",
+    "to": "if false {"
+  },
+  {
+    "name": "the house's bot changes",
+    "from": "pub const OWNER_CTA : str = \"@t27ai_bot\";",
+    "to": "pub const OWNER_CTA : str = \"@other_bot\";"
+  },
+  {
+    "name": "VERSION disagrees with the last dated note",
+    "from": "pub const VERSION : u8 = 7;",
+    "to": "pub const VERSION : u8 = 6;"
+  }
+]

@@ -33,9 +33,9 @@ import {
   captionsFromWords,
   framesForSeconds,
   houseNameAllowed,
+  houseNameByAgent,
   houseOwnTurn,
   leadOfTurn,
-  namesHouse,
   speechFrames,
   splitReelProps,
   splitSegments,
@@ -221,7 +221,7 @@ export function makeSplitReelTool(
       `${SPEC.LIPSYNC_MODEL} → b-roll кадры для сплит-половин (${SPEC.BROLL_MODEL}, без надписей) → ` +
       `жёлтые титры по слову из ИТОГОВОГО голоса (свой whisper) → сборка: полный кадр, сплит, полный, ` +
       `в конце пауза ${SPEC.CTA_PAUSE_SEC} с с призывом. Речь до ${SPEC.SPEECH_MAX_SECONDS} с. ` +
-      'Рилс клиента (for_lead или разговор с клиентом) — его голос и его призыв, без Тринити и бота владельца. ' +
+      'Рилс клиента (for_lead или разговор с клиентом) — его голос и его призыв; Тринити и бота владельца сам не вставляй, слова человека — его. ' +
       'Вернулись voice_url/clip/broll_urls без видео — повтори с ними: готовое не делается и не оплачивается второй раз.',
     parameters: {
       type: 'object',
@@ -304,11 +304,12 @@ export function makeSplitReelTool(
         }
       const forLead = leadOfTurn(named, turn)
       const house = houseOwnTurn(turn, forLead)
-      if (!houseNameAllowed(house) && namesHouse(text))
+      // Her own words stand; a house name the agent put in does not.
+      if (!houseNameAllowed(house, houseNameByAgent(text, ctx.ownerSaid)))
         return {
           done: false,
           reason:
-            'рилс клиента не называет ни Тринити, ни бота владельца: убери их из text',
+            'рилс не для владельца не называет ни Тринити, ни бота владельца, если человек сам этого не написал: убери их из text',
         }
       const edit = lookup('image_edit')
       const speak = lookup('audio_generate')
