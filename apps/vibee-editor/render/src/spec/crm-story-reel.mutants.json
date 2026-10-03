@@ -771,20 +771,22 @@
   {
     "name": "v22: what the person typed no longer lets her name the house",
     "file": "src/house-names.ts",
-    "from": "  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))",
+    "from": "  return namesHouse(text) && !typedByHer(personSaid, text)",
     "to": "  return namesHouse(text)",
     "tests": [
       "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-is-one-call.test.ts",
       "src/spec/crm-story-reel.test.ts"
     ]
   },
   {
     "name": "v22: anything the person typed lets the agent name the house",
     "file": "src/house-names.ts",
-    "from": "  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))",
+    "from": "  return namesHouse(text) && !typedByHer(personSaid, text)",
     "to": "  return namesHouse(text) && !personSaid",
     "tests": [
       "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-is-one-call.test.ts",
       "src/spec/crm-story-reel.test.ts"
     ]
   },
@@ -966,5 +968,59 @@
     "from": "[call.replaced, takenWord(button, false).replaced ? button : ''],",
     "to": "[call.replaced],",
     "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: any mention of the bot lends the name",
+    "file": "src/house-names.ts",
+    "from": "  return saidNamesHouse && SPEC.NAMING_THE_BOT_LENDS",
+    "to": "  return saidNamesHouse",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v22: her whole message is read, not the line (round 2 rule)",
+    "file": "src/house-names.ts",
+    "from": "  return namesHouse(text) && !typedByHer(personSaid, text)",
+    "to": "  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the bot's name alone counts as her line",
+    "file": "src/house-names.ts",
+    "from": "    return own && runIn(heard, words.slice(first, last + 1))",
+    "to": "    return runIn(heard, words.slice(first, last + 1))",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v22: her words reach no further than the house name",
+    "file": "src/house-names.ts",
+    "from": "  const reach = SPEC.OWN_WORDS_REACH",
+    "to": "  const reach = 0",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v22: one house name of hers lends the line the others",
+    "file": "src/house-names.ts",
+    "from": "      spans.every(([first, last]) =>",
+    "to": "      spans.some(([first, last]) =>",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v22: her own line is read as an edit",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "  if (own) return SPEC.LINE_FROM_PERSON",
+    "to": "  if (own) return SPEC.LINE_FROM_EDIT",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
   }
 ]

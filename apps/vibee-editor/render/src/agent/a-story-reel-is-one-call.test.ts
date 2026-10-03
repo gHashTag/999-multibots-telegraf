@@ -280,6 +280,52 @@ describe('story_reel for a client: her voice, her call, her card (v22)', () => {
     expect(ok.done).toBe(true)
   })
 
+  // Round 3 of t27#5811: sellers address the bot by name, and a reading of
+  // her whole message let every house name through once she did. Judged
+  // line by line (own_words), naming the bot lends no line the house's name.
+  for (const { language, said, lines, dictated } of [
+    {
+      language: 'ru',
+      said: 'Тринити, сделай Маше рилс по шаблону', // cyrillic-ok: the seller's own turn, the reviewer's probe
+      lines: ['Напиши Тринити', 'Это Тринити говорит за меня.'], // cyrillic-ok: lines the agent wrote
+      dictated: 'в конце пусть скажет: Напиши Тринити', // cyrillic-ok: she dictates the first line herself
+    },
+    {
+      language: 'en',
+      said: SPEC.OWN_SAID_ADDRESS_EN,
+      lines: [SPEC.OWN_LINE_QUOTE_EN, SPEC.OWN_LINE_ADDRESS_EN],
+      dictated: SPEC.OWN_SAID_QUOTE_EN,
+    },
+  ])
+    it(`naming the bot (${language}) lends no house name to a line of her reel; the line she dictated stands`, async () => {
+      for (const line of lines) {
+        const scenes = [
+          SCENES[0],
+          SCENES[1],
+          { setting: 'a living room at dusk', line },
+        ]
+        const refused = fakeTools()
+        const r: any = await makeStoryReelTool(refused.lookup).handler(
+          { ...ARGS, scenes, for_lead: LEAD },
+          { telegramId: '900000001', pool: herPool, ownerSaid: said } as never
+        )
+        expect(r.done).toBe(false)
+        expect(r.reason).toContain(line)
+        expect(refused.calls).toHaveLength(0)
+      }
+      const scenes = [
+        SCENES[0],
+        SCENES[1],
+        { setting: 'a living room at dusk', line: lines[0] },
+      ]
+      const typed = fakeTools()
+      const ok: any = await makeStoryReelTool(typed.lookup).handler(
+        { ...ARGS, scenes, for_lead: LEAD },
+        { telegramId: '900000001', pool: herPool, ownerSaid: dictated } as never
+      )
+      expect(ok.done).toBe(true)
+    })
+
   it("the house's own reel keeps the house call, and speaks the caller", async () => {
     const { lookup, calls } = fakeTools()
     const r: any = await makeStoryReelTool(lookup).handler(

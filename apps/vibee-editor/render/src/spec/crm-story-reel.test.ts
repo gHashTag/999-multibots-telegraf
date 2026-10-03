@@ -1615,6 +1615,113 @@ describe("the spec's tests hold against the host", () => {
     expect(houseLineRefused(lines, false)).toContain('2')
   })
 
+  it("her own words are judged line by line: naming the bot lends no line the house's name", async () => {
+    // own_words(line_in_said, phrase_in_said, said_names_house), line_from(own)
+    const {
+      ownWords,
+      ownWordsFacts,
+      typedByHer,
+      houseNameByAgent,
+      houseLineRefused,
+      lineFrom,
+      lineWay,
+      charged,
+      namesHouse,
+    } = await import('../agent/story-reel-templates')
+    expect(SPEC.NAMING_THE_BOT_LENDS).toBe(false)
+    expect(ownWords(false, false, true)).toBe(false)
+    expect(lineFrom(ownWords(false, false, true))).toBe(SPEC.LINE_FROM_EDIT)
+    const refused = lineWay(true, false, lineFrom(ownWords(false, false, true)))
+    expect(refused).toBe(SPEC.LINE_REFUSED)
+    expect(charged(refused === SPEC.LINE_REFUSED)).toBe(false)
+    expect(ownWords(true, false, true)).toBe(true)
+    expect(lineWay(true, false, lineFrom(ownWords(true, false, true)))).toBe(
+      SPEC.LINE_KEPT
+    )
+    expect(ownWords(false, true, true)).toBe(true)
+    expect(lineFrom(ownWords(false, true, true))).toBe(SPEC.LINE_FROM_PERSON)
+    expect(SPEC.OWN_WORDS_REACH).toBeGreaterThan(0)
+    expect(ownWords(false, false, false)).toBe(false)
+    // The host, in words: the spec's English vectors and their Russian pair.
+    // Her message names the house in every one; only the line decides.
+    const pairs = [
+      {
+        said: SPEC.OWN_SAID_ADDRESS_EN,
+        line: SPEC.OWN_LINE_ADDRESS_EN,
+        hers: false,
+      },
+      {
+        said: SPEC.OWN_SAID_QUOTE_EN,
+        line: SPEC.OWN_LINE_QUOTE_EN,
+        hers: true,
+      },
+      {
+        said: 'Тринити, сделай рилс', // cyrillic-ok: she addresses the bot
+        line: 'Это Тринити', // cyrillic-ok: a line the agent wrote
+        hers: false,
+      },
+      {
+        said: 'в конце пусть скажет: Напиши Тринити', // cyrillic-ok: she dictates the line
+        line: 'Напиши Тринити', // cyrillic-ok: the line she dictated
+        hers: true,
+      },
+    ]
+    for (const { said, line, hers } of pairs) {
+      expect(namesHouse(said)).toBe(true)
+      expect(typedByHer(said, line)).toBe(hers)
+      expect(houseNameByAgent(line, said)).toBe(!hers)
+      expect(
+        houseLineRefused(['My studio opens at nine.', line], false, said)
+      ).toEqual(hers ? '' : expect.stringContaining('2'))
+    }
+    expect(
+      ownWordsFacts(SPEC.OWN_SAID_ADDRESS_EN, SPEC.OWN_LINE_ADDRESS_EN)
+    ).toEqual({ lineInSaid: false, phraseInSaid: false, saidNamesHouse: true })
+    expect(
+      ownWordsFacts(SPEC.OWN_SAID_QUOTE_EN, SPEC.OWN_LINE_QUOTE_EN)
+    ).toEqual({ lineInSaid: true, phraseInSaid: true, saidNamesHouse: true })
+    // Case, punctuation and spaces aside.
+    expect(
+      typedByHer('В КОНЦЕ:   «напиши   тринити!»', 'Напиши, Тринити.') // cyrillic-ok: the same words, other marks
+    ).toBe(true)
+    // The bot's name alone is never her line, even when she typed it.
+    expect(typedByHer('Тринити, сделай рилс', 'Тринити!')).toBe(false) // cyrillic-ok: the address alone
+    expect(typedByHer('Trinity', 'Trinity')).toBe(false)
+    // A house name with her words around it, inside a longer line: hers.
+    const longer = ownWordsFacts(
+      'say that I found my AI at T27',
+      'A year ago I found my AI at T27.'
+    )
+    expect(longer).toEqual({
+      lineInSaid: false,
+      phraseInSaid: true,
+      saidNamesHouse: true,
+    })
+    // Her words around the name in HER message do not stretch to the line's.
+    expect(
+      typedByHer(
+        'Trinity, make Masha a reel from the template',
+        'Trinity, make one for yourself too'
+      )
+    ).toBe(false)
+    expect(
+      typedByHer(
+        'Trinity, make Masha a reel from the template',
+        'Trinity, make a reel'
+      )
+    ).toBe(false)
+    // Every house name in the line must be hers, not just the first.
+    expect(
+      typedByHer('end with: Write to Trinity', 'Write to Trinity at T27')
+    ).toBe(false)
+    expect(
+      typedByHer(
+        'end with: write to Trinity now, later we go home',
+        'Write to Trinity now. Later we visit the T27 shop.'
+      )
+    ).toBe(false)
+  })
+
   it('a refusal comes before the charge, so a refused press costs nothing', async () => {
     // charged(refused); the press refused with no row and no spend runs in
     // a-template-stays-home.test.ts.

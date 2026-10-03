@@ -20,8 +20,9 @@
  *      panel draws no house line either;
  *   3. a line the seller or the agent wrote naming the house is refused
  *      before anything is spent -- the first line as much as the last, with
- *      a template or a script of his own; only what the person typed this
- *      turn may name it;
+ *      a template or a script of his own; only a line the person typed this
+ *      turn may name it -- judged for that line: her message naming the bot
+ *      ("Trinity, make Masha a reel") lends no other line the name;
  *   4. the seller's own reel still takes the template with the house call
  *      and the house button, and the row keeps that button (the own-reel end
  *      card the engine used to drop before it reached the video).
@@ -286,6 +287,83 @@ describe("the house's call stays on the seller own reel (v22)", () => {
     expect(refused.started).toBe(false)
     expect(other.base.jobs).toHaveLength(0)
   })
+
+  // Round 3 of t27#5811: sellers address the bot by name, and a reading of
+  // her whole message let every house name through once she did. Judged
+  // line by line (own_words), naming the bot lends no line the house's name.
+  const ADDRESS = [
+    {
+      language: 'ru',
+      said: 'Тринити, сделай Маше рилс по шаблону', // cyrillic-ok: the seller's own turn, the reviewer's probe
+      lines: ['Это Тринити говорит за меня.', 'Напиши Тринити'], // cyrillic-ok: lines the agent wrote
+    },
+    {
+      language: 'en',
+      said: 'Trinity, make Masha a reel from the template',
+      lines: ['This is Trinity speaking for me.', SPEC.OWN_LINE_QUOTE_EN],
+    },
+  ] as const
+  for (const { language, said, lines } of ADDRESS)
+    for (const [k, line] of lines.entries())
+      it(`naming the bot (${language}) lends no house name to the line ${line} of a client's template press`, async () => {
+        const { tool, ctx, base, calls } = press(said)
+        const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, language)!
+        const at = k === 0 ? 1 : t.lines.length - 1
+        const scenes: unknown[] = [...t.client]
+        scenes[at] = line
+        const r: any = await tool.handler(
+          {
+            lead: LEAD,
+            start: true,
+            template: SPEC.TEMPLATE_HOOK_STUDIO,
+            language,
+            scenes,
+          },
+          ctx
+        )
+        await drain()
+        expect(r.started).toBe(false)
+        expect(r.why).toContain(`${at + 1}`)
+        expect(r.why).toContain(line)
+        expect(base.jobs).toHaveLength(0)
+        expect(calls.filter(c => SPENDS.includes(c.name))).toEqual([])
+      })
+
+  for (const { language, said, line } of [
+    {
+      language: 'ru',
+      said: 'в конце пусть скажет: Напиши Тринити', // cyrillic-ok: she dictates the line herself
+      line: 'Напиши Тринити', // cyrillic-ok: the line she dictated
+    },
+    {
+      language: 'en',
+      said: SPEC.OWN_SAID_QUOTE_EN,
+      line: SPEC.OWN_LINE_QUOTE_EN,
+    },
+  ] as const)
+    it(`the line she dictated this turn (${language}) stands on a client's template press`, async () => {
+      const { tool, ctx, base } = press(said)
+      const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, language)!
+      const scenes: unknown[] = [...t.client]
+      scenes[t.lines.length - 1] = line
+      const r: any = await tool.handler(
+        {
+          lead: LEAD,
+          start: true,
+          template: SPEC.TEMPLATE_HOOK_STUDIO,
+          language,
+          scenes,
+        },
+        ctx
+      )
+      await drain()
+      expect(r.started).toBe(true)
+      expect(base.jobs).toHaveLength(1)
+      const spoken: string[] = JSON.parse(String(base.jobs[0].scenes)).map(
+        (s: any) => s.line
+      )
+      expect(spoken.at(-1)).toBe(line)
+    })
 
   it('the seller own reel still lists the template and presses it with the house call and button', async () => {
     const listed = press()

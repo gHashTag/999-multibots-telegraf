@@ -182,9 +182,15 @@
 // template is open to a client, told in its CLIENT VERSION. No line of a client's reel names the
 // house -- not a template's line, not a line the agent, the writer or a seller wrote or edited,
 // so no caption either, and no call or button on the end card -- unless it is the person's own
-// words, typed this turn (line_way). Every template line has a house-free client version, kept by
-// the host, and a client's list shows only those; any other line naming the house is refused
-// before anything is spent (REFUSED_BEFORE_SPEND, charged), as split-reel v7 refuses it.
+// words, typed this turn (line_way). Own words are judged LINE BY LINE, not by the message: a
+// line naming the house is hers only when that line -- the whole line, or each house name in it
+// with the line's words around it (OWN_WORDS_REACH) -- is in what she typed this turn, read as
+// words with case, punctuation and spaces aside (own_words). Her message naming the house
+// anywhere is not enough: sellers address the bot by name, so "Trinity, make a reel" lends
+// "This is Trinity" nothing (NAMING_THE_BOT_LENDS), while "at the end let it say: Write to
+// Trinity" makes "Write to Trinity" hers. Every template line has a house-free client version,
+// kept by the host, and a client's list shows only those; any other line naming the house is
+// refused before anything is spent (REFUSED_BEFORE_SPEND, charged), as split-reel v7 refuses it.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -530,7 +536,8 @@ module automation::crm_story_reel {
     // for every line, in every language, and none of them names the house. A line someone wrote
     // or edited -- the agent, the writer of a topic reel, a seller in the editor -- stands when it
     // names no house mark, or when it is the person's own words typed this turn (what she typed,
-    // set by code, never by the model). Any other is refused before the first paid step.
+    // set by code, never by the model) -- judged for THAT line, not for her message (own_words).
+    // Any other is refused before the first paid step.
     pub const HOUSE_LINE_ON_CLIENT_REEL : bool = false;  // a house name nobody typed, on a client's reel
     pub const CLIENT_VERSION_NAMES_HOUSE : bool = false;  // no template's client version names the house
     pub const CLIENT_LIST_HOUSE_FREE : bool = true;  // a client's template list: client versions only
@@ -543,6 +550,20 @@ module automation::crm_story_reel {
     // A refusal here comes before the first paid step -- the still, the voice, the lip-sync --
     // so a refused press takes nothing and nothing is given back (split-reel v7, the same word).
     pub const REFUSED_BEFORE_SPEND : bool = true;
+
+    // ---- Her own words, line by line (v22) ----------------------------------------------------
+    // A line naming the house is hers only when THAT LINE's words are in what she typed this
+    // turn: the whole line, or each house name in it with up to OWN_WORDS_REACH of the line's
+    // words either side. Both are read as words -- case, punctuation and spaces aside -- and must
+    // hold a word that is not a house name, so the bot's name alone is never her line. Her
+    // message naming the house somewhere lends no line its name: sellers address the bot by name,
+    // and a message-level reading let every house name through in that, the common case.
+    pub const NAMING_THE_BOT_LENDS : bool = false;  // her message naming the house lends no line
+    pub const OWN_WORDS_REACH : u8 = 2;  // the line's words either side that come with a house name
+    pub const OWN_SAID_ADDRESS_EN : str = "Trinity, make a reel";  // she addresses the bot...
+    pub const OWN_LINE_ADDRESS_EN : str = "This is Trinity";  // ...so this line is not hers
+    pub const OWN_SAID_QUOTE_EN : str = "at the end let it say: Write to Trinity";  // she dictates...
+    pub const OWN_LINE_QUOTE_EN : str = "Write to Trinity";  // ...so this line is hers
 
     struct Job {
         has_face: bool,
@@ -961,7 +982,9 @@ module automation::crm_story_reel {
 
     // What becomes of one line of a reel: on the caller's own reel it stands; on a client's, a
     // template's line is its client version, and a written or edited one stands only when it
-    // names no house mark or is the person's own words typed this turn -- else it is refused.
+    // names no house mark or is the person's own words typed this turn -- her line, or its
+    // house-name words, in what she typed (own_words, line_from). Her message naming the house
+    // anywhere is not enough. Any other is refused.
     fn line_way(names_house: bool, own_reel: bool, from: u8) -> u8 {
         if own_reel {
             return LINE_KEPT;
@@ -988,12 +1011,35 @@ module automation::crm_story_reel {
     }
 
     // Whether a press is charged: one that goes ahead pays its price; a refused one pays
-    // nothing, because its refusal came before the charge.
+    // nothing, because its refusal came before the charge. The same body as split-reel v7's
+    // `charged`, copied on purpose and recorded in tools/duplicate_bodies_baseline.txt: a
+    // `use a::b;` still generates no import (#5718), so no spec can reuse another's function.
     fn charged(refused: bool) -> bool {
         if !refused {
             return true;
         }
         return !REFUSED_BEFORE_SPEND;
+    }
+
+    // Whether a line naming the house is the person's own words, judged for that line: the whole
+    // line is in what she typed this turn (line_in_said), or each house name in it is, with the
+    // line's words around it (phrase_in_said) -- read as words, case, punctuation and spaces
+    // aside, holding a word that is not a house name. That her message names the house somewhere
+    // (said_names_house) lends the line nothing (NAMING_THE_BOT_LENDS).
+    fn own_words(line_in_said: bool, phrase_in_said: bool, said_names_house: bool) -> bool {
+        if line_in_said || phrase_in_said {
+            return true;
+        }
+        return said_names_house && NAMING_THE_BOT_LENDS;
+    }
+
+    // Where a written or edited line comes from, for line_way: the person's when it is her own
+    // words (own_words), else the agent's, the writer's or a seller's edit.
+    fn line_from(own: bool) -> u8 {
+        if own {
+            return LINE_FROM_PERSON;
+        }
+        return LINE_FROM_EDIT;
     }
 
     test "a client qualifies with a face and a voice, and with nothing less" {
@@ -1564,6 +1610,24 @@ module automation::crm_story_reel {
         assert(line_names_house(line_way(true, false, LINE_FROM_PERSON), true));
         assert(!line_names_house(line_way(false, false, LINE_FROM_PERSON), false));
         assert(line_way(true, false, LINE_FROM_EDIT) != line_way(true, false, LINE_FROM_PERSON));
+    }
+
+    test "her own words are judged line by line: naming the bot lends no line the house's name" {
+        // OWN_SAID_ADDRESS_EN + OWN_LINE_ADDRESS_EN: her message names the house, the line is
+        // not in it -- refused, before anything is spent.
+        assert(!NAMING_THE_BOT_LENDS);
+        assert(!own_words(false, false, true));
+        assert(line_from(own_words(false, false, true)) == LINE_FROM_EDIT);
+        assert(line_way(true, false, line_from(own_words(false, false, true))) == LINE_REFUSED);
+        assert(!charged(line_way(true, false, line_from(own_words(false, false, true))) == LINE_REFUSED));
+        // OWN_SAID_QUOTE_EN + OWN_LINE_QUOTE_EN: the whole line is in what she typed -- hers.
+        assert(own_words(true, false, true));
+        assert(line_way(true, false, line_from(own_words(true, false, true))) == LINE_KEPT);
+        // A house name with her words around it, inside a longer line of hers, is hers too.
+        assert(own_words(false, true, true));
+        assert(line_from(own_words(false, true, true)) == LINE_FROM_PERSON);
+        assert(OWN_WORDS_REACH > 0);
+        assert(!own_words(false, false, false));
     }
 
     test "a refusal comes before the charge, so a refused press costs nothing" {
