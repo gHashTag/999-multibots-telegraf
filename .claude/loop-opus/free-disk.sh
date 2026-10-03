@@ -178,33 +178,13 @@ if [ -d "$SCRATCH_ROOT" ]; then
            *) echo alive; break ;;
          esac
        done | grep -q alive; then continue; fi
-    # Рабочая копия внутри -- сначала сказать об этом git.
-    # `git worktree list` from wherever this runs: the script is invoked from
-    # the repository, and naming a variable that does not exist here would
-    # check nothing at all -- quietly, which is the failure this guard is for.
-    # РАБОЧАЯ КОПИЯ ВНУТРИ: снять её штатно, если терять нечего.
-    #
-    # Пропускать такой черновик -- то, что делала первая версия, -- значит
-    # оставлять нетронутыми самые крупные: замерено 25.09.2026, мёртвая
-    # сессия держала 2.3 ГБ при 486 МБ свободных, и уборка прошла мимо.
-    #
-    # «Терять нечего» проверяется ДВАЖДЫ, и обе проверки обязательны: в копии
-    # нет несохранённых правок И её коммит есть на удалённом сервере. Копия с
-    # неопубликованной работой не трогается никогда: диск дешевле чужого дня.
+    # A WORKTREE INSIDE IS NOT OURS TO JUDGE. `git worktree remove --force`
+    # here deleted ignored files too (.env, nested clones) on a looser rule
+    # than `tri worktrees --apply`, which asks the tree's own .gitignore and
+    # keeps unsaved work (#3474/#3497). Worktrees are judged in one place.
     if git worktree list 2>/dev/null | grep -q "$id"; then
-      wt=$(git worktree list --porcelain | grep "^worktree .*$id" | head -1 |
-           awk '{print $2}')
-      dirty=$(git -C "$wt" status --short 2>/dev/null | head -1)
-      head_sha=$(git -C "$wt" rev-parse HEAD 2>/dev/null)
-      published=$(git branch -r --contains "$head_sha" 2>/dev/null | head -1)
-      if [ -n "$dirty" ] || [ -z "$published" ]; then
-        echo "  черновик $id: несохранённое или неопубликованное -- не трогаю"
-        continue
-      fi
-      git worktree remove --force "$wt" >/dev/null 2>&1 || {
-        echo "  черновик $id: git не отдал копию -- не трогаю"
-        continue
-      }
+      echo "  черновик $id: внутри рабочая копия -- судит tri worktrees --apply"
+      continue
     fi
     size=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
     [ "${size:-0}" -lt 10240 ] && continue

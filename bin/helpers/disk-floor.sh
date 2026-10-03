@@ -16,12 +16,21 @@
 set -u
 floor_gib="${TRI_DISK_FLOOR_GIB:-15}"
 free_kib="${TRI_DISK_FREE_KIB:-$(df -k /System/Volumes/Data 2>/dev/null | awk 'NR==2 {print $4}')}"
+# Digits only, at most 15 of them (a petabyte in KiB has 13): no sign, no
+# space, no overflow. Base 10 forced below, so "0999" is not octal.
 case "$free_kib" in
   '' | *[!0-9]*)
     echo "disk: cannot read free space on /System/Volumes/Data -- unknown is not fine"
     exit 2 ;;
 esac
+if [ "${#free_kib}" -gt 15 ]; then
+  echo "disk: free space '$free_kib' KiB is not a size -- unknown is not fine"
+  exit 2
+fi
 case "$floor_gib" in '' | *[!0-9]*) floor_gib=15 ;; esac
+[ "${#floor_gib}" -gt 6 ] && floor_gib=15
+free_kib=$((10#$free_kib))
+floor_gib=$((10#$floor_gib))
 free_gib=$((free_kib / 1048576))
 if [ "$free_kib" -lt $((floor_gib * 1048576)) ]; then
   echo "disk: LOW -- ${free_gib} GiB free, floor ${floor_gib} GiB"

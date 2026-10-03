@@ -1037,19 +1037,12 @@ case "${1:-}" in
     ;;
 
   worktrees)
-    # БРОШЕННЫЕ КОПИИ РЕПОЗИТОРИЯ. Обнаружено 07.09.2026: `find` по имени
-    # файла вывел копию из `.claude/worktrees/`, и я едва не измерил не тот
-    # файл. Плюс 286 МБ на диске, который этот цикл уже забивал до нуля.
-    #
-    # Команда НЕ УДАЛЯЕТ: в брошенной копии может лежать несохранённая работа.
-    # Она показывает, что есть, и оставляет решение человеку.
-    echo "— копии репозитория —"
-    git worktree list | sed "s|^|  |"
-    if [ -d "$ROOT/.claude/worktrees" ]; then
-      echo "— вес —"
-      du -sh "$ROOT/.claude/worktrees" 2>/dev/null | sed "s|^|  |"
-      echo "  удалять: git worktree remove <путь>  (сначала посмотрите git -C <путь> status)"
-    fi
+    # ONE JUDGE. The root tri judges finished trees by commit and its --apply
+    # removes only provably safe ones (#3474/#3497). The list that lived here
+    # ignored --apply, returned 0 and advised removing trees by hand --
+    # the advice disk-floor stopped giving. Hand the word over instead.
+    shift
+    exec "$ROOT/tri" worktrees "$@"
     ;;
 
   guards)

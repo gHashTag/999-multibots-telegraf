@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 const FLOOR = path.join(__dirname, '..', 'bin', 'helpers', 'disk-floor.sh')
@@ -50,6 +51,32 @@ describe('tri disk-floor', () => {
     expect(
       floor({ TRI_DISK_FREE_KIB: String(9 * GIB), TRI_DISK_FLOOR_GIB: 'x' }).rc
     ).toBe(1)
+  })
+
+  it('octal-looking and oversized numbers never read as "fine"', () => {
+    // Bash arithmetic reads "08" as bad octal and wraps past 2^63; each of
+    // these once ended rc 0 on a check that had failed.
+    expect(floor({ TRI_DISK_FREE_KIB: '0999' }).rc).toBe(1)
+    expect(floor({ TRI_DISK_FREE_KIB: '0', TRI_DISK_FLOOR_GIB: '08' }).rc).toBe(
+      1
+    )
+    expect(
+      floor({ TRI_DISK_FREE_KIB: '0', TRI_DISK_FLOOR_GIB: '99999999999999' }).rc
+    ).toBe(1)
+    const r = floor({ TRI_DISK_FREE_KIB: '99999999999999999999' })
+    expect(r.rc).toBe(2)
+    expect(r.out).toMatch(/unknown is not fine/)
+  })
+
+  it('bin/tri worktrees hands the word to the one judge', () => {
+    // The old list here ignored --apply and advised a bare remove.
+    const src = readFileSync(path.join(__dirname, '..', 'bin', 'tri'), 'utf8')
+    const arm = src.slice(
+      src.indexOf('\n  worktrees)'),
+      src.indexOf('\n  guards)')
+    )
+    expect(arm).toMatch(/exec "\$ROOT\/tri" worktrees "\$@"/)
+    expect(arm).not.toMatch(/git worktree remove/)
   })
 
   it('an unreadable volume is rc 2, never a silent "fine"', () => {

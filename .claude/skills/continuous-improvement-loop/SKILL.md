@@ -2108,14 +2108,15 @@ is not recorded and goes again next time. The token goes to curl on stdin
 
 **A stub that can reach a real secret will.** The #3500 reviewer bee
 stubbed curl with `export -f` -- zsh, so it exported nothing -- left
-`TRI_TG_TOKEN` unset, and tri read the real BOT*TOKEN_12 from Railway into
+`TRI_TG_TOKEN` unset, and tri read the real `BOT_TOKEN_12` from Railway into
 the stub's log, which the bee printed. Nothing was sent; the value still
 reached a transcript. Now a set `TRI_CURL` means Railway is never read, the
-token must match `^[0-9]+:[A-Za-z0-9*-]+$` (a newline in it added a curl
+token must match `^[0-9]+:[A-Za-z0-9_-]+$` (a newline in it added a curl
 config line), and the test stubs railway through the pick's cache
 (`XDG_CACHE_HOME/tri/railway-bin`): PATH alone loses to `/opt/homebrew/bin`,
 which tri puts first. Tell every bee: stubs in `/bin/bash`, never `export -f`
-from the Bash tool.
+from the Bash tool, and stub curl through `TRI_CURL` -- a stub curl only on
+PATH does not trip the guard, so Railway is still read.
 
 ### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
 
