@@ -2,7 +2,7 @@
  * The model and the seller, from the bot. Three thin calls to the render
  * service over the server key, on behalf of the owner who pressed.
  */
-import { RenderDidNotAnswer } from './renderTimeout'
+import { RenderDidNotAnswer, RenderRefusedTheKey } from './renderTimeout'
 
 const BASE = 'https://vibee-render-production.up.railway.app'
 const apiKey = () => process.env.RENDER_API_KEY || ''
@@ -142,6 +142,13 @@ export async function callTool(
   } finally {
     clearTimeout(timer)
   }
+  // The guard's 401 body is {error: "unauthorized"}, which would otherwise
+  // read as "<tool> refused" -- a refusal of the key, not of the request.
+  if (r.status === 401 || r.status === 403)
+    throw new RenderRefusedTheKey(
+      r.status,
+      `рендер не принял ключ бота (${r.status})`
+    )
   const data = (await r.json().catch(() => ({}))) as {
     error?: { message?: string }
     result?: { structuredContent?: unknown; content?: Array<{ text?: string }> }

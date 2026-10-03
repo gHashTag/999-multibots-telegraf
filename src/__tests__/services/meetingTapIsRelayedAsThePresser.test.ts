@@ -71,6 +71,29 @@ describe('the meeting tap reaches the render, and the person hears back', () => 
     ).toBe(SAID.offline)
   })
 
+  it('a key the render refuses is named, not "try again in a minute"', async () => {
+    // The real callTool against the guard's real 401 body: {error: string}.
+    // Before RenderRefusedTheKey this read as "meeting_answer refused" and the
+    // person was told a minute would help. Only fixing the key helps.
+    const prevKey = process.env.RENDER_API_KEY
+    process.env.RENDER_API_KEY = 'k' // secret-guard-ok: a one-letter stub
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'unauthorized', code: 'sign_in' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    try {
+      const r = await answerMeeting(PRESSER, 'ok', TOKEN)
+      expect(r).toEqual({ said: SAID.noKey, reached: false })
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      fetchSpy.mockRestore()
+      if (prevKey === undefined) delete process.env.RENDER_API_KEY
+      else process.env.RENDER_API_KEY = prevKey
+    }
+  })
+
   it('nothing is relayed without a presser, a token or a known action', async () => {
     const callToolImpl = vi.fn()
     expect((await answerMeeting('', 'ok', TOKEN, { callToolImpl })).said).toBe(
