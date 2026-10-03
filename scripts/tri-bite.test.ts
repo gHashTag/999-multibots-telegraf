@@ -502,8 +502,47 @@ describe('tri bite -- review 5 of #3462', () => {
       '-c',
       "! grep -q $'\\r' lib/add.sh"
     )
+    // git 2.39 (the check-runner) has no --attr-source: there the honest
+    // answer is cannot tell, pinned by the next test on any git.
+    if (spawnSync('git', ['--attr-source=HEAD', 'version']).status !== 0) {
+      expect(r.status).toBe(2)
+      return
+    }
     expect(r.stdout).toMatch(/BITES/)
     expect(r.status).toBe(0)
+  })
+
+  it('a git without --attr-source refuses when .gitattributes moved', () => {
+    // git 2.39 (the check-runner's) has no --attr-source; today's attributes
+    // would write the old file wrong, so the answer is cannot tell -- and the
+    // same tree with unchanged attributes still bites.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitattributes'), 'lib/add.sh eol=crlf\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'crlf')
+    git(dir, 'tag', 'v4')
+    fs.rmSync(path.join(dir, '.gitattributes'))
+    git(dir, 'commit', '-qam', 'no attributes')
+    const old = (...a: string[]) =>
+      spawnSync('bash', [BITE, ...a], {
+        cwd: dir,
+        encoding: 'utf8',
+        timeout: 30000,
+        env: { ...process.env, _BITE_NO_ATTR_SOURCE: '1' },
+      })
+    const r = old('v4', 'lib/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/\.gitattributes changed since v4/)
+    const s = old(
+      'v1',
+      'lib/add.sh',
+      '--',
+      'bash',
+      '-c',
+      'cd lib && bash test.sh'
+    )
+    expect(s.stdout).toMatch(/BITES/)
+    expect(s.status).toBe(0)
   })
 
   it('a package with its own node_modules is linked into the copies', () => {

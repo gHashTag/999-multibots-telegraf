@@ -114,6 +114,20 @@ for r in "${REL[@]}"; do
     || { echo "bite: $r is neither in the tree now nor at $REV"; exit 2; }
 done
 
+# The old files are written by the attributes of <rev> (--attr-source), but
+# that came with git 2.40, and the check-runner's Debian git is 2.39: there
+# every restore failed. Without it today's attributes are used -- right only
+# when .gitattributes is the same as at <rev>, so otherwise "cannot tell".
+# _BITE_NO_ATTR_SOURCE=1 takes the old-git road; it exists for the tests.
+ATTR=(--attr-source="$REV")
+if [ "${_BITE_NO_ATTR_SOURCE:-}" = 1 ] || ! git -C "$TOP" --attr-source="$REV" version >/dev/null 2>&1; then
+  ATTR=()
+  if ! git -C "$TOP" diff --quiet "$REV" -- ':(glob)**/.gitattributes' 2>/dev/null; then
+    echo "bite: .gitattributes changed since $REV and this git has no --attr-source -- cannot write the old files as a checkout would"
+    exit 2
+  fi
+fi
+
 # Every node_modules the tree installs: the root's and each tracked package's.
 # Ignored, so the copy has none of them; each is linked in, not copied. Found
 # from the tracked package.json files -- a find would also walk into the
@@ -268,7 +282,7 @@ for r in "${REL[@]}"; do
       # by the attributes of <rev>, not of today's tree. The raw blob of an
       # LFS file is a pointer, and the run said BITES even against HEAD itself
       # (reviews 4 and 5 of #3462).
-      git -C "$TOP" --attr-source="$REV" cat-file --filters "$REV:$r" >"$dest" \
+      git -C "$TOP" ${ATTR[@]+"${ATTR[@]}"} cat-file --filters "$REV:$r" >"$dest" \
         || { echo "bite: cannot read $r at $REV"; exit 2; }
       [ "$mode" = 100755 ] && chmod +x "$dest"
       echo "  $r <- $REV" ;;
