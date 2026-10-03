@@ -156,6 +156,8 @@ agent key) -- the full case list is the header of `bin/helpers/b.sh`
     tri browser tidy              # abandoned tabs and why; list only, no visit
     tri browser tidy ask [ID...]  # ONE real card: "close these N?" (a day to answer)
     tri browser tidy apply QID    # after his "allow": close exactly those, once
+    tri browser swept [SINCE]     # what the sweep/room-making closed, by host,
+                                  #   beside the desk lines (logs only, #3471)
 
 Pick the command by the symptom, and keep `cover` at rc 0: a tool added to
 `agent-tools.ts` without a case in `b.sh` is a tool nobody can check by hand.
@@ -577,3 +579,51 @@ that we did not, and where each stands:
 only: at 01:05 UTC a step from 22:47 the day before read as fresh. Both
 readers now share `bin/helpers/journal_line.py` (#3463) -- date kept, UTC
 said, and the first line is how long ago the newest real step was.
+
+## A desk opens a tab through one door (2026-10-03, #3469, #3471)
+
+Asking why the blog did not reach the networks found two holes. Neither was a
+site change.
+
+1. **The desks went around the ceiling.** blog-share, reddit, engage and
+   scenarios opened tabs with raw `newPage`, past `roomForOne`. `roomForOne`
+   is the check added after a fifteenth tab wedged Chromium. The pod stood at
+   10 of 12, and one share run opens up to four more.
+2. **The sweep could close a desk's working tab.** `planTabSweep` closes every
+   later tab of an origin. The X composer beside the person's `x.com/home` is
+   that later tab, so it could close between "type" and "post".
+
+The door is `newDeskPage` (`render/src/browser/desk-page.ts`):
+
+- It makes room first, then holds the new tab for `DESK_HOLD_MS` (15 min).
+- The clock (`podsToSweep`) and `browser_open`'s `makeRoom` both keep held
+  tabs.
+- A source guard fails on any raw `newPage(` in `src/agent`.
+- **A new desk opens tabs only through it.**
+
+**Every closing is named** (#3471), by host and reason only. A path can carry
+a one-time token, as Instagram's two-step URL does:
+
+```
+🧹 [tabs] (unclaimed pod): closed 1, 11 open of 12 allowed -- x.com (duplicate)
+🧹 [tabs] room for x.com: chrome://newtab (over cap)
+```
+
+When a desk run fails midway ("thread did not go through", "button not
+found"), run `tri browser swept [SINCE]` before blaming the site. It shows
+those lines beside the desk lines of the same hours, from the logs only. Lines
+before #3471 carry a count, not names.
+
+**Two `tri`s.** The root `./tri` and `bin/tri` are different scripts, and
+browser cases live in `bin/tri`. Until #3471, `./tri browser doctor` dropped
+the word, printed the plain health line and exited 0, which is a green doctor
+that read nothing. If a case's output lacks its documented shape (no tab
+list), suspect the routing first.
+
+**A desk start tells the person once per 12 h** (#3467). The reddit desk
+ticks hourly; after the reaper drops an idle visit (10 min), every tick was a
+fresh start and sent "the agent opened your browser" all night. Now
+`startBrowserAsAgent(who, by)` announces once per `DESK_QUIET_MS`, read back
+from the journal (`announced: true`), so a deploy does not reset it. Tool
+starts and restarts still announce. Any new desk passes `by`; before a
+notification on an hourly path, multiply by 24.
