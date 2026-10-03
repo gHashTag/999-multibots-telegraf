@@ -32,6 +32,7 @@ import {
   watchHold,
   watchPageHeaders,
   watchPageHtml,
+  watchViewerOf,
   type WatchIo,
   type WatchViewer,
 } from './src/browser/watch-link'
@@ -188,7 +189,14 @@ describe('watchHold: what a watcher may see', () => {
     expect(hold('https://block.example/')).toBe('private')
   })
 
-  it("the browser's own pages are held", () => {
+  it("the browser's own pages are held, and so is anything not on the web", () => {
+    for (const u of [
+      'data:text/html,<h1>bank</h1>',
+      'blob:https://x.com/1-2-3',
+      'file:///home/neko/Downloads/statement.pdf',
+      'javascript:alert(1)',
+    ])
+      expect(hold(u)).toBe('browser')
     expect(hold('chrome://settings/passwords')).toBe('browser')
     expect(hold('chrome-extension://abc/popup.html')).toBe('browser')
     expect(hold('devtools://devtools/x')).toBe('browser')
@@ -242,6 +250,27 @@ describe('making, listing, revoking: the token is shown once', () => {
     expect(await resolveWatch(pool, r.token, T0 + 3_600_001)).toBeNull()
     expect(await revokeWatchLink(pool, ID, r.id, T0)).toBe(true)
     expect(await resolveWatch(pool, r.token, T0)).toBeNull()
+  })
+
+  it('the revoke and the resolve say who, and skip the revoked', async () => {
+    const texts: string[] = []
+    const spy = {
+      query: async (text: string, params: unknown[] = []) => {
+        texts.push(text.replace(/\s+/g, ' '))
+        return pool.query(text, params)
+      },
+    }
+    const r = await createWatchLink(pool, ID, {}, T0)
+    if (!r.ok) throw new Error(r.error)
+    await revokeWatchLink(spy, ID, r.id, T0)
+    await resolveWatch(spy, r.token, T0)
+    const revoke = texts.find(t => t.includes('SET revoked_at')) as string
+    expect(revoke).toContain('telegram_id = $1')
+    expect(revoke).toContain('revoked_at IS NULL')
+    const resolve = texts.find(t => t.includes('SELECT telegram_id')) as string
+    expect(resolve).toContain('token_hash = $1')
+    expect(resolve).toContain('revoked_at IS NULL')
+    expect(resolve).toContain('expires_at > $2')
   })
 
   it("nobody revokes another person's link", async () => {
@@ -437,6 +466,60 @@ describe('serveWatch: the picture holds before the private frame', () => {
     expect(w.closes).toContain(WATCH_CLOSE.front)
   })
 
+  it('every recheck reads the list again: a site listed mid-watch holds', async () => {
+    vi.useFakeTimers()
+    let rules: SiteRuleRow[] | null = []
+    const w = fakeViewer()
+    const b = fakeIo({ rules: async () => rules })
+    await serveWatch(w.v, b.io, { recheckMs: 1000 })
+    b.go('https://x.com/home')
+    b.frame()
+    expect(w.frames()).toBe(1)
+    rules = [{ site: 'x.com', rule: 'ask' } as SiteRuleRow]
+    await vi.advanceTimersByTimeAsync(1001)
+    b.frame()
+    expect(w.frames()).toBe(1)
+    expect(JSON.parse(w.notes().at(-1) as string).hold).toBe('private')
+    w.v.close()
+  })
+
+  it('a database that fails on a recheck holds or ends, never shows', async () => {
+    vi.useFakeTimers()
+    let failRules = false
+    let failLive = false
+    const w = fakeViewer()
+    const b = fakeIo({
+      rules: async () => {
+        if (failRules) throw new Error('db down')
+        return []
+      },
+      stillLive: async () => {
+        if (failLive) throw new Error('db down')
+        return true
+      },
+    })
+    await serveWatch(w.v, b.io, { recheckMs: 1000 })
+    b.go('https://x.com/home')
+    failRules = true
+    await vi.advanceTimersByTimeAsync(1001)
+    b.frame()
+    expect(w.frames()).toBe(0)
+    expect(JSON.parse(w.notes().at(-1) as string).hold).toBe('list')
+    failLive = true
+    await vi.advanceTimersByTimeAsync(1001)
+    expect(w.closes).toContain(WATCH_CLOSE.ended)
+  })
+
+  it('a socket already gone starts no screencast and no timer', async () => {
+    vi.useFakeTimers()
+    const w = fakeViewer()
+    const v: WatchViewer = { ...w.v, onClose: fn => fn() }
+    const cast = vi.fn(fakeIo().io.cast)
+    await serveWatch(v, fakeIo({ cast }).io, { recheckMs: 1000, maxMs: 5000 })
+    expect(cast).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('a screencast that cannot start closes as "off"', async () => {
     const w = fakeViewer()
     const b = fakeIo({
@@ -474,6 +557,67 @@ describe('openWatch: refusals the page understands', () => {
     expect(enterViewer('abc')).toBe(false)
     leaveViewer('abc')
     expect(enterViewer('abc')).toBe(true)
+  })
+
+  it('a watcher who leaves while the token is read takes no seat', async () => {
+    const r = await createWatchLink(pool, ID, {})
+    if (!r.ok) throw new Error(r.error)
+    const w = fakeViewer()
+    const slow = {
+      query: async (text: string, params: unknown[] = []) => {
+        if (text.includes('SELECT telegram_id')) w.v.close(1001)
+        return pool.query(text, params)
+      },
+    }
+    await openWatch(slow, r.token, w.v, viewerSize)
+    for (let i = 0; i < WATCH_MAX_VIEWERS_PER_LINK; i++)
+      expect(enterViewer(r.id)).toBe(true)
+    expect(journal).toHaveLength(0)
+  })
+
+  it('a watcher who leaves after taking a seat gives it back', async () => {
+    const r = await createWatchLink(pool, ID, {})
+    if (!r.ok) throw new Error(r.error)
+    const w = fakeViewer()
+    const leaving = {
+      query: async (text: string, params: unknown[] = []) => {
+        /* The session read: the seat is taken by now. */
+        if (!text.includes('browser_watch_links') && !text.includes('CREATE'))
+          w.v.close(1001)
+        return pool.query(text, params)
+      },
+    }
+    sessionState = 'stopped'
+    await openWatch(leaving, r.token, w.v, viewerSize)
+    for (let i = 0; i < WATCH_MAX_VIEWERS_PER_LINK; i++)
+      expect(enterViewer(r.id)).toBe(true)
+    expect(enterViewer(r.id)).toBe(false)
+  })
+
+  it('the ws wrapper hears a close that happened before it was asked', () => {
+    let fire: () => void = () => undefined
+    const ws = {
+      readyState: 1,
+      bufferedAmount: 0,
+      send: vi.fn(),
+      close: vi.fn(),
+      on: (_e: 'close', fn: () => void) => void (fire = fn),
+    }
+    const v = watchViewerOf(ws)
+    const early = vi.fn()
+    v.onClose(early)
+    fire()
+    expect(early).toHaveBeenCalledTimes(1)
+    const late = vi.fn()
+    v.onClose(late)
+    expect(late).toHaveBeenCalledTimes(1)
+    v.send(Buffer.from([1]))
+    expect(ws.send).not.toHaveBeenCalled()
+
+    const gone = watchViewerOf({ ...ws, readyState: 3, on: () => undefined })
+    const atOnce = vi.fn()
+    gone.onClose(atOnce)
+    expect(atOnce).toHaveBeenCalledTimes(1)
   })
 
   it('a full link closes with 4029 before reading the session', async () => {
@@ -558,8 +702,18 @@ describe('startScreencast reports the address in frame order', () => {
     expect(sent.map(s => s.method)).toEqual([
       'Target.attachToTarget',
       'Page.enable',
-      'Page.startScreencast',
+      'Page.getFrameTree',
     ])
+    push(
+      JSON.stringify({
+        id: 3,
+        sessionId: 'S',
+        result: {
+          frameTree: { frame: { id: 'tab-1', url: 'https://x.com/' } },
+        },
+      })
+    )
+    expect(sent.at(-1)?.method).toBe('Page.startScreencast')
     const ev = (method: string, params: unknown) =>
       push(JSON.stringify({ method, sessionId: 'S', params }))
     ev('Page.frameNavigated', {
@@ -584,6 +738,73 @@ describe('startScreencast reports the address in frame order', () => {
       'https://x.com/b',
     ])
     expect(order).toEqual(['url', 'url', 'frame', 'url'])
+  })
+
+  it("the list's address is never trusted: the tree answers, then the cast", async () => {
+    const { startScreencast } = await import('./src/browser/frames')
+    const sent: Array<{ id: number; method: string }> = []
+    let push: (t: string) => void = () => undefined
+    const seen: string[] = []
+    await startScreencast(
+      'pod:9223',
+      { width: 400, height: 800 },
+      () => undefined,
+      {
+        /* Read before Page.enable: the tab has since gone to the bank. */
+        front: async () => ({
+          id: 'tab-1',
+          type: 'page',
+          title: '',
+          url: 'https://x.com/',
+        }),
+        connect: async () => ({
+          send: (t: string) => void sent.push(JSON.parse(t)),
+          close: () => undefined,
+          onMessage: (fn: (t: string) => void) => void (push = fn),
+          onClose: () => undefined,
+        }),
+      },
+      { onUrl: u => seen.push(u) }
+    )
+    expect(seen).toEqual([])
+    push(JSON.stringify({ id: 1, result: { sessionId: 'S' } }))
+    expect(sent.map(s => s.method)).not.toContain('Page.startScreencast')
+    const tree = sent.find(s => s.method === 'Page.getFrameTree')
+    push(
+      JSON.stringify({
+        id: tree?.id,
+        result: { frameTree: { frame: { url: 'https://bank.example/pay' } } },
+      })
+    )
+    expect(seen).toEqual(['https://bank.example/pay'])
+    expect(sent.at(-1)?.method).toBe('Page.startScreencast')
+  })
+
+  it('a tree that cannot be read reports nothing known, which holds', async () => {
+    const { startScreencast } = await import('./src/browser/frames')
+    const sent: Array<{ id: number; method: string }> = []
+    let push: (t: string) => void = () => undefined
+    const seen: string[] = []
+    await startScreencast(
+      'pod:9223',
+      { width: 400, height: 800 },
+      () => undefined,
+      {
+        front: async () => ({ id: 'tab-1', type: 'page', title: '', url: '' }),
+        connect: async () => ({
+          send: (t: string) => void sent.push(JSON.parse(t)),
+          close: () => undefined,
+          onMessage: (fn: (t: string) => void) => void (push = fn),
+          onClose: () => undefined,
+        }),
+      },
+      { onUrl: u => seen.push(u) }
+    )
+    push(JSON.stringify({ id: 1, result: { sessionId: 'S' } }))
+    const tree = sent.find(s => s.method === 'Page.getFrameTree')
+    push(JSON.stringify({ id: tree?.id, error: { message: 'gone' } }))
+    expect(seen).toEqual([''])
+    expect(watchHold(seen[0], [], () => false, ruleFor)).toBe('unknown')
   })
 
   it('without onUrl nothing extra is asked of Chromium', async () => {

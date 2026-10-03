@@ -281,12 +281,57 @@ export function leaveViewer(id: string): void {
   else viewers.delete(id)
 }
 
-/** The watcher's socket: binary frames and short JSON notes. */
+/**
+ * The watcher's socket: binary frames and short JSON notes. `onClose` MUST
+ * call `fn` at once when the socket is already closed -- a seat is freed
+ * there, and a watcher who left during a database read would otherwise hold
+ * it for the life of the process (the bee on #3510). `watchViewerOf` keeps
+ * that promise for a `ws` socket.
+ */
 export interface WatchViewer {
   send(data: Buffer | string): void
   readonly bufferedAmount: number
   close(code?: number): void
   onClose(fn: () => void): void
+}
+
+/** What `watchViewerOf` needs of a `ws` WebSocket. */
+export interface WsLike {
+  readonly readyState: number
+  readonly bufferedAmount: number
+  send(data: Buffer | string, opts: { binary: boolean }): void
+  close(code?: number): void
+  on(event: 'close', fn: () => void): unknown
+}
+
+/** ws.CLOSED: its close event has already fired. */
+const WS_CLOSED = 3
+
+/**
+ * A `ws` socket as a WatchViewer. The close is tracked from the moment of
+ * wrapping, so a handler added later still runs, once, when the socket is
+ * already gone.
+ */
+export function watchViewerOf(ws: WsLike): WatchViewer {
+  let closed = ws.readyState === WS_CLOSED
+  const waiting: Array<() => void> = []
+  ws.on('close', () => {
+    closed = true
+    for (const fn of waiting.splice(0)) fn()
+  })
+  return {
+    send: data => {
+      if (!closed) ws.send(data, { binary: typeof data !== 'string' })
+    },
+    get bufferedAmount() {
+      return ws.bufferedAmount
+    },
+    close: code => ws.close(code),
+    onClose: fn => {
+      if (closed) fn()
+      else waiting.push(fn)
+    },
+  }
 }
 
 export interface WatchIo {
@@ -373,6 +418,8 @@ export async function serveWatch(
     viewer.close(code)
   }
   viewer.onClose(() => finish())
+  /* A socket that was already gone fires at once: start nothing. */
+  if (done) return
   if (opts.maxMs) cap = setTimeout(() => finish(), opts.maxMs)
   judge()
 
@@ -562,6 +609,21 @@ export async function openWatch(
   viewer: WatchViewer,
   size: { width: number; height: number }
 ): Promise<void> {
+  /*
+   * The close is heard BEFORE the first await: a watcher who leaves while
+   * the token is being read must not take a seat afterwards, and one who
+   * leaves later must give it back.
+   */
+  let closed = false
+  let seat: string | null = null
+  const leave = () => {
+    if (seat) leaveViewer(seat)
+    seat = null
+  }
+  viewer.onClose(() => {
+    closed = true
+    leave()
+  })
   let who: { telegramId: string; id: string } | null = null
   try {
     who = await resolveWatch(pool, token)
@@ -569,6 +631,7 @@ export async function openWatch(
     viewer.close(1011)
     return
   }
+  if (closed) return
   if (!who) {
     viewer.close(WATCH_CLOSE.ended)
     return
@@ -578,13 +641,7 @@ export async function openWatch(
     viewer.close(WATCH_CLOSE.full)
     return
   }
-  let left = false
-  const leave = () => {
-    if (left) return
-    left = true
-    leaveViewer(id)
-  }
-  viewer.onClose(leave)
+  seat = id
   try {
     const { readSession } = await import('./sessions')
     const session = await readSession(pool, telegramId)
@@ -602,21 +659,25 @@ export async function openWatch(
         import('./cdp'),
         import('./frames'),
       ])
-    await serveWatch(viewer, {
-      rules: () => siteRulesOf(pool, telegramId),
-      stillLive: async () => (await resolveWatch(pool, token)) !== null,
-      frontId: async () => (await cdpMod.frontPage(cdp)).id,
-      sensitive: u => isSensitive(u),
-      ruleFor,
-      cast: (onFrame, opts) =>
-        frames.startScreencast(
-          cdp,
-          frames.frameSize(size.width, size.height),
-          onFrame,
-          frames.SCREENCAST_IO,
-          opts
-        ),
-    })
+    await serveWatch(
+      viewer,
+      {
+        rules: () => siteRulesOf(pool, telegramId),
+        stillLive: async () => (await resolveWatch(pool, token)) !== null,
+        frontId: async () => (await cdpMod.frontPage(cdp)).id,
+        sensitive: u => isSensitive(u),
+        ruleFor,
+        cast: (onFrame, opts) =>
+          frames.startScreencast(
+            cdp,
+            frames.frameSize(size.width, size.height),
+            onFrame,
+            frames.SCREENCAST_IO,
+            opts
+          ),
+      },
+      { maxMs: frames.FRAMES_MAX_MS }
+    )
   } catch {
     leave()
     viewer.close(1011)

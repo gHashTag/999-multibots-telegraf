@@ -166,6 +166,7 @@ import { FRAMES_PATH, frameSize, serveFrames } from './src/browser/frames'
 import {
   openWatch,
   parseWatchPath,
+  watchViewerOf,
   watchNonce,
   watchPageHeaders,
   watchPageHtml,
@@ -13319,15 +13320,7 @@ async function main() {
             await openWatch(
               (await getPool()) as any,
               watchAt.token,
-              {
-                send: data =>
-                  ws.send(data, { binary: typeof data !== 'string' }),
-                get bufferedAmount() {
-                  return ws.bufferedAmount
-                },
-                close: code => ws.close(code),
-                onClose: fn => ws.on('close', fn),
-              },
+              watchViewerOf(ws),
               frameSize(q.get('w'), q.get('h'))
             )
           } catch {
