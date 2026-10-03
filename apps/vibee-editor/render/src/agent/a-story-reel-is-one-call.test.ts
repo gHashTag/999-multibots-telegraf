@@ -333,7 +333,7 @@ describe('story_reel for a client: her voice, her call, her card (v22)', () => {
   )
 
   it('her kept card is her end card; a kept house button is dropped for her profile one', async () => {
-    const kept = { bg: '#222222', button: 'Write me' }
+    const kept = { bg: '#2a2b2c', button: 'Write me' }
     const a = fakeTools()
     await makeStoryReelTool(a.lookup).handler(noCall, {
       telegramId: '900000001',
@@ -341,7 +341,7 @@ describe('story_reel for a client: her voice, her call, her card (v22)', () => {
       pool: poolWith(HER, kept),
     } as never)
     const card = a.calls.find(c => c.name === 'reel_render')!.args.props.endCard
-    expect(card).toMatchObject({ bg: '#222222', button: 'Write me' })
+    expect(card).toMatchObject({ bg: '#2a2b2c', button: 'Write me' })
 
     const b = fakeTools()
     await makeStoryReelTool(b.lookup).handler(noCall, {
@@ -352,7 +352,7 @@ describe('story_reel for a client: her voice, her call, her card (v22)', () => {
     const house = b.calls.find(c => c.name === 'reel_render')!.args.props
       .endCard
     expect(house).toMatchObject({
-      bg: '#222222',
+      bg: '#2a2b2c',
       button: 'Book · @example_bot',
     })
   })
