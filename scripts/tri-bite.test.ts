@@ -674,19 +674,24 @@ describe('tri bite -- review 1 of #3479', () => {
     expect(s.stdout).toMatch(/bite: \.gitattributes is not tracked/)
   })
 
-  it('a node_modules it cannot read is cannot tell, not a verdict', () => {
-    const dir = repo()
-    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
-    git(dir, 'add', '-A')
-    git(dir, 'commit', '-q', '-m', 'ignore')
-    fs.mkdirSync(path.join(dir, 'node_modules/@scope'), { recursive: true })
-    fs.chmodSync(path.join(dir, 'node_modules/@scope'), 0)
-    try {
-      const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
-      expect(r.status).toBe(2)
-      expect(r.stdout).toMatch(/could not read the node_modules links/)
-    } finally {
-      fs.chmodSync(path.join(dir, 'node_modules/@scope'), 0o755)
+  // root reads a mode-0 directory all the same, and the check-runner's
+  // container runs as root: there is no unreadable directory to plant.
+  it.skipIf(process.getuid?.() === 0)(
+    'a node_modules it cannot read is cannot tell, not a verdict',
+    () => {
+      const dir = repo()
+      fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+      git(dir, 'add', '-A')
+      git(dir, 'commit', '-q', '-m', 'ignore')
+      fs.mkdirSync(path.join(dir, 'node_modules/@scope'), { recursive: true })
+      fs.chmodSync(path.join(dir, 'node_modules/@scope'), 0)
+      try {
+        const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+        expect(r.status).toBe(2)
+        expect(r.stdout).toMatch(/could not read the node_modules links/)
+      } finally {
+        fs.chmodSync(path.join(dir, 'node_modules/@scope'), 0o755)
+      }
     }
-  })
+  )
 })
