@@ -565,15 +565,15 @@ BrowserOS, ChatGPT agent/Atlas, Comet, Opera Neon, Browser Use, Skyvern,
 Cloudflare Browser Run; Buffer, Typefully, Postiz for posting. What they do
 that we did not, and where each stands:
 
-| Gap                                                                               | Who does it               | Status                                                                                                                                    |
-| --------------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| No frames while the PERSON drives                                                 | ChatGPT agent             | **done** #3464: `tickMayFilm` stops the film ticker under the person's wheel lease                                                        |
-| A live view that says "stream stopped" + why, not a frozen picture                | Browserbase, Skyvern      | **done** #3475: `FREEZE_SCRIPT` -- 10 s without a frame on a connected video says so, names the side                                      |
-| A login that is checked by USE, not by cookie name; a one-tap "sign in again"     | Anchor                    | **done** #3477: a gated page sent to the sign-in wall = `refused`; `signInAgain` names the door                                           |
-| The person's own per-site list: blocked / read-only for the agent                 | Comet                     | **done** (this PR): `site-rules.ts` -- `ask` = a bank for this person, `block` = never opened, read, shot or touched; agent only tightens |
-| One typed handoff (login/captcha/approval) answering resolved/cancelled/timed_out | BrowserOS, Cloudflare     | partly: `browser_ask_input`, `browser_ask_permission`                                                                                     |
-| A watch-only share link                                                           | Hyperbrowser, Browserbase | open                                                                                                                                      |
-| Per-channel split, never X's 280 for LinkedIn                                     | Postiz trap               | held: `xThread` vs `postFor` (#3453, #3457)                                                                                               |
+| Gap                                                                               | Who does it               | Status                                                                                               |
+| --------------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| No frames while the PERSON drives                                                 | ChatGPT agent             | **done** #3464: `tickMayFilm` stops the film ticker under the person's wheel lease                   |
+| A live view that says "stream stopped" + why, not a frozen picture                | Browserbase, Skyvern      | **done** #3475: `FREEZE_SCRIPT` -- 10 s without a frame on a connected video says so, names the side |
+| A login that is checked by USE, not by cookie name; a one-tap "sign in again"     | Anchor                    | **done** #3477: a gated page sent to the sign-in wall = `refused`; `signInAgain` names the door      |
+| The person's own per-site list: blocked / read-only for the agent                 | Comet                     | **done** #3481 list, #3482 + #3484 the app's "My sites", #3483 blocked tabs named by host only       |
+| One typed handoff (login/captcha/approval) answering resolved/cancelled/timed_out | BrowserOS, Cloudflare     | partly: `browser_ask_input`, `browser_ask_permission`                                                |
+| A watch-only share link                                                           | Hyperbrowser, Browserbase | open                                                                                                 |
+| Per-channel split, never X's 280 for LinkedIn                                     | Postiz trap               | held: `xThread` vs `postFor` (#3453, #3457)                                                          |
 
 **The person's own site list (`site-rules.ts`).** `guard.ts` has one list
 for everyone; the person knows places nobody else can name (their clinic,
@@ -587,9 +587,34 @@ netflix.com). The agent's door (`browser_sites`, `tri browser sites`) only
 tightens: a page that talked an agent into "unblock this" would turn the
 person's brake into the agent's, so DELETE and block->ask are the person's
 (`/api/browser/sites` without an agent key). An unreadable list is null,
-never []: open and read are refused, acting anywhere needs a yes, and
-`browser_status {shape}` reads no tab. Not in the compact kit
-(`COMPACT_HIDDEN`): it is the person's setting, not a turn of conversation.
+never []: open, read, shot and act are ALL refused, a fresh yes included
+(`browser_evaluate` reads as well as acts), and `browser_status {shape}`
+reads no tab. Not in the compact kit (`COMPACT_HIDDEN`): it is the person's
+setting, not a turn of conversation.
+
+**Unknown fails closed, every time -- three holes the bees found.** (1) A
+tab whose address cannot be read is treated as blocked while the list
+blocks anything: the unknown place may be the blocked one. (2) A desktop
+shot shows whatever tab is in front, so it is refused while ANY open tab is
+blocked. (3) A blocked tab still leaked through the tools that LIST tabs:
+`browser_status` and every page shot's `tabs` carried its title and full
+path (a statement title, an account number in the path). `veilTab`
+(#3483) names it by origin only, title empty, `veiled: 'blocked'` (or
+`'list unreadable'`); `browser_ask_input` is refused on a blocked tab before
+any CDP call. Still open: `browser_tidy` lists the full URL of a blocked tab
+(veil the response, keep the real URL for apply's comparison), cross-origin
+iframes of a blocked site inside an allowed page, and the desks
+(engage, blog-share, rounds) that open pages without reading the list.
+
+**The person's door in the app (#3482, #3484).** Browser tab -> "My sites"
+(`components/Browser/SiteRules.tsx`): add as ask or never, flip a row,
+remove a row, rows the agent added say so. Only the server's 503 means "your
+list could not be read, the agent is stopped"; a 401 or a network error is
+this screen failing and says so in other words (`readSiteListState`). The
+server's English 400/409/503 refusals become dictionary sentences
+(`siteRuleFailKey`). No @testing-library in the player: the logic is pure
+functions in `lib/remoteBrowser.ts`, the strings are checked as source text
+in both languages.
 
 **A picture that stopped says so (#3475).** `CONNECT_SCRIPT` spoke only when
 neko showed its connect form. A socket that stays up with no new frame had no
