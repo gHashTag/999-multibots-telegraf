@@ -24,7 +24,8 @@
 # Markdown message with RENDER_API_KEY in it is rejected by Telegram, and
 # alert.sh's `>/dev/null` would have hidden that).
 #
-# Seams for the test: RELAYS_CMD, REDEPLOY_CMD, SEND_CMD, SLEEP_CMD, STATE_DIR.
+# Seams for the test: RELAYS_CMD, REDEPLOY_CMD, SEND_CMD, SLEEP_CMD, STATE_DIR,
+# LAUNCHCTL.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_DIR="${STATE_DIR:-$HOME/.local/state/t27-relays-watch}"
@@ -143,10 +144,23 @@ $heal_note"
   return 1
 }
 
+# The watch runs under launchd's bare PATH, where `railway` may be a
+# different, older CLI than the logged-in one in this shell (2026-10-03: 4.5.4
+# at /usr/local/bin, "Unauthorized", every run "not measured"). So install pins
+# the directory of the railway it finds here first on the job's PATH, and
+# refuses to install a watch that could not measure anything.
 install() {
-  mkdir -p "$LIB" "$HOME/Library/Logs"
-  cp "$HERE/relays.sh" "$HERE/rail.sh" "$HERE/relays-watch.sh" "$LIB/"
-  cat >"$PLIST" <<EOF
+  local rw bin path
+  rw=$(command -v railway) || { echo "relays-watch: no railway on PATH -- not installed" >&2; return 1; }
+  bin=$(dirname "$rw")
+  path="$bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  if ! env -i HOME="$HOME" PATH="$path" railway whoami >/dev/null 2>&1; then
+    echo "relays-watch: $rw is not logged in under the job's PATH -- run railway login; not installed" >&2
+    return 1
+  fi
+  mkdir -p "$LIB" "$HOME/Library/Logs" "$(dirname "$PLIST")" || return 1
+  cp "$HERE/relays.sh" "$HERE/rail.sh" "$HERE/relays-watch.sh" "$LIB/" || return 1
+  cat >"$PLIST" <<EOF || return 1
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -164,7 +178,7 @@ install() {
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
-		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<string>$path</string>
 	</dict>
 	<key>RunAtLoad</key>
 	<true/>
@@ -177,8 +191,8 @@ install() {
 </dict>
 </plist>
 EOF
-  launchctl bootout "gui/$(id -u)/ai.t27.relays-watch" 2>/dev/null
-  launchctl bootstrap "gui/$(id -u)" "$PLIST" && echo "relays-watch: installed, hourly, log ~/Library/Logs/t27-relays-watch.log"
+  ${LAUNCHCTL:-launchctl} bootout "gui/$(id -u)/ai.t27.relays-watch" 2>/dev/null
+  ${LAUNCHCTL:-launchctl} bootstrap "gui/$(id -u)" "$PLIST" && echo "relays-watch: installed, hourly, railway $rw, log ~/Library/Logs/t27-relays-watch.log"
 }
 
 status() {
