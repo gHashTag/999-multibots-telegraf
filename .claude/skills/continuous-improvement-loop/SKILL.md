@@ -619,6 +619,27 @@ in JSON at position 8192`. Причина — не в тестах: `money-map.m
 > цикл уже забивал до нуля), и НЕ удаляет их: в брошенной копии может лежать
 > несохранённая работа.
 
+Update 03.10.2026 (#3474 and its follow-up): `tri worktrees --apply` now
+removes trees, and only provably finished ones. Lessons it cost:
+
+- **Finished is judged by COMMIT, not branch name.** This repo squash-merges:
+  HEAD == a merged PR's head oid, or inside one, or in origin/main, or
+  `git cherry` all `-`. A reused name with new commits stays.
+- **Removal without `--force` still deletes ignored content**, nested
+  repositories included. So every ignored entry is checked: it must sit in a
+  rebuildable folder (node_modules, dist, build, logs...), and nothing inside
+  may be a name the tree's own `.gitignore` lists (`git check-ignore
+--no-index`, name by name), a nested `.git`, or an unreadable folder.
+- **Never hand-copy `.gitignore` into code.** The first secret list (`.env`,
+  key files) lost a `logs/.env`; the second (exact names) lacked ~20 names a
+  day later. The bee found both by attacking a throwaway repo with `--apply`.
+- `status --ignored` collapses `logs/` -- use `--ignored=matching -z`.
+- An empty env number with `??` becomes 0 and turns a dry run into a sweep;
+  use `||`.
+- 03.10 run of `tri worktrees --apply` (#3474 code): 46 of 66 trees removed,
+  ~25.6 GB freed, disk free 8.7 -> 35 GiB, branches untouched. Kept on
+  purpose: 999-mail-push (ignored .env), one tree touched 17 min earlier.
+
 ### Урок 07.09.2026: сторож, честно назвавший свою слепую зону, — это адрес работы
 
 `assets-identity-order.test.ts` писал о себе прямо: «проверяет ПОРЯДОК —
