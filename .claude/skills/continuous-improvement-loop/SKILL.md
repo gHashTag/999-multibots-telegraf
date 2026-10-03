@@ -2061,6 +2061,16 @@ the pattern for testing any tri helper that talks to a service, offline.
 first upload: `tri iphone processed --wait 60`. The guard test over the
 hand-typed `modes:` list caught the new word missing from the refusal.
 
+**"The newest build" is the wrong build right after an upload.** App Store
+Connect lists an upload minutes after it, so the first `processed --wait 60`
+answered "nothing uploaded" at once and never waited, and a second upload
+would have read the PREVIOUS build (VALID) as "ready". `beta` now writes the
+number it sent to `build/last-upload`, and `processed` watches that number,
+waiting while it is unlisted or PROCESSING. A wait that runs out notifies
+too; Apple's text goes to osascript as an argument, never into the script.
+Ask of every "wait for X": what does the world look like in the first minute,
+before X even exists?
+
 ### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
 
 The screen now translates a waiting reason by code and falls back to the
