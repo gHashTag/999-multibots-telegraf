@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { createRequire } from 'node:module'
 
 /**
  * NOT ONE HARD-CODED BOT API HOST, AND NOT ONE CLIENT BUILT WITHOUT THE TOKEN'S HOST.
@@ -27,6 +28,9 @@ import { resolve } from 'node:path'
  */
 
 const ROOT = resolve(__dirname, '..', '..')
+const { repoFiles } = createRequire(__filename)(
+  resolve(ROOT, 'scripts/lib/repo-sources.cjs')
+) as { repoFiles: (cwd: string) => string[] }
 const HOST = 'api.telegram.org'
 const MARKER = 'telegram-api-root-ok'
 
@@ -35,6 +39,9 @@ const HELPERS = [
   'src/services/telegramApi.ts',
   'apps/vibee-editor/render/src/telegram-api.ts',
   'scripts/lib/telegram-api.cjs',
+  // A byte copy of the line above, for an image built from its own directory;
+  // telegram-api-parity.test.ts holds it to identical bytes.
+  'deployment/queen-watch/telegram-api.cjs',
 ]
 
 const CODE = /\.(ts|tsx|js|jsx|mjs|cjs|sh|py|swift)$/
@@ -136,6 +143,62 @@ function git(args: string[]): string[] {
   }
 }
 
+/**
+ * Files under ROOT (or under `paths`) containing any of `needles`, as fixed
+ * strings. `git grep` where ROOT is a repository; a plain walk where it is
+ * not -- the cloud check-runner gets the tree as a `git archive`, with no
+ * .git, and there every `git grep` answered nothing, so "the scan found no
+ * script at all" refused every push that touched this file (2026-10-03).
+ */
+const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', 'coverage'])
+
+function inOwnRepo(): boolean {
+  const top = git(['rev-parse', '--show-toplevel'])[0]
+  return !!top && resolve(top) === resolve(ROOT)
+}
+
+function walk(dir: string, out: string[]): void {
+  let names: string[]
+  try {
+    names = readdirSync(resolve(ROOT, dir))
+  } catch {
+    return
+  }
+  for (const name of names) {
+    if (SKIP_DIRS.has(name)) continue
+    const rel = dir ? join(dir, name) : name
+    let st
+    try {
+      st = statSync(resolve(ROOT, rel))
+    } catch {
+      continue
+    }
+    if (st.isDirectory()) walk(rel, out)
+    else if (st.isFile() && st.size < 2_000_000) out.push(rel)
+  }
+}
+
+export function grepFiles(
+  needles: string[],
+  paths: string[] = [],
+  ownRepo = inOwnRepo()
+): string[] {
+  if (ownRepo) {
+    // --untracked: a file written but not yet added is judged too (it.174).
+    const args = ['grep', '-l', '-F', '--untracked']
+    for (const n of needles) args.push('-e', n)
+    return git(paths.length ? [...args, '--', ...paths] : args)
+  }
+  const files: string[] = []
+  for (const p of paths.length ? paths : ['']) walk(p, files)
+  return files
+    .filter(f => {
+      const text = readFileSync(resolve(ROOT, f), 'utf8')
+      return needles.some(n => text.includes(n))
+    })
+    .sort()
+}
+
 const read = (file: string) => readFileSync(resolve(ROOT, file), 'utf8')
 
 describe('the scanners can see an offence', () => {
@@ -172,6 +235,25 @@ describe('the scanners can see an offence', () => {
   })
 })
 
+describe('the scan works without a repository', () => {
+  // Needs git to compare against, so it runs where the repository is.
+  it.skipIf(!inOwnRepo())(
+    'a plain walk finds what git grep finds (the cloud runner has no .git)',
+    () => {
+      const paths = ['scripts', 'deployment', '.claude/skills']
+      const needles = [HOST, 'telegramApiFor(']
+      // The walk does not read .gitignore; repoFiles is what git can see.
+      const visible = new Set(repoFiles(ROOT))
+      const byGit = grepFiles(needles, paths, true)
+      const byWalk = grepFiles(needles, paths, false).filter(f =>
+        visible.has(f)
+      )
+      expect(byGit.length).toBeGreaterThan(5)
+      expect(byWalk).toEqual([...byGit].sort())
+    }
+  )
+})
+
 describe('the runbook scanner can see an offence', () => {
   it('a planted curl in a fence is reported; prose, a comment and a marked line are not', () => {
     const planted = [
@@ -192,7 +274,7 @@ describe('the runbook scanner can see an offence', () => {
 
 describe('the Bot API host lives in one place', () => {
   it('no code writes api.telegram.org by hand', () => {
-    const files = git(['grep', '-l', '-F', HOST]).filter(
+    const files = grepFiles([HOST]).filter(
       f => CODE.test(f) && !isTest(f) && !outOfScope(f) && !HELPERS.includes(f)
     )
     const offences = files.flatMap(f => hostOffences(f, read(f)))
@@ -208,16 +290,10 @@ describe('the Bot API host lives in one place', () => {
   })
 
   it('no runbook an agent runs writes api.telegram.org by hand', () => {
-    const files = git([
-      'grep',
-      '-l',
-      '-F',
-      HOST,
-      '--',
-      '.claude/skills',
-      '.claude/commands',
-      '.claude/agents',
-    ]).filter(f => RUNBOOK.test(f))
+    const files = grepFiles(
+      [HOST],
+      ['.claude/skills', '.claude/commands', '.claude/agents']
+    ).filter(f => RUNBOOK.test(f))
     const offences = files.flatMap(f => runbookOffences(f, read(f)))
     expect(
       offences,
@@ -234,17 +310,10 @@ describe('the Bot API host lives in one place', () => {
     // A script run from a laptop takes tokens from Infisical or .env, where the
     // list of moved bots is not written; "unset" must not read as "all cloud".
     const TOOLING = /^(scripts\/|src\/scripts\/|src\/utils\/[^/]*-cli\.ts$)/
-    const files = git([
-      'grep',
-      '-l',
-      '-F',
-      '-e',
+    const files = grepFiles([
       'telegramApiFor(',
-      '-e',
       'telegramApiRootFor(',
-      '-e',
       'telegramClientOptionsFor(',
-      '-e',
       'telegramFileUrlFor(',
     ]).filter(
       f => TOOLING.test(f) && CODE.test(f) && !isTest(f) && !HELPERS.includes(f)
@@ -266,15 +335,7 @@ describe('the Bot API host lives in one place', () => {
   it('every Telegraf client is built with the host of its own token', () => {
     // Fixed strings, not -E: an alternation over the whole tree is slow
     // enough to time out under a loaded run; the exact shape is checked below.
-    const rows = git([
-      'grep',
-      '-l',
-      '-F',
-      '-e',
-      'new Telegraf',
-      '-e',
-      'new Telegram',
-    ])
+    const rows = grepFiles(['new Telegraf', 'new Telegram'])
     const files = rows.filter(f => CODE.test(f) && !isTest(f) && !outOfScope(f))
     expect(
       files.length,
@@ -292,15 +353,9 @@ describe('the Bot API host lives in one place', () => {
 
   it('the helpers are where the host lives, and callers use them', () => {
     for (const helper of HELPERS) expect(read(helper)).toContain(HOST)
-    const callers = git([
-      'grep',
-      '-l',
-      '-F',
-      '-e',
+    const callers = grepFiles([
       'telegramApiFor(',
-      '-e',
       'telegramFileUrlFor(',
-      '-e',
       'telegramFileLink(',
     ]).filter(f => !isTest(f) && !HELPERS.includes(f))
     expect(callers.length).toBeGreaterThan(30)

@@ -116,6 +116,64 @@ describe('story_reel stays in the studio', () => {
     )
   })
 
+  it('each clip is heard by itself and its yellow captions show the line as written (v20)', async () => {
+    const { lookup, calls } = fakeTools()
+    const heardAs: [string, string | undefined][] = []
+    const hear = async (url: string, language?: string) => {
+      heardAs.push([url, language])
+      return {
+        words: [
+          { word: 'devyanosto', start: 0.1, end: 0.5 },
+          { word: 'x', start: 0.5, end: 0.7 },
+          { word: 'y', start: 0.7, end: 0.9 },
+          { word: 'z', start: 0.9, end: 1.1 },
+          { word: 'w', start: 1.1, end: 1.3 },
+          { word: 'v', start: 1.3, end: 1.5 },
+          { word: 'u', start: 1.5, end: 1.7 },
+        ],
+      }
+    }
+    const r: any = await makeStoryReelTool(
+      lookup,
+      undefined,
+      undefined,
+      async (_u, shot) => `https://ours/shot-${shot}.jpg`,
+      hear
+    ).handler(
+      { image_url: SOURCE, scenes: [{ line: HOOK }, { line: 'Два.' }] },
+      ctx
+    ) // cyrillic-ok: a line
+    expect(r.done).toBe(true)
+    expect(r.captions).toBeTruthy()
+    expect(heardAs.map(h => h[1])).toEqual(['ru', 'ru'])
+    expect(heardAs.map(h => h[0]).sort()).toEqual([
+      'https://ours/clip-0.mp4',
+      'https://ours/clip-1.mp4',
+    ])
+    const render = calls.find(c => c.name === 'reel_render')!
+    const scenes = render.args.props.scenes
+    // Seven words heard, seven written: the line's spelling, whisper's times.
+    expect(scenes[0].captions.map((c: any) => c.text)).toEqual(HOOK.split(' '))
+    expect(scenes[0].captions[0].startMs).toBe(100)
+    // One word written, seven heard: whisper's own words, not a misalignment.
+    expect(scenes[1].captions).toHaveLength(7)
+  })
+
+  it('a deaf run still renders the reel, without captions, and says so (v20)', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(
+      lookup,
+      undefined,
+      undefined,
+      async (_u, shot) => `https://ours/shot-${shot}.jpg`,
+      async () => 'ролика нет на полке' // cyrillic-ok: the sense's own reason
+    ).handler({ image_url: SOURCE, scenes: [{ line: HOOK }] }, ctx)
+    expect(r.done).toBe(true)
+    expect(r.captions_missing).toContain('ролика нет на полке') // cyrillic-ok: the reason passed on
+    const render = calls.find(c => c.name === 'reel_render')!
+    expect(render.args.props.scenes[0].captions).toEqual([])
+  })
+
   it('a setting the person named is still drawn, but never for the opening scene', async () => {
     const { lookup, calls } = fakeTools()
     const r: any = await makeStoryReelTool(
