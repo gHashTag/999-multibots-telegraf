@@ -20,7 +20,9 @@
 #      included (a file absent at <rev> is removed) -- should be RED. Fresh,
 #      because a test that caches its result in the tree would otherwise read
 #      the first run's answer (review of #3462).
-# node_modules at the repo root is linked into each copy, not copied.
+# node_modules is linked into each copy, not copied: the root's and each
+# tracked package's (apps/*/node_modules). A test that writes a cache there
+# (vitest, babel) writes it into the real tree's node_modules through the link.
 #
 # One file, one name: a module renamed after <rev> (letter case or Unicode
 # form included) is "absent at <rev>", removed in the second copy, and the run
@@ -112,38 +114,70 @@ for r in "${REL[@]}"; do
     || { echo "bite: $r is neither in the tree now nor at $REV"; exit 2; }
 done
 
-# The copies link the tree's node_modules. A workspace link in it
-# (node_modules/pkg -> ../packages/pkg) then still resolves into the REAL tree,
-# so a file under such a package is never swapped in the run that loads it --
-# a false "does not bite" (review 4 of #3462).
-if [ -d "$TOP/node_modules" ]; then
-  linked=$(python3 - "$TOP" "${REL[@]}" <<'PY'
-import os, sys
-top, rels = sys.argv[1], sys.argv[2:]
-nm = os.path.join(top, "node_modules")
-real_top, real_nm = os.path.realpath(top), os.path.realpath(nm)
-links = []
-for e in os.listdir(nm):
-    p = os.path.join(nm, e)
-    if e.startswith("@") and os.path.isdir(p) and not os.path.islink(p):
-        links += [os.path.join(p, x) for x in os.listdir(p)]
-    else:
-        links.append(p)
-for p in links:
-    if not os.path.islink(p):
-        continue
-    t = os.path.realpath(p)
-    if not t.startswith(real_top + os.sep) or t.startswith(real_nm + os.sep):
-        continue
-    for r in rels:
-        f = os.path.join(real_top, r)
-        if f.startswith(t + os.sep):
-            print(f"{r} (node_modules/{os.path.relpath(p, nm)} -> {os.path.relpath(t, real_top)})")
-            sys.exit(0)
+# Every node_modules the tree installs: the root's and each tracked package's.
+# Ignored, so the copy has none of them; each is linked in, not copied. Found
+# from the tracked package.json files -- a find would also walk into the
+# worktrees kept inside the tree. Without the nested ones a test of a package
+# with its own node_modules was red in the first copy: always "cannot tell"
+# (review 5 of #3462).
+NMS=()
+while IFS= read -r -d '' d; do NMS+=("$d"); done < <(python3 - "$TOP" <<'PY'
+import os, subprocess, sys
+top = sys.argv[1]
+out = subprocess.run(["git", "-C", top, "ls-files", "-z", "--", ":(glob)**/package.json"],
+                     capture_output=True).stdout
+seen = []
+for d in ["."] + [os.path.dirname(p.decode("utf-8", "surrogateescape")) or "." for p in out.split(b"\0") if p]:
+    nm = os.path.normpath(os.path.join(d, "node_modules"))
+    if nm not in seen and os.path.isdir(os.path.join(top, nm)):
+        seen.append(nm)
+sys.stdout.write("".join(nm + "\0" for nm in seen))
 PY
 )
-  if [ -n "$linked" ]; then echo "bite: $linked -- a workspace link would load the real file, not the old one"; exit 2; fi
-fi
+
+# The copies link those node_modules. A workspace link in one
+# (node_modules/pkg -> ../packages/pkg, or straight to a file) still resolves
+# into the REAL tree, so a file under it is never swapped in the run that loads
+# it -- a false "does not bite" (reviews 4 and 5 of #3462). HIT: a named file
+# lies under such a link, refused now. BACK: any link back into the tree; a
+# file it reaches may import a named one by a relative path, so a green on
+# <rev> is "cannot tell", not "does not bite".
+ws=$(python3 - "$TOP" "${#NMS[@]}" ${NMS[@]+"${NMS[@]}"} "${REL[@]}" <<'PY'
+import os, sys
+top, n = sys.argv[1], int(sys.argv[2])
+nms, rels = sys.argv[3:3 + n], sys.argv[3 + n:]
+real_top = os.path.realpath(top)
+real_nms = [os.path.realpath(os.path.join(top, nm)) for nm in nms]
+back = []
+for nm in nms:
+    base = os.path.join(top, nm)
+    links = []
+    for e in os.listdir(base):
+        p = os.path.join(base, e)
+        if e.startswith("@") and os.path.isdir(p) and not os.path.islink(p):
+            links += [os.path.join(p, x) for x in os.listdir(p)]
+        else:
+            links.append(p)
+    for p in links:
+        if not os.path.islink(p):
+            continue
+        t = os.path.realpath(p)
+        if not t.startswith(real_top + os.sep) or any(t == m or t.startswith(m + os.sep) for m in real_nms):
+            continue
+        name = f"{os.path.relpath(p, top)} -> {os.path.relpath(t, real_top)}"
+        for r in rels:
+            f = os.path.join(real_top, r)
+            if f == t or f.startswith(t + os.sep):
+                print(f"HIT {r} ({name})")
+                sys.exit(0)
+        back.append(name)
+if back:
+    print("BACK " + ", ".join(back[:3]) + (f" and {len(back) - 3} more" if len(back) > 3 else ""))
+PY
+)
+case "$ws" in
+  HIT\ *) echo "bite: ${ws#HIT } -- a workspace link would load the real file, not the old one"; exit 2 ;;
+esac
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/tri-bite.XXXXXX")
 # INT and TERM must END the run, not only clean up: a trap that only deleted
@@ -164,9 +198,12 @@ copy() {
         done \
       | tar --null -T - -cf - ) | tar -xf - -C "$dest" \
     || { echo "bite: could not copy the tree"; exit 2; }
-  if [ -d "$TOP/node_modules" ] && [ ! -e "$dest/node_modules" ]; then
-    ln -s "$TOP/node_modules" "$dest/node_modules"
-  fi
+  local nm
+  for nm in ${NMS[@]+"${NMS[@]}"}; do
+    if [ -d "$dest/$(dirname "$nm")" ] && [ ! -e "$dest/$nm" ] && [ ! -L "$dest/$nm" ]; then
+      ln -s "$TOP/$nm" "$dest/$nm"
+    fi
+  done
 }
 
 # Run in a copy, outside it the output: a file inside it is one more untracked
@@ -227,10 +264,11 @@ for r in "${REL[@]}"; do
         || { echo "bite: cannot restore the link $r at $REV"; exit 2; }
       echo "  $r <- $REV (symlink)" ;;
     100644|100755)
-      # As a checkout writes it: LFS, `filter=` and `eol=` applied. The raw
-      # blob of an LFS file is a pointer, and the run said BITES even against
-      # HEAD itself (review 4 of #3462).
-      git -C "$TOP" cat-file --filters "$REV:$r" >"$dest" \
+      # As a checkout of <rev> writes it: LFS, `filter=` and `eol=` applied,
+      # by the attributes of <rev>, not of today's tree. The raw blob of an
+      # LFS file is a pointer, and the run said BITES even against HEAD itself
+      # (reviews 4 and 5 of #3462).
+      git -C "$TOP" --attr-source="$REV" cat-file --filters "$REV:$r" >"$dest" \
         || { echo "bite: cannot read $r at $REV"; exit 2; }
       [ "$mode" = 100755 ] && chmod +x "$dest"
       echo "  $r <- $REV" ;;
@@ -244,6 +282,10 @@ if interrupted $old; then echo "  interrupted (exit $old) -- cannot tell"; exit 
 if [ $old -ne 0 ]; then
   echo "  BITES: red on $REV (exit $old), green now"
   exit 0
+fi
+if [ -n "$ws" ]; then
+  echo "  green on $REV as well, but node_modules links back into the tree (${ws#BACK }) -- the run may have loaded the real files: cannot tell"
+  exit 2
 fi
 echo "  DOES NOT BITE: green on $REV as well -- the tests do not tell the two apart"
 exit 1
