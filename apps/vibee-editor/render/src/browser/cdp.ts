@@ -54,6 +54,8 @@ export interface CdpTarget {
   title: string
   url: string
   webSocketDebuggerUrl?: string
+  /** For an "iframe" target: the target it is embedded in (embedded.ts). */
+  parentId?: string
 }
 
 /**
