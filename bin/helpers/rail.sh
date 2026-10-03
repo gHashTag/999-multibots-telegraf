@@ -18,14 +18,26 @@ RAIL_ENV=e4d200ad-b8a9-4edf-9b25-190a32613b32       # production
 # DATABASE_PUBLIC_URL" while the variable was there and Railway simply did not
 # answer. When every try is empty, stderr says so, so a caller's "variable
 # missing" can be read as "Railway silent" instead. rc 1 then.
+#
+# "Unauthorized" is not a blink and is not retried: it is the CLI on PATH not
+# being logged in. On 2026-10-03 launchd's PATH found an old railway 4.5.4 at
+# /usr/local/bin that cannot read the newer CLI's login, and the hourly
+# relays watch called that "a network blink" three times an hour.
 rvars() {
-  local svc="${1:?service required}" out try
+  local svc="${1:?service required}" out err try
+  err=$(mktemp)
   for try in 1 2 3; do
     out=$(railway variables --kv --project "$RAIL_PROJECT" \
-      --environment "$RAIL_ENV" --service "$svc" 2>/dev/null)
-    [ -n "$out" ] && { printf '%s\n' "$out"; return 0; }
+      --environment "$RAIL_ENV" --service "$svc" 2>"$err")
+    [ -n "$out" ] && { rm -f "$err"; printf '%s\n' "$out"; return 0; }
+    if grep -qi unauthorized "$err"; then
+      rm -f "$err"
+      echo "rvars: $(command -v railway) is not logged in ($(railway --version 2>/dev/null)) -- a different CLI on PATH, not a network blink" >&2
+      return 1
+    fi
     [ "$try" -lt 3 ] && sleep "${RVARS_PAUSE:-3}"
   done
+  rm -f "$err"
   echo "rvars: railway did not answer for $svc (3 tries) -- a network blink, not a missing variable" >&2
   return 1
 }

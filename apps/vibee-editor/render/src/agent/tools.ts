@@ -93,7 +93,7 @@ import { makeClientFaceTool } from './client-face-tool'
 import { isClientFacing } from './client-facing'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
-import { makeSplitReelTool } from './split-reel-tool'
+import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
@@ -1208,6 +1208,7 @@ import { QUEEN_GROWTH_TOOLS } from './queen-growth'
 import { HIVE_BOARD_TOOLS } from './hive-board-tool'
 import { CLUB_CASH_TOOLS } from './club-cash'
 import { BOTFATHER_TOOLS } from './botfather-main-app'
+import { BOT_CREATE_TOOLS } from './managed-bot-create'
 import { visibilityOf, keepers } from '../hive/roles'
 import { record } from '../hive/journal'
 import {
@@ -3879,7 +3880,10 @@ TOOLS.push(
     },
     // Every new still is looked at by our own vision before a voice is paid
     // for it (crm-story-reel v19).
-    { hasFace: url => stillShowsAFace(url) }
+    { hasFace: url => stillShowsAFace(url) },
+    undefined,
+    // Each clip heard by itself, for its yellow captions (crm-story-reel v20).
+    SERVER_SENSES.hear
   )
 )
 /*
@@ -4020,6 +4024,8 @@ TOOLS.push(...CLUB_CASH_TOOLS)
  * only -- it speaks to BotFather as the owner, see DIRECT_CALL_ONLY below.
  */
 TOOLS.push(...BOTFATHER_TOOLS)
+/* A new bot through Bot API 9.6 Managed Bots (managed-bot-create.ts). */
+TOOLS.push(...BOT_CREATE_TOOLS)
 /*
  * The Inngest function catalogue (both apps, read live), runs and invocation.
  * Keeper-only, like hive_queen: function names carry paths and internal state.

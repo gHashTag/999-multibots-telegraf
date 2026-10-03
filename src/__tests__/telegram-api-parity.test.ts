@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import * as bot from '@/services/telegramApi'
 import * as render from '../../apps/vibee-editor/render/src/telegram-api'
 
@@ -102,6 +104,18 @@ describe('bot, render and scripts agree about every bot', () => {
         bot.BOTS_VAR,
       ])
     }
+  })
+
+  it('a self-contained image carries the scripts copy byte for byte, never a fourth version', () => {
+    // queen-watch is built from deployment/queen-watch alone, so it cannot
+    // reach scripts/lib. It ships the same file instead: copy it again
+    // (`cp scripts/lib/telegram-api.cjs deployment/queen-watch/`) whenever
+    // this fails -- never edit the copy by hand.
+    const root = resolve(__dirname, '..', '..')
+    const read = (p: string) => readFileSync(resolve(root, p), 'utf8')
+    expect(read('deployment/queen-watch/telegram-api.cjs')).toBe(
+      read('scripts/lib/telegram-api.cjs')
+    )
   })
 
   it('the shell helper decides with the SERVICE’s variables, read from kv lines', () => {

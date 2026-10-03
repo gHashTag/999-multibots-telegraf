@@ -1183,6 +1183,11 @@ sys.stderr.write(str(len(ts)))
     # Does a bot button tap still reach the render? Key parity, guard, live
     # approve + meeting probes with junk tokens, relay failures in the log.
     bash "$ROOT/bin/helpers/relays.sh" "${2:-24}" ;;
+  relays-watch)
+    # `tri relays` every hour from launchd: a dead render is redeployed once
+    # per 6 h and reported with the result; a key or code break is reported
+    # with the next step. run | install | status.
+    bash "$ROOT/bin/helpers/relays-watch.sh" "${2:-status}" ;;
   orphans)
     bash "$ROOT/bin/helpers/orphans.sh" "$ROOT" "${2:-200}" ;;
   crm-waiting)

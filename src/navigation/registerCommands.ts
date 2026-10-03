@@ -106,6 +106,7 @@ import { SUPPORT_HANDLE } from '@/config/support'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { showStartGreeting } from '@/navigation/helpers/startGreeting'
 import { isAddressedToUs } from '@/navigation/helpers/groupAddressing'
+import { tellOwnersTheRoomIsSilent } from '@/navigation/helpers/silentRoomNotice'
 
 // Импорт всех сцен
 import {
@@ -1219,7 +1220,10 @@ If not, continue on your own and click the "I myself" button`
        * A caption naming the bot, or a photo sent as a reply to its message,
        * still works -- that is somebody asking for something.
        */
-      if (!isAddressedToUs(ctx)) return next()
+      if (!isAddressedToUs(ctx)) {
+        void tellOwnersTheRoomIsSilent(ctx, ADMIN_IDS_ARRAY)
+        return next()
+      }
 
       logger.info('🎯 GLOBAL PHOTO HANDLER: Photo received', {
         telegramId: ctx.from?.id,
@@ -1901,7 +1905,10 @@ If not, continue on your own and click the "I myself" button`
        * A private chat is unaffected: one person writing to the bot alone is
        * addressing it by definition. See groupAddressing.ts for what counts.
        */
-      if (!isAddressedToUs(ctx)) return next()
+      if (!isAddressedToUs(ctx)) {
+        void tellOwnersTheRoomIsSilent(ctx, ADMIN_IDS_ARRAY)
+        return next()
+      }
 
       /*
        * The file reaches the shelf BEFORE the agent is asked, and a refusal is

@@ -61,20 +61,6 @@ export const WAIT_FOR_MS = 120_000
 const rowOf = (s: MetaStatus | null, network: Network) =>
   JSON.stringify(s?.networks.find(n => n.network === network) ?? null)
 
-/** The owner's network status, or null: not the owner, or no answer. */
-async function readMetaStatus(): Promise<MetaStatus | null> {
-  try {
-    const r = await fetch(`${API_BASE}/api/social/meta/status`, {
-      headers: authHeaders(),
-    })
-    const d = r.ok ? await r.json() : null
-    return d?.ok ? (d as MetaStatus) : null
-  } catch {
-    /* Not the owner, or the server unreachable: the card stays as it is. */
-    return null
-  }
-}
-
 export function MetaConnectCard({
   isOwn,
   status: given,
@@ -89,12 +75,21 @@ export function MetaConnectCard({
   } | null>(null)
   const alive = useRef(true)
 
-  /* The old answer stays on screen until a new one arrives: no blink. */
-  const show = useCallback((d: MetaStatus | null) => {
-    if (d && alive.current) setStatus(d)
-    return d
+  const refresh = useCallback(async (): Promise<MetaStatus | null> => {
+    try {
+      const r = await fetch(`${API_BASE}/api/social/meta/status`, {
+        headers: authHeaders(),
+      })
+      const d = r.ok ? await r.json() : null
+      if (!d?.ok) return null
+      /* The old answer stays on screen until a new one arrives: no blink. */
+      if (alive.current) setStatus(d as MetaStatus)
+      return d as MetaStatus
+    } catch {
+      /* Not the owner, or the server unreachable: the card stays as it is. */
+      return null
+    }
   }, [])
-  const refresh = useCallback(() => readMetaStatus().then(show), [show])
 
   useEffect(() => {
     alive.current = true
@@ -105,9 +100,10 @@ export function MetaConnectCard({
 
   useEffect(() => {
     if (given || !isOwn) return
-    // State is set from the answer, never synchronously in the effect
-    // (react-hooks/set-state-in-effect).
-    void readMetaStatus().then(show)
+    // The first read starts from a microtask, not synchronously in the effect
+    // (react-hooks/set-state-in-effect): #3523 put the call here and lifted
+    // the player lint one error over its ratchet.
+    void Promise.resolve().then(refresh)
     /* Back from the sign-in window: Telegram's browser or another tab. */
     const back = () => {
       if (document.visibilityState === 'visible') void refresh()
@@ -118,7 +114,7 @@ export function MetaConnectCard({
       document.removeEventListener('visibilitychange', back)
       window.removeEventListener('focus', back)
     }
-  }, [isOwn, given, refresh, show])
+  }, [isOwn, given, refresh])
 
   useEffect(() => {
     if (!waiting || given) return

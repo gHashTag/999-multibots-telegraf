@@ -549,5 +549,64 @@
     "from": "if (await send(token).catch(() => false)) return true",
     "to": "if ((await send(token).catch(() => false)) || true) return true",
     "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "captions take the line when whisper heard more words",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "SPEC.CAPTION_TEXT_FROM_LINE && heardWords > 0 && lineWords === heardWords",
+    "to": "SPEC.CAPTION_TEXT_FROM_LINE && heardWords > 0 && lineWords <= heardWords"
+  },
+  {
+    "name": "captions ignore the written line",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "return sceneCaptions(scenes[i].line, got.words, got.speech)",
+    "to": "return sceneCaptions('', got.words, got.speech)",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "a deaf clip stops the reel",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "          if (typeof got === 'string' || !got.words.length) {\n            deaf.push(",
+    "to": "          if (typeof got === 'string' || !got.words.length) {\n            throw new Error('deaf')\n            deaf.push(",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "a line of exactly the editor limit is refused",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "return chars > 0 && chars <= SPEC.LINE_MAX_CHARS",
+    "to": "return chars > 0 && chars < SPEC.LINE_MAX_CHARS"
+  },
+  {
+    "name": "an edited line is not checked",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "const bad = lines.findIndex(l => !lineFitsChars(l.length))",
+    "to": "const bad = -1",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "every line is English",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "? 'ru' : 'en'",
+    "to": "? 'en' : 'en'"
+  },
+  {
+    "name": "the call card needs both a call and a card",
+    "file": "src/compositions/StoryReel.tsx",
+    "from": "(hasEndCard || call.trim().length > 0)",
+    "to": "(hasEndCard && call.trim().length > 0)"
+  },
+  {
+    "name": "the template's button is dropped",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "|| template.button",
+    "to": "|| ''",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "the template's call is dropped",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "cta: String(args.cta || template?.call || ''),",
+    "to": "cta: String(args.cta || ''),",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   }
 ]
