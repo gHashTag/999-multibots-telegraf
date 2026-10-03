@@ -154,7 +154,8 @@ describe('the sweep spares what a desk is working in', () => {
 describe('no desk goes around the door', () => {
   it('nothing in src/agent opens a tab with raw newPage', () => {
     const dir = join(__dirname, 'src/agent')
-    const raw = readdirSync(dir)
+    /* Sub-folders too, like the deskMayGo pin below (the bee on #3493). */
+    const raw = (readdirSync(dir, { recursive: true }) as string[])
       .filter(f => f.endsWith('.ts') && !f.endsWith('.test.ts'))
       .filter(f => /\bnewPage\s*\(/.test(readFileSync(join(dir, f), 'utf8')))
     expect(raw).toEqual([])
@@ -177,15 +178,25 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
 
   /*
    * Comments are blanked first (line numbers kept): a check written in a
-   * comment is no check, and the bee on #3491 slipped one past. Each road
-   * needs its OWN check -- the search stops at the previous road, so open's
-   * check cannot vouch for the goTo below it.
+   * comment is no check, and the bee on #3491 slipped one past. Comments and
+   * strings are read in ONE pass and only comments are blanked: a lone
+   * comment pass took the `/*` in '.trinity/seals/*.json' (chat.ts) for a
+   * comment and blanked thirteen lines of code after it (the bee on #3493).
+   * Each road needs its OWN check -- the search stops at the previous road,
+   * so open's check cannot vouch for the goTo below it.
    */
   const code = (text: string) =>
-    text
-      .replace(/\/\*[\s\S]*?\*\//g, c => c.replace(/[^\n]/g, ' '))
-      .replace(/(^|\s)\/\/.*$/gm, '$1')
+    text.replace(
+      /\/\*[\s\S]*?\*\/|\/\/.*$|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/gm,
+      t => (t[0] === '/' ? t.replace(/[^\n]/g, ' ') : t)
+    )
   const CHECK = /\bdeskMayGo\s*\(/
+  /*
+   * Only a READ may be checked after it: scenarios learns the front tab's
+   * address by asking for the front tab. A window opened or navigated
+   * before its check has already loaded the blocked site (the bee on #3493).
+   */
+  const READ = /\b(frontPage|listTargets)\s*\(/
 
   function bareRoads(name: string, text: string): string[] {
     const lines = code(text).split('\n')
@@ -200,7 +211,8 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
         if (ROAD.test(lines[j])) break
         left--
       }
-      for (let j = i + 1, left = 2; j < lines.length && left > 0; j++) {
+      const after = READ.test(line) ? 2 : 0
+      for (let j = i + 1, left = after; j < lines.length && left > 0; j++) {
         if (!lines[j].trim()) continue
         if (CHECK.test(lines[j])) return
         if (ROAD.test(lines[j])) break
@@ -250,6 +262,53 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
     ).toEqual([])
     expect(
       t('const t = (await frontPage(cdp)).id', 'await deskMayGo(w, u)')
+    ).toEqual([])
+    /* The bee on #3493: a navigation checked after it, a glob in a string. */
+    expect(t('await goTo(c, id, u)', 'await deskMayGo(w, u)')).toEqual(['t:1'])
+    expect(t('await openWindow(c, u)', 'await deskMayGo(w, u)')).toEqual([
+      't:1',
+    ])
+    expect(
+      t('const g = "a/*.json"', 'await goTo(c, id, u)', '/* x */')
+    ).toEqual(['t:2'])
+    expect(t("const g = 'a/*.json'", 'await goTo(c, id, u)', '// */')).toEqual([
+      't:2',
+    ])
+  })
+
+  /*
+   * A road taken under another name passes any pin that reads names (the
+   * bee's M18 on #3493): `const nav = goTo` or `{ goTo: nav }` is flagged
+   * wherever it is, so the road keeps the name the pin knows.
+   */
+  const ALIAS = [
+    /=\s*(openWindow|goTo|frontPage|listTargets)\b(?!\s*\()/,
+    /\b(openWindow|goTo|frontPage|listTargets)\s*:\s*[A-Za-z_$][\w$]*\s*[,}]/,
+  ]
+  const aliases = (name: string, text: string) =>
+    code(text)
+      .split('\n')
+      .flatMap((l, i) =>
+        ALIAS.some(a => a.test(l)) ? [`${name}:${i + 1}`] : []
+      )
+
+  it('no desk road is renamed', () => {
+    expect(
+      files.flatMap(f => aliases(f, readFileSync(join(dir, f), 'utf8')))
+    ).toEqual([])
+    const a = (...l: string[]) => aliases('t', l.join('\n'))
+    expect(a('const nav = goTo', 'await nav(c, id, u)')).toEqual(['t:1'])
+    expect(
+      a('const { goTo: nav } = await import("../browser/windows")')
+    ).toEqual(['t:1'])
+    expect(a('const {', '  goTo: nav,', '} = await import("x")')).toEqual([
+      't:2',
+    ])
+    expect(
+      a(
+        'const { goTo, openWindow } = await import("x")',
+        'goTo: async (id, u) => {'
+      )
     ).toEqual([])
   })
 
