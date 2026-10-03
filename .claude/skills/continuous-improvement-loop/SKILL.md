@@ -636,7 +636,9 @@ removes trees, and only provably finished ones. Lessons it cost:
 - `status --ignored` collapses `logs/` -- use `--ignored=matching -z`.
 - An empty env number with `??` becomes 0 and turns a dry run into a sweep;
   use `||`.
-- 03.10 run: 46 of 66 trees removed, disk free 8.7 GB -> see the PR.
+- 03.10 run of `tri worktrees --apply` (#3474 code): 46 of 66 trees removed,
+  ~25.6 GB freed, disk free 8.7 -> 35 GiB, branches untouched. Kept on
+  purpose: 999-mail-push (ignored .env), one tree touched 17 min earlier.
 
 ### Урок 07.09.2026: сторож, честно назвавший свою слепую зону, — это адрес работы
 
