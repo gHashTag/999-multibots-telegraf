@@ -24,7 +24,7 @@ import { getAppAccessToken } from '@/lib/appSession'
 import { getInitData } from '@/lib/telegram'
 import { sessionTrustedIn, type FramedWindow } from '@/lib/framedSession'
 import {
-  cardFromHref,
+  cardFromAnchor,
   cardFromMessage,
   cardFromSearch,
   keepCard,
@@ -210,7 +210,7 @@ export default function HivePage() {
         if (e.defaultPrevented || e.button !== 0) return
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
         const a = (e.target as Element | null)?.closest?.('a[href]')
-        const asked = a ? cardFromHref((a as HTMLAnchorElement).href) : null
+        const asked = cardFromAnchor(a)
         if (!asked) return
         e.preventDefault()
         e.stopPropagation()
