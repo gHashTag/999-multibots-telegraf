@@ -157,7 +157,8 @@ export async function readAsThePerson(
   owner: string,
   url: string
 ): Promise<unknown> {
-  const { listTargets, newPage, closePage } = await import('../browser/cdp')
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { listTargets, closePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
   /*
    * TWO PLACES TO READ IN, AND NEITHER IS TRUSTWORTHY ALONE.
@@ -182,7 +183,7 @@ export async function readAsThePerson(
       first = e instanceof Error ? e.message : String(e)
     }
   }
-  const page = await newPage(cdp, 'https://www.reddit.com/')
+  const page = await newDeskPage(cdp, 'https://www.reddit.com/')
   try {
     return await readIn(cdp, page.id, url)
   } catch (e) {
@@ -373,9 +374,10 @@ async function replyOnReddit(
   m: Mention,
   text: string
 ): Promise<string> {
-  const { newPage, typeText, activatePage } = await import('../browser/cdp')
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { typeText, activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
-  const page = await newPage(cdp, m.link)
+  const page = await newDeskPage(cdp, m.link)
   /* Front, so the tab is awake -- and so the person sees what is typed. */
   await activatePage(cdp, page.id).catch(() => {})
   /* The same trap as the inbox: press nothing until the page is really here. */
@@ -401,9 +403,10 @@ async function submitOnReddit(
   owner: string,
   p: PlannedPost
 ): Promise<string> {
-  const { newPage, activatePage } = await import('../browser/cdp')
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
-  const page = await newPage(cdp, submitUrl(p))
+  const page = await newDeskPage(cdp, submitUrl(p))
   /* Front, so the tab is awake -- and so the person sees what is posted. */
   await activatePage(cdp, page.id).catch(() => {})
   await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
