@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger'
 import { SAID } from '@/services/browserApproval'
+import { renderRefusedTheKey } from '@/services/renderTimeout'
 
 /**
  * A TAP ON A MEETING CARD, RELAYED AS THE PERSON WHO PRESSED IT.
@@ -52,7 +53,8 @@ export interface MeetingAnswer {
 function whyNot(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e)
   if ((e as { timedOut?: boolean })?.timedOut) return SAID.timeout
-  if (/RENDER_API_KEY/.test(msg)) return SAID.noKey
+  // Both "the bot holds no key" and "the render refused the key it holds".
+  if (renderRefusedTheKey(e) || /RENDER_API_KEY/.test(msg)) return SAID.noKey
   if (e instanceof TypeError) return SAID.offline
   return NOT_REACHED
 }
