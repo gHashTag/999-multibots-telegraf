@@ -8,7 +8,18 @@
  * the page over CDP rather than through the journaled tools, nothing said who
  * had opened it. The real start function is exercised here, not a mock.
  */
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+/* The pod in the last restart case keeps its boot identity and never answers. */
+vi.mock('./src/browser/health', async orig => ({
+  ...(await orig<typeof import('./src/browser/health')>()),
+  cdpHealthIo: async () => ({}),
+  waitForBrowser: async () => false,
+}))
+vi.mock('./src/browser/boot', async orig => ({
+  ...(await orig<typeof import('./src/browser/boot')>()),
+  browserBootId: async () => 'boot-1',
+}))
 import {
   configureAgentStart,
   restartBrowserAsAgent,
@@ -155,6 +166,57 @@ describe('who restarted the browser is written down too', () => {
         }) as never
     )
     await expect(restartBrowserAsAgent(WHO, 'heal')).resolves.toBe(true)
+  })
+
+  it('a pod that came back without answering says so, and which kind', async () => {
+    /*
+     * A pool that remembers the session row: the old browser is up before the
+     * restart (its boot identity is read first) and the new one has a CDP.
+     */
+    let row: Record<string, unknown> | null = {
+      telegram_id: WHO,
+      session_id: 'session-0',
+      pod_id: 'pod-1',
+      endpoint: 'pod.internal:8080',
+      cdp_endpoint: 'pod.internal:9222',
+      state: 'running',
+    }
+    const remembering = {
+      query: async (sql: string, params: unknown[] = []) => {
+        if (/INSERT INTO browser_journal/i.test(sql)) journal.push(params)
+        if (/INSERT INTO browser_sessions/i.test(sql))
+          row = {
+            telegram_id: params[0],
+            session_id: params[1],
+            pod_id: params[2],
+            endpoint: params[3],
+            cdp_endpoint: params[4],
+            state: params[5],
+          }
+        if (/DELETE FROM browser_sessions/i.test(sql)) row = null
+        if (/FROM browser_sessions WHERE telegram_id/i.test(sql))
+          return { rows: row ? [row] : [] }
+        if (/RETURNING profile_id/i.test(sql))
+          return { rows: [{ profile_id: 'profile-1' }] }
+        return { rows: [] }
+      },
+    }
+    configureAgentStart(
+      () =>
+        ({
+          getPool: async () => remembering,
+          driver: driver(),
+          newToken: () => 'tok',
+          env: {},
+        }) as never
+    )
+    expect(await restartBrowserAsAgent(WHO, 'heal')).toBe(false)
+    const steps = journal.filter(r => r[1] === 'browser_restart')
+    expect(steps).toHaveLength(1)
+    expect(JSON.parse(String(steps[0][4]))).toEqual({
+      by: 'heal',
+      error: 'came back but does not answer (same-browser)',
+    })
   })
 
   it('without a name nothing is written', async () => {
