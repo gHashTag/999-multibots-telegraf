@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { APPROVAL_TTL_MS } from './approvals'
 import {
   claimTidyAsk,
+  openTidyAsk,
   planClose,
   rememberTidyAsk,
   resetTidyCache,
+  TIDY_TTL_MS,
   tabsWord,
   tidyCandidates,
+  tidyAskOpen,
   tidyQuestion,
   whyAbandoned,
 } from './tab-tidy'
@@ -171,5 +175,78 @@ describe('applying a yes', () => {
     expect(await claimTidyAsk(q, 'q1', '999')).toBeNull()
     expect(await claimTidyAsk(q, 'q1', '144')).toEqual(tabs)
     expect(await claimTidyAsk(q, 'q1', '144')).toBeNull()
+  })
+})
+
+describe('one card at a time', () => {
+  it('a waiting or allowed question is open; an answered, old or odd one is not', () => {
+    expect(tidyAskOpen('pending', 60_000)).toBe('pending')
+    expect(tidyAskOpen('allowed', 3 * TIDY_TTL_MS)).toBe('allowed')
+    expect(tidyAskOpen('pending', TIDY_TTL_MS)).toBeNull()
+    expect(tidyAskOpen('pending', -1)).toBeNull()
+    expect(tidyAskOpen('denied', 1)).toBeNull()
+    expect(tidyAskOpen('pending', 11 * 60_000, APPROVAL_TTL_MS)).toBeNull()
+    expect(tidyAskOpen('expired', 1)).toBeNull()
+  })
+
+  it('finds the newest open question and skips stale ones before it', async () => {
+    resetTidyCache()
+    const seen: unknown[][] = []
+    const q = {
+      async query(sql: string, params: unknown[] = []) {
+        if (sql.includes('CREATE TABLE')) return { rows: [] }
+        seen.push(params)
+        return {
+          rows: [
+            { approval_id: 'q3', state: 'pending', ttl_ms: 1000, age_ms: 5000 },
+            { approval_id: 'q2', state: 'denied', ttl_ms: null, age_ms: 9 },
+            {
+              approval_id: 'q1',
+              state: 'pending',
+              ttl_ms: null,
+              age_ms: 60_000,
+            },
+          ],
+        }
+      },
+    } as unknown as Queryable
+    expect(await openTidyAsk(q, '144')).toEqual({
+      question: 'q1',
+      state: 'pending',
+    })
+    expect(seen).toEqual([['144']])
+  })
+
+  it('nothing open when every question was answered', async () => {
+    resetTidyCache()
+    const q = {
+      async query(sql: string) {
+        if (sql.includes('CREATE TABLE')) return { rows: [] }
+        return { rows: [{ approval_id: 'q1', state: 'denied', age_ms: 1 }] }
+      },
+    } as unknown as Queryable
+    expect(await openTidyAsk(q, '144')).toBeNull()
+  })
+})
+
+describe('a question with no lifetime of its own', () => {
+  it('lives the approvals ten minutes, so it cannot block a fresh card all day', async () => {
+    resetTidyCache()
+    const q = {
+      async query(sql: string) {
+        if (sql.includes('CREATE TABLE')) return { rows: [] }
+        return {
+          rows: [
+            {
+              approval_id: 'q1',
+              state: 'pending',
+              ttl_ms: null,
+              age_ms: String(11 * 60_000),
+            },
+          ],
+        }
+      },
+    } as unknown as Queryable
+    expect(await openTidyAsk(q, '144')).toBeNull()
   })
 })

@@ -499,8 +499,15 @@ for p in pages:
     # Litter tabs (tab-tidy.ts): a count and the command that asks. An older
     # render without browser_tidy says nothing here rather than "none".
     if td=$(call browser_tidy '{}' 40 probe 2>/dev/null); then
-      n=$(OUT="$td" python3 -c 'import json,os;print(len(json.loads(os.environ["OUT"]).get("tabs") or []))' 2>/dev/null)
-      [ "${n:-0}" -gt 0 ] && flag "лишних вкладок: $n (брошенная форма, застрявший вход, сырой файл…)" "tri browser tidy, затем tidy ask — закроет только по его «да»"
+      read -r n oq os <<<"$(OUT="$td" python3 -c 'import json,os;d=json.loads(os.environ["OUT"]);o=d.get("open") or {};print(len(d.get("tabs") or []),o.get("question","-"),o.get("state","-"))' 2>/dev/null)"
+      # A question already on his phone is not a reason to ask again (#tidy-once).
+      if [ "${os:-}" = allowed ]; then
+        flag "лишних вкладок: $n, он разрешил закрыть" "tri browser tidy apply $oq"
+      elif [ "${os:-}" = pending ]; then
+        [ "${n:-0}" -gt 0 ] && echo "  лишних вкладок: $n — вопрос уже у владельца ($oq), ждём «Разрешить»"
+      else
+        [ "${n:-0}" -gt 0 ] && flag "лишних вкладок: $n (брошенная форма, застрявший вход, сырой файл…)" "tri browser tidy, затем tidy ask — закроет только по его «да»"
+      fi
     fi
     # A render deployed before tab-shape.ts ignores `shape`: say so rather
     # than reporting a clean sweep that never happened.
@@ -533,9 +540,16 @@ if "applied" in d:
     for s in d.get("skipped") or []: print("  оставлена %s: %s" % (s["id"], s["why"]))
     raise SystemExit
 tabs = d.get("tabs") or []
-if not tabs: print("лишних вкладок нет"); raise SystemExit
+o = d.get("open") or {}
+if not tabs and not o: print("лишних вкладок нет"); raise SystemExit
 for t in tabs: print("  %s  %-16s %s" % (t["id"], t["why"], t["url"][:72]))
-if d.get("asked"):
+if o.get("state") == "allowed":
+    print("он разрешил закрыть; вопрос:", o["question"])
+    print("закрыть: tri browser tidy apply", o["question"])
+elif o.get("state") == "pending":
+    print("вопрос уже у владельца, второй карточки не будет:", o["question"])
+    print("после «Разрешить»: tri browser tidy apply", o["question"])
+elif d.get("asked"):
     print("карточка ушла владельцу; вопрос:", d["question"])
     print("после «Разрешить»: tri browser tidy apply", d["question"])
 else:
