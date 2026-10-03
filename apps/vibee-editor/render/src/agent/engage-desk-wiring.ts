@@ -341,22 +341,23 @@ async function commentOn(
   text: string
 ): Promise<string> {
   const { endpointOf, pressOne } = await import('./reddit-wiring')
-  const { newDeskPage } = await import('../browser/desk-page')
-  const { typeText, activatePage } = await import('../browser/cdp')
+  const { newDeskPage, deskType } = await import('../browser/desk-page')
+  const { activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner, 'engage')
-  const page = await newDeskPage(cdp, url, { pool, telegramId: owner })
+  const who = { pool, telegramId: owner }
+  const page = await newDeskPage(cdp, url, who)
   await activatePage(cdp, page.id).catch(() => {})
   await settle(8_000)
   const s = STEPS[network]
   if (s.open) {
-    await pressOne(cdp, page.id, s.open)
+    await pressOne(who, cdp, page.id, s.open)
     await settle(2_000)
   }
-  await pressOne(cdp, page.id, s.box)
+  await pressOne(who, cdp, page.id, s.box)
   await settle(1_000)
-  await typeText(cdp, page.id, text)
+  await deskType(who, cdp, page.id, text)
   await settle(1_500)
-  const pressed = await pressOne(cdp, page.id, s.send)
+  const pressed = await pressOne(who, cdp, page.id, s.send)
   await settle(5_000)
   return `нажато «${pressed}»` // cyrillic-ok: told to the owner
 }
