@@ -199,6 +199,13 @@ CHECKS THAT EACH COST A CYCLE
         The same, on the OWN branch of open PR N, to fix a reviewer's notes in
         that PR. Refuses a closed or fork PR, a silent gh, and a local branch
         holding commits origin lacks (they would be dropped).
+  tri worktrees [--apply]
+        Which worktrees are finished, by COMMIT not by branch name: HEAD is a
+        merged PR's head (or inside one), already in origin/main, or every
+        commit is there as the same patch (git cherry). Detached trees count.
+        --apply removes finished trees that are clean, unlocked, untouched for
+        an hour, with no live process inside, no nested tree, and no ignored
+        file we cannot rebuild (an ignored .env stays). Branches stay.
 
   tri hooks [--heal]
         Worktrees whose own core.hooksPath (e.g. <main>/.husky) makes git skip
@@ -5063,7 +5070,7 @@ cmd_registries() {
 }
 
 cmd_worktrees() {
-  # КАКИЕ ДЕРЕВЬЯ ЗАВЕРШЕНЫ, А КАКИЕ ЕЩЁ ДЕРЖАТ РАБОТУ. НИЧЕГО НЕ УДАЛЯЕТ.
+  # WHICH TREES ARE FINISHED AND WHICH STILL HOLD WORK. DELETES ONLY WITH --apply.
   #
   # Деревья копятся по одному на итерацию, и никто их не убирает. Померено
   # перед первой уборкой: 25 деревьев на 25 веток. Это не просто беспорядок:
@@ -5077,8 +5084,12 @@ cmd_worktrees() {
   # законченную ветку: первая перепись так и сказала про 21 из 22, а вопрос к
   # GitHub о влитых PR перевернул ответ полностью.
   #
-  # Печатает команды удаления, но не исполняет их. Дерево с несохранённой
-  # работой не предлагается НИКОГДА, даже если его PR влит.
+  # Without flags it prints and deletes nothing. A tree holding uncommitted
+  # work is NEVER proposed, even when its PR is merged.
+  #
+  # 03.10.2026: finished is judged by COMMIT, not branch name (a name-match
+  # proposed a tree whose tip was never merged), detached trees are judged too,
+  # and --apply removes only what is provably safe -- see the probe's header.
   ( cd "$ROOT" && node scripts/probe-worktrees.cjs "$@" )
 }
 
