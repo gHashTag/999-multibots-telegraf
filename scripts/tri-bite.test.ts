@@ -481,3 +481,86 @@ describe('tri bite -- review 4 of #3462', () => {
     expect(r.stdout).toMatch(/workspace link/)
   })
 })
+
+describe('tri bite -- review 5 of #3462', () => {
+  it('the old file is written by the attributes of <rev>, not of today', () => {
+    // At v4 add.sh was checked out with CRLF; the attribute is gone now. A
+    // checkout of v4 writes CR, today's attributes would not.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitattributes'), 'lib/add.sh eol=crlf\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'crlf')
+    git(dir, 'tag', 'v4')
+    fs.rmSync(path.join(dir, '.gitattributes'))
+    git(dir, 'commit', '-qam', 'no attributes')
+    const r = bite(
+      dir,
+      'v4',
+      'lib/add.sh',
+      '--',
+      'bash',
+      '-c',
+      "! grep -q $'\\r' lib/add.sh"
+    )
+    expect(r.stdout).toMatch(/BITES/)
+    expect(r.status).toBe(0)
+  })
+
+  it('a package with its own node_modules is linked into the copies', () => {
+    // sub/node_modules holds what the test of sub/ loads; without it the
+    // first copy was red, and every run of such a package said cannot tell.
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'sub'))
+    fs.writeFileSync(path.join(dir, 'sub/package.json'), '{}\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    fs.writeFileSync(
+      path.join(dir, 'sub/test.sh'),
+      '. ../lib/add.sh; . node_modules/dep/ok.sh; [ "$(add 2 3)" = 5 ] || exit 1\n'
+    )
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'sub')
+    fs.mkdirSync(path.join(dir, 'sub/node_modules/dep'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'sub/node_modules/dep/ok.sh'), 'true\n')
+    const r = bite(
+      path.join(dir, 'sub'),
+      'v1',
+      '../lib/add.sh',
+      '--',
+      'bash',
+      'test.sh'
+    )
+    expect(r.stdout).toMatch(/BITES/)
+    expect(r.status).toBe(0)
+  })
+
+  it('a link straight to the named file is a workspace link too', () => {
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../lib/add.sh', path.join(dir, 'node_modules/add.sh'))
+    const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+  })
+
+  it('green on <rev> with a link back into the tree is cannot tell', () => {
+    // node_modules/pkg -> ../packages/pkg reaches the real tree; a file
+    // there may load the named one by a relative path.
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'packages/pkg'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'packages/pkg/index.sh'), 'true\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'pkg')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../packages/pkg', path.join(dir, 'node_modules/pkg'))
+    const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(
+      /links back into the tree \(node_modules\/pkg -> packages\/pkg\)/
+    )
+    expect(r.stdout).not.toMatch(/DOES NOT BITE/)
+  })
+})
