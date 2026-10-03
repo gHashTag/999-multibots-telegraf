@@ -932,6 +932,27 @@ describe('tri bite -- review 1 of #3489', () => {
     expect(r.status).toBe(2)
   })
 
+  it('a worktree inside a bare clone is code, not git storage', () => {
+    // git clone --bare proj && cd proj && git worktree add wt: the common git
+    // dir is proj/ itself, which holds wt/, so "under the git dir" is no proof
+    // of storage. The link still loads the real lib/add.sh.
+    const src = repo()
+    fs.writeFileSync(path.join(src, '.gitignore'), 'node_modules/\n')
+    git(src, 'add', '-A')
+    git(src, 'commit', '-q', '-m', 'ignore')
+    const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-bare-'))
+    dirs.push(bare)
+    git(bare, 'clone', '-q', '--bare', src, path.join(bare, 'proj'))
+    const proj = path.join(bare, 'proj')
+    git(proj, 'worktree', 'add', '-q', 'wt', 'main')
+    const wt = path.join(proj, 'wt')
+    fs.mkdirSync(path.join(wt, 'node_modules'))
+    fs.symlinkSync('../lib', path.join(wt, 'node_modules/lib'))
+    const r = bite(wt, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.stdout).toMatch(/workspace link/)
+    expect(r.status).toBe(2)
+  })
+
   it('a link into .git/ is not the checkout root', () => {
     const dir = repo()
     fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
