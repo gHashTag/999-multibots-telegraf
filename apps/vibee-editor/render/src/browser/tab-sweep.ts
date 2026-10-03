@@ -311,24 +311,32 @@ export async function podsToSweep(
     []
   )
   const { chosenFront } = await import('./front-page')
+  /*
+   * A tab a desk is working in is not a duplicate yet: the composer on
+   * x.com/compose/post beside x.com/home was closed mid-thread by this clock
+   * (desk-page.ts). Target ids are unique, so every job may carry them all.
+   */
+  const { deskTabsHeld } = await import('./desk-page')
+  const desks = deskTabsHeld()
   const jobs: PodJob[] = rows.map(row => {
     const telegramId = String(row.telegram_id)
     const chosen = chosenFront(telegramId)
     return {
       who: telegramId,
       cdp: String(row.cdp_endpoint),
-      keep: chosen ? [chosen] : [],
+      keep: [...(chosen ? [chosen] : []), ...desks],
     }
   })
   /*
-   * No `keep` for the unclaimed pod: with no row, no agent holds a session on
-   * it, so there is no chosen tab to spare. The person's own tabs are still
-   * protected by the oldest-of-each-origin rule, which is the protection that
-   * matters when we cannot tell whose tab is whose.
+   * No chosen tab for the unclaimed pod: with no row, no agent holds a session
+   * on it, so there is none to spare -- only what a desk is working in. The
+   * person's own tabs are still protected by the oldest-of-each-origin rule,
+   * which is the protection that matters when we cannot tell whose tab is
+   * whose.
    */
   const named = (alsoCdp || '').trim()
   if (named && !jobs.some(j => sameEndpoint(j.cdp, named)))
-    jobs.push({ who: UNCLAIMED, cdp: named, keep: [] })
+    jobs.push({ who: UNCLAIMED, cdp: named, keep: desks })
   return jobs
 }
 

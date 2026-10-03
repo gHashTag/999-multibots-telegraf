@@ -246,9 +246,10 @@ async function pageText(
   url: string
 ): Promise<string | null> {
   const { endpointOf } = await import('./reddit-wiring')
-  const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { evaluateOn, closePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner, 'engage')
-  const page = await newPage(cdp, url)
+  const page = await newDeskPage(cdp, url)
   try {
     await settle(8_000)
     const t = await evaluateOn(
@@ -269,9 +270,10 @@ async function searchPage(
   query: string
 ): Promise<Found[]> {
   const { endpointOf } = await import('./reddit-wiring')
-  const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { evaluateOn, closePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner, 'engage')
-  const page = await newPage(cdp, searchUrl(network, query))
+  const page = await newDeskPage(cdp, searchUrl(network, query))
   try {
     await settle(8_000)
     const raw = await evaluateOn(cdp, page.id, PROBE[network]).catch(() => null)
@@ -336,9 +338,10 @@ async function commentOn(
   text: string
 ): Promise<string> {
   const { endpointOf, pressOne } = await import('./reddit-wiring')
-  const { newPage, typeText, activatePage } = await import('../browser/cdp')
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { typeText, activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner, 'engage')
-  const page = await newPage(cdp, url)
+  const page = await newDeskPage(cdp, url)
   await activatePage(cdp, page.id).catch(() => {})
   await settle(8_000)
   const s = STEPS[network]
@@ -363,9 +366,10 @@ async function readBack(
   snippet: string
 ): Promise<boolean> {
   const { endpointOf } = await import('./reddit-wiring')
-  const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { evaluateOn, closePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner, 'engage')
-  const page = await newPage(cdp, url)
+  const page = await newDeskPage(cdp, url)
   try {
     await settle(8_000)
     const found = await evaluateOn(

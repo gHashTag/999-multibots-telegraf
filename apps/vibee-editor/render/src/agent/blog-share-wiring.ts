@@ -92,9 +92,8 @@ export async function publishEverywhere(
 
   const { startBrowserAsAgent } = await import('../browser/routes')
   const { readSession } = await import('../browser/sessions')
-  const { newPage, evaluateOn, clickAt, closePage } = await import(
-    '../browser/cdp'
-  )
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { evaluateOn, clickAt, closePage } = await import('../browser/cdp')
   const { findProbe, foundOf } = await import('../browser/find-target')
   let s = await readSession(pool, owner)
   if (!s || s.state !== 'live' || !s.cdpEndpoint) {
@@ -150,7 +149,7 @@ export async function publishEverywhere(
       continue
     }
     try {
-      const page = await newPage(cdp, url)
+      const page = await newDeskPage(cdp, url)
       await settle(FIRST_SETTLE_MS)
       let pressed: string | null = null
       /*
@@ -213,12 +212,13 @@ export async function publishEverywhere(
  */
 async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   const { xThread } = await import('./blog-share')
-  const { newPage, evaluateOn, clickAt, typeText, closePage } = await import(
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { evaluateOn, clickAt, typeText, closePage } = await import(
     '../browser/cdp'
   )
   const { findProbe, foundOf } = await import('../browser/find-target')
   const thread = xThread(a)
-  const page = await newPage(cdp, 'https://x.com/compose/post')
+  const page = await newDeskPage(cdp, 'https://x.com/compose/post')
   await settle(8_000)
 
   const press = async (labels: string[]): Promise<string> => {
@@ -346,10 +346,11 @@ export async function confirmOnProfile(
 ): Promise<string> {
   const start = profileUrlFor(net)
   if (!start) return NO_PROFILE_CHECK
-  const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { evaluateOn, closePage } = await import('../browser/cdp')
   let page: { id: string } | null = null
   try {
-    page = await newPage(cdp, start)
+    page = await newDeskPage(cdp, start)
     await settle(PROFILE_SETTLE_MS)
     if (net === 'X') {
       /* x.com/home links to the person's own profile; that page is read. */
@@ -359,7 +360,7 @@ export async function confirmOnProfile(
       if (!/^https:\/\/(x|twitter)\.com\/[A-Za-z0-9_]+$/.test(own))
         return NOT_SEEN_ON_PROFILE
       await closePage(cdp, page.id).catch(() => undefined)
-      page = await newPage(cdp, own)
+      page = await newDeskPage(cdp, own)
       await settle(PROFILE_SETTLE_MS)
     }
     for (let look = 0; look < PROFILE_LOOKS; look++) {
