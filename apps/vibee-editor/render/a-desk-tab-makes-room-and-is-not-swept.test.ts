@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import ts from 'typescript'
 import {
   DESK_HOLD_MS,
   deskMayGo,
@@ -166,7 +167,7 @@ describe('no desk goes around the door', () => {
 describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
   /*
    * The bee's mutations dropped the check from scenarios' where() and the
-   * filter from the round, and every suite stayed green. Read as text: a
+   * filter from the round, and every suite stayed green. Read from source: a
    * desk that opens, navigates, borrows or fronts a tab over raw CDP does so
    * right after the check, so the next edit cannot drop it unseen.
    */
@@ -175,53 +176,128 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
   const files = (readdirSync(dir, { recursive: true }) as string[]).filter(
     f => f.endsWith('.ts') && !f.endsWith('.test.ts')
   )
-  const ROAD = /\b(openWindow|goTo|frontPage|listTargets)\s*\(/
+  /*
+   * READ BY THE TYPESCRIPT PARSER, NOT BY REGEX (the bee on #3493, second
+   * pass). Two regex passes in a row each read a regex literal wrong: one
+   * ending in `\//` blanked the rest of its line as a comment, and a
+   * backtick inside one opened a template that turned 90 comment lines back
+   * into code -- so `// deskMayGo(...)` counted as a check again. The parser
+   * knows comments, strings, templates and regex literals; what is left to
+   * the pin is the rule:
+   *
+   *  - a road is a call of openWindow, goTo, frontPage or listTargets, by
+   *    any spelling: `goTo(`, `goTo?.(`, `goTo.call(`, `x.goTo(`;
+   *  - a check is `await deskMayGo(` -- not `void`, not `.catch()`: a check
+   *    whose refusal is dropped is no check;
+   *  - each road needs its OWN check within six code lines before it (the
+   *    search stops at the previous road), and only a READ may have it up to
+   *    two code lines after: a window opened or navigated before its check
+   *    has already loaded the blocked site;
+   *  - a road is never taken under another name (`goTo as nav`,
+   *    `{ goTo: nav }`, `const nav = goTo`, `{ goTo }` as a value,
+   *    `goTo.bind`): a renamed road passes any pin that reads names.
+   *
+   * Out of reach of any static pin, and not pretended otherwise: a check
+   * under `if (false)`, or a check of some other address.
+   */
+  const ROADS = new Set(['openWindow', 'goTo', 'frontPage', 'listTargets'])
+  const READS = new Set(['frontPage', 'listTargets'])
+  const CALLED = new Set(['call', 'apply'])
 
-  /*
-   * Comments are blanked first (line numbers kept): a check written in a
-   * comment is no check, and the bee on #3491 slipped one past. Comments and
-   * strings are read in ONE pass and only comments are blanked: a lone
-   * comment pass took the `/*` in '.trinity/seals/*.json' (chat.ts) for a
-   * comment and blanked thirteen lines of code after it (the bee on #3493).
-   * Each road needs its OWN check -- the search stops at the previous road,
-   * so open's check cannot vouch for the goTo below it.
-   */
-  const code = (text: string) =>
-    text.replace(
-      /\/\*[\s\S]*?\*\/|\/\/.*$|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/gm,
-      t => (t[0] === '/' ? t.replace(/[^\n]/g, ' ') : t)
+  function readRoads(name: string, text: string) {
+    const sf = ts.createSourceFile(
+      `${name}.ts`,
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS
     )
-  const CHECK = /\bdeskMayGo\s*\(/
-  /*
-   * Only a READ may be checked after it: scenarios learns the front tab's
-   * address by asking for the front tab. A window opened or navigated
-   * before its check has already loaded the blocked site (the bee on #3493).
-   */
-  const READ = /\b(frontPage|listTargets)\s*\(/
+    const lineOf = (n: ts.Node) =>
+      sf.getLineAndCharacterOfPosition(n.getStart(sf)).line
+    /* Lines where a token starts: comment-only and blank lines are free. */
+    const code = new Set<number>()
+    const checks: { line: number; at: number }[] = []
+    const roads: { line: number; at: number; road: string }[] = []
+    const renamed: string[] = []
+
+    const calleeName = (c: ts.CallExpression): string => {
+      let e = c.expression
+      if (ts.isPropertyAccessExpression(e) && CALLED.has(e.name.text))
+        e = e.expression
+      if (ts.isIdentifier(e)) return e.text
+      if (ts.isPropertyAccessExpression(e)) return e.name.text
+      return ''
+    }
+
+    /* Where the name of a road may stand without renaming it. */
+    const inPlace = (n: ts.Identifier): boolean => {
+      const p = n.parent
+      return (
+        (ts.isCallExpression(p) && p.expression === n) ||
+        (ts.isPropertyAccessExpression(p) &&
+          p.name === n &&
+          ts.isCallExpression(p.parent) &&
+          p.parent.expression === p) ||
+        (ts.isPropertyAccessExpression(p) &&
+          p.expression === n &&
+          CALLED.has(p.name.text) &&
+          ts.isCallExpression(p.parent)) ||
+        (ts.isImportSpecifier(p) && p.name === n && !p.propertyName) ||
+        (ts.isBindingElement(p) && p.name === n && !p.propertyName) ||
+        ((ts.isPropertyAssignment(p) ||
+          ts.isMethodDeclaration(p) ||
+          ts.isPropertySignature(p) ||
+          ts.isMethodSignature(p)) &&
+          p.name === n)
+      )
+    }
+
+    const visit = (n: ts.Node): void => {
+      /* A doc comment is a comment: `{@link goTo}` is neither code nor a rename. */
+      if (ts.isJSDoc(n)) return
+      if (n.getChildCount(sf) === 0 && n.kind !== ts.SyntaxKind.EndOfFileToken)
+        code.add(lineOf(n))
+      if (ts.isCallExpression(n)) {
+        const f = calleeName(n)
+        const at = n.getStart(sf)
+        if (f === 'deskMayGo' && ts.isAwaitExpression(n.parent))
+          checks.push({ line: lineOf(n), at })
+        if (ROADS.has(f)) roads.push({ line: lineOf(n), at, road: f })
+      }
+      if (ts.isIdentifier(n) && ROADS.has(n.text) && !inPlace(n))
+        renamed.push(`${name}:${lineOf(n) + 1}`)
+      n.getChildren(sf).forEach(visit)
+    }
+    visit(sf)
+    return { code, checks, roads, renamed }
+  }
 
   function bareRoads(name: string, text: string): string[] {
-    const lines = code(text).split('\n')
-    const bare: string[] = []
-    lines.forEach((line, i) => {
-      if (!ROAD.test(line) || /^\s*import\b/.test(line)) return
-      if (CHECK.test(line)) return
-      /* Six lines of CODE back, two forward: blank and comment lines are free. */
-      for (let j = i - 1, left = 6; j >= 0 && left > 0; j--) {
-        if (!lines[j].trim()) continue
-        if (CHECK.test(lines[j])) return
-        if (ROAD.test(lines[j])) break
-        left--
-      }
-      const after = READ.test(line) ? 2 : 0
-      for (let j = i + 1, left = after; j < lines.length && left > 0; j++) {
-        if (!lines[j].trim()) continue
-        if (CHECK.test(lines[j])) return
-        if (ROAD.test(lines[j])) break
-        left--
-      }
-      bare.push(`${name}:${i + 1}`)
-    })
-    return bare
+    const { code, checks, roads } = readRoads(name, text)
+    const roadLines = new Set(roads.map(r => r.line))
+    const checkLines = new Set(checks.map(c => c.line))
+    return roads
+      .filter(({ line, at, road }) => {
+        const read = READS.has(road)
+        /* On the road's own line: a check before it, or any check for a read. */
+        if (checks.some(c => c.line === line && (read || c.at < at)))
+          return false
+        for (let j = line - 1, left = 6; j >= 0 && left > 0; j--) {
+          if (!code.has(j)) continue
+          if (checkLines.has(j)) return false
+          if (roadLines.has(j)) break
+          left--
+        }
+        for (let j = line + 1, left = read ? 2 : 0; left > 0; j++) {
+          if (j > line + 40) break
+          if (!code.has(j)) continue
+          if (checkLines.has(j)) return false
+          if (roadLines.has(j)) break
+          left--
+        }
+        return true
+      })
+      .map(r => `${name}:${r.line + 1}`)
   }
 
   it('each road call has its own deskMayGo just before (or right after) it', () => {
@@ -229,6 +305,20 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
       bareRoads(f, readFileSync(join(dir, f), 'utf8'))
     )
     expect(bare).toEqual([])
+    /* Not an empty pass: the pin sees the roads that are there. */
+    const seen = files.flatMap(f =>
+      readRoads(f, readFileSync(join(dir, f), 'utf8')).roads.map(
+        r => `${f.replace(/\.ts$/, '')}:${r.road}`
+      )
+    )
+    expect(seen).toEqual(
+      expect.arrayContaining([
+        'rounds-wiring:openWindow',
+        'rounds-wiring:goTo',
+        'reddit-wiring:listTargets',
+        'scenarios-wiring:frontPage',
+      ])
+    )
   })
 
   it('the pin itself: a comment, a shared check or a destructured call does not pass', () => {
@@ -269,6 +359,7 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
     expect(t('await openWindow(c, u)', 'await deskMayGo(w, u)')).toEqual([
       't:1',
     ])
+    expect(t('await goTo(c, id, u); await deskMayGo(w, u)')).toEqual(['t:1'])
     expect(
       t('const g = "a/*.json"', 'await goTo(c, id, u)', '/* x */')
     ).toEqual(['t:2'])
@@ -277,27 +368,44 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
     ])
   })
 
-  /*
-   * A road taken under another name passes any pin that reads names (the
-   * bee's M18 on #3493): `const nav = goTo` or `{ goTo: nav }` is flagged
-   * wherever it is, so the road keeps the name the pin knows.
-   */
-  const ALIAS = [
-    /=\s*(openWindow|goTo|frontPage|listTargets)\b(?!\s*\()/,
-    /\b(openWindow|goTo|frontPage|listTargets)\s*:\s*[A-Za-z_$][\w$]*\s*[,}]/,
-  ]
-  const aliases = (name: string, text: string) =>
-    code(text)
-      .split('\n')
-      .flatMap((l, i) =>
-        ALIAS.some(a => a.test(l)) ? [`${name}:${i + 1}`] : []
-      )
+  it('the pin reads what the parser reads (the second pass on #3493)', () => {
+    const t = (...l: string[]) => bareRoads('t', l.join('\n'))
+    /* N3: a regex with a quote and a backtick, then a check in a comment. */
+    expect(
+      t("const R = /['`]/", '// await deskMayGo(w, u)', 'await goTo(c, id, u)')
+    ).toEqual(['t:3'])
+    /* N4: a regex ending in \/\/ before a road on the same line. */
+    expect(t('if (/^https:\\/\\//.test(u)) await goTo(c, id, u)')).toEqual([
+      't:1',
+    ])
+    /* N5: the check's words in a string are no call. */
+    expect(
+      t("const s = 'await deskMayGo(w, u)'", 'await goTo(c, id, u)')
+    ).toEqual(['t:2'])
+    /* N6, N7: a check whose refusal is dropped is no check. */
+    expect(t('void deskMayGo(w, u)', 'await goTo(c, id, u)')).toEqual(['t:2'])
+    expect(
+      t('await deskMayGo(w, u).catch(() => undefined)', 'await goTo(c, id, u)')
+    ).toEqual(['t:2'])
+    /* N9, N10: other spellings of the same call are still roads. */
+    expect(t('await goTo.call(null, c, id, u)')).toEqual(['t:1'])
+    expect(t('await goTo?.(c, id, u)')).toEqual(['t:1'])
+    expect(t('await cdp.goTo(c, id, u)')).toEqual(['t:1'])
+    /* Controls: a real check still vouches, across a multi-line call. */
+    expect(t('await deskMayGo(w, u)', 'await goTo(c, id, u)')).toEqual([])
+    expect(
+      t('await deskMayGo(', '  w,', '  u', ')', 'await goTo(c, id, u)')
+    ).toEqual([])
+  })
+
+  const renamedRoads = (name: string, text: string) =>
+    readRoads(name, text).renamed
 
   it('no desk road is renamed', () => {
     expect(
-      files.flatMap(f => aliases(f, readFileSync(join(dir, f), 'utf8')))
+      files.flatMap(f => renamedRoads(f, readFileSync(join(dir, f), 'utf8')))
     ).toEqual([])
-    const a = (...l: string[]) => aliases('t', l.join('\n'))
+    const a = (...l: string[]) => renamedRoads('t', l.join('\n'))
     expect(a('const nav = goTo', 'await nav(c, id, u)')).toEqual(['t:1'])
     expect(
       a('const { goTo: nav } = await import("../browser/windows")')
@@ -305,10 +413,22 @@ describe('every raw desk road passes deskMayGo (the bee on #3488)', () => {
     expect(a('const {', '  goTo: nav,', '} = await import("x")')).toEqual([
       't:2',
     ])
+    /* N12 and its kin: an import rename, a value, a bound copy. */
+    expect(a('import { goTo as nav } from "../browser/windows"')).toEqual([
+      't:1',
+    ])
+    expect(a('const io = { nav: goTo }')).toEqual(['t:1'])
+    expect(a('deskWindow({ goTo })')).toEqual(['t:1'])
+    expect(a('const nav = goTo.bind(null, c)')).toEqual(['t:1'])
+    /* Not renames: a key of that name, a destructure, a doc comment. */
     expect(
       a(
         'const { goTo, openWindow } = await import("x")',
-        'goTo: async (id, u) => {'
+        'const io = { goTo: async (id, u) => {}, frontPage: true }',
+        'const w = { goTo: walkTo }',
+        'type Io = { goTo(id: string): void; listTargets: () => void }',
+        '/** Calls {@link goTo} once. */',
+        'export const x = 1'
       )
     ).toEqual([])
   })
