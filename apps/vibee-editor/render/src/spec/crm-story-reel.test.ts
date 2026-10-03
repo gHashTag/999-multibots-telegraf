@@ -1172,8 +1172,10 @@ describe("the spec's tests hold against the host", () => {
     expect(server.match(/deliverToBuyer\(/g)?.length).toBe(2)
     // The house never borrows a voice from ElevenLabs: its clone speaks.
     expect(SPEC.HOUSE_SKIPS_ELEVENLABS).toBe(true)
-    const tools = readFileSync(join(HERE, '..', 'agent', 'tools.ts'), 'utf8')
-    expect(tools).toContain('!isHouse(ctx.telegramId)')
+    const { asksElevenLabs } = await import('../house-ids')
+    expect(asksElevenLabs(true, '', '')).toBe(false)
+    expect(asksElevenLabs(false, '', '')).toBe(true)
+    expect(asksElevenLabs(false, '', 'her-clone')).toBe(false)
   })
 
   it('a talking-head reel opens on the talking head, wide, with a hook', async () => {
