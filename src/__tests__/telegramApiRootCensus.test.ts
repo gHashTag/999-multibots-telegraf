@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { createRequire } from 'node:module'
 
 /**
  * NOT ONE HARD-CODED BOT API HOST, AND NOT ONE CLIENT BUILT WITHOUT THE TOKEN'S HOST.
@@ -27,6 +28,9 @@ import { join, resolve } from 'node:path'
  */
 
 const ROOT = resolve(__dirname, '..', '..')
+const { repoFiles } = createRequire(__filename)(
+  resolve(ROOT, 'scripts/lib/repo-sources.cjs')
+) as { repoFiles: (cwd: string) => string[] }
 const HOST = 'api.telegram.org'
 const MARKER = 'telegram-api-root-ok'
 
@@ -180,7 +184,8 @@ export function grepFiles(
   ownRepo = inOwnRepo()
 ): string[] {
   if (ownRepo) {
-    const args = ['grep', '-l', '-F']
+    // --untracked: a file written but not yet added is judged too (it.174).
+    const args = ['grep', '-l', '-F', '--untracked']
     for (const n of needles) args.push('-e', n)
     return git(paths.length ? [...args, '--', ...paths] : args)
   }
@@ -237,10 +242,11 @@ describe('the scan works without a repository', () => {
     () => {
       const paths = ['scripts', 'deployment', '.claude/skills']
       const needles = [HOST, 'telegramApiFor(']
-      const tracked = new Set(git(['ls-files', '--', ...paths]))
+      // The walk does not read .gitignore; repoFiles is what git can see.
+      const visible = new Set(repoFiles(ROOT))
       const byGit = grepFiles(needles, paths, true)
       const byWalk = grepFiles(needles, paths, false).filter(f =>
-        tracked.has(f)
+        visible.has(f)
       )
       expect(byGit.length).toBeGreaterThan(5)
       expect(byWalk).toEqual([...byGit].sort())

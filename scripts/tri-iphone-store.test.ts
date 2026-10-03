@@ -13,6 +13,8 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('./lib/anchored-slice.cjs')
 
 const TRI = path.join(__dirname, '..', 'tri')
 
@@ -119,7 +121,7 @@ describe('tri iphone store / testflight', () => {
     // The refusal above must not swallow a documented word: the header said
     // `install` long before there was a branch for it (default path).
     const src = fs.readFileSync(TRI, 'utf8')
-    const fn = src.slice(src.indexOf('cmd_iphone() {'))
+    const fn = sliceFrom(src, 'cmd_iphone() {')
     const body = fn.slice(0, fn.indexOf('\n}\n'))
     const known = new Set<string>([
       ...[...body.matchAll(/\[ "\$mode" = "([\w-]+)" \]/g)].map(m => m[1]),
@@ -616,7 +618,7 @@ describe.skipIf(!hasRuby)(
       expect(beta).toMatch(/begin\s+testers\s+rescue => e/)
       expect(beta).toContain('TeamGroup.scrub(e.message)')
       expect(beta).not.toMatch(/#\{e\.message\}/)
-      const lane = fastfile.slice(fastfile.indexOf('lane :testers do'))
+      const lane = sliceFrom(fastfile, 'lane :testers do')
       expect(lane.indexOf('VIBEE_UPLOAD_YES')).toBeGreaterThan(-1)
       expect(lane.indexOf('VIBEE_UPLOAD_YES')).toBeLessThan(
         lane.indexOf('api_key')
