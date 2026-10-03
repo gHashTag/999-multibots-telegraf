@@ -150,11 +150,162 @@ describe('where an act inside a frame lands', () => {
     ).toEqual(['https://harmless.example/'])
   })
 
-  it('a same-origin frame reaches only itself: its address is read, not guessed', () => {
+  it('a frame Chromium lists that the probe cannot account for is in reach of EVERY act', () => {
+    /* A closed shadow root hides it from the probe: hit or no hit, it counts. */
     const same = frame({ url: 'https://shop.example/cart', crossOrigin: false })
     expect(
       addressesOfAct([same], ['https://js.stripe.com/v3'], () => true)
-    ).toEqual(['https://shop.example/cart'])
+    ).toEqual(['https://shop.example/cart', 'https://js.stripe.com/v3'])
+    expect(
+      addressesOfAct([], ['https://js.stripe.com/v3'], () => false)
+    ).toEqual(['https://js.stripe.com/v3'])
+    expect(addressesOfAct([same], [], () => false)).toEqual([])
+  })
+})
+
+/* ---- the probe itself, against a fake DOM (it runs as page script) ---- */
+
+interface FakeEl {
+  tagName: string
+  kids?: FakeEl[]
+  shadow?: FakeEl[]
+  box?: [number, number, number, number]
+  src?: string
+  inner?: FakeDoc
+  focus?: boolean
+}
+interface FakeDoc {
+  href: string
+  kids: FakeEl[]
+}
+
+/** Builds the slice of the DOM the probe touches, nothing more. */
+function fakeDocument(d: FakeDoc): unknown {
+  const all = (els: FakeEl[]): FakeEl[] =>
+    els.flatMap(e => [e, ...all(e.kids ?? [])])
+  const build = (doc: FakeDoc): Record<string, unknown> => {
+    const wrap = new Map<FakeEl, Record<string, unknown>>()
+    const node = (e: FakeEl): Record<string, unknown> => {
+      const got = wrap.get(e)
+      if (got) return got
+      const [left, top, width, height] = e.box ?? [0, 0, 0, 0]
+      const inner = e.inner ? build(e.inner) : null
+      const n: Record<string, unknown> = {
+        tagName: e.tagName,
+        src: e.src ?? '',
+        clientLeft: 0,
+        clientTop: 0,
+        getBoundingClientRect: () => ({ left, top, width, height }),
+        contentDocument: inner,
+        contentWindow: inner ? { location: { href: e.inner?.href } } : null,
+        shadowRoot: e.shadow ? root(e.shadow) : null,
+      }
+      wrap.set(e, n)
+      return n
+    }
+    const root = (kids: FakeEl[]): Record<string, unknown> => {
+      const els = all(kids)
+      const focusedEl = els.find(e => e.focus)
+      return {
+        querySelectorAll: () => els.map(node),
+        activeElement: focusedEl ? node(focusedEl) : null,
+      }
+    }
+    return root(doc.kids)
+  }
+  return build(d)
+}
+
+const runProbe = (doc: FakeDoc) =>
+  framesOf(
+    new Function('document', `return ${FRAMES_PROBE}`)(fakeDocument(doc))
+  )
+
+describe('FRAMES_PROBE, run as the page would run it', () => {
+  it('walks OPEN shadow roots: a frame inside one is found', () => {
+    const frames = runProbe({
+      href: 'https://shop.example/',
+      kids: [
+        {
+          tagName: 'DIV',
+          shadow: [
+            {
+              tagName: 'IFRAME',
+              src: 'https://js.stripe.com/v3',
+              box: [10, 20, 300, 50],
+            },
+          ],
+        },
+      ],
+    })
+    expect(frames).toEqual([
+      expect.objectContaining({
+        url: 'https://js.stripe.com/v3',
+        crossOrigin: true,
+        x: 10,
+        y: 20,
+      }),
+    ])
+  })
+
+  it('reports focus through an open shadow root', () => {
+    const iframe: FakeEl = {
+      tagName: 'IFRAME',
+      src: 'https://js.stripe.com/v3',
+      box: [0, 0, 10, 10],
+      focus: true,
+    }
+    const frames = runProbe({
+      href: 'https://shop.example/',
+      kids: [{ tagName: 'DIV', focus: true, shadow: [iframe] }],
+    })
+    expect(frames.map(f => f.focused)).toEqual([true])
+  })
+
+  it('enters a same-origin frame, reads where it is now, and offsets what it holds', () => {
+    const frames = runProbe({
+      href: 'https://shop.example/',
+      kids: [
+        {
+          tagName: 'IFRAME',
+          src: 'https://shop.example/old',
+          box: [100, 200, 500, 500],
+          inner: {
+            href: 'https://shop.example/cart',
+            kids: [
+              {
+                tagName: 'IFRAME',
+                src: 'https://js.stripe.com/v3',
+                box: [5, 6, 50, 20],
+              },
+            ],
+          },
+        },
+      ],
+    })
+    expect(frames).toEqual([
+      expect.objectContaining({
+        url: 'https://shop.example/cart',
+        crossOrigin: false,
+        depth: 1,
+      }),
+      expect.objectContaining({
+        url: 'https://js.stripe.com/v3',
+        crossOrigin: true,
+        x: 105,
+        y: 206,
+        depth: 2,
+      }),
+    ])
+  })
+
+  it('a CLOSED shadow root hides its frame from the probe -- why clicks ask Chromium', () => {
+    /* shadowRoot is null for a closed root: this is the limit, pinned. */
+    const frames = runProbe({
+      href: 'https://shop.example/',
+      kids: [{ tagName: 'DIV' }],
+    })
+    expect(frames).toEqual([])
   })
 })
 
@@ -232,6 +383,7 @@ const SESSION = {
 const pool = {
   query: async (text: string) => {
     if (text.includes('browser_site_rules')) {
+      if (WORLD.rulesDieOnOpen && opening) throw new Error('db gone')
       if (text.startsWith('SELECT'))
         return {
           rows: table.map(r => ({
@@ -256,6 +408,12 @@ const WORLD = {
   opened: [] as string[],
   /* Where the label search finds a button (find-target.ts), if anywhere. */
   found: null as { x: number; y: number } | null,
+  /* Chromium's hit-test (cdp.ts frameAtPoint); 'throws' = the fallback. */
+  hit: 'throws' as { frameId: string; url: string | null } | 'throws',
+  /* Frame targets whose own world says focus is in them; 'throws' = unknown. */
+  focusIn: [] as string[] | 'throws',
+  /* The site list stops answering once a tab is open. */
+  rulesDieOnOpen: false,
 }
 let looks = 0
 let opening = false
@@ -283,7 +441,17 @@ vi.mock('./src/browser/cdp', async importOriginal => ({
   activatePage: async () => undefined,
   closePage: async (_c: string, id: string) =>
     void cdpCalls.push(`closePage ${id}`),
-  evaluateOn: async (_c: string, _t: string, expr: string) => {
+  frameAtPoint: async (_c: string, _t: string, x: number, y: number) => {
+    cdpCalls.push(`frameAtPoint ${x},${y}`)
+    if (WORLD.hit === 'throws') throw new Error('CDP DOM.getNodeForLocation: x')
+    return WORLD.hit
+  },
+  evaluateOn: async (_c: string, t: string, expr: string) => {
+    if (expr === 'document.hasFocus()') {
+      cdpCalls.push(`hasFocus ${t}`)
+      if (WORLD.focusIn === 'throws') throw new Error('frame did not answer')
+      return WORLD.focusIn.includes(t)
+    }
     if (expr === FRAMES_PROBE) {
       if (WORLD.frames === 'throws') throw new Error('page did not answer')
       return { frames: WORLD.frames }
@@ -345,6 +513,9 @@ describe('the tools judge the frame, not only the tab', () => {
     WORLD.iframes = []
     WORLD.opened = []
     WORLD.found = null
+    WORLD.hit = 'throws'
+    WORLD.focusIn = []
+    WORLD.rulesDieOnOpen = false
     looks = 0
     opening = false
   })
@@ -445,6 +616,122 @@ describe('the tools judge the frame, not only the tab', () => {
     expect(cdpCalls).not.toContain('clickAt')
   })
 
+  it("CHROMIUM'S HIT-TEST NAMES THE FRAME: one in a closed shadow root is stripe", async () => {
+    /* The probe sees nothing (closed shadow root); the browser does. */
+    WORLD.iframes = [
+      { id: 'f1', url: 'https://js.stripe.com/v3', parentId: 'page-1' },
+    ]
+    WORLD.hit = { frameId: 'f1', url: null }
+    await expect(
+      (await tool('browser_click')).handler({ x: 5, y: 5 }, ctx)
+    ).rejects.toThrow(/stripe\.com.*frame embedded.*browser_ask_permission/s)
+    expect(cdpCalls).toContain('frameAtPoint 5,5')
+    expect(cdpCalls).not.toContain('clickAt')
+  })
+
+  it('a lying box does not move the frame: the hit-test is believed, not the page', async () => {
+    WORLD.frames = [frame({ ...STRIPE, x: -9999, y: -9999, w: 1, h: 1 })]
+    WORLD.iframes = [
+      { id: 'f1', url: 'https://js.stripe.com/v3', parentId: 'page-1' },
+    ]
+    WORLD.hit = { frameId: 'f1', url: null }
+    await expect(
+      (await tool('browser_click')).handler({ x: 250, y: 320 }, ctx)
+    ).rejects.toThrow(/browser_ask_permission/)
+    expect(cdpCalls).not.toContain('clickAt')
+    /* And the other way: the browser says top page, the page says stripe. */
+    WORLD.frames = [STRIPE]
+    WORLD.hit = { frameId: 'page-1', url: null }
+    await (await tool('browser_click')).handler({ x: 250, y: 320 }, ctx)
+    expect(cdpCalls).toContain('clickAt')
+  })
+
+  it('a hit on a cross-origin frame reaches every frame inside it too', async () => {
+    WORLD.iframes = [
+      { id: 'f1', url: 'https://widget.example/', parentId: 'page-1' },
+      { id: 'f2', url: 'https://js.stripe.com/v3', parentId: 'f1' },
+    ]
+    WORLD.hit = { frameId: 'f1', url: null }
+    await expect(
+      (await tool('browser_click')).handler({ x: 5, y: 5 }, ctx)
+    ).rejects.toThrow(/stripe\.com/)
+    expect(cdpCalls).not.toContain('clickAt')
+  })
+
+  it('a same-process frame is judged by the address its frame tree gives', async () => {
+    table = [{ site: 'portal.clinic.example', rule: 'ask' }]
+    WORLD.hit = { frameId: 'local-1', url: 'https://portal.clinic.example/f' }
+    await expect(
+      (await tool('browser_click')).handler({ x: 5, y: 5 }, ctx)
+    ).rejects.toThrow(/browser_ask_permission/)
+    expect(cdpCalls).not.toContain('clickAt')
+  })
+
+  it('a frame the hit-test names but nobody can address falls back, closed', async () => {
+    WORLD.iframes = [
+      { id: 'f9', url: 'https://js.stripe.com/v3', parentId: 'page-1' },
+    ]
+    WORLD.hit = { frameId: 'ghost', url: null }
+    await expect(
+      (await tool('browser_click')).handler({ x: 5, y: 5 }, ctx)
+    ).rejects.toThrow(/browser_ask_permission/)
+    expect(cdpCalls).not.toContain('clickAt')
+  })
+
+  it('hit-test failed, frame hidden from the probe: the fallback still refuses', async () => {
+    WORLD.frames = []
+    WORLD.iframes = [
+      { id: 'f1', url: 'https://js.stripe.com/v3', parentId: 'page-1' },
+    ]
+    await expect(
+      (await tool('browser_click')).handler({ x: 5, y: 5 }, ctx)
+    ).rejects.toThrow(/browser_ask_permission/)
+    expect(cdpCalls).not.toContain('clickAt')
+  })
+
+  it('TYPING into a frame the probe cannot see needs a yes', async () => {
+    WORLD.frames = []
+    WORLD.iframes = [
+      { id: 'f1', url: 'https://js.stripe.com/v3', parentId: 'page-1' },
+    ]
+    await expect(
+      (await tool('browser_type')).handler({ text: '4242' }, ctx)
+    ).rejects.toThrow(/browser_ask_permission/)
+    expect(cdpCalls).not.toContain('typeText')
+  })
+
+  it('typing: the frame itself is asked where focus is, when the page says "not here"', async () => {
+    WORLD.frames = [STRIPE]
+    WORLD.iframes = [
+      { id: 'f1', url: 'https://js.stripe.com/v3', parentId: 'page-1' },
+    ]
+    WORLD.focusIn = ['f1']
+    await expect(
+      (await tool('browser_type')).handler({ text: '4242' }, ctx)
+    ).rejects.toThrow(/browser_ask_permission/)
+    expect(cdpCalls).toContain('hasFocus f1')
+    expect(cdpCalls).not.toContain('typeText')
+    /* A frame that cannot answer is treated as holding focus. */
+    WORLD.focusIn = 'throws'
+    await expect(
+      (await tool('browser_type')).handler({ text: '4242' }, ctx)
+    ).rejects.toThrow(/browser_ask_permission/)
+    /* It says no: typing goes to the page. */
+    WORLD.focusIn = []
+    await (await tool('browser_type')).handler({ text: 'name' }, ctx)
+    expect(cdpCalls).toContain('typeText')
+  })
+
+  it('typing beside harmless frames asks none of them', async () => {
+    WORLD.frames = [frame({ url: 'https://ads.example/slot' })]
+    WORLD.iframes = [
+      { id: 'f1', url: 'https://ads.example/slot', parentId: 'page-1' },
+    ]
+    await (await tool('browser_type')).handler({ text: 'hi' }, ctx)
+    expect(cdpCalls.some(c => c.startsWith('hasFocus'))).toBe(false)
+    expect(cdpCalls).toContain('typeText')
+  })
+
   it('the whole-screen shot counts a blocked frame as a blocked tab', async () => {
     table = [{ site: 'x.com', rule: 'block' }]
     WORLD.iframes = [
@@ -504,6 +791,37 @@ describe('the tools judge the frame, not only the tab', () => {
     ).handler({ url: 'https://short.example/abc' }, ctx)) as { opened: string }
     expect(r.opened).toBe('https://b.example/')
     expect(cdpCalls.some(c => c.startsWith('closePage'))).toBe(false)
+  })
+
+  it('a slow redirect does not settle the wait on the address asked', async () => {
+    table = [{ site: 'x.com', rule: 'block' }]
+    WORLD.opened = [
+      'https://short.example/abc',
+      'https://short.example/abc',
+      'https://short.example/abc',
+      'https://x.com/someone',
+      'https://x.com/someone',
+    ]
+    await expect(
+      (await tool('browser_open')).handler(
+        { url: 'https://short.example/abc' },
+        ctx
+      )
+    ).rejects.toThrow(/blocked list.*redirect/s)
+    expect(cdpCalls).toContain('closePage page-2')
+  })
+
+  it('a list that dies after the open closes the tab it opened', async () => {
+    table = [{ site: 'x.com', rule: 'block' }]
+    WORLD.opened = ['https://short.example/abc']
+    WORLD.rulesDieOnOpen = true
+    await expect(
+      (await tool('browser_open')).handler(
+        { url: 'https://short.example/abc' },
+        ctx
+      )
+    ).rejects.toThrow()
+    expect(cdpCalls).toContain('closePage page-2')
   })
 
   it('no block on the list: open waits for nothing', async () => {

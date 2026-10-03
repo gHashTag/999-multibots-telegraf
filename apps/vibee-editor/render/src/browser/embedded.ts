@@ -17,14 +17,38 @@
  *    shortener or a 302 to a blocked site was opened, and its address handed
  *    back to the agent.
  *
- * What a frame IS, is read two ways, because neither is enough alone:
+ * WHICH FRAME A CLICK LANDS IN IS ASKED OF CHROMIUM, NOT OF THE PAGE
+ * (cdp.ts frameAtPoint: DOM.getNodeForLocation + DOM.describeNode). The bee
+ * on #3507 broke the first version, which asked the page: a frame put in a
+ * CLOSED shadow root is invisible to page script, and a page can override
+ * `getBoundingClientRect` to report the Stripe frame at -9999,-9999. The
+ * browser's own hit-test pierces closed shadow roots, honours z-order and
+ * `pointer-events: none` the way a real press does, and cannot be lied to;
+ * the frame id it names IS the iframe target id in Chromium's list, so the
+ * address judged is the frame's current one, not its src.
+ *
+ * When that call fails, the old two reads are the fallback, and they fail
+ * closed:
  * - the DOM (FRAMES_PROBE): every iframe/frame/embed/object with its box, its
  *   src, and -- when same-origin -- where it is now; and which one has focus;
  * - Chromium's own list: a cross-origin frame runs as its own target
- *   ("iframe", with `parentId`), carrying its CURRENT address. A frame that
- *   navigated away from its src is known only there, so a click into a
- *   cross-origin frame is also judged against every such address the DOM
- *   cannot account for (fail closed: we cannot tell which frame it is).
+ *   ("iframe", with `parentId`), carrying its CURRENT address. Every such
+ *   address the DOM cannot account for joins the reach of EVERY click and
+ *   every keystroke on that page, hit or no hit: a frame the probe cannot
+ *   see may be exactly where the act lands.
+ *
+ * Typing has no hit-test. Its reach is the probe's focused frame, every
+ * cross-origin frame the probe cannot account for, and every risky
+ * cross-origin frame that says, in its OWN world (which the embedding page
+ * does not control), that focus is in it (agent-tools.ts).
+ *
+ * NAMED LIMITS. A same-site frame of a different origin, hidden from the
+ * probe, falls back to "same-site as the page" when the hit-test fails. A
+ * page that lies to the probe about a frame it does list, while the pod's
+ * window has no system focus (`document.hasFocus()` false everywhere), can
+ * hide where typing goes. A click into a cross-origin frame that itself
+ * holds frames is judged against all of them: the hit-test stops at that
+ * frame's door.
  */
 import { ruleFor, type SiteRuleRow } from './site-rules'
 
@@ -123,6 +147,14 @@ export function framesOfTarget(
   targets: ListedTarget[],
   pageId: string
 ): string[] {
+  return frameTargetsOf(targets, pageId).map(t => t.url)
+}
+
+/** The same, as targets: their ids are what a frame can be asked through. */
+export function frameTargetsOf(
+  targets: ListedTarget[],
+  pageId: string
+): ListedTarget[] {
   const byId = new Map(targets.map(t => [t.id, t]))
   const under = (t: ListedTarget): boolean => {
     const seen = new Set<string>()
@@ -134,11 +166,11 @@ export function framesOfTarget(
     }
     return false
   }
-  return targets.filter(t => t.type === 'iframe' && under(t)).map(t => t.url)
+  return targets.filter(t => t.type === 'iframe' && under(t))
 }
 
 /** A frame's address worth judging: the web only (about:blank is the page's own). */
-function isWeb(url: string): boolean {
+export function isWeb(url: string): boolean {
   try {
     return /^https?:$/.test(new URL(url).protocol)
   } catch {
@@ -173,8 +205,10 @@ export function blockedEmbed(
 /**
  * THE ADDRESSES AN ACT INSIDE A FRAME REACHES. `pick` chooses the frame (the
  * one under the point, or the focused one); nested frames are entered, the
- * deepest wins. A cross-origin frame's src may be stale, so it also brings
- * every Chromium-side frame address that no DOM frame accounts for.
+ * deepest wins. Every Chromium-side frame address that no DOM frame accounts
+ * for joins too, whatever was picked: a frame hidden from the probe (closed
+ * shadow root) or one that navigated away from its src is unknown in place,
+ * so it is in reach of every act (the bee on #3507).
  * Empty: the act lands on the top page itself.
  */
 export function addressesOfAct(
@@ -186,9 +220,7 @@ export function addressesOfAct(
     .filter(pick)
     .sort((a, b) => b.depth - a.depth)
     .at(0)
-  if (!hit) return []
-  const own = isWeb(hit.url) ? [hit.url] : []
-  if (!hit.crossOrigin) return own
+  const own = hit && isWeb(hit.url) ? [hit.url] : []
   const known = new Set(frames.map(f => originOf(f.url)).filter(Boolean))
   const unaccounted = oopif.filter(u => isWeb(u) && !known.has(originOf(u)))
   return [...new Set([...own, ...unaccounted])]
@@ -213,24 +245,39 @@ export const focused = (f: SeenFrame): boolean => f.focused
  * WHERE THE TAB LANDED. Chromium reports a new tab at the address asked for
  * and updates it when the navigation commits, so a 302 or a shortener shows
  * up a moment later. Polls until the address holds still twice (or `tries`
- * runs out) and returns EVERY address seen on the way: a chain that passed
- * through a blocked site and came back out still went there.
+ * runs out) and returns every address seen on the way.
+ *
+ * What "seen" can and cannot hold. A JavaScript or meta redirect commits a
+ * page, so a hop that lives at least one look is in it: a chain that passed
+ * through a blocked site that way still went there. A server's 302 usually
+ * never commits -- Chromium follows it inside one navigation -- so a 302
+ * hop is NOT seen; only where it lands is.
+ *
+ * Still on the address ASKED needs four equal looks, not two: a redirect
+ * server slower than two looks (~800 ms) used to settle the wait on the
+ * shortener itself, and the agent was handed the shortener's address. Four
+ * looks (~1.6 s) is the cost, paid only when the person's list blocks
+ * something; a slower redirect is still caught by the guards that read the
+ * tab's address before every act.
  */
 export async function landing(
   read: () => Promise<string | null>,
   sleep: (ms: number) => Promise<void> = ms =>
     new Promise(r => setTimeout(r, ms)),
   tries = 6,
-  stepMs = 400
+  stepMs = 400,
+  asked: string | null = null
 ): Promise<{ landed: string | null; seen: string[] }> {
   const seen: string[] = []
   let last: string | null = null
+  let same = 0
   for (let i = 0; i < tries; i++) {
     await sleep(stepMs)
     const now = await read().catch(() => null)
     if (now && !seen.includes(now)) seen.push(now)
-    /* Two equal looks: settled. Two nulls: the tab is gone or unlisted. */
-    if (i > 0 && now === last && now !== 'about:blank')
+    same = i > 0 && now === last ? same + 1 : 0
+    /* Equal looks: settled. Two nulls: the tab is gone or unlisted. */
+    if (same >= (now === asked ? 3 : 1) && now !== 'about:blank')
       return { landed: now, seen }
     last = now
   }
