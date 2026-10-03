@@ -211,6 +211,12 @@ const en: Translations = {
   'browser.sites.unreadable':
     'Your list could not be read right now, so the agent opens and reads nothing until it can.',
   'browser.sites.fail': 'Not saved: {error}',
+  'browser.sites.readFail': 'Could not load your list: {error}',
+  'browser.sites.badSite':
+    'Not saved: that is not one web address. Write it like bank.com or yandex.ru/mail.',
+  'browser.sites.full': 'Not saved: the list is full. Remove a site first.',
+  'browser.sites.unreadableNow':
+    'Not saved: your list cannot be read right now. Try again in a minute.',
   'browser.import.open': 'Bring my logins',
   'browser.round': 'Walk my accounts',
   'browser.desks': 'The agent s desks',
@@ -3211,6 +3217,13 @@ const ru: Translations = {
   'browser.sites.unreadable':
     'Список сейчас не прочитать, поэтому агент ничего не открывает и не читает, пока не получится.',
   'browser.sites.fail': 'Не сохранилось: {error}',
+  'browser.sites.readFail': 'Не удалось загрузить список: {error}',
+  'browser.sites.badSite':
+    'Не сохранилось: это не один адрес сайта. Пишите так: bank.com или yandex.ru/mail.',
+  'browser.sites.full':
+    'Не сохранилось: список полон. Сначала уберите какой-нибудь сайт.',
+  'browser.sites.unreadableNow':
+    'Не сохранилось: список сейчас не читается. Попробуйте через минуту.',
   'browser.import.open': 'Перенести входы',
   'browser.round': 'Обойти мои аккаунты',
   'browser.desks': 'Кабинеты агента',

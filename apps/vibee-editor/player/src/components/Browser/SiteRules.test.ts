@@ -14,9 +14,15 @@ vi.mock('@/lib/apiFetch', () => ({
   apiFetch: (...a: unknown[]) => apiFetch(...a),
 }))
 
-const { readSiteRules, putSiteRule, dropSiteRule, siteRowsOf } = await import(
-  '@/lib/remoteBrowser'
-)
+const {
+  readSiteRules,
+  readSiteListState,
+  putSiteRule,
+  dropSiteRule,
+  siteRowsOf,
+  nextRule,
+  siteRuleFailKey,
+} = await import('@/lib/remoteBrowser')
 
 const src = readFileSync(join(__dirname, 'SiteRules.tsx'), 'utf8')
 const dict = readFileSync(
@@ -39,6 +45,19 @@ describe('reading the list', () => {
       Object.assign(new Error('x'), { status: 401 })
     )
     await expect(readSiteRules()).rejects.toThrow()
+  })
+
+  it('only a 503 says the agent is stopped; a 401 is this screen failing', async () => {
+    apiFetch.mockRejectedValueOnce(
+      Object.assign(new Error('x'), { status: 503 })
+    )
+    expect(await readSiteListState()).toEqual({ unreadable: true })
+    apiFetch.mockRejectedValueOnce(
+      Object.assign(new Error('x'), { status: 401, code: 'sign_in' })
+    )
+    expect(await readSiteListState()).toEqual({ failed: 'sign_in' })
+    apiFetch.mockResolvedValueOnce({ sites: [] })
+    expect(await readSiteListState()).toEqual({ rows: [] })
   })
 
   it('keeps only rows it can name, and says which the agent added', () => {
@@ -77,6 +96,22 @@ describe('changing the list', () => {
   })
 })
 
+describe('the row flip and the refusals', () => {
+  it('flips never to ask first and back', () => {
+    expect(nextRule('block')).toBe('ask')
+    expect(nextRule('ask')).toBe('block')
+  })
+
+  it("the server's English refusals become the person's words", () => {
+    const err = (status: number) => Object.assign(new Error('x'), { status })
+    expect(siteRuleFailKey(err(400))).toBe('browser.sites.badSite')
+    expect(siteRuleFailKey(err(409))).toBe('browser.sites.full')
+    expect(siteRuleFailKey(err(503))).toBe('browser.sites.unreadableNow')
+    expect(siteRuleFailKey(err(500))).toBeNull()
+    expect(siteRuleFailKey(new Error('offline'))).toBeNull()
+  })
+})
+
 describe('what the person sees', () => {
   it('says the unreadable list stops the agent, and who added a row', () => {
     expect(src).toContain("t('browser.sites.unreadable')")
@@ -84,7 +119,12 @@ describe('what the person sees', () => {
   })
 
   it('every string it shows exists in both languages', () => {
-    const used = [...src.matchAll(/t\('([^']+)'/g)].map(m => m[1])
+    const used = [
+      ...[...src.matchAll(/t\('([^']+)'/g)].map(m => m[1]),
+      'browser.sites.badSite',
+      'browser.sites.full',
+      'browser.sites.unreadableNow',
+    ]
     expect(used.length).toBeGreaterThan(10)
     const ruStart = dict.indexOf("'browser.forget.sure': 'Да, стереть'")
     const en = dict.slice(0, ruStart)
