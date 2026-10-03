@@ -610,9 +610,11 @@ CHECKS THAT EACH COST A CYCLE
   tri pr-billing N
         Is every failing check on PR N the Actions billing stop? rc 0 only if
         all are; an empty annotation (dropped connection) is re-asked, then
-        counted UNKNOWN -- never billing. Refuses (rc 1) while a comment
-        starting "Reviewer bee: not merged" is newer than the head commit;
-        an older one is printed, to be checked against the push.
+        counted UNKNOWN -- never billing. Refuses (rc 1) while a bee's
+        refusal (a comment or review whose first line names a bee and says
+        "not merg..." or "changes requested", or a CHANGES_REQUESTED review)
+        is newer than the head commit; an older one is printed, to be
+        checked against the push.
 
   tri premerge N [--keep]
         Would PR N pass the player's deploy gate once it lands on today's
@@ -4269,12 +4271,32 @@ cmd_pr_billing() {
   # refusal newer than the head commit blocks (rc 1), and an older one is
   # printed with its first line: a push is not an answer until someone reads
   # the notes against it.
+  # What a refusal looks like was read off 200 PRs, not decided: 20 refusals,
+  # and the first version of this check (exact "Reviewer bee: not merged" in a
+  # comment) saw 2. Bees open with "Reviewer bee", "## Bee review", "Reviewed
+  # by bee", "Reviewer bee Z", and say "not merging (yet)", "I am not merging
+  # this", "changes requested"; three refusals sit in a review body, not a
+  # comment. A list of openers missed three even after it was widened once
+  # (#3468's first head), so the rule is about words, not position: the FIRST
+  # line names a bee and says "not merg" or "changes requested". On the same
+  # 200 PRs that is all 20 and none of ~35 approvals. A review in state
+  # CHANGES_REQUESTED refuses whatever it says (bees share the author's
+  # account, so GitHub has never let one be filed here -- but a second account
+  # would). The head's date is looked up by its oid; if the head is not in the
+  # list the date is "", which sorts before every timestamp, so every refusal
+  # counts as new.
   local refusals kind stamp note
-  refusals=$("$gh" pr view "$pr" --repo "$repo" --json commits,comments --jq \
-    '(.commits[-1].committedDate) as $d | .comments[]
-     | select(.body | test("^[*_ ]*reviewer bee:?[*_ ]*not merged"; "i"))
-     | (if .createdAt > $d then "NEW" else "OLD" end) + "\t" + .createdAt
-       + " " + .author.login + "\t" + (.body | split("\n")[0] | .[0:120])') \
+  refusals=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid,commits,comments,reviews --jq \
+    '.headRefOid as $h
+     | ([.commits[] | select(.oid == $h) | .committedDate][0] // "") as $d
+     | (.comments[] | {at: .createdAt, who: .author.login, b: .body, st: ""}),
+       (.reviews[] | {at: (.submittedAt // ""), who: .author.login, b: .body, st: .state})
+     | (.b | split("\n")[0]) as $f
+     | select(.st == "CHANGES_REQUESTED"
+         or (($f | test("\\bbees?\\b"; "i"))
+             and ($f | test("not merg|changes requested"; "i"))))
+     | (if .at > $d then "NEW" else "OLD" end) + "\t" + .at
+       + " " + .who + "\t" + ($f | .[0:120])') \
     || { bad "could not read the comments on PR $pr -- a refusal there would be missed"; return 2; }
   local blocked=0
   while IFS=$'\t' read -r kind stamp note; do
