@@ -17,6 +17,8 @@ import { RenderDidNotAnswer } from '@/services/renderTimeout'
 const TOKEN = 'a'.repeat(22) // secret-guard-ok: a repeated letter, not a value
 const PRESSER = '900000001'
 
+const sleep = async () => undefined
+
 describe('the meeting tap reaches the render, and the person hears back', () => {
   it('relays the action and token as the presser, and takes the render words', async () => {
     const callToolImpl = vi.fn(async () => ({
@@ -40,7 +42,7 @@ describe('the meeting tap reaches the render, and the person hears back', () => 
       throw new Error('connection terminated')
     })
     expect(
-      await answerMeeting(PRESSER, 'cancel', TOKEN, { callToolImpl })
+      await answerMeeting(PRESSER, 'cancel', TOKEN, { callToolImpl, sleep })
     ).toEqual({
       said: NOT_REACHED,
       reached: false,
@@ -48,27 +50,60 @@ describe('the meeting tap reaches the render, and the person hears back', () => 
     // An empty body is a 502 page: the render is mid-deploy.
     const empty = vi.fn(async () => ({}))
     expect(
-      await answerMeeting(PRESSER, 'done', TOKEN, { callToolImpl: empty })
+      await answerMeeting(PRESSER, 'done', TOKEN, {
+        callToolImpl: empty,
+        sleep,
+      })
     ).toEqual({ said: SAID.restarting, reached: false })
   })
 
-  it('says WHY it failed, and never presses twice on its own', async () => {
-    // "later" inserts a reminder per press: a quiet retry would snooze twice.
+  it('says WHY it failed, and repeats only a fast failure, once', async () => {
+    // A timeout already cost ten seconds of a stripped card: not doubled.
     const slow = vi.fn(async () => {
       throw new RenderDidNotAnswer('no answer in 10 s')
     })
     expect(
-      (await answerMeeting(PRESSER, 'later', TOKEN, { callToolImpl: slow }))
-        .said
+      (
+        await answerMeeting(PRESSER, 'later', TOKEN, {
+          callToolImpl: slow,
+          sleep,
+        })
+      ).said
     ).toBe(SAID.timeout)
     expect(slow).toHaveBeenCalledTimes(1)
+    // No connection is the minute of a deploy swap: one more try, then words.
     const offline = vi.fn(async () => {
       throw new TypeError('fetch failed')
     })
     expect(
-      (await answerMeeting(PRESSER, 'ok', TOKEN, { callToolImpl: offline }))
-        .said
+      (
+        await answerMeeting(PRESSER, 'ok', TOKEN, {
+          callToolImpl: offline,
+          sleep,
+        })
+      ).said
     ).toBe(SAID.offline)
+    expect(offline).toHaveBeenCalledTimes(2)
+  })
+
+  it('a swap the second try outlives is answered as if nothing happened', async () => {
+    const swap = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce({
+        said: 'Отлично',
+        markup: { inline_keyboard: [] },
+      })
+    const r = await answerMeeting(PRESSER, 'later', TOKEN, {
+      callToolImpl: swap,
+      sleep,
+    })
+    expect(r).toEqual({
+      said: 'Отлично',
+      reached: true,
+      markup: { inline_keyboard: [] },
+    })
+    expect(swap).toHaveBeenCalledTimes(2)
   })
 
   it('a key the render refuses is named, not "try again in a minute"', async () => {
