@@ -1,6 +1,6 @@
 ---
 name: 'Cloud agent does the work'
-description: 'Правило владельца: рилсы, липсинк, гламур фото, посты и любую работу с контентом делает ОБЛАЧНЫЙ агент сервиса (агент-блогер из каталога /agents, агент в боте и в приложении) своими инструментами — не локальные скрипты и не разовые функции Railway из сессии Claude Code. Загружать ПЕРЕД тем, как собрать что-то «руками»: скрипт, ffmpeg, curl к KIE/fal, функцию или сервис в Railway; при словах «сделай рилс», «липсинк», «сгламуй», «пришли готовое», «агент не умеет».'
+description: 'Правило владельца: рилсы, липсинк, гламур фото, посты и любую работу с контентом делает ОБЛАЧНЫЙ агент сервиса (агент-блогер из каталога /agents, агент в боте и в приложении) своими инструментами — не локальные скрипты и не разовые функции Railway из сессии Claude Code. Загружать ПЕРЕД тем, как собрать что-то «руками»: скрипт, ffmpeg, curl к KIE/fal, функцию или сервис в Railway; при словах «сделай рилс», «собери шаблон», «SplitTalkingHead», «remotion render», «вручную», «липсинк», «сгламуй», «пришли готовое», «агент не умеет».'
 ---
 
 # Работу делает облачный агент
@@ -8,6 +8,60 @@ description: 'Правило владельца: рилсы, липсинк, г�
 **Решение владельца, 2026-09-24:** «это всё агент-блогер в облаке должен
 делать, а не через локальные скрипты — мы сервис создали для этого, используй
 его на всё, 100%».
+
+## Owner rule 2026-10-03: reels ONLY through the server pipeline
+
+> «почему ты вручную создаёшь шаблон, а не через t27? у нас пайплайн создания
+> рилсов… через Remotion… сервер настроен на работу с Kie — через него
+> запросы делай и заодно проверяй, работает ли всё как надо… в скилы сохрани,
+> чтобы работать только так» (owner, 2026-10-03)
+
+**What went wrong.** Reel v9 was built on the Mac: Kie `createTask` called
+directly with the service key, whisper and `split-reel-plan` caption maths run
+in a local `tsx`, `npx remotion render SplitTalkingHead` run locally. The
+result looked right, but nothing went through the service: no ledger, no
+server logs, and no proof that the server path itself works. That is exactly
+what this skill forbids.
+
+**The only way to make a reel** (owner's, a client's, a test):
+
+1. **Door:** `/mcp` of `vibee-render` as the owner, `X-Agent-Key` from
+   `AGENT_KEYS` (skill `mcp-owner-access`; the key never leaves a variable).
+   Long tools outlive the public edge (it drops an idle call after 50-60 s)
+   and Node `fetch` (300 s header timeout), so run the call **inside the
+   render pod** against `127.0.0.1:$PORT/mcp` with `node:http`,
+   `req.setTimeout(0)`, under `nohup`, writing the answer to a file. Then
+   poll the file and the logs. A redeploy kills the call: repeat it with the
+   `stills`/`clips` the answer returned; finished work is not paid twice.
+2. **Story reel:** `story_reel`, one call. Inside it: `image_edit` on Kie,
+   `audio_generate` (the owner's line goes to our `voice_clone_speak` with
+   `OWNER_VOICE_REF_URL`), `lipsync_generate` with Kie Kling, then
+   `reel_render StoryReel` (Remotion on the server).
+3. **Split reel:** spec `render/src/spec/split-reel.t27`, then host plan
+   `split-reel-plan.ts`, then composition `SplitTalkingHead` via
+   `reel_render`. The pieces come from the same tools (`audio_generate`,
+   `lipsync_generate`, `image_edit`). **Gap, 2026-10-03:** no server tool yet
+   computes the split props (captions from the final voice, face aim). Only
+   `reel_analyze` returns the template. By rule 3 below, that is a missing
+   tool (`split_reel`) to add by PR, not a licence to compute props locally.
+4. **Every run is also a check.** Read the render logs step by step:
+   - `[токены]` lines;
+   - Kie `createTask`;
+   - `Uploaded to S3`;
+   - `Rendering <Composition> with props`.
+
+   Every refusal or detour is a finding, and it goes into the report: a
+   provider other than Kie, a fallback chain, a wrong key.
+
+**Never, for a deliverable:**
+
+- Kie or any provider called from the Mac;
+- local `npx remotion render`;
+- local whisper or caption maths;
+- an ffmpeg mux of the final file.
+
+Local tools may only **inspect** what the server made: frames,
+`tri reel-check`, ffprobe.
 
 ## Правило
 
@@ -101,7 +155,7 @@ omnihuman), хотя вопрос каждый раз был «работает 
 Как делается безопасный запуск чужого кода (тот же приём, что у `hdl_run`):
 
 - **Все разрешения сняты, а не выданы.** Deno `run --no-prompt --no-remote
-  --no-npm` без единого `--allow-*`: запрос к сети/диску/окружению/подпроцессу
+--no-npm` без единого `--allow-*`: запрос к сети/диску/окружению/подпроцессу
   — ОШИБКА, а не запрос. Проверено на живом Deno: все отказы держатся.
 - **Пустое окружение + `nobody`.** `env: {PATH, HOME}`, а когда сервер под
   root — `uid/gid 65534`: даже если проверка что-то пропустит, процесс не
