@@ -56,14 +56,35 @@ for f in sys.argv[2:]:
 PY
 )
 [ ${#REL[@]} -eq ${#FILES[@]} ] || { echo "bite: could not read the file names"; exit 2; }
+# Exactly this name, as git spells it -- tracked or untracked-not-ignored, and
+# on disk. Not `[ -e ]`: that answers for lib/add.sh through a link lib -> src,
+# and for lib/Add.sh on a case-blind disk, and the swap below then removes the
+# real module in the copy -- a false BITES (review 2 of #3462).
+present_now() {
+  local hit
+  hit=$(git -C "$TOP" ls-files -z --cached --others --exclude-standard -- ":(literal)$1" \
+    | python3 -c 'import sys; n = sys.argv[1]; print("y" if n in sys.stdin.buffer.read().decode("utf-8", "surrogateescape").split("\0") else "")' "$1")
+  [ -n "$hit" ] && { [ -e "$TOP/$1" ] || [ -L "$TOP/$1" ]; }
+}
+
 for r in "${REL[@]}"; do
   case "$r" in ..|../*|/*) echo "bite: $r is outside the repository"; exit 2 ;; esac
+  # No directory on the way may be a link: git does not look through one, the
+  # filesystem does, so the name would mean two different files.
+  d=$(dirname "$r")
+  while [ "$d" != . ]; do
+    if [ -L "$TOP/$d" ]; then echo "bite: $r goes through the symlink $d -- name the file it points at"; exit 2; fi
+    d=$(dirname "$d")
+  done
   # One file, not a directory -- now or at <rev>. A directory would let the
   # swap below write a tree listing, or swap nothing at all.
   if [ -d "$TOP/$r" ] && [ ! -L "$TOP/$r" ]; then echo "bite: $r is a directory -- name the files"; exit 2; fi
   t=$(git -C "$TOP" cat-file -t "$REV:$r" 2>/dev/null) || t=
   [ -z "$t" ] || [ "$t" = blob ] || { echo "bite: $r is a $t at $REV, not a file"; exit 2; }
-  [ -n "$t" ] || [ -e "$TOP/$r" ] || [ -L "$TOP/$r" ] \
+  if ! present_now "$r" && { [ -e "$TOP/$r" ] || [ -L "$TOP/$r" ]; }; then
+    echo "bite: $r on disk is not a file git knows by exactly that name (letter case? ignored?) -- use the exact name"; exit 2
+  fi
+  [ -n "$t" ] || present_now "$r" \
     || { echo "bite: $r is neither in the tree now nor at $REV"; exit 2; }
 done
 
@@ -117,18 +138,13 @@ echo "  green"
 
 OLD="$WORK/old"
 copy "$OLD"
-REAL_OLD=$(cd "$OLD" && pwd -P)
 for r in "${REL[@]}"; do
   dest="$OLD/$r"
-  mkdir -p "$(dirname "$dest")"
   # Never write through a link: the copy keeps the tree's symlinks, and one
-  # pointing (or sitting in a directory pointing) back into the repository
-  # would carry the old version into the real working tree (review of #3462).
-  parent=$(cd "$(dirname "$dest")" && pwd -P)
-  case "$parent/" in
-    "$REAL_OLD"/*) ;;
-    *) echo "bite: $r sits under a symlink that leaves the copy -- refusing"; exit 2 ;;
-  esac
+  # pointing back into the repository would carry the old version into the
+  # real working tree (review of #3462). No directory on the way is a link
+  # (checked above), and the file itself goes before the new one is written.
+  mkdir -p "$(dirname "$dest")"
   rm -f "$dest"
   mode=$(git -C "$TOP" ls-tree "$REV" -- ":(literal)$r" 2>/dev/null | awk '{ print $1; exit }')
   case "$mode" in
