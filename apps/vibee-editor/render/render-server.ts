@@ -751,6 +751,7 @@ import {
   telegramFileUrlFor,
 } from './src/telegram-api'
 import { rewriteAppUrlsForToken } from './src/app-links'
+import { deliverToBuyer, liveBuyerBotDeps } from './src/buyer-delivery'
 import { renderFeedEntry } from './src/render-feed-entry'
 import * as MEETINGS from './src/spec/meeting-reminders.gen'
 import { TICK_MS as BLOG_SHARE_TICK_MS } from './src/spec/blog-share.gen'
@@ -1149,26 +1150,24 @@ const TELEGRAM_RENDERS_GROUP = '-1002737186844'
 // Send text message to Telegram
 async function sendTelegramMessage(
   chatId: string,
-  message: string
+  message: string,
+  token: string | undefined = TELEGRAM_BOT_TOKEN
 ): Promise<boolean> {
-  if (!TELEGRAM_BOT_TOKEN) {
+  if (!token) {
     console.warn('⚠️ TELEGRAM_BOT_TOKEN not set, skipping notification')
     return false
   }
   try {
-    const response = await fetch(
-      `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendMessage`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          // Links to the app open inside Telegram only (src/app-links.ts).
-          text: await rewriteAppUrlsForToken(message, TELEGRAM_BOT_TOKEN),
-          parse_mode: 'HTML',
-        }),
-      }
-    )
+    const response = await fetch(`${telegramApiFor(token)}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        // Links to the app open inside Telegram only (src/app-links.ts).
+        text: await rewriteAppUrlsForToken(message, token),
+        parse_mode: 'HTML',
+      }),
+    })
     const result = await response.json()
     if (!result.ok) {
       console.error('❌ Telegram sendMessage failed:', result)
@@ -1186,31 +1185,29 @@ async function sendTelegramMessage(
 async function sendTelegramVideo(
   chatId: string,
   videoUrl: string,
-  caption: string
+  caption: string,
+  token: string | undefined = TELEGRAM_BOT_TOKEN
 ): Promise<boolean> {
-  if (!TELEGRAM_BOT_TOKEN) {
+  if (!token) {
     console.warn('⚠️ TELEGRAM_BOT_TOKEN not set, skipping video notification')
     return false
   }
   try {
-    const response = await fetch(
-      `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendVideo`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          video: videoUrl,
-          caption: caption,
-          parse_mode: 'HTML',
-        }),
-      }
-    )
+    const response = await fetch(`${telegramApiFor(token)}/sendVideo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        video: videoUrl,
+        caption: caption,
+        parse_mode: 'HTML',
+      }),
+    })
     const result = await response.json()
     if (!result.ok) {
       console.error('❌ Telegram sendVideo failed:', result)
       // Fallback to message with link
-      return sendTelegramMessage(chatId, `${caption}\n\n🔗 ${videoUrl}`)
+      return sendTelegramMessage(chatId, `${caption}\n\n🔗 ${videoUrl}`, token)
     }
     console.log(`📹 Telegram video sent to ${chatId}`)
     return true
@@ -3472,6 +3469,7 @@ function startRenderAsync(
 
         if (uploadResult.success && uploadResult.signedUrl) {
           job.publicUrl = uploadResult.signedUrl
+          const signedUrl = uploadResult.signedUrl
           console.log(`📤 Uploaded MP4 to S3 with signed URL`)
 
           // Convert to HLS for smooth streaming (skip for GIFs)
@@ -3540,10 +3538,13 @@ function startRenderAsync(
 
           let deliveredToBuyer = false
           if (buyerChatId) {
-            deliveredToBuyer = await sendTelegramVideo(
+            // The person's own bot first, the house through @t27ai_bot
+            // (crm-story-reel v19, src/buyer-delivery.ts).
+            deliveredToBuyer = await deliverToBuyer(
               buyerChatId,
-              uploadResult.signedUrl,
-              buyerCaption
+              token =>
+                sendTelegramVideo(buyerChatId, signedUrl, buyerCaption, token),
+              liveBuyerBotDeps()
             )
             if (!deliveredToBuyer) {
               console.error(
@@ -7157,10 +7158,17 @@ const server = createServer(async (req, res) => {
                 const projectLine = userInfo?.project_name
                   ? `\n\n📹 ${userInfo.project_name}`
                   : ''
-                deliveredToBuyer = await sendTelegramVideo(
+                // Same bots, same order (src/buyer-delivery.ts).
+                deliveredToBuyer = await deliverToBuyer(
                   buyerChatId,
-                  publicUrl,
-                  `✅ <b>Готово!</b>${projectLine}\n⏱ ${renderTimeSec}s`
+                  token =>
+                    sendTelegramVideo(
+                      buyerChatId,
+                      publicUrl,
+                      `✅ <b>Готово!</b>${projectLine}\n⏱ ${renderTimeSec}s`,
+                      token
+                    ),
+                  liveBuyerBotDeps()
                 )
                 if (!deliveredToBuyer) {
                   console.error(
