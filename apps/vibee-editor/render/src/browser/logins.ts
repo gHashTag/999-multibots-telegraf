@@ -21,7 +21,9 @@
  *
  * WHAT IT DOES NOT CLAIM. A login cookie means the browser HOLDS a login,
  * not that the site still honours it -- X revokes sessions server-side, and
- * the cookie stays. The answer says so; opening the site is the proof.
+ * the cookie stays. The answer says so; opening the site is the proof, and
+ * a desk that was sent to a sign-in page writes that down (login-use.ts), so
+ * the person's answer says `refused` from then on.
  * Networks whose login cookie is not known here are reported as `unknown`,
  * never guessed as signed out: a wrong "signed out" sends the person to
  * sign in again to an account they already hold.
@@ -29,7 +31,17 @@
 import { browserWsUrl, callOnTarget } from './cdp'
 import { readSession, type Queryable } from './sessions'
 
-export type LoginState = 'signed_in' | 'expired' | 'signed_out' | 'unknown'
+/**
+ * `refused` (login-use.ts): the cookie is there, and a gated page sent us to
+ * the network's sign-in page with that very cookie -- the site no longer
+ * honours it. Every reader that acts on `signed_in` must treat it as not.
+ */
+export type LoginState =
+  | 'signed_in'
+  | 'refused'
+  | 'expired'
+  | 'signed_out'
+  | 'unknown'
 
 export interface Network {
   id: string
@@ -167,6 +179,8 @@ export interface NetworkLogin {
   id: string
   name: string
   state: LoginState
+  /** When the site refused the login (ISO), for `refused` only. */
+  refusedAt?: string
 }
 
 /** One line per network, from the marks alone. Pure. */
@@ -194,7 +208,8 @@ export function loginsOf(
 
 export const LOGINS_NOTE =
   'A login cookie means the browser holds a login, not that the site still honours it: ' +
-  'browser_open on the site is the proof. unknown = this network keeps its login where ' +
+  'browser_open on the site is the proof. refused = the cookie is there but the site sent ' +
+  'a desk to its sign-in page with it: treat as signed out, sign in again. unknown = this network keeps its login where ' +
   'we cannot tell; open it to see. To connect one, call browser_sign_in with that network ' +
   'FIRST -- it gives you the sign-in page, the order of steps and what earlier attempts on ' +
   'that site learned -- then follow it. The person types every password and code themselves ' +
@@ -235,9 +250,34 @@ export async function readLogins(
   nowMs: number,
   io: LoginsIo = loginsIo
 ): Promise<NetworkLogin[]> {
+  return loginsOf(await readMarks(cdpEndpoint, io), nowMs)
+}
+
+/** The pod's cookie list, already reduced to names, domains and expiries. */
+export async function readMarks(
+  cdpEndpoint: string,
+  io: LoginsIo = loginsIo
+): Promise<CookieMark[]> {
   const ws = await io.wsUrl(cdpEndpoint)
   const got = await io.call(ws, 'Storage.getCookies', {})
-  return loginsOf(marksOf(got.cookies), nowMs)
+  return marksOf(got.cookies)
+}
+
+/**
+ * The cookie answer corrected by use (login-use.ts). An unreadable refusal
+ * table leaves the cookie answer as it was -- the old behaviour, not a guess.
+ */
+async function personLogins(
+  q: Queryable,
+  telegramId: string,
+  cdpEndpoint: string
+): Promise<NetworkLogin[]> {
+  const now = Date.now()
+  const marks = await readMarks(cdpEndpoint)
+  const logins = loginsOf(marks, now)
+  const { refusalsOf, withUse } = await import('./login-use')
+  const refusals = await refusalsOf(q, telegramId).catch(() => [])
+  return withUse(logins, marks, refusals, now)
 }
 
 /**
@@ -259,10 +299,10 @@ export async function loginsOfPerson(
 ): Promise<NetworkLogin[] | null> {
   const session = await readSession(q, telegramId)
   if (session?.state === 'live' && session.cdpEndpoint)
-    return readLogins(session.cdpEndpoint, Date.now())
+    return personLogins(q, telegramId, session.cdpEndpoint)
   const { ensurePodTenants, unclaimedPodOf } = await import('./pod-tenant')
   await ensurePodTenants(q)
   const mine = await unclaimedPodOf(q, telegramId)
   if (!mine) return null
-  return readLogins(mine, Date.now())
+  return personLogins(q, telegramId, mine)
 }

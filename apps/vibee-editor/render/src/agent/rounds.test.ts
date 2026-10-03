@@ -310,6 +310,11 @@ describe('the round knows which networks the clone holds', () => {
     expect(isNotConnected('https://www.reddit.com/r/t27ai/', [])).toBe(false)
   })
 
+  it('a login the site refused (login-use.ts) is not connected either', () => {
+    const refused = [{ id: 'x', name: 'X', state: 'refused' as const }]
+    expect(isNotConnected('https://x.com/notifications', refused)).toBe(true)
+  })
+
   it('does not open a not-connected site, and says so in the message', async () => {
     const looked: string[] = []
     const said: string[] = []
