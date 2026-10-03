@@ -47,6 +47,7 @@ import {
   readSession,
   markAllowed,
   personHasTheWheel,
+  type BrowserSession,
   type Queryable,
 } from './sessions'
 import { agentMayOpen, mayAct } from './guard'
@@ -1332,10 +1333,45 @@ async function filmStep(
  * the agent works, a whole-screen frame is taken every two seconds; it stops
  * by itself once no step has come for TICK_IDLE_MS. One ticker per person.
  */
+/*
+ * THE PERSON'S OWN DRIVING IS NOT FILMED. The ticker runs for TICK_IDLE_MS
+ * after the agent's last step; a person who takes the wheel inside that
+ * window -- to sign in, to open their mail -- was filmed every two seconds
+ * and the frames went into the agent's report. ChatGPT agent takes no
+ * screenshots while the person controls the browser; neither does this. The
+ * ticker stops: the agent stands still under the person's hands, and its next
+ * step starts a new one.
+ */
+export function tickMayFilm(
+  session: Pick<
+    BrowserSession,
+    'state' | 'endpoint' | 'personWheelUntilMs'
+  > | null,
+  nowMs: number
+): 'film' | 'skip' | 'stop' {
+  if (personHasTheWheel(session, nowMs)) return 'stop'
+  if (!session || session.state !== 'live' || !session.endpoint) return 'skip'
+  return 'film'
+}
+
 const tickers = new Map<
   string,
   { last: number; timer: ReturnType<typeof setInterval> }
 >()
+
+/*
+ * A tick that was in flight when its ticker idled out can resolve after a
+ * new step has started a NEW ticker for the same person; deleting by id
+ * alone would orphan that one (its timer running, unreachable). Only the
+ * ticker that is stopping leaves the map.
+ */
+function stopTicker(
+  id: string,
+  state: { timer: ReturnType<typeof setInterval> }
+): void {
+  clearInterval(state.timer)
+  if (tickers.get(id) === state) tickers.delete(id)
+}
 
 function keepTicking(ctx: ToolContext): void {
   const id = ctx.telegramId
@@ -1352,8 +1388,7 @@ function keepTicking(ctx: ToolContext): void {
   let busy = false
   state.timer = setInterval(() => {
     if (Date.now() - state.last > TICK_IDLE_MS) {
-      clearInterval(state.timer)
-      tickers.delete(id)
+      stopTicker(id, state)
       return
     }
     if (busy) return
@@ -1361,7 +1396,9 @@ function keepTicking(ctx: ToolContext): void {
     void (async () => {
       try {
         const session = await readSession(ctx.pool as unknown as Queryable, id)
-        if (!session || session.state !== 'live' || !session.endpoint) return
+        const may = tickMayFilm(session, Date.now())
+        if (may === 'stop') stopTicker(id, state)
+        if (may !== 'film' || !session?.endpoint) return
         const jpeg = await desktopShot(session.endpoint, session.adminToken)
         addFrame(id, { at: Date.now(), tool: 'tick', jpeg })
       } catch {
