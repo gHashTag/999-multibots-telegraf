@@ -2053,6 +2053,14 @@ command of every cycle: a failed railway call printed a blank deployment line
 `scripts/tri-inflight.test.ts` proves it with gh and railway stubbed on PATH -
 the pattern for testing any tri helper that talks to a service, offline.
 
+**An upload is not a delivery.** `tri iphone testflight --yes` uploads with
+`skip_waiting_for_build_processing` (processing takes minutes to an hour), so
+"uploaded" left the owner opening an empty TestFlight. `tri iphone processed
+[--wait MIN]` asks Apple (read-only, no --yes): 0 ready, 1 refused/expired,
+4 not yet, 3 no app record; waiting, it posts a Mac notification. After the
+first upload: `tri iphone processed --wait 60`. The guard test over the
+hand-typed `modes:` list caught the new word missing from the refusal.
+
 ### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
 
 The screen now translates a waiting reason by code and falls back to the

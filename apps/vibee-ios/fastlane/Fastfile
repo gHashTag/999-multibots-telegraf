@@ -6,6 +6,7 @@
 #   fastlane build_only  a signed App Store .ipa in build/ipa, nothing sent
 #   fastlane beta        build and upload to TestFlight (internal testers)
 #   fastlane testers     the internal group new builds reach, holder in it
+#   fastlane processed   has Apple finished with the newest upload (read-only)
 #   fastlane metadata    the App Store page texts from fastlane/metadata
 #
 # `tri iphone store` runs preflight + state; `tri iphone testflight --yes`
@@ -34,6 +35,7 @@ require "shellwords"
 require_relative "store_metadata"
 require_relative "test_notes"
 require_relative "team_group"
+require_relative "build_wait"
 
 default_platform(:ios)
 
@@ -272,6 +274,34 @@ platform :ios do
     else
       UI.user_error!("next build #{number} is NOT above the latest #{latest}: " \
                      "set VIBEE_BUILD to something larger")
+    end
+  end
+
+  desc "Has Apple finished processing the newest upload (read-only)"
+  lane :processed do
+    # Read-only like `state`: no consent needed. PROCESSED_WAIT_MIN polls once
+    # a minute while the build is still PROCESSING; PROCESSED_BUILD picks a
+    # build number instead of the newest. The last line is the verdict
+    # (build_wait.rb), which `tri iphone processed` turns into its exit code.
+    api_key
+    app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    UI.user_error!("App Store Connect has no app with bundle id #{BUNDLE_ID}: `tri iphone state` says what is missing") unless app
+
+    want = ENV["PROCESSED_BUILD"]
+    deadline = Time.now + ENV["PROCESSED_WAIT_MIN"].to_i * 60
+    loop do
+      builds = Spaceship::ConnectAPI::Build.all(app_id: app.id, sort: "-uploadedDate", limit: 10).map do |b|
+        { version: b.version, app_version: b.app_version, state: b.processing_state, expired: b.expired }
+      end
+      build = BuildWait.pick(builds, want)
+      verdict = build ? BuildWait.verdict(build[:state], build[:expired]) : :none
+      if verdict == :processing && Time.now < deadline
+        UI.message("waiting   build #{build[:version]} still PROCESSING, next look in 60 s")
+        sleep 60
+        next
+      end
+      UI.message(BuildWait.line(build, verdict, want))
+      break
     end
   end
 
