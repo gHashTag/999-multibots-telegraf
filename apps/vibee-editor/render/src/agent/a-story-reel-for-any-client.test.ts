@@ -2549,7 +2549,10 @@ describe('the shade that reads, named on a refusal (spec v12)', () => {
   })
 })
 
-describe('the CRM presses a template for any client (crm-story-reel v20)', () => {
+// The house template stays on the seller's own reel until crm-story-reel
+// v22 (a-template-stays-home.test.ts): a client's press is refused there, so
+// these press it for the seller himself.
+describe('the CRM presses a template on the seller own reel (crm-story-reel v20)', () => {
   const reel = { done: true, url: 'https://bucket.example/reel.mp4' }
   const press = (base: ReturnType<typeof fakeBase>) =>
     makeCrmStoryTool({
@@ -2558,11 +2561,28 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     })
   const as = (base: ReturnType<typeof fakeBase>) =>
     ({ telegramId: SELLER, pool: base.pool }) as unknown as ToolContext
+  /** The seller in his own CRM, with a face and a clone. */
+  const qualifyOwn = (base: ReturnType<typeof fakeBase>) => {
+    base.db.people.push({
+      owner_id: SELLER,
+      lead_id: SELLER,
+      first_name: 'Seller',
+      avatar_url: FACE,
+    })
+    base.db.voices.push({
+      owner_id: SELLER,
+      lead_id: SELLER,
+      username: 'example_seller',
+      voice_id: 'seller-voice-1',
+      seconds: 21,
+      created: 1,
+    })
+  }
 
   it('the ready answer carries the gallery the panel draws', async () => {
     const base = fakeBase()
-    qualify(base)
-    const out: any = await press(base).handler({ lead: LENA }, as(base))
+    qualifyOwn(base)
+    const out: any = await press(base).handler({ lead: SELLER }, as(base))
     expect(out.ready).toBe(true)
     expect(
       out.templates.map((t: any) => `${t.id}/${t.language}/${t.scenes}`)
@@ -2572,13 +2592,13 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     ])
   })
 
-  it('a pressed template speaks its lines in the studio, the seller edit included, with its call and button', async () => {
+  it('a pressed template speaks its lines in the studio, the seller edit included, with its call', async () => {
     const base = fakeBase()
-    qualify(base)
+    qualifyOwn(base)
     const mine = 'Trinity answers my clients at night.'
     const out: any = await press(base).handler(
       {
-        lead: LENA,
+        lead: SELLER,
         start: true,
         template: SPEC.TEMPLATE_HOOK_STUDIO,
         language: 'en',
@@ -2598,15 +2618,16 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     ])
     expect(scenes.every((s: any) => s.setting === '')).toBe(true)
     expect(job.cta).toBe(SPEC.TEMPLATE_CALL_EN)
-    expect(JSON.parse(String(job.end_card)).button).toBe(SPEC.TEMPLATE_BUTTON)
+    // No button check: an own reel stores no seller card (startStory,
+    // byClient), so the template's button never reaches the row.
   })
 
   it('a template line past the editor is refused, and nothing starts', async () => {
     const base = fakeBase()
-    qualify(base)
+    qualifyOwn(base)
     const out: any = await press(base).handler(
       {
-        lead: LENA,
+        lead: SELLER,
         start: true,
         template: SPEC.TEMPLATE_HOOK_STUDIO,
         language: 'en',
