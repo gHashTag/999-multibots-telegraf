@@ -223,3 +223,25 @@ export async function readJournal(
         : ((r.detail ?? {}) as Record<string, unknown>),
   }))
 }
+
+/**
+ * When a desk's start last told the person, in ms; null if never or if the
+ * journal cannot be read -- an unreadable journal errs toward telling them.
+ */
+export async function lastAnnouncedDeskStart(
+  q: Queryable,
+  telegramId: string
+): Promise<number | null> {
+  try {
+    await ensureJournal(q)
+    const { rows } = await q.query(
+      `SELECT max(at) AS at FROM browser_journal WHERE telegram_id = $1 AND tool = 'browser_start' AND (detail->>'announced') = 'true'`,
+      [telegramId]
+    )
+    const at = (rows as Array<{ at?: unknown }>)[0]?.at
+    const ms = at ? new Date(String(at)).getTime() : NaN
+    return Number.isFinite(ms) ? ms : null
+  } catch {
+    return null
+  }
+}

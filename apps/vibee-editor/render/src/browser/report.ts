@@ -20,7 +20,7 @@
  * separate from sending, so the wording is tested without a network.
  */
 import type { JournalRow } from './journal'
-import { openBrowserButton } from './announce'
+import { deskName, openBrowserButton } from './announce'
 
 /** Telegram's limit for a message; the report stays under it. */
 export const REPORT_MAX_CHARS = 3900
@@ -54,20 +54,6 @@ const STEP_WORDS: Record<string, (d: Record<string, unknown>) => string> = {
   browser_restart: d => `Перезапустил браузер: ${deskName(d.by)}`, // cyrillic-ok
   browser_ask_permission: d =>
     `Попросил разрешения${typeof d.what === 'string' && d.what ? `: ${d.what}` : ''}`, // cyrillic-ok
-}
-
-/* cyrillic-ok: who started the browser, in the person's words */
-const DESK_NAMES: Record<string, string> = {
-  reddit: 'стол Reddit читает входящие', // cyrillic-ok
-  engage: 'стол комментариев', // cyrillic-ok
-  'blog-share': 'публикация блога', // cyrillic-ok
-  rounds: 'обход сетей', // cyrillic-ok
-  scenarios: 'сценарий', // cyrillic-ok
-  heal: 'починка зависшего браузера', // cyrillic-ok
-}
-
-function deskName(by: unknown): string {
-  return (typeof by === 'string' && DESK_NAMES[by]) || 'агент' // cyrillic-ok
 }
 
 function host(url: unknown): string {

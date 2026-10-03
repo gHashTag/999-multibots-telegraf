@@ -65,9 +65,14 @@ import {
 } from './profiles'
 import { fitDesktop, isVisibleBox, wantedScreen } from './screen'
 import { handMouseToPerson } from './mouse'
-import { readJournal, recordStep } from './journal'
+import { lastAnnouncedDeskStart, readJournal, recordStep } from './journal'
 import type { PodDriver } from './pod-driver'
-import { announceBrowserStarted, type Actor, type Announcer } from './announce'
+import {
+  announceBrowserStarted,
+  deskStartMayAnnounce,
+  type Actor,
+  type Announcer,
+} from './announce'
 import {
   cdpTypeIo,
   canTypeInto,
@@ -1117,14 +1122,23 @@ export async function startBrowserAsAgent(
   await ensureBrowserSessions(pool)
   await ensureBrowserProfiles(pool)
   const t0 = Date.now()
-  const out = await open(pool, deps, deps.driver, who, 'agent')
+  /* A desk tells the person once per quiet window (announce.ts). */
+  const quiet = by
+    ? !deskStartMayAnnounce(await lastAnnouncedDeskStart(pool, who), t0)
+    : false
+  const out = await open(pool, deps, deps.driver, who, 'agent', {
+    by,
+    quiet,
+  })
   const ok = out.status < 300
   if (by)
     await recordStep(pool, who, {
       tool: 'browser_start',
       ok,
       ms: Date.now() - t0,
-      detail: ok ? { by } : { by, error: `status ${out.status}` },
+      detail: ok
+        ? { by, ...(out.announced ? { announced: true } : {}) }
+        : { by, error: `status ${out.status}` },
     })
   return ok
 }
@@ -1134,8 +1148,10 @@ async function open(
   deps: BrowserDeps,
   driver: PodDriver,
   who: string,
-  actor: Actor
-): Promise<RouteResult> {
+  actor: Actor,
+  /** Who started it, and whether to keep quiet about it (desk starts). */
+  start: { by?: string; quiet?: boolean } = {}
+): Promise<RouteResult & { announced?: boolean }> {
   const existing = await readSession(pool, who)
   if (existing?.podId && (await driver.alive(existing.podId))) {
     await touchSession(pool, who)
@@ -1197,10 +1213,11 @@ async function open(
      * Announced AFTER the pod is up, so the button in Telegram leads to a
      * browser that exists. Announced before would race the person opening it.
      */
-    if (deps.announcer) {
-      await announceBrowserStarted(deps.announcer, who, actor)
-    }
-    return { status: 201, body: publicView(live) }
+    const announced =
+      !!deps.announcer &&
+      !start.quiet &&
+      (await announceBrowserStarted(deps.announcer, who, actor, start.by))
+    return { status: 201, body: publicView(live), announced }
   } catch (err) {
     await dropSession(pool, who)
     return {
