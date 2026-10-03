@@ -7,6 +7,7 @@
  * off -- a round that skipped every time the pod was asleep would never run.
  */
 import type { Queryable } from '../browser/sessions'
+import { ruleFor, type SiteRuleRow } from '../browser/site-rules'
 
 const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -53,7 +54,7 @@ export async function runRoundNow(
 
   const { loginsOfPerson } = await import('../browser/logins')
   const { deskMayGo } = await import('../browser/desk-page')
-  const { siteRulesOf, ruleFor } = await import('../browser/site-rules')
+  const { siteRulesOf } = await import('../browser/site-rules')
   /*
    * THE PERSON'S SITE LIST, read before the walk (#3488, found by the bee):
    * the round opens and navigates its own window over raw CDP, past the
@@ -63,7 +64,9 @@ export async function runRoundNow(
    */
   const rules = await siteRulesOf(pool, owner)
   if (rules === null) return 'site list unreadable'
-  const sites = strategy.sites.filter(s => ruleFor(s.url, rules) !== 'block')
+  const sites = walkableSites(strategy.sites, rules)
+  /* Nothing left to walk: no round, and no empty message to the person. */
+  if (!sites.length) return 'every site of the round is blocked'
   const who = { pool, telegramId: owner }
 
   /** The endpoint of the person's browser, started if it is not up yet. */
@@ -159,6 +162,18 @@ export async function runRoundNow(
     /* A round leaves no windows behind: the person's browser is theirs. */
     await win.close()
   }
+}
+
+/**
+ * The round's sites minus those the person blocked (#3488). Pure, so the
+ * filter is held by a test: the bee's mutation that walked blocked sites
+ * again survived every suite.
+ */
+export function walkableSites<T extends { url: string }>(
+  sites: T[],
+  rules: SiteRuleRow[]
+): T[] {
+  return sites.filter(s => ruleFor(s.url, rules) !== 'block')
 }
 
 /** Where the time of the last round is kept, so a deploy cannot forget it. */
