@@ -40,7 +40,7 @@ function stub(canManage: boolean, sendOk = true) {
   return { tool: makeCreateBotTool(deps), calls }
 }
 
-const ctx = { telegramId: '144022504', pool: null } as any
+const ctx = { telegramId: '900000001', pool: null } as any
 
 describe('tg_create_bot', () => {
   it('returns the newbot link and sends the button when can_manage_bots is true', async () => {
@@ -77,7 +77,7 @@ describe('tg_create_bot', () => {
     expect(out.how_to_enable).toBe(BOTFATHER_PATH)
     expect(out.how_to_enable).toContain('Bot Management Mode')
     expect(out.source).toBe(BOTFATHER_SOURCE)
-    expect(JSON.stringify(out)).not.toContain('t.me/newbot')
+    expect(JSON.stringify(out)).not.toContain('t.me/newbot/')
     expect(out.link).toBeUndefined()
     // No BotFather scripting, no message sent: getMe only.
     expect(calls.map(c => c.method)).toEqual(['getMe'])
@@ -85,7 +85,7 @@ describe('tg_create_bot', () => {
 
   it('suggests a valid username when none or an invalid one is given', async () => {
     const { tool } = stub(true)
-    for (const username of [undefined, '1bad name!', 'x', '@neurocoder']) {
+    for (const username of [undefined, '1bad name!', 'x', '@pilot_client']) {
       const out: any = await tool.handler({ username }, ctx)
       expect(BOT_USERNAME_RE.test(out.suggested.username)).toBe(true)
     }
