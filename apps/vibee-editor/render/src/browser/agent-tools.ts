@@ -35,7 +35,7 @@ import { askForInput, asKind, optionsFor, waitForAnswer } from './input-request'
  */
 
 import type { AgentTool, ToolContext } from '../agent/tools'
-import { playbookFor } from './sign-in'
+import { DOORS, playbookFor } from './sign-in'
 import {
   ensureApprovals,
   askFor,
@@ -816,6 +816,22 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         signedIn: networks
           .filter(n => n.state === 'signed_in')
           .map(n => n.name),
+        /*
+         * SIGN IN AGAIN, ONE STEP AWAY (login-use.ts). A login the site
+         * refused comes with its own door, so the next call is browser_open
+         * on it and the person types -- not a search for the sign-in link.
+         */
+        ...(networks.some(n => n.state === 'refused')
+          ? {
+              signInAgain: networks
+                .filter(n => n.state === 'refused')
+                .map(n => ({
+                  name: n.name,
+                  refusedAt: n.refusedAt,
+                  door: DOORS[n.id] ?? null,
+                })),
+            }
+          : {}),
         note: LOGINS_NOTE,
       }
     },
@@ -864,6 +880,13 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
           ok: false,
           why: `no network called "${asked}" is known here`,
           known: NETWORKS.map(n => n.id),
+        }
+      }
+      if (plan.state === 'refused') {
+        return {
+          ok: true,
+          ...plan,
+          note: 'the browser holds a login cookie, but the site sent a desk to its sign-in page with it: sign in again through the door; the person types.',
         }
       }
       if (plan.state === 'signed_in') {

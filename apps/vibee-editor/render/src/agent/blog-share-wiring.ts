@@ -114,26 +114,59 @@ export async function publishEverywhere(
    * owner is told which of the two happened.
    */
   const { noteShape } = await import('./reach-log')
-  /* Posted by X's API already: no thread in the browser on top of it. */
-  if (!String(viaApi.X || '').startsWith(VIA_API))
-    try {
-      out.X = await postThreadOnX(cdp, a)
-      /* Which shape it took, written down while it is certain (reach-log.ts). */
-      void noteShape(pool, a.slug, 'thread')
-    } catch (e) {
-      out.X = `тред не получился: ${String(e).slice(0, 100)}` // cyrillic-ok: told to the owner
-    }
 
   /*
    * A NETWORK THE BROWSER IS NOT SIGNED INTO IS NOT OPENED (#2965's rule,
    * browser/logins.ts): its share page would be a sign-in form, and "Post"
    * on a sign-in form is somebody else's button. Unreadable logins: every
-   * network is tried, as before.
+   * network is tried, as before. Read BEFORE the X thread, which used to open
+   * X's composer whatever the browser held.
    */
-  const { loginsOfPerson } = await import('../browser/logins')
+  const { loginsOfPerson, readMarks } = await import('../browser/logins')
+  const { judgeUse, refusedLine } = await import('../browser/login-use')
   const { isNotConnected } = await import('./rounds')
   const { receiptOf } = await import('./blog-share')
   const logins = await loginsOfPerson(pool, owner).catch(() => null)
+  /* The owner's line for a network that is not opened, by WHY it is not. */
+  const notOpened = (net: string): string => {
+    const l = logins?.find(x => x.name === net)
+    return l?.state === 'refused'
+      ? refusedLine(l.refusedAt)
+      : 'не подключена — вход не найден, ничего не нажато' // cyrillic-ok: told to the owner
+  }
+  /*
+   * A GATED PAGE IS THE LOGIN'S TEST (login-use.ts). The share page and the
+   * composer need the login to show; one that lands on the network's sign-in
+   * page is a refusal, written down so browser_logins says `refused` until
+   * the person signs in again. Its tab is closed: a sign-in form left behind
+   * is the stuck-sign-in litter `tri browser tidy` kept finding.
+   */
+  const walled = async (asked: string, pageId: string): Promise<boolean> => {
+    /* Origin and path only: a sign-in URL's query can carry a one-time token. */
+    const landed = String(await evaluateOn(cdp, pageId, LANDED).catch(() => ''))
+    const use = await judgeUse(pool, owner, asked, landed, () => readMarks(cdp))
+    if (!use?.refused) return false
+    await closePage(cdp, pageId).catch(() => undefined)
+    return true
+  }
+
+  /* Posted by X's API already: no thread in the browser on top of it. */
+  if (String(viaApi.X || '').startsWith(VIA_API)) {
+    /* nothing: the API answered */
+  } else if (isNotConnected(urls.x, logins)) {
+    out.X = notOpened('X')
+  } else
+    try {
+      const thread = await postThreadOnX(cdp, a, walled)
+      if (thread === WALLED) out.X = refusedLine(new Date().toISOString())
+      else {
+        out.X = thread
+        /* Which shape it took, written down while it is certain (reach-log.ts). */
+        void noteShape(pool, a.slug, 'thread')
+      }
+    } catch (e) {
+      out.X = `тред не получился: ${String(e).slice(0, 100)}` // cyrillic-ok: told to the owner
+    }
   for (const [net, url, labels] of [
     ['X', urls.x, SHARE_LABELS.X],
     ['LinkedIn', urls.linkedin, SHARE_LABELS.LinkedIn],
@@ -145,12 +178,16 @@ export async function publishEverywhere(
     /* Already answered by its API -- the browser does not post it twice. */
     if (net !== 'X' && net in viaApi) continue
     if (isNotConnected(url, logins)) {
-      out[net] = 'не подключена — вход не найден, ничего не нажато' // cyrillic-ok: told to the owner
+      out[net] = notOpened(net)
       continue
     }
     try {
       const page = await newDeskPage(cdp, url)
       await settle(FIRST_SETTLE_MS)
+      if (await walled(url, page.id)) {
+        out[net] = refusedLine(new Date().toISOString())
+        continue
+      }
       let pressed: string | null = null
       /*
        * One look at six seconds missed the button on a cold browser: the
@@ -210,7 +247,17 @@ export async function publishEverywhere(
  * falls back to the old single post rather than leaving the article
  * unpublished.
  */
-async function postThreadOnX(cdp: string, a: Article): Promise<string> {
+/** Where a page ended up, without its query. */
+export const LANDED = 'location.origin + location.pathname'
+
+/** What postThreadOnX answers when X sent its composer to the sign-in page. */
+const WALLED = 'walled'
+
+async function postThreadOnX(
+  cdp: string,
+  a: Article,
+  walled: (asked: string, pageId: string) => Promise<boolean>
+): Promise<string> {
   const { xThread } = await import('./blog-share')
   const { newDeskPage } = await import('../browser/desk-page')
   const { evaluateOn, clickAt, typeText, closePage } = await import(
@@ -218,8 +265,10 @@ async function postThreadOnX(cdp: string, a: Article): Promise<string> {
   )
   const { findProbe, foundOf } = await import('../browser/find-target')
   const thread = xThread(a)
-  const page = await newDeskPage(cdp, 'https://x.com/compose/post')
+  const COMPOSE = 'https://x.com/compose/post'
+  const page = await newDeskPage(cdp, COMPOSE)
   await settle(8_000)
+  if (await walled(COMPOSE, page.id)) return WALLED
 
   const press = async (labels: string[]): Promise<string> => {
     for (const label of labels) {
