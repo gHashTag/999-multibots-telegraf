@@ -45,8 +45,10 @@ import { cutShot, shotOfScene } from './studio-shots'
 import type { HeardVoice } from './split-reel-tool'
 import {
   cardForReel,
+  houseReplacedNote,
   languageOf,
   reelCall,
+  takenWord,
   voiceOf,
 } from './story-reel-templates'
 import { captionsFromWords, type SpokenWord } from '../split-reel-plan'
@@ -1039,6 +1041,7 @@ export function makeStoryReelTool(
       const lead = voice === SPEC.SPEAKS_LEAD ? named || faceOf : ''
       let cta = String(args.cta ?? '')
       let endCard = endCardOf(args.end_card)
+      let houseReplaced = ''
       if (lead && lead !== me && ctx.surface !== 'story') {
         const { storySettingsOf, STORY_DEFAULT_CTA } = await import(
           './story-template'
@@ -1046,11 +1049,19 @@ export function makeStoryReelTool(
         const her = ctx.pool
           ? await storySettingsOf(ctx.pool as never, lead, me).catch(() => null)
           : null
-        cta = reelCall({
+        const call = reelCall({
           given: args.cta,
           ownReel: false,
           ownCall: her?.cta || STORY_DEFAULT_CTA,
-        }).call
+        })
+        cta = call.call
+        // The house's words the agent wrote are replaced, and the answer says
+        // so in one line (house_word_replaced), as the CRM press does.
+        const button = String(endCard?.button ?? '')
+        houseReplaced = houseReplacedNote(
+          [call.replaced, takenWord(button, false).replaced ? button : ''],
+          cta
+        )
         endCard = mergeEndCard(
           cardForReel(endCard, false),
           cardForReel(her?.keptCard, false),
@@ -1395,6 +1406,7 @@ export function makeStoryReelTool(
                 10,
             }
           : {}),
+        ...(houseReplaced ? { house_replaced: houseReplaced } : {}),
         give_to_person: r.url,
       }
     },

@@ -24,6 +24,7 @@ import {
   type StoryLate,
 } from './story-reel-tool'
 import type { LateOutcome } from './late-picture'
+import { STORY_DEFAULT_CTA } from './story-template'
 import * as SPEC from '../spec/crm-story-reel.gen'
 
 type Call = { name: string; args: Record<string, any> }
@@ -247,11 +248,15 @@ describe('story_reel for a client: her voice, her call, her card (v22)', () => {
       title: '#ffd700',
       button: 'Book · @example_bot',
     })
+    // The house words the agent wrote are named in one line (house_word_replaced).
+    expect(r.house_replaced).toContain(SPEC.TEMPLATE_CALL_EN)
+    expect(r.house_replaced).toContain(SPEC.TEMPLATE_BUTTON)
+    expect(r.house_replaced).toContain('Book a fitting')
   })
 
   it("the house's own reel keeps the house call, and speaks the caller", async () => {
     const { lookup, calls } = fakeTools()
-    await makeStoryReelTool(lookup).handler(
+    const r: any = await makeStoryReelTool(lookup).handler(
       {
         ...ARGS,
         cta: SPEC.TEMPLATE_CALL_EN,
@@ -259,11 +264,97 @@ describe('story_reel for a client: her voice, her call, her card (v22)', () => {
       },
       ctx
     )
+    expect(r.done).toBe(true)
+    expect(r).not.toHaveProperty('house_replaced')
     const props = calls.find(c => c.name === 'reel_render')!.args.props
     expect(props.cta).toBe(SPEC.TEMPLATE_CALL_EN)
     expect(props.endCard.button).toBe(SPEC.TEMPLATE_BUTTON)
     for (const c of calls.filter(c => c.name === 'audio_generate'))
       expect(c.args.for_lead).toBeUndefined()
+  })
+
+  /*
+   * HER CALL, IN HER PROFILE'S ORDER (spec profile_call_from): story_reel.cta,
+   * then approved_cta (a {text} package or a plain string), then the default.
+   * A call in her profile that names the house is not hers and is skipped.
+   */
+  const poolWith = (profile: unknown, kept: unknown = null) => ({
+    query: async (sql: string) =>
+      /SELECT profile FROM crm_client_profiles/.test(sql)
+        ? { rows: [{ profile }] }
+        : kept && /SELECT end_card FROM story_end_cards/.test(sql)
+          ? { rows: [{ end_card: kept }] }
+          : { rows: [] },
+  })
+  const noCall = { ...ARGS, cta: '' }
+
+  it.each([
+    [
+      'her story call over her approved one',
+      {
+        story_reel: { cta: 'Write me in direct' },
+        approved_cta: { text: 'Book a fitting' },
+      },
+      'Write me in direct',
+    ],
+    [
+      'her approved package text',
+      { approved_cta: { text: 'Book a fitting' } },
+      'Book a fitting',
+    ],
+    [
+      'her approved call as a plain string',
+      { approved_cta: 'Call me today' },
+      'Call me today',
+    ],
+    [
+      'her approved call when her story call names the house',
+      {
+        story_reel: { cta: SPEC.TEMPLATE_CALL_EN },
+        approved_cta: 'Call me today',
+      },
+      'Call me today',
+    ],
+    ['the default when her profile has no call', {}, STORY_DEFAULT_CTA],
+  ])(
+    'with no call given, a reel for her ends on %s',
+    async (_, profile, want) => {
+      const { lookup, calls } = fakeTools()
+      const r: any = await makeStoryReelTool(lookup).handler(noCall, {
+        telegramId: '900000001',
+        faceOf: LEAD,
+        pool: poolWith(profile),
+      } as never)
+      expect(r.done).toBe(true)
+      expect(r).not.toHaveProperty('house_replaced')
+      const props = calls.find(c => c.name === 'reel_render')!.args.props
+      expect(props.cta).toBe(want)
+    }
+  )
+
+  it('her kept card is her end card; a kept house button is dropped for her profile one', async () => {
+    const kept = { bg: '#222222', button: 'Write me' }
+    const a = fakeTools()
+    await makeStoryReelTool(a.lookup).handler(noCall, {
+      telegramId: '900000001',
+      faceOf: LEAD,
+      pool: poolWith(HER, kept),
+    } as never)
+    const card = a.calls.find(c => c.name === 'reel_render')!.args.props.endCard
+    expect(card).toMatchObject({ bg: '#222222', button: 'Write me' })
+
+    const b = fakeTools()
+    await makeStoryReelTool(b.lookup).handler(noCall, {
+      telegramId: '900000001',
+      faceOf: LEAD,
+      pool: poolWith(HER, { ...kept, button: SPEC.TEMPLATE_BUTTON }),
+    } as never)
+    const house = b.calls.find(c => c.name === 'reel_render')!.args.props
+      .endCard
+    expect(house).toMatchObject({
+      bg: '#222222',
+      button: 'Book · @example_bot',
+    })
   })
 })
 
