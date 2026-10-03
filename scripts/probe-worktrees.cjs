@@ -31,14 +31,16 @@
  *   - no process has its working directory inside (a live session);
  *   - not touched in the last hour (a session between two commands);
  *   - no other worktree nested inside (removing the parent deletes the child);
- *   - every IGNORED file is one we can regenerate (node_modules, caches,
- *     dist, logs), and none of those folders hides a secret-looking file
- *     (.env*, *.pem, *.key, *.p8, *.p12). An ignored `.env` is someone's
- *     local file, not ours -- including `logs/.env`: plain `--ignored`
- *     collapses a folder whose files are all ignored into one `logs/` line,
- *     and the bee reviewing #3474 removed a `logs/.env` that way. Ignored
- *     files are listed with `--ignored=matching`, and empty ignored folders
- *     are harmless.
+ *   - every IGNORED file sits in something we can regenerate (node_modules,
+ *     caches, dist, logs), and nothing in there is a name the tree's own
+ *     .gitignore lists for its own sake (`.env*`, `credentials.json`,
+ *     `*.keystore`, `secrets/` -- asked of `git check-ignore`, never copied
+ *     here), a nested `.git`, or a folder we could not read. An ignored
+ *     `.env` is someone's local file, not ours -- including `logs/.env`:
+ *     plain `--ignored` collapses a folder whose files are all ignored into
+ *     one `logs/` line, and the bee reviewing #3474 removed a `logs/.env`
+ *     that way. Ignored files are listed with `--ignored=matching`, and
+ *     empty ignored folders are harmless.
  * On 03.10 the old proposal list carried `git worktree remove --force` for a
  * tree holding an ignored .env AND a nested worktree; --force deletes both
  * silently. Removal runs WITHOUT --force, so git's own clean check covers the
@@ -66,27 +68,7 @@ const ok = (args, cwd = ROOT) => {
   }
 }
 
-/**
- * Names nobody can rebuild, wherever they sit: the secret names this repo's
- * own .gitignore lists, plus `.git` -- a nested repository may hold commits
- * that were never pushed, and `git worktree remove` deletes it whole.
- * Exact names on purpose: a loose "contains secret" would block every tree
- * on compiled files like dist/utils/webhookSecret.js.
- */
-const SECRET = [
-  /^\.git$/,
-  /^\.env/,
-  /\.(pem|key|p8|p12|pfx)$/,
-  /^(credentials|tokens|auth|service-account|api_keys)\.json$/,
-  /^secrets(\.(json|ya?ml))?$/,
-  /^\.secrets/,
-  /^\.gitsecrets$/,
-  /_(secrets|credentials)_/,
-  /^id_(rsa|dsa|ed25519|ecdsa)/,
-]
-const secretName = name => SECRET.some(re => re.test(name))
-
-/** Ignored entries we can rebuild, matched per path component. */
+/** Ignored folders we can rebuild, matched per path component. */
 const REGENERABLE = [
   /^node_modules$/,
   /^\.vite-cache$/,
@@ -101,73 +83,136 @@ const REGENERABLE = [
   /\.xcodeproj$/,
   /\.log$/,
 ]
+const rebuildableName = c => REGENERABLE.some(re => re.test(c))
 
 /**
- * Rebuildable by name: the entry itself or any folder above it matches
- * (`--ignored=matching` lists files deep inside build output). A secret-
- * looking name -- the entry or any folder above it -- is never rebuildable,
- * except inside node_modules, which npm rewrites whole.
+ * Inside something rebuildable by name: the entry itself or any folder above
+ * it matches (`--ignored=matching` lists files deep inside build output).
+ * Whether a file in there is still someone's -- a `.env`, a keystore -- is
+ * decided by `listedNames`, not here.
  */
 const regenerable = entry => {
   const parts = entry.replace(/\/+$/, '').split('/')
-  if (parts.includes('node_modules')) return true
-  if (parts.some(secretName)) return false
-  return parts.some(c => REGENERABLE.some(re => re.test(c)))
+  return parts.includes('node_modules') || parts.some(rebuildableName)
 }
 
 /**
- * First secret-looking file under an ignored folder we would call
- * regenerable (a secret name or a nested `.git`), or null. A folder it
- * cannot read counts as holding one. Symlinks are not followed (a worktree's node_modules
- * is often a link into the main checkout); the walk is bounded, and a folder
- * too big to walk counts as holding one.
+ * Every path below `dir`, relative to `base`, folders ending in '/'.
+ * Symlinks are listed, not followed (a worktree's node_modules is often a
+ * link into the main checkout); node_modules is skipped (npm rewrites it
+ * whole). A folder it cannot read, or a walk too big to finish, ends in
+ * `stuck`: "could not look" keeps the tree, as a failed lsof does.
  */
-function hiddenSecret(dir, budget = { left: 20000 }) {
+function walk(dir, base, acc = { paths: [], stuck: null, left: 20000 }) {
   let entries
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true })
   } catch {
-    return dir + ' (unreadable)'
+    acc.stuck = path.relative(base, dir) + ' (unreadable)'
+    return acc
   }
   for (const e of entries) {
-    if (--budget.left < 0) return dir + ' (too big to check)'
-    const p = path.join(dir, e.name)
-    if (e.isSymbolicLink()) continue
-    if (secretName(e.name)) return p
-    if (e.isDirectory()) {
-      if (e.name === 'node_modules') continue
-      const hit = hiddenSecret(p, budget)
-      if (hit) return hit
+    if (acc.stuck) return acc
+    if (--acc.left < 0) {
+      acc.stuck = path.relative(base, dir) + ' (too big to check)'
+      return acc
     }
+    if (e.name === 'node_modules') continue
+    const p = path.join(dir, e.name)
+    const isDir = e.isDirectory() && !e.isSymbolicLink()
+    acc.paths.push(path.relative(base, p) + (isDir ? '/' : ''))
+    if (isDir) walk(p, base, acc)
   }
-  return null
+  return acc
 }
 
-/** Why an ignored entry must stay, or null when it can go with the tree. */
-function ignoredRisk(treeDir, entry) {
-  const full = path.join(treeDir, entry)
-  let st
+/**
+ * The names this tree's OWN .gitignore lists for their own sake -- `.env*`,
+ * `credentials.json`, `*.keystore`, `secrets/`, `payments_data*.json` --
+ * asked of git itself, each name standing alone at the root (a folder with a
+ * trailing slash). It has to be asked name by name: inside an ignored folder
+ * git reports only the folder's pattern. Null when git cannot answer.
+ *
+ * .gitignore is the one list. A hand copy of it in this file drifted within
+ * a day: the bee merging #3474 found ~20 names the copy lacked and removed
+ * `build/outputs/release.keystore` and `logs/passwords.txt` with it.
+ */
+function listedNames(treeDir, names) {
+  if (!names.length) return new Set()
   try {
-    st = fs.lstatSync(full)
-  } catch {
-    return null
+    const out = execFileSync(
+      'git',
+      ['check-ignore', '--no-index', '-z', '--stdin'],
+      {
+        cwd: treeDir,
+        input: names.join('\0') + '\0',
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }
+    )
+    return new Set(out.split('\0').filter(Boolean))
+  } catch (e) {
+    return e.status === 1 ? new Set() : null
   }
-  if (st.isDirectory() && !st.isSymbolicLink()) {
-    let empty = false
+}
+
+/** Each component of a path: folders with a trailing slash. */
+const components = p => {
+  const parts = p.replace(/\/$/, '').split('/')
+  return parts.map((c, i) =>
+    i < parts.length - 1 || p.endsWith('/') ? c + '/' : c
+  )
+}
+
+/**
+ * Why ignored entries must stay with their tree (empty when all can go):
+ * a name the tree's .gitignore lists for its own sake, a nested `.git` (a
+ * repository whose commits may exist nowhere else -- `git worktree remove`
+ * deletes it, with or without --force), or a folder we could not look into.
+ */
+function ignoredRisks(treeDir, entries) {
+  const risks = []
+  const paths = []
+  for (const entry of entries) {
+    const full = path.join(treeDir, entry)
+    let st
     try {
-      empty = fs.readdirSync(full).length === 0
+      st = fs.lstatSync(full)
     } catch {
-      /* unreadable: judged by name below */
+      continue
     }
-    if (empty) return null
+    const isDir = st.isDirectory() && !st.isSymbolicLink()
+    if (isDir) {
+      let empty = false
+      try {
+        empty = fs.readdirSync(full).length === 0
+      } catch {
+        /* unreadable: the walk below reports it */
+      }
+      if (empty) continue
+    }
+    if (!regenerable(entry)) {
+      risks.push(entry)
+      continue
+    }
+    if (entry.split('/').includes('node_modules')) continue
+    paths.push(entry.replace(/\/+$/, '') + (isDir ? '/' : ''))
+    if (isDir) {
+      const w = walk(full, treeDir)
+      if (w.stuck) risks.push(w.stuck)
+      else paths.push(...w.paths)
+    }
   }
-  if (!regenerable(entry)) return entry
-  if (entry.split('/').includes('node_modules')) return null
-  if (st.isDirectory() && !st.isSymbolicLink()) {
-    const hit = hiddenSecret(full)
-    if (hit) return path.relative(treeDir, hit)
-  }
-  return null
+  const asked = new Set()
+  for (const p of paths)
+    for (const n of components(p))
+      if (!rebuildableName(n.replace(/\/$/, ''))) asked.add(n)
+  const listed = listedNames(treeDir, [...asked])
+  if (!listed) return [...risks, '.gitignore (git check-ignore failed)']
+  for (const p of paths)
+    if (components(p).some(n => n === '.git' || n === '.git/' || listed.has(n)))
+      risks.push(p.replace(/\/$/, ''))
+  return risks
 }
 
 /** Merged PRs from GitHub: head commit -> PR number, and branch -> numbers. */
@@ -315,7 +360,7 @@ function gather(procs, only = null) {
         dirty,
         ahead,
         nested,
-        unsafeIgnored: ignored.map(e => ignoredRisk(w.dir, e)).filter(Boolean),
+        unsafeIgnored: ignoredRisks(w.dir, ignored),
         busy: procs ? procs.filter(p => inside(p, w.dir)).length : null,
         touchedMin: minutesSinceTouched(w.dir),
         containedIn: oid => ok(['merge-base', '--is-ancestor', w.head, oid]),
@@ -471,17 +516,16 @@ function selfCheck() {
       throw new Error('selfCheck: blocker ignored: ' + JSON.stringify(over))
   if (
     regenerable('.env') ||
-    regenerable('logs/.env') ||
     regenerable('src') ||
-    regenerable('src/logs/tokens.json') ||
-    regenerable('build/secrets/token.txt') ||
-    regenerable('build/sub/.git') ||
-    !regenerable('dist/utils/webhookSecret.js') ||
+    !regenerable('logs/.env') ||
     !regenerable('apps/x/node_modules/') ||
     !regenerable('apps/x/node_modules/y/src') ||
     !regenerable('dist/assets/a.js')
   )
     throw new Error('selfCheck: regenerable list')
+  const listed = listedNames(ROOT, ['.env', 'a.js', 'dist/'])
+  if (!listed || !listed.has('.env') || listed.has('a.js'))
+    throw new Error('selfCheck: .gitignore is not read as the list of names')
   return true
 }
 
