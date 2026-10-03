@@ -3,7 +3,7 @@
  * version of the module? Runs in a throwaway copy; the working tree is never
  * touched.
  */
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -150,5 +150,175 @@ describe('tri bite', () => {
     )
     expect(bite(dir, 'v1', 'lib', '--', 'true').stdout).toMatch(/directory/)
     expect(bite(dir, 'v1', 'missing.sh', '--', 'true').status).toBe(2)
+  })
+})
+
+// Blockers found by the reviewer bee on #3462: each was a WRONG verdict (or a
+// write into the real tree), not a cautious 2.
+describe('tri bite -- review of #3462', () => {
+  const minus = 'add() { echo $(($1 - $2)); }\n'
+  const plus = 'add() { echo $(($1 + $2)); }\n'
+  // Single quotes: the names below carry a double quote and a backslash.
+  const check = (f: string) => `. './${f}'; [ "$(add 2 3)" = 5 ] || exit 1\n`
+
+  function twoVersions(name: string) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-'))
+    dirs.push(dir)
+    git(dir, 'init', '-q', '-b', 'main')
+    fs.writeFileSync(path.join(dir, name), minus)
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'v1')
+    git(dir, 'tag', 'v1')
+    fs.writeFileSync(path.join(dir, name), plus)
+    fs.writeFileSync(path.join(dir, 't.sh'), check(name))
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'v2')
+    return dir
+  }
+
+  it('names git would quote (non-ASCII, a double quote) are swapped', () => {
+    for (const name of ['модуль.sh', 'a"b.sh', 'a\\b.sh']) {
+      const dir = twoVersions(name)
+      const r = bite(dir, 'v1', name, '--', 'bash', 't.sh')
+      expect(r.stdout, name).toMatch(/BITES/)
+      expect(r.status, name).toBe(0)
+    }
+  })
+
+  it('never writes through a symlink into the real tree', () => {
+    const dir = twoVersions('impl.sh')
+    // A link with an ABSOLUTE target into the real checkout, and a directory
+    // link the same way.
+    fs.symlinkSync(path.join(dir, 'impl.sh'), path.join(dir, 'link.sh'))
+    fs.symlinkSync(dir, path.join(dir, 'up'))
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'links')
+    const before = fs.readFileSync(path.join(dir, 'impl.sh'), 'utf8')
+    bite(dir, 'v1', 'link.sh', '--', 'bash', 't.sh')
+    const r = bite(dir, 'v1', 'up/impl.sh', '--', 'bash', 't.sh')
+    expect(r.stdout).toMatch(/symlink that leaves the copy/)
+    expect(r.status).toBe(2)
+    expect(fs.readFileSync(path.join(dir, 'impl.sh'), 'utf8')).toBe(before)
+    expect(git(dir, 'status', '--porcelain')).toBe('')
+  })
+
+  it('a symlink at the old revision comes back as a symlink', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-'))
+    dirs.push(dir)
+    git(dir, 'init', '-q', '-b', 'main')
+    fs.writeFileSync(path.join(dir, 'right.sh'), plus)
+    fs.symlinkSync('right.sh', path.join(dir, 'add.sh'))
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'v1')
+    git(dir, 'tag', 'v1')
+    fs.rmSync(path.join(dir, 'add.sh'))
+    fs.writeFileSync(path.join(dir, 'add.sh'), plus)
+    fs.writeFileSync(path.join(dir, 't.sh'), check('add.sh'))
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'v2')
+    // Right at v1 as well (through the link): the truth is "does not bite".
+    const r = bite(dir, 'v1', 'add.sh', '--', 'bash', 't.sh')
+    expect(r.stdout).toMatch(/\(symlink\)/)
+    expect(r.status).toBe(1)
+  })
+
+  it('TERM during the old run is cannot tell, never BITES', async () => {
+    const dir = twoVersions('add.sh')
+    const child = spawn(
+      'bash',
+      [
+        BITE,
+        'v1',
+        'add.sh',
+        '--',
+        'bash',
+        '-c',
+        'grep -q "+" add.sh || sleep 4',
+      ],
+      { cwd: dir }
+    )
+    let out = ''
+    child.stdout.on('data', d => (out += d))
+    setTimeout(() => child.kill('SIGTERM'), 1500)
+    const code = await new Promise<number | null>(res =>
+      child.on('close', c => res(c))
+    )
+    expect(out).not.toMatch(/BITES/)
+    expect(code).toBe(2)
+  }, 20000)
+
+  it('the old run does not see what the first run wrote', () => {
+    const dir = twoVersions('add.sh')
+    // A test that trusts a cache it leaves in the tree.
+    const cached =
+      '[ -f ok.cache ] && exit 0; . ./add.sh; [ "$(add 2 3)" = 5 ] && touch ok.cache'
+    const r = bite(dir, 'v1', 'add.sh', '--', 'bash', '-c', cached)
+    expect(r.status).toBe(0)
+  })
+
+  it('a deleted tracked file (sorting last) does not stop the copy', () => {
+    const dir = twoVersions('add.sh')
+    fs.writeFileSync(path.join(dir, 'zzz.sh'), 'x\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'zzz')
+    fs.rmSync(path.join(dir, 'zzz.sh'))
+    const r = bite(dir, 'v1', 'add.sh', '--', 'bash', 't.sh')
+    expect(r.stdout).not.toMatch(/could not copy/)
+    expect(r.status).toBe(0)
+  })
+
+  it('a directory holding a single file is still refused', () => {
+    const dir = twoVersions('add.sh')
+    fs.mkdirSync(path.join(dir, 'one'))
+    fs.writeFileSync(path.join(dir, 'one/only.sh'), 'x\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'one')
+    const r = bite(dir, 'v1', 'one', '--', 'true')
+    expect(r.stdout).toMatch(/directory/)
+    expect(r.status).toBe(2)
+  })
+
+  it('a test killed by TERM on the old code is cannot tell, not a red', () => {
+    const dir = twoVersions('add.sh')
+    // The test process dies by TERM itself (a timeout wrapper, an OOM killer):
+    // exit 143 is not a verdict.
+    const r = bite(
+      dir,
+      'v1',
+      'add.sh',
+      '--',
+      'bash',
+      '-c',
+      'grep -q "+" add.sh || kill -TERM $$'
+    )
+    expect(r.stdout).toMatch(/interrupted \(exit 143\)/)
+    expect(r.status).toBe(2)
+  })
+
+  it('a path with ./ or ../ swaps the file, not removes it', () => {
+    const dir = repo()
+    for (const name of ['./add.sh', '../lib/add.sh']) {
+      const r = bite(path.join(dir, 'lib'), 'v1', name, '--', 'bash', 'test.sh')
+      expect(r.stdout, name).toMatch(/lib\/add\.sh <- v1/)
+      expect(r.status, name).toBe(0)
+    }
+  })
+
+  it('a directory at the old revision is refused by name', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-'))
+    dirs.push(dir)
+    git(dir, 'init', '-q', '-b', 'main')
+    fs.mkdirSync(path.join(dir, 'm'))
+    fs.writeFileSync(path.join(dir, 'm/x'), 'x\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'v1')
+    git(dir, 'tag', 'v1')
+    git(dir, 'rm', '-rq', 'm')
+    fs.writeFileSync(path.join(dir, 'm'), 'now a file\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'v2')
+    const r = bite(dir, 'v1', 'm', '--', 'true')
+    expect(r.stdout).toMatch(/is a tree at v1/)
+    expect(r.status).toBe(2)
   })
 })
