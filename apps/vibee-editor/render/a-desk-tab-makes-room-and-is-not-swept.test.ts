@@ -15,6 +15,7 @@ import { join } from 'node:path'
 import {
   DESK_HOLD_MS,
   deskMayGo,
+  DID_NOT_LOAD,
   deskTabsHeld,
   newDeskPage,
   resetDeskHoldsForTests,
@@ -386,13 +387,24 @@ describe('deskMayGo: the one check every desk road passes', () => {
 
   it('an address it cannot read is refused while anything is blocked', async () => {
     await expect(deskMayGo(blocks, '')).rejects.toThrow(/cannot tell/)
-    await expect(deskMayGo(blocks, 'chrome-error://x')).rejects.toThrow(
-      /cannot tell/
-    )
     await expect(deskMayGo(blocks, 'about:blank')).resolves.toBeUndefined()
   })
 
   it('with nothing blocked, an unknown address goes ahead', async () => {
     await expect(deskMayGo(ANYONE, '')).resolves.toBeUndefined()
+  })
+
+  it("Chromium's error page is no place, list or no list", async () => {
+    /*
+     * Before: refused only while something was blocked, so the same dead
+     * site was a failed look on one person's round and "seen" (the error
+     * text as news) on another's.
+     */
+    for (const who of [ANYONE, blocks])
+      for (const url of [
+        'chrome-error://chromewebdata/',
+        ' CHROME-ERROR://chromewebdata/',
+      ])
+        await expect(deskMayGo(who, url)).rejects.toThrow(DID_NOT_LOAD)
   })
 })
