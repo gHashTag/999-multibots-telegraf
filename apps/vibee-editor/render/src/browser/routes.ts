@@ -716,7 +716,7 @@ export async function handleBrowser(
     }
     const bootBefore = await browserBootId(cdp)
     console.log('[browser:heal]', who, 'not answering, restarting')
-    const back = await restartBrowserAsAgent(who)
+    const back = await restartBrowserAsAgent(who, 'heal')
     const bootAfter = await browserBootId(cdp)
     return {
       status: 200,
@@ -985,9 +985,34 @@ export function configureAgentStart(deps: () => BrowserDeps): void {
  * The person is told, because it is their browser and they may be watching
  * it at that moment.
  */
-export async function restartBrowserAsAgent(who: string): Promise<boolean> {
+export async function restartBrowserAsAgent(
+  who: string,
+  by?: string
+): Promise<boolean> {
   const deps = agentStartDeps?.()
   if (!deps?.driver) return false
+  /*
+   * A restart takes the person's browser away for a moment, so it is
+   * journaled like a desk's start (#3450): the panel and `tri journal` say who
+   * did it and whether it came back. Without `by` nothing is written -- same
+   * rule as `startBrowserAsAgent`.
+   */
+  const t0 = Date.now()
+  const ok = await restartInside(who, deps)
+  if (by) {
+    const pool = await deps.getPool()
+    await recordStep(pool, who, {
+      tool: 'browser_restart',
+      ok,
+      ms: Date.now() - t0,
+      detail: ok ? { by } : { by, error: 'did not come back answering' },
+    })
+  }
+  return ok
+}
+
+async function restartInside(who: string, deps: BrowserDeps): Promise<boolean> {
+  if (!deps.driver) return false
   const driver = deps.driver
   const pool = await deps.getPool()
   await ensureBrowserSessions(pool)
