@@ -231,7 +231,7 @@ describe("the spec's tests hold against the host", () => {
   })
 
   it('a script of one to six scenes is made as given; seven is refused', () => {
-    const scene = { setting: 'a room', line: 'Hello.' }
+    const scene = { setting: 'a room', line: 'Flowers outlive the hype.' }
     const of = (n: number) => scenesOf(Array.from({ length: n }, () => scene))
     expect(Array.isArray(of(SPEC.SCENES_DEFAULT))).toBe(true)
     expect(Array.isArray(of(1))).toBe(true)
@@ -1111,10 +1111,125 @@ describe("the spec's tests hold against the host", () => {
     )
   })
 
+  it('a still without a face is drawn once more, then the run stops', async () => {
+    // still_face_action(has_face, redraws). The redraw and the stop before
+    // any voice run against the tool in a-story-reel-stays-in-the-studio.test.ts.
+    const { stillFaceAction, KEEP_THE_PERSON, stillPrompt } = await import(
+      '../agent/story-reel-tool'
+    )
+    expect(SPEC.STILL_IDENTITY_FIRST).toBe(true)
+    expect(stillPrompt('a pier at night', '').indexOf(KEEP_THE_PERSON)).toBe(0)
+    expect(SPEC.STILL_FACE_CHECKED).toBe(true)
+    expect(SPEC.FACE_UNKNOWN_KEEPS).toBe(true)
+    expect(stillFaceAction(true, 0)).toBe(SPEC.FACE_KEEP)
+    expect(stillFaceAction(true, SPEC.STILL_FACE_REDRAWS)).toBe(SPEC.FACE_KEEP)
+    expect(stillFaceAction(false, 0)).toBe(SPEC.FACE_REDRAW)
+    expect(stillFaceAction(false, SPEC.STILL_FACE_REDRAWS)).toBe(SPEC.FACE_STOP)
+    const { readYesNo } = await import('../agent/still-face')
+    expect(readYesNo('YES.')).toBe(true)
+    expect(readYesNo('no')).toBe(false)
+    expect(readYesNo('maybe')).toBeNull()
+  })
+
+  it('a line is heard before its lip-sync, and the default reel stays within 15 s', async () => {
+    // line_fits(ms)
+    const { lineFits } = await import('../agent/story-reel-tool')
+    expect(SPEC.LINE_MEASURED_BEFORE_LIPSYNC).toBe(true)
+    expect(lineFits(SPEC.LINE_MAX_MS)).toBe(true)
+    expect(lineFits(SPEC.LINE_MAX_MS + 1)).toBe(false)
+    expect(lineFits(4900)).toBe(false)
+    expect(
+      SPEC.SCENES_DEFAULT * SPEC.LINE_MAX_MS +
+        (SPEC.SCENES_DEFAULT - 1) * SPEC.BREATH_MS +
+        SPEC.PAUSE_SEC * 1000
+    ).toBeLessThanOrEqual(SPEC.STORY_DEFAULT_MAX_SEC * 1000)
+    expect(SPEC.STORY_DEFAULT_MAX_SEC).toBeLessThanOrEqual(SPEC.REEL_MAX_SEC)
+  })
+
+  it('the finished reel reaches the house through its own bot, and the house speaks its clone', async () => {
+    // The order the bots are tried in; render-server.ts sends through it.
+    const { buyerBotTokens } = await import('../buyer-delivery')
+    const deps = (house: boolean) => ({
+      isHouse: () => house,
+      tokenForBot: async (n: string) => `tok:${n}`,
+      botNameOf: async () => 'her_bot',
+      mainToken: 'tok:main',
+    })
+    expect(SPEC.DELIVER_VIA_HOME_BOT).toBe(true)
+    expect(await buyerBotTokens('1', deps(true))).toEqual([
+      `tok:${SPEC.HOUSE_DELIVERY_BOT}`,
+      'tok:her_bot',
+      'tok:main',
+    ])
+    expect(await buyerBotTokens('1', deps(false))).toEqual([
+      'tok:her_bot',
+      'tok:main',
+    ])
+    const server = readFileSync(
+      join(HERE, '..', '..', 'render-server.ts'),
+      'utf8'
+    )
+    expect(server.match(/deliverToBuyer\(/g)?.length).toBe(2)
+    // The house never borrows a voice from ElevenLabs: its clone speaks.
+    expect(SPEC.HOUSE_SKIPS_ELEVENLABS).toBe(true)
+    const { asksElevenLabs } = await import('../house-ids')
+    expect(asksElevenLabs(true, '', '')).toBe(false)
+    expect(asksElevenLabs(false, '', '')).toBe(true)
+    expect(asksElevenLabs(false, '', 'her-clone')).toBe(false)
+  })
+
+  it('a talking-head reel opens on the talking head, wide, with a hook', async () => {
+    // scene_is_source(scene). The tool lip-syncing the photo itself and
+    // refusing a greeting runs in a-story-reel-stays-in-the-studio.test.ts.
+    const { sceneIsSource, opensWithGreeting, scenesOf } = await import(
+      '../agent/story-reel-tool'
+    )
+    expect(SPEC.OPEN_ON_SOURCE).toBe(true)
+    expect(sceneIsSource(SPEC.OPEN_SCENE)).toBe(true)
+    expect(sceneIsSource(0)).toBe(true)
+    expect(sceneIsSource(1)).toBe(false)
+    expect(sceneIsSource(SPEC.SCENES_DEFAULT - 1)).toBe(false)
+    expect(SPEC.FIRST_LINE_HOOK).toBe(true)
+    expect(opensWithGreeting('Доброе утро в дождливой погоде')).toBe(true) // cyrillic-ok: the owner's reel of 2026-10-03
+    expect(opensWithGreeting('Хайп проходит, клиенты остаются')).toBe(false) // cyrillic-ok: a hook
+    const refused = scenesOf([
+      { line: 'Привет всем!' }, // cyrillic-ok: a greeting
+      { line: 'Два' }, // cyrillic-ok: a line
+    ])
+    expect(refused).toMatch(/^scenes\.0: /)
+  })
+
+  it('the studio is never left: scenes with no setting are shots of the source', async () => {
+    // shot_of_scene(scene), shot_permille(shot)
+    const { shotOfScene, shotPermille, shotFilter } = await import(
+      '../agent/studio-shots'
+    )
+    const { scenesOf } = await import('../agent/story-reel-tool')
+    expect(SPEC.STUDIO_SHOTS).toBe(true)
+    expect(shotOfScene(0)).toBe(SPEC.SHOT_WIDE)
+    expect(shotOfScene(1)).toBe(SPEC.SHOT_CLOSE)
+    expect(shotOfScene(2)).toBe(SPEC.SHOT_MEDIUM)
+    expect(shotOfScene(3)).toBe(SPEC.SHOT_CLOSE)
+    expect(shotPermille(SPEC.SHOT_WIDE)).toBe(1000)
+    expect(shotPermille(SPEC.SHOT_CLOSE)).toBeLessThan(
+      shotPermille(SPEC.SHOT_MEDIUM)
+    )
+    expect(shotPermille(SPEC.SHOT_MEDIUM)).toBeLessThan(
+      shotPermille(SPEC.SHOT_WIDE)
+    )
+    expect(SPEC.SHOT_WIDTH * 16).toBe(SPEC.SHOT_HEIGHT * 9)
+    expect(SPEC.FACE_IN_SHOT_PERMILLE).toBeLessThan(500)
+    expect(shotFilter(SPEC.SHOT_CLOSE)).toContain(
+      `scale=${SPEC.SHOT_WIDTH}:${SPEC.SHOT_HEIGHT}`
+    )
+    // A scene may come with a line alone.
+    expect(scenesOf([{ line: 'Один' }, { line: 'Два' }])).toHaveLength(2) // cyrillic-ok: lines
+  })
+
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(18)
+    expect(SPEC.VERSION).toBe(19)
   })
 
   it('every reel for a client is a story reel; the silent plan reel only when the owner names it', async () => {

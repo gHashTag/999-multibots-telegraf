@@ -71,16 +71,17 @@ rm -rf "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/apps/vibee-ios/build
 # упавших файлов лежали в копии, ни один в коде. Единственная замена CI
 # показывала поломку, которой нет.
 #
-# Удаляем ТОЛЬКО чистые: `git worktree remove` без `--force` сам откажется,
-# если внутри есть несохранённые правки. Ветку удаление копии не трогает —
-# проверено: после сноса всех двенадцати ветки на месте.
+# NOT REMOVED HERE ANY MORE (2026-10-03). `git worktree remove` without
+# --force refuses tracked edits but still deletes IGNORED files -- a tree's
+# .env, credentials, a nested clone -- and it took trees of sessions that
+# were still running. The test-run reason is gone too: vitest.config.ts
+# excludes .claude/worktrees. Worktrees are judged in one place, by commit,
+# asking each tree's own .gitignore: `tri worktrees --apply` (#3474/#3497).
 if [ -d ~/999-multibots-telegraf/.claude/worktrees ]; then
-  git -C ~/999-multibots-telegraf worktree list --porcelain 2>/dev/null |
-    grep '^worktree .*\.claude/worktrees' | cut -d' ' -f2 |
-    while read -r tree; do
-      git -C ~/999-multibots-telegraf worktree remove "$tree" 2>/dev/null
-    done
-  git -C ~/999-multibots-telegraf worktree prune 2>/dev/null
+  n=$(git -C ~/999-multibots-telegraf worktree list --porcelain 2>/dev/null |
+    grep -c '^worktree .*\.claude/worktrees')
+  [ "${n:-0}" -gt 0 ] &&
+    echo "workflow worktrees: $n -- judge and remove the safe ones: tri worktrees --apply"
 fi
 
 # 3. Симуляторы НЕ трогаем.

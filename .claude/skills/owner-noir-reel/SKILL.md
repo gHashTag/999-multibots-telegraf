@@ -117,7 +117,7 @@ lit scalp — no dark spots, no blemishes`.
 
 > **Постоянный шаблон — `story_reel` одним вызовом** (владелец: «сохрани шаблон
 > для постоянной работы, только в конце паузу добавь для CTA»). `image_url` —
-> эталон, `scenes` ×3 `{setting, line}`, `style` — нуар и значок ▽ словами,
+> эталон, `scenes` ×3 `{line}` (no setting -- shots of the source, see `story-reel-gift`), `style` — нуар и значок ▽ словами,
 > `cta` — призыв; в конце пауза 3 с с надписью. Шаги ниже — что у него внутри.
 
 «Картинку меняй, а не одно и то же — мини-история про что угодно в одном
@@ -125,18 +125,14 @@ lit scalp — no dark spots, no blemishes`.
 в конце призыв к действию и пауза для принятия решения; весь ролик до 15 с
 для сторис; делается через Remotion, не скриптами».
 
-1. **3 картинки** — `image_edit` из исходников владельца в приложении:
-   `https://app.t27.ai/brand/owner-noir-portrait.jpg` (крупный план, значок ▽
-   с рождения) и `https://app.t27.ai/brand/owner-noir-rooftop.jpg` (значок
-   перевёрнут на самом исходнике: img2img словами его не переворачивает).
-   Значок ▽ и чистая лысина — словами в промпте. Тот же человек, стиль,
-   свет; **декорация в КАЖДОЙ сцене новая, и в первой тоже**.
-   > «Первое фото каждый раз то же — новое!! неужели не понятно» (26.09.2026).
-   > Первая сцена вышла крупным планом на чёрном фоне — это вид самого
-   > исходника, и рилс открывался картинкой, которую владелец видит в каждом
-   > ролике. В промпте каждой сцены: `change ONLY the background: <новая
-обстановка>… NOT a plain black studio background`. Ни одна сцена не
-   > повторяет фон исходника.
+1. **3 кадры -- из ОДНОГО фото, в его студии.** ~~The 26.09 rule "a new
+   setting in every scene, the first one too" is SUPERSEDED~~ by the owner
+   on 2026-10-03: the reel opens wide on the talking head (the source photo
+   itself), the first line is a hook, and every other scene is a shot (close /
+   medium) cut from the same studio-lab photo -- no streets, no rain, no new
+   settings unless he names a place. The rule and what the code holds live in
+   ONE place: skill **`story-reel-gift`**, section "Scenes: open wide with a
+   hook, never leave the studio". Not repeated here.
 2. **3 короткие реплики** его голосом (`audio_generate` без `voice_id` — дом
    получает клон владельца `R8_5GW2UI4A` в поле `clone_voice`), по 2–4 с;
    третья — призыв к действию.

@@ -1,0 +1,293 @@
+/**
+ * THE STORY REEL STAYS IN THE STUDIO (owner, 2026-10-03, crm-story-reel v19).
+ *
+ * "A talking-head reel opens on a wide shot of the talking head, not on a
+ * picture"; "it opens on the hook, not on 'good morning in the rain'"; "we do
+ * everything without leaving the studio, working with shots". His reel had
+ * put him on a street in the rain and opened with a greeting.
+ *
+ * What must hold:
+ *   1. scene 1 is the source photo itself, lip-synced as it is;
+ *   2. a scene with no setting is a shot cut from the source, never drawn;
+ *   3. a first line that greets is refused before anything is spent;
+ *   4. a drawn still with no face is drawn once more, then the run stops
+ *      before any voice is paid for;
+ *   5. a line heard longer than LINE_MAX_MS gets no lip-sync;
+ *   6. the finished reel reaches its buyer through the first bot that delivers.
+ */
+import { describe, it, expect } from 'vitest'
+import { promises as fs } from 'node:fs'
+import { makeStoryReelTool } from './story-reel-tool'
+import { cutShot, shotFilter } from './studio-shots'
+import { stillShowsAFace } from './still-face'
+import { deliverToBuyer } from '../buyer-delivery'
+import * as SPEC from '../spec/crm-story-reel.gen'
+
+type Call = { name: string; args: Record<string, any> }
+
+function fakeTools(
+  o: Partial<Record<string, (a: any, i: number) => any>> = {}
+) {
+  const calls: Call[] = []
+  const counters: Record<string, number> = {}
+  const make = (name: string, answer: (a: any, i: number) => any) => ({
+    name,
+    description: '',
+    parameters: {},
+    handler: async (args: Record<string, any>) => {
+      calls.push({ name, args })
+      counters[name] = (counters[name] ?? 0) + 1
+      return answer(args, counters[name] - 1)
+    },
+  })
+  const tools: Record<string, any> = {
+    image_edit: make(
+      'image_edit',
+      o.image_edit ??
+        ((_a, i) => ({ done: true, url: `https://ours/still-${i}.png` }))
+    ),
+    audio_generate: make(
+      'audio_generate',
+      o.audio_generate ??
+        ((_a, i) => ({
+          сделано: true, // cyrillic-ok: audio_generate's own answer key
+          url: `https://ours/voice-${i}.mp3`,
+          seconds: 2.4,
+        }))
+    ),
+    lipsync_generate: make('lipsync_generate', (_a, i) => ({
+      done: true,
+      url: `https://ours/clip-${i}.mp4`,
+      seconds: 3,
+    })),
+    reel_render: make('reel_render', () => ({
+      готово: true, // cyrillic-ok: reel_render's own answer key
+      url: 'https://ours/reel.mp4',
+    })),
+  }
+  return { lookup: (n: string) => tools[n], calls }
+}
+
+const ctx = {
+  telegramId: '900000001',
+  pool: { query: async () => ({ rows: [] }) },
+} as never
+const SOURCE = 'https://ours/studio-lab.jpg'
+const HOOK = 'Девяносто процентов рилсов теряют зрителя за секунду.' // cyrillic-ok: a spoken hook
+const count = (calls: Call[], n: string) =>
+  calls.filter(c => c.name === n).length
+
+describe('story_reel stays in the studio', () => {
+  it('opens on the photo itself and cuts the other scenes from it, drawing nothing', async () => {
+    const { lookup, calls } = fakeTools()
+    const cuts: [string, number][] = []
+    const cut = async (url: string, shot: number) => {
+      cuts.push([url, shot])
+      return `https://ours/shot-${shot}.jpg`
+    }
+    const r: any = await makeStoryReelTool(
+      lookup,
+      undefined,
+      undefined,
+      cut
+    ).handler(
+      {
+        image_url: SOURCE,
+        scenes: [{ line: HOOK }, { line: 'Два.' }, { line: 'Три.' }], // cyrillic-ok: lines
+      },
+      ctx
+    )
+    expect(r.done).toBe(true)
+    expect(count(calls, 'image_edit'), 'nothing is drawn').toBe(0)
+    expect(cuts).toEqual([
+      [SOURCE, SPEC.SHOT_CLOSE],
+      [SOURCE, SPEC.SHOT_MEDIUM],
+    ])
+    const faces = calls
+      .filter(c => c.name === 'lipsync_generate')
+      .map(c => c.args.image_url)
+      .sort()
+    expect(faces).toEqual(
+      [
+        SOURCE,
+        `https://ours/shot-${SPEC.SHOT_CLOSE}.jpg`,
+        `https://ours/shot-${SPEC.SHOT_MEDIUM}.jpg`,
+      ].sort()
+    )
+  })
+
+  it('a setting the person named is still drawn, but never for the opening scene', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(
+      lookup,
+      undefined,
+      undefined,
+      async () => 'https://ours/shot.jpg'
+    ).handler(
+      {
+        image_url: SOURCE,
+        scenes: [
+          { setting: 'a pier', line: HOOK },
+          { setting: 'his flower shop', line: 'Два.' }, // cyrillic-ok: a line
+        ],
+      },
+      ctx
+    )
+    expect(r.done).toBe(true)
+    expect(count(calls, 'image_edit')).toBe(1)
+    expect(calls.find(c => c.name === 'image_edit')!.args.prompt).toContain(
+      'his flower shop'
+    )
+  })
+
+  it('a first line that greets is refused before anything is spent', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup).handler(
+      {
+        image_url: SOURCE,
+        scenes: [
+          { line: 'Доброе утро! В дождливую погоду…' }, // cyrillic-ok: the owner's reel of 2026-10-03
+          { line: 'Два.' }, // cyrillic-ok: a line
+        ],
+      },
+      ctx
+    )
+    expect(r.done).toBe(false)
+    expect(r.reason).toMatch(/^scenes\.0: /)
+    expect(calls).toEqual([])
+  })
+
+  it('a shot that cannot be cut stops the run before any voice', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup, undefined, undefined, () =>
+      Promise.reject(new Error('ffmpeg 1'))
+    ).handler(
+      { image_url: SOURCE, scenes: [{ line: HOOK }, { line: 'Два.' }] },
+      ctx
+    ) // cyrillic-ok: a line
+    expect(r.done).toBe(false)
+    expect(r.reason).toMatch(/ffmpeg 1/)
+    expect(count(calls, 'audio_generate')).toBe(0)
+  })
+
+  it('a drawn still without a face is drawn once more, then the run stops before any voice', async () => {
+    const { lookup, calls } = fakeTools()
+    const looked: string[] = []
+    const eyes = {
+      hasFace: async (url: string) => {
+        looked.push(url)
+        return false
+      },
+    }
+    const r: any = await makeStoryReelTool(lookup, undefined, eyes).handler(
+      {
+        image_url: SOURCE,
+        scenes: [{ line: HOOK }, { setting: 'a pier', line: 'Два.' }], // cyrillic-ok: a line
+      },
+      ctx
+    )
+    expect(r.done).toBe(false)
+    expect(count(calls, 'image_edit'), 'one redraw').toBe(
+      1 + SPEC.STILL_FACE_REDRAWS
+    )
+    expect(looked).not.toContain(SOURCE)
+    expect(count(calls, 'audio_generate')).toBe(0)
+    expect(r.stills[0]).toBe(SOURCE)
+  })
+
+  it('an unanswered face check keeps the still', async () => {
+    const { lookup } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup, undefined, {
+      hasFace: async () => null,
+    }).handler(
+      {
+        image_url: SOURCE,
+        scenes: [{ line: HOOK }, { setting: 'a pier', line: 'Два.' }], // cyrillic-ok: a line
+      },
+      ctx
+    )
+    expect(r.done).toBe(true)
+  })
+
+  it('a line heard longer than the limit gets no lip-sync, and is named', async () => {
+    const { lookup, calls } = fakeTools({
+      audio_generate: (_a, i) => ({
+        сделано: true, // cyrillic-ok: audio_generate's own answer key
+        url: `https://ours/voice-${i}.mp3`,
+        seconds: i === 0 ? 4.9 : 2,
+      }),
+    })
+    const r: any = await makeStoryReelTool(
+      lookup,
+      undefined,
+      undefined,
+      async () => 'https://ours/shot.jpg'
+    ).handler(
+      { image_url: SOURCE, scenes: [{ line: HOOK }, { line: 'Два.' }] },
+      ctx
+    ) // cyrillic-ok: a line
+    expect(r.done).toBe(false)
+    expect(r.reason).toMatch(/4,9 с/) // cyrillic-ok: the answer under test
+    expect(count(calls, 'lipsync_generate')).toBe(1)
+    expect(count(calls, 'reel_render')).toBe(0)
+  })
+})
+
+describe('a shot is cut from the source', () => {
+  it('the wide shot is the source itself, fetched by no one', async () => {
+    const never = () => {
+      throw new Error('touched')
+    }
+    expect(
+      await cutShot(SOURCE, SPEC.SHOT_WIDE, {
+        fetchBytes: never,
+        exec: never,
+        put: never,
+      })
+    ).toBe(SOURCE)
+  })
+
+  it('a close shot runs ffmpeg with its filter and lands on the shelf', async () => {
+    const ran: string[][] = []
+    const url = await cutShot(SOURCE, SPEC.SHOT_CLOSE, {
+      fetchBytes: async () => Buffer.from('jpeg'),
+      exec: async (bin, args) => {
+        ran.push([bin, ...args])
+        await fs.writeFile(args[args.length - 1], 'cut')
+      },
+      put: async (body, name) => `https://ours/${name}:${body}`,
+    })
+    expect(url).toBe('https://ours/shot-close.jpg:cut')
+    expect(ran[0][0]).toBe('ffmpeg')
+    expect(ran[0]).toContain(shotFilter(SPEC.SHOT_CLOSE))
+  })
+})
+
+describe('our eyes and the buyer', () => {
+  it('vision that is off or down never refuses a still', async () => {
+    expect(await stillShowsAFace(SOURCE, null)).toBeNull()
+    expect(
+      await stillShowsAFace(SOURCE, () => Promise.reject(new Error('down')))
+    ).toBeNull()
+    expect(await stillShowsAFace(SOURCE, async () => 'YES')).toBe(true)
+  })
+
+  it('the reel goes out through the first bot that delivers, each tried once', async () => {
+    const tried: string[] = []
+    const ok = await deliverToBuyer(
+      '1',
+      async token => {
+        tried.push(token)
+        return token === 'tok:main'
+      },
+      {
+        isHouse: () => true,
+        tokenForBot: async n => (n === 'gone_bot' ? null : `tok:${n}`),
+        botNameOf: async () => SPEC.HOUSE_DELIVERY_BOT,
+        mainToken: 'tok:main',
+      }
+    )
+    expect(ok).toBe(true)
+    expect(tried).toEqual([`tok:${SPEC.HOUSE_DELIVERY_BOT}`, 'tok:main'])
+  })
+})
