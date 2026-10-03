@@ -40,6 +40,7 @@ import { TOOLS_BY_NAME, toMcpTools, countInitDataToolCall } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { honestyLogFields, honestyNote } from './claimed-but-not-done'
 import { rememberMiniAppFiles } from './miniapp-media'
+import { widgetsOfTurn } from './client-widgets'
 import { ownerWordsOf } from './assistant-opt-out'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
@@ -1218,6 +1219,15 @@ export async function handleAgentChat(
               ? body.seller_id
               : undefined,
           client: gate.client ?? undefined,
+          /*
+           * The widgets beside the client's chat (client-widgets.ts): what
+           * the owner is looking at when he writes. Only in a client's
+           * thread and not in the Queen's; checked there, never trusted.
+           */
+          widgets: widgetsOfTurn(
+            body.widgets,
+            Boolean(gate.client) && gate.supervisor !== true
+          ),
           marketplaceAgent: gate.agent,
           supervisor: gate.supervisor === true,
           // What the agent has been doing with this client, for the Queen.

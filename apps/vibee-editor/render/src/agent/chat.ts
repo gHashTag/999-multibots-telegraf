@@ -20,6 +20,7 @@
  *    показывать пятисотку там, где был связный ответ.
  */
 import { toolContentForModel } from './tool-content'
+import type { TurnWidgets } from './client-widgets'
 import * as REEL from '../spec/crm-story-reel.gen'
 import * as SPLIT from '../spec/split-reel.gen'
 import {
@@ -2294,6 +2295,11 @@ async function* runAgentTurn(
     /** The Manager Agent: words only, no media tools (client-facing.ts). */
     textOnly?: boolean
     client?: string
+    /**
+     * The widgets beside the client's chat and their state, already checked
+     * (client-widgets.ts widgetsOfTurn). Read only together with `client`.
+     */
+    widgets?: TurnWidgets
     /** A live labour-market specialist selected by the person. */
     marketplaceAgent?: string
     /**
@@ -2531,6 +2537,20 @@ async function* runAgentTurn(
     : ''
 
   /*
+   * What the owner sees beside that chat (owner, 2026-10-03: the agent sent
+   * an old render while the reel panel stood open with a new topic). Context,
+   * not an instruction; the free text in it is fenced. Spec v5 of
+   * crm-client-workspace.t27: a client's thread only.
+   */
+  const widgetsContext =
+    opts?.client && opts.widgets
+      ? await (async () => {
+          const { widgetsBlock } = await import('./client-widgets')
+          return widgetsBlock(opts.widgets!)
+        })().catch(() => '')
+      : ''
+
+  /*
    * The person on the other side of THIS conversation -- not a client the
    * seller is talking about, which is what clientContext is. Absent when the
    * caller sent nothing, and absent is the honest state: a row of "unknown"s
@@ -2573,6 +2593,7 @@ async function* runAgentTurn(
     dmHistory +
     clientBrief +
     clientContext +
+    widgetsContext +
     personContext +
     products +
     defects +

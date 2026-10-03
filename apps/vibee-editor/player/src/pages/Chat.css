@@ -959,6 +959,11 @@ html[data-keyboard='open'] .chat-page {
   flex-direction: column;
   gap: 6px;
 }
+/* Kept mounted behind another open widget (its typed topic survives); the
+   display above would otherwise beat the `hidden` attribute. */
+.chat-aside__gifts[hidden] {
+  display: none;
+}
 .chat-aside__gift {
   display: flex;
   align-items: center;
@@ -1048,15 +1053,19 @@ html[data-keyboard='open'] .chat-page {
   overflow: hidden;
 }
 
-.chat-aside__tabs {
-  display: flex;
+/* ONE MENU OF WIDGETS (owner, 2026-10-03): the client's entries, then the
+   chosen specialist's in gold. A grid, not a row of tabs: eight entries do
+   not fit one line of a 360px column, and a menu that scrolls sideways
+   hides the very widget the specialist just brought. */
+.chat-aside__menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
   gap: 2px;
   padding: 3px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
 }
-.chat-aside__tabs button {
-  flex: 1;
+.chat-aside__menu button {
   padding: 6px 4px;
   border: 0;
   border-radius: 8px;
@@ -1065,10 +1074,20 @@ html[data-keyboard='open'] .chat-page {
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.chat-aside__tabs button.is-active {
+.chat-aside__menu button:not([data-owner='client']) {
+  color: var(--t27-golden, #ffd700);
+}
+.chat-aside__menu button.is-active {
   background: rgba(255, 255, 255, 0.1);
   color: var(--t27-text, #fff);
+}
+.chat-aside__menu button.is-active:not([data-owner='client']) {
+  background: rgba(255, 215, 0, 0.14);
+  color: var(--t27-golden, #ffd700);
 }
 .chat-aside__pane {
   display: flex;
@@ -1530,5 +1549,8 @@ html[data-keyboard='open'] .chat-page {
   .message-action {
     min-height: var(--touch-target-sm, 36px);
     padding: 6px 10px;
+  }
+  .chat-aside__menu button {
+    min-height: var(--touch-target-sm, 36px);
   }
 }

@@ -6,8 +6,10 @@ import {
   useParams,
   useSearchParams,
 } from 'react-router-dom'
-import { useAtom, useAtomValue } from 'jotai'
+import { useAtom, useAtomValue, useStore } from 'jotai'
 import { agentMessagesAtomFor, agentDraftAtomFor } from '@/atoms/agentChat'
+import { clientWidgetsAtom } from '@/atoms/clientWidgets'
+import { widgetContext } from '@/lib/clientWidgets'
 import {
   sendOrQueue,
   agentBusyThreadsAtom,
@@ -60,7 +62,11 @@ import { VoiceOverlay } from '@/components/Voice/VoiceOverlay'
 import { VoiceDock } from '@/components/Voice/VoiceDock'
 import { isConversationId, newConversationId } from '@/lib/conversations'
 import { useBackTo } from '@/lib/backTo'
-import { AGENT_SUGGESTIONS, agentGate } from './agentSuggestions'
+import {
+  AGENT_SUGGESTIONS,
+  AGENT_TEMPLATES,
+  agentGate,
+} from './agentSuggestions'
 import './Chat.css'
 
 /**
@@ -507,6 +513,29 @@ function ChatThread({
   const voiceRef = useRef<VoiceSession | null>(null)
   const [voiceSeparate, setVoiceSeparate] = useAtom(voiceSeparateAtom)
 
+  /*
+   * WHAT THE OWNER SEES ON THE CLIENT'S CARD, read at the moment of sending
+   * (owner, 2026-10-03: "the agent must know the widgets' context, or it
+   * does complete nonsense"). Read from the store, not subscribed: the reel
+   * panel's every keystroke would otherwise re-render the whole chat. The
+   * shown widgets are computed from the specialist chosen NOW, so nothing a
+   * switch hid is ever reported (lib/clientWidgets.ts).
+   */
+  const store = useStore()
+  const widgetsNow = useCallback(() => {
+    if (!client) return undefined
+    const seen = store.get(clientWidgetsAtom)[client]
+    return widgetContext({
+      chosen: helper,
+      open: seen?.open ?? null,
+      content: seen?.content ?? null,
+      templates: (helper ? (AGENT_TEMPLATES[helper] ?? []) : []).map(tp =>
+        t(tp.labelKey)
+      ),
+      templateAgents: Object.keys(AGENT_TEMPLATES),
+    })
+  }, [client, helper, store, t])
+
   const send = useCallback(
     (text: string) => {
       if ((!text.trim() && attachments.length === 0) || uploading) return
@@ -526,6 +555,7 @@ function ChatThread({
         agent: client ? helper : marketplaceAgent,
         // One of several conversations, when this thread splits into them.
         conversation,
+        widgets: widgetsNow(),
       })
       setInput('')
       setAttachments([])
@@ -539,6 +569,7 @@ function ChatThread({
       marketplaceAgent,
       setInput,
       uploading,
+      widgetsNow,
     ]
   )
 
@@ -1301,6 +1332,7 @@ function ChatThread({
               open={asideOpen}
               onClose={() => setAsideOpen(false)}
               onName={onClientName}
+              agent={helper}
             />
             {queenOpen ? (
               <div
