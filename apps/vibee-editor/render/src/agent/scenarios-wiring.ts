@@ -22,7 +22,8 @@ export async function runScenarioNow(
   const { runScenario } = await import('./scenarios')
   const { readSession } = await import('../browser/sessions')
   const { startBrowserAsAgent } = await import('../browser/routes')
-  const { newPage, evaluateOn, clickAt, typeText, frontPage } = await import(
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { evaluateOn, clickAt, typeText, frontPage } = await import(
     '../browser/cdp'
   )
   const { findProbe, foundOf } = await import('../browser/find-target')
@@ -50,7 +51,7 @@ export async function runScenarioNow(
   return await runScenario(scenario, {
     open: async url => {
       const cdp = await live()
-      target = (await newPage(cdp, url)).id
+      target = (await newDeskPage(cdp, url)).id
     },
     press: async words => {
       const { cdp, id } = await where()
