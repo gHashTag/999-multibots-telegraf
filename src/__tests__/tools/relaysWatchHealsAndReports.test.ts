@@ -6,7 +6,14 @@
  * the probe, the redeploy, the sender and sleep replaced by stubs.
  */
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -161,5 +168,50 @@ describe('tri relays-watch run', () => {
     expect(third.rc).toBe(2)
     expect(third.sent).toHaveLength(1)
     expect(third.probes).toBe(6)
+  })
+})
+
+/* A fake `railway` in its own directory, logged in or not. */
+function cli(loggedIn: boolean) {
+  const home = mkdtempSync(join(tmpdir(), 'rwi-'))
+  const bin = join(home, 'cli-bin')
+  mkdirSync(bin)
+  writeFileSync(
+    join(bin, 'railway'),
+    loggedIn
+      ? '#!/bin/sh\necho "Logged in as test"\n'
+      : '#!/bin/sh\necho "Unauthorized. Please login" >&2\nexit 1\n'
+  )
+  chmodSync(join(bin, 'railway'), 0o755)
+  return { home, bin }
+}
+
+function install(home: string, bin: string) {
+  let rc = 0
+  try {
+    execFileSync('bash', [SCRIPT, 'install'], {
+      env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home, LAUNCHCTL: 'true' },
+      stdio: 'pipe',
+    })
+  } catch (e) {
+    rc = (e as { status: number }).status
+  }
+  const plist = join(home, 'Library/LaunchAgents/ai.t27.relays-watch.plist')
+  return { rc, plist: existsSync(plist) ? readFileSync(plist, 'utf8') : '' }
+}
+
+describe('tri relays-watch install', () => {
+  it('puts the logged-in railway first on the job PATH', () => {
+    const { home, bin } = cli(true)
+    const r = install(home, bin)
+    expect(r.rc).toBe(0)
+    expect(r.plist).toContain(`<string>${bin}:/opt/homebrew/bin:`)
+  })
+
+  it('refuses a watch whose railway is not logged in', () => {
+    const { home, bin } = cli(false)
+    const r = install(home, bin)
+    expect(r.rc).toBe(1)
+    expect(r.plist).toBe('')
   })
 })
