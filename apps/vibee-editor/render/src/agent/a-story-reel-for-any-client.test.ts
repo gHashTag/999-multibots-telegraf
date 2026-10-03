@@ -774,6 +774,9 @@ describe('the seller asks from the CRM', () => {
       cta: STORY_DEFAULT_CTA,
     })
     expect(seen[0].args.scenes).toHaveLength(3)
+    // The writer named three places; a topic reel stays in the studio anyway
+    // (spec v21, setting_drawn): no still is drawn, no face is checked.
+    expect(seen[0].args.scenes.map((s: any) => s.setting)).toEqual(['', '', ''])
     expect(said.map(x => x.chat)).toEqual([SELLER])
     expect(said[0].text).toMatch('перешли клиенту сам')
     expect(said[0].text).toContain(nextLink('example_bot'))
