@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { createRequire } from 'node:module'
-import { realpathSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import {
+  cpSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
@@ -27,6 +37,31 @@ import { fileURLToPath } from 'node:url'
  * Without this guard the trap speaks in "X is not a function" and costs an
  * hour of archaeology. With it, the run names the cause and the cure.
  */
+/*
+ * A COPY WITH THE SAME BYTES IS THE SAME BARREL. The cloud check-runner
+ * installs with --install-links and keeps node_modules on its cache volume,
+ * so @vibee/atoms there is a copy, never this path -- and the guard failed
+ * every run that reached it (2026-10-03). The copy cannot be stale: the
+ * runner keys that cache on a hash of packages/vibee-atoms. So the test asks
+ * what the trap was about, the CONTENT: a foreign barrel from another branch
+ * differs and still fails here, an identical copy does not.
+ */
+function contentHash(dir: string): string {
+  const h = createHash('sha256')
+  const walk = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true }).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )) {
+      if (e.name === 'node_modules') continue
+      const p = join(d, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (e.isFile()) h.update(p.slice(dir.length)).update(readFileSync(p))
+    }
+  }
+  walk(dir)
+  return h.digest('hex')
+}
+
 describe('@vibee/atoms resolves inside the tree under test', () => {
   it("the barrel the render tests import is this tree's barrel", () => {
     const renderRoot = dirname(fileURLToPath(import.meta.url))
@@ -38,7 +73,10 @@ describe('@vibee/atoms resolves inside the tree under test', () => {
     // "." exports to src/index.ts; one dirname is the package root.
     const resolvedAtoms = realpathSync(dirname(dirname(resolvedEntry)))
 
-    if (resolvedAtoms !== ownAtoms) {
+    if (
+      resolvedAtoms !== ownAtoms &&
+      contentHash(resolvedAtoms) !== contentHash(ownAtoms)
+    ) {
       throw new Error(
         `@vibee/atoms resolved OUTSIDE the tree under test: tests see ` +
           `${resolvedAtoms}, but this tree's barrel is ${ownAtoms}. ` +
@@ -49,6 +87,24 @@ describe('@vibee/atoms resolves inside the tree under test', () => {
           `bun-install node_modules across trees.`
       )
     }
-    expect(resolvedAtoms).toBe(ownAtoms)
+    expect(contentHash(resolvedAtoms)).toBe(contentHash(ownAtoms))
+  })
+
+  it('an identical copy passes and a copy one byte off does not', () => {
+    const renderRoot = dirname(fileURLToPath(import.meta.url))
+    const own = realpathSync(resolve(renderRoot, '../packages/vibee-atoms'))
+    const copy = mkdtempSync(join(tmpdir(), 'atoms-copy-'))
+    try {
+      cpSync(own, copy, {
+        recursive: true,
+        filter: src => !src.includes('node_modules'),
+      })
+      expect(contentHash(copy)).toBe(contentHash(own))
+      const entry = join(copy, 'src', 'index.ts')
+      writeFileSync(entry, readFileSync(entry, 'utf8') + ' ')
+      expect(contentHash(copy)).not.toBe(contentHash(own))
+    } finally {
+      rmSync(copy, { recursive: true, force: true })
+    }
   })
 })
