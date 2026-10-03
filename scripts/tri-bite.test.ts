@@ -695,3 +695,27 @@ describe('tri bite -- review 1 of #3479', () => {
     }
   )
 })
+
+describe('tri bite -- review 2 of #3479', () => {
+  it('a repo kept under a node_modules directory still sees its workspace links', () => {
+    // The skip read node_modules anywhere in the absolute path, so every
+    // link of a checkout at /x/node_modules/A looked installed: a false 1.
+    const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-'))
+    dirs.push(outer)
+    const dir = path.join(outer, 'node_modules/A')
+    fs.mkdirSync(path.join(dir, 'packages/pkg'), { recursive: true })
+    git(dir, 'init', '-q', '-b', 'main')
+    fs.writeFileSync(path.join(dir, 'packages/pkg/add.sh'), 'v1\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'pkg')
+    git(dir, 'tag', 'v1')
+    fs.writeFileSync(path.join(dir, 'packages/pkg/add.sh'), 'v2\n')
+    git(dir, 'commit', '-qam', 'pkg 2')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../packages/pkg', path.join(dir, 'node_modules/pkg'))
+    const r = bite(dir, 'v1', 'packages/pkg/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+  })
+})
