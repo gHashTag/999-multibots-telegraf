@@ -569,7 +569,7 @@ that we did not, and where each stands:
 | --------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | No frames while the PERSON drives                                                 | ChatGPT agent             | **done** #3464: `tickMayFilm` stops the film ticker under the person's wheel lease                                  |
 | A live view that says "stream stopped" + why, not a frozen picture                | Browserbase, Skyvern      | **done** #3475: `FREEZE_SCRIPT` -- 10 s without a frame on a connected video says so, names the side                |
-| A login that is checked by USE, not by cookie name; a one-tap "sign in again"     | Anchor                    | open: `browser_logins` reads cookie NAMES -- a cookie can outlive the session                                       |
+| A login that is checked by USE, not by cookie name; a one-tap "sign in again"     | Anchor                    | **done** #3477: a gated page sent to the sign-in wall = `refused`; `signInAgain` names the door                     |
 | The person's own per-site list: blocked / read-only for the agent                 | Comet                     | open: `guard.ts` has one list for everyone (`DEFAULT_SENSITIVE` + env `BROWSER_SENSITIVE_DOMAINS`), none per person |
 | One typed handoff (login/captcha/approval) answering resolved/cancelled/timed_out | BrowserOS, Cloudflare     | partly: `browser_ask_input`, `browser_ask_permission`                                                               |
 | A watch-only share link                                                           | Hyperbrowser, Browserbase | open                                                                                                                |
@@ -587,6 +587,22 @@ page. It shows a strip, not a cover: the words, whose side
 the app re-reads the session as for `stuck`. It is quiet on a hidden tab, a
 paused or never-played video, neko's card, and the loader or watch mode. Not
 yet seen live: the first real stall after the deploy is the measurement.
+
+**A login is checked by use (#3477).** X revokes a session on its side and
+leaves `auth_token` in place, so `browser_logins` said "signed in", the blog
+desk landed on X's sign-in form, reported "button not found" and left the form
+open, and `browser_sign_in` said "do nothing". Now a desk's GATED page (a
+composer or a share form, never a public page) that lands on the network's own
+sign-in wall (`WALLS` in `login-use.ts`) is written to
+`browser_login_refusals`: network, the login cookie's expiry (`stampOf`),
+host+path of the wall (never the query, which can carry a one-time token).
+`loginsOfPerson` then says `refused` while the expiry is unchanged and the
+refusal is under a week old. A new sign-in moves the expiry and voids it; a
+gated page let through deletes it. Nobody clears it by hand. The desk closes a
+walled page without a press and tells him to sign in himself;
+`tri browser logins` prints `REF ... since` and the door to sign in again.
+Opening the sign-in door on purpose is not a refusal (`wallOf` answers null
+when the asked URL is itself a wall).
 
 **Read journal times with their date.** `tri journal` printed `HH:MM:SS`
 only: at 01:05 UTC a step from 22:47 the day before read as fresh. Both

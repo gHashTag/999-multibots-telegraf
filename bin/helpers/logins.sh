@@ -59,9 +59,18 @@ if not (out.get('reachable') or out.get('running')):
     print('browser is off -- its logins cannot be read (' + str(out.get('hint', '')) + ')')
     sys.exit(3)
 
-MARK = {'signed_in': 'OK ', 'expired': 'EXP', 'signed_out': '-- ', 'unknown': '?? '}
+# REF = the cookie is there, but a desk's gated page landed on the site's
+# sign-in wall with it (login-use.ts, #3477): signed out in fact, until the
+# person signs in again and the cookie's expiry moves.
+MARK = {'signed_in': 'OK ', 'refused': 'REF', 'expired': 'EXP', 'signed_out': '-- ', 'unknown': '?? '}
 for n in out.get('networks', []):
-    print(f"{MARK.get(n.get('state'), '   ')} {n.get('name', ''):<10} {n.get('state', '')}")
+    when = f"  since {n['refusedAt'][:16].replace('T', ' ')} UTC" if n.get('refusedAt') else ''
+    print(f"{MARK.get(n.get('state'), '   ')} {n.get('name', ''):<10} {n.get('state', '')}{when}")
 held = out.get('signedIn') or []
 print(f"\n{len(held)} signed in: {', '.join(held) or 'none'}")
+again = out.get('signInAgain') or []
+if again:
+    print(f"{len(again)} to sign in again (he types, in the Browser tab):")
+    for a in again:
+        print(f"  {a.get('name', '')}: {a.get('door') or 'no known door'}")
 PYBODY
