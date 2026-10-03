@@ -17,6 +17,9 @@ const OK =
   'relays: bot -> render\n  ok    key parity\nrelays: every road answers'
 const DOWN =
   '  ok    key parity\n  FAIL  approve (Allow/Deny button): 502, words: none\n  FAIL  meeting card button: 000, words: none'
+/* A 5xx alone, the meeting road fine: a render that answers but errors. */
+const ERRORS =
+  '  ok    key parity\n  FAIL  approve (Allow/Deny button): 503, words: none\n  ok    meeting card button: 200'
 const KEY =
   "  FAIL  key parity: the bot's key differs from the render's -- every relay is 401\n  FAIL  approve (Allow/Deny button): 401, words: none"
 
@@ -88,6 +91,17 @@ describe('tri relays-watch run', () => {
     expect(r.redeploys).toBe(1)
     expect(r.sent).toHaveLength(1)
     expect(r.sent[0]).toContain('Починил сам')
+  })
+
+  it('treats a 5xx as a dead render too, not only no answer at all', () => {
+    const r = run(
+      world([
+        { out: ERRORS, rc: 1 },
+        { out: ERRORS, rc: 1 },
+        { out: OK, rc: 0 },
+      ])
+    )
+    expect(r.redeploys).toBe(1)
   })
 
   it('reports a heal that did not help, with what is broken', () => {
