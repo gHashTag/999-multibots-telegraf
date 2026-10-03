@@ -52,6 +52,19 @@ export async function runRoundNow(
   const { waitForBrowser, cdpHealthIo } = await import('../browser/health')
 
   const { loginsOfPerson } = await import('../browser/logins')
+  const { deskMayGo } = await import('../browser/desk-page')
+  const { siteRulesOf, ruleFor } = await import('../browser/site-rules')
+  /*
+   * THE PERSON'S SITE LIST, read before the walk (#3488, found by the bee):
+   * the round opens and navigates its own window over raw CDP, past the
+   * agent tools' guard. A blocked site is not walked at all -- left in, it
+   * would come back as a failed look, and a round of only those reads as a
+   * blank browser and restarts it. An unreadable list walks nothing.
+   */
+  const rules = await siteRulesOf(pool, owner)
+  if (rules === null) return 'site list unreadable'
+  const sites = strategy.sites.filter(s => ruleFor(s.url, rules) !== 'block')
+  const who = { pool, telegramId: owner }
 
   /** The endpoint of the person's browser, started if it is not up yet. */
   const endpoint = async (): Promise<string> => {
@@ -74,7 +87,10 @@ export async function runRoundNow(
    */
   const at = PROFILE_ORDER.indexOf(desk?.id ?? '')
   const win = deskWindow({
-    open: async url => await openWindow(await endpoint(), url),
+    open: async url => {
+      await deskMayGo(who, url)
+      return await openWindow(await endpoint(), url)
+    },
     tile: async targetId => {
       if (!desk) return
       await tileWindow(
@@ -87,7 +103,10 @@ export async function runRoundNow(
         )
       )
     },
-    goTo: async (targetId, url) => await goTo(await endpoint(), targetId, url),
+    goTo: async (targetId, url) => {
+      await deskMayGo(who, url)
+      await goTo(await endpoint(), targetId, url)
+    },
     alive: async targetId => !!(await pageUrl(await endpoint(), targetId)),
     close: async targetId => await closeWindow(await endpoint(), targetId),
     /*
@@ -109,6 +128,8 @@ export async function runRoundNow(
         const target = await win.at(url)
         const where = await endpoint()
         await settle(strategy.settleMs)
+        /* Where it LANDED: a redirect may have left the site asked for. */
+        await deskMayGo(who, await pageUrl(where, target))
         const { itemsProbe, itemsOf } = await import('../browser/items')
         const got = (await evaluateOn(
           where,
@@ -132,7 +153,7 @@ export async function runRoundNow(
         sendToTelegram(owner, desk ? `[${desk.name}] ${text}` : text),
       restart: () => restartBrowserAsAgent(owner, 'rounds'),
       now: () => new Date(),
-      sites: strategy.sites,
+      sites,
     })
   } finally {
     /* A round leaves no windows behind: the person's browser is theirs. */

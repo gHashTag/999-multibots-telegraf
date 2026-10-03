@@ -36,6 +36,36 @@ export interface DeskWho {
   telegramId: string
 }
 
+/**
+ * THE ONE CHECK EVERY DESK ROAD PASSES: may this desk be at `url` for this
+ * person? Throws `blockedError` for a blocked site and `UNREADABLE_LIST` when
+ * the list cannot be read. An address that cannot be parsed ('' from a tab
+ * that is gone, a page still loading) is refused while the list blocks
+ * anything: the unknown place may be the blocked one (agent-tools.ts
+ * mustNotBeOn, same rule). Used by newDeskPage, by the desks that navigate a
+ * window of their own (rounds), read through a tab already open (reddit) or
+ * act on the tab in front (scenarios) -- found by the bee on #3488.
+ */
+export async function deskMayGo(who: DeskWho, url: string): Promise<void> {
+  const { siteRulesOf, ruleFor, blockedError, UNREADABLE_LIST } = await import(
+    './site-rules'
+  )
+  const rules = await siteRulesOf(who.pool, who.telegramId)
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  if (ruleFor(url, rules) === 'block') throw blockedError(url)
+  let known = false
+  try {
+    known = /^(https?|about|chrome):$/.test(new URL(url).protocol)
+  } catch {
+    /* Not an address at all: unknown. */
+  }
+  if (!known && rules.some(r => r.rule === 'block'))
+    throw new Error(
+      'the desk cannot tell which site this tab is on, and the person has ' +
+        'blocked sites: refused (the unknown place may be a blocked one)'
+    )
+}
+
 /** Longer than any desk run (a share run measured 3-6 minutes). */
 export const DESK_HOLD_MS = 15 * 60_000
 
@@ -97,12 +127,7 @@ export async function newDeskPage(
   io?: DeskPageIo,
   now: number = Date.now()
 ): Promise<CdpTarget> {
-  const { siteRulesOf, ruleFor, blockedError, UNREADABLE_LIST } = await import(
-    './site-rules'
-  )
-  const rules = await siteRulesOf(who.pool, who.telegramId)
-  if (rules === null) throw new Error(UNREADABLE_LIST)
-  if (ruleFor(url, rules) === 'block') throw blockedError(url)
+  await deskMayGo(who, url)
   const use = io ?? (await realIo())
   try {
     const { roomForOne, namesOfClosed, whereItWas } = await import(

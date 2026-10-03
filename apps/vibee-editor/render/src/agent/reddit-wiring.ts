@@ -157,8 +157,14 @@ export async function readAsThePerson(
   owner: string,
   url: string
 ): Promise<unknown> {
-  const { newDeskPage } = await import('../browser/desk-page')
+  const { newDeskPage, deskMayGo } = await import('../browser/desk-page')
   const { listTargets, closePage } = await import('../browser/cdp')
+  /*
+   * The list first, before the open tab is borrowed (#3488, found by the
+   * bee): the read below reaches through a tab already on Reddit, and only
+   * the fallback went through newDeskPage's check.
+   */
+  await deskMayGo({ pool, telegramId: owner }, url)
   const cdp = await endpointOf(pool, owner)
   /*
    * TWO PLACES TO READ IN, AND NEITHER IS TRUSTWORTHY ALONE.

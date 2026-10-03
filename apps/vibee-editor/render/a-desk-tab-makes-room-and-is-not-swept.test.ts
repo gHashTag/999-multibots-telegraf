@@ -14,6 +14,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   DESK_HOLD_MS,
+  deskMayGo,
   deskTabsHeld,
   newDeskPage,
   resetDeskHoldsForTests,
@@ -244,8 +245,21 @@ describe("a desk answers to the person's site list", () => {
     at: '2026-10-03T00:00:00Z',
   })
 
+  /*
+   * At the ceiling, so an open that went ahead WOULD close a tab for room
+   * (the control below proves it does): the bee's mutation on #3488 moved
+   * the check after room-making, and a pod under the cap could not tell.
+   */
+  const full = (): Tab[] => {
+    const tabs = tonight()
+    for (let i = tabs.length; i < TAB_CAP; i++)
+      tabs.push(tab(`f${i}`, `https://example${i}.com/`))
+    return tabs
+  }
+
   it('a blocked site is not opened, and nothing is closed for room', async () => {
-    const p = pod(tonight())
+    const p = pod(full())
+    expect(p.tabs).toHaveLength(TAB_CAP)
     await expect(
       newDeskPage(
         'cdp',
@@ -254,9 +268,15 @@ describe("a desk answers to the person's site list", () => {
         p
       )
     ).rejects.toThrow(/blocked list/)
-    expect(p.tabs.map(t => t.id)).toEqual(tonight().map(t => t.id))
+    expect(p.tabs.map(t => t.id)).toEqual(full().map(t => t.id))
     expect(p.closed).toEqual([])
     expect(deskTabsHeld()).toEqual([])
+  })
+
+  it('control: the same full pod, unblocked, does close one for room', async () => {
+    const p = pod(full())
+    await newDeskPage('cdp', 'https://x.com/compose/post', ANYONE, p)
+    expect(p.closed.length).toBeGreaterThan(0)
   })
 
   it('an unreadable list opens nothing', async () => {
@@ -276,5 +296,52 @@ describe("a desk answers to the person's site list", () => {
       p
     )
     expect(p.tabs.map(t => t.id)).toEqual([page.id])
+  })
+})
+
+describe('deskMayGo: the one check every desk road passes', () => {
+  /*
+   * Rounds navigates its own window, reddit reads through a tab already
+   * open, scenarios acts on the tab in front -- none of them through
+   * newDeskPage (the bee on #3488). They call this instead.
+   */
+  const blocks = {
+    telegramId: '144',
+    pool: {
+      query: async (sql: string) =>
+        sql.includes('SELECT')
+          ? {
+              rows: [
+                {
+                  site: 'reddit.com/message',
+                  rule: 'block',
+                  by_whom: 'person',
+                  at: '2026-10-03T00:00:00Z',
+                },
+              ],
+            }
+          : { rows: [] },
+    },
+  }
+
+  it('a blocked path is refused, the rest of the site is not', async () => {
+    await expect(
+      deskMayGo(blocks, 'https://www.reddit.com/message/inbox.json')
+    ).rejects.toThrow(/blocked list/)
+    await expect(
+      deskMayGo(blocks, 'https://www.reddit.com/r/t27ai/new.json')
+    ).resolves.toBeUndefined()
+  })
+
+  it('an address it cannot read is refused while anything is blocked', async () => {
+    await expect(deskMayGo(blocks, '')).rejects.toThrow(/cannot tell/)
+    await expect(deskMayGo(blocks, 'chrome-error://x')).rejects.toThrow(
+      /cannot tell/
+    )
+    await expect(deskMayGo(blocks, 'about:blank')).resolves.toBeUndefined()
+  })
+
+  it('with nothing blocked, an unknown address goes ahead', async () => {
+    await expect(deskMayGo(ANYONE, '')).resolves.toBeUndefined()
   })
 })
