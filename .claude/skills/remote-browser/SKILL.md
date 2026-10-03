@@ -221,9 +221,11 @@ last touches the browser:
    page always stays (he may have closed the others himself before his yes).
 
 Do not `tidy ask` at night without a reason: it is a real card on his phone.
-Ask once (#3449): while a tidy question is still pending (24 h) or allowed
-but not applied, `browser_tidy` makes no new card and returns `open` instead;
-`tri browser doctor` then says "already with the owner (QID)" or points to
+Ask once (#3449): while a tidy question is still pending (24 h for a tidy
+card, `TIDY_TTL_MS`; a row with an empty `ttl_ms` gets the approvals module's
+10 minutes) or allowed but not applied, `browser_tidy` makes no new card and
+returns `open` instead; `tri browser doctor` then prints
+`вопрос уже у владельца (QID), ждём «Разрешить»` or points to
 `tidy apply QID`. Only an expired or denied question lets a new card through.
 
 `bun run verify` runs `cover` as the `browser-cover` step.
@@ -391,11 +393,13 @@ exactly that (`noBrowserError` in agent-tools.ts), not "no browser is running".
 **A visit with no journal step behind it was opened by a desk** (#3450,
 03.10). The desks (reddit, engage, blog-share, rounds, scenarios) drive the
 page over raw CDP, not the journaled tools; the Reddit tick at 00:11:11 opened
-the owner's visit at 00:11:12 and nothing said who. Diagnose by matching
-`browser_sessions.created_at` to the `*:last-tick` / `*:last-run` keys in
-`agent_strategies`. Now `startBrowserAsAgent(who, by)` journals a
-`browser_start` step naming the desk; a new desk that touches the browser must
-pass `by`. A restart is journaled the same way (#3456):
+the owner's visit at 00:11:12 and nothing said who. Since #3450 the witness
+is the journal: `startBrowserAsAgent(who, by)` writes a `browser_start` step
+whose `by` names the desk; a new desk that touches the browser must pass `by`.
+For a visit from before #3450, match `browser_sessions.created_at` to the
+desk's key in `agent_strategies`: `reddit:last-tick`, `rounds:last-run`,
+`engage:last-search`. blog-share and scenarios keep no such key, so their old
+visits can only be ruled in by elimination. A restart is journaled the same way (#3456):
 `restartBrowserAsAgent(who, by)` writes `browser_restart` with `by` 'rounds'
 or 'heal', and neither step counts as turn work (`isTurnWork` in report.ts).
 
