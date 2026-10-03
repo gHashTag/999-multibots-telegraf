@@ -789,7 +789,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     name: 'browser_logins',
     description:
       "Which of the person's networks their browser is signed into (X, LinkedIn, TikTok, " +
-      'Instagram, YouTube, Google, GitHub, VK...): signed_in / expired / signed_out / unknown. ' +
+      'Instagram, YouTube, Google, GitHub, VK...): signed_in / refused (site asked to sign in again) / expired / signed_out / unknown. ' +
       'Opens no page. Call it before "connect my networks" and after each sign-in.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     async handler(_args, ctx) {
