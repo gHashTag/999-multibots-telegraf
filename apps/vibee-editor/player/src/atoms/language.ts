@@ -939,6 +939,8 @@ const en: Translations = {
   'meta.card.days': '{n} days left',
   'meta.card.soon': 'LinkedIn ends in {n} days -- reconnect',
   'meta.card.renews': 'renews itself',
+  'meta.card.waiting':
+    'Waiting for {name} to confirm -- this line updates by itself',
   // The TRI payout wallet, own profile only (components/Profile/TriWalletCard.tsx)
   'tri.wallet.title': '💎 TRI wallet',
   'tri.wallet.note':
@@ -3922,6 +3924,7 @@ const ru: Translations = {
   'meta.card.days': 'осталось дней: {n}',
   'meta.card.soon': 'LinkedIn закончится через {n} дн. — переподключите',
   'meta.card.renews': 'продлевается сам',
+  'meta.card.waiting': 'Ждём подтверждения от {name} — строка обновится сама',
   'tri.wallet.title': '💎 Кошелёк TRI',
   'tri.wallet.note':
     'TON-адрес, на который приходят ваши TRI, подтверждённый подписью самого кошелька. TRI пока есть только в тестовой сети TON; в основной сети его ещё нет.',

@@ -12,11 +12,7 @@ import {
   Pause,
 } from 'lucide-react'
 import { useSetAtom } from 'jotai'
-import {
-  deleteTemplateAtom,
-  editTemplateAtom,
-  useTemplateAtom,
-} from '@/atoms'
+import { deleteTemplateAtom, editTemplateAtom, useTemplateAtom } from '@/atoms'
 import type { FeedTemplate } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { API_BASE } from '../../config'
@@ -26,6 +22,9 @@ interface ProfileTemplatesGridProps {
   username: string
   isOwn: boolean
 }
+
+/** Pages read without a press -- the fuse named in the effect below. */
+export const AUTO_PAGES = 10
 
 export function ProfileTemplatesGrid({
   username,
@@ -154,10 +153,11 @@ export function ProfileTemplatesGrid({
    * вдруг начнёт отдавать полную страницу всегда. Он назван, а не подразуме-
    * вается: молчаливое усечение читается как «здесь всё».
    */
+  const autoPaging = hasMore && page < AUTO_PAGES - 1
   useEffect(() => {
-    if (loading || !hasMore || page >= 9) return
+    if (loading || !autoPaging) return
     void loadTemplates(page + 1)
-  }, [loading, hasMore, page, loadTemplates])
+  }, [loading, autoPaging, page, loadTemplates])
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') {
@@ -393,15 +393,20 @@ export function ProfileTemplatesGrid({
     return num.toString()
   }
 
+  /*
+   * THE PLACEHOLDER HAS THE SHAPE OF WHAT REPLACES IT (2026-10-03).
+   *
+   * Six 9:16 tiles stood here, three phone screens tall, and gave way to
+   * three one-line group heads: everything under the tab jumped up by most
+   * of a screen. The owner saw the templates screen "shake and blink". The
+   * groups are collapsed by default, so the placeholder is group heads too.
+   */
   if (loading && templates.length === 0) {
     return (
-      <div className="profile-templates__grid">
-        {[1, 2, 3, 4, 5, 6].map(i => (
-          <div key={i} className="profile-templates__item">
-            <div
-              className="skeleton skeleton-card"
-              style={{ aspectRatio: '9/16' }}
-            />
+      <div className="profile-templates" data-testid="templates-placeholder">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="profile-templates__group">
+            <div className="profile-templates__group-head" aria-hidden="true" />
           </div>
         ))}
       </div>
@@ -487,121 +492,129 @@ export function ProfileTemplatesGrid({
           {раскрыта(г.ключ) && (
             <div className="profile-templates__grid">
               {г.ролики.map(template => {
-          const videoAvailable =
-            Boolean(template.videoUrl) && !failedVideos.has(template.id)
-          const posterAvailable =
-            Boolean(template.thumbnailUrl) && !failedPosters.has(template.id)
-          const isPlaying = playingId === template.id
-          const isNearViewport = nearViewportIds.has(template.id)
+                const videoAvailable =
+                  Boolean(template.videoUrl) && !failedVideos.has(template.id)
+                const posterAvailable =
+                  Boolean(template.thumbnailUrl) &&
+                  !failedPosters.has(template.id)
+                const isPlaying = playingId === template.id
+                const isNearViewport = nearViewportIds.has(template.id)
 
-          return (
-            <article key={template.id} className="profile-templates__item">
-              <div
-                ref={mediaRefFor(template.id)}
-                className="profile-templates__thumbnail"
-                data-template-id={template.id}
-              >
-                {videoAvailable ? (
-                  <video
-                    ref={node => setVideoRef(template.id, node)}
-                    src={template.videoUrl}
-                    poster={posterAvailable ? template.thumbnailUrl : undefined}
-                    muted
-                    loop
-                    playsInline
-                    preload={
-                      posterAvailable || !isNearViewport ? 'none' : 'metadata'
-                    }
-                    crossOrigin="anonymous"
-                    onLoadedMetadata={event => {
-                      if (posterAvailable || isPlaying || !isNearViewport)
-                        return
-                      const duration = event.currentTarget.duration
-                      event.currentTarget.currentTime =
-                        Number.isFinite(duration) && duration > 0
-                          ? Math.min(0.8, duration / 2)
-                          : 0.8
-                    }}
-                    onPause={() => {
-                      if (activePreviewRef.current !== template.id) return
-                      activePreviewRef.current = null
-                      setPlayingId(current =>
-                        current === template.id ? null : current
-                      )
-                    }}
-                    onError={() => {
-                      if (activePreviewRef.current === template.id) {
-                        activePreviewRef.current = null
-                      }
-                      setFailedVideos(current =>
-                        new Set(current).add(template.id)
-                      )
-                      setPlayingId(current =>
-                        current === template.id ? null : current
-                      )
-                    }}
-                  />
-                ) : null}
-
-                {posterAvailable && !isPlaying ? (
-                  <img
-                    src={template.thumbnailUrl}
-                    alt={template.name}
-                    loading="lazy"
-                    decoding="async"
-                    onError={() =>
-                      setFailedPosters(current =>
-                        new Set(current).add(template.id)
-                      )
-                    }
-                  />
-                ) : !videoAvailable ? (
-                  <div className="profile-templates__placeholder">
-                    <Video size={32} />
-                  </div>
-                ) : null}
-
-                <div
-                  className="profile-templates__media-gradient"
-                  aria-hidden="true"
-                />
-
-                {videoAvailable && (
-                  <button
-                    type="button"
-                    className={`profile-templates__preview-toggle ${isPlaying ? 'is-playing' : ''}`}
-                    aria-label={`${t(
-                      isPlaying
-                        ? 'profile.pause_preview'
-                        : 'profile.preview_template'
-                    )} ${template.name}`}
-                    onClick={() => void togglePreview(template)}
+                return (
+                  <article
+                    key={template.id}
+                    className="profile-templates__item"
                   >
-                    {isPlaying ? (
-                      <Pause size={24} fill="currentColor" />
-                    ) : (
-                      <Play size={24} fill="currentColor" />
-                    )}
-                  </button>
-                )}
+                    <div
+                      ref={mediaRefFor(template.id)}
+                      className="profile-templates__thumbnail"
+                      data-template-id={template.id}
+                    >
+                      {videoAvailable ? (
+                        <video
+                          ref={node => setVideoRef(template.id, node)}
+                          src={template.videoUrl}
+                          poster={
+                            posterAvailable ? template.thumbnailUrl : undefined
+                          }
+                          muted
+                          loop
+                          playsInline
+                          preload={
+                            posterAvailable || !isNearViewport
+                              ? 'none'
+                              : 'metadata'
+                          }
+                          crossOrigin="anonymous"
+                          onLoadedMetadata={event => {
+                            if (posterAvailable || isPlaying || !isNearViewport)
+                              return
+                            const duration = event.currentTarget.duration
+                            event.currentTarget.currentTime =
+                              Number.isFinite(duration) && duration > 0
+                                ? Math.min(0.8, duration / 2)
+                                : 0.8
+                          }}
+                          onPause={() => {
+                            if (activePreviewRef.current !== template.id) return
+                            activePreviewRef.current = null
+                            setPlayingId(current =>
+                              current === template.id ? null : current
+                            )
+                          }}
+                          onError={() => {
+                            if (activePreviewRef.current === template.id) {
+                              activePreviewRef.current = null
+                            }
+                            setFailedVideos(current =>
+                              new Set(current).add(template.id)
+                            )
+                            setPlayingId(current =>
+                              current === template.id ? null : current
+                            )
+                          }}
+                        />
+                      ) : null}
 
-                <div className="profile-templates__meta">
-                  <span className="profile-templates__name">
-                    {template.name}
-                  </span>
-                  <div className="profile-templates__stats">
-                    <span>
-                      <Eye size={14} />
-                      {formatNumber(template.viewsCount)}
-                    </span>
-                    <span>
-                      <Heart size={14} />
-                      {formatNumber(template.likesCount)}
-                    </span>
-                  </div>
-                </div>
+                      {posterAvailable && !isPlaying ? (
+                        <img
+                          src={template.thumbnailUrl}
+                          alt={template.name}
+                          loading="lazy"
+                          decoding="async"
+                          onError={() =>
+                            setFailedPosters(current =>
+                              new Set(current).add(template.id)
+                            )
+                          }
+                        />
+                      ) : !videoAvailable ? (
+                        <div className="profile-templates__placeholder">
+                          <Video size={32} />
+                        </div>
+                      ) : null}
 
-                {/*
+                      <div
+                        className="profile-templates__media-gradient"
+                        aria-hidden="true"
+                      />
+
+                      {videoAvailable && (
+                        <button
+                          type="button"
+                          className={`profile-templates__preview-toggle ${isPlaying ? 'is-playing' : ''}`}
+                          aria-label={`${t(
+                            isPlaying
+                              ? 'profile.pause_preview'
+                              : 'profile.preview_template'
+                          )} ${template.name}`}
+                          onClick={() => void togglePreview(template)}
+                        >
+                          {isPlaying ? (
+                            <Pause size={24} fill="currentColor" />
+                          ) : (
+                            <Play size={24} fill="currentColor" />
+                          )}
+                        </button>
+                      )}
+
+                      <div className="profile-templates__meta">
+                        <span className="profile-templates__name">
+                          {template.name}
+                        </span>
+                        <div className="profile-templates__stats">
+                          <span>
+                            <Eye size={14} />
+                            {formatNumber(template.viewsCount)}
+                          </span>
+                          <span>
+                            <Heart size={14} />
+                            {formatNumber(template.likesCount)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/*
                   ГОСТЮ — СВОЯ КНОПКА.
 
                   У хозяина правка и удаление; у гостя на карточке не было
@@ -613,36 +626,37 @@ export function ProfileTemplatesGrid({
                   есть в данных и уже показан на карточке, начинает наконец
                   что-то считать.
                 */}
-                {!isOwn && (
-                  <div className="profile-templates__social-actions">
-                    <button
-                      type="button"
-                      className="profile-templates__social-action"
-                      aria-label={`Взять шаблон ${template.name}`}
-                      disabled={беруId === template.id}
-                      onClick={() => void взятьШаблон(template)}
-                    >
-                      {беруId === template.id ? (
-                        <Loader2 className="spinning" size={16} />
-                      ) : (
-                        <Plus size={16} />
+                      {!isOwn && (
+                        <div className="profile-templates__social-actions">
+                          <button
+                            type="button"
+                            className="profile-templates__social-action"
+                            aria-label={`Взять шаблон ${template.name}`}
+                            disabled={беруId === template.id}
+                            onClick={() => void взятьШаблон(template)}
+                          >
+                            {беруId === template.id ? (
+                              <Loader2 className="spinning" size={16} />
+                            ) : (
+                              <Plus size={16} />
+                            )}
+                          </button>
+                        </div>
                       )}
-                    </button>
-                  </div>
-                )}
 
-                {isOwn && (
-                  <div className="profile-templates__social-actions">
-                    <button
-                      type="button"
-                      className="profile-templates__social-action profile-templates__social-action--edit"
-                      aria-label={`${t('profile.edit_template')} ${template.name}`}
-                      onClick={() => handleEditTemplate(template)}
-                      disabled={
-                        editingId === template.id || deletingId === template.id
-                      }
-                    >
-                      {/*
+                      {isOwn && (
+                        <div className="profile-templates__social-actions">
+                          <button
+                            type="button"
+                            className="profile-templates__social-action profile-templates__social-action--edit"
+                            aria-label={`${t('profile.edit_template')} ${template.name}`}
+                            onClick={() => handleEditTemplate(template)}
+                            disabled={
+                              editingId === template.id ||
+                              deletingId === template.id
+                            }
+                          >
+                            {/*
                         БЕЗ ПОДПИСИ И МЕНЬШЕ.
 
                         Подпись под значком не помещалась и обрезалась
@@ -650,41 +664,47 @@ export function ProfileTemplatesGrid({
                         обложку. Значение остаётся в `aria-label` — для тех,
                         кто читает экран голосом, подпись как раз нужна.
                       */}
-                      {editingId === template.id ? (
-                        <Loader2 className="spinning" size={16} />
-                      ) : (
-                        <Pencil size={16} />
+                            {editingId === template.id ? (
+                              <Loader2 className="spinning" size={16} />
+                            ) : (
+                              <Pencil size={16} />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className="profile-templates__social-action profile-templates__social-action--delete"
+                            aria-label={`${t('profile.delete_template')} ${template.name}`}
+                            onClick={() => setPendingDelete(template)}
+                            disabled={
+                              editingId === template.id ||
+                              deletingId === template.id
+                            }
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       )}
-                    </button>
-                    <button
-                      type="button"
-                      className="profile-templates__social-action profile-templates__social-action--delete"
-                      aria-label={`${t('profile.delete_template')} ${template.name}`}
-                      onClick={() => setPendingDelete(template)}
-                      disabled={
-                        editingId === template.id || deletingId === template.id
-                      }
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </article>
-          )
+                    </div>
+                  </article>
+                )
               })}
             </div>
           )}
         </div>
       ))}
 
-      {hasMore && (
+      {/*
+        Only past the automatic pages. While they load by themselves the
+        button flipped "Loading..." / "Load More" once a page and then
+        vanished: a blink under the groups that nobody pressed.
+      */}
+      {hasMore && !autoPaging && (
         <button
           className="profile-templates__load-more"
           onClick={() => loadTemplates(page + 1)}
           disabled={loading}
         >
-          {loading ? 'Loading...' : t('profile.load_more')}
+          {loading ? t('common.loading') : t('profile.load_more')}
         </button>
       )}
 
