@@ -88,6 +88,7 @@ tri — оболочка Trinity S³AI
   tri traffic [дни]  откуда приходят люди, по каналам (utm_source), по умолчанию 30 дней
   tri reach /путь [метод]  пропустит ли замок рендера вызов без подписи (isPublic)
   tri bare-fetch  вызовы приложения без подписи, которые упрутся в замок рендера (401 до обработчика)
+  tri git-leak [--heal]  did a test under a hook's GIT_DIR write into this repo: core.bare=true (--heal), fixture-author refs, GIT_DIR in this shell
   tri tag URL канал [кампания]  ссылка с меткой канала: utm на наших страницах, __канал в /start нашего бота
   tri agent [id]  агент из каталога без сети: статус, навыки, префикс правил, ежедневная проверка, контракт
   tri hdl lint|sim|synth [--top имя] файлы  Verilog через тот же hdl_run, что у RTL/FPGA-агентов (песочница та же)
@@ -2101,6 +2102,7 @@ PYEOF
   traffic) shift; bash "$ROOT/bin/helpers/traffic.sh" "$ROOT" "$@" ;;
   reach) shift; bash "$ROOT/bin/helpers/reach.sh" "$ROOT" "$@" ;;
   bare-fetch) shift; bash "$ROOT/bin/helpers/bare-fetch.sh" "$ROOT" "$@" ;;
+  git-leak) shift; bash "$ROOT/bin/helpers/git-leak.sh" "$ROOT" "$@" ;;
   tag) shift; bash "$ROOT/bin/helpers/tag.sh" "$ROOT" "$@" ;;
   agent) shift; bash "$ROOT/bin/helpers/agent.sh" "$ROOT" "$@" ;;
   hdl) shift; bash "$ROOT/bin/helpers/hdl.sh" "$ROOT" "$@" ;;
