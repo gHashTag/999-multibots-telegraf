@@ -22,10 +22,10 @@ export async function runScenarioNow(
   const { runScenario } = await import('./scenarios')
   const { readSession } = await import('../browser/sessions')
   const { startBrowserAsAgent } = await import('../browser/routes')
-  const { newDeskPage, deskMayGo } = await import('../browser/desk-page')
-  const { evaluateOn, clickAt, typeText, frontPage, pageUrl } = await import(
-    '../browser/cdp'
+  const { newDeskPage, deskMayGo, deskClick, deskType } = await import(
+    '../browser/desk-page'
   )
+  const { evaluateOn, frontPage, pageUrl } = await import('../browser/cdp')
   const { findProbe, foundOf } = await import('../browser/find-target')
   const { askForInput, waitForAnswer } = await import(
     '../browser/input-request'
@@ -65,12 +65,12 @@ export async function runScenarioNow(
         await evaluateOn(cdp, id, findProbe(words)).catch(() => null)
       )
       if (!found) throw new Error(`nothing says "${words}"`)
-      await clickAt(cdp, id, found.x, found.y)
+      await deskClick({ pool, telegramId: who }, cdp, id, found.x, found.y)
       return found.label
     },
     type: async text => {
       const { cdp, id } = await where()
-      await typeText(cdp, id, text)
+      await deskType({ pool, telegramId: who }, cdp, id, text)
     },
     ask: async (kind, why) => {
       /* The person types it into their own browser; nothing comes back here
