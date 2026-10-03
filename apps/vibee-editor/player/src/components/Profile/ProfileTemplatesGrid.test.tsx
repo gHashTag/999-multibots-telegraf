@@ -565,4 +565,35 @@ describe('ProfileTemplatesGrid owner actions', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(host.querySelector('.profile-templates__load-more')).toBeNull()
   })
+
+  it('a failed first page is an error with a retry, not "no templates"', async () => {
+    let fails = true
+    const pages: number[] = []
+    const fetchMock = vi.fn(async (url: string) => {
+      const n = Number(/page=(\d+)/.exec(url)?.[1] ?? 0)
+      pages.push(n)
+      if (fails) throw new Error('offline')
+      return {
+        ok: true,
+        json: async () => ({ templates: [{ ...template, id: 3000 }] }),
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="t27_dev" isOwn />)
+    })
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(pages).toEqual([0])
+    expect(host.textContent).not.toContain('profile.no_templates')
+    const failed = host.querySelector('[data-testid="templates-failed"]')
+    expect(failed?.textContent).toContain('profile.templates_failed')
+
+    fails = false
+    await act(async () => failed?.querySelector('button')?.click())
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(pages).toEqual([0, 0])
+    expect(host.querySelector('[data-testid="templates-failed"]')).toBeNull()
+    expect(host.querySelector('.profile-templates')).not.toBeNull()
+  })
 })
