@@ -36,7 +36,9 @@ def what(s):
     # which desk opened the visit, or took the browser down and back up.
     if det.get("by"):
         verb = "restarted" if s.get("tool") == "browser_restart" else "started"
-        return f"{verb} by the {det['by']} desk"
+        # A desk start messages the person once per quiet window (announce.ts).
+        told = ", told the person" if det.get("announced") else ""
+        return f"{verb} by the {det['by']} desk{told}"
     if "pages" in det:
         return f"pages={det['pages']}"
     return ""
@@ -96,6 +98,8 @@ if __name__ == "__main__":
     assert "only watch checks" in header([probe], now)
     start = {**yday, "tool": "browser_start", "detail": {"by": "reddit"}}
     assert what(start) == "started by the reddit desk"
+    told = {**start, "detail": {"by": "reddit", "announced": True}}
+    assert what(told) == "started by the reddit desk, told the person", what(told)
     restart = {**yday, "tool": "browser_restart", "ok": False,
                "detail": {"by": "heal", "error": "the driver cannot restart this pod"}}
     assert what(restart) == "restarted by the heal desk"
