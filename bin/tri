@@ -113,6 +113,7 @@ tri — оболочка Trinity S³AI
   tri types  типы плеера ПО-НАСТОЯЩЕМУ: доказывает, что проверка не слепа (форма 196)
   tri gates  как проверить сами шлюзы заведомым нарушением (формы 196-197)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
+  tri bite <rev> <file>... -- <tests>  do the new tests go red on <rev>'s version of the files: a throwaway copy, working tree untouched (0 bites, 1 does not, 2 cannot tell)
   tri mutants <list.json> -- <команда>          пакет мутаций против одного прогона: таблица убитых и выживших; у мутанта "tests" — его файлы тестов
   tri mutants --check <list.json>...            только якоря: все мутанты, чей `from` не ровно один раз в файле (после рефакторинга), ничего не запуская
   tri mutants --adopt <proven.json> <guards.json>  keep a killed batch in a loop's guard list: paths re-rooted from where the batch ran, duplicates skipped, anchors checked before writing
@@ -2042,6 +2043,7 @@ PYEOF
     ;;
 
   mutate) shift; bash "$ROOT/bin/helpers/mutate.sh" "$@" ;;
+  bite)   shift; bash "$ROOT/bin/helpers/bite.sh" "$@" ;;
   mutants) shift; python3 "$ROOT/bin/helpers/mutants.py" "$@" ;;
   spec-controls) shift; node "$ROOT/bin/helpers/spec-controls.mjs" "$@" ;;
   stale-route) shift; node "$ROOT/bin/helpers/stale-route.mjs" "$@" ;;
