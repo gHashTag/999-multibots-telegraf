@@ -251,28 +251,11 @@ if [ "$free_after" -lt 2097152 ]; then
     printf "  %5d МБ  %s\n" "$((csz / 1024))" "$c"
   done
   echo
-  echo "Рабочие копии (каждая -- полный репозиторий):"
-  git worktree list --porcelain 2>/dev/null | grep '^worktree ' |
-    awk '{print $2}' | while read -r w; do
-      [ "$w" = "$(git rev-parse --show-toplevel 2>/dev/null)" ] && continue
-      sz=$(du -sk "$w" 2>/dev/null | awk '{print $1}')
-      [ -z "$sz" ] && continue
-      # AND WHETHER IT IS SAFE TO RELEASE -- the two questions, answered here
-      # so a person deciding at a glance does not have to run them by hand.
-      # A NAMED worktree is never removed by this script: it is somebody's
-      # working directory, not a dead session's scratch. Saying "safe" is the
-      # whole contribution; the deletion stays a person's.
-      dirty=$(git -C "$w" status --short 2>/dev/null | head -1)
-      head=$(git -C "$w" rev-parse HEAD 2>/dev/null)
-      pub=$(git branch -r --contains "$head" 2>/dev/null | head -1)
-      if [ -n "$dirty" ]; then
-        verdict="НЕ трогать: есть несохранённые правки"
-      elif [ -z "$pub" ]; then
-        verdict="НЕ трогать: коммита нет на сервере"
-      else
-        verdict="можно снять: чисто и опубликовано (git worktree remove)"
-      fi
-      printf "  %5d МБ  %s\n              %s\n" "$((sz / 1024))" "$w" "$verdict"
-    done
+  # WORKTREES ARE JUDGED IN ONE PLACE. This block used to print its own
+  # verdict, "clean and published -> git worktree remove": the branch-name
+  # rule #3474 replaced. `git worktree remove` without --force still deletes
+  # ignored files, an .env among them, and "published" said nothing about
+  # them. A second judge drifts from the first (#3497); this one points.
+  echo "Рабочие копии: судит tri worktrees, снимает только доказанно безопасные tri worktrees --apply"
   exit 1
 fi

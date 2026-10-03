@@ -6753,11 +6753,14 @@ cmd_disk() {
   # всегда «полон» и неинформативен); реальное место живёт на DATA-томе.
   paint '1;36' 'DATA-том'
   df -h /System/Volumes/Data | sed -n '1,2p'
+  bash "$ROOT/bin/helpers/disk-floor.sh"
 
   # (2) Мои worktree'ы. prune снимает записи, чей каталог уже исчез (безопасно).
   echo; paint '1;36' 'worktree цикла'
   git -C "$ROOT" worktree prune 2>/dev/null
   git -C "$ROOT" worktree list 2>/dev/null
+  # The list is not a verdict: finished-or-not is judged by commit in one place.
+  echo "  which are finished: tri worktrees   (remove proven-safe: tri worktrees --apply)"
 
   # (3) Scratch сессий. Один прогон lsof, дальше сверяем по пути открытых файлов.
   echo; paint '1;36' 'scratch сессий  (к возврату = 0 хендлов И mtime>суток)'

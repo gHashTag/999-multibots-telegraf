@@ -639,6 +639,10 @@ removes trees, and only provably finished ones. Lessons it cost:
 - 03.10 run of `tri worktrees --apply` (#3474 code): 46 of 66 trees removed,
   ~25.6 GB freed, disk free 8.7 -> 35 GiB, branches untouched. Kept on
   purpose: 999-mail-push (ignored .env), one tree touched 17 min earlier.
+- The floor that would have spoken: `tri disk-floor` (also in `tri doctor`
+  and `tri disk`) is rc 1 below 15 GiB free and prints `tri worktrees
+--apply`. free-disk.sh's own "clean and published -> git worktree remove"
+  verdict is gone -- a second judge of worktrees drifts from the first.
 
 ### Урок 07.09.2026: сторож, честно назвавший свою слепую зону, — это адрес работы
 
@@ -2101,6 +2105,17 @@ without repeating "ready" (the hourly announce spam, #3467); a refused send
 is not recorded and goes again next time. The token goes to curl on stdin
 (`-K -`), never in argv. Loop tick after an upload:
 `./tri iphone processed --telegram`.
+
+**A stub that can reach a real secret will.** The #3500 reviewer bee
+stubbed curl with `export -f` -- zsh, so it exported nothing -- left
+`TRI_TG_TOKEN` unset, and tri read the real BOT*TOKEN_12 from Railway into
+the stub's log, which the bee printed. Nothing was sent; the value still
+reached a transcript. Now a set `TRI_CURL` means Railway is never read, the
+token must match `^[0-9]+:[A-Za-z0-9*-]+$` (a newline in it added a curl
+config line), and the test stubs railway through the pick's cache
+(`XDG_CACHE_HOME/tri/railway-bin`): PATH alone loses to `/opt/homebrew/bin`,
+which tri puts first. Tell every bee: stubs in `/bin/bash`, never `export -f`
+from the Bash tool.
 
 ### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
 
