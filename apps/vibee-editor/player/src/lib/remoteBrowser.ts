@@ -593,6 +593,56 @@ export async function readSiteRules(): Promise<SiteRuleRow[] | null> {
   }
 }
 
+/**
+ * What the screen shows after a read. Only a 503 is "unreadable" -- the
+ * server's own word that it cannot say where the person said no, which stops
+ * the agent. A 401 or a dropped network says nothing about the list, so it is
+ * an error of this screen, not a claim about the agent.
+ */
+export type SiteListState =
+  | { rows: SiteRuleRow[] }
+  | { unreadable: true }
+  | { failed: string }
+
+export async function readSiteListState(): Promise<SiteListState> {
+  try {
+    const rows = await readSiteRules()
+    return rows === null ? { unreadable: true } : { rows }
+  } catch (e) {
+    return { failed: siteRuleReason(e) }
+  }
+}
+
+/** The row's one-tap flip: never <-> ask first. */
+export function nextRule(rule: SiteRule): SiteRule {
+  return rule === 'block' ? 'ask' : 'block'
+}
+
+/*
+ * The server's refusals are English sentences; the person reads their own
+ * language. Known statuses get a dictionary key, the rest the raw reason.
+ */
+export function siteRuleFailKey(e: unknown): string | null {
+  switch ((e as ApiError | undefined)?.status) {
+    case 400:
+      return 'browser.sites.badSite'
+    case 409:
+      return 'browser.sites.full'
+    case 503:
+      return 'browser.sites.unreadableNow'
+    default:
+      return null
+  }
+}
+
+/** The server's error code, or the message: what "Not saved: …" quotes. */
+export function siteRuleReason(e: unknown): string {
+  return (
+    (e as { code?: string } | null)?.code ||
+    (e instanceof Error ? e.message : String(e))
+  )
+}
+
 export async function putSiteRule(site: string, rule: SiteRule): Promise<void> {
   await apiFetch(`${API_BASE}/api/browser/sites`, {
     method: 'POST',

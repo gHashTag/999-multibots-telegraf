@@ -3,10 +3,13 @@ import './SiteRules.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import {
   dropSiteRule,
+  nextRule,
   putSiteRule,
-  readSiteRules,
+  readSiteListState,
+  siteRuleFailKey,
+  siteRuleReason,
+  type SiteListState,
   type SiteRule,
-  type SiteRuleRow,
 } from '@/lib/remoteBrowser'
 
 /**
@@ -24,18 +27,14 @@ import {
  */
 export function SiteRules() {
   const { t } = useLanguage()
-  /* undefined: still reading; null: the server could not read the list. */
-  const [rows, setRows] = useState<SiteRuleRow[] | null | undefined>(undefined)
+  /* undefined: still reading. */
+  const [list, setList] = useState<SiteListState | undefined>(undefined)
   const [site, setSite] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const reread = useCallback(async () => {
-    try {
-      setRows(await readSiteRules())
-    } catch {
-      setRows(null)
-    }
+    setList(await readSiteListState())
   }, [])
 
   useEffect(() => {
@@ -50,10 +49,10 @@ export function SiteRules() {
       await work()
       await reread()
     } catch (e) {
-      const why =
-        (e as { code?: string } | null)?.code ||
-        (e instanceof Error ? e.message : String(e))
-      setError(t('browser.sites.fail', { error: why }))
+      const key = siteRuleFailKey(e)
+      setError(
+        key ? t(key) : t('browser.sites.fail', { error: siteRuleReason(e) })
+      )
     } finally {
       setBusy(false)
     }
@@ -82,6 +81,10 @@ export function SiteRules() {
           placeholder={t('browser.sites.placeholder')}
           value={site}
           onChange={e => setSite(e.currentTarget.value)}
+          onKeyDown={e => {
+            /* The phone keyboard's Enter adds the gentler rule. */
+            if (e.key === 'Enter' && !busy && site.trim()) void add('ask')
+          }}
         />
         <button
           type="button"
@@ -107,17 +110,21 @@ export function SiteRules() {
         </p>
       ) : null}
 
-      {rows === undefined ? (
+      {list === undefined ? (
         <p className="site-rules__muted">{t('browser.sites.loading')}</p>
-      ) : rows === null ? (
+      ) : 'unreadable' in list ? (
         <p className="site-rules__fail" role="alert">
           {t('browser.sites.unreadable')}
         </p>
-      ) : rows.length === 0 ? (
+      ) : 'failed' in list ? (
+        <p className="site-rules__fail" role="alert">
+          {t('browser.sites.readFail', { error: list.failed })}
+        </p>
+      ) : list.rows.length === 0 ? (
         <p className="site-rules__muted">{t('browser.sites.empty')}</p>
       ) : (
         <ul className="site-rules__list">
-          {rows.map(row => (
+          {list.rows.map(row => (
             <li key={row.site} data-rule={row.rule}>
               <span className="site-rules__site">{row.site}</span>
               <span className="site-rules__rule">
@@ -131,12 +138,7 @@ export function SiteRules() {
                 className="remote-browser__secondary"
                 disabled={busy}
                 onClick={() =>
-                  void run(() =>
-                    putSiteRule(
-                      row.site,
-                      row.rule === 'block' ? 'ask' : 'block'
-                    )
-                  )
+                  void run(() => putSiteRule(row.site, nextRule(row.rule)))
                 }
               >
                 {row.rule === 'block'
