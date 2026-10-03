@@ -381,8 +381,22 @@ export function sceneCountOf(asked: unknown): number {
 }
 
 /**
- * What the model is asked for: a title and `count` scenes, as JSON. An empty
- * topic means "pick one": the writer is told which ones she already has.
+ * Whether a scene's place is drawn (spec v21, setting_drawn): only one a
+ * caller named in a script of their own. The writer of a topic reel writes
+ * lines, and a place it returns anyway is dropped.
+ */
+export function settingDrawn(
+  fromWriter: boolean,
+  hasSetting: boolean
+): boolean {
+  return hasSetting && (!fromWriter || SPEC.WRITER_WRITES_SETTINGS)
+}
+
+/**
+ * What the model is asked for: a title and `count` lines, as JSON. An empty
+ * topic means "pick one": the writer is told which ones she already has. The
+ * person speaks in her studio (spec v21, WRITER_WRITES_SETTINGS): the writer
+ * is asked for words, never for a place.
  */
 export function writerMessages(
   topic: { title: string; note: string },
@@ -397,13 +411,12 @@ export function writerMessages(
       role: 'system',
       content:
         `Ты пишешь короткий рилс-историю из ${n} ${n === 1 ? 'сцены' : 'сцен'} для Instagram от первого лица героини (героя). ` +
-        `Верни ТОЛЬКО JSON: {"title": "...", "scenes": [{"setting": "...", "line": "..."}, ×${n}]}. ` +
+        `Верни ТОЛЬКО JSON: {"title": "...", "scenes": [{"line": "..."}, ×${n}]}. ` +
         'title — тема по-русски, до 60 знаков. ' +
-        'setting — по-английски, одна НОВАЯ обстановка на сцену (фон не повторять), человек в кадре. ' +
+        'Героиня (герой) говорит в кадре в своей студии: пиши только слова, обстановку и картинку не придумывай. ' +
         'line — по-русски, 2–4 секунды речи, от первого лица, простыми словами; названия и цифры словами. ' +
         'Первая реплика — крючок за 1–2 секунды: вопрос, смелое обещание или неожиданный факт; без приветствий и «привет, меня зовут». ' +
         'Одна мысль на весь рилс: проблема → поворот → результат, конкретные детали, а не общие слова. ' +
-        'В первой сцене лицо крупным планом. Надписей в кадре нет. ' +
         'Последняя реплика — мягкий мостик к одному призыву к действию и перекликается с первой, чтобы рилс хотелось пересмотреть.',
     },
     {
@@ -443,7 +456,15 @@ export function parseStory(
   // One scene is a story only when one was asked for.
   if (typeof scenes === 'string' || scenes.length < Math.min(2, want))
     return null
-  return { title: String(raw?.title ?? '').trim(), scenes }
+  // A place the writer returns anyway is dropped here, not left to the prompt
+  // (spec v21, WRITER_SETTING_DROPPED): a topic reel stays in the studio.
+  return {
+    title: String(raw?.title ?? '').trim(),
+    scenes: scenes.map(s => ({
+      ...s,
+      setting: settingDrawn(true, !!s.setting) ? s.setting : '',
+    })),
+  }
 }
 
 const TABLE = `CREATE TABLE IF NOT EXISTS story_jobs (
