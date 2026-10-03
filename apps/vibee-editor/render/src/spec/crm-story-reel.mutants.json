@@ -10,9 +10,7 @@
     "file": "src/agent/story-reel-tool.ts",
     "from": "  if (sellerGave) return SPEC.FIELD_FROM_SELLER\n  if (keptHas) return SPEC.FIELD_FROM_KEPT",
     "to": "  if (keptHas) return SPEC.FIELD_FROM_KEPT\n  if (sellerGave) return SPEC.FIELD_FROM_SELLER",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "contrast rounded up",
@@ -31,63 +29,49 @@
     "file": "src/agent/story-template.ts",
     "from": "  if (badColour) return { started: false, why: badColour }",
     "to": "  if (false) return { started: false, why: badColour }",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "an unreadable seller palette is not refused",
     "file": "src/agent/story-template.ts",
     "from": "  if (endCardRefused(!!sellerCard, !unreadable))",
     "to": "  if (endCardRefused(false, !unreadable))",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the job forgets the seller card",
     "file": "src/agent/story-template.ts",
     "from": "      sellerCard ? JSON.stringify(sellerCard) : null,",
     "to": "      null,",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the run ignores the job's card",
     "file": "src/agent/story-template.ts",
     "from": "    endCardOf(parse(job.end_card)),\n    s.keptCard,",
     "to": "    null,\n    s.keptCard,",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "a client press brings a palette",
     "file": "src/agent/story-template.ts",
     "from": "  const sellerCard = byClient ? null : endCardOf(who.endCard)",
     "to": "  const sellerCard = endCardOf(who.endCard)",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the tool does not pass the card",
     "file": "src/agent/crm-story-tool.ts",
-    "from": "        ...(args.end_card !== undefined ? { endCard: args.end_card } : {}),",
-    "to": "",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "from": "? { endCard: args.end_card }",
+    "to": "? {}",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the brief does not say the reel route",
     "file": "src/agent/chat.ts",
     "from": "      parts.push(reelRouteLine())\n",
     "to": "",
-    "tests": [
-      "the-client-face-is-mandatory.test.ts"
-    ]
+    "tests": ["the-client-face-is-mandatory.test.ts"]
   },
   {
     "name": "the Queen does not know the reel tool",
@@ -112,108 +96,84 @@
     "file": "src/agent/crm-client-workspace-tools.ts",
     "from": "        ...(items.length ? { reel_route: planReelRoute() } : {}),\n",
     "to": "",
-    "tests": [
-      "crm-client-workspace-tools.test.ts"
-    ]
+    "tests": ["crm-client-workspace-tools.test.ts"]
   },
   {
     "name": "kept palette under her profile",
     "file": "src/agent/story-reel-tool.ts",
     "from": "  if (keptHas) return SPEC.FIELD_FROM_KEPT\n  if (profileHas) return SPEC.FIELD_FROM_PROFILE",
     "to": "  if (profileHas) return SPEC.FIELD_FROM_PROFILE\n  if (keptHas) return SPEC.FIELD_FROM_KEPT",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "merge ignores the kept palette",
     "file": "src/agent/story-reel-tool.ts",
     "from": "    [SPEC.FIELD_FROM_KEPT]: kept,",
     "to": "    [SPEC.FIELD_FROM_KEPT]: null,",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "a bad card is kept",
     "file": "src/agent/story-reel-tool.ts",
     "from": "  if (cardOk) return SPEC.KEEP_SAVE\n  return SPEC.KEEP_REFUSED",
     "to": "  return SPEC.KEEP_SAVE",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "kept without the contrast check",
     "file": "src/agent/story-reel-tool.ts",
     "from": "      (card ? endCardUnreadable(mergeEndCard(card, null, profile)) : '') ||\n",
     "to": "",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "an empty card does not clear",
     "file": "src/agent/story-reel-tool.ts",
     "from": "  if (action === SPEC.KEEP_CLEAR) {",
     "to": "  if (action === -1) {",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "another seller's kit is read",
     "file": "src/agent/story-reel-tool.ts",
     "from": "`SELECT end_card FROM story_end_cards WHERE owner_id = $1 AND lead_id = $2`",
     "to": "`SELECT end_card FROM story_end_cards WHERE lead_id = $2`",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "settings never read the kit",
     "file": "src/agent/story-template.ts",
     "from": "    keptCard: await keptEndCardOf(pool, owner, id),",
     "to": "    keptCard: null,",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the start check skips the kit",
     "file": "src/agent/story-template.ts",
     "from": "    mergeEndCard(sellerCard, s.keptCard, s.endCard)",
     "to": "    mergeEndCard(sellerCard, null, s.endCard)",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the render skips the kit",
     "file": "src/agent/story-template.ts",
     "from": "    endCardOf(parse(job.end_card)),\n    s.keptCard,",
     "to": "    endCardOf(parse(job.end_card)),\n    null,",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the tool's read skips the kit",
     "file": "src/agent/crm-story-tool.ts",
     "from": "        endCardOf(args.end_card),\n        kept,",
     "to": "        endCardOf(args.end_card),\n        null,",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "save refused is not reported",
     "file": "src/agent/crm-story-tool.ts",
     "from": "        if (k.action === REEL.KEEP_REFUSED)\n          return {\n            ready: false,\n            started: false,\n            kept: false,\n            why: k.why,\n            ...(k.fix ? { [REEL.SUGGEST_FIX_ARG]: k.fix } : {}),\n            ...(k.fixPalette\n              ? { [REEL.SUGGEST_PALETTE_ARG]: k.fixPalette }\n              : {}),\n            ...(k.fixBg ? { [REEL.SUGGEST_BG_ARG]: k.fixBg } : {}),\n          }\n",
     "to": "",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "v12: the way that needs more steps wins",
@@ -530,9 +490,7 @@
     "file": "src/agent/story-reel-tool.ts",
     "from": "if (sceneIsSource(i) && !stills[i]) stills[i] = source",
     "to": "if (false && sceneIsSource(i) && !stills[i]) stills[i] = source",
-    "tests": [
-      "src/agent/a-story-reel-stays-in-the-studio.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
   },
   {
     "name": "a greeting opens the reel",
@@ -545,9 +503,7 @@
     "file": "src/agent/story-reel-tool.ts",
     "from": "if (stills[i] || clips[i] || s.setting) return",
     "to": "if (true) return",
-    "tests": [
-      "src/agent/a-story-reel-stays-in-the-studio.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
   },
   {
     "name": "close and medium swap",
@@ -560,9 +516,7 @@
     "file": "src/agent/studio-shots.ts",
     "from": "if (shot === SPEC.SHOT_WIDE) return sourceUrl",
     "to": "if (false) return sourceUrl",
-    "tests": [
-      "src/agent/a-story-reel-stays-in-the-studio.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
   },
   {
     "name": "a faceless still is kept",
@@ -575,9 +529,7 @@
     "file": "src/agent/still-face.ts",
     "from": "  } catch {\n    return null\n  }",
     "to": "  } catch {\n    return false\n  }",
-    "tests": [
-      "src/agent/a-story-reel-stays-in-the-studio.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
   },
   {
     "name": "a long line is lip-synced",
@@ -596,9 +548,7 @@
     "file": "src/buyer-delivery.ts",
     "from": "if (await send(token).catch(() => false)) return true",
     "to": "if ((await send(token).catch(() => false)) || true) return true",
-    "tests": [
-      "src/agent/a-story-reel-stays-in-the-studio.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
   },
   {
     "name": "captions take the line when whisper heard more words",
@@ -611,18 +561,14 @@
     "file": "src/agent/story-reel-tool.ts",
     "from": "return sceneCaptions(scenes[i].line, got.words, got.speech)",
     "to": "return sceneCaptions('', got.words, got.speech)",
-    "tests": [
-      "src/agent/a-story-reel-stays-in-the-studio.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
   },
   {
     "name": "a deaf clip stops the reel",
     "file": "src/agent/story-reel-tool.ts",
     "from": "          if (typeof got === 'string' || !got.words.length) {\n            deaf.push(",
     "to": "          if (typeof got === 'string' || !got.words.length) {\n            throw new Error('deaf')\n            deaf.push(",
-    "tests": [
-      "src/agent/a-story-reel-stays-in-the-studio.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
   },
   {
     "name": "a line of exactly the editor limit is refused",
@@ -635,9 +581,7 @@
     "file": "src/agent/story-reel-templates.ts",
     "from": "const bad = lines.findIndex(l => !lineFitsChars(l.length))",
     "to": "const bad = -1",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "every line is English",
@@ -656,17 +600,45 @@
     "file": "src/agent/crm-story-tool.ts",
     "from": "|| template.button",
     "to": "|| ''",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the template's call is dropped",
     "file": "src/agent/crm-story-tool.ts",
     "from": "cta: String(args.cta || template?.call || ''),",
     "to": "cta: String(args.cta || ''),",
-    "tests": [
-      "src/agent/a-story-reel-for-any-client.test.ts"
-    ]
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "the writer's place is drawn again (v21)",
+    "file": "src/agent/story-template.ts",
+    "from": "return hasSetting && (!fromWriter || SPEC.WRITER_WRITES_SETTINGS)",
+    "to": "return hasSetting"
+  },
+  {
+    "name": "a caller's place is dropped with the writer's",
+    "file": "src/agent/story-template.ts",
+    "from": "return hasSetting && (!fromWriter || SPEC.WRITER_WRITES_SETTINGS)",
+    "to": "return hasSetting && SPEC.WRITER_WRITES_SETTINGS"
+  },
+  {
+    "name": "the writer's place is kept by parseStory",
+    "file": "src/agent/story-template.ts",
+    "from": "setting: settingDrawn(true, !!s.setting) ? s.setting : '',",
+    "to": "setting: s.setting,",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "parseStory takes the writer for a caller",
+    "file": "src/agent/story-template.ts",
+    "from": "settingDrawn(true, !!s.setting)",
+    "to": "settingDrawn(false, !!s.setting)",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "the writer is asked for a place again",
+    "file": "src/agent/story-template.ts",
+    "from": "[{\"line\": \"...\"}, ×${n}]",
+    "to": "[{\"setting\": \"...\", \"line\": \"...\"}, ×${n}]"
   }
 ]
