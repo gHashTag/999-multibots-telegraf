@@ -22,6 +22,10 @@
 #      the first run's answer (review of #3462).
 # node_modules at the repo root is linked into each copy, not copied.
 #
+# One file, one name: a module renamed after <rev> (letter case or Unicode
+# form included) is "absent at <rev>", removed in the second copy, and the run
+# says so on its own line -- name both spellings if the rename is the point.
+#
 # Exit 0 the tests bite (red on <rev>), 1 they do not (green on <rev> too),
 # 2 cannot tell (bad arguments, unknown rev, red already on the current tree,
 # interrupted).
@@ -67,8 +71,28 @@ present_now() {
   [ -n "$hit" ] && { [ -e "$TOP/$1" ] || [ -L "$TOP/$1" ]; }
 }
 
+# Every part of the name that exists on disk is spelled there exactly so. A
+# case-blind disk opens LIB/add.sh as lib/add.sh, and git then lists LIB/add.sh
+# as an untracked file of its own -- the exact-name check below passes, and
+# the swap removes the real module (review 3 of #3462).
+spelled_on_disk() {
+  python3 - "$TOP" "$1" <<'PY'
+import os, sys
+top, rel = sys.argv[1], sys.argv[2]
+p = top
+for part in rel.split("/"):
+    q = os.path.join(p, part)
+    if not os.path.lexists(q):
+        break
+    if part not in os.listdir(p):
+        sys.exit(1)
+    p = q
+PY
+}
+
 for r in "${REL[@]}"; do
   case "$r" in ..|../*|/*) echo "bite: $r is outside the repository"; exit 2 ;; esac
+  spelled_on_disk "$r" || { echo "bite: $r is spelled otherwise on disk (letter case?) -- use the exact name"; exit 2; }
   # No directory on the way may be a link: git does not look through one, the
   # filesystem does, so the name would mean two different files.
   d=$(dirname "$r")
@@ -144,6 +168,14 @@ for r in "${REL[@]}"; do
   # pointing back into the repository would carry the old version into the
   # real working tree (review of #3462). No directory on the way is a link
   # (checked above), and the file itself goes before the new one is written.
+  # Checked again in the copy: node_modules is a link there and a directory in
+  # the tree, so a file under it at <rev> was written into the real tree
+  # (review 3 of #3462).
+  d=$(dirname "$r")
+  while [ "$d" != . ]; do
+    if [ -L "$OLD/$d" ]; then echo "bite: $r goes through the link $d in the copy -- cannot restore it there"; exit 2; fi
+    d=$(dirname "$d")
+  done
   mkdir -p "$(dirname "$dest")"
   rm -f "$dest"
   mode=$(git -C "$TOP" ls-tree "$REV" -- ":(literal)$r" 2>/dev/null | awk '{ print $1; exit }')
