@@ -22,6 +22,7 @@ import {
  * is right to: a secret in git history is revoked, never deleted.
  */
 const TOKEN = 'a'.repeat(32) // secret-guard-ok: a repeated letter, not a value
+const KEY = 'k'.repeat(8) // secret-guard-ok: a repeated letter, not a value
 
 describe('the tap reaches the approval, and the person hears back', () => {
   it('asks the render for the ANSWER, not for a page', async () => {
@@ -37,7 +38,7 @@ describe('the tap reaches the approval, and the person hears back', () => {
         }),
       }
     }) as never
-    const said = await answerBrowserPermission(TOKEN, { fetchImpl })
+    const said = await answerBrowserPermission(TOKEN, { fetchImpl, key: KEY })
     expect(said).toContain('Разрешено')
     expect(seen.url).toContain(`t=${TOKEN}`)
     // Scraping its own back end for HTML would be the wrong shape.
@@ -54,28 +55,71 @@ describe('the tap reaches the approval, and the person hears back', () => {
         said: 'Этот вопрос уже закрыт.',
       }),
     })) as never
-    expect(await answerBrowserPermission(TOKEN, { fetchImpl })).toBe(
+    expect(await answerBrowserPermission(TOKEN, { fetchImpl, key: KEY })).toBe(
       'Этот вопрос уже закрыт.'
     )
   })
 
   it('a render that is down leaves him with words, not a dead button', async () => {
     const refused = vi.fn(async () => ({ ok: false, status: 502 })) as never
-    expect(await answerBrowserPermission(TOKEN, { fetchImpl: refused })).toBe(
-      NOT_REACHED
-    )
+    expect(
+      await answerBrowserPermission(TOKEN, { fetchImpl: refused, key: KEY })
+    ).toBe(NOT_REACHED)
     const thrown = vi.fn(async () => {
       throw new Error('connection terminated')
     }) as never
-    expect(await answerBrowserPermission(TOKEN, { fetchImpl: thrown })).toBe(
-      NOT_REACHED
-    )
+    expect(
+      await answerBrowserPermission(TOKEN, { fetchImpl: thrown, key: KEY })
+    ).toBe(NOT_REACHED)
   })
 
   it('an empty token is never sent anywhere', async () => {
     const fetchImpl = vi.fn() as never
-    expect(await answerBrowserPermission('  ', { fetchImpl })).toBe(NOT_REACHED)
+    expect(await answerBrowserPermission('  ', { fetchImpl, key: KEY })).toBe(
+      NOT_REACHED
+    )
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('carries the server key, or the guard answers 401 before the route', async () => {
+    /*
+     * Production, 2026-10-03 04:31: "the render refused the tap {status:401}".
+     * The render's global guard stands in front of /api/browser/approve and
+     * lets nothing through without X-Api-Key; the relay sent none, so every
+     * "Allow" since #2939 ended in NOT_REACHED.
+     */
+    let sent: unknown
+    const fetchImpl = vi.fn(async (_u: string, init: any) => {
+      sent = init?.headers?.['X-Api-Key']
+      return { ok: true, json: async () => ({ said: 'ok' }) }
+    }) as never
+    await answerBrowserPermission(TOKEN, { fetchImpl, key: KEY })
+    expect(sent).toBe(KEY)
+  })
+
+  it('with no key it says so in the log and sends nothing doomed', async () => {
+    const fetchImpl = vi.fn() as never
+    expect(await answerBrowserPermission(TOKEN, { fetchImpl, key: '' })).toBe(
+      NOT_REACHED
+    )
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('the route is still behind the render guard, so the key is not optional', async () => {
+    // If someone makes the route public, this test says the key can go;
+    // until then, dropping it is the 401 above.
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const guard = readFileSync(
+      join(__dirname, '../../../apps/vibee-editor/render/auth.ts'),
+      'utf8'
+    )
+    expect(guard).not.toContain("'/api/browser/approve'")
+    const relay = readFileSync(
+      join(__dirname, '../../services/browserApproval.ts'),
+      'utf8'
+    )
+    expect(relay).toContain("'X-Api-Key': key")
   })
 
   it('the bot registers a handler for the data the render sends', async () => {
