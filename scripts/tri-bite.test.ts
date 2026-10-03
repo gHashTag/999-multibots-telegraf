@@ -718,4 +718,25 @@ describe('tri bite -- review 2 of #3479', () => {
     expect(r.status).toBe(2)
     expect(r.stdout).toMatch(/workspace link/)
   })
+
+  it('a link into a store outside any checkout is still an installed package', () => {
+    // No checkout to be relative to: the whole path decides, as before, so a
+    // package in a global store is not taken for code and the green on the
+    // old revision stays "does not bite".
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    const store = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-'))
+    dirs.push(store)
+    fs.mkdirSync(path.join(store, 'node_modules/dep'), { recursive: true })
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync(
+      path.join(store, 'node_modules/dep'),
+      path.join(dir, 'node_modules/dep')
+    )
+    const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.stdout).not.toMatch(/node_modules\/dep/)
+    expect(r.status).toBe(1)
+  })
 })
