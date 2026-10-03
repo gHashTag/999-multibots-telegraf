@@ -265,12 +265,17 @@ describe('making, listing, revoking: the token is shown once', () => {
     await revokeWatchLink(spy, ID, r.id, T0)
     await resolveWatch(spy, r.token, T0)
     const revoke = texts.find(t => t.includes('SET revoked_at')) as string
-    expect(revoke).toContain('telegram_id = $1')
-    expect(revoke).toContain('revoked_at IS NULL')
+    /*
+     * The whole clause, not pieces of it: `toContain('telegram_id = $1')`
+     * also matched `(telegram_id = $1 OR true)`, which revokes anyone's link.
+     */
+    expect(revoke).toMatch(
+      /WHERE telegram_id = \$1 AND left\(token_hash, 12\) = \$2 AND revoked_at IS NULL RETURNING/
+    )
     const resolve = texts.find(t => t.includes('SELECT telegram_id')) as string
-    expect(resolve).toContain('token_hash = $1')
-    expect(resolve).toContain('revoked_at IS NULL')
-    expect(resolve).toContain('expires_at > $2')
+    expect(resolve).toMatch(
+      /WHERE token_hash = \$1 AND revoked_at IS NULL AND expires_at > \$2$/
+    )
   })
 
   it("nobody revokes another person's link", async () => {
