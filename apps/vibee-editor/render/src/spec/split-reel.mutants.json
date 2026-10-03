@@ -9,13 +9,15 @@
     "name": "the profile CTA chain skipped: her approved call is never read",
     "file": "src/agent/story-template.ts",
     "from": "    .then(profileCta)\n",
-    "to": "    .then(() => '')\n"
+    "to": "    .then(() => '')\n",
+    "tests": ["src/agent/a-split-reel-is-one-call.test.ts"]
   },
   {
     "name": "the profile CTA chain skipped: the tool never asks her profile",
     "file": "src/agent/split-reel-tool.ts",
     "from": ": await clientCtaOf(ctx.pool, String(ctx.telegramId), forLead),",
-    "to": ": '',"
+    "to": ": '',",
+    "tests": ["src/agent/a-split-reel-is-one-call.test.ts"]
   },
   {
     "name": "the profile CTA chain skipped: her call is picked but not used",
@@ -63,7 +65,8 @@
     "name": "the tool reads no client off the turn",
     "file": "src/agent/split-reel-tool.ts",
     "from": "      const forLead = leadOfTurn(named, turn)\n",
-    "to": "      const forLead = named\n"
+    "to": "      const forLead = named\n",
+    "tests": ["src/agent/a-split-reel-is-one-call.test.ts"]
   },
   {
     "name": "the house name check is gone from the tool",
