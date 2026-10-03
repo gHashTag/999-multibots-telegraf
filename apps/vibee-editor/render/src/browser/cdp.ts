@@ -395,6 +395,89 @@ export async function evaluateOn(
   })
 }
 
+/** Element names that own a frame: a press on one may land inside it. */
+const FRAME_OWNER = /^(IFRAME|FRAME|EMBED|OBJECT|FENCEDFRAME|PORTAL)$/i
+
+/**
+ * WHICH FRAME A PRESS AT x,y LANDS IN, asked of Chromium (embedded.ts). The
+ * hit-test runs in the browser, not in page script: it sees into closed
+ * shadow roots, a page cannot override it, and it skips
+ * `pointer-events: none` exactly as a real press does. That is why
+ * `ignorePointerEventsNone` is NOT set: with it, a transparent overlay with
+ * pointer-events none would be "hit" while the real press fell through to
+ * the frame beneath.
+ *
+ * x,y are viewport CSS px (what clickAt and Input take); the hit-test takes
+ * document coordinates, so the scroll offset is added (read from
+ * Page.getLayoutMetrics, never guessed: no offset, no answer).
+ *
+ * Returns the frame id -- `targetId` itself for the top page, the iframe
+ * target id for a cross-origin frame (measured by the bee on #3507: they are
+ * the same id) -- and its address when the page's frame tree knows it.
+ * Throws when it cannot tell; the caller falls back, closed.
+ */
+export async function frameAtPoint(
+  endpoint: string,
+  targetId: string,
+  x: number,
+  y: number
+): Promise<{ frameId: string; url: string | null }> {
+  return await onPage(endpoint, targetId, async call => {
+    const m = await call('Page.getLayoutMetrics')
+    const vv = (m.cssVisualViewport ?? m.cssLayoutViewport) as
+      | { pageX?: unknown; pageY?: unknown }
+      | undefined
+    const sx = Number(vv?.pageX)
+    const sy = Number(vv?.pageY)
+    if (!Number.isFinite(sx) || !Number.isFinite(sy))
+      throw new Error('no scroll offset: cannot place the point')
+    let hit: Record<string, unknown>
+    try {
+      hit = await call('DOM.getNodeForLocation', {
+        x: Math.floor(x + sx),
+        y: Math.floor(y + sy),
+        includeUserAgentShadowDOM: true,
+      })
+    } catch (e) {
+      /* Empty canvas: the press lands on the top page itself. */
+      if (/no node found/i.test(String((e as Error).message)))
+        return { frameId: targetId, url: null }
+      throw e
+    }
+    const described = await call('DOM.describeNode', {
+      backendNodeId: hit.backendNodeId,
+    })
+    const node = described.node as
+      | { nodeName?: string; frameId?: string }
+      | undefined
+    const owned =
+      node && FRAME_OWNER.test(node.nodeName ?? '') && node.frameId
+        ? node.frameId
+        : null
+    const frameId = owned ?? String(hit.frameId || '')
+    if (!frameId) throw new Error('the hit-test named no frame')
+    if (frameId === targetId) return { frameId, url: null }
+    const tree = await call('Page.getFrameTree').catch(() => null)
+    return { frameId, url: urlInTree(tree?.frameTree, frameId) }
+  })
+}
+
+interface FrameTreeNode {
+  frame?: { id?: string; url?: string; urlFragment?: string }
+  childFrames?: FrameTreeNode[]
+}
+
+function urlInTree(tree: unknown, id: string): string | null {
+  const stack = tree ? [tree as FrameTreeNode] : []
+  while (stack.length) {
+    const n = stack.pop() as FrameTreeNode
+    if (n.frame?.id === id && n.frame.url)
+      return n.frame.url + (n.frame.urlFragment ?? '')
+    stack.push(...(n.childFrames ?? []))
+  }
+  return null
+}
+
 /**
  * A click where the person would see one: a real mouse press and release at a
  * point, not a synthetic DOM event. A page that only reacts to trusted events

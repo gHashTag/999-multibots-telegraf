@@ -57,8 +57,10 @@ import {
   blockedEmbed,
   embeddedUrls,
   focused,
+  frameTargetsOf,
   framesOf,
   framesOfTarget,
+  isWeb,
   landing,
   under,
   type SeenFrame,
@@ -83,11 +85,13 @@ import {
   activatePage,
   listTargets,
   evaluateOn,
+  frameAtPoint,
   clickAt,
   typeText,
   screenshot,
   pageUrl,
 } from './cdp'
+import type { CdpTarget } from './cdp'
 import { overBudget } from './tab-budget'
 import { NOT_PAINTED_NOTE, PAINT_PROBE, waitForPaint } from './paint-wait'
 import { shapeOfTabs } from './tab-shape'
@@ -169,10 +173,11 @@ function needsPermission(where: string, inFrame = false): Error {
  */
 async function framesNow(
   cdp: string,
-  targetId: string
+  targetId: string,
+  targets?: CdpTarget[]
 ): Promise<{ frames: SeenFrame[]; oopif: string[]; probed: boolean }> {
-  const targets = await listTargets(cdp).catch(() => [])
-  const oopif = framesOfTarget(targets, targetId)
+  const listed = targets ?? (await listTargets(cdp).catch(() => []))
+  const oopif = framesOfTarget(listed, targetId)
   const raw = await evaluateOn(cdp, targetId, FRAMES_PROBE).then(
     r => ({ r }),
     () => null
@@ -181,37 +186,99 @@ async function framesNow(
 }
 
 /**
+ * WHERE A PRESS AT x,y REACHES. Chromium's own hit-test first (cdp.ts
+ * frameAtPoint): the top page reaches nothing extra; a frame reaches its
+ * current address, and a cross-origin frame also every frame inside it (the
+ * hit-test stops at its door). A frame whose address nobody can name, or a
+ * hit-test that failed, falls back to the probe -- closed: every frame
+ * Chromium lists that the probe cannot account for is in reach.
+ */
+async function reachOfPress(
+  cdp: string,
+  targetId: string,
+  x: number,
+  y: number,
+  targets: CdpTarget[]
+): Promise<string[]> {
+  const hit = await frameAtPoint(cdp, targetId, x, y).catch(() => null)
+  if (hit?.frameId === targetId) return []
+  if (hit) {
+    const listed = targets.find(t => t.id === hit.frameId)
+    const own = listed?.url ?? hit.url
+    if (own) {
+      const inner = listed ? framesOfTarget(targets, hit.frameId) : []
+      return [...new Set([own, ...inner])].filter(isWeb)
+    }
+  }
+  const { frames, oopif, probed } = await framesNow(cdp, targetId, targets)
+  return probed
+    ? addressesOfAct(frames, oopif, under(x, y))
+    : oopif.filter(isWeb)
+}
+
+/** Does focus sit in this frame? Asked in the frame's OWN world; unknown = yes. */
+async function focusIsIn(cdp: string, frameTargetId: string): Promise<boolean> {
+  return await evaluateOn(cdp, frameTargetId, 'document.hasFocus()').then(
+    v => v !== false,
+    () => true
+  )
+}
+
+/**
  * AN ACT INSIDE A FRAME IS JUDGED WHERE THE FRAME IS (embedded.ts): the
  * Stripe frame on a shop is stripe.com, and the shop's address said nothing
- * about it. Called after mustBeAllowedToAct, which judged the tab. `pick`
- * names the frame -- under the point for a click, the focused one for
- * typing. A page that did not answer the probe is judged by every frame
- * Chromium lists for it: we cannot tell which one the act lands in.
+ * about it. Called after mustBeAllowedToAct, which judged the tab. `at` is
+ * the point of a press, or 'focus' for typing.
+ *
+ * Typing has no hit-test, so its reach is the probe's focused frame plus
+ * every frame the probe cannot account for, and then every cross-origin
+ * frame that would need a yes (or is blocked) is asked in its own world
+ * whether focus is in it: the embedding page can hide focus from its own
+ * script (a closed shadow root retargets activeElement to the host), not
+ * from the frame. Only risky frames are asked, so a page of harmless ad
+ * frames costs no extra calls.
  */
 async function mustBeAllowedInFrame(
   ctx: ToolContext,
   cdp: string,
   targetId: string,
-  pick: (f: SeenFrame) => boolean
+  at: { x: number; y: number } | 'focus'
 ): Promise<void> {
-  const { frames, oopif, probed } = await framesNow(cdp, targetId)
-  const reach = probed
-    ? addressesOfAct(frames, oopif, pick)
-    : embeddedUrls([], oopif)
-  if (!reach.length) return
+  const targets = await listTargets(cdp).catch(() => [] as CdpTarget[])
+  const kids = frameTargetsOf(targets, targetId).filter(t => isWeb(t.url))
+  let reach: string[]
+  if (at === 'focus') {
+    const { frames, oopif, probed } = await framesNow(cdp, targetId, targets)
+    reach = probed
+      ? addressesOfAct(frames, oopif, focused)
+      : oopif.filter(isWeb)
+  } else {
+    reach = await reachOfPress(cdp, targetId, at.x, at.y, targets)
+  }
+  if (!reach.length && (at !== 'focus' || !kids.length)) return
   const pool = ctx.pool as unknown as Queryable
   const rules = await siteRulesOf(pool, ctx.telegramId)
   if (rules === null) throw new Error(UNREADABLE_LIST)
-  const blocked = blockedEmbed(reach, rules)
-  if (blocked) throw embeddedBlocked(blocked)
   const session = await readSession(pool, ctx.telegramId)
-  for (const url of reach) {
-    const verdict = mayAct({
+  const verdictOf = (url: string) =>
+    mayAct({
       url,
       allowedAtMs: session?.allowedAtMs ?? null,
       nowMs: Date.now(),
       alsoSensitive: ruleFor(url, rules) === 'ask',
     })
+  if (at === 'focus') {
+    for (const k of kids) {
+      if (reach.includes(k.url)) continue
+      const risky =
+        ruleFor(k.url, rules) === 'block' || !verdictOf(k.url).allowed
+      if (risky && (await focusIsIn(cdp, k.id))) reach.push(k.url)
+    }
+  }
+  const blocked = blockedEmbed(reach, rules)
+  if (blocked) throw embeddedBlocked(blocked)
+  for (const url of reach) {
+    const verdict = verdictOf(url)
     if (!verdict.allowed) throw needsPermission(verdict.where, true)
   }
 }
@@ -307,19 +374,26 @@ export function setLandingStepForTests(ms: number): void {
 async function mustNotHaveLandedBlocked(
   ctx: ToolContext,
   cdp: string,
-  pageId: string
+  pageId: string,
+  asked: string
 ): Promise<string | null> {
   const rules = await siteRulesOf(
     ctx.pool as unknown as Queryable,
     ctx.telegramId
   )
-  if (rules === null) throw new Error(UNREADABLE_LIST)
+  if (rules === null) {
+    /* Unjudged is not kept: the tab this call opened goes (bee on #3507). */
+    await closePage(cdp, pageId).catch(() => {})
+    forgetFront(ctx.telegramId, pageId)
+    throw new Error(UNREADABLE_LIST)
+  }
   if (!rules.some(r => r.rule === 'block')) return null
   const { landed, seen } = await landing(
     () => urlOfTab(cdp, pageId),
     undefined,
     6,
-    landingStepMs
+    landingStepMs,
+    asked
   )
   const blocked = seen.find(u => ruleFor(u, rules) === 'block')
   if (!blocked) return landed
@@ -1232,7 +1306,8 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       const landed = await mustNotHaveLandedBlocked(
         ctx,
         session.cdpEndpoint,
-        page.id
+        page.id,
+        String(args.url)
       )
       return { opened: landed || page.url || String(args.url), id: page.id }
     },
@@ -1373,7 +1448,10 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
               '. Take browser_screenshot and click by x,y, or ask the person (browser_ask_input kind=action).'
           )
         }
-        await mustBeAllowedInFrame(ctx, cdp, targetId, under(found.x, found.y))
+        await mustBeAllowedInFrame(ctx, cdp, targetId, {
+          x: found.x,
+          y: found.y,
+        })
         await clickAt(cdp, targetId, found.x, found.y)
         /* The press that worked is the lesson; never blocks the answer. */
         void rememberPress(pool, {
@@ -1392,7 +1470,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       if (typeof a.x !== 'number' || typeof a.y !== 'number') {
         throw new Error('give text (the button label) or x and y')
       }
-      await mustBeAllowedInFrame(ctx, cdp, targetId, under(a.x, a.y))
+      await mustBeAllowedInFrame(ctx, cdp, targetId, { x: a.x, y: a.y })
       await clickAt(cdp, targetId, a.x, a.y)
       return { clicked: { x: a.x, y: a.y } }
     },
@@ -1412,7 +1490,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     async handler(args, ctx) {
       const { cdp, targetId } = await podOf(ctx)
       await mustBeAllowedToAct(ctx, cdp, targetId)
-      await mustBeAllowedInFrame(ctx, cdp, targetId, focused)
+      await mustBeAllowedInFrame(ctx, cdp, targetId, 'focus')
       await typeText(cdp, targetId, String(args.text))
       return { typed: String(args.text).length }
     },
