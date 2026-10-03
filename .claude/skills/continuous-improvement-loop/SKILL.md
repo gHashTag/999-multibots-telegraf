@@ -2044,6 +2044,15 @@ number inside `@{...}`: `tr -dc 0-9` kept the digits of `fix/abc-123` too and
 read a negative age (bee review of #3448). **A digit filter over a string that
 holds a name is a parser for the name as well.**
 
+**Audit the class, then fix the stragglers.** After `tfetch`, every gh, railway
+and curl call in tri whose stderr goes to `/dev/null` was read for one
+question: does a failure print like "nothing there"? 18 of 19 already said
+"no verdict" (exit 2). The one that did not was `tri inflight`, the FIRST
+command of every cycle: a failed railway call printed a blank deployment line
+("nothing deployed"). Now "unknown" and "none" are separate words, and
+`scripts/tri-inflight.test.ts` proves it with gh and railway stubbed on PATH -
+the pattern for testing any tri helper that talks to a service, offline.
+
 ### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
 
 The screen now translates a waiting reason by code and falls back to the
