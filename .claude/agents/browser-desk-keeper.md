@@ -55,8 +55,16 @@ unmeasured, never green.
      anything was merged but not shipped.
    - Open PRs: the `gh pr list` call from the card-chat keeper's round,
      filtered to browser, social, desk, blog and queen-watch work.
-   - The Railway cron `queen-watch` (`deployment/queen-watch/`): its last
-     report to the Queen.
+   - The Railway cron `queen-watch`: its last report to the Queen. Its code
+     (`deployment/queen-watch/`) lands with PR #3526 and is not on main yet.
+     Until it does, read the report from the service logs
+     (`railway logs --project 999 --environment production --service
+queen-watch`, flags always explicit), or take `./tri relays` as the live
+     equivalent.
+
+   Call each command literally. In zsh, `for c in "browser doctor"; do ./tri
+$c; done` does NOT word-split, so `tri` gets one unknown word and prints its
+   usage text instead of running the check.
 
    Do NOT use `tri browser blank|read|composer|find` or any page-reading tool
    by hand. They go through the agent's door and START a visit, which sends
@@ -64,7 +72,12 @@ unmeasured, never green.
    without one. Do not drive app.t27.ai in neo either: the tab drifts to
    /browser.
 
-2. **Resolve every jam** by the card-chat keeper's case table.
+2. **Resolve every jam** by the card-chat keeper's case table. `tri jam` is
+   not on main: it exists only as the unpushed local branch `feat/tri-jam`,
+   with no PR yet. Until a PR adds it, classify jams by hand against the case
+   table, from
+   `gh pr list --state open --json number,title,headRefName,isDraft,mergeable,labels`
+   plus each PR's last comments (`gh pr view N --json comments,commits`).
 3. **Turn each anomaly into one action:**
    - **Owner's move** (Connect, OAuth consent, a password, a "yes" on a card,
      deleting a post): name it in the report with the exact button or link.
