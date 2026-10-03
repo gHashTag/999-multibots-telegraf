@@ -17,10 +17,10 @@ def clip(v, n):
 
 def what(s):
     """What the step touched, in a few words -- never a secret: the
-    journal already dropped query strings and typed text."""
+    journal already dropped query strings and typed text. The error is not
+    one of the choices: it goes on its own line (`line`), so a failed click
+    still says which page it failed on."""
     det = s.get("detail") or {}
-    if det.get("error"):
-        return (f"{det['by']} desk: " if det.get("by") else "") + det["error"]
     if det.get("seen"):
         return det["seen"]
     if det.get("seenPending"):
@@ -50,7 +50,10 @@ def when(at):
 def line(s):
     det = s.get("detail") or {}
     mark = ("ok " if s.get("ok") else "ERR") + (" probe" if det.get("probe") else "      ")
-    return f"  {when(s.get('at'))}  {mark}  {s.get('tool', '?'):<22} {s.get('ms', 0):>6} ms  {clip(what(s), 90)}"
+    out = f"  {when(s.get('at'))}  {mark}  {s.get('tool', '?'):<22} {s.get('ms', 0):>6} ms  {clip(what(s), 90)}"
+    if det.get("error"):
+        out += f"\n        error: {clip(det['error'], 120)}"
+    return out
 
 
 def age(at, now=None):
@@ -95,6 +98,13 @@ if __name__ == "__main__":
     assert what(start) == "started by the reddit desk"
     restart = {**yday, "tool": "browser_restart", "ok": False,
                "detail": {"by": "heal", "error": "the driver cannot restart this pod"}}
-    assert what(restart) == "heal desk: the driver cannot restart this pod"
+    assert what(restart) == "restarted by the heal desk"
+    assert line(restart).endswith("\n        error: the driver cannot restart this pod"), line(restart)
     assert "ERR" in line(restart)
+    # A failed step keeps what it touched next to why it failed (root tri
+    # journal printed both before the readers were merged).
+    click = {**yday, "tool": "browser_click", "ok": False,
+             "detail": {"url": "https://x.com/home", "error": "no element at x=3 y=4"}}
+    assert "https://x.com/home" in line(click).splitlines()[0], line(click)
+    assert line(click).splitlines()[1] == "        error: no element at x=3 y=4", line(click)
     print("journal_line: ok")
