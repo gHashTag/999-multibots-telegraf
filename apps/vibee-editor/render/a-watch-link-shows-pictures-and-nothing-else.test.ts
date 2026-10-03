@@ -780,6 +780,37 @@ describe('startScreencast reports the address in frame order', () => {
     expect(sent.at(-1)?.method).toBe('Page.startScreencast')
   })
 
+  it('a cast stopped while the tree is read never starts', async () => {
+    const { startScreencast } = await import('./src/browser/frames')
+    const sent: Array<{ id: number; method: string }> = []
+    let push: (t: string) => void = () => undefined
+    const stop = await startScreencast(
+      'pod:9223',
+      { width: 400, height: 800 },
+      () => undefined,
+      {
+        front: async () => ({ id: 'tab-1', type: 'page', title: '', url: '' }),
+        connect: async () => ({
+          send: (t: string) => void sent.push(JSON.parse(t)),
+          close: () => undefined,
+          onMessage: (fn: (t: string) => void) => void (push = fn),
+          onClose: () => undefined,
+        }),
+      },
+      { onUrl: () => undefined }
+    )
+    push(JSON.stringify({ id: 1, result: { sessionId: 'S' } }))
+    const tree = sent.find(s => s.method === 'Page.getFrameTree')
+    stop()
+    push(
+      JSON.stringify({
+        id: tree?.id,
+        result: { frameTree: { frame: { url: 'https://t27.ai/' } } },
+      })
+    )
+    expect(sent.map(s => s.method)).not.toContain('Page.startScreencast')
+  })
+
   it('a tree that cannot be read reports nothing known, which holds', async () => {
     const { startScreencast } = await import('./src/browser/frames')
     const sent: Array<{ id: number; method: string }> = []
