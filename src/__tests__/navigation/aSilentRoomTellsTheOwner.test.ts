@@ -63,6 +63,34 @@ describe('a silent room tells the owner', () => {
     expect(telegram.sendMessage).toHaveBeenCalledTimes(1)
   })
 
+  it('says it once even when two calls for the room run at the same time', async () => {
+    // One photo reaches both silent paths while the first is still awaiting
+    // the member count; albums and polling batches do the same.
+    const { ctx, telegram } = fakeCtx({})
+    await Promise.all([
+      tellOwnersTheRoomIsSilent(ctx, [OWNER]),
+      tellOwnersTheRoomIsSilent(ctx, [OWNER]),
+    ])
+    expect(telegram.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives the room back when the member count fails, so a later message tells', async () => {
+    const { ctx, telegram } = fakeCtx({})
+    telegram.getChatMembersCount.mockRejectedValueOnce(new Error('429'))
+    await tellOwnersTheRoomIsSilent(ctx, [OWNER])
+    expect(telegram.sendMessage).not.toHaveBeenCalled()
+    await tellOwnersTheRoomIsSilent(ctx, [OWNER])
+    expect(telegram.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives the room back when the notice reached nobody', async () => {
+    const { ctx, telegram } = fakeCtx({})
+    telegram.sendMessage.mockRejectedValueOnce(new Error('403'))
+    await tellOwnersTheRoomIsSilent(ctx, [OWNER])
+    await tellOwnersTheRoomIsSilent(ctx, [OWNER])
+    expect(telegram.sendMessage).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps the shared room of five clients quiet, as he decided', async () => {
     const { ctx, telegram } = fakeCtx({ members: SILENT_ROOM_MAX_MEMBERS + 1 })
     await tellOwnersTheRoomIsSilent(ctx, [OWNER])
