@@ -2302,6 +2302,18 @@ returns 1 while such a comment is newer than the head commit. An older one is
 printed with its first line: a push unblocks the merge, but the merging bee
 checks every note against the push before merging.
 
+The first version of that check matched the one wording it was written for and
+saw 4 of the 17 refusals on the last 200 PRs. Bees also wrote "not merging
+yet", "changes requested", "Bee review:" and "Reviewer bee Z:", and three
+refusals were review bodies rather than comments. Now the first line of a
+comment or a review counts when it starts "Reviewer bee" or "Bee review" and
+says "not merg" or "changes requested", and a CHANGES_REQUESTED review counts
+whatever it says. Before writing a matcher for something people type, pull
+every real example (`gh pr list --state all --json comments,reviews`) and count
+how many the matcher sees. GitHub's own answer, "dismiss stale reviews on
+push", needs branch protection, which this free private repo does not get, so
+the check stays in `tri`.
+
 **Fix a reviewer's notes on the PR's own branch.** `tri worktree` made only
 new branches off origin/main, so notes on an open PR (#3451) had no way back:
 a fresh branch is a second PR and a lost conversation. `tri worktree --pr N`

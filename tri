@@ -4278,7 +4278,8 @@ cmd_pr_billing() {
   # body, not a comment. A review in state CHANGES_REQUESTED refuses whatever
   # it says (bees share the author's account, so GitHub has never let one be
   # filed here -- but a second account would). The head's date is looked up by
-  # its oid; if the head is not in the list, every refusal counts as new.
+  # its oid; if the head is not in the list the date is "", which sorts before
+  # every timestamp, so every refusal counts as new.
   local refusals kind stamp note
   refusals=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid,commits,comments,reviews --jq \
     '.headRefOid as $h
@@ -4289,7 +4290,7 @@ cmd_pr_billing() {
      | select(.st == "CHANGES_REQUESTED"
          or (($f | test("^[*_ ]*(reviewer bee|bee review)"; "i"))
              and ($f | test("not merg|changes requested"; "i"))))
-     | (if $d == "" or .at > $d then "NEW" else "OLD" end) + "\t" + .at
+     | (if .at > $d then "NEW" else "OLD" end) + "\t" + .at
        + " " + .who + "\t" + ($f | .[0:120])') \
     || { bad "could not read the comments on PR $pr -- a refusal there would be missed"; return 2; }
   local blocked=0
