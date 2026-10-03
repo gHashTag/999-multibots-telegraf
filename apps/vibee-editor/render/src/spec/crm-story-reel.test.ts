@@ -16,9 +16,12 @@ import {
   failedMoneyLine,
   jobKept,
   missingFor,
+  parseStory,
+  settingDrawn,
   storyPriceEstimateNotes,
   storyPayer,
   storyPriceEstimate,
+  writerMessages,
   type StorySettings,
 } from '../agent/story-template'
 import {
@@ -1226,10 +1229,54 @@ describe("the spec's tests hold against the host", () => {
     expect(scenesOf([{ line: 'Один' }, { line: 'Два' }])).toHaveLength(2) // cyrillic-ok: lines
   })
 
+  it('a reel ordered by a topic stays in the studio: the writer writes lines, never places', () => {
+    // setting_drawn(from_writer, has_setting); a seller's topic reel end to
+    // end -- the writer's places never reaching story_reel -- runs in
+    // a-story-reel-for-any-client.test.ts.
+    expect(SPEC.STUDIO_SHOTS).toBe(true)
+    expect(SPEC.NEW_SETTING_EACH_SCENE).toBe(false)
+    expect(SPEC.WRITER_WRITES_SETTINGS).toBe(false)
+    expect(SPEC.WRITER_SETTING_DROPPED).toBe(true)
+    expect(settingDrawn(true, true)).toBe(false)
+    expect(settingDrawn(true, false)).toBe(false)
+    expect(settingDrawn(false, true)).toBe(true)
+    expect(settingDrawn(false, false)).toBe(false)
+    // The writer is asked for lines, never for a place...
+    const [system] = writerMessages(
+      { title: 'Flowers outlive the hype', note: '' },
+      { about: 'a florist', cta: '', name: '' }
+    )
+    expect(system.content).not.toMatch(/setting/i)
+    expect(system.content).toContain('{"line": "..."}')
+    // ...and a place it returns anyway is dropped by code.
+    const story = parseStory(
+      JSON.stringify({
+        title: 'Flowers',
+        scenes: [
+          { setting: 'a beach at dawn', line: 'One.' },
+          { setting: 'a busy cafe', line: 'Two.' },
+          { setting: 'a night street', line: 'Three.' },
+        ],
+      }),
+      3
+    )
+    expect(story?.scenes.map(s => s.setting)).toEqual(['', '', ''])
+    expect(story?.scenes.map(s => s.line)).toEqual(['One.', 'Two.', 'Three.'])
+    // A caller's own script keeps its place.
+    const own = scenesOf([
+      { setting: 'a beach at dawn', line: 'One.' },
+      { setting: '', line: 'Two.' },
+    ])
+    expect(Array.isArray(own) && own.map(s => s.setting)).toEqual([
+      'a beach at dawn',
+      '',
+    ])
+  })
+
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(20)
+    expect(SPEC.VERSION).toBe(21)
   })
 
   it('the hook reel is a template of four studio shots with the call to the house bot', async () => {
@@ -1275,7 +1322,8 @@ describe("the spec's tests hold against the host", () => {
       SPEC.TEMPLATE_LINE_EN_4,
     ])
     // Every template line is a hook-safe line the press accepts as written.
-    for (const t of all) expect(typeof scenesOf(t.lines.map(line => ({ line })))).toBe('object')
+    for (const t of all)
+      expect(typeof scenesOf(t.lines.map(line => ({ line })))).toBe('object')
   })
 
   it('a template line fits the editor, and an empty or long one is refused before the press', async () => {
@@ -1287,7 +1335,9 @@ describe("the spec's tests hold against the host", () => {
     expect(lineFitsChars(SPEC.LINE_MAX_CHARS)).toBe(true)
     expect(lineFitsChars(0)).toBe(false)
     expect(lineFitsChars(SPEC.LINE_MAX_CHARS + 1)).toBe(false)
-    expect((SPEC.LINE_MAX_CHARS * 1000) / SPEC.LINE_MAX_MS).toBeGreaterThanOrEqual(13)
+    expect(
+      (SPEC.LINE_MAX_CHARS * 1000) / SPEC.LINE_MAX_MS
+    ).toBeGreaterThanOrEqual(13)
     const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!
     for (const line of t.lines) expect(lineFitsChars(line.length)).toBe(true)
     const mine = 'x'.repeat(SPEC.LINE_MAX_CHARS)
@@ -1343,14 +1393,16 @@ describe("the spec's tests hold against the host", () => {
     expect(as[2].startMs).toBe(500)
     // A word whisper split or merged: its own words, never misaligned ones.
     const off = sceneCaptions('This is Trinity now.', heard)
-    expect(off.map(c => c.text.toLowerCase())).toEqual(['this', 'is', 'trinidy'])
+    expect(off.map(c => c.text.toLowerCase())).toEqual([
+      'this',
+      'is',
+      'trinidy',
+    ])
   })
 
   it('the pause shows the call as the widget draws it, when there is a call', async () => {
     // cta_card_shown(call_chars, has_end_card)
-    const { ctaCardShown, ctaPulse } = await import(
-      '../compositions/StoryReel'
-    )
+    const { ctaCardShown, ctaPulse } = await import('../compositions/StoryReel')
     expect(SPEC.CTA_CARD_LIKE_WIDGET).toBe(true)
     expect(SPEC.CTA_PULSE_MS).toBe(2400)
     expect(ctaCardShown('Напиши Тринити', false)).toBe(true) // cyrillic-ok: a call

@@ -158,6 +158,14 @@
 // be heard leave the reel without them, said aloud, never unmade. The pause shows the call the
 // way the widget draws it: the call in the title colour, pulsing, over a round button in the
 // accent colour -- when there is anything to call.
+// v21 (2026-10-03, owner: "close the hole"): a reel ordered by a topic still left the studio.
+// The writer of a topic reel was told "one NEW setting per scene, never repeat the
+// background", so every reel she pressed for herself, and every reel a seller ordered by a
+// topic alone, put her in invented places and paid a still and a face check for each -- while
+// a seller's template stayed in the studio. NEW_SETTING_EACH_SCENE is now false. The writer is
+// asked for lines only (WRITER_WRITES_SETTINGS), and a place it returns anyway is dropped by
+// code before the job keeps its scenes (WRITER_SETTING_DROPPED), not left to the prompt. A
+// place is drawn only when a caller names it in a script of their own (setting_drawn).
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -168,7 +176,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 20;
+    pub const VERSION : u8 = 21;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -186,7 +194,7 @@ module automation::crm_story_reel {
     pub const SCENES_DEFAULT : u16 = 3;
     pub const SCENES_MIN : u16 = 1;
     pub const SCENES_MAX : u16 = 6;
-    pub const NEW_SETTING_EACH_SCENE : bool = true;  // the source photo's background never repeats
+    pub const NEW_SETTING_EACH_SCENE : bool = false;  // v21: a scene keeps the studio unless a caller names a place
     pub const PAUSE_SEC : u16 = 3;
     pub const PAUSE_SEC_MIN : u16 = 1;
     pub const PAUSE_SEC_MAX : u16 = 4;
@@ -431,6 +439,8 @@ module automation::crm_story_reel {
     pub const SHOT_MEDIUM_PERMILLE : u16 = 650;  // of the source's side: head, shoulders, the mic
     pub const SHOT_CLOSE_PERMILLE : u16 = 420;  // the face and the mic
     pub const FACE_X_PERMILLE : u16 = 500;  // where a portrait's face sits in the source
+    pub const WRITER_WRITES_SETTINGS : bool = false;  // a topic reel: the writer writes lines, never places
+    pub const WRITER_SETTING_DROPPED : bool = true;  // a place it returns anyway is dropped by code
 
     // ---- The hook reel, a template anyone can take (v20) --------------------------------------
     pub const TEMPLATE_ARG : str = "template";  // crm_story_reel: which template the press makes
@@ -737,6 +747,12 @@ module automation::crm_story_reel {
         return OPEN_ON_SOURCE && scene == OPEN_SCENE;
     }
 
+    // Whether a scene's place is drawn (v21): only one a caller named in a script of their
+    // own. The writer of a topic reel writes lines, and a place it returns anyway is dropped.
+    fn setting_drawn(from_writer: bool, has_setting: bool) -> bool {
+        return has_setting && (!from_writer || WRITER_WRITES_SETTINGS);
+    }
+
     // Which shot a scene is: wide first, then close and medium by turns -- a cut always
     // changes the size, so a jump between two scenes never looks like a glitch.
     fn shot_of_scene(scene: u16) -> u8 {
@@ -835,7 +851,6 @@ module automation::crm_story_reel {
         assert(scenes_ok(6));
         assert(!scenes_ok(0));
         assert(!scenes_ok(7));
-        assert(NEW_SETTING_EACH_SCENE);
     }
 
     test "the pause stays between one and four seconds, three by default" {
@@ -1167,8 +1182,19 @@ module automation::crm_story_reel {
         assert(FACE_IN_SHOT_PERMILLE < 500);
     }
 
+    test "a reel ordered by a topic stays in the studio: the writer writes lines, never places" {
+        assert(STUDIO_SHOTS);
+        assert(!NEW_SETTING_EACH_SCENE);
+        assert(!WRITER_WRITES_SETTINGS);
+        assert(WRITER_SETTING_DROPPED);
+        assert(!setting_drawn(true, true));
+        assert(!setting_drawn(true, false));
+        assert(setting_drawn(false, true));
+        assert(!setting_drawn(false, false));
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 20);
+        assert(VERSION == 21);
     }
 
     test "the hook reel is a template of four studio shots with the call to the house bot" {
