@@ -481,3 +481,217 @@ describe('tri bite -- review 4 of #3462', () => {
     expect(r.stdout).toMatch(/workspace link/)
   })
 })
+
+describe('tri bite -- review 5 of #3462', () => {
+  it('the old file is written by the attributes of <rev>, not of today', () => {
+    // At v4 add.sh was checked out with CRLF; the attribute is gone now. A
+    // checkout of v4 writes CR, today's attributes would not.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitattributes'), 'lib/add.sh eol=crlf\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'crlf')
+    git(dir, 'tag', 'v4')
+    fs.rmSync(path.join(dir, '.gitattributes'))
+    git(dir, 'commit', '-qam', 'no attributes')
+    const r = bite(
+      dir,
+      'v4',
+      'lib/add.sh',
+      '--',
+      'bash',
+      '-c',
+      "! grep -q $'\\r' lib/add.sh"
+    )
+    // git 2.39 (the check-runner) has no --attr-source: there the honest
+    // answer is cannot tell, pinned by the next test on any git.
+    if (spawnSync('git', ['--attr-source=HEAD', 'version']).status !== 0) {
+      expect(r.status).toBe(2)
+      return
+    }
+    expect(r.stdout).toMatch(/BITES/)
+    expect(r.status).toBe(0)
+  })
+
+  it('a git without --attr-source refuses when .gitattributes moved', () => {
+    // git 2.39 (the check-runner's) has no --attr-source; today's attributes
+    // would write the old file wrong, so the answer is cannot tell -- and the
+    // same tree with unchanged attributes still bites.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitattributes'), 'lib/add.sh eol=crlf\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'crlf')
+    git(dir, 'tag', 'v4')
+    fs.rmSync(path.join(dir, '.gitattributes'))
+    git(dir, 'commit', '-qam', 'no attributes')
+    const old = (...a: string[]) =>
+      spawnSync('bash', [BITE, ...a], {
+        cwd: dir,
+        encoding: 'utf8',
+        timeout: 30000,
+        env: { ...process.env, _BITE_NO_ATTR_SOURCE: '1' },
+      })
+    const r = old('v4', 'lib/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/\.gitattributes changed since v4/)
+    const s = old(
+      'v1',
+      'lib/add.sh',
+      '--',
+      'bash',
+      '-c',
+      'cd lib && bash test.sh'
+    )
+    expect(s.stdout).toMatch(/BITES/)
+    expect(s.status).toBe(0)
+  })
+
+  it('a package with its own node_modules is linked into the copies', () => {
+    // sub/node_modules holds what the test of sub/ loads; without it the
+    // first copy was red, and every run of such a package said cannot tell.
+    // `|| exit 3`: a missing sourced file does not stop bash by itself.
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'sub'))
+    fs.writeFileSync(path.join(dir, 'sub/package.json'), '{}\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    fs.writeFileSync(
+      path.join(dir, 'sub/test.sh'),
+      '. ../lib/add.sh; . node_modules/dep/ok.sh || exit 3; [ "$(add 2 3)" = 5 ] || exit 1\n'
+    )
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'sub')
+    fs.mkdirSync(path.join(dir, 'sub/node_modules/dep'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'sub/node_modules/dep/ok.sh'), 'true\n')
+    const r = bite(
+      path.join(dir, 'sub'),
+      'v1',
+      '../lib/add.sh',
+      '--',
+      'bash',
+      'test.sh'
+    )
+    expect(r.stdout).toMatch(/BITES/)
+    expect(r.status).toBe(0)
+  })
+
+  it('a link straight to the named file is a workspace link too', () => {
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../lib/add.sh', path.join(dir, 'node_modules/add.sh'))
+    const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+  })
+
+  it('green on <rev> with a link back into the tree is cannot tell', () => {
+    // node_modules/pkg -> ../packages/pkg reaches the real tree; a file
+    // there may load the named one by a relative path.
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'packages/pkg'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'packages/pkg/index.sh'), 'true\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'pkg')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../packages/pkg', path.join(dir, 'node_modules/pkg'))
+    const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(
+      /links back into the tree \(node_modules\/pkg -> packages\/pkg\)/
+    )
+    expect(r.stdout).not.toMatch(/DOES NOT BITE/)
+  })
+  it('a link from one node_modules into another is not a link into the tree', () => {
+    // pnpm-style: sub/node_modules/dep -> ../../node_modules/dep. Installed
+    // code, not the tree's own; a green on <rev> stays "does not bite".
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'sub'))
+    fs.writeFileSync(path.join(dir, 'sub/package.json'), '{}\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'sub')
+    fs.mkdirSync(path.join(dir, 'node_modules/dep'), { recursive: true })
+    fs.mkdirSync(path.join(dir, 'sub/node_modules'))
+    fs.symlinkSync(
+      '../../node_modules/dep',
+      path.join(dir, 'sub/node_modules/dep')
+    )
+    const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.stdout).toMatch(/DOES NOT BITE/)
+    expect(r.status).toBe(1)
+  })
+})
+
+describe('tri bite -- review 1 of #3479', () => {
+  it('a worktree whose node_modules links to the main checkout is cannot tell', () => {
+    // Every worktree here links node_modules to the main checkout's, and the
+    // workspace links there land in THAT checkout's packages: the named file
+    // is never swapped, and the answer was a false DOES NOT BITE.
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'packages/pkg'), { recursive: true })
+    fs.mkdirSync(path.join(dir, 'app'))
+    fs.writeFileSync(path.join(dir, 'app/package.json'), '{}\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'app')
+    fs.mkdirSync(path.join(dir, 'app/node_modules'))
+    fs.symlinkSync('../../lib', path.join(dir, 'app/node_modules/lib'))
+    const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-wt-'))
+    dirs.push(wt)
+    fs.rmSync(wt, { recursive: true })
+    git(dir, 'worktree', 'add', '-q', '--detach', wt)
+    fs.symlinkSync(
+      path.join(dir, 'app/node_modules'),
+      path.join(wt, 'app/node_modules')
+    )
+    const r = bite(wt, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+    expect(r.stdout).not.toMatch(/DOES NOT BITE/)
+  })
+
+  it('a git without --attr-source refuses an untracked .gitattributes', () => {
+    // git diff does not see it; cat-file --filters reads it all the same.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, 'lib/.gitattributes'), 'add.sh eol=crlf\n')
+    const old = () =>
+      spawnSync('bash', [BITE, 'HEAD', 'lib/add.sh', '--', 'true'], {
+        cwd: dir,
+        encoding: 'utf8',
+        timeout: 30000,
+        env: { ...process.env, _BITE_NO_ATTR_SOURCE: '1' },
+      })
+    const r = old()
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/lib\/\.gitattributes is not tracked/)
+    // Not only the nearest directory: one at the top applies as well.
+    fs.rmSync(path.join(dir, 'lib/.gitattributes'))
+    fs.writeFileSync(path.join(dir, '.gitattributes'), 'lib/add.sh eol=crlf\n')
+    const s = old()
+    expect(s.status).toBe(2)
+    expect(s.stdout).toMatch(/bite: \.gitattributes is not tracked/)
+  })
+
+  // root reads a mode-0 directory all the same, and the check-runner's
+  // container runs as root: there is no unreadable directory to plant.
+  it.skipIf(process.getuid?.() === 0)(
+    'a node_modules it cannot read is cannot tell, not a verdict',
+    () => {
+      const dir = repo()
+      fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+      git(dir, 'add', '-A')
+      git(dir, 'commit', '-q', '-m', 'ignore')
+      fs.mkdirSync(path.join(dir, 'node_modules/@scope'), { recursive: true })
+      fs.chmodSync(path.join(dir, 'node_modules/@scope'), 0)
+      try {
+        const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+        expect(r.status).toBe(2)
+        expect(r.stdout).toMatch(/could not read the node_modules links/)
+      } finally {
+        fs.chmodSync(path.join(dir, 'node_modules/@scope'), 0o755)
+      }
+    }
+  )
+})
