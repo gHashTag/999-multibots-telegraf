@@ -1,7 +1,7 @@
 /**
  * AN AGENT PACKAGE, PAID IN STARS, AS THE BOT SEES IT.
  *
- * The render sells the three packages (render/src/agent/agent-package-sale.ts):
+ * The render sells the packages (render/src/agent/agent-package-sale.ts):
  * it mints the invoice with the cashier bot's token and books every charge
  * from that cashier's own Stars ledger, once per transaction. The cashier is
  * polled by this service, so the `successful_payment` of a launch and of every
@@ -22,8 +22,9 @@ import {
 } from '@/services/clubMembership'
 
 /**
- * 'month' is a Telegram Stars subscription; 'once' is a one-off invoice for
- * one month, for a package priced above the subscription cap.
+ * 'month' is a Telegram Stars subscription -- every package is sold so now.
+ * 'once' was a one-off invoice for one month; it is no longer minted, but a
+ * charge carrying it is still booked.
  */
 export type AgentPackageCharge = 'month' | 'once'
 
@@ -53,10 +54,11 @@ export function parseAgentPackageChargePayload(
 
 /**
  * Whether the package's agent makes media. The Manager Agent is text only
- * (owner, 2026-09-30: a CRM agent gets no reels); the other two make media.
+ * (owner, 2026-09-30: a CRM agent gets no reels), and so is TRI DEV, whose
+ * work is a pull request; the Blogger and Developer Agents make media.
  */
 export function packageMakesMedia(packageId: string): boolean {
-  return packageId !== 'manager'
+  return packageId !== 'manager' && packageId !== 'tridev'
 }
 
 export interface BookedPackagePeriod {

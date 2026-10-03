@@ -88,8 +88,10 @@ import {
 } from '@/core/bot/launchWhenItAnswers'
 import { redactBotToken } from '@/utils/redactBotToken'
 import {
+  ensureChannelAdminRights,
   installManagedBots,
   relaunchManagedBots,
+  reportManagedBotCapabilities,
 } from '@/core/bot/managedBots/install'
 import { stopManagedBots, type RunnerDeps } from '@/core/bot/managedBots/runner'
 import { launchWithConflictRetry } from '@/core/bot/launchWithConflictRetry'
@@ -647,6 +649,12 @@ async function initializeBots() {
       'inline_query',
       'managed_bot',
     ])
+
+    // One line per bot: may it create bots. A bot that may also gets the
+    // channel admin rights its agents post with (written only when they differ).
+    if (reportManagedBotCapabilities(botInfo as any)) {
+      void ensureChannelAdminRights(bot.telegram as any, botInfo as any)
+    }
 
     // Every agent bot this one created is brought back after the restart.
     void relaunchManagedBots(bot, botInfo, managedBotDeps(bot)).then(up => {

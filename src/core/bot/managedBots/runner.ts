@@ -17,6 +17,15 @@ import { logger } from '@/utils/logger'
 import { telegramClientOptionsFor } from '@/services/telegramApi'
 import { launchWithConflictRetry } from '@/core/bot/launchWithConflictRetry'
 import type { ManagedBotAccess, ManagedBotRow } from './store'
+import {
+  TRI_DEV_COMMANDS,
+  TRI_DEV_DESCRIPTION,
+  TRI_DEV_PACKAGE,
+  registerTriDevBot,
+  replyToTriDev,
+  unregisterTriDevBot,
+  type DispatchDeps,
+} from './triDev'
 
 /** What the runner needs from the outside, injectable for tests. */
 export interface RunnerDeps {
@@ -33,6 +42,8 @@ export interface RunnerDeps {
   tellOwner: (ownerId: number, text: string) => Promise<void>
   /** Whether the bot is paid for, and whether its package makes media. */
   access: (botId: number) => Promise<ManagedBotAccess>
+  /** For tests: the TRI DEV runner's address and the fetch that reaches it. */
+  triDev?: DispatchDeps
 }
 
 export interface IncomingText {
@@ -75,11 +86,22 @@ export const COPY = {
 /**
  * Where the owner of a paused bot pays to switch it back on: the package
  * order in the manager bot (src/services/agentPackageOrder.ts reads the
- * payload). A bot that makes media is a Developer Agent -- a bot of the buyer's
- * own is where the catalogue puts it -- and a text bot is a Manager Agent.
+ * payload). The package the bot was made or paid for wins; a bot made before
+ * packages were remembered is a Developer Agent when it makes media -- a bot of
+ * the buyer's own is where the catalogue puts it -- and a Manager Agent when not.
  */
-export const renewUrl = (manager: string, media: boolean): string =>
-  `https://t.me/${manager}?start=agentpkg_${media ? 'twin' : 'manager'}`
+export const renewUrl = (
+  manager: string,
+  media: boolean,
+  packageId?: string
+): string =>
+  `https://t.me/${manager}?start=agentpkg_${
+    packageId && /^[a-z]{2,20}$/.test(packageId)
+      ? packageId
+      : media
+        ? 'twin'
+        : 'manager'
+  }`
 
 const NOTICE_EVERY_MS = 24 * 60 * 60 * 1000
 const lastPausedNotice = new Map<number, number>()
@@ -102,7 +124,7 @@ export function clearPausedNotices(): void {
  */
 export async function replyToClient(
   deps: RunnerDeps,
-  bot: Pick<ManagedBotRow, 'botId' | 'botUsername' | 'ownerId'> & {
+  bot: Pick<ManagedBotRow, 'botId' | 'botUsername' | 'ownerId' | 'package'> & {
     manager: string
   },
   msg: IncomingText,
@@ -126,7 +148,10 @@ export async function replyToClient(
       await deps
         .tellOwner(
           bot.ownerId,
-          copy.ownerPaused(bot.botUsername, renewUrl(bot.manager, access.media))
+          copy.ownerPaused(
+            bot.botUsername,
+            renewUrl(bot.manager, access.media, bot.package)
+          )
         )
         .catch(() => undefined)
     }
@@ -160,6 +185,75 @@ export function stopManagedBots(reason = 'SIGTERM'): void {
       // already stopped
     }
     running.delete(id)
+    unregisterTriDevBot(id)
+  }
+}
+
+/**
+ * What a bot of each package shows in Telegram: its command menu and its
+ * description, per language. Only TRI DEV has one: the client-facing packages
+ * keep whatever their owner set in Telegram, which is the owner's to write.
+ */
+export const PACKAGE_PROFILES: Record<
+  string,
+  {
+    commands: typeof TRI_DEV_COMMANDS
+    description: typeof TRI_DEV_DESCRIPTION
+  }
+> = {
+  [TRI_DEV_PACKAGE]: {
+    commands: TRI_DEV_COMMANDS,
+    description: TRI_DEV_DESCRIPTION,
+  },
+}
+
+/** The slice of Telegraf's telegram client a profile needs. */
+export interface ProfileTelegram {
+  setMyCommands(commands: any, extra?: any): Promise<unknown>
+  setMyDescription(description: string, languageCode?: string): Promise<unknown>
+  setMyShortDescription(
+    shortDescription: string,
+    languageCode?: string
+  ): Promise<unknown>
+}
+
+/**
+ * Write the package's menu and description into the bot, ru and en by
+ * language_code, with the English one also as the default for every other
+ * language. Never throws: a bot with an old menu still answers.
+ */
+export async function applyPackageProfile(
+  telegram: ProfileTelegram,
+  packageId: string | undefined,
+  botUsername = ''
+): Promise<boolean> {
+  const profile = packageId ? PACKAGE_PROFILES[packageId] : undefined
+  if (!profile) return false
+  try {
+    for (const lang of ['ru', 'en'] as const) {
+      await telegram.setMyCommands([...profile.commands[lang]], {
+        language_code: lang,
+      })
+      await telegram.setMyDescription(
+        profile.description[lang].description,
+        lang
+      )
+      await telegram.setMyShortDescription(
+        profile.description[lang].short,
+        lang
+      )
+    }
+    await telegram.setMyCommands([...profile.commands.en])
+    await telegram.setMyDescription(profile.description.en.description)
+    await telegram.setMyShortDescription(profile.description.en.short)
+    return true
+  } catch (error) {
+    logger.warn('[managed-bots] package profile not written', {
+      bot: botUsername,
+      package: packageId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return false
   }
 }
 
@@ -203,6 +297,16 @@ export async function launchManagedBot(
     handlerTimeout: Infinity,
     telegram: telegramClientOptionsFor(token),
   })
+  const triDev = row.package === TRI_DEV_PACKAGE
+  if (triDev) {
+    registerTriDevBot(row.botId, {
+      ownerId: row.ownerId,
+      send: (chatId, text) => bot.telegram.sendMessage(chatId, text),
+    })
+  } else {
+    unregisterTriDevBot(row.botId)
+  }
+  void applyPackageProfile(bot.telegram as any, row.package, row.botUsername)
   bot.on('message', async ctx => {
     const m = ctx.message as {
       text?: string
@@ -215,6 +319,31 @@ export async function launchManagedBot(
       }
     }
     if (!m.from) return
+    if (triDev) {
+      try {
+        const access = await deps.access(row.botId)
+        const reply = await replyToTriDev(
+          {
+            botId: row.botId,
+            ownerId: row.ownerId,
+            fromId: m.from.id,
+            chatId: ctx.chat.id,
+            language: m.from.language_code,
+            text: m.text,
+            paid: access.paid,
+            renewUrl: renewUrl(managerUsername, false, TRI_DEV_PACKAGE),
+          },
+          deps.triDev
+        )
+        if (reply) await ctx.reply(reply)
+      } catch (error) {
+        logger.error('[tri-dev] a message went unanswered', {
+          bot: row.botUsername,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+      return
+    }
     try {
       await ctx.sendChatAction('typing').catch(() => undefined)
       const reply = await replyToClient(
@@ -259,5 +388,6 @@ export async function launchManagedBot(
   logger.info('[managed-bots] answering', {
     bot: row.botUsername,
     owner: row.ownerId,
+    package: row.package ?? null,
   })
 }

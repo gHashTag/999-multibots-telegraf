@@ -21,6 +21,7 @@ import {
   requestManagedBotKeyboard,
   suggestBotName,
   suggestBotUsername,
+  TRI_DEV_BOT_SUFFIX,
   type ManagedBotEvent,
 } from './protocol'
 import {
@@ -31,6 +32,7 @@ import {
   type ManagedBotRow,
 } from './store'
 import { launchManagedBot, type RunnerDeps } from './runner'
+import { TRI_DEV_PACKAGE } from './triDev'
 
 /** The farm bot people are sent to when theirs cannot create bots. */
 export const MANAGER_BOT = 't27ai_bot'
@@ -39,6 +41,8 @@ export const MANAGER_COPY = {
   ru: {
     offer:
       'Создадим вашего собственного бота-агента. Он будет ваш: имя и аватар меняете в Telegram сами, а отвечает в нём наш агент от вашего имени.\n\nНажмите кнопку ниже, Telegram предложит имя — его можно поправить.',
+    offerTriDev:
+      'Создадим вашего бота TRI DEV — агента-разработчика. Бот будет ваш, и задачи ему даёте только вы: /task со ссылкой на задачу GitHub или текстом, в ответ — pull request и запись работы на t27.ai/term.\n\nНажмите кнопку ниже, Telegram предложит имя — его можно поправить.',
     button: '🤖 Создать моего бота',
     elsewhere: (manager: string) =>
       `Ботов создаёт @${manager}. Откройте его и отправьте /mybot.`,
@@ -55,6 +59,8 @@ export const MANAGER_COPY = {
   en: {
     offer:
       "Let's create your own agent bot. It is yours: you change its name and picture in Telegram, and our agent answers in it on your behalf.\n\nTap the button below; Telegram will suggest a name you can edit.",
+    offerTriDev:
+      "Let's create your TRI DEV bot, a developer agent. It is yours, and only you give it tasks: /task with a GitHub issue link or text, and you get back a pull request and a recording of the work at t27.ai/term.\n\nTap the button below; Telegram will suggest a name you can edit.",
     button: '🤖 Create my bot',
     elsewhere: (manager: string) =>
       `Bots are created by @${manager}. Open it and send /mybot.`,
@@ -90,12 +96,16 @@ export const AGENT_BOT_USAGE =
   'Как оплатить бота клиента после оплаты владельцем:\n' +
   '/agentbot @username <дней> — продлить на столько дней\n' +
   '/agentbot @username <дней> text — пакет «Менеджер агент», только текст\n' +
-  '/agentbot @username <дней> media — пакет с медиа (рилсы, лицо, голос)'
+  '/agentbot @username <дней> media — пакет с медиа (рилсы, лицо, голос)\n' +
+  '/agentbot @username <дней> tridev — пакет TRI DEV, агент-разработчик'
 
 /** The team's /agentbot words, or null when they do not parse. */
-export function parseAgentBotArgs(
-  text: string
-): { botUsername: string; days: number; media?: boolean } | null {
+export function parseAgentBotArgs(text: string): {
+  botUsername: string
+  days: number
+  media?: boolean
+  packageId?: string
+} | null {
   const [, name, daysWord, kind, ...rest] = text.trim().split(/\s+/)
   if (!name || !daysWord || rest.length) return null
   const botUsername = name.replace(/^@/, '')
@@ -106,7 +116,49 @@ export function parseAgentBotArgs(
   if (kind === undefined) return { botUsername, days }
   if (kind === 'text') return { botUsername, days, media: false }
   if (kind === 'media') return { botUsername, days, media: true }
+  if (kind === TRI_DEV_PACKAGE)
+    return { botUsername, days, media: false, packageId: TRI_DEV_PACKAGE }
   return null
+}
+
+/**
+ * The package a person asked for in /mybot, until their bot arrives. Telegram's
+ * creation sheet carries no payload of ours, so the intent is held here for an
+ * hour, in memory; a creation with no intent left is still recognised as TRI
+ * DEV by the username we suggested for it.
+ */
+const INTENT_TTL_MS = 60 * 60 * 1000
+const intents = new Map<number, { packageId: string; at: number }>()
+
+export function rememberIntent(
+  ownerId: number,
+  packageId: string,
+  now = Date.now()
+): void {
+  intents.set(ownerId, { packageId, at: now })
+}
+
+/** For tests: forget every intent. */
+export function clearIntents(): void {
+  intents.clear()
+}
+
+/** The package a created bot is for: the owner's /mybot intent, or its name. */
+export function packageOfCreation(
+  event: Pick<ManagedBotEvent, 'ownerId' | 'botUsername'>,
+  now = Date.now()
+): string | undefined {
+  const intent = intents.get(event.ownerId)
+  if (intent && now - intent.at < INTENT_TTL_MS) return intent.packageId
+  if (event.botUsername.toLowerCase().endsWith(TRI_DEV_BOT_SUFFIX))
+    return TRI_DEV_PACKAGE
+  return undefined
+}
+
+/** The package named after /mybot, when it is one /mybot makes. */
+export function mybotPackage(text: string): string | undefined {
+  const word = text.trim().split(/\s+/)[1]?.toLowerCase()
+  return word === TRI_DEV_PACKAGE ? TRI_DEV_PACKAGE : undefined
 }
 
 const canManage = (botInfo: unknown): boolean =>
@@ -127,7 +179,12 @@ export async function onManagedBot(
 ): Promise<void> {
   const copy = copyFor(event.ownerLanguage)
   try {
-    await rememberManagedBot(event, managerUsername)
+    const stored = await rememberManagedBot(
+      event,
+      managerUsername,
+      packageOfCreation(event)
+    )
+    if (announce) intents.delete(event.ownerId)
     await launchManagedBot(
       manager,
       {
@@ -135,6 +192,7 @@ export async function onManagedBot(
         botUsername: event.botUsername,
         botName: event.botName,
         ownerId: event.ownerId,
+        ...(stored ? { package: stored } : {}),
       },
       deps,
       managerUsername
@@ -192,9 +250,15 @@ export function installManagedBots(bot: Telegraf<any>, deps: RunnerDeps): void {
     }
     const ru = (from.language_code ?? 'ru').startsWith('ru')
     const name = [from.first_name, from.last_name].filter(Boolean).join(' ')
-    await ctx.reply(copy.offer, {
+    const text = ctx.message && 'text' in ctx.message ? ctx.message.text : ''
+    const packageId = mybotPackage(text)
+    if (packageId) rememberIntent(from.id, packageId)
+    await ctx.reply(packageId ? copy.offerTriDev : copy.offer, {
       reply_markup: requestManagedBotKeyboard(copy.button, {
-        username: suggestBotUsername({ id: from.id, username: from.username }),
+        username: suggestBotUsername(
+          { id: from.id, username: from.username },
+          packageId
+        ),
         name: suggestBotName(name, ru),
       }) as any,
     })
@@ -218,7 +282,8 @@ export function installManagedBots(bot: Telegraf<any>, deps: RunnerDeps): void {
       const done = await extendManagedBot(
         args.botUsername,
         args.days,
-        args.media
+        args.media,
+        args.packageId
       )
       if (!done) {
         await ctx.reply(
@@ -228,7 +293,7 @@ export function installManagedBots(bot: Telegraf<any>, deps: RunnerDeps): void {
       }
       const date = day(done.paidUntil)
       await ctx.reply(
-        `@${done.botUsername}: оплачен до ${date}, ${done.media ? 'с медиа' : 'только текст'}.`
+        `@${done.botUsername}: оплачен до ${date}, ${done.package === TRI_DEV_PACKAGE ? 'TRI DEV' : done.media ? 'с медиа' : 'только текст'}.`
       )
       await deps
         .tellOwner(
@@ -278,4 +343,119 @@ export async function relaunchManagedBots(
     }
   }
   return up
+}
+
+/**
+ * One line per bot at boot: whether Telegram lets it manage bots. Greppable as
+ * `[managed-bots] can_manage_bots=`, so a bot that lost Bot Management Mode in
+ * @BotFather is seen in the logs, not in a customer's silence.
+ */
+const reported = new Set<string>()
+
+export function reportManagedBotCapabilities(botInfo: {
+  username?: string
+  can_manage_bots?: boolean
+}): boolean {
+  const can = canManage(botInfo)
+  const key = botInfo.username ?? ''
+  if (!reported.has(key)) {
+    reported.add(key)
+    logger.info(
+      `[managed-bots] can_manage_bots=${can} bot=${botInfo.username ?? 'unknown'}`
+    )
+  }
+  return can
+}
+
+/** For tests: forget which bots were reported. */
+export function clearCapabilityReports(): void {
+  reported.clear()
+}
+
+/**
+ * THE RIGHTS A MANAGER BOT ASKS FOR WHEN IT IS MADE A CHANNEL ADMIN.
+ *
+ * An agent posts, edits and deletes in its owner's channel and its stories,
+ * and nothing more: it never promotes, restricts, invites, renames the channel
+ * or acts anonymously. These are the defaults Telegram pre-ticks when the
+ * owner adds the bot to a channel; the owner may still change them there.
+ */
+export const CHANNEL_ADMIN_RIGHTS = {
+  is_anonymous: false,
+  can_manage_chat: true,
+  can_delete_messages: true,
+  can_manage_video_chats: false,
+  can_restrict_members: false,
+  can_promote_members: false,
+  can_change_info: false,
+  can_invite_users: false,
+  can_post_messages: true,
+  can_edit_messages: true,
+  can_pin_messages: false,
+  can_post_stories: true,
+  can_edit_stories: true,
+  can_delete_stories: true,
+  can_manage_topics: false,
+} as const
+
+export type ChannelAdminRights = Record<
+  keyof typeof CHANNEL_ADMIN_RIGHTS,
+  boolean
+>
+
+/**
+ * The slice of Telegraf's telegram client the rights need. Called through
+ * callApi with the Bot API's own field names, so `for_channels: true` is on
+ * the wire exactly as written.
+ */
+export interface RightsTelegram {
+  callApi(method: string, payload: Record<string, unknown>): Promise<unknown>
+}
+
+const sameRights = (current: unknown): boolean => {
+  if (typeof current !== 'object' || current === null) return false
+  const c = current as Record<string, unknown>
+  return (
+    Object.keys(CHANNEL_ADMIN_RIGHTS) as (keyof ChannelAdminRights)[]
+  ).every(k => (c[k] === true) === CHANNEL_ADMIN_RIGHTS[k])
+}
+
+/**
+ * At boot, for a bot that can manage bots: read its default channel rights and
+ * write CHANNEL_ADMIN_RIGHTS only when they differ, so a restart is not a
+ * write. One log line, `[managed-bots] channel_admin_rights=` with the booleans
+ * and changed=. Never throws: a bot with the old defaults still answers.
+ */
+export async function ensureChannelAdminRights(
+  telegram: RightsTelegram,
+  botInfo: { username?: string; can_manage_bots?: boolean }
+): Promise<{ changed: boolean } | null> {
+  if (!canManage(botInfo)) return null
+  try {
+    const current = await telegram.callApi('getMyDefaultAdministratorRights', {
+      for_channels: true,
+    })
+    const changed = !sameRights(current)
+    if (changed) {
+      await telegram.callApi('setMyDefaultAdministratorRights', {
+        rights: { ...CHANNEL_ADMIN_RIGHTS },
+        for_channels: true,
+      })
+    }
+    const flags = (
+      Object.keys(CHANNEL_ADMIN_RIGHTS) as (keyof ChannelAdminRights)[]
+    )
+      .map(k => `${k}:${CHANNEL_ADMIN_RIGHTS[k]}`)
+      .join(',')
+    logger.info(
+      `[managed-bots] channel_admin_rights=${flags} changed=${changed} bot=${botInfo.username ?? 'unknown'}`
+    )
+    return { changed }
+  } catch (error) {
+    logger.warn('[managed-bots] channel admin rights not checked', {
+      bot: botInfo.username,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
 }
