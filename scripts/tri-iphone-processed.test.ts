@@ -13,6 +13,8 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('./lib/anchored-slice.cjs')
 
 const TRI = path.join(__dirname, '..', 'tri')
 const IOS_FASTLANE = path.join(__dirname, '..', 'apps', 'vibee-ios', 'fastlane')
@@ -379,7 +381,7 @@ describe.skipIf(!hasRuby)('build_wait.rb', () => {
       path.join(IOS_FASTLANE, 'Fastfile'),
       'utf8'
     )
-    const beta = fastfile.slice(fastfile.indexOf('lane :beta do'))
+    const beta = sliceFrom(fastfile, 'lane :beta do')
     const upload = beta.indexOf('upload_to_testflight(')
     const record = beta.indexOf('build/last-upload')
     expect(upload).toBeGreaterThan(0)

@@ -36,6 +36,9 @@ HEAL_WAIT_S="${HEAL_WAIT_S:-240}"
 OWNER="${OWNER_CHAT:-144022504}"
 LIB="$HOME/.local/lib/t27-relays-watch"
 PLIST="$HOME/Library/LaunchAgents/ai.t27.relays-watch.plist"
+# Installed, the copy sits next to this script; in the repo, under scripts/lib.
+TG_API="$HERE/telegram-api.cjs"
+[ -f "$TG_API" ] || TG_API="$HERE/../../scripts/lib/telegram-api.cjs"
 
 relays() {
   if [ -n "${RELAYS_CMD:-}" ]; then eval "$RELAYS_CMD"; else bash "$HERE/relays.sh" 2; fi
@@ -43,10 +46,17 @@ relays() {
 pause() { ${SLEEP_CMD:-sleep} "$1"; }
 send() {
   if [ -n "${SEND_CMD:-}" ]; then printf '%s' "$1" | eval "$SEND_CMD"; return; fi
-  local tok
+  local tok root
   tok=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$HOME/.fcc/.env" 2>/dev/null | cut -d= -f2- | tr -d '"')
   [ -n "$tok" ] || { echo "relays-watch: no TELEGRAM_BOT_TOKEN in ~/.fcc/.env -- NOT sent" >&2; return 1; }
-  curl -s -m 15 -X POST "https://api.telegram.org/bot${tok}/sendMessage" \
+  # @t27ai_bot may live on our own Bot API server, and one cloud call logs it
+  # back in there. The host is chosen per token by the rule the bot and the
+  # render use, from vibee-render's routing variables; when those cannot be
+  # read the message is not sent -- a guess at the cloud is the wrong answer.
+  . "$HERE/rail.sh"
+  root=$(rvars vibee-render | BOT_API_TOKEN="$tok" node "$TG_API" api-root --env-from-stdin) ||
+    { echo "relays-watch: cannot tell this bot's Bot API host -- NOT sent" >&2; return 1; }
+  curl -s -m 15 -X POST "$root/bot${tok}/sendMessage" \
     --data-urlencode chat_id="$OWNER" --data-urlencode text="$1" |
     grep -q '"ok":true' || echo "relays-watch: Telegram refused the message" >&2
 }
@@ -150,16 +160,19 @@ $heal_note"
 # the directory of the railway it finds here first on the job's PATH, and
 # refuses to install a watch that could not measure anything.
 install() {
-  local rw bin path
+  local rw bin nd path
   rw=$(command -v railway) || { echo "relays-watch: no railway on PATH -- not installed" >&2; return 1; }
   bin=$(dirname "$rw")
-  path="$bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  # node picks the Bot API host for the report; under nvm it is on no PATH
+  # launchd knows, so its directory is pinned the same way.
+  nd=$(command -v node) || { echo "relays-watch: no node on PATH -- not installed" >&2; return 1; }
+  path="$bin:$(dirname "$nd"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   if ! env -i HOME="$HOME" PATH="$path" railway whoami >/dev/null 2>&1; then
     echo "relays-watch: $rw is not logged in under the job's PATH -- run railway login; not installed" >&2
     return 1
   fi
   mkdir -p "$LIB" "$HOME/Library/Logs" "$(dirname "$PLIST")" || return 1
-  cp "$HERE/relays.sh" "$HERE/rail.sh" "$HERE/relays-watch.sh" "$LIB/" || return 1
+  cp "$HERE/relays.sh" "$HERE/rail.sh" "$HERE/relays-watch.sh" "$TG_API" "$LIB/" || return 1
   cat >"$PLIST" <<EOF || return 1
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
