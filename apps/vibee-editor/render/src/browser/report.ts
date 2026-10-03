@@ -51,6 +51,7 @@ const STEP_WORDS: Record<string, (d: Record<string, unknown>) => string> = {
       : 'Проверил вкладки', // cyrillic-ok
   browser_close_tab: () => 'Закрыл вкладку', // cyrillic-ok
   browser_start: d => `Запустил браузер: ${deskName(d.by)}`, // cyrillic-ok
+  browser_restart: d => `Перезапустил браузер: ${deskName(d.by)}`, // cyrillic-ok
   browser_ask_permission: d =>
     `Попросил разрешения${typeof d.what === 'string' && d.what ? `: ${d.what}` : ''}`, // cyrillic-ok
 }
@@ -62,6 +63,7 @@ const DESK_NAMES: Record<string, string> = {
   'blog-share': 'публикация блога', // cyrillic-ok
   rounds: 'обход сетей', // cyrillic-ok
   scenarios: 'сценарий', // cyrillic-ok
+  heal: 'починка зависшего браузера', // cyrillic-ok
 }
 
 function deskName(by: unknown): string {
@@ -251,8 +253,9 @@ export interface ReportDeps {
  * landing inside a chat turn that never touched the browser would have sent
  * the person a lab report and film about work nobody asked for (review of
  * #3450). The step stays in the journal and the panel; the report skips it.
+ * `browser_restart` (rounds, heal) is the same kind of step.
  */
-const NOT_TURN_WORK = new Set(['browser_start'])
+const NOT_TURN_WORK = new Set(['browser_start', 'browser_restart'])
 
 /** Whether a journal step belongs to the turn being reported. Pure. */
 export function isTurnWork(row: JournalRow): boolean {

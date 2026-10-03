@@ -9,7 +9,11 @@
  * had opened it. The real start function is exercised here, not a mock.
  */
 import { describe, it, expect, beforeEach } from 'vitest'
-import { configureAgentStart, startBrowserAsAgent } from './src/browser/routes'
+import {
+  configureAgentStart,
+  restartBrowserAsAgent,
+  startBrowserAsAgent,
+} from './src/browser/routes'
 import { resetBrowserSessionsCache } from './src/browser/sessions'
 import { resetJournalCacheForTests } from './src/browser/journal'
 import { reportBrowserWork, stepInWords } from './src/browser/report'
@@ -92,6 +96,44 @@ describe('who started the browser is written down', () => {
     })
     expect(stepInWords(row('reddit'))).toContain('Reddit')
     expect(stepInWords(row('something-new'))).toContain('агент') // cyrillic-ok
+  })
+})
+
+describe('who restarted the browser is written down too', () => {
+  it('the round names itself in a browser_restart step', async () => {
+    configure()
+    expect(await restartBrowserAsAgent(WHO, 'rounds')).toBe(true)
+    const steps = journal.filter(r => r[1] === 'browser_restart')
+    expect(steps).toHaveLength(1)
+    expect(steps[0][2]).toBe(true)
+    expect(JSON.parse(String(steps[0][4]))).toEqual({ by: 'rounds' })
+  })
+
+  it('a restart that did not come back is journaled as failed', async () => {
+    configure(true)
+    expect(await restartBrowserAsAgent(WHO, 'heal')).toBe(false)
+    const steps = journal.filter(r => r[1] === 'browser_restart')
+    expect(steps).toHaveLength(1)
+    expect(steps[0][2]).toBe(false)
+    expect(JSON.parse(String(steps[0][4]))).toMatchObject({ by: 'heal' })
+  })
+
+  it('without a name nothing is written', async () => {
+    configure()
+    expect(await restartBrowserAsAgent(WHO)).toBe(true)
+    expect(journal).toEqual([])
+  })
+
+  it('the person reads that the browser was restarted, and by what', () => {
+    const said = stepInWords({
+      at: '2026-10-03T01:00:00Z',
+      tool: 'browser_restart',
+      ok: true,
+      ms: 40000,
+      detail: { by: 'heal' },
+    })
+    expect(said).toContain('Перезапустил') // cyrillic-ok
+    expect(said).toContain('починка') // cyrillic-ok
   })
 })
 
