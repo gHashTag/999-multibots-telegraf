@@ -8,26 +8,48 @@
  *
  * The stopgap of #3553 kept the template on the seller's own reel by
  * refusing a client's press. v22 supersedes that refusal: the template is
- * open to a client, and what stays home is the house's MARK -- its call, its
- * button, its spoken last line. What must hold:
- *   1. a client's template press starts, and no call in it names the house:
- *      no house call in the row, no house button in the card, the last line
- *      ends with her call (here the default: she has no profile call). The
- *      hook lines are the template's story and stay; the body is not refused;
- *   2. the client's ready answer lists the template ending with her call,
- *      with no house button, so the panel draws hers;
- *   3. the seller's own reel still takes the template with the house call
+ * open to a client, told in its CLIENT VERSION, and what stays home is every
+ * name of the house -- its call, its button, and every spoken line. The
+ * first v22 kept the template's first three lines as written, so a client's
+ * reel said "This is Trinity" in HER voice and captioned it (reviewer bee,
+ * t27#5811 / #3563). What must hold:
+ *   1. a client's template press starts, in Russian and in English, and no
+ *      line, call or button of it names the house by any of its marks; the
+ *      last line ends with her call (here the default: no profile call);
+ *   2. the client's ready answer lists only the client versions, so the
+ *      panel draws no house line either;
+ *   3. a line the seller or the agent wrote naming the house is refused
+ *      before anything is spent -- the first line as much as the last, with
+ *      a template or a script of his own; only what the person typed this
+ *      turn may name it;
+ *   4. the seller's own reel still takes the template with the house call
  *      and the house button, and the row keeps that button (the own-reel end
  *      card the engine used to drop before it reached the video).
  */
 import { describe, it, expect } from 'vitest'
 import { makeCrmStoryTool } from './crm-story-tool'
-import { namesHouse, templateOf } from './story-reel-templates'
+import { templateOf } from './story-reel-templates'
 import { STORY_DEFAULT_CTA, type StoryDeps } from './story-template'
 import type { ToolContext } from './tools'
 import * as SPEC from '../spec/crm-story-reel.gen'
 
 type Call = { name: string; args: unknown[] }
+
+/**
+ * The house's names, written here by hand rather than read from the shared
+ * detector, so a detector that forgets one cannot pass its own test.
+ */
+const HOUSE_WORDS: readonly RegExp[] = [
+  /trinity/i,
+  /тринити/i, // cyrillic-ok: the brand as the voice speaks it
+  /t27ai_bot/i,
+  /@t27ai_bot/i,
+  /\bT27\b/i,
+]
+const houseIn = (text: unknown) =>
+  HOUSE_WORDS.filter(w => w.test(String(text ?? ''))).map(String)
+/** Everything that spends: a written script, the reel, the day's count. */
+const SPENDS = ['write', 'story', 'generationsLeft', 'refundStill']
 
 const SELLER = '900000001'
 const LEAD = '900000077'
@@ -98,7 +120,7 @@ function fakeDeps(pool: StoryDeps['pool']) {
   return { deps, calls }
 }
 
-function press() {
+function press(ownerSaid?: string) {
   const base = fakeBase()
   const { deps, calls } = fakeDeps(base.pool as never)
   const tool = makeCrmStoryTool({
@@ -113,7 +135,11 @@ function press() {
       },
     }),
   })
-  const ctx = { telegramId: SELLER, pool: base.pool } as unknown as ToolContext
+  const ctx = {
+    telegramId: SELLER,
+    pool: base.pool,
+    ...(ownerSaid !== undefined ? { ownerSaid } : {}),
+  } as unknown as ToolContext
   return { tool, ctx, base, calls }
 }
 
@@ -126,52 +152,139 @@ const card = (job: Record<string, unknown>) =>
   job.end_card == null ? null : JSON.parse(String(job.end_card))
 
 describe("the house's call stays on the seller own reel (v22)", () => {
-  it("a client's template press starts with her call, and nothing in it names the house", async () => {
-    const { tool, ctx, base } = press()
+  for (const language of ['ru', 'en'] as const)
+    it(`a client's template press (${language}) starts with her call, and no line of it names the house`, async () => {
+      const { tool, ctx, base } = press()
+      const r: any = await tool.handler(
+        {
+          lead: LEAD,
+          start: true,
+          template: SPEC.TEMPLATE_HOOK_STUDIO,
+          language,
+        },
+        ctx
+      )
+      await drain()
+      expect(r.started).toBe(true)
+      expect(r).not.toHaveProperty('house_replaced')
+      expect(base.jobs).toHaveLength(1)
+      const job = base.jobs[0]
+      expect(job.lead_id).toBe(LEAD)
+      // No house call in the row: an empty one is read from her profile at the run.
+      expect(houseIn(job.cta)).toEqual([])
+      expect(card(job)?.button ?? '').toBe('')
+      const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, language)!
+      // The template as written does name the house: the test has teeth.
+      expect(houseIn(t.lines[0]).length).toBeGreaterThan(0)
+      const lines: string[] = JSON.parse(String(job.scenes)).map(
+        (s: any) => s.line
+      )
+      expect(lines).toHaveLength(t.lines.length)
+      // EVERY line, the first as much as the last -- and so every caption.
+      for (const line of lines) expect(houseIn(line)).toEqual([])
+      expect(lines.slice(0, -1)).toEqual(t.client.slice(0, -1))
+      if (language === 'ru')
+        expect(lines.at(-1)).toBe(`${t.lead} ${STORY_DEFAULT_CTA}.`)
+      // A call in the other language is not spoken: the lead-in alone.
+      else expect(lines.at(-1)).toBe(t.lead)
+    })
+
+  it("the client's ready answer lists only the templates' client versions, no line naming the house", async () => {
+    const { tool, ctx } = press()
+    const r: any = await tool.handler({ lead: LEAD }, ctx)
+    expect(r.ready).toBe(true)
+    expect(r.cta).toBe(STORY_DEFAULT_CTA)
+    expect(r.templates.map((t: any) => t.language).sort()).toEqual(['en', 'ru'])
+    for (const t of r.templates) {
+      expect(t.button).toBe('')
+      expect(houseIn(t.call)).toEqual([])
+      for (const line of t.lines) expect(houseIn(line)).toEqual([])
+      const own = templateOf(t.id, t.language)!
+      expect(t.lines.slice(0, -1)).toEqual(own.client.slice(0, -1))
+    }
+    const ru = r.templates.find((t: any) => t.language === 'ru')
+    expect(ru.call).toBe(STORY_DEFAULT_CTA)
+    expect(ru.lines.at(-1)).toBe(`${ru.lead} ${STORY_DEFAULT_CTA}.`)
+  })
+
+  for (const at of [0, 1, 3])
+    it(`a line ${at + 1} the seller wrote naming the house is refused before anything is spent`, async () => {
+      const { tool, ctx, base, calls } = press()
+      const en = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!
+      const scenes: unknown[] = [...en.client]
+      scenes[at] = 'Say hi to @t27ai_bot today.'
+      const r: any = await tool.handler(
+        {
+          lead: LEAD,
+          start: true,
+          template: SPEC.TEMPLATE_HOOK_STUDIO,
+          language: 'en',
+          scenes,
+        },
+        ctx
+      )
+      await drain()
+      expect(r.started).toBe(false)
+      expect(r.why).toContain(`${at + 1}`)
+      expect(base.jobs).toHaveLength(0)
+      expect(base.seen.some(q => q.startsWith('INSERT INTO story_jobs'))).toBe(
+        false
+      )
+      expect(calls.filter(c => SPENDS.includes(c.name))).toEqual([])
+    })
+
+  it("a script of the agent's own naming the house on a client's reel is refused before anything is spent", async () => {
+    const { tool, ctx, base, calls } = press()
     const r: any = await tool.handler(
       {
         lead: LEAD,
         start: true,
-        template: SPEC.TEMPLATE_HOOK_STUDIO,
-        language: 'ru',
+        scenes: [
+          { line: 'My studio opens at nine.' },
+          { line: 'Ask Trinity for a slot.' },
+        ],
+      },
+      ctx
+    )
+    await drain()
+    expect(r.started).toBe(false)
+    expect(r.why).toContain('2')
+    expect(base.jobs).toHaveLength(0)
+    expect(calls.filter(c => SPENDS.includes(c.name))).toEqual([])
+  })
+
+  it("only the person's own words typed this turn may name the house on a client's reel", async () => {
+    const said = 'Make it say: I found my AI at T27.'
+    const { tool, ctx, base } = press(said)
+    const r: any = await tool.handler(
+      {
+        lead: LEAD,
+        start: true,
+        scenes: [
+          { line: 'My studio opens at nine.' },
+          { line: 'I found my AI at T27.' },
+        ],
       },
       ctx
     )
     await drain()
     expect(r.started).toBe(true)
-    expect(r).not.toHaveProperty('house_replaced')
     expect(base.jobs).toHaveLength(1)
-    const job = base.jobs[0]
-    expect(job.lead_id).toBe(LEAD)
-    // No house call in the row: an empty one is read from her profile at the run.
-    expect(namesHouse(job.cta)).toBe(false)
-    expect(card(job)?.button ?? '').toBe('')
-    const ru = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'ru')!
-    const lines = JSON.parse(String(job.scenes)).map((s: any) => s.line)
-    // The template's own story stays (TEMPLATE_LINES_KEPT); the call slot is hers.
-    expect(lines.slice(0, SPEC.TEMPLATE_LINES_KEPT)).toEqual(
-      ru.lines.slice(0, SPEC.TEMPLATE_LINES_KEPT)
+    // What she typed with no house in it lends no house name to the agent.
+    const other = press('Make it about my studio.')
+    const refused: any = await other.tool.handler(
+      {
+        lead: LEAD,
+        start: true,
+        scenes: [
+          { line: 'My studio opens at nine.' },
+          { line: 'I found my AI at T27.' },
+        ],
+      },
+      other.ctx
     )
-    // Only the call slot is hers: the hook is the template's story, not a
-    // call, and the body is not refused (the split-reel lesson, t27#5785).
-    expect(lines.at(-1)).toBe(`${ru.lead} ${STORY_DEFAULT_CTA}.`)
-    expect(namesHouse(lines.at(-1))).toBe(false)
-  })
-
-  it("the client's ready answer lists the template with her call and no house button", async () => {
-    const { tool, ctx } = press()
-    const r: any = await tool.handler({ lead: LEAD }, ctx)
-    expect(r.ready).toBe(true)
-    expect(r.cta).toBe(STORY_DEFAULT_CTA)
-    expect(r.templates.length).toBeGreaterThan(0)
-    for (const t of r.templates) {
-      expect(t.button).toBe('')
-      expect(namesHouse(t.call)).toBe(false)
-      expect(namesHouse(t.lines.at(-1))).toBe(false)
-    }
-    const ru = r.templates.find((t: any) => t.language === 'ru')
-    expect(ru.call).toBe(STORY_DEFAULT_CTA)
-    expect(ru.lines.at(-1)).toBe(`${ru.lead} ${STORY_DEFAULT_CTA}.`)
+    expect(refused.started).toBe(false)
+    expect(other.base.jobs).toHaveLength(0)
   })
 
   it('the seller own reel still lists the template and presses it with the house call and button', async () => {

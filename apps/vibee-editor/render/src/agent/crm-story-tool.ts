@@ -364,7 +364,8 @@ export function makeCrmStoryTool(o: {
                 ...(fixBg ? { [REEL.SUGGEST_BG_ARG]: fixBg } : {}),
                 client_pays_own_press: s.payer === 'client',
                 // The gallery the panel draws (spec v20, TEMPLATES_FROM_SERVER);
-                // a client's ends with her call, no house button (v22).
+                // a client's is the templates' client versions: no line names
+                // the house, the last ends with her call, no house button (v22).
                 templates: templatesForPanel(
                   ownReel ? undefined : { call: s.cta }
                 ),
@@ -437,15 +438,22 @@ export function makeCrmStoryTool(o: {
         isCard || jobButton
           ? { ...rest, ...(jobButton ? { button: jobButton } : {}) }
           : raw
+      /*
+       * EVERY LINE OF A CLIENT'S REEL, READ (spec v22, line_way): a template's
+       * line is its client version, the first as much as the last; a line the
+       * seller or the agent wrote naming the house is refused here, before
+       * anything is spent -- unless the person typed it herself this turn.
+       * A script with no template is read the same way by startStory.
+       */
       const spoken =
         template && lines && !ownReel
-          ? clientLines(template, lines, call.call)
+          ? clientLines(template, lines, call.call, ctx.ownerSaid)
           : null
+      if (spoken?.refused) return { started: false, why: spoken.refused }
       const replaced = houseReplacedNote(
         [
           call.replaced,
           button.replaced ? String((raw as { button?: unknown }).button) : '',
-          spoken?.replaced ?? '',
         ],
         call.call
       )
@@ -472,6 +480,7 @@ export function makeCrmStoryTool(o: {
         ...(jobCard !== undefined ? { endCard: jobCard } : {}),
         deliverTo,
         caption: String(args.caption ?? ''),
+        personSaid: ctx.ownerSaid,
       })
       return out.started
         ? {

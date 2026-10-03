@@ -179,8 +179,12 @@
 // editor (last_line_way). story_reel for a client takes the same order and speaks her voice: a
 // client turn's face is the client, and a client turn naming another client is refused
 // (voice_of). The stopgap that kept the template at home for a client is superseded: the
-// template is open to a client with her call and her button. Its first three lines still tell
-// the template's own story; whether a client's reel should tell it is the owner's call.
+// template is open to a client, told in its CLIENT VERSION. No line of a client's reel names the
+// house -- not a template's line, not a line the agent, the writer or a seller wrote or edited,
+// so no caption either, and no call or button on the end card -- unless it is the person's own
+// words, typed this turn (line_way). Every template line has a house-free client version, kept by
+// the host, and a client's list shows only those; any other line naming the house is refused
+// before anything is spent (REFUSED_BEFORE_SPEND, charged), as split-reel v7 refuses it.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -494,8 +498,12 @@ module automation::crm_story_reel {
 
     // ---- A client's reel carries the client's call (v22) --------------------------------------
     // The house is named by BOT_SPOKEN_AS, its Russian spelling (kept by the host, this file
-    // stays ASCII) and HOUSE_DELIVERY_BOT; TEMPLATE_BUTTON is the last with an at-sign.
-    pub const HOUSE_MARKS : u8 = 3;
+    // stays ASCII), HOUSE_DELIVERY_BOT (TEMPLATE_BUTTON is it with an at-sign), HOUSE_BRAND and
+    // HOUSE_PRODUCT (the host also reads its superscript spelling). One detector in the host
+    // reads them all, for every spec that refuses a house name on a client's reel.
+    pub const HOUSE_BRAND : str = "T27";
+    pub const HOUSE_PRODUCT : str = "S3AI";
+    pub const HOUSE_MARKS : u8 = 5;
     pub const HOUSE_CALL_ON_CLIENT_REEL : bool = false;  // the template's call: the house's own reel only
     pub const HOUSE_BUTTON_ON_CLIENT_REEL : bool = false;  // and its button
     pub const HOUSE_WORD_REPLACED_SAID : bool = true;  // a given house call replaced is said in the answer
@@ -507,7 +515,6 @@ module automation::crm_story_reel {
     pub const CALL_FROM_DEFAULT : u8 = 5;  // the host's default call, "write to me"
     pub const FIELD_FROM_TEMPLATE : u8 = 4;  // the template's button, the house's own reel only
     pub const TEMPLATE_LEAD_EN_4 : str = "Want the same?";  // the last line, before the call
-    pub const TEMPLATE_LINES_KEPT : u16 = 3;  // the lines before the call stay the template's
     pub const LAST_LINE_LEAD_AND_CALL : u8 = 0;  // "Want the same?" and her call
     pub const LAST_LINE_CALL : u8 = 1;  // her call alone, when both do not fit
     pub const LAST_LINE_LEAD : u8 = 2;  // the lead-in alone: no call, or one in another language
@@ -515,6 +522,27 @@ module automation::crm_story_reel {
     pub const SPEAKS_CALLER : u8 = 1;  // the caller's own voice, on the caller's own reel
     pub const SPEAKS_REFUSED : u8 = 2;  // a client turn naming another client
     pub const CLIENT_TURN_SPEAKS_CLIENT : bool = true;  // a client turn's face is the client
+
+    // ---- Every line of a client's reel (v22) ---------------------------------------------------
+    // Every line is checked, the first as much as the last: the captions are the lines as
+    // written (CAPTION_TEXT_FROM_LINE), so a line naming the house is a caption naming it too.
+    // A template's line on a client's reel is its client version, always -- the host keeps one
+    // for every line, in every language, and none of them names the house. A line someone wrote
+    // or edited -- the agent, the writer of a topic reel, a seller in the editor -- stands when it
+    // names no house mark, or when it is the person's own words typed this turn (what she typed,
+    // set by code, never by the model). Any other is refused before the first paid step.
+    pub const HOUSE_LINE_ON_CLIENT_REEL : bool = false;  // a house name nobody typed, on a client's reel
+    pub const CLIENT_VERSION_NAMES_HOUSE : bool = false;  // no template's client version names the house
+    pub const CLIENT_LIST_HOUSE_FREE : bool = true;  // a client's template list: client versions only
+    pub const LINE_FROM_TEMPLATE : u8 = 0;  // the template's line as the template has it
+    pub const LINE_FROM_EDIT : u8 = 1;  // written or edited: the agent, the writer, a seller
+    pub const LINE_FROM_PERSON : u8 = 2;  // the person's own words, typed this turn
+    pub const LINE_KEPT : u8 = 0;
+    pub const LINE_CLIENT_VERSION : u8 = 1;  // the template's house-free version of the line
+    pub const LINE_REFUSED : u8 = 2;  // refused before anything is spent
+    // A refusal here comes before the first paid step -- the still, the voice, the lip-sync --
+    // so a refused press takes nothing and nothing is given back (split-reel v7, the same word).
+    pub const REFUSED_BEFORE_SPEND : bool = true;
 
     struct Job {
         has_face: bool,
@@ -929,6 +957,43 @@ module automation::crm_story_reel {
             return SPEAKS_LEAD;
         }
         return SPEAKS_CALLER;
+    }
+
+    // What becomes of one line of a reel: on the caller's own reel it stands; on a client's, a
+    // template's line is its client version, and a written or edited one stands only when it
+    // names no house mark or is the person's own words typed this turn -- else it is refused.
+    fn line_way(names_house: bool, own_reel: bool, from: u8) -> u8 {
+        if own_reel {
+            return LINE_KEPT;
+        }
+        if from == LINE_FROM_TEMPLATE {
+            return LINE_CLIENT_VERSION;
+        }
+        if !names_house || from == LINE_FROM_PERSON {
+            return LINE_KEPT;
+        }
+        if HOUSE_LINE_ON_CLIENT_REEL {
+            return LINE_KEPT;
+        }
+        return LINE_REFUSED;
+    }
+
+    // Whether a client's reel says the house's name aloud (and so in its captions): only through
+    // a line kept as written, never through a client version.
+    fn line_names_house(way: u8, names_house: bool) -> bool {
+        if way == LINE_CLIENT_VERSION {
+            return CLIENT_VERSION_NAMES_HOUSE;
+        }
+        return way == LINE_KEPT && names_house;
+    }
+
+    // Whether a press is charged: one that goes ahead pays its price; a refused one pays
+    // nothing, because its refusal came before the charge.
+    fn charged(refused: bool) -> bool {
+        if !refused {
+            return true;
+        }
+        return !REFUSED_BEFORE_SPEND;
     }
 
     test "a client qualifies with a face and a voice, and with nothing less" {
@@ -1410,9 +1475,11 @@ module automation::crm_story_reel {
     }
 
     test "a call or a button naming the house on a client's reel is replaced by hers, and the answer says so" {
-        assert(HOUSE_MARKS == 3);
+        assert(HOUSE_MARKS == 5);
         assert(BOT_SPOKEN_AS == "Trinity");
         assert(HOUSE_DELIVERY_BOT == "t27ai_bot");
+        assert(HOUSE_BRAND == "T27");
+        assert(HOUSE_PRODUCT == "S3AI");
         assert(TEMPLATE_BUTTON == "@t27ai_bot");
         assert(HOUSE_WORD_REPLACED_SAID);
         assert(word_taken(12, false, false));
@@ -1445,7 +1512,6 @@ module automation::crm_story_reel {
 
     test "the template's last line on a client's reel ends with her call, within the editor's limit" {
         assert(TEMPLATE_LEAD_EN_4 == "Want the same?");
-        assert(TEMPLATE_LINES_KEPT == TEMPLATE_SCENES - 1);
         assert(last_line_way(14, 16, true) == LAST_LINE_LEAD_AND_CALL);
         assert(last_line_way(14, LINE_MAX_CHARS - 15, true) == LAST_LINE_LEAD_AND_CALL);
         assert(last_line_way(14, LINE_MAX_CHARS - 14, true) == LAST_LINE_CALL);
@@ -1465,6 +1531,50 @@ module automation::crm_story_reel {
         assert(call_from(false, false, false) == CALL_FROM_PROFILE);
         assert(button_from(false, false, false, true, false) == FIELD_FROM_KEPT);
         assert(button_from(false, false, false, false, true) == FIELD_FROM_PROFILE);
+    }
+
+    test "every template line on a client's reel is its client version, the first as much as the last" {
+        assert(!CLIENT_VERSION_NAMES_HOUSE);
+        assert(CLIENT_LIST_HOUSE_FREE);
+        assert(line_way(true, false, LINE_FROM_TEMPLATE) == LINE_CLIENT_VERSION);
+        assert(line_way(false, false, LINE_FROM_TEMPLATE) == LINE_CLIENT_VERSION);
+        assert(!line_names_house(line_way(true, false, LINE_FROM_TEMPLATE), true));
+        assert(!line_names_house(line_way(false, false, LINE_FROM_TEMPLATE), false));
+        assert(line_way(true, true, LINE_FROM_TEMPLATE) == LINE_KEPT);
+        assert(line_way(false, true, LINE_FROM_TEMPLATE) == LINE_KEPT);
+    }
+
+    test "a written or edited line naming the house on a client's reel is refused before anything is spent" {
+        assert(!HOUSE_LINE_ON_CLIENT_REEL);
+        assert(REFUSED_BEFORE_SPEND);
+        assert(line_way(true, false, LINE_FROM_EDIT) == LINE_REFUSED);
+        assert(line_way(false, false, LINE_FROM_EDIT) == LINE_KEPT);
+        assert(line_way(true, true, LINE_FROM_EDIT) == LINE_KEPT);
+        assert(line_way(false, true, LINE_FROM_EDIT) == LINE_KEPT);
+        assert(!line_names_house(line_way(true, false, LINE_FROM_EDIT), true));
+        assert(!line_names_house(line_way(false, false, LINE_FROM_EDIT), false));
+        assert(!charged(line_way(true, false, LINE_FROM_EDIT) == LINE_REFUSED));
+        assert(charged(line_way(false, false, LINE_FROM_EDIT) == LINE_REFUSED));
+    }
+
+    test "only the person's own words typed this turn may name the house on a client's reel" {
+        assert(line_way(true, false, LINE_FROM_PERSON) == LINE_KEPT);
+        assert(line_way(false, false, LINE_FROM_PERSON) == LINE_KEPT);
+        assert(line_way(true, true, LINE_FROM_PERSON) == LINE_KEPT);
+        assert(line_names_house(line_way(true, false, LINE_FROM_PERSON), true));
+        assert(!line_names_house(line_way(false, false, LINE_FROM_PERSON), false));
+        assert(line_way(true, false, LINE_FROM_EDIT) != line_way(true, false, LINE_FROM_PERSON));
+    }
+
+    test "a refusal comes before the charge, so a refused press costs nothing" {
+        assert(!charged(true));
+        assert(charged(false));
+        assert(LINE_REFUSED != LINE_KEPT);
+        assert(LINE_REFUSED != LINE_CLIENT_VERSION);
+        assert(LINE_KEPT != LINE_CLIENT_VERSION);
+        assert(LINE_FROM_TEMPLATE != LINE_FROM_EDIT);
+        assert(LINE_FROM_EDIT != LINE_FROM_PERSON);
+        assert(LINE_FROM_TEMPLATE != LINE_FROM_PERSON);
     }
 }
 

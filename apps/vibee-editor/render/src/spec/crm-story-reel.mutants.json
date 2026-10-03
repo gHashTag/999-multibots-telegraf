@@ -671,9 +671,13 @@
   },
   {
     "name": "v22: the Russian house name is no house mark",
-    "file": "src/agent/story-reel-templates.ts",
-    "from": "'Тринити',",
-    "to": "'Trinity',"
+    "file": "src/house-names.ts",
+    "from": "'тринити', // cyrillic-ok",
+    "to": "'trinity', // cyrillic-ok",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
   },
   {
     "name": "v22: a card keeps the house button on a client's reel",
@@ -685,23 +689,114 @@
   {
     "name": "v22: the template's last line keeps the house call on her reel",
     "file": "src/agent/story-reel-templates.ts",
-    "from": "out[i] = lastLineFor(template, call)",
-    "to": "out[i] = lines[i]",
+    "from": "    ? lastLineFor(template, call)\n    : (template.client[i] ?? '')",
+    "to": "    ? template.lines[i]\n    : (template.client[i] ?? '')",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the client list shows the house version",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "const shown = client ? templateForClient(t, client.call) : t",
+    "to": "const shown = t",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: an edited line naming the house is allowed on a client's reel",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "    if (way === SPEC.LINE_REFUSED)\n      return { lines: [], refused: houseLineWhy(i, line) }",
+    "to": "    if (false)\n      return { lines: [], refused: houseLineWhy(i, line) }",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the first three lines of a client's template reel go unchecked",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "    const way = lineWay(house, false, from)",
+    "to": "    const way =\n      i < lines.length - 1 ? SPEC.LINE_KEPT : lineWay(house, false, from)",
+    "tests": ["src/agent/a-template-stays-home.test.ts"]
+  },
+  {
+    "name": "v22: a template line keeps the house version, not the client's",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "    : (template.client[i] ?? '')",
+    "to": "    : (template.lines[i] ?? '')",
+    "tests": ["src/agent/a-template-stays-home.test.ts"]
+  },
+  {
+    "name": "v22: a script's line naming the house is allowed on a client's reel",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "    if (lineWay(house, ownReel, from) === SPEC.LINE_REFUSED)",
+    "to": "    if (false)",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the press forgets to refuse a house line before the spend",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "if (spoken?.refused) return { started: false, why: spoken.refused }",
+    "to": "if (false) return { started: false, why: spoken.refused }",
+    "tests": ["src/agent/a-template-stays-home.test.ts"]
+  },
+  {
+    "name": "v22: a seller's script naming the house starts a client's reel",
+    "file": "src/agent/story-template.ts",
+    "from": "  if (houseLine) return { started: false, why: houseLine }",
+    "to": "  if (false) return { started: false, why: houseLine }",
+    "tests": ["src/agent/a-template-stays-home.test.ts"]
+  },
+  {
+    "name": "v22: a writer's line naming the house reaches a client's reel",
+    "file": "src/agent/story-template.ts",
+    "from": "    if (houseLine) return fail(houseLine)",
+    "to": "    if (false) return fail(houseLine)",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
-    "name": "v22: her panel shows the house's last line",
-    "file": "src/agent/story-reel-templates.ts",
-    "from": "lastLineFor(template, call),",
-    "to": "template.lines[SPEC.TEMPLATE_LINES_KEPT],",
-    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+    "name": "v22: the agent's story_reel line naming the house is spoken for a client",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "        if (houseLine) return { done: false, reason: houseLine }",
+    "to": "        if (false) return { done: false, reason: houseLine }",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
   },
   {
-    "name": "v22: a seller's last line naming the house is kept",
-    "file": "src/agent/story-reel-templates.ts",
-    "from": "if (edited && !namesHouse(last)) return",
-    "to": "if (edited) return",
-    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+    "name": "v22: what the person typed no longer lets her name the house",
+    "file": "src/house-names.ts",
+    "from": "  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))",
+    "to": "  return namesHouse(text)",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v22: anything the person typed lets the agent name the house",
+    "file": "src/house-names.ts",
+    "from": "  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))",
+    "to": "  return namesHouse(text) && !personSaid",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the brand T27 is no house mark",
+    "file": "src/house-names.ts",
+    "from": "    `\\\\b${escaped(SPEC.HOUSE_BRAND)}\\\\b`,\n",
+    "to": "",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
   },
   {
     "name": "v22: her call in another language is spoken into the template anyway",

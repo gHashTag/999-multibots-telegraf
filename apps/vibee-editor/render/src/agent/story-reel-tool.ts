@@ -45,6 +45,7 @@ import { cutShot, shotOfScene } from './studio-shots'
 import type { HeardVoice } from './split-reel-tool'
 import {
   cardForReel,
+  houseLineRefused,
   houseReplacedNote,
   languageOf,
   reelCall,
@@ -1043,6 +1044,10 @@ export function makeStoryReelTool(
       let endCard = endCardOf(args.end_card)
       let houseReplaced = ''
       if (lead && lead !== me && ctx.surface !== 'story') {
+        // No line of her reel names the house unless she typed it this turn
+        // (spec v22, line_way): the agent's line is refused, before any cut.
+        const houseLine = houseLineRefused(scenes, false, ctx.ownerSaid)
+        if (houseLine) return { done: false, reason: houseLine }
         const { storySettingsOf, STORY_DEFAULT_CTA } = await import(
           './story-template'
         )

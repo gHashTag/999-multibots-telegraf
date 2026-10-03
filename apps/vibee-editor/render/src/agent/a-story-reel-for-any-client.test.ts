@@ -32,6 +32,7 @@ import {
   type StoryDeps,
 } from './story-template'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
+import { templateOf } from './story-reel-templates'
 import {
   storyPriceEstimate,
   storyPriceEstimateNotes,
@@ -744,6 +745,34 @@ describe('the seller asks from the CRM', () => {
     expect(out.why).toMatch('лицом')
     expect(calls).toBe(0)
     expect(bare.db.jobs).toHaveLength(0)
+  })
+
+  it("a writer's line naming the house on her reel fails the job before any still is drawn (v22)", async () => {
+    let calls = 0
+    const { deps } = depsOn(
+      base,
+      async () => ((calls += 1), { done: true, url: 'x' })
+    )
+    deps.write = async () =>
+      JSON.stringify({
+        title: 'Ваза',
+        scenes: [
+          { setting: '', line: 'Я выбираю вазу под комнату.' },
+          { setting: '', line: 'Здесь — нежные тона.' },
+          { setting: '', line: 'Напишите Тринити — подберёт вашу.' }, // cyrillic-ok: a house name the writer slipped in
+        ],
+      })
+    const out = await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    expect(out.started).toBe(true)
+    await drain()
+    expect(calls).toBe(0)
+    expect(base.db.jobs[0]).toMatchObject({ status: 'failed' })
+    expect(String(base.db.jobs[0].error)).toMatch('строка 3') // cyrillic-ok: the refusal names the line
   })
 
   it('makes it on the given topic, as the seller, and hands it to the SELLER only', async () => {
@@ -2613,7 +2642,7 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     return { tool, args }
   }
 
-  it("a pressed template speaks its lines in the studio, the seller edit included; a client's ends with her call and no house button (v22)", async () => {
+  it("a pressed template speaks its client version in the studio, the seller edit included; a client's ends with her call and no house button (v22)", async () => {
     const base = fakeBase()
     qualify(base)
     herCall(base)
@@ -2634,10 +2663,13 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     await drain()
     const job = base.db.jobs[0]
     const scenes = JSON.parse(String(job.scenes))
+    // Every template line is its client version, the first as much as the
+    // last; the seller's own line, naming no house, stands.
+    const client = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!.client
     expect(scenes.map((s: any) => s.line)).toEqual([
-      SPEC.TEMPLATE_LINE_EN_1,
+      client[0],
       mine,
-      SPEC.TEMPLATE_LINE_EN_3,
+      client[2],
       `${SPEC.TEMPLATE_LEAD_EN_4} Book a fitting.`,
     ])
     expect(scenes.every((s: any) => s.setting === '')).toBe(true)
@@ -2648,11 +2680,11 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     expect(args).toHaveLength(1)
     expect(args[0].cta).toBe('Book a fitting')
     expect(args[0].end_card?.button ?? '').not.toMatch(SPEC.TEMPLATE_BUTTON)
-    // The ending -- last line, call, card -- names no house mark. (Lines 1-3
-    // are the template's own story and stay as written: TEMPLATE_LINES_KEPT.)
+    // Nothing the engine is given -- any line, the call, the card -- names
+    // the house: the reel speaks and captions only what it is given.
     expect(
-      JSON.stringify([args[0].scenes.at(-1), args[0].cta, args[0].end_card])
-    ).not.toMatch(/Trinity|t27ai_bot/)
+      JSON.stringify([args[0].scenes, args[0].cta, args[0].end_card])
+    ).not.toMatch(/Trinity|Тринити|t27ai_bot|\bT27\b/i) // cyrillic-ok: a house mark
   })
 
   it("a template on the seller's OWN reel keeps the house call and the house button, end to end (v22)", async () => {
@@ -2711,7 +2743,7 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     expect(args[0].end_card).toEqual({ bg: '#10182a' })
   })
 
-  it("the seller's own last line stays on her reel unless it names the house", async () => {
+  it("the seller's own last line stays on her reel; one naming the house is refused before anything is spent", async () => {
     const lastOf = async (line: string) => {
       const base = fakeBase()
       qualify(base)
@@ -2734,15 +2766,20 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
       await drain()
       return {
         out,
-        last: JSON.parse(String(base.db.jobs[0].scenes)).at(-1).line,
+        jobs: base.db.jobs.length,
+        last: base.db.jobs[0]
+          ? JSON.parse(String(base.db.jobs[0].scenes)).at(-1).line
+          : '',
       }
     }
     const kept = await lastOf('Come to my studio on Sunday.')
     expect(kept.last).toBe('Come to my studio on Sunday.')
     expect(kept.out.house_replaced).toBeUndefined()
+    // Not swapped for hers behind the seller's back: refused, and he is told.
     const house = await lastOf('Ask Trinity for one too.')
-    expect(house.last).toBe(`${SPEC.TEMPLATE_LEAD_EN_4} Book a fitting.`)
-    expect(house.out.house_replaced).toMatch('Ask Trinity for one too.')
+    expect(house.out.started).toBe(false)
+    expect(house.out.why).toMatch('Ask Trinity for one too.')
+    expect(house.jobs).toBe(0)
   })
 
   it("the panel's gallery for her ends with her call and carries no house button", async () => {
@@ -2754,6 +2791,11 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     expect(en.button).toBe('')
     expect(en.call).toBe('Book a fitting')
     expect(en.lines.at(-1)).toBe(`${SPEC.TEMPLATE_LEAD_EN_4} Book a fitting.`)
+    // The gallery shows her the client versions only: no line names us.
+    for (const t of out.templates)
+      expect(JSON.stringify(t.lines)).not.toMatch(
+        /Trinity|Тринити|t27ai_bot|\bT27\b/i // cyrillic-ok: a house mark
+      )
   })
 
   it('a job row carrying the house call and button is stripped at the run on her reel', async () => {

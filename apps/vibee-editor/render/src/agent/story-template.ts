@@ -59,7 +59,12 @@ import {
   type StoryScene,
 } from './story-reel-tool'
 import { leadVoiceOf } from './lead-voice'
-import { cardForReel, ownCallOf, reelCall } from './story-reel-templates'
+import {
+  cardForReel,
+  houseLineRefused,
+  ownCallOf,
+  reelCall,
+} from './story-reel-templates'
 import { TOKEN_PRICES } from './billing-shared'
 import {
   defaultGroupCaption,
@@ -657,6 +662,11 @@ export async function startStory(
     /** Where the finished reel is offered with one press (a group chat id). */
     deliverTo?: string | null
     caption?: string
+    /**
+     * What the person typed THIS turn (ToolContext.ownerSaid, set only by
+     * code): on a client's reel the one way a line may name the house.
+     */
+    personSaid?: string
   }
 ): Promise<{
   started: boolean
@@ -698,6 +708,10 @@ export async function startStory(
   // A script brought by the seller is checked here, before anything is spent.
   const given = who.scenes === undefined ? null : scenesOf(who.scenes)
   if (typeof given === 'string') return { started: false, why: given }
+  // No line of a client's reel names the house unless the person typed it
+  // this turn (spec v22, line_way) -- refused here, before any spend.
+  const houseLine = houseLineRefused(given, lead === s.owner, who.personSaid)
+  if (houseLine) return { started: false, why: houseLine }
   const count = given ? given.length : sceneCountOf(who.sceneCount)
   /*
    * HER VISUAL AT THE END, FROM THE SELLER (spec v7). A colour that is not
@@ -895,6 +909,11 @@ async function runHeld(
       .catch(() => '')
     const story = parseStory(text, sceneCountOf(job.scene_count))
     if (!story) return fail('не вышло написать сцены')
+    // The writer's lines are written, never the person's (spec v22,
+    // line_way): one naming the house on a client's reel fails the job here,
+    // before the payer is named and before any still is drawn.
+    const houseLine = houseLineRefused(story.scenes, lead === seller)
+    if (houseLine) return fail(houseLine)
     scenes = story.scenes
     topic ||= story.title || 'история про моё дело'
     await pool.query(
