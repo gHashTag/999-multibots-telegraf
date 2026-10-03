@@ -102,7 +102,8 @@ export function makeCreateBotTool(
     name: 'tg_create_bot',
     description:
       'Create a new Telegram bot for the person through Bot API Managed Bots: ' +
-      "returns the t.me/newbot link that opens Telegram's own creation sheet " +
+      'returns the t.me/newbot/<manager>/<username> link that opens ' +
+      "Telegram's own creation sheet " +
       `(managed by @${MANAGER_BOT}) and, in the bot, sends a one-tap button. ` +
       'The person confirms in Telegram; no token is ever shown. Use this ' +
       'instead of walking anyone through /newbot at @BotFather. If management ' +
