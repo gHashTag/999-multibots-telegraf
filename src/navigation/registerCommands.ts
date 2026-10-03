@@ -2456,6 +2456,20 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
    */
   const stripButtons = async (ctx: any) =>
     ctx.editMessageReplyMarkup(undefined).catch(() => undefined)
+  /*
+   * THE BUTTONS COME BACK WHEN THE PRESS DID NOT LAND.
+   *
+   * Owner, 2026-10-03: a relay that failed used to strip the card first and
+   * then say "try again in a minute" -- with nothing left to try again on.
+   * The keyboard Telegram showed is still in the callback's own message, so
+   * the press puts exactly that back. Stripping first stays: while the relay
+   * is in flight a second tap has nothing to hit.
+   */
+  const restoreButtons = async (ctx: any) => {
+    const markup = ctx.callbackQuery?.message?.reply_markup
+    if (markup?.inline_keyboard?.length)
+      await ctx.editMessageReplyMarkup(markup).catch(() => undefined)
+  }
 
   /**
    * THE CARD SAYS WHAT WAS DECIDED, instead of going blank (issue #2418).
@@ -2570,14 +2584,17 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
    * and the press, and a restart in between strands nothing.
    */
   bot.action(/^bap:(.+)$/, async ctx => {
-    await ctx.answerCbQuery().catch(() => undefined)
+    await ctx
+      .answerCbQuery(
+        isRussianFromState(ctx) ? 'Передаю ответ…' : 'Passing it on…' // cyrillic-ok: toast
+      )
+      .catch(() => undefined)
     await stripButtons(ctx)
     const [, token] = ctx.match as RegExpMatchArray
-    const { answerBrowserPermission } = await import(
-      '@/services/browserApproval'
-    )
-    const said = await answerBrowserPermission(token)
-    await ctx.reply(said).catch(() => undefined)
+    const { tapBrowserPermission } = await import('@/services/browserApproval')
+    const r = await tapBrowserPermission(token)
+    if (!r.reached) await restoreButtons(ctx)
+    await ctx.reply(r.said).catch(() => undefined)
   })
 
   /*
@@ -2586,22 +2603,26 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
    * The render sent the card; the press goes back to it as the PRESSER, and
    * the render honours it only from the meeting's owner. The card keeps its
    * join / directions / calendar rows and shows the outcome as a disabled
-   * button; when the render cannot be reached the buttons are stripped and
-   * the person is told so.
+   * button; when the render cannot be reached the original buttons come
+   * back and the person is told why, so there is still something to press.
    */
   bot.action(
     /^mtg:(ok|later|cancel|done|missed):([A-Za-z0-9_-]{16,})$/,
     async ctx => {
-      await ctx.answerCbQuery().catch(() => undefined)
+      await ctx
+        .answerCbQuery(
+          isRussianFromState(ctx) ? 'Передаю ответ…' : 'Passing it on…' // cyrillic-ok: toast
+        )
+        .catch(() => undefined)
+      // Gone at once, so a second tap cannot snooze twice while we wait.
+      await stripButtons(ctx)
       const [, action, token] = ctx.match as RegExpMatchArray
       const { answerMeeting } = await import('@/services/meetingAnswer')
       const r = await answerMeeting(String(ctx.from?.id ?? ''), action, token)
-      if (r.markup) {
-        await ctx
-          .editMessageReplyMarkup(r.markup as any)
-          .catch(() => stripButtons(ctx))
-      } else {
-        await stripButtons(ctx)
+      if (!r.reached) {
+        await restoreButtons(ctx)
+      } else if (r.markup) {
+        await ctx.editMessageReplyMarkup(r.markup as any).catch(() => undefined)
       }
       await ctx.reply(r.said).catch(() => undefined)
     }

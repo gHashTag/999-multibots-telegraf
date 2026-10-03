@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { answerMeeting, NOT_REACHED } from '@/services/meetingAnswer'
+import { SAID } from '@/services/browserApproval'
+import { RenderDidNotAnswer } from '@/services/renderTimeout'
 
 /*
  * A TAP ON A MEETING CARD (spec: t27 specs/automation/meeting-reminders.t27).
@@ -29,6 +31,7 @@ describe('the meeting tap reaches the render, and the person hears back', () => 
       expect.objectContaining({ timeoutMs: expect.any(Number) })
     )
     expect(r.said).toBe('ok said')
+    expect(r.reached).toBe(true)
     expect(r.markup?.inline_keyboard).toHaveLength(1)
   })
 
@@ -40,12 +43,32 @@ describe('the meeting tap reaches the render, and the person hears back', () => 
       await answerMeeting(PRESSER, 'cancel', TOKEN, { callToolImpl })
     ).toEqual({
       said: NOT_REACHED,
+      reached: false,
     })
+    // An empty body is a 502 page: the render is mid-deploy.
     const empty = vi.fn(async () => ({}))
     expect(
-      (await answerMeeting(PRESSER, 'done', TOKEN, { callToolImpl: empty }))
+      await answerMeeting(PRESSER, 'done', TOKEN, { callToolImpl: empty })
+    ).toEqual({ said: SAID.restarting, reached: false })
+  })
+
+  it('says WHY it failed, and never presses twice on its own', async () => {
+    // "later" inserts a reminder per press: a quiet retry would snooze twice.
+    const slow = vi.fn(async () => {
+      throw new RenderDidNotAnswer('no answer in 10 s')
+    })
+    expect(
+      (await answerMeeting(PRESSER, 'later', TOKEN, { callToolImpl: slow }))
         .said
-    ).toBe(NOT_REACHED)
+    ).toBe(SAID.timeout)
+    expect(slow).toHaveBeenCalledTimes(1)
+    const offline = vi.fn(async () => {
+      throw new TypeError('fetch failed')
+    })
+    expect(
+      (await answerMeeting(PRESSER, 'ok', TOKEN, { callToolImpl: offline }))
+        .said
+    ).toBe(SAID.offline)
   })
 
   it('nothing is relayed without a presser, a token or a known action', async () => {
