@@ -76,6 +76,7 @@ import {
   tidyCandidates,
   tidyQuestion,
   TIDY_TTL_MS,
+  openTidyAsk,
 } from './tab-tidy'
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
 import { LOGINS_NOTE, NETWORKS, loginsOfPerson } from './logins'
@@ -1168,6 +1169,18 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         .map(t => ({ id: t.id, url: t.url ?? '' }))
       const named = Array.isArray(a.ids) ? a.ids.map(String) : []
       const tabs = tidyCandidates(pages, named)
+      /* A card already on his phone is the answer to "ask" too: one at a time. */
+      const open = await openTidyAsk(q, ctx.telegramId)
+      if (open)
+        return {
+          tabs,
+          asked: false,
+          open,
+          note:
+            open.state === 'allowed'
+              ? 'he already allowed it: call apply with this id'
+              : 'a question is already waiting for him; no second card',
+        }
       if (a.ask !== true || !tabs.length) return { tabs, asked: false }
       const id = await requestPermission(
         q,
