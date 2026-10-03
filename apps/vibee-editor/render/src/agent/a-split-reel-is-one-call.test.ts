@@ -474,6 +474,34 @@ describe('split_reel -- the split reel as one server call', () => {
     expect(readTimedWords('')).toEqual([])
   })
 
+  it('audio_generate refuses the owner voice to a sweep and gives the charge back', async () => {
+    const { TOOLS_BY_NAME } = await import('./tools')
+    const fetched = vi.spyOn(globalThis, 'fetch')
+    const said = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const out: any = await TOOLS_BY_NAME.get('audio_generate')!.handler(
+        { text: 'Hello, this is Anna' },
+        {
+          telegramId: HOUSE_ID,
+          sellerSweep: true,
+          pool: { query: async () => ({ rows: [] }) },
+        } as never
+      )
+      expect(out.сделано).toBe(false) // cyrillic-ok: audio_generate's own answer key
+      expect(out.причина).toMatch(/for_lead/) // cyrillic-ok: audio_generate's own answer key
+      expect(fetched).not.toHaveBeenCalled()
+      // The refund ran. The house is never charged, so for the house its
+      // refund declines in words -- the only trace that it was attempted.
+      const lines = said.mock.calls.map(c => String(c[0]))
+      expect(
+        lines.some(l => /возвращает себе: «audio_generate»/.test(l)) // cyrillic-ok: refundTokens' own log line
+      ).toBe(true)
+    } finally {
+      said.mockRestore()
+      fetched.mockRestore()
+    }
+  }, 60_000)
+
   it('is in the registry, and out of the small-model kit', async () => {
     const { TOOLS_BY_NAME, toolsForProvider, TOOLS } = await import('./tools')
     expect(TOOLS_BY_NAME.get('split_reel')).toBeTruthy()
