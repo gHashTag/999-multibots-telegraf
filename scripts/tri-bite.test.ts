@@ -364,7 +364,7 @@ describe('tri bite -- review 2 of #3462', () => {
     expect(r.stdout).not.toMatch(/BITES/)
     expect(r.status).toBe(2)
     if (fs.existsSync(path.join(dir, 'lib/ADD.sh'))) {
-      expect(r.stdout).toMatch(/exactly that name/)
+      expect(r.stdout).toMatch(/exactly that name|spelled otherwise on disk/)
     }
   })
 
@@ -387,5 +387,50 @@ describe('tri bite -- review 2 of #3462', () => {
     expect(r.status).toBe(2)
     expect(fs.existsSync(path.join(dir, 'real/new'))).toBe(false)
     expect(git(dir, 'status', '--porcelain')).toBe('')
+  })
+})
+
+describe('tri bite -- review 3 of #3462', () => {
+  it('a directory in another letter case is cannot tell, never BITES', () => {
+    // On a case-blind disk git lists LIB/add.sh as untracked, so the exact
+    // name check passed and the swap removed the real lib/add.sh.
+    const dir = repo()
+    git(dir, 'tag', '-f', 'v1')
+    for (const name of ['LIB/add.sh', 'Lib/add.sh']) {
+      const r = bite(
+        dir,
+        'v1',
+        name,
+        '--',
+        'bash',
+        '-c',
+        'cd lib && bash test.sh'
+      )
+      expect(r.stdout).not.toMatch(/BITES/)
+      expect(r.status).toBe(2)
+      if (fs.existsSync(path.join(dir, 'LIB'))) {
+        expect(r.stdout).toMatch(/spelled otherwise on disk/)
+      }
+    }
+  })
+
+  it('a file under node_modules at <rev> is not written into the tree', () => {
+    // node_modules is a directory in the tree and a link in the copy: the
+    // swap wrote through it into the real node_modules.
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'node_modules/pkg'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'node_modules/pkg/old.sh'), 'old\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'vendored')
+    git(dir, 'tag', 'v0')
+    git(dir, 'rm', '-rq', '--cached', 'node_modules')
+    fs.rmSync(path.join(dir, 'node_modules/pkg/old.sh'))
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignored')
+    const r = bite(dir, 'v0', 'node_modules/pkg/old.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/link node_modules in the copy/)
+    expect(fs.existsSync(path.join(dir, 'node_modules/pkg/old.sh'))).toBe(false)
   })
 })
