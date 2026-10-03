@@ -262,8 +262,10 @@ for nm in nms:
         # leave out, so no run can load the real file through it. Asked by
         # place, not by "git could not answer": a failed git call (a ceiling,
         # a separate GIT_DIR) or a bare repo kept as files is not storage
-        # (review 2 of #3489).
-        if any(t == g or t.startswith(g + os.sep) for g in own_git):
+        # (review 2 of #3489). Only where git placed the target in no work
+        # tree: a bare clone with worktrees inside it has the clone itself
+        # as its common dir, and its worktrees are code (review 3 of #3489).
+        if tr is None and any(t == g or t.startswith(g + os.sep) for g in own_git):
             continue
         shown = os.path.relpath(t, real_top) if t.startswith(real_top + os.sep) else t
         name = f"{os.path.relpath(p, top)} -> {shown}"
