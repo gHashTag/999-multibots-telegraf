@@ -63,7 +63,8 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     fs.copyFileSync(PROBE, path.join(repo, 'scripts', 'probe-worktrees.cjs'))
     fs.writeFileSync(
       path.join(repo, '.gitignore'),
-      '.env\n*.log\nnode_modules\ntemp/\nbuild/\nlogs/\n.claude/worktrees/\n'
+      '.env\n*.log\nnode_modules\ntemp/\nbuild/\ndist/\nlogs/\n.claude/worktrees/\n' +
+        'credentials.json\ntokens.json\nsecrets/\n*.keystore\n'
     )
     git(repo, 'add', '.')
     git(repo, 'commit', '-q', '-m', 'init')
@@ -93,6 +94,12 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     // detached: already in main, nothing else -- the bee's review copy
     const detached = tree('detached', '-q', '--detach', '@', 'origin/main')
     fs.mkdirSync(path.join(detached, 'temp')) // empty ignored folder: harmless
+    // plain build output, a name merely CONTAINING "secret" among it
+    fs.mkdirSync(path.join(detached, 'dist', 'utils'), { recursive: true })
+    fs.writeFileSync(
+      path.join(detached, 'dist', 'utils', 'webhookSecret.js'),
+      '1'
+    )
     // logsenv: a folder whose files are all ignored, one of them a .env --
     // plain `status --ignored` shows only `logs/`, and logs is rebuildable
     const logsenv = tree('logsenv', '-q', '--detach', '@', 'origin/main')
@@ -118,6 +125,13 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     const secrets = tree('secrets', '-q', '--detach', '@', 'origin/main')
     fs.mkdirSync(path.join(secrets, 'build', 'secrets'), { recursive: true })
     fs.writeFileSync(path.join(secrets, 'build', 'secrets', 'token.txt'), 'x')
+    // a name the hand-copied list lacked: only .gitignore knows it
+    const keystore = tree('keystore', '-q', '--detach', '@', 'origin/main')
+    fs.mkdirSync(path.join(keystore, 'build', 'outputs'), { recursive: true })
+    fs.writeFileSync(
+      path.join(keystore, 'build', 'outputs', 'release.keystore'),
+      'k'
+    )
     // unreadable: a folder the walk cannot look into
     const unreadable = tree('unreadable', '-q', '--detach', '@', 'origin/main')
     locked = path.join(unreadable, 'build', 'closed')
@@ -241,6 +255,15 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
   it('keeps secret names from the repo .gitignore inside rebuildable folders', () => {
     expect(exists('creds/logs/credentials.json'), out).toBe(true)
     expect(exists('secrets/build/secrets/token.txt'), out).toBe(true)
+  })
+
+  it('keeps any name the tree .gitignore lists, with no copy of the list', () => {
+    expect(exists('keystore/build/outputs/release.keystore'), out).toBe(true)
+    expect(out).toContain('release.keystore')
+  })
+
+  it('removes build output whose names .gitignore does not list', () => {
+    expect(exists('detached/dist/utils/webhookSecret.js'), out).toBe(false)
   })
 
   it('keeps a tree with a folder it cannot read, and says so', () => {
