@@ -171,6 +171,62 @@ describe('tri relays-watch run', () => {
   })
 })
 
+/*
+ * The real sender, with `railway` and `curl` stubbed: the host comes from the
+ * token and vibee-render's routing variables, never from a literal.
+ */
+function sendWorld(vars: string) {
+  const dir = world([{ out: KEY, rc: 1 }])
+  const bin = join(dir, 'stub-bin')
+  mkdirSync(bin)
+  mkdirSync(join(dir, '.fcc'))
+  writeFileSync(join(dir, '.fcc/.env'), 'TELEGRAM_BOT_TOKEN="12345:fixture"\n')
+  writeFileSync(join(dir, 'vars'), vars)
+  writeFileSync(join(bin, 'railway'), `#!/bin/sh\ncat ${dir}/vars\n`)
+  writeFileSync(
+    join(bin, 'curl'),
+    `#!/bin/sh\nfor a in "$@"; do echo "$a"; done > ${dir}/curl\necho '{"ok":true}'\n`
+  )
+  chmodSync(join(bin, 'railway'), 0o755)
+  chmodSync(join(bin, 'curl'), 0o755)
+  const r = run(dir, {
+    SEND_CMD: '',
+    RVARS_PAUSE: '0',
+    PATH: `${bin}:${process.env.PATH ?? ''}`,
+  })
+  const curl = existsSync(join(dir, 'curl'))
+    ? readFileSync(join(dir, 'curl'), 'utf8')
+    : ''
+  return { ...r, curl }
+}
+
+describe("tri relays-watch tells the owner on the bot's own Bot API host", () => {
+  it('a bot moved to our server is called there, not on the cloud', () => {
+    const r = sendWorld(
+      [
+        'TELEGRAM_API_ROOT=http://bot-api.test:8081',
+        'TELEGRAM_API_FILES_ROOT=http://bot-api.test:8082',
+        'BOT_API_LOCAL_BOTS=12345',
+      ].join('\n')
+    )
+    expect(r.curl).toContain(
+      'http://bot-api.test:8081/bot12345:fixture/sendMessage'
+    )
+  })
+
+  it('a bot on the cloud is called on the cloud', () => {
+    const r = sendWorld('BOT_API_LOCAL_BOTS=\nOTHER=1')
+    expect(r.curl).toContain(
+      'https://api.telegram.org/bot12345:fixture/sendMessage'
+    )
+  })
+
+  it('sends nothing when the routing variables cannot be read', () => {
+    const r = sendWorld('')
+    expect(r.curl).toBe('')
+  })
+})
+
 /* A fake `railway` in its own directory, logged in or not. */
 function cli(loggedIn: boolean) {
   const home = mkdtempSync(join(tmpdir(), 'rwi-'))
@@ -206,6 +262,10 @@ describe('tri relays-watch install', () => {
     const r = install(home, bin)
     expect(r.rc).toBe(0)
     expect(r.plist).toContain(`<string>${bin}:/opt/homebrew/bin:`)
+    // The installed copy resolves the Bot API host with this file, beside it.
+    expect(
+      existsSync(join(home, '.local/lib/t27-relays-watch/telegram-api.cjs'))
+    ).toBe(true)
   })
 
   it('refuses a watch whose railway is not logged in', () => {

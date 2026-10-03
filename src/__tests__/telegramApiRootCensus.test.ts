@@ -124,14 +124,21 @@ export function constructionOffences(file: string, text: string): string[] {
   return out
 }
 
-function git(args: string[]): string[] {
+// The tracked-plus-untracked population every whole-tree guard judges
+// (no-silent-blindness.test.ts holds guards to it).
+const { repoFiles } = require('../../scripts/lib/repo-sources.cjs') as {
+  repoFiles: (cwd: string) => string[]
+}
+
+/** `sep` is '\0' for a -z listing: a plain one escapes non-ASCII names. */
+function git(args: string[], sep = '\n'): string[] {
   try {
     return execFileSync('git', args, {
       cwd: ROOT,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     })
-      .split('\n')
+      .split(sep)
       .filter(Boolean)
   } catch {
     // git grep exits 1 when nothing matches.
@@ -180,9 +187,12 @@ export function grepFiles(
   ownRepo = inOwnRepo()
 ): string[] {
   if (ownRepo) {
-    const args = ['grep', '-l', '-F']
+    // --untracked: a file written but not yet added is judged too. Without it
+    // the census saw only the index, and a hand-written host in a new script
+    // passed the gate until the commit after it (no-silent-blindness).
+    const args = ['grep', '-l', '-z', '--untracked', '-F']
     for (const n of needles) args.push('-e', n)
-    return git(paths.length ? [...args, '--', ...paths] : args)
+    return git(paths.length ? [...args, '--', ...paths] : args, '\0')
   }
   const files: string[] = []
   for (const p of paths.length ? paths : ['']) walk(p, files)
@@ -237,11 +247,11 @@ describe('the scan works without a repository', () => {
     () => {
       const paths = ['scripts', 'deployment', '.claude/skills']
       const needles = [HOST, 'telegramApiFor(']
-      const tracked = new Set(git(['ls-files', '--', ...paths]))
+      // The walk also reads ignored files; git's answer is the repository
+      // population, tracked AND untracked, so compare inside that.
+      const inRepo = new Set(repoFiles(ROOT))
       const byGit = grepFiles(needles, paths, true)
-      const byWalk = grepFiles(needles, paths, false).filter(f =>
-        tracked.has(f)
-      )
+      const byWalk = grepFiles(needles, paths, false).filter(f => inRepo.has(f))
       expect(byGit.length).toBeGreaterThan(5)
       expect(byWalk).toEqual([...byGit].sort())
     }
