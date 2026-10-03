@@ -186,7 +186,9 @@ export function makeCrmStoryTool(o: {
       if (forClient && forClient !== lead)
         return { ready: false, why: NOT_THIS_CLIENT }
       const seller = String(ctx.telegramId)
-      // The house's own reel; any other carries the client's call (spec v22).
+      // The house's own reel; any other carries the client's call (spec v22,
+      // which supersedes the stopgap of #3553 that refused a client's
+      // template press).
       const ownReel = lead === seller
 
       let s = await storySettingsOf(ctx.pool, lead, seller)
