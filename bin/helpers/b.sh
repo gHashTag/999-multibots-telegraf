@@ -76,6 +76,11 @@
 #                                 (SHARE_LABELS), closes the tab it opened.
 #                                 Never clicks. Exit 1 = a button the desk
 #                                 would miss tonight
+#   tri browser swept [SINCE]     what the 5-min sweep and room-making closed
+#                                 (host and why, never the path) beside the
+#                                 desk lines of the same hours (6h): "did a
+#                                 tab close under the desk?" in one look.
+#                                 Logs only -- touches no browser (#3469)
 #   tri browser call TOOL [JSON]  any tool, raw: the escape hatch
 #   tri browser cover             every browser_* tool in agent-tools.ts has a
 #                                 case here (exit 1 names the ones that do not)
@@ -640,6 +645,25 @@ except Exception: print(r[:120])')
     done
     [ $asked -eq 1 ] || { echo "ни одна сеть не проверена"; exit 2; }
     exit $miss ;;
+  swept)
+    # Render logs, not the browser: a closing is named since #3469's follow-up
+    # ("closed 1 ... -- x.com (duplicate)"); before it, only a count. rlogs is
+    # a shell function, so it is backgrounded and killed instead of `timeout`.
+    since="${1:-6h}"; tmp=$(mktemp)
+    rlogs vibee-render --since "$since" --lines 5000 > "$tmp" 2>/dev/null &
+    lp=$!
+    for _ in $(seq 120); do kill -0 "$lp" 2>/dev/null || break; sleep 1; done
+    kill "$lp" 2>/dev/null
+    LOG="$tmp" python3 -c '
+import os, re
+rows = [l.rstrip() for l in open(os.environ["LOG"], errors="replace")
+        if re.search(r"\[(tabs|blog-share|reddit|engage|scenario)", l)]
+closings = [l for l in rows if re.search(r"closed [1-9]|room for", l)]
+for l in rows[-60:]:
+    print(("  ! " if l in closings else "    ") + l[:200])
+print("строк: %d, закрытий: %d" % (len(rows), len(closings)))
+if not rows: print("логи пусты: рендер молчал или railway не ответил за 120 с")'
+    rm -f "$tmp"; exit 0 ;;
   call)
     [ -n "${1:-}" ] || { echo "нужно имя инструмента"; exit 2; }
     call "$1" "${2:-$NONE}" "${3:-120}" ;;

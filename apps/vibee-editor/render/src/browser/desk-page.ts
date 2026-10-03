@@ -81,11 +81,18 @@ export async function newDeskPage(
 ): Promise<CdpTarget> {
   const use = io ?? (await realIo())
   try {
-    const { roomForOne } = await import('./tab-sweep')
+    const { roomForOne, namesOfClosed, whereItWas } = await import(
+      './tab-sweep'
+    )
     const { chosenFrontIds } = await import('./front-page')
     const keep = [...deskTabsHeld(now), ...chosenFrontIds(now)]
-    for (const doomed of roomForOne(await use.list(cdp), keep, undefined, url))
-      await use.close(cdp, doomed.id).catch(() => undefined)
+    const doomed = roomForOne(await use.list(cdp), keep, undefined, url)
+    for (const d of doomed) await use.close(cdp, d.id).catch(() => undefined)
+    if (doomed.length)
+      console.log(
+        `🧹 [tabs] room for a desk tab on ${whereItWas(url)}: ` +
+          namesOfClosed(doomed)
+      )
   } catch {
     /* No list, no room-making: the open goes ahead. */
   }
