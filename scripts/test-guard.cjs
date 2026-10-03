@@ -22,6 +22,7 @@
 const { execFileSync } = require('child_process')
 const { readFileSync, existsSync, unlinkSync } = require('fs')
 const { resolve } = require('path')
+const { hookFreeEnv } = require('./lib/hook-free-env.cjs')
 
 const root = resolve(__dirname, '..')
 
@@ -271,8 +272,11 @@ function nodeEnv() {
     'v20.19.0',
     'bin'
   )
-  if (!existsSync(nvm)) return process.env
-  return { ...process.env, PATH: `${nvm}:${process.env.PATH || ''}` }
+  // Tests make their own throwaway repositories; the hook's GIT_DIR must not
+  // follow them there (see lib/hook-free-env.cjs).
+  const env = hookFreeEnv(process.env)
+  if (!existsSync(nvm)) return env
+  return { ...env, PATH: `${nvm}:${process.env.PATH || ''}` }
 }
 
 if (existsSync(OUT)) unlinkSync(OUT)
