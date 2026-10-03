@@ -10,17 +10,20 @@ export const githubWebhookRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // ✅ ИСПРАВЛЕНИЕ: Правильная конфигурация для работы с nginx прокси и IPv6
   keyGenerator: (req: any) => {
-    // Используем X-Forwarded-For заголовок для определения реального IP
-    const forwarded = req.get('X-Forwarded-For')
+    // X-Real-IP is set by the Railway edge; the head of X-Forwarded-For is
+    // whatever the caller wrote there.
     const realIp = req.get('X-Real-IP')
-    const clientIp = forwarded
-      ? forwarded.split(',')[0].trim()
-      : realIp || req.ip
+    const forwarded = req.get('X-Forwarded-For')
+    const clientIp =
+      realIp || (forwarded ? forwarded.split(',')[0].trim() : req.ip)
 
-    // ✅ Используем ipKeyGenerator helper для правильной обработки IPv6
-    return ipKeyGenerator(req, clientIp)
+    // ipKeyGenerator(ip, ipv6Subnet). It used to be called as
+    // ipKeyGenerator(req, clientIp): a non-IP first argument comes back
+    // unchanged, so the key was the request object itself, every request got
+    // a fresh counter, and the limiter never limited anything (live
+    // 2026-10-03: `ratelimit-remaining: 99` on every request in a row).
+    return ipKeyGenerator(clientIp)
   },
 })
 
