@@ -30,6 +30,7 @@
 # file on a machine that has none, e.g. CI. A .p8 cannot be downloaded twice:
 # lose it and a new key has to be issued.
 
+require "fileutils"
 require "json"
 require "shellwords"
 require_relative "store_metadata"
@@ -287,7 +288,11 @@ platform :ios do
     app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
     UI.user_error!("App Store Connect has no app with bundle id #{BUNDLE_ID}: `tri iphone state` says what is missing") unless app
 
-    want = ENV["PROCESSED_BUILD"]
+    want = ENV["PROCESSED_BUILD"].to_s.strip
+    if want.empty?
+      want = BuildWait.recorded(File.join(IOS_DIR, "build/last-upload")).to_s
+      UI.message("watching  build #{want}, the last upload from this checkout") unless want.empty?
+    end
     deadline = Time.now + ENV["PROCESSED_WAIT_MIN"].to_i * 60
     loop do
       builds = Spaceship::ConnectAPI::Build.all(app_id: app.id, sort: "-uploadedDate", limit: 10).map do |b|
@@ -295,8 +300,9 @@ platform :ios do
       end
       build = BuildWait.pick(builds, want)
       verdict = build ? BuildWait.verdict(build[:state], build[:expired]) : :none
-      if verdict == :processing && Time.now < deadline
-        UI.message("waiting   build #{build[:version]} still PROCESSING, next look in 60 s")
+      if BuildWait.keep_waiting?(verdict, want) && Time.now < deadline
+        UI.message(build ? "waiting   build #{build[:version]} still PROCESSING, next look in 60 s" :
+                           "waiting   build #{want} is not listed yet, next look in 60 s")
         sleep 60
         next
       end
@@ -415,7 +421,11 @@ platform :ios do
       # commit), unless CHANGELOG says otherwise.
       changelog: changelog
     )
-    UI.success("uploaded build #{build_number}; `fastlane state` shows its processing")
+    # `tri iphone processed` watches THIS number: right after an upload the
+    # newest build App Store Connect lists is still the previous one.
+    FileUtils.mkdir_p(File.join(IOS_DIR, "build"))
+    File.write(File.join(IOS_DIR, "build/last-upload"), "#{build_number}\n")
+    UI.success("uploaded build #{build_number}; `tri iphone processed --wait 60` says when it reaches the phone")
     # Internal testers see a build only through a group. The first upload has
     # none, and "uploaded" alone left the owner looking at an empty TestFlight
     # app on the phone. The build is already in App Store Connect here, so a

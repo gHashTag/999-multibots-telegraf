@@ -28,6 +28,24 @@ module BuildWait
     builds.find { |b| b[:version].to_s == want.to_s.strip }
   end
 
+  # Keep polling? A build still PROCESSING - and, when we know which number
+  # went up, one App Store Connect does not list yet: an upload appears there
+  # minutes after it, so right after the first upload "nothing uploaded" was
+  # the answer and --wait gave up before Apple had looked.
+  def self.keep_waiting?(verdict, want = nil)
+    verdict == :processing || (verdict == :none && !want.to_s.strip.empty?)
+  end
+
+  # The build number `beta` last uploaded from this checkout (build/ is not
+  # tracked), or nil. Without it "the newest build" right after an upload is
+  # the PREVIOUS one - VALID, so it read as "your build is ready".
+  def self.recorded(path)
+    n = File.read(path).strip
+    n.match?(/\A\d+\z/) ? n : nil
+  rescue Errno::ENOENT
+    nil
+  end
+
   # The one line tri reads: "processed  <verdict>  <what>". The verdict word
   # comes first and alone, so the caller never parses Apple's states.
   def self.line(build, verdict, want = nil)
