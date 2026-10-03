@@ -53,8 +53,9 @@ import { fileURLToPath } from 'node:url'
  */
 const NEVER_PACKED = new Set(['.gitignore', 'package-lock.json'])
 
-function contentHash(dir: string): string {
-  const h = createHash('sha256')
+/* Relative path -> sha256 of the bytes, for every file npm would install. */
+function fileHashes(dir: string): Map<string, string> {
+  const out = new Map<string, string>()
   const walk = (d: string) => {
     for (const e of readdirSync(d, { withFileTypes: true }).sort((a, b) =>
       a.name.localeCompare(b.name)
@@ -62,11 +63,33 @@ function contentHash(dir: string): string {
       if (e.name === 'node_modules' || NEVER_PACKED.has(e.name)) continue
       const p = join(d, e.name)
       if (e.isDirectory()) walk(p)
-      else if (e.isFile()) h.update(p.slice(dir.length)).update(readFileSync(p))
+      else if (e.isFile())
+        out.set(
+          p.slice(dir.length),
+          createHash('sha256').update(readFileSync(p)).digest('hex')
+        )
     }
   }
   walk(dir)
+  return out
+}
+
+function contentHash(dir: string): string {
+  const h = createHash('sha256')
+  for (const [p, f] of fileHashes(dir)) h.update(p).update(f)
   return h.digest('hex')
+}
+
+/*
+ * Which files differ, so a red run names them instead of two hashes: the
+ * gate prints this message and nothing else about the failure.
+ */
+function differing(a: string, b: string): string[] {
+  const ha = fileHashes(a)
+  const hb = fileHashes(b)
+  return [...new Set([...ha.keys(), ...hb.keys()])]
+    .filter(n => ha.get(n) !== hb.get(n))
+    .sort()
 }
 
 describe('@vibee/atoms resolves inside the tree under test', () => {
@@ -91,7 +114,8 @@ describe('@vibee/atoms resolves inside the tree under test', () => {
           `checkouts -- a worktree borrowed a foreign node_modules, or the ` +
           `main checkout is on a different branch. Cure: give THIS tree its ` +
           `own install (npm ci in apps/vibee-editor/render); never share or ` +
-          `bun-install node_modules across trees.`
+          `bun-install node_modules across trees. Differing files: ` +
+          differing(resolvedAtoms, ownAtoms).slice(0, 10).join(', ')
       )
     }
     expect(contentHash(resolvedAtoms)).toBe(contentHash(ownAtoms))
