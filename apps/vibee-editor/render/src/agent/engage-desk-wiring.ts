@@ -247,7 +247,7 @@ async function pageText(
 ): Promise<string | null> {
   const { endpointOf } = await import('./reddit-wiring')
   const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
-  const cdp = await endpointOf(pool, owner)
+  const cdp = await endpointOf(pool, owner, 'engage')
   const page = await newPage(cdp, url)
   try {
     await settle(8_000)
@@ -270,7 +270,7 @@ async function searchPage(
 ): Promise<Found[]> {
   const { endpointOf } = await import('./reddit-wiring')
   const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
-  const cdp = await endpointOf(pool, owner)
+  const cdp = await endpointOf(pool, owner, 'engage')
   const page = await newPage(cdp, searchUrl(network, query))
   try {
     await settle(8_000)
@@ -337,7 +337,7 @@ async function commentOn(
 ): Promise<string> {
   const { endpointOf, pressOne } = await import('./reddit-wiring')
   const { newPage, typeText, activatePage } = await import('../browser/cdp')
-  const cdp = await endpointOf(pool, owner)
+  const cdp = await endpointOf(pool, owner, 'engage')
   const page = await newPage(cdp, url)
   await activatePage(cdp, page.id).catch(() => {})
   await settle(8_000)
@@ -364,7 +364,7 @@ async function readBack(
 ): Promise<boolean> {
   const { endpointOf } = await import('./reddit-wiring')
   const { newPage, evaluateOn, closePage } = await import('../browser/cdp')
-  const cdp = await endpointOf(pool, owner)
+  const cdp = await endpointOf(pool, owner, 'engage')
   const page = await newPage(cdp, url)
   try {
     await settle(8_000)
