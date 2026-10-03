@@ -98,7 +98,7 @@ export async function publishEverywhere(
   const { findProbe, foundOf } = await import('../browser/find-target')
   let s = await readSession(pool, owner)
   if (!s || s.state !== 'live' || !s.cdpEndpoint) {
-    await startBrowserAsAgent(owner)
+    await startBrowserAsAgent(owner, 'blog-share')
     s = await readSession(pool, owner)
   }
   if (!s?.cdpEndpoint)

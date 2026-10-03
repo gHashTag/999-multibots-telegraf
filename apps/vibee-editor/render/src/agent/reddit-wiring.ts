@@ -132,13 +132,14 @@ export async function runRedditIfDue(
 /** The browser's endpoint, started if it is off. */
 export async function endpointOf(
   pool: Queryable,
-  owner: string
+  owner: string,
+  by = 'reddit'
 ): Promise<string> {
   const { readSession } = await import('../browser/sessions')
   const { startBrowserAsAgent } = await import('../browser/routes')
   let s = await readSession(pool, owner)
   if (!s || s.state !== 'live' || !s.cdpEndpoint) {
-    await startBrowserAsAgent(owner)
+    await startBrowserAsAgent(owner, by)
     s = await readSession(pool, owner)
   }
   if (!s?.cdpEndpoint) throw new Error('the browser did not start')
