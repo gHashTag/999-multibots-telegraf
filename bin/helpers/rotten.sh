@@ -17,12 +17,13 @@
 # числом PR, которые каждый держит. Файл, держащий девять, — одна работа,
 # а не девять.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/fetch.sh"  # tfetch: a failed fetch says so
 ROOT="${1:?нужен корень репозитория}"
 LIMIT="${2:-30}"
 cd "$ROOT" || exit 1
 
 command -v gh >/dev/null || { echo "нужен gh"; exit 2; }
-git fetch -q origin main 2>/dev/null
+tfetch origin main
 
 PRS=$(gh pr list --limit "$LIMIT" --json number,headRefName,mergeable,title \
       --jq '.[] | [.number, .headRefName, .mergeable, .title] | @tsv' 2>/dev/null)
@@ -40,7 +41,7 @@ while IFS=$'\t' read -r num br able title; do
     UNKNOWN) UNK=$((UNK + 1)); continue ;;
   esac
   BAD=$((BAD + 1))
-  git fetch -q origin "$br" 2>/dev/null || { echo "  #$num: ветки нет на origin"; continue; }
+  tfetch origin "$br" || { echo "  #$num: ветка не получена с origin"; continue; }
   # merge-tree печатает дерево первой строкой, затем конфликтные записи, и
   # СТОП на первой пустой строке -- дальше идут сообщения. Наивный tail -n +3
   # однажды дал 84 файла вместо 20.

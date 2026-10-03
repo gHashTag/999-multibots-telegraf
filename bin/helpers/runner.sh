@@ -10,6 +10,7 @@
 #   tri runner           # health, last deploy vs last change on main (1 = stale, 2 = cannot tell)
 #   tri runner deploy    # upload deployment/check-runner as it is on origin/main
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/fetch.sh"  # tfetch: a failed fetch says so
 ROOT="${1:?repo root required}"
 shift
 cd "$ROOT" || exit 2
@@ -22,7 +23,7 @@ S=1c27f8e4-ecc8-48fe-a6cd-556e5b50365a
 URL=https://check-runner-production.up.railway.app
 
 if [ "${1:-}" = "deploy" ]; then
-  git fetch -q origin || { echo "cannot fetch origin -- not deployed"; exit 2; }
+  tfetch origin || { echo "cannot fetch origin -- not deployed"; exit 2; }
   # `railway up` uploads the directory as it lies on disk, so an untracked
   # file counts as much as a changed one (bee review of #3415).
   if ! git diff --quiet origin/main -- deployment/check-runner/ ||
@@ -47,7 +48,7 @@ echo "health: ${health:-no answer}"
 line=$(railway deployment list --project "$P" --environment "$E" --service "$S" 2>/dev/null | grep -m1 SUCCESS)
 [ -n "$line" ] || { echo "no SUCCESS deploy listed -- cannot tell"; exit 2; }
 deployed=$(echo "$line" | awk -F'|' '{gsub(/^ +| +$/,"",$3); print $3}')
-git fetch -q origin 2>/dev/null
+tfetch origin
 changed=$(git log -1 --format='%cI %h %s' origin/main -- deployment/check-runner/)
 echo "deployed:        $deployed"
 echo "changed on main: $changed"

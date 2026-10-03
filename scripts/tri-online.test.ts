@@ -116,7 +116,9 @@ describe('verdict', () => {
     const v = verdict({ ...up, 'github-api': 'unknown', render: 'dns' })
     expect(v.code).toBe(4)
     expect(v.next).not.toMatch(/reachable/)
-    expect(v.next).toMatch(/github-api, render/)
+    // The refused road is named apart from the unrecognised (#3447 review).
+    expect(v.next).toMatch(/^github-api failed in a way not recognised/)
+    expect(v.next).toMatch(/; render down \(network\)$/)
   })
   it('an unrecognised failure is 4, not 0', () => {
     expect(verdict({ ...up, render: 'unknown' }).code).toBe(4)

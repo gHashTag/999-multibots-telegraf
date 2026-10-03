@@ -35,6 +35,7 @@
 # поднимается не на «тихо», а на «тише, чем позволяет самая длинная законная
 # пауза».
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/fetch.sh"  # tfetch: a failed fetch says so
 . "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?нужен корень репозитория}"
 cd "$ROOT" || exit 1
@@ -79,7 +80,7 @@ RESP=$(curl -s --max-time 45 "$BASE/mcp" -H "X-Agent-Key: $AK" \
 # ровно тогда, когда предел изменят, и никто бы не заметил (форма 65).
 #
 # Читаем с origin/main: сравнивать поведение прода надо с кодом прода.
-git fetch -q origin main 2>/dev/null
+tfetch origin main
 CAP_H=$(git show origin/main:src/services/crmProactive.ts 2>/dev/null \
         | grep -oE 'BACKOFF_CAP_MS = [0-9]+ \* 60 \* 60_000' \
         | grep -oE '= [0-9]+' | grep -oE '[0-9]+')

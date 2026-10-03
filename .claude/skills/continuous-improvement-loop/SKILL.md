@@ -2029,6 +2029,21 @@ tick, caught on reading back).
 memoises regex backtracking; `/usr/bin/ruby` 2.6 does not. `TeamGroup.scrub`
 took 52 s on 6000 characters of `a@` there and 1 ms on Ruby 4 (#3443).
 
+**A test of a network tool runs with the network off.** The no-git test of
+`tri online` asked the real DNS and App Store Connect, so it would fail in
+the very outage the tool diagnoses (bee review of #3445); every host is now
+an environment override and the test pins the whole verdict (#3447).
+
+**A fetch that fails says so.** Eight tri helpers ran `git fetch ...
+2>/dev/null` and judged a stale origin/main in silence. `tfetch`
+(`bin/helpers/fetch.sh`) warns with the ref's age and keeps the code; a test
+fails on any helper that fetches around it. The age comes from the remote
+ref's reflog, NOT `FETCH_HEAD`'s mtime: a failed fetch rewrites that file and
+it reads "0 min ago" (caught by running the first draft). And parse only the
+number inside `@{...}`: `tr -dc 0-9` kept the digits of `fix/abc-123` too and
+read a negative age (bee review of #3448). **A digit filter over a string that
+holds a name is a parser for the name as well.**
+
 ### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
 
 The screen now translates a waiting reason by code and falls back to the
