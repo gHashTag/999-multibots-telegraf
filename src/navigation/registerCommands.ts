@@ -4424,7 +4424,9 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
        * people press twice.
        */
       const { stopOwnerRun } = await import('@/services/ownerRuns')
-      const { requestRemoteStop } = await import('@/services/agentStopRemote')
+      const { requestRemoteStopWhy, stopReply } = await import(
+        '@/services/agentStopRemote'
+      )
       const had = stopOwnerRun(ownerId(ctx))
       /*
        * And the same press, written down on the render.
@@ -4434,19 +4436,16 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
        * call leaves its run behind it, so neither has a socket to close. The
        * render records the press and those runs read it between steps.
        *
-       * Not awaited for the answer's sake -- it is awaited so the record is
-       * in before the person is told anything -- and it never throws.
+       * With a local run the person is already being answered by the turn
+       * itself, so the reply goes out at once and the record lands behind
+       * it. Without one, the render's answer IS the answer: "nothing to
+       * stop" only when it is known, and a render that never heard the press
+       * is named, so the person presses again instead of trusting a silence.
+       * Bounded (10 s, one retry) and never throws.
        */
-      const wrote = await requestRemoteStop(ownerId(ctx))
-      await sendLong(
-        ctx,
-        had
-          ? '⏹ Останавливаю — ничего не отправлю.' // cyrillic-ok: user-facing
-          : wrote === 'written'
-            ? '⏹ Принял. Если ход идёт на сервере — он прервётся.' // cyrillic-ok: user-facing
-            : 'Сейчас нечего останавливать.', // cyrillic-ok: user-facing
-        hub()
-      )
+      const remote = requestRemoteStopWhy(ownerId(ctx))
+      await sendLong(ctx, stopReply(had, had ? 'written' : await remote), hub())
+      if (had) await remote
     } else if (verb === 'auto') await switchAutopilot(ctx, true)
     else if (verb === 'autooff') await switchAutopilot(ctx, false)
     else if (verb === 'leads') await showLeads(ctx)

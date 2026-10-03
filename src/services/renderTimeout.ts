@@ -32,3 +32,33 @@ export class RenderDidNotAnswer extends Error {
 export function renderIsStillWorking(error: unknown): boolean {
   return Boolean((error as { timedOut?: unknown } | null | undefined)?.timedOut)
 }
+
+/**
+ * THE RENDER SAID NO TO WHO WE ARE.
+ *
+ * The render's global guard answers 401 (or 403) before routing when the
+ * bot's X-Api-Key is missing or wrong. Its body is `{error: "unauthorized"}`
+ * -- a string, not a JSON-RPC error object -- so before this type existed a
+ * caller read it as "<tool> refused" and told the person to try again in a
+ * minute. A minute changes nothing: the key is wrong until someone fixes it.
+ *
+ * Same module and same duck-typing as RenderDidNotAnswer, for the same reason.
+ */
+export class RenderRefusedTheKey extends Error {
+  readonly refusedKey = true as const
+
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+    this.name = 'RenderRefusedTheKey'
+  }
+}
+
+/** Did the render's guard refuse the bot's key itself? */
+export function renderRefusedTheKey(error: unknown): boolean {
+  return Boolean(
+    (error as { refusedKey?: unknown } | null | undefined)?.refusedKey
+  )
+}

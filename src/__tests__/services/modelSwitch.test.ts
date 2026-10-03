@@ -132,6 +132,20 @@ describe('the three calls', () => {
     }))
     await expect(fetchLeads('999')).rejects.toThrow('принадлежит владельцу')
   })
+
+  it("the guard's 401 is a refused key, typed -- not the tool saying no", async () => {
+    // The guard answers {error: "unauthorized"}: a string, not a JSON-RPC
+    // error. Read as one, it became "<tool> refused" and a "try again".
+    fakeFetch(() => ({
+      ok: false,
+      status: 401,
+      body: { error: 'unauthorized', code: 'sign_in' },
+    }))
+    const { renderRefusedTheKey } = await import('@/services/renderTimeout')
+    const e = await fetchLeads(OWNER).catch(x => x)
+    expect(renderRefusedTheKey(e)).toBe(true)
+    expect(e.status).toBe(401)
+  })
 })
 
 describe('the words', () => {

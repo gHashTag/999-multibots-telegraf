@@ -102,6 +102,15 @@ status` shows the state. Install from a shell where `railway whoami` works: laun
   once found an old railway 4.5.4 that was "Unauthorized", so every run said "not measured".
   `install` now pins the logged-in CLI and refuses an install that could not measure.
 
+## Railway watch
+
+The same probe runs every hour on Railway as the cron service `queen-watch`, so a
+starved Mac no longer means a silent watch. It reports only on change -- to the Queen
+(`/queen/report`), to the owner's DM and, on red, to one open GitHub issue labelled
+`queen-watch`. What it probes, what it heals and what it never heals is written in one
+place: the header of `deployment/queen-watch/watch.mjs`. The steward that acts on it:
+`.claude/agents/queen-steward.md`.
+
 ## Related Resources
 
 - `src/navigation/helpers/actionButtons.ts`, `src/navigation/registerCommands.ts` (ответ агента, запасной путь, `act:*`)

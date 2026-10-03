@@ -939,6 +939,8 @@ const en: Translations = {
   'meta.card.days': '{n} days left',
   'meta.card.soon': 'LinkedIn ends in {n} days -- reconnect',
   'meta.card.renews': 'renews itself',
+  'meta.card.waiting':
+    'Waiting for {name} to confirm -- this line updates by itself',
   // The TRI payout wallet, own profile only (components/Profile/TriWalletCard.tsx)
   'tri.wallet.title': '💎 TRI wallet',
   'tri.wallet.note':
@@ -2061,6 +2063,8 @@ const en: Translations = {
   'profile.no_templates_desc': 'Create your first AI video to share',
   'profile.create_first_video': 'Create First Video',
   'profile.load_more': 'Load More',
+  'profile.templates_failed': 'Could not load the templates',
+  'profile.retry': 'Try again',
   'profile.loading': 'Loading profile...',
   'profile.not_found': 'User not found',
   'soul.title': 'My SOUL — the agent writes in my voice',
@@ -3922,6 +3926,7 @@ const ru: Translations = {
   'meta.card.days': 'осталось дней: {n}',
   'meta.card.soon': 'LinkedIn закончится через {n} дн. — переподключите',
   'meta.card.renews': 'продлевается сам',
+  'meta.card.waiting': 'Ждём подтверждения от {name} — строка обновится сама',
   'tri.wallet.title': '💎 Кошелёк TRI',
   'tri.wallet.note':
     'TON-адрес, на который приходят ваши TRI, подтверждённый подписью самого кошелька. TRI пока есть только в тестовой сети TON; в основной сети его ещё нет.',
@@ -5012,6 +5017,8 @@ const ru: Translations = {
   'profile.no_templates_desc': 'Создайте своё первое AI-видео',
   'profile.create_first_video': 'Создать видео',
   'profile.load_more': 'Загрузить ещё',
+  'profile.templates_failed': 'Не удалось загрузить шаблоны',
+  'profile.retry': 'Повторить',
   'profile.loading': 'Загрузка профиля...',
   'profile.not_found': 'Пользователь не найден',
   'soul.title': 'Мой SOUL — агент пишет моим голосом',

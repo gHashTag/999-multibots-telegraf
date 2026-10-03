@@ -52,7 +52,7 @@ vi.mock('@/hooks/useLanguage', () => ({
 
 vi.mock('../../config', () => ({ API_BASE: 'https://api.example.test' }))
 
-import { ProfileTemplatesGrid } from './ProfileTemplatesGrid'
+import { AUTO_PAGES, ProfileTemplatesGrid } from './ProfileTemplatesGrid'
 
 const template = {
   id: 39,
@@ -478,5 +478,148 @@ describe('ProfileTemplatesGrid owner actions', () => {
 
     expect(testState.deleteTemplate).toHaveBeenCalledWith(39)
     expect(host.textContent).not.toContain('Киноплёнка')
+  })
+
+  /*
+   * "The templates screen shakes and blinks" (owner, 2026-10-03): the
+   * placeholder was three phone screens of 9:16 tiles that gave way to
+   * one-line group heads, and the Load More button flipped once a page while
+   * the pages read themselves.
+   */
+  it('holds the place with group heads, not tall tiles, while the first page loads', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {}))
+    )
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="t27_dev" isOwn />)
+    })
+    const held = host.querySelector('[data-testid="templates-placeholder"]')
+    expect(
+      held?.querySelectorAll('.profile-templates__group-head')
+    ).toHaveLength(3)
+    expect(host.innerHTML).not.toContain('9/16')
+  })
+
+  it('shows no Load More while the pages read themselves, and shows it past the fuse', async () => {
+    const page1 = deferred<unknown>()
+    const pageOf = (url: string) => Number(/page=(\d+)/.exec(url)?.[1] ?? 0)
+    const full = (n: number) => ({
+      ok: true,
+      json: async () => ({
+        templates: Array.from({ length: 20 }, (_, i) => ({
+          ...template,
+          id: 1000 + n * 20 + i,
+        })),
+      }),
+    })
+    const fetchMock = vi.fn((url: string) =>
+      pageOf(url) === 1 ? page1.promise : Promise.resolve(full(pageOf(url)))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="t27_dev" isOwn />)
+    })
+    await act(async () => Promise.resolve())
+    expect(host.querySelector('.profile-templates__group-head')).not.toBeNull()
+    expect(host.querySelector('.profile-templates__load-more')).toBeNull()
+
+    await act(async () => page1.resolve(full(1)))
+    for (let i = 0; i < AUTO_PAGES * 2; i++)
+      await act(async () => Promise.resolve())
+    expect(fetchMock).toHaveBeenCalledTimes(AUTO_PAGES)
+    expect(
+      host.querySelector('.profile-templates__load-more')?.textContent
+    ).toBe('profile.load_more')
+  })
+
+  it('a failed page stops the automatic reading instead of asking for it again and again', async () => {
+    let page1Fails = true
+    const fetchMock = vi.fn(async (url: string) => {
+      const n = Number(/page=(\d+)/.exec(url)?.[1] ?? 0)
+      if (n === 1 && page1Fails) return { ok: false, json: async () => ({}) }
+      return {
+        ok: true,
+        json: async () => ({
+          templates: Array.from({ length: n === 0 ? 20 : 3 }, (_, i) => ({
+            ...template,
+            id: 2000 + n * 20 + i,
+          })),
+        }),
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="t27_dev" isOwn />)
+    })
+    for (let i = 0; i < 20; i++) await act(async () => Promise.resolve())
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    const retry = host.querySelector<HTMLButtonElement>(
+      '.profile-templates__load-more'
+    )
+    expect(retry?.textContent).toBe('profile.load_more')
+    page1Fails = false
+    await act(async () => retry?.click())
+    for (let i = 0; i < 5; i++) await act(async () => Promise.resolve())
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(host.querySelector('.profile-templates__load-more')).toBeNull()
+  })
+
+  it('a failed first page is an error with a retry, not "no templates"', async () => {
+    let fails = true
+    const pages: number[] = []
+    const fetchMock = vi.fn(async (url: string) => {
+      const n = Number(/page=(\d+)/.exec(url)?.[1] ?? 0)
+      pages.push(n)
+      if (fails) throw new Error('offline')
+      return {
+        ok: true,
+        json: async () => ({ templates: [{ ...template, id: 3000 }] }),
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="t27_dev" isOwn />)
+    })
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(pages).toEqual([0])
+    expect(host.textContent).not.toContain('profile.no_templates')
+    const failed = host.querySelector('[data-testid="templates-failed"]')
+    expect(failed?.textContent).toContain('profile.templates_failed')
+
+    fails = false
+    await act(async () => failed?.querySelector('button')?.click())
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(pages).toEqual([0, 0])
+    expect(host.querySelector('[data-testid="templates-failed"]')).toBeNull()
+    expect(host.querySelector('.profile-templates')).not.toBeNull()
+  })
+
+  it("another username does not keep the previous profile's templates", async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes('/users/first/')
+        ? {
+            ok: true,
+            json: async () => ({ templates: [{ ...template, id: 4000 }] }),
+          }
+        : { ok: false, json: async () => ({}) }
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="first" isOwn />)
+    })
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(host.querySelector('.profile-templates')).not.toBeNull()
+
+    await act(async () => {
+      root.render(<ProfileTemplatesGrid username="second" isOwn />)
+    })
+    for (let i = 0; i < 10; i++) await act(async () => Promise.resolve())
+    expect(host.querySelector('.profile-templates')).toBeNull()
+    expect(
+      host.querySelector('[data-testid="templates-failed"]')
+    ).not.toBeNull()
   })
 })
