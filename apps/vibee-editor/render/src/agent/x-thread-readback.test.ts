@@ -21,6 +21,8 @@ let n = 0
 
 vi.mock('../browser/sessions', () => ({
   readSession: async () => ({ state: 'live', cdpEndpoint: 'cdp' }),
+  /* deskMayAct asks before every press (desk-page.ts): nobody drives here. */
+  personHasTheWheel: () => false,
 }))
 vi.mock('../browser/routes', () => ({ startBrowserAsAgent: async () => true }))
 /* The real reducers (login-use.ts judges with them), no pod. */
@@ -47,6 +49,7 @@ vi.mock('../browser/cdp', () => ({
     if (noPostAll && id === 'p1' && typed.length === 2) return null
     return { x: 1, y: 1, label: 'Post' }
   },
+  pageUrl: async () => 'https://x.com/compose/post',
   clickAt: async (_c: string, id: string) => void clicks.push(id),
   typeText: async (
     _c: string,

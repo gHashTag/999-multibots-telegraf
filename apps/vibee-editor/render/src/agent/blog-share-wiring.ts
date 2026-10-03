@@ -93,8 +93,8 @@ export async function publishEverywhere(
 
   const { startBrowserAsAgent } = await import('../browser/routes')
   const { readSession } = await import('../browser/sessions')
-  const { newDeskPage } = await import('../browser/desk-page')
-  const { evaluateOn, clickAt, closePage } = await import('../browser/cdp')
+  const { newDeskPage, deskClick } = await import('../browser/desk-page')
+  const { evaluateOn, closePage } = await import('../browser/cdp')
   const { findProbe, foundOf } = await import('../browser/find-target')
   let s = await readSession(pool, owner)
   if (!s || s.state !== 'live' || !s.cdpEndpoint) {
@@ -211,7 +211,7 @@ export async function publishEverywhere(
         const before = String(
           await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
         )
-        await clickAt(cdp, page.id, found.x, found.y)
+        await deskClick(who, cdp, page.id, found.x, found.y)
         await settle(AFTER_CLICK_SETTLE_MS)
         const after = String(
           await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
@@ -262,10 +262,10 @@ async function postThreadOnX(
   who: DeskWho
 ): Promise<string> {
   const { xThread } = await import('./blog-share')
-  const { newDeskPage } = await import('../browser/desk-page')
-  const { evaluateOn, clickAt, typeText, closePage } = await import(
-    '../browser/cdp'
+  const { newDeskPage, deskClick, deskType } = await import(
+    '../browser/desk-page'
   )
+  const { evaluateOn, closePage } = await import('../browser/cdp')
   const { findProbe, foundOf } = await import('../browser/find-target')
   const thread = xThread(a)
   const COMPOSE = 'https://x.com/compose/post'
@@ -279,7 +279,7 @@ async function postThreadOnX(
         await evaluateOn(cdp, page.id, findProbe(label)).catch(() => null)
       )
       if (found) {
-        await clickAt(cdp, page.id, found.x, found.y)
+        await deskClick(who, cdp, page.id, found.x, found.y)
         return found.label
       }
     }
@@ -299,7 +299,7 @@ async function postThreadOnX(
    */
   const { composerHolds } = await import('./blog-share')
   const typedInto = async (box: number, text: string): Promise<void> => {
-    await typeText(cdp, page.id, text, { enterForNewline: true })
+    await deskType(who, cdp, page.id, text, { enterForNewline: true })
     await settle(1_000)
     const seen = await evaluateOn(cdp, page.id, xComposerText(box)).catch(
       () => null
