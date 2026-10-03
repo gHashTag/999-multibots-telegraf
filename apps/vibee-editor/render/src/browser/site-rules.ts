@@ -268,7 +268,7 @@ export function blockedError(url: string): Error {
  * knows the tab is there and why it may not touch it. An unreadable list
  * veils every web tab: we do not know which one they said never to.
  */
-export function veilTab<T extends { title: string; url: string }>(
+export function veilTab<T extends { title?: string; url: string }>(
   tab: T,
   rules: SiteRuleRow[] | null
 ): T | (T & { veiled: 'blocked' | 'list unreadable' }) {
@@ -283,7 +283,7 @@ export function veilTab<T extends { title: string; url: string }>(
   if (rules !== null && ruleFor(tab.url, rules) !== 'block') return tab
   return {
     ...tab,
-    title: '',
+    ...('title' in tab ? { title: '' } : {}),
     url: `${origin}/`,
     veiled: rules === null ? 'list unreadable' : 'blocked',
   }
