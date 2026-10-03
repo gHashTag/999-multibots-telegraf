@@ -100,7 +100,9 @@ export function MetaConnectCard({
 
   useEffect(() => {
     if (given || !isOwn) return
-    void refresh()
+    /* The first read is started, not called, from the effect: its state
+       lands from the answer (react-hooks/set-state-in-effect). */
+    void Promise.resolve().then(refresh)
     /* Back from the sign-in window: Telegram's browser or another tab. */
     const back = () => {
       if (document.visibilityState === 'visible') void refresh()
