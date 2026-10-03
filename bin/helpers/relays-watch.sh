@@ -41,12 +41,29 @@ relays() {
   if [ -n "${RELAYS_CMD:-}" ]; then eval "$RELAYS_CMD"; else bash "$HERE/relays.sh" 2; fi
 }
 pause() { ${SLEEP_CMD:-sleep} "$1"; }
+# The Bot API host is asked per token, never written here: a bot moved to our
+# own Bot API server and called on the cloud is logged back in there and its
+# updates split (telegramApiRootCensus.test.ts). The answer is decided with
+# vibee-render's routing variables -- the same ones queen-watch reads for this
+# bot -- and when they cannot be read, nothing is sent: an unknown list must
+# not read as "every bot on the cloud". The resolver sits next to this file
+# once installed, and in scripts/lib/ in the repository.
+TGAPI="$HERE/telegram-api.cjs"
+[ -f "$TGAPI" ] || TGAPI="$HERE/../../scripts/lib/telegram-api.cjs"
+api_root() {
+  BOT_API_TOKEN="$1" node "$TGAPI" api-root --env-from-stdin < <(
+    . "$HERE/rail.sh"
+    rvars vibee-render
+  )
+}
 send() {
   if [ -n "${SEND_CMD:-}" ]; then printf '%s' "$1" | eval "$SEND_CMD"; return; fi
-  local tok
+  local tok root
   tok=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$HOME/.fcc/.env" 2>/dev/null | cut -d= -f2- | tr -d '"')
   [ -n "$tok" ] || { echo "relays-watch: no TELEGRAM_BOT_TOKEN in ~/.fcc/.env -- NOT sent" >&2; return 1; }
-  curl -s -m 15 -X POST "https://api.telegram.org/bot${tok}/sendMessage" \
+  root=$(api_root "$tok")
+  [ -n "$root" ] || { echo "relays-watch: the Bot API host for the owner bot is unknown -- NOT sent" >&2; return 1; }
+  curl -s -m 15 -X POST "${root}/bot${tok}/sendMessage" \
     --data-urlencode chat_id="$OWNER" --data-urlencode text="$1" |
     grep -q '"ok":true' || echo "relays-watch: Telegram refused the message" >&2
 }
@@ -159,7 +176,7 @@ install() {
     return 1
   fi
   mkdir -p "$LIB" "$HOME/Library/Logs" "$(dirname "$PLIST")" || return 1
-  cp "$HERE/relays.sh" "$HERE/rail.sh" "$HERE/relays-watch.sh" "$LIB/" || return 1
+  cp "$HERE/relays.sh" "$HERE/rail.sh" "$HERE/relays-watch.sh" "$TGAPI" "$LIB/" || return 1
   cat >"$PLIST" <<EOF || return 1
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
