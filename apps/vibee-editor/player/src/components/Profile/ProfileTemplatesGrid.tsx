@@ -42,8 +42,12 @@ export function ProfileTemplatesGrid({
    * failed page again the moment loading ended -- a request loop for as
    * long as the server kept erroring. After a failure the Load More button
    * is the retry, pressed by a person.
+   *
+   * It holds the NUMBER of the failed page, not a flag: the retry asks for
+   * that page, and a failed first page is an error with a retry, not "no
+   * templates" -- the profile had templates, we only failed to read them.
    */
-  const [pageFailed, setPageFailed] = useState(false)
+  const [failedPage, setFailedPage] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [pendingDelete, setPendingDelete] = useState<FeedTemplate | null>(null)
@@ -132,13 +136,13 @@ export function ProfileTemplatesGrid({
           }
           setHasMore((data.templates || []).length === 20)
           setPage(pageNum)
-          setPageFailed(false)
+          setFailedPage(null)
         } else {
-          setPageFailed(true)
+          setFailedPage(pageNum)
         }
       } catch (error) {
         console.error('Failed to load templates:', error)
-        setPageFailed(true)
+        setFailedPage(pageNum)
       } finally {
         setLoading(false)
       }
@@ -146,7 +150,18 @@ export function ProfileTemplatesGrid({
     [username]
   )
 
+  /*
+   * Another profile starts from nothing. The list, the page, the counts and
+   * a failed page all belonged to the previous username; kept, they showed
+   * its templates under the new name, and a failed first page there read as
+   * a list that had loaded.
+   */
   useEffect(() => {
+    setTemplates([])
+    setPage(0)
+    setHasMore(true)
+    setFailedPage(null)
+    setВсегоВГруппе({}) // cyrillic-ok: the existing state name
     void loadTemplates()
   }, [loadTemplates])
 
@@ -165,7 +180,7 @@ export function ProfileTemplatesGrid({
    * вдруг начнёт отдавать полную страницу всегда. Он назван, а не подразуме-
    * вается: молчаливое усечение читается как «здесь всё».
    */
-  const autoPaging = hasMore && page < AUTO_PAGES - 1 && !pageFailed
+  const autoPaging = hasMore && page < AUTO_PAGES - 1 && failedPage === null
   useEffect(() => {
     if (loading || !autoPaging) return
     void loadTemplates(page + 1)
@@ -421,6 +436,22 @@ export function ProfileTemplatesGrid({
             <div className="profile-templates__group-head" aria-hidden="true" />
           </div>
         ))}
+      </div>
+    )
+  }
+
+  if (templates.length === 0 && failedPage === 0) {
+    return (
+      <div className="empty-state" data-testid="templates-failed">
+        <p className="empty-state__desc" role="alert">
+          {t('profile.templates_failed')}
+        </p>
+        <button
+          className="empty-state__action"
+          onClick={() => loadTemplates(0)}
+        >
+          <span>{t('profile.retry')}</span>
+        </button>
       </div>
     )
   }
