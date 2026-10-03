@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createRequire } from 'node:module'
+import { spawnSync } from 'node:child_process'
 import {
   cpSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -53,6 +55,32 @@ import { fileURLToPath } from 'node:url'
  */
 const NEVER_PACKED = new Set(['.gitignore', 'package-lock.json'])
 
+/*
+ * NOR WHAT GIT IGNORES. 2026-10-03 the push gate fell back to a local run,
+ * where a worktree resolves @vibee/atoms to the main checkout's package --
+ * same tracked bytes, plus a gitignored .mimosa/ hook-state directory a
+ * tool left there. That is not the barrel either, and npm never ships it.
+ * Asked of the tree under test; outside a repository nothing is ignored.
+ */
+function gitIgnored(repoDir: string, rels: string[]): Set<string> {
+  if (!rels.length) return new Set()
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))
+  )
+  const r = spawnSync('git', ['check-ignore', '--no-index', '--stdin', '-z'], {
+    cwd: repoDir,
+    env,
+    input: rels.map(x => x.replace(/^\//, '')).join('\0') + '\0',
+    encoding: 'utf8',
+  })
+  return new Set(
+    (r.stdout || '')
+      .split('\0')
+      .filter(Boolean)
+      .map(x => '/' + x)
+  )
+}
+
 /* Relative path -> sha256 of the bytes, for every file npm would install. */
 function fileHashes(dir: string): Map<string, string> {
   const out = new Map<string, string>()
@@ -74,9 +102,19 @@ function fileHashes(dir: string): Map<string, string> {
   return out
 }
 
+/* Every file of the barrel, minus what git ignores in the tree under test. */
+function barrelFiles(dir: string): Map<string, string> {
+  const all = fileHashes(dir)
+  const own = realpathSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), '../packages/vibee-atoms')
+  )
+  for (const p of gitIgnored(own, [...all.keys()])) all.delete(p)
+  return all
+}
+
 function contentHash(dir: string): string {
   const h = createHash('sha256')
-  for (const [p, f] of fileHashes(dir)) h.update(p).update(f)
+  for (const [p, f] of barrelFiles(dir)) h.update(p).update(f)
   return h.digest('hex')
 }
 
@@ -85,8 +123,8 @@ function contentHash(dir: string): string {
  * gate prints this message and nothing else about the failure.
  */
 function differing(a: string, b: string): string[] {
-  const ha = fileHashes(a)
-  const hb = fileHashes(b)
+  const ha = barrelFiles(a)
+  const hb = barrelFiles(b)
   return [...new Set([...ha.keys(), ...hb.keys()])]
     .filter(n => ha.get(n) !== hb.get(n))
     .sort()
@@ -121,7 +159,7 @@ describe('@vibee/atoms resolves inside the tree under test', () => {
     expect(contentHash(resolvedAtoms)).toBe(contentHash(ownAtoms))
   })
 
-  it('a packed copy passes and a copy one byte off does not', () => {
+  it('a packed copy passes, ignored junk too, and a copy one byte off does not', () => {
     const renderRoot = dirname(fileURLToPath(import.meta.url))
     const own = realpathSync(resolve(renderRoot, '../packages/vibee-atoms'))
     const copy = mkdtempSync(join(tmpdir(), 'atoms-copy-'))
@@ -132,6 +170,10 @@ describe('@vibee/atoms resolves inside the tree under test', () => {
       })
       /* What npm leaves out of the copy it installs. */
       for (const f of NEVER_PACKED) rmSync(join(copy, f), { force: true })
+      expect(contentHash(copy)).toBe(contentHash(own))
+      /* What a tool leaves behind, gitignored: not the barrel either. */
+      mkdirSync(join(copy, '.mimosa', 'hook-state'), { recursive: true })
+      writeFileSync(join(copy, '.mimosa', 'hook-state', 'x'), 'state')
       expect(contentHash(copy)).toBe(contentHash(own))
       const entry = join(copy, 'src', 'index.ts')
       writeFileSync(entry, readFileSync(entry, 'utf8') + ' ')
