@@ -14,6 +14,7 @@ import {
   firstSpeechMs,
   framesForSeconds,
   houseNameAllowed,
+  houseNameByAgent,
   houseOwn,
   houseOwnTurn,
   leadOfTurn,
@@ -26,6 +27,7 @@ import {
   speechFrames,
   splitSegments,
   STUDIO_FACE,
+  voiceRefunds,
 } from '../split-reel-plan'
 import {
   analyzeReel,
@@ -321,14 +323,24 @@ describe('split-reel.t27 against the host', () => {
     expect(reelCta({ ...HOUSE_CALL, given: 'Call me' })).toBe('Call me')
   })
 
-  it('a client reel never speaks in the owner voice nor names the house', () => {
+  it('a reel the house did not order never speaks in the owner voice', () => {
     expect(ownerVoiceAllowed(true)).toBe(true)
     expect(ownerVoiceAllowed(false)).toBe(false)
-    expect(houseNameAllowed(true)).toBe(true)
-    expect(houseNameAllowed(false)).toBe(false)
     expect(SPEC.OWNER_VOICE_ON_CLIENT_REEL).toBe(false)
-    expect(SPEC.HOUSE_NAME_ON_CLIENT_REEL).toBe(false)
     expect(SPEC.OWN_VOICE).toBe(true)
+  })
+
+  it('a house name stands in her own words, never where the agent put it', () => {
+    expect(houseNameAllowed(true, true)).toBe(true)
+    expect(houseNameAllowed(true, false)).toBe(true)
+    expect(houseNameAllowed(false, true)).toBe(false)
+    expect(houseNameAllowed(false, false)).toBe(true)
+    expect(SPEC.AGENT_HOUSE_NAME_ON_CLIENT_REEL).toBe(false)
+    // Agent-supplied: the text names the house and the person's own words do not.
+    expect(houseNameByAgent('ask Trinity', undefined)).toBe(true)
+    expect(houseNameByAgent('ask Trinity', 'say Trinity')).toBe(false)
+    expect(houseNameByAgent('Book with Anna', undefined)).toBe(false)
+    expect(houseNameByAgent('Book with Anna', 'say Trinity')).toBe(false)
     // The house by name, as written and as spoken.
     expect(namesHouse(`write to ${SPEC.OWNER_CTA}`)).toBe(true)
     expect(namesHouse('T27AI_BOT')).toBe(true)
@@ -337,6 +349,13 @@ describe('split-reel.t27 against the host', () => {
     expect(namesHouse('S³AI')).toBe(true)
     expect(namesHouse('Book a fitting with Anna')).toBe(false)
     expect(namesHouse('Запишитесь на примерку')).toBe(false) // cyrillic-ok: a client call
+  })
+
+  it('a refused owner voice gives its charge back', () => {
+    expect(voiceRefunds(true, false)).toBe(true)
+    expect(voiceRefunds(true, true)).toBe(false)
+    expect(voiceRefunds(false, false)).toBe(false)
+    expect(voiceRefunds(false, true)).toBe(false)
   })
 
   it('the version is the last dated note', () => {

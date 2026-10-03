@@ -18,9 +18,10 @@
 //       real voice notes cut on their pauses. His trained clone (MiniMax, made on Replicate)
 //       cannot speak: Replicate has no balance and is off (owner, 2026-10-02), and Kie has
 //       no speech cloning (every clone model name answers 422).
-// v7 (2026-10-04): a reel made for a client carries the client's marks, never the house's --
-//       her call at the end, her voice, no bot of the owner's in its words. A rule, not a
-//       measurement: no reel has been rendered under it yet.
+// v7 (2026-10-04): a reel the house did not order carries no mark of the house's -- not its
+//       bot as the call at the end, not the owner's voice, not a house name the agent or a
+//       template put into its words; words the person wrote herself stand. A refused voice
+//       gives its charge back. A rule, not a measurement: no reel rendered under it yet.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::split_reel {
@@ -124,15 +125,19 @@ module automation::split_reel {
     //                 the client's own profile; else a neutral call with no name in it.
     //                 OWNER_CTA is the house's own reel's, and nobody else's.
     //   the voice  -- the client's own clone; never the owner's clone or sample. With no
-    //                 clone of hers the voice is refused, and the charge goes back.
-    //   the words  -- no bot of the house in them: no OWNER_CTA, no spoken brand name.
+    //                 clone of hers the voice is refused, and the charge goes back
+    //                 (voice_refunds).
+    //   the words  -- no house name the agent or a template put there: no OWNER_CTA, no
+    //                 spoken brand name. Words the person wrote or spoke herself stand --
+    //                 the owner refused the house's CALL and VOICE on a reel made for
+    //                 somebody, not every mention of the product in her own script.
     // The texts of the neutral call and of the refusals are interface copy: the host's.
     pub const CTA_GIVEN : u8 = 1;  // the call the order wrote
     pub const CTA_CLIENT : u8 = 2;  // the call in the client's own profile
     pub const CTA_NEUTRAL : u8 = 3;  // a call with no name in it
     pub const CTA_OWNER : u8 = 4;  // OWNER_CTA
     pub const OWNER_VOICE_ON_CLIENT_REEL : bool = false;
-    pub const HOUSE_NAME_ON_CLIENT_REEL : bool = false;
+    pub const AGENT_HOUSE_NAME_ON_CLIENT_REEL : bool = false;
 
     // A reel is checked before anyone is given it (tri reel-check, in the render as
     // well): no head cut, no face off its window's centre, no caption on silence. A
@@ -307,12 +312,25 @@ module automation::split_reel {
         return OWNER_VOICE_ON_CLIENT_REEL;
     }
 
-    // The bot of the house is named in a reel's words only on the house's own reel.
-    fn house_name_allowed(house_own : bool) -> bool {
+    // A house name in a reel's words: always on the house's own reel; on any other, only
+    // when the person put it there herself, never when the agent or a template did.
+    fn house_name_allowed(house_own : bool, agent_supplied : bool) -> bool {
         if house_own {
             return true;
         }
-        return HOUSE_NAME_ON_CLIENT_REEL;
+        if !agent_supplied {
+            return true;
+        }
+        return AGENT_HOUSE_NAME_ON_CLIENT_REEL;
+    }
+
+    // A reel whose only voice would be the owner's, and which may not have it, is refused,
+    // and its charge goes back. Any other voice is not refused, so nothing is refunded.
+    fn voice_refunds(owner_voice_needed : bool, house_own : bool) -> bool {
+        if !owner_voice_needed {
+            return false;
+        }
+        return !owner_voice_allowed(house_own);
     }
 
     test "the reel opens on the face, then split 120 and full 45 by turns" {
@@ -442,14 +460,33 @@ module automation::split_reel {
         assert(OWNER_CTA == "@t27ai_bot");
     }
 
-    test "a client reel never speaks in the owner voice nor names the house" {
+    test "a reel the house did not order never speaks in the owner voice" {
         assert(owner_voice_allowed(true));
         assert(!owner_voice_allowed(false));
-        assert(house_name_allowed(true));
-        assert(!house_name_allowed(false));
         assert(!OWNER_VOICE_ON_CLIENT_REEL);
-        assert(!HOUSE_NAME_ON_CLIENT_REEL);
         assert(OWN_VOICE);
+    }
+
+    test "a house name stands in her own words, never where the agent put it" {
+        // The house's own reel: any house name stands.
+        assert(house_name_allowed(true, true));
+        assert(house_name_allowed(true, false));
+        // Any other reel: the agent's or a template's house name is refused...
+        assert(!house_name_allowed(false, true));
+        // ...and the words she wrote herself stand.
+        assert(house_name_allowed(false, false));
+        assert(!AGENT_HOUSE_NAME_ON_CLIENT_REEL);
+    }
+
+    test "a refused owner voice gives its charge back" {
+        // Only the owner's voice could speak, and the reel is not the house's: refused,
+        // refunded.
+        assert(voice_refunds(true, false));
+        // The house's own reel speaks the owner's voice: nothing refused.
+        assert(!voice_refunds(true, true));
+        // Another voice speaks: nothing refused, nothing to give back.
+        assert(!voice_refunds(false, false));
+        assert(!voice_refunds(false, true));
     }
 
     test "the version is the last dated note" {

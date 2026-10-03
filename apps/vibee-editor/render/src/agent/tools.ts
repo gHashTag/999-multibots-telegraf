@@ -96,7 +96,11 @@ import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
-import { houseOwnTurn, ownerVoiceAllowed } from '../split-reel-plan'
+import {
+  houseOwnTurn,
+  ownerVoiceAllowed,
+  voiceRefunds,
+} from '../split-reel-plan'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
 import {
@@ -2281,16 +2285,15 @@ export const TOOLS: AgentTool[] = [
         : !args.voice_id && ctx.faceOf
           ? String(ctx.faceOf)
           : ''
-      const ownerVoiceMay = ownerVoiceAllowed(
-        houseOwnTurn(
-          {
-            house: isHouse(ctx.telegramId),
-            faceOf: ctx.faceOf,
-            sellerSweep: ctx.sellerSweep,
-          },
-          forLead
-        )
+      const houseReel = houseOwnTurn(
+        {
+          house: isHouse(ctx.telegramId),
+          faceOf: ctx.faceOf,
+          sellerSweep: ctx.sellerSweep,
+        },
+        forLead
       )
+      const ownerVoiceMay = ownerVoiceAllowed(houseReel)
       if (forLead) {
         // Her own voice for her own reel; anybody else's only by its owner.
         const self = forLead.replace(/^@/, '') === String(ctx.telegramId)
@@ -2355,10 +2358,10 @@ export const TOOLS: AgentTool[] = [
        * so it is refused with the charge back -- never a stranger's voice.
        */
       if (
-        !voiceId &&
-        !cloneVoice &&
-        !ownerVoiceMay &&
-        isHouse(ctx.telegramId)
+        voiceRefunds(
+          !voiceId && !cloneVoice && isHouse(ctx.telegramId),
+          houseReel
+        )
       ) {
         await refundTokens(
           ctx,
