@@ -96,6 +96,7 @@ import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
+import { houseOwnTurn, ownerVoiceAllowed } from '../split-reel-plan'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
 import {
@@ -2217,7 +2218,8 @@ export const TOOLS: AgentTool[] = [
     name: 'audio_generate',
     description:
       'Озвучить текст. for_lead — голосом клиента (его клон из crm_voice_clone), только для материалов ' +
-      'ему же: это MiniMax на Replicate, ключ ElevenLabs ему НЕ нужен. Без for_lead и voice_id — ' +
+      'ему же: это MiniMax на Replicate, ключ ElevenLabs ему НЕ нужен. В разговоре с клиентом без for_lead ' +
+      'и voice_id — тоже его голос, клон владельца там не звучит. Иначе без for_lead и voice_id — ' +
       'клон владельца, а если своего нет — библиотечный голос ElevenLabs (нужен его ключ), и это ' +
       'будет сказано в ответе. Ошибка — скажи честно, что именно, и собери рилс без звука.',
     parameters: {
@@ -2268,18 +2270,34 @@ export const TOOLS: AgentTool[] = [
        */
       let cloneVoice = ''
       let голосКлиента = false // cyrillic-ok: local flag next to голосВладельца
-      if (args.for_lead) {
+      /*
+       * WHOSE VOICE (split-reel v7): the owner's clone is the house's own
+       * reel's alone. On a turn for a client (faceOf, set by code) with no
+       * voice named, the voice is HERS -- her clone, or a refusal with the
+       * charge back below -- never the owner's.
+       */
+      const forLead = args.for_lead
+        ? String(args.for_lead)
+        : !args.voice_id && ctx.faceOf
+          ? String(ctx.faceOf)
+          : ''
+      const ownerVoiceMay = ownerVoiceAllowed(
+        houseOwnTurn(
+          {
+            house: isHouse(ctx.telegramId),
+            faceOf: ctx.faceOf,
+            sellerSweep: ctx.sellerSweep,
+          },
+          forLead
+        )
+      )
+      if (forLead) {
         // Her own voice for her own reel; anybody else's only by its owner.
-        const self =
-          String(args.for_lead).replace(/^@/, '') === String(ctx.telegramId)
+        const self = forLead.replace(/^@/, '') === String(ctx.telegramId)
         const theirs = await (
           self
             ? ownVoiceOf(ctx.pool, String(ctx.telegramId))
-            : leadVoiceOf(
-                ctx.pool,
-                String(ctx.telegramId),
-                String(args.for_lead)
-              )
+            : leadVoiceOf(ctx.pool, String(ctx.telegramId), forLead)
         ).catch(() => null)
         if (!theirs) {
           await refundTokens(
@@ -2325,10 +2343,32 @@ export const TOOLS: AgentTool[] = [
         !args.voice_id &&
         !cloneVoice &&
         !голосВладельца && // cyrillic-ok: existing local
+        ownerVoiceMay &&
         HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)
       ) {
         cloneVoice = OWNER_MINIMAX_CLONE
         голосВладельца = true // cyrillic-ok: existing local
+      }
+      /*
+       * A sweep for leads that names no lead and no voice (split-reel v7):
+       * the owner's voice is not lent to it and the house asks no library,
+       * so it is refused with the charge back -- never a stranger's voice.
+       */
+      if (
+        !voiceId &&
+        !cloneVoice &&
+        !ownerVoiceMay &&
+        isHouse(ctx.telegramId)
+      ) {
+        await refundTokens(
+          ctx,
+          'audio_generate',
+          'голос владельца не для рилса клиента',
+          charge['потрачено']
+        )
+        const why =
+          'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
       }
       /*
        * THE OWNER'S REEL SPEAKS IN THE OWNER'S VOICE (owner, 2026-10-03:

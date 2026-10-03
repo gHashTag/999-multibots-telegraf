@@ -7,12 +7,20 @@ import { SplitTalkingHeadSchema } from '../compositions/SplitTalkingHead'
 import {
   captionStartMs,
   captionsFromWords,
+  ctaFor,
   deliverable,
   faceObjectPosition,
   faceTargetYPct,
   firstSpeechMs,
   framesForSeconds,
+  houseNameAllowed,
+  houseOwn,
+  houseOwnTurn,
+  leadOfTurn,
+  namesHouse,
   objectPosPct,
+  ownerVoiceAllowed,
+  reelCta,
   reelFrames,
   splitReelProps,
   speechFrames,
@@ -33,6 +41,9 @@ import {
  * host planner (split-reel-plan.ts) and the analyser (agent/reel-analyze.ts).
  */
 const segCount = (total: number) => splitSegments(total).length
+/** The house's own reel, as split_reel builds its call (v7). */
+const NEUTRAL = 'Write to me'
+const HOUSE_CALL = { house: true, neutral: NEUTRAL }
 const lastLen = (total: number) => splitSegments(total).at(-1)!.durationFrames
 
 describe('split-reel.t27 against the host', () => {
@@ -70,7 +81,11 @@ describe('split-reel.t27 against the host', () => {
   it('fifteen seconds is the ceiling and the words are one at a time in yellow', () => {
     expect(framesForSeconds(15)).toBe(450)
     expect(framesForSeconds(40)).toBe(450)
-    const p = splitReelProps({ lipSyncVideo: 'https://x/l.mp4', seconds: 15 })
+    const p = splitReelProps({
+      lipSyncVideo: 'https://x/l.mp4',
+      seconds: 15,
+      call: HOUSE_CALL,
+    })
     expect(p.captionColor).toBe('#FFFF00')
     expect(SPEC.WORDS_PER_CAPTION).toBe(1)
     expect(SPEC.OWN_VOICE).toBe(true)
@@ -136,7 +151,11 @@ describe('split-reel.t27 against the host', () => {
   it('in a split the face fills the lower half, not a circle', () => {
     // The first reel from this spec came out with SplitTalkingHead's default:
     // a 25% circle on black under the b-roll.
-    const p = splitReelProps({ lipSyncVideo: 'https://x/l.mp4', seconds: 15 })
+    const p = splitReelProps({
+      lipSyncVideo: 'https://x/l.mp4',
+      seconds: 15,
+      call: HOUSE_CALL,
+    })
     expect(SPEC.FACE_FILLS_HALF).toBe(true)
     expect(p.splitIsCircle).toBe(false)
     expect(p.splitCircleSize).toBe(50)
@@ -171,7 +190,11 @@ describe('split-reel.t27 against the host', () => {
   })
 
   it('the planner tells the composition where the face is, per window', () => {
-    const p = splitReelProps({ lipSyncVideo: 'https://x/l.mp4', seconds: 15 })
+    const p = splitReelProps({
+      lipSyncVideo: 'https://x/l.mp4',
+      seconds: 15,
+      call: HOUSE_CALL,
+    })
     // Unmeasured: the studio's own place, aimed up from the default 50%.
     expect(p.splitFacePosition).toBe('50% 6%')
     expect(p.fullscreenFacePosition).toBe('50% 50%')
@@ -188,6 +211,7 @@ describe('split-reel.t27 against the host', () => {
     const low = splitReelProps({
       lipSyncVideo: 'https://x/l.mp4',
       seconds: 15,
+      call: HOUSE_CALL,
       face: { cx: 540, cy: 1700, srcW: 1080, srcH: 1920 },
     })
     expect(low.splitFacePosition).toBe('50% 100%')
@@ -207,13 +231,20 @@ describe('split-reel.t27 against the host', () => {
   it('the pause is the one every reel template ends on', () => {
     // StoryReel's canon (crm-story-reel.t27 PAUSE_SEC): one ending, not two.
     expect(SPEC.CTA_PAUSE_SEC).toBe(STORY_PAUSE_SEC)
-    const p = splitReelProps({ lipSyncVideo: 'https://x/l.mp4', seconds: 11.5 })
+    const p = splitReelProps({
+      lipSyncVideo: 'https://x/l.mp4',
+      seconds: 11.5,
+      call: HOUSE_CALL,
+    })
     expect(p.pauseSec).toBe(SPEC.CTA_PAUSE_SEC)
     expect(p.ctaText).toBe(SPEC.OWNER_CTA)
     expect(p.speechSec).toBe(11.5)
     expect(
-      splitReelProps({ lipSyncVideo: 'x', seconds: 5, ctaText: '@her_bot' })
-        .ctaText
+      splitReelProps({
+        lipSyncVideo: 'x',
+        seconds: 5,
+        call: { house: false, given: '@her_bot', neutral: NEUTRAL },
+      }).ctaText
     ).toBe('@her_bot')
     // The composition takes what the planner sends, and old props keep no pause.
     const parsed = SplitTalkingHeadSchema.safeParse({
@@ -228,6 +259,91 @@ describe('split-reel.t27 against the host', () => {
     expect(deliverable(true, 0)).toBe(true)
     expect(deliverable(true, 1)).toBe(false)
     expect(deliverable(false, 0)).toBe(false)
+  })
+
+  it('a reel is the house own only when the house orders it and nobody else is named', () => {
+    expect(houseOwn(true, false, false, false)).toBe(true)
+    expect(houseOwn(true, true, false, false)).toBe(false)
+    expect(houseOwn(true, false, true, false)).toBe(false)
+    expect(houseOwn(true, false, false, true)).toBe(false)
+    expect(houseOwn(true, true, true, true)).toBe(false)
+    // A seller who is not the house: her own reel is not the house's.
+    expect(houseOwn(false, false, false, false)).toBe(false)
+    // The same rule read off a turn: the lead is the order's, else the turn's client.
+    expect(houseOwnTurn({ house: true }, '')).toBe(true)
+    expect(houseOwnTurn({ house: true, sellerSweep: true }, '')).toBe(false)
+    expect(houseOwnTurn({ house: false }, '')).toBe(false)
+    expect(leadOfTurn(undefined, { faceOf: '900000077' })).toBe('900000077')
+    expect(leadOfTurn(' 900000005 ', { faceOf: '900000077' })).toBe('900000005')
+    expect(leadOfTurn('', {})).toBe('')
+    const turn = { house: true, faceOf: '900000077' }
+    expect(houseOwnTurn(turn, leadOfTurn(undefined, turn))).toBe(false)
+  })
+
+  it('a client reel ends on the client call, never on the owner bot', () => {
+    expect(ctaFor(false, false, false, true)).toBe(SPEC.CTA_CLIENT)
+    expect(ctaFor(false, false, false, false)).toBe(SPEC.CTA_NEUTRAL)
+    expect(ctaFor(false, true, false, false)).toBe(SPEC.CTA_GIVEN)
+    expect(ctaFor(false, true, false, true)).toBe(SPEC.CTA_GIVEN)
+    expect(ctaFor(false, true, true, true)).toBe(SPEC.CTA_CLIENT)
+    expect(ctaFor(false, true, true, false)).toBe(SPEC.CTA_NEUTRAL)
+    expect(SPEC.CTA_ALWAYS).toBe(true)
+    // In words: her profile's call, else the neutral one, never the bot.
+    const her = { house: false, client: 'Book a fitting', neutral: NEUTRAL }
+    expect(reelCta(her)).toBe('Book a fitting')
+    expect(reelCta({ house: false, neutral: NEUTRAL })).toBe(NEUTRAL)
+    expect(reelCta({ ...her, given: 'Call Anna' })).toBe('Call Anna')
+    expect(reelCta({ ...her, given: SPEC.OWNER_CTA })).toBe('Book a fitting')
+    expect(
+      reelCta({
+        house: false,
+        given: `Write ${SPEC.OWNER_CTA}`,
+        neutral: NEUTRAL,
+      })
+    ).toBe(NEUTRAL)
+    for (const c of [her, { house: false, neutral: NEUTRAL }])
+      expect(namesHouse(reelCta(c))).toBe(false)
+    expect(
+      splitReelProps({ lipSyncVideo: 'x', seconds: 5, call: her }).ctaText
+    ).toBe('Book a fitting')
+  })
+
+  it('the house own reel still ends on the bot', () => {
+    expect(ctaFor(true, false, false, false)).toBe(SPEC.CTA_OWNER)
+    expect(ctaFor(true, false, false, true)).toBe(SPEC.CTA_OWNER)
+    expect(ctaFor(true, true, true, false)).toBe(SPEC.CTA_GIVEN)
+    expect(ctaFor(true, true, false, false)).toBe(SPEC.CTA_GIVEN)
+    expect(SPEC.OWNER_CTA).toBe('@t27ai_bot')
+    expect(reelCta(HOUSE_CALL)).toBe(SPEC.OWNER_CTA)
+    expect(reelCta({ ...HOUSE_CALL, given: SPEC.OWNER_CTA })).toBe(
+      SPEC.OWNER_CTA
+    )
+    expect(reelCta({ ...HOUSE_CALL, given: 'Call me' })).toBe('Call me')
+  })
+
+  it('a client reel never speaks in the owner voice nor names the house', () => {
+    expect(ownerVoiceAllowed(true)).toBe(true)
+    expect(ownerVoiceAllowed(false)).toBe(false)
+    expect(houseNameAllowed(true)).toBe(true)
+    expect(houseNameAllowed(false)).toBe(false)
+    expect(SPEC.OWNER_VOICE_ON_CLIENT_REEL).toBe(false)
+    expect(SPEC.HOUSE_NAME_ON_CLIENT_REEL).toBe(false)
+    expect(SPEC.OWN_VOICE).toBe(true)
+    // The house by name, as written and as spoken.
+    expect(namesHouse(`write to ${SPEC.OWNER_CTA}`)).toBe(true)
+    expect(namesHouse('T27AI_BOT')).toBe(true)
+    expect(namesHouse('ask Trinity')).toBe(true)
+    expect(namesHouse('спроси Тринити')).toBe(true) // cyrillic-ok: the brand as spoken
+    expect(namesHouse('S³AI')).toBe(true)
+    expect(namesHouse('Book a fitting with Anna')).toBe(false)
+    expect(namesHouse('Запишитесь на примерку')).toBe(false) // cyrillic-ok: a client call
+  })
+
+  it('the version is the last dated note', () => {
+    const spec = readFileSync(join(__dirname, 'split-reel.t27'), 'utf8')
+    const notes = [...spec.matchAll(/^\/\/ v(\d+) \(/gm)].map(m => Number(m[1]))
+    expect(SPEC.VERSION).toBe(7)
+    expect(Math.max(...notes)).toBe(SPEC.VERSION)
   })
 
   it('b-roll goes to the split shots in turn, video or still by its name', () => {

@@ -9,7 +9,8 @@
  * The chain, each part borrowed from the registry so it charges and refunds
  * exactly as when called alone:
  *
- *   voice    -- audio_generate (the owner's clone; for_lead: the client's)
+ *   voice    -- audio_generate (the owner's clone on the house's own reel;
+ *               a client's reel speaks the client's voice -- split-reel v7)
  *   gate     -- the voice is measured; longer than SPEECH_MAX_SECONDS is
  *               refused BEFORE any still or lip-sync is paid for
  *   b-roll   -- image_edit with the spec's BROLL_MODEL, one still per split
@@ -31,12 +32,18 @@ import * as SPEC from '../spec/split-reel.gen'
 import {
   captionsFromWords,
   framesForSeconds,
+  houseNameAllowed,
+  houseOwnTurn,
+  leadOfTurn,
+  namesHouse,
   speechFrames,
   splitReelProps,
   splitSegments,
   type SpeechFrames,
   type SpokenWord,
 } from '../split-reel-plan'
+import { clientCtaOf, STORY_DEFAULT_CTA } from './story-template'
+import { isHouse } from '../house-ids'
 import { whisperConfig, whisperWords } from './media-library'
 import { withShelfFile } from './media-extract'
 import { probeSeconds, proxyShelfUrl, shelfKeyOf } from './lipsync-voice'
@@ -210,10 +217,11 @@ export function makeSplitReelTool(
     name: 'split_reel',
     description:
       `СПЛИТ-РИЛС ОДНИМ ВЫЗОВОМ (шаблон ${SPEC.COMPOSITION}, спека split-reel.t27): кадр с лицом в студии ` +
-      `(${SPEC.FACE_SPEC}) + текст → голос (клон владельца; for_lead — голос клиента) → липсинк ` +
+      `(${SPEC.FACE_SPEC}) + текст → голос (рилс владельца — его клон; рилс клиента — голос клиента) → липсинк ` +
       `${SPEC.LIPSYNC_MODEL} → b-roll кадры для сплит-половин (${SPEC.BROLL_MODEL}, без надписей) → ` +
       `жёлтые титры по слову из ИТОГОВОГО голоса (свой whisper) → сборка: полный кадр, сплит, полный, ` +
       `в конце пауза ${SPEC.CTA_PAUSE_SEC} с с призывом. Речь до ${SPEC.SPEECH_MAX_SECONDS} с. ` +
+      'Рилс клиента (for_lead или разговор с клиентом) — его голос и его призыв, без Тринити и бота владельца. ' +
       'Вернулись voice_url/clip/broll_urls без видео — повтори с ними: готовое не делается и не оплачивается второй раз.',
     parameters: {
       type: 'object',
@@ -224,7 +232,7 @@ export function makeSplitReelTool(
         },
         text: {
           type: 'string',
-          description: `что сказать, до ${SPEC.SPEECH_MAX_SECONDS} с речи; бот в речи — «Тринити»`,
+          description: `что сказать, до ${SPEC.SPEECH_MAX_SECONDS} с речи; бот в речи — «Тринити» только в рилсе владельца`,
         },
         brolls: {
           type: 'array',
@@ -237,7 +245,8 @@ export function makeSplitReelTool(
         },
         cta: {
           type: 'string',
-          description: `надпись в паузе в конце (по умолчанию ${SPEC.OWNER_CTA})`,
+          description:
+            'надпись в паузе в конце; по умолчанию — призыв клиента из его профиля, бот владельца только в рилсе владельца',
         },
         voice_url: {
           type: 'string',
@@ -272,6 +281,34 @@ export function makeSplitReelTool(
         return {
           done: false,
           reason: `brolls: от 1 до ${MOST_BROLLS} обстановок для сплит-кадров`,
+        }
+      /*
+       * Whose reel this is (split-reel v7), from code-set fields only: the
+       * wallet (the house's or a seller's), the turn's client (ctx.faceOf),
+       * the order's for_lead, an unattended sweep. Only the house's own reel
+       * ends on its bot; a client's speaks her voice and ends on her call.
+       */
+      const turn = {
+        house: isHouse(ctx.telegramId),
+        faceOf: ctx.faceOf,
+        sellerSweep: ctx.sellerSweep,
+      }
+      const forClient = String(turn.faceOf ?? '').trim()
+      const named = String(args.for_lead ?? '')
+        .trim()
+        .replace(/^@/, '')
+      if (forClient && named && named !== forClient)
+        return {
+          done: false,
+          reason: 'в разговоре с клиентом рилс делается только его голосом',
+        }
+      const forLead = leadOfTurn(named, turn)
+      const house = houseOwnTurn(turn, forLead)
+      if (!houseNameAllowed(house) && namesHouse(text))
+        return {
+          done: false,
+          reason:
+            'рилс клиента не называет ни Тринити, ни бота владельца: убери их из text',
         }
       const edit = lookup('image_edit')
       const speak = lookup('audio_generate')
@@ -308,7 +345,7 @@ export function makeSplitReelTool(
             .handler(
               {
                 text,
-                ...(args.for_lead ? { for_lead: String(args.for_lead) } : {}),
+                ...(forLead ? { for_lead: forLead } : {}),
               },
               ctx
             )
@@ -411,13 +448,20 @@ export function makeSplitReelTool(
       const seconds = speechEnd(heard.words)
       const captions = captionsFromWords(heard.words, 0, heard.speech)
 
-      // 6. The template.
+      // 6. The template, ending on the call the spec picks (v7).
       const props = splitReelProps({
         lipSyncVideo: clip,
         seconds,
         bRolls,
         captions,
-        ctaText: String(args.cta ?? '').trim(),
+        call: {
+          house,
+          given: String(args.cta ?? '').trim(),
+          client: house
+            ? ''
+            : await clientCtaOf(ctx.pool, String(ctx.telegramId), forLead),
+          neutral: STORY_DEFAULT_CTA,
+        },
       })
       const r = outcome(
         await render
