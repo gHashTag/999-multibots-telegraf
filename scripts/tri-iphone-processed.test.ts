@@ -42,6 +42,7 @@ function processed(lane: string, ...args: string[]) {
     out: `${r.stdout}${r.stderr}`,
     call: read('call'),
     notified: read('notified'),
+    notifyArgs: read('notify-args'),
   }
 }
 
@@ -56,7 +57,9 @@ beforeEach(() => {
   )
   fs.writeFileSync(
     path.join(bin, 'notify'),
-    `#!/bin/sh\necho "$2" > '${bin}/notified'\n`,
+    // The last argument is the banner text; every argument is kept so a
+    // test can see the text never lands inside the AppleScript itself.
+    `#!/bin/sh\nprintf '%s\\n' "$@" > '${bin}/notify-args'\nfor a; do last="$a"; done\necho "$last" > '${bin}/notified'\n`,
     { mode: 0o755 }
   )
 })
@@ -107,7 +110,36 @@ describe('tri iphone processed (exit codes)', () => {
     )
     expect(r.rc).toBe(0)
     expect(r.call).toBe('processed wait=45 build=7')
-    expect(r.notified).toMatch(/display notification "ready: build 7/)
+    expect(r.notified).toBe('ready: build 7 (1.0) VALID')
+  })
+
+  it('a --wait that runs out while processing still notifies, and is 4', () => {
+    const r = processed(
+      'processed  processing  build 8 (1.0) PROCESSING\n',
+      '--wait',
+      '1'
+    )
+    expect(r.rc).toBe(4)
+    expect(r.notified).toBe('processing: build 8 (1.0) PROCESSING')
+  })
+
+  it("a state tri does not know is named, not 'no verdict'", () => {
+    const r = processed('processed  unknown  build 9 (1.0) SOMETHING_NEW\n')
+    expect(r.rc).toBe(1)
+    expect(r.out).toMatch(/does not know: build 9 \(1\.0\) SOMETHING_NEW/)
+    expect(r.out).not.toMatch(/no verdict/)
+  })
+
+  it("a quote in Apple's reply stays an argument, outside the AppleScript", () => {
+    const r = processed(
+      'processed  unknown  build 9 (1.0) A"B\\C\n',
+      '--wait',
+      '1'
+    )
+    expect(r.notified).toBe('unknown: build 9 (1.0) A"B\\C')
+    const script = r.notifyArgs.split('\n').slice(0, -1).join('\n')
+    expect(script).toContain('item 1 of argv')
+    expect(script).not.toContain('A"B')
   })
 
   it('without --wait nobody is waiting, so no notification', () => {
@@ -191,6 +223,44 @@ describe.skipIf(!hasRuby)('build_wait.rb', () => {
     )
   })
 
+  it('keeps waiting on PROCESSING, and on an unlisted upload it knows of', () => {
+    const w = (v: string, want: string) =>
+      buildWait('BuildWait.keep_waiting?(a[0].to_sym, a[1])', v, want)
+    expect(w('processing', '')).toBe('true')
+    expect(w('none', '12')).toBe('true')
+    expect(w('none', '')).toBe('false')
+    expect(w('ready', '12')).toBe('false')
+    expect(w('failed', '12')).toBe('false')
+    expect(w('unknown', '12')).toBe('false')
+  })
+
+  it('reads the recorded upload number, nil when absent or garbage', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bw-'))
+    try {
+      const f = path.join(dir, 'last-upload')
+      const rec = () => buildWait('BuildWait.recorded(a[0]).inspect', f)
+      expect(rec()).toBe('nil')
+      fs.writeFileSync(f, '8120\n')
+      expect(rec()).toBe('"8120"')
+      fs.writeFileSync(f, 'oops')
+      expect(rec()).toBe('nil')
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('beta records the number it uploaded, after the upload', () => {
+    const fastfile = fs.readFileSync(
+      path.join(IOS_FASTLANE, 'Fastfile'),
+      'utf8'
+    )
+    const beta = fastfile.slice(fastfile.indexOf('lane :beta do'))
+    const upload = beta.indexOf('upload_to_testflight(')
+    const record = beta.indexOf('build/last-upload')
+    expect(upload).toBeGreaterThan(0)
+    expect(record).toBeGreaterThan(upload)
+  })
+
   it('the lane is read-only and requires the module', () => {
     const fastfile = fs.readFileSync(
       path.join(IOS_FASTLANE, 'Fastfile'),
@@ -202,6 +272,8 @@ describe.skipIf(!hasRuby)('build_wait.rb', () => {
       fastfile.indexOf('lane :certs do')
     )
     expect(lane).toContain('BuildWait.line(build, verdict, want)')
+    expect(lane).toContain('BuildWait.keep_waiting?(verdict, want)')
+    expect(lane).toContain('BuildWait.recorded(')
     expect(lane).not.toContain('VIBEE_UPLOAD_YES')
     expect(lane).not.toMatch(/\.(create|update|delete|post)_/)
   })

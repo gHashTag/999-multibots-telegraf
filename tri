@@ -2034,14 +2034,23 @@ iphone_processed_verdict() {
     ready)   good "in TestFlight: $what -- the phone's TestFlight app can install it"; rc=0 ;;
     failed)  bad "Apple refused it: $what -- App Store Connect -> TestFlight shows why"; rc=1 ;;
     expired) bad "expired: $what -- upload a new build"; rc=1 ;;
-    processing) warn "not yet: $what -- tri iphone processed --wait 60"; return 4 ;;
-    none)    warn "not yet: $what"; return 4 ;;
+    # A state Apple added after build_wait.rb was written: say so, rather
+    # than "the lane printed no verdict", which sends you to read fastlane.
+    unknown) bad "Apple reports a state tri does not know: $what -- App Store Connect -> TestFlight"; rc=1 ;;
+    processing) warn "not yet: $what -- tri iphone processed --wait 60"; rc=4 ;;
+    none)    warn "not yet: $what"; rc=4 ;;
     *)       bad "the lane printed no verdict: tail $log"; return 1 ;;
   esac
+  # Every answer to a --wait is worth the banner, "still processing when the
+  # wait ran out" included: the owner who walked away learns it either way.
+  # The text is an argument to the script, never spliced into it, so a quote
+  # in Apple's reply cannot end the AppleScript string.
   if [ "${TRI_PROCESSED_NOTIFY:-}" = 1 ]; then
     local n="${TRI_NOTIFY:-osascript}"
     command -v "$n" >/dev/null 2>&1 &&
-      "$n" -e "display notification \"$v: $what\" with title \"Trinity S³AI TestFlight\"" >/dev/null 2>&1
+      "$n" -e 'on run argv' \
+        -e 'display notification (item 1 of argv) with title "Trinity S³AI TestFlight"' \
+        -e 'end run' "$v: $what" >/dev/null 2>&1
   fi
   return "$rc"
 }
