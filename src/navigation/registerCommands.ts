@@ -2516,20 +2516,38 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     )
     const lead = takeCardLead(id)
     const r = await confirmProposal(String(ctx.from?.id ?? ''), id, secret)
-    // The card now carries its own outcome, with the history row intact.
-    await settleButtons(ctx, '✅ Отправлено', lead) // cyrillic-ok: button label
-    // Either press frees the proactive sweep to prepare the next card, and
-    // moves a scoped sweep on to the next person.
-    void import('@/services/crmProactive').then(m =>
-      m.noteResolved(String(ctx.from?.id ?? ''), id)
-    )
-    // THE PRESS ITSELF, WRITTEN DOWN. Nothing recorded it before: the touch
-    // needs a lead, the log has no line for a success, and the journal had no
-    // kind. Fire-and-forget on purpose -- a journal that is down must never
-    // eat a press.
-    void import('@/services/hiveNote').then(m =>
-      m.notePressToHive(String(ctx.from?.id ?? ''), 'sent', { lead })
-    )
+    /*
+     * THE CARD SAYS WHAT HAPPENED, NOT WHAT WAS HOPED.
+     *
+     * Audit 2026-10-03: the card was settled "✅ Sent" before anyone read r,
+     * so a 401 or a 5xx left a card saying "Sent" above a reply saying "not
+     * sent" -- and no button to try again. Now: sent -> "Sent"; the server
+     * ANSWERED no -> the draft was not sent, the buttons come back; the
+     * connection broke -> "not sure", and no button, because a second press
+     * could deliver the message twice.
+     */
+    if (!r.ok && !r.unknown) {
+      await restoreButtons(ctx)
+    } else {
+      // The card now carries its own outcome, with the history row intact.
+      await settleButtons(
+        ctx,
+        r.ok ? '✅ Отправлено' : '⚠️ Ушло ли — не знаю', // cyrillic-ok: button label
+        lead
+      )
+      // Either press frees the proactive sweep to prepare the next card, and
+      // moves a scoped sweep on to the next person.
+      void import('@/services/crmProactive').then(m =>
+        m.noteResolved(String(ctx.from?.id ?? ''), id)
+      )
+      // THE PRESS ITSELF, WRITTEN DOWN. Nothing recorded it before: the touch
+      // needs a lead, the log has no line for a success, and the journal had
+      // no kind. Fire-and-forget on purpose -- a journal that is down must
+      // never eat a press.
+      void import('@/services/hiveNote').then(m =>
+        m.notePressToHive(String(ctx.from?.id ?? ''), 'sent', { lead })
+      )
+    }
     /*
      * THREE ANSWERS, BECAUSE THERE ARE THREE STATES.
      *
@@ -2562,7 +2580,10 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
                 // shown as it came, because "something went wrong" would hide
                 // the only thing that says whether to retry or to rewrite.
                 (isRu ? '❌ Не отправлено: ' : '❌ Not sent: ') +
-                (r.error ?? ''),
+                (r.error ?? '') +
+                (isRu
+                  ? '. Кнопки на карточке вернулись.'
+                  : '. The card has its buttons back.'),
           extra as any
         ),
       afterSentKeyboard(lead),
