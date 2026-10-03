@@ -54,6 +54,19 @@ export function chosenFront(
   return had.id
 }
 
+/**
+ * Every live choice, whoever made it. A desk knows the pod, not always whose
+ * it is, and must not spend the tab a tool is working in (desk-page.ts).
+ */
+export function chosenFrontIds(now: number = Date.now()): string[] {
+  const out: string[] = []
+  for (const who of [...chosen.keys()]) {
+    const id = chosenFront(who, now)
+    if (id) out.push(id)
+  }
+  return out
+}
+
 /** A real page of the person's browsing, not an extension's own page. Pure. */
 export const isRealPage = (t: PageLike): boolean =>
   t.type === 'page' && !t.url.startsWith('chrome-extension://')
