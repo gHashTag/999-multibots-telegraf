@@ -13422,7 +13422,8 @@ async function main() {
           if (pod.closed || !toldAboutTabs)
             console.log(
               `🧹 [tabs] ${pod.who}: closed ${pod.closed}, ` +
-                `${pod.left} open of ${TAB_CAP} allowed`
+                `${pod.left} open of ${TAB_CAP} allowed` +
+                (pod.gone ? ` -- ${pod.gone}` : '')
             )
         if (done.length) toldAboutTabs = true
       } catch (e) {
