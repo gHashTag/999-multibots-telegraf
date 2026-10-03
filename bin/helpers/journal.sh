@@ -22,8 +22,10 @@ ANSWER=$(curl -s -m 30 "$B/api/browser/journal?limit=$N&probes=1" -H "X-Agent-Ke
 # The answer goes in through the environment and the code through a quoted
 # heredoc: the first version put Python inside a single-quoted bash string,
 # escaped its quotes, and died with SyntaxError on its first real answer.
-ANSWER="$ANSWER" python3 - <<'PY'
+ANSWER="$ANSWER" HELPERS="$(dirname "${BASH_SOURCE[0]}")" python3 - <<'PY'
 import json, os, sys
+sys.path.insert(0, os.environ["HELPERS"])
+import journal_line  # the one home of how a step reads
 try:
     d = json.loads(os.environ.get("ANSWER") or "")
 except Exception:
@@ -33,24 +35,7 @@ if not d.get("ok"):
 steps = d.get("steps") or []
 if not steps:
     print("journal: no steps yet"); sys.exit(0)
+print(journal_line.header(steps))
 for s in steps:
-    det = s.get("detail") or {}
-    if det.get("error"): key = (f"{det['by']} desk: " if det.get("by") else "") + det["error"]
-    elif det.get("seen"): key = det["seen"]
-    elif det.get("seenPending"): key = "(description pending)"
-    elif det.get("url"): key = det["url"]
-    elif det.get("title"): key = det["title"]
-    elif det.get("what"): key = det["what"]
-    elif "chars" in det: key = f"{det['chars']} chars"
-    elif "x" in det: key = f"x={det['x']} y={det['y']}"
-    elif "pages" in det: key = f"pages={det['pages']}"
-    # browser_start from a desk (#3450), browser_restart from rounds or heal:
-    # which desk opened the visit, or took the browser down and back up.
-    elif det.get("by"):
-        verb = "restarted" if s.get("tool") == "browser_restart" else "started"
-        key = f"{verb} by the {det['by']} desk"
-    else: key = ""
-    mark = ("ok " if s.get("ok") else "ERR") + (" probe" if det.get("probe") else "      ")
-    at = s["at"][5:19].replace("T", " ")
-    print(f"  {at}  {mark}  {s['tool']:<22} {s['ms']:>6} ms  {str(key)[:90]}")
+    print(journal_line.line(s))
 PY

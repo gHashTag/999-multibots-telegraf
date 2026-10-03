@@ -3263,8 +3263,10 @@ cmd_journal() {
   local url="$RENDER/api/browser/journal?limit=$limit"
   [ -n "$probes" ] && url="$url&probes=1"
 
-  JRN_KEY="$key" JRN_URL="$url" python3 - <<'PY'
+  JRN_KEY="$key" JRN_URL="$url" JRN_HELPERS="$ROOT/bin/helpers" python3 - <<'PY'
 import json, os, sys, urllib.error, urllib.request
+sys.path.insert(0, os.environ['JRN_HELPERS'])
+import journal_line  # one home for how a step reads, shared with bin/tri journal
 
 req = urllib.request.Request(
     os.environ['JRN_URL'], headers={"X-Agent-Key": os.environ['JRN_KEY']})
@@ -3286,26 +3288,9 @@ if not steps:
     print('  nothing recorded yet -- the agent has taken no steps')
     sys.exit(2)
 
-def clip(v, n):
-    s = str(v)
-    return s if len(s) <= n else s[:n - 1] + '…'
-
+print(journal_line.header(steps))
 for s in steps:
-    at = (s.get('at') or '')[11:19]                # HH:MM:SS
-    tool = s.get('tool', '?')
-    mark = ' ok ' if s.get('ok') else 'FAIL'
-    ms = s.get('ms', 0)
-    d = s.get('detail') or {}
-    what = d.get('seen') or d.get('title') or d.get('what') or d.get('url') or ''
-    if not what and d.get('x') is not None:
-        what = f"({d['x']},{d['y']})"
-    tag = ' ·probe' if d.get('probe') else ''
-    line = f"  {at}  {mark}  {tool} {ms}ms{tag}"
-    if what:
-        line += f"  {clip(what, 90)}"
-    print(line)
-    if not s.get('ok') and d.get('error'):
-        print(f"        error: {clip(d['error'], 120)}")
+    print(journal_line.line(s))
 
 sys.exit(0)
 PY
