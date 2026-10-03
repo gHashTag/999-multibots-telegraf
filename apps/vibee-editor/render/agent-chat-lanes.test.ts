@@ -33,8 +33,14 @@ function req(body: unknown) {
 }
 
 function res() {
-  const out: { code?: number; body?: any; streamed: boolean } = {
+  const out: {
+    code?: number
+    body?: any
+    streamed: boolean
+    lines: string[]
+  } = {
     streamed: false,
+    lines: [],
   }
   return {
     out,
@@ -46,7 +52,8 @@ function res() {
       if (code === 200) out.streamed = true
       return this
     },
-    write() {
+    write(line: string) {
+      out.lines.push(line)
       return true
     },
     end(text?: string) {
@@ -106,6 +113,21 @@ describe('the lane a chat names', () => {
     expect(r.out.code).toBe(200)
     expect(seenCtx).toMatchObject({ telegramId: WHO, lane: 'research' })
     expect(lanesOf(WHO)).toEqual(['research'])
+    /* The first line says so: a render from before lanes would not. */
+    expect(JSON.parse(r.out.lines[0])).toEqual({
+      ['тип']: 'lane',
+      lane: 'research',
+    }) // cyrillic-ok: event envelope
+  })
+
+  it('main confirms nothing: existing clients read what they read before', async () => {
+    for (const extra of [{}, { lane: 'main' }]) {
+      const r = res()
+      await handleAgentChat(req(say(extra)), r, WHO, getPool)
+      expect(r.out.code).toBe(200)
+      const kinds = r.out.lines.map(l => JSON.parse(l)['тип']) // cyrillic-ok: event envelope
+      expect(kinds).not.toContain('lane')
+    }
   })
 
   it('a lane past the cap is 409 lane_limit before the stream, naming the lanes', async () => {

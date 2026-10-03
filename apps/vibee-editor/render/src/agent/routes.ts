@@ -1074,6 +1074,16 @@ export async function handleAgentChat(
   })
 
   /*
+   * A LANE IS CONFIRMED FIRST. A render from before lanes reads no `lane` and
+   * runs the chat in main -- answering 200 all the same -- so a client that
+   * asked for a lane cannot tell, from the status, that it got one. The first
+   * line names the lane that was taken; its absence is the old render. Main
+   * sends nothing, so every existing client reads exactly what it read before.
+   */
+  if (lane !== lanes.MAIN_LANE)
+    res.write(JSON.stringify({ тип: 'lane', lane }) + '\n') // cyrillic-ok: event envelope
+
+  /*
    * ГДЕ ЧЕЛОВЕК ПИШЕТ. Бот и мини-апп — один разговор, но видеть, с какой
    * стороны пришла реплика, полезно и человеку, и агенту. Значение приходит
    * от клиента, поэтому НЕ доверяем ему слепо: берём короткое известное слово
