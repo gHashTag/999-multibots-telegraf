@@ -44,6 +44,7 @@
  */
 import { OWN_HOSTS } from './utm'
 import {
+  clip,
   linkFor,
   parseRss,
   summaryWithEvidence,
@@ -408,10 +409,7 @@ export const TITLE_MAX = 300
  * Pure.
  */
 export function postFor(sub: Subreddit, a: Article): PlannedPost {
-  const title =
-    a.title.length <= TITLE_MAX
-      ? a.title
-      : `${a.title.slice(0, TITLE_MAX - 1)}…`
+  const title = clip(a.title, TITLE_MAX)
   const body = [
     /* A text post has room: the evidence label goes with the claim. */
     summaryWithEvidence(a).trim(),

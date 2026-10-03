@@ -372,7 +372,7 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
-  tri iphone [check|build|sim|off|test|ru|store|state|testflight|testers|metadata]
+  tri iphone [check|build|sim|off|test|ru|store|state|testflight|testers|metadata|processed]
         The Trinity S³AI app on the REAL phone: build, install, launch -- one command.
         `store` asks fastlane what stands between HEAD and TestFlight (offline
         preflight + read-only App Store Connect state; `state` is the read-only
@@ -382,6 +382,8 @@ CHECKS THAT EACH COST A CYCLE
         build (`testers --yes` alone repeats that step). `metadata
         --yes` sends the store page texts from apps/vibee-ios/fastlane/metadata
         (checked by `store` offline first); review submission stays a click.
+        `processed [--wait MIN]` says when Apple has finished with the upload
+        (0 ready, 1 refused, 4 not yet) and, waiting, notifies on the Mac.
         `sim` does the same on the simulator, with a deadline on install.
         Asks devicectl first, so a locked or unplugged phone is named as such
         instead of xcodebuild's "Unable to find a destination". `check` only
@@ -1622,6 +1624,8 @@ print(n)' 2>/dev/null)
 #                       (Apple e-mails the invitation; beta runs it too).
 #   tri iphone metadata --yes  fastlane metadata: the store page texts from
 #                       apps/vibee-ios/fastlane/metadata; nothing submitted.
+#   tri iphone processed [--wait MIN] [--build N]  has Apple finished with the
+#                       upload: 0 ready, 1 refused/expired, 4 not yet (read-only)
 #   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
 # The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
 # next build need it back. One word instead of remembering the udid.
@@ -1971,6 +1975,8 @@ iphone_store() {
   elif [ "$mode" = "metadata" ]; then
     [ "$yes" = "--yes" ] || { bad "the store page is published under the owner's account: tri iphone metadata --yes"; return 2; }
     lanes=(metadata) upload=1
+  elif [ "$mode" = "processed" ]; then
+    lanes=(processed)
   fi
   local lane rc=0
   for lane in "${lanes[@]}"; do
@@ -1979,7 +1985,7 @@ iphone_store() {
         FASTLANE_HIDE_TIMESTAMP=1 FASTLANE_DISABLE_COLORS=1 \
         VIBEE_UPLOAD_YES="$upload" "$fl" "$lane" ) >"$log" 2>&1 || rc=$?
     # The lanes' own verdict lines, not fastlane's banner tables.
-    grep -E '^ *(✓|✗)|^(app|app id|testflight|store|group|tester|testers) |^next build|^\[!\]|^  [12]\. |^Ready|^built|^uploaded|^store page' "$log" | sed 's/^/       /'
+    grep -E '^ *(✓|✗)|^(app|app id|testflight|store|group|tester|testers|processed|waiting) |^next build|^\[!\]|^  [12]\. |^Ready|^built|^uploaded|^store page' "$log" | sed 's/^/       /'
     if [ "$rc" != 0 ]; then
       # The one blocker no command here can lift gets its own code, so a loop
       # tells "still waiting on the owner" (3) from "broken" (1) without
@@ -1993,7 +1999,51 @@ iphone_store() {
       return 1
     fi
   done
+  [ "$mode" = "processed" ] && { iphone_processed_verdict "$log"; return; }
   good "fastlane ${lanes[*]}: done"
+}
+
+# tri iphone processed [--wait MIN] [--build N] -- has Apple finished with the
+# upload? `beta` does not wait for processing (minutes to an hour), so this is
+# how the owner and the loop learn that the build is on the phone. Read-only,
+# no --yes. Exit 0 ready in TestFlight, 1 Apple refused it (or it expired),
+# 2 usage, 3 the app record is missing, 4 not yet (still processing, or
+# nothing uploaded). With --wait a final answer also posts a macOS
+# notification (TRI_NOTIFY replaces osascript; the tests record it).
+iphone_processed() {
+  local ios="$1"; shift
+  local wait=0 build=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --wait) wait="${2:-}"; shift 2 || { bad "--wait needs minutes"; return 2; } ;;
+      --build) build="${2:-}"; shift 2 || { bad "--build needs a build number"; return 2; } ;;
+      *) bad "usage: tri iphone processed [--wait MIN] [--build N]"; return 2 ;;
+    esac
+  done
+  case "$wait" in '' | *[!0-9]*) bad "--wait takes whole minutes, not '$wait'"; return 2 ;; esac
+  case "$build" in *[!0-9]*) bad "--build takes a build number, not '$build'"; return 2 ;; esac
+  PROCESSED_WAIT_MIN="$wait" PROCESSED_BUILD="$build" TRI_PROCESSED_NOTIFY="$([ "$wait" -gt 0 ] && echo 1)" \
+    iphone_store "$ios" processed
+}
+
+iphone_processed_verdict() {
+  local log="$1" v what rc
+  v=$(sed -n 's/^processed  \([a-z]*\)  .*/\1/p' "$log" | tail -1)
+  what=$(sed -n 's/^processed  [a-z]*  //p' "$log" | tail -1)
+  case "$v" in
+    ready)   good "in TestFlight: $what -- the phone's TestFlight app can install it"; rc=0 ;;
+    failed)  bad "Apple refused it: $what -- App Store Connect -> TestFlight shows why"; rc=1 ;;
+    expired) bad "expired: $what -- upload a new build"; rc=1 ;;
+    processing) warn "not yet: $what -- tri iphone processed --wait 60"; return 4 ;;
+    none)    warn "not yet: $what"; return 4 ;;
+    *)       bad "the lane printed no verdict: tail $log"; return 1 ;;
+  esac
+  if [ "${TRI_PROCESSED_NOTIFY:-}" = 1 ]; then
+    local n="${TRI_NOTIFY:-osascript}"
+    command -v "$n" >/dev/null 2>&1 &&
+      "$n" -e "display notification \"$v: $what\" with title \"Trinity S³AI TestFlight\"" >/dev/null 2>&1
+  fi
+  return "$rc"
 }
 
 cmd_iphone() {
@@ -2016,6 +2066,7 @@ cmd_iphone() {
   [ "$mode" = "testflight" ] && { iphone_store "$ios" testflight "${2:-}"; return; }
   [ "$mode" = "testers" ] && { iphone_store "$ios" testers "${2:-}"; return; }
   [ "$mode" = "metadata" ] && { iphone_store "$ios" metadata "${2:-}"; return; }
+  [ "$mode" = "processed" ] && { shift; iphone_processed "$ios" "$@"; return; }
   # An unknown word must not fall through to the device build. It did: the
   # owner typed `tri iphone testflight --yes` in a checkout older than the
   # testflight mode, and got a phone install where they expected an upload --
@@ -2025,7 +2076,7 @@ cmd_iphone() {
     all|install|check|build) ;;
     *)
       bad "tri iphone: unknown mode '$mode'"
-      echo "       modes: all (default) install check build sim off test typecheck ru ru-diff ru-web store state testflight testers metadata"
+      echo "       modes: all (default) install check build sim off test typecheck ru ru-diff ru-web store state testflight testers metadata processed"
       echo "       a mode you expected missing? this checkout may be behind: $(git -C "$ROOT" log -1 --format='%h %cs' 2>/dev/null) (git fetch; compare with origin/main)"
       return 2 ;;
   esac

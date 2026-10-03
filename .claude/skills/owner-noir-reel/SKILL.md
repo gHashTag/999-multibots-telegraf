@@ -5,6 +5,8 @@ description: 'Фирменный нуар-рилс владельца: стар�
 
 # Нуар-рилс владельца
 
+> **Reels are made ONLY through the server pipeline** (`/mcp` -> `story_reel` / `reel_render`, Kie and Remotion on the server; never by hand on the Mac). Owner rule 2026-10-03, the door and the steps: skill **`cloud-agent-does-the-work`**. Not repeated here.
+
 > **Провайдер — только Kie, лицо владельца — studio-lab, голос владельца — сгенерированный, не его заметки.** Правило, модели и чего у Kie нет (клонирования речи) — в навыке **`kie-only`**. Здесь не повторяется.
 
 Записано 2026-09-24 по прямому требованию владельца: «шаблон должен начинаться

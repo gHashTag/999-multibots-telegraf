@@ -57,7 +57,7 @@ export async function runRoundNow(
   const endpoint = async (): Promise<string> => {
     let s = await readSession(pool, owner)
     if (!s || s.state !== 'live' || !s.cdpEndpoint) {
-      await startBrowserAsAgent(owner)
+      await startBrowserAsAgent(owner, 'rounds')
       s = await readSession(pool, owner)
     }
     if (!s?.cdpEndpoint) throw new Error('the browser did not start')
@@ -130,7 +130,7 @@ export async function runRoundNow(
       },
       tell: text =>
         sendToTelegram(owner, desk ? `[${desk.name}] ${text}` : text),
-      restart: () => restartBrowserAsAgent(owner),
+      restart: () => restartBrowserAsAgent(owner, 'rounds'),
       now: () => new Date(),
       sites: strategy.sites,
     })
