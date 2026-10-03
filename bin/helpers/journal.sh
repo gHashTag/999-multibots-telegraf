@@ -35,7 +35,7 @@ if not steps:
     print("journal: no steps yet"); sys.exit(0)
 for s in steps:
     det = s.get("detail") or {}
-    if det.get("error"): key = det["error"]
+    if det.get("error"): key = (f"{det['by']} desk: " if det.get("by") else "") + det["error"]
     elif det.get("seen"): key = det["seen"]
     elif det.get("seenPending"): key = "(description pending)"
     elif det.get("url"): key = det["url"]
@@ -44,6 +44,8 @@ for s in steps:
     elif "chars" in det: key = f"{det['chars']} chars"
     elif "x" in det: key = f"x={det['x']} y={det['y']}"
     elif "pages" in det: key = f"pages={det['pages']}"
+    # browser_start from a desk (#3450): which desk opened the visit.
+    elif det.get("by"): key = f"started by the {det['by']} desk"
     else: key = ""
     mark = ("ok " if s.get("ok") else "ERR") + (" probe" if det.get("probe") else "      ")
     at = s["at"][5:19].replace("T", " ")
