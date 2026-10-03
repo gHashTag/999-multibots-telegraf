@@ -52,6 +52,11 @@ import {
   mergeEndCard,
 } from './story-reel-tool'
 import * as REEL from '../spec/crm-story-reel.gen'
+import {
+  templateLines,
+  templateOf,
+  templatesForPanel,
+} from './story-reel-templates'
 import { requireSeller } from './telegram-tools'
 import { bindClientGroup, clientGroupFor } from './crm-client-group'
 
@@ -90,6 +95,7 @@ export function makeCrmStoryTool(o: {
       'Без start — готов ли клиент и его последние рилсы. start:true — рилс на ЛЮБУЮ тему (topic; ' +
       'без неё — следующий пункт его контент-плана или свежая тема про его дело): 3 сцены, его лицо ' +
       'в новой обстановке каждая, его голос, пауза с призывом. Свой сценарий — scenes (+style, cta); ' +
+      'готовый шаблон — template (+language ru|en; scenes правят его реплики), список — в ответе без start; ' +
       'нет палитры в профиле — end_card (#hex, нечитаемую откажет до траты), ' +
       'save_end_card:true — запомнить её клиенту на следующие рилсы (пустой end_card — снять); to — куда. ' +
       'Делается в фоне 5–10 мин; готовый приходит тебе КАРТОЧКОЙ «в группу» или «ему в личку» — ' +
@@ -118,10 +124,13 @@ export function makeCrmStoryTool(o: {
           items: {
             type: 'object',
             properties: {
-              setting: { type: 'string', description: 'новая обстановка' },
+              setting: {
+                type: 'string',
+                description: 'новая обстановка; пусто — кадр студии',
+              },
               line: { type: 'string', description: 'реплика 2–4 с' },
             },
-            required: ['setting', 'line'],
+            required: ['line'],
           },
           description: 'свой сценарий вместо темы: сцены по порядку',
         },
@@ -131,6 +140,15 @@ export function makeCrmStoryTool(o: {
         },
         style: { type: 'string', description: 'свой свет и тон кадров' },
         cta: { type: 'string', description: 'свой призыв в паузе' },
+        [REEL.TEMPLATE_ARG]: {
+          type: 'string',
+          description: `готовый шаблон: ${REEL.TEMPLATE_HOOK_STUDIO} (хук, кадры студии, призыв к ${REEL.TEMPLATE_BUTTON})`,
+        },
+        [REEL.LANGUAGE_ARG]: {
+          type: 'string',
+          enum: ['ru', 'en'],
+          description: 'язык шаблона',
+        },
         [REEL.END_CARD_ARG]: END_CARD_PARAM,
         [REEL.END_CARD_SAVE_ARG]: {
           type: 'boolean',
@@ -335,6 +353,8 @@ export function makeCrmStoryTool(o: {
                   : {}),
                 ...(fixBg ? { [REEL.SUGGEST_BG_ARG]: fixBg } : {}),
                 client_pays_own_press: s.payer === 'client',
+                // The gallery the panel draws (spec v20, TEMPLATES_FROM_SERVER).
+                templates: templatesForPanel(),
               }
             : {}),
           one_tap_link: nextLink(bot) || undefined,
@@ -346,19 +366,54 @@ export function makeCrmStoryTool(o: {
       }
 
       if (missing) return { started: false, why: missing }
+      /*
+       * A TEMPLATE (spec v20): its lines, edited by the seller where he
+       * wrote his own, shot in the studio; its call and its house-bot button
+       * unless he gave his.
+       */
+      const templateId = String(args[REEL.TEMPLATE_ARG] ?? '').trim()
+      const template = templateId
+        ? templateOf(templateId, String(args[REEL.LANGUAGE_ARG] ?? ''))
+        : undefined
+      if (templateId && !template)
+        return { started: false, why: `template: нет шаблона «${templateId}»` }
+      const lines = template
+        ? templateLines(
+            template,
+            Array.isArray(args.scenes) ? args.scenes : undefined
+          )
+        : null
+      if (typeof lines === 'string') return { started: false, why: lines }
+      const given = args.end_card as Record<string, unknown> | undefined
       const out = await startStory(o.deps(ctx), {
         lead,
         requester: seller,
         seller,
-        topic: String(args.topic ?? '').slice(0, STORY_TOPIC_MAX),
+        topic: String(args.topic || (lines ? lines[0] : '')).slice(
+          0,
+          STORY_TOPIC_MAX
+        ),
         about: String(args.about ?? ''),
-        ...(args.scenes !== undefined ? { scenes: args.scenes } : {}),
+        ...(lines
+          ? { scenes: lines.map(line => ({ setting: '', line })) }
+          : args.scenes !== undefined
+            ? { scenes: args.scenes }
+            : {}),
         ...(args.scene_count !== undefined
           ? { sceneCount: Number(args.scene_count) }
           : {}),
         style: String(args.style ?? ''),
-        cta: String(args.cta ?? ''),
-        ...(args.end_card !== undefined ? { endCard: args.end_card } : {}),
+        cta: String(args.cta || template?.call || ''),
+        ...(template
+          ? {
+              endCard: {
+                ...(given && typeof given === 'object' ? given : {}),
+                button: String(given?.button ?? '') || template.button,
+              },
+            }
+          : args.end_card !== undefined
+            ? { endCard: args.end_card }
+            : {}),
         deliverTo,
         caption: String(args.caption ?? ''),
       })
