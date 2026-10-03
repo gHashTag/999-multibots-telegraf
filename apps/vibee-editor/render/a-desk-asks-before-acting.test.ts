@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 
 const at = { url: 'https://x.com/compose/post' }
 const pressed: string[] = []
@@ -164,6 +164,17 @@ describe('deskClick and deskType check where the tab is NOW', () => {
     expect(pressed).toEqual([])
   })
 
+  it('a tab whose address comes back empty is refused, nothing pressed', async () => {
+    /* A tab that is gone or still loading: the unknown place may be a bank. */
+    at.url = ''
+    const who = person([])
+    await expect(deskClick(who, 'cdp', 'p1', 1, 1)).rejects.toThrow(/fresh yes/)
+    await expect(deskType(who, 'cdp', 'p1', 'hello')).rejects.toThrow(
+      /fresh yes/
+    )
+    expect(pressed).toEqual([])
+  })
+
   it('control: a plain site is pressed and typed', async () => {
     const who = person([])
     await deskClick(who, 'cdp', 'p1', 1, 1)
@@ -173,10 +184,24 @@ describe('deskClick and deskType check where the tab is NOW', () => {
 })
 
 /*
- * THE PIN: no desk presses or types around the door. A raw `clickAt` or
- * `typeText` anywhere under src/agent is a desk acting with no question --
- * exactly how the "ask" rule was missed the first time.
+ * THE PIN: no desk presses or types around the door. A raw act anywhere in
+ * src/ outside the doors below is code acting with no question -- exactly
+ * how the "ask" rule was missed the first time. A raw act is the cdp.ts
+ * primitives (`clickAt`, `typeText`), the person-typing helpers
+ * (`cdpTypeIo`, `typeLikeAPerson`) and the CDP input methods themselves
+ * (`Input.dispatch*`, `Input.insertText`) -- the bee on #3503 named the last
+ * four as the way around a pin that knew only the first two.
  */
+const DOORS: Record<string, string> = {
+  'src/browser/cdp.ts': 'the primitives themselves',
+  'src/browser/desk-page.ts': 'deskClick/deskType: the desk door, asks first',
+  'src/browser/agent-tools.ts':
+    'the agent tools: mustBeAllowedToAct before every press and keystroke',
+  'src/browser/person-type.ts':
+    "the person's own typing: cdpTypeIo/typeLikeAPerson, never the agent's",
+  'src/browser/routes.ts':
+    'POST /api/browser/type: the person-only door (agent key gets 403)',
+}
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name)
@@ -193,24 +218,48 @@ function rawActs(text: string): string[] {
     .map(l => l.replace(/\/\/.*$/, ''))
   return code
     .map((l, i) => [i + 1, l] as const)
-    .filter(([, l]) => /\b(clickAt|typeText)\b/.test(l))
+    .filter(([, l]) =>
+      /\b(clickAt|typeText|cdpTypeIo|typeLikeAPerson)\b|\bInput\.(dispatch\w*|insertText)\b/.test(
+        l
+      )
+    )
     .map(([n, l]) => `${n}: ${l.trim()}`)
 }
 
 describe('no desk acts around deskClick/deskType', () => {
-  const dir = join(import.meta.dirname, 'src/agent')
+  const root = import.meta.dirname
+  const src = join(root, 'src')
+  const dir = join(src, 'agent')
+  const rel = (f: string) => relative(root, f).split(sep).join('/')
 
-  it('src/agent holds no raw clickAt or typeText', () => {
-    const bare = sources(dir).flatMap(f =>
-      rawActs(readFileSync(f, 'utf8')).map(l => `${f}:${l}`)
-    )
+  it('src/ holds no raw act outside the named doors', () => {
+    const bare = sources(src)
+      .filter(f => !(rel(f) in DOORS))
+      .flatMap(f => rawActs(readFileSync(f, 'utf8')).map(l => `${rel(f)}:${l}`))
     expect(bare).toEqual([])
+  })
+
+  it('every door on the list still acts (the list only shrinks)', () => {
+    const idle = Object.keys(DOORS).filter(
+      f => rawActs(readFileSync(join(root, f), 'utf8')).length === 0
+    )
+    expect(idle).toEqual([])
   })
 
   it('the pin sees a raw act, a renamed import and a destructured one', () => {
     expect(rawActs('await clickAt(cdp, id, 1, 1)')).toHaveLength(1)
     expect(rawActs("const { typeText: t } = await import('x')")).toHaveLength(1)
     expect(rawActs('io.clickAt(cdp, id, 1, 1)')).toHaveLength(1)
+    expect(rawActs('await cdpTypeIo.type(cdp, page, text)')).toHaveLength(1)
+    expect(rawActs('await typeLikeAPerson(call, text, true)')).toHaveLength(1)
+    expect(
+      rawActs("await call('Input.dispatchMouseEvent', { type: 'x' })")
+    ).toHaveLength(1)
+    expect(
+      rawActs("await send('Input.dispatchKeyEvent', { type: 'keyDown' })")
+    ).toHaveLength(1)
+    expect(rawActs("await call('Input.insertText', { text })")).toHaveLength(1)
+    expect(rawActs("await call('Input.setIgnoreInputEvents', {})")).toEqual([])
     expect(rawActs('// clickAt in a comment\n/* typeText */')).toEqual([])
     expect(rawActs('await deskClick(who, cdp, id, 1, 1)')).toEqual([])
   })
