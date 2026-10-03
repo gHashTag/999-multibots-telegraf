@@ -167,16 +167,32 @@ function needsPermission(where: string, inFrame = false): Error {
   )
 }
 
+/*
+ * Chromium's own list is the only witness of a cross-origin frame the page
+ * hides from its script. Read as "no frames" when it failed, it let a press
+ * or a shot through on a page embedding a blocked site.
+ */
+const UNLISTED_FRAMES =
+  "this page's frames could not be listed, so where the act lands is " +
+  'unknown; nothing was done. Try again in a moment.'
+
+async function framesListed(cdp: string): Promise<CdpTarget[]> {
+  return await listTargets(cdp).catch(() => {
+    throw new Error(UNLISTED_FRAMES)
+  })
+}
+
 /**
  * The frames of a page, both ways (embedded.ts). `probed` is false when the
  * page did not answer the probe: then only Chromium's own list is known.
+ * An unreadable list throws: it never reads as "no frames".
  */
 async function framesNow(
   cdp: string,
   targetId: string,
   targets?: CdpTarget[]
 ): Promise<{ frames: SeenFrame[]; oopif: string[]; probed: boolean }> {
-  const listed = targets ?? (await listTargets(cdp).catch(() => []))
+  const listed = targets ?? (await framesListed(cdp))
   const oopif = framesOfTarget(listed, targetId)
   const raw = await evaluateOn(cdp, targetId, FRAMES_PROBE).then(
     r => ({ r }),
@@ -244,7 +260,7 @@ async function mustBeAllowedInFrame(
   targetId: string,
   at: { x: number; y: number } | 'focus'
 ): Promise<void> {
-  const targets = await listTargets(cdp).catch(() => [] as CdpTarget[])
+  const targets = await framesListed(cdp)
   const kids = frameTargetsOf(targets, targetId).filter(t => isWeb(t.url))
   let reach: string[]
   if (at === 'focus') {
@@ -939,6 +955,11 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       ) {
         try {
           await mustBeAllowedToAct(ctx, cdp, targetId)
+          /*
+           * The press that puts the cursor in the field is a press like any
+           * other: inside a payment frame it needs the same yes (#3507).
+           */
+          await mustBeAllowedInFrame(ctx, cdp, targetId, { x: a.x, y: a.y })
           await clickAt(cdp, targetId, a.x, a.y)
           pointed = true
         } catch {
