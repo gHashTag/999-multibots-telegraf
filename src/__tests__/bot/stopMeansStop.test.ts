@@ -105,8 +105,9 @@ describe('the button exists and the dispatcher hears it', () => {
     // to this handler: the cron sweep runs in this same process and must be
     // reachable by the same press.
     expect(body).toContain('stopOwnerRun(ownerId(ctx))')
-    // A button that sometimes answers and sometimes does not is pressed twice.
-    expect(body).toContain('нечего останавливать')
+    // A button that sometimes answers and sometimes does not is pressed twice:
+    // every arm answers, through stopReply (its words are tested there).
+    expect(body).toContain('stopReply(had,')
     /*
      * AND THE PRESS LEAVES THE PROCESS.
      *
@@ -116,7 +117,7 @@ describe('the button exists and the dispatcher hears it', () => {
      * Those are the runs that keep spending after a press, so the press is
      * also written down on the render (services/agentStopRemote.ts).
      */
-    expect(body).toContain('requestRemoteStop(ownerId(ctx))')
+    expect(body).toContain('requestRemoteStopWhy(ownerId(ctx))')
   })
 
   it('the Stop rides ON the message the person is waiting at', async () => {

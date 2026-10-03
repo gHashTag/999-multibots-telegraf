@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "meeting-reminders" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const TOOL_CREATE = "meeting_create" satisfies string;
 export const TOOL_LIST = "meeting_list" satisfies string;
 export const TOOL_UPDATE = "meeting_update" satisfies string;
@@ -31,6 +31,7 @@ export const MAX_REMINDERS = 3 satisfies number;
 export const REMIND_FLOOR_MIN = 5 satisfies number;
 export const REMIND_CEIL_MIN = 10080 satisfies number;
 export const SNOOZE_MIN = 10 satisfies number;
+export const SNOOZES_PENDING_MAX = 1 satisfies number;
 export const FOLLOWUP_AFTER_END_MIN = 5 satisfies number;
 export const TICK_S = 60 satisfies number;
 export const FIRST_TICK_S = 90 satisfies number;
@@ -48,6 +49,7 @@ export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn schedules was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn fires_before was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn snooze_allowed was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn snooze_adds was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn follows_up was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_answer was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn duration was not emitted -- this backend lowers declarations, not bodies.
@@ -60,10 +62,11 @@ export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TOOL_CREATE", "TOOL_LIST", "TOOL_UPDATE", "TOOL_CANCEL", "TOOL_ANSWER", "ICS_PATH", "TABLE", "REMINDERS_TABLE", "MAX_UPCOMING", "TITLE_MAX", "PLACE_MAX", "URL_MAX", "NOTES_MAX", "MAX_AHEAD_DAYS", "DURATION_DEFAULT_MIN", "DURATION_MIN_MIN", "DURATION_MAX_MIN", "REMIND_DAY_MIN", "REMIND_HOUR_MIN", "REMIND_SOON_MIN", "MAX_REMINDERS", "REMIND_FLOOR_MIN", "REMIND_CEIL_MIN", "SNOOZE_MIN", "FOLLOWUP_AFTER_END_MIN", "TICK_S", "FIRST_TICK_S", "CLAIM_PER_TICK", "MARK_BEFORE_SEND", "LATE_STILL_SENDS", "CALLBACK_PREFIX", "CALLBACK_MAX_BYTES", "TOKEN_BYTES", "TOKEN_CHARS", "LONGEST_ACTION_CHARS", "OWNER_ONLY", "RUN_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TOOL_CREATE", "TOOL_LIST", "TOOL_UPDATE", "TOOL_CANCEL", "TOOL_ANSWER", "ICS_PATH", "TABLE", "REMINDERS_TABLE", "MAX_UPCOMING", "TITLE_MAX", "PLACE_MAX", "URL_MAX", "NOTES_MAX", "MAX_AHEAD_DAYS", "DURATION_DEFAULT_MIN", "DURATION_MIN_MIN", "DURATION_MAX_MIN", "REMIND_DAY_MIN", "REMIND_HOUR_MIN", "REMIND_SOON_MIN", "MAX_REMINDERS", "REMIND_FLOOR_MIN", "REMIND_CEIL_MIN", "SNOOZE_MIN", "SNOOZES_PENDING_MAX", "FOLLOWUP_AFTER_END_MIN", "TICK_S", "FIRST_TICK_S", "CLAIM_PER_TICK", "MARK_BEFORE_SEND", "LATE_STILL_SENDS", "CALLBACK_PREFIX", "CALLBACK_MAX_BYTES", "TOKEN_BYTES", "TOKEN_CHARS", "LONGEST_ACTION_CHARS", "OWNER_ONLY", "RUN_LIVE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not
