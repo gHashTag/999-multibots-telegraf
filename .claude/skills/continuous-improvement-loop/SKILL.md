@@ -2295,6 +2295,51 @@ loop produced nothing between answers.
   browser profiles); secrets; passwords (typed only by the person); posting to
   the person's social networks without their "yes" in the approval.
 
+### The Queen's round: `tri inflight`, then `tri jam` (owner, 2026-10-03)
+
+This is the one home of this rule; other skills point here.
+
+On 2026-10-03 five PRs sat open for hours with nobody reading them, and
+`tri queue` called a commit-stacked PR "free to merge". The Queen does not
+code and does not merge -- she manages, and the first question a manager asks
+is "who touches this PR next?".
+
+- Every round starts with `tri inflight` (what is already moving; its last
+  line is the `tri jam` summary) and then `tri jam`. `tri jam` gives each open
+  PR one jam case and one action, in merge order (parent before child). It is
+  read-only: it never merges, labels or comments. `*` marks the Queen's turn.
+- The cases, their order (first match wins) and the actions are those of
+  gHashTag/t27#5700 (`specs/automation/review-jam.t27`); `bin/helpers/jam.py`
+  carries them by hand until the spec lands, then binds to it.
+
+| case                      | action                      | the Queen, this round                                 |
+| ------------------------- | --------------------------- | ----------------------------------------------------- |
+| `JAM_UNMEASURED`          | `ACT_MEASURE_AGAIN`         | not "no jam": say so, ask again next round            |
+| `JAM_DRAFT_OR_FRESH`      | `ACT_WAIT`                  | nothing; the author may still be pushing              |
+| `JAM_STACKED_ON_OPEN`     | `ACT_WAIT_FOR_BASE`         | nothing here; get the parent merged first             |
+| `JAM_CONFLICTING`         | `ACT_REBASE_BY_CODER`       | a coder bee rebases on main                           |
+| `JAM_LABELED_NOT_MERGED`  | `ACT_FINISH_MERGE`          | a reviewer bee finishes the merge (the last one died) |
+| `JAM_REFUSED_THEN_PUSHED` | `ACT_DISPATCH_RE_REVIEW`    | a reviewer bee, DIFFERENT from the one that refused   |
+| `JAM_REFUSED_NOT_FIXED`   | `ACT_DISPATCH_CODER`        | a coder bee answers the refusal; no new reviewer      |
+| `JAM_NOISE_RED`           | `ACT_NAME_NOISE_AND_REVIEW` | a reviewer bee who names the red as noise and reviews |
+| `JAM_NO_REVIEWER`         | `ACT_DISPATCH_REVIEWER`     | a reviewer bee, briefed as in "A reviewer bee" below  |
+| `JAM_NONE`                | `ACT_NOTHING`               | nothing; a bee spoke on this head recently            |
+
+- Noise is GitHub Actions jobs with zero steps (the billing stop), or a
+  GitGuardian red whose flagged commits are all older than the head (the
+  owner's false-positive click). A red that is not noise is printed as a
+  `RED` note under the line.
+- Dependabot's PRs and `release(board)` PRs are listed apart and are never a
+  jam. Dependabot gets a coder bee who splits the safe part into a reviewed
+  PR (never merged blind); `release(board)` is the owner's, no bee touches it.
+- Exit 0: everything read, nothing is the Queen's turn. 1: at least one is.
+  2: a read failed (gh refused, rate-limited, `--limit` hit) -- 2 wins over 1,
+  and "jam: none" is never printed then.
+
+The refusal convention is the one `tri pr-billing` reads. The unittest
+(`python3 -m unittest bin/helpers/test_jam.py`) pins jam's two patterns to
+`./tri`'s and runs every case on `bin/helpers/fixtures/jam-prs.json`.
+
 ### A board release, end to end (2026-10-02)
 
 A trinity merge ships nothing until 999's `ARG QUEEN_REF` moves.
