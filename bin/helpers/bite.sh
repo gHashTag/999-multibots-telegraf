@@ -174,8 +174,9 @@ PY
 # "The tree" is not only this checkout. In a worktree node_modules itself is a
 # link to the main checkout's, and its workspace links land in THAT checkout's
 # packages: same files, never swapped (review 1 of #3479). So a link counts by
-# where it really ends: under a directory named node_modules it is an
-# installed package; anywhere else it is some checkout's own code. A named
+# where it really ends: under a directory named node_modules (within the
+# checkout it lands in) it is an installed package; anywhere else it is some
+# checkout's own code. A named
 # file is compared by its path within the checkout the link lands in.
 ws=$(python3 - "$TOP" "${#NMS[@]}" ${NMS[@]+"${NMS[@]}"} "${REL[@]}" <<'PY'
 import os, subprocess, sys
@@ -208,11 +209,14 @@ for nm in nms:
         if not os.path.islink(p):
             continue
         t = os.path.realpath(p)
-        if "node_modules" in t.split(os.sep):
+        tr = checkout_rel(t)
+        # Within the checkout only: a repo kept under /x/node_modules/ is
+        # still code, its workspace links are not installed packages (review
+        # 2 of #3479). Outside any checkout the whole path is all there is.
+        if "node_modules" in (t if tr is None else tr).split(os.sep):
             continue
         shown = os.path.relpath(t, real_top) if t.startswith(real_top + os.sep) else t
         name = f"{os.path.relpath(p, top)} -> {shown}"
-        tr = checkout_rel(t)
         for r in rels:
             r = os.path.normpath(r)
             f = os.path.join(real_top, r)
