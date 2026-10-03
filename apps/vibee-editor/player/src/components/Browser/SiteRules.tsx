@@ -82,8 +82,17 @@ export function SiteRules() {
           value={site}
           onChange={e => setSite(e.currentTarget.value)}
           onKeyDown={e => {
-            /* The phone keyboard's Enter adds the gentler rule. */
-            if (e.key === 'Enter' && !busy && site.trim()) void add('ask')
+            /*
+             * The phone keyboard's Enter adds the gentler rule -- but not the
+             * Enter that confirms a word in an input method (pinyin, kana, a
+             * Russian autocorrect pick): that one is still typing. Safari
+             * ends the composition before keydown, so isComposing is already
+             * false there and only keyCode 229 tells.
+             */
+            const composing =
+              e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229
+            if (e.key === 'Enter' && !composing && !busy && site.trim())
+              void add('ask')
           }}
         />
         <button
