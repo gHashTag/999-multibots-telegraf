@@ -169,6 +169,14 @@ export function frameTargetsOf(
   return targets.filter(t => t.type === 'iframe' && under(t))
 }
 
+function hrefOf(url: string): string {
+  try {
+    return new URL(url).href
+  } catch {
+    return url
+  }
+}
+
 /** A frame's address worth judging: the web only (about:blank is the page's own). */
 export function isWeb(url: string): boolean {
   try {
@@ -271,13 +279,15 @@ export async function landing(
   const seen: string[] = []
   let last: string | null = null
   let same = 0
+  /* Chromium reports "https://a.com" as "https://a.com/": compare as it will. */
+  const home = asked === null ? null : hrefOf(asked)
   for (let i = 0; i < tries; i++) {
     await sleep(stepMs)
     const now = await read().catch(() => null)
     if (now && !seen.includes(now)) seen.push(now)
     same = i > 0 && now === last ? same + 1 : 0
     /* Equal looks: settled. Two nulls: the tab is gone or unlisted. */
-    if (same >= (now === asked ? 3 : 1) && now !== 'about:blank')
+    if (same >= (now !== null && now === home ? 3 : 1) && now !== 'about:blank')
       return { landed: now, seen }
     last = now
   }
