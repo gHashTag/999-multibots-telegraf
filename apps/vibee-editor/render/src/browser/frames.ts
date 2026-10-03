@@ -92,7 +92,10 @@ async function connectWs(endpoint: string): Promise<CdpSocket> {
   }
 }
 
-const SCREENCAST_IO: ScreencastIo = { front: frontPage, connect: connectWs }
+export const SCREENCAST_IO: ScreencastIo = {
+  front: frontPage,
+  connect: connectWs,
+}
 
 export interface FrameSize {
   width: number
@@ -110,6 +113,19 @@ export function frameSize(w: unknown, h: unknown): FrameSize {
   return { width: clamp(w, 800), height: clamp(h, 1200) }
 }
 
+export interface ScreencastOpts {
+  /**
+   * Where the page is, IN FRAME ORDER (watch-link.ts). Called once with the
+   * address the page had when it was chosen, then on every main-frame
+   * navigation. Chromium reports a commit on this same socket before it
+   * sends any frame painted by the new document, so a gate that flips here
+   * holds the first picture of a bank, not the third.
+   */
+  onUrl?: (url: string) => void
+  /** The page this screencast shows, once it is chosen. */
+  onPage?: (id: string) => void
+}
+
 /**
  * Start Chromium's own screencast of the front page. Every frame is handed
  * to `onFrame` and acknowledged -- Chromium sends the next one only after
@@ -119,9 +135,12 @@ export async function startScreencast(
   endpoint: string,
   size: FrameSize,
   onFrame: (jpeg: Buffer) => void,
-  io: ScreencastIo = SCREENCAST_IO
+  io: ScreencastIo = SCREENCAST_IO,
+  opts: ScreencastOpts = {}
 ): Promise<() => void> {
   const page = await io.front(endpoint)
+  opts.onPage?.(page.id)
+  opts.onUrl?.((page as { url?: string }).url ?? '')
   const sock = await io.connect(endpoint)
   let nextId = 1
   let session = ''
@@ -141,7 +160,13 @@ export async function startScreencast(
       id?: number
       result?: { sessionId?: string }
       method?: string
-      params?: { data?: string; sessionId?: number }
+      params?: {
+        data?: string
+        sessionId?: number
+        url?: string
+        frameId?: string
+        frame?: { url?: string; parentId?: string; urlFragment?: string }
+      }
     }
     try {
       msg = JSON.parse(text)
@@ -150,6 +175,8 @@ export async function startScreencast(
     }
     if (msg.id === 1 && msg.result?.sessionId) {
       session = msg.result.sessionId
+      /* Navigations are events only after Page.enable, and before the cast. */
+      if (opts.onUrl) send('Page.enable', {})
       send('Page.startScreencast', {
         format: 'jpeg',
         quality: FRAMES_QUALITY,
@@ -157,6 +184,17 @@ export async function startScreencast(
         maxHeight: size.height,
         everyNthFrame: 1,
       })
+      return
+    }
+    if (opts.onUrl && msg.method === 'Page.frameNavigated') {
+      const f = msg.params?.frame
+      if (f && !f.parentId)
+        opts.onUrl(String(f.url ?? '') + String(f.urlFragment ?? ''))
+      return
+    }
+    if (opts.onUrl && msg.method === 'Page.navigatedWithinDocument') {
+      /* Only the main frame's: its id is the target's own id. */
+      if (msg.params?.frameId === page.id) opts.onUrl(String(msg.params.url))
       return
     }
     if (msg.method === 'Page.screencastFrame' && msg.params) {
