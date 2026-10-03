@@ -171,6 +171,17 @@ describe('the answer, corrected by use', () => {
     ).toBe('refused')
   })
 
+  it('a session-only login cookie cannot be told from a new one: not believed', () => {
+    const session: CookieMark[] = [{ name: 'auth_token', domain: '.x.com' }]
+    const got = withUse(
+      loginsOf(session, NOW),
+      session,
+      [refusal({ stamp: 0 })],
+      NOW
+    )
+    expect(stateOf(got, 'x')).toBe('signed_in')
+  })
+
   it('a refusal older than a week is history', () => {
     const old = refusal({
       at: new Date(NOW - REFUSAL_TTL_MS - 1).toISOString(),

@@ -26,6 +26,10 @@
  *   - The site lets a gated page through (`judgeUse` -> honoured).
  *   - A week passes (`REFUSAL_TTL_MS`): a refusal that old is history.
  *
+ * A login held only in session cookies (no expiry) cannot be told from a new
+ * one, so its refusal is written but never believed: the desk still closes the
+ * walled page and says so that time.
+ *
  * WHAT IS STORED. The network, the expiry stamp, the wall's host and path
  * (never its query -- a sign-in URL can carry a one-time token), and the time.
  * Nothing that signs anybody in.
@@ -149,7 +153,10 @@ export function withUse(
     const at = Date.parse(r.at)
     if (!Number.isFinite(at) || nowMs - at > REFUSAL_TTL_MS) return l
     const now = stampOf(marks, net)
-    if (now === null || r.stamp === null) return l
+    /* A session-only login cookie stamps 0 before AND after a new sign-in:
+       nothing would void the refusal, and the desks, which skip a refused
+       network, would never open it again to see it honoured. Not believed. */
+    if (!now || !r.stamp) return l
     if (Math.abs(now - r.stamp) > STAMP_SLACK_S) return l
     return { ...l, state: 'refused', refusedAt: r.at }
   })
