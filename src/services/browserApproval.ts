@@ -25,10 +25,25 @@ export const NOT_REACHED =
 
 export async function answerBrowserPermission(
   token: string,
-  opts: { fetchImpl?: typeof fetch } = {}
+  opts: { fetchImpl?: typeof fetch; key?: string } = {}
 ): Promise<string> {
   const t = String(token ?? '').trim()
   if (!t) return NOT_REACHED
+  /*
+   * THE SERVER KEY, OR THE RENDER NEVER HEARS THE TAP.
+   *
+   * The render's global guard answers 401 before routing to anything not on
+   * its public list, and /api/browser/approve is not on it. Since #2939 made
+   * the button a callback, this relay sent no key at all, so every "Allow"
+   * came back 401 and the person read NOT_REACHED (measured in production
+   * 2026-10-03 04:31). The token still decides WHICH question is answered;
+   * the key only says the bot is the one asking.
+   */
+  const key = opts.key ?? process.env.RENDER_API_KEY ?? ''
+  if (!key) {
+    logger.error('[browser-approval] RENDER_API_KEY is not set, tap not sent')
+    return NOT_REACHED
+  }
   const doFetch = opts.fetchImpl ?? fetch
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), TIMEOUT_MS)
@@ -36,7 +51,7 @@ export async function answerBrowserPermission(
     const res = await doFetch(
       `${BASE}/api/browser/approve?t=${encodeURIComponent(t)}`,
       {
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', 'X-Api-Key': key },
         signal: ac.signal,
       }
     )
