@@ -138,9 +138,11 @@ describe('the wallet', () => {
       )
       const month = monthTokens(pkg.allowanceUsd).toLocaleString('en-US')
       expect(line).toBe(
-        pkg.media
-          ? `${month} tokens a month ≈ ${reelsIn(monthTokens(pkg.allowanceUsd))} reels`
-          : `${month} tokens a month for client replies · text only`
+        pkg.id === 'tridev'
+          ? `${month} tokens a month for tasks from your GitHub issues`
+          : pkg.media
+            ? `${month} tokens a month ≈ ${reelsIn(monthTokens(pkg.allowanceUsd))} reels`
+            : `${month} tokens a month for client replies · text only`
       )
     }
   })

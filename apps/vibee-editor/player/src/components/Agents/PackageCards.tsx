@@ -4,6 +4,7 @@ import {
   agentPackageCharge,
   agentPackageOrderUrl,
   agentPackageStars,
+  agentPackageUsd,
   tryableAgentOf,
 } from '../../../../packages/vibee-atoms/src/agent-packages'
 import {
@@ -28,6 +29,8 @@ const copy = {
       `${tokens} tokens a month ≈ ${reels} reels`,
     textTokens: (tokens: string) =>
       `${tokens} tokens a month for client replies · text only`,
+    devTokens: (tokens: string) =>
+      `${tokens} tokens a month for tasks from your GitHub issues`,
     buy: (stars: string) => `Buy for ${stars} ⭐ a month`,
     buyLabel: (name: string, stars: string, usd: number) =>
       `Buy ${name} for ${stars} Telegram Stars a month, about $${usd}`,
@@ -50,6 +53,8 @@ const copy = {
       `${tokens} токенов в месяц ≈ ${reels} рилсов`,
     textTokens: (tokens: string) =>
       `${tokens} токенов в месяц на ответы клиентам · только текст`,
+    devTokens: (tokens: string) =>
+      `${tokens} токенов в месяц на задачи из ваших GitHub issues`,
     buy: (stars: string) => `Купить за ${stars} ⭐ в месяц`,
     buyLabel: (name: string, stars: string, usd: number) =>
       `Купить ${name} за ${stars} звёзд Telegram в месяц, около $${usd}`,
@@ -63,14 +68,14 @@ const copy = {
 } as const
 
 /**
- * THE THREE AGENTS FOR SALE, drawn from the one catalogue
+ * THE AGENTS FOR SALE, drawn from the one catalogue
  * (packages/vibee-atoms/src/agent-packages.ts). Shown on /welcome and on
  * /agents#packages -- one component, so the two screens cannot quote
  * different prices.
  *
- * "Buy" pays a month in Telegram Stars (useAgentPackagePurchase): a
- * subscription under Telegram's cap, a one-off monthly invoice above it
- * (agentPackageCharge); the render books the charge from its own
+ * "Buy" pays a month in Telegram Stars (useAgentPackagePurchase): one
+ * subscription at one price for every package (AGENT_SUBSCRIPTION,
+ * agentPackageCharge); the price shown in dollars is derived from it; the render books the charge from its own
  * Stars ledger and the bot tells the team, who set the agent's bot up.
  * "Ask the team first" opens the bot with `agentpkg_<id>` for anyone who
  * wants to talk before paying, or who is outside Telegram.
@@ -123,7 +128,8 @@ export function PackageCards({
             </span>
             <h3 className="package-card__name">{pkg.name[l]}</h3>
             <p className="package-card__price">
-              <strong>${pkg.monthlyUsd}</strong> <span>{text.perMonth}</span>
+              <strong>${agentPackageUsd(pkg)}</strong>{' '}
+              <span>{text.perMonth}</span>
             </p>
             <p className="package-card__monthly">{text.renewal(renews)}</p>
             {/*
@@ -133,9 +139,11 @@ export function PackageCards({
              * when a price moves, never by hand.
              */}
             <p className="package-card__tokens">
-              {pkg.media
-                ? text.tokens(tokens.toLocaleString(locale), reelsIn(tokens))
-                : text.textTokens(tokens.toLocaleString(locale))}
+              {pkg.id === 'tridev'
+                ? text.devTokens(tokens.toLocaleString(locale))
+                : pkg.media
+                  ? text.tokens(tokens.toLocaleString(locale), reelsIn(tokens))
+                  : text.textTokens(tokens.toLocaleString(locale))}
             </p>
             <p className="package-card__promise">{pkg.promise[l]}</p>
             <ul className="package-card__includes">
@@ -150,7 +158,7 @@ export function PackageCards({
                 aria-label={text.buyLabel(
                   pkg.name[l],
                   monthStars,
-                  pkg.monthlyUsd
+                  agentPackageUsd(pkg)
                 )}
                 disabled={purchase.busy !== null}
                 aria-busy={purchase.busy === pkg.id}
@@ -162,7 +170,7 @@ export function PackageCards({
                 {text.buy(monthStars)}
               </button>
               <p className="package-card__buy-note">
-                {text.buyNote(pkg.monthlyUsd, renews)}
+                {text.buyNote(agentPackageUsd(pkg), renews)}
               </p>
               {note ? (
                 <p className="package-card__pay-note" role="status">

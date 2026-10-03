@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AGENT_PACKAGES,
   agentPackageStars,
+  agentPackageUsd,
 } from '../../../../../packages/vibee-atoms/src/agent-packages'
 import { PackageCards } from '../PackageCards'
 ;(
@@ -86,13 +87,15 @@ describe('the Stars button on a package card', () => {
       const note = host.querySelector(
         `[data-testid="package-${pkg.id}"] .package-card__buy-note`
       )
-      expect(note?.textContent).toContain(`$${pkg.monthlyUsd} в месяц`)
+      expect(note?.textContent).toContain(`$${agentPackageUsd(pkg)} в месяц`)
     }
-    // Above Telegram's subscription cap the month is a one-off invoice.
+    // One price for every package: a Telegram Stars subscription, no one-off.
     const card = (id: string) =>
       host.querySelector(`[data-testid="package-${id}"]`)?.textContent ?? ''
-    expect(card('blogger')).toContain('подписка звёздами Telegram')
-    expect(card('twin')).toContain('один месяц за платёж')
+    for (const pkg of AGENT_PACKAGES) {
+      expect(card(pkg.id)).toContain('подписка звёздами Telegram')
+      expect(card(pkg.id)).not.toContain('один месяц за платёж')
+    }
   })
 
   it('outside Telegram it mints nothing and says where paying works', async () => {
