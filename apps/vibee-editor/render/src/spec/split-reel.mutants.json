@@ -1,0 +1,74 @@
+[
+  {
+    "name": "house_own always true: every reel is the house's own",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (!houseCaller) return false\n  if (clientTurn) return false\n  if (forLead) return false\n  return !sellerSweep\n",
+    "to": "  return true\n"
+  },
+  {
+    "name": "the profile CTA chain skipped: her approved call is never read",
+    "file": "src/agent/story-template.ts",
+    "from": "    .then(profileCta)\n",
+    "to": "    .then(() => '')\n"
+  },
+  {
+    "name": "the profile CTA chain skipped: the tool never asks her profile",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": ": await clientCtaOf(ctx.pool, String(ctx.telegramId), forLead),",
+    "to": ": '',"
+  },
+  {
+    "name": "the profile CTA chain skipped: her call is picked but not used",
+    "file": "src/split-reel-plan.ts",
+    "from": "    case SPEC.CTA_CLIENT:\n      return client\n",
+    "to": "    case SPEC.CTA_CLIENT:\n      return c.neutral\n"
+  },
+  {
+    "name": "the OWNER_CTA fallback restored for a client",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (clientHasCta) return SPEC.CTA_CLIENT\n  return SPEC.CTA_NEUTRAL\n",
+    "to": "  if (clientHasCta) return SPEC.CTA_CLIENT\n  return SPEC.CTA_OWNER\n"
+  },
+  {
+    "name": "a given call naming the house stands on a client's reel",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (given && (house || !givenNamesHouse)) return SPEC.CTA_GIVEN\n",
+    "to": "  if (given) return SPEC.CTA_GIVEN\n"
+  },
+  {
+    "name": "the audio refund dropped: voice_refunds never true",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (!ownerVoiceNeeded) return false\n  return !ownerVoiceAllowed(house)\n",
+    "to": "  return false\n"
+  },
+  {
+    "name": "the audio refund dropped: the refusal keeps the charge",
+    "file": "src/agent/tools.ts",
+    "from": "        await refundTokens(\n          ctx,\n          'audio_generate',\n          'голос владельца не для рилса клиента',\n          charge['потрачено']\n        )\n",
+    "to": ""
+  },
+  {
+    "name": "agent_supplied ignored: her own words are refused too",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (!agentSupplied) return true\n",
+    "to": ""
+  },
+  {
+    "name": "her own words ignored: every house name counts as the agent's",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))\n",
+    "to": "  return namesHouse(text)\n"
+  },
+  {
+    "name": "the tool reads no client off the turn",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "      const forLead = leadOfTurn(named, turn)\n",
+    "to": "      const forLead = named\n"
+  },
+  {
+    "name": "the house name check is gone from the tool",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "      if (!houseNameAllowed(house, houseNameByAgent(text, ctx.ownerSaid)))\n",
+    "to": "      if (false)\n"
+  }
+]
