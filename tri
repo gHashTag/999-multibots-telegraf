@@ -2097,6 +2097,13 @@ processed_telegram() {
     return 0
   fi
   local tok="${TRI_TG_TOKEN:-}" chat="${TRI_TG_CHAT:-}" vars=""
+  # A STUBBED SENDER NEVER GETS THE REAL TOKEN. The #3500 reviewer stubbed curl,
+  # left TRI_TG_TOKEN unset, and tri fetched BOT_TOKEN_12 from Railway straight
+  # into the stub's log. With TRI_CURL set, only the TRI_TG_* values are used.
+  if [ -n "${TRI_CURL:-}" ] && { [ -z "$tok" ] || [ -z "$chat" ]; }; then
+    warn "telegram: TRI_CURL is a stub, so Railway is not read -- set TRI_TG_TOKEN and TRI_TG_CHAT; nothing sent"
+    return 0
+  fi
   if [ -z "$tok" ] || [ -z "$chat" ]; then
     vars=$(rvars vibee-render)
     [ -n "$tok" ] || tok=$(printf '%s\n' "$vars" | sed -n 's/^BOT_TOKEN_12=//p')
@@ -2104,7 +2111,14 @@ processed_telegram() {
     [ -n "$chat" ] || chat=$(printf '%s\n' "$vars" | sed -n 's/^ADMIN_IDS=//p' | cut -d, -f1 | tr -d ' ')
     vars=""
   fi
-  case "$tok" in *:*) ;; *) warn "telegram: no bot token (BOT_TOKEN_12 on vibee-render), nothing sent"; return 0 ;; esac
+  # The token goes into a curl config line, so anything beyond a bot token's
+  # own alphabet could add a config line of its own (a newline wrote a file in
+  # the #3500 review). Only <digits>:<[A-Za-z0-9_-]> passes.
+  if ! [[ "$tok" =~ ^[0-9]+:[A-Za-z0-9_-]+$ ]]; then
+    tok=""
+    warn "telegram: no bot token of the right shape (BOT_TOKEN_12 on vibee-render), nothing sent"
+    return 0
+  fi
   case "$chat" in '' | *[!0-9]*) warn "telegram: no owner id (ADMIN_IDS on vibee-render), nothing sent"; return 0 ;; esac
   local reply
   reply=$(printf 'url = "https://api.telegram.org/bot%s/sendMessage"\n' "$tok" |
@@ -2114,8 +2128,11 @@ $what" 2>&1)
   tok=""
   case "$reply" in
     *'"ok":true'*)
-      mkdir -p "$(dirname "$sent")" && printf '%s' "$v: $what" >"$sent"
-      good "telegram: the owner has the answer" ;;
+      if mkdir -p "$(dirname "$sent")" 2>/dev/null && printf '%s' "$v: $what" 2>/dev/null >"$sent"; then
+        good "telegram: the owner has the answer"
+      else
+        warn "telegram: sent, but $sent cannot be written -- the next run sends it again"
+      fi ;;
     *) warn "telegram: not sent ($(printf '%s' "$reply" | head -c 160))" ;;
   esac
   return 0
@@ -6736,11 +6753,14 @@ cmd_disk() {
   # всегда «полон» и неинформативен); реальное место живёт на DATA-томе.
   paint '1;36' 'DATA-том'
   df -h /System/Volumes/Data | sed -n '1,2p'
+  bash "$ROOT/bin/helpers/disk-floor.sh"
 
   # (2) Мои worktree'ы. prune снимает записи, чей каталог уже исчез (безопасно).
   echo; paint '1;36' 'worktree цикла'
   git -C "$ROOT" worktree prune 2>/dev/null
   git -C "$ROOT" worktree list 2>/dev/null
+  # The list is not a verdict: finished-or-not is judged by commit in one place.
+  echo "  which are finished: tri worktrees   (remove proven-safe: tri worktrees --apply)"
 
   # (3) Scratch сессий. Один прогон lsof, дальше сверяем по пути открытых файлов.
   echo; paint '1;36' 'scratch сессий  (к возврату = 0 хендлов И mtime>суток)'
