@@ -44,6 +44,13 @@ import { readableShade } from './story-reel-tool'
 import { END_CARD_DEFAULT_TITLE } from '../spec/crm-story-reel.gen'
 import * as SPEC from '../spec/crm-story-reel.gen'
 
+// The engine itself, unchanged, behind a recorder: what the CRM press hands
+// it can be read where the row cannot show it (the template's button, v20).
+vi.mock('./story-template', async importOriginal => {
+  const real = await importOriginal<typeof import('./story-template')>()
+  return { ...real, startStory: vi.fn(real.startStory) }
+})
+
 const SELLER = '900000001'
 const OTHER = '900000002'
 const LENA = '900000077'
@@ -2595,9 +2602,10 @@ describe('the CRM presses a template on the seller own reel (crm-story-reel v20)
     ])
   })
 
-  it('a pressed template speaks its lines in the studio, the seller edit included, with its call', async () => {
+  it('a pressed template speaks its lines in the studio, the seller edit included, with its call and button', async () => {
     const base = fakeBase()
     qualifyOwn(base)
+    vi.mocked(startStory).mockClear()
     const mine = 'Trinity answers my clients at night.'
     const out: any = await press(base).handler(
       {
@@ -2621,8 +2629,13 @@ describe('the CRM presses a template on the seller own reel (crm-story-reel v20)
     ])
     expect(scenes.every((s: any) => s.setting === '')).toBe(true)
     expect(job.cta).toBe(SPEC.TEMPLATE_CALL_EN)
-    // No button check: an own reel stores no seller card (startStory,
-    // byClient), so the template's button never reaches the row.
+    // The button is read where the press hands it on: on an own reel the
+    // engine keeps no seller card (byClient), so the row cannot show it.
+    expect(vi.mocked(startStory)).toHaveBeenCalledTimes(1)
+    const handed = vi.mocked(startStory).mock.calls[0][1] as {
+      endCard?: { button?: string }
+    }
+    expect(handed.endCard?.button).toBe(SPEC.TEMPLATE_BUTTON)
   })
 
   it('a template line past the editor is refused, and nothing starts', async () => {
