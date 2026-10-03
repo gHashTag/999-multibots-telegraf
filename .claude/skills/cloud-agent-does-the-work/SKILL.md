@@ -40,10 +40,13 @@ what this skill forbids.
 3. **Split reel:** spec `render/src/spec/split-reel.t27`, then host plan
    `split-reel-plan.ts`, then composition `SplitTalkingHead` via
    `reel_render`. The pieces come from the same tools (`audio_generate`,
-   `lipsync_generate`, `image_edit`). **Gap, 2026-10-03:** no server tool yet
-   computes the split props (captions from the final voice, face aim). Only
-   `reel_analyze` returns the template. By rule 3 below, that is a missing
-   tool (`split_reel`) to add by PR, not a licence to compute props locally.
+   `lipsync_generate`, `image_edit`), chained by ONE call: `split_reel
+{image_url, text, brolls, for_lead?, cta?}` (`split-reel-tool.ts`). It
+   gates the voice at `SPEECH_MAX_SECONDS`, draws only the b-roll the voice
+   needs, hears the clip's own soundtrack with our whisper (word times) for
+   the captions, and returns `voice_url`/`clip`/`broll_urls` on every
+   failure so a retry pays nothing twice. Still not on the server: the
+   `tri reel-check` comparison before sending, and a measured face aim.
 4. **Every run is also a check.** Read the render logs step by step:
    - `[токены]` lines;
    - Kie `createTask`;

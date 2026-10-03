@@ -26,6 +26,15 @@ The work is done by a recurring loop (15 min cron). Each pass:
 5. Never merge to `main` (it auto-deploys prod) and never bump `QUEEN_REF`
    without the owner. Open PRs and keep them green.
 
+## Who runs the round (since 2026-10-03)
+
+The loop is now a Queen round, run by the profile agent
+`.claude/agents/queen-card-chat-keeper.md` (and the scheduled task
+`queen-card-chat-round`). The Queen manages: numbers rules go to the Queen's
+engine as gHashTag/t27 issues (#5700, #5701 so far), 999 code goes to coder
+bees, reviewer bees merge, and every check runs on Railway via
+`tri remote-check`. How a round is run lives in that agent file only.
+
 ## The design in one screen
 
 ```

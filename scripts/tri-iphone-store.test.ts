@@ -523,6 +523,37 @@ describe.skipIf(!hasRuby)(
       expect(p.add.map(u => u.email)).toEqual(['a@x.io'])
     })
 
+    it('the group is created with no public-link field Apple refuses on an internal group', () => {
+      // 2026-10-03, first Trinity upload: Spaceship's create_beta_group sent
+      // publicLinkLimitEnabled and App Store Connect answered "Public link
+      // limit cannot be applied to internal group".
+      const r = spawnSync(
+        'ruby',
+        [
+          '-r',
+          'json',
+          '-r',
+          path.join(IOS_FASTLANE, 'team_group.rb'),
+          '-e',
+          'puts JSON.generate(TeamGroup.create_body(6818736081))',
+        ],
+        { encoding: 'utf8', env: { ...process.env, LC_ALL: 'en_US.UTF-8' } }
+      )
+      expect(r.status, r.stderr).toBe(0)
+      const body = JSON.parse(r.stdout)
+      expect(body.data.type).toBe('betaGroups')
+      expect(body.data.attributes).toEqual({
+        name: 'Trinity S³AI team',
+        isInternalGroup: true,
+        hasAccessToAllBuilds: true,
+      })
+      expect(body.data.relationships.app.data).toEqual({
+        type: 'apps',
+        id: '6818736081',
+      })
+      expect(JSON.stringify(body)).not.toMatch(/publicLink/)
+    })
+
     it('a log shows an address masked', () => {
       const r = spawnSync(
         'ruby',
@@ -590,9 +621,10 @@ describe.skipIf(!hasRuby)(
       expect(lane.indexOf('VIBEE_UPLOAD_YES')).toBeLessThan(
         lane.indexOf('api_key')
       )
-      expect(lane).toContain(
-        'is_internal_group: true, has_access_to_all_builds: true'
-      )
+      // The group is created from create_body, not Spaceship's
+      // create_beta_group, which sends public-link fields Apple refuses.
+      expect(lane).toContain('TeamGroup.create_body(app.id)')
+      expect(lane).not.toMatch(/^\s*made = app\.create_beta_group/m)
       // The masked form, never the address itself, reaches the log.
       expect(lane).toContain('TeamGroup.mask(u[:email])')
       expect(lane).not.toMatch(/UI\.\w+\([^)]*#\{u\[:email\]\}/)

@@ -572,7 +572,9 @@ that we did not, and where each stands:
 | A login that is checked by USE, not by cookie name; a one-tap "sign in again"     | Anchor                    | **done** #3477: a gated page sent to the sign-in wall = `refused`; `signInAgain` names the door      |
 | The person's own per-site list: blocked / read-only for the agent                 | Comet                     | **done** #3481 list, #3482 + #3484 the app's "My sites", #3483 blocked tabs named by host only       |
 | One typed handoff (login/captcha/approval) answering resolved/cancelled/timed_out | BrowserOS, Cloudflare     | partly: `browser_ask_input`, `browser_ask_permission`                                                |
-| A watch-only share link                                                           | Hyperbrowser, Browserbase | open                                                                                                 |
+| A watch-only share link                                                           | Hyperbrowser, Browserbase | **#3510**: `/watch/<token>` pictures only, held on blocked/ask/sensitive/unknown, 2 seats, revocable |
+| A desk that presses asks the same question as the tools                           | Comet, ChatGPT agent      | **done** #3503: `deskClick`/`deskType` -> `mustBeAllowedToAct`, address read NOW                     |
+| A frame or a redirect judged where it is, not by the tab's address                | ChatGPT agent, Comet      | **done** #3507: `frameAtPoint` (Chromium hit-test), `landing` for open                               |
 | Per-channel split, never X's 280 for LinkedIn                                     | Postiz trap               | held: `xThread` vs `postFor` (#3453, #3457)                                                          |
 
 **The person's own site list (`site-rules.ts`).** `guard.ts` has one list
@@ -625,10 +627,13 @@ blocked. The roads, each found by a bee after the first fix missed it:
 - reddit `readAsThePerson`: borrows a tab already on Reddit; checked first.
 - scenarios `where()`: acts on the tab in front; checked on every step.
 
-`ask` is not checked at the desks: that door does not know whether the desk
-will act. Still open: `ask` for desks that act, cross-origin iframes of a
-blocked site inside an allowed page, and a redirect after a newDeskPage
-open (rounds re-checks, the other desks do not). When adding a desk road,
+`ask` is not checked by `deskMayGo`: that door does not know whether the
+desk will act. It is checked at the PRESS since #3503: `deskClick` and
+`deskType` ask `mustBeAllowedToAct` against where the tab is NOW, so a
+redirect after a newDeskPage open is judged where it landed. A pin forbids
+raw `clickAt`/`typeText` under `src/agent`. Named limit: one yes lasts five
+minutes, so a long multi-network run on "ask" sites refuses the later
+networks by name. When adding a desk road,
 grep `src/agent` for `openWindow`, `goTo`, `frontPage` and `listTargets`,
 not only `newDeskPage`.
 
@@ -679,6 +684,43 @@ refusal is written but never believed (`withUse`); the network stays
 only: at 01:05 UTC a step from 22:47 the day before read as fresh. Both
 readers now share `bin/helpers/journal_line.py` (#3463) -- date kept, UTC
 said, and the first line is how long ago the newest real step was.
+
+## A frame is judged where it is (2026-10-03, #3507)
+
+A page is more than its address: the Pay button is a js.stripe.com iframe on
+an unguarded shop, a blocked site can be embedded, a shortener lands
+elsewhere. `src/browser/embedded.ts` holds the rules; the header names the
+limits. Facts measured live by the bee, not guessed:
+
+- **Ask Chromium, never the page, which frame a press hits.**
+  `DOM.getNodeForLocation` + `DOM.describeNode` (cdp.ts `frameAtPoint`)
+  pierces CLOSED shadow roots and cannot be lied to by an overridden
+  `getBoundingClientRect`; the frameId it names IS the iframe target id in
+  `/json/list`. It takes DOCUMENT coordinates: add the scroll offset.
+  Leave `ignorePointerEventsNone` out -- a real press honours
+  `pointer-events: none`.
+- `Page.getFrameTree` gives NO url for a cross-site frame; Chromium's
+  target list does.
+- Typing has no hit-test: a risky frame is asked `document.hasFocus()` in
+  its OWN world, which the embedding page does not control.
+- A server 302 usually never commits, so `landing`'s `seen` holds JS and
+  meta hops only; four equal looks before settling on the address asked.
+- Open follow-ups: a unit test for `frameAtPoint` (mutants survived: an
+  error read as "top page" would let a press through), a test that a
+  blocked frame is not asked `hasFocus`, and asking unseen sensitive
+  frames for focus before refusing to type (YouTube embeds trip it).
+
+## The watch-only link (#3510)
+
+`/watch/<token>`: a picture of the person's browser and nothing else -- no
+input channel, the socket closes 1008 on any message. The address is read on
+the cast's OWN socket (`Page.getFrameTree` after `Page.enable`) before the
+first frame; the target list's url is never trusted, it can be a navigation
+behind. Held (no frames) on blocked, ask, sensitive or unknown places; at
+most two seats per link, a seat is registered for release BEFORE the token
+read (`watchViewerOf` fires `onClose` at once on a socket already gone), so
+a watcher who leaves early never strands a seat. One cast lives
+`FRAMES_MAX_MS`; the page reconnects after 2 s.
 
 ## A desk opens a tab through one door (2026-10-03, #3469, #3471)
 

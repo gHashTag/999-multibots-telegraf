@@ -484,5 +484,129 @@
       "src/spec/crm-story-reel.test.ts",
       "src/agent/a-story-reel-for-any-client.test.ts"
     ]
+  },
+  {
+    "name": "scene 1 is drawn, not the photo itself",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "if (sceneIsSource(i) && !stills[i]) stills[i] = source",
+    "to": "if (false && sceneIsSource(i) && !stills[i]) stills[i] = source",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "a greeting opens the reel",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "if (SPEC.FIRST_LINE_HOOK && opensWithGreeting(out[0].line))",
+    "to": "if (false && opensWithGreeting(out[0].line))"
+  },
+  {
+    "name": "a scene with no setting is drawn, not cut",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "if (stills[i] || clips[i] || s.setting) return",
+    "to": "if (true) return",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "close and medium swap",
+    "file": "src/agent/studio-shots.ts",
+    "from": "return scene % 2 === 1 ? SPEC.SHOT_CLOSE : SPEC.SHOT_MEDIUM",
+    "to": "return scene % 2 === 1 ? SPEC.SHOT_MEDIUM : SPEC.SHOT_CLOSE"
+  },
+  {
+    "name": "the wide shot is cut anyway",
+    "file": "src/agent/studio-shots.ts",
+    "from": "if (shot === SPEC.SHOT_WIDE) return sourceUrl",
+    "to": "if (false) return sourceUrl",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "a faceless still is kept",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "if (hasFace) return SPEC.FACE_KEEP",
+    "to": "if (true) return SPEC.FACE_KEEP"
+  },
+  {
+    "name": "an unanswered face check refuses the still",
+    "file": "src/agent/still-face.ts",
+    "from": "  } catch {\n    return null\n  }",
+    "to": "  } catch {\n    return false\n  }",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "a long line is lip-synced",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "return ms <= SPEC.LINE_MAX_MS",
+    "to": "return ms <= SPEC.LINE_MAX_MS * 2"
+  },
+  {
+    "name": "the house gets its reel from the main bot",
+    "file": "src/buyer-delivery.ts",
+    "from": "if (deps.isHouse(telegramId)) names.push(SPEC.HOUSE_DELIVERY_BOT)",
+    "to": "if (false) names.push(SPEC.HOUSE_DELIVERY_BOT)"
+  },
+  {
+    "name": "a failed send counts as delivered",
+    "file": "src/buyer-delivery.ts",
+    "from": "if (await send(token).catch(() => false)) return true",
+    "to": "if ((await send(token).catch(() => false)) || true) return true",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "captions take the line when whisper heard more words",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "SPEC.CAPTION_TEXT_FROM_LINE && heardWords > 0 && lineWords === heardWords",
+    "to": "SPEC.CAPTION_TEXT_FROM_LINE && heardWords > 0 && lineWords <= heardWords"
+  },
+  {
+    "name": "captions ignore the written line",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "return sceneCaptions(scenes[i].line, got.words, got.speech)",
+    "to": "return sceneCaptions('', got.words, got.speech)",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "a deaf clip stops the reel",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "          if (typeof got === 'string' || !got.words.length) {\n            deaf.push(",
+    "to": "          if (typeof got === 'string' || !got.words.length) {\n            throw new Error('deaf')\n            deaf.push(",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "a line of exactly the editor limit is refused",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "return chars > 0 && chars <= SPEC.LINE_MAX_CHARS",
+    "to": "return chars > 0 && chars < SPEC.LINE_MAX_CHARS"
+  },
+  {
+    "name": "an edited line is not checked",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "const bad = lines.findIndex(l => !lineFitsChars(l.length))",
+    "to": "const bad = -1",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "every line is English",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "? 'ru' : 'en'",
+    "to": "? 'en' : 'en'"
+  },
+  {
+    "name": "the call card needs both a call and a card",
+    "file": "src/compositions/StoryReel.tsx",
+    "from": "(hasEndCard || call.trim().length > 0)",
+    "to": "(hasEndCard && call.trim().length > 0)"
+  },
+  {
+    "name": "the template's button is dropped",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "|| template.button",
+    "to": "|| ''",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "the template's call is dropped",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "cta: String(args.cta || template?.call || ''),",
+    "to": "cta: String(args.cta || ''),",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   }
 ]

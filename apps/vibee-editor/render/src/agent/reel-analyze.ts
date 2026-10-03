@@ -41,6 +41,9 @@ let exec: Exec = async (bin, args) => {
   return { stdout: String(r.stdout ?? ''), stderr: String(r.stderr ?? '') }
 }
 
+/** ffmpeg and ffprobe for the other reel tools, through the same test seam. */
+export const reelExec: Exec = (bin, args) => exec(bin, args)
+
 export function setReelExecForTests(next: Exec): Exec {
   const prev = exec
   exec = next

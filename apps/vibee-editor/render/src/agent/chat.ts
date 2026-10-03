@@ -21,6 +21,7 @@
  */
 import { toolContentForModel } from './tool-content'
 import * as REEL from '../spec/crm-story-reel.gen'
+import * as SPLIT from '../spec/split-reel.gen'
 import {
   TOOLS_BY_NAME,
   toOpenAITools,
@@ -1020,6 +1021,7 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
   3 сцены в ОДНОМ стиле, обстановка новая в КАЖДОЙ, в первой тоже (фон исходника не повторять); реплики по 2–4 с, последняя — призыв; в конце пауза 3 с с надписью cta; весь ролик до 15 с (сторис). ${'' /* cyrillic-ok: prompt copy */}
   Для владельца: image_url — его эталон ${OWNER_NOIR_PORTRAIT}, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента из CRM — не этот вызов, а шаблон рилс-истории CRM: он делает рилс в фоне и присылает владельцу карточку «в группу»/«в личку». ${'' /* cyrillic-ok: prompt copy */}
   Бот в речи — одно слово «Тринити», без букв и цифр. Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
+- СПЛИТ-РИЛС (говорящая голова, сверху b-roll, жёлтые титры по слову) — ОДНИМ вызовом split_reel {image_url: студийный кадр с лицом, text до ${SPLIT.SPEECH_MAX_SECONDS} с речи, brolls: обстановки, for_lead, cta}; вернулись voice_url/clip/broll_urls без видео — повтори с ними. ${'' /* cyrillic-ok: prompt copy */}
 - Режим AUTO: autopilot_status говорит, включён ли он, до какого часа и сколько автоотправок осталось сегодня. Включённый AUTO значит, что подготовленные карточки уходят клиенту сами. Включает и выключает его САМ владелец — кнопкой AUTO прямо над этим чатом, во вкладке «Браузер», в CRM или в боте; тебе этот переключатель не дан, и просьбу включить его словами выполняй так: скажи, где кнопка. ${'' /* cyrillic-ok: prompt copy */}
 ${WEB_RULES}
 
@@ -1319,6 +1321,11 @@ function canTakeSection(surface?: string): string {
     'Имя или «HR» в профиле ничего не значат. Новую группу под аудиторию ' + // cyrillic-ok: prompt copy
     'открывает tg_create_group — карточка, владелец нажимает сам; группа ' + // cyrillic-ok: prompt copy
     'создаётся пустой, приглашения отдельно.' + // cyrillic-ok: prompt copy
+    '\n\nТЫ УМЕЕШЬ СОЗДАТЬ TELEGRAM-БОТА — tg_create_bot: ссылка и кнопка ' + // cyrillic-ok: prompt copy
+    'открывают окно создания в самом Telegram, человек подтверждает, токен ' + // cyrillic-ok: prompt copy
+    'никто не видит. Не говори, что боты создаются только в @BotFather, и ' + // cyrillic-ok: prompt copy
+    'не веди по /newbot; если инструмент ответил, что режим выключен, — ' + // cyrillic-ok: prompt copy
+    'передай ровно его путь включения.' + // cyrillic-ok: prompt copy
     /*
      * WHEN THE AGENT NEEDS THE PERSON, IT CALLS A BUTTON, NOT THE CHAT.
      *

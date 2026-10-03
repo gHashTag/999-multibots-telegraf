@@ -22,6 +22,7 @@ import {
   reminderOffsets,
   schedules,
   sendCard,
+  snoozeAdds,
   snoozeAllowed,
   sweepMeetings,
   type Meeting,
@@ -181,6 +182,36 @@ describe('automation/meeting-reminders: the spec, against the host', () => {
     expect((snooze?.params[1] as Date).getTime()).toBe(
       inTime.getTime() + SPEC.SNOOZE_MIN * 60_000
     )
+  })
+
+  it('a second later never doubles the reminder', async () => {
+    expect(snoozeAdds(0)).toBe(true)
+    expect(snoozeAdds(1)).toBe(false)
+    expect(snoozeAdds(2)).toBe(false)
+    expect(SPEC.SNOOZES_PENDING_MAX).toBe(1)
+
+    // Against answerTap: one snooze waits, so a second press adds nothing
+    // and still answers "I'll remind you" with the settled card.
+    const m = meeting()
+    const inTime = new Date(m.starts_at.getTime() - 30 * 60_000)
+    let waiting = 0
+    const { pool, calls } = stubPool(sql => {
+      if (/WHERE tap_token = \$1/.test(sql)) return { rows: [asRow(m)] }
+      if (/count\(\*\)/.test(sql)) return { rows: [{ n: waiting }] }
+      if (/INSERT INTO agent_meeting_reminders/.test(sql)) waiting++
+    })
+    const first = await answerTap(pool, OWNER, 'later', m.tap_token, inTime)
+    const second = await answerTap(pool, OWNER, 'later', m.tap_token, inTime)
+    const inserts = calls.filter(c =>
+      /INSERT INTO agent_meeting_reminders/.test(c.sql)
+    )
+    expect(inserts).toHaveLength(1)
+    expect(second.said).toBe(first.said)
+    expect(second.markup).toEqual(first.markup)
+    // Only the snooze counts: a planned reminder carries an offset.
+    const count = calls.find(c => /count\(\*\)/.test(c.sql))!
+    expect(count.sql).toMatch(/offset_min IS NULL/)
+    expect(count.sql).toMatch(/sent_at IS NULL/)
   })
 
   it('the follow-up comes after the end, and never for a cancelled meeting', async () => {

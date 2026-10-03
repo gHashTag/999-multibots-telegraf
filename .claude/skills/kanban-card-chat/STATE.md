@@ -197,3 +197,18 @@ git-dir>)`). Fix: `resolve`, and the stray dir removed. A tool that writes
 6. After the owner sets `GITHUB_READ_TOKEN` (read-only, public repos): `tri
 card-check` line 2 says `ok server read`, and opening a card in the app
    makes no request to api.github.com (network panel).
+
+## 2026-10-03 -- delegated to the Queen
+
+- The round is now run by the profile agent
+  `.claude/agents/queen-card-chat-keeper.md`; see `SKILL.md`, "Who runs the
+  round".
+- Children gHashTag/t27#5700 and gHashTag/t27#5701 filed, delegatable to the
+  Queen's engine.
+- Open 999 PRs at hand-off: #3506 (labeled, not merged), #3514 (stacked on
+  #3506), #3513, #3519, #3520; coder bees out for the reel-analyze SSRF fix
+  and for `tri jam`.
+- Still open: the safe-deps part of #3312 -- the worktree
+  `chore/deps-from-3312-without-mobile` from another session holds staged
+  lockfile work, not touched here.
+- Still open: L7.5, the live check of card #5673 at 390 px.

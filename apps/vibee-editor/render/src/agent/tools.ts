@@ -93,6 +93,9 @@ import { makeClientFaceTool } from './client-face-tool'
 import { isClientFacing } from './client-facing'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
+import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
+import { stillShowsAFace } from './still-face'
+import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
 import {
@@ -590,13 +593,10 @@ const TOKEN_START = START_TOKENS
  * metering them against a customer wallet only stops our own factory -- which
  * is exactly what happened on 2026-08-27, for 51 hours.
  *
- * Set HOUSE_TELEGRAM_IDS="<owner id>,..." on the render service. Empty by
- * default: nobody is exempt unless deployment says so.
+ * The list itself lives in ../house-ids (HOUSE_TELEGRAM_IDS on the render
+ * service): the render server reads it too, to send a finished reel from the
+ * bot the owner talks to.
  */
-const HOUSE_TELEGRAM_IDS = (process.env.HOUSE_TELEGRAM_IDS || '')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean)
 
 /**
  * ИНВАРИАНТЫ ЦЕНЫ (PRICING.md, I1–I3). Вызов при загрузке модуля:
@@ -1208,6 +1208,7 @@ import { QUEEN_GROWTH_TOOLS } from './queen-growth'
 import { HIVE_BOARD_TOOLS } from './hive-board-tool'
 import { CLUB_CASH_TOOLS } from './club-cash'
 import { BOTFATHER_TOOLS } from './botfather-main-app'
+import { BOT_CREATE_TOOLS } from './managed-bot-create'
 import { visibilityOf, keepers } from '../hive/roles'
 import { record } from '../hive/journal'
 import {
@@ -2295,7 +2296,13 @@ export const TOOLS: AgentTool[] = [
         голосКлиента = true // cyrillic-ok: local flag
         voiceId = ''
       }
-      if (!voiceId && !cloneVoice) {
+      /*
+       * The house never asks ElevenLabs (crm-story-reel v19,
+       * HOUSE_SKIPS_ELEVENLABS): a voice of its own there raised the
+       * owner-voice flag and so skipped the owner's clone below -- his reel
+       * spoke a voice found in an ElevenLabs account.
+       */
+      if (asksElevenLabs(isHouse(ctx.telegramId), voiceId, cloneVoice)) {
         const v = await selfFetch(`${base}/api/voices`)
         const vData: any = await v.json().catch(() => null)
         const list: any[] = Array.isArray(vData?.voices) ? vData.voices : []
@@ -3850,26 +3857,41 @@ TOOLS.push(
  * each part charges and refunds exactly as when called alone.
  */
 TOOLS.push(
-  makeStoryReelTool(n => TOOLS.find(t => t.name === n), {
-    // A still that is drawing is asked about, never ordered again. While
-    // image_edit's own watch is on it, that watch copies it (one copy).
-    look: (taskId, ctx): Promise<LateOutcome> =>
-      isWatching(taskId)
-        ? Promise.resolve({ state: 'running', taskId })
-        : lookOnce(taskId, {
-            check: kieTaskState,
-            keep: async url => {
-              const kept = await keepGeneratedImage(
-                ctx,
-                url,
-                `story still, late task ${taskId}`
-              )
-              return kept.ok ? kept.url : ''
-            },
-          }),
-    refund: (t, ctx, why) => refundLateImage(ctx, t, why),
-  })
+  makeStoryReelTool(
+    n => TOOLS.find(t => t.name === n),
+    {
+      // A still that is drawing is asked about, never ordered again. While
+      // image_edit's own watch is on it, that watch copies it (one copy).
+      look: (taskId, ctx): Promise<LateOutcome> =>
+        isWatching(taskId)
+          ? Promise.resolve({ state: 'running', taskId })
+          : lookOnce(taskId, {
+              check: kieTaskState,
+              keep: async url => {
+                const kept = await keepGeneratedImage(
+                  ctx,
+                  url,
+                  `story still, late task ${taskId}`
+                )
+                return kept.ok ? kept.url : ''
+              },
+            }),
+      refund: (t, ctx, why) => refundLateImage(ctx, t, why),
+    },
+    // Every new still is looked at by our own vision before a voice is paid
+    // for it (crm-story-reel v19).
+    { hasFace: url => stillShowsAFace(url) },
+    undefined,
+    // Each clip heard by itself, for its yellow captions (crm-story-reel v20).
+    SERVER_SENSES.hear
+  )
 )
+/*
+ * THE SPLIT REEL AS ONE CALL (split_reel, split-reel.t27): voice, b-roll
+ * stills, lip-sync, captions from the final voice and the SplitTalkingHead
+ * template -- borrowed through the registry the same way as story_reel.
+ */
+TOOLS.push(makeSplitReelTool(n => TOOLS.find(t => t.name === n)))
 /*
  * THE CRM'S STORY TEMPLATE (crm_story_reel): the same reel for any client
  * with a face and a voice, on any topic, made in the background and handed
@@ -4002,6 +4024,8 @@ TOOLS.push(...CLUB_CASH_TOOLS)
  * only -- it speaks to BotFather as the owner, see DIRECT_CALL_ONLY below.
  */
 TOOLS.push(...BOTFATHER_TOOLS)
+/* A new bot through Bot API 9.6 Managed Bots (managed-bot-create.ts). */
+TOOLS.push(...BOT_CREATE_TOOLS)
 /*
  * The Inngest function catalogue (both apps, read live), runs and invocation.
  * Keeper-only, like hive_queen: function names carry paths and internal state.

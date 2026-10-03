@@ -11,6 +11,7 @@
 # branch of that name holds commits origin does not -- those are someone's
 # work, and resetting the branch to origin would drop them.
 . "$(dirname "${BASH_SOURCE[0]}")/fetch.sh"  # tfetch: a failed fetch says so
+
 pr_branch() {
   local root="$1" pr="$2" info branch st cross
   case "$pr" in '' | *[!0-9]*) echo "  usage: tri worktree --pr <number>" >&2; return 2 ;; esac
@@ -23,8 +24,10 @@ pr_branch() {
   read -r branch st cross <<<"$info"
   [ "$st" = OPEN ] || { echo "  PR $pr is $st, not open -- nothing to fix on it" >&2; return 1; }
   [ "$cross" = false ] || { echo "  PR $pr comes from a fork: its branch $branch is not on origin" >&2; return 1; }
-  # tfetch names the failure and the way to tell an outage from a refusal.
-  ( cd "$root" && tfetch origin "+refs/heads/$branch:refs/remotes/origin/$branch" ) || return 1
+  if ! (cd "$root" && tfetch origin "+refs/heads/$branch:refs/remotes/origin/$branch"); then
+    echo "  fetching $branch failed -- nothing created" >&2
+    return 1
+  fi
   if git -C "$root" rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
     if ! git -C "$root" merge-base --is-ancestor "refs/heads/$branch" "origin/$branch"; then
       echo "  local $branch has commits origin/$branch does not: push them, or rename the local branch" >&2

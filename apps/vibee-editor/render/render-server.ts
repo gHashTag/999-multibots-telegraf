@@ -164,6 +164,14 @@ import {
 } from './src/browser/live-pipe'
 import { telegramName } from './src/browser/telegram-name'
 import { FRAMES_PATH, frameSize, serveFrames } from './src/browser/frames'
+import {
+  openWatch,
+  parseWatchPath,
+  watchViewerOf,
+  watchNonce,
+  watchPageHeaders,
+  watchPageHtml,
+} from './src/browser/watch-link'
 import { sweepIdleSessions, IDLE_LIMIT_MS } from './src/browser/reaper'
 import { sweepEveryPod, TAB_CAP } from './src/browser/tab-sweep'
 import {
@@ -752,6 +760,7 @@ import {
   telegramFileUrlFor,
 } from './src/telegram-api'
 import { rewriteAppUrlsForToken } from './src/app-links'
+import { deliverToBuyer, liveBuyerBotDeps } from './src/buyer-delivery'
 import { renderFeedEntry } from './src/render-feed-entry'
 import * as MEETINGS from './src/spec/meeting-reminders.gen'
 import { TICK_MS as BLOG_SHARE_TICK_MS } from './src/spec/blog-share.gen'
@@ -1150,26 +1159,24 @@ const TELEGRAM_RENDERS_GROUP = '-1002737186844'
 // Send text message to Telegram
 async function sendTelegramMessage(
   chatId: string,
-  message: string
+  message: string,
+  token: string | undefined = TELEGRAM_BOT_TOKEN
 ): Promise<boolean> {
-  if (!TELEGRAM_BOT_TOKEN) {
+  if (!token) {
     console.warn('⚠️ TELEGRAM_BOT_TOKEN not set, skipping notification')
     return false
   }
   try {
-    const response = await fetch(
-      `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendMessage`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          // Links to the app open inside Telegram only (src/app-links.ts).
-          text: await rewriteAppUrlsForToken(message, TELEGRAM_BOT_TOKEN),
-          parse_mode: 'HTML',
-        }),
-      }
-    )
+    const response = await fetch(`${telegramApiFor(token)}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        // Links to the app open inside Telegram only (src/app-links.ts).
+        text: await rewriteAppUrlsForToken(message, token),
+        parse_mode: 'HTML',
+      }),
+    })
     const result = await response.json()
     if (!result.ok) {
       console.error('❌ Telegram sendMessage failed:', result)
@@ -1187,31 +1194,29 @@ async function sendTelegramMessage(
 async function sendTelegramVideo(
   chatId: string,
   videoUrl: string,
-  caption: string
+  caption: string,
+  token: string | undefined = TELEGRAM_BOT_TOKEN
 ): Promise<boolean> {
-  if (!TELEGRAM_BOT_TOKEN) {
+  if (!token) {
     console.warn('⚠️ TELEGRAM_BOT_TOKEN not set, skipping video notification')
     return false
   }
   try {
-    const response = await fetch(
-      `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendVideo`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          video: videoUrl,
-          caption: caption,
-          parse_mode: 'HTML',
-        }),
-      }
-    )
+    const response = await fetch(`${telegramApiFor(token)}/sendVideo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        video: videoUrl,
+        caption: caption,
+        parse_mode: 'HTML',
+      }),
+    })
     const result = await response.json()
     if (!result.ok) {
       console.error('❌ Telegram sendVideo failed:', result)
       // Fallback to message with link
-      return sendTelegramMessage(chatId, `${caption}\n\n🔗 ${videoUrl}`)
+      return sendTelegramMessage(chatId, `${caption}\n\n🔗 ${videoUrl}`, token)
     }
     console.log(`📹 Telegram video sent to ${chatId}`)
     return true
@@ -3473,6 +3478,7 @@ function startRenderAsync(
 
         if (uploadResult.success && uploadResult.signedUrl) {
           job.publicUrl = uploadResult.signedUrl
+          const signedUrl = uploadResult.signedUrl
           console.log(`📤 Uploaded MP4 to S3 with signed URL`)
 
           // Convert to HLS for smooth streaming (skip for GIFs)
@@ -3541,10 +3547,13 @@ function startRenderAsync(
 
           let deliveredToBuyer = false
           if (buyerChatId) {
-            deliveredToBuyer = await sendTelegramVideo(
+            // The person's own bot first, the house through @t27ai_bot
+            // (crm-story-reel v19, src/buyer-delivery.ts).
+            deliveredToBuyer = await deliverToBuyer(
               buyerChatId,
-              uploadResult.signedUrl,
-              buyerCaption
+              token =>
+                sendTelegramVideo(buyerChatId, signedUrl, buyerCaption, token),
+              liveBuyerBotDeps()
             )
             if (!deliveredToBuyer) {
               console.error(
@@ -3718,6 +3727,28 @@ const server = createServer(async (req, res) => {
   }
 
   const auth = authenticate(req)
+
+  /*
+   * A LINK TO WATCH THE BROWSER, NO WHEEL (src/browser/watch-link.ts). Public
+   * on purpose: the token in the path is the whole permission, and the page
+   * holds no data -- it reads nothing until its socket is let in, and the
+   * socket decides from the token's row. No database read here, so a flood
+   * of guessed addresses costs a template, not a query.
+   */
+  {
+    const watchAt = parseWatchPath((req.url || '').split('?')[0])
+    if (watchAt && !watchAt.frames) {
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        res.writeHead(405, { Allow: 'GET' })
+        res.end()
+        return
+      }
+      const nonce = watchNonce()
+      res.writeHead(200, watchPageHeaders(nonce))
+      res.end(req.method === 'HEAD' ? undefined : watchPageHtml(nonce))
+      return
+    }
+  }
 
   /*
    * The person's own browser, streamed. This sits BEFORE authenticate()
@@ -7158,10 +7189,17 @@ const server = createServer(async (req, res) => {
                 const projectLine = userInfo?.project_name
                   ? `\n\n📹 ${userInfo.project_name}`
                   : ''
-                deliveredToBuyer = await sendTelegramVideo(
+                // Same bots, same order (src/buyer-delivery.ts).
+                deliveredToBuyer = await deliverToBuyer(
                   buyerChatId,
-                  publicUrl,
-                  `✅ <b>Готово!</b>${projectLine}\n⏱ ${renderTimeSec}s`
+                  token =>
+                    sendTelegramVideo(
+                      buyerChatId,
+                      publicUrl,
+                      `✅ <b>Готово!</b>${projectLine}\n⏱ ${renderTimeSec}s`,
+                      token
+                    ),
+                  liveBuyerBotDeps()
                 )
                 if (!deliveredToBuyer) {
                   console.error(
@@ -13293,6 +13331,31 @@ async function main() {
     // doors is a socket (src/auth/refresh-cookie.ts).
     if (isAuthHost(req)) return refuseUpgrade(socket, 404)
     const path = (req.url || '').split('?')[0]
+    /*
+     * A WATCHER'S SOCKET (watch-link.ts): pictures one way, and it reads
+     * nothing back -- there is no input path behind it to reach.
+     */
+    const watchAt = parseWatchPath(path)
+    if (watchAt?.frames) {
+      const q = new URLSearchParams((req.url || '').split('?')[1] || '')
+      framesWss.handleUpgrade(req, socket, head, ws => {
+        ws.on('message', () => ws.close(1008))
+        void (async () => {
+          try {
+            await openWatch(
+              (await getPool()) as any,
+              watchAt.token,
+              watchViewerOf(ws),
+              frameSize(q.get('w'), q.get('h'))
+            )
+          } catch {
+            ws.close(1011)
+          }
+        })()
+      })
+      return
+    }
+    if (watchAt) return refuseUpgrade(socket, 404)
     if (!isLivePath(path)) {
       wss.handleUpgrade(req, socket, head, ws =>
         wss.emit('connection', ws, req)
