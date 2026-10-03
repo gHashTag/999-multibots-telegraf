@@ -220,13 +220,128 @@ export function captionStartMs(
   return firstSpeech
 }
 
+/** Mirror of the spec's house_own (v7): the house orders it, nobody else is named. */
+export function houseOwn(
+  houseCaller: boolean,
+  clientTurn: boolean,
+  forLead: boolean,
+  sellerSweep: boolean
+): boolean {
+  if (!houseCaller) return false
+  if (clientTurn) return false
+  if (forLead) return false
+  return !sellerSweep
+}
+
+/** Mirror of the spec's cta_for (v7): which call the reel ends on. */
+export function ctaFor(
+  house: boolean,
+  given: boolean,
+  givenNamesHouse: boolean,
+  clientHasCta: boolean
+): number {
+  if (given && (house || !givenNamesHouse)) return SPEC.CTA_GIVEN
+  if (house) return SPEC.CTA_OWNER
+  if (clientHasCta) return SPEC.CTA_CLIENT
+  return SPEC.CTA_NEUTRAL
+}
+
+/** Mirror of the spec's owner_voice_allowed (v7). */
+export function ownerVoiceAllowed(house: boolean): boolean {
+  return house || SPEC.OWNER_VOICE_ON_CLIENT_REEL
+}
+
+/** Mirror of the spec's house_name_allowed (v7). */
+export function houseNameAllowed(house: boolean): boolean {
+  return house || SPEC.HOUSE_NAME_ON_CLIENT_REEL
+}
+
+/**
+ * The turn as the v7 rule reads it. Every field is set only by code (the
+ * wallet's id, chat.ts clientTurnContext), never by the model's words.
+ */
+export interface ReelTurn {
+  /** Whether the wallet ordering the reel is the house's (isHouse). */
+  house: boolean
+  /** The client the turn works for. */
+  faceOf?: string
+  /** An unattended sweep: every reel in it is for a lead. */
+  sellerSweep?: boolean
+}
+
+/** Whose voice and call a reel carries: the lead the order names, else the turn's client. */
+export function leadOfTurn(
+  forLead: unknown,
+  turn: Pick<ReelTurn, 'faceOf'>
+): string {
+  return String(forLead ?? '').trim() || String(turn?.faceOf ?? '').trim()
+}
+
+/** The spec's house_own, read off a turn and the lead resolved by leadOfTurn. */
+export function houseOwnTurn(turn: ReelTurn, lead: string): boolean {
+  return houseOwn(
+    turn?.house === true,
+    Boolean(turn?.faceOf),
+    Boolean(lead),
+    Boolean(turn?.sellerSweep)
+  )
+}
+
+/*
+ * The house by name: its bot's handle (OWNER_CTA) and its brand as written or
+ * spoken. A client's reel names none of them (HOUSE_NAME_ON_CLIENT_REEL).
+ */
+const HOUSE_NAMES = new RegExp(
+  [
+    SPEC.OWNER_CTA.replace(/^@/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    '\\btrinity\\b',
+    'тринити', // cyrillic-ok: the brand as the voice speaks it
+    '\\bs\\s*[³3]\\s*ai\\b',
+  ].join('|'),
+  'i'
+)
+
+/** Does this text name the house (its bot or its brand)? */
+export function namesHouse(text: string): boolean {
+  return HOUSE_NAMES.test(String(text ?? ''))
+}
+
+/** What the reel's call is chosen from (spec v7). */
+export interface ReelCall {
+  /** The house's own reel (houseOwnTurn). */
+  house: boolean
+  /** The call the order wrote; '' when none. */
+  given?: string
+  /** The call in the client's own profile; '' when none. */
+  client?: string
+  /** A call with no name in it: the host's copy. */
+  neutral: string
+}
+
+/** The call the reel ends on: the spec's cta_for, in words. */
+export function reelCta(c: ReelCall): string {
+  const given = String(c.given ?? '').trim()
+  const client = String(c.client ?? '').trim()
+  switch (ctaFor(c.house, Boolean(given), namesHouse(given), Boolean(client))) {
+    case SPEC.CTA_GIVEN:
+      return given
+    case SPEC.CTA_OWNER:
+      return SPEC.OWNER_CTA
+    case SPEC.CTA_CLIENT:
+      return client
+    default:
+      return c.neutral
+  }
+}
+
 export interface SplitReelInput {
   lipSyncVideo: string
   /** Where the last word ends; the call starts there (spec v5). */
   seconds: number
   bRolls?: readonly string[]
   captions?: unknown[]
-  ctaText?: string
+  /** Whose reel it is and what its call is chosen from (spec v7). */
+  call: ReelCall
   /** Measured face; the studio's place when absent. */
   face?: FaceInSource
   /** The reel's frame; 1080x1920 when absent. */
@@ -252,8 +367,9 @@ export function splitReelProps(input: SplitReelInput) {
     // The face is centred in the window it is shown in (spec v3).
     splitFacePosition: faceObjectPosition(face, width, splitH),
     fullscreenFacePosition: faceObjectPosition(face, width, height),
-    // The call at the end, on the held last frame (spec v5): always.
-    ctaText: input.ctaText || SPEC.OWNER_CTA,
+    // The call at the end, on the held last frame (spec v5): always, and
+    // the client's on a client's reel (spec v7).
+    ctaText: reelCta(input.call),
     pauseSec: SPEC.CTA_PAUSE_SEC,
     speechSec: input.seconds,
   }

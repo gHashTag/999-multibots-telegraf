@@ -171,6 +171,56 @@ async function sellerOf(pool: Pool, lead: string): Promise<string> {
 }
 
 /**
+ * The client's own call in her profile: the template's cta, then her approved
+ * call ({text, button} in a client package, a string by hand). '' when none.
+ * One reader for every reel that ends on her call (story_reel, split_reel).
+ */
+export function profileCta(profile: any): string {
+  return (
+    [
+      profile?.story_reel?.cta,
+      profile?.approved_cta?.text,
+      profile?.approved_cta,
+    ]
+      .find(v => typeof v === 'string' && v.trim())
+      ?.trim() ?? ''
+  )
+}
+
+/** Her profile in one seller's CRM (that seller's row over the shared one). */
+export async function clientProfileOf(
+  pool: Pool,
+  lead: string,
+  owner: string
+): Promise<any> {
+  const row = await first(
+    pool,
+    `SELECT profile FROM crm_client_profiles
+      WHERE telegram_id = $1 AND (owner_id = $2 OR owner_id IS NULL)
+      ORDER BY (owner_id = $2) DESC NULLS LAST, updated_at DESC LIMIT 1`,
+    [lead, owner]
+  )
+  return parse(row?.profile) ?? {}
+}
+
+/**
+ * The call a reel for this client ends on, from her profile: '' when she has
+ * none (the reel then ends on a call with no name in it, split-reel v7).
+ * Never throws -- a profile that cannot be read is a profile with no call.
+ */
+export async function clientCtaOf(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<string> {
+  const id = String(lead ?? '').trim()
+  if (!/^\d{5,15}$/.test(id)) return ''
+  return clientProfileOf(pool, id, String(owner ?? '').trim())
+    .then(profileCta)
+    .catch(() => '')
+}
+
+/**
  * The template's settings for one client. `seller` scopes it to one seller's
  * CRM (their card, their tool); without it she is asking herself.
  */
@@ -184,14 +234,7 @@ export async function storySettingsOf(
   const owner = String(seller ?? '').trim() || (await sellerOf(pool, id))
   if (!owner) return null
 
-  const row = await first(
-    pool,
-    `SELECT profile FROM crm_client_profiles
-      WHERE telegram_id = $1 AND (owner_id = $2 OR owner_id IS NULL)
-      ORDER BY (owner_id = $2) DESC NULLS LAST, updated_at DESC LIMIT 1`,
-    [id, owner]
-  )
-  const profile = parse(row?.profile) ?? {}
+  const profile = await clientProfileOf(pool, id, owner)
   const s = profile?.story_reel ?? {}
   const person = await first(
     pool,
@@ -223,11 +266,7 @@ export async function storySettingsOf(
     avatarUrl: isUrl(avatar) ? avatar : '',
     hasVoice: Boolean(voice),
     style: String(s.style ?? '').trim() || STORY_DEFAULT_STYLE,
-    // approved_cta is {text, button} in a client package, a string by hand.
-    cta:
-      [s.cta, profile?.approved_cta?.text, profile?.approved_cta]
-        .find(v => typeof v === 'string' && v.trim())
-        ?.trim() || STORY_DEFAULT_CTA,
+    cta: profileCta(profile) || STORY_DEFAULT_CTA,
     // The spec's pause_of: the same clamp the template renders with.
     pauseSec: pauseOf(s.pause_sec),
     payer: s.payer === 'owner' ? 'owner' : 'client',
