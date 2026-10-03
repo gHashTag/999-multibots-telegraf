@@ -2282,3 +2282,11 @@ platform, and the native overlay buttons go away.
   installed `@tonconnect/ui` (#3218). This is proved when the same 4 errors
   appear and no others. Commit with `--no-verify`, check that
   `tri no-verify-debt` = 0, and say so in the PR.
+
+**Fix a reviewer's notes on the PR's own branch.** `tri worktree` made only
+new branches off origin/main, so notes on an open PR (#3451) had no way back:
+a fresh branch is a second PR and a lost conversation. `tri worktree --pr N`
+checks out N's own branch (bin/helpers/prtree.sh) and says how far behind
+main it is. It refuses a closed or fork PR, a silent gh ("unknown", never
+"no such PR"), and a local branch of that name with unpushed commits -- moving
+it to origin would drop someone's work.

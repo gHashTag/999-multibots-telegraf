@@ -195,6 +195,10 @@ CHECKS THAT EACH COST A CYCLE
         tree, so `bun run verify` runs green immediately instead of false-failing
         on env-gaps. Prints the path on the last line:
           wt="$(tri worktree fix/my-thing | tail -1)"; cd "$wt"
+  tri worktree --pr N
+        The same, on the OWN branch of open PR N, to fix a reviewer's notes in
+        that PR. Refuses a closed or fork PR, a silent gh, and a local branch
+        holding commits origin lacks (they would be dropped).
 
   tri hooks [--heal]
         Worktrees whose own core.hooksPath (e.g. <main>/.husky) makes git skip
@@ -3768,20 +3772,29 @@ cmd_worktree() {
   # and a plain `git checkout -b` there lets another session take the branch out
   # from under the work. A worktree is a private checkout. Base is origin/main,
   # never local HEAD -- work stands on what is merged.
-  local branch="${1:-}"
+  local branch="${1:-}" pr=""
   if [ -z "$branch" ]; then
-    bad 'нужно имя ветки: tri worktree <branch>'
+    bad 'нужно имя ветки: tri worktree <branch>   (или --pr N)'
     return 1
   fi
   git -C "$ROOT" fetch origin main --quiet 2>/dev/null
   local base wt
   base="$(git -C "$ROOT" rev-parse origin/main)"
+  # --pr N: back onto an open PR's own branch, so a reviewer's notes are fixed
+  # where the conversation is (bin/helpers/prtree.sh says what it refuses).
+  if [ "$branch" = "--pr" ]; then
+    pr="${2:-}"
+    . "$ROOT/bin/helpers/prtree.sh"
+    branch=$(pr_branch "$ROOT" "$pr") || return $?
+  fi
   wt="${TRI_WORKTREE_DIR:-${TMPDIR:-/tmp}}/tri-wt-${branch//\//-}"
   if [ -e "$wt" ]; then
     bad "уже существует: $wt"
     return 1
   fi
-  if ! git -C "$ROOT" worktree add "$wt" -b "$branch" "$base" >/dev/null 2>&1; then
+  local add=(-b "$branch" "$base")
+  [ -n "$pr" ] && add=("$branch")
+  if ! git -C "$ROOT" worktree add "$wt" "${add[@]}" >/dev/null 2>&1; then
     bad "git worktree add не удался (ветка $branch занята?)"
     return 1
   fi
@@ -3823,6 +3836,12 @@ cmd_worktree() {
     fi
   fi
   good "worktree готов, node_modules слинкованы (root + apps), проба прошла"
+  if [ -n "$pr" ]; then
+    local behind
+    behind=$(git -C "$ROOT" rev-list --count "$branch..$base" 2>/dev/null)
+    echo "  PR #$pr on its own branch $branch; push lands in the same PR"
+    [ "${behind:-0}" -gt 0 ] && echo "  $behind commit(s) behind origin/main: \`git merge origin/main\` in it before the gates"
+  fi
   # Print ONLY the path on the last line so a caller can:  cd "$(tri worktree x | tail -1)"
   printf '%s\n' "$wt"
 }
