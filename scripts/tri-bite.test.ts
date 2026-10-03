@@ -913,6 +913,25 @@ describe('tri bite -- review 1 of #3489', () => {
     expect(r.status).toBe(2)
   })
 
+  it('a git call that cannot answer is no reason to skip a link', () => {
+    // With a ceiling at the root, git cannot see the checkout from lib/; that
+    // is not .git storage, and the link still loads the real lib/add.sh.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../lib', path.join(dir, 'node_modules/lib'))
+    const r = spawnSync('bash', [BITE, 'v1', 'lib/add.sh', '--', 'true'], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 30000,
+      env: { ...process.env, GIT_CEILING_DIRECTORIES: fs.realpathSync(dir) },
+    })
+    expect(r.stdout).toMatch(/workspace link/)
+    expect(r.status).toBe(2)
+  })
+
   it('a link into .git/ is not the checkout root', () => {
     const dir = repo()
     fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')

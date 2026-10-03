@@ -178,11 +178,16 @@ PY
 # checkout it lands in) it is an installed package; anywhere else it is some
 # checkout's own code. A named
 # file is compared by its path within the checkout the link lands in.
-ws=$(python3 - "$TOP" "${#NMS[@]}" ${NMS[@]+"${NMS[@]}"} "${REL[@]}" <<'PY'
+# This checkout's own git dirs, asked once with the caller's env: the only
+# places under it that hold no code (review 2 of #3489).
+GITDIRS=$(git -C "$TOP" rev-parse --path-format=absolute --git-dir --git-common-dir) \
+  || { echo "bite: could not find this checkout's git dir -- cannot tell"; exit 2; }
+ws=$(python3 - "$TOP" "$GITDIRS" "${#NMS[@]}" ${NMS[@]+"${NMS[@]}"} "${REL[@]}" <<'PY'
 import os, subprocess, sys
-top, n = sys.argv[1], int(sys.argv[2])
-nms, rels = sys.argv[3:3 + n], sys.argv[3 + n:]
+top, gitdirs, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
+nms, rels = sys.argv[4:4 + n], sys.argv[4 + n:]
 real_top = os.path.realpath(top)
+own_git = {os.path.realpath(g) for g in gitdirs.split("\n") if g}
 
 
 # A hook exports GIT_DIR and friends; left in, they would make every
@@ -253,10 +258,12 @@ for nm in nms:
         # 2 of #3479). Outside any checkout the whole path is all there is.
         if "node_modules" in (t if tr is None else tr).split(os.sep) and not tracked(t):
             continue
-        # Under this checkout's directory but in no work tree: git's own
-        # storage (.git/hooks), which the copies leave out, so no run can load
-        # the real file through it.
-        if tr is None and t.startswith(real_top + os.sep):
+        # Into this checkout's own git storage (.git/hooks), which the copies
+        # leave out, so no run can load the real file through it. Asked by
+        # place, not by "git could not answer": a failed git call (a ceiling,
+        # a separate GIT_DIR) or a bare repo kept as files is not storage
+        # (review 2 of #3489).
+        if any(t == g or t.startswith(g + os.sep) for g in own_git):
             continue
         shown = os.path.relpath(t, real_top) if t.startswith(real_top + os.sep) else t
         name = f"{os.path.relpath(p, top)} -> {shown}"
