@@ -656,14 +656,22 @@ describe('tri bite -- review 1 of #3479', () => {
     // git diff does not see it; cat-file --filters reads it all the same.
     const dir = repo()
     fs.writeFileSync(path.join(dir, 'lib/.gitattributes'), 'add.sh eol=crlf\n')
-    const r = spawnSync('bash', [BITE, 'HEAD', 'lib/add.sh', '--', 'true'], {
-      cwd: dir,
-      encoding: 'utf8',
-      timeout: 30000,
-      env: { ...process.env, _BITE_NO_ATTR_SOURCE: '1' },
-    })
+    const old = () =>
+      spawnSync('bash', [BITE, 'HEAD', 'lib/add.sh', '--', 'true'], {
+        cwd: dir,
+        encoding: 'utf8',
+        timeout: 30000,
+        env: { ...process.env, _BITE_NO_ATTR_SOURCE: '1' },
+      })
+    const r = old()
     expect(r.status).toBe(2)
     expect(r.stdout).toMatch(/lib\/\.gitattributes is not tracked/)
+    // Not only the nearest directory: one at the top applies as well.
+    fs.rmSync(path.join(dir, 'lib/.gitattributes'))
+    fs.writeFileSync(path.join(dir, '.gitattributes'), 'lib/add.sh eol=crlf\n')
+    const s = old()
+    expect(s.status).toBe(2)
+    expect(s.stdout).toMatch(/bite: \.gitattributes is not tracked/)
   })
 
   it('a node_modules it cannot read is cannot tell, not a verdict', () => {
