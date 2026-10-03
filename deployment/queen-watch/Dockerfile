@@ -5,6 +5,6 @@
 # write its state and every run would look like a first run.
 FROM node:20-bookworm-slim
 WORKDIR /app
-COPY watch.mjs /app/watch.mjs
+COPY watch.mjs telegram-api.cjs /app/
 ENV STATE_DIR=/data
 CMD ["node", "/app/watch.mjs"]
