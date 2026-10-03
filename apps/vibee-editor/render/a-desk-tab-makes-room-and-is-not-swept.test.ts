@@ -407,4 +407,31 @@ describe('deskMayGo: the one check every desk road passes', () => {
       ])
         await expect(deskMayGo(who, url)).rejects.toThrow(DID_NOT_LOAD)
   })
+
+  it('the error page is named as such even when the list cannot be read', async () => {
+    /*
+     * The bee on #3495: with the error-page line moved after the list read,
+     * every test stayed green -- an unreadable list hid a dead page behind
+     * "the list could not be read", and spent a database read on it.
+     */
+    let reads = 0
+    const unreadable = {
+      telegramId: '146',
+      pool: {
+        query: async () => {
+          reads++
+          throw new Error('database down')
+        },
+      },
+    }
+    await expect(
+      deskMayGo(unreadable, 'chrome-error://chromewebdata/')
+    ).rejects.toThrow(DID_NOT_LOAD)
+    expect(reads).toBe(0)
+    /* Control: a real address does reach the list, and is refused by it. */
+    await expect(
+      deskMayGo(unreadable, 'https://dead.example/')
+    ).rejects.toThrow(/could not be read/)
+    expect(reads).toBeGreaterThan(0)
+  })
 })

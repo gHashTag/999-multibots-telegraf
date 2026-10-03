@@ -92,10 +92,12 @@ describe('the Enter key in the site field', () => {
   /*
    * The bee on #3492: with `e.key === 'Enter'` removed every test above
    * stayed green, and then each letter typed into a filled field saved it.
+   * Escape and End: the bee on #3496 kept `e.key.startsWith('E')` alive
+   * with only a, Tab, space and Backspace pressed.
    */
   it('any other key in a filled field saves nothing', async () => {
     const input = await typeSite('clinic.example')
-    for (const key of ['a', 'Tab', ' ', 'Backspace'])
+    for (const key of ['a', 'Tab', ' ', 'Backspace', 'Escape', 'End'])
       await press(input, { key })
     expect(putSiteRule).not.toHaveBeenCalled()
   })
