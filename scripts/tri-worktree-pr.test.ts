@@ -142,6 +142,10 @@ describe('tri worktree wiring', () => {
     expect(fn).toContain('. "$ROOT/bin/helpers/prtree.sh"')
     expect(fn).toContain('branch=$(pr_branch "$ROOT" "$pr") || return $?')
     expect(fn).toContain('[ -n "$pr" ] && add=("$branch")')
+    // A failed smoke probe removes the tree; the PR's branch is not ours.
+    const deletes = fn.split('\n').filter(l => l.includes('branch -D'))
+    expect(deletes.length).toBeGreaterThan(0)
+    for (const l of deletes) expect(l).toMatch(/\[ -n "\$pr" \] \|\| git/)
     expect(tri).toMatch(/^ {2}tri worktree --pr N$/m)
   })
 })

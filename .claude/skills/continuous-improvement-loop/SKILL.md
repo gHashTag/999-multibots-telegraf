@@ -2293,6 +2293,15 @@ platform, and the native overlay buttons go away.
   appear and no others. Commit with `--no-verify`, check that
   `tri no-verify-debt` = 0, and say so in the PR.
 
+**A refusal is a comment with a fixed first line, and `tri pr-billing` reads
+it.** PR #3451 reached main 70 s after a bee wrote "not merged" and 23 s after
+a push that touched none of the notes, so three wrong sentences shipped. A bee
+that refuses starts its comment with `Reviewer bee: not merged.` and the
+reason on the same line. `tri pr-billing N`, the merging bee's last step,
+returns 1 while such a comment is newer than the head commit. An older one is
+printed with its first line: a push unblocks the merge, but the merging bee
+checks every note against the push before merging.
+
 **Fix a reviewer's notes on the PR's own branch.** `tri worktree` made only
 new branches off origin/main, so notes on an open PR (#3451) had no way back:
 a fresh branch is a second PR and a lost conversation. `tri worktree --pr N`
