@@ -661,8 +661,10 @@ rows = [l.rstrip() for l in open(os.environ["LOG"], errors="replace")
 closings = [l for l in rows if re.search(r"closed [1-9]|room for", l)]
 for l in rows[-60:]:
     print(("  ! " if l in closings else "    ") + l[:200])
-print("строк: %d, закрытий: %d" % (len(rows), len(closings)))
-if not rows: print("логи пусты: рендер молчал или railway не ответил за 120 с")'
+total = sum(1 for _ in open(os.environ["LOG"], errors="replace"))
+print("строк: %d, закрытий: %d (из %d строк лога)" % (len(rows), len(closings), total))
+if not total: print("лог не пришёл: railway не ответил за 120 с -- это не «ничего не закрыто»")
+elif not rows: print("за это время вкладки не закрывались и столы не работали")'
     rm -f "$tmp"; exit 0 ;;
   call)
     [ -n "${1:-}" ] || { echo "нужно имя инструмента"; exit 2; }
