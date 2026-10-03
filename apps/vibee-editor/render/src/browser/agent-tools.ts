@@ -229,22 +229,36 @@ async function makeRoom(
   forUrl?: string
 ): Promise<void> {
   try {
-    const { roomForOne } = await import('./tab-sweep')
+    const { roomForOne, namesOfClosed, whereItWas } = await import(
+      './tab-sweep'
+    )
+    /*
+     * A desk's working tab is spared here too (desk-page.ts): without it,
+     * `browser_open` at the ceiling could close the X composer a share run
+     * is typing in -- the reviewer's note on #3469.
+     */
+    const { deskTabsHeld } = await import('./desk-page')
     const chosen = chosenFront(telegramId)
     const pages = (await io.list(cdp)).map(t => ({
       id: t.id,
       url: t.url ?? '',
       type: t.type ?? 'page',
     }))
-    for (const doomed of roomForOne(
+    const doomed = roomForOne(
       pages,
-      chosen ? [chosen] : [],
+      [...(chosen ? [chosen] : []), ...deskTabsHeld()],
       undefined,
       forUrl
-    )) {
-      await io.close(cdp, doomed.id).catch(() => {})
-      forgetFront(telegramId, doomed.id)
+    )
+    for (const d of doomed) {
+      await io.close(cdp, d.id).catch(() => {})
+      forgetFront(telegramId, d.id)
     }
+    if (doomed.length)
+      console.log(
+        `🧹 [tabs] room for ${forUrl ? whereItWas(forUrl) : 'a tab'}: ` +
+          namesOfClosed(doomed)
+      )
   } catch {
     /* A pod that cannot be listed still gets the open it was asked for. */
   }

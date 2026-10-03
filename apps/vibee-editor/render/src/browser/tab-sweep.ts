@@ -228,6 +228,33 @@ export interface PodSweep {
   who: string
   closed: number
   left: number
+  /** What was closed, by `namesOfClosed`; empty when nothing was. */
+  gone: string
+}
+
+/**
+ * WHERE A CLOSED TAB WAS, for a log line. Host only: a path can carry a
+ * one-time token (Instagram's two-step URL does), and the log is read by more
+ * people than the browser is. Pure.
+ *
+ * Why a log names it at all: on 2026-10-03 the line said "closed 0" and
+ * nothing more, so whether the sweep -- or room-making before an open -- had
+ * closed the composer a desk was typing in could not be told from the log.
+ */
+export function whereItWas(url: string): string {
+  try {
+    const u = new URL(url)
+    if (u.host)
+      return /^https?:$/.test(u.protocol) ? u.host : `${u.protocol}//${u.host}`
+    return `${u.protocol}${u.pathname.slice(0, 24)}`
+  } catch {
+    return '(unreadable address)'
+  }
+}
+
+/** "x.com (duplicate), chrome://newtab (over cap)". Pure. */
+export function namesOfClosed(closed: readonly Doomed[]): string {
+  return closed.map(d => `${whereItWas(d.url)} (${d.why})`).join(', ')
 }
 
 /**
@@ -457,7 +484,12 @@ export async function sweepEveryPod(
   for (const job of jobs) {
     try {
       const done = await sweepPodTabs(job.cdp, job.keep, io, cap)
-      out.push({ who: job.who, closed: done.closed.length, left: done.left })
+      out.push({
+        who: job.who,
+        closed: done.closed.length,
+        left: done.left,
+        gone: namesOfClosed(done.closed),
+      })
     } catch {
       /* Not a browser right now. Nothing to tidy, nothing to say. */
     }
