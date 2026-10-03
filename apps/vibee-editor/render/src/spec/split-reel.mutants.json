@@ -36,16 +36,16 @@
     "to": "  if (given) return SPEC.CTA_GIVEN\n"
   },
   {
-    "name": "the audio refund dropped: voice_refunds never true",
-    "file": "src/split-reel-plan.ts",
-    "from": "  if (!ownerVoiceNeeded) return false\n  return !ownerVoiceAllowed(house)\n",
-    "to": "  return false\n"
+    "file": "src/agent/tools.ts",
+    "name": "the charge moved before the refusal",
+    "from": "      const ownerVoiceMay = ownerVoiceAllowed(houseReel)\n      if (forLead) {\n        // Her own voice for her own reel; anybody else's only by its owner.\n        const self = forLead.replace(/^@/, '') === String(ctx.telegramId)\n        const theirs = await (\n          self\n            ? ownVoiceOf(ctx.pool, String(ctx.telegramId))\n            : leadVoiceOf(ctx.pool, String(ctx.telegramId), forLead)\n        ).catch(() => null)\n        if (!theirs) {\n          const why =\n            'клона его голоса ещё нет: сначала crm_voice_clone {chat} из его голосовых в личке'\n          return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n        }\n        cloneVoice = theirs.voiceId\n        голосКлиента = true // cyrillic-ok: local flag\n        voiceId = ''\n      }\n      /*\n       * A sweep for leads that names no lead and no voice (split-reel v7):\n       * the house asks no library (asksElevenLabs), so only the owner's\n       * voice could speak it, and that voice is not lent -- refused before\n       * the charge, never a stranger's voice.\n       */\n      if (\n        isHouse(ctx.telegramId) &&\n        !voiceId &&\n        !cloneVoice &&\n        !ownerVoiceMay\n      ) {\n        const why =\n          'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'\n        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n      }\n      const charge = await spendTokens(ctx, 'audio_generate')\n      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields\n",
+    "to": "      const charge = await spendTokens(ctx, 'audio_generate')\n      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields\n      const ownerVoiceMay = ownerVoiceAllowed(houseReel)\n      if (forLead) {\n        // Her own voice for her own reel; anybody else's only by its owner.\n        const self = forLead.replace(/^@/, '') === String(ctx.telegramId)\n        const theirs = await (\n          self\n            ? ownVoiceOf(ctx.pool, String(ctx.telegramId))\n            : leadVoiceOf(ctx.pool, String(ctx.telegramId), forLead)\n        ).catch(() => null)\n        if (!theirs) {\n          const why =\n            'клона его голоса ещё нет: сначала crm_voice_clone {chat} из его голосовых в личке'\n          return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n        }\n        cloneVoice = theirs.voiceId\n        голосКлиента = true // cyrillic-ok: local flag\n        voiceId = ''\n      }\n      /*\n       * A sweep for leads that names no lead and no voice (split-reel v7):\n       * the house asks no library (asksElevenLabs), so only the owner's\n       * voice could speak it, and that voice is not lent -- refused before\n       * the charge, never a stranger's voice.\n       */\n      if (\n        isHouse(ctx.telegramId) &&\n        !voiceId &&\n        !cloneVoice &&\n        !ownerVoiceMay\n      ) {\n        const why =\n          'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'\n        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n      }\n"
   },
   {
-    "name": "the audio refund dropped: the refusal keeps the charge",
-    "file": "src/agent/tools.ts",
-    "from": "        await refundTokens(\n          ctx,\n          'audio_generate',\n          'голос владельца не для рилса клиента',\n          charge['потрачено']\n        )\n",
-    "to": ""
+    "file": "src/agent/split-reel-tool.ts",
+    "name": "split_reel pays the voice before refusing a house name",
+    "from": "      // Her own words stand; a house name the agent put in does not.\n",
+    "to": "      await lookup('audio_generate')?.handler({ text }, ctx)\n      // Her own words stand; a house name the agent put in does not.\n"
   },
   {
     "name": "agent_supplied ignored: her own words are refused too",

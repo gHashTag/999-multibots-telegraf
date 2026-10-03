@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as SPEC from './split-reel.gen'
 import { PAUSE_SEC as STORY_PAUSE_SEC } from './crm-story-reel.gen'
 import { SplitTalkingHeadSchema } from '../compositions/SplitTalkingHead'
@@ -27,7 +27,6 @@ import {
   speechFrames,
   splitSegments,
   STUDIO_FACE,
-  voiceRefunds,
 } from '../split-reel-plan'
 import {
   analyzeReel,
@@ -36,6 +35,32 @@ import {
   rhythmAgainstSpec,
   shotsFromCuts,
 } from '../agent/reel-analyze'
+import { makeSplitReelTool } from '../agent/split-reel-tool'
+
+/*
+ * The charge is spied on below through the tools themselves, and the house's
+ * own wallet is read once at load (house-ids.ts), hence vi.hoisted.
+ */
+const HOUSE_ID = vi.hoisted(() => {
+  process.env.HOUSE_TELEGRAM_IDS = '900000001'
+  return '900000001'
+})
+const SELLER_ID = '900000077'
+const CLIENT_ID = '900000005'
+
+/** A pool that remembers every statement; it holds no tokens and no clone. */
+function emptyPool() {
+  const said: string[] = []
+  return {
+    said,
+    query: async (sql: string) => {
+      said.push(String(sql))
+      return { rows: [] }
+    },
+  }
+}
+/** The debit statement of the ledger: the one place a wallet is charged. */
+const DEBIT = /UPDATE user_tokens SET balance = balance - /
 
 /**
  * gHashTag/t27 specs/automation/split-reel.t27, vendored beside its
@@ -351,12 +376,93 @@ describe('split-reel.t27 against the host', () => {
     expect(namesHouse('Запишитесь на примерку')).toBe(false) // cyrillic-ok: a client call
   })
 
-  it('a refused owner voice gives its charge back', () => {
-    expect(voiceRefunds(true, false)).toBe(true)
-    expect(voiceRefunds(true, true)).toBe(false)
-    expect(voiceRefunds(false, false)).toBe(false)
-    expect(voiceRefunds(false, true)).toBe(false)
-  })
+  it('a refusal comes before the charge, so a refused call costs nothing', async () => {
+    expect(SPEC.REFUSED_BEFORE_SPEND).toBe(true)
+    const { TOOLS_BY_NAME } = await import('../agent/tools')
+    const audio = TOOLS_BY_NAME.get('audio_generate')!
+    const fetched = vi.spyOn(globalThis, 'fetch')
+    const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      // charged(true) == false, audio_generate: a seller who pays asks for a
+      // lead's voice that was never cloned -- refused, and no debit was run.
+      const seller = emptyPool()
+      const noClone: any = await audio.handler(
+        { text: 'Hello, this is Anna', for_lead: CLIENT_ID },
+        { telegramId: SELLER_ID, pool: seller } as never
+      )
+      expect(noClone.сделано).toBe(false) // cyrillic-ok: audio_generate's own answer key
+      expect(seller.said.some(q => DEBIT.test(q))).toBe(false)
+
+      // ...and the house's sweep for leads, which only the owner's voice
+      // could speak: refused before spendTokens, which for the house leaves
+      // its own line ("the house does not pay itself") whenever it runs.
+      const house = emptyPool()
+      const sweep: any = await audio.handler({ text: 'Hello, this is Anna' }, {
+        telegramId: HOUSE_ID,
+        sellerSweep: true,
+        pool: house,
+      } as never)
+      expect(sweep.сделано).toBe(false) // cyrillic-ok: audio_generate's own answer key
+      expect(sweep.причина).toMatch(/for_lead/) // cyrillic-ok: audio_generate's own answer key
+      const lines = logged.mock.calls.map(c => String(c[0]))
+      expect(lines.some(l => /«audio_generate»/.test(l))).toBe(false)
+      expect(house.said.some(q => DEBIT.test(q))).toBe(false)
+      expect(fetched).not.toHaveBeenCalled()
+
+      // charged(false) == true: a call that goes ahead is charged -- the same
+      // seller naming a voice reaches the debit (her empty wallet refuses it).
+      const paying = emptyPool()
+      await audio.handler({ text: 'Hello, this is Anna', voice_id: 'v-1' }, {
+        telegramId: SELLER_ID,
+        pool: paying,
+      } as never)
+      expect(paying.said.some(q => DEBIT.test(q))).toBe(true)
+    } finally {
+      logged.mockRestore()
+      fetched.mockRestore()
+    }
+
+    // split_reel: its charge is the first paid tool it calls. A refused reel
+    // calls none; a reel that goes ahead calls the voice first.
+    const paid: string[] = []
+    const lookup = (name: string) => ({
+      name,
+      description: '',
+      parameters: {},
+      handler: async () => {
+        paid.push(name)
+        return { done: false, reason: 'stop here' }
+      },
+    })
+    const senses = { length: async () => 9, hear: async () => ({ words: [] }) }
+    const reel = makeSplitReelTool(lookup as never, senses as never)
+    const ARGS = {
+      image_url: 'https://ours/face.png',
+      text: 'Hello, this is Anna ... write now',
+      brolls: ['a garden'],
+    }
+    const pool = emptyPool()
+    // Another client's reel on this client's turn.
+    const other: any = await reel.handler({ ...ARGS, for_lead: '900000006' }, {
+      telegramId: SELLER_ID,
+      faceOf: CLIENT_ID,
+      pool,
+    } as never)
+    expect(other.done).toBe(false)
+    // A house name the agent put into a seller's reel.
+    const named: any = await reel.handler(
+      { ...ARGS, text: 'Hello, this is Trinity ... write now' },
+      { telegramId: SELLER_ID, pool } as never
+    )
+    expect(named.done).toBe(false)
+    expect(paid).toEqual([])
+    const ahead: any = await reel.handler(ARGS, {
+      telegramId: SELLER_ID,
+      pool,
+    } as never)
+    expect(ahead.done).toBe(false)
+    expect(paid).toEqual(['audio_generate'])
+  }, 60_000)
 
   it('the version is the last dated note', () => {
     const spec = readFileSync(join(__dirname, 'split-reel.t27'), 'utf8')

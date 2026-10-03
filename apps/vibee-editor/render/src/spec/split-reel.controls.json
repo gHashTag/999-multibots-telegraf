@@ -60,14 +60,14 @@
     "to": "        if !agent_supplied {"
   },
   {
-    "name": "refund dropped: a refused owner voice keeps its charge",
-    "from": "return !owner_voice_allowed(house_own);",
-    "to": "return false;"
+    "name": "refusal after spend: a refused call is charged",
+    "from": "pub const REFUSED_BEFORE_SPEND : bool = true;",
+    "to": "pub const REFUSED_BEFORE_SPEND : bool = false;"
   },
   {
-    "name": "every voice is refunded, not only the refused owner voice",
-    "from": "if !owner_voice_needed {",
-    "to": "if false {"
+    "name": "a call that goes ahead is not charged",
+    "from": "        if !refused {\n            return true;",
+    "to": "        if !refused {\n            return false;"
   },
   {
     "name": "the house's bot changes",

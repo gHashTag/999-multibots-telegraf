@@ -96,11 +96,7 @@ import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
-import {
-  houseOwnTurn,
-  ownerVoiceAllowed,
-  voiceRefunds,
-} from '../split-reel-plan'
+import { houseOwnTurn, ownerVoiceAllowed } from '../split-reel-plan'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
 import {
@@ -2244,9 +2240,15 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
-      const charge = await spendTokens(ctx, 'audio_generate')
-      if (!charge.ok) return { сделано: false, причина: charge.причина }
-      const base = selfBase()
+      /*
+       * EVERY REFUSAL HERE COMES BEFORE THE CHARGE (split-reel v7,
+       * REFUSED_BEFORE_SPEND). Whose voice it is, and whether that voice
+       * exists, is read first -- from code-set fields and our own tables,
+       * nothing paid -- and only a voice that will be tried is charged. Both
+       * refusals below used to follow the charge with a refund: for the house
+       * that refund was 0 (the house is never charged), and a caller who pays
+       * was charged and refunded for a voice that never existed.
+       */
       /**
        * Голос по умолчанию — КЛОН ВЛАДЕЛЬЦА, а не первый попавшийся.
        *
@@ -2277,8 +2279,8 @@ export const TOOLS: AgentTool[] = [
       /*
        * WHOSE VOICE (split-reel v7): the owner's clone is the house's own
        * reel's alone. On a turn for a client (faceOf, set by code) with no
-       * voice named, the voice is HERS -- her clone, or a refusal with the
-       * charge back below -- never the owner's.
+       * voice named, the voice is HERS -- her clone, or a refusal before the
+       * charge -- never the owner's.
        */
       const forLead = args.for_lead
         ? String(args.for_lead)
@@ -2303,12 +2305,6 @@ export const TOOLS: AgentTool[] = [
             : leadVoiceOf(ctx.pool, String(ctx.telegramId), forLead)
         ).catch(() => null)
         if (!theirs) {
-          await refundTokens(
-            ctx,
-            'audio_generate',
-            'клона голоса клиента нет',
-            charge['потрачено']
-          )
           const why =
             'клона его голоса ещё нет: сначала crm_voice_clone {chat} из его голосовых в личке'
           return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
@@ -2317,6 +2313,25 @@ export const TOOLS: AgentTool[] = [
         голосКлиента = true // cyrillic-ok: local flag
         voiceId = ''
       }
+      /*
+       * A sweep for leads that names no lead and no voice (split-reel v7):
+       * the house asks no library (asksElevenLabs), so only the owner's
+       * voice could speak it, and that voice is not lent -- refused before
+       * the charge, never a stranger's voice.
+       */
+      if (
+        isHouse(ctx.telegramId) &&
+        !voiceId &&
+        !cloneVoice &&
+        !ownerVoiceMay
+      ) {
+        const why =
+          'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+      }
+      const charge = await spendTokens(ctx, 'audio_generate')
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields
+      const base = selfBase()
       /*
        * The house never asks ElevenLabs (crm-story-reel v19,
        * HOUSE_SKIPS_ELEVENLABS): a voice of its own there raised the
@@ -2351,27 +2366,6 @@ export const TOOLS: AgentTool[] = [
       ) {
         cloneVoice = OWNER_MINIMAX_CLONE
         голосВладельца = true // cyrillic-ok: existing local
-      }
-      /*
-       * A sweep for leads that names no lead and no voice (split-reel v7):
-       * the owner's voice is not lent to it and the house asks no library,
-       * so it is refused with the charge back -- never a stranger's voice.
-       */
-      if (
-        voiceRefunds(
-          !voiceId && !cloneVoice && isHouse(ctx.telegramId),
-          houseReel
-        )
-      ) {
-        await refundTokens(
-          ctx,
-          'audio_generate',
-          'голос владельца не для рилса клиента',
-          charge['потрачено']
-        )
-        const why =
-          'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'
-        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
       }
       /*
        * THE OWNER'S REEL SPEAKS IN THE OWNER'S VOICE (owner, 2026-10-03:
