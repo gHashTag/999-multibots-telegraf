@@ -1321,6 +1321,11 @@ function canTakeSection(surface?: string): string {
     'Имя или «HR» в профиле ничего не значат. Новую группу под аудиторию ' + // cyrillic-ok: prompt copy
     'открывает tg_create_group — карточка, владелец нажимает сам; группа ' + // cyrillic-ok: prompt copy
     'создаётся пустой, приглашения отдельно.' + // cyrillic-ok: prompt copy
+    '\n\nТЫ УМЕЕШЬ СОЗДАТЬ TELEGRAM-БОТА — tg_create_bot: ссылка и кнопка ' + // cyrillic-ok: prompt copy
+    'открывают окно создания в самом Telegram, человек подтверждает, токен ' + // cyrillic-ok: prompt copy
+    'никто не видит. Не говори, что боты создаются только в @BotFather, и ' + // cyrillic-ok: prompt copy
+    'не веди по /newbot; если инструмент ответил, что режим выключен, — ' + // cyrillic-ok: prompt copy
+    'передай ровно его путь включения.' + // cyrillic-ok: prompt copy
     /*
      * WHEN THE AGENT NEEDS THE PERSON, IT CALLS A BUTTON, NOT THE CHAT.
      *
