@@ -26,6 +26,8 @@ const clicks: string[] = []
 
 vi.mock('./src/browser/sessions', () => ({
   readSession: async () => ({ state: 'live', cdpEndpoint: 'cdp' }),
+  /* deskMayAct asks before every press (desk-page.ts): nobody drives here. */
+  personHasTheWheel: () => false,
 }))
 vi.mock('./src/browser/routes', () => ({
   startBrowserAsAgent: async () => true,
@@ -67,6 +69,7 @@ vi.mock('./src/browser/cdp', () => ({
     if (blankLooks > 0) return (blankLooks--, null)
     return { x: 1, y: 1, label: 'Post' }
   },
+  pageUrl: async (_c: string, id: string) => pageUrl.get(id) ?? '',
   clickAt: async (_c: string, id: string) => void clicks.push(id),
   typeText: async (_c: string, _id: string, text: string) =>
     void typed.push(text),

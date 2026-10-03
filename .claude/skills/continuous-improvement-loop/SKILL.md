@@ -619,6 +619,31 @@ in JSON at position 8192`. Причина — не в тестах: `money-map.m
 > цикл уже забивал до нуля), и НЕ удаляет их: в брошенной копии может лежать
 > несохранённая работа.
 
+Update 03.10.2026 (#3474 and its follow-up): `tri worktrees --apply` now
+removes trees, and only provably finished ones. Lessons it cost:
+
+- **Finished is judged by COMMIT, not branch name.** This repo squash-merges:
+  HEAD == a merged PR's head oid, or inside one, or in origin/main, or
+  `git cherry` all `-`. A reused name with new commits stays.
+- **Removal without `--force` still deletes ignored content**, nested
+  repositories included. So every ignored entry is checked: it must sit in a
+  rebuildable folder (node_modules, dist, build, logs...), and nothing inside
+  may be a name the tree's own `.gitignore` lists (`git check-ignore
+--no-index`, name by name), a nested `.git`, or an unreadable folder.
+- **Never hand-copy `.gitignore` into code.** The first secret list (`.env`,
+  key files) lost a `logs/.env`; the second (exact names) lacked ~20 names a
+  day later. The bee found both by attacking a throwaway repo with `--apply`.
+- `status --ignored` collapses `logs/` -- use `--ignored=matching -z`.
+- An empty env number with `??` becomes 0 and turns a dry run into a sweep;
+  use `||`.
+- 03.10 run of `tri worktrees --apply` (#3474 code): 46 of 66 trees removed,
+  ~25.6 GB freed, disk free 8.7 -> 35 GiB, branches untouched. Kept on
+  purpose: 999-mail-push (ignored .env), one tree touched 17 min earlier.
+- The floor that would have spoken: `tri disk-floor` (also in `tri doctor`
+  and `tri disk`) is rc 1 below 15 GiB free and prints `tri worktrees
+--apply`. free-disk.sh's own "clean and published -> git worktree remove"
+  verdict is gone -- a second judge of worktrees drifts from the first.
+
 ### Урок 07.09.2026: сторож, честно назвавший свою слепую зону, — это адрес работы
 
 `assets-identity-order.test.ts` писал о себе прямо: «проверяет ПОРЯДОК —
@@ -2070,6 +2095,28 @@ waiting while it is unlisted or PROCESSING. A wait that runs out notifies
 too; Apple's text goes to osascript as an argument, never into the script.
 Ask of every "wait for X": what does the world look like in the first minute,
 before X even exists?
+
+**A banner on a Mac nobody watches is not a notice** (03.10.2026). The owner
+uploads and goes to sleep; `processed --wait` only spoke to the Mac. Now
+`tri iphone processed --telegram` sends a FINAL answer (ready, refused,
+expired, unknown) from @t27ai_bot, once per answer: the last one sent is
+kept in `~/.cache/tri/processed-telegram`, so the loop may call it every tick
+without repeating "ready" (the hourly announce spam, #3467); a refused send
+is not recorded and goes again next time. The token goes to curl on stdin
+(`-K -`), never in argv. Loop tick after an upload:
+`./tri iphone processed --telegram`.
+
+**A stub that can reach a real secret will.** The #3500 reviewer bee
+stubbed curl with `export -f` -- zsh, so it exported nothing -- left
+`TRI_TG_TOKEN` unset, and tri read the real `BOT_TOKEN_12` from Railway into
+the stub's log, which the bee printed. Nothing was sent; the value still
+reached a transcript. Now a set `TRI_CURL` means Railway is never read, the
+token must match `^[0-9]+:[A-Za-z0-9_-]+$` (a newline in it added a curl
+config line), and the test stubs railway through the pick's cache
+(`XDG_CACHE_HOME/tri/railway-bin`): PATH alone loses to `/opt/homebrew/bin`,
+which tri puts first. Tell every bee: stubs in `/bin/bash`, never `export -f`
+from the Bash tool, and stub curl through `TRI_CURL` -- a stub curl only on
+PATH does not trip the guard, so Railway is still read.
 
 ### Lesson of 01.10.2026 (CRM mobile loop, tick 12): a mock that cannot tell "found" from "missing" hides a whole path
 

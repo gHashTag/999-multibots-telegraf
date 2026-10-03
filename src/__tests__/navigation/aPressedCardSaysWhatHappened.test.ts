@@ -60,7 +60,9 @@ describe('a pressed card says what happened', () => {
       join(__dirname, '../../navigation/registerCommands.ts'),
       'utf8'
     )
-    expect(src).toContain("settleButtons(ctx, '✅ Отправлено', lead)")
+    // "Sent" is settled from the outcome since the 2026-10-03 audit: a refused
+    // send restores the buttons instead (nothingSendsWithoutAPress.test.ts).
+    expect(src).toMatch(/settleButtons\(\s*ctx,\s*r\.ok \? '✅ Отправлено'/)
     expect(src).toContain("settleButtons(ctx, '✋ Не отправлено', lead)")
     const at = src.indexOf('const settleButtons =')
     expect(src.slice(at, at + 900)).toContain('await stripButtons(ctx)')

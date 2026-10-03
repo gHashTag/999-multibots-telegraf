@@ -46,6 +46,7 @@ usage() {
 tri — оболочка Trinity S³AI
 
   tri doctor     всё перед началом смены: копия, диск, конвейер, влито = выехало
+  tri disk-floor свободно меньше 15 ГиБ? тогда код 1 и команда, что освободит (tri worktrees --apply)
   tri fresh      сверить рабочую копию с origin/main (частая причина ложных диагнозов)
   tri disk       освободить место и проверить сам инструмент чистки
   tri pipeline   проверка конвейера без единой траты кредитов
@@ -1036,19 +1037,12 @@ case "${1:-}" in
     ;;
 
   worktrees)
-    # БРОШЕННЫЕ КОПИИ РЕПОЗИТОРИЯ. Обнаружено 07.09.2026: `find` по имени
-    # файла вывел копию из `.claude/worktrees/`, и я едва не измерил не тот
-    # файл. Плюс 286 МБ на диске, который этот цикл уже забивал до нуля.
-    #
-    # Команда НЕ УДАЛЯЕТ: в брошенной копии может лежать несохранённая работа.
-    # Она показывает, что есть, и оставляет решение человеку.
-    echo "— копии репозитория —"
-    git worktree list | sed "s|^|  |"
-    if [ -d "$ROOT/.claude/worktrees" ]; then
-      echo "— вес —"
-      du -sh "$ROOT/.claude/worktrees" 2>/dev/null | sed "s|^|  |"
-      echo "  удалять: git worktree remove <путь>  (сначала посмотрите git -C <путь> status)"
-    fi
+    # ONE JUDGE. The root tri judges finished trees by commit and its --apply
+    # removes only provably safe ones (#3474/#3497). The list that lived here
+    # ignored --apply, returned 0 and advised removing trees by hand --
+    # the advice disk-floor stopped giving. Hand the word over instead.
+    shift
+    exec "$ROOT/tri" worktrees "$@"
     ;;
 
   guards)
@@ -1184,6 +1178,10 @@ sys.stderr.write(str(len(ts)))
     bash "$ROOT/bin/helpers/turn-time.sh" "$ROOT" "${2:-200}" ;;
   deadlines)
     bash "$ROOT/bin/helpers/deadlines.sh" "$ROOT" "${2:-}" ;;
+  relays)
+    # Does a bot button tap still reach the render? Key parity, guard, live
+    # approve + meeting probes with junk tokens, relay failures in the log.
+    bash "$ROOT/bin/helpers/relays.sh" "${2:-24}" ;;
   orphans)
     bash "$ROOT/bin/helpers/orphans.sh" "$ROOT" "${2:-200}" ;;
   crm-waiting)
@@ -2123,12 +2121,16 @@ PYEOF
   precommit) shift; bash "$ROOT/bin/helpers/precommit.sh" "$ROOT" "$@" ;;
   funnel) shift; bash "$ROOT/bin/helpers/funnel.sh" "$ROOT" "$@" ;;
   headroom) shift; bash "$ROOT/bin/helpers/headroom.sh" "$ROOT" "$@" ;;
+  disk-floor) shift; bash "$ROOT/bin/helpers/disk-floor.sh" ;;
   lost)   shift; bash "$ROOT/bin/helpers/lost.sh" "$ROOT" "$@" ;;
   binary) shift; bash "$ROOT/bin/helpers/binary.sh" "$ROOT" "$@" ;;
 
   doctor)
     echo "── копия ──";     fresh || true
     echo; echo "── диск ──"; bash "$LOOP/check-free-disk.sh" | tail -1; bash "$LOOP/free-disk.sh" | tail -1
+    # The floor speaks while there is still room to clean up (15 GiB, not the
+    # 2 GiB of one build): 8.7 GiB free on 2026-10-03 and nothing said a word.
+    bash "$ROOT/bin/helpers/disk-floor.sh"
     echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3)
     echo; echo "── влито = выехало ──"; node "$ROOT/scripts/railway-drift.mjs" || true
     # ПОЛ ПРИБОРОВ. Смысл держать его здесь: проверяют его ровно тогда, когда

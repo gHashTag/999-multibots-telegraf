@@ -19,6 +19,8 @@ const IOS_FASTLANE = path.join(__dirname, '..', 'apps', 'vibee-ios', 'fastlane')
 const hasRuby = spawnSync('ruby', ['-v']).status === 0
 
 let bin: string
+/** Per-test changes to the environment tri runs in. */
+let env: Record<string, string> = {}
 
 /** Runs `tri iphone processed ...` with the lane printing `lane`. */
 function processed(lane: string, ...args: string[]) {
@@ -30,7 +32,17 @@ function processed(lane: string, ...args: string[]) {
       NO_COLOR: '1',
       TRI_FASTLANE: path.join(bin, 'fastlane'),
       TRI_NOTIFY: path.join(bin, 'notify'),
+      TRI_CURL: path.join(bin, 'curl'),
+      TRI_TG_TOKEN: '123:test-token',
+      TRI_TG_CHAT: '42',
+      TRI_PROCESSED_SENT: path.join(bin, 'sent'),
       TMPDIR: bin,
+      // A railway that only records being asked: no test may read Railway.
+      // PATH alone is not enough -- tri puts /opt/homebrew/bin and its picked
+      // railway in front -- so the pick's own cache names the stub.
+      XDG_CACHE_HOME: bin,
+      RVARS_PAUSE: '0',
+      ...env,
     },
   })
   const read = (f: string) =>
@@ -43,11 +55,25 @@ function processed(lane: string, ...args: string[]) {
     call: read('call'),
     notified: read('notified'),
     notifyArgs: read('notify-args'),
+    curlArgs: read('curl-args'),
+    curlConfig: read('curl-config'),
+    railway: read('railway-called'),
   }
 }
 
 beforeEach(() => {
+  env = {}
   bin = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tri-proc-')))
+  fs.writeFileSync(
+    path.join(bin, 'railway'),
+    `#!/bin/sh\necho "$*" >> '${bin}/railway-called'\nexit 1\n`,
+    { mode: 0o755 }
+  )
+  fs.mkdirSync(path.join(bin, 'tri'))
+  fs.writeFileSync(
+    path.join(bin, 'tri', 'railway-bin'),
+    path.join(bin, 'railway')
+  )
   fs.writeFileSync(
     path.join(bin, 'fastlane'),
     // Records the lane and the two settings it was given, prints the canned
@@ -62,9 +88,108 @@ beforeEach(() => {
     `#!/bin/sh\nprintf '%s\\n' "$@" > '${bin}/notify-args'\nfor a; do last="$a"; done\necho "$last" > '${bin}/notified'\n`,
     { mode: 0o755 }
   )
+  fs.writeFileSync(
+    path.join(bin, 'curl'),
+    // Keeps argv and the config it reads on stdin apart, so a test can see
+    // the token travels only on stdin; answers like the Bot API (or like a
+    // refusal when told to).
+    `#!/bin/sh\nprintf '%s\\n' "$@" >> '${bin}/curl-args'\ncat >> '${bin}/curl-config'\nif [ -f '${bin}/curl-fails' ]; then echo '{"ok":false,"description":"Forbidden"}'; else echo '{"ok":true}'; fi\n`,
+    { mode: 0o755 }
+  )
 })
 
 afterEach(() => fs.rmSync(bin, { recursive: true, force: true }))
+
+describe('tri iphone processed --telegram', () => {
+  const READY = 'processed  ready  build 7 (1.0) VALID\n'
+
+  it('a final answer reaches the owner once, the token only on stdin', () => {
+    const r = processed(READY, '--telegram')
+    expect(r.rc).toBe(0)
+    expect(r.curlConfig).toBe(
+      'url = "https://api.telegram.org/bot123:test-token/sendMessage"'
+    )
+    expect(r.curlArgs).not.toContain('test-token')
+    expect(r.curlArgs).toContain('chat_id=42')
+    expect(r.curlArgs).toContain('build 7 (1.0) VALID')
+    expect(r.out).toMatch(/the owner has the answer/)
+    const again = processed(READY, '--telegram')
+    expect(again.rc).toBe(0)
+    expect(again.curlArgs.split('chat_id=42').length - 1).toBe(1)
+    expect(again.out).toMatch(/already reached the owner/)
+  })
+
+  it('a new answer after a sent one goes out too', () => {
+    processed(READY, '--telegram')
+    const r = processed(
+      'processed  failed  build 8 (1.0) INVALID\n',
+      '--telegram'
+    )
+    expect(r.rc).toBe(1)
+    expect(r.curlArgs).toContain('build 8 (1.0) INVALID')
+  })
+
+  it('still processing and nothing uploaded send nothing', () => {
+    for (const lane of [
+      'processed  processing  build 8 (1.0) PROCESSING\n',
+      'processed  none  no build uploaded yet\n',
+    ]) {
+      const r = processed(lane, '--telegram')
+      expect(r.rc, lane).toBe(4)
+      expect(r.curlArgs, lane).toBe('')
+    }
+  })
+
+  it('without --telegram nothing is sent', () => {
+    expect(processed(READY, '--wait', '1').curlArgs).toBe('')
+  })
+
+  it('a refused send warns, keeps the exit code, and is retried next time', () => {
+    fs.writeFileSync(path.join(bin, 'curl-fails'), '')
+    const r = processed(READY, '--telegram')
+    expect(r.rc).toBe(0)
+    expect(r.out).toMatch(/not sent .*Forbidden/)
+    fs.rmSync(path.join(bin, 'curl-fails'))
+    const again = processed(READY, '--telegram')
+    expect(again.out).toMatch(/the owner has the answer/)
+  })
+
+  it('a stubbed curl never makes tri read the real token from Railway', () => {
+    env = { TRI_TG_TOKEN: '' }
+    const r = processed(READY, '--telegram')
+    expect(r.rc).toBe(0)
+    expect(r.railway).toBe('')
+    expect(r.curlArgs).toBe('')
+    expect(r.out).toMatch(/TRI_CURL is a stub/)
+  })
+
+  it('a token outside the bot-token alphabet never reaches the curl config', () => {
+    for (const tok of [
+      '123:abc\noutput = /tmp/x',
+      '123:a"b',
+      '123:a b',
+      '123:',
+      ':abc',
+      'abc',
+    ]) {
+      env = { TRI_TG_TOKEN: tok }
+      const r = processed(READY, '--telegram')
+      expect(r.rc, tok).toBe(0)
+      expect(r.curlConfig, tok).toBe('')
+      expect(r.out, tok).toMatch(/right shape/)
+    }
+  })
+
+  it('a sent answer that cannot be recorded says it will be sent again', () => {
+    // The parent of the record is a file, so the record cannot be written.
+    env = { TRI_PROCESSED_SENT: path.join(bin, 'curl', 'sent') }
+    const r = processed(READY, '--telegram')
+    expect(r.rc).toBe(0)
+    expect(r.curlArgs).toContain('chat_id=42')
+    expect(r.out).toMatch(/cannot be written -- the next run sends it again/)
+    expect(r.out).not.toMatch(/the owner has the answer/)
+  })
+})
 
 describe('tri iphone processed (exit codes)', () => {
   it('ready is 0, names the build, asks no consent', () => {

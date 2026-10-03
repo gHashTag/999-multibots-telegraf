@@ -2456,6 +2456,20 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
    */
   const stripButtons = async (ctx: any) =>
     ctx.editMessageReplyMarkup(undefined).catch(() => undefined)
+  /*
+   * THE BUTTONS COME BACK WHEN THE PRESS DID NOT LAND.
+   *
+   * Owner, 2026-10-03: a relay that failed used to strip the card first and
+   * then say "try again in a minute" -- with nothing left to try again on.
+   * The keyboard Telegram showed is still in the callback's own message, so
+   * the press puts exactly that back. Stripping first stays: while the relay
+   * is in flight a second tap has nothing to hit.
+   */
+  const restoreButtons = async (ctx: any) => {
+    const markup = ctx.callbackQuery?.message?.reply_markup
+    if (markup?.inline_keyboard?.length)
+      await ctx.editMessageReplyMarkup(markup).catch(() => undefined)
+  }
 
   /**
    * THE CARD SAYS WHAT WAS DECIDED, instead of going blank (issue #2418).
@@ -2502,20 +2516,38 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     )
     const lead = takeCardLead(id)
     const r = await confirmProposal(String(ctx.from?.id ?? ''), id, secret)
-    // The card now carries its own outcome, with the history row intact.
-    await settleButtons(ctx, '✅ Отправлено', lead) // cyrillic-ok: button label
-    // Either press frees the proactive sweep to prepare the next card, and
-    // moves a scoped sweep on to the next person.
-    void import('@/services/crmProactive').then(m =>
-      m.noteResolved(String(ctx.from?.id ?? ''), id)
-    )
-    // THE PRESS ITSELF, WRITTEN DOWN. Nothing recorded it before: the touch
-    // needs a lead, the log has no line for a success, and the journal had no
-    // kind. Fire-and-forget on purpose -- a journal that is down must never
-    // eat a press.
-    void import('@/services/hiveNote').then(m =>
-      m.notePressToHive(String(ctx.from?.id ?? ''), 'sent', { lead })
-    )
+    /*
+     * THE CARD SAYS WHAT HAPPENED, NOT WHAT WAS HOPED.
+     *
+     * Audit 2026-10-03: the card was settled "✅ Sent" before anyone read r,
+     * so a 401 or a 5xx left a card saying "Sent" above a reply saying "not
+     * sent" -- and no button to try again. Now: sent -> "Sent"; the server
+     * ANSWERED no -> the draft was not sent, the buttons come back; the
+     * connection broke -> "not sure", and no button, because a second press
+     * could deliver the message twice.
+     */
+    if (!r.ok && !r.unknown) {
+      await restoreButtons(ctx)
+    } else {
+      // The card now carries its own outcome, with the history row intact.
+      await settleButtons(
+        ctx,
+        r.ok ? '✅ Отправлено' : '⚠️ Ушло ли — не знаю', // cyrillic-ok: button label
+        lead
+      )
+      // Either press frees the proactive sweep to prepare the next card, and
+      // moves a scoped sweep on to the next person.
+      void import('@/services/crmProactive').then(m =>
+        m.noteResolved(String(ctx.from?.id ?? ''), id)
+      )
+      // THE PRESS ITSELF, WRITTEN DOWN. Nothing recorded it before: the touch
+      // needs a lead, the log has no line for a success, and the journal had
+      // no kind. Fire-and-forget on purpose -- a journal that is down must
+      // never eat a press.
+      void import('@/services/hiveNote').then(m =>
+        m.notePressToHive(String(ctx.from?.id ?? ''), 'sent', { lead })
+      )
+    }
     /*
      * THREE ANSWERS, BECAUSE THERE ARE THREE STATES.
      *
@@ -2548,7 +2580,10 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
                 // shown as it came, because "something went wrong" would hide
                 // the only thing that says whether to retry or to rewrite.
                 (isRu ? '❌ Не отправлено: ' : '❌ Not sent: ') +
-                (r.error ?? ''),
+                (r.error ?? '') +
+                (isRu
+                  ? '. Кнопки на карточке вернулись.'
+                  : '. The card has its buttons back.'),
           extra as any
         ),
       afterSentKeyboard(lead),
@@ -2570,14 +2605,17 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
    * and the press, and a restart in between strands nothing.
    */
   bot.action(/^bap:(.+)$/, async ctx => {
-    await ctx.answerCbQuery().catch(() => undefined)
+    await ctx
+      .answerCbQuery(
+        isRussianFromState(ctx) ? 'Передаю ответ…' : 'Passing it on…' // cyrillic-ok: toast
+      )
+      .catch(() => undefined)
     await stripButtons(ctx)
     const [, token] = ctx.match as RegExpMatchArray
-    const { answerBrowserPermission } = await import(
-      '@/services/browserApproval'
-    )
-    const said = await answerBrowserPermission(token)
-    await ctx.reply(said).catch(() => undefined)
+    const { tapBrowserPermission } = await import('@/services/browserApproval')
+    const r = await tapBrowserPermission(token)
+    if (!r.reached) await restoreButtons(ctx)
+    await ctx.reply(r.said).catch(() => undefined)
   })
 
   /*
@@ -2586,22 +2624,26 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
    * The render sent the card; the press goes back to it as the PRESSER, and
    * the render honours it only from the meeting's owner. The card keeps its
    * join / directions / calendar rows and shows the outcome as a disabled
-   * button; when the render cannot be reached the buttons are stripped and
-   * the person is told so.
+   * button; when the render cannot be reached the original buttons come
+   * back and the person is told why, so there is still something to press.
    */
   bot.action(
     /^mtg:(ok|later|cancel|done|missed):([A-Za-z0-9_-]{16,})$/,
     async ctx => {
-      await ctx.answerCbQuery().catch(() => undefined)
+      await ctx
+        .answerCbQuery(
+          isRussianFromState(ctx) ? 'Передаю ответ…' : 'Passing it on…' // cyrillic-ok: toast
+        )
+        .catch(() => undefined)
+      // Gone at once, so a second tap cannot snooze twice while we wait.
+      await stripButtons(ctx)
       const [, action, token] = ctx.match as RegExpMatchArray
       const { answerMeeting } = await import('@/services/meetingAnswer')
       const r = await answerMeeting(String(ctx.from?.id ?? ''), action, token)
-      if (r.markup) {
-        await ctx
-          .editMessageReplyMarkup(r.markup as any)
-          .catch(() => stripButtons(ctx))
-      } else {
-        await stripButtons(ctx)
+      if (!r.reached) {
+        await restoreButtons(ctx)
+      } else if (r.markup) {
+        await ctx.editMessageReplyMarkup(r.markup as any).catch(() => undefined)
       }
       await ctx.reply(r.said).catch(() => undefined)
     }

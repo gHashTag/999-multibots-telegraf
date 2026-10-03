@@ -58,6 +58,14 @@ export const DID_NOT_LOAD =
  * half).
  */
 export async function deskMayGo(who: DeskWho, url: string): Promise<void> {
+  await rulesAt(who, url)
+}
+
+/** deskMayGo's work, handing back the list it read for deskMayAct. */
+async function rulesAt(
+  who: DeskWho,
+  url: string
+): Promise<import('./site-rules').SiteRuleRow[]> {
   if (/^chrome-error:/i.test(url.trim())) throw new Error(DID_NOT_LOAD)
   const { siteRulesOf, ruleFor, blockedError, UNREADABLE_LIST } = await import(
     './site-rules'
@@ -76,6 +84,81 @@ export async function deskMayGo(who: DeskWho, url: string): Promise<void> {
       'the desk cannot tell which site this tab is on, and the person has ' +
         'blocked sites: refused (the unknown place may be a blocked one)'
     )
+  return rules
+}
+
+/** What a desk hears when the person is driving the browser themselves. */
+export const DESK_WHEEL_TAKEN =
+  'the person has taken the wheel and is driving the browser themselves: ' +
+  'the desk presses and types nothing until they hand it back'
+
+/** What a desk hears on an "ask" site, or a sensitive one, with no fresh yes. */
+export function deskNeedsYes(where: string): string {
+  return (
+    `acting on ${where} needs the person's fresh yes (their list says ` +
+    '"ask", or the place is guarded for everyone): nothing pressed or typed'
+  )
+}
+
+/**
+ * THE CHECK BEFORE A DESK PRESSES OR TYPES (found 2026-10-03).
+ *
+ * The agent tools refuse to act on an "ask" site, a bank, a mail box or an
+ * address they cannot read unless the person said yes in the last five
+ * minutes (agent-tools.ts mustBeAllowedToAct). The desks -- blog-share,
+ * reddit, engage, scenarios -- press and type over raw CDP, and only asked
+ * deskMayGo, which knows "block" and nothing else: a person who put x.com
+ * on "ask" still had the blog desk post there with no question. The same
+ * guard, the same window, the same fail-closed reading of an unknown place.
+ *
+ * And the wheel: while the person drives, the tools act on nothing; a desk
+ * typing into the page under their hands is the second pilot fighting the
+ * first.
+ */
+export async function deskMayAct(
+  who: DeskWho,
+  url: string,
+  now: number = Date.now()
+): Promise<void> {
+  const rules = await rulesAt(who, url)
+  const { ruleFor } = await import('./site-rules')
+  const { readSession, personHasTheWheel } = await import('./sessions')
+  const { mayAct } = await import('./guard')
+  const session = await readSession(who.pool, who.telegramId)
+  if (personHasTheWheel(session, now)) throw new Error(DESK_WHEEL_TAKEN)
+  const verdict = mayAct({
+    url,
+    allowedAtMs: session?.allowedAtMs ?? null,
+    nowMs: now,
+    alsoSensitive: ruleFor(url, rules) === 'ask',
+  })
+  if (!verdict.allowed) throw new Error(deskNeedsYes(verdict.where))
+}
+
+/** A desk's click: where the tab is NOW is checked first (deskMayAct). */
+export async function deskClick(
+  who: DeskWho,
+  cdp: string,
+  targetId: string,
+  x: number,
+  y: number
+): Promise<void> {
+  const io = await import('./cdp')
+  await deskMayAct(who, await io.pageUrl(cdp, targetId))
+  await io.clickAt(cdp, targetId, x, y)
+}
+
+/** A desk's typing: where the tab is NOW is checked first (deskMayAct). */
+export async function deskType(
+  who: DeskWho,
+  cdp: string,
+  targetId: string,
+  text: string,
+  opts: { enterForNewline?: boolean } = {}
+): Promise<void> {
+  const io = await import('./cdp')
+  await deskMayAct(who, await io.pageUrl(cdp, targetId))
+  await io.typeText(cdp, targetId, text, opts)
 }
 
 /** Longer than any desk run (a share run measured 3-6 minutes). */
