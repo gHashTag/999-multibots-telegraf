@@ -178,21 +178,64 @@ PY
 # checkout it lands in) it is an installed package; anywhere else it is some
 # checkout's own code. A named
 # file is compared by its path within the checkout the link lands in.
-ws=$(python3 - "$TOP" "${#NMS[@]}" ${NMS[@]+"${NMS[@]}"} "${REL[@]}" <<'PY'
+# This checkout's own git dirs, asked once with the caller's env: the only
+# places under it that hold no code (review 2 of #3489).
+GITDIRS=$(git -C "$TOP" rev-parse --path-format=absolute --git-dir --git-common-dir) \
+  || { echo "bite: could not find this checkout's git dir -- cannot tell"; exit 2; }
+ws=$(python3 - "$TOP" "$GITDIRS" "${#NMS[@]}" ${NMS[@]+"${NMS[@]}"} "${REL[@]}" <<'PY'
 import os, subprocess, sys
-top, n = sys.argv[1], int(sys.argv[2])
-nms, rels = sys.argv[3:3 + n], sys.argv[3 + n:]
+top, gitdirs, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
+nms, rels = sys.argv[4:4 + n], sys.argv[4 + n:]
 real_top = os.path.realpath(top)
+own_git = {os.path.realpath(g) for g in gitdirs.split("\n") if g}
+
+
+# A hook exports GIT_DIR and friends; left in, they would make every
+# directory look like this checkout (review 1 of #3485). git's own list of
+# repository-local variables, the ones it clears itself on entering another
+# repository -- minus GIT_CONFIG*: `-c` settings such as safe.directory hold
+# in any checkout, and without them a root scan over another user's repo
+# would fail every call (review 1 of #3489).
+LOCAL = set(subprocess.run(["git", "rev-parse", "--local-env-vars"],
+                           capture_output=True, text=True).stdout.split())
+GIT_ENV = {k: v for k, v in os.environ.items()
+           if k not in LOCAL or k.startswith("GIT_CONFIG")}
+
+
+def git_in(d, *args):
+    return subprocess.run(["git", "-C", d, *args], capture_output=True,
+                          text=True, env=GIT_ENV)
 
 
 def checkout_rel(t):
-    """t's path within the git checkout it lies in, or None."""
+    """t's path within the git checkout it lies in, as git spells it, or None.
+
+    git's own prefix, not a relpath against --show-toplevel: on a
+    case-insensitive disk realpath keeps the case it was given and git the
+    case on disk, so the relpath went up through `..` and out of the checkout
+    (review 1 of #3485)."""
     d = t if os.path.isdir(t) else os.path.dirname(t)
-    out = subprocess.run(["git", "-C", d, "rev-parse", "--show-toplevel"],
-                         capture_output=True, text=True).stdout.strip()
-    if not out:
+    r = git_in(d, "rev-parse", "--is-inside-work-tree", "--show-prefix")
+    lines = r.stdout.split("\n")
+    # Inside .git/ or a bare repo the prefix is empty with rc 0: not the
+    # checkout's root, and not a checkout at all (review 1 of #3489).
+    if r.returncode != 0 or lines[0] != "true":
         return None
-    return os.path.relpath(t, os.path.realpath(out))
+    rel = lines[1].rstrip("/") if len(lines) > 1 else ""
+    if d != t:
+        rel = os.path.join(rel, os.path.basename(t))
+    return os.path.normpath(rel) if rel else "."
+
+
+def tracked(t):
+    """Is t, or anything under it, part of the tree -- tracked, or untracked
+    and not ignored, as present_now() reads it? Then it is code, whatever the
+    directory is called (`packages/node_modules/x` kept in git, or not yet
+    added). :(literal): a file named `:add.sh` is a name, not pathspec magic
+    (review 1 of #3489)."""
+    d, what = (t, ".") if os.path.isdir(t) else (os.path.dirname(t), os.path.basename(t))
+    return bool(git_in(d, "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                       "--", ":(literal)" + what).stdout)
 
 
 back = []
@@ -213,7 +256,16 @@ for nm in nms:
         # Within the checkout only: a repo kept under /x/node_modules/ is
         # still code, its workspace links are not installed packages (review
         # 2 of #3479). Outside any checkout the whole path is all there is.
-        if "node_modules" in (t if tr is None else tr).split(os.sep):
+        if "node_modules" in (t if tr is None else tr).split(os.sep) and not tracked(t):
+            continue
+        # Into this checkout's own git storage (.git/hooks), which the copies
+        # leave out, so no run can load the real file through it. Asked by
+        # place, not by "git could not answer": a failed git call (a ceiling,
+        # a separate GIT_DIR) or a bare repo kept as files is not storage
+        # (review 2 of #3489). Only where git placed the target in no work
+        # tree: a bare clone with worktrees inside it has the clone itself
+        # as its common dir, and its worktrees are code (review 3 of #3489).
+        if tr is None and any(t == g or t.startswith(g + os.sep) for g in own_git):
             continue
         shown = os.path.relpath(t, real_top) if t.startswith(real_top + os.sep) else t
         name = f"{os.path.relpath(p, top)} -> {shown}"

@@ -740,3 +740,228 @@ describe('tri bite -- review 2 of #3479', () => {
     expect(r.status).toBe(1)
   })
 })
+
+describe('tri bite -- review 1 of #3485', () => {
+  it('a tracked directory named node_modules is code, not a package', () => {
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'packages/node_modules/x'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'packages/node_modules/x/add.sh'), 'v1\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), '/node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'x')
+    git(dir, 'tag', 'v3')
+    fs.writeFileSync(path.join(dir, 'packages/node_modules/x/add.sh'), 'v2\n')
+    git(dir, 'commit', '-qam', 'x 2')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync(
+      '../packages/node_modules/x',
+      path.join(dir, 'node_modules/x')
+    )
+    const r = bite(
+      dir,
+      'v3',
+      'packages/node_modules/x/add.sh',
+      '--',
+      'grep',
+      '-q',
+      'v2',
+      'node_modules/x/add.sh'
+    )
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+  })
+
+  it('a link spelled in another letter case still lands in the checkout', () => {
+    const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-'))
+    dirs.push(outer)
+    fs.mkdirSync(path.join(outer, 'Outer'))
+    // Only a case-insensitive disk resolves the other spelling.
+    if (!fs.existsSync(path.join(outer, 'outer'))) return
+    const dir = path.join(outer, 'Outer/node_modules/A')
+    fs.mkdirSync(path.join(dir, 'packages/pkg'), { recursive: true })
+    git(dir, 'init', '-q', '-b', 'main')
+    fs.writeFileSync(path.join(dir, 'packages/pkg/add.sh'), 'v1\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'pkg')
+    git(dir, 'tag', 'v1')
+    fs.writeFileSync(path.join(dir, 'packages/pkg/add.sh'), 'v2\n')
+    git(dir, 'commit', '-qam', 'pkg 2')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync(
+      path.join(outer, 'outer/node_modules/A/packages/pkg'),
+      path.join(dir, 'node_modules/pkg')
+    )
+    const r = bite(dir, 'v1', 'packages/pkg/add.sh', '--', 'true')
+    expect(r.status).toBe(2)
+    expect(r.stdout).toMatch(/workspace link/)
+  })
+
+  it('a GIT_DIR exported by a hook does not turn every link into the checkout', () => {
+    // A pnpm-style link into node_modules/.pnpm is an installed package; with
+    // GIT_DIR leaking into the scan it read as this checkout's root.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules/.pnpm/dep'), { recursive: true })
+    fs.symlinkSync('.pnpm/dep', path.join(dir, 'node_modules/dep'))
+    const r = spawnSync('bash', [BITE, 'v1', 'lib/add.sh', '--', 'true'], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 30000,
+      env: { ...process.env, GIT_DIR: path.join(dir, '.git') },
+    })
+    expect(r.stdout).not.toMatch(/workspace link/)
+    expect(r.status).toBe(1)
+  })
+
+  it('a link to a file next to the named one is no hit on the named one', () => {
+    // The link's place within the checkout is the file, not its directory:
+    // node_modules/test.sh -> ../lib/test.sh says nothing about lib/add.sh.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../lib/test.sh', path.join(dir, 'node_modules/test.sh'))
+    const r = bite(
+      path.join(dir, 'lib'),
+      'v1',
+      'add.sh',
+      '--',
+      'bash',
+      'test.sh'
+    )
+    expect(r.stdout).toMatch(/BITES: red on v1/)
+    expect(r.status).toBe(0)
+  })
+})
+
+describe('tri bite -- review 1 of #3489', () => {
+  // An untracked, unignored package is part of the tree as bite reads it.
+  function untrackedPackage(): string {
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), '/node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'packages/node_modules/x'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'packages/node_modules/x/add.sh'), 'v2\n')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync(
+      '../packages/node_modules/x',
+      path.join(dir, 'node_modules/x')
+    )
+    return dir
+  }
+
+  it('an untracked, unignored directory named node_modules is code too', () => {
+    const dir = untrackedPackage()
+    const r = bite(
+      dir,
+      'v1',
+      'packages/node_modules/x/add.sh',
+      '--',
+      'grep',
+      '-q',
+      'v2',
+      'node_modules/x/add.sh'
+    )
+    expect(r.stdout).toMatch(/workspace link/)
+    expect(r.status).toBe(2)
+  })
+
+  it('a -c setting reaches the scan: what it ignores is a package', () => {
+    // GIT_CONFIG_* holds in any checkout (safe.directory, excludesFile), so
+    // the scan keeps it while it drops GIT_DIR and the other local ones.
+    const dir = untrackedPackage()
+    const ex = path.join(dir, '..', path.basename(dir) + '.exclude')
+    fs.writeFileSync(ex, 'packages/\n')
+    const r = spawnSync('bash', [BITE, 'v1', 'lib/add.sh', '--', 'true'], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 30000,
+      env: {
+        ...process.env,
+        GIT_CONFIG_COUNT: '1',
+        GIT_CONFIG_KEY_0: 'core.excludesFile',
+        GIT_CONFIG_VALUE_0: ex,
+      },
+    })
+    fs.rmSync(ex, { force: true })
+    // Ignored by the -c setting, the link is an installed package: no
+    // "links back into the tree", so green on both is a plain rc 1.
+    expect(r.stdout).toMatch(/DOES NOT BITE/)
+    expect(r.status).toBe(1)
+  })
+
+  it('a file whose name starts with a colon is a name, not pathspec magic', () => {
+    const dir = repo()
+    fs.mkdirSync(path.join(dir, 'packages/node_modules/x'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'packages/node_modules/x/:add.sh'), 'v1\n')
+    fs.writeFileSync(path.join(dir, '.gitignore'), '/node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'x')
+    git(dir, 'tag', 'v3')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync(
+      '../packages/node_modules/x/:add.sh',
+      path.join(dir, 'node_modules/:add.sh')
+    )
+    const r = bite(dir, 'v3', 'packages/node_modules/x/:add.sh', '--', 'true')
+    expect(r.stdout).toMatch(/workspace link/)
+    expect(r.status).toBe(2)
+  })
+
+  it('a git call that cannot answer is no reason to skip a link', () => {
+    // With a ceiling at the root, git cannot see the checkout from lib/; that
+    // is not .git storage, and the link still loads the real lib/add.sh.
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../lib', path.join(dir, 'node_modules/lib'))
+    const r = spawnSync('bash', [BITE, 'v1', 'lib/add.sh', '--', 'true'], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 30000,
+      env: { ...process.env, GIT_CEILING_DIRECTORIES: fs.realpathSync(dir) },
+    })
+    expect(r.stdout).toMatch(/workspace link/)
+    expect(r.status).toBe(2)
+  })
+
+  it('a worktree inside a bare clone is code, not git storage', () => {
+    // git clone --bare proj && cd proj && git worktree add wt: the common git
+    // dir is proj/ itself, which holds wt/, so "under the git dir" is no proof
+    // of storage. The link still loads the real lib/add.sh.
+    const src = repo()
+    fs.writeFileSync(path.join(src, '.gitignore'), 'node_modules/\n')
+    git(src, 'add', '-A')
+    git(src, 'commit', '-q', '-m', 'ignore')
+    const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-bite-bare-'))
+    dirs.push(bare)
+    git(bare, 'clone', '-q', '--bare', src, path.join(bare, 'proj'))
+    const proj = path.join(bare, 'proj')
+    git(proj, 'worktree', 'add', '-q', 'wt', 'main')
+    const wt = path.join(proj, 'wt')
+    fs.mkdirSync(path.join(wt, 'node_modules'))
+    fs.symlinkSync('../lib', path.join(wt, 'node_modules/lib'))
+    const r = bite(wt, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.stdout).toMatch(/workspace link/)
+    expect(r.status).toBe(2)
+  })
+
+  it('a link into .git/ is not the checkout root', () => {
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'ignore')
+    fs.mkdirSync(path.join(dir, 'node_modules'))
+    fs.symlinkSync('../.git/hooks', path.join(dir, 'node_modules/h'))
+    const r = bite(dir, 'v1', 'lib/add.sh', '--', 'true')
+    expect(r.stdout).not.toMatch(/workspace link/)
+    expect(r.status).toBe(1)
+  })
+})
