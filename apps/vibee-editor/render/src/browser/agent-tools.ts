@@ -51,6 +51,14 @@ import {
   type Queryable,
 } from './sessions'
 import { agentMayOpen, mayAct } from './guard'
+import {
+  UNREADABLE_LIST,
+  blockedError,
+  ruleFor,
+  setSiteRule,
+  siteRulesOf,
+  type SiteRuleRow,
+} from './site-rules'
 import { desktopShot } from './screen'
 import { recordStep, stepOf } from './journal'
 import { askVision, shrinkJpeg, visionConfig } from '../agent/media-vision'
@@ -104,17 +112,29 @@ async function mustBeAllowedToAct(
   cdp: string,
   targetId: string
 ): Promise<void> {
-  const targets = await listTargets(cdp).catch(() => [])
-  const page = targets.find(t => t.id === targetId)
+  const url = await urlOfTab(cdp, targetId)
   const session = await readSession(
     ctx.pool as unknown as Queryable,
     ctx.telegramId
   )
+  /*
+   * The person's own list (site-rules.ts): block is final, ask is a bank.
+   * An unreadable list refuses every act, a yes included: browser_evaluate
+   * reads the page as well as acting on it, and we do not know where they
+   * said never.
+   */
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  mustNotBeOn(url, rules)
   const verdict = mayAct({
     /* No page found means we cannot see where we are, and guard.ts refuses. */
-    url: page?.url ?? '',
+    url: url ?? '',
     allowedAtMs: session?.allowedAtMs ?? null,
     nowMs: Date.now(),
+    alsoSensitive: url !== null && ruleFor(url, rules) === 'ask',
   })
   if (verdict.allowed) return
   throw new Error(
@@ -123,6 +143,81 @@ async function mustBeAllowedToAct(
       'you are about to do, wait for "allowed", then try again. Reading ' +
       '(browser_read, browser_screenshot) works without it.'
   )
+}
+
+/*
+ * The tab's address; null when the tab list could not be read or the tab is
+ * not in it. Never '' for "unknown": ruleFor('') is null, and an unknown
+ * place read as "no rule" let a read through on a blocked tab.
+ */
+async function urlOfTab(cdp: string, targetId: string): Promise<string | null> {
+  const targets = await listTargets(cdp).catch(() => null)
+  return targets?.find(t => t.id === targetId)?.url ?? null
+}
+
+/*
+ * A place we cannot name is blocked as soon as the list blocks anything: we
+ * cannot tell it is not the site they said never to.
+ */
+function mustNotBeOn(url: string | null, rules: SiteRuleRow[]): void {
+  if (url === null) {
+    if (rules.some(r => r.rule === 'block')) throw new Error(UNKNOWN_TAB)
+    return
+  }
+  if (ruleFor(url, rules) === 'block') throw blockedError(url)
+}
+
+const UNKNOWN_TAB =
+  "could not tell which site this tab is on, and the person's list blocks " +
+  'some sites, so it is not read or touched. Try again shortly, or ' +
+  'browser_status to see the tabs.'
+
+/**
+ * NOT EVEN A LOOK WHERE THE PERSON SAID NEVER (site-rules.ts). Opening,
+ * reading and a page shot ask this; acting asks mustBeAllowedToAct, which
+ * refuses a blocked site too. An unreadable list refuses: we do not know
+ * where they said no.
+ */
+async function mustNotBeBlocked(
+  ctx: ToolContext,
+  url: string | null
+): Promise<void> {
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  mustNotBeOn(url, rules)
+}
+
+/*
+ * The whole screen shows whichever tab is in front, and the person may front
+ * any of them between our check and the shot. So a desktop shot is refused
+ * while ANY open tab is on a blocked site, or while the tabs cannot be read
+ * and the list blocks something. A page shot of another tab still works.
+ */
+async function mustShowNoBlockedTab(
+  ctx: ToolContext,
+  cdp: string | null | undefined
+): Promise<void> {
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  if (!rules.some(r => r.rule === 'block')) return
+  const targets = cdp ? await listTargets(cdp).catch(() => null) : null
+  if (!targets) throw new Error(UNKNOWN_TAB)
+  const blocked = targets.find(
+    t => t.type === 'page' && ruleFor(t.url, rules) === 'block'
+  )
+  if (blocked) {
+    const e = blockedError(blocked.url)
+    e.message +=
+      ' The whole screen can show any open tab, so it is not shot while ' +
+      'that one is open; browser_screenshot without desktop shoots one page.'
+    throw e
+  }
 }
 
 /*
@@ -728,7 +823,12 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
                 await shapeOfTabs(
                   found.cdp,
                   pages.map(t => ({ id: t.id, url: t.url ?? '' })),
-                  { evaluate: evaluateOn }
+                  { evaluate: evaluateOn },
+                  undefined,
+                  await siteRulesOf(
+                    ctx.pool as unknown as Queryable,
+                    ctx.telegramId
+                  )
                 )
               ).map(s => [s.id, s] as const)
             )
@@ -838,6 +938,48 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
   },
   {
     /*
+     * THE PERSON'S OWN SITE LIST (site-rules.ts). Not in the compact kit:
+     * it is asked for when the person says "never open my bank", not on
+     * every turn, and the guard enforces the list whether or not this tool
+     * is ever called.
+     */
+    name: 'browser_sites',
+    description:
+      "The person's own site list: 'ask' = acting there needs their fresh yes, " +
+      "'block' = never open, read or act there. action list reads it; action add " +
+      '(site, rule) when the person asks in chat. Only tightens: unblocking is theirs.',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['list', 'add'] },
+        site: { type: 'string', description: 'bank.com or yandex.ru/mail' },
+        rule: { type: 'string', enum: ['ask', 'block'] },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const q = ctx.pool as unknown as Queryable
+      if (args.action === 'add') {
+        const r = await setSiteRule(
+          q,
+          ctx.telegramId,
+          args.site,
+          args.rule,
+          'agent'
+        )
+        if (!r.ok) throw new Error(r.error)
+        return { site: r.site, rule: r.rule, was: r.was }
+      }
+      const rules = await siteRulesOf(q, ctx.telegramId)
+      if (rules === null) throw new Error(UNREADABLE_LIST)
+      return {
+        sites: rules.map(r => ({ site: r.site, rule: r.rule, by: r.by })),
+      }
+    },
+  },
+  {
+    /*
      * THE SIGN-IN PLAYBOOK, ASKED FOR RATHER THAN REMEMBERED.
      *
      * Measured 2026-09-24..26: five attempts to sign the owner into Upwork,
@@ -919,6 +1061,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
             "manager -- are the person's to open, not an agent's."
         )
       }
+      await mustNotBeBlocked(ctx, String(args.url))
       const session = await liveSession(ctx)
       if (!session?.cdpEndpoint || session.state !== 'live') {
         throw await noBrowserError(ctx)
@@ -945,6 +1088,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     },
     async handler(args, ctx) {
       const { cdp, targetId } = await podOf(ctx)
+      await mustNotBeBlocked(ctx, await urlOfTab(cdp, targetId))
       const limit = Math.min(Number(args.maxChars) || 8000, 40_000)
       const text = await evaluateOn(
         cdp,
@@ -985,6 +1129,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         if (!session || session.state !== 'live' || !session.endpoint) {
           await podOf(ctx) /* throws the same sentence as every other tool */
         }
+        await mustShowNoBlockedTab(ctx, session!.cdpEndpoint)
         const base64 = await desktopShot(
           session!.endpoint!,
           session!.adminToken
@@ -997,6 +1142,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         }
       }
       const { cdp, targetId } = await podOf(ctx)
+      await mustNotBeBlocked(ctx, await urlOfTab(cdp, targetId))
       /* A dark SPA shot before it rendered reads as "black screen" (paint-wait.ts). */
       const paint = await waitForPaint(() =>
         evaluateOn(cdp, targetId, PAINT_PROBE)

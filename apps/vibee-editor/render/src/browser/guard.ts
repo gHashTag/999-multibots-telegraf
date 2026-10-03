@@ -148,6 +148,11 @@ export interface GuardInput {
   /** When the person last said yes for this session, or null. */
   allowedAtMs: number | null
   nowMs: number
+  /**
+   * The person's own list says "ask" here, or the list could not be read
+   * (site-rules.ts): sensitive whatever the shared list says.
+   */
+  alsoSensitive?: boolean
 }
 
 export type GuardVerdict =
@@ -165,7 +170,8 @@ export function mayAct(
   list = sensitiveList(),
   windowMs = PERMISSION_WINDOW_MS
 ): GuardVerdict {
-  if (!isSensitive(input.url, list)) return { allowed: true }
+  if (!input.alsoSensitive && !isSensitive(input.url, list))
+    return { allowed: true }
   if (
     input.allowedAtMs !== null &&
     input.nowMs - input.allowedAtMs <= windowMs
