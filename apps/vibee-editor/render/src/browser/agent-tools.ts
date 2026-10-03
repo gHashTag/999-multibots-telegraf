@@ -1447,7 +1447,17 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         )
       await activatePage(found.cdp, id)
       rememberFront(ctx.telegramId, id)
-      return { focused: id, url: page.url ?? '' }
+      /*
+       * The id came from browser_status, which names a blocked tab by host
+       * only; answering with page.url would hand the path straight back
+       * (found by the bee on #3487).
+       */
+      const rules = await siteRulesOf(
+        ctx.pool as unknown as Queryable,
+        ctx.telegramId
+      )
+      const { url } = veilTab({ url: page.url ?? '' }, rules)
+      return { focused: id, url }
     },
   },
 ]

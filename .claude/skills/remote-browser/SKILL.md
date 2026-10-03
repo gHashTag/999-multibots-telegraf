@@ -601,10 +601,36 @@ blocked. (3) A blocked tab still leaked through the tools that LIST tabs:
 path (a statement title, an account number in the path). `veilTab`
 (#3483) names it by origin only, title empty, `veiled: 'blocked'` (or
 `'list unreadable'`); `browser_ask_input` is refused on a blocked tab before
-any CDP call. Still open: `browser_tidy` lists the full URL of a blocked tab
-(veil the response, keep the real URL for apply's comparison), cross-origin
-iframes of a blocked site inside an allowed page, and the desks
-(engage, blog-share, rounds) that open pages without reading the list.
+any CDP call. `browser_tidy` veils every answer and stores the real URL for
+apply's comparison (#3487); `browser_focus_tab` answers with the veiled URL
+too. **Rule: grep every tool that RETURNS a tab's url or title** -- each of
+these leaks was a return nobody had listed.
+
+**The desks answer to the list too (#3488).** Desks drive raw CDP and never
+pass the agent tools' guards, so every desk road calls ONE check,
+`deskMayGo(who, url)` in `browser/desk-page.ts`: a blocked site throws
+`blockedError`, an unreadable list throws `UNREADABLE_LIST`, and an address
+it cannot read (`''`, `chrome-error://`) is refused while anything is
+blocked. The roads, each found by a bee after the first fix missed it:
+
+- `newDeskPage` (blog-share, reddit, engage, scenarios' open): before any
+  tab is made or closed for room. The test pod starts AT `TAB_CAP`, with a
+  control that the same open unblocked does close one -- under the cap a
+  check moved after room-making still passed.
+- rounds (`rounds-wiring.ts`): its own window via `openWindow`/`goTo`.
+  Blocked sites are dropped from the walk before it starts (left in, a
+  round of only failed looks reads as a blank browser and restarts it); an
+  unreadable list walks nothing; each look re-checks where the window
+  LANDED, so a redirect onto a blocked site reads nothing.
+- reddit `readAsThePerson`: borrows a tab already on Reddit; checked first.
+- scenarios `where()`: acts on the tab in front; checked on every step.
+
+`ask` is not checked at the desks: that door does not know whether the desk
+will act. Still open: `ask` for desks that act, cross-origin iframes of a
+blocked site inside an allowed page, and a redirect after a newDeskPage
+open (rounds re-checks, the other desks do not). When adding a desk road,
+grep `src/agent` for `openWindow`, `goTo`, `frontPage` and `listTargets`,
+not only `newDeskPage`.
 
 **The person's door in the app (#3482, #3484).** Browser tab -> "My sites"
 (`components/Browser/SiteRules.tsx`): add as ask or never, flip a row,

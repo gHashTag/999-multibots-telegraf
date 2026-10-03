@@ -3,6 +3,7 @@
  * approvals and their browser. Kept apart so the logic stays testable.
  */
 import type { Queryable } from '../browser/sessions'
+import type { DeskWho } from '../browser/desk-page'
 import {
   ANSWER_WAIT_MS,
   blogShareTick,
@@ -105,6 +106,7 @@ export async function publishEverywhere(
       ? { ...viaApi, browser: 'браузер не запустился' } // cyrillic-ok: told to the owner
       : { error: 'the browser did not start' }
   const cdp = s.cdpEndpoint
+  const who: DeskWho = { pool, telegramId: owner }
   const urls = shareUrls(a)
   const out: Record<string, string> = { ...viaApi }
   /*
@@ -157,7 +159,7 @@ export async function publishEverywhere(
     out.X = notOpened('X')
   } else
     try {
-      const thread = await postThreadOnX(cdp, a, walled)
+      const thread = await postThreadOnX(cdp, a, walled, who)
       if (thread === WALLED) out.X = refusedLine(new Date().toISOString())
       else {
         out.X = thread
@@ -182,7 +184,7 @@ export async function publishEverywhere(
       continue
     }
     try {
-      const page = await newDeskPage(cdp, url)
+      const page = await newDeskPage(cdp, url, who)
       await settle(FIRST_SETTLE_MS)
       if (await walled(url, page.id)) {
         out[net] = refusedLine(new Date().toISOString())
@@ -215,7 +217,7 @@ export async function publishEverywhere(
           await evaluateOn(cdp, page.id, 'location.href').catch(() => '')
         )
         const receipt = receiptOf(before, after)
-        const check = await confirmIfLeft(cdp, net, a, receipt)
+        const check = await confirmIfLeft(cdp, net, a, receipt, who)
         pressed = `${found.label}» · ${receipt} · ${check}`
         /*
          * Every run used to leave its tabs in the person's browser, day
@@ -256,7 +258,8 @@ const WALLED = 'walled'
 async function postThreadOnX(
   cdp: string,
   a: Article,
-  walled: (asked: string, pageId: string) => Promise<boolean>
+  walled: (asked: string, pageId: string) => Promise<boolean>,
+  who: DeskWho
 ): Promise<string> {
   const { xThread } = await import('./blog-share')
   const { newDeskPage } = await import('../browser/desk-page')
@@ -266,7 +269,7 @@ async function postThreadOnX(
   const { findProbe, foundOf } = await import('../browser/find-target')
   const thread = xThread(a)
   const COMPOSE = 'https://x.com/compose/post'
-  const page = await newDeskPage(cdp, COMPOSE)
+  const page = await newDeskPage(cdp, COMPOSE, who)
   await settle(8_000)
   if (await walled(COMPOSE, page.id)) return WALLED
 
@@ -328,7 +331,7 @@ async function postThreadOnX(
   )
   const { receiptOf } = await import('./blog-share')
   const receipt = receiptOf(before, after)
-  const check = await confirmIfLeft(cdp, 'X', a, receipt)
+  const check = await confirmIfLeft(cdp, 'X', a, receipt, who)
   if (check === SEEN_ON_PROFILE)
     await closePage(cdp, page.id).catch(() => undefined)
   return `тред отправлен («${pressed}»): текст, ссылка вторым постом · ${receipt} · ${check}` // cyrillic-ok: told to the owner
@@ -375,10 +378,11 @@ async function confirmIfLeft(
   cdp: string,
   net: string,
   a: Article,
-  receipt: string
+  receipt: string,
+  who: DeskWho
 ): Promise<string> {
   if (receipt !== LEFT_THE_FORM) return NOT_SEEN_ON_PROFILE
-  return await confirmOnProfile(cdp, net, needleOf(a))
+  return await confirmOnProfile(cdp, net, needleOf(a), who)
 }
 
 /**
@@ -391,7 +395,8 @@ async function confirmIfLeft(
 export async function confirmOnProfile(
   cdp: string,
   net: string,
-  needle: string
+  needle: string,
+  who: DeskWho
 ): Promise<string> {
   const start = profileUrlFor(net)
   if (!start) return NO_PROFILE_CHECK
@@ -399,7 +404,7 @@ export async function confirmOnProfile(
   const { evaluateOn, closePage } = await import('../browser/cdp')
   let page: { id: string } | null = null
   try {
-    page = await newDeskPage(cdp, start)
+    page = await newDeskPage(cdp, start, who)
     await settle(PROFILE_SETTLE_MS)
     if (net === 'X') {
       /* x.com/home links to the person's own profile; that page is read. */
@@ -409,7 +414,7 @@ export async function confirmOnProfile(
       if (!/^https:\/\/(x|twitter)\.com\/[A-Za-z0-9_]+$/.test(own))
         return NOT_SEEN_ON_PROFILE
       await closePage(cdp, page.id).catch(() => undefined)
-      page = await newDeskPage(cdp, own)
+      page = await newDeskPage(cdp, own, who)
       await settle(PROFILE_SETTLE_MS)
     }
     for (let look = 0; look < PROFILE_LOOKS; look++) {
