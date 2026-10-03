@@ -25,6 +25,8 @@ const waits: number[] = []
 
 vi.mock('../browser/sessions', () => ({
   readSession: async () => ({ state: 'live', cdpEndpoint: 'cdp' }),
+  /* deskMayAct asks before every press (desk-page.ts): nobody drives here. */
+  personHasTheWheel: () => false,
 }))
 vi.mock('../browser/routes', () => ({ startBrowserAsAgent: async () => true }))
 /* The real reducers (login-use.ts judges with them), no pod. */
@@ -49,6 +51,7 @@ vi.mock('../browser/cdp', () => ({
       return profileShows ? 'Feed\nOpen FPGA Ethernet, at last' : 'Feed'
     return buttonDrawn ? { x: 1, y: 1, label: 'Post' } : null
   },
+  pageUrl: async (_c: string, id: string) => `https://form/${id}`,
   clickAt: async () => undefined,
   typeText: async (_c: string, _id: string, text: string) =>
     void typed.push(text),

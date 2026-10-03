@@ -753,3 +753,32 @@ describe('a photo card shows the service under the same two buttons', () => {
     expect(block).toContain('${card.photo}')
   })
 })
+
+/*
+ * THE "SEND" CARD SAYS WHAT HAPPENED (audit, 2026-10-03).
+ *
+ * It was settled "✅ Sent" before the result was read, so a 401 or a 5xx left
+ * "Sent" on the card above "not sent" in the reply, with no button left to
+ * try again. A source read, because the order of lines is the defect.
+ */
+describe('the send card is settled by the outcome, not before it', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '../../navigation/registerCommands.ts'),
+    'utf8'
+  )
+  const at = src.indexOf('bot.action(/^tgp:ok:')
+  const body = src.slice(at, src.indexOf('bot.action(', at + 10))
+
+  it('reads r before writing "Sent" on the card', () => {
+    const confirm = body.indexOf('await confirmProposal(')
+    const sent = body.indexOf("'✅ Отправлено'")
+    expect(confirm).toBeGreaterThan(0)
+    expect(sent).toBeGreaterThan(confirm)
+    expect(body.slice(confirm, sent)).toContain('if (!r.ok && !r.unknown)')
+  })
+
+  it('a refused send gives the buttons back; an unknown one does not', () => {
+    const refused = body.indexOf('if (!r.ok && !r.unknown)')
+    expect(body.slice(refused, refused + 80)).toContain('restoreButtons(ctx)')
+  })
+})

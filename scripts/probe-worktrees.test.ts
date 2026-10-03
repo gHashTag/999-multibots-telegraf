@@ -63,7 +63,8 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     fs.copyFileSync(PROBE, path.join(repo, 'scripts', 'probe-worktrees.cjs'))
     fs.writeFileSync(
       path.join(repo, '.gitignore'),
-      '.env\n*.log\nnode_modules\ntemp/\nbuild/\nlogs/\n.claude/worktrees/\n'
+      '.env\n*.log\nnode_modules\ntemp/\nbuild/\ndist/\nlogs/\n.claude/worktrees/\n' +
+        'credentials.json\ntokens.json\nsecrets/\n*.keystore\n'
     )
     git(repo, 'add', '.')
     git(repo, 'commit', '-q', '-m', 'init')
@@ -93,6 +94,12 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     // detached: already in main, nothing else -- the bee's review copy
     const detached = tree('detached', '-q', '--detach', '@', 'origin/main')
     fs.mkdirSync(path.join(detached, 'temp')) // empty ignored folder: harmless
+    // plain build output, a name merely CONTAINING "secret" among it
+    fs.mkdirSync(path.join(detached, 'dist', 'utils'), { recursive: true })
+    fs.writeFileSync(
+      path.join(detached, 'dist', 'utils', 'webhookSecret.js'),
+      '1'
+    )
     // logsenv: a folder whose files are all ignored, one of them a .env --
     // plain `status --ignored` shows only `logs/`, and logs is rebuildable
     const logsenv = tree('logsenv', '-q', '--detach', '@', 'origin/main')
@@ -118,6 +125,13 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     const secrets = tree('secrets', '-q', '--detach', '@', 'origin/main')
     fs.mkdirSync(path.join(secrets, 'build', 'secrets'), { recursive: true })
     fs.writeFileSync(path.join(secrets, 'build', 'secrets', 'token.txt'), 'x')
+    // a name the hand-copied list lacked: only .gitignore knows it
+    const keystore = tree('keystore', '-q', '--detach', '@', 'origin/main')
+    fs.mkdirSync(path.join(keystore, 'build', 'outputs'), { recursive: true })
+    fs.writeFileSync(
+      path.join(keystore, 'build', 'outputs', 'release.keystore'),
+      'k'
+    )
     // unreadable: a folder the walk cannot look into
     const unreadable = tree('unreadable', '-q', '--detach', '@', 'origin/main')
     locked = path.join(unreadable, 'build', 'closed')
@@ -243,6 +257,15 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     expect(exists('secrets/build/secrets/token.txt'), out).toBe(true)
   })
 
+  it('keeps any name the tree .gitignore lists, with no copy of the list', () => {
+    expect(exists('keystore/build/outputs/release.keystore'), out).toBe(true)
+    expect(out).toContain('release.keystore')
+  })
+
+  it('removes build output whose names .gitignore does not list', () => {
+    expect(exists('detached/dist/utils/webhookSecret.js'), out).toBe(false)
+  })
+
   it('keeps a tree with a folder it cannot read, and says so', () => {
     expect(exists('unreadable'), out).toBe(true)
     expect(out).toContain('(unreadable)')
@@ -261,3 +284,49 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     expect(branches).toContain('feat/merged')
   })
 })
+
+// --apply keeps exactly the names the tree's .gitignore lists, so a key
+// type missing from the repository .gitignore is a key --apply deletes
+// (the reviewer bee on #3497: id_ed25519, id_ecdsa, .envrc, a file
+// called secrets). This pins the repository list, not a copy of it.
+describe.skipIf(!hasTools)(
+  'the repository .gitignore, read as the keep list',
+  () => {
+    const listed = (names: string[]) => {
+      const r = spawnSync('git', ['check-ignore', '--no-index', '--stdin'], {
+        cwd: path.join(__dirname, '..'),
+        input: names.join('\n') + '\n',
+        encoding: 'utf8',
+      })
+      return new Set(r.stdout.split('\n').filter(Boolean))
+    }
+
+    it('lists every private key, env file and secret store by name', () => {
+      const precious = [
+        'id_ed25519',
+        'id_ecdsa',
+        'id_rsa',
+        'id_dsa',
+        '.envrc',
+        'secrets',
+        '.env',
+        '.env.production',
+        'credentials.json',
+        'release.keystore',
+        'passwords.txt',
+        'state.sqlite',
+        'backup.gpg',
+        'AuthKey_X.p8',
+        'known_hosts',
+      ]
+      const got = listed(precious)
+      expect(precious.filter(n => !got.has(n))).toEqual([])
+    })
+
+    it('does not list ordinary build output', () => {
+      expect([...listed(['a.js', 'webhookSecret.js', 'index.html'])]).toEqual(
+        []
+      )
+    })
+  }
+)

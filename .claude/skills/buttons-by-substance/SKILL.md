@@ -84,6 +84,16 @@ grep -n "surface === 'bot' ? BUTTON_MARKERS" apps/vibee-editor/render/src/agent/
   приложение не открывается. `buttonsForAnswer` получает `{ bot: ctx.botInfo }` — тогда
   сырой адрес приложения в ответе модели переписывается сам. Скил `links-open-in-telegram`.
 - `qwen3:1.7b` отвечает `[[Подпись|can]]` без инструментов — прежде чем судить о кнопках, переключить `/model`.
+- **A press that did not land gives the buttons back** (audit 2026-10-03). A relayed press
+  (`bap:`, `mtg:`, `tgp:ok`) strips the card at once — a second tap has nothing to hit while
+  the relay is in flight — and on failure puts back `ctx.callbackQuery.message.reply_markup`
+  (`restoreButtons`). Settle the card ("✅ Sent") only AFTER reading the result. Each failure
+  says why (`SAID` in `src/services/browserApproval.ts`: no key / restarting / timeout /
+  offline), never one "try again in a minute". Quiet retry only where a repeat is harmless
+  (the approve token decides once; meeting "later" inserts a reminder per press — no retry;
+  a dropped send is "not sure", never retried). Live proof: `tri relays` (key parity by hash,
+  guard 401, approve and meeting with junk tokens, failures across every deploy in the window —
+  `railway logs` without an id reads only the current deploy).
 
 ## Related Resources
 
