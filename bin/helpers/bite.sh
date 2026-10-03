@@ -185,14 +185,38 @@ nms, rels = sys.argv[3:3 + n], sys.argv[3 + n:]
 real_top = os.path.realpath(top)
 
 
+# A hook exports GIT_DIR and friends; left in, they would make every
+# directory look like this checkout (review 1 of #3485).
+GIT_ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
+def git_in(d, *args):
+    return subprocess.run(["git", "-C", d, *args], capture_output=True,
+                          text=True, env=GIT_ENV)
+
+
 def checkout_rel(t):
-    """t's path within the git checkout it lies in, or None."""
+    """t's path within the git checkout it lies in, as git spells it, or None.
+
+    git's own prefix, not a relpath against --show-toplevel: on a
+    case-insensitive disk realpath keeps the case it was given and git the
+    case on disk, so the relpath went up through `..` and out of the checkout
+    (review 1 of #3485)."""
     d = t if os.path.isdir(t) else os.path.dirname(t)
-    out = subprocess.run(["git", "-C", d, "rev-parse", "--show-toplevel"],
-                         capture_output=True, text=True).stdout.strip()
-    if not out:
+    r = git_in(d, "rev-parse", "--show-prefix")
+    if r.returncode != 0:
         return None
-    return os.path.relpath(t, os.path.realpath(out))
+    rel = r.stdout.rstrip("\n").rstrip("/")
+    if d != t:
+        rel = os.path.join(rel, os.path.basename(t))
+    return os.path.normpath(rel) if rel else "."
+
+
+def tracked(t):
+    """Does git track t, or anything under it? Then it is code, whatever the
+    directory is called (`packages/node_modules/x` kept in git)."""
+    d, what = (t, ".") if os.path.isdir(t) else (os.path.dirname(t), os.path.basename(t))
+    return bool(git_in(d, "ls-files", "-z", "--", what).stdout)
 
 
 back = []
@@ -213,7 +237,7 @@ for nm in nms:
         # Within the checkout only: a repo kept under /x/node_modules/ is
         # still code, its workspace links are not installed packages (review
         # 2 of #3479). Outside any checkout the whole path is all there is.
-        if "node_modules" in (t if tr is None else tr).split(os.sep):
+        if "node_modules" in (t if tr is None else tr).split(os.sep) and not tracked(t):
             continue
         shown = os.path.relpath(t, real_top) if t.startswith(real_top + os.sep) else t
         name = f"{os.path.relpath(p, top)} -> {shown}"
