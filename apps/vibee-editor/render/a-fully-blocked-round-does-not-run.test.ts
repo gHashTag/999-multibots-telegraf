@@ -63,7 +63,7 @@ describe('a fully blocked round', () => {
       },
     }
     const out = await runRoundNow(pool, '144')
-    expect(['site list unreadable']).toContain(out)
+    expect(out).toBe('site list unreadable')
     expect(started).not.toHaveBeenCalled()
   })
 })
