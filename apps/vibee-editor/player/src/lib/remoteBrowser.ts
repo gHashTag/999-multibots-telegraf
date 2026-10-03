@@ -564,3 +564,62 @@ export async function chooseInBrowser(
     return false
   }
 }
+
+/*
+ * THE PERSON'S OWN SITE LIST (render/src/browser/site-rules.ts).
+ *
+ * "ask": acting there needs their yes, as on a bank. "block": the agent does
+ * not open, read or shoot it at all. The app is the person's door, so it may
+ * loosen (remove a site, block -> ask); an agent key may only tighten.
+ */
+export type SiteRule = 'ask' | 'block'
+
+export interface SiteRuleRow {
+  site: string
+  rule: SiteRule
+  by: 'person' | 'agent'
+}
+
+/** Null when the server could not read the list -- not an empty list. */
+export async function readSiteRules(): Promise<SiteRuleRow[] | null> {
+  try {
+    const answer = await apiFetch<{ sites?: unknown }>(
+      `${API_BASE}/api/browser/sites`
+    )
+    return siteRowsOf(answer.sites)
+  } catch (e) {
+    if ((e as ApiError | undefined)?.status === 503) return null
+    throw e
+  }
+}
+
+export async function putSiteRule(site: string, rule: SiteRule): Promise<void> {
+  await apiFetch(`${API_BASE}/api/browser/sites`, {
+    method: 'POST',
+    body: JSON.stringify({ site, rule }),
+  })
+}
+
+export async function dropSiteRule(site: string): Promise<void> {
+  await apiFetch(
+    `${API_BASE}/api/browser/sites?site=${encodeURIComponent(site)}`,
+    { method: 'DELETE' }
+  )
+}
+
+/** Only well-formed rows; a row the app cannot name is not shown as a rule. */
+export function siteRowsOf(raw: unknown): SiteRuleRow[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap(r => {
+    const row = r as Partial<SiteRuleRow> | null
+    if (!row || typeof row.site !== 'string' || !row.site) return []
+    if (row.rule !== 'ask' && row.rule !== 'block') return []
+    return [
+      {
+        site: row.site,
+        rule: row.rule,
+        by: row.by === 'agent' ? ('agent' as const) : ('person' as const),
+      },
+    ]
+  })
+}
