@@ -182,6 +182,8 @@ describe.skipIf(!hasJq)('tri pr-billing: a refusal of this head', () => {
     ['3462', '## Reviewer bee: not merging -- four wrong-verdict blockers'],
     ['3327', '## Bee review: changes requested, not merged'],
     ['3366', 'Reviewed by bee (not the author). **I am not merging this.**'],
+    // Every real "changes requested" also said "not merg"; this one doesn't.
+    ['none yet', 'Reviewer bee: changes requested -- two notes below.'],
   ])('PR %s wording is a refusal', (_n, body) => {
     const r = billing({
       comments: [{ createdAt: '2026-10-03T01:10:00Z', body }],
