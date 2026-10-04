@@ -11,7 +11,7 @@ final class AgentChatFailureTests: XCTestCase {
   func testEveryServerCodeHasASentenceInBothLanguages() {
     let codes = [
       "sign_in", "forbidden", "bad_request", "agent_unavailable", "not_seller",
-      "no_answer", "model_failed", "internal", "step_limit",
+      "no_answer", "model_failed", "internal", "step_limit", "lane_limit",
     ]
     for code in codes {
       let en = AgentChatView.failureSentence(

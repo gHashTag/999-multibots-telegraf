@@ -138,6 +138,19 @@ export default function HivePage() {
     here.current = `${location.pathname}${location.search}${location.hash}`
   }, [location.pathname, location.search, location.hash])
   const page = queenPage(lang, asked)
+
+  // The tab names the game, and only the game: no view word in front of it
+  // (owner, 2026-10-04: "BROWSER ·" was not wanted). The app writes the title
+  // from its Header, and this page draws none -- so without this every view
+  // kept index.html's title. Put back on the way out, or a page after this
+  // one with no Header of its own (/learn) would keep the game's name.
+  useEffect(() => {
+    const before = document.title
+    document.title = t('app.title')
+    return () => {
+      document.title = before
+    }
+  }, [t])
   const outside = queenPublicPage(lang)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const openLogin = useSetAtom(openLoginAtom)
