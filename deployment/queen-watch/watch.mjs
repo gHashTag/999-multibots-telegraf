@@ -55,10 +55,12 @@
  *                        the page watch. Default: BROWSER_PAGE below.
  *
  * After the two watches, on the same run, igla.mjs watches the IGLA-Coder
- * loop (gHashTag/igla-coder-gpu) and reports it to the Queen as `igla-loop`.
- * Its optional variables are listed in its own header; it never changes the
- * exit code above (another project's budget is not a broken road here), and
- * a crash in it is one scrubbed log line.
+ * loop (gHashTag/igla-coder-gpu) and reports it to the Queen as `igla-loop`,
+ * then release.mjs moves the board's QUEEN_REF (the port of
+ * .github/workflows/queen-ref-bump.yml) and reports as `board-release`.
+ * Their optional variables are listed in their own headers; neither changes
+ * the exit code above (another project's budget is not a broken road here),
+ * and a crash in either is one scrubbed log line.
  */
 import { createHash, randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
@@ -136,12 +138,21 @@ export function config(env = process.env) {
     healWaitS: n(env.HEAL_WAIT_S, 240),
     /* igla.mjs, the IGLA-Coder loop on the same tick: its header says why. */
     iglaOn: env.IGLA !== '0',
-    iglaDispatch: env.IGLA_DISPATCH !== '0',
+    /* '0' watches without the tick (it replaces IGLA_DISPATCH). */
+    iglaTrigger: env.IGLA_TRIGGER !== '0',
     /* Empty = igla.mjs IGLA_BOARD. The repo is igla.mjs's constant, not env. */
     iglaBoard: env.IGLA_BOARD_URL || '',
     runpodKey: env.RUNPOD_API_KEY || '',
+    /* Retired with the GitHub tick: nothing sends it. Read only so that
+     * secretsOf scrubs it if the owner leaves it set. */
     iglaGhToken: env.IGLA_GITHUB_TOKEN || '',
+    /* igla-judge production project token: JUDGEUP, the loop runner, and
+     * the tick (igla.mjs sends it to RAILWAY_API only). */
     iglaRailwayToken: env.IGLA_RAILWAY_TOKEN || '',
+    /* release.mjs, the board's QUEEN_REF bump: its header says why. The repo
+     * it writes to is release.mjs's constant, not env. */
+    releaseOn: env.BOARD_RELEASE !== '0',
+    releaseGhToken: env.RELEASE_GITHUB_TOKEN || '',
   }
 }
 
@@ -157,6 +168,7 @@ export function secretsOf(cfg) {
     cfg.runpodKey,
     cfg.iglaGhToken,
     cfg.iglaRailwayToken,
+    cfg.releaseGhToken,
   ].filter(s => typeof s === 'string' && s.length >= 6)
 }
 
@@ -1389,27 +1401,32 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
       'queen-watch: no volume mounted -- every run will look like a first run\n'
     )
   }
-  /* igla.mjs after both watches, whatever they said; its rc is logged only. */
-  const igla = async () => {
+  /* igla.mjs, then release.mjs, after both watches, whatever they said; each
+   * one's rc is logged only, and one crashing never skips the other. */
+  const after = async (name, file, fn) => {
     try {
-      const { runIgla } = await import('./igla.mjs')
-      process.stdout.write(`igla-loop: rc ${await runIgla(cfg, deps)}\n`)
+      const mod = await import(file)
+      process.stdout.write(`${name}: rc ${await mod[fn](cfg, deps)}\n`)
     } catch (e) {
       process.stdout.write(
-        redact(`igla-loop: crashed: ${e && e.stack}`, secretsOf(cfg)) + '\n'
+        redact(`${name}: crashed: ${e && e.stack}`, secretsOf(cfg)) + '\n'
       )
     }
   }
+  const tail = async () => {
+    await after('igla-loop', './igla.mjs', 'runIgla')
+    await after('board-release', './release.mjs', 'runRelease')
+  }
   run(cfg, deps).then(
     async rc => {
-      await igla()
+      await tail()
       process.exit(rc)
     },
     async e => {
       process.stdout.write(
         redact(`queen-watch: crashed: ${e && e.stack}`, secretsOf(cfg)) + '\n'
       )
-      await igla()
+      await tail()
       process.exit(2)
     }
   )

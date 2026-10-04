@@ -11,32 +11,45 @@
  * ONE HOME FOR EVERY NUMBER: igla-coder-gpu `scripts/queen_igla.py`. Its
  * board_block() rides the igla board's public snapshot as `queen` (limits,
  * the last journal commit, the open todo); this file reads them there and
- * carries no threshold of its own. A board whose block lacks a limit this
+ * carries no threshold of its own. A board whose block lacks a key this
  * file reads is not measured (exit 2, the missing keys by name): a renamed
  * key must not switch a check off. The codes are queen_igla.py's -- OVERRUN,
  * LOWBAL, SPEND, STALE -- plus what only a live watcher sees:
  *   REPO     an anomaly line the loop published itself (`tri tc-loop` status)
- *   JUDGEUP  a judge deployment of the igla-judge Railway project up longer
+ *   JUDGEUP  a judge deployment of the igla-judge Railway project live longer
  *            than judge_max_h: a job nobody fetched and downed bills hourly
- *   BILLING  the last igla-loop.yml run failed before any job took a step:
- *            GitHub refused to start it (the account's payment)
- *   BOARD    the board names another repo or workflow than this file
- *   DISPATCH the tick did not go out: GitHub refused the token (401, 403,
- *            404), answered otherwise, or did not answer
+ *   BOARD    the board names another repo, executor or runner service than
+ *            this file
+ *   TRIGGER  the tick did not go out: Railway refused the redeploy (an auth
+ *            answer or a GraphQL error), answered otherwise, or did not answer
  * What it cannot measure it says by name: unmeasured is not ok.
  *
- * THE TICK -- the automatic improvement. Every tick_h, when no igla-loop.yml
- * run is queued or running, it workflow-dispatches igla-loop.yml on `main`.
- * The workflow's own monitor (`queen_igla.py decide`) then decides whether an
- * agent iteration runs: no pod up, balance above the floor, a Claude token,
- * work to do. A run GitHub refused for billing is retried every
- * billing_retry_h, not every tick. The repo and the workflow are THIS file's
- * constants (no variable moves them), never the
- * board's: the board is public, and a forged one must not be able to point a
- * token at another repository. Only IGLA_GITHUB_TOKEN dispatches.
+ * THE TICK -- the automatic improvement. GitHub Actions refuses every job of
+ * the private repo since 2026-10-03 (billing), so the loop runs on Railway:
+ * service `loop` in project igla-judge, one run per deployment (restart
+ * policy NEVER; the run clones main, `queen_igla.py iterate` decides, then at
+ * most one agent iteration). Every tick_h this file redeploys it
+ * (serviceInstanceRedeploy, header Project-Access-Token: the same call as
+ * `tri tc-queen kick`), and only when all of these hold:
+ *   - the newest loop deployment has exited (Railway's own status: building,
+ *     DEPLOYING or SUCCESS with deploymentStopped=false is live). Never while
+ *     it is live, never while its status is one nobody measured, never when
+ *     the service cannot be read, never before its first deployment;
+ *   - nothing else is busy, as kick reads it: no RunPod pod RUNNING and no
+ *     judge deployment live, both measured (unread = held, never a guess;
+ *     the board's queen block carries no busy key, so this is computed here);
+ *   - the board names this file's repo, executor and runner service.
+ * The project, environment and service are THIS file's constants (no
+ * variable moves them, and the token only ever goes to RAILWAY_API), never
+ * the board's: the board is public, and a forged one must not be able to
+ * point a token at another service. Only IGLA_RAILWAY_TOKEN redeploys, and
+ * only after Railway confirmed it is a token of that project and environment.
+ * A live run is not timed: the board publishes no loop run limit (queen_igla
+ * ITERATE_MAX_H is not on it), and pod_max_h / judge_max_h time other things;
+ * that is said as not measured while a run is live.
  *
  * Reports: POST /queen/report as source `igla-loop` on the first run, when the
- * state changes, on a dispatch, and every REPEAT_S while something needs the
+ * state changes, on a redeploy, and every REPEAT_S while something needs the
  * owner; the owner's DM only on the first run and when the set of anomaly
  * codes changes (what is not measured goes to the Queen, not the phone). A
  * board that does not answer is reported on this file's very first run, then
@@ -48,19 +61,21 @@
  * Variables -- all optional, the owner sets each one, none is ever printed
  * (watch.mjs secretsOf() scrubs every output line and request body):
  *   IGLA                 '0' turns this off
- *   IGLA_DISPATCH        '0' watches without the tick
+ *   IGLA_TRIGGER         '0' watches without the tick
  *   IGLA_BOARD_URL       another board, for a test (default: IGLA_BOARD)
  *   RUNPOD_API_KEY       pods and balance; without it they are not measured
- *   IGLA_GITHUB_TOKEN    fine-grained, gHashTag/igla-coder-gpu only, Actions
- *                        read+write: the tick and the billing check. Without
- *                        it GITHUB_TOKEN is tried for reading (it does not
- *                        reach this private repo: 404, said so)
- *   IGLA_RAILWAY_TOKEN   an igla-judge project token, for JUDGEUP
+ *                        (and the tick is held: busy is unknown)
+ *   IGLA_RAILWAY_TOKEN   a project token of igla-judge production: JUDGEUP,
+ *                        the loop runner's state, and the tick (its only write)
+ *   IGLA_GITHUB_TOKEN    retired with the GitHub tick: nothing reads or sends
+ *                        it; still scrubbed, in case it is left set
  */
+
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import {
+  RAILWAY_API,
   call,
   railway,
   redact,
@@ -71,15 +86,35 @@ import {
 
 export const IGLA_BOARD = 'https://board-production-2dec.up.railway.app'
 export const IGLA_REPO = 'gHashTag/igla-coder-gpu'
-export const IGLA_WORKFLOW = 'igla-loop.yml'
-const IGLA_REF = 'main'
+/* The executor the board must name (queen_igla.py board_block `executor`). */
+export const EXECUTOR = 'railway'
+/* Railway service `loop` in project igla-judge, production: measured on the
+ * service by the igla side on 2026-10-04 (queen_igla.py IJ_PROJECT,
+ * IJ_ENV, LOOP_ID). Only a commit moves them. */
+export const LOOP_PROJECT = '1a315000-9f97-4a99-95a1-4665a37ff056'
+export const LOOP_ENVIRONMENT = 'c353906c-703e-4171-ba92-5f4b361ea32d'
+export const LOOP_SERVICE_ID = '21039821-9e70-4f46-a6c1-38021e67729c'
+export const LOOP_SERVICE = 'loop'
 const SOURCE = 'igla-loop'
 const RUNPOD_GQL = 'https://api.runpod.io/graphql'
 const RUNPOD_REST = 'https://rest.runpod.io/v1'
-const GITHUB_API = 'https://api.github.com'
 /* Cloudflare in front of RunPod answers 1010 to an empty or default agent. */
 const UA = 'queen-watch-igla'
-const LIVE = ['queued', 'in_progress', 'waiting', 'requested', 'pending']
+/* Railway deployment statuses, measured on service loop 2026-10-04 (the
+ * contract of igla-coder-gpu#38). Live, as queen_igla.py dep_live reads it:
+ * a status before the process ends (these say deploymentStopped=true, so the
+ * status decides; QUEUED, WAITING and NEEDS_APPROVAL were never seen, kept
+ * because dep_live keeps them), or SUCCESS while deploymentStopped is not
+ * true. Exited: SUCCESS with deploymentStopped=true (exit 0), CRASHED (exit
+ * non-0, restart policy NEVER). Any other status was never measured. */
+const PENDING = [
+  'INITIALIZING',
+  'QUEUED',
+  'WAITING',
+  'BUILDING',
+  'DEPLOYING',
+  'NEEDS_APPROVAL',
+]
 /* What this file reads from the board's queen block; queen_igla.py owns it. */
 export const NEED_LIMITS = [
   'pod_max_h',
@@ -88,9 +123,13 @@ export const NEED_LIMITS = [
   'stale_h',
   'tick_h',
   'judge_max_h',
-  'billing_retry_h',
 ]
-export const NEED_STRINGS = ['repo', 'workflow', 'judge_service']
+export const NEED_STRINGS = [
+  'repo',
+  'judge_service',
+  'executor',
+  'runner_service',
+]
 
 const parse = text => {
   try {
@@ -109,8 +148,9 @@ const hours = (nowS, iso) => {
 const boardUrl = cfg => cfg.iglaBoard || IGLA_BOARD
 
 /**
- * The board's snapshot and its `queen` block (queen_igla.board_block), or an
- * error naming every key this file reads that the block lacks.
+ * The board's snapshot, its `queen` block (queen_igla.board_block) and its
+ * live map, or an error naming every key this file reads that the block
+ * lacks.
  */
 export async function readBoard(cfg, deps) {
   const r = await call(cfg, deps, `${boardUrl(cfg)}/state`, {
@@ -118,7 +158,8 @@ export async function readBoard(cfg, deps) {
   })
   if (r.status !== 200)
     return { error: `the igla board did not answer (HTTP ${r.status})` }
-  const snap = parse(r.text)?.snapshot
+  const state = parse(r.text)
+  const snap = state?.snapshot
   const q = snap?.queen
   if (!q || typeof q !== 'object')
     return {
@@ -135,7 +176,7 @@ export async function readBoard(cfg, deps) {
     return {
       error: `the igla board's queen block lacks ${missing.join(', ')} (igla-coder-gpu scripts/queen_igla.py board_block): no check runs on a guessed limit`,
     }
-  return { snap, q }
+  return { snap, q, live: state.live || {} }
 }
 
 /** RunPod's '2026-10-03 09:38:07.331 +0000 UTC' -> epoch seconds. */
@@ -204,92 +245,175 @@ const SERVICES = `query($id: String!) {
   project(id: $id) { services { edges { node { id name } } } }
 }`
 const DEPLOYS = `query($input: DeploymentListInput!) {
-  deployments(first: 20, input: $input) { edges { node { id status createdAt } } }
+  deployments(first: 20, input: $input) {
+    edges { node { id status createdAt deploymentStopped } }
+  }
+}`
+const REDEPLOY = `mutation($environmentId: String!, $serviceId: String!) {
+  serviceInstanceRedeploy(environmentId: $environmentId, serviceId: $serviceId)
 }`
 
-/** The igla-judge `judge` deployments that are up (SUCCESS), with ages. */
-async function judge(cfg, deps, q, nowS) {
-  if (!cfg.iglaRailwayToken) return null
-  const c = { ...cfg, railwayToken: cfg.iglaRailwayToken }
+/** Live as queen_igla.py dep_live: building, or SUCCESS not stopped. */
+export const isLive = d =>
+  PENDING.includes(d.status) ||
+  (d.status === 'SUCCESS' && d.deploymentStopped !== true)
+
+/**
+ * Where a loop deployment is: 'building' and 'running' are live, 'exited ok'
+ * and 'exited failed' are not, null is a status nobody measured (no tick).
+ */
+export function runState(d) {
+  if (PENDING.includes(d.status)) return 'building'
+  if (d.status === 'SUCCESS')
+    return d.deploymentStopped === true ? 'exited ok' : 'running'
+  if (d.status === 'CRASHED') return 'exited failed'
+  return null
+}
+const exited = s => s === 'exited ok' || s === 'exited failed'
+
+/**
+ * igla-judge through IGLA_RAILWAY_TOKEN: the judge deployments that are live
+ * (with ages) and the newest loop deployment. The token goes to RAILWAY_API
+ * only, and nothing is read before Railway says it is a token of
+ * LOOP_PROJECT / LOOP_ENVIRONMENT.
+ */
+async function railwayFacts(cfg, deps, q, nowS) {
+  if (!cfg.iglaRailwayToken) return { judgeUp: null, loop: null }
+  const c = {
+    ...cfg,
+    railwayToken: cfg.iglaRailwayToken,
+    railwayApi: RAILWAY_API,
+  }
+  const both = error => ({ judgeUp: { error }, loop: { error } })
+  const rows = async serviceId =>
+    (
+      (
+        await railway(c, deps, DEPLOYS, {
+          input: {
+            projectId: LOOP_PROJECT,
+            environmentId: LOOP_ENVIRONMENT,
+            serviceId,
+          },
+        })
+      ).deployments?.edges?.map(e => e.node) || []
+    ).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+  let services
   try {
     const t = (await railway(c, deps, PROJECT, {})).projectToken
-    if (!t?.projectId)
-      return { error: 'IGLA_RAILWAY_TOKEN is not a project token' }
-    const svc = (
-      await railway(c, deps, SERVICES, { id: t.projectId })
-    ).project?.services?.edges
-      ?.map(e => e.node)
-      .find(s => s.name === q.judge_service)
-    if (!svc) return { error: `no service "${q.judge_service}" in igla-judge` }
-    const rows = (
-      await railway(c, deps, DEPLOYS, {
-        input: { serviceId: svc.id, environmentId: t.environmentId },
-      })
-    ).deployments?.edges?.map(e => e.node)
-    return {
-      up: (rows || [])
-        .filter(d => d.status === 'SUCCESS')
-        .map(d => ({ id: d.id, h: hours(nowS, d.createdAt) ?? 0 })),
-    }
+    if (t?.projectId !== LOOP_PROJECT || t?.environmentId !== LOOP_ENVIRONMENT)
+      return both(
+        'IGLA_RAILWAY_TOKEN is not a project token of igla-judge production: Railway not read, no tick'
+      )
+    services =
+      (
+        await railway(c, deps, SERVICES, { id: LOOP_PROJECT })
+      ).project?.services?.edges?.map(e => e.node) || []
   } catch (e) {
-    return {
-      error: `Railway judge not read (${String(e.message).slice(0, 120)})`,
-    }
+    return both(
+      `Railway igla-judge not read (${String(e.message).slice(0, 120)})`
+    )
   }
+  const out = {}
+  const judgeSvc = services.find(s => s.name === q.judge_service)
+  if (!judgeSvc)
+    out.judgeUp = { error: `no service "${q.judge_service}" in igla-judge` }
+  else
+    try {
+      out.judgeUp = {
+        up: (await rows(judgeSvc.id))
+          .filter(isLive)
+          .map(d => ({ id: d.id, h: hours(nowS, d.createdAt) ?? 0 })),
+      }
+    } catch (e) {
+      out.judgeUp = {
+        error: `Railway judge not read (${String(e.message).slice(0, 120)})`,
+      }
+    }
+  const loopSvc = services.find(s => s.id === LOOP_SERVICE_ID)
+  if (!loopSvc || loopSvc.name !== LOOP_SERVICE)
+    out.loop = {
+      error: `no service "${LOOP_SERVICE}" (${LOOP_SERVICE_ID}) in igla-judge: renamed or re-created? only a commit moves igla.mjs LOOP_* -- no tick`,
+    }
+  else
+    try {
+      const d = (await rows(LOOP_SERVICE_ID))[0]
+      out.loop = {
+        last: d
+          ? {
+              id: d.id,
+              status: d.status,
+              state: runState(d),
+              live: !exited(runState(d)),
+              createdAt: d.createdAt,
+              h: hours(nowS, d.createdAt),
+            }
+          : null,
+      }
+    } catch (e) {
+      out.loop = {
+        error: `Railway loop not read (${String(e.message).slice(0, 120)}): no tick`,
+      }
+    }
+  return out
 }
 
-async function github(cfg, deps, token, path, init = {}) {
-  const r = await call(cfg, deps, `${GITHUB_API}${path}`, {
-    ...init,
-    headers: {
-      accept: 'application/vnd.github+json',
-      authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
-      'user-agent': UA,
-    },
-  })
-  return { status: r.status, body: parse(r.text), error: r.error }
-}
-
-/** The last igla-loop.yml run, and whether GitHub refused to start it. */
-async function lastRun(cfg, deps) {
-  const token = cfg.iglaGhToken || cfg.ghToken
-  if (!token)
-    return { error: 'no GitHub token: igla-loop.yml not read, no tick' }
-  const base = `/repos/${IGLA_REPO}/actions`
-  const r = await github(
+/** The one write: a new deployment of service loop (tri tc-queen kick). */
+async function redeploy(cfg, deps) {
+  const r = await call(
     cfg,
     deps,
-    token,
-    `${base}/workflows/${IGLA_WORKFLOW}/runs?per_page=1`
+    RAILWAY_API,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'user-agent': UA,
+        'project-access-token': cfg.iglaRailwayToken,
+      },
+      body: JSON.stringify({
+        query: REDEPLOY,
+        variables: {
+          environmentId: LOOP_ENVIRONMENT,
+          serviceId: LOOP_SERVICE_ID,
+        },
+      }),
+    },
+    20000
   )
-  if (r.status !== 200 || !Array.isArray(r.body?.workflow_runs)) {
-    return {
-      error: `${IGLA_WORKFLOW} not readable (HTTP ${r.status}): ${cfg.iglaGhToken ? 'IGLA_GITHUB_TOKEN' : 'GITHUB_TOKEN'} does not reach ${IGLA_REPO} -- no tick, no billing check`,
-    }
-  }
-  const last = r.body.workflow_runs[0] || null
-  let billing = false
-  if (last && last.status === 'completed' && last.conclusion === 'failure') {
-    const j = await github(cfg, deps, token, `${base}/runs/${last.id}/jobs`)
-    const jobs = j.body?.jobs
-    billing =
-      j.status === 200 &&
-      Array.isArray(jobs) &&
-      jobs.length > 0 &&
-      jobs.every(x => !(x.steps || []).length)
-  }
-  return { last, billing }
+  const body = parse(r.text)
+  const said = body?.errors?.[0]?.message || ''
+  const ok =
+    r.status === 200 && !said && body?.data?.serviceInstanceRedeploy === true
+  return { ok, status: r.status, said, error: r.error }
+}
+
+/* Why a redeploy did not go out. Only an auth answer blames the token. */
+function refusal(d) {
+  const what = `TRIGGER ${LOOP_SERVICE} redeploy`
+  const token = `IGLA_RAILWAY_TOKEN needs to deploy service ${LOOP_SERVICE} in igla-judge production`
+  if (d.status === 0)
+    return `${what} not sent: Railway did not answer (${d.error || 'Error'})`
+  if (d.status === 401 || d.status === 403)
+    return `${what} refused (HTTP ${d.status}): ${token}`
+  if (d.status !== 200)
+    return `${what} not accepted: Railway answered HTTP ${d.status}`
+  if (/not authorized|unauthorized|forbidden|invalid token/i.test(d.said))
+    return `${what} refused (${d.said.slice(0, 120)}): ${token}`
+  if (d.said)
+    return `${what} not accepted: Railway said ${d.said.slice(0, 160)}`
+  return `${what} not accepted: Railway answered without serviceInstanceRedeploy=true`
 }
 
 // --- rules ----------------------------------------------------------------
 
 /**
  * queen_igla.assess() over the facts a watcher has. Returns
- * { anom: [line], blind: [line], jh }: an anomaly line starts with its code;
- * a blind line names what was not measured and why.
+ * { anom: [line], blind: [line], jh, busy }: an anomaly line starts with its
+ * code; a blind line names what was not measured and why. busy is what the
+ * tick reads, as `queen_igla.py kick` does: 'true' (a pod runs or a judge is
+ * live), 'unknown' (either unread), 'false'.
  */
-export function assess({ q, snap, pods, judgeUp, run, nowS }) {
+export function assess({ q, snap, pods, judgeUp, loop, nowS }) {
   const L = q.limits
   const anom = []
   const blind = []
@@ -327,43 +451,87 @@ export function assess({ q, snap, pods, judgeUp, run, nowS }) {
       judgeUp?.error || 'Railway judge: no IGLA_RAILWAY_TOKEN on queen-watch'
     )
   }
-  /* queen_igla: STALE only while idle. A live judge job is work too. */
-  const busy = (pods?.running?.length || 0) + (judgeUp?.up?.length || 0) > 0
+  const last = loop?.last
+  if (!loop || loop.error)
+    blind.push(
+      loop?.error ||
+        'loop runner: no IGLA_RAILWAY_TOKEN on queen-watch, no tick'
+    )
+  else if (!last)
+    blind.push(
+      `loop runner: service ${LOOP_SERVICE} has no deployment yet (tri tc-queen runner up), no tick`
+    )
+  else if (last.state === null)
+    blind.push(
+      `loop runner: deployment status ${last.status} was never measured on service ${LOOP_SERVICE}: held as live, no tick`
+    )
+  else if (last.live)
+    blind.push(
+      `loop run ${last.state} ${(last.h ?? 0).toFixed(1)} h, not timed: the board's queen block publishes no loop run limit (queen_igla.py board_block)`
+    )
+  /* queen_igla: STALE only while idle. A live judge job or loop run is work. */
+  const work =
+    (pods?.running?.length || 0) + (judgeUp?.up?.length || 0) > 0 ||
+    Boolean(last?.live)
   const jh = hours(nowS, q.journal_at)
   if (jh === null)
     blind.push('STALE: the board has no journal commit time (journal_at)')
-  else if (!busy && jh > L.stale_h)
+  else if (!work && jh > L.stale_h)
     anom.push(`STALE no journal commit for ${jh.toFixed(0)} h`)
   for (const a of snap.today?.anomalies || [])
     anom.push(`REPO ${String(a).slice(0, 160)}`)
-  if (q.repo !== IGLA_REPO || q.workflow !== IGLA_WORKFLOW)
+  if (
+    q.repo !== IGLA_REPO ||
+    q.executor !== EXECUTOR ||
+    q.runner_service !== LOOP_SERVICE
+  )
     anom.push(
-      `BOARD the board names ${q.repo}/${q.workflow}, this watch ${IGLA_REPO}/${IGLA_WORKFLOW}: no tick`
+      `BOARD the board names ${q.repo} executor ${q.executor} runner ${q.runner_service}, this watch ${IGLA_REPO} executor ${EXECUTOR} runner ${LOOP_SERVICE}: no tick`
     )
-  if (run?.billing)
-    anom.push(
-      `BILLING ${IGLA_WORKFLOW} run ${run.last.id} failed before any job took a step: GitHub Actions billing on the account`
-    )
-  if (!run || run.error) blind.push(run?.error || 'igla-loop.yml: not read')
-  return { anom, blind, jh }
+  const ran = (pods?.running?.length || 0) > 0 || (judgeUp?.up?.length || 0) > 0
+  const busy = ran
+    ? 'true'
+    : !pods || pods.error || !judgeUp || judgeUp.error
+      ? 'unknown'
+      : 'false'
+  return { anom, blind: [...new Set(blind)], jh, busy }
 }
 
 /**
- * Dispatch now? Never while a run is live; tick_h apart, billing_retry_h
- * after GitHub refused a run for billing.
+ * Redeploy now? Only on an exited newest run, nothing busy, a board that
+ * names this watch, and tick_h after the newest run or redeploy.
  */
-export function dueTick({ q, run, cfg, nowS, st, anom }) {
-  if (!cfg.iglaDispatch || !cfg.iglaGhToken || !run || run.error) return false
+export function dueTick({ q, loop, busy, cfg, nowS, st, anom }) {
+  if (!cfg.iglaTrigger || !cfg.iglaRailwayToken) return false
+  if (!loop || loop.error || !loop.last || loop.last.live) return false
+  if (busy !== 'false') return false
   if (anom.some(a => a.startsWith('BOARD'))) return false
-  const last = run.last
-  if (last && LIVE.includes(last.status)) return false
-  const every =
-    (run.billing ? q.limits.billing_retry_h : q.limits.tick_h) * 3600
   const lastS = Math.max(
-    last ? Date.parse(last.created_at) / 1000 || 0 : 0,
-    st.dispatched_at || 0
+    Date.parse(loop.last.createdAt) / 1000 || 0,
+    st.triggered_at || 0
   )
-  return nowS - lastS >= every
+  return nowS - lastS >= q.limits.tick_h * 3600
+}
+
+/* Why no tick went out, for the report. */
+function held({ cfg, loop, busy, anom, pods, judgeUp }) {
+  if (!cfg.iglaTrigger) return 'off (IGLA_TRIGGER=0)'
+  if (!cfg.iglaRailwayToken) return 'none: no IGLA_RAILWAY_TOKEN on queen-watch'
+  if (!loop || loop.error) return 'held: the loop service was not read'
+  if (!loop.last) return `held: service ${LOOP_SERVICE} has no deployment yet`
+  if (loop.last.state === null)
+    return `held: the newest ${LOOP_SERVICE} deployment's status ${loop.last.status} was never measured`
+  if (loop.last.live)
+    return `held: the newest ${LOOP_SERVICE} run is live (${loop.last.state})`
+  if (busy === 'true')
+    return `held: busy (${[
+      ...(pods?.running || []).map(p => `pod ${p.name}`),
+      ...(judgeUp?.up || []).map(() => 'judge live'),
+    ].join(', ')})`
+  if (busy !== 'false')
+    return 'held: busy unknown (RunPod or the judge not read)'
+  if (anom.some(a => a.startsWith('BOARD'))) return 'held: BOARD'
+  return null
 }
 
 /* The state key: what changed, not by how much (hours and dollars drift). */
@@ -388,7 +556,7 @@ export async function loadIgla(dir) {
       key: '',
       codes: '',
       told_at: 0,
-      dispatched_at: 0,
+      triggered_at: 0,
       unmeasured: 0,
     }
   }
@@ -456,48 +624,35 @@ export async function runIgla(cfg, deps) {
     return 2
   }
   st.unmeasured = 0
-  const { snap, q } = board
+  const { snap, q, live } = board
   const pods = await runpod(cfg, deps, nowS)
-  const judgeUp = await judge(cfg, deps, q, nowS)
-  const run = await lastRun(cfg, deps)
-  const { anom, blind, jh } = assess({ q, snap, pods, judgeUp, run, nowS })
+  const { judgeUp, loop } = await railwayFacts(cfg, deps, q, nowS)
+  const { anom, blind, jh, busy } = assess({
+    q,
+    snap,
+    pods,
+    judgeUp,
+    loop,
+    nowS,
+  })
 
-  let tick = !cfg.iglaDispatch
-    ? 'off (IGLA_DISPATCH=0)'
-    : !cfg.iglaGhToken
-      ? 'none: no IGLA_GITHUB_TOKEN on queen-watch'
-      : 'not due'
-  let dispatched = false
-  if (dueTick({ q, run, cfg, nowS, st, anom })) {
-    const d = await github(
-      cfg,
-      deps,
-      cfg.iglaGhToken,
-      `/repos/${IGLA_REPO}/actions/workflows/${IGLA_WORKFLOW}/dispatches`,
-      { method: 'POST', body: JSON.stringify({ ref: IGLA_REF }) }
-    )
-    dispatched = d.status === 204
-    if (dispatched) st.dispatched_at = nowS
-    tick = dispatched
-      ? `dispatched ${IGLA_WORKFLOW} on ${IGLA_REF}`
-      : `not dispatched (HTTP ${d.status})`
-    /* Retried every run; reported every REPEAT_S until it goes out. Only an
-     * auth answer blames the token. */
-    if (!dispatched)
-      anom.push(
-        `DISPATCH ${IGLA_WORKFLOW} ` +
-          ([401, 403, 404].includes(d.status)
-            ? `refused (HTTP ${d.status}): IGLA_GITHUB_TOKEN needs Actions read+write on ${IGLA_REPO}`
-            : d.status === 0
-              ? `not sent: GitHub did not answer (${d.error || 'Error'})`
-              : `not accepted: GitHub answered HTTP ${d.status}`)
-      )
-  } else if (run?.last && tick === 'not due') {
-    const h = hours(nowS, run.last.created_at)
-    tick = `not due (last run ${run.last.status}/${run.last.conclusion || '-'}, ${h === null ? '?' : h.toFixed(1)} h ago${run.billing ? `, billing: retry every ${q.limits.billing_retry_h} h` : ''})`
+  let tick = held({ cfg, loop, busy, anom, pods, judgeUp })
+  let triggered = false
+  if (dueTick({ q, loop, busy, cfg, nowS, st, anom })) {
+    const d = await redeploy(cfg, deps)
+    triggered = d.ok
+    if (triggered) st.triggered_at = nowS
+    tick = triggered
+      ? `redeployed ${LOOP_SERVICE} (igla-judge)`
+      : `not redeployed (${d.status ? `HTTP ${d.status}` : 'no answer'})`
+    /* Retried every run; reported every REPEAT_S until it goes out. */
+    if (!triggered) anom.push(refusal(d))
+  } else if (tick === null) {
+    tick = `not due (newest ${LOOP_SERVICE} run ${loop.last.state}, ${(loop.last.h ?? 0).toFixed(1)} h ago; every ${q.limits.tick_h} h)`
   }
 
   const fmt = n => (n === null || n === undefined ? '?' : n.toFixed(1))
+  const lr = live?.loop_runner
   const facts = [
     `- last loop: ${q.last_loop || '?'} (journal commit ${fmt(jh)} h ago)`,
     pods && !pods.error
@@ -505,6 +660,12 @@ export async function runIgla(cfg, deps) {
       : null,
     judgeUp && !judgeUp.error
       ? `- Railway judge: ${judgeUp.up.length ? judgeUp.up.map(d => `up ${fmt(d.h)} h`).join(', ') : 'down'}`
+      : null,
+    loop?.last
+      ? `- loop runner: ${loop.last.state || 'unmeasured status'} (deployment ${loop.last.id.slice(0, 8)} ${loop.last.status}, created ${fmt(loop.last.h)} h ago)`
+      : null,
+    lr && typeof lr === 'object'
+      ? `- board live.loop_runner: ${String(lr.stage || '?').slice(0, 40)}: ${String(lr.msg || '').slice(0, 160)}`
       : null,
     `- tick: ${tick}`,
     `- HEAD: ${q.head || '?'}`,
@@ -530,7 +691,7 @@ export async function runIgla(cfg, deps) {
   if (
     st.first ||
     changed ||
-    dispatched ||
+    triggered ||
     (needsYou && nowS - (st.told_at || 0) >= cfg.repeatS)
   ) {
     const headline = codes.length
