@@ -105,12 +105,7 @@ import {
 } from '../split-reel-plan'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
-import {
-  cloneOnReplicate,
-  joinVoiceNotes,
-  leadVoiceOf,
-  ownVoiceOf,
-} from './lead-voice'
+import { cloneFor, cloneOnReplicate, joinVoiceNotes } from './lead-voice'
 import { s3PutBytes } from '../lib/s3-put'
 import { ROOM_PEOPLE_TOOLS } from './room-people'
 
@@ -2341,11 +2336,11 @@ export const TOOLS: AgentTool[] = [
       const ownerVoiceMay = ownerVoiceAllowed(houseReel)
       if (forLead) {
         // Her own voice for her own reel; anybody else's only by its owner.
-        const self = forLead.replace(/^@/, '') === String(ctx.telegramId)
-        const theirs = await (
-          self
-            ? ownVoiceOf(ctx.pool, String(ctx.telegramId))
-            : leadVoiceOf(ctx.pool, String(ctx.telegramId), forLead)
+        // split_reel resolves the same clone through the same rule (v9).
+        const theirs = await cloneFor(
+          ctx.pool,
+          String(ctx.telegramId),
+          forLead
         ).catch(() => null)
         if (!theirs) {
           const why =
