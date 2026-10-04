@@ -155,7 +155,20 @@ export type SweepOutcome = (
    * which exists to show when the seller is broken.
    */
   | { did: 'stopped'; why: string }
-) & { ms?: number }
+) & {
+  ms?: number
+  /**
+   * Which model wrote the turn, as `provider/model` from the render's event
+   * stream (the last provider event wins). Absent when no model turn ran --
+   * a crm_leads idle, a hold -- or the render did not say.
+   */
+  model?: string
+}
+
+/** The answering model as an outcome field, or nothing when the render did not name one. */
+function modelOf(answer: { provider?: string }): { model?: string } {
+  return answer.provider ? { model: answer.provider } : {}
+}
 
 /** The brief. One proposal at most, nothing sent, memory first. */
 export const SWEEP_PROMPT =
@@ -583,6 +596,7 @@ export function reportSweepOutcome(
       why: r.why,
       owner: key,
       ...(r.ms === undefined ? {} : { ms: r.ms }),
+      ...(r.model ? { model: r.model } : {}),
       consecutive: streak,
       sinceProcessStart: true,
     })
@@ -606,7 +620,13 @@ export function reportSweepOutcome(
     })
     failStreaks.delete(key)
   }
-  logger.info('[crm-proactive] sweep', { did: r.did, why: r.why, owner: key })
+  logger.info('[crm-proactive] sweep', {
+    did: r.did,
+    why: r.why,
+    owner: key,
+    ...(r.model ? { model: r.model } : {}),
+    ...(r.ms === undefined ? {} : { ms: r.ms }),
+  })
   return 'info'
 }
 
@@ -1121,6 +1141,7 @@ export async function sweepOnce(
         did: 'card',
         why: (answer.текст ?? '').slice(0, 200), // cyrillic-ok: pre-existing identifiers
         id: String(answer.proposal.id),
+        ...modelOf(answer),
       }
     }
     /*
@@ -1164,10 +1185,15 @@ export async function sweepOnce(
               ? `модель ничего не подготовила и не вызвала инструментов${who}: `
               : `модель ответила, не вызвав ни одного инструмента — она не смотрела${who}: `) +
           text.slice(0, 160),
+        ...modelOf(answer),
       }
     }
 
-    return { did: 'idle', why: (answer.текст ?? 'тихо').slice(0, 200) } // cyrillic-ok: pre-existing identifiers
+    return {
+      did: 'idle',
+      why: (answer.текст ?? 'тихо').slice(0, 200), // cyrillic-ok: pre-existing identifiers
+      ...modelOf(answer),
+    }
   } catch (e) {
     /*
      * THE ALERT MUST NAME SOMETHING (production 2026-09-16).
