@@ -47,6 +47,7 @@ import * as SPEC from '../spec/crm-story-reel.gen'
 // specs/automation/crm-client-workspace.t27 (v6, story_card_from).
 import * as WS from '../spec/crm-client-workspace.gen'
 import { cutShot, shotOfScene } from './studio-shots'
+import { onClientWork, reelIsClients } from './client-work'
 import type { HeardVoice } from './split-reel-tool'
 import {
   cardForReel,
@@ -1120,6 +1121,16 @@ export function makeStoryReelTool(
           reason: `for_lead: в разговоре за клиента рилс говорит только его голосом — for_lead ${faceOf} или пусто`, // cyrillic-ok: tool result copy
         }
       const lead = voice === SPEC.SPEAKS_LEAD ? named || faceOf : ''
+      /*
+       * WHOSE CARD (crm-client-workspace v6, reel_is_clients). The story job
+       * says it itself (ctx.clientReel, from its lead and its seller -- its
+       * telegramId is the payer, and on her own press she pays). Anywhere
+       * else this turn's caller is the seller: a reel for a named lead who is
+       * not him is hers, and reel_render must not leave her card to the
+       * composition's house defaults though the turn carries no client mark.
+       */
+      const clientReel =
+        ctx.clientReel ?? reelIsClients(onClientWork(ctx), !!lead, lead === me)
       let cta = String(args.cta ?? '')
       let endCard = endCardOf(args.end_card)
       let houseReplaced = ''
@@ -1462,7 +1473,7 @@ export function makeStoryReelTool(
                 ...(endCard ? { endCard } : {}),
               },
             },
-            ctx
+            { ...ctx, clientReel }
           )
           .catch(e => ({ done: false, reason: String(e) }))
       )

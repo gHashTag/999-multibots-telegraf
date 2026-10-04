@@ -15,7 +15,7 @@
   {
     "name": "reel_render does not ask whether the work is a client's",
     "file": "src/agent/tools.ts",
-    "from": "      if (onClientWork(ctx)) {\n        const refused = houseReelRefusal(args.compositionId, args.props)",
+    "from": "      if (onClientWork(ctx) || ctx.clientReel === true) {\n        const refused = houseReelRefusal(args.compositionId, args.props)",
     "to": "      if (false) {\n        const refused = houseReelRefusal(args.compositionId, args.props)"
   },
   {
@@ -53,5 +53,61 @@
     "file": "src/split-reel-plan.ts",
     "from": "    onClientWork(turn ?? {}),\n",
     "to": "    false,\n"
+  },
+  {
+    "name": "template route ignores ownReel",
+    "file": "src/agent/story-template.ts",
+    "from": "    clientReel: reelIsClients(false, true, lead === seller),\n",
+    "to": "",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "ownReel computed from payer instead of seller",
+    "file": "src/agent/story-template.ts",
+    "from": "    clientReel: reelIsClients(false, true, lead === seller),\n",
+    "to": "    clientReel: reelIsClients(false, true, lead === payer),\n",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "the seller's own template reel counted as a client's",
+    "file": "src/agent/story-template.ts",
+    "from": "    clientReel: reelIsClients(false, true, lead === seller),\n",
+    "to": "    clientReel: reelIsClients(false, true, false),\n",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "for_lead not treated as client reel",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "        ctx.clientReel ?? reelIsClients(onClientWork(ctx), !!lead, lead === me)\n",
+    "to": "        ctx.clientReel ?? reelIsClients(onClientWork(ctx), false, lead === me)\n",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "story_reel counts the seller's own lead as a client",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "        ctx.clientReel ?? reelIsClients(onClientWork(ctx), !!lead, lead === me)\n",
+    "to": "        ctx.clientReel ?? reelIsClients(onClientWork(ctx), !!lead, false)\n",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "story_reel ignores the job's word on whose reel it is",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "        ctx.clientReel ?? reelIsClients(onClientWork(ctx), !!lead, lead === me)\n",
+    "to": "        reelIsClients(onClientWork(ctx), !!lead, lead === me)\n",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "story_reel does not pass whose reel it is to the render",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "            { ...ctx, clientReel }\n",
+    "to": "            ctx\n",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "reel_render ignores the client-reel mark",
+    "file": "src/agent/tools.ts",
+    "from": "      if (onClientWork(ctx) || ctx.clientReel === true) {\n",
+    "to": "      if (onClientWork(ctx)) {\n",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   }
 ]

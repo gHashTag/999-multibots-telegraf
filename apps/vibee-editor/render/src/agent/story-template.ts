@@ -42,6 +42,7 @@
  */
 import type { ToolContext } from './tools'
 import { voiceMode } from './story-voice-notes'
+import { reelIsClients } from './client-work'
 import { looksLikeProviderOutage } from './image-health'
 import {
   endCardFromProfile,
@@ -975,6 +976,11 @@ async function runHeld(
     telegramId: payer,
     pool: pool as ToolContext['pool'],
     surface: 'story',
+    // WHOSE REEL (crm-client-workspace v6, reel_is_clients): hers whenever
+    // her seller is not the lead -- by the seller's press or her own. Asked
+    // of the seller, never of the payer: on her own press she pays, and the
+    // render would take her id for the seller's own reel on the house card.
+    clientReel: reelIsClients(false, true, lead === seller),
     // The stills this job ordered and still waits for: asked about on a
     // resume, never ordered and paid for again (spec v3).
     storyStillTasks: stillTasksOf(job.still_tasks, n),

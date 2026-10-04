@@ -14,7 +14,7 @@
  *     again -- one runner per job, even with two processes alive;
  *   - a failed reel gives its plan card back.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   missingFor,
   nextLink,
@@ -40,8 +40,9 @@ import {
   dayCovers,
   CAP_WAIT_MARK,
 } from './story-template'
-import type { AgentTool, ToolContext } from './tools'
-import { readableShade } from './story-reel-tool'
+import { TOOLS_BY_NAME, type AgentTool, type ToolContext } from './tools'
+import { makeStoryReelTool, readableShade } from './story-reel-tool'
+import * as WS from '../spec/crm-client-workspace.gen'
 import { END_CARD_DEFAULT_TITLE } from '../spec/crm-story-reel.gen'
 import * as SPEC from '../spec/crm-story-reel.gen'
 
@@ -532,6 +533,24 @@ function qualify(
       seconds: 21,
       created: 1,
     })
+}
+
+/** The seller as his own lead: his face and his clone, in his own CRM. */
+function qualifySelf(base: ReturnType<typeof fakeBase>) {
+  base.db.people.push({
+    owner_id: SELLER,
+    lead_id: SELLER,
+    first_name: 'Seller',
+    avatar_url: FACE,
+  })
+  base.db.voices.push({
+    owner_id: SELLER,
+    lead_id: SELLER,
+    username: 'example_seller',
+    voice_id: 'seller-voice-1',
+    seconds: 30,
+    created: 2,
+  })
 }
 
 describe('who qualifies for the story-reel template', () => {
@@ -2612,23 +2631,6 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
       updated: 2,
       profile: { story_reel: { cta } },
     })
-  /** The seller as his own lead: his face and his clone, in his own CRM. */
-  const qualifySelf = (base: ReturnType<typeof fakeBase>) => {
-    base.db.people.push({
-      owner_id: SELLER,
-      lead_id: SELLER,
-      first_name: 'Seller',
-      avatar_url: FACE,
-    })
-    base.db.voices.push({
-      owner_id: SELLER,
-      lead_id: SELLER,
-      username: 'example_seller',
-      voice_id: 'seller-voice-1',
-      seconds: 30,
-      created: 2,
-    })
-  }
   const seen = (base: ReturnType<typeof fakeBase>) => {
     const args: any[] = []
     const tool = makeCrmStoryTool({
@@ -2846,5 +2848,297 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     expect(out.started).toBe(false)
     expect(out.why).toMatch(`${SPEC.LINE_MAX_CHARS}`)
     expect(base.db.jobs).toHaveLength(0)
+  })
+})
+
+/*
+ * WHOSE REEL DECIDES THE CARD, ON EVERY ROAD (crm-client-workspace v6,
+ * reel_is_clients; review of #3569, round 3). The CRM template job runs as
+ * its PAYER with no client mark, and on her own press the payer is the
+ * client; story_reel for a named lead from the seller's own thread carries
+ * no mark either. Each test below runs the real chain -- the job (or
+ * crm_story_reel), the real story_reel, the real reel_render -- and reads
+ * the props reel_render POSTs to start the render.
+ */
+describe("a client's reel is hers on every road, whoever pays (reel_is_clients)", () => {
+  /** The house's palette: StoryReel's defaults and the two loud colours. */
+  const HOUSE = [
+    '#ffd700',
+    '#00ff88',
+    SPEC.END_CARD_DEFAULT_BG,
+    SPEC.END_CARD_DEFAULT_TITLE,
+    SPEC.END_CARD_DEFAULT_TEXT,
+    SPEC.END_CARD_DEFAULT_ACCENT,
+  ].map(c => c.toLowerCase())
+  const NEUTRAL = {
+    bg: WS.NEUTRAL_CARD_DARK,
+    title: WS.NEUTRAL_CARD_LIGHT,
+    text: WS.NEUTRAL_CARD_LIGHT,
+    accent: WS.NEUTRAL_CARD_LIGHT,
+  }
+  const PIECES = ['https://s/v1.mp3', 'https://s/v2.mp3', 'https://s/v3.mp3']
+  afterEach(() => vi.unstubAllGlobals())
+
+  /**
+   * story_reel as the job and the agent call it: its picture, voice and
+   * lip-sync tools answer at once; reel_render is the REAL one, started
+   * without waiting, on a base with no twin and the charge left to the job.
+   */
+  function engine() {
+    const asked: Array<Record<string, any>> = []
+    const drawn: Array<Record<string, any>> = []
+    const payers: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, init?: { body?: unknown }) => {
+        drawn.push(JSON.parse(String(init?.body)).props)
+        return new Response(JSON.stringify({ renderId: 'r-77' }), {
+          status: 200,
+        })
+      })
+    )
+    const real = TOOLS_BY_NAME.get('reel_render')!
+    const quiet = { query: async () => ({ rows: [] }) }
+    let n = 0
+    const tools: Record<string, any> = {
+      image_edit: {
+        handler: async () => ({
+          done: true,
+          url: `https://bucket.example/still-${n++}.png`,
+        }),
+      },
+      audio_generate: {
+        handler: async () => ({
+          сделано: true, // cyrillic-ok: audio_generate's own answer key
+          url: `https://bucket.example/voice-${n++}.mp3`,
+        }),
+      },
+      lipsync_generate: {
+        handler: async () => ({
+          done: true,
+          url: `https://bucket.example/clip-${n++}.mp4`,
+          seconds: 3,
+        }),
+      },
+      reel_render: {
+        handler: async (a: any, c: any) => {
+          asked.push(a.props)
+          payers.push(String(c.telegramId))
+          const r: any = await real.handler(
+            { ...a, wait: false },
+            { ...c, pool: quiet, chargeLater: true }
+          )
+          return r.началось // cyrillic-ok: reel_render's own answer key
+            ? { готово: true, url: 'https://bucket.example/reel.mp4' } // cyrillic-ok: reel_render's own answer key
+            : r
+        },
+      },
+    }
+    const story = makeStoryReelTool(
+      name => tools[name],
+      undefined,
+      undefined,
+      async (source, shot) => `${source}#shot-${shot}`
+    )
+    return { story, asked, drawn, payers }
+  }
+  /** The job is done or failed: every step of the real chain has settled. */
+  async function finished(base: ReturnType<typeof fakeBase>) {
+    for (let i = 0; i < 400; i++) {
+      if (base.db.jobs.every(j => j.status === 'done' || j.status === 'failed'))
+        return
+      await settle()
+    }
+  }
+  /** No colour of the house's in what is drawn, beyond the ones she gave. */
+  const noHouse = (props: Record<string, any>, hers: string[] = []) => {
+    const card = props.endCard ?? {}
+    for (const k of ['bg', 'title', 'text', 'accent']) {
+      const c = String(card[k] ?? '').toLowerCase()
+      if (!c || hers.includes(c)) continue
+      expect(HOUSE).not.toContain(c)
+    }
+  }
+  const press = (
+    base: ReturnType<typeof fakeBase>,
+    e: ReturnType<typeof engine>
+  ) => depsOn(base, (a, c) => e.story.handler(a, c))
+
+  it("the seller's press for a client with no visual draws the neutral card, never the house's", async () => {
+    const base = fakeBase()
+    qualify(base)
+    const e = engine()
+    const { deps } = press(base, e)
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Vase',
+    })
+    await finished(base)
+    expect(base.db.jobs[0].status).toBe('done')
+    expect(e.asked).toHaveLength(1)
+    expect(e.asked[0].endCard).toBeUndefined()
+    expect(e.drawn).toHaveLength(1)
+    expect(e.drawn[0].endCard).toEqual(NEUTRAL)
+    noHouse(e.drawn[0])
+  })
+
+  it('her voice notes, no lead named to story_reel: still her reel, the neutral card', async () => {
+    // The notes speak for her: story_reel is given no for_lead at all, so
+    // only the job can say whose reel it is.
+    const base = fakeBase()
+    qualify(base, { voice: false })
+    const e = engine()
+    const { deps } = press(base, e)
+    deps.voiceNotes = async () => ({ urls: PIECES, seconds: 11 })
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Vase',
+    })
+    await finished(base)
+    expect(base.db.jobs[0].status).toBe('done')
+    expect(e.drawn).toHaveLength(1)
+    expect(e.drawn[0].endCard).toEqual(NEUTRAL)
+    noHouse(e.drawn[0])
+  })
+
+  it('a half card of hers keeps her ground; the rest is the neutral ink, not the house palette', async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.profiles.push({
+      owner_id: SELLER,
+      telegram_id: LENA,
+      updated: 2,
+      profile: { visual: { bg: '#ffffff' } },
+    })
+    const e = engine()
+    const { deps } = press(base, e)
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Vase',
+    })
+    await finished(base)
+    expect(e.asked[0].endCard).toEqual({ bg: '#ffffff' })
+    expect(e.drawn[0].endCard).toEqual({
+      bg: '#ffffff',
+      title: WS.NEUTRAL_CARD_DARK,
+      text: WS.NEUTRAL_CARD_DARK,
+      accent: WS.NEUTRAL_CARD_DARK,
+    })
+    noHouse(e.drawn[0], ['#ffffff'])
+  })
+
+  it('her own press: she pays, and the reel is still hers, never the house card', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const e = engine()
+    const { deps } = press(base, e)
+    await startStory(deps, {
+      lead: LENA,
+      requester: LENA,
+      bot: 'example_bot',
+    })
+    await finished(base)
+    expect(base.db.jobs[0].status).toBe('done')
+    // The render runs as HER: the payer is the lead.
+    expect(e.payers).toEqual([LENA])
+    expect(e.drawn[0].endCard).toEqual(NEUTRAL)
+    noHouse(e.drawn[0])
+  })
+
+  it('crm_story_reel with no visual: the pressed template ends on the neutral card', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const e = engine()
+    const tool = makeCrmStoryTool({
+      deps: () => press(base, e).deps,
+      lookup: () => undefined,
+    })
+    const out: any = await tool.handler(
+      {
+        lead: LENA,
+        start: true,
+        template: SPEC.TEMPLATE_HOOK_STUDIO,
+        language: 'en',
+      },
+      { telegramId: SELLER, pool: base.pool } as unknown as ToolContext
+    )
+    expect(out.started).toBe(true)
+    await finished(base)
+    expect(e.drawn).toHaveLength(1)
+    expect(e.drawn[0].endCard).toEqual(NEUTRAL)
+    noHouse(e.drawn[0])
+  })
+
+  it("story_reel for a named lead from the seller's own thread draws her reel on the neutral card", async () => {
+    const base = fakeBase()
+    qualify(base)
+    const e = engine()
+    const r: any = await e.story.handler(
+      {
+        image_url: FACE,
+        scenes: [
+          { line: 'I pick a vase for the room.' },
+          { line: 'Soft tones in here.' },
+          { line: 'Write to me and I will pick yours.' },
+        ],
+        cta: 'Write to me',
+        for_lead: LENA,
+      },
+      { telegramId: SELLER, pool: base.pool } as unknown as ToolContext
+    )
+    expect(r.done).toBe(true)
+    expect(e.drawn).toHaveLength(1)
+    expect(e.drawn[0].endCard).toEqual(NEUTRAL)
+    noHouse(e.drawn[0])
+  })
+
+  it("the seller's own reel stays on the house card as given: by template and by story_reel", async () => {
+    // By the template: the seller is his own lead.
+    const base = fakeBase()
+    qualifySelf(base)
+    const e = engine()
+    const tool = makeCrmStoryTool({
+      deps: () => press(base, e).deps,
+      lookup: () => undefined,
+    })
+    const out: any = await tool.handler(
+      {
+        lead: SELLER,
+        start: true,
+        template: SPEC.TEMPLATE_HOOK_STUDIO,
+        language: 'en',
+      },
+      { telegramId: SELLER, pool: base.pool } as unknown as ToolContext
+    )
+    expect(out.started).toBe(true)
+    await finished(base)
+    expect(e.asked).toHaveLength(1)
+    expect(e.asked[0].endCard?.button).toBe(SPEC.TEMPLATE_BUTTON)
+    // reel_render drew exactly what it was asked: no colour put in, so the
+    // composition's own card -- the house's -- is the one that shows.
+    expect(e.drawn[0]).toEqual(e.asked[0])
+    for (const k of ['bg', 'title', 'text', 'accent'])
+      expect(e.drawn[0].endCard?.[k]).toBeUndefined()
+
+    // By story_reel, naming himself as the lead from his own thread.
+    const own = engine()
+    const r: any = await own.story.handler(
+      {
+        image_url: FACE,
+        scenes: [{ line: 'My studio.' }, { line: 'My work.' }],
+        cta: 'Write to me',
+        for_lead: SELLER,
+      },
+      { telegramId: SELLER, pool: base.pool } as unknown as ToolContext
+    )
+    expect(r.done).toBe(true)
+    expect(own.drawn[0]).toEqual(own.asked[0])
+    expect('endCard' in own.drawn[0]).toBe(false)
   })
 })

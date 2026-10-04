@@ -76,7 +76,15 @@
 //       call with no card stands on the neutral card, and all of it is settled before the twin
 //       lookup and the charge (story_card_from). And the prompt told the model on every turn that
 //       the bot in speech is the house's; on client work that line is not said
-//       (bot_named_in_speech).
+//       (bot_named_in_speech). From the second review the same day, the card was still the
+//       house's on the road most client reels take: a reel pressed in the CRM, by the seller or
+//       by the client herself, and story_reel for a named lead from the seller's own thread. On
+//       that road the turn carries no client mark -- the job runs as its payer, and on her own
+//       press the payer is the client -- so the card was left to the composition. Whose reel it
+//       is now decides the card, not who is paying for it: a client's when the turn carries a
+//       client mark, or when the reel is about a lead who is not the seller (reel_is_clients).
+//       The seller's own reel -- his lead is himself, no mark, no lead named -- stays on the
+//       house card as given.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::crm_client_workspace {
@@ -189,6 +197,9 @@ module automation::crm_client_workspace {
     pub const NEUTRAL_CARD_DARK : str = "#1f1f1f";  // the neutral ground, and the ink on a light ground
     pub const NEUTRAL_CARD_LIGHT : str = "#f5f5f5";  // the neutral ink, and the ground under a dark colour
     pub const CLIENT_PROMPT_NO_HOUSE_BOT_NAME : bool = true;  // "the bot in speech is ours" stays off client work
+    pub const CLIENT_REEL_IS : str = "client-mark,lead-not-seller";  // whose reel it is, the first that holds
+    pub const CLIENT_REEL_ROUTES : str = "client-turn,crm-template,story-reel-for-lead";  // every road to her reel
+    pub const CLIENT_REEL_BY_PAYER : bool = false;  // her own press makes her the payer; the reel is hers all the same
 
     // What a request's thread comes to. A named client that is malformed, or is the caller,
     // is refused: a request about somebody never quietly becomes a request about oneself.
@@ -279,6 +290,13 @@ module automation::crm_client_workspace {
     // The seller's content plan and post voice go into the prompt on his own turns only.
     fn seller_plan_in_prompt(seller_soul: bool, client_work: bool) -> bool {
         return seller_soul && !client_work;
+    }
+
+    // Whose reel a StoryReel is: a client's when the turn carries a client mark, or when the reel
+    // is about a lead who is not the seller -- the CRM template, pressed by the seller or by her,
+    // and story_reel for a named lead. Who pays is never asked: on her own press she is the payer.
+    fn reel_is_clients(client_turn: bool, lead_named: bool, lead_is_seller: bool, lead_is_payer: bool) -> bool {
+        return client_turn || (lead_named && !lead_is_seller);
     }
 
     // The card a StoryReel's pause stands on. On client work the house's card is never left to
@@ -465,6 +483,29 @@ module automation::crm_client_workspace {
         assert(story_card_from(true, false, false) == STORY_CARD_NONE);
         assert(NEUTRAL_CARD_DARK == "#1f1f1f");
         assert(NEUTRAL_CARD_LIGHT == "#f5f5f5");
+    }
+
+    test "a reel about a lead who is not the seller is hers on every road, whoever pays" {
+        assert(CLIENT_REEL_IS == "client-mark,lead-not-seller");
+        assert(CLIENT_REEL_ROUTES == "client-turn,crm-template,story-reel-for-lead");
+        assert(!CLIENT_REEL_BY_PAYER);
+        // The CRM template pressed by the seller for her: he pays, the reel is hers.
+        assert(reel_is_clients(false, true, false, false));
+        // Her own press: she pays, and the reel is still hers.
+        assert(reel_is_clients(false, true, false, true));
+        // story_reel for a named lead from the seller's own thread.
+        assert(reel_is_clients(false, true, false, false));
+        // A turn for a client, with or without a lead named.
+        assert(reel_is_clients(true, false, false, false));
+        assert(reel_is_clients(true, true, false, false));
+        // The seller's own reel: his lead is himself, or no lead at all.
+        assert(!reel_is_clients(false, true, true, true));
+        assert(!reel_is_clients(false, false, false, true));
+        // And her reel never stands on the house card, by any road.
+        assert(story_card_from(reel_is_clients(false, true, false, true), false, true) == STORY_CARD_NEUTRAL);
+        assert(story_card_from(reel_is_clients(false, true, false, true), false, false) == STORY_CARD_NONE);
+        assert(story_card_from(reel_is_clients(false, true, false, false), true, true) == STORY_CARD_HERS);
+        assert(story_card_from(reel_is_clients(false, true, true, true), false, true) == STORY_CARD_AS_GIVEN);
     }
 
     test "on client work the prompt does not say the bot in speech is the house's" {

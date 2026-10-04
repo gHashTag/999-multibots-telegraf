@@ -139,5 +139,23 @@
     "file": "src/agent/chat.ts",
     "from": "export function botNamedInSpeech(clientWork: boolean): boolean {\n  return !clientWork\n}",
     "to": "export function botNamedInSpeech(clientWork: boolean): boolean {\n  return true\n}"
+  },
+  {
+    "name": "reel_is_clients drops the lead clause",
+    "file": "src/agent/client-work.ts",
+    "from": "  return clientTurn || (leadNamed && !leadIsSeller)\n",
+    "to": "  return clientTurn\n"
+  },
+  {
+    "name": "reel_is_clients forgets the seller's own reel",
+    "file": "src/agent/client-work.ts",
+    "from": "  return clientTurn || (leadNamed && !leadIsSeller)\n",
+    "to": "  return clientTurn || leadNamed\n"
+  },
+  {
+    "name": "reel_is_clients ignores the client mark",
+    "file": "src/agent/client-work.ts",
+    "from": "  return clientTurn || (leadNamed && !leadIsSeller)\n",
+    "to": "  return leadNamed && !leadIsSeller\n"
   }
 ]

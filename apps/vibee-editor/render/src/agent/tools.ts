@@ -262,6 +262,16 @@ export interface ToolContext {
    */
   sellerSweep?: boolean
   /**
+   * THIS REEL IS A CLIENT'S (crm-client-workspace v6, reel_is_clients): it
+   * is about a lead who is not the seller. Set only by code -- the story
+   * job, from its lead and its seller, and story_reel for the render it
+   * starts. Never from the payer: on her own press the client pays, and the
+   * job's telegramId is hers. While it is true, reel_render treats the
+   * render as client work (her card or the neutral one, never the house's)
+   * though the turn carries no faceOf and no sellerSweep.
+   */
+  clientReel?: boolean
+  /**
    * What the caller typed in THIS turn, on the bot surface, outside a sweep.
    * Set only by code (routes.ts). Read by assistant-opt-out.ts: a client who
    * switched the assistant off can still get the owner's OWN words, and this
@@ -2923,7 +2933,9 @@ export const TOOLS: AgentTool[] = [
       // A house advert is never a client's reel (client-work.ts). Before the
       // twin lookup too: a twin would hand back a house-branded file free.
       let props = args.props || {}
-      if (onClientWork(ctx)) {
+      // ctx.clientReel: a client's reel on a turn with no client mark -- the
+      // CRM template job, story_reel for a named lead (reel_is_clients).
+      if (onClientWork(ctx) || ctx.clientReel === true) {
         const refused = houseReelRefusal(args.compositionId, args.props)
         if (refused) return { началось: false, причина: refused } // cyrillic-ok: the tool's result fields are its API
         // A client's StoryReel never stands on the house card

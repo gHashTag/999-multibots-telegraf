@@ -83,5 +83,30 @@
     "name": "the agent is not told of the widgets",
     "from": "pub const CONTEXT_INJECTED : str = \"crm_client_profile+lead_context+widgets\";",
     "to": "pub const CONTEXT_INJECTED : str = \"crm_client_profile+lead_context\";"
+  },
+  {
+    "name": "whose reel is told by who pays",
+    "from": "        return client_turn || (lead_named && !lead_is_seller);",
+    "to": "        return client_turn || (lead_named && !lead_is_payer);"
+  },
+  {
+    "name": "the CRM template and for_lead are not a client's reel",
+    "from": "        return client_turn || (lead_named && !lead_is_seller);",
+    "to": "        return client_turn;"
+  },
+  {
+    "name": "no lead named still makes a client's reel",
+    "from": "        return client_turn || (lead_named && !lead_is_seller);",
+    "to": "        return client_turn || !lead_is_seller;"
+  },
+  {
+    "name": "the seller's own reel counts as a client's",
+    "from": "        return client_turn || (lead_named && !lead_is_seller);",
+    "to": "        return client_turn || lead_named;"
+  },
+  {
+    "name": "the reel is the payer's",
+    "from": "pub const CLIENT_REEL_BY_PAYER : bool = false;",
+    "to": "pub const CLIENT_REEL_BY_PAYER : bool = true;"
   }
 ]

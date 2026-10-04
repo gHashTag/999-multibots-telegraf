@@ -29,6 +29,28 @@ export function onClientWork(ctx: {
   return !!String(ctx.faceOf ?? '').trim() || ctx.sellerSweep === true
 }
 
+/**
+ * IS THIS REEL A CLIENT'S? (crm-client-workspace v6, reel_is_clients)
+ *
+ * The marks above are not the only road to her reel. A reel pressed in the
+ * CRM -- by the seller, or by the client herself -- runs as a story job whose
+ * turn carries no faceOf and no sellerSweep, and story_reel for a named lead
+ * from the seller's own thread carries none either. Both still made a
+ * client's reel stand on the house card.
+ *
+ * So the reel asks WHOSE it is: a client's when the turn carries a client
+ * mark, or when it is about a lead who is not the seller. Who pays is not an
+ * argument on purpose (CLIENT_REEL_BY_PAYER false): on her own press she is
+ * the payer, and the job's telegramId is hers.
+ */
+export function reelIsClients(
+  clientTurn: boolean,
+  leadNamed: boolean,
+  leadIsSeller: boolean
+): boolean {
+  return clientTurn || (leadNamed && !leadIsSeller)
+}
+
 /*
  * REMOTION COMPOSITIONS THAT ARE THE HOUSE'S OWN ADVERT.
  *

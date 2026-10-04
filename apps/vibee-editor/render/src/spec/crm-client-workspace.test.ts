@@ -737,6 +737,93 @@ describe("the spec's tests hold against the host", () => {
       }
   })
 
+  it('a reel about a lead who is not the seller is hers on every road, whoever pays', async () => {
+    const { reelIsClients } = await import('../agent/client-work')
+    const reel = await import('../agent/story-reel-tool')
+    const { TOOLS_BY_NAME } = await import('../agent/tools')
+    expect(SPEC.CLIENT_REEL_IS.split(',')).toEqual([
+      'client-mark',
+      'lead-not-seller',
+    ])
+    expect(SPEC.CLIENT_REEL_ROUTES.split(',')).toEqual([
+      'client-turn',
+      'crm-template',
+      'story-reel-for-lead',
+    ])
+    expect(SPEC.CLIENT_REEL_BY_PAYER).toBe(false)
+    // reel_is_clients(client_turn, lead_named, lead_is_seller, lead_is_payer).
+    // The host takes no payer at all: the spec's fourth argument is there so
+    // a control can show that a payer rule goes red.
+    expect(reelIsClients.length).toBe(3)
+    const is = (
+      turn: boolean,
+      named: boolean,
+      seller: boolean,
+      _payer: boolean
+    ) => reelIsClients(turn, named, seller)
+    expect(is(false, true, false, false)).toBe(true)
+    expect(is(false, true, false, true)).toBe(true)
+    expect(is(true, false, false, false)).toBe(true)
+    expect(is(true, true, false, false)).toBe(true)
+    expect(is(false, true, true, true)).toBe(false)
+    expect(is(false, false, false, true)).toBe(false)
+    const way = reel.storyCardFrom
+    expect(way(is(false, true, false, true), false, true)).toBe(
+      SPEC.STORY_CARD_NEUTRAL
+    )
+    expect(way(is(false, true, false, true), false, false)).toBe(
+      SPEC.STORY_CARD_NONE
+    )
+    expect(way(is(false, true, false, false), true, true)).toBe(
+      SPEC.STORY_CARD_HERS
+    )
+    expect(way(is(false, true, true, true), false, true)).toBe(
+      SPEC.STORY_CARD_AS_GIVEN
+    )
+    // The host: reel_render draws her reel on her card or the neutral one on
+    // a turn that carries no client mark -- the CRM template job, paid by
+    // her (telegramId is hers) -- once the turn says the reel is hers.
+    const drawn: Array<Record<string, any>> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, init?: { body?: unknown }) => {
+        drawn.push(JSON.parse(String(init?.body)).props)
+        return new Response(JSON.stringify({ renderId: 'r-77' }), {
+          status: 200,
+        })
+      })
+    )
+    try {
+      const render = TOOLS_BY_NAME.get('reel_render')!
+      const paidByHer = (clientReel?: boolean) =>
+        ({
+          telegramId: CLIENT,
+          pool: getPool(),
+          surface: 'story',
+          chargeLater: true,
+          ...(clientReel === undefined ? {} : { clientReel }),
+        }) as never
+      const ask = { cta: 'Book a visit' }
+      for (const mark of [true, false, undefined])
+        await render.handler(
+          { compositionId: 'StoryReel', props: ask, wait: false },
+          paidByHer(mark)
+        )
+      expect(drawn).toHaveLength(3)
+      expect(drawn[0].endCard).toEqual({
+        bg: SPEC.NEUTRAL_CARD_DARK,
+        title: SPEC.NEUTRAL_CARD_LIGHT,
+        text: SPEC.NEUTRAL_CARD_LIGHT,
+        accent: SPEC.NEUTRAL_CARD_LIGHT,
+      })
+      // Not hers: the composition decides, as on the seller's own reel.
+      expect(drawn[1]).toEqual(ask)
+      expect(drawn[2]).toEqual(ask)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
