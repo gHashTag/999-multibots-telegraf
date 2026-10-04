@@ -20,6 +20,7 @@
  *    показывать пятисотку там, где был связный ответ.
  */
 import { toolContentForModel } from './tool-content'
+import type { TurnWidgets } from './client-widgets'
 import * as REEL from '../spec/crm-story-reel.gen'
 import * as SPLIT from '../spec/split-reel.gen'
 import {
@@ -1019,8 +1020,8 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
 - Готовые шаблоны рилсов смотри через templates_list: собрать по шаблону быстрее и дешевле, чем выдумывать сборку с нуля. ${'' /* cyrillic-ok: prompt copy */}
 - РИЛС-ИСТОРИЯ (формат владельца, постоянный шаблон) — ОДНИМ вызовом story_reel {image_url, scenes: [{setting, line}], style, cta, for_lead}: ${'' /* cyrillic-ok: prompt copy */}
   3 сцены в ОДНОМ стиле, обстановка новая в КАЖДОЙ, в первой тоже (фон исходника не повторять); реплики по 2–4 с, последняя — призыв; в конце пауза 3 с с надписью cta; весь ролик до 15 с (сторис). ${'' /* cyrillic-ok: prompt copy */}
-  Для владельца: image_url — его эталон ${OWNER_NOIR_PORTRAIT}, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента из CRM — не этот вызов, а шаблон рилс-истории CRM: он делает рилс в фоне и присылает владельцу карточку «в группу»/«в личку». ${'' /* cyrillic-ok: prompt copy */}
-  Бот в речи — одно слово «Тринити», без букв и цифр. Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
+  Для владельца: image_url — его эталон ${OWNER_NOIR_PORTRAIT}, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента из CRM — не этот вызов, а шаблон рилс-истории CRM: он делает рилс в фоне и присылает владельцу карточку «в группу»/«в личку»; у рилса клиента призыв и кнопка ЕГО, не Тринити. ${'' /* cyrillic-ok: prompt copy */}
+  Бот в речи — одно слово «Тринити», без букв и цифр; рилс клиента называет Тринити, только если человек сам это написал. Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
 - СПЛИТ-РИЛС (говорящая голова, сверху b-roll, жёлтые титры по слову) — ОДНИМ вызовом split_reel {image_url: студийный кадр с лицом, text до ${SPLIT.SPEECH_MAX_SECONDS} с речи, brolls: обстановки, for_lead, cta}; вернулись voice_url/clip/broll_urls без видео — повтори с ними. ${'' /* cyrillic-ok: prompt copy */}
 - Режим AUTO: autopilot_status говорит, включён ли он, до какого часа и сколько автоотправок осталось сегодня. Включённый AUTO значит, что подготовленные карточки уходят клиенту сами. Включает и выключает его САМ владелец — кнопкой AUTO прямо над этим чатом, во вкладке «Браузер», в CRM или в боте; тебе этот переключатель не дан, и просьбу включить его словами выполняй так: скажи, где кнопка. ${'' /* cyrillic-ok: prompt copy */}
 ${WEB_RULES}
@@ -2294,6 +2295,11 @@ async function* runAgentTurn(
     /** The Manager Agent: words only, no media tools (client-facing.ts). */
     textOnly?: boolean
     client?: string
+    /**
+     * The widgets beside the client's chat and their state, already checked
+     * (client-widgets.ts widgetsOfTurn). Read only together with `client`.
+     */
+    widgets?: TurnWidgets
     /** A live labour-market specialist selected by the person. */
     marketplaceAgent?: string
     /**
@@ -2531,6 +2537,20 @@ async function* runAgentTurn(
     : ''
 
   /*
+   * What the owner sees beside that chat (owner, 2026-10-03: the agent sent
+   * an old render while the reel panel stood open with a new topic). Context,
+   * not an instruction; the free text in it is fenced. Spec v5 of
+   * crm-client-workspace.t27: a client's thread only.
+   */
+  const widgetsContext =
+    opts?.client && opts.widgets
+      ? await (async () => {
+          const { widgetsBlock } = await import('./client-widgets')
+          return widgetsBlock(opts.widgets!)
+        })().catch(() => '')
+      : ''
+
+  /*
    * The person on the other side of THIS conversation -- not a client the
    * seller is talking about, which is what clientContext is. Absent when the
    * caller sent nothing, and absent is the honest state: a row of "unknown"s
@@ -2573,6 +2593,7 @@ async function* runAgentTurn(
     dmHistory +
     clientBrief +
     clientContext +
+    widgetsContext +
     personContext +
     products +
     defects +

@@ -3,7 +3,9 @@
 // talking below, one yellow word at a time on the seam, hard cuts on a fixed rhythm.
 // Host: 999-multibots-telegraf apps/vibee-editor/render/src/split-reel-plan.ts (segments and
 //       props for the Remotion composition SplitTalkingHead), src/agent/reel-analyze.ts (the
-//       tool reel_analyze: a reference reel in, this spec's shape out).
+//       tool reel_analyze: a reference reel in, this spec's shape out), src/agent/split-reel-tool.ts
+//       (the tool split_reel: whose reel it is, its voice and its call), src/agent/tools.ts
+//       audio_generate and src/agent/voice-clone-speak.ts (the owner's voice, his reels only).
 // Generated: `t27c gen-ts` of this file is vendored as
 //       apps/vibee-editor/render/src/spec/split-reel.gen.ts; the host imports the numbers.
 // Measured on a reference reel 2026-10-02 (720x1280, 30 fps, 14.97 s): cuts at 1.9, 5.9, 7.4,
@@ -16,6 +18,11 @@
 //       real voice notes cut on their pauses. His trained clone (MiniMax, made on Replicate)
 //       cannot speak: Replicate has no balance and is off (owner, 2026-10-02), and Kie has
 //       no speech cloning (every clone model name answers 422).
+// v7 (2026-10-04): a reel the house did not order carries no mark of the house's -- not its
+//       bot as the call at the end, not the owner's voice, not a house name the agent or a
+//       template put into its words; words the person wrote herself stand. Every refusal
+//       comes before the charge, so a refused call costs nothing and nothing is refunded.
+//       A rule, not a measurement: no reel rendered under it yet.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::split_reel {
@@ -23,7 +30,7 @@ module automation::split_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "split-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 6;
+    pub const VERSION : u8 = 7;
 
     // ---- Where it is drawn --------------------------------------------------------------
     pub const COMPOSITION : str = "SplitTalkingHead";
@@ -100,9 +107,43 @@ module automation::split_reel {
     // holds this pause equal to that one: one pause for every reel template.
     pub const CTA_PAUSE_SEC : u32 = 3;
     pub const CTA_ALWAYS : bool = true;  // a reel without a call is not delivered
-    pub const OWNER_CTA : str = "@t27ai_bot";  // the owner's reels name the bot
+    pub const OWNER_CTA : str = "@t27ai_bot";  // the house's own reel only (v7)
     // The voice may run to MAX_SECONDS minus the pause: the whole reel stays inside it.
     pub const SPEECH_MAX_SECONDS : u32 = 12;
+
+    // ---- Whose reel it is -------------------------------------------------------------------
+    // v7 (owner, 2026-10-03: "why does it make the CTA mine and not the client's? what a
+    // mess"). A reel ordered for a client ended on OWNER_CTA: the planner fell back to it
+    // whenever no call was written, and the order named none. The owner's voice and the
+    // bot's spoken name leaked the same way: both were applied to every reel of the house.
+    //
+    // A reel is the HOUSE'S OWN only when the house orders it and nobody else is named on
+    // the turn: no client the turn speaks with, no lead the order is for, and no unattended
+    // sweep (a sweep works for leads only, as image_edit already holds for the owner's
+    // face). A seller who is not the house orders reels of her own, not the house's. Every
+    // other reel is a client's, and carries the client's marks:
+    //   the call   -- the one the order wrote, unless it names the house; else the call in
+    //                 the client's own profile; else a neutral call with no name in it.
+    //                 OWNER_CTA is the house's own reel's, and nobody else's.
+    //   the voice  -- the client's own clone; never the owner's clone or sample. With no
+    //                 clone of hers the voice is refused.
+    //   the words  -- no house name the agent or a template put there: no OWNER_CTA, no
+    //                 spoken brand name. Words the person wrote or spoke herself stand --
+    //                 the owner refused the house's CALL and VOICE on a reel made for
+    //                 somebody, not every mention of the product in her own script.
+    // The texts of the neutral call and of the refusals are interface copy: the host's.
+    pub const CTA_GIVEN : u8 = 1;  // the call the order wrote
+    pub const CTA_CLIENT : u8 = 2;  // the call in the client's own profile
+    pub const CTA_NEUTRAL : u8 = 3;  // a call with no name in it
+    pub const CTA_OWNER : u8 = 4;  // OWNER_CTA
+    pub const OWNER_VOICE_ON_CLIENT_REEL : bool = false;
+    pub const AGENT_HOUSE_NAME_ON_CLIENT_REEL : bool = false;
+    // Every refusal above -- another client's reel, a house name the agent put in, a voice
+    // nobody may lend -- is decided before the first paid step (the voice's own charge, or
+    // the first paid tool the reel calls). A refused call takes nothing, so no path here
+    // charges and then refuses, and there is no refund to promise. A provider that fails
+    // AFTER the charge is a failure, not a refusal: its refund is the host's, not this rule.
+    pub const REFUSED_BEFORE_SPEND : bool = true;
 
     // A reel is checked before anyone is given it (tri reel-check, in the render as
     // well): no head cut, no face off its window's centre, no caption on silence. A
@@ -234,6 +275,70 @@ module automation::split_reel {
         return defects == 0;
     }
 
+    // The house's own reel: the house orders it, no client on the turn, no lead named,
+    // no sweep for leads.
+    fn house_own(house_caller : bool, client_turn : bool, for_lead : bool, seller_sweep : bool) -> bool {
+        if !house_caller {
+            return false;
+        }
+        if client_turn {
+            return false;
+        }
+        if for_lead {
+            return false;
+        }
+        return !seller_sweep;
+    }
+
+    // Which call the reel ends on. A call the order wrote stands, except one that names
+    // the house on a client's reel: hers stands instead.
+    fn cta_for(house_own : bool, given : bool, given_names_house : bool, client_has_cta : bool) -> u8 {
+        if given {
+            if house_own {
+                return CTA_GIVEN;
+            }
+            if !given_names_house {
+                return CTA_GIVEN;
+            }
+        }
+        if house_own {
+            return CTA_OWNER;
+        }
+        if client_has_cta {
+            return CTA_CLIENT;
+        }
+        return CTA_NEUTRAL;
+    }
+
+    // The owner's clone or sample speaks the house's own reel, and no other.
+    fn owner_voice_allowed(house_own : bool) -> bool {
+        if house_own {
+            return true;
+        }
+        return OWNER_VOICE_ON_CLIENT_REEL;
+    }
+
+    // A house name in a reel's words: always on the house's own reel; on any other, only
+    // when the person put it there herself, never when the agent or a template did.
+    fn house_name_allowed(house_own : bool, agent_supplied : bool) -> bool {
+        if house_own {
+            return true;
+        }
+        if !agent_supplied {
+            return true;
+        }
+        return AGENT_HOUSE_NAME_ON_CLIENT_REEL;
+    }
+
+    // Whether a call is charged: a call that goes ahead pays its price; a refused one pays
+    // nothing, because its refusal came before the charge.
+    fn charged(refused : bool) -> bool {
+        if !refused {
+            return true;
+        }
+        return !REFUSED_BEFORE_SPEND;
+    }
+
     test "the reel opens on the face, then split 120 and full 45 by turns" {
         assert(segment_count(450) == 6);
         assert(last_frames(450) == 60);
@@ -326,6 +431,70 @@ module automation::split_reel {
         assert(face_target_y_pct(58) == 60);
         assert(face_target_y_pct(58) - FACE_CENTER_Y_PCT == FACE_OFF_CENTER_MAX_PCT);
         assert(HEADROOM_AIM_PCT > HEADROOM_MIN_PCT);
+    }
+
+    test "a reel is the house own only when the house orders it and nobody else is named" {
+        assert(house_own(true, false, false, false));
+        assert(!house_own(true, true, false, false));
+        assert(!house_own(true, false, true, false));
+        assert(!house_own(true, false, false, true));
+        assert(!house_own(true, true, true, true));
+        // A seller who is not the house: her own reel is not the house's.
+        assert(!house_own(false, false, false, false));
+    }
+
+    test "a client reel ends on the client call, never on the owner bot" {
+        // The order wrote no call: hers, from her profile.
+        assert(cta_for(false, false, false, true) == CTA_CLIENT);
+        // Her profile has none either: a neutral call, not OWNER_CTA.
+        assert(cta_for(false, false, false, false) == CTA_NEUTRAL);
+        // The order wrote one: it stands.
+        assert(cta_for(false, true, false, false) == CTA_GIVEN);
+        assert(cta_for(false, true, false, true) == CTA_GIVEN);
+        // The order wrote the owner bot on her reel: hers stands instead.
+        assert(cta_for(false, true, true, true) == CTA_CLIENT);
+        assert(cta_for(false, true, true, false) == CTA_NEUTRAL);
+        assert(CTA_ALWAYS);
+    }
+
+    test "the house own reel still ends on the bot" {
+        assert(cta_for(true, false, false, false) == CTA_OWNER);
+        assert(cta_for(true, false, false, true) == CTA_OWNER);
+        // The house may write its own call, the bot included.
+        assert(cta_for(true, true, true, false) == CTA_GIVEN);
+        assert(cta_for(true, true, false, false) == CTA_GIVEN);
+        assert(OWNER_CTA == "@t27ai_bot");
+    }
+
+    test "a reel the house did not order never speaks in the owner voice" {
+        assert(owner_voice_allowed(true));
+        assert(!owner_voice_allowed(false));
+        assert(!OWNER_VOICE_ON_CLIENT_REEL);
+        assert(OWN_VOICE);
+    }
+
+    test "a house name stands in her own words, never where the agent put it" {
+        // The house's own reel: any house name stands.
+        assert(house_name_allowed(true, true));
+        assert(house_name_allowed(true, false));
+        // Any other reel: the agent's or a template's house name is refused...
+        assert(!house_name_allowed(false, true));
+        // ...and the words she wrote herself stand.
+        assert(house_name_allowed(false, false));
+        assert(!AGENT_HOUSE_NAME_ON_CLIENT_REEL);
+    }
+
+    test "a refusal comes before the charge, so a refused call costs nothing" {
+        // Refused -- a voice nobody may lend, another client's reel, the agent's house
+        // name: nothing was taken, nothing is given back.
+        assert(!charged(true));
+        // A call that goes ahead pays its price.
+        assert(charged(false));
+        assert(REFUSED_BEFORE_SPEND);
+    }
+
+    test "the version is the last dated note" {
+        assert(VERSION == 7);
     }
 }
 
