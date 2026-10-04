@@ -1,5 +1,5 @@
 /**
- * The house's names, read in ONE place (crm-story-reel v22, split-reel v7).
+ * The house's names, read in ONE place (crm-story-reel v23, split-reel v7).
  *
  * A reel made for a client never names the house -- not in a spoken line,
  * so not in a caption, not in the call, not on the end card's button --
@@ -12,7 +12,12 @@
  * The marks (crm-story-reel HOUSE_MARKS): the bot as the voice speaks it
  * (BOT_SPOKEN_AS, and its Russian spelling), the delivery bot with or
  * without its at-sign (HOUSE_DELIVERY_BOT), the brand (HOUSE_BRAND) and the
- * product (HOUSE_PRODUCT, also with a superscript three or a space).
+ * product (HOUSE_PRODUCT, its superscript spelling too).
+ *
+ * v23 (999#3564): marks are read as a reader reads them. The text and every
+ * mark are folded the same way first (foldMarks), and then each mark found is
+ * judged by what stands around it -- a name (nameMark), the brand as a code
+ * (codeMark), the product as one code token (productMark), the spec's fns.
  */
 import * as SPEC from './spec/crm-story-reel.gen'
 
@@ -27,33 +32,148 @@ export const HOUSE_MARKS: readonly string[] = [
   SPEC.HOUSE_PRODUCT,
 ]
 
-/** One pattern for every mark, in any case. */
-export const HOUSE_NAMES = new RegExp(
-  [
-    escaped(SPEC.HOUSE_DELIVERY_BOT),
-    `\\b${escaped(SPEC.BOT_SPOKEN_AS)}\\b`,
-    'тринити', // cyrillic-ok: the brand as the voice speaks it
-    `\\b${escaped(SPEC.HOUSE_BRAND)}\\b`,
-    '\\bs\\s*[³3]\\s*ai\\b',
-  ].join('|'),
-  'i'
+/**
+ * Each lower-case Cyrillic letter whose look passes for a Latin one, over the
+ * Latin letter it passes for (FOLD_LOOKALIKES; the set of the Latin side is
+ * LOOKALIKE_LATIN). One canonical form for both scripts folds both ways: a
+ * Latin T in a Russian word and a Cyrillic Te in an English one read alike.
+ * Greek is not folded -- the leak is a model writing Russian.
+ */
+const LOOKALIKE_CYRILLIC = 'авсԁенһіјкморԛѕтԝху' // cyrillic-ok: the look-alikes
+const LOOKALIKE_AS_LATIN = 'abcdehhijkmopqstwxy'
+const LOOKALIKES = new Map(
+  [...LOOKALIKE_CYRILLIC].map((c, i) => [c, LOOKALIKE_AS_LATIN[i]] as const)
 )
+const LOOKALIKE_ANY = new RegExp(`[${LOOKALIKE_CYRILLIC}]`, 'gu')
 
-/** Does this text name the house (its bot, its brand or its product)? */
-export function namesHouse(text: unknown): boolean {
-  return HOUSE_NAMES.test(String(text ?? ''))
+/** The Latin letters a Cyrillic one is read as: spec LOOKALIKE_LATIN. */
+export const lookalikeLatinSide = (): string =>
+  [...new Set(LOOKALIKE_AS_LATIN)].sort().join('')
+
+/**
+ * A text as a reader sees it: NFKC (S³AI is s3ai, a full-width letter is its
+ * letter), invisible characters dropped (INVISIBLES_DROPPED), one case, yo as
+ * ye, and each Cyrillic look-alike as its Latin letter (FOLD_LOOKALIKES).
+ */
+export function foldMarks(text: unknown): string {
+  let s = String(text ?? '').normalize('NFKC')
+  if (SPEC.INVISIBLES_DROPPED)
+    s = s.replace(/\p{Default_Ignorable_Code_Point}/gu, '')
+  s = s.toLowerCase().replace(/ё/g, 'е') // cyrillic-ok: yo and ye are one letter here
+  if (!SPEC.FOLD_LOOKALIKES) return s
+  return s.replace(LOOKALIKE_ANY, c => LOOKALIKES.get(c) ?? c)
 }
 
 /**
- * A text as words: one case, one form per letter (NFKC, so S³AI is s3ai;
- * yo as ye), punctuation and spaces dropped -- how her message and a line
- * are compared, so a comma or a capital never decides whose words they are.
+ * Spec `name_mark`: a name found is the house -- inside a longer word
+ * (TrinityBot, NAME_INSIDE_WORD), before another word (Trinity College,
+ * NAME_IN_ANY_CONTEXT: no word after it tells the college from the house),
+ * and alone.
+ */
+export function nameMark(insideWord: boolean, wordAfter: boolean): boolean {
+  if (insideWord) return SPEC.NAME_INSIDE_WORD
+  if (wordAfter) return SPEC.NAME_IN_ANY_CONTEXT
+  return true
+}
+
+/**
+ * Spec `code_mark`: the brand is a code -- the house when it starts a word
+ * (t27, t27ai, t27_ai: CODE_MARK_PREFIX), not after a letter or digit (at27)
+ * nor before a digit (T270).
+ */
+export function codeMark(
+  wordBefore: boolean,
+  digitAfter: boolean,
+  letterAfter: boolean
+): boolean {
+  if (wordBefore || digitAfter) return false
+  if (letterAfter) return SPEC.CODE_MARK_PREFIX
+  return true
+}
+
+/**
+ * Spec `product_mark`: the product is ONE code token (PRODUCT_ONE_TOKEN):
+ * S3AI is the house, "our S3 AI pipeline" is S3 the storage and the word AI.
+ */
+export function productMark(codeOk: boolean, spaceInside: boolean): boolean {
+  if (!codeOk) return false
+  if (spaceInside) return !SPEC.PRODUCT_ONE_TOKEN
+  return true
+}
+
+/** The names, folded: the bot as the voice speaks it and the delivery bot. */
+const NAMES: readonly string[] = [
+  SPEC.BOT_SPOKEN_AS,
+  'Тринити', // cyrillic-ok: the name as the voice speaks it, in Russian
+  SPEC.HOUSE_DELIVERY_BOT,
+].map(foldMarks)
+const CODE = foldMarks(SPEC.HOUSE_BRAND)
+/** The product's letters, any space between them found -- and then judged. */
+const PRODUCT = new RegExp(
+  [...foldMarks(SPEC.HOUSE_PRODUCT)].map(escaped).join('\\s*'),
+  'gu'
+)
+
+/** Every place a folded needle starts in a folded text. */
+function placesOf(text: string, needle: string): number[] {
+  const at: number[] = []
+  if (!needle) return at
+  for (let i = text.indexOf(needle); i >= 0; i = text.indexOf(needle, i + 1))
+    at.push(i)
+  return at
+}
+
+/** What stands right before and right after [at, end) of a folded text. */
+function around(text: string, at: number, end: number) {
+  const before = text.slice(Math.max(0, at - 2), at)
+  const after = text.slice(end, end + 3)
+  return {
+    wordBefore: /[\p{L}\p{N}]$/u.test(before),
+    letterAfter: /^\p{L}/u.test(after),
+    digitAfter: /^\p{N}/u.test(after),
+    wordAfter: /^\s+[\p{L}\p{N}]/u.test(text.slice(end)),
+  }
+}
+
+/** Where a folded text names the house: [start, end) of every mark judged one. */
+function marksIn(text: string): Array<[number, number]> {
+  const spans: Array<[number, number]> = []
+  for (const name of NAMES)
+    for (const at of placesOf(text, name)) {
+      const end = at + name.length
+      const f = around(text, at, end)
+      const inside = f.wordBefore || f.letterAfter || f.digitAfter
+      if (nameMark(inside, f.wordAfter)) spans.push([at, end])
+    }
+  for (const at of placesOf(text, CODE)) {
+    const end = at + CODE.length
+    const f = around(text, at, end)
+    if (codeMark(f.wordBefore, f.digitAfter, f.letterAfter))
+      spans.push([at, end])
+  }
+  for (const m of text.matchAll(PRODUCT)) {
+    const at = m.index ?? 0
+    const end = at + m[0].length
+    const f = around(text, at, end)
+    const code = codeMark(f.wordBefore, f.digitAfter, f.letterAfter)
+    if (productMark(code, /\s/u.test(m[0]))) spans.push([at, end])
+  }
+  return spans.sort((a, b) => a[0] - b[0])
+}
+
+/** Does this text name the house (its bot, its brand or its product)? */
+export function namesHouse(text: unknown): boolean {
+  return marksIn(foldMarks(text)).length > 0
+}
+
+/**
+ * A text as words: folded as the detector folds it (foldMarks: one case, one
+ * form per letter, yo as ye), punctuation and spaces dropped -- how her
+ * message and a line are compared, so a comma, a capital or a look-alike
+ * letter never decides whose words they are.
  */
 export function wordsOf(text: unknown): string[] {
-  return String(text ?? '')
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/ё/g, 'е') // cyrillic-ok: yo and ye are one letter here
+  return foldMarks(text)
     .split(/[^\p{L}\p{N}_]+/u)
     .filter(Boolean)
 }
@@ -71,10 +191,9 @@ function houseSpans(words: readonly string[]): Array<[number, number]> {
     while (i + 1 < starts.length && starts[i + 1] <= offset) i++
     return i
   }
-  const all = new RegExp(HOUSE_NAMES.source, 'gi')
-  return [...words.join(' ').matchAll(all)].map(m => [
-    wordAt(m.index ?? 0),
-    wordAt((m.index ?? 0) + Math.max(m[0].length - 1, 0)),
+  return marksIn(words.join(' ')).map(([start, end]) => [
+    wordAt(start),
+    wordAt(Math.max(end - 1, start)),
   ])
 }
 
