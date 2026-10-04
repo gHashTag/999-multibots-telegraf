@@ -16,6 +16,7 @@ import {
   PROFILE_LOOKS,
   PROFILE_SETTLE_MS,
   profileUrlFor,
+  QUEUE_SKILL,
   RSS_URL,
   SEEN_ON_PROFILE,
   seenOn,
@@ -56,6 +57,17 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
       ((await readApproval(pool, id))?.state ?? 'expired') as Answer,
     publish: a => publishEverywhere(pool, owner, a),
     tell: text => sendToTelegram(owner, text),
+    /* The order's one home: the owner's own skill (blog-share.ts QUEUE_SKILL). */
+    queue: async () => {
+      const { rows } = await pool.query(
+        `SELECT content FROM user_skills WHERE telegram_id = $1 AND name = $2
+          ORDER BY updated_at DESC LIMIT 1`,
+        [owner, QUEUE_SKILL]
+      )
+      return String(
+        (rows[0] as { content?: unknown } | undefined)?.content ?? ''
+      )
+    },
   })
 }
 
@@ -172,7 +184,10 @@ export async function publishEverywhere(
   for (const [net, url, labels] of [
     ['X', urls.x, SHARE_LABELS.X],
     ['LinkedIn', urls.linkedin, SHARE_LABELS.LinkedIn],
-    ['Reddit', urls.reddit, SHARE_LABELS.Reddit],
+    /* Switched off by the owner (spec v3, network_used): not even opened. */
+    ...(urls.reddit === null
+      ? []
+      : ([['Reddit', urls.reddit, SHARE_LABELS.Reddit]] as const)),
     ['Threads', urls.threads, SHARE_LABELS.Threads],
   ] as const) {
     if (net === 'X' && !String(out.X || '').startsWith('тред не получился'))

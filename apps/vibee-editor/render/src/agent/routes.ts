@@ -1007,6 +1007,16 @@ export async function handleAgentChat(
       error: 'нужен непустой массив messages вида [{role:"user",content:"…"}]',
     })
   }
+  /*
+   * THE LANE THIS CHAT RUNS IN (browser/lanes.ts). Left out, it is main and
+   * nothing below changes; any other shape is refused here, before a lane is
+   * taken or a stream opened, rather than guessed at.
+   */
+  const lanes = await import('../browser/lanes')
+  const laneRead = lanes.readLane(body.lane)
+  if (!laneRead.ok)
+    return json(res, 400, { code: 'bad_request', error: laneRead.error })
+  const lane = laneRead.lane
 
   /*
    * The client thread gate answers before the stream opens: a 4xx must be a
@@ -1047,6 +1057,15 @@ export async function handleAgentChat(
       )
     })().catch(() => undefined)
 
+  /*
+   * One window per lane in the person's one browser, and only so many: a lane
+   * past the cap is a real 409 before the stream opens, naming the lanes that
+   * hold the windows -- not an error event inside a 200.
+   */
+  const laneClaim = lanes.claimLane(telegramId, lane)
+  if (!laneClaim.ok)
+    return json(res, 409, { code: 'lane_limit', error: laneClaim.error })
+
   res.writeHead(200, {
     'Content-Type': 'application/x-ndjson; charset=utf-8',
     'Cache-Control': 'no-cache, no-store',
@@ -1054,6 +1073,16 @@ export async function handleAgentChat(
     // превращается в один пакет в конце — то есть в отсутствие потока.
     'X-Accel-Buffering': 'no',
   })
+
+  /*
+   * A LANE IS CONFIRMED FIRST. A render from before lanes reads no `lane` and
+   * runs the chat in main -- answering 200 all the same -- so a client that
+   * asked for a lane cannot tell, from the status, that it got one. The first
+   * line names the lane that was taken; its absence is the old render. Main
+   * sends nothing, so every existing client reads exactly what it read before.
+   */
+  if (lane !== lanes.MAIN_LANE)
+    res.write(JSON.stringify({ тип: 'lane', lane }) + '\n') // cyrillic-ok: event envelope
 
   /*
    * ГДЕ ЧЕЛОВЕК ПИШЕТ. Бот и мини-апп — один разговор, но видеть, с какой
@@ -1181,6 +1210,8 @@ export async function handleAgentChat(
           initDataBot: initDataBotOf(req, telegramId) ?? undefined,
           // The caller's own words: the one draft a stopped client may still get.
           ownerSaid: ownerWordsOf(history, поверхность, ephemeral), // cyrillic-ok: pre-existing local
+          // A lane other than main works in its own browser window (lanes.ts).
+          ...(lane !== lanes.MAIN_LANE ? { lane } : {}),
         },
         // The surface was already parsed and allow-listed above; the agent needs
         // it so that button markers are proposed in the bot and nowhere else.
