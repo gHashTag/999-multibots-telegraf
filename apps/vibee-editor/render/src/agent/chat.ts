@@ -746,8 +746,9 @@ export async function clientBriefBlock(
   const parts: string[] = []
   let name: string | null = null
   try {
-    const { clientProfileFor, profileForPrompt } =
-      await import('./crm-client-setup-tool')
+    const { clientProfileFor, profileForPrompt } = await import(
+      './crm-client-setup-tool'
+    )
     // The profile belongs to the owner; ask as the owner, whoever is calling.
     const p = await clientProfileFor(
       { ...ctx, telegramId: owner } as ToolContext,
@@ -860,8 +861,9 @@ export async function clientContextBlock(
   // The client's group, when the owner bound one: where the agent may post
   // beside the DM, by the same card-and-press rule (crm-client-group.ts).
   try {
-    const { clientGroupFor, clientGroupLine } =
-      await import('./crm-client-group')
+    const { clientGroupFor, clientGroupLine } = await import(
+      './crm-client-group'
+    )
     const line = clientGroupLine(
       await clientGroupFor(ctx.pool as never, owner, lead)
     )
@@ -3043,7 +3045,7 @@ async function* runAgentTurn(
     /*
      * A SWEEP MODEL THAT TALKS INSTEAD OF CALLING GIVES WAY.
      *
-     * Production 2026-10-04 20:04, owner 229866794: zai-lite/glm-4.5-flash
+     * Production 2026-10-04 20:04, the owner: zai-lite/glm-4.5-flash
      * answered the sweep with "calling the context for the first lead" and
      * no tool call -- twice, because the bot's retry reached the same model.
      * A toolsOnly turn exists for its tool calls, so a provider whose answer
