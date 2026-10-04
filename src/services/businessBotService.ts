@@ -134,6 +134,16 @@ interface ConnectionInfo {
 
 const connections = new Map<string, ConnectionInfo>()
 
+/**
+ * The connected account is the house's: its owner is an admin of this bot.
+ * Only then is the bot's catalogue HIS offer. Anybody else who connected his
+ * own account sells his own business, and a farm owner outside ADMIN_IDS
+ * would press buttons nobody answers. One rule, read by every place that asks.
+ */
+function houseSeller(conn: ConnectionInfo | undefined): boolean {
+  return !!conn && ADMIN_IDS_ARRAY.includes(Number(conn.userId))
+}
+
 /*
  * ONE PAID TURN PER CHAT AT A TIME -- WITHOUT DROPPING ANYTHING.
  *
@@ -578,6 +588,30 @@ const SALES_PROMPT = [
   '- Если спрашивают о функции — предложи попробовать в боте.',
   '- Если не знаешь ответ — скажи что передашь вопрос владельцу.',
   '- Не выдумывай цены и функции которых нет в списке.',
+].join('\n')
+
+/*
+ * THE FALLBACK IN THE DM OF A SELLER WHO IS NOT THE HOUSE.
+ *
+ * Owner, 2026-10-03: "why does it make my CTA and not the client's?" The
+ * SALES_PROMPT above is the house's pitch -- our services, tokens for
+ * Telegram stars, our bot. In the DM of a seller who connected his own
+ * account it spoke to HIS client in his name and sold OUR catalogue. The
+ * fallback has none of his data (no price list, no description of his
+ * business, no tools), so the honest default is neutral: a short answer in
+ * his name, nothing invented, and a question about the business goes to him.
+ */
+const NEUTRAL_SELLER_PROMPT = [
+  'Ты — помощник человека, в чьи личные сообщения пишет клиент. Отвечаешь от его имени.',
+  'Сейчас у тебя нет ни его прайса, ни описания его дела.',
+  '',
+  'Правила:',
+  '- Будь дружелюбным и кратким (1-3 предложения).',
+  '- Отвечай на языке клиента.',
+  '- Не называй услуг, цен, сроков, ботов и ссылок: их здесь нет, а выдуманные',
+  '  прозвучат его словами.',
+  '- Не предлагай оплату.',
+  '- На вопрос по делу скажи, что передашь его владельцу и он ответит сам.',
 ].join('\n')
 
 /**
@@ -1053,7 +1087,13 @@ export function buildBusinessMessages(
     role: string
     content: string
     surface?: string
-  }> = []
+  }> = [],
+  /**
+   * houseSeller(connection): the house's catalogue and bot are offered only
+   * in the house's own DMs; anybody else's client gets the neutral prompt.
+   * False by default, so a caller that forgets sells nothing of ours.
+   */
+  house = false
 ): ChatMessage[] {
   const safeName = sanitizeSenderName(senderName)
   const past: ChatMessage[] = history
@@ -1064,11 +1104,13 @@ export function buildBusinessMessages(
       role: t.role as 'user' | 'assistant',
       content: markSurface(t.content, t.role, t.surface),
     }))
-  const rules = past.length
-    ? `${SALES_PROMPT}\n${CONTINUATION_RULE}`
-    : SALES_PROMPT
+  const base = house ? SALES_PROMPT : NEUTRAL_SELLER_PROMPT
+  const rules = past.length ? `${base}\n${CONTINUATION_RULE}` : base
   return [
-    { role: 'system', content: `${rules}\n\nБот: @${botUsername}.` },
+    {
+      role: 'system',
+      content: house ? `${rules}\n\nБот: @${botUsername}.` : rules,
+    },
     ...past,
     { role: 'user', content: `Клиент (${safeName}) пишет:\n${text}` },
   ]
@@ -1775,7 +1817,8 @@ async function runBusinessBatch(
      */
     /* Filled while the answer is cleaned, read when the keyboard is built. */
     const offered: { looks: LookOption[] } = { looks: [] }
-    const sellerId = connections.get(connId)?.ownerChatId
+    const seller = connections.get(connId)
+    const sellerId = seller?.ownerChatId
     if (!sellerId)
       logger.warn('[Business] no connection owner for this turn', { connId })
     const reply = rewriteAppUrls(
@@ -1788,7 +1831,8 @@ async function runBusinessBatch(
               text,
               senderName,
               botUsername,
-              await fetchHistory(String(chatId))
+              await fetchHistory(String(chatId)),
+              houseSeller(seller)
             ),
             undefined,
             {
@@ -2107,7 +2151,7 @@ async function notifyOwnerOfLead(
     // something there -- the way back -- and it answers for every owner.
     const menu = o.assistantOff
       ? clientStopMenu(msg.chat.id, { kept: true })
-      : ADMIN_IDS_ARRAY.includes(Number(conn.userId))
+      : houseSeller(conn)
         ? dmLeadMenu(msg.chat.id)
         : undefined
     await bot.telegram.sendMessage(
@@ -2314,9 +2358,7 @@ async function announceTakeover(
   try {
     // Same rule as the lead notification: buttons only for an admin of this
     // bot, because nobody answers a farm owner's press.
-    const menu = ADMIN_IDS_ARRAY.includes(Number(conn.userId))
-      ? takeoverMenu(msg.chat.id)
-      : undefined
+    const menu = houseSeller(conn) ? takeoverMenu(msg.chat.id) : undefined
     await bot.telegram.sendMessage(
       conn.ownerChatId,
       [
