@@ -55,21 +55,19 @@ homes, and you read them there:
 ./tri runner                                   # health; `./tri runner deploy` if down or stale
 ./tri remote-check render -- src/spec/split-reel.test.ts
 ./tri remote-check render player root          # whole suites
+./tri remote-check mutants -- apps/vibee-editor/render/src/spec/x.mutants.json
+./tri remote-check spec -- apps/vibee-editor/render/src/spec/x.t27
 ```
 
 Exit 0 pass, 1 fail, 2 unmeasured -- **2 is never green**. The runner ships
 the working tree, so a bee checks before it commits.
 
-**Known gap, the first item of the backlog below.** The runner's suites
-(`deployment/check-runner/server.mjs`, `suiteCommands`) are render, player,
-root, guard, boots and types. `tri mutants` and the spec controls
-(`t27c test-report`, `tri spec-controls`) are not among them, so today they
-still run on the Mac. Until the gap closes, a bee that must run mutants:
-
-- runs one list at a time, under `nice -n 19`, with `VITEST_MAX_WORKERS=2`;
-- commits the feature first, because a killed mutant run can leave a mutant
-  in the file (`tri mutants --heal`);
-- says in its PR which numbers came from the Mac.
+Mutant lists and spec controls run there too (#3617): `mutants` takes list
+paths from the repository root and restores the runner's own tree by git
+after each list; `spec` runs `t27c test-report` (its table is the verdict,
+not t27c's exit code) and then `<id>.controls.json` when one sits beside the
+spec. Neither runs on the Mac. A list whose anchor text no longer occurs in
+the code answers 2: fix the list, do not read it as killed.
 
 t27 Rust work (`cargo test`, `tri fpga`) runs in gHashTag/t27's own CI on the
 PR. It never runs in `~/t27/target`. When a local build cannot be avoided, it
@@ -178,15 +176,10 @@ v8, the house-name detector (v23), the widgets under the Blogger.
 
 ## Backlog, in order
 
-1. **Close the Railway gap.** Add `mutants` and `spec` suites to the check
-   runner (`deployment/check-runner/server.mjs` with its test), then
-   `./tri runner deploy`. After that, `tri remote-check mutants -- <list>`
-   replaces every local mutant run, and this file drops the "Known gap"
-   paragraph.
-2. split-reel v10: the client's call colour on client split reels (spec
+1. split-reel v10: the client's call colour on client split reels (spec
    first). The unused `ctaHighlight` prop in `SplitTalkingHead.tsx` either
    carries it or goes.
-3. Audit the other house-gold defaults for client reach:
+2. Audit the other house-gold defaults for client reach:
    - `captionHighlightColor` in the VariationGenerator, the CaptionStyles and
      `talking-head.json`;
    - NoirReel and LeelaPlanReel.
@@ -194,10 +187,10 @@ v8, the house-name detector (v23), the widgets under the Blogger.
    House-only compositions stay as they are. A client-reachable one takes
    the client's palette or a neutral one.
 
-4. t27: the m2l temp package has no `lean-toolchain`, so elan picks v4.34.1
+3. t27: the m2l temp package has no `lean-toolchain`, so elan picks v4.34.1
    against Trinity's pinned v4.31.0. That is likely why the build fails at
    all. One line, verified by the real build in t27 CI.
-5. After the live check of item 4 in "One round": whatever it finds, as one
+4. After the live check of item 4 in "One round": whatever it finds, as one
    defect per bee.
 
 ## The owner's open questions -- ask, never decide

@@ -3045,7 +3045,7 @@ async function* runAgentTurn(
     /*
      * A SWEEP MODEL THAT TALKS INSTEAD OF CALLING GIVES WAY.
      *
-     * Production 2026-10-04 20:04, the owner: zai-lite/glm-4.5-flash
+     * Production 2026-10-04 20:04, the owner's chat: zai-lite/glm-4.5-flash
      * answered the sweep with "calling the context for the first lead" and
      * no tool call -- twice, because the bot's retry reached the same model.
      * A toolsOnly turn exists for its tool calls, so a provider whose answer

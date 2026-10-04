@@ -19,6 +19,13 @@
  *             name is an npm script of apps/website, run in order, each
  *             with its own exit code under "website:<name>".
  *
+ *   POST /run?suites=mutants&files=apps/vibee-editor/render/src/spec/x.mutants.json
+ *   POST /run?suites=spec&files=apps/vibee-editor/render/src/spec/x.t27
+ *     the experiments (2026-10-05, queen-reel-keeper's "Known gap"): one
+ *     `tri mutants` list or one spec's `t27c test-report` + `tri
+ *     spec-controls` per name, each under "<suite>:<name>". 0 all killed /
+ *     passed, 1 a survivor / a FAIL row, 2 unmeasured (suites.mjs).
+ *
  * Dependencies are installed once per lockfile and kept on the volume
  * (/cache), keyed by the lockfile's hash, so a run with unchanged
  * dependencies starts in seconds. Only the projects the requested suites
@@ -40,6 +47,8 @@ import {
   rename,
 } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { experimentPath } from './suites.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
 const KEY = process.env.CHECK_RUNNER_KEY || ''
@@ -62,8 +71,23 @@ const NODE22_BIN = process.env.CHECK_NODE22_BIN || '/opt/node22/bin'
 export const onNode22 = cmd =>
   `export PATH=${quote(NODE22_BIN)}:"$PATH" && ${cmd}`
 
-/* Which repository's archive a suite checks: website is trinity's. */
-const repoOf = suite => (suite === 'website' ? 'trinity' : 'bot')
+/*
+ * Which repository's archive a suite checks: website is trinity's. A spec
+ * run needs no node_modules at all -- t27c, zig and node's own modules.
+ */
+const repoOf = suite =>
+  suite === 'website' ? 'trinity' : suite === 'spec' ? 'none' : 'bot'
+
+/* The experiment suites' own program: in the image beside this file. */
+const SUITES_BIN =
+  process.env.CHECK_SUITES_BIN ||
+  fileURLToPath(new URL('./suites.mjs', import.meta.url))
+
+/*
+ * The suites whose names are taken as sent, one command each, every one run
+ * and answered under "<suite>:<name>", and which run alone in a request.
+ */
+export const PER_NAME = ['website', 'mutants', 'spec']
 
 /*
  * Every project that has its own lockfile and node_modules, and the
@@ -106,13 +130,24 @@ export const WEBSITE_SCRIPT = /^(check|typecheck)(:[a-z0-9-]+)*$/
 export function refusal(suites, files) {
   for (const s of suites)
     if (!suiteCommands(s, [])) return `unknown suite: ${s}`
-  if (!suites.includes('website')) return null
-  /* Its files are script names and its archive is trinity: no mixing. */
-  if (suites.length > 1) return 'website runs alone: its archive is trinity'
-  if (!files.length) return 'website needs files=<npm script>[,...]'
+  if (suites.includes('website')) {
+    /* Its files are script names and its archive is trinity: no mixing. */
+    if (suites.length > 1) return 'website runs alone: its archive is trinity'
+    if (!files.length) return 'website needs files=<npm script>[,...]'
+    for (const f of files)
+      if (!WEBSITE_SCRIPT.test(f))
+        return `not a website check script: ${JSON.stringify(f)}`
+    return null
+  }
+  const exp = suites.find(s => s === 'mutants' || s === 'spec')
+  if (!exp) return null
+  /* Its files are lists or specs, not test files: no mixing either. */
+  if (suites.length > 1) return `${exp} runs alone: its files are ${exp} paths`
+  const what = exp === 'mutants' ? '<list>.json' : '<spec>.t27'
+  if (!files.length) return `${exp} needs files=${what}[,...]`
   for (const f of files)
-    if (!WEBSITE_SCRIPT.test(f))
-      return `not a website check script: ${JSON.stringify(f)}`
+    if (!experimentPath(exp, f))
+      return `not a ${exp} path: ${JSON.stringify(f)}`
   return null
 }
 
@@ -208,6 +243,15 @@ export function suiteCommands(suite, files) {
     case 'website':
       if (!files.every(f => WEBSITE_SCRIPT.test(f))) return null
       return files.map(f => `cd apps/website && npm run ${quote(f)}`)
+    /*
+     * The experiments, one name per command so each has its own time limit
+     * and its own exit code (suites.mjs). Checked by refusal() first and
+     * again here, as the website's names are.
+     */
+    case 'mutants':
+    case 'spec':
+      if (!files.every(f => experimentPath(suite, f))) return null
+      return files.map(f => `node ${quote(SUITES_BIN)} ${suite} ${quote(f)}`)
     default:
       return null
   }
@@ -363,6 +407,15 @@ async function runWebsite(job, names, res, result) {
   }
 }
 
+/* The experiments the same way: every name run, each its own answer. */
+async function runPerName(job, suite, names, res, result) {
+  const cmds = suiteCommands(suite, names)
+  for (let i = 0; i < names.length; i++) {
+    res.write(`\n:: ${suite}: ${cmds[i]}\n`)
+    result[`${suite}:${names[i]}`] = await run(cmds[i], job, res)
+  }
+}
+
 let queue = Promise.resolve()
 
 async function handleRun(req, res, url) {
@@ -374,10 +427,10 @@ async function handleRun(req, res, url) {
   const named = given === null ? [] : given.split(',').map(s => s.trim())
   /*
    * The bot's suites quietly drop an empty name or a flag, as before. A
-   * website name is a command, so every name as sent is checked and one bad
-   * name refuses the whole request.
+   * website, mutants or spec name is a command's argument, so every name as
+   * sent is checked and one bad name refuses the whole request.
    */
-  const files = suites.includes('website')
+  const files = suites.some(s => PER_NAME.includes(s))
     ? named
     : named.filter(s => s && !s.startsWith('-'))
   const refused = refusal(suites, files)
@@ -426,6 +479,8 @@ async function handleRun(req, res, url) {
         res.write(':: could not make the tree a repository\n')
       for (const p of projectsFor(suites)) await modulesFor(job, p, res)
       if (suites.includes('website')) await runWebsite(job, files, res, result)
+      else if (suites.includes('mutants') || suites.includes('spec'))
+        await runPerName(job, suites[0], files, res, result)
       else
         for (const s of suites) {
           let code = 0

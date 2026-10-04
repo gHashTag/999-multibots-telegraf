@@ -1,7 +1,7 @@
 /**
  * A SWEEP MODEL THAT TALKS INSTEAD OF CALLING GIVES WAY.
  *
- * Production 2026-10-04 20:04, the owner: the seller's sweep (a
+ * Production 2026-10-04 20:04, the owner's chat: the seller's sweep (a
  * toolsOnly turn) reached zai-lite/glm-4.5-flash, which answered "calling the
  * context for the first lead" and called nothing. The turn ended as done, the
  * bot filed it as failed, and its one retry reached the same model again.
