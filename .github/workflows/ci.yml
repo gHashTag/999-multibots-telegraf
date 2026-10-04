@@ -5,9 +5,8 @@ on:
     branches: [ main, Jest-Test, cicd ]
   pull_request:
     branches: [ main, Jest-Test ]
-  schedule:
-    # Запускать ежедневно в 2:00 UTC для проверки зависимостей
-    - cron: '0 2 * * *'
+  # No schedule: block. The Queen (Inngest app t27-queen) dispatches this workflow
+  # on '0 2 * * *' UTC from the card specs/crons/999-multibots-telegraf-ci.t27 in gHashTag/t27.
   workflow_dispatch:
     # Manual and remote starts (the Queen scheduler on trios-agent-server
     # dispatches this workflow through the GitHub API).
