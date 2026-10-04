@@ -99,7 +99,7 @@ describe('who is in the chain', () => {
     process.env.NVIDIA_API_KEY = 'n' // secret-guard-ok: invented for this test
     process.env.OLLAMA_ENABLED = '1'
     process.env.AGENT_PROVIDER = 'ollama'
-    process.env.AGENT_MODEL = 'glm-5.3'
+    process.env.AGENT_MODEL = 'glm-4.7-flash'
     const m = await load()
     const choice = await import('./src/agent/provider-choice')
     choice.forgetProviderChoiceForTests()
@@ -107,7 +107,7 @@ describe('who is in the chain', () => {
     const first = m.allProviders()[0]
     expect(first.id).toBe('nemotron')
     expect(first.model).toBe('nvidia/nemotron-3-nano-omni-30b-a3b-reasoning')
-    expect(m.allProviders().find(p => p.id === 'zai')?.model).toBe('glm-5.3')
+    expect(m.allProviders().find(p => p.id === 'zai')?.model).toBe('glm-4.7-flash')
     choice.forgetProviderChoiceForTests()
   })
 

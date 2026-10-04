@@ -315,7 +315,7 @@ export const answerAi = async (
   if (glmApiKey) {
     try {
       logger.info('[answerAi] Using Z.AI coder model as fallback', {
-        model: process.env.GLM_MODEL || 'glm-5.3',
+        model: process.env.GLM_MODEL || 'glm-4.7-flash',
       })
 
       const glmProvider = new GLMProvider(glmApiKey)
