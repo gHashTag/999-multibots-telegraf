@@ -1755,7 +1755,7 @@ const en: Translations = {
   'feed.remixBasedOn': 'Based on another template',
   // Заголовок вкладки, когда бренд партнёра не задан. Канон имени —
   // «Trinity S³AI» с надстрочной тройкой, как в шапке и в рилсах.
-  'app.title': 'Trinity S³AI — reels on autopilot',
+  'app.title': 'TRINITY S³AI — AGI game — play, direct, earn',
   'feed.videoError': 'Video failed to load',
   'feed.deleteConfirm': 'Delete this video?',
 
@@ -4714,7 +4714,7 @@ const ru: Translations = {
   'feed.ageMonth': ' мес',
   'feed.remix': 'Ремикс',
   'feed.remixBasedOn': 'Сделано на основе другого шаблона',
-  'app.title': 'Trinity S³AI — рилсы на автопилоте',
+  'app.title': 'TRINITY S³AI — AGI-игра — играй, управляй, зарабатывай',
   'feed.videoError': 'Не удалось загрузить видео',
   'feed.deleteConfirm': 'Удалить это видео?',
 
