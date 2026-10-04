@@ -9,10 +9,16 @@
  * The chain, each part borrowed from the registry so it charges and refunds
  * exactly as when called alone:
  *
+ *   estimate -- a new voice is estimated from its text at MS_PER_CHAR; too
+ *               long for SPEECH_MAX_SECONDS is refused BEFORE the voice is
+ *               paid for (split-reel v8)
  *   voice    -- audio_generate (the owner's clone on the house's own reel;
  *               a client's reel speaks the client's voice -- split-reel v7)
  *   gate     -- the voice is measured; longer than SPEECH_MAX_SECONDS is
- *               refused BEFORE any still or lip-sync is paid for
+ *               refused BEFORE any still or lip-sync is paid for (the
+ *               backstop for a voice slower than the measured pace). The
+ *               one refusal after a charge, so a voice THIS call paid for
+ *               is given back, once (split-reel v8 backstop_refund)
  *   b-roll   -- image_edit with the spec's BROLL_MODEL, one still per split
  *               shot the voice actually needs, all at once, no text in them
  *   lip-sync -- lipsync_generate with the spec's LIPSYNC_MODEL
@@ -36,9 +42,15 @@ import {
   houseNameAllowed,
   houseOwnTurn,
   leadOfTurn,
+  backstopRefund,
+  msOfSeconds,
   speechFrames,
+  speechChars,
+  speechMsEstimate,
   splitReelProps,
   splitSegments,
+  textFits,
+  voiceTooLong,
   type SpeechFrames,
   type SpokenWord,
 } from '../split-reel-plan'
@@ -193,6 +205,8 @@ function outcome(v: any): {
   pending: boolean
   seconds: number
   voice: string
+  /** What the borrowed tool's charge took, from its receipt; 0 when none. */
+  charged: number
 } {
   const ok =
     v?.done === true || v?.['сделано'] === true || v?.['готово'] === true // cyrillic-ok: borrowed tools' answer keys
@@ -203,6 +217,7 @@ function outcome(v: any): {
     pending: v?.pending === true,
     seconds: Number(v?.seconds) || 0,
     voice: String(v?.['голос'] ?? ''), // cyrillic-ok: borrowed tools' answer keys
+    charged: Number(v?.['токены']?.['потрачено']) || 0, // cyrillic-ok: borrowed tools' answer keys
   }
 }
 
@@ -232,7 +247,7 @@ export function makeSplitReelTool(
         },
         text: {
           type: 'string',
-          description: `что сказать, до ${SPEC.SPEECH_MAX_SECONDS} с речи; бот в речи — «Тринити» только в рилсе владельца`,
+          description: `что сказать, до ${SPEC.SPEECH_MAX_SECONDS} с речи (до ~${Math.floor((SPEC.SPEECH_MAX_SECONDS * 1000) / SPEC.MS_PER_CHAR)} знаков); бот в речи — «Тринити» только в рилсе владельца`,
         },
         brolls: {
           type: 'array',
@@ -337,9 +352,26 @@ export function makeSplitReelTool(
           'готовое не делается и не оплачивается второй раз',
       })
 
+      // 0. A new voice too long for the format is refused from its text,
+      // before it is paid for (split-reel v8 text_fits). The measured gate
+      // in step 2 stays, for a voice slower than the measured pace.
+      const chars = speechChars(text)
+      if (!voiceUrl && !clip && !textFits(chars))
+        return {
+          done: false,
+          reason:
+            `text на ~${Math.ceil(speechMsEstimate(chars) / 1000)} с речи, а формат держит до ` +
+            `${SPEC.SPEECH_MAX_SECONDS} с: сократи text — голос не заказан и не оплачен`,
+          ...sofar(),
+        }
+
       // 1. The voice, unless it came back from the last call.
       let voiceKind = ''
       let spoken = 0
+      // Whether THIS call paid for the voice, and what it took: the backstop
+      // gives back only a voice it paid for (v8 backstop_refund).
+      let paidHere = false
+      let chargedNow = 0
       if (!voiceUrl && !clip) {
         const v = outcome(
           await speak
@@ -357,6 +389,8 @@ export function makeSplitReelTool(
         voiceUrl = v.url
         voiceKind = v.voice
         spoken = v.seconds
+        paidHere = true
+        chargedNow = v.charged
       }
 
       // 2. The gate: a voice too long for the format is refused before the
@@ -368,14 +402,28 @@ export function makeSplitReelTool(
           reason: 'не удалось измерить длину голоса — липсинк не заказан',
           ...sofar(),
         }
-      if (!clip && spoken > SPEC.SPEECH_MAX_SECONDS) {
+      if (!clip && voiceTooLong(msOfSeconds(spoken))) {
         const tooLong = voiceUrl
         voiceUrl = ''
+        // The one refusal after the charge: the voice this call paid for
+        // goes back, the exact sum, once per voice (v8 backstop_refund).
+        const back = backstopRefund(paidHere, msOfSeconds(spoken), chargedNow)
+        let returned = false
+        if (back > 0) {
+          // Imported here: tools.ts imports this file to build its list.
+          const { refundTooLongVoice } = await import('./tools')
+          returned = await refundTooLongVoice(
+            ctx,
+            { url: tooLong, charged: back },
+            'голос длиннее формата сплит-рилса'
+          )
+        }
         return {
           done: false,
           reason:
             `голос ${spoken.toFixed(1)} с, а формат держит до ${SPEC.SPEECH_MAX_SECONDS} с речи: ` +
-            `сократи text и повтори без voice_url (длинный голос: ${tooLong})`,
+            `сократи text и повтори без voice_url (длинный голос: ${tooLong})` +
+            (returned ? `; ${back} ток. за этот голос возвращены` : ''),
           ...sofar(),
         }
       }
