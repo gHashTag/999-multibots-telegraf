@@ -1,0 +1,45 @@
+[
+  {
+    "name": "a sweep naming nobody gets the seller's face again",
+    "file": "src/agent/client-face-tool.ts",
+    "from": "        if (!target && onClientWork(ctx))\n          return { has: false, why: NAME_THE_LEAD }\n",
+    "to": "",
+    "tests": ["src/agent/the-agent-can-look-at-a-face.test.ts"]
+  },
+  {
+    "name": "a seller sweep is not client work",
+    "file": "src/agent/client-work.ts",
+    "from": "|| ctx.sellerSweep === true",
+    "to": "|| false"
+  },
+  {
+    "name": "reel_render does not ask whether the work is a client's",
+    "file": "src/agent/tools.ts",
+    "from": "      if (onClientWork(ctx)) {\n        const refused = houseReelRefusal(args.compositionId, args.props)",
+    "to": "      if (false) {\n        const refused = houseReelRefusal(args.compositionId, args.props)"
+  },
+  {
+    "name": "the house adverts are not listed",
+    "file": "src/agent/client-work.ts",
+    "from": "  if (HOUSE_ADVERT_COMPOSITIONS.has(id)) return HOUSE_REEL_REFUSED\n",
+    "to": ""
+  },
+  {
+    "name": "a NoirReel brand that names the house passes",
+    "file": "src/agent/client-work.ts",
+    "from": " || fields.some(f => namesHouse(f))",
+    "to": ""
+  },
+  {
+    "name": "a half-filled NoirReel brand passes",
+    "file": "src/agent/client-work.ts",
+    "from": "fields.some(f => !f) || ",
+    "to": ""
+  },
+  {
+    "name": "NoirReel with no brand passes",
+    "file": "src/agent/client-work.ts",
+    "from": "  if (!given || typeof given !== 'object') return HOUSE_BRAND_REFUSED\n",
+    "to": "  if (!given || typeof given !== 'object') return null\n"
+  }
+]
