@@ -17,6 +17,9 @@ import { parseRss, RSS_URL } from './blog-share'
 import {
   ANSWER_WAIT_MS,
   engageTick,
+  habrThread,
+  handleKey,
+  parseHabrSearch,
   parsePageItems,
   parseRedditSearch,
   readRules,
@@ -32,6 +35,8 @@ const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 /** Where the time of the last search is kept, so a deploy cannot forget it. */
 export const LAST_SEARCH_KEY = 'engage:last-search'
+/** When the open search started; cleared when it ends (spec v3). */
+export const SEARCH_STARTED_KEY = 'engage:search-started'
 /** The owner's voice profile, rebuilt from his feed once a week. */
 export const VOICE_KEY = 'engage:voice'
 
@@ -65,6 +70,41 @@ export async function runEngageDesk(pool: Queryable): Promise<string> {
           at: new Date(atMs).toISOString(),
         })
       },
+      searchStarted: async () => {
+        const row = await readStrategy(pool, SEARCH_STARTED_KEY).catch(
+          () => null
+        )
+        const at = (row as { at?: unknown } | null)?.at
+        const ms = typeof at === 'string' ? Date.parse(at) : NaN
+        return Number.isFinite(ms) ? ms : 0
+      },
+      markStarted: async atMs => {
+        await writeStrategy(pool, SEARCH_STARTED_KEY, {
+          at: atMs ? new Date(atMs).toISOString() : null,
+        })
+      },
+      /*
+       * The owner's handles beyond the ones engage-desk.ts names: the Reddit
+       * account his browser is signed into, and ENGAGE_DESK_OWN_HANDLES
+       * (comma-separated) when set. Read only; nothing is guessed.
+       */
+      ownHandles: async () => {
+        const extra = String(process.env.ENGAGE_DESK_OWN_HANDLES ?? '')
+          .split(',')
+          .map(handleKey)
+          .filter(Boolean)
+        const me = await readAsThePerson(
+          pool,
+          owner,
+          'https://www.reddit.com/api/me.json'
+        ).catch(() => null)
+        const name = (typeof me === 'string' ? safeJson(me) : me) as {
+          data?: { name?: unknown }
+          name?: unknown
+        } | null
+        const reddit = name?.data?.name ?? name?.name
+        return typeof reddit === 'string' && reddit ? [...extra, reddit] : extra
+      },
       fetchRss: async () => {
         const r = await fetch(RSS_URL, { signal: AbortSignal.timeout(20_000) })
         if (!r.ok) throw new Error(`feed answered ${r.status}`)
@@ -87,8 +127,16 @@ export async function runEngageDesk(pool: Queryable): Promise<string> {
               await readAsThePerson(pool, owner, searchUrl('reddit', query)),
               Date.now()
             )
-          : await searchPage(pool, owner, network, query),
-      /* Reddit: the thread's own JSON; elsewhere the page's visible replies. */
+          : network === 'habr'
+            ? parseHabrSearch(
+                await habrJson(searchUrl('habr', query)),
+                Date.now()
+              )
+            : await searchPage(pool, owner, network, query),
+      /*
+       * Reddit: the thread's own JSON; Habr: its public comments API, no
+       * cookie; elsewhere the page's visible replies.
+       */
       thread: async (network, url) =>
         network === 'reddit'
           ? redditThread(
@@ -98,7 +146,9 @@ export async function runEngageDesk(pool: Queryable): Promise<string> {
                 `${url.replace(/\/$/, '')}.json?limit=20`
               )
             )
-          : await pageText(pool, owner, url),
+          : network === 'habr'
+            ? habrThread(await habrJson(habrCommentsUrl(url)))
+            : await pageText(pool, owner, url),
       rulesOf: async (_network, community) =>
         community
           ? readRules(
@@ -148,6 +198,33 @@ export async function runEngageDesk(pool: Queryable): Promise<string> {
   } finally {
     running = false
   }
+}
+
+function safeJson(s: string): unknown {
+  try {
+    return JSON.parse(s)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Habr's public API, read by the server itself: no cookie, no tab in the
+ * person's browser. A refusal is an error, said in the tally -- never "0".
+ */
+async function habrJson(url: string): Promise<unknown> {
+  const r = await fetch(url, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(20_000),
+  })
+  if (!r.ok) throw new Error(`habr answered ${r.status}`)
+  return await r.json()
+}
+
+/** A Habr post URL -> its comments API. Pure. */
+export function habrCommentsUrl(url: string): string {
+  const id = /\/(\d+)\/?$/.exec(url)?.[1] ?? ''
+  return `https://habr.com/kek/v2/articles/${id}/comments/`
 }
 
 /*
@@ -279,7 +356,9 @@ async function searchPage(
   })
   try {
     await settle(8_000)
-    const raw = await evaluateOn(cdp, page.id, PROBE[network]).catch(() => null)
+    const raw = await evaluateOn(cdp, page.id, PROBE[network])
+    /* A probe that did not run is a search error, not "read 0 posts". */
+    if (!Array.isArray(raw)) throw new Error('the search page did not read')
     return parsePageItems(network, raw, Date.now())
   } finally {
     /* A search must not leave the person's browser fuller than it was. */
