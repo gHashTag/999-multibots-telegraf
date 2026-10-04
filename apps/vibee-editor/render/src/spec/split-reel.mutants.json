@@ -181,5 +181,95 @@
     "file": "src/split-reel-plan.ts",
     "from": "  return Number.isInteger(chargedNow) && chargedNow > 0 ? chargedNow : 0\n",
     "to": "  return 0\n"
+  },
+  {
+    "name": "v9: latest wins, a quicker reel later speeds the voice up",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return measured > kept ? measured : kept\n",
+    "to": "  return measured > 0 ? measured : kept\n"
+  },
+  {
+    "name": "v9: the weights dropped, a digit and a syllable character weigh one",
+    "file": "src/split-reel-plan.ts",
+    "from": "    plain * SPEC.PLAIN_CHAR_WEIGHT +\n    digits * SPEC.DIGIT_WEIGHT +\n    wide * SPEC.WIDE_CHAR_WEIGHT\n",
+    "to": "    plain + digits + wide\n"
+  },
+  {
+    "name": "v9: a digit counted as a letter",
+    "file": "src/split-reel-plan.ts",
+    "from": "    if (DIGIT.test(ch)) digits += 1\n",
+    "to": "    if (DIGIT.test(ch)) plain += 1\n"
+  },
+  {
+    "name": "v9: a syllable character counted as a letter",
+    "file": "src/split-reel-plan.ts",
+    "from": "    else if (WIDE.test(ch)) wide += 1\n",
+    "to": "    else if (WIDE.test(ch)) plain += 1\n"
+  },
+  {
+    "name": "v9: max to min, a voice is judged at the quicker of its pace and MS_PER_CHAR",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return slowest > SPEC.MS_PER_CHAR ? slowest : SPEC.MS_PER_CHAR\n",
+    "to": "  return slowest > SPEC.MS_PER_CHAR ? SPEC.MS_PER_CHAR : slowest\n"
+  },
+  {
+    "name": "v9: the voice pace ignored, every voice judged at MS_PER_CHAR",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return slowest > SPEC.MS_PER_CHAR ? slowest : SPEC.MS_PER_CHAR\n",
+    "to": "  return SPEC.MS_PER_CHAR\n"
+  },
+  {
+    "name": "v9: the measured pace rounded down, so it errs short",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return Math.floor((measuredMs + units - 1) / units)\n",
+    "to": "  return Math.floor(measuredMs / units)\n"
+  },
+  {
+    "name": "v9: a text too short to measure sets the pace",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (units < SPEC.MIN_PACE_UNITS) return kept\n",
+    "to": ""
+  },
+  {
+    "name": "v9: the pace read from the caller instead of the voice",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "        ? await voicePaceOf(ctx.pool, clone.voiceId).catch(() => 0)\n",
+    "to": "        ? await voicePaceOf(ctx.pool, String(ctx.telegramId)).catch(() => 0)\n"
+  },
+  {
+    "name": "v9: the measured pace is never kept",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "      if (paidHere && clone) {\n",
+    "to": "      if (paidHere && clone && false) {\n"
+  },
+  {
+    "name": "v9: the url kept in the reason after a refund",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "            `сократи text и повтори без voice_url` +\n",
+    "to": "            `сократи text и повтори без voice_url (длинный голос: ${tooLong})` +\n"
+  },
+  {
+    "name": "v9: the url kept in the answer after a refund",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "        const tooLong = voiceUrl\n        voiceUrl = ''\n",
+    "to": "        const tooLong = voiceUrl\n"
+  },
+  {
+    "name": "v9: the row keeps the latest pace, not the slowest",
+    "file": "src/agent/lead-voice.ts",
+    "from": "SET ms_per_char = GREATEST(COALESCE(ms_per_char, 0), $2)",
+    "to": "SET ms_per_char = $2"
+  },
+  {
+    "name": "v9: a new clone inherits the old voice pace",
+    "file": "src/agent/lead-voice.ts",
+    "from": "           ms_per_char = CASE WHEN lead_voices.voice_id = EXCLUDED.voice_id\n                              THEN lead_voices.ms_per_char END,\n",
+    "to": ""
+  },
+  {
+    "name": "v9: her own reel looks for a clone she made of herself, not her own voice",
+    "file": "src/agent/lead-voice.ts",
+    "from": "  return self ? ownVoiceOf(pool, asker) : leadVoiceOf(pool, asker, forLead)\n",
+    "to": "  return leadVoiceOf(pool, asker, forLead)\n"
   }
 ]
