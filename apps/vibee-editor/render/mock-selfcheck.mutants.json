@@ -22,5 +22,11 @@
     "file": "mock-selfcheck.sh",
     "from": "  if port_answers \"$PORT\"; then\n    echo \"mock-selfcheck: port :$PORT is already taken by another process -- left alone; pick another MOCK_SELFCHECK_PORT\"\n    exit 1\n  fi",
     "to": "  kill \"$(lsof -ti:\"$PORT\" 2>/dev/null)\" 2>/dev/null || true"
+  },
+  {
+    "name": "the trap signals the group but does not wait for it to be gone",
+    "file": "mock-selfcheck.sh",
+    "from": "  while kill -0 -- \"-$g\" 2>/dev/null; do\n    i=$((i + 1))\n    if [ \"$i\" -ge 50 ]; then\n      kill -KILL -- \"-$g\" 2>/dev/null\n      break\n    fi\n    sleep 0.1\n  done\n",
+    "to": ""
   }
 ]
