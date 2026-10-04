@@ -44,7 +44,9 @@
 //       letter of a script that writes a syllable or a word per character (Han, kana,
 //       Hangul) weigh more than a Latin or Cyrillic letter. A voice's first reel, and a
 //       voice slower than its own slowest, still meet the backstop and its refund.
-//       A rule, not a measurement: no voice measured under it yet.
+//       A measurement lands on the measured voice's own row and nowhere else: another
+//       voice -- another client's, another seller's, one never measured -- keeps what it
+//       had (PACE_ON_OTHER_VOICES). A rule, not a measurement: no voice measured under it yet.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::split_reel {
@@ -200,6 +202,11 @@ module automation::split_reel {
     // voice, not to whoever asks for it. A voice with no row (the owner's own, spoken by
     // the house's clone) stays at MS_PER_CHAR.
     pub const PACE_PER_VOICE : bool = true;
+    // A measurement is kept on the measured voice's own row and on no other. Every other
+    // clone -- another client's, another seller's -- keeps the pace it had, and one never
+    // measured stays never measured (0). Written onto them, one voice's pace would refuse
+    // a stranger's text, before the charge, at a pace that voice never spoke at.
+    pub const PACE_ON_OTHER_VOICES : bool = false;
     // A text is counted in speech units, not characters. A Latin or Cyrillic letter, a
     // space or a mark is one unit: MS_PER_CHAR was measured on such text. A digit is read
     // out as a word ("2026" is four digits and some twenty letters spoken), and a letter of
@@ -495,6 +502,18 @@ module automation::split_reel {
         return slowest_pace(kept, measured_pace(measured_ms, units));
     }
 
+    // What one clone's row keeps after split_reel measured a voice (v9): the measured
+    // voice's row keeps the slower pace; any other voice's row keeps what it kept, a pace
+    // or 0 for never measured.
+    fn row_pace_after(row_of_measured : bool, kept : u32, measured_ms : u32, units : u32) -> u32 {
+        if !row_of_measured {
+            if !PACE_ON_OTHER_VOICES {
+                return kept;
+            }
+        }
+        return pace_to_keep(kept, measured_ms, units);
+    }
+
     // Whether a voice, measured once it exists, runs past the format: the backstop (v8).
     fn voice_too_long(measured_ms : u32) -> bool {
         return measured_ms > SPEECH_MAX_SECONDS * 1000;
@@ -764,6 +783,18 @@ module automation::split_reel {
         assert(pace_to_keep(0, 1200, 10) == 0);
         assert(pace_to_keep(0, 9000, MIN_PACE_UNITS - 1) == 0);
         assert(pace_to_keep(0, 9000, MIN_PACE_UNITS) == 85);
+    }
+
+    test "a voice's pace is kept on its own row and never on another voice" {
+        // Voice A paid for 200 units over 14000 ms: its row, never measured, now keeps 70.
+        assert(row_pace_after(true, 0, 14000, 200) == 70);
+        assert(row_pace_after(true, 80, 14000, 200) == 80);
+        // Voice B, never measured, still has no pace: A's 70 does not land on it.
+        assert(row_pace_after(false, 0, 14000, 200) == 0);
+        assert(text_fits(200, row_pace_after(false, 0, 14000, 200)));
+        // Voice C, measured at 60, keeps 60: A's slower pace does not land on it either.
+        assert(row_pace_after(false, 60, 14000, 200) == 60);
+        assert(!PACE_ON_OTHER_VOICES);
     }
 
     test "a digit or a syllable character weighs more than a letter" {

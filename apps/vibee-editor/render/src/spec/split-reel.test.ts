@@ -114,6 +114,43 @@ type VoiceRow = {
   voice: string
   pace: number | null
 }
+/**
+ * The rows a pace statement's WHERE names, read from the statement itself:
+ * an OR of ANDs over the conditions lead-voice.ts can write. A fake that
+ * filtered by the voice whatever the SQL said kept one voice's pace off every
+ * other clone even when the statement wrote it there (split-reel v9,
+ * PACE_ON_OTHER_VOICES). A condition the fake does not know throws, so a new
+ * one is a red test, never a silent pass.
+ */
+function whereOf(sql: string, params: unknown[]): (r: VoiceRow) => boolean {
+  const clause = /\bWHERE\b([\s\S]*?)(?:\bORDER BY\b|\bLIMIT\b|$)/i.exec(sql)
+  if (!clause) return () => true
+  const arg = (n: string) => String(params[Number(n) - 1])
+  const condition = (text: string): ((r: VoiceRow) => boolean) => {
+    const c = text.trim()
+    let m: RegExpExecArray | null
+    if ((m = /^voice_id = \$(\d+)$/.exec(c))) {
+      const v = arg(m[1])
+      return r => r.voice === v
+    }
+    if ((m = /^owner_id = \$(\d+)$/.exec(c))) {
+      const v = arg(m[1])
+      return r => r.owner === v
+    }
+    if ((m = /^lead_id = \$(\d+)$/.exec(c))) {
+      const v = arg(m[1])
+      return r => r.lead === v
+    }
+    if (/^ms_per_char IS NULL$/i.test(c)) return r => r.pace == null
+    if (/^ms_per_char IS NOT NULL$/i.test(c)) return r => r.pace != null
+    throw new Error(`voiceBook: a condition the fake does not know: ${c}`)
+  }
+  const anyOf = clause[1]
+    .trim()
+    .split(/\s+OR\s+/i)
+    .map(all => all.split(/\s+AND\s+/i).map(condition))
+  return r => anyOf.some(all => all.every(holds => holds(r)))
+}
 function voiceBook(rows: VoiceRow[]) {
   const book = tokenLedger()
   const query = async (sql: string, params: unknown[] = []) => {
@@ -133,16 +170,15 @@ function voiceBook(rows: VoiceRow[]) {
       }
     if (/SELECT ms_per_char FROM lead_voices/.test(q)) {
       const kept = rows
-        .filter(r => r.voice === a)
+        .filter(whereOf(q, params))
         .map(r => r.pace)
         .sort((x, y) => (y ?? -1) - (x ?? -1))
       return { rows: kept.slice(0, 1).map(p => ({ ms_per_char: p })) }
     }
     if (/UPDATE lead_voices SET ms_per_char/.test(q)) {
       const slowest = /GREATEST\(COALESCE\(ms_per_char, 0\), \$2\)/.test(q)
-      for (const r of rows)
-        if (r.voice === a)
-          r.pace = slowest ? Math.max(r.pace ?? 0, Number(b)) : Number(b)
+      for (const r of rows.filter(whereOf(q, params)))
+        r.pace = slowest ? Math.max(r.pace ?? 0, Number(b)) : Number(b)
       return { rows: [] }
     }
     return book.query(sql, params)
@@ -1100,6 +1136,77 @@ describe('split-reel.t27 against the host', () => {
       logged.mockRestore()
     }
   }, 60_000)
+
+  it("a voice's pace is kept on its own row and never on another voice", async () => {
+    expect(SPEC.PACE_ON_OTHER_VOICES).toBe(false)
+    // row_pace_after, through lead-voice.ts's own statement: split_reel keeps
+    // paceToKeep(kept, ms, units) on the measured voice with keepVoicePace.
+    // B is another client of the same seller, C another seller's clone.
+    const rows: VoiceRow[] = [
+      { owner: SELLER_ID, lead: CLIENT_ID, voice: 'lead-voice_A', pace: null },
+      {
+        owner: SELLER_ID,
+        lead: '900000006',
+        voice: 'lead-voice_B',
+        pace: null,
+      },
+      {
+        owner: '900000078',
+        lead: '900000008',
+        voice: 'lead-voice_C',
+        pace: 60,
+      },
+    ]
+    const pool = voiceBook(rows)
+    // Voice A paid for 200 units over 14000 ms: its row, never measured, keeps 70.
+    await keepVoicePace(
+      pool as never,
+      'lead-voice_A',
+      paceToKeep(0, 14000, 200)
+    )
+    expect(rows[0].pace).toBe(70)
+    // Voice B, never measured, still has no pace: A's 70 does not land on it.
+    expect(rows[1].pace).toBeNull()
+    const paceB = await voicePaceOf(pool as never, 'lead-voice_B')
+    expect(paceB).toBe(0)
+    expect(textFits(200, paceB)).toBe(true)
+    // Voice C, measured at 60, keeps 60: A's slower pace does not land on it.
+    expect(rows[2].pace).toBe(60)
+    expect(await voicePaceOf(pool as never, 'lead-voice_C')).toBe(60)
+    // A already at 80, measured at 70: it keeps 80, and the others stay.
+    rows[0].pace = 80
+    await keepVoicePace(
+      pool as never,
+      'lead-voice_A',
+      paceToKeep(80, 14000, 200)
+    )
+    expect(rows.map(r => r.pace)).toEqual([80, null, 60])
+
+    // The fake can see the leak it guards against: handed a WHERE that also
+    // names the never-measured rows, it writes A's pace onto B, as Postgres
+    // would -- so a statement that did so here would turn this test red.
+    const leak = voiceBook([
+      { owner: SELLER_ID, lead: CLIENT_ID, voice: 'lead-voice_A', pace: null },
+      {
+        owner: SELLER_ID,
+        lead: '900000006',
+        voice: 'lead-voice_B',
+        pace: null,
+      },
+    ])
+    await leak.query(
+      `UPDATE lead_voices SET ms_per_char = GREATEST(COALESCE(ms_per_char, 0), $2)
+        WHERE voice_id = $1 OR ms_per_char IS NULL`,
+      ['lead-voice_A', 70]
+    )
+    expect(leak.rows.map(r => r.pace)).toEqual([70, 70])
+    await expect(
+      leak.query(
+        `UPDATE lead_voices SET ms_per_char = $2 WHERE lower(username) = $1`,
+        ['x', 1]
+      )
+    ).rejects.toThrow(/a condition the fake does not know/)
+  })
 
   it('a digit or a syllable character weighs more than a letter', async () => {
     expect(speechUnitsOf(SPEC.MEASURED_CHARS, 0, 0)).toBe(SPEC.MEASURED_CHARS)

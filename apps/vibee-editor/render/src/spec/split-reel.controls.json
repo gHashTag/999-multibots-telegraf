@@ -158,5 +158,15 @@
     "name": "a syllable character weighs as a letter",
     "from": "pub const WIDE_CHAR_WEIGHT : u32 = 4;",
     "to": "pub const WIDE_CHAR_WEIGHT : u32 = 1;"
+  },
+  {
+    "name": "one voice pace is written onto every other voice row",
+    "from": "pub const PACE_ON_OTHER_VOICES : bool = false;",
+    "to": "pub const PACE_ON_OTHER_VOICES : bool = true;"
+  },
+  {
+    "name": "a never-measured clone takes the pace of the voice measured",
+    "from": "            if !PACE_ON_OTHER_VOICES {\n                return kept;",
+    "to": "            if kept > 0 {\n                return kept;"
   }
 ]
