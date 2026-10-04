@@ -93,8 +93,8 @@
   {
     "name": "client work keeps the seller's content plan and post voice",
     "file": "src/agent/chat.ts",
-    "from": "  if (clientWork)\n    return (\n      systemFor(surface) +",
-    "to": "  if (false)\n    return (\n      systemFor(surface) +"
+    "from": "  if (clientWork)\n    return (\n      systemFor(surface, clientWork) +",
+    "to": "  if (false)\n    return (\n      systemFor(surface, clientWork) +"
   },
   {
     "name": "the personal SOUL shapes the client's content",
