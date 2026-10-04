@@ -3,8 +3,10 @@
  * template for constant work; only add a pause at the end for the CTA").
  *
  * The owner's format, proven twice that day (the owner's own launch reel and
- * a florist client's gift reel): one face, three scenes in one style and a
- * NEW setting each, one short line per scene in a real voice, a lip-sync per
+ * a florist client's gift reel): one face, three scenes in one style (since
+ * crm-story-reel v21 the first is the source photo, wide, the rest shots of
+ * the same studio, a new place only when named), one short line per scene
+ * in a real voice, a lip-sync per
  * scene, the Remotion StoryReel template -- hard cuts, a breath between
  * lines, and at the end the last frame held for a pause while the call to
  * action stands on screen.
