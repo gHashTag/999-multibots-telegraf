@@ -35,6 +35,18 @@
 //       the ceiling once it exists: the one refusal that comes after the charge. That voice
 //       is given back, once, at exactly that refusal (REFUND_TOO_LONG_VOICE). A rule and
 //       one measurement: no reel rendered under it yet.
+// v9 (2026-10-04): each voice is held to its own slowest measured pace before it is paid
+//       (PACE_PER_VOICE). v8 judged every text at MS_PER_CHAR, the owner's pace, so a slower
+//       voice was charged, measured too long and given back on every reel it was asked
+//       for. split_reel now keeps, on the clone's own row, the slowest pace each voice
+//       was ever measured at, and judges the next text at the slower of that and
+//       MS_PER_CHAR. A text is counted in speech units: a digit (read as a word) and a
+//       letter of a script that writes a syllable or a word per character (Han, kana,
+//       Hangul) weigh more than a Latin or Cyrillic letter. A voice's first reel, and a
+//       voice slower than its own slowest, still meet the backstop and its refund.
+//       A measurement lands on the measured voice's own row and nowhere else: another
+//       voice -- another client's, another seller's, one never measured -- keeps what it
+//       had (PACE_ON_OTHER_VOICES). A rule, not a measurement: no voice measured under it yet.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::split_reel {
@@ -42,7 +54,7 @@ module automation::split_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "split-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 8;
+    pub const VERSION : u8 = 9;
 
     // ---- Where it is drawn --------------------------------------------------------------
     pub const COMPOSITION : str = "SplitTalkingHead";
@@ -166,7 +178,7 @@ module automation::split_reel {
     // voice the host could reach was the first voice of the house's own ElevenLabs account
     // (a provider the house no longer calls) -- a voice not hers, possibly the owner's. So
     // she is refused, before the charge, and asked for a voice_id or her own clone. The
-    // house with no voice keeps its own path (crm-story-reel.t27 HOUSE_SKIPS_ELEVENLABS).
+    // house with no voice keeps its own path, which is the host's to choose.
     pub const STOCK_VOICE_FOR_ORDINARY : bool = false;
     // How long a new voice will run, from its text, before it is paid for. Measured
     // 2026-10-04 on the one voice in the host repo with word times:
@@ -180,6 +192,38 @@ module automation::split_reel {
     pub const MEASURED_CHARS : u32 = 464;
     pub const MEASURED_MS : u32 = 25920;
     pub const MS_PER_CHAR : u32 = 56;
+    // Each voice is held to its own slowest measured pace (v9). MS_PER_CHAR is one voice's
+    // pace; a slower voice passed it, was paid for, measured too long and given back --
+    // on every reel it was asked for. split_reel measures every voice it buys: the text's
+    // speech units and the voice's length. It keeps, on that clone's own row, the slowest
+    // pace the voice was ever measured at, in ms a unit rounded UP, and judges the next
+    // text for that voice at the slower of MS_PER_CHAR and that pace -- never faster than
+    // MS_PER_CHAR, so a quick voice does not stretch the ceiling. The pace belongs to the
+    // voice, not to whoever asks for it. A voice with no row (the owner's own, spoken by
+    // the house's clone) stays at MS_PER_CHAR.
+    pub const PACE_PER_VOICE : bool = true;
+    // A measurement is kept on the measured voice's own row and on no other. Every other
+    // clone -- another client's, another seller's -- keeps the pace it had, and one never
+    // measured stays never measured (0). Written onto them, one voice's pace would refuse
+    // a stranger's text, before the charge, at a pace that voice never spoke at.
+    pub const PACE_ON_OTHER_VOICES : bool = false;
+    // A text is counted in speech units, not characters. A Latin or Cyrillic letter, a
+    // space or a mark is one unit: MS_PER_CHAR was measured on such text. A digit is read
+    // out as a word ("2026" is four digits and some twenty letters spoken), and a letter of
+    // a script that writes a syllable or a word per character (Han, Hiragana, Katakana,
+    // Hangul) is spoken at ~150-250 ms (999#3573), 3-4 of our units. Both weights are a
+    // guess, not a measurement, and they err long; the voice's own pace corrects a voice
+    // slower than them. A letter of another alphabet (Greek, Arabic, Hebrew...) is a sound
+    // like a Latin one and weighs one: weighing it more would refuse honest texts forever,
+    // and its own pace corrects a slow one.
+    pub const PLAIN_CHAR_WEIGHT : u32 = 1;
+    pub const DIGIT_WEIGHT : u32 = 4;
+    pub const WIDE_CHAR_WEIGHT : u32 = 4;
+    // A text shorter than this many units is not counted as a measurement of its voice.
+    // The silence before and after the words is fixed, so on a short text it reads as a
+    // slow voice, and the slowest pace is kept for ever: one "Hello" would cap the voice
+    // for good. Half of what fits at MS_PER_CHAR (214 units). A rule, not a measurement.
+    pub const MIN_PACE_UNITS : u32 = 107;
     // Why not the slowest pace per language instead: the host repo holds ONE voice with its
     // text -- the clip above, Russian, the owner's clone. Its other voice files have no text
     // (render/public/vo/vo1..vo5.wav, Silero, cut to fit their scenes; avatar_brain's mp3),
@@ -401,14 +445,73 @@ module automation::split_reel {
         return !STOCK_VOICE_FOR_ORDINARY;
     }
 
-    // How long a voice of this many characters will run, at the measured pace (v8).
-    fn speech_ms_estimate(chars : u32) -> u32 {
-        return chars * MS_PER_CHAR;
+    // A text's length in speech units (v9): plain characters, digits, and letters of a
+    // script that writes a syllable or a word per character, each at its own weight.
+    fn speech_units(plain : u32, digits : u32, wide : u32) -> u32 {
+        return plain * PLAIN_CHAR_WEIGHT + digits * DIGIT_WEIGHT + wide * WIDE_CHAR_WEIGHT;
     }
 
-    // Whether a text's voice will fit the format, judged before the voice is paid for (v8).
-    fn text_fits(chars : u32) -> bool {
-        return speech_ms_estimate(chars) <= SPEECH_MAX_SECONDS * 1000;
+    // The pace a voice is judged at (v9): the slower of MS_PER_CHAR and the slowest pace
+    // that voice was ever measured at; 0 is a voice never measured.
+    fn pace_for(slowest : u32) -> u32 {
+        if !PACE_PER_VOICE {
+            return MS_PER_CHAR;
+        }
+        if slowest > MS_PER_CHAR {
+            return slowest;
+        }
+        return MS_PER_CHAR;
+    }
+
+    // How long a voice will run for a text of this many units, at that voice's pace (v8,
+    // per voice since v9).
+    fn speech_ms_estimate(units : u32, slowest : u32) -> u32 {
+        return units * pace_for(slowest);
+    }
+
+    // Whether a text's voice will fit the format, judged before the voice is paid for (v8,
+    // per voice since v9).
+    fn text_fits(units : u32, slowest : u32) -> bool {
+        return speech_ms_estimate(units, slowest) <= SPEECH_MAX_SECONDS * 1000;
+    }
+
+    // The pace one measured voice spoke at (v9): ms a unit, rounded UP so it errs long;
+    // 0 when there were no units to divide by.
+    fn measured_pace(measured_ms : u32, units : u32) -> u32 {
+        if units == 0 {
+            return 0;
+        }
+        return (measured_ms + units - 1) / units;
+    }
+
+    // The slowest of the pace kept for a voice and a new measurement: a voice is only ever
+    // slowed down, never sped up, by what it is measured at (v9).
+    fn slowest_pace(kept : u32, measured : u32) -> u32 {
+        if measured > kept {
+            return measured;
+        }
+        return kept;
+    }
+
+    // What the voice's row keeps after a voice of this many units ran this long (v9): a
+    // text too short to measure leaves the kept pace as it was.
+    fn pace_to_keep(kept : u32, measured_ms : u32, units : u32) -> u32 {
+        if units < MIN_PACE_UNITS {
+            return kept;
+        }
+        return slowest_pace(kept, measured_pace(measured_ms, units));
+    }
+
+    // What one clone's row keeps after split_reel measured a voice (v9): the measured
+    // voice's row keeps the slower pace; any other voice's row keeps what it kept, a pace
+    // or 0 for never measured.
+    fn row_pace_after(row_of_measured : bool, kept : u32, measured_ms : u32, units : u32) -> u32 {
+        if !row_of_measured {
+            if !PACE_ON_OTHER_VOICES {
+                return kept;
+            }
+        }
+        return pace_to_keep(kept, measured_ms, units);
     }
 
     // Whether a voice, measured once it exists, runs past the format: the backstop (v8).
@@ -605,16 +708,16 @@ module automation::split_reel {
         assert((MEASURED_MS + MEASURED_CHARS - 1) / MEASURED_CHARS == MS_PER_CHAR);
         assert(MEASURED_MS / MEASURED_CHARS < MS_PER_CHAR);
         // The measured text itself is far past the ceiling.
-        assert(!text_fits(MEASURED_CHARS));
-        // The boundary: 214 characters fit, 215 do not.
-        assert(speech_ms_estimate(214) == 11984);
-        assert(text_fits(214));
-        assert(speech_ms_estimate(215) == 12040);
-        assert(!text_fits(215));
-        assert(text_fits(0));
+        assert(!text_fits(MEASURED_CHARS, 0));
+        // The boundary, for a voice never measured: 214 characters fit, 215 do not.
+        assert(speech_ms_estimate(214, 0) == 11984);
+        assert(text_fits(214, 0));
+        assert(speech_ms_estimate(215, 0) == 12040);
+        assert(!text_fits(215, 0));
+        assert(text_fits(0, 0));
         // A text refused by its length takes nothing.
-        assert(!charged(!text_fits(215)));
-        assert(charged(!text_fits(214)));
+        assert(!charged(!text_fits(215, 0)));
+        assert(charged(!text_fits(214, 0)));
     }
 
     test "a voice refused for its length after it is paid is given back, once" {
@@ -632,13 +735,89 @@ module automation::split_reel {
         assert(backstop_refund(true, 14500, 0) == 0);
         // A text the estimate passes is charged for its voice, so the backstop refuses AFTER
         // the charge: the one refusal REFUSED_BEFORE_SPEND does not cover.
-        assert(charged(!text_fits(214)));
+        assert(charged(!text_fits(214, 0)));
         assert(REFUND_TOO_LONG_VOICE);
         assert(REFUSED_BEFORE_SPEND);
     }
 
+    test "a voice is held to its own slowest measured pace before it is paid" {
+        assert(PACE_PER_VOICE);
+        // A voice never measured is judged at MS_PER_CHAR: its first reel meets the backstop.
+        assert(pace_for(0) == MS_PER_CHAR);
+        // A voice once measured at 70 ms a unit is judged at 70: 171 units fit, 172 do not.
+        assert(pace_for(70) == 70);
+        assert(speech_ms_estimate(171, 70) == 11970);
+        assert(text_fits(171, 70));
+        assert(speech_ms_estimate(172, 70) == 12040);
+        assert(!text_fits(172, 70));
+        // The text MS_PER_CHAR passes is refused for the slower voice, before it is paid.
+        assert(text_fits(200, 0));
+        assert(!text_fits(200, 70));
+        assert(!charged(!text_fits(200, 70)));
+        // A voice quicker than MS_PER_CHAR does not stretch the ceiling: 215 still do not fit.
+        assert(pace_for(40) == MS_PER_CHAR);
+        assert(text_fits(214, 40));
+        assert(!text_fits(215, 40));
+        // That voice paid once for 200 units over 14000 ms: its row now keeps 70.
+        assert(pace_to_keep(0, 14000, 200) == 70);
+        assert(!text_fits(200, pace_to_keep(0, 14000, 200)));
+        // The voice that is now held: past the ceiling at its first reel, given back then.
+        assert(backstop_refund(true, 14000, 12) == 12);
+    }
+
+    test "a voice keeps the slowest pace it was ever measured at" {
+        // The measurement that set MS_PER_CHAR gives MS_PER_CHAR back.
+        assert(measured_pace(MEASURED_MS, MEASURED_CHARS) == MS_PER_CHAR);
+        // Rounded up, so the pace errs long: 12001 ms over 214 units is 57, not 56.
+        assert(measured_pace(12001, 214) == 57);
+        assert(measured_pace(14000, 200) == 70);
+        assert(measured_pace(5000, 0) == 0);
+        // Slowest wins, in either order: a quicker reel later does not speed the voice up.
+        assert(slowest_pace(70, 60) == 70);
+        assert(slowest_pace(60, 70) == 70);
+        assert(slowest_pace(0, 57) == 57);
+        assert(pace_to_keep(80, 14000, 200) == 80);
+        assert(pace_to_keep(60, 14000, 200) == 70);
+        // A text too short to measure keeps what was kept: one "Hello" does not cap a voice.
+        assert(MIN_PACE_UNITS * 2 == SPEECH_MAX_SECONDS * 1000 / MS_PER_CHAR);
+        assert(pace_to_keep(0, 1200, 10) == 0);
+        assert(pace_to_keep(0, 9000, MIN_PACE_UNITS - 1) == 0);
+        assert(pace_to_keep(0, 9000, MIN_PACE_UNITS) == 85);
+    }
+
+    test "a voice's pace is kept on its own row and never on another voice" {
+        // Voice A paid for 200 units over 14000 ms: its row, never measured, now keeps 70.
+        assert(row_pace_after(true, 0, 14000, 200) == 70);
+        assert(row_pace_after(true, 80, 14000, 200) == 80);
+        // Voice B, never measured, still has no pace: A's 70 does not land on it.
+        assert(row_pace_after(false, 0, 14000, 200) == 0);
+        assert(text_fits(200, row_pace_after(false, 0, 14000, 200)));
+        // Voice C, measured at 60, keeps 60: A's slower pace does not land on it either.
+        assert(row_pace_after(false, 60, 14000, 200) == 60);
+        assert(!PACE_ON_OTHER_VOICES);
+    }
+
+    test "a digit or a syllable character weighs more than a letter" {
+        // The measured text has no digits and no wide letters: its count is its units.
+        assert(speech_units(MEASURED_CHARS, 0, 0) == MEASURED_CHARS);
+        assert(speech_units(150, 20, 0) == 230);
+        assert(speech_units(0, 0, 60) == 240);
+        // A digit-heavy text: 170 characters would fit, its 230 units do not.
+        assert(text_fits(150 + 20, 0));
+        assert(!text_fits(speech_units(150, 20, 0), 0));
+        assert(!charged(!text_fits(speech_units(150, 20, 0), 0)));
+        // A text in Han characters: 53 of them fit, 54 do not -- never 214.
+        assert(text_fits(speech_units(0, 0, 53), 0));
+        assert(!text_fits(speech_units(0, 0, 54), 0));
+        assert(text_fits(54, 0));
+        // A Latin or Cyrillic letter weighs one; a digit and a wide letter weigh more.
+        assert(PLAIN_CHAR_WEIGHT == 1);
+        assert(DIGIT_WEIGHT > PLAIN_CHAR_WEIGHT);
+        assert(WIDE_CHAR_WEIGHT > PLAIN_CHAR_WEIGHT);
+    }
+
     test "the version is the last dated note" {
-        assert(VERSION == 8);
+        assert(VERSION == 9);
     }
 }
 

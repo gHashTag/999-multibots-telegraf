@@ -9,16 +9,19 @@
  * The chain, each part borrowed from the registry so it charges and refunds
  * exactly as when called alone:
  *
- *   estimate -- a new voice is estimated from its text at MS_PER_CHAR; too
- *               long for SPEECH_MAX_SECONDS is refused BEFORE the voice is
- *               paid for (split-reel v8)
+ *   estimate -- a new voice is estimated from its text in speech units, at
+ *               the slower of MS_PER_CHAR and the slowest pace THAT voice
+ *               was ever measured at (its clone's row); too long for
+ *               SPEECH_MAX_SECONDS is refused BEFORE the voice is paid for
+ *               (split-reel v8, per voice since v9)
  *   voice    -- audio_generate (the owner's clone on the house's own reel;
  *               a client's reel speaks the client's voice -- split-reel v7)
- *   gate     -- the voice is measured; longer than SPEECH_MAX_SECONDS is
- *               refused BEFORE any still or lip-sync is paid for (the
- *               backstop for a voice slower than the measured pace). The
- *               one refusal after a charge, so a voice THIS call paid for
- *               is given back, once (split-reel v8 backstop_refund)
+ *   gate     -- the voice is measured, and a clone's pace is kept on its
+ *               row so its next text is judged at it (v9). Longer than
+ *               SPEECH_MAX_SECONDS is refused BEFORE any still or lip-sync
+ *               is paid for (the backstop for a voice slower than its
+ *               estimate). The one refusal after a charge, so a voice THIS
+ *               call paid for is given back, once (v8 backstop_refund)
  *   b-roll   -- image_edit with the spec's BROLL_MODEL, one still per split
  *               shot the voice actually needs, all at once, no text in them
  *   lip-sync -- lipsync_generate with the spec's LIPSYNC_MODEL
@@ -44,9 +47,10 @@ import {
   leadOfTurn,
   backstopRefund,
   msOfSeconds,
+  paceToKeep,
   speechFrames,
-  speechChars,
   speechMsEstimate,
+  speechUnits,
   splitReelProps,
   splitSegments,
   textFits,
@@ -55,6 +59,7 @@ import {
   type SpokenWord,
 } from '../split-reel-plan'
 import { clientCtaOf, STORY_DEFAULT_CTA } from './story-template'
+import { cloneFor, keepVoicePace, voicePaceOf } from './lead-voice'
 import { isHouse } from '../house-ids'
 import { whisperConfig, whisperWords } from './media-library'
 import { withShelfFile } from './media-extract'
@@ -247,7 +252,7 @@ export function makeSplitReelTool(
         },
         text: {
           type: 'string',
-          description: `что сказать, до ${SPEC.SPEECH_MAX_SECONDS} с речи (до ~${Math.floor((SPEC.SPEECH_MAX_SECONDS * 1000) / SPEC.MS_PER_CHAR)} знаков); бот в речи — «Тринити» только в рилсе владельца`,
+          description: `что сказать, до ${SPEC.SPEECH_MAX_SECONDS} с речи (до ~${Math.floor((SPEC.SPEECH_MAX_SECONDS * 1000) / SPEC.MS_PER_CHAR)} знаков, меньше для медленного голоса; цифры и иероглифы весят больше); бот в речи — «Тринити» только в рилсе владельца`,
         },
         brolls: {
           type: 'array',
@@ -353,14 +358,27 @@ export function makeSplitReelTool(
       })
 
       // 0. A new voice too long for the format is refused from its text,
-      // before it is paid for (split-reel v8 text_fits). The measured gate
-      // in step 2 stays, for a voice slower than the measured pace.
-      const chars = speechChars(text)
-      if (!voiceUrl && !clip && !textFits(chars))
+      // before it is paid for (split-reel v8 text_fits), at the pace of the
+      // voice that will speak it (v9): the clone audio_generate will pick
+      // for this lead, found by the same rule, and the slowest pace kept on
+      // ITS row -- the voice's, never the caller's. The measured gate in
+      // step 2 stays, for a voice slower than anything it was measured at.
+      const fresh = !voiceUrl && !clip
+      const units = speechUnits(text)
+      const clone =
+        fresh && forLead
+          ? await cloneFor(ctx.pool, String(ctx.telegramId), forLead).catch(
+              () => null
+            )
+          : null
+      const kept = clone
+        ? await voicePaceOf(ctx.pool, clone.voiceId).catch(() => 0)
+        : 0
+      if (fresh && !textFits(units, kept))
         return {
           done: false,
           reason:
-            `text на ~${Math.ceil(speechMsEstimate(chars) / 1000)} с речи, а формат держит до ` +
+            `text на ~${Math.ceil(speechMsEstimate(units, kept) / 1000)} с речи, а формат держит до ` +
             `${SPEC.SPEECH_MAX_SECONDS} с: сократи text — голос не заказан и не оплачен`,
           ...sofar(),
         }
@@ -372,7 +390,7 @@ export function makeSplitReelTool(
       // gives back only a voice it paid for (v8 backstop_refund).
       let paidHere = false
       let chargedNow = 0
-      if (!voiceUrl && !clip) {
+      if (fresh) {
         const v = outcome(
           await speak
             .handler(
@@ -402,6 +420,16 @@ export function makeSplitReelTool(
           reason: 'не удалось измерить длину голоса — липсинк не заказан',
           ...sofar(),
         }
+      // The clone just paid for and measured keeps its slowest pace (v9
+      // pace_to_keep), before the gate below may refuse it: the next text
+      // for this voice is judged at it, before it is paid for.
+      if (paidHere && clone) {
+        const next = paceToKeep(kept, msOfSeconds(spoken), units)
+        if (next > kept)
+          await keepVoicePace(ctx.pool, clone.voiceId, next).catch(e =>
+            console.log(`[split_reel] pace not kept: ${String(e)}`)
+          )
+      }
       if (!clip && voiceTooLong(msOfSeconds(spoken))) {
         const tooLong = voiceUrl
         voiceUrl = ''
@@ -418,12 +446,16 @@ export function makeSplitReelTool(
             'голос длиннее формата сплит-рилса'
           )
         }
+        // A voice given back is not offered again: its url stays out of
+        // the answer, so nobody keeps a voice the wallet got back.
         return {
           done: false,
           reason:
             `голос ${spoken.toFixed(1)} с, а формат держит до ${SPEC.SPEECH_MAX_SECONDS} с речи: ` +
-            `сократи text и повтори без voice_url (длинный голос: ${tooLong})` +
-            (returned ? `; ${back} ток. за этот голос возвращены` : ''),
+            `сократи text и повтори без voice_url` +
+            (returned
+              ? `; ${back} ток. за этот голос возвращены`
+              : ` (длинный голос: ${tooLong})`),
           ...sofar(),
         }
       }
