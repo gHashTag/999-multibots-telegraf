@@ -159,6 +159,10 @@ describe('business DM: after a redeploy the registry is empty', () => {
 
 describe('business DM through the production middleware chain', () => {
   it('one reply with business_connection_id, nothing else sent, prompt names the bot filled after registration', async () => {
+    // The bot line is the house's, printed only in the house's own DMs
+    // (houseSeller): this connection is the house's, so its prompt must
+    // name the bot that was filled in after registration.
+    vi.stubEnv('ADMIN_IDS', '144022504')
     const svc = await freshService()
     const { sessionMiddleware } = await import('@/core/session/sessionStore')
     const { languageMiddleware } = await import(
@@ -235,6 +239,7 @@ describe('business DM through the production middleware chain', () => {
     } finally {
       ;(Telegram.prototype as any).callApi = realCallApi
       if (savedRedis !== undefined) process.env.REDIS_URL = savedRedis
+      vi.unstubAllEnvs()
     }
   })
 })
