@@ -1552,14 +1552,26 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
        */
       if (typeof args.id !== 'string' || !args.id.trim())
         throw new Error('id is required: take it from browser_status pages')
-      const session = await readSession(
-        ctx.pool as unknown as Queryable,
-        ctx.telegramId
-      )
-      if (!session?.cdpEndpoint) throw new Error('no browser is running')
-      await closePage(session.cdpEndpoint, String(args.id))
-      forgetFront(ctx.telegramId, String(args.id))
-      return { closed: String(args.id) }
+      /*
+       * THE SAME DOOR AS browser_status AND browser_focus_tab (podToLookAt).
+       * Measured 2026-10-04 on the owner's Blogger agent: status listed a
+       * LinkedIn compose tab, and two closes on its id answered "no browser
+       * is running" -- this asked the visit row alone, which the reaper had
+       * deleted. The draft stayed open. Closing starts no visit, so a probe
+       * may close too, as it may focus.
+       */
+      const found = await podToLookAt(ctx)
+      if (!found) throw new Error('no browser is running')
+      const id = String(args.id)
+      /* An unknown id closes nothing and must not answer {closed}. */
+      const pages = await listTargets(found.cdp)
+      if (!pages.some(t => t.id === id))
+        throw new Error(
+          'no tab with that id: call browser_status again, it may have closed'
+        )
+      await closePage(found.cdp, id)
+      forgetFront(ctx.telegramId, id)
+      return { closed: id }
     },
   },
   {
