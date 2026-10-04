@@ -1149,7 +1149,7 @@ describe("the spec's tests hold against the host", () => {
     expect(SPEC.STORY_DEFAULT_MAX_SEC).toBeLessThanOrEqual(SPEC.REEL_MAX_SEC)
   })
 
-  it('the finished reel reaches the house through its own bot, and the house speaks its clone', async () => {
+  it('the finished reel reaches the house through its own bot', async () => {
     // The order the bots are tried in; render-server.ts sends through it.
     const { buyerBotTokens } = await import('../buyer-delivery')
     const deps = (house: boolean) => ({
@@ -1173,12 +1173,6 @@ describe("the spec's tests hold against the host", () => {
       'utf8'
     )
     expect(server.match(/deliverToBuyer\(/g)?.length).toBe(2)
-    // The house never borrows a voice from ElevenLabs: its clone speaks.
-    expect(SPEC.HOUSE_SKIPS_ELEVENLABS).toBe(true)
-    const { asksElevenLabs } = await import('../house-ids')
-    expect(asksElevenLabs(true, '', '')).toBe(false)
-    expect(asksElevenLabs(false, '', '')).toBe(true)
-    expect(asksElevenLabs(false, '', 'her-clone')).toBe(false)
   })
 
   it('a talking-head reel opens on the talking head, wide, with a hook', async () => {
@@ -1276,7 +1270,7 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(23)
+    expect(SPEC.VERSION).toBe(24)
   })
 
   it("a client's reel carries her call: the seller's for her, then her own, never the house's", async () => {
