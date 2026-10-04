@@ -4,7 +4,9 @@
  * key ran out of funds and every engage draft came back null.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { writeDraft, DRAFT_ORDER } from './reddit-wiring'
+import { writeDraft, DRAFT_ORDER, setDraftRetryMs } from './reddit-wiring'
+
+setDraftRetryMs(0)
 
 const env = { ...process.env }
 afterEach(() => {
@@ -50,12 +52,42 @@ describe('writeDraft', () => {
       return model === 'paid/model' ? ok('paid draft') : new Response('', { status: 429 })
     })
     expect(await writeDraft('p')).toBe('paid draft')
-    expect(asked).toEqual(['glm-4.5-flash', 'glm-4.7-flash', 'paid/model'])
+    expect(asked).toEqual([
+      'glm-4.5-flash',
+      'glm-4.5-flash',
+      'glm-4.7-flash',
+      'glm-4.7-flash',
+      'paid/model',
+    ])
   })
 
   it('returns null when nothing answers', async () => {
     setKeys()
     vi.stubGlobal('fetch', async () => new Response('', { status: 402 }))
     expect(await writeDraft('p')).toBeNull()
+  })
+  it('turns GLM thinking off on z.ai and leaves the reserve body alone', async () => {
+    setKeys()
+    const bodies: Array<Record<string, unknown>> = []
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      const b = JSON.parse(String(init.body))
+      bodies.push(b)
+      return b.model === 'paid/model' ? ok('paid') : ok('')
+    })
+    expect(await writeDraft('p')).toBe('paid')
+    expect(bodies[0].thinking).toEqual({ type: 'disabled' })
+    expect(bodies[1].thinking).toEqual({ type: 'disabled' })
+    expect(bodies[2].thinking).toBeUndefined()
+  })
+
+  it('retries a 429 once on the same model before moving on', async () => {
+    setKeys()
+    const asked: string[] = []
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      asked.push(JSON.parse(String(init.body)).model)
+      return asked.length === 1 ? new Response('', { status: 429 }) : ok('second try')
+    })
+    expect(await writeDraft('p')).toBe('second try')
+    expect(asked).toEqual(['glm-4.5-flash', 'glm-4.5-flash'])
   })
 })
