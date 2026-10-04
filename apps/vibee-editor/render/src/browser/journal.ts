@@ -18,6 +18,7 @@
  * The last KEEP_STEPS per person are kept; older rows go on the next write.
  */
 import type { Queryable } from './sessions'
+import { MAIN_LANE } from './front-page'
 
 export const KEEP_STEPS = 200
 export const READ_STEPS = 50
@@ -157,16 +158,24 @@ export function resetJournalCacheForTests(): void {
 /**
  * Write one step. Never throws: a journal that cannot be written must not
  * turn a working click into a failed one.
+ *
+ * A step taken in a lane other than main (lanes.ts) carries `lane` in its
+ * detail, so two chats working at once read as two, not as one agent
+ * jumping between windows. A main step is written as it always was.
  */
 export async function recordStep(
   q: Queryable,
   telegramId: string,
   step: Step,
-  opts: { probe?: boolean } = {}
+  opts: { probe?: boolean; lane?: string } = {}
 ): Promise<void> {
   try {
     await ensureJournal(q)
-    const detail = opts.probe ? { ...step.detail, probe: true } : step.detail
+    const laned =
+      opts.lane && opts.lane !== MAIN_LANE
+        ? { ...step.detail, lane: opts.lane }
+        : step.detail
+    const detail = opts.probe ? { ...laned, probe: true } : laned
     await q.query(
       `INSERT INTO browser_journal (telegram_id, tool, ok, ms, detail) VALUES ($1, $2, $3, $4, $5)`,
       [telegramId, step.tool, step.ok, step.ms, JSON.stringify(detail)]
