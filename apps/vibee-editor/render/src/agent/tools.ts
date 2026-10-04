@@ -175,6 +175,13 @@ export interface ToolContext {
    */
   probe?: boolean
   /**
+   * The chat lane this turn runs in (browser/lanes.ts): a lane other than
+   * main works in a window of its own in the person's one browser. Absent is
+   * main. Set only by code -- the chat route, after checking its shape and the
+   * cap -- never from tool arguments.
+   */
+  lane?: string
+  /**
    * The caller will charge somebody ELSE for this work at a later, confirmed
    * moment (a service delivered in a DM: the recipient pays at the owner's
    * press). spendTokens then leaves the caller's wallet alone. Set only by
