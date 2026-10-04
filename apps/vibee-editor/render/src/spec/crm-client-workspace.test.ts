@@ -641,6 +641,102 @@ describe("the spec's tests hold against the host", () => {
     }
   })
 
+  it("a client's story reel never stands on the house card", async () => {
+    const reel = await import('../agent/story-reel-tool')
+    const REEL = await import('./crm-story-reel.gen')
+    expect(SPEC.CLIENT_STORYREEL_NO_HOUSE_PALETTE).toBe(true)
+    // story_card_from(client_work, card_given, call_given)
+    const way = reel.storyCardFrom
+    expect(way(false, false, true)).toBe(SPEC.STORY_CARD_AS_GIVEN)
+    expect(way(false, true, false)).toBe(SPEC.STORY_CARD_AS_GIVEN)
+    expect(way(true, true, false)).toBe(SPEC.STORY_CARD_HERS)
+    expect(way(true, true, true)).toBe(SPEC.STORY_CARD_HERS)
+    expect(way(true, false, true)).toBe(SPEC.STORY_CARD_NEUTRAL)
+    expect(way(true, false, false)).toBe(SPEC.STORY_CARD_NONE)
+    // What reel_render draws on client work (clientStoryReelProps): a whole
+    // card, so StoryReel's defaults -- the house's palette -- fill nothing.
+    const HOUSE = [
+      REEL.END_CARD_DEFAULT_BG,
+      REEL.END_CARD_DEFAULT_TITLE,
+      REEL.END_CARD_DEFAULT_TEXT,
+      REEL.END_CARD_DEFAULT_ACCENT,
+    ].map(c => c.toLowerCase())
+    const drawn = (props: Record<string, unknown>) =>
+      reel.clientStoryReelProps('StoryReel', props) as {
+        endCard?: Record<string, string>
+      }
+    const colours = (card: Record<string, string> | undefined) =>
+      ['bg', 'title', 'text', 'accent'].map(k =>
+        String(card?.[k]).toLowerCase()
+      )
+    // NEUTRAL: a call and no card.
+    const neutral = drawn({ cta: 'Book a visit' }).endCard
+    expect(neutral).toEqual({
+      bg: SPEC.NEUTRAL_CARD_DARK,
+      title: SPEC.NEUTRAL_CARD_LIGHT,
+      text: SPEC.NEUTRAL_CARD_LIGHT,
+      accent: SPEC.NEUTRAL_CARD_LIGHT,
+    })
+    for (const c of colours(neutral)) expect(HOUSE).not.toContain(c)
+    expect(
+      reel.contrastX10(SPEC.NEUTRAL_CARD_LIGHT, SPEC.NEUTRAL_CARD_DARK)
+    ).toBeGreaterThanOrEqual(REEL.END_CARD_CONTRAST_MIN_X10)
+    // HERS: her colours and button kept, a missing colour neutral.
+    expect(
+      drawn({
+        cta: '',
+        endCard: { bg: '#fff0f5', title: '#8b0040', button: 'Book a visit' },
+      }).endCard
+    ).toEqual({
+      bg: '#fff0f5',
+      title: '#8b0040',
+      text: SPEC.NEUTRAL_CARD_DARK,
+      accent: SPEC.NEUTRAL_CARD_DARK,
+      button: 'Book a visit',
+    })
+    // Her title with no ground: the neutral ground her title reads on.
+    const light = drawn({ cta: 'Book', endCard: { title: '#ffd1dc' } }).endCard
+    expect(light?.bg).toBe(SPEC.NEUTRAL_CARD_DARK)
+    expect(light?.title).toBe('#ffd1dc')
+    const dark = drawn({ cta: 'Book', endCard: { title: '#3a0ca3' } }).endCard
+    expect(dark?.bg).toBe(SPEC.NEUTRAL_CARD_LIGHT)
+    for (const c of [...colours(light), ...colours(dark)])
+      expect(HOUSE).not.toContain(c)
+    // NONE: neither a card nor a call; an unusable card is dropped, not
+    // filled with the house's defaults.
+    expect('endCard' in drawn({ cta: '' })).toBe(false)
+    expect('endCard' in drawn({ cta: ' ', endCard: { bg: 'black' } })).toBe(
+      false
+    )
+    // Another composition goes as given.
+    const split = { cta: 'Book a visit' }
+    expect(reel.clientStoryReelProps('SplitTalkingHead', split)).toBe(split)
+  })
+
+  it("on client work the prompt does not say the bot in speech is the house's", async () => {
+    const chat =
+      await vi.importActual<typeof import('../agent/chat')>('../agent/chat')
+    expect(SPEC.CLIENT_PROMPT_NO_HOUSE_BOT_NAME).toBe(true)
+    // bot_named_in_speech(client_work)
+    expect(chat.botNamedInSpeech(false)).toBe(true)
+    expect(chat.botNamedInSpeech(true)).toBe(false)
+    for (const surface of ['miniapp', 'bot', 'business', 'kanban'])
+      for (const sellerSoul of [false, true]) {
+        const own = chat.systemPrompt(surface, false, undefined, sellerSoul)
+        const theirs = chat.systemPrompt(
+          surface,
+          false,
+          undefined,
+          sellerSoul,
+          true
+        )
+        expect(own).toContain(chat.HOUSE_BOT_IN_SPEECH)
+        expect(theirs).not.toContain(chat.HOUSE_BOT_IN_SPEECH)
+        expect(theirs).toContain(chat.CLIENT_BOT_IN_SPEECH)
+        expect(own + theirs).not.toContain('%%BOT_IN_SPEECH%%')
+      }
+  })
+
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.

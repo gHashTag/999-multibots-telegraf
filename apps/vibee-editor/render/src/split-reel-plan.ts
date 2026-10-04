@@ -11,6 +11,7 @@
  */
 import * as SPEC from './spec/split-reel.gen'
 import { houseNameByAgent, namesHouse } from './house-names'
+import { onClientWork } from './agent/client-work'
 
 export interface SplitSegment {
   type: 'split' | 'fullscreen'
@@ -384,11 +385,15 @@ export function leadOfTurn(
   return String(forLead ?? '').trim() || String(turn?.faceOf ?? '').trim()
 }
 
-/** The spec's house_own, read off a turn and the lead resolved by leadOfTurn. */
+/**
+ * The spec's house_own, read off a turn and the lead resolved by leadOfTurn.
+ * Whether the turn is client work is onClientWork's answer, the one rule
+ * every other house default asks (crm-client-workspace v6).
+ */
 export function houseOwnTurn(turn: ReelTurn, lead: string): boolean {
   return houseOwn(
     turn?.house === true,
-    Boolean(turn?.faceOf),
+    onClientWork(turn ?? {}),
     Boolean(lead),
     Boolean(turn?.sellerSweep)
   )
