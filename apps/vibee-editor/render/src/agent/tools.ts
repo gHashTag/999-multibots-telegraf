@@ -4014,9 +4014,8 @@ TOOLS.push(
         ? { ok: true, spent: c['потрачено'] ?? 0 }
         : { ok: false, why: String(c.причина) } // cyrillic-ok: the tools’ answer fields
     },
-    refund: async (ctx, why, spent) => {
-      await refundTokens(ctx, 'voice_clone', why, spent)
-    },
+    refund: (ctx, why, spent) =>
+      refundTokens(ctx, 'voice_clone', why, spent).then(() => undefined),
     put: (bytes, name, mime) => s3PutBytes(bytes, name, mime),
     join: joinVoiceNotes,
     clone: url =>
