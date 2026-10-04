@@ -746,9 +746,8 @@ export async function clientBriefBlock(
   const parts: string[] = []
   let name: string | null = null
   try {
-    const { clientProfileFor, profileForPrompt } = await import(
-      './crm-client-setup-tool'
-    )
+    const { clientProfileFor, profileForPrompt } =
+      await import('./crm-client-setup-tool')
     // The profile belongs to the owner; ask as the owner, whoever is calling.
     const p = await clientProfileFor(
       { ...ctx, telegramId: owner } as ToolContext,
@@ -861,9 +860,8 @@ export async function clientContextBlock(
   // The client's group, when the owner bound one: where the agent may post
   // beside the DM, by the same card-and-press rule (crm-client-group.ts).
   try {
-    const { clientGroupFor, clientGroupLine } = await import(
-      './crm-client-group'
-    )
+    const { clientGroupFor, clientGroupLine } =
+      await import('./crm-client-group')
     const line = clientGroupLine(
       await clientGroupFor(ctx.pool as never, owner, lead)
     )
@@ -2919,6 +2917,16 @@ async function* runAgentTurn(
    * the model's call, as it always was.
    */
   const ranThisTurn = new Set<string>()
+  /*
+   * A SWEEP STEP'S WORDS WAIT FOR ITS VERDICT (production 2026-10-04 20:04).
+   *
+   * Under toolsOnly a provider that answers in words before any tool ran is
+   * out of the turn (below), and what it wrote must not reach the caller:
+   * the bot joins every text event, so "I am calling the context now" would
+   * prefix the next model's real answer. Nobody watches a sweep stream, so
+   * holding a step's text until the step ends costs nothing.
+   */
+  let heldStep = ''
   const logEmpty = (action: string, provider: string) =>
     console.warn(
       EMPTY_ANSWER_LOG_PREFIX,
@@ -2973,7 +2981,8 @@ async function* runAgentTurn(
           if (safe && contacts) heldForClient += safe
           else if (safe) {
             said += safe.trim().length
-            yield { тип: 'текст', текст: safe }
+            if (opts?.toolsOnly) heldStep += safe
+            else yield { тип: 'текст', текст: safe }
           }
         } else {
           assistant = ev.message
@@ -2996,7 +3005,8 @@ async function* runAgentTurn(
       heldForClient = ''
       if (tail) {
         said += tail.trim().length
-        yield { тип: 'текст', текст: tail }
+        if (opts?.toolsOnly) heldStep += tail
+        else yield { тип: 'текст', текст: tail }
       }
       noteFabricated()
       await noteWithheld()
@@ -3028,6 +3038,42 @@ async function* runAgentTurn(
         текст: 'модель не вернула сообщение',
       }
       return
+    }
+
+    /*
+     * A SWEEP MODEL THAT TALKS INSTEAD OF CALLING GIVES WAY.
+     *
+     * Production 2026-10-04 20:04, owner 229866794: zai-lite/glm-4.5-flash
+     * answered the sweep with "calling the context for the first lead" and
+     * no tool call -- twice, because the bot's retry reached the same model.
+     * A toolsOnly turn exists for its tool calls, so a provider whose answer
+     * ends before any tool ran is out of this turn and the next tool-capable
+     * provider gets the same messages. Its words are dropped (see heldStep).
+     * With nobody left after it, it keeps today's behaviour: the bot sees
+     * the words, files the failure and makes its one retry.
+     */
+    if (
+      opts?.toolsOnly &&
+      !assistant.tool_calls?.length &&
+      toolCallCount === 0 &&
+      answeredBy &&
+      allProviders().some(
+        p => p.tools && p.id !== answeredBy && !excluded.has(p.id)
+      )
+    ) {
+      excluded.add(answeredBy)
+      emptyFrom.push(
+        `${answeredBy}: ответил словами, не вызвав ни одного инструмента` // cyrillic-ok: reason text
+      )
+      logEmpty('talked instead of calling', answeredBy)
+      heldStep = ''
+      said = 0
+      step--
+      continue
+    }
+    if (heldStep) {
+      yield { тип: 'текст', текст: heldStep }
+      heldStep = ''
     }
 
     if (!assistant.tool_calls?.length) {
