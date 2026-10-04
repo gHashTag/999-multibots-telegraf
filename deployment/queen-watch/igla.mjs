@@ -18,6 +18,10 @@
  *   REPO     an anomaly line the loop published itself (`tri tc-loop` status)
  *   JUDGEUP  a judge deployment of the igla-judge Railway project live longer
  *            than judge_max_h: a job nobody fetched and downed bills hourly
+ *   LOOPUP   the newest deployment of service loop live longer than
+ *            loop_max_h (queen_igla.py ITERATE_MAX_H, the run's own timer),
+ *            counted from the deployment's createdAt: a run that outlived
+ *            its limit, and no tick goes out while it lives
  *   BOARD    the board names another repo, executor or runner service than
  *            this file
  *   TRIGGER  the tick did not go out: Railway refused the redeploy (an auth
@@ -44,9 +48,8 @@
  * the board's: the board is public, and a forged one must not be able to
  * point a token at another service. Only IGLA_RAILWAY_TOKEN redeploys, and
  * only after Railway confirmed it is a token of that project and environment.
- * A live run is not timed: the board publishes no loop run limit (queen_igla
- * ITERATE_MAX_H is not on it), and pod_max_h / judge_max_h time other things;
- * that is said as not measured while a run is live.
+ * A live run is timed by the board's loop_max_h (LOOPUP above); this file
+ * never stops it, it says so.
  *
  * Reports: POST /queen/report as source `igla-loop` on the first run, when the
  * state changes, on a redeploy, and every REPEAT_S while something needs the
@@ -123,6 +126,7 @@ export const NEED_LIMITS = [
   'stale_h',
   'tick_h',
   'judge_max_h',
+  'loop_max_h',
 ]
 export const NEED_STRINGS = [
   'repo',
@@ -465,9 +469,13 @@ export function assess({ q, snap, pods, judgeUp, loop, nowS }) {
     blind.push(
       `loop runner: deployment status ${last.status} was never measured on service ${LOOP_SERVICE}: held as live, no tick`
     )
-  else if (last.live)
+  else if (last.live && last.h === null)
     blind.push(
-      `loop run ${last.state} ${(last.h ?? 0).toFixed(1)} h, not timed: the board's queen block publishes no loop run limit (queen_igla.py board_block)`
+      `loop run ${last.state}, not timed: deployment ${String(last.id).slice(0, 8)} has no createdAt`
+    )
+  else if (last.live && last.h > L.loop_max_h)
+    anom.push(
+      `LOOPUP igla-judge loop run ${last.state} ${last.h.toFixed(1)} h > ${L.loop_max_h} h: it outlived its own limit, read its log (railway logs -s loop); no tick while it lives`
     )
   /* queen_igla: STALE only while idle. A live judge job or loop run is work. */
   const work =

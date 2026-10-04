@@ -68,7 +68,9 @@ function cfgWith(env = {}, over = {}) {
   }
 }
 
-/* The live board's limits (2026-10-04); billing_retry_h is no longer read. */
+/* The live board's limits (2026-10-04; loop_max_h = queen_igla.py
+ * ITERATE_MAX_H, on the board since 2026-10-05); billing_retry_h is no
+ * longer read. */
 const LIMITS = {
   pod_max_h: 7,
   min_balance: 15,
@@ -78,6 +80,7 @@ const LIMITS = {
   tick_h: 6,
   judge_max_h: 8,
   billing_retry_h: 24,
+  loop_max_h: 5,
 }
 
 function queenBlock(over = {}) {
@@ -311,22 +314,21 @@ describe('igla: the loop watch on the Queen', () => {
       { status: 'SUCCESS', stopped: false },
       { status: 'SUCCESS' },
     ]) {
-      /* An older exited run below it does not matter; order is createdAt. */
+      /* An older exited run below it does not matter; order is createdAt.
+       * The live one is inside loop_max_h: work, not news. */
       const w = world({
         loop: [
           { ...EXITED, h: 30 },
-          { ...live, h: 20 },
+          { ...live, h: 2 },
         ],
       })
-      await runIgla(cfgWith(), w.deps)
+      expect(await runIgla(cfgWith(), w.deps)).toBe(0)
       expect(w.redeploys()).toHaveLength(0)
       const body = w.queenCalls()[0].body
       expect(body.body).toContain('tick: held: the newest loop run is live')
-      /* A live run is not timed: no limit on the board, said by name. */
-      expect(body.body).toContain(
-        "not timed: the board's queen block publishes no loop run limit"
-      )
-      expect(body.needs_you).toBe(true)
+      expect(body.body).not.toContain('not timed')
+      expect(body.body).not.toContain('LOOPUP')
+      expect(body.needs_you).toBe(false)
     }
     /* A status nobody measured holds the tick too, by name. */
     for (const status of ['FAILED', 'SLEEPING', 'REMOVED']) {
@@ -609,6 +611,76 @@ describe('igla: the loop watch on the Queen', () => {
       judgeUp: [{ status: 'BUILDING', stopped: true, h: 9.5 }],
     })
     expect(await runIgla(cfgWith(), building.deps)).toBe(1)
+  })
+
+  it('LOOPUP: a live loop run past the board loop_max_h, never a tick', async () => {
+    /* Over: running and building alike, counted from createdAt. */
+    for (const [live, line] of [
+      [
+        { status: 'SUCCESS', stopped: false, h: 5.5 },
+        'LOOPUP igla-judge loop run running 5.5 h > 5 h',
+      ],
+      [
+        { status: 'BUILDING', stopped: true, h: 6 },
+        'LOOPUP igla-judge loop run building 6.0 h > 5 h',
+      ],
+    ]) {
+      const w = world({ loop: [{ ...EXITED, h: 30 }, live] })
+      expect(await runIgla(cfgWith(), w.deps)).toBe(1)
+      const body = w.queenCalls()[0].body
+      expect(body.body).toContain(line)
+      expect(body.needs_you).toBe(true)
+      expect(w.redeploys()).toHaveLength(0)
+      expect(w.tg()).toHaveLength(1)
+      expect(w.tg()[0].body.text).toContain('LOOPUP')
+    }
+    /* Under: no anomaly, no blind line, still no tick. */
+    const under = world({
+      loop: [{ status: 'SUCCESS', stopped: false, h: 4.5 }],
+    })
+    expect(await runIgla(cfgWith(), under.deps)).toBe(0)
+    expect(under.queenCalls()[0].body.body).not.toContain('LOOPUP')
+    expect(under.queenCalls()[0].body.body).not.toContain('not timed')
+    expect(under.redeploys()).toHaveLength(0)
+    /* The limit is the board's: the same run under a tighter loop_max_h. */
+    const tight = world({
+      queen: queenBlock({ limits: { ...LIMITS, loop_max_h: 4 } }),
+      loop: [{ status: 'SUCCESS', stopped: false, h: 4.5 }],
+    })
+    expect(await runIgla(cfgWith(), tight.deps)).toBe(1)
+    expect(tight.queenCalls()[0].body.body).toContain(
+      'LOOPUP igla-judge loop run running 4.5 h > 4 h'
+    )
+    /* An exited run is never LOOPUP, however old (default world: 7 h). */
+    const old = world()
+    expect(await runIgla(cfgWith(), old.deps)).toBe(0)
+    expect(old.queenCalls()[0].body.body).not.toContain('LOOPUP')
+    /* Ok, then LOOPUP: the code set changed, so the owner hears it. */
+    const cfg = cfgWith()
+    const ok = world({ loop: [{ status: 'SUCCESS', stopped: false, h: 4.5 }] })
+    await runIgla(cfg, ok.deps)
+    const over = world({
+      loop: [{ status: 'SUCCESS', stopped: false, h: 4.5 }],
+      later: 3600,
+    })
+    expect(await runIgla(cfg, over.deps)).toBe(1)
+    expect(over.tg()).toHaveLength(1)
+    expect(over.redeploys()).toHaveLength(0)
+  })
+
+  it('missing loop_max_h: not measured (exit 2), nothing touched', async () => {
+    expect(NEED_LIMITS).toContain('loop_max_h')
+    const { loop_max_h, ...rest } = LIMITS
+    expect(loop_max_h).toBe(5)
+    const w = world({
+      queen: queenBlock({ limits: rest }),
+      loop: [{ status: 'SUCCESS', stopped: false, h: 9 }],
+    })
+    expect(await runIgla(cfgWith(), w.deps)).toBe(2)
+    expect(w.log()).toContain('lacks limits.loop_max_h')
+    expect(w.redeploys()).toHaveLength(0)
+    expect(w.railwayCalls()).toHaveLength(0)
+    expect(w.queenCalls()[0].body.needs_you).toBe(true)
   })
 
   it('the board live.loop_runner is reported, never the authority', async () => {
