@@ -8,7 +8,7 @@
   {
     "name": "the profile CTA chain skipped: her approved call is never read",
     "file": "src/agent/story-template.ts",
-    "from": "    .then(profileCta)\n",
+    "from": "    .then(p => profileCta(p, seller === id))\n",
     "to": "    .then(() => '')\n",
     "tests": ["src/agent/a-split-reel-is-one-call.test.ts"]
   },
@@ -58,8 +58,8 @@
   {
     "name": "her own words ignored: every house name counts as the agent's",
     "file": "src/split-reel-plan.ts",
-    "from": "  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))\n",
-    "to": "  return namesHouse(text)\n"
+    "from": "  return speechLines(text).some(line => houseNameByAgent(line, personSaid))\n",
+    "to": "  return speechLines(text).some(line => namesHouse(line))\n"
   },
   {
     "name": "the tool reads no client off the turn",
@@ -71,7 +71,25 @@
   {
     "name": "the house name check is gone from the tool",
     "file": "src/agent/split-reel-tool.ts",
-    "from": "      if (!houseNameAllowed(house, houseNameByAgent(text, ctx.ownerSaid)))\n",
+    "from": "      if (!houseNameAllowed(house, agentSuppliedHouseName(text, ctx.ownerSaid)))\n",
     "to": "      if (false)\n"
+  },
+  {
+    "name": "any mention of the bot lends the name",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return speechLines(text).some(line => houseNameByAgent(line, personSaid))\n",
+    "to": "  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))\n"
+  },
+  {
+    "name": "the speech judged whole, not line by line",
+    "file": "src/split-reel-plan.ts",
+    "from": "    .split(/\\n+|(?<=[.!?…])\\s+/u)\n",
+    "to": "    .split(/$^/u)\n"
+  },
+  {
+    "name": "audio_generate lets the agent's house name through",
+    "file": "src/agent/tools.ts",
+    "from": "          agentSuppliedHouseName(String(args.text ?? ''), ctx.ownerSaid)\n",
+    "to": "          false\n"
   }
 ]

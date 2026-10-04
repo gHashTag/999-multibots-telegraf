@@ -5,6 +5,7 @@ import * as SPEC from './split-reel.gen'
 import { PAUSE_SEC as STORY_PAUSE_SEC } from './crm-story-reel.gen'
 import { SplitTalkingHeadSchema } from '../compositions/SplitTalkingHead'
 import {
+  agentSuppliedHouseName,
   captionStartMs,
   captionsFromWords,
   ctaFor,
@@ -14,20 +15,20 @@ import {
   firstSpeechMs,
   framesForSeconds,
   houseNameAllowed,
-  houseNameByAgent,
   houseOwn,
   houseOwnTurn,
   leadOfTurn,
-  namesHouse,
   objectPosPct,
   ownerVoiceAllowed,
   reelCta,
   reelFrames,
   splitReelProps,
   speechFrames,
+  speechLines,
   splitSegments,
   STUDIO_FACE,
 } from '../split-reel-plan'
+import { namesHouse } from '../house-names'
 import {
   analyzeReel,
   parseSceneCuts,
@@ -361,11 +362,13 @@ describe('split-reel.t27 against the host', () => {
     expect(houseNameAllowed(false, true)).toBe(false)
     expect(houseNameAllowed(false, false)).toBe(true)
     expect(SPEC.AGENT_HOUSE_NAME_ON_CLIENT_REEL).toBe(false)
-    // Agent-supplied: the text names the house and the person's own words do not.
-    expect(houseNameByAgent('ask Trinity', undefined)).toBe(true)
-    expect(houseNameByAgent('ask Trinity', 'say Trinity')).toBe(false)
-    expect(houseNameByAgent('Book with Anna', undefined)).toBe(false)
-    expect(houseNameByAgent('Book with Anna', 'say Trinity')).toBe(false)
+    // Agent-supplied: a line names the house and is not her own words.
+    expect(agentSuppliedHouseName('ask Trinity', undefined)).toBe(true)
+    expect(agentSuppliedHouseName('ask Trinity', 'say: ask Trinity')).toBe(
+      false
+    )
+    expect(agentSuppliedHouseName('Book with Anna', undefined)).toBe(false)
+    expect(agentSuppliedHouseName('Book with Anna', 'say Trinity')).toBe(false)
     // The house by name, as written and as spoken.
     expect(namesHouse(`write to ${SPEC.OWNER_CTA}`)).toBe(true)
     expect(namesHouse('T27AI_BOT')).toBe(true)
@@ -375,6 +378,112 @@ describe('split-reel.t27 against the host', () => {
     expect(namesHouse('Book a fitting with Anna')).toBe(false)
     expect(namesHouse('Запишитесь на примерку')).toBe(false) // cyrillic-ok: a client call
   })
+
+  /*
+   * Her own words, judged LINE BY LINE (crm-story-reel v22 own_words, the one
+   * detector in house-names.ts): sellers address the bot by name, so her
+   * message naming it lends no line the house's name. A line she typed
+   * herself stands, even inside a longer script.
+   */
+  const OWN_WORDS = [
+    // cyrillic-ok: her messages and lines as she types them
+    {
+      said: 'Тринити, сделай сплит-рилс',
+      line: 'Это Тринити говорит',
+      hers: false,
+    },
+    {
+      said: 'Trinity, make a split reel',
+      line: 'This is Trinity speaking',
+      hers: false,
+    },
+    {
+      said: 'в конце скажи: Напиши Тринити',
+      line: 'Напиши Тринити',
+      hers: true,
+    },
+    {
+      said: 'at the end say: Write to Trinity',
+      line: 'Write to Trinity',
+      hers: true,
+    },
+  ]
+  const scriptWith = (line: string) =>
+    /[а-я]/i.test(line) // cyrillic-ok: picks the script's language
+      ? `Привет, я Анна, пеку торты. ${line}` // cyrillic-ok: her script
+      : `Hello, I am Anna, I bake cakes. ${line}`
+
+  it('own words are judged line by line: naming the bot lends no line', () => {
+    expect(speechLines('One. Two!\nThree? Four… five')).toEqual([
+      'One.',
+      'Two!',
+      'Three?',
+      'Four…',
+      'five',
+    ])
+    for (const c of OWN_WORDS) {
+      expect(agentSuppliedHouseName(c.line, c.said)).toBe(!c.hers)
+      expect(agentSuppliedHouseName(scriptWith(c.line), c.said)).toBe(!c.hers)
+      expect(
+        houseNameAllowed(false, agentSuppliedHouseName(c.line, c.said))
+      ).toBe(c.hers)
+    }
+  })
+
+  it('split_reel refuses the agent line before spend, and lets her line through, RU and EN', async () => {
+    for (const c of OWN_WORDS) {
+      const paid: string[] = []
+      const lookup = (name: string) => ({
+        name,
+        description: '',
+        parameters: {},
+        handler: async () => {
+          paid.push(name)
+          return { done: false, reason: 'stop here' }
+        },
+      })
+      const senses = {
+        length: async () => 9,
+        hear: async () => ({ words: [] }),
+      }
+      const out: any = await makeSplitReelTool(
+        lookup as never,
+        senses as never
+      ).handler(
+        {
+          image_url: 'https://ours/face.png',
+          text: scriptWith(c.line),
+          brolls: ['a garden'],
+        },
+        { telegramId: SELLER_ID, ownerSaid: c.said, pool: emptyPool() } as never
+      )
+      expect(out.done).toBe(false)
+      // Refused: nothing paid. Hers: past the check, to the voice.
+      expect(paid).toEqual(c.hers ? ['audio_generate'] : [])
+    }
+  }, 120_000)
+
+  it('audio_generate refuses the agent line before spend, and lets her line through, RU and EN', async () => {
+    const { TOOLS_BY_NAME } = await import('../agent/tools')
+    const audio = TOOLS_BY_NAME.get('audio_generate')!
+    const fetched = vi.spyOn(globalThis, 'fetch')
+    try {
+      for (const c of OWN_WORDS) {
+        const pool = emptyPool()
+        const out: any = await audio.handler(
+          { text: scriptWith(c.line), voice_id: 'v-1' },
+          { telegramId: SELLER_ID, ownerSaid: c.said, pool } as never
+        )
+        expect(out.сделано).toBe(false) // cyrillic-ok: audio_generate's own answer key
+        // Refused: no debit was run. Hers: it reached the debit (her empty
+        // wallet then refuses it).
+        expect(pool.said.some(q => DEBIT.test(q))).toBe(c.hers)
+      }
+      expect(fetched).not.toHaveBeenCalled()
+    } finally {
+      fetched.mockRestore()
+    }
+  }, 120_000)
 
   it('a refusal comes before the charge, so a refused call costs nothing', async () => {
     expect(SPEC.REFUSED_BEFORE_SPEND).toBe(true)

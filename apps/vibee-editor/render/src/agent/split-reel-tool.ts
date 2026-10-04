@@ -30,10 +30,10 @@ import { join } from 'node:path'
 import type { AgentTool } from './tools'
 import * as SPEC from '../spec/split-reel.gen'
 import {
+  agentSuppliedHouseName,
   captionsFromWords,
   framesForSeconds,
   houseNameAllowed,
-  houseNameByAgent,
   houseOwnTurn,
   leadOfTurn,
   speechFrames,
@@ -305,7 +305,7 @@ export function makeSplitReelTool(
       const forLead = leadOfTurn(named, turn)
       const house = houseOwnTurn(turn, forLead)
       // Her own words stand; a house name the agent put in does not.
-      if (!houseNameAllowed(house, houseNameByAgent(text, ctx.ownerSaid)))
+      if (!houseNameAllowed(house, agentSuppliedHouseName(text, ctx.ownerSaid)))
         return {
           done: false,
           reason:

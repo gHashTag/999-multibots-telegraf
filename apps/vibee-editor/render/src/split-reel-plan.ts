@@ -10,6 +10,7 @@
  * spec/split-reel.test.ts.
  */
 import * as SPEC from './spec/split-reel.gen'
+import { houseNameByAgent, namesHouse } from './house-names'
 
 export interface SplitSegment {
   type: 'split' | 'fullscreen'
@@ -265,12 +266,29 @@ export function houseNameAllowed(
 }
 
 /**
- * Did the agent put the house's name into these words? Not when the person's
- * own words this turn (ToolContext.ownerSaid, set only by code: what she typed
- * in the bot chat, never a sweep's brief) name it too -- then it is hers.
+ * A reel's speech as the lines own_words judges: one per line break or
+ * sentence end, so a house name is weighed with the words of its own
+ * sentence and never with the sentence before it.
  */
-export function houseNameByAgent(text: string, personSaid?: string): boolean {
-  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))
+export function speechLines(text: string): string[] {
+  return String(text ?? '')
+    .split(/\n+|(?<=[.!?…])\s+/u)
+    .map(line => line.trim())
+    .filter(Boolean)
+}
+
+/**
+ * The spec's agent_supplied for a reel's speech: some line names the house
+ * and is not the person's own words this turn (ToolContext.ownerSaid, set
+ * only by code). Judged line by line by the one detector, house-names.ts
+ * (crm-story-reel v22 own_words): sellers address the bot by name, so her
+ * message naming it lends no line anything.
+ */
+export function agentSuppliedHouseName(
+  text: string,
+  personSaid?: string
+): boolean {
+  return speechLines(text).some(line => houseNameByAgent(line, personSaid))
 }
 
 /**
@@ -302,26 +320,6 @@ export function houseOwnTurn(turn: ReelTurn, lead: string): boolean {
     Boolean(lead),
     Boolean(turn?.sellerSweep)
   )
-}
-
-/*
- * The house by name: its bot's handle (OWNER_CTA) and its brand as written or
- * spoken. A reel the house did not order carries none of them unless the
- * person wrote it herself (AGENT_HOUSE_NAME_ON_CLIENT_REEL).
- */
-const HOUSE_NAMES = new RegExp(
-  [
-    SPEC.OWNER_CTA.replace(/^@/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-    '\\btrinity\\b',
-    'тринити', // cyrillic-ok: the brand as the voice speaks it
-    '\\bs\\s*[³3]\\s*ai\\b',
-  ].join('|'),
-  'i'
-)
-
-/** Does this text name the house (its bot or its brand)? */
-export function namesHouse(text: string): boolean {
-  return HOUSE_NAMES.test(String(text ?? ''))
 }
 
 /** What the reel's call is chosen from (spec v7). */
