@@ -19,8 +19,11 @@ import {
   houseOwn,
   houseOwnTurn,
   leadOfTurn,
+  measuredPace,
   msOfSeconds,
   objectPosPct,
+  paceFor,
+  paceToKeep,
   ownerVoiceAllowed,
   reelCta,
   reelFrames,
@@ -29,6 +32,9 @@ import {
   speechFrames,
   speechLines,
   speechMsEstimate,
+  speechUnits,
+  speechUnitsOf,
+  slowestPace,
   splitSegments,
   STUDIO_FACE,
   textFits,
@@ -44,6 +50,7 @@ import {
   shotsFromCuts,
 } from '../agent/reel-analyze'
 import { makeSplitReelTool } from '../agent/split-reel-tool'
+import { keepVoicePace, saveLeadVoice, voicePaceOf } from '../agent/lead-voice'
 
 /*
  * The charge is spied on below through the tools themselves, and the house's
@@ -69,6 +76,141 @@ function emptyPool() {
 }
 /** The debit statement of the ledger: the one place a wallet is charged. */
 const DEBIT = /UPDATE user_tokens SET balance = balance - /
+
+/** A ledger that keeps its references, as its unique (kind, ref) does. */
+const CREDIT = /UPDATE user_tokens SET balance = balance \+ /
+function tokenLedger() {
+  const said: Array<[string, unknown[]]> = []
+  const refs = new Set<string>()
+  return {
+    credits: () => said.filter(([q]) => CREDIT.test(q)).map(([, p]) => p[1]),
+    refunds: () =>
+      said
+        .filter(
+          ([q, p]) => /INSERT INTO token_ledger/.test(q) && p[3] === 'refund'
+        )
+        .map(([, p]) => p[5]),
+    query: async (sql: string, params: unknown[] = []) => {
+      said.push([String(sql), params])
+      if (/SELECT 1 FROM token_ledger WHERE kind/.test(sql))
+        return { rows: refs.has(`${params[0]} ${params[1]}`) ? [{}] : [] }
+      if (/INSERT INTO token_ledger/.test(sql) && params[5])
+        refs.add(`${params[3]} ${params[5]}`)
+      if (CREDIT.test(sql)) return { rows: [{ balance: params[1] }] }
+      return { rows: [] }
+    },
+  }
+}
+
+/**
+ * The ledger, plus the clones in lead_voices (split-reel v9): who made each,
+ * of whom, and the slowest pace kept on it. The statements are
+ * lead-voice.ts's own; an update that does not keep the greater value
+ * overwrites, as Postgres would.
+ */
+type VoiceRow = {
+  owner: string
+  lead: string
+  voice: string
+  pace: number | null
+}
+/**
+ * The rows a pace statement's WHERE names, read from the statement itself:
+ * an OR of ANDs over the conditions lead-voice.ts can write. A fake that
+ * filtered by the voice whatever the SQL said kept one voice's pace off every
+ * other clone even when the statement wrote it there (split-reel v9,
+ * PACE_ON_OTHER_VOICES). A condition the fake does not know throws, so a new
+ * one is a red test, never a silent pass.
+ */
+function whereOf(sql: string, params: unknown[]): (r: VoiceRow) => boolean {
+  const clause = /\bWHERE\b([\s\S]*?)(?:\bORDER BY\b|\bLIMIT\b|$)/i.exec(sql)
+  if (!clause) return () => true
+  const arg = (n: string) => String(params[Number(n) - 1])
+  const condition = (text: string): ((r: VoiceRow) => boolean) => {
+    const c = text.trim()
+    let m: RegExpExecArray | null
+    if ((m = /^voice_id = \$(\d+)$/.exec(c))) {
+      const v = arg(m[1])
+      return r => r.voice === v
+    }
+    if ((m = /^owner_id = \$(\d+)$/.exec(c))) {
+      const v = arg(m[1])
+      return r => r.owner === v
+    }
+    if ((m = /^lead_id = \$(\d+)$/.exec(c))) {
+      const v = arg(m[1])
+      return r => r.lead === v
+    }
+    if (/^ms_per_char IS NULL$/i.test(c)) return r => r.pace == null
+    if (/^ms_per_char IS NOT NULL$/i.test(c)) return r => r.pace != null
+    throw new Error(`voiceBook: a condition the fake does not know: ${c}`)
+  }
+  const anyOf = clause[1]
+    .trim()
+    .split(/\s+OR\s+/i)
+    .map(all => all.split(/\s+AND\s+/i).map(condition))
+  return r => anyOf.some(all => all.every(holds => holds(r)))
+}
+function voiceBook(rows: VoiceRow[]) {
+  const book = tokenLedger()
+  const query = async (sql: string, params: unknown[] = []) => {
+    const q = String(sql)
+    const [a, b] = params.map(String)
+    if (/SELECT lead_id, voice_id, seconds FROM lead_voices/.test(q))
+      return {
+        rows: rows
+          .filter(r => r.owner === a && r.lead === b)
+          .map(r => ({ lead_id: r.lead, voice_id: r.voice, seconds: 30 })),
+      }
+    if (/SELECT voice_id, seconds FROM lead_voices/.test(q))
+      return {
+        rows: rows
+          .filter(r => r.lead === a)
+          .map(r => ({ voice_id: r.voice, seconds: 30 })),
+      }
+    if (/SELECT ms_per_char FROM lead_voices/.test(q)) {
+      const kept = rows
+        .filter(whereOf(q, params))
+        .map(r => r.pace)
+        .sort((x, y) => (y ?? -1) - (x ?? -1))
+      return { rows: kept.slice(0, 1).map(p => ({ ms_per_char: p })) }
+    }
+    if (/UPDATE lead_voices SET ms_per_char/.test(q)) {
+      const slowest = /GREATEST\(COALESCE\(ms_per_char, 0\), \$2\)/.test(q)
+      for (const r of rows.filter(whereOf(q, params)))
+        r.pace = slowest ? Math.max(r.pace ?? 0, Number(b)) : Number(b)
+      return { rows: [] }
+    }
+    return book.query(sql, params)
+  }
+  return { ...book, query, rows }
+}
+
+/** split_reel over fake tools: audio_generate answers `seconds`, at `spent`. */
+function heldReel(voice: { url: string; seconds: number; spent: number }) {
+  const paid: string[] = []
+  const lookup = (name: string) => ({
+    name,
+    description: '',
+    parameters: {},
+    handler: async () => {
+      paid.push(name)
+      if (name !== 'audio_generate') return { done: false, reason: 'stop here' }
+      return {
+        сделано: true, // cyrillic-ok: audio_generate's own answer keys
+        url: voice.url,
+        seconds: voice.seconds,
+        токены: { потрачено: voice.spent }, // cyrillic-ok: audio_generate's own answer keys
+      }
+    },
+  })
+  const senses = {
+    length: async () => voice.seconds,
+    hear: async () => ({ words: [] }),
+  }
+  return { paid, reel: makeSplitReelTool(lookup as never, senses as never) }
+}
+const REEL_ARGS = { image_url: 'https://ours/face.png', brolls: ['a garden'] }
 
 /**
  * gHashTag/t27 specs/automation/split-reel.t27, vendored beside its
@@ -667,13 +809,13 @@ describe('split-reel.t27 against the host', () => {
     expect(Math.floor(SPEC.MEASURED_MS / SPEC.MEASURED_CHARS)).toBeLessThan(
       SPEC.MS_PER_CHAR
     )
-    expect(textFits(SPEC.MEASURED_CHARS)).toBe(false)
+    expect(textFits(SPEC.MEASURED_CHARS, 0)).toBe(false)
     // The boundary: 214 characters fit, 215 do not.
-    expect(speechMsEstimate(214)).toBe(11984)
-    expect(textFits(214)).toBe(true)
-    expect(speechMsEstimate(215)).toBe(12040)
-    expect(textFits(215)).toBe(false)
-    expect(textFits(0)).toBe(true)
+    expect(speechMsEstimate(214, 0)).toBe(11984)
+    expect(textFits(214, 0)).toBe(true)
+    expect(speechMsEstimate(215, 0)).toBe(12040)
+    expect(textFits(215, 0)).toBe(false)
+    expect(textFits(0, 0)).toBe(true)
     // Characters as the pace was measured: words joined by single spaces.
     expect(speechChars('  one  two\n three ')).toBe(13)
 
@@ -716,39 +858,12 @@ describe('split-reel.t27 against the host', () => {
     expect(backstopRefund(true, 12000, 10)).toBe(0)
     expect(backstopRefund(false, 14500, 10)).toBe(0)
     expect(backstopRefund(true, 14500, 0)).toBe(0)
-    expect(textFits(214)).toBe(true)
+    expect(textFits(214, 0)).toBe(true)
     expect(SPEC.REFUND_TOO_LONG_VOICE).toBe(true)
     expect(SPEC.REFUSED_BEFORE_SPEND).toBe(true)
     // split_reel measures seconds; the spec's ceiling is in milliseconds.
     expect(voiceTooLong(msOfSeconds(SPEC.SPEECH_MAX_SECONDS))).toBe(false)
     expect(voiceTooLong(msOfSeconds(12.0001))).toBe(true)
-
-    /** A ledger that keeps its references, as its unique (kind, ref) does. */
-    const CREDIT = /UPDATE user_tokens SET balance = balance \+ /
-    const ledger = () => {
-      const said: Array<[string, unknown[]]> = []
-      const refs = new Set<string>()
-      return {
-        credits: () =>
-          said.filter(([q]) => CREDIT.test(q)).map(([, p]) => p[1]),
-        refunds: () =>
-          said
-            .filter(
-              ([q, p]) =>
-                /INSERT INTO token_ledger/.test(q) && p[3] === 'refund'
-            )
-            .map(([, p]) => p[5]),
-        query: async (sql: string, params: unknown[] = []) => {
-          said.push([String(sql), params])
-          if (/SELECT 1 FROM token_ledger WHERE kind/.test(sql))
-            return { rows: refs.has(`${params[0]} ${params[1]}`) ? [{}] : [] }
-          if (/INSERT INTO token_ledger/.test(sql) && params[5])
-            refs.add(`${params[3]} ${params[5]}`)
-          if (CREDIT.test(sql)) return { rows: [{ balance: params[1] }] }
-          return { rows: [] }
-        },
-      }
-    }
 
     // audio_generate's answer: the url, the length, and what the charge took.
     const VOICE = 'https://ours/v.mp3'
@@ -783,7 +898,7 @@ describe('split-reel.t27 against the host', () => {
       text: 'word '.repeat(30).trim(),
     }
     const run = async (who: string, args: object = ARGS) => {
-      const pool = ledger()
+      const pool = tokenLedger()
       paid.length = 0
       const r: any = await reel.handler(args, {
         telegramId: who,
@@ -799,6 +914,10 @@ describe('split-reel.t27 against the host', () => {
       expect(paidHere.r.done).toBe(false)
       expect(paidHere.r.voice_url).toBeUndefined()
       expect(paidHere.r.reason).toMatch(/; 10 ток\. за этот голос возвращены$/) // cyrillic-ok: the tool's own words
+      // A voice given back is not offered again (v9): its url is not in
+      // the answer at all.
+      expect(paidHere.r.reason).not.toContain(VOICE)
+      expect(JSON.stringify(paidHere.r)).not.toContain(VOICE)
       expect(paid).toEqual(['audio_generate'])
       expect(paidHere.pool.credits()).toEqual([10])
       expect(paidHere.pool.refunds()).toEqual([`split-reel-too-long:${VOICE}`])
@@ -809,6 +928,8 @@ describe('split-reel.t27 against the host', () => {
         pool: paidHere.pool,
       } as never)
       expect(again.reason).not.toMatch(/возвращены/) // cyrillic-ok: the tool's own words
+      // Not given back this time, so the voice is still the agent's to see.
+      expect(again.reason).toContain(VOICE)
       expect(paidHere.pool.credits()).toEqual([10])
 
       // A voice passed back from an earlier call was not paid for here.
@@ -853,10 +974,287 @@ describe('split-reel.t27 against the host', () => {
     }
   }, 60_000)
 
+  it('a voice is held to its own slowest measured pace before it is paid', async () => {
+    expect(SPEC.PACE_PER_VOICE).toBe(true)
+    // A voice never measured is judged at MS_PER_CHAR.
+    expect(paceFor(0)).toBe(SPEC.MS_PER_CHAR)
+    // A voice once measured at 70 ms a unit is judged at 70.
+    expect(paceFor(70)).toBe(70)
+    expect(speechMsEstimate(171, 70)).toBe(11970)
+    expect(textFits(171, 70)).toBe(true)
+    expect(speechMsEstimate(172, 70)).toBe(12040)
+    expect(textFits(172, 70)).toBe(false)
+    expect(textFits(200, 0)).toBe(true)
+    expect(textFits(200, 70)).toBe(false)
+    // A quicker voice does not stretch the ceiling.
+    expect(paceFor(40)).toBe(SPEC.MS_PER_CHAR)
+    expect(textFits(214, 40)).toBe(true)
+    expect(textFits(215, 40)).toBe(false)
+    expect(paceToKeep(0, 14000, 200)).toBe(70)
+    expect(textFits(200, paceToKeep(0, 14000, 200))).toBe(false)
+    expect(backstopRefund(true, 14000, 12)).toBe(12)
+
+    // split_reel on a client's turn: the seller's clone of her speaks. The
+    // wallet is the seller's (ctx.telegramId); the pace is the VOICE's.
+    const OTHER_ID = '900000006'
+    const rows: VoiceRow[] = [
+      { owner: SELLER_ID, lead: CLIENT_ID, voice: 'lead-voice_A', pace: null },
+      { owner: SELLER_ID, lead: OTHER_ID, voice: 'lead-voice_B', pace: null },
+    ]
+    const pool = voiceBook(rows)
+    const VOICE = 'https://ours/held.mp3'
+    const voice = { url: VOICE, seconds: 14, spent: 12 }
+    const { paid, reel } = heldReel(voice)
+    const text = `${'word '.repeat(40).trim()}.`
+    expect(speechUnits(text)).toBe(200)
+    const onTurnOf = (faceOf: string) =>
+      ({ telegramId: SELLER_ID, pool, faceOf }) as never
+    const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      // Never measured, so judged at MS_PER_CHAR: paid, measured at 14 s,
+      // given back -- and the voice's row now keeps 70.
+      const first: any = await reel.handler(
+        { ...REEL_ARGS, text },
+        onTurnOf(CLIENT_ID)
+      )
+      expect(paid).toEqual(['audio_generate'])
+      expect(first.reason).toMatch(/; 12 ток\. за этот голос возвращены$/) // cyrillic-ok: the tool's own words
+      expect(JSON.stringify(first)).not.toContain(VOICE)
+      expect(pool.credits()).toEqual([12])
+      expect(rows.map(r => r.pace)).toEqual([70, null])
+
+      // The same text for the same voice: refused from its text, unpaid.
+      paid.length = 0
+      const again: any = await reel.handler(
+        { ...REEL_ARGS, text },
+        onTurnOf(CLIENT_ID)
+      )
+      expect(again.done).toBe(false)
+      expect(again.reason).toMatch(/^text на ~14 с речи/) // cyrillic-ok: the tool's own words
+      expect(paid).toEqual([])
+      expect(pool.credits()).toEqual([12])
+
+      // Her own reel, ordered by herself: the same clone, the same pace.
+      const herself: any = await reel.handler(
+        { ...REEL_ARGS, text, for_lead: CLIENT_ID },
+        { telegramId: CLIENT_ID, pool } as never
+      )
+      expect(herself.reason).toMatch(/^text на ~14 с речи/) // cyrillic-ok: the tool's own words
+      expect(paid).toEqual([])
+
+      // A text short enough for 70 ms a unit still goes ahead for her.
+      voice.seconds = 9
+      const shorter = `${'word '.repeat(34).trim()}.`
+      expect(speechUnits(shorter)).toBe(170)
+      await reel.handler({ ...REEL_ARGS, text: shorter }, onTurnOf(CLIENT_ID))
+      expect(paid[0]).toBe('audio_generate')
+
+      // Another client's clone was never measured: the same 200 go ahead.
+      paid.length = 0
+      await reel.handler({ ...REEL_ARGS, text }, onTurnOf(OTHER_ID))
+      expect(paid[0]).toBe('audio_generate')
+      expect(rows[0].pace).toBe(70)
+      expect(pool.credits()).toEqual([12])
+    } finally {
+      logged.mockRestore()
+    }
+  }, 60_000)
+
+  it('a voice keeps the slowest pace it was ever measured at', async () => {
+    expect(measuredPace(SPEC.MEASURED_MS, SPEC.MEASURED_CHARS)).toBe(
+      SPEC.MS_PER_CHAR
+    )
+    // Rounded up, so the pace errs long.
+    expect(measuredPace(12001, 214)).toBe(57)
+    expect(measuredPace(14000, 200)).toBe(70)
+    expect(measuredPace(5000, 0)).toBe(0)
+    // Slowest wins, in either order.
+    expect(slowestPace(70, 60)).toBe(70)
+    expect(slowestPace(60, 70)).toBe(70)
+    expect(slowestPace(0, 57)).toBe(57)
+    expect(paceToKeep(80, 14000, 200)).toBe(80)
+    expect(paceToKeep(60, 14000, 200)).toBe(70)
+    // A text too short to measure keeps what was kept.
+    // Half the ceiling at MS_PER_CHAR, in the spec's integer division.
+    expect(SPEC.MIN_PACE_UNITS * 2).toBe(
+      Math.floor((SPEC.SPEECH_MAX_SECONDS * 1000) / SPEC.MS_PER_CHAR)
+    )
+    expect(paceToKeep(0, 1200, 10)).toBe(0)
+    expect(paceToKeep(0, 9000, SPEC.MIN_PACE_UNITS - 1)).toBe(0)
+    expect(paceToKeep(0, 9000, SPEC.MIN_PACE_UNITS)).toBe(85)
+
+    // The row, through lead-voice.ts's own statements.
+    const rows: VoiceRow[] = [
+      { owner: SELLER_ID, lead: CLIENT_ID, voice: 'lead-voice_A', pace: 70 },
+    ]
+    const pool = voiceBook(rows)
+    await keepVoicePace(pool as never, 'lead-voice_A', 60)
+    expect(await voicePaceOf(pool as never, 'lead-voice_A')).toBe(70)
+    await keepVoicePace(pool as never, 'lead-voice_A', 80)
+    expect(await voicePaceOf(pool as never, 'lead-voice_A')).toBe(80)
+    // Read by the voice: the caller's id names no voice.
+    expect(await voicePaceOf(pool as never, SELLER_ID)).toBe(0)
+    expect(await voicePaceOf(pool as never, 'lead-voice_none')).toBe(0)
+
+    // A clone made again is a new voice: its row starts unmeasured.
+    const said: string[] = []
+    await saveLeadVoice(
+      { query: async (q: string) => (said.push(q), { rows: [] }) },
+      {
+        owner: SELLER_ID,
+        lead: CLIENT_ID,
+        voiceId: 'lead-voice_A2',
+        seconds: 30,
+        sourceUrl: 'https://ours/notes.ogg',
+      }
+    )
+    expect(said.at(-1)).toMatch(
+      /ms_per_char = CASE WHEN lead_voices\.voice_id = EXCLUDED\.voice_id\s+THEN lead_voices\.ms_per_char END/
+    )
+
+    // split_reel: a quicker reel later does not speed the voice up, and a
+    // short text paid and measured does not set a pace at all.
+    const { reel } = heldReel({
+      url: 'https://ours/v.mp3',
+      seconds: 9,
+      spent: 5,
+    })
+    const onTurn = { telegramId: SELLER_ID, pool, faceOf: CLIENT_ID } as never
+    const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      rows[0].pace = 70
+      const quicker = `${'word '.repeat(34).trim()}.`
+      await reel.handler({ ...REEL_ARGS, text: quicker }, onTurn)
+      expect(rows[0].pace).toBe(70)
+      rows[0].pace = null
+      await reel.handler({ ...REEL_ARGS, text: 'Hello there.' }, onTurn)
+      expect(rows[0].pace).toBeNull()
+      // A text long enough to measure sets it: 9000 ms over 170 units.
+      await reel.handler({ ...REEL_ARGS, text: quicker }, onTurn)
+      expect(rows[0].pace).toBe(measuredPace(9000, 170))
+    } finally {
+      logged.mockRestore()
+    }
+  }, 60_000)
+
+  it("a voice's pace is kept on its own row and never on another voice", async () => {
+    expect(SPEC.PACE_ON_OTHER_VOICES).toBe(false)
+    // row_pace_after, through lead-voice.ts's own statement: split_reel keeps
+    // paceToKeep(kept, ms, units) on the measured voice with keepVoicePace.
+    // B is another client of the same seller, C another seller's clone.
+    const rows: VoiceRow[] = [
+      { owner: SELLER_ID, lead: CLIENT_ID, voice: 'lead-voice_A', pace: null },
+      {
+        owner: SELLER_ID,
+        lead: '900000006',
+        voice: 'lead-voice_B',
+        pace: null,
+      },
+      {
+        owner: '900000078',
+        lead: '900000008',
+        voice: 'lead-voice_C',
+        pace: 60,
+      },
+    ]
+    const pool = voiceBook(rows)
+    // Voice A paid for 200 units over 14000 ms: its row, never measured, keeps 70.
+    await keepVoicePace(
+      pool as never,
+      'lead-voice_A',
+      paceToKeep(0, 14000, 200)
+    )
+    expect(rows[0].pace).toBe(70)
+    // Voice B, never measured, still has no pace: A's 70 does not land on it.
+    expect(rows[1].pace).toBeNull()
+    const paceB = await voicePaceOf(pool as never, 'lead-voice_B')
+    expect(paceB).toBe(0)
+    expect(textFits(200, paceB)).toBe(true)
+    // Voice C, measured at 60, keeps 60: A's slower pace does not land on it.
+    expect(rows[2].pace).toBe(60)
+    expect(await voicePaceOf(pool as never, 'lead-voice_C')).toBe(60)
+    // A already at 80, measured at 70: it keeps 80, and the others stay.
+    rows[0].pace = 80
+    await keepVoicePace(
+      pool as never,
+      'lead-voice_A',
+      paceToKeep(80, 14000, 200)
+    )
+    expect(rows.map(r => r.pace)).toEqual([80, null, 60])
+
+    // The fake can see the leak it guards against: handed a WHERE that also
+    // names the never-measured rows, it writes A's pace onto B, as Postgres
+    // would -- so a statement that did so here would turn this test red.
+    const leak = voiceBook([
+      { owner: SELLER_ID, lead: CLIENT_ID, voice: 'lead-voice_A', pace: null },
+      {
+        owner: SELLER_ID,
+        lead: '900000006',
+        voice: 'lead-voice_B',
+        pace: null,
+      },
+    ])
+    await leak.query(
+      `UPDATE lead_voices SET ms_per_char = GREATEST(COALESCE(ms_per_char, 0), $2)
+        WHERE voice_id = $1 OR ms_per_char IS NULL`,
+      ['lead-voice_A', 70]
+    )
+    expect(leak.rows.map(r => r.pace)).toEqual([70, 70])
+    await expect(
+      leak.query(
+        `UPDATE lead_voices SET ms_per_char = $2 WHERE lower(username) = $1`,
+        ['x', 1]
+      )
+    ).rejects.toThrow(/a condition the fake does not know/)
+  })
+
+  it('a digit or a syllable character weighs more than a letter', async () => {
+    expect(speechUnitsOf(SPEC.MEASURED_CHARS, 0, 0)).toBe(SPEC.MEASURED_CHARS)
+    expect(speechUnitsOf(150, 20, 0)).toBe(230)
+    expect(speechUnitsOf(0, 0, 60)).toBe(240)
+    expect(textFits(150 + 20, 0)).toBe(true)
+    expect(textFits(speechUnitsOf(150, 20, 0), 0)).toBe(false)
+    expect(textFits(speechUnitsOf(0, 0, 53), 0)).toBe(true)
+    expect(textFits(speechUnitsOf(0, 0, 54), 0)).toBe(false)
+    expect(textFits(54, 0)).toBe(true)
+    expect(SPEC.PLAIN_CHAR_WEIGHT).toBe(1)
+    expect(SPEC.DIGIT_WEIGHT).toBeGreaterThan(SPEC.PLAIN_CHAR_WEIGHT)
+    expect(SPEC.WIDE_CHAR_WEIGHT).toBeGreaterThan(SPEC.PLAIN_CHAR_WEIGHT)
+
+    // The host counts a text the way the spec weighs it.
+    const digits = `${'word '.repeat(30)}${'1'.repeat(20)}`
+    expect(speechChars(digits)).toBe(170)
+    expect(speechUnits(digits)).toBe(speechUnitsOf(150, 20, 0))
+    const latin = 'word '.repeat(43).trim()
+    expect(speechUnits(latin)).toBe(speechChars(latin))
+    expect(speechUnits('Цена 1500 ₽')).toBe(speechUnitsOf(7, 4, 0)) // cyrillic-ok: a Cyrillic letter weighs one
+    expect(speechUnits('٣')).toBe(SPEC.DIGIT_WEIGHT)
+    expect(speechUnits('中の카')).toBe(speechUnitsOf(0, 0, 3))
+    expect(speechUnits('α'.repeat(54))).toBe(54)
+
+    // split_reel refuses the heavy texts before it pays; the light ones go.
+    const { paid, reel } = heldReel({
+      url: 'https://ours/v.mp3',
+      seconds: 9,
+      spent: 5,
+    })
+    const ctx = { telegramId: SELLER_ID, pool: tokenLedger() } as never
+    const goes = async (text: string) => {
+      paid.length = 0
+      await reel.handler({ ...REEL_ARGS, text }, ctx)
+      return paid[0] === 'audio_generate'
+    }
+    expect(await goes(digits)).toBe(false)
+    expect(await goes('a'.repeat(170))).toBe(true)
+    expect(await goes('の'.repeat(54))).toBe(false)
+    expect(await goes('の'.repeat(53))).toBe(true)
+    expect(await goes('α'.repeat(54))).toBe(true)
+  }, 60_000)
+
   it('the version is the last dated note', () => {
     const spec = readFileSync(join(__dirname, 'split-reel.t27'), 'utf8')
     const notes = [...spec.matchAll(/^\/\/ v(\d+) \(/gm)].map(m => Number(m[1]))
-    expect(SPEC.VERSION).toBe(8)
+    expect(SPEC.VERSION).toBe(9)
     expect(Math.max(...notes)).toBe(SPEC.VERSION)
   })
 

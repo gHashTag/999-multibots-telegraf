@@ -76,8 +76,8 @@
   },
   {
     "name": "VERSION disagrees with the last dated note",
-    "from": "pub const VERSION : u8 = 8;",
-    "to": "pub const VERSION : u8 = 7;"
+    "from": "pub const VERSION : u8 = 9;",
+    "to": "pub const VERSION : u8 = 8;"
   },
   {
     "name": "an ordinary caller with no voice is not refused",
@@ -96,8 +96,8 @@
   },
   {
     "name": "the ceiling is one character wide",
-    "from": "return speech_ms_estimate(chars) <= SPEECH_MAX_SECONDS * 1000;",
-    "to": "return speech_ms_estimate(chars) <= SPEECH_MAX_SECONDS * 1000 + 56;"
+    "from": "return speech_ms_estimate(units, slowest) <= SPEECH_MAX_SECONDS * 1000;",
+    "to": "return speech_ms_estimate(units, slowest) <= SPEECH_MAX_SECONDS * 1000 + 56;"
   },
   {
     "name": "a voice refused after it is paid gives nothing back",
@@ -113,5 +113,60 @@
     "name": "a voice exactly at the ceiling is refused for its length",
     "from": "return measured_ms > SPEECH_MAX_SECONDS * 1000;",
     "to": "return measured_ms >= SPEECH_MAX_SECONDS * 1000;"
+  },
+  {
+    "name": "every voice is judged at MS_PER_CHAR, the owner's pace",
+    "from": "pub const PACE_PER_VOICE : bool = true;",
+    "to": "pub const PACE_PER_VOICE : bool = false;"
+  },
+  {
+    "name": "max to min: a voice is judged at the quicker of its pace and MS_PER_CHAR",
+    "from": "        if slowest > MS_PER_CHAR {\n            return slowest;",
+    "to": "        if slowest < MS_PER_CHAR {\n            return slowest;"
+  },
+  {
+    "name": "latest wins: a quicker reel later speeds the voice up",
+    "from": "        if measured > kept {\n            return measured;",
+    "to": "        if measured > 0 {\n            return measured;"
+  },
+  {
+    "name": "the measured pace is rounded down, so it errs short",
+    "from": "return (measured_ms + units - 1) / units;",
+    "to": "return measured_ms / units;"
+  },
+  {
+    "name": "a text too short to measure caps the voice",
+    "from": "        if units < MIN_PACE_UNITS {\n            return kept;",
+    "to": "        if false {\n            return kept;"
+  },
+  {
+    "name": "the shortest measured text moves off half the ceiling",
+    "from": "pub const MIN_PACE_UNITS : u32 = 107;",
+    "to": "pub const MIN_PACE_UNITS : u32 = 100;"
+  },
+  {
+    "name": "the weights dropped: every character weighs one",
+    "from": "return plain * PLAIN_CHAR_WEIGHT + digits * DIGIT_WEIGHT + wide * WIDE_CHAR_WEIGHT;",
+    "to": "return plain + digits + wide;"
+  },
+  {
+    "name": "a digit weighs as a letter",
+    "from": "pub const DIGIT_WEIGHT : u32 = 4;",
+    "to": "pub const DIGIT_WEIGHT : u32 = 1;"
+  },
+  {
+    "name": "a syllable character weighs as a letter",
+    "from": "pub const WIDE_CHAR_WEIGHT : u32 = 4;",
+    "to": "pub const WIDE_CHAR_WEIGHT : u32 = 1;"
+  },
+  {
+    "name": "one voice pace is written onto every other voice row",
+    "from": "pub const PACE_ON_OTHER_VOICES : bool = false;",
+    "to": "pub const PACE_ON_OTHER_VOICES : bool = true;"
+  },
+  {
+    "name": "a never-measured clone takes the pace of the voice measured",
+    "from": "            if !PACE_ON_OTHER_VOICES {\n                return kept;",
+    "to": "            if kept > 0 {\n                return kept;"
   }
 ]
