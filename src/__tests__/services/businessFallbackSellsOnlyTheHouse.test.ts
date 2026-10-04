@@ -11,8 +11,15 @@
  * fallback's model call captured), all data invented: a seller who is not an
  * admin of this bot gets the neutral prompt; the house's own DM keeps its
  * pitch; and the builder's default is the neutral one.
+ *
+ * The house's bot is read by the one detector every reel reads
+ * (render house-names.ts, namesHouse), with the house's real bot from the
+ * spec, so a new spelling of the house is caught here too. The catalogue and
+ * the currency are not house names to that detector, so they stay listed.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { namesHouse } from '../../../apps/vibee-editor/render/src/house-names'
+import { HOUSE_DELIVERY_BOT } from '../../../apps/vibee-editor/render/src/spec/crm-story-reel.gen'
 
 const chatWithAI = vi.fn(async () => 'fallback reply')
 vi.mock('@/services/aiChatService', () => ({
@@ -40,7 +47,8 @@ vi.mock('@/services/modelSwitch', () => ({
 
 const CONN = 'conn-house-marks-1'
 const SELLER = 900000001
-const BOT = 'house_bot_fixture'
+/** The house's own bot, as the spec names it (crm-story-reel HOUSE_DELIVERY_BOT). */
+const BOT = HOUSE_DELIVERY_BOT
 const CLIENT = 900000077
 
 const connection = () => ({
@@ -70,8 +78,17 @@ function fakeBot() {
   }
 }
 
-/** The house's marks: its catalogue, its currency, its bot. */
-const HOUSE_MARKS = ['NeuroPhoto', 'Услуги', 'звёзд', 'токен', `@${BOT}`]
+/**
+ * The house's catalogue and currency: words namesHouse does not read as the
+ * house (it knows the bot, the brand and the product). The bot is namesHouse's.
+ */
+const CATALOGUE = ['NeuroPhoto', 'Услуги', 'звёзд', 'токен']
+
+/** Nothing of the house's: not its bot (namesHouse), not its catalogue. */
+function expectNothingOfTheHouse(sys: string) {
+  expect(namesHouse(sys), 'the prompt names the house').toBe(false)
+  for (const word of CATALOGUE) expect(sys).not.toContain(word)
+}
 
 /** The system prompt the fallback handed to the model on one DM. */
 async function fallbackPromptFor(adminIds: string, text = 'а сколько стоит?') {
@@ -100,7 +117,7 @@ afterEach(() => {
 describe("the fallback in a seller's DM speaks for him, not for the house", () => {
   it('a seller who is not the house gets no catalogue, no price, no bot', async () => {
     const sys = await fallbackPromptFor('1')
-    for (const mark of HOUSE_MARKS) expect(sys).not.toContain(mark)
+    expectNothingOfTheHouse(sys)
     expect(sys).toContain('передашь его владельцу')
     expect(sys).toContain('Не предлагай оплату')
   })
@@ -110,6 +127,7 @@ describe("the fallback in a seller's DM speaks for him, not for the house", () =
     expect(sys).toContain('NeuroPhoto')
     expect(sys).toContain('токенами за звёзды')
     expect(sys).toContain(`Бот: @${BOT}.`)
+    expect(namesHouse(sys), 'the house is named in its own DM').toBe(true)
   })
 
   it('a continuing thread keeps the continuation rule on either side', async () => {
@@ -119,7 +137,7 @@ describe("the fallback in a seller's DM speaks for him, not for the house", () =
     ]
     const sys = await fallbackPromptFor('1', 'Давай')
     expect(sys).toContain('ЭТО ПРОДОЛЖЕНИЕ РАЗГОВОРА')
-    for (const mark of HOUSE_MARKS) expect(sys).not.toContain(mark)
+    expectNothingOfTheHouse(sys)
   })
 
   it('the builder sells nothing of ours unless told the seller is the house', async () => {
@@ -128,6 +146,6 @@ describe("the fallback in a seller's DM speaks for him, not for the house", () =
       '@/services/businessBotService'
     )
     const sys = String(buildBusinessMessages('привет', 'Гость', BOT)[0].content)
-    for (const mark of HOUSE_MARKS) expect(sys).not.toContain(mark)
+    expectNothingOfTheHouse(sys)
   })
 })
