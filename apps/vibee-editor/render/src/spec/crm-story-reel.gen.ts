@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "crm-story-reel" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 21 satisfies number;
+export const VERSION = 22 satisfies number;
 export const FACE_REQUIRED = true satisfies boolean;
 export const VOICE_REQUIRED = true satisfies boolean;
 export const VOICE_SOURCE = "own-voice-notes-in-owner-dm" satisfies string;
@@ -230,6 +230,43 @@ export const FACE_Y_PERMILLE = 290 satisfies number;
 export const FACE_IN_SHOT_PERMILLE = 360 satisfies number;
 export const SHOT_WIDTH = 720 satisfies number;
 export const SHOT_HEIGHT = 1280 satisfies number;
+export const HOUSE_BRAND = "T27" satisfies string;
+export const HOUSE_PRODUCT = "S3AI" satisfies string;
+export const HOUSE_MARKS = 5 satisfies number;
+export const HOUSE_CALL_ON_CLIENT_REEL = false satisfies boolean;
+export const HOUSE_BUTTON_ON_CLIENT_REEL = false satisfies boolean;
+export const HOUSE_WORD_REPLACED_SAID = true satisfies boolean;
+export const CALL_FROM_SELLER = 0 satisfies number;
+export const CALL_FROM_TEMPLATE = 1 satisfies number;
+export const CALL_FROM_PROFILE = 2 satisfies number;
+export const CALL_FROM_STORY = 3 satisfies number;
+export const CALL_FROM_APPROVED = 4 satisfies number;
+export const CALL_FROM_DEFAULT = 5 satisfies number;
+export const FIELD_FROM_TEMPLATE = 4 satisfies number;
+export const TEMPLATE_LEAD_EN_4 = "Want the same?" satisfies string;
+export const LAST_LINE_LEAD_AND_CALL = 0 satisfies number;
+export const LAST_LINE_CALL = 1 satisfies number;
+export const LAST_LINE_LEAD = 2 satisfies number;
+export const SPEAKS_LEAD = 0 satisfies number;
+export const SPEAKS_CALLER = 1 satisfies number;
+export const SPEAKS_REFUSED = 2 satisfies number;
+export const CLIENT_TURN_SPEAKS_CLIENT = true satisfies boolean;
+export const HOUSE_LINE_ON_CLIENT_REEL = false satisfies boolean;
+export const CLIENT_VERSION_NAMES_HOUSE = false satisfies boolean;
+export const CLIENT_LIST_HOUSE_FREE = true satisfies boolean;
+export const LINE_FROM_TEMPLATE = 0 satisfies number;
+export const LINE_FROM_EDIT = 1 satisfies number;
+export const LINE_FROM_PERSON = 2 satisfies number;
+export const LINE_KEPT = 0 satisfies number;
+export const LINE_CLIENT_VERSION = 1 satisfies number;
+export const LINE_REFUSED = 2 satisfies number;
+export const REFUSED_BEFORE_SPEND = true satisfies boolean;
+export const NAMING_THE_BOT_LENDS = false satisfies boolean;
+export const OWN_WORDS_REACH = 2 satisfies number;
+export const OWN_SAID_ADDRESS_EN = "Trinity, make a reel" satisfies string;
+export const OWN_LINE_ADDRESS_EN = "This is Trinity" satisfies string;
+export const OWN_SAID_QUOTE_EN = "at the end let it say: Write to Trinity" satisfies string;
+export const OWN_LINE_QUOTE_EN = "Write to Trinity" satisfies string;
 export interface Job {
   readonly has_face: boolean;
   readonly has_voice: boolean;
@@ -281,6 +318,28 @@ export const Job = Object.freeze({ __struct__: "Job", fields: [["has_face", "boo
 // t27c gen-ts: fn caption_uses_line was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn cta_card_shown was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn leaves_for_client was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn word_taken was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn house_word_replaced was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn call_from was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn profile_call_from was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn button_from was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn last_line_way was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn voice_of was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn line_way was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn line_names_house was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn charged was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn own_words was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn line_from was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -329,7 +388,7 @@ export const Job = Object.freeze({ __struct__: "Job", fields: [["has_face", "boo
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = ["Job"] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "FACE_REQUIRED", "VOICE_REQUIRED", "VOICE_SOURCE", "CLONE_PER_SELLER", "CLONE_MODEL", "CLONE_COST_USD", "CLONE_MIN_SECONDS", "CLONE_GOOD_SECONDS", "CLONE_MAX_SECONDS", "SCENES_DEFAULT", "SCENES_MIN", "SCENES_MAX", "NEW_SETTING_EACH_SCENE", "PAUSE_SEC", "PAUSE_SEC_MIN", "PAUSE_SEC_MAX", "BREATH_MS", "REEL_MAX_SEC", "COMPOSITION", "ASPECT_RATIO", "TOPIC_MAX", "BOT_SPOKEN_AS", "STILL_MODEL", "VOICE_MODEL", "VOICE_PROVIDER", "VOICE_ON_KIE", "LIPSYNC_MODEL", "TOKENS_PER_STILL", "TOKENS_PER_LINE", "TOKENS_PER_LIPSYNC_SEC", "TOKENS_PER_ASSEMBLY", "BILLED_SECONDS", "PRICE_ESTIMATE_TOKENS", "REFUND_ON_PROVIDER_FAILURE", "JOB_TABLE", "RUNNING_JOBS_PER_CLIENT", "JOB_ATTEMPTS", "BEAT_MS", "DEAD_MS", "SWEEP_MS", "SWEEP_CLAIM_BATCH", "ABANDON_MINUTES", "STILL_WAIT_MS", "PAID_WORK_REDONE_ON_RESUME", "PLAN_CARD_RETURNED_ON_FAILURE", "EXHAUSTED_JOB_CLOSED", "ABANDONED_JOB_CLOSED", "FAILURE_NAMES_PAID_PARTS", "STILL_TASK_KEPT_AT_ACCEPT", "STILL_TASK_FROM_MODEL", "STILL_POLL_MS", "STILL_GIVE_UP_MS", "LATE_REFUND_ONCE_PER_TASK", "LATE_REFUND_REF_PREFIX", "PENDING_STILL_KEEPS_JOB", "FAILED_JOB_RETURNS_PENDING_STILLS", "RESUME_USE", "RESUME_WAIT", "RESUME_REDRAW", "SELLER_TOOL", "CLONE_TOOL", "HAND_ASSEMBLY_IN_CHAT", "VOICE_NEEDS_ELEVENLABS", "SENT_VOICE_NOTES_TRIED_FIRST", "VOICE_HEALTH_FROM_REAL_CALLS", "VOICE_NONE", "VOICE_CLONE", "VOICE_NOTES", "NOTES_NEED_REPLICATE", "NOTES_WORDS_ARE_HERS", "NOTES_FROM_SELLER_DM_ONLY", "NOTES_MIN_SEC", "NOTES_MAX_SEC", "NOTES_CUT_WINDOW_MS", "NOTES_PART_MIN_MS", "CLONE_DOWN_FALLS_TO_NOTES", "CLONE_DOWN_SAME_RUN", "CLONE_DOWN_KEEPS_STILLS", "CLONE_DOWN_ONLY_ON_PROVIDER", "CAP_ASKED_BEFORE_SPEND", "CAP_SLOT_PER_RENDER", "CAP_WAIT_KEEPS_ATTEMPTS", "CAP_WAIT_TOLD_ONCE", "END_CARD_ARG", "END_CARD_KEPT_IN_JOB", "END_CARD_BUTTON_MAX", "END_CARD_DEFAULT_BG", "END_CARD_DEFAULT_TITLE", "END_CARD_DEFAULT_TEXT", "END_CARD_DEFAULT_ACCENT", "FIELD_FROM_DEFAULT", "FIELD_FROM_PROFILE", "FIELD_FROM_SELLER", "FIELD_FROM_KEPT", "END_CARD_CONTRAST_MIN_X10", "SELLER_PALETTE_UNREADABLE_REFUSED", "PROFILE_PALETTE_UNREADABLE_REFUSED", "SELLER_BAD_COLOUR_REFUSED", "PROFILE_BAD_COLOUR_DROPPED", "END_CARD_SAVE_ARG", "KEPT_PER_SELLER_AND_CLIENT", "KEPT_CHECKED_BEFORE_KEEPING", "KEPT_EMPTY_CARD_CLEARS", "KEPT_FOR_HER_OWN_PRESS", "KEPT_IN_PROFILE_STORY_BLOCK", "KEEP_NONE", "KEEP_SAVE", "KEEP_CLEAR", "KEEP_REFUSED", "PANEL_SHOWS_END_CARD", "PANEL_CHECK_IS_READ", "PANEL_VERDICT_FROM_SERVER", "PANEL_KEEP_IS_PRESS", "SUGGEST_FIX_ARG", "SUGGEST_STEPS", "SUGGEST_NEVER", "EXTREME_MIN_CONTRAST_X10", "WAY_LIGHT", "WAY_DARK", "SUGGEST_KEEPS_HER_COLOUR", "SUGGEST_FOR_PROFILE_PALETTE", "SUGGEST_FOR_BAD_HEX", "SUGGEST_TAKEN_BY_PRESS", "SUGGEST_KEPT_BY_ITSELF", "SUGGEST_PALETTE_ARG", "SUGGEST_BG_ARG", "PALETTE_FROM_HER_CARD", "PALETTE_NEAREST_FIRST", "BG_FIX_ALWAYS_EXISTS", "OPTIONS_TAKEN_BY_PRESS", "SHADE_SPACE", "SHADE_CHROMA_CUT_TO_SRGB", "HUE_DRIFT_MAX_DEG", "HUE_CHECKED_MIN_CHROMA_X1000", "SRGB_MIX_DRIFT_DEG", "NEAREST_BY", "PANEL_ONE_REASON_AT_A_TIME", "PRICE_BEFORE_PRESS", "SELLER_SEES_PRICE", "OLD_PLAN_REEL", "ROUTE_STORY", "ROUTE_OLD_PLAN_REEL", "REEL_TOOL_IN_CLIENT_BRIEF", "REEL_TOOL_IN_QUEEN_BLOCK", "REEL_TOOL_IN_PLAN_HINT", "REEL_TOOL_IN_PLAN_READ", "PLAN_ITEM_IS_TOPIC", "REELS_STAY_STORY_AFTER_GIFTS", "START_PARAM", "PAGE_ROUTE", "SELLER_SCRIPT_ACCEPTED", "DELIVER_DM", "DELIVER_NONE", "SENT_WITHOUT_PRESS", "CLIENT_PRESS_SENDS_TO_GROUP", "GROUP_MUST_BE_READ_BY_CRM", "PRESSABLE_CARDS_PER_PERSON", "CARD_DISPLACES_UNANSWERED", "CARD_TURN_PREFIX", "CARD_TEXT_MAX", "CAPTION_MAX", "CALLBACK_BYTES_MAX", "WAITING_CARD_WINDOW_HOURS", "DM_SEND_RECORDED_AS_GIFT", "AUTOPILOT_SENDS_CARD", "SERVICE_RENDER_FEED_PUBLIC", "LIVE_RUN_STATUS", "VOICE_LEG_STATUS", "CAP_LEG_STATUS", "STILL_IDENTITY_FIRST", "STILL_FACE_CHECKED", "STILL_FACE_REDRAWS", "FACE_UNKNOWN_KEEPS", "FACE_KEEP", "FACE_REDRAW", "FACE_STOP", "LINE_MAX_MS", "LINE_MEASURED_BEFORE_LIPSYNC", "STORY_DEFAULT_MAX_SEC", "DELIVER_VIA_HOME_BOT", "HOUSE_DELIVERY_BOT", "HOUSE_SKIPS_ELEVENLABS", "OPEN_ON_SOURCE", "OPEN_SCENE", "FIRST_LINE_HOOK", "STUDIO_SHOTS", "SHOT_WIDE", "SHOT_MEDIUM", "SHOT_CLOSE", "SHOT_MEDIUM_PERMILLE", "SHOT_CLOSE_PERMILLE", "FACE_X_PERMILLE", "WRITER_WRITES_SETTINGS", "WRITER_SETTING_DROPPED", "TEMPLATE_ARG", "LANGUAGE_ARG", "TEMPLATE_HOOK_STUDIO", "TEMPLATES_FROM_SERVER", "TEMPLATE_LINES_EDITABLE", "TEMPLATE_SCENES", "TEMPLATE_BUTTON", "TEMPLATE_CALL_EN", "TEMPLATE_LINE_EN_1", "TEMPLATE_LINE_EN_2", "TEMPLATE_LINE_EN_3", "TEMPLATE_LINE_EN_4", "LANG_RU", "LANG_EN", "LANGUAGES", "LINE_MAX_CHARS", "CAPTIONS_ON", "CAPTIONS_PER_SCENE", "CAPTION_TEXT_FROM_LINE", "CAPTIONS_MISSING_KEEPS_REEL", "CAPTION_COLOR", "CAPTION_MAX_WORDS", "CAPTION_TOP_PERCENT", "CTA_CARD_LIKE_WIDGET", "CTA_PULSE_MS", "FACE_Y_PERMILLE", "FACE_IN_SHOT_PERMILLE", "SHOT_WIDTH", "SHOT_HEIGHT", "Job"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "FACE_REQUIRED", "VOICE_REQUIRED", "VOICE_SOURCE", "CLONE_PER_SELLER", "CLONE_MODEL", "CLONE_COST_USD", "CLONE_MIN_SECONDS", "CLONE_GOOD_SECONDS", "CLONE_MAX_SECONDS", "SCENES_DEFAULT", "SCENES_MIN", "SCENES_MAX", "NEW_SETTING_EACH_SCENE", "PAUSE_SEC", "PAUSE_SEC_MIN", "PAUSE_SEC_MAX", "BREATH_MS", "REEL_MAX_SEC", "COMPOSITION", "ASPECT_RATIO", "TOPIC_MAX", "BOT_SPOKEN_AS", "STILL_MODEL", "VOICE_MODEL", "VOICE_PROVIDER", "VOICE_ON_KIE", "LIPSYNC_MODEL", "TOKENS_PER_STILL", "TOKENS_PER_LINE", "TOKENS_PER_LIPSYNC_SEC", "TOKENS_PER_ASSEMBLY", "BILLED_SECONDS", "PRICE_ESTIMATE_TOKENS", "REFUND_ON_PROVIDER_FAILURE", "JOB_TABLE", "RUNNING_JOBS_PER_CLIENT", "JOB_ATTEMPTS", "BEAT_MS", "DEAD_MS", "SWEEP_MS", "SWEEP_CLAIM_BATCH", "ABANDON_MINUTES", "STILL_WAIT_MS", "PAID_WORK_REDONE_ON_RESUME", "PLAN_CARD_RETURNED_ON_FAILURE", "EXHAUSTED_JOB_CLOSED", "ABANDONED_JOB_CLOSED", "FAILURE_NAMES_PAID_PARTS", "STILL_TASK_KEPT_AT_ACCEPT", "STILL_TASK_FROM_MODEL", "STILL_POLL_MS", "STILL_GIVE_UP_MS", "LATE_REFUND_ONCE_PER_TASK", "LATE_REFUND_REF_PREFIX", "PENDING_STILL_KEEPS_JOB", "FAILED_JOB_RETURNS_PENDING_STILLS", "RESUME_USE", "RESUME_WAIT", "RESUME_REDRAW", "SELLER_TOOL", "CLONE_TOOL", "HAND_ASSEMBLY_IN_CHAT", "VOICE_NEEDS_ELEVENLABS", "SENT_VOICE_NOTES_TRIED_FIRST", "VOICE_HEALTH_FROM_REAL_CALLS", "VOICE_NONE", "VOICE_CLONE", "VOICE_NOTES", "NOTES_NEED_REPLICATE", "NOTES_WORDS_ARE_HERS", "NOTES_FROM_SELLER_DM_ONLY", "NOTES_MIN_SEC", "NOTES_MAX_SEC", "NOTES_CUT_WINDOW_MS", "NOTES_PART_MIN_MS", "CLONE_DOWN_FALLS_TO_NOTES", "CLONE_DOWN_SAME_RUN", "CLONE_DOWN_KEEPS_STILLS", "CLONE_DOWN_ONLY_ON_PROVIDER", "CAP_ASKED_BEFORE_SPEND", "CAP_SLOT_PER_RENDER", "CAP_WAIT_KEEPS_ATTEMPTS", "CAP_WAIT_TOLD_ONCE", "END_CARD_ARG", "END_CARD_KEPT_IN_JOB", "END_CARD_BUTTON_MAX", "END_CARD_DEFAULT_BG", "END_CARD_DEFAULT_TITLE", "END_CARD_DEFAULT_TEXT", "END_CARD_DEFAULT_ACCENT", "FIELD_FROM_DEFAULT", "FIELD_FROM_PROFILE", "FIELD_FROM_SELLER", "FIELD_FROM_KEPT", "END_CARD_CONTRAST_MIN_X10", "SELLER_PALETTE_UNREADABLE_REFUSED", "PROFILE_PALETTE_UNREADABLE_REFUSED", "SELLER_BAD_COLOUR_REFUSED", "PROFILE_BAD_COLOUR_DROPPED", "END_CARD_SAVE_ARG", "KEPT_PER_SELLER_AND_CLIENT", "KEPT_CHECKED_BEFORE_KEEPING", "KEPT_EMPTY_CARD_CLEARS", "KEPT_FOR_HER_OWN_PRESS", "KEPT_IN_PROFILE_STORY_BLOCK", "KEEP_NONE", "KEEP_SAVE", "KEEP_CLEAR", "KEEP_REFUSED", "PANEL_SHOWS_END_CARD", "PANEL_CHECK_IS_READ", "PANEL_VERDICT_FROM_SERVER", "PANEL_KEEP_IS_PRESS", "SUGGEST_FIX_ARG", "SUGGEST_STEPS", "SUGGEST_NEVER", "EXTREME_MIN_CONTRAST_X10", "WAY_LIGHT", "WAY_DARK", "SUGGEST_KEEPS_HER_COLOUR", "SUGGEST_FOR_PROFILE_PALETTE", "SUGGEST_FOR_BAD_HEX", "SUGGEST_TAKEN_BY_PRESS", "SUGGEST_KEPT_BY_ITSELF", "SUGGEST_PALETTE_ARG", "SUGGEST_BG_ARG", "PALETTE_FROM_HER_CARD", "PALETTE_NEAREST_FIRST", "BG_FIX_ALWAYS_EXISTS", "OPTIONS_TAKEN_BY_PRESS", "SHADE_SPACE", "SHADE_CHROMA_CUT_TO_SRGB", "HUE_DRIFT_MAX_DEG", "HUE_CHECKED_MIN_CHROMA_X1000", "SRGB_MIX_DRIFT_DEG", "NEAREST_BY", "PANEL_ONE_REASON_AT_A_TIME", "PRICE_BEFORE_PRESS", "SELLER_SEES_PRICE", "OLD_PLAN_REEL", "ROUTE_STORY", "ROUTE_OLD_PLAN_REEL", "REEL_TOOL_IN_CLIENT_BRIEF", "REEL_TOOL_IN_QUEEN_BLOCK", "REEL_TOOL_IN_PLAN_HINT", "REEL_TOOL_IN_PLAN_READ", "PLAN_ITEM_IS_TOPIC", "REELS_STAY_STORY_AFTER_GIFTS", "START_PARAM", "PAGE_ROUTE", "SELLER_SCRIPT_ACCEPTED", "DELIVER_DM", "DELIVER_NONE", "SENT_WITHOUT_PRESS", "CLIENT_PRESS_SENDS_TO_GROUP", "GROUP_MUST_BE_READ_BY_CRM", "PRESSABLE_CARDS_PER_PERSON", "CARD_DISPLACES_UNANSWERED", "CARD_TURN_PREFIX", "CARD_TEXT_MAX", "CAPTION_MAX", "CALLBACK_BYTES_MAX", "WAITING_CARD_WINDOW_HOURS", "DM_SEND_RECORDED_AS_GIFT", "AUTOPILOT_SENDS_CARD", "SERVICE_RENDER_FEED_PUBLIC", "LIVE_RUN_STATUS", "VOICE_LEG_STATUS", "CAP_LEG_STATUS", "STILL_IDENTITY_FIRST", "STILL_FACE_CHECKED", "STILL_FACE_REDRAWS", "FACE_UNKNOWN_KEEPS", "FACE_KEEP", "FACE_REDRAW", "FACE_STOP", "LINE_MAX_MS", "LINE_MEASURED_BEFORE_LIPSYNC", "STORY_DEFAULT_MAX_SEC", "DELIVER_VIA_HOME_BOT", "HOUSE_DELIVERY_BOT", "HOUSE_SKIPS_ELEVENLABS", "OPEN_ON_SOURCE", "OPEN_SCENE", "FIRST_LINE_HOOK", "STUDIO_SHOTS", "SHOT_WIDE", "SHOT_MEDIUM", "SHOT_CLOSE", "SHOT_MEDIUM_PERMILLE", "SHOT_CLOSE_PERMILLE", "FACE_X_PERMILLE", "WRITER_WRITES_SETTINGS", "WRITER_SETTING_DROPPED", "TEMPLATE_ARG", "LANGUAGE_ARG", "TEMPLATE_HOOK_STUDIO", "TEMPLATES_FROM_SERVER", "TEMPLATE_LINES_EDITABLE", "TEMPLATE_SCENES", "TEMPLATE_BUTTON", "TEMPLATE_CALL_EN", "TEMPLATE_LINE_EN_1", "TEMPLATE_LINE_EN_2", "TEMPLATE_LINE_EN_3", "TEMPLATE_LINE_EN_4", "LANG_RU", "LANG_EN", "LANGUAGES", "LINE_MAX_CHARS", "CAPTIONS_ON", "CAPTIONS_PER_SCENE", "CAPTION_TEXT_FROM_LINE", "CAPTIONS_MISSING_KEEPS_REEL", "CAPTION_COLOR", "CAPTION_MAX_WORDS", "CAPTION_TOP_PERCENT", "CTA_CARD_LIKE_WIDGET", "CTA_PULSE_MS", "FACE_Y_PERMILLE", "FACE_IN_SHOT_PERMILLE", "SHOT_WIDTH", "SHOT_HEIGHT", "HOUSE_BRAND", "HOUSE_PRODUCT", "HOUSE_MARKS", "HOUSE_CALL_ON_CLIENT_REEL", "HOUSE_BUTTON_ON_CLIENT_REEL", "HOUSE_WORD_REPLACED_SAID", "CALL_FROM_SELLER", "CALL_FROM_TEMPLATE", "CALL_FROM_PROFILE", "CALL_FROM_STORY", "CALL_FROM_APPROVED", "CALL_FROM_DEFAULT", "FIELD_FROM_TEMPLATE", "TEMPLATE_LEAD_EN_4", "LAST_LINE_LEAD_AND_CALL", "LAST_LINE_CALL", "LAST_LINE_LEAD", "SPEAKS_LEAD", "SPEAKS_CALLER", "SPEAKS_REFUSED", "CLIENT_TURN_SPEAKS_CLIENT", "HOUSE_LINE_ON_CLIENT_REEL", "CLIENT_VERSION_NAMES_HOUSE", "CLIENT_LIST_HOUSE_FREE", "LINE_FROM_TEMPLATE", "LINE_FROM_EDIT", "LINE_FROM_PERSON", "LINE_KEPT", "LINE_CLIENT_VERSION", "LINE_REFUSED", "REFUSED_BEFORE_SPEND", "NAMING_THE_BOT_LENDS", "OWN_WORDS_REACH", "OWN_SAID_ADDRESS_EN", "OWN_LINE_ADDRESS_EN", "OWN_SAID_QUOTE_EN", "OWN_LINE_QUOTE_EN", "Job"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

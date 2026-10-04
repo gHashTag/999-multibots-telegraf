@@ -59,6 +59,12 @@ import {
   type StoryScene,
 } from './story-reel-tool'
 import { leadVoiceOf } from './lead-voice'
+import {
+  cardForReel,
+  houseLineRefused,
+  ownCallOf,
+  reelCall,
+} from './story-reel-templates'
 import { TOKEN_PRICES } from './billing-shared'
 import {
   defaultGroupCaption,
@@ -224,10 +230,16 @@ export async function storySettingsOf(
     hasVoice: Boolean(voice),
     style: String(s.style ?? '').trim() || STORY_DEFAULT_STYLE,
     // approved_cta is {text, button} in a client package, a string by hand.
-    cta:
-      [s.cta, profile?.approved_cta?.text, profile?.approved_cta]
-        .find(v => typeof v === 'string' && v.trim())
-        ?.trim() || STORY_DEFAULT_CTA,
+    // Her own call (spec v22, profile_call_from): one that names the house
+    // is not hers on a client's reel.
+    cta: ownCallOf(
+      s.cta,
+      typeof profile?.approved_cta === 'string'
+        ? profile.approved_cta
+        : profile?.approved_cta?.text,
+      owner === id,
+      STORY_DEFAULT_CTA
+    ),
     // The spec's pause_of: the same clamp the template renders with.
     pauseSec: pauseOf(s.pause_sec),
     payer: s.payer === 'owner' ? 'owner' : 'client',
@@ -650,6 +662,11 @@ export async function startStory(
     /** Where the finished reel is offered with one press (a group chat id). */
     deliverTo?: string | null
     caption?: string
+    /**
+     * What the person typed THIS turn (ToolContext.ownerSaid, set only by
+     * code): on a client's reel the one way a line may name the house.
+     */
+    personSaid?: string
   }
 ): Promise<{
   started: boolean
@@ -691,6 +708,10 @@ export async function startStory(
   // A script brought by the seller is checked here, before anything is spent.
   const given = who.scenes === undefined ? null : scenesOf(who.scenes)
   if (typeof given === 'string') return { started: false, why: given }
+  // No line of a client's reel names the house unless the person typed it
+  // this turn (spec v22, line_way) -- refused here, before any spend.
+  const houseLine = houseLineRefused(given, lead === s.owner, who.personSaid)
+  if (houseLine) return { started: false, why: houseLine }
   const count = given ? given.length : sceneCountOf(who.sceneCount)
   /*
    * HER VISUAL AT THE END, FROM THE SELLER (spec v7). A colour that is not
@@ -698,9 +719,13 @@ export async function startStory(
    * on its background is refused -- both before anything is spent. Her
    * profile's own palette is never refused here: she keeps the reel she had.
    */
-  const badColour = byClient ? '' : endCardProblem(who.endCard)
+  // The seller pressing his OWN reel in his CRM is still the seller, though
+  // he is its lead too (spec v22): his card -- the template's house button
+  // included -- is kept, as on any reel he presses.
+  const sellerPress = !byClient || String(who.seller ?? '').trim() === lead
+  const badColour = sellerPress ? endCardProblem(who.endCard) : ''
   if (badColour) return { started: false, why: badColour }
-  const sellerCard = byClient ? null : endCardOf(who.endCard)
+  const sellerCard = sellerPress ? endCardOf(who.endCard) : null
   const unreadable = endCardUnreadable(
     mergeEndCard(sellerCard, s.keptCard, s.endCard)
   )
@@ -884,6 +909,11 @@ async function runHeld(
       .catch(() => '')
     const story = parseStory(text, sceneCountOf(job.scene_count))
     if (!story) return fail('не вышло написать сцены')
+    // The writer's lines are written, never the person's (spec v22,
+    // line_way): one naming the house on a client's reel fails the job here,
+    // before the payer is named and before any still is drawn.
+    const houseLine = houseLineRefused(story.scenes, lead === seller)
+    if (houseLine) return fail(houseLine)
     scenes = story.scenes
     topic ||= story.title || 'история про моё дело'
     await pool.query(
@@ -985,12 +1015,15 @@ async function runHeld(
     if (why) return fail(why)
   }
   // The seller's palette kept in the job, over the one kept for her, over
-  // her profile's (spec v7, v10).
+  // her profile's (spec v7, v10). On a client's reel no button names the
+  // house, and the call is the seller's word for her or her own (spec v22).
+  const ownReel = lead === seller
   const endCard = mergeEndCard(
-    endCardOf(parse(job.end_card)),
-    s.keptCard,
-    s.endCard
+    cardForReel(endCardOf(parse(job.end_card)), ownReel),
+    cardForReel(s.keptCard, ownReel),
+    cardForReel(s.endCard, ownReel)
   )
+  const cta = reelCall({ given: job.cta, ownReel, ownCall: s.cta }).call
   const call = (stills: unknown[], clips: unknown[]) =>
     deps
       .story(
@@ -1000,7 +1033,7 @@ async function runHeld(
           // The seller's own look and call, when the job carries them.
           style: String(job.style ?? '').trim() || s.style,
           ...(mode === SPEC.VOICE_CLONE ? { for_lead: lead } : {}),
-          cta: String(job.cta ?? '').trim() || s.cta,
+          cta,
           pause_sec: s.pauseSec,
           ...(endCard ? { end_card: endCard } : {}),
           stills,
