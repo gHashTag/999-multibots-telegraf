@@ -18,7 +18,11 @@
  *      nobody is shown is the state this whole change is about.
  */
 import { describe, it, expect } from 'vitest'
-import { makeClientFaceTool, NOT_YOUR_CALL } from './client-face-tool'
+import {
+  makeClientFaceTool,
+  NAME_THE_LEAD,
+  NOT_YOUR_CALL,
+} from './client-face-tool'
 import {
   TOOLS_BY_NAME,
   DIRECT_CALL_ONLY,
@@ -102,6 +106,32 @@ describe('the agent can look at a face', () => {
     const r: any = await tool().handler({}, ctxFor())
     expect(r.url).toBe('https://ours/owner.jpg')
     expect(r.whose).toBe('900000001')
+  })
+
+  it("a seller's sweep naming nobody never gets the seller's own face", async () => {
+    // In a sweep ctx.telegramId is the SELLER; "nobody named = yourself"
+    // handed the agent his avatar for a lead's picture (audit 04.10).
+    let opened = false
+    const t = tool({
+      ownAvatar: async () => {
+        opened = true
+        return 'https://ours/owner.jpg'
+      },
+    })
+    const r: any = await t.handler({}, ctxFor({ sellerSweep: true }))
+    expect(r.has).toBe(false)
+    expect(r.url).toBeUndefined()
+    expect(r.why).toBe(NAME_THE_LEAD)
+    expect(opened).toBe(false)
+  })
+
+  it('a sweep that names its lead still gets that lead', async () => {
+    const r: any = await tool().handler(
+      { lead_id: '900000077' },
+      ctxFor({ sellerSweep: true })
+    )
+    expect(r.url).toBe('https://ours/lead.jpg')
+    expect(r.whose).toBe('900000077')
   })
 
   it('THE POINT: the model is offered it, on a 16k provider too', () => {
