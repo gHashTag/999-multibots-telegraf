@@ -6,6 +6,8 @@
 //       tool reel_analyze: a reference reel in, this spec's shape out), src/agent/split-reel-tool.ts
 //       (the tool split_reel: whose reel it is, its voice and its call), src/agent/tools.ts
 //       audio_generate and src/agent/voice-clone-speak.ts (the owner's voice, his reels only).
+//       src/compositions/SplitTalkingHead.tsx draws the call with StoryReel.tsx CallToAction,
+//       in the colour this spec decides (v10).
 // Generated: `t27c gen-ts` of this file is vendored as
 //       apps/vibee-editor/render/src/spec/split-reel.gen.ts; the host imports the numbers.
 // Measured on a reference reel 2026-10-02 (720x1280, 30 fps, 14.97 s): cuts at 1.9, 5.9, 7.4,
@@ -47,6 +49,17 @@
 //       A measurement lands on the measured voice's own row and nowhere else: another
 //       voice -- another client's, another seller's, one never measured -- keeps what it
 //       had (PACE_ON_OTHER_VOICES). A rule, not a measurement: no voice measured under it yet.
+// v10 (2026-10-04): a reel that is not the house's own is no longer called in the house's
+//       gold. Until v10 the composition drew every call in HOUSE_CALL_COLOR, whoever the
+//       reel was for, and no road passed it another colour: v7 took the house's words off
+//       a client's call and left its look on. The call's colour now comes from the same
+//       places as its words, by the same rule (cta_for): the colour the order gave, unless
+//       it is the house's gold on a reel that is not the house's; on the house's own reel
+//       the house's gold; else her own -- the palette the seller keeps for her, else her
+//       profile's; else NEUTRAL_CALL_COLOR. A colour the order gave that does not read on
+//       the scrim under the call is refused before the charge, with the shade of it that
+//       reads; hers is drawn in that shade. A rule, not a measurement: no reel rendered
+//       under it yet.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::split_reel {
@@ -54,7 +67,7 @@ module automation::split_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "split-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 9;
+    pub const VERSION : u8 = 10;
 
     // ---- Where it is drawn --------------------------------------------------------------
     pub const COMPOSITION : str = "SplitTalkingHead";
@@ -235,6 +248,39 @@ module automation::split_reel {
     // not paid again here, so it is not given back again; a voice that fits is used, not
     // refused; the house paid nothing and is given nothing.
     pub const REFUND_TOO_LONG_VOICE : bool = true;
+
+    // ---- The colour of the call (v10) -------------------------------------------------------
+    // The owner's words above were about the colour too: v7 took the house's bot off a
+    // client's call, and the call was still drawn in the house's gold -- the composition
+    // held one colour for every reel, and no road passed it another. The colour comes from
+    // the same four places as the words, by the same rule (cta_for, so the two cannot part):
+    //   CTA_GIVEN    -- the colour the order gave for this reel; on a reel that is not the
+    //                   house's own, not the house's gold (an agent copies that gold from the
+    //                   house's own reels as it copied the bot; gold kept in HER palette is
+    //                   hers, and stands);
+    //   CTA_OWNER    -- HOUSE_CALL_COLOR, the house's own reel's and nobody else's;
+    //   CTA_CLIENT   -- hers: the call colour of the palette the seller keeps for her, else of
+    //                   her profile (crm-story-reel.t27 v10, the title of her end card);
+    //   CTA_NEUTRAL  -- NEUTRAL_CALL_COLOR, nobody's.
+    // The house's gold. crm-story-reel.t27 END_CARD_DEFAULT_TITLE is the same colour: a host
+    // test holds the two together.
+    pub const HOUSE_CALL_COLOR : str = "#FFD700";
+    // The composition's own white: the line under the call is drawn in it already.
+    pub const NEUTRAL_CALL_COLOR : str = "#FFFFFF";
+    // What the call is read against: the scrim under it, black where it is darkest. The held
+    // frame shows through the scrim, so this is the best case, and the text's black shadow
+    // carries a bright frame. The check is crm-story-reel.t27's own (END_CARD_CONTRAST_MIN_X10,
+    // WCAG): the host imports it, it does not keep a second one.
+    pub const CALL_GROUND : str = "#000000";
+    // How the chosen colour is drawn.
+    pub const CALL_AS_IS : u8 = 1;
+    pub const CALL_SHADE : u8 = 2;  // its least shade that reads on CALL_GROUND
+    pub const CALL_REFUSED : u8 = 3;  // the reel is refused, before the charge
+    // A colour that does not read stops the reel only when the order gave it: the seller is
+    // there to fix it, and the refusal names the shade that reads. Hers stops nothing -- she
+    // is not there to fix it -- and is drawn in that shade, as crm-story-reel.t27 refuses the
+    // seller's unreadable palette and not her profile's.
+    pub const GIVEN_CALL_COLOR_UNREADABLE_REFUSED : bool = true;
 
     // A reel is checked before anyone is given it (tri reel-check, in the render as
     // well): no head cut, no face off its window's centre, no caption on silence. A
@@ -534,6 +580,27 @@ module automation::split_reel {
         return charged_now;
     }
 
+    // Where the call's colour comes from (v10): the rule its words come from, with the
+    // order's colour for the order's call, the house's gold for the house's bot, and her
+    // palette for her profile's call.
+    fn call_colour_from(house_own : bool, given : bool, given_is_house : bool, hers : bool) -> u8 {
+        return cta_for(house_own, given, given_is_house, hers);
+    }
+
+    // How the chosen colour is drawn (v10): as it is when it reads on CALL_GROUND; else the
+    // order's colour is refused, before the charge, and any other is drawn in its shade.
+    fn call_drawn(from : u8, readable : bool) -> u8 {
+        if readable {
+            return CALL_AS_IS;
+        }
+        if from == CTA_GIVEN {
+            if GIVEN_CALL_COLOR_UNREADABLE_REFUSED {
+                return CALL_REFUSED;
+            }
+        }
+        return CALL_SHADE;
+    }
+
     test "the reel opens on the face, then split 120 and full 45 by turns" {
         assert(segment_count(450) == 6);
         assert(last_frames(450) == 60);
@@ -816,8 +883,60 @@ module automation::split_reel {
         assert(WIDE_CHAR_WEIGHT > PLAIN_CHAR_WEIGHT);
     }
 
+    test "a client with no palette gets the neutral call colour, not the house gold" {
+        // Nothing given, nothing of hers: neutral -- not the house's gold.
+        assert(call_colour_from(false, false, false, false) == CTA_NEUTRAL);
+        assert(call_colour_from(false, false, false, false) != CTA_OWNER);
+        assert(NEUTRAL_CALL_COLOR == "#FFFFFF");
+        assert(HOUSE_CALL_COLOR == "#FFD700");
+        // An ordinary seller's own reel is not the house's either.
+        assert(call_colour_from(house_own(false, false, false, false), false, false, false) == CTA_NEUTRAL);
+        // A client named on the house's turn: hers, else neutral -- never the gold.
+        assert(call_colour_from(house_own(true, false, true, false), false, false, false) == CTA_NEUTRAL);
+        assert(call_colour_from(house_own(true, false, true, false), false, false, true) == CTA_CLIENT);
+    }
+
+    test "a client reel's call is drawn in the order's colour, else hers" {
+        // Her palette: hers.
+        assert(call_colour_from(false, false, false, true) == CTA_CLIENT);
+        // The order gave one: it stands, over hers.
+        assert(call_colour_from(false, true, false, true) == CTA_GIVEN);
+        assert(call_colour_from(false, true, false, false) == CTA_GIVEN);
+        // The order gave the house's gold on her reel: hers stands instead, else neutral.
+        assert(call_colour_from(false, true, true, true) == CTA_CLIENT);
+        assert(call_colour_from(false, true, true, false) == CTA_NEUTRAL);
+        // The colour and the words come from the same place.
+        assert(call_colour_from(false, true, true, true) == cta_for(false, true, true, true));
+        assert(call_colour_from(false, false, false, false) == cta_for(false, false, false, false));
+    }
+
+    test "the house own reel keeps its gold" {
+        assert(call_colour_from(true, false, false, false) == CTA_OWNER);
+        assert(call_colour_from(true, false, false, true) == CTA_OWNER);
+        // The house may give its own colour, its gold included.
+        assert(call_colour_from(true, true, false, false) == CTA_GIVEN);
+        assert(call_colour_from(true, true, true, false) == CTA_GIVEN);
+        assert(call_colour_from(house_own(true, false, false, false), false, false, false) == CTA_OWNER);
+    }
+
+    test "a call colour that does not read: the order's is refused before the charge, hers is shaded" {
+        // A colour that reads is drawn as it is, whoever's it is.
+        assert(call_drawn(CTA_GIVEN, true) == CALL_AS_IS);
+        assert(call_drawn(CTA_CLIENT, true) == CALL_AS_IS);
+        assert(call_drawn(CTA_OWNER, true) == CALL_AS_IS);
+        assert(call_drawn(CTA_NEUTRAL, true) == CALL_AS_IS);
+        // The order's colour that does not read: refused, and nothing taken.
+        assert(call_drawn(CTA_GIVEN, false) == CALL_REFUSED);
+        assert(!charged(call_drawn(CTA_GIVEN, false) == CALL_REFUSED));
+        // Hers that does not read: drawn in its shade that reads, and the reel goes ahead.
+        assert(call_drawn(CTA_CLIENT, false) == CALL_SHADE);
+        assert(charged(call_drawn(CTA_CLIENT, false) == CALL_REFUSED));
+        assert(GIVEN_CALL_COLOR_UNREADABLE_REFUSED);
+        assert(REFUSED_BEFORE_SPEND);
+    }
+
     test "the version is the last dated note" {
-        assert(VERSION == 9);
+        assert(VERSION == 10);
     }
 }
 

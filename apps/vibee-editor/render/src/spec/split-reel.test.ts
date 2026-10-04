@@ -2,11 +2,16 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import * as SPEC from './split-reel.gen'
-import { PAUSE_SEC as STORY_PAUSE_SEC } from './crm-story-reel.gen'
+import {
+  END_CARD_DEFAULT_TITLE as STORY_DEFAULT_TITLE,
+  PAUSE_SEC as STORY_PAUSE_SEC,
+} from './crm-story-reel.gen'
 import { SplitTalkingHeadSchema } from '../compositions/SplitTalkingHead'
 import {
   agentSuppliedHouseName,
   backstopRefund,
+  callColourFrom,
+  callDrawn,
   captionStartMs,
   captionsFromWords,
   ctaFor,
@@ -25,6 +30,7 @@ import {
   paceFor,
   paceToKeep,
   ownerVoiceAllowed,
+  reelCallColour,
   reelCta,
   reelFrames,
   splitReelProps,
@@ -49,7 +55,8 @@ import {
   rhythmAgainstSpec,
   shotsFromCuts,
 } from '../agent/reel-analyze'
-import { makeSplitReelTool } from '../agent/split-reel-tool'
+import { callReads, makeSplitReelTool } from '../agent/split-reel-tool'
+import { readableShade } from '../agent/story-reel-tool'
 import { keepVoicePace, saveLeadVoice, voicePaceOf } from '../agent/lead-voice'
 
 /*
@@ -211,6 +218,75 @@ function heldReel(voice: { url: string; seconds: number; spent: number }) {
   return { paid, reel: makeSplitReelTool(lookup as never, senses as never) }
 }
 const REEL_ARGS = { image_url: 'https://ours/face.png', brolls: ['a garden'] }
+
+/**
+ * split_reel to the end over fake tools that all succeed (v10): what it hands
+ * reel_render is what the composition draws. The pool answers her profile and
+ * the end card her seller keeps for her, as story-template.ts reads them, and
+ * nothing else.
+ */
+async function drawnCall(
+  args: Record<string, unknown>,
+  turn: { telegramId: string; faceOf?: string },
+  her: { profile?: unknown; kept?: unknown } = {}
+) {
+  const paid: string[] = []
+  let props: any = null
+  const answer: Record<string, (a: any) => unknown> = {
+    audio_generate: () => ({
+      сделано: true, // cyrillic-ok: audio_generate's own answer key
+      url: 'https://ours/voice.mp3',
+      seconds: 9,
+    }),
+    image_edit: () => ({ done: true, url: 'https://ours/broll.png' }),
+    lipsync_generate: () => ({
+      done: true,
+      url: 'https://ours/clip.mp4',
+      seconds: 9,
+    }),
+    reel_render: a => {
+      props = a.props
+      return { готово: true, url: 'https://ours/reel.mp4' } // cyrillic-ok: reel_render's own answer key
+    },
+  }
+  const lookup = (name: string) => ({
+    name,
+    description: '',
+    parameters: {},
+    handler: async (a: any) => {
+      paid.push(name)
+      return answer[name](a)
+    },
+  })
+  const senses = {
+    length: async () => 9,
+    hear: async () => ({
+      words: [
+        { word: 'Hello', start: 0.4, end: 0.8 },
+        { word: 'now', start: 8.5, end: 8.9 },
+      ],
+    }),
+  }
+  const pool = {
+    query: async (sql: string) => {
+      if (/FROM crm_client_profiles/.test(sql) && her.profile)
+        return { rows: [{ profile: her.profile }] }
+      if (/FROM story_end_cards/.test(sql) && her.kept)
+        return { rows: [{ end_card: her.kept }] }
+      return { rows: [] }
+    },
+  }
+  const out: any = await makeSplitReelTool(
+    lookup as never,
+    senses as never
+  ).handler(
+    { ...REEL_ARGS, text: 'Hello, this is Anna ... write now', ...args },
+    { ...turn, pool } as never
+  )
+  return { out, paid, colour: props?.ctaColor as string | undefined }
+}
+/** A client's turn on her seller's wallet. */
+const HER_TURN = { telegramId: SELLER_ID, faceOf: CLIENT_ID }
 
 /**
  * gHashTag/t27 specs/automation/split-reel.t27, vendored beside its
@@ -1251,10 +1327,171 @@ describe('split-reel.t27 against the host', () => {
     expect(await goes('α'.repeat(54))).toBe(true)
   }, 60_000)
 
+  it('a client with no palette gets the neutral call colour, not the house gold', async () => {
+    expect(callColourFrom(false, false, false, false)).toBe(SPEC.CTA_NEUTRAL)
+    expect(callColourFrom(false, false, false, false)).not.toBe(SPEC.CTA_OWNER)
+    expect(SPEC.NEUTRAL_CALL_COLOR).toBe('#FFFFFF')
+    expect(SPEC.HOUSE_CALL_COLOR).toBe('#FFD700')
+    // One gold: the house's call colour is the story reel's default call.
+    expect(SPEC.HOUSE_CALL_COLOR).toBe(STORY_DEFAULT_TITLE)
+    expect(
+      callColourFrom(houseOwn(false, false, false, false), false, false, false)
+    ).toBe(SPEC.CTA_NEUTRAL)
+    expect(
+      callColourFrom(houseOwn(true, false, true, false), false, false, false)
+    ).toBe(SPEC.CTA_NEUTRAL)
+    expect(
+      callColourFrom(houseOwn(true, false, true, false), false, false, true)
+    ).toBe(SPEC.CTA_CLIENT)
+    // In colours, and as the planner hands them to the composition.
+    expect(reelCallColour({ house: false })).toEqual({
+      colour: SPEC.NEUTRAL_CALL_COLOR,
+      from: SPEC.CTA_NEUTRAL,
+    })
+    const props = splitReelProps({
+      lipSyncVideo: 'x',
+      seconds: 5,
+      call: { house: false, neutral: NEUTRAL },
+    })
+    expect(props.ctaColor).toBe(SPEC.NEUTRAL_CALL_COLOR)
+    expect(SplitTalkingHeadSchema.safeParse(props).success).toBe(true)
+    // Through split_reel: her turn, her seller's own reel, a client named on
+    // the house's turn, the house's turn with a client -- none is the gold.
+    for (const [args, turn] of [
+      [{}, HER_TURN],
+      [{}, { telegramId: SELLER_ID }],
+      [{ for_lead: CLIENT_ID }, { telegramId: HOUSE_ID }],
+      [{}, { telegramId: HOUSE_ID, faceOf: CLIENT_ID }],
+    ] as const) {
+      const { out, colour } = await drawnCall(args, turn)
+      expect(out.done).toBe(true)
+      expect(colour).toBe(SPEC.NEUTRAL_CALL_COLOR)
+    }
+  }, 60_000)
+
+  it("a client reel's call is drawn in the order's colour, else hers", async () => {
+    expect(callColourFrom(false, false, false, true)).toBe(SPEC.CTA_CLIENT)
+    expect(callColourFrom(false, true, false, true)).toBe(SPEC.CTA_GIVEN)
+    expect(callColourFrom(false, true, false, false)).toBe(SPEC.CTA_GIVEN)
+    expect(callColourFrom(false, true, true, true)).toBe(SPEC.CTA_CLIENT)
+    expect(callColourFrom(false, true, true, false)).toBe(SPEC.CTA_NEUTRAL)
+    expect(callColourFrom(false, true, true, true)).toBe(
+      ctaFor(false, true, true, true)
+    )
+    expect(callColourFrom(false, false, false, false)).toBe(
+      ctaFor(false, false, false, false)
+    )
+    // In colours.
+    const hers = { house: false, hers: '#e8a0bf' }
+    expect(reelCallColour(hers).colour).toBe('#e8a0bf')
+    expect(reelCallColour({ ...hers, given: '#7fd1ae' }).colour).toBe('#7fd1ae')
+    expect(
+      reelCallColour({ ...hers, given: '#ffd700', givenIsHouse: true }).colour
+    ).toBe('#e8a0bf')
+    expect(
+      reelCallColour({ house: false, given: '#ffd700', givenIsHouse: true })
+        .colour
+    ).toBe(SPEC.NEUTRAL_CALL_COLOR)
+    // Through split_reel: her profile's colour; the card her seller keeps for
+    // her over it; the order's over both. One spelling: #rrggbb, lower case.
+    const profile = { visual: { gold_title: '#E8A0BF' } }
+    const kept = { title: '#a0d8ef' }
+    expect((await drawnCall({}, HER_TURN, { profile })).colour).toBe('#e8a0bf')
+    expect((await drawnCall({}, HER_TURN, { profile, kept })).colour).toBe(
+      '#a0d8ef'
+    )
+    expect(
+      (await drawnCall({ cta_color: '#7FD1AE' }, HER_TURN, { profile, kept }))
+        .colour
+    ).toBe('#7fd1ae')
+    // The house's gold handed in for her reel: hers stands, else neutral.
+    expect(
+      (await drawnCall({ cta_color: '#FFD700' }, HER_TURN, { profile })).colour
+    ).toBe('#e8a0bf')
+    expect((await drawnCall({ cta_color: '#ffd700' }, HER_TURN)).colour).toBe(
+      SPEC.NEUTRAL_CALL_COLOR
+    )
+    // Gold in HER own palette is hers, and stands.
+    expect(
+      (
+        await drawnCall({}, HER_TURN, {
+          profile: { visual: { gold_title: '#FFD700' } },
+        })
+      ).colour
+    ).toBe('#ffd700')
+  }, 60_000)
+
+  it('the house own reel keeps its gold', async () => {
+    expect(callColourFrom(true, false, false, false)).toBe(SPEC.CTA_OWNER)
+    expect(callColourFrom(true, false, false, true)).toBe(SPEC.CTA_OWNER)
+    expect(callColourFrom(true, true, false, false)).toBe(SPEC.CTA_GIVEN)
+    expect(callColourFrom(true, true, true, false)).toBe(SPEC.CTA_GIVEN)
+    expect(
+      callColourFrom(houseOwn(true, false, false, false), false, false, false)
+    ).toBe(SPEC.CTA_OWNER)
+    expect(reelCallColour({ house: true }).colour).toBe(SPEC.HOUSE_CALL_COLOR)
+    expect(
+      splitReelProps({ lipSyncVideo: 'x', seconds: 5, call: HOUSE_CALL })
+        .ctaColor
+    ).toBe(SPEC.HOUSE_CALL_COLOR)
+    const own = await drawnCall({}, { telegramId: HOUSE_ID })
+    expect(own.out.done).toBe(true)
+    expect(own.colour).toBe(SPEC.HOUSE_CALL_COLOR)
+    // The house may give its own colour, its gold included.
+    expect(
+      (await drawnCall({ cta_color: '#a0d8ef' }, { telegramId: HOUSE_ID }))
+        .colour
+    ).toBe('#a0d8ef')
+    expect(
+      (await drawnCall({ cta_color: '#FFD700' }, { telegramId: HOUSE_ID }))
+        .colour
+    ).toBe('#ffd700')
+  }, 60_000)
+
+  it("a call colour that does not read: the order's is refused before the charge, hers is shaded", async () => {
+    for (const from of [
+      SPEC.CTA_GIVEN,
+      SPEC.CTA_CLIENT,
+      SPEC.CTA_OWNER,
+      SPEC.CTA_NEUTRAL,
+    ])
+      expect(callDrawn(from, true)).toBe(SPEC.CALL_AS_IS)
+    expect(callDrawn(SPEC.CTA_GIVEN, false)).toBe(SPEC.CALL_REFUSED)
+    expect(callDrawn(SPEC.CTA_CLIENT, false)).toBe(SPEC.CALL_SHADE)
+    expect(SPEC.GIVEN_CALL_COLOR_UNREADABLE_REFUSED).toBe(true)
+    expect(SPEC.REFUSED_BEFORE_SPEND).toBe(true)
+    // Read by the story reel's own check, on the ground under the call.
+    expect(SPEC.CALL_GROUND).toBe('#000000')
+    expect(callReads(SPEC.NEUTRAL_CALL_COLOR)).toBe(true)
+    expect(callReads(SPEC.HOUSE_CALL_COLOR)).toBe(true)
+    expect(callReads('#10182a')).toBe(false)
+    const shade = readableShade('#10182a', SPEC.CALL_GROUND)
+    expect(callReads(shade)).toBe(true)
+    // The order's colour that does not read: refused, nothing paid, and the
+    // refusal names the shade that reads.
+    const refused = await drawnCall({ cta_color: '#10182a' }, HER_TURN)
+    expect(refused.out.done).toBe(false)
+    expect(refused.out.reason).toMatch(/^cta_color: /)
+    expect(refused.out.reason).toContain(shade)
+    expect(refused.paid).toEqual([])
+    // A colour that is no #hex at all: refused the same way, for free.
+    const bad = await drawnCall({ cta_color: 'gold' }, HER_TURN)
+    expect(bad.out.done).toBe(false)
+    expect(bad.out.reason).toMatch(/^cta_color: /)
+    expect(bad.paid).toEqual([])
+    // Hers, as dark: drawn in its shade that reads, and the reel goes ahead.
+    const shaded = await drawnCall({}, HER_TURN, {
+      profile: { visual: { gold_title: '#10182a' } },
+    })
+    expect(shaded.out.done).toBe(true)
+    expect(shaded.colour).toBe(shade)
+    expect(shaded.paid).toContain('reel_render')
+  }, 60_000)
+
   it('the version is the last dated note', () => {
     const spec = readFileSync(join(__dirname, 'split-reel.t27'), 'utf8')
     const notes = [...spec.matchAll(/^\/\/ v(\d+) \(/gm)].map(m => Number(m[1]))
-    expect(SPEC.VERSION).toBe(9)
+    expect(SPEC.VERSION).toBe(10)
     expect(Math.max(...notes)).toBe(SPEC.VERSION)
   })
 
