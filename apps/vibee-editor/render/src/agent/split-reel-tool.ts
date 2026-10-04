@@ -40,6 +40,7 @@ import type { AgentTool } from './tools'
 import * as SPEC from '../spec/split-reel.gen'
 import {
   agentSuppliedHouseName,
+  callDrawn,
   captionsFromWords,
   framesForSeconds,
   houseNameAllowed,
@@ -48,6 +49,7 @@ import {
   backstopRefund,
   msOfSeconds,
   paceToKeep,
+  reelCallColour,
   speechFrames,
   speechMsEstimate,
   speechUnits,
@@ -55,10 +57,26 @@ import {
   splitSegments,
   textFits,
   voiceTooLong,
+  type ReelCallColour,
   type SpeechFrames,
   type SpokenWord,
 } from '../split-reel-plan'
-import { clientCtaOf, STORY_DEFAULT_CTA } from './story-template'
+import {
+  clientCallColourOf,
+  clientCtaOf,
+  STORY_DEFAULT_CTA,
+} from './story-template'
+// The call's colour is read as the story reel reads its end card: the same
+// #hex check, the same contrast, the same shade (crm-story-reel.t27).
+import {
+  contrastX10,
+  endCardOf,
+  endCardProblem,
+  endCardReadable,
+  endCardUnreadable,
+  readableShade,
+  spelled,
+} from './story-reel-tool'
 import { cloneFor, keepVoicePace, voicePaceOf } from './lead-voice'
 import { isHouse } from '../house-ids'
 import { whisperConfig, whisperWords } from './media-library'
@@ -229,6 +247,69 @@ function outcome(v: any): {
 const isUrl = (v: unknown): v is string =>
   typeof v === 'string' && /^https?:\/\//.test(v.trim())
 
+/* ── the colour of the call (split-reel v10) ───────────────────────────── */
+
+/** Whether a colour reads on the scrim under the call: the end card's check. */
+export function callReads(colour: string): boolean {
+  return endCardReadable(contrastX10(colour, SPEC.CALL_GROUND))
+}
+
+/**
+ * The colour the order gave for the call, checked as an end card's colour:
+ * `colour` in one spelling (#rrggbb, so what is drawn is what was measured),
+ * '' when none was given, `problem` in words when it is not a #hex.
+ */
+export function givenCallColour(raw: unknown): {
+  colour: string
+  isHouse: boolean
+  problem: string
+} {
+  const text = String(raw ?? '').trim()
+  if (!text) return { colour: '', isHouse: false, problem: '' }
+  const problem = endCardProblem({ title: text })
+  const title = endCardOf({ title: text })?.title
+  if (problem || !title)
+    return {
+      colour: '',
+      isHouse: false,
+      problem: (problem || 'нужен цвет #hex').replace(
+        'end_card.title',
+        'cta_color'
+      ),
+    }
+  const colour = spelled(title)
+  return { colour, isHouse: colour === spelled(SPEC.HOUSE_CALL_COLOR), problem }
+}
+
+/**
+ * The call's colour as the composition draws it (spec v10): call_colour_from
+ * in colours, then call_drawn against the scrim -- as it is when it reads,
+ * else the order's colour is refused (`refused` says why, with the shade
+ * that reads) and any other is drawn in its least shade that reads.
+ */
+export function callColourOf(c: ReelCallColour): {
+  colour: string
+  refused: string
+} {
+  const { colour, from } = reelCallColour({
+    ...c,
+    hers: c.hers ? spelled(c.hers) : '',
+  })
+  const way = callDrawn(from, callReads(colour))
+  if (way === SPEC.CALL_REFUSED)
+    return {
+      colour: '',
+      refused: `cta_color: ${endCardUnreadable({ title: colour, bg: SPEC.CALL_GROUND })}`,
+    }
+  return {
+    colour:
+      way === SPEC.CALL_AS_IS
+        ? colour
+        : readableShade(colour, SPEC.CALL_GROUND),
+    refused: '',
+  }
+}
+
 export function makeSplitReelTool(
   lookup: (name: string) => Tool,
   senses: SplitReelSenses = SERVER_SENSES
@@ -267,6 +348,11 @@ export function makeSplitReelTool(
           type: 'string',
           description:
             'надпись в паузе в конце; по умолчанию — призыв клиента из его профиля, бот владельца только в рилсе владельца',
+        },
+        cta_color: {
+          type: 'string',
+          description:
+            'цвет надписи в конце, #hex — только если человек сам его назвал; по умолчанию — цвет из палитры клиента, золото владельца только в рилсе владельца',
         },
         voice_url: {
           type: 'string',
@@ -331,6 +417,21 @@ export function makeSplitReelTool(
           reason:
             'рилс не для владельца не называет ни Тринити, ни бота владельца, если человек сам этого не написал: убери их из text',
         }
+      // The call's colour (v10): a colour the order gave that is not a
+      // #hex, or does not read under the call, is refused here, before any
+      // charge. Hers is read once, here, and never stops the reel.
+      const givenColour = givenCallColour(args.cta_color)
+      if (givenColour.problem)
+        return { done: false, reason: givenColour.problem }
+      const callColour = callColourOf({
+        house,
+        given: givenColour.colour,
+        givenIsHouse: givenColour.isHouse,
+        hers: house
+          ? ''
+          : await clientCallColourOf(ctx.pool, String(ctx.telegramId), forLead),
+      })
+      if (callColour.refused) return { done: false, reason: callColour.refused }
       const edit = lookup('image_edit')
       const speak = lookup('audio_generate')
       const lip = lookup('lipsync_generate')
@@ -529,7 +630,8 @@ export function makeSplitReelTool(
       const seconds = speechEnd(heard.words)
       const captions = captionsFromWords(heard.words, 0, heard.speech)
 
-      // 6. The template, ending on the call the spec picks (v7).
+      // 6. The template, ending on the call the spec picks (v7), in the
+      // colour it picks (v10).
       const props = splitReelProps({
         lipSyncVideo: clip,
         seconds,
@@ -543,6 +645,7 @@ export function makeSplitReelTool(
             : await clientCtaOf(ctx.pool, String(ctx.telegramId), forLead),
           neutral: STORY_DEFAULT_CTA,
         },
+        callColour: callColour.colour,
       })
       const r = outcome(
         await render

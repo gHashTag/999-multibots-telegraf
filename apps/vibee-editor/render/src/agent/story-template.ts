@@ -230,6 +230,30 @@ export async function clientCtaOf(
 }
 
 /**
+ * The colour a reel's call for this client is drawn in, from her own palette
+ * (split-reel v10): the call colour of the end card the seller keeps for her
+ * over her profile's -- the story reel's own order (mergeEndCard). '' when
+ * she has none: the call is then drawn in a colour that is nobody's, never
+ * the house's. Never throws, as clientCtaOf.
+ */
+export async function clientCallColourOf(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<string> {
+  const id = String(lead ?? '').trim()
+  if (!/^\d{5,15}$/.test(id)) return ''
+  const seller = String(owner ?? '').trim()
+  try {
+    const kept = await keptEndCardOf(pool, seller, id)
+    const profile = endCardFromProfile(await clientProfileOf(pool, id, seller))
+    return mergeEndCard(null, kept, profile)?.title ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/**
  * The template's settings for one client. `seller` scopes it to one seller's
  * CRM (their card, their tool); without it she is asking herself.
  */

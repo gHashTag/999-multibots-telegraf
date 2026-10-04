@@ -76,8 +76,8 @@
   },
   {
     "name": "VERSION disagrees with the last dated note",
-    "from": "pub const VERSION : u8 = 9;",
-    "to": "pub const VERSION : u8 = 8;"
+    "from": "pub const VERSION : u8 = 10;",
+    "to": "pub const VERSION : u8 = 9;"
   },
   {
     "name": "an ordinary caller with no voice is not refused",
@@ -168,5 +168,50 @@
     "name": "a never-measured clone takes the pace of the voice measured",
     "from": "            if !PACE_ON_OTHER_VOICES {\n                return kept;",
     "to": "            if kept > 0 {\n                return kept;"
+  },
+  {
+    "name": "v10: a client's call is drawn in the house's gold",
+    "from": "        return cta_for(house_own, given, given_is_house, hers);",
+    "to": "        return CTA_OWNER;"
+  },
+  {
+    "name": "v10: the house's own reel loses its gold",
+    "from": "        return cta_for(house_own, given, given_is_house, hers);",
+    "to": "        return cta_for(false, given, given_is_house, hers);"
+  },
+  {
+    "name": "v10: the house's gold the order gave stands on her reel",
+    "from": "        return cta_for(house_own, given, given_is_house, hers);",
+    "to": "        return cta_for(house_own, given, false, hers);"
+  },
+  {
+    "name": "v10: her palette is never asked, her call is drawn neutral",
+    "from": "        return cta_for(house_own, given, given_is_house, hers);",
+    "to": "        return cta_for(house_own, given, given_is_house, false);"
+  },
+  {
+    "name": "v10: contrast check skipped, every colour is drawn as it is",
+    "from": "        if readable {\n            return CALL_AS_IS;",
+    "to": "        if true {\n            return CALL_AS_IS;"
+  },
+  {
+    "name": "v10: a colour the order gave that does not read is drawn anyway",
+    "from": "pub const GIVEN_CALL_COLOR_UNREADABLE_REFUSED : bool = true;",
+    "to": "pub const GIVEN_CALL_COLOR_UNREADABLE_REFUSED : bool = false;"
+  },
+  {
+    "name": "v10: her colour that does not read stops the reel",
+    "from": "        return CALL_SHADE;",
+    "to": "        return CALL_REFUSED;"
+  },
+  {
+    "name": "v10: the neutral call colour is the house's gold",
+    "from": "pub const NEUTRAL_CALL_COLOR : str = \"#FFFFFF\";",
+    "to": "pub const NEUTRAL_CALL_COLOR : str = \"#FFD700\";"
+  },
+  {
+    "name": "v10: the house's gold changes",
+    "from": "pub const HOUSE_CALL_COLOR : str = \"#FFD700\";",
+    "to": "pub const HOUSE_CALL_COLOR : str = \"#FFD701\";"
   }
 ]
