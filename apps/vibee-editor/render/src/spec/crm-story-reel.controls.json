@@ -196,8 +196,8 @@
   },
   {
     "name": "VERSION lags the header again",
-    "from": "pub const VERSION : u8 = 22;",
-    "to": "pub const VERSION : u8 = 21;"
+    "from": "pub const VERSION : u8 = 23;",
+    "to": "pub const VERSION : u8 = 22;"
   },
   {
     "name": "two reasons on the card allowed",
@@ -418,5 +418,50 @@
     "name": "only the whole line counts as hers",
     "from": "        if line_in_said || phrase_in_said {",
     "to": "        if line_in_said {"
+  },
+  {
+    "name": "v23: no look-alike folding",
+    "from": "pub const FOLD_LOOKALIKES : bool = true;",
+    "to": "pub const FOLD_LOOKALIKES : bool = false;"
+  },
+  {
+    "name": "v23: an invisible character splits a name",
+    "from": "pub const INVISIBLES_DROPPED : bool = true;",
+    "to": "pub const INVISIBLES_DROPPED : bool = false;"
+  },
+  {
+    "name": "v23: t27 needs a word boundary again",
+    "from": "        if letter_after {\n            return CODE_MARK_PREFIX;\n        }",
+    "to": "        if letter_after {\n            return false;\n        }"
+  },
+  {
+    "name": "v23: a letter before T27 is still the brand",
+    "from": "        if word_before || digit_after {",
+    "to": "        if digit_after {"
+  },
+  {
+    "name": "v23: T270 is the brand",
+    "from": "        if word_before || digit_after {",
+    "to": "        if word_before {"
+  },
+  {
+    "name": "v23: S3 AI with a space is the product",
+    "from": "            return !PRODUCT_ONE_TOKEN;",
+    "to": "            return true;"
+  },
+  {
+    "name": "v23: the product glued to a word is still the product",
+    "from": "        if !code_ok {\n            return false;\n        }\n",
+    "to": ""
+  },
+  {
+    "name": "v23: Trinity before another word is not the house (Trinity College cleared)",
+    "from": "            return NAME_IN_ANY_CONTEXT;",
+    "to": "            return false;"
+  },
+  {
+    "name": "v23: the name inside a longer word is not the house",
+    "from": "            return NAME_INSIDE_WORD;",
+    "to": "            return false;"
   }
 ]
