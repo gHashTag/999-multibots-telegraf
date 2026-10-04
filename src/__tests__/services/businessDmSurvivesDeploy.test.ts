@@ -36,8 +36,8 @@ const BOT = 'neuro_blogger_bot'
 /** Bot API 9+ shape: `rights`, no `can_reply`. */
 const connection = (extra: Record<string, unknown> = {}) => ({
   id: CONN,
-  user: { id: 144022504, first_name: 'Owner' },
-  user_chat_id: 144022504,
+  user: { id: 900000001, first_name: 'Owner' },
+  user_chat_id: 900000001,
   date: 1,
   is_enabled: true,
   rights: { can_reply: true },
@@ -162,7 +162,7 @@ describe('business DM through the production middleware chain', () => {
     // The bot line is the house's, printed only in the house's own DMs
     // (houseSeller): this connection is the house's, so its prompt must
     // name the bot that was filled in after registration.
-    vi.stubEnv('ADMIN_IDS', '144022504')
+    vi.stubEnv('ADMIN_IDS', '900000001')
     const svc = await freshService()
     const { sessionMiddleware } = await import('@/core/session/sessionStore')
     const { languageMiddleware } = await import(
@@ -220,7 +220,7 @@ describe('business DM through the production middleware chain', () => {
         s => s.method === 'sendMessage' && !s.payload.business_connection_id
       )
       expect(ownerDm).toHaveLength(1)
-      expect(ownerDm[0].payload.chat_id).toBe(144022504)
+      expect(ownerDm[0].payload.chat_id).toBe(900000001)
       const other = sink
         .map(s => s.method)
         .filter(

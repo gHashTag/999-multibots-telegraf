@@ -41,5 +41,17 @@
     "file": "src/agent/client-work.ts",
     "from": "  if (!given || typeof given !== 'object') return HOUSE_BRAND_REFUSED\n",
     "to": "  if (!given || typeof given !== 'object') return null\n"
+  },
+  {
+    "name": "a client's StoryReel goes out on the house card",
+    "file": "src/agent/tools.ts",
+    "from": "        props = clientStoryReelProps(String(args.compositionId), props)\n",
+    "to": ""
+  },
+  {
+    "name": "houseOwnTurn does not ask onClientWork",
+    "file": "src/split-reel-plan.ts",
+    "from": "    onClientWork(turn ?? {}),\n",
+    "to": "    false,\n"
   }
 ]

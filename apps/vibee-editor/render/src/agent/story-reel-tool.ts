@@ -43,6 +43,9 @@ import type { LateOutcome } from './late-picture'
 // The numbers are the spec's: gHashTag/t27 specs/automation/crm-story-reel.t27,
 // vendored with its `t27c gen-ts` output (see story-template.ts).
 import * as SPEC from '../spec/crm-story-reel.gen'
+// Whose card a client's reel stands on: gHashTag/t27
+// specs/automation/crm-client-workspace.t27 (v6, story_card_from).
+import * as WS from '../spec/crm-client-workspace.gen'
 import { cutShot, shotOfScene } from './studio-shots'
 import type { HeardVoice } from './split-reel-tool'
 import {
@@ -836,6 +839,81 @@ export function endCardFromProfile(profile: any): StoryEndCard | null {
     accent: hex(v.accent_cta) ?? hex(v.accent),
     button,
   })
+}
+
+/**
+ * Which card a story reel's pause stands on (crm-client-workspace v6,
+ * story_card_from). On the seller's own turn the composition decides, and
+ * with no card that is the house's. On client work the house's card --
+ * black, gold, white, green -- never shows: her card with a missing colour
+ * neutral, the neutral card for a call alone, and no card for neither.
+ */
+export function storyCardFrom(
+  clientWork: boolean,
+  cardGiven: boolean,
+  callGiven: boolean
+): number {
+  if (!clientWork) return WS.STORY_CARD_AS_GIVEN
+  if (cardGiven) return WS.STORY_CARD_HERS
+  if (callGiven) return WS.STORY_CARD_NEUTRAL
+  return WS.STORY_CARD_NONE
+}
+
+/** The neutral that reads better on a ground; the dark one on a tie. */
+function neutralOn(ground: string): string {
+  return contrastX10(WS.NEUTRAL_CARD_LIGHT, ground) >
+    contrastX10(WS.NEUTRAL_CARD_DARK, ground)
+    ? WS.NEUTRAL_CARD_LIGHT
+    : WS.NEUTRAL_CARD_DARK
+}
+
+/**
+ * A client's end card, whole, so the composition's defaults (the house's
+ * palette) never fill a gap: her colours as given, a missing ground the
+ * neutral her call reads best on, a missing ink the neutral that reads best
+ * on the ground. Null when she has no card and there is no call -- the
+ * pause then shows none.
+ */
+export function clientStoryCard(
+  raw: unknown,
+  call: string
+): StoryEndCard | null {
+  const hers = endCardOf(raw)
+  const way = storyCardFrom(
+    true,
+    hers !== null,
+    String(call ?? '').trim().length > 0
+  )
+  if (way === WS.STORY_CARD_NONE) return null
+  const card: StoryEndCard = { ...(hers ?? {}) }
+  if (!card.bg) {
+    const ink = card.title ?? card.accent
+    card.bg = ink ? neutralOn(ink) : WS.NEUTRAL_CARD_DARK
+  }
+  const ink = neutralOn(card.bg)
+  card.title ??= ink
+  card.text ??= ink
+  card.accent ??= ink
+  return card
+}
+
+/**
+ * A client's StoryReel props with the card it is drawn on (reel_render on
+ * client work). Any other composition, and the seller's own turn, go as
+ * given; a StoryReel with neither card nor call loses whatever unusable
+ * `endCard` it carried, so no house default fills it.
+ */
+export function clientStoryReelProps(
+  compositionId: string,
+  props: Record<string, unknown>
+): Record<string, unknown> {
+  if (compositionId !== 'StoryReel') return props
+  const card = clientStoryCard(props.endCard, String(props.cta ?? ''))
+  if (card) return { ...props, endCard: card }
+  if (!('endCard' in props)) return props
+  const rest = { ...props }
+  delete rest.endCard
+  return rest
 }
 
 /** The end_card parameter, one schema for story_reel and crm_story_reel. */

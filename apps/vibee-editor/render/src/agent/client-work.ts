@@ -50,7 +50,10 @@ export function onClientWork(ctx: {
  * path exists for it.
  *
  * Not here, on purpose: StoryReel and SplitTalkingHead are the client reels
- * (their calls follow crm-story-reel / split-reel), and LeelaPlanReel is a
+ * (their calls follow crm-story-reel / split-reel; a client's StoryReel is
+ * not refused but drawn on her card or a neutral one --
+ * story-reel-tool.ts clientStoryReelProps, crm-client-workspace v6
+ * story_card_from), and LeelaPlanReel is a
  * throw in the house's game -- the game is the subject, its address is the
  * end card, and `handle`/`url` props replace it.
  */

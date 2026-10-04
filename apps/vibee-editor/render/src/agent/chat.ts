@@ -1022,7 +1022,7 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
 - РИЛС-ИСТОРИЯ (формат владельца, постоянный шаблон) — ОДНИМ вызовом story_reel {image_url, scenes: [{setting, line}], style, cta, for_lead}: ${'' /* cyrillic-ok: prompt copy */}
   3 сцены в ОДНОМ стиле: первая — само фото, широко, первая реплика — крючок, а не приветствие; дальше сцена без setting — план той же студии (средний, крупный), новое место — только если человек сам его назвал; реплики по 2–4 с, последняя — призыв; в конце пауза 3 с с надписью cta; весь ролик до 15 с (сторис). ${'' /* cyrillic-ok: prompt copy */}
   Для владельца: image_url — его эталон ${OWNER_NOIR_PORTRAIT}, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента из CRM — не этот вызов, а шаблон рилс-истории CRM: он делает рилс в фоне и присылает владельцу карточку «в группу»/«в личку»; у рилса клиента призыв и кнопка ЕГО, не Тринити. ${'' /* cyrillic-ok: prompt copy */}
-  Бот в речи — одно слово «Тринити», без букв и цифр; рилс клиента называет Тринити, только если человек сам это написал. Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
+  %%BOT_IN_SPEECH%%Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
 - СПЛИТ-РИЛС (говорящая голова, сверху b-roll, жёлтые титры по слову) — ОДНИМ вызовом split_reel {image_url: студийный кадр с лицом, text до ${SPLIT.SPEECH_MAX_SECONDS} с речи, brolls: обстановки, for_lead, cta}; вернулись voice_url/clip/broll_urls без видео — повтори с ними. ${'' /* cyrillic-ok: prompt copy */}
 - Режим AUTO: autopilot_status говорит, включён ли он, до какого часа и сколько автоотправок осталось сегодня. Включённый AUTO значит, что подготовленные карточки уходят клиенту сами. Включает и выключает его САМ владелец — кнопкой AUTO прямо над этим чатом, во вкладке «Браузер», в CRM или в боте; тебе этот переключатель не дан, и просьбу включить его словами выполняй так: скажи, где кнопка. ${'' /* cyrillic-ok: prompt copy */}
 ${WEB_RULES}
@@ -1159,13 +1159,39 @@ export function sendCardLine(surface?: string): string {
   return '- КАРТОЧКА ОТПРАВКИ. Всё, что ты подготовил для другого человека (сообщение, фото, видео), появляется ПРЯМО ПОД твоим ответом: превью и кнопки «Отправить» / «Не отправлять». Не отправляй владельца искать её в другом месте — скажи «карточка ниже».' // cyrillic-ok: prompt copy
 }
 
+/**
+ * WHOSE BOT A REEL SAYS (crm-client-workspace v6, bot_named_in_speech).
+ *
+ * The rule "the bot in speech is one word, Trinity" is the house's, and it
+ * used to reach every turn -- client work too, where the caller id is the
+ * seller's and the reel is hers. On client work it is replaced: her reel
+ * speaks of her business and her call, and the house's bot is not named.
+ */
+export function botNamedInSpeech(clientWork: boolean): boolean {
+  return !clientWork
+}
+
+/** The house's line about the bot in speech: only on the seller's own turn. */
+export const HOUSE_BOT_IN_SPEECH =
+  'Бот в речи — одно слово «Тринити», без букв и цифр; рилс клиента называет Тринити, только если человек сам это написал. ' // cyrillic-ok: prompt copy
+
+/** Its place on client work: no house bot, her business and her call. */
+export const CLIENT_BOT_IN_SPEECH =
+  'Это работа для клиента: в речи её рилса — её дело и её призыв, бот платформы не называется. ' // cyrillic-ok: prompt copy
+
 /** The prompt for a surface: the club for creators, the invoice for a client in the DM. */
-function systemFor(surface?: string): string {
+function systemFor(surface?: string, clientWork = false): string {
   return (
     SYSTEM_TEMPLATE.replace(
       '%%CLUB_OR_DM%%',
       surface === 'business' ? DM_CLIENT_BULLET : CREATOR_MONEY_BULLET
     )
+      .replace(
+        '%%BOT_IN_SPEECH%%',
+        botNamedInSpeech(clientWork)
+          ? HOUSE_BOT_IN_SPEECH
+          : CLIENT_BOT_IN_SPEECH
+      )
       .replace('%%TOKEN_LINE%%', tokenLine())
       .replace('%%PACKS_LINE%%', packsLine())
       .replace('%%CLUB_LINE%%', clubOfferLine())
@@ -1728,10 +1754,13 @@ export function systemPrompt(
   const lang = '\n\n' + ANSWER_IN_THEIR_LANGUAGE
   const specialist = marketplaceAgentPrompt(marketplaceAgent, clientWork)
   const s = ownerVoice ? soul() : null
-  if (!s) return systemFor(surface) + buttons + canTake + specialist + lang
+  if (!s)
+    return (
+      systemFor(surface, clientWork) + buttons + canTake + specialist + lang
+    )
   if (clientWork)
     return (
-      systemFor(surface) +
+      systemFor(surface, clientWork) +
       buttons +
       canTake +
       SELLER_SOUL_ON_CLIENT_WORK +
@@ -1740,7 +1769,7 @@ export function systemPrompt(
       lang
     )
   return (
-    systemFor(surface) +
+    systemFor(surface, clientWork) +
     buttons +
     canTake +
     '\n\nКОНТЕНТ-ПЛАН НА 30 ДНЕЙ есть в голосе владельца ниже — бери его ' + // cyrillic-ok: prompt copy

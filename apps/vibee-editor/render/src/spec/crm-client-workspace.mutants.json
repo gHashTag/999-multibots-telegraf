@@ -115,5 +115,29 @@
     "from": "personalSoulPreface(clientWork) +",
     "to": "personalSoulPreface(false) +",
     "tests": ["src/agent/client-widgets.test.ts"]
+  },
+  {
+    "name": "a client's call with no card falls to no card, so the house's shows",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (callGiven) return WS.STORY_CARD_NEUTRAL\n",
+    "to": ""
+  },
+  {
+    "name": "a client's missing colours are left to the house's defaults",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  card.title ??= ink\n  card.text ??= ink\n  card.accent ??= ink\n",
+    "to": ""
+  },
+  {
+    "name": "an unusable card stays on a client's reel with no call",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  delete rest.endCard\n",
+    "to": ""
+  },
+  {
+    "name": "the house's bot line reaches client work",
+    "file": "src/agent/chat.ts",
+    "from": "export function botNamedInSpeech(clientWork: boolean): boolean {\n  return !clientWork\n}",
+    "to": "export function botNamedInSpeech(clientWork: boolean): boolean {\n  return true\n}"
   }
 ]
