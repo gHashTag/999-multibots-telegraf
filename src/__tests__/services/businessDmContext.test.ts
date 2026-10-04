@@ -211,7 +211,9 @@ describe('the fallback prompt does not push payment either', () => {
     const { buildBusinessMessages } = await import(
       '@/services/businessBotService'
     )
-    const sys = String(buildBusinessMessages('привет', 'Гость', BOT)[0].content)
+    const sys = String(
+      buildBusinessMessages('привет', 'Гость', BOT, [], true)[0].content
+    )
     expect(sys).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
     expect(sys).toContain('тарифов и подписок НЕТ')
   })
