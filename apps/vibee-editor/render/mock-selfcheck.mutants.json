@@ -1,0 +1,74 @@
+[
+  {
+    "name": "the 2026-10-04 trap: kill by port, quoted -- two pids become one bad argument",
+    "file": "mock-selfcheck.sh",
+    "from": "trap stop_server EXIT",
+    "to": "trap 'kill \"$(lsof -ti:\"$PORT\" 2>/dev/null)\" 2>/dev/null || true' EXIT"
+  },
+  {
+    "name": "the obvious 'fix': kill by port, unquoted -- kills the stranger on that port",
+    "file": "mock-selfcheck.sh",
+    "from": "trap stop_server EXIT",
+    "to": "trap 'kill $(lsof -ti:\"$PORT\" 2>/dev/null) 2>/dev/null || true' EXIT"
+  },
+  {
+    "name": "the server started without a process group of its own",
+    "file": "mock-selfcheck.sh",
+    "from": "set -m\n( cd",
+    "to": "( cd"
+  },
+  {
+    "name": "a busy asked-for port cleared by killing its holder",
+    "file": "mock-selfcheck.sh",
+    "from": "  if port_answers \"$PORT\"; then\n    echo \"mock-selfcheck: port :$PORT is already taken by another process -- left alone; pick another MOCK_SELFCHECK_PORT\"\n    exit 1\n  fi",
+    "to": "  kill \"$(lsof -ti:\"$PORT\" 2>/dev/null)\" 2>/dev/null || true"
+  },
+  {
+    "name": "the trap signals the group but does not wait for it to be gone",
+    "file": "mock-selfcheck.sh",
+    "from": "  while kill -0 -- \"-$g\" 2>/dev/null; do\n    if [ \"$SECONDS\" -ge \"$deadline\" ]; then\n      kill -KILL -- \"-$g\" 2>/dev/null\n      break\n    fi\n    sleep 0.1\n  done\n",
+    "to": ""
+  },
+  {
+    "name": "R1: the trap signals the server's pid, not its group -- a grandchild that ignores SIGTERM leaks",
+    "file": "mock-selfcheck.sh",
+    "from": "  kill -TERM -- \"-$g\" 2>/dev/null || return 0\n  while kill -0 -- \"-$g\" 2>/dev/null; do\n    if [ \"$SECONDS\" -ge \"$deadline\" ]; then\n      kill -KILL -- \"-$g\" 2>/dev/null\n",
+    "to": "  kill -TERM -- \"$g\" 2>/dev/null || return 0\n  while kill -0 -- \"$g\" 2>/dev/null; do\n    if [ \"$SECONDS\" -ge \"$deadline\" ]; then\n      kill -KILL -- \"$g\" 2>/dev/null\n"
+  },
+  {
+    "name": "R2: the server's output is not sent to the log -- it reaches the hook's stdout",
+    "file": "mock-selfcheck.sh",
+    "from": "( cd \"$HERE\" && MOCK_PORT=\"$PORT\" exec npx tsx mock-server.ts ) </dev/null >\"$LOG\" 2>&1 &",
+    "to": "( cd \"$HERE\" && MOCK_PORT=\"$PORT\" exec npx tsx mock-server.ts ) </dev/null &"
+  },
+  {
+    "name": "R2b: the server is not given /dev/null -- under set -m it shares the hook's stdin",
+    "file": "mock-selfcheck.sh",
+    "from": "( cd \"$HERE\" && MOCK_PORT=\"$PORT\" exec npx tsx mock-server.ts ) </dev/null >\"$LOG\" 2>&1 &",
+    "to": "( cd \"$HERE\" && MOCK_PORT=\"$PORT\" exec npx tsx mock-server.ts ) >\"$LOG\" 2>&1 &"
+  },
+  {
+    "name": "R1+R2: pid kill and no log -- the survivors hold the hook's pipe, the 18-minute hang",
+    "file": "mock-selfcheck.sh",
+    "from": "  kill -TERM -- \"-$g\" 2>/dev/null || return 0\n  while kill -0 -- \"-$g\" 2>/dev/null; do\n    if [ \"$SECONDS\" -ge \"$deadline\" ]; then\n      kill -KILL -- \"-$g\" 2>/dev/null\n      break\n    fi\n    sleep 0.1\n  done\n}\ntrap stop_server EXIT\n# A hook interrupted by Ctrl-C or a dropped session still goes through the\n# EXIT trap; the server's group is not the terminal's, so nothing else stops it.\n# bash 3.2 runs the EXIT trap on a fatal TERM, INT or HUP even without these\n# (measured: same cleanup, the script dies by the signal instead of exiting\n# 143/130/129). They stay for the plain exit status, and so the cleanup does\n# not depend on bash running a trap from inside its signal handler.\ntrap 'exit 129' HUP\ntrap 'exit 130' INT\ntrap 'exit 143' TERM\n\n# `set -m` makes the job a process group of its own, with the job's pid as the\n# group id; `exec` makes that pid npx itself. `disown` keeps bash from printing\n# \"Terminated\" when the trap stops it.\nset -m\n( cd \"$HERE\" && MOCK_PORT=\"$PORT\" exec npx tsx mock-server.ts ) </dev/null >\"$LOG\" 2>&1 &",
+    "to": "  kill -TERM -- \"$g\" 2>/dev/null || return 0\n  while kill -0 -- \"$g\" 2>/dev/null; do\n    if [ \"$SECONDS\" -ge \"$deadline\" ]; then\n      kill -KILL -- \"$g\" 2>/dev/null\n      break\n    fi\n    sleep 0.1\n  done\n}\ntrap stop_server EXIT\n# A hook interrupted by Ctrl-C or a dropped session still goes through the\n# EXIT trap; the server's group is not the terminal's, so nothing else stops it.\n# bash 3.2 runs the EXIT trap on a fatal TERM, INT or HUP even without these\n# (measured: same cleanup, the script dies by the signal instead of exiting\n# 143/130/129). They stay for the plain exit status, and so the cleanup does\n# not depend on bash running a trap from inside its signal handler.\ntrap 'exit 129' HUP\ntrap 'exit 130' INT\ntrap 'exit 143' TERM\n\n# `set -m` makes the job a process group of its own, with the job's pid as the\n# group id; `exec` makes that pid npx itself. `disown` keeps bash from printing\n# \"Terminated\" when the trap stops it.\nset -m\n( cd \"$HERE\" && MOCK_PORT=\"$PORT\" exec npx tsx mock-server.ts ) </dev/null &"
+  },
+  {
+    "name": "R4: no SIGKILL deadline -- a server that ignores SIGTERM keeps the script alive forever",
+    "file": "mock-selfcheck.sh",
+    "from": "    if [ \"$SECONDS\" -ge \"$deadline\" ]; then\n      kill -KILL -- \"-$g\" 2>/dev/null\n      break\n    fi\n",
+    "to": ""
+  },
+  {
+    "name": "R5: exit 0 instead of the mock-test's code -- the gate passes when the test fails",
+    "file": "mock-selfcheck.sh",
+    "from": "exit \"$rc\"",
+    "to": "exit 0"
+  },
+  {
+    "name": "R3: no HUP/INT/TERM traps -- an interrupted hook dies by the signal instead of exiting 130",
+    "file": "mock-selfcheck.sh",
+    "from": "trap 'exit 129' HUP\ntrap 'exit 130' INT\ntrap 'exit 143' TERM\n",
+    "to": ""
+  }
+]
