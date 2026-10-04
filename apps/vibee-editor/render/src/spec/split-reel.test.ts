@@ -23,10 +23,14 @@ import {
   reelCta,
   reelFrames,
   splitReelProps,
+  speechChars,
   speechFrames,
   speechLines,
+  speechMsEstimate,
   splitSegments,
   STUDIO_FACE,
+  textFits,
+  voiceRefused,
 } from '../split-reel-plan'
 import { namesHouse } from '../house-names'
 import {
@@ -573,10 +577,137 @@ describe('split-reel.t27 against the host', () => {
     expect(paid).toEqual(['audio_generate'])
   }, 60_000)
 
+  it('an ordinary caller with no voice of her own is refused before the charge', async () => {
+    // The spec's vectors, against the mirror.
+    expect(voiceRefused(false, false, false)).toBe(true)
+    expect(voiceRefused(false, true, false)).toBe(false)
+    expect(voiceRefused(false, false, true)).toBe(false)
+    expect(voiceRefused(true, false, false)).toBe(false)
+    expect(voiceRefused(true, true, true)).toBe(false)
+    expect(SPEC.STOCK_VOICE_FOR_ORDINARY).toBe(false)
+    expect(SPEC.OWN_VOICE).toBe(true)
+
+    const { TOOLS_BY_NAME } = await import('../agent/tools')
+    const audio = TOOLS_BY_NAME.get('audio_generate')!
+    const fetched = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('no network in this test'))
+    const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const asked = () => fetched.mock.calls.map(c => String(c[0]))
+    try {
+      // voice_refused(false, false, false): a seller who names no voice and
+      // has none chosen is refused -- no debit, no voice looked up anywhere.
+      const seller = emptyPool()
+      const bare: any = await audio.handler({ text: 'Hello, this is Anna' }, {
+        telegramId: SELLER_ID,
+        pool: seller,
+      } as never)
+      expect(bare.сделано).toBe(false) // cyrillic-ok: audio_generate's own answer key
+      expect(bare.причина).toMatch(/voice_id/) // cyrillic-ok: audio_generate's own answer key
+      expect(bare.причина).toMatch(/crm_voice_clone/) // cyrillic-ok: audio_generate's own answer key
+      expect(seller.said.some(q => DEBIT.test(q))).toBe(false)
+      expect(asked()).toEqual([])
+
+      // charged(voice_refused(false, false, true)): her own clone, named by
+      // her own id, goes ahead to the charge (her empty wallet refuses it).
+      const clonedSaid: string[] = []
+      const cloned = {
+        said: clonedSaid,
+        query: async (sql: string) => {
+          clonedSaid.push(String(sql))
+          return /FROM lead_voices/.test(sql)
+            ? { rows: [{ voice_id: 'lead-voice_900000077', seconds: 30 }] }
+            : { rows: [] }
+        },
+      }
+      await audio.handler(
+        { text: 'Hello, this is Anna', for_lead: SELLER_ID },
+        {
+          telegramId: SELLER_ID,
+          pool: cloned,
+        } as never
+      )
+      expect(cloned.said.some(q => DEBIT.test(q))).toBe(true)
+
+      // voice_refused(false, true, false) == false: a named voice goes ahead.
+      const named = emptyPool()
+      await audio.handler({ text: 'Hello, this is Anna', voice_id: 'v-1' }, {
+        telegramId: SELLER_ID,
+        pool: named,
+      } as never)
+      expect(named.said.some(q => DEBIT.test(q))).toBe(true)
+
+      // voice_refused(true, false, false) == false: the house keeps its own
+      // path, whatever that path answers on a test machine.
+      const house: any = await audio
+        .handler({ text: 'Hello, this is Anna' }, {
+          telegramId: HOUSE_ID,
+          pool: emptyPool(),
+        } as never)
+        .catch((e: unknown) => ({ причина: String(e) })) // cyrillic-ok: audio_generate's own answer key
+      expect(String(house.причина ?? '')).not.toMatch(/crm_voice_clone/) // cyrillic-ok: audio_generate's own answer key
+      // Nobody, house or not, asks an account for a voice list.
+      expect(asked().some(u => u.includes('/api/voices'))).toBe(false)
+    } finally {
+      logged.mockRestore()
+      fetched.mockRestore()
+    }
+  }, 120_000)
+
+  it('a voice too long for the format is refused from its text, before it is paid', async () => {
+    // The pace is the measured one, rounded up so the estimate errs long.
+    expect(
+      Math.floor(
+        (SPEC.MEASURED_MS + SPEC.MEASURED_CHARS - 1) / SPEC.MEASURED_CHARS
+      )
+    ).toBe(SPEC.MS_PER_CHAR)
+    expect(Math.floor(SPEC.MEASURED_MS / SPEC.MEASURED_CHARS)).toBeLessThan(
+      SPEC.MS_PER_CHAR
+    )
+    expect(textFits(SPEC.MEASURED_CHARS)).toBe(false)
+    // The boundary: 214 characters fit, 215 do not.
+    expect(speechMsEstimate(214)).toBe(11984)
+    expect(textFits(214)).toBe(true)
+    expect(speechMsEstimate(215)).toBe(12040)
+    expect(textFits(215)).toBe(false)
+    expect(textFits(0)).toBe(true)
+    // Characters as the pace was measured: words joined by single spaces.
+    expect(speechChars('  one  two\n three ')).toBe(13)
+
+    // split_reel: a text past the boundary calls no paid tool; one at it
+    // goes ahead to the voice. Runs of spaces count as one, as measured.
+    const paid: string[] = []
+    const lookup = (name: string) => ({
+      name,
+      description: '',
+      parameters: {},
+      handler: async () => {
+        paid.push(name)
+        return { done: false, reason: 'stop here' }
+      },
+    })
+    const senses = { length: async () => 9, hear: async () => ({ words: [] }) }
+    const reel = makeSplitReelTool(lookup as never, senses as never)
+    const fits = 'word '.repeat(43).trim()
+    expect(speechChars(fits)).toBe(214)
+    const ARGS = { image_url: 'https://ours/face.png', brolls: ['a garden'] }
+    const ctx = { telegramId: SELLER_ID, pool: emptyPool() } as never
+    const long: any = await reel.handler({ ...ARGS, text: `${fits}s` }, ctx)
+    expect(long.done).toBe(false)
+    expect(long.reason).toMatch(new RegExp(`${SPEC.SPEECH_MAX_SECONDS} с`)) // cyrillic-ok: the tool's own unit
+    expect(paid).toEqual([])
+    const spaced: any = await reel.handler(
+      { ...ARGS, text: fits.replace(/ /g, '   ') },
+      ctx
+    )
+    expect(spaced.done).toBe(false)
+    expect(paid).toEqual(['audio_generate'])
+  }, 60_000)
+
   it('the version is the last dated note', () => {
     const spec = readFileSync(join(__dirname, 'split-reel.t27'), 'utf8')
     const notes = [...spec.matchAll(/^\/\/ v(\d+) \(/gm)].map(m => Number(m[1]))
-    expect(SPEC.VERSION).toBe(7)
+    expect(SPEC.VERSION).toBe(8)
     expect(Math.max(...notes)).toBe(SPEC.VERSION)
   })
 
