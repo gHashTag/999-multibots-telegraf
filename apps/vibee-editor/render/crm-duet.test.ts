@@ -1449,7 +1449,7 @@ describe('crm_duet tools', () => {
     const doFetch = vi.fn(async (_url: string, init: any) => {
       const body = JSON.parse(init.body)
       bodies.push(body)
-      if (body.model === 'glm-5.3')
+      if (body.model === 'glm-4.7-flash')
         return new Response(
           JSON.stringify({
             choices: [
@@ -1472,7 +1472,7 @@ describe('crm_duet tools', () => {
         {
           id: 'zai',
           base: 'https://a',
-          model: 'glm-5.3',
+          model: 'glm-4.7-flash',
           key: 'k',
           thinking: true,
         },
@@ -1491,7 +1491,7 @@ describe('crm_duet tools', () => {
     expect(bodies[0].max_tokens).toBeGreaterThanOrEqual(600)
     expect(bodies[1].thinking).toBeUndefined()
     expect(
-      buyerRequestBody({ id: 'zai-lite', model: 'glm-4.5' }, []).thinking
+      buyerRequestBody({ id: 'zai-lite', model: 'glm-4.5-flash' }, []).thinking
     ).toEqual({ type: 'disabled' })
   })
 
