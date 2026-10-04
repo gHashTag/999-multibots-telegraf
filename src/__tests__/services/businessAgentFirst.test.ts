@@ -97,7 +97,8 @@ describe('the fallback prompt', () => {
       '@/services/businessBotService'
     )
     const sys = String(
-      buildBusinessMessages('привет', 'Гость', 'neuro_blogger_bot')[0].content
+      buildBusinessMessages('привет', 'Гость', 'neuro_blogger_bot', [], true)[0]
+        .content
     )
     expect(sys.includes('руб')).toBe(false)
     expect(sys).not.toMatch(/Basic|Pro:|Studio/)

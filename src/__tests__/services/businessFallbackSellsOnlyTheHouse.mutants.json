@@ -1,0 +1,38 @@
+[
+  {
+    "name": "the call site tells the builder every seller is the house",
+    "file": "src/services/businessBotService.ts",
+    "from": "              houseSeller(seller)\n",
+    "to": "              true\n"
+  },
+  {
+    "name": "the builder always takes the house's pitch",
+    "file": "src/services/businessBotService.ts",
+    "from": "const base = house ? SALES_PROMPT : NEUTRAL_SELLER_PROMPT",
+    "to": "const base = SALES_PROMPT"
+  },
+  {
+    "name": "the house's bot is named in every seller's DM",
+    "file": "src/services/businessBotService.ts",
+    "from": "content: house ? ",
+    "to": "content: true ? "
+  },
+  {
+    "name": "any connected account counts as the house",
+    "file": "src/services/businessBotService.ts",
+    "from": "  return !!conn && ADMIN_IDS_ARRAY.includes(Number(conn.userId))\n",
+    "to": "  return !!conn\n"
+  },
+  {
+    "name": "the house is never recognised",
+    "file": "src/services/businessBotService.ts",
+    "from": "  return !!conn && ADMIN_IDS_ARRAY.includes(Number(conn.userId))\n",
+    "to": "  return false\n"
+  },
+  {
+    "name": "a caller that forgets the flag sells the house's catalogue",
+    "file": "src/services/businessBotService.ts",
+    "from": "  house = false\n): ChatMessage[] {",
+    "to": "  house = true\n): ChatMessage[] {"
+  }
+]

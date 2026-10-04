@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "crm-client-workspace" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 5 satisfies number;
+export const VERSION = 6 satisfies number;
 export const CALLER = "seller" satisfies string;
 export const CLIENT_IS = "telegram-id" satisfies string;
 export const CLIENT_ID_MIN_DIGITS = 5 satisfies number;
@@ -74,6 +74,21 @@ export const HIDDEN_WIDGET_NOT_REPORTED = true satisfies boolean;
 export const WIDGET_TEXT_MAX_CHARS = 600 satisfies number;
 export const WIDGET_LIST_MAX = 8 satisfies number;
 export const WIDGET_CONTEXT_MAX_CHARS = 4000 satisfies number;
+export const CLIENT_WORK_MARKS = "faceOf,sellerSweep" satisfies string;
+export const CONTENT_IS_CALLERS = 0 satisfies number;
+export const CONTENT_IS_CLIENTS = 1 satisfies number;
+export const HOUSE_BRIEF_ON_CLIENT_WORK = false satisfies boolean;
+export const SELLER_PLAN_ON_CLIENT_WORK = false satisfies boolean;
+export const SELLER_SOUL_SPEAKS_HIS_OWN_WORDS = true satisfies boolean;
+export const CLIENT_CONTENT_FROM = "seller-for-this-client,client-profile,neutral" satisfies string;
+export const CLIENT_STORYREEL_NO_HOUSE_PALETTE = true satisfies boolean;
+export const STORY_CARD_AS_GIVEN = 0 satisfies number;
+export const STORY_CARD_HERS = 1 satisfies number;
+export const STORY_CARD_NEUTRAL = 2 satisfies number;
+export const STORY_CARD_NONE = 3 satisfies number;
+export const NEUTRAL_CARD_DARK = "#1f1f1f" satisfies string;
+export const NEUTRAL_CARD_LIGHT = "#f5f5f5" satisfies string;
+export const CLIENT_PROMPT_NO_HOUSE_BOT_NAME = true satisfies boolean;
 // t27c gen-ts: fn thread_kind was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn refused_before_db was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn task_goes_to was not emitted -- this backend lowers declarations, not bodies.
@@ -83,6 +98,16 @@ export const WIDGET_CONTEXT_MAX_CHARS = 4000 satisfies number;
 // t27c gen-ts: fn open_after_switch was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn widget_reported was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn capped was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn content_for was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn blogger_brief_is_house was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn seller_plan_in_prompt was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn story_card_from was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn bot_named_in_speech was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -101,7 +126,7 @@ export const WIDGET_CONTEXT_MAX_CHARS = 4000 satisfies number;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CALLER", "CLIENT_IS", "CLIENT_ID_MIN_DIGITS", "CLIENT_ID_MAX_DIGITS", "THREAD_COLUMN", "THREAD_SELF", "THREAD_CLIENT_PREFIX", "THREAD_SUPERVISOR_SUFFIX", "AGENT_KEEPS_CLIENT_MEMORY", "QUEEN_TASK_TO_CHOSEN_SPECIALIST", "TASK_TO_ASSISTANT", "TASK_TO_SPECIALIST", "TASK_TO_NAMED", "TASK_MARKER", "QUEEN_LISTS_AGENT_IDS", "NAMED_TASK_NEVER_LOST", "THREAD_KIND_SELF", "THREAD_KIND_CLIENT", "THREAD_KIND_BAD_CLIENT", "THREAD_KIND_NOT_SELLER", "THREAD_PARAM", "ROUTES_WITH_THREAD", "DELETE_CLEARS_ONLY_ITS_THREAD", "CONTEXT_INJECTED", "GATE_BEFORE_DB", "ROUTE_LIST", "ROUTE_CLIENT", "ROUTE_CLIENT_CHAT", "READS_THROUGH", "PANELS", "UNREACHABLE_SAYS", "NEW_READ_TOOLS", "DASHBOARD_SENDS_NOTHING_UNASKED", "DASHBOARD_STARTS_DUET", "DUET_CONTROL_GATE", "DUET_CONTROL_DEFAULT_DRY_RUN", "DUET_CONTROL_REAL_SEND_CONFIRMS", "DUET_CONTROL_TURNS_MAX", "DUET_CONTROL_TURNS_DEFAULT", "LIST_PAID_BADGE", "LIST_FILTER", "LIST_SAYS_PAID_UNKNOWN", "TABLE_RUNS", "RUN_PERSISTED_AT", "RUN_LOST_AFTER_MIN", "RUN_LOST_IS_STORED", "DASHBOARD_SEEN_LIVE", "RUN_SURVIVED_REDEPLOY", "WIDGETS_FOLLOW_SPECIALIST", "CONTENT_WIDGET_AGENT", "WIDGET_IDS", "CLIENT_WIDGETS", "WIDGETS_IN_ONE_MENU", "WIDGET_MENU_SIDE", "OPEN_WIDGETS", "DRAFTS_PINNED_ABOVE_MENU", "QUEEN_IS_NOT_A_WIDGET", "OPEN_KEEPS", "OPEN_SPECIALISTS_FIRST", "OPEN_FALLS_TO_CLIENT", "AGENT_SEES_WIDGETS", "WIDGET_CONTEXT_PARAM", "WIDGET_CONTEXT_ONLY_IN_CLIENT_THREAD", "HIDDEN_WIDGET_NOT_REPORTED", "WIDGET_TEXT_MAX_CHARS", "WIDGET_LIST_MAX", "WIDGET_CONTEXT_MAX_CHARS"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CALLER", "CLIENT_IS", "CLIENT_ID_MIN_DIGITS", "CLIENT_ID_MAX_DIGITS", "THREAD_COLUMN", "THREAD_SELF", "THREAD_CLIENT_PREFIX", "THREAD_SUPERVISOR_SUFFIX", "AGENT_KEEPS_CLIENT_MEMORY", "QUEEN_TASK_TO_CHOSEN_SPECIALIST", "TASK_TO_ASSISTANT", "TASK_TO_SPECIALIST", "TASK_TO_NAMED", "TASK_MARKER", "QUEEN_LISTS_AGENT_IDS", "NAMED_TASK_NEVER_LOST", "THREAD_KIND_SELF", "THREAD_KIND_CLIENT", "THREAD_KIND_BAD_CLIENT", "THREAD_KIND_NOT_SELLER", "THREAD_PARAM", "ROUTES_WITH_THREAD", "DELETE_CLEARS_ONLY_ITS_THREAD", "CONTEXT_INJECTED", "GATE_BEFORE_DB", "ROUTE_LIST", "ROUTE_CLIENT", "ROUTE_CLIENT_CHAT", "READS_THROUGH", "PANELS", "UNREACHABLE_SAYS", "NEW_READ_TOOLS", "DASHBOARD_SENDS_NOTHING_UNASKED", "DASHBOARD_STARTS_DUET", "DUET_CONTROL_GATE", "DUET_CONTROL_DEFAULT_DRY_RUN", "DUET_CONTROL_REAL_SEND_CONFIRMS", "DUET_CONTROL_TURNS_MAX", "DUET_CONTROL_TURNS_DEFAULT", "LIST_PAID_BADGE", "LIST_FILTER", "LIST_SAYS_PAID_UNKNOWN", "TABLE_RUNS", "RUN_PERSISTED_AT", "RUN_LOST_AFTER_MIN", "RUN_LOST_IS_STORED", "DASHBOARD_SEEN_LIVE", "RUN_SURVIVED_REDEPLOY", "WIDGETS_FOLLOW_SPECIALIST", "CONTENT_WIDGET_AGENT", "WIDGET_IDS", "CLIENT_WIDGETS", "WIDGETS_IN_ONE_MENU", "WIDGET_MENU_SIDE", "OPEN_WIDGETS", "DRAFTS_PINNED_ABOVE_MENU", "QUEEN_IS_NOT_A_WIDGET", "OPEN_KEEPS", "OPEN_SPECIALISTS_FIRST", "OPEN_FALLS_TO_CLIENT", "AGENT_SEES_WIDGETS", "WIDGET_CONTEXT_PARAM", "WIDGET_CONTEXT_ONLY_IN_CLIENT_THREAD", "HIDDEN_WIDGET_NOT_REPORTED", "WIDGET_TEXT_MAX_CHARS", "WIDGET_LIST_MAX", "WIDGET_CONTEXT_MAX_CHARS", "CLIENT_WORK_MARKS", "CONTENT_IS_CALLERS", "CONTENT_IS_CLIENTS", "HOUSE_BRIEF_ON_CLIENT_WORK", "SELLER_PLAN_ON_CLIENT_WORK", "SELLER_SOUL_SPEAKS_HIS_OWN_WORDS", "CLIENT_CONTENT_FROM", "CLIENT_STORYREEL_NO_HOUSE_PALETTE", "STORY_CARD_AS_GIVEN", "STORY_CARD_HERS", "STORY_CARD_NEUTRAL", "STORY_CARD_NONE", "NEUTRAL_CARD_DARK", "NEUTRAL_CARD_LIGHT", "CLIENT_PROMPT_NO_HOUSE_BOT_NAME"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

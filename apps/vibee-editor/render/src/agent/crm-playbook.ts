@@ -30,18 +30,21 @@ import { storyPriceEstimateNotes } from './story-template'
  * from the chat; the second lead magnet after the portrait").
  *
  * The recipe is the owner's own story reel (StoryReel, three scenes, one
- * style, a new setting in every scene, a pause with a call to action,
- * <= 15 s) with the client in it: their face (crm_client_face), their words
- * about their business (crm_lead_context, their content plan), their voice
- * (crm_voice_clone). It is made as a JOB (crm_story_reel, story-template.ts)
- * -- not one long call inside a chat turn, which a redeploy cut and a resume
- * depended on the model to repeat -- and it ends in a gift card for the
+ * style, a pause with a call to action, <= 15 s) with the client in it:
+ * their face (crm_client_face), their words about their business
+ * (crm_lead_context, their content plan), their voice (crm_voice_clone).
+ * It is made as a JOB (crm_story_reel, story-template.ts) -- not one long
+ * call inside a chat turn, which a redeploy cut and a resume depended on
+ * the model to repeat -- and it ends in a gift card for the
  * client's DM the owner presses (story-card.ts: tg_send_video gift), which
  * is how portraitOf knows it was given.
  *
- * "Every scene a new setting" is written out because the owner had to say
- * it twice: a scene that keeps the source photo's own background reads as
- * the same picture in every reel.
+ * The scenes are written out because the rule turned over (crm-story-reel
+ * v21, OPEN_ON_SOURCE, STUDIO_SHOTS): scene one is her photo as it is, wide,
+ * opening on a hook; the rest are shots of the same studio; a new place only
+ * when somebody names one. This line used to ask for a different place in
+ * each scene, and a scene the agent writes is a caller's script, whose place
+ * IS drawn -- a still and a face check per scene, her in invented places.
  *
  * THE SELLER REACHES THE TEMPLATE (spec v3, 2026-09-27). Asked for "a reel
  * in her voice", the CRM agent read the health page's "voice (ElevenLabs)
@@ -66,8 +69,9 @@ export const STORY_GIFT =
   'спишет. НЕТ КЛОНА, Replicate выключен или Replicate отказал ему (402) — не беда: шаблон сам возьмёт его НАСТОЯЩИЕ ' +
   `голосовые из лички, нарежет по сценам и сделает липсинк на Kie (до ${REEL.NOTES_MAX_SEC} с, его слова, ` +
   `без клона и Replicate, ~${storyPriceEstimateNotes()} ток.) — запускай ${REEL.SELLER_TOOL} как обычно. ` +
-  'Сцены: 3 в ОДНОМ стиле, каждая — НОВАЯ обстановка ' +
-  'его дела из ЕГО фото (crm_client_face); реплики от первого лица по 2–4 с его словами о деле — из ' +
+  'Сцены: 3 в ОДНОМ стиле из ЕГО фото (crm_client_face): первая — фото как есть, широко, реплика-крючок, ' +
+  'а не приветствие; дальше — планы той же студии, новое место — только если его назвал владелец или он сам; ' +
+  'реплики от первого лица по 2–4 с его словами о деле — из ' +
   `переписки и плана (crm_client_plan). Запуск — ${REEL.SELLER_TOOL} {lead, start: true, scenes, style, ` +
   'cta: призыв ЕГО дела или пусто — возьмётся его призыв из профиля (не Тринити), to: "dm", caption: «это вам — рилс про ваше дело вашим голосом» и один мягкий ' +
   `вопрос}: в фоне, в конце пауза ${REEL.PAUSE_SEC} с с призывом, готовый приходит владельцу ` +

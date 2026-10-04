@@ -92,10 +92,15 @@ import {
 import { makeClientFaceTool } from './client-face-tool'
 import { isClientFacing } from './client-facing'
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
-import { makeStoryReelTool, type StillTask } from './story-reel-tool'
+import {
+  clientStoryReelProps,
+  makeStoryReelTool,
+  type StillTask,
+} from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { HOUSE_TELEGRAM_IDS, isHouse } from '../house-ids'
+import { houseReelRefusal, onClientWork } from './client-work'
 import {
   agentSuppliedHouseName,
   houseNameAllowed,
@@ -2915,6 +2920,18 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      // A house advert is never a client's reel (client-work.ts). Before the
+      // twin lookup too: a twin would hand back a house-branded file free.
+      let props = args.props || {}
+      if (onClientWork(ctx)) {
+        const refused = houseReelRefusal(args.compositionId, args.props)
+        if (refused) return { началось: false, причина: refused } // cyrillic-ok: the tool's result fields are its API
+        // A client's StoryReel never stands on the house card
+        // (crm-client-workspace v6, story_card_from): her card, or a neutral
+        // one. Filled here, before the fingerprint, so the twin and the
+        // charge see the reel that is actually drawn.
+        props = clientStoryReelProps(String(args.compositionId), props)
+      }
       /*
        * FIRST LOOK WHETHER THIS WORK IS ALREADY DONE.
        *
@@ -2922,10 +2939,7 @@ export const TOOLS: AgentTool[] = [
        * the person already has. The table is created here too - the twin
        * lookup reads the same columns the start below writes.
        */
-      const fingerprint = renderFingerprint(
-        String(args.compositionId),
-        args.props || {}
-      )
+      const fingerprint = renderFingerprint(String(args.compositionId), props)
       try {
         await ensureRendersTable(ctx)
       } catch (e) {
@@ -2952,7 +2966,7 @@ export const TOOLS: AgentTool[] = [
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           compositionId: String(args.compositionId),
-          props: args.props || {},
+          props,
           /*
            * WHO ORDERED IT. Without this field the finished video goes only to
            * the internal group and the buyer has no address - which is exactly

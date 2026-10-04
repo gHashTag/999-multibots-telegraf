@@ -45,6 +45,7 @@
  */
 import type { AgentTool, ToolContext } from './tools'
 import { clientFace } from './client-face'
+import { onClientWork } from './client-work'
 
 export interface FaceToolDeps {
   /** A lead's profile photo on our storage; '' when there is none. */
@@ -74,6 +75,16 @@ export const ASK_FOR_A_PHOTO =
   'у человека нет ни аватарки, ни присланного фото с лицом. ' + // cyrillic-ok: tool result copy
   'Попроси фото одной строкой — рисовать человека не из его лица нельзя' // cyrillic-ok: tool result copy
 
+/**
+ * A seller's sweep that names nobody. In a sweep `ctx.telegramId` is the
+ * seller, so "nobody named, the caller's own face" handed the agent HIS
+ * avatar for a picture meant for a lead -- the owner's face on a client's
+ * card (audit 04.10, wave 2). The sweep has to say whose face it means.
+ */
+export const NAME_THE_LEAD =
+  'в обходе продавца лицо берётся только у названного человека — ' + // cyrillic-ok: tool result copy
+  'передай lead_id; лицо продавца на работу клиенту не идёт' // cyrillic-ok: tool result copy
+
 export function makeClientFaceTool(deps: FaceToolDeps): AgentTool[] {
   return [
     {
@@ -95,6 +106,11 @@ export function makeClientFaceTool(deps: FaceToolDeps): AgentTool[] {
           return { has: false, why: NOT_YOUR_CALL }
         const target = forClient || asked
         const owner = String(ctx.telegramId)
+
+        // Nobody named on client work: never the caller's face -- there the
+        // caller is the seller (NAME_THE_LEAD).
+        if (!target && onClientWork(ctx))
+          return { has: false, why: NAME_THE_LEAD }
 
         // Nobody named, and no client in the turn: the caller's own face.
         if (!target) {

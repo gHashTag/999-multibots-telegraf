@@ -77,6 +77,7 @@ import {
 } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import * as WS from '../spec/crm-client-workspace.gen'
 import { stopRequested } from './agent-stops'
+import { onClientWork } from './client-work'
 
 const MAX_STEPS = 8
 
@@ -1019,9 +1020,9 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
   Публикация по-прежнему требует текст поста с хештегами — это канон.
 - Готовые шаблоны рилсов смотри через templates_list: собрать по шаблону быстрее и дешевле, чем выдумывать сборку с нуля. ${'' /* cyrillic-ok: prompt copy */}
 - РИЛС-ИСТОРИЯ (формат владельца, постоянный шаблон) — ОДНИМ вызовом story_reel {image_url, scenes: [{setting, line}], style, cta, for_lead}: ${'' /* cyrillic-ok: prompt copy */}
-  3 сцены в ОДНОМ стиле, обстановка новая в КАЖДОЙ, в первой тоже (фон исходника не повторять); реплики по 2–4 с, последняя — призыв; в конце пауза 3 с с надписью cta; весь ролик до 15 с (сторис). ${'' /* cyrillic-ok: prompt copy */}
+  3 сцены в ОДНОМ стиле: первая — само фото, широко, первая реплика — крючок, а не приветствие; дальше сцена без setting — план той же студии (средний, крупный), новое место — только если человек сам его назвал; реплики по 2–4 с, последняя — призыв; в конце пауза 3 с с надписью cta; весь ролик до 15 с (сторис). ${'' /* cyrillic-ok: prompt copy */}
   Для владельца: image_url — его эталон ${OWNER_NOIR_PORTRAIT}, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента из CRM — не этот вызов, а шаблон рилс-истории CRM: он делает рилс в фоне и присылает владельцу карточку «в группу»/«в личку»; у рилса клиента призыв и кнопка ЕГО, не Тринити. ${'' /* cyrillic-ok: prompt copy */}
-  Бот в речи — одно слово «Тринити», без букв и цифр; рилс клиента называет Тринити, только если человек сам это написал. Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
+  %%BOT_IN_SPEECH%%Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
 - СПЛИТ-РИЛС (говорящая голова, сверху b-roll, жёлтые титры по слову) — ОДНИМ вызовом split_reel {image_url: студийный кадр с лицом, text до ${SPLIT.SPEECH_MAX_SECONDS} с речи, brolls: обстановки, for_lead, cta}; вернулись voice_url/clip/broll_urls без видео — повтори с ними. ${'' /* cyrillic-ok: prompt copy */}
 - Режим AUTO: autopilot_status говорит, включён ли он, до какого часа и сколько автоотправок осталось сегодня. Включённый AUTO значит, что подготовленные карточки уходят клиенту сами. Включает и выключает его САМ владелец — кнопкой AUTO прямо над этим чатом, во вкладке «Браузер», в CRM или в боте; тебе этот переключатель не дан, и просьбу включить его словами выполняй так: скажи, где кнопка. ${'' /* cyrillic-ok: prompt copy */}
 ${WEB_RULES}
@@ -1074,7 +1075,7 @@ export function voiceLine(surface?: string): string {
  */
 export function reelRouteLine(): string {
   return (
-    `РИЛС ЭТОМУ КЛИЕНТУ — ${REEL.SELLER_TOOL}: рилс-история из трёх кадров, его лицо, его голос, новая обстановка в каждом кадре; ` + // cyrillic-ok: prompt copy
+    `РИЛС ЭТОМУ КЛИЕНТУ — ${REEL.SELLER_TOOL}: рилс-история из трёх кадров, его лицо, его голос: первый кадр — его фото как есть, широко, дальше — планы той же студии, новое место — только если его назвали; ` + // cyrillic-ok: prompt copy
     `тема — пункт его плана («Д5, план 72» — это тема) или его слова: ${REEL.SELLER_TOOL} {lead, start: true, topic}. ` + // cyrillic-ok: prompt copy
     `${REEL.OLD_PLAN_REEL} из пакета — старый беззвучный рилс с субтитрами: делай его, только если владелец прямо назвал этот шаблон.` // cyrillic-ok: prompt copy
   )
@@ -1158,13 +1159,39 @@ export function sendCardLine(surface?: string): string {
   return '- КАРТОЧКА ОТПРАВКИ. Всё, что ты подготовил для другого человека (сообщение, фото, видео), появляется ПРЯМО ПОД твоим ответом: превью и кнопки «Отправить» / «Не отправлять». Не отправляй владельца искать её в другом месте — скажи «карточка ниже».' // cyrillic-ok: prompt copy
 }
 
+/**
+ * WHOSE BOT A REEL SAYS (crm-client-workspace v6, bot_named_in_speech).
+ *
+ * The rule "the bot in speech is one word, Trinity" is the house's, and it
+ * used to reach every turn -- client work too, where the caller id is the
+ * seller's and the reel is hers. On client work it is replaced: her reel
+ * speaks of her business and her call, and the house's bot is not named.
+ */
+export function botNamedInSpeech(clientWork: boolean): boolean {
+  return !clientWork
+}
+
+/** The house's line about the bot in speech: only on the seller's own turn. */
+export const HOUSE_BOT_IN_SPEECH =
+  'Бот в речи — одно слово «Тринити», без букв и цифр; рилс клиента называет Тринити, только если человек сам это написал. ' // cyrillic-ok: prompt copy
+
+/** Its place on client work: no house bot, her business and her call. */
+export const CLIENT_BOT_IN_SPEECH =
+  'Это работа для клиента: в речи её рилса — её дело и её призыв, бот платформы не называется. ' // cyrillic-ok: prompt copy
+
 /** The prompt for a surface: the club for creators, the invoice for a client in the DM. */
-function systemFor(surface?: string): string {
+function systemFor(surface?: string, clientWork = false): string {
   return (
     SYSTEM_TEMPLATE.replace(
       '%%CLUB_OR_DM%%',
       surface === 'business' ? DM_CLIENT_BULLET : CREATOR_MONEY_BULLET
     )
+      .replace(
+        '%%BOT_IN_SPEECH%%',
+        botNamedInSpeech(clientWork)
+          ? HOUSE_BOT_IN_SPEECH
+          : CLIENT_BOT_IN_SPEECH
+      )
       .replace('%%TOKEN_LINE%%', tokenLine())
       .replace('%%PACKS_LINE%%', packsLine())
       .replace('%%CLUB_LINE%%', clubOfferLine())
@@ -1443,15 +1470,43 @@ function ownerSideSection(surface?: string): string {
   )
 }
 
+/**
+ * THE BLOGGER ON A CLIENT'S CARD. The content is hers: the order is
+ * CLIENT_CONTENT_FROM (crm-client-workspace.t27 v6) -- what the seller said
+ * about her, else her profile and plan, else neutral -- and nothing of ours.
+ * Exported for the test, which holds it free of the house's names.
+ */
+export const CLIENT_BLOGGER_BRIEF =
+  '\n\nТВОЯ СПЕЦИАЛИЗАЦИЯ — БЛОГЕР КЛИЕНТА. Эта работа — для клиента, о ' + // cyrillic-ok: prompt copy
+  'котором разговор: пост, рилс, подпись и призыв принадлежат ему. Бери его ' + // cyrillic-ok: prompt copy
+  'дело, офер, голос и фото: сначала то, что продавец сказал о нём в этом ' + // cyrillic-ok: prompt copy
+  'разговоре, потом его профиль (crm_client_profile) и план ' + // cyrillic-ok: prompt copy
+  '(crm_client_plan), а чего нет нигде — нейтрально. Бренд, блог, бот и ' + // cyrillic-ok: prompt copy
+  'офер продавца или платформы в работу клиента не идут: призыв ведёт к ' + // cyrillic-ok: prompt copy
+  'клиенту. Рилс — story_reel или split_reel с его призывом. Опубликовать ' + // cyrillic-ok: prompt copy
+  'или отправить — только карточкой по нажатию продавца. Не называй работу ' + // cyrillic-ok: prompt copy
+  'готовой, пока не видишь файл или ссылку.' // cyrillic-ok: prompt copy
+
 /*
  * The gate decides WHO may open an agent (routes.ts threadFor: live for
  * everybody, any catalogued agent for a keeper, #2957); this only says what
  * the agent is. A trainee a keeper opened gets its own voice, not the
  * general assistant's.
  */
-export function marketplaceAgentPrompt(agentId?: string): string {
+export function marketplaceAgentPrompt(
+  agentId?: string,
+  /**
+   * Work for a client (client-work.ts onClientWork). The Blogger's brief
+   * below is the HOUSE's -- its blog, its offer, its triptych -- and on a
+   * client's card it made her content end with our call (owner, 03.10). There
+   * she gets her own brief (crm-client-workspace.t27 v6,
+   * blogger_brief_is_house).
+   */
+  clientWork = false
+): string {
   const agent = marketplaceAgentById(agentId)
   if (!agent) return ''
+  if (agent.id === 'blogger' && clientWork) return CLIENT_BLOGGER_BRIEF
   if (agent.id === 'blogger') {
     return (
       '\n\nТВОЯ СПЕЦИАЛИЗАЦИЯ — БЛОГЕР T27. Ты не выдаёшь россыпь идей: ' +
@@ -1596,6 +1651,40 @@ export function marketplaceAgentPrompt(agentId?: string): string {
   return ''
 }
 
+/**
+ * The seller's SOUL on client work: his voice for words sent in his name
+ * (the duet speaks as him), never the source of her content -- no plan of
+ * his, no post in his voice (crm-client-workspace.t27 v6).
+ */
+export const SELLER_SOUL_ON_CLIENT_WORK =
+  '\n\nГОЛОС ПРОДАВЦА (SOUL.md) ниже — только для сообщений, которые уходят ' + // cyrillic-ok: prompt copy
+  'от его имени. Эта работа — для клиента: контент-план, офер и бренд ' + // cyrillic-ok: prompt copy
+  'продавца в неё не идут; пост, рилс, подпись и призыв делаются из данных ' + // cyrillic-ok: prompt copy
+  'клиента (crm_client_profile, crm_client_plan).\n\n' // cyrillic-ok: prompt copy
+
+/**
+ * The caller's personal SOUL (`user_soul`), with the line that says what it
+ * governs. On the caller's own turns it is whose content this is; on client
+ * work the caller is the seller, and the content is the client's
+ * (crm-client-workspace.t27 v6, seller_plan_in_prompt).
+ */
+export function personalSoulPreface(clientWork = false): string {
+  if (clientWork)
+    return (
+      '\n\nЛИЧНЫЙ SOUL ПРОДАВЦА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Он задаёт тон ответов ' + // cyrillic-ok: prompt copy
+      'ему и сообщений от его имени, но работа здесь — для клиента: тексты ' + // cyrillic-ok: prompt copy
+      'постов, идеи, рилсы и призыв делаются из данных клиента, а не из ' + // cyrillic-ok: prompt copy
+      'этого SOUL.\n\n' // cyrillic-ok: prompt copy
+    )
+  return (
+    '\n\nЛИЧНЫЙ SOUL ЧЕЛОВЕКА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Тексты постов, ' + // cyrillic-ok: prompt copy
+    'идеи и тон — подстраивай под него; голос бренда t27 остаётся ' + // cyrillic-ok: prompt copy
+    'правилом честности (числа, границы), но ЧЕЙ это контент и каким ' + // cyrillic-ok: prompt copy
+    'голосом — решает этот SOUL. Человек может просить править его ' + // cyrillic-ok: prompt copy
+    'через soul_edit — это его скилл, помогай с этим.\n\n' // cyrillic-ok: prompt copy
+  )
+}
+
 export function systemPrompt(
   surface?: string,
   toolsOnly = false,
@@ -1614,7 +1703,15 @@ export function systemPrompt(
    * personal SOUL (the block the caller adds from `souls`), and somebody with
    * none gets no voice at all -- the honest state, not a borrowed identity.
    */
-  ownerVoice = false
+  ownerVoice = false,
+  /**
+   * WORK FOR A CLIENT (client-work.ts onClientWork). The caller id is the
+   * seller's there, so `ownerVoice` stays true -- and his 30-day plan and
+   * "write posts in this voice" gave a client's content his. On client work
+   * his SOUL speaks only the words sent in his name, and the specialist gets
+   * the client's brief (crm-client-workspace.t27 v6, seller_plan_in_prompt).
+   */
+  clientWork = false
 ): string {
   // The unattended sweep (tools_only) must call tools, not draw buttons:
   // the markers section was the root of marker-only `[[...|no_one_available]]`
@@ -1655,11 +1752,24 @@ export function systemPrompt(
    * next, this stays the last thing read.
    */
   const lang = '\n\n' + ANSWER_IN_THEIR_LANGUAGE
-  const specialist = marketplaceAgentPrompt(marketplaceAgent)
+  const specialist = marketplaceAgentPrompt(marketplaceAgent, clientWork)
   const s = ownerVoice ? soul() : null
-  if (!s) return systemFor(surface) + buttons + canTake + specialist + lang
+  if (!s)
+    return (
+      systemFor(surface, clientWork) + buttons + canTake + specialist + lang
+    )
+  if (clientWork)
+    return (
+      systemFor(surface, clientWork) +
+      buttons +
+      canTake +
+      SELLER_SOUL_ON_CLIENT_WORK +
+      s +
+      specialist +
+      lang
+    )
   return (
-    systemFor(surface) +
+    systemFor(surface, clientWork) +
     buttons +
     canTake +
     '\n\nКОНТЕНТ-ПЛАН НА 30 ДНЕЙ есть в голосе владельца ниже — бери его ' + // cyrillic-ok: prompt copy
@@ -2397,6 +2507,13 @@ async function* runAgentTurn(
    * required to), not the primary path.
    */
   ctx = clientTurnContext(ctx, opts)
+  /*
+   * Work for a client is told by its marks, never by the caller id: on a
+   * client turn `ctx.telegramId` is the seller's (crm-client-workspace.t27 v6,
+   * content_for). The prompt below reads it so his plan, his post voice and
+   * the house's Blogger brief stay out of the client's content.
+   */
+  const clientWork = onClientWork(ctx)
   const turnId = ctx.turn ?? randomUUID().slice(0, 8)
   /** When THIS run began. A stop written before it is about another run. */
   const turnStartedAt = Date.now()
@@ -2694,7 +2811,8 @@ async function* runAgentTurn(
               opts?.surface,
               opts?.toolsOnly === true,
               opts?.marketplaceAgent,
-              ownerVoice
+              ownerVoice,
+              clientWork
             ) +
             salesPlaybook({
               surface: opts?.surface,
@@ -2702,17 +2820,14 @@ async function* runAgentTurn(
               seller,
               giftIsDown: imagesLookDown()?.why ?? null,
             }) +
-            '\n\nЛИЧНЫЙ SOUL ЧЕЛОВЕКА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Тексты постов, ' +
-            'идеи и тон — подстраивай под него; голос бренда t27 остаётся ' +
-            'правилом честности (числа, границы), но ЧЕЙ это контент и каким ' +
-            'голосом — решает этот SOUL. Человек может просить править его ' +
-            'через soul_edit — это его скилл, помогай с этим.\n\n' +
+            personalSoulPreface(clientWork) +
             personalSoul
           : systemPrompt(
               opts?.surface,
               opts?.toolsOnly === true,
               opts?.marketplaceAgent,
-              ownerVoice
+              ownerVoice,
+              clientWork
             ) +
             salesPlaybook({
               surface: opts?.surface,
@@ -2792,7 +2907,8 @@ async function* runAgentTurn(
               opts?.surface,
               opts?.toolsOnly === true,
               opts?.marketplaceAgent,
-              ownerVoice
+              ownerVoice,
+              clientWork
             ),
             dmHistory,
             personContext,

@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
@@ -523,9 +524,222 @@ describe("the spec's tests hold against the host", () => {
     )
   })
 
+  it('work for a client is told by its marks, never by the caller id', async () => {
+    // content_for(face_of, seller_sweep). On every turn below the caller id
+    // is the SELLER's -- the one thing that cannot tell his work from hers.
+    const { onClientWork } = await import('../agent/client-work')
+    const { clientTurnContext } =
+      await vi.importActual<typeof import('../agent/chat')>('../agent/chat')
+    // The marks the host reads are the spec's, by name.
+    const marks = SPEC.CLIENT_WORK_MARKS.split(',')
+    expect(marks).toEqual(['faceOf', 'sellerSweep'])
+    const set = (mark: string) => (mark === 'faceOf' ? CLIENT : true)
+    const contentFor = (faceOf: boolean, sellerSweep: boolean) =>
+      onClientWork({
+        telegramId: SELLER,
+        ...(faceOf ? { [marks[0]]: set(marks[0]) } : {}),
+        ...(sellerSweep ? { [marks[1]]: set(marks[1]) } : {}),
+      } as never)
+        ? SPEC.CONTENT_IS_CLIENTS
+        : SPEC.CONTENT_IS_CALLERS
+    expect(contentFor(true, false)).toBe(SPEC.CONTENT_IS_CLIENTS)
+    expect(contentFor(false, true)).toBe(SPEC.CONTENT_IS_CLIENTS)
+    expect(contentFor(true, true)).toBe(SPEC.CONTENT_IS_CLIENTS)
+    expect(contentFor(false, false)).toBe(SPEC.CONTENT_IS_CALLERS)
+    // The turn sets the marks: a client's thread and the unattended sweep
+    // do; the seller's own turn, and his own id as a "face", do not.
+    const own = { telegramId: SELLER } as Parameters<
+      typeof clientTurnContext
+    >[0]
+    expect(onClientWork(clientTurnContext(own, { client: CLIENT }))).toBe(true)
+    expect(onClientWork(clientTurnContext(own, { toolsOnly: true }))).toBe(true)
+    expect(onClientWork(clientTurnContext(own, {}))).toBe(false)
+    expect(onClientWork(clientTurnContext(own, { faceOf: SELLER }))).toBe(false)
+  })
+
+  it("on client work the Blogger gets the client's brief, never the house's", async () => {
+    const chat =
+      await vi.importActual<typeof import('../agent/chat')>('../agent/chat')
+    const { namesHouse } = await import('../house-names')
+    expect(SPEC.HOUSE_BRIEF_ON_CLIENT_WORK).toBe(false)
+    // blogger_brief_is_house(client_work): the brief names the house or not.
+    const isHouse = (clientWork: boolean) =>
+      namesHouse(chat.marketplaceAgentPrompt('blogger', clientWork))
+    expect(isHouse(false)).toBe(true)
+    expect(isHouse(true)).toBe(false)
+    expect(chat.marketplaceAgentPrompt('blogger', true)).toBe(
+      chat.CLIENT_BLOGGER_BRIEF
+    )
+    // CLIENT_CONTENT_FROM: the brief names its sources in the spec's order.
+    expect(SPEC.CLIENT_CONTENT_FROM.split(',')).toEqual([
+      'seller-for-this-client',
+      'client-profile',
+      'neutral',
+    ])
+    const brief = chat.CLIENT_BLOGGER_BRIEF
+    const at = [
+      'продавец сказал', // cyrillic-ok: the brief's words for seller-for-this-client
+      'crm_client_profile',
+      'нейтрально', // cyrillic-ok: the brief's word for neutral
+    ].map(w => brief.indexOf(w))
+    expect(at.every(i => i >= 0)).toBe(true)
+    expect([...at].sort((a, b) => a - b)).toEqual(at)
+    // The prompt carries the client's brief on client work, the house's not.
+    const onCard = chat.systemPrompt('miniapp', false, 'blogger', false, true)
+    expect(onCard).toContain(brief)
+    expect(onCard).not.toContain(chat.marketplaceAgentPrompt('blogger'))
+    expect(
+      chat.systemPrompt('miniapp', false, 'blogger', false, false)
+    ).not.toContain(brief)
+  })
+
+  it("on client work the seller's plan and post voice stay out, and his SOUL speaks only his own words", async () => {
+    const chat =
+      await vi.importActual<typeof import('../agent/chat')>('../agent/chat')
+    // soul() reads SOUL_MD_PATH first and keeps what it read; nothing in this
+    // file reads it before this test.
+    const dir = mkdtempSync(join(tmpdir(), 'ccw-soul-'))
+    const path = join(dir, 'SOUL.md')
+    const VOICE = 'SELLER SOUL FIXTURE: his own 30-day plan and his own voice.'
+    writeFileSync(path, VOICE)
+    const before = process.env.SOUL_MD_PATH
+    process.env.SOUL_MD_PATH = path
+    try {
+      expect(chat.soul()).toBe(VOICE)
+      const PLAN = 'КОНТЕНТ-ПЛАН НА 30 ДНЕЙ' // cyrillic-ok: the prompt's plan line
+      const POST_VOICE = 'Когда пишешь текст поста' // cyrillic-ok: the prompt's post-voice line
+      const prompt = (sellerSoul: boolean, clientWork: boolean) =>
+        chat.systemPrompt('miniapp', false, undefined, sellerSoul, clientWork)
+      // seller_plan_in_prompt(seller_soul, client_work)
+      const planIn = (sellerSoul: boolean, clientWork: boolean) => {
+        const p = prompt(sellerSoul, clientWork)
+        return p.includes(PLAN) || p.includes(POST_VOICE)
+      }
+      expect(SPEC.SELLER_PLAN_ON_CLIENT_WORK).toBe(false)
+      expect(planIn(true, false)).toBe(true)
+      expect(planIn(true, true)).toBe(false)
+      expect(planIn(false, false)).toBe(false)
+      expect(planIn(false, true)).toBe(false)
+      expect(prompt(true, false)).toContain(POST_VOICE)
+      // SELLER_SOUL_SPEAKS_HIS_OWN_WORDS: on client work his SOUL stays, as
+      // the voice of what is sent in his name and nothing else.
+      expect(SPEC.SELLER_SOUL_SPEAKS_HIS_OWN_WORDS).toBe(true)
+      const onCard = prompt(true, true)
+      expect(onCard).toContain(VOICE)
+      expect(onCard).toContain(chat.SELLER_SOUL_ON_CLIENT_WORK)
+      expect(onCard.indexOf(chat.SELLER_SOUL_ON_CLIENT_WORK)).toBeLessThan(
+        onCard.indexOf(VOICE)
+      )
+      // His personal SOUL (user_soul) is framed the same way.
+      const TUNE = 'подстраивай под него' // cyrillic-ok: the own-turn preface's words
+      expect(chat.personalSoulPreface(false)).toContain(TUNE)
+      expect(chat.personalSoulPreface(true)).not.toContain(TUNE)
+    } finally {
+      if (before === undefined) delete process.env.SOUL_MD_PATH
+      else process.env.SOUL_MD_PATH = before
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("a client's story reel never stands on the house card", async () => {
+    const reel = await import('../agent/story-reel-tool')
+    const REEL = await import('./crm-story-reel.gen')
+    expect(SPEC.CLIENT_STORYREEL_NO_HOUSE_PALETTE).toBe(true)
+    // story_card_from(client_work, card_given, call_given)
+    const way = reel.storyCardFrom
+    expect(way(false, false, true)).toBe(SPEC.STORY_CARD_AS_GIVEN)
+    expect(way(false, true, false)).toBe(SPEC.STORY_CARD_AS_GIVEN)
+    expect(way(true, true, false)).toBe(SPEC.STORY_CARD_HERS)
+    expect(way(true, true, true)).toBe(SPEC.STORY_CARD_HERS)
+    expect(way(true, false, true)).toBe(SPEC.STORY_CARD_NEUTRAL)
+    expect(way(true, false, false)).toBe(SPEC.STORY_CARD_NONE)
+    // What reel_render draws on client work (clientStoryReelProps): a whole
+    // card, so StoryReel's defaults -- the house's palette -- fill nothing.
+    const HOUSE = [
+      REEL.END_CARD_DEFAULT_BG,
+      REEL.END_CARD_DEFAULT_TITLE,
+      REEL.END_CARD_DEFAULT_TEXT,
+      REEL.END_CARD_DEFAULT_ACCENT,
+    ].map(c => c.toLowerCase())
+    const drawn = (props: Record<string, unknown>) =>
+      reel.clientStoryReelProps('StoryReel', props) as {
+        endCard?: Record<string, string>
+      }
+    const colours = (card: Record<string, string> | undefined) =>
+      ['bg', 'title', 'text', 'accent'].map(k =>
+        String(card?.[k]).toLowerCase()
+      )
+    // NEUTRAL: a call and no card.
+    const neutral = drawn({ cta: 'Book a visit' }).endCard
+    expect(neutral).toEqual({
+      bg: SPEC.NEUTRAL_CARD_DARK,
+      title: SPEC.NEUTRAL_CARD_LIGHT,
+      text: SPEC.NEUTRAL_CARD_LIGHT,
+      accent: SPEC.NEUTRAL_CARD_LIGHT,
+    })
+    for (const c of colours(neutral)) expect(HOUSE).not.toContain(c)
+    expect(
+      reel.contrastX10(SPEC.NEUTRAL_CARD_LIGHT, SPEC.NEUTRAL_CARD_DARK)
+    ).toBeGreaterThanOrEqual(REEL.END_CARD_CONTRAST_MIN_X10)
+    // HERS: her colours and button kept, a missing colour neutral.
+    expect(
+      drawn({
+        cta: '',
+        endCard: { bg: '#fff0f5', title: '#8b0040', button: 'Book a visit' },
+      }).endCard
+    ).toEqual({
+      bg: '#fff0f5',
+      title: '#8b0040',
+      text: SPEC.NEUTRAL_CARD_DARK,
+      accent: SPEC.NEUTRAL_CARD_DARK,
+      button: 'Book a visit',
+    })
+    // Her title with no ground: the neutral ground her title reads on.
+    const light = drawn({ cta: 'Book', endCard: { title: '#ffd1dc' } }).endCard
+    expect(light?.bg).toBe(SPEC.NEUTRAL_CARD_DARK)
+    expect(light?.title).toBe('#ffd1dc')
+    const dark = drawn({ cta: 'Book', endCard: { title: '#3a0ca3' } }).endCard
+    expect(dark?.bg).toBe(SPEC.NEUTRAL_CARD_LIGHT)
+    for (const c of [...colours(light), ...colours(dark)])
+      expect(HOUSE).not.toContain(c)
+    // NONE: neither a card nor a call; an unusable card is dropped, not
+    // filled with the house's defaults.
+    expect('endCard' in drawn({ cta: '' })).toBe(false)
+    expect('endCard' in drawn({ cta: ' ', endCard: { bg: 'black' } })).toBe(
+      false
+    )
+    // Another composition goes as given.
+    const split = { cta: 'Book a visit' }
+    expect(reel.clientStoryReelProps('SplitTalkingHead', split)).toBe(split)
+  })
+
+  it("on client work the prompt does not say the bot in speech is the house's", async () => {
+    const chat =
+      await vi.importActual<typeof import('../agent/chat')>('../agent/chat')
+    expect(SPEC.CLIENT_PROMPT_NO_HOUSE_BOT_NAME).toBe(true)
+    // bot_named_in_speech(client_work)
+    expect(chat.botNamedInSpeech(false)).toBe(true)
+    expect(chat.botNamedInSpeech(true)).toBe(false)
+    for (const surface of ['miniapp', 'bot', 'business', 'kanban'])
+      for (const sellerSoul of [false, true]) {
+        const own = chat.systemPrompt(surface, false, undefined, sellerSoul)
+        const theirs = chat.systemPrompt(
+          surface,
+          false,
+          undefined,
+          sellerSoul,
+          true
+        )
+        expect(own).toContain(chat.HOUSE_BOT_IN_SPEECH)
+        expect(theirs).not.toContain(chat.HOUSE_BOT_IN_SPEECH)
+        expect(theirs).toContain(chat.CLIENT_BOT_IN_SPEECH)
+        expect(own + theirs).not.toContain('%%BOT_IN_SPEECH%%')
+      }
+  })
+
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(5)
+    expect(SPEC.VERSION).toBe(6)
   })
 })

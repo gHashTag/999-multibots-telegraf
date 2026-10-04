@@ -16,7 +16,12 @@
  * tests are bound in src/spec/crm-client-workspace.test.ts.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { runAgent } from './chat'
+import {
+  CLIENT_BLOGGER_BRIEF,
+  marketplaceAgentPrompt,
+  personalSoulPreface,
+  runAgent,
+} from './chat'
 import { widgetsOfTurn } from './client-widgets'
 import { forgetProviderChoiceForTests } from './provider-choice'
 import { forgetBreakersForTests } from './provider-breaker'
@@ -74,11 +79,14 @@ function provider() {
 const fakePool = () => ({ query: async () => ({ rows: [] }) })
 
 /** The system prompt of one turn by the seller, with these opts. */
-async function systemOf(opts: Record<string, unknown>): Promise<string> {
+async function systemOf(
+  opts: Record<string, unknown>,
+  pool: { query: (sql: string) => Promise<{ rows: unknown[] }> } = fakePool()
+): Promise<string> {
   const asked = provider()
   for await (const _ of runAgent(
     [{ role: 'user', content: 'make the reel' }],
-    { telegramId: SELLER, pool: fakePool(), turn: 't-widgets' } as Parameters<
+    { telegramId: SELLER, pool, turn: 't-widgets' } as Parameters<
       typeof runAgent
     >[1],
     { surface: 'miniapp', ...opts } as Parameters<typeof runAgent>[2]
@@ -196,5 +204,60 @@ describe("the widgets reach the agent in a client's thread", () => {
     const system = await systemOf({ widgets: widgetsOfTurn(sent, true) })
     expect(system).not.toContain(TITLE)
     expect(system).not.toContain(TOPIC)
+  })
+})
+
+/*
+ * CLIENT WORK CARRIES THE CLIENT'S MARKS -- ON THE REAL LOOP.
+ *
+ * Owner, 2026-10-03: "why does it make my CTA and not the client's?" The
+ * caller id on a client's card is the seller's, so the Blogger used to get
+ * the HOUSE brief (our offer, our triptych) and the seller's personal SOUL
+ * was told to shape "the texts of posts" there. The spec's vectors are run in
+ * src/spec/crm-client-workspace.test.ts (v6); this proves runAgent reads the
+ * marks and hands them to the prompt.
+ */
+describe("on a client's card the prompt is the client's", () => {
+  const HOUSE_BRIEF = marketplaceAgentPrompt('blogger')
+  const SOUL_TEXT = 'SELLER PERSONAL SOUL FIXTURE'
+  /** A pool whose only stored row is the seller's personal SOUL. */
+  const soulPool = () => ({
+    query: async (sql: string) =>
+      /FROM user_soul/.test(sql)
+        ? { rows: [{ content: SOUL_TEXT }] }
+        : { rows: [] },
+  })
+
+  it("the Blogger on a client's card gets the client's brief, not the house's", async () => {
+    const system = await systemOf({
+      marketplaceAgent: 'blogger',
+      client: CLIENT,
+    })
+    expect(system).toContain(CLIENT_BLOGGER_BRIEF)
+    expect(system).not.toContain(HOUSE_BRIEF)
+  })
+
+  it('the unattended sweep is client work too', async () => {
+    const system = await systemOf({
+      marketplaceAgent: 'blogger',
+      toolsOnly: true,
+    })
+    expect(system).toContain(CLIENT_BLOGGER_BRIEF)
+    expect(system).not.toContain(HOUSE_BRIEF)
+  })
+
+  it("the seller's own thread keeps the house brief", async () => {
+    const system = await systemOf({ marketplaceAgent: 'blogger' })
+    expect(system).toContain(HOUSE_BRIEF)
+    expect(system).not.toContain(CLIENT_BLOGGER_BRIEF)
+  })
+
+  it('his personal SOUL sets his tone on her card, and shapes content only on his own turn', async () => {
+    const onCard = await systemOf({ client: CLIENT }, soulPool())
+    expect(onCard).toContain(personalSoulPreface(true) + SOUL_TEXT)
+    expect(onCard).not.toContain(personalSoulPreface(false))
+    const own = await systemOf({}, soulPool())
+    expect(own).toContain(personalSoulPreface(false) + SOUL_TEXT)
+    expect(own).not.toContain(personalSoulPreface(true))
   })
 })
