@@ -21,7 +21,8 @@
  *   BILLING  the last igla-loop.yml run failed before any job took a step:
  *            GitHub refused to start it (the account's payment)
  *   BOARD    the board names another repo or workflow than this file
- *   DISPATCH GitHub refused the tick (IGLA_GITHUB_TOKEN lacks Actions write)
+ *   DISPATCH the tick did not go out: GitHub refused the token (401, 403,
+ *            404), answered otherwise, or did not answer
  * What it cannot measure it says by name: unmeasured is not ok.
  *
  * THE TICK -- the automatic improvement. Every tick_h, when no igla-loop.yml
@@ -38,8 +39,9 @@
  * state changes, on a dispatch, and every REPEAT_S while something needs the
  * owner; the owner's DM only on the first run and when the set of anomaly
  * codes changes (what is not measured goes to the Queen, not the phone). A
- * board that does not answer is reported on the first and the third run in a
- * row, DMed on the third, then reported every REPEAT_S. The previous run
+ * board that does not answer is reported on this file's very first run, then
+ * on the third failing run in a row (DMed then), then every REPEAT_S; the
+ * run that reads it again reports the recovery. The previous run
  * lives in STATE_DIR/igla.json. Exit code (logged only): 0 ok, 1 an anomaly,
  * 2 the board not measured.
  *
@@ -175,11 +177,17 @@ async function runpod(cfg, deps, nowS) {
         cost: Number(x.costPerHr) || 0,
       }
     })
-  return {
-    balance: Number(me.clientBalance),
-    spend: Number(me.currentSpendPerHr),
-    running,
-  }
+  const balance = Number(me.clientBalance)
+  const spend = Number(me.currentSpendPerHr)
+  /* null -> 0 and NaN would both pass LOWBAL silently. */
+  if (
+    me.clientBalance === null ||
+    me.currentSpendPerHr === null ||
+    !Number.isFinite(balance) ||
+    !Number.isFinite(spend)
+  )
+    return { error: 'RunPod answered without a numeric balance or spend' }
+  return { balance, spend, running }
 }
 
 const PROJECT = `query { projectToken { projectId environmentId } }`
@@ -231,7 +239,7 @@ async function github(cfg, deps, token, path, init = {}) {
       'user-agent': UA,
     },
   })
-  return { status: r.status, body: parse(r.text) }
+  return { status: r.status, body: parse(r.text), error: r.error }
 }
 
 /** The last igla-loop.yml run, and whether GitHub refused to start it. */
@@ -310,7 +318,9 @@ export function assess({ q, snap, pods, judgeUp, run, nowS }) {
   /* queen_igla: STALE only while idle. A live judge job is work too. */
   const busy = (pods?.running?.length || 0) + (judgeUp?.up?.length || 0) > 0
   const jh = hours(nowS, q.journal_at)
-  if (!busy && jh !== null && jh > L.stale_h)
+  if (jh === null)
+    blind.push('STALE: the board has no journal commit time (journal_at)')
+  else if (!busy && jh > L.stale_h)
     anom.push(`STALE no journal commit for ${jh.toFixed(0)} h`)
   for (const a of snap.today?.anomalies || [])
     anom.push(`REPO ${String(a).slice(0, 160)}`)
@@ -458,15 +468,21 @@ export async function runIgla(cfg, deps) {
     if (dispatched) st.dispatched_at = nowS
     tick = dispatched
       ? `dispatched ${IGLA_WORKFLOW} on ${IGLA_REF}`
-      : `dispatch refused (HTTP ${d.status})`
-    /* Retried every run; reported every REPEAT_S until the token is fixed. */
+      : `not dispatched (HTTP ${d.status})`
+    /* Retried every run; reported every REPEAT_S until it goes out. Only an
+     * auth answer blames the token. */
     if (!dispatched)
       anom.push(
-        `DISPATCH ${IGLA_WORKFLOW} refused (HTTP ${d.status}): IGLA_GITHUB_TOKEN needs Actions read+write on ${IGLA_REPO}`
+        `DISPATCH ${IGLA_WORKFLOW} ` +
+          ([401, 403, 404].includes(d.status)
+            ? `refused (HTTP ${d.status}): IGLA_GITHUB_TOKEN needs Actions read+write on ${IGLA_REPO}`
+            : d.status === 0
+              ? `not sent: GitHub did not answer (${d.error || 'Error'})`
+              : `not accepted: GitHub answered HTTP ${d.status}`)
       )
   } else if (run?.last && tick === 'not due') {
     const h = hours(nowS, run.last.created_at)
-    tick = `not due (last run ${run.last.status}/${run.last.conclusion || '-'}, ${h === null ? '?' : h.toFixed(1)} h ago${run.billing ? ', billing: daily retry' : ''})`
+    tick = `not due (last run ${run.last.status}/${run.last.conclusion || '-'}, ${h === null ? '?' : h.toFixed(1)} h ago${run.billing ? `, billing: retry every ${q.limits.billing_retry_h} h` : ''})`
   }
 
   const fmt = n => (n === null || n === undefined ? '?' : n.toFixed(1))

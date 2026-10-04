@@ -153,7 +153,11 @@ function world({
         ? res(200, { workflow_runs: runs })
         : res(runsStatus, { message: 'Not Found' })
     if (/\/actions\/runs\/\d+\/jobs$/.test(u)) return res(200, { jobs })
-    if (u.endsWith('/dispatches')) return res(dispatch, '')
+    if (u.endsWith('/dispatches')) {
+      if (dispatch === 'timeout')
+        throw Object.assign(new Error('aborted'), { name: 'TimeoutError' })
+      return res(dispatch, '')
+    }
     if (u.endsWith('/queen/report')) return res(201, { id: 7 })
     if (u.endsWith('/sendMessage')) return res(200, { ok: true })
     return res(404, 'unexpected')
@@ -325,6 +329,9 @@ describe('igla: the loop watch on the Queen', () => {
     })
     await runIgla(cfgWith(), slower.deps)
     expect(slower.dispatches()).toHaveLength(0)
+    expect(slower.queenCalls()[0].body.body).toContain(
+      'billing: retry every 48 h'
+    )
     /* A failure that ran steps is the loop's own failure, not billing. */
     const own = world({
       ...billed,
@@ -432,6 +439,49 @@ describe('igla: the loop watch on the Queen', () => {
     expect(await runIgla(cfg, later.deps)).toBe(1)
     expect(later.queenCalls()).toHaveLength(1)
     expect(later.queenCalls()[0].body.body).toContain('DISPATCH')
+  })
+
+  it('DISPATCH blames the token only on an auth answer', async () => {
+    const busy = world({ dispatch: 500 })
+    expect(await runIgla(cfgWith(), busy.deps)).toBe(1)
+    const b500 = busy.queenCalls()[0].body.body
+    expect(b500).toContain(
+      'DISPATCH igla-loop.yml not accepted: GitHub answered HTTP 500'
+    )
+    expect(b500).not.toContain('needs Actions read+write')
+    const gone = world({ dispatch: 'timeout' })
+    expect(await runIgla(cfgWith(), gone.deps)).toBe(1)
+    const b0 = gone.queenCalls()[0].body.body
+    expect(b0).toContain(
+      'DISPATCH igla-loop.yml not sent: GitHub did not answer (TimeoutError)'
+    )
+    expect(b0).not.toContain('needs Actions read+write')
+    for (const status of [401, 404]) {
+      const auth = world({ dispatch: status })
+      await runIgla(cfgWith(), auth.deps)
+      expect(auth.queenCalls()[0].body.body).toContain(
+        `refused (HTTP ${status}): IGLA_GITHUB_TOKEN needs Actions read+write`
+      )
+    }
+  })
+
+  it('no journal time or no numeric balance is said, never passed silently', async () => {
+    const noJournal = world({ queen: queenBlock({ journal_at: null }) })
+    expect(await runIgla(cfgWith(), noJournal.deps)).toBe(0)
+    const nj = noJournal.queenCalls()[0].body
+    expect(nj.body).toContain(
+      'STALE: the board has no journal commit time (journal_at)'
+    )
+    expect(nj.needs_you).toBe(true)
+    for (const balance of [null, 'n/a']) {
+      const w = world({ balance })
+      expect(await runIgla(cfgWith(), w.deps)).toBe(0)
+      const body = w.queenCalls()[0].body.body
+      expect(body).toContain(
+        'RunPod answered without a numeric balance or spend'
+      )
+      expect(body).not.toContain('LOWBAL')
+    }
   })
 
   it('the DM follows the anomaly codes; a blind line goes to the Queen only', async () => {
