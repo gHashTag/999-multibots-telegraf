@@ -136,11 +136,16 @@ export function config(env = process.env) {
     healWaitS: n(env.HEAL_WAIT_S, 240),
     /* igla.mjs, the IGLA-Coder loop on the same tick: its header says why. */
     iglaOn: env.IGLA !== '0',
-    iglaDispatch: env.IGLA_DISPATCH !== '0',
+    /* '0' watches without the tick (it replaces IGLA_DISPATCH). */
+    iglaTrigger: env.IGLA_TRIGGER !== '0',
     /* Empty = igla.mjs IGLA_BOARD. The repo is igla.mjs's constant, not env. */
     iglaBoard: env.IGLA_BOARD_URL || '',
     runpodKey: env.RUNPOD_API_KEY || '',
+    /* Retired with the GitHub tick: nothing sends it. Read only so that
+     * secretsOf scrubs it if the owner leaves it set. */
     iglaGhToken: env.IGLA_GITHUB_TOKEN || '',
+    /* igla-judge production project token: JUDGEUP, the loop runner, and
+     * the tick (igla.mjs sends it to RAILWAY_API only). */
     iglaRailwayToken: env.IGLA_RAILWAY_TOKEN || '',
   }
 }
@@ -170,6 +175,20 @@ export function redact(text, secrets) {
     if (inJson !== s) out = out.split(inJson).join('[redacted]')
   }
   return out
+}
+
+/**
+ * A crash as ONE scrubbed log line: `<what> crashed: <Name>: <message> |
+ * <first stack frame>`. A raw stack spans lines, and a log reader (Railway's
+ * included) takes each line alone; a line break inside the message folds too.
+ */
+export function crashLine(what, e, secrets) {
+  const head = e instanceof Error ? `${e.name}: ${e.message}` : String(e)
+  const frame = String(e?.stack || '')
+    .split('\n')
+    .find(l => /^\s*at /.test(l))
+  const line = `${what} crashed: ${head}${frame ? ` | ${frame.trim()}` : ''}`
+  return redact(line.replace(/\s*[\r\n]+\s*/g, ' '), secrets)
 }
 
 export const hash8 = v =>
@@ -1084,7 +1103,7 @@ export async function run(cfg, deps) {
     try {
       return await watch(cfg, deps, ctx)
     } catch (e) {
-      log(`queen-watch: ${name} crashed: ${e && e.stack}`)
+      log(crashLine(`queen-watch: ${name}`, e, secretsOf(cfg)))
       return 2
     }
   }
@@ -1395,9 +1414,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
       const { runIgla } = await import('./igla.mjs')
       process.stdout.write(`igla-loop: rc ${await runIgla(cfg, deps)}\n`)
     } catch (e) {
-      process.stdout.write(
-        redact(`igla-loop: crashed: ${e && e.stack}`, secretsOf(cfg)) + '\n'
-      )
+      process.stdout.write(crashLine('igla-loop:', e, secretsOf(cfg)) + '\n')
     }
   }
   run(cfg, deps).then(
@@ -1406,9 +1423,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
       process.exit(rc)
     },
     async e => {
-      process.stdout.write(
-        redact(`queen-watch: crashed: ${e && e.stack}`, secretsOf(cfg)) + '\n'
-      )
+      process.stdout.write(crashLine('queen-watch:', e, secretsOf(cfg)) + '\n')
       await igla()
       process.exit(2)
     }

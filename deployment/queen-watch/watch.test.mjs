@@ -28,6 +28,9 @@ import {
   run,
   tellOwner,
 } from './watch.mjs'
+/* A namespace too: a helper an older watch.mjs lacks is undefined in the one
+ * test that needs it, instead of failing the whole file at load. */
+import * as watchNs from './watch.mjs'
 
 /* Deliberately fake values, long enough to be scrubbed. */
 const BOT_KEY = 'fake-bot-key-0001'
@@ -778,9 +781,32 @@ describe('the BROWSER page', () => {
       throw new Error('boom')
     }
     expect(await run(cfg, w.deps)).toBe(2)
-    expect(w.stdout()).toContain('the relays watch crashed')
+    expect(w.stdout()).toMatch(
+      /queen-watch: the relays watch crashed: Error: boom \| at \S/
+    )
+    /* One line: no stack frame on a line of its own. */
+    expect(w.stdout()).not.toMatch(/\n\s*at /)
     expect(w.stdout()).toContain('queen-watch: page: ok')
     expect(w.sent('/queen/report')).toHaveLength(1)
+  })
+
+  it('a crash is one scrubbed line: the message and its first frame', () => {
+    const { crashLine } = watchNs
+    const e = new TypeError(`bad answer ${RAIL}\nsecond line`)
+    const line = crashLine('igla-loop:', e, SECRETS)
+    expect(line).not.toMatch(/[\r\n]/)
+    expect(line).toMatch(
+      /^igla-loop: crashed: TypeError: bad answer \[redacted\] second line \| at \S/
+    )
+    expect(line).not.toContain(RAIL)
+    /* Only the first frame: the rest of the stack is not in the line. */
+    expect(line.split(' at ')).toHaveLength(2)
+    expect(crashLine('queen-watch:', 'plain words', [])).toBe(
+      'queen-watch: crashed: plain words'
+    )
+    expect(crashLine('queen-watch:', undefined, [])).toBe(
+      'queen-watch: crashed: undefined'
+    )
   })
 
   it('the page issue body passes the Queen spec judge, with both repos in its boundary', async () => {
