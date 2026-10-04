@@ -1276,7 +1276,7 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(22)
+    expect(SPEC.VERSION).toBe(23)
   })
 
   it("a client's reel carries her call: the seller's for her, then her own, never the house's", async () => {
@@ -1969,5 +1969,169 @@ describe("the spec's tests hold against the host", () => {
     expect(jobKept(1, 0, 0)).toBe(true)
     expect(jobKept(0, 1, 0)).toBe(true)
     expect(jobKept(0, 0, 0)).toBe(false)
+  })
+
+  it('a Cyrillic letter that looks Latin reads as that letter, and an invisible one splits no name', async () => {
+    // FOLD_LOOKALIKES, INVISIBLES_DROPPED, LOOKALIKE_LATIN, name_mark
+    const { foldMarks, lookalikeLatinSide, nameMark, namesHouse } =
+      await import('../house-names')
+    const { lineWay, charged, houseNameByAgent } = await import(
+      '../agent/story-reel-templates'
+    )
+    expect(SPEC.FOLD_LOOKALIKES).toBe(true)
+    expect(SPEC.INVISIBLES_DROPPED).toBe(true)
+    expect(lookalikeLatinSide()).toBe(SPEC.LOOKALIKE_LATIN)
+    expect(nameMark(false, false)).toBe(true)
+    const refused = lineWay(nameMark(false, false), false, SPEC.LINE_FROM_EDIT)
+    expect(refused).toBe(SPEC.LINE_REFUSED)
+    expect(charged(refused === SPEC.LINE_REFUSED)).toBe(false)
+    // The Russian row of 999#3564: Trinity in Cyrillic with a Latin T.
+    const latinT = 'спроси Tринити' // cyrillic-ok: a Latin T in a Russian word
+    expect(namesHouse(latinT)).toBe(true)
+    expect(houseNameByAgent(latinT, 'Make it about my studio.')).toBe(true)
+    expect(foldMarks('Tринити')).toBe(foldMarks('Тринити')) // cyrillic-ok
+    // Both ways: a Cyrillic Te or U inside the English name and the brand.
+    expect(namesHouse('ask Тrinitу')).toBe(true) // cyrillic-ok: Cyrillic Te, U
+    expect(namesHouse('ТРИНИТИ')).toBe(true) // cyrillic-ok: all capitals
+    expect(namesHouse('Т27')).toBe(true) // cyrillic-ok: a Cyrillic Te
+    // Invisible characters split no name: zero-width space, soft hyphen,
+    // word joiner; a full-width spelling is its letters (NFKC).
+    const [zwsp, shy, wj] = [0x200b, 0xad, 0x2060].map(c =>
+      String.fromCharCode(c)
+    )
+    expect(namesHouse(`Tri${zwsp}nity`)).toBe(true)
+    expect(namesHouse(`Trin${shy}ity`)).toBe(true)
+    expect(namesHouse(`T${wj}27`)).toBe(true)
+    expect(namesHouse('ＴＲＩＮＩＴＹ')).toBe(true)
+    // The fold makes no house of a Russian line that names none.
+    expect(namesHouse('Запишитесь на примерку к Анне')).toBe(false) // cyrillic-ok
+    expect(namesHouse('Тренинг в четверг')).toBe(false) // cyrillic-ok
+  })
+
+  it('T27 starting a word is the brand: t27ai and t27_ai, not at27 nor T270', async () => {
+    // code_mark(word_before, digit_after, letter_after), CODE_MARK_PREFIX
+    const { codeMark, namesHouse } = await import('../house-names')
+    const { lineWay } = await import('../agent/story-reel-templates')
+    expect(SPEC.MARK_ROW_T27AI_EN).toBe('write to t27ai')
+    expect(SPEC.CODE_MARK_PREFIX).toBe(true)
+    expect(codeMark(false, false, true)).toBe(true)
+    expect(codeMark(false, false, false)).toBe(true)
+    expect(codeMark(true, false, false)).toBe(false)
+    expect(codeMark(true, false, true)).toBe(false)
+    expect(codeMark(false, true, false)).toBe(false)
+    expect(
+      lineWay(codeMark(false, false, true), false, SPEC.LINE_FROM_EDIT)
+    ).toBe(SPEC.LINE_REFUSED)
+    expect(
+      lineWay(codeMark(true, false, true), false, SPEC.LINE_FROM_EDIT)
+    ).toBe(SPEC.LINE_KEPT)
+    // The host's detector, on the row of 999#3564 and its neighbours.
+    expect(namesHouse(SPEC.MARK_ROW_T27AI_EN)).toBe(true)
+    for (const brand of ['t27ai', 'T27AI', 't27_ai', 'T27.ai', 'T27', '(t27)'])
+      expect(namesHouse(`write to ${brand}`)).toBe(true)
+    for (const other of ['at27', 'AT27 engine', 'T270', 'model t275', '5t27'])
+      expect(namesHouse(other)).toBe(false)
+  })
+
+  it('the product is one token: our S3 AI pipeline names no house', async () => {
+    // product_mark(code_ok, space_inside), PRODUCT_ONE_TOKEN
+    const { codeMark, productMark, namesHouse } = await import('../house-names')
+    const { lineWay } = await import('../agent/story-reel-templates')
+    expect(SPEC.MARK_ROW_S3_SPACE_EN).toBe('our S3 AI pipeline')
+    expect(SPEC.HOUSE_PRODUCT).toBe('S3AI')
+    expect(SPEC.PRODUCT_ONE_TOKEN).toBe(true)
+    expect(productMark(codeMark(false, false, false), true)).toBe(false)
+    expect(productMark(codeMark(false, false, false), false)).toBe(true)
+    expect(productMark(codeMark(false, false, true), false)).toBe(true)
+    expect(productMark(codeMark(true, false, false), false)).toBe(false)
+    expect(
+      lineWay(
+        productMark(codeMark(false, false, false), true),
+        false,
+        SPEC.LINE_FROM_EDIT
+      )
+    ).toBe(SPEC.LINE_KEPT)
+    expect(
+      lineWay(
+        productMark(codeMark(false, false, false), false),
+        false,
+        SPEC.LINE_FROM_EDIT
+      )
+    ).toBe(SPEC.LINE_REFUSED)
+    // The host's detector: the row of 999#3564, and the product as a token.
+    expect(namesHouse(SPEC.MARK_ROW_S3_SPACE_EN)).toBe(false)
+    expect(namesHouse('files in S3, AI on top')).toBe(false)
+    expect(namesHouse('S 3 AI')).toBe(false)
+    const zwsp = String.fromCharCode(0x200b)
+    for (const product of ['S3AI', 's3ai', 'S³AI', 'S3AIs', `S${zwsp}3AI`])
+      expect(namesHouse(`made with ${product}`)).toBe(true)
+    expect(namesHouse('BS3AI')).toBe(false)
+    expect(namesHouse('S3AI2')).toBe(false)
+  })
+
+  it('Trinity College stays a house name: a refused line is rewritten, a missed one is on her reel', async () => {
+    // name_mark(inside_word, word_after), NAME_IN_ANY_CONTEXT
+    const { nameMark, namesHouse } = await import('../house-names')
+    const { lineWay, lineFrom, ownWords, charged, houseNameByAgent } =
+      await import('../agent/story-reel-templates')
+    expect(SPEC.MARK_ROW_COLLEGE_EN).toBe('I studied at Trinity College')
+    expect(SPEC.NAME_IN_ANY_CONTEXT).toBe(true)
+    expect(nameMark(false, true)).toBe(true)
+    const refused = lineWay(nameMark(false, true), false, SPEC.LINE_FROM_EDIT)
+    expect(refused).toBe(SPEC.LINE_REFUSED)
+    expect(charged(refused === SPEC.LINE_REFUSED)).toBe(false)
+    expect(
+      lineWay(
+        nameMark(false, true),
+        false,
+        lineFrom(ownWords(true, false, true))
+      )
+    ).toBe(SPEC.LINE_KEPT)
+    // The host's detector: the agent's college line is refused...
+    const college = SPEC.MARK_ROW_COLLEGE_EN
+    expect(namesHouse(college)).toBe(SPEC.NAME_IN_ANY_CONTEXT)
+    expect(houseNameByAgent(college, 'Make it about my studies.')).toBe(true)
+    // ...and her own typed line is hers, college and all.
+    expect(houseNameByAgent(college, `Say: ${college}.`)).toBe(false)
+  })
+
+  it('no rule that clears a false positive clears a mark: Trinity, Trinity S3AI, T27 and @t27ai_bot stay', async () => {
+    // name_mark, code_mark, product_mark over every mark the house has
+    const { nameMark, codeMark, productMark, namesHouse } = await import(
+      '../house-names'
+    )
+    const { lineWay } = await import('../agent/story-reel-templates')
+    expect(SPEC.BOT_SPOKEN_AS).toBe('Trinity')
+    expect(SPEC.HOUSE_BRAND).toBe('T27')
+    expect(SPEC.TEMPLATE_BUTTON).toBe('@t27ai_bot')
+    expect(SPEC.MARK_ROW_TITLE_CASE_EN).toBe('Write To Trinity AI')
+    expect(nameMark(false, false)).toBe(true)
+    expect(nameMark(false, true)).toBe(true)
+    expect(SPEC.NAME_INSIDE_WORD).toBe(true)
+    expect(nameMark(true, false)).toBe(true)
+    expect(productMark(codeMark(false, false, false), false)).toBe(true)
+    expect(codeMark(false, false, false)).toBe(true)
+    expect(codeMark(false, false, true)).toBe(true)
+    expect(lineWay(nameMark(false, true), false, SPEC.LINE_FROM_EDIT)).toBe(
+      SPEC.LINE_REFUSED
+    )
+    expect(
+      lineWay(codeMark(false, false, false), false, SPEC.LINE_FROM_EDIT)
+    ).toBe(SPEC.LINE_REFUSED)
+    // The host's detector: every mark, bare and in a line, stays flagged.
+    const stay = [
+      SPEC.BOT_SPOKEN_AS,
+      'Тринити', // cyrillic-ok: the bare Russian name
+      'Trinity S³AI',
+      SPEC.HOUSE_BRAND,
+      't27',
+      SPEC.TEMPLATE_BUTTON,
+      SPEC.MARK_ROW_TITLE_CASE_EN,
+      'ask Trinity, she knows',
+      'TrinityBot',
+      'Trinity.',
+      'S3AI',
+    ]
+    for (const mark of stay) expect(namesHouse(mark)).toBe(true)
   })
 })
