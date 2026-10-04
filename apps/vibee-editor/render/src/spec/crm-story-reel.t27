@@ -209,6 +209,13 @@
 // the agent wrote, rewritten for free, never one she typed herself (own_words), while a miss
 // puts the house's name on a client's reel. So a rule that clears a false positive must not
 // clear a mark: the bare name, Trinity S3AI, T27 and @t27ai_bot stay flagged.
+// v24 (2026-10-04, t27#5913): HOUSE_SKIPS_ELEVENLABS is gone, and its assertion with it. The
+// flag described a lookup: audio_generate asking ElevenLabs for a voice when no voice and no
+// clone was chosen, skipped for the house. split-reel v8 (t27#5890) removed that lookup. An
+// ordinary caller with no voice is now refused before the charge, and the house speaks the
+// owner's clone. Nothing performs the lookup any more, so a flag saying the house skips it was
+// true of nothing. The house's voice is split-reel's rule (voice_refused, owner_voice_allowed)
+// and is not restated here. The delivery half of that test stands.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -219,7 +226,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 23;
+    pub const VERSION : u8 = 24;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -471,7 +478,6 @@ module automation::crm_story_reel {
     pub const STORY_DEFAULT_MAX_SEC : u16 = 15;  // the default reel: three lines, two breaths, the pause
     pub const DELIVER_VIA_HOME_BOT : bool = true;  // the person's own bot before the main one
     pub const HOUSE_DELIVERY_BOT : str = "t27ai_bot";  // where the owner talks to Trinity
-    pub const HOUSE_SKIPS_ELEVENLABS : bool = true;  // the owner's clone, never a voice found there
     pub const OPEN_ON_SOURCE : bool = true;  // scene one is the talking head itself, wide: the source photo
     pub const OPEN_SCENE : u16 = 0;  // the scene that shows the source photo as it is
     pub const FIRST_LINE_HOOK : bool = true;  // a greeting first is refused before anything is paid
@@ -1462,10 +1468,9 @@ module automation::crm_story_reel {
         assert(STORY_DEFAULT_MAX_SEC <= REEL_MAX_SEC);
     }
 
-    test "the finished reel reaches the house through its own bot, and the house speaks its clone" {
+    test "the finished reel reaches the house through its own bot" {
         assert(DELIVER_VIA_HOME_BOT);
         assert(HOUSE_DELIVERY_BOT == "t27ai_bot");
-        assert(HOUSE_SKIPS_ELEVENLABS);
     }
 
     test "a talking-head reel opens on the talking head, wide, with a hook" {
@@ -1502,7 +1507,7 @@ module automation::crm_story_reel {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 23);
+        assert(VERSION == 24);
     }
 
     test "the hook reel is a template of four studio shots with the call to the house bot" {
