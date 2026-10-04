@@ -8,7 +8,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { assess, dueTick, runIgla, runpodTime } from './igla.mjs'
+import {
+  NEED_LIMITS,
+  NEED_STRINGS,
+  assess,
+  dueTick,
+  runIgla,
+  runpodTime,
+} from './igla.mjs'
 import { config, reportToQueen } from './watch.mjs'
 
 /* Deliberately fake values, long enough to be scrubbed. */
@@ -47,6 +54,7 @@ const LIMITS = {
   idle_h: 12,
   tick_h: 6,
   judge_max_h: 8,
+  billing_retry_h: 24,
 }
 
 function queenBlock(over = {}) {
@@ -85,6 +93,7 @@ function world({
   runsStatus = 200,
   jobs = [{ name: 'monitor', steps: [{ name: 'checkout' }] }],
   dispatch = 204,
+  later = 0,
 } = {}) {
   const calls = []
   const out = []
@@ -92,7 +101,13 @@ function world({
     const u = String(url)
     const raw = init.body || ''
     const method = init.method || 'GET'
-    calls.push({ url: u, method, raw, body: raw ? JSON.parse(raw) : null })
+    calls.push({
+      url: u,
+      method,
+      raw,
+      body: raw ? JSON.parse(raw) : null,
+      auth: init.headers?.authorization,
+    })
     if (u.endsWith('/state')) {
       if (board !== 200) return res(board, 'down')
       return res(200, {
@@ -146,7 +161,7 @@ function world({
   const deps = {
     fetch,
     sleep: async () => {},
-    now: () => NOW,
+    now: () => NOW + later,
     write: s => out.push(s),
   }
   const log = () => out.join('')
@@ -159,8 +174,12 @@ function world({
 describe('igla: the loop watch on the Queen', () => {
   it('measures, ticks and reports a healthy loop as igla-loop', async () => {
     const w = world()
-    const cfg = cfgWith()
+    /* No variable moves the repository the token is pointed at. */
+    const cfg = cfgWith({ IGLA_REPO: 'gHashTag/t27' })
     expect(await runIgla(cfg, w.deps)).toBe(0)
+    expect(w.calls[0].url).toBe(
+      'https://board-production-2dec.up.railway.app/state'
+    )
     const d = w.dispatches()
     expect(d).toHaveLength(1)
     expect(d[0].method).toBe('POST')
@@ -168,6 +187,9 @@ describe('igla: the loop watch on the Queen', () => {
       'https://api.github.com/repos/gHashTag/igla-coder-gpu/actions/workflows/igla-loop.yml/dispatches'
     )
     expect(d[0].body).toEqual({ ref: 'main' })
+    /* The tick is IGLA_GITHUB_TOKEN's, never the Queen's GITHUB_TOKEN. */
+    expect(d[0].auth).toBe(`Bearer ${IGH}`)
+    expect(w.calls.some(c => c.url.includes('gHashTag/t27'))).toBe(false)
     const q = w.queenCalls()
     expect(q).toHaveLength(1)
     expect(Object.keys(q[0].body).sort()).toEqual([
@@ -268,7 +290,7 @@ describe('igla: the loop watch on the Queen', () => {
     )
   })
 
-  it('BILLING: a failed run whose jobs took no step; retried daily, not every tick', async () => {
+  it('BILLING: a failed run whose jobs took no step; retried every billing_retry_h', async () => {
     const billed = {
       runs: [
         {
@@ -295,6 +317,14 @@ describe('igla: the loop watch on the Queen', () => {
     })
     await runIgla(cfgWith(), later.deps)
     expect(later.dispatches()).toHaveLength(1)
+    /* The retry interval is the board's, not this file's. */
+    const slower = world({
+      ...billed,
+      runs: [{ ...billed.runs[0], created_at: iso(25) }],
+      queen: queenBlock({ limits: { ...LIMITS, billing_retry_h: 48 } }),
+    })
+    await runIgla(cfgWith(), slower.deps)
+    expect(slower.dispatches()).toHaveLength(0)
     /* A failure that ran steps is the loop's own failure, not billing. */
     const own = world({
       ...billed,
@@ -339,7 +369,7 @@ describe('igla: the loop watch on the Queen', () => {
     )
   })
 
-  it('an unreachable board is not measured, reported on the first and the third run', async () => {
+  it('an unreachable board: reported on runs 1 and 3, DMed on 3, then every REPEAT_S', async () => {
     const cfg = cfgWith()
     const runs = []
     for (let i = 0; i < 4; i++) {
@@ -347,9 +377,78 @@ describe('igla: the loop watch on the Queen', () => {
       expect(await runIgla(cfg, w.deps)).toBe(2)
       runs.push(w)
     }
-    expect(runs.map(w => w.queenCalls().length)).toEqual([1, 0, 1, 0])
+    const after = world({ board: 502, later: cfg.repeatS })
+    expect(await runIgla(cfg, after.deps)).toBe(2)
+    runs.push(after)
+    expect(runs.map(w => w.queenCalls().length)).toEqual([1, 0, 1, 0, 1])
+    expect(runs.map(w => w.tg().length)).toEqual([0, 0, 1, 0, 0])
     expect(runs[0].queenCalls()[0].body.needs_you).toBe(true)
     expect(runs.every(w => w.dispatches().length === 0)).toBe(true)
+    /* Measured again: a change, reported and DMed. */
+    const back = world({ later: cfg.repeatS + 3600 })
+    expect(await runIgla(cfg, back.deps)).toBe(0)
+    expect(back.queenCalls()).toHaveLength(1)
+    expect(back.tg()).toHaveLength(1)
+  })
+
+  it('a queen block missing any key this file reads is not measured, by name', async () => {
+    for (const k of NEED_LIMITS) {
+      const limits = { ...LIMITS }
+      delete limits[k]
+      const w = world({ queen: queenBlock({ limits }) })
+      expect(await runIgla(cfgWith(), w.deps)).toBe(2)
+      expect(w.log()).toContain(`lacks limits.${k}`)
+      expect(w.dispatches()).toHaveLength(0)
+      expect(w.queenCalls()[0].body.needs_you).toBe(true)
+    }
+    for (const k of NEED_STRINGS) {
+      const w = world({ queen: queenBlock({ [k]: undefined }) })
+      expect(await runIgla(cfgWith(), w.deps)).toBe(2)
+      expect(w.log()).toContain(`lacks ${k}`)
+      expect(w.dispatches()).toHaveLength(0)
+    }
+    /* A string where a number belongs is missing too. */
+    const typo = world({
+      queen: queenBlock({ limits: { ...LIMITS, pod_max_h: '7' } }),
+    })
+    expect(await runIgla(cfgWith(), typo.deps)).toBe(2)
+  })
+
+  it('a refused dispatch is a DISPATCH anomaly, retried and kept reported', async () => {
+    const cfg = cfgWith()
+    const first = world({ dispatch: 403 })
+    expect(await runIgla(cfg, first.deps)).toBe(1)
+    const body = first.queenCalls()[0].body
+    expect(body.needs_you).toBe(true)
+    expect(body.headline).toMatch(/^igla loop: DISPATCH/)
+    expect(body.body).toContain(
+      'DISPATCH igla-loop.yml refused (HTTP 403): IGLA_GITHUB_TOKEN needs Actions read+write on gHashTag/igla-coder-gpu'
+    )
+    const next = world({ dispatch: 403 })
+    expect(await runIgla(cfg, next.deps)).toBe(1)
+    expect(next.dispatches()).toHaveLength(1)
+    expect(next.queenCalls()).toHaveLength(0)
+    const later = world({ dispatch: 403, later: cfg.repeatS })
+    expect(await runIgla(cfg, later.deps)).toBe(1)
+    expect(later.queenCalls()).toHaveLength(1)
+    expect(later.queenCalls()[0].body.body).toContain('DISPATCH')
+  })
+
+  it('the DM follows the anomaly codes; a blind line goes to the Queen only', async () => {
+    const cfg = cfgWith({ RUNPOD_API_KEY: '' })
+    const first = world()
+    await runIgla(cfg, first.deps)
+    expect(first.tg()).toHaveLength(1)
+    const recent = [
+      { id: 2, status: 'completed', conclusion: 'success', created_at: iso(1) },
+    ]
+    const seen = world({ runs: recent })
+    await runIgla(cfgWith({}, { stateDir: cfg.stateDir }), seen.deps)
+    expect(seen.queenCalls()).toHaveLength(1)
+    expect(seen.tg()).toHaveLength(0)
+    const low = world({ runs: recent, balance: 3 })
+    await runIgla(cfgWith({}, { stateDir: cfg.stateDir }), low.deps)
+    expect(low.tg()).toHaveLength(1)
   })
 
   it('the published loop anomalies arrive as REPO lines', async () => {
@@ -420,7 +519,6 @@ describe('igla: the pieces', () => {
       pods: { balance: 40, spend: 0, running: [] },
       judgeUp: { up: [] },
       run: { last: null, billing: false },
-      cfg: cfgWith(),
       nowS: NOW,
     })
     expect(anom).toEqual(['LOWBAL $40.00 < $50: no new spend'])
