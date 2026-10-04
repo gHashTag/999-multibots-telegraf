@@ -1035,7 +1035,7 @@ async function refundTokens(
    * redeploy killed that watch -- and only one of them may pay.
    */
   ref?: string
-): Promise<void> {
+): Promise<boolean> {
   const price =
     typeof exact === 'number' && exact > 0 ? exact : TOKEN_PRICES[tool]
   if (!price) {
@@ -1045,7 +1045,7 @@ async function refundTokens(
     console.error(
       `[токены] ВОЗВРАТ НЕВОЗМОЖЕН: нет суммы для «${tool}» (${why})` // cyrillic-ok: existing log text
     )
-    return
+    return false
   }
 
   /**
@@ -1065,7 +1065,7 @@ async function refundTokens(
     console.log(
       `[токены] дом не возвращает себе: «${tool}» для ${ctx.telegramId}` // cyrillic-ok: log text
     )
-    return
+    return false
   }
   /*
    * NOTHING TAKEN, NOTHING GIVEN BACK -- the same mirror, for chargeLater.
@@ -1081,7 +1081,7 @@ async function refundTokens(
     console.log(
       `[токены] списано не было, возвращать нечего: «${tool}» для ${ctx.telegramId}` // cyrillic-ok: log text
     )
-    return
+    return false
   }
 
   try {
@@ -1098,7 +1098,7 @@ async function refundTokens(
       console.log(
         `[токены] возврат не повторён (${moved.reason}): «${tool}» ${ref ?? ''}`
       ) // cyrillic-ok: log text
-      return
+      return false
     }
     console.log(`[токены] возврат ${price} за «${tool}»: ${why}`)
     /*
@@ -1118,6 +1118,7 @@ async function refundTokens(
       what: `${tool}: ${why}`,
       severity: 'attention',
     })
+    return true
   } catch (e) {
     console.error(`[токены] ВОЗВРАТ НЕ ВЫПОЛНЕН ${price} за «${tool}»`, e)
     /*
@@ -1133,6 +1134,7 @@ async function refundTokens(
       what: `refund for "${tool}" did not go through`,
       severity: 'alarm',
     })
+    return false
   }
 }
 
@@ -1156,6 +1158,34 @@ export async function refundLateImage(
     why,
     t.charged ?? 0,
     lateRefundRef(t.task)
+  )
+}
+
+/**
+ * GIVE BACK A VOICE SPLIT_REEL PAID FOR AND THEN REFUSED FOR ITS LENGTH --
+ * at most once per voice (split-reel.t27 v8, REFUND_TOO_LONG_VOICE).
+ *
+ * split_reel estimates a voice from its text before paying for it, at the
+ * pace of the one voice the repo has measured. A slower voice passes that
+ * estimate and is measured past the ceiling only once it exists: the one
+ * refusal after the charge. The sum goes back exactly as audio_generate's
+ * receipt named it, under the voice's own ledger reference; a charge of
+ * nothing (the house, chargeLater) gives nothing back. True only when the
+ * tokens moved, so the answer never says "given back" for a refund that
+ * the ledger refused or the database dropped.
+ */
+export async function refundTooLongVoice(
+  ctx: ToolContext,
+  voice: { url: string; charged: number },
+  why: string
+): Promise<boolean> {
+  if (!(voice.charged > 0)) return false
+  return refundTokens(
+    ctx,
+    'audio_generate',
+    why,
+    voice.charged,
+    `split-reel-too-long:${voice.url}`
   )
 }
 
@@ -2485,12 +2515,20 @@ export const TOOLS: AgentTool[] = [
          RETURNING id, created_at::text`,
         [ctx.telegramId, direct, String(args.text).slice(0, 500)]
       )
-      return withTokens(ctx, 'audio_generate', {
-        сделано: true,
-        url: direct,
-        id: r.rows[0]?.id,
-        голос,
-      })
+      // The receipt names what the charge took, not the table price: the
+      // house and chargeLater were charged 0, and split_reel gives back
+      // exactly this sum when it refuses the voice for its length.
+      return withTokens(
+        ctx,
+        'audio_generate',
+        {
+          сделано: true, // cyrillic-ok: the tools’ answer fields
+          url: direct,
+          id: r.rows[0]?.id,
+          голос, // cyrillic-ok: the tools’ answer fields
+        },
+        charge['потрачено'] ?? 0
+      )
     },
   },
 
@@ -3976,7 +4014,9 @@ TOOLS.push(
         ? { ok: true, spent: c['потрачено'] ?? 0 }
         : { ok: false, why: String(c.причина) } // cyrillic-ok: the tools’ answer fields
     },
-    refund: (ctx, why, spent) => refundTokens(ctx, 'voice_clone', why, spent),
+    refund: async (ctx, why, spent) => {
+      await refundTokens(ctx, 'voice_clone', why, spent)
+    },
     put: (bytes, name, mime) => s3PutBytes(bytes, name, mime),
     join: joinVoiceNotes,
     clone: url =>

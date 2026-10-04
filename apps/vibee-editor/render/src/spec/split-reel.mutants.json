@@ -107,8 +107,8 @@
   {
     "name": "length check after the charge: the estimate runs once the voice is paid",
     "file": "src/agent/split-reel-tool.ts",
-    "from": "      // 0. A new voice too long for the format is refused from its text,\n      // before it is paid for (split-reel v8 text_fits). The measured gate\n      // in step 2 stays, for a voice slower than the measured pace.\n      const chars = speechChars(text)\n      if (!voiceUrl && !clip && !textFits(chars))\n        return {\n          done: false,\n          reason:\n            `text на ~${Math.ceil(speechMsEstimate(chars) / 1000)} с речи, а формат держит до ` +\n            `${SPEC.SPEECH_MAX_SECONDS} с: сократи text — голос не заказан и не оплачен`,\n          ...sofar(),\n        }\n\n      // 1. The voice, unless it came back from the last call.\n      let voiceKind = ''\n      let spoken = 0\n      if (!voiceUrl && !clip) {\n        const v = outcome(\n          await speak\n            .handler(\n              {\n                text,\n                ...(forLead ? { for_lead: forLead } : {}),\n              },\n              ctx\n            )\n            .catch(e => ({ done: false, reason: String(e) }))\n        )\n        if (!v.ok || !v.url)\n          return { done: false, reason: `голос: ${v.why}`, ...sofar() }\n        voiceUrl = v.url\n        voiceKind = v.voice\n        spoken = v.seconds\n      }\n\n",
-    "to": "      // 1. The voice, unless it came back from the last call.\n      let voiceKind = ''\n      let spoken = 0\n      if (!voiceUrl && !clip) {\n        const v = outcome(\n          await speak\n            .handler(\n              {\n                text,\n                ...(forLead ? { for_lead: forLead } : {}),\n              },\n              ctx\n            )\n            .catch(e => ({ done: false, reason: String(e) }))\n        )\n        if (!v.ok || !v.url)\n          return { done: false, reason: `голос: ${v.why}`, ...sofar() }\n        voiceUrl = v.url\n        voiceKind = v.voice\n        spoken = v.seconds\n      }\n\n      // 0. A new voice too long for the format is refused from its text,\n      // before it is paid for (split-reel v8 text_fits). The measured gate\n      // in step 2 stays, for a voice slower than the measured pace.\n      const chars = speechChars(text)\n      if (voiceKind && !clip && !textFits(chars))\n        return {\n          done: false,\n          reason:\n            `text на ~${Math.ceil(speechMsEstimate(chars) / 1000)} с речи, а формат держит до ` +\n            `${SPEC.SPEECH_MAX_SECONDS} с: сократи text — голос не заказан и не оплачен`,\n          ...sofar(),\n        }\n\n"
+    "from": "      // 0. A new voice too long for the format is refused from its text,\n      // before it is paid for (split-reel v8 text_fits). The measured gate\n      // in step 2 stays, for a voice slower than the measured pace.\n      const chars = speechChars(text)\n      if (!voiceUrl && !clip && !textFits(chars))\n        return {\n          done: false,\n          reason:\n            `text на ~${Math.ceil(speechMsEstimate(chars) / 1000)} с речи, а формат держит до ` +\n            `${SPEC.SPEECH_MAX_SECONDS} с: сократи text — голос не заказан и не оплачен`,\n          ...sofar(),\n        }\n\n      // 1. The voice, unless it came back from the last call.\n      let voiceKind = ''\n      let spoken = 0\n      // Whether THIS call paid for the voice, and what it took: the backstop\n      // gives back only a voice it paid for (v8 backstop_refund).\n      let paidHere = false\n      let chargedNow = 0\n      if (!voiceUrl && !clip) {\n        const v = outcome(\n          await speak\n            .handler(\n              {\n                text,\n                ...(forLead ? { for_lead: forLead } : {}),\n              },\n              ctx\n            )\n            .catch(e => ({ done: false, reason: String(e) }))\n        )\n        if (!v.ok || !v.url)\n          return { done: false, reason: `голос: ${v.why}`, ...sofar() }\n        voiceUrl = v.url\n        voiceKind = v.voice\n        spoken = v.seconds\n        paidHere = true\n        chargedNow = v.charged\n      }\n\n",
+    "to": "      // 1. The voice, unless it came back from the last call.\n      let voiceKind = ''\n      let spoken = 0\n      // Whether THIS call paid for the voice, and what it took: the backstop\n      // gives back only a voice it paid for (v8 backstop_refund).\n      let paidHere = false\n      let chargedNow = 0\n      if (!voiceUrl && !clip) {\n        const v = outcome(\n          await speak\n            .handler(\n              {\n                text,\n                ...(forLead ? { for_lead: forLead } : {}),\n              },\n              ctx\n            )\n            .catch(e => ({ done: false, reason: String(e) }))\n        )\n        if (!v.ok || !v.url)\n          return { done: false, reason: `голос: ${v.why}`, ...sofar() }\n        voiceUrl = v.url\n        voiceKind = v.voice\n        spoken = v.seconds\n        paidHere = true\n        chargedNow = v.charged\n      }\n\n      // 0. A new voice too long for the format is refused from its text,\n      // before it is paid for (split-reel v8 text_fits). The measured gate\n      // in step 2 stays, for a voice slower than the measured pace.\n      const chars = speechChars(text)\n      if (voiceKind && !clip && !textFits(chars))\n        return {\n          done: false,\n          reason:\n            `text на ~${Math.ceil(speechMsEstimate(chars) / 1000)} с речи, а формат держит до ` +\n            `${SPEC.SPEECH_MAX_SECONDS} с: сократи text — голос не заказан и не оплачен`,\n          ...sofar(),\n        }\n\n"
   },
   {
     "name": "estimate constant off by one at the boundary: 55 ms a character",
@@ -133,5 +133,53 @@
     "file": "src/split-reel-plan.ts",
     "from": "  if (house) return false\n  return !SPEC.STOCK_VOICE_FOR_ORDINARY\n",
     "to": "  if (house) return false\n  return SPEC.STOCK_VOICE_FOR_ORDINARY\n"
+  },
+  {
+    "name": "the backstop keeps the money of a voice it paid for",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "        if (back > 0) {\n",
+    "to": "        if (back < 0) {\n"
+  },
+  {
+    "name": "the receipt's charge is not read: nothing to give back",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "        chargedNow = v.charged\n",
+    "to": "        chargedNow = 0\n"
+  },
+  {
+    "name": "the answer says given back whether or not the tokens moved",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "(returned ? ",
+    "to": "(back > 0 ? "
+  },
+  {
+    "name": "a too-long voice is given back every time it is noticed",
+    "file": "src/agent/tools.ts",
+    "from": "    voice.charged,\n    `split-reel-too-long:${voice.url}`\n",
+    "to": "    voice.charged\n"
+  },
+  {
+    "name": "the table price goes back, not what the charge took",
+    "file": "src/agent/tools.ts",
+    "from": "    voice.charged,\n    `split-reel-too-long:",
+    "to": "    undefined,\n    `split-reel-too-long:"
+  },
+  {
+    "name": "a voice from an earlier call is given back too",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (!paidHere) return 0\n",
+    "to": ""
+  },
+  {
+    "name": "a voice exactly at the ceiling is refused and given back",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return measuredMs > SPEC.SPEECH_MAX_SECONDS * 1000\n",
+    "to": "  return measuredMs >= SPEC.SPEECH_MAX_SECONDS * 1000\n"
+  },
+  {
+    "name": "the backstop refuses and gives nothing back",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return Number.isInteger(chargedNow) && chargedNow > 0 ? chargedNow : 0\n",
+    "to": "  return 0\n"
   }
 ]

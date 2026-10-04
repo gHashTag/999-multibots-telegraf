@@ -98,5 +98,20 @@
     "name": "the ceiling is one character wide",
     "from": "return speech_ms_estimate(chars) <= SPEECH_MAX_SECONDS * 1000;",
     "to": "return speech_ms_estimate(chars) <= SPEECH_MAX_SECONDS * 1000 + 56;"
+  },
+  {
+    "name": "a voice refused after it is paid gives nothing back",
+    "from": "        return charged_now;",
+    "to": "        return 0;"
+  },
+  {
+    "name": "a voice from an earlier call is given back too",
+    "from": "        if !paid_here {\n            return 0;",
+    "to": "        if !paid_here {\n            return charged_now;"
+  },
+  {
+    "name": "a voice exactly at the ceiling is refused for its length",
+    "from": "return measured_ms > SPEECH_MAX_SECONDS * 1000;",
+    "to": "return measured_ms >= SPEECH_MAX_SECONDS * 1000;"
   }
 ]
