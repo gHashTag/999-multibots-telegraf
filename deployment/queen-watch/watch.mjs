@@ -53,6 +53,12 @@
  *   RAILWAY_ENVIRONMENT_ID is given to every Railway service.
  *   BROWSER_PAGE_URL     optional, a plain URL (not a secret); `off` stops
  *                        the page watch. Default: BROWSER_PAGE below.
+ *
+ * After the two watches, on the same run, igla.mjs watches the IGLA-Coder
+ * loop (gHashTag/igla-coder-gpu) and reports it to the Queen as `igla-loop`.
+ * Its optional variables are listed in its own header; it never changes the
+ * exit code above (another project's budget is not a broken road here), and
+ * a crash in it is one scrubbed log line.
  */
 import { createHash, randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
@@ -128,6 +134,15 @@ export function config(env = process.env) {
     retryWaitS: n(env.RETRY_WAIT_S, 60),
     swapWaitS: n(env.SWAP_WAIT_S, 90),
     healWaitS: n(env.HEAL_WAIT_S, 240),
+    /* igla.mjs, the IGLA-Coder loop on the same tick: its header says why. */
+    iglaOn: env.IGLA !== '0',
+    iglaDispatch: env.IGLA_DISPATCH !== '0',
+    iglaBoard:
+      env.IGLA_BOARD_URL || 'https://board-production-2dec.up.railway.app',
+    iglaRepo: env.IGLA_REPO || 'gHashTag/igla-coder-gpu',
+    runpodKey: env.RUNPOD_API_KEY || '',
+    iglaGhToken: env.IGLA_GITHUB_TOKEN || '',
+    iglaRailwayToken: env.IGLA_RAILWAY_TOKEN || '',
   }
 }
 
@@ -140,6 +155,9 @@ export function secretsOf(cfg) {
     cfg.queenToken,
     cfg.tgToken,
     cfg.ghToken,
+    cfg.runpodKey,
+    cfg.iglaGhToken,
+    cfg.iglaRailwayToken,
   ].filter(s => typeof s === 'string' && s.length >= 6)
 }
 
@@ -169,7 +187,7 @@ const same = (a, b) =>
  * sender that truncates its text still redacts BEFORE slicing (a cut through
  * the middle of a secret leaves a prefix nothing here can recognise).
  */
-async function call(cfg, deps, url, init = {}, timeoutMs = 15000) {
+export async function call(cfg, deps, url, init = {}, timeoutMs = 15000) {
   const out = { ...init, signal: AbortSignal.timeout(timeoutMs) }
   if (out.body !== undefined) out.body = redact(out.body, secretsOf(cfg))
   try {
@@ -796,7 +814,11 @@ const NOTE = {
 
 // --- report: the Queen, the owner's DM, one GitHub issue ----------------
 
-export async function reportToQueen(cfg, deps, { headline, body, needsYou }) {
+export async function reportToQueen(
+  cfg,
+  deps,
+  { headline, body, needsYou, source = 'queen-watch' }
+) {
   if (!cfg.queenToken) return 'no TRIOS_API_TOKEN -- not sent'
   const clean = t => redact(String(t || ''), secretsOf(cfg))
   const r = await call(cfg, deps, `${cfg.queenUrl}/queen/report`, {
@@ -809,7 +831,7 @@ export async function reportToQueen(cfg, deps, { headline, body, needsYou }) {
      * stores the headline as "[source] headline" and the needs-you panel
      * shows 200 characters, so ours stays at 120. */
     body: JSON.stringify({
-      source: 'queen-watch',
+      source,
       headline: clean(headline).slice(0, 120),
       body: clean(body).slice(0, 8000),
       needs_you: needsYou === true,
@@ -1368,12 +1390,27 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
       'queen-watch: no volume mounted -- every run will look like a first run\n'
     )
   }
+  /* igla.mjs after both watches, whatever they said; its rc is logged only. */
+  const igla = async () => {
+    try {
+      const { runIgla } = await import('./igla.mjs')
+      process.stdout.write(`igla-loop: rc ${await runIgla(cfg, deps)}\n`)
+    } catch (e) {
+      process.stdout.write(
+        redact(`igla-loop: crashed: ${e && e.stack}`, secretsOf(cfg)) + '\n'
+      )
+    }
+  }
   run(cfg, deps).then(
-    rc => process.exit(rc),
-    e => {
+    async rc => {
+      await igla()
+      process.exit(rc)
+    },
+    async e => {
       process.stdout.write(
         redact(`queen-watch: crashed: ${e && e.stack}`, secretsOf(cfg)) + '\n'
       )
+      await igla()
       process.exit(2)
     }
   )
