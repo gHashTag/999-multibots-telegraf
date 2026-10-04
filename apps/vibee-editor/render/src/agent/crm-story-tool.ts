@@ -43,6 +43,7 @@ import {
   END_CARD_PARAM,
   endCardOf,
   endCardProblem,
+  endCardForReel,
   endCardUnreadable,
   endCardFix,
   endCardFixBg,
@@ -288,15 +289,18 @@ export function makeCrmStoryTool(o: {
         cardForReel(kept, ownReel),
         cardForReel(s?.endCard ?? null, ownReel)
       )
-      const unreadable = endCardUnreadable(endCard)
+      // Read as it will be drawn (spec v25, CLIENT_CARD_CHECKED_AS_DRAWN): on
+      // her reel what she has no colour for is ink, never the house's gold.
+      const drawn = endCardForReel(endCard, ownReel, '')
+      const unreadable = endCardUnreadable(drawn)
       // The shade of her colour that reads, field by field (spec v12): for a
       // #hex card that does not read -- "black" is only named back.
       const fix = suggestOffered(!badColour, !unreadable)
-        ? endCardFix(endCard)
+        ? endCardFix(drawn)
         : null
       // Beside the shade, her own colour and her ground (spec v13).
-      const fixPalette = fix ? endCardFixPalette(endCard) : null
-      const fixBg = fix ? endCardFixBg(endCard) : null
+      const fixPalette = fix ? endCardFixPalette(drawn) : null
+      const fixBg = fix ? endCardFixBg(drawn) : null
 
       if (args.start !== true) {
         const jobs = await storyJobsOf(ctx.pool, seller, lead).catch(() => [])

@@ -44,6 +44,7 @@ import type { ToolContext } from './tools'
 import { voiceMode } from './story-voice-notes'
 import { looksLikeProviderOutage } from './image-health'
 import {
+  endCardForReel,
   endCardFromProfile,
   endCardOf,
   endCardProblem,
@@ -786,8 +787,15 @@ export async function startStory(
   const badColour = sellerPress ? endCardProblem(who.endCard) : ''
   if (badColour) return { started: false, why: badColour }
   const sellerCard = sellerPress ? endCardOf(who.endCard) : null
+  // Checked as it will be drawn (spec v25, CLIENT_CARD_CHECKED_AS_DRAWN): a
+  // client's card is filled with ink first, so a gold she will never see
+  // cannot refuse her reel.
   const unreadable = endCardUnreadable(
-    mergeEndCard(sellerCard, s.keptCard, s.endCard)
+    endCardForReel(
+      mergeEndCard(sellerCard, s.keptCard, s.endCard),
+      lead === s.owner,
+      ''
+    )
   )
   if (endCardRefused(!!sellerCard, !unreadable))
     return { started: false, why: `end_card: ${unreadable}` }
@@ -1078,12 +1086,18 @@ async function runHeld(
   // her profile's (spec v7, v10). On a client's reel no button names the
   // house, and the call is the seller's word for her or her own (spec v22).
   const ownReel = lead === seller
-  const endCard = mergeEndCard(
-    cardForReel(endCardOf(parse(job.end_card)), ownReel),
-    cardForReel(s.keptCard, ownReel),
-    cardForReel(s.endCard, ownReel)
-  )
   const cta = reelCall({ given: job.cta, ownReel, ownCall: s.cta }).call
+  // A client's card is drawn in her colours or ink, never in the house's
+  // defaults (spec v25, card_filled): every colour is set before the render.
+  const endCard = endCardForReel(
+    mergeEndCard(
+      cardForReel(endCardOf(parse(job.end_card)), ownReel),
+      cardForReel(s.keptCard, ownReel),
+      cardForReel(s.endCard, ownReel)
+    ),
+    ownReel,
+    cta
+  )
   const call = (stills: unknown[], clips: unknown[]) =>
     deps
       .story(
