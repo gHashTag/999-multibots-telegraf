@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "blog-share" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 2 satisfies number;
+export const VERSION = 3 satisfies number;
 export const TICK_MS = 300000 satisfies number;
 export const ASK_EVERY_MS = 72000000 satisfies number;
 export const ANSWER_WAIT_MS = 86400000 satisfies number;
@@ -19,7 +19,7 @@ export const PROFILE_SETTLE_MS = 5000 satisfies number;
 export const PROFILE_LOOK_EVERY_MS = 4000 satisfies number;
 export const PROFILE_LOOKS = 4 satisfies number;
 export const MATCH_CHARS = 60 satisfies number;
-export const RUN_LIVE = false satisfies boolean;
+export const RUN_LIVE = true satisfies boolean;
 // t27c gen-ts: fn still_waiting was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_ask was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn posts was not emitted -- this backend lowers declarations, not bodies.
@@ -28,8 +28,13 @@ export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn counted was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn unconfirmed was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn published_somewhere was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn offerable was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn newest_goes_next was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn network_used was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn last_profile_look_ms was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn last_look_ms was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
