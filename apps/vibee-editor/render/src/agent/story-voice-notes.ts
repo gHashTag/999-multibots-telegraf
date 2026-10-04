@@ -7,7 +7,7 @@
  * Kie has no voice cloning -- only preset voices -- so it cannot put NEW words
  * in her voice. It does not need to: she has already spoken. Her own voice
  * notes, the ones she sent the seller, are cut at their pauses into one piece
- * per scene and lip-synced on her face in each new setting.
+ * per scene and lip-synced on her face, scene by scene.
  *
  * Nothing is put in her mouth: the words are hers, as she said them. Which is
  * also why this is a seller's reel only (NOTES_FROM_SELLER_DM_ONLY): the notes

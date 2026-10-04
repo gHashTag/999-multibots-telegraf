@@ -37,7 +37,7 @@ describe('a house advert is never a client reel', () => {
   it('the house adverts are refused whatever the props', () => {
     for (const id of ['RelaunchReel', 'TrinityBlogReel']) {
       expect(HOUSE_ADVERT_COMPOSITIONS.has(id)).toBe(true)
-      expect(houseReelRefusal(id, { botHandle: '@her_shop_bot' })).toBe(
+      expect(houseReelRefusal(id, { botHandle: '@placeholder_pay_bot' })).toBe(
         HOUSE_REEL_REFUSED
       )
     }

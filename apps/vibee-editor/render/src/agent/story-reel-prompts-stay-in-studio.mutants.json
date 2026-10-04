@@ -1,0 +1,58 @@
+[
+  {
+    "name": "the system prompt asks for a new place in every scene again",
+    "file": "src/agent/chat.ts",
+    "from": "дальше сцена без setting — план той же студии (средний, крупный), новое место — только если человек сам его назвал;",
+    "to": "обстановка новая в КАЖДОЙ, в первой тоже (фон исходника не повторять);",
+    "tests": ["src/agent/story-reel-prompts-stay-in-studio.test.ts"]
+  },
+  {
+    "name": "the client's reel route asks for a new place in every frame again",
+    "file": "src/agent/chat.ts",
+    "from": "его голос: первый кадр — его фото как есть, широко, дальше — планы той же студии, новое место — только если его назвали; ",
+    "to": "его голос, новая обстановка в каждом кадре; ",
+    "tests": ["src/agent/story-reel-prompts-stay-in-studio.test.ts"]
+  },
+  {
+    "name": "the CRM gift recipe asks for a new place in every scene again",
+    "file": "src/agent/crm-playbook.ts",
+    "from": "'Сцены: 3 в ОДНОМ стиле из ЕГО фото (crm_client_face): первая — фото как есть, широко, реплика-крючок, ' +\n  'а не приветствие; дальше — планы той же студии, новое место — только если его назвал владелец или он сам; ' +\n  'реплики",
+    "to": "'Сцены: 3 в ОДНОМ стиле, каждая — НОВАЯ обстановка ' +\n  'его дела из ЕГО фото (crm_client_face); реплики",
+    "tests": ["src/agent/story-reel-prompts-stay-in-studio.test.ts"]
+  },
+  {
+    "name": "the CRM gift recipe forgets the face comes first, wide",
+    "file": "src/agent/crm-playbook.ts",
+    "from": "первая — фото как есть, широко, реплика-крючок, ' +\n  'а не приветствие; дальше — планы той же студии,",
+    "to": "реплика-крючок, ' +\n  'а не приветствие;",
+    "tests": ["src/agent/story-reel-prompts-stay-in-studio.test.ts"]
+  },
+  {
+    "name": "crm_story_reel describes a new place in every scene again",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "'первая — его фото как есть, широко, дальше — планы той же студии, новое место — только если его назвали; ' +\n      'его голос, пауза",
+    "to": "'в новой обстановке каждая, ' +\n      'его голос, пауза",
+    "tests": ["src/agent/story-reel-prompts-stay-in-studio.test.ts"]
+  },
+  {
+    "name": "my_story_reel describes a new place in every scene again",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "'ТВОЙ РИЛС-ИСТОРИЯ: твоё лицо (аватарка) — первый кадр твоё фото как есть, широко, дальше планы той же студии, ' +\n      'новое место — только если ты его назвал; твой голос",
+    "to": "'ТВОЙ РИЛС-ИСТОРИЯ: твоё лицо (аватарка) в новой обстановке каждой сцены, ' +\n      'твой голос",
+    "tests": ["src/agent/story-reel-prompts-stay-in-studio.test.ts"]
+  },
+  {
+    "name": "the duet brief puts her in a new place in every frame again",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "её лицо (первый кадр — её фото как есть, широко, дальше — планы той же студии), её голос,",
+    "to": "её лицо в новой обстановке в каждом кадре, её голос,",
+    "tests": ["src/agent/story-reel-prompts-stay-in-studio.test.ts"]
+  },
+  {
+    "name": "the story_reel header comment teaches the old rule again",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": " * a florist client's gift reel): one face, three scenes in one style (since\n",
+    "to": " * a florist client's gift reel): one face, three scenes in one style and a\n * NEW setting each (since\n",
+    "tests": ["src/agent/story-reel-prompts-stay-in-studio.test.ts"]
+  }
+]
