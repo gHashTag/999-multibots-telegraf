@@ -326,6 +326,10 @@ export async function waitForOrigin(
  * than a guess when no model answers; why each one failed is logged.
  */
 export const DRAFT_ORDER = ['zai-lite', 'zai', 'reserve'] as const
+export let DRAFT_RETRY_MS = 4000
+export function setDraftRetryMs(ms: number): void {
+  DRAFT_RETRY_MS = ms
+}
 
 export async function writeDraft(prompt: string): Promise<string | null> {
   const { allProviders, reserveEnv } = await import('./provider')
@@ -342,21 +346,33 @@ export async function writeDraft(prompt: string): Promise<string | null> {
   }
   const why: string[] = []
   for (const route of routes) {
+    const zai = route.id !== 'reserve'
     try {
-      const r = await fetch(`${route.base}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${route.key}`,
-        },
-        body: JSON.stringify({
-          model: route.model,
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: route.id === 'zai' ? 2000 : 600,
-          temperature: 0.4,
-        }),
-        signal: AbortSignal.timeout(60_000),
-      })
+      const ask = () =>
+        fetch(`${route.base}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${route.key}`,
+          },
+          body: JSON.stringify({
+            model: route.model,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: zai ? 1000 : 600,
+            temperature: 0.4,
+            // GLM thinks by default and spends the whole budget on it:
+            // measured 2026-10-04, 350 tokens of reasoning for a five-word
+            // reply, so a draft came back with empty content.
+            ...(zai ? { thinking: { type: 'disabled' } } : {}),
+          }),
+          signal: AbortSignal.timeout(60_000),
+        })
+      let r = await ask()
+      // The free endpoint answers 429 to a burst; one paced retry.
+      if (r.status === 429) {
+        await new Promise(res => setTimeout(res, DRAFT_RETRY_MS))
+        r = await ask()
+      }
       if (!r.ok) {
         why.push(`${route.id} ${r.status}`)
         continue
