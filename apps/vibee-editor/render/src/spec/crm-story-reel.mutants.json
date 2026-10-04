@@ -48,21 +48,21 @@
   {
     "name": "the run ignores the job's card",
     "file": "src/agent/story-template.ts",
-    "from": "    endCardOf(parse(job.end_card)),\n    s.keptCard,",
-    "to": "    null,\n    s.keptCard,",
+    "from": "    cardForReel(endCardOf(parse(job.end_card)), ownReel),\n    cardForReel(s.keptCard, ownReel),",
+    "to": "    null,\n    cardForReel(s.keptCard, ownReel),",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "a client press brings a palette",
     "file": "src/agent/story-template.ts",
-    "from": "  const sellerCard = byClient ? null : endCardOf(who.endCard)",
+    "from": "  const sellerCard = sellerPress ? endCardOf(who.endCard) : null",
     "to": "  const sellerCard = endCardOf(who.endCard)",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the tool does not pass the card",
     "file": "src/agent/crm-story-tool.ts",
-    "from": "? { endCard: args.end_card }",
+    "from": "? { endCard: jobCard }",
     "to": "? {}",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
@@ -157,15 +157,15 @@
   {
     "name": "the render skips the kit",
     "file": "src/agent/story-template.ts",
-    "from": "    endCardOf(parse(job.end_card)),\n    s.keptCard,",
-    "to": "    endCardOf(parse(job.end_card)),\n    null,",
+    "from": "    cardForReel(s.keptCard, ownReel),",
+    "to": "    null,",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the tool's read skips the kit",
     "file": "src/agent/crm-story-tool.ts",
-    "from": "        endCardOf(args.end_card),\n        kept,",
-    "to": "        endCardOf(args.end_card),\n        null,",
+    "from": "        cardForReel(kept, ownReel),",
+    "to": "        null,",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
@@ -598,15 +598,15 @@
   {
     "name": "the template's button is dropped",
     "file": "src/agent/crm-story-tool.ts",
-    "from": "|| template.button",
-    "to": "|| ''",
+    "from": "? String(template?.button ?? '')",
+    "to": "? ''",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "the template's call is dropped",
     "file": "src/agent/crm-story-tool.ts",
-    "from": "cta: String(args.cta || template?.call || ''),",
-    "to": "cta: String(args.cta || ''),",
+    "from": "templateCall: template?.call,",
+    "to": "templateCall: undefined,",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
@@ -640,5 +640,387 @@
     "file": "src/agent/story-template.ts",
     "from": "[{\"line\": \"...\"}, ×${n}]",
     "to": "[{\"setting\": \"...\", \"line\": \"...\"}, ×${n}]"
+  },
+  {
+    "name": "v22: the template call leaks back onto a client's reel",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "if (templateGiven && (ownReel || SPEC.HOUSE_CALL_ON_CLIENT_REEL))",
+    "to": "if (templateGiven)",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: the template button leaks back onto a client's reel",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "if (templateGiven && (ownReel || SPEC.HOUSE_BUTTON_ON_CLIENT_REEL))",
+    "to": "if (templateGiven)",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: a house mark in a given call or button is not replaced",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "return chars > 0 && (ownReel || !house)",
+    "to": "return chars > 0",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: a replaced house word goes unsaid",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "return SPEC.HOUSE_WORD_REPLACED_SAID && chars > 0 && house && !ownReel",
+    "to": "return false",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: the Russian house name is no house mark",
+    "file": "src/house-names.ts",
+    "from": "'тринити', // cyrillic-ok",
+    "to": "'trinity', // cyrillic-ok",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v22: a card keeps the house button on a client's reel",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "if (!card.button || takenWord(card.button, ownReel).word) return card",
+    "to": "return card",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: the template's last line keeps the house call on her reel",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "    ? lastLineFor(template, call)\n    : (template.client[i] ?? '')",
+    "to": "    ? template.lines[i]\n    : (template.client[i] ?? '')",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the client list shows the house version",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "const shown = client ? templateForClient(t, client.call) : t",
+    "to": "const shown = t",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: an edited line naming the house is allowed on a client's reel",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "    if (way === SPEC.LINE_REFUSED)\n      return { lines: [], refused: houseLineWhy(i, line) }",
+    "to": "    if (false)\n      return { lines: [], refused: houseLineWhy(i, line) }",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the first three lines of a client's template reel go unchecked",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "    const way = lineWay(house, false, from)",
+    "to": "    const way =\n      i < lines.length - 1 ? SPEC.LINE_KEPT : lineWay(house, false, from)",
+    "tests": ["src/agent/a-template-stays-home.test.ts"]
+  },
+  {
+    "name": "v22: a template line keeps the house version, not the client's",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "    : (template.client[i] ?? '')",
+    "to": "    : (template.lines[i] ?? '')",
+    "tests": ["src/agent/a-template-stays-home.test.ts"]
+  },
+  {
+    "name": "v22: a script's line naming the house is allowed on a client's reel",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "    if (lineWay(house, ownReel, from) === SPEC.LINE_REFUSED)",
+    "to": "    if (false)",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the press forgets to refuse a house line before the spend",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "if (spoken?.refused) return { started: false, why: spoken.refused }",
+    "to": "if (false) return { started: false, why: spoken.refused }",
+    "tests": ["src/agent/a-template-stays-home.test.ts"]
+  },
+  {
+    "name": "v22: a seller's script naming the house starts a client's reel",
+    "file": "src/agent/story-template.ts",
+    "from": "  if (houseLine) return { started: false, why: houseLine }",
+    "to": "  if (false) return { started: false, why: houseLine }",
+    "tests": ["src/agent/a-template-stays-home.test.ts"]
+  },
+  {
+    "name": "v22: a writer's line naming the house reaches a client's reel",
+    "file": "src/agent/story-template.ts",
+    "from": "    if (houseLine) return fail(houseLine)",
+    "to": "    if (false) return fail(houseLine)",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: the agent's story_reel line naming the house is spoken for a client",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "        if (houseLine) return { done: false, reason: houseLine }",
+    "to": "        if (false) return { done: false, reason: houseLine }",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: what the person typed no longer lets her name the house",
+    "file": "src/house-names.ts",
+    "from": "  return namesHouse(text) && !typedByHer(personSaid, text)",
+    "to": "  return namesHouse(text)",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v22: anything the person typed lets the agent name the house",
+    "file": "src/house-names.ts",
+    "from": "  return namesHouse(text) && !typedByHer(personSaid, text)",
+    "to": "  return namesHouse(text) && !personSaid",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the brand T27 is no house mark",
+    "file": "src/house-names.ts",
+    "from": "    `\\\\b${escaped(SPEC.HOUSE_BRAND)}\\\\b`,\n",
+    "to": "",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v22: her call in another language is spoken into the template anyway",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "if (callChars === 0 || !sameLanguage) return SPEC.LAST_LINE_LEAD",
+    "to": "if (callChars === 0) return SPEC.LAST_LINE_LEAD"
+  },
+  {
+    "name": "v22: a for_lead naming another client is spoken in her turn",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "if (clientTurn && leadNamed && !namesThisClient) return SPEC.SPEAKS_REFUSED",
+    "to": "if (false) return SPEC.SPEAKS_REFUSED",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: a client turn speaks the caller's voice",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "if (leadNamed || (clientTurn && SPEC.CLIENT_TURN_SPEAKS_CLIENT))",
+    "to": "if (leadNamed)",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: her profile's house call is taken as hers",
+    "file": "src/agent/story-template.ts",
+    "from": "owner === id,",
+    "to": "true,",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: the CRM press reads every reel as the house's own",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "const ownReel = lead === seller",
+    "to": "const ownReel = true",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: the CRM press speaks the template's house line on her reel",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "template && lines && !ownReel",
+    "to": "template && lines && false",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: the CRM press does not say what it replaced",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "...(replaced ? { house_replaced: replaced } : {}),",
+    "to": "...({}),",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: the template button dropped on the seller's own reel (start reads him as the client)",
+    "file": "src/agent/story-template.ts",
+    "from": "const sellerPress = !byClient || String(who.seller ?? '').trim() === lead",
+    "to": "const sellerPress = !byClient",
+    "tests": [
+      "src/agent/a-story-reel-for-any-client.test.ts",
+      "src/agent/a-template-stays-home.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the seller's own template press drops the house button before the row",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "? String(template?.button ?? '')",
+    "to": "? ''",
+    "tests": ["src/agent/a-template-stays-home.test.ts"]
+  },
+  {
+    "name": "v22: her profile chain skips her approved call",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "const a = takenWord(approved, ownReel).word",
+    "to": "const a = ''",
+    "tests": [
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: her profile chain skips her story call",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "const s = takenWord(story, ownReel).word",
+    "to": "const s = ''",
+    "tests": [
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v22: her approved call as a plain string is not read",
+    "file": "src/agent/story-template.ts",
+    "from": "typeof profile?.approved_cta === 'string'",
+    "to": "false",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: the runner keeps an old job's house button on her reel",
+    "file": "src/agent/story-template.ts",
+    "from": "cardForReel(endCardOf(parse(job.end_card)), ownReel),",
+    "to": "endCardOf(parse(job.end_card)),",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: the runner keeps an old job's house call on her reel",
+    "file": "src/agent/story-template.ts",
+    "from": "const cta = reelCall({ given: job.cta, ownReel, ownCall: s.cta }).call",
+    "to": "const cta = String(job.cta ?? '').trim() || s.cta",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: the runner reads every reel as the house's own",
+    "file": "src/agent/story-template.ts",
+    "from": "const ownReel = lead === seller",
+    "to": "const ownReel = true",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v22: story_reel for_lead ignores her call",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "ownCall: her?.cta || STORY_DEFAULT_CTA,",
+    "to": "ownCall: STORY_DEFAULT_CTA,",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: story_reel for_lead ignores her card",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "cardForReel(her?.endCard, false)",
+    "to": "null",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: story_reel for_lead takes the house call",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "ownReel: false,",
+    "to": "ownReel: true,",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: story_reel for_lead keeps the house button",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "cardForReel(endCard, false),",
+    "to": "endCard,",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: story_reel in a client turn speaks the owner unless told",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "const lead = voice === SPEC.SPEAKS_LEAD ? named || faceOf : ''",
+    "to": "const lead = named",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: story_reel for_lead ignores her kept card",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "cardForReel(her?.keptCard, false),",
+    "to": "null,",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: story_reel for_lead does not say what it replaced",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "...(houseReplaced ? { house_replaced: houseReplaced } : {}),",
+    "to": "...({}),",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: story_reel for_lead drops a house button unsaid",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "[call.replaced, takenWord(button, false).replaced ? button : ''],",
+    "to": "[call.replaced],",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v22: any mention of the bot lends the name",
+    "file": "src/house-names.ts",
+    "from": "  return saidNamesHouse && SPEC.NAMING_THE_BOT_LENDS",
+    "to": "  return saidNamesHouse",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v22: her whole message is read, not the line (round 2 rule)",
+    "file": "src/house-names.ts",
+    "from": "  return namesHouse(text) && !typedByHer(personSaid, text)",
+    "to": "  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v22: the bot's name alone counts as her line",
+    "file": "src/house-names.ts",
+    "from": "    return own && runIn(heard, words.slice(first, last + 1))",
+    "to": "    return runIn(heard, words.slice(first, last + 1))",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v22: her words reach no further than the house name",
+    "file": "src/house-names.ts",
+    "from": "  const reach = SPEC.OWN_WORDS_REACH",
+    "to": "  const reach = 0",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v22: one house name of hers lends the line the others",
+    "file": "src/house-names.ts",
+    "from": "      spans.every(([first, last]) =>",
+    "to": "      spans.some(([first, last]) =>",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v22: her own line is read as an edit",
+    "file": "src/agent/story-reel-templates.ts",
+    "from": "  if (own) return SPEC.LINE_FROM_PERSON",
+    "to": "  if (own) return SPEC.LINE_FROM_EDIT",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
   }
 ]

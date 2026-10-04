@@ -13,5 +13,75 @@
     "name": "a named task may be lost",
     "from": "pub const NAMED_TASK_NEVER_LOST : bool = true;",
     "to": "pub const NAMED_TASK_NEVER_LOST : bool = false;"
+  },
+  {
+    "name": "the widgets stop following the specialist",
+    "from": "pub const WIDGETS_FOLLOW_SPECIALIST : bool = true;",
+    "to": "pub const WIDGETS_FOLLOW_SPECIALIST : bool = false;"
+  },
+  {
+    "name": "the content widget belongs to another specialist",
+    "from": "pub const CONTENT_WIDGET_AGENT : str = \"blogger\";",
+    "to": "pub const CONTENT_WIDGET_AGENT : str = \"job\";"
+  },
+  {
+    "name": "a specialist's widget shows under anybody",
+    "from": "        return !belongs_to_specialist || owner_is_chosen;",
+    "to": "        return true;"
+  },
+  {
+    "name": "leaving a specialist keeps its widget open",
+    "from": "        if open_still_shown {\n            return OPEN_KEEPS;\n        }\n        return OPEN_FALLS_TO_CLIENT;",
+    "to": "        return OPEN_KEEPS;"
+  },
+  {
+    "name": "choosing a specialist does not open its widget",
+    "from": "        if chosen_has_widgets {\n            return OPEN_SPECIALISTS_FIRST;\n        }\n",
+    "to": ""
+  },
+  {
+    "name": "a hidden widget is reported",
+    "from": "        return shown && client_thread;",
+    "to": "        return client_thread;"
+  },
+  {
+    "name": "the self thread hears of the widgets",
+    "from": "        return shown && client_thread;",
+    "to": "        return shown;"
+  },
+  {
+    "name": "a value is not capped",
+    "from": "        if length > cap {\n            return cap;\n        }\n        return length;",
+    "to": "        return length;"
+  },
+  {
+    "name": "the hidden widget rule is dropped",
+    "from": "pub const HIDDEN_WIDGET_NOT_REPORTED : bool = true;",
+    "to": "pub const HIDDEN_WIDGET_NOT_REPORTED : bool = false;"
+  },
+  {
+    "name": "the widgets reach the self thread",
+    "from": "pub const WIDGET_CONTEXT_ONLY_IN_CLIENT_THREAD : bool = true;",
+    "to": "pub const WIDGET_CONTEXT_ONLY_IN_CLIENT_THREAD : bool = false;"
+  },
+  {
+    "name": "the Queen becomes a widget",
+    "from": "pub const QUEEN_IS_NOT_A_WIDGET : bool = true;",
+    "to": "pub const QUEEN_IS_NOT_A_WIDGET : bool = false;"
+  },
+  {
+    "name": "the menu moves to the right",
+    "from": "pub const WIDGET_MENU_SIDE : str = \"left\";",
+    "to": "pub const WIDGET_MENU_SIDE : str = \"right\";"
+  },
+  {
+    "name": "the drafts go behind a menu entry",
+    "from": "pub const DRAFTS_PINNED_ABOVE_MENU : bool = true;",
+    "to": "pub const DRAFTS_PINNED_ABOVE_MENU : bool = false;"
+  },
+  {
+    "name": "the agent is not told of the widgets",
+    "from": "pub const CONTEXT_INJECTED : str = \"crm_client_profile+lead_context+widgets\";",
+    "to": "pub const CONTEXT_INJECTED : str = \"crm_client_profile+lead_context\";"
   }
 ]
