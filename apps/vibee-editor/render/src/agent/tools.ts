@@ -96,7 +96,12 @@ import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
-import { houseOwnTurn, ownerVoiceAllowed } from '../split-reel-plan'
+import {
+  agentSuppliedHouseName,
+  houseNameAllowed,
+  houseOwnTurn,
+  ownerVoiceAllowed,
+} from '../split-reel-plan'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
 import {
@@ -2295,6 +2300,22 @@ export const TOOLS: AgentTool[] = [
         },
         forLead
       )
+      /*
+       * A house name the agent put into a voice the house did not order
+       * (split-reel v7 house_name_allowed; her own words judged line by line
+       * by house-names.ts): refused before the charge. A line she typed
+       * herself this turn stands.
+       */
+      if (
+        !houseNameAllowed(
+          houseReel,
+          agentSuppliedHouseName(String(args.text ?? ''), ctx.ownerSaid)
+        )
+      ) {
+        const why =
+          'голос не для владельца не называет ни Тринити, ни бота владельца, если человек сам этого не написал: убери их из text'
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+      }
       const ownerVoiceMay = ownerVoiceAllowed(houseReel)
       if (forLead) {
         // Her own voice for her own reel; anybody else's only by its owner.
