@@ -95,12 +95,13 @@ import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
-import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
+import { HOUSE_TELEGRAM_IDS, isHouse } from '../house-ids'
 import {
   agentSuppliedHouseName,
   houseNameAllowed,
   houseOwnTurn,
   ownerVoiceAllowed,
+  voiceRefused,
 } from '../split-reel-plan'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
@@ -2224,9 +2225,10 @@ export const TOOLS: AgentTool[] = [
     description:
       'Озвучить текст. for_lead — голосом клиента (его клон из crm_voice_clone), только для материалов ' +
       'ему же: это MiniMax на Replicate, ключ ElevenLabs ему НЕ нужен. В разговоре с клиентом без for_lead ' +
-      'и voice_id — тоже его голос, клон владельца там не звучит. Иначе без for_lead и voice_id — ' +
-      'клон владельца, а если своего нет — библиотечный голос ElevenLabs (нужен его ключ), и это ' +
-      'будет сказано в ответе. Ошибка — скажи честно, что именно, и собери рилс без звука.',
+      'и voice_id — тоже его голос, клон владельца там не звучит. Без for_lead и voice_id клон ' +
+      'владельца звучит только в рилсе самого владельца; у остальных — отказ до списания: нужен ' +
+      'voice_id или свой клон (crm_voice_clone, потом for_lead со своим id), чужим голосом не ' +
+      'озвучиваем. Ошибка — скажи честно, что именно, и собери рилс без звука.',
     parameters: {
       type: 'object',
       properties: {
@@ -2254,23 +2256,13 @@ export const TOOLS: AgentTool[] = [
        * that refund was 0 (the house is never charged), and a caller who pays
        * was charged and refunded for a voice that never existed.
        */
-      /**
-       * Голос по умолчанию — КЛОН ВЛАДЕЛЬЦА, а не первый попавшийся.
-       *
-       * Было `voices[0].voice_id`: первый в ответе ElevenLabs — это, как
-       * правило, готовый голос из библиотеки. Владелец спросил напрямую:
-       * «в рилсах клон голоса мой где?» — нигде. Понятия «мой голос» в коде
-       * не существовало вовсе, и рилсы озвучивались чужим тембром.
-       *
-       * ElevenLabs помечает происхождение голоса полем `category`:
-       * `premade` — библиотечный, `cloned`/`professional`/`generated` — свой.
-       * Берём первый НЕ библиотечный; если своих нет — библиотечный, но об
-       * этом честно сообщаем в ответе, чтобы агент мог предложить записать
-       * клон.
-       *
-       * Поле `id`, а не `voice_id`: /api/voices переименовывает его при
-       * упрощении ответа, и обращение к `voice_id` давало undefined —
-       * то есть запасной путь молча не срабатывал.
+      /*
+       * NO STRANGER'S VOICE (split-reel v8, voice_refused). The default voice
+       * is never the first one some account lists: an ordinary caller who
+       * names no voice and has no clone is refused before the charge, and
+       * the house speaks with the owner's clone. The ElevenLabs lookup that
+       * used to fill the gap (`/api/voices`, first custom voice else the
+       * first library one) ran after the charge and is gone (#3561).
        */
       let voiceId = args.voice_id ? String(args.voice_id) : ''
       let голосВладельца = false
@@ -2336,9 +2328,9 @@ export const TOOLS: AgentTool[] = [
       }
       /*
        * A sweep for leads that names no lead and no voice (split-reel v7):
-       * the house asks no library (asksElevenLabs), so only the owner's
-       * voice could speak it, and that voice is not lent -- refused before
-       * the charge, never a stranger's voice.
+       * the house asks no library, so only the owner's voice could speak
+       * it, and that voice is not lent -- refused before the charge, never
+       * a stranger's voice.
        */
       if (
         isHouse(ctx.telegramId) &&
@@ -2350,27 +2342,21 @@ export const TOOLS: AgentTool[] = [
           'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'
         return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
       }
+      /*
+       * An ordinary caller with no voice of her own (split-reel v8
+       * voice_refused): no voice_id, no clone chosen above. There is no
+       * stock voice to give her -- a voice found in some account is not
+       * hers -- so she is refused before the charge, and told how to get
+       * her own. The house keeps its own path below (crm-story-reel v19).
+       */
+      if (voiceRefused(isHouse(ctx.telegramId), !!voiceId, !!cloneVoice)) {
+        const why =
+          'своего голоса нет: укажи voice_id или сначала сделай свой клон (crm_voice_clone) и передай for_lead со своим id — чужим голосом не озвучиваю'
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+      }
       const charge = await spendTokens(ctx, 'audio_generate')
       if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields
       const base = selfBase()
-      /*
-       * The house never asks ElevenLabs (crm-story-reel v19,
-       * HOUSE_SKIPS_ELEVENLABS): a voice of its own there raised the
-       * owner-voice flag and so skipped the owner's clone below -- his reel
-       * spoke a voice found in an ElevenLabs account.
-       */
-      if (asksElevenLabs(isHouse(ctx.telegramId), voiceId, cloneVoice)) {
-        const v = await selfFetch(`${base}/api/voices`)
-        const vData: any = await v.json().catch(() => null)
-        const list: any[] = Array.isArray(vData?.voices) ? vData.voices : []
-        const свой = list.find(
-          x => String(x?.category || '').toLowerCase() !== 'premade'
-        )
-        voiceId = String(
-          (свой ?? list[0])?.id || (свой ?? list[0])?.voice_id || ''
-        )
-        голосВладельца = !!свой
-      }
       /*
        * THE OWNER SPEAKS WITH THE OWNER'S VOICE even while ElevenLabs is
        * down (its env var holds the key's identifier, not the key): the
@@ -2451,18 +2437,15 @@ export const TOOLS: AgentTool[] = [
         )
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
-          причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY',
+          причина: 'не нашёлся ни один голос — нужен voice_id или свой клон', // cyrillic-ok: the tools’ answer fields
         }
       }
-      // Агент должен знать, чьим голосом озвучено: если библиотечным —
-      // стоит предложить человеку записать свой клон.
+      // The agent is told whose voice spoke the line.
       const голос = голосКлиента // cyrillic-ok: local flag
         ? 'клон клиента'
-        : args.voice_id
-          ? 'выбран явно'
-          : голосВладельца
-            ? 'клон владельца'
-            : 'библиотечный — своего клона в аккаунте нет, предложи записать'
+        : голосВладельца // cyrillic-ok: existing local
+          ? 'клон владельца'
+          : 'выбран явно'
       const gen = await selfFetch(`${base}/api/generate/audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

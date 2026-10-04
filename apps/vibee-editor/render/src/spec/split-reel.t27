@@ -23,6 +23,15 @@
 //       template put into its words; words the person wrote herself stand. Every refusal
 //       comes before the charge, so a refused call costs nothing and nothing is refunded.
 //       A rule, not a measurement: no reel rendered under it yet.
+// v8 (2026-10-04): every voice decision comes before the charge. An ordinary caller (not the
+//       house) who named no voice and had no clone of her own was charged, then given the
+//       first custom voice in the house's ElevenLabs account, else its first library voice --
+//       a voice not hers, possibly the owner's own, from a provider the house no longer
+//       calls (Kie is the provider). She is now refused before the charge and asked for a
+//       voice_id or her own clone. And split_reel paid for a new voice before learning it
+//       ran past SPEECH_MAX_SECONDS; its length is now estimated from its text first, at
+//       MS_PER_CHAR, measured on the one voice in the host repo with word times. A rule and
+//       one measurement: no reel rendered under it yet.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::split_reel {
@@ -30,7 +39,7 @@ module automation::split_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "split-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 7;
+    pub const VERSION : u8 = 8;
 
     // ---- Where it is drawn --------------------------------------------------------------
     pub const COMPOSITION : str = "SplitTalkingHead";
@@ -144,6 +153,27 @@ module automation::split_reel {
     // charges and then refuses, and there is no refund to promise. A provider that fails
     // AFTER the charge is a failure, not a refusal: its refund is the host's, not this rule.
     pub const REFUSED_BEFORE_SPEND : bool = true;
+
+    // ---- Every voice decision before the charge (v8) --------------------------------------
+    // A caller who is not the house, names no voice and has no clone of her own has no voice
+    // to speak in. There is no stock voice to give her: OWN_VOICE holds, and the one stock
+    // voice the host could reach was the first voice of the house's own ElevenLabs account
+    // (a provider the house no longer calls) -- a voice not hers, possibly the owner's. So
+    // she is refused, before the charge, and asked for a voice_id or her own clone. The
+    // house with no voice keeps its own path (crm-story-reel.t27 HOUSE_SKIPS_ELEVENLABS).
+    pub const STOCK_VOICE_FOR_ORDINARY : bool = false;
+    // How long a new voice will run, from its text, before it is paid for. Measured
+    // 2026-10-04 on the one voice in the host repo with word times:
+    // apps/vibee-editor/player/public/lipsync/captions.json (whisper, 75 Russian words of
+    // the owner's clone) -- 464 characters with the words joined by single spaces, over
+    // lipsync.mp4, 25920 ms by ffprobe. 25920 / 464 = 55.9 ms a character, rounded UP so
+    // the estimate errs long: a text the estimate passes fits when spoken at the measured
+    // pace. A slower voice (another language, another speaker) can still
+    // pass the estimate and run past SPEECH_MAX_SECONDS: the measured length stays the
+    // last word, checked after the voice exists.
+    pub const MEASURED_CHARS : u32 = 464;
+    pub const MEASURED_MS : u32 = 25920;
+    pub const MS_PER_CHAR : u32 = 56;
 
     // A reel is checked before anyone is given it (tri reel-check, in the render as
     // well): no head cut, no face off its window's centre, no caption on silence. A
@@ -339,6 +369,31 @@ module automation::split_reel {
         return !REFUSED_BEFORE_SPEND;
     }
 
+    // Whether a voice call is refused for want of a voice: a named voice or a clone speaks;
+    // the house keeps its own path; anyone else with neither is refused (v8).
+    fn voice_refused(house : bool, has_voice_id : bool, has_clone : bool) -> bool {
+        if has_voice_id {
+            return false;
+        }
+        if has_clone {
+            return false;
+        }
+        if house {
+            return false;
+        }
+        return !STOCK_VOICE_FOR_ORDINARY;
+    }
+
+    // How long a voice of this many characters will run, at the measured pace (v8).
+    fn speech_ms_estimate(chars : u32) -> u32 {
+        return chars * MS_PER_CHAR;
+    }
+
+    // Whether a text's voice will fit the format, judged before the voice is paid for (v8).
+    fn text_fits(chars : u32) -> bool {
+        return speech_ms_estimate(chars) <= SPEECH_MAX_SECONDS * 1000;
+    }
+
     test "the reel opens on the face, then split 120 and full 45 by turns" {
         assert(segment_count(450) == 6);
         assert(last_frames(450) == 60);
@@ -493,8 +548,40 @@ module automation::split_reel {
         assert(REFUSED_BEFORE_SPEND);
     }
 
+    test "an ordinary caller with no voice of her own is refused before the charge" {
+        // Not the house, no voice named, no clone: refused, and nothing taken.
+        assert(voice_refused(false, false, false));
+        assert(!charged(voice_refused(false, false, false)));
+        // A voice she named, or her own clone, speaks and pays its price.
+        assert(!voice_refused(false, true, false));
+        assert(!voice_refused(false, false, true));
+        assert(charged(voice_refused(false, false, true)));
+        // The house with no voice keeps its own path.
+        assert(!voice_refused(true, false, false));
+        assert(!voice_refused(true, true, true));
+        assert(!STOCK_VOICE_FOR_ORDINARY);
+        assert(OWN_VOICE);
+    }
+
+    test "a voice too long for the format is refused from its text, before it is paid" {
+        // The pace is the measured one, rounded up: never below the measurement.
+        assert((MEASURED_MS + MEASURED_CHARS - 1) / MEASURED_CHARS == MS_PER_CHAR);
+        assert(MEASURED_MS / MEASURED_CHARS < MS_PER_CHAR);
+        // The measured text itself is far past the ceiling.
+        assert(!text_fits(MEASURED_CHARS));
+        // The boundary: 214 characters fit, 215 do not.
+        assert(speech_ms_estimate(214) == 11984);
+        assert(text_fits(214));
+        assert(speech_ms_estimate(215) == 12040);
+        assert(!text_fits(215));
+        assert(text_fits(0));
+        // A text refused by its length takes nothing.
+        assert(!charged(!text_fits(215)));
+        assert(charged(!text_fits(214)));
+    }
+
     test "the version is the last dated note" {
-        assert(VERSION == 7);
+        assert(VERSION == 8);
     }
 }
 

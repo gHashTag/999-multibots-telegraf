@@ -266,6 +266,45 @@ export function houseNameAllowed(
 }
 
 /**
+ * Mirror of the spec's voice_refused (v8): an ordinary caller who names no
+ * voice and has no clone of her own is refused before the charge. There is
+ * no stock voice to give her (STOCK_VOICE_FOR_ORDINARY); the house keeps its
+ * own path.
+ */
+export function voiceRefused(
+  house: boolean,
+  hasVoiceId: boolean,
+  hasClone: boolean
+): boolean {
+  if (hasVoiceId) return false
+  if (hasClone) return false
+  if (house) return false
+  return !SPEC.STOCK_VOICE_FOR_ORDINARY
+}
+
+/** Mirror of the spec's speech_ms_estimate (v8): ms of speech from its text. */
+export function speechMsEstimate(chars: number): number {
+  return chars * SPEC.MS_PER_CHAR
+}
+
+/** Mirror of the spec's text_fits (v8): the estimate is within the format. */
+export function textFits(chars: number): boolean {
+  return speechMsEstimate(chars) <= SPEC.SPEECH_MAX_SECONDS * 1000
+}
+
+/**
+ * Characters as the spec's pace was measured (MEASURED_CHARS): the words
+ * joined by single spaces, nothing around them.
+ */
+export function speechChars(text: string): number {
+  return Array.from(
+    String(text ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  ).length
+}
+
+/**
  * A reel's speech as the lines own_words judges: one per line break or
  * sentence end, so a house name is weighed with the words of its own
  * sentence and never with the sentence before it.
