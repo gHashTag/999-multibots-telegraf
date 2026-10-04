@@ -1,0 +1,26 @@
+[
+  {
+    "name": "the 2026-10-04 trap: kill by port, quoted -- two pids become one bad argument",
+    "file": "mock-selfcheck.sh",
+    "from": "trap stop_server EXIT",
+    "to": "trap 'kill \"$(lsof -ti:\"$PORT\" 2>/dev/null)\" 2>/dev/null || true' EXIT"
+  },
+  {
+    "name": "the obvious 'fix': kill by port, unquoted -- kills the stranger on that port",
+    "file": "mock-selfcheck.sh",
+    "from": "trap stop_server EXIT",
+    "to": "trap 'kill $(lsof -ti:\"$PORT\" 2>/dev/null) 2>/dev/null || true' EXIT"
+  },
+  {
+    "name": "the server started without a process group of its own",
+    "file": "mock-selfcheck.sh",
+    "from": "set -m\n( cd",
+    "to": "( cd"
+  },
+  {
+    "name": "a busy asked-for port cleared by killing its holder",
+    "file": "mock-selfcheck.sh",
+    "from": "  if port_answers \"$PORT\"; then\n    echo \"mock-selfcheck: port :$PORT is already taken by another process -- left alone; pick another MOCK_SELFCHECK_PORT\"\n    exit 1\n  fi",
+    "to": "  kill \"$(lsof -ti:\"$PORT\" 2>/dev/null)\" 2>/dev/null || true"
+  }
+]
