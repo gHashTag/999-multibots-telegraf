@@ -76,7 +76,42 @@
   },
   {
     "name": "VERSION disagrees with the last dated note",
-    "from": "pub const VERSION : u8 = 7;",
-    "to": "pub const VERSION : u8 = 6;"
+    "from": "pub const VERSION : u8 = 8;",
+    "to": "pub const VERSION : u8 = 7;"
+  },
+  {
+    "name": "an ordinary caller with no voice is not refused",
+    "from": "return !STOCK_VOICE_FOR_ORDINARY;",
+    "to": "return false;"
+  },
+  {
+    "name": "a stock voice is kept for the ordinary caller",
+    "from": "pub const STOCK_VOICE_FOR_ORDINARY : bool = false;",
+    "to": "pub const STOCK_VOICE_FOR_ORDINARY : bool = true;"
+  },
+  {
+    "name": "the pace is one millisecond quicker than measured",
+    "from": "pub const MS_PER_CHAR : u32 = 56;",
+    "to": "pub const MS_PER_CHAR : u32 = 55;"
+  },
+  {
+    "name": "the ceiling is one character wide",
+    "from": "return speech_ms_estimate(chars) <= SPEECH_MAX_SECONDS * 1000;",
+    "to": "return speech_ms_estimate(chars) <= SPEECH_MAX_SECONDS * 1000 + 56;"
+  },
+  {
+    "name": "a voice refused after it is paid gives nothing back",
+    "from": "        return charged_now;",
+    "to": "        return 0;"
+  },
+  {
+    "name": "a voice from an earlier call is given back too",
+    "from": "        if !paid_here {\n            return 0;",
+    "to": "        if !paid_here {\n            return charged_now;"
+  },
+  {
+    "name": "a voice exactly at the ceiling is refused for its length",
+    "from": "return measured_ms > SPEECH_MAX_SECONDS * 1000;",
+    "to": "return measured_ms >= SPEECH_MAX_SECONDS * 1000;"
   }
 ]
