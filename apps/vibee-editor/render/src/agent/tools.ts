@@ -96,6 +96,7 @@ import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
+import { houseReelRefusal, onClientWork } from './client-work'
 import {
   agentSuppliedHouseName,
   houseNameAllowed,
@@ -2887,6 +2888,12 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      // A house advert is never a client's reel (client-work.ts). Before the
+      // twin lookup too: a twin would hand back a house-branded file free.
+      if (onClientWork(ctx)) {
+        const refused = houseReelRefusal(args.compositionId, args.props)
+        if (refused) return { началось: false, причина: refused } // cyrillic-ok: the tool's result fields are its API
+      }
       /*
        * FIRST LOOK WHETHER THIS WORK IS ALREADY DONE.
        *
