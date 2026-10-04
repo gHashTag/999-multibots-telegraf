@@ -14,12 +14,12 @@ no balance, so a paid model there is a provider that always fails.
 
 ## The measurement (2026-10-04, project key `GLM_API_KEY`, zero balance)
 
-| model | coding `/api/coding/paas/v4` | general `/api/paas/v4` |
-|---|---|---|
-| glm-5.3, glm-4.5 | 1113 Insufficient balance | 1113 |
-| **glm-4.7-flash** | 200, tool calls OK, thinking on/off OK | 200 |
-| **glm-4.5-flash** | 200, tool calls OK, thinking on/off OK | 200 |
-| glm-5.3-flash | 400 1210: thinking cannot be disabled (needs `low/high/max`) | same |
+| model             | coding `/api/coding/paas/v4`                                 | general `/api/paas/v4` |
+| ----------------- | ------------------------------------------------------------ | ---------------------- |
+| glm-5.3, glm-4.5  | 1113 Insufficient balance                                    | 1113                   |
+| **glm-4.7-flash** | 200, tool calls OK, thinking on/off OK                       | 200                    |
+| **glm-4.5-flash** | 200, tool calls OK, thinking on/off OK                       | 200                    |
+| glm-5.3-flash     | 400 1210: thinking cannot be disabled (needs `low/high/max`) | same                   |
 
 - Text only: an `image_url` part answers 400 code 1210. Vision and hearing stay
   with nemotron.
@@ -28,12 +28,12 @@ no balance, so a paid model there is a provider that always fails.
 
 ## Where the default lives
 
-| Place | Override variable |
-|---|---|
+| Place                                                                | Override variable                                      |
+| -------------------------------------------------------------------- | ------------------------------------------------------ |
 | `apps/vibee-editor/render/src/agent/provider.ts` (`zai`, `zai-lite`) | `AGENT_MODEL` (only for the `AGENT_PROVIDER` provider) |
-| `apps/vibee-editor/render/render-server.ts` (two provider lists) | none |
-| `src/core/openai/glm-provider.ts`, `src/core/openai/requests.ts` | `GLM_MODEL` |
-| `src/inngest_app/functions/monitoring/logMonitor.ts` | `LOG_MONITOR_MODEL`, `GLM_MODEL` |
+| `apps/vibee-editor/render/render-server.ts` (two provider lists)     | none                                                   |
+| `src/core/openai/glm-provider.ts`, `src/core/openai/requests.ts`     | `GLM_MODEL`                                            |
+| `src/inngest_app/functions/monitoring/logMonitor.ts`                 | `LOG_MONITOR_MODEL`, `GLM_MODEL`                       |
 
 **Variables beat code.** On 2026-10-04 `GLM_MODEL=glm-5.3` (bot) and
 `AGENT_MODEL=glm-5.3` (vibee-render) still pinned the paid model. A code change
