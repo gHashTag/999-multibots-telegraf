@@ -282,14 +282,77 @@ export function voiceRefused(
   return !SPEC.STOCK_VOICE_FOR_ORDINARY
 }
 
-/** Mirror of the spec's speech_ms_estimate (v8): ms of speech from its text. */
-export function speechMsEstimate(chars: number): number {
-  return chars * SPEC.MS_PER_CHAR
+/**
+ * Mirror of the spec's speech_units (v9): a text's length in speech units,
+ * each kind of character at its own weight.
+ */
+export function speechUnitsOf(
+  plain: number,
+  digits: number,
+  wide: number
+): number {
+  return (
+    plain * SPEC.PLAIN_CHAR_WEIGHT +
+    digits * SPEC.DIGIT_WEIGHT +
+    wide * SPEC.WIDE_CHAR_WEIGHT
+  )
 }
 
-/** Mirror of the spec's text_fits (v8): the estimate is within the format. */
-export function textFits(chars: number): boolean {
-  return speechMsEstimate(chars) <= SPEC.SPEECH_MAX_SECONDS * 1000
+/**
+ * Mirror of the spec's pace_for (v9): the pace a voice is judged at -- the
+ * slower of MS_PER_CHAR and the slowest pace that voice was ever measured at
+ * (0: never measured). A quick voice never stretches the ceiling.
+ */
+export function paceFor(slowest: number): number {
+  if (!SPEC.PACE_PER_VOICE) return SPEC.MS_PER_CHAR
+  return slowest > SPEC.MS_PER_CHAR ? slowest : SPEC.MS_PER_CHAR
+}
+
+/**
+ * Mirror of the spec's speech_ms_estimate (v8, per voice since v9): ms of
+ * speech from a text's units, at that voice's own pace.
+ */
+export function speechMsEstimate(units: number, slowest: number): number {
+  return units * paceFor(slowest)
+}
+
+/**
+ * Mirror of the spec's text_fits (v8, per voice since v9): the estimate is
+ * within the format, judged before the voice is paid for.
+ */
+export function textFits(units: number, slowest: number): boolean {
+  return speechMsEstimate(units, slowest) <= SPEC.SPEECH_MAX_SECONDS * 1000
+}
+
+/**
+ * Mirror of the spec's measured_pace (v9): ms a unit one measured voice
+ * spoke at, rounded UP so it errs long; 0 with no units to divide by.
+ */
+export function measuredPace(measuredMs: number, units: number): number {
+  if (units === 0) return 0
+  return Math.floor((measuredMs + units - 1) / units)
+}
+
+/**
+ * Mirror of the spec's slowest_pace (v9): a voice is only ever slowed down,
+ * never sped up, by what it is measured at.
+ */
+export function slowestPace(kept: number, measured: number): number {
+  return measured > kept ? measured : kept
+}
+
+/**
+ * Mirror of the spec's pace_to_keep (v9): what the voice's row keeps after a
+ * voice of this many units ran this long. A text too short to measure (its
+ * fixed silence reads as a slow voice) leaves the kept pace as it was.
+ */
+export function paceToKeep(
+  kept: number,
+  measuredMs: number,
+  units: number
+): number {
+  if (units < SPEC.MIN_PACE_UNITS) return kept
+  return slowestPace(kept, measuredPace(measuredMs, units))
 }
 
 /**
@@ -330,11 +393,41 @@ export function backstopRefund(
  * joined by single spaces, nothing around them.
  */
 export function speechChars(text: string): number {
-  return Array.from(
-    String(text ?? '')
-      .replace(/\s+/g, ' ')
-      .trim()
-  ).length
+  return Array.from(spokenText(text)).length
+}
+
+/** A text as the pace was measured: words joined by single spaces. */
+function spokenText(text: string): string {
+  return String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** A digit: read out as a word, so it weighs DIGIT_WEIGHT. */
+const DIGIT = /^\p{Nd}$/u
+/**
+ * A letter of a script that writes a syllable or a word per character (Han,
+ * Hiragana, Katakana, Hangul): WIDE_CHAR_WEIGHT. Any other alphabet's letter
+ * is a sound like a Latin one and weighs one, as the spec says.
+ */
+const WIDE =
+  /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]$/u
+
+/**
+ * A text's length in the spec's speech units (v9): its characters counted as
+ * speechChars counts them, a digit or a syllable character at its weight.
+ * A text of Latin or Cyrillic letters weighs exactly its speechChars.
+ */
+export function speechUnits(text: string): number {
+  let plain = 0
+  let digits = 0
+  let wide = 0
+  for (const ch of spokenText(text)) {
+    if (DIGIT.test(ch)) digits += 1
+    else if (WIDE.test(ch)) wide += 1
+    else plain += 1
+  }
+  return speechUnitsOf(plain, digits, wide)
 }
 
 /**

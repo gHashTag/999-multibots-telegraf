@@ -327,9 +327,17 @@ describe('the clone reaches the provider only by the service’s choice', () => 
 
   it('audio_generate speaks for_lead with the clone THIS owner made', () => {
     expect(tools).toMatch(
-      /leadVoiceOf\(\s*ctx\.pool,\s*String\(ctx\.telegramId\)/
+      /cloneFor\(\s*ctx\.pool,\s*String\(ctx\.telegramId\),\s*forLead\s*\)/
     )
     expect(tools).toMatch(/clone_voice: cloneVoice/)
+    // The one home of the rule: anybody else's clone only by the asker.
+    const leadVoice = fs.readFileSync(
+      path.join(__dirname, 'lead-voice.ts'),
+      'utf8'
+    )
+    expect(leadVoice).toMatch(
+      /self \? ownVoiceOf\(pool, asker\) : leadVoiceOf\(pool, asker, forLead\)/
+    )
   })
 
   it('the route takes a clone only from its api-key caller, and skips ElevenLabs for it', () => {
