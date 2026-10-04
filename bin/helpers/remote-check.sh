@@ -12,6 +12,15 @@
 # video (no test opens them), about 22 MB. Files are given relative to the suite's own package.
 # Exit 0 every suite passed, 1 one failed, 2 could not reach the runner.
 #
+#   tri remote-check mutants -- render/src/spec/x.mutants.json [...]
+#   tri remote-check spec -- render/src/spec/x.t27 [...]
+# The experiments, run there too (deployment/check-runner/suites.mjs). Names
+# are paths from the repository root, each run alone: a mutant list with
+# `tri mutants` (reverted by git in the runner's own tree), a spec with
+# `t27c test-report` and then its <id>.controls.json. Exit 0 all killed /
+# all pass, 1 a survivor / a FAIL row / a missed control, 2 unmeasured (no
+# t27c, no zig, no table, no test to run) -- never green.
+#
 #   tri remote-check [--repo DIR] website -- check:queen-castle [typecheck:ratchet ...]
 # gHashTag/trinity's site checks, run there too (owner, 2026-10-04: "run all
 # experiments on Railway, the computer here is choking" -- load average 800).
@@ -77,6 +86,13 @@ import json, os, sys
 r = json.loads(os.environ["RESULT"])
 if not r or "error" in r:
     print("  == " + str(r)); sys.exit(1)
-print("  == " + "  ".join(f"{k}:{'ok' if v == 0 else f'FAIL({v})'}" for k, v in r.items()))
-sys.exit(0 if all(v == 0 for v in r.values()) else 1)
+# A mutants or spec name that could not be measured (2) is neither a pass
+# nor a failure: the whole run then says 2. Any other non-zero -- a 2 from
+# tsc or vitest included -- is a failure.
+EXP = ("mutants:", "spec:")
+unmeasured = [k for k, v in r.items() if v == 2 and k.startswith(EXP)]
+failed = [k for k, v in r.items() if v != 0 and k not in unmeasured]
+label = lambda k, v: "ok" if v == 0 else "UNMEASURED" if k in unmeasured else f"FAIL({v})"
+print("  == " + "  ".join(f"{k}:{label(k, v)}" for k, v in r.items()))
+sys.exit(1 if failed else 2 if unmeasured else 0)
 PY

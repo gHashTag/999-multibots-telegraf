@@ -223,6 +223,7 @@ tri — оболочка Trinity S³AI
   tri a2a "<задача>" [--surface s] [--fresh]  дать задачу агенту владельца и смотреть, как он справится
   tri remote-check [render|player|root] [-- файлы]  проверки в облаке (Railway), а не на Mac
   tri remote-check [--repo DIR] website -- check:ИМЯ  проверки сайта trinity там же
+  tri remote-check mutants|spec -- x.mutants.json|x.t27  мутанты и контроли спеки там же (2 = не измерено)
   tri bench                    балл агента: находит ли он кнопки на страницах из боя
   tri lesson <скил> <текст>    записать урок в скил одной строкой, с датой
   tri app-smoke  что app.t27.ai обязан отвечать [--save|--compare ФАЙЛ]
