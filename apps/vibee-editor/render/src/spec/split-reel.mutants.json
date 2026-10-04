@@ -283,5 +283,65 @@
     "file": "src/agent/lead-voice.ts",
     "from": "WHERE voice_id = $1\n      ORDER BY ms_per_char DESC NULLS LAST LIMIT 1",
     "to": "WHERE voice_id = $1 OR ms_per_char IS NOT NULL\n      ORDER BY ms_per_char DESC NULLS LAST LIMIT 1"
+  },
+  {
+    "name": "v10: a client reel with no colour given defaults to the house gold",
+    "file": "src/split-reel-plan.ts",
+    "from": "reelCallColour({ house: input.call.house }).colour",
+    "to": "SPEC.HOUSE_CALL_COLOR",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  },
+  {
+    "name": "v10: her own call colour is replaced by the house gold",
+    "file": "src/split-reel-plan.ts",
+    "from": "case SPEC.CTA_CLIENT:\n      return { colour: hers, from }",
+    "to": "case SPEC.CTA_CLIENT:\n      return { colour: SPEC.HOUSE_CALL_COLOR, from }",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  },
+  {
+    "name": "v10: the house gold the order gave stands on her reel",
+    "file": "src/split-reel-plan.ts",
+    "from": "return ctaFor(house, given, givenIsHouse, hers)",
+    "to": "return ctaFor(house, given, false, hers)",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  },
+  {
+    "name": "v10: an unreadable colour the order gave is shaded instead of refused",
+    "file": "src/split-reel-plan.ts",
+    "from": "if (from === SPEC.CTA_GIVEN && SPEC.GIVEN_CALL_COLOR_UNREADABLE_REFUSED)",
+    "to": "if (false)",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  },
+  {
+    "name": "v10: split_reel goes on past a refused call colour",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "if (callColour.refused)\n        return { done: false, reason: callColour.refused }",
+    "to": "if (false)\n        return { done: false, reason: callColour.refused }",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  },
+  {
+    "name": "v10: SplitTalkingHead draws a call with no colour in the house gold",
+    "file": "src/compositions/SplitTalkingHead.tsx",
+    "from": "ctaColor = SPLIT.NEUTRAL_CALL_COLOR,",
+    "to": "ctaColor = SPLIT.HOUSE_CALL_COLOR,",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
   }
 ]

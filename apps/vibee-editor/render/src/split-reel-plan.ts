@@ -515,6 +515,61 @@ export function reelCta(c: ReelCall): string {
   }
 }
 
+/** Mirror of the spec's call_colour_from (v10): the colour comes from where the words do. */
+export function callColourFrom(
+  house: boolean,
+  given: boolean,
+  givenIsHouse: boolean,
+  hers: boolean
+): number {
+  return ctaFor(house, given, givenIsHouse, hers)
+}
+
+/** Mirror of the spec's call_drawn (v10): as it is, refused, or its shade that reads. */
+export function callDrawn(from: number, readable: boolean): number {
+  if (readable) return SPEC.CALL_AS_IS
+  if (from === SPEC.CTA_GIVEN && SPEC.GIVEN_CALL_COLOR_UNREADABLE_REFUSED)
+    return SPEC.CALL_REFUSED
+  return SPEC.CALL_SHADE
+}
+
+/** What the call's colour is chosen from (spec v10); colours are checked #hex. */
+export interface ReelCallColour {
+  /** The house's own reel (houseOwnTurn). */
+  house: boolean
+  /** The colour the order gave; '' when none. */
+  given?: string
+  /** Whether the order's colour is the house's gold. */
+  givenIsHouse?: boolean
+  /** Her own: the call colour of her kept palette, else her profile's; '' when none. */
+  hers?: string
+}
+
+/** The call's colour and where it came from: the spec's call_colour_from, in colours. */
+export function reelCallColour(c: ReelCallColour): {
+  colour: string
+  from: number
+} {
+  const given = String(c.given ?? '').trim()
+  const hers = String(c.hers ?? '').trim()
+  const from = callColourFrom(
+    c.house,
+    Boolean(given),
+    Boolean(given && c.givenIsHouse),
+    Boolean(hers)
+  )
+  switch (from) {
+    case SPEC.CTA_GIVEN:
+      return { colour: given, from }
+    case SPEC.CTA_OWNER:
+      return { colour: SPEC.HOUSE_CALL_COLOR, from }
+    case SPEC.CTA_CLIENT:
+      return { colour: hers, from }
+    default:
+      return { colour: SPEC.NEUTRAL_CALL_COLOR, from }
+  }
+}
+
 export interface SplitReelInput {
   lipSyncVideo: string
   /** Where the last word ends; the call starts there (spec v5). */
@@ -523,6 +578,11 @@ export interface SplitReelInput {
   captions?: unknown[]
   /** Whose reel it is and what its call is chosen from (spec v7). */
   call: ReelCall
+  /**
+   * The colour the call is drawn in, as split_reel decided it (spec v10).
+   * Absent: the house's gold on the house's own reel, else the neutral one.
+   */
+  callColour?: string
   /** Measured face; the studio's place when absent. */
   face?: FaceInSource
   /** The reel's frame; 1080x1920 when absent. */
@@ -551,6 +611,11 @@ export function splitReelProps(input: SplitReelInput) {
     // The call at the end, on the held last frame (spec v5): always, and
     // the client's on a client's reel (spec v7).
     ctaText: reelCta(input.call),
+    // ...in the colour from the same place (spec v10): never the house's
+    // gold on a reel that is not the house's own.
+    ctaColor:
+      String(input.callColour ?? '').trim() ||
+      reelCallColour({ house: input.call.house }).colour,
     pauseSec: SPEC.CTA_PAUSE_SEC,
     speechSec: input.seconds,
   }

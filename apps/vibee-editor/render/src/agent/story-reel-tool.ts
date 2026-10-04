@@ -726,9 +726,11 @@ export function bgOffered(
   return unreadable && allReadAtSomeStep
 }
 
-/** One spelling for a colour: #rrggbb, lower case (a shade of step 0). */
-/** One spelling for a colour: #rrggbb, lower case. */
-function spelled(c: string): string {
+/**
+ * One spelling for a #hex colour: #rrggbb, lower case, its alpha dropped
+ * (a shade of step 0). split_reel compares and draws its call colours in it.
+ */
+export function spelled(c: string): string {
   return `#${rgbOf(c)
     .map(v => v.toString(16).padStart(2, '0'))
     .join('')}`
