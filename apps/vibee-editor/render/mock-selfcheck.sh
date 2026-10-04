@@ -19,7 +19,7 @@
 # stranger. So:
 #   - the server runs as its own job under `set -m`, i.e. its own process
 #     group (npm exec -> tsx -> node -> esbuild all share it), and the trap
-#     stops exactly that group, then waits for it to be gone (SIGKILL at 5 s);
+#     stops exactly that group, then waits for it to be gone (SIGKILL after 4-5 s);
 #   - the job writes to the log and reads /dev/null, so even a survivor could
 #     not hold the hook's pipe (same class as cloud-check.sh's watchdog sleep);
 #   - no lsof and no curl: python3 (already needed by mock-test.py) probes the
@@ -56,15 +56,19 @@ LOG="/tmp/mock-selfcheck.$PORT.log"
 # still returns in ~2 s, but 16 s was too short for tsx on a loaded Mac.
 WAIT_S="${MOCK_SELFCHECK_WAIT_S:-120}"
 
+# SIGTERM to the whole group, then SIGKILL once 4-5 s of WALL CLOCK have
+# passed ($SECONDS is whole seconds). Not a count of `sleep 0.1` rounds: at a
+# load average of ~410 (2026-10-04) 50 rounds took 6.6-7.7 s, not 5, and a
+# count stretches further the more the machine starves -- with a server that
+# ignores SIGTERM, the push waits that whole time.
 SERVER_GROUP=""
 stop_server() {
   [ -n "$SERVER_GROUP" ] || return 0
-  local g="$SERVER_GROUP" i=0
+  local g="$SERVER_GROUP" deadline=$((SECONDS + 5))
   SERVER_GROUP=""
   kill -TERM -- "-$g" 2>/dev/null || return 0
   while kill -0 -- "-$g" 2>/dev/null; do
-    i=$((i + 1))
-    if [ "$i" -ge 50 ]; then
+    if [ "$SECONDS" -ge "$deadline" ]; then
       kill -KILL -- "-$g" 2>/dev/null
       break
     fi
@@ -74,6 +78,10 @@ stop_server() {
 trap stop_server EXIT
 # A hook interrupted by Ctrl-C or a dropped session still goes through the
 # EXIT trap; the server's group is not the terminal's, so nothing else stops it.
+# bash 3.2 runs the EXIT trap on a fatal TERM, INT or HUP even without these
+# (measured: same cleanup, the script dies by the signal instead of exiting
+# 143/130/129). They stay for the plain exit status, and so the cleanup does
+# not depend on bash running a trap from inside its signal handler.
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
