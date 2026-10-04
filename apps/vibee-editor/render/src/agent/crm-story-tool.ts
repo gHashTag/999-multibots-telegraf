@@ -53,6 +53,12 @@ import {
 } from './story-reel-tool'
 import * as REEL from '../spec/crm-story-reel.gen'
 import {
+  buttonFrom,
+  cardForReel,
+  clientLines,
+  houseReplacedNote,
+  reelCall,
+  takenWord,
   templateLines,
   templateOf,
   templatesForPanel,
@@ -62,17 +68,6 @@ import { bindClientGroup, clientGroupFor } from './crm-client-group'
 
 export const NOT_THIS_CLIENT =
   'в разговоре за клиента рилс делается только ему самому' // cyrillic-ok: tool result copy
-
-/**
- * TEMPORARY, until crm-story-reel v22 (owner, 2026-10-03: "why does it put
- * my call on the client's reel instead of his own?"). The hook template is
- * the house's own ad: its call and its button lead to the house bot. It
- * stays on the seller's own reel; a client's reel is made by topic, with
- * the client's own call.
- */
-export const HOUSE_TEMPLATE_STAYS_HOME =
-  `шаблон — реклама самой Тринити: его призыв и кнопка ${REEL.TEMPLATE_BUTTON} ведут к нам, а не к клиенту. ` + // cyrillic-ok: tool result copy
-  'Он только для твоего собственного рилса; клиенту сделай рилс по теме (topic) без шаблона — с его призывом' // cyrillic-ok: tool result copy
 
 /** An id, or an @name the seller's CRM knows. */
 async function leadOf(ctx: ToolContext, raw: unknown): Promise<string | null> {
@@ -153,7 +148,7 @@ export function makeCrmStoryTool(o: {
         cta: { type: 'string', description: 'свой призыв в паузе' },
         [REEL.TEMPLATE_ARG]: {
           type: 'string',
-          description: `только для СВОЕГО рилса продавца (lead = ты), клиенту — нет: ${REEL.TEMPLATE_HOOK_STUDIO} (хук, студия, призыв к ${REEL.TEMPLATE_BUTTON})`,
+          description: `готовый шаблон: ${REEL.TEMPLATE_HOOK_STUDIO} (хук, кадры студии; в конце призыв и кнопка клиента из его профиля, к ${REEL.TEMPLATE_BUTTON} — только на своём рилсе)`,
         },
         [REEL.LANGUAGE_ARG]: {
           type: 'string',
@@ -191,13 +186,10 @@ export function makeCrmStoryTool(o: {
       if (forClient && forClient !== lead)
         return { ready: false, why: NOT_THIS_CLIENT }
       const seller = String(ctx.telegramId)
-      // The house template is the seller's own (temporary, until v22): a
-      // client's call naming it is refused here, before any face, voice,
-      // render, charge or row.
+      // The house's own reel; any other carries the client's call (spec v22,
+      // which supersedes the stopgap of #3553 that refused a client's
+      // template press).
       const ownReel = lead === seller
-      const templateId = String(args[REEL.TEMPLATE_ARG] ?? '').trim()
-      if (templateId && !ownReel)
-        return { ready: false, started: false, why: HOUSE_TEMPLATE_STAYS_HOME }
 
       let s = await storySettingsOf(ctx.pool, lead, seller)
       if (s && !s.faceUrl) {
@@ -292,9 +284,9 @@ export function makeCrmStoryTool(o: {
       // one is fixed for free.
       const badColour = endCardProblem(args.end_card)
       const endCard = mergeEndCard(
-        endCardOf(args.end_card),
-        kept,
-        s?.endCard ?? null
+        cardForReel(endCardOf(args.end_card), ownReel),
+        cardForReel(kept, ownReel),
+        cardForReel(s?.endCard ?? null, ownReel)
       )
       const unreadable = endCardUnreadable(endCard)
       // The shade of her colour that reads, field by field (spec v12): for a
@@ -372,8 +364,11 @@ export function makeCrmStoryTool(o: {
                 ...(fixBg ? { [REEL.SUGGEST_BG_ARG]: fixBg } : {}),
                 client_pays_own_press: s.payer === 'client',
                 // The gallery the panel draws (spec v20, TEMPLATES_FROM_SERVER);
-                // the house template only on the seller's own reel (until v22).
-                ...(ownReel ? { templates: templatesForPanel() } : {}),
+                // a client's is the templates' client versions: no line names
+                // the house, the last ends with her call, no house button (v22).
+                templates: templatesForPanel(
+                  ownReel ? undefined : { call: s.cta }
+                ),
               }
             : {}),
           one_tap_link: nextLink(bot) || undefined,
@@ -387,9 +382,11 @@ export function makeCrmStoryTool(o: {
       if (missing) return { started: false, why: missing }
       /*
        * A TEMPLATE (spec v20): its lines, edited by the seller where he
-       * wrote his own, shot in the studio; its call and its house-bot button
-       * unless he gave his.
+       * wrote his own, shot in the studio. Its call and its house-bot button
+       * only on the house's own reel (spec v22): a client's ends with her
+       * call and her button.
        */
+      const templateId = String(args[REEL.TEMPLATE_ARG] ?? '').trim()
       const template = templateId
         ? templateOf(templateId, String(args[REEL.LANGUAGE_ARG] ?? ''))
         : undefined
@@ -402,18 +399,76 @@ export function makeCrmStoryTool(o: {
           )
         : null
       if (typeof lines === 'string') return { started: false, why: lines }
-      const given = args.end_card as Record<string, unknown> | undefined
+      /*
+       * A CLIENT'S REEL CARRIES HER CALL (spec v22, call_from, button_from):
+       * the seller's word for her, else her own; a word naming the house is
+       * replaced by hers, and the answer says so in one line. An empty call
+       * is kept empty: the job takes hers from her profile when it runs.
+       */
+      const call = reelCall({
+        given: args.cta,
+        templateCall: template?.call,
+        ownReel,
+        ownCall: s?.cta ?? '',
+      })
+      const raw = args.end_card
+      const isCard = !!raw && typeof raw === 'object' && !Array.isArray(raw)
+      const button = takenWord(
+        isCard ? (raw as Record<string, unknown>).button : '',
+        ownReel
+      )
+      const way = buttonFrom(
+        !!button.word,
+        !!template,
+        ownReel,
+        !!kept?.button,
+        !!s?.endCard?.button
+      )
+      const jobButton =
+        way === REEL.FIELD_FROM_SELLER
+          ? button.word
+          : way === REEL.FIELD_FROM_TEMPLATE
+            ? String(template?.button ?? '')
+            : ''
+      const rest: Record<string, unknown> = isCard
+        ? { ...(raw as Record<string, unknown>) }
+        : {}
+      delete rest.button
+      const jobCard =
+        isCard || jobButton
+          ? { ...rest, ...(jobButton ? { button: jobButton } : {}) }
+          : raw
+      /*
+       * EVERY LINE OF A CLIENT'S REEL, READ (spec v22, line_way): a template's
+       * line is its client version, the first as much as the last; a line the
+       * seller or the agent wrote naming the house is refused here, before
+       * anything is spent -- unless the person typed it herself this turn.
+       * A script with no template is read the same way by startStory.
+       */
+      const spoken =
+        template && lines && !ownReel
+          ? clientLines(template, lines, call.call, ctx.ownerSaid)
+          : null
+      if (spoken?.refused) return { started: false, why: spoken.refused }
+      const replaced = houseReplacedNote(
+        [
+          call.replaced,
+          button.replaced ? String((raw as { button?: unknown }).button) : '',
+        ],
+        call.call
+      )
+      const said = spoken ? spoken.lines : lines
       const out = await startStory(o.deps(ctx), {
         lead,
         requester: seller,
         seller,
-        topic: String(args.topic || (lines ? lines[0] : '')).slice(
+        topic: String(args.topic || (said ? said[0] : '')).slice(
           0,
           STORY_TOPIC_MAX
         ),
         about: String(args.about ?? ''),
-        ...(lines
-          ? { scenes: lines.map(line => ({ setting: '', line })) }
+        ...(said
+          ? { scenes: said.map(line => ({ setting: '', line })) }
           : args.scenes !== undefined
             ? { scenes: args.scenes }
             : {}),
@@ -421,24 +476,17 @@ export function makeCrmStoryTool(o: {
           ? { sceneCount: Number(args.scene_count) }
           : {}),
         style: String(args.style ?? ''),
-        cta: String(args.cta || template?.call || ''),
-        ...(template
-          ? {
-              endCard: {
-                ...(given && typeof given === 'object' ? given : {}),
-                button: String(given?.button ?? '') || template.button,
-              },
-            }
-          : args.end_card !== undefined
-            ? { endCard: args.end_card }
-            : {}),
+        cta: call.from === REEL.CALL_FROM_PROFILE ? '' : call.call,
+        ...(jobCard !== undefined ? { endCard: jobCard } : {}),
         deliverTo,
         caption: String(args.caption ?? ''),
+        personSaid: ctx.ownerSaid,
       })
       return out.started
         ? {
             ...out,
             ...(keptNote ? { end_card_saved: keptNote } : {}),
+            ...(replaced ? { house_replaced: replaced } : {}),
             note: dm
               ? 'рилс делается в фоне 5–10 минут; готовый придёт тебе в бот карточкой «ему в личку» — одно нажатие'
               : group
