@@ -166,7 +166,13 @@ const CATALOG: Record<
       'https://api.z.ai/api/coding/paas/v4'
     ),
     env: 'GLM_API_KEY',
-    model: 'glm-5.3',
+    // The FREE flash models, owner's rule 2026-10-04. Measured that day on a
+    // key with zero balance: glm-5.3 and glm-4.5 answer 1113 "Insufficient
+    // balance" on both endpoints, glm-4.5-flash and glm-4.7-flash answer 200
+    // with tool calls, thinking on or off. A busy free tier says 1305
+    // "overloaded", which is why zai-lite runs the OTHER flash model.
+    // Skill: zai-free-flash.
+    model: 'glm-4.7-flash',
     thinking: true,
     tools: true,
     // 400 code 1210: allowed values: [text]. Measured 2026-09-07.
@@ -183,8 +189,8 @@ const CATALOG: Record<
    * агент просто молчал. Владелец сказал прямо: «у нас z.ai».
    *
    * Подписка кодерская и живёт на том же эндпоинте, поэтому запасной путь
-   * ничего не стоит: та же аутентификация, другая модель. glm-4.5 легче и
-   * отвечает, когда glm-5.3 занята или недоступна.
+   * ничего не стоит: та же аутентификация, другая модель. glm-4.5-flash is
+   * free like glm-4.7-flash and still answers when that one is overloaded.
    */
   'zai-lite': {
     base: endpointBase(
@@ -192,7 +198,7 @@ const CATALOG: Record<
       'https://api.z.ai/api/coding/paas/v4'
     ),
     env: 'GLM_API_KEY',
-    model: 'glm-4.5',
+    model: 'glm-4.5-flash',
     thinking: false,
     tools: true,
     // Same endpoint, same refusal.

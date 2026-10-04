@@ -29,8 +29,8 @@ import {
   forgetProviderChoiceForTests,
 } from './provider-choice'
 
-const GLM = 'glm-5.3'
-const LITE = 'glm-4.5'
+const GLM = 'glm-4.7-flash'
+const LITE = 'glm-4.5-flash'
 const NEMO = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'
 
 const text = (t: string) =>
