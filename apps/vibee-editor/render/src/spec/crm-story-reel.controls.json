@@ -196,8 +196,8 @@
   },
   {
     "name": "VERSION lags the header again",
-    "from": "pub const VERSION : u8 = 23;",
-    "to": "pub const VERSION : u8 = 22;"
+    "from": "pub const VERSION : u8 = 25;",
+    "to": "pub const VERSION : u8 = 24;"
   },
   {
     "name": "two reasons on the card allowed",
