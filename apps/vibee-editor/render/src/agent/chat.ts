@@ -77,6 +77,7 @@ import {
 } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import * as WS from '../spec/crm-client-workspace.gen'
 import { stopRequested } from './agent-stops'
+import { onClientWork } from './client-work'
 
 const MAX_STEPS = 8
 
@@ -1443,15 +1444,43 @@ function ownerSideSection(surface?: string): string {
   )
 }
 
+/**
+ * THE BLOGGER ON A CLIENT'S CARD. The content is hers: the order is
+ * CLIENT_CONTENT_FROM (crm-client-workspace.t27 v6) -- what the seller said
+ * about her, else her profile and plan, else neutral -- and nothing of ours.
+ * Exported for the test, which holds it free of the house's names.
+ */
+export const CLIENT_BLOGGER_BRIEF =
+  '\n\nТВОЯ СПЕЦИАЛИЗАЦИЯ — БЛОГЕР КЛИЕНТА. Эта работа — для клиента, о ' + // cyrillic-ok: prompt copy
+  'котором разговор: пост, рилс, подпись и призыв принадлежат ему. Бери его ' + // cyrillic-ok: prompt copy
+  'дело, офер, голос и фото: сначала то, что продавец сказал о нём в этом ' + // cyrillic-ok: prompt copy
+  'разговоре, потом его профиль (crm_client_profile) и план ' + // cyrillic-ok: prompt copy
+  '(crm_client_plan), а чего нет нигде — нейтрально. Бренд, блог, бот и ' + // cyrillic-ok: prompt copy
+  'офер продавца или платформы в работу клиента не идут: призыв ведёт к ' + // cyrillic-ok: prompt copy
+  'клиенту. Рилс — story_reel или split_reel с его призывом. Опубликовать ' + // cyrillic-ok: prompt copy
+  'или отправить — только карточкой по нажатию продавца. Не называй работу ' + // cyrillic-ok: prompt copy
+  'готовой, пока не видишь файл или ссылку.' // cyrillic-ok: prompt copy
+
 /*
  * The gate decides WHO may open an agent (routes.ts threadFor: live for
  * everybody, any catalogued agent for a keeper, #2957); this only says what
  * the agent is. A trainee a keeper opened gets its own voice, not the
  * general assistant's.
  */
-export function marketplaceAgentPrompt(agentId?: string): string {
+export function marketplaceAgentPrompt(
+  agentId?: string,
+  /**
+   * Work for a client (client-work.ts onClientWork). The Blogger's brief
+   * below is the HOUSE's -- its blog, its offer, its triptych -- and on a
+   * client's card it made her content end with our call (owner, 03.10). There
+   * she gets her own brief (crm-client-workspace.t27 v6,
+   * blogger_brief_is_house).
+   */
+  clientWork = false
+): string {
   const agent = marketplaceAgentById(agentId)
   if (!agent) return ''
+  if (agent.id === 'blogger' && clientWork) return CLIENT_BLOGGER_BRIEF
   if (agent.id === 'blogger') {
     return (
       '\n\nТВОЯ СПЕЦИАЛИЗАЦИЯ — БЛОГЕР T27. Ты не выдаёшь россыпь идей: ' +
@@ -1596,6 +1625,40 @@ export function marketplaceAgentPrompt(agentId?: string): string {
   return ''
 }
 
+/**
+ * The seller's SOUL on client work: his voice for words sent in his name
+ * (the duet speaks as him), never the source of her content -- no plan of
+ * his, no post in his voice (crm-client-workspace.t27 v6).
+ */
+export const SELLER_SOUL_ON_CLIENT_WORK =
+  '\n\nГОЛОС ПРОДАВЦА (SOUL.md) ниже — только для сообщений, которые уходят ' + // cyrillic-ok: prompt copy
+  'от его имени. Эта работа — для клиента: контент-план, офер и бренд ' + // cyrillic-ok: prompt copy
+  'продавца в неё не идут; пост, рилс, подпись и призыв делаются из данных ' + // cyrillic-ok: prompt copy
+  'клиента (crm_client_profile, crm_client_plan).\n\n' // cyrillic-ok: prompt copy
+
+/**
+ * The caller's personal SOUL (`user_soul`), with the line that says what it
+ * governs. On the caller's own turns it is whose content this is; on client
+ * work the caller is the seller, and the content is the client's
+ * (crm-client-workspace.t27 v6, seller_plan_in_prompt).
+ */
+export function personalSoulPreface(clientWork = false): string {
+  if (clientWork)
+    return (
+      '\n\nЛИЧНЫЙ SOUL ПРОДАВЦА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Он задаёт тон ответов ' + // cyrillic-ok: prompt copy
+      'ему и сообщений от его имени, но работа здесь — для клиента: тексты ' + // cyrillic-ok: prompt copy
+      'постов, идеи, рилсы и призыв делаются из данных клиента, а не из ' + // cyrillic-ok: prompt copy
+      'этого SOUL.\n\n' // cyrillic-ok: prompt copy
+    )
+  return (
+    '\n\nЛИЧНЫЙ SOUL ЧЕЛОВЕКА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Тексты постов, ' + // cyrillic-ok: prompt copy
+    'идеи и тон — подстраивай под него; голос бренда t27 остаётся ' + // cyrillic-ok: prompt copy
+    'правилом честности (числа, границы), но ЧЕЙ это контент и каким ' + // cyrillic-ok: prompt copy
+    'голосом — решает этот SOUL. Человек может просить править его ' + // cyrillic-ok: prompt copy
+    'через soul_edit — это его скилл, помогай с этим.\n\n' // cyrillic-ok: prompt copy
+  )
+}
+
 export function systemPrompt(
   surface?: string,
   toolsOnly = false,
@@ -1614,7 +1677,15 @@ export function systemPrompt(
    * personal SOUL (the block the caller adds from `souls`), and somebody with
    * none gets no voice at all -- the honest state, not a borrowed identity.
    */
-  ownerVoice = false
+  ownerVoice = false,
+  /**
+   * WORK FOR A CLIENT (client-work.ts onClientWork). The caller id is the
+   * seller's there, so `ownerVoice` stays true -- and his 30-day plan and
+   * "write posts in this voice" gave a client's content his. On client work
+   * his SOUL speaks only the words sent in his name, and the specialist gets
+   * the client's brief (crm-client-workspace.t27 v6, seller_plan_in_prompt).
+   */
+  clientWork = false
 ): string {
   // The unattended sweep (tools_only) must call tools, not draw buttons:
   // the markers section was the root of marker-only `[[...|no_one_available]]`
@@ -1655,9 +1726,19 @@ export function systemPrompt(
    * next, this stays the last thing read.
    */
   const lang = '\n\n' + ANSWER_IN_THEIR_LANGUAGE
-  const specialist = marketplaceAgentPrompt(marketplaceAgent)
+  const specialist = marketplaceAgentPrompt(marketplaceAgent, clientWork)
   const s = ownerVoice ? soul() : null
   if (!s) return systemFor(surface) + buttons + canTake + specialist + lang
+  if (clientWork)
+    return (
+      systemFor(surface) +
+      buttons +
+      canTake +
+      SELLER_SOUL_ON_CLIENT_WORK +
+      s +
+      specialist +
+      lang
+    )
   return (
     systemFor(surface) +
     buttons +
@@ -2397,6 +2478,13 @@ async function* runAgentTurn(
    * required to), not the primary path.
    */
   ctx = clientTurnContext(ctx, opts)
+  /*
+   * Work for a client is told by its marks, never by the caller id: on a
+   * client turn `ctx.telegramId` is the seller's (crm-client-workspace.t27 v6,
+   * content_for). The prompt below reads it so his plan, his post voice and
+   * the house's Blogger brief stay out of the client's content.
+   */
+  const clientWork = onClientWork(ctx)
   const turnId = ctx.turn ?? randomUUID().slice(0, 8)
   /** When THIS run began. A stop written before it is about another run. */
   const turnStartedAt = Date.now()
@@ -2694,7 +2782,8 @@ async function* runAgentTurn(
               opts?.surface,
               opts?.toolsOnly === true,
               opts?.marketplaceAgent,
-              ownerVoice
+              ownerVoice,
+              clientWork
             ) +
             salesPlaybook({
               surface: opts?.surface,
@@ -2702,17 +2791,14 @@ async function* runAgentTurn(
               seller,
               giftIsDown: imagesLookDown()?.why ?? null,
             }) +
-            '\n\nЛИЧНЫЙ SOUL ЧЕЛОВЕКА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Тексты постов, ' +
-            'идеи и тон — подстраивай под него; голос бренда t27 остаётся ' +
-            'правилом честности (числа, границы), но ЧЕЙ это контент и каким ' +
-            'голосом — решает этот SOUL. Человек может просить править его ' +
-            'через soul_edit — это его скилл, помогай с этим.\n\n' +
+            personalSoulPreface(clientWork) +
             personalSoul
           : systemPrompt(
               opts?.surface,
               opts?.toolsOnly === true,
               opts?.marketplaceAgent,
-              ownerVoice
+              ownerVoice,
+              clientWork
             ) +
             salesPlaybook({
               surface: opts?.surface,
@@ -2792,7 +2878,8 @@ async function* runAgentTurn(
               opts?.surface,
               opts?.toolsOnly === true,
               opts?.marketplaceAgent,
-              ownerVoice
+              ownerVoice,
+              clientWork
             ),
             dmHistory,
             personContext,

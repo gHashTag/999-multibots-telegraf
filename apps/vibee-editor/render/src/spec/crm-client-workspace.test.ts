@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
@@ -523,9 +524,126 @@ describe("the spec's tests hold against the host", () => {
     )
   })
 
+  it('work for a client is told by its marks, never by the caller id', async () => {
+    // content_for(face_of, seller_sweep). On every turn below the caller id
+    // is the SELLER's -- the one thing that cannot tell his work from hers.
+    const { onClientWork } = await import('../agent/client-work')
+    const { clientTurnContext } =
+      await vi.importActual<typeof import('../agent/chat')>('../agent/chat')
+    // The marks the host reads are the spec's, by name.
+    const marks = SPEC.CLIENT_WORK_MARKS.split(',')
+    expect(marks).toEqual(['faceOf', 'sellerSweep'])
+    const set = (mark: string) => (mark === 'faceOf' ? CLIENT : true)
+    const contentFor = (faceOf: boolean, sellerSweep: boolean) =>
+      onClientWork({
+        telegramId: SELLER,
+        ...(faceOf ? { [marks[0]]: set(marks[0]) } : {}),
+        ...(sellerSweep ? { [marks[1]]: set(marks[1]) } : {}),
+      } as never)
+        ? SPEC.CONTENT_IS_CLIENTS
+        : SPEC.CONTENT_IS_CALLERS
+    expect(contentFor(true, false)).toBe(SPEC.CONTENT_IS_CLIENTS)
+    expect(contentFor(false, true)).toBe(SPEC.CONTENT_IS_CLIENTS)
+    expect(contentFor(true, true)).toBe(SPEC.CONTENT_IS_CLIENTS)
+    expect(contentFor(false, false)).toBe(SPEC.CONTENT_IS_CALLERS)
+    // The turn sets the marks: a client's thread and the unattended sweep
+    // do; the seller's own turn, and his own id as a "face", do not.
+    const own = { telegramId: SELLER } as Parameters<
+      typeof clientTurnContext
+    >[0]
+    expect(onClientWork(clientTurnContext(own, { client: CLIENT }))).toBe(true)
+    expect(onClientWork(clientTurnContext(own, { toolsOnly: true }))).toBe(true)
+    expect(onClientWork(clientTurnContext(own, {}))).toBe(false)
+    expect(onClientWork(clientTurnContext(own, { faceOf: SELLER }))).toBe(false)
+  })
+
+  it("on client work the Blogger gets the client's brief, never the house's", async () => {
+    const chat =
+      await vi.importActual<typeof import('../agent/chat')>('../agent/chat')
+    const { namesHouse } = await import('../house-names')
+    expect(SPEC.HOUSE_BRIEF_ON_CLIENT_WORK).toBe(false)
+    // blogger_brief_is_house(client_work): the brief names the house or not.
+    const isHouse = (clientWork: boolean) =>
+      namesHouse(chat.marketplaceAgentPrompt('blogger', clientWork))
+    expect(isHouse(false)).toBe(true)
+    expect(isHouse(true)).toBe(false)
+    expect(chat.marketplaceAgentPrompt('blogger', true)).toBe(
+      chat.CLIENT_BLOGGER_BRIEF
+    )
+    // CLIENT_CONTENT_FROM: the brief names its sources in the spec's order.
+    expect(SPEC.CLIENT_CONTENT_FROM.split(',')).toEqual([
+      'seller-for-this-client',
+      'client-profile',
+      'neutral',
+    ])
+    const brief = chat.CLIENT_BLOGGER_BRIEF
+    const at = [
+      'продавец сказал', // cyrillic-ok: the brief's words for seller-for-this-client
+      'crm_client_profile',
+      'нейтрально', // cyrillic-ok: the brief's word for neutral
+    ].map(w => brief.indexOf(w))
+    expect(at.every(i => i >= 0)).toBe(true)
+    expect([...at].sort((a, b) => a - b)).toEqual(at)
+    // The prompt carries the client's brief on client work, the house's not.
+    const onCard = chat.systemPrompt('miniapp', false, 'blogger', false, true)
+    expect(onCard).toContain(brief)
+    expect(onCard).not.toContain(chat.marketplaceAgentPrompt('blogger'))
+    expect(
+      chat.systemPrompt('miniapp', false, 'blogger', false, false)
+    ).not.toContain(brief)
+  })
+
+  it("on client work the seller's plan and post voice stay out, and his SOUL speaks only his own words", async () => {
+    const chat =
+      await vi.importActual<typeof import('../agent/chat')>('../agent/chat')
+    // soul() reads SOUL_MD_PATH first and keeps what it read; nothing in this
+    // file reads it before this test.
+    const dir = mkdtempSync(join(tmpdir(), 'ccw-soul-'))
+    const path = join(dir, 'SOUL.md')
+    const VOICE = 'SELLER SOUL FIXTURE: his own 30-day plan and his own voice.'
+    writeFileSync(path, VOICE)
+    const before = process.env.SOUL_MD_PATH
+    process.env.SOUL_MD_PATH = path
+    try {
+      expect(chat.soul()).toBe(VOICE)
+      const PLAN = 'КОНТЕНТ-ПЛАН НА 30 ДНЕЙ' // cyrillic-ok: the prompt's plan line
+      const POST_VOICE = 'Когда пишешь текст поста' // cyrillic-ok: the prompt's post-voice line
+      const prompt = (sellerSoul: boolean, clientWork: boolean) =>
+        chat.systemPrompt('miniapp', false, undefined, sellerSoul, clientWork)
+      // seller_plan_in_prompt(seller_soul, client_work)
+      const planIn = (sellerSoul: boolean, clientWork: boolean) => {
+        const p = prompt(sellerSoul, clientWork)
+        return p.includes(PLAN) || p.includes(POST_VOICE)
+      }
+      expect(SPEC.SELLER_PLAN_ON_CLIENT_WORK).toBe(false)
+      expect(planIn(true, false)).toBe(true)
+      expect(planIn(true, true)).toBe(false)
+      expect(planIn(false, false)).toBe(false)
+      expect(planIn(false, true)).toBe(false)
+      expect(prompt(true, false)).toContain(POST_VOICE)
+      // SELLER_SOUL_SPEAKS_HIS_OWN_WORDS: on client work his SOUL stays, as
+      // the voice of what is sent in his name and nothing else.
+      expect(SPEC.SELLER_SOUL_SPEAKS_HIS_OWN_WORDS).toBe(true)
+      const onCard = prompt(true, true)
+      expect(onCard).toContain(VOICE)
+      expect(onCard).toContain(chat.SELLER_SOUL_ON_CLIENT_WORK)
+      expect(onCard.indexOf(chat.SELLER_SOUL_ON_CLIENT_WORK)).toBeLessThan(
+        onCard.indexOf(VOICE)
+      )
+      // His personal SOUL (user_soul) is framed the same way.
+      const TUNE = 'подстраивай под него' // cyrillic-ok: the own-turn preface's words
+      expect(chat.personalSoulPreface(false)).toContain(TUNE)
+      expect(chat.personalSoulPreface(true)).not.toContain(TUNE)
+    } finally {
+      if (before === undefined) delete process.env.SOUL_MD_PATH
+      else process.env.SOUL_MD_PATH = before
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(5)
+    expect(SPEC.VERSION).toBe(6)
   })
 })
