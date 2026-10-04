@@ -293,6 +293,39 @@ export function textFits(chars: number): boolean {
 }
 
 /**
+ * Mirror of the spec's voice_too_long (v8): the backstop, on a voice measured
+ * once it exists.
+ */
+export function voiceTooLong(measuredMs: number): boolean {
+  return measuredMs > SPEC.SPEECH_MAX_SECONDS * 1000
+}
+
+/**
+ * A measured length in seconds as the spec's milliseconds, rounded UP: a
+ * voice a hair past the ceiling stays past it.
+ */
+export function msOfSeconds(seconds: number): number {
+  return Math.ceil(seconds * 1000)
+}
+
+/**
+ * Mirror of the spec's backstop_refund (v8): what the backstop gives back
+ * when it refuses a voice -- the exact sum THIS call was charged for it, and
+ * nothing for a voice from an earlier call, a voice that fits, or a charge of
+ * nothing (the house, a caller somebody else pays for).
+ */
+export function backstopRefund(
+  paidHere: boolean,
+  measuredMs: number,
+  chargedNow: number
+): number {
+  if (!paidHere) return 0
+  if (!voiceTooLong(measuredMs)) return 0
+  if (!SPEC.REFUND_TOO_LONG_VOICE) return 0
+  return Number.isInteger(chargedNow) && chargedNow > 0 ? chargedNow : 0
+}
+
+/**
  * Characters as the spec's pace was measured (MEASURED_CHARS): the words
  * joined by single spaces, nothing around them.
  */
