@@ -10,6 +10,7 @@
  * spec/split-reel.test.ts.
  */
 import * as SPEC from './spec/split-reel.gen'
+import { houseNameByAgent, namesHouse } from './house-names'
 
 export interface SplitSegment {
   type: 'split' | 'fullscreen'
@@ -220,13 +221,143 @@ export function captionStartMs(
   return firstSpeech
 }
 
+/** Mirror of the spec's house_own (v7): the house orders it, nobody else is named. */
+export function houseOwn(
+  houseCaller: boolean,
+  clientTurn: boolean,
+  forLead: boolean,
+  sellerSweep: boolean
+): boolean {
+  if (!houseCaller) return false
+  if (clientTurn) return false
+  if (forLead) return false
+  return !sellerSweep
+}
+
+/** Mirror of the spec's cta_for (v7): which call the reel ends on. */
+export function ctaFor(
+  house: boolean,
+  given: boolean,
+  givenNamesHouse: boolean,
+  clientHasCta: boolean
+): number {
+  if (given && (house || !givenNamesHouse)) return SPEC.CTA_GIVEN
+  if (house) return SPEC.CTA_OWNER
+  if (clientHasCta) return SPEC.CTA_CLIENT
+  return SPEC.CTA_NEUTRAL
+}
+
+/** Mirror of the spec's owner_voice_allowed (v7). */
+export function ownerVoiceAllowed(house: boolean): boolean {
+  return house || SPEC.OWNER_VOICE_ON_CLIENT_REEL
+}
+
+/**
+ * Mirror of the spec's house_name_allowed (v7): a house name stands on the
+ * house's own reel, and elsewhere only in words the person put there herself.
+ */
+export function houseNameAllowed(
+  house: boolean,
+  agentSupplied: boolean
+): boolean {
+  if (house) return true
+  if (!agentSupplied) return true
+  return SPEC.AGENT_HOUSE_NAME_ON_CLIENT_REEL
+}
+
+/**
+ * A reel's speech as the lines own_words judges: one per line break or
+ * sentence end, so a house name is weighed with the words of its own
+ * sentence and never with the sentence before it.
+ */
+export function speechLines(text: string): string[] {
+  return String(text ?? '')
+    .split(/\n+|(?<=[.!?…])\s+/u)
+    .map(line => line.trim())
+    .filter(Boolean)
+}
+
+/**
+ * The spec's agent_supplied for a reel's speech: some line names the house
+ * and is not the person's own words this turn (ToolContext.ownerSaid, set
+ * only by code). Judged line by line by the one detector, house-names.ts
+ * (crm-story-reel v22 own_words): sellers address the bot by name, so her
+ * message naming it lends no line anything.
+ */
+export function agentSuppliedHouseName(
+  text: string,
+  personSaid?: string
+): boolean {
+  return speechLines(text).some(line => houseNameByAgent(line, personSaid))
+}
+
+/**
+ * The turn as the v7 rule reads it. Every field is set only by code (the
+ * wallet's id, chat.ts clientTurnContext), never by the model's words.
+ */
+export interface ReelTurn {
+  /** Whether the wallet ordering the reel is the house's (isHouse). */
+  house: boolean
+  /** The client the turn works for. */
+  faceOf?: string
+  /** An unattended sweep: every reel in it is for a lead. */
+  sellerSweep?: boolean
+}
+
+/** Whose voice and call a reel carries: the lead the order names, else the turn's client. */
+export function leadOfTurn(
+  forLead: unknown,
+  turn: Pick<ReelTurn, 'faceOf'>
+): string {
+  return String(forLead ?? '').trim() || String(turn?.faceOf ?? '').trim()
+}
+
+/** The spec's house_own, read off a turn and the lead resolved by leadOfTurn. */
+export function houseOwnTurn(turn: ReelTurn, lead: string): boolean {
+  return houseOwn(
+    turn?.house === true,
+    Boolean(turn?.faceOf),
+    Boolean(lead),
+    Boolean(turn?.sellerSweep)
+  )
+}
+
+/** What the reel's call is chosen from (spec v7). */
+export interface ReelCall {
+  /** The house's own reel (houseOwnTurn). */
+  house: boolean
+  /** The call the order wrote; '' when none. */
+  given?: string
+  /** The call in the client's own profile; '' when none. */
+  client?: string
+  /** A call with no name in it: the host's copy. */
+  neutral: string
+}
+
+/** The call the reel ends on: the spec's cta_for, in words. */
+export function reelCta(c: ReelCall): string {
+  const given = String(c.given ?? '').trim()
+  const client = String(c.client ?? '').trim()
+  switch (ctaFor(c.house, Boolean(given), namesHouse(given), Boolean(client))) {
+    case SPEC.CTA_GIVEN:
+      return given
+    case SPEC.CTA_OWNER:
+      return SPEC.OWNER_CTA
+    case SPEC.CTA_CLIENT:
+      return client
+    default:
+      return c.neutral
+  }
+}
+
 export interface SplitReelInput {
   lipSyncVideo: string
   /** Where the last word ends; the call starts there (spec v5). */
   seconds: number
   bRolls?: readonly string[]
   captions?: unknown[]
-  ctaText?: string
+  /** Whose reel it is and what its call is chosen from (spec v7). */
+  call: ReelCall
   /** Measured face; the studio's place when absent. */
   face?: FaceInSource
   /** The reel's frame; 1080x1920 when absent. */
@@ -252,8 +383,9 @@ export function splitReelProps(input: SplitReelInput) {
     // The face is centred in the window it is shown in (spec v3).
     splitFacePosition: faceObjectPosition(face, width, splitH),
     fullscreenFacePosition: faceObjectPosition(face, width, height),
-    // The call at the end, on the held last frame (spec v5): always.
-    ctaText: input.ctaText || SPEC.OWNER_CTA,
+    // The call at the end, on the held last frame (spec v5): always, and
+    // the client's on a client's reel (spec v7).
+    ctaText: reelCta(input.call),
     pauseSec: SPEC.CTA_PAUSE_SEC,
     speechSec: input.seconds,
   }

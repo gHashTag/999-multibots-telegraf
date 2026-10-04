@@ -96,6 +96,12 @@ import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
+import {
+  agentSuppliedHouseName,
+  houseNameAllowed,
+  houseOwnTurn,
+  ownerVoiceAllowed,
+} from '../split-reel-plan'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
 import {
@@ -2217,7 +2223,8 @@ export const TOOLS: AgentTool[] = [
     name: 'audio_generate',
     description:
       'Озвучить текст. for_lead — голосом клиента (его клон из crm_voice_clone), только для материалов ' +
-      'ему же: это MiniMax на Replicate, ключ ElevenLabs ему НЕ нужен. Без for_lead и voice_id — ' +
+      'ему же: это MiniMax на Replicate, ключ ElevenLabs ему НЕ нужен. В разговоре с клиентом без for_lead ' +
+      'и voice_id — тоже его голос, клон владельца там не звучит. Иначе без for_lead и voice_id — ' +
       'клон владельца, а если своего нет — библиотечный голос ElevenLabs (нужен его ключ), и это ' +
       'будет сказано в ответе. Ошибка — скажи честно, что именно, и собери рилс без звука.',
     parameters: {
@@ -2238,9 +2245,15 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
-      const charge = await spendTokens(ctx, 'audio_generate')
-      if (!charge.ok) return { сделано: false, причина: charge.причина }
-      const base = selfBase()
+      /*
+       * EVERY REFUSAL HERE COMES BEFORE THE CHARGE (split-reel v7,
+       * REFUSED_BEFORE_SPEND). Whose voice it is, and whether that voice
+       * exists, is read first -- from code-set fields and our own tables,
+       * nothing paid -- and only a voice that will be tried is charged. Both
+       * refusals below used to follow the charge with a refund: for the house
+       * that refund was 0 (the house is never charged), and a caller who pays
+       * was charged and refunded for a voice that never existed.
+       */
       /**
        * Голос по умолчанию — КЛОН ВЛАДЕЛЬЦА, а не первый попавшийся.
        *
@@ -2268,26 +2281,51 @@ export const TOOLS: AgentTool[] = [
        */
       let cloneVoice = ''
       let голосКлиента = false // cyrillic-ok: local flag next to голосВладельца
-      if (args.for_lead) {
+      /*
+       * WHOSE VOICE (split-reel v7): the owner's clone is the house's own
+       * reel's alone. On a turn for a client (faceOf, set by code) with no
+       * voice named, the voice is HERS -- her clone, or a refusal before the
+       * charge -- never the owner's.
+       */
+      const forLead = args.for_lead
+        ? String(args.for_lead)
+        : !args.voice_id && ctx.faceOf
+          ? String(ctx.faceOf)
+          : ''
+      const houseReel = houseOwnTurn(
+        {
+          house: isHouse(ctx.telegramId),
+          faceOf: ctx.faceOf,
+          sellerSweep: ctx.sellerSweep,
+        },
+        forLead
+      )
+      /*
+       * A house name the agent put into a voice the house did not order
+       * (split-reel v7 house_name_allowed; her own words judged line by line
+       * by house-names.ts): refused before the charge. A line she typed
+       * herself this turn stands.
+       */
+      if (
+        !houseNameAllowed(
+          houseReel,
+          agentSuppliedHouseName(String(args.text ?? ''), ctx.ownerSaid)
+        )
+      ) {
+        const why =
+          'голос не для владельца не называет ни Тринити, ни бота владельца, если человек сам этого не написал: убери их из text'
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+      }
+      const ownerVoiceMay = ownerVoiceAllowed(houseReel)
+      if (forLead) {
         // Her own voice for her own reel; anybody else's only by its owner.
-        const self =
-          String(args.for_lead).replace(/^@/, '') === String(ctx.telegramId)
+        const self = forLead.replace(/^@/, '') === String(ctx.telegramId)
         const theirs = await (
           self
             ? ownVoiceOf(ctx.pool, String(ctx.telegramId))
-            : leadVoiceOf(
-                ctx.pool,
-                String(ctx.telegramId),
-                String(args.for_lead)
-              )
+            : leadVoiceOf(ctx.pool, String(ctx.telegramId), forLead)
         ).catch(() => null)
         if (!theirs) {
-          await refundTokens(
-            ctx,
-            'audio_generate',
-            'клона голоса клиента нет',
-            charge['потрачено']
-          )
           const why =
             'клона его голоса ещё нет: сначала crm_voice_clone {chat} из его голосовых в личке'
           return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
@@ -2296,6 +2334,25 @@ export const TOOLS: AgentTool[] = [
         голосКлиента = true // cyrillic-ok: local flag
         voiceId = ''
       }
+      /*
+       * A sweep for leads that names no lead and no voice (split-reel v7):
+       * the house asks no library (asksElevenLabs), so only the owner's
+       * voice could speak it, and that voice is not lent -- refused before
+       * the charge, never a stranger's voice.
+       */
+      if (
+        isHouse(ctx.telegramId) &&
+        !voiceId &&
+        !cloneVoice &&
+        !ownerVoiceMay
+      ) {
+        const why =
+          'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+      }
+      const charge = await spendTokens(ctx, 'audio_generate')
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields
+      const base = selfBase()
       /*
        * The house never asks ElevenLabs (crm-story-reel v19,
        * HOUSE_SKIPS_ELEVENLABS): a voice of its own there raised the
@@ -2325,6 +2382,7 @@ export const TOOLS: AgentTool[] = [
         !args.voice_id &&
         !cloneVoice &&
         !голосВладельца && // cyrillic-ok: existing local
+        ownerVoiceMay &&
         HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)
       ) {
         cloneVoice = OWNER_MINIMAX_CLONE
