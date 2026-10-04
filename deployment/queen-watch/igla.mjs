@@ -22,14 +22,15 @@
  *            loop_max_h (queen_igla.py ITERATE_MAX_H, the run's own timer),
  *            counted from the deployment's createdAt: a run that outlived
  *            its limit, and no tick goes out while it lives
- *   BOARD    the board names another repo, executor or runner service than
- *            this file
+ *   BOARD    the board names another repo, executor, runner service or
+ *            judge service than this file
  *   TRIGGER  the tick did not go out: Railway refused the redeploy (an auth
  *            answer or a GraphQL error), answered otherwise, or did not answer
  * What it cannot measure it says by name: unmeasured is not ok.
  *
- * THE TICK -- the automatic improvement. GitHub Actions refuses every job of
- * the private repo since 2026-10-03 (billing), so the loop runs on Railway:
+ * THE TICK -- the automatic improvement. GitHub Actions refuses the private
+ * repo's jobs on billing (every igla-loop run, from its first on 2026-10-03),
+ * so the loop runs on Railway:
  * service `loop` in project igla-judge, one run per deployment (restart
  * policy NEVER; the run clones main, `queen_igla.py iterate` decides, then at
  * most one agent iteration). Every tick_h this file redeploys it
@@ -41,9 +42,10 @@
  *     the service cannot be read, never before its first deployment;
  *   - nothing else is busy, as kick reads it: no RunPod pod RUNNING and no
  *     judge deployment live, both measured (unread = held, never a guess;
- *     the board's queen block carries no busy key, so this is computed here);
- *   - the board names this file's repo, executor and runner service.
- * The project, environment and service are THIS file's constants (no
+ *     an answer without the list it was asked for is unread, not empty; the
+ *     board's queen block carries no busy key, so this is computed here);
+ *   - the board names this file's repo, executor, runner and judge service.
+ * The project, environment and services are THIS file's constants (no
  * variable moves them, and the token only ever goes to RAILWAY_API), never
  * the board's: the board is public, and a forged one must not be able to
  * point a token at another service. Only IGLA_RAILWAY_TOKEN redeploys, and
@@ -98,6 +100,9 @@ export const LOOP_PROJECT = '1a315000-9f97-4a99-95a1-4665a37ff056'
 export const LOOP_ENVIRONMENT = 'c353906c-703e-4171-ba92-5f4b361ea32d'
 export const LOOP_SERVICE_ID = '21039821-9e70-4f46-a6c1-38021e67729c'
 export const LOOP_SERVICE = 'loop'
+/* The service whose live deployments are judge jobs (busy, JUDGEUP); the
+ * board's judge_service must say the same (BOARD), it never picks it. */
+export const JUDGE_SERVICE = 'judge'
 const SOURCE = 'igla-loop'
 const RUNPOD_GQL = 'https://api.runpod.io/graphql'
 const RUNPOD_REST = 'https://rest.runpod.io/v1'
@@ -276,12 +281,13 @@ export function runState(d) {
 const exited = s => s === 'exited ok' || s === 'exited failed'
 
 /**
- * igla-judge through IGLA_RAILWAY_TOKEN: the judge deployments that are live
- * (with ages) and the newest loop deployment. The token goes to RAILWAY_API
- * only, and nothing is read before Railway says it is a token of
- * LOOP_PROJECT / LOOP_ENVIRONMENT.
+ * igla-judge through IGLA_RAILWAY_TOKEN: the live deployments of service
+ * JUDGE_SERVICE (with ages) and the newest loop deployment. The token goes to
+ * RAILWAY_API only, and nothing is read before Railway says it is a token of
+ * LOOP_PROJECT / LOOP_ENVIRONMENT. Each side is { error } unless its list was
+ * in the answer.
  */
-async function railwayFacts(cfg, deps, q, nowS) {
+async function railwayFacts(cfg, deps, nowS) {
   if (!cfg.iglaRailwayToken) return { judgeUp: null, loop: null }
   const c = {
     ...cfg,
@@ -289,17 +295,25 @@ async function railwayFacts(cfg, deps, q, nowS) {
     railwayApi: RAILWAY_API,
   }
   const both = error => ({ judgeUp: { error }, loop: { error } })
+  /* A 200 answer without the asked-for list (data null, the field null or
+   * missing, an edge without a node) is NOT READ, never an empty list: an
+   * empty judge list would read as "judge down, not busy" and tick. */
+  const listOf = (data, path) => {
+    const edges = path.reduce((o, k) => o?.[k], data)?.edges
+    if (!Array.isArray(edges) || !edges.every(e => e?.node?.id))
+      throw new Error(`Railway answered without ${path.join('.')}.edges`)
+    return edges.map(e => e.node)
+  }
   const rows = async serviceId =>
-    (
-      (
-        await railway(c, deps, DEPLOYS, {
-          input: {
-            projectId: LOOP_PROJECT,
-            environmentId: LOOP_ENVIRONMENT,
-            serviceId,
-          },
-        })
-      ).deployments?.edges?.map(e => e.node) || []
+    listOf(
+      await railway(c, deps, DEPLOYS, {
+        input: {
+          projectId: LOOP_PROJECT,
+          environmentId: LOOP_ENVIRONMENT,
+          serviceId,
+        },
+      }),
+      ['deployments']
     ).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
   let services
   try {
@@ -308,19 +322,19 @@ async function railwayFacts(cfg, deps, q, nowS) {
       return both(
         'IGLA_RAILWAY_TOKEN is not a project token of igla-judge production: Railway not read, no tick'
       )
-    services =
-      (
-        await railway(c, deps, SERVICES, { id: LOOP_PROJECT })
-      ).project?.services?.edges?.map(e => e.node) || []
+    services = listOf(await railway(c, deps, SERVICES, { id: LOOP_PROJECT }), [
+      'project',
+      'services',
+    ])
   } catch (e) {
     return both(
       `Railway igla-judge not read (${String(e.message).slice(0, 120)})`
     )
   }
   const out = {}
-  const judgeSvc = services.find(s => s.name === q.judge_service)
+  const judgeSvc = services.find(s => s.name === JUDGE_SERVICE)
   if (!judgeSvc)
-    out.judgeUp = { error: `no service "${q.judge_service}" in igla-judge` }
+    out.judgeUp = { error: `no service "${JUDGE_SERVICE}" in igla-judge` }
   else
     try {
       out.judgeUp = {
@@ -491,10 +505,11 @@ export function assess({ q, snap, pods, judgeUp, loop, nowS }) {
   if (
     q.repo !== IGLA_REPO ||
     q.executor !== EXECUTOR ||
-    q.runner_service !== LOOP_SERVICE
+    q.runner_service !== LOOP_SERVICE ||
+    q.judge_service !== JUDGE_SERVICE
   )
     anom.push(
-      `BOARD the board names ${q.repo} executor ${q.executor} runner ${q.runner_service}, this watch ${IGLA_REPO} executor ${EXECUTOR} runner ${LOOP_SERVICE}: no tick`
+      `BOARD the board names ${q.repo} executor ${q.executor} runner ${q.runner_service} judge ${q.judge_service}, this watch ${IGLA_REPO} executor ${EXECUTOR} runner ${LOOP_SERVICE} judge ${JUDGE_SERVICE}: no tick`
     )
   const ran = (pods?.running?.length || 0) > 0 || (judgeUp?.up?.length || 0) > 0
   const busy = ran
@@ -634,7 +649,7 @@ export async function runIgla(cfg, deps) {
   st.unmeasured = 0
   const { snap, q, live } = board
   const pods = await runpod(cfg, deps, nowS)
-  const { judgeUp, loop } = await railwayFacts(cfg, deps, q, nowS)
+  const { judgeUp, loop } = await railwayFacts(cfg, deps, nowS)
   const { anom, blind, jh, busy } = assess({
     q,
     snap,

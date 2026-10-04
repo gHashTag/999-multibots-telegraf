@@ -23,8 +23,9 @@ name: Board release (QUEEN_REF follows trinity)
 # gHashTag/trinity .github/workflows/board-release.yml: it runs on trinity's
 # side (on a push to its main that touches apps/website, and every six hours)
 # and opens the same QUEEN_REF bump here. This schedule duplicated that clock,
-# and since 2026-10-03 it failed before its first step on this private
-# repository's Actions billing, so it only added failed runs. One clock.
+# and it has failed on billing (private-repo Actions refused, before the first
+# step) since late September 2026 -- from its first run on 2026-09-23, with one
+# green run on 2026-10-01 -- so it only added failed runs. One clock.
 # workflow_dispatch stays as a manual fallback, for when trinity's clock is
 # down and Actions work here again.
 on:

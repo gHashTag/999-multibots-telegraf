@@ -17,6 +17,7 @@ import { RAILWAY_API, config, reportToQueen } from './watch.mjs'
 
 const {
   EXECUTOR,
+  JUDGE_SERVICE,
   LOOP_ENVIRONMENT,
   LOOP_PROJECT,
   LOOP_SERVICE,
@@ -128,6 +129,8 @@ function world({
   loop = [EXITED],
   token = { projectId: PROJECT, environmentId: ENVIRONMENT },
   services = SERVICES,
+  /* a raw 200 answer instead of the list: { judge, loop, services } */
+  reply = {},
   redeploy = 200,
   later = 0,
 } = {}) {
@@ -183,6 +186,8 @@ function world({
       }
       if (q.includes('projectToken'))
         return res(200, { data: { projectToken: token } })
+      if (q.includes('project(') && reply.services !== undefined)
+        return res(200, reply.services)
       if (q.includes('project('))
         return res(200, {
           data: {
@@ -193,6 +198,9 @@ function world({
         })
       if (q.includes('deployments(')) {
         const sid = v.input.serviceId
+        const raw =
+          sid === SERVICE ? reply.loop : sid === JUDGE ? reply.judge : undefined
+        if (raw !== undefined) return res(200, raw)
         const rows =
           sid === SERVICE
             ? loop.map((d, i) => node(d, i, 'l'))
@@ -229,6 +237,13 @@ function world({
   const tg = () => calls.filter(c => c.url.endsWith('/sendMessage'))
   return { calls, deps, log, queenCalls, redeploys, railwayCalls, tg }
 }
+
+/* The report's "Not measured" block alone (the facts follow it). */
+const notMeasured = body =>
+  body.split('\nNot measured:')[1].split('\n- last loop:')[0]
+
+/* 200 answers that carry no list: unread, never an empty list. */
+const GARBLED = [{ data: { deployments: null } }, { data: {} }, { data: null }]
 
 describe('igla: the loop watch on the Queen', () => {
   it('healthy: redeploys service loop with the constants and reports as igla-loop', async () => {
@@ -466,16 +481,24 @@ describe('igla: the loop watch on the Queen', () => {
     }
   })
 
-  it('a forged board never ticks: another repo, executor or runner is BOARD', async () => {
+  it('a forged board never ticks: another repo, executor, runner or judge is BOARD', async () => {
+    expect(JUDGE_SERVICE).toBe('judge')
     for (const [over, says] of [
-      [{ repo: 'gHashTag/t27' }, 'gHashTag/t27 executor railway runner loop'],
+      [
+        { repo: 'gHashTag/t27' },
+        'gHashTag/t27 executor railway runner loop judge judge',
+      ],
       [
         { executor: 'github' },
-        'gHashTag/igla-coder-gpu executor github runner loop',
+        'gHashTag/igla-coder-gpu executor github runner loop judge judge',
       ],
       [
         { runner_service: 'judge' },
-        'gHashTag/igla-coder-gpu executor railway runner judge',
+        'gHashTag/igla-coder-gpu executor railway runner judge judge judge',
+      ],
+      [
+        { judge_service: 'board' },
+        'gHashTag/igla-coder-gpu executor railway runner loop judge board',
       ],
     ]) {
       const w = world({ queen: queenBlock(over) })
@@ -485,9 +508,119 @@ describe('igla: the loop watch on the Queen', () => {
       expect(body.headline).toMatch(/^igla loop: BOARD/)
       expect(body.body).toContain(`BOARD the board names ${says}`)
       expect(body.body).toContain(
-        'this watch gHashTag/igla-coder-gpu executor railway runner loop: no tick'
+        'this watch gHashTag/igla-coder-gpu executor railway runner loop judge judge: no tick'
       )
       expect(body.body).toContain('tick: held: BOARD')
+    }
+  })
+
+  it("the judge is this file's service, never the one the board names", async () => {
+    /* The board points at service board (exited, nothing live); the real
+     * judge has a job up past judge_max_h, and it is still the one read. */
+    const w = world({
+      queen: queenBlock({ judge_service: 'board' }),
+      judgeUp: [20],
+    })
+    expect(await runIgla(cfgWith(), w.deps)).toBe(1)
+    expect(w.redeploys()).toHaveLength(0)
+    const body = w.queenCalls()[0].body.body
+    expect(body).toContain(
+      'JUDGEUP igla-judge judge deployment up 20.0 h > 8 h'
+    )
+    expect(body).toContain('BOARD the board names')
+    const asked = w
+      .railwayCalls()
+      .filter(c => c.body.query.includes('deployments('))
+      .map(c => c.body.variables.input.serviceId)
+    expect(asked).toContain(JUDGE)
+    expect(asked).not.toContain('b')
+  })
+
+  it('an unread judge holds the tick on its own: busy unknown, never "down"', async () => {
+    /* RunPod read and idle, the loop read, exited and due: only the judge
+     * read fails, so only busy can hold the tick. */
+    for (const [over, why] of [
+      ...GARBLED.map(judge => [
+        { reply: { judge } },
+        'Railway judge not read (Railway answered without deployments.edges)',
+      ]),
+      [
+        { reply: { judge: { data: { deployments: { edges: [{}] } } } } },
+        'Railway judge not read (Railway answered without deployments.edges)',
+      ],
+      [
+        {
+          reply: {
+            judge: { errors: [{ message: 'Problem processing request' }] },
+          },
+        },
+        'Railway judge not read (railway API: Problem processing request)',
+      ],
+      [
+        {
+          services: [
+            { id: 'b', name: 'board' },
+            { id: SERVICE, name: 'loop' },
+          ],
+        },
+        'no service "judge" in igla-judge',
+      ],
+    ]) {
+      const w = world(over)
+      await runIgla(cfgWith(), w.deps)
+      expect(w.redeploys()).toHaveLength(0)
+      const body = w.queenCalls()[0].body
+      expect(body.needs_you).toBe(true)
+      expect(notMeasured(body.body)).toContain(`- ${why}`)
+      expect(body.body).toContain(
+        '- RunPod: $40.00, spend $0.00/h, running: none'
+      )
+      expect(body.body).toContain('- loop runner: exited ok')
+      expect(body.body).toContain(
+        'tick: held: busy unknown (RunPod or the judge not read)'
+      )
+      expect(body.body).not.toContain('Railway judge: down')
+    }
+  })
+
+  it('a loop answer without its list is not read, never "no deployment yet"', async () => {
+    for (const loop of [
+      ...GARBLED,
+      { data: { deployments: { edges: [{ node: null }] } } },
+    ]) {
+      const w = world({ reply: { loop } })
+      await runIgla(cfgWith(), w.deps)
+      expect(w.redeploys()).toHaveLength(0)
+      const body = w.queenCalls()[0].body
+      expect(body.needs_you).toBe(true)
+      expect(notMeasured(body.body)).toContain(
+        '- Railway loop not read (Railway answered without deployments.edges): no tick'
+      )
+      expect(body.body).toContain('tick: held: the loop service was not read')
+      expect(body.body).not.toContain('no deployment yet')
+      /* The judge was read: down is measured here, and said. */
+      expect(body.body).toContain('- Railway judge: down')
+    }
+  })
+
+  it('a services answer without its list reads nothing further and never ticks', async () => {
+    for (const services of [
+      { data: { project: null } },
+      { data: { project: { services: null } } },
+      { data: null },
+    ]) {
+      const w = world({ reply: { services } })
+      await runIgla(cfgWith(), w.deps)
+      expect(w.redeploys()).toHaveLength(0)
+      expect(
+        w.railwayCalls().filter(c => c.body.query.includes('deployments('))
+      ).toHaveLength(0)
+      const body = w.queenCalls()[0].body.body
+      expect(notMeasured(body)).toContain(
+        '- Railway igla-judge not read (Railway answered without project.services.edges)'
+      )
+      expect(body).toContain('tick: held: the loop service was not read')
+      expect(body).not.toContain('Railway judge: down')
     }
   })
 
