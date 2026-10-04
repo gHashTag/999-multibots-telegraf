@@ -177,17 +177,26 @@ async function runpod(cfg, deps, nowS) {
         cost: Number(x.costPerHr) || 0,
       }
     })
-  const balance = Number(me.clientBalance)
-  const spend = Number(me.currentSpendPerHr)
-  /* null -> 0 and NaN would both pass LOWBAL silently. */
-  if (
-    me.clientBalance === null ||
-    me.currentSpendPerHr === null ||
-    !Number.isFinite(balance) ||
-    !Number.isFinite(spend)
-  )
-    return { error: 'RunPod answered without a numeric balance or spend' }
+  const balance = money(me.clientBalance)
+  const spend = money(me.currentSpendPerHr)
+  /* Pods stay measured when the money is not: OVERRUN and "busy" need no
+   * balance. Only LOWBAL and SPEND go blind. */
+  if (balance === null || spend === null)
+    return {
+      balance: null,
+      spend: null,
+      running,
+      money: 'RunPod answered without a numeric balance or spend',
+    }
   return { balance, spend, running }
+}
+
+/* null, '' and true all turn into a number under Number() and would pass
+ * LOWBAL silently; anything but a finite number or numeric string is null. */
+function money(v) {
+  const ok = typeof v === 'number' || (typeof v === 'string' && v.trim())
+  const n = ok ? Number(v) : NaN
+  return Number.isFinite(n) ? n : null
 }
 
 const PROJECT = `query { projectToken { projectId environmentId } }`
@@ -290,15 +299,18 @@ export function assess({ q, snap, pods, judgeUp, run, nowS }) {
         anom.push(
           `OVERRUN ${p.name} running ${p.h.toFixed(1)} h > ${L.pod_max_h} h`
         )
-    if (pods.balance < L.min_balance)
-      anom.push(
-        `LOWBAL $${pods.balance.toFixed(2)} < $${L.min_balance}: no new spend`
-      )
     const cost = pods.running.reduce((s, p) => s + p.cost, 0)
-    if (pods.spend > cost + L.spend_slack)
-      anom.push(
-        `SPEND $${pods.spend.toFixed(2)}/h > running pods $${cost.toFixed(2)}/h`
-      )
+    if (pods.money) blind.push(pods.money)
+    else {
+      if (pods.balance < L.min_balance)
+        anom.push(
+          `LOWBAL $${pods.balance.toFixed(2)} < $${L.min_balance}: no new spend`
+        )
+      if (pods.spend > cost + L.spend_slack)
+        anom.push(
+          `SPEND $${pods.spend.toFixed(2)}/h > running pods $${cost.toFixed(2)}/h`
+        )
+    }
   } else {
     blind.push(
       pods?.error || 'pods and balance: no RUNPOD_API_KEY on queen-watch'
@@ -489,7 +501,7 @@ export async function runIgla(cfg, deps) {
   const facts = [
     `- last loop: ${q.last_loop || '?'} (journal commit ${fmt(jh)} h ago)`,
     pods && !pods.error
-      ? `- RunPod: $${pods.balance.toFixed(2)}, spend $${pods.spend.toFixed(2)}/h, running: ${pods.running.map(p => `${p.name} ${fmt(p.h)} h`).join(', ') || 'none'}`
+      ? `- RunPod: ${pods.money ? 'balance ?, spend ?' : `$${pods.balance.toFixed(2)}, spend $${pods.spend.toFixed(2)}/h`}, running: ${pods.running.map(p => `${p.name} ${fmt(p.h)} h`).join(', ') || 'none'}`
       : null,
     judgeUp && !judgeUp.error
       ? `- Railway judge: ${judgeUp.up.length ? judgeUp.up.map(d => `up ${fmt(d.h)} h`).join(', ') : 'down'}`

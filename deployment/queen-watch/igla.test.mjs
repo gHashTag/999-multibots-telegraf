@@ -473,7 +473,7 @@ describe('igla: the loop watch on the Queen', () => {
       'STALE: the board has no journal commit time (journal_at)'
     )
     expect(nj.needs_you).toBe(true)
-    for (const balance of [null, 'n/a']) {
+    for (const balance of [null, 'n/a', '', true]) {
       const w = world({ balance })
       expect(await runIgla(cfgWith(), w.deps)).toBe(0)
       const body = w.queenCalls()[0].body.body
@@ -482,6 +482,35 @@ describe('igla: the loop watch on the Queen', () => {
       )
       expect(body).not.toContain('LOWBAL')
     }
+  })
+
+  it('a balance it cannot read still leaves the pods measured', async () => {
+    const w = world({
+      balance: null,
+      pods: [
+        {
+          name: 'gpuft9',
+          desiredStatus: 'RUNNING',
+          lastStartedAt: '2026-10-04 05:00:00.000 +0000 UTC',
+          costPerHr: 0.69,
+        },
+      ],
+      queen: queenBlock({ journal_at: iso(40) }),
+    })
+    expect(await runIgla(cfgWith(), w.deps)).toBe(1)
+    const body = w.queenCalls()[0].body.body
+    expect(body).toContain('OVERRUN gpuft9 running 9.0 h > 7 h')
+    expect(body).toContain(
+      '- RunPod: balance ?, spend ?, running: gpuft9 9.0 h'
+    )
+    expect(body).toContain('RunPod answered without a numeric balance or spend')
+    /* A running pod is work: no STALE beside it. */
+    expect(body).not.toContain('STALE no journal commit')
+    expect(body).not.toMatch(/LOWBAL|SPEND \$/)
+    /* A numeric string is a number. */
+    const str = world({ balance: '9.5' })
+    expect(await runIgla(cfgWith(), str.deps)).toBe(1)
+    expect(str.queenCalls()[0].body.body).toContain('LOWBAL $9.50 < $')
   })
 
   it('the DM follows the anomaly codes; a blind line goes to the Queen only', async () => {
