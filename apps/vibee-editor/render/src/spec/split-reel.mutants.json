@@ -271,5 +271,17 @@
     "file": "src/agent/lead-voice.ts",
     "from": "  return self ? ownVoiceOf(pool, asker) : leadVoiceOf(pool, asker, forLead)\n",
     "to": "  return leadVoiceOf(pool, asker, forLead)\n"
+  },
+  {
+    "name": "v9: one voice pace written onto every never-measured clone (WHERE voice_id = $1 OR ms_per_char IS NULL)",
+    "file": "src/agent/lead-voice.ts",
+    "from": "$2)\n      WHERE voice_id = $1`",
+    "to": "$2)\n      WHERE voice_id = $1 OR ms_per_char IS NULL`"
+  },
+  {
+    "name": "v9: a voice reads the pace of any measured clone, not its own",
+    "file": "src/agent/lead-voice.ts",
+    "from": "WHERE voice_id = $1\n      ORDER BY ms_per_char DESC NULLS LAST LIMIT 1",
+    "to": "WHERE voice_id = $1 OR ms_per_char IS NOT NULL\n      ORDER BY ms_per_char DESC NULLS LAST LIMIT 1"
   }
 ]
