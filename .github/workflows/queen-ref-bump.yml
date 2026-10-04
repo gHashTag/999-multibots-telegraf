@@ -19,12 +19,14 @@ name: Board release (QUEEN_REF follows trinity)
 # new commit id and the list of what it brings; a person still merges it, which
 # is the part that should stay human.
 
+# NO SCHEDULE HERE ANY MORE: queen-watch is the clock now. Since 2026-10-03
+# every workflow in this private repository is refused before its first step
+# (Actions billing), so this schedule ran nothing. The same job runs every six
+# hours in deployment/queen-watch/release.mjs, the Queen's hourly Railway cron
+# (a port of the steps below; change one, change the other). gHashTag/trinity
+# .github/workflows/board-release.yml opens the same pull request from the
+# trinity side. workflow_dispatch stays for a manual run once Actions work.
 on:
-  schedule:
-    # Four times a day. Not a promise of punctuality - a pull request that
-    # arrives an hour late still ships the board, and nothing downstream waits
-    # on this clock.
-    - cron: '17 */6 * * *'
   workflow_dispatch:
 
 concurrency:
