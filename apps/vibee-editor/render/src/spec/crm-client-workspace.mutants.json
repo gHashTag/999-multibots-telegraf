@@ -83,5 +83,37 @@
     "from": "    widgetsContext +\n",
     "to": "",
     "tests": ["src/agent/client-widgets.test.ts"]
+  },
+  {
+    "name": "the Blogger on client work gets the house brief",
+    "file": "src/agent/chat.ts",
+    "from": "if (agent.id === 'blogger' && clientWork) return CLIENT_BLOGGER_BRIEF",
+    "to": "if (agent.id === 'blogger' && false) return CLIENT_BLOGGER_BRIEF"
+  },
+  {
+    "name": "client work keeps the seller's content plan and post voice",
+    "file": "src/agent/chat.ts",
+    "from": "  if (clientWork)\n    return (\n      systemFor(surface) +",
+    "to": "  if (false)\n    return (\n      systemFor(surface) +"
+  },
+  {
+    "name": "the personal SOUL shapes the client's content",
+    "file": "src/agent/chat.ts",
+    "from": "export function personalSoulPreface(clientWork = false): string {\n  if (clientWork)",
+    "to": "export function personalSoulPreface(clientWork = false): string {\n  if (false)"
+  },
+  {
+    "name": "runAgent never reads the client-work marks",
+    "file": "src/agent/chat.ts",
+    "from": "const clientWork = onClientWork(ctx)",
+    "to": "const clientWork = false",
+    "tests": ["src/agent/client-widgets.test.ts"]
+  },
+  {
+    "name": "runAgent hands the own-turn SOUL preface to client work",
+    "file": "src/agent/chat.ts",
+    "from": "personalSoulPreface(clientWork) +",
+    "to": "personalSoulPreface(false) +",
+    "tests": ["src/agent/client-widgets.test.ts"]
   }
 ]
