@@ -191,6 +191,24 @@
 // Trinity" makes "Write to Trinity" hers. Every template line has a house-free client version,
 // kept by the host, and a client's list shows only those; any other line naming the house is
 // refused before anything is spent (REFUSED_BEFORE_SPEND, charged), as split-reel v7 refuses it.
+// v23 (2026-10-04, 999#3564): the detector of the house's names missed two spellings and
+// caught two things that are not the house. "write to t27ai" passed: T27 was read only as a
+// whole word, so the handle and the domain slipped by. Trinity in Russian with a Latin T passed:
+// a model writing Russian mixes letters that look alike, and the detector read code points, not
+// what a reader sees. Both are now read as a reader reads them. The text and every mark are
+// folded first -- NFKC (a superscript three is a 3), invisible characters dropped
+// (INVISIBLES_DROPPED), one case, each Cyrillic letter that looks Latin read as that Latin letter
+// (FOLD_LOOKALIKES, LOOKALIKE_LATIN) -- and then each mark is judged by what stands around it:
+// a name anywhere, inside a longer word too (name_mark); T27 when it starts a word, t27ai and
+// t27_ai included, not after a letter (at27) nor before a digit (T270) (code_mark,
+// CODE_MARK_PREFIX). The product is one token (product_mark, PRODUCT_ONE_TOKEN): "our S3 AI
+// pipeline" is S3 the storage and the word AI, not S3AI. "I studied at Trinity College" stays
+// a house name (NAME_IN_ANY_CONTEXT). No rule on the word after a name clears the college and
+// not the house: "Trinity" before a capital word is also "Trinity AI", "Trinity Bot" and every
+// title-cased call ("Write To Trinity AI"). And the costs are not equal: a refusal costs a line
+// the agent wrote, rewritten for free, never one she typed herself (own_words), while a miss
+// puts the house's name on a client's reel. So a rule that clears a false positive must not
+// clear a mark: the bare name, Trinity S3AI, T27 and @t27ai_bot stay flagged.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -201,7 +219,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 22;
+    pub const VERSION : u8 = 23;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -505,7 +523,7 @@ module automation::crm_story_reel {
     // ---- A client's reel carries the client's call (v22) --------------------------------------
     // The house is named by BOT_SPOKEN_AS, its Russian spelling (kept by the host, this file
     // stays ASCII), HOUSE_DELIVERY_BOT (TEMPLATE_BUTTON is it with an at-sign), HOUSE_BRAND and
-    // HOUSE_PRODUCT (the host also reads its superscript spelling). One detector in the host
+    // HOUSE_PRODUCT (its superscript spelling too, after the fold of v23). One detector in the host
     // reads them all, for every spec that refuses a house name on a client's reel.
     pub const HOUSE_BRAND : str = "T27";
     pub const HOUSE_PRODUCT : str = "S3AI";
@@ -528,6 +546,28 @@ module automation::crm_story_reel {
     pub const SPEAKS_CALLER : u8 = 1;  // the caller's own voice, on the caller's own reel
     pub const SPEAKS_REFUSED : u8 = 2;  // a client turn naming another client
     pub const CLIENT_TURN_SPEAKS_CLIENT : bool = true;  // a client turn's face is the client
+
+    // ---- The house's names, read as a reader reads them (v23) ----------------------------------
+    // The text and every mark are folded the same way before they are compared: NFKC (the
+    // superscript three is a 3, a full-width letter is its letter), invisible characters dropped,
+    // one case, and each Cyrillic letter whose capital looks like a Latin capital read as that
+    // Latin letter (Te is T, Er is P, En is H; LOOKALIKE_LATIN lists the Latin side). Greek is not
+    // folded: the leak is a model writing Russian that mixes the two scripts it writes. Then each
+    // mark found is judged by what stands around it -- a name (name_mark), the brand as a code
+    // (code_mark), the product as one code token (product_mark). The rows of 999#3564 are vectors
+    // the host runs through its detector; the Russian row, Trinity in Cyrillic with a Latin T, is
+    // kept by the host, as this file stays ASCII.
+    pub const FOLD_LOOKALIKES : bool = true;  // a Cyrillic look-alike reads as its Latin letter
+    pub const INVISIBLES_DROPPED : bool = true;  // a zero-width or soft-hyphen character splits no mark
+    pub const LOOKALIKE_LATIN : str = "abcdehijkmopqstwxy";  // the Latin letters a Cyrillic one passes for
+    pub const NAME_INSIDE_WORD : bool = true;  // TrinityBot, #trinity: still the name
+    pub const NAME_IN_ANY_CONTEXT : bool = true;  // Trinity College too: no word after it tells which
+    pub const CODE_MARK_PREFIX : bool = true;  // T27 starting a word -- t27ai, t27_ai -- is the brand
+    pub const PRODUCT_ONE_TOKEN : bool = true;  // S3AI is one token; S3 AI is two words
+    pub const MARK_ROW_T27AI_EN : str = "write to t27ai";  // names the house: the brand starts a word
+    pub const MARK_ROW_S3_SPACE_EN : str = "our S3 AI pipeline";  // names nothing: S3 and AI
+    pub const MARK_ROW_COLLEGE_EN : str = "I studied at Trinity College";  // names the house
+    pub const MARK_ROW_TITLE_CASE_EN : str = "Write To Trinity AI";  // a title-cased call: the house
 
     // ---- Every line of a client's reel (v22) ---------------------------------------------------
     // Every line is checked, the first as much as the last: the captions are the lines as
@@ -1042,6 +1082,45 @@ module automation::crm_story_reel {
         return LINE_FROM_EDIT;
     }
 
+    // Whether a house name found in the folded text names the house: anywhere, inside a longer
+    // word too (TrinityBot, #trinity, the handle), and whatever word follows it -- Trinity
+    // College as much as Trinity AI, since no word after the name tells which Trinity it is.
+    fn name_mark(inside_word: bool, word_after: bool) -> bool {
+        if inside_word {
+            return NAME_INSIDE_WORD;
+        }
+        if word_after {
+            return NAME_IN_ANY_CONTEXT;
+        }
+        return true;
+    }
+
+    // Whether a code found in the folded text is the house's: not when a letter or a digit
+    // stands right before it (at27) or a digit right after it (T270 is another number), and yes
+    // when it starts a word (t27ai, the handle and the domain: CODE_MARK_PREFIX).
+    fn code_mark(word_before: bool, digit_after: bool, letter_after: bool) -> bool {
+        if word_before || digit_after {
+            return false;
+        }
+        if letter_after {
+            return CODE_MARK_PREFIX;
+        }
+        return true;
+    }
+
+    // Whether the product found in the folded text is the house's: a code like the brand
+    // (code_ok, from code_mark), written as one token. With a space inside it is two words --
+    // "S3 AI" is S3 the storage and the word AI -- and names nothing (PRODUCT_ONE_TOKEN).
+    fn product_mark(code_ok: bool, space_inside: bool) -> bool {
+        if !code_ok {
+            return false;
+        }
+        if space_inside {
+            return !PRODUCT_ONE_TOKEN;
+        }
+        return true;
+    }
+
     test "a client qualifies with a face and a voice, and with nothing less" {
         assert(FACE_REQUIRED);
         assert(VOICE_REQUIRED);
@@ -1423,7 +1502,7 @@ module automation::crm_story_reel {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 22);
+        assert(VERSION == 23);
     }
 
     test "the hook reel is a template of four studio shots with the call to the house bot" {
@@ -1639,6 +1718,71 @@ module automation::crm_story_reel {
         assert(LINE_FROM_TEMPLATE != LINE_FROM_EDIT);
         assert(LINE_FROM_EDIT != LINE_FROM_PERSON);
         assert(LINE_FROM_TEMPLATE != LINE_FROM_PERSON);
+    }
+
+    test "a Cyrillic letter that looks Latin reads as that letter, and an invisible one splits no name" {
+        // The Russian row -- Trinity in Cyrillic with a Latin T -- folds to the Russian mark,
+        // folded the same way, so it is the bare name, and an agent's line with it is refused.
+        assert(FOLD_LOOKALIKES);
+        assert(INVISIBLES_DROPPED);
+        assert(LOOKALIKE_LATIN == "abcdehijkmopqstwxy");
+        assert(name_mark(false, false));
+        assert(line_way(name_mark(false, false), false, LINE_FROM_EDIT) == LINE_REFUSED);
+        assert(!charged(line_way(name_mark(false, false), false, LINE_FROM_EDIT) == LINE_REFUSED));
+    }
+
+    test "T27 starting a word is the brand: t27ai and t27_ai, not at27 nor T270" {
+        assert(MARK_ROW_T27AI_EN == "write to t27ai");
+        assert(CODE_MARK_PREFIX);
+        assert(code_mark(false, false, true));
+        assert(code_mark(false, false, false));
+        assert(!code_mark(true, false, false));
+        assert(!code_mark(true, false, true));
+        assert(!code_mark(false, true, false));
+        assert(line_way(code_mark(false, false, true), false, LINE_FROM_EDIT) == LINE_REFUSED);
+        assert(line_way(code_mark(true, false, true), false, LINE_FROM_EDIT) == LINE_KEPT);
+    }
+
+    test "the product is one token: our S3 AI pipeline names no house" {
+        assert(MARK_ROW_S3_SPACE_EN == "our S3 AI pipeline");
+        assert(HOUSE_PRODUCT == "S3AI");
+        assert(PRODUCT_ONE_TOKEN);
+        assert(!product_mark(code_mark(false, false, false), true));
+        assert(product_mark(code_mark(false, false, false), false));
+        assert(product_mark(code_mark(false, false, true), false));
+        assert(!product_mark(code_mark(true, false, false), false));
+        assert(line_way(product_mark(code_mark(false, false, false), true), false, LINE_FROM_EDIT) == LINE_KEPT);
+        assert(line_way(product_mark(code_mark(false, false, false), false), false, LINE_FROM_EDIT) == LINE_REFUSED);
+    }
+
+    test "Trinity College stays a house name: a refused line is rewritten, a missed one is on her reel" {
+        assert(MARK_ROW_COLLEGE_EN == "I studied at Trinity College");
+        assert(NAME_IN_ANY_CONTEXT);
+        assert(name_mark(false, true));
+        // The agent's line: refused before anything is spent, and written again.
+        assert(line_way(name_mark(false, true), false, LINE_FROM_EDIT) == LINE_REFUSED);
+        assert(!charged(line_way(name_mark(false, true), false, LINE_FROM_EDIT) == LINE_REFUSED));
+        // Her own typed line: hers to say, college and all.
+        assert(line_way(name_mark(false, true), false, line_from(own_words(true, false, true))) == LINE_KEPT);
+    }
+
+    test "no rule that clears a false positive clears a mark: Trinity, Trinity S3AI, T27 and @t27ai_bot stay" {
+        assert(BOT_SPOKEN_AS == "Trinity");
+        assert(HOUSE_BRAND == "T27");
+        assert(TEMPLATE_BUTTON == "@t27ai_bot");
+        assert(MARK_ROW_TITLE_CASE_EN == "Write To Trinity AI");
+        // Trinity alone, and Trinity before any word: Trinity S3AI, Write To Trinity AI.
+        assert(name_mark(false, false));
+        assert(name_mark(false, true));
+        // TrinityBot, and the delivery bot inside a longer handle.
+        assert(NAME_INSIDE_WORD);
+        assert(name_mark(true, false));
+        // S3AI after Trinity, T27 alone, and the t27 starting @t27ai_bot.
+        assert(product_mark(code_mark(false, false, false), false));
+        assert(code_mark(false, false, false));
+        assert(code_mark(false, false, true));
+        assert(line_way(name_mark(false, true), false, LINE_FROM_EDIT) == LINE_REFUSED);
+        assert(line_way(code_mark(false, false, false), false, LINE_FROM_EDIT) == LINE_REFUSED);
     }
 }
 
