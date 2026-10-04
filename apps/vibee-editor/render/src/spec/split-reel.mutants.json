@@ -327,8 +327,8 @@
   {
     "name": "v10: split_reel goes on past a refused call colour",
     "file": "src/agent/split-reel-tool.ts",
-    "from": "if (callColour.refused)\n        return { done: false, reason: callColour.refused }",
-    "to": "if (false)\n        return { done: false, reason: callColour.refused }",
+    "from": "if (callColour.refused) return { done: false, reason: callColour.refused }",
+    "to": "if (false) return { done: false, reason: callColour.refused }",
     "tests": [
       "src/spec/split-reel.test.ts",
       "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
