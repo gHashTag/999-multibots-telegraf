@@ -64,5 +64,11 @@
     "file": "mock-selfcheck.sh",
     "from": "exit \"$rc\"",
     "to": "exit 0"
+  },
+  {
+    "name": "R3: no HUP/INT/TERM traps -- an interrupted hook dies by the signal instead of exiting 130",
+    "file": "mock-selfcheck.sh",
+    "from": "trap 'exit 129' HUP\ntrap 'exit 130' INT\ntrap 'exit 143' TERM\n",
+    "to": ""
   }
 ]

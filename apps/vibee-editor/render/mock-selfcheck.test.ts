@@ -53,13 +53,20 @@ const SCRIPT = join(HERE, 'mock-selfcheck.sh')
 const PIPE_GRACE_MS = 3_000
 /** The script's own server deadline is 120 s; the whole run must fit with room to spare. */
 const RUN_CAP_MS = 170_000
-/** A stub run: tsx start-up under load, a 5 s stop, slack. A run without a deadline never ends. */
-const STUB_CAP_MS = 60_000
 /**
  * From the moment the script's last step ends (its mock-test returned or the
  * hook was interrupted) to its exit: the stop gives SIGTERM 5 s, then SIGKILL.
  */
 const STOP_BOUND_MS = 12_000
+/**
+ * A stub run waits this long for its mock-test to start: longer than the
+ * script's own 120 s health deadline, so a server that never comes up ends the
+ * run first. Start-up is not what is under test, and three tsx start-ups at a
+ * load average of ~700 took over 60 s (2026-10-04).
+ */
+const STUB_START_MS = 150_000
+/** After the last step, how long to wait for exit and EOF before giving up. A run without a deadline never ends. */
+const STUB_STOP_WINDOW_MS = STOP_BOUND_MS + PIPE_GRACE_MS + 5_000
 
 type Run = {
   code: number | null
@@ -204,7 +211,7 @@ function startScript(
   script: string,
   env: Record<string, string>,
   capMs: number
-): { child: ChildProcess; done: Promise<Run> } {
+): { child: ChildProcess; done: Promise<Run>; giveUp: () => void } {
   const child = spawn('bash', [script], {
     cwd: dirname(script),
     env: { ...process.env, ...env },
@@ -218,6 +225,7 @@ function startScript(
   child.stdin!.write(
     'refs/heads/x 1111111111111111111111111111111111111111 refs/heads/x 0000000000000000000000000000000000000000\n'
   )
+  let giveUp = () => {}
   const done = new Promise<Run>(resolve => {
     let out = ''
     let group: number | null = null
@@ -252,13 +260,14 @@ function startScript(
       })
     }
     const cap = setTimeout(() => finish(false), capMs)
+    giveUp = () => finish(false)
     child.once('exit', () => {
       exitAt = Date.now()
       setTimeout(() => finish(false), PIPE_GRACE_MS)
     })
     child.once('close', () => finish(true))
   })
-  return { child, done }
+  return { child, done, giveUp: () => giveUp() }
 }
 
 const runScript = (port: number) =>
@@ -268,27 +277,33 @@ const runScript = (port: number) =>
 
 /**
  * The worst server mock-selfcheck.sh can meet. It and its grandchild ignore
- * SIGTERM, SIGINT and SIGHUP and write to stdout nonstop; each exits on its
- * own after 60 s, so even a broken run leaves them for a minute at most.
+ * SIGTERM, SIGINT and SIGHUP and write to stdout nonstop. Each exits on its own
+ * once the test process is gone (checked every second) and after 240 s at
+ * most -- not sooner: a stub that left on its own inside the stop window would
+ * let a script with no SIGKILL deadline pass.
  */
 const STUB_SERVER = `// Stub written by mock-selfcheck.test.ts.
 import { spawn } from 'node:child_process'
 import { appendFileSync, fstatSync } from 'node:fs'
 import http from 'node:http'
 
+const owner = Number(process.env.STUB_OWNER)
+setInterval(() => { try { process.kill(owner, 0) } catch { process.exit(0) } }, 1000)
+setTimeout(() => process.exit(0), 240000)
 const say = (line: string) => appendFileSync(process.env.STUB_REPORT as string, line + '\\n')
 for (const s of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(s, () => say('server ignored ' + s))
 const GRANDCHILD =
+  'const owner = Number(process.env.STUB_OWNER);' +
+  'setInterval(() => { try { process.kill(owner, 0) } catch { process.exit(0) } }, 1000);' +
+  'setTimeout(() => process.exit(0), 240000);' +
   "for (const s of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(s, () => {});" +
-  "setInterval(() => process.stdout.write('STUB-GRANDCHILD-TICK\\\\n'), 50);" +
-  'setTimeout(() => process.exit(0), 60000)'
+  "setInterval(() => process.stdout.write('STUB-GRANDCHILD-TICK\\\\n'), 50);"
 const kid = spawn(process.execPath, ['-e', GRANDCHILD], { stdio: ['ignore', 'inherit', 'inherit'] })
 const fd0 = fstatSync(0)
 const stdin = fd0.isCharacterDevice() ? 'chardev' : fd0.isFIFO() ? 'pipe' : fd0.isSocket() ? 'socket' : 'other'
 say('server ' + process.pid + ' grandchild ' + kid.pid + ' stdin ' + stdin)
 setInterval(() => process.stdout.write('STUB-SERVER-TICK\\n'), 50)
 http.createServer((_req, res) => res.end('ok')).listen(Number(process.env.MOCK_PORT))
-setTimeout(() => process.exit(0), 60000)
 `
 
 /** The stub mock-test: records when it ran, sleeps if asked, exits as asked. */
@@ -355,33 +370,48 @@ async function stubRun(opts: {
 }): Promise<StubRun> {
   const dir = stubDir()
   const reportPath = join(dir, 'report.txt')
-  const { child, done } = startScript(
+  const { child, done, giveUp } = startScript(
     join(dir, 'mock-selfcheck.sh'),
     {
       STUB_REPORT: reportPath,
+      STUB_OWNER: String(process.pid),
       STUB_TEST_RC: String(opts.rc),
       STUB_TEST_SLEEP: opts.interrupt ? '30' : '0',
     },
-    STUB_CAP_MS
+    STUB_START_MS + STUB_STOP_WINDOW_MS
   )
-  let interruptedAt: number | null = null
-  if (opts.interrupt) {
+  let ended = false
+  void done.then(() => (ended = true))
+  // Start-up, however slow, is not under test: wait for the stub test to start.
+  const until = Date.now() + STUB_START_MS
+  while (
+    !ended &&
+    readReport(reportPath).testStart === undefined &&
+    Date.now() < until
+  )
+    await new Promise(r => setTimeout(r, 100))
+  const testStart = readReport(reportPath).testStart
+  let lastStepAt: number | null = null
+  if (testStart === undefined) {
+    giveUp()
+  } else if (opts.interrupt) {
     // Ctrl-C or a dropped session signals the hook's group: the script and its
     // foreground mock-test, never the server's own group.
-    const until = Date.now() + STUB_CAP_MS
-    while (readReport(reportPath).testStart === undefined && Date.now() < until)
-      await new Promise(r => setTimeout(r, 100))
-    interruptedAt = Date.now()
+    lastStepAt = Date.now()
     try {
       process.kill(-child.pid!, opts.interrupt)
     } catch {
       /* already gone */
     }
+  } else {
+    // The stub test exits at once, so its start is when the last step ended.
+    lastStepAt = testStart
   }
+  // From the last step on, the stop window is all the run gets.
+  const stopWindow = setTimeout(giveUp, STUB_STOP_WINDOW_MS)
   const run = await done
+  clearTimeout(stopWindow)
   const report = readReport(reportPath)
-  // The stub test exits at once, so its start is when the last step ended.
-  const lastStepAt = opts.interrupt ? interruptedAt : (report.testStart ?? null)
   const live = run.group === null ? [] : await survivors(run.group)
   const logText =
     run.log && existsSync(run.log) ? readFileSync(run.log, 'utf8') : ''
@@ -461,7 +491,7 @@ describe('mock-selfcheck.sh stops its own server', () => {
         ['fail', fail],
         ['interrupted', cut],
       ] as const) {
-        const why = `${name}: ${r.out.slice(-600)}`
+        const why = `${name}: ${r.out.slice(-600)} | log: ${r.logText.slice(-300)}`
         // The stub really ran: a server, a grandchild, and the test step.
         expect(r.group, why).not.toBeNull()
         expect(r.report.server, why).toBeGreaterThan(0)
@@ -485,12 +515,17 @@ describe('mock-selfcheck.sh stops its own server', () => {
       // The gate's result is the test's result.
       expect(pass.code, pass.out.slice(-600)).toBe(0)
       expect(fail.code, fail.out.slice(-600)).toBe(1)
-      expect(cut.code === 0, cut.out.slice(-600)).toBe(false)
+      // An interrupted hook ends with a plain status, not by the signal: the
+      // INT trap exits 130 once the EXIT trap has stopped the server. Without
+      // the HUP/INT/TERM traps bash 3.2 still runs the EXIT trap on a fatal
+      // SIGINT (measured), so the status is the only thing that holds them.
+      expect(cut.signal, cut.out.slice(-600)).toBeNull()
+      expect(cut.code, cut.out.slice(-600)).toBe(130)
       // A passing run cleans its log; a failing one keeps it, with the chatter in it.
       expect(existsSync(pass.log!)).toBe(false)
       expect(fail.logText).toMatch(/STUB-SERVER-TICK/)
       expect(fail.logText).toMatch(/STUB-GRANDCHILD-TICK/)
     },
-    STUB_CAP_MS + 30_000
+    STUB_START_MS + STUB_STOP_WINDOW_MS + 30_000
   )
 })
