@@ -266,6 +266,78 @@ export function houseNameAllowed(
 }
 
 /**
+ * Mirror of the spec's voice_refused (v8): an ordinary caller who names no
+ * voice and has no clone of her own is refused before the charge. There is
+ * no stock voice to give her (STOCK_VOICE_FOR_ORDINARY); the house keeps its
+ * own path.
+ */
+export function voiceRefused(
+  house: boolean,
+  hasVoiceId: boolean,
+  hasClone: boolean
+): boolean {
+  if (hasVoiceId) return false
+  if (hasClone) return false
+  if (house) return false
+  return !SPEC.STOCK_VOICE_FOR_ORDINARY
+}
+
+/** Mirror of the spec's speech_ms_estimate (v8): ms of speech from its text. */
+export function speechMsEstimate(chars: number): number {
+  return chars * SPEC.MS_PER_CHAR
+}
+
+/** Mirror of the spec's text_fits (v8): the estimate is within the format. */
+export function textFits(chars: number): boolean {
+  return speechMsEstimate(chars) <= SPEC.SPEECH_MAX_SECONDS * 1000
+}
+
+/**
+ * Mirror of the spec's voice_too_long (v8): the backstop, on a voice measured
+ * once it exists.
+ */
+export function voiceTooLong(measuredMs: number): boolean {
+  return measuredMs > SPEC.SPEECH_MAX_SECONDS * 1000
+}
+
+/**
+ * A measured length in seconds as the spec's milliseconds, rounded UP: a
+ * voice a hair past the ceiling stays past it.
+ */
+export function msOfSeconds(seconds: number): number {
+  return Math.ceil(seconds * 1000)
+}
+
+/**
+ * Mirror of the spec's backstop_refund (v8): what the backstop gives back
+ * when it refuses a voice -- the exact sum THIS call was charged for it, and
+ * nothing for a voice from an earlier call, a voice that fits, or a charge of
+ * nothing (the house, a caller somebody else pays for).
+ */
+export function backstopRefund(
+  paidHere: boolean,
+  measuredMs: number,
+  chargedNow: number
+): number {
+  if (!paidHere) return 0
+  if (!voiceTooLong(measuredMs)) return 0
+  if (!SPEC.REFUND_TOO_LONG_VOICE) return 0
+  return Number.isInteger(chargedNow) && chargedNow > 0 ? chargedNow : 0
+}
+
+/**
+ * Characters as the spec's pace was measured (MEASURED_CHARS): the words
+ * joined by single spaces, nothing around them.
+ */
+export function speechChars(text: string): number {
+  return Array.from(
+    String(text ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  ).length
+}
+
+/**
  * A reel's speech as the lines own_words judges: one per line break or
  * sentence end, so a house name is weighed with the words of its own
  * sentence and never with the sentence before it.
