@@ -15,9 +15,16 @@
  *    and is TOLD, never filed as a "no" (blog-share's lesson of 2026-10-02).
  * 2. AT MOST ONCE PER SEARCH PACE, A SEARCH. The topics come from the owner's
  *    blog feed (the same RSS the blog desk reads): the seed topics his
- *    articles mention most come first, and the desk rotates through them.
- *    For each network the browser is signed into, at most one new proposal,
- *    and only while that network's daily cap is not spent.
+ *    articles mention most come first, and the desk rotates through them,
+ *    TOPICS_PER_SEARCH of them per search. For each network the browser is
+ *    signed into -- and Habr, read without a sign-in -- at most
+ *    PER_SEARCH_PER_NETWORK new proposals, only while that network's daily
+ *    cap is not spent. The search is marked when it ENDS; a search a deploy
+ *    cut is run again once its start mark is SEARCH_STALE_MS old.
+ * 3. AN EMPTY SEARCH SAYS WHY, counted: a search error, nothing read, no
+ *    time on the post, stale, off topic, the owner's own post, already seen.
+ *
+ * Owner, 2026-10-05: "make the agent more proactive" -- spec v3 (#3606).
  *
  * WHAT IT NEVER DOES: mention anyone, write a direct message, comment twice on
  * one post, or put a claim the claim guard refuses into his mouth. The draft
@@ -35,6 +42,9 @@ import * as SPEC from '../spec/engage-desk.gen'
 
 export const {
   SEARCH_EVERY_MS,
+  SEARCH_STALE_MS,
+  TOPICS_PER_SEARCH,
+  PAGE_CEILING,
   ANSWER_WAIT_MS,
   DAY_MS,
   DAILY_CAP_PER_NETWORK,
@@ -65,13 +75,13 @@ export const NETWORKS: Network[] = [
 
 /**
  * Signed in, but no reader yet -- said so in the log and in `tri engage`,
- * never guessed at. The reason is the honest one.
+ * never guessed at. The reason is the honest one. (Telegram had an entry
+ * here; browser/logins.ts has no Telegram network, so it could never be
+ * reached -- removed in spec v3.)
  */
 export const NO_READER: Record<string, string> = {
   facebook:
     'Facebook search of public posts is closed to scripts and its comment box changes per surface',
-  telegram:
-    'a channel takes comments only through its discussion group; no reader for those yet',
 }
 
 /**
@@ -135,19 +145,234 @@ export function searchDue(lastMs: number, nowMs: number): boolean {
   return !lastMs || nowMs - lastMs >= SEARCH_EVERY_MS
 }
 
+/**
+ * The spec's `search_may_start`. A search marks its START, and its end when
+ * it ends; an open start younger than SEARCH_STALE_MS is a search still
+ * running, an older one is a search a deploy cut, and is run again.
+ */
+export function searchMayStart(
+  startedOpen: boolean,
+  startedSinceMs: number
+): boolean {
+  return !startedOpen || startedSinceMs >= SEARCH_STALE_MS
+}
+
+/** The spec's `topic_at`: the k-th topic of search number `searchIndex`. */
+export function topicAt(
+  searchIndex: number,
+  k: number,
+  topicCount: number
+): number {
+  return (searchIndex * TOPICS_PER_SEARCH + k) % topicCount
+}
+
+/** The topics one search reads: TOPICS_PER_SEARCH of them, none twice. Pure. */
+export function topicsForSearch(
+  topics: string[],
+  searchIndex: number
+): string[] {
+  const out: string[] = []
+  const n = topics.length
+  for (let k = 0; k < Math.min(TOPICS_PER_SEARCH, n); k++) {
+    const t = topics[topicAt(searchIndex, k, n)]
+    if (!out.includes(t)) out.push(t)
+  }
+  return out
+}
+
+/** The spec's `worth_a_comment`. */
+export function worthAComment(
+  isFresh: boolean,
+  isOnTopic: boolean,
+  ownPost: boolean,
+  seenPost: boolean
+): boolean {
+  return isFresh && isOnTopic && !ownPost && !seenPost
+}
+
+/** The spec's `search_has_room`. */
+export function searchHasRoom(
+  madeThisSearch: number,
+  askedToday: number
+): boolean {
+  return (
+    madeThisSearch < PER_SEARCH_PER_NETWORK &&
+    askedToday < DAILY_CAP_PER_NETWORK
+  )
+}
+
+/** The spec's `may_search`: Habr is read without a sign-in. */
+export function maySearch(network: string, isSignedIn: boolean): boolean {
+  return isSignedIn || network === 'habr'
+}
+
+/** The spec's `ask_says_no_sign_in`. */
+export function askSaysNoSignIn(network: string, isSignedIn: boolean): boolean {
+  return network === 'habr' && !isSignedIn
+}
+
+/** The spec's `tabs_room`: the tabs a search may open beside `openPages`. */
+export function tabsRoom(openPages: number): number {
+  if (openPages >= PAGE_CEILING) return 0
+  return Math.min(PAGE_CEILING - openPages, PARALLEL_TABS_MAX)
+}
+
+/**
+ * The spec's `signed_in`: Habr's cookie says nothing, so only the site's own
+ * word counts there; elsewhere the sign-in cookie does.
+ */
+export function signedInBy(
+  network: string,
+  cookieSeen: boolean,
+  siteSays: boolean
+): boolean {
+  return network === 'habr' ? siteSays : cookieSeen
+}
+
+/** The spec's `telegram_may_comment`. */
+export function telegramMayComment(
+  hasDiscussion: boolean,
+  writeForbidden: boolean,
+  mustJoin: boolean,
+  isMember: boolean
+): boolean {
+  return hasDiscussion && !writeForbidden && (!mustJoin || isMember)
+}
+
+/* ------------------------------------------------------------ own posts -- */
+
+/**
+ * The owner's own accounts, as this repository names them (SOUL.md: "Dmitrii
+ * Vasilev, @gHashTag / @t27_dev"), and his own subreddit (reddit.ts
+ * SUBREDDITS, promo 'own'). The wiring adds what the person's browser and
+ * ENGAGE_DESK_OWN_HANDLES say. Commenting under his own post is not engaging.
+ */
+export const OWN_HANDLES = ['gHashTag', 't27_dev', 'Dmitrii Vasilev']
+export const OWN_COMMUNITIES = ['t27ai']
+
+/** A handle as compared: no @, no u/, no case, no surrounding space. Pure. */
+export function handleKey(s: string): string {
+  return String(s ?? '')
+    .trim()
+    .replace(/^@/, '')
+    .replace(/^\/?u\//i, '')
+    .toLowerCase()
+}
+
+export interface OwnSet {
+  handles: Set<string>
+  communities: Set<string>
+  urls: Set<string>
+}
+
+/** Who the owner is, from the code, the extra handles and his feed. Pure. */
+export function ownSetOf(extra: string[], articles: Article[]): OwnSet {
+  return {
+    handles: new Set([...OWN_HANDLES, ...extra].map(handleKey).filter(Boolean)),
+    communities: new Set(OWN_COMMUNITIES.map(handleKey)),
+    urls: new Set(articles.map(a => a.link.replace(/\/$/, '')).filter(Boolean)),
+  }
+}
+
+/**
+ * Is this the owner's own post: his handle as author, his own subreddit, his
+ * own article's link, or a URL under his handle (x.com/t27_dev/status/..).
+ * Pure.
+ */
+export function ownPost(post: Found, own: OwnSet): boolean {
+  if (own.handles.has(handleKey(post.author))) return true
+  if (post.community && own.communities.has(handleKey(post.community)))
+    return true
+  if (own.urls.has(post.url.replace(/\/$/, ''))) return true
+  const path = /^https:\/\/[^/]+\/@?([^/?#]+)/.exec(post.url)?.[1]
+  return !!path && own.handles.has(handleKey(path))
+}
+
+/* -------------------------------------------------- why nothing was asked -- */
+
+/**
+ * THE SEVEN REASONS an empty search gives (spec NOTHING_FOUND_REASONS),
+ * counted per network, never one vague line.
+ */
+export interface Tally {
+  errors: string[]
+  read: number
+  noTime: number
+  stale: number
+  offTopic: number
+  own: number
+  seen: number
+  /** Reasons past the search: rules, thread, model, guard. */
+  later: string[]
+}
+
+export function emptyTally(): Tally {
+  return {
+    errors: [],
+    read: 0,
+    noTime: 0,
+    stale: 0,
+    offTopic: 0,
+    own: 0,
+    seen: 0,
+    later: [],
+  }
+}
+
+/** Why one found post is not worth a comment, or '' when it is. Pure. */
+export function whyNot(
+  post: Found,
+  topic: string,
+  own: OwnSet,
+  seen: boolean
+): 'noTime' | 'stale' | 'offTopic' | 'own' | 'seen' | '' {
+  if (post.ageMs === null) return 'noTime'
+  const isFresh = fresh(post.ageMs)
+  const isOnTopic = onTopic(topic, post.text)
+  const isOwn = ownPost(post, own)
+  if (worthAComment(isFresh, isOnTopic, isOwn, seen)) return ''
+  if (!isFresh) return 'stale'
+  if (!isOnTopic) return 'offTopic'
+  if (isOwn) return 'own'
+  return 'seen'
+}
+
+/** The tally in words, for the log and `tri engage`. Pure. */
+export function tallySays(t: Tally): string {
+  const parts: string[] = []
+  if (t.errors.length) parts.push(`search error: ${t.errors.join(' | ')}`)
+  if (!t.read) {
+    if (!t.errors.length) parts.push('read 0 posts')
+  } else {
+    const counts = [
+      ['no time', t.noTime],
+      ['stale', t.stale],
+      ['off topic', t.offTopic],
+      ['own', t.own],
+      ['seen', t.seen],
+    ]
+      .filter(([, n]) => Number(n) > 0)
+      .map(([w, n]) => `${w} ${n}`)
+    parts.push(`read ${t.read}${counts.length ? `: ${counts.join(', ')}` : ''}`)
+  }
+  const later = [...new Set(t.later)]
+  if (later.length) parts.push(later.join(', '))
+  return parts.join('; ')
+}
+
 /** The spec's `fresh`. A post with no readable time is not taken. */
 export function fresh(ageMs: number | null): boolean {
   return ageMs !== null && ageMs >= 0 && ageMs < POST_MAX_AGE_MS
 }
 
 /** The spec's `fits`. */
-export function fits(network: Network, len: number): boolean {
+export function fits(network: string, len: number): boolean {
   const max = maxChars(network)
   return len >= COMMENT_MIN_CHARS && len <= max
 }
 
 /** The longest comment a network takes here. Pure. */
-export function maxChars(network: Network): number {
+export function maxChars(network: string): number {
   return network === 'x' || network === 'threads'
     ? X_COMMENT_MAX_CHARS
     : COMMENT_MAX_CHARS
@@ -155,11 +380,15 @@ export function maxChars(network: Network): number {
 
 /** The spec's `link_allowed`. */
 export function linkAllowed(
-  network: Network,
+  network: string,
   subBansPromo: boolean,
   promoFits: boolean
 ): boolean {
-  return NETWORK_RULES[network].link && !subBansPromo && promoFits
+  return (
+    NETWORK_RULES[network as Network]?.link === true &&
+    !subBansPromo &&
+    promoFits
+  )
 }
 
 /** The spec's `promo_ok`: Reddit's 9:1, counted before this comment. */
@@ -404,8 +633,9 @@ export function searchUrl(network: Network, query: string): string {
     return `https://www.linkedin.com/search/results/content/?keywords=${q}&sortBy=%22date_posted%22`
   if (network === 'threads')
     return `https://www.threads.net/search?q=${q}&serp_type=recent`
+  /* Habr: its own public search API, newest first; no cookie, no tab. */
   if (network === 'habr')
-    return `https://habr.com/en/search/?q=${q}&target_type=posts&order=date`
+    return `https://habr.com/kek/v2/articles/?query=${q}&order=date&fl=ru,en&hl=ru&page=1`
   return `https://www.reddit.com/search.json?q=${q}&sort=new&t=week&limit=25`
 }
 
@@ -469,6 +699,8 @@ export function questionFor(p: {
   url: string
   author: string
   comment: string
+  /** Asked although the pod has no sign-in there (Habr): said so. */
+  noSignIn?: boolean
 }): string {
   const name = {
     x: 'X',
@@ -479,7 +711,10 @@ export function questionFor(p: {
   }[p.network]
   return (
     `Оставить комментарий в ${name} под постом ${p.author ? `${p.author} ` : ''}` + // cyrillic-ok: shown to the owner
-    `(${p.url}):\n\n«${p.comment}»`
+    `(${p.url}):\n\n«${p.comment}»` +
+    (p.noSignIn
+      ? `\n\n⚠️ В браузере агента нет входа в ${name}: после «да» комментарий не опубликуется, пока вы не войдёте.` // cyrillic-ok: shown to the owner
+      : '')
   )
 }
 
@@ -573,6 +808,88 @@ export function parsePageItems(
   return out
 }
 
+/** Habr's HTML (titles, leads, comments) as plain text. Pure. */
+export function stripHtml(html: string): string {
+  return String(html ?? '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&#x27;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Habr's public search API (habr.com/kek/v2/articles/?query=..), read without
+ * a cookie: the posts in the API's own order, newest first. Pure.
+ */
+export function parseHabrSearch(raw: unknown, nowMs: number): Found[] {
+  let data: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      data = JSON.parse(raw)
+    } catch {
+      return []
+    }
+  }
+  const d = (data ?? {}) as {
+    publicationIds?: unknown
+    publicationRefs?: Record<string, Record<string, unknown>>
+  }
+  if (!Array.isArray(d.publicationIds) || !d.publicationRefs) return []
+  const out: Found[] = []
+  for (const id of d.publicationIds) {
+    const r = d.publicationRefs[String(id)]
+    if (!r || !/^\d+$/.test(String(r.id ?? ''))) continue
+    const at = Date.parse(String(r.timePublished ?? ''))
+    const lead = (r.leadData ?? {}) as { textHtml?: unknown }
+    const tags = Array.isArray(r.tags)
+      ? (r.tags as Array<{ titleHtml?: unknown }>)
+          .map(t => stripHtml(String(t?.titleHtml ?? '')))
+          .filter(Boolean)
+      : []
+    out.push({
+      network: 'habr',
+      url: `https://habr.com/ru/${r.postType === 'news' ? 'news' : 'articles'}/${r.id}/`,
+      author: String((r.author as { alias?: unknown } | null)?.alias ?? ''),
+      text: [
+        stripHtml(String(r.titleHtml ?? '')),
+        stripHtml(String(lead.textHtml ?? '')),
+        tags.join(', '),
+      ]
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 3000),
+      ageMs: Number.isFinite(at) ? nowMs - at : null,
+    })
+  }
+  return out
+}
+
+/** Habr's comments API -> the replies as text ('' = none yet), or null. Pure. */
+export function habrThread(raw: unknown): string | null {
+  let data: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      data = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  const c = (data as { comments?: unknown } | null)?.comments
+  if (!c || typeof c !== 'object') return null
+  return Object.values(c as Record<string, Record<string, unknown>>)
+    .map(x => {
+      const who = String((x?.author as { alias?: unknown } | null)?.alias ?? '')
+      return `${who}: ${stripHtml(String(x?.message ?? ''))}`.slice(0, 400)
+    })
+    .slice(0, 20)
+    .join('\n')
+}
+
 /* -------------------------------------------------------------- storage -- */
 
 let ready = false
@@ -604,9 +921,14 @@ export function resetEngageForTests(): void {
 export interface EngageDeps {
   pool: Queryable
   now: () => number
-  /** When the last search ran, in ms, or 0; and the mark for this one. */
+  /** When the last search ENDED, in ms, or 0; and the mark when one ends. */
   lastSearch: () => Promise<number>
   markSearch: (atMs: number) => Promise<void>
+  /** When the search now open STARTED, in ms, or 0; 0 clears the mark. */
+  searchStarted: () => Promise<number>
+  markStarted: (atMs: number) => Promise<void>
+  /** The owner's handles beyond OWN_HANDLES (his browser, the env). */
+  ownHandles?: () => Promise<string[]>
   fetchRss: () => Promise<string>
   parseRss: (xml: string) => Article[]
   /** Every network id the person's browser is SEEN signed into. */
@@ -758,7 +1080,11 @@ async function askedToday(d: EngageDeps, network: Network): Promise<number> {
   return Number((rows[0] as { n?: unknown } | undefined)?.n) || 0
 }
 
-/** Reddit's 9:1 share: posted comments and the ones with a link, 30 days. */
+/**
+ * Reddit's 9:1 share: the comments posted or still asked, and the ones with
+ * a link, 30 days. An asked one counts: with two proposals a search, two
+ * links asked side by side must not both slip under the share.
+ */
 async function promoShare(
   d: EngageDeps,
   network: Network
@@ -767,8 +1093,8 @@ async function promoShare(
     `SELECT count(*)::int AS total,
             count(*) FILTER (WHERE comment ~ 'https?://')::int AS promo
        FROM engage_proposals
-      WHERE network = $1 AND state = 'posted'
-        AND done_at > to_timestamp($2 / 1000.0)`,
+      WHERE network = $1 AND state IN ('posted', 'asked')
+        AND coalesce(done_at, asked_at) > to_timestamp($2 / 1000.0)`,
     [network, d.now() - PROMO_WINDOW_MS]
   )
   const r = (rows[0] ?? {}) as { total?: unknown; promo?: unknown }
@@ -787,98 +1113,129 @@ async function seenPost(
   return rows.length > 0
 }
 
-/** One network's search: at most PER_SEARCH_PER_NETWORK new questions. */
+/**
+ * One network's search over this search's topics: at most
+ * PER_SEARCH_PER_NETWORK new questions, and a counted reason when none.
+ */
 async function proposeOn(
   d: EngageDeps,
   network: Network,
-  topic: string,
-  article: Article | null,
-  voice: string
+  topics: string[],
+  articles: Article[],
+  voice: string,
+  own: OwnSet,
+  isSignedIn: boolean
 ): Promise<string> {
   let asked = await askedToday(d, network)
-  if (asked >= DAILY_CAP_PER_NETWORK) return `${network}: cap reached`
-  const found = await d.search(network, topic).catch(() => [] as Found[])
   let made = 0
-  let why = 'nothing fresh on topic'
-  for (const post of found) {
-    if (made >= PER_SEARCH_PER_NETWORK) break
-    if (!post.url || !fresh(post.ageMs) || !onTopic(topic, post.text)) continue
-    const seen = await seenPost(d, network, post.url)
-    /* Ask the cheap rule before paying for a draft. */
-    if (!mayPropose(asked, seen, false, true)) continue
-    /* The community's own rules, read BEFORE anything is drafted. */
-    const rules =
-      network === 'reddit'
-        ? await d
-            .rulesOf(network, post.community ?? '')
-            .catch(() => ({ read: false, bansAi: false, bansPromo: false }))
-        : { read: true, bansAi: false, bansPromo: false }
-    if (!communityAllows(rules)) {
-      why = rules.read ? 'community bans AI or bots' : 'community rules unread'
+  if (!searchHasRoom(made, asked)) return `${network}: cap reached`
+  const t = emptyTally()
+  const looked = new Set<string>()
+  for (const topic of topics) {
+    if (!searchHasRoom(made, asked)) break
+    const article = articleFor(topic, articles)
+    let found: Found[]
+    try {
+      found = await d.search(network, topic)
+    } catch (e) {
+      t.errors.push(
+        `${topic}: ${String((e as Error)?.message ?? e).slice(0, 120)}`
+      )
       continue
     }
-    /* The thread itself, for the tone and to not repeat what was said. */
-    const thread = await d.thread(network, post.url).catch(() => null)
-    if (!mayDraft(thread)) {
-      why = 'thread unread'
-      continue
-    }
-    const share =
-      network === 'reddit'
-        ? await promoShare(d, network)
-        : { promo: 0, total: 0 }
-    const linkOk = linkAllowed(
-      network,
-      rules.bansPromo,
-      promoOk(share.promo, share.total)
-    )
-    const draft = await d.draft(
-      draftPrompt(network, post, article, {
-        thread: thread ?? '',
-        voice,
-        linkOk,
-      })
-    )
-    if (!draft) {
-      why = 'no model answered'
-      continue
-    }
-    const text = draft.trim()
-    /* draftVerdict holds the length, the links and the claim guard. */
-    const verdict = draftVerdict(network, text, linkOk)
-    if (!mayPropose(asked, seen, hasMention(text), verdict.ok)) {
-      why = `draft refused: ${verdict.why}`
-      continue
-    }
-    const id = await d.ask(
-      questionFor({
+    found = found.filter(p => p.url)
+    t.read += found.length
+    for (const post of found) {
+      if (!searchHasRoom(made, asked)) break
+      const seen =
+        looked.has(post.url) || (await seenPost(d, network, post.url))
+      looked.add(post.url)
+      const why = whyNot(post, topic, own, seen)
+      if (why) {
+        t[why]++
+        continue
+      }
+      /* Ask the cheap rule before paying for a draft. */
+      if (!mayPropose(asked, seen, false, true)) continue
+      /* The community's own rules, read BEFORE anything is drafted. */
+      const rules =
+        network === 'reddit'
+          ? await d
+              .rulesOf(network, post.community ?? '')
+              .catch(() => ({ read: false, bansAi: false, bansPromo: false }))
+          : { read: true, bansAi: false, bansPromo: false }
+      if (!communityAllows(rules)) {
+        t.later.push(
+          rules.read ? 'community bans AI or bots' : 'community rules unread'
+        )
+        continue
+      }
+      /* The thread itself, for the tone and to not repeat what was said. */
+      const thread = await d.thread(network, post.url).catch(() => null)
+      if (!mayDraft(thread)) {
+        t.later.push('thread unread')
+        continue
+      }
+      const share =
+        network === 'reddit'
+          ? await promoShare(d, network)
+          : { promo: 0, total: 0 }
+      const linkOk = linkAllowed(
         network,
-        url: post.url,
-        author: post.author,
-        comment: text,
-      })
-    )
-    const { rows } = await d.pool.query(
-      `INSERT INTO engage_proposals
-         (network, post_url, author, topic, post_text, comment, state, approval_id)
-       VALUES ($1, $2, $3, $4, $5, $6, 'asked', $7)
-       ON CONFLICT (network, post_url) DO NOTHING RETURNING id`,
-      [
-        network,
-        post.url,
-        post.author,
-        topic,
-        post.text.slice(0, 2000),
-        text,
-        id,
-      ]
-    )
-    if (rows.length) {
-      made++
-      asked++
+        rules.bansPromo,
+        promoOk(share.promo, share.total)
+      )
+      const draft = await d.draft(
+        draftPrompt(network, post, article, {
+          thread: thread ?? '',
+          voice,
+          linkOk,
+        })
+      )
+      if (!draft) {
+        t.later.push('no model answered')
+        continue
+      }
+      const text = draft.trim()
+      /* draftVerdict holds the length, the links and the claim guard. */
+      const verdict = draftVerdict(network, text, linkOk)
+      if (!mayPropose(asked, seen, hasMention(text), verdict.ok)) {
+        t.later.push(`draft refused: ${verdict.why}`)
+        continue
+      }
+      const id = await d.ask(
+        questionFor({
+          network,
+          url: post.url,
+          author: post.author,
+          comment: text,
+          noSignIn: askSaysNoSignIn(network, isSignedIn),
+        })
+      )
+      const { rows } = await d.pool.query(
+        `INSERT INTO engage_proposals
+           (network, post_url, author, topic, post_text, comment, state, approval_id)
+         VALUES ($1, $2, $3, $4, $5, $6, 'asked', $7)
+         ON CONFLICT (network, post_url) DO NOTHING RETURNING id`,
+        [
+          network,
+          post.url,
+          post.author,
+          topic,
+          post.text.slice(0, 2000),
+          text,
+          id,
+        ]
+      )
+      if (rows.length) {
+        made++
+        asked++
+      }
     }
   }
-  return made ? `${network}: asked ${made}` : `${network}: ${why}`
+  return made
+    ? `${network}: asked ${made}`
+    : `${network}: nothing asked (${tallySays(t)})`
 }
 
 /** Runs the jobs side by side, at most `limit` at once, in order of results. */
@@ -912,27 +1269,46 @@ export async function engageTick(d: EngageDeps): Promise<string> {
   const last = await d.lastSearch()
   if (!searchDue(last, d.now()))
     return said.length ? said.join('; ') : 'not due'
-  /* The mark first: a deploy that interrupts the search must not double it. */
-  await d.markSearch(d.now())
+  /*
+   * The START is marked, the end only when the search ends: a deploy that
+   * cuts the search leaves the start open, and the search is run again once
+   * that mark is SEARCH_STALE_MS old -- never skipped for two hours.
+   */
+  const started = await d.searchStarted()
+  if (!searchMayStart(started > 0, d.now() - started)) {
+    said.push('a search is running')
+    return said.join('; ')
+  }
+  await d.markStarted(d.now())
 
   const articles = d.parseRss(await d.fetchRss())
-  const topics = topicsFromFeed(articles)
-  /* Rotate through the topics, one per search, by the search's own count. */
-  const slot = Math.floor(d.now() / SEARCH_EVERY_MS) % topics.length
-  const topic = topics[slot]
-  const article = articleFor(topic, articles)
+  /* TOPICS_PER_SEARCH topics, rotated by the search's own count. */
+  const topics = topicsForSearch(
+    topicsFromFeed(articles),
+    Math.floor(d.now() / SEARCH_EVERY_MS)
+  )
   const voice = await d.voice(articles).catch(() => voiceFrom(articles))
+  const own = ownSetOf(
+    await (d.ownHandles?.() ?? Promise.resolve([])).catch(() => []),
+    articles
+  )
   const seenIn = await d.signedIn()
   /* Signed in where we have no reader: said, never guessed at. */
   for (const id of seenIn)
     if (NO_READER[id]) said.push(`${id}: no reader (${NO_READER[id]})`)
-  const nets = NETWORKS.filter(n => seenIn.includes(n))
-  /* Many tabs at once in the owner's browser, PARALLEL_TABS_MAX at most. */
+  const nets = NETWORKS.filter(n => maySearch(n, seenIn.includes(n)))
+  /* Many networks at once, PARALLEL_TABS_MAX at most. */
   said.push(
     ...(await inParallel(
-      nets.map(n => () => proposeOn(d, n, topic, article, voice)),
+      nets.map(
+        n => () =>
+          proposeOn(d, n, topics, articles, voice, own, seenIn.includes(n))
+      ),
       PARALLEL_TABS_MAX
     ))
   )
-  return `${topic}: ${said.join('; ') || 'no network signed in'}`
+  /* Ended: the search is marked now, and its start mark cleared. */
+  await d.markSearch(d.now())
+  await d.markStarted(0)
+  return `${topics.join(' | ')}: ${said.join('; ')}`
 }
