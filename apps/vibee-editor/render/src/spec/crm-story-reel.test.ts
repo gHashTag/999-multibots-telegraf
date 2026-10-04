@@ -706,7 +706,7 @@ describe("the spec's tests hold against the host", () => {
     expect(contrastX10(SPEC.END_CARD_DEFAULT_TITLE, '#ffffff')).toBe(14)
     // #767676 on white is the classic 4,54:1 -- readable; #777 is 4,48 -- not.
     expect(endCardReadable(contrastX10('#767676', '#ffffff'))).toBe(true)
-    expect(endCardReadable(contrastX10('#777777', '#ffffff'))).toBe(false)
+    expect(endCardReadable(contrastX10('#7a7a7a', '#ffffff'))).toBe(false)
     expect(endCardRefused(true, false)).toBe(true)
     expect(endCardRefused(true, true)).toBe(false)
     expect(endCardRefused(false, false)).toBe(false)
@@ -1021,7 +1021,7 @@ describe("the spec's tests hold against the host", () => {
             '#000000',
             '#f5efe0',
             '#10182a',
-            '#777777',
+            '#7a7a7a',
           ]) {
             const colour = `#${r}${g}${b}`
             if (endCardReadable(contrastX10(colour, ground))) continue
@@ -1270,7 +1270,80 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(24)
+    expect(SPEC.VERSION).toBe(25)
+  })
+
+  it("a client's end card is never drawn in the house's gold: a colour nobody gave is white or black ink", async () => {
+    // default_ink(own_reel, white_x10, black_x10); the runner and story_reel
+    // handing the filled card run in a-story-reel-for-any-client.test.ts.
+    const { defaultInk, endCardForReel, endCardReadable, contrastX10 } =
+      await import('../agent/story-reel-tool')
+    expect(SPEC.HOUSE_COLOURS_ON_CLIENT_REEL).toBe(false)
+    expect(SPEC.INK_WHITE_HEX).toBe('#FFFFFF')
+    expect(SPEC.INK_BLACK_HEX).toBe('#000000')
+    expect(defaultInk(true, 210, 10)).toBe(SPEC.INK_HOUSE)
+    expect(defaultInk(true, 11, 180)).toBe(SPEC.INK_HOUSE)
+    expect(defaultInk(false, 210, 10)).toBe(SPEC.INK_WHITE)
+    expect(defaultInk(false, 11, 180)).toBe(SPEC.INK_BLACK)
+    expect(defaultInk(false, 45, 45)).toBe(SPEC.INK_WHITE)
+    expect(defaultInk(false, 44, 45)).toBe(SPEC.INK_BLACK)
+    expect(defaultInk(false, 46, 45)).toBe(SPEC.INK_WHITE)
+    expect(endCardReadable(SPEC.EXTREME_MIN_CONTRAST_X10)).toBe(true)
+    expect(SPEC.CLIENT_CARD_CHECKED_AS_DRAWN).toBe(true)
+    // The host, in colours: no ground, light or dark, mid or extreme, gives
+    // a client's card the house's gold or green, and the ink always reads.
+    const house = [SPEC.END_CARD_DEFAULT_TITLE, SPEC.END_CARD_DEFAULT_ACCENT]
+    for (const bg of ['#f5efe0', '#10182a', '#7a7a7a', '#ffd700', '#fff']) {
+      const card = endCardForReel({ bg }, false, 'Write to me')!
+      for (const k of ['title', 'text', 'accent'] as const) {
+        expect(house).not.toContain(card[k])
+        expect([SPEC.INK_WHITE_HEX, SPEC.INK_BLACK_HEX]).toContain(card[k])
+        expect(endCardReadable(contrastX10(card[k]!, bg))).toBe(true)
+      }
+    }
+    // Light ground: black ink. Dark ground: white ink. Hers stays hers.
+    expect(endCardForReel({ bg: '#f5efe0' }, false, 'Hi')!.title).toBe(
+      SPEC.INK_BLACK_HEX
+    )
+    expect(endCardForReel({ bg: '#10182a' }, false, 'Hi')!.title).toBe(
+      SPEC.INK_WHITE_HEX
+    )
+    expect(
+      endCardForReel({ bg: '#10182a', title: '#e0c3fc' }, false, 'Hi')
+    ).toEqual({
+      bg: '#10182a',
+      title: '#e0c3fc',
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
+    // The house's own reel keeps what was given: StoryReel's defaults fill it.
+    expect(endCardForReel({ bg: '#10182a' }, true, 'Hi')).toEqual({
+      bg: '#10182a',
+    })
+  })
+
+  it("a client's card is filled whenever the pause shows it, so the house default never reaches her reel", async () => {
+    // card_filled(own_reel, has_end_card, call_chars)
+    const { cardFilled, endCardForReel } = await import(
+      '../agent/story-reel-tool'
+    )
+    expect(cardFilled(false, false, 14)).toBe(true)
+    expect(cardFilled(false, true, 0)).toBe(true)
+    expect(cardFilled(false, true, 14)).toBe(true)
+    expect(cardFilled(false, false, 0)).toBe(false)
+    expect(cardFilled(true, false, 14)).toBe(false)
+    expect(cardFilled(true, true, 14)).toBe(false)
+    // The host, as StoryReel reads the call: no palette at all and a call
+    // still gets a card -- on the spec's ground, in ink.
+    expect(endCardForReel(null, false, 'Write to me')).toEqual({
+      bg: SPEC.END_CARD_DEFAULT_BG,
+      title: SPEC.INK_WHITE_HEX,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
+    // No call and no card: the pause shows nothing, so nothing is made.
+    expect(endCardForReel(null, false, '   ')).toBeNull()
+    expect(endCardForReel(null, true, 'Write to me')).toBeNull()
   })
 
   it("a client's reel carries her call: the seller's for her, then her own, never the house's", async () => {

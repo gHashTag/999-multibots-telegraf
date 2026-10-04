@@ -408,17 +408,20 @@ export async function keepEndCard(
       v => v !== undefined && v !== null && String(v).trim() !== ''
     )
   const card = given ? endCardOf(raw) : null
+  // Read as her reel will draw it (spec v25, CLIENT_CARD_CHECKED_AS_DRAWN):
+  // a colour she keeps none of is ink there, never the house's gold.
+  const drawn = (c: StoryEndCard) =>
+    endCardForReel(mergeEndCard(c, null, profile), owner === lead, '')
   const why = given
     ? endCardProblem(raw) ||
-      (card ? endCardUnreadable(mergeEndCard(card, null, profile)) : '') ||
+      (card ? endCardUnreadable(drawn(card)) : '') ||
       (card ? '' : 'end_card: ни одного цвета #hex и ни строки кнопки')
     : ''
   const action = keepAction(true, given, given && !why)
   if (action === SPEC.KEEP_REFUSED) {
     // A #hex card that does not read gets its options (v12, v13); "black"
     // does not.
-    const merged =
-      card && !endCardProblem(raw) ? mergeEndCard(card, null, profile) : null
+    const merged = card && !endCardProblem(raw) ? drawn(card) : null
     return {
       kept: null,
       action,
@@ -535,6 +538,71 @@ export function endCardUnreadable(card: StoryEndCard | null): string {
       return `${what} цветом ${colour} на фоне ${bg} читается плохо: контраст ${ratio(x10)}:1, нужно не меньше ${ratio(SPEC.END_CARD_CONTRAST_MIN_X10)}:1; читается ${readableShade(colour, bg)}`
   }
   return ''
+}
+
+/*
+ * A CLIENT'S CARD IS NEVER THE HOUSE'S (spec v25). StoryReel draws what a
+ * card leaves out in its defaults -- the house's gold call and green button --
+ * and draws a card whenever there is a call, even with no card at all. So a
+ * client with no palette, or half of one, ended her reel in the house's
+ * colours. Her card is now filled before the render: her colours where she
+ * has them, else white or black ink, whichever reads on her ground.
+ */
+
+/** The spec's card_filled. */
+export function cardFilled(
+  ownReel: boolean,
+  hasEndCard: boolean,
+  callChars: number
+): boolean {
+  return (
+    !ownReel &&
+    !SPEC.HOUSE_COLOURS_ON_CLIENT_REEL &&
+    // the spec's cta_card_shown, as StoryReel.tsx reads it
+    SPEC.CTA_CARD_LIKE_WIDGET &&
+    (hasEndCard || callChars > 0)
+  )
+}
+
+/** The spec's default_ink. */
+export function defaultInk(
+  ownReel: boolean,
+  whiteX10: number,
+  blackX10: number
+): number {
+  if (ownReel || SPEC.HOUSE_COLOURS_ON_CLIENT_REEL) return SPEC.INK_HOUSE
+  if (whiteX10 >= blackX10) return SPEC.INK_WHITE
+  return SPEC.INK_BLACK
+}
+
+/**
+ * The card as the reel will draw it: on a client's reel whose pause shows the
+ * card, every colour is set -- hers, else ink -- so the composition's house
+ * defaults are never reached. The house's own reel, and a reel with no card
+ * shown, keep the card as given.
+ */
+export function endCardForReel(
+  card: StoryEndCard | null,
+  ownReel: boolean,
+  call: string
+): StoryEndCard | null {
+  if (!cardFilled(ownReel, !!card, call.trim().length)) return card
+  const bg = card?.bg ?? SPEC.END_CARD_DEFAULT_BG
+  const ink =
+    defaultInk(
+      ownReel,
+      contrastX10(SPEC.INK_WHITE_HEX, bg),
+      contrastX10(SPEC.INK_BLACK_HEX, bg)
+    ) === SPEC.INK_BLACK
+      ? SPEC.INK_BLACK_HEX
+      : SPEC.INK_WHITE_HEX
+  return {
+    ...card,
+    bg,
+    title: card?.title ?? ink,
+    text: card?.text ?? ink,
+    accent: card?.accent ?? ink,
+  }
 }
 
 /** The spec's shade_way. */
@@ -1069,10 +1137,16 @@ export function makeStoryReelTool(
           [call.replaced, takenWord(button, false).replaced ? button : ''],
           cta
         )
-        endCard = mergeEndCard(
-          cardForReel(endCard, false),
-          cardForReel(her?.keptCard, false),
-          cardForReel(her?.endCard, false)
+        // Every colour set before the render (spec v25, card_filled): what
+        // she has no colour for is ink, never the house's gold.
+        endCard = endCardForReel(
+          mergeEndCard(
+            cardForReel(endCard, false),
+            cardForReel(her?.keptCard, false),
+            cardForReel(her?.endCard, false)
+          ),
+          false,
+          cta
         )
       }
       const stills = carried(args.stills, n)

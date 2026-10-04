@@ -48,8 +48,8 @@
   {
     "name": "the run ignores the job's card",
     "file": "src/agent/story-template.ts",
-    "from": "    cardForReel(endCardOf(parse(job.end_card)), ownReel),\n    cardForReel(s.keptCard, ownReel),",
-    "to": "    null,\n    cardForReel(s.keptCard, ownReel),",
+    "from": "      cardForReel(endCardOf(parse(job.end_card)), ownReel),\n      cardForReel(s.keptCard, ownReel),",
+    "to": "      null,\n      cardForReel(s.keptCard, ownReel),",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
@@ -122,7 +122,7 @@
   {
     "name": "kept without the contrast check",
     "file": "src/agent/story-reel-tool.ts",
-    "from": "      (card ? endCardUnreadable(mergeEndCard(card, null, profile)) : '') ||\n",
+    "from": "      (card ? endCardUnreadable(drawn(card)) : '') ||\n",
     "to": "",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
@@ -268,8 +268,8 @@
   {
     "name": "v12: a keep refusal drops its shade",
     "file": "src/agent/story-reel-tool.ts",
-    "from": "      card && !endCardProblem(raw) ? mergeEndCard(card, null, profile) : null\n",
-    "to": "      false ? mergeEndCard(card!, null, profile) : null\n",
+    "from": "    const merged = card && !endCardProblem(raw) ? drawn(card) : null\n",
+    "to": "    const merged = false ? drawn(card!) : null\n",
     "tests": [
       "src/spec/crm-story-reel.test.ts",
       "src/agent/a-story-reel-for-any-client.test.ts"
@@ -278,8 +278,8 @@
   {
     "name": "v12: a keep refusal shades \"black\"",
     "file": "src/agent/story-reel-tool.ts",
-    "from": "      card && !endCardProblem(raw) ? mergeEndCard(card, null, profile) : null\n",
-    "to": "      card ? mergeEndCard(card, null, profile) : null\n",
+    "from": "    const merged = card && !endCardProblem(raw) ? drawn(card) : null\n",
+    "to": "    const merged = card ? drawn(card) : null\n",
     "tests": [
       "src/spec/crm-story-reel.test.ts",
       "src/agent/a-story-reel-for-any-client.test.ts"
@@ -418,8 +418,8 @@
   {
     "name": "v13: options for \"black\"",
     "file": "src/agent/crm-story-tool.ts",
-    "from": "      const fixPalette = fix ? endCardFixPalette(endCard) : null\n",
-    "to": "      const fixPalette = endCardFixPalette(endCard)\n",
+    "from": "      const fixPalette = fix ? endCardFixPalette(drawn) : null\n",
+    "to": "      const fixPalette = endCardFixPalette(drawn)\n",
     "tests": [
       "src/spec/crm-story-reel.test.ts",
       "src/agent/a-story-reel-for-any-client.test.ts"
@@ -1103,5 +1103,57 @@
     "from": "  return foldMarks(text)\n    .split(",
     "to": "  return String(text ?? '')\n    .split(",
     "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v25: a tie goes to black ink",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (whiteX10 >= blackX10) return SPEC.INK_WHITE",
+    "to": "  if (whiteX10 > blackX10) return SPEC.INK_WHITE"
+  },
+  {
+    "name": "v25: the house's own reel is filled with ink too",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "    !ownReel &&\n    !SPEC.HOUSE_COLOURS_ON_CLIENT_REEL &&",
+    "to": "    !SPEC.HOUSE_COLOURS_ON_CLIENT_REEL &&"
+  },
+  {
+    "name": "v25: ink is always white",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (whiteX10 >= blackX10) return SPEC.INK_WHITE\n  return SPEC.INK_BLACK",
+    "to": "  if (whiteX10 >= blackX10) return SPEC.INK_WHITE\n  return SPEC.INK_WHITE"
+  },
+  {
+    "name": "v25: the client's card is never filled (house gold reaches her reel)",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (!cardFilled(ownReel, !!card, call.trim().length)) return card",
+    "to": "  if (true) return card",
+    "tests": [
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v25: a call alone does not show the card",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (!cardFilled(ownReel, !!card, call.trim().length)) return card",
+    "to": "  if (!cardFilled(ownReel, !!card, 0)) return card",
+    "tests": [
+      "src/agent/a-story-reel-is-one-call.test.ts",
+      "src/agent/a-story-reel-for-any-client.test.ts"
+    ]
+  },
+  {
+    "name": "v25: story_reel for her skips the fill",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "        endCard = endCardForReel(\n          mergeEndCard(",
+    "to": "        endCard = ((c: any) => c)(\n          mergeEndCard(",
+    "tests": ["src/agent/a-story-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "v25: the template runner skips the fill",
+    "file": "src/agent/story-template.ts",
+    "from": "  const endCard = endCardForReel(\n    mergeEndCard(",
+    "to": "  const endCard = ((c: any) => c)(\n    mergeEndCard(",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   }
 ]

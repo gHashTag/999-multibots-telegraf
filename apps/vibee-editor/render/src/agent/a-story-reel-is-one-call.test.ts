@@ -401,6 +401,12 @@ describe('story_reel for a client: her voice, her call, her card (v22)', () => {
       expect(r).not.toHaveProperty('house_replaced')
       const props = calls.find(c => c.name === 'reel_render')!.args.props
       expect(props.cta).toBe(want)
+      // No palette in her profile: the render still never falls back to the
+      // house's gold call or green button (spec v25 default_ink).
+      const drawn = JSON.stringify(props.endCard ?? {}).toLowerCase()
+      expect(drawn).not.toContain(SPEC.END_CARD_DEFAULT_TITLE.toLowerCase())
+      expect(drawn).not.toContain(SPEC.END_CARD_DEFAULT_ACCENT.toLowerCase())
+      expect(props.endCard).toMatchObject({ title: SPEC.INK_WHITE_HEX })
     }
   )
 

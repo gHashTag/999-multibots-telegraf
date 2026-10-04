@@ -673,7 +673,7 @@ describe('a client with her own visual ends on it', () => {
     expect(seen[0].cta).toBe('Приходите со своим вопросом.')
   })
 
-  it('a client without a visual gets no card', async () => {
+  it("a client without a visual gets a card in ink, never the house's gold (v25)", async () => {
     const base = fakeBase()
     qualify(base)
     const seen: any[] = []
@@ -688,7 +688,15 @@ describe('a client with her own visual ends on it', () => {
       topic: 'Ваза',
     })
     await drain()
-    expect(seen[0].end_card).toBeUndefined()
+    // Her call still shows on the pause, so the card is drawn -- on the
+    // spec's ground, in the ink that reads there, not in END_CARD_DEFAULT_*.
+    expect(seen[0].cta).toBeTruthy()
+    expect(seen[0].end_card).toEqual({
+      bg: SPEC.END_CARD_DEFAULT_BG,
+      title: SPEC.INK_WHITE_HEX,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
   })
 })
 
@@ -2092,6 +2100,7 @@ describe("the seller's palette at the end (spec v7)", () => {
     expect(seen[0].end_card).toEqual({
       bg: '#000',
       title: '#d4af37',
+      text: SPEC.INK_WHITE_HEX,
       accent: '#ffffff',
     })
   })
@@ -2125,7 +2134,13 @@ describe("the seller's palette at the end (spec v7)", () => {
     expect(await sweepStoryJobs(b.deps)).toBe(1)
     await drain()
     expect(calls).toHaveLength(2)
-    expect(calls[1].end_card).toEqual({ bg: '#1a1a1a', title: '#f5f5f5' })
+    expect(calls[1].end_card).toEqual({
+      bg: '#1a1a1a',
+      title: '#f5f5f5',
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
+    expect(calls[1].end_card).toEqual(calls[0].end_card)
   })
 
   it("an unreadable palette of the seller's is refused before anything is spent", async () => {
@@ -2136,16 +2151,16 @@ describe("the seller's palette at the end (spec v7)", () => {
       seen.push(args)
       return reel
     })
-    // The default gold call on the white background he gave: 1,4:1.
+    // His own pale call on the white background he gave: 1,2:1.
     const out = await startStory(deps, {
       lead: LENA,
       requester: SELLER,
       seller: SELLER,
       topic: 'Ваза',
-      endCard: { bg: '#ffffff' },
+      endCard: { bg: '#ffffff', title: '#f0e68c' },
     })
     expect(out.started).toBe(false)
-    expect(out.why).toMatch('призыв цветом #FFD700 на фоне #ffffff')
+    expect(out.why).toMatch('призыв цветом #f0e68c на фоне #ffffff')
     expect(out.why).toMatch('нужно не меньше 4,5:1')
     await drain()
     expect(base.db.jobs).toHaveLength(0)
@@ -2185,7 +2200,12 @@ describe("the seller's palette at the end (spec v7)", () => {
     })
     expect(out.started).toBe(true)
     await drain()
-    expect(seen[0].end_card).toEqual({ bg: '#ffffff', title: '#ffd700' })
+    expect(seen[0].end_card).toEqual({
+      bg: '#ffffff',
+      title: '#ffd700',
+      text: SPEC.INK_BLACK_HEX,
+      accent: SPEC.INK_BLACK_HEX,
+    })
   })
 
   it('a client pressing for herself never brings a palette', async () => {
@@ -2206,7 +2226,13 @@ describe("the seller's palette at the end (spec v7)", () => {
     expect(out.started).toBe(true)
     await drain()
     expect(base.db.jobs[0].end_card).toBeNull()
-    expect(seen[0].end_card).toBeUndefined()
+    // Nothing of what she sent: the card is only the ink her call needs.
+    expect(seen[0].end_card).toEqual({
+      bg: SPEC.END_CARD_DEFAULT_BG,
+      title: SPEC.INK_WHITE_HEX,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
   })
 
   it('crm_story_reel shows the card and what does not read, before any start', async () => {
@@ -2224,6 +2250,7 @@ describe("the seller's palette at the end (spec v7)", () => {
     const plain: any = await tool.handler({ lead: LENA }, ctx)
     expect(plain.end_card).toMatchObject({ bg: '#0b0d0f' })
     expect(plain.end_card_why).toBeUndefined()
+    // Her profile's own gold call (#ffd700) on the pale ground he asks for.
     const pale: any = await tool.handler(
       { lead: LENA, end_card: { bg: '#fafafa' } },
       ctx
@@ -2350,7 +2377,11 @@ describe('her palette, kept for every next reel (spec v10)', () => {
     )
     expect(out.started).toBe(true)
     await drain()
-    expect(seen[0].end_card).toEqual(KIT)
+    expect(seen[0].end_card).toEqual({
+      ...KIT,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
   })
 
   it('a card that fails the checks keeps nothing and starts nothing', async () => {
@@ -2367,9 +2398,13 @@ describe('her palette, kept for every next reel (spec v10)', () => {
     )
     expect(bad).toMatchObject({ started: false, kept: false })
     expect(bad.why).toMatch('end_card.bg: «black»')
-    // The default gold call on the white he gave: 1,4:1.
+    // His own pale call on the white he gave: 1,2:1.
     const pale: any = await tool(base).handler(
-      { lead: LENA, end_card: { bg: '#ffffff' }, save_end_card: true },
+      {
+        lead: LENA,
+        end_card: { bg: '#ffffff', title: '#f0e68c' },
+        save_end_card: true,
+      },
       ctxOf(base)
     )
     expect(pale.why).toMatch('нужно не меньше 4,5:1')
