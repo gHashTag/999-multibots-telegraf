@@ -12586,7 +12586,7 @@ const server = createServer(async (req, res) => {
         имя: 'z.ai',
         url: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
         key: process.env.GLM_API_KEY,
-        model: 'glm-5.3',
+        model: 'glm-4.7-flash',
       },
       {
         имя: 'KieAI',
@@ -12663,7 +12663,7 @@ const server = createServer(async (req, res) => {
             имя: 'z.ai',
             url: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
             key: process.env.GLM_API_KEY,
-            модели: ['glm-5.3'],
+            модели: ['glm-4.7-flash'],
           },
           {
             имя: 'KieAI',

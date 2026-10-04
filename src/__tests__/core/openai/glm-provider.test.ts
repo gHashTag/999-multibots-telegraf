@@ -18,6 +18,6 @@ describe('GLMProvider', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
     const [url, request] = fetchMock.mock.calls[0]
     expect(url).toBe('https://api.z.ai/api/coding/paas/v4/chat/completions')
-    expect(JSON.parse(request.body)).toMatchObject({ model: 'glm-5.3' })
+    expect(JSON.parse(request.body)).toMatchObject({ model: 'glm-4.7-flash' })
   })
 })
