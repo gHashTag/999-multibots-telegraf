@@ -42,7 +42,6 @@ import {
 } from './story-template'
 import type { AgentTool, ToolContext } from './tools'
 import { readableShade } from './story-reel-tool'
-import { END_CARD_DEFAULT_TITLE } from '../spec/crm-story-reel.gen'
 import * as SPEC from '../spec/crm-story-reel.gen'
 
 const SELLER = '900000001'
@@ -2521,14 +2520,17 @@ describe('the shade that reads, named on a refusal (spec v12)', () => {
   it('a card refused at keeping carries its shade; a colour that is not #hex does not', async () => {
     const base = fakeBase()
     qualify(base)
+    // Her own pale call on white (a ground alone is drawn in ink, v25).
     const pale: any = await tool(base).handler(
-      { lead: LENA, end_card: { bg: '#ffffff' }, save_end_card: true },
+      {
+        lead: LENA,
+        end_card: { bg: '#ffffff', title: '#f0e68c' },
+        save_end_card: true,
+      },
       ctxOf(base)
     )
     expect(pale).toMatchObject({ kept: false, started: false })
-    expect(pale.end_card_fix?.title).toBe(
-      readableShade(END_CARD_DEFAULT_TITLE, '#ffffff')
-    )
+    expect(pale.end_card_fix?.title).toBe(readableShade('#f0e68c', '#ffffff'))
     const black: any = await tool(base).handler(
       {
         lead: LENA,
@@ -2775,7 +2777,13 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     // Her colour stays; only the house's button is gone.
     expect(JSON.parse(String(job.end_card))).toEqual({ bg: '#10182a' })
     expect(args[0].cta).toBe('Book a fitting')
-    expect(args[0].end_card).toEqual({ bg: '#10182a' })
+    // Her ground; what she gave no colour for is ink, never gold (v25).
+    expect(args[0].end_card).toEqual({
+      bg: '#10182a',
+      title: SPEC.INK_WHITE_HEX,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
   })
 
   it("the seller's own last line stays on her reel; one naming the house is refused before anything is spent", async () => {
@@ -2854,7 +2862,13 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     await drain()
     expect(args).toHaveLength(1)
     expect(args[0].cta).toBe('Book a fitting')
-    expect(args[0].end_card).toEqual({ bg: '#10182a' })
+    // Her ground; what she gave no colour for is ink, never gold (v25).
+    expect(args[0].end_card).toEqual({
+      bg: '#10182a',
+      title: SPEC.INK_WHITE_HEX,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
   })
 
   it('her profile call naming the house is not hers: her reel ends with the default call', async () => {
