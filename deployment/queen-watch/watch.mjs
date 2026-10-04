@@ -137,9 +137,8 @@ export function config(env = process.env) {
     /* igla.mjs, the IGLA-Coder loop on the same tick: its header says why. */
     iglaOn: env.IGLA !== '0',
     iglaDispatch: env.IGLA_DISPATCH !== '0',
-    iglaBoard:
-      env.IGLA_BOARD_URL || 'https://board-production-2dec.up.railway.app',
-    iglaRepo: env.IGLA_REPO || 'gHashTag/igla-coder-gpu',
+    /* Empty = igla.mjs IGLA_BOARD. The repo is igla.mjs's constant, not env. */
+    iglaBoard: env.IGLA_BOARD_URL || '',
     runpodKey: env.RUNPOD_API_KEY || '',
     iglaGhToken: env.IGLA_GITHUB_TOKEN || '',
     iglaRailwayToken: env.IGLA_RAILWAY_TOKEN || '',
