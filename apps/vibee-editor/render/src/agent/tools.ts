@@ -95,13 +95,14 @@ import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
-import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
+import { HOUSE_TELEGRAM_IDS, isHouse } from '../house-ids'
 import { houseReelRefusal, onClientWork } from './client-work'
 import {
   agentSuppliedHouseName,
   houseNameAllowed,
   houseOwnTurn,
   ownerVoiceAllowed,
+  voiceRefused,
 } from '../split-reel-plan'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
@@ -1035,7 +1036,7 @@ async function refundTokens(
    * redeploy killed that watch -- and only one of them may pay.
    */
   ref?: string
-): Promise<void> {
+): Promise<boolean> {
   const price =
     typeof exact === 'number' && exact > 0 ? exact : TOKEN_PRICES[tool]
   if (!price) {
@@ -1045,7 +1046,7 @@ async function refundTokens(
     console.error(
       `[токены] ВОЗВРАТ НЕВОЗМОЖЕН: нет суммы для «${tool}» (${why})` // cyrillic-ok: existing log text
     )
-    return
+    return false
   }
 
   /**
@@ -1065,7 +1066,7 @@ async function refundTokens(
     console.log(
       `[токены] дом не возвращает себе: «${tool}» для ${ctx.telegramId}` // cyrillic-ok: log text
     )
-    return
+    return false
   }
   /*
    * NOTHING TAKEN, NOTHING GIVEN BACK -- the same mirror, for chargeLater.
@@ -1081,7 +1082,7 @@ async function refundTokens(
     console.log(
       `[токены] списано не было, возвращать нечего: «${tool}» для ${ctx.telegramId}` // cyrillic-ok: log text
     )
-    return
+    return false
   }
 
   try {
@@ -1098,7 +1099,7 @@ async function refundTokens(
       console.log(
         `[токены] возврат не повторён (${moved.reason}): «${tool}» ${ref ?? ''}`
       ) // cyrillic-ok: log text
-      return
+      return false
     }
     console.log(`[токены] возврат ${price} за «${tool}»: ${why}`)
     /*
@@ -1118,6 +1119,7 @@ async function refundTokens(
       what: `${tool}: ${why}`,
       severity: 'attention',
     })
+    return true
   } catch (e) {
     console.error(`[токены] ВОЗВРАТ НЕ ВЫПОЛНЕН ${price} за «${tool}»`, e)
     /*
@@ -1133,6 +1135,7 @@ async function refundTokens(
       what: `refund for "${tool}" did not go through`,
       severity: 'alarm',
     })
+    return false
   }
 }
 
@@ -1156,6 +1159,34 @@ export async function refundLateImage(
     why,
     t.charged ?? 0,
     lateRefundRef(t.task)
+  )
+}
+
+/**
+ * GIVE BACK A VOICE SPLIT_REEL PAID FOR AND THEN REFUSED FOR ITS LENGTH --
+ * at most once per voice (split-reel.t27 v8, REFUND_TOO_LONG_VOICE).
+ *
+ * split_reel estimates a voice from its text before paying for it, at the
+ * pace of the one voice the repo has measured. A slower voice passes that
+ * estimate and is measured past the ceiling only once it exists: the one
+ * refusal after the charge. The sum goes back exactly as audio_generate's
+ * receipt named it, under the voice's own ledger reference; a charge of
+ * nothing (the house, chargeLater) gives nothing back. True only when the
+ * tokens moved, so the answer never says "given back" for a refund that
+ * the ledger refused or the database dropped.
+ */
+export async function refundTooLongVoice(
+  ctx: ToolContext,
+  voice: { url: string; charged: number },
+  why: string
+): Promise<boolean> {
+  if (!(voice.charged > 0)) return false
+  return refundTokens(
+    ctx,
+    'audio_generate',
+    why,
+    voice.charged,
+    `split-reel-too-long:${voice.url}`
   )
 }
 
@@ -2225,9 +2256,10 @@ export const TOOLS: AgentTool[] = [
     description:
       'Озвучить текст. for_lead — голосом клиента (его клон из crm_voice_clone), только для материалов ' +
       'ему же: это MiniMax на Replicate, ключ ElevenLabs ему НЕ нужен. В разговоре с клиентом без for_lead ' +
-      'и voice_id — тоже его голос, клон владельца там не звучит. Иначе без for_lead и voice_id — ' +
-      'клон владельца, а если своего нет — библиотечный голос ElevenLabs (нужен его ключ), и это ' +
-      'будет сказано в ответе. Ошибка — скажи честно, что именно, и собери рилс без звука.',
+      'и voice_id — тоже его голос, клон владельца там не звучит. Без for_lead и voice_id клон ' +
+      'владельца звучит только в рилсе самого владельца; у остальных — отказ до списания: нужен ' +
+      'voice_id или свой клон (crm_voice_clone, потом for_lead со своим id), чужим голосом не ' +
+      'озвучиваем. Ошибка — скажи честно, что именно, и собери рилс без звука.',
     parameters: {
       type: 'object',
       properties: {
@@ -2255,23 +2287,13 @@ export const TOOLS: AgentTool[] = [
        * that refund was 0 (the house is never charged), and a caller who pays
        * was charged and refunded for a voice that never existed.
        */
-      /**
-       * Голос по умолчанию — КЛОН ВЛАДЕЛЬЦА, а не первый попавшийся.
-       *
-       * Было `voices[0].voice_id`: первый в ответе ElevenLabs — это, как
-       * правило, готовый голос из библиотеки. Владелец спросил напрямую:
-       * «в рилсах клон голоса мой где?» — нигде. Понятия «мой голос» в коде
-       * не существовало вовсе, и рилсы озвучивались чужим тембром.
-       *
-       * ElevenLabs помечает происхождение голоса полем `category`:
-       * `premade` — библиотечный, `cloned`/`professional`/`generated` — свой.
-       * Берём первый НЕ библиотечный; если своих нет — библиотечный, но об
-       * этом честно сообщаем в ответе, чтобы агент мог предложить записать
-       * клон.
-       *
-       * Поле `id`, а не `voice_id`: /api/voices переименовывает его при
-       * упрощении ответа, и обращение к `voice_id` давало undefined —
-       * то есть запасной путь молча не срабатывал.
+      /*
+       * NO STRANGER'S VOICE (split-reel v8, voice_refused). The default voice
+       * is never the first one some account lists: an ordinary caller who
+       * names no voice and has no clone is refused before the charge, and
+       * the house speaks with the owner's clone. The ElevenLabs lookup that
+       * used to fill the gap (`/api/voices`, first custom voice else the
+       * first library one) ran after the charge and is gone (#3561).
        */
       let voiceId = args.voice_id ? String(args.voice_id) : ''
       let голосВладельца = false
@@ -2337,9 +2359,9 @@ export const TOOLS: AgentTool[] = [
       }
       /*
        * A sweep for leads that names no lead and no voice (split-reel v7):
-       * the house asks no library (asksElevenLabs), so only the owner's
-       * voice could speak it, and that voice is not lent -- refused before
-       * the charge, never a stranger's voice.
+       * the house asks no library, so only the owner's voice could speak
+       * it, and that voice is not lent -- refused before the charge, never
+       * a stranger's voice.
        */
       if (
         isHouse(ctx.telegramId) &&
@@ -2351,27 +2373,21 @@ export const TOOLS: AgentTool[] = [
           'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'
         return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
       }
+      /*
+       * An ordinary caller with no voice of her own (split-reel v8
+       * voice_refused): no voice_id, no clone chosen above. There is no
+       * stock voice to give her -- a voice found in some account is not
+       * hers -- so she is refused before the charge, and told how to get
+       * her own. The house keeps its own path below (crm-story-reel v19).
+       */
+      if (voiceRefused(isHouse(ctx.telegramId), !!voiceId, !!cloneVoice)) {
+        const why =
+          'своего голоса нет: укажи voice_id или сначала сделай свой клон (crm_voice_clone) и передай for_lead со своим id — чужим голосом не озвучиваю'
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+      }
       const charge = await spendTokens(ctx, 'audio_generate')
       if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields
       const base = selfBase()
-      /*
-       * The house never asks ElevenLabs (crm-story-reel v19,
-       * HOUSE_SKIPS_ELEVENLABS): a voice of its own there raised the
-       * owner-voice flag and so skipped the owner's clone below -- his reel
-       * spoke a voice found in an ElevenLabs account.
-       */
-      if (asksElevenLabs(isHouse(ctx.telegramId), voiceId, cloneVoice)) {
-        const v = await selfFetch(`${base}/api/voices`)
-        const vData: any = await v.json().catch(() => null)
-        const list: any[] = Array.isArray(vData?.voices) ? vData.voices : []
-        const свой = list.find(
-          x => String(x?.category || '').toLowerCase() !== 'premade'
-        )
-        voiceId = String(
-          (свой ?? list[0])?.id || (свой ?? list[0])?.voice_id || ''
-        )
-        голосВладельца = !!свой
-      }
       /*
        * THE OWNER SPEAKS WITH THE OWNER'S VOICE even while ElevenLabs is
        * down (its env var holds the key's identifier, not the key): the
@@ -2452,18 +2468,15 @@ export const TOOLS: AgentTool[] = [
         )
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
-          причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY',
+          причина: 'не нашёлся ни один голос — нужен voice_id или свой клон', // cyrillic-ok: the tools’ answer fields
         }
       }
-      // Агент должен знать, чьим голосом озвучено: если библиотечным —
-      // стоит предложить человеку записать свой клон.
+      // The agent is told whose voice spoke the line.
       const голос = голосКлиента // cyrillic-ok: local flag
         ? 'клон клиента'
-        : args.voice_id
-          ? 'выбран явно'
-          : голосВладельца
-            ? 'клон владельца'
-            : 'библиотечный — своего клона в аккаунте нет, предложи записать'
+        : голосВладельца // cyrillic-ok: existing local
+          ? 'клон владельца'
+          : 'выбран явно'
       const gen = await selfFetch(`${base}/api/generate/audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2503,12 +2516,20 @@ export const TOOLS: AgentTool[] = [
          RETURNING id, created_at::text`,
         [ctx.telegramId, direct, String(args.text).slice(0, 500)]
       )
-      return withTokens(ctx, 'audio_generate', {
-        сделано: true,
-        url: direct,
-        id: r.rows[0]?.id,
-        голос,
-      })
+      // The receipt names what the charge took, not the table price: the
+      // house and chargeLater were charged 0, and split_reel gives back
+      // exactly this sum when it refuses the voice for its length.
+      return withTokens(
+        ctx,
+        'audio_generate',
+        {
+          сделано: true, // cyrillic-ok: the tools’ answer fields
+          url: direct,
+          id: r.rows[0]?.id,
+          голос, // cyrillic-ok: the tools’ answer fields
+        },
+        charge['потрачено'] ?? 0
+      )
     },
   },
 
@@ -4000,7 +4021,8 @@ TOOLS.push(
         ? { ok: true, spent: c['потрачено'] ?? 0 }
         : { ok: false, why: String(c.причина) } // cyrillic-ok: the tools’ answer fields
     },
-    refund: (ctx, why, spent) => refundTokens(ctx, 'voice_clone', why, spent),
+    refund: (ctx, why, spent) =>
+      refundTokens(ctx, 'voice_clone', why, spent).then(() => undefined),
     put: (bytes, name, mime) => s3PutBytes(bytes, name, mime),
     join: joinVoiceNotes,
     clone: url =>
