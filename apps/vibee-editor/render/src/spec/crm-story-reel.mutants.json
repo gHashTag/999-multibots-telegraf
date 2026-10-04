@@ -672,8 +672,8 @@
   {
     "name": "v22: the Russian house name is no house mark",
     "file": "src/house-names.ts",
-    "from": "'тринити', // cyrillic-ok",
-    "to": "'trinity', // cyrillic-ok",
+    "from": "  'Тринити', // cyrillic-ok: the name as the voice speaks it, in Russian",
+    "to": "  'Trinity', // cyrillic-ok: the name as the voice speaks it, in Russian",
     "tests": [
       "src/agent/a-template-stays-home.test.ts",
       "src/spec/crm-story-reel.test.ts"
@@ -793,8 +793,8 @@
   {
     "name": "v22: the brand T27 is no house mark",
     "file": "src/house-names.ts",
-    "from": "    `\\\\b${escaped(SPEC.HOUSE_BRAND)}\\\\b`,\n",
-    "to": "",
+    "from": "  for (const at of placesOf(text, CODE)) {",
+    "to": "  for (const at of [] as number[]) {",
     "tests": [
       "src/agent/a-template-stays-home.test.ts",
       "src/spec/crm-story-reel.test.ts"
@@ -823,8 +823,8 @@
   {
     "name": "v22: her profile's house call is taken as hers",
     "file": "src/agent/story-template.ts",
-    "from": "owner === id,",
-    "to": "true,",
+    "from": "profileCta(profile, owner === id)",
+    "to": "profileCta(profile, true)",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
@@ -1022,5 +1022,86 @@
       "src/agent/a-story-reel-is-one-call.test.ts",
       "src/spec/crm-story-reel.test.ts"
     ]
+  },
+  {
+    "name": "v23: no confusable folding (a Latin T in Trinity's Russian name passes)",
+    "file": "src/house-names.ts",
+    "from": "  return s.replace(LOOKALIKE_ANY, c => LOOKALIKES.get(c) ?? c)",
+    "to": "  return s",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v23: an invisible character splits a name",
+    "file": "src/house-names.ts",
+    "from": "    s = s.replace(/\\p{Default_Ignorable_Code_Point}/gu, '')",
+    "to": "    s = s.trim()",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v23: t27 needs a word boundary again (t27ai passes)",
+    "file": "src/house-names.ts",
+    "from": "  if (letterAfter) return SPEC.CODE_MARK_PREFIX",
+    "to": "  if (letterAfter) return false",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v23: a letter before T27 is still the brand (at27)",
+    "file": "src/house-names.ts",
+    "from": "  if (wordBefore || digitAfter) return false",
+    "to": "  if (digitAfter) return false",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v23: T270 is the brand",
+    "file": "src/house-names.ts",
+    "from": "  if (wordBefore || digitAfter) return false",
+    "to": "  if (wordBefore) return false",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v23: S3 AI with a space is the brand",
+    "file": "src/house-names.ts",
+    "from": "  if (spaceInside) return !SPEC.PRODUCT_ONE_TOKEN",
+    "to": "  if (spaceInside) return true",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v23: the product glued to a word is still the product",
+    "file": "src/house-names.ts",
+    "from": "  if (!codeOk) return false\n",
+    "to": "",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v23: bare Trinity no longer flagged",
+    "file": "src/house-names.ts",
+    "from": "  if (wordAfter) return SPEC.NAME_IN_ANY_CONTEXT\n  return true",
+    "to": "  if (wordAfter) return SPEC.NAME_IN_ANY_CONTEXT\n  return false",
+    "tests": [
+      "src/agent/a-template-stays-home.test.ts",
+      "src/spec/crm-story-reel.test.ts",
+      "src/spec/split-reel.test.ts"
+    ]
+  },
+  {
+    "name": "v23: a word after the name clears it (Trinity College, and Trinity AI with it)",
+    "file": "src/house-names.ts",
+    "from": "  if (wordAfter) return SPEC.NAME_IN_ANY_CONTEXT\n",
+    "to": "  if (wordAfter) return false\n",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v23: the name inside a longer word is not the house (TrinityBot)",
+    "file": "src/house-names.ts",
+    "from": "  if (insideWord) return SPEC.NAME_INSIDE_WORD",
+    "to": "  if (insideWord) return false",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "v23: her words are compared unfolded (a look-alike decides whose words they are)",
+    "file": "src/house-names.ts",
+    "from": "  return foldMarks(text)\n    .split(",
+    "to": "  return String(text ?? '')\n    .split(",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
   }
 ]
