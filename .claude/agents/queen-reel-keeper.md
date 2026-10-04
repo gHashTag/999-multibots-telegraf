@@ -134,6 +134,34 @@ afterwards.
    `three-options-at-the-end`). If nothing moved and nothing jammed, say so
    in one line, and still append the ledger row.
 
+6. **File the report on the Queen's board.** The owner reads the reel
+   stream there, next to queen-watch. Use one POST per round, on the route
+   queen-watch already uses (`reportToQueen` in
+   `deployment/queen-watch/watch.mjs`). The route takes exactly four
+   fields; any other field gets a 400.
+
+   ```bash
+   . bin/helpers/rail.sh
+   T=$(rvars trios-agent-server | grep -E '^TRIOS_API_TOKEN=' | cut -d= -f2-)
+   python3 - "$HEADLINE" "$BODY" "$NEEDS_YOU" > /tmp/queen-reel-report.json <<'PY'
+   import json, sys
+   print(json.dumps({"source": "queen-reel-keeper", "headline": sys.argv[1][:120],
+                     "body": sys.argv[2][:8000], "needs_you": sys.argv[3] == "true"}))
+   PY
+   curl -s -m 20 -o /dev/null -w '%{http_code}\n' -X POST \
+     -H "Authorization: Bearer $T" -H 'content-type: application/json' \
+     --data @/tmp/queen-reel-report.json \
+     https://trios-agent-server-production.up.railway.app/queen/report
+   unset T; rm -f /tmp/queen-reel-report.json
+   ```
+
+   - The headline holds at most 120 characters.
+   - The body is the Russian report from step 5.
+   - `needs_you` is true only when an owner's move or question is open.
+   - 201 or 200 means filed. Anything else goes into the ledger row with
+     its code. Do not retry within the round.
+   - No secret, token or real person's id goes into the body.
+
 ## In flight at handoff (2026-10-04 evening)
 
 | Work                                          | t27                                                   | 999                                         | Next                                                                                                                                                                    |
@@ -188,8 +216,9 @@ v8, the house-name detector (v23), the widgets under the Blogger.
 The bee block in `queen-card-chat-keeper.md` holds for every bee. These are
 added here:
 
-- No read of the production database by any route, and no POST, PUT or
-  DELETE to a live server.
+- No read of the production database by any route. No POST, PUT or DELETE
+  to a live server, with one exception: the single `/queen/report` POST of
+  step 6. Never `PUT /queen/registry`, which replaces every task.
 - Money has one wallet: `user_tokens`. A refusal comes before the charge.
   A refund goes through `refundTokens`. `payments_v2` is a read-only
   archive.
