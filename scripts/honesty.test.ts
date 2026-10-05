@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -86,5 +86,38 @@ describe('tri honesty', () => {
   it('a malformed line still counts as one flag', () => {
     const r = run('zai', ['[agent:honesty] {not json'])
     expect(r.out).toMatch(/1 answer\(s\) claimed/)
+  })
+
+  /* PR #3670 review: a measured 1 must not drown in "could not measure". */
+  function stubbed(provider: string, bin: string, withLog: boolean) {
+    const dir = mkdtempSync(path.join(tmpdir(), 'honesty-stub-'))
+    writeFileSync(path.join(dir, bin), '#!/bin/sh\nexit 1\n')
+    chmodSync(path.join(dir, bin), 0o755)
+    const log = path.join(dir, 'log.txt')
+    writeFileSync(log, '[agent:honesty] {}\n')
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      PATH: `${dir}:${process.env.PATH}`,
+      TRI_AGENT_PROVIDER: provider,
+    }
+    if (withLog) env.TRI_HONESTY_LOG = log
+    else delete env.TRI_HONESTY_LOG
+    const r = spawnSync('bash', [HONESTY, '24'], { encoding: 'utf8', env })
+    return { rc: r.status, out: `${r.stdout}${r.stderr}` }
+  }
+
+  it('a tools-less head stays rc 1 when Railway lists no deployments', () => {
+    const r = stubbed('ollama', 'railway', false)
+    expect(r.out).toMatch(/FAIL {2}head/)
+    expect(r.out).toMatch(/NOT counted/)
+    expect(r.rc).toBe(1)
+  })
+
+  it('a broken counter is "not measured", never "ok"', () => {
+    const r = stubbed('zai', 'python3', true)
+    expect(r.out).toMatch(/counter failed/)
+    expect(r.out).not.toMatch(/ok {4}log/)
+    expect(r.rc).toBe(2)
+    expect(stubbed('ollama', 'python3', true).rc).toBe(1)
   })
 })

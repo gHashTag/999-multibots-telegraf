@@ -50,6 +50,9 @@ else
   ids=$(rdeploy_ids vibee-render "$HOURS")
   if [ -z "$ids" ]; then
     echo "  ??    log: Railway listed no render deployments -- flags NOT counted"
+    # A measured FAIL above outranks "could not measure" (PR #3670 review):
+    # a watcher reading 2 as a Railway blink would miss a tools-less head.
+    [ "$rc" -eq 1 ] && exit 1
     exit 2
   fi
   logs=""
@@ -83,7 +86,15 @@ for t, c in tools.most_common(8):
     print(f"        {c:4d}  should have called {t}")
 ')
 n=$(printf '%s\n' "$summary" | head -1)
-if [ "${n:-0}" = "0" ]; then
+case "$n" in
+  '' | *[!0-9]*)
+    # The counter itself broke: an uncounted log is not a clean one.
+    echo "  ??    log: the counter failed -- flags NOT counted"
+    [ "$rc" -eq 1 ] && exit 1
+    exit 2
+    ;;
+esac
+if [ "$n" = "0" ]; then
   echo "  ok    log, ${HOURS} h over $nd deploy(s): no answer claimed an action it did not do"
 else
   echo "  warn  log, ${HOURS} h over $nd deploy(s): $n answer(s) claimed an action no tool backed:"
