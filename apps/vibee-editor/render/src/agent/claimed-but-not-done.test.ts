@@ -13,29 +13,12 @@ import {
 const call = (name: string) => ({ тип: 'инструмент', имя: name }) // cyrillic-ok: the event envelope
 const text = (t: string) => ({ тип: 'текст', текст: t }) // cyrillic-ok: the event envelope
 
-describe('a claimed action needs the call that does it', () => {
-  it('flags a browser claim with no browser call', () => {
-    const said = 'Открываю страницу входа и делаю снимок.' // cyrillic-ok: test input
-    expect(honestyNote(said, [])).toBe(HONESTY_NOTE)
-    expect(unbackedClaims(said, [])).toEqual([
-      'browser_open',
-      'browser_screenshot',
-    ])
-    expect(claimsBrowserWork(said)).toBe(true)
-  })
-
-  it('lets a browser claim through when its own tool ran', () => {
-    const said = 'Открываю страницу входа.' // cyrillic-ok: test input
-    expect(honestyNote(said, [call('browser_open')])).toBe('')
-  })
-
-  it('matches each claim to its own tool, not to any tool at all', () => {
-    const said = 'Нажимаю кнопку и делаю скриншот.' // cyrillic-ok: test input
-    expect(unbackedClaims(said, [call('browser_click')])).toEqual([
-      'browser_screenshot',
-    ])
-  })
-
+/*
+ * Media claims (#3658). The browser claims are pinned in
+ * render/described-but-not-done.test.ts; this file adds the picture,
+ * video and send claims and how the two kinds combine.
+ */
+describe('a claimed picture or video needs the call that makes it', () => {
   it('flags "made the poster" with no picture call (05.10 owner chat)', () => {
     const said = 'Сделал для тебя афишу в стиле нуар!' // cyrillic-ok: test input
     expect(honestyNote(said, [text(said)])).toBe(MEDIA_HONESTY_NOTE)
