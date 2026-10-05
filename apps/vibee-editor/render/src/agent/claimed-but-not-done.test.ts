@@ -450,6 +450,7 @@ describe('own clause, any subject, every match (#3693 round 2)', () => {
     ['🎨 Нарисовала постер для тебя!', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
     ['Итак, я сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
     ['Сделала афишу, нравится?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Мария, отправила тебе фото.', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
   ] as const) {
     it(`the agent's own claim is flagged: ${JSON.stringify(said)}`, () => {
       expect(honestyNote(said, [])).toBe(note)
@@ -464,6 +465,8 @@ describe('own clause, any subject, every match (#3693 round 2)', () => {
     'Короче, Анна прислала фото.', // cyrillic-ok: test input
     'Клиентка прислала голосовое.', // cyrillic-ok: test input
     'Кто-то скинул видео в чат.', // cyrillic-ok: test input
+    'Вчера клиент прислал голосовое.', // cyrillic-ok: test input
+    'Потом он озвучил текст для ролика.', // cyrillic-ok: test input
   ]) {
     it(`a question or someone else's verb is no claim: ${JSON.stringify(said)}`, () => {
       expect(honestyNote(said, [])).toBe('')

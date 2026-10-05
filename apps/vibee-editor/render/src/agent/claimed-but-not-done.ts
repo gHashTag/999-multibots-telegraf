@@ -339,10 +339,10 @@ const OTHER_SUBJECT = new Set([
 // the agent naming itself is not someone else
 const AGENT_SELF = new Set(['я', 'мы', 'тринити']) // cyrillic-ok: matched words
 /*
- * A capital at the start of a clause is ambiguous: "Анна записала" names
- * someone, "Короче сделала" is the agent's filler. Only in that one slot
- * is a closed list of sentence adverbs read as the agent's; a capitalised
- * word anywhere else in the clause is a name.
+ * A capital before the verb is ambiguous: "Анна записала" names someone,
+ * "Короче сделала" opens the agent's sentence. Only for a capitalised word
+ * is a closed list of sentence adverbs read as the agent's; any other
+ * capitalised word is a name. A lowercase word is never a name.
  */
 const LEAD_ADVERB = new Set([
   'короче',
@@ -389,8 +389,8 @@ const LEAD_ADVERB = new Set([
   'сам',
   'специально', // cyrillic-ok: matched words
 ])
-// a clause starts after a comma, a colon, a dash, a bracket, a newline, "and" or "but"
-const CLAUSE_BREAK = /[,;:—–()\n]|\s-\s|(?<!\p{L})(?:и|а|но)(?!\p{L})/gu // cyrillic-ok: matched words
+// a clause starts after a comma, a colon, a dash, a bracket or "and"
+const CLAUSE_BREAK = /[,;:—–()]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
 
 function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
   const verbAt = (m.index ?? 0) + (m[1] ?? '').length
@@ -402,7 +402,7 @@ function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
   if (AGENT_SELF.has(low)) return true
   if (OTHER_SUBJECT.has(low)) return false
   if (before[0] === low[0]) return true
-  return words.length === 1 && LEAD_ADVERB.has(low)
+  return LEAD_ADVERB.has(low)
 }
 
 /*
