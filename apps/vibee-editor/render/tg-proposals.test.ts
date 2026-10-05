@@ -1452,6 +1452,78 @@ describe('the sent message goes into the memory at once', () => {
   })
 })
 
+describe("the agent's own send does not pause the AI", () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.doUnmock('./src/agent/telegram-tools')
+    vi.doUnmock('./src/agent/crm-mirror')
+    vi.doMock('./src/agent/crm-mirror', () => ({
+      mirrorNow: async () => ({ fresh: 0, zep: 0 }),
+    }))
+  })
+
+  it('a confirmed send is remembered by its Telegram id for the bot to ask', async () => {
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => ({
+        async sendMessage() {
+          return { id: 4343, date: 1757348157 }
+        },
+      }),
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const { wasAgentSent } = await import('./src/agent/agent-sent')
+    const r = await exec(
+      {
+        id: 'p11',
+        telegramId: '144022504',
+        action: 'send',
+        target: '@pilot_client',
+        what: 'hello',
+        lead: '900000002',
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504' }
+    )
+    expect(r.done).toBe(true)
+    expect(wasAgentSent('144022504', '900000002', 4343)).toBe(true)
+    expect(wasAgentSent('144022504', '900000002', 4344)).toBe(false)
+  })
+
+  it('every message of an album is remembered', async () => {
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => ({
+        async sendMessage() {
+          return { id: 1 }
+        },
+        async sendFile() {
+          return [{ id: 501 }, { id: 502 }]
+        },
+      }),
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const { wasAgentSent } = await import('./src/agent/agent-sent')
+    const r = await exec(
+      {
+        id: 'p12',
+        telegramId: '144022504',
+        action: 'send',
+        target: '@pilot_client',
+        what: 'two pictures',
+        lead: '900000003',
+        media: {
+          kind: 'album',
+          urls: ['https://example.com/a.jpg', 'https://example.com/b.jpg'],
+        },
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504' }
+    )
+    expect(r.done, JSON.stringify(r)).toBe(true)
+    expect(wasAgentSent('144022504', '900000003', 501)).toBe(true)
+    expect(wasAgentSent('144022504', '900000003', 502)).toBe(true)
+  })
+})
+
 describe('remember caps what a media draft may carry', () => {
   beforeEach(() => {
     vi.resetModules()
