@@ -1292,7 +1292,12 @@ import {
 } from './telegram-tools'
 import { countInitDataBot } from '../auth/initdata-bot-counts'
 import { PROJECT_TOOLS } from './project-tools'
-import { confirmFirst, unconfirmedFacts } from './printed-facts'
+import { confirmFirst, factsIn, unconfirmedFacts } from './printed-facts'
+import {
+  backgroundPrompt,
+  overlayFactsOnPicture,
+  overlayRefusedHint,
+} from './poster-facts-draw'
 
 export const TOOLS: AgentTool[] = [
   {
@@ -2133,12 +2138,15 @@ export const TOOLS: AgentTool[] = [
        * unattended sweep, which works for leads only.
        */
       const clientPrompt = ctx.faceOf || ctx.sellerSweep ? NO_PERSON_PREFIX : ''
+      // The confirmed date, time and price are drawn by code, so the
+      // background is asked for no text at all (#3717).
+      const printed = factsIn(String(args.prompt ?? ''))
       const base = selfBase()
       const gen = await selfFetch(`${base}/api/generate/image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: clientPrompt + String(args.prompt),
+          prompt: clientPrompt + backgroundPrompt(String(args.prompt), printed),
           model: args.model,
           width: args.width,
           height: args.height,
@@ -2240,12 +2248,19 @@ export const TOOLS: AgentTool[] = [
           sourceUrl: genData.url,
         }
       }
-      const bytes = Buffer.from(await img.arrayBuffer())
+      // The facts are drawn onto the picture before it is stored; a fact
+      // that does not fit is refused and named, never cut (#3717).
+      const drawn = await overlayFactsOnPicture(
+        printed,
+        Buffer.from(await img.arrayBuffer()),
+        img.headers.get('content-type') || 'image/jpeg'
+      )
+      const bytes = drawn.bytes
       // The extension follows the bytes. It used to be hard-coded .jpg while
       // Kie hands back image/png (measured), so every Kie poster was stored
       // under a name that lied about its own format -- harmless until something
       // downstream trusts the extension instead of the header.
-      const contentType = img.headers.get('content-type') || 'image/jpeg'
+      const contentType = drawn.contentType
       const ext = contentType.includes('png')
         ? 'png'
         : contentType.includes('webp')
@@ -2285,6 +2300,7 @@ export const TOOLS: AgentTool[] = [
       // a slow or absent vision adds nothing and delays nothing past 20 s.
       const look = await lookAtOwnPicture(String(args.prompt), bytes)
       const unseenFacts = missingFactsNote(look)
+      const unprinted = overlayRefusedHint(drawn.note)
       return withTokens(ctx, 'image_generate', {
         сделано: true,
         url: upData.directUrl,
@@ -2299,7 +2315,8 @@ export const TOOLS: AgentTool[] = [
         watermark,
         tried: refusals,
         ...(look.missing.length ? { notOnPicture: look.missing } : {}),
-        подсказка: `${unseenFacts ? unseenFacts + ' ' : ''}ссылка готова: отдай её в reel_render как слой или в feed_publish. ${UNSEEN_PICTURE_HINT}`, // cyrillic-ok: the tools’ answer fields
+        ...(drawn.note ? { factsOverlay: drawn.note } : {}),
+        подсказка: `${unseenFacts ? unseenFacts + ' ' : ''}${unprinted ? unprinted + ' ' : ''}ссылка готова: отдай её в reel_render как слой или в feed_publish. ${UNSEEN_PICTURE_HINT}`, // cyrillic-ok: the tools’ answer fields
       })
     },
   },
