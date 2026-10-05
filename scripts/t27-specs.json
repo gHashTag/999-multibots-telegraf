@@ -16,6 +16,10 @@
     {
       "root": "apps/vibee-editor/packages/vibee-atoms",
       "specDir": "apps/vibee-editor/packages/vibee-atoms/src/spec"
+    },
+    {
+      "root": "src",
+      "specDir": "src/spec"
     }
   ],
   "unbound": [

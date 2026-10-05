@@ -180,13 +180,22 @@ export async function fetchHistory(
 }
 
 async function readConversation(
-  telegramId: string
+  telegramId: string,
+  /*
+   * The thread the turn will be written into: an agent's own, or a room's.
+   * Without it a group turn carried the asker's PRIVATE history as context.
+   */
+  thread: { agent?: string; room?: string } = {}
 ): Promise<Array<{ role: string; content: string; surface?: string }>> {
   try {
+    const where = new URLSearchParams()
+    if (thread.agent) where.set('agent', thread.agent)
+    if (thread.room) where.set('room', thread.room)
+    const scoped = where.size ? `&${where}` : ''
     // Bounded: a hung history read used to hold the sweep's `running` flag
     // forever (CRM audit 2026-09-12, P1 #3).
     const о = await fetch(
-      `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}`,
+      `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}${scoped}`,
       {
         headers: { 'X-Api-Key': apiKey() },
         signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
@@ -325,6 +334,11 @@ const pause = (ms: number): Promise<void> =>
 import { STOPPED_BY_OWNER } from './agentStop'
 export { STOPPED_BY_OWNER, wasStoppedByOwner } from './agentStop'
 
+/** A Telegram group id: negative digits. */
+const ROOM_RE = /^-\d{5,20}$/
+/** A catalogue agent id, as agent-marketplace.ts writes them. */
+const AGENT_ID_RE = /^[a-z][a-z0-9-]{1,31}$/
+
 export async function спроситьАгента(
   telegramId: string,
   текст: string,
@@ -385,13 +399,23 @@ export async function спроситьАгента(
      * the owner's.
      */
     faceOf?: string
+    /**
+     * A catalogue agent answering as itself (its own bot, agentHive): the
+     * render brings its persona and keeps its memory under `agent:<id>`, or
+     * the room's when `room` is set too. The render checks the id against
+     * the catalogue and the asker's right to it.
+     */
+    agent?: string
   } = {}
 ): Promise<ОтветАгента> {
   if (!apiKey()) {
     throw new Error('RENDER_API_KEY не задан в сервисе бота — агент недоступен')
   }
 
-  const past = await readConversation(telegramId)
+  const agent =
+    opts.agent && AGENT_ID_RE.test(opts.agent) ? opts.agent : undefined
+  const room = opts.room && ROOM_RE.test(opts.room) ? opts.room : undefined
+  const past = await readConversation(telegramId, { agent, room })
   const messages = [
     ...past.map(turn => ({
       role: turn.role,
@@ -481,9 +505,8 @@ export async function спроситьАгента(
            * Negative, because that is what a Telegram group id is, and the
            * client pattern (positive digits) would have refused it.
            */
-          ...(opts.room && /^-\d{5,20}$/.test(opts.room)
-            ? { room: opts.room }
-            : {}),
+          ...(room ? { room } : {}),
+          ...(agent ? { agent } : {}),
         }),
         signal: прерыватель.signal,
       }

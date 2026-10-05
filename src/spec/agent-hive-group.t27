@@ -1,0 +1,104 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/agent-hive-group.t27 -- the agents' hive: one bot per agent, one forum group.
+// Host: 999-multibots-telegraf src/core/bot/agentHive/ (addressing, chain, catalogue of bots).
+// Trace: owner 2026-10-05, "every agent its own bot and topic, all together in one group".
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: routing contract; a live group needs Bot-to-Bot Communication Mode
+// switched on in @BotFather for every bot, which no API call can do.
+// Telegram gives no loop protection between bots, so the depth and the cooldown
+// below are the only thing that stops two agents from answering each other forever.
+// v1 (2026-10-05): who answers, the bot chain limit, the cooldown, the claim window.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::agent_hive_group {
+    pub const KIND : str = "automation";
+    pub const ID : str = "agent-hive-group";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // Bot messages in a row after one human message: human -> A -> B -> C, then silence.
+    pub const MAX_BOT_DEPTH : u32 = 3;
+    // One agent answers another agent at most this often.
+    pub const BOT_REPLY_COOLDOWN_MS : u32 = 5000;
+    // How long "create the bot for agent X" waits for Telegram's creation message.
+    pub const CLAIM_TTL_MS : u32 = 900000;
+    // The tag that calls every agent of the hive at once.
+    pub const ALL_TAG : str = "@all";
+    // Suggested username of an agent's bot: t27_<agent id>_bot.
+    pub const BOT_USERNAME_PREFIX : str = "t27_";
+    pub const BOT_USERNAME_SUFFIX : str = "_bot";
+
+    // A person may call an agent by its tag, by the all tag, by replying to it,
+    // or by writing in the agent's own topic. Another bot only by tag or reply:
+    // a bot never triggers the whole hive, and never wakes a topic's owner by
+    // merely writing there.
+    fn addressed(tagged: bool, all_tag: bool, reply_to_me: bool, own_topic: bool, from_bot: bool) -> bool {
+        return tagged || reply_to_me || (!from_bot && (all_tag || own_topic));
+    }
+
+    // depth = how many bot messages already stand between this one and the person.
+    fn chain_open(depth: u32) -> bool {
+        return depth < MAX_BOT_DEPTH;
+    }
+
+    fn cooled(since_last_ms: u32) -> bool {
+        return since_last_ms >= BOT_REPLY_COOLDOWN_MS;
+    }
+
+    // A person is always answered; a bot only inside the chain and after the cooldown.
+    fn may_answer(from_bot: bool, depth: u32, since_last_ms: u32) -> bool {
+        return !from_bot || (chain_open(depth) && cooled(since_last_ms));
+    }
+
+    fn claim_fresh(age_ms: u32) -> bool {
+        return age_ms < CLAIM_TTL_MS;
+    }
+
+    test "a person calls an agent by tag, all tag, reply or its own topic" {
+        assert(addressed(true, false, false, false, false));
+        assert(addressed(false, true, false, false, false));
+        assert(addressed(false, false, true, false, false));
+        assert(addressed(false, false, false, true, false));
+        assert(!addressed(false, false, false, false, false));
+    }
+
+    test "a bot calls an agent only by tag or reply" {
+        assert(addressed(true, false, false, false, true));
+        assert(addressed(false, false, true, false, true));
+        assert(!addressed(false, true, false, false, true));
+        assert(!addressed(false, false, false, true, true));
+        assert(!addressed(false, true, false, true, true));
+    }
+
+    test "the bot chain closes after three bot messages" {
+        assert(chain_open(0));
+        assert(chain_open(2));
+        assert(!chain_open(3));
+        assert(!chain_open(4));
+    }
+
+    test "a bot waits out the cooldown before answering a bot" {
+        assert(!cooled(0));
+        assert(!cooled(4999));
+        assert(cooled(5000));
+    }
+
+    test "a person is always answered and a bot only inside the limits" {
+        assert(may_answer(false, 9, 0));
+        assert(may_answer(true, 2, 5000));
+        assert(!may_answer(true, 3, 5000));
+        assert(!may_answer(true, 2, 4999));
+    }
+
+    test "a creation claim lives fifteen minutes" {
+        assert(claim_fresh(0));
+        assert(claim_fresh(899999));
+        assert(!claim_fresh(900000));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY
