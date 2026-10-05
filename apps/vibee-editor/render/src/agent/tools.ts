@@ -103,6 +103,7 @@ import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
+import { lookAtOwnPicture, missingFactsNote } from './look-at-own-picture'
 import { HOUSE_TELEGRAM_IDS, isHouse } from '../house-ids'
 import {
   agentSuppliedHouseName,
@@ -2280,6 +2281,10 @@ export const TOOLS: AgentTool[] = [
          RETURNING id, created_at::text`,
         [ctx.telegramId, upData.directUrl, String(args.prompt)]
       )
+      // The facts in the prompt are read back off the picture (#3660);
+      // a slow or absent vision adds nothing and delays nothing past 20 s.
+      const look = await lookAtOwnPicture(String(args.prompt), bytes)
+      const unseenFacts = missingFactsNote(look)
       return withTokens(ctx, 'image_generate', {
         сделано: true,
         url: upData.directUrl,
@@ -2293,7 +2298,8 @@ export const TOOLS: AgentTool[] = [
         // answer has one shape on every path.
         watermark,
         tried: refusals,
-        подсказка: `ссылка готова: отдай её в reel_render как слой или в feed_publish. ${UNSEEN_PICTURE_HINT}`, // cyrillic-ok: the tools’ answer fields
+        ...(look.missing.length ? { notOnPicture: look.missing } : {}),
+        подсказка: `${unseenFacts ? unseenFacts + ' ' : ''}ссылка готова: отдай её в reel_render как слой или в feed_publish. ${UNSEEN_PICTURE_HINT}`, // cyrillic-ok: the tools’ answer fields
       })
     },
   },
