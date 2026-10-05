@@ -243,6 +243,7 @@ import path from 'node:path'
 import {
   hasServerKey,
   authenticate,
+  logsRefusal,
   authMode,
   verifyTelegramInitData,
   verifiedTelegramId,
@@ -3839,7 +3840,9 @@ const server = createServer(async (req, res) => {
   // Аутентификация. До этого сервис не проверял ничего: любой мог залить 100 МБ
   // в бакет и запускать рендеры, тратящие кредиты FAL / ElevenLabs / xAI.
   // Подробности механизмов — в ./auth.ts.
-  if (auth.wouldReject) {
+  // An OAuth discovery probe with no credential gets the same 401 without a
+  // stderr line; see logsRefusal in ./auth.ts. Every other refusal is logged.
+  if (logsRefusal(req, auth)) {
     console.warn(
       `🔒 [auth] ${auth.allowed ? 'ПРОПУЩЕНО (режим warn)' : 'ОТКАЗ'} ${req.method} ${requestPath} — ${auth.reason}`
     )
