@@ -1332,7 +1332,7 @@ export async function handleAgentChat(
 
     /*
      * DESCRIBED BUT NOT DONE (claimed-but-not-done.ts): an answer that
-     * claims browser actions no tool performed ends with a plain note, sent
+     * claims browser actions or a made/sent picture no tool performed ends with a plain note, sent
      * and stored, so nobody is misled and the model sees it next turn.
      */
     const said = собратьОтвет(события) // cyrillic-ok: pre-existing helper
@@ -1349,7 +1349,6 @@ export async function handleAgentChat(
           JSON.stringify({
             turn,
             telegram_id: telegramId,
-            claim: 'browser',
             ...fields,
           })
       )
