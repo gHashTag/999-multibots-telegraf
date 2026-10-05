@@ -414,6 +414,63 @@ describe('whose verb, a plan, a question (#3693 review)', () => {
   })
 })
 
+describe('own clause, any subject, every match (#3693 round 2)', () => {
+  for (const [said, note] of [
+    ['Сделала афишу — как тебе?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала афишу – как тебе?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Нарисовала постер (нравится?)', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала афишу\nКак тебе?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала афишу 🔥 как тебе?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала афишу нравится?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала тебе видео — глянешь?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Отправила тебе фото — получил?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['I made the poster — like it?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Here is your poster — like it?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Записала голосовое — послушаешь?', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Короче сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Ну сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['В общем сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Теперь сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Наконец сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Наконец-то сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Специально для тебя сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['По твоей просьбе сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Быстро сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Снова сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Заново сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Анна прислала фото, а я отправила тебе афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    [
+      'Анна прислала голосовое, а я записала голосовое в ответ',
+      VOICE_HONESTY_NOTE,
+    ], // cyrillic-ok: test input
+    ['Готово! Сделала афишу, держи', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Вот, нарисовала постер', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Отлично, записала голосовое', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['✅ Записала голосовое', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['🎨 Нарисовала постер для тебя!', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Итак, я сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала афишу, нравится?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+  ] as const) {
+    it(`the agent's own claim is flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe(note)
+    })
+  }
+  for (const said of [
+    'Записал голосовое?', // cyrillic-ok: test input
+    'Я отправил аудиофайл? Нет, пока только текст.', // cyrillic-ok: test input
+    'Анна записала голосовое', // cyrillic-ok: test input
+    'Мария отправила фото чека', // cyrillic-ok: test input
+    'Вчера Анна записала голосовое.', // cyrillic-ok: test input
+    'Короче, Анна прислала фото.', // cyrillic-ok: test input
+    'Клиентка прислала голосовое.', // cyrillic-ok: test input
+    'Кто-то скинул видео в чат.', // cyrillic-ok: test input
+  ]) {
+    it(`a question or someone else's verb is no claim: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
+
 describe('the media backing list covers the tool registry', () => {
   it('names every media-looking tool, either backing or excused', () => {
     const dir = __dirname

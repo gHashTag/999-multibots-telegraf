@@ -314,81 +314,130 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
 /*
  * Whose verb is it (#3693 review)? "Anna recorded a voice note" and "the
  * client sent a photo" describe someone else; in the CRM the agent says that all
- * day. An open list of other subjects never ends, so the list is CLOSED and
- * names what may stand before the agent's own verb in its clause: the
- * agent itself, and filler. Any other word -- a name, "клиент", "он" --
- * makes the verb someone else's.
+ * day. A list of what may stand before the agent's own verb never ends
+ * ("Короче", "Наконец", "По твоей просьбе" ...), so the check is inverted
+ * (#3693 round 2): the verb is someone else's only when a non-agent subject
+ * stands right before it in its clause -- a word of OTHER_SUBJECT, or a
+ * capitalised word that is not the agent's own name. Anything else is the
+ * agent's, and the claim is checked.
  */
-const OWN_SUBJECT = new Set([
-  'я',
-  'мы',
-  'тринити',
-  'сам',
-  'сама',
-  'сами',
-  'уже',
-  'только',
-  'тоже', // cyrillic-ok: matched words
+const OTHER_SUBJECT = new Set([
+  'клиент',
+  'клиентка',
+  'клиенты', // cyrillic-ok: matched words
+  'заказчик',
+  'заказчица',
+  'покупатель',
+  'покупательница', // cyrillic-ok: matched words
+  'пользователь',
+  'он',
+  'она',
+  'они', // cyrillic-ok: matched words
+  'кто-то',
+  'кто-нибудь', // cyrillic-ok: matched words
+])
+// the agent naming itself is not someone else
+const AGENT_SELF = new Set(['я', 'мы', 'тринити']) // cyrillic-ok: matched words
+/*
+ * A capital at the start of a clause is ambiguous: "Анна записала" names
+ * someone, "Короче сделала" is the agent's filler. Only in that one slot
+ * is a closed list of sentence adverbs read as the agent's; a capitalised
+ * word anywhere else in the clause is a name.
+ */
+const LEAD_ADVERB = new Set([
+  'короче',
+  'ну',
+  'теперь',
+  'наконец',
+  'наконец-то', // cyrillic-ok: matched words
+  'быстро',
+  'снова',
+  'заново',
+  'опять',
+  'сразу',
+  'уже', // cyrillic-ok: matched words
   'вот',
+  'итак',
+  'готово',
+  'отлично',
+  'хорошо',
+  'супер', // cyrillic-ok: matched words
+  'сейчас',
+  'сегодня',
+  'вчера',
+  'только',
+  'тоже',
+  'также',
+  'ещё',
+  'еще', // cyrillic-ok: matched words
+  'всё',
+  'так',
+  'да',
   'ок',
   'окей',
   'ok',
-  'готово',
-  'сейчас',
-  'всё',
-  'все',
-  'так', // cyrillic-ok: matched words
-  'итак',
-  'да',
-  'хорошо',
-  'отлично',
-  'супер',
   'конечно',
-  'ещё',
-  'еще', // cyrillic-ok: matched words
-  'а',
-  'тебе',
-  'вам',
-  'для',
-  'тебя',
-  'вас',
-  'как',
-  'просил',
-  'просила', // cyrillic-ok: matched words
-  'просили',
-  'обещал',
-  'обещала',
-  'обещали',
-  'что', // cyrillic-ok: matched words
+  'кстати',
+  'просто', // cyrillic-ok: matched words
+  'сначала',
+  'потом',
+  'затем',
+  'тут',
+  'здесь',
+  'ладно',
+  'сама',
+  'сам',
+  'специально', // cyrillic-ok: matched words
 ])
-// a clause starts after a comma, a colon, a dash, a bracket or "and"
-const CLAUSE_BREAK = /[,;:—–()]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched word
+// a clause starts after a comma, a colon, a dash, a bracket, a newline, "and" or "but"
+const CLAUSE_BREAK = /[,;:—–()\n]|\s-\s|(?<!\p{L})(?:и|а|но)(?!\p{L})/gu // cyrillic-ok: matched words
 
-function ownVerb(sentence: string, m: RegExpExecArray): boolean {
-  const verbAt = m.index + (m[1] ?? '').length
+function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
+  const verbAt = (m.index ?? 0) + (m[1] ?? '').length
   const clause = sentence.slice(0, verbAt).split(CLAUSE_BREAK).pop() ?? ''
-  const words = clause.toLowerCase().match(/\p{L}+/gu) ?? []
-  return words.every(w => OWN_SUBJECT.has(w))
+  const words = clause.match(/\p{L}+(?:-\p{L}+)*/gu) ?? []
+  const before = words.at(-1)
+  if (!before) return true
+  const low = before.toLowerCase()
+  if (AGENT_SELF.has(low)) return true
+  if (OTHER_SUBJECT.has(low)) return false
+  if (before[0] === low[0]) return true
+  return words.length === 1 && LEAD_ADVERB.has(low)
 }
 
-// "Did I send the audio file?" asks; the claim's clause ends in a question mark
-function asked(sentence: string, m: RegExpExecArray): boolean {
-  const rest = sentence.slice(m.index + m[0].length)
-  return rest.match(/[,;.!?…]/)?.[0] === '?'
+/*
+ * "Did I send the audio file?" asks: the claim's OWN clause ends in a
+ * question mark (#3693 round 2). A dash, a bracket, a newline or an emoji
+ * ends the clause first, so "Сделала афишу — как тебе?" still claims. A
+ * verb-led claim asks only when the "?" closes the matched word itself
+ * ("Записал голосовое?"), so "Сделала афишу нравится?" claims too.
+ */
+const CLAUSE_END = /\n|[^\p{L}\p{N} \t'’"«»-]|(?<!\p{L})-|-(?!\p{L})/u
+
+function asked(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
+  const rest = sentence.slice((m.index ?? 0) + m[0].length)
+  const end = rest.search(CLAUSE_END)
+  if (end < 0 || rest[end] !== '?') return false
+  return !verbLed || /^\p{L}*$/u.test(rest.slice(0, end))
 }
 
 /* A verb-led Russian claim: its group 1 is the boundary before the verb. */
 const VERB_LED = (c: { re: RegExp }) => c.re.source.includes('(?<!')
 
+// every match counts: "Anna sent a photo, and I sent the poster" claims (round 2)
 function claimedIn(
   c: (typeof CLAIMS)[number],
   s: { text: string; back: boolean }
 ) {
-  const m = c.re.exec(s.text)
-  if (!m) return false
-  if (kindOf(c) === 'browser') return true
-  if (s.back || asked(s.text, m)) return false
-  return !VERB_LED(c) || ownVerb(s.text, m)
+  if (kindOf(c) === 'browser') return c.re.test(s.text)
+  if (s.back) return false
+  const verbLed = VERB_LED(c)
+  const all = new RegExp(c.re.source, c.re.flags.replace('g', '') + 'g')
+  for (const m of s.text.matchAll(all)) {
+    if (asked(s.text, m, verbLed)) continue
+    if (!verbLed || ownVerb(s.text, m)) return true
+  }
+  return false
 }
 
 function unbacked(raw: string, events: Array<Record<string, unknown>>) {
