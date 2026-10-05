@@ -92,17 +92,56 @@ export function разбитьДлинное(
  * — а именно так и вышло бы, брось мы исключение из фонового таймера.
  */
 export function держатьПечатает(
-  ctx: { sendChatAction: (a: 'typing') => Promise<unknown> },
+  ctx: { sendChatAction: (a: ChatAction) => Promise<unknown> },
   каждыеМс = 4000
-): () => void {
+): StopTyping {
+  // What the person sees can change while it runs: "sending a photo…" while
+  // a picture tool works, back to "typing…" after it (#3665).
+  let action: ChatAction = 'typing'
   const тик = () => {
-    void ctx.sendChatAction('typing').catch(() => {})
+    void ctx.sendChatAction(action).catch(() => {})
   }
   тик()
   const таймер = setInterval(тик, каждыеМс)
   // unref, чтобы висящий индикатор не держал процесс при остановке сервиса.
   ;(таймер as { unref?: () => void }).unref?.()
-  return () => clearInterval(таймер)
+  let stopped = false
+  const stop = (() => {
+    stopped = true
+    clearInterval(таймер)
+  }) as StopTyping
+  stop.setAction = next => {
+    if (stopped || next === action) return
+    action = next
+    тик() // cyrillic-ok: pre-existing identifier
+  }
+  return stop
+}
+
+/** The chat actions a running agent turn shows. */
+export type ChatAction =
+  | 'typing'
+  | 'upload_photo'
+  | 'upload_video'
+  | 'upload_voice'
+
+/** Stops the indicator; `setAction` switches what it shows meanwhile. */
+export type StopTyping = (() => void) & {
+  setAction: (action: ChatAction) => void
+}
+
+/*
+ * Which action a tool shows (#3665). Telegram's own words for the work:
+ * "sending a photo…" for a picture, "sending a video…" for a clip or a
+ * lip-sync, "recording a voice message…" for speech. A 70 s image_edit used
+ * to look exactly like a slow text answer. Pure.
+ */
+export function actionForTool(name: string | null | undefined): ChatAction {
+  if (!name) return 'typing'
+  if (name.startsWith('image_')) return 'upload_photo'
+  if (/video|lipsync|reel/.test(name)) return 'upload_video'
+  if (/audio|voice_clone_speak|tts/.test(name)) return 'upload_voice'
+  return 'typing'
 }
 
 /** Latin alias for callers that must stay free of Cyrillic identifiers. */
