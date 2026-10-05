@@ -184,7 +184,7 @@ model's words and the person, plus one deploy setting:
   emoji or `###` header, with or without a colon or a blank line) covers only
   the FIRST sentence of each item of the list directly under it -- a plain
   line after the list or a second sentence in an item is judged on its own.
-  Voice claims: #3684 (check main).
+  Voice claims: #3684, PR #3693 (check main).
 - `printed-facts.ts` (#3661, PR #3679): a date, time or price going into a
   picture prompt must be one the person wrote, or one the agent showed and
   the person answered a PLAIN yes to. A yes is a closed list of yes words --
@@ -208,6 +208,22 @@ never ends -- the reviewer always finds one more correction that reads as yes.
 A CLOSED list of what counts as yes, with "ask again" as the default, ended
 it in one round. Same for headers: decide what IS a header, not what is not.
 
+But a closed list is not always the safe one. Close the list on the side
+where a MISS is safe. "What counts as yes": a miss asks once more -- safe.
+"What may stand before the agent's verb": a miss hides a real claim -- unsafe.
+That closed list dropped ordinary adverbs ("Ну сделала афишу", "Теперь…",
+"Короче…") and let the claim through (#3693, review round 2). Two more from
+the same round:
+
+- A question excuses a claim only inside the claim's OWN clause. "Сделала
+  афишу — как тебе?" is still a claim; the "?" belongs to the next clause.
+- Check EVERY match of a claim pattern, not only the first: a harmless first
+  match must not shadow a real claim later in the answer.
+
+Printed facts: digit groups join only across a space, NBSP (U+00A0) or narrow
+NBSP (U+202F) -- never across a newline, or "30\n500" on two lines becomes
+30500 (#3705, #3706).
+
 Measure, do not guess: `tri honesty` prints the deploy-time provider head
 (tools or not) and the `[agent:honesty]` flags by kind, counts only; rc 1 on
 any flag or a toolless head (#3670).
@@ -230,6 +246,12 @@ per read: ms, hits, and whether the slot was busy just before. Measured
   the picture before it is a finding about vision.
 
 `--image URL --expect "11:30,500"` scores any real picture; rc 1 on a miss.
+
+Pollinations draws no lettering. The newest prod poster scored 0/4 on the
+bench (#3701). The self-check of #3660 (merged 1cfe53604, false-missing fix
+5458846f9) makes the agent SAY the facts are missing -- it does not put them
+on the picture. Exact dates, times and prices need the facts overlay drawn
+by code, spec first (#3701); never promise them from the image model.
 
 ## Related Resources
 
