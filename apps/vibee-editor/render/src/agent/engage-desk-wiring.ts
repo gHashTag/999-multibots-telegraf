@@ -370,14 +370,21 @@ async function searchPage(
  * The words each network prints on its comment controls, in order: what to
  * press to open the box, then the box itself (typed into), then the button
  * that posts. English and the Russian the person's browser may show.
+ *
+ * THE BOX'S OWN NAME, NOT THE GREY HINT IN IT (2026-10-05, measured on the
+ * owner's pod): X's "Post your reply" is a placeholder div drawn over the
+ * editor, and the editor itself is called "Post text"; Reddit, shown in
+ * Russian, names its box and its button in words the list did not have
+ * (below). The old words found nothing, and four approved comments
+ * stopped at the box.
  */
-const STEPS: Record<
+export const STEPS: Record<
   Network,
   { open: string[] | null; box: string[]; send: string[] }
 > = {
   x: {
     open: null,
-    box: ['post your reply', 'опубликуйте ответ'], // cyrillic-ok: X's Russian label
+    box: ['post text', 'post your reply', 'опубликуйте ответ'], // cyrillic-ok: X's Russian label
     send: ['reply', 'ответить'], // cyrillic-ok: X's Russian label
   },
   linkedin: {
@@ -400,9 +407,10 @@ const STEPS: Record<
     box: [
       'join the conversation',
       'add a comment',
+      'вступить в беседу',
       'присоединиться к обсуждению',
     ], // cyrillic-ok: Reddit's Russian label
-    send: ['comment', 'комментировать'], // cyrillic-ok: Reddit's Russian label
+    send: ['comment', 'комментарий', 'комментировать'], // cyrillic-ok: Reddit's Russian label
   },
 }
 
