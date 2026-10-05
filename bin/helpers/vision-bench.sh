@@ -17,7 +17,7 @@ set -u
 . "$(dirname "${BASH_SOURCE[0]}")/rail.sh"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SIZES=448 FONTS=72,44,26 IMAGE='' EXPECT=''
+SIZES=448 FONTS=72,44,26 IMAGE='' IMAGE_GIVEN='' EXPECT=''
 while [ $# -gt 0 ]; do
   # A value flag given last has nothing to shift; `shift 2` would then do
   # nothing and the loop would spin forever (#3702).
@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --sizes) SIZES="${2:-}"; shift 2 ;;
     --fonts) FONTS="${2:-}"; shift 2 ;;
-    --image) IMAGE="${2:-}"; shift 2 ;;
+    --image) IMAGE="${2:-}"; IMAGE_GIVEN=1; shift 2 ;;
     --expect) EXPECT="${2:-}"; shift 2 ;;
     -h | --help) sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "  ??    unknown argument: $1 (tri vision-bench --help)"; exit 2 ;;
@@ -36,8 +36,15 @@ while [ $# -gt 0 ]; do
 done
 case "$SIZES" in '' | *[!0-9,]*) echo "  ??    --sizes takes numbers like 448,768"; exit 2 ;; esac
 case "$FONTS" in '' | *[!0-9,]*) echo "  ??    --fonts takes numbers like 72,44,26"; exit 2 ;; esac
-# An --expect of only commas and spaces scores against nothing as well.
-if [ -n "$IMAGE" ] && [ -z "$(printf '%s' "$EXPECT" | tr -d ', ')" ]; then
+# --image "" asked for a real picture and named none: refuse rather than
+# quietly benchmark the synthetic posters instead (#3708).
+if [ -n "$IMAGE_GIVEN" ] && [ -z "$(printf '%s' "$IMAGE" | tr -d '[:space:]')" ]; then
+  echo "  ??    --image needs a URL, not an empty string"
+  exit 2
+fi
+# An --expect of only commas and whitespace (space, tab, newline) scores
+# against nothing as well.
+if [ -n "$IMAGE" ] && [ -z "$(printf '%s' "$EXPECT" | tr -d ',[:space:]')" ]; then
   echo "  ??    --image needs --expect \"11:30,500\": a reading scored against nothing proves nothing"
   exit 2
 fi
