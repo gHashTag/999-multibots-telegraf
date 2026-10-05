@@ -406,6 +406,13 @@ export async function спроситьАгента(
      * the catalogue and the asker's right to it.
      */
     agent?: string
+    /**
+     * The tool now running, from the stream: its name on `инструмент`, null
+     * on its result (#3665). The bot shows it as the chat action, so a
+     * minute of image_edit reads as "sending a photo…", not a hung bot.
+     * Errors thrown here are swallowed: an indicator never fails a turn.
+     */
+    onTool?: (name: string | null) => void
   } = {}
 ): Promise<ОтветАгента> {
   if (!apiKey()) {
@@ -541,6 +548,14 @@ export async function спроситьАгента(
      */
     let turnId: string | undefined
 
+    const tellTool = (name: string | null) => {
+      try {
+        opts.onTool?.(name)
+      } catch {
+        // An indicator never fails a turn.
+      }
+    }
+
     const строку = (s: string) => {
       const t = s.trim()
       if (!t) return
@@ -562,7 +577,11 @@ export async function спроситьАгента(
           // The last one wins: a provider that failed mid-stream before any
           // text was handed over is replaced by the one that answered.
           provider = `${ev.id}/${ev.model ?? '?'}`
-        else if (ev.тип === 'инструмент' && ev.имя) инструменты.push(ev.имя)
+        else if (ev.тип === 'инструмент' && ev.имя) {
+          // cyrillic-ok: pre-existing event envelope
+          инструменты.push(ev.имя) // cyrillic-ok: pre-existing identifiers of this parser
+          tellTool(ev.имя) // cyrillic-ok: pre-existing event field
+        } else if (ev['тип'] === 'результат') tellTool(null)
         else if (ev.тип === 'ошибка' && ev.текст) ошибка = ev.текст
         // A prepared message and its one-time secret, from this same turn.
         // Bracket access with a string literal: the envelope's field name is
