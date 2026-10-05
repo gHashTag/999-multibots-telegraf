@@ -35,6 +35,26 @@ export const MANAGED_BOTS_TABLE = `CREATE TABLE IF NOT EXISTS managed_bots (
   updated_at timestamptz NOT NULL DEFAULT now()
 )`
 
+/*
+ * AN AGENT'S OWN BOT (agentHive, spec agent-hive-group.t27). `agent_id` NULL
+ * is the bot a customer made for their clients and nothing about it changes;
+ * set, the bot answers as that catalogue agent. `hive_*` is its topic in the
+ * owner's forum group. Added in place, as the table itself is: there is no
+ * migration runner.
+ */
+export const MANAGED_BOTS_AGENT_COLUMNS = `ALTER TABLE managed_bots
+  ADD COLUMN IF NOT EXISTS agent_id text,
+  ADD COLUMN IF NOT EXISTS hive_chat_id bigint,
+  ADD COLUMN IF NOT EXISTS hive_topic_id integer`
+
+/** The forum groups where the agents talk together, one row per group. */
+export const AGENT_HIVE_TABLE = `CREATE TABLE IF NOT EXISTS agent_hive (
+  chat_id bigint PRIMARY KEY,
+  owner_id bigint NOT NULL,
+  manager_bot text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+)`
+
 /**
  * THE TRIAL A NEW BOT ANSWERS FOR, before anybody has paid for it.
  *
@@ -62,9 +82,12 @@ export const UPSERT_MANAGED_BOT = `INSERT INTO managed_bots
     owner_id = EXCLUDED.owner_id,
     owner_username = EXCLUDED.owner_username,
     manager_bot = EXCLUDED.manager_bot,
-    updated_at = now()`
+    updated_at = now()
+  RETURNING bot_id, bot_username, bot_name, owner_id, owner_username, media,
+    agent_id, hive_chat_id, hive_topic_id`
 
-export const LIVE_FOR_MANAGER = `SELECT bot_id, bot_username, bot_name, owner_id, owner_username, media
+export const LIVE_FOR_MANAGER = `SELECT bot_id, bot_username, bot_name, owner_id, owner_username, media,
+    agent_id, hive_chat_id, hive_topic_id
   FROM managed_bots
   WHERE manager_bot = $1 AND status = 'live'
   ORDER BY created_at`
@@ -86,6 +109,46 @@ export const EXTEND_MANAGED_BOT = `UPDATE managed_bots SET
   WHERE lower(bot_username) = lower($1)
   RETURNING bot_id, bot_username, owner_id, media, paid_until`
 
+/*
+ * The agent bots of one manager, paused ones too: /agents lists every agent
+ * of the catalogue and says which has a bot and in what state.
+ */
+export const AGENT_BOTS_OF_MANAGER = `SELECT bot_id, bot_username, bot_name, owner_id, owner_username, media,
+    agent_id, hive_chat_id, hive_topic_id, status
+  FROM managed_bots
+  WHERE manager_bot = $1 AND agent_id IS NOT NULL
+  ORDER BY created_at`
+
+/*
+ * One agent, one bot: binding a bot to an agent takes the agent off any
+ * other bot of the same manager first, in the same statement.
+ */
+export const BIND_AGENT = `WITH freed AS (
+    UPDATE managed_bots SET agent_id = NULL, updated_at = now()
+    WHERE manager_bot = $3 AND agent_id = $2 AND bot_id <> $1
+  )
+  UPDATE managed_bots SET agent_id = $2, updated_at = now()
+  WHERE bot_id = $1
+  RETURNING bot_id, bot_username, bot_name, owner_id, owner_username, media,
+    agent_id, hive_chat_id, hive_topic_id`
+
+export const SET_BOT_STATUS = `UPDATE managed_bots SET status = $2, updated_at = now()
+  WHERE bot_id = $1
+  RETURNING bot_id, bot_username, bot_name, owner_id, owner_username, media,
+    agent_id, hive_chat_id, hive_topic_id`
+
+export const SET_HIVE_TOPIC = `UPDATE managed_bots
+  SET hive_chat_id = $2, hive_topic_id = $3, updated_at = now()
+  WHERE bot_id = $1`
+
+export const UPSERT_HIVE = `INSERT INTO agent_hive (chat_id, owner_id, manager_bot)
+  VALUES ($1, $2, $3)
+  ON CONFLICT (chat_id) DO UPDATE SET owner_id = EXCLUDED.owner_id,
+    manager_bot = EXCLUDED.manager_bot`
+
+export const HIVES_OF_MANAGER = `SELECT chat_id, owner_id FROM agent_hive
+  WHERE manager_bot = $1 ORDER BY created_at`
+
 export const ACCESS_OF_BOT = `SELECT media, paid_until > now() AS paid
   FROM managed_bots
   WHERE bot_id = $1`
@@ -101,6 +164,11 @@ export interface ManagedBotRow {
    * model for the CRM, and the render is told to hand it no media tool.
    */
   media?: boolean
+  /** The catalogue agent this bot is (agentHive); absent for a seller's bot. */
+  agentId?: string
+  /** The forum group and topic the agent answers in by default. */
+  hiveChatId?: number
+  hiveTopicId?: number
 }
 
 let pool: Pool | null = null
@@ -135,6 +203,8 @@ function ensureSchema(d: Db): Promise<void> {
   if (schemaReady) return schemaReady
   schemaReady = d
     .query(MANAGED_BOTS_TABLE)
+    .then(() => d.query(MANAGED_BOTS_AGENT_COLUMNS))
+    .then(() => d.query(AGENT_HIVE_TABLE))
     .then(() => undefined)
     .catch(error => {
       // A failed attempt must not latch: the next call retries.
@@ -164,8 +234,8 @@ async function run(sql: string, params: unknown[]): Promise<any[]> {
 export async function rememberManagedBot(
   event: ManagedBotEvent,
   managerBot: string
-): Promise<void> {
-  await run(UPSERT_MANAGED_BOT, [
+): Promise<ManagedBotRow | null> {
+  const [r] = await run(UPSERT_MANAGED_BOT, [
     event.botId,
     event.botUsername,
     event.botName,
@@ -174,6 +244,9 @@ export async function rememberManagedBot(
     managerBot,
     TRIAL_DAYS,
   ])
+  // The row as stored: a token rotation must relaunch an agent's bot AS that
+  // agent, and only the database still knows which agent it is.
+  return r ? toRow(r) : null
 }
 
 const toRow = (r: any): ManagedBotRow => ({
@@ -183,6 +256,9 @@ const toRow = (r: any): ManagedBotRow => ({
   ownerId: Number(r.owner_id),
   ...(r.owner_username ? { ownerUsername: String(r.owner_username) } : {}),
   media: r.media === true,
+  ...(r.agent_id ? { agentId: String(r.agent_id) } : {}),
+  ...(r.hive_chat_id != null ? { hiveChatId: Number(r.hive_chat_id) } : {}),
+  ...(r.hive_topic_id != null ? { hiveTopicId: Number(r.hive_topic_id) } : {}),
 })
 
 /** The bots to bring up at boot for this manager. */
@@ -278,4 +354,62 @@ export async function extendManagedBot(
 /** For tests: forget every cached access. */
 export function clearManagedBotAccessCache(): void {
   accessCache.clear()
+}
+
+export interface AgentBotRow extends ManagedBotRow {
+  agentId: string
+  status: string
+}
+
+/** Every agent bot of this manager, with its state, for /agents and /hive. */
+export async function agentBots(managerBot: string): Promise<AgentBotRow[]> {
+  return (await run(AGENT_BOTS_OF_MANAGER, [managerBot])).map(r => ({
+    ...toRow(r),
+    agentId: String(r.agent_id),
+    status: String(r.status),
+  }))
+}
+
+/** Make this bot the agent's own; null when no such bot is remembered. */
+export async function bindAgent(
+  botId: number,
+  agentId: string,
+  managerBot: string
+): Promise<ManagedBotRow | null> {
+  const [r] = await run(BIND_AGENT, [botId, agentId, managerBot])
+  return r ? toRow(r) : null
+}
+
+/** Pause ('paused') or switch back on ('live'); the row after the change. */
+export async function setManagedBotStatus(
+  botId: number,
+  status: 'live' | 'paused'
+): Promise<ManagedBotRow | null> {
+  const [r] = await run(SET_BOT_STATUS, [botId, status])
+  return r ? toRow(r) : null
+}
+
+export async function setHiveTopic(
+  botId: number,
+  chatId: number,
+  topicId: number | null
+): Promise<void> {
+  await run(SET_HIVE_TOPIC, [botId, chatId, topicId])
+}
+
+export async function rememberHive(
+  chatId: number,
+  ownerId: number,
+  managerBot: string
+): Promise<void> {
+  await run(UPSERT_HIVE, [chatId, ownerId, managerBot])
+}
+
+export async function hivesOf(
+  managerBot: string
+): Promise<{ chatId: number; ownerId: number }[]> {
+  return (await run(HIVES_OF_MANAGER, [managerBot])).map(r => ({
+    chatId: Number(r.chat_id),
+    ownerId: Number(r.owner_id),
+  }))
 }

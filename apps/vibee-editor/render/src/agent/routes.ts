@@ -196,6 +196,30 @@ export async function threadFor(
         code: 'agent_unavailable',
         error: 'agent is not available',
       }
+    /*
+     * AN AGENT'S OWN BOT IN THE HIVE GROUP (spec agent-hive-group.t27). The
+     * memory is the room's, as for any group turn -- every agent of the hive
+     * reads what the others said there -- and the agent brings its persona.
+     * Before this branch the room was dropped and a group turn went into the
+     * agent's private thread with the asker, in front of the whole group.
+     */
+    if (rawRoom != null && rawRoom !== '') {
+      const room = String(rawRoom).trim()
+      if (!ROOM_ID_RE.test(room))
+        return {
+          ok: false,
+          status: 400,
+          code: 'bad_request',
+          error: 'bad room',
+        }
+      return {
+        ok: true,
+        thread: roomThread(room),
+        client: null,
+        agent: agent.id,
+        room,
+      }
+    }
     return {
       ok: true,
       thread: marketplaceAgentThread(agent.id),
@@ -345,6 +369,16 @@ function clientParam(req: IncomingMessage): string | null {
 
 function agentParam(req: IncomingMessage): string | null {
   return new URL(req.url || '', 'http://x').searchParams.get('agent')
+}
+
+/*
+ * The room a group turn was written into: the bot reads the history of the
+ * same thread it posts to. Without it a group turn was sent with the asker's
+ * PRIVATE history as context. Rows stay keyed by the asker (conversation.ts),
+ * so a room read shows only their own turns there.
+ */
+function roomParam(req: IncomingMessage): string | null {
+  return new URL(req.url || '', 'http://x').searchParams.get('room')
 }
 
 function roleParam(req: IncomingMessage): string | null {
@@ -1445,7 +1479,7 @@ export async function handleAgentHistoryDelete(
         telegramId,
         getPool,
         agentParam(req),
-        undefined,
+        roomParam(req),
         roleParam(req)
       ),
       conversationParam(req)
@@ -1501,7 +1535,7 @@ export async function historyGate(
         telegramId,
         getPool,
         agentParam(req),
-        undefined,
+        roomParam(req),
         roleParam(req)
       ),
       conversationParam(req)

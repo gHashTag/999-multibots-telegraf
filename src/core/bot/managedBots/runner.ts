@@ -17,6 +17,7 @@ import { logger } from '@/utils/logger'
 import { telegramClientOptionsFor } from '@/services/telegramApi'
 import { launchWithConflictRetry } from '@/core/bot/launchWithConflictRetry'
 import type { ManagedBotAccess, ManagedBotRow } from './store'
+import { forgetAgentBot, registerAgentBot } from '@/core/bot/agentHive/answer'
 
 /** What the runner needs from the outside, injectable for tests. */
 export interface RunnerDeps {
@@ -33,6 +34,22 @@ export interface RunnerDeps {
   tellOwner: (ownerId: number, text: string) => Promise<void>
   /** Whether the bot is paid for, and whether its package makes media. */
   access: (botId: number) => Promise<ManagedBotAccess>
+  /**
+   * A bot that IS a catalogue agent (`row.agentId`, agentHive): its message
+   * goes here instead of the client path. Injected, not imported: agentHive
+   * relaunches bots through this file.
+   */
+  asAgent?: (ctx: any, row: ManagedBotRow) => Promise<unknown>
+  /**
+   * A bot just created: is it one of the catalogue agents (agentHive
+   * claims.ts)? The bound row, or null for an ordinary client bot.
+   */
+  claimAgent?: (
+    event: { botId: number; botUsername: string; ownerId: number },
+    managerUsername: string
+  ) => Promise<ManagedBotRow | null>
+  /** An agent's bot is up: give it the agent's name and tell the owner. */
+  agentBorn?: (row: ManagedBotRow) => Promise<void>
 }
 
 export interface IncomingText {
@@ -151,6 +168,22 @@ const running = new Map<number, Telegraf>()
 
 export const isRunning = (botId: number): boolean => running.has(botId)
 
+/** The Telegram client of a running bot (agentHive sets an agent's profile). */
+export const runningTelegram = (botId: number) => running.get(botId)?.telegram
+
+/** Stop one bot (an agent paused from /agents). */
+export function stopManagedBot(botId: number, reason = 'paused'): void {
+  forgetAgentBot(botId)
+  const bot = running.get(botId)
+  if (!bot) return
+  running.delete(botId)
+  try {
+    bot.stop(reason)
+  } catch {
+    // already stopped
+  }
+}
+
 /** Stop every managed bot (graceful shutdown). */
 export function stopManagedBots(reason = 'SIGTERM'): void {
   for (const [id, bot] of running) {
@@ -204,6 +237,18 @@ export async function launchManagedBot(
     telegram: telegramClientOptionsFor(token),
   })
   bot.on('message', async ctx => {
+    if (row.agentId && deps.asAgent) {
+      try {
+        await deps.asAgent(ctx, row)
+      } catch (error) {
+        logger.error('[managed-bots] an agent message went unanswered', {
+          bot: row.botUsername,
+          agent: row.agentId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+      return
+    }
     const m = ctx.message as {
       text?: string
       caption?: string
@@ -244,6 +289,7 @@ export async function launchManagedBot(
   })
 
   running.set(row.botId, bot)
+  registerAgentBot(row)
   // Not awaited: launch() resolves only when polling stops. A redeploy
   // overlaps two instances polling the same token, so 409 is waited out as
   // it is for the farm bots -- unless this instance was replaced meanwhile.
@@ -259,5 +305,6 @@ export async function launchManagedBot(
   logger.info('[managed-bots] answering', {
     bot: row.botUsername,
     owner: row.ownerId,
+    ...(row.agentId ? { agent: row.agentId } : {}),
   })
 }
