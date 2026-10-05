@@ -2,14 +2,32 @@
  * Face Detection Utility using face-api.js
  *
  * Detects face position in video/image for auto-centering
+ *
+ * THE ENGINE IS LOADED LAZILY, AND ITS ABSENCE IS A STATE, NOT AN ERROR.
+ *
+ * The default node entry of `@vladmandic/face-api` requires
+ * `@tensorflow/tfjs-node`, a native binding removed from the render on
+ * purpose (#888, 2026-08-28, vulnerability audit). The other builds the
+ * package ships do not help: the bundled ones (`face-api.esm.js`,
+ * `face-api.js`) stub node's `util` and throw "util.TextEncoder is not a
+ * constructor" while being imported under Node, and `face-api.node-wasm.js`
+ * needs `@tensorflow/tfjs` -- 68 more packages, one with a postinstall script.
+ *
+ * So this module never imports face-api at the top. It tries ONCE, remembers
+ * why it could not, and every caller gets the same answer without a stack
+ * trace per video: `faceDetectionUnavailable()` names the reason, and
+ * `detectFaceIn*` throw `FaceDetectionUnavailableError` (before any ffmpeg
+ * work), which callers turn into the plain center crop, `CENTER_CROP`.
+ * Loading this file therefore never fails, with or without tfjs-node.
  */
 
-import * as faceapi from '@vladmandic/face-api'
-import * as canvas from 'canvas'
 import * as path from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import * as fs from 'fs'
+
+type FaceApiModule = typeof import('@vladmandic/face-api')
+type CanvasModule = typeof import('canvas')
 
 const execFileAsync = promisify(execFile)
 
@@ -30,19 +48,79 @@ const execFileAsync = promisify(execFile)
  */
 const FRAME_EXTRACT_TIMEOUT_MS = 60_000
 
-const { Canvas, Image, ImageData } = canvas
+/** No face to center on: the frame is used as it is. */
+export const CENTER_CROP: Readonly<CropSettings> = Object.freeze({
+  offsetX: 0,
+  offsetY: 0,
+  scale: 1,
+})
 
-// Patch face-api with canvas implementations
-// @ts-ignore
-faceapi.env.monkeyPatch({ Canvas, Image, ImageData })
+/** Thrown by detectFaceIn* when the engine cannot run in this process. */
+export class FaceDetectionUnavailableError extends Error {
+  readonly reason: string
+  constructor(reason: string) {
+    super(`face detection unavailable: ${reason}`)
+    this.name = 'FaceDetectionUnavailableError'
+    this.reason = reason
+  }
+}
+
+interface FaceEngine {
+  faceapi: FaceApiModule
+  canvas: CanvasModule
+}
+
+let enginePromise: Promise<FaceEngine | null> | null = null
+let unavailableReason: string | null = null
+
+/**
+ * The engine, or null when it cannot load here. Tried once per process: a
+ * missing native binding does not appear between two videos.
+ */
+function loadEngine(): Promise<FaceEngine | null> {
+  enginePromise ??= (async () => {
+    try {
+      const faceapi: FaceApiModule = await import('@vladmandic/face-api')
+      const canvas: CanvasModule = await import('canvas')
+      const { Canvas, Image, ImageData } = canvas
+      // Patch face-api with canvas implementations
+      // @ts-ignore -- node-canvas classes stand in for the DOM ones
+      faceapi.env.monkeyPatch({ Canvas, Image, ImageData })
+      return { faceapi, canvas }
+    } catch (e) {
+      unavailableReason = String(e).split('\n')[0].slice(0, 200)
+      return null
+    }
+  })()
+  return enginePromise
+}
+
+/** The engine, or FaceDetectionUnavailableError naming why not. */
+async function requireEngine(): Promise<FaceEngine> {
+  const engine = await loadEngine()
+  if (!engine) {
+    throw new FaceDetectionUnavailableError(unavailableReason ?? 'unknown')
+  }
+  return engine
+}
+
+/**
+ * Why face detection cannot run in this process, or null when it can (or has
+ * not been tried yet: loadModels() or detectFaceIn* try it).
+ */
+export function faceDetectionUnavailable(): string | null {
+  return unavailableReason
+}
 
 let modelsLoaded = false
 
 /**
- * Load face detection models
+ * Load face detection models. Throws FaceDetectionUnavailableError when the
+ * engine itself cannot load, so a warm-up never reports "ready" falsely.
  */
 export async function loadModels(): Promise<void> {
   if (modelsLoaded) return
+  const { faceapi } = await requireEngine()
 
   const modelsPath = path.join(
     process.cwd(),
@@ -102,6 +180,7 @@ async function extractFrame(videoPath: string): Promise<string> {
 export async function detectFaceInImage(
   imagePath: string
 ): Promise<FaceBox | null> {
+  const { faceapi, canvas } = await requireEngine()
   await loadModels()
 
   // Load image using canvas
@@ -150,6 +229,8 @@ export async function detectFaceInImage(
 export async function detectFaceInVideo(
   videoPath: string
 ): Promise<FaceBox | null> {
+  // Before ffmpeg: no frame is worth pulling when nothing can look at it.
+  await requireEngine()
   console.log('[FaceDetection] Analyzing video:', videoPath)
 
   // Extract first frame
