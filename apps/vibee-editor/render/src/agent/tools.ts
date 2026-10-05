@@ -91,6 +91,14 @@ import {
 } from './client-face'
 import { makeClientFaceTool } from './client-face-tool'
 import { isClientFacing } from './client-facing'
+
+/**
+ * The agent gets a URL, not the picture. Measured 2026-10-05: it described
+ * "your photo, the date, the venue in gold" on a stamped picture of a
+ * stranger with no text at all. Said in every image result.
+ */
+const UNSEEN_PICTURE_HINT =
+  'Ты картинку не видел: не описывай, что на ней, — отдай ссылку как есть или сначала посмотри её' // cyrillic-ok: the tools’ answer text
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
 import { makeStoryReelTool, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
@@ -1793,7 +1801,7 @@ export const TOOLS: AgentTool[] = [
     name: 'image_edit',
     description:
       'ПЕРЕРИСОВАТЬ ФОТО по описанию (img2img). Без image_url — аватарка ВЫЗЫВАЮЩЕГО ' +
-      '(«историю про меня»); это владелец, не клиент: портрет клиента — crm_deliver_photo ' +
+      '(«историю про меня», афиша или обложка «с моим фото»); это владелец, не клиент: портрет клиента — crm_deliver_photo ' +
       '(в диалоге о клиенте лицо клиента берётся само). Лицо сохраняется. Файл — в S3 ' +
       'и «мои файлы», годится для reel_render и ленты.',
     parameters: {
@@ -2031,6 +2039,7 @@ export const TOOLS: AgentTool[] = [
         // Named so a caller can tell "the file is in the shop window" from
         // "the file exists but nobody can find it".
         inGallery: kept.assetId != null,
+        hint: UNSEEN_PICTURE_HINT,
         ...(kept.assetError ? { galleryError: kept.assetError } : {}),
         source: sourceNote,
         model,
@@ -2043,7 +2052,7 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'image_generate',
     description:
-      'Сгенерировать картинку по описанию. ' +
+      'Картинка по описанию; с фото человека — image_edit. ' +
       imageChainShortNote() +
       ' В ответе «провайдер» — кто нарисовал, «отказы» — кто не смог или пропущен и почему. ' +
       'Файл сохраняется в S3 и появляется в «моих файлах», отдаёт прямую ссылку — ' +
@@ -2163,16 +2172,20 @@ export const TOOLS: AgentTool[] = [
         }
       }
       /*
-       * A STAMPED PICTURE NEVER REACHES A CLIENT'S CHAT (bee review of #3414).
+       * A STAMPED PICTURE IS NEVER HANDED OUT (bee review of #3414; owner,
+       * 2026-10-05).
        *
        * On the business surface every word the agent writes goes to the
        * client in the owner's name, so a URL in this result is a URL the
        * client sees -- and the free leg prints "pollinations.ai" on whatever
-       * it draws. The hint below used to be the only thing in the way, and a
-       * hint is a request. Here the client is refunded and the model gets no
-       * URL to pass on: nothing stamped is saved in the client's files.
+       * it draws. The owner's own chat used to get it "as a draft": asked for
+       * a poster with his photo, the agent sent a stamped stranger and
+       * described a poster it never looked at. The owner called it garbage.
+       * So every surface is refunded and gets no URL; the owner's surface is
+       * pointed at image_edit, which draws on Kie from his own photo.
        */
-      if (watermark && isClientFacing(ctx.surface)) {
+      if (watermark) {
+        const forClient = isClientFacing(ctx.surface)
         await refundTokens(
           ctx,
           'image_generate',
@@ -2181,7 +2194,9 @@ export const TOOLS: AgentTool[] = [
         )
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
-          причина: `сейчас картинку рисует только бесплатный провайдер, и на ней знак ${watermark} — клиенту такое не отдаём; деньги возвращены. Скажи клиенту честно, что картинку по описанию сейчас не сделать; его собственную можно сделать по его фото через image_edit. Ничего от имени владельца не обещай: ему об этом никто не сообщит`, // cyrillic-ok: the tools’ answer fields
+          причина: forClient // cyrillic-ok: the tools’ answer fields
+            ? `сейчас картинку рисует только бесплатный провайдер, и на ней знак ${watermark} — клиенту такое не отдаём; деньги возвращены. Скажи клиенту честно, что картинку по описанию сейчас не сделать; его собственную можно сделать по его фото через image_edit. Ничего от имени владельца не обещай: ему об этом никто не сообщит` // cyrillic-ok: the tools’ answer fields
+            : `сейчас картинку по описанию рисует только бесплатный провайдер, и на ней знак ${watermark} — такое не отдаём; деньги возвращены. Если на картинке должен быть сам человек (его фото, афиша, обложка) — image_edit без image_url, по его аватарке. Иначе скажи честно, что картинку сейчас не сделать, и не описывай картинку, которой нет`, // cyrillic-ok: the tools’ answer fields
           provider: servedBy,
           watermark,
           tried: refusals,
@@ -2256,14 +2271,11 @@ export const TOOLS: AgentTool[] = [
         // talking heads spend from at 18 credits a second; a caller that
         // cannot tell that from a free-ish Replicate hit cannot budget.
         provider: servedBy,
-        // The free leg prints its name on the picture whatever we ask
-        // (image-chain.ts, watermarkOf). Said here, so the agent does not put
-        // a stamped picture on a brand page or into a public post.
+        // Always null here: a stamped picture was refused above. Kept so the
+        // answer has one shape on every path.
         watermark,
         tried: refusals,
-        подсказка: watermark
-          ? `на картинке знак ${watermark}: годится как черновик, но не для бренда и не для поста — чистую даёт image_edit (Kie)`
-          : 'ссылка готова: отдай её в reel_render как слой или в feed_publish',
+        подсказка: `ссылка готова: отдай её в reel_render как слой или в feed_publish. ${UNSEEN_PICTURE_HINT}`, // cyrillic-ok: the tools’ answer fields
       })
     },
   },

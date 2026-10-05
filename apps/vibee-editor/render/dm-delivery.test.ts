@@ -1017,16 +1017,27 @@ describe('the real generator keeps a stamped picture out of a client chat', () =
     expect(String(r['причина'])).not.toMatch(/пришл[её]т владелец/) // cyrillic-ok: tool answer text
   })
 
-  it("the owner's own surface still gets the draft", async () => {
+  it("the owner's own surface is refused too, and pointed at image_edit", async () => {
+    /*
+     * Owner, 2026-10-05: asked in the bot for a poster with his photo, he got
+     * a stamped stranger "as a draft" and called it garbage. The draft
+     * exception is gone; the owner is refunded and sent to image_edit.
+     */
     const { TOOLS } = await import('./src/agent/tools')
     const gen = TOOLS.find(t => t.name === 'image_generate')!
-    await gen.handler({ prompt: 'кот' }, {
+    const r = (await gen.handler({ prompt: 'кот' }, {
       telegramId: OWNER,
       pool,
       surface: 'bot',
-    } as never)
-    // It went on to pull the bytes: the refusal is the client's chat only.
-    expect(urls).toContain('https://image.pollinations.ai/prompt/x')
+    } as never)) as Record<string, unknown>
+    expect(r['сделано']).toBe(false) // cyrillic-ok: tool answer field
+    expect(JSON.stringify(r)).not.toContain('image.pollinations.ai')
+    expect(urls.filter(u => !u.includes('/api/generate/image'))).toEqual([])
+    expect(String(r['причина'])).toContain('image_edit') // cyrillic-ok: tool answer field
+    expect(
+      params.some(v => /^refund: image_generate/.test(String(v))),
+      'the owner was charged and not refunded'
+    ).toBe(true)
   })
 })
 
