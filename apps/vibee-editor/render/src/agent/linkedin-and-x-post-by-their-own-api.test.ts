@@ -238,9 +238,23 @@ describe('connecting', () => {
     const row = q.rows.get('7/x')
     expect(JSON.stringify(row)).not.toContain(REFRESH_PLAIN)
     expect(JSON.stringify(row)).not.toContain(ACCESS_PLAIN)
+    // Encoded is not sealed: a seal that only base64-encodes passes the two
+    // checks above and the round trip below together (#3712).
+    for (const plain of [ACCESS_PLAIN, REFRESH_PLAIN])
+      for (const enc of ['base64', 'base64url'] as const)
+        expect(JSON.stringify(row)).not.toContain(
+          Buffer.from(plain).toString(enc).replace(/=+$/, '')
+        )
     // Sealed, not dropped: the stored value opens back to the token.
     const { unseal } = await import('./meta-connect')
     expect(unseal(String(row.meta.refresh_sealed), env)).toBe(REFRESH_PLAIN)
+    // ...and only under its own key.
+    expect(() =>
+      unseal(String(row.meta.refresh_sealed), {
+        ...env,
+        META_TOKEN_KEY: 'another-key',
+      })
+    ).toThrow()
   })
 
   it('an X connect without its verifier is refused', async () => {
