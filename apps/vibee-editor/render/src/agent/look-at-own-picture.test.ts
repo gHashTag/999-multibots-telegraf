@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  LOOK_MAX_TOKENS,
+  LOOK_SIDE,
+  LOOK_TIMEOUT_MS,
+  READ_TEXT_PROMPT,
+  asReadable,
+  liveRead,
   lookAtOwnPicture,
   missingFactsNote,
   showsFact,
@@ -83,6 +89,78 @@ describe('the agent looks at its own picture (#3660)', () => {
     const [date] = factsIn('8 October')
     expect(showsFact(date, 'OCT 8')).toBe(true)
     expect(showsFact(date, 'OCT 9')).toBe(false)
+  })
+})
+
+describe('no false "missing" for a fact that is on the picture (#3699)', () => {
+  const shown = (prompt: string, seen: string) =>
+    factsIn(prompt).map(f => showsFact(f, seen))
+
+  it('a line break is not a digit separator: the price below a time shows', () => {
+    expect(shown('entry 500 THB', '11:30\n500 B')).toEqual([true])
+    expect(shown('entry 500 THB', '11:30\r\n500')).toEqual([true])
+    // a thin space still joins groups, a line break never
+    expect(shown('entry 1 500 THB', 'ENTRY 1\u202f500')).toEqual([true])
+    expect(shown('entry 1 500 THB', 'ROOM 1\n500 GUESTS')).toEqual([false])
+  })
+
+  it('a Russian short month on the poster is the month', () => {
+    expect(shown('8 October', '8 окт')).toEqual([true])
+    expect(shown('8 октября', '8 ОКТ.')).toEqual([true])
+    expect(shown('3 сентября', '3 СЕНТ')).toEqual([true])
+    expect(shown('8 October', '8 ноя')).toEqual([false])
+    // a full word stays the reader's business, not the rewrite's
+    expect(asReadable('8 октября')).toBe('8 октября')
+  })
+
+  it('an English month first reads as the same date', () => {
+    expect(shown('8 October', 'Oct 8')).toEqual([true])
+    expect(shown('8 октября', 'October 8th')).toEqual([true])
+    expect(shown('8 October', 'October 9th')).toEqual([false])
+  })
+
+  it('"11:30h", "11h30" and "11.30 ч" are 11:30', () => {
+    expect(shown('at 11:30', '11:30h')).toEqual([true])
+    expect(shown('at 11:30', 'START 11h30')).toEqual([true])
+    expect(shown('at 11:30', 'в 11.30 ч.')).toEqual([true])
+    expect(shown('at 11:30', '11h45')).toEqual([false])
+    // a word that merely ends in h is not an hour mark
+    expect(asReadable('room 4h30x')).toBe('room 4h30x')
+  })
+
+  it('the note says what vision could not find and asks before a redraw', () => {
+    const note = missingFactsNote({ seen: 'x', missing: ['11:30'] })
+    expect(note).toContain('не нашло') // cyrillic-ok: the tool's answer text
+    expect(note).toContain('спроси') // cyrillic-ok: the tool's answer text
+    expect(note).not.toMatch(/НЕ видно/) // cyrillic-ok: the old certainty
+  })
+})
+
+describe('the real reader: 448 px, live lane, the read prompt', () => {
+  it('shrinks to LOOK_SIDE and asks vision on the live lane', async () => {
+    const cfg = { base: 'http://vision', key: 'k', model: 'm' }
+    const shrink = vi.fn(async (_b: Buffer, _side?: number) =>
+      Buffer.from('small')
+    )
+    const ask = vi.fn(async (..._a: unknown[]) => '8 October 11:30')
+    const read = liveRead({ config: () => cfg, shrink, ask: ask as never })
+    expect(read).not.toBeNull()
+    expect(await read!(PNG)).toBe('8 October 11:30')
+    expect(shrink).toHaveBeenCalledWith(PNG, LOOK_SIDE)
+    expect(LOOK_SIDE).toBe(448)
+    expect(ask).toHaveBeenCalledWith(
+      cfg,
+      READ_TEXT_PROMPT,
+      [`data:image/jpeg;base64,${Buffer.from('small').toString('base64')}`],
+      LOOK_TIMEOUT_MS,
+      LOOK_MAX_TOKENS,
+      'live'
+    )
+    expect(LOOK_MAX_TOKENS).toBeGreaterThanOrEqual(200)
+  })
+
+  it('no vision key -> no reader', () => {
+    expect(liveRead({ config: () => null })).toBeNull()
   })
 })
 
