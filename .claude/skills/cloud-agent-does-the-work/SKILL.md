@@ -190,15 +190,18 @@ model's words and the person, plus one deploy setting:
   the person answered a PLAIN yes to. A yes is a closed list of yes words --
   any other word (a new day, "later") asks once more. Otherwise
   `image_generate` / `image_edit` refuse BEFORE the charge and name the facts.
-  Leftovers: #3686.
+  Leftovers: #3686. A bare number after a price word ("price 20") is a
+  currency-less price and matches the same amount in any currency (#3692).
 - The deploy setting, not a file: a provider head with no tool support
   narrates work it cannot do (memory `agent-provider-ollama-has-no-tools`).
 
 While a tool runs, every chat surface (DM, business DM, managed bots, the
 hive) shows the tool's own chat action -- upload_photo / upload_video /
-upload_voice -- from the explicit map `actionForTool` in
-`src/helpers/telegramLongAnswer.ts` (#3682, #3688). A new media tool without
-an entry turns `toolActionEverywhere.test.ts` red: add the entry.
+upload_voice -- from the explicit map `TOOL_ACTIONS`, read by `actionForTool`
+in `src/helpers/telegramLongAnswer.ts` (#3682, #3688). A new tool whose name
+sounds like media (image, video, voice, audio, reel...) without an entry turns
+`toolActionEverywhere.test.ts` red: add the entry. A media tool with a neutral
+name is NOT caught -- add its entry by hand when you add the tool.
 
 Lesson from five review rounds (2026-10-06): an OPEN list of "change words"
 never ends -- the reviewer always finds one more correction that reads as yes.
