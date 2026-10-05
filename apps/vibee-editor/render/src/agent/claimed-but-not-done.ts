@@ -25,13 +25,20 @@
 
 type ClaimKind = 'browser' | 'media'
 
-const IMAGE_TOOLS = ['image_generate', 'image_edit']
+const IMAGE_TOOLS = [
+  'image_generate',
+  'image_edit',
+  'crm_deliver_photo',
+  'agent_avatars_make',
+]
 const VIDEO_TOOLS = [
   'video_generate',
   'lipsync_generate',
   'reel_render',
   'split_reel',
   'story_reel',
+  'crm_story_reel',
+  'my_story_reel',
 ]
 const SEND_TOOLS = [
   'tg_send',
@@ -78,7 +85,7 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     tools: ['browser_screenshot'],
   },
   {
-    re: /(^|[\s.,:;—-])(сделал|сделала|нарисовал|нарисовала|создал|создала|сгенерировал|сгенерировала|подготовил|подготовила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(афиш|картинк|изображени|постер|обложк|баннер)/i, // cyrillic-ok: matched text
+    re: /(^|[\s.,:;—-])(?<!не\s)(сделал|сделала|нарисовал|нарисовала|создал|создала|сгенерировал|сгенерировала|подготовил|подготовила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(афиш|картинк|изображени|постер|обложк|баннер)/i, // cyrillic-ok: matched text
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
@@ -88,12 +95,12 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])(сделал|сделала|смонтировал|смонтировала|собрал|собрала)\s+((для )?(тебя|вас|тебе|вам)\s+)?(видео|ролик|рилс)/i, // cyrillic-ok: matched text
+    re: /(^|[\s.,:;—-])(?<!не\s)(сделал|сделала|смонтировал|смонтировала|собрал|собрала)\s+((для )?(тебя|вас|тебе|вам)\s+)?(видео|ролик|рилс)/i, // cyrillic-ok: matched text
     tools: VIDEO_TOOLS,
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?(фото|картинк|афиш|постер|видео|ролик|файл)/i, // cyrillic-ok: matched text
+    re: /(^|[\s.,:;—-])(?<!не\s)(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?(фото|картинк|афиш|постер|видео|ролик|файл)/i, // cyrillic-ok: matched text
     tools: [...SEND_TOOLS, ...IMAGE_TOOLS, ...VIDEO_TOOLS],
     kind: 'media',
   },
@@ -107,6 +114,13 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
+]
+
+/** Every tool that backs a media claim; the registry test reads it. */
+export const MEDIA_TOOLS: readonly string[] = [
+  ...IMAGE_TOOLS,
+  ...VIDEO_TOOLS,
+  ...SEND_TOOLS,
 ]
 
 const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'

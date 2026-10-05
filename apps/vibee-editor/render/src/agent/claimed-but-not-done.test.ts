@@ -1,7 +1,10 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   HONESTY_NOTE,
   MEDIA_HONESTY_NOTE,
+  MEDIA_TOOLS,
   browserCalls,
   claimsBrowserWork,
   honestyLogFields,
@@ -98,5 +101,72 @@ describe('a claimed picture or video needs the call that makes it', () => {
 
   it('ignores events with no tool name', () => {
     expect(browserCalls([{ тип: 'инструмент' }])).toBe(0) // cyrillic-ok: the event envelope
+  })
+
+  it('backs a picture by every tool that makes one (PR #3667 review)', () => {
+    const said = 'Подготовил картинку для вас.' // cyrillic-ok: test input
+    for (const t of [
+      'image_edit',
+      'image_generate',
+      'crm_deliver_photo',
+      'agent_avatars_make',
+    ]) {
+      expect(honestyNote(said, [call(t)])).toBe('')
+    }
+  })
+
+  it('backs a reel by every tool that makes one (PR #3667 review)', () => {
+    const said = 'Собрал для вас ролик.' // cyrillic-ok: test input
+    for (const t of ['crm_story_reel', 'my_story_reel', 'story_reel']) {
+      expect(honestyNote(said, [call(t)])).toBe('')
+    }
+  })
+
+  it('does not flag an honest "I did not make it"', () => {
+    for (const said of [
+      'Я не сделал афишу: нет фото.', // cyrillic-ok: test input
+      'Пока не отправил видео — жду ответа.', // cyrillic-ok: test input
+    ]) {
+      expect(honestyNote(said, [])).toBe('')
+    }
+  })
+})
+
+/*
+ * The next media tool must not reopen the false note. Every registered tool
+ * whose name says it makes or sends media backs the media claims, or is
+ * named here with the reason it does not.
+ */
+const NOT_A_MEDIA_RESULT: Record<string, string> = {
+  crm_client_avatars: 'reads avatars, makes none',
+  crm_history: 'reads history',
+  tg_history: 'reads history',
+  crm_voice_clone: 'trains a voice, sends nothing',
+  reel_analyze: 'reads a reel, makes none',
+  mail_send: 'e-mail, not a chat picture',
+  tokens_invoice: 'an invoice',
+  audio_generate: 'sound; no claim pattern reads sound yet',
+  voice_clone_speak: 'sound; no claim pattern reads sound yet',
+}
+
+describe('the media backing list covers the tool registry', () => {
+  it('names every media-looking tool, either backing or excused', () => {
+    const dir = __dirname
+    const names = new Set<string>()
+    for (const f of readdirSync(dir)) {
+      if (!f.endsWith('.ts') || f.endsWith('.test.ts')) continue
+      const src = readFileSync(join(dir, f), 'utf8')
+      for (const m of src.matchAll(/name: '([a-z0-9_]+)'/g)) names.add(m[1])
+    }
+    const media = [...names].filter(n =>
+      /image|video|reel|lipsync|photo|avatar|story|send|picture|poster|audio|voice/.test(
+        n
+      )
+    )
+    expect(media.length).toBeGreaterThan(10)
+    const loose = media.filter(
+      n => !MEDIA_TOOLS.includes(n) && !(n in NOT_A_MEDIA_RESULT)
+    )
+    expect(loose).toEqual([])
   })
 })
