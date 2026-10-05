@@ -24,6 +24,9 @@ import * as dns from 'node:dns'
 import {
   запустить as startKieJob, // cyrillic-ok
   состояниеЗадания as getKieJobState, // cyrillic-ok
+  runKieJob,
+  KieTaskFailed,
+  type RunKieJobOptions,
 } from './src/agent/kie-run'
 import {
   reviewedKieModel,
@@ -64,7 +67,11 @@ import {
   getJobDurable,
   listJobsDurable,
 } from './generate-jobs'
-import { stampRefusalCode, refusalCodeFor } from './generation-refusal'
+import {
+  stampRefusalCode,
+  refusalCodeFor,
+  failureAfterCharge,
+} from './generation-refusal'
 import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
@@ -331,25 +338,14 @@ function kieSpeechInput(
 async function runExplicitKieJob(
   model: string,
   input: Record<string, unknown>,
-  options: { attempts?: number; intervalMs?: number } = {}
+  options: RunKieJobOptions = {}
 ): Promise<{ url: string; taskId: string }> {
-  const started = await startKieJob(model, input)
-  if (!started.taskId) {
-    throw new Error(started['отказ'] || 'Kie.ai не принял задачу')
-  }
-
-  const attempts = options.attempts ?? 100
-  const intervalMs = options.intervalMs ?? 3_000
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    await new Promise(resolve => setTimeout(resolve, intervalMs))
-    const state = await getKieJobState(started.taskId)
-    if (state.url) return { url: state.url, taskId: started.taskId }
-    if (state['отказ']) throw new Error(state['отказ'])
-  }
-
-  throw new Error(
-    `Kie.ai ещё выполняет задачу ${started.taskId}; повторная генерация может списать кредиты снова`
-  )
+  // The loop lives in src/agent/kie-run.ts so it can be tested without this
+  // file; a failed task throws KieTaskFailed with Kie's failCode and failMsg.
+  return runKieJob(model, input, options, {
+    start: startKieJob,
+    state: getKieJobState,
+  })
 }
 
 /**
@@ -6037,9 +6033,13 @@ const server = createServer(async (req, res) => {
                 prompt: 'person speaking naturally',
               },
               // The wait grows with the voice (lipsync-voice.ts says why).
+              // A transient Kie failure ("please try again later") gets one
+              // more task of the SAME model inside the same wait; content and
+              // validation failures do not (kie-run.ts isTransientKieFailure).
               {
                 attempts: lipsyncPollAttempts(billedSeconds),
                 intervalMs: LIPSYNC_POLL_INTERVAL_MS,
+                retryTransientOnce: true,
               }
             )
             res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -6149,8 +6149,16 @@ const server = createServer(async (req, res) => {
 
         throw new Error('Lipsync generation timeout')
       } catch (error) {
-        console.error('❌ [Generate] Lipsync error:', error)
-        await refundMiniAppUser(
+        // Kie's own failCode and failMsg, not only its sentence: the message
+        // of KieTaskFailed carries both, and the fields are named again so a
+        // log search by code finds them.
+        console.error(
+          '❌ [Generate] Lipsync error:',
+          error instanceof KieTaskFailed
+            ? `${error.message} [task=${error.taskId} failCode=${error.failCode ?? '-'} transient=${error.transient}]`
+            : error
+        )
+        const refundedOk = await refundMiniAppUser(
           billedTid,
           'lipsync_generate',
           billedSeconds || 1,
@@ -6160,10 +6168,12 @@ const server = createServer(async (req, res) => {
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
-          JSON.stringify({
-            success: false,
-            error: error instanceof Error ? error.message : 'Generation failed',
-          })
+          JSON.stringify(
+            failureAfterCharge(
+              error instanceof Error ? error.message : 'Generation failed',
+              refundedOk ? (receipt.charged ?? 0) : 0
+            )
+          )
         )
       }
     })
