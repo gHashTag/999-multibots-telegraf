@@ -79,7 +79,10 @@ describe('an agent bot answers as its agent', () => {
       { ask: h.ask }
     )
     expect(ok).toBe(true)
-    expect(h.ask).toHaveBeenCalledWith('5', 'hi', { agent: 'blogger' })
+    expect(h.ask).toHaveBeenCalledWith('5', 'hi', {
+      agent: 'blogger',
+      onTool: expect.any(Function),
+    })
     expect(h.sent.map(s => s.text)).toEqual(['answer'])
   })
 
@@ -117,7 +120,11 @@ describe('an agent bot answers as its agent', () => {
       object,
     ]
     expect(identity).toBe('5')
-    expect(opts).toEqual({ agent: 'blogger', room: String(HIVE) })
+    expect(opts).toEqual({
+      agent: 'blogger',
+      room: String(HIVE),
+      onTool: expect.any(Function),
+    })
     expect(said).toContain('@t27_coder_bot')
     expect(said).toContain('Dima wrote:\n@all hello')
     expect(h.sent[0].extra).toMatchObject({

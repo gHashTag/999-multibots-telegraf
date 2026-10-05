@@ -108,10 +108,11 @@ import {
  */
 const managedBotDeps = (manager: Telegraf<MyContext>): RunnerDeps => {
   const base: RunnerDeps = {
-    answer: async (clientId, text, fallback, seller, textOnly) => {
+    answer: async (clientId, text, fallback, seller, textOnly, onTool) => {
       const { answerClient } = await import('@/services/businessBotService')
       return answerClient(clientId, text, fallback, seller, undefined, {
         textOnly,
+        ...(onTool ? { onTool } : {}),
       })
     },
     tellOwner: async (ownerId, text) => {

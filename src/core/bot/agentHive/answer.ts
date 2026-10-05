@@ -13,6 +13,11 @@
  */
 
 import { logger } from '@/utils/logger'
+import {
+  actionForTool,
+  keepTyping,
+  type ChatAction,
+} from '@/helpers/telegramLongAnswer'
 import type { ManagedBotRow } from '@/core/bot/managedBots/store'
 import { hiveAgent } from './catalogue'
 import { addressed, callsAll, mayAnswer, mentions, type Entity } from './rules'
@@ -98,7 +103,12 @@ export interface AgentTurnDeps {
   ask: (
     identity: string,
     text: string,
-    opts: { agent: string; room?: string }
+    opts: {
+      agent: string
+      room?: string
+      /** The tool the agent is running now, null when it ends (#3683). */
+      onTool?: (name: string | null) => void
+    }
   ) => Promise<string>
   now?: () => number
 }
@@ -142,7 +152,7 @@ export interface AgentCtx {
     ) => Promise<{ message_id: number }>
     sendChatAction: (
       chatId: number,
-      action: 'typing',
+      action: ChatAction,
       extra?: Record<string, unknown>
     ) => Promise<unknown>
   }
@@ -219,14 +229,18 @@ export async function answerAsAgent(
   // into the owner's (wallet, tools, keeper rights).
   const identity = String(origin)
 
-  await ctx.telegram
-    .sendChatAction(chat.id, 'typing', where)
-    .catch(() => undefined)
+  // Repeated, and "sending a photo…" while a picture is drawn: sent once it
+  // went dark five seconds into the turn (#3683).
+  const typing = keepTyping({
+    sendChatAction: async action =>
+      ctx.telegram.sendChatAction(chat.id, action, where),
+  })
   let reply: string
   try {
     reply = await deps.ask(identity, said, {
       agent: row.agentId,
       ...(isGroup ? { room: String(chat.id) } : {}),
+      onTool: name => typing.setAction(actionForTool(name)),
     })
   } catch (error) {
     logger.error('[agent-hive] the agent did not answer', {
@@ -235,6 +249,8 @@ export async function answerAsAgent(
       error: error instanceof Error ? error.message : String(error),
     })
     reply = copy.busy
+  } finally {
+    typing()
   }
   const parts = chunks(reply)
   for (const [i, part] of parts.entries()) {
