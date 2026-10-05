@@ -92,10 +92,10 @@ ssh prod999 "cd /root/bot-farm && docker compose down && docker compose up -d"
 docker exec 999-multibots printenv | grep -E 'HEYGEN|ELEVENLABS'
 
 # Должно показать:
-# HEYGEN_COCOAGE_API_KEY=sk_V2_hgu_kZgKPoImFA5_...
-# HEYGEN_HAIM_API_KEY=sk_V2_hgu_kBLbUbWT3dT_i0Nz...
-# ELEVENLABS_API_KEY=737d2f8b185450984e1525893f0327f4...
-# ELEVENLABS_HAIM_API_KEY=737d2f8b185450984e1525893f...
+# HEYGEN_COCOAGE_API_KEY=<stored-in-infisical>
+# HEYGEN_HAIM_API_KEY=<stored-in-infisical>
+# ELEVENLABS_API_KEY=<stored-in-infisical>
+# ELEVENLABS_HAIM_API_KEY=<stored-in-infisical>
 # ELEVENLABS_VOICE_COCOAGE=2b2e1f15157b454487f1250ffe586d7a
 # ELEVENLABS_VOICE_HAIM=dc9cd149b0d741d6934a1d95e3f3ef00
 ```
@@ -169,7 +169,7 @@ docker exec 999-multibots printenv | grep -E 'HEYGEN|ELEVENLABS'
 
    ```typescript
    // ❌ ПЛОХО
-   const apiKey = 'sk_V2_hgu_kBLbUbWT3dT_...'
+   const apiKey = '<hardcoded key here>'
 
    // ✅ ХОРОШО
    const apiKey = process.env.HEYGEN_HAIM_API_KEY || ''

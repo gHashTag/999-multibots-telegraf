@@ -39,6 +39,16 @@ pre-commit:
       run: ./scripts/security-token-guard.sh staged
       fail_text: 'Секрет в изменениях. Коммит остановлен.'
 
+    # 1b. Secret gate shared with gHashTag/t27 (PR #6433): gitleaks with the
+    #     common rules in .gitleaks.toml, which also catch plain passwords the
+    #     shape guard above does not. A missing gitleaks fails the hook on
+    #     purpose: the gate must not silently turn itself off
+    #     (`brew install gitleaks`). CI twin: .github/workflows/secret-scan.yml.
+    secret-gate:
+      priority: 1
+      run: gitleaks git --staged --no-banner --redact --config .gitleaks.toml .
+      fail_text: 'gitleaks found a secret in the staged changes. Commit stopped.'
+
     # 2. Форматирование. Правит файлы и добавляет их обратно в индекс, поэтому
     #    stage_fixed — иначе в коммит уйдёт неотформатированная версия.
     format:
@@ -180,6 +190,11 @@ pre-push:
 
     secrets:
       run: ./scripts/security-token-guard.sh range
+
+    # gitleaks over every commit not yet on any remote (same .gitleaks.toml).
+    secret-gate:
+      run: gitleaks git --no-banner --redact --config .gitleaks.toml --log-opts="HEAD --not --remotes" .
+      fail_text: 'gitleaks found a secret in a commit about to be pushed.'
 
     # ГЛАВНОЕ СВОЙСТВО ПРОДУКТА — В ОДНОЙ ПРОВЕРКЕ.
     #

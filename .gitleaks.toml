@@ -1,0 +1,67 @@
+# Secret gate for gHashTag/999-multibots-telegraf. Shared rules: canonical copy in gHashTag/t27 .gitleaks.toml (PR #6433).
+#
+# Three layers, each catching what the one before missed:
+#   1. lefthook pre-commit  -> gitleaks scans staged changes (lefthook.yml)
+#   2. lefthook pre-push    -> gitleaks scans commits not yet on any remote
+#   3. CI secret-scan       -> gitleaks scans the PR range; cannot be skipped
+#                              with --no-verify (.github/workflows/secret-scan.yml)
+# Secrets belong in the environment or in gitignored files, never in the tree.
+
+[extend]
+useDefault = true
+
+# The default rules miss Wi-Fi passphrases and other plain passwords.
+[[rules]]
+id = "hardcoded-password-literal"
+description = "Hardcoded password/passphrase string literal (e.g. Wi-Fi credentials in firmware)"
+regex = '''(?i)\b[a-z_]*(passphrase|password|passwd|wifi_?pass|psk)[a-z_]*\b["']?\s*[:=]\s*["']([^"'<>${}\s]{6,})["']'''
+secretGroup = 2
+keywords = ["passphrase", "password", "passwd", "wifi", "psk"]
+[[rules.allowlists]]
+regexTarget = "match"
+regexes = ['''(?i)(your|example|changeme|placeholder|dummy|test|xxx|\*\*\*)''']
+
+
+# Verified false positives. Line allowlists only: a global [[allowlists]]
+# with paths skips the whole file even under condition = "AND".
+
+[[allowlists]]
+description = "Fake keys in docs bad-examples, test fixtures and setup placeholders (exact lines)"
+regexTarget = "line"
+regexes = [
+  '''^\s*const\ apiKey\ =\ 'sk\-1234567890';\s*$''',
+  '''^\s*const\ HEYGEN_API_KEY\ =\ 'hey_abc123xyz456';\s*$''',
+  '''^\s*const\ KEY\ =\ 'instrumentation\-test\-signing\-key\-long\-enough\-0123456789'\s*$''',
+  '''^\s*const\ KEY\ =\ 'test\-key\-that\-is\-definitely\-long\-enough\-0123456789'\s*$''',
+  '''^\s*const\ TELEGRAM_TEST_TOKEN\ =\ '111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'\s*$''',
+  '''^\s*\['an\ xAI\ key',\ 'xai\-9ZyXwVuTsRqPoNmLkJiHgFeD'\],\s*$''',
+  '''^\s*\['a\ Replicate\ token',\ 'r8_QwErTyUiOpAsDfGhJkLzXcVbN'\],\s*$''',
+  '''^\s*\['a\ GitHub\ token',\ 'ghp_1234567890abcdefghijKLMNOP'\],\s*$''',
+  '''^\s*\['a\ GitLab\ token',\ 'glpat\-1234567890abcdefghij'\],\s*$''',
+  '''^\s*TG_API_HASH=abcdef1234567890abcdef1234567890\s*$''',
+  '''^\s*process\.env\.FAL_KEY\ =\ 'test\-fal\-api\-key\-12345'\s*$''',
+  '''^\s*credentials:\ 'test\-fal\-api\-key\-12345',\s*$''',
+  '''^\s*FAL_KEY=test\-fal\-api\-key\-12345\s*\#''',
+]
+
+[[allowlists]]
+description = "Secret-guard fixtures carrying the repo marker secret-guard-ok (exact lines)"
+regexTarget = "line"
+regexes = [
+  '''^\s*'INFISICAL_CLIENT_SECRET=[0-9a-f]{64}',\s*// secret-guard-ok: ''',
+  '''^\s*'\{"clientSecret":"[0-9a-f]{64}"\}',\s*// secret-guard-ok: ''',
+]
+
+[[allowlists]]
+description = "Non-secret shapes: public token contract addresses, i18n keys, UI step names, generated name list, test passwords"
+regexTarget = "line"
+regexes = [
+  '''^\s*(VIBEE|USDC)_TOKEN: '0x[0-9a-fA-F]{40}',\s*$''',
+  '''^\s*\{ keys: \[[^\]]*\], descKey: 'shortcut\.[A-Za-z0-9]+' \},\s*$''',
+  '''setStep\(d\['[^']+'\] \? 'password' : 'connected'\)''',
+  '''^\s*'browser\.type\.kind\.password': '''',
+  '''^\s*export const __DECL_ORDER__ = \[''',
+  '''^\s*(viewPassword|adminPassword): 'pod-[a-z-]+',\s*$''',
+  '''^\s*[A-Z_]+: 'from-env-(view|admin)',\s*$''',
+  '''d\.setBody\(\{ handle: 'HANDLE', password: 'secret' \}\)''',
+]

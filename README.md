@@ -296,6 +296,20 @@ SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_SERVICE_KEY=your_supabase_service_key_here
 ```
 
+## Secrets never enter the repository
+
+No password, API key, token or credentials file is committed, not even in docs or examples. Read secrets from the environment or from a gitignored file.
+
+The gate has three layers, all driven by [`.gitleaks.toml`](.gitleaks.toml):
+
+1. **pre-commit** (lefthook) scans staged changes with gitleaks.
+2. **pre-push** (lefthook) scans every commit that is not yet on a remote.
+3. **CI** ([`secret-scan`](.github/workflows/secret-scan.yml)) scans the PR range, so `--no-verify` does not get a secret past it.
+
+Set up once per clone: `brew install gitleaks` (lefthook itself is installed by `npm install`). The older shape guard `scripts/security-token-guard.sh` still runs alongside it.
+
+A secret that was ever pushed is compromised. Removing it from the tree does not unpublish it, so rotate it at the provider.
+
 ## 🧪 Тестирование
 
 ```bash

@@ -5,29 +5,33 @@
 ### BOT INNGEST (Основной бот)
 
 ```bash
-BOT_INNGEST_EVENT_KEY=akoHhkQS3NGSQhDzcosD7o-0dGSJ9PWLiGol-fi5QMnZOG5XpvuxGBlnh_an9VQ0ygwA4BZEa3lfjKlbgm3U2A
+BOT_INNGEST_EVENT_KEY=<stored-in-infisical>
 BOT_INNGEST_BASE_URL=https://three-head-dragon.shop/api/inngest
-BOT_INNGEST_SIGNING_KEY=signkey-prod-e2c2d07a9d0306957816b187e3e4fcd617ee0435923a1b613563c4666c82c047
+BOT_INNGEST_SIGNING_KEY=<stored-in-infisical>
 ```
 
 ### RENDER INNGEST (Render Server)
 
 ```bash
-RENDER_INNGEST_EVENT_KEY=kbuLz_G2JL28M5L3dRM5mfwWSwNb4zi8eWTr5y4wrYWXEyIgcMyGz7NTkcY52AWjUcQz8m_Ig9lhJ6_m3-unaw
-RENDER_INNGEST_SIGNING_KEY=signkey-branch-8e271f30535f3894656ff9b5e4cf97e1673880aa06c7b5d1470b3082110b2cf6
+RENDER_INNGEST_EVENT_KEY=<stored-in-infisical>
+RENDER_INNGEST_SIGNING_KEY=<stored-in-infisical>
 RENDER_INNGEST_BASE_URL=https://render-v3-production.up.render-server (local)/api/inngest
 ```
 
 ## Назначение переменных
 
-### BOT_INNGEST_*
+### BOT*INNGEST*\*
+
 Используется для основного бота (three-head-dragon.shop)
+
 - **EVENT_KEY**: Ключ для отправки событий в Inngest
 - **SIGNING_KEY**: Ключ для подписи и верификации вебхуков
 - **BASE_URL**: URL Inngest сервера для основного бота
 
-### RENDER_INNGEST_*
+### RENDER*INNGEST*\*
+
 Используется для Render Server (AI Reels генерация)
+
 - **EVENT_KEY**: Ключ для отправки событий на Render Server
 - **SIGNING_KEY**: Ключ для HMAC-SHA256 подписи запросов
 - **BASE_URL**: URL Render Server Inngest endpoint
@@ -87,7 +91,7 @@ const renderBaseUrl = process.env.RENDER_INNGEST_BASE_URL
 
 ```typescript
 if (instance === 'RENDER') {
-  process.env.INNGEST_BASE_URL = config.baseUrl  // Render Server URL
+  process.env.INNGEST_BASE_URL = config.baseUrl // Render Server URL
   process.env.INNGEST_SIGNING_KEY = config.signingKey
   process.env.INNGEST_EVENT_KEY = config.eventKey
 }
@@ -117,14 +121,17 @@ await config.client.send({ name: eventName, data })
 ## Troubleshooting
 
 ### Если видите "missing RENDER_INNGEST_EVENT_KEY"
+
 Проверьте, что все 3 RENDER переменные добавлены в .env
 
 ### Если видите "404 Event key not found"
+
 1. Проверьте, что RENDER_INNGEST_BASE_URL правильный
 2. Проверьте, что код устанавливает env vars перед отправкой
 3. Проверьте логи Render Server
 
 ### Если события не доходят до Render Server
+
 1. Проверьте доступность Render Server URL
 2. Проверьте RENDER_INNGEST_SIGNING_KEY совпадает с Render Server
 3. Проверьте логи на Render Server на наличие ошибок подписи
