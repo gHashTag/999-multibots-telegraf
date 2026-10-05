@@ -318,8 +318,9 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
  * ("Короче", "Наконец", "По твоей просьбе" ...), so the check is inverted
  * (#3693 round 2): the verb is someone else's only when a non-agent subject
  * stands right before it in its clause -- a word of OTHER_SUBJECT, or a
- * capitalised word that is not the agent's own name. Anything else is the
- * agent's, and the claim is checked.
+ * capitalised word that is not the agent's own name and is not governed by a
+ * preposition (round 4). Anything else is the agent's, and the claim is
+ * checked.
  */
 const OTHER_SUBJECT = new Set([
   'клиент',
@@ -336,8 +337,68 @@ const OTHER_SUBJECT = new Set([
   'кто-то',
   'кто-нибудь', // cyrillic-ok: matched words
 ])
-// the agent naming itself is not someone else
-const AGENT_SELF = new Set(['я', 'мы', 'тринити', 'trinity']) // cyrillic-ok: matched words
+// the agent naming itself, or the person it talks to, is not someone else
+const AGENT_SELF = new Set([
+  'я',
+  'мы',
+  'тринити',
+  'trinity',
+  'агент',
+  'бот',
+  'нейросеть',
+  'ассистент', // cyrillic-ok: matched words
+  'agent',
+  'bot',
+  'assistant',
+  // the addressee: "Тебе отправила видео" is the agent's (#3693 round 4) // cyrillic-ok: quoted input
+  'тебе',
+  'тебя',
+  'вам',
+  'вас',
+  'нам',
+  'мне', // cyrillic-ok: matched words
+  'you',
+  'me',
+])
+/*
+ * A name governed by a preposition is not the subject (#3693 round 4):
+ * "Для Анны сделала", "По просьбе Марии сделала", "Через Kie сгенерировала",
+ * "В стиле Нуар сделала". Each list fix of rounds 2-3 uncovered one more
+ * POSITION a capital can stand in, so this is positional, not a list of
+ * names: a preposition among the two words before the capital makes it
+ * oblique. The price: "в чате Анна прислала" reads as the agent's and gets
+ * a needless note -- the safe side of a miss.
+ */
+const PREPOSITION = new Set([
+  'для',
+  'по',
+  'в',
+  'во',
+  'на',
+  'через',
+  'от',
+  'у',
+  'к',
+  'ко',
+  'с',
+  'со', // cyrillic-ok: matched words
+  'из',
+  'про',
+  'под',
+  'при',
+  'за',
+  'о',
+  'об', // cyrillic-ok: matched words
+  'for',
+  'in',
+  'on',
+  'via',
+  'from',
+  'to',
+  'with',
+  'at',
+  'by',
+])
 /*
  * A capital before the verb is ambiguous: "Анна записала" names someone,
  * "Короче сделала" opens the agent's sentence. Only for a capitalised word
@@ -402,6 +463,12 @@ const LEAD_ADVERB = new Set([
   'почти',
   'еле',
   'мигом', // cyrillic-ok: matched words
+  // interjections an LLM writes without a comma (#3693 round 4)
+  'блин',
+  'эх',
+  'хоп',
+  'бац',
+  'ладушки', // cyrillic-ok: matched words
 ])
 // a clause starts after a comma, a colon, a dash, a bracket or "and"
 const CLAUSE_BREAK = /[,;:—–()]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
@@ -418,6 +485,9 @@ function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
   // "@anna" is a handle, someone else's however it is cased
   if (clause[clause.lastIndexOf(before) - 1] === '@') return false
   if (before[0] === low[0]) return true
+  const at = words.length - 1
+  const lead = words.slice(Math.max(0, at - 2), at)
+  if (lead.some(w => PREPOSITION.has(w.toLowerCase()))) return true
   /*
    * Every claim verb here is masculine or feminine past, so a neuter "-o"
    * word cannot be its subject: "Оперативно", "Красиво", "Заодно" are
