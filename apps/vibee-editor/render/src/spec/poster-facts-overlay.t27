@@ -210,6 +210,8 @@ module automation::poster_facts_overlay {
         assert(block_fits(326, SQUARE_H));
         assert(block_fits(345, SQUARE_H));
         assert(!block_fits(346, SQUARE_H));
+        assert(block_fits(450, 1000));
+        assert(!block_fits(451, 1000));
     }
 
     test "white on the plate keeps 4.5:1 over a white picture" {

@@ -160,6 +160,12 @@ describe('poster-facts-overlay.t27 against the host', () => {
       fits: false,
       refused: 'venue',
     })
+    // One word longer than any line is refused, not run off the edge.
+    expect(
+      layoutPosterFacts({ title: 'Supercalifragilisticexpialidocious' }, TALL)
+    ).toEqual({ fits: false, refused: 'title' })
+    // Runs of spaces and line breaks print as one space.
+    expect(laid({ title: 'Jazz \n  Night' }).lines[0].text).toBe('Jazz Night')
     // A fitting long venue keeps every character across its lines.
     const ok = 'Hall '.repeat(18).trim()
     const lines = laid({ venue: ok }, SQUARE).lines
@@ -178,6 +184,8 @@ describe('poster-facts-overlay.t27 against the host', () => {
     expect(blockFits(326, SPEC.SQUARE_H)).toBe(true)
     expect(blockFits(345, SPEC.SQUARE_H)).toBe(true)
     expect(blockFits(346, SPEC.SQUARE_H)).toBe(false)
+    expect(blockFits(450, 1000)).toBe(true)
+    expect(blockFits(451, 1000)).toBe(false)
     // The real layout of four facts is exactly those blocks.
     for (const [c, block] of [
       [TALL, 460],
@@ -204,6 +212,21 @@ describe('poster-facts-overlay.t27 against the host', () => {
       // The text block starts inside the plate.
       expect(t1.y).toBeGreaterThan(l.plate.y)
     }
+    // Every fact fits alone, all four wrapped do not: the block is refused.
+    expect(
+      layoutPosterFacts(
+        {
+          title: 'Word '.repeat(7).trim(),
+          date_time: 'Date '.repeat(8).trim(),
+          venue: 'Hall '.repeat(12).trim(),
+          price: 'Cost '.repeat(12).trim(),
+        },
+        SQUARE
+      )
+    ).toEqual({ fits: false, refused: 'block' })
+    // A lone title has no gap after it.
+    const lone = laid({ title: 'Jazz' }, SQUARE)
+    expect(lone.plate.height).toBe(23 + lineHeightPx(61) + 46)
     // Missing facts leave no empty line and no title gap.
     const one = laid({ price: '500 RUB' }, SQUARE)
     expect(one.lines).toHaveLength(1)

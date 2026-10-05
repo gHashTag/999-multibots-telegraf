@@ -1,0 +1,170 @@
+[
+  {
+    "name": "the square row takes tall canvases too",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "h * PER_MILLE >= w * SPEC.TALL_RATIO_PERMILLE",
+    "to": "h * PER_MILLE > w * SPEC.TALL_RATIO_PERMILLE"
+  },
+  {
+    "name": "the margin comes from the long side",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "Math.min(w, h) * SPEC.MARGIN_PERMILLE",
+    "to": "Math.max(w, h) * SPEC.MARGIN_PERMILLE"
+  },
+  {
+    "name": "the font rounds up",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "return Math.floor((h * permille) / PER_MILLE)",
+    "to": "return Math.ceil((h * permille) / PER_MILLE)"
+  },
+  {
+    "name": "chars per line ignore the advance",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "(font * SPEC.CHAR_ADVANCE_PERMILLE)",
+    "to": "(font * 500)"
+  },
+  {
+    "name": "lines round down",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "return Math.ceil(chars / perLine)",
+    "to": "return Math.floor(chars / perLine)"
+  },
+  {
+    "name": "the shrink bound ignores the floor",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "  if (font < floor) return 0\n",
+    "to": ""
+  },
+  {
+    "name": "the shrink bound can exceed the start",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "  if (font >= start) return start\n",
+    "to": ""
+  },
+  {
+    "name": "the plate floor is exclusive",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "opacityPermille >= SPEC.PLATE_MIN_OPACITY_PERMILLE",
+    "to": "opacityPermille > SPEC.PLATE_MIN_OPACITY_PERMILLE"
+  },
+  {
+    "name": "the block limit is exclusive",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "blockH * PER_MILLE <= h * SPEC.BLOCK_MAX_PERMILLE",
+    "to": "blockH * PER_MILLE < h * SPEC.BLOCK_MAX_PERMILLE"
+  },
+  {
+    "name": "contrast on a continuous channel",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "Math.round(255 * (1 - opacityPermille / PER_MILLE)) / 255",
+    "to": "1 - opacityPermille / PER_MILLE"
+  },
+  {
+    "name": "a too-long word is kept",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "    if (word.length > perLine) return null\n",
+    "to": ""
+  },
+  {
+    "name": "the wrap overfills a line",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "line.length + 1 + word.length <= perLine",
+    "to": "line.length + word.length <= perLine"
+  },
+  {
+    "name": "the last line is dropped",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "  if (line) lines.push(line)\n",
+    "to": ""
+  },
+  {
+    "name": "shrink goes below the floor",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "font >= floor && font > 0",
+    "to": "font > 0"
+  },
+  {
+    "name": "the line count is not capped",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "lines && lines.length <= maxLines",
+    "to": "lines"
+  },
+  {
+    "name": "the title floor is the global min",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "isTitle && SPEC.TITLE_FLOOR_IS_SECOND_LEVEL ? second : fontPx(h, lv.min)",
+    "to": "fontPx(h, lv.min)"
+  },
+  {
+    "name": "the date sits at the detail level",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "        ? lv.second\n        : lv.detail",
+    "to": "        ? lv.detail\n        : lv.detail"
+  },
+  {
+    "name": "the title gets the other line cap",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "isTitle ? SPEC.TITLE_MAX_LINES : SPEC.OTHER_MAX_LINES",
+    "to": "SPEC.OTHER_MAX_LINES + 1"
+  },
+  {
+    "name": "an empty fact makes a line",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "    if (!text) continue\n",
+    "to": ""
+  },
+  {
+    "name": "no gap after the title",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "groups.length > 1 ? gap : 0",
+    "to": "groups.length > 1 ? 0 : 0"
+  },
+  {
+    "name": "a lone title gets a gap",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "groups[0]?.kind === 'title' && groups.length > 1",
+    "to": "groups[0]?.kind === 'title'"
+  },
+  {
+    "name": "the plate drops its padding",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "const blockH = pad + textH + margin",
+    "to": "const blockH = textH + margin"
+  },
+  {
+    "name": "the block limit is never checked",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "  if (!blockFits(blockH, h)) return { fits: false, refused: 'block' }\n",
+    "to": ""
+  },
+  {
+    "name": "the text block hugs the bottom edge",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "let y = h - margin - textH",
+    "to": "let y = h - textH"
+  },
+  {
+    "name": "the gap is applied inside the title",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "    if (g.kind === 'title') y += titleGap\n",
+    "to": ""
+  },
+  {
+    "name": "the square uses the tall sizes",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "  return row === 'tall'\n",
+    "to": "  return row === 'tall' || true\n"
+  },
+  {
+    "name": "the opacity is not the spec's",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "opacity: SPEC.PLATE_OPACITY_PERMILLE / PER_MILLE",
+    "to": "opacity: SPEC.PLATE_MIN_OPACITY_PERMILLE / PER_MILLE"
+  },
+  {
+    "name": "whitespace is not collapsed",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": ".replace(/\\s+/g, ' ').trim()",
+    "to": ".trim()"
+  }
+]
