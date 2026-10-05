@@ -418,3 +418,56 @@ describe('a yes phrase alone is a yes (#3686)', () => {
       ).toBe(2)
   })
 })
+
+describe('a bare number after a price word is a price (#3692)', () => {
+  it('"цена 500" confirms a printed "500 THB", in any currency', () => {
+    expect(unconfirmedFacts('Цена 500 THB', 'постер, цена 500')).toEqual([])
+    expect(unconfirmedFacts('Вход 300 ₽', 'вход: 300')).toEqual([])
+    expect(unconfirmedFacts('Entry $15', 'entry 15')).toEqual([])
+    expect(unconfirmedFacts('Ticket 20 €', 'price 20, please')).toEqual([])
+    expect(unconfirmedFacts('Стоимость 1 000 бат', 'стоимость 1000')).toEqual(
+      []
+    )
+  })
+
+  it('reads the bare amount, thousands included, with no currency', () => {
+    expect(factsIn('билет 300')).toEqual([
+      { kind: 'price', text: 'билет 300', keys: ['p300'] },
+    ])
+    expect(keys('цена 5к')).toEqual(['p5000'])
+  })
+
+  it('a different bare number still asks', () => {
+    expect(unconfirmedFacts('Цена 500 THB', 'цена 400').length).toBe(1)
+  })
+
+  it('dates, times and counts are not prices', () => {
+    expect(keys('500 просмотров, 3 колонны')).toEqual([])
+    expect(keys('вход 19:00')).toEqual(['t19:00'])
+    expect(keys('билет на 8 октября')).toEqual(['d8.10'])
+    expect(keys('price 20 per person')).toEqual([])
+    expect(keys('цена 500 THB')).toEqual(['p500'])
+  })
+})
+
+describe('mutants that survived #3691 (#3692)', () => {
+  it('the Cyrillic "к" is a thousand', () => {
+    expect(unconfirmedFacts('приз $5к', 'приз $5').length).toBe(1)
+    expect(unconfirmedFacts('приз $5к', 'приз $5 000')).toEqual([])
+  })
+
+  for (const reply of [
+    'ладно, но 9-го',
+    'хорошо, давай позже',
+    'спасибо, но не то',
+    'норм, только время другое',
+    'да но',
+  ])
+    it(`"${reply}" is not a yes`, () => {
+      const heard = heardFrom([
+        { role: 'assistant', content: 'Печатаю 8 октября, 11:30 — верно?' },
+        { role: 'user', content: reply },
+      ])
+      expect(unconfirmedFacts('8 октября 11:30', heard).length).toBe(2)
+    })
+})

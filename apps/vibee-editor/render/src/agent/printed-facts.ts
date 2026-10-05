@@ -97,6 +97,20 @@ const PRICE = new RegExp(
   'giu'
 )
 
+/*
+ * "цена 500", "price 20", "вход: 300": a bare number right after a price word
+ * is a price with no currency, which matches the same amount in any currency
+ * (#3692). Only when nothing but punctuation or the end follows, so a time
+ * ("вход 19:00"), a date ("билет на 8 октября") and "price 20 per person"
+ * stay unread: asking once more is the cheap failure.
+ */
+const PRICE_WORD =
+  '(?:цен[аыу]|стоимост[ьи]|вход|билет[ыа]?|price|cost|fee|entry|tickets?)'
+const BARE_PRICE = new RegExp(
+  `${L}${PRICE_WORD}\\s*[:—-]?\\s*${NUM}(?:\\s?${KILO})?(?!\\s*[\\p{L}\\d]|[:.,/]\\d)`,
+  'giu'
+)
+
 /**
  * "1,500.50" -> "1500": cents (one or two digits after the last separator)
  * dropped, then every separator. A mutation check showed a separate
@@ -215,6 +229,11 @@ export function factsIn(text: string): Fact[] {
         keys: [`p${digits}`],
         currency: currencyOf(m[0]),
       })
+  }
+  for (const m of text.matchAll(BARE_PRICE)) {
+    let digits = amount(m[1] ?? '')
+    if (digits && THOUSANDS.test(m[0])) digits += '000'
+    if (digits) add({ kind: 'price', text: m[0].trim(), keys: [`p${digits}`] })
   }
   return out
 }
