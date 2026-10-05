@@ -63,6 +63,7 @@ export const HIVE_COPY = {
     born: (a: HiveAgent, bot: string) =>
       `✅ @${bot} — это ${a.icon} ${a.name.ru}. Напишите ему в личку, чтобы проверить. В Улей: /hive в группе.`,
     paused1: (bot: string) => `⏸ @${bot} на паузе.`,
+    already: (bot: string) => `У этого агента уже есть бот: @${bot}.`,
     resumed: (bot: string) => `▶️ @${bot} снова отвечает.`,
     tokenDone: (bot: string) =>
       `🔑 У @${bot} новый токен, бот перезапустится сам.`,
@@ -97,6 +98,7 @@ export const HIVE_COPY = {
     born: (a: HiveAgent, bot: string) =>
       `✅ @${bot} is ${a.icon} ${a.name.en}. Message it privately to try it. For the hive: /hive in the group.`,
     paused1: (bot: string) => `⏸ @${bot} is paused.`,
+    already: (bot: string) => `This agent already has a bot: @${bot}.`,
     resumed: (bot: string) => `▶️ @${bot} is answering again.`,
     tokenDone: (bot: string) =>
       `🔑 @${bot} has a new token and will restart by itself.`,
@@ -140,36 +142,38 @@ export function agentLine(
   return `${name} — @${row.botUsername} (${state}${topic})`
 }
 
-/** The /agents keyboard: create where there is no bot, pause or resume where there is. */
+/**
+ * The /agents keyboard, a row per agent: create where there is no bot; where
+ * there is one, pause or resume it and give it a new token.
+ */
 export function agentsKeyboard(
   rows: AgentBotRow[],
   copy: Copy
 ): { inline_keyboard: Record<string, unknown>[][] } {
   const byAgent = new Map(rows.map(r => [r.agentId, r]))
-  const buttons: Record<string, unknown>[] = []
+  const grid: Record<string, unknown>[][] = []
   for (const a of HIVE_AGENTS) {
     const row = byAgent.get(a.id)
-    if (!row)
-      buttons.push({
-        text: copy.create(a),
-        callback_data: `hive:new:${a.id}`,
-        style: 'success',
-      })
-    else if (row.status === 'live')
-      buttons.push({
-        text: copy.pause(a),
-        callback_data: `hive:pause:${row.botId}`,
-        style: 'danger',
-      })
-    else
-      buttons.push({
-        text: copy.resume(a),
-        callback_data: `hive:live:${row.botId}`,
-        style: 'primary',
-      })
+    if (!row) {
+      grid.push([
+        {
+          text: copy.create(a),
+          callback_data: `hive:new:${a.id}`,
+          style: 'success',
+        },
+      ])
+      continue
+    }
+    const live = row.status === 'live'
+    grid.push([
+      {
+        text: live ? copy.pause(a) : copy.resume(a),
+        callback_data: `hive:${live ? 'pause' : 'live'}:${row.botId}`,
+        style: live ? 'danger' : 'primary',
+      },
+      { text: copy.token, callback_data: `hive:token:${row.botId}` },
+    ])
   }
-  const grid: Record<string, unknown>[][] = []
-  for (let i = 0; i < buttons.length; i += 2) grid.push(buttons.slice(i, i + 2))
   return { inline_keyboard: grid }
 }
 
@@ -384,6 +388,12 @@ export function installAgentHive(bot: Telegraf<any>, deps: RunnerDeps): void {
       if (verb === 'new') {
         const a = hiveAgent(arg)
         if (!a) return
+        // A second tap must not ask Telegram for a second bot of one agent.
+        const has = (await agentBots(manager)).find(r => r.agentId === a.id)
+        if (has) {
+          await ctx.reply(copy.already(has.botUsername))
+          return
+        }
         claimAgent(ctx.from.id, a.id)
         const username = agentBotUsername(a.id)
         await ctx.reply(copy.askCreate(a, username), {

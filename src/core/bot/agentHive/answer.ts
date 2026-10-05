@@ -78,7 +78,8 @@ export function registerManager(botId: number): void {
   managers.add(botId)
 }
 
-const isHiveBot = (id: number) => agentBots.has(id) || managers.has(id)
+export const isHiveBot = (id: number): boolean =>
+  agentBots.has(id) || managers.has(id)
 
 /** The other agents of this hive, as the agent should tag them. */
 export function rosterLine(chatId: number, selfId: number): string {
