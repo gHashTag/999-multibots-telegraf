@@ -270,3 +270,57 @@ describe('more poster forms (PR #3679 round 3)', () => {
     expect(keys('3.5 ч видео')).toEqual([])
   })
 })
+
+describe('a yes is a closed list of yes words (PR #3679 round 4)', () => {
+  const P = 'poster, 8 октября 11:30, Ko Phangan, entry 500 THB'
+  const heard = (reply: string) =>
+    heardFrom([
+      { role: 'user', content: 'сделай афишу' },
+      {
+        role: 'assistant',
+        content: 'Печатаю 8 октября, 11:30, 500 THB — верно?',
+      },
+      { role: 'user', content: reply },
+    ])
+  for (const reply of [
+    'давай другую дату',
+    'давай позже',
+    'yes, later',
+    'ok, a different date',
+    'да, девятого',
+    'да, в полдень',
+    'да, 9-го',
+    'давай 9',
+    'да, цена 300',
+    'да, кроме даты',
+    'yes, wrong date though',
+  ])
+    it(`"${reply}" asks again`, () => {
+      expect(unconfirmedFacts(P, heard(reply)).length).toBeGreaterThan(0)
+    })
+
+  for (const reply of [
+    'go',
+    'Perfect',
+    'конечно',
+    'да, без проблем',
+    'yes, no problem',
+    'да, печатай',
+    'Yes please',
+    'ок 👍',
+    '👍',
+    'давай!',
+    'верно, рисуй',
+  ])
+    it(`"${reply}" confirms`, () => {
+      expect(unconfirmedFacts(P, heard(reply))).toEqual([])
+    })
+})
+
+describe('"тыс" is a price only next to a currency', () => {
+  it('"5 тыс просмотров" is not a price, "2 тыс ₽" is', () => {
+    expect(keys('5 тыс просмотров')).toEqual([])
+    expect(keys('2 тыс ₽')).toEqual(['p2000'])
+    expect(keys('вход 3 тыс. рублей')).toEqual(['p3000'])
+  })
+})

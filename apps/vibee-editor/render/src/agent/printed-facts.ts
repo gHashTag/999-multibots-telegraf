@@ -88,7 +88,7 @@ const HOURS = new RegExp(
 const NUM =
   '(\\d{1,3}(?:[\\s,.]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)'
 const PRICE = new RegExp(
-  `(?:(?:[$€₽฿£]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM})|(?:${L}${NUM}\\s?(?:[$€₽฿£]|руб\\S*|р\\.|р(?![\\p{L}])|rouble\\S*|ruble\\S*|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро|тыс\\S*)${R})`,
+  `(?:(?:[$€₽฿£]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM})|(?:${L}${NUM}\\s?(?:[$€₽฿£]|руб\\S*|р\\.|р(?![\\p{L}])|rouble\\S*|ruble\\S*|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро|тыс\\.?\\s?(?:руб\\S*|р\\.|р(?![\\p{L}])|[$€₽฿£]|бат\\S*|доллар\\S*|евро))${R})`,
   'giu'
 )
 
@@ -192,37 +192,35 @@ export function factsIn(text: string): Fact[] {
 }
 
 /*
- * A yes is a reply that OPENS with a yes word and carries no "but": "да,
- * верно", "Yes, correct", "ок, давай 👍" count; "да, но в 12:00" does not
- * (its own 12:00 is the person's word anyway).
- *
- * A yes that changes something is not a yes to the agent's answer (PR #3679
- * round 3): "да, 9 октября" carries its own fact, "давай без цены" a change
- * word, "да?" a question. Each confirms only the person's own words, so the
- * agent's 8 October, 11:30 and 500 THB are asked about again.
+ * A yes is a CLOSED list (PR #3679 round 4). The reply, lowercased, with
+ * a few fixed phrases removed, must be made ONLY of yes words: "да, верно",
+ * "Yes please", "ок 👍", "давай!" count. Anything else -- a digit, a date in
+ * words ("да, девятого"), a change with no value ("давай позже"), a partial
+ * rejection ("да, кроме даты"), a question -- is not a yes, and the agent's
+ * values are asked about once more. An open list of change words always
+ * missed the next phrasing; asking again is the cheap failure.
  */
-const YES = new RegExp(
-  '^\\s*(?:да|ага|угу|верно|всё верно|все верно|правильно|подтверждаю|ок|окей|' +
-    'ok|okay|yes|yep|yeah|sure|correct|right|давай|го|печатай|отлично|супер|👍|✅)' +
-    '(?![\\p{L}])',
-  'iu'
+const YES_PHRASES = new RegExp(
+  '(?<![\\p{L}])(?:без проблем|всё так|все так|no problem|all good|looks good)(?![\\p{L}])',
+  'giu'
 )
-const BUT = new RegExp(
-  '(?<![\\p{L}])(?:нет|не|но|однако|только|исправ\\p{L}*|no|not|but|except|change)(?![\\p{L}])',
-  'iu'
+const YES_WORDS = new Set(
+  (
+    'да ага угу ок окей ok okay yes yep yeah sure верно правильно точно всё все ' +
+    'давай печатай рисуй делай отлично супер конечно подтверждаю го go perfect ' +
+    'great please correct right fine good'
+  ).split(' ')
 )
-const CHANGE = new RegExp(
-  '(?<![\\p{L}])(?:без|убер\\p{L}*|убра\\p{L}*|помен\\p{L}*|перен\\p{L}*|измен\\p{L}*|' +
-    'замен\\p{L}*|ли|instead|without|remove|drop|move|swap)(?![\\p{L}])',
-  'iu'
-)
-const isYes = (text: string) =>
-  text.length <= 80 &&
-  YES.test(text) &&
-  !BUT.test(text) &&
-  !CHANGE.test(text) &&
-  !/\?\s*$/.test(text) &&
-  factsIn(text).length === 0
+const isYes = (text: string) => {
+  if (text.length > 80 || /\?\s*$/.test(text)) return false
+  const words = text
+    .toLowerCase()
+    .replace(YES_PHRASES, ' ')
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+  if (words.length === 0) return /[👍✅]/u.test(text)
+  return words.every(w => YES_WORDS.has(w))
+}
 
 export interface Turn {
   role?: string
