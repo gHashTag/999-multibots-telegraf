@@ -9,7 +9,8 @@ import { marketplaceAgentThread, roomThread } from './conversation'
  * the asker, and that thread was then read out in front of the group.
  */
 const OWNER = '900000001'
-const ROOM = '-1009000000001'
+// A basic group's id is -<id>: the invented range, signed.
+const ROOM = '-900000002'
 const getPool = () => ({ query: async () => ({ rows: [] }) })
 
 describe('an agent called in a room', () => {
