@@ -171,13 +171,51 @@ export function unbackedClaims(
   return unbacked(text, events).map(c => c.tools[0])
 }
 
+/*
+ * Where a sentence ends (#3677 review). A dot before a space is not enough:
+ * "т.е.", "см.", "i.e." end nothing, so they lose their dots first, and a
+ * sentence ends only before a capital, a quote, a bracket or a list marker.
+ * A line break alone does not end one either ("Я сделал\nафишу" is one
+ * claim); a blank line or a list marker does.
+ */
+const ABBREV = new RegExp(
+  '(?<![\\p{L}])(?:т\\.е|т\\.д|т\\.п|см|п|напр|i\\.e|e\\.g|etc)\\.',
+  'giu'
+)
+const LIST_ITEM = /^\s*(?:[-*•]|\d+[.)])\s/u
+const SENTENCE_END = /(?<=[.!?…])\s+(?=[\p{Lu}«"„(]|[-*•]\s|\d+[.)]\s)/u
+
+/**
+ * The answer's sentences, each with whether it refers back. A header line
+ * that refers back and ends with ":" ("Выше я:") covers the list under it.
+ */
+function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
+  const clean = raw
+    .replace(QUOTED, ' ')
+    .replace(ABBREV, m => m.replace(/\./g, ''))
+  const out: Array<{ text: string; back: boolean }> = []
+  for (const block of clean.split(/\n\s*\n/)) {
+    const items: string[] = []
+    for (const line of block.split('\n'))
+      if (items.length === 0 || LIST_ITEM.test(line)) items.push(line)
+      else items[items.length - 1] += ' ' + line
+    let header = false
+    for (const item of items) {
+      const listed = LIST_ITEM.test(item)
+      if (!listed) header = false
+      for (const text of item.split(SENTENCE_END))
+        out.push({ text, back: (listed && header) || REFERS_BACK.test(text) })
+      if (!listed && /:\s*$/.test(item) && REFERS_BACK.test(item)) header = true
+    }
+  }
+  return out
+}
+
 function unbacked(raw: string, events: Array<Record<string, unknown>>) {
-  const sentences = raw.replace(QUOTED, ' ').split(/(?<=[.!?…])\s+|\n+/)
+  const sentences = sentencesOf(raw)
   const called = new Set(calledTools(events))
   return CLAIMS.filter(c =>
-    sentences.some(
-      s => c.re.test(s) && !(kindOf(c) === 'media' && REFERS_BACK.test(s))
-    )
+    sentences.some(s => c.re.test(s.text) && !(kindOf(c) === 'media' && s.back))
   ).filter(c => !c.tools.some(t => called.has(t)))
 }
 

@@ -166,6 +166,39 @@ describe('a claimed picture or video needs the call that makes it', () => {
       unbackedKinds('Ранее обсуждали дату. Сделал афишу.', []) // cyrillic-ok: test input
     ).toEqual(['media'])
   })
+
+  it('two inch marks do not pair into a quote around a claim (#3680 review)', () => {
+    expect(
+      unbackedKinds('Монитор 27", сделал афишу, ширина 30" — готово.', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+  })
+
+  // Clean on main, flagged by the first split of #3680 (bee, round 1).
+  for (const text of [
+    '- Сделал афишу (см. выше)', // cyrillic-ok: test input
+    'Ранее я сделал афишу, т.е. постер, и отправил файл.', // cyrillic-ok: test input
+    'Earlier, i.e. yesterday, I made the poster.',
+    'В прошлом сообщении я:\n- сделал афишу\n- отправил её тебе', // cyrillic-ok: test input
+    'Выше я:\n1. Сделал афишу\n2. Отправил файл', // cyrillic-ok: test input
+  ])
+    it(`abbreviations and a referring header excuse: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual([])
+    })
+
+  // A line break inside a sentence does not end it.
+  for (const text of ['Я сделал\nафишу для тебя.', 'Вот твоя\nафиша.']) // cyrillic-ok: test input
+    it(`a wrapped claim is still a claim: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual(['media'])
+    })
+
+  it('a header excuses only its own list; the next paragraph is checked', () => {
+    expect(
+      unbackedKinds('Выше я:\n- сделал афишу\n\nСделал афишу.', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+    expect(
+      unbackedKinds('Сделал афишу выше. Отправил файл.', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+  })
 })
 
 /*
