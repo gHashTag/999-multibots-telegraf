@@ -242,8 +242,8 @@ export function telegramMayComment(
 /* ------------------------------------------------------------ own posts -- */
 
 /**
- * The owner's own accounts, as this repository names them (SOUL.md: "Dmitrii
- * Vasilev, @gHashTag / @t27_dev"), and his own subreddit (reddit.ts
+ * The owner's own accounts, as this repository names them (SOUL.md: his
+ * name and his two handles, listed below), and his own subreddit (reddit.ts
  * SUBREDDITS, promo 'own'). The wiring adds what the person's browser and
  * ENGAGE_DESK_OWN_HANDLES say. Commenting under his own post is not engaging.
  */
