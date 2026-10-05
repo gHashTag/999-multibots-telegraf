@@ -377,6 +377,43 @@ const NOT_A_MEDIA_RESULT: Record<string, string> = {
   tokens_invoice: 'an invoice',
 }
 
+describe('whose verb, a plan, a question (#3693 review)', () => {
+  for (const said of [
+    'Анна записала голосовое: просит перенести встречу на пятницу.', // cyrillic-ok: test input
+    'Клиент прислал голосовое на 2 минуты, вот расшифровка.', // cyrillic-ok: test input
+    'Мария отправила голосовое в 14:02.', // cyrillic-ok: test input
+    'Иван скинул войс с адресом.', // cyrillic-ok: test input
+    'Он озвучил текст для ролика вчера.', // cyrillic-ok: test input
+    'Шаги:\n1. Записал голосовое\n2. Отправил клиенту', // cyrillic-ok: test input
+    'Я отправил аудиофайл? Нет, пока только текст.', // cyrillic-ok: test input
+    'Твоё голосовое готово к расшифровке? Пришли его сюда.', // cyrillic-ok: test input
+    'Мария отправила фото чека.', // cyrillic-ok: test input
+  ]) {
+    it(`someone else's verb, a plan or a question is no claim: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+  for (const [said, note] of [
+    ['Записала голосовое, держи.', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Озвучила текст, отправляю.', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Я уже записала тебе голосовое.', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Анна, я записала голосовое.', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Готово, отправила фото.', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Записала голосовое, отправить?', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ["Here's the audio.", VOICE_HONESTY_NOTE],
+    ['Here is your voice note.', VOICE_HONESTY_NOTE],
+    ['Done, voice message sent.', VOICE_HONESTY_NOTE],
+  ] as const) {
+    it(`the agent's own claim is still flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe(note)
+    })
+  }
+  it('a plan header excuses only its own list', () => {
+    const said = 'План:\n- Записал голосовое\n\nЗаписала голосовое.' // cyrillic-ok: test input
+    expect(honestyNote(said, [])).toBe(VOICE_HONESTY_NOTE)
+  })
+})
+
 describe('the media backing list covers the tool registry', () => {
   it('names every media-looking tool, either backing or excused', () => {
     const dir = __dirname

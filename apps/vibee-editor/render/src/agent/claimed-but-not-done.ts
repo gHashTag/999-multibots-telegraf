@@ -146,6 +146,11 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
+  {
+    re: /\bhere(?:'s| is) (the |your )(audio|voice (?:note|message|reply))\b|\b(?:voice|audio) (?:note|message|reply) (?:is |has been )?sent\b/i,
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
 ]
 
 /** Every tool that backs a media claim; the registry test reads it. */
@@ -228,6 +233,12 @@ const SENTENCE_END =
  * refers back and does not end a sentence of its own.
  */
 const HEADER_MAX = 60
+/*
+ * A plan's list is not a report either (#3693 review): "Steps:\n1. Recorded
+ * a voice note" lists what will be done. Closed list of plan headers.
+ */
+const PLAN_HEADER =
+  /^(?:шаги|план|по шагам|что (?:я )?сделаю|что нужно сделать|steps|plan|to ?do)$/i // cyrillic-ok: matched text
 function isHeader(line: string): boolean {
   const bare = line
     .replace(/^\s*#+\s*/, '')
@@ -238,7 +249,7 @@ function isHeader(line: string): boolean {
     bare.length > 0 &&
     bare.length <= HEADER_MAX &&
     !/[.!?]$/.test(bare) &&
-    REFERS_BACK.test(bare)
+    (REFERS_BACK.test(bare) || PLAN_HEADER.test(bare))
   )
 }
 
@@ -300,14 +311,92 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
   return out
 }
 
+/*
+ * Whose verb is it (#3693 review)? "Anna recorded a voice note" and "the
+ * client sent a photo" describe someone else; in the CRM the agent says that all
+ * day. An open list of other subjects never ends, so the list is CLOSED and
+ * names what may stand before the agent's own verb in its clause: the
+ * agent itself, and filler. Any other word -- a name, "клиент", "он" --
+ * makes the verb someone else's.
+ */
+const OWN_SUBJECT = new Set([
+  'я',
+  'мы',
+  'тринити',
+  'сам',
+  'сама',
+  'сами',
+  'уже',
+  'только',
+  'тоже', // cyrillic-ok: matched words
+  'вот',
+  'ок',
+  'окей',
+  'ok',
+  'готово',
+  'сейчас',
+  'всё',
+  'все',
+  'так', // cyrillic-ok: matched words
+  'итак',
+  'да',
+  'хорошо',
+  'отлично',
+  'супер',
+  'конечно',
+  'ещё',
+  'еще', // cyrillic-ok: matched words
+  'а',
+  'тебе',
+  'вам',
+  'для',
+  'тебя',
+  'вас',
+  'как',
+  'просил',
+  'просила', // cyrillic-ok: matched words
+  'просили',
+  'обещал',
+  'обещала',
+  'обещали',
+  'что', // cyrillic-ok: matched words
+])
+// a clause starts after a comma, a colon, a dash, a bracket or "and"
+const CLAUSE_BREAK = /[,;:—–()]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched word
+
+function ownVerb(sentence: string, m: RegExpExecArray): boolean {
+  const verbAt = m.index + (m[1] ?? '').length
+  const clause = sentence.slice(0, verbAt).split(CLAUSE_BREAK).pop() ?? ''
+  const words = clause.toLowerCase().match(/\p{L}+/gu) ?? []
+  return words.every(w => OWN_SUBJECT.has(w))
+}
+
+// "Did I send the audio file?" asks; the claim's clause ends in a question mark
+function asked(sentence: string, m: RegExpExecArray): boolean {
+  const rest = sentence.slice(m.index + m[0].length)
+  return rest.match(/[,;.!?…]/)?.[0] === '?'
+}
+
+/* A verb-led Russian claim: its group 1 is the boundary before the verb. */
+const VERB_LED = (c: { re: RegExp }) => c.re.source.includes('(?<!')
+
+function claimedIn(
+  c: (typeof CLAIMS)[number],
+  s: { text: string; back: boolean }
+) {
+  const m = c.re.exec(s.text)
+  if (!m) return false
+  if (kindOf(c) === 'browser') return true
+  if (s.back || asked(s.text, m)) return false
+  return !VERB_LED(c) || ownVerb(s.text, m)
+}
+
 function unbacked(raw: string, events: Array<Record<string, unknown>>) {
   const sentences = sentencesOf(raw)
   const called = new Set(calledTools(events))
-  return CLAIMS.filter(c =>
-    sentences.some(
-      s => c.re.test(s.text) && !(kindOf(c) !== 'browser' && s.back)
-    )
-  ).filter(c => !c.tools.some(t => called.has(t)))
+  return CLAIMS.filter(c => sentences.some(s => claimedIn(c, s))).filter(
+    c => !c.tools.some(t => called.has(t))
+  )
 }
 
 /** Which kinds of claim no call backs, browser first. Pure. */
