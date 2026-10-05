@@ -174,11 +174,12 @@ Python и отвечает «не запускалось», а не выдумы
 
 ## The agent says only what it did (2026-10-06)
 
-Three guards stand between the model's words and the person, all in
-`apps/vibee-editor/render/src/agent/`:
+Two guards in `apps/vibee-editor/render/src/agent/` stand between the
+model's words and the person, plus one deploy setting:
 
-- `claimed-but-not-done.ts` (#3658): an answer that claims a picture, video
-  or voice with no matching tool call in the same turn gets an honesty note.
+- `claimed-but-not-done.ts` (issue #3658, PR #3667): an answer that claims a
+  picture, a video, a sent file or a browser action with no matching tool call
+  in the same turn gets an honesty note. Voice claims are NOT checked yet.
   Quoted text and a back-reference ("earlier", "above") are not claims; the
   tighter scope for both is PR #3680 (#3677), in review on 2026-10-06.
 - `printed-facts.ts` (#3661, PR #3679, in review on 2026-10-06 -- check it
@@ -186,7 +187,7 @@ Three guards stand between the model's words and the person, all in
   prompt must be one the person wrote, or one the agent showed and the person
   answered yes to. Otherwise `image_generate` / `image_edit` refuse BEFORE the
   charge and name the facts, so the agent asks one confirm question.
-- A provider head with no tool support narrates work it cannot do (memory
+- The deploy setting, not a file: a provider head with no tool support narrates work it cannot do (memory
   `agent-provider-ollama-has-no-tools`).
 
 Measure, do not guess: `tri honesty` prints the deploy-time provider head
