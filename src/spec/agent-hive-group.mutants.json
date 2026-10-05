@@ -40,5 +40,83 @@
     "file": "core/bot/agentHive/answer.ts",
     "from": "    if (origin === null) return false\n",
     "to": ""
+  },
+  {
+    "name": "typing is never refreshed at the four-second mark",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "sinceLastMs >= SPEC.TYPING_REFRESH_MS",
+    "to": "sinceLastMs > SPEC.TYPING_REFRESH_MS"
+  },
+  {
+    "name": "every agent speaks first on the all tag",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "rank < SPEC.ALL_FIRST_SPEAKERS",
+    "to": "rank <= SPEC.ALL_FIRST_SPEAKERS"
+  },
+  {
+    "name": "a bot follows up without a tag",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "!fromBot && samePerson && sameThread",
+    "to": "samePerson && sameThread"
+  },
+  {
+    "name": "a follow-up crosses topics",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "samePerson && sameThread && ageMs",
+    "to": "samePerson && ageMs"
+  },
+  {
+    "name": "a stop silences people too",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "!fromBot || !stopped(sinceStopMs)",
+    "to": "!stopped(sinceStopMs)"
+  },
+  {
+    "name": "a muted agent ignores its own tag",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "tagged || !muted(sinceMuteMs)",
+    "to": "!muted(sinceMuteMs)"
+  },
+  {
+    "name": "a refused reaction fails the turn",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "_reactionOk: boolean): boolean =>\n  answerSent\n",
+    "to": "_reactionOk: boolean): boolean =>\n  answerSent && _reactionOk\n"
+  },
+  {
+    "name": "the group brief wins over the topic brief",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "if (hasTopicBrief) return 2\n  if (hasGroupBrief) return 1",
+    "to": "if (hasGroupBrief) return 1\n  if (hasTopicBrief) return 2"
+  },
+  {
+    "name": "a brief of exactly the limit is refused",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "chars <= SPEC.MAX_BRIEF_CHARS",
+    "to": "chars < SPEC.MAX_BRIEF_CHARS"
+  },
+  {
+    "name": "a bot sets a brief",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "isAdmin && !fromBot",
+    "to": "isAdmin"
+  },
+  {
+    "name": "a lost topic is retried without a cooldown",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "(!stored || !threadFound) && sinceLastTryMs >= SPEC.TOPIC_RECREATE_COOLDOWN_MS",
+    "to": "!stored || !threadFound"
+  },
+  {
+    "name": "a summary reads past the log",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "if (asked > SPEC.SUMMARY_LOG_SIZE) return SPEC.SUMMARY_LOG_SIZE\n",
+    "to": ""
+  },
+  {
+    "name": "a bare summary reads nothing",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "if (asked === 0) return SPEC.SUMMARY_DEFAULT\n",
+    "to": ""
   }
 ]
