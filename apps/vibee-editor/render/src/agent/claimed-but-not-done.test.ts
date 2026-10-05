@@ -5,6 +5,8 @@ import {
   HONESTY_NOTE,
   MEDIA_HONESTY_NOTE,
   MEDIA_TOOLS,
+  VOICE_HONESTY_NOTE,
+  VOICE_TOOLS,
   browserCalls,
   claimsBrowserWork,
   honestyLogFields,
@@ -272,6 +274,94 @@ describe('a header across a blank line, an emoji header, bold marks (#3680 round
     })
 })
 
+describe('a claimed voice message needs the call that makes it (#3684)', () => {
+  for (const said of [
+    'Записал тебе голосовое, послушай.', // cyrillic-ok: test input
+    'Отправила вам голосовое сообщение.', // cyrillic-ok: test input
+    'Скинул аудио с ответом.', // cyrillic-ok: test input
+    'Озвучил текст поста.', // cyrillic-ok: test input
+    'Голосовое сообщение готово!', // cyrillic-ok: test input
+    'Вот твоё голосовое.', // cyrillic-ok: test input
+    "I've recorded a voice note for you.",
+    'I sent you a voice message.',
+    'I voiced it in your clone.',
+    'Your voice note is ready.',
+  ])
+    it(`flags an unbacked voice claim: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual(['voice'])
+      expect(honestyNote(said, [])).toBe(VOICE_HONESTY_NOTE)
+    })
+
+  for (const tool of ['audio_generate', 'voice_clone_speak', 'tg_send_voice'])
+    it(`${tool} backs the voice claim`, () => {
+      expect(
+        honestyNote('Записал тебе голосовое.', [call(tool)]) // cyrillic-ok: test input
+      ).toBe('')
+    })
+
+  it('a picture call does not back a voice claim', () => {
+    expect(
+      unbackedKinds('Записал тебе голосовое.', [call('image_generate')]) // cyrillic-ok: test input
+    ).toEqual(['voice'])
+  })
+
+  // The person's voice, a request, a mode, a negation: no claim of ours.
+  for (const said of [
+    'Голосовой режим включается кнопкой с микрофоном.', // cyrillic-ok: test input
+    'Ответь голосом?', // cyrillic-ok: test input
+    'В голосовом ты сказал, что нужна афиша.', // cyrillic-ok: test input
+    'Ты записал голосовое — я его послушал.', // cyrillic-ok: test input
+    'Я не записал голосовое: нет клона.', // cyrillic-ok: test input
+    'Запишу тебе голосовое, когда будет клон.', // cyrillic-ok: test input
+    'Озвучил вопрос про цену.', // cyrillic-ok: test input
+    'You sent me a voice note.',
+    'Shall I record a voice message?',
+  ])
+    it(`no voice claim: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  // Quotes and back-references are excused as for pictures.
+  for (const said of [
+    'Ты просил: «запиши голосовое». Записал голосовое выше.', // cyrillic-ok: test input
+    'Вы написали: «я записал голосовое».', // cyrillic-ok: test input
+    'Выше я:\n- записал голосовое\n- сделал афишу', // cyrillic-ok: test input
+  ])
+    it(`excuses a quoted or earlier voice: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  it('names both kinds in the log, media first', () => {
+    const said = 'Сделал афишу и записал голосовое.' // cyrillic-ok: test input
+    expect(unbackedKinds(said, [])).toEqual(['media', 'voice'])
+    expect(honestyLogFields(said, []).claim).toBe('media+voice')
+    expect(honestyNote(said, [])).toBe(MEDIA_HONESTY_NOTE + VOICE_HONESTY_NOTE)
+  })
+})
+
+describe('the rare false note and the unpinned rules of #3689', () => {
+  // Clean on main, flagged by #3680: a header right under a list item.
+  for (const said of [
+    '- Готово\nВыше я:\n\n- сделал афишу', // cyrillic-ok: test input
+    'Привет! Вот итоги:\n- текст поста\nВыше я:\n\n- сделал афишу', // cyrillic-ok: test input
+  ])
+    it(`a header under a list item heads its list: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  it('a straight pair closing before a letter is not a quote', () => {
+    // an inch mark opens, a quote glued to a suffix "closes": no pair
+    const said = 'Формат 50 "x70. Сделал афишу и скинул "PNG"шкой.' // cyrillic-ok: test input
+    expect(unbackedKinds(said, [])).toEqual(['media'])
+  })
+
+  it('an emoji after a full stop starts a new sentence', () => {
+    // the header excuses the first sentence of the item, not the second
+    const said = 'Выше я:\n- выложил пост. 🎨 сделал афишу' // cyrillic-ok: test input
+    expect(unbackedKinds(said, [])).toEqual(['media'])
+  })
+})
+
 /*
  * The next media tool must not reopen the false note. Every registered tool
  * whose name says it makes or sends media backs the media claims, or is
@@ -285,8 +375,6 @@ const NOT_A_MEDIA_RESULT: Record<string, string> = {
   reel_analyze: 'reads a reel, makes none',
   mail_send: 'e-mail, not a chat picture',
   tokens_invoice: 'an invoice',
-  audio_generate: 'sound; no claim pattern reads sound yet',
-  voice_clone_speak: 'sound; no claim pattern reads sound yet',
 }
 
 describe('the media backing list covers the tool registry', () => {
@@ -305,7 +393,10 @@ describe('the media backing list covers the tool registry', () => {
     )
     expect(media.length).toBeGreaterThan(10)
     const loose = media.filter(
-      n => !MEDIA_TOOLS.includes(n) && !(n in NOT_A_MEDIA_RESULT)
+      n =>
+        !MEDIA_TOOLS.includes(n) &&
+        !VOICE_TOOLS.includes(n) &&
+        !(n in NOT_A_MEDIA_RESULT)
     )
     expect(loose).toEqual([])
   })

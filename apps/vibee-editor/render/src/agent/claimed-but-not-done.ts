@@ -21,9 +21,14 @@
  * real model described a poster it never looked at. A finished picture,
  * video or sent file is a claim too, backed only by the tool that makes or
  * sends it. Same narrowness: "I will make", "shall I make?" are not claims.
+ *
+ * VOICE, 2026-10-06 (#3684): "recorded you a voice note" with no audio call
+ * is the same false claim with sound. Only a first-person recorded, sent or
+ * voiced message counts: "voice mode", "answer by voice?" and "in your voice
+ * note you said" name the person's voice, not ours.
  */
 
-type ClaimKind = 'browser' | 'media'
+type ClaimKind = 'browser' | 'media' | 'voice'
 
 const IMAGE_TOOLS = [
   'image_generate',
@@ -48,6 +53,7 @@ const SEND_TOOLS = [
   'tg_send_video',
   'tg_send_voice',
 ]
+const AUDIO_TOOLS = ['audio_generate', 'voice_clone_speak', 'tg_send_voice']
 
 /* Claimed actions, each with the tool(s) that would have done it. */
 const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
@@ -115,6 +121,31 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
+  {
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(записал|записала|отправил|отправила|прислал|прислала|скинул|скинула|озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(голосов|аудио|войс)/i, // cyrillic-ok: matched text
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
+  {
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(текст|пост|сценари|ответ|сообщени|письм)/i, // cyrillic-ok: matched text
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
+  {
+    re: /(^|[\s.,:;—-])(вот\s+(тво[её]|ваше)\s+голосовое|голосовое\s+(сообщение\s+)?готово)/i, // cyrillic-ok: matched text
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
+  {
+    re: /\bI(?:'ve| have)? (recorded|sent)( you)? (a |an |the |your )?(voice|audio) ?(note|message|reply|clip)?\b/i,
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
+  {
+    re: /\bI(?:'ve| have)? voiced (it|this|the|your)\b|\b(?:your |the )?voice (?:note|message) is ready\b/i,
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
 ]
 
 /** Every tool that backs a media claim; the registry test reads it. */
@@ -123,6 +154,9 @@ export const MEDIA_TOOLS: readonly string[] = [
   ...VIDEO_TOOLS,
   ...SEND_TOOLS,
 ]
+
+/** Every tool that backs a voice claim; the registry test reads it too. */
+export const VOICE_TOOLS: readonly string[] = AUDIO_TOOLS
 
 const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'
 
@@ -140,7 +174,7 @@ const QUOTED = /«[^»\n]*»|(?<=^|[\s(\[:—-])"[^"\n]*"(?![\p{L}\d])|„[^“\
 /*
  * "I sent you the poster above" points at an earlier turn, whose call is
  * not among this turn's events. A false note there is worse than none.
- * It excuses the media claims of ITS OWN sentence only (#3677): one
+ * It excuses the media and voice claims of ITS OWN sentence only (#3677): one
  * "ранее" elsewhere in the answer used to switch the check off for all.
  */
 const REFERS_BACK = /(выше|ранее|в прошлом сообщении|\babove\b|\bearlier\b)/i // cyrillic-ok: matched text
@@ -215,16 +249,21 @@ function isHeader(line: string): boolean {
  * a further sentence inside an item is judged on its own.
  *
  * A blank line ends an item, but not a header's reach: models put a blank
- * line after a heading, so a header alone in its paragraph still covers the
+ * line after a heading, so a header still covers the
  * list that opens the next one (#3680 round 5). An emoji-led line that is
  * itself a referring header ("<pin emoji> Above I:") is a header, not an item.
+ *
+ * A header right under a list item reaches too (#3689): "- Done\nAbove I:\n\n
+ * - made the poster" heads the second list. The old "alone in its
+ * paragraph" rule only ever failed for that case, since a plain line after
+ * a plain line joins it.
  */
 function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
   const clean = raw
     .replace(QUOTED, ' ')
     .replace(ABBREV, m => m.replace(/\./g, ''))
   const out: Array<{ text: string; back: boolean }> = []
-  const items: Array<{ text: string; listed: boolean; opens: boolean }> = []
+  const items: Array<{ text: string; listed: boolean }> = []
   for (const block of clean.split(/\n\s*\n/)) {
     const first = items.length
     for (const line of block.split('\n')) {
@@ -233,15 +272,12 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
       // a plain line continues plain text, or an item it is indented under
       const continues = last && !listed && (!last.listed || /^\s/.test(line))
       if (continues) last.text += ' ' + line
-      else items.push({ text: line, listed, opens: items.length === first })
+      else items.push({ text: line, listed })
     }
   }
   // a header reaches the list right under it, or across one blank line
-  // when it is alone in its paragraph
   const headsList = (i: number) =>
-    items[i + 1]?.listed === true &&
-    (!items[i + 1].opens || (items[i].opens && items[i + 1].opens)) &&
-    isHeader(items[i].text)
+    items[i + 1]?.listed === true && isHeader(items[i].text)
   const EMOJI_LED = /^\s*\p{Extended_Pictographic}/u
   // an emoji-led referring header followed by a list heads it
   items.forEach((item, i) => {
@@ -268,7 +304,9 @@ function unbacked(raw: string, events: Array<Record<string, unknown>>) {
   const sentences = sentencesOf(raw)
   const called = new Set(calledTools(events))
   return CLAIMS.filter(c =>
-    sentences.some(s => c.re.test(s.text) && !(kindOf(c) === 'media' && s.back))
+    sentences.some(
+      s => c.re.test(s.text) && !(kindOf(c) !== 'browser' && s.back)
+    )
   ).filter(c => !c.tools.some(t => called.has(t)))
 }
 
@@ -278,7 +316,9 @@ export function unbackedKinds(
   events: Array<Record<string, unknown>>
 ): ClaimKind[] {
   const kinds = new Set(unbacked(text, events).map(kindOf))
-  return (['browser', 'media'] as ClaimKind[]).filter(k => kinds.has(k))
+  return (['browser', 'media', 'voice'] as ClaimKind[]).filter(k =>
+    kinds.has(k)
+  )
 }
 
 /**
@@ -316,9 +356,15 @@ export const MEDIA_HONESTY_NOTE =
   'картинку или видео, но не вызвал инструмент, который это делает, — ' + // cyrillic-ok
   'файла нет. Попросите повторить, и он сделает это по-настоящему.' // cyrillic-ok
 
+export const VOICE_HONESTY_NOTE =
+  '\n\n⚠️ Проверка: в этом ответе агент написал, что записал или отправил ' + // cyrillic-ok: shown to the person
+  'голосовое, но не вызвал инструмент, который это делает, — записи нет. ' + // cyrillic-ok
+  'Попросите повторить, и он сделает это по-настоящему.' // cyrillic-ok
+
 const NOTES: Record<ClaimKind, string> = {
   browser: HONESTY_NOTE,
   media: MEDIA_HONESTY_NOTE,
+  voice: VOICE_HONESTY_NOTE,
 }
 
 /** The note to append, or '' when every claimed action really ran. Pure. */
