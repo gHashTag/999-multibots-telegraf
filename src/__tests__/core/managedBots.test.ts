@@ -362,7 +362,9 @@ describe('a client writes to the managed bot', () => {
       'сколько стоит?', // cyrillic-ok: test input
       expect.any(Function),
       '144022504',
-      true
+      true,
+      // replyToClient was called without a tool listener here (#3683)
+      undefined
     )
     expect(tellOwner).not.toHaveBeenCalled()
   })

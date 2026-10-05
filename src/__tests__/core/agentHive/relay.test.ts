@@ -38,7 +38,10 @@ describe('an agent bot without injected deps', () => {
       } as ManagedBotRow
     )
     expect(ok).toBe(true)
-    expect(relay).toHaveBeenCalledWith('5', 'hi', { agent: 'coder' })
+    expect(relay).toHaveBeenCalledWith('5', 'hi', {
+      agent: 'coder',
+      onTool: expect.any(Function),
+    })
     expect(sent).toEqual(['hello'])
   })
 })
