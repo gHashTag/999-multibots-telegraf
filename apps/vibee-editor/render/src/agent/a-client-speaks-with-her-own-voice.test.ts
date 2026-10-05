@@ -340,11 +340,17 @@ describe('the clone reaches the provider only by the service’s choice', () => 
     )
   })
 
-  it('the route takes a clone only from its api-key caller, and skips ElevenLabs for it', () => {
+  it('the route takes a clone only from its api-key caller, and never sends it to Kie', () => {
     expect(server).toMatch(
       /authenticate\(req\)\.via === 'api-key' && isCloneVoiceId\(clone_voice\)/
     )
-    expect(server).toMatch(/if \(cloneVoice\) throw new Error/)
+    // There is no ElevenLabs leg any more (kie-speech.ts). A clone goes to
+    // Replicate when it is live, and is refused before the charge otherwise;
+    // Kie would read it in a stock voice.
+    expect(server).toMatch(/if \(cloneVoice && !replicateLive\(\)\)/)
+    expect(server).toMatch(
+      /if \(cloneVoice\) \{\s*const audioUrl = await generateAudioViaReplicate/
+    )
   })
 
   it('the tool is in the registry', async () => {

@@ -11,25 +11,19 @@ const handler = (route: string): string => {
   return server.slice(start, next === -1 ? start + 12_000 : next)
 }
 
+/*
+ * Timed captions came only from the DIRECT ElevenLabs leg (/with-timestamps).
+ * That leg never worked (the env var held a key id, not a key) and is gone:
+ * Kie speaks (owner rule, kie-only skill). Kie's TTS returns no character
+ * alignment, so the route must not invent one -- callers that need timing
+ * transcribe the final voice (reel-captions-from-final-voice).
+ */
 describe('TTS timed caption contract', () => {
-  it('returns timing from the same ElevenLabs response as the audio', () => {
+  it('does not fabricate timed captions without a provider alignment', () => {
     const audio = handler('/api/generate/audio')
-    expect(audio).toContain('/with-timestamps')
-    expect(audio).toContain('audio_base64')
-    expect(audio).toContain('normalized_alignment')
-    expect(audio).toContain('captionsFromCharacterAlignment')
-    expect(audio).toContain('timed_captions')
-  })
-
-  it('does not fabricate timed captions in the provider fallback', () => {
-    const audio = handler('/api/generate/audio')
-    const fallbackStart = audio.indexOf('generateAudioViaReplicate')
-    const responseStart = audio.indexOf('res.writeHead(200', fallbackStart)
-    expect(fallbackStart).toBeGreaterThan(-1)
-    expect(responseStart).toBeGreaterThan(fallbackStart)
-    expect(audio.slice(fallbackStart, responseStart)).not.toContain(
-      'timedCaptions ='
-    )
+    expect(audio).not.toContain('timed_captions')
+    expect(audio).not.toContain('timedCaptions =')
+    expect(audio).not.toContain('/with-timestamps')
   })
 
   it('keeps script captions separate from media timing', () => {
