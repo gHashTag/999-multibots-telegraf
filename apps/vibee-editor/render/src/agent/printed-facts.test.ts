@@ -82,6 +82,17 @@ describe('heardFrom: what the person stands behind', () => {
   })
 })
 
+describe('a yes after the person’s own message', () => {
+  it('does not reach past that message to an older proposal', () => {
+    const heard = heardFrom([
+      { role: 'assistant', content: 'Печатаю 8 октября, 11:30 — верно?' },
+      { role: 'user', content: 'нет, подожди' },
+      { role: 'user', content: 'да' },
+    ])
+    expect(unconfirmedFacts('8 октября 11:30', heard).length).toBe(2)
+  })
+})
+
 describe('unconfirmedFacts and the refusal', () => {
   it('without a conversation (a sweep, MCP) nothing is refused', () => {
     expect(unconfirmedFacts('8 October 11:30', undefined)).toEqual([])
