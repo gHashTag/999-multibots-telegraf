@@ -85,10 +85,15 @@ const HOURS = new RegExp(
  * A number with optional thousands groups ("1 500", "1,500", "1.500") and
  * optional cents; `amount` reads it.
  */
+/*
+ * "$5k", "$5 тыс": a multiplier after a sign-first amount. Without it "$5k"
+ * read as 5, and the person's "$5" confirmed a printed "$5k" (#3686).
+ */
+const KILO = '(?:k|к|тыс(?:яч[аи]?|\\.)?)(?![\\p{L}])'
 const NUM =
   '(\\d{1,3}(?:[\\s,.]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)'
 const PRICE = new RegExp(
-  `(?:(?:[$€₽฿£]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM})|(?:${L}${NUM}\\s?(?:[$€₽฿£]|руб\\S*|р\\.|р(?![\\p{L}])|rouble\\S*|ruble\\S*|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро|тыс\\.?\\s?(?:руб\\S*|р\\.|р(?![\\p{L}])|[$€₽฿£]|бат\\S*|доллар\\S*|евро))${R})`,
+  `(?:(?:[$€₽฿£]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM}(?:\\s?${KILO})?)|(?:${L}${NUM}(?:\\s?k)?\\s?(?:[$€₽฿£]|руб\\S*|р\\.|р(?![\\p{L}])|rouble\\S*|ruble\\S*|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро|тыс(?:яч[аи]?|\\.)?\\s?(?:руб\\S*|р\\.|р(?![\\p{L}])|[$€₽฿£]|бат\\S*|доллар\\S*|евро))${R})`,
   'giu'
 )
 
@@ -104,8 +109,23 @@ function amount(raw: string): string {
     .replace(/\D/g, '')
 }
 
-/* "2 тыс. руб" is 2000, so the person's "$2" does not confirm it. */
-const THOUSANDS = new RegExp('\\d\\s?(?:тыс|k)(?![a-z])', 'iu')
+/* "2 тыс. руб", "10 тысяч рублей", "$5k" are thousands: "$2" does not confirm them. */
+const THOUSANDS = new RegExp('\\d\\s?(?:тыс|k(?![a-z])|к(?![а-яё]))', 'iu')
+
+/*
+ * The currency a price names, so "$300" does not confirm "300 ₽" (#3686).
+ * Both sides of a comparison always name one: PRICE needs a sign or a word.
+ */
+const CURRENCIES: ReadonlyArray<[string, RegExp]> = [
+  ['usd', new RegExp('[$]|usd|dollar|доллар', 'iu')],
+  ['eur', new RegExp('€|eur|евро', 'iu')],
+  ['gbp', new RegExp('£|gbp', 'iu')],
+  ['thb', new RegExp('฿|thb|бат|baht', 'iu')],
+  ['rub', new RegExp('₽|руб|rub|roubl|(?<![\\p{L}])р(?![\\p{L}])', 'iu')],
+]
+function currencyOf(text: string): string | undefined {
+  return CURRENCIES.find(([, re]) => re.test(text))?.[0]
+}
 
 /** Aspect ratios look like times and are never printed facts. */
 const RATIOS = new Set(['9:16', '16:9', '9.16'])
@@ -120,6 +140,8 @@ export interface Fact {
    * confirms it.
    */
   keys: string[]
+  /** A price's currency (usd, eur, gbp, thb, rub) when it names one. */
+  currency?: string
 }
 
 function monthOf(word: string): number | null {
@@ -186,7 +208,13 @@ export function factsIn(text: string): Fact[] {
   for (const m of text.matchAll(PRICE)) {
     let digits = amount(m[1] ?? m[2] ?? '')
     if (digits && THOUSANDS.test(m[0])) digits += '000'
-    if (digits) add({ kind: 'price', text: m[0].trim(), keys: [`p${digits}`] })
+    if (digits)
+      add({
+        kind: 'price',
+        text: m[0].trim(),
+        keys: [`p${digits}`],
+        currency: currencyOf(m[0]),
+      })
   }
   return out
 }
@@ -201,24 +229,36 @@ export function factsIn(text: string): Fact[] {
  * missed the next phrasing; asking again is the cheap failure.
  */
 const YES_PHRASES = new RegExp(
-  '(?<![\\p{L}])(?:без проблем|всё так|все так|no problem|all good|looks good)(?![\\p{L}])',
+  "(?<![\\p{L}])(?:без проблем|всё так|все так|именно так|давай так|no problem|all good|looks good|sounds good|go ahead|that's right|that is right)(?![\\p{L}])",
   'giu'
 )
 const YES_WORDS = new Set(
   (
     'да ага угу ок окей ok okay yes yep yeah sure верно правильно точно всё все ' +
     'давай печатай рисуй делай отлично супер конечно подтверждаю го go perfect ' +
-    'great please correct right fine good'
+    'great please correct right fine good хорошо ладно согласен согласна ' +
+    'норм пойдёт пойдет именно exactly спасибо thanks'
   ).split(' ')
 )
+/* Pictures that agree; any other emoji ("да 👎") is not a yes (#3686). */
+const YES_EMOJI = /[👍✅👌🙏]/gu
+const ONLY_YES_EMOJI = /[👍✅👌🙏]/u
+const YES_PHRASE_ALONE = new RegExp(YES_PHRASES.source, 'iu')
+const PICTOGRAPH = /\p{Extended_Pictographic}/u
+/* "please correct" asks for a fix: "correct" is a verb there (#3686). */
+const FIX_REQUEST = /\bplease\s+(?:correct|fix|change)\b/i
 const isYes = (text: string) => {
   if (text.length > 80 || /\?\s*$/.test(text)) return false
+  if (FIX_REQUEST.test(text)) return false
+  if (PICTOGRAPH.test(text.replace(YES_EMOJI, ''))) return false
   const words = text
     .toLowerCase()
     .replace(YES_PHRASES, ' ')
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean)
-  if (words.length === 0) return /[👍✅]/u.test(text)
+  // Nothing left: a yes phrase alone ("sounds good") or a yes emoji alone.
+  if (words.length === 0)
+    return ONLY_YES_EMOJI.test(text) || YES_PHRASE_ALONE.test(text)
   return words.every(w => YES_WORDS.has(w))
 }
 
@@ -264,8 +304,15 @@ export function unconfirmedFacts(
   heard: string | undefined
 ): Fact[] {
   if (heard === undefined) return []
-  const known = new Set(factsIn(heard).flatMap(f => f.keys))
-  return factsIn(prompt).filter(f => !f.keys.some(k => known.has(k)))
+  const known = factsIn(heard)
+  return factsIn(prompt).filter(
+    f =>
+      !known.some(
+        h =>
+          h.keys.some(k => f.keys.includes(k)) &&
+          (!h.currency || !f.currency || h.currency === f.currency)
+      )
+  )
 }
 
 /** The tool's refusal: Russian, because the model relays it to the person. */

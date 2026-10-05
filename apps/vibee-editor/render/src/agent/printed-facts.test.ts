@@ -324,3 +324,97 @@ describe('"тыс" is a price only next to a currency', () => {
     expect(keys('вход 3 тыс. рублей')).toEqual(['p3000'])
   })
 })
+
+describe('leftovers of the closed yes list and the price reader (#3686)', () => {
+  const P = 'poster, 8 октября 11:30, Ko Phangan, entry 500 THB'
+  const ask = 'Печатаю 8 октября, 11:30, 500 THB — верно?'
+  const heard = (reply: string) =>
+    heardFrom([
+      { role: 'user', content: 'сделай афишу' },
+      { role: 'assistant', content: ask },
+      { role: 'user', content: reply },
+    ])
+
+  for (const reply of [
+    'please correct',
+    'yes please correct',
+    'please fix it',
+    'да 👎',
+    '👍👎',
+    'ок 😡',
+  ])
+    it(`"${reply}" is not a yes`, () => {
+      expect(unconfirmedFacts(P, heard(reply)).length).toBe(3)
+    })
+
+  for (const reply of [
+    'хорошо',
+    'ладно',
+    'да, хорошо',
+    'да, именно так',
+    'согласен',
+    'норм',
+    'пойдёт',
+    'давай так',
+    'yes, go ahead',
+    'yes exactly',
+    'sounds good',
+    "yes that's right",
+    'ok thanks',
+    'да спасибо',
+    '👌',
+    'да 👍🏽',
+  ])
+    it(`"${reply}" confirms`, () => {
+      expect(unconfirmedFacts(P, heard(reply))).toEqual([])
+    })
+
+  it('"не так" and "хорошо, но 9-го" still ask again', () => {
+    expect(unconfirmedFacts(P, heard('не так')).length).toBe(3)
+    expect(unconfirmedFacts(P, heard('хорошо, но 9-го')).length).toBe(3)
+  })
+
+  it('reads "10 тысяч рублей" and "$5k" as thousands', () => {
+    expect(keys('вход 10 тысяч рублей')).toEqual(['p10000'])
+    expect(keys('10 тысячи ₽')).toEqual(['p10000'])
+    expect(keys('prize $5k')).toEqual(['p5000'])
+    expect(keys('prize $5 тыс')).toEqual(['p5000'])
+    expect(keys('5k THB')).toEqual(['p5000'])
+    expect(keys('5 тыс просмотров')).toEqual([])
+  })
+
+  it('"$5" does not confirm a printed "$5k"; "$5000" does', () => {
+    expect(unconfirmedFacts('prize $5k', 'приз $5').length).toBe(1)
+    expect(unconfirmedFacts('prize $5k', 'приз 5000 долларов')).toEqual([])
+  })
+
+  it('the same number in another currency is not a confirmation', () => {
+    expect(unconfirmedFacts('entry 300 ₽', 'вход $300').length).toBe(1)
+    expect(unconfirmedFacts('entry 300 ₽', 'вход 300 рублей')).toEqual([])
+    expect(unconfirmedFacts('entry €15', 'вход 15 евро')).toEqual([])
+    expect(unconfirmedFacts('entry €15', 'вход 15 бат').length).toBe(1)
+  })
+})
+
+describe('a yes phrase alone is a yes (#3686)', () => {
+  for (const reply of ['без проблем', 'go ahead', 'all good'])
+    it(`"${reply}"`, () => {
+      const heard = heardFrom([
+        { role: 'assistant', content: 'Печатаю 8 октября, 11:30 — верно?' },
+        { role: 'user', content: reply },
+      ])
+      expect(unconfirmedFacts('8 октября 11:30', heard)).toEqual([])
+    })
+  it('an empty or punctuation-only reply is not', () => {
+    for (const reply of ['', '...', '!!'])
+      expect(
+        unconfirmedFacts(
+          '8 октября 11:30',
+          heardFrom([
+            { role: 'assistant', content: 'Печатаю 8 октября, 11:30 — верно?' },
+            { role: 'user', content: reply },
+          ])
+        ).length
+      ).toBe(2)
+  })
+})
