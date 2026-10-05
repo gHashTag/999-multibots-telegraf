@@ -475,13 +475,13 @@ export const KIE_MODELS: KieModel[] = [
       'Returned the exact JSON the script route expects: voiceover, cover_prompt, broll_prompts, captions. Asked in Russian, answered in Russian.',
   },
   {
-    id: 'glm-5.3',
-    title: 'glm-5.3',
+    id: 'glm-4.7-flash',
+    title: 'glm-4.7-flash',
     kind: 'script',
     state: 'live',
     needs: ['topic'],
     probed:
-      'z.ai CODING plan endpoint (/api/coding/paas/v4), not the shared /api/paas/v4 which answers "Insufficient balance" on the same key. Returned the exact script JSON in Russian, with the liveliest captions of the four.',
+      'z.ai CODING plan endpoint (/api/coding/paas/v4), not the shared /api/paas/v4 which answers "Insufficient balance" on the same key. The free flash model the script route sends to z.ai since #3609; glm-5.3, probed here before, is paid (1113) and no provider serves it any more.',
   },
 ]
 
