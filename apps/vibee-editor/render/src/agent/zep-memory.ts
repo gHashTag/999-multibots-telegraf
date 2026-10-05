@@ -84,12 +84,17 @@ export const zepUserId = (lead: string) => `tg-${lead}`
 export const zepThreadId = (owner: string, lead: string) =>
   `tg-${owner}-${lead}`
 
-/** 409, or a 400 that says so: the thing exists. Any other 400 is a mistake of ours. */
-function alreadyThere(r: { status: number; body: any }): boolean {
+/**
+ * 409, or a 400 that says so: the thing exists. Any other 400 is a mistake of
+ * ours. Zep CE answers a repeated create with 400 "user already exists" /
+ * "session already exists"; the words must be "already exist", because a bare
+ * /exist/ also matched "user does not exist" -- a real failure read as success.
+ */
+export function alreadyThere(r: { status: number; body: any }): boolean {
   if (r.status === 409) return true
   const text =
     typeof r.body === 'string' ? r.body : JSON.stringify(r.body ?? '')
-  return r.status === 400 && /exist/i.test(text)
+  return r.status === 400 && /already\s+exists?/i.test(text)
 }
 
 const warnedPaths = new Set<string>()
@@ -120,7 +125,11 @@ async function call(
     } catch {
       body = text
     }
-    if (!res.ok && res.status !== 409) {
+    // An idempotent create that found the thing already there (409, or CE's
+    // 400 "already exists") is success, not a refusal: it is not logged, so
+    // it neither reads as an error in the deploy log nor uses up the
+    // once-per-path line a real refusal on the same path needs.
+    if (!res.ok && !alreadyThere({ status: res.status, body })) {
       // Once per path per process: a wrong key or URL must show up in the
       // log, not as a silent zero in the report.
       const key = `${init.method} ${path.split('?')[0].replace(/\/tg-[^/]+/g, '/tg-*')}`
