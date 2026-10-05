@@ -127,6 +127,22 @@ function amount(raw: string): string {
 const THOUSANDS = new RegExp('\\d\\s?(?:тыс|k(?![a-z])|к(?![а-яё]))', 'iu')
 
 /*
+ * The digits of a price, scaled when it names thousands. Before a thousands
+ * marker the decimal is part of the amount, not cents: "1.5k" and "1,5 тыс"
+ * are 1500, so "$1k" does not confirm "$1.5k" (#3697).
+ */
+function priceDigits(raw: string, matched: string): string {
+  if (!THOUSANDS.test(matched)) return amount(raw)
+  const dec = raw.trim().match(/^(.*\d)[.,](\d{1,2})$/)
+  if (!dec) {
+    const digits = amount(raw)
+    return digits && digits + '000'
+  }
+  const whole = Number(dec[1].replace(/\D/g, ''))
+  return String(whole * 1000 + Number(dec[2].padEnd(3, '0')))
+}
+
+/*
  * The currency a price names, so "$300" does not confirm "300 ₽" (#3686).
  * Both sides of a comparison always name one: PRICE needs a sign or a word.
  */
@@ -220,8 +236,7 @@ export function factsIn(text: string): Fact[] {
       add({ kind: 'date', text: m[0], keys: [`d${day}.${mon}`] })
   }
   for (const m of text.matchAll(PRICE)) {
-    let digits = amount(m[1] ?? m[2] ?? '')
-    if (digits && THOUSANDS.test(m[0])) digits += '000'
+    const digits = priceDigits(m[1] ?? m[2] ?? '', m[0])
     if (digits)
       add({
         kind: 'price',
@@ -231,8 +246,7 @@ export function factsIn(text: string): Fact[] {
       })
   }
   for (const m of text.matchAll(BARE_PRICE)) {
-    let digits = amount(m[1] ?? '')
-    if (digits && THOUSANDS.test(m[0])) digits += '000'
+    const digits = priceDigits(m[1] ?? '', m[0])
     if (digits) add({ kind: 'price', text: m[0].trim(), keys: [`p${digits}`] })
   }
   return out
