@@ -110,6 +110,7 @@ describe('a claimed picture or video needs the call that makes it', () => {
       'image_generate',
       'crm_deliver_photo',
       'agent_avatars_make',
+      'crm_portrait_rescue',
     ]) {
       expect(honestyNote(said, [call(t)])).toBe('')
     }
@@ -126,8 +127,29 @@ describe('a claimed picture or video needs the call that makes it', () => {
     for (const said of [
       'Я не сделал афишу: нет фото.', // cyrillic-ok: test input
       'Пока не отправил видео — жду ответа.', // cyrillic-ok: test input
+      'Я не  сделал афишу.', // cyrillic-ok: test input, two spaces
     ]) {
       expect(honestyNote(said, [])).toBe('')
+    }
+  })
+
+  it('does not flag what the person made or said (PR #3667 re-review)', () => {
+    for (const said of [
+      'Ты сделал афишу сам?', // cyrillic-ok: test input
+      'Классно, ты сделал афишу!', // cyrillic-ok: test input
+      'Вы написали: «я сделал афишу». Покажете?', // cyrillic-ok: test input
+      'You wrote "I made the poster" -- can you send it?',
+    ]) {
+      expect(honestyNote(said, [])).toBe('')
+    }
+  })
+
+  it('still flags "мне" + claim, and "раньше" does not switch the check off', () => {
+    for (const said of [
+      'Готово, сделал афишу, как ты просил мне.', // cyrillic-ok: test input
+      'Сделал афишу лучше, чем раньше.', // cyrillic-ok: test input
+    ]) {
+      expect(unbackedKinds(said, [])).toEqual(['media'])
     }
   })
 })
@@ -159,7 +181,7 @@ describe('the media backing list covers the tool registry', () => {
       for (const m of src.matchAll(/name: '([a-z0-9_]+)'/g)) names.add(m[1])
     }
     const media = [...names].filter(n =>
-      /image|video|reel|lipsync|photo|avatar|story|send|picture|poster|audio|voice/.test(
+      /image|video|reel|lipsync|photo|portrait|avatar|story|send|picture|poster|audio|voice/.test(
         n
       )
     )

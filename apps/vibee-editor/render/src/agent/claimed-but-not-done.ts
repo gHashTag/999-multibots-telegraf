@@ -30,6 +30,7 @@ const IMAGE_TOOLS = [
   'image_edit',
   'crm_deliver_photo',
   'agent_avatars_make',
+  'crm_portrait_rescue',
 ]
 const VIDEO_TOOLS = [
   'video_generate',
@@ -85,7 +86,7 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     tools: ['browser_screenshot'],
   },
   {
-    re: /(^|[\s.,:;—-])(?<!не\s)(сделал|сделала|нарисовал|нарисовала|создал|создала|сгенерировал|сгенерировала|подготовил|подготовила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(афиш|картинк|изображени|постер|обложк|баннер)/i, // cyrillic-ok: matched text
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|нарисовал|нарисовала|создал|создала|сгенерировал|сгенерировала|подготовил|подготовила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(афиш|картинк|изображени|постер|обложк|баннер)/i, // cyrillic-ok: matched text
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
@@ -95,12 +96,12 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])(?<!не\s)(сделал|сделала|смонтировал|смонтировала|собрал|собрала)\s+((для )?(тебя|вас|тебе|вам)\s+)?(видео|ролик|рилс)/i, // cyrillic-ok: matched text
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|смонтировал|смонтировала|собрал|собрала)\s+((для )?(тебя|вас|тебе|вам)\s+)?(видео|ролик|рилс)/i, // cyrillic-ok: matched text
     tools: VIDEO_TOOLS,
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])(?<!не\s)(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?(фото|картинк|афиш|постер|видео|ролик|файл)/i, // cyrillic-ok: matched text
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?(фото|картинк|афиш|постер|видео|ролик|файл)/i, // cyrillic-ok: matched text
     tools: [...SEND_TOOLS, ...IMAGE_TOOLS, ...VIDEO_TOOLS],
     kind: 'media',
   },
@@ -126,11 +127,16 @@ export const MEDIA_TOOLS: readonly string[] = [
 const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'
 
 /*
+ * Words inside quotes are someone else's: "Вы написали: «я сделал афишу»"
+ * repeats the person, it claims nothing for us.
+ */
+const QUOTED = /«[^»]*»|"[^"]*"|„[^“]*“/g
+
+/*
  * "I sent you the poster above" points at an earlier turn, whose call is
  * not among this turn's events. A false note there is worse than none.
  */
-const REFERS_BACK =
-  /(выше|ранее|раньше|в прошлом сообщении|\babove\b|\bearlier\b)/i // cyrillic-ok: matched text
+const REFERS_BACK = /(выше|ранее|в прошлом сообщении|\babove\b|\bearlier\b)/i // cyrillic-ok: matched text
 
 function calledTools(events: Array<Record<string, unknown>>): string[] {
   return events
@@ -158,7 +164,8 @@ export function unbackedClaims(
   return unbacked(text, events).map(c => c.tools[0])
 }
 
-function unbacked(text: string, events: Array<Record<string, unknown>>) {
+function unbacked(raw: string, events: Array<Record<string, unknown>>) {
+  const text = raw.replace(QUOTED, ' ')
   const called = new Set(calledTools(events))
   const back = REFERS_BACK.test(text)
   return CLAIMS.filter(c => c.re.test(text))
