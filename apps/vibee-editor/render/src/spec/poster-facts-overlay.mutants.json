@@ -164,7 +164,7 @@
   {
     "name": "whitespace is not collapsed",
     "file": "src/agent/poster-facts-layout.ts",
-    "from": ".replace(/\\s+/g, ' ').trim()",
+    "from": ".replace(BREAKABLE_RUN, ' ').trim()",
     "to": ".trim()"
   },
   {
