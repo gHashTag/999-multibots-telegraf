@@ -61,6 +61,11 @@ describe('the agent looks at its own picture (#3660)', () => {
     expect(look).toEqual({ seen: null, missing: [] })
   })
 
+  it('an empty reading is nobody looking, not every fact missing', async () => {
+    const look = await lookAtOwnPicture(PROMPT, PNG, { read: async () => '' })
+    expect(look).toEqual({ seen: null, missing: [] })
+  })
+
   it('vision switched off adds nothing', async () => {
     expect(await lookAtOwnPicture(PROMPT, PNG, { read: null })).toEqual({
       seen: null,
