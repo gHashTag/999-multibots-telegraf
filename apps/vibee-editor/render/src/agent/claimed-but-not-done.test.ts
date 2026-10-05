@@ -474,6 +474,49 @@ describe('own clause, any subject, every match (#3693 round 2)', () => {
   }
 })
 
+describe("a capitalised opener with no comma is the agent's (#3693 round 3)", () => {
+  for (const said of [
+    'Ага сделала афишу', // cyrillic-ok: test input
+    'Ой сделала афишу', // cyrillic-ok: test input
+    'Ура сделала афишу', // cyrillic-ok: test input
+    'Вуаля сделала афишу', // cyrillic-ok: test input
+    'Пожалуйста сделала афишу', // cyrillic-ok: test input
+    'Держи сделала афишу', // cyrillic-ok: test input
+    'Лови сделала афишу', // cyrillic-ok: test input
+    'Смотри сделала афишу', // cyrillic-ok: test input
+    'Подожди сделала афишу', // cyrillic-ok: test input
+    'Минутку сделала афишу', // cyrillic-ok: test input
+    'Почти сделала афишу', // cyrillic-ok: test input
+    'Еле сделала афишу', // cyrillic-ok: test input
+    'Мигом сделала афишу', // cyrillic-ok: test input
+    'Только-только сделала афишу', // cyrillic-ok: test input
+    'Оперативно сделала афишу', // cyrillic-ok: test input
+    'Аккуратно сделала афишу', // cyrillic-ok: test input
+    'Красиво сделала афишу', // cyrillic-ok: test input
+    'Заодно сделала афишу', // cyrillic-ok: test input
+    'Параллельно сделала афишу', // cyrillic-ok: test input
+    'Дополнительно сделала афишу', // cyrillic-ok: test input
+    'Trinity сделала афишу', // cyrillic-ok: test input
+    'Мигом записала голосовое', // cyrillic-ok: test input
+  ]) {
+    it(`flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).not.toBe('')
+    })
+  }
+  for (const said of [
+    '@anna прислала голосовое.', // cyrillic-ok: test input
+    '@Anna прислала фото.', // cyrillic-ok: test input
+    'Ольга прислала видео', // cyrillic-ok: test input
+    'Менеджер отправил фото', // cyrillic-ok: test input
+    'Сегодня Анна прислала фото чека', // cyrillic-ok: test input
+    'Агентство прислало видео', // cyrillic-ok: test input
+  ]) {
+    it(`someone else's verb stays quiet: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
+
 describe('the media backing list covers the tool registry', () => {
   it('names every media-looking tool, either backing or excused', () => {
     const dir = __dirname

@@ -337,7 +337,7 @@ const OTHER_SUBJECT = new Set([
   'кто-нибудь', // cyrillic-ok: matched words
 ])
 // the agent naming itself is not someone else
-const AGENT_SELF = new Set(['я', 'мы', 'тринити']) // cyrillic-ok: matched words
+const AGENT_SELF = new Set(['я', 'мы', 'тринити', 'trinity']) // cyrillic-ok: matched words
 /*
  * A capital before the verb is ambiguous: "Анна записала" names someone,
  * "Короче сделала" opens the agent's sentence. Only for a capitalised word
@@ -388,6 +388,20 @@ const LEAD_ADVERB = new Set([
   'сама',
   'сам',
   'специально', // cyrillic-ok: matched words
+  // interjections and imperatives that open the agent's line (#3693 round 3)
+  'ага',
+  'ой',
+  'ура',
+  'вуаля',
+  'пожалуйста', // cyrillic-ok: matched words
+  'держи',
+  'лови',
+  'смотри',
+  'подожди',
+  'минутку', // cyrillic-ok: matched words
+  'почти',
+  'еле',
+  'мигом', // cyrillic-ok: matched words
 ])
 // a clause starts after a comma, a colon, a dash, a bracket or "and"
 const CLAUSE_BREAK = /[,;:—–()]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
@@ -401,7 +415,17 @@ function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
   const low = before.toLowerCase()
   if (AGENT_SELF.has(low)) return true
   if (OTHER_SUBJECT.has(low)) return false
+  // "@anna" is a handle, someone else's however it is cased
+  if (clause[clause.lastIndexOf(before) - 1] === '@') return false
   if (before[0] === low[0]) return true
+  /*
+   * Every claim verb here is masculine or feminine past, so a neuter "-o"
+   * word cannot be its subject: "Оперативно", "Красиво", "Заодно" are
+   * adverbs, a whole family closed with no list (#3693 round 3). The price:
+   * a foreign masculine name in "-o" ("Бруно прислал") reads as the agent's
+   * and gets a needless note -- the safe side of a miss.
+   */
+  if (/о$/u.test(low)) return true // cyrillic-ok: matched letter
   return LEAD_ADVERB.has(low)
 }
 
