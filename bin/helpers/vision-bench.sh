@@ -19,6 +19,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SIZES=448 FONTS=72,44,26 IMAGE='' EXPECT=''
 while [ $# -gt 0 ]; do
+  # A value flag given last has nothing to shift; `shift 2` would then do
+  # nothing and the loop would spin forever (#3702).
+  case "$1" in
+    --sizes | --fonts | --image | --expect)
+      [ $# -ge 2 ] || { echo "  ??    $1 needs a value (tri vision-bench --help)"; exit 2; } ;;
+  esac
   case "$1" in
     --sizes) SIZES="${2:-}"; shift 2 ;;
     --fonts) FONTS="${2:-}"; shift 2 ;;
@@ -30,7 +36,8 @@ while [ $# -gt 0 ]; do
 done
 case "$SIZES" in '' | *[!0-9,]*) echo "  ??    --sizes takes numbers like 448,768"; exit 2 ;; esac
 case "$FONTS" in '' | *[!0-9,]*) echo "  ??    --fonts takes numbers like 72,44,26"; exit 2 ;; esac
-if [ -n "$IMAGE" ] && [ -z "$EXPECT" ]; then
+# An --expect of only commas and spaces scores against nothing as well.
+if [ -n "$IMAGE" ] && [ -z "$(printf '%s' "$EXPECT" | tr -d ', ')" ]; then
   echo "  ??    --image needs --expect \"11:30,500\": a reading scored against nothing proves nothing"
   exit 2
 fi
