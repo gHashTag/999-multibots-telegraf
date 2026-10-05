@@ -177,18 +177,33 @@ Python и отвечает «не запускалось», а не выдумы
 Two guards in `apps/vibee-editor/render/src/agent/` stand between the
 model's words and the person, plus one deploy setting:
 
-- `claimed-but-not-done.ts` (issue #3658, PR #3667): an answer that claims a
-  picture, a video, a sent file or a browser action with no matching tool call
-  in the same turn gets an honesty note. Voice claims are NOT checked yet.
-  Quoted text and a back-reference ("earlier", "above") are not claims; the
-  tighter scope for both is PR #3680 (#3677), in review on 2026-10-06.
-- `printed-facts.ts` (#3661, PR #3679, in review on 2026-10-06 -- check it
-  is on main before relying on it): a date, time or price going into a picture
-  prompt must be one the person wrote, or one the agent showed and the person
-  answered yes to. Otherwise `image_generate` / `image_edit` refuse BEFORE the
-  charge and name the facts, so the agent asks one confirm question.
-- The deploy setting, not a file: a provider head with no tool support narrates work it cannot do (memory
-  `agent-provider-ollama-has-no-tools`).
+- `claimed-but-not-done.ts` (issue #3658, PR #3667; scope PR #3680): an
+  answer that claims a picture, a video, a sent file or a browser action with
+  no matching tool call in the same turn gets an honesty note. Quoted text is
+  not a claim; a back-reference header ("Above I:", "**Earlier I:**", an
+  emoji or `###` header, with or without a colon or a blank line) covers only
+  the FIRST sentence of each item of the list directly under it -- a plain
+  line after the list or a second sentence in an item is judged on its own.
+  Voice claims: #3684 (check main).
+- `printed-facts.ts` (#3661, PR #3679): a date, time or price going into a
+  picture prompt must be one the person wrote, or one the agent showed and
+  the person answered a PLAIN yes to. A yes is a closed list of yes words --
+  any other word (a new day, "later") asks once more. Otherwise
+  `image_generate` / `image_edit` refuse BEFORE the charge and name the facts.
+  Leftovers: #3686.
+- The deploy setting, not a file: a provider head with no tool support
+  narrates work it cannot do (memory `agent-provider-ollama-has-no-tools`).
+
+While a tool runs, every chat surface (DM, business DM, managed bots, the
+hive) shows the tool's own chat action -- upload_photo / upload_video /
+upload_voice -- from the explicit map `actionForTool` in
+`src/helpers/telegramLongAnswer.ts` (#3682, #3688). A new media tool without
+an entry turns `toolActionEverywhere.test.ts` red: add the entry.
+
+Lesson from five review rounds (2026-10-06): an OPEN list of "change words"
+never ends -- the reviewer always finds one more correction that reads as yes.
+A CLOSED list of what counts as yes, with "ask again" as the default, ended
+it in one round. Same for headers: decide what IS a header, not what is not.
 
 Measure, do not guess: `tri honesty` prints the deploy-time provider head
 (tools or not) and the `[agent:honesty]` flags by kind, counts only; rc 1 on
