@@ -152,6 +152,124 @@ describe('a claimed picture or video needs the call that makes it', () => {
       expect(unbackedKinds(said, [])).toEqual(['media'])
     }
   })
+  it('an inch mark does not hide a claim (#3677)', () => {
+    expect(
+      unbackedKinds('Экран 27". Сделал афишу и отправил "файл".', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+    // a real straight-quoted claim is still someone else's words
+    expect(honestyNote('Он написал "сделал афишу" и пропал.', [])).toBe('') // cyrillic-ok: test input
+  })
+
+  it('a back-reference excuses its own sentence only (#3677)', () => {
+    expect(unbackedKinds('Отправил афишу выше.', [])).toEqual([]) // cyrillic-ok: test input
+    expect(
+      unbackedKinds('Ранее обсуждали дату. Сделал афишу.', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+  })
+
+  it('two inch marks do not pair into a quote around a claim (#3680 review)', () => {
+    expect(
+      unbackedKinds('Монитор 27", сделал афишу, ширина 30" — готово.', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+  })
+
+  // Clean on main, flagged by the first split of #3680 (bee, round 1).
+  for (const text of [
+    '- Сделал афишу (см. выше)', // cyrillic-ok: test input
+    'Ранее я сделал афишу, т.е. постер, и отправил файл.', // cyrillic-ok: test input
+    'Earlier, i.e. yesterday, I made the poster.',
+    'В прошлом сообщении я:\n- сделал афишу\n- отправил её тебе', // cyrillic-ok: test input
+    'Выше я:\n1. Сделал афишу\n2. Отправил файл', // cyrillic-ok: test input
+  ])
+    it(`abbreviations and a referring header excuse: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual([])
+    })
+
+  it('an abbreviation before a capital does not end the sentence', () => {
+    // "that is" abbreviated, before a name: without the list it splits off the back-reference
+    expect(
+      unbackedKinds('Ранее, т.е. Пётр просил, я сделал афишу.', []) // cyrillic-ok: test input
+    ).toEqual([])
+  })
+
+  it('an unlisted abbreviation before a small letter does not end it either', () => {
+    // the "year" abbreviation is not in the list; the small letter after it keeps the sentence whole
+    expect(
+      unbackedKinds('Ранее, ещё в 2025 г. я сделал тебе афишу.', []) // cyrillic-ok: test input
+    ).toEqual([])
+  })
+
+  // A line break inside a sentence does not end it.
+  for (const text of ['Я сделал\nафишу для тебя.', 'Вот твоя\nафиша.']) // cyrillic-ok: test input
+    it(`a wrapped claim is still a claim: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual(['media'])
+    })
+
+  it('a header excuses only its own list; the next paragraph is checked', () => {
+    expect(
+      unbackedKinds('Выше я:\n- сделал афишу\n\nСделал афишу.', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+    expect(
+      unbackedKinds('Сделал афишу выше. Отправил файл.', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+  })
+})
+
+describe('a referring header in any style, and nothing past its list (#3680 round 4)', () => {
+  // Clean on main, flagged by the colon-only header test of round 3.
+  for (const text of [
+    '**Выше я:**\n- сделал афишу\n- отправил файл', // cyrillic-ok: test input
+    '### Что я сделал ранее\n- Сделал афишу\n- Отправил файл', // cyrillic-ok: test input
+    'Выше я\n- сделал афишу\n- отправил файл', // cyrillic-ok: test input
+    'Ранее я —\n- сделал афишу', // cyrillic-ok: test input
+    'Выше я...\n- сделал афишу', // cyrillic-ok: test input
+    'Выше я:\n- сделал афишу\n  и отправил файл', // cyrillic-ok: test input
+  ])
+    it(`excuses its list: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual([])
+    })
+
+  // The header's excuse used to leak onto these new claims.
+  for (const text of [
+    'Выше я:\n- сделал афишу\nА сейчас отправил файл.', // cyrillic-ok: test input
+    'Выше я:\n- сделал афишу. Сейчас отправил файл.', // cyrillic-ok: test input
+    'Выше я:\n✅ сделал афишу\nСейчас отправил файл.', // cyrillic-ok: test input
+  ])
+    it(`still flags the new claim: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual(['media'])
+    })
+
+  it('a sentence that only mentions the past is not a header', () => {
+    expect(
+      unbackedKinds('Ранее мы обсуждали афишу.\n- Сделал афишу', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+  })
+})
+
+describe('a header across a blank line, an emoji header, bold marks (#3680 round 5)', () => {
+  // Clean on main: a heading, a blank line, then its list.
+  for (const text of [
+    '### Что я сделал ранее\n\n- Сделал афишу\n- Отправил файл', // cyrillic-ok: test input
+    '**Выше я:**\n\n- сделал афишу', // cyrillic-ok: test input
+    'Earlier I:\n\n- I made the poster',
+    '📌 Выше я:\n- сделал афишу', // cyrillic-ok: test input
+    '✅ Выше я:\n- сделал афишу\n- отправил файл', // cyrillic-ok: test input
+    '📌 Выше я:\n\n- сделал афишу', // cyrillic-ok: test input
+  ])
+    it(`excuses its list: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual([])
+    })
+
+  for (const text of [
+    // a bold full sentence is a sentence, not a header: marks are style
+    '**Ранее я сделал афишу.**\n- Отправил файл', // cyrillic-ok: test input
+    '__Ранее я сделал афишу.__\n- Отправил файл', // cyrillic-ok: test input
+    // an emoji header covers its list only, not a plain line after it
+    '📌 Выше я:\n- сделал афишу\nСейчас отправил файл.', // cyrillic-ok: test input
+  ])
+    it(`still flags the claim: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual(['media'])
+    })
 })
 
 /*

@@ -129,12 +129,19 @@ const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'
 /*
  * Words inside quotes are someone else's: "Вы написали: «я сделал афишу»"
  * repeats the person, it claims nothing for us.
+ *
+ * A straight pair counts only on one line, opening after a line start, a
+ * space or an opening mark, and closing before a non-letter (#3677): an inch
+ * mark in 'Экран 27". Сделал афишу и отправил "файл".' used to swallow the
+ * claim up to the next quote.
  */
-const QUOTED = /«[^»]*»|"[^"]*"|„[^“]*“/g
+const QUOTED = /«[^»\n]*»|(?<=^|[\s(\[:—-])"[^"\n]*"(?![\p{L}\d])|„[^“\n]*“/gmu
 
 /*
  * "I sent you the poster above" points at an earlier turn, whose call is
  * not among this turn's events. A false note there is worse than none.
+ * It excuses the media claims of ITS OWN sentence only (#3677): one
+ * "ранее" elsewhere in the answer used to switch the check off for all.
  */
 const REFERS_BACK = /(выше|ранее|в прошлом сообщении|\babove\b|\bearlier\b)/i // cyrillic-ok: matched text
 
@@ -164,13 +171,105 @@ export function unbackedClaims(
   return unbacked(text, events).map(c => c.tools[0])
 }
 
+/*
+ * Where a sentence ends (#3677 review). A dot before a space is not enough:
+ * "т.е.", "см.", "i.e." end nothing, so they lose their dots first, and a
+ * sentence ends only before a capital, a quote, a bracket or a list marker.
+ * A line break alone does not end one either ("Я сделал\nафишу" is one
+ * claim); a blank line or a list marker does.
+ */
+const ABBREV = new RegExp(
+  '(?<![\\p{L}])(?:т\\.е|т\\.д|т\\.п|см|п|напр|i\\.e|e\\.g|etc)\\.',
+  'giu'
+)
+const LIST_ITEM = /^\s*(?:[-*•+]|\d+[.)]|\p{Extended_Pictographic}\uFE0F?)\s/u
+const SENTENCE_END =
+  /(?<=[.!?…])\s+(?=[\p{Lu}«"„(]|[-*•]\s|\d+[.)]\s|\p{Extended_Pictographic})/u
+
+/*
+ * A header that refers back covers the list right under it (#3680 round 4):
+ * "Выше я:", "**Выше я:**", "### Что я сделал ранее", "Ранее я —",
+ * "Выше я...". Markdown marks and the closing punctuation are style, not the
+ * signal, so they are stripped first; what is left must be a short line that
+ * refers back and does not end a sentence of its own.
+ */
+const HEADER_MAX = 60
+function isHeader(line: string): boolean {
+  const bare = line
+    .replace(/^\s*#+\s*/, '')
+    .replace(/[*_]+/g, '')
+    .replace(/(?:\s|[:—–-]|…|\.{2,})+$/u, '')
+    .trim()
+  return (
+    bare.length > 0 &&
+    bare.length <= HEADER_MAX &&
+    !/[.!?]$/.test(bare) &&
+    REFERS_BACK.test(bare)
+  )
+}
+
+/**
+ * The answer's sentences, each with whether it refers back. A back-referring
+ * header excuses the FIRST sentence of each list item under it, and nothing
+ * past the list: an unindented line without a marker starts a new item,
+ * a further sentence inside an item is judged on its own.
+ *
+ * A blank line ends an item, but not a header's reach: models put a blank
+ * line after a heading, so a header alone in its paragraph still covers the
+ * list that opens the next one (#3680 round 5). An emoji-led line that is
+ * itself a referring header ("<pin emoji> Above I:") is a header, not an item.
+ */
+function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
+  const clean = raw
+    .replace(QUOTED, ' ')
+    .replace(ABBREV, m => m.replace(/\./g, ''))
+  const out: Array<{ text: string; back: boolean }> = []
+  const items: Array<{ text: string; listed: boolean; opens: boolean }> = []
+  for (const block of clean.split(/\n\s*\n/)) {
+    const first = items.length
+    for (const line of block.split('\n')) {
+      const listed = LIST_ITEM.test(line)
+      const last = items.length > first ? items[items.length - 1] : undefined
+      // a plain line continues plain text, or an item it is indented under
+      const continues = last && !listed && (!last.listed || /^\s/.test(line))
+      if (continues) last.text += ' ' + line
+      else items.push({ text: line, listed, opens: items.length === first })
+    }
+  }
+  // a header reaches the list right under it, or across one blank line
+  // when it is alone in its paragraph
+  const headsList = (i: number) =>
+    items[i + 1]?.listed === true &&
+    (!items[i + 1].opens || (items[i].opens && items[i + 1].opens)) &&
+    isHeader(items[i].text)
+  const EMOJI_LED = /^\s*\p{Extended_Pictographic}/u
+  // an emoji-led referring header followed by a list heads it
+  items.forEach((item, i) => {
+    if (item.listed && EMOJI_LED.test(item.text) && headsList(i))
+      item.listed = false
+  })
+  let header = false
+  items.forEach((item, i) => {
+    if (!item.listed) header = false
+    // the marker goes first: "1. Made it" must not split after "1."
+    const body = item.listed ? item.text.replace(LIST_ITEM, '') : item.text
+    body.split(SENTENCE_END).forEach((text, k) =>
+      out.push({
+        text,
+        back: (item.listed && header && k === 0) || REFERS_BACK.test(text),
+      })
+    )
+    if (!item.listed && headsList(i)) header = true
+  })
+  return out
+}
+
 function unbacked(raw: string, events: Array<Record<string, unknown>>) {
-  const text = raw.replace(QUOTED, ' ')
+  const sentences = sentencesOf(raw)
   const called = new Set(calledTools(events))
-  const back = REFERS_BACK.test(text)
-  return CLAIMS.filter(c => c.re.test(text))
-    .filter(c => !(back && kindOf(c) === 'media'))
-    .filter(c => !c.tools.some(t => called.has(t)))
+  return CLAIMS.filter(c =>
+    sentences.some(s => c.re.test(s.text) && !(kindOf(c) === 'media' && s.back))
+  ).filter(c => !c.tools.some(t => called.has(t)))
 }
 
 /** Which kinds of claim no call backs, browser first. Pure. */
