@@ -28,11 +28,22 @@ if [ "$TREE" = "$MAIN" ]; then
   exit 1
 fi
 
-if [ ! -e "$TREE/node_modules" ] && [ -d "$MAIN/node_modules" ]; then
-  ln -s "$MAIN/node_modules" "$TREE/node_modules"
-  echo "  root    linked to the main checkout"
-else
+fail=0
+# Root: present means it RESOLVES; a dangling link is relinked, and a main
+# checkout with nothing to link to is a failure, not "present" (#3675 review).
+if [ -e "$TREE/node_modules" ]; then
   echo "  root    present"
+elif [ ! -d "$MAIN/node_modules" ]; then
+  echo "  FAIL    root: the main checkout has no node_modules -- \`bun install\` there first"
+  fail=1
+else
+  [ -L "$TREE/node_modules" ] && rm "$TREE/node_modules"
+  if ln -s "$MAIN/node_modules" "$TREE/node_modules"; then
+    echo "  root    linked to the main checkout"
+  else
+    echo "  FAIL    root: could not link node_modules"
+    fail=1
+  fi
 fi
 
 if [ -L "$TREE/$R/node_modules" ]; then
@@ -64,7 +75,6 @@ else
 fi
 
 # The proof is resolution from inside this tree, not a directory listing.
-fail=0
 for pkg in undici @vibee/atoms; do
   where=$(cd "$TREE/$R" && node -e "console.log(require.resolve('$pkg'))" 2>/dev/null)
   if [ -z "$where" ]; then

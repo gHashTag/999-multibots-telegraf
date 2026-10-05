@@ -14,6 +14,7 @@ import {
   mkdirSync,
   mkdtempSync,
   realpathSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
@@ -122,5 +123,23 @@ describe('tri wt-deps', () => {
     expect(r.rc).toBe(1)
     expect(r.out).toMatch(/main checkout/)
     expect(existsSync(path.join(main, R, 'node_modules/undici'))).toBe(true)
+  })
+  /* PR #3675 review: "root present" with nothing to link was rc 0. */
+  it('fails when the main checkout has no root node_modules', () => {
+    const { main, tree } = repo()
+    rmSync(path.join(main, 'node_modules'), { recursive: true })
+    const r = run(tree, main)
+    expect(r.out).toMatch(/FAIL {4}root/)
+    expect(r.out).not.toMatch(/root {4}present/)
+    expect(r.rc).toBe(1)
+  })
+
+  it('relinks a dangling root symlink', () => {
+    const { main, tree } = repo()
+    symlinkSync(path.join(main, 'gone'), path.join(tree, 'node_modules'))
+    const r = run(tree, main)
+    expect(r.out).toMatch(/root {4}linked/)
+    expect(r.rc).toBe(0)
+    expect(existsSync(path.join(tree, 'node_modules'))).toBe(true)
   })
 })
