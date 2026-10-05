@@ -92,12 +92,16 @@ const PRICE = new RegExp(
   'giu'
 )
 
-/** "1,500.50" -> "1500": thousands groups joined, cents dropped. */
+/**
+ * "1,500.50" -> "1500": cents (one or two digits after the last separator)
+ * dropped, then every separator. A mutation check showed a separate
+ * thousands branch changed nothing, so there is none.
+ */
 function amount(raw: string): string {
-  const t = raw.replace(/\s/g, ' ').trim()
-  const grouped = t.match(/^(\d{1,3}(?:[ ,.]\d{3})+)(?:[.,]\d{1,2})?$/)
-  if (grouped) return grouped[1].replace(/[ ,.]/g, '')
-  return t.replace(/[.,]\d{1,2}$/, '').replace(/\D/g, '')
+  return raw
+    .trim()
+    .replace(/[.,]\d{1,2}$/, '')
+    .replace(/\D/g, '')
 }
 
 /** Aspect ratios look like times and are never printed facts. */
