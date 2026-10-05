@@ -227,7 +227,18 @@ const zep = {
     0,
 }
 
+/*
+ * Provider keys come from the test, never from the shell. An OPENAI_API_KEY
+ * exported in the developer's shell switched the transcriber on, and the
+ * "route stores the rows" case then sent its video to the shelf through the
+ * S3 client -- real network that the fetch stub does not catch. Under load
+ * that took more than waitFor's 1 s and the case failed (#3720).
+ */
+const PROVIDER_KEYS = ['OPENAI_API_KEY', 'WHISPER_API_KEY', 'VISION_API_KEY']
+const shellKeys = new Map(PROVIDER_KEYS.map(k => [k, process.env[k]]))
+
 beforeEach(() => {
+  for (const k of PROVIDER_KEYS) delete process.env[k]
   zep.on = false
   zep.add = async () => 0
   vi.resetModules()
@@ -246,6 +257,10 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  for (const [k, v] of shellKeys) {
+    if (v === undefined) delete process.env[k]
+    else process.env[k] = v
+  }
 })
 
 describe('user_media table', () => {
