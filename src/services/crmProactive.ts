@@ -52,6 +52,7 @@ import { fetchLeadRows, callTool } from './modelSwitch'
 import { noteSweepToHive } from './hiveNote'
 import { assistantAllowed } from './assistantOptOut'
 import { Markup } from 'telegraf'
+import { keepingTheMessage } from '@/helpers/telegramUserLink'
 
 /**
  * THE SELLER THAT WORKS WITHOUT BEING ASKED.
@@ -1352,11 +1353,33 @@ export async function pushCard(
         void import('./hiveNote').then(m =>
           m.noteAutoSendToHive(ownerId, { lead: cardLeadOf(draft as never) })
         )
-        await telegram.sendMessage(
-          ownerId,
-          autopilotSentLine(draft, opts),
-          autopilotSentMarkup(cardLeadOf(draft as never))
-        )
+        /*
+         * THE MESSAGE IS ALREADY IN THE CLIENT'S CHAT. Nothing below may turn
+         * that into a card. Production, 2026-10-05 16:30 UTC: the receipt's
+         * tg://user button was refused (BUTTON_USER_INVALID, a lead the bot
+         * has never met), the throw reached the catch below, and the owner got
+         * "Отправить?" for a draft already consumed -- pressing it answered
+         * "already confirmed or expired" about a message that HAD gone.
+         * So the receipt drops the shortcut when Telegram refuses it, and a
+         * receipt that still fails is logged, never escalated into a card.
+         */
+        try {
+          await keepingTheMessage(
+            extra =>
+              telegram.sendMessage(
+                ownerId,
+                autopilotSentLine(draft, opts),
+                extra as never
+              ),
+            autopilotSentMarkup(cardLeadOf(draft as never)),
+            { lead: cardLeadOf(draft as never) }
+          )
+        } catch (e) {
+          logger.warn('[autopilot] sent, but the receipt did not arrive', {
+            owner: ownerId,
+            error: e instanceof Error ? e.message : String(e),
+          })
+        }
         return
       }
       logger.warn(
@@ -1373,11 +1396,25 @@ export async function pushCard(
          * came back, so the message may already be in the client's chat. A
          * card here invites a second, duplicate send.
          */
-        await telegram.sendMessage(
-          ownerId,
-          autopilotUnknownLine(draft),
-          autopilotSentMarkup(cardLeadOf(draft as never))
-        )
+        // Same rule as the receipt above: a refused shortcut must not fall
+        // through to a card that invites the duplicate this branch prevents.
+        try {
+          await keepingTheMessage(
+            extra =>
+              telegram.sendMessage(
+                ownerId,
+                autopilotUnknownLine(draft),
+                extra as never
+              ),
+            autopilotSentMarkup(cardLeadOf(draft as never)),
+            { lead: cardLeadOf(draft as never) }
+          )
+        } catch (e) {
+          logger.warn('[autopilot] outcome unknown, and the notice failed', {
+            owner: ownerId,
+            error: e instanceof Error ? e.message : String(e),
+          })
+        }
         return
       }
     } catch (e) {
