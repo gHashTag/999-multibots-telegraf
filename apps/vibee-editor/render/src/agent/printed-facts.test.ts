@@ -40,6 +40,33 @@ describe('factsIn: dates, times and prices a picture would print', () => {
   })
 })
 
+describe('poster formats the first version missed (PR #3679 review)', () => {
+  it('reads 12-hour times, ordinals, ISO dates, abbreviations and hours', () => {
+    expect(keys('7:30pm')).toEqual(['t19:30'])
+    expect(keys('7 pm')).toEqual(['t19:00'])
+    expect(keys('7:30 pm')).toEqual(['t19:30'])
+    expect(keys('11 a.m.')).toEqual(['t11:00'])
+    expect(keys('October 8th')).toEqual(['d8.10'])
+    expect(keys('8th of October')).toEqual(['d8.10'])
+    expect(keys('2026-10-08')).toEqual(['d8.10'])
+    expect(keys('Dec. 25')).toEqual(['d25.12'])
+    expect(keys('19 часов, 8-го октября').sort()).toEqual(['d8.10', 't19:00'])
+  })
+
+  it('reads currency codes before the amount and thousands separators', () => {
+    expect(keys('EUR 15')).toEqual(['p15'])
+    expect(keys('1,500 THB')).toEqual(['p1500'])
+    expect(keys('1.500 ₽')).toEqual(['p1500'])
+    expect(keys('$1,500.50')).toEqual(['p1500'])
+    expect(keys('15.00 EUR')).toEqual(['p15'])
+  })
+
+  it('"1,500 THB" is confirmed by "1500 бат", and not by "$1"', () => {
+    expect(unconfirmedFacts('1,500 THB', '1500 бат')).toEqual([])
+    expect(unconfirmedFacts('1,500 THB', 'вход $1').length).toBe(1)
+  })
+})
+
 describe('heardFrom: what the person stands behind', () => {
   it('is every user message, and nothing the agent said on its own', () => {
     const heard = heardFrom([
@@ -80,6 +107,29 @@ describe('heardFrom: what the person stands behind', () => {
     ])
     expect(unconfirmedFacts('7 октября', heard).length).toBe(1)
   })
+})
+
+describe('a yes in ordinary words (PR #3679 review)', () => {
+  const asked = (reply: string) =>
+    heardFrom([
+      { role: 'assistant', content: 'Печатаю 8 октября, 11:30 — верно?' },
+      { role: 'user', content: reply },
+    ])
+  for (const reply of [
+    'да, верно',
+    'Да, всё верно',
+    'yes, correct',
+    'ок, давай',
+    'да 👍',
+  ])
+    it(`"${reply}" confirms`, () => {
+      expect(unconfirmedFacts('8 октября 11:30', asked(reply))).toEqual([])
+    })
+
+  for (const reply of ['да, но в 12:00', 'нет', 'да не то'])
+    it(`"${reply}" does not confirm the agent's values`, () => {
+      expect(unconfirmedFacts('8 октября 11:30', asked(reply)).length).toBe(2)
+    })
 })
 
 describe('a yes after the person’s own message', () => {
@@ -143,5 +193,13 @@ describe('the image tools refuse unconfirmed facts BEFORE any charge', () => {
         ctx('афиша на 8 октября, начало в 11:30')
       )
     ).rejects.toThrow(/database was reached/)
+  })
+})
+
+describe('the chat route hands the conversation to the tools', () => {
+  it('routes.ts sets heard from the request history', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(new URL('./routes.ts', import.meta.url), 'utf8')
+    expect(src).toMatch(/^\s*heard: heardFrom\(history\),$/m)
   })
 })

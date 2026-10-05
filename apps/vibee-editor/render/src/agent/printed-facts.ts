@@ -44,12 +44,18 @@ const MONTH_WORD =
 const L = '(?<![\\p{L}\\d])'
 const R = '(?![\\p{L}\\d])'
 
-const DAY_MONTH = new RegExp(`${L}(\\d{1,2})\\s+${MONTH_WORD}${R}`, 'giu')
-// "October 11:30" is a month then a time, not the 11th.
-const MONTH_DAY = new RegExp(
-  `${L}${MONTH_WORD}\\s+(\\d{1,2})(?![\\p{L}\\d]|[:.]\\d)`,
+/* "8th", "8-го": an ordinal suffix after a day number. */
+const ORD = '(?:st|nd|rd|th|-?го|-?е)?'
+const DAY_MONTH = new RegExp(
+  `${L}(\\d{1,2})${ORD}\\s+(?:of\\s+)?${MONTH_WORD}\\.?${R}`,
   'giu'
 )
+// "October 11:30" is a month then a time, not the 11th. "Dec. 25" is a date.
+const MONTH_DAY = new RegExp(
+  `${L}${MONTH_WORD}\\.?\\s+(\\d{1,2})${ORD}(?![\\p{L}\\d]|[:.]\\d)`,
+  'giu'
+)
+const ISO_DATE = new RegExp(`${L}\\d{4}-(\\d{2})-(\\d{2})${R}`, 'gu')
 /*
  * Not after "/", "." or a currency sign: "f/1.8" is an aperture, "$2.50" a
  * price, "2.5.1" a version. A numeric date needs a two-digit month ("8.10",
@@ -60,14 +66,39 @@ const NUMERIC_DATE = new RegExp(
   `${NUM_L}(\\d{1,2})[./](\\d{2})(?:[./](?:\\d{2}|\\d{4}))?(?![\\p{L}\\d]|[./]\\d)`,
   'gu'
 )
+const CURRENCY_CODE = '(?:usd|eur|thb|rub|руб|бат|baht)'
 const TIME = new RegExp(
-  `${NUM_L}([01]?\\d|2[0-3])[:.]([0-5]\\d)(?![\\p{L}\\d]|[./]\\d|\\s?[$€₽฿])`,
-  'gu'
-)
-const PRICE = new RegExp(
-  `(?:[$€₽฿]\\s?(\\d[\\d\\s]*\\d|\\d)(?:[.,]\\d+)?)|(?:${L}(\\d[\\d\\s]*\\d|\\d)(?:[.,]\\d+)?\\s?(?:[$€₽฿]|руб\\S*|р\\.|usd|eur|thb|бат\\S*|baht|dollar\\S*|доллар\\S*|евро|тыс\\S*)${R})`,
+  `${NUM_L}([01]?\\d|2[0-3])[:.]([0-5]\\d)(?![\\p{L}\\d]|[./]\\d|\\s?[$€₽฿]|\\s?${CURRENCY_CODE}|\\s?[ap]\\.?m(?![\\p{L}]))`,
   'giu'
 )
+/* "7pm", "7:30 pm", "11 a.m." */
+const AMPM = new RegExp(
+  `${NUM_L}(1[0-2]|0?[1-9])(?::([0-5]\\d))?\\s?([ap])\\.?m\\.?(?![\\p{L}])`,
+  'giu'
+)
+/* "19 часов", "в 7 ч" */
+const HOURS = new RegExp(
+  `${L}([01]?\\d|2[0-3])\\s?(?:час(?:а|ов)?|ч\\.?)(?![\\p{L}])`,
+  'giu'
+)
+/*
+ * A number with optional thousands groups ("1 500", "1,500", "1.500") and
+ * optional cents; `amount` reads it.
+ */
+const NUM =
+  '(\\d{1,3}(?:[\\s,.]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)'
+const PRICE = new RegExp(
+  `(?:(?:[$€₽฿]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM})|(?:${L}${NUM}\\s?(?:[$€₽฿]|руб\\S*|р\\.|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро|тыс\\S*)${R})`,
+  'giu'
+)
+
+/** "1,500.50" -> "1500": thousands groups joined, cents dropped. */
+function amount(raw: string): string {
+  const t = raw.replace(/\s/g, ' ').trim()
+  const grouped = t.match(/^(\d{1,3}(?:[ ,.]\d{3})+)(?:[.,]\d{1,2})?$/)
+  if (grouped) return grouped[1].replace(/[ ,.]/g, '')
+  return t.replace(/[.,]\d{1,2}$/, '').replace(/\D/g, '')
+}
 
 /** Aspect ratios look like times and are never printed facts. */
 const RATIOS = new Set(['9:16', '16:9', '9.16'])
@@ -115,7 +146,7 @@ export function factsIn(text: string): Fact[] {
     })
   }
   for (const m of text.matchAll(DAY_MONTH)) {
-    const mon = monthOf(m[0].replace(/^\d+\s+/, ''))
+    const mon = monthOf(m[0].replace(/^\d+\S*\s+(?:of\s+)?/i, ''))
     if (mon)
       add({ kind: 'date', text: m[0], keys: [`d${Number(m[1])}.${mon}`] })
   }
@@ -123,6 +154,18 @@ export function factsIn(text: string): Fact[] {
     const mon = monthOf(m[0])
     const day = Number(m[1])
     if (mon && day >= 1 && day <= 31)
+      add({ kind: 'date', text: m[0], keys: [`d${day}.${mon}`] })
+  }
+  for (const m of text.matchAll(AMPM)) {
+    const h = (Number(m[1]) % 12) + (m[3].toLowerCase() === 'p' ? 12 : 0)
+    add({ kind: 'time', text: m[0], keys: [`t${h}:${m[2] ?? '00'}`] })
+  }
+  for (const m of text.matchAll(HOURS))
+    add({ kind: 'time', text: m[0], keys: [`t${Number(m[1])}:00`] })
+  for (const m of text.matchAll(ISO_DATE)) {
+    const mon = Number(m[1])
+    const day = Number(m[2])
+    if (day >= 1 && day <= 31 && mon >= 1 && mon <= 12)
       add({ kind: 'date', text: m[0], keys: [`d${day}.${mon}`] })
   }
   for (const m of text.matchAll(NUMERIC_DATE)) {
@@ -134,18 +177,29 @@ export function factsIn(text: string): Fact[] {
       add({ kind: 'date', text: m[0], keys: [`d${day}.${mon}`] })
   }
   for (const m of text.matchAll(PRICE)) {
-    const digits = (m[1] ?? m[2] ?? '').replace(/\s/g, '')
+    const digits = amount(m[1] ?? m[2] ?? '')
     if (digits) add({ kind: 'price', text: m[0].trim(), keys: [`p${digits}`] })
   }
   return out
 }
 
+/*
+ * A yes is a reply that OPENS with a yes word and carries no "but": "да,
+ * верно", "Yes, correct", "ок, давай 👍" count; "да, но в 12:00" does not
+ * (its own 12:00 is the person's word anyway).
+ */
 const YES = new RegExp(
-  '^\\s*(' +
-    'да|ага|угу|верно|всё верно|все верно|правильно|подтверждаю|ок|окей|ok|okay|yes|yep|correct|давай|го|печатай|👍|✅' +
-    ')[\\s!.)]*$',
+  '^\\s*(?:да|ага|угу|верно|всё верно|все верно|правильно|подтверждаю|ок|окей|' +
+    'ok|okay|yes|yep|yeah|sure|correct|right|давай|го|печатай|отлично|супер|👍|✅)' +
+    '(?![\\p{L}])',
   'iu'
 )
+const BUT = new RegExp(
+  '(?<![\\p{L}])(?:нет|не|но|однако|только|исправ\\p{L}*|no|not|but|except|change)(?![\\p{L}])',
+  'iu'
+)
+const isYes = (text: string) =>
+  text.length <= 80 && YES.test(text) && !BUT.test(text)
 
 export interface Turn {
   role?: string
@@ -165,7 +219,7 @@ export function heardFrom(history: ReadonlyArray<Turn>): string {
   if (
     last?.role === 'user' &&
     typeof last.content === 'string' &&
-    YES.test(last.content)
+    isYes(last.content)
   ) {
     for (let i = history.length - 2; i >= 0; i--) {
       const t = history[i]
