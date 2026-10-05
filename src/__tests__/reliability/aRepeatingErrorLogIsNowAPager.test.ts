@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   healthAction,
   parkedProviders,
+  OFF_BY_DESIGN,
 } from '@/services/provider-health-monitor'
 
 /*
@@ -40,18 +41,43 @@ describe('a repeating error log is now a pager', () => {
     // The owner was asked whether ElevenLabs is still needed and answered "not
     // now, maybe later". So the calling code stays and the alarm stops -- a
     // decision that lives in the deploy, because it is the kind that changes.
+    // HEALTH_WATCH_PROVIDERS=replicate isolates the deploy list from the
+    // off-by-design default pinned below.
+    const watchReplicate = { HEALTH_WATCH_PROVIDERS: 'replicate' }
     expect([
-      ...parkedProviders({ HEALTH_SKIP_PROVIDERS: 'elevenlabs' }),
+      ...parkedProviders({
+        ...watchReplicate,
+        HEALTH_SKIP_PROVIDERS: 'elevenlabs',
+      }),
     ]).toEqual(['elevenlabs'])
     expect([
-      ...parkedProviders({ HEALTH_SKIP_PROVIDERS: ' ElevenLabs , zai ' }),
+      ...parkedProviders({
+        ...watchReplicate,
+        HEALTH_SKIP_PROVIDERS: ' ElevenLabs , zai ',
+      }),
     ]).toEqual(['elevenlabs', 'zai'])
   })
 
-  it('nothing is parked by default: silence must be chosen, never inherited', () => {
-    expect(parkedProviders({}).size).toBe(0)
-    expect(parkedProviders({ HEALTH_SKIP_PROVIDERS: '' }).size).toBe(0)
-    expect(parkedProviders({ HEALTH_SKIP_PROVIDERS: ' , , ' }).size).toBe(0)
+  it('only a provider that is off by design is parked by default: any other silence must be chosen', () => {
+    // Kie is the only provider (skill kie-only); Replicate is off on purpose,
+    // so "Provider replicate needs an operator" was noise in bot-errors.
+    expect([...OFF_BY_DESIGN]).toEqual(['replicate'])
+    expect([...parkedProviders({})]).toEqual(['replicate'])
+    expect([...parkedProviders({ HEALTH_SKIP_PROVIDERS: '' })]).toEqual([
+      'replicate',
+    ])
+    expect([...parkedProviders({ HEALTH_SKIP_PROVIDERS: ' , , ' })]).toEqual([
+      'replicate',
+    ])
+    // The live providers stay watched unless the deploy parks them.
+    for (const live of ['fal.ai', 'zai', 'elevenlabs'])
+      expect(parkedProviders({}).has(live)).toBe(false)
+  })
+
+  it('the deploy can watch an off-by-design provider again', () => {
+    expect(
+      parkedProviders({ HEALTH_WATCH_PROVIDERS: ' Replicate ' }).size
+    ).toBe(0)
   })
 
   it('an unknown provider that is UP is not announced as a recovery', () => {
