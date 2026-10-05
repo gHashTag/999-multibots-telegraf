@@ -152,6 +152,20 @@ describe('a claimed picture or video needs the call that makes it', () => {
       expect(unbackedKinds(said, [])).toEqual(['media'])
     }
   })
+  it('an inch mark does not hide a claim (#3677)', () => {
+    expect(
+      unbackedKinds('Экран 27". Сделал афишу и отправил "файл".', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+    // a real straight-quoted claim is still someone else's words
+    expect(honestyNote('Он написал "сделал афишу" и пропал.', [])).toBe('') // cyrillic-ok: test input
+  })
+
+  it('a back-reference excuses its own sentence only (#3677)', () => {
+    expect(unbackedKinds('Отправил афишу выше.', [])).toEqual([]) // cyrillic-ok: test input
+    expect(
+      unbackedKinds('Ранее обсуждали дату. Сделал афишу.', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+  })
 })
 
 /*

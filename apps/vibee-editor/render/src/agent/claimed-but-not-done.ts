@@ -129,12 +129,19 @@ const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'
 /*
  * Words inside quotes are someone else's: "Вы написали: «я сделал афишу»"
  * repeats the person, it claims nothing for us.
+ *
+ * A straight pair counts only on one line, opening after a line start, a
+ * space or an opening mark, and closing before a non-letter (#3677): an inch
+ * mark in 'Экран 27". Сделал афишу и отправил "файл".' used to swallow the
+ * claim up to the next quote.
  */
-const QUOTED = /«[^»]*»|"[^"]*"|„[^“]*“/g
+const QUOTED = /«[^»\n]*»|(?<=^|[\s(\[:—-])"[^"\n]*"(?![\p{L}\d])|„[^“\n]*“/gmu
 
 /*
  * "I sent you the poster above" points at an earlier turn, whose call is
  * not among this turn's events. A false note there is worse than none.
+ * It excuses the media claims of ITS OWN sentence only (#3677): one
+ * "ранее" elsewhere in the answer used to switch the check off for all.
  */
 const REFERS_BACK = /(выше|ранее|в прошлом сообщении|\babove\b|\bearlier\b)/i // cyrillic-ok: matched text
 
@@ -165,12 +172,13 @@ export function unbackedClaims(
 }
 
 function unbacked(raw: string, events: Array<Record<string, unknown>>) {
-  const text = raw.replace(QUOTED, ' ')
+  const sentences = raw.replace(QUOTED, ' ').split(/(?<=[.!?…])\s+|\n+/)
   const called = new Set(calledTools(events))
-  const back = REFERS_BACK.test(text)
-  return CLAIMS.filter(c => c.re.test(text))
-    .filter(c => !(back && kindOf(c) === 'media'))
-    .filter(c => !c.tools.some(t => called.has(t)))
+  return CLAIMS.filter(c =>
+    sentences.some(
+      s => c.re.test(s) && !(kindOf(c) === 'media' && REFERS_BACK.test(s))
+    )
+  ).filter(c => !c.tools.some(t => called.has(t)))
 }
 
 /** Which kinds of claim no call backs, browser first. Pure. */
