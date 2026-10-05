@@ -246,6 +246,32 @@ describe('a referring header in any style, and nothing past its list (#3680 roun
   })
 })
 
+describe('a header across a blank line, an emoji header, bold marks (#3680 round 5)', () => {
+  // Clean on main: a heading, a blank line, then its list.
+  for (const text of [
+    '### Что я сделал ранее\n\n- Сделал афишу\n- Отправил файл', // cyrillic-ok: test input
+    '**Выше я:**\n\n- сделал афишу', // cyrillic-ok: test input
+    'Earlier I:\n\n- I made the poster',
+    '📌 Выше я:\n- сделал афишу', // cyrillic-ok: test input
+    '✅ Выше я:\n- сделал афишу\n- отправил файл', // cyrillic-ok: test input
+    '📌 Выше я:\n\n- сделал афишу', // cyrillic-ok: test input
+  ])
+    it(`excuses its list: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual([])
+    })
+
+  for (const text of [
+    // a bold full sentence is a sentence, not a header: marks are style
+    '**Ранее я сделал афишу.**\n- Отправил файл', // cyrillic-ok: test input
+    '__Ранее я сделал афишу.__\n- Отправил файл', // cyrillic-ok: test input
+    // an emoji header covers its list only, not a plain line after it
+    '📌 Выше я:\n- сделал афишу\nСейчас отправил файл.', // cyrillic-ok: test input
+  ])
+    it(`still flags the claim: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual(['media'])
+    })
+})
+
 /*
  * The next media tool must not reopen the false note. Every registered tool
  * whose name says it makes or sends media backs the media claims, or is

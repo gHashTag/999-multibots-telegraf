@@ -213,37 +213,54 @@ function isHeader(line: string): boolean {
  * header excuses the FIRST sentence of each list item under it, and nothing
  * past the list: an unindented line without a marker starts a new item,
  * a further sentence inside an item is judged on its own.
+ *
+ * A blank line ends an item, but not a header's reach: models put a blank
+ * line after a heading, so a header alone in its paragraph still covers the
+ * list that opens the next one (#3680 round 5). An emoji-led line that is
+ * itself a referring header ("<pin emoji> Above I:") is a header, not an item.
  */
 function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
   const clean = raw
     .replace(QUOTED, ' ')
     .replace(ABBREV, m => m.replace(/\./g, ''))
   const out: Array<{ text: string; back: boolean }> = []
+  const items: Array<{ text: string; listed: boolean; opens: boolean }> = []
   for (const block of clean.split(/\n\s*\n/)) {
-    const items: Array<{ text: string; listed: boolean }> = []
+    const first = items.length
     for (const line of block.split('\n')) {
       const listed = LIST_ITEM.test(line)
-      const last = items[items.length - 1]
+      const last = items.length > first ? items[items.length - 1] : undefined
       // a plain line continues plain text, or an item it is indented under
       const continues = last && !listed && (!last.listed || /^\s/.test(line))
       if (continues) last.text += ' ' + line
-      else items.push({ text: line, listed })
+      else items.push({ text: line, listed, opens: items.length === first })
     }
-    let header = false
-    items.forEach((item, i) => {
-      if (!item.listed) header = false
-      // the marker goes first: "1. Made it" must not split after "1."
-      const body = item.listed ? item.text.replace(LIST_ITEM, '') : item.text
-      body.split(SENTENCE_END).forEach((text, k) =>
-        out.push({
-          text,
-          back: (item.listed && header && k === 0) || REFERS_BACK.test(text),
-        })
-      )
-      if (!item.listed && items[i + 1]?.listed && isHeader(item.text))
-        header = true
-    })
   }
+  // a header reaches the list right under it, or across one blank line
+  // when it is alone in its paragraph
+  const headsList = (i: number) =>
+    items[i + 1]?.listed === true &&
+    (!items[i + 1].opens || (items[i].opens && items[i + 1].opens)) &&
+    isHeader(items[i].text)
+  const EMOJI_LED = /^\s*\p{Extended_Pictographic}/u
+  // an emoji-led referring header followed by a list heads it
+  items.forEach((item, i) => {
+    if (item.listed && EMOJI_LED.test(item.text) && headsList(i))
+      item.listed = false
+  })
+  let header = false
+  items.forEach((item, i) => {
+    if (!item.listed) header = false
+    // the marker goes first: "1. Made it" must not split after "1."
+    const body = item.listed ? item.text.replace(LIST_ITEM, '') : item.text
+    body.split(SENTENCE_END).forEach((text, k) =>
+      out.push({
+        text,
+        back: (item.listed && header && k === 0) || REFERS_BACK.test(text),
+      })
+    )
+    if (!item.listed && headsList(i)) header = true
+  })
   return out
 }
 
