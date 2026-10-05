@@ -63,22 +63,22 @@ const ISO_DATE = new RegExp(`${L}\\d{4}-(\\d{2})-(\\d{2})${R}`, 'gu')
  */
 const NUM_L = '(?<![\\p{L}\\d/.,$€₽฿])'
 const NUMERIC_DATE = new RegExp(
-  `${NUM_L}(\\d{1,2})[./](\\d{2})(?:[./](?:\\d{2}|\\d{4}))?(?![\\p{L}\\d]|[./]\\d)`,
+  `${NUM_L}(\\d{1,2})[./](\\d{2})(?:[./](?:\\d{2}|\\d{4}))?(?![\\p{L}\\d]|[./]\\d|\\s?[ap]\\.?m(?![\\p{L}]))`,
   'gu'
 )
-const CURRENCY_CODE = '(?:usd|eur|thb|rub|руб|бат|baht)'
+const CURRENCY_CODE = '(?:usd|eur|gbp|thb|rub|руб|бат|baht)'
 const TIME = new RegExp(
   `${NUM_L}([01]?\\d|2[0-3])[:.]([0-5]\\d)(?![\\p{L}\\d]|[./]\\d|\\s?[$€₽฿]|\\s?${CURRENCY_CODE}|\\s?[ap]\\.?m(?![\\p{L}]))`,
   'giu'
 )
-/* "7pm", "7:30 pm", "11 a.m." */
+/* "7pm", "7:30 pm", "7.30pm", "11 a.m." */
 const AMPM = new RegExp(
-  `${NUM_L}(1[0-2]|0?[1-9])(?::([0-5]\\d))?\\s?([ap])\\.?m\\.?(?![\\p{L}])`,
+  `${NUM_L}(1[0-2]|0?[1-9])(?:[:.]([0-5]\\d))?\\s?([ap])\\.?m\\.?(?![\\p{L}])`,
   'giu'
 )
 /* "19 часов", "в 7 ч" */
 const HOURS = new RegExp(
-  `${L}([01]?\\d|2[0-3])\\s?(?:час(?:а|ов)?|ч\\.?)(?![\\p{L}])`,
+  `${NUM_L}([01]?\\d|2[0-3])\\s?(?:час(?:а|ов)?|ч\\.?)(?![\\p{L}])`,
   'giu'
 )
 /*
@@ -88,7 +88,7 @@ const HOURS = new RegExp(
 const NUM =
   '(\\d{1,3}(?:[\\s,.]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)'
 const PRICE = new RegExp(
-  `(?:(?:[$€₽฿]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM})|(?:${L}${NUM}\\s?(?:[$€₽฿]|руб\\S*|р\\.|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро|тыс\\S*)${R})`,
+  `(?:(?:[$€₽฿£]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM})|(?:${L}${NUM}\\s?(?:[$€₽฿£]|руб\\S*|р\\.|р(?![\\p{L}])|rouble\\S*|ruble\\S*|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро|тыс\\S*)${R})`,
   'giu'
 )
 
@@ -103,6 +103,9 @@ function amount(raw: string): string {
     .replace(/[.,]\d{1,2}$/, '')
     .replace(/\D/g, '')
 }
+
+/* "2 тыс. руб" is 2000, so the person's "$2" does not confirm it. */
+const THOUSANDS = new RegExp('\\d\\s?(?:тыс|k)(?![a-z])', 'iu')
 
 /** Aspect ratios look like times and are never printed facts. */
 const RATIOS = new Set(['9:16', '16:9', '9.16'])
@@ -181,7 +184,8 @@ export function factsIn(text: string): Fact[] {
       add({ kind: 'date', text: m[0], keys: [`d${day}.${mon}`] })
   }
   for (const m of text.matchAll(PRICE)) {
-    const digits = amount(m[1] ?? m[2] ?? '')
+    let digits = amount(m[1] ?? m[2] ?? '')
+    if (digits && THOUSANDS.test(m[0])) digits += '000'
     if (digits) add({ kind: 'price', text: m[0].trim(), keys: [`p${digits}`] })
   }
   return out
@@ -191,6 +195,11 @@ export function factsIn(text: string): Fact[] {
  * A yes is a reply that OPENS with a yes word and carries no "but": "да,
  * верно", "Yes, correct", "ок, давай 👍" count; "да, но в 12:00" does not
  * (its own 12:00 is the person's word anyway).
+ *
+ * A yes that changes something is not a yes to the agent's answer (PR #3679
+ * round 3): "да, 9 октября" carries its own fact, "давай без цены" a change
+ * word, "да?" a question. Each confirms only the person's own words, so the
+ * agent's 8 October, 11:30 and 500 THB are asked about again.
  */
 const YES = new RegExp(
   '^\\s*(?:да|ага|угу|верно|всё верно|все верно|правильно|подтверждаю|ок|окей|' +
@@ -202,8 +211,18 @@ const BUT = new RegExp(
   '(?<![\\p{L}])(?:нет|не|но|однако|только|исправ\\p{L}*|no|not|but|except|change)(?![\\p{L}])',
   'iu'
 )
+const CHANGE = new RegExp(
+  '(?<![\\p{L}])(?:без|убер\\p{L}*|убра\\p{L}*|помен\\p{L}*|перен\\p{L}*|измен\\p{L}*|' +
+    'замен\\p{L}*|ли|instead|without|remove|drop|move|swap)(?![\\p{L}])',
+  'iu'
+)
 const isYes = (text: string) =>
-  text.length <= 80 && YES.test(text) && !BUT.test(text)
+  text.length <= 80 &&
+  YES.test(text) &&
+  !BUT.test(text) &&
+  !CHANGE.test(text) &&
+  !/\?\s*$/.test(text) &&
+  factsIn(text).length === 0
 
 export interface Turn {
   role?: string

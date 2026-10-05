@@ -203,3 +203,70 @@ describe('the chat route hands the conversation to the tools', () => {
     expect(src).toMatch(/^\s*heard: heardFrom\(history\),$/m)
   })
 })
+
+describe('a yes that changes something is not a yes (PR #3679 round 3)', () => {
+  const P = 'poster, 8 октября 11:30, Ko Phangan, entry 500 THB'
+  const ask = 'Печатаю 8 октября, 11:30, 500 THB — верно?'
+  const heard = (reply: string) =>
+    heardFrom([
+      { role: 'user', content: 'сделай афишу' },
+      { role: 'assistant', content: ask },
+      { role: 'user', content: reply },
+    ])
+  for (const reply of [
+    'да, 9 октября',
+    'да, в 12:00',
+    'да, вход 300 бат',
+    'yes - Oct 9',
+    'sure, Oct 9 instead',
+    'давай поменяем на 9 октября',
+    'да, перенеси на 9',
+    'отлично, а можно 9 октября?',
+    'давай без цены',
+    'да, убери цену',
+    'да, без времени',
+    'давай без даты',
+    'верно? ты уверен?',
+    'да?',
+    'правильно ли это',
+  ])
+    it(`"${reply}" leaves the agent's values unconfirmed`, () => {
+      expect(unconfirmedFacts(P, heard(reply)).length).toBeGreaterThan(0)
+    })
+
+  it('"давай без цены" with the price still in the prompt asks about it', () => {
+    expect(
+      unconfirmedFacts(P, heard('давай без цены')).map(f => f.kind)
+    ).toContain('price')
+  })
+
+  it('a plain yes still confirms all three', () => {
+    expect(unconfirmedFacts(P, heard('да, верно'))).toEqual([])
+  })
+})
+
+describe('more poster forms (PR #3679 round 3)', () => {
+  it('reads "7.30pm" and "7.10 pm" as times, not dates', () => {
+    expect(keys('doors 7.30pm')).toEqual(['t19:30'])
+    expect(keys('7.30 pm')).toEqual(['t19:30'])
+    expect(keys('7.10 pm')).toEqual(['t19:10'])
+  })
+
+  it('reads £, GBP, "300р" and rubles', () => {
+    expect(keys('£10')).toEqual(['p10'])
+    expect(keys('10 GBP')).toEqual(['p10'])
+    expect(keys('вход 300р')).toEqual(['p300'])
+    expect(keys('вход 500 р')).toEqual(['p500'])
+    expect(keys('300 rubles')).toEqual(['p300'])
+  })
+
+  it('"2 тыс. руб" is 2000, and "$2" does not confirm it', () => {
+    expect(keys('2 тыс. руб')).toEqual(['p2000'])
+    expect(unconfirmedFacts('2 тыс. руб', '$2').length).toBe(1)
+    expect(unconfirmedFacts('2 тыс. руб', '2000 рублей')).toEqual([])
+  })
+
+  it('"3.5 ч видео" is a duration, not five o’clock', () => {
+    expect(keys('3.5 ч видео')).toEqual([])
+  })
+})
