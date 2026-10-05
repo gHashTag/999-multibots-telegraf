@@ -70,6 +70,36 @@ No new PR may add or modify hand-written non-t27 code. Hive improvements go into
 The open queue (epic #3641, issues #3646-#3654) is parked on that decision. Ledger of the
 improvement loop: `~/.local/state/agent-hive/ledger.md`.
 
+### Laws already in the spec, waiting for the host
+
+The 999 copy in `src/spec/` is still v1. In gHashTag/t27 the spec is v3, and each version
+only adds laws:
+
+| Issue                     | Spec law (t27)                                          | Version       |
+| ------------------------- | ------------------------------------------------------- | ------------- |
+| #3646 typing refresh      | `typing_due`, `TYPING_REFRESH_MS` 4 s                   | v2 (t27#6558) |
+| #3649 one speaker on @all | `speaks_on_all`, `ALL_FIRST_SPEAKERS` 1                 | v2            |
+| #3651 follow-ups          | `follows_up`, `FOLLOW_UP_WINDOW_MS` 2 min               | v2            |
+| #3648 /stop, /mute        | `may_answer_after_stop` 10 min, `heard_while_muted` 1 h | v2            |
+| #3647 reactions           | `turn_ok`, `keeps_seen_mark`                            | v3 (t27#6564) |
+| #3650 /brief              | `brief_source`, `brief_fits` 1000, `may_set_brief`      | v3            |
+| #3652 deleted topic       | `recreate_topic`, 10 min cooldown                       | v3            |
+| #3653 /summary            | `summary_count` 50 by default, log 200                  | v3            |
+
+When the label arrives, vendor the v3 `.t27` into `src/spec/`, regenerate `.gen.ts` with
+`t27c gen-ts`, and mirror every new `test` block in `agent-hive-group.test.ts`. Expect
+`check-t27-specs` to demand that. gen-ts emits constants only, not fn bodies (t27#6559), so
+each law is written once in TS and pinned by the spec vectors.
+
+### Spec work in a t27 worktree
+
+- Build both binaries: `cargo build --release -p tri -p t27c`.
+- Commit with `git -c core.hooksPath=.githooks`. That path is the only one that runs a gate;
+  see memory `t27-worktree-commit-runs-no-gate`.
+- `t27c test-report <spec>` gives the truth; `t27c check` only typechecks.
+- Run one sed mutant per law, addressed by line number. The reviewer bee found two survivors
+  in t27#6564 that the author had missed, and its review is worth waiting for.
+
 ## Related Resources
 
 - Epic #3641; PRs #3636 (hive), #3645 (double tap, token, coverage); t27 #6430 (spec).
